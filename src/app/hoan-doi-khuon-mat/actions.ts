@@ -134,13 +134,16 @@ export async function faceSwap(formData: FormData) {
   }
 
   const timestamp = Date.now()
-  const path = `uploads/${user.id}/faceswap_${timestamp}.png`
-  await supabase.storage.from('try-on-images').upload(path, faceImage)
-  const { data: origUrl } = supabase.storage.from('try-on-images').getPublicUrl(path)
+  const sourcePath = `uploads/${user.id}/faceswap_source_${timestamp}.png`
+  const targetPath = `uploads/${user.id}/faceswap_target_${timestamp}.png`
+  await supabase.storage.from('try-on-images').upload(sourcePath, faceImage)
+  await supabase.storage.from('try-on-images').upload(targetPath, targetImage)
+  const { data: sourceUrl } = supabase.storage.from('try-on-images').getPublicUrl(sourcePath)
+  const { data: targetUrl } = supabase.storage.from('try-on-images').getPublicUrl(targetPath)
   const { data: historyItem, error: historyError } = await supabase.from('try_on_history').insert({
     user_id: user.id,
-    original_image_url: origUrl.publicUrl,
-    garment_image_url: origUrl.publicUrl,
+    original_image_url: sourceUrl.publicUrl,
+    garment_image_url: targetUrl.publicUrl,
     status: 'processing',
   }).select().single()
   if (historyError || !historyItem) return { error: 'Không thể khởi tạo phiên xử lý.' }
