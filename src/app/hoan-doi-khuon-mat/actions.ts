@@ -8,6 +8,7 @@ import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/ge
 import { normalizeToEnglish } from '@/lib/ai-normalize'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { detectFaceInTargetImage, extractFaceFromSourceImage } from '@/lib/face-swap-vision'
+import sharp from 'sharp'
 
 const FACESWAP_COSTS = { '2K': 2, '4K': 4 } as const
 const toTenths = (value: number) => Math.round(value * 10)
@@ -24,6 +25,33 @@ const PROMPT_REMOVE_FACE = (hint: string) =>
 
 /** Prompt ghép mặt – ảnh 1 đã cắt chỉ còn mặt, ảnh 2 đã xóa mặt */
 const PROMPT_PASTE_FACE = `Face Swap: Image 1 = cropped face only (no background). Image 2 = body with face region removed (blank slot). Paste the face from image 1 into the blank slot in image 2. Match lighting, angle, skin tone. Preserve facial features from image 1 with minimal change. Output one natural result image. ${NO_TEXT}`
+
+/** Suy ra tỷ lệ khung hình gần nhất từ ảnh gốc để giữ framing output */
+async function getAspectRatioFromImage(buffer: Buffer): Promise<string> {
+  const { width, height } = await sharp(buffer).metadata()
+  if (!width || !height) return '1:1'
+  const ratio = width / height
+  const targets: [string, number][] = [
+    ['1:1', 1],
+    ['2:3', 2 / 3],
+    ['3:2', 3 / 2],
+    ['3:4', 3 / 4],
+    ['4:3', 4 / 3],
+    ['9:16', 9 / 16],
+    ['16:9', 16 / 9],
+    ['21:9', 21 / 9],
+  ]
+  let best = '1:1'
+  let bestDiff = Infinity
+  for (const [label, target] of targets) {
+    const diff = Math.abs(ratio - target)
+    if (diff < bestDiff) {
+      bestDiff = diff
+      best = label
+    }
+  }
+  return best
+}
 
 /** Log chi tiết response Gemini để debug */
 function logGeminiResponse(
@@ -61,6 +89,7 @@ export async function faceSwap(formData: FormData) {
 
   const faceBuffer = Buffer.from(await faceImage.arrayBuffer())
   const targetBuffer = Buffer.from(await targetImage.arrayBuffer())
+  const aspectRatio = await getAspectRatioFromImage(targetBuffer)
 
   const COST = FACESWAP_COSTS[imageQuality]
   const supabase = createClient()
@@ -94,7 +123,7 @@ export async function faceSwap(formData: FormData) {
     model: 'gemini-3-pro-image-preview',
     generationConfig: {
       responseModalities: ['TEXT', 'IMAGE'],
-      imageConfig: { imageSize: imageQuality },
+      imageConfig: { imageSize: imageQuality, aspectRatio },
     },
   })
   const safetySettings = [
