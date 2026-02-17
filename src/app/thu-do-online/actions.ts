@@ -370,81 +370,69 @@ export async function generateAiImage(formData: FormData) {
     }))))
   ];
 
-  const MAX_RETRIES = 3;
-  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-    try {
-      console.log(`Attempting to generate image, attempt #${attempt} with model: ${modelName} (${imageQuality}), Cost: ${cost} credits`);
-      const result = await model.generateContent([prompt, ...imageParts], { safetySettings });
-      const response = result.response;
-      trackFromUsageMetadata(response.usageMetadata, modelName, 'thu-do-online', user.id, imageQuality === '4K' ? '4K' : '2K');
-      console.log("AI Response:", JSON.stringify(response, null, 2));
-      
-      const imagePart = response.candidates?.[0].content.parts.find(part => 'inlineData' in part);
-
-      if (!imagePart || !('inlineData' in imagePart)) {
-        throw new Error(`AI did not return a valid image. Full response: ${JSON.stringify(response)}`);
-      }
-
-      const resultImageBase64 = imagePart.inlineData.data;
-      const resultImageBuffer = Buffer.from(resultImageBase64, 'base64');
-      const resultImagePath = `results/${user.id}/try-on_${timestamp}.png`;
-
-      await supabase.storage.from('try-on-images').upload(resultImagePath, resultImageBuffer, { contentType: 'image/png', upsert: true });
-      const { data: resultImageUrlData } = supabase.storage.from('try-on-images').getPublicUrl(resultImagePath);
-      const resultImageUrl = resultImageUrlData.publicUrl;
-
-      const { data: latestCreditData, error: latestCreditError } = await adminSupabase
-        .from('credits')
-        .select('balance')
-        .eq('user_id', user.id)
-        .single()
-
-      if (latestCreditError || !latestCreditData) {
-        throw new Error('Không thể đọc số dư credit hiện tại để trừ credit.')
-      }
-
-      if (toTenths(latestCreditData.balance) < toTenths(cost)) {
-        throw new Error(`Không đủ credits để hoàn tất giao dịch. Cần ${formatCredits(cost)}, hiện có ${formatCredits(latestCreditData.balance)}.`)
-      }
-
-      const newBalance = fromTenths(toTenths(latestCreditData.balance) - toTenths(cost))
-      const { error: deductCreditError } = await adminSupabase
-        .from('credits')
-        .update({ balance: newBalance })
-        .eq('user_id', user.id)
-
-      if (deductCreditError) {
-        throw new Error('Đã tạo ảnh nhưng không thể trừ credit. Vui lòng thử lại.')
-      }
-
-      const { error: updateHistoryError } = await adminSupabase
-        .from('try_on_history')
-        .update({ result_image_url: resultImageUrl, status: 'completed' })
-        .eq('id', historyItem.id)
-
-      if (updateHistoryError) {
-        throw new Error('Đã tạo ảnh và trừ credit, nhưng không thể cập nhật lịch sử thử đồ.')
-      }
-
-      revalidatePath('/thu-do-online');
-      revalidatePath('/dashboard/history');
-      return { success: true, resultUrl: resultImageUrl };
-
-    } catch (aiError: unknown) {
-      console.error(`Attempt #${attempt} failed:`, aiError);
-      if (attempt < MAX_RETRIES) {
-        await new Promise(res => setTimeout(res, 2000)); // Wait 2 seconds before retrying
-      } else {
-        console.error("All AI generation attempts failed.");
-        await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id);
-        revalidatePath('/dashboard');
-        const aiErrorMessage = aiError instanceof Error ? aiError.message : 'Unknown error'
-        if (/500|Internal Server Error|Internal error/i.test(aiErrorMessage)) {
-          return { error: 'Hệ thống quá tải. Bạn có thể chọn 2K hoặc thử lại sau ít phút.' }
-        }
-        return { error: `Failed to generate AI image after ${MAX_RETRIES} attempts: ${aiErrorMessage}` };
-      }
+  try {
+    console.log(`Attempting to generate image with model: ${modelName} (${imageQuality}), Cost: ${cost} credits`);
+    const result = await model.generateContent([prompt, ...imageParts], { safetySettings });
+    const response = result.response;
+    trackFromUsageMetadata(response.usageMetadata, modelName, 'thu-do-online', user.id, imageQuality === '4K' ? '4K' : '2K');
+    console.log("AI Response:", JSON.stringify(response, null, 2));
+    
+    const imagePart = response.candidates?.[0].content.parts.find(part => 'inlineData' in part);
+    if (!imagePart || !('inlineData' in imagePart)) {
+      throw new Error(`AI did not return a valid image. Full response: ${JSON.stringify(response)}`);
     }
+
+    const resultImageBase64 = imagePart.inlineData.data;
+    const resultImageBuffer = Buffer.from(resultImageBase64, 'base64');
+    const resultImagePath = `results/${user.id}/try-on_${timestamp}.png`;
+
+    await supabase.storage.from('try-on-images').upload(resultImagePath, resultImageBuffer, { contentType: 'image/png', upsert: true });
+    const { data: resultImageUrlData } = supabase.storage.from('try-on-images').getPublicUrl(resultImagePath);
+    const resultImageUrl = resultImageUrlData.publicUrl;
+
+    const { data: latestCreditData, error: latestCreditError } = await adminSupabase
+      .from('credits')
+      .select('balance')
+      .eq('user_id', user.id)
+      .single()
+
+    if (latestCreditError || !latestCreditData) {
+      throw new Error('Không thể đọc số dư credit hiện tại để trừ credit.')
+    }
+    if (toTenths(latestCreditData.balance) < toTenths(cost)) {
+      throw new Error(`Không đủ credits để hoàn tất giao dịch. Cần ${formatCredits(cost)}, hiện có ${formatCredits(latestCreditData.balance)}.`)
+    }
+
+    const newBalance = fromTenths(toTenths(latestCreditData.balance) - toTenths(cost))
+    const { error: deductCreditError } = await adminSupabase
+      .from('credits')
+      .update({ balance: newBalance })
+      .eq('user_id', user.id)
+
+    if (deductCreditError) {
+      throw new Error('Đã tạo ảnh nhưng không thể trừ credit. Vui lòng thử lại.')
+    }
+
+    const { error: updateHistoryError } = await adminSupabase
+      .from('try_on_history')
+      .update({ result_image_url: resultImageUrl, status: 'completed' })
+      .eq('id', historyItem.id)
+
+    if (updateHistoryError) {
+      throw new Error('Đã tạo ảnh và trừ credit, nhưng không thể cập nhật lịch sử thử đồ.')
+    }
+
+    revalidatePath('/thu-do-online');
+    revalidatePath('/dashboard/history');
+    return { success: true, resultUrl: resultImageUrl };
+  } catch (aiError: unknown) {
+    console.error('Generate try-on failed:', aiError);
+    await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id);
+    revalidatePath('/dashboard');
+    const aiErrorMessage = aiError instanceof Error ? aiError.message : 'Unknown error'
+    if (/500|Internal Server Error|Internal error/i.test(aiErrorMessage)) {
+      return { error: 'Hệ thống quá tải. Bạn có thể chọn 2K hoặc thử lại sau ít phút.' }
+    }
+    return { error: `Failed to generate AI image: ${aiErrorMessage}` };
   }
-  return { error: 'An unexpected error occurred after retry attempts.' };
 }
