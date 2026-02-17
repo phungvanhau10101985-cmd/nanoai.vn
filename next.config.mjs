@@ -1,0 +1,80 @@
+import withPWAInit from '@ducanh2912/next-pwa';
+
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+    eslint: { ignoreDuringBuilds: true },
+    allowedDevOrigins: ['*.ngrok-free.dev', '*.ngrok.io'],
+    experimental: {
+        serverComponentsExternalPackages: ['xlsx', 'pdf-to-img', 'pdfjs-dist', 'node-poppler'],
+    },
+    typescript: { ignoreBuildErrors: true },
+    images: {
+        remotePatterns: [
+            {
+                protocol: 'https',
+                hostname: 'mxwfxudyeoqstgwmlupa.supabase.co',
+                port: '',
+                pathname: '/storage/v1/object/public/**',
+            },
+            {
+                protocol: 'https',
+                hostname: 'mxwfxudyeoqstgwmlupa.supabase.co',
+                port: '',
+                pathname: '/storage/v1/object/sign/**',
+            },
+        ],
+    },
+    // Tắt webpack cache có thể gây lỗi clientModules trên Windows
+    webpack: (config, { dev }) => {
+        if (dev) {
+            config.cache = false;
+        }
+        return config;
+    },
+    async headers() {
+        return [
+            {
+                source: '/(.*)',
+                headers: [
+                    { key: 'X-Content-Type-Options', value: 'nosniff' },
+                    { key: 'X-Frame-Options', value: 'DENY' },
+                    { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+                ],
+            },
+            {
+                source: '/sw.js',
+                headers: [
+                    { key: 'Content-Type', value: 'application/javascript; charset=utf-8' },
+                    { key: 'Cache-Control', value: 'no-cache, no-store, must-revalidate' },
+                ],
+            },
+        ];
+    },
+};
+
+const withPWA = withPWAInit({
+    dest: 'public',
+    disable: process.env.NODE_ENV === 'development',
+    register: true,
+    skipWaiting: true,
+    runtimeCaching: [
+        {
+            urlPattern: /^https:\/\/fonts\.(?:gstatic|googleapis)\.com\/.*/i,
+            handler: 'CacheFirst',
+            options: {
+                cacheName: 'google-fonts-webfonts',
+                expiration: { maxEntries: 4, maxAgeSeconds: 365 * 24 * 60 * 60 },
+            },
+        },
+        {
+            urlPattern: /^https?:\/\/.*\.(?:png|jpg|jpeg|svg|gif|webp|ico)$/i,
+            handler: 'StaleWhileRevalidate',
+            options: {
+                cacheName: 'images',
+                expiration: { maxEntries: 64, maxAgeSeconds: 30 * 24 * 60 * 60 },
+            },
+        },
+    ],
+});
+
+export default withPWA(nextConfig);

@@ -1,0 +1,3 @@
+# Python deps cho tách nền (Tạo nhãn dán)
+# Cài: pip install -r scripts/requirements-rembg.txt
+rembg[cpu,cli]>=2.0.0

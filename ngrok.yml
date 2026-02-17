@@ -1,0 +1,10 @@
+# Cấu hình ngrok cho webhook SePay
+# Chạy: ngrok http 3000 --config ngrok.yml
+version: "2"
+tunnels:
+  default:
+    addr: 3000
+    proto: http
+    # Thêm header để bypass trang cảnh báo ngrok (một số request từ server)
+    request_header:
+      add: ["ngrok-skip-browser-warning: true"]
