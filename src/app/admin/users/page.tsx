@@ -15,7 +15,6 @@ export default async function AdminUsersPage() {
     .select(`
       id,
       full_name,
-      email:users(email),
       avatar_url,
       role,
       credits(balance)
@@ -29,8 +28,7 @@ export default async function AdminUsersPage() {
   // The query returns credits as an array, so we need to flatten it
   const users = usersData?.map(u => ({
     ...u,
-    // @ts-ignore
-    email: u.email.email,
+    email: 'N/A',
     // @ts-ignore
     balance: u.credits[0]?.balance ?? 0
   })) || []
