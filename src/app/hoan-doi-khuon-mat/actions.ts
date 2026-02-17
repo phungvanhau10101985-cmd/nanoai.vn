@@ -7,7 +7,6 @@ import { revalidatePath } from 'next/cache'
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
 import { normalizeToEnglish } from '@/lib/ai-normalize'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
-import { detectFaceInTargetImage, extractFaceFromSourceImage } from '@/lib/face-swap-vision'
 import sharp from 'sharp'
 
 const FACESWAP_COSTS = { '2K': 2, '4K': 4 } as const
@@ -41,43 +40,6 @@ async function getAspectRatioFromImage(buffer: Buffer): Promise<string> {
     }
   }
   return best
-}
-
-/** Xóa khuôn mặt local theo bbox Vision để tạo "blank slot" trước khi ghép */
-async function removeFaceRegionLocal(
-  targetBuffer: Buffer,
-  faceBbox: Awaited<ReturnType<typeof detectFaceInTargetImage>>
-): Promise<Buffer> {
-  if (!faceBbox) return targetBuffer
-  const { width: imgW = 0, height: imgH = 0 } = await sharp(targetBuffer).metadata()
-  if (!imgW || !imgH) return targetBuffer
-
-  // Nới vùng mặt một chút để che hết chi tiết mắt/mũi/miệng
-  const padX = Math.round(faceBbox.w * 0.18)
-  const padY = Math.round(faceBbox.h * 0.22)
-  const left = Math.max(0, faceBbox.x - padX)
-  const top = Math.max(0, faceBbox.y - padY)
-  const right = Math.min(imgW, faceBbox.x + faceBbox.w + padX)
-  const bottom = Math.min(imgH, faceBbox.y + faceBbox.h + padY)
-  const w = Math.max(1, right - left)
-  const h = Math.max(1, bottom - top)
-
-  // Lấy màu trung bình vùng mặt để phủ local (giảm artefact trước khi gửi Gemini)
-  const stats = await sharp(targetBuffer).extract({ left, top, width: w, height: h }).stats()
-  const r = Math.round(stats.channels[0]?.mean ?? 198)
-  const g = Math.round(stats.channels[1]?.mean ?? 170)
-  const b = Math.round(stats.channels[2]?.mean ?? 160)
-
-  const maskSvg = Buffer.from(
-    `<svg width="${imgW}" height="${imgH}" xmlns="http://www.w3.org/2000/svg">
-      <ellipse cx="${left + w / 2}" cy="${top + h / 2}" rx="${w / 2}" ry="${h / 2}" fill="rgb(${r},${g},${b})" fill-opacity="0.97" />
-    </svg>`
-  )
-
-  return sharp(targetBuffer)
-    .composite([{ input: maskSvg, blend: 'over' }])
-    .png()
-    .toBuffer()
 }
 
 /** Log chi tiết response Gemini để debug */
@@ -164,46 +126,23 @@ export async function faceSwap(formData: FormData) {
   ]
 
   try {
-    let facePartToUse: { inlineData: { data: string; mimeType: string } } = {
+    // Raw mode: gửi trực tiếp 2 ảnh gốc cho Gemini (không detect/crop/remove local).
+    const facePartRaw = {
       inlineData: { data: faceBuffer.toString('base64'), mimeType: faceImage.type || 'image/png' },
     }
-    let targetPreparedBuffer = targetBuffer
-
-    let faceBbox: Awaited<ReturnType<typeof detectFaceInTargetImage>> = null
-    try {
-      faceBbox = await detectFaceInTargetImage(targetBuffer)
-    } catch (visionErr) {
-      console.warn('[FaceSwap] Vision lỗi, dùng single call:', visionErr)
+    const targetPartRaw = {
+      inlineData: { data: targetBuffer.toString('base64'), mimeType: targetImage.type || 'image/png' },
     }
 
-    try {
-      const extractedFace = await extractFaceFromSourceImage(faceBuffer)
-      if (extractedFace) {
-        facePartToUse = { inlineData: { data: extractedFace.toString('base64'), mimeType: 'image/png' } }
-        console.log('[FaceSwap] Dùng ảnh mặt đã cắt từ nguồn')
-      }
-    } catch (extractErr) {
-      console.warn('[FaceSwap] Không cắt được mặt nguồn, dùng ảnh gốc:', extractErr)
-    }
-
-    if (faceBbox) {
-      targetPreparedBuffer = await removeFaceRegionLocal(targetBuffer, faceBbox)
-      console.log('[FaceSwap] Đã xóa mặt local theo bbox Vision')
-    }
-
-    // Chỉ gọi Gemini 1 lần: ảnh mặt nguồn + ảnh đích đã xử lý local
-    const targetPreparedPart = {
-      inlineData: { data: targetPreparedBuffer.toString('base64'), mimeType: targetImage.type || 'image/png' },
-    }
     const singlePrompt = prompt.includes('REQUEST:')
       ? prompt
       : prompt.replace(
           'Preserve expression and pose of target image.',
           'Preserve the face from image 1 with minimal changes. Only adjust lighting/angle to match. Preserve expression and pose of target body.'
         )
-    const genResult = await model.generateContent([singlePrompt, facePartToUse, targetPreparedPart], { safetySettings })
+    const genResult = await model.generateContent([singlePrompt, facePartRaw, targetPartRaw], { safetySettings })
     const response = genResult.response
-    logGeminiResponse('single_call_local_remove', genResult)
+    logGeminiResponse('single_call_raw', genResult)
     trackFromUsageMetadata(response.usageMetadata, 'gemini-3-pro-image-preview', 'hoan-doi-khuon-mat', user.id, imageQuality)
     const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
     if (!imagePartRes || !('inlineData' in imagePartRes)) {
