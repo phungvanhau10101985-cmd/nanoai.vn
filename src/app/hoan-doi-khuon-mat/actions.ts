@@ -17,7 +17,7 @@ const formatCredits = (value: number) => value.toLocaleString('vi-VN', { maximum
 
 const NO_TEXT = `Chỉ trả về ảnh sạch. KHÔNG chữ, KHÔNG watermark, KHÔNG logo, KHÔNG thương hiệu, KHÔNG lớp phủ bất kỳ.`
 
-const PROMPT_BASE = `Hoán đổi khuôn mặt: lấy khuôn mặt từ ảnh 1 ghép vào cơ thể trong ảnh 2. Kết quả phải tự nhiên, khớp ánh sáng và góc mặt. Đồng nhất tông da và nhiệt màu giữa mặt ghép với vùng cổ/cơ thể ảnh đích. Chuyển tiếp vùng quai hàm - cổ phải mượt, không viền cứng, không lệch màu. Giữ nguyên biểu cảm và tư thế của ảnh đích. ${NO_TEXT}`
+const PROMPT_BASE = `Hoán đổi khuôn mặt: lấy khuôn mặt từ ảnh 1 ghép vào cơ thể trong ảnh 2. Kết quả phải tự nhiên, khớp ánh sáng và góc mặt. Đồng nhất tông da và nhiệt màu giữa mặt ghép với vùng cổ/cơ thể ảnh đích. Chuyển tiếp vùng quai hàm - cổ phải mượt, không viền cứng, không lệch màu. BẮT BUỘC tự tính lại kích thước khuôn mặt để cân đối với tỷ lệ đầu, cổ, vai và thân hình của ảnh đích (không để mặt quá to hoặc quá nhỏ). Giữ nguyên biểu cảm và tư thế của ảnh đích. ${NO_TEXT}`
 
 /** Suy ra tỷ lệ khung hình gần nhất trong tập ratio Gemini hỗ trợ */
 async function getAspectRatioFromImage(buffer: Buffer): Promise<string> {
@@ -191,6 +191,7 @@ YÊU CẦU BẮT BUỘC:
 - Ảnh 1 là khuôn mặt nguồn đã được cắt bằng Vision OCR.
 - Ảnh 2 là ảnh đích đã xóa mặt local tại vùng: ${targetFace.positionHint}.
 - Hãy ghép khuôn mặt từ Ảnh 1 vào đúng vị trí mặt đã xóa trên Ảnh 2.
+- TỰ ĐỘNG tính lại tỉ lệ khuôn mặt để cân đối với đầu/cổ/vai/thân ảnh đích; ưu tiên tỷ lệ thật như ảnh chân dung tự nhiên.
 - Giữ nguyên toàn bộ bố cục, cơ thể, trang phục, nền của Ảnh 2; chỉ thay vùng khuôn mặt.
 - Không tạo thêm người, không đổi góc máy, không đổi khung hình.
 ${NO_TEXT}`

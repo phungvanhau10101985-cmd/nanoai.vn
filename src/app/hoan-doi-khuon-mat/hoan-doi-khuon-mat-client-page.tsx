@@ -35,6 +35,7 @@ export default function HoanDoiKhuonMatClientPage() {
   const faceInputRef = useRef<HTMLInputElement>(null)
   const cost = imageQuality === '2K' ? 2 : 4
   const targetInputRef = useRef<HTMLInputElement>(null)
+  const isSubmittingRef = useRef(false)
 
   const handleFaceChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -47,6 +48,7 @@ export default function HoanDoiKhuonMatClientPage() {
   }
 
   const handleSubmit = async () => {
+    if (isSubmittingRef.current) return
     if (!faceImage.file) {
       toast({ title: 'Lỗi', description: 'Vui lòng tải ảnh khuôn mặt nguồn (ảnh bạn).', variant: 'destructive' })
       return
@@ -55,20 +57,25 @@ export default function HoanDoiKhuonMatClientPage() {
       toast({ title: 'Lỗi', description: 'Vui lòng tải ảnh đích (nhân vật muốn ghép mặt vào).', variant: 'destructive' })
       return
     }
+    isSubmittingRef.current = true
     setStep('GENERATING')
-    const formData = new FormData()
-    formData.append('faceImage', faceImage.file)
-    formData.append('targetImage', targetImage.file)
-    formData.append('imageQuality', imageQuality)
-    formData.append('note', note)
-    const result = await faceSwap(formData)
-    if (result.error) {
-      setStep('UPLOAD')
-      toast({ title: 'Hoán đổi thất bại', description: result.error, variant: 'destructive', duration: 5000 })
-    } else if (result.success && result.resultUrl) {
-      setResultUrl(result.resultUrl)
-      setStep('RESULT')
-      toast({ title: 'Thành công!', description: 'Đã hoán đổi khuôn mặt.', duration: 3000 })
+    try {
+      const formData = new FormData()
+      formData.append('faceImage', faceImage.file)
+      formData.append('targetImage', targetImage.file)
+      formData.append('imageQuality', imageQuality)
+      formData.append('note', note)
+      const result = await faceSwap(formData)
+      if (result.error) {
+        setStep('UPLOAD')
+        toast({ title: 'Hoán đổi thất bại', description: result.error, variant: 'destructive', duration: 5000 })
+      } else if (result.success && result.resultUrl) {
+        setResultUrl(result.resultUrl)
+        setStep('RESULT')
+        toast({ title: 'Thành công!', description: 'Đã hoán đổi khuôn mặt.', duration: 3000 })
+      }
+    } finally {
+      isSubmittingRef.current = false
     }
   }
 
@@ -153,7 +160,7 @@ export default function HoanDoiKhuonMatClientPage() {
                   </div>
                   <div className="pt-4 border-t space-y-2 flex flex-col items-center">
                     <DepositCreditButton variant="outline" size="sm" className="w-full max-w-[180px] border-fuchsia-200 text-fuchsia-700 hover:bg-fuchsia-50" />
-                    <Button onClick={() => checkCreditsAndProceed(cost, handleSubmit)} disabled={!faceImage.file || !targetImage.file} className="w-full max-w-[180px] h-9 shadow-md hover:shadow-lg transition-all text-sm bg-fuchsia-600 hover:bg-fuchsia-700 text-white">
+                    <Button onClick={() => checkCreditsAndProceed(cost, handleSubmit)} disabled={!faceImage.file || !targetImage.file || step === 'GENERATING'} className="w-full max-w-[180px] h-9 shadow-md hover:shadow-lg transition-all text-sm bg-fuchsia-600 hover:bg-fuchsia-700 text-white">
                       <Sparkles className="mr-2 h-4 w-4" /> Hoán đổi ({imageQuality === '2K' ? '2' : '4'} credit)
                     </Button>
                     <p className="text-[10px] text-center text-muted-foreground mt-2">* Thời gian: 15–45 giây</p>
