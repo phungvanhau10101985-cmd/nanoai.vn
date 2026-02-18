@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
 import { Maximize2, X, Download } from 'lucide-react'
 import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog'
@@ -27,6 +27,49 @@ function isRestrictedInAppBrowser(): boolean {
 export function ImagePreview({ src, alt, className }: ImagePreviewProps) {
   const [isOpen, setIsOpen] = useState(false)
   const imageRef = useRef<HTMLImageElement>(null)
+  const hasPushedHistoryRef = useRef(false)
+  const closingFromPopStateRef = useRef(false)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const onPopState = () => {
+      if (!isOpen) return
+      closingFromPopStateRef.current = true
+      hasPushedHistoryRef.current = false
+      setIsOpen(false)
+    }
+
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  }, [isOpen])
+
+  const handleOpenChange = (open: boolean) => {
+    if (typeof window === 'undefined') {
+      setIsOpen(open)
+      return
+    }
+
+    if (open) {
+      if (!hasPushedHistoryRef.current) {
+        window.history.pushState({ imagePreview: true }, '')
+        hasPushedHistoryRef.current = true
+      }
+      setIsOpen(true)
+      return
+    }
+
+    setIsOpen(false)
+    if (closingFromPopStateRef.current) {
+      closingFromPopStateRef.current = false
+      return
+    }
+
+    if (hasPushedHistoryRef.current) {
+      hasPushedHistoryRef.current = false
+      window.history.back()
+    }
+  }
 
   const handleDownload = (format: 'png' | 'jpeg') => {
     if (isRestrictedInAppBrowser()) {
@@ -60,7 +103,7 @@ export function ImagePreview({ src, alt, className }: ImagePreviewProps) {
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <button
           type="button"
@@ -106,7 +149,7 @@ export function ImagePreview({ src, alt, className }: ImagePreviewProps) {
               variant="ghost"
               size="icon"
               className="text-white hover:text-white bg-white/20 hover:bg-white/40 rounded-full border border-white/30"
-              onClick={() => setIsOpen(false)}
+              onClick={() => handleOpenChange(false)}
               title="Đóng"
             >
               <X className="h-6 w-6" />
