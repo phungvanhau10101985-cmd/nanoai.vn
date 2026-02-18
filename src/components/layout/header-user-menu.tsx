@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { LogOut, Wallet } from 'lucide-react'
@@ -22,6 +23,8 @@ interface HeaderUserMenuProps {
 }
 
 export function HeaderUserMenu({ user, credits }: HeaderUserMenuProps) {
+  const [open, setOpen] = useState(false)
+
   return (
     <div className="flex items-center gap-2 sm:gap-4">
       <div className="hidden sm:flex items-center gap-2 text-sm font-medium">
@@ -29,12 +32,13 @@ export function HeaderUserMenu({ user, credits }: HeaderUserMenuProps) {
         <span>{credits} Tín dụng</span>
       </div>
       <DepositCreditButton variant="outline" size="sm" className="hidden sm:flex" />
-      <DropdownMenu modal={false}>
+      <DropdownMenu open={open} onOpenChange={setOpen}>
         <DropdownMenuTrigger asChild>
           <Button
             type="button"
             variant="ghost"
             className="relative h-10 w-10 sm:h-8 sm:w-8 rounded-full cursor-pointer min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0"
+            aria-label="Mở menu tài khoản"
           >
             <Avatar className="h-8 w-8">
               <AvatarImage src={user.user_metadata?.avatar_url} alt={user.email} />
@@ -42,7 +46,7 @@ export function HeaderUserMenu({ user, credits }: HeaderUserMenuProps) {
             </Avatar>
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent className="w-56 z-[100]" align="end" forceMount>
+        <DropdownMenuContent className="w-56 z-[1000]" align="end" sideOffset={8}>
           <DropdownMenuLabel className="font-normal">
             <div className="flex flex-col space-y-1">
               <p className="text-sm font-medium leading-none">{user.user_metadata?.full_name}</p>
