@@ -8,6 +8,7 @@ import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/ge
 import { normalizeToEnglish } from '@/lib/ai-normalize'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import sharp from 'sharp'
+import { detectFaceInTargetImage, extractFaceFromSourceImage, type FaceBbox } from '@/lib/face-swap-vision'
 
 const FACESWAP_COSTS = { '2K': 2, '4K': 4 } as const
 const toTenths = (value: number) => Math.round(value * 10)
@@ -56,6 +57,38 @@ function logGeminiResponse(
     promptBlockReason: pf?.blockReason ?? null,
   }
   console.log('[FaceSwap] Gemini response:', JSON.stringify(details))
+}
+
+/**
+ * Xóa khuôn mặt trên ảnh đích bằng xử lý local:
+ * lấy vùng mặt theo bbox Vision, blur mạnh rồi ghép lại vào ảnh gốc.
+ */
+async function removeFaceRegionLocal(targetBuffer: Buffer, face: FaceBbox): Promise<Buffer> {
+  const meta = await sharp(targetBuffer).metadata()
+  const imgW = meta.width ?? 0
+  const imgH = meta.height ?? 0
+  if (imgW <= 0 || imgH <= 0) {
+    throw new Error('Không đọc được kích thước ảnh đích để xóa mặt local.')
+  }
+
+  const padX = Math.round(face.w * 0.25)
+  const padY = Math.round(face.h * 0.25)
+  const left = Math.max(0, face.x - padX)
+  const top = Math.max(0, face.y - padY)
+  const right = Math.min(imgW, face.x + face.w + padX)
+  const bottom = Math.min(imgH, face.y + face.h + padY)
+  const width = Math.max(1, right - left)
+  const height = Math.max(1, bottom - top)
+
+  const blurredRegion = await sharp(targetBuffer)
+    .extract({ left, top, width, height })
+    .blur(35)
+    .toBuffer()
+
+  return sharp(targetBuffer)
+    .composite([{ input: blurredRegion, left, top }])
+    .png()
+    .toBuffer()
 }
 
 /** Hoán đổi khuôn mặt. 2K: 2 credit, 4K: 4 credit. Cần 2 ảnh: ảnh khuôn mặt nguồn + ảnh đích. */
@@ -126,23 +159,45 @@ export async function faceSwap(formData: FormData) {
   ]
 
   try {
-    // Raw mode: gửi trực tiếp 2 ảnh gốc cho Gemini (không detect/crop/remove local).
-    const facePartRaw = {
-      inlineData: { data: faceBuffer.toString('base64'), mimeType: faceImage.type || 'image/png' },
+    // 1) Vision: cắt mặt nguồn (ảnh để ghép)
+    const croppedSourceFace = await extractFaceFromSourceImage(faceBuffer)
+    if (!croppedSourceFace) {
+      await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+      return { error: 'Vision OCR không phát hiện được khuôn mặt rõ trên ảnh nguồn. Vui lòng chọn ảnh có 1 mặt rõ hơn.' }
     }
-    const targetPartRaw = {
-      inlineData: { data: targetBuffer.toString('base64'), mimeType: targetImage.type || 'image/png' },
+    console.log('[FaceSwap] Dùng ảnh mặt đã cắt từ nguồn bằng Vision')
+
+    // 2) Vision: định vị mặt trên ảnh đích để xóa local
+    const targetFace = await detectFaceInTargetImage(targetBuffer)
+    if (!targetFace) {
+      await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+      return { error: 'Vision OCR không phát hiện được khuôn mặt trên ảnh đích. Vui lòng dùng ảnh có mặt rõ hơn.' }
     }
 
-    const singlePrompt = prompt.includes('YÊU CẦU BỔ SUNG:')
-      ? prompt
-      : prompt.replace(
-          'Giữ nguyên biểu cảm và tư thế của ảnh đích.',
-          'Giữ khuôn mặt từ ảnh 1 với thay đổi tối thiểu. Chỉ điều chỉnh ánh sáng/góc để khớp. Giữ nguyên biểu cảm và tư thế cơ thể ảnh đích.'
-        )
-    const genResult = await model.generateContent([singlePrompt, facePartRaw, targetPartRaw], { safetySettings })
+    // 3) Local: xóa mặt trên ảnh đích theo bbox Vision
+    const targetWithoutFace = await removeFaceRegionLocal(targetBuffer, targetFace)
+    console.log('[FaceSwap] Đã xóa mặt local theo bbox Vision')
+
+    // 4) Gemini: một lần gọi để ghép mặt vào đúng vị trí đã xóa
+    const sourceFacePart = {
+      inlineData: { data: croppedSourceFace.toString('base64'), mimeType: 'image/png' },
+    }
+    const cleanedTargetPart = {
+      inlineData: { data: targetWithoutFace.toString('base64'), mimeType: 'image/png' },
+    }
+
+    const singlePrompt = `${prompt}
+YÊU CẦU BẮT BUỘC:
+- Ảnh 1 là khuôn mặt nguồn đã được cắt bằng Vision OCR.
+- Ảnh 2 là ảnh đích đã xóa mặt local tại vùng: ${targetFace.positionHint}.
+- Hãy ghép khuôn mặt từ Ảnh 1 vào đúng vị trí mặt đã xóa trên Ảnh 2.
+- Giữ nguyên toàn bộ bố cục, cơ thể, trang phục, nền của Ảnh 2; chỉ thay vùng khuôn mặt.
+- Không tạo thêm người, không đổi góc máy, không đổi khung hình.
+${NO_TEXT}`
+
+    const genResult = await model.generateContent([singlePrompt, sourceFacePart, cleanedTargetPart], { safetySettings })
     const response = genResult.response
-    logGeminiResponse('single_call_raw', genResult)
+    logGeminiResponse('single_call_vision_local', genResult)
     trackFromUsageMetadata(response.usageMetadata, 'gemini-3-pro-image-preview', 'hoan-doi-khuon-mat', user.id, imageQuality)
     const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
     if (!imagePartRes || !('inlineData' in imagePartRes)) {
