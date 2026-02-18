@@ -14,8 +14,8 @@ const fromTenths = (value: number) => value / 10
 const formatCredits = (value: number) => value.toLocaleString('vi-VN', { maximumFractionDigits: 1 })
 
 const PROMPTS = {
-  original: `Restore this photo. High accuracy required for expression and demeanor; preserve what matches the original. Fix blur, scratches, damage, enhance quality. Keep original lines, content, and composition. Preserve original colors, do not change tone. Default: people in photo are Vietnamese unless specified. Return only the result image, no text overlay.`,
-  colorize: `Restore this photo. High accuracy required for expression and demeanor; preserve what matches the original. Fix blur, scratches, damage, enhance quality. Keep original lines, content, and composition. Colorize naturally and realistically. Default: people in photo are Vietnamese unless specified. Return only the result image, no text overlay.`,
+  original: `Phục dựng ảnh này. Yêu cầu độ chính xác cao về gương mặt và thần thái; giữ tối đa những gì đúng với ảnh gốc. Sửa mờ, xước, hư hại và nâng chất lượng. Giữ nguyên đường nét, nội dung và bố cục gốc. Giữ nguyên tông màu gốc, không đổi màu. Mặc định: người trong ảnh là người Việt Nam nếu không có chỉ định khác. Chỉ trả về ảnh kết quả, không chèn chữ.`,
+  colorize: `Phục dựng ảnh này. Yêu cầu độ chính xác cao về gương mặt và thần thái; giữ tối đa những gì đúng với ảnh gốc. Sửa mờ, xước, hư hại và nâng chất lượng. Giữ nguyên đường nét, nội dung và bố cục gốc. Tô màu tự nhiên, chân thực. Mặc định: người trong ảnh là người Việt Nam nếu không có chỉ định khác. Chỉ trả về ảnh kết quả, không chèn chữ.`,
 }
 
 const PERSON_LABELS: Record<number, string[]> = {
@@ -84,12 +84,12 @@ export async function restoreImage(formData: FormData) {
   const personDescEn = personDescriptions.length ? await normalizeToEnglish(personDescriptions.join('. ')) : ''
   const noteEn = note ? await normalizeToEnglish(note) : ''
   if (personDescEn) {
-    prompt = prompt.replace('Return only the result image, no text overlay.', `PERSON DESCRIPTIONS: ${personDescEn}. Return only the result image, no text overlay.`)
+    prompt = prompt.replace('Chỉ trả về ảnh kết quả, không chèn chữ.', `MÔ TẢ NHÂN VẬT: ${personDescEn}. Chỉ trả về ảnh kết quả, không chèn chữ.`)
   }
   if (noteEn) {
     prompt = prompt.replace(
-      'Return only the result image, no text overlay.',
-      `IMAGE REQUIREMENTS (background, text overlay, other – NOT about people in photo): "${noteEn}". If user wants text on image, UNDERSTAND the meaning they want to convey and write appropriately, not paste raw characters. Return only the result image, no text overlay.`
+      'Chỉ trả về ảnh kết quả, không chèn chữ.',
+      `YÊU CẦU ẢNH (nền, chữ chèn, yêu cầu khác - KHÔNG phải mô tả người trong ảnh): "${noteEn}". Nếu người dùng muốn có chữ trên ảnh, hãy hiểu đúng ý nghĩa và viết phù hợp, không dán ký tự thô. Chỉ trả về ảnh kết quả, không chèn chữ.`
     )
   }
 

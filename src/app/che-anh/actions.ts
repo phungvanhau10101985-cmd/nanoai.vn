@@ -13,7 +13,7 @@ const toTenths = (value: number) => Math.round(value * 10)
 const fromTenths = (value: number) => value / 10
 const formatCredits = (value: number) => value.toLocaleString('vi-VN', { maximumFractionDigits: 1 })
 
-const PROMPT_BASE = `Edit these images per request. Creative edits and variations while preserving identity. Return only the result image, no text overlay.`
+const PROMPT_BASE = `Chỉnh sửa các ảnh này theo yêu cầu. Có thể sáng tạo biến thể nhưng vẫn giữ đúng nhận diện chủ thể. Chỉ trả về ảnh kết quả, không chèn chữ.`
 
 const MEME_STYLE_PROMPTS: Record<string, string> = {
   cam_xuc: 'Emotional meme style: Crying, laughing, surprised, smug smile, "haha".',
@@ -59,7 +59,7 @@ export async function cheAnh(formData: FormData) {
     .map((n, idx) => (n ? `Image ${idx + 1}: ${n}` : null))
     .filter(Boolean)
   if (perImageParts.length) promptExtras += `PER-IMAGE NOTES: ${perImageParts.join('. ')}. `
-  const prompt = PROMPT_BASE.replace('Return only the result image, no text overlay.', `${promptExtras}Return only the result image, no text overlay.`)
+  const prompt = PROMPT_BASE.replace('Chỉ trả về ảnh kết quả, không chèn chữ.', `${promptExtras}Chỉ trả về ảnh kết quả, không chèn chữ.`)
 
   const COST = CHE_ANH_COSTS[imageQuality]
 

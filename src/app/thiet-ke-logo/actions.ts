@@ -14,7 +14,7 @@ const toTenths = (value: number) => Math.round(value * 10)
 const fromTenths = (value: number) => value / 10
 const formatCredits = (value: number) => value.toLocaleString('vi-VN', { maximumFractionDigits: 1 })
 
-const PROMPT_BASE = `Design a professional, unique, recognizable brand logo. Modern, minimal style, scalable. Return only the result image, no text overlay.`
+const PROMPT_BASE = `Thiết kế logo thương hiệu chuyên nghiệp, độc đáo, dễ nhận diện. Phong cách hiện đại, tối giản, dễ mở rộng kích thước. Chỉ trả về ảnh kết quả, không chèn chữ.`
 
 /** Thiết kế logo thương hiệu. 2K: 1,5 credit, 4K: 3 credit. */
 export async function createLogo(formData: FormData) {
@@ -66,7 +66,7 @@ export async function createLogo(formData: FormData) {
   const noteEn = note ? await normalizeToEnglish(note) : ''
   let prompt = PROMPT_BASE
   if (noteEn) {
-    prompt = prompt.replace('Return only the result image, no text overlay.', `ADDITIONAL USER REQUEST: "${noteEn}". Return only the result image, no text overlay.`)
+    prompt = prompt.replace('Chỉ trả về ảnh kết quả, không chèn chữ.', `YÊU CẦU BỔ SUNG CỦA NGƯỜI DÙNG: "${noteEn}". Chỉ trả về ảnh kết quả, không chèn chữ.`)
   }
 
   const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!)

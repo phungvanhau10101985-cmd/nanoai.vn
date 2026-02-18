@@ -4,7 +4,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 
 /**
- * Chuẩn hóa văn bản tiếng Việt (hoặc ngôn ngữ khác) sang tiếng Anh bằng Gemini.
+ * Chuẩn hóa yêu cầu người dùng về tiếng Việt rõ ràng, mạch lạc bằng Gemini.
  * Dùng cho mọi input khách nhập trước khi gửi vào prompt cho AI tạo ảnh.
  */
 export async function normalizeToEnglish(text: string): Promise<string> {
@@ -17,7 +17,10 @@ export async function normalizeToEnglish(text: string): Promise<string> {
         generationConfig: { responseModalities: ['TEXT'] },
       })
       const result = await model.generateContent(
-        `Translate this text to clear English. Return ONLY the English text, no explanation. If already in English, return as-is. Text: "${text.trim()}"`
+        `Hãy viết lại nội dung sau bằng TIẾNG VIỆT rõ ràng, ngắn gọn, dễ hiểu.
+Chỉ trả về đúng câu đã viết lại, không thêm giải thích.
+Nếu nội dung đã là tiếng Việt rõ ràng thì giữ nguyên ý chính.
+Nội dung: "${text.trim()}"`
       )
       trackFromUsageMetadata(result.response.usageMetadata, modelId, 'ai-normalize')
       const out = result.response.text()?.trim() || text.trim()

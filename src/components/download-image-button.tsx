@@ -10,6 +10,17 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Download, ChevronDown } from 'lucide-react'
 
+function isRestrictedInAppBrowser(): boolean {
+  if (typeof navigator === 'undefined') return false
+  const ua = navigator.userAgent || ''
+  return /(FBAN|FBAV|FB_IAB|Instagram|Line\/|Zalo|TikTok)/i.test(ua)
+}
+
+function openDirectImage(url: string) {
+  if (typeof window === 'undefined') return
+  window.open(url, '_blank', 'noopener,noreferrer')
+}
+
 async function downloadImageAsFormat(
   imageUrl: string,
   format: 'png' | 'jpeg',
@@ -80,6 +91,11 @@ export function DownloadImageButton({
 
   const handleDownload = async (format: 'png' | 'jpeg') => {
     if (!imageUrl) return
+    if (isRestrictedInAppBrowser()) {
+      // In-app browsers (FB/IG...) thường chặn download blob/data URL.
+      openDirectImage(imageUrl)
+      return
+    }
     setLoading(true)
     try {
       await downloadImageAsFormat(imageUrl, format, filename)
@@ -99,13 +115,7 @@ export function DownloadImageButton({
           URL.revokeObjectURL(url)
         } else throw new Error('Fetch failed')
       } catch {
-        const a = document.createElement('a')
-        a.href = imageUrl
-        a.download = filename.replace(/\.[^.]+$/, '') + (format === 'jpeg' ? '.jpg' : '.png')
-        a.style.display = 'none'
-        document.body.appendChild(a)
-        a.click()
-        document.body.removeChild(a)
+        openDirectImage(imageUrl)
       }
     } finally {
       setLoading(false)

@@ -16,32 +16,28 @@ const toTenths = (value: number) => Math.round(value * 10)
 const fromTenths = (value: number) => value / 10
 const formatCredits = (value: number) => value.toLocaleString('vi-VN', { maximumFractionDigits: 1 })
 
-const ANALYZE_PROMPT = `You are an interior design and architecture expert. Analyze this image and return pure JSON (no markdown). All text values in the JSON MUST be in Vietnamese.
+const ANALYZE_PROMPT = `Bạn là chuyên gia nội thất và kiến trúc. Hãy phân tích ảnh và trả về JSON thuần (không markdown). Mọi giá trị văn bản trong JSON PHẢI là tiếng Việt.
 
-Step 1 - Identify type:
-  - "interior" = nội thất (phòng trong nhà)
-  - "exterior-facade" = mặt tiền nhà (chủ yếu tường, mái, cửa, ban công – không có khoảng sân/vườn rõ ràng)
-  - "exterior-landscape" = sân vườn, khoảng sân, sân bê tông, sân, vườn (có mặt đất, nền bê tông, cây xanh, thảm cỏ, lối đi, hồ nước, tiểu cảnh, sân trước/sau, sân thượng...). Nếu ảnh có sân bê tông hoặc khoảng sân → dùng "exterior-landscape".
+Bước 1 - Xác định loại không gian:
+  - "interior" = nội thất trong nhà
+  - "exterior-facade" = mặt tiền công trình
+  - "exterior-landscape" = ngoại thất sân vườn/sân bãi/cảnh quan
 
-Step 2 - If interior: Identify roomType in Vietnamese (phòng khách, phòng ngủ, bếp, phòng tắm, văn phòng, phòng ăn, hành lang...). If exterior: skip.
+Bước 2 - Nếu là interior: xác định roomType bằng tiếng Việt (phòng khách, phòng ngủ, bếp, phòng tắm, văn phòng, phòng ăn, hành lang...). Nếu là exterior thì để trống.
 
-Step 3 - Lighting (lighting) in Vietnamese: "sáng" | "tối" | "tự nhiên" | "nhân tạo" | "hoàng hôn".
+Bước 3 - Xác định lighting bằng tiếng Việt: "sáng" | "tối" | "tự nhiên" | "nhân tạo" | "hoàng hôn".
 
-Step 4 - List ALL objects including STRUCTURE and FURNITURE. Each has item, color, material, status (New/Good/Worn/Old), position, structural (boolean). item, color, material, position must be in Vietnamese.
-  - structural: true = kết cấu cố định: tường, cột, dầm, sàn, trần, cửa, cửa sổ, cửa đi, khoảng sân, sân bê tông, nền sân bê tông, lối đi bê tông...
-  - structural: false = đồ có thể thay đổi: bàn, ghế, sofa, tủ, tranh, đèn (nội thất); cây xanh, thảm cỏ, chậu cảnh, hồ nước, tiểu cảnh (sân vườn)...
-  - CRITICAL - Phải đặt tên CỤ THỂ cho kết cấu để AI thiết kế biết tránh sai:
-    • Cửa: "cửa nhà vệ sinh", "cửa phòng ngủ", "cửa chính", "cửa đi ra ban công", "cửa đi ra sân", "cửa đi ra vườn", "cửa bếp" (KHÔNG chỉ "cửa")
-    • Cửa sổ: "cửa sổ phòng khách", "cửa sổ bên trái" (KHÔNG chỉ "cửa sổ")
-    • Tường: "tường ngăn phòng bếp", "tường nhà vệ sinh", "tường chịu lực bên trái" – phân biệt tường ngăn (mỏng, có thể có tủ âm) vs tường chịu lực (dày, không đục)
-    • Sân ngoài trời: BẮT BUỘC nhận diện "sân bê tông" hoặc "nền sân bê tông" nếu ảnh có khoảng sân lát bê tông (dù trống hay có đồ). VD: item="sân bê tông", material="bê tông", position="giữa sân", structural=true
-  - Duplicate items: Nếu nhiều vật giống nhau, tách riêng với vị trí khác nhau. VD: "cây bàng 1 - bên trái", "cây bàng 2 - bên phải".
+Bước 4 - Liệt kê TẤT CẢ đối tượng gồm KẾT CẤU và NỘI THẤT. Mỗi đối tượng có: item, color, material, status, position, structural.
+  - structural=true: phần kết cấu cố định (tường, cột, dầm, sàn, trần, cửa, cửa sổ, nền sân...)
+  - structural=false: phần có thể thay đổi (bàn ghế, sofa, tủ, cây, tiểu cảnh...)
+  - Bắt buộc đặt tên kết cấu cụ thể để tránh hiểu sai (ví dụ: "cửa phòng ngủ", "cửa sổ bên trái", "tường chịu lực bên phải"...)
 
-Step 5 - If interior: dominantColor, fengShuiSuggestion in Vietnamese.
+Bước 5 - Nếu là interior: trả thêm dominantColor và fengShuiSuggestion bằng tiếng Việt.
 
-Step 6 - layoutGuidance (bắt buộc nếu interior): Chuỗi ngắn hướng dẫn AI thiết kế, VD: "Không đặt đồ chắn cửa nhà vệ sinh bên trái. Tường ngăn phòng bên phải là tường mỏng - không vẽ tủ âm vào. Cửa chính ở giữa - giữ lối đi thông thoáng."
+Bước 6 - Nếu là interior: bắt buộc có layoutGuidance ngắn gọn để điều hướng thiết kế.
 
-JSON format: {"type":"interior"|"exterior-facade"|"exterior-landscape","roomType":"...","lighting":"...","dominantColor":"...","fengShuiSuggestion":"...","layoutGuidance":"...","objects":[{"item":"...","color":"...","material":"...","status":"...","position":"...","structural":true|false}]}`
+Định dạng JSON:
+{"type":"interior"|"exterior-facade"|"exterior-landscape","roomType":"...","lighting":"...","dominantColor":"...","fengShuiSuggestion":"...","layoutGuidance":"...","objects":[{"item":"...","color":"...","material":"...","status":"...","position":"...","structural":true|false}]}`
 
 /** Áp dụng thay đổi: xóa món chọn, thay đổi món chọn theo phong cách. 1,5–3 credits. */
 export async function applyInteriorChanges(formData: FormData) {
@@ -124,21 +120,21 @@ export async function applyInteriorChanges(formData: FormData) {
   if (isRotationOnly && !hasRotationReference) return { error: 'Quay góc bắt buộc có ảnh tham chiếu. Vui lòng chọn ảnh góc tham chiếu.' }
   const isExpandExteriorDown = !!expandExteriorDown && spaceType === 'exterior-landscape'
 
-  const deleteList = !isRotationOnly && !isExpandExteriorDown && itemsToDelete.length ? `REMOVE these items completely at their EXACT positions (delete, do not add anything, do not move other items): ${itemsToDelete.join(', ')}.` : ''
+  const deleteList = !isRotationOnly && !isExpandExteriorDown && itemsToDelete.length ? `XÓA hoàn toàn các món này tại ĐÚNG vị trí hiện tại (chỉ xóa, không thêm món khác, không di chuyển món khác): ${itemsToDelete.join(', ')}.` : ''
   const replaceParts = !isRotationOnly && !isExpandExteriorDown
     ? await Promise.all(itemsToReplace.filter((x) => x.item).map(async (x) => {
         const replaceWith = x.replaceWith?.trim()
         const replaceWithEn = replaceWith ? await normalizeToEnglish(replaceWith) : ''
         if (replaceWithEn) {
-          return `REPLACE "${x.item}" with "${replaceWithEn}" at the EXACT SAME position – remove the original item completely and put the new item in its exact place. Do not move to another location.`
+          return `THAY "${x.item}" bằng "${replaceWithEn}" tại ĐÚNG CÙNG vị trí - xóa hẳn món cũ và đặt món mới vào đúng chỗ đó. Không được chuyển sang vị trí khác.`
         }
-        return `REPLACE "${x.item}" with another "${x.item}" (same type, different one) at the EXACT SAME position – remove the original and put a different item of the same type in its exact place.`
+        return `THAY "${x.item}" bằng một "${x.item}" khác (cùng loại nhưng khác món) tại ĐÚNG CÙNG vị trí - xóa món cũ và đặt món mới cùng loại vào đúng chỗ đó.`
       }))
     : []
   const rearrangeParts = !isRotationOnly && !isExpandExteriorDown
     ? await Promise.all(itemsToRearrange.filter((x) => x.item && x.rearrangePrompt).map(async (x) => {
         const promptEn = await normalizeToEnglish(x.rearrangePrompt)
-        return `MODIFY "${x.item}" at its EXACT position – keep the same item in place but apply these changes: ${promptEn}. Do not remove or move the item.`
+        return `CHỈNH SỬA "${x.item}" tại ĐÚNG vị trí hiện tại - giữ nguyên món đó ở đúng chỗ, áp dụng thay đổi sau: ${promptEn}. Không xóa và không di chuyển món.`
       }))
     : []
   const replaceList = !isRotationOnly && !isExpandExteriorDown && replaceParts.length ? replaceParts.join(' ') : ''
@@ -181,57 +177,57 @@ export async function applyInteriorChanges(formData: FormData) {
     : ''
   const addItemsCombined = [addItemsFromList, addItemsPrompt].filter(Boolean).join('; ')
   const addPartEn = addItemsCombined ? await normalizeToEnglish(addItemsCombined) : ''
-  const noBlockDoors = 'CRITICAL: NEVER place furniture in front of doors or passageways – keep all access paths clear.'
-  const noBlockViews = 'CRITICAL: NEVER block or cover windows, glass doors, or open spaces that allow viewing outside – keep all views and natural light openings clear.'
-  const noModifyStructure = 'CRITICAL: Do NOT modify structure – no drilling into walls, no cutting walls, no built-in cabinets into walls. Do NOT add new walls or partitions. Keep existing walls, doors, windows exactly as they are.'
-  const addPart = !isRotationOnly && !isExpandExteriorDown && addPartEn ? `ADD new items: "${addPartEn}".` : ''
-  const layoutNote = layoutGuidance ? ` LAYOUT (follow): ${layoutGuidance}` : ''
-  const keepPart = !isRotationOnly && !isExpandExteriorDown ? `Keep all other items exactly as in the original – same position, same appearance. Preserve structural elements (walls, columns, beams, floor, ceiling, doors, windows) – never remove, redesign, drill into, or add new walls/partitions. Execute delete/replace at their exact positions only; do not relocate other items. ${noBlockDoors} ${noBlockViews} ${noModifyStructure}${layoutNote}` : ''
+  const noBlockDoors = 'QUAN TRỌNG: KHÔNG đặt nội thất che cửa hoặc lối đi - phải giữ đường lưu thông thông thoáng.'
+  const noBlockViews = 'QUAN TRỌNG: KHÔNG che cửa sổ, cửa kính hoặc khoảng mở nhìn ra ngoài - phải giữ thoáng tầm nhìn và ánh sáng tự nhiên.'
+  const noModifyStructure = 'QUAN TRỌNG: KHÔNG thay đổi kết cấu - không khoan/cắt tường, không làm tủ âm tường mới, không thêm tường/vách mới. Giữ nguyên tường, cửa đi, cửa sổ hiện có.'
+  const addPart = !isRotationOnly && !isExpandExteriorDown && addPartEn ? `THÊM món mới: "${addPartEn}".` : ''
+  const layoutNote = layoutGuidance ? ` BỐ CỤC (phải theo): ${layoutGuidance}` : ''
+  const keepPart = !isRotationOnly && !isExpandExteriorDown ? `Giữ nguyên toàn bộ món còn lại như ảnh gốc - cùng vị trí, cùng ngoại quan. Giữ nguyên kết cấu (tường, cột, dầm, sàn, trần, cửa đi, cửa sổ) - không xóa, không thiết kế lại kết cấu, không khoan đục, không thêm tường/vách. Mọi thao tác xóa/thay chỉ thực hiện đúng vị trí chỉ định; không được dời món khác. ${noBlockDoors} ${noBlockViews} ${noModifyStructure}${layoutNote}` : ''
   const scope = spaceType === 'exterior-facade'
-    ? 'Exterior building facade – walls, roof, windows, doors, materials. Keep the SAME structure – do NOT drill into walls, do NOT add new walls.'
+    ? 'Ngoại thất mặt tiền công trình - tường, mái, cửa sổ, cửa đi, vật liệu. Giữ NGUYÊN kết cấu hiện có - không khoan tường, không thêm tường mới.'
     : spaceType === 'exterior-landscape'
-    ? 'Exterior landscape/garden – ground, plants, paths, water features. Bright daylight, natural sun.'
-    : 'Interior/indoor room'
+    ? 'Ngoại thất sân vườn - nền, cây xanh, lối đi, tiểu cảnh nước. Ánh sáng ban ngày tự nhiên.'
+    : 'Không gian nội thất trong nhà'
   const rotationPart = isRotationOnly
     ? {
-        left: 'Image 1 is the MAIN image – apply its full completion level (materials, finishes, quality, details). Image 2 is only STRUCTURAL reference – use it to supplement structure/layout only. Keep walls and partitions EXACTLY as in Image 1 – do NOT add or remove walls. Output must have the SAME completion level as Image 1. Generate Image 1 rotated 30 degrees to the LEFT. No text.',
-        right: 'Image 1 is the MAIN image – apply its full completion level (materials, finishes, quality, details). Image 2 is only STRUCTURAL reference – use it to supplement structure/layout only. Keep walls and partitions EXACTLY as in Image 1 – do NOT add or remove walls. Output must have the SAME completion level as Image 1. Generate Image 1 rotated 30 degrees to the RIGHT. No text.',
-        up: 'Image 1 is the MAIN image – apply its full completion level (materials, finishes, quality, details). Image 2 is only STRUCTURAL reference – use it to supplement structure/layout only. Keep walls and partitions EXACTLY as in Image 1 – do NOT add or remove walls. Output must have the SAME completion level as Image 1. Generate Image 1 tilted 30 degrees UP. No text.',
-        down: 'Image 1 is the MAIN image – apply its full completion level (materials, finishes, quality, details). Image 2 is only STRUCTURAL reference – use it to supplement structure/layout only. Keep walls and partitions EXACTLY as in Image 1 – do NOT add or remove walls. Output must have the SAME completion level as Image 1. Generate Image 1 tilted 30 degrees DOWN. No text.',
+        left: 'Ảnh 1 là ảnh CHÍNH - giữ mức độ hoàn thiện đầy đủ (vật liệu, hoàn thiện, chất lượng, chi tiết). Ảnh 2 chỉ là ảnh tham chiếu KẾT CẤU - chỉ dùng bổ sung bố cục/kết cấu. Giữ tường và vách ĐÚNG như Ảnh 1 - không thêm, không bớt tường. Kết quả phải có mức độ hoàn thiện tương đương Ảnh 1. Tạo góc nhìn xoay 30 độ sang TRÁI. Không chữ.',
+        right: 'Ảnh 1 là ảnh CHÍNH - giữ mức độ hoàn thiện đầy đủ (vật liệu, hoàn thiện, chất lượng, chi tiết). Ảnh 2 chỉ là ảnh tham chiếu KẾT CẤU - chỉ dùng bổ sung bố cục/kết cấu. Giữ tường và vách ĐÚNG như Ảnh 1 - không thêm, không bớt tường. Kết quả phải có mức độ hoàn thiện tương đương Ảnh 1. Tạo góc nhìn xoay 30 độ sang PHẢI. Không chữ.',
+        up: 'Ảnh 1 là ảnh CHÍNH - giữ mức độ hoàn thiện đầy đủ (vật liệu, hoàn thiện, chất lượng, chi tiết). Ảnh 2 chỉ là ảnh tham chiếu KẾT CẤU - chỉ dùng bổ sung bố cục/kết cấu. Giữ tường và vách ĐÚNG như Ảnh 1 - không thêm, không bớt tường. Kết quả phải có mức độ hoàn thiện tương đương Ảnh 1. Tạo góc nhìn ngẩng lên 30 độ. Không chữ.',
+        down: 'Ảnh 1 là ảnh CHÍNH - giữ mức độ hoàn thiện đầy đủ (vật liệu, hoàn thiện, chất lượng, chi tiết). Ảnh 2 chỉ là ảnh tham chiếu KẾT CẤU - chỉ dùng bổ sung bố cục/kết cấu. Giữ tường và vách ĐÚNG như Ảnh 1 - không thêm, không bớt tường. Kết quả phải có mức độ hoàn thiện tương đương Ảnh 1. Tạo góc nhìn hạ xuống 30 độ. Không chữ.',
       }[rotationDirection] || ''
     : ''
   const expandExteriorPart = isExpandExteriorDown
-    ? `Extend this exterior image EVENLY in all directions (left, right, up, down). Add ground, garden, lawn, landscaping around the building. Keep the building/facade exactly as shown. The new content must seamlessly connect to all edges. Expand evenly in all directions.${addPartEn ? ` ADD to the extended area: "${addPartEn}".` : ''} Photorealistic outdoor scene, no text.`
+    ? `Mở rộng ảnh ngoại thất này ĐỀU ra bốn phía (trái, phải, trên, dưới). Bổ sung nền đất, sân vườn, thảm cỏ, cảnh quan xung quanh công trình. Giữ nguyên công trình/mặt tiền như ảnh gốc. Nội dung mới phải nối liền mạch ở mọi biên. Mở rộng đồng đều các hướng.${addPartEn ? ` THÊM vào vùng mở rộng: "${addPartEn}".` : ''} Cảnh ngoài trời chân thực, không chữ.`
     : ''
   const themePart = !isRotationOnly && !isExpandExteriorDown && spaceType === 'exterior-facade' && archTheme
-    ? ` Apply ${ARCH_THEMES[archTheme.toLowerCase()] || archTheme} architectural theme to the building/facade.`
+    ? ` Áp dụng chủ đề kiến trúc ${ARCH_THEMES[archTheme.toLowerCase()] || archTheme} cho công trình/mặt tiền.`
     : ''
   const mainColorDesc = !isRotationOnly && !isExpandExteriorDown && mainColor ? (MAIN_COLORS[mainColor.toLowerCase()] || mainColor) : ''
   const secondaryColorDesc = !isRotationOnly && !isExpandExteriorDown && secondaryColor ? (MAIN_COLORS[secondaryColor.toLowerCase()] || secondaryColor) : ''
   const colorPart =
     mainColorDesc || secondaryColorDesc
-      ? ` Color scheme: main color ${mainColorDesc || 'flexible'}, accent/secondary color ${secondaryColorDesc || 'flexible'}.`
+      ? ` Bảng màu: màu chủ đạo ${mainColorDesc || 'linh hoạt'}, màu nhấn/phụ ${secondaryColorDesc || 'linh hoạt'}.`
       : ''
   const timePart = !isRotationOnly && !isExpandExteriorDown && timeOfDay
-    ? { 'ban-ngay': 'Bright daylight, natural sun.', 'hoang-hon': 'Golden hour, warm sunset light.', 'dem': 'Night, artificial warm lighting, cozy.' }[timeOfDay] || `Lighting: ${timeOfDay}.`
+    ? { 'ban-ngay': 'Ánh sáng ban ngày rõ, nắng tự nhiên.', 'hoang-hon': 'Ánh sáng hoàng hôn ấm (golden hour).', 'dem': 'Bối cảnh ban đêm, ánh sáng nhân tạo ấm, cảm giác ấm cúng.' }[timeOfDay] || `Ánh sáng: ${timeOfDay}.`
     : ''
   const customFurnitureParts = !isRotationOnly && !isExpandExteriorDown && furnitureStagingMode === 'custom' && customFurnitureSelection.length > 0
     ? customFurnitureSelection.map(buildFurnitureDesc).filter(Boolean)
     : []
   const furniturePart = customFurnitureParts.length > 0
-    ? ` Furniture: Include these items: ${customFurnitureParts.join(', ')}.`
+    ? ` Nội thất: bao gồm các món sau: ${customFurnitureParts.join(', ')}.`
     : roomType && ROOM_STAGING_PROMPTS[roomType]
-    ? ` Furniture: ${ROOM_STAGING_PROMPTS[roomType]}`
+    ? ` Nội thất: ${ROOM_STAGING_PROMPTS[roomType]}`
     : ''
   const stagingPart = !isRotationOnly && !isExpandExteriorDown && roomType && ROOM_STAGING_PROMPTS[roomType] && customFurnitureParts.length === 0
-    ? ` Staging: ${ROOM_STAGING_PROMPTS[roomType]} Apply the selected style.`
+    ? ` Dàn dựng: ${ROOM_STAGING_PROMPTS[roomType]} Áp dụng đúng phong cách đã chọn.`
     : customFurnitureParts.length > 0
-    ? ` Staging: Include these items: ${customFurnitureParts.join(', ')}. Apply the selected style.`
+    ? ` Dàn dựng: bao gồm các món sau: ${customFurnitureParts.join(', ')}. Áp dụng đúng phong cách đã chọn.`
     : ''
-  const refNote = !isRotationOnly && !isExpandExteriorDown && referenceImage ? ' Apply the style, colors, and mood from the reference image to this space.' : ''
-  const cleanNote = 'Remove text. Output single realistic photo, no text overlay.'
+  const refNote = !isRotationOnly && !isExpandExteriorDown && referenceImage ? ' Áp dụng phong cách, màu sắc và cảm xúc từ ảnh tham chiếu cho không gian này.' : ''
+  const cleanNote = 'Xóa chữ. Trả về một ảnh chân thực duy nhất, không chèn chữ.'
   const fullRedesignPrompt = isFullRedesign
-    ? `${scope} – Treat as EMPTY room (walls, floor, ceiling, windows, doors only). IGNORE any existing furniture – design from scratch. Keep the SAME structure – do NOT drill into walls, do NOT add new walls or partitions. Style: ${INTERIOR_STYLES[defaultStyle] || defaultStyle}.${furniturePart}${furniturePart ? '. ' : ''}${mainColorDesc || secondaryColorDesc ? ` Colors: main ${mainColorDesc || 'flexible'}, accent ${secondaryColorDesc || 'flexible'}.` : ''}${timePart ? ` ${timePart}` : ''}${archTheme && spaceType === 'exterior-facade' ? ` Theme: ${ARCH_THEMES[archTheme.toLowerCase()] || archTheme}.` : ''}${refNote}${addPartEn ? ` Add: ${addPartEn}.` : ''} ${noBlockDoors} ${noBlockViews} ${noModifyStructure}${layoutNote} Photorealistic. ${cleanNote}`
+    ? `${scope} - Xem như không gian TRỐNG (chỉ còn tường, sàn, trần, cửa sổ, cửa đi). BỎ QUA nội thất hiện có, thiết kế lại từ đầu. Giữ NGUYÊN kết cấu - không khoan tường, không thêm tường/vách mới. Phong cách: ${INTERIOR_STYLES[defaultStyle] || defaultStyle}.${furniturePart}${furniturePart ? '. ' : ''}${mainColorDesc || secondaryColorDesc ? ` Màu sắc: chủ đạo ${mainColorDesc || 'linh hoạt'}, nhấn ${secondaryColorDesc || 'linh hoạt'}.` : ''}${timePart ? ` ${timePart}` : ''}${archTheme && spaceType === 'exterior-facade' ? ` Chủ đề: ${ARCH_THEMES[archTheme.toLowerCase()] || archTheme}.` : ''}${refNote}${addPartEn ? ` Thêm: ${addPartEn}.` : ''} ${noBlockDoors} ${noBlockViews} ${noModifyStructure}${layoutNote} Phong cách ảnh chân thực. ${cleanNote}`
     : ''
   const basePrompt = isFullRedesign
     ? fullRedesignPrompt
@@ -275,7 +271,7 @@ export async function applyInteriorChanges(formData: FormData) {
       imageConfig: { imageSize: imageQuality },
     },
   })
-  let contentParts: Array<{ text?: string } | { inlineData: { data: string; mimeType: string } }> = [basePrompt]
+  const contentParts: Array<{ text?: string } | { inlineData: { data: string; mimeType: string } }> = [basePrompt]
   if (isRotationOnly && hasRotationReference) {
     contentParts.push({ inlineData: { data: imageBuffer.toString('base64'), mimeType } })
     const refBuffer = Buffer.from(await rotationReferenceImage.arrayBuffer())
@@ -350,9 +346,9 @@ export async function getCredits(): Promise<number> {
 }
 
 const PROMPTS = {
-  cleanup: `Interior Design Clean-up: Same room, perfectly tidy and organized. Keep same furniture and layout. CRITICAL: Never place furniture in front of doors or passageways. Remove text. Output single realistic photo. no text.`,
-  redesign: `Interior Design Redesign: Same layout and furniture positions, CHANGE colors/materials/finishes only. CRITICAL: Never place furniture in front of doors or passageways. Remove text. Output single realistic photo. no text.`,
-  staging: `Virtual Staging: Remove ALL furniture and decor. Leave only: empty floor, walls, windows, ceiling, doors. Clean, natural lighting. Remove text. Output single realistic photo. no text.`,
+  cleanup: `Dọn dẹp không gian nội thất: vẫn là cùng căn phòng, sạch sẽ và gọn gàng hơn. Giữ nguyên đồ nội thất và bố cục hiện có. QUAN TRỌNG: không đặt đồ chặn cửa hoặc lối đi. Xóa mọi chữ trên ảnh. Trả về một ảnh chân thực duy nhất, không chữ.`,
+  redesign: `Thiết kế lại nội thất: giữ nguyên bố cục và vị trí đồ đạc, CHỈ thay đổi màu sắc/chất liệu/bề mặt hoàn thiện. QUAN TRỌNG: không đặt đồ chặn cửa hoặc lối đi. Xóa mọi chữ trên ảnh. Trả về một ảnh chân thực duy nhất, không chữ.`,
+  staging: `Dàn dựng không gian trống: xóa TOÀN BỘ nội thất và đồ trang trí. Chỉ giữ: sàn trống, tường, cửa sổ, trần, cửa đi. Ánh sáng tự nhiên, sạch. Xóa chữ. Trả về một ảnh chân thực duy nhất, không chữ.`,
 }
 
 

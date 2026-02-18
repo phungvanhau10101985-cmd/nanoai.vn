@@ -13,7 +13,7 @@ const toTenths = (value: number) => Math.round(value * 10)
 const fromTenths = (value: number) => value / 10
 const formatCredits = (value: number) => value.toLocaleString('vi-VN', { maximumFractionDigits: 1 })
 
-const PROMPT_BASE = `Use this image as REFERENCE ONLY. Create a completely NEW 3D model render - do NOT preserve or keep the original photo. Transform the subject into a full 3D model with depth, volume, geometry. Output must be a NEW 3D model preview image, not the original. Style: `
+const PROMPT_BASE = `Chỉ dùng ảnh này làm THAM CHIẾU. Hãy tạo một ảnh render mô hình 3D HOÀN TOÀN MỚI, không giữ nguyên ảnh gốc. Chuyển chủ thể thành mô hình 3D đầy đủ chiều sâu, khối tích và hình học. Kết quả phải là ảnh xem trước mô hình 3D mới, không phải ảnh gốc. Phong cách: `
 
 /** Tạo mô hình 3D từ ảnh. 2K: 1,5 credit, 4K: 3 credit. */
 export async function create3DModelFromImage(formData: FormData) {
@@ -29,7 +29,7 @@ export async function create3DModelFromImage(formData: FormData) {
 
   const modelStyleEn = modelStyle ? await normalizeToEnglish(modelStyle) : ''
   const noteEn = note ? await normalizeToEnglish(note) : ''
-  let prompt = PROMPT_BASE + (modelStyleEn || modelStyle) + '. Output a single image, no text overlay.'
+  let prompt = PROMPT_BASE + (modelStyleEn || modelStyle) + '. Chỉ trả về một ảnh kết quả, không chèn chữ.'
   if (noteEn) {
     prompt = prompt.replace('Output a single image', `ADDITIONAL: "${noteEn}". Output a single image`)
   }

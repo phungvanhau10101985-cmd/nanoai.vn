@@ -14,9 +14,9 @@ const toTenths = (value: number) => Math.round(value * 10)
 const fromTenths = (value: number) => value / 10
 const formatCredits = (value: number) => value.toLocaleString('vi-VN', { maximumFractionDigits: 1 })
 
-const NO_TEXT = `Output ONLY a clean image. NO text, NO watermark, NO logo, NO branding, NO overlay of any kind on the image.`
+const NO_TEXT = `Chỉ trả về ảnh sạch. KHÔNG chữ, KHÔNG watermark, KHÔNG logo, KHÔNG thương hiệu, KHÔNG lớp phủ bất kỳ.`
 
-const PROMPT_BASE = `Face Swap: Transfer face from image 1 onto the body in image 2. Face must look natural, blend with lighting and angle. Match skin tone and color temperature between swapped face and target neck/body. Seamlessly blend jawline and neck transition, no visible color mismatch or hard edge. Preserve expression and pose of target image. ${NO_TEXT}`
+const PROMPT_BASE = `Hoán đổi khuôn mặt: lấy khuôn mặt từ ảnh 1 ghép vào cơ thể trong ảnh 2. Kết quả phải tự nhiên, khớp ánh sáng và góc mặt. Đồng nhất tông da và nhiệt màu giữa mặt ghép với vùng cổ/cơ thể ảnh đích. Chuyển tiếp vùng quai hàm - cổ phải mượt, không viền cứng, không lệch màu. Giữ nguyên biểu cảm và tư thế của ảnh đích. ${NO_TEXT}`
 
 /** Suy ra tỷ lệ khung hình gần nhất trong tập ratio Gemini hỗ trợ */
 async function getAspectRatioFromImage(buffer: Buffer): Promise<string> {
@@ -73,7 +73,7 @@ export async function faceSwap(formData: FormData) {
   let prompt = PROMPT_BASE
   if (note) {
     const noteEn = await normalizeToEnglish(note)
-    prompt = prompt.replace(NO_TEXT, `REQUEST: "${noteEn}". ${NO_TEXT}`)
+    prompt = prompt.replace(NO_TEXT, `YÊU CẦU BỔ SUNG: "${noteEn}". ${NO_TEXT}`)
   }
 
   const faceBuffer = Buffer.from(await faceImage.arrayBuffer())
@@ -134,11 +134,11 @@ export async function faceSwap(formData: FormData) {
       inlineData: { data: targetBuffer.toString('base64'), mimeType: targetImage.type || 'image/png' },
     }
 
-    const singlePrompt = prompt.includes('REQUEST:')
+    const singlePrompt = prompt.includes('YÊU CẦU BỔ SUNG:')
       ? prompt
       : prompt.replace(
-          'Preserve expression and pose of target image.',
-          'Preserve the face from image 1 with minimal changes. Only adjust lighting/angle to match. Preserve expression and pose of target body.'
+          'Giữ nguyên biểu cảm và tư thế của ảnh đích.',
+          'Giữ khuôn mặt từ ảnh 1 với thay đổi tối thiểu. Chỉ điều chỉnh ánh sáng/góc để khớp. Giữ nguyên biểu cảm và tư thế cơ thể ảnh đích.'
         )
     const genResult = await model.generateContent([singlePrompt, facePartRaw, targetPartRaw], { safetySettings })
     const response = genResult.response

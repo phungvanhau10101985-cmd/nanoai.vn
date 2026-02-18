@@ -14,7 +14,7 @@ const toTenths = (value: number) => Math.round(value * 10)
 const fromTenths = (value: number) => value / 10
 const formatCredits = (value: number) => value.toLocaleString('vi-VN', { maximumFractionDigits: 1 })
 
-const PROMPT_BASE = `Create a professional ad banner from product images. These are customer products. Design an attractive, modern banner with clear layout. Text/slogan must have beautiful typography, harmonious with design, not raw pasted text. Return only the result image, no text overlay.`
+const PROMPT_BASE = `Tạo banner quảng cáo chuyên nghiệp từ ảnh sản phẩm. Đây là sản phẩm của khách hàng. Thiết kế banner hiện đại, thu hút, bố cục rõ ràng. Chữ/slogan cần được dàn kiểu đẹp, hài hòa với thiết kế, không dán chữ thô. Chỉ trả về ảnh kết quả, không chèn chữ phụ.`
 
 /** Tạo banner quảng cáo. 2K: 1,5 credit, 4K: 3 credit. */
 export async function createBanner(formData: FormData) {
@@ -59,20 +59,20 @@ export async function createBanner(formData: FormData) {
     prompt = prompt.replace('These are customer products.', `These are customer products. ${bgInstruction.trim()}`)
   }
   if (hasLogo) {
-    prompt = prompt.replace('Return only the result image, no text overlay.', 'Last image is brand logo. Place logo on banner professionally, prominently. Return only the result image, no text overlay.')
+    prompt = prompt.replace('Chỉ trả về ảnh kết quả, không chèn chữ phụ.', 'Ảnh cuối là logo thương hiệu. Hãy đặt logo lên banner chuyên nghiệp, nổi bật. Chỉ trả về ảnh kết quả, không chèn chữ phụ.')
   }
   const captionListEn = await Promise.all(captionList.map((c) => (c ? normalizeToEnglish(c) : '')))
   const captionParts = captionListEn
     .map((c, idx) => (c ? `Image ${idx + 1}: add text "${c}" to that image` : null))
     .filter(Boolean)
   if (captionParts.length) {
-    prompt = prompt.replace('Return only the result image, no text overlay.', `CAPTIONS PER IMAGE: ${captionParts.join('. ')}. Use beautiful typography. Return only the result image, no text overlay.`)
+    prompt = prompt.replace('Chỉ trả về ảnh kết quả, không chèn chữ phụ.', `NỘI DUNG CHỮ CHO TỪNG ẢNH: ${captionParts.join('. ')}. Dùng typography đẹp. Chỉ trả về ảnh kết quả, không chèn chữ phụ.`)
   }
   const noteEn = note ? await normalizeToEnglish(note) : ''
   if (noteEn) {
     prompt = prompt.replace(
-      'Return only the result image, no text overlay.',
-      `DESIGN BRIEF (slogan, colors, layout): "${noteEn}". Understand this is an idea/slogan/design note, not raw text to paste. Style typography professionally, harmonious with banner. Return only the result image, no text overlay.`
+      'Chỉ trả về ảnh kết quả, không chèn chữ phụ.',
+      `BRIEF THIẾT KẾ (slogan, màu sắc, bố cục): "${noteEn}". Đây là ý tưởng/ghi chú thiết kế, không phải văn bản thô để dán nguyên. Hãy dàn kiểu chữ chuyên nghiệp, hài hòa với banner. Chỉ trả về ảnh kết quả, không chèn chữ phụ.`
     )
   }
 

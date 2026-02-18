@@ -13,7 +13,7 @@ const toTenths = (value: number) => Math.round(value * 10)
 const fromTenths = (value: number) => value / 10
 const formatCredits = (value: number) => value.toLocaleString('vi-VN', { maximumFractionDigits: 1 })
 
-const PROMPT_BASE = `AI Product Photography: Extract product from original background and place in professional setting. Product must stay intact, sharp. New background: elegant, fitting (studio, beach, luxury living room...). Return only the result image, no text overlay.`
+const PROMPT_BASE = `Ảnh sản phẩm AI: tách sản phẩm khỏi nền gốc và đặt vào bối cảnh chuyên nghiệp. Sản phẩm phải giữ nguyên hình dạng, sắc nét. Nền mới cần phù hợp và đẹp (studio, bãi biển, phòng khách sang trọng...). Chỉ trả về ảnh kết quả, không chèn chữ.`
 
 /** Thay nền sản phẩm. 2K: 1,5 credit, 4K: 3 credit. */
 export async function replaceProductBackground(formData: FormData) {
@@ -28,7 +28,7 @@ export async function replaceProductBackground(formData: FormData) {
   const noteEn = note ? await normalizeToEnglish(note) : ''
   let prompt = PROMPT_BASE
   if (noteEn) {
-    prompt = prompt.replace('Return only the result image, no text overlay.', `REQUESTED BACKGROUND: "${noteEn}". Return only the result image, no text overlay.`)
+    prompt = prompt.replace('Chỉ trả về ảnh kết quả, không chèn chữ.', `YÊU CẦU NỀN MỚI: "${noteEn}". Chỉ trả về ảnh kết quả, không chèn chữ.`)
   }
 
   const COST = PRODUCT_COSTS[imageQuality]

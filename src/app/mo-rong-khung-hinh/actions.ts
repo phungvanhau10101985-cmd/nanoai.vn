@@ -13,7 +13,7 @@ const toTenths = (value: number) => Math.round(value * 10)
 const fromTenths = (value: number) => value / 10
 const formatCredits = (value: number) => value.toLocaleString('vi-VN', { maximumFractionDigits: 1 })
 
-const PROMPT_BASE = `AI Outpainting: Expand the image frame. Draw additional background/scene to the sides (or top/bottom) to reach the new aspect ratio. Do not distort people or main subjects. Extended background must blend naturally with the original. Return only the result image, no text overlay.`
+const PROMPT_BASE = `Mở rộng khung hình bằng AI: mở rộng vùng ảnh ra hai bên (hoặc trên/dưới) để đạt tỷ lệ mới. Không làm méo người hoặc chủ thể chính. Phần nền mở rộng phải hòa trộn tự nhiên với ảnh gốc. Chỉ trả về ảnh kết quả, không chèn chữ.`
 
 /** Mở rộng khung hình. 2K: 1,5 credit, 4K: 3 credit. */
 export async function outpaintImage(formData: FormData) {
@@ -28,7 +28,7 @@ export async function outpaintImage(formData: FormData) {
 
   const noteEn = note ? await normalizeToEnglish(note) : ''
   let prompt = PROMPT_BASE
-  prompt = prompt.replace('Return only the result image, no text overlay.', `TARGET ASPECT RATIO: ${aspectRatio}. ${noteEn ? `REQUEST: "${noteEn}". ` : ''}Return only the result image, no text overlay.`)
+  prompt = prompt.replace('Chỉ trả về ảnh kết quả, không chèn chữ.', `TỶ LỆ KHUNG HÌNH MỤC TIÊU: ${aspectRatio}. ${noteEn ? `YÊU CẦU: "${noteEn}". ` : ''}Chỉ trả về ảnh kết quả, không chèn chữ.`)
 
   const COST = OUTPAINT_COSTS[imageQuality]
   const supabase = createClient()

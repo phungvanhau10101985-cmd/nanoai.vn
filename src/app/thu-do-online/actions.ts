@@ -52,163 +52,127 @@ const formatCredits = (value: number) => value.toLocaleString('vi-VN', { maximum
 
 function buildSinglePersonPrompt(genderLabel: string, customPrompt: string, garmentCount: number): string {
   return `
-    CRITICAL: Output must be ONE full-frame photo (same composition as input). NEVER a 2x2 grid, 4 panels, or multiple copies.
+    QUAN TRỌNG: Kết quả phải là MỘT ảnh toàn khung, cùng bố cục với ảnh đầu vào. TUYỆT ĐỐI không tạo lưới 2x2, không nhiều khung, không nhân bản ảnh.
 
-    Task: Virtual Try-On for 1 person.
+    NHIỆM VỤ: Thử đồ AI cho 1 người.
 
-    INPUT (image order):
-    - Image 1: Customer (person to try on) – sole person in frame.
-    - Next ${garmentCount} images: Model wearing product – apply ALL garments to customer in Image 1.
-    - Gender: ${genderLabel}.
+    ẢNH ĐẦU VÀO (theo thứ tự):
+    - Ảnh 1: ảnh khách hàng cần thử đồ (chỉ 1 người trong khung).
+    - ${garmentCount} ảnh tiếp theo: ảnh mẫu mặc sản phẩm - áp toàn bộ trang phục này cho người trong Ảnh 1.
+    - Giới tính người cần thử đồ: ${genderLabel}.
 
-    IDENTIFY IMAGES:
-    - Image 1 = customer to try on.
-    - Images 2 to ${1 + garmentCount} = product images, apply ALL to customer in Image 1.
+    HƯỚNG DẪN:
+    1) Lấy TRANG PHỤC từ ảnh mẫu và mặc vào người trong Ảnh 1.
+    2) Ảnh khách hàng: giữ nguyên gương mặt, cơ thể, tư thế, nền. Chỉ thay trang phục.
+    3) Ảnh sản phẩm: bỏ qua người mẫu, chỉ dùng quần áo.
+    4) Trang phục phải tự nhiên, đúng form, giữ chi tiết sản phẩm.
 
-    INSTRUCTIONS:
-    1. Take GARMENTS from model images and dress the customer in Image 1.
-    2. Customer image: keep face, body, pose, background unchanged. Change only garments.
-    3. Product images: ignore model, extract only clothing to dress customer.
-    4. Garments must look natural, correct fit, preserve product details.
+    ${customPrompt ? `YÊU CẦU BỔ SUNG CỦA KHÁCH: "${customPrompt}"` : ''}
 
-    ${customPrompt ? `ADDITIONAL USER REQUEST: "${customPrompt}"` : ''}
-
-    OUTPUT FORMAT (CRITICAL):
-    - Return exactly ONE image with the SAME framing as Image 1 (customer photo).
-    - The person must fill the entire frame – one full-frame photo, NOT a 2x2 grid, NOT 4 panels, NOT multiple copies.
-    - Forbidden: grid layout, collage, 4 identical thumbnails, 2x2 arrangement.
-    - Output = single full-frame image, same composition as input.
+    ĐỊNH DẠNG ĐẦU RA:
+    - Trả về đúng MỘT ảnh với bố cục giống Ảnh 1.
+    - Cấm: dạng lưới, collage, nhiều khung, nhiều bản sao.
   `;
 }
 
 function buildCouplePrompt(customPrompt: string, leftCount: number, rightCount: number): string {
   return `
-    CRITICAL: Output must be ONE full-frame photo (same composition as input). NEVER a 2x2 grid, 4 panels, or multiple copies.
+    QUAN TRỌNG: Kết quả phải là MỘT ảnh toàn khung, cùng bố cục ảnh đầu vào. Không lưới 2x2, không nhiều khung, không nhân bản.
 
-    Task: Virtual Try-On for couple (2 people).
+    NHIỆM VỤ: Thử đồ AI cho 2 người.
 
-    INPUT (image order):
-    - Image 1: Two customers (to try on), left to right.
-    - Next ${leftCount} images: Model wearing product for Left person (left in frame).
-    - Next ${rightCount} images: Model wearing product for Right person (right in frame).
+    ẢNH ĐẦU VÀO:
+    - Ảnh 1: hai khách hàng, đứng từ trái sang phải.
+    - ${leftCount} ảnh tiếp theo: đồ cho người bên trái.
+    - ${rightCount} ảnh tiếp theo: đồ cho người bên phải.
 
-    IDENTIFY POSITIONS (left to right):
-    - Left person: Left in customer image (Image 1) – receives garments from first ${leftCount} product images.
-    - Right person: Right in customer image (Image 1) – receives garments from last ${rightCount} product images.
+    HƯỚNG DẪN:
+    1) Áp đúng nhóm trang phục cho đúng người theo thứ tự trái -> phải.
+    2) Giữ nguyên mặt, cơ thể, tư thế, vị trí và nền; chỉ thay trang phục.
+    3) Bỏ qua người mẫu trong ảnh sản phẩm, chỉ lấy quần áo.
+    4) Trang phục mặc vào phải tự nhiên, đúng form, giữ chi tiết.
 
-    INSTRUCTIONS:
-    1. Take GARMENTS from model images and dress each customer. Apply correct product group to correct person in order.
-    2. Customer image: keep faces, bodies, poses, positions, background unchanged. Change only garments.
-    3. Product images: ignore models, extract only clothing for customers.
-    4. Garments on each person must look natural, correct fit, preserve product details.
+    ${customPrompt ? `YÊU CẦU BỔ SUNG CỦA KHÁCH: "${customPrompt}"` : ''}
 
-    ${customPrompt ? `ADDITIONAL USER REQUEST: "${customPrompt}"` : ''}
-
-    OUTPUT FORMAT (CRITICAL):
-    - Return exactly ONE image with the SAME framing as Image 1. One full-frame photo.
-    - Forbidden: 2x2 grid, 4 panels, collage, multiple copies.
+    ĐẦU RA: một ảnh duy nhất, toàn khung, cùng bố cục ảnh đầu vào.
   `;
 }
 
 
 function buildGroupPrompt(customPrompt: string, leftCount: number, middleCount: number, rightCount: number): string {
   return `
-    CRITICAL: Output must be ONE full-frame photo (same composition as input). NEVER a 2x2 grid, 4 panels, or multiple copies.
+    QUAN TRỌNG: Kết quả phải là MỘT ảnh toàn khung, cùng bố cục ảnh đầu vào. Không lưới, không collage, không nhân bản.
 
-    Task: Virtual Try-On for group of 3.
+    NHIỆM VỤ: Thử đồ AI cho 3 người.
 
-    INPUT (image order):
-    - Image 1: Three customers (to try on), left to right.
-    - Next ${leftCount} images: Model wearing product for Left person (leftmost).
-    - Next ${middleCount} images: Model wearing product for Middle person (center).
-    - Next ${rightCount} images: Model wearing product for Right person (rightmost).
+    ẢNH ĐẦU VÀO:
+    - Ảnh 1: ba khách hàng theo thứ tự trái - giữa - phải.
+    - ${leftCount} ảnh tiếp: đồ cho người bên trái.
+    - ${middleCount} ảnh tiếp: đồ cho người ở giữa.
+    - ${rightCount} ảnh tiếp: đồ cho người bên phải.
 
-    IDENTIFY POSITIONS (left to right):
-    - Left: Leftmost in customer image (Image 1) – receives garments from first ${leftCount} product images.
-    - Middle: Center in customer image (Image 1) – receives garments from next ${middleCount} product images.
-    - Right: Rightmost in customer image (Image 1) – receives garments from last ${rightCount} product images.
+    HƯỚNG DẪN:
+    1) Áp đúng nhóm trang phục cho đúng người theo thứ tự.
+    2) Giữ nguyên khuôn mặt, cơ thể, tư thế, vị trí, nền; chỉ thay trang phục.
+    3) Bỏ qua người mẫu trong ảnh sản phẩm, chỉ lấy quần áo.
+    4) Trang phục cần tự nhiên, đúng form, giữ chi tiết sản phẩm.
 
-    INSTRUCTIONS:
-    1. Take GARMENTS from model images and dress each customer. Apply correct product group to correct person in order.
-    2. Customer image: keep faces, bodies, poses, positions, background unchanged. Change only garments.
-    3. Product images: ignore models, extract only clothing for customers.
-    4. Garments on each person must look natural, correct fit, preserve product details.
+    ${customPrompt ? `YÊU CẦU BỔ SUNG CỦA KHÁCH: "${customPrompt}"` : ''}
 
-    ${customPrompt ? `ADDITIONAL USER REQUEST: "${customPrompt}"` : ''}
-
-    OUTPUT FORMAT (CRITICAL):
-    - Return exactly ONE image with the SAME framing as Image 1. One full-frame photo.
-    - Forbidden: 2x2 grid, 4 panels, collage, multiple copies.
+    ĐẦU RA: một ảnh duy nhất, toàn khung, cùng bố cục ảnh đầu vào.
   `;
 }
 
 
 function buildFourPersonPrompt(customPrompt: string, p1Count: number, p2Count: number, p3Count: number, p4Count: number): string {
   return `
-    CRITICAL: Output must be ONE full-frame photo (same composition as input). NEVER a 2x2 grid, 4 panels, or multiple copies.
+    QUAN TRỌNG: Kết quả phải là MỘT ảnh toàn khung, cùng bố cục ảnh đầu vào. Không lưới 2x2, không nhiều khung.
 
-    Task: Virtual Try-On for group of 4.
+    NHIỆM VỤ: Thử đồ AI cho 4 người.
 
-    INPUT (image order):
-    - Image 1: Four customers (to try on), left to right.
-    - Next ${p1Count} images: Model wearing product for Person 1 (leftmost).
-    - Next ${p2Count} images: Model wearing product for Person 2 (second from left).
-    - Next ${p3Count} images: Model wearing product for Person 3 (third from left).
-    - Last ${p4Count} images: Model wearing product for Person 4 (rightmost).
+    ẢNH ĐẦU VÀO:
+    - Ảnh 1: bốn khách hàng, từ trái sang phải.
+    - ${p1Count} ảnh tiếp: đồ cho người 1 (ngoài cùng bên trái).
+    - ${p2Count} ảnh tiếp: đồ cho người 2.
+    - ${p3Count} ảnh tiếp: đồ cho người 3.
+    - ${p4Count} ảnh cuối: đồ cho người 4 (ngoài cùng bên phải).
 
-    IDENTIFY POSITIONS (left to right):
-    - Person 1: Leftmost in customer image (Image 1) – receives garments from first ${p1Count} product images.
-    - Person 2: Second from left – receives garments from next ${p2Count} product images.
-    - Person 3: Third from left – receives garments from next ${p3Count} product images.
-    - Person 4: Rightmost – receives garments from last ${p4Count} product images.
+    HƯỚNG DẪN:
+    1) Áp đúng nhóm trang phục cho đúng người theo thứ tự.
+    2) Giữ nguyên mặt, cơ thể, tư thế, vị trí và nền; chỉ thay trang phục.
+    3) Bỏ qua người mẫu trong ảnh sản phẩm, chỉ dùng quần áo.
+    4) Trang phục mặc vào phải tự nhiên, đúng form, rõ chi tiết.
 
-    INSTRUCTIONS:
-    1. Take GARMENTS from model images and dress each customer. Apply correct product group to correct person in order.
-    2. Customer image: keep faces, bodies, poses, positions, background unchanged. Change only garments.
-    3. Product images: ignore models, extract only clothing for customers.
-    4. Garments on each person must look natural, correct fit, preserve product details.
+    ${customPrompt ? `YÊU CẦU BỔ SUNG CỦA KHÁCH: "${customPrompt}"` : ''}
 
-    ${customPrompt ? `ADDITIONAL USER REQUEST: "${customPrompt}"` : ''}
-
-    OUTPUT FORMAT (CRITICAL):
-    - Return exactly ONE image with the SAME framing as Image 1. One full-frame photo.
-    - Forbidden: 2x2 grid, 4 panels, collage, multiple copies.
+    ĐẦU RA: một ảnh duy nhất, toàn khung, cùng bố cục ảnh đầu vào.
   `;
 }
 
 
 function buildFivePersonPrompt(customPrompt: string, p1Count: number, p2Count: number, p3Count: number, p4Count: number, p5Count: number): string {
   return `
-    CRITICAL: Output must be ONE full-frame photo (same composition as input). NEVER a 2x2 grid, 4 panels, or multiple copies.
+    QUAN TRỌNG: Kết quả phải là MỘT ảnh toàn khung, cùng bố cục ảnh đầu vào. Không lưới, không collage, không nhiều bản sao.
 
-    Task: Virtual Try-On for group of 5.
+    NHIỆM VỤ: Thử đồ AI cho 5 người.
 
-    INPUT (image order):
-    - Image 1: Five customers (to try on), left to right.
-    - Next ${p1Count} images: Model wearing product for Person 1 (leftmost).
-    - Next ${p2Count} images: Model wearing product for Person 2 (second from left).
-    - Next ${p3Count} images: Model wearing product for Person 3 (center).
-    - Next ${p4Count} images: Model wearing product for Person 4 (fourth from left).
-    - Last ${p5Count} images: Model wearing product for Person 5 (rightmost).
+    ẢNH ĐẦU VÀO:
+    - Ảnh 1: năm khách hàng từ trái sang phải.
+    - ${p1Count} ảnh tiếp: đồ cho người 1.
+    - ${p2Count} ảnh tiếp: đồ cho người 2.
+    - ${p3Count} ảnh tiếp: đồ cho người 3.
+    - ${p4Count} ảnh tiếp: đồ cho người 4.
+    - ${p5Count} ảnh cuối: đồ cho người 5.
 
-    IDENTIFY POSITIONS (left to right):
-    - Person 1: Leftmost in customer image (Image 1) – receives garments from first ${p1Count} product images.
-    - Person 2: Second from left – receives garments from next ${p2Count} product images.
-    - Person 3: Center – receives garments from next ${p3Count} product images.
-    - Person 4: Fourth from left – receives garments from next ${p4Count} product images.
-    - Person 5: Rightmost – receives garments from last ${p5Count} product images.
+    HƯỚNG DẪN:
+    1) Áp đúng nhóm trang phục cho đúng người theo thứ tự.
+    2) Giữ nguyên khuôn mặt, cơ thể, tư thế, vị trí, nền; chỉ thay trang phục.
+    3) Bỏ qua người mẫu trong ảnh sản phẩm, chỉ lấy quần áo.
+    4) Trang phục phải tự nhiên, đúng form, giữ chi tiết.
 
-    INSTRUCTIONS:
-    1. Take GARMENTS from model images and dress each customer. Apply correct product group to correct person in order.
-    2. Customer image: keep faces, bodies, poses, positions, background unchanged. Change only garments.
-    3. Product images: ignore models, extract only clothing for customers.
-    4. Garments on each person must look natural, correct fit, preserve product details.
+    ${customPrompt ? `YÊU CẦU BỔ SUNG CỦA KHÁCH: "${customPrompt}"` : ''}
 
-    ${customPrompt ? `ADDITIONAL USER REQUEST: "${customPrompt}"` : ''}
-
-    OUTPUT FORMAT (CRITICAL):
-    - Return exactly ONE image with the SAME framing as Image 1. One full-frame photo.
-    - Forbidden: 2x2 grid, 4 panels, collage, multiple copies.
+    ĐẦU RA: một ảnh duy nhất, toàn khung, cùng bố cục ảnh đầu vào.
   `;
 }
 

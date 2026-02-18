@@ -14,7 +14,7 @@ const toTenths = (value: number) => Math.round(value * 10)
 const fromTenths = (value: number) => value / 10
 const formatCredits = (value: number) => value.toLocaleString('vi-VN', { maximumFractionDigits: 1 })
 
-const PROMPT_BASE = `Create an ID card photo from this image. Remove background, replace with white or light blue. Crop to standard 3x4 or 4x6 frame, face and shoulders only. Professional, passport-standard quality. Return only the result image, no text overlay.`
+const PROMPT_BASE = `Tạo ảnh thẻ từ ảnh này. Xóa nền và thay bằng nền trắng hoặc xanh nhạt. Cắt khung chuẩn 3x4 hoặc 4x6, chỉ gồm khuôn mặt và vai. Chất lượng chuyên nghiệp theo chuẩn ảnh hồ sơ. Chỉ trả về ảnh kết quả, không chèn chữ.`
 
 /** Tạo ảnh thẻ. 2K: 1,5 credit, 4K: 3 credit. */
 export async function createIdCard(formData: FormData) {
@@ -33,7 +33,7 @@ export async function createIdCard(formData: FormData) {
   const noteEn = note ? await normalizeToEnglish(note) : ''
   let prompt = PROMPT_BASE
   if (noteEn) {
-    prompt = prompt.replace('Return only the result image, no text overlay.', `ADDITIONAL USER REQUEST: "${noteEn}". Return only the result image, no text overlay.`)
+    prompt = prompt.replace('Chỉ trả về ảnh kết quả, không chèn chữ.', `YÊU CẦU BỔ SUNG CỦA NGƯỜI DÙNG: "${noteEn}". Chỉ trả về ảnh kết quả, không chèn chữ.`)
   }
 
   const COST = IDCARD_COSTS[imageQuality]

@@ -13,7 +13,7 @@ const toTenths = (value: number) => Math.round(value * 10)
 const fromTenths = (value: number) => value / 10
 const formatCredits = (value: number) => value.toLocaleString('vi-VN', { maximumFractionDigits: 1 })
 
-const PROMPT_BASE = `Magic Eraser: Remove unwanted objects from this image as described by the user (e.g. strangers, trash, wires, stains). Inpaint the background naturally as if nothing was there, seamless, no traces. Keep the rest of the image unchanged. Return only the result image, no text overlay.`
+const PROMPT_BASE = `Tẩy vật thể: xóa các đối tượng không mong muốn theo mô tả của người dùng (ví dụ: người lạ, rác, dây điện, vết bẩn). Tái tạo nền tự nhiên như chưa từng có vật thể, liền mạch, không để lại dấu vết. Giữ nguyên các phần còn lại của ảnh. Chỉ trả về ảnh kết quả, không chèn chữ.`
 
 /** Xóa vật thể thừa (Magic Eraser). 2K: 1,5 credit, 4K: 3 credit. */
 export async function eraseObjects(formData: FormData) {
@@ -28,7 +28,7 @@ export async function eraseObjects(formData: FormData) {
 
   const noteEn = await normalizeToEnglish(note)
   let prompt = PROMPT_BASE
-  prompt = prompt.replace('Return only the result image, no text overlay.', `OBJECTS TO REMOVE: "${noteEn}". Return only the result image, no text overlay.`)
+  prompt = prompt.replace('Chỉ trả về ảnh kết quả, không chèn chữ.', `ĐỐI TƯỢNG CẦN XÓA: "${noteEn}". Chỉ trả về ảnh kết quả, không chèn chữ.`)
 
   const COST = ERASER_COSTS[imageQuality]
   const supabase = createClient()

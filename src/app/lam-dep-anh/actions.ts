@@ -14,14 +14,14 @@ const fromTenths = (value: number) => value / 10
 const formatCredits = (value: number) => value.toLocaleString('vi-VN', { maximumFractionDigits: 1 })
 
 const PERSON_LABELS: Record<number, string[]> = {
-  1: ['person in the image'],
-  2: ['person on the LEFT', 'person on the RIGHT'],
-  3: ['person on the LEFT', 'person in the CENTER', 'person on the RIGHT'],
-  4: ['person 1 (leftmost)', 'person 2', 'person 3', 'person 4 (rightmost)'],
+  1: ['người trong ảnh'],
+  2: ['người bên TRÁI', 'người bên PHẢI'],
+  3: ['người bên TRÁI', 'người ở GIỮA', 'người bên PHẢI'],
+  4: ['người 1 (ngoài cùng bên trái)', 'người 2', 'người 3', 'người 4 (ngoài cùng bên phải)'],
 }
 
-const MALE_RETOUCH = `MALE style: Subtle skin smoothing – reduce blemishes, uneven tone, oil shine. Keep natural texture, stubble/beard if present. Enhance jawline subtly. Slightly brighten eyes. Do NOT over-smooth – maintain masculine character.`
-const FEMALE_RETOUCH = `FEMALE style: Smooth skin gently – reduce blemishes, dark circles. Soft, even complexion. Enhance eyes, natural lip color. Do NOT over-retouch – avoid plastic look.`
+const MALE_RETOUCH = `Phong cách NAM: làm mịn da nhẹ nhàng, giảm mụn/vết không đều màu/bóng dầu. Giữ kết cấu da tự nhiên, giữ râu nếu có. Tôn nhẹ đường hàm. Làm sáng mắt vừa phải. KHÔNG làm mịn quá mức, vẫn giữ nét nam tính.`
+const FEMALE_RETOUCH = `Phong cách NỮ: làm mịn da nhẹ, giảm mụn và quầng thâm. Da đều màu, mềm mại tự nhiên. Tăng độ nổi bật của mắt, màu môi tự nhiên. KHÔNG chỉnh sửa quá đà, tránh cảm giác giả.`
 
 /** Prompt làm đẹp – hỗ trợ 1–4 người, mỗi người có giới tính riêng */
 function buildBeautifyPrompt(personGenders: ('male' | 'female')[], noteEn: string): string {
@@ -31,24 +31,24 @@ function buildBeautifyPrompt(personGenders: ('male' | 'female')[], noteEn: strin
     .map((g, i) => `${labels[i]}: ${g === 'female' ? FEMALE_RETOUCH : MALE_RETOUCH}`)
     .join('\n')
 
-  return `Professional portrait beautification – studio-quality retouch. Output must look like a professional studio photo.
+  return `Làm đẹp chân dung chuyên nghiệp theo chất lượng studio. Kết quả phải giống ảnh chụp studio chuyên nghiệp.
 
-NUMBER OF PEOPLE: ${count}. Apply retouch to EACH person according to their gender below.
+SỐ NGƯỜI: ${count}. Hãy áp dụng chỉnh sửa cho TỪNG người theo giới tính bên dưới.
 
-PERSON-BY-PERSON (left to right):
+CHI TIẾT TỪNG NGƯỜI (từ trái sang phải):
 ${personInstructions}
 
-CRITICAL – PRESERVE ALL FACES:
-- Keep EVERY face 100% recognizable. Do NOT change facial structure, features, or proportions.
-- Maintain sharpness and clarity of all faces. Do NOT blur or distort.
-- Same people, same faces – only improve lighting, skin, and overall polish per person.
+QUAN TRỌNG - GIỮ NGUYÊN NHẬN DIỆN KHUÔN MẶT:
+- Mỗi khuôn mặt phải nhận ra đúng 100%. KHÔNG thay đổi cấu trúc, đặc điểm hay tỷ lệ khuôn mặt.
+- Giữ độ nét và độ rõ của mọi khuôn mặt. KHÔNG làm mờ hoặc biến dạng.
+- Vẫn là đúng những người trong ảnh, chỉ cải thiện ánh sáng, làn da và độ hoàn thiện tổng thể.
 
-STUDIO STYLE:
-- Professional lighting: soft, even, flattering for all.
-- Clean background or subtle enhancement if needed.
-- Overall polish: like a professional photographer's retouched group portrait.
+PHONG CÁCH STUDIO:
+- Ánh sáng chuyên nghiệp: mềm, đều, tôn mọi khuôn mặt.
+- Nền sạch hoặc tinh chỉnh nhẹ nếu cần.
+- Tổng thể hoàn thiện như ảnh nhóm đã được nhiếp ảnh gia chỉnh chuyên nghiệp.
 
-${noteEn ? `ADDITIONAL USER REQUEST: "${noteEn}". ` : ''}Return only the result image, no text overlay.`
+${noteEn ? `YÊU CẦU BỔ SUNG CỦA NGƯỜI DÙNG: "${noteEn}". ` : ''}Chỉ trả về ảnh kết quả, không chèn chữ.`
 }
 
 /** Làm đẹp ảnh. 2K: 1,5 credit, 4K: 3 credit. */

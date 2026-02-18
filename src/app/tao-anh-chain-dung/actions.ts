@@ -13,7 +13,7 @@ const toTenths = (value: number) => Math.round(value * 10)
 const fromTenths = (value: number) => value / 10
 const formatCredits = (value: number) => value.toLocaleString('vi-VN', { maximumFractionDigits: 1 })
 
-const PROMPT_BASE = `AI Headshot: Transform casual selfie into professional portrait (LinkedIn, CV). Add professional vest/blazer, neat hair, studio lighting. Preserve face and distinctive features. Formal, job-application appropriate. Return only the result image, no text overlay.`
+const PROMPT_BASE = `Ảnh chân dung chuyên nghiệp: biến selfie đời thường thành ảnh profile chuyên nghiệp (LinkedIn, CV). Thêm trang phục phù hợp (vest/blazer), tóc gọn, ánh sáng studio. Giữ đúng khuôn mặt và các đặc điểm nhận diện. Phong cách trang trọng, phù hợp hồ sơ xin việc. Chỉ trả về ảnh kết quả, không chèn chữ.`
 
 /** Tạo ảnh chân dung chuyên nghiệp. 2K: 2 credit, 4K: 4 credit. */
 export async function createHeadshot(formData: FormData) {
@@ -28,7 +28,7 @@ export async function createHeadshot(formData: FormData) {
   const noteEn = note ? await normalizeToEnglish(note) : ''
   let prompt = PROMPT_BASE
   if (noteEn) {
-    prompt = prompt.replace('Return only the result image, no text overlay.', `ADDITIONAL REQUEST: "${noteEn}". Return only the result image, no text overlay.`)
+    prompt = prompt.replace('Chỉ trả về ảnh kết quả, không chèn chữ.', `YÊU CẦU BỔ SUNG: "${noteEn}". Chỉ trả về ảnh kết quả, không chèn chữ.`)
   }
 
   const COST = HEADSHOT_COSTS[imageQuality]

@@ -18,11 +18,22 @@ interface ImagePreviewProps {
   className?: string
 }
 
+function isRestrictedInAppBrowser(): boolean {
+  if (typeof navigator === 'undefined') return false
+  const ua = navigator.userAgent || ''
+  return /(FBAN|FBAV|FB_IAB|Instagram|Line\/|Zalo|TikTok)/i.test(ua)
+}
+
 export function ImagePreview({ src, alt, className }: ImagePreviewProps) {
   const [isOpen, setIsOpen] = useState(false)
   const imageRef = useRef<HTMLImageElement>(null)
 
   const handleDownload = (format: 'png' | 'jpeg') => {
+    if (isRestrictedInAppBrowser()) {
+      // In-app browsers thường chặn tải bằng download/data URL.
+      window.open(src, '_blank', 'noopener,noreferrer')
+      return
+    }
     if (!imageRef.current) return
 
     const canvas = document.createElement('canvas')

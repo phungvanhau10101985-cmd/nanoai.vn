@@ -22,11 +22,11 @@ const toTenths = (value: number) => Math.round(value * 10)
 const fromTenths = (value: number) => value / 10
 const formatCredits = (value: number) => value.toLocaleString('vi-VN', { maximumFractionDigits: 1 })
 
-const PROMPT_BASE = `Create professional 3D mockup: You receive TWO images.
-- IMAGE 1: Product photo (phone, cup, box, bag, shirt, etc.) – the base product.
-- IMAGE 2: Logo or brand design – to print/overlay onto the product surface.
+const PROMPT_BASE = `Tạo mockup 3D chuyên nghiệp với HAI ảnh đầu vào.
+- ẢNH 1: ảnh sản phẩm nền (điện thoại, cốc, hộp, túi, áo...).
+- ẢNH 2: logo hoặc thiết kế thương hiệu để in/đặt lên bề mặt sản phẩm.
 
-Task: Place the logo/design from IMAGE 2 onto the product from IMAGE 1. The design must wrap correctly on the product surface, natural proportions, realistic 3D lighting and perspective. Result like a real product mockup photo. Return only the result image, no text overlay.`
+Nhiệm vụ: đặt logo/thiết kế từ ẢNH 2 lên sản phẩm ở ẢNH 1. Thiết kế phải bám đúng bề mặt, tỷ lệ tự nhiên, ánh sáng và phối cảnh 3D chân thực. Kết quả giống ảnh mockup sản phẩm thật. Chỉ trả về ảnh kết quả, không chèn chữ.`
 
 /** Tạo ảnh 3D Mockup. Ảnh 1 = sản phẩm (hoặc mẫu), Ảnh 2 = logo in lên. 2K: 1,5 credit, 4K: 3 credit. */
 export async function create3DMockup(formData: FormData) {
@@ -48,7 +48,7 @@ export async function create3DMockup(formData: FormData) {
   const noteEn = note ? await normalizeToEnglish(note) : ''
   let prompt = PROMPT_BASE
   if (noteEn) {
-    prompt = prompt.replace('Return only the result image, no text overlay.', `REQUEST: "${noteEn}". Return only the result image, no text overlay.`)
+    prompt = prompt.replace('Chỉ trả về ảnh kết quả, không chèn chữ.', `YÊU CẦU: "${noteEn}". Chỉ trả về ảnh kết quả, không chèn chữ.`)
   }
 
   const COST = MOCKUP_COSTS[imageQuality]

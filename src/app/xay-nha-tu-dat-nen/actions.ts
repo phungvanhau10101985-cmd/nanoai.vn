@@ -17,15 +17,15 @@ const toTenths = (v: number) => Math.round(v * 10)
 const fromTenths = (v: number) => v / 10
 const formatCredits = (v: number) => v.toLocaleString('vi-VN', { maximumFractionDigits: 1 })
 
-const SYNTH_PROMPT = `You are an architectural expert. The user provides house info in Vietnamese or mixed language. Your task: NORMALIZE and TRANSLATE to clean English. Convert design style, colors - everything to English. No Vietnamese in output. Output ONLY the English prompt for image AI.`
+const SYNTH_PROMPT = `Bạn là chuyên gia kiến trúc. Người dùng cung cấp thông tin nhà bằng tiếng Việt hoặc ngôn ngữ trộn. Nhiệm vụ: chuẩn hóa nội dung thành tiếng Việt rõ ràng, đầy đủ, phù hợp làm prompt tạo ảnh kiến trúc. Chỉ trả về prompt tiếng Việt, không giải thích thêm.`
 
-const HOUSE_3D_PROMPT = `Create a photorealistic 3D architectural visualization of a residential house facade with front garden. AI chooses garden elements (plants, trees, lawn, etc.) freely. Professional style, realistic materials. Output a single high-quality image.`
+const HOUSE_3D_PROMPT = `Tạo ảnh phối cảnh kiến trúc 3D chân thực cho mặt tiền nhà ở có sân vườn phía trước. AI được phép tự chọn thành phần sân vườn (cây, cỏ, tiểu cảnh...) phù hợp. Phong cách chuyên nghiệp, vật liệu chân thực. Trả về một ảnh chất lượng cao.`
 
-const FLOOR_PLAN_SYNTH = `You are an architect. The user provides room layout info in Vietnamese or mixed language. NORMALIZE and TRANSLATE EVERYTHING to clean English. Convert all terms: room names, features (phòng khách->living room, phòng ngủ->bedroom, bếp->kitchen, WC->bathroom, cầu thang->stairs, thang máy->elevator, gara->garage, phòng thờ->worship room, etc). No Vietnamese in output. Output ONLY the English prompt for floor plan AI.`
+const FLOOR_PLAN_SYNTH = `Bạn là kiến trúc sư. Người dùng cung cấp thông tin chia phòng bằng tiếng Việt hoặc ngôn ngữ trộn. Hãy chuẩn hóa toàn bộ nội dung thành tiếng Việt rõ ràng, có cấu trúc để dùng làm prompt tạo mặt bằng. Chỉ trả về prompt tiếng Việt, không giải thích thêm.`
 
-const FLOOR_PLAN_IMAGE = `Create a professional architectural FLOOR PLAN (bản vẽ chia phòng) based on the reference image and the following room layout requirements. Show: room boundaries, doors, windows, room labels. Clean drafting style, clear layout. Output a single image.`
+const FLOOR_PLAN_IMAGE = `Tạo bản vẽ mặt bằng chia phòng chuyên nghiệp dựa trên ảnh tham chiếu và yêu cầu bố trí phòng bên dưới. Thể hiện: ranh giới phòng, cửa đi, cửa sổ, nhãn phòng. Nét vẽ kỹ thuật sạch, bố cục rõ ràng. Trả về một ảnh duy nhất.`
 
-const STRUCTURAL_PROMPT = `Convert this floor plan into a professional STRUCTURAL DRAWING (bản vẽ kết cấu). Show: foundation, columns, beams, load-bearing walls. Clean technical drawing, black lines on white. Output a single image.`
+const STRUCTURAL_PROMPT = `Chuyển bản vẽ mặt bằng này thành bản vẽ kết cấu chuyên nghiệp. Thể hiện: móng, cột, dầm, tường chịu lực. Phong cách bản vẽ kỹ thuật sạch, nét đen trên nền trắng. Trả về một ảnh duy nhất.`
 
 export interface HouseInfo {
   /** Chiều dài mặt tiền nhà (m) */
@@ -278,7 +278,7 @@ export async function step1Build3D(formData: FormData) {
 
   const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!)
   const flashModel = genAI.getGenerativeModel({ model: 'gemini-2.5-flash', generationConfig: { responseModalities: ['TEXT'] } })
-  const synthRes = await flashModel.generateContent(`${SYNTH_PROMPT}\n\nRaw user input (Vietnamese/mixed - normalize ALL to English):\n${userInput}`)
+  const synthRes = await flashModel.generateContent(`${SYNTH_PROMPT}\n\nNội dung người dùng nhập:\n${userInput}`)
   trackFromUsageMetadata(synthRes.response.usageMetadata, 'gemini-2.5-flash', 'xay-nha-synth', user.id)
   let promptEn = (synthRes.response.text?.() || '').trim()
   if (!promptEn) promptEn = userInput
@@ -287,7 +287,7 @@ export async function step1Build3D(formData: FormData) {
     model: 'gemini-3-pro-image-preview',
     generationConfig: { responseModalities: ['TEXT', 'IMAGE'], imageConfig: { imageSize: '2K', aspectRatio: '16:9' } },
   })
-  const fullPrompt = `${HOUSE_3D_PROMPT}\n\n${promptEn}\n\nReturn only the result image.`
+  const fullPrompt = `${HOUSE_3D_PROMPT}\n\n${promptEn}\n\nChỉ trả về ảnh kết quả.`
 
   const refFile = formData.get('referenceImage') as File | null
   let imgRes
@@ -296,7 +296,7 @@ export async function step1Build3D(formData: FormData) {
     const base64 = buf.toString('base64')
     const mime = refFile.type || 'image/png'
     imgRes = await imageModel.generateContent(
-      [fullPrompt + '\n\nUse this reference image for style/layout inspiration.', { inlineData: { data: base64, mimeType: mime } }],
+      [fullPrompt + '\n\nDùng ảnh tham chiếu này để lấy cảm hứng phong cách và bố cục.', { inlineData: { data: base64, mimeType: mime } }],
       { safetySettings: getSafetySettings() }
     )
   } else {
@@ -416,7 +416,7 @@ export async function stepFloorPlan(sourceProjectId: string, floorNum: number, f
 
   const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!)
   const flashModel = genAI.getGenerativeModel({ model: 'gemini-2.5-flash', generationConfig: { responseModalities: ['TEXT'] } })
-  const synthRes = await flashModel.generateContent(`${FLOOR_PLAN_SYNTH}\n\nRaw user input (Vietnamese/mixed - normalize ALL to English):\n${userInput}`)
+  const synthRes = await flashModel.generateContent(`${FLOOR_PLAN_SYNTH}\n\nNội dung người dùng nhập:\n${userInput}`)
   trackFromUsageMetadata(synthRes.response.usageMetadata, 'gemini-2.5-flash', 'xay-nha-fp-synth', user.id)
   let promptEn = (synthRes.response.text?.() || '').trim()
   if (!promptEn) promptEn = userInput
@@ -429,7 +429,7 @@ export async function stepFloorPlan(sourceProjectId: string, floorNum: number, f
     model: 'gemini-3-pro-image-preview',
     generationConfig: { responseModalities: ['TEXT', 'IMAGE'], imageConfig: { imageSize: '2K', aspectRatio: '16:9' } },
   })
-  const fullPrompt = `${FLOOR_PLAN_IMAGE}\n\nRequirements: ${promptEn}\n\nReturn only the result image.`
+  const fullPrompt = `${FLOOR_PLAN_IMAGE}\n\nYêu cầu: ${promptEn}\n\nChỉ trả về ảnh kết quả.`
   const resultImg = await imageModel.generateContent([
     fullPrompt,
     { inlineData: { data: base64, mimeType: 'image/png' } },

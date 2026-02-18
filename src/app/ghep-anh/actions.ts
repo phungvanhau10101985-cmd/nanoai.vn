@@ -13,7 +13,7 @@ const toTenths = (value: number) => Math.round(value * 10)
 const fromTenths = (value: number) => value / 10
 const formatCredits = (value: number) => value.toLocaleString('vi-VN', { maximumFractionDigits: 1 })
 
-const PROMPT_BASE = `Merge these images into one unified, natural composite. Combine content from all images harmoniously and logically. Preserve important details. Return only the result image, no text overlay.`
+const PROMPT_BASE = `Ghép các ảnh này thành một ảnh tổng hợp tự nhiên và thống nhất. Kết hợp nội dung từ tất cả ảnh một cách hài hòa, hợp lý. Giữ các chi tiết quan trọng. Chỉ trả về ảnh kết quả, không chèn chữ.`
 
 /** Ghép ảnh: kết hợp nhiều ảnh thành một. 2K: 1,5 credit, 4K: 3 credit. */
 export async function mergeImages(formData: FormData) {
@@ -25,7 +25,7 @@ export async function mergeImages(formData: FormData) {
   const noteEn = note ? await normalizeToEnglish(note) : ''
   let prompt = PROMPT_BASE
   if (noteEn) {
-    prompt = prompt.replace('Return only the result image, no text overlay.', `ADDITIONAL USER REQUEST: "${noteEn}". Return only the result image, no text overlay.`)
+    prompt = prompt.replace('Chỉ trả về ảnh kết quả, không chèn chữ.', `YÊU CẦU BỔ SUNG CỦA NGƯỜI DÙNG: "${noteEn}". Chỉ trả về ảnh kết quả, không chèn chữ.`)
   }
   const images: File[] = []
   let i = 0
