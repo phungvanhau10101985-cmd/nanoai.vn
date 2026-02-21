@@ -6,6 +6,7 @@ const fs = require('fs')
 const path = require('path')
 
 const LOGO_SOURCE = path.join(__dirname, '..', 'assets', 'logo-nanoai.png')
+const PNG_OPTS = { compressionLevel: 9, effort: 10, palette: true, quality: 80 }
 
 async function generateIcons() {
   let sharp
@@ -42,7 +43,7 @@ async function generateIcons() {
   for (const { size, name } of pwaSizes) {
     const buffer = await sharp(sourceBuffer)
       .resize(size, size)
-      .png()
+      .png(PNG_OPTS)
       .toBuffer()
     const outPath = path.join(iconsDir, name)
     fs.writeFileSync(outPath, buffer)
@@ -52,7 +53,7 @@ async function generateIcons() {
   // App icon (Next.js favicon) - 32x32
   const appIconBuffer = await sharp(sourceBuffer)
     .resize(32, 32)
-    .png()
+    .png(PNG_OPTS)
     .toBuffer()
   fs.writeFileSync(path.join(appDir, 'icon.png'), appIconBuffer)
   console.log('Đã tạo: src/app/icon.png')
@@ -65,7 +66,7 @@ async function generateIcons() {
   // sharp can create ico from multiple sizes
   await sharp(faviconBuffers[1]) // 32x32 as primary
     .resize(32, 32)
-    .toFormat('png')
+    .png(PNG_OPTS)
     .toFile(path.join(publicDir, 'favicon.png'))
   console.log('Đã tạo: public/favicon.png')
 
@@ -73,17 +74,17 @@ async function generateIcons() {
   const ogWidth = 1200
   const ogHeight = 630
   const logoSize = 360
-  const logoBuffer = await sharp(sourceBuffer).resize(logoSize, logoSize).png().toBuffer()
+  const logoBuffer = await sharp(sourceBuffer).resize(logoSize, logoSize).png(PNG_OPTS).toBuffer()
   const whiteBg = await sharp({
     create: { width: ogWidth, height: ogHeight, channels: 3, background: { r: 255, g: 255, b: 255 } }
-  }).png().toBuffer()
+  }).png(PNG_OPTS).toBuffer()
   const compositeImg = await sharp(whiteBg)
     .composite([{
       input: logoBuffer,
       top: Math.round((ogHeight - logoSize) / 2),
       left: Math.round((ogWidth - logoSize) / 2),
     }])
-    .png()
+    .png(PNG_OPTS)
     .toBuffer()
   fs.writeFileSync(path.join(publicDir, 'og-image.png'), compositeImg)
   console.log('Đã tạo: public/og-image.png')

@@ -4,6 +4,7 @@
  */
 const fs = require('fs')
 const path = require('path')
+const PNG_OPTS = { compressionLevel: 9, effort: 10, palette: true, quality: 80 }
 
 async function generateIcons() {
   let sharp
@@ -44,7 +45,7 @@ async function generateIcons() {
   for (const size of sizes) {
     const buffer = await sharp(Buffer.from(svg))
       .resize(size, size)
-      .png()
+      .png(PNG_OPTS)
       .toBuffer()
     const outPath = path.join(iconsDir, `icon-${size}x${size}.png`)
     fs.writeFileSync(outPath, buffer)
@@ -54,7 +55,7 @@ async function generateIcons() {
   // Apple touch icon 180x180
   const appleBuffer = await sharp(Buffer.from(svg))
     .resize(180, 180)
-    .png()
+    .png(PNG_OPTS)
     .toBuffer()
   fs.writeFileSync(path.join(iconsDir, 'apple-touch-icon.png'), appleBuffer)
   console.log('Đã tạo: apple-touch-icon.png')
