@@ -22,18 +22,54 @@ const PERSON_LABELS: Record<number, string[]> = {
 
 const MALE_RETOUCH = `Phong cách NAM: làm mịn da nhẹ nhàng, giảm mụn/vết không đều màu/bóng dầu. Giữ kết cấu da tự nhiên, giữ râu nếu có. Tôn nhẹ đường hàm. Làm sáng mắt vừa phải. KHÔNG làm mịn quá mức, vẫn giữ nét nam tính.`
 const FEMALE_RETOUCH = `Phong cách NỮ: làm mịn da nhẹ, giảm mụn và quầng thâm. Da đều màu, mềm mại tự nhiên. Tăng độ nổi bật của mắt, màu môi tự nhiên. KHÔNG chỉnh sửa quá đà, tránh cảm giác giả.`
+type BeautifyStyle = 'natural' | 'korean' | 'pro_sharp' | 'beauty_glow' | 'male_elegant' | 'female_soft' | 'mixed_group'
+type BeautifyStrength = 'light' | 'medium' | 'strong'
+
+const STYLE_PRESET_PROMPTS: Record<BeautifyStyle, string> = {
+  natural: 'Phong cách tự nhiên: giữ nét thật, chỉ retouch vừa đủ để ảnh sạch và sáng hơn.',
+  korean: 'Phong cách makeup nhẹ Hàn Quốc: da sáng trong, mịn tự nhiên, tông màu mềm, không quá đà.',
+  pro_sharp: 'Phong cách sắc nét chuyên nghiệp: tăng độ nét khuôn mặt và ánh sáng studio, vẫn giữ tự nhiên.',
+  beauty_glow: 'Phong cách beauty glow: da căng bóng nhẹ, ánh sáng mềm, tổng thể tươi tắn và cao cấp.',
+  male_elegant: 'Phong cách nam lịch lãm: nhấn đường nét nam tính, da sạch khỏe, ánh sáng mạnh mẽ tinh gọn.',
+  female_soft: 'Phong cách nữ mềm mại: da mịn tự nhiên, ánh sáng dịu, vẻ ngoài thanh lịch và nữ tính.',
+  mixed_group: 'Phong cách nhóm nam + nữ: tối ưu từng người theo giới tính của họ trong cùng ảnh, tổng thể hài hòa và đồng nhất.',
+}
+
+const STRENGTH_PROMPTS: Record<BeautifyStrength, string> = {
+  light: 'Mức độ nhẹ: ưu tiên tự nhiên, chỉnh sửa tối thiểu.',
+  medium: 'Mức độ vừa: cân bằng giữa tự nhiên và độ nổi bật.',
+  strong: 'Mức độ mạnh: tăng hiệu ứng rõ hơn nhưng vẫn phải giữ nhận diện thật.',
+}
+
+function hasMixedGenders(personGenders: ('male' | 'female')[]): boolean {
+  const hasMale = personGenders.includes('male')
+  const hasFemale = personGenders.includes('female')
+  return hasMale && hasFemale
+}
 
 /** Prompt làm đẹp – hỗ trợ 1–4 người, mỗi người có giới tính riêng */
-function buildBeautifyPrompt(personGenders: ('male' | 'female')[], noteEn: string): string {
+function buildBeautifyPrompt(
+  personGenders: ('male' | 'female')[],
+  noteEn: string,
+  style: BeautifyStyle,
+  strength: BeautifyStrength
+): string {
   const count = personGenders.length
   const labels = PERSON_LABELS[count] || PERSON_LABELS[1]
   const personInstructions = personGenders
     .map((g, i) => `${labels[i]}: ${g === 'female' ? FEMALE_RETOUCH : MALE_RETOUCH}`)
     .join('\n')
+  const effectiveStyle = hasMixedGenders(personGenders) && (style === 'male_elegant' || style === 'female_soft')
+    ? 'mixed_group'
+    : style
+  const stylePrompt = STYLE_PRESET_PROMPTS[effectiveStyle]
+  const strengthPrompt = STRENGTH_PROMPTS[strength]
 
   return `Làm đẹp chân dung chuyên nghiệp theo chất lượng studio. Kết quả phải giống ảnh chụp studio chuyên nghiệp.
 
 SỐ NGƯỜI: ${count}. Hãy áp dụng chỉnh sửa cho TỪNG người theo giới tính bên dưới.
+PHONG CÁCH ĐÃ CHỌN: ${stylePrompt}
+MỨC ĐỘ: ${strengthPrompt}
 
 CHI TIẾT TỪNG NGƯỜI (từ trái sang phải):
 ${personInstructions}
@@ -58,6 +94,8 @@ export async function beautifyImage(formData: FormData) {
   }
   const image = formData.get('image') as File
   const imageQuality = (formData.get('imageQuality') as '2K' | '4K') || '2K'
+  const style = ((formData.get('beautifyStyle') as BeautifyStyle) || 'natural')
+  const strength = ((formData.get('beautifyStrength') as BeautifyStrength) || 'medium')
   const personCount = Math.min(4, Math.max(1, parseInt(String(formData.get('personCount') || '1'), 10) || 1))
   const personGenders: ('male' | 'female')[] = []
   for (let i = 0; i < personCount; i++) {
@@ -68,7 +106,7 @@ export async function beautifyImage(formData: FormData) {
   if (!image || image.size === 0) return { error: 'Cần tải lên ít nhất một ảnh.' }
 
   const noteEn = note ? await normalizeToEnglish(note) : ''
-  const prompt = buildBeautifyPrompt(personGenders, noteEn)
+  const prompt = buildBeautifyPrompt(personGenders, noteEn, style, strength)
 
   const COST = BEAUTIFY_COSTS[imageQuality]
 

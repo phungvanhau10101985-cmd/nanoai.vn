@@ -17,7 +17,7 @@ import { ImageProcessingLoader } from '@/components/image-processing-loader'
 
 type Step = 'UPLOAD' | 'GENERATING' | 'RESULT'
 type ColorMode = 'original' | 'colorize'
-type PersonCount = 1 | 2 | 3 | 4 | 5
+type PersonCount = 1 | 2 | 3 | 4 | 5 | 6
 
 const PERSON_LABELS: Record<PersonCount, string[]> = {
   1: ['Người trong ảnh'],
@@ -25,6 +25,7 @@ const PERSON_LABELS: Record<PersonCount, string[]> = {
   3: ['Người bên trái', 'Người ở giữa', 'Người bên phải'],
   4: ['Người thứ 1 (từ trái)', 'Người thứ 2', 'Người thứ 3', 'Người thứ 4'],
   5: ['Người thứ 1 (từ trái)', 'Người thứ 2', 'Người thứ 3', 'Người thứ 4', 'Người thứ 5'],
+  6: [],
 }
 
 const setImageFromFile = (file: File, setImage: (v: { file: File; preview: string }) => void) => {
@@ -109,6 +110,7 @@ export default function PhucDungClientPage() {
   }, [step, toast])
 
   const allPersonsFilled = () => {
+    if (personCount >= 6) return true
     for (let i = 0; i < personCount; i++) {
       const p = personInfo[i]
       if (!p?.gender || !p?.age?.trim()) return false
@@ -133,10 +135,12 @@ export default function PhucDungClientPage() {
     formData.append('imageQuality', imageQuality)
     formData.append('personCount', String(personCount))
     formData.append('note', note)
-    for (let i = 0; i < personCount; i++) {
-      formData.append(`person_${i}_gender`, personInfo[i]?.gender || '')
-      formData.append(`person_${i}_age`, personInfo[i]?.age || '')
-      formData.append(`person_${i}_extra`, personInfo[i]?.extra || '')
+    if (personCount < 6) {
+      for (let i = 0; i < personCount; i++) {
+        formData.append(`person_${i}_gender`, personInfo[i]?.gender || '')
+        formData.append(`person_${i}_age`, personInfo[i]?.age || '')
+        formData.append(`person_${i}_extra`, personInfo[i]?.extra || '')
+      }
     }
     const result = await restoreImage(formData)
     if (result.error) {
@@ -234,13 +238,13 @@ export default function PhucDungClientPage() {
               <Card className="border shadow-sm bg-white/95 backdrop-blur border-amber-200/60">
                 <CardHeader className="p-5 pb-3">
                   <CardTitle className="text-lg">Thông tin từng người</CardTitle>
-                  <CardDescription className="text-sm">Chọn giới tính và nhập tuổi là bắt buộc.</CardDescription>
+                  <CardDescription className="text-sm">Từ 1-5 người: chọn giới tính + tuổi từng người. Chọn 6+ người: AI tự tối ưu 100%.</CardDescription>
                 </CardHeader>
                 <CardContent className="p-5 pt-0 space-y-4">
                   <div className="space-y-2">
                     <h4 className="text-sm font-semibold text-foreground">Số người trong ảnh</h4>
-                    <div className="grid grid-cols-5 gap-2">
-                      {([1, 2, 3, 4, 5] as PersonCount[]).map((n) => (
+                    <div className="grid grid-cols-6 gap-2">
+                      {([1, 2, 3, 4, 5, 6] as PersonCount[]).map((n) => (
                         <button
                           key={n}
                           type="button"
@@ -251,89 +255,95 @@ export default function PhucDungClientPage() {
                               : 'border-gray-200 bg-white hover:border-amber-300 hover:bg-amber-50/50 text-muted-foreground'
                           }`}
                         >
-                          {n}
+                          {n === 6 ? '6+' : n}
                         </button>
                       ))}
                     </div>
                   </div>
-                  <div className="space-y-3">
-                    {PERSON_LABELS[personCount].map((label, i) => (
-                      <div key={i} className="rounded-xl border-2 border-gray-100 bg-gray-50/50 p-3 space-y-2">
-                        <p className="text-sm font-semibold text-foreground">{label}</p>
-                        <div className="space-y-2">
-                          <div>
-                            <span className="text-xs font-medium text-muted-foreground block mb-1">Giới tính *</span>
-                            <div className="flex gap-2">
-                              <button
-                                type="button"
-                                onClick={() =>
+                  {personCount < 6 ? (
+                    <div className="space-y-3">
+                      {PERSON_LABELS[personCount].map((label, i) => (
+                        <div key={i} className="rounded-xl border-2 border-gray-100 bg-gray-50/50 p-3 space-y-2">
+                          <p className="text-sm font-semibold text-foreground">{label}</p>
+                          <div className="space-y-2">
+                            <div>
+                              <span className="text-xs font-medium text-muted-foreground block mb-1">Giới tính *</span>
+                              <div className="flex gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setPersonInfo((prev) => {
+                                      const next = [...prev]
+                                      next[i] = { ...next[i], gender: 'nam' }
+                                      return next
+                                    })
+                                  }
+                                  className={`flex-1 py-2.5 rounded-lg border-2 text-sm font-semibold transition-all ${
+                                    personInfo[i]?.gender === 'nam'
+                                      ? 'border-amber-500 bg-amber-50 text-amber-800'
+                                      : 'border-gray-200 bg-white hover:border-amber-300 text-muted-foreground'
+                                  }`}
+                                >
+                                  Nam
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setPersonInfo((prev) => {
+                                      const next = [...prev]
+                                      next[i] = { ...next[i], gender: 'nữ' }
+                                      return next
+                                    })
+                                  }
+                                  className={`flex-1 py-2.5 rounded-lg border-2 text-sm font-semibold transition-all ${
+                                    personInfo[i]?.gender === 'nữ'
+                                      ? 'border-amber-500 bg-amber-50 text-amber-800'
+                                      : 'border-gray-200 bg-white hover:border-amber-300 text-muted-foreground'
+                                  }`}
+                                >
+                                  Nữ
+                                </button>
+                              </div>
+                            </div>
+                            <div>
+                              <span className="text-xs font-medium text-muted-foreground block mb-1">Tuổi *</span>
+                              <Input
+                                placeholder="VD: 25"
+                                value={personInfo[i]?.age || ''}
+                                onChange={(e) =>
                                   setPersonInfo((prev) => {
                                     const next = [...prev]
-                                    next[i] = { ...next[i], gender: 'nam' }
+                                    next[i] = { ...next[i], age: e.target.value.replace(/\D/g, '').slice(0, 3) }
                                     return next
                                   })
                                 }
-                                className={`flex-1 py-2.5 rounded-lg border-2 text-sm font-semibold transition-all ${
-                                  personInfo[i]?.gender === 'nam'
-                                    ? 'border-amber-500 bg-amber-50 text-amber-800'
-                                    : 'border-gray-200 bg-white hover:border-amber-300 text-muted-foreground'
-                                }`}
-                              >
-                                Nam
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() =>
+                                className="h-10 text-sm font-medium"
+                              />
+                            </div>
+                            <div>
+                              <span className="text-xs font-medium text-muted-foreground block mb-1">Đặc thù (tùy chọn)</span>
+                              <Input
+                                placeholder="Màu tóc, tóc xoăn/thẳng, nốt ruồi..."
+                                value={personInfo[i]?.extra || ''}
+                                onChange={(e) =>
                                   setPersonInfo((prev) => {
                                     const next = [...prev]
-                                    next[i] = { ...next[i], gender: 'nữ' }
+                                    next[i] = { ...next[i], extra: e.target.value }
                                     return next
                                   })
                                 }
-                                className={`flex-1 py-2.5 rounded-lg border-2 text-sm font-semibold transition-all ${
-                                  personInfo[i]?.gender === 'nữ'
-                                    ? 'border-amber-500 bg-amber-50 text-amber-800'
-                                    : 'border-gray-200 bg-white hover:border-amber-300 text-muted-foreground'
-                                }`}
-                              >
-                                Nữ
-                              </button>
+                                className="h-9 text-xs"
+                              />
                             </div>
                           </div>
-                          <div>
-                            <span className="text-xs font-medium text-muted-foreground block mb-1">Tuổi *</span>
-                            <Input
-                              placeholder="VD: 25"
-                              value={personInfo[i]?.age || ''}
-                              onChange={(e) =>
-                                setPersonInfo((prev) => {
-                                  const next = [...prev]
-                                  next[i] = { ...next[i], age: e.target.value.replace(/\D/g, '').slice(0, 3) }
-                                  return next
-                                })
-                              }
-                              className="h-10 text-sm font-medium"
-                            />
-                          </div>
-                          <div>
-                            <span className="text-xs font-medium text-muted-foreground block mb-1">Đặc thù (tùy chọn)</span>
-                            <Input
-                              placeholder="Màu tóc, tóc xoăn/thẳng, nốt ruồi..."
-                              value={personInfo[i]?.extra || ''}
-                              onChange={(e) =>
-                                setPersonInfo((prev) => {
-                                  const next = [...prev]
-                                  next[i] = { ...next[i], extra: e.target.value }
-                                  return next
-                                })
-                              }
-                              className="h-9 text-xs"
-                            />
-                          </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border-2 border-amber-200 bg-amber-50/60 p-3 text-xs text-amber-800">
+                      Ảnh có 6 người trở lên: hệ thống sẽ để AI tự tối ưu toàn bộ (100%), không cần chọn giới tính từng người.
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </div>

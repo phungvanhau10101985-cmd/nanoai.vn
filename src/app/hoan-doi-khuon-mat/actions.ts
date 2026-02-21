@@ -8,7 +8,7 @@ import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/ge
 import { normalizeToEnglish } from '@/lib/ai-normalize'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import sharp from 'sharp'
-import { detectFaceInTargetImage, extractFaceFromSourceImage, type FaceBbox } from '@/lib/face-swap-vision'
+import { detectFaceInTargetImage, detectFacesInTargetImage, extractFaceFromSourceImage, type FaceBbox } from '@/lib/face-swap-vision'
 
 const FACESWAP_COSTS = { '2K': 2, '4K': 4 } as const
 const toTenths = (value: number) => Math.round(value * 10)
@@ -91,16 +91,38 @@ async function removeFaceRegionLocal(targetBuffer: Buffer, face: FaceBbox): Prom
     .toBuffer()
 }
 
+/**
+ * Chuẩn hóa kích thước mặt nguồn theo bbox mặt đích trước khi gửi Gemini.
+ * Điều này giúp AI ghép tự nhiên hơn, giảm tình trạng mặt quá to/nhỏ.
+ */
+async function resizeSourceFaceToTargetSize(sourceFaceBuffer: Buffer, targetFace: FaceBbox): Promise<Buffer> {
+  // Nới nhẹ để phủ vùng viền hàm/cổ khi ghép.
+  const targetW = Math.max(64, Math.round(targetFace.w * 1.08))
+  const targetH = Math.max(64, Math.round(targetFace.h * 1.08))
+  return sharp(sourceFaceBuffer)
+    .resize(targetW, targetH, { fit: 'cover', position: 'centre' })
+    .png()
+    .toBuffer()
+}
+
 /** Hoán đổi khuôn mặt. 2K: 2 credit, 4K: 4 credit. Cần 2 ảnh: ảnh khuôn mặt nguồn + ảnh đích. */
 export async function faceSwap(formData: FormData) {
   if (!formData || typeof formData.get !== 'function') {
     return { error: 'Dữ liệu không hợp lệ. Vui lòng thử lại.' }
   }
+  const swapMode = ((formData.get('swapMode') as string) || 'single') === 'couple' ? 'couple' : 'single'
   const faceImage = formData.get('faceImage') as File
+  const faceImageLeft = formData.get('faceImageLeft') as File | null
+  const faceImageRight = formData.get('faceImageRight') as File | null
   const targetImage = formData.get('targetImage') as File
   const imageQuality = (formData.get('imageQuality') as '2K' | '4K') || '2K'
   const note = (formData.get('note') as string)?.trim() || ''
-  if (!faceImage || faceImage.size === 0) return { error: 'Cần tải ảnh khuôn mặt nguồn (ảnh bạn).' }
+  if (swapMode === 'single') {
+    if (!faceImage || faceImage.size === 0) return { error: 'Cần tải ảnh khuôn mặt nguồn (ảnh bạn).' }
+  } else {
+    if (!faceImageLeft || faceImageLeft.size === 0) return { error: 'Cần tải ảnh khuôn mặt cho người bên trái.' }
+    if (!faceImageRight || faceImageRight.size === 0) return { error: 'Cần tải ảnh khuôn mặt cho người bên phải.' }
+  }
   if (!targetImage || targetImage.size === 0) return { error: 'Cần tải ảnh đích (nhân vật muốn ghép mặt vào).' }
 
   let prompt = PROMPT_BASE
@@ -109,7 +131,9 @@ export async function faceSwap(formData: FormData) {
     prompt = prompt.replace(NO_TEXT, `YÊU CẦU BỔ SUNG: "${noteEn}". ${NO_TEXT}`)
   }
 
-  const faceBuffer = Buffer.from(await faceImage.arrayBuffer())
+  const faceBuffer = swapMode === 'single' && faceImage ? Buffer.from(await faceImage.arrayBuffer()) : null
+  const faceBufferLeft = swapMode === 'couple' && faceImageLeft ? Buffer.from(await faceImageLeft.arrayBuffer()) : null
+  const faceBufferRight = swapMode === 'couple' && faceImageRight ? Buffer.from(await faceImageRight.arrayBuffer()) : null
   const targetBuffer = Buffer.from(await targetImage.arrayBuffer())
   const aspectRatio = await getAspectRatioFromImage(targetBuffer)
 
@@ -131,7 +155,11 @@ export async function faceSwap(formData: FormData) {
   const timestamp = Date.now()
   const sourcePath = `uploads/${user.id}/faceswap_source_${timestamp}.png`
   const targetPath = `uploads/${user.id}/faceswap_target_${timestamp}.png`
-  await supabase.storage.from('try-on-images').upload(sourcePath, faceImage)
+  if (swapMode === 'single' && faceImage) {
+    await supabase.storage.from('try-on-images').upload(sourcePath, faceImage)
+  } else if (faceImageLeft) {
+    await supabase.storage.from('try-on-images').upload(sourcePath, faceImageLeft)
+  }
   await supabase.storage.from('try-on-images').upload(targetPath, targetImage)
   const { data: sourceUrl } = supabase.storage.from('try-on-images').getPublicUrl(sourcePath)
   const { data: targetUrl } = supabase.storage.from('try-on-images').getPublicUrl(targetPath)
@@ -159,36 +187,37 @@ export async function faceSwap(formData: FormData) {
   ]
 
   try {
-    // 1) Vision: cắt mặt nguồn (ảnh để ghép)
-    const croppedSourceFace = await extractFaceFromSourceImage(faceBuffer)
-    if (!croppedSourceFace) {
-      await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
-      return { error: 'Vision OCR không phát hiện được khuôn mặt rõ trên ảnh nguồn. Vui lòng chọn ảnh có 1 mặt rõ hơn.' }
-    }
-    console.log('[FaceSwap] Dùng ảnh mặt đã cắt từ nguồn bằng Vision')
+    let singlePrompt = ''
+    const contentParts: Array<{ text?: string } | { inlineData: { data: string; mimeType: string } }> = []
 
-    // 2) Vision: định vị mặt trên ảnh đích để xóa local
-    const targetFace = await detectFaceInTargetImage(targetBuffer)
-    if (!targetFace) {
-      await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
-      return { error: 'Vision OCR không phát hiện được khuôn mặt trên ảnh đích. Vui lòng dùng ảnh có mặt rõ hơn.' }
-    }
+    if (swapMode === 'single') {
+      if (!faceBuffer) throw new Error('Thiếu ảnh khuôn mặt nguồn.')
 
-    // 3) Local: xóa mặt trên ảnh đích theo bbox Vision
-    const targetWithoutFace = await removeFaceRegionLocal(targetBuffer, targetFace)
-    console.log('[FaceSwap] Đã xóa mặt local theo bbox Vision')
+      const croppedSourceFace = await extractFaceFromSourceImage(faceBuffer)
+      if (!croppedSourceFace) {
+        await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+        return { error: 'Vision OCR không phát hiện được khuôn mặt rõ trên ảnh nguồn. Vui lòng chọn ảnh có 1 mặt rõ hơn.' }
+      }
+      console.log('[FaceSwap] Dùng ảnh mặt đã cắt từ nguồn bằng Vision')
 
-    // 4) Gemini: một lần gọi để ghép mặt vào đúng vị trí đã xóa
-    const sourceFacePart = {
-      inlineData: { data: croppedSourceFace.toString('base64'), mimeType: 'image/png' },
-    }
-    const cleanedTargetPart = {
-      inlineData: { data: targetWithoutFace.toString('base64'), mimeType: 'image/png' },
-    }
+      const targetFace = await detectFaceInTargetImage(targetBuffer)
+      if (!targetFace) {
+        await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+        return { error: 'Vision OCR không phát hiện được khuôn mặt trên ảnh đích. Vui lòng dùng ảnh có mặt rõ hơn.' }
+      }
 
-    const singlePrompt = `${prompt}
+      const targetWithoutFace = await removeFaceRegionLocal(targetBuffer, targetFace)
+      console.log('[FaceSwap] Đã xóa mặt local theo bbox Vision')
+
+      const resizedSourceFace = await resizeSourceFaceToTargetSize(croppedSourceFace, targetFace)
+      console.log('[FaceSwap] Đã resize mặt nguồn theo kích thước mặt đích:', {
+        targetW: targetFace.w,
+        targetH: targetFace.h,
+      })
+
+      singlePrompt = `${prompt}
 YÊU CẦU BẮT BUỘC:
-- Ảnh 1 là khuôn mặt nguồn đã được cắt bằng Vision OCR.
+- Ảnh 1 là khuôn mặt nguồn đã được cắt bằng Vision OCR và đã resize theo kích thước mặt đích.
 - Ảnh 2 là ảnh đích đã xóa mặt local tại vùng: ${targetFace.positionHint}.
 - Hãy ghép khuôn mặt từ Ảnh 1 vào đúng vị trí mặt đã xóa trên Ảnh 2.
 - TỰ ĐỘNG tính lại tỉ lệ khuôn mặt để cân đối với đầu/cổ/vai/thân ảnh đích; ưu tiên tỷ lệ thật như ảnh chân dung tự nhiên.
@@ -196,7 +225,62 @@ YÊU CẦU BẮT BUỘC:
 - Không tạo thêm người, không đổi góc máy, không đổi khung hình.
 ${NO_TEXT}`
 
-    const genResult = await model.generateContent([singlePrompt, sourceFacePart, cleanedTargetPart], { safetySettings })
+      contentParts.push(
+        { text: singlePrompt },
+        { inlineData: { data: resizedSourceFace.toString('base64'), mimeType: 'image/png' } },
+        { inlineData: { data: targetWithoutFace.toString('base64'), mimeType: 'image/png' } }
+      )
+    } else {
+      if (!faceBufferLeft || !faceBufferRight) throw new Error('Thiếu ảnh khuôn mặt trái/phải.')
+
+      const croppedLeftFace = await extractFaceFromSourceImage(faceBufferLeft)
+      const croppedRightFace = await extractFaceFromSourceImage(faceBufferRight)
+      if (!croppedLeftFace) {
+        await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+        return { error: 'Vision OCR không phát hiện mặt trong ảnh nguồn bên trái. Vui lòng chọn ảnh rõ mặt hơn.' }
+      }
+      if (!croppedRightFace) {
+        await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+        return { error: 'Vision OCR không phát hiện mặt trong ảnh nguồn bên phải. Vui lòng chọn ảnh rõ mặt hơn.' }
+      }
+
+      const targetFaces = await detectFacesInTargetImage(targetBuffer, 2)
+      if (targetFaces.length < 2) {
+        await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+        return { error: 'Ảnh đích không nhận đủ 2 khuôn mặt (trái/phải). Vui lòng chọn ảnh có 2 người rõ mặt.' }
+      }
+
+      let targetWithoutFaces = targetBuffer
+      targetWithoutFaces = await removeFaceRegionLocal(targetWithoutFaces, targetFaces[0])
+      targetWithoutFaces = await removeFaceRegionLocal(targetWithoutFaces, targetFaces[1])
+      console.log('[FaceSwap] Đã xóa mặt local cho 2 người theo bbox Vision')
+
+      const resizedLeftFace = await resizeSourceFaceToTargetSize(croppedLeftFace, targetFaces[0])
+      const resizedRightFace = await resizeSourceFaceToTargetSize(croppedRightFace, targetFaces[1])
+      console.log('[FaceSwap] Đã resize mặt nguồn trái/phải theo kích thước mặt đích tương ứng')
+
+      singlePrompt = `${prompt}
+YÊU CẦU BẮT BUỘC CHO CHẾ ĐỘ 2 NGƯỜI:
+- Ảnh 1: khuôn mặt nguồn cho người bên TRÁI (đã cắt và resize theo kích thước mặt trái đích).
+- Ảnh 2: khuôn mặt nguồn cho người bên PHẢI (đã cắt và resize theo kích thước mặt phải đích).
+- Ảnh 3: ảnh đích đã xóa 2 khuôn mặt local tại vị trí:
+  + Người trái: ${targetFaces[0].positionHint}
+  + Người phải: ${targetFaces[1].positionHint}
+- Ghép Ảnh 1 vào đúng người bên trái, ghép Ảnh 2 vào đúng người bên phải.
+- TỰ ĐỘNG tính lại kích thước mỗi khuôn mặt cho cân đối đầu/cổ/vai/thân của từng người tương ứng.
+- Giữ nguyên toàn bộ bố cục, cơ thể, trang phục, nền của ảnh đích; chỉ thay vùng khuôn mặt.
+- Không đổi trái/phải, không tạo thêm người, không đổi góc máy, không đổi khung hình.
+${NO_TEXT}`
+
+      contentParts.push(
+        { text: singlePrompt },
+        { inlineData: { data: resizedLeftFace.toString('base64'), mimeType: 'image/png' } },
+        { inlineData: { data: resizedRightFace.toString('base64'), mimeType: 'image/png' } },
+        { inlineData: { data: targetWithoutFaces.toString('base64'), mimeType: 'image/png' } }
+      )
+    }
+
+    const genResult = await model.generateContent(contentParts, { safetySettings })
     const response = genResult.response
     logGeminiResponse('single_call_vision_local', genResult)
     trackFromUsageMetadata(response.usageMetadata, 'gemini-3-pro-image-preview', 'hoan-doi-khuon-mat', user.id, imageQuality)

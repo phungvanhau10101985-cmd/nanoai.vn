@@ -66,24 +66,33 @@ export async function restoreImage(formData: FormData) {
   if (historyError || !historyItem) return { error: 'Không thể khởi tạo phiên xử lý.' }
 
   let prompt = PROMPTS[colorMode] ?? PROMPTS.original
-  const personCount = Math.min(5, Math.max(1, parseInt(String(formData.get('personCount') || '1'), 10) || 1))
+  const personCountRaw = Math.max(1, parseInt(String(formData.get('personCount') || '1'), 10) || 1)
+  const useAutoPeopleOptimization = personCountRaw >= 6
+  const personCount = Math.min(5, personCountRaw)
   const labels = PERSON_LABELS[personCount] || PERSON_LABELS[1]
   const personDescriptions: string[] = []
-  for (let i = 0; i < personCount; i++) {
-    const gender = (formData.get(`person_${i}_gender`) as string)?.trim() || ''
-    const age = (formData.get(`person_${i}_age`) as string)?.trim() || ''
-    const extra = (formData.get(`person_${i}_extra`) as string)?.trim() || ''
-    if (gender || age || extra) {
-      const parts: string[] = [labels[i]]
-      if (age) parts.push(`${age} tuổi`)
-      if (gender) parts.push(`giới tính ${gender}`)
-      if (extra) parts.push(extra)
-      personDescriptions.push(parts.join(' '))
+  if (!useAutoPeopleOptimization) {
+    for (let i = 0; i < personCount; i++) {
+      const gender = (formData.get(`person_${i}_gender`) as string)?.trim() || ''
+      const age = (formData.get(`person_${i}_age`) as string)?.trim() || ''
+      const extra = (formData.get(`person_${i}_extra`) as string)?.trim() || ''
+      if (gender || age || extra) {
+        const parts: string[] = [labels[i]]
+        if (age) parts.push(`${age} tuổi`)
+        if (gender) parts.push(`giới tính ${gender}`)
+        if (extra) parts.push(extra)
+        personDescriptions.push(parts.join(' '))
+      }
     }
   }
   const personDescEn = personDescriptions.length ? await normalizeToEnglish(personDescriptions.join('. ')) : ''
   const noteEn = note ? await normalizeToEnglish(note) : ''
-  if (personDescEn) {
+  if (useAutoPeopleOptimization) {
+    prompt = prompt.replace(
+      'Chỉ trả về ảnh kết quả, không chèn chữ.',
+      'Ảnh có từ 6 người trở lên: hãy tự tối ưu phục dựng 100% cho toàn bộ khuôn mặt và tổng thể ảnh, giữ nhận diện tự nhiên của từng người, không cần phân loại giới tính từng người. Chỉ trả về ảnh kết quả, không chèn chữ.'
+    )
+  } else if (personDescEn) {
     prompt = prompt.replace('Chỉ trả về ảnh kết quả, không chèn chữ.', `MÔ TẢ NHÂN VẬT: ${personDescEn}. Chỉ trả về ảnh kết quả, không chèn chữ.`)
   }
   if (noteEn) {

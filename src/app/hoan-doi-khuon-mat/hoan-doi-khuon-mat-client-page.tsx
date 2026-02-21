@@ -25,7 +25,10 @@ const setImageFromFile = (file: File, setImage: (v: { file: File; preview: strin
 
 export default function HoanDoiKhuonMatClientPage() {
   const [step, setStep] = useState<Step>('UPLOAD')
+  const [swapMode, setSwapMode] = useState<'single' | 'couple'>('single')
   const [faceImage, setFaceImage] = useState<{ file: File | null; preview: string | null }>({ file: null, preview: null })
+  const [faceImageLeft, setFaceImageLeft] = useState<{ file: File | null; preview: string | null }>({ file: null, preview: null })
+  const [faceImageRight, setFaceImageRight] = useState<{ file: File | null; preview: string | null }>({ file: null, preview: null })
   const [targetImage, setTargetImage] = useState<{ file: File | null; preview: string | null }>({ file: null, preview: null })
   const [imageQuality, setImageQuality] = useState<'2K' | '4K'>('2K')
   const [note, setNote] = useState('')
@@ -33,6 +36,8 @@ export default function HoanDoiKhuonMatClientPage() {
   const { toast } = useToast()
   const { checkCreditsAndProceed } = useCredits()
   const faceInputRef = useRef<HTMLInputElement>(null)
+  const faceLeftInputRef = useRef<HTMLInputElement>(null)
+  const faceRightInputRef = useRef<HTMLInputElement>(null)
   const cost = imageQuality === '2K' ? 2 : 4
   const targetInputRef = useRef<HTMLInputElement>(null)
   const isSubmittingRef = useRef(false)
@@ -47,11 +52,26 @@ export default function HoanDoiKhuonMatClientPage() {
     if (file) setImageFromFile(file, setTargetImage)
   }
 
+  const hasRequiredFaces = swapMode === 'single'
+    ? !!faceImage.file
+    : !!faceImageLeft.file && !!faceImageRight.file
+
   const handleSubmit = async () => {
     if (isSubmittingRef.current) return
-    if (!faceImage.file) {
-      toast({ title: 'Lỗi', description: 'Vui lòng tải ảnh khuôn mặt nguồn (ảnh bạn).', variant: 'destructive' })
-      return
+    if (swapMode === 'single') {
+      if (!faceImage.file) {
+        toast({ title: 'Lỗi', description: 'Vui lòng tải ảnh khuôn mặt nguồn (ảnh bạn).', variant: 'destructive' })
+        return
+      }
+    } else {
+      if (!faceImageLeft.file) {
+        toast({ title: 'Lỗi', description: 'Vui lòng tải ảnh khuôn mặt cho người bên trái.', variant: 'destructive' })
+        return
+      }
+      if (!faceImageRight.file) {
+        toast({ title: 'Lỗi', description: 'Vui lòng tải ảnh khuôn mặt cho người bên phải.', variant: 'destructive' })
+        return
+      }
     }
     if (!targetImage.file) {
       toast({ title: 'Lỗi', description: 'Vui lòng tải ảnh đích (nhân vật muốn ghép mặt vào).', variant: 'destructive' })
@@ -61,7 +81,13 @@ export default function HoanDoiKhuonMatClientPage() {
     setStep('GENERATING')
     try {
       const formData = new FormData()
-      formData.append('faceImage', faceImage.file)
+      formData.append('swapMode', swapMode)
+      if (swapMode === 'single' && faceImage.file) {
+        formData.append('faceImage', faceImage.file)
+      } else {
+        if (faceImageLeft.file) formData.append('faceImageLeft', faceImageLeft.file)
+        if (faceImageRight.file) formData.append('faceImageRight', faceImageRight.file)
+      }
       formData.append('targetImage', targetImage.file)
       formData.append('imageQuality', imageQuality)
       formData.append('note', note)
@@ -82,6 +108,8 @@ export default function HoanDoiKhuonMatClientPage() {
   const handleReset = () => {
     setStep('UPLOAD')
     setFaceImage({ file: null, preview: null })
+    setFaceImageLeft({ file: null, preview: null })
+    setFaceImageRight({ file: null, preview: null })
     setTargetImage({ file: null, preview: null })
     setNote('')
     setResultUrl(null)
@@ -109,30 +137,95 @@ export default function HoanDoiKhuonMatClientPage() {
                   <CardDescription className="text-xs">Ảnh 1: khuôn mặt bạn. Ảnh 2: nhân vật muốn ghép mặt vào.</CardDescription>
                 </CardHeader>
                 <CardContent className="p-4 pt-0 space-y-4">
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSwapMode('single')}
+                      className={`px-3 py-2 rounded-md border text-xs font-medium transition-colors ${swapMode === 'single' ? 'border-fuchsia-500 bg-fuchsia-50 text-fuchsia-800' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'}`}
+                    >
+                      Hoán đổi 1 người
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSwapMode('couple')}
+                      className={`px-3 py-2 rounded-md border text-xs font-medium transition-colors ${swapMode === 'couple' ? 'border-fuchsia-500 bg-fuchsia-50 text-fuchsia-800' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'}`}
+                    >
+                      Hoán đổi 2 người (trái/phải)
+                    </button>
+                  </div>
                   <div className="grid md:grid-cols-2 gap-4">
+                    {swapMode === 'single' ? (
+                      <div className="space-y-2">
+                        <h4 className="text-sm font-semibold">1. Ảnh khuôn mặt nguồn (ảnh bạn)</h4>
+                        <ImageUploadWithPreview
+                          preview={faceImage.preview}
+                          onFileChange={handleFaceChange}
+                          inputId="face-input"
+                          emptyLabel="Chọn ảnh bạn"
+                          className="block w-full aspect-square max-h-[280px] rounded-lg border-2 border-dashed border-fuchsia-200 bg-fuchsia-50/60 flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-fuchsia-300 hover:bg-fuchsia-50/80 transition-colors"
+                          ref={faceInputRef}
+                        />
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <h4 className="text-sm font-semibold">1. Mặt nguồn người bên trái</h4>
+                        <ImageUploadWithPreview
+                          preview={faceImageLeft.preview}
+                          onFileChange={(e) => {
+                            const file = e.target.files?.[0]
+                            if (file) setImageFromFile(file, setFaceImageLeft)
+                          }}
+                          inputId="face-left-input"
+                          emptyLabel="Chọn mặt trái"
+                          className="block w-full aspect-square max-h-[280px] rounded-lg border-2 border-dashed border-fuchsia-200 bg-fuchsia-50/60 flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-fuchsia-300 hover:bg-fuchsia-50/80 transition-colors"
+                          ref={faceLeftInputRef}
+                        />
+                      </div>
+                    )}
                     <div className="space-y-2">
-                      <h4 className="text-sm font-semibold">1. Ảnh khuôn mặt nguồn (ảnh bạn)</h4>
-                      <ImageUploadWithPreview
-                        preview={faceImage.preview}
-                        onFileChange={handleFaceChange}
-                        inputId="face-input"
-                        emptyLabel="Chọn ảnh bạn"
-                        className="block w-full aspect-square max-h-[280px] rounded-lg border-2 border-dashed border-fuchsia-200 bg-fuchsia-50/60 flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-fuchsia-300 hover:bg-fuchsia-50/80 transition-colors"
-                        ref={faceInputRef}
-                      />
+                      {swapMode === 'single' ? (
+                        <>
+                          <h4 className="text-sm font-semibold">2. Ảnh đích (nhân vật muốn ghép mặt vào)</h4>
+                          <ImageUploadWithPreview
+                            preview={targetImage.preview}
+                            onFileChange={handleTargetChange}
+                            inputId="target-input"
+                            emptyLabel="Chọn ảnh nhân vật"
+                            className="block w-full aspect-square max-h-[280px] rounded-lg border-2 border-dashed border-fuchsia-200 bg-fuchsia-50/60 flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-fuchsia-300 hover:bg-fuchsia-50/80 transition-colors"
+                            ref={targetInputRef}
+                          />
+                        </>
+                      ) : (
+                        <>
+                          <h4 className="text-sm font-semibold">2. Mặt nguồn người bên phải</h4>
+                          <ImageUploadWithPreview
+                            preview={faceImageRight.preview}
+                            onFileChange={(e) => {
+                              const file = e.target.files?.[0]
+                              if (file) setImageFromFile(file, setFaceImageRight)
+                            }}
+                            inputId="face-right-input"
+                            emptyLabel="Chọn mặt phải"
+                            className="block w-full aspect-square max-h-[280px] rounded-lg border-2 border-dashed border-fuchsia-200 bg-fuchsia-50/60 flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-fuchsia-300 hover:bg-fuchsia-50/80 transition-colors"
+                            ref={faceRightInputRef}
+                          />
+                        </>
+                      )}
                     </div>
+                  </div>
+                  {swapMode === 'couple' && (
                     <div className="space-y-2">
-                      <h4 className="text-sm font-semibold">2. Ảnh đích (nhân vật muốn ghép mặt vào)</h4>
+                      <h4 className="text-sm font-semibold">3. Ảnh đích (có 2 người trái/phải)</h4>
                       <ImageUploadWithPreview
                         preview={targetImage.preview}
                         onFileChange={handleTargetChange}
-                        inputId="target-input"
-                        emptyLabel="Chọn ảnh nhân vật"
-                        className="block w-full aspect-square max-h-[280px] rounded-lg border-2 border-dashed border-fuchsia-200 bg-fuchsia-50/60 flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-fuchsia-300 hover:bg-fuchsia-50/80 transition-colors"
+                        inputId="target-input-couple"
+                        emptyLabel="Chọn ảnh đích 2 người"
+                        className="block w-full aspect-[16/10] max-h-[320px] rounded-lg border-2 border-dashed border-fuchsia-200 bg-fuchsia-50/60 flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-fuchsia-300 hover:bg-fuchsia-50/80 transition-colors"
                         ref={targetInputRef}
                       />
                     </div>
-                  </div>
+                  )}
                   <div className="space-y-2">
                     <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Yêu cầu (tùy chọn)</h4>
                     <Input placeholder="VD: giữ biểu cảm vui..." value={note} onChange={(e) => setNote(e.target.value)} className="bg-white/80" />
@@ -160,7 +253,7 @@ export default function HoanDoiKhuonMatClientPage() {
                   </div>
                   <div className="pt-4 border-t space-y-2 flex flex-col items-center">
                     <DepositCreditButton variant="outline" size="sm" className="w-full max-w-[180px] border-fuchsia-200 text-fuchsia-700 hover:bg-fuchsia-50" />
-                    <Button onClick={() => checkCreditsAndProceed(cost, handleSubmit)} disabled={!faceImage.file || !targetImage.file || step === 'GENERATING'} className="w-full max-w-[180px] h-9 shadow-md hover:shadow-lg transition-all text-sm bg-fuchsia-600 hover:bg-fuchsia-700 text-white">
+                    <Button onClick={() => checkCreditsAndProceed(cost, handleSubmit)} disabled={!hasRequiredFaces || !targetImage.file || step === 'GENERATING'} className="w-full max-w-[180px] h-9 shadow-md hover:shadow-lg transition-all text-sm bg-fuchsia-600 hover:bg-fuchsia-700 text-white">
                       <Sparkles className="mr-2 h-4 w-4" /> Hoán đổi ({imageQuality === '2K' ? '2' : '4'} credit)
                     </Button>
                     <p className="text-[10px] text-center text-muted-foreground mt-2">* Thời gian: 15–45 giây</p>

@@ -27,6 +27,41 @@ export interface FaceBbox {
   positionHint: string
 }
 
+function toBbox(
+  face: FaceAnnotation,
+  imgW: number,
+  imgH: number,
+  padding = 20
+): FaceBbox | null {
+  const poly = face.fdBoundingPoly ?? face.boundingPoly
+  const verts = poly?.vertices ?? []
+  if (verts.length < 3) return null
+
+  const xs = verts.map((v) => v.x ?? 0).filter((x) => x >= 0)
+  const ys = verts.map((v) => v.y ?? 0).filter((y) => y >= 0)
+  if (!xs.length || !ys.length) return null
+
+  const x = Math.max(0, Math.min(...xs) - padding)
+  const y = Math.max(0, Math.min(...ys) - padding)
+  const x2 = Math.min(imgW, Math.max(...xs) + padding)
+  const y2 = Math.min(imgH, Math.max(...ys) + padding)
+  const w = x2 - x
+  const h = y2 - y
+  if (w <= 0 || h <= 0) return null
+
+  const centerX = (x + x2) / 2 / imgW
+  const centerY = (y + y2) / 2 / imgH
+  let positionHint = 'face at center'
+  if (centerY < 0.35) positionHint = 'face in upper third, centered'
+  else if (centerY < 0.55) positionHint = 'face in upper half, centered'
+  else positionHint = 'face in lower half, centered'
+
+  if (centerX < 0.4) positionHint = `${positionHint}, left side`
+  else if (centerX > 0.6) positionHint = `${positionHint}, right side`
+
+  return { x, y, w, h, positionHint }
+}
+
 async function ensureVisionFormat(buffer: Buffer): Promise<Buffer> {
   const meta = await sharp(buffer).metadata()
   const fmt = (meta.format ?? '').toLowerCase()
@@ -80,29 +115,55 @@ export async function detectFaceInTargetImage(targetBuffer: Buffer): Promise<Fac
 
   if (!bestFace) return null
 
-  const poly = bestFace.fdBoundingPoly ?? bestFace.boundingPoly
-  const verts = poly?.vertices ?? []
-  const xs = verts.map((v) => v.x ?? 0).filter((x) => x >= 0)
-  const ys = verts.map((v) => v.y ?? 0).filter((y) => y >= 0)
-  if (!xs.length || !ys.length) return null
+  const bbox = toBbox(bestFace, imgW, imgH)
+  if (!bbox) return null
+  console.log('[FaceSwap-Vision] Phát hiện mặt:', {
+    x: bbox.x,
+    y: bbox.y,
+    w: bbox.w,
+    h: bbox.h,
+    hint: bbox.positionHint,
+  })
+  return bbox
+}
 
-  const padding = 20
-  const x = Math.max(0, Math.min(...xs) - padding)
-  const y = Math.max(0, Math.min(...ys) - padding)
-  const x2 = Math.min(imgW, Math.max(...xs) + padding)
-  const y2 = Math.min(imgH, Math.max(...ys) + padding)
-  const w = x2 - x
-  const h = y2 - y
+/**
+ * Định vị nhiều khuôn mặt trong ảnh đích và trả về theo thứ tự từ trái qua phải.
+ * Dùng cho bài toán ghép mặt 2 người (left/right).
+ */
+export async function detectFacesInTargetImage(
+  targetBuffer: Buffer,
+  maxFaces = 2
+): Promise<FaceBbox[]> {
+  if (!hasVisionConfig()) return []
 
-  const centerX = (x + x2) / 2 / imgW
-  const centerY = (y + y2) / 2 / imgH
-  let positionHint = 'face at center'
-  if (centerY < 0.35) positionHint = 'face in upper third, centered'
-  else if (centerY < 0.55) positionHint = 'face in upper half, centered'
-  else positionHint = 'face in lower half, centered'
+  const buf = await ensureVisionFormat(targetBuffer)
+  const data = await visionAnnotate(buf, [{ type: 'FACE_DETECTION', maxResults: Math.max(2, maxFaces + 2) }]) as VisionFaceResponse
+  const faces = data.responses?.[0]?.faceAnnotations ?? []
+  if (!faces.length) return []
 
-  console.log('[FaceSwap-Vision] Phát hiện mặt:', { x, y, w, h, hint: positionHint })
-  return { x, y, w, h, positionHint }
+  const meta = await sharp(buf).metadata()
+  const imgW = meta.width ?? 0
+  const imgH = meta.height ?? 0
+  if (imgW <= 0 || imgH <= 0) return []
+
+  const bboxes = faces
+    .map((face) => toBbox(face, imgW, imgH))
+    .filter((v): v is FaceBbox => !!v)
+    .sort((a, b) => (b.w * b.h) - (a.w * a.h))
+    .slice(0, maxFaces)
+    .sort((a, b) => a.x - b.x)
+
+  console.log('[FaceSwap-Vision] Danh sách mặt phát hiện (trái->phải):', bboxes.map((f, i) => ({
+    index: i,
+    x: f.x,
+    y: f.y,
+    w: f.w,
+    h: f.h,
+    hint: f.positionHint,
+  })))
+
+  return bboxes
 }
 
 /**

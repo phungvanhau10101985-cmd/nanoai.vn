@@ -17,6 +17,8 @@ import { ImageProcessingLoader } from '@/components/image-processing-loader'
 
 type Step = 'UPLOAD' | 'GENERATING' | 'RESULT'
 type PersonCount = 1 | 2 | 3 | 4
+type BeautifyStyle = 'natural' | 'korean' | 'pro_sharp' | 'beauty_glow' | 'male_elegant' | 'female_soft' | 'mixed_group'
+type BeautifyStrength = 'light' | 'medium' | 'strong'
 
 const PERSON_LABELS: Record<PersonCount, string[]> = {
   1: ['Người trong ảnh'],
@@ -37,6 +39,8 @@ export default function LamDepAnhClientPage() {
   const [imageQuality, setImageQuality] = useState<'2K' | '4K'>('2K')
   const [personCount, setPersonCount] = useState<PersonCount>(1)
   const [personGenders, setPersonGenders] = useState<('male' | 'female')[]>(['female'])
+  const [beautifyStyle, setBeautifyStyle] = useState<BeautifyStyle>('natural')
+  const [beautifyStrength, setBeautifyStrength] = useState<BeautifyStrength>('medium')
   const [note, setNote] = useState('')
   const [imageUrl, setImageUrl] = useState('')
   const [urlLoading, setUrlLoading] = useState(false)
@@ -113,6 +117,8 @@ export default function LamDepAnhClientPage() {
     formData.append('image', image.file)
     formData.append('imageQuality', imageQuality)
     formData.append('personCount', String(personCount))
+    formData.append('beautifyStyle', beautifyStyle)
+    formData.append('beautifyStrength', beautifyStrength)
     for (let i = 0; i < personCount; i++) {
       formData.append(`person_${i}_gender`, personGenders[i] ?? 'female')
     }
@@ -289,6 +295,56 @@ export default function LamDepAnhClientPage() {
                       onChange={(e) => setNote(e.target.value)}
                       className="bg-white/80 text-xs h-20 min-h-[80px] resize-y"
                     />
+                  </div>
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Phong cách làm đẹp</h4>
+                    <div className="grid grid-cols-2 gap-2">
+                      {([
+                        ['natural', 'Tự nhiên'],
+                        ['korean', 'Makeup nhẹ Hàn'],
+                        ['pro_sharp', 'Sắc nét chuyên nghiệp'],
+                        ['beauty_glow', 'Beauty glow'],
+                        ['male_elegant', 'Nam lịch lãm'],
+                        ['female_soft', 'Nữ mềm mại'],
+                        ['mixed_group', 'Nhóm nam + nữ'],
+                      ] as [BeautifyStyle, string][]).map(([value, label]) => (
+                        <button
+                          key={value}
+                          type="button"
+                          onClick={() => setBeautifyStyle(value)}
+                          className={`px-2 py-2 rounded-md border text-[11px] font-medium transition-colors ${
+                            beautifyStyle === value
+                              ? 'border-rose-500 bg-rose-50 text-rose-800'
+                              : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Mức độ</h4>
+                    <div className="grid grid-cols-3 gap-2">
+                      {([
+                        ['light', 'Nhẹ'],
+                        ['medium', 'Vừa'],
+                        ['strong', 'Mạnh'],
+                      ] as [BeautifyStrength, string][]).map(([value, label]) => (
+                        <button
+                          key={value}
+                          type="button"
+                          onClick={() => setBeautifyStrength(value)}
+                          className={`px-2 py-2 rounded-md border text-xs font-medium transition-colors ${
+                            beautifyStrength === value
+                              ? 'border-rose-500 bg-rose-50 text-rose-800'
+                              : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Chất lượng ảnh</h4>
