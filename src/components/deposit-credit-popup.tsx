@@ -124,6 +124,19 @@ export function DepositCreditPopup({ open, onOpenChange, returnPath, onCreditsUp
     }
   }, [configs, selectedConfigId, amount, supabase])
 
+  const handleCreatePaymentPress = () => {
+    if (creating) return
+    if (!selectedConfigId) {
+      toast({ title: 'Đang tải', description: 'Vui lòng chờ cấu hình ngân hàng tải xong.', variant: 'destructive' })
+      return
+    }
+    if (amount < 1000) {
+      toast({ title: 'Lỗi', description: 'Số tiền tối thiểu 1.000 VND.', variant: 'destructive' })
+      return
+    }
+    createPayment()
+  }
+
   const copyToClipboard = async (text: string, label: string) => {
     await navigator.clipboard.writeText(text)
     toast({ title: 'Đã sao chép', description: label })
@@ -296,34 +309,7 @@ export function DepositCreditPopup({ open, onOpenChange, returnPath, onCreditsUp
             <Button
               type="button"
               className="w-full min-h-[52px] h-12 text-base touch-manipulation select-none relative z-10"
-              onClick={(e) => {
-                e.preventDefault()
-                if (creating) return
-                if (!selectedConfigId) {
-                  toast({ title: 'Đang tải', description: 'Vui lòng chờ cấu hình ngân hàng tải xong.', variant: 'destructive' })
-                  return
-                }
-                if (amount < 1000) {
-                  toast({ title: 'Lỗi', description: 'Số tiền tối thiểu 1.000 VND.', variant: 'destructive' })
-                  return
-                }
-                createPayment()
-              }}
-              onTouchEnd={(e) => {
-                if (creating) return
-                if (!selectedConfigId) {
-                  e.preventDefault()
-                  toast({ title: 'Đang tải', description: 'Vui lòng chờ cấu hình ngân hàng tải xong.', variant: 'destructive' })
-                  return
-                }
-                if (amount < 1000) {
-                  e.preventDefault()
-                  toast({ title: 'Lỗi', description: 'Số tiền tối thiểu 1.000 VND.', variant: 'destructive' })
-                  return
-                }
-                e.preventDefault()
-                createPayment()
-              }}
+              onClick={handleCreatePaymentPress}
               disabled={creating}
             >
               {creating ? (

@@ -409,23 +409,12 @@ export default function DepositClient() {
                   {/* Create payment button */}
                   <Button
                     type="button"
-                    onClick={(e) => {
-                      e.preventDefault()
+                    onClick={() => {
                       if (loading) return
                       if (!selectedBank) {
                         toast({ title: 'Đang tải', description: 'Vui lòng chờ cấu hình ngân hàng tải xong.', variant: 'destructive' })
                         return
                       }
-                      handleCreatePayment()
-                    }}
-                    onTouchEnd={(e) => {
-                      if (loading) return
-                      if (!selectedBank) {
-                        e.preventDefault()
-                        toast({ title: 'Đang tải', description: 'Vui lòng chờ cấu hình ngân hàng tải xong.', variant: 'destructive' })
-                        return
-                      }
-                      e.preventDefault()
                       handleCreatePayment()
                     }}
                     disabled={loading}
