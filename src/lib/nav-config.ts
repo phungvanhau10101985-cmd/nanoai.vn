@@ -32,6 +32,7 @@ import { ThayNenSanPhamIcon } from '@/components/icons/thay-nen-san-pham-icon'
 import { MoRongKhungHinhIcon } from '@/components/icons/mo-rong-khung-hinh-icon'
 import { HoanDoiKhuonMatIcon } from '@/components/icons/hoan-doi-khuon-mat-icon'
 import { TaoBannerIcon } from '@/components/icons/tao-banner-icon'
+import { TaoAnhTheIcon } from '@/components/icons/tao-anh-the-icon'
 
 export const AI_TOOLS = [
   { href: '/thu-do-online', label: 'Thử đồ', icon: TryOnIcon },
@@ -40,7 +41,7 @@ export const AI_TOOLS = [
   { href: '/lam-dep-anh', label: 'Làm đẹp ảnh', icon: LamDepAnhIcon },
   { href: '/ghep-anh', label: 'Ghép ảnh', icon: GhepAnhIcon },
   { href: '/tao-banner', label: 'Tạo banner', icon: TaoBannerIcon },
-  { href: '/tao-anh-the', label: 'Tạo ảnh thẻ', icon: User },
+  { href: '/tao-anh-the', label: 'Tạo ảnh thẻ', icon: TaoAnhTheIcon },
   { href: '/thiet-ke-logo', label: 'Thiết kế logo', icon: Palette },
   { href: '/ke-chuyen-bang-hinh-anh', label: 'Kể chuyện bằng ảnh', icon: BookOpen },
   { href: '/tao-nhan-gian', label: 'Tạo nhãn gián', icon: Tag },
@@ -87,7 +88,7 @@ export const NAV_GROUPS = [
     title: 'Thiết kế & Sáng tạo',
     links: [
       { href: '/tao-banner', label: 'Tạo banner', icon: TaoBannerIcon },
-      { href: '/tao-anh-the', label: 'Tạo ảnh thẻ', icon: User },
+      { href: '/tao-anh-the', label: 'Tạo ảnh thẻ', icon: TaoAnhTheIcon },
       { href: '/thiet-ke-logo', label: 'Thiết kế logo', icon: Palette },
       { href: '/ke-chuyen-bang-hinh-anh', label: 'Kể chuyện bằng ảnh', icon: BookOpen },
       { href: '/tao-nhan-gian', label: 'Tạo nhãn gián', icon: Tag },
