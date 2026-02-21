@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -65,6 +65,7 @@ export function DepositCreditPopup({ open, onOpenChange, returnPath, onCreditsUp
   const [payment, setPayment] = useState<Payment | null>(null)
   const [paymentSuccess, setPaymentSuccess] = useState<{ amount: number; credits_added: number } | null>(null)
   const [creating, setCreating] = useState(false)
+  const createPressLockRef = useRef(false)
   const supabase = createClient()
 
   const fetchConfigs = useCallback(async () => {
@@ -85,7 +86,8 @@ export function DepositCreditPopup({ open, onOpenChange, returnPath, onCreditsUp
       toast({ title: 'Lỗi', description: 'Vui lòng đăng nhập để nạp tiền.', variant: 'destructive' })
       return
     }
-    const config = configs.find(c => c.id === selectedConfigId)
+    const effectiveConfigId = selectedConfigId || configs[0]?.id || ''
+    const config = configs.find(c => c.id === effectiveConfigId)
     if (!config || amount < 1000) return
 
     setCreating(true)
@@ -124,9 +126,9 @@ export function DepositCreditPopup({ open, onOpenChange, returnPath, onCreditsUp
     }
   }, [configs, selectedConfigId, amount, supabase])
 
-  const handleCreatePaymentPress = () => {
-    if (creating) return
-    if (!selectedConfigId) {
+  const handleCreatePaymentPress = async () => {
+    if (createPressLockRef.current || creating) return
+    if (!configs.length) {
       toast({ title: 'Đang tải', description: 'Vui lòng chờ cấu hình ngân hàng tải xong.', variant: 'destructive' })
       return
     }
@@ -134,7 +136,14 @@ export function DepositCreditPopup({ open, onOpenChange, returnPath, onCreditsUp
       toast({ title: 'Lỗi', description: 'Số tiền tối thiểu 1.000 VND.', variant: 'destructive' })
       return
     }
-    createPayment()
+    createPressLockRef.current = true
+    try {
+      await createPayment()
+    } finally {
+      setTimeout(() => {
+        createPressLockRef.current = false
+      }, 300)
+    }
   }
 
   const copyToClipboard = async (text: string, label: string) => {
@@ -310,12 +319,13 @@ export function DepositCreditPopup({ open, onOpenChange, returnPath, onCreditsUp
               type="button"
               className="w-full min-h-[52px] h-12 text-base touch-manipulation select-none relative z-10"
               onClick={handleCreatePaymentPress}
-              disabled={creating}
+              onPointerUp={handleCreatePaymentPress}
+              disabled={creating || !configs.length}
             >
               {creating ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
               ) : (
-                'Tạo mã thanh toán'
+                configs.length ? 'Tạo mã thanh toán' : 'Đang tải cấu hình ngân hàng...'
               )}
             </Button>
           </div>

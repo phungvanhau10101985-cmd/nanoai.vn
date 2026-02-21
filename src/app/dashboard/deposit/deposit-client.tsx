@@ -417,7 +417,12 @@ export default function DepositClient() {
                       }
                       handleCreatePayment()
                     }}
-                    disabled={loading}
+                    onPointerUp={() => {
+                      if (loading) return
+                      if (!selectedBank) return
+                      handleCreatePayment()
+                    }}
+                    disabled={loading || paymentConfigs.length === 0}
                     className="w-full min-h-[52px] h-12 text-lg touch-manipulation select-none relative z-10"
                     size="lg"
                   >
