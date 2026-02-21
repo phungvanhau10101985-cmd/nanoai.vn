@@ -1,22 +1,7 @@
 'use client'
 
-import Image from 'next/image'
+import { ToolIconImage } from './tool-icon-image'
 
-/** URL icon tùy chỉnh (Supabase...) – nếu set thì dùng thay file local. Ảnh PNG nền trong suốt. */
-const TRY_ON_ICON_SRC = 'https://mxwfxudyeoqstgwmlupa.supabase.co/storage/v1/object/sign/anh%20icon/thu%20do%20online.png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV9kZTg0NGZlNC04YTNkLTRhYjQtOGJmNC05NzU1MmVhYzhhZmEiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJhbmggaWNvbi90aHUgZG8gb25saW5lLnBuZyIsImlhdCI6MTc3MTM0MjAzNCwiZXhwIjo0OTI0OTQyMDM0fQ.JSXVPC7QqDzehio_dslRyFXC7mNkwsbGTWRx1Bzr-AU'
-
-/** Icon thử đồ – ảnh tùy chỉnh từ Supabase. */
 export function TryOnIcon({ className }: { className?: string; strokeWidth?: number }) {
-  return (
-    <span className="flex w-full aspect-square items-center justify-center rounded-none sm:rounded-lg overflow-hidden">
-      <Image
-        src={TRY_ON_ICON_SRC}
-        alt="Thử đồ"
-        width={80}
-        height={80}
-        className="h-full w-full object-cover"
-        unoptimized
-      />
-    </span>
-  )
+  return <ToolIconImage src="/tool-icons/try-on.webp" className={className} />
 }
