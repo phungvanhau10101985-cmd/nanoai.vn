@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 
 const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://nanoai.vn'
 const SITE_NAME = 'NanoAI'
-const DEFAULT_OG_IMAGE = `${SITE_URL}/og-image`
+const DEFAULT_OG_IMAGE = `${SITE_URL}/og-image.png`
 
 /** 10 điểm chuẩn SEO */
 export interface PageSEOConfig {
