@@ -9,13 +9,14 @@ interface ToolIconImageProps {
 }
 
 export function ToolIconImage({ src, className, priority = false }: ToolIconImageProps) {
+  const fullFrameSrc = src.endsWith('.webp') ? src.replace(/\.webp$/, '-full.webp') : src
   return (
     <span
       className={`flex w-full aspect-square items-center justify-center rounded-none sm:rounded-lg overflow-hidden ${className ?? ''}`}
       aria-hidden="true"
     >
       <Image
-        src={src}
+        src={fullFrameSrc}
         alt=""
         width={96}
         height={96}

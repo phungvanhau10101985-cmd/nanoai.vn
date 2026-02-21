@@ -54,7 +54,10 @@ async function createPoppler(): Promise<InstanceType<typeof import('node-poppler
   const { Poppler } = await import('node-poppler')
   if (process.platform === 'win32') {
     try {
-      const win32Path = require('node-poppler-win32') as string
+      // Dùng require động để Linux build không cố resolve package win32.
+      const dynamicRequire = Function('m', 'return require(m)') as (name: string) => unknown
+      const win32ModuleName = ['node', 'poppler', 'win32'].join('-')
+      const win32Path = dynamicRequire(win32ModuleName) as string
       if (win32Path && fs.existsSync(win32Path)) {
         return new Poppler(win32Path)
       }
