@@ -58,7 +58,7 @@ export function FeatureSeoSection({ seo }: FeatureSeoSectionProps) {
         <div className="mt-4 space-y-4 text-sm leading-7 text-muted-foreground">
           <p>{seo.overview}</p>
           <p>
-            Công cụ trên trang này được tối ưu để giúp bạn xử lý nhanh, giao diện dễ dùng và kết quả có thể áp dụng ngay vào công việc thực tế.
+            Công cụ trên NanoAI.vn được tối ưu để giúp bạn xử lý nhanh, giao diện dễ dùng và kết quả có thể áp dụng ngay vào công việc thực tế.
             Dù bạn là chủ shop, marketer, freelancer hay người dùng cá nhân, bạn đều có thể rút ngắn thời gian thao tác mà vẫn giữ chất lượng
             hình ảnh ổn định.
           </p>
