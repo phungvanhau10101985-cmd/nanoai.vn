@@ -22,13 +22,23 @@ export async function GET(request: NextRequest) {
 
     const { data, error } = await adminSupabase
       .from('music_generations')
-      .select('id, mode, title, style, duration_seconds, charged_credits, created_at')
+      .select('id, mode, title, style, duration_seconds, charged_credits, audio_url, created_at')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
       .limit(limit)
 
     if (error) return NextResponse.json({ error: error.message || 'Không tải được lịch sử tạo nhạc.' }, { status: 500 })
-    return NextResponse.json({ items: data ?? [] })
+    const items = (data ?? []).map((row) => ({
+      id: row.id,
+      mode: row.mode,
+      title: row.title,
+      style: row.style,
+      durationSeconds: row.duration_seconds,
+      chargedCredits: row.charged_credits,
+      audioUrl: row.audio_url,
+      createdAt: row.created_at,
+    }))
+    return NextResponse.json({ items })
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Lỗi không xác định.'
     return NextResponse.json({ error: msg }, { status: 500 })
@@ -43,6 +53,7 @@ export async function POST(request: NextRequest) {
       style?: string
       durationSeconds?: number
       chargedCredits?: number
+      audioUrl?: string
     }
 
     const mode = String(payload?.mode || '') as Mode
@@ -50,6 +61,7 @@ export async function POST(request: NextRequest) {
     const style = String(payload?.style || '').trim()
     const durationSeconds = Number(payload?.durationSeconds || 0)
     const chargedCredits = Number(payload?.chargedCredits || 0)
+    const audioUrl = String(payload?.audioUrl || '').trim()
 
     if (!['background', 'dj', 'image', 'realtime'].includes(mode)) {
       return NextResponse.json({ error: 'mode không hợp lệ.' }, { status: 400 })
@@ -75,6 +87,7 @@ export async function POST(request: NextRequest) {
       style: style.slice(0, 120),
       duration_seconds: Math.floor(durationSeconds),
       charged_credits: Math.round(chargedCredits * 10) / 10,
+      audio_url: audioUrl || null,
     })
 
     if (error) return NextResponse.json({ error: error.message || 'Không lưu được lịch sử tạo nhạc.' }, { status: 500 })

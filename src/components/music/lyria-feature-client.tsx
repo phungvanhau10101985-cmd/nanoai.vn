@@ -28,6 +28,19 @@ type MusicStyle =
 type VoiceGender = 'female' | 'male' | 'neutral'
 type VoiceTone = 'soprano' | 'mezzo' | 'alto' | 'tenor' | 'baritone' | 'bass'
 type VoiceRegion = 'bac' | 'trung' | 'nam' | 'mix'
+type InstrumentKey =
+  | 'piano'
+  | 'guitar'
+  | 'bass'
+  | 'drums'
+  | 'strings'
+  | 'synth'
+  | 'flute'
+  | 'sax'
+  | 'trumpet'
+  | 'violin'
+  | 'cello'
+  | 'pad'
 const LyriaSampleRate = 48000
 
 const LANGUAGE_LABELS: Record<MusicLanguage, string> = {
@@ -72,6 +85,21 @@ const VOICE_REGION_LABELS: Record<VoiceRegion, string> = {
   trung: 'Giọng Trung',
   nam: 'Giọng Nam',
   mix: 'Pha vùng (trung tính)',
+}
+
+const INSTRUMENT_LABELS: Record<InstrumentKey, string> = {
+  piano: 'Piano',
+  guitar: 'Guitar',
+  bass: 'Bass',
+  drums: 'Trống',
+  strings: 'Strings',
+  synth: 'Synth',
+  flute: 'Sáo',
+  sax: 'Saxophone',
+  trumpet: 'Trumpet',
+  violin: 'Violin',
+  cello: 'Cello',
+  pad: 'Pad/Atmosphere',
 }
 
 interface LyriaSessionLike {
@@ -130,6 +158,7 @@ type MusicHistoryItem = {
   style: string
   durationSeconds: number
   chargedCredits: number
+  audioUrl?: string | null
   createdAt: string
 }
 
@@ -230,6 +259,8 @@ export function LyriaFeatureClient({ mode }: { mode: Mode }) {
   const [voiceTone, setVoiceTone] = useState<VoiceTone>('mezzo')
   const [voiceRegion, setVoiceRegion] = useState<VoiceRegion>('bac')
   const [voiceStyle, setVoiceStyle] = useState('')
+  const [includeInstruments, setIncludeInstruments] = useState<InstrumentKey[]>([])
+  const [excludeInstruments, setExcludeInstruments] = useState<InstrumentKey[]>([])
   const [bpm, setBpm] = useState(96)
   const [density, setDensity] = useState(0.55)
   const [brightness, setBrightness] = useState(0.55)
@@ -288,6 +319,7 @@ export function LyriaFeatureClient({ mode }: { mode: Mode }) {
           style: item.style,
           durationSeconds: item.durationSeconds,
           chargedCredits: item.chargedCredits,
+          audioUrl: item.audioUrl || null,
         }),
       })
     } catch {
@@ -297,6 +329,16 @@ export function LyriaFeatureClient({ mode }: { mode: Mode }) {
       const next = [item, ...prev].slice(0, 30)
       return next
     })
+  }
+
+  const toggleIncludeInstrument = (key: InstrumentKey) => {
+    setIncludeInstruments((prev) => (prev.includes(key) ? prev.filter((x) => x !== key) : [...prev, key]))
+    setExcludeInstruments((prev) => prev.filter((x) => x !== key))
+  }
+
+  const toggleExcludeInstrument = (key: InstrumentKey) => {
+    setExcludeInstruments((prev) => (prev.includes(key) ? prev.filter((x) => x !== key) : [...prev, key]))
+    setIncludeInstruments((prev) => prev.filter((x) => x !== key))
   }
 
   const weightedPrompts = useMemo(() => {
@@ -318,10 +360,39 @@ export function LyriaFeatureClient({ mode }: { mode: Mode }) {
             .filter(Boolean)
             .join(', ')
         : 'Chỉ nhạc không lời, không dùng giọng hát'
-    const activePrompts = [basePrompt, stylePrompt, languagePrompt, vocalPrompt, ...promptHistory.slice(-3)].filter(Boolean)
+    const includePrompt =
+      includeInstruments.length > 0
+        ? `Ưu tiên nhạc cụ: ${includeInstruments.map((k) => INSTRUMENT_LABELS[k]).join(', ')}`
+        : ''
+    const excludePrompt =
+      excludeInstruments.length > 0
+        ? `Hạn chế hoặc không dùng: ${excludeInstruments.map((k) => INSTRUMENT_LABELS[k]).join(', ')}`
+        : ''
+    const activePrompts = [
+      basePrompt,
+      stylePrompt,
+      languagePrompt,
+      vocalPrompt,
+      includePrompt,
+      excludePrompt,
+      ...promptHistory.slice(-3),
+    ].filter(Boolean)
     const weight = activePrompts.length > 0 ? 1 / activePrompts.length : 1
     return activePrompts.map((text) => ({ text, weight }))
-  }, [basePrompt, promptHistory, vocalMode, lyricHint, musicLanguage, musicStyle, voiceGender, voiceTone, voiceRegion, voiceStyle])
+  }, [
+    basePrompt,
+    promptHistory,
+    vocalMode,
+    lyricHint,
+    musicLanguage,
+    musicStyle,
+    voiceGender,
+    voiceTone,
+    voiceRegion,
+    voiceStyle,
+    includeInstruments,
+    excludeInstruments,
+  ])
 
   const buildMusicGenerationConfig = () => ({
     bpm,
@@ -428,17 +499,45 @@ export function LyriaFeatureClient({ mode }: { mode: Mode }) {
     }
   }
 
-  const finalizeMusicSession = () => {
+  const uploadSessionAudio = async () => {
+    const chunks = recordedChunksRef.current
+    if (!chunks.length) return null
+    const pcm = concatUint8Arrays(chunks)
+    const wavBlob = pcm16StereoToWavBlob(pcm, LyriaSampleRate)
+    const ts = new Date().toISOString().replace(/[:.]/g, '-')
+    const file = new File([wavBlob], `nhac-ai-${ts}.wav`, { type: 'audio/wav' })
+    const form = new FormData()
+    form.append('audio', file)
+    const res = await fetch('/api/music-upload', { method: 'POST', body: form })
+    const data = (await res.json().catch(() => ({}))) as { audioUrl?: string; error?: string }
+    if (!res.ok) {
+      throw new Error(data.error || 'Không upload được audio lịch sử.')
+    }
+    return data.audioUrl || null
+  }
+
+  const finalizeMusicSession = async () => {
     if (sessionLoggedRef.current) return
     if (elapsedRef.current <= 0) return
     sessionLoggedRef.current = true
-    void pushHistory({
+    let audioUrl: string | null = null
+    try {
+      audioUrl = await uploadSessionAudio()
+    } catch {
+      toast({
+        title: 'Không lưu được file nhạc',
+        description: 'Phiên vẫn được lưu lịch sử nhưng thiếu file nghe lại.',
+        variant: 'destructive',
+      })
+    }
+    await pushHistory({
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       title: config.title,
       mode,
       style: MUSIC_STYLE_LABELS[musicStyle],
       durationSeconds: elapsedRef.current,
       chargedCredits: chargedCreditsRef.current,
+      audioUrl,
       createdAt: new Date().toISOString(),
     })
   }
@@ -519,7 +618,7 @@ export function LyriaFeatureClient({ mode }: { mode: Mode }) {
             setIsPlaying(false)
             setIsConnected(false)
             sessionRef.current = null
-            finalizeMusicSession()
+            void finalizeMusicSession()
             if (ev.code && ev.code !== 1000) {
               setLastStreamError(`Socket đóng (${ev.code}): ${ev.reason || 'Không rõ lý do'}`)
             }
@@ -616,7 +715,7 @@ export function LyriaFeatureClient({ mode }: { mode: Mode }) {
       await sessionRef.current.stop()
       setIsPlaying(false)
       if (contextRef.current) nextPlayTimeRef.current = contextRef.current.currentTime
-      finalizeMusicSession()
+      void finalizeMusicSession()
     } catch {
       toast({ title: 'Không thể dừng nhạc', variant: 'destructive' })
     }
@@ -643,17 +742,33 @@ export function LyriaFeatureClient({ mode }: { mode: Mode }) {
 
   const applyPromptBlend = async () => {
     if (!sessionRef.current || !livePrompt.trim()) return
-    const next = [...promptHistory, livePrompt.trim()].slice(-4)
+    const injectedPrompt = livePrompt.trim()
+    const next = [...promptHistory, injectedPrompt].slice(-4)
     setPromptHistory(next)
     try {
+      const boostedPrompts = [
+        { text: basePrompt, weight: 0.7 },
+        { text: `Phong cách nhạc chính: ${MUSIC_STYLE_LABELS[musicStyle]}`, weight: 0.9 },
+        {
+          text: vocalMode === 'vocal' ? `Ngôn ngữ lời hát ưu tiên: ${LANGUAGE_LABELS[musicLanguage]}` : `Ngôn ngữ mô tả mood: ${LANGUAGE_LABELS[musicLanguage]}`,
+          weight: 0.8,
+        },
+        ...(includeInstruments.length > 0
+          ? [{ text: `Ưu tiên nhạc cụ: ${includeInstruments.map((k) => INSTRUMENT_LABELS[k]).join(', ')}`, weight: 1.3 }]
+          : []),
+        ...(excludeInstruments.length > 0
+          ? [{ text: `Hạn chế hoặc không dùng: ${excludeInstruments.map((k) => INSTRUMENT_LABELS[k]).join(', ')}`, weight: 1.3 }]
+          : []),
+        ...next.slice(-2).map((text) => ({ text, weight: 1.1 })),
+        // Prompt vừa chèn được tăng trọng số để nghe ra thay đổi rõ hơn.
+        { text: injectedPrompt, weight: 1.8 },
+      ]
       await sessionRef.current.setWeightedPrompts({
-        weightedPrompts: [basePrompt, ...next].map((text, idx, arr) => ({
-          text,
-          weight: idx === arr.length - 1 ? 1.25 : 0.85,
-        })),
+        weightedPrompts: boostedPrompts,
       })
+      await sessionRef.current.resetContext()
       setLivePrompt('')
-      toast({ title: 'Đã áp mô tả mới', description: 'Nhạc sẽ chuyển mượt theo câu lệnh mới.' })
+      toast({ title: 'Đã áp mô tả mới', description: 'Đã tăng lực prompt. Chờ 2-6 giây để nghe rõ thay đổi.' })
     } catch {
       toast({ title: 'Không thể cập nhật mô tả', variant: 'destructive' })
     }
@@ -852,6 +967,64 @@ export function LyriaFeatureClient({ mode }: { mode: Mode }) {
               />
             </div>
 
+            <div className="space-y-3 rounded-lg border p-3">
+              <div className="flex items-center justify-between gap-2">
+                <label className="text-sm font-medium">Điều chỉnh nhạc cụ</label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setIncludeInstruments([])
+                    setExcludeInstruments([])
+                  }}
+                  className="h-8 px-2 text-xs"
+                >
+                  Xóa chọn nhạc cụ
+                </Button>
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-emerald-700">Ưu tiên thêm nhạc cụ</p>
+                <div className="flex flex-wrap gap-2">
+                  {Object.entries(INSTRUMENT_LABELS).map(([key, label]) => {
+                    const active = includeInstruments.includes(key as InstrumentKey)
+                    return (
+                      <Button
+                        key={`inc-${key}`}
+                        type="button"
+                        variant={active ? 'default' : 'outline'}
+                        onClick={() => toggleIncludeInstrument(key as InstrumentKey)}
+                        className={active ? 'h-8 bg-emerald-600 px-2 text-xs hover:bg-emerald-700' : 'h-8 px-2 text-xs'}
+                      >
+                        + {label}
+                      </Button>
+                    )
+                  })}
+                </div>
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-rose-700">Giảm/bỏ nhạc cụ</p>
+                <div className="flex flex-wrap gap-2">
+                  {Object.entries(INSTRUMENT_LABELS).map(([key, label]) => {
+                    const active = excludeInstruments.includes(key as InstrumentKey)
+                    return (
+                      <Button
+                        key={`exc-${key}`}
+                        type="button"
+                        variant={active ? 'default' : 'outline'}
+                        onClick={() => toggleExcludeInstrument(key as InstrumentKey)}
+                        className={active ? 'h-8 bg-rose-600 px-2 text-xs hover:bg-rose-700' : 'h-8 px-2 text-xs'}
+                      >
+                        - {label}
+                      </Button>
+                    )
+                  })}
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Chọn nhạc cụ ở một bên thôi. Nếu chọn “thêm”, nhạc cụ đó sẽ tự bỏ khỏi nhóm “giảm/bỏ” và ngược lại.
+              </p>
+            </div>
+
             {canUseImageMode && (
               <div className="space-y-3 rounded-lg border p-3">
                 <label className="text-sm font-medium">Ảnh đầu vào để suy ra cảm xúc nhạc</label>
@@ -949,6 +1122,24 @@ export function LyriaFeatureClient({ mode }: { mode: Mode }) {
               </p>
             </div>
 
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" onClick={handlePlay} disabled={isBusy}>
+                <Play className="mr-2 h-4 w-4" /> {isPlaying ? 'Đang phát' : 'Phát'}
+              </Button>
+              <Button type="button" variant="outline" onClick={handlePause} disabled={!isConnected || !isPlaying}>
+                <Pause className="mr-2 h-4 w-4" /> Tạm dừng
+              </Button>
+              <Button type="button" variant="outline" onClick={handleStop} disabled={!isConnected}>
+                <Square className="mr-2 h-4 w-4" /> Dừng
+              </Button>
+              <Button type="button" variant="outline" onClick={testSpeaker}>
+                Test loa
+              </Button>
+              <Button type="button" variant="outline" onClick={handleDownloadMusic} disabled={chunksReceived === 0}>
+                <Download className="mr-2 h-4 w-4" /> Tải nhạc xuống
+              </Button>
+            </div>
+
             <div className="rounded-lg border bg-white p-3">
               <div className="mb-2 flex items-center justify-between">
                 <p className="text-sm font-semibold text-slate-800">Lịch sử tạo nhạc</p>
@@ -966,6 +1157,8 @@ export function LyriaFeatureClient({ mode }: { mode: Mode }) {
                         <th className="px-2 py-1.5 text-left font-medium">Phong cách</th>
                         <th className="px-2 py-1.5 text-right font-medium">Thời lượng</th>
                         <th className="px-2 py-1.5 text-right font-medium">Credits</th>
+                        <th className="px-2 py-1.5 text-left font-medium">Nghe lại</th>
+                        <th className="px-2 py-1.5 text-left font-medium">Tải xuống</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -974,32 +1167,36 @@ export function LyriaFeatureClient({ mode }: { mode: Mode }) {
                           <td className="px-2 py-1.5">{new Date(item.createdAt).toLocaleString('vi-VN')}</td>
                           <td className="px-2 py-1.5">{item.title}</td>
                           <td className="px-2 py-1.5">{item.style}</td>
-                          <td className="px-2 py-1.5 text-right">{item.durationSeconds}s</td>
-                          <td className="px-2 py-1.5 text-right font-medium text-emerald-700">{item.chargedCredits.toFixed(1)}</td>
+                          <td className="px-2 py-1.5 text-right">{Number(item.durationSeconds || 0)}s</td>
+                          <td className="px-2 py-1.5 text-right font-medium text-emerald-700">{Number(item.chargedCredits || 0).toFixed(1)}</td>
+                          <td className="px-2 py-1.5">
+                            {item.audioUrl ? (
+                              <audio controls preload="none" src={item.audioUrl} className="h-8 max-w-[220px]" />
+                            ) : (
+                              <span className="text-muted-foreground">Chưa có file</span>
+                            )}
+                          </td>
+                          <td className="px-2 py-1.5">
+                            {item.audioUrl ? (
+                              <a
+                                href={item.audioUrl}
+                                download
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-indigo-600 hover:underline"
+                              >
+                                Tải WAV
+                              </a>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
               )}
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              <Button type="button" onClick={handlePlay} disabled={isBusy}>
-                <Play className="mr-2 h-4 w-4" /> {isPlaying ? 'Đang phát' : 'Phát'}
-              </Button>
-              <Button type="button" variant="outline" onClick={handlePause} disabled={!isConnected || !isPlaying}>
-                <Pause className="mr-2 h-4 w-4" /> Tạm dừng
-              </Button>
-              <Button type="button" variant="outline" onClick={handleStop} disabled={!isConnected}>
-                <Square className="mr-2 h-4 w-4" /> Dừng
-              </Button>
-              <Button type="button" variant="outline" onClick={testSpeaker}>
-                Test loa
-              </Button>
-              <Button type="button" variant="outline" onClick={handleDownloadMusic} disabled={chunksReceived === 0}>
-                <Download className="mr-2 h-4 w-4" /> Tải nhạc xuống
-              </Button>
             </div>
 
             <div className="rounded-lg border bg-slate-50 p-3 text-xs text-muted-foreground">
