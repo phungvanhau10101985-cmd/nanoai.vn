@@ -7,6 +7,7 @@ import { buildMetadata, buildJsonLdService, SITE_URL } from '@/lib/seo'
 import { JsonLd } from '@/components/seo-json-ld'
 import { getFeatureSeo, buildFeatureFaqJsonLd } from '@/lib/feature-seo'
 import { FeatureSeoSection } from '@/components/feature-seo-section'
+import { Suspense } from 'react'
 
 const MODE_MAP: Record<string, { mode: 'single' | 'couple' | 'group' | 'group4' | 'group5'; title: string; description: string; keywords: string[] }> = {
   '1-nguoi': { mode: 'single', title: 'Thử đồ 1 người', description: 'Thử đồ ảo 1 người với AI. Tải ảnh của bạn và ảnh trang phục, AI sẽ áp trang phục lên người. Hỗ trợ 2K, 4K.', keywords: ['thử đồ 1 người', 'thử đồ ảo', 'AI thử đồ', 'phối đồ'] },
@@ -63,7 +64,9 @@ export default async function TryOnSlugPage({ params }: { params: { slug: string
     <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <JsonLd data={jsonLd} />
       {faqJsonLd && <JsonLd data={faqJsonLd} />}
-      <TryOnClientPage gender={gender} initialMode={config.mode} />
+      <Suspense fallback={<div className="text-sm text-muted-foreground">Đang tải công cụ thử đồ...</div>}>
+        <TryOnClientPage gender={gender} initialMode={config.mode} />
+      </Suspense>
       {seo && <FeatureSeoSection seo={seo} />}
     </div>
   )

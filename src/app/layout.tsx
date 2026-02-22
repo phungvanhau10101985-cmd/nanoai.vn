@@ -111,7 +111,9 @@ export default function RootLayout({
             gtag('config', '${GA_MEASUREMENT_ID}');
           `}
         </Script>
-        <AnalyticsTracker />
+        <Suspense fallback={null}>
+          <AnalyticsTracker />
+        </Suspense>
         <JsonLd data={webAppLd} />
         <JsonLd data={orgLd} />
         <DepositCreditProvider>

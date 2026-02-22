@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { translateDocumentImage, startTranslateBatch, startTranslatePdfBatch, getPdfPageInfo, getCredits } from './actions'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { preloadImageUrl } from '@/lib/preload-image-url'
 
 const LANG_VI = { vi: 'Tiếng Việt' }
@@ -57,8 +58,9 @@ import { useCredits } from '@/hooks/use-credits'
 import { ImagePreview } from '@/components/ui/image-preview'
 import { ImageProcessingLoader } from '@/components/image-processing-loader'
 import { DownloadImageButton } from '@/components/download-image-button'
-import { TranslateProgressLink } from '@/components/translate-progress-link'
+import { TranslateProgressPanel } from './tien-trinh/translate-progress-panel'
 const MAX_BATCH = 50
+const TRANSLATE_PROGRESS_STORAGE_KEY = 'lastTranslateBatchId'
 const safeZipName = (name: string, index: number): string => {
   const base = name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 100)
   const ext = base.includes('.') ? base.slice(base.lastIndexOf('.')) : '.png'
@@ -77,6 +79,7 @@ const setImageFromFile = (file: File, setImage: (v: { file: File; preview: strin
 }
 
 export default function DichAnhTaiLieuClientPage() {
+  const searchParams = useSearchParams()
   const [step, setStep] = useState<Step>('UPLOAD')
   const [batchMode, setBatchMode] = useState<BatchModeType>('single')
   const [image, setImage] = useState<{ file: File | null; preview: string | null }>({ file: null, preview: null })
@@ -97,6 +100,7 @@ export default function DichAnhTaiLieuClientPage() {
   const [resultUrl, setResultUrl] = useState<string | null>(null)
   const [batchResults, setBatchResults] = useState<Array<{ originalUrl: string; resultUrl: string }>>([])
   const [batchZipUrl, setBatchZipUrl] = useState<string | null>(null)
+  const [activeBatchId, setActiveBatchId] = useState<string | null>(null)
   const [userCredits, setUserCredits] = useState<number>(0)
   const { toast } = useToast()
   const { checkCreditsAndProceed } = useCredits()
@@ -111,6 +115,24 @@ export default function DichAnhTaiLieuClientPage() {
     window.addEventListener('credits-updated', onUpdated)
     return () => window.removeEventListener('credits-updated', onUpdated)
   }, [])
+  useEffect(() => {
+    const batchIdFromQuery = searchParams.get('batchId')
+    if (batchIdFromQuery) {
+      setActiveBatchId(batchIdFromQuery)
+      try {
+        localStorage.setItem(TRANSLATE_PROGRESS_STORAGE_KEY, batchIdFromQuery)
+      } catch {
+        //
+      }
+      return
+    }
+    try {
+      const lastBatchId = localStorage.getItem(TRANSLATE_PROGRESS_STORAGE_KEY)
+      if (lastBatchId) setActiveBatchId(lastBatchId)
+    } catch {
+      //
+    }
+  }, [searchParams])
   const fileInputRef = useRef<HTMLInputElement>(null)
   const batchInputRef = useRef<HTMLInputElement>(null)
   const folderInputRef = useRef<HTMLInputElement>(null)
@@ -344,9 +366,10 @@ export default function DichAnhTaiLieuClientPage() {
         toast({ title: 'Khởi tạo thất bại', description: r.error, variant: 'destructive', duration: 5000 })
         return
       }
-      if (typeof window !== 'undefined') localStorage.setItem('lastTranslateBatchId', r.batchId)
-      toast({ title: 'Đã bắt đầu dịch PDF', description: 'Chuyển đến trang tiến trình. Bạn có thể rời trang và quay lại xem bất cứ lúc nào.', duration: 4000 })
-      window.location.href = `/dich-anh-tai-lieu/tien-trinh/${r.batchId}`
+      if (typeof window !== 'undefined') localStorage.setItem(TRANSLATE_PROGRESS_STORAGE_KEY, r.batchId)
+      setActiveBatchId(r.batchId)
+      setStep('UPLOAD')
+      toast({ title: 'Đã bắt đầu dịch PDF', description: 'Tiến trình đã hiển thị ngay trong trang này.', duration: 4000 })
       return
     } else if (batchMode === 'excel') {
       if (!excelFile || excelUrls.length === 0) {
@@ -367,9 +390,10 @@ export default function DichAnhTaiLieuClientPage() {
         toast({ title: 'Khởi tạo thất bại', description: r.error, variant: 'destructive', duration: 5000 })
         return
       }
-      if (typeof window !== 'undefined') localStorage.setItem('lastTranslateBatchId', r.batchId)
-      toast({ title: 'Đã bắt đầu dịch', description: 'Chuyển đến trang tiến trình. Bạn có thể rời trang và quay lại xem bất cứ lúc nào.', duration: 4000 })
-      window.location.href = `/dich-anh-tai-lieu/tien-trinh/${r.batchId}`
+      if (typeof window !== 'undefined') localStorage.setItem(TRANSLATE_PROGRESS_STORAGE_KEY, r.batchId)
+      setActiveBatchId(r.batchId)
+      setStep('UPLOAD')
+      toast({ title: 'Đã bắt đầu dịch', description: 'Tiến trình đã hiển thị ngay trong trang này.', duration: 4000 })
       return
     } else if (batchMode === 'batch') {
       if (batchImages.length === 0) {
@@ -390,9 +414,10 @@ export default function DichAnhTaiLieuClientPage() {
         toast({ title: 'Khởi tạo thất bại', description: r.error, variant: 'destructive', duration: 5000 })
         return
       }
-      if (typeof window !== 'undefined') localStorage.setItem('lastTranslateBatchId', r.batchId)
-      toast({ title: 'Đã bắt đầu dịch', description: 'Chuyển đến trang tiến trình. Bạn có thể rời trang và quay lại xem bất cứ lúc nào.', duration: 4000 })
-      window.location.href = `/dich-anh-tai-lieu/tien-trinh/${r.batchId}`
+      if (typeof window !== 'undefined') localStorage.setItem(TRANSLATE_PROGRESS_STORAGE_KEY, r.batchId)
+      setActiveBatchId(r.batchId)
+      setStep('UPLOAD')
+      toast({ title: 'Đã bắt đầu dịch', description: 'Tiến trình đã hiển thị ngay trong trang này.', duration: 4000 })
       return
     } else {
       if (!image.file) {
@@ -439,7 +464,20 @@ export default function DichAnhTaiLieuClientPage() {
     <>
       <Toaster />
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
-        <TranslateProgressLink variant="banner" />
+        {activeBatchId && (
+          <TranslateProgressPanel
+            batchId={activeBatchId}
+            embedded
+            onClose={() => {
+              setActiveBatchId(null)
+              try {
+                localStorage.removeItem(TRANSLATE_PROGRESS_STORAGE_KEY)
+              } catch {
+                //
+              }
+            }}
+          />
+        )}
         <div className="text-center">
           <h1 className="text-2xl font-bold text-foreground flex items-center justify-center gap-2">
             <FileText className="h-7 w-7 text-slate-600" /> Dịch ảnh tài liệu kỹ thuật

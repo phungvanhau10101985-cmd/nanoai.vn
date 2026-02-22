@@ -2,7 +2,10 @@
  * Cấu hình điều hướng - đồng bộ giữa Header, MobileNav, Dashboard
  */
 import {
-  BarChart3,
+  Music2,
+  SlidersHorizontal,
+  ImagePlus,
+  Radio,
 } from 'lucide-react'
 import { TryOnIcon } from '@/components/icons/try-on-icon'
 import { ImageRestorationIcon } from '@/components/icons/image-restoration-icon'
@@ -50,7 +53,10 @@ export const AI_TOOLS = [
   { href: '/mo-rong-khung-hinh', label: 'Mở rộng khung hình', icon: MoRongKhungHinhIcon },
   { href: '/hoan-doi-khuon-mat', label: 'Hoán đổi khuôn mặt', icon: HoanDoiKhuonMatIcon },
   { href: '/dich-anh-tai-lieu', label: 'Dịch ảnh tài liệu', icon: DichAnhTaiLieuIcon },
-  { href: '/dich-anh-tai-lieu/tien-trinh', label: 'Tiến trình dịch', icon: BarChart3 },
+  { href: '/nhac-nen-ai', label: 'Nhạc nền AI', icon: Music2 },
+  { href: '/ai-dj', label: 'AI DJ', icon: SlidersHorizontal },
+  { href: '/nhac-theo-cam-xuc-anh', label: 'Nhạc theo cảm xúc ảnh', icon: ImagePlus },
+  { href: '/dieu-khien-nhac-realtime', label: 'Điều khiển nhạc realtime', icon: Radio },
   // { href: '/tao-video-tu-anh', label: 'Tạo video từ ảnh', icon: Video }, // Tạm ẩn
 ] as const
 
@@ -105,7 +111,15 @@ export const NAV_GROUPS = [
     title: 'Dịch thuật',
     links: [
       { href: '/dich-anh-tai-lieu', label: 'Dịch ảnh tài liệu', icon: DichAnhTaiLieuIcon },
-      { href: '/dich-anh-tai-lieu/tien-trinh', label: 'Tiến trình dịch', icon: BarChart3 },
+    ],
+  },
+  {
+    title: 'Âm nhạc AI',
+    links: [
+      { href: '/nhac-nen-ai', label: 'Nhạc nền AI', icon: Music2 },
+      { href: '/ai-dj', label: 'AI DJ', icon: SlidersHorizontal },
+      { href: '/nhac-theo-cam-xuc-anh', label: 'Nhạc theo cảm xúc ảnh', icon: ImagePlus },
+      { href: '/dieu-khien-nhac-realtime', label: 'Điều khiển nhạc realtime', icon: Radio },
     ],
   },
 ] as const

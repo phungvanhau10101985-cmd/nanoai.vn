@@ -7,6 +7,7 @@ import { buildMetadata, buildJsonLdService, SITE_URL } from '@/lib/seo'
 import { JsonLd } from '@/components/seo-json-ld'
 import { getFeatureSeo, buildFeatureFaqJsonLd } from '@/lib/feature-seo'
 import { FeatureSeoSection } from '@/components/feature-seo-section'
+import { Suspense } from 'react'
 
 const seo = getFeatureSeo('dich-anh-tai-lieu')
 
@@ -33,7 +34,9 @@ export default async function DichAnhTaiLieuPage() {
     <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <JsonLd data={jsonLd} />
       <JsonLd data={faqJsonLd} />
-      <DichAnhTaiLieuClientPage />
+      <Suspense fallback={<div className="text-sm text-muted-foreground">Đang tải công cụ dịch ảnh tài liệu...</div>}>
+        <DichAnhTaiLieuClientPage />
+      </Suspense>
       <FeatureSeoSection seo={seo} />
     </div>
   )
