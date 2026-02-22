@@ -17,8 +17,8 @@ import { ImagePreview } from '@/components/ui/image-preview'
 import { ImageProcessingLoader } from '@/components/image-processing-loader'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { GarmentUploader } from './garment-uploader'
-import {
 import { preloadImageUrl } from '@/lib/preload-image-url'
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
