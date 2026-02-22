@@ -18,20 +18,23 @@ export async function buildTransparentPngFromMask(
   await fs.writeFile(inputPath, originalBuffer)
   await fs.writeFile(maskPath, maskBuffer)
 
-  const pythonCode = [
-    'from PIL import Image, ImageOps, ImageFilter',
-    'import sys',
-    'inp, msk, out = sys.argv[1], sys.argv[2], sys.argv[3]',
-    "img = Image.open(inp).convert('RGBA')",
-    "mask = Image.open(msk).convert('L')",
-    'if mask.size != img.size:',
-    '    mask = mask.resize(img.size, Image.Resampling.LANCZOS)',
-    '# Normalize mask: foreground should be white.',
-    'mask = ImageOps.autocontrast(mask)',
-    'mask = mask.filter(ImageFilter.GaussianBlur(radius=0.8))',
-    'img.putalpha(mask)',
-    "img.save(out, format='PNG')",
-  ].join('; ')
+  const pythonCode = `
+from PIL import Image, ImageOps, ImageFilter
+import sys
+
+inp, msk, out = sys.argv[1], sys.argv[2], sys.argv[3]
+img = Image.open(inp).convert('RGBA')
+mask = Image.open(msk).convert('L')
+
+if mask.size != img.size:
+    mask = mask.resize(img.size, Image.Resampling.LANCZOS)
+
+# Normalize mask: foreground should be white.
+mask = ImageOps.autocontrast(mask)
+mask = mask.filter(ImageFilter.GaussianBlur(radius=0.8))
+img.putalpha(mask)
+img.save(out, format='PNG')
+`.trim()
 
   const attempts: Array<{ cmd: string; args: string[] }> = [
     { cmd: process.env.MASK_PYTHON || 'python', args: ['-c', pythonCode, inputPath, maskPath, outputPath] },
