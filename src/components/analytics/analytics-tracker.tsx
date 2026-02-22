@@ -22,6 +22,7 @@ const FEATURE_ROUTES = [
   '/tao-nhan-gian',
   '/che-anh',
   '/xoa-vat-the',
+  '/xoa-nen-png',
   '/thay-nen-san-pham',
   '/tao-anh-3d',
   '/tao-mo-hinh-3d-tu-anh',

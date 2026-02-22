@@ -2,25 +2,8 @@
  * Cấu hình điều hướng - đồng bộ giữa Header, MobileNav, Dashboard
  */
 import {
-  Sparkles,
-  Layers,
-  Layout,
-  User,
-  Users,
-  Palette,
-  Smile,
   Eraser,
-  Package,
-  Box,
-  BoxSelect,
-  Home,
-  Briefcase,
-  Expand,
-  Repeat,
-  FileText,
   BarChart3,
-  BookOpen,
-  Tag,
 } from 'lucide-react'
 import { TryOnIcon } from '@/components/icons/try-on-icon'
 import { ImageRestorationIcon } from '@/components/icons/image-restoration-icon'
@@ -57,6 +40,7 @@ export const AI_TOOLS = [
   { href: '/tao-nhan-gian', label: 'Tạo nhãn gián', icon: TaoNhanGianIcon },
   { href: '/che-anh', label: 'Chế ảnh', icon: CheAnhIcon },
   { href: '/xoa-vat-the', label: 'Xóa vật thể', icon: XoaVatTheIcon },
+  { href: '/xoa-nen-png', label: 'Xóa nền PNG', icon: Eraser },
   { href: '/thay-nen-san-pham', label: 'Thay nền sản phẩm', icon: ThayNenSanPhamIcon },
   { href: '/tao-anh-3d', label: 'Ảnh sản phẩm mẫu 3D', icon: TaoAnh3DIcon },
   { href: '/tao-mo-hinh-3d-tu-anh', label: 'Mô hình 3D từ ảnh', icon: TaoMoHinh3DTuAnhIcon },
@@ -89,6 +73,7 @@ export const NAV_GROUPS = [
       { href: '/lam-dep-anh', label: 'Làm đẹp ảnh', icon: LamDepAnhIcon },
       { href: '/ghep-anh', label: 'Ghép ảnh', icon: GhepAnhIcon },
       { href: '/xoa-vat-the', label: 'Xóa vật thể', icon: XoaVatTheIcon },
+      { href: '/xoa-nen-png', label: 'Xóa nền PNG', icon: Eraser },
       { href: '/thay-nen-san-pham', label: 'Thay nền sản phẩm', icon: ThayNenSanPhamIcon },
       { href: '/mo-rong-khung-hinh', label: 'Mở rộng khung hình', icon: MoRongKhungHinhIcon },
       { href: '/hoan-doi-khuon-mat', label: 'Hoán đổi khuôn mặt', icon: HoanDoiKhuonMatIcon },
