@@ -21,7 +21,7 @@ export function ToolIconImage({ src, className, priority = false }: ToolIconImag
         width={96}
         height={96}
         sizes="(max-width: 768px) 80px, 96px"
-        className="h-full w-full object-cover scale-[1.06]"
+        className="h-full w-full object-contain"
         {...(priority
           ? { priority: true, fetchPriority: 'high' as const }
           : { loading: 'lazy' as const })}
