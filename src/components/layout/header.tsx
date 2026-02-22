@@ -1,5 +1,4 @@
 import Link from 'next/link'
-import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase/server'
 import { getUserOrBypass } from '@/lib/auth'
@@ -36,7 +35,7 @@ export async function Header() {
       <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
         <div className="flex items-center justify-between gap-4">
           <Link href="/" className="flex items-center gap-2 shrink-0">
-            <Image src="/icons/icon-192x192.png" alt="NanoAI" width={44} height={44} className="rounded-lg" />
+            <img src="/icons/icon-192x192.png" alt="NanoAI" width={44} height={44} className="rounded-lg" />
             <span className="font-bold text-lg">NanoAI</span>
           </Link>
 

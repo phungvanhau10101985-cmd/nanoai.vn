@@ -16,7 +16,7 @@ export function ToolIconImage({ src, className, priority = false }: ToolIconImag
       <img
         src={fullFrameSrc}
         alt=""
-        className="h-full w-full object-contain scale-[1.32]"
+        className="h-full w-full object-contain"
         loading={priority ? 'eager' : 'lazy'}
         decoding="async"
       />
