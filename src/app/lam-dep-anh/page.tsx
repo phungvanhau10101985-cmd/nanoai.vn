@@ -5,12 +5,16 @@ import LamDepAnhClientPage from './lam-dep-anh-client-page'
 import { Metadata } from 'next'
 import { buildMetadata, buildJsonLdService, SITE_URL } from '@/lib/seo'
 import { JsonLd } from '@/components/seo-json-ld'
+import { getFeatureSeo, buildFeatureFaqJsonLd } from '@/lib/feature-seo'
+import { FeatureSeoSection } from '@/components/feature-seo-section'
+
+const seo = getFeatureSeo('lam-dep-anh')
 
 export const metadata: Metadata = buildMetadata({
-  title: 'Làm đẹp ảnh',
-  description: 'Làm đẹp ảnh 1–4 người như studio với AI. Retouch da, ánh sáng chuyên nghiệp, giữ nguyên nét khuôn mặt và nền gốc. Không thay nền/xóa nền, chỉ xóa phông chuyên nghiệp. Xuất 2K, 4K. 1,5–3 credits/ảnh.',
-  path: '/lam-dep-anh',
-  keywords: ['làm đẹp ảnh', 'retouch ảnh', 'chỉnh ảnh studio', 'AI làm đẹp', 'ảnh chân dung đẹp'],
+  title: seo.pageTitle,
+  description: seo.pageDescription,
+  path: seo.path,
+  keywords: seo.keywords,
 })
 
 export default async function LamDepAnhPage() {
@@ -19,15 +23,18 @@ export default async function LamDepAnhPage() {
   if (!user) redirect('/auth/login')
 
   const jsonLd = buildJsonLdService(
-    'Làm đẹp ảnh với AI',
-    'Retouch ảnh chân dung như studio, giữ nguyên nét khuôn mặt và nền gốc; chỉ xóa phông chuyên nghiệp.',
+    seo.serviceName,
+    seo.serviceDescription,
     `${SITE_URL}/lam-dep-anh`
   )
+  const faqJsonLd = buildFeatureFaqJsonLd(seo)
 
   return (
     <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <JsonLd data={jsonLd} />
+      <JsonLd data={faqJsonLd} />
       <LamDepAnhClientPage />
+      <FeatureSeoSection seo={seo} />
     </div>
   )
 }

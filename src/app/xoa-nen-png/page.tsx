@@ -5,12 +5,16 @@ import XoaNenPngClientPage from './xoa-nen-png-client-page'
 import { Metadata } from 'next'
 import { buildMetadata, buildJsonLdService, SITE_URL } from '@/lib/seo'
 import { JsonLd } from '@/components/seo-json-ld'
+import { getFeatureSeo, buildFeatureFaqJsonLd } from '@/lib/feature-seo'
+import { FeatureSeoSection } from '@/components/feature-seo-section'
+
+const seo = getFeatureSeo('xoa-nen-png')
 
 export const metadata: Metadata = buildMetadata({
-  title: 'Xóa nền PNG trong suốt',
-  description: 'Tách nền ảnh và xuất PNG trong suốt (RGBA) bằng AI mask + Python PIL. Phù hợp bán hàng TMĐT, thiết kế và ghép nền.',
-  path: '/xoa-nen-png',
-  keywords: ['xóa nền png', 'ảnh nền trong suốt', 'remove background png', 'tách nền sản phẩm'],
+  title: seo.pageTitle,
+  description: seo.pageDescription,
+  path: seo.path,
+  keywords: seo.keywords,
 })
 
 export default async function XoaNenPngPage() {
@@ -19,15 +23,18 @@ export default async function XoaNenPngPage() {
   if (!user) redirect('/auth/login')
 
   const jsonLd = buildJsonLdService(
-    'Xóa nền PNG trong suốt',
-    'Tách nền ảnh thành PNG trong suốt bằng luồng mask chuyên dụng.',
+    seo.serviceName,
+    seo.serviceDescription,
     `${SITE_URL}/xoa-nen-png`
   )
+  const faqJsonLd = buildFeatureFaqJsonLd(seo)
 
   return (
     <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <JsonLd data={jsonLd} />
+      <JsonLd data={faqJsonLd} />
       <XoaNenPngClientPage />
+      <FeatureSeoSection seo={seo} />
     </div>
   )
 }

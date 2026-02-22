@@ -5,6 +5,8 @@ import TryOnClientPage from '../try-on-client-page'
 import { Metadata } from 'next'
 import { buildMetadata, buildJsonLdService, SITE_URL } from '@/lib/seo'
 import { JsonLd } from '@/components/seo-json-ld'
+import { getFeatureSeo, buildFeatureFaqJsonLd } from '@/lib/feature-seo'
+import { FeatureSeoSection } from '@/components/feature-seo-section'
 
 const MODE_MAP: Record<string, { mode: 'single' | 'couple' | 'group' | 'group4' | 'group5'; title: string; description: string; keywords: string[] }> = {
   '1-nguoi': { mode: 'single', title: 'Thử đồ 1 người', description: 'Thử đồ ảo 1 người với AI. Tải ảnh của bạn và ảnh trang phục, AI sẽ áp trang phục lên người. Hỗ trợ 2K, 4K.', keywords: ['thử đồ 1 người', 'thử đồ ảo', 'AI thử đồ', 'phối đồ'] },
@@ -14,14 +16,25 @@ const MODE_MAP: Record<string, { mode: 'single' | 'couple' | 'group' | 'group4' 
   '5-nguoi': { mode: 'group5', title: 'Thử đồ 5 người', description: 'Thử đồ nhóm 5 người với AI. Thử đồ cho ảnh đại gia đình. Hỗ trợ tối đa 5 người.', keywords: ['thử đồ 5 người', 'thử đồ nhóm', 'AI thử đồ'] },
 }
 
+const SEO_KEYS: Record<string, string> = {
+  '1-nguoi': 'thu-do-online-1-nguoi',
+  '2-nguoi': 'thu-do-online-2-nguoi',
+  '3-nguoi': 'thu-do-online-3-nguoi',
+  '4-nguoi': 'thu-do-online-4-nguoi',
+  '5-nguoi': 'thu-do-online-5-nguoi',
+}
+
 export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
   const config = MODE_MAP[params.slug]
   if (!config) return { title: 'Thử đồ Online' }
+  const seoKey = SEO_KEYS[params.slug]
+  if (!seoKey) return buildMetadata({ title: config.title, description: config.description, path: `/thu-do-online/${params.slug}`, keywords: config.keywords })
+  const seo = getFeatureSeo(seoKey)
   return buildMetadata({
-    title: config.title,
-    description: config.description,
-    path: `/thu-do-online/${params.slug}`,
-    keywords: config.keywords,
+    title: seo.pageTitle,
+    description: seo.pageDescription,
+    path: seo.path,
+    keywords: seo.keywords,
   })
 }
 
@@ -36,16 +49,22 @@ export default async function TryOnSlugPage({ params }: { params: { slug: string
   const rawGender = (user?.user_metadata?.gender as string) || 'male'
   const gender = rawGender === 'female' ? 'female' : 'male'
 
+  const seoKey = SEO_KEYS[params.slug]
+  const seo = seoKey ? getFeatureSeo(seoKey) : null
+
   const jsonLd = buildJsonLdService(
-    config.title,
-    config.description,
+    seo?.serviceName ?? config.title,
+    seo?.serviceDescription ?? config.description,
     `${SITE_URL}/thu-do-online/${params.slug}`
   )
+  const faqJsonLd = seo ? buildFeatureFaqJsonLd(seo) : null
 
   return (
     <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <JsonLd data={jsonLd} />
+      {faqJsonLd && <JsonLd data={faqJsonLd} />}
       <TryOnClientPage gender={gender} initialMode={config.mode} />
+      {seo && <FeatureSeoSection seo={seo} />}
     </div>
   )
 }

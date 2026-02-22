@@ -5,13 +5,16 @@ import TaoVideoTuAnhClientPage from './tao-video-tu-anh-client-page'
 import { Metadata } from 'next'
 import { buildMetadata, buildJsonLdService, SITE_URL } from '@/lib/seo'
 import { JsonLd } from '@/components/seo-json-ld'
+import { getFeatureSeo, buildFeatureFaqJsonLd } from '@/lib/feature-seo'
+import { FeatureSeoSection } from '@/components/feature-seo-section'
+
+const seo = getFeatureSeo('tao-video-tu-anh')
 
 export const metadata: Metadata = buildMetadata({
-  title: 'Tạo video từ ảnh',
-  description:
-    'Chuyển ảnh thành video 8 giây với AI Veo 3.1. 2 chất lượng: 720p và 1080p. Video có âm thanh, phong cách điện ảnh.',
-  path: '/tao-video-tu-anh',
-  keywords: ['tạo video từ ảnh', 'AI video', 'Veo', 'ảnh thành video', 'image to video'],
+  title: seo.pageTitle,
+  description: seo.pageDescription,
+  path: seo.path,
+  keywords: seo.keywords,
 })
 
 export default async function TaoVideoTuAnhPage() {
@@ -20,15 +23,18 @@ export default async function TaoVideoTuAnhPage() {
   if (!user) redirect('/auth/login')
 
   const jsonLd = buildJsonLdService(
-    'Tạo video từ ảnh với AI Veo 3.1',
-    'Chuyển ảnh tĩnh thành video 8 giây với chuyển động tự nhiên và âm thanh.',
+    seo.serviceName,
+    seo.serviceDescription,
     `${SITE_URL}/tao-video-tu-anh`
   )
+  const faqJsonLd = buildFeatureFaqJsonLd(seo)
 
   return (
     <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <JsonLd data={jsonLd} />
+      <JsonLd data={faqJsonLd} />
       <TaoVideoTuAnhClientPage />
+      <FeatureSeoSection seo={seo} />
     </div>
   )
 }

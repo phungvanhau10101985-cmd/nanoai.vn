@@ -121,8 +121,8 @@ export default function XoaNenPngClientPage() {
       <Toaster />
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-foreground">Xóa nền PNG</h1>
-          <p className="text-muted-foreground mt-1">Tách chủ thể và trả ảnh PNG nền trong suốt (RGBA). 1,5–3 credits/ảnh.</p>
+          <h1 className="text-2xl font-bold text-foreground">Xóa nền ảnh online ra PNG trong suốt</h1>
+          <p className="text-muted-foreground mt-1">Tách chủ thể chính xác, giữ viền tự nhiên và trả PNG alpha để dùng ngay cho TMĐT, thiết kế, social.</p>
         </div>
 
         {step === 'UPLOAD' && (

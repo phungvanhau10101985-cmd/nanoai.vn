@@ -5,12 +5,16 @@ import KeChuyenBangHinhAnhClientPage from './ke-chuyen-bang-hinh-anh-client-page
 import { Metadata } from 'next'
 import { buildMetadata, buildJsonLdService, SITE_URL } from '@/lib/seo'
 import { JsonLd } from '@/components/seo-json-ld'
+import { getFeatureSeo, buildFeatureFaqJsonLd } from '@/lib/feature-seo'
+import { FeatureSeoSection } from '@/components/feature-seo-section'
+
+const seo = getFeatureSeo('ke-chuyen-bang-hinh-anh')
 
 export const metadata: Metadata = buildMetadata({
-  title: 'Kể chuyện bằng hình ảnh',
-  description: 'Đưa ý tưởng, AI viết câu chuyện dẫn dắt đúng chuẩn khoa học (không bịa) rồi tạo ảnh minh họa, chữ tiếng Việt. Xuất 2K, 4K. 3–6 credits/ảnh.',
-  path: '/ke-chuyen-bang-hinh-anh',
-  keywords: ['kể chuyện bằng hình ảnh', 'AI tạo ảnh minh họa', 'infographic', 'sách thiếu nhi', 'tạo ảnh từ mô tả'],
+  title: seo.pageTitle,
+  description: seo.pageDescription,
+  path: seo.path,
+  keywords: seo.keywords,
 })
 
 export default async function KeChuyenBangHinhAnhPage() {
@@ -19,15 +23,18 @@ export default async function KeChuyenBangHinhAnhPage() {
   if (!user) redirect('/auth/login')
 
   const jsonLd = buildJsonLdService(
-    'Kể chuyện bằng hình ảnh với AI',
-    'Mô tả câu chuyện, AI tạo ảnh minh họa sinh động như trang sách thiếu nhi.',
+    seo.serviceName,
+    seo.serviceDescription,
     `${SITE_URL}/ke-chuyen-bang-hinh-anh`
   )
+  const faqJsonLd = buildFeatureFaqJsonLd(seo)
 
   return (
     <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <JsonLd data={jsonLd} />
+      <JsonLd data={faqJsonLd} />
       <KeChuyenBangHinhAnhClientPage />
+      <FeatureSeoSection seo={seo} />
     </div>
   )
 }

@@ -4,6 +4,14 @@ const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://nanoai.vn'
 const SITE_NAME = 'NanoAI'
 const DEFAULT_OG_IMAGE = `${SITE_URL}/og-image.png`
 
+function buildOgImageUrl(title: string, path: string) {
+  const params = new URLSearchParams({
+    title,
+    path,
+  })
+  return `${SITE_URL}/og?${params.toString()}`
+}
+
 /** 10 điểm chuẩn SEO */
 export interface PageSEOConfig {
   /** 1. Title - 50-60 ký tự, unique */
@@ -31,7 +39,7 @@ export function buildMetadata(config: PageSEOConfig): Metadata {
     path,
     keywords = [],
     noIndex = false,
-    ogImage = DEFAULT_OG_IMAGE,
+    ogImage,
     locale = 'vi_VN',
     type = 'website',
   } = config
@@ -39,6 +47,7 @@ export function buildMetadata(config: PageSEOConfig): Metadata {
   const url = `${SITE_URL}${path}`
   const fullTitle = `${title} | ${SITE_NAME}`
   const keywordsStr = keywords.length > 0 ? keywords.join(', ') : undefined
+  const resolvedOgImage = ogImage || (path === '/' ? DEFAULT_OG_IMAGE : buildOgImageUrl(title, path))
 
   return {
     title: fullTitle,
@@ -63,7 +72,7 @@ export function buildMetadata(config: PageSEOConfig): Metadata {
       description,
       images: [
         {
-          url: ogImage,
+          url: resolvedOgImage,
           width: 1200,
           height: 630,
           alt: title,
@@ -74,7 +83,7 @@ export function buildMetadata(config: PageSEOConfig): Metadata {
       card: 'summary_large_image',
       title: fullTitle,
       description,
-      images: [ogImage],
+      images: [resolvedOgImage],
     },
   }
 }

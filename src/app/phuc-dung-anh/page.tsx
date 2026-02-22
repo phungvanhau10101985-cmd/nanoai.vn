@@ -5,12 +5,16 @@ import PhucDungClientPage from './phuc-dung-client-page'
 import { Metadata } from 'next'
 import { buildMetadata, buildJsonLdService, SITE_URL } from '@/lib/seo'
 import { JsonLd } from '@/components/seo-json-ld'
+import { getFeatureSeo, buildFeatureFaqJsonLd } from '@/lib/feature-seo'
+import { FeatureSeoSection } from '@/components/feature-seo-section'
+
+const seo = getFeatureSeo('phuc-dung-anh')
 
 export const metadata: Metadata = buildMetadata({
-  title: 'Phục dựng ảnh',
-  description: 'Phục dựng ảnh cũ, mờ, hư hỏng với AI. Sửa xước, tăng chất lượng, giữ nguyên màu hoặc phối màu như ảnh thật. Xuất 2K, 4K. 4–8 credits/ảnh.',
-  path: '/phuc-dung-anh',
-  keywords: ['phục dựng ảnh', 'khôi phục ảnh cũ', 'sửa ảnh mờ', 'tăng chất lượng ảnh', 'AI phục dựng ảnh', 'ảnh gia đình'],
+  title: seo.pageTitle,
+  description: seo.pageDescription,
+  path: seo.path,
+  keywords: seo.keywords,
 })
 
 export default async function PhucDungAnhPage() {
@@ -19,15 +23,18 @@ export default async function PhucDungAnhPage() {
   if (!user) redirect('/auth/login')
 
   const jsonLd = buildJsonLdService(
-    'Phục dựng ảnh với AI',
-    'Sửa ảnh cũ, mờ, hư hỏng và tăng chất lượng. Giữ nguyên màu hoặc phối màu như ảnh thật.',
+    seo.serviceName,
+    seo.serviceDescription,
     `${SITE_URL}/phuc-dung-anh`
   )
+  const faqJsonLd = buildFeatureFaqJsonLd(seo)
 
   return (
     <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <JsonLd data={jsonLd} />
+      <JsonLd data={faqJsonLd} />
       <PhucDungClientPage />
+      <FeatureSeoSection seo={seo} />
     </div>
   )
 }

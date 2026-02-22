@@ -5,12 +5,16 @@ import TaoNhanGianClientPage from './tao-nhan-gian-client-page'
 import { Metadata } from 'next'
 import { buildMetadata, buildJsonLdService, SITE_URL } from '@/lib/seo'
 import { JsonLd } from '@/components/seo-json-ld'
+import { getFeatureSeo, buildFeatureFaqJsonLd } from '@/lib/feature-seo'
+import { FeatureSeoSection } from '@/components/feature-seo-section'
+
+const seo = getFeatureSeo('tao-nhan-gian')
 
 export const metadata: Metadata = buildMetadata({
-  title: 'Tạo nhãn gián nền trong suốt',
-  description: 'Đưa ý tưởng nhãn gián, AI mở rộng chi tiết rồi tạo ảnh PNG nền trong suốt, phù hợp in sticker. Xuất 2K, 4K. 2–4 credits/ảnh.',
-  path: '/tao-nhan-gian',
-  keywords: ['tạo nhãn gián', 'sticker nền trong suốt', 'AI tạo sticker', 'nhãn dán', 'PNG trong suốt'],
+  title: seo.pageTitle,
+  description: seo.pageDescription,
+  path: seo.path,
+  keywords: seo.keywords,
 })
 
 export default async function TaoNhanGianPage() {
@@ -19,15 +23,18 @@ export default async function TaoNhanGianPage() {
   if (!user) redirect('/auth/login')
 
   const jsonLd = buildJsonLdService(
-    'Tạo nhãn gián nền trong suốt với AI',
-    'Đưa ý tưởng, AI tạo nhãn gián/sticker PNG nền trong suốt, phù hợp in ấn.',
+    seo.serviceName,
+    seo.serviceDescription,
     `${SITE_URL}/tao-nhan-gian`
   )
+  const faqJsonLd = buildFeatureFaqJsonLd(seo)
 
   return (
     <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <JsonLd data={jsonLd} />
+      <JsonLd data={faqJsonLd} />
       <TaoNhanGianClientPage />
+      <FeatureSeoSection seo={seo} />
     </div>
   )
 }

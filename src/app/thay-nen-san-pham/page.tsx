@@ -5,12 +5,16 @@ import ThayNenSanPhamClientPage from './thay-nen-san-pham-client-page'
 import { Metadata } from 'next'
 import { buildMetadata, buildJsonLdService, SITE_URL } from '@/lib/seo'
 import { JsonLd } from '@/components/seo-json-ld'
+import { getFeatureSeo, buildFeatureFaqJsonLd } from '@/lib/feature-seo'
+import { FeatureSeoSection } from '@/components/feature-seo-section'
+
+const seo = getFeatureSeo('thay-nen-san-pham')
 
 export const metadata: Metadata = buildMetadata({
-  title: 'Thay nền sản phẩm (AI Product Photography)',
-  description: 'Tách sản phẩm, đặt vào bối cảnh studio, bãi biển, phòng khách. Dành cho shop bán hàng online. 1,5–3 credits/ảnh.',
-  path: '/thay-nen-san-pham',
-  keywords: ['thay nền sản phẩm', 'AI product', 'chụp ảnh sản phẩm', 'tách nền', 'Shopee', 'TikTok Shop'],
+  title: seo.pageTitle,
+  description: seo.pageDescription,
+  path: seo.path,
+  keywords: seo.keywords,
 })
 
 export default async function ThayNenSanPhamPage() {
@@ -19,15 +23,18 @@ export default async function ThayNenSanPhamPage() {
   if (!user) redirect('/auth/login')
 
   const jsonLd = buildJsonLdService(
-    'Thay nền sản phẩm với AI',
-    'Tách sản phẩm, đặt vào bối cảnh chuyên nghiệp.',
+    seo.serviceName,
+    seo.serviceDescription,
     `${SITE_URL}/thay-nen-san-pham`
   )
+  const faqJsonLd = buildFeatureFaqJsonLd(seo)
 
   return (
     <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <JsonLd data={jsonLd} />
+      <JsonLd data={faqJsonLd} />
       <ThayNenSanPhamClientPage />
+      <FeatureSeoSection seo={seo} />
     </div>
   )
 }

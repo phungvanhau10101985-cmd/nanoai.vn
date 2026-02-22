@@ -5,12 +5,16 @@ import TaoMoHinh3DTuAnhClientPage from './tao-mo-hinh-3d-tu-anh-client-page'
 import { Metadata } from 'next'
 import { buildMetadata, buildJsonLdService, SITE_URL } from '@/lib/seo'
 import { JsonLd } from '@/components/seo-json-ld'
+import { getFeatureSeo, buildFeatureFaqJsonLd } from '@/lib/feature-seo'
+import { FeatureSeoSection } from '@/components/feature-seo-section'
+
+const seo = getFeatureSeo('tao-mo-hinh-3d-tu-anh')
 
 export const metadata: Metadata = buildMetadata({
-  title: 'Tạo mô hình 3D từ ảnh',
-  description: 'Chuyển ảnh thành mô hình 3D dạng hoạt hình: Pixar, Anime, Low-poly... AI tạo mô hình mới, không giữ ảnh gốc. 1,5–3 credits/ảnh.',
-  path: '/tao-mo-hinh-3d-tu-anh',
-  keywords: ['mô hình 3D từ ảnh', '2D to 3D', 'AI 3D', 'tạo 3D từ ảnh', '3D model from image'],
+  title: seo.pageTitle,
+  description: seo.pageDescription,
+  path: seo.path,
+  keywords: seo.keywords,
 })
 
 export default async function TaoMoHinh3DTuAnhPage() {
@@ -19,15 +23,18 @@ export default async function TaoMoHinh3DTuAnhPage() {
   if (!user) redirect('/auth/login')
 
   const jsonLd = buildJsonLdService(
-    'Tạo mô hình 3D từ ảnh với AI',
-    'Chuyển ảnh 2D thành preview mô hình 3D với thể tích và chiều sâu.',
+    seo.serviceName,
+    seo.serviceDescription,
     `${SITE_URL}/tao-mo-hinh-3d-tu-anh`
   )
+  const faqJsonLd = buildFeatureFaqJsonLd(seo)
 
   return (
     <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <JsonLd data={jsonLd} />
+      <JsonLd data={faqJsonLd} />
       <TaoMoHinh3DTuAnhClientPage />
+      <FeatureSeoSection seo={seo} />
     </div>
   )
 }
