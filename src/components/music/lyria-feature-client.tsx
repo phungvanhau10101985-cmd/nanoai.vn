@@ -116,15 +116,22 @@ const MODE_DEFAULTS: Record<Mode, { title: string; description: string; prompt: 
 }
 
 const PRICING_PER_10S: Record<Mode, number> = {
-  background: 0.3,
+  background: 0.5,
   dj: 0.7,
-  image: 0.3,
+  image: 0.5,
   realtime: 0.7,
 }
 
-const IMAGE_ANALYSIS_CREDIT = 3
-const REALTIME_PROMPT_CREDIT = 1
 const DURATION_OPTIONS = [30, 60, 120, 300, 600] as const
+type MusicHistoryItem = {
+  id: string
+  title: string
+  mode: Mode
+  style: string
+  durationSeconds: number
+  chargedCredits: number
+  createdAt: string
+}
 
 function toBytes(data: unknown): Uint8Array {
   if (typeof data === 'string') {
@@ -233,10 +240,9 @@ export function LyriaFeatureClient({ mode }: { mode: Mode }) {
   const [lastStreamError, setLastStreamError] = useState<string | null>(null)
   const [audioState, setAudioState] = useState<'none' | AudioContextState>('none')
   const [elapsedSeconds, setElapsedSeconds] = useState(0)
-  const [realtimePromptCount, setRealtimePromptCount] = useState(0)
-  const [imageAnalysisCount, setImageAnalysisCount] = useState(0)
   const [chargedCredits, setChargedCredits] = useState(0)
   const [selectedDurationSeconds, setSelectedDurationSeconds] = useState<number>(60)
+  const [musicHistory, setMusicHistory] = useState<MusicHistoryItem[]>([])
 
   const sessionRef = useRef<LyriaSessionLike | null>(null)
   const contextRef = useRef<AudioContext | null>(null)
@@ -245,10 +251,53 @@ export function LyriaFeatureClient({ mode }: { mode: Mode }) {
   const nextPlayTimeRef = useRef(0)
   const chargedBlocksRef = useRef(0)
   const chargeInFlightRef = useRef(false)
+  const sessionLoggedRef = useRef(false)
+  const elapsedRef = useRef(0)
+  const chargedCreditsRef = useRef(0)
 
   const canUseImageMode = mode === 'image'
   const showDjControls = mode === 'dj' || mode === 'realtime'
   const showRealtimePromptBox = mode === 'realtime'
+
+  useEffect(() => {
+    let cancelled = false
+    const fetchHistory = async () => {
+      try {
+        const res = await fetch('/api/music-history?limit=30', { method: 'GET' })
+        const data = (await res.json().catch(() => ({}))) as { items?: MusicHistoryItem[]; error?: string }
+        if (!res.ok || !Array.isArray(data.items)) return
+        if (!cancelled) setMusicHistory(data.items)
+      } catch {
+        // ignore fetch lỗi, vẫn cho dùng tính năng
+      }
+    }
+    void fetchHistory()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const pushHistory = async (item: MusicHistoryItem) => {
+    try {
+      await fetch('/api/music-history', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mode: item.mode,
+          title: item.title,
+          style: item.style,
+          durationSeconds: item.durationSeconds,
+          chargedCredits: item.chargedCredits,
+        }),
+      })
+    } catch {
+      // ignore
+    }
+    setMusicHistory((prev) => {
+      const next = [item, ...prev].slice(0, 30)
+      return next
+    })
+  }
 
   const weightedPrompts = useMemo(() => {
     const stylePrompt = `Phong cách nhạc chính: ${MUSIC_STYLE_LABELS[musicStyle]}`
@@ -316,6 +365,14 @@ export function LyriaFeatureClient({ mode }: { mode: Mode }) {
   }, [isPlaying])
 
   useEffect(() => {
+    elapsedRef.current = elapsedSeconds
+  }, [elapsedSeconds])
+
+  useEffect(() => {
+    chargedCreditsRef.current = chargedCredits
+  }, [chargedCredits])
+
+  useEffect(() => {
     if (!isPlaying) return
     const currentBlock = Math.floor(elapsedSeconds / 10)
     if (currentBlock <= 0) return
@@ -323,7 +380,7 @@ export function LyriaFeatureClient({ mode }: { mode: Mode }) {
     if (chargeInFlightRef.current) return
 
     chargeInFlightRef.current = true
-    void chargeCredits('time_block')
+    void chargeCredits()
       .then(() => {
         chargedBlocksRef.current = currentBlock
       })
@@ -349,19 +406,16 @@ export function LyriaFeatureClient({ mode }: { mode: Mode }) {
   }, [isPlaying, elapsedSeconds, selectedDurationSeconds])
 
   const timeCredit = Math.ceil(elapsedSeconds / 10) * PRICING_PER_10S[mode]
-  const extraCredit =
-    (mode === 'image' ? imageAnalysisCount * IMAGE_ANALYSIS_CREDIT : 0) +
-    (mode === 'realtime' ? realtimePromptCount * REALTIME_PROMPT_CREDIT : 0)
-  const estimatedTotalCredit = timeCredit + extraCredit
+  const estimatedTotalCredit = timeCredit
   const blockProgressPercent = ((elapsedSeconds % 10) / 10) * 100
   const selectedDurationCredit =
     selectedDurationSeconds === 0 ? null : Math.ceil(selectedDurationSeconds / 10) * PRICING_PER_10S[mode]
 
-  const chargeCredits = async (chargeType: 'time_block' | 'image_analysis' | 'realtime_prompt') => {
+  const chargeCredits = async () => {
     const res = await fetch('/api/music-charge', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mode, chargeType }),
+      body: JSON.stringify({ mode, chargeType: 'time_block' }),
     })
     const data = (await res.json().catch(() => ({}))) as { charged?: number; error?: string; code?: string }
     if (!res.ok) {
@@ -372,6 +426,21 @@ export function LyriaFeatureClient({ mode }: { mode: Mode }) {
       setChargedCredits((v) => v + charged)
       if (typeof window !== 'undefined') window.dispatchEvent(new Event('credits-updated'))
     }
+  }
+
+  const finalizeMusicSession = () => {
+    if (sessionLoggedRef.current) return
+    if (elapsedRef.current <= 0) return
+    sessionLoggedRef.current = true
+    void pushHistory({
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      title: config.title,
+      mode,
+      style: MUSIC_STYLE_LABELS[musicStyle],
+      durationSeconds: elapsedRef.current,
+      chargedCredits: chargedCreditsRef.current,
+      createdAt: new Date().toISOString(),
+    })
   }
 
   const connectSession = async () => {
@@ -450,6 +519,7 @@ export function LyriaFeatureClient({ mode }: { mode: Mode }) {
             setIsPlaying(false)
             setIsConnected(false)
             sessionRef.current = null
+            finalizeMusicSession()
             if (ev.code && ev.code !== 1000) {
               setLastStreamError(`Socket đóng (${ev.code}): ${ev.reason || 'Không rõ lý do'}`)
             }
@@ -460,10 +530,9 @@ export function LyriaFeatureClient({ mode }: { mode: Mode }) {
       setIsConnected(true)
       setChunksReceived(0)
       setElapsedSeconds(0)
-      setRealtimePromptCount(0)
-      setImageAnalysisCount(0)
       setChargedCredits(0)
       chargedBlocksRef.current = 0
+      sessionLoggedRef.current = false
       recordedChunksRef.current = []
       setLastStreamError(null)
       await session.setWeightedPrompts({
@@ -547,6 +616,7 @@ export function LyriaFeatureClient({ mode }: { mode: Mode }) {
       await sessionRef.current.stop()
       setIsPlaying(false)
       if (contextRef.current) nextPlayTimeRef.current = contextRef.current.currentTime
+      finalizeMusicSession()
     } catch {
       toast({ title: 'Không thể dừng nhạc', variant: 'destructive' })
     }
@@ -576,9 +646,6 @@ export function LyriaFeatureClient({ mode }: { mode: Mode }) {
     const next = [...promptHistory, livePrompt.trim()].slice(-4)
     setPromptHistory(next)
     try {
-      if (mode === 'realtime') {
-        await chargeCredits('realtime_prompt')
-      }
       await sessionRef.current.setWeightedPrompts({
         weightedPrompts: [basePrompt, ...next].map((text, idx, arr) => ({
           text,
@@ -586,7 +653,6 @@ export function LyriaFeatureClient({ mode }: { mode: Mode }) {
         })),
       })
       setLivePrompt('')
-      setRealtimePromptCount((n) => n + 1)
       toast({ title: 'Đã áp mô tả mới', description: 'Nhạc sẽ chuyển mượt theo câu lệnh mới.' })
     } catch {
       toast({ title: 'Không thể cập nhật mô tả', variant: 'destructive' })
@@ -616,9 +682,6 @@ export function LyriaFeatureClient({ mode }: { mode: Mode }) {
     if (!imageFile) return
     setIsBusy(true)
     try {
-      if (mode === 'image') {
-        await chargeCredits('image_analysis')
-      }
       const form = new FormData()
       form.append('image', imageFile)
       form.append('language', musicLanguage)
@@ -627,7 +690,6 @@ export function LyriaFeatureClient({ mode }: { mode: Mode }) {
       if (!res.ok || !data?.prompt) throw new Error(data?.error || 'Không phân tích được ảnh')
       setBasePrompt(data.prompt)
       setPromptHistory([])
-      setImageAnalysisCount((n) => n + 1)
       toast({ title: 'Đã phân tích ảnh', description: `Gợi ý nhạc: ${data.prompt}` })
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Không phân tích được ảnh.'
@@ -864,8 +926,7 @@ export function LyriaFeatureClient({ mode }: { mode: Mode }) {
                 Giá sơ bộ:{' '}
                 {selectedDurationCredit === null
                   ? 'chưa giới hạn thời lượng'
-                  : `${selectedDurationCredit.toFixed(1)} credit cho ${selectedDurationSeconds} giây`}{' '}
-                • Chưa gồm phụ phí phân tích ảnh/chèn mô tả.
+                  : `${selectedDurationCredit.toFixed(1)} credit cho ${selectedDurationSeconds} giây`}.
               </p>
             </div>
 
@@ -885,9 +946,42 @@ export function LyriaFeatureClient({ mode }: { mode: Mode }) {
               </div>
               <p className="mt-2 text-xs text-muted-foreground">
                 Đơn giá: {PRICING_PER_10S[mode]} credit / 10 giây
-                {mode === 'image' ? ` • +${IMAGE_ANALYSIS_CREDIT} credit/lần phân tích ảnh` : ''}
-                {mode === 'realtime' ? ` • +${REALTIME_PROMPT_CREDIT} credit/lần chèn mô tả` : ''}
               </p>
+            </div>
+
+            <div className="rounded-lg border bg-white p-3">
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-sm font-semibold text-slate-800">Lịch sử tạo nhạc</p>
+                <p className="text-xs text-muted-foreground">Lưu theo tài khoản Supabase</p>
+              </div>
+              {musicHistory.length === 0 ? (
+                <p className="text-xs text-muted-foreground">Chưa có phiên tạo nhạc nào.</p>
+              ) : (
+                <div className="max-h-56 overflow-auto rounded border">
+                  <table className="w-full text-xs">
+                    <thead className="bg-slate-100 text-slate-700">
+                      <tr>
+                        <th className="px-2 py-1.5 text-left font-medium">Thời gian</th>
+                        <th className="px-2 py-1.5 text-left font-medium">Tính năng</th>
+                        <th className="px-2 py-1.5 text-left font-medium">Phong cách</th>
+                        <th className="px-2 py-1.5 text-right font-medium">Thời lượng</th>
+                        <th className="px-2 py-1.5 text-right font-medium">Credits</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {musicHistory.map((item) => (
+                        <tr key={item.id} className="border-t">
+                          <td className="px-2 py-1.5">{new Date(item.createdAt).toLocaleString('vi-VN')}</td>
+                          <td className="px-2 py-1.5">{item.title}</td>
+                          <td className="px-2 py-1.5">{item.style}</td>
+                          <td className="px-2 py-1.5 text-right">{item.durationSeconds}s</td>
+                          <td className="px-2 py-1.5 text-right font-medium text-emerald-700">{item.chargedCredits.toFixed(1)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
 
             <div className="flex flex-wrap gap-2">

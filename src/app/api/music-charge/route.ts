@@ -8,22 +8,22 @@ type ChargeType = 'time_block' | 'image_analysis' | 'realtime_prompt'
 
 const CHARGE_COSTS: Record<ChargeType, Record<ChargeMode, number>> = {
   time_block: {
-    background: 0.3,
+    background: 0.5,
     dj: 0.7,
-    image: 0.3,
+    image: 0.5,
     realtime: 0.7,
   },
   image_analysis: {
     background: 0,
     dj: 0,
-    image: 3,
+    image: 0,
     realtime: 0,
   },
   realtime_prompt: {
     background: 0,
     dj: 0,
     image: 0,
-    realtime: 1,
+    realtime: 0,
   },
 }
 
