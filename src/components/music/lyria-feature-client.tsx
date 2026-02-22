@@ -713,9 +713,13 @@ export function LyriaFeatureClient({ mode }: { mode: Mode }) {
     if (!sessionRef.current) return
     try {
       await sessionRef.current.stop()
+      await sessionRef.current.resetContext()
       setIsPlaying(false)
+      setIsConnected(false)
+      sessionRef.current = null
       if (contextRef.current) nextPlayTimeRef.current = contextRef.current.currentTime
       void finalizeMusicSession()
+      toast({ title: 'Đã dừng phiên nhạc', description: 'Lần phát tiếp theo sẽ bắt đầu phiên mới.' })
     } catch {
       toast({ title: 'Không thể dừng nhạc', variant: 'destructive' })
     }
@@ -1147,13 +1151,13 @@ export function LyriaFeatureClient({ mode }: { mode: Mode }) {
 
             <div className="flex flex-wrap gap-2">
               <Button type="button" onClick={handlePlay} disabled={isBusy}>
-                <Play className="mr-2 h-4 w-4" /> {isPlaying ? 'Đang phát' : 'Phát'}
+                <Play className="mr-2 h-4 w-4" /> {isPlaying ? 'Đang phát' : isConnected ? 'Phát tiếp' : 'Phát'}
               </Button>
               <Button type="button" variant="outline" onClick={handlePause} disabled={!isConnected || !isPlaying}>
                 <Pause className="mr-2 h-4 w-4" /> Tạm dừng
               </Button>
               <Button type="button" variant="outline" onClick={handleStop} disabled={!isConnected}>
-                <Square className="mr-2 h-4 w-4" /> Dừng
+                <Square className="mr-2 h-4 w-4" /> Dừng tạo mới
               </Button>
               <Button type="button" variant="outline" onClick={testSpeaker}>
                 Test loa
