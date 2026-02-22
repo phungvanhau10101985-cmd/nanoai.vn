@@ -11,23 +11,24 @@ export async function Header() {
   const user = await getUserOrBypass(() => supabase.auth.getUser())
 
   let credits = 0
+  let isAdmin = false
+
   if (user) {
-    const { data: creditData } = await supabase
+    const [creditRes, profileRes] = await Promise.all([
+      supabase
       .from('credits')
       .select('balance')
       .eq('user_id', user.id)
-      .single()
-    credits = creditData?.balance || 0
-  }
-
-  let isAdmin = false
-  if (user) {
-    const { data: profile } = await supabase
+      .single(),
+      supabase
       .from('profiles')
       .select('role')
       .eq('id', user.id)
-      .single()
-    isAdmin = profile?.role === 'admin'
+      .single(),
+    ])
+
+    credits = creditRes.data?.balance || 0
+    isAdmin = profileRes.data?.role === 'admin'
   }
 
   return (

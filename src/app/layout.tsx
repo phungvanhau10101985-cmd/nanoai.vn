@@ -1,13 +1,21 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import { Suspense } from "react";
+import dynamic from "next/dynamic";
 import "./globals.css";
 import { Header } from "@/components/layout/header";
-import { MobileBottomBar } from "@/components/layout/mobile-bottom-bar";
-import { InstallPrompt } from "@/components/pwa/install-prompt";
 import { DepositCreditProvider } from "@/components/deposit-credit-context";
 import { buildMetadata, buildJsonLdWebApplication, buildJsonLdOrganization, SITE_URL, SITE_NAME } from "@/lib/seo";
 import { JsonLd } from "@/components/seo-json-ld";
+
+const MobileBottomBar = dynamic(
+  () => import("@/components/layout/mobile-bottom-bar").then((m) => m.MobileBottomBar),
+  { ssr: false }
+);
+const InstallPrompt = dynamic(
+  () => import("@/components/pwa/install-prompt").then((m) => m.InstallPrompt),
+  { ssr: false }
+);
 
 export const viewport: Viewport = {
   width: "device-width",
