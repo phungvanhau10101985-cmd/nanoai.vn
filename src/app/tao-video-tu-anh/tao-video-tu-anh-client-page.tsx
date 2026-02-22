@@ -12,6 +12,7 @@ import { DepositCreditButton } from '@/components/deposit-credit-button'
 import { useCredits } from '@/hooks/use-credits'
 import { ImagePreview } from '@/components/ui/image-preview'
 import { ImageProcessingLoader } from '@/components/image-processing-loader'
+import { preloadImageUrl } from '@/lib/preload-image-url'
 
 type Step = 'UPLOAD' | 'GENERATING' | 'RESULT'
 
@@ -57,6 +58,7 @@ export default function TaoVideoTuAnhClientPage() {
         duration: 5000,
       })
     } else if (result.success && result.resultUrl) {
+      await preloadImageUrl(result.resultUrl)
       setResultUrl(result.resultUrl)
       setStep('RESULT')
       toast({

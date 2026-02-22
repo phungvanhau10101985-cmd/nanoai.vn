@@ -18,6 +18,7 @@ import { ImageProcessingLoader } from '@/components/image-processing-loader'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { GarmentUploader } from './garment-uploader'
 import {
+import { preloadImageUrl } from '@/lib/preload-image-url'
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -225,6 +226,7 @@ export default function TryOnClientPage({ gender: initialGender, initialMode = '
       setStep('GARMENT_UPLOAD')
     } else if (result.success && result.resultUrl) {
       console.log('Generation successful:', result.resultUrl)
+      await preloadImageUrl(result.resultUrl)
       setResultUrl(result.resultUrl)
       setStep('RESULT')
       toast({ 

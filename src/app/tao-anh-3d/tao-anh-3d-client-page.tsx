@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { create3DMockup } from './actions'
+import { preloadImageUrl } from '@/lib/preload-image-url'
 
 const SAMPLE_PRODUCTS = [
   { id: 'phone', label: 'Điện thoại', url: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=800' },
@@ -145,6 +146,7 @@ export default function TaoAnh3DClientPage() {
       setStep('UPLOAD')
       toast({ title: 'Tạo mockup thất bại', description: result.error, variant: 'destructive', duration: 5000 })
     } else if (result.success && result.resultUrl) {
+      await preloadImageUrl(result.resultUrl)
       setResultUrl(result.resultUrl)
       setStep('RESULT')
       toast({ title: 'Thành công!', description: 'Đã tạo ảnh 3D mockup.', duration: 3000 })

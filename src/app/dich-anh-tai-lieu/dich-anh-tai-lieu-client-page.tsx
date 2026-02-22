@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { translateDocumentImage, startTranslateBatch, startTranslatePdfBatch, getPdfPageInfo, getCredits } from './actions'
 import Link from 'next/link'
+import { preloadImageUrl } from '@/lib/preload-image-url'
 
 const LANG_VI = { vi: 'Tiếng Việt' }
 const LANG_OTHERS: Record<string, string> = {
@@ -409,6 +410,7 @@ export default function DichAnhTaiLieuClientPage() {
         setStep('UPLOAD')
         toast({ title: 'Dịch thất bại', description: result.error, variant: 'destructive', duration: 5000 })
       } else if (result.success && result.resultUrl) {
+        await preloadImageUrl(result.resultUrl)
         setResultUrl(result.resultUrl)
         setStep('RESULT')
         toast({ title: 'Thành công!', description: 'Đã dịch tài liệu thành ảnh.', duration: 3000 })

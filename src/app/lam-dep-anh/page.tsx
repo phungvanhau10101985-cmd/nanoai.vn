@@ -8,7 +8,7 @@ import { JsonLd } from '@/components/seo-json-ld'
 
 export const metadata: Metadata = buildMetadata({
   title: 'Làm đẹp ảnh',
-  description: 'Làm đẹp ảnh 1–4 người như studio với AI. Retouch da, ánh sáng chuyên nghiệp, giữ nguyên nét khuôn mặt. Chọn số người và giới tính từng người để AI xử lý đúng. Xuất 2K, 4K. 1,5–3 credits/ảnh.',
+  description: 'Làm đẹp ảnh 1–4 người như studio với AI. Retouch da, ánh sáng chuyên nghiệp, giữ nguyên nét khuôn mặt và nền gốc. Không thay nền/xóa nền, chỉ xóa phông chuyên nghiệp. Xuất 2K, 4K. 1,5–3 credits/ảnh.',
   path: '/lam-dep-anh',
   keywords: ['làm đẹp ảnh', 'retouch ảnh', 'chỉnh ảnh studio', 'AI làm đẹp', 'ảnh chân dung đẹp'],
 })
@@ -20,7 +20,7 @@ export default async function LamDepAnhPage() {
 
   const jsonLd = buildJsonLdService(
     'Làm đẹp ảnh với AI',
-    'Retouch ảnh chân dung như studio, giữ nguyên nét khuôn mặt. Chọn nam/nữ để AI xử lý phù hợp.',
+    'Retouch ảnh chân dung như studio, giữ nguyên nét khuôn mặt và nền gốc; chỉ xóa phông chuyên nghiệp.',
     `${SITE_URL}/lam-dep-anh`
   )
 

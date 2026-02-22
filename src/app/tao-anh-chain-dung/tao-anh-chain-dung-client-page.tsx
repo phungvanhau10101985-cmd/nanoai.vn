@@ -14,6 +14,7 @@ import { useCredits } from '@/hooks/use-credits'
 import { DownloadImageButton } from '@/components/download-image-button'
 import { ImagePreview } from '@/components/ui/image-preview'
 import { ImageProcessingLoader } from '@/components/image-processing-loader'
+import { preloadImageUrl } from '@/lib/preload-image-url'
 
 type Step = 'UPLOAD' | 'GENERATING' | 'RESULT'
 
@@ -108,6 +109,7 @@ export default function TaoAnhChainDungClientPage() {
       setStep('UPLOAD')
       toast({ title: 'Tạo ảnh thất bại', description: result.error, variant: 'destructive', duration: 5000 })
     } else if (result.success && result.resultUrl) {
+      await preloadImageUrl(result.resultUrl)
       setResultUrl(result.resultUrl)
       setStep('RESULT')
       toast({ title: 'Thành công!', description: 'Đã tạo ảnh chân dung chuyên nghiệp.', duration: 3000 })

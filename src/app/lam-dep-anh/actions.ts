@@ -52,7 +52,8 @@ function buildBeautifyPrompt(
   personGenders: ('male' | 'female')[],
   noteEn: string,
   style: BeautifyStyle,
-  strength: BeautifyStrength
+  strength: BeautifyStrength,
+  backgroundBlurStrength: number
 ): string {
   const count = personGenders.length
   const labels = PERSON_LABELS[count] || PERSON_LABELS[1]
@@ -64,6 +65,10 @@ function buildBeautifyPrompt(
     : style
   const stylePrompt = STYLE_PRESET_PROMPTS[effectiveStyle]
   const strengthPrompt = STRENGTH_PROMPTS[strength]
+
+  const blurInstruction = backgroundBlurStrength <= 0
+    ? 'KHÔNG xóa phông. Giữ nền gốc rõ nét hoàn toàn.'
+    : `Chỉ xóa phông bằng làm mờ nền gốc ở mức ${backgroundBlurStrength}/100 (kiểu bokeh/gaussian/lens blur).`
 
   return `Làm đẹp chân dung chuyên nghiệp theo chất lượng studio. Kết quả phải giống ảnh chụp studio chuyên nghiệp.
 
@@ -81,8 +86,13 @@ QUAN TRỌNG - GIỮ NGUYÊN NHẬN DIỆN KHUÔN MẶT:
 
 PHONG CÁCH STUDIO:
 - Ánh sáng chuyên nghiệp: mềm, đều, tôn mọi khuôn mặt.
-- Nền sạch hoặc tinh chỉnh nhẹ nếu cần.
 - Tổng thể hoàn thiện như ảnh nhóm đã được nhiếp ảnh gia chỉnh chuyên nghiệp.
+
+RÀNG BUỘC NỀN (BẮT BUỘC):
+- Giữ NGUYÊN nền gốc 100%: không thay nền, không xóa nền, không vẽ lại nền.
+- Chỉ được phép xử lý nền theo hướng làm mờ/xóa phông (background blur), tuyệt đối không dùng inpaint/outpaint hay model tạo sinh để chỉnh nền.
+- Bố cục, vật thể, màu sắc nền phải giữ như ảnh gốc; chỉ thay đổi độ mờ của nền.
+- ${blurInstruction}
 
 ${noteEn ? `YÊU CẦU BỔ SUNG CỦA NGƯỜI DÙNG: "${noteEn}". ` : ''}Chỉ trả về ảnh kết quả, không chèn chữ.`
 }
@@ -96,6 +106,10 @@ export async function beautifyImage(formData: FormData) {
   const imageQuality = (formData.get('imageQuality') as '2K' | '4K') || '2K'
   const style = ((formData.get('beautifyStyle') as BeautifyStyle) || 'natural')
   const strength = ((formData.get('beautifyStrength') as BeautifyStrength) || 'medium')
+  const backgroundBlurStrengthRaw = parseInt(String(formData.get('backgroundBlurStrength') || '35'), 10)
+  const backgroundBlurStrength = Number.isFinite(backgroundBlurStrengthRaw)
+    ? Math.min(100, Math.max(0, backgroundBlurStrengthRaw))
+    : 35
   const personCount = Math.min(4, Math.max(1, parseInt(String(formData.get('personCount') || '1'), 10) || 1))
   const personGenders: ('male' | 'female')[] = []
   for (let i = 0; i < personCount; i++) {
@@ -106,7 +120,7 @@ export async function beautifyImage(formData: FormData) {
   if (!image || image.size === 0) return { error: 'Cần tải lên ít nhất một ảnh.' }
 
   const noteEn = note ? await normalizeToEnglish(note) : ''
-  const prompt = buildBeautifyPrompt(personGenders, noteEn, style, strength)
+  const prompt = buildBeautifyPrompt(personGenders, noteEn, style, strength, backgroundBlurStrength)
 
   const COST = BEAUTIFY_COSTS[imageQuality]
 

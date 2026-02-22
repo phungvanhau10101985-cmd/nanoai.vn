@@ -16,6 +16,7 @@ import { ImagePreview } from '@/components/ui/image-preview'
 import { ImageProcessingLoader } from '@/components/image-processing-loader'
 import { CompareSlider } from '@/components/ui/compare-slider'
 import { jsPDF } from 'jspdf'
+import { preloadImageUrl } from '@/lib/preload-image-url'
 
 const DRAFT_KEY = 'thiet-ke-noi-ngoai-that-draft'
 const STYLES_FROM_CONSTANTS = Object.entries(INTERIOR_STYLES).map(([value]) => ({
@@ -467,6 +468,7 @@ export default function ThietKeNoiNgoaiThatClientPage() {
       setStep('FULL_REDESIGN')
       toast({ title: 'Xử lý thất bại', description: result.error, variant: 'destructive', duration: 5000 })
     } else if (result.success && result.resultUrl) {
+      await preloadImageUrl(result.resultUrl)
       setResultUrl(result.resultUrl)
       setResultUrls(result.resultUrls || [result.resultUrl])
       setStep('RESULT')
@@ -543,6 +545,7 @@ export default function ThietKeNoiNgoaiThatClientPage() {
       setUndoStack((prev) => prev.slice(0, -1))
       toast({ title: 'Xử lý thất bại', description: result.error, variant: 'destructive', duration: 5000 })
     } else if (result.success && result.resultUrl) {
+      await preloadImageUrl(result.resultUrl)
       setResultUrl(result.resultUrl)
       setResultUrls(result.resultUrls || [result.resultUrl])
       setStep('RESULT')
@@ -600,6 +603,7 @@ export default function ThietKeNoiNgoaiThatClientPage() {
       setUndoStack((prev) => prev.slice(0, -1))
       toast({ title: 'Quay thất bại', description: result.error, variant: 'destructive', duration: 5000 })
     } else if (result.success && result.resultUrl) {
+      await preloadImageUrl(result.resultUrl)
       setResultUrl(result.resultUrl)
       setResultUrls(result.resultUrls || [result.resultUrl])
       setRotationHistory((prev) => (prev.length === 0 ? [displayImage || currentImageUrl || '', result.resultUrl!] : [...prev, result.resultUrl!]))
@@ -657,6 +661,7 @@ export default function ThietKeNoiNgoaiThatClientPage() {
       setUndoStack((prev) => prev.slice(0, -1))
       toast({ title: 'Mở rộng thất bại', description: result.error, variant: 'destructive', duration: 5000 })
     } else if (result.success && result.resultUrl) {
+      await preloadImageUrl(result.resultUrl)
       setResultUrl(result.resultUrl)
       setResultUrls(result.resultUrls || [result.resultUrl])
       setStep('RESULT')

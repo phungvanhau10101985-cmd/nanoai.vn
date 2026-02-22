@@ -14,6 +14,7 @@ import { useCredits } from '@/hooks/use-credits'
 import { DownloadImageButton } from '@/components/download-image-button'
 import { ImagePreview } from '@/components/ui/image-preview'
 import { ImageProcessingLoader } from '@/components/image-processing-loader'
+import { preloadImageUrl } from '@/lib/preload-image-url'
 
 type Step = 'UPLOAD' | 'GENERATING' | 'RESULT'
 
@@ -96,6 +97,7 @@ export default function HoanDoiKhuonMatClientPage() {
         setStep('UPLOAD')
         toast({ title: 'Hoán đổi thất bại', description: result.error, variant: 'destructive', duration: 5000 })
       } else if (result.success && result.resultUrl) {
+        await preloadImageUrl(result.resultUrl)
         setResultUrl(result.resultUrl)
         setStep('RESULT')
         toast({ title: 'Thành công!', description: 'Đã hoán đổi khuôn mặt.', duration: 3000 })

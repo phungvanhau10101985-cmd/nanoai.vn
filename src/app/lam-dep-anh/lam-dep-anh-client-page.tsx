@@ -14,6 +14,7 @@ import { useCredits } from '@/hooks/use-credits'
 import { DownloadImageButton } from '@/components/download-image-button'
 import { ImagePreview } from '@/components/ui/image-preview'
 import { ImageProcessingLoader } from '@/components/image-processing-loader'
+import { preloadImageUrl } from '@/lib/preload-image-url'
 
 type Step = 'UPLOAD' | 'GENERATING' | 'RESULT'
 type PersonCount = 1 | 2 | 3 | 4
@@ -41,6 +42,7 @@ export default function LamDepAnhClientPage() {
   const [personGenders, setPersonGenders] = useState<('male' | 'female')[]>(['female'])
   const [beautifyStyle, setBeautifyStyle] = useState<BeautifyStyle>('natural')
   const [beautifyStrength, setBeautifyStrength] = useState<BeautifyStrength>('medium')
+  const [backgroundBlurStrength, setBackgroundBlurStrength] = useState(35)
   const [note, setNote] = useState('')
   const [imageUrl, setImageUrl] = useState('')
   const [urlLoading, setUrlLoading] = useState(false)
@@ -119,6 +121,7 @@ export default function LamDepAnhClientPage() {
     formData.append('personCount', String(personCount))
     formData.append('beautifyStyle', beautifyStyle)
     formData.append('beautifyStrength', beautifyStrength)
+    formData.append('backgroundBlurStrength', String(backgroundBlurStrength))
     for (let i = 0; i < personCount; i++) {
       formData.append(`person_${i}_gender`, personGenders[i] ?? 'female')
     }
@@ -128,6 +131,7 @@ export default function LamDepAnhClientPage() {
       setStep('UPLOAD')
       toast({ title: 'Làm đẹp thất bại', description: result.error, variant: 'destructive', duration: 5000 })
     } else if (result.success && result.resultUrl) {
+      await preloadImageUrl(result.resultUrl)
       setResultUrl(result.resultUrl)
       setStep('RESULT')
       toast({ title: 'Thành công!', description: 'Ảnh đã được làm đẹp.', duration: 3000 })
@@ -164,7 +168,7 @@ export default function LamDepAnhClientPage() {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-foreground">Làm đẹp ảnh</h1>
-          <p className="text-muted-foreground mt-1">Retouch ảnh 1–4 người như studio. Chọn số người và giới tính từng người cho AI xử lý đúng. Giữ nguyên nét khuôn mặt. 1,5–3 credits/ảnh.</p>
+          <p className="text-muted-foreground mt-1">Retouch ảnh 1–4 người như studio, giữ nguyên nét mặt và bối cảnh gốc. Không thay nền/xóa nền, chỉ xóa phông chuyên nghiệp. 1,5–3 credits/ảnh.</p>
         </div>
 
         {step === 'UPLOAD' && (
@@ -347,6 +351,22 @@ export default function LamDepAnhClientPage() {
                     </div>
                   </div>
                   <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Xóa phông chuyên nghiệp</h4>
+                      <span className="text-[11px] text-rose-700 font-medium">{backgroundBlurStrength}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={0}
+                      max={100}
+                      step={1}
+                      value={backgroundBlurStrength}
+                      onChange={(e) => setBackgroundBlurStrength(Number(e.target.value))}
+                      className="w-full accent-rose-600"
+                    />
+                    <p className="text-[10px] text-muted-foreground">0% = giữ nền rõ hoàn toàn, 100% = xóa phông mạnh. Nền gốc luôn được giữ nguyên, chỉ thay đổi độ mờ.</p>
+                  </div>
+                  <div className="space-y-2">
                     <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Chất lượng ảnh</h4>
                     <div className="flex gap-2">
                       <button
@@ -400,7 +420,7 @@ export default function LamDepAnhClientPage() {
               <ImageProcessingLoader
                 mode="beautify"
                 title="Đang làm đẹp ảnh"
-                description="AI đang retouch như studio, giữ nguyên nét khuôn mặt"
+                description="AI đang retouch chủ thể và chỉ xóa phông nền gốc"
                 imagePreview={image.preview}
               />
             </CardContent>
@@ -440,7 +460,7 @@ export default function LamDepAnhClientPage() {
           </Card>
         )}
       </div>
-      <p className="text-xs text-muted-foreground text-center mt-6">Chọn đúng số người và giới tính từng người (từ trái sang phải) để kết quả tốt nhất. Ảnh do AI tạo có thể có sai sót.</p>
+      <p className="text-xs text-muted-foreground text-center mt-6">Chọn đúng số người và giới tính từng người (từ trái sang phải) để kết quả tốt nhất. Tính năng này không thay nền/xóa nền, chỉ hỗ trợ xóa phông chuyên nghiệp. Ảnh do AI tạo có thể có sai sót.</p>
     </>
   )
 }
