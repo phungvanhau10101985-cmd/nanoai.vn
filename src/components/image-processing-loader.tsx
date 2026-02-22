@@ -202,16 +202,18 @@ export function ImageProcessingLoader({
           <h3 className="text-lg font-semibold text-foreground mb-1">{title}</h3>
           <p className="text-sm text-muted-foreground text-center mb-4">{subtitle}</p>
 
-          <div className="w-full mb-4 rounded-lg border border-white/60 bg-white/70 px-4 py-3">
+          <div className="w-full mb-4 rounded-lg border border-white/60 bg-white/75 px-4 py-3">
             <div className="flex items-center gap-2 text-sm font-medium text-foreground/90">
               <span className="inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
               <span>{activeStatus}</span>
             </div>
-            <div className="mt-3 h-2 w-full rounded-full bg-white/55 overflow-hidden">
+            <div className="mt-3 h-2.5 w-full rounded-full bg-slate-200/90 overflow-hidden border border-white/80">
               <div
-                className="h-full rounded-full bg-white/95 transition-[width] duration-1000 ease-out"
+                className="relative h-full rounded-full bg-gradient-to-r from-teal-500 to-cyan-500 transition-[width] duration-1000 ease-out"
                 style={{ width: `${progressValue}%` }}
-              />
+              >
+                <span className="absolute inset-y-0 -left-1/3 w-1/3 bg-white/50 blur-[1px] animate-shimmer-loader" />
+              </div>
             </div>
           </div>
           <p className="text-xs text-muted-foreground mt-4">Thời gian xử lý thường từ vài giây đến khoảng 1 phút.</p>
