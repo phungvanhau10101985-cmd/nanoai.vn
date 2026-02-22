@@ -5,7 +5,7 @@ import { translateOneImage } from '@/lib/translate-document-image'
 import { applyPostCheckOcr } from '@/lib/translate-post-check'
 import { fetchImageWith1688Bypass } from '@/lib/fetch-image-1688'
 
-const TRANSLATE_COSTS = { '2K': 1.5, '4K': 3 } as const
+const TRANSLATE_COSTS = { '2K': 3, '4K': 6 } as const
 const toTenths = (value: number) => Math.round(value * 10)
 const fromTenths = (value: number) => value / 10
 
