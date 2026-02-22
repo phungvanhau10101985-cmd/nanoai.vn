@@ -2,6 +2,7 @@
 
 // Inspired by react-hot-toast library
 import * as React from "react"
+import { clearPendingGeneration, getPendingGeneration, trackEvent } from "@/lib/analytics-track"
 
 import type {
   ToastActionElement,
@@ -142,8 +143,58 @@ function dispatch(action: Action) {
 
 type Toast = Omit<ToasterToast, "id">
 
+function toText(value: React.ReactNode): string {
+  if (typeof value === 'string' || typeof value === 'number') return String(value)
+  return ''
+}
+
+function trackToastDerivedEvents(props: Toast) {
+  if (typeof window === 'undefined') return
+
+  const title = toText(props.title).toLowerCase()
+  const description = toText(props.description).toLowerCase()
+  const route = window.location.pathname
+  const pending = getPendingGeneration()
+
+  if (title.includes('nạp thành công')) {
+    trackEvent('topup_success', { route, source: 'toast' })
+    return
+  }
+
+  if (title.includes('thành công') && (description.includes('ảnh') || description.includes('kết quả'))) {
+    const feature = pending?.feature || (route.split('/').filter(Boolean)[0] || 'home')
+    trackEvent('generate_success', {
+      route,
+      feature,
+      required_cost: pending?.requiredCost,
+      duration_ms: pending ? Math.max(0, Date.now() - pending.startedAt) : undefined,
+    })
+    if (pending?.requiredCost) {
+      trackEvent('credit_spent', {
+        route,
+        feature,
+        credits: pending.requiredCost,
+      })
+    }
+    clearPendingGeneration()
+    return
+  }
+
+  if (title.includes('thất bại') || description.includes('thất bại')) {
+    const feature = pending?.feature || (route.split('/').filter(Boolean)[0] || 'home')
+    trackEvent('generate_failed', {
+      route,
+      feature,
+      reason: title || description || 'unknown',
+      required_cost: pending?.requiredCost,
+    })
+    clearPendingGeneration()
+  }
+}
+
 function toast({ ...props }: Toast) {
   const id = genId()
+  trackToastDerivedEvents(props)
 
   const update = (props: ToasterToast) =>
     dispatch({

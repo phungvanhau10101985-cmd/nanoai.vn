@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import { Suspense } from "react";
 import dynamic from "next/dynamic";
+import Script from "next/script";
 import "./globals.css";
 import { Header } from "@/components/layout/header";
 import { DepositCreditProvider } from "@/components/deposit-credit-context";
@@ -16,6 +17,11 @@ const InstallPrompt = dynamic(
   () => import("@/components/pwa/install-prompt").then((m) => m.InstallPrompt),
   { ssr: false }
 );
+const AnalyticsTracker = dynamic(
+  () => import("@/components/analytics/analytics-tracker").then((m) => m.AnalyticsTracker),
+  { ssr: false }
+);
+const GA_MEASUREMENT_ID = "G-1KZ2PKX887";
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -93,6 +99,19 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen safe-area-pb`}
       >
+        <Script
+          src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`}
+          strategy="afterInteractive"
+        />
+        <Script id="google-analytics" strategy="afterInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', '${GA_MEASUREMENT_ID}');
+          `}
+        </Script>
+        <AnalyticsTracker />
         <JsonLd data={webAppLd} />
         <JsonLd data={orgLd} />
         <DepositCreditProvider>

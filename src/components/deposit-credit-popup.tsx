@@ -18,6 +18,7 @@ import { Smartphone, Download, Copy, CreditCard, Loader2, CheckCircle } from 'lu
 import { useRouter } from 'next/navigation'
 import { buildSePayQrImgUrl, buildSePayDeeplink } from '@/lib/sepay-qr'
 import { isLocalhost, getDevUserId } from '@/lib/auth-client'
+import { trackEvent, toFeatureFromRoute } from '@/lib/analytics-track'
 
 type PaymentConfig = {
   id: string
@@ -182,6 +183,13 @@ export function DepositCreditPopup({ open, onOpenChange, returnPath, onCreditsUp
     const interval = setInterval(async () => {
       const { data } = await supabase.from('payments').select('status, amount, credits_added').eq('id', payment.id).single()
       if (data?.status === 'completed') {
+        const route = returnPath || window.location.pathname
+        trackEvent('topup_success', {
+          route,
+          feature: toFeatureFromRoute(route),
+          amount: data.amount,
+          credits_added: data.credits_added,
+        })
         // Đóng QR, hiển thị thông báo thành công
         setPaymentSuccess({
           amount: data.amount,

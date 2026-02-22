@@ -21,6 +21,17 @@ function openDirectImage(url: string) {
   window.open(url, '_blank', 'noopener,noreferrer')
 }
 
+function trackDownloadEvent(format: 'png' | 'jpeg', filename: string) {
+  if (typeof window === 'undefined') return
+  const gtag = (window as unknown as { gtag?: (...args: unknown[]) => void }).gtag
+  if (typeof gtag !== 'function') return
+  gtag('event', 'image_download', {
+    route: window.location.pathname,
+    format,
+    filename: filename.slice(0, 100),
+  })
+}
+
 async function downloadImageAsFormat(
   imageUrl: string,
   format: 'png' | 'jpeg',
@@ -91,6 +102,7 @@ export function DownloadImageButton({
 
   const handleDownload = async (format: 'png' | 'jpeg') => {
     if (!imageUrl) return
+    trackDownloadEvent(format, filename)
     if (isRestrictedInAppBrowser()) {
       // In-app browsers (FB/IG...) thường chặn download blob/data URL.
       openDirectImage(imageUrl)

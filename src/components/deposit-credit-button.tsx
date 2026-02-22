@@ -6,6 +6,7 @@ import { useDepositCredit } from './deposit-credit-context'
 import { DepositCreditPopup } from './deposit-credit-popup'
 import { PlusCircle } from 'lucide-react'
 import { usePathname } from 'next/navigation'
+import { trackEvent, toFeatureFromRoute } from '@/lib/analytics-track'
 
 interface DepositCreditButtonProps {
   variant?: 'default' | 'outline' | 'secondary' | 'ghost' | 'link' | 'destructive'
@@ -22,6 +23,11 @@ export function DepositCreditButton({ variant = 'default', size = 'sm', classNam
   const openPopup = ctx?.openPopup ?? (() => setLocalOpen(true))
 
   const handleClick = () => {
+    trackEvent('topup_click', {
+      route: pathname,
+      feature: toFeatureFromRoute(pathname),
+      source: 'deposit_credit_button',
+    })
     if (onCreditsUpdated) {
       window.addEventListener('credits-updated', onCreditsUpdated, { once: true })
     }
