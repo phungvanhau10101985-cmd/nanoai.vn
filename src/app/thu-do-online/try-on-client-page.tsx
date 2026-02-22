@@ -510,12 +510,19 @@ export default function TryOnClientPage({ gender: initialGender, initialMode = '
                       <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Giao diện</h4>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="outline" size="sm" className={cn('w-full justify-between h-9', theme.badge)}>
-                            {isFemale ? 'Giao diện Nữ' : 'Giao diện Nam'}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className={cn(
+                              'h-8 w-auto max-w-[120px] px-2 justify-start gap-1 text-[11px] self-start sm:h-9 sm:w-full sm:max-w-none sm:px-3 sm:justify-between sm:text-xs',
+                              theme.badge
+                            )}
+                          >
+                            {isFemale ? 'Nữ' : 'Nam'}
                             <ChevronDown className="h-3 w-3 opacity-50" />
                           </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-[200px]">
+                        <DropdownMenuContent align="start" className="w-[160px] sm:w-[200px]">
                           <DropdownMenuItem onClick={() => setCurrentGender('male')}>
                             Giao diện Nam
                           </DropdownMenuItem>
