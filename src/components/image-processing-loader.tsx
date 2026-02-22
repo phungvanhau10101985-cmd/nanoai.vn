@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Sparkles, ImageIcon, Focus, Layers, Layout, User, Palette, Smile, Eraser, Package, Briefcase, Expand, Repeat, Box, BoxSelect, Home, BookOpen, Tag } from 'lucide-react'
 import { ImagePreview } from '@/components/ui/image-preview'
 
@@ -135,15 +135,13 @@ const modeConfig = {
 export function ImageProcessingLoader({
   mode,
   title,
-  description,
+  description: _description,
   steps: customSteps,
   imagePreview,
   imagePreviews,
 }: ImageProcessingLoaderProps) {
   const config = modeConfig[mode]
   const Icon = config.icon
-  const steps = (customSteps && customSteps.length > 0 ? customSteps : config.steps)
-  const stepDurationSec = 6
   const [elapsedSec, setElapsedSec] = useState(0)
 
   useEffect(() => {
@@ -153,21 +151,23 @@ export function ImageProcessingLoader({
     return () => window.clearInterval(timer)
   }, [])
 
-  const totalStepTime = steps.length * stepDurationSec
-  const activeStepIndex = Math.min(steps.length - 1, Math.floor(elapsedSec / stepDurationSec))
-  const activeStepProgress = useMemo(() => {
-    if (elapsedSec >= totalStepTime) return 100
-    return Math.min(100, ((elapsedSec % stepDurationSec) / stepDurationSec) * 100)
-  }, [elapsedSec, stepDurationSec, totalStepTime])
-
   const reminderMessages = [
-    'Hệ thống vẫn đang xử lý. Vui lòng chờ thêm một chút để nhận kết quả tốt nhất.',
-    'Ảnh đang được tối ưu chi tiết, nên có thể mất thêm thời gian. Cảm ơn bạn đã kiên nhẫn.',
-    'Yêu cầu vẫn đang chạy ổn định trên máy chủ. Kết quả sẽ trả về ngay khi hoàn tất.',
+    'Hệ thống vẫn đang xử lý an toàn. Kết quả sẽ hiển thị ngay khi hoàn tất.',
+    'Chúng tôi đang tối ưu đầu ra để đảm bảo chất lượng tốt nhất cho ảnh của bạn.',
+    'Yêu cầu vẫn đang được xử lý ổn định trên máy chủ. Vui lòng chờ thêm một chút.',
   ]
   const reminderCount = Math.floor(elapsedSec / 15)
   const reminderMessage = reminderCount > 0 ? reminderMessages[(reminderCount - 1) % reminderMessages.length] : null
-  const progressValue = Math.min(95, Math.max(6, Math.round((elapsedSec / Math.max(20, totalStepTime)) * 95)))
+  const statusMessages = [
+    'Đang xử lý yêu cầu của bạn',
+    'Đang tối ưu chất lượng đầu ra',
+    'Đang hoàn thiện kết quả',
+  ]
+  const activeStatus = statusMessages[Math.floor(elapsedSec / 6) % statusMessages.length]
+  const progressValue = Math.min(96, Math.max(8, Math.round((1 - Math.exp(-elapsedSec / 18)) * 100)))
+  const subtitle = 'Hệ thống đang xử lý tự động. Kết quả sẽ xuất hiện ngay khi sẵn sàng.'
+  void _description
+  void customSteps
 
   return (
     <div className="w-full max-w-lg mx-auto">
@@ -200,52 +200,21 @@ export function ImageProcessingLoader({
           </div>
 
           <h3 className="text-lg font-semibold text-foreground mb-1">{title}</h3>
-          <p className="text-sm text-muted-foreground text-center mb-6">{description}</p>
-          <div className="w-full mb-4">
-            <div className="flex items-center justify-between text-[11px] text-foreground/80 mb-1">
-              <span>Tiến trình xử lý</span>
-              <span>{progressValue}%</span>
+          <p className="text-sm text-muted-foreground text-center mb-4">{subtitle}</p>
+
+          <div className="w-full mb-4 rounded-lg border border-white/60 bg-white/70 px-4 py-3">
+            <div className="flex items-center gap-2 text-sm font-medium text-foreground/90">
+              <span className="inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span>{activeStatus}</span>
             </div>
-            <div className="h-2 w-full rounded-full bg-white/50 overflow-hidden border border-white/60">
+            <div className="mt-3 h-2 w-full rounded-full bg-white/55 overflow-hidden">
               <div
-                className="h-full rounded-full bg-white/90 transition-[width] duration-1000 ease-out"
+                className="h-full rounded-full bg-white/95 transition-[width] duration-1000 ease-out"
                 style={{ width: `${progressValue}%` }}
               />
             </div>
-            <p className="text-[10px] text-muted-foreground mt-1">
-              Tiến trình chỉ đạt 100% khi hệ thống trả ảnh hoàn tất.
-            </p>
           </div>
-          <div className="mb-4 rounded-md border border-white/60 bg-white/70 px-3 py-2 text-center text-xs text-foreground/90">
-            Đang thực hiện bước {activeStepIndex + 1}/{steps.length}: {steps[activeStepIndex]}
-          </div>
-
-          {/* Các bước xử lý */}
-          <div className="w-full space-y-2">
-            {steps.map((step, i) => (
-              <div key={i} className="flex items-center gap-3">
-                <div className="flex-shrink-0 w-6 h-6 rounded-full bg-white/80 flex items-center justify-center text-xs font-medium text-foreground">
-                  {i + 1}
-                </div>
-                <div className="flex-1 min-w-0 h-2 rounded-full bg-white/40 overflow-hidden">
-                  <div
-                    className="block h-full rounded-full bg-white/80 transition-[width] duration-700 ease-out"
-                    style={{
-                      width:
-                        i < activeStepIndex
-                          ? '100%'
-                          : i === activeStepIndex
-                            ? `${activeStepProgress}%`
-                            : '0%',
-                    }}
-                  />
-                </div>
-                <span className="text-xs font-medium text-foreground/90 w-28 text-right">{step}</span>
-              </div>
-            ))}
-          </div>
-
-          <p className="text-xs text-muted-foreground mt-6">Thường mất 15–45 giây</p>
+          <p className="text-xs text-muted-foreground mt-4">Thời gian xử lý thường từ vài giây đến khoảng 1 phút.</p>
           {reminderMessage && (
             <p className="text-xs text-foreground/80 mt-2 text-center rounded-md border border-white/60 bg-white/60 px-3 py-2">
               {reminderMessage}
