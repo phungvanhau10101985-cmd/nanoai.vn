@@ -30,9 +30,9 @@ export default function Home() {
                       <Link
                         key={item.href}
                         href={item.href}
-                        className="group flex flex-col items-center justify-center gap-1 p-2 sm:p-4 rounded-none sm:rounded-xl border border-r-0 last:border-r border-t-0 first:border-t sm:border bg-card hover:bg-slate-50/80 dark:hover:bg-slate-800/50 hover:border-blue-200/60 dark:hover:border-blue-800/40 hover:shadow-lg hover:shadow-blue-500/5 transition-all duration-200"
+                        className="group flex flex-col items-center justify-center gap-1 p-0.5 sm:p-4 rounded-none sm:rounded-xl border border-r-0 last:border-r border-t-0 first:border-t sm:border bg-card hover:bg-slate-50/80 dark:hover:bg-slate-800/50 hover:border-blue-200/60 dark:hover:border-blue-800/40 hover:shadow-lg hover:shadow-blue-500/5 transition-all duration-200"
                       >
-                        <div className="flex w-full aspect-square items-center justify-center bg-gradient-to-br from-blue-500/10 to-indigo-500/10 group-hover:from-blue-500/20 group-hover:to-indigo-500/20 transition-all">
+                        <div className="flex w-[30vw] max-w-[150px] aspect-square items-center justify-center bg-gradient-to-br from-blue-500/10 to-indigo-500/10 group-hover:from-blue-500/20 group-hover:to-indigo-500/20 transition-all">
                           <Icon className="h-10 w-10 sm:h-12 sm:w-12 md:h-14 md:w-14 text-blue-600 dark:text-blue-400" strokeWidth={2} />
                         </div>
                         <span className="text-xs sm:text-sm md:text-base font-medium text-center leading-tight text-foreground group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors mt-1 px-1">

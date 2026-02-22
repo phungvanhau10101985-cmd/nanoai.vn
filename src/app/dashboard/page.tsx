@@ -74,8 +74,8 @@ export default async function DashboardPage() {
             return (
               <Link key={tool.href} href={tool.href}>
                 <Card className="h-full hover:bg-muted/50 transition-colors cursor-pointer rounded-none sm:rounded-lg border border-r-0 last:border-r border-t-0 first:border-t sm:border">
-                  <CardContent className="p-1.5 sm:p-3 flex flex-col items-center justify-center gap-1 text-center">
-                    <div className="w-full max-w-[120px] aspect-square">
+                  <CardContent className="p-0.5 sm:p-3 flex flex-col items-center justify-center gap-1 text-center">
+                    <div className="w-[30vw] max-w-[150px] aspect-square">
                       <Icon className="h-full w-full text-muted-foreground" />
                     </div>
                     <span className="text-xs sm:text-sm md:text-base font-medium leading-tight mt-0.5 sm:mt-1 px-1">{tool.label}</span>

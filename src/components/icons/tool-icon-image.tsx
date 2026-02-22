@@ -1,3 +1,5 @@
+'use client'
+
 interface ToolIconImageProps {
   src: string
   className?: string
