@@ -139,8 +139,6 @@ export function TranslateProgressPanel({ batchId, embedded = false, onClose }: T
   }
 
   const { done, total, items } = data
-  const failed = items.filter((x) => x.status === 'failed').length
-  const cancelled = items.filter((x) => x.status === 'cancelled').length
   const percent = total > 0 ? Math.round((done / total) * 100) : 0
   const isComplete = total > 0 && items.every((x) => x.status === 'completed' || x.status === 'failed' || x.status === 'cancelled')
   const hasProcessing = items.some((x) => x.status === 'processing')

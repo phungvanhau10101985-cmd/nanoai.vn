@@ -4,9 +4,8 @@ import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { createClient } from '@/lib/supabase/client'
-import { Wallet, CreditCard, History, PlusCircle, ArrowRight, Zap, TrendingUp } from 'lucide-react'
+import { Wallet, CreditCard, History, ArrowRight, Zap, TrendingUp } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import Link from 'next/link'
 import { formatNumber } from '@/lib/format'
@@ -58,7 +57,7 @@ export default function WalletClient() {
       if (!paymentsError) {
         setRecentPayments(paymentsData || [])
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error fetching wallet data:', error)
       toast({
         title: 'Lỗi',

@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
 import {
   createHouseProject,
   listHouseProjects,
@@ -74,10 +73,6 @@ export default function XayNhaTuDatNenClientPage() {
   }, [])
 
   const selectedProject = projects.find((p) => p.id === selectedProjectId)
-  const steps = selectedProject?.steps || {}
-  const currentStep = selectedProject?.current_step || 'floor_3d'
-  const houseInfo = selectedProject?.house_info
-  const floor3dUrl = steps.floor_3d?.imageUrl
 
   const handleCreateProject = async () => {
     const r = await createHouseProject()

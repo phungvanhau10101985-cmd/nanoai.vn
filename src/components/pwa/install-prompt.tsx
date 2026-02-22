@@ -4,19 +4,30 @@ import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { X, Share, Plus } from 'lucide-react'
 
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>
+}
+
+interface WindowWithPWA extends Window {
+  MSStream?: boolean
+  standalone?: boolean
+}
+
 export function InstallPrompt() {
   const [isIOS, setIsIOS] = useState(false)
   const [isStandalone, setIsStandalone] = useState(false)
   const [showPrompt, setShowPrompt] = useState(false)
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null)
 
   useEffect(() => {
     const ua = navigator.userAgent
-    const ios = /iPad|iPhone|iPod/.test(ua) && !(window as any).MSStream
+    const win = window as WindowWithPWA
+    const ios = /iPad|iPhone|iPod/.test(ua) && !win.MSStream
     const standalone =
-      (window as any).standalone === true ||
+      win.standalone === true ||
       window.matchMedia('(display-mode: standalone)').matches ||
-      (document as any).referrer?.includes('android-app')
+      document.referrer?.includes('android-app')
 
     setIsIOS(ios)
     setIsStandalone(standalone)
@@ -27,7 +38,7 @@ export function InstallPrompt() {
       } else {
         const handler = (e: Event) => {
           e.preventDefault()
-          setDeferredPrompt(e)
+          setDeferredPrompt(e as BeforeInstallPromptEvent)
           setShowPrompt(true)
         }
         window.addEventListener('beforeinstallprompt', handler)

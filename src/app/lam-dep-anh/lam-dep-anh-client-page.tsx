@@ -77,7 +77,7 @@ export default function LamDepAnhClientPage() {
       setImageFromFile(file, setImage)
       setImageUrl('')
       toast({ title: 'Đã tải ảnh', description: 'Ảnh từ link đã được thêm.', duration: 2000 })
-    } catch (err) {
+    } catch {
       toast({
         title: 'Không tải được ảnh',
         description: 'Link có thể bị chặn CORS. Thử tải ảnh lên trực tiếp.',

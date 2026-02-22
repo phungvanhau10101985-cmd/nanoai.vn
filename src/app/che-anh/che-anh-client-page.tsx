@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { cheAnh } from './actions'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
-import { Upload, Sparkles, Download, RefreshCw, Link2, Plus, X } from 'lucide-react'
+import { Upload, Sparkles, RefreshCw, Link2, Plus, X } from 'lucide-react'
 import { DepositCreditButton } from '@/components/deposit-credit-button'
 import { useCredits } from '@/hooks/use-credits'
 import { DownloadImageButton } from '@/components/download-image-button'
@@ -105,7 +105,7 @@ export default function CheAnhClientPage() {
         setImageUrl('')
         toast({ title: 'Đã tải ảnh', description: 'Ảnh từ link đã được thêm.', duration: 2000 })
       }
-    } catch (err) {
+    } catch {
       toast({
         title: 'Không tải được ảnh',
         description: 'Link có thể bị chặn CORS. Thử tải ảnh lên trực tiếp.',

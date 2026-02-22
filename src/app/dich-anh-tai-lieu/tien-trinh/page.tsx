@@ -2,13 +2,11 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { BarChart3 } from 'lucide-react'
-
 const STORAGE_KEY = 'lastTranslateBatchId'
 
 export default function TranslateProgressLandingPage() {
   const router = useRouter()
-  const [checking, setChecking] = useState(true)
+  const [checking] = useState(true)
 
   useEffect(() => {
     try {

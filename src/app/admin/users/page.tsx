@@ -1,6 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { redirect } from 'next/navigation'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
@@ -29,8 +28,9 @@ export default async function AdminUsersPage() {
   const users = usersData?.map(u => ({
     ...u,
     email: 'N/A',
-    // @ts-ignore
-    balance: u.credits[0]?.balance ?? 0
+    balance: Array.isArray((u as { credits?: Array<{ balance?: number }> }).credits)
+      ? ((u as { credits?: Array<{ balance?: number }> }).credits?.[0]?.balance ?? 0)
+      : 0,
   })) || []
 
   return (

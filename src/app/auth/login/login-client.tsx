@@ -15,7 +15,7 @@ type LoginClientProps = {
 
 const isNgrok = () => typeof window !== 'undefined' && window.location.hostname.includes('ngrok')
 
-function useFormSubmitWithNgrok(action: (formData: FormData) => Promise<void>) {
+function useFormSubmitWithNgrok() {
   return async (e: React.FormEvent<HTMLFormElement>) => {
     if (!isNgrok()) return
     e.preventDefault()
@@ -47,9 +47,9 @@ function useFormSubmitWithNgrok(action: (formData: FormData) => Promise<void>) {
 }
 
 export default function LoginClient({ message, error }: LoginClientProps) {
-  const handleLoginNgrok = useFormSubmitWithNgrok(login)
-  const handleSignupNgrok = useFormSubmitWithNgrok(signup)
-  const handleGoogleNgrok = useFormSubmitWithNgrok(signInWithGoogle)
+  const handleLoginNgrok = useFormSubmitWithNgrok()
+  const handleSignupNgrok = useFormSubmitWithNgrok()
+  const handleGoogleNgrok = useFormSubmitWithNgrok()
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 via-white to-indigo-50 px-4 py-10">

@@ -37,7 +37,7 @@ export function DeleteHistoryButton({ id }: { id: string }) {
           description: "Đã xóa ảnh khỏi lịch sử.",
         })
       }
-    } catch (error) {
+    } catch {
       toast({
         title: "Lỗi",
         description: "Đã xảy ra lỗi không mong muốn.",

@@ -905,7 +905,7 @@ export async function startTranslateBatch(formData: FormData): Promise<{ batchId
   const { user } = result
 
   const COST_PER_IMAGE = TRANSLATE_COSTS[imageQuality]
-  let items: Array<{ originalUrl: string; name?: string }> = []
+  const items: Array<{ originalUrl: string; name?: string }> = []
 
   if (mode === 'excel') {
     const excelFile = formData.get('excelFile') as File | null

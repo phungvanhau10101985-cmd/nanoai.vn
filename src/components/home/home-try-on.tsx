@@ -2,13 +2,11 @@
 
 import { useState, useRef, ChangeEvent } from 'react'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Skeleton } from '@/components/ui/skeleton'
 import { generateAiImage } from '@/app/thu-do-online/actions'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/sonner'
-import { Upload, Shirt, Sparkles, ArrowRight, Download, RefreshCw, User, Loader2, Zap } from 'lucide-react'
+import { Upload, Shirt, Sparkles, Download, RefreshCw, User, Loader2, Zap } from 'lucide-react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
@@ -77,7 +75,7 @@ export default function HomeTryOn() {
         setStep('RESULT')
         toast({ title: 'Thành công!', description: 'Ảnh thử đồ của bạn đã sẵn sàng.' })
       }
-    } catch (error) {
+    } catch {
       toast({ title: 'Lỗi', description: 'Đã xảy ra lỗi không mong muốn.', variant: 'destructive' })
       setStep('UPLOAD')
     } finally {

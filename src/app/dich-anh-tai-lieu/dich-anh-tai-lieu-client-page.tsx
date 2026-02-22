@@ -61,12 +61,6 @@ import { DownloadImageButton } from '@/components/download-image-button'
 import { TranslateProgressPanel } from './tien-trinh/translate-progress-panel'
 const MAX_BATCH = 50
 const TRANSLATE_PROGRESS_STORAGE_KEY = 'lastTranslateBatchId'
-const safeZipName = (name: string, index: number): string => {
-  const base = name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 100)
-  const ext = base.includes('.') ? base.slice(base.lastIndexOf('.')) : '.png'
-  const stem = base.replace(/\.[^.]+$/, '') || `image_${index + 1}`
-  return `${stem}_dich${ext}`
-}
 const TRANSLATE_COSTS = { '2K': 3, '4K': 6 } as const
 type Step = 'UPLOAD' | 'GENERATING' | 'RESULT'
 

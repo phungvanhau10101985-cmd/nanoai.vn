@@ -41,8 +41,6 @@ export default function WalletPage({ userId }: { userId: string }) {
     }
   }
 
-  const qrContent = `00020101021238570010A000000727012700069704080113YOUR_ACCOUNT_NO0208QRIBFTTA5303704540${selectedPackage.price.toString().length.toString().padStart(2, '0')}${selectedPackage.price}5802VN62${(13 + userId.length).toString().padStart(2, '0')}08${userId.length.toString().padStart(2, '0')}${userId}6304`
-
   return (
     <div className="space-y-8">
       <Toaster />

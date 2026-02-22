@@ -14,9 +14,9 @@ import { Label } from '@/components/ui/label'
 import { createClient } from '@/lib/supabase/client'
 import { formatNumber } from '@/lib/format'
 import { toast } from '@/hooks/use-toast'
-import { Smartphone, Download, Copy, CreditCard, Loader2, CheckCircle } from 'lucide-react'
+import { Download, Copy, CreditCard, Loader2, CheckCircle } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { buildSePayQrImgUrl, buildSePayDeeplink } from '@/lib/sepay-qr'
+import { buildSePayQrImgUrl } from '@/lib/sepay-qr'
 import { isLocalhost, getDevUserId } from '@/lib/auth-client'
 import { trackEvent, toFeatureFromRoute } from '@/lib/analytics-track'
 
@@ -216,15 +216,6 @@ export function DepositCreditPopup({ open, onOpenChange, returnPath, onCreditsUp
   }, [open, payment?.id, payment?.status, supabase, onOpenChange, returnPath, router, onCreditsUpdated])
 
   const config = configs.find(c => c.id === selectedConfigId)
-  const deeplink = payment && config
-    ? buildSePayDeeplink(
-        config.bank_account,
-        config.bank_id,
-        payment.amount,
-        payment.transaction_content || '',
-        config.account_holder_name
-      )
-    : ''
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

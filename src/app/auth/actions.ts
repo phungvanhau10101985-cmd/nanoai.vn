@@ -89,6 +89,7 @@ export async function signup(formData: FormData) {
 }
 
 export async function signInWithGoogle(formData: FormData) {
+  void formData
   const supabase = createClient()
 
   // Luôn dùng PRODUCTION_URL cho OAuth callback (tránh redirect về localhost)

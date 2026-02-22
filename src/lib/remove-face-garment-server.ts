@@ -110,6 +110,7 @@ async function detectFacesBatchAll(buffers: Buffer[]): Promise<FaceAnnotation[][
  * Sử dụng fdBoundingPoly (face detection poly) chính xác hơn boundingPoly.
  */
 function getFaceBottomY(faces: FaceAnnotation[], imageHeight: number): number | null {
+  void imageHeight
   let maxY = 0
 
   for (const face of faces) {

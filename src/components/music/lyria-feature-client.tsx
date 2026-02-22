@@ -740,6 +740,24 @@ export function LyriaFeatureClient({ mode }: { mode: Mode }) {
     setTimeout(() => URL.revokeObjectURL(url), 2000)
   }
 
+  const applyBasePrompt = async () => {
+    if (!basePrompt.trim()) {
+      toast({ title: 'Thiếu mô tả nhạc nền', variant: 'destructive' })
+      return
+    }
+    if (!sessionRef.current) {
+      toast({ title: 'Đã lưu mô tả', description: 'Bấm Phát để dùng mô tả này cho phiên nhạc mới.' })
+      return
+    }
+    try {
+      await sessionRef.current.setWeightedPrompts({ weightedPrompts })
+      await sessionRef.current.resetContext()
+      toast({ title: 'Đã gửi mô tả nhạc nền', description: 'Nhạc sẽ cập nhật theo mô tả mới trong vài giây.' })
+    } catch {
+      toast({ title: 'Không thể gửi mô tả nhạc nền', variant: 'destructive' })
+    }
+  }
+
   const applyPromptBlend = async () => {
     if (!sessionRef.current || !livePrompt.trim()) return
     const injectedPrompt = livePrompt.trim()
@@ -965,6 +983,11 @@ export function LyriaFeatureClient({ mode }: { mode: Mode }) {
                 rows={3}
                 placeholder="Ví dụ: Lo-fi chill với piano ấm, nhịp nhẹ cho video TikTok"
               />
+              <div>
+                <Button type="button" variant="outline" onClick={applyBasePrompt} disabled={isBusy || !basePrompt.trim()}>
+                  Gửi mô tả nhạc nền
+                </Button>
+              </div>
             </div>
 
             <div className="space-y-3 rounded-lg border p-3">

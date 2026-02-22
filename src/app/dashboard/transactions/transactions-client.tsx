@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { createClient } from '@/lib/supabase/client'
 import { History, CreditCard, CheckCircle, Clock, XCircle, Filter, Download } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
@@ -53,7 +53,7 @@ export default function TransactionsClient() {
 
       if (error) throw error
       setPayments(data || [])
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error fetching payments:', error)
       toast({
         title: 'Lỗi',

@@ -3,7 +3,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
-import { redirect } from 'next/navigation'
 
 const CREDIT_PACKAGES = [
   { id: 1, credits: 10, price: 50000 },
