@@ -73,6 +73,9 @@ export function HeaderUserMenu({ user, credits }: HeaderUserMenuProps) {
             <Link href="/dashboard/history/translate">Lịch sử dịch ảnh</Link>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
+            <Link href="/nhac-nen-ai#music-history">Lịch sử tạo nhạc</Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
             <Link href="/wallet">Ví</Link>
           </DropdownMenuItem>
           <DropdownMenuSeparator />

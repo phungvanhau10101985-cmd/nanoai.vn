@@ -1167,7 +1167,7 @@ export function LyriaFeatureClient({ mode }: { mode: Mode }) {
               </Button>
             </div>
 
-            <div className="rounded-lg border bg-white p-3">
+            <div id="music-history" className="rounded-lg border bg-white p-3">
               <div className="mb-2 flex items-center justify-between">
                 <p className="text-sm font-semibold text-slate-800">Lịch sử tạo nhạc</p>
                 <p className="text-xs text-muted-foreground">Lưu theo tài khoản Supabase</p>
@@ -1175,54 +1175,88 @@ export function LyriaFeatureClient({ mode }: { mode: Mode }) {
               {musicHistory.length === 0 ? (
                 <p className="text-xs text-muted-foreground">Chưa có phiên tạo nhạc nào.</p>
               ) : (
-                <div className="max-h-56 overflow-auto rounded border">
-                  <table className="w-full text-xs">
-                    <thead className="bg-slate-100 text-slate-700">
-                      <tr>
-                        <th className="px-2 py-1.5 text-left font-medium">Thời gian</th>
-                        <th className="px-2 py-1.5 text-left font-medium">Tính năng</th>
-                        <th className="px-2 py-1.5 text-left font-medium">Phong cách</th>
-                        <th className="px-2 py-1.5 text-right font-medium">Thời lượng</th>
-                        <th className="px-2 py-1.5 text-right font-medium">Credits</th>
-                        <th className="px-2 py-1.5 text-left font-medium">Nghe lại</th>
-                        <th className="px-2 py-1.5 text-left font-medium">Tải xuống</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {musicHistory.map((item) => (
-                        <tr key={item.id} className="border-t">
-                          <td className="px-2 py-1.5">{new Date(item.createdAt).toLocaleString('vi-VN')}</td>
-                          <td className="px-2 py-1.5">{item.title}</td>
-                          <td className="px-2 py-1.5">{item.style}</td>
-                          <td className="px-2 py-1.5 text-right">{Number(item.durationSeconds || 0)}s</td>
-                          <td className="px-2 py-1.5 text-right font-medium text-emerald-700">{Number(item.chargedCredits || 0).toFixed(1)}</td>
-                          <td className="px-2 py-1.5">
-                            {item.audioUrl ? (
-                              <audio controls preload="none" src={item.audioUrl} className="h-8 max-w-[220px]" />
-                            ) : (
-                              <span className="text-muted-foreground">Chưa có file</span>
-                            )}
-                          </td>
-                          <td className="px-2 py-1.5">
-                            {item.audioUrl ? (
+                <>
+                  <div className="space-y-2 md:hidden">
+                    {musicHistory.map((item) => (
+                      <div key={item.id} className="rounded-md border p-2.5 text-xs">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="font-medium text-slate-800">{item.title}</p>
+                          <p className="font-semibold text-emerald-700">{Number(item.chargedCredits || 0).toFixed(1)} credit</p>
+                        </div>
+                        <p className="mt-1 text-muted-foreground">{new Date(item.createdAt).toLocaleString('vi-VN')}</p>
+                        <p className="text-muted-foreground">Phong cách: {item.style}</p>
+                        <p className="text-muted-foreground">Thời lượng: {Number(item.durationSeconds || 0)}s</p>
+                        <div className="mt-2 flex flex-col gap-2">
+                          {item.audioUrl ? (
+                            <>
+                              <audio controls preload="none" src={item.audioUrl} className="h-9 w-full" />
                               <a
                                 href={item.audioUrl}
                                 download
                                 target="_blank"
                                 rel="noreferrer"
-                                className="text-indigo-600 hover:underline"
+                                className="inline-flex h-8 items-center justify-center rounded-md border border-indigo-200 bg-indigo-50 px-3 text-indigo-700"
                               >
                                 Tải WAV
                               </a>
-                            ) : (
-                              <span className="text-muted-foreground">-</span>
-                            )}
-                          </td>
+                            </>
+                          ) : (
+                            <span className="text-muted-foreground">Chưa có file</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="hidden max-h-56 overflow-auto rounded border md:block">
+                    <table className="w-full text-xs">
+                      <thead className="bg-slate-100 text-slate-700">
+                        <tr>
+                          <th className="px-2 py-1.5 text-left font-medium">Thời gian</th>
+                          <th className="px-2 py-1.5 text-left font-medium">Tính năng</th>
+                          <th className="px-2 py-1.5 text-left font-medium">Phong cách</th>
+                          <th className="px-2 py-1.5 text-right font-medium">Thời lượng</th>
+                          <th className="px-2 py-1.5 text-right font-medium">Credits</th>
+                          <th className="px-2 py-1.5 text-left font-medium">Nghe lại</th>
+                          <th className="px-2 py-1.5 text-left font-medium">Tải xuống</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody>
+                        {musicHistory.map((item) => (
+                          <tr key={item.id} className="border-t">
+                            <td className="px-2 py-1.5">{new Date(item.createdAt).toLocaleString('vi-VN')}</td>
+                            <td className="px-2 py-1.5">{item.title}</td>
+                            <td className="px-2 py-1.5">{item.style}</td>
+                            <td className="px-2 py-1.5 text-right">{Number(item.durationSeconds || 0)}s</td>
+                            <td className="px-2 py-1.5 text-right font-medium text-emerald-700">{Number(item.chargedCredits || 0).toFixed(1)}</td>
+                            <td className="px-2 py-1.5">
+                              {item.audioUrl ? (
+                                <audio controls preload="none" src={item.audioUrl} className="h-8 max-w-[220px]" />
+                              ) : (
+                                <span className="text-muted-foreground">Chưa có file</span>
+                              )}
+                            </td>
+                            <td className="px-2 py-1.5">
+                              {item.audioUrl ? (
+                                <a
+                                  href={item.audioUrl}
+                                  download
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-indigo-600 hover:underline"
+                                >
+                                  Tải WAV
+                                </a>
+                              ) : (
+                                <span className="text-muted-foreground">-</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
               )}
             </div>
 
