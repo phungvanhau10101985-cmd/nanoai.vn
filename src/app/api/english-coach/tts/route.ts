@@ -8,10 +8,14 @@ type VoiceName =
   | 'Autonoe'
   | 'Enceladus'
   | 'Sadachbia'
+  | 'Orus'
+  | 'Fenrir'
+  | 'Iapetus'
 
 type Payload = {
   text?: string
   voiceName?: VoiceName
+  voiceStyle?: string
 }
 
 export async function POST(request: NextRequest) {
@@ -24,6 +28,7 @@ export async function POST(request: NextRequest) {
     const payload = (await request.json()) as Payload
     const text = String(payload.text || '').trim()
     const voiceName = (payload.voiceName || 'Kore') as VoiceName
+    const voiceStyle = String(payload.voiceStyle || '').trim()
     if (!text) {
       return NextResponse.json({ error: 'Thiếu văn bản cần đọc.' }, { status: 400 })
     }
@@ -31,7 +36,7 @@ export async function POST(request: NextRequest) {
     const ai = new GoogleGenAI({ apiKey })
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-preview-tts',
-      contents: text,
+      contents: voiceStyle ? `${voiceStyle}\n\nText:\n${text}` : text,
       config: {
         responseModalities: ['AUDIO'],
         speechConfig: {

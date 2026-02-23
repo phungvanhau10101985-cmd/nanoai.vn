@@ -10,7 +10,7 @@ import { Mic, MicOff, Send, Languages, Volume2 } from 'lucide-react'
 
 type Accent = 'uk' | 'us'
 type Gender = 'female' | 'male'
-type VoiceName = 'Kore' | 'Puck' | 'Zephyr' | 'Autonoe' | 'Enceladus' | 'Sadachbia'
+type VoiceName = 'Kore' | 'Puck' | 'Zephyr' | 'Autonoe' | 'Enceladus' | 'Sadachbia' | 'Orus' | 'Fenrir' | 'Iapetus'
 type Mode = 'chat' | 'story'
 type LanguageCode = 'en' | 'zh' | 'hi' | 'th' | 'ja' | 'ko'
 
@@ -88,7 +88,7 @@ const TEACHERS_BY_LANGUAGE: Record<LanguageCode, TeacherProfile[]> = {
       label: 'Thầy giáo người Mỹ (US)',
       languageLabel: 'English',
       locale: 'en-US',
-      voiceName: 'Sadachbia',
+      voiceName: 'Orus',
       accent: 'us',
       gender: 'male',
     },
@@ -106,7 +106,7 @@ const TEACHERS_BY_LANGUAGE: Record<LanguageCode, TeacherProfile[]> = {
       label: 'Thầy giáo người Anh (UK)',
       languageLabel: 'English',
       locale: 'en-GB',
-      voiceName: 'Zephyr',
+      voiceName: 'Fenrir',
       accent: 'uk',
       gender: 'male',
     },
@@ -125,7 +125,7 @@ const TEACHERS_BY_LANGUAGE: Record<LanguageCode, TeacherProfile[]> = {
       label: 'Thầy giáo người Trung Quốc',
       languageLabel: 'Chinese (Mandarin)',
       locale: 'zh-CN',
-      voiceName: 'Zephyr',
+      voiceName: 'Orus',
       gender: 'male',
     },
   ],
@@ -143,7 +143,7 @@ const TEACHERS_BY_LANGUAGE: Record<LanguageCode, TeacherProfile[]> = {
       label: 'Thầy giáo người Ấn Độ',
       languageLabel: 'Hindi',
       locale: 'hi-IN',
-      voiceName: 'Enceladus',
+      voiceName: 'Iapetus',
       gender: 'male',
     },
   ],
@@ -161,7 +161,7 @@ const TEACHERS_BY_LANGUAGE: Record<LanguageCode, TeacherProfile[]> = {
       label: 'Thầy giáo người Thái',
       languageLabel: 'Thai',
       locale: 'th-TH',
-      voiceName: 'Sadachbia',
+      voiceName: 'Orus',
       gender: 'male',
     },
   ],
@@ -179,7 +179,7 @@ const TEACHERS_BY_LANGUAGE: Record<LanguageCode, TeacherProfile[]> = {
       label: 'Thầy giáo người Nhật',
       languageLabel: 'Japanese',
       locale: 'ja-JP',
-      voiceName: 'Zephyr',
+      voiceName: 'Fenrir',
       gender: 'male',
     },
   ],
@@ -197,10 +197,50 @@ const TEACHERS_BY_LANGUAGE: Record<LanguageCode, TeacherProfile[]> = {
       label: 'Thầy giáo người Hàn',
       languageLabel: 'Korean',
       locale: 'ko-KR',
-      voiceName: 'Sadachbia',
+      voiceName: 'Orus',
       gender: 'male',
     },
   ],
+}
+
+function base64ToBytes(b64: string): Uint8Array {
+  const binary = atob(b64)
+  const out = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i)
+  return out
+}
+
+function pcm16MonoToWavBlob(pcm: Uint8Array, sampleRate = 24000): Blob {
+  const channels = 1
+  const bitsPerSample = 16
+  const blockAlign = channels * (bitsPerSample / 8)
+  const byteRate = sampleRate * blockAlign
+  const dataSize = pcm.length
+  const buffer = new ArrayBuffer(44 + dataSize)
+  const view = new DataView(buffer)
+
+  const writeString = (offset: number, value: string) => {
+    for (let i = 0; i < value.length; i++) {
+      view.setUint8(offset + i, value.charCodeAt(i))
+    }
+  }
+
+  writeString(0, 'RIFF')
+  view.setUint32(4, 36 + dataSize, true)
+  writeString(8, 'WAVE')
+  writeString(12, 'fmt ')
+  view.setUint32(16, 16, true)
+  view.setUint16(20, 1, true)
+  view.setUint16(22, channels, true)
+  view.setUint32(24, sampleRate, true)
+  view.setUint32(28, byteRate, true)
+  view.setUint16(32, blockAlign, true)
+  view.setUint16(34, bitsPerSample, true)
+  writeString(36, 'data')
+  view.setUint32(40, dataSize, true)
+  new Uint8Array(buffer, 44).set(pcm)
+
+  return new Blob([buffer], { type: 'audio/wav' })
 }
 
 export default function HocTiengAnhAiClientPage() {
@@ -224,6 +264,10 @@ export default function HocTiengAnhAiClientPage() {
   )
   const selectedVoice = selectedTeacher.voiceName
   const teacherLabel = selectedTeacher.label
+  const selectedLanguageLabel = useMemo(
+    () => LANGUAGE_OPTIONS.find((x) => x.code === languageCode)?.label || 'ngoại ngữ',
+    [languageCode]
+  )
 
   const appendMessage = (role: 'teacher' | 'student', text: string) => {
     setMessages((prev) => [...prev, { id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, role, text }])
@@ -233,17 +277,35 @@ export default function HocTiengAnhAiClientPage() {
     const res = await fetch('/api/english-coach/tts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, voiceName: selectedVoice }),
+      body: JSON.stringify({
+        text,
+        voiceName: selectedVoice,
+        voiceStyle:
+          selectedTeacher.gender === 'male'
+            ? `Speak with a clearly masculine native ${selectedTeacher.languageLabel} teacher voice. Calm, warm, and natural.`
+            : `Speak with a clearly feminine native ${selectedTeacher.languageLabel} teacher voice. Calm, warm, and natural.`,
+      }),
     })
     const data = (await res.json().catch(() => ({}))) as { audioBase64?: string; mimeType?: string; error?: string }
     if (!res.ok || !data.audioBase64) {
       throw new Error(data.error || 'Không phát được giọng giáo viên.')
     }
 
-    const binary = atob(data.audioBase64)
-    const bytes = new Uint8Array(binary.length)
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-    const blob = new Blob([bytes], { type: data.mimeType || 'audio/wav' })
+    const bytes = base64ToBytes(data.audioBase64)
+    const mime = String(data.mimeType || '').toLowerCase()
+    const browserPlayable =
+      mime.includes('audio/wav') ||
+      mime.includes('audio/wave') ||
+      mime.includes('audio/mp3') ||
+      mime.includes('audio/mpeg') ||
+      mime.includes('audio/ogg') ||
+      mime.includes('audio/aac') ||
+      mime.includes('audio/flac')
+
+    const blob = browserPlayable
+      ? new Blob([bytes], { type: data.mimeType || 'audio/wav' })
+      : pcm16MonoToWavBlob(bytes, 24000)
+
     const url = URL.createObjectURL(blob)
 
     if (audioRef.current) {
@@ -302,10 +364,33 @@ export default function HocTiengAnhAiClientPage() {
   }
 
   const startLesson = async () => {
-    const opening =
-      mode === 'story'
-        ? `Hello! I'm your ${selectedTeacher.languageLabel} teacher today. Let's start with a gentle short story. Are you ready?`
-        : `Hello! I'm your ${selectedTeacher.languageLabel} teacher. Let's have a natural conversation. How are you today?`
+    const openingByLanguage: Record<LanguageCode, { chat: string; story: string }> = {
+      en: {
+        chat: "Hello! I'm your teacher. Let's have a natural conversation. How are you today?",
+        story: "Hello! Let's start with a gentle short story. Are you ready?",
+      },
+      zh: {
+        chat: '你好！我是你的老师。我们来轻松对话吧，你今天怎么样？',
+        story: '你好！我们来听一个轻松的小故事，好吗？',
+      },
+      hi: {
+        chat: 'नमस्ते! मैं आपका शिक्षक हूँ। चलिए आज एक आसान बातचीत करते हैं।',
+        story: 'नमस्ते! चलिए एक हल्की और छोटी कहानी से शुरू करते हैं।',
+      },
+      th: {
+        chat: 'สวัสดีครับ/ค่ะ ฉันคือครูของคุณ เรามาคุยกันแบบสบาย ๆ กันนะ',
+        story: 'สวัสดีครับ/ค่ะ เรามาเริ่มจากเรื่องสั้นเบา ๆ กันนะ',
+      },
+      ja: {
+        chat: 'こんにちは。先生です。気軽に会話の練習をしましょう。',
+        story: 'こんにちは。やさしい短い物語から始めましょう。',
+      },
+      ko: {
+        chat: '안녕하세요. 선생님입니다. 편하게 대화 연습을 시작해 볼까요?',
+        story: '안녕하세요. 부드러운 짧은 이야기로 시작해 볼게요.',
+      },
+    }
+    const opening = mode === 'story' ? openingByLanguage[languageCode].story : openingByLanguage[languageCode].chat
     appendMessage('teacher', opening)
     try {
       await playTts(opening)
@@ -413,7 +498,7 @@ export default function HocTiengAnhAiClientPage() {
                   className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
                 >
                   <option value="chat">Hội thoại thường ngày</option>
-                  <option value="story">Kể chuyện tiếng Anh nhẹ nhàng</option>
+                  <option value="story">Kể chuyện {selectedLanguageLabel} nhẹ nhàng</option>
                 </select>
               </div>
             </div>
