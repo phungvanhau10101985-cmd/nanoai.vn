@@ -6,6 +6,7 @@ import {
   SlidersHorizontal,
   ImagePlus,
   Radio,
+  Languages,
 } from 'lucide-react'
 import { TryOnIcon } from '@/components/icons/try-on-icon'
 import { ImageRestorationIcon } from '@/components/icons/image-restoration-icon'
@@ -57,6 +58,7 @@ export const AI_TOOLS = [
   { href: '/ai-dj', label: 'AI DJ', icon: SlidersHorizontal },
   { href: '/nhac-theo-cam-xuc-anh', label: 'Nhạc theo cảm xúc ảnh', icon: ImagePlus },
   { href: '/dieu-khien-nhac-realtime', label: 'Điều khiển nhạc realtime', icon: Radio },
+  { href: '/hoc-tieng-anh-ai', label: 'Học ngoại ngữ AI', icon: Languages },
   // { href: '/tao-video-tu-anh', label: 'Tạo video từ ảnh', icon: Video }, // Tạm ẩn
 ] as const
 
@@ -120,6 +122,12 @@ export const NAV_GROUPS = [
       { href: '/ai-dj', label: 'AI DJ', icon: SlidersHorizontal },
       { href: '/nhac-theo-cam-xuc-anh', label: 'Nhạc theo cảm xúc ảnh', icon: ImagePlus },
       { href: '/dieu-khien-nhac-realtime', label: 'Điều khiển nhạc realtime', icon: Radio },
+    ],
+  },
+  {
+    title: 'Học tập AI',
+    links: [
+      { href: '/hoc-tieng-anh-ai', label: 'Học ngoại ngữ AI', icon: Languages },
     ],
   },
 ] as const
