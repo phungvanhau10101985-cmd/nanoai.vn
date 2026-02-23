@@ -48,6 +48,18 @@ const nextConfig = {
                     { key: 'Cache-Control', value: 'no-cache, no-store, must-revalidate' },
                 ],
             },
+            {
+                source: '/_next/static/:buildId/_buildManifest.js',
+                headers: [
+                    { key: 'Cache-Control', value: 'no-cache, no-store, must-revalidate' },
+                ],
+            },
+            {
+                source: '/_next/static/:buildId/_ssgManifest.js',
+                headers: [
+                    { key: 'Cache-Control', value: 'no-cache, no-store, must-revalidate' },
+                ],
+            },
         ];
     },
 };
@@ -58,6 +70,16 @@ const withPWA = withPWAInit({
     register: true,
     skipWaiting: true,
     runtimeCaching: [
+        {
+            // Never cache navigation HTML in SW to avoid stale buildId references after deploy.
+            urlPattern: ({ request }) => request.mode === 'navigate',
+            handler: 'NetworkOnly',
+        },
+        {
+            // Manifest files must always come from network; stale SW cache causes 404 loop on new builds.
+            urlPattern: /\/_next\/static\/[^/]+\/(?:_buildManifest|_ssgManifest)\.js$/i,
+            handler: 'NetworkOnly',
+        },
         {
             urlPattern: /^https:\/\/fonts\.(?:gstatic|googleapis)\.com\/.*/i,
             handler: 'CacheFirst',
