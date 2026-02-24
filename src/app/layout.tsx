@@ -8,6 +8,7 @@ import { Header } from "@/components/layout/header";
 import { DepositCreditProvider } from "@/components/deposit-credit-context";
 import { buildMetadata, buildJsonLdWebApplication, buildJsonLdOrganization, SITE_URL, SITE_NAME } from "@/lib/seo";
 import { JsonLd } from "@/components/seo-json-ld";
+import { getCurrentWebLocale, getServerDictionary } from '@/lib/i18n/server'
 
 const MobileBottomBar = dynamic(
   () => import("@/components/layout/mobile-bottom-bar").then((m) => m.MobileBottomBar),
@@ -87,15 +88,17 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const locale = getCurrentWebLocale()
+  const { t } = getServerDictionary()
   const webAppLd = buildJsonLdWebApplication(
     SITE_NAME,
-    "NanoAI - Sáng tạo không giới hạn cùng AI. Thử đồ ảo, phục dựng ảnh, làm nét ảnh, ghép ảnh với AI.",
+    t.app.defaultDescription,
     SITE_URL
   );
   const orgLd = buildJsonLdOrganization();
 
   return (
-    <html lang="vi">
+    <html lang={locale}>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen safe-area-pb`}
       >

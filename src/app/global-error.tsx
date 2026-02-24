@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
+import { DEFAULT_WEB_LOCALE } from '@/lib/i18n/config'
 
 export default function GlobalError({
   error,
@@ -14,7 +15,7 @@ export default function GlobalError({
   }, [error])
 
   return (
-    <html lang="vi">
+    <html lang={DEFAULT_WEB_LOCALE}>
       <body>
         <div
           style={{

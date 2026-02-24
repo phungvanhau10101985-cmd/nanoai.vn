@@ -25,10 +25,41 @@ function isRestrictedInAppBrowser(): boolean {
 }
 
 export function ImagePreview({ src, alt, className }: ImagePreviewProps) {
+  const [uiLocale, setUiLocale] = useState<'vi' | 'en' | 'zh' | 'ja' | 'ko'>('vi')
   const [isOpen, setIsOpen] = useState(false)
   const imageRef = useRef<HTMLImageElement>(null)
   const hasPushedHistoryRef = useRef(false)
   const closingFromPopStateRef = useRef(false)
+  const tr = (vi: string, en: string, zh: string, ja: string, ko: string) => {
+    if (uiLocale === 'en') return en
+    if (uiLocale === 'zh') return zh
+    if (uiLocale === 'ja') return ja
+    if (uiLocale === 'ko') return ko
+    return vi
+  }
+
+  useEffect(() => {
+    const syncLocale = () => {
+      const cookieValue = document.cookie
+        .split(';')
+        .map((x) => x.trim())
+        .find((x) => x.startsWith('nanoai_locale='))
+        ?.split('=')[1]
+        ?.trim()
+        .toLowerCase()
+      if (cookieValue === 'en' || cookieValue === 'zh' || cookieValue === 'ja' || cookieValue === 'ko') setUiLocale(cookieValue)
+      else setUiLocale('vi')
+    }
+    syncLocale()
+    const timer = window.setInterval(syncLocale, 1000)
+    window.addEventListener('focus', syncLocale)
+    document.addEventListener('visibilitychange', syncLocale)
+    return () => {
+      window.removeEventListener('focus', syncLocale)
+      document.removeEventListener('visibilitychange', syncLocale)
+      window.clearInterval(timer)
+    }
+  }, [])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -108,7 +139,7 @@ export function ImagePreview({ src, alt, className }: ImagePreviewProps) {
         <button
           type="button"
           className={`relative cursor-pointer group block w-full h-full min-w-0 min-h-0 border-0 p-0 bg-transparent text-left ${className}`}
-          aria-label="Xem ảnh phóng to"
+          aria-label={tr('Xem ảnh phóng to', 'View enlarged image', '查看大图', '拡大画像を表示', '확대 이미지 보기')}
         >
           <Image
             src={src}
@@ -130,17 +161,17 @@ export function ImagePreview({ src, alt, className }: ImagePreviewProps) {
                   variant="ghost"
                   size="icon"
                   className="text-white hover:text-white bg-white/20 hover:bg-white/40 rounded-full border border-white/30"
-                  title="Tải ảnh xuống"
+                  title={tr('Tải ảnh xuống', 'Download image', '下载图片', '画像をダウンロード', '이미지 다운로드')}
                 >
                   <Download className="h-6 w-6" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={() => handleDownload('png')}>
-                  Lưu dưới dạng PNG (Chất lượng cao nhất)
+                  {tr('Lưu dưới dạng PNG (Chất lượng cao nhất)', 'Save as PNG (Highest quality)', '保存为 PNG（最高质量）', 'PNGで保存（最高画質）', 'PNG로 저장 (최고 품질)')}
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => handleDownload('jpeg')}>
-                  Lưu dưới dạng JPG (Chất lượng cao)
+                  {tr('Lưu dưới dạng JPG (Chất lượng cao)', 'Save as JPG (High quality)', '保存为 JPG（高质量）', 'JPGで保存（高画質）', 'JPG로 저장 (고품질)')}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -150,7 +181,7 @@ export function ImagePreview({ src, alt, className }: ImagePreviewProps) {
               size="icon"
               className="text-white hover:text-white bg-white/20 hover:bg-white/40 rounded-full border border-white/30"
               onClick={() => handleOpenChange(false)}
-              title="Đóng"
+              title={tr('Đóng', 'Close', '关闭', '閉じる', '닫기')}
             >
               <X className="h-6 w-6" />
             </Button>

@@ -8,6 +8,7 @@ import { JsonLd } from '@/components/seo-json-ld'
 import { getFeatureSeo, buildFeatureFaqJsonLd } from '@/lib/feature-seo'
 import { FeatureSeoSection } from '@/components/feature-seo-section'
 import { Suspense } from 'react'
+import { getCurrentWebLocale } from '@/lib/i18n/server'
 
 const MODE_MAP: Record<string, { mode: 'single' | 'couple' | 'group' | 'group4' | 'group5'; title: string; description: string; keywords: string[] }> = {
   '1-nguoi': { mode: 'single', title: 'Thử đồ 1 người', description: 'Thử đồ ảo 1 người với AI. Tải ảnh của bạn và ảnh trang phục, AI sẽ áp trang phục lên người. Hỗ trợ 2K, 4K.', keywords: ['thử đồ 1 người', 'thử đồ ảo', 'AI thử đồ', 'phối đồ'] },
@@ -40,6 +41,7 @@ export async function generateMetadata({ params }: { params: { slug: string } })
 }
 
 export default async function TryOnSlugPage({ params }: { params: { slug: string } }) {
+  const locale = getCurrentWebLocale()
   const config = MODE_MAP[params.slug]
   if (!config) notFound()
 
@@ -64,7 +66,7 @@ export default async function TryOnSlugPage({ params }: { params: { slug: string
     <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <JsonLd data={jsonLd} />
       {faqJsonLd && <JsonLd data={faqJsonLd} />}
-      <Suspense fallback={<div className="text-sm text-muted-foreground">Đang tải công cụ thử đồ...</div>}>
+      <Suspense fallback={<div className="text-sm text-muted-foreground">{locale === 'vi' ? 'Đang tải công cụ thử đồ...' : locale === 'en' ? 'Loading virtual try-on tool...' : locale === 'zh' ? '正在加载试衣工具...' : locale === 'ja' ? 'バーチャル試着ツールを読み込み中...' : '가상피팅 도구를 불러오는 중...'}</div>}>
         <TryOnClientPage gender={gender} initialMode={config.mode} />
       </Suspense>
       {seo && <FeatureSeoSection seo={seo} />}

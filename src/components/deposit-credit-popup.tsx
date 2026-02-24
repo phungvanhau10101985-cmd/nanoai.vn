@@ -60,6 +60,7 @@ interface DepositCreditPopupProps {
 
 export function DepositCreditPopup({ open, onOpenChange, returnPath, onCreditsUpdated }: DepositCreditPopupProps) {
   const router = useRouter()
+  const [uiLocale, setUiLocale] = useState<'vi' | 'en' | 'zh' | 'ja' | 'ko'>('vi')
   const [amount, setAmount] = useState(6000)
   const [configs, setConfigs] = useState<PaymentConfig[]>([])
   const [selectedConfigId, setSelectedConfigId] = useState<string>('')
@@ -68,6 +69,13 @@ export function DepositCreditPopup({ open, onOpenChange, returnPath, onCreditsUp
   const [creating, setCreating] = useState(false)
   const createPressLockRef = useRef(false)
   const supabase = createClient()
+  const tr = (vi: string, en: string, zh: string, ja: string, ko: string) => {
+    if (uiLocale === 'en') return en
+    if (uiLocale === 'zh') return zh
+    if (uiLocale === 'ja') return ja
+    if (uiLocale === 'ko') return ko
+    return vi
+  }
 
   const fetchConfigs = useCallback(async () => {
     const { data, error } = await supabase
@@ -84,7 +92,7 @@ export function DepositCreditPopup({ open, onOpenChange, returnPath, onCreditsUp
     const { data: { user } } = await supabase.auth.getUser()
     const userId = user?.id ?? (isLocalhost() ? getDevUserId() : null)
     if (!userId) {
-      toast({ title: 'Lỗi', description: 'Vui lòng đăng nhập để nạp tiền.', variant: 'destructive' })
+      toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: tr('Vui lòng đăng nhập để nạp tiền.', 'Please sign in to top up.', '请登录后充值。', 'チャージするにはログインしてください。', '충전하려면 로그인해 주세요.'), variant: 'destructive' })
       return
     }
     const effectiveConfigId = selectedConfigId || configs[0]?.id || ''
@@ -121,7 +129,7 @@ export function DepositCreditPopup({ open, onOpenChange, returnPath, onCreditsUp
       setPayment(pay)
     } catch (e) {
       console.error(e)
-      toast({ title: 'Lỗi', description: 'Không thể tạo giao dịch', variant: 'destructive' })
+      toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: tr('Không thể tạo giao dịch', 'Cannot create transaction', '无法创建交易', '取引を作成できません', '거래를 생성할 수 없습니다'), variant: 'destructive' })
     } finally {
       setCreating(false)
     }
@@ -130,11 +138,11 @@ export function DepositCreditPopup({ open, onOpenChange, returnPath, onCreditsUp
   const handleCreatePaymentPress = async () => {
     if (createPressLockRef.current || creating) return
     if (!configs.length) {
-      toast({ title: 'Đang tải', description: 'Vui lòng chờ cấu hình ngân hàng tải xong.', variant: 'destructive' })
+      toast({ title: tr('Đang tải', 'Loading', '加载中', '読み込み中', '불러오는 중'), description: tr('Vui lòng chờ cấu hình ngân hàng tải xong.', 'Please wait for bank config to load.', '请等待银行配置加载完成。', '銀行設定の読み込み完了までお待ちください。', '은행 설정이 로드될 때까지 기다려 주세요.'), variant: 'destructive' })
       return
     }
     if (amount < 1000) {
-      toast({ title: 'Lỗi', description: 'Số tiền tối thiểu 1.000 VND.', variant: 'destructive' })
+      toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: tr('Số tiền tối thiểu 1.000 VND.', 'Minimum amount is 1,000 VND.', '最低金额为 1,000 VND。', '最小金額は1,000 VNDです。', '최소 금액은 1,000 VND입니다.'), variant: 'destructive' })
       return
     }
     createPressLockRef.current = true
@@ -149,7 +157,7 @@ export function DepositCreditPopup({ open, onOpenChange, returnPath, onCreditsUp
 
   const copyToClipboard = async (text: string, label: string) => {
     await navigator.clipboard.writeText(text)
-    toast({ title: 'Đã sao chép', description: label })
+    toast({ title: tr('Đã sao chép', 'Copied', '已复制', 'コピーしました', '복사됨'), description: label })
   }
 
   const downloadQr = () => {
@@ -170,10 +178,30 @@ export function DepositCreditPopup({ open, onOpenChange, returnPath, onCreditsUp
   }
 
   useEffect(() => {
+    const syncLocale = () => {
+      const cookieValue = document.cookie
+        .split(';')
+        .map((x) => x.trim())
+        .find((x) => x.startsWith('nanoai_locale='))
+        ?.split('=')[1]
+        ?.trim()
+        .toLowerCase()
+      if (cookieValue === 'en' || cookieValue === 'zh' || cookieValue === 'ja' || cookieValue === 'ko') setUiLocale(cookieValue)
+      else setUiLocale('vi')
+    }
+    syncLocale()
+    const timer = window.setInterval(syncLocale, 1000)
+    window.addEventListener('focus', syncLocale)
+    document.addEventListener('visibilitychange', syncLocale)
     if (open) {
       fetchConfigs()
       setPayment(null)
       setPaymentSuccess(null)
+    }
+    return () => {
+      window.removeEventListener('focus', syncLocale)
+      document.removeEventListener('visibilitychange', syncLocale)
+      window.clearInterval(timer)
     }
   }, [open, fetchConfigs])
 
@@ -200,8 +228,8 @@ export function DepositCreditPopup({ open, onOpenChange, returnPath, onCreditsUp
         window.dispatchEvent(new CustomEvent('credits-updated'))
         router.refresh()
         toast({
-          title: 'Nạp thành công!',
-          description: `Đã nạp ${formatNumber(data.amount)}₫, nhận ${data.credits_added} credits.`,
+          title: tr('Nạp thành công!', 'Top-up successful!', '充值成功！', 'チャージ成功！', '충전 성공!'),
+          description: `${tr('Đã nạp', 'Topped up', '已充值', 'チャージ済み', '충전 완료')} ${formatNumber(data.amount)}₫, ${tr('nhận', 'received', '获得', '受け取り', '수령')} ${data.credits_added} credits.`,
           duration: 5000,
         })
         // Đóng popup sau 10 giây, khách có thể tự tắt sớm hơn
@@ -223,10 +251,10 @@ export function DepositCreditPopup({ open, onOpenChange, returnPath, onCreditsUp
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CreditCard className="h-5 w-5" />
-            Nạp Credits
+            {tr('Nạp Credits', 'Top up credits', '充值积分', 'クレジットをチャージ', '크레딧 충전')}
           </DialogTitle>
           <DialogDescription>
-            Chọn số tiền, quét QR hoặc mở app ngân hàng để thanh toán
+            {tr('Chọn số tiền, quét QR hoặc mở app ngân hàng để thanh toán', 'Choose amount, scan QR, or open bank app to pay', '选择金额，扫码或打开银行App支付', '金額を選択し、QRスキャンまたは銀行アプリで支払い', '금액 선택 후 QR 스캔 또는 은행 앱으로 결제')}
           </DialogDescription>
         </DialogHeader>
 
@@ -235,13 +263,13 @@ export function DepositCreditPopup({ open, onOpenChange, returnPath, onCreditsUp
             <div className="rounded-full bg-green-100 p-4">
               <CheckCircle className="h-16 w-16 text-green-600" />
             </div>
-            <h3 className="text-xl font-semibold text-green-700">Nạp thành công!</h3>
+            <h3 className="text-xl font-semibold text-green-700">{tr('Nạp thành công!', 'Top-up successful!', '充值成功！', 'チャージ成功！', '충전 성공!')}</h3>
             <p className="text-center text-muted-foreground">
-              Đã nạp <span className="font-bold text-green-600">{formatNumber(paymentSuccess.amount)}₫</span>
+              {tr('Đã nạp', 'Topped up', '已充值', 'チャージ済み', '충전 완료')} <span className="font-bold text-green-600">{formatNumber(paymentSuccess.amount)}₫</span>
               <br />
-              Nhận <span className="font-bold text-green-600">{paymentSuccess.credits_added} credits</span> vào tài khoản
+              {tr('Nhận', 'Received', '获得', '受け取り', '수령')} <span className="font-bold text-green-600">{paymentSuccess.credits_added} credits</span> {tr('vào tài khoản', 'to your account', '到你的账户', 'アカウントへ', '계정으로')}
             </p>
-            <p className="text-sm text-muted-foreground">Đóng sau 10 giây hoặc bấm bên dưới</p>
+            <p className="text-sm text-muted-foreground">{tr('Đóng sau 10 giây hoặc bấm bên dưới', 'Auto-close in 10 seconds or click below', '10秒后自动关闭或点击下方', '10秒後に自動で閉じるか下をクリック', '10초 후 자동 닫힘 또는 아래 버튼 클릭')}</p>
             <Button
               onClick={() => {
                 setPaymentSuccess(null)
@@ -250,13 +278,13 @@ export function DepositCreditPopup({ open, onOpenChange, returnPath, onCreditsUp
               }}
               className="mt-2"
             >
-              Đóng
+              {tr('Đóng', 'Close', '关闭', '閉じる', '닫기')}
             </Button>
           </div>
         ) : !payment ? (
           <div className="space-y-4 pb-6">
             <div className="space-y-2">
-              <Label>Số tiền (VND)</Label>
+              <Label>{tr('Số tiền (VND)', 'Amount (VND)', '金额 (VND)', '金額 (VND)', '금액 (VND)')}</Label>
               <div className="flex flex-wrap gap-2">
                 {PRESET_AMOUNTS.map((a) => (
                   <Button
@@ -278,13 +306,13 @@ export function DepositCreditPopup({ open, onOpenChange, returnPath, onCreditsUp
                 step={1000}
               />
               <p className="text-sm text-muted-foreground">
-                Sẽ nhận: <span className="font-semibold text-green-600">{Math.floor(amount / 6000)} credits</span>
+                {tr('Sẽ nhận', 'You will receive', '将获得', '受け取る', '받게 되는')} <span className="font-semibold text-green-600">{Math.floor(amount / 6000)} credits</span>
               </p>
             </div>
 
             {configs.length > 1 && (
               <div className="space-y-3">
-                <Label className="text-sm font-medium">Chọn ngân hàng</Label>
+                <Label className="text-sm font-medium">{tr('Chọn ngân hàng', 'Choose bank', '选择银行', '銀行を選択', '은행 선택')}</Label>
                 <div className="grid gap-3">
                   {configs.map((c) => (
                     <button
@@ -324,7 +352,7 @@ export function DepositCreditPopup({ open, onOpenChange, returnPath, onCreditsUp
               {creating ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
               ) : (
-                configs.length ? 'Tạo mã thanh toán' : 'Đang tải cấu hình ngân hàng...'
+                configs.length ? tr('Tạo mã thanh toán', 'Create payment QR', '创建支付码', '支払いQRを作成', '결제 QR 생성') : tr('Đang tải cấu hình ngân hàng...', 'Loading bank config...', '正在加载银行配置...', '銀行設定を読み込み中...', '은행 설정 불러오는 중...')
               )}
             </Button>
           </div>
@@ -343,53 +371,53 @@ export function DepositCreditPopup({ open, onOpenChange, returnPath, onCreditsUp
               <div className="border-2 rounded-lg p-2 sm:p-3 bg-white shrink-0">
                 <img
                   src={payment.qr_url}
-                  alt="QR Thanh toán"
+                  alt={tr('QR Thanh toán', 'Payment QR', '支付二维码', '支払いQR', '결제 QR')}
                   className="w-36 h-36 sm:w-48 sm:h-48 object-contain"
                 />
               </div>
               <Button variant="outline" className="w-full" onClick={downloadQr}>
                 <Download className="mr-2 h-4 w-4" />
-                Lưu mã QR
+                {tr('Lưu mã QR', 'Save QR image', '保存二维码', 'QR画像を保存', 'QR 저장')}
               </Button>
             </div>
 
             {/* Bước 3: Thông tin thủ công */}
             <div className="space-y-2 sm:space-y-3 rounded-lg border p-3 sm:p-4 bg-muted/50 text-sm sm:text-base">
-              <p className="text-sm font-medium">Hoặc chuyển khoản thủ công:</p>
+              <p className="text-sm font-medium">{tr('Hoặc chuyển khoản thủ công:', 'Or transfer manually:', '或手动转账：', 'または手動振込：', '또는 수동 이체:')}</p>
               <div className="flex items-center justify-between gap-2">
-                <span className="text-sm text-muted-foreground">Ngân hàng:</span>
+                <span className="text-sm text-muted-foreground">{tr('Ngân hàng', 'Bank', '银行', '銀行', '은행')}:</span>
                 <span className="font-semibold">{config?.bank_name || payment.bank_name}</span>
               </div>
               <div className="flex items-center justify-between gap-2">
-                <span className="text-sm text-muted-foreground">Chủ tài khoản:</span>
+                <span className="text-sm text-muted-foreground">{tr('Chủ tài khoản', 'Account holder', '账户名', '口座名義', '예금주')}:</span>
                 <span className="font-semibold">{config?.account_holder_name || '—'}</span>
               </div>
               <div className="flex items-center justify-between gap-2">
-                <span className="text-sm text-muted-foreground">Số tài khoản:</span>
+                <span className="text-sm text-muted-foreground">{tr('Số tài khoản', 'Account number', '账号', '口座番号', '계좌번호')}:</span>
                 <div className="flex items-center gap-2">
                   <code className="font-mono font-semibold">{payment.bank_account}</code>
-                  <Button size="sm" variant="ghost" onClick={() => copyToClipboard(payment.bank_account || '', 'Số tài khoản')}>
+                  <Button size="sm" variant="ghost" onClick={() => copyToClipboard(payment.bank_account || '', tr('Số tài khoản', 'Account number', '账号', '口座番号', '계좌번호'))}>
                     <Copy className="h-4 w-4" />
                   </Button>
                 </div>
               </div>
               <div className="flex items-center justify-between gap-2">
-                <span className="text-sm text-muted-foreground">Nội dung:</span>
+                <span className="text-sm text-muted-foreground">{tr('Nội dung', 'Transfer note', '转账内容', '振込内容', '입금 내용')}:</span>
                 <div className="flex items-center gap-2">
                   <code className="font-mono font-semibold">{payment.transaction_content}</code>
-                  <Button size="sm" variant="ghost" onClick={() => copyToClipboard(payment.transaction_content || '', 'Nội dung chuyển khoản')}>
+                  <Button size="sm" variant="ghost" onClick={() => copyToClipboard(payment.transaction_content || '', tr('Nội dung chuyển khoản', 'Transfer note', '转账备注', '振込内容', '입금 내용'))}>
                     <Copy className="h-4 w-4" />
                   </Button>
                 </div>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Số tiền:</span>
+                <span className="text-sm text-muted-foreground">{tr('Số tiền', 'Amount', '金额', '金額', '금액')}:</span>
                 <span className="font-bold">{formatNumber(payment.amount)}₫</span>
               </div>
             </div>
 
             <Button variant="outline" className="w-full" onClick={() => setPayment(null)}>
-              Tạo giao dịch mới
+              {tr('Tạo giao dịch mới', 'Create new transaction', '创建新交易', '新しい取引を作成', '새 거래 생성')}
             </Button>
           </div>
         )}

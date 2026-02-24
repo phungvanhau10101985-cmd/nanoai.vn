@@ -29,13 +29,19 @@ type Step = 'USER_UPLOAD' | 'GARMENT_UPLOAD' | 'GENERATING' | 'RESULT'
 // Chỉ sử dụng chất lượng cao
 type Gender = 'male' | 'female' | 'unknown'
 type TryOnMode = 'single' | 'couple' | 'group' | 'group4' | 'group5'
+type UiLocale = 'vi' | 'en' | 'zh' | 'ja' | 'ko'
 
-const SUBTITLE_MAP: Record<TryOnMode, string> = {
-  single: 'Thử đồ 1 người với AI',
-  couple: 'Thử đồ 2 người với AI',
-  group: 'Thử đồ 3 người với AI',
-  group4: 'Thử đồ 4 người với AI',
-  group5: 'Thử đồ 5 người với AI',
+function getWebLocaleFromCookie(): UiLocale {
+  if (typeof document === 'undefined') return 'vi'
+  const cookieValue = document.cookie
+    .split(';')
+    .map((x) => x.trim())
+    .find((x) => x.startsWith('nanoai_locale='))
+    ?.split('=')[1]
+    ?.trim()
+    .toLowerCase()
+  if (cookieValue === 'en' || cookieValue === 'zh' || cookieValue === 'ja' || cookieValue === 'ko') return cookieValue
+  return 'vi'
 }
 
 interface ImageState {
@@ -44,6 +50,7 @@ interface ImageState {
 }
 
 export default function TryOnClientPage({ gender: initialGender, initialMode = 'single' }: { gender: Gender; initialMode?: TryOnMode }) {
+  const [uiLocale, setUiLocale] = useState<UiLocale>('vi')
   const [currentGender, setCurrentGender] = useState<Gender>(initialGender)
   const [step, setStep] = useState<Step>('USER_UPLOAD')
   const [tryOnMode, setTryOnMode] = useState<TryOnMode>(initialMode)
@@ -67,6 +74,20 @@ export default function TryOnClientPage({ gender: initialGender, initialMode = '
   const [imageQuality, setImageQuality] = useState<'2K' | '4K'>('2K')
   const { toast } = useToast()
   const { checkCreditsAndProceed } = useCredits()
+  const tr = (vi: string, en: string, zh: string, ja: string, ko: string) => {
+    if (uiLocale === 'en') return en
+    if (uiLocale === 'zh') return zh
+    if (uiLocale === 'ja') return ja
+    if (uiLocale === 'ko') return ko
+    return vi
+  }
+  const subtitle = {
+    single: tr('Thử đồ 1 người với AI', 'AI try-on for 1 person', 'AI 单人试衣', 'AI 1人試着', 'AI 1인 가상피팅'),
+    couple: tr('Thử đồ 2 người với AI', 'AI try-on for 2 people', 'AI 双人试衣', 'AI 2人試着', 'AI 2인 가상피팅'),
+    group: tr('Thử đồ 3 người với AI', 'AI try-on for 3 people', 'AI 3人试衣', 'AI 3人試着', 'AI 3인 가상피팅'),
+    group4: tr('Thử đồ 4 người với AI', 'AI try-on for 4 people', 'AI 4人试衣', 'AI 4人試着', 'AI 4인 가상피팅'),
+    group5: tr('Thử đồ 5 người với AI', 'AI try-on for 5 people', 'AI 5人试衣', 'AI 5人試着', 'AI 5인 가상피팅'),
+  } as const
 
   const isFemale = currentGender === 'female'
   const theme = {
@@ -154,7 +175,9 @@ export default function TryOnClientPage({ gender: initialGender, initialMode = '
       : tryOnMode === 'group' ? leftGarmentImages.length + middleGarmentImages.length + rightGarmentImages.length
       : tryOnMode === 'group4' ? person1Images.length + person2Images.length + person3Images.length + person4Images.length
       : person1Images.length + person2Images.length + person3Images.length + person4Images.length + person5Images.length
-    const buttonLabel = totalGarmentCount >= 2 ? 'Phối Đồ' : 'Thử Đồ'
+    const buttonLabel = totalGarmentCount >= 2
+      ? tr('Phối đồ', 'Mix outfits', '服装搭配', 'コーデ作成', '코디 조합')
+      : tr('Thử đồ', 'Try-on', '试衣', '試着', '가상피팅')
 
   const handleSubmit = async () => {
     const isSingleInvalid = tryOnMode === 'single' && garmentImages.length === 0;
@@ -164,7 +187,7 @@ export default function TryOnClientPage({ gender: initialGender, initialMode = '
     const isGroup5Invalid = tryOnMode === 'group5' && person1Images.length === 0 && person2Images.length === 0 && person3Images.length === 0 && person4Images.length === 0 && person5Images.length === 0;
 
     if (!userImage.file || isSingleInvalid || isCoupleInvalid || isGroup3Invalid || isGroup4Invalid || isGroup5Invalid) {
-      toast({ title: 'Lỗi', description: 'Vui lòng tải lên ảnh của bạn và ít nhất một ảnh sản phẩm.', variant: 'destructive' })
+      toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: tr('Vui lòng tải lên ảnh của bạn và ít nhất một ảnh sản phẩm.', 'Please upload your photo and at least one garment image.', '请上传你的照片和至少一张服装图片。', 'あなたの写真と少なくとも1枚の服画像をアップロードしてください。', '사용자 사진과 의상 이미지를 최소 1장 업로드해 주세요.'), variant: 'destructive' })
       return
     }
 
@@ -218,8 +241,8 @@ export default function TryOnClientPage({ gender: initialGender, initialMode = '
     if (result.error) {
       console.error('Generation failed:', result.error)
       toast({ 
-        title: 'Tạo ảnh thất bại', 
-        description: result.error || 'Có lỗi xảy ra khi tạo ảnh. Vui lòng thử lại.', 
+        title: tr('Tạo ảnh thất bại', 'Image generation failed', '生成失败', '生成に失敗しました', '생성 실패'), 
+        description: result.error || tr('Có lỗi xảy ra khi tạo ảnh. Vui lòng thử lại.', 'An error occurred while generating the image. Please try again.', '生成图片时发生错误，请重试。', '画像生成中にエラーが発生しました。再試行してください。', '이미지 생성 중 오류가 발생했습니다. 다시 시도해 주세요.'), 
         variant: 'destructive',
         duration: 5000
       })
@@ -230,15 +253,15 @@ export default function TryOnClientPage({ gender: initialGender, initialMode = '
       setResultUrl(result.resultUrl)
       setStep('RESULT')
       toast({ 
-        title: 'Thành công!', 
-        description: 'Ảnh thử đồ của bạn đã sẵn sàng.',
+        title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'), 
+        description: tr('Ảnh thử đồ của bạn đã sẵn sàng.', 'Your try-on image is ready.', '试衣结果已准备好。', '試着画像の準備ができました。', '가상피팅 결과가 준비되었습니다.'),
         duration: 3000
       })
     } else {
       console.error('Unexpected result format:', result)
       toast({ 
-        title: 'Lỗi không xác định', 
-        description: 'Có lỗi xảy ra. Vui lòng thử lại.',
+        title: tr('Lỗi không xác định', 'Unknown error', '未知错误', '不明なエラー', '알 수 없는 오류'), 
+        description: tr('Có lỗi xảy ra. Vui lòng thử lại.', 'Something went wrong. Please try again.', '发生错误，请重试。', 'エラーが発生しました。再試行してください。', '문제가 발생했습니다. 다시 시도해 주세요.'),
         variant: 'destructive',
         duration: 5000
       })
@@ -266,11 +289,21 @@ export default function TryOnClientPage({ gender: initialGender, initialMode = '
   const pathname = usePathname()
   const router = useRouter()
   useEffect(() => {
+    const syncLocale = () => setUiLocale(getWebLocaleFromCookie())
+    syncLocale()
+    const timer = window.setInterval(syncLocale, 1000)
     if (searchParams.get('reset')) {
       handleReset()
       router.replace(pathname, { scroll: false })
     }
-  }, [searchParams])
+    window.addEventListener('focus', syncLocale)
+    document.addEventListener('visibilitychange', syncLocale)
+    return () => {
+      window.removeEventListener('focus', syncLocale)
+      document.removeEventListener('visibilitychange', syncLocale)
+      window.clearInterval(timer)
+    }
+  }, [searchParams, pathname, router])
 
   const renderContent = () => {
     switch (step) {
@@ -278,16 +311,16 @@ export default function TryOnClientPage({ gender: initialGender, initialMode = '
       case 'GARMENT_UPLOAD':
         return (
           <div className="space-y-8">
-            <p className="text-xs sm:text-sm text-muted-foreground mb-2">{SUBTITLE_MAP[tryOnMode]}</p>
+            <p className="text-xs sm:text-sm text-muted-foreground mb-2">{subtitle[tryOnMode]}</p>
             <div className="grid lg:grid-cols-[1fr_200px] gap-4 items-start">
               {/* Image Upload Area - flexible width */}
               <div className="min-w-0 grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Card className={cn('border shadow-sm bg-white/80 backdrop-blur', theme.cardBorder)}>
                   <CardHeader className="p-4 pb-2">
                     <CardTitle className="flex items-center gap-2 text-base">
-                      <Upload className={cn('h-4 w-4', theme.accentText)} /> Bước 1: Ảnh của bạn
+                      <Upload className={cn('h-4 w-4', theme.accentText)} /> {tr('Bước 1: Ảnh của bạn', 'Step 1: Your photo', '步骤1：你的照片', 'ステップ1：あなたの写真', '1단계: 내 사진')}
                     </CardTitle>
-                    <CardDescription className="text-xs">Tải lên ảnh chân dung một người hoặc ảnh đôi.</CardDescription>
+                    <CardDescription className="text-xs">{tr('Tải lên ảnh chân dung một người hoặc ảnh đôi.', 'Upload a single portrait or couple photo.', '上传单人或双人照片。', '1人または2人の写真をアップロード。', '1인 또는 2인 사진을 업로드하세요.')}</CardDescription>
                   </CardHeader>
                   <CardContent className="p-4 pt-0">
                     <label className={cn('block w-full aspect-[3/4] rounded-lg border-2 border-dashed flex flex-col items-center justify-center gap-2 relative overflow-hidden group cursor-pointer touch-manipulation min-h-[120px]', theme.dashedBorder, theme.softBg)}>
@@ -296,7 +329,7 @@ export default function TryOnClientPage({ gender: initialGender, initialMode = '
                           <ImagePreview src={userImage.preview} alt="User preview" className="w-full h-full pointer-events-none" />
                           <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 group-active:opacity-100 transition-opacity flex items-center justify-center touch-manipulation" onClick={(e) => { e.preventDefault(); userFileInputRef.current?.click(); }}>
                             <span className="pointer-events-none px-3 py-1.5 rounded-md bg-secondary text-secondary-foreground text-xs font-medium flex items-center gap-2">
-                              <RefreshCw className="h-3 w-3" /> Thay đổi
+                              <RefreshCw className="h-3 w-3" /> {tr('Thay đổi', 'Change', '更换', '変更', '변경')}
                             </span>
                           </div>
                           <input ref={userFileInputRef} key={tryOnMode} type="file" accept="image/*" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer touch-manipulation z-10" style={{ fontSize: 0 }} onChange={(e) => { handleUserImageChange(e); setStep('GARMENT_UPLOAD'); }} />
@@ -307,9 +340,9 @@ export default function TryOnClientPage({ gender: initialGender, initialMode = '
                           <div className={cn("p-2 rounded-full bg-white shadow-sm pointer-events-none", theme.accentText)}>
                              <User className="h-6 w-6" />
                           </div>
-                          <p className="text-xs text-muted-foreground font-medium pointer-events-none">Tải ảnh của bạn</p>
+                          <p className="text-xs text-muted-foreground font-medium pointer-events-none">{tr('Tải ảnh của bạn', 'Upload your photo', '上传你的照片', '写真をアップロード', '내 사진 업로드')}</p>
                           <span className={cn("mt-1 pointer-events-none px-3 py-1.5 rounded-md border text-xs", theme.outlineButton)}>
-                            <Upload className="mr-2 h-3 w-3 inline" /> Chọn ảnh
+                            <Upload className="mr-2 h-3 w-3 inline" /> {tr('Chọn ảnh', 'Choose image', '选择图片', '画像を選択', '이미지 선택')}
                           </span>
                         </>
                       )}
@@ -343,9 +376,9 @@ export default function TryOnClientPage({ gender: initialGender, initialMode = '
                       <Card className={cn('border shadow-sm bg-white/80 backdrop-blur', theme.cardBorder)}>
                         <CardHeader className="p-4 pb-2">
                           <CardTitle className="flex items-center gap-2 text-base">
-                            <Shirt className={cn('h-4 w-4', theme.accentText)} /> Bước 2: Ảnh sản phẩm
+                            <Shirt className={cn('h-4 w-4', theme.accentText)} /> {tr('Bước 2: Ảnh sản phẩm', 'Step 2: Garment images', '步骤2：服装图片', 'ステップ2：服画像', '2단계: 의상 이미지')}
                           </CardTitle>
-                          <CardDescription className="text-xs">Chọn các món đồ bạn muốn thử (tối đa 6 món, {garmentImages.length} ảnh).</CardDescription>
+                          <CardDescription className="text-xs">{tr('Chọn các món đồ bạn muốn thử', 'Choose garments you want to try', '选择想试穿的服装', '試したい服を選択', '가상피팅할 의상을 선택')} ({garmentImages.length}/6)</CardDescription>
                         </CardHeader>
                         <CardContent className="p-4 pt-0">
                           <GarmentUploader
@@ -365,9 +398,9 @@ export default function TryOnClientPage({ gender: initialGender, initialMode = '
                         <Card className={cn('border shadow-sm bg-white/80 backdrop-blur', theme.cardBorder)}>
                           <CardHeader className="p-3 sm:p-4 pb-2">
                             <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
-                              <Shirt className={cn('h-4 w-4', theme.accentText)} /> Người bên trái
+                              <Shirt className={cn('h-4 w-4', theme.accentText)} /> {tr('Người bên trái', 'Left person', '左侧人物', '左の人物', '왼쪽 인물')}
                             </CardTitle>
-                            <CardDescription className="text-xs">Tối đa 6 món đồ.</CardDescription>
+                            <CardDescription className="text-xs">{tr('Tối đa 6 món đồ.', 'Max 6 garments.', '最多 6 件服装。', '最大6点。', '최대 6벌.')}</CardDescription>
                           </CardHeader>
                           <CardContent className="p-4 pt-0">
                             <GarmentUploader
@@ -382,9 +415,9 @@ export default function TryOnClientPage({ gender: initialGender, initialMode = '
                         <Card className={cn('border shadow-sm bg-white/80 backdrop-blur', theme.cardBorder)}>
                            <CardHeader className="p-3 sm:p-4 pb-2">
                             <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
-                              <Shirt className={cn('h-4 w-4', theme.accentText)} /> Người bên phải
+                              <Shirt className={cn('h-4 w-4', theme.accentText)} /> {tr('Người bên phải', 'Right person', '右侧人物', '右の人物', '오른쪽 인물')}
                             </CardTitle>
-                            <CardDescription className="text-xs">Tối đa 6 món đồ.</CardDescription>
+                            <CardDescription className="text-xs">{tr('Tối đa 6 món đồ.', 'Max 6 garments.', '最多 6 件服装。', '最大6点。', '최대 6벌.')}</CardDescription>
                           </CardHeader>
                           <CardContent className="p-4 pt-0">
                              <GarmentUploader
@@ -404,7 +437,7 @@ export default function TryOnClientPage({ gender: initialGender, initialMode = '
                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                         <Card className={cn('border shadow-sm bg-white/80 backdrop-blur', theme.cardBorder)}>
                           <CardHeader className="p-3 sm:p-4 pb-2">
-                            <CardTitle className="flex items-center gap-2 text-sm"><Shirt className="h-4 w-4"/>Trái</CardTitle>
+                            <CardTitle className="flex items-center gap-2 text-sm"><Shirt className="h-4 w-4"/>{tr('Trái', 'Left', '左', '左', '왼쪽')}</CardTitle>
                           </CardHeader>
                           <CardContent className="p-2 pt-0">
                             <GarmentUploader images={leftGarmentImages} onImagesChange={(files) => handleGarmentImageChange(files, 'left')} onImageRemove={(index) => removeGarmentImage(index, 'left')} theme={theme} maxImages={4} compact />
@@ -412,7 +445,7 @@ export default function TryOnClientPage({ gender: initialGender, initialMode = '
                         </Card>
                         <Card className={cn('border shadow-sm bg-white/80 backdrop-blur', theme.cardBorder)}>
                            <CardHeader className="p-4 pb-2">
-                            <CardTitle className="flex items-center gap-2 text-sm"><Shirt className="h-4 w-4"/>Giữa / Trên</CardTitle>
+                            <CardTitle className="flex items-center gap-2 text-sm"><Shirt className="h-4 w-4"/>{tr('Giữa / Trên', 'Middle / Top', '中间 / 上方', '中央 / 上', '가운데 / 위')}</CardTitle>
                           </CardHeader>
                           <CardContent className="p-2 pt-0">
                              <GarmentUploader images={middleGarmentImages} onImagesChange={(files) => handleGarmentImageChange(files, 'middle')} onImageRemove={(index) => removeGarmentImage(index, 'middle')} theme={theme} maxImages={4} compact />
@@ -420,7 +453,7 @@ export default function TryOnClientPage({ gender: initialGender, initialMode = '
                         </Card>
                         <Card className={cn('border shadow-sm bg-white/80 backdrop-blur', theme.cardBorder)}>
                            <CardHeader className="p-4 pb-2">
-                            <CardTitle className="flex items-center gap-2 text-sm"><Shirt className="h-4 w-4"/>Phải</CardTitle>
+                            <CardTitle className="flex items-center gap-2 text-sm"><Shirt className="h-4 w-4"/>{tr('Phải', 'Right', '右', '右', '오른쪽')}</CardTitle>
                           </CardHeader>
                           <CardContent className="p-2 pt-0">
                              <GarmentUploader images={rightGarmentImages} onImagesChange={(files) => handleGarmentImageChange(files, 'right')} onImageRemove={(index) => removeGarmentImage(index, 'right')} theme={theme} maxImages={4} compact />
@@ -431,13 +464,13 @@ export default function TryOnClientPage({ gender: initialGender, initialMode = '
                     </TabsContent>
                     <TabsContent value="group4">
                       <div className={cn('space-y-3 mt-2', !userImage.file && 'opacity-50 pointer-events-none')}>
-                        <p className="text-sm text-muted-foreground">Chọn ảnh sản phẩm cho từng người (tối đa 3 món/người). <span className="text-amber-600 dark:text-amber-400 font-medium">Thứ tự từ trái qua phải.</span></p>
+                        <p className="text-sm text-muted-foreground">{tr('Chọn ảnh sản phẩm cho từng người (tối đa 3 món/người).', 'Choose garment images for each person (max 3/person).', '为每个人选择服装图片（每人最多3件）。', '各人物の服画像を選択（1人最大3点）。', '각 인물 의상 이미지를 선택하세요(1인 최대 3개).')} <span className="text-amber-600 dark:text-amber-400 font-medium">{tr('Thứ tự từ trái qua phải.', 'Order from left to right.', '顺序从左到右。', '左から右の順。', '왼쪽부터 오른쪽 순서.')}</span></p>
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                           {[
-                            { n: 1, imgs: person1Images, side: 'person1' as const, label: 'Người 1' },
-                            { n: 2, imgs: person2Images, side: 'person2' as const, label: 'Người 2' },
-                            { n: 3, imgs: person3Images, side: 'person3' as const, label: 'Người 3' },
-                            { n: 4, imgs: person4Images, side: 'person4' as const, label: 'Người 4' },
+                            { n: 1, imgs: person1Images, side: 'person1' as const, label: tr('Người 1', 'Person 1', '人物1', '人物1', '인물 1') },
+                            { n: 2, imgs: person2Images, side: 'person2' as const, label: tr('Người 2', 'Person 2', '人物2', '人物2', '인물 2') },
+                            { n: 3, imgs: person3Images, side: 'person3' as const, label: tr('Người 3', 'Person 3', '人物3', '人物3', '인물 3') },
+                            { n: 4, imgs: person4Images, side: 'person4' as const, label: tr('Người 4', 'Person 4', '人物4', '人物4', '인물 4') },
                           ].map(({ n, imgs, side, label }) => (
                             <Card key={n} className={cn('border shadow-sm bg-white/80 backdrop-blur overflow-hidden', theme.cardBorder)}>
                               <CardHeader className="py-3 px-4 bg-muted/30">
@@ -463,7 +496,7 @@ export default function TryOnClientPage({ gender: initialGender, initialMode = '
                     </TabsContent>
                     <TabsContent value="group5">
                       <div className={cn('space-y-3 mt-2', !userImage.file && 'opacity-50 pointer-events-none')}>
-                        <p className="text-sm text-muted-foreground">Chọn ảnh sản phẩm cho từng người (tối đa 2 món/người). <span className="text-amber-600 dark:text-amber-400 font-medium">Thứ tự từ trái qua phải.</span></p>
+                        <p className="text-sm text-muted-foreground">{tr('Chọn ảnh sản phẩm cho từng người (tối đa 2 món/người).', 'Choose garment images for each person (max 2/person).', '为每个人选择服装图片（每人最多2件）。', '各人物の服画像を選択（1人最大2点）。', '각 인물 의상 이미지를 선택하세요(1인 최대 2개).')} <span className="text-amber-600 dark:text-amber-400 font-medium">{tr('Thứ tự từ trái qua phải.', 'Order from left to right.', '顺序从左到右。', '左から右の順。', '왼쪽부터 오른쪽 순서.')}</span></p>
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                           {[
                             { n: 1, imgs: person1Images, side: 'person1' as const },
@@ -476,7 +509,7 @@ export default function TryOnClientPage({ gender: initialGender, initialMode = '
                               <CardHeader className="py-3 px-4 bg-muted/30">
                                 <CardTitle className="flex items-center gap-2 text-sm font-medium">
                                   <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-bold">{n}</span>
-                                  Người {n}
+                                  {tr('Người', 'Person', '人物', '人物', '인물')} {n}
                                 </CardTitle>
                               </CardHeader>
                               <CardContent className="p-4 pt-3">
@@ -502,12 +535,12 @@ export default function TryOnClientPage({ gender: initialGender, initialMode = '
               <div className="lg:w-[200px] lg:shrink-0">
                 <Card className={cn('border shadow-sm bg-white/80 backdrop-blur h-full', theme.cardBorder)}>
                   <CardHeader className="p-4 pb-2">
-                    <CardTitle className="text-base">Tùy chọn</CardTitle>
-                    <CardDescription className="text-xs">Thiết lập và tạo ảnh.</CardDescription>
+                    <CardTitle className="text-base">{tr('Tùy chọn', 'Options', '选项', 'オプション', '옵션')}</CardTitle>
+                    <CardDescription className="text-xs">{tr('Thiết lập và tạo ảnh.', 'Configure and generate image.', '设置并生成图片。', '設定して画像を生成。', '설정 후 이미지 생성.')}</CardDescription>
                   </CardHeader>
                   <CardContent className="p-4 space-y-4">
                     <div className="space-y-2">
-                      <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Giao diện</h4>
+                      <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{tr('Giao diện', 'Theme', '界面', 'テーマ', '테마')}</h4>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button
@@ -518,22 +551,22 @@ export default function TryOnClientPage({ gender: initialGender, initialMode = '
                               theme.badge
                             )}
                           >
-                            {isFemale ? 'Nữ' : 'Nam'}
+                            {isFemale ? tr('Nữ', 'Female', '女', '女性', '여성') : tr('Nam', 'Male', '男', '男性', '남성')}
                             <ChevronDown className="h-3 w-3 opacity-50" />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="start" className="w-[160px] sm:w-[200px]">
                           <DropdownMenuItem onClick={() => setCurrentGender('male')}>
-                            Giao diện Nam
+                            {tr('Giao diện Nam', 'Male theme', '男性界面', '男性テーマ', '남성 테마')}
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => setCurrentGender('female')}>
-                            Giao diện Nữ
+                            {tr('Giao diện Nữ', 'Female theme', '女性界面', '女性テーマ', '여성 테마')}
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
                     <div className="space-y-2">
-                      <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Chất lượng ảnh</h4>
+                      <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{tr('Chất lượng ảnh', 'Image quality', '图片质量', '画質', '이미지 품질')}</h4>
                       <div className="flex gap-2">
                         <button
                           type="button"
@@ -561,13 +594,15 @@ export default function TryOnClientPage({ gender: initialGender, initialMode = '
                         </button>
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        {imageQuality === '2K' ? 'Giá không đổi' : 'Giá ×2,2'}
+                        {imageQuality === '2K'
+                          ? tr('Giá không đổi', 'Normal price', '原价', '通常価格', '기본 가격')
+                          : tr('Giá ×2,2', 'Price ×2.2', '价格 ×2.2', '価格 ×2.2', '가격 ×2.2')}
                       </p>
                     </div>
                     <div className="space-y-2">
-                      <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Yêu cầu thêm</h4>
+                      <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{tr('Yêu cầu thêm', 'Extra prompt', '附加要求', '追加要望', '추가 요청')}</h4>
                       <Textarea
-                        placeholder="Ví dụ: thay đổi màu tóc thành màu xanh..."
+                        placeholder={tr('Ví dụ: thay đổi màu tóc thành màu xanh...', 'e.g. change hair color to blue...', '例如：把发色改成蓝色...', '例：髪色を青に変更...', '예: 머리색을 파란색으로 변경...')}
                         className="bg-white/80 text-xs h-20"
                         value={customPrompt}
                         onChange={(e) => setCustomPrompt(e.target.value)}
@@ -584,7 +619,7 @@ export default function TryOnClientPage({ gender: initialGender, initialMode = '
                         size="default" 
                         className={cn('w-full max-w-[180px] min-h-[44px] shadow-md hover:shadow-lg transition-all text-sm touch-manipulation', theme.primaryButton)} 
                         onClick={() => checkCreditsAndProceed(cost, handleSubmit)}
-                        title={imageQuality === '2K' ? 'Tạo chất lượng ảnh 2K' : 'Tạo chất lượng ảnh 4K'}
+                        title={imageQuality === '2K' ? tr('Tạo chất lượng ảnh 2K', 'Generate 2K image', '生成 2K 图片', '2K画像を生成', '2K 이미지 생성') : tr('Tạo chất lượng ảnh 4K', 'Generate 4K image', '生成 4K 图片', '4K画像を生成', '4K 이미지 생성')}
                         disabled={!userImage.file || 
                           (tryOnMode === 'single' && garmentImages.length === 0) || 
                           (tryOnMode === 'couple' && leftGarmentImages.length === 0 && rightGarmentImages.length === 0) || 
@@ -596,7 +631,7 @@ export default function TryOnClientPage({ gender: initialGender, initialMode = '
                         <Sparkles className="mr-2 h-4 w-4" /> {buttonLabel} ({displayCost} credit)
                       </Button>
                       <p className="text-[10px] text-center text-muted-foreground mt-2">
-                        * Thời gian xử lý: 10-30s
+                        {tr('* Thời gian xử lý: 10-30s', '* Processing time: 10-30s', '* 处理时间：10-30秒', '* 処理時間: 10-30秒', '* 처리 시간: 10-30초')}
                       </p>
                     </div>
                   </CardContent>
@@ -620,8 +655,8 @@ export default function TryOnClientPage({ gender: initialGender, initialMode = '
             <CardContent className="flex flex-col items-center py-8">
               <ImageProcessingLoader
                 mode="tryon"
-                title="Đang tạo ảnh thử đồ"
-                description="AI đang áp trang phục lên ảnh của bạn một cách tự nhiên"
+                title={tr('Đang tạo ảnh thử đồ', 'Generating try-on image', '正在生成试衣图片', '試着画像を生成中', '가상피팅 이미지 생성 중')}
+                description={tr('AI đang áp trang phục lên ảnh của bạn một cách tự nhiên', 'AI is fitting garments onto your photo naturally', 'AI 正在将服装自然地应用到你的照片上', 'AI が写真に自然に服を適用しています', 'AI가 사진에 의상을 자연스럽게 적용하고 있습니다')}
                 imagePreview={userImage.preview}
                 imagePreviews={allGarmentPreviews}
               />
@@ -645,16 +680,16 @@ export default function TryOnClientPage({ gender: initialGender, initialMode = '
             <CardContent className="grid md:grid-cols-2 gap-4 p-4">
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <h3 className="font-semibold text-sm text-center">Trước</h3>
+                  <h3 className="font-semibold text-sm text-center">{tr('Trước', 'Before', '之前', '前', '전')}</h3>
                   <Button size="sm" variant="outline" className={cn('h-8 text-xs', theme.outlineButton)} onClick={handleReset}>
-                    <RefreshCw className="mr-2 h-3 w-3" /> Thử lại
+                    <RefreshCw className="mr-2 h-3 w-3" /> {tr('Thử lại', 'Try again', '重试', 'やり直す', '다시 시도')}
                   </Button>
                 </div>
                 {userImage.preview && <div className="relative w-full aspect-square rounded-md border overflow-hidden"><ImagePreview src={userImage.preview} alt="Original user" className="w-full h-full" /></div>}
               </div>
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <h3 className="font-semibold text-sm text-center">Sau</h3>
+                  <h3 className="font-semibold text-sm text-center">{tr('Sau', 'After', '之后', '後', '후')}</h3>
                   <DownloadImageButton imageUrl={resultUrl!} filename="try-on-result" size="sm" className={cn('h-8 text-xs', theme.primaryButton, 'border-0')} />
                 </div>
                 {resultUrl && (
@@ -665,22 +700,22 @@ export default function TryOnClientPage({ gender: initialGender, initialMode = '
                     <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-3">
                       <div className="flex flex-col space-y-1">
                         <div className="flex items-center justify-between">
-                          <span className="text-xs text-white/90 font-medium">Thời gian tạo:</span>
+                          <span className="text-xs text-white/90 font-medium">{tr('Thời gian tạo:', 'Generated at:', '生成时间：', '生成時刻：', '생성 시각:')}</span>
                           <span className="text-xs text-white font-semibold">{currentTime} - {currentDate}</span>
                         </div>
                         <div className="flex items-center justify-between">
-                          <span className="text-xs text-white/90 font-medium">Chất lượng:</span>
+                          <span className="text-xs text-white/90 font-medium">{tr('Chất lượng:', 'Quality:', '质量：', '品質：', '품질:')}</span>
                           <span className="text-xs font-semibold px-2 py-0.5 rounded-full border bg-green-100 text-green-800 border-green-200">
-                            Chất lượng Cao (Pro)
+                            {tr('Chất lượng Cao (Pro)', 'High Quality (Pro)', '高质量 (Pro)', '高品質 (Pro)', '고품질 (Pro)')}
                           </span>
                         </div>
                         <div className="flex items-center justify-between">
-                          <span className="text-xs text-white/90 font-medium">Chế độ:</span>
+                          <span className="text-xs text-white/90 font-medium">{tr('Chế độ:', 'Mode:', '模式：', 'モード：', '모드:')}</span>
                           <span className="text-xs text-white font-semibold">
-                            {tryOnMode === 'single' ? '1 người' : 
-                             tryOnMode === 'couple' ? '2 người' : 
-                             tryOnMode === 'group' ? '3 người' : 
-                             tryOnMode === 'group4' ? '4 người' : '5 người'}
+                            {tryOnMode === 'single' ? tr('1 người', '1 person', '1人', '1人', '1명') : 
+                             tryOnMode === 'couple' ? tr('2 người', '2 people', '2人', '2人', '2명') : 
+                             tryOnMode === 'group' ? tr('3 người', '3 people', '3人', '3人', '3명') : 
+                             tryOnMode === 'group4' ? tr('4 người', '4 people', '4人', '4人', '4명') : tr('5 người', '5 people', '5人', '5人', '5명')}
                           </span>
                         </div>
                       </div>
@@ -690,9 +725,9 @@ export default function TryOnClientPage({ gender: initialGender, initialMode = '
               </div>
             </CardContent>
             <CardFooter className="flex flex-col items-center justify-center pb-6 pt-2 px-4">
-              <CardTitle className="text-xl text-center">Đây là kết quả của bạn!</CardTitle>
+              <CardTitle className="text-xl text-center">{tr('Đây là kết quả của bạn!', 'Here is your result!', '这是你的结果！', 'これがあなたの結果です！', '결과가 준비되었습니다!')}</CardTitle>
               <CardDescription className="text-center mt-1">
-                Ảnh được tạo với chất lượng cao (Pro) vào lúc {currentTime} ngày {currentDate}
+                {tr('Ảnh được tạo với chất lượng cao (Pro) vào lúc', 'Generated in High Quality (Pro) at', '图片以高质量（Pro）生成于', '高品質（Pro）で生成：', '고품질(Pro) 생성 시각')} {currentTime} {tr('ngày', 'on', '', '', '')} {currentDate}
               </CardDescription>
             </CardFooter>
           </Card>
@@ -706,7 +741,7 @@ export default function TryOnClientPage({ gender: initialGender, initialMode = '
         <Toaster />
         {renderContent()}
         <p className="text-xs text-muted-foreground text-center mt-4 pb-2">
-          Ảnh càng nét càng chính xác. Ảnh do AI tạo có thể có sai lầm.
+          {tr('Ảnh càng nét càng chính xác. Ảnh do AI tạo có thể có sai lầm.', 'Sharper input gives better output. AI-generated images may contain minor errors.', '输入越清晰，结果越准确。AI 生成结果可能存在误差。', '元画像が鮮明なほど精度が上がります。AI生成結果には誤差が含まれる場合があります。', '원본이 선명할수록 결과가 정확합니다. AI 생성 결과에는 오차가 있을 수 있습니다.')}
         </p>
       </div>
     </>

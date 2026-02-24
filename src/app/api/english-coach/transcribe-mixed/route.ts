@@ -19,6 +19,18 @@ type TranscribeResult = {
   pronunciationIssues: string[]
   pronunciationScore: number
   weakWords: string[]
+  pronunciationAccuracy: number
+  pronunciationFluency: number
+  pronunciationProsody: number
+  wordScores: Array<{ word: string; score: number; issueType: string }>
+}
+
+function tr(input: string): 'vi' | 'en' {
+  return String(input || '').toLowerCase().includes('vietnamese') ? 'vi' : 'en'
+}
+
+function msg(locale: 'vi' | 'en', vi: string, en: string): string {
+  return locale === 'vi' ? vi : en
 }
 
 function safeParse(text: string): TranscribeResult | null {
@@ -51,6 +63,29 @@ function safeParse(text: string): TranscribeResult | null {
     const pronunciationScore = Number.isFinite(scoreRaw)
       ? Math.min(100, Math.max(0, Math.round(scoreRaw)))
       : (pronunciationIssues.length === 0 ? 85 : 65)
+    const accuracyRaw = Number((parsed as { pronunciationAccuracy?: unknown }).pronunciationAccuracy)
+    const fluencyRaw = Number((parsed as { pronunciationFluency?: unknown }).pronunciationFluency)
+    const prosodyRaw = Number((parsed as { pronunciationProsody?: unknown }).pronunciationProsody)
+    const pronunciationAccuracy = Number.isFinite(accuracyRaw)
+      ? Math.min(100, Math.max(0, Math.round(accuracyRaw)))
+      : (pronunciationIssues.length === 0 ? 86 : 66)
+    const pronunciationFluency = Number.isFinite(fluencyRaw)
+      ? Math.min(100, Math.max(0, Math.round(fluencyRaw)))
+      : (pronunciationIssues.length === 0 ? 84 : 64)
+    const pronunciationProsody = Number.isFinite(prosodyRaw)
+      ? Math.min(100, Math.max(0, Math.round(prosodyRaw)))
+      : (pronunciationIssues.length === 0 ? 82 : 62)
+    const wordScoresRaw = Array.isArray((parsed as { wordScores?: unknown }).wordScores)
+      ? (parsed as { wordScores: Array<{ word?: unknown; score?: unknown; issueType?: unknown }> }).wordScores
+      : []
+    const wordScores = wordScoresRaw
+      .map((x) => ({
+        word: String(x.word || '').trim(),
+        score: Number.isFinite(Number(x.score)) ? Math.min(100, Math.max(0, Math.round(Number(x.score)))) : 0,
+        issueType: String(x.issueType || '').trim() || 'unclear',
+      }))
+      .filter((x) => x.word)
+      .slice(0, 12)
     if (!targetTranscript && !nativeTranscript && !mergedTranscript && !inferredMeaning) return null
     return {
       targetTranscript,
@@ -60,6 +95,10 @@ function safeParse(text: string): TranscribeResult | null {
       pronunciationIssues,
       pronunciationScore,
       weakWords,
+      pronunciationAccuracy,
+      pronunciationFluency,
+      pronunciationProsody,
+      wordScores,
     }
   } catch {
     return null
@@ -68,9 +107,6 @@ function safeParse(text: string): TranscribeResult | null {
 
 export async function POST(request: NextRequest) {
   try {
-    const apiKey = process.env.GOOGLE_API_KEY
-    if (!apiKey) return NextResponse.json({ error: 'Thiếu GOOGLE_API_KEY.' }, { status: 500 })
-
     const payload = (await request.json()) as Payload
     const audioBase64 = String(payload.audioBase64 || '').trim()
     const mimeType = String(payload.mimeType || 'audio/webm').trim()
@@ -78,6 +114,9 @@ export async function POST(request: NextRequest) {
     const targetLanguageCode = String(payload.targetLanguageCode || '').trim().toLowerCase()
     const nativeLanguage = String(payload.nativeLanguage || 'Vietnamese').trim()
     const nativeLanguageCode = String(payload.nativeLanguageCode || '').trim().toLowerCase()
+    const locale = tr(nativeLanguage)
+    const apiKey = process.env.GOOGLE_API_KEY
+    if (!apiKey) return NextResponse.json({ error: msg(locale, 'Thiếu GOOGLE_API_KEY.', 'Missing GOOGLE_API_KEY.') }, { status: 500 })
     const speakingMode = payload.speakingMode === 'target'
       ? 'target'
       : payload.speakingMode === 'native'
@@ -99,7 +138,7 @@ export async function POST(request: NextRequest) {
                 : `Nếu có phiên âm Latin của ${targetLanguage}, ưu tiên map về đúng chữ viết của ${targetLanguage} trong transcript chính.`
 
     if (!audioBase64) {
-      return NextResponse.json({ error: 'Thiếu dữ liệu âm thanh.' }, { status: 400 })
+      return NextResponse.json({ error: msg(locale, 'Thiếu dữ liệu âm thanh.', 'Missing audio data.') }, { status: 400 })
     }
 
     const ai = new GoogleGenerativeAI(apiKey)
@@ -119,11 +158,18 @@ Nhiệm vụ:
 - mixed/auto: nhận diện cả hai ngôn ngữ cân bằng.
 8) pronunciationScore: chấm 0-100 cho độ rõ phát âm tổng thể của câu (ước lượng thực tế, không quá rộng tay).
 9) weakWords: danh sách 1-8 từ/cụm nghe chưa rõ hoặc phát âm chưa tốt.
-10) Cặp ngôn ngữ hợp lệ duy nhất:
+10) pronunciationAccuracy/pronunciationFluency/pronunciationProsody: từng chỉ số 0-100.
+11) wordScores: tối đa 12 token theo ngôn ngữ đang học, mỗi token gồm:
+- word: token bằng target language
+- score: 0-100
+- issueType: one of "mispronounced" | "unclear" | "stress" | "intonation" | "linking"
+12) Nếu target là non-Latin (zh/ja/ko/th/hi), ưu tiên token đúng script của target language.
+13) Nếu không đủ bằng chứng audio, trả mảng rỗng thay vì bịa wordScores.
+14) Cặp ngôn ngữ hợp lệ duy nhất:
  - target: ${targetLanguage} (${targetLanguageCode || 'unknown'})
  - native: ${nativeLanguage} (${nativeLanguageCode || 'unknown'})
 TUYỆT ĐỐI không mặc định sang ngôn ngữ thứ ba không thuộc cặp target/native.
-11) Quy tắc phiên âm theo ngôn ngữ đang học:
+15) Quy tắc phiên âm theo ngôn ngữ đang học:
 ${transliterationGuide}
 
 Trả về JSON hợp lệ:
@@ -134,7 +180,11 @@ Trả về JSON hợp lệ:
   "inferredMeaning": "...",
   "pronunciationIssues": ["...", "..."],
   "pronunciationScore": 78,
-  "weakWords": ["...", "..."]
+  "weakWords": ["...", "..."],
+  "pronunciationAccuracy": 76,
+  "pronunciationFluency": 72,
+  "pronunciationProsody": 70,
+  "wordScores": [{"word":"...","score":68,"issueType":"stress"}]
 }`
 
     const result = await model.generateContent([
@@ -149,7 +199,7 @@ Trả về JSON hợp lệ:
     const text = result.response.text()?.trim() || ''
     const parsed = safeParse(text)
     if (!parsed) {
-      return NextResponse.json({ error: 'Không tách được transcript mixed.' }, { status: 502 })
+      return NextResponse.json({ error: msg(locale, 'Không tách được transcript mixed.', 'Failed to split mixed transcript.') }, { status: 502 })
     }
 
     return NextResponse.json(parsed)

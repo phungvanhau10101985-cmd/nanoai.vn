@@ -12,8 +12,12 @@ import { ImagePreview } from '@/components/ui/image-preview'
 import { DownloadImageButton } from '@/components/download-image-button'
 import { DeleteHistoryButton } from './delete-button'
 import Link from 'next/link'
+import { getCurrentWebLocale } from '@/lib/i18n/server'
 
 export default async function HistoryPage() {
+  const locale = getCurrentWebLocale()
+  const tr = (vi: string, en: string, zh: string, ja: string, ko: string) =>
+    locale === 'en' ? en : locale === 'zh' ? zh : locale === 'ja' ? ja : locale === 'ko' ? ko : vi
   const supabase = createClient()
 
   const user = await getUserOrBypass(() => supabase.auth.getUser())
@@ -36,13 +40,13 @@ export default async function HistoryPage() {
     <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
       <Toaster />
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <h1 className="text-3xl font-bold tracking-tight">Ảnh đã xử lý</h1>
+        <h1 className="text-3xl font-bold tracking-tight">{tr('Ảnh đã xử lý', 'Processed images', '已处理图片', '処理済み画像', '처리된 이미지')}</h1>
         <div className="flex items-center gap-4">
           <p className="text-muted-foreground">
-            {history?.length || 0} kết quả
+            {history?.length || 0} {tr('kết quả', 'results', '条结果', '件', '개 결과')}
           </p>
           <Button variant="outline" size="sm" asChild>
-            <Link href="/dashboard/history/translate">Lịch sử dịch ảnh</Link>
+            <Link href="/dashboard/history/translate">{tr('Lịch sử dịch ảnh', 'Translation history', '翻译记录', '翻訳履歴', '번역 기록')}</Link>
           </Button>
         </div>
       </div>
@@ -57,7 +61,7 @@ export default async function HistoryPage() {
                   {new Date(item.created_at).toLocaleDateString('vi-VN')}
                 </div>
                 <Badge variant={item.status === 'completed' ? 'default' : 'destructive'}>
-                  {item.status === 'completed' ? 'Thành công' : 'Thất bại'}
+                  {item.status === 'completed' ? tr('Thành công', 'Success', '成功', '成功', '성공') : tr('Thất bại', 'Failed', '失败', '失敗', '실패')}
                 </Badge>
               </CardHeader>
               <CardContent className="p-4 flex-1 space-y-4">
@@ -70,11 +74,11 @@ export default async function HistoryPage() {
                         className="w-full h-full"
                       />
                       <div className="absolute top-2 right-2 pointer-events-none">
-                        <Badge className="bg-primary text-primary-foreground">Kết quả</Badge>
+                        <Badge className="bg-primary text-primary-foreground">{tr('Kết quả', 'Result', '结果', '結果', '결과')}</Badge>
                       </div>
                       <div className="absolute bottom-2 right-2 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
                         <Badge variant="secondary" className="bg-black/50 text-white hover:bg-black/70">
-                          <Maximize2 className="w-3 h-3 mr-1" /> Xem to
+                          <Maximize2 className="w-3 h-3 mr-1" /> {tr('Xem to', 'Zoom', '放大查看', '拡大表示', '확대 보기')}
                         </Badge>
                       </div>
                     </div>
@@ -97,7 +101,7 @@ export default async function HistoryPage() {
                       className="w-full h-full"
                     />
                     <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-[10px] p-1 text-center pointer-events-none">
-                      Ảnh gốc
+                      {tr('Ảnh gốc', 'Original image', '原图', '元画像', '원본 이미지')}
                     </div>
                     <div className="absolute top-1 right-1 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
                       <div className="bg-black/50 text-white p-1 rounded-full">
@@ -112,7 +116,7 @@ export default async function HistoryPage() {
                       className="w-full h-full"
                     />
                     <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-[10px] p-1 text-center pointer-events-none">
-                      Sản phẩm
+                      {tr('Sản phẩm', 'Garment', '服装', '衣装', '의류')}
                     </div>
                     <div className="absolute top-1 right-1 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
                       <div className="bg-black/50 text-white p-1 rounded-full">
@@ -136,14 +140,14 @@ export default async function HistoryPage() {
         </div>
       ) : (
         <div className="text-center py-12 border-2 border-dashed rounded-lg">
-          <h3 className="text-lg font-medium">Chưa có lịch sử</h3>
-          <p className="text-muted-foreground mt-1">Hãy thử các tính năng thử đồ, phục dựng ảnh, làm nét, ghép ảnh ngay bây giờ!</p>
+          <h3 className="text-lg font-medium">{tr('Chưa có lịch sử', 'No history yet', '暂无历史记录', '履歴はまだありません', '기록이 없습니다')}</h3>
+          <p className="text-muted-foreground mt-1">{tr('Hãy thử các tính năng thử đồ, phục dựng ảnh, làm nét, ghép ảnh ngay bây giờ!', 'Try virtual try-on, restoration, sharpen, and merge features now!', '快去试试试衣、修复、清晰化和拼图功能吧！', '試着・復元・高画質化・合成機能を今すぐ試してみましょう！', '가상 피팅, 복원, 선명화, 합성 기능을 지금 사용해 보세요!')}</p>
           <div className="flex flex-wrap justify-center gap-3 mt-4">
             <Button asChild>
-              <a href="/thu-do-online">Thử đồ ngay</a>
+              <a href="/thu-do-online">{tr('Thử đồ ngay', 'Try on now', '立即试衣', '今すぐ試着', '지금 피팅하기')}</a>
             </Button>
             <Button variant="outline" asChild>
-              <a href="/dashboard/history/translate">Lịch sử dịch ảnh</a>
+              <a href="/dashboard/history/translate">{tr('Lịch sử dịch ảnh', 'Translation history', '翻译记录', '翻訳履歴', '번역 기록')}</a>
             </Button>
           </div>
         </div>

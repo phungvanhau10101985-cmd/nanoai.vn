@@ -5,10 +5,29 @@ import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 
 type ProgressPayload = {
   targetLanguage?: string
+  nativeLanguage?: string
+  sessionId?: string
+  inputSource?: 'text' | 'mic'
+  speakingMode?: 'auto' | 'target' | 'native' | 'mixed'
   pronunciationScore?: number | null
   hadCorrections?: boolean
   newSession?: boolean
   localDate?: string
+  diagnostics?: {
+    targetTranscript?: string
+    nativeTranscript?: string
+    mergedTranscript?: string
+    inferredMeaning?: string
+    weakWords?: string[]
+    pronunciationAccuracy?: number
+    pronunciationFluency?: number
+    pronunciationProsody?: number
+    wordScores?: Array<{
+      word?: string
+      score?: number
+      issueType?: string
+    }>
+  }
 }
 
 function adminClient() {
@@ -78,10 +97,22 @@ export async function POST(request: NextRequest) {
   try {
     const payload = (await request.json()) as ProgressPayload
     const targetLanguage = String(payload.targetLanguage || '').trim()
+    const nativeLanguage = String(payload.nativeLanguage || '').trim()
+    const sessionId = String(payload.sessionId || '').trim()
+    const inputSource = payload.inputSource === 'mic' ? 'mic' : 'text'
+    const speakingMode =
+      payload.speakingMode === 'target'
+        ? 'target'
+        : payload.speakingMode === 'native'
+          ? 'native'
+          : payload.speakingMode === 'mixed'
+            ? 'mixed'
+            : 'auto'
     const pronunciationScore = Number(payload.pronunciationScore)
     const hasPronunciationScore = Number.isFinite(pronunciationScore) && pronunciationScore >= 0
     const hadCorrections = Boolean(payload.hadCorrections)
     const newSession = Boolean(payload.newSession)
+    const diagnostics = payload.diagnostics && typeof payload.diagnostics === 'object' ? payload.diagnostics : null
 
     const supabase = createClient()
     const auth = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập để lưu tiến độ học.')
@@ -143,6 +174,53 @@ export async function POST(request: NextRequest) {
       { onConflict: 'user_id,progress_date,target_language' }
     )
     if (error) return NextResponse.json({ error: error.message || 'Không lưu được tiến độ học.' }, { status: 500 })
+
+    if (sessionId || diagnostics) {
+      const weakWords = Array.isArray(diagnostics?.weakWords)
+        ? diagnostics!.weakWords!.map((x) => String(x || '').trim()).filter(Boolean).slice(0, 12)
+        : []
+      const wordScores = Array.isArray(diagnostics?.wordScores)
+        ? diagnostics!.wordScores!
+          .map((x) => ({
+            word: String(x?.word || '').trim(),
+            score: Number.isFinite(Number(x?.score)) ? Math.min(100, Math.max(0, Math.round(Number(x?.score)))) : 0,
+            issueType: String(x?.issueType || '').trim() || 'unclear',
+          }))
+          .filter((x) => x.word)
+          .slice(0, 24)
+        : []
+      const pronAccuracy = Number.isFinite(Number(diagnostics?.pronunciationAccuracy))
+        ? Math.min(100, Math.max(0, Math.round(Number(diagnostics?.pronunciationAccuracy))))
+        : null
+      const pronFluency = Number.isFinite(Number(diagnostics?.pronunciationFluency))
+        ? Math.min(100, Math.max(0, Math.round(Number(diagnostics?.pronunciationFluency))))
+        : null
+      const pronProsody = Number.isFinite(Number(diagnostics?.pronunciationProsody))
+        ? Math.min(100, Math.max(0, Math.round(Number(diagnostics?.pronunciationProsody))))
+        : null
+
+      await adminSupabase.from('language_coach_turn_diagnostics').insert({
+        user_id: user.id,
+        session_id: sessionId || `session-${date}`,
+        progress_date: date,
+        target_language: targetLanguage || 'unknown',
+        native_language: nativeLanguage || null,
+        speaking_mode: speakingMode,
+        input_source: inputSource,
+        had_corrections: hadCorrections,
+        pronunciation_score: hasPronunciationScore ? Math.round(pronunciationScore) : null,
+        pronunciation_accuracy: pronAccuracy,
+        pronunciation_fluency: pronFluency,
+        pronunciation_prosody: pronProsody,
+        weak_words_json: JSON.stringify(weakWords),
+        word_scores_json: JSON.stringify(wordScores),
+        inferred_meaning: String(diagnostics?.inferredMeaning || '').trim() || null,
+        target_transcript: String(diagnostics?.targetTranscript || '').trim() || null,
+        native_transcript: String(diagnostics?.nativeTranscript || '').trim() || null,
+        merged_transcript: String(diagnostics?.mergedTranscript || '').trim() || null,
+      })
+    }
+
     return NextResponse.json({ ok: true })
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Lỗi không xác định.'

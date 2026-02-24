@@ -16,20 +16,22 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import type { User } from '@supabase/supabase-js'
+import type { Dictionary } from '@/lib/i18n/dictionaries'
 
 interface HeaderUserMenuProps {
   user: User
   credits: number
+  t: Dictionary
 }
 
-export function HeaderUserMenu({ user, credits }: HeaderUserMenuProps) {
+export function HeaderUserMenu({ user, credits, t }: HeaderUserMenuProps) {
   const [open, setOpen] = useState(false)
 
   return (
     <div className="flex items-center gap-2 sm:gap-4">
       <div className="hidden sm:flex items-center gap-2 text-sm font-medium">
         <Wallet className="h-4 w-4" />
-        <span>{credits} Tín dụng</span>
+        <span>{credits} {t.menu.credits}</span>
       </div>
       <DepositCreditButton variant="outline" size="sm" className="hidden sm:flex" />
       <DropdownMenu open={open} onOpenChange={setOpen}>
@@ -38,7 +40,7 @@ export function HeaderUserMenu({ user, credits }: HeaderUserMenuProps) {
             type="button"
             variant="ghost"
             className="relative h-10 w-10 sm:h-8 sm:w-8 rounded-full cursor-pointer min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0"
-            aria-label="Mở menu tài khoản"
+            aria-label={t.menu.accountMenu}
           >
             <Avatar className="h-8 w-8">
               <AvatarImage src={user.user_metadata?.avatar_url} alt={user.email} />
@@ -59,31 +61,31 @@ export function HeaderUserMenu({ user, credits }: HeaderUserMenuProps) {
           <DropdownMenuItem asChild className="sm:hidden">
             <div className="flex items-center gap-2 text-sm font-medium">
               <Wallet className="h-4 w-4" />
-              <span>{credits} Tín dụng</span>
+              <span>{credits} {t.menu.credits}</span>
             </div>
           </DropdownMenuItem>
           <DepositCreditMenuItem />
           <DropdownMenuItem asChild>
-            <Link href="/dashboard">Bảng điều khiển</Link>
+            <Link href="/dashboard">{t.menu.dashboard}</Link>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
-            <Link href="/dashboard/history">Ảnh đã xử lý</Link>
+            <Link href="/dashboard/history">{t.menu.processedImages}</Link>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
-            <Link href="/dashboard/history/translate">Lịch sử dịch ảnh</Link>
+            <Link href="/dashboard/history/translate">{t.menu.translateHistory}</Link>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
-            <Link href="/nhac-nen-ai#music-history">Lịch sử tạo nhạc</Link>
+            <Link href="/nhac-nen-ai#music-history">{t.menu.musicHistory}</Link>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
-            <Link href="/wallet">Ví</Link>
+            <Link href="/wallet">{t.menu.wallet}</Link>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           {user.email === 'dev@local.test' && (
             <DropdownMenuItem asChild>
               <Link href="/auth/force-login" className="flex w-full items-center cursor-pointer text-amber-600 font-medium">
                 <LogOut className="mr-2 h-4 w-4" />
-                <span>Đăng nhập tài khoản thật</span>
+                <span>{t.menu.switchToRealAccount}</span>
               </Link>
             </DropdownMenuItem>
           )}
@@ -94,7 +96,7 @@ export function HeaderUserMenu({ user, credits }: HeaderUserMenuProps) {
                 className="flex w-full items-center cursor-pointer"
               >
                 <LogOut className="mr-2 h-4 w-4" />
-                <span>{user.email === 'dev@local.test' ? 'Thoát chế độ dev' : 'Đăng xuất'}</span>
+                <span>{user.email === 'dev@local.test' ? t.menu.exitDevMode : t.menu.signOut}</span>
               </button>
             </form>
           </DropdownMenuItem>

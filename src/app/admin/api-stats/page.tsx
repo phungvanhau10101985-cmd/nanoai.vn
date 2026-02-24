@@ -5,6 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge'
 import { ApiStatsDateFilter } from './api-stats-date-filter'
 import { LogsTableWithDetail } from './logs-table-with-detail'
+import { getCurrentWebLocale } from '@/lib/i18n/server'
 
 /** Chi phí API - theo bảng giá Google Gemini 3 Pro Image 2025
  * Token output: 1K=1120, 2K=1120, 4K=2000. Giá ảnh: $120/1M tokens */
@@ -79,6 +80,14 @@ export default async function AdminApiStatsPage({
 }: {
   searchParams?: { from?: string; to?: string }
 }) {
+  const uiLocale = getCurrentWebLocale()
+  const tr = (vi: string, en: string, zh: string, ja: string, ko: string) => {
+    if (uiLocale === 'en') return en
+    if (uiLocale === 'zh') return zh
+    if (uiLocale === 'ja') return ja
+    if (uiLocale === 'ko') return ko
+    return vi
+  }
   const params = searchParams ?? {}
 
   const today = new Date()
@@ -126,10 +135,10 @@ export default async function AdminApiStatsPage({
   if (error) {
     return (
       <div className="space-y-8">
-        <h2 className="text-3xl font-bold tracking-tight">Thống kê API</h2>
+        <h2 className="text-3xl font-bold tracking-tight">{tr('Thống kê API', 'API statistics', 'API 统计', 'API統計', 'API 통계')}</h2>
         <Card>
           <CardContent className="pt-6">
-            <p className="text-destructive">Lỗi: {error.message}</p>
+            <p className="text-destructive">{tr('Lỗi', 'Error', '错误', 'エラー', '오류')}: {error.message}</p>
           </CardContent>
         </Card>
       </div>
@@ -230,20 +239,26 @@ export default async function AdminApiStatsPage({
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-3xl font-bold tracking-tight">Thống kê sử dụng API Google (Gemini)</h2>
-        <p className="text-muted-foreground mt-1">Tối đa 5000 bản ghi • Tỷ giá 1 USD = 25.000₫</p>
+        <h2 className="text-3xl font-bold tracking-tight">{tr('Thống kê sử dụng API Google (Gemini)', 'Google API usage statistics (Gemini)', 'Google API 使用统计（Gemini）', 'Google API利用統計（Gemini）', 'Google API 사용 통계 (Gemini)')}</h2>
+        <p className="text-muted-foreground mt-1">{tr('Tối đa 5000 bản ghi • Tỷ giá 1 USD = 25.000₫', 'Up to 5000 records • Exchange rate: 1 USD = 25,000₫', '最多5000条记录 • 汇率：1 USD = 25,000₫', '最大5000件 • 為替レート: 1 USD = 25,000₫', '최대 5000건 • 환율: 1 USD = 25,000₫')}</p>
         <p className="text-xs text-muted-foreground mt-0.5">
-          Giá theo bảng Google 2025: pro-image $2/$120 input/output, flash $0.5/$3, 2.5-flash $0.3/$2.5, 2.0-flash $0.1/$0.4
+          {tr(
+            'Giá theo bảng Google 2025: pro-image $2/$120 input/output, flash $0.5/$3, 2.5-flash $0.3/$2.5, 2.0-flash $0.1/$0.4',
+            'Pricing by Google 2025 table: pro-image $2/$120 input/output, flash $0.5/$3, 2.5-flash $0.3/$2.5, 2.0-flash $0.1/$0.4',
+            '按 Google 2025 定价：pro-image $2/$120 输入/输出，flash $0.5/$3，2.5-flash $0.3/$2.5，2.0-flash $0.1/$0.4',
+            'Google 2025価格表: pro-image $2/$120 input/output, flash $0.5/$3, 2.5-flash $0.3/$2.5, 2.0-flash $0.1/$0.4',
+            'Google 2025 요금표: pro-image $2/$120 입력/출력, flash $0.5/$3, 2.5-flash $0.3/$2.5, 2.0-flash $0.1/$0.4'
+          )}
         </p>
       </div>
 
-      <Suspense fallback={<Card className="border-slate-200"><CardContent className="py-4">Đang tải bộ lọc...</CardContent></Card>}>
+      <Suspense fallback={<Card className="border-slate-200"><CardContent className="py-4">{tr('Đang tải bộ lọc...', 'Loading filters...', '正在加载筛选器...', 'フィルターを読み込み中...', '필터 불러오는 중...')}</CardContent></Card>}>
         <ApiStatsDateFilter key={`${fromDate}-${toDate}`} defaultFrom={fromDate} defaultTo={toDate} />
       </Suspense>
 
       <Card className="border-emerald-200 bg-emerald-50/30">
         <CardHeader>
-          <CardTitle>Thu chi &amp; lợi nhuận</CardTitle>
+          <CardTitle>{tr('Thu chi & lợi nhuận', 'Revenue, cost & profit', '收支与利润', '収支と利益', '수익/비용/이익')}</CardTitle>
           <p className="text-sm text-muted-foreground">
             {rangeLabel}
           </p>
@@ -251,23 +266,23 @@ export default async function AdminApiStatsPage({
         <CardContent>
           <div className="grid gap-4 md:grid-cols-3">
             <div>
-              <p className="text-sm font-medium text-muted-foreground">Thu (doanh thu)</p>
+              <p className="text-sm font-medium text-muted-foreground">{tr('Thu (doanh thu)', 'Revenue', '收入', '収入', '매출')}</p>
               <p className="text-2xl font-bold text-emerald-700">{formatVnd(revenueInRange)}</p>
-              <p className="text-xs text-muted-foreground">Từ thanh toán nạp credits</p>
+              <p className="text-xs text-muted-foreground">{tr('Từ thanh toán nạp credits', 'From top-up payments', '来自充值支付', 'チャージ決済から', '충전 결제에서')}</p>
             </div>
             <div>
-              <p className="text-sm font-medium text-muted-foreground">Chi (API)</p>
+              <p className="text-sm font-medium text-muted-foreground">{tr('Chi (API)', 'Cost (API)', '支出 (API)', 'コスト (API)', '비용 (API)')}</p>
               <p className="text-2xl font-bold text-amber-700">{formatVnd(apiCostVndInRange)}</p>
               <p className="text-xs text-muted-foreground">
-                ~{apiCostUsdInRange.toFixed(4)} USD • {logsList.length} lượt gọi
+                ~{apiCostUsdInRange.toFixed(4)} USD • {logsList.length} {tr('lượt gọi', 'calls', '次调用', '回', '회 호출')}
               </p>
             </div>
             <div>
-              <p className="text-sm font-medium text-muted-foreground">Lợi nhuận</p>
+              <p className="text-sm font-medium text-muted-foreground">{tr('Lợi nhuận', 'Profit', '利润', '利益', '이익')}</p>
               <p className={`text-2xl font-bold ${profitInRange >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
                 {formatVnd(profitInRange)}
               </p>
-              <p className="text-xs text-muted-foreground">Thu − Chi</p>
+              <p className="text-xs text-muted-foreground">{tr('Thu − Chi', 'Revenue − Cost', '收入 − 支出', '収入 − コスト', '매출 − 비용')}</p>
             </div>
           </div>
         </CardContent>
@@ -276,7 +291,7 @@ export default async function AdminApiStatsPage({
       <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Tổng lượt gọi</CardTitle>
+            <CardTitle className="text-sm font-medium">{tr('Tổng lượt gọi', 'Total calls', '总调用次数', '総呼び出し数', '총 호출 수')}</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold">{formatNum(totals.calls)}</p>
@@ -300,7 +315,7 @@ export default async function AdminApiStatsPage({
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Tổng tokens</CardTitle>
+            <CardTitle className="text-sm font-medium">{tr('Tổng tokens', 'Total tokens', '总 tokens', '合計 tokens', '총 tokens')}</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold">{formatNum(totals.totalTokens)}</p>
@@ -311,21 +326,21 @@ export default async function AdminApiStatsPage({
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Theo model</CardTitle>
-            <p className="text-sm text-muted-foreground">Số lượt gọi và token theo từng model</p>
+            <CardTitle>{tr('Theo model', 'By model', '按模型', 'モデル別', '모델별')}</CardTitle>
+            <p className="text-sm text-muted-foreground">{tr('Số lượt gọi và token theo từng model', 'Calls and tokens by model', '按模型统计调用和 tokens', 'モデルごとの呼び出しとtokens', '모델별 호출 및 tokens')}</p>
           </CardHeader>
           <CardContent>
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Model</TableHead>
-                  <TableHead className="text-right">Lượt gọi</TableHead>
+                  <TableHead className="text-right">{tr('Lượt gọi', 'Calls', '调用次数', '呼び出し回数', '호출 수')}</TableHead>
                   <TableHead className="text-right">2K</TableHead>
                   <TableHead className="text-right">4K</TableHead>
                   <TableHead className="text-right">Input</TableHead>
                   <TableHead className="text-right">Output</TableHead>
-                  <TableHead className="text-right">Tổng</TableHead>
-                  <TableHead className="text-right">Chi phí (₫)</TableHead>
+                  <TableHead className="text-right">{tr('Tổng', 'Total', '总计', '合計', '합계')}</TableHead>
+                  <TableHead className="text-right">{tr('Chi phí (₫)', 'Cost (₫)', '费用 (₫)', 'コスト (₫)', '비용 (₫)')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -347,7 +362,7 @@ export default async function AdminApiStatsPage({
                       <TableCell className="text-right">
                         <span className="font-medium text-amber-700">{formatVnd(stats.costVnd)}</span>
                         <br />
-                        <span className="text-xs text-muted-foreground">~{formatVnd(stats.calls ? Math.round(stats.costVnd / stats.calls) : 0)}/lượt</span>
+                        <span className="text-xs text-muted-foreground">~{formatVnd(stats.calls ? Math.round(stats.costVnd / stats.calls) : 0)}/{tr('lượt', 'call', '次', '回', '회')}</span>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -358,21 +373,21 @@ export default async function AdminApiStatsPage({
 
         <Card>
           <CardHeader>
-            <CardTitle>Theo chức năng</CardTitle>
-            <p className="text-sm text-muted-foreground">Số lượt gọi và token theo từng tính năng</p>
+            <CardTitle>{tr('Theo chức năng', 'By feature', '按功能', '機能別', '기능별')}</CardTitle>
+            <p className="text-sm text-muted-foreground">{tr('Số lượt gọi và token theo từng tính năng', 'Calls and tokens by feature', '按功能统计调用和 tokens', '機能ごとの呼び出しとtokens', '기능별 호출 및 tokens')}</p>
           </CardHeader>
           <CardContent>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Chức năng</TableHead>
-                  <TableHead className="text-right">Lượt gọi</TableHead>
+                  <TableHead>{tr('Chức năng', 'Feature', '功能', '機能', '기능')}</TableHead>
+                  <TableHead className="text-right">{tr('Lượt gọi', 'Calls', '调用次数', '呼び出し回数', '호출 수')}</TableHead>
                   <TableHead className="text-right">2K</TableHead>
                   <TableHead className="text-right">4K</TableHead>
                   <TableHead className="text-right">Input</TableHead>
                   <TableHead className="text-right">Output</TableHead>
-                  <TableHead className="text-right">Tổng</TableHead>
-                  <TableHead className="text-right">Chi phí (₫)</TableHead>
+                  <TableHead className="text-right">{tr('Tổng', 'Total', '总计', '合計', '합계')}</TableHead>
+                  <TableHead className="text-right">{tr('Chi phí (₫)', 'Cost (₫)', '费用 (₫)', 'コスト (₫)', '비용 (₫)')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -394,7 +409,7 @@ export default async function AdminApiStatsPage({
                       <TableCell className="text-right">
                         <span className="font-medium text-amber-700">{formatVnd(stats.costVnd)}</span>
                         <br />
-                        <span className="text-xs text-muted-foreground">~{formatVnd(stats.calls ? Math.round(stats.costVnd / stats.calls) : 0)}/lượt</span>
+                        <span className="text-xs text-muted-foreground">~{formatVnd(stats.calls ? Math.round(stats.costVnd / stats.calls) : 0)}/{tr('lượt', 'call', '次', '回', '회')}</span>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -406,24 +421,24 @@ export default async function AdminApiStatsPage({
 
       <Card>
         <CardHeader>
-          <CardTitle>Theo độ phân giải ảnh</CardTitle>
-          <p className="text-sm text-muted-foreground">Số lượt gọi trả ảnh 2K, 4K hoặc không trả ảnh (chỉ text)</p>
+          <CardTitle>{tr('Theo độ phân giải ảnh', 'By image resolution', '按图像分辨率', '画像解像度別', '이미지 해상도별')}</CardTitle>
+          <p className="text-sm text-muted-foreground">{tr('Số lượt gọi trả ảnh 2K, 4K hoặc không trả ảnh (chỉ text)', 'Calls returning 2K, 4K images or no image (text only)', '返回2K、4K图片或不返回图片（仅文本）的调用次数', '2K/4K画像返却または画像なし（テキストのみ）の呼び出し', '2K/4K 이미지 반환 또는 이미지 없음(텍스트만) 호출 수')}</p>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Ảnh trả về</TableHead>
-                <TableHead className="text-right">Lượt gọi</TableHead>
+                <TableHead>{tr('Ảnh trả về', 'Returned image', '返回图片', '返却画像', '반환 이미지')}</TableHead>
+                <TableHead className="text-right">{tr('Lượt gọi', 'Calls', '调用次数', '呼び出し回数', '호출 수')}</TableHead>
                 <TableHead className="text-right">Input</TableHead>
                 <TableHead className="text-right">Output</TableHead>
-                <TableHead className="text-right">Tổng</TableHead>
-                <TableHead className="text-right">Chi phí (₫)</TableHead>
+                <TableHead className="text-right">{tr('Tổng', 'Total', '总计', '合計', '합계')}</TableHead>
+                <TableHead className="text-right">{tr('Chi phí (₫)', 'Cost (₫)', '费用 (₫)', 'コスト (₫)', '비용 (₫)')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {(['2K', '4K', 'no-image'] as const).map((key) => {
-                const label = key === '2K' ? '2K' : key === '4K' ? '4K' : 'Không trả ảnh'
+                const label = key === '2K' ? '2K' : key === '4K' ? '4K' : tr('Không trả ảnh', 'No image', '无图片', '画像なし', '이미지 없음')
                 const stats = byImageSize[key]
                 if (!stats || stats.calls === 0) return null
                 return (
@@ -440,7 +455,7 @@ export default async function AdminApiStatsPage({
                     <TableCell className="text-right">
                       <span className="font-medium text-amber-700">{formatVnd(stats.costVnd)}</span>
                       <br />
-                      <span className="text-xs text-muted-foreground">~{formatVnd(stats.calls ? Math.round(stats.costVnd / stats.calls) : 0)}/lượt</span>
+                      <span className="text-xs text-muted-foreground">~{formatVnd(stats.calls ? Math.round(stats.costVnd / stats.calls) : 0)}/{tr('lượt', 'call', '次', '回', '회')}</span>
                     </TableCell>
                   </TableRow>
                 )
@@ -452,8 +467,8 @@ export default async function AdminApiStatsPage({
 
       <Card>
         <CardHeader>
-          <CardTitle>Chi tiết gần đây</CardTitle>
-          <p className="text-sm text-muted-foreground">100 bản ghi mới nhất • Bấm vào dòng để xem chi tiết lượt gọi</p>
+          <CardTitle>{tr('Chi tiết gần đây', 'Recent details', '最近明细', '最近の詳細', '최근 상세')}</CardTitle>
+          <p className="text-sm text-muted-foreground">{tr('100 bản ghi mới nhất • Bấm vào dòng để xem chi tiết lượt gọi', 'Latest 100 records • Click row to view call details', '最新100条记录 • 点击行查看调用详情', '最新100件 • 行をクリックして詳細を表示', '최신 100건 • 행을 클릭해 상세 보기')}</p>
         </CardHeader>
         <CardContent>
           {logsList.length > 0 ? (
@@ -470,7 +485,7 @@ export default async function AdminApiStatsPage({
               featureLabels={FEATURE_LABELS}
             />
           ) : (
-            <p className="py-8 text-center text-muted-foreground">Chưa có dữ liệu thống kê.</p>
+            <p className="py-8 text-center text-muted-foreground">{tr('Chưa có dữ liệu thống kê.', 'No statistics data yet.', '暂无统计数据。', '統計データがありません。', '통계 데이터가 없습니다.')}</p>
           )}
         </CardContent>
       </Card>

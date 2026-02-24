@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -47,17 +48,48 @@ function useFormSubmitWithNgrok() {
 }
 
 export default function LoginClient({ message, error }: LoginClientProps) {
+  const [uiLocale, setUiLocale] = useState<'vi' | 'en' | 'zh' | 'ja' | 'ko'>('vi')
   const handleLoginNgrok = useFormSubmitWithNgrok()
   const handleSignupNgrok = useFormSubmitWithNgrok()
   const handleGoogleNgrok = useFormSubmitWithNgrok()
+  const tr = (vi: string, en: string, zh: string, ja: string, ko: string) => {
+    if (uiLocale === 'en') return en
+    if (uiLocale === 'zh') return zh
+    if (uiLocale === 'ja') return ja
+    if (uiLocale === 'ko') return ko
+    return vi
+  }
+
+  useEffect(() => {
+    const syncLocale = () => {
+      const cookieValue = document.cookie
+        .split(';')
+        .map((x) => x.trim())
+        .find((x) => x.startsWith('nanoai_locale='))
+        ?.split('=')[1]
+        ?.trim()
+        .toLowerCase()
+      if (cookieValue === 'en' || cookieValue === 'zh' || cookieValue === 'ja' || cookieValue === 'ko') setUiLocale(cookieValue)
+      else setUiLocale('vi')
+    }
+    syncLocale()
+    const timer = window.setInterval(syncLocale, 1000)
+    window.addEventListener('focus', syncLocale)
+    document.addEventListener('visibilitychange', syncLocale)
+    return () => {
+      window.removeEventListener('focus', syncLocale)
+      document.removeEventListener('visibilitychange', syncLocale)
+      window.clearInterval(timer)
+    }
+  }, [])
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 via-white to-indigo-50 px-4 py-10">
       <Card className="w-full max-w-md border-muted/60 shadow-lg">
         <CardHeader className="text-center space-y-2">
-          <CardTitle className="text-2xl font-bold">Chào mừng trở lại</CardTitle>
+          <CardTitle className="text-2xl font-bold">{tr('Chào mừng trở lại', 'Welcome back', '欢迎回来', 'おかえりなさい', '다시 오신 것을 환영합니다')}</CardTitle>
           <CardDescription>
-            Đăng nhập để bắt đầu trải nghiệm thử đồ ảo theo phong cách riêng của bạn.
+            {tr('Đăng nhập để bắt đầu trải nghiệm thử đồ ảo theo phong cách riêng của bạn.', 'Sign in to start your personalized virtual try-on experience.', '登录以开始你的个性化虚拟试衣体验。', 'ログインして、あなた好みのバーチャル試着を始めましょう。', '로그인하고 나만의 가상 피팅을 시작하세요.')}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -74,8 +106,8 @@ export default function LoginClient({ message, error }: LoginClientProps) {
 
           <Tabs defaultValue="login" className="w-full">
             <TabsList className="grid w-full grid-cols-2 mb-4">
-              <TabsTrigger value="login">Đăng nhập</TabsTrigger>
-              <TabsTrigger value="register">Đăng ký</TabsTrigger>
+              <TabsTrigger value="login">{tr('Đăng nhập', 'Sign in', '登录', 'ログイン', '로그인')}</TabsTrigger>
+              <TabsTrigger value="register">{tr('Đăng ký', 'Sign up', '注册', '新規登録', '회원가입')}</TabsTrigger>
             </TabsList>
 
             <TabsContent value="login">
@@ -85,11 +117,11 @@ export default function LoginClient({ message, error }: LoginClientProps) {
                   <Input id="email" name="email" type="email" placeholder="m@example.com" required />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="password">Mật khẩu</Label>
+                  <Label htmlFor="password">{tr('Mật khẩu', 'Password', '密码', 'パスワード', '비밀번호')}</Label>
                   <Input id="password" name="password" type="password" required />
                 </div>
                 <Button type="submit" className="w-full h-11">
-                  Đăng nhập
+                  {tr('Đăng nhập', 'Sign in', '登录', 'ログイン', '로그인')}
                 </Button>
               </form>
             </TabsContent>
@@ -97,7 +129,7 @@ export default function LoginClient({ message, error }: LoginClientProps) {
             <TabsContent value="register">
               <form action={signup} onSubmit={handleSignupNgrok} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="fullName">Họ và Tên</Label>
+                  <Label htmlFor="fullName">{tr('Họ và Tên', 'Full name', '姓名', '氏名', '이름')}</Label>
                   <Input id="fullName" name="fullName" placeholder="John Doe" required />
                 </div>
                 <div className="space-y-2">
@@ -105,11 +137,11 @@ export default function LoginClient({ message, error }: LoginClientProps) {
                   <Input id="email" name="email" type="email" placeholder="m@example.com" required />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="password">Mật khẩu</Label>
+                  <Label htmlFor="password">{tr('Mật khẩu', 'Password', '密码', 'パスワード', '비밀번호')}</Label>
                   <Input id="password" name="password" type="password" required />
                 </div>
                 <Button type="submit" className="w-full h-11">
-                  Tạo tài khoản
+                  {tr('Tạo tài khoản', 'Create account', '创建账号', 'アカウント作成', '계정 만들기')}
                 </Button>
               </form>
             </TabsContent>
@@ -121,7 +153,7 @@ export default function LoginClient({ message, error }: LoginClientProps) {
             </div>
             <div className="relative flex justify-center text-xs uppercase">
               <span className="bg-background px-2 text-muted-foreground">
-                Hoặc tiếp tục với
+                {tr('Hoặc tiếp tục với', 'Or continue with', '或使用以下方式继续', 'または次で続行', '또는 다음으로 계속')}
               </span>
             </div>
           </div>
@@ -134,7 +166,7 @@ export default function LoginClient({ message, error }: LoginClientProps) {
           </form>
         </CardContent>
         <CardFooter className="text-xs text-muted-foreground">
-          Thông tin cá nhân của bạn được bảo mật an toàn.
+          {tr('Thông tin cá nhân của bạn được bảo mật an toàn.', 'Your personal information is securely protected.', '你的个人信息将被安全保护。', '個人情報は安全に保護されます。', '개인정보는 안전하게 보호됩니다.')}
         </CardFooter>
       </Card>
     </div>

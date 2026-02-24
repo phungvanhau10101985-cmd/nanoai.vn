@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { buildMetadata, SITE_URL } from '@/lib/seo'
 import { NAV_GROUPS } from '@/lib/nav-config'
+import { getServerDictionary } from '@/lib/i18n/server'
 
 export const metadata: Metadata = buildMetadata({
   title: 'Sơ đồ trang web',
@@ -12,23 +13,24 @@ export const metadata: Metadata = buildMetadata({
 })
 
 const extraLinks = [
-  { href: '/', label: 'Trang chủ' },
+  { href: '/', label: 'Home' },
   { href: '/sitemap.xml', label: 'Sitemap XML' },
   { href: '/robots.txt', label: 'Robots.txt' },
 ]
 
 export default function SoDoTrangWebPage() {
+  const { t } = getServerDictionary()
   return (
     <div className="container max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
       <header className="space-y-2">
-        <h1 className="text-3xl font-bold tracking-tight">Sơ đồ trang web</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Sitemap</h1>
         <p className="text-muted-foreground">
-          Danh sách các trang quan trọng của NanoAI để người dùng và công cụ tìm kiếm dễ thu thập dữ liệu.
+          {t.app.siteName} important pages for users and search engines.
         </p>
       </header>
 
       <section>
-        <h2 className="text-xl font-semibold mb-3">Liên kết hệ thống</h2>
+        <h2 className="text-xl font-semibold mb-3">{t.menu.system}</h2>
         <ul className="grid sm:grid-cols-2 gap-2">
           {extraLinks.map((item) => (
             <li key={item.href}>
@@ -41,13 +43,13 @@ export default function SoDoTrangWebPage() {
       </section>
 
       {NAV_GROUPS.map((group) => (
-        <section key={group.title}>
-          <h2 className="text-xl font-semibold mb-3">{group.title}</h2>
+        <section key={group.titleKey}>
+          <h2 className="text-xl font-semibold mb-3">{t.navGroup[group.titleKey]}</h2>
           <ul className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
             {group.links.map((link) => (
               <li key={link.href}>
                 <Link className="text-blue-600 hover:underline" href={link.href}>
-                  {link.label}
+                  {t.tool[link.labelKey]}
                 </Link>
               </li>
             ))}

@@ -19,6 +19,14 @@ type WordResult = {
 }
 const wordCacheStats = { hit: 0, miss: 0 }
 
+function tr(input: string): 'vi' | 'en' {
+  return String(input || '').toLowerCase().includes('vietnamese') ? 'vi' : 'en'
+}
+
+function msg(locale: 'vi' | 'en', vi: string, en: string): string {
+  return locale === 'vi' ? vi : en
+}
+
 function adminClient() {
   return createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 }
@@ -92,9 +100,10 @@ export async function POST(request: NextRequest) {
     const contextSentence = String(payload.contextSentence || '').trim()
     const targetLanguage = String(payload.targetLanguage || 'English').trim()
     const nativeLanguage = String(payload.nativeLanguage || 'Vietnamese').trim()
+    const locale = tr(nativeLanguage)
 
     if (!word) {
-      return NextResponse.json({ error: 'Thiếu từ cần giải nghĩa.' }, { status: 400 })
+      return NextResponse.json({ error: msg(locale, 'Thiếu từ cần giải nghĩa.', 'Missing word to explain.') }, { status: 400 })
     }
 
     // Shared DB-first lookup: reuse meanings saved by any learner first,
@@ -128,7 +137,7 @@ export async function POST(request: NextRequest) {
         meaning: String(cached.meaning || '').trim(),
         pronunciation: String(cached.pronunciation || '').trim() || word,
         exampleTarget: String(cached.example_target || '').trim() || word,
-        exampleNative: String(cached.example_native || '').trim() || `Bạn vừa bấm từ "${word}".`,
+        exampleNative: String(cached.example_native || '').trim() || msg(locale, `Bạn vừa bấm từ "${word}".`, `You just tapped the word "${word}".`),
         pronunciationAudioUrl: String(cached.pronunciation_audio_url || '').trim(),
         cached: true,
       })
@@ -139,7 +148,7 @@ export async function POST(request: NextRequest) {
 
     const apiKey = process.env.GOOGLE_API_KEY
     if (!apiKey) {
-      return NextResponse.json({ error: 'Thiếu GOOGLE_API_KEY.' }, { status: 500 })
+      return NextResponse.json({ error: msg(locale, 'Thiếu GOOGLE_API_KEY.', 'Missing GOOGLE_API_KEY.') }, { status: 500 })
     }
 
     const prompt = `Bạn là giáo viên ngôn ngữ.
@@ -173,10 +182,14 @@ Trả về JSON hợp lệ, không markdown:
       logWordCacheStats(word)
       return NextResponse.json({
         partOfSpeech: '',
-        meaning: `Nghĩa phổ biến của "${word}" đang được cập nhật. Hãy thử lại sau vài giây.`,
+        meaning: msg(
+          locale,
+          `Nghĩa phổ biến của "${word}" đang được cập nhật. Hãy thử lại sau vài giây.`,
+          `The common meaning of "${word}" is being updated. Please try again in a few seconds.`
+        ),
         pronunciation: word,
         exampleTarget: `I use "${word}" in a sentence.`,
-        exampleNative: `Ví dụ dùng từ "${word}" trong câu.`,
+        exampleNative: msg(locale, `Ví dụ dùng từ "${word}" trong câu.`, `An example using "${word}" in a sentence.`),
         cached: false,
       })
     }
@@ -186,7 +199,7 @@ Trả về JSON hợp lệ, không markdown:
       meaning: parsed.meaning,
       pronunciation: parsed.pronunciation || word,
       exampleTarget: parsed.exampleTarget || `I use "${word}" in a sentence.`,
-      exampleNative: parsed.exampleNative || `Ví dụ dùng từ "${word}" trong câu.`,
+      exampleNative: parsed.exampleNative || msg(locale, `Ví dụ dùng từ "${word}" trong câu.`, `An example using "${word}" in a sentence.`),
     }
 
     await adminSupabase.from('language_coach_vocab_cache').upsert(

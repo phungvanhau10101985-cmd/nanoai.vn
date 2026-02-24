@@ -108,11 +108,44 @@ function SliderContent({
 }
 
 export function CompareSlider({ before, after, beforeLabel = 'Trước', afterLabel = 'Sau', className }: CompareSliderProps) {
+  const [uiLocale, setUiLocale] = useState<'vi' | 'en' | 'zh' | 'ja' | 'ko'>('vi')
   const [position, setPosition] = useState(50)
   const containerRef = useRef<HTMLDivElement>(null)
   const fullscreenRef = useRef<HTMLDivElement>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const tr = (vi: string, en: string, zh: string, ja: string, ko: string) => {
+    if (uiLocale === 'en') return en
+    if (uiLocale === 'zh') return zh
+    if (uiLocale === 'ja') return ja
+    if (uiLocale === 'ko') return ko
+    return vi
+  }
+  const finalBeforeLabel = beforeLabel === 'Trước' ? tr('Trước', 'Before', '之前', '前', '이전') : beforeLabel
+  const finalAfterLabel = afterLabel === 'Sau' ? tr('Sau', 'After', '之后', '後', '이후') : afterLabel
+
+  useEffect(() => {
+    const syncLocale = () => {
+      const cookieValue = document.cookie
+        .split(';')
+        .map((x) => x.trim())
+        .find((x) => x.startsWith('nanoai_locale='))
+        ?.split('=')[1]
+        ?.trim()
+        .toLowerCase()
+      if (cookieValue === 'en' || cookieValue === 'zh' || cookieValue === 'ja' || cookieValue === 'ko') setUiLocale(cookieValue)
+      else setUiLocale('vi')
+    }
+    syncLocale()
+    const timer = window.setInterval(syncLocale, 1000)
+    window.addEventListener('focus', syncLocale)
+    document.addEventListener('visibilitychange', syncLocale)
+    return () => {
+      window.removeEventListener('focus', syncLocale)
+      document.removeEventListener('visibilitychange', syncLocale)
+      window.clearInterval(timer)
+    }
+  }, [])
 
   const handleMove = (clientX: number) => {
     const ref = isFullscreen ? fullscreenRef : containerRef
@@ -153,8 +186,8 @@ export function CompareSlider({ before, after, beforeLabel = 'Trước', afterLa
         <SliderContent
           before={before}
           after={after}
-          beforeLabel={beforeLabel}
-          afterLabel={afterLabel}
+          beforeLabel={finalBeforeLabel}
+          afterLabel={finalAfterLabel}
           position={position}
           setPosition={setPosition}
           containerRef={containerRef}
@@ -164,9 +197,9 @@ export function CompareSlider({ before, after, beforeLabel = 'Trước', afterLa
           type="button"
           onClick={() => setIsFullscreen(true)}
           className="absolute top-2 right-2 px-2 py-1.5 rounded bg-black/60 hover:bg-black/80 text-white text-xs flex items-center gap-1.5 z-20 transition-colors"
-          title="Mở full màn hình"
+          title={tr('Mở full màn hình', 'Open fullscreen', '全屏查看', '全画面表示', '전체 화면 열기')}
         >
-          <Maximize2 className="h-4 w-4" /> Full màn
+          <Maximize2 className="h-4 w-4" /> {tr('Full màn', 'Fullscreen', '全屏', '全画面', '전체 화면')}
         </button>
       </div>
 
@@ -176,8 +209,8 @@ export function CompareSlider({ before, after, beforeLabel = 'Trước', afterLa
             <SliderContent
               before={before}
               after={after}
-              beforeLabel={beforeLabel}
-              afterLabel={afterLabel}
+              beforeLabel={finalBeforeLabel}
+              afterLabel={finalAfterLabel}
               position={position}
               setPosition={setPosition}
               containerRef={fullscreenRef}
@@ -189,11 +222,11 @@ export function CompareSlider({ before, after, beforeLabel = 'Trước', afterLa
             type="button"
             onClick={() => setIsFullscreen(false)}
             className="absolute top-4 right-4 p-2 rounded-full bg-white/20 hover:bg-white/30 text-white z-50 transition-colors"
-            title="Đóng"
+            title={tr('Đóng', 'Close', '关闭', '閉じる', '닫기')}
           >
             <X className="h-6 w-6" />
           </button>
-          <p className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white/70 text-sm">Nhấn ESC để đóng</p>
+          <p className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white/70 text-sm">{tr('Nhấn ESC để đóng', 'Press ESC to close', '按 ESC 关闭', 'ESCで閉じる', 'ESC를 눌러 닫기')}</p>
         </div>
       )}
     </>

@@ -8,6 +8,7 @@ import { JsonLd } from '@/components/seo-json-ld'
 import { getFeatureSeo, buildFeatureFaqJsonLd } from '@/lib/feature-seo'
 import { FeatureSeoSection } from '@/components/feature-seo-section'
 import { Suspense } from 'react'
+import { getCurrentWebLocale } from '@/lib/i18n/server'
 
 const seo = getFeatureSeo('dich-anh-tai-lieu')
 
@@ -19,6 +20,17 @@ export const metadata: Metadata = buildMetadata({
 })
 
 export default async function DichAnhTaiLieuPage() {
+  const locale = getCurrentWebLocale()
+  const loadingText =
+    locale === 'en'
+      ? 'Loading document image translator...'
+      : locale === 'zh'
+        ? '正在加载文档图片翻译工具...'
+        : locale === 'ja'
+          ? '文書画像翻訳ツールを読み込み中...'
+          : locale === 'ko'
+            ? '문서 이미지 번역 도구를 불러오는 중...'
+            : 'Đang tải công cụ dịch ảnh tài liệu...'
   const supabase = createClient()
   const user = await getUserOrBypass(() => supabase.auth.getUser())
   if (!user) redirect('/auth/login')
@@ -34,7 +46,7 @@ export default async function DichAnhTaiLieuPage() {
     <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <JsonLd data={jsonLd} />
       <JsonLd data={faqJsonLd} />
-      <Suspense fallback={<div className="text-sm text-muted-foreground">Đang tải công cụ dịch ảnh tài liệu...</div>}>
+      <Suspense fallback={<div className="text-sm text-muted-foreground">{loadingText}</div>}>
         <DichAnhTaiLieuClientPage />
       </Suspense>
       <FeatureSeoSection seo={seo} />

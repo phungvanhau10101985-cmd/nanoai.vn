@@ -7,8 +7,35 @@ import Link from 'next/link'
 import { Sparkles, History, Wallet } from 'lucide-react'
 import { ImagePreview } from '@/components/ui/image-preview'
 import { AI_TOOLS } from '@/lib/nav-config'
+import { getCurrentWebLocale, getServerDictionary } from '@/lib/i18n/server'
 
 export default async function DashboardPage() {
+  const { t } = getServerDictionary()
+  const locale = getCurrentWebLocale()
+  const ui = {
+    title: locale === 'vi' ? 'Bảng điều khiển' : locale === 'zh' ? '控制台' : locale === 'ja' ? 'ダッシュボード' : locale === 'ko' ? '대시보드' : 'Dashboard',
+    totalCredits: locale === 'vi' ? 'Tổng số tín dụng' : locale === 'zh' ? '总点数' : locale === 'ja' ? '合計クレジット' : locale === 'ko' ? '총 크레딧' : 'Total credits',
+    availableTryOn: locale === 'vi' ? 'Có sẵn để thử đồ' : locale === 'zh' ? '可用于试衣' : locale === 'ja' ? '試着に利用可能' : locale === 'ko' ? '피팅에 사용 가능' : 'Available for try-on',
+    topUp: locale === 'vi' ? 'Nạp tiền' : locale === 'zh' ? '充值' : locale === 'ja' ? 'チャージ' : locale === 'ko' ? '충전' : 'Top up',
+    newTryOn: locale === 'vi' ? 'Thử đồ mới' : locale === 'zh' ? '新建试衣' : locale === 'ja' ? '新しい試着' : locale === 'ko' ? '새 피팅' : 'New try-on',
+    ready: locale === 'vi' ? 'Sẵn sàng' : locale === 'zh' ? '已就绪' : locale === 'ja' ? '準備完了' : locale === 'ko' ? '준비 완료' : 'Ready',
+    createNow: locale === 'vi' ? 'Tạo ảnh thử đồ mới ngay bây giờ' : locale === 'zh' ? '立即创建新的试衣图片' : locale === 'ja' ? '今すぐ新しい試着画像を作成' : locale === 'ko' ? '지금 새 피팅 이미지를 생성하세요' : 'Create a new try-on image now',
+    tryOnNow: locale === 'vi' ? 'Thử đồ ngay' : locale === 'zh' ? '立即试衣' : locale === 'ja' ? '今すぐ試着' : locale === 'ko' ? '지금 피팅' : 'Try on now',
+    aiTools: locale === 'vi' ? 'Công cụ AI' : locale === 'zh' ? 'AI 工具' : locale === 'ja' ? 'AI ツール' : locale === 'ko' ? 'AI 도구' : 'AI tools',
+    recentHistory: locale === 'vi' ? 'Lịch sử gần đây' : locale === 'zh' ? '最近历史' : locale === 'ja' ? '最近の履歴' : locale === 'ko' ? '최근 기록' : 'Recent history',
+    viewAll: locale === 'vi' ? 'Xem tất cả' : locale === 'zh' ? '查看全部' : locale === 'ja' ? 'すべて表示' : locale === 'ko' ? '전체 보기' : 'View all',
+    noHistory: locale === 'vi' ? 'Chưa có lịch sử' : locale === 'zh' ? '暂无历史记录' : locale === 'ja' ? '履歴がありません' : locale === 'ko' ? '기록이 없습니다' : 'No history yet',
+    noHistoryDesc: locale === 'vi'
+      ? 'Bắt đầu trải nghiệm thử đồ ảo đầu tiên của bạn'
+      : locale === 'zh'
+        ? '开始你的第一次 AI 试衣体验'
+        : locale === 'ja'
+          ? '最初の AI 試着体験を始めましょう'
+          : locale === 'ko'
+            ? '첫 AI 가상 피팅을 시작해 보세요'
+            : 'Start your first virtual try-on experience',
+    resultAlt: locale === 'vi' ? 'Kết quả thử đồ ngày' : locale === 'zh' ? '试衣结果日期' : locale === 'ja' ? '試着結果日付' : locale === 'ko' ? '피팅 결과 날짜' : 'Try-on result date',
+  }
   const supabase = createClient()
   const user = await getUserOrBypass(() => supabase.auth.getUser())
   if (!user) redirect('/auth/login')
@@ -29,45 +56,45 @@ export default async function DashboardPage() {
   return (
     <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
       <div className="flex items-center justify-between space-y-2">
-        <h2 className="text-xl sm:text-3xl font-bold tracking-tight">Bảng điều khiển</h2>
+        <h2 className="text-xl sm:text-3xl font-bold tracking-tight">{ui.title}</h2>
       </div>
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Tổng số tín dụng</CardTitle>
+            <CardTitle className="text-sm font-medium">{ui.totalCredits}</CardTitle>
             <Wallet className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{credits?.balance || 0}</div>
             <p className="text-xs text-muted-foreground">
-              Có sẵn để thử đồ
+              {ui.availableTryOn}
             </p>
             <Link href="/wallet" className="mt-4 block">
-              <Button size="sm" className="w-full">Nạp tiền</Button>
+              <Button size="sm" className="w-full">{ui.topUp}</Button>
             </Link>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
-              Thử đồ mới
+              {ui.newTryOn}
             </CardTitle>
             <Sparkles className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">Sẵn sàng</div>
+            <div className="text-2xl font-bold">{ui.ready}</div>
             <p className="text-xs text-muted-foreground">
-              Tạo ảnh thử đồ mới ngay bây giờ
+              {ui.createNow}
             </p>
             <Button className="w-full mt-4" asChild>
-              <Link href="/thu-do-online">Thử đồ ngay</Link>
+              <Link href="/thu-do-online">{ui.tryOnNow}</Link>
             </Button>
           </CardContent>
         </Card>
       </div>
 
       <div className="space-y-4">
-        <h3 className="text-lg sm:text-xl font-semibold">Công cụ AI</h3>
+        <h3 className="text-lg sm:text-xl font-semibold">{ui.aiTools}</h3>
         <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-0 sm:gap-3">
           {AI_TOOLS.map((tool) => {
             const Icon = tool.icon
@@ -78,7 +105,7 @@ export default async function DashboardPage() {
                     <div className="w-[30vw] max-w-[150px] aspect-square">
                       <Icon className="h-full w-full text-muted-foreground" />
                     </div>
-                    <span className="text-xs sm:text-sm md:text-base font-medium leading-tight mt-0.5 sm:mt-1 px-1">{tool.label}</span>
+                    <span className="text-xs sm:text-sm md:text-base font-medium leading-tight mt-0.5 sm:mt-1 px-1">{t.tool[tool.labelKey]}</span>
                   </CardContent>
                 </Card>
               </Link>
@@ -89,9 +116,9 @@ export default async function DashboardPage() {
       
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg sm:text-xl font-semibold">Lịch sử gần đây</h3>
+          <h3 className="text-lg sm:text-xl font-semibold">{ui.recentHistory}</h3>
           <Button variant="ghost" size="sm" asChild>
-            <Link href="/dashboard/history">Xem tất cả</Link>
+            <Link href="/dashboard/history">{ui.viewAll}</Link>
           </Button>
         </div>
         {history && history.length > 0 ? (
@@ -102,7 +129,7 @@ export default async function DashboardPage() {
                   {item.result_image_url && (
                     <ImagePreview 
                       src={item.result_image_url} 
-                      alt={`Kết quả thử đồ ngày ${new Date(item.created_at).toLocaleDateString()}`}
+                      alt={`${ui.resultAlt} ${new Date(item.created_at).toLocaleDateString()}`}
                       className="w-full h-full"
                     />
                   )}
@@ -114,12 +141,12 @@ export default async function DashboardPage() {
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-8 text-center">
               <History className="h-12 w-12 text-muted-foreground mb-4" />
-              <p className="text-lg font-medium">Chưa có lịch sử</p>
+              <p className="text-lg font-medium">{ui.noHistory}</p>
               <p className="text-sm text-muted-foreground mb-4">
-                Bắt đầu trải nghiệm thử đồ ảo đầu tiên của bạn
+                {ui.noHistoryDesc}
               </p>
               <Link href="/try-on">
-                <Button variant="outline">Thử đồ ngay</Button>
+                <Button variant="outline">{ui.tryOnNow}</Button>
               </Link>
             </CardContent>
           </Card>

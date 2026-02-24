@@ -5,8 +5,17 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { EditCreditDialog } from './edit-credit-dialog'
 import { Toaster } from '@/components/ui/sonner'
+import { getCurrentWebLocale } from '@/lib/i18n/server'
 
 export default async function AdminUsersPage() {
+  const uiLocale = getCurrentWebLocale()
+  const tr = (vi: string, en: string, zh: string, ja: string, ko: string) => {
+    if (uiLocale === 'en') return en
+    if (uiLocale === 'zh') return zh
+    if (uiLocale === 'ja') return ja
+    if (uiLocale === 'ko') return ko
+    return vi
+  }
   const supabase = createClient()
 
   const { data: usersData, error } = await supabase
@@ -37,17 +46,17 @@ export default async function AdminUsersPage() {
     <div className="space-y-8">
       <Toaster />
       <div className="flex items-center justify-between">
-        <h2 className="text-3xl font-bold tracking-tight">Quản lý thành viên</h2>
+        <h2 className="text-3xl font-bold tracking-tight">{tr('Quản lý thành viên', 'User management', '用户管理', 'ユーザー管理', '사용자 관리')}</h2>
       </div>
       <Card>
         <CardContent className="mt-6">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Thành viên</TableHead>
-                <TableHead>Vai trò</TableHead>
-                <TableHead className="text-right">Số dư tín dụng</TableHead>
-                <TableHead className="text-right">Hành động</TableHead>
+                <TableHead>{tr('Thành viên', 'Member', '成员', 'メンバー', '회원')}</TableHead>
+                <TableHead>{tr('Vai trò', 'Role', '角色', '役割', '역할')}</TableHead>
+                <TableHead className="text-right">{tr('Số dư tín dụng', 'Credit balance', '积分余额', 'クレジット残高', '크레딧 잔액')}</TableHead>
+                <TableHead className="text-right">{tr('Hành động', 'Action', '操作', '操作', '작업')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

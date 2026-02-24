@@ -1,5 +1,6 @@
 export const APPLY_COSTS = { '2K': 1.5, '4K': 3 } as const
 export const ANALYZE_CREDIT = 0.5
+export type UiLocale = 'vi' | 'en' | 'zh' | 'ja' | 'ko'
 
 /** Lựa chọn loại cửa – khách xác nhận giúp AI khi phân tích không rõ */
 export const DOOR_TYPE_OPTIONS: { value: string; label: string }[] = [
@@ -308,4 +309,104 @@ export const INTERIOR_STYLES: Record<string, string> = {
   'art deco': 'Art Deco, geometric, bold, glamorous, gold accents',
   'cổ điển phai màu': 'shabby chic, distressed, vintage, soft pastels',
   'đương đại': 'contemporary, current trends, mixed materials, dynamic',
+}
+
+const MAIN_COLOR_LABELS: Record<string, Record<UiLocale, string>> = {
+  'trắng': { vi: 'Trắng', en: 'White', zh: '白色', ja: '白', ko: '화이트' },
+  be: { vi: 'Be', en: 'Beige', zh: '米色', ja: 'ベージュ', ko: '베이지' },
+  'xám': { vi: 'Xám', en: 'Gray', zh: '灰色', ja: 'グレー', ko: '회색' },
+  'ấm': { vi: 'Ấm', en: 'Warm', zh: '暖色', ja: '暖色', ko: '따뜻한 톤' },
+  'lạnh': { vi: 'Lạnh', en: 'Cool', zh: '冷色', ja: '寒色', ko: '차가운 톤' },
+  'tối': { vi: 'Tối', en: 'Dark', zh: '深色', ja: 'ダーク', ko: '다크' },
+  'sáng': { vi: 'Sáng', en: 'Light', zh: '浅色', ja: 'ライト', ko: '라이트' },
+  pastel: { vi: 'Pastel', en: 'Pastel', zh: '粉彩', ja: 'パステル', ko: '파스텔' },
+  'tự nhiên': { vi: 'Tự nhiên', en: 'Natural', zh: '自然色', ja: 'ナチュラル', ko: '내추럴' },
+}
+
+const ARCH_THEME_LABELS: Record<string, Record<UiLocale, string>> = {
+  'việt nam': { vi: 'Việt Nam', en: 'Vietnamese', zh: '越南', ja: 'ベトナム', ko: '베트남' },
+  'nhật bản': { vi: 'Nhật Bản', en: 'Japanese', zh: '日式', ja: '日本式', ko: '일본식' },
+  'địa trung hải': { vi: 'Địa Trung Hải', en: 'Mediterranean', zh: '地中海', ja: '地中海', ko: '지중해' },
+  'bắc âu': { vi: 'Bắc Âu', en: 'Scandinavian', zh: '北欧', ja: '北欧', ko: '북유럽' },
+  'thuộc địa': { vi: 'Thuộc địa', en: 'Colonial', zh: '殖民风', ja: 'コロニアル', ko: '콜로니얼' },
+  'hiện đại': { vi: 'Hiện đại', en: 'Modern', zh: '现代', ja: 'モダン', ko: '모던' },
+  tudor: { vi: 'Tudor', en: 'Tudor', zh: '都铎', ja: 'チューダー', ko: '튜더' },
+  victorian: { vi: 'Victorian', en: 'Victorian', zh: '维多利亚', ja: 'ビクトリアン', ko: '빅토리안' },
+  'pháp': { vi: 'Pháp', en: 'French', zh: '法式', ja: 'フレンチ', ko: '프렌치' },
+  'đông nam á': { vi: 'Đông Nam Á', en: 'Southeast Asian', zh: '东南亚', ja: '東南アジア', ko: '동남아' },
+  maroc: { vi: 'Maroc', en: 'Moroccan', zh: '摩洛哥', ja: 'モロッコ', ko: '모로코' },
+  'phương đông': { vi: 'Phương Đông', en: 'Eastern', zh: '东方风', ja: '東洋風', ko: '동양풍' },
+}
+
+const ROOM_TYPE_LABELS: Record<string, Record<UiLocale, string>> = {
+  '': { vi: 'Tự động (AI nhận diện)', en: 'Auto (AI detect)', zh: '自动（AI识别）', ja: '自動（AI認識）', ko: '자동 (AI 인식)' },
+  'phong-khach': { vi: 'Phòng khách', en: 'Living room', zh: '客厅', ja: 'リビング', ko: '거실' },
+  'phong-ngu': { vi: 'Phòng ngủ', en: 'Bedroom', zh: '卧室', ja: '寝室', ko: '침실' },
+  'phong-ngu-chinh': { vi: 'Phòng ngủ chính', en: 'Master bedroom', zh: '主卧', ja: '主寝室', ko: '안방' },
+  'phong-bep': { vi: 'Phòng bếp', en: 'Kitchen', zh: '厨房', ja: 'キッチン', ko: '주방' },
+  'phong-bep-lien-phong-an': { vi: 'Bếp liền phòng ăn', en: 'Kitchen + dining', zh: '厨餐一体', ja: 'キッチン＋ダイニング', ko: '주방+다이닝' },
+  'phong-an': { vi: 'Phòng ăn', en: 'Dining room', zh: '餐厅', ja: 'ダイニング', ko: '식당' },
+  'phong-tam': { vi: 'Phòng tắm', en: 'Bathroom', zh: '浴室', ja: 'バスルーム', ko: '욕실' },
+  'van-phong': { vi: 'Văn phòng', en: 'Office', zh: '办公室', ja: 'オフィス', ko: '사무실' },
+  'phong-lam-viec': { vi: 'Phòng làm việc', en: 'Home office', zh: '家庭办公', ja: 'ホームオフィス', ko: '홈오피스' },
+  'phong-tre-em': { vi: 'Phòng trẻ em', en: 'Kids room', zh: '儿童房', ja: '子ども部屋', ko: '어린이방' },
+  'phong-doc': { vi: 'Phòng đọc / Thư viện', en: 'Study / library', zh: '书房/图书室', ja: '書斎/ライブラリ', ko: '서재/라이브러리' },
+  'hanh-lang': { vi: 'Hành lang', en: 'Hallway', zh: '走廊', ja: '廊下', ko: '복도' },
+  'nha-kho': { vi: 'Nhà kho / Phòng chứa đồ', en: 'Storage room', zh: '储物间', ja: '収納室', ko: '창고' },
+  'phong-khach-moi': { vi: 'Phòng khách (guest room)', en: 'Guest room', zh: '客房', ja: 'ゲストルーム', ko: '게스트룸' },
+  'ban-cong': { vi: 'Ban công / Sân thượng', en: 'Balcony / terrace', zh: '阳台/露台', ja: 'バルコニー/テラス', ko: '발코니/테라스' },
+  'khu-vuc-giao-nhau': { vi: 'Khu vực giao nhau', en: 'Transition area', zh: '过渡区域', ja: '接続エリア', ko: '연결 구역' },
+}
+
+const FURNITURE_CATEGORY_LABELS: Record<string, Record<UiLocale, string>> = {
+  'Phòng khách': { vi: 'Phòng khách', en: 'Living room', zh: '客厅', ja: 'リビング', ko: '거실' },
+  'Chung': { vi: 'Chung', en: 'General', zh: '通用', ja: '共通', ko: '공통' },
+  'Phòng ngủ': { vi: 'Phòng ngủ', en: 'Bedroom', zh: '卧室', ja: '寝室', ko: '침실' },
+  'Phòng ăn': { vi: 'Phòng ăn', en: 'Dining room', zh: '餐厅', ja: 'ダイニング', ko: '식당' },
+  'Phòng bếp': { vi: 'Phòng bếp', en: 'Kitchen', zh: '厨房', ja: 'キッチン', ko: '주방' },
+  'Văn phòng': { vi: 'Văn phòng', en: 'Office', zh: '办公室', ja: 'オフィス', ko: '사무실' },
+  'Phòng tắm': { vi: 'Phòng tắm', en: 'Bathroom', zh: '浴室', ja: 'バスルーム', ko: '욕실' },
+  'Ghế & Bàn': { vi: 'Ghế & Bàn', en: 'Chairs & Tables', zh: '桌椅', ja: '椅子・テーブル', ko: '의자·테이블' },
+  'Đá & Đá cảnh': { vi: 'Đá & Đá cảnh', en: 'Rocks', zh: '景石', ja: '石材', ko: '돌/암석' },
+  'Cây cảnh': { vi: 'Cây cảnh', en: 'Plants', zh: '植物', ja: '植物', ko: '식물' },
+  'Đèn & Trang trí': { vi: 'Đèn & Trang trí', en: 'Lighting & Decor', zh: '灯光与装饰', ja: '照明・装飾', ko: '조명·장식' },
+  'Tiểu cảnh': { vi: 'Tiểu cảnh', en: 'Landscape features', zh: '景观元素', ja: '景観要素', ko: '조경 요소' },
+  'Che chắn': { vi: 'Che chắn', en: 'Cover & shade', zh: '遮挡', ja: '日よけ', ko: '차양/가림' },
+  'Khác': { vi: 'Khác', en: 'Other', zh: '其他', ja: 'その他', ko: '기타' },
+}
+
+export function getMainColorLabel(key: string, locale: UiLocale): string {
+  return MAIN_COLOR_LABELS[key]?.[locale] || MAIN_COLOR_LABELS[key]?.en || key
+}
+
+export function getArchThemeLabel(key: string, locale: UiLocale): string {
+  return ARCH_THEME_LABELS[key]?.[locale] || ARCH_THEME_LABELS[key]?.en || key
+}
+
+export function getRoomTypeLabel(value: string, locale: UiLocale): string {
+  return ROOM_TYPE_LABELS[value]?.[locale] || ROOM_TYPE_LABELS[value]?.en || value
+}
+
+export function getInteriorStyleLabel(value: string, locale: UiLocale): string {
+  if (locale === 'vi') return INTERIOR_STYLE_LABELS[value] || value
+  return value
+}
+
+export function getFurnitureCategoryLabel(category: string, locale: UiLocale): string {
+  return FURNITURE_CATEGORY_LABELS[category]?.[locale] || FURNITURE_CATEGORY_LABELS[category]?.en || category
+}
+
+export function getOptionLabel(
+  option: { value: string; label: string; promptEn?: string },
+  locale: UiLocale
+): string {
+  if (locale === 'vi') return option.label
+  return option.promptEn || option.label
+}
+
+export function getFurnitureItemLabel(
+  item: { label: string; promptEn: string },
+  locale: UiLocale
+): string {
+  return locale === 'vi' ? item.label : item.promptEn
 }

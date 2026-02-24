@@ -56,6 +56,7 @@ thu-do-online-*.json
 .cursor/
 .idea/
 .vscode/
+supabase/.temp/
 
 # deployment/runtime logs
 logs/

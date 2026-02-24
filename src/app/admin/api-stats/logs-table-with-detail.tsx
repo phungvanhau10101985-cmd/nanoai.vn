@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { LogDetailDialog, type LogWithCost } from './log-detail-dialog'
@@ -17,8 +17,39 @@ export function LogsTableWithDetail({
   logs,
   featureLabels,
 }: LogsTableWithDetailProps) {
+  const [uiLocale, setUiLocale] = useState<'vi' | 'en' | 'zh' | 'ja' | 'ko'>('vi')
   const [selectedLog, setSelectedLog] = useState<LogWithCost | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
+  const tr = (vi: string, en: string, zh: string, ja: string, ko: string) => {
+    if (uiLocale === 'en') return en
+    if (uiLocale === 'zh') return zh
+    if (uiLocale === 'ja') return ja
+    if (uiLocale === 'ko') return ko
+    return vi
+  }
+
+  useEffect(() => {
+    const syncLocale = () => {
+      const cookieValue = document.cookie
+        .split(';')
+        .map((x) => x.trim())
+        .find((x) => x.startsWith('nanoai_locale='))
+        ?.split('=')[1]
+        ?.trim()
+        .toLowerCase()
+      if (cookieValue === 'en' || cookieValue === 'zh' || cookieValue === 'ja' || cookieValue === 'ko') setUiLocale(cookieValue)
+      else setUiLocale('vi')
+    }
+    syncLocale()
+    const timer = window.setInterval(syncLocale, 1000)
+    window.addEventListener('focus', syncLocale)
+    document.addEventListener('visibilitychange', syncLocale)
+    return () => {
+      window.removeEventListener('focus', syncLocale)
+      document.removeEventListener('visibilitychange', syncLocale)
+      window.clearInterval(timer)
+    }
+  }, [])
 
   const handleRowClick = (log: LogWithCost) => {
     setSelectedLog(log)
@@ -30,14 +61,14 @@ export function LogsTableWithDetail({
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Thời gian</TableHead>
+            <TableHead>{tr('Thời gian', 'Time', '时间', '時間', '시간')}</TableHead>
             <TableHead>Model</TableHead>
-            <TableHead>Chức năng</TableHead>
-            <TableHead>Ảnh</TableHead>
+            <TableHead>{tr('Chức năng', 'Feature', '功能', '機能', '기능')}</TableHead>
+            <TableHead>{tr('Ảnh', 'Image', '图片', '画像', '이미지')}</TableHead>
             <TableHead className="text-right">Input</TableHead>
             <TableHead className="text-right">Output</TableHead>
-            <TableHead className="text-right">Tổng</TableHead>
-            <TableHead className="text-right">Chi phí (₫)</TableHead>
+            <TableHead className="text-right">{tr('Tổng', 'Total', '总计', '合計', '합계')}</TableHead>
+            <TableHead className="text-right">{tr('Chi phí (₫)', 'Cost (₫)', '费用 (₫)', 'コスト (₫)', '비용 (₫)')}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
