@@ -10,12 +10,25 @@ type WordPayload = {
   nativeLanguage?: string
 }
 
+type WordMeaningItem = {
+  text: string
+  pinyin?: string
+}
+
+type WordExampleItem = {
+  targetText: string
+  targetPinyin?: string
+  nativeText: string
+}
+
 type WordResult = {
   partOfSpeech: string
   meaning: string
   pronunciation: string
   exampleTarget: string
   exampleNative: string
+  meaningItems: WordMeaningItem[]
+  exampleItems: WordExampleItem[]
 }
 const wordCacheStats = { hit: 0, miss: 0 }
 
@@ -58,6 +71,41 @@ function logWordCacheStats(word: string) {
   console.info(`[WORD] "${word}" cache-stats hit=${wordCacheStats.hit} miss=${wordCacheStats.miss} hitRate=${hitRate}%`)
 }
 
+function sanitizeMeaningItems(input: unknown): WordMeaningItem[] {
+  if (!Array.isArray(input)) return []
+  return input
+    .map((row) => ({
+      text: String((row as { text?: unknown })?.text || '').trim(),
+      pinyin: String((row as { pinyin?: unknown })?.pinyin || '').trim(),
+    }))
+    .filter((row) => row.text)
+    .slice(0, 6)
+}
+
+function sanitizeExampleItems(input: unknown): WordExampleItem[] {
+  if (!Array.isArray(input)) return []
+  return input
+    .map((row) => ({
+      targetText: String((row as { targetText?: unknown })?.targetText || '').trim(),
+      targetPinyin: String((row as { targetPinyin?: unknown })?.targetPinyin || '').trim(),
+      nativeText: String((row as { nativeText?: unknown })?.nativeText || '').trim(),
+    }))
+    .filter((row) => row.targetText && row.nativeText)
+    .slice(0, 4)
+}
+
+function parseJsonListField(input: unknown): unknown[] {
+  if (Array.isArray(input)) return input
+  const text = String(input || '').trim()
+  if (!text) return []
+  try {
+    const parsed = JSON.parse(text)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
 function safeParse(text: string): WordResult | null {
   const cleaned = text
     .replace(/^```json\s*/i, '')
@@ -68,12 +116,28 @@ function safeParse(text: string): WordResult | null {
     const parsed = JSON.parse(candidate) as Partial<WordResult>
     const meaning = String(parsed.meaning || '').trim()
     if (!meaning) return null
+    const meaningItems = sanitizeMeaningItems(parseJsonListField((parsed as { meaningItems?: unknown }).meaningItems))
+    const exampleItems = sanitizeExampleItems(parseJsonListField((parsed as { exampleItems?: unknown }).exampleItems))
+    const fallbackMeaningItems =
+      meaningItems.length > 0
+        ? meaningItems
+        : [{ text: meaning, pinyin: String((parsed as { pronunciation?: unknown }).pronunciation || '').trim() || undefined }]
+    const fallbackExampleItems =
+      exampleItems.length > 0
+        ? exampleItems
+        : [{
+            targetText: String((parsed as { exampleTarget?: unknown }).exampleTarget || '').trim(),
+            targetPinyin: '',
+            nativeText: String((parsed as { exampleNative?: unknown }).exampleNative || '').trim(),
+          }].filter((row) => row.targetText && row.nativeText)
     return {
       partOfSpeech: String((parsed as { partOfSpeech?: unknown }).partOfSpeech || '').trim(),
       meaning,
       pronunciation: String(parsed.pronunciation || '').trim(),
       exampleTarget: String(parsed.exampleTarget || '').trim(),
       exampleNative: String(parsed.exampleNative || '').trim(),
+      meaningItems: fallbackMeaningItems,
+      exampleItems: fallbackExampleItems,
     }
   }
 
@@ -115,7 +179,9 @@ export async function POST(request: NextRequest) {
     const contextHash = hashContextSentence(contextSentence)
     const { data: cachedRows } = await adminSupabase
       .from('language_coach_vocab_cache')
-      .select('id, meaning, pronunciation, part_of_speech, example_target, example_native, pronunciation_audio_url')
+      .select(
+        'id, meaning, pronunciation, part_of_speech, example_target, example_native, pronunciation_audio_url, meaning_items_json, example_items_json'
+      )
       .eq('normalized_word', normalizedWord)
       .eq('normalized_target_language', normalizedTarget)
       .eq('normalized_native_language', normalizedNative)
@@ -130,14 +196,26 @@ export async function POST(request: NextRequest) {
         .from('language_coach_vocab_cache')
         .update({ last_used_at: new Date().toISOString(), updated_at: new Date().toISOString() })
         .eq('id', cached.id)
+      const cachedMeaningItems = sanitizeMeaningItems(parseJsonListField(cached.meaning_items_json))
+      const cachedExampleItems = sanitizeExampleItems(parseJsonListField(cached.example_items_json))
+      const fallbackMeaning = String(cached.meaning || '').trim()
+      const fallbackExampleTarget = String(cached.example_target || '').trim() || word
+      const fallbackExampleNative = String(cached.example_native || '').trim()
+        || msg(locale, `Bạn vừa bấm từ "${word}".`, `You just tapped the word "${word}".`)
       console.info(`[WORD] cache-hit word="${word}"`)
       logWordCacheStats(word)
       return NextResponse.json({
         partOfSpeech: String(cached.part_of_speech || '').trim(),
-        meaning: String(cached.meaning || '').trim(),
+        meaning: fallbackMeaning,
         pronunciation: String(cached.pronunciation || '').trim() || word,
-        exampleTarget: String(cached.example_target || '').trim() || word,
-        exampleNative: String(cached.example_native || '').trim() || msg(locale, `Bạn vừa bấm từ "${word}".`, `You just tapped the word "${word}".`),
+        exampleTarget: fallbackExampleTarget,
+        exampleNative: fallbackExampleNative,
+        meaningItems: cachedMeaningItems.length > 0
+          ? cachedMeaningItems
+          : (fallbackMeaning ? [{ text: fallbackMeaning }] : []),
+        exampleItems: cachedExampleItems.length > 0
+          ? cachedExampleItems
+          : [{ targetText: fallbackExampleTarget, nativeText: fallbackExampleNative }],
         pronunciationAudioUrl: String(cached.pronunciation_audio_url || '').trim(),
         cached: true,
       })
@@ -157,17 +235,21 @@ Ngôn ngữ mục tiêu: ${targetLanguage}.
 Ngôn ngữ mẹ đẻ của học sinh: ${nativeLanguage}.
 
 Yêu cầu:
-1) meaning: giải thích nghĩa NGẮN gọn bằng ${nativeLanguage}. Nếu ngữ cảnh thiếu, vẫn phải trả nghĩa phổ biến nhất của từ.
-2) pronunciation: phiên âm hoặc gợi ý phát âm dễ đọc.
+1) meaning: giải thích nghĩa ĐẦY ĐỦ bằng ${nativeLanguage} (1-3 câu), nêu sắc thái dùng từ và ngữ cảnh thường gặp.
+2) pronunciation: phiên âm dễ đọc. Nếu ngôn ngữ là tiếng Trung thì dùng pinyin có dấu; tiếng Nhật dùng romaji; tiếng Hàn dùng romanization.
 3) partOfSpeech: loại từ ngắn gọn (noun/verb/adj/adv/...).
-4) exampleTarget: 1 câu ví dụ ngắn bằng ${targetLanguage}.
-5) exampleNative: dịch tự nhiên câu ví dụ sang ${nativeLanguage}.
+4) meaningItems: mảng 1-3 ý nghĩa, mỗi item gồm text + pinyin (bắt buộc có pinyin/romanization cho zh/ja/ko).
+5) exampleItems: mảng 1-3 ví dụ, mỗi item gồm targetText + targetPinyin + nativeText (bắt buộc targetPinyin cho zh/ja/ko).
+6) exampleTarget: lấy từ exampleItems[0].targetText (để tương thích ngược).
+7) exampleNative: lấy từ exampleItems[0].nativeText (để tương thích ngược).
 
 Trả về JSON hợp lệ, không markdown:
 {
   "partOfSpeech": "...",
   "meaning": "...",
   "pronunciation": "...",
+  "meaningItems": [{"text":"...","pinyin":"..."}],
+  "exampleItems": [{"targetText":"...","targetPinyin":"...","nativeText":"..."}],
   "exampleTarget": "...",
   "exampleNative": "..."
 }`
@@ -190,16 +272,43 @@ Trả về JSON hợp lệ, không markdown:
         pronunciation: word,
         exampleTarget: `I use "${word}" in a sentence.`,
         exampleNative: msg(locale, `Ví dụ dùng từ "${word}" trong câu.`, `An example using "${word}" in a sentence.`),
+        meaningItems: [
+          {
+            text: msg(
+              locale,
+              `Nghĩa phổ biến của "${word}" đang được cập nhật. Hãy thử lại sau vài giây.`,
+              `The common meaning of "${word}" is being updated. Please try again in a few seconds.`
+            ),
+          },
+        ],
+        exampleItems: [
+          {
+            targetText: `I use "${word}" in a sentence.`,
+            nativeText: msg(locale, `Ví dụ dùng từ "${word}" trong câu.`, `An example using "${word}" in a sentence.`),
+          },
+        ],
         cached: false,
       })
     }
 
+    const normalizedMeaningItems = sanitizeMeaningItems(parsed.meaningItems)
+    const normalizedExampleItems = sanitizeExampleItems(parsed.exampleItems)
+    const primaryExample = normalizedExampleItems[0] || null
     const completed: WordResult = {
       partOfSpeech: parsed.partOfSpeech || '',
       meaning: parsed.meaning,
       pronunciation: parsed.pronunciation || word,
-      exampleTarget: parsed.exampleTarget || `I use "${word}" in a sentence.`,
-      exampleNative: parsed.exampleNative || msg(locale, `Ví dụ dùng từ "${word}" trong câu.`, `An example using "${word}" in a sentence.`),
+      exampleTarget: primaryExample?.targetText || parsed.exampleTarget || `I use "${word}" in a sentence.`,
+      exampleNative: primaryExample?.nativeText
+        || parsed.exampleNative
+        || msg(locale, `Ví dụ dùng từ "${word}" trong câu.`, `An example using "${word}" in a sentence.`),
+      meaningItems: normalizedMeaningItems.length > 0 ? normalizedMeaningItems : [{ text: parsed.meaning }],
+      exampleItems: normalizedExampleItems.length > 0
+        ? normalizedExampleItems
+        : [{
+            targetText: parsed.exampleTarget || `I use "${word}" in a sentence.`,
+            nativeText: parsed.exampleNative || msg(locale, `Ví dụ dùng từ "${word}" trong câu.`, `An example using "${word}" in a sentence.`),
+          }],
     }
 
     await adminSupabase.from('language_coach_vocab_cache').upsert(
@@ -216,6 +325,8 @@ Trả về JSON hợp lệ, không markdown:
         pronunciation: completed.pronunciation || null,
         example_target: completed.exampleTarget || null,
         example_native: completed.exampleNative || null,
+        meaning_items_json: JSON.stringify(completed.meaningItems),
+        example_items_json: JSON.stringify(completed.exampleItems),
         source_model: 'gemini-2.5-flash',
         last_used_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
