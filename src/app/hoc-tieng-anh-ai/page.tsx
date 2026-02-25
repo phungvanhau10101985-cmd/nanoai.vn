@@ -14,7 +14,7 @@ export const metadata: Metadata = buildMetadata({
 
 export default function HocTiengAnhAiPage() {
   return (
-    <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="w-full mx-auto px-0 py-4 sm:container sm:max-w-7xl sm:px-6 sm:py-8 lg:px-8">
       <HocTiengAnhAiClientPage />
     </div>
   )

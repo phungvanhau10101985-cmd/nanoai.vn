@@ -282,7 +282,7 @@ const COACH_NATIVE_UI_TEXT: Record<NativeLanguageCode, {
     fixDesc: 'Giáo viên sửa lỗi sai và gợi ý phát âm để bạn nói tự nhiên hơn.',
     historyTitle: 'Ôn lại buổi học cũ',
     historyDesc: 'Lịch sử buổi học được đồng bộ để mở lại trên nhiều thiết bị.',
-    inputPlaceholder: 'Nhập câu hoặc bấm nút mic để nói...',
+    inputPlaceholder: 'Viết câu vào đây...',
     customTopicPlaceholder: 'Ví dụ: Phỏng vấn xin việc ngành IT, giao tiếp ở sân bay, thuyết trình dự án...',
     micHintPrefix: 'Nếu chưa nghe rõ/chưa hiểu, hãy nói kèm câu đó theo',
     micErrorTitle: 'Mic lỗi',
@@ -302,7 +302,7 @@ const COACH_NATIVE_UI_TEXT: Record<NativeLanguageCode, {
     fixDesc: 'Teacher corrects mistakes and gives pronunciation guidance.',
     historyTitle: 'Review previous lessons',
     historyDesc: 'Lesson history is synced so you can reopen on other devices.',
-    inputPlaceholder: 'Type a sentence or tap the mic to speak...',
+    inputPlaceholder: 'Write your sentence here...',
     customTopicPlaceholder: 'Example: IT interview, airport communication, project presentation...',
     micHintPrefix: 'If you do not hear/understand clearly, include the sentence in',
     micErrorTitle: 'Microphone error',
@@ -3620,7 +3620,7 @@ export default function HocTiengAnhAiClientPage() {
   return (
     <>
       <Toaster />
-      <div className="mx-auto max-w-5xl lg:max-w-7xl space-y-6">
+      <div className="mx-auto w-full space-y-6 sm:max-w-5xl lg:max-w-7xl">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-foreground flex items-center justify-center gap-2">
             <Languages className="h-6 w-6 text-indigo-600" />
@@ -4266,14 +4266,26 @@ export default function HocTiengAnhAiClientPage() {
                 )}
               </div>
 
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <Input
-                  value={draft}
-                  onChange={(e) => setDraft(e.target.value)}
-                  placeholder={coachUiText.inputPlaceholder}
-                  disabled={busy}
-                />
-                <div className="flex items-center gap-1 rounded-md border px-1 py-1">
+              <div className="space-y-2">
+                <div className="flex items-center gap-1 sm:flex-1">
+                  <Input
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value)}
+                    placeholder={coachUiText.inputPlaceholder}
+                    disabled={busy}
+                    className="sm:flex-1"
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => void handleSend()}
+                    disabled={busy || !draft.trim() || (Boolean(writingTask) && !writingTask?.completed)}
+                    className="h-9 px-2"
+                  >
+                    <Send className="h-4 w-4" />
+                  </Button>
+                </div>
+                <div className="flex items-center gap-1 rounded-md border px-1 py-1 overflow-x-auto whitespace-nowrap">
                   <Button
                     type="button"
                     size="sm"
@@ -4294,25 +4306,18 @@ export default function HocTiengAnhAiClientPage() {
                   >
                     {localText('Ngắn gọn', 'Concise')}
                   </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={listening ? 'destructive' : 'outline'}
+                    onClick={handleMic}
+                    disabled={busy || (Boolean(writingTask) && !writingTask?.completed)}
+                    className="min-h-[44px] px-3 text-xs"
+                  >
+                    {listening ? <MicOff className="mr-2 h-4 w-4" /> : <Mic className="mr-2 h-4 w-4" />}
+                    {listening ? localText('Dừng mic', 'Stop mic') : localText('Nói', 'Speak')}
+                  </Button>
                 </div>
-                <Button
-                  type="button"
-                  variant={listening ? 'destructive' : 'outline'}
-                  onClick={handleMic}
-                  disabled={busy || (Boolean(writingTask) && !writingTask?.completed)}
-                className="min-h-[44px]"
-                >
-                  {listening ? <MicOff className="mr-2 h-4 w-4" /> : <Mic className="mr-2 h-4 w-4" />}
-                  {listening ? localText('Dừng mic', 'Stop mic') : localText('Nói', 'Speak')}
-                </Button>
-                <Button
-                  type="button"
-                  onClick={() => void handleSend()}
-                  disabled={busy || !draft.trim() || (Boolean(writingTask) && !writingTask?.completed)}
-                className="min-h-[44px]"
-                >
-                  <Send className="mr-2 h-4 w-4" /> {localText('Gửi', 'Send')}
-                </Button>
               </div>
               <p className="text-xs text-slate-500">
                 {coachUiText.micHintPrefix} {selectedNativeLanguage.label} / {selectedLanguageLabel}:{' '}

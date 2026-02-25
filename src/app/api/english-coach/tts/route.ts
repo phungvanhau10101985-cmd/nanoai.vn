@@ -250,6 +250,7 @@ ${shorterText}`
     const attemptLogs: AttemptLog[] = []
     let successMeta: { model: string; voice: VoiceName } | null = null
 
+    // Ưu tiên OpenAI TTS trước nếu có key và không bắt buộc dùng Gemini-only
     if (requestedEngine !== 'gemini-only') {
       if (openAiApiKey) {
         try {
@@ -277,7 +278,8 @@ ${shorterText}`
       }
     }
 
-    if (!extracted && googleApiKey) {
+    // Nếu OpenAI không thành công (hoặc không có key) và có Google API key, thử Gemini
+    if (!extracted && googleApiKey && requestedEngine !== 'openai-only') {
       const ai = new GoogleGenAI({ apiKey: googleApiKey })
       const makeRequest = async (model: string, contents: string, voice: VoiceName) =>
         ai.models.generateContent({
@@ -317,7 +319,7 @@ ${shorterText}`
           })
         }
       }
-    } else if (!extracted) {
+    } else if (!extracted && requestedEngine !== 'openai-only') {
       attemptLogs.push({ model: 'gemini-2.5-flash-preview-tts', voice: voiceName, ok: false, reason: 'missing-google-api-key' })
     }
 
