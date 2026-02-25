@@ -1297,6 +1297,8 @@ export default function HocTiengAnhAiClientPage() {
   const [writingDraft, setWritingDraft] = useState('')
   const [writingBusy, setWritingBusy] = useState(false)
   const [writingEvalResult, setWritingEvalResult] = useState<WritingEvalResult | null>(null)
+  const [writingRomanizationByKey, setWritingRomanizationByKey] = useState<Record<string, string>>({})
+  const [writingRomanizationBusyByKey, setWritingRomanizationBusyByKey] = useState<Record<string, boolean>>({})
   const [listening, setListening] = useState(false)
   const [busy, setBusy] = useState(false)
   const [historyBusy, setHistoryBusy] = useState(false)
@@ -1354,6 +1356,39 @@ export default function HocTiengAnhAiClientPage() {
     if (uiLocale === 'vi') return vi
     if (uiLocale === 'en') return en
     return LOCAL_TEXT_TRANSLATIONS[en]?.[uiLocale] || en
+  }
+  const supportsLatinTransliteration = languageCode === 'zh' || languageCode === 'ja' || languageCode === 'ko'
+  const toWritingRomanizationKey = (text: string) => `${languageCode}::${String(text || '').trim()}`
+
+  const ensureWritingRomanization = async (text: string) => {
+    if (!supportsLatinTransliteration) return
+    const sourceText = String(text || '').trim()
+    if (!sourceText) return
+    const key = toWritingRomanizationKey(sourceText)
+    if (writingRomanizationByKey[key] || writingRomanizationBusyByKey[key]) return
+
+    setWritingRomanizationBusyByKey((prev) => ({ ...prev, [key]: true }))
+    try {
+      const res = await fetch('/api/english-coach/transliterate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: sourceText,
+          languageCode,
+          targetLanguage: activeTeacher.languageLabel,
+        }),
+      })
+      const data = (await res.json().catch(() => ({}))) as { transliteration?: string; error?: string }
+      if (!res.ok) throw new Error(data.error || localText('Không tạo được phiên âm.', 'Unable to generate transliteration.'))
+      const transliteration = String(data.transliteration || '').trim()
+      if (transliteration) {
+        setWritingRomanizationByKey((prev) => ({ ...prev, [key]: transliteration }))
+      }
+    } catch {
+      // Keep writing flow smooth even when transliteration helper fails.
+    } finally {
+      setWritingRomanizationBusyByKey((prev) => ({ ...prev, [key]: false }))
+    }
   }
 
   const teacherOptions = useMemo(
@@ -2978,6 +3013,8 @@ export default function HocTiengAnhAiClientPage() {
     setWritingTask(null)
     setWritingDraft('')
     setWritingEvalResult(null)
+    setWritingRomanizationByKey({})
+    setWritingRomanizationBusyByKey({})
     lastAutoScrollTokenMessageIdRef.current = ''
     teacherAudioByMessageIdRef.current = {}
     persistedMessageIdsRef.current = {}
@@ -2996,6 +3033,14 @@ export default function HocTiengAnhAiClientPage() {
     void fetchReviewDue()
     void fetchCustomTopics()
   }, [])
+
+  useEffect(() => {
+    if (!supportsLatinTransliteration) return
+    const reference = String(writingTask?.referenceSentence || '').trim()
+    const corrected = String(writingEvalResult?.correctedText || '').trim()
+    if (reference) void ensureWritingRomanization(reference)
+    if (corrected) void ensureWritingRomanization(corrected)
+  }, [supportsLatinTransliteration, writingTask?.referenceSentence, writingEvalResult?.correctedText, languageCode])
 
   useEffect(() => {
     const loadLearnerName = async () => {
@@ -4402,9 +4447,25 @@ export default function HocTiengAnhAiClientPage() {
                       <p className="text-sm font-semibold text-slate-800">{localText('Bài viết mini bắt buộc', 'Required mini-writing task')}</p>
                       <p className="text-xs text-muted-foreground">{writingTask.instruction}</p>
                       {writingTask.referenceSentence ? (
-                        <p className="text-xs text-slate-700">
-                          <span className="font-semibold">{localText('Câu tham chiếu:', 'Reference sentence:')}</span> {writingTask.referenceSentence}
-                        </p>
+                        <div className="text-xs text-slate-700">
+                          <p>
+                            <span className="font-semibold">{localText('Câu tham chiếu:', 'Reference sentence:')}</span> {writingTask.referenceSentence}
+                          </p>
+                          {supportsLatinTransliteration ? (
+                            (() => {
+                              const key = toWritingRomanizationKey(writingTask.referenceSentence || '')
+                              const romanized = writingRomanizationByKey[key]
+                              const busyKey = writingRomanizationBusyByKey[key]
+                              if (!romanized && !busyKey) return null
+                              return (
+                                <p className="mt-0.5 text-muted-foreground">
+                                  <span className="font-semibold">{localText('Phiên âm Latin:', 'Latin transliteration:')}</span>{' '}
+                                  {romanized || localText('Đang tạo...', 'Generating...')}
+                                </p>
+                              )
+                            })()
+                          ) : null}
+                        </div>
                       ) : null}
                     </div>
                     <div className="flex flex-wrap gap-2">
@@ -4431,7 +4492,23 @@ export default function HocTiengAnhAiClientPage() {
                         <p className="mt-1"><span className="font-semibold">{localText('Gợi ý nhanh:', 'Quick hint:')}</span> {writingEvalResult.shortHint}</p>
                         <p className="mt-1 text-muted-foreground">{writingEvalResult.feedback}</p>
                         {writingEvalResult.correctedText ? (
-                          <p className="mt-1"><span className="font-semibold">{localText('Câu sửa gợi ý:', 'Suggested correction:')}</span> {writingEvalResult.correctedText}</p>
+                          <div className="mt-1">
+                            <p><span className="font-semibold">{localText('Câu sửa gợi ý:', 'Suggested correction:')}</span> {writingEvalResult.correctedText}</p>
+                            {supportsLatinTransliteration ? (
+                              (() => {
+                                const key = toWritingRomanizationKey(writingEvalResult.correctedText || '')
+                                const romanized = writingRomanizationByKey[key]
+                                const busyKey = writingRomanizationBusyByKey[key]
+                                if (!romanized && !busyKey) return null
+                                return (
+                                  <p className="mt-0.5 text-muted-foreground">
+                                    <span className="font-semibold">{localText('Phiên âm Latin:', 'Latin transliteration:')}</span>{' '}
+                                    {romanized || localText('Đang tạo...', 'Generating...')}
+                                  </p>
+                                )
+                              })()
+                            ) : null}
+                          </div>
                         ) : null}
                       </div>
                     ) : null}
