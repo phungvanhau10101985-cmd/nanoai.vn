@@ -4094,8 +4094,8 @@ export default function HocTiengAnhAiClientPage() {
               <CardTitle>{coachUiText.chatTitle}</CardTitle>
               <CardDescription>{coachUiText.chatDesc}</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3">
-              <div ref={chatScrollRef} className="max-h-[60vh] space-y-2 overflow-auto rounded-md border bg-slate-50 p-3 sm:max-h-80">
+            <CardContent className="space-y-3 px-2 pb-3 sm:px-6 sm:pb-6">
+              <div ref={chatScrollRef} className="max-h-[60vh] space-y-2 overflow-auto rounded-md border bg-slate-50 p-2 sm:max-h-80 sm:p-3">
                 {messages.length === 0 ? (
                   <p className="text-sm text-muted-foreground">
                     {localText('Chưa có hội thoại. Bấm "Bắt đầu buổi học" để bắt đầu.', 'No conversation yet. Click "Start lesson" to begin.')}
