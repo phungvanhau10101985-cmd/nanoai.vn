@@ -4319,26 +4319,8 @@ export default function HocTiengAnhAiClientPage() {
                   </Button>
                 </div>
               </div>
-              <p className="text-xs text-slate-500">
-                {coachUiText.micHintPrefix} {selectedNativeLanguage.label} / {selectedLanguageLabel}:{' '}
-                &quot;{repeatPromptInNative}&quot; / &quot;{explainPromptInNative}&quot;{' '}
-                {localText('hoặc', 'or')} &quot;{repeatPromptInTarget}&quot; / &quot;{explainPromptInTarget}&quot;{' '}
-                {localText(
-                  'để thầy/cô giải thích đúng câu em đang vướng.',
-                  'so the teacher can explain exactly the sentence you are stuck on.'
-                )}
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card className="border shadow-sm bg-white/80 backdrop-blur">
-            <CardHeader>
-              <CardTitle>{coachUiText.fixTitle}</CardTitle>
-              <CardDescription>{coachUiText.fixDesc}</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
               {writingTask ? (
-                <div className="rounded-md border p-3">
+                <div className="rounded-md border bg-slate-50/70 p-2.5">
                   <p className="text-sm font-semibold text-slate-800">{localText('Bài viết mini bắt buộc', 'Required mini-writing task')}</p>
                   <p className="mt-1 text-xs text-muted-foreground">{writingTask.instruction}</p>
                   {writingTask.referenceSentence ? (
@@ -4369,7 +4351,7 @@ export default function HocTiengAnhAiClientPage() {
                       )}
                     </div>
                     {writingEvalResult ? (
-                      <div className="rounded-md border bg-slate-50 p-2 text-xs">
+                      <div className="rounded-md border bg-white p-2 text-xs">
                         <p>
                           <span className="font-semibold">{localText('Điểm:', 'Score:')}</span> {writingEvalResult.score}/100
                           {' • '}
@@ -4387,6 +4369,24 @@ export default function HocTiengAnhAiClientPage() {
                   </div>
                 </div>
               ) : null}
+              <p className="text-xs text-slate-500">
+                {coachUiText.micHintPrefix} {selectedNativeLanguage.label} / {selectedLanguageLabel}:{' '}
+                &quot;{repeatPromptInNative}&quot; / &quot;{explainPromptInNative}&quot;{' '}
+                {localText('hoặc', 'or')} &quot;{repeatPromptInTarget}&quot; / &quot;{explainPromptInTarget}&quot;{' '}
+                {localText(
+                  'để thầy/cô giải thích đúng câu em đang vướng.',
+                  'so the teacher can explain exactly the sentence you are stuck on.'
+                )}
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="border shadow-sm bg-white/80 backdrop-blur">
+            <CardHeader>
+              <CardTitle>{coachUiText.fixTitle}</CardTitle>
+              <CardDescription>{coachUiText.fixDesc}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
               <div className="rounded-md border p-3">
                 <p className="text-sm font-semibold text-slate-800">{localText('Lỗi cần sửa', 'Corrections needed')}</p>
                 {corrections.length === 0 ? (
