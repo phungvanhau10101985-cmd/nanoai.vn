@@ -28,6 +28,18 @@ type Payload = {
 type TtsExtracted = { audioBase64: string; mimeType: string } | null
 type AttemptLog = { model: string; voice: VoiceName; ok: boolean; reason?: string; statusCode?: number }
 const ttsCacheStats = { hit: 0, miss: 0 }
+const OPENAI_TTS_MODEL = 'gpt-4o-mini-tts'
+const OPENAI_VOICE_BY_GEMINI: Record<VoiceName, string> = {
+  Kore: 'nova',
+  Puck: 'alloy',
+  Zephyr: 'echo',
+  Autonoe: 'shimmer',
+  Enceladus: 'verse',
+  Sadachbia: 'sage',
+  Orus: 'onyx',
+  Fenrir: 'marin',
+  Iapetus: 'cedar',
+}
 
 function tr(input: string): 'vi' | 'en' {
   const value = String(input || '').toLowerCase()
@@ -77,10 +89,6 @@ function toTtsCacheKey(text: string, voiceName: VoiceName, locale: string): stri
   return createHash('sha256').update(keyRaw).digest('hex')
 }
 
-function fallbackVoiceByGender(gender?: 'male' | 'female'): VoiceName {
-  return gender === 'male' ? 'Orus' : 'Kore'
-}
-
 function logTtsCacheStats(requestId: string) {
   const total = ttsCacheStats.hit + ttsCacheStats.miss
   const hitRate = total > 0 ? ((ttsCacheStats.hit / total) * 100).toFixed(1) : '0.0'
@@ -113,10 +121,48 @@ function normalizeTextForTts(input: string): string {
     .trim()
 }
 
+async function generateOpenAiTts(params: {
+  apiKey: string
+  text: string
+  requestedVoice: VoiceName
+  instructions: string
+}): Promise<TtsExtracted> {
+  const voice = OPENAI_VOICE_BY_GEMINI[params.requestedVoice] || 'alloy'
+  const response = await fetch('https://api.openai.com/v1/audio/speech', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${params.apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: OPENAI_TTS_MODEL,
+      voice,
+      input: params.text,
+      instructions: params.instructions,
+      format: 'mp3',
+    }),
+  })
+
+  if (!response.ok) {
+    const bodyText = await response.text().catch(() => '')
+    throw new Error(`openai-tts-${response.status}:${bodyText.slice(0, 220)}`)
+  }
+
+  const audioBuffer = Buffer.from(await response.arrayBuffer())
+  if (audioBuffer.length === 0) {
+    throw new Error('openai-tts-empty-audio')
+  }
+  return {
+    audioBase64: audioBuffer.toString('base64'),
+    mimeType: 'audio/mpeg',
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const requestId = `tts_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
-    const apiKey = process.env.GOOGLE_API_KEY
+    const googleApiKey = process.env.GOOGLE_API_KEY
+    const openAiApiKey = process.env.OPENAI_API_KEY
     const payload = (await request.json()) as Payload
     const rawText = String(payload.text || '').trim()
     const normalizedText = normalizeTextForTts(rawText)
@@ -178,7 +224,6 @@ export async function POST(request: NextRequest) {
 
     let extracted: TtsExtracted = null
     const shorterText = text.length > 600 ? text.slice(0, 600) : text
-    const genderFallbackVoice = fallbackVoiceByGender(teacherGender)
     const strictReadPrompt = `${voiceStyle ? `${voiceStyle}\n` : ''}You are the selected teacher voice for this lesson.
 Teacher profile:
 - Selected voice: ${voiceName}
@@ -205,8 +250,35 @@ ${shorterText}`
     const attemptLogs: AttemptLog[] = []
     let successMeta: { model: string; voice: VoiceName } | null = null
 
-    if (apiKey) {
-      const ai = new GoogleGenAI({ apiKey })
+    if (requestedEngine !== 'gemini-only') {
+      if (openAiApiKey) {
+        try {
+          extracted = await generateOpenAiTts({
+            apiKey: openAiApiKey,
+            text: shorterText,
+            requestedVoice: voiceName,
+            instructions: strictReadPrompt,
+          })
+          attemptLogs.push({ model: OPENAI_TTS_MODEL, voice: voiceName, ok: true })
+          successMeta = { model: OPENAI_TTS_MODEL, voice: voiceName }
+        } catch (e) {
+          const statusCode = extractStatusCodeFromError(e) || undefined
+          const message = e instanceof Error ? e.message : 'request-error'
+          attemptLogs.push({
+            model: OPENAI_TTS_MODEL,
+            voice: voiceName,
+            ok: false,
+            statusCode,
+            reason: message.slice(0, 180),
+          })
+        }
+      } else {
+        attemptLogs.push({ model: OPENAI_TTS_MODEL, voice: voiceName, ok: false, reason: 'missing-openai-api-key' })
+      }
+    }
+
+    if (!extracted && googleApiKey) {
+      const ai = new GoogleGenAI({ apiKey: googleApiKey })
       const makeRequest = async (model: string, contents: string, voice: VoiceName) =>
         ai.models.generateContent({
           model,
@@ -245,7 +317,7 @@ ${shorterText}`
           })
         }
       }
-    } else {
+    } else if (!extracted) {
       attemptLogs.push({ model: 'gemini-2.5-flash-preview-tts', voice: voiceName, ok: false, reason: 'missing-google-api-key' })
     }
 
@@ -271,8 +343,8 @@ ${shorterText}`
         {
           error: msg(
             localeUi,
-            'Không tạo được dữ liệu âm thanh từ Gemini TTS.',
-            'Failed to generate audio from Gemini TTS.'
+            'Không tạo được dữ liệu âm thanh từ OpenAI hoặc Gemini TTS.',
+            'Failed to generate audio from OpenAI or Gemini TTS.'
           ),
           attempts: attemptLogs,
         },

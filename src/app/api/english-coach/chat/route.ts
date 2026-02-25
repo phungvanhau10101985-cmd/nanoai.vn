@@ -160,6 +160,32 @@ function isLikelyFullSentence(text: string, targetLanguageCode: string): boolean
   return words.length >= 4
 }
 
+function isTooShortStudentSentence(text: string, targetLanguageCode: string): boolean {
+  const t = String(text || '').trim()
+  if (!t) return true
+  if (targetLanguageCode === 'zh') return t.length < 3
+  if (targetLanguageCode === 'ja') return t.length < 3
+  if (targetLanguageCode === 'ko') return t.length < 3
+  if (targetLanguageCode === 'th') return t.length < 4
+  if (targetLanguageCode === 'hi') return t.length < 4
+  const words = t.split(/\s+/).filter(Boolean)
+  return words.length < 3
+}
+
+function minSentenceRuleByLanguageCode(code: string): string {
+  if (code === 'zh' || code === 'ja' || code === 'ko') return 'ít nhất khoảng 3 ký tự/từ có nghĩa'
+  if (code === 'th' || code === 'hi') return 'ít nhất khoảng 4 ký tự/từ có nghĩa'
+  return 'ít nhất 3 từ'
+}
+
+function normalizeVietnameseLearnerAddressing(text: string): string {
+  const input = String(text || '')
+  if (!input) return ''
+  return input
+    .replace(/\bCon\b/g, 'Em')
+    .replace(/\bcon\b/g, 'em')
+}
+
 function extractPhraseNativeMeaning(reply: string, nativeLanguage: string): string {
   const re = new RegExp(`Dịch nhanh\\s*\\(${nativeLanguage.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)\\s*[:：]?\\s*([^\\n]+)`, 'i')
   const match = reply.match(re) || reply.match(/Dịch nhanh\s*\([^)]+\)\s*[:：]?\s*([^\n]+)/i)
@@ -653,6 +679,31 @@ export async function POST(request: NextRequest) {
     }
     const asksReviewFar =
       /(ôn lại|ôn tập|review|recap|nhắc lại phần trước|phần trước|earlier lesson|previous lesson|lúc nãy|hồi nãy)/i.test(studentText)
+    const isShortUtterance = isTooShortStudentSentence(studentText, targetLanguageCode)
+    if (isShortUtterance) {
+      const retryPromptByCode: Record<string, string> = {
+        en: `Please say it again as a meaningful sentence with ${minSentenceRuleByLanguageCode(targetLanguageCode)}.`,
+        zh: `请再说一遍，并用一个有意义的完整句子（${minSentenceRuleByLanguageCode(targetLanguageCode)}）。`,
+        ja: `もう一度、意味が通る文で言ってみましょう（${minSentenceRuleByLanguageCode(targetLanguageCode)}）。`,
+        ko: `다시 한 번, 의미가 통하는 문장으로 말해 보세요 (${minSentenceRuleByLanguageCode(targetLanguageCode)}).`,
+        th: `ลองพูดอีกครั้งเป็นประโยคที่มีความหมาย (${minSentenceRuleByLanguageCode(targetLanguageCode)}).`,
+        hi: `कृपया दोबारा एक अर्थपूर्ण वाक्य में बोलें (${minSentenceRuleByLanguageCode(targetLanguageCode)}).`,
+        vi: `Bạn nói lại giúp mình thành một câu có nghĩa (${minSentenceRuleByLanguageCode(targetLanguageCode)}).`,
+      }
+      const retry = retryPromptByCode[targetLanguageCode] || retryPromptByCode.en
+      return NextResponse.json({
+        reply: retry,
+        corrections: [],
+        pronunciationTips: [pronunciationTipByNativeLanguageCode(nativeLanguageCode)],
+        correctionNote: nativeLanguageCode === 'vi'
+          ? `Câu vừa rồi hơi ngắn, chưa đủ để thành câu có nghĩa (${minSentenceRuleByLanguageCode(targetLanguageCode)}).`
+          : 'Your sentence is too short to evaluate meaning clearly.',
+        correctedSentence: '',
+        intentAnswer: retry,
+        mainSentence: retry,
+        mustKnowText: retry,
+      })
+    }
     let retrievalGuide = 'Không yêu cầu truy xuất ngữ cảnh xa.'
     if (asksReviewFar && userId) {
       const recallQuery = adminSupabase
@@ -1065,6 +1116,7 @@ ${levelPromptIndependent}
 34) RETRIEVAL KHI ÔN XA:
 ${retrievalGuide}
 35) Khi retrieval có dữ liệu, ưu tiên trả đúng kiến thức cũ theo dữ liệu gốc, sau đó mới mở rộng.
+36) XƯNG HÔ TIẾNG VIỆT: khi nói với học sinh bằng tiếng Việt, luôn gọi là "em", TUYỆT ĐỐI không gọi là "con".
 
 Đầu ra BẮT BUỘC là JSON hợp lệ, không markdown:
 {
@@ -1119,6 +1171,18 @@ ${text}`
       } catch {
         // continue to fallback below
       }
+    }
+
+    if (nativeLanguageCode === 'vi') {
+      parsed.reply = normalizeVietnameseLearnerAddressing(parsed.reply)
+      parsed.correctionNote = normalizeVietnameseLearnerAddressing(parsed.correctionNote)
+      parsed.corrections = (parsed.corrections || []).map((c) => ({
+        ...c,
+        explanationVi: normalizeVietnameseLearnerAddressing(String(c.explanationVi || '')),
+      }))
+      parsed.pronunciationTips = (parsed.pronunciationTips || []).map((tip) =>
+        normalizeVietnameseLearnerAddressing(String(tip || ''))
+      )
     }
 
     if (!parsed) {

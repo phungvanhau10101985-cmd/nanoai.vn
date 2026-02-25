@@ -76,6 +76,7 @@ type TopicOption = {
 type TopicDifficulty = 'basic' | 'intermediate' | 'advanced'
 type TopicDifficultyTag = TopicDifficulty | 'adaptive'
 type TopicFilterMode = 'fit' | 'all'
+type TopicSourceMode = 'builtin' | 'custom'
 
 type CustomTopicItem = {
   topicId: string
@@ -119,6 +120,7 @@ type PlacementQuickResult = {
   confidence: number
   reason: string
 }
+type QuickStartStage = 'idle' | 'confirm_topic' | 'create_curriculum' | 'start_lesson'
 
 type ReviewItem = {
   id: string
@@ -1260,11 +1262,16 @@ export default function HocTiengAnhAiClientPage() {
   const [sessionTeacher, setSessionTeacher] = useState<TeacherProfile | null>(null)
   const [speakingLanguageMode] = useState<SpeakingLanguageMode>('auto')
   const [startingLesson, setStartingLesson] = useState(false)
+  const [quickStartBusy, setQuickStartBusy] = useState(false)
+  const [quickStartStage, setQuickStartStage] = useState<QuickStartStage>('idle')
+  const [quickStartModalOpen, setQuickStartModalOpen] = useState(false)
+  const [setupCollapsed, setSetupCollapsed] = useState(true)
   const [learnerLevel, setLearnerLevel] = useState<LearnerLevel>(0)
   const [topicId, setTopicId] = useState<string>(TOPIC_OPTIONS[0].id)
   const [pendingTopicId, setPendingTopicId] = useState<string>(TOPIC_OPTIONS[0].id)
   const [confirmedTopicId, setConfirmedTopicId] = useState('')
   const [topicFilterMode, setTopicFilterMode] = useState<TopicFilterMode>('fit')
+  const [topicSourceMode, setTopicSourceMode] = useState<TopicSourceMode>('builtin')
   const [customTopicDraft, setCustomTopicDraft] = useState('')
   const [customTopics, setCustomTopics] = useState<CustomTopicItem[]>([])
   const [customTopicBusy, setCustomTopicBusy] = useState(false)
@@ -1487,6 +1494,15 @@ export default function HocTiengAnhAiClientPage() {
     }),
     [topicFilterMode, learnerLevel, allTopicOptions, topicBaseDifficultyById]
   )
+  const builtInTopicOptions = useMemo(
+    () => topicOptionsByFilter.filter((topic) => !customTopics.some((x) => x.topicId === topic.id)),
+    [topicOptionsByFilter, customTopics]
+  )
+  const customTopicOptions = useMemo(
+    () => topicOptionsByFilter.filter((topic) => customTopics.some((x) => x.topicId === topic.id)),
+    [topicOptionsByFilter, customTopics]
+  )
+  const currentTopicOptions = topicSourceMode === 'custom' ? customTopicOptions : builtInTopicOptions
   const selectedTopicBaseDifficulty = useMemo<TopicDifficultyTag>(
     () => topicBaseDifficultyById[selectedTopic.id] || 'basic',
     [selectedTopic.id, topicBaseDifficultyById]
@@ -1507,10 +1523,28 @@ export default function HocTiengAnhAiClientPage() {
   }, [topicId])
 
   useEffect(() => {
+    if (topicSourceMode === 'custom' && customTopicOptions.length === 0) {
+      setTopicSourceMode('builtin')
+    }
+  }, [topicSourceMode, customTopicOptions.length])
+
+  useEffect(() => {
+    if (currentTopicOptions.some((x) => x.id === pendingTopicId)) return
+    if (currentTopicOptions[0]) setPendingTopicId(currentTopicOptions[0].id)
+  }, [currentTopicOptions, pendingTopicId])
+
+  useEffect(() => {
     setTopicCurriculum(null)
     setHasCurriculumReady(false)
   }, [topicId, learnerLevel, activeTeacher.languageLabel, selectedNativeLanguage.apiLabel])
   const supportLanguage = selectedNativeLanguage.apiLabel
+  const quickStartStageLabel = useMemo(() => {
+    if (quickStartStage === 'confirm_topic') return localText('Đang chọn chủ đề...', 'Selecting topic...')
+    if (quickStartStage === 'create_curriculum') return localText('Đang tạo giáo trình...', 'Creating curriculum...')
+    if (quickStartStage === 'start_lesson') return localText('Đang mở buổi học...', 'Starting lesson...')
+    return localText('Bắt đầu nhanh', 'Quick start')
+  }, [quickStartStage, uiLocale])
+  const showSetupPanel = !setupCollapsed
   const studentSpeakingLanguage =
     speakingLanguageMode === 'auto'
       ? `${activeTeacher.languageLabel} + ${selectedNativeLanguage.apiLabel}`
@@ -1524,6 +1558,31 @@ export default function HocTiengAnhAiClientPage() {
     const id = fixedId || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
     setMessages((prev) => [...prev, { id, role, text }])
     return id
+  }
+
+  const confirmTopicForLearning = (nextTopicId: string, opts?: { silent?: boolean }) => {
+    const trimmed = String(nextTopicId || '').trim()
+    if (!trimmed) return false
+    const isSameTopic = trimmed === topicId
+    const hadExistingLesson = messages.length > 0 || Boolean(openedHistorySessionId)
+    setTopicId(trimmed)
+    setPendingTopicId(trimmed)
+    setConfirmedTopicId(trimmed)
+    if (hadExistingLesson) {
+      startNewSession()
+    }
+    if (!opts?.silent) {
+      const selected = allTopicOptions.find((x) => x.id === trimmed)
+      toast({
+        title: isSameTopic
+          ? localText('Chủ đề này đã được chọn', 'This topic is already selected')
+          : localText('Đã chọn chủ đề để học', 'Topic selected for learning'),
+        description: selected
+          ? `${selected.label}${hadExistingLesson ? localText(' • Đã tạo buổi học mới, xóa buổi cũ.', ' • New lesson created, previous one cleared.') : ''}`
+          : localText('Bạn có thể bắt đầu buổi học với chủ đề này.', 'You can start learning with this topic.'),
+      })
+    }
+    return true
   }
 
   const fetchCustomTopics = async () => {
@@ -1601,6 +1660,7 @@ export default function HocTiengAnhAiClientPage() {
           const next = [normalized, ...prev.filter((x) => x.topicId !== normalized.topicId)]
           return next.slice(0, 30)
         })
+        setTopicSourceMode('custom')
         setTopicId(normalized.topicId)
         setPendingTopicId(normalized.topicId)
         setConfirmedTopicId('')
@@ -1609,8 +1669,8 @@ export default function HocTiengAnhAiClientPage() {
       toast({
         title: localText('Đã tạo chủ đề', 'Topic created'),
         description: localText(
-          'AI đã chuẩn hóa và lưu chủ đề. Hãy bấm "Học chủ đề này" rồi mới tạo giáo trình.',
-          'The topic is normalized and saved. Please click "Learn this topic" before creating curriculum.'
+          'AI đã chuẩn hóa và lưu chủ đề. Bạn có thể bấm "Tạo bài học" ngay trong popup.',
+          'Topic normalized and saved. You can click "Create lesson" directly in the popup.'
         ),
       })
     } catch (e) {
@@ -1621,8 +1681,11 @@ export default function HocTiengAnhAiClientPage() {
     }
   }
 
-  const fetchTopicCurriculum = async () => {
-    if (!isTopicConfirmedForLesson) {
+  const fetchTopicCurriculum = async (opts?: { skipConfirm?: boolean; topicId?: string }) => {
+    const topicIdToUse = String(opts?.topicId || topicId || '').trim()
+    const topicToUse = allTopicOptions.find((x) => x.id === topicIdToUse) || selectedTopic
+    const topicDifficultyToUse = resolveTopicDifficulty(topicBaseDifficultyById[topicToUse.id] || 'basic', learnerLevel)
+    if (!opts?.skipConfirm && confirmedTopicId !== topicIdToUse) {
       toast({
         title: localText('Cần chọn chủ đề trước', 'Select topic first'),
         description: localText(
@@ -1631,7 +1694,7 @@ export default function HocTiengAnhAiClientPage() {
         ),
         variant: 'destructive',
       })
-      return
+      return null
     }
     setTopicBusy(true)
     setHasCurriculumReady(false)
@@ -1640,9 +1703,9 @@ export default function HocTiengAnhAiClientPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          topicId: selectedTopic.id,
-          topicLabel: selectedTopic.label,
-          topicDifficulty: selectedTopicDifficulty,
+          topicId: topicToUse.id,
+          topicLabel: topicToUse.label,
+          topicDifficulty: topicDifficultyToUse,
           targetLanguage: activeTeacher.languageLabel,
           nativeLanguage: selectedNativeLanguage.apiLabel,
           learnerLevel,
@@ -1650,7 +1713,7 @@ export default function HocTiengAnhAiClientPage() {
       })
       const data = (await res.json().catch(() => ({}))) as TopicCurriculum & { error?: string }
       if (!res.ok) throw new Error(data.error || localText('Không tạo được giáo trình theo chủ đề.', 'Failed to generate topic curriculum.'))
-      setTopicCurriculum({
+      const nextCurriculum: TopicCurriculum = {
         roleplayRole: String(data.roleplayRole || '').trim(),
         dailyQuest: String(data.dailyQuest || '').trim(),
         objective: String(data.objective || '').trim(),
@@ -1659,7 +1722,8 @@ export default function HocTiengAnhAiClientPage() {
         lessonSteps: Array.isArray(data.lessonSteps) ? data.lessonSteps.map((x) => String(x || '').trim()).filter(Boolean) : [],
         openingLine: String(data.openingLine || '').trim(),
         openingQuestion: String(data.openingQuestion || '').trim(),
-      })
+      }
+      setTopicCurriculum(nextCurriculum)
       setHasCurriculumReady(true)
       const hadExistingLesson = messages.length > 0 || Boolean(openedHistorySessionId)
       if (hadExistingLesson) {
@@ -1672,9 +1736,11 @@ export default function HocTiengAnhAiClientPage() {
           ),
         })
       }
+      return nextCurriculum
     } catch (e) {
       const msg = unknownErrorMsg(e)
       toast({ title: localText('Lỗi giáo trình chủ đề', 'Curriculum error'), description: msg, variant: 'destructive' })
+      return null
     } finally {
       setTopicBusy(false)
     }
@@ -2161,7 +2227,7 @@ export default function HocTiengAnhAiClientPage() {
       const part = await createTtsAudioData(segment.text, {
         locale: segment.locale,
         languageLabel: segment.languageLabel,
-        forceEngine: 'gemini-only',
+        forceEngine: 'auto',
       })
       audioList.push(part)
     }
@@ -2181,7 +2247,7 @@ export default function HocTiengAnhAiClientPage() {
     const single = await createTtsAudioData(String(text || '').trim(), {
       locale: activeTeacher.locale,
       languageLabel: activeTeacher.languageLabel,
-      forceEngine: 'gemini-only',
+      forceEngine: 'auto',
     })
     await playAudioUrl(single.url)
     return [single]
@@ -2292,6 +2358,40 @@ export default function HocTiengAnhAiClientPage() {
     }
   }
 
+  const replayTeacherIntentAnswer = async (messageId: string) => {
+    const intentAnswer = String(intentAnswerByMessageId[messageId] || '').trim()
+    if (!intentAnswer) return
+    const key = `${messageId}__intent_answer`
+    if (ttsLoadingByKey[key]) return
+    const cached = teacherAudioByMessageIdRef.current[key]
+    if (cached) {
+      await playAudioUrl(cached)
+      return
+    }
+    if (busy || listening) {
+      const cachedDb = await tryLoadCachedTtsAudio(intentAnswer)
+      if (!cachedDb) return
+      teacherAudioByMessageIdRef.current = {
+        ...teacherAudioByMessageIdRef.current,
+        [key]: cachedDb.url,
+      }
+      setTeacherAudioByMessageId((prev) => ({ ...prev, [key]: cachedDb.url }))
+      await playAudioUrl(cachedDb.url)
+      return
+    }
+    setTtsLoadingByKey((prev) => ({ ...prev, [key]: true }))
+    try {
+      const generated = await playBestEffortTts(intentAnswer)
+      teacherAudioByMessageIdRef.current = {
+        ...teacherAudioByMessageIdRef.current,
+        [key]: generated[0]?.url || '',
+      }
+      setTeacherAudioByMessageId((prev) => ({ ...prev, [key]: generated[0]?.url || '' }))
+    } finally {
+      setTtsLoadingByKey((prev) => ({ ...prev, [key]: false }))
+    }
+  }
+
   const explainIntentAnswer = async (messageId: string) => {
     const intentAnswer = String(intentAnswerByMessageId[messageId] || '').trim()
     if (!intentAnswer) return
@@ -2302,19 +2402,36 @@ export default function HocTiengAnhAiClientPage() {
     }
     setIntentExplainBusyByMessageId((prev) => ({ ...prev, [messageId]: true }))
     try {
-      const res = await fetch('/api/english-coach/word', {
+      const teacherIndex = messages.findIndex((m) => m.id === messageId)
+      const previousStudentText =
+        teacherIndex > 0
+          ? String(
+              messages
+                .slice(0, teacherIndex)
+                .reverse()
+                .find((m) => m.role === 'student')
+                ?.text || ''
+            ).trim()
+          : ''
+      const correctedSentence = String(mainSentenceByMessageId[messageId] || '').trim()
+      const correctionNote = String(correctionNoteByMessageId[messageId] || '').trim()
+
+      const res = await fetch('/api/english-coach/intent-explain', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          word: intentAnswer,
-          contextSentence: intentAnswer,
+          studentText: previousStudentText,
+          intentAnswer,
+          correctedSentence,
+          correctionNote,
           targetLanguage: activeTeacher.languageLabel,
           nativeLanguage: selectedNativeLanguage.apiLabel,
+          topicLabel: selectedTopic.label,
         }),
       })
-      const data = (await res.json().catch(() => ({}))) as { meaning?: string; error?: string }
+      const data = (await res.json().catch(() => ({}))) as { explanation?: string; error?: string }
       if (!res.ok) throw new Error(data.error || localText('Không giải thích được câu trả lời.', 'Unable to explain this reply.'))
-      const meaning = String(data.meaning || '').trim()
+      const meaning = String(data.explanation || '').trim()
       if (!meaning) throw new Error(localText('Không có nội dung giải thích.', 'No explanation content.'))
       setIntentExplainByMessageId((prev) => ({ ...prev, [messageId]: meaning }))
     } catch (e) {
@@ -2864,10 +2981,12 @@ export default function HocTiengAnhAiClientPage() {
     for (const message of messages) {
       if (message.role !== 'teacher') continue
       if (tokensByMessageId[message.id] || tokenizingByMessageId[message.id]) continue
-      // Tokenize from the full teacher reply so learners can review
-      // vocabulary across the whole explanation, not only one main sentence.
-      const tokenSource = message.text
-      const mustUseAi = false
+      // Include idea-3 contextual reply explicitly so vocabulary extraction
+      // always covers the natural conversation part learners need to practice.
+      const idea3 = String(intentAnswerByMessageId[message.id] || '').trim()
+      const tokenSource = [message.text, idea3].filter(Boolean).join('\n')
+      // Always use AI tokenization for accuracy across mixed/target scripts.
+      const mustUseAi = true
       if (mustUseAi || shouldUseAiTokenize(tokenSource)) {
         void fetchMessageTokens(message.id, tokenSource)
       } else {
@@ -2877,7 +2996,7 @@ export default function HocTiengAnhAiClientPage() {
     if (Object.keys(localUpdates).length > 0) {
       setTokensByMessageId((prev) => ({ ...prev, ...localUpdates }))
     }
-  }, [messages, tokensByMessageId, tokenizingByMessageId])
+  }, [messages, tokensByMessageId, tokenizingByMessageId, intentAnswerByMessageId])
 
   useEffect(() => {
     const latestTeacherWithTokens = [...messages]
@@ -3021,8 +3140,9 @@ export default function HocTiengAnhAiClientPage() {
       if (intentAnswer) {
         setIntentAnswerByMessageId((prev) => ({ ...prev, [teacherMessageId]: intentAnswer }))
       }
-      const shortIntentAnswer = extractFirstShortSentence(intentAnswer)
-      const speakParts = [mainSentence, shortIntentAnswer].map((x) => String(x || '').trim()).filter(Boolean)
+      const speakParts = [correctionNote, mainSentence, intentAnswer]
+        .map((x) => String(x || '').trim())
+        .filter(Boolean)
       const speakText = speakParts.join('. ').trim() || extractTeacherSpeechText(data.reply)
       setTeacherSpeakTextByMessageId((prev) => ({ ...prev, [teacherMessageId]: speakText }))
       setWritingTask(buildWritingTask(teacherMessageId, data.reply, mainSentence || extractTeacherSpeechText(data.reply)))
@@ -3066,9 +3186,9 @@ export default function HocTiengAnhAiClientPage() {
     }
   }
 
-  const startLesson = async () => {
+  const startLesson = async (opts?: { skipPrerequisiteCheck?: boolean; curriculumOverride?: TopicCurriculum | null; topicOverride?: TopicOption | null }) => {
     if (startingLesson) return
-    if (!isTopicConfirmedForLesson) {
+    if (!opts?.skipPrerequisiteCheck && !isTopicConfirmedForLesson) {
       toast({
         title: localText('Cần chọn chủ đề trước', 'Select topic first'),
         description: localText(
@@ -3079,7 +3199,9 @@ export default function HocTiengAnhAiClientPage() {
       })
       return
     }
-    if (!hasCurriculumReady) {
+    const curriculumToUse = opts?.curriculumOverride || topicCurriculum
+    const topicToUse = opts?.topicOverride || selectedTopic
+    if (!opts?.skipPrerequisiteCheck && !hasCurriculumReady) {
       toast({
         title: localText('Cần tạo giáo trình trước', 'Create curriculum first'),
         description: localText(
@@ -3094,10 +3216,10 @@ export default function HocTiengAnhAiClientPage() {
     if (!sessionTeacher) {
       setSessionTeacher(selectedTeacher)
     }
-    const curriculumStarter = topicCurriculum?.starterSentences.find((x) => String(x || '').trim())
+    const curriculumStarter = curriculumToUse?.starterSentences.find((x) => String(x || '').trim())
     const curriculumStarterText = String(curriculumStarter || '').trim()
-    const curriculumOpeningLine = String(topicCurriculum?.openingLine || '').trim()
-    const curriculumOpeningQuestion = String(topicCurriculum?.openingQuestion || '').trim()
+    const curriculumOpeningLine = String(curriculumToUse?.openingLine || '').trim()
+    const curriculumOpeningQuestion = String(curriculumToUse?.openingQuestion || '').trim()
     const greetingPatternByLanguage: Record<LanguageCode, RegExp> = {
       en: /^(hello|hi|good\s+(morning|afternoon|evening))\b/i,
       zh: /^(你好|您好|嗨)/u,
@@ -3109,7 +3231,7 @@ export default function HocTiengAnhAiClientPage() {
     }
     const hasGreetingStarter = greetingPatternByLanguage[languageCode].test(curriculumStarterText)
     const starterToUse = hasGreetingStarter ? '' : curriculumStarterText
-    const curriculumRole = String(topicCurriculum?.roleplayRole || '').trim()
+    const curriculumRole = String(curriculumToUse?.roleplayRole || '').trim()
     const learnerNameByLanguage: Record<LanguageCode, string> = {
       en: learnerDisplayName || 'there',
       zh: learnerDisplayName || '同学',
@@ -3150,22 +3272,22 @@ export default function HocTiengAnhAiClientPage() {
     }
     const roleToUse = curriculumRole || defaultRoleByMode[mode][languageCode]
     const topicPromptByLanguage: Record<LanguageCode, string> = {
-      en: starterToUse || `Please say one sentence about today's topic: "${selectedTopic.label}".`,
-      zh: starterToUse || `请先用一句话说说今天的主题：「${selectedTopic.label}」。`,
-      hi: starterToUse || `आज के विषय "${selectedTopic.label}" पर एक वाक्य बोलिए।`,
-      th: starterToUse || `ลองพูด 1 ประโยคเกี่ยวกับหัวข้อวันนี้ "${selectedTopic.label}"`,
-      ja: starterToUse || `今日のトピック「${selectedTopic.label}」について、まず一文で話してみてください。`,
-      ko: starterToUse || `오늘의 주제 "${selectedTopic.label}"에 대해 한 문장으로 말해 보세요.`,
-      vi: starterToUse || `Em hãy nói 1 câu về chủ đề hôm nay: "${selectedTopic.label}".`,
+      en: starterToUse || `Please say one sentence about today's topic: "${topicToUse.label}".`,
+      zh: starterToUse || `请先用一句话说说今天的主题：「${topicToUse.label}」。`,
+      hi: starterToUse || `आज के विषय "${topicToUse.label}" पर एक वाक्य बोलिए।`,
+      th: starterToUse || `ลองพูด 1 ประโยคเกี่ยวกับหัวข้อวันนี้ "${topicToUse.label}"`,
+      ja: starterToUse || `今日のトピック「${topicToUse.label}」について、まず一文で話してみてください。`,
+      ko: starterToUse || `오늘의 주제 "${topicToUse.label}"에 대해 한 문장으로 말해 보세요.`,
+      vi: starterToUse || `Em hãy nói 1 câu về chủ đề hôm nay: "${topicToUse.label}".`,
     }
     const openingByLanguage: Record<LanguageCode, string> = {
-      en: `Hello ${learnerNameByLanguage.en}! Today we will learn topic: "${selectedTopic.label}". I am your teacher and I will play role: ${roleToUse}. ${topicPromptByLanguage.en}`,
-      zh: `你好，${learnerNameByLanguage.zh}！今天我们学习主题：「${selectedTopic.label}」。我是你的老师，今天会扮演角色：${roleToUse}。${topicPromptByLanguage.zh}`,
-      hi: `नमस्ते ${learnerNameByLanguage.hi}! आज हम इस विषय पर सीखेंगे: "${selectedTopic.label}"। मैं आपका शिक्षक हूँ और आज भूमिका निभाऊँगा/निभाऊँगी: ${roleToUse}।${topicPromptByLanguage.hi}`,
-      th: `สวัสดี ${learnerNameByLanguage.th}! วันนี้เราจะเรียนหัวข้อ: "${selectedTopic.label}" ฉันเป็นครูของคุณและจะรับบทเป็น: ${roleToUse} ${topicPromptByLanguage.th}`,
-      ja: `こんにちは、${learnerNameByLanguage.ja}。今日は「${selectedTopic.label}」を学びます。私は先生として、今日の役は「${roleToUse}」です。${topicPromptByLanguage.ja}`,
-      ko: `안녕하세요, ${learnerNameByLanguage.ko}! 오늘은 "${selectedTopic.label}" 주제를 배웁니다. 저는 선생님이며 오늘의 역할은 "${roleToUse}"입니다. ${topicPromptByLanguage.ko}`,
-      vi: `Xin chào ${learnerNameByLanguage.vi}! Hôm nay chúng ta học chủ đề: "${selectedTopic.label}". Thầy/cô là giáo viên và hôm nay vào vai: ${roleToUse}. ${topicPromptByLanguage.vi}`,
+      en: `Hello ${learnerNameByLanguage.en}! Today we will learn topic: "${topicToUse.label}". I am your teacher and I will play role: ${roleToUse}. ${topicPromptByLanguage.en}`,
+      zh: `你好，${learnerNameByLanguage.zh}！今天我们学习主题：「${topicToUse.label}」。我是你的老师，今天会扮演角色：${roleToUse}。${topicPromptByLanguage.zh}`,
+      hi: `नमस्ते ${learnerNameByLanguage.hi}! आज हम इस विषय पर सीखेंगे: "${topicToUse.label}"। मैं आपका शिक्षक हूँ और आज भूमिका निभाऊँगा/निभाऊँगी: ${roleToUse}।${topicPromptByLanguage.hi}`,
+      th: `สวัสดี ${learnerNameByLanguage.th}! วันนี้เราจะเรียนหัวข้อ: "${topicToUse.label}" ฉันเป็นครูของคุณและจะรับบทเป็น: ${roleToUse} ${topicPromptByLanguage.th}`,
+      ja: `こんにちは、${learnerNameByLanguage.ja}。今日は「${topicToUse.label}」を学びます。私は先生として、今日の役は「${roleToUse}」です。${topicPromptByLanguage.ja}`,
+      ko: `안녕하세요, ${learnerNameByLanguage.ko}! 오늘은 "${topicToUse.label}" 주제를 배웁니다. 저는 선생님이며 오늘의 역할은 "${roleToUse}"입니다. ${topicPromptByLanguage.ko}`,
+      vi: `Xin chào ${learnerNameByLanguage.vi}! Hôm nay chúng ta học chủ đề: "${topicToUse.label}". Thầy/cô là giáo viên và hôm nay vào vai: ${roleToUse}. ${topicPromptByLanguage.vi}`,
     }
     const aiOpening = [curriculumOpeningLine, curriculumOpeningQuestion].filter(Boolean).join(' ')
     const openingCore = aiOpening || openingByLanguage[languageCode]
@@ -3177,6 +3299,67 @@ export default function HocTiengAnhAiClientPage() {
       // keep chat usable even when TTS fails
     } finally {
       setStartingLesson(false)
+    }
+  }
+
+  const runQuickStartFlow = async () => {
+    if (quickStartBusy || topicBusy || startingLesson || busy) return
+    const topicIdToUse = String(pendingTopicId || topicId || '').trim()
+    if (!topicIdToUse) {
+      toast({
+        title: localText('Thiếu chủ đề học', 'Missing lesson topic'),
+        description: localText('Hãy chọn chủ đề trước khi bắt đầu nhanh.', 'Please choose a topic before quick start.'),
+        variant: 'destructive',
+      })
+      return
+    }
+    const topicToUse = allTopicOptions.find((x) => x.id === topicIdToUse) || selectedTopic
+    const hadExistingLesson = messages.length > 0 || Boolean(openedHistorySessionId)
+
+    setQuickStartBusy(true)
+    try {
+      if (hadExistingLesson) {
+        startNewSession()
+      }
+      setQuickStartStage('confirm_topic')
+      const confirmed = confirmTopicForLearning(topicIdToUse, { silent: true })
+      if (!confirmed) {
+        throw new Error(localText('Không xác nhận được chủ đề học.', 'Failed to confirm lesson topic.'))
+      }
+
+      setQuickStartStage('create_curriculum')
+      const curriculum = await fetchTopicCurriculum({ skipConfirm: true, topicId: topicIdToUse })
+      if (!curriculum) {
+        throw new Error(localText('Không tạo được giáo trình chủ đề.', 'Failed to create topic curriculum.'))
+      }
+
+      // Close modal first so learner sees clean lesson screen
+      // before first opening audio starts.
+      setQuickStartModalOpen(false)
+      await new Promise((resolve) => setTimeout(resolve, 60))
+
+      setQuickStartStage('start_lesson')
+      await startLesson({
+        skipPrerequisiteCheck: true,
+        curriculumOverride: curriculum,
+        topicOverride: topicToUse,
+      })
+      setSetupCollapsed(true)
+      toast({
+        title: localText('Đã tạo bài học mới', 'New lesson created'),
+        description: hadExistingLesson
+          ? localText('Buổi học cũ đã được thay bằng buổi học mới từ Bắt đầu nhanh.', 'Previous lesson has been replaced by a new quick-start lesson.')
+          : localText('Buổi học mới đã sẵn sàng.', 'Your new lesson is ready.'),
+      })
+    } catch (e) {
+      toast({
+        title: localText('Bắt đầu nhanh chưa thành công', 'Quick start failed'),
+        description: unknownErrorMsg(e),
+        variant: 'destructive',
+      })
+    } finally {
+      setQuickStartBusy(false)
+      setQuickStartStage('idle')
     }
   }
 
@@ -3437,7 +3620,7 @@ export default function HocTiengAnhAiClientPage() {
   return (
     <>
       <Toaster />
-      <div className="mx-auto max-w-5xl space-y-6">
+      <div className="mx-auto max-w-5xl lg:max-w-7xl space-y-6">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-foreground flex items-center justify-center gap-2">
             <Languages className="h-6 w-6 text-indigo-600" />
@@ -3455,8 +3638,18 @@ export default function HocTiengAnhAiClientPage() {
           <CardHeader>
             <CardTitle>{coachUiText.setupTitle}</CardTitle>
             <CardDescription>{coachUiText.setupDesc}</CardDescription>
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+              <Button
+                type="button"
+                onClick={() => setQuickStartModalOpen(true)}
+                disabled={quickStartBusy || topicBusy || startingLesson || busy}
+                className="min-h-[44px] w-full sm:w-auto"
+              >
+                {quickStartStageLabel}
+              </Button>
+            </div>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className={`space-y-4 ${showSetupPanel ? '' : 'hidden'}`}>
             <div className="rounded-md border bg-slate-50 p-3">
               <p className="text-sm font-semibold text-slate-900">
                 {localText('Chẩn đoán level tự động (khuyến nghị)', 'Auto placement test (recommended)')}
@@ -3509,7 +3702,7 @@ export default function HocTiengAnhAiClientPage() {
                 )}
               </div>
             </div>
-            <div className="grid gap-3 sm:grid-cols-6">
+            <div className="grid gap-3 grid-cols-1 md:grid-cols-3 lg:grid-cols-6">
               <div className="space-y-1">
                 <label className="text-sm font-medium">{coachUiText.learningLanguage}</label>
                 <select
@@ -3592,74 +3785,84 @@ export default function HocTiengAnhAiClientPage() {
                   <option value={4}>{levelLabelUi(4)}</option>
                 </select>
               </div>
-              <div className="space-y-1 sm:col-span-2">
+              <div className="space-y-1 md:col-span-2 lg:col-span-2">
                 <label className="text-sm font-medium">{coachUiText.lessonTopic}</label>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    variant={topicFilterMode === 'fit' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setTopicFilterMode('fit')}
-                  >
-                    {localText('Phù hợp level hiện tại', 'Match current level')}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={topicFilterMode === 'all' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setTopicFilterMode('all')}
-                  >
-                    {localText('Xem tất cả', 'Show all')}
-                  </Button>
+                <div className="grid gap-2 md:grid-cols-2">
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-slate-700">{localText('Chủ đề có sẵn', 'Built-in topics')}</p>
+                    <select
+                      value={builtInTopicOptions.some((x) => x.id === pendingTopicId) ? pendingTopicId : ''}
+                      onChange={(e) => {
+                        const value = String(e.target.value || '').trim()
+                        if (!value) return
+                        setTopicSourceMode('builtin')
+                        setPendingTopicId(value)
+                      }}
+                      className={`w-full rounded-md border px-3 py-2 text-sm ${
+                        topicSourceMode === 'builtin'
+                          ? 'border-slate-900 bg-slate-50 text-slate-900'
+                          : 'border-slate-300 bg-white text-slate-700'
+                      }`}
+                    >
+                      <option value="">{localText('Chọn chủ đề có sẵn...', 'Select built-in topic...')}</option>
+                      {builtInTopicOptions.map((topic) => (
+                        <option key={topic.id} value={topic.id}>
+                          {(() => {
+                            const base = topicBaseDifficultyById[topic.id] || 'basic'
+                            if (base === 'adaptive') return topic.label
+                            return `${topic.label} [${difficultyLabelUi(base)}]`
+                          })()}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-slate-700">{localText('Chủ đề mới tạo', 'Custom topics')}</p>
+                    <select
+                      value={customTopicOptions.some((x) => x.id === pendingTopicId) ? pendingTopicId : ''}
+                      onChange={(e) => {
+                        const value = String(e.target.value || '').trim()
+                        if (!value) return
+                        setTopicSourceMode('custom')
+                        setPendingTopicId(value)
+                      }}
+                      className={`w-full rounded-md border px-3 py-2 text-sm ${
+                        topicSourceMode === 'custom'
+                          ? 'border-slate-900 bg-slate-50 text-slate-900'
+                          : 'border-slate-300 bg-white text-slate-700'
+                      }`}
+                    >
+                      <option value="">
+                        {customTopicOptions.length > 0
+                          ? localText('Chọn chủ đề mới tạo...', 'Select custom topic...')
+                          : localText('Chưa có chủ đề mới tạo', 'No custom topic yet')}
+                      </option>
+                      {customTopicOptions.map((topic) => (
+                        <option key={topic.id} value={topic.id}>
+                          {(() => {
+                            const base = topicBaseDifficultyById[topic.id] || 'basic'
+                            if (base === 'adaptive') return topic.label
+                            return `${topic.label} [${difficultyLabelUi(base)}]`
+                          })()}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
-                <select
-                  value={pendingTopicId}
-                  onChange={(e) => setPendingTopicId(e.target.value)}
-                  className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
-                >
-                  {topicOptionsByFilter.map((topic) => (
-                    <option key={topic.id} value={topic.id}>
-                      {(() => {
-                        const base = topicBaseDifficultyById[topic.id] || 'basic'
-                        if (base === 'adaptive') return topic.label
-                        return `${topic.label} [${difficultyLabelUi(base)}]`
-                      })()}
-                    </option>
-                  ))}
-                </select>
-                <div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={!pendingTopicId}
-                    onClick={() => {
-                      if (!pendingTopicId) return
-                      const isSameTopic = pendingTopicId === topicId
-                      const hadExistingLesson = messages.length > 0 || Boolean(openedHistorySessionId)
-                      setTopicId(pendingTopicId)
-                      setConfirmedTopicId(pendingTopicId)
-                      if (hadExistingLesson) {
-                        startNewSession()
-                      }
-                      const selected = allTopicOptions.find((x) => x.id === pendingTopicId)
-                      toast({
-                        title: isSameTopic
-                          ? localText('Chủ đề này đã được chọn', 'This topic is already selected')
-                          : localText('Đã chọn chủ đề để học', 'Topic selected for learning'),
-                        description: selected
-                          ? `${selected.label}${hadExistingLesson ? localText(' • Đã tạo buổi học mới, xóa buổi cũ.', ' • New lesson created, previous one cleared.') : ''}`
-                          : localText('Bạn có thể bắt đầu buổi học với chủ đề này.', 'You can start learning with this topic.'),
-                      })
-                    }}
+                <div className="flex flex-wrap gap-2">
+                  <select
+                    value={topicFilterMode}
+                    onChange={(e) => setTopicFilterMode(e.target.value as TopicFilterMode)}
+                    className="min-h-[44px] rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
                   >
-                    {localText('Học chủ đề này', 'Learn this topic')}
-                  </Button>
+                    <option value="fit">{localText('Phù hợp level', 'Match level')}</option>
+                    <option value="all">{localText('Tất cả', 'All')}</option>
+                  </select>
                 </div>
                 <p className="text-xs text-slate-500">
                   {localText(
-                    'Chọn chủ đề trong danh sách rồi bấm "Học chủ đề này" để xác nhận (gồm chủ đề có sẵn và chủ đề bạn đã tạo trước đó).',
-                    'Pick a topic from the list, then click "Learn this topic" to confirm (for built-in and custom topics).'
+                    'Bấm chọn ở 1 trong 2 ô chủ đề bên trên, sau đó bấm 1 nút xác nhận chung ở cụm hành động bên dưới.',
+                    'Pick a topic from one of the two topic boxes above, then use the single confirm button in the action block below.'
                   )}
                 </p>
                 <div className="flex flex-col gap-2 sm:flex-row">
@@ -3685,52 +3888,17 @@ export default function HocTiengAnhAiClientPage() {
                     'Enter an idea for AI to normalize into a new topic, save it, and auto-select it for learning.'
                   )}
                 </p>
-                {recentCustomTopics.length > 0 ? (
-                  <div className="space-y-1">
-                    <p className="text-xs font-medium text-slate-700">{localText('Chủ đề cộng đồng gần đây', 'Recent community topics')}</p>
-                    <div className="space-y-1.5">
-                      {recentCustomTopics.map((topic) => (
-                        <div key={topic.topicId} className="flex items-center gap-1.5">
-                          <div
-                            className={`rounded-md border px-2 py-1 text-xs ${
-                              topicId === topic.topicId
-                                ? 'border-slate-900 bg-slate-900 text-white'
-                                : 'border-slate-300 bg-white text-slate-700'
-                            }`}
-                          >
-                            {`${topic.topicLabel} [${difficultyLabelUi(topic.topicDifficulty)}]`}
-                          </div>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="h-7 px-2 text-xs"
-                            onClick={() => {
-                              const hadExistingLesson = messages.length > 0 || Boolean(openedHistorySessionId)
-                              setTopicId(topic.topicId)
-                              setPendingTopicId(topic.topicId)
-                              setConfirmedTopicId(topic.topicId)
-                              if (hadExistingLesson) {
-                                startNewSession()
-                              }
-                            }}
-                          >
-                            {localText('Học chủ đề này', 'Learn this topic')}
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                    <p className="text-[11px] text-slate-500">
-                      {localText(
-                        'Chủ đề cộng đồng được chia sẻ để mọi học sinh cùng học; chỉ quản trị viên mới có quyền xóa.',
-                        'Community topics are shared for all learners; only admins can delete them.'
-                      )}
-                    </p>
-                  </div>
+                {customTopicOptions.length === 0 && topicSourceMode === 'custom' ? (
+                  <p className="text-xs text-slate-500">
+                    {localText(
+                      'Chưa có chủ đề mới tạo cho cặp ngôn ngữ/level hiện tại. Bạn có thể tạo mới ở ô bên trên.',
+                      'No custom topic found for current language pair/level. You can create one above.'
+                    )}
+                  </p>
                 ) : null}
               </div>
             </div>
-            <div className="grid gap-3 lg:grid-cols-2">
+            <div className="grid gap-3 md:grid-cols-2">
               <div className="rounded-md border bg-emerald-50/50 p-3 space-y-2">
                 <p className="text-sm font-semibold text-emerald-900">{localText('Goal Path (30 ngày)', 'Goal Path (30 days)')}</p>
                 <div className="flex flex-col gap-2 sm:flex-row">
@@ -3779,26 +3947,67 @@ export default function HocTiengAnhAiClientPage() {
             <div className="rounded-md border bg-indigo-50/50 p-3">
               <div className="mb-2 flex flex-wrap items-center gap-2">
                 <span
-                  className={`rounded-full border px-2 py-0.5 text-[11px] ${
+                  className={`rounded-full border px-2.5 py-1 text-xs ${
                     isTopicConfirmedForLesson ? 'border-emerald-300 bg-emerald-100 text-emerald-800' : 'border-slate-300 bg-white text-slate-700'
                   }`}
                 >
                   {isTopicConfirmedForLesson ? '✅' : '⏳'} {localText('B1: Chọn chủ đề', 'S1: Select topic')}
                 </span>
                 <span
-                  className={`rounded-full border px-2 py-0.5 text-[11px] ${
+                  className={`rounded-full border px-2.5 py-1 text-xs ${
                     hasCurriculumReady ? 'border-emerald-300 bg-emerald-100 text-emerald-800' : 'border-slate-300 bg-white text-slate-700'
                   }`}
                 >
                   {hasCurriculumReady ? '✅' : '⏳'} {localText('B2: Tạo giáo trình', 'S2: Create curriculum')}
                 </span>
                 <span
-                  className={`rounded-full border px-2 py-0.5 text-[11px] ${
+                  className={`rounded-full border px-2.5 py-1 text-xs ${
                     isLessonReadyToStart ? 'border-emerald-300 bg-emerald-100 text-emerald-800' : 'border-slate-300 bg-white text-slate-700'
                   }`}
                 >
                   {isLessonReadyToStart ? '✅' : '⏳'} {localText('B3: Bắt đầu bài học', 'S3: Start lesson')}
                 </span>
+              </div>
+              <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    if (!pendingTopicId) return
+                    confirmTopicForLearning(pendingTopicId)
+                  }}
+                  disabled={quickStartBusy || !pendingTopicId}
+                  className="min-h-[44px] w-full"
+                >
+                  {localText('Xác nhận chủ đề đã chọn', 'Confirm selected topic')}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => void fetchTopicCurriculum()}
+                  disabled={quickStartBusy || topicBusy || !isTopicConfirmedForLesson}
+                  className="min-h-[44px] w-full"
+                >
+                  {topicBusy ? localText('Đang tạo...', 'Generating...') : localText('Tạo/Lấy giáo trình', 'Create/Get curriculum')}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={startLesson}
+                  disabled={quickStartBusy || !isLessonReadyToStart || startingLesson}
+                  className="min-h-[44px] w-full"
+                >
+                  <Volume2 className="mr-2 h-4 w-4" /> {localText('Bắt đầu buổi học', 'Start lesson')}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={startNewSession}
+                  disabled={quickStartBusy || messages.length === 0 || startingLesson || busy || historyBusy}
+                  className="min-h-[44px] w-full"
+                >
+                  {localText('Buổi học mới', 'New lesson')}
+                </Button>
               </div>
               <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                 <p className="text-sm font-semibold text-indigo-900">{localText('Giáo trình theo chủ đề', 'Topic curriculum')}</p>
@@ -3807,7 +4016,8 @@ export default function HocTiengAnhAiClientPage() {
                   variant="outline"
                   size="sm"
                   onClick={() => void fetchTopicCurriculum()}
-                  disabled={topicBusy || !isTopicConfirmedForLesson}
+                  disabled={quickStartBusy || topicBusy || !isTopicConfirmedForLesson}
+                  className="min-h-[44px]"
                 >
                   {topicBusy ? localText('Đang tạo...', 'Generating...') : localText('Tạo/Lấy giáo trình chủ đề', 'Create/Get curriculum')}
                 </Button>
@@ -3855,28 +4065,10 @@ export default function HocTiengAnhAiClientPage() {
                 </div>
               </div>
             ) : null}
-            <div className="flex items-center justify-between gap-3 rounded-md border bg-slate-50 p-3">
+            <div className="rounded-md border bg-slate-50 p-3">
               <p className="text-sm text-slate-700">
                 {localText('Giáo viên đang chọn:', 'Selected teacher:')} <span className="font-semibold">{teacherLabel}</span>
               </p>
-              <div className="flex items-center gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={startNewSession}
-                  disabled={messages.length === 0 || startingLesson || busy || historyBusy}
-                >
-                  {localText('Buổi học mới', 'New lesson')}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={startLesson}
-                  disabled={!isLessonReadyToStart || startingLesson}
-                >
-                  <Volume2 className="mr-2 h-4 w-4" /> {localText('Bắt đầu buổi học', 'Start lesson')}
-                </Button>
-              </div>
             </div>
             {!isTopicConfirmedForLesson ? (
               <p className="text-xs text-amber-700">
@@ -3896,14 +4088,14 @@ export default function HocTiengAnhAiClientPage() {
           </CardContent>
         </Card>
 
-        <div ref={activeLessonRef} className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+        <div ref={activeLessonRef} className="grid gap-4 md:grid-cols-[1.1fr_0.9fr]">
           <Card className="border shadow-sm bg-white/80 backdrop-blur">
             <CardHeader>
               <CardTitle>{coachUiText.chatTitle}</CardTitle>
               <CardDescription>{coachUiText.chatDesc}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div ref={chatScrollRef} className="max-h-80 space-y-2 overflow-auto rounded-md border bg-slate-50 p-3">
+              <div ref={chatScrollRef} className="max-h-[60vh] space-y-2 overflow-auto rounded-md border bg-slate-50 p-3 sm:max-h-80">
                 {messages.length === 0 ? (
                   <p className="text-sm text-muted-foreground">
                     {localText('Chưa có hội thoại. Bấm "Bắt đầu buổi học" để bắt đầu.', 'No conversation yet. Click "Start lesson" to begin.')}
@@ -3947,7 +4139,7 @@ export default function HocTiengAnhAiClientPage() {
                                       type="button"
                                       variant="outline"
                                       size="sm"
-                                      className="h-7 px-2 text-xs"
+                                      className="min-h-[44px] px-3 text-xs"
                                       onClick={() => void explainIntentAnswer(m.id)}
                                       disabled={Boolean(intentExplainBusyByMessageId[m.id])}
                                     >
@@ -3977,7 +4169,7 @@ export default function HocTiengAnhAiClientPage() {
                                   type="button"
                                   variant="ghost"
                                   size="sm"
-                                  className="h-7 px-2 text-xs"
+                                  className="min-h-[44px] px-3 text-xs"
                                   onClick={() => void fetchWordInsight(m.id, word, m.text)}
                                 >
                                   {word}
@@ -4049,6 +4241,16 @@ export default function HocTiengAnhAiClientPage() {
                           </Button>
                           <Button
                             type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => void replayTeacherIntentAnswer(m.id)}
+                            disabled={isReplayButtonDisabled(`${m.id}__intent_answer`, hasCachedTeacherAudio(`${m.id}__intent_answer`))}
+                          >
+                            <Volume2 className="mr-2 h-4 w-4" />
+                            {localText('Nghe ý 3', 'Play idea 3')}
+                          </Button>
+                          <Button
+                            type="button"
                             variant="secondary"
                             size="sm"
                             onClick={() => void replayTeacherMessage(m.id, m.text)}
@@ -4078,7 +4280,7 @@ export default function HocTiengAnhAiClientPage() {
                     variant={responseStyle === 'detailed' ? 'default' : 'ghost'}
                     onClick={() => setResponseStyle('detailed')}
                     disabled={busy}
-                    className="h-8 px-2 text-xs"
+                    className="min-h-[44px] px-3 text-xs"
                   >
                     {localText('Chi tiết', 'Detailed')}
                   </Button>
@@ -4088,7 +4290,7 @@ export default function HocTiengAnhAiClientPage() {
                     variant={responseStyle === 'concise' ? 'default' : 'ghost'}
                     onClick={() => setResponseStyle('concise')}
                     disabled={busy}
-                    className="h-8 px-2 text-xs"
+                    className="min-h-[44px] px-3 text-xs"
                   >
                     {localText('Ngắn gọn', 'Concise')}
                   </Button>
@@ -4098,6 +4300,7 @@ export default function HocTiengAnhAiClientPage() {
                   variant={listening ? 'destructive' : 'outline'}
                   onClick={handleMic}
                   disabled={busy || (Boolean(writingTask) && !writingTask?.completed)}
+                className="min-h-[44px]"
                 >
                   {listening ? <MicOff className="mr-2 h-4 w-4" /> : <Mic className="mr-2 h-4 w-4" />}
                   {listening ? localText('Dừng mic', 'Stop mic') : localText('Nói', 'Speak')}
@@ -4106,6 +4309,7 @@ export default function HocTiengAnhAiClientPage() {
                   type="button"
                   onClick={() => void handleSend()}
                   disabled={busy || !draft.trim() || (Boolean(writingTask) && !writingTask?.completed)}
+                className="min-h-[44px]"
                 >
                   <Send className="mr-2 h-4 w-4" /> {localText('Gửi', 'Send')}
                 </Button>
@@ -4392,6 +4596,178 @@ export default function HocTiengAnhAiClientPage() {
           </CardContent>
         </Card>
       </div>
+      {quickStartModalOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-3xl rounded-lg border bg-white shadow-xl">
+            <div className="border-b px-4 py-3">
+              <p className="text-base font-semibold text-slate-900">
+                {localText('Bắt đầu nhanh - Cài đặt bài học', 'Quick start - Lesson setup')}
+              </p>
+              <p className="text-xs text-slate-600">
+                {localText(
+                  'Chọn nhanh các tùy chọn dưới đây, rồi bấm "Tạo bài học" để tạo giáo trình và mở buổi học luôn.',
+                  'Pick your settings below, then click "Create lesson" to generate curriculum and start immediately.'
+                )}
+              </p>
+            </div>
+            <div className="max-h-[70vh] overflow-auto px-4 py-3">
+              <div className="grid gap-3 grid-cols-1 md:grid-cols-2">
+                <div className="space-y-1">
+                  <label className="text-sm font-medium">{coachUiText.learningLanguage}</label>
+                  <select
+                    value={languageCode}
+                    onChange={(e) => {
+                      const code = e.target.value as LanguageCode
+                      setLanguageCode(code)
+                      const firstTeacher = TEACHERS_BY_LANGUAGE[code]?.[0]
+                      if (firstTeacher) setTeacherId(firstTeacher.id)
+                    }}
+                    className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+                  >
+                    {languageOptions.map((lang) => (
+                      <option key={lang.code} value={lang.code}>
+                        {lang.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium">{coachUiText.nativeLanguage}</label>
+                  <select
+                    value={nativeLanguageCode}
+                    onChange={(e) => setNativeLanguageCode(e.target.value as NativeLanguageCode)}
+                    className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+                  >
+                    {nativeLanguageOptions.map((lang) => (
+                      <option key={lang.code} value={lang.code}>
+                        {lang.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium">{coachUiText.nativeTeacher}</label>
+                  <select
+                    value={selectedTeacher.id}
+                    onChange={(e) => setTeacherId(e.target.value)}
+                    className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+                  >
+                    {teacherOptions.map((teacher) => (
+                      <option key={teacher.id} value={teacher.id}>
+                        {teacher.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium">{coachUiText.learnerLevel}</label>
+                  <select
+                    value={learnerLevel}
+                    onChange={(e) => setLearnerLevel(Number(e.target.value) as LearnerLevel)}
+                    className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+                  >
+                    <option value={0}>{levelLabelUi(0)}</option>
+                    <option value={1}>{levelLabelUi(1)}</option>
+                    <option value={2}>{levelLabelUi(2)}</option>
+                    <option value={3}>{levelLabelUi(3)}</option>
+                    <option value={4}>{levelLabelUi(4)}</option>
+                  </select>
+                </div>
+              </div>
+              <div className="mt-3 grid gap-3 grid-cols-1 md:grid-cols-2">
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-slate-700">{localText('Chủ đề có sẵn', 'Built-in topics')}</p>
+                  <select
+                    value={builtInTopicOptions.some((x) => x.id === pendingTopicId) ? pendingTopicId : ''}
+                    onChange={(e) => {
+                      const value = String(e.target.value || '').trim()
+                      if (!value) return
+                      setTopicSourceMode('builtin')
+                      setPendingTopicId(value)
+                    }}
+                    className={`w-full rounded-md border px-3 py-2 text-sm ${
+                      topicSourceMode === 'builtin'
+                        ? 'border-slate-900 bg-slate-50 text-slate-900'
+                        : 'border-slate-300 bg-white text-slate-700'
+                    }`}
+                  >
+                    <option value="">{localText('Chọn chủ đề có sẵn...', 'Select built-in topic...')}</option>
+                    {builtInTopicOptions.map((topic) => (
+                      <option key={topic.id} value={topic.id}>{topic.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-slate-700">{localText('Chủ đề mới tạo', 'Custom topics')}</p>
+                  <select
+                    value={customTopicOptions.some((x) => x.id === pendingTopicId) ? pendingTopicId : ''}
+                    onChange={(e) => {
+                      const value = String(e.target.value || '').trim()
+                      if (!value) return
+                      setTopicSourceMode('custom')
+                      setPendingTopicId(value)
+                    }}
+                    className={`w-full rounded-md border px-3 py-2 text-sm ${
+                      topicSourceMode === 'custom'
+                        ? 'border-slate-900 bg-slate-50 text-slate-900'
+                        : 'border-slate-300 bg-white text-slate-700'
+                    }`}
+                  >
+                    <option value="">
+                      {customTopicOptions.length > 0
+                        ? localText('Chọn chủ đề mới tạo...', 'Select custom topic...')
+                        : localText('Chưa có chủ đề mới tạo', 'No custom topic yet')}
+                    </option>
+                    {customTopicOptions.map((topic) => (
+                      <option key={topic.id} value={topic.id}>{topic.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="mt-3 space-y-2 rounded-md border bg-slate-50 p-3">
+                <p className="text-xs font-medium text-slate-700">{localText('Tạo chủ đề mới ngay trong popup', 'Create a new topic in this popup')}</p>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Input
+                    value={customTopicDraft}
+                    onChange={(e) => setCustomTopicDraft(e.target.value)}
+                    placeholder={coachUiText.customTopicPlaceholder}
+                    className="h-11 w-full text-base sm:flex-1"
+                    disabled={customTopicBusy || quickStartBusy}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => void normalizeAndSaveCustomTopic()}
+                    disabled={customTopicBusy || quickStartBusy}
+                    className="h-11 px-4 sm:shrink-0"
+                  >
+                    {customTopicBusy ? localText('Đang tạo chủ đề mới...', 'Creating topic...') : localText('Tạo chủ đề mới', 'Create topic')}
+                  </Button>
+                </div>
+              </div>
+            </div>
+            <div className="flex flex-col gap-2 border-t px-4 py-3 sm:flex-row sm:justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setQuickStartModalOpen(false)}
+                disabled={quickStartBusy}
+                className="min-h-[44px]"
+              >
+                {localText('Đóng', 'Close')}
+              </Button>
+              <Button
+                type="button"
+                onClick={() => void runQuickStartFlow()}
+                disabled={quickStartBusy}
+                className="min-h-[44px]"
+              >
+                {quickStartBusy ? quickStartStageLabel : localText('Tạo bài học', 'Create lesson')}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </>
   )
 }
