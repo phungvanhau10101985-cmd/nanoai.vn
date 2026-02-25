@@ -4144,14 +4144,14 @@ export default function HocTiengAnhAiClientPage() {
                                       disabled={Boolean(intentExplainBusyByMessageId[m.id])}
                                     >
                                       {intentExplainBusyByMessageId[m.id]
-                                        ? localText('Đang giải thích...', 'Explaining...')
+                                        ? localText('Đang dịch...', 'Translating...')
                                         : intentExplainByMessageId[m.id]
-                                          ? localText('Ẩn giải thích ý 3', 'Hide idea 3 explanation')
-                                          : localText('Giải thích ý 3', 'Explain idea 3')}
+                                          ? localText('Ẩn dịch ý 3', 'Hide idea 3 translation')
+                                          : localText('Dịch ý 3', 'Translate idea 3')}
                                     </Button>
                                     {intentExplainByMessageId[m.id] ? (
                                       <p className="text-slate-600">
-                                        <span className="font-semibold">{localText('Nghĩa ý 3:', 'Meaning of idea 3:')}</span>{' '}
+                                        <span className="font-semibold">{localText('Dịch ý 3:', 'Idea 3 translation:')}</span>{' '}
                                         {intentExplainByMessageId[m.id]}
                                       </p>
                                     ) : null}

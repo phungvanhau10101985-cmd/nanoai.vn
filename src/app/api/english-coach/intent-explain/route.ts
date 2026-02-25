@@ -11,6 +11,13 @@ type Payload = {
   topicLabel?: string
 }
 
+function normalizeShortMeaning(text: string): string {
+  const compact = String(text || '').replace(/\s+/g, ' ').trim()
+  if (!compact) return ''
+  if (compact.length <= 240) return compact
+  return `${compact.slice(0, 237).trim()}...`
+}
+
 function safeParse(text: string): { explanation: string } | null {
   const cleaned = String(text || '')
     .replace(/^```json\s*/i, '')
@@ -60,7 +67,7 @@ export async function POST(request: NextRequest) {
     }
 
     const prompt = `Bạn là giáo viên ngôn ngữ đa ngữ.
-Nhiệm vụ: giải thích ý nghĩa câu trả lời của giáo viên theo NGỮ CẢNH hội thoại, viết bằng ${nativeLanguage}.
+Nhiệm vụ: chỉ DỊCH Ý 3 theo đúng ngữ cảnh hội thoại, viết bằng ${nativeLanguage}.
 
 Ngữ cảnh:
 - Câu học sinh vừa nói: ${studentText || '(không có)'}
@@ -71,10 +78,11 @@ Ngữ cảnh:
 - Ngôn ngữ đang học: ${targetLanguage}
 
 Yêu cầu:
-1) Giải thích ngắn gọn 2-4 câu, dễ hiểu cho người học.
-2) Nếu có từ/cụm dễ nghe nhầm (ví dụ memo/menu), phải nêu rõ trong ngữ cảnh này nên hiểu từ nào và vì sao.
-3) Bám sát ngữ cảnh hiện tại, không giải thích chung chung kiểu từ điển.
-4) Không dùng ngôn ngữ thứ ba ngoài cặp ${targetLanguage} + ${nativeLanguage}.
+1) Trả về đúng nghĩa của Ý 3 theo ngữ cảnh hiện tại, KHÔNG giải thích dài dòng.
+2) Chỉ 1 câu ngắn hoặc tối đa 2 câu rất ngắn.
+3) Không phân tích ngữ pháp, không liệt kê thêm, không ghi chú ngoài lề.
+4) Không dùng ngôn ngữ thứ ba ngoài ${nativeLanguage}.
+5) Nếu có từ dễ nhầm, chọn nghĩa đúng ngữ cảnh và dịch luôn, không diễn giải thêm.
 
 Trả về JSON hợp lệ, không markdown:
 {
@@ -90,12 +98,12 @@ Trả về JSON hợp lệ, không markdown:
     if (!parsed) {
       return NextResponse.json({
         explanation: nativeLanguage.toLowerCase().includes('vietnamese')
-          ? 'Ý 3 nghĩa là câu phản hồi tự nhiên của giáo viên trong ngữ cảnh hội thoại hiện tại. Nếu có từ nghe giống nhau, hãy ưu tiên theo câu sửa hoàn chỉnh ở Ý 2.'
-          : 'Idea 3 is the teacher natural contextual reply. If a word sounds ambiguous, prioritize the corrected sentence in Idea 2.',
+          ? 'Ý 3 là câu trả lời tự nhiên của giáo viên trong ngữ cảnh hiện tại.'
+          : 'Idea 3 is the teacher natural contextual reply for this context.',
       })
     }
 
-    return NextResponse.json(parsed)
+    return NextResponse.json({ explanation: normalizeShortMeaning(parsed.explanation) })
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Lỗi không xác định.'
     return NextResponse.json({ error: msg }, { status: 500 })
