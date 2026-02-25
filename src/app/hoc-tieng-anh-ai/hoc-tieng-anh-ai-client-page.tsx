@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
 import { createClient } from '@/lib/supabase/client'
-import { Mic, MicOff, Send, Languages, Volume2 } from 'lucide-react'
+import { Mic, MicOff, Send, Languages, Volume2, X } from 'lucide-react'
 
 type Accent = 'uk' | 'us'
 type Gender = 'female' | 'male'
@@ -4602,8 +4602,19 @@ export default function HocTiengAnhAiClientPage() {
         </Card>
       </div>
       {quickStartModalOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-3xl rounded-lg border bg-white shadow-xl">
+        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 pt-6 sm:pt-10">
+          <div className="relative flex w-full max-w-3xl max-h-[calc(100vh-4.5rem)] flex-col rounded-lg border bg-white shadow-xl">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => setQuickStartModalOpen(false)}
+              disabled={quickStartBusy}
+              aria-label={localText('Đóng popup', 'Close popup')}
+              className="absolute right-2 top-2 z-10 h-8 w-8"
+            >
+              <X className="h-4 w-4" />
+            </Button>
             <div className="border-b px-4 py-3">
               <p className="text-base font-semibold text-slate-900">
                 {localText('Bắt đầu nhanh - Cài đặt bài học', 'Quick start - Lesson setup')}
@@ -4615,7 +4626,7 @@ export default function HocTiengAnhAiClientPage() {
                 )}
               </p>
             </div>
-            <div className="max-h-[70vh] overflow-auto px-4 py-3">
+            <div className="overflow-auto px-4 py-3">
               <div className="grid gap-3 grid-cols-1 md:grid-cols-2">
                 <div className="space-y-1">
                   <label className="text-sm font-medium">{coachUiText.learningLanguage}</label>
@@ -4752,15 +4763,6 @@ export default function HocTiengAnhAiClientPage() {
               </div>
             </div>
             <div className="flex flex-col gap-2 border-t px-4 py-3 sm:flex-row sm:justify-end">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setQuickStartModalOpen(false)}
-                disabled={quickStartBusy}
-                className="min-h-[44px]"
-              >
-                {localText('Đóng', 'Close')}
-              </Button>
               <Button
                 type="button"
                 onClick={() => void runQuickStartFlow()}
