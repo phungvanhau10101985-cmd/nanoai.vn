@@ -6,6 +6,7 @@ type Payload = {
   referenceSentence?: string
   teacherText?: string
   targetLanguage?: string
+  targetLanguageCode?: string
   nativeLanguage?: string
   learnerLevel?: 0 | 1 | 2 | 3 | 4
   taskType?: 'copy' | 'guided_rewrite' | 'rewrite' | 'context_response' | 'advanced_response'
@@ -52,6 +53,7 @@ export async function POST(request: NextRequest) {
     const referenceSentence = String(payload.referenceSentence || '').trim()
     const teacherText = String(payload.teacherText || '').trim()
     const targetLanguage = String(payload.targetLanguage || 'English').trim()
+    const targetLanguageCode = String(payload.targetLanguageCode || '').trim().toLowerCase()
     const nativeLanguage = String(payload.nativeLanguage || 'Vietnamese').trim()
     const rawLevel = Number(payload.learnerLevel)
     const learnerLevel: 0 | 1 | 2 | 3 | 4 =
@@ -73,9 +75,28 @@ export async function POST(request: NextRequest) {
       : learnerLevel === 2 ? 'passed=true khi score >= 75'
       : learnerLevel === 3 ? 'passed=true khi score >= 72'
       : 'passed=true khi score >= 70'
+    const supportsRomanizedInput = targetLanguageCode === 'zh' || targetLanguageCode === 'ja' || targetLanguageCode === 'ko'
+    const containsNativeScript =
+      targetLanguageCode === 'zh'
+        ? /[\u4E00-\u9FFF]/u.test(learnerText)
+        : targetLanguageCode === 'ja'
+          ? /[\u3040-\u30FF\u4E00-\u9FFF]/u.test(learnerText)
+          : targetLanguageCode === 'ko'
+            ? /[\uAC00-\uD7AF]/u.test(learnerText)
+            : false
+    const hasLatinLetters = /[A-Za-z]/.test(learnerText)
+    const isRomanizedInput = supportsRomanizedInput && hasLatinLetters && !containsNativeScript
+    const scriptGuidance = isRomanizedInput
+      ? `BỔ SUNG QUAN TRỌNG:
+- learnerText hiện là dạng phiên âm Latin (romanized), KHÔNG phải chữ gốc.
+- CHẤM DỰA trên đúng ý, đúng ngữ pháp/mẫu câu, và mức gần đúng phát âm theo ngôn ngữ đích.
+- KHÔNG trừ điểm chỉ vì không dùng chữ gốc.
+- Nếu câu romanized đúng ý và đủ cấu trúc, có thể cho passed=true theo mức phù hợp level.`
+      : 'Không có yêu cầu đặc biệt về phiên âm Latin.'
     const prompt = `Bạn là giám khảo bài viết micro-writing cho học ngoại ngữ.
 Đầu vào:
 - targetLanguage: ${targetLanguage}
+- targetLanguageCode: ${targetLanguageCode || 'n/a'}
 - nativeLanguage: ${nativeLanguage}
 - learnerLevel: ${learnerLevel}
 - taskType: ${taskType}
@@ -90,6 +111,7 @@ Yêu cầu:
 4) shortHint: gợi ý 1 câu rất ngắn bằng ${nativeLanguage}.
 5) ${passRule}
 6) Không dùng ngôn ngữ thứ ba ngoài cặp ${targetLanguage} + ${nativeLanguage}.
+7) ${scriptGuidance}
 
 Trả về JSON hợp lệ:
 {
@@ -110,6 +132,9 @@ Trả về JSON hợp lệ:
         feedback: `Câu của bạn cần chỉnh thêm để tự nhiên hơn trong ${targetLanguage}.`,
         shortHint: 'Hãy viết ngắn gọn hơn và bám đúng ý chính.',
       })
+    }
+    if (isRomanizedInput && !parsed.passed && parsed.score >= 60) {
+      parsed.passed = true
     }
     return NextResponse.json(parsed)
   } catch (e) {

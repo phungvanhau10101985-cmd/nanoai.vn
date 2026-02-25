@@ -1360,6 +1360,24 @@ export default function HocTiengAnhAiClientPage() {
   const supportsLatinTransliteration = languageCode === 'zh' || languageCode === 'ja' || languageCode === 'ko'
   const toWritingRomanizationKey = (text: string) => `${languageCode}::${String(text || '').trim()}`
 
+  const requestTransliteration = async (text: string) => {
+    if (!supportsLatinTransliteration) return ''
+    const sourceText = String(text || '').trim()
+    if (!sourceText) return ''
+    try {
+      const res = await fetch('/api/english-coach/transliterate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: sourceText, languageCode }),
+      })
+      const data = (await res.json().catch(() => ({}))) as { transliteration?: string }
+      if (!res.ok) return ''
+      return String(data.transliteration || '').trim()
+    } catch {
+      return ''
+    }
+  }
+
   const ensureWritingRomanization = async (text: string) => {
     if (!supportsLatinTransliteration) return
     const sourceText = String(text || '').trim()
@@ -1369,23 +1387,10 @@ export default function HocTiengAnhAiClientPage() {
 
     setWritingRomanizationBusyByKey((prev) => ({ ...prev, [key]: true }))
     try {
-      const res = await fetch('/api/english-coach/transliterate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          text: sourceText,
-          languageCode,
-          targetLanguage: activeTeacher.languageLabel,
-        }),
-      })
-      const data = (await res.json().catch(() => ({}))) as { transliteration?: string; error?: string }
-      if (!res.ok) throw new Error(data.error || localText('Không tạo được phiên âm.', 'Unable to generate transliteration.'))
-      const transliteration = String(data.transliteration || '').trim()
+      const transliteration = await requestTransliteration(sourceText)
       if (transliteration) {
         setWritingRomanizationByKey((prev) => ({ ...prev, [key]: transliteration }))
       }
-    } catch {
-      // Keep writing flow smooth even when transliteration helper fails.
     } finally {
       setWritingRomanizationBusyByKey((prev) => ({ ...prev, [key]: false }))
     }
@@ -2006,6 +2011,7 @@ export default function HocTiengAnhAiClientPage() {
           referenceSentence: writingTask.referenceSentence,
           teacherText: writingTask.teacherText,
           targetLanguage: activeTeacher.languageLabel,
+          targetLanguageCode: languageCode,
           nativeLanguage: selectedNativeLanguage.apiLabel,
           learnerLevel,
           taskType: writingTask.taskType,
@@ -2462,6 +2468,7 @@ export default function HocTiengAnhAiClientPage() {
           correctedSentence,
           correctionNote,
           targetLanguage: activeTeacher.languageLabel,
+          targetLanguageCode: languageCode,
           nativeLanguage: selectedNativeLanguage.apiLabel,
           topicLabel: selectedTopic.label,
         }),
@@ -2470,7 +2477,11 @@ export default function HocTiengAnhAiClientPage() {
       if (!res.ok) throw new Error(data.error || localText('Không giải thích được câu trả lời.', 'Unable to explain this reply.'))
       const meaning = String(data.explanation || '').trim()
       if (!meaning) throw new Error(localText('Không có nội dung giải thích.', 'No explanation content.'))
-      setIntentExplainByMessageId((prev) => ({ ...prev, [messageId]: meaning }))
+      const transliteration = await requestTransliteration(intentAnswer)
+      const combined = transliteration
+        ? `${meaning}\n${localText('Phiên âm Latin:', 'Latin transliteration:')} ${transliteration}`
+        : meaning
+      setIntentExplainByMessageId((prev) => ({ ...prev, [messageId]: combined }))
     } catch (e) {
       toast({
         title: localText('Không giải thích được', 'Cannot explain now'),
@@ -2501,6 +2512,7 @@ export default function HocTiengAnhAiClientPage() {
           correctedSentence: '',
           correctionNote: '',
           targetLanguage: activeTeacher.languageLabel,
+          targetLanguageCode: languageCode,
           nativeLanguage: selectedNativeLanguage.apiLabel,
           topicLabel: selectedTopic.label,
         }),
@@ -2509,7 +2521,11 @@ export default function HocTiengAnhAiClientPage() {
       if (!res.ok) throw new Error(data.error || localText('Không dịch được câu mở đầu.', 'Unable to translate opening line.'))
       const meaning = String(data.explanation || '').trim()
       if (!meaning) throw new Error(localText('Không có nội dung dịch.', 'No translation content.'))
-      setOpeningTranslateByMessageId((prev) => ({ ...prev, [messageId]: meaning }))
+      const transliteration = await requestTransliteration(sourceText)
+      const combined = transliteration
+        ? `${meaning}\n${localText('Phiên âm Latin:', 'Latin transliteration:')} ${transliteration}`
+        : meaning
+      setOpeningTranslateByMessageId((prev) => ({ ...prev, [messageId]: combined }))
     } catch (e) {
       toast({
         title: localText('Không dịch được', 'Cannot translate now'),

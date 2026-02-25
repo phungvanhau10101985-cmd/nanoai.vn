@@ -18,9 +18,8 @@ function buildPrompt(text: string, languageCode: 'zh' | 'ja' | 'ko'): string {
   if (languageCode === 'zh') {
     return `Chuyển câu sau sang phiên âm Latin pinyin có dấu thanh.
 Yêu cầu:
-- Chỉ trả về 1 dòng pinyin.
+- Chỉ trả về đúng 1 dòng pinyin.
 - Không thêm giải thích, không markdown.
-- Giữ dấu câu tự nhiên.
 
 Văn bản gốc:
 ${text}`
@@ -30,7 +29,6 @@ ${text}`
 Requirements:
 - Return exactly one line of romaji.
 - No explanation, no markdown.
-- Keep punctuation naturally.
 
 Original text:
 ${text}`
@@ -39,7 +37,6 @@ ${text}`
 Requirements:
 - Return exactly one line of romanization.
 - No explanation, no markdown.
-- Keep punctuation naturally.
 
 Original text:
 ${text}`
@@ -61,8 +58,7 @@ export async function POST(request: NextRequest) {
 
     const ai = new GoogleGenerativeAI(apiKey)
     const model = ai.getGenerativeModel({ model: 'gemini-2.5-flash' })
-    const prompt = buildPrompt(text, languageCode)
-    const result = await model.generateContent(prompt)
+    const result = await model.generateContent(buildPrompt(text, languageCode))
     const transliteration = String(result.response.text?.() || '')
       .replace(/^```/g, '')
       .replace(/```$/g, '')

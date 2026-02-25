@@ -7,6 +7,7 @@ type Payload = {
   correctedSentence?: string
   correctionNote?: string
   targetLanguage?: string
+  targetLanguageCode?: string
   nativeLanguage?: string
   topicLabel?: string
 }
@@ -14,8 +15,8 @@ type Payload = {
 function normalizeShortMeaning(text: string): string {
   const compact = String(text || '').replace(/\s+/g, ' ').trim()
   if (!compact) return ''
-  if (compact.length <= 240) return compact
-  return `${compact.slice(0, 237).trim()}...`
+  if (compact.length <= 360) return compact
+  return `${compact.slice(0, 357).trim()}...`
 }
 
 function safeParse(text: string): { explanation: string } | null {
@@ -78,8 +79,8 @@ Ngữ cảnh:
 - Ngôn ngữ đang học: ${targetLanguage}
 
 Yêu cầu:
-1) Trả về đúng nghĩa của Ý 3 theo ngữ cảnh hiện tại, KHÔNG giải thích dài dòng.
-2) Chỉ 1 câu ngắn hoặc tối đa 2 câu rất ngắn.
+1) Trả về đúng nghĩa của Ý 3 theo ngữ cảnh hiện tại, diễn đạt rõ ràng cho người học.
+2) Viết 2-3 câu ngắn, bám sát ngữ cảnh thực tế.
 3) Không phân tích ngữ pháp, không liệt kê thêm, không ghi chú ngoài lề.
 4) Không dùng ngôn ngữ thứ ba ngoài ${nativeLanguage}.
 5) Nếu có từ dễ nhầm, chọn nghĩa đúng ngữ cảnh và dịch luôn, không diễn giải thêm.
