@@ -121,6 +121,33 @@ function normalizeTextForTts(input: string): string {
     .trim()
 }
 
+function clampTtsTextBySentence(input: string, maxChars = 1800, minBoundary = 220): { text: string; clipped: boolean } {
+  const source = String(input || '').trim()
+  if (!source) return { text: '', clipped: false }
+  if (source.length <= maxChars) return { text: source, clipped: false }
+
+  const slice = source.slice(0, maxChars + 1)
+  let boundary = -1
+  for (const mark of ['.', '!', '?', '。', '！', '？']) {
+    boundary = Math.max(boundary, slice.lastIndexOf(mark))
+  }
+  if (boundary >= minBoundary) {
+    return { text: slice.slice(0, boundary + 1).trim(), clipped: true }
+  }
+
+  const lineBreak = slice.lastIndexOf('\n')
+  if (lineBreak >= minBoundary) {
+    return { text: slice.slice(0, lineBreak).trim(), clipped: true }
+  }
+
+  const lastSpace = slice.lastIndexOf(' ')
+  if (lastSpace >= minBoundary) {
+    return { text: `${slice.slice(0, lastSpace).trim()}.`, clipped: true }
+  }
+
+  return { text: `${slice.slice(0, maxChars).trim()}.`, clipped: true }
+}
+
 async function generateOpenAiTts(params: {
   apiKey: string
   text: string
@@ -167,6 +194,8 @@ export async function POST(request: NextRequest) {
     const rawText = String(payload.text || '').trim()
     const normalizedText = normalizeTextForTts(rawText)
     const text = normalizedText.slice(0, 4500)
+    const clippedForHardLimit = normalizedText.length > 4500
+    const speechInput = clampTtsTextBySentence(text, 1800, 220)
     const voiceName = (payload.voiceName || 'Kore') as VoiceName
     const voiceStyle = String(payload.voiceStyle || '').trim()
     const locale = String(payload.locale || '').trim()
@@ -180,14 +209,14 @@ export async function POST(request: NextRequest) {
     const teacherGender = payload.teacherGender === 'male' || payload.teacherGender === 'female'
       ? payload.teacherGender
       : undefined
-    if (!text) {
+    if (!speechInput.text) {
       return NextResponse.json({ error: msg(localeUi, 'Thiếu văn bản cần đọc.', 'Missing text for speech synthesis.') }, { status: 400 })
     }
     const normalizedLocale = (locale || 'en-US').trim() || 'en-US'
-    const cacheKey = toTtsCacheKey(text, voiceName, normalizedLocale)
-    const textHash = createHash('sha256').update(text).digest('hex')
+    const cacheKey = toTtsCacheKey(speechInput.text, voiceName, normalizedLocale)
+    const textHash = createHash('sha256').update(speechInput.text).digest('hex')
     console.info(
-      `[TTS][${requestId}] start locale=${locale || 'n/a'} gender=${teacherGender || 'n/a'} voice=${voiceName} textLen=${text.length} engine=${requestedEngine}`
+      `[TTS][${requestId}] start locale=${locale || 'n/a'} gender=${teacherGender || 'n/a'} voice=${voiceName} textLen=${text.length} spokenLen=${speechInput.text.length} engine=${requestedEngine}`
     )
 
     const adminSupabase = adminClient()
@@ -223,7 +252,6 @@ export async function POST(request: NextRequest) {
     console.info(`[TTS][${requestId}] cache-miss key=${cacheKey.slice(0, 12)}`)
 
     let extracted: TtsExtracted = null
-    const shorterText = text.length > 600 ? text.slice(0, 600) : text
     const strictReadPrompt = `${voiceStyle ? `${voiceStyle}\n` : ''}You are the selected teacher voice for this lesson.
 Teacher profile:
 - Selected voice: ${voiceName}
@@ -243,7 +271,7 @@ Reading rules (strict):
 5) If both target + native language appear, read both exactly as written, in sequence.
 
 Text:
-${shorterText}`
+${speechInput.text}`
     const attempts: Array<{ model: string; contents: string; voice: VoiceName }> = [
       { model: 'gemini-2.5-flash-preview-tts', contents: strictReadPrompt, voice: voiceName },
     ]
@@ -256,7 +284,7 @@ ${shorterText}`
         try {
           extracted = await generateOpenAiTts({
             apiKey: openAiApiKey,
-            text: shorterText,
+            text: speechInput.text,
             requestedVoice: voiceName,
             instructions: strictReadPrompt,
           })
@@ -376,7 +404,10 @@ ${shorterText}`
       ...extracted,
       meta: successMeta,
       attempts: attemptLogs,
-      warnings: [],
+      warnings: [
+        ...(clippedForHardLimit ? ['source-over-4500'] : []),
+        ...(speechInput.clipped ? ['tts-clamped-by-sentence'] : []),
+      ],
       cached: false,
     })
   } catch (e) {

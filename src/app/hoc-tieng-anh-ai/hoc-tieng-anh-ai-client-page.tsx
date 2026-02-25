@@ -1329,6 +1329,8 @@ export default function HocTiengAnhAiClientPage() {
   const [teacherSpeakTextByMessageId, setTeacherSpeakTextByMessageId] = useState<Record<string, string>>({})
   const [intentExplainByMessageId, setIntentExplainByMessageId] = useState<Record<string, string>>({})
   const [intentExplainBusyByMessageId, setIntentExplainBusyByMessageId] = useState<Record<string, boolean>>({})
+  const [openingTranslateByMessageId, setOpeningTranslateByMessageId] = useState<Record<string, string>>({})
+  const [openingTranslateBusyByMessageId, setOpeningTranslateBusyByMessageId] = useState<Record<string, boolean>>({})
   const supabase = useMemo(() => createClient(), [])
   const lastMicSentTextRef = useRef('')
   const lastMicSentAtRef = useRef(0)
@@ -2445,6 +2447,45 @@ export default function HocTiengAnhAiClientPage() {
     }
   }
 
+  const translateOpeningMessage = async (messageId: string, teacherText: string) => {
+    const sourceText = String(teacherText || '').trim()
+    if (!sourceText) return
+    if (openingTranslateBusyByMessageId[messageId]) return
+    if (openingTranslateByMessageId[messageId]) {
+      setOpeningTranslateByMessageId((prev) => ({ ...prev, [messageId]: '' }))
+      return
+    }
+    setOpeningTranslateBusyByMessageId((prev) => ({ ...prev, [messageId]: true }))
+    try {
+      const res = await fetch('/api/english-coach/intent-explain', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          studentText: '',
+          intentAnswer: sourceText,
+          correctedSentence: '',
+          correctionNote: '',
+          targetLanguage: activeTeacher.languageLabel,
+          nativeLanguage: selectedNativeLanguage.apiLabel,
+          topicLabel: selectedTopic.label,
+        }),
+      })
+      const data = (await res.json().catch(() => ({}))) as { explanation?: string; error?: string }
+      if (!res.ok) throw new Error(data.error || localText('Không dịch được câu mở đầu.', 'Unable to translate opening line.'))
+      const meaning = String(data.explanation || '').trim()
+      if (!meaning) throw new Error(localText('Không có nội dung dịch.', 'No translation content.'))
+      setOpeningTranslateByMessageId((prev) => ({ ...prev, [messageId]: meaning }))
+    } catch (e) {
+      toast({
+        title: localText('Không dịch được', 'Cannot translate now'),
+        description: unknownErrorMsg(e),
+        variant: 'destructive',
+      })
+    } finally {
+      setOpeningTranslateBusyByMessageId((prev) => ({ ...prev, [messageId]: false }))
+    }
+  }
+
   const replayTeacherMainSentence = async (messageId: string, text: string) => {
     const mainSentence = String(mainSentenceByMessageId[messageId] || '').trim()
     if (!mainSentence) {
@@ -2928,6 +2969,8 @@ export default function HocTiengAnhAiClientPage() {
     setTeacherSpeakTextByMessageId({})
     setIntentExplainByMessageId({})
     setIntentExplainBusyByMessageId({})
+    setOpeningTranslateByMessageId({})
+    setOpeningTranslateBusyByMessageId({})
     setLatestPronunciationScore(null)
     setLatestWeakWords([])
     setLatestPronunciationBreakdown({ accuracy: null, fluency: null, prosody: null })
@@ -4101,7 +4144,7 @@ export default function HocTiengAnhAiClientPage() {
                     {localText('Chưa có hội thoại. Bấm "Bắt đầu buổi học" để bắt đầu.', 'No conversation yet. Click "Start lesson" to begin.')}
                   </p>
                 ) : (
-                  messages.map((m) => (
+                  messages.map((m, idx) => (
                     <div
                       key={m.id}
                       className={`rounded-md px-3 py-2 text-sm ${
@@ -4259,7 +4302,28 @@ export default function HocTiengAnhAiClientPage() {
                             <Volume2 className="mr-2 h-4 w-4" />
                             {localText('Nói lại câu này', 'Repeat this sentence')}
                           </Button>
+                          {idx === 0 ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => void translateOpeningMessage(m.id, m.text)}
+                              disabled={Boolean(openingTranslateBusyByMessageId[m.id])}
+                            >
+                              {openingTranslateBusyByMessageId[m.id]
+                                ? localText('Đang dịch...', 'Translating...')
+                                : openingTranslateByMessageId[m.id]
+                                  ? localText('Ẩn dịch câu mở đầu', 'Hide opening translation')
+                                  : localText('Dịch câu mở đầu', 'Translate opening line')}
+                            </Button>
+                          ) : null}
                         </div>
+                      ) : null}
+                      {m.role === 'teacher' && openingTranslateByMessageId[m.id] ? (
+                        <p className="mt-2 text-xs text-slate-600">
+                          <span className="font-semibold">{localText('Dịch ngữ cảnh:', 'Context translation:')}</span>{' '}
+                          {openingTranslateByMessageId[m.id]}
+                        </p>
                       ) : null}
                     </div>
                   ))
@@ -4493,16 +4557,17 @@ export default function HocTiengAnhAiClientPage() {
                 ) : todayWords.length === 0 ? (
                   <p className="text-sm text-muted-foreground">{localText('Chưa có từ mới trong buổi này. Bấm vào từ trong câu teacher để lưu.', 'No new words yet. Tap words in teacher sentences to save them.')}</p>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="space-y-1.5">
                     {todayWords.map((item) => (
-                      <div key={item.id} className="rounded-md border bg-slate-50 p-2 text-xs">
+                      <div key={item.id} className="rounded-md border bg-slate-50 p-1.5 text-xs leading-snug">
                         <p><span className="font-semibold text-slate-800">{item.word}</span> - {item.meaning || localText('Chưa có nghĩa', 'No meaning yet')}</p>
                         <p className="text-muted-foreground">{localText('Phát âm:', 'Pronunciation:')} {item.pronunciation || item.word}</p>
-                        <div className="mt-2">
+                        <div className="mt-1.5">
                           <Button
                             type="button"
                             variant="outline"
                             size="sm"
+                            className="h-8 px-2.5 text-xs"
                             onClick={() => void playWordPronunciation(item.word)}
                           >
                             <Volume2 className="mr-2 h-4 w-4" />
@@ -4526,24 +4591,24 @@ export default function HocTiengAnhAiClientPage() {
                 ) : reviewItems.length === 0 ? (
                   <p className="text-sm text-muted-foreground">{localText('Chưa có từ đến hạn ôn. Tiếp tục hội thoại để tích lũy từ mới.', 'No words due yet. Keep chatting to build vocabulary.')}</p>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="space-y-1.5">
                     {reviewItems.map((item) => (
-                      <div key={item.id} className="rounded-md border bg-slate-50 p-2 text-xs">
+                      <div key={item.id} className="rounded-md border bg-slate-50 p-1.5 text-xs leading-snug">
                         <p className="font-semibold text-slate-800">{item.word}</p>
                         <p className="text-muted-foreground">{localText('Phát âm:', 'Pronunciation:')} {item.pronunciation || item.word}</p>
                         <p className="text-muted-foreground">{item.meaning || localText('Chưa có nghĩa', 'No meaning yet')}</p>
-                        <div className="mt-2 flex flex-wrap gap-1">
-                          <Button type="button" variant="outline" size="sm" onClick={() => void playWordPronunciation(item.word)}>
+                        <div className="mt-1.5 flex flex-wrap gap-1">
+                          <Button type="button" variant="outline" size="sm" className="h-8 px-2.5 text-xs" onClick={() => void playWordPronunciation(item.word)}>
                             <Volume2 className="mr-2 h-4 w-4" />
                             {localText('Nghe lại từ này', 'Replay this word')}
                           </Button>
-                          <Button type="button" variant="outline" size="sm" onClick={() => void markReviewDone(item.id, 2)}>
+                          <Button type="button" variant="outline" size="sm" className="h-8 px-2.5 text-xs" onClick={() => void markReviewDone(item.id, 2)}>
                             {localText('Khó', 'Hard')}
                           </Button>
-                          <Button type="button" variant="outline" size="sm" onClick={() => void markReviewDone(item.id, 3)}>
+                          <Button type="button" variant="outline" size="sm" className="h-8 px-2.5 text-xs" onClick={() => void markReviewDone(item.id, 3)}>
                             {localText('Ổn', 'Okay')}
                           </Button>
-                          <Button type="button" variant="outline" size="sm" onClick={() => void markReviewDone(item.id, 5)}>
+                          <Button type="button" variant="outline" size="sm" className="h-8 px-2.5 text-xs" onClick={() => void markReviewDone(item.id, 5)}>
                             {localText('Dễ', 'Easy')}
                           </Button>
                         </div>

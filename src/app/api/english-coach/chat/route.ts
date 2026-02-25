@@ -148,6 +148,22 @@ function extractPhraseTargetSentence(reply: string): string {
   return ''
 }
 
+function clampReplyBySentence(input: string, maxChars: number): string {
+  const source = String(input || '').trim()
+  if (!source || source.length <= maxChars) return source
+  const slice = source.slice(0, maxChars + 1)
+  let boundary = -1
+  for (const mark of ['.', '!', '?', '。', '！', '？', '\n']) {
+    boundary = Math.max(boundary, slice.lastIndexOf(mark))
+  }
+  if (boundary >= Math.min(180, Math.floor(maxChars * 0.45))) {
+    return slice.slice(0, boundary + 1).trim()
+  }
+  const lastSpace = slice.lastIndexOf(' ')
+  if (lastSpace > 120) return `${slice.slice(0, lastSpace).trim()}...`
+  return `${slice.slice(0, maxChars).trim()}...`
+}
+
 function isLikelyFullSentence(text: string, targetLanguageCode: string): boolean {
   const t = String(text || '').trim()
   if (!t) return false
@@ -865,7 +881,8 @@ ${latestQuestion}`
 - Tổng phản hồi cố gắng trong 3-5 dòng ngắn.`
         : `Phong cách trả lời: CHI TIẾT.
 - Có thể giải thích đầy đủ hơn cho người mới học.
-- Vẫn tránh lặp ý và vẫn chỉ giữ 1 câu hỏi tiếp theo để không gây rối.`
+- Vẫn tránh lặp ý và vẫn chỉ giữ 1 câu hỏi tiếp theo để không gây rối.
+- Tổng reply không quá 9 dòng ngắn hoặc khoảng 700 ký tự.`
     const explanationLanguage = `Dùng ${nativeLanguage} đơn giản`
     const bilingualGuide = `Nếu học sinh dùng ngôn ngữ mẹ đẻ ${nativeLanguage} hoặc trộn ngôn ngữ, hãy:
 - Giải thích nhanh ý nghĩa bằng ${nativeLanguage}.
@@ -1470,6 +1487,8 @@ ${intentAnswer || parsed.reply}`
       || String(parsed.corrections?.[0]?.fixed || '').trim()
       || mainSentence
       || ''
+    const replyMaxChars = responseStyle === 'concise' ? 520 : 760
+    parsed.reply = clampReplyBySentence(parsed.reply, replyMaxChars)
     if (userId && sessionId) {
       const previousFacts = sessionMemory.pinnedFacts
       const correctionFacts = (parsed.corrections || []).map((c) => String(c.fixed || '').trim()).filter(Boolean).slice(0, 5)
