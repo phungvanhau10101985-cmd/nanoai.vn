@@ -3620,7 +3620,7 @@ export default function HocTiengAnhAiClientPage() {
   return (
     <>
       <Toaster />
-      <div className="mx-auto w-full space-y-6 sm:max-w-5xl lg:max-w-7xl">
+      <div className="mx-auto w-full space-y-6 overflow-x-hidden sm:max-w-5xl lg:max-w-7xl">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-foreground flex items-center justify-center gap-2">
             <Languages className="h-6 w-6 text-indigo-600" />
@@ -4321,24 +4321,29 @@ export default function HocTiengAnhAiClientPage() {
               </div>
               {writingTask ? (
                 <div className="rounded-md border bg-slate-50/70 p-2.5">
-                  <p className="text-sm font-semibold text-slate-800">{localText('Bài viết mini bắt buộc', 'Required mini-writing task')}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">{writingTask.instruction}</p>
-                  {writingTask.referenceSentence ? (
-                    <p className="mt-1 text-xs text-slate-700">
-                      <span className="font-semibold">{localText('Câu tham chiếu:', 'Reference sentence:')}</span> {writingTask.referenceSentence}
-                    </p>
-                  ) : null}
                   <div className="mt-2 space-y-2">
-                    <Input
-                      value={writingDraft}
-                      onChange={(e) => setWritingDraft(e.target.value)}
-                      placeholder={localText('Viết câu của bạn tại đây...', 'Write your sentence here...')}
-                      disabled={writingBusy}
-                    />
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex items-center gap-2">
+                      <Input
+                        value={writingDraft}
+                        onChange={(e) => setWritingDraft(e.target.value)}
+                        placeholder={localText('Viết câu của bạn tại đây...', 'Write your sentence here...')}
+                        disabled={writingBusy}
+                        className="flex-1"
+                      />
                       <Button type="button" size="sm" onClick={() => void evaluateWritingTask()} disabled={writingBusy || !writingDraft.trim()}>
-                        {writingBusy ? localText('Đang chấm...', 'Evaluating...') : localText('Chấm bài viết', 'Evaluate writing')}
+                        {writingBusy ? localText('Đang gửi...', 'Sending...') : localText('Gửi', 'Send')}
                       </Button>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-sm font-semibold text-slate-800">{localText('Bài viết mini bắt buộc', 'Required mini-writing task')}</p>
+                      <p className="text-xs text-muted-foreground">{writingTask.instruction}</p>
+                      {writingTask.referenceSentence ? (
+                        <p className="text-xs text-slate-700">
+                          <span className="font-semibold">{localText('Câu tham chiếu:', 'Reference sentence:')}</span> {writingTask.referenceSentence}
+                        </p>
+                      ) : null}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
                       {!writingTask.completed ? (
                         <p className="text-xs text-amber-700">
                           {localText(
