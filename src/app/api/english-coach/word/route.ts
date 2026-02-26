@@ -71,6 +71,22 @@ function logWordCacheStats(word: string) {
   console.info(`[WORD] "${word}" cache-stats hit=${wordCacheStats.hit} miss=${wordCacheStats.miss} hitRate=${hitRate}%`)
 }
 
+/** Zh/ja/ko: targetText phải là chữ gốc, không phải pinyin. Nếu targetText trông như pinyin (Latin) thì coi là sai format. */
+function exampleItemsTargetTextLooksWrong(
+  items: Array<{ targetText: string }>,
+  targetLanguage: string
+): boolean {
+  const norm = String(targetLanguage || '').toLowerCase()
+  if (!norm.includes('chinese') && !norm.includes('zh') && !norm.includes('mandarin') && !norm.includes('japanese') && !norm.includes('ja') && !norm.includes('korean') && !norm.includes('ko')) return false
+  const hasCjk = (s: string) => /[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff\uac00-\ud7af]/.test(s)
+  for (const item of items) {
+    const t = String(item.targetText || '').trim()
+    if (!t) continue
+    if (!hasCjk(t)) return true
+  }
+  return false
+}
+
 function sanitizeMeaningItems(input: unknown): WordMeaningItem[] {
   if (!Array.isArray(input)) return []
   return input
@@ -190,21 +206,25 @@ export async function POST(request: NextRequest) {
 
     const cached = Array.isArray(cachedRows) && cachedRows.length > 0 ? cachedRows[0] : null
     if (cached) {
-      wordCacheStats.hit += 1
-      void recordCacheMetric(adminSupabase, 'word_hit')
-      void adminSupabase
-        .from('language_coach_vocab_cache')
-        .update({ last_used_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-        .eq('id', cached.id)
-      const cachedMeaningItems = sanitizeMeaningItems(parseJsonListField(cached.meaning_items_json))
       const cachedExampleItems = sanitizeExampleItems(parseJsonListField(cached.example_items_json))
-      const fallbackMeaning = String(cached.meaning || '').trim()
-      const fallbackExampleTarget = String(cached.example_target || '').trim() || word
-      const fallbackExampleNative = String(cached.example_native || '').trim()
-        || msg(locale, `Bạn vừa bấm từ "${word}".`, `You just tapped the word "${word}".`)
-      console.info(`[WORD] cache-hit word="${word}"`)
-      logWordCacheStats(word)
-      return NextResponse.json({
+      const itemsToCheck = cachedExampleItems.length > 0 ? cachedExampleItems : [{ targetText: String(cached.example_target || '').trim() }]
+      if (exampleItemsTargetTextLooksWrong(itemsToCheck, targetLanguage)) {
+        console.info(`[WORD] cache-bypass word="${word}" (targetText is pinyin, need original script)`)
+      } else {
+        wordCacheStats.hit += 1
+        void recordCacheMetric(adminSupabase, 'word_hit')
+        void adminSupabase
+          .from('language_coach_vocab_cache')
+          .update({ last_used_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+          .eq('id', cached.id)
+        const cachedMeaningItems = sanitizeMeaningItems(parseJsonListField(cached.meaning_items_json))
+        const fallbackMeaning = String(cached.meaning || '').trim()
+        const fallbackExampleTarget = String(cached.example_target || '').trim() || word
+        const fallbackExampleNative = String(cached.example_native || '').trim()
+          || msg(locale, `Bạn vừa bấm từ "${word}".`, `You just tapped the word "${word}".`)
+        console.info(`[WORD] cache-hit word="${word}"`)
+        logWordCacheStats(word)
+        return NextResponse.json({
         partOfSpeech: String(cached.part_of_speech || '').trim(),
         meaning: fallbackMeaning,
         pronunciation: String(cached.pronunciation || '').trim() || word,
@@ -219,6 +239,7 @@ export async function POST(request: NextRequest) {
         pronunciationAudioUrl: String(cached.pronunciation_audio_url || '').trim(),
         cached: true,
       })
+      }
     }
     wordCacheStats.miss += 1
     void recordCacheMetric(adminSupabase, 'word_miss')
@@ -239,9 +260,12 @@ Yêu cầu:
 2) pronunciation: phiên âm dễ đọc. Nếu ngôn ngữ là tiếng Trung thì dùng pinyin có dấu; tiếng Nhật dùng romaji; tiếng Hàn dùng romanization.
 3) partOfSpeech: loại từ ngắn gọn (noun/verb/adj/adv/...).
 4) meaningItems: mảng 1-3 ý nghĩa, mỗi item gồm text + pinyin (bắt buộc có pinyin/romanization cho zh/ja/ko).
-5) exampleItems: mảng 1-3 ví dụ, mỗi item gồm targetText + targetPinyin + nativeText (bắt buộc targetPinyin cho zh/ja/ko).
-6) exampleTarget: lấy từ exampleItems[0].targetText (để tương thích ngược).
-7) exampleNative: lấy từ exampleItems[0].nativeText (để tương thích ngược).
+5) exampleItems: mảng 2-3 ví dụ. QUAN TRỌNG:
+   - targetText: PHẢI là chữ gốc (tiếng Trung = chữ Hán 汉字, tiếng Nhật = かな/漢字, tiếng Hàn = 한글). KHÔNG được dùng pinyin/romaji/romanization cho targetText.
+   - targetPinyin: phiên âm Latin (pinyin cho zh, romaji cho ja, romanization cho ko).
+   - nativeText: bản dịch sang ${nativeLanguage}.
+6) exampleTarget: lấy từ exampleItems[0].targetText.
+7) exampleNative: lấy từ exampleItems[0].nativeText.
 
 Trả về JSON hợp lệ, không markdown:
 {
@@ -249,7 +273,7 @@ Trả về JSON hợp lệ, không markdown:
   "meaning": "...",
   "pronunciation": "...",
   "meaningItems": [{"text":"...","pinyin":"..."}],
-  "exampleItems": [{"targetText":"...","targetPinyin":"...","nativeText":"..."}],
+  "exampleItems": [{"targetText":"汉字/かな/한글","targetPinyin":"pinyin/romaji","nativeText":"..."}],
   "exampleTarget": "...",
   "exampleNative": "..."
 }`

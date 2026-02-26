@@ -54,6 +54,7 @@ type TodayWordItem = {
   id: string
   sessionId?: string
   word: string
+  targetLanguage?: string
   meaning: string
   pronunciation: string
   pronunciationAudioUrl?: string
@@ -145,15 +146,22 @@ type QuickStartStage = 'idle' | 'confirm_topic' | 'create_curriculum' | 'start_l
 type ReviewItem = {
   id: string
   word: string
-  target_language: string
+  targetLanguage?: string
+  target_language?: string
+  nativeLanguage?: string | null
   native_language?: string | null
   meaning?: string | null
   pronunciation?: string | null
-  meaning_items_json?: string | null
-  example_items_json?: string | null
-  due_at: string
-  repetitions: number
-  interval_days: number
+  meaningItems?: Array<{ text: string; pinyin?: string }>
+  exampleItems?: Array<{ targetText: string; targetPinyin?: string; nativeText: string }>
+  exampleTarget?: string
+  exampleNative?: string
+  pronunciationAudioUrl?: string
+  due_at?: string
+  dueAt?: string
+  repetitions?: number
+  interval_days?: number
+  intervalDays?: number
 }
 
 type WordPracticeProgress = {
@@ -1753,8 +1761,6 @@ export default function HocTiengAnhAiClientPage() {
   const [preLessonWordIndex, setPreLessonWordIndex] = useState(0)
   const [preLessonResults, setPreLessonResults] = useState<Record<string, { cloze: boolean; listen: boolean; recall: boolean }>>({})
   const [preLessonRetryWords, setPreLessonRetryWords] = useState<TodayWordItem[] | null>(null)
-  const [cleanupIncompleteBusy, setCleanupIncompleteBusy] = useState(false)
-  const [cleanupAllBusy, setCleanupAllBusy] = useState(false)
   const [preLessonInput, setPreLessonInput] = useState('')
   const [preLessonRecallDirection, setPreLessonRecallDirection] = useState<'word' | 'meaning'>('word')
   const [mode, setMode] = useState<Mode>('chat')
@@ -1825,17 +1831,29 @@ export default function HocTiengAnhAiClientPage() {
     return LOCAL_TEXT_TRANSLATIONS[en]?.[uiLocale] || en
   }
   const supportsLatinTransliteration = languageCode === 'zh' || languageCode === 'ja' || languageCode === 'ko'
-  const toWritingRomanizationKey = (text: string) => `${languageCode}::${String(text || '').trim()}`
+  const isCjkTargetLanguage = (tl: string | undefined) => /chinese|zh|mandarin|japanese|ja|korean|ko/i.test(String(tl || ''))
+  const targetLangToCode = (tl: string | undefined): 'zh' | 'ja' | 'ko' | '' => {
+    const s = String(tl || '').toLowerCase()
+    if (/chinese|zh|mandarin/.test(s)) return 'zh'
+    if (/japanese|ja/.test(s)) return 'ja'
+    if (/korean|ko/.test(s)) return 'ko'
+    return ''
+  }
+  const toWritingRomanizationKey = (text: string, lang?: string) => {
+    const code = (lang ? targetLangToCode(lang) : '') || languageCode
+    return `${code}::${String(text || '').trim()}`
+  }
 
-  const requestTransliteration = async (text: string) => {
-    if (!supportsLatinTransliteration) return ''
+  const requestTransliteration = async (text: string, langCode?: string) => {
+    const code = langCode || languageCode
+    if (code !== 'zh' && code !== 'ja' && code !== 'ko') return ''
     const sourceText = String(text || '').trim()
     if (!sourceText) return ''
     try {
       const res = await fetch('/api/english-coach/transliterate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: sourceText, languageCode }),
+        body: JSON.stringify({ text: sourceText, languageCode: code }),
       })
       const data = (await res.json().catch(() => ({}))) as { transliteration?: string }
       if (!res.ok) return ''
@@ -1845,16 +1863,17 @@ export default function HocTiengAnhAiClientPage() {
     }
   }
 
-  const ensureWritingRomanization = async (text: string) => {
-    if (!supportsLatinTransliteration) return
+  const ensureWritingRomanization = async (text: string, targetLang?: string) => {
+    const code = targetLang ? targetLangToCode(targetLang) : languageCode
+    if (code !== 'zh' && code !== 'ja' && code !== 'ko') return
     const sourceText = String(text || '').trim()
     if (!sourceText) return
-    const key = toWritingRomanizationKey(sourceText)
+    const key = toWritingRomanizationKey(sourceText, targetLang)
     if (writingRomanizationByKey[key] || writingRomanizationBusyByKey[key]) return
 
     setWritingRomanizationBusyByKey((prev) => ({ ...prev, [key]: true }))
     try {
-      const transliteration = await requestTransliteration(sourceText)
+      const transliteration = await requestTransliteration(sourceText, code)
       if (transliteration) {
         setWritingRomanizationByKey((prev) => ({ ...prev, [key]: transliteration }))
       }
@@ -2464,12 +2483,40 @@ export default function HocTiengAnhAiClientPage() {
   }
 
   const fetchReviewDue = async () => {
+    await cleanupIncompleteWordsSilent()
     setReviewBusy(true)
     try {
       const res = await fetch('/api/english-coach/review-due?limit=8')
       const data = (await res.json().catch(() => ({}))) as { items?: ReviewItem[] }
       if (!res.ok) return
-      setReviewItems(Array.isArray(data.items) ? data.items : [])
+      const raw = Array.isArray(data.items) ? data.items : []
+      const normalized = raw.map((item) => {
+        const meaning = String(item.meaning || '').trim()
+        const pronunciation = String(item.pronunciation || '').trim()
+        const meaningItems = sanitizeWordMeaningItems(item.meaningItems)
+        const exampleItems = sanitizeWordExampleItems(item.exampleItems)
+        const exampleTarget = String(item.exampleTarget || '').trim()
+        const exampleNative = String(item.exampleNative || '').trim()
+        return {
+          ...item,
+          meaning,
+          pronunciation,
+          meaningItems: meaningItems.length > 0 ? meaningItems : (meaning ? [{ text: meaning, pinyin: pronunciation || undefined }] : []),
+          exampleItems: exampleItems.length > 0 ? exampleItems : (exampleTarget && exampleNative ? [{ targetText: exampleTarget, nativeText: exampleNative }] : []),
+          exampleTarget,
+          exampleNative,
+        }
+      })
+      setReviewItems(normalized)
+      normalized.forEach((item) => {
+        if (!isCjkTargetLanguage(item.targetLanguage)) return
+        const examples = item.exampleItems ?? (item.exampleTarget && item.exampleNative ? [{ targetText: item.exampleTarget, nativeText: item.exampleNative, targetPinyin: undefined }] : [])
+        examples.forEach((ex) => {
+          const exampleText = String(ex.targetText || '').trim()
+          const hasPinyin = String(ex.targetPinyin || '').trim()
+          if (exampleText && !hasPinyin) void ensureWritingRomanization(exampleText, item.targetLanguage)
+        })
+      })
     } finally {
       setReviewBusy(false)
     }
@@ -3413,8 +3460,18 @@ export default function HocTiengAnhAiClientPage() {
     setOpenedWordKey(key)
     const savedWord = findSessionWord(word)
     if (savedWord && (savedWord.meaning || savedWord.pronunciation)) {
-      const cachedExampleTarget = String(savedWord.exampleTarget || '').trim()
-      if (supportsLatinTransliteration && cachedExampleTarget) void ensureWritingRomanization(cachedExampleTarget)
+      if (supportsLatinTransliteration) {
+        const examples = sanitizeWordExampleItems(savedWord.exampleItems)
+        const fallback = savedWord.exampleTarget && savedWord.exampleNative
+          ? [{ targetText: savedWord.exampleTarget, nativeText: savedWord.exampleNative, targetPinyin: undefined }]
+          : []
+        const all = examples.length > 0 ? examples : fallback
+        all.forEach((ex) => {
+          const t = String(ex.targetText || '').trim()
+          const hasPinyin = String(ex.targetPinyin || '').trim()
+          if (t && !hasPinyin) void ensureWritingRomanization(t)
+        })
+      }
       setWordInsightByKey((prev) => ({
         ...prev,
         [key]: {
@@ -3453,24 +3510,26 @@ export default function HocTiengAnhAiClientPage() {
       const data = (await res.json().catch(() => ({}))) as WordInsight & { error?: string }
       if (!res.ok) throw new Error(data.error || localText('Không phân tích được từ này.', 'Failed to analyze this word.'))
       let detail = buildWordInsightFromAny(data)
-      if (supportsLatinTransliteration && detail.exampleTarget) {
-        const romanized = await requestTransliteration(detail.exampleTarget)
-        if (romanized) {
-          detail = {
-            ...detail,
-            exampleItems: detail.exampleItems.length > 0
-              ? detail.exampleItems.map((item, idx) => (
-                idx === 0 ? { ...item, targetPinyin: item.targetPinyin || romanized } : item
-              ))
-              : [{
-                  targetText: detail.exampleTarget,
-                  targetPinyin: romanized,
-                  nativeText: detail.exampleNative,
-                }],
-          }
-        }
+      if (supportsLatinTransliteration) {
+        const items = detail.exampleItems.length > 0
+          ? detail.exampleItems
+          : (detail.exampleTarget && detail.exampleNative
+              ? [{ targetText: detail.exampleTarget, nativeText: detail.exampleNative, targetPinyin: undefined }]
+              : [])
+        const withPinyin = await Promise.all(
+          items.map(async (item) => {
+            const hasPinyin = String(item.targetPinyin || '').trim()
+            if (hasPinyin) return item
+            const romanized = await requestTransliteration(item.targetText)
+            return { ...item, targetPinyin: romanized || item.targetPinyin }
+          })
+        )
+        detail = { ...detail, exampleItems: withPinyin }
+        items.forEach((ex) => {
+          const t = String(ex.targetText || '').trim()
+          if (t) void ensureWritingRomanization(t)
+        })
       }
-      if (supportsLatinTransliteration && detail.exampleTarget) void ensureWritingRomanization(detail.exampleTarget)
       setWordInsightByKey((prev) => ({
         ...prev,
         [key]: detail,
@@ -3607,64 +3666,9 @@ export default function HocTiengAnhAiClientPage() {
       const data = (await res.json().catch(() => ({}))) as { deleted?: number }
       if ((data.deleted ?? 0) > 0) {
         void fetchSessionWords()
-        void fetchReviewDue()
       }
     } catch {
       // silent
-    }
-  }
-
-  const cleanupIncompleteWords = async () => {
-    setCleanupIncompleteBusy(true)
-    try {
-      const res = await fetch('/api/english-coach/word-daily?cleanup=incomplete', { method: 'DELETE' })
-      const data = (await res.json().catch(() => ({}))) as { deleted?: number; message?: string; error?: string }
-      if (!res.ok) throw new Error(data.error || localText('Không xóa được.', 'Failed to delete.'))
-      toast({
-        title: localText('Đã dọn từ thiếu nghĩa', 'Cleaned incomplete words'),
-        description: data.message || localText(`Đã xóa ${data.deleted ?? 0} từ.`, `Deleted ${data.deleted ?? 0} words.`),
-      })
-      void fetchSessionWords()
-      void fetchReviewDue()
-    } catch (e) {
-      toast({
-        title: localText('Lỗi', 'Error'),
-        description: unknownErrorMsg(e),
-        variant: 'destructive',
-      })
-    } finally {
-      setCleanupIncompleteBusy(false)
-    }
-  }
-
-  const cleanupAllWords = async () => {
-    const ok = window.confirm(
-      localText(
-        'Xóa HẾT tất cả từ đã lưu và mục ôn tập? Không thể hoàn tác. Bạn có chắc?',
-        'Delete ALL saved words and review items? This cannot be undone. Are you sure?'
-      )
-    )
-    if (!ok) return
-    setCleanupAllBusy(true)
-    try {
-      const res = await fetch('/api/english-coach/word-daily?cleanup=all', { method: 'DELETE' })
-      const data = (await res.json().catch(() => ({}))) as { deleted?: number; message?: string; error?: string }
-      if (!res.ok) throw new Error(data.error || localText('Không xóa được.', 'Failed to delete.'))
-      toast({
-        title: localText('Đã xóa hết dữ liệu', 'All data deleted'),
-        description: data.message || localText('Có thể lưu lại từ đầu.', 'You can save from scratch now.'),
-      })
-      setTodayWords([])
-      void fetchSessionWords()
-      void fetchReviewDue()
-    } catch (e) {
-      toast({
-        title: localText('Lỗi', 'Error'),
-        description: unknownErrorMsg(e),
-        variant: 'destructive',
-      })
-    } finally {
-      setCleanupAllBusy(false)
     }
   }
 
@@ -3705,14 +3709,15 @@ export default function HocTiengAnhAiClientPage() {
         : []
       setTodayWords(normalizedItems)
       void cleanupIncompleteWordsSilent()
-      if (supportsLatinTransliteration) {
-        normalizedItems.forEach((item) => {
-          const firstExample = (item.exampleItems || [])[0]
-          const exampleText = String(firstExample?.targetText || item.exampleTarget || '').trim()
-          const hasPinyin = String(firstExample?.targetPinyin || '').trim()
-          if (exampleText && !hasPinyin) void ensureWritingRomanization(exampleText)
+      normalizedItems.forEach((item) => {
+        if (!isCjkTargetLanguage(item.targetLanguage)) return
+        const examples = item.exampleItems ?? (item.exampleTarget && item.exampleNative ? [{ targetText: item.exampleTarget, nativeText: item.exampleNative, targetPinyin: undefined }] : [])
+        examples.forEach((ex) => {
+          const exampleText = String(ex.targetText || '').trim()
+          const hasPinyin = String(ex.targetPinyin || '').trim()
+          if (exampleText && !hasPinyin) void ensureWritingRomanization(exampleText, item.targetLanguage)
         })
-      }
+      })
     } catch {
       // keep learning flow even if session words fail
     } finally {
@@ -3840,6 +3845,16 @@ export default function HocTiengAnhAiClientPage() {
   }
 
   const startNewSession = () => {
+    if (isWordPracticeLocked) {
+      toast({
+        title: localText('Luyện gõ từ mới trước', 'Complete new-word typing first'),
+        description: localText(
+          'Hãy hoàn thành gõ từ đúng 3 lần trong hộp thoại bên trên để mở khóa.',
+          'Complete typing the word correctly 3 times in the dialog above to unlock.'
+        ),
+      })
+      return
+    }
     if (startingLesson || busy || historyBusy) return
     setSessionId(createSessionId())
     shouldCountNewSessionRef.current = true
@@ -3901,6 +3916,24 @@ export default function HocTiengAnhAiClientPage() {
     if (reference) void ensureWritingRomanization(reference)
     if (corrected) void ensureWritingRomanization(corrected)
   }, [supportsLatinTransliteration, writingTask?.referenceSentence, writingEvalResult?.correctedText, languageCode])
+
+  useEffect(() => {
+    const collectExamples = (items: Array<{ targetLanguage?: string; exampleItems?: Array<{ targetText?: string; targetPinyin?: string }>; exampleTarget?: string; exampleNative?: string }>) => {
+      const out: Array<{ text: string; targetLang: string }> = []
+      for (const item of items) {
+        if (!isCjkTargetLanguage(item.targetLanguage)) continue
+        const examples = item.exampleItems ?? (item.exampleTarget && item.exampleNative ? [{ targetText: item.exampleTarget, nativeText: item.exampleNative, targetPinyin: undefined }] : [])
+        for (const ex of examples) {
+          const t = String(ex.targetText || '').trim()
+          const hasPinyin = String(ex.targetPinyin || '').trim()
+          if (t && !hasPinyin) out.push({ text: t, targetLang: item.targetLanguage || '' })
+        }
+      }
+      return out
+    }
+    const pairs = [...collectExamples(reviewItems), ...collectExamples(todayWords)]
+    pairs.forEach(({ text, targetLang }) => void ensureWritingRomanization(text, targetLang))
+  }, [reviewItems, todayWords, languageCode])
 
   useEffect(() => {
     const loadLearnerName = async () => {
@@ -4000,8 +4033,8 @@ export default function HocTiengAnhAiClientPage() {
       toast({
         title: localText('Luyện gõ từ mới trước', 'Complete new-word typing first'),
         description: localText(
-          'Hãy gõ lại từ mới 3 lần đúng trong khung Từ mới để mở khóa gửi/nói tiếp.',
-          'Type the new word correctly 3 times in the New words box to unlock send/speak.'
+          'Hãy gõ lại từ mới 3 lần đúng trong khung Từ mới hoặc Ôn tập để mở khóa gửi/nói tiếp.',
+          'Type the new word correctly 3 times in the New words or Review box to unlock send/speak.'
         ),
       })
       return
@@ -4370,6 +4403,16 @@ export default function HocTiengAnhAiClientPage() {
   }
 
   const handleStartLessonClick = async () => {
+    if (isWordPracticeLocked) {
+      toast({
+        title: localText('Luyện gõ từ mới trước', 'Complete new-word typing first'),
+        description: localText(
+          'Hãy hoàn thành gõ từ đúng 3 lần trong hộp thoại bên trên để mở khóa.',
+          'Complete typing the word correctly 3 times in the dialog above to unlock.'
+        ),
+      })
+      return
+    }
     if (!isLessonReadyToStart || startingLesson) return
     try {
       const yesterdayWords = await fetchYesterdayWords()
@@ -4626,8 +4669,8 @@ export default function HocTiengAnhAiClientPage() {
       toast({
         title: localText('Luyện gõ từ mới trước', 'Complete new-word typing first'),
         description: localText(
-          'Hãy gõ lại từ mới 3 lần đúng trong khung Từ mới để mở khóa gửi/nói tiếp.',
-          'Type the new word correctly 3 times in the New words box to unlock send/speak.'
+          'Hãy gõ lại từ mới 3 lần đúng trong khung Từ mới hoặc Ôn tập để mở khóa gửi/nói tiếp.',
+          'Type the new word correctly 3 times in the New words or Review box to unlock send/speak.'
         ),
       })
       return
@@ -4672,6 +4715,30 @@ export default function HocTiengAnhAiClientPage() {
   return (
     <>
       <Toaster />
+      {isWordPracticeLocked && wordPractice ? (
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 p-4"
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="word-practice-lock-title"
+        >
+          <div
+            className="max-w-md w-full rounded-lg border bg-white p-4 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 id="word-practice-lock-title" className="mb-3 text-base font-semibold text-amber-800">
+              {localText('Hoàn thành luyện gõ từ để tiếp tục', 'Complete word typing to continue')}
+            </h2>
+            <p className="mb-3 text-sm text-slate-600">
+              {localText(
+                `Gõ từ "${wordPractice.targetWord}" đúng 3 lần bên dưới để mở khóa tất cả thao tác.`,
+                `Type "${wordPractice.targetWord}" correctly 3 times below to unlock all actions.`
+              )}
+            </p>
+            {renderWordPracticeBox(wordPractice.targetWord, wordPractice.expectedMeaning)}
+          </div>
+        </div>
+      ) : null}
       <div className="mx-auto w-full space-y-6 overflow-x-hidden sm:max-w-5xl lg:max-w-7xl">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-foreground flex items-center justify-center gap-2">
@@ -5028,7 +5095,7 @@ export default function HocTiengAnhAiClientPage() {
                     if (!pendingTopicId) return
                     confirmTopicForLearning(pendingTopicId)
                   }}
-                  disabled={quickStartBusy || !pendingTopicId}
+                  disabled={quickStartBusy || !pendingTopicId || isWordPracticeLocked}
                   className="min-h-[44px] w-full"
                 >
                   {localText('Xác nhận chủ đề đã chọn', 'Confirm selected topic')}
@@ -5037,7 +5104,7 @@ export default function HocTiengAnhAiClientPage() {
                   type="button"
                   variant="outline"
                   onClick={() => void fetchTopicCurriculum()}
-                  disabled={quickStartBusy || topicBusy || !isTopicConfirmedForLesson}
+                  disabled={quickStartBusy || topicBusy || !isTopicConfirmedForLesson || isWordPracticeLocked}
                   className="min-h-[44px] w-full"
                 >
                   {topicBusy ? localText('Đang tạo...', 'Generating...') : localText('Tạo/Lấy giáo trình', 'Create/Get curriculum')}
@@ -5046,7 +5113,7 @@ export default function HocTiengAnhAiClientPage() {
                   type="button"
                   variant="outline"
                   onClick={() => void handleStartLessonClick()}
-                  disabled={quickStartBusy || !isLessonReadyToStart || startingLesson}
+                  disabled={quickStartBusy || !isLessonReadyToStart || startingLesson || isWordPracticeLocked}
                   className="min-h-[44px] w-full"
                 >
                   <Volume2 className="mr-2 h-4 w-4" /> {localText('Bắt đầu buổi học', 'Start lesson')}
@@ -5055,7 +5122,7 @@ export default function HocTiengAnhAiClientPage() {
                   type="button"
                   variant="outline"
                   onClick={startNewSession}
-                  disabled={quickStartBusy || messages.length === 0 || startingLesson || busy || historyBusy}
+                  disabled={quickStartBusy || messages.length === 0 || startingLesson || busy || historyBusy || isWordPracticeLocked}
                   className="min-h-[44px] w-full"
                 >
                   {localText('Buổi học mới', 'New lesson')}
@@ -5068,7 +5135,7 @@ export default function HocTiengAnhAiClientPage() {
                   variant="outline"
                   size="sm"
                   onClick={() => void fetchTopicCurriculum()}
-                  disabled={quickStartBusy || topicBusy || !isTopicConfirmedForLesson}
+                  disabled={quickStartBusy || topicBusy || !isTopicConfirmedForLesson || isWordPracticeLocked}
                   className="min-h-[44px]"
                 >
                   {topicBusy ? localText('Đang tạo...', 'Generating...') : localText('Tạo/Lấy giáo trình chủ đề', 'Create/Get curriculum')}
@@ -5245,38 +5312,58 @@ export default function HocTiengAnhAiClientPage() {
                                     <span className="font-semibold text-slate-800">
                                       {openedWordKey.split(':').slice(1).join(':') || localText('Từ này', 'This word')} {localText('nghĩa là:', 'means:')}
                                     </span>{' '}
-                                    {wordInsightByKey[openedWordKey].meaning}
+                                    {((wordInsightByKey[openedWordKey].meaningItems ?? []).map((m) => m.text).join('; ') || wordInsightByKey[openedWordKey].meaning)}
                                   </p>
                                   <p><span className="font-semibold text-slate-800">{localText('Phát âm:', 'Pronunciation:')}</span> {wordInsightByKey[openedWordKey].pronunciation}</p>
-                                  <div className="flex items-start gap-2">
-                                    <p className="flex-1"><span className="font-semibold text-slate-800">{localText('Ví dụ:', 'Example:')}</span> {wordInsightByKey[openedWordKey].exampleTarget}</p>
-                                    {wordInsightByKey[openedWordKey].exampleTarget ? (
-                                      <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-7 w-7"
-                                        onClick={() => void playWordTextSnippet(wordInsightByKey[openedWordKey].exampleTarget)}
-                                      >
-                                        <Volume2 className="h-4 w-4" />
-                                      </Button>
-                                    ) : null}
-                                  </div>
-                                  {supportsLatinTransliteration && wordInsightByKey[openedWordKey].exampleTarget ? (
-                                    (() => {
-                                      const key = toWritingRomanizationKey(wordInsightByKey[openedWordKey].exampleTarget || '')
-                                      const romanized = writingRomanizationByKey[key]
-                                      const busyKey = writingRomanizationBusyByKey[key]
-                                      if (!romanized && !busyKey) return null
-                                      return (
-                                        <p className="text-muted-foreground">
-                                          <span className="font-semibold text-slate-800">{localText('Pinyin:', 'Pinyin:')}</span>{' '}
-                                          {romanized || localText('Đang tạo...', 'Generating...')}
-                                        </p>
-                                      )
-                                    })()
-                                  ) : null}
-                                  <p><span className="font-semibold text-slate-800">{localText('Dịch:', 'Translation:')}</span> {wordInsightByKey[openedWordKey].exampleNative}</p>
+                                  {((wordInsightByKey[openedWordKey].exampleItems ?? []).length > 0
+                                    ? wordInsightByKey[openedWordKey].exampleItems!
+                                    : wordInsightByKey[openedWordKey].exampleTarget && wordInsightByKey[openedWordKey].exampleNative
+                                      ? [{ targetText: wordInsightByKey[openedWordKey].exampleTarget!, nativeText: wordInsightByKey[openedWordKey].exampleNative!, targetPinyin: undefined }]
+                                      : []
+                                  ).map((ex, idx) => {
+                                    const exampleText = String(ex.targetText || '').trim()
+                                    const exampleNative = String(ex.nativeText || '').trim()
+                                    const storedPinyin = String(ex.targetPinyin || '').trim()
+                                    const fallbackKey = toWritingRomanizationKey(exampleText)
+                                    const fallbackPinyin = String(writingRomanizationByKey[fallbackKey] || '').trim()
+                                    const busyPinyin = Boolean(writingRomanizationBusyByKey[fallbackKey])
+                                    const pinyin = storedPinyin || fallbackPinyin
+                                    if (!exampleText) return null
+                                    return (
+                                      <div key={idx} className="space-y-0.5">
+                                        <div className="flex items-start gap-2">
+                                          <p className="flex-1">
+                                            <span className="font-semibold text-slate-800">{localText('Ví dụ:', 'Example:')}</span> {exampleText}
+                                          </p>
+                                          <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-7 w-7 shrink-0"
+                                            onClick={() => void playWordTextSnippet(exampleText)}
+                                          >
+                                            <Volume2 className="h-4 w-4" />
+                                          </Button>
+                                        </div>
+                                        {supportsLatinTransliteration ? (
+                                          pinyin ? (
+                                            <p className="text-muted-foreground">
+                                              <span className="font-semibold text-slate-800">{localText('Pinyin:', 'Pinyin:')}</span> {pinyin}
+                                            </p>
+                                          ) : busyPinyin ? (
+                                            <p className="text-muted-foreground">
+                                              <span className="font-semibold text-slate-800">{localText('Pinyin:', 'Pinyin:')}</span> {localText('Đang tạo...', 'Generating...')}
+                                            </p>
+                                          ) : null
+                                        ) : null}
+                                        {exampleNative ? (
+                                          <p className="text-muted-foreground">
+                                            <span className="font-semibold text-slate-800">{localText('Dịch:', 'Translation:')}</span> {exampleNative}
+                                          </p>
+                                        ) : null}
+                                      </div>
+                                    )
+                                  })}
                                   <Button
                                     type="button"
                                     variant="outline"
@@ -5644,32 +5731,9 @@ export default function HocTiengAnhAiClientPage() {
               <div className="rounded-md border p-3">
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                   <p className="text-sm font-semibold text-slate-800">{localText('Từ mới của buổi học này', 'New words in this lesson')}</p>
-                  <div className="flex flex-wrap gap-1">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => void cleanupAllWords()}
-                      disabled={cleanupAllBusy}
-                      title={localText('Xóa hết tất cả từ đã lưu để lưu lại từ đầu', 'Delete all saved data to start fresh')}
-                      className="text-amber-700 hover:text-amber-800"
-                    >
-                      {cleanupAllBusy ? localText('Đang xóa...', 'Deleting...') : localText('Xóa hết dữ liệu', 'Delete all')}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => void cleanupIncompleteWords()}
-                      disabled={cleanupIncompleteBusy}
-                      title={localText('Xóa các từ thiếu nghĩa trong DB', 'Delete words missing meaning from DB')}
-                    >
-                      {cleanupIncompleteBusy ? localText('Đang xóa...', 'Deleting...') : localText('Xóa từ thiếu nghĩa', 'Clean incomplete')}
-                    </Button>
-                    <Button type="button" variant="ghost" size="sm" onClick={() => void fetchSessionWords()} disabled={todayWordsBusy}>
-                      {localText('Làm mới', 'Refresh')}
-                    </Button>
-                  </div>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => void fetchSessionWords()} disabled={todayWordsBusy}>
+                    {localText('Làm mới', 'Refresh')}
+                  </Button>
                 </div>
                 {todayWordsBusy ? (
                   <p className="text-sm text-muted-foreground">{localText('Đang tải danh sách từ mới của buổi học...', 'Loading new words for this lesson...')}</p>
@@ -5682,7 +5746,7 @@ export default function HocTiengAnhAiClientPage() {
                         <p>
                           <button
                             type="button"
-                            className="font-semibold text-slate-800 underline-offset-2 hover:underline"
+                            className="font-semibold text-blue-600 dark:text-blue-400 underline-offset-2 hover:underline"
                             onClick={() => startWordPractice(item.word, item.meaning)}
                           >
                             {item.word}
@@ -5691,45 +5755,63 @@ export default function HocTiengAnhAiClientPage() {
                         </p>
                         <p className="text-muted-foreground">{localText('Phát âm:', 'Pronunciation:')} {item.pronunciation || item.word}</p>
                         {renderWordPracticeBox(item.word, item.meaning)}
-                        {(() => {
-                          const firstExample = (item.exampleItems || [])[0]
-                          const exampleText = String(firstExample?.targetText || item.exampleTarget || '').trim()
-                          const exampleNative = String(firstExample?.nativeText || item.exampleNative || '').trim()
-                          const storedPinyin = String(firstExample?.targetPinyin || '').trim()
-                          const fallbackKey = toWritingRomanizationKey(exampleText)
+                        {((item.exampleItems ?? []).length > 0
+                          ? item.exampleItems!
+                          : item.exampleTarget && item.exampleNative
+                            ? [{ targetText: item.exampleTarget, nativeText: item.exampleNative, targetPinyin: undefined }]
+                            : []
+                        ).map((ex, idx) => {
+                          const exampleText = String(ex.targetText || '').trim()
+                          const exampleNative = String(ex.nativeText || '').trim()
+                          const storedPinyin = String(ex.targetPinyin || '').trim()
+                          const itemTargetLang = item.targetLanguage
+                          const fallbackKey = toWritingRomanizationKey(exampleText, itemTargetLang)
                           const fallbackPinyin = String(writingRomanizationByKey[fallbackKey] || '').trim()
                           const busyPinyin = Boolean(writingRomanizationBusyByKey[fallbackKey])
                           const pinyin = storedPinyin || fallbackPinyin
+                          const showPinyin = isCjkTargetLanguage(itemTargetLang)
                           if (!exampleText) return null
+                          const targetWord = item.word.trim()
+                          const cleanExampleText = exampleText.replace(/\*\*/g, '')
+                          const renderExampleWithHighlight = () => {
+                            if (!targetWord || !cleanExampleText.includes(targetWord)) return cleanExampleText
+                            const parts = cleanExampleText.split(targetWord)
+                            return parts.map((part, i) => (
+                              <span key={i}>
+                                {part}
+                                {i < parts.length - 1 ? <span className="font-semibold text-blue-600 dark:text-blue-400">{targetWord}</span> : null}
+                              </span>
+                            ))
+                          }
                           return (
-                            <div className="mt-1 space-y-0.5">
+                            <div key={idx} className="mt-1 space-y-0">
                               <div className="flex items-start gap-2">
                                 <p className="flex-1">
                                   <span className="font-semibold text-slate-800">{localText('Ví dụ:', 'Example:')}</span>{' '}
-                                  {exampleText}
+                                  {renderExampleWithHighlight()}
                                 </p>
                                 <Button
                                   type="button"
                                   variant="ghost"
                                   size="icon"
-                                  className="h-7 w-7"
-                                  onClick={() => void playWordTextSnippet(exampleText)}
+                                  className="h-7 w-7 shrink-0"
+                                  onClick={() => void playWordTextSnippet(cleanExampleText)}
                                 >
                                   <Volume2 className="h-4 w-4" />
                                 </Button>
                               </div>
-                              {supportsLatinTransliteration ? (
+                              {showPinyin && (pinyin || busyPinyin) ? (
                                 pinyin ? (
                                   <p className="text-muted-foreground">
                                     <span className="font-semibold text-slate-800">{localText('Pinyin:', 'Pinyin:')}</span>{' '}
                                     {pinyin}
                                   </p>
-                                ) : busyPinyin ? (
+                                ) : (
                                   <p className="text-muted-foreground">
                                     <span className="font-semibold text-slate-800">{localText('Pinyin:', 'Pinyin:')}</span>{' '}
                                     {localText('Đang tạo...', 'Generating...')}
                                   </p>
-                                ) : null
+                                )
                               ) : null}
                               {exampleNative ? (
                                 <p className="text-muted-foreground">
@@ -5739,7 +5821,7 @@ export default function HocTiengAnhAiClientPage() {
                               ) : null}
                             </div>
                           )
-                        })()}
+                        })}
                         <div className="mt-1.5">
                           <Button
                             type="button"
@@ -5760,14 +5842,6 @@ export default function HocTiengAnhAiClientPage() {
                   </div>
                 )}
               </div>
-              {isWordPracticeLocked ? (
-                <p className="text-xs text-amber-700">
-                  {localText(
-                    `Đang khóa thao tác: hãy hoàn thành gõ từ "${wordPractice?.targetWord || ''}" đúng 3 lần trong khung Từ mới.`,
-                    `Actions locked: complete typing "${wordPractice?.targetWord || ''}" correctly 3 times in the New words section.`
-                  )}
-                </p>
-              ) : null}
               <div className="rounded-md border p-3">
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <p className="text-sm font-semibold text-slate-800">{localText('Ôn tập thông minh (SRS)', 'Smart review (SRS)')}</p>
@@ -5783,11 +5857,96 @@ export default function HocTiengAnhAiClientPage() {
                   <div className="space-y-1.5">
                     {reviewItems.map((item) => (
                       <div key={item.id} className="rounded-md border bg-slate-50 p-1.5 text-xs leading-snug">
-                        <p className="font-semibold text-slate-800">{item.word}</p>
+                        <p>
+                          <button
+                            type="button"
+                            className="font-semibold text-blue-600 dark:text-blue-400 underline-offset-2 hover:underline"
+                            onClick={() => startWordPractice(item.word, item.meaning || (item.meaningItems?.[0]?.text ?? ''))}
+                          >
+                            {item.word}
+                          </button>{' '}
+                          - {((item.meaningItems ?? []).map((m) => m.text).join('; ') || item.meaning || localText('Chưa có nghĩa', 'No meaning yet'))}
+                        </p>
                         <p className="text-muted-foreground">{localText('Phát âm:', 'Pronunciation:')} {item.pronunciation || item.word}</p>
-                        <p className="text-muted-foreground">{item.meaning || localText('Chưa có nghĩa', 'No meaning yet')}</p>
+                        {renderWordPracticeBox(item.word, item.meaning || item.meaningItems?.[0]?.text)}
+                        {((item.exampleItems ?? []).length > 0
+                          ? item.exampleItems!
+                          : item.exampleTarget && item.exampleNative
+                            ? [{ targetText: item.exampleTarget, nativeText: item.exampleNative, targetPinyin: undefined }]
+                            : []
+                        ).map((ex, idx) => {
+                          const exampleText = String(ex.targetText || '').trim()
+                          const exampleNative = String(ex.nativeText || '').trim()
+                          const storedPinyin = String(ex.targetPinyin || '').trim()
+                          const itemTargetLang = item.targetLanguage
+                          const fallbackKey = toWritingRomanizationKey(exampleText, itemTargetLang)
+                          const fallbackPinyin = String(writingRomanizationByKey[fallbackKey] || '').trim()
+                          const busyPinyin = Boolean(writingRomanizationBusyByKey[fallbackKey])
+                          const pinyin = storedPinyin || fallbackPinyin
+                          const showPinyin = isCjkTargetLanguage(itemTargetLang)
+                          if (!exampleText) return null
+                          const targetWord = item.word.trim()
+                          const cleanExampleText = exampleText.replace(/\*\*/g, '')
+                          const renderExampleWithHighlight = () => {
+                            if (!targetWord || !cleanExampleText.includes(targetWord)) return cleanExampleText
+                            const parts = cleanExampleText.split(targetWord)
+                            return parts.map((part, i) => (
+                              <span key={i}>
+                                {part}
+                                {i < parts.length - 1 ? <span className="font-semibold text-blue-600 dark:text-blue-400">{targetWord}</span> : null}
+                              </span>
+                            ))
+                          }
+                          return (
+                            <div key={idx} className="mt-1 space-y-0">
+                              <div className="flex items-start gap-2">
+                                <p className="flex-1">
+                                  <span className="font-semibold text-slate-800">{localText('Ví dụ:', 'Example:')}</span>{' '}
+                                  {renderExampleWithHighlight()}
+                                </p>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 shrink-0"
+                                  onClick={() => void playWordTextSnippet(cleanExampleText)}
+                                >
+                                  <Volume2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                              {showPinyin && (pinyin || busyPinyin) ? (
+                                pinyin ? (
+                                  <p className="text-muted-foreground">
+                                    <span className="font-semibold text-slate-800">{localText('Pinyin:', 'Pinyin:')}</span>{' '}
+                                    {pinyin}
+                                  </p>
+                                ) : (
+                                  <p className="text-muted-foreground">
+                                    <span className="font-semibold text-slate-800">{localText('Pinyin:', 'Pinyin:')}</span>{' '}
+                                    {localText('Đang tạo...', 'Generating...')}
+                                  </p>
+                                )
+                              ) : null}
+                              {exampleNative ? (
+                                <p className="text-muted-foreground">
+                                  <span className="font-semibold text-slate-800">{localText('Dịch:', 'Translation:')}</span>{' '}
+                                  {exampleNative}
+                                </p>
+                              ) : null}
+                            </div>
+                          )
+                        })}
                         <div className="mt-1.5 flex flex-wrap gap-1">
-                          <Button type="button" variant="outline" size="sm" className="h-8 px-2.5 text-xs" onClick={() => void playWordPronunciation(item.word)}>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-8 px-2.5 text-xs"
+                            onClick={() => {
+                              startWordPractice(item.word, item.meaning || item.meaningItems?.[0]?.text ?? '', { forceSwitch: true })
+                              void playWordPronunciation(item.word)
+                            }}
+                          >
                             <Volume2 className="mr-2 h-4 w-4" />
                             {localText('Nghe lại từ này', 'Replay this word')}
                           </Button>
@@ -5848,7 +6007,7 @@ export default function HocTiengAnhAiClientPage() {
                       type="button"
                       variant={openedHistorySessionId === session.sessionId ? 'secondary' : 'outline'}
                       size="sm"
-                      disabled={historyBusy}
+                      disabled={historyBusy || isWordPracticeLocked}
                       onClick={() => void loadHistorySession(session.sessionId)}
                     >
                       {openedHistorySessionId === session.sessionId ? localText('Đang mở', 'Opened') : localText('Mở buổi này', 'Open this lesson')}

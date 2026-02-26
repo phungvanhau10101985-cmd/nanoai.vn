@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "generate-pwa-icons": "node scripts/generate-pwa-icons.js",
-    "generate-icons": "node scripts/generate-icons-from-logo.js"
+    "generate-icons": "node scripts/generate-icons-from-logo.js",
+    "fix-word-examples": "node scripts/fix-example-targettext-format.mjs"
   },
   "overrides": {
     "react": "^18.3.1",

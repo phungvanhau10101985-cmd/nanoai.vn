@@ -76,18 +76,32 @@ export function MobileNav({ isAdmin, t }: MobileNavProps) {
                 <h3 className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   {t.menu.system}
                 </h3>
-                <SheetClose asChild>
-                  <Link
-                    href="/admin/users"
-                    className="flex items-center gap-3 min-h-[48px] px-4 py-3 rounded-xl bg-muted/30 text-sm font-medium text-foreground hover:bg-muted/50 transition-colors touch-manipulation"
-                  >
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-background">
-                      <BarChart3 className="h-4 w-4" />
-                    </span>
-                    <span>{t.menu.admin}</span>
-                    <ChevronRight className="h-4 w-4 text-muted-foreground ml-auto" />
-                  </Link>
-                </SheetClose>
+                <div className="flex flex-col gap-0.5 rounded-xl overflow-hidden bg-muted/30">
+                  <SheetClose asChild>
+                    <Link
+                      href="/admin/users"
+                      className="flex items-center gap-3 min-h-[48px] px-4 py-3 text-sm font-medium text-foreground hover:bg-muted/50 transition-colors touch-manipulation"
+                    >
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-background">
+                        <BarChart3 className="h-4 w-4" />
+                      </span>
+                      <span>{t.menu.admin}</span>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground ml-auto" />
+                    </Link>
+                  </SheetClose>
+                  <SheetClose asChild>
+                    <Link
+                      href="/admin/english-coach"
+                      className="flex items-center gap-3 min-h-[48px] px-4 py-3 text-sm font-medium text-foreground hover:bg-muted/50 transition-colors touch-manipulation"
+                    >
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-background">
+                        <BarChart3 className="h-4 w-4" />
+                      </span>
+                      <span>Chuẩn hóa từ vựng</span>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground ml-auto" />
+                    </Link>
+                  </SheetClose>
+                </div>
               </div>
             )}
           </div>

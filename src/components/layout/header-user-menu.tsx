@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
-import { LogOut, Wallet } from 'lucide-react'
+import { LogOut, Wallet, Shield } from 'lucide-react'
 import { DepositCreditButton } from '@/components/deposit-credit-button'
 import { DepositCreditMenuItem } from '@/components/deposit-credit-menu-item'
 import {
@@ -21,10 +21,11 @@ import type { Dictionary } from '@/lib/i18n/dictionaries'
 interface HeaderUserMenuProps {
   user: User
   credits: number
+  isAdmin?: boolean
   t: Dictionary
 }
 
-export function HeaderUserMenu({ user, credits, t }: HeaderUserMenuProps) {
+export function HeaderUserMenu({ user, credits, isAdmin, t }: HeaderUserMenuProps) {
   const [open, setOpen] = useState(false)
 
   return (
@@ -80,6 +81,14 @@ export function HeaderUserMenu({ user, credits, t }: HeaderUserMenuProps) {
           <DropdownMenuItem asChild>
             <Link href="/wallet">{t.menu.wallet}</Link>
           </DropdownMenuItem>
+          {isAdmin && (
+            <DropdownMenuItem asChild>
+              <Link href="/admin" className="flex items-center gap-2 font-medium text-primary">
+                <Shield className="h-4 w-4" />
+                <span>{t.menu.admin}</span>
+              </Link>
+            </DropdownMenuItem>
+          )}
           <DropdownMenuSeparator />
           {user.email === 'dev@local.test' && (
             <DropdownMenuItem asChild>

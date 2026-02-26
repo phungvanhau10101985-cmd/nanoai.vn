@@ -61,7 +61,7 @@ export async function Header() {
               <MobileNav isAdmin={isAdmin} t={clientDictionary} />
             </div>
             {user ? (
-              <HeaderUserMenu user={user} credits={credits} t={clientDictionary} />
+              <HeaderUserMenu user={user} credits={credits} isAdmin={isAdmin} t={clientDictionary} />
             ) : (
               <Link href="/auth/login">
                 <Button variant="secondary" size="sm">
