@@ -1,0 +1,26 @@
+{
+  "key": "th__ja",
+  "nativeLanguageCode": "th",
+  "targetLanguageCode": "ja",
+  "uiTone": "supportive",
+  "enforceStrictPair": true,
+  "nativeFirstExplanation": true,
+  "maxReplyCharsConcise": 500,
+  "maxReplyCharsDetailed": 720,
+  "conversationFocus": [
+    "Giữ mẫu câu ngắn để phản xạ nhanh trong tình huống đời sống."
+  ],
+  "correctionFocus": [
+    "Ưu tiên sửa trợ từ, đuôi câu lịch sự và mẫu câu hỏi đáp cơ bản."
+  ],
+  "lexicalFocus": [
+    "Ưu tiên cụm giao tiếp thực tế, hạn chế thuật ngữ học thuật."
+  ],
+  "avoidPatterns": [
+    "Không kéo dài giải thích làm mất nhịp luyện nói."
+  ],
+  "extraSystemRules": [
+    "Ưu tiên ví dụ hội thoại đời sống hằng ngày để giảm áp lực khi học tiếng Nhật.",
+    "Luôn chốt mỗi lượt bằng một câu hỏi ngắn để duy trì phản xạ."
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "key": "zh__en",
+  "nativeLanguageCode": "zh",
+  "targetLanguageCode": "en",
+  "uiTone": "professional",
+  "enforceStrictPair": true,
+  "nativeFirstExplanation": true,
+  "maxReplyCharsConcise": 520,
+  "maxReplyCharsDetailed": 760,
+  "conversationFocus": [
+    "优先训练真实场景英语：沟通、工作、出行。"
+  ],
+  "correctionFocus": [
+    "先纠正会影响理解的语法和搭配错误。"
+  ],
+  "lexicalFocus": [
+    "优先高频、可直接复用的英语短语。"
+  ],
+  "avoidPatterns": [
+    "避免只讲规则而不给可立即复述的句子。"
+  ],
+  "extraSystemRules": [
+    "每轮给一个更自然的英文句子，并提供一个可继续对话的问题。",
+    "解释保持简洁，保证练习密度。"
+  ]
+}

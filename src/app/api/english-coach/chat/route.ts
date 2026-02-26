@@ -3,6 +3,8 @@ import { GoogleGenerativeAI } from '@google/generative-ai'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
+import { buildChatPrompts } from '@/app/hoc-tieng-anh-ai/prompt/prompt-builder'
+import { getPairPromptConfig, toLanguagePairKey } from '@/app/hoc-tieng-anh-ai/i18n/pairs'
 
 type TeacherAccent = 'uk' | 'us'
 type TeacherGender = 'female' | 'male'
@@ -41,6 +43,7 @@ type ChatPayload = {
   supportLanguage?: string
   nativeLanguage?: string
   nativeLanguageCode?: string
+  languagePairKey?: string
   inputSource?: 'text' | 'mic'
   studentInputLanguage?: string
   speakingMode?: 'auto' | 'target' | 'native' | 'mixed'
@@ -402,6 +405,49 @@ function hasFollowUpPrompt(reply: string): boolean {
   return followupPatterns.some((p) => p.test(text))
 }
 
+function hasQuestionSentence(text: string): boolean {
+  const source = String(text || '').trim()
+  if (!source) return false
+  return /[?？]$/.test(source) || /[?？]/.test(source)
+}
+
+function defaultIdea3LeadByLanguageCode(code: string): string {
+  if (code === 'zh') return '好的，我们继续。'
+  if (code === 'ja') return 'いいですね、続けましょう。'
+  if (code === 'ko') return '좋아요, 계속해 볼게요.'
+  if (code === 'th') return 'ดีมาก เรามาต่อกันนะ'
+  if (code === 'hi') return 'बहुत अच्छा, चलिए आगे बढ़ते हैं।'
+  if (code === 'vi') return 'Tốt lắm, mình tiếp tục nhé.'
+  return "Great, let's continue."
+}
+
+function ensureIntentAnswerTwoPart(
+  intentAnswer: string,
+  targetLanguageCode: string,
+  targetLanguage: string
+): string {
+  const text = String(intentAnswer || '').trim()
+  const fallbackQuestion = fallbackFollowUpByLanguageCode(targetLanguageCode, targetLanguage)
+  if (!text) {
+    return `${defaultIdea3LeadByLanguageCode(targetLanguageCode)} ${fallbackQuestion}`.trim()
+  }
+
+  const hasQuestion = hasQuestionSentence(text)
+  if (hasQuestion) {
+    // If only a question is provided, prepend a short contextual statement.
+    const chunks = text
+      .split(/(?<=[.!?。！？])\s+/u)
+      .map((x) => x.trim())
+      .filter(Boolean)
+    const hasNonQuestion = chunks.some((x) => !/[?？]$/.test(x))
+    if (hasNonQuestion) return text
+    return `${defaultIdea3LeadByLanguageCode(targetLanguageCode)} ${text}`.trim()
+  }
+
+  // If no question in intentAnswer, append a follow-up question.
+  return `${text} ${fallbackQuestion}`.trim()
+}
+
 function extractLatestTeacherQuestion(history: ChatMessage[], targetLanguageCode: string, targetLanguage: string): string {
   const normalizeQuestionLine = (line: string): string => {
     return String(line || '')
@@ -589,6 +635,8 @@ export async function POST(request: NextRequest) {
     const supportLanguage = String(payload.supportLanguage || 'Vietnamese').trim()
     const nativeLanguage = String(payload.nativeLanguage || supportLanguage || 'Vietnamese').trim()
     const nativeLanguageCode = String(payload.nativeLanguageCode || '').trim().toLowerCase()
+    const languagePairKey = String(payload.languagePairKey || toLanguagePairKey(nativeLanguageCode, targetLanguageCode)).trim().toLowerCase()
+    const pairConfig = getPairPromptConfig(nativeLanguageCode, targetLanguageCode)
     const inputSource = payload.inputSource === 'mic' ? 'mic' : 'text'
     const studentInputLanguage = String(payload.studentInputLanguage || nativeLanguage || '').trim()
     const speakingMode =
@@ -707,6 +755,7 @@ export async function POST(request: NextRequest) {
         vi: `Bạn nói lại giúp mình thành một câu có nghĩa (${minSentenceRuleByLanguageCode(targetLanguageCode)}).`,
       }
       const retry = retryPromptByCode[targetLanguageCode] || retryPromptByCode.en
+      const retryIdea3 = ensureIntentAnswerTwoPart(retry, targetLanguageCode, targetLanguage)
       return NextResponse.json({
         reply: retry,
         corrections: [],
@@ -715,7 +764,7 @@ export async function POST(request: NextRequest) {
           ? `Câu vừa rồi hơi ngắn, chưa đủ để thành câu có nghĩa (${minSentenceRuleByLanguageCode(targetLanguageCode)}).`
           : 'Your sentence is too short to evaluate meaning clearly.',
         correctedSentence: '',
-        intentAnswer: retry,
+        intentAnswer: retryIdea3,
         mainSentence: retry,
         mustKnowText: retry,
       })
@@ -764,6 +813,7 @@ ${latestQuestion}`
         `${labels.quickTranslation} (${nativeLanguage}): ${nativeMeaning}`,
         labels.askReplyAgain,
       ]
+      const repeatIdea3 = ensureIntentAnswerTwoPart(latestQuestion, targetLanguageCode, targetLanguage)
       return NextResponse.json({
         reply: replyLines.join('\n'),
         corrections: [],
@@ -771,7 +821,7 @@ ${latestQuestion}`
         mainSentence: latestQuestion,
         mustKnowText: latestQuestion,
         correctionNote: '',
-        intentAnswer: latestQuestion,
+        intentAnswer: repeatIdea3,
         correctedSentence: latestQuestion,
       })
     }
@@ -821,6 +871,11 @@ ${latestQuestion}`
           replyLines.push(`${labels.quickTranslation} (${nativeLanguage}): ${nativeMeaning}`)
         }
         replyLines.push(labels.howToSayPrompt)
+        const cachedIdea3 = ensureIntentAnswerTwoPart(
+          String(phraseCached.target_sentence || '').trim(),
+          targetLanguageCode,
+          targetLanguage
+        )
         return NextResponse.json({
           reply: replyLines.join('\n'),
           corrections: [],
@@ -829,7 +884,7 @@ ${latestQuestion}`
           mainSentence: String(phraseCached.target_sentence || '').trim(),
           mustKnowText: String(phraseCached.target_sentence || '').trim(),
           correctionNote: '',
-          intentAnswer: '',
+          intentAnswer: cachedIdea3,
           correctedSentence: String(phraseCached.target_sentence || '').trim(),
         })
       }
@@ -925,6 +980,8 @@ Khi có pronunciationIssues, corrections và pronunciationTips phải chỉ ra h
     const strictLanguagePairGuide = `Cặp ngôn ngữ buổi học này là:
 - Ngôn ngữ đang học: ${targetLanguage} (${targetLanguageCode || 'unknown'})
 - Ngôn ngữ mẹ đẻ: ${nativeLanguage} (${nativeLanguageCode || 'unknown'})
+- languagePairKey: ${languagePairKey || 'unknown'}
+- pairTone: ${pairConfig.uiTone}
 Bạn PHẢI bám đúng cặp này. Không mặc định chuyển sang English nếu ngôn ngữ đang học không phải English.`
     const howToSayGuide = asksHowToSay
       ? `Học sinh đang hỏi dạng "nói câu này thế nào". BẮT BUỘC trả đủ nội dung, không được thiếu:
@@ -1080,85 +1137,38 @@ ${studentText}`
       }
     }
 
-    const systemPrompt = `Bạn là ${teacherIdentity} đang dạy học sinh.
-Mục tiêu:
-1) Mặc định trả lời theo dạng song ngữ "giải thích bằng ${nativeLanguage} trước, sau đó mới đến ${targetLanguage}".
-2) Nếu học sinh sai ngữ pháp/từ vựng/phát âm (suy ra từ câu), hãy sửa NGAY nhưng lịch sự.
-3) Giữ hội thoại tương tác như nói chuyện thật.
-4) Áp dụng mode prompt độc lập sau:
-${modePrompt}
-4.1) ${responseStyleGuide}
-5) Phần giải thích trọng tâm phải dùng ${nativeLanguage} để học sinh hiểu nhanh; phần ${targetLanguage} dùng để làm câu mẫu luyện nói.
-6) Ưu tiên cách nói bản địa đúng theo locale: ${teacherLocale || 'auto'}.
-7) ${learnerContext}
-8) explanationVi (nhãn giữ nguyên vì tương thích schema cũ) phải là: ${explanationLanguage}.
-9) Bạn là giáo viên song ngữ: CHỈ dùng đúng cặp ${targetLanguage} + ${nativeLanguage} để truyền đạt khi học sinh hỏi nghĩa/cách nói.
-10) ${bilingualGuide}
-11) Khi học sinh hỏi kiểu "câu này nói ${targetLanguage} thế nào", reply nên theo cấu trúc:
-- Dòng 1: "Giải thích (${nativeLanguage}):" + giải thích ngắn, dễ hiểu.
-- Dòng 2: "Từ/cụm cần biết:" và liệt kê ngắn (bằng ${nativeLanguage}).
-- Dòng 3: "Câu tự nhiên (${targetLanguage}):" + câu chuẩn bằng ${targetLanguage}.
-- Dòng 4 (nếu cần): "Dịch nhanh (${nativeLanguage}):" + nghĩa của câu chuẩn.
-12) ${nativeLanguageGuide}
-13) ${micGuide}
-14) Bắt buộc suy luận "học sinh muốn hỏi gì" trước khi trả lời; không trả lời chung chung.
-15) Nếu câu hỏi đến từ ngôn ngữ mẹ đẻ, phải trả lời đúng ý bằng ${nativeLanguage} và đồng thời đưa mẫu câu chuẩn bằng ${targetLanguage}.
-16) Không thuyết trình dài hoàn toàn bằng ${targetLanguage} khi chưa có giải thích bằng ${nativeLanguage}.
-17) corrections[].explanationVi và pronunciationTips[] phải viết bằng ${nativeLanguage} (ngắn, dễ hiểu cho người mới học).
-18) ${speakingModeGuide}
-19) Nếu speakingMode là mixed hoặc auto (và câu có trộn), reply phải có thêm đoạn:
-- "Phần bạn chưa biết (${nativeLanguage}) -> ${targetLanguage}: ..."
-- "Câu hoàn chỉnh (${targetLanguage}): ..."
-20) ${strictLanguagePairGuide}
-21) Sau mỗi phản hồi, luôn kết thúc bằng 1 câu gợi ý tiếp theo để học sinh trả lời (câu hỏi ngắn hoặc nhiệm vụ ngắn).
-22) Nếu học sinh vừa nói đúng/ổn, hãy khen ngắn gọn rồi đưa ngay câu gợi ý tiếp theo.
-23) ${howToSayGuide}
-24) ${contextualReplyGuide}
-25) Nếu speakingMode là mixed hoặc auto, bắt buộc dùng kết quả phân tích 2 ngôn ngữ sau để lọc từ/cụm học sinh còn thiếu trước khi trả lời:
-${mixedAnalysisGuide}
-26) Áp dụng DUY NHẤT prompt level sau (không trộn level khác):
-${levelPromptIndependent}
-27) ${micAnalysisGuide}
-28) ${pinyinGuide}
-29) ${topicGuide}
-30) KHÓA GIỚI GIÁO VIÊN: luôn giữ đúng persona ${genderLabel}. Không đổi sang giọng/vai nữ nếu đang là nam, và ngược lại.
-31) KHÓA NGÔN NGỮ CẶP ĐÔI: Trong phần reply cho học sinh, CHỈ dùng đúng 2 ngôn ngữ của cặp đã chọn (${targetLanguage} + ${nativeLanguage}). Không dùng nhãn/cụm của ngôn ngữ thứ ba.
-32) TRƯỜNG intentAnswer (Ý 3 - trả lời ngữ cảnh) PHẢI viết CHỈ bằng ${targetLanguage}, 1-2 câu ngắn, không trộn ${nativeLanguage}.
-33) MEMORY NGẮN HẠN (hỗ trợ, không thay thế dữ liệu gốc):
-- Running summary: ${sessionMemory.runningSummary || '(chưa có)'}
-- Pinned repeatedMistakes: ${sessionMemory.pinnedFacts.repeatedMistakes.join(' | ') || '(trống)'}
-- Pinned correctedSentences: ${sessionMemory.pinnedFacts.correctedSentences.join(' | ') || '(trống)'}
-- Pinned learnedPhrases: ${sessionMemory.pinnedFacts.learnedPhrases.join(' | ') || '(trống)'}
-- Pinned topicFocus: ${sessionMemory.pinnedFacts.topicFocus || '(trống)'}
-34) RETRIEVAL KHI ÔN XA:
-${retrievalGuide}
-35) Khi retrieval có dữ liệu, ưu tiên trả đúng kiến thức cũ theo dữ liệu gốc, sau đó mới mở rộng.
-36) XƯNG HÔ TIẾNG VIỆT: khi nói với học sinh bằng tiếng Việt, luôn gọi là "em", TUYỆT ĐỐI không gọi là "con".
-
-Đầu ra BẮT BUỘC là JSON hợp lệ, không markdown:
-{
-  "reply": "câu trả lời của giáo viên bằng ngôn ngữ mục tiêu",
-  "corrections": [
-    { "original": "...", "fixed": "...", "explanationVi": "giải thích ngắn bằng ngôn ngữ mẹ đẻ" }
-  ],
-  "pronunciationTips": ["mẹo phát âm ngắn bằng ngôn ngữ mẹ đẻ", "..."],
-  "correctionNote": "Ý 1: sửa lỗi ngắn gọn cho câu học sinh",
-  "correctedSentence": "Ý 2: câu sửa hoàn chỉnh cuối cùng của học sinh",
-  "intentAnswer": "Ý 3: trả lời đúng ý hỏi của học sinh theo ngữ cảnh hội thoại tự nhiên, CHỈ bằng ngôn ngữ đang học",
-  "mainSentence": "1 câu chính để nút Nghe câu chính đọc đúng",
-  "mustKnowText": "1 câu/cụm quan trọng nhất cần học viên nghe rõ (để nút Nghe phần cần biết đọc riêng)"
-}`
-
-    const userPrompt = `Lịch sử gần đây:
-${transcript || '(trống)'}
-
-Học sinh vừa nói (raw):
-${studentText}
-
-Học sinh sau chuẩn hóa mixed (ưu tiên dùng để sửa câu):
-${speakingMode === 'mixed' || speakingMode === 'auto' ? mixedNormalizedStudentText : studentText}
-
-Hãy trả về đúng JSON theo format đã yêu cầu.`
+    const { systemPrompt, userPrompt } = buildChatPrompts({
+      teacherIdentity,
+      nativeLanguage,
+      targetLanguage,
+      nativeLanguageCode,
+      targetLanguageCode,
+      teacherLocale,
+      learnerContext,
+      genderLabel,
+      modePrompt,
+      responseStyleGuide,
+      explanationLanguage,
+      bilingualGuide,
+      nativeLanguageGuide,
+      micGuide,
+      speakingModeGuide,
+      strictLanguagePairGuide,
+      howToSayGuide,
+      contextualReplyGuide,
+      mixedAnalysisGuide,
+      levelPromptIndependent,
+      micAnalysisGuide,
+      pinyinGuide,
+      topicGuide,
+      retrievalGuide,
+      transcript,
+      studentText,
+      mixedNormalizedStudentText,
+      speakingMode,
+      sessionMemory,
+      pairConfig,
+    })
 
     const result = await model.generateContent([systemPrompt, userPrompt])
     const text = result.response.text()?.trim() || ''
@@ -1234,6 +1244,7 @@ ${text}`
         },
       }
       const fallback = fallbackByCode[targetLanguageCode] || fallbackByCode.en
+      const fallbackIdea3 = ensureIntentAnswerTwoPart(fallback.reply, targetLanguageCode, targetLanguage)
       return NextResponse.json({
         reply: fallback.reply,
         corrections: [],
@@ -1241,7 +1252,7 @@ ${text}`
         mainSentence: fallback.reply,
         mustKnowText: fallback.reply,
         correctionNote: '',
-        intentAnswer: fallback.reply,
+        intentAnswer: fallbackIdea3,
         correctedSentence: fallback.reply,
       })
     }
@@ -1467,6 +1478,7 @@ ${intentAnswer || parsed.reply}`
     if (!intentAnswer || shouldRepairIntentAnswerToTargetLanguage(intentAnswer, targetLanguageCode, targetScriptRe)) {
       intentAnswer = fallbackFollowUpByLanguageCode(targetLanguageCode, targetLanguage)
     }
+    intentAnswer = ensureIntentAnswerTwoPart(intentAnswer, targetLanguageCode, targetLanguage)
     const correctedSentenceJson = String(parsed.correctedSentence || '').trim()
     const aiMainSentence = String(parsed.mainSentence || '').trim()
     const extractedMainSentence = extractPhraseTargetSentence(parsed.reply)

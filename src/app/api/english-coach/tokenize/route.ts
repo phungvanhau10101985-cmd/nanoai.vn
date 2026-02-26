@@ -10,49 +10,6 @@ type TokenizePayload = {
   targetLanguageCode?: string
 }
 
-function extractTargetSentenceForTokenization(text: string): string {
-  const stripTrailingBilingualSections = (input: string) => {
-    const markers = [
-      'Dịch nhanh',
-      'Giải thích',
-      'Câu tự nhiên',
-      'Câu chuẩn',
-      'Câu hoàn chỉnh',
-      'Natural sentence',
-      'Correct sentence',
-      'Quick translation',
-      'Explanation',
-      'Translation',
-    ]
-    let out = input.trim()
-    for (const marker of markers) {
-      const idx = out.toLowerCase().indexOf(marker.toLowerCase())
-      if (idx > 0) {
-        out = out.slice(0, idx).trim()
-      }
-    }
-    return out.replace(/[\s:：-]+$/g, '').trim()
-  }
-
-  const patterns = [
-    /Câu hoàn chỉnh\s*\([^)]+\)\s*[:：]?\s*\**\s*([^\n]+)/i,
-    /Câu tự nhiên\s*\([^)]+\)\s*[:：]?\s*\**\s*([^\n]+)/i,
-    /Câu chuẩn\s*\([^)]+\)\s*[:：]?\s*\**\s*([^\n]+)/i,
-    /Câu (hoàn chỉnh|tự nhiên|chuẩn)\s*(là)?\s*[:：]\s*([^\n]+)/i,
-    /(Natural sentence|Correct sentence)\s*\([^)]+\)\s*[:：]?\s*([^\n]+)/i,
-  ]
-  for (const pattern of patterns) {
-    const match = text.match(pattern)
-    const candidate = stripTrailingBilingualSections(
-      String(match?.[3] || match?.[2] || match?.[1] || '')
-    )
-      .replace(/^\*+|\*+$/g, '')
-      .trim()
-    if (candidate) return candidate
-  }
-  return ''
-}
-
 function resolveTargetLanguageCode(rawCode: string, rawTargetLanguage: string): string {
   const code = rawCode.trim().toLowerCase()
   if (code) return code

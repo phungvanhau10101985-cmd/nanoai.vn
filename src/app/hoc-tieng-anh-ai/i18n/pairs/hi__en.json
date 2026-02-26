@@ -1,0 +1,26 @@
+{
+  "key": "hi__en",
+  "nativeLanguageCode": "hi",
+  "targetLanguageCode": "en",
+  "uiTone": "supportive",
+  "enforceStrictPair": true,
+  "nativeFirstExplanation": true,
+  "maxReplyCharsConcise": 520,
+  "maxReplyCharsDetailed": 760,
+  "conversationFocus": [
+    "दैनिक और कार्य-संदर्भ वाले अंग्रेज़ी संवाद पर फोकस रखें।"
+  ],
+  "correctionFocus": [
+    "पहले उन गलतियों को सुधारें जो अर्थ बदलती हैं (tense, article, preposition)।"
+  ],
+  "lexicalFocus": [
+    "उच्च-आवृत्ति वाले प्रयोगी वाक्यांश दें जिन्हें तुरंत बोल सकें।"
+  ],
+  "avoidPatterns": [
+    "बहुत लंबा व्याकरण व्याख्यान देने से बचें।"
+  ],
+  "extraSystemRules": [
+    "हर टर्न के अंत में छोटा follow-up question दें।",
+    "एक समय में एक मुख्य सुधार और एक usable sentence दें।"
+  ]
+}

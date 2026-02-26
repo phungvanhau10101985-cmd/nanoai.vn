@@ -178,31 +178,6 @@ function computeNextIntervalDays(score: number, previous: number): number {
   return Math.min(30, Math.round(previous * 1.6))
 }
 
-async function deleteIncompleteWords(adminSupabase: ReturnType<typeof adminClient>, userId: string) {
-  const { data: rows } = await adminSupabase
-    .from('language_coach_daily_words')
-    .select('id, meaning, meaning_items_json')
-    .eq('user_id', userId)
-  const dailyIds = (rows ?? [])
-    .filter((r) => !hasMeaning(r))
-    .map((r) => r.id)
-    .filter(Boolean)
-  if (dailyIds.length > 0) {
-    await adminSupabase.from('language_coach_daily_words').delete().eq('user_id', userId).in('id', dailyIds)
-  }
-  const { data: reviewRows } = await adminSupabase
-    .from('language_coach_review_queue')
-    .select('id, meaning, meaning_items_json')
-    .eq('user_id', userId)
-  const reviewIds = (reviewRows ?? [])
-    .filter((r) => !hasMeaning(r))
-    .map((r) => r.id)
-    .filter(Boolean)
-  if (reviewIds.length > 0) {
-    await adminSupabase.from('language_coach_review_queue').delete().eq('user_id', userId).in('id', reviewIds)
-  }
-}
-
 export async function GET(request: NextRequest) {
   try {
     const supabase = createClient()

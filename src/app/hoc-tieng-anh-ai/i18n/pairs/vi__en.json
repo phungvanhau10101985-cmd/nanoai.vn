@@ -1,0 +1,26 @@
+{
+  "key": "vi__en",
+  "nativeLanguageCode": "vi",
+  "targetLanguageCode": "en",
+  "uiTone": "supportive",
+  "enforceStrictPair": true,
+  "nativeFirstExplanation": true,
+  "maxReplyCharsConcise": 520,
+  "maxReplyCharsDetailed": 760,
+  "conversationFocus": [
+    "Tập trung tình huống người Việt dùng tiếng Anh: lớp học, công việc, du lịch."
+  ],
+  "correctionFocus": [
+    "Ưu tiên sửa thì, giới từ, trật tự từ và phát âm phụ âm cuối."
+  ],
+  "lexicalFocus": [
+    "Ưu tiên cụm từ tự nhiên thay vì dịch từng từ từ tiếng Việt."
+  ],
+  "avoidPatterns": [
+    "Không dùng tiếng Việt quá dài khi học viên đã hiểu ý chính."
+  ],
+  "extraSystemRules": [
+    "Ưu tiên ví dụ gần tình huống người Việt dùng tiếng Anh: học tập, công việc, du lịch.",
+    "Sửa lỗi thường gặp của người Việt khi học tiếng Anh theo cách ngắn gọn, dễ áp dụng ngay."
+  ]
+}

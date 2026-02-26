@@ -1,13 +1,49 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
 import { createClient } from '@/lib/supabase/client'
-import { Mic, MicOff, Send, Languages, Volume2, X } from 'lucide-react'
+import { Mic, MicOff, Send, Languages, Volume2 } from 'lucide-react'
+import { WordPracticeOverlay } from './components/word-practice-overlay'
+import { PreLessonReviewOverlay } from './components/pre-lesson-review-overlay'
+import { QuickStartModal } from './components/quick-start-modal'
+import { HistoryPanel } from './components/history-panel'
+import { TodayWordsPanel } from './components/today-words-panel'
+import { ReviewItemsPanel } from './components/review-items-panel'
+import { createCoachTranslator } from './i18n'
+import { toLanguagePairKey } from './i18n/pairs'
+import {
+  analyzeWord,
+  chatWithCoach,
+  cleanupIncompleteWords,
+  createTopicCurriculum,
+  explainIntent,
+  generateTts,
+  getHistorySession,
+  getHistorySessions,
+  getPreviousLessonWords,
+  getReviewDue,
+  getSessionWords,
+  getTtsCache,
+  listCustomTopics,
+  markReviewDue,
+  normalizeCustomTopic,
+  recordProgress,
+  rescheduleReviewWords,
+  runCefrAssessment,
+  saveWordDaily,
+  saveHistoryMessage as saveHistoryMessageApi,
+  saveLearningGoal as saveLearningGoalApi,
+  tokenizeSentence,
+  transliterateText,
+  transcribeMixed,
+  uploadAudio,
+  runPlacementLevel,
+} from './services/english-coach-api'
 
 type Accent = 'uk' | 'us'
 type Gender = 'female' | 'male'
@@ -141,6 +177,31 @@ type PlacementQuickResult = {
   confidence: number
   reason: string
 }
+
+type AssessmentItem = {
+  cefr_level: string
+  learner_level: number
+  overall_score: number
+  confidence: number
+  taken_at: string
+  summary: string
+}
+
+type WeeklySnapshot = {
+  turns: number
+  sessions: number
+  activeDays: number
+  targetSessions: number
+  completionPercent: number
+}
+
+type LevelRecommendation = {
+  suggestedLevel: number
+  direction: 'up' | 'down'
+  reason: string
+  confidence: number
+  basedOn: string[]
+}
 type QuickStartStage = 'idle' | 'confirm_topic' | 'create_curriculum' | 'start_lesson'
 
 type ReviewItem = {
@@ -183,13 +244,15 @@ type Correction = {
   explanationVi: string
 }
 
-type WritingTaskType = 'copy' | 'guided_rewrite' | 'rewrite' | 'context_response' | 'advanced_response'
+type WritingTaskType = 'copy'
 
 type WritingTask = {
   messageId: string
   taskType: WritingTaskType
   instruction: string
   referenceSentence: string
+  requiredSentences: string[]
+  currentIndex: number
   teacherText: string
   completed: boolean
 }
@@ -934,6 +997,69 @@ const LOCAL_TEXT_TRANSLATIONS: Record<string, Partial<Record<UiLocale, string>>>
     th: 'หรือ',
     hi: 'या',
   },
+  'Required new-word practice': {
+    zh: '必修新词练习',
+    ja: '必須の新出単語練習',
+    ko: '필수 새 단어 연습',
+    th: 'แบบฝึกคำศัพท์ใหม่ที่ต้องทำ',
+    hi: 'अनिवार्य नए शब्द का अभ्यास',
+  },
+  'Listen and type the word correctly 3 times, then choose the correct meaning each round.': {
+    zh: '先把单词听并正确输入 3 次，然后每轮选择正确释义。',
+    ja: '単語を3回正しく聞いて入力し、その後各ラウンドで正しい意味を選びます。',
+    ko: '단어를 3번 정확히 듣고 입력한 뒤, 각 라운드에서 올바른 뜻을 선택하세요.',
+    th: 'ฟังและพิมพ์คำให้ถูกต้อง 3 ครั้ง จากนั้นเลือกความหมายที่ถูกต้องในแต่ละรอบ',
+    hi: 'शब्द को 3 बार सही सुनकर टाइप करें, फिर हर राउंड में सही अर्थ चुनें।',
+  },
+  'Current word:': {
+    zh: '当前练习词：',
+    ja: '現在の練習単語：',
+    ko: '현재 연습 단어:',
+    th: 'คำที่กำลังฝึก:',
+    hi: 'वर्तमान शब्द:',
+  },
+  'You are doing great! Complete 3/3 and you can continue right away.': {
+    zh: '你做得很好！完成 3/3 后即可立即继续学习。',
+    ja: 'とても順調です！3/3 を完了するとすぐに学習を続けられます。',
+    ko: '아주 잘하고 있어요! 3/3을 완료하면 바로 학습을 계속할 수 있어요.',
+    th: 'คุณทำได้ดีมาก! ทำครบ 3/3 แล้วจะไปต่อได้ทันที',
+    hi: 'आप बहुत अच्छा कर रहे हैं! 3/3 पूरा होते ही आप तुरंत आगे बढ़ सकते हैं।',
+  },
+  'Progress:': {
+    zh: '进度：',
+    ja: '進捗：',
+    ko: '진행도:',
+    th: 'ความคืบหน้า:',
+    hi: 'प्रगति:',
+  },
+  'Replay new word': {
+    zh: '重听新词',
+    ja: '新出単語をもう一度聞く',
+    ko: '새 단어 다시 듣기',
+    th: 'ฟังคำใหม่อีกครั้ง',
+    hi: 'नया शब्द फिर से सुनें',
+  },
+  'Type the exact word:': {
+    zh: '请准确输入该单词：',
+    ja: '単語を正確に入力してください：',
+    ko: '정확한 단어를 입력하세요:',
+    th: 'พิมพ์คำให้ตรงตามนี้:',
+    hi: 'शब्द को बिल्कुल सही टाइप करें:',
+  },
+  'Type the new word...': {
+    zh: '请输入新词...',
+    ja: '新しい単語を入力...',
+    ko: '새 단어를 입력하세요...',
+    th: 'พิมพ์คำใหม่...',
+    hi: 'नया शब्द टाइप करें...',
+  },
+  'Choose the correct meaning:': {
+    zh: '请选择正确释义：',
+    ja: '正しい意味を選択してください：',
+    ko: '올바른 의미를 선택하세요:',
+    th: 'เลือกความหมายที่ถูกต้อง:',
+    hi: 'सही अर्थ चुनें:',
+  },
 }
 
 const TEACHERS_BY_LANGUAGE: Record<LanguageCode, TeacherProfile[]> = {
@@ -1171,14 +1297,6 @@ function getLocalDateString(): string {
   return new Date(now.getTime() - tzOffsetMs).toISOString().slice(0, 10)
 }
 
-function getYesterdayDateString(): string {
-  const now = new Date()
-  const tzOffsetMs = now.getTimezoneOffset() * 60 * 1000
-  const local = new Date(now.getTime() - tzOffsetMs)
-  local.setDate(local.getDate() - 1)
-  return local.toISOString().slice(0, 10)
-}
-
 function toStorageSafeToken(input: string): string {
   const normalized = String(input || '').trim().normalize('NFKD')
   const ascii = normalized
@@ -1215,17 +1333,6 @@ function sanitizeWordExampleItems(input: unknown): Array<{ targetText: string; t
     }))
     .filter((row) => row.targetText && row.nativeText)
     .slice(0, 6)
-}
-
-function parseJsonArrayText(input?: string | null): unknown[] {
-  const raw = String(input || '').trim()
-  if (!raw) return []
-  try {
-    const parsed = JSON.parse(raw)
-    return Array.isArray(parsed) ? parsed : []
-  } catch {
-    return []
-  }
 }
 
 function buildWordInsightFromAny(data: {
@@ -1312,36 +1419,81 @@ function extractTeacherSpeechText(text: string): string {
   return String(text || '').trim()
 }
 
-function extractFirstShortSentence(text: string): string {
-  const normalized = String(text || '')
+function normalizeCopyText(text: string, targetCode?: LanguageCode): string {
+  const base = String(text || '')
+    .replace(/[’‘]/g, "'")
+    .replace(/[“”]/g, '"')
     .replace(/\s+/g, ' ')
     .trim()
-  if (!normalized) return ''
-  const first = normalized.split(/(?<=[.!?。！？])\s+/u).find(Boolean)?.trim() || normalized
-  if (first.length <= 160) return first
-  return `${first.slice(0, 157).trimEnd()}...`
+  if (targetCode === 'zh' || targetCode === 'ja' || targetCode === 'ko') {
+    return base.replace(/\s+/g, '')
+  }
+  return base
 }
 
-function extractMainSentenceForReplay(text: string): string {
-  const targetSentence = extractTargetSentenceForTokenization(text)
-  if (targetSentence) return targetSentence
-
-  const firstLine = String(text || '')
-    .split('\n')
-    .map((x) => x.trim())
-    .find(Boolean) || ''
-  if (!firstLine) return ''
-
-  const firstSentence = firstLine.split(/(?<=[.!?。！？])\s+/u).find(Boolean) || firstLine
-  return firstSentence.trim()
+function pickAsciiPunctuation(cluster: string): string {
+  if (cluster.includes('?')) return '?'
+  if (cluster.includes('!')) return '!'
+  if (cluster.includes('.')) return '.'
+  if (cluster.includes(',')) return ','
+  if (cluster.includes(';')) return ';'
+  if (cluster.includes(':')) return ':'
+  return ''
 }
 
-function writingTaskTypeByLevel(level: LearnerLevel): WritingTaskType {
-  if (level === 0) return 'copy'
-  if (level === 1) return 'guided_rewrite'
-  if (level === 2) return 'rewrite'
-  if (level === 3) return 'context_response'
-  return 'advanced_response'
+function pickCjkPunctuation(cluster: string): string {
+  if (cluster.includes('？')) return '？'
+  if (cluster.includes('！')) return '！'
+  if (cluster.includes('。')) return '。'
+  if (cluster.includes('，')) return '，'
+  if (cluster.includes('；')) return '；'
+  if (cluster.includes('：')) return '：'
+  if (cluster.includes('、')) return '、'
+  return ''
+}
+
+function sanitizeRomanizedText(text: string): string {
+  return String(text || '')
+    .replace(/\s+/g, ' ')
+    .replace(/\s+([,.;:!?])/g, '$1')
+    .replace(/[,.;:!?]{2,}/g, (m) => pickAsciiPunctuation(m))
+    .replace(/([,.;:!?])([A-Za-z\u00C0-\u024F])/g, '$1 $2')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function sanitizeSentenceForCopy(text: string, targetCode: LanguageCode): string {
+  const raw = String(text || '').trim()
+  if (!raw) return ''
+  if (targetCode !== 'zh' && targetCode !== 'ja' && targetCode !== 'ko') {
+    return sanitizeRomanizedText(raw)
+  }
+
+  const hasTargetScript =
+    targetCode === 'zh'
+      ? /[\u4E00-\u9FFF]/u.test(raw)
+      : targetCode === 'ja'
+        ? /[\u3040-\u30FF\u4E00-\u9FFF]/u.test(raw)
+        : /[\uAC00-\uD7AF]/u.test(raw)
+  if (!hasTargetScript) return raw
+
+  const withoutLatin = raw
+    .replace(/[A-Za-z\u00C0-\u024F]+/g, ' ')
+    .replace(/,/g, '，')
+    .replace(/\./g, '。')
+    .replace(/\?/g, '？')
+    .replace(/!/g, '！')
+    .replace(/;/g, '；')
+    .replace(/:/g, '：')
+    .replace(/\s+([，。！？、；：,.!?])/g, '$1')
+    .replace(/([，。！？、；：、]){2,}/g, (m) => pickCjkPunctuation(m))
+    .replace(/([，。！？、；：、])\s+([\u4E00-\u9FFF\u3040-\u30FF\uAC00-\uD7AF])/g, '$1$2')
+    .replace(/^[\s)\](\}）】」』》〉、，。！？；：:;,.!?'"`-]+/u, '')
+    .replace(/([\u4E00-\u9FFF\u3040-\u30FF\uAC00-\uD7AF])\s+([\u4E00-\u9FFF\u3040-\u30FF\uAC00-\uD7AF])/g, '$1$2')
+    .replace(/^[，。！？、；：]+/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return withoutLatin || raw
 }
 
 function buildWordContextSnippet(sentence: string, word: string): string {
@@ -1370,347 +1522,6 @@ function isTokenInTargetLanguage(token: string, targetCode: LanguageCode): boole
   if (targetCode === 'th') return /[\u0E00-\u0E7F]/u.test(t)
   if (targetCode === 'hi') return /[\u0900-\u097F]/u.test(t)
   return true
-}
-
-function normalizeWordForCompare(w: string): string {
-  return String(w || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-}
-
-type PreLessonReviewOverlayProps = {
-  words: TodayWordItem[]
-  exerciseIndex: number
-  wordIndex: number
-  results: Record<string, { cloze: boolean; listen: boolean; recall: boolean }>
-  input: string
-  recallDirection: 'word' | 'meaning'
-  passed: boolean
-  onInputChange: (v: string) => void
-  onRecallDirectionChange: (v: 'word' | 'meaning') => void
-  onClozeSubmit: (word: string, correct: boolean) => void
-  onListenSubmit: (word: string, correct: boolean) => void
-  onRecallSubmit: (word: string, correct: boolean) => void
-  onStartNewLesson: () => void
-  onPlayWord: (word: string) => void
-  onClose: () => void
-  localText: (vi: string, en: string) => string
-}
-
-function PreLessonReviewOverlay({
-  words,
-  exerciseIndex,
-  wordIndex,
-  results,
-  input,
-  recallDirection,
-  passed,
-  onInputChange,
-  onRecallDirectionChange,
-  onClozeSubmit,
-  onListenSubmit,
-  onRecallSubmit,
-  onStartNewLesson,
-  onPlayWord,
-  onClose,
-  localText,
-}: PreLessonReviewOverlayProps) {
-  const [wrongHint, setWrongHint] = useState<{ word: string; meaning: string; pronunciation?: string; type: 'cloze' | 'listen' | 'recall' } | null>(null)
-  const currentWord = words[wordIndex]
-
-  useEffect(() => {
-    setWrongHint(null)
-  }, [wordIndex, exerciseIndex])
-
-  const handleContinueAfterWrong = () => {
-    if (!wrongHint || !currentWord) return
-    if (wrongHint.type === 'cloze') onClozeSubmit(currentWord.word, false)
-    else if (wrongHint.type === 'listen') onListenSubmit(currentWord.word, false)
-    else onRecallSubmit(currentWord.word, false)
-    setWrongHint(null)
-  }
-
-  const exerciseLabels = [
-    localText('1. Điền từ vào câu ví dụ, hoặc gõ từ theo nghĩa', '1. Fill word in example sentence, or type word by meaning'),
-    localText('2. Nghe và gõ từ', '2. Listen and type the word'),
-    localText('3. Recall 2 chiều (từ ↔ nghĩa)', '3. Two-way recall (word ↔ meaning)'),
-  ]
-
-  if (!currentWord && !passed) return null
-
-  if (passed) {
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-        <div className="relative w-full max-w-md rounded-lg border bg-white p-6 shadow-xl">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={onClose}
-            aria-label={localText('Đóng', 'Close')}
-            className="absolute right-2 top-2 h-8 w-8"
-          >
-            <X className="h-4 w-4" />
-          </Button>
-          <h2 className="text-xl font-semibold text-slate-900">{localText('Ôn bài cũ', 'Review previous lesson')}</h2>
-          <p className="mt-2 text-sm text-slate-600">
-            {localText('Bạn đã đạt yêu cầu! Có thể bắt đầu bài mới.', 'You passed! You can start the new lesson.')}
-          </p>
-          <Button
-            type="button"
-            onClick={onStartNewLesson}
-            className="mt-4 w-full min-h-[44px]"
-          >
-            {localText('Bắt đầu bài mới', 'Start new lesson')}
-          </Button>
-        </div>
-      </div>
-    )
-  }
-
-  const ex0 = exerciseIndex === 0
-  const ex1 = exerciseIndex === 1
-  const ex2 = exerciseIndex === 2
-
-  const exampleSentence = (currentWord.exampleItems?.[0]?.targetText || currentWord.exampleTarget || '').trim()
-  const targetWord = currentWord.word.trim()
-  const clozeSentence = exampleSentence
-    ? exampleSentence.replace(new RegExp(`\\b${escapeRegex(targetWord)}\\b`, 'gi'), '______')
-    : ''
-
-  const correctMeaning = (currentWord.meaningItems?.[0]?.text || currentWord.meaning || '').trim()
-  const wrongMeanings = words
-    .filter((w) => w.word !== currentWord.word)
-    .flatMap((w) => (w.meaningItems || []).map((m) => m.text).filter(Boolean))
-    .filter((m) => m !== correctMeaning)
-    .slice(0, 4)
-  const meaningOptions = [correctMeaning, ...wrongMeanings].slice(0, 4).sort(() => Math.random() - 0.5)
-
-  const otherWords = words.filter((w) => w.word !== currentWord.word).map((w) => w.word)
-  const wordOptions = [currentWord.word, ...otherWords.slice(0, 3)].sort(() => Math.random() - 0.5)
-
-  const handleClozeSubmit = () => {
-    const correct = normalizeWordForCompare(input) === normalizeWordForCompare(targetWord)
-    if (correct) {
-      onClozeSubmit(currentWord.word, true)
-    } else {
-      setWrongHint({ word: targetWord, meaning: correctMeaning, pronunciation: currentWord.pronunciation, type: 'cloze' })
-    }
-  }
-
-  const handleListenSubmit = () => {
-    const correct = normalizeWordForCompare(input) === normalizeWordForCompare(targetWord)
-    if (correct) {
-      onListenSubmit(currentWord.word, true)
-    } else {
-      setWrongHint({ word: targetWord, meaning: correctMeaning, pronunciation: currentWord.pronunciation, type: 'listen' })
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="relative w-full max-w-lg rounded-lg border bg-white p-6 shadow-xl">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          onClick={onClose}
-          aria-label={localText('Đóng', 'Close')}
-          className="absolute right-2 top-2 h-8 w-8"
-        >
-          <X className="h-4 w-4" />
-        </Button>
-        <h2 className="text-lg font-semibold text-slate-900">{localText('Ôn bài cũ', 'Review previous lesson')}</h2>
-        <p className="mt-1 text-xs text-slate-500">
-          {localText('Từ', 'Word')} {wordIndex + 1}/{words.length} • {exerciseLabels[exerciseIndex]}
-        </p>
-
-        {wrongHint ? (
-          <div className="mt-4 rounded-lg border-2 border-amber-200 bg-amber-50 p-4">
-            <p className="font-medium text-amber-900">
-              {localText('Sai rồi. Gợi ý để nhớ lại:', 'Wrong. Hint to remember:')}
-            </p>
-            <p className="mt-2 text-lg font-semibold text-slate-900">{wrongHint.word}</p>
-            {wrongHint.pronunciation ? (
-              <p className="mt-1 text-sm text-slate-500 italic">{wrongHint.pronunciation}</p>
-            ) : null}
-            {wrongHint.meaning ? (
-              <p className="mt-1 text-sm text-slate-600">{localText('Nghĩa:', 'Meaning:')} {wrongHint.meaning}</p>
-            ) : null}
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => onPlayWord(wrongHint.word)}
-              className="mt-2"
-            >
-              <Volume2 className="mr-2 h-4 w-4" /> {localText('Nghe từ đúng', 'Listen to correct word')}
-            </Button>
-            <Button type="button" onClick={handleContinueAfterWrong} className="mt-3 w-full">
-              {localText('Đã nhớ, tiếp tục', 'Got it, continue')}
-            </Button>
-          </div>
-        ) : (
-          <>
-            {ex0 && (
-              <div className="mt-4 space-y-4">
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
-                  <p className="mb-2 font-medium text-slate-700">
-                    {localText('📌 Nhiệm vụ: Đọc nghĩa → Gõ từ tương ứng vào ô trống', '📌 Task: Read the meaning → Type the matching word in the blank')}
-                  </p>
-                  {clozeSentence ? (
-                    <>
-                      <p className="mb-1.5 text-xs font-medium text-slate-500">{localText('Câu ví dụ chứa từ mới (______ = chỗ cần điền):', 'Example sentence with the new word (______ = fill in):')}</p>
-                      <p className="text-base text-slate-800">{clozeSentence}</p>
-                      <p className="mt-2 mb-1 text-xs font-medium text-slate-500">{localText('Nghĩa của từ cần điền:', 'Meaning of the word to fill:')}</p>
-                      <p className="text-slate-700">{correctMeaning}</p>
-                    </>
-                  ) : (
-                    <>
-                      <p className="mb-1.5 text-xs font-medium text-slate-500">{localText('Nghĩa:', 'Meaning:')}</p>
-                      <p className="text-slate-700">{correctMeaning}</p>
-                    </>
-                  )}
-                </div>
-                <div>
-                  <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                    {clozeSentence
-                      ? localText('Điền từ vào chỗ trống:', 'Fill in the blank:')
-                      : localText('Gõ từ tương ứng với nghĩa trên:', 'Type the word matching the meaning above:')}
-                  </label>
-                  <Input
-                    value={input}
-                    onChange={(e) => onInputChange(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleClozeSubmit()}
-                    placeholder={
-                      clozeSentence
-                        ? localText('Gõ từ cần điền...', 'Type the word to fill...')
-                        : localText('Gõ từ...', 'Type the word...')
-                    }
-                    className="h-11 text-base"
-                    autoFocus
-                  />
-                </div>
-                <Button type="button" onClick={handleClozeSubmit} className="w-full min-h-[44px]">
-                  {localText('Kiểm tra', 'Check')}
-                </Button>
-              </div>
-            )}
-
-            {ex1 && (
-          <div className="mt-4 space-y-4">
-            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
-              <p className="font-medium text-slate-700">
-                {localText('📌 Nhiệm vụ: Nghe từ → Gõ lại từ bạn nghe được', '📌 Task: Listen to the word → Type what you heard')}
-              </p>
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onPlayWord(currentWord.word)}
-              className="w-full min-h-[44px]"
-            >
-              <Volume2 className="mr-2 h-4 w-4" /> {localText('🔊 Bấm để nghe từ', '🔊 Click to listen to the word')}
-            </Button>
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                {localText('Gõ từ bạn nghe được:', 'Type the word you heard:')}
-              </label>
-              <Input
-                value={input}
-                onChange={(e) => onInputChange(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleListenSubmit()}
-                placeholder={localText('Gõ từ...', 'Type the word...')}
-                className="h-11 text-base"
-                autoFocus
-              />
-            </div>
-            <Button type="button" onClick={handleListenSubmit} className="w-full min-h-[44px]">
-              {localText('Kiểm tra', 'Check')}
-            </Button>
-          </div>
-        )}
-
-        {ex2 && (
-          <div className="mt-4 space-y-4">
-            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
-              <p className="mb-2 font-medium text-slate-700">
-                {localText('📌 Nhiệm vụ: Chọn đáp án đúng (từ ↔ nghĩa)', '📌 Task: Choose the correct answer (word ↔ meaning)')}
-              </p>
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant={recallDirection === 'word' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => onRecallDirectionChange('word')}
-                >
-                  {localText('Từ → Nghĩa', 'Word → Meaning')}
-                </Button>
-                <Button
-                  type="button"
-                  variant={recallDirection === 'meaning' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => onRecallDirectionChange('meaning')}
-                >
-                  {localText('Nghĩa → Từ', 'Meaning → Word')}
-                </Button>
-              </div>
-            </div>
-            {recallDirection === 'word' ? (
-              <>
-                <p className="text-sm font-medium text-slate-600">{localText('Từ:', 'Word:')}</p>
-                <p className="mb-3 text-xl font-semibold text-slate-900">{currentWord.word}</p>
-                <p className="mb-2 text-sm font-medium text-slate-700">{localText('Chọn nghĩa đúng:', 'Choose the correct meaning:')}</p>
-                <div className="flex flex-wrap gap-2">
-                  {meaningOptions.map((m) => (
-                    <Button
-                      key={m}
-                      type="button"
-                      variant="outline"
-                      onClick={() => {
-                        if (m === correctMeaning) onRecallSubmit(currentWord.word, true)
-                        else setWrongHint({ word: currentWord.word, meaning: correctMeaning, pronunciation: currentWord.pronunciation, type: 'recall' })
-                      }}
-                    >
-                      {m}
-                    </Button>
-                  ))}
-                </div>
-              </>
-            ) : (
-              <>
-                <p className="text-sm font-medium text-slate-600">{localText('Nghĩa:', 'Meaning:')}</p>
-                <p className="mb-3 text-base text-slate-800">{correctMeaning}</p>
-                <p className="mb-2 text-sm font-medium text-slate-700">{localText('Chọn từ đúng:', 'Choose the correct word:')}</p>
-                <div className="flex flex-wrap gap-2">
-                  {wordOptions.map((opt) => (
-                    <Button
-                      key={opt}
-                      type="button"
-                      variant="outline"
-                      onClick={() => {
-                        if (normalizeWordForCompare(opt) === normalizeWordForCompare(currentWord.word)) {
-                          onRecallSubmit(currentWord.word, true)
-                        } else {
-                          setWrongHint({ word: currentWord.word, meaning: correctMeaning, pronunciation: currentWord.pronunciation, type: 'recall' })
-                        }
-                      }}
-                    >
-                      {opt}
-                    </Button>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-        )}
-          </>
-        )}
-      </div>
-    </div>
-  )
-}
-
-function escapeRegex(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 export default function HocTiengAnhAiClientPage() {
@@ -1746,33 +1557,90 @@ export default function HocTiengAnhAiClientPage() {
   const [dueReviewCount, setDueReviewCount] = useState(0)
   const [reviewItems, setReviewItems] = useState<ReviewItem[]>([])
   const [reviewBusy, setReviewBusy] = useState(false)
-  const [correctStreak, setCorrectStreak] = useState(0)
-  const [showLevelUpSuggestion, setShowLevelUpSuggestion] = useState(false)
+  const [levelRecommendation, setLevelRecommendation] = useState<LevelRecommendation | null>(null)
   const [placementSamples, setPlacementSamples] = useState<string[]>(['', '', ''])
   const [placementBusy, setPlacementBusy] = useState(false)
   const [placementResult, setPlacementResult] = useState<PlacementQuickResult | null>(null)
+  const [assessmentBusy, setAssessmentBusy] = useState(false)
+  const [assessmentBaseline, setAssessmentBaseline] = useState<AssessmentItem | null>(null)
+  const [assessmentCheckpoint, setAssessmentCheckpoint] = useState<AssessmentItem | null>(null)
+  const [assessmentDeltaOverall, setAssessmentDeltaOverall] = useState<number | null>(null)
+  const [weeklySnapshot, setWeeklySnapshot] = useState<WeeklySnapshot | null>(null)
+  const [learningBadges, setLearningBadges] = useState<string[]>([])
+  const [reviewFocusWords, setReviewFocusWords] = useState<string[]>([])
+  const [reviewFocusNote, setReviewFocusNote] = useState('')
   const [showPreLessonReview, setShowPreLessonReview] = useState(false)
   const [preLessonWords, setPreLessonWords] = useState<TodayWordItem[]>([])
   const [preLessonPassed, setPreLessonPassed] = useState(false)
   const [preLessonCurriculum, setPreLessonCurriculum] = useState<TopicCurriculum | null>(null)
   const [preLessonTopic, setPreLessonTopic] = useState<TopicOption | null>(null)
-  const [preLessonPending, setPreLessonPending] = useState<{ curriculum: TopicCurriculum; topic: TopicOption } | null>(null)
   const [preLessonExerciseIndex, setPreLessonExerciseIndex] = useState(0)
   const [preLessonWordIndex, setPreLessonWordIndex] = useState(0)
   const [preLessonResults, setPreLessonResults] = useState<Record<string, { cloze: boolean; listen: boolean; recall: boolean }>>({})
   const [preLessonRetryWords, setPreLessonRetryWords] = useState<TodayWordItem[] | null>(null)
   const [preLessonInput, setPreLessonInput] = useState('')
   const [preLessonRecallDirection, setPreLessonRecallDirection] = useState<'word' | 'meaning'>('word')
+
+  const onPreLessonClozeSubmit = useCallback(
+    (word: string, correct: boolean) => {
+      if (!correct) {
+        const words = preLessonRetryWords ?? preLessonWords
+        const item = words.find((w) => w.word === word)
+        if (item?.targetLanguage) {
+          void rescheduleReviewWords({ words: [{ word, targetLanguage: item.targetLanguage }] })
+        }
+      }
+      setPreLessonResults((prev) => ({
+        ...prev,
+        [word]: { ...prev[word], cloze: correct, listen: prev[word]?.listen ?? false, recall: prev[word]?.recall ?? false },
+      }))
+      setPreLessonInput('')
+      if (preLessonWordIndex < (preLessonRetryWords ?? preLessonWords).length - 1) {
+        setPreLessonWordIndex((i) => i + 1)
+      } else {
+        setPreLessonWordIndex(0)
+        setPreLessonExerciseIndex(1)
+      }
+    },
+    [preLessonWordIndex, preLessonRetryWords, preLessonWords]
+  )
+
+  const onPreLessonListenSubmit = useCallback(
+    (word: string, correct: boolean) => {
+      if (!correct) {
+        const words = preLessonRetryWords ?? preLessonWords
+        const item = words.find((w) => w.word === word)
+        if (item?.targetLanguage) {
+          void rescheduleReviewWords({ words: [{ word, targetLanguage: item.targetLanguage }] })
+        }
+      }
+      setPreLessonResults((prev) => ({
+        ...prev,
+        [word]: { ...prev[word], cloze: prev[word]?.cloze ?? false, listen: correct, recall: prev[word]?.recall ?? false },
+      }))
+      setPreLessonInput('')
+      if (preLessonWordIndex < (preLessonRetryWords ?? preLessonWords).length - 1) {
+        setPreLessonWordIndex((i) => i + 1)
+      } else {
+        setPreLessonWordIndex(0)
+        setPreLessonExerciseIndex(2)
+      }
+    },
+    [preLessonWordIndex, preLessonRetryWords, preLessonWords]
+  )
+
   const [mode, setMode] = useState<Mode>('chat')
   const [responseStyle, setResponseStyle] = useState<ResponseStyle>('detailed')
   const [writingTask, setWritingTask] = useState<WritingTask | null>(null)
   const [writingDraft, setWritingDraft] = useState('')
   const [writingBusy, setWritingBusy] = useState(false)
   const [writingEvalResult, setWritingEvalResult] = useState<WritingEvalResult | null>(null)
+  const [writingInputStatus, setWritingInputStatus] = useState<'idle' | 'incorrect' | 'matched'>('idle')
   const [writingRomanizationByKey, setWritingRomanizationByKey] = useState<Record<string, string>>({})
   const [writingRomanizationBusyByKey, setWritingRomanizationBusyByKey] = useState<Record<string, boolean>>({})
   const [listening, setListening] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [awaitingTeacherReply, setAwaitingTeacherReply] = useState(false)
   const [historyBusy, setHistoryBusy] = useState(false)
   const [todayWordsBusy, setTodayWordsBusy] = useState(false)
   const [wordBusyKey, setWordBusyKey] = useState('')
@@ -1794,6 +1662,108 @@ export default function HocTiengAnhAiClientPage() {
   const [ttsLoadingByKey, setTtsLoadingByKey] = useState<Record<string, boolean>>({})
   const [todayWords, setTodayWords] = useState<TodayWordItem[]>([])
   const [wordPractice, setWordPractice] = useState<WordPracticeProgress | null>(null)
+  const [practiceInputStatus, setPracticeInputStatus] = useState<'idle' | 'correct' | 'incorrect'>('idle')
+
+  // Debounce hook
+  function useDebounce<T>(value: T, delay: number): T {
+    const [debouncedValue, setDebouncedValue] = useState<T>(value)
+    useEffect(() => {
+      const handler = setTimeout(() => {
+        setDebouncedValue(value)
+      }, delay)
+      return () => {
+        clearTimeout(handler)
+      }
+    }, [value, delay])
+    return debouncedValue
+  }
+
+  const debouncedDraft = useDebounce(wordPractice?.draft, 500)
+
+  useEffect(() => {
+    if (!wordPractice || wordPractice.unlocked) return
+    // Lock active practice flow: block Escape so learner cannot dismiss by keyboard shortcuts.
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      event.stopPropagation()
+    }
+    window.addEventListener('keydown', onKeyDown, true)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown, true)
+    }
+  }, [wordPractice])
+
+  const onWordPracticeCorrect = (targetWord: string) => {
+    const normalizedTarget = normalizeWordPracticeText(targetWord)
+    setWordPractice((prev) => {
+      if (!prev || prev.normalizedTarget !== normalizedTarget || prev.unlocked) return prev
+      
+      const expectedMeaning = String(prev.expectedMeaning || '').trim()
+      const options = buildMeaningOptions(expectedMeaning)
+      
+      if (options.length > 0) {
+        // Nếu có phần chọn nghĩa, chuyển sang trạng thái chờ chọn nghĩa
+        return {
+          ...prev,
+          draft: '', // Xóa input sau khi gõ đúng chữ
+          feedback: localText('Đúng chữ rồi! Chọn nghĩa đúng để tính 1 lượt.', 'Word is correct! Choose the correct meaning to count this round.'),
+          awaitingMeaningChoice: true,
+          meaningOptions: options,
+        }
+      } else {
+        // Nếu không có phần chọn nghĩa, tính là đúng luôn
+        const nextCorrectCount = prev.correctCount + 1
+        const unlocked = nextCorrectCount >= 3
+
+        // Tự động chuyển câu hỏi
+        if (unlocked) {
+          setTimeout(() => {
+            setWordPractice(null) // Đóng bài luyện tập từ hiện tại
+          }, 1500)
+        } else {
+          // Nếu chưa đủ 3 lần, có thể thêm logic chuyển sang từ khác nếu muốn
+        }
+
+        return {
+          ...prev,
+          attemptsTotal: prev.attemptsTotal + 1,
+          correctCount: nextCorrectCount,
+          unlocked,
+          feedback: unlocked
+            ? localText('Đã hoàn thành 3/3. Tự động chuyển...', 'Completed 3/3. Moving on...')
+            : localText(`Đúng rồi! Hiện tại ${nextCorrectCount}/3.`, `Correct! Current progress ${nextCorrectCount}/3.`),
+          awaitingMeaningChoice: false,
+          meaningOptions: [],
+          draft: '',
+        }
+      }
+    })
+  }
+
+  useEffect(() => {
+    if (!wordPractice || debouncedDraft === undefined || wordPractice.awaitingMeaningChoice) {
+      setPracticeInputStatus('idle')
+      return
+    }
+
+    const normalizedDraft = normalizeWordPracticeText(debouncedDraft)
+    if (!normalizedDraft) {
+      setPracticeInputStatus('idle')
+      return
+    }
+
+    if (normalizedDraft === wordPractice.normalizedTarget) {
+      setPracticeInputStatus('correct')
+      setTimeout(() => {
+        onWordPracticeCorrect(wordPractice.targetWord)
+        setPracticeInputStatus('idle')
+      }, 300) // Đợi 300ms để người dùng thấy màu xanh
+    } else {
+      setPracticeInputStatus('incorrect')
+    }
+  }, [debouncedDraft, wordPractice])
+
   const [wordInsightByKey, setWordInsightByKey] = useState<Record<string, WordInsight>>({})
   const [openedWordKey, setOpenedWordKey] = useState('')
   const [tokensByMessageId, setTokensByMessageId] = useState<Record<string, string[]>>({})
@@ -1809,6 +1779,7 @@ export default function HocTiengAnhAiClientPage() {
   const supabase = useMemo(() => createClient(), [])
   const lastMicSentTextRef = useRef('')
   const lastMicSentAtRef = useRef(0)
+  const writingAutoAdvanceSignatureRef = useRef('')
   const shouldCountNewSessionRef = useRef(true)
   const mixedRecorderRef = useRef<MediaRecorder | null>(null)
   const mixedChunksRef = useRef<BlobPart[]>([])
@@ -1825,11 +1796,13 @@ export default function HocTiengAnhAiClientPage() {
   const createdAudioUrlsRef = useRef<string[]>([])
   const lastAutoScrollTokenMessageIdRef = useRef('')
   const uiLocale: UiLocale = nativeLanguageCode
-  const localText = (vi: string, en: string) => {
+  const t = useMemo(() => createCoachTranslator(uiLocale), [uiLocale])
+  const localText = useCallback((vi: string, en: string) => {
     if (uiLocale === 'vi') return vi
-    if (uiLocale === 'en') return en
+    const translated = t(en)
+    if (translated !== en) return translated
     return LOCAL_TEXT_TRANSLATIONS[en]?.[uiLocale] || en
-  }
+  }, [t, uiLocale])
   const supportsLatinTransliteration = languageCode === 'zh' || languageCode === 'ja' || languageCode === 'ko'
   const isCjkTargetLanguage = (tl: string | undefined) => /chinese|zh|mandarin|japanese|ja|korean|ko/i.test(String(tl || ''))
   const targetLangToCode = (tl: string | undefined): 'zh' | 'ja' | 'ko' | '' => {
@@ -1850,14 +1823,9 @@ export default function HocTiengAnhAiClientPage() {
     const sourceText = String(text || '').trim()
     if (!sourceText) return ''
     try {
-      const res = await fetch('/api/english-coach/transliterate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: sourceText, languageCode: code }),
-      })
-      const data = (await res.json().catch(() => ({}))) as { transliteration?: string }
-      if (!res.ok) return ''
-      return String(data.transliteration || '').trim()
+      const { ok, data } = await transliterateText({ text: sourceText, languageCode: code })
+      if (!ok) return ''
+      return sanitizeRomanizedText(String(data.transliteration || '').trim())
     } catch {
       return ''
     }
@@ -1875,7 +1843,7 @@ export default function HocTiengAnhAiClientPage() {
     try {
       const transliteration = await requestTransliteration(sourceText, code)
       if (transliteration) {
-        setWritingRomanizationByKey((prev) => ({ ...prev, [key]: transliteration }))
+        setWritingRomanizationByKey((prev) => ({ ...prev, [key]: sanitizeRomanizedText(transliteration) }))
       }
     } finally {
       setWritingRomanizationBusyByKey((prev) => ({ ...prev, [key]: false }))
@@ -1883,7 +1851,6 @@ export default function HocTiengAnhAiClientPage() {
   }
 
   const normalizeWordPracticeText = (text: string): string => String(text || '').trim().toLowerCase()
-  const isWordPracticeLocked = Boolean(wordPractice && !wordPractice.unlocked)
   const normalizeMeaningPracticeText = (text: string): string =>
     String(text || '')
       .trim()
@@ -1950,30 +1917,19 @@ export default function HocTiengAnhAiClientPage() {
     setWordPractice((prev) => {
       if (!prev || prev.normalizedTarget !== normalizedTarget || prev.unlocked) return prev
       if (prev.awaitingMeaningChoice) return prev
+      
+      setPracticeInputStatus('idle') // Reset status khi đang gõ
+      
       const normalizedDraft = normalizeWordPracticeText(nextDraft)
-      if (!normalizedDraft) {
-        return { ...prev, draft: nextDraft, feedback: '' }
-      }
-      if (normalizedDraft === normalizedTarget) {
-        const expectedMeaning = String(prev.expectedMeaning || '').trim()
-        const options = buildMeaningOptions(expectedMeaning)
-        return {
-          ...prev,
-          draft: '',
-          feedback: expectedMeaning
-            ? localText('Đúng chữ rồi! Chọn nghĩa đúng để tính 1 lượt.', 'Word is correct! Choose the correct meaning to count this round.')
-            : localText('Đúng chữ rồi!', 'Word is correct!'),
-          awaitingMeaningChoice: options.length > 0,
-          meaningOptions: options,
-        }
-      }
-      if (!normalizedTarget.startsWith(normalizedDraft)) {
+      if (normalizedDraft && !normalizedTarget.startsWith(normalizedDraft)) {
+        setPracticeInputStatus('incorrect')
         return {
           ...prev,
           draft: nextDraft,
           feedback: localText('Sai chính tả từ mới, kiểm tra lại ngay.', 'Wrong spelling for this word, please correct it now.'),
         }
       }
+
       return { ...prev, draft: nextDraft, feedback: '' }
     })
   }
@@ -1992,6 +1948,11 @@ export default function HocTiengAnhAiClientPage() {
       }
       const nextCorrectCount = prev.correctCount + 1
       const unlocked = nextCorrectCount >= 3
+      if (unlocked) {
+        setTimeout(() => {
+          setWordPractice(null)
+        }, 700)
+      }
       return {
         ...prev,
         attemptsTotal: prev.attemptsTotal + 1,
@@ -2006,64 +1967,6 @@ export default function HocTiengAnhAiClientPage() {
       }
     })
   }
-  const renderWordPracticeBox = (targetWord: string, expectedMeaning?: string) => {
-    const normalizedTarget = normalizeWordPracticeText(targetWord)
-    const active = wordPractice && wordPractice.normalizedTarget === normalizedTarget ? wordPractice : null
-    if (!active) {
-      return (
-        <div className="mt-1 rounded-md border bg-white p-2">
-          <Button type="button" size="sm" className="h-8 px-2.5 text-xs" onClick={() => startWordPractice(targetWord, expectedMeaning)}>
-            {localText('Luyện gõ từ này (3 lần)', 'Practice typing this word (3 times)')}
-          </Button>
-        </div>
-      )
-    }
-    return (
-      <div className="mt-1 rounded-md border bg-white p-2">
-        <p className="text-[11px] text-slate-700">
-          {active.unlocked
-            ? localText('Đã hoàn thành gõ từ 3 lần. Bạn có thể tiếp tục thao tác khác.', 'Typing practice completed 3/3. You can continue other actions.')
-            : localText(
-                `Gõ lại đúng từ "${active.targetWord}" 3 lần để mở khóa thao tác khác. Đúng: ${active.correctCount}/3`,
-                `Type "${active.targetWord}" correctly 3 times to unlock other actions. Correct: ${active.correctCount}/3`
-              )}
-        </p>
-        {!active.unlocked ? (
-          <>
-            <Input
-              value={active.draft}
-              onChange={(e) => onWordPracticeDraftChange(targetWord, e.target.value)}
-              placeholder={localText('Gõ lại từ mới...', 'Type the new word...')}
-              className="mt-1 h-8 text-xs"
-              disabled={active.awaitingMeaningChoice}
-            />
-            {active.awaitingMeaningChoice && active.meaningOptions.length > 0 ? (
-              <div className="mt-1 flex flex-wrap gap-1">
-                {active.meaningOptions.map((option, idx) => (
-                  <Button
-                    key={`meaning-option-${normalizedTarget}-${idx}`}
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-8 px-2 text-xs"
-                    onClick={() => onWordPracticeMeaningSelect(targetWord, option)}
-                  >
-                    {option}
-                  </Button>
-                ))}
-              </div>
-            ) : null}
-          </>
-        ) : null}
-        {active.feedback ? (
-          <p className={`mt-1 text-[11px] ${active.feedback.includes('Sai') || active.feedback.includes('Wrong') ? 'text-rose-700' : 'text-emerald-700'}`}>
-            {active.feedback}
-          </p>
-        ) : null}
-      </div>
-    )
-  }
-
   const teacherOptions = useMemo(
     () =>
       TEACHERS_BY_LANGUAGE[languageCode].map((teacher) => ({
@@ -2108,6 +2011,28 @@ export default function HocTiengAnhAiClientPage() {
     () => nativeLanguageOptions.find((x) => x.code === nativeLanguageCode) || nativeLanguageOptions[0],
     [nativeLanguageCode, nativeLanguageOptions]
   )
+  const micLanguageHint = useMemo(() => {
+    const nativeLabel = selectedNativeLanguage?.label || localText('tiếng mẹ đẻ', 'native language')
+    if (uiLocale === 'zh') {
+      return `你可以说${nativeLabel}或学习语言；建议优先说学习语言，进步更快。`
+    }
+    if (uiLocale === 'ja') {
+      return `${nativeLabel}でも学習中の言語でも話せます。上達を早めるため、学習中の言語を優先してください。`
+    }
+    if (uiLocale === 'ko') {
+      return `${nativeLabel} 또는 학습 언어로 말할 수 있어요. 더 빨리 늘려면 학습 언어를 우선 사용하세요.`
+    }
+    if (uiLocale === 'th') {
+      return `คุณสามารถพูด${nativeLabel}หรือภาษาที่กำลังเรียนได้ แต่แนะนำให้ใช้ภาษาที่กำลังเรียนเพื่อพัฒนาได้เร็วกว่า`
+    }
+    if (uiLocale === 'hi') {
+      return `आप ${nativeLabel} या सीखी जा रही भाषा बोल सकते हैं; तेज प्रगति के लिए सीखी जा रही भाषा को प्राथमिकता दें।`
+    }
+    if (uiLocale === 'vi') {
+      return `Bạn có thể nói ${nativeLabel} hoặc ngôn ngữ đang học; nên ưu tiên ngôn ngữ đang học để tiến bộ nhanh hơn.`
+    }
+    return `You can speak ${nativeLabel} or the target language; prefer the target language to improve faster.`
+  }, [localText, selectedNativeLanguage?.label, uiLocale])
   const coachUiText = useMemo(
     () => COACH_NATIVE_UI_TEXT[nativeLanguageCode] || COACH_NATIVE_UI_TEXT.vi,
     [nativeLanguageCode]
@@ -2221,8 +2146,6 @@ export default function HocTiengAnhAiClientPage() {
     () => resolveTopicDifficulty(selectedTopicBaseDifficulty, learnerLevel),
     [selectedTopicBaseDifficulty, learnerLevel]
   )
-  const recentCustomTopics = useMemo(() => customTopics.slice(0, 8), [customTopics])
-
   useEffect(() => {
     if (topicOptionsByFilter.some((x) => x.id === topicId)) return
     if (topicOptionsByFilter[0]) setTopicId(topicOptionsByFilter[0].id)
@@ -2297,15 +2220,13 @@ export default function HocTiengAnhAiClientPage() {
 
   const fetchCustomTopics = async () => {
     try {
-      const query = new URLSearchParams({
-        limit: '30',
+      const { ok, data } = await listCustomTopics({
+        limit: 30,
         targetLanguage: activeTeacher.languageLabel,
         nativeLanguage: selectedNativeLanguage.apiLabel,
-        learnerLevel: String(learnerLevel),
+        learnerLevel,
       })
-      const res = await fetch(`/api/english-coach/topic-normalize?${query.toString()}`)
-      const data = (await res.json().catch(() => ({}))) as { items?: CustomTopicItem[] }
-      if (!res.ok) return
+      if (!ok) return
       const normalizedItems = Array.isArray(data.items)
         ? data.items
             .map((x) => ({
@@ -2343,18 +2264,13 @@ export default function HocTiengAnhAiClientPage() {
     }
     setCustomTopicBusy(true)
     try {
-      const res = await fetch('/api/english-coach/topic-normalize', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          rawTopic,
-          targetLanguage: activeTeacher.languageLabel,
-          nativeLanguage: selectedNativeLanguage.apiLabel,
-          learnerLevel,
-        }),
+      const { ok, data } = await normalizeCustomTopic({
+        rawTopic,
+        targetLanguage: activeTeacher.languageLabel,
+        nativeLanguage: selectedNativeLanguage.apiLabel,
+        learnerLevel,
       })
-      const data = (await res.json().catch(() => ({}))) as CustomTopicItem & { error?: string }
-      if (!res.ok) throw new Error(data.error || localText('Không chuẩn hóa được chủ đề.', 'Failed to normalize topic.'))
+      if (!ok) throw new Error(data.error || localText('Không chuẩn hóa được chủ đề.', 'Failed to normalize topic.'))
       const normalized: CustomTopicItem = {
         topicId: String(data.topicId || '').trim(),
         topicLabel: String(data.topicLabel || '').trim(),
@@ -2409,20 +2325,15 @@ export default function HocTiengAnhAiClientPage() {
     setTopicBusy(true)
     setHasCurriculumReady(false)
     try {
-      const res = await fetch('/api/english-coach/topic-curriculum', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          topicId: topicToUse.id,
-          topicLabel: topicToUse.label,
-          topicDifficulty: topicDifficultyToUse,
-          targetLanguage: activeTeacher.languageLabel,
-          nativeLanguage: selectedNativeLanguage.apiLabel,
-          learnerLevel,
-        }),
+      const { ok, data } = await createTopicCurriculum({
+        topicId: topicToUse.id,
+        topicLabel: topicToUse.label,
+        topicDifficulty: topicDifficultyToUse,
+        targetLanguage: activeTeacher.languageLabel,
+        nativeLanguage: selectedNativeLanguage.apiLabel,
+        learnerLevel,
       })
-      const data = (await res.json().catch(() => ({}))) as TopicCurriculum & { error?: string }
-      if (!res.ok) throw new Error(data.error || localText('Không tạo được giáo trình theo chủ đề.', 'Failed to generate topic curriculum.'))
+      if (!ok) throw new Error(data.error || localText('Không tạo được giáo trình theo chủ đề.', 'Failed to generate topic curriculum.'))
       const nextCurriculum: TopicCurriculum = {
         roleplayRole: String(data.roleplayRole || '').trim(),
         dailyQuest: String(data.dailyQuest || '').trim(),
@@ -2462,17 +2373,43 @@ export default function HocTiengAnhAiClientPage() {
       const query = new URLSearchParams({
         date: localDate,
         targetLanguage: activeTeacher.languageLabel,
+        currentLevel: String(learnerLevel),
       })
       const res = await fetch(`/api/english-coach/progress?${query.toString()}`, { method: 'GET' })
       const data = (await res.json().catch(() => ({}))) as {
         today?: ProgressSnapshot
         dueReviewCount?: number
         activeGoal?: LearningGoal | null
+        weekly?: WeeklySnapshot
+        badges?: string[]
+        assessment?: {
+          baseline?: AssessmentItem | null
+          checkpoint?: AssessmentItem | null
+          deltaOverall?: number | null
+        }
+        personalizedReview?: {
+          focusWords?: string[]
+          note?: string
+        }
+        levelRecommendation?: LevelRecommendation | null
       }
       if (!res.ok) return
       setProgressSnapshot(data.today || null)
       setDueReviewCount(Number(data.dueReviewCount || 0))
       setActiveGoal(data.activeGoal || null)
+      setWeeklySnapshot(data.weekly || null)
+      setLearningBadges(Array.isArray(data.badges) ? data.badges.map((x) => String(x || '').trim()).filter(Boolean) : [])
+      setAssessmentBaseline(data.assessment?.baseline || null)
+      setAssessmentCheckpoint(data.assessment?.checkpoint || null)
+      setAssessmentDeltaOverall(
+        Number.isFinite(Number(data.assessment?.deltaOverall)) ? Number(data.assessment?.deltaOverall) : null
+      )
+      const words = Array.isArray(data.personalizedReview?.focusWords)
+        ? data.personalizedReview!.focusWords!.map((x) => String(x || '').trim()).filter(Boolean).slice(0, 5)
+        : []
+      setReviewFocusWords(words)
+      setReviewFocusNote(String(data.personalizedReview?.note || '').trim())
+      setLevelRecommendation(data.levelRecommendation || null)
       if (data.activeGoal?.goal_type) {
         const id = String(data.activeGoal.goal_type) as GoalType
         if (GOAL_OPTION_KEYS.includes(id)) setGoalType(id)
@@ -2486,9 +2423,8 @@ export default function HocTiengAnhAiClientPage() {
     await cleanupIncompleteWordsSilent()
     setReviewBusy(true)
     try {
-      const res = await fetch('/api/english-coach/review-due?limit=8')
-      const data = (await res.json().catch(() => ({}))) as { items?: ReviewItem[] }
-      if (!res.ok) return
+      const { ok, data } = await getReviewDue(8)
+      if (!ok) return
       const raw = Array.isArray(data.items) ? data.items : []
       const normalized = raw.map((item) => {
         const meaning = String(item.meaning || '').trim()
@@ -2527,23 +2463,19 @@ export default function HocTiengAnhAiClientPage() {
     try {
       const selectedGoalId = GOAL_OPTION_KEYS.includes(goalType) ? goalType : GOAL_OPTION_KEYS[0]
       const selectedGoalLabel = GOAL_OPTION_LABELS[uiLocale][selectedGoalId]
-      const res = await fetch('/api/english-coach/goal', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          goalType: selectedGoalId,
-          title: selectedGoalLabel,
-          targetLanguage: activeTeacher.languageLabel,
-          nativeLanguage: selectedNativeLanguage.apiLabel,
-          targetDays: 30,
-          targetDailyMinutes: 15,
-          targetWeeklySessions: 5,
-          targetPronunciationScore: 80,
-        }),
+      const { ok, data } = await saveLearningGoalApi({
+        goalType: selectedGoalId,
+        title: selectedGoalLabel,
+        targetLanguage: activeTeacher.languageLabel,
+        nativeLanguage: selectedNativeLanguage.apiLabel,
+        targetDays: 30,
+        targetDailyMinutes: 15,
+        targetWeeklySessions: 5,
+        targetPronunciationScore: 80,
       })
-      const data = (await res.json().catch(() => ({}))) as { goal?: LearningGoal; error?: string }
-      if (!res.ok) throw new Error(data.error || localText('Không lưu được mục tiêu học.', 'Failed to save learning goal.'))
-      setActiveGoal(data.goal || null)
+      const payload = data as { goal?: LearningGoal | null; error?: string }
+      if (!ok) throw new Error(payload.error || localText('Không lưu được mục tiêu học.', 'Failed to save learning goal.'))
+      setActiveGoal(payload.goal || null)
       toast({
         title: localText('Đã lưu mục tiêu học', 'Learning goal saved'),
         description: localText('Lộ trình học đã được cập nhật.', 'Your learning plan has been updated.'),
@@ -2564,10 +2496,7 @@ export default function HocTiengAnhAiClientPage() {
   ) => {
     try {
       const localDate = getLocalDateString()
-      await fetch('/api/english-coach/progress', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      await recordProgress({
           sessionId,
           targetLanguage: activeTeacher.languageLabel,
           nativeLanguage: selectedNativeLanguage.apiLabel,
@@ -2590,7 +2519,6 @@ export default function HocTiengAnhAiClientPage() {
                 wordScores: diagnostics.wordScores,
               }
             : undefined,
-        }),
       })
       shouldCountNewSessionRef.current = false
       void fetchLearningSnapshot()
@@ -2601,11 +2529,7 @@ export default function HocTiengAnhAiClientPage() {
 
   const markReviewDone = async (id: string, score: number) => {
     try {
-      await fetch('/api/english-coach/review-due', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, score }),
-      })
+      await markReviewDue({ id, score })
       await Promise.all([fetchReviewDue(), fetchLearningSnapshot()])
     } catch {
       // keep UI usable even if review update fails
@@ -2624,22 +2548,12 @@ export default function HocTiengAnhAiClientPage() {
     }
     setPlacementBusy(true)
     try {
-      const res = await fetch('/api/english-coach/placement-level', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          targetLanguage: activeTeacher.languageLabel,
-          nativeLanguage: selectedNativeLanguage.apiLabel,
-          samples,
-        }),
+      const { ok, data } = await runPlacementLevel({
+        targetLanguage: activeTeacher.languageLabel,
+        nativeLanguage: selectedNativeLanguage.apiLabel,
+        samples,
       })
-      const data = (await res.json().catch(() => ({}))) as {
-        recommendedLevel?: number
-        confidence?: number
-        reason?: string
-        error?: string
-      }
-      if (!res.ok) throw new Error(data.error || localText('Không chấm được level tự động.', 'Failed to run auto placement.'))
+      if (!ok) throw new Error(data.error || localText('Không chấm được level tự động.', 'Failed to run auto placement.'))
       const raw = Number(data.recommendedLevel)
       const recommendedLevel: LearnerLevel =
         raw === 4 ? 4 : raw === 3 ? 3 : raw === 2 ? 2 : raw === 1 ? 1 : 0
@@ -2664,32 +2578,79 @@ export default function HocTiengAnhAiClientPage() {
     }
   }
 
-  const buildWritingTask = (messageId: string, teacherText: string, mainSentence: string): WritingTask => {
-    const taskType = writingTaskTypeByLevel(learnerLevel)
-    const instruction =
-      taskType === 'copy'
-        ? localText(
-            'Nhìn câu tham chiếu và chép lại y hệt (đúng từ, đúng thứ tự, đúng dấu câu).',
-            'Look at the reference sentence and copy it exactly (same words, order, and punctuation).'
-          )
-        : taskType === 'guided_rewrite'
-          ? localText(
-              'Dựa trên câu tham chiếu, viết lại và thay 1 từ/cụm bằng ý của bạn, nhưng vẫn giữ nghĩa chính.',
-              'Based on the reference sentence, rewrite it and change one word/phrase with your own idea while keeping the main meaning.'
-            )
-          : taskType === 'rewrite'
-            ? localText(
-                'Viết 1 câu mới cùng nghĩa với câu tham chiếu (không chép nguyên văn).',
-                'Write one new sentence with the same meaning as the reference sentence (do not copy it verbatim).'
-              )
-            : taskType === 'context_response'
-              ? localText('Viết phản hồi theo ngữ cảnh bằng 1-2 câu.', 'Write a context response in 1-2 sentences.')
-              : localText('Viết phản hồi tự nhiên hơn (1-3 câu), đúng ngữ cảnh.', 'Write a more natural response (1-3 sentences) in context.')
+  const runCefrAssessmentAction = async (
+    assessmentType: 'baseline' | 'checkpoint',
+    options?: { onSuccess?: () => void }
+  ) => {
+    const samples = placementSamples.map((x) => String(x || '').trim()).filter(Boolean)
+    if (samples.length < 2) {
+      toast({
+        title: localText('Thiếu dữ liệu test', 'Not enough test data'),
+        description: localText('Hãy nhập ít nhất 2 câu trước khi chạy đánh giá CEFR.', 'Please provide at least 2 sentences for CEFR assessment.'),
+        variant: 'destructive',
+      })
+      return
+    }
+    setAssessmentBusy(true)
+    try {
+      const { ok, data } = await runCefrAssessment({
+        assessmentType,
+        targetLanguage: activeTeacher.languageLabel,
+        nativeLanguage: selectedNativeLanguage.apiLabel,
+        samples,
+      })
+      if (!ok || !data.assessment) {
+        throw new Error(data.error || localText('Không chạy được đánh giá CEFR.', 'Failed to run CEFR assessment.'))
+      }
+      const levelRaw = Number(data.assessment.learner_level)
+      const nextLevel: LearnerLevel =
+        levelRaw === 4 ? 4 : levelRaw === 3 ? 3 : levelRaw === 2 ? 2 : levelRaw === 1 ? 1 : 0
+      setLearnerLevel(nextLevel)
+      setPlacementResult({
+        recommendedLevel: nextLevel,
+        confidence: Number(data.assessment.confidence || 60),
+        reason: String(data.assessment.summary || '').trim(),
+      })
+      toast({
+        title: assessmentType === 'baseline' ? localText('Đã lưu baseline CEFR', 'CEFR baseline saved') : localText('Đã lưu checkpoint CEFR', 'CEFR checkpoint saved'),
+        description: localText(
+          `Kết quả: ${String(data.assessment.cefr_level)} • Điểm tổng ${Number(data.assessment.overall_score || 0)}`,
+          `Result: ${String(data.assessment.cefr_level)} • Overall ${Number(data.assessment.overall_score || 0)}`
+        ),
+      })
+      options?.onSuccess?.()
+      void fetchLearningSnapshot()
+    } catch (e) {
+      const msg = unknownErrorMsg(e)
+      toast({ title: localText('Lỗi đánh giá CEFR', 'CEFR assessment error'), description: msg, variant: 'destructive' })
+    } finally {
+      setAssessmentBusy(false)
+    }
+  }
+
+  const handleOpenQuickStartSetup = () => {
+    setQuickStartModalOpen(true)
+  }
+
+  const buildWritingTask = (messageId: string, teacherText: string, copySentences: string[]): WritingTask => {
+    const requiredSentences = Array.from(
+      new Set(
+        copySentences
+          .map((x) => sanitizeSentenceForCopy(String(x || '').trim(), languageCode))
+          .filter(Boolean)
+      )
+    )
+    const firstSentence = requiredSentences[0] || ''
     return {
       messageId,
-      taskType,
-      instruction,
-      referenceSentence: mainSentence,
+      taskType: 'copy',
+      instruction: localText(
+        'Hãy gõ lại y nguyên từng câu theo thứ tự. Chỉ khi gõ đúng mới mở lượt nói tiếp theo.',
+        'Type each sentence exactly in order. The next speaking turn unlocks only after exact copy.'
+      ),
+      referenceSentence: firstSentence,
+      requiredSentences,
+      currentIndex: 0,
       teacherText,
       completed: false,
     }
@@ -2708,33 +2669,49 @@ export default function HocTiengAnhAiClientPage() {
     }
     setWritingBusy(true)
     try {
-      const res = await fetch('/api/english-coach/writing-eval', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          learnerText,
-          referenceSentence: writingTask.referenceSentence,
-          teacherText: writingTask.teacherText,
-          targetLanguage: activeTeacher.languageLabel,
-          targetLanguageCode: languageCode,
-          nativeLanguage: selectedNativeLanguage.apiLabel,
-          learnerLevel,
-          taskType: writingTask.taskType,
-        }),
+      const expected = String(
+        writingTask.requiredSentences[Math.min(writingTask.currentIndex, Math.max(0, writingTask.requiredSentences.length - 1))] || ''
+      ).trim()
+      const matched = normalizeCopyText(learnerText, languageCode) === normalizeCopyText(expected, languageCode)
+      if (!matched) {
+        setWritingInputStatus('incorrect')
+        setWritingEvalResult({
+          score: 20,
+          passed: false,
+          correctedText: expected,
+          feedback: localText(
+            'Chưa đúng y nguyên câu tham chiếu. Hãy gõ lại đúng từ, đúng thứ tự và đúng dấu câu.',
+            'Not an exact copy yet. Please type the reference sentence with exact words, order, and punctuation.'
+          ),
+          shortHint: localText('Nhấn vào câu tham chiếu và chép lại y nguyên.', 'Copy the reference sentence exactly.'),
+        })
+        return
+      }
+
+      const nextIndex = writingTask.currentIndex + 1
+      const isDone = nextIndex >= writingTask.requiredSentences.length
+      setWritingInputStatus('matched')
+      setWritingEvalResult({
+        score: 100,
+        passed: isDone,
+        correctedText: '',
+        feedback: isDone
+          ? localText('Đúng hoàn toàn. Đã mở khóa lượt nói tiếp theo.', 'Perfect copy. Next speaking turn is unlocked.')
+          : localText('Đúng câu này. Tiếp tục gõ câu kế tiếp.', 'This sentence is correct. Continue with the next one.'),
+        shortHint: isDone
+          ? localText('Bạn có thể nói tiếp.', 'You can continue speaking now.')
+          : localText('Gõ tiếp câu số 2 để mở khóa.', 'Type sentence #2 to unlock.'),
       })
-      const data = (await res.json().catch(() => ({}))) as WritingEvalResult & { error?: string }
-      if (!res.ok) throw new Error(data.error || localText('Không chấm được bài viết.', 'Failed to evaluate writing task.'))
-      const result: WritingEvalResult = {
-        score: Number.isFinite(Number(data.score)) ? Math.min(100, Math.max(0, Math.round(Number(data.score)))) : 0,
-        passed: Boolean(data.passed),
-        correctedText: String(data.correctedText || '').trim(),
-        feedback: String(data.feedback || '').trim(),
-        shortHint: String(data.shortHint || '').trim(),
-      }
-      setWritingEvalResult(result)
-      if (result.passed) {
-        setWritingTask((prev) => (prev ? { ...prev, completed: true } : prev))
-      }
+      setWritingDraft('')
+      setWritingTask((prev) => {
+        if (!prev) return prev
+        if (isDone) return { ...prev, completed: true }
+        return {
+          ...prev,
+          currentIndex: nextIndex,
+          referenceSentence: prev.requiredSentences[nextIndex] || prev.referenceSentence,
+        }
+      })
     } catch (e) {
       const msg = unknownErrorMsg(e)
       toast({ title: localText('Lỗi bài viết', 'Writing task error'), description: msg, variant: 'destructive' })
@@ -2742,6 +2719,78 @@ export default function HocTiengAnhAiClientPage() {
       setWritingBusy(false)
     }
   }
+
+  useEffect(() => {
+    if (!writingTask || writingTask.completed) {
+      setWritingInputStatus('idle')
+      writingAutoAdvanceSignatureRef.current = ''
+      return
+    }
+
+    const expected = String(
+      writingTask.requiredSentences[Math.min(writingTask.currentIndex, Math.max(0, writingTask.requiredSentences.length - 1))] || ''
+    ).trim()
+    const draftNow = String(writingDraft || '').trim()
+    if (!draftNow) {
+      setWritingInputStatus('idle')
+      return
+    }
+
+    const normalizedExpected = normalizeCopyText(expected, languageCode)
+    const normalizedDraft = normalizeCopyText(draftNow, languageCode)
+    const isExactMatch = normalizedDraft === normalizedExpected
+    const isPrefix = normalizedExpected.startsWith(normalizedDraft)
+
+    if (!isExactMatch && !isPrefix) {
+      setWritingInputStatus('incorrect')
+      return
+    }
+
+    if (!isExactMatch) {
+      setWritingInputStatus('idle')
+      return
+    }
+
+    setWritingInputStatus('matched')
+    const signature = `${writingTask.messageId}:${writingTask.currentIndex}:${languageCode}:${normalizedExpected}`
+    if (writingAutoAdvanceSignatureRef.current === signature) return
+    writingAutoAdvanceSignatureRef.current = signature
+
+    const timer = window.setTimeout(() => {
+      setWritingTask((prev) => {
+        if (!prev || prev.completed) return prev
+        const prevExpected = String(
+          prev.requiredSentences[Math.min(prev.currentIndex, Math.max(0, prev.requiredSentences.length - 1))] || ''
+        ).trim()
+        const prevSignature = `${prev.messageId}:${prev.currentIndex}:${languageCode}:${normalizeCopyText(prevExpected, languageCode)}`
+        if (prevSignature !== signature) return prev
+
+        const nextIndex = prev.currentIndex + 1
+        const isDone = nextIndex >= prev.requiredSentences.length
+        setWritingEvalResult({
+          score: 100,
+          passed: isDone,
+          correctedText: '',
+          feedback: isDone
+            ? localText('Đúng hoàn toàn. Đã mở khóa lượt nói tiếp theo.', 'Perfect copy. Next speaking turn is unlocked.')
+            : localText('Đúng câu này. Tiếp tục gõ câu kế tiếp.', 'This sentence is correct. Continue with the next one.'),
+          shortHint: isDone
+            ? localText('Bạn có thể nói tiếp.', 'You can continue speaking now.')
+            : localText('Gõ tiếp câu số 2 để mở khóa.', 'Type sentence #2 to unlock.'),
+        })
+        setWritingDraft('')
+        setWritingInputStatus('idle')
+        if (isDone) return { ...prev, completed: true }
+        return {
+          ...prev,
+          currentIndex: nextIndex,
+          referenceSentence: prev.requiredSentences[nextIndex] || prev.referenceSentence,
+        }
+      })
+    }, 220)
+
+    return () => window.clearTimeout(timer)
+  }, [writingTask, writingDraft, localText, languageCode])
 
   useEffect(() => {
     return () => {
@@ -2804,24 +2853,20 @@ export default function HocTiengAnhAiClientPage() {
   ) => {
     const localeToUse = String(opts?.locale || activeTeacher.locale || '').trim() || 'en-US'
     const labelToUse = String(opts?.languageLabel || activeTeacher.languageLabel || '').trim() || 'English'
-    const res = await fetch('/api/english-coach/tts', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        text,
-        voiceName: selectedVoice,
-        locale: localeToUse,
-        teacherGender: activeTeacher.gender,
-        forceEngine: opts?.forceEngine || 'auto',
-        targetLanguage: activeTeacher.languageLabel,
-        nativeLanguage: selectedNativeLanguage.apiLabel,
-        voiceStyle:
-          activeTeacher.gender === 'male'
-            ? `Speak with a clearly masculine native ${labelToUse} teacher voice. Calm, warm, and natural.`
-            : `Speak with a clearly feminine native ${labelToUse} teacher voice. Calm, warm, and natural.`,
-      }),
+    const { ok, status, data } = await generateTts({
+      text,
+      voiceName: selectedVoice,
+      locale: localeToUse,
+      teacherGender: activeTeacher.gender,
+      forceEngine: opts?.forceEngine || 'auto',
+      targetLanguage: activeTeacher.languageLabel,
+      nativeLanguage: selectedNativeLanguage.apiLabel,
+      voiceStyle:
+        activeTeacher.gender === 'male'
+          ? `Speak with a clearly masculine native ${labelToUse} teacher voice. Calm, warm, and natural.`
+          : `Speak with a clearly feminine native ${labelToUse} teacher voice. Calm, warm, and natural.`,
     })
-    const data = (await res.json().catch(() => ({}))) as {
+    const payload = data as {
       audioBase64?: string
       mimeType?: string
       error?: string
@@ -2831,34 +2876,34 @@ export default function HocTiengAnhAiClientPage() {
       geminiErrorCode?: number
       geminiErrorMessage?: string
     }
-    if (!res.ok || !data.audioBase64) {
+    if (!ok || !payload.audioBase64) {
       console.error('[TTS client] failed', {
-        status: res.status,
-        error: data.error || localText('Không phát được giọng giáo viên.', 'Unable to generate teacher voice.'),
-        meta: data.meta || null,
-        attempts: data.attempts || [],
-        warnings: data.warnings || [],
+        status,
+        error: payload.error || localText('Không phát được giọng giáo viên.', 'Unable to generate teacher voice.'),
+        meta: payload.meta || null,
+        attempts: payload.attempts || [],
+        warnings: payload.warnings || [],
       })
-      throw new Error(data.error || localText('Không phát được giọng giáo viên.', 'Unable to generate teacher voice.'))
+      throw new Error(payload.error || localText('Không phát được giọng giáo viên.', 'Unable to generate teacher voice.'))
     }
     console.info('[TTS client] success', {
-      status: res.status,
-      engine: data.meta?.model || 'unknown',
-      voice: data.meta?.voice || 'unknown',
-      attempts: data.attempts || [],
-      warnings: data.warnings || [],
+      status,
+      engine: payload.meta?.model || 'unknown',
+      voice: payload.meta?.voice || 'unknown',
+      attempts: payload.attempts || [],
+      warnings: payload.warnings || [],
     })
-    const geminiFailed = Array.isArray(data.attempts)
-      && data.attempts.some((x) => String(x.model || '').includes('gemini') && !x.ok)
+    const geminiFailed = Array.isArray(payload.attempts)
+      && payload.attempts.some((x) => String(x.model || '').includes('gemini') && !x.ok)
     if (geminiFailed) {
       console.warn(
         uiLocale === 'vi' ? '[TTS] Gemini TTS gặp lỗi ở một số attempt.' : '[TTS] Gemini TTS had failed attempts.',
-        data.attempts || []
+        payload.attempts || []
       )
     }
 
-    const bytes = base64ToBytes(data.audioBase64)
-    const mime = String(data.mimeType || '').toLowerCase()
+    const bytes = base64ToBytes(payload.audioBase64)
+    const mime = String(payload.mimeType || '').toLowerCase()
     const browserPlayable =
       mime.includes('audio/wav') ||
       mime.includes('audio/wave') ||
@@ -2869,9 +2914,9 @@ export default function HocTiengAnhAiClientPage() {
       mime.includes('audio/flac')
 
     const blob = browserPlayable
-      ? new Blob([bytes], { type: data.mimeType || 'audio/wav' })
+      ? new Blob([bytes], { type: payload.mimeType || 'audio/wav' })
       : pcm16MonoToWavBlob(bytes, 24000)
-    const blobType = browserPlayable ? data.mimeType || 'audio/wav' : 'audio/wav'
+    const blobType = browserPlayable ? payload.mimeType || 'audio/wav' : 'audio/wav'
 
     const url = URL.createObjectURL(blob)
     createdAudioUrlsRef.current.push(url)
@@ -2881,23 +2926,19 @@ export default function HocTiengAnhAiClientPage() {
   const tryLoadCachedTtsAudio = async (text: string) => {
     const normalized = String(text || '').trim()
     if (!normalized) return null
-    const res = await fetch('/api/english-coach/tts-cache', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        text: normalized,
-        voiceName: activeTeacher.voiceName,
-        locale: activeTeacher.locale,
-      }),
+    const { ok, data } = await getTtsCache({
+      text: normalized,
+      voiceName: activeTeacher.voiceName,
+      locale: activeTeacher.locale,
     })
-    const data = (await res.json().catch(() => ({}))) as {
+    const payload = data as {
       found?: boolean
       audioBase64?: string
       mimeType?: string
     }
-    if (!res.ok || !data.found || !data.audioBase64) return null
-    const bytes = base64ToBytes(String(data.audioBase64 || ''))
-    const mime = String(data.mimeType || '').toLowerCase()
+    if (!ok || !payload.found || !payload.audioBase64) return null
+    const bytes = base64ToBytes(String(payload.audioBase64 || ''))
+    const mime = String(payload.mimeType || '').toLowerCase()
     const browserPlayable =
       mime.includes('audio/wav') ||
       mime.includes('audio/wave') ||
@@ -2907,97 +2948,12 @@ export default function HocTiengAnhAiClientPage() {
       mime.includes('audio/aac') ||
       mime.includes('audio/flac')
     const blob = browserPlayable
-      ? new Blob([bytes], { type: data.mimeType || 'audio/wav' })
+      ? new Blob([bytes], { type: payload.mimeType || 'audio/wav' })
       : pcm16MonoToWavBlob(bytes, 24000)
-    const blobType = browserPlayable ? data.mimeType || 'audio/wav' : 'audio/wav'
+    const blobType = browserPlayable ? payload.mimeType || 'audio/wav' : 'audio/wav'
     const url = URL.createObjectURL(blob)
     createdAudioUrlsRef.current.push(url)
     return { url, blob, blobType }
-  }
-
-  const splitTtsSegments = (rawText: string): Array<{ text: string; locale: string; languageLabel: string }> => {
-    const raw = String(rawText || '').trim()
-    if (!raw) return []
-    const chunks = raw
-      .split(/\n+|(?<=[.!?。！？])\s+/u)
-      .map((x) => x.trim())
-      .filter(Boolean)
-    const localeByLanguageCode: Record<LanguageCode, string> = {
-      en: 'en-US',
-      zh: 'zh-CN',
-      hi: 'hi-IN',
-      th: 'th-TH',
-      ja: 'ja-JP',
-      ko: 'ko-KR',
-      vi: 'vi-VN',
-    }
-    const labelByLanguageCode: Record<LanguageCode, string> = {
-      en: 'English',
-      zh: 'Chinese',
-      hi: 'Hindi',
-      th: 'Thai',
-      ja: 'Japanese',
-      ko: 'Korean',
-      vi: 'Vietnamese',
-    }
-    const targetLocale = localeByLanguageCode[languageCode] || activeTeacher.locale
-    const targetLabel = labelByLanguageCode[languageCode] || activeTeacher.languageLabel
-    const nativeLocale = localeByLanguageCode[nativeLanguageCode as LanguageCode] || 'vi-VN'
-    const nativeLabel = labelByLanguageCode[nativeLanguageCode as LanguageCode] || selectedNativeLanguage.apiLabel
-
-    const detectLocaleAndLabel = (segment: string): { locale: string; languageLabel: string } => {
-      const hasThai = /[\u0E00-\u0E7F]/u.test(segment)
-      const hasJapanese = /[\u3040-\u30FF]/u.test(segment)
-      const hasKorean = /[\uAC00-\uD7AF]/u.test(segment)
-      const hasChinese = /[\u4E00-\u9FFF]/u.test(segment)
-      const hasHindi = /[\u0900-\u097F]/u.test(segment)
-      const hasVietnameseMarked = /[ăâêôơưđĂÂÊÔƠƯĐ]/u.test(segment)
-      const hasLatinLetters = /[A-Za-z]/.test(segment)
-      const hasTargetScript = isTokenInTargetLanguage(segment, languageCode)
-      const hasNativeScript = isTokenInTargetLanguage(segment, nativeLanguageCode as LanguageCode)
-
-      // Strictly stay within selected language pair.
-      if (hasTargetScript && !hasNativeScript) return { locale: targetLocale, languageLabel: targetLabel }
-      if (hasNativeScript && !hasTargetScript) return { locale: nativeLocale, languageLabel: nativeLabel }
-
-      // If mixed in same segment, prefer target language voice for learning flow.
-      if (hasTargetScript && hasNativeScript) return { locale: targetLocale, languageLabel: targetLabel }
-
-      // Fallback by script family, then default to selected target.
-      if (hasThai || hasJapanese || hasKorean || hasChinese || hasHindi || hasVietnameseMarked || hasLatinLetters) {
-        return { locale: targetLocale, languageLabel: targetLabel }
-      }
-      return { locale: targetLocale, languageLabel: targetLabel }
-    }
-
-    const out = chunks.map((segment) => {
-      const lang = detectLocaleAndLabel(segment)
-      return { text: segment, ...lang }
-    })
-    return out.length > 0 ? out : [{ text: raw, locale: targetLocale, languageLabel: targetLabel }]
-  }
-
-  const createTtsSegmentAudios = async (text: string) => {
-    const segments = splitTtsSegments(text)
-    const audioList: Array<{ url: string; blob: Blob; blobType: string }> = []
-    for (const segment of segments) {
-      const part = await createTtsAudioData(segment.text, {
-        locale: segment.locale,
-        languageLabel: segment.languageLabel,
-        forceEngine: 'auto',
-      })
-      audioList.push(part)
-    }
-    return audioList
-  }
-
-  const playTtsSegments = async (text: string) => {
-    const audioList = await createTtsSegmentAudios(text)
-    const urls = audioList.map((x) => x.url)
-    for (const url of urls) {
-      await playAudioUrl(url)
-    }
-    return audioList
   }
 
   const playBestEffortTts = async (text: string) => {
@@ -3019,26 +2975,20 @@ export default function HocTiengAnhAiClientPage() {
     text: string
     audioUrl?: string
   }) => {
-    const res = await fetch('/api/english-coach/history', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        sessionId,
-        role,
-        text,
-        audioUrl: audioUrl || '',
-        languageCode,
-        targetLanguage: activeTeacher.languageLabel,
-        teacherLabel: activeTeacher.label,
-        teacherLocale: activeTeacher.locale,
-        mode,
-      }),
+    const { ok, data } = await saveHistoryMessageApi({
+      sessionId,
+      role,
+      text,
+      audioUrl: audioUrl || '',
+      languageCode,
+      targetLanguage: activeTeacher.languageLabel,
+      teacherLabel: activeTeacher.label,
+      teacherLocale: activeTeacher.locale,
+      mode,
     })
-    if (!res.ok) {
-      const data = (await res.json().catch(() => ({}))) as { error?: string }
+    if (!ok) {
       throw new Error(data.error || localText('Không lưu được lịch sử học.', 'Failed to save lesson history.'))
     }
-    const data = (await res.json().catch(() => ({}))) as { id?: string }
     return data.id || null
   }
 
@@ -3047,12 +2997,8 @@ export default function HocTiengAnhAiClientPage() {
     formData.append('audio', new File([blob], `${messageId}.wav`, { type: blobType || 'audio/wav' }))
     formData.append('sessionId', sessionId)
     formData.append('messageId', messageId)
-    const res = await fetch('/api/english-coach/audio-upload', {
-      method: 'POST',
-      body: formData,
-    })
-    const data = (await res.json().catch(() => ({}))) as { audioUrl?: string; error?: string }
-    if (!res.ok || !data.audioUrl) {
+    const { ok, data } = await uploadAudio(formData)
+    if (!ok || !data.audioUrl) {
       throw new Error(data.error || localText('Không upload được audio giáo viên.', 'Failed to upload teacher audio.'))
     }
     return data.audioUrl
@@ -3173,22 +3119,17 @@ export default function HocTiengAnhAiClientPage() {
       const correctedSentence = String(mainSentenceByMessageId[messageId] || '').trim()
       const correctionNote = String(correctionNoteByMessageId[messageId] || '').trim()
 
-      const res = await fetch('/api/english-coach/intent-explain', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          studentText: previousStudentText,
-          intentAnswer,
-          correctedSentence,
-          correctionNote,
-          targetLanguage: activeTeacher.languageLabel,
-          targetLanguageCode: languageCode,
-          nativeLanguage: selectedNativeLanguage.apiLabel,
-          topicLabel: selectedTopic.label,
-        }),
+      const { ok, data } = await explainIntent({
+        studentText: previousStudentText,
+        intentAnswer,
+        correctedSentence,
+        correctionNote,
+        targetLanguage: activeTeacher.languageLabel,
+        targetLanguageCode: languageCode,
+        nativeLanguage: selectedNativeLanguage.apiLabel,
+        topicLabel: selectedTopic.label,
       })
-      const data = (await res.json().catch(() => ({}))) as { explanation?: string; error?: string }
-      if (!res.ok) throw new Error(data.error || localText('Không giải thích được câu trả lời.', 'Unable to explain this reply.'))
+      if (!ok) throw new Error(data.error || localText('Không giải thích được câu trả lời.', 'Unable to explain this reply.'))
       const meaning = String(data.explanation || '').trim()
       if (!meaning) throw new Error(localText('Không có nội dung giải thích.', 'No explanation content.'))
       const transliteration = await requestTransliteration(intentAnswer)
@@ -3217,22 +3158,17 @@ export default function HocTiengAnhAiClientPage() {
     }
     setOpeningTranslateBusyByMessageId((prev) => ({ ...prev, [messageId]: true }))
     try {
-      const res = await fetch('/api/english-coach/intent-explain', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          studentText: '',
-          intentAnswer: sourceText,
-          correctedSentence: '',
-          correctionNote: '',
-          targetLanguage: activeTeacher.languageLabel,
-          targetLanguageCode: languageCode,
-          nativeLanguage: selectedNativeLanguage.apiLabel,
-          topicLabel: selectedTopic.label,
-        }),
+      const { ok, data } = await explainIntent({
+        studentText: '',
+        intentAnswer: sourceText,
+        correctedSentence: '',
+        correctionNote: '',
+        targetLanguage: activeTeacher.languageLabel,
+        targetLanguageCode: languageCode,
+        nativeLanguage: selectedNativeLanguage.apiLabel,
+        topicLabel: selectedTopic.label,
       })
-      const data = (await res.json().catch(() => ({}))) as { explanation?: string; error?: string }
-      if (!res.ok) throw new Error(data.error || localText('Không dịch được câu mở đầu.', 'Unable to translate opening line.'))
+      if (!ok) throw new Error(data.error || localText('Không dịch được câu mở đầu.', 'Unable to translate opening line.'))
       const meaning = String(data.explanation || '').trim()
       if (!meaning) throw new Error(localText('Không có nội dung dịch.', 'No translation content.'))
       const transliteration = await requestTransliteration(sourceText)
@@ -3384,10 +3320,9 @@ export default function HocTiengAnhAiClientPage() {
       try {
         await saveHistoryMessage({ role: 'teacher', text, audioUrl: uploadedAudioUrl })
         persistedMessageIdsRef.current[messageId] = true
-        const sessions = await fetch('/api/english-coach/history?limit=12')
-        const data = (await sessions.json().catch(() => ({}))) as { sessions?: HistorySession[] }
-        if (sessions.ok && Array.isArray(data.sessions)) {
-          setHistorySessions(data.sessions)
+        const { ok, data } = await getHistorySessions(12)
+        if (ok && Array.isArray(data.sessions)) {
+          setHistorySessions(data.sessions as HistorySession[])
         }
       } catch {
         // do not block learning flow when history save fails
@@ -3427,16 +3362,11 @@ export default function HocTiengAnhAiClientPage() {
   const fetchMessageTokens = async (messageId: string, sentence: string) => {
     setTokenizingByMessageId((prev) => ({ ...prev, [messageId]: true }))
     try {
-      const res = await fetch('/api/english-coach/tokenize', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sentence,
-          targetLanguage: activeTeacher.languageLabel,
-          targetLanguageCode: languageCode,
-        }),
+      const { data } = await tokenizeSentence({
+        sentence,
+        targetLanguage: activeTeacher.languageLabel,
+        targetLanguageCode: languageCode,
       })
-      const data = (await res.json().catch(() => ({}))) as { tokens?: string[] }
       const tokens = Array.isArray(data.tokens)
         ? data.tokens
             .map((t) => extractClickableWord(String(t)))
@@ -3497,19 +3427,15 @@ export default function HocTiengAnhAiClientPage() {
 
     setWordBusyKey(key)
     try {
-      const res = await fetch('/api/english-coach/word', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          word,
-          contextSentence: buildWordContextSnippet(sentence, word),
-          targetLanguage: activeTeacher.languageLabel,
-          nativeLanguage: selectedNativeLanguage.apiLabel,
-        }),
+      const { ok, data } = await analyzeWord({
+        word,
+        contextSentence: buildWordContextSnippet(sentence, word),
+        targetLanguage: activeTeacher.languageLabel,
+        nativeLanguage: selectedNativeLanguage.apiLabel,
       })
-      const data = (await res.json().catch(() => ({}))) as WordInsight & { error?: string }
-      if (!res.ok) throw new Error(data.error || localText('Không phân tích được từ này.', 'Failed to analyze this word.'))
-      let detail = buildWordInsightFromAny(data)
+      const payload = data as WordInsight & { error?: string }
+      if (!ok) throw new Error(payload.error || localText('Không phân tích được từ này.', 'Failed to analyze this word.'))
+      let detail = buildWordInsightFromAny(payload)
       if (supportsLatinTransliteration) {
         const items = detail.exampleItems.length > 0
           ? detail.exampleItems
@@ -3534,7 +3460,7 @@ export default function HocTiengAnhAiClientPage() {
         ...prev,
         [key]: detail,
       }))
-      const audioUrl = String((data as { pronunciationAudioUrl?: string }).pronunciationAudioUrl || '').trim()
+      const audioUrl = String((payload as { pronunciationAudioUrl?: string }).pronunciationAudioUrl || '').trim()
       await saveDailyWord(word, detail, audioUrl || undefined)
       void fetchSessionWords()
     } catch (e) {
@@ -3617,17 +3543,14 @@ export default function HocTiengAnhAiClientPage() {
   }
 
   const fetchHistorySessions = async () => {
-    const res = await fetch('/api/english-coach/history?limit=12')
-    const data = (await res.json().catch(() => ({}))) as { sessions?: HistorySession[]; error?: string }
-    if (!res.ok) throw new Error(data.error || localText('Không tải được lịch sử buổi học.', 'Failed to load lesson history.'))
+    const { ok, data } = await getHistorySessions(12)
+    if (!ok) throw new Error(data.error || localText('Không tải được lịch sử buổi học.', 'Failed to load lesson history.'))
     setHistorySessions(Array.isArray(data.sessions) ? data.sessions : [])
   }
 
-  const fetchYesterdayWords = async (): Promise<TodayWordItem[]> => {
-    const yesterday = getYesterdayDateString()
-    const res = await fetch(`/api/english-coach/word-daily?date=${encodeURIComponent(yesterday)}&limit=50`)
-    const data = (await res.json().catch(() => ({}))) as { items?: TodayWordItem[]; error?: string }
-    if (!res.ok) throw new Error(data.error || localText('Không tải được từ buổi trước.', 'Failed to load previous words.'))
+  const fetchPreviousLessonWords = async (): Promise<TodayWordItem[]> => {
+    const { ok, data } = await getPreviousLessonWords(50)
+    if (!ok) throw new Error(data.error || localText('Không tải được từ buổi trước.', 'Failed to load previous words.'))
     const raw = Array.isArray(data.items) ? data.items : []
     const normalized = raw.map((item) => {
       const meaning = String(item.meaning || '').trim()
@@ -3655,15 +3578,20 @@ export default function HocTiengAnhAiClientPage() {
       const hasMeaning = item.meaning.length > 0 || (item.meaningItems?.length ?? 0) > 0
       return hasMeaning
     })
+    const uniqueByWord = new Map<string, TodayWordItem>()
+    for (const item of filtered) {
+      const key = `${String(item.word || '').trim().toLowerCase()}::${String(item.targetLanguage || '').trim().toLowerCase()}`
+      if (!key || uniqueByWord.has(key)) continue
+      uniqueByWord.set(key, item)
+    }
     void cleanupIncompleteWordsSilent()
-    return filtered
+    return Array.from(uniqueByWord.values())
   }
 
   const cleanupIncompleteWordsSilent = async () => {
     try {
-      const res = await fetch('/api/english-coach/word-daily?cleanup=incomplete', { method: 'DELETE' })
-      if (!res.ok) return
-      const data = (await res.json().catch(() => ({}))) as { deleted?: number }
+      const { ok, data } = await cleanupIncompleteWords()
+      if (!ok) return
       if ((data.deleted ?? 0) > 0) {
         void fetchSessionWords()
       }
@@ -3680,9 +3608,8 @@ export default function HocTiengAnhAiClientPage() {
     }
     setTodayWordsBusy(true)
     try {
-      const res = await fetch(`/api/english-coach/word-daily?sessionId=${encodeURIComponent(sid)}&limit=80`)
-      const data = (await res.json().catch(() => ({}))) as { items?: TodayWordItem[]; error?: string }
-      if (!res.ok) throw new Error(data.error || localText('Không tải được từ mới buổi học.', 'Failed to load lesson vocabulary.'))
+      const { ok, data } = await getSessionWords(sid, 80)
+      if (!ok) throw new Error(data.error || localText('Không tải được từ mới buổi học.', 'Failed to load lesson vocabulary.'))
       const normalizedItems = Array.isArray(data.items)
         ? data.items.map((item) => {
             const meaning = String(item.meaning || '').trim()
@@ -3742,10 +3669,7 @@ export default function HocTiengAnhAiClientPage() {
       return
     }
     const date = getLocalDateString()
-    const res = await fetch('/api/english-coach/word-daily', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+    const { ok, data } = await saveWordDaily({
         sessionId,
         learnedDate: date,
         word,
@@ -3758,10 +3682,8 @@ export default function HocTiengAnhAiClientPage() {
         exampleNative: String(detail.exampleNative || '').trim(),
         meaningItems: sanitizeWordMeaningItems((detail as { meaningItems?: unknown }).meaningItems),
         exampleItems: sanitizeWordExampleItems((detail as { exampleItems?: unknown }).exampleItems),
-      }),
     })
-    if (!res.ok) {
-      const data = (await res.json().catch(() => ({}))) as { error?: string }
+    if (!ok) {
       throw new Error(data.error || localText('Không lưu được từ mới.', 'Failed to save new word.'))
     }
     void fetchLearningSnapshot()
@@ -3772,8 +3694,8 @@ export default function HocTiengAnhAiClientPage() {
     if (!targetSessionId) return
     setHistoryBusy(true)
     try {
-      const res = await fetch(`/api/english-coach/history?sessionId=${encodeURIComponent(targetSessionId)}`)
-      const data = (await res.json().catch(() => ({}))) as {
+      const { ok, data } = await getHistorySession(targetSessionId)
+      const payload = data as {
         items?: Array<{
           id: string
           role: 'teacher' | 'student'
@@ -3785,9 +3707,9 @@ export default function HocTiengAnhAiClientPage() {
         }>
         error?: string
       }
-      if (!res.ok) throw new Error(data.error || localText('Không tải được nội dung buổi học.', 'Failed to load lesson content.'))
+      if (!ok) throw new Error(payload.error || localText('Không tải được nội dung buổi học.', 'Failed to load lesson content.'))
 
-      const items = Array.isArray(data.items) ? data.items : []
+      const items = Array.isArray(payload.items) ? payload.items : []
       setSessionId(targetSessionId)
       setMessages(items.map((x) => ({ id: x.id, role: x.role, text: x.text })))
       const firstMeta = items.find((x) => x.role === 'teacher') || items[0]
@@ -3816,8 +3738,6 @@ export default function HocTiengAnhAiClientPage() {
       setPronunciationTips([])
       lastMicSentTextRef.current = ''
       lastMicSentAtRef.current = 0
-      setCorrectStreak(0)
-      setShowLevelUpSuggestion(false)
       setOpenedWordKey('')
       setWordBusyKey('')
       setWordInsightByKey({})
@@ -3845,25 +3765,14 @@ export default function HocTiengAnhAiClientPage() {
   }
 
   const startNewSession = () => {
-    if (isWordPracticeLocked) {
-      toast({
-        title: localText('Luyện gõ từ mới trước', 'Complete new-word typing first'),
-        description: localText(
-          'Hãy hoàn thành gõ từ đúng 3 lần trong hộp thoại bên trên để mở khóa.',
-          'Complete typing the word correctly 3 times in the dialog above to unlock.'
-        ),
-      })
-      return
-    }
     if (startingLesson || busy || historyBusy) return
+    setWordPractice(null)
     setSessionId(createSessionId())
     shouldCountNewSessionRef.current = true
     setSessionTeacher(null)
     setOpenedHistorySessionId('')
     lastMicSentTextRef.current = ''
     lastMicSentAtRef.current = 0
-    setCorrectStreak(0)
-    setShowLevelUpSuggestion(false)
     setMessages([])
     setCorrections([])
     setPronunciationTips([])
@@ -3912,10 +3821,14 @@ export default function HocTiengAnhAiClientPage() {
   useEffect(() => {
     if (!supportsLatinTransliteration) return
     const reference = String(writingTask?.referenceSentence || '').trim()
+    const required = Array.isArray(writingTask?.requiredSentences)
+      ? writingTask!.requiredSentences!.map((x) => String(x || '').trim()).filter(Boolean)
+      : []
     const corrected = String(writingEvalResult?.correctedText || '').trim()
     if (reference) void ensureWritingRomanization(reference)
+    required.forEach((x) => void ensureWritingRomanization(x))
     if (corrected) void ensureWritingRomanization(corrected)
-  }, [supportsLatinTransliteration, writingTask?.referenceSentence, writingEvalResult?.correctedText, languageCode])
+  }, [supportsLatinTransliteration, writingTask?.referenceSentence, writingTask?.requiredSentences, writingEvalResult?.correctedText, languageCode])
 
   useEffect(() => {
     const collectExamples = (items: Array<{ targetLanguage?: string; exampleItems?: Array<{ targetText?: string; targetPinyin?: string }>; exampleTarget?: string; exampleNative?: string }>) => {
@@ -4029,16 +3942,6 @@ export default function HocTiengAnhAiClientPage() {
   ) => {
     const studentText = String(raw ?? draft).trim()
     if (!studentText || busy) return
-    if (isWordPracticeLocked) {
-      toast({
-        title: localText('Luyện gõ từ mới trước', 'Complete new-word typing first'),
-        description: localText(
-          'Hãy gõ lại từ mới 3 lần đúng trong khung Từ mới hoặc Ôn tập để mở khóa gửi/nói tiếp.',
-          'Type the new word correctly 3 times in the New words or Review box to unlock send/speak.'
-        ),
-      })
-      return
-    }
     if (source === 'mic') {
       const now = Date.now()
       const duplicate =
@@ -4049,6 +3952,7 @@ export default function HocTiengAnhAiClientPage() {
     }
 
     setBusy(true)
+    setAwaitingTeacherReply(true)
     const studentMessageId = appendMessage('student', studentText)
     setDraft('')
     void saveHistoryMessage({ role: 'student', text: studentText })
@@ -4063,40 +3967,38 @@ export default function HocTiengAnhAiClientPage() {
         setSessionTeacher(selectedTeacher)
       }
       const history = messages.slice(-8).map((m) => ({ role: m.role, text: m.text }))
-      const res = await fetch('/api/english-coach/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sessionId,
-          studentText,
-          history,
-          accent: activeTeacher.accent || 'us',
-          gender: activeTeacher.gender,
-          mode,
-          targetLanguage: activeTeacher.languageLabel,
-          targetLanguageCode: languageCode,
-          teacherLabel: activeTeacher.label,
-          teacherLocale: activeTeacher.locale,
-          learnerType: languageCode === 'vi' ? 'foreign_learner' : 'vn_learner',
-          supportLanguage,
-          nativeLanguage: selectedNativeLanguage.apiLabel,
-          nativeLanguageCode,
-          inputSource: source,
-          studentInputLanguage: studentSpeakingLanguage,
-          speakingMode: speakingLanguageMode,
-          responseStyle,
-          learnerLevel,
-          topicId: selectedTopic.id,
-          topicLabel: selectedTopic.label,
-          topicDifficulty: selectedTopicDifficulty,
-          topicRole: topicCurriculum?.roleplayRole || '',
-          topicObjective: topicCurriculum?.objective || '',
-          topicKeywords: topicCurriculum?.keywords || [],
-          topicStarterSentences: topicCurriculum?.starterSentences || [],
-          micAnalysis: source === 'mic' ? micAnalysis : undefined,
-        }),
+      const languagePairKey = toLanguagePairKey(nativeLanguageCode, languageCode)
+      const { ok, data } = await chatWithCoach({
+        sessionId,
+        studentText,
+        history,
+        accent: activeTeacher.accent || 'us',
+        gender: activeTeacher.gender,
+        mode,
+        targetLanguage: activeTeacher.languageLabel,
+        targetLanguageCode: languageCode,
+        teacherLabel: activeTeacher.label,
+        teacherLocale: activeTeacher.locale,
+        learnerType: languageCode === 'vi' ? 'foreign_learner' : 'vn_learner',
+        supportLanguage,
+        nativeLanguage: selectedNativeLanguage.apiLabel,
+        nativeLanguageCode,
+        languagePairKey,
+        inputSource: source,
+        studentInputLanguage: studentSpeakingLanguage,
+        speakingMode: speakingLanguageMode,
+        responseStyle,
+        learnerLevel,
+        topicId: selectedTopic.id,
+        topicLabel: selectedTopic.label,
+        topicDifficulty: selectedTopicDifficulty,
+        topicRole: topicCurriculum?.roleplayRole || '',
+        topicObjective: topicCurriculum?.objective || '',
+        topicKeywords: topicCurriculum?.keywords || [],
+        topicStarterSentences: topicCurriculum?.starterSentences || [],
+        micAnalysis: source === 'mic' ? micAnalysis : undefined,
       })
-      const data = (await res.json().catch(() => ({}))) as {
+      const payload = data as {
         reply?: string
         corrections?: Correction[]
         pronunciationTips?: string[]
@@ -4106,16 +4008,16 @@ export default function HocTiengAnhAiClientPage() {
         mainSentence?: string
         error?: string
       }
-      if (!res.ok || !data.reply) {
-        throw new Error(data.error || localText('Không nhận được phản hồi từ giáo viên AI.', 'No response received from AI teacher.'))
+      if (!ok || !payload.reply) {
+        throw new Error(payload.error || localText('Không nhận được phản hồi từ giáo viên AI.', 'No response received from AI teacher.'))
       }
 
-      const teacherMessageId = appendMessage('teacher', data.reply)
-      const latestCorrections = Array.isArray(data.corrections) ? data.corrections : []
+      const teacherMessageId = appendMessage('teacher', payload.reply)
+      const latestCorrections = Array.isArray(payload.corrections) ? payload.corrections : []
       const correctedMainSentence = String(latestCorrections[0]?.fixed || '').trim()
-      const extractedMainSentence = extractTargetSentenceForTokenization(String(data.reply || ''))
-      const correctedSentence = String(data.correctedSentence || '').trim()
-      const apiMainSentence = String(data.mainSentence || '').trim()
+      const extractedMainSentence = extractTargetSentenceForTokenization(String(payload.reply || ''))
+      const correctedSentence = String(payload.correctedSentence || '').trim()
+      const apiMainSentence = String(payload.mainSentence || '').trim()
       const fullSentenceCandidate = [correctedSentence, apiMainSentence, extractedMainSentence, correctedMainSentence]
         .map((x) => String(x || '').trim())
         .find((x) => x.split(/\s+/).filter(Boolean).length >= 4)
@@ -4123,34 +4025,27 @@ export default function HocTiengAnhAiClientPage() {
       if (mainSentence) {
         setMainSentenceByMessageId((prev) => ({ ...prev, [teacherMessageId]: mainSentence }))
       }
-      const correctionNote = String(data.correctionNote || '').trim()
+      const correctionNote = String(payload.correctionNote || '').trim()
       if (correctionNote) {
         setCorrectionNoteByMessageId((prev) => ({ ...prev, [teacherMessageId]: correctionNote }))
       }
-      const intentAnswer = String(data.intentAnswer || '').trim()
+      const intentAnswer = String(payload.intentAnswer || '').trim()
       if (intentAnswer) {
         setIntentAnswerByMessageId((prev) => ({ ...prev, [teacherMessageId]: intentAnswer }))
       }
       const speakParts = [correctionNote, mainSentence, intentAnswer]
         .map((x) => String(x || '').trim())
         .filter(Boolean)
-      const speakText = speakParts.join('. ').trim() || extractTeacherSpeechText(data.reply)
+      const speakText = speakParts.join('. ').trim() || extractTeacherSpeechText(payload.reply)
       setTeacherSpeakTextByMessageId((prev) => ({ ...prev, [teacherMessageId]: speakText }))
-      setWritingTask(buildWritingTask(teacherMessageId, data.reply, mainSentence || extractTeacherSpeechText(data.reply)))
+      const correctedForCopy = String(mainSentence || '').trim()
+      const teacherReplyForCopy = String(intentAnswer || extractTeacherSpeechText(payload.reply)).trim()
+      const copyTargets = Array.from(new Set([correctedForCopy, teacherReplyForCopy].filter(Boolean)))
+      setWritingTask(buildWritingTask(teacherMessageId, payload.reply, copyTargets))
       setWritingDraft('')
       setWritingEvalResult(null)
       setCorrections(latestCorrections)
-      setPronunciationTips(Array.isArray(data.pronunciationTips) ? data.pronunciationTips : [])
-      if (latestCorrections.length === 0) {
-        setCorrectStreak((prev) => {
-          const next = prev + 1
-          if (learnerLevel < 4 && next >= 3) setShowLevelUpSuggestion(true)
-          return next
-        })
-      } else {
-        setCorrectStreak(0)
-        setShowLevelUpSuggestion(false)
-      }
+      setPronunciationTips(Array.isArray(payload.pronunciationTips) ? payload.pronunciationTips : [])
       void recordProgressTurn(
         latestCorrections.length > 0,
         micAnalysis?.pronunciationScore ?? null,
@@ -4174,6 +4069,7 @@ export default function HocTiengAnhAiClientPage() {
       toast({ title: localText('Lỗi hội thoại', 'Conversation error'), description: msg, variant: 'destructive' })
     } finally {
       setBusy(false)
+      setAwaitingTeacherReply(false)
     }
   }
 
@@ -4324,19 +4220,19 @@ export default function HocTiengAnhAiClientPage() {
         throw new Error(localText('Không tạo được giáo trình chủ đề.', 'Failed to create topic curriculum.'))
       }
 
-      const yesterdayWords = await fetchYesterdayWords()
-      if (yesterdayWords.length > 0) {
-        setPreLessonWords(yesterdayWords)
+      const previousWords = await fetchPreviousLessonWords()
+      if (previousWords.length > 0) {
+        setPreLessonWords(previousWords)
         setPreLessonPassed(false)
         setPreLessonCurriculum(curriculum)
         setPreLessonTopic(topicToUse)
-        setPreLessonPending(null)
         setPreLessonExerciseIndex(0)
         setPreLessonWordIndex(0)
         setPreLessonResults({})
         setPreLessonRetryWords(null)
         setPreLessonInput('')
         setPreLessonRecallDirection('word')
+        setWordPractice(null)
         setQuickStartModalOpen(false)
         setShowPreLessonReview(true)
         setQuickStartBusy(false)
@@ -4344,8 +4240,8 @@ export default function HocTiengAnhAiClientPage() {
         toast({
           title: localText('Ôn bài cũ', 'Review previous lesson'),
           description: localText(
-            `Có ${yesterdayWords.length} từ buổi trước cần ôn. Hoàn thành để mở bài mới.`,
-            `You have ${yesterdayWords.length} words from last session to review. Complete to unlock new lesson.`
+            `Có ${previousWords.length} từ bài trước cần ôn. Hoàn thành để mở bài mới.`,
+            `You have ${previousWords.length} words from previous lesson to review. Complete to unlock new lesson.`
           ),
         })
         return
@@ -4403,37 +4299,28 @@ export default function HocTiengAnhAiClientPage() {
   }
 
   const handleStartLessonClick = async () => {
-    if (isWordPracticeLocked) {
-      toast({
-        title: localText('Luyện gõ từ mới trước', 'Complete new-word typing first'),
-        description: localText(
-          'Hãy hoàn thành gõ từ đúng 3 lần trong hộp thoại bên trên để mở khóa.',
-          'Complete typing the word correctly 3 times in the dialog above to unlock.'
-        ),
-      })
-      return
-    }
     if (!isLessonReadyToStart || startingLesson) return
+    setWordPractice(null)
     try {
-      const yesterdayWords = await fetchYesterdayWords()
-      if (yesterdayWords.length > 0) {
-        setPreLessonWords(yesterdayWords)
+      const previousWords = await fetchPreviousLessonWords()
+      if (previousWords.length > 0) {
+        setPreLessonWords(previousWords)
         setPreLessonPassed(false)
         setPreLessonCurriculum(topicCurriculum)
         setPreLessonTopic(selectedTopic)
-        setPreLessonPending(null)
         setPreLessonExerciseIndex(0)
         setPreLessonWordIndex(0)
         setPreLessonResults({})
         setPreLessonRetryWords(null)
         setPreLessonInput('')
         setPreLessonRecallDirection('word')
+        setWordPractice(null)
         setShowPreLessonReview(true)
         toast({
           title: localText('Ôn bài cũ', 'Review previous lesson'),
           description: localText(
-            `Có ${yesterdayWords.length} từ buổi trước cần ôn. Hoàn thành để mở bài mới.`,
-            `You have ${yesterdayWords.length} words from last session to review. Complete to unlock new lesson.`
+            `Có ${previousWords.length} từ bài trước cần ôn. Hoàn thành để mở bài mới.`,
+            `You have ${previousWords.length} words from previous lesson to review. Complete to unlock new lesson.`
           ),
         })
         return
@@ -4455,20 +4342,16 @@ export default function HocTiengAnhAiClientPage() {
     for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i])
     const audioBase64 = btoa(binary)
 
-    const res = await fetch('/api/english-coach/transcribe-mixed', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        audioBase64,
-        mimeType: audioBlob.type || 'audio/webm',
-        targetLanguage: activeTeacher.languageLabel,
-        targetLanguageCode: languageCode,
-        nativeLanguage: selectedNativeLanguage.apiLabel,
-        nativeLanguageCode,
-        speakingMode: speakingLanguageMode,
-      }),
+    const { ok, data } = await transcribeMixed({
+      audioBase64,
+      mimeType: audioBlob.type || 'audio/webm',
+      targetLanguage: activeTeacher.languageLabel,
+      targetLanguageCode: languageCode,
+      nativeLanguage: selectedNativeLanguage.apiLabel,
+      nativeLanguageCode,
+      speakingMode: speakingLanguageMode,
     })
-    const data = (await res.json().catch(() => ({}))) as {
+    const payload = data as {
       targetTranscript?: string
       nativeTranscript?: string
       mergedTranscript?: string
@@ -4482,34 +4365,34 @@ export default function HocTiengAnhAiClientPage() {
       wordScores?: Array<{ word?: string; score?: number; issueType?: string }>
       error?: string
     }
-    if (!res.ok || !data.mergedTranscript) {
-      throw new Error(data.error || localText('Không tách được câu nói trộn.', 'Failed to split mixed speech transcript.'))
+    if (!ok || !payload.mergedTranscript) {
+      throw new Error(payload.error || localText('Không tách được câu nói trộn.', 'Failed to split mixed speech transcript.'))
     }
     return {
-      targetTranscript: String(data.targetTranscript || '').trim(),
-      nativeTranscript: String(data.nativeTranscript || '').trim(),
-      mergedTranscript: String(data.mergedTranscript || '').trim(),
-      inferredMeaning: String(data.inferredMeaning || '').trim(),
-      pronunciationIssues: Array.isArray(data.pronunciationIssues)
-        ? data.pronunciationIssues.map((x) => String(x || '').trim()).filter(Boolean).slice(0, 6)
+      targetTranscript: String(payload.targetTranscript || '').trim(),
+      nativeTranscript: String(payload.nativeTranscript || '').trim(),
+      mergedTranscript: String(payload.mergedTranscript || '').trim(),
+      inferredMeaning: String(payload.inferredMeaning || '').trim(),
+      pronunciationIssues: Array.isArray(payload.pronunciationIssues)
+        ? payload.pronunciationIssues.map((x) => String(x || '').trim()).filter(Boolean).slice(0, 6)
         : [],
-      pronunciationScore: Number.isFinite(Number(data.pronunciationScore))
-        ? Math.min(100, Math.max(0, Math.round(Number(data.pronunciationScore))))
+      pronunciationScore: Number.isFinite(Number(payload.pronunciationScore))
+        ? Math.min(100, Math.max(0, Math.round(Number(payload.pronunciationScore))))
         : 0,
-      weakWords: Array.isArray(data.weakWords)
-        ? data.weakWords.map((x) => String(x || '').trim()).filter(Boolean).slice(0, 8)
+      weakWords: Array.isArray(payload.weakWords)
+        ? payload.weakWords.map((x) => String(x || '').trim()).filter(Boolean).slice(0, 8)
         : [],
-      pronunciationAccuracy: Number.isFinite(Number(data.pronunciationAccuracy))
-        ? Math.min(100, Math.max(0, Math.round(Number(data.pronunciationAccuracy))))
+      pronunciationAccuracy: Number.isFinite(Number(payload.pronunciationAccuracy))
+        ? Math.min(100, Math.max(0, Math.round(Number(payload.pronunciationAccuracy))))
         : 0,
-      pronunciationFluency: Number.isFinite(Number(data.pronunciationFluency))
-        ? Math.min(100, Math.max(0, Math.round(Number(data.pronunciationFluency))))
+      pronunciationFluency: Number.isFinite(Number(payload.pronunciationFluency))
+        ? Math.min(100, Math.max(0, Math.round(Number(payload.pronunciationFluency))))
         : 0,
-      pronunciationProsody: Number.isFinite(Number(data.pronunciationProsody))
-        ? Math.min(100, Math.max(0, Math.round(Number(data.pronunciationProsody))))
+      pronunciationProsody: Number.isFinite(Number(payload.pronunciationProsody))
+        ? Math.min(100, Math.max(0, Math.round(Number(payload.pronunciationProsody))))
         : 0,
-      wordScores: Array.isArray(data.wordScores)
-        ? data.wordScores
+      wordScores: Array.isArray(payload.wordScores)
+        ? payload.wordScores
           .map((x) => ({
             word: String(x?.word || '').trim(),
             score: Number.isFinite(Number(x?.score)) ? Math.min(100, Math.max(0, Math.round(Number(x?.score)))) : 0,
@@ -4665,22 +4548,12 @@ export default function HocTiengAnhAiClientPage() {
   }
 
   const handleMic = () => {
-    if (isWordPracticeLocked) {
-      toast({
-        title: localText('Luyện gõ từ mới trước', 'Complete new-word typing first'),
-        description: localText(
-          'Hãy gõ lại từ mới 3 lần đúng trong khung Từ mới hoặc Ôn tập để mở khóa gửi/nói tiếp.',
-          'Type the new word correctly 3 times in the New words or Review box to unlock send/speak.'
-        ),
-      })
-      return
-    }
     if (writingTask && !writingTask.completed) {
       toast({
         title: localText('Hoàn thành bài viết trước', 'Complete writing task first'),
         description: localText(
-          'Hãy hoàn thành bài viết mini của lượt trước để mở khóa mic.',
-          'Please finish the mini writing task from the previous turn before using the mic.'
+          'Hãy hoàn thành bài viết mini của lượt trước để mở khóa nói/gửi câu tiếp theo.',
+          'Please complete the mini writing task from the previous turn to unlock speaking/sending the next sentence.'
         ),
         variant: 'destructive',
       })
@@ -4715,30 +4588,6 @@ export default function HocTiengAnhAiClientPage() {
   return (
     <>
       <Toaster />
-      {isWordPracticeLocked && wordPractice ? (
-        <div
-          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 p-4"
-          role="alertdialog"
-          aria-modal="true"
-          aria-labelledby="word-practice-lock-title"
-        >
-          <div
-            className="max-w-md w-full rounded-lg border bg-white p-4 shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 id="word-practice-lock-title" className="mb-3 text-base font-semibold text-amber-800">
-              {localText('Hoàn thành luyện gõ từ để tiếp tục', 'Complete word typing to continue')}
-            </h2>
-            <p className="mb-3 text-sm text-slate-600">
-              {localText(
-                `Gõ từ "${wordPractice.targetWord}" đúng 3 lần bên dưới để mở khóa tất cả thao tác.`,
-                `Type "${wordPractice.targetWord}" correctly 3 times below to unlock all actions.`
-              )}
-            </p>
-            {renderWordPracticeBox(wordPractice.targetWord, wordPractice.expectedMeaning)}
-          </div>
-        </div>
-      ) : null}
       <div className="mx-auto w-full space-y-6 overflow-x-hidden sm:max-w-5xl lg:max-w-7xl">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-foreground flex items-center justify-center gap-2">
@@ -4760,7 +4609,7 @@ export default function HocTiengAnhAiClientPage() {
             <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
               <Button
                 type="button"
-                onClick={() => setQuickStartModalOpen(true)}
+                onClick={handleOpenQuickStartSetup}
                 disabled={quickStartBusy || topicBusy || startingLesson || busy}
                 className="min-h-[44px] w-full sm:w-auto"
               >
@@ -4805,6 +4654,28 @@ export default function HocTiengAnhAiClientPage() {
                   {placementBusy
                     ? localText('Đang phân tích...', 'Analyzing...')
                     : localText('Gợi ý level tự động', 'Recommend level automatically')}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => void runCefrAssessmentAction('baseline')}
+                  disabled={assessmentBusy}
+                >
+                  {assessmentBusy
+                    ? localText('Đang lưu baseline...', 'Saving baseline...')
+                    : localText('Lưu baseline CEFR', 'Save CEFR baseline')}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => void runCefrAssessmentAction('checkpoint')}
+                  disabled={assessmentBusy}
+                >
+                  {assessmentBusy
+                    ? localText('Đang chạy checkpoint...', 'Running checkpoint...')
+                    : localText('Chạy checkpoint CEFR', 'Run CEFR checkpoint')}
                 </Button>
                 {placementResult ? (
                   <p className="text-xs text-slate-700">
@@ -5061,6 +4932,35 @@ export default function HocTiengAnhAiClientPage() {
                   {localText('Từ mới hôm nay:', 'New words today:')} <span className="font-semibold">{progressSnapshot?.new_words_count ?? 0}</span> •
                   {localText('Đến hạn ôn:', 'Due for review:')} <span className="font-semibold">{dueReviewCount}</span>
                 </p>
+                {weeklySnapshot ? (
+                  <p className="text-sm text-slate-700">
+                    {localText('Tiến độ tuần:', 'Weekly progress:')}{' '}
+                    <span className="font-semibold">
+                      {weeklySnapshot.sessions}/{weeklySnapshot.targetSessions}
+                    </span>{' '}
+                    {localText('buổi', 'sessions')} • {weeklySnapshot.completionPercent}%
+                  </p>
+                ) : null}
+                <p className="text-sm text-slate-700">
+                  {localText('CEFR baseline/checkpoint:', 'CEFR baseline/checkpoint:')}{' '}
+                  <span className="font-semibold">
+                    {assessmentBaseline?.cefr_level || '-'} / {assessmentCheckpoint?.cefr_level || '-'}
+                  </span>
+                  {assessmentDeltaOverall !== null
+                    ? ` • ${localText('Chênh lệch điểm', 'Score delta')} ${assessmentDeltaOverall >= 0 ? '+' : ''}${assessmentDeltaOverall}`
+                    : ''}
+                </p>
+                {learningBadges.length > 0 ? (
+                  <p className="text-xs text-slate-600">
+                    {localText('Badge tuần:', 'Weekly badges:')} {learningBadges.join(' • ')}
+                  </p>
+                ) : null}
+                {reviewFocusWords.length > 0 || reviewFocusNote ? (
+                  <p className="text-xs text-slate-600">
+                    {localText('Ôn cá nhân hóa:', 'Personalized review:')}{' '}
+                    {reviewFocusWords.length > 0 ? reviewFocusWords.join(', ') : reviewFocusNote}
+                  </p>
+                ) : null}
               </div>
             </div>
             <div className="rounded-md border bg-indigo-50/50 p-3">
@@ -5095,7 +4995,7 @@ export default function HocTiengAnhAiClientPage() {
                     if (!pendingTopicId) return
                     confirmTopicForLearning(pendingTopicId)
                   }}
-                  disabled={quickStartBusy || !pendingTopicId || isWordPracticeLocked}
+                  disabled={quickStartBusy || !pendingTopicId}
                   className="min-h-[44px] w-full"
                 >
                   {localText('Xác nhận chủ đề đã chọn', 'Confirm selected topic')}
@@ -5104,7 +5004,7 @@ export default function HocTiengAnhAiClientPage() {
                   type="button"
                   variant="outline"
                   onClick={() => void fetchTopicCurriculum()}
-                  disabled={quickStartBusy || topicBusy || !isTopicConfirmedForLesson || isWordPracticeLocked}
+                  disabled={quickStartBusy || topicBusy || !isTopicConfirmedForLesson}
                   className="min-h-[44px] w-full"
                 >
                   {topicBusy ? localText('Đang tạo...', 'Generating...') : localText('Tạo/Lấy giáo trình', 'Create/Get curriculum')}
@@ -5113,7 +5013,7 @@ export default function HocTiengAnhAiClientPage() {
                   type="button"
                   variant="outline"
                   onClick={() => void handleStartLessonClick()}
-                  disabled={quickStartBusy || !isLessonReadyToStart || startingLesson || isWordPracticeLocked}
+                  disabled={quickStartBusy || !isLessonReadyToStart || startingLesson}
                   className="min-h-[44px] w-full"
                 >
                   <Volume2 className="mr-2 h-4 w-4" /> {localText('Bắt đầu buổi học', 'Start lesson')}
@@ -5122,7 +5022,7 @@ export default function HocTiengAnhAiClientPage() {
                   type="button"
                   variant="outline"
                   onClick={startNewSession}
-                  disabled={quickStartBusy || messages.length === 0 || startingLesson || busy || historyBusy || isWordPracticeLocked}
+                  disabled={quickStartBusy || messages.length === 0 || startingLesson || busy || historyBusy}
                   className="min-h-[44px] w-full"
                 >
                   {localText('Buổi học mới', 'New lesson')}
@@ -5135,7 +5035,7 @@ export default function HocTiengAnhAiClientPage() {
                   variant="outline"
                   size="sm"
                   onClick={() => void fetchTopicCurriculum()}
-                  disabled={quickStartBusy || topicBusy || !isTopicConfirmedForLesson || isWordPracticeLocked}
+                  disabled={quickStartBusy || topicBusy || !isTopicConfirmedForLesson}
                   className="min-h-[44px]"
                 >
                   {topicBusy ? localText('Đang tạo...', 'Generating...') : localText('Tạo/Lấy giáo trình chủ đề', 'Create/Get curriculum')}
@@ -5161,25 +5061,43 @@ export default function HocTiengAnhAiClientPage() {
                 </div>
               )}
             </div>
-            {showLevelUpSuggestion && learnerLevel < 4 ? (
-              <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3">
+            {levelRecommendation && levelRecommendation.suggestedLevel !== learnerLevel ? (
+              <div
+                className={`rounded-md border p-3 ${
+                  levelRecommendation.direction === 'up'
+                    ? 'border-emerald-200 bg-emerald-50'
+                    : 'border-amber-200 bg-amber-50'
+                }`}
+              >
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <p className="text-sm text-emerald-800">
-                    {localText(
-                      `Học sinh đang trả lời đúng liên tiếp ${correctStreak} câu. Gợi ý tăng level để luyện thử thách hơn.`,
-                      `Learner answered correctly ${correctStreak} times in a row. Consider leveling up for more challenge.`
-                    )}
+                  <p
+                    className={`text-sm ${
+                      levelRecommendation.direction === 'up' ? 'text-emerald-800' : 'text-amber-800'
+                    }`}
+                  >
+                    {levelRecommendation.reason}{' '}
+                    {localText('Độ tin cậy', 'Confidence')}: {levelRecommendation.confidence}%.
                   </p>
                   <Button
                     type="button"
                     size="sm"
                     onClick={() => {
-                      setLearnerLevel((prev) => (prev < 4 ? ((prev + 1) as LearnerLevel) : prev))
-                      setShowLevelUpSuggestion(false)
-                      setCorrectStreak(0)
+                      const nextLevel = Math.min(4, Math.max(0, Number(levelRecommendation.suggestedLevel))) as LearnerLevel
+                      setLearnerLevel(nextLevel)
+                      setLevelRecommendation(null)
+                      toast({
+                        title: localText('Đã áp dụng level đề xuất', 'Recommended level applied'),
+                        description: localText(
+                          `Level hiện tại: ${levelLabelUi(nextLevel)}`,
+                          `Current level: ${levelLabelUi(nextLevel)}`
+                        ),
+                      })
                     }}
                   >
-                    {localText(`Tăng lên Level ${learnerLevel + 1}`, `Level up to ${learnerLevel + 1}`)}
+                    {localText(
+                      `Áp dụng ${levelLabelUi(levelRecommendation.suggestedLevel as LearnerLevel)}`,
+                      `Apply ${levelLabelUi(levelRecommendation.suggestedLevel as LearnerLevel)}`
+                    )}
                   </Button>
                 </div>
               </div>
@@ -5323,9 +5241,9 @@ export default function HocTiengAnhAiClientPage() {
                                   ).map((ex, idx) => {
                                     const exampleText = String(ex.targetText || '').trim()
                                     const exampleNative = String(ex.nativeText || '').trim()
-                                    const storedPinyin = String(ex.targetPinyin || '').trim()
+                                    const storedPinyin = sanitizeRomanizedText(String(ex.targetPinyin || '').trim())
                                     const fallbackKey = toWritingRomanizationKey(exampleText)
-                                    const fallbackPinyin = String(writingRomanizationByKey[fallbackKey] || '').trim()
+                                    const fallbackPinyin = sanitizeRomanizedText(String(writingRomanizationByKey[fallbackKey] || '').trim())
                                     const busyPinyin = Boolean(writingRomanizationBusyByKey[fallbackKey])
                                     const pinyin = storedPinyin || fallbackPinyin
                                     if (!exampleText) return null
@@ -5377,7 +5295,6 @@ export default function HocTiengAnhAiClientPage() {
                                     <Volume2 className="mr-2 h-4 w-4" />
                                     {localText('Phát âm từ này', 'Play word pronunciation')}
                                   </Button>
-                                  {renderWordPracticeBox(openedWordKey.split(':').slice(1).join(':'), wordInsightByKey[openedWordKey].meaning)}
                                 </div>
                               ) : (
                                 <p className="text-muted-foreground">{localText('Bấm từ khác để xem nghĩa.', 'Tap another word to view meaning.')}</p>
@@ -5471,7 +5388,7 @@ export default function HocTiengAnhAiClientPage() {
                     type="button"
                     size="sm"
                     onClick={() => void handleSend()}
-                    disabled={busy || !draft.trim() || isWordPracticeLocked || (Boolean(writingTask) && !writingTask?.completed)}
+                    disabled={busy || !draft.trim() || (Boolean(writingTask) && !writingTask?.completed)}
                     className="h-9 px-2"
                   >
                     <Send className="h-4 w-4" />
@@ -5503,72 +5420,124 @@ export default function HocTiengAnhAiClientPage() {
                     size="sm"
                     variant={listening ? 'destructive' : 'outline'}
                     onClick={handleMic}
-                    disabled={busy || isWordPracticeLocked || (Boolean(writingTask) && !writingTask?.completed)}
+                    disabled={busy || awaitingTeacherReply || (Boolean(writingTask) && !writingTask?.completed)}
                     className="min-h-[44px] px-3 text-xs"
                   >
                     {listening ? <MicOff className="mr-2 h-4 w-4" /> : <Mic className="mr-2 h-4 w-4" />}
                     {listening ? localText('Dừng mic', 'Stop mic') : localText('Nói', 'Speak')}
                   </Button>
                 </div>
+                <p className="text-xs text-slate-500">
+                  {micLanguageHint}
+                </p>
+                {writingTask && !writingTask.completed ? (
+                  <p className="rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-xs text-amber-800">
+                    {localText(
+                      'Cần hoàn thành bài viết mini bên dưới để tiếp tục nói/gửi lượt mới.',
+                      'Please finish the mini writing task below to continue speaking/sending a new turn.'
+                    )}
+                  </p>
+                ) : null}
               </div>
               {writingTask ? (
-                <div className="rounded-md border bg-slate-50/70 p-2.5">
+                <div
+                  className={`rounded-md border p-2.5 ${
+                    !writingTask.completed
+                      ? 'border-amber-300 bg-amber-50/60 ring-1 ring-amber-200'
+                      : 'bg-slate-50/70'
+                  }`}
+                >
                   <div className="mt-2 space-y-2">
                     <div className="flex items-center gap-2">
                       <Input
                         value={writingDraft}
-                        onChange={(e) => setWritingDraft(e.target.value)}
+                        onChange={(e) => {
+                          setWritingDraft(e.target.value)
+                          if (writingEvalResult && !writingTask?.completed) {
+                            setWritingEvalResult(null)
+                          }
+                        }}
                         placeholder={localText('Viết câu của bạn tại đây...', 'Write your sentence here...')}
                         disabled={writingBusy}
-                        className="flex-1"
+                        className={`flex-1 ${
+                          writingInputStatus === 'matched'
+                            ? 'border-emerald-400 bg-emerald-50'
+                            : writingInputStatus === 'incorrect'
+                              ? 'border-rose-400 bg-rose-50'
+                              : ''
+                        }`}
                       />
                       <Button type="button" size="sm" onClick={() => void evaluateWritingTask()} disabled={writingBusy || !writingDraft.trim()}>
                         {writingBusy ? localText('Đang gửi...', 'Sending...') : localText('Gửi', 'Send')}
                       </Button>
                     </div>
+                    {writingInputStatus === 'incorrect' ? (
+                      <p className="text-xs text-rose-700">
+                        {localText(
+                          'Bạn đang gõ sai so với câu tham chiếu. Hãy chỉnh lại ngay ở vị trí đang đỏ.',
+                          'Your typing does not match the reference sentence. Please correct it now.'
+                        )}
+                      </p>
+                    ) : writingInputStatus === 'matched' ? (
+                      <p className="text-xs text-emerald-700">
+                        {localText('Đúng rồi, đang chuyển sang câu tiếp theo...', 'Correct, moving to the next sentence...')}
+                      </p>
+                    ) : null}
                     <div className="space-y-1">
                       <p className="text-sm font-semibold text-slate-800">{localText('Bài viết mini bắt buộc', 'Required mini-writing task')}</p>
                       <p className="text-xs text-muted-foreground">{writingTask.instruction}</p>
                       <p className="text-xs text-slate-600">
-                        {writingTask.taskType === 'copy'
-                          ? localText(
-                              'Cách làm: chỉ chép đúng câu tham chiếu, không thêm hoặc bớt từ.',
-                              'How to do it: copy only the reference sentence exactly, without adding or removing words.'
-                            )
-                          : writingTask.taskType === 'guided_rewrite'
-                            ? localText(
-                                'Cách làm: giữ ý chính như câu tham chiếu, đổi ít nhất 1 từ/cụm theo ý bạn.',
-                                'How to do it: keep the same main idea as the reference sentence, but change at least one word/phrase.'
-                              )
-                            : writingTask.taskType === 'rewrite'
-                              ? localText(
-                                  'Cách làm: viết câu mới cùng nghĩa với câu tham chiếu; tránh chép y nguyên.',
-                                  'How to do it: write a new sentence with the same meaning as the reference sentence; avoid copying it exactly.'
-                                )
-                              : localText(
-                                  'Cách làm: trả lời đúng ngữ cảnh của đoạn hội thoại và dùng câu đầy đủ.',
-                                  'How to do it: respond to the conversation context and use complete sentences.'
-                                )}
+                        {localText(
+                          `Tiến độ: câu ${Math.min(writingTask.currentIndex + 1, Math.max(1, writingTask.requiredSentences.length))}/${Math.max(1, writingTask.requiredSentences.length)}.`,
+                          `Progress: sentence ${Math.min(writingTask.currentIndex + 1, Math.max(1, writingTask.requiredSentences.length))}/${Math.max(1, writingTask.requiredSentences.length)}.`
+                        )}
                       </p>
-                      {writingTask.referenceSentence ? (
+                      {writingTask.requiredSentences.length > 0 ? (
                         <div className="text-xs text-slate-700">
-                          <p>
-                            <span className="font-semibold">{localText('Câu tham chiếu:', 'Reference sentence:')}</span> {writingTask.referenceSentence}
-                          </p>
-                          {supportsLatinTransliteration ? (
-                            (() => {
-                              const key = toWritingRomanizationKey(writingTask.referenceSentence || '')
-                              const romanized = writingRomanizationByKey[key]
+                          <p className="font-semibold">{localText('Câu cần gõ y nguyên:', 'Sentences to copy exactly:')}</p>
+                          <div className="mt-1 space-y-1">
+                            {writingTask.requiredSentences.map((sentence, idx) => {
+                              const key = toWritingRomanizationKey(sentence || '')
+                              const romanized = sanitizeRomanizedText(String(writingRomanizationByKey[key] || ''))
                               const busyKey = writingRomanizationBusyByKey[key]
-                              if (!romanized && !busyKey) return null
+                              const isCurrent = idx === writingTask.currentIndex && !writingTask.completed
                               return (
-                                <p className="mt-0.5 text-muted-foreground">
-                                  <span className="font-semibold">{localText('Phiên âm Latin:', 'Latin transliteration:')}</span>{' '}
-                                  {romanized || localText('Đang tạo...', 'Generating...')}
-                                </p>
+                                <div
+                                  key={`required-sentence-${idx}`}
+                                  className={`rounded border px-2 py-1 ${
+                                    isCurrent ? 'border-indigo-300 bg-indigo-50' : 'border-slate-200 bg-white'
+                                  }`}
+                                >
+                                  <p className="leading-6">
+                                    <span className="font-semibold">{localText('Câu', 'Sentence')} {idx + 1}:</span>{' '}
+                                    <span className="inline-block align-middle">
+                                      {Array.from(sentence).map((char, charIdx) => {
+                                        const displayChar = char === ' ' ? '\u00A0' : char
+                                        return (
+                                          <span
+                                            key={`sentence-${idx}-char-${charIdx}`}
+                                            className={
+                                              isCurrent
+                                                ? 'bg-emerald-100 text-emerald-900'
+                                                : 'bg-slate-100 text-slate-800'
+                                            }
+                                          >
+                                            {displayChar}
+                                          </span>
+                                        )
+                                      })}
+                                    </span>
+                                  </p>
+                                  {supportsLatinTransliteration && (romanized || busyKey) ? (
+                                    <p className="mt-0.5 text-muted-foreground">
+                                      <span className="font-semibold">{localText('Phiên âm Latin:', 'Latin transliteration:')}</span>{' '}
+                                      {romanized || localText('Đang tạo...', 'Generating...')}
+                                    </p>
+                                  ) : null}
+                                </div>
                               )
-                            })()
-                          ) : null}
+                            })}
+                          </div>
                         </div>
                       ) : null}
                     </div>
@@ -5601,7 +5570,7 @@ export default function HocTiengAnhAiClientPage() {
                             {supportsLatinTransliteration ? (
                               (() => {
                                 const key = toWritingRomanizationKey(writingEvalResult.correctedText || '')
-                                const romanized = writingRomanizationByKey[key]
+                                const romanized = sanitizeRomanizedText(String(writingRomanizationByKey[key] || ''))
                                 const busyKey = writingRomanizationBusyByKey[key]
                                 if (!romanized && !busyKey) return null
                                 return (
@@ -5619,15 +5588,6 @@ export default function HocTiengAnhAiClientPage() {
                   </div>
                 </div>
               ) : null}
-              <p className="text-xs text-slate-500">
-                {coachUiText.micHintPrefix} {selectedNativeLanguage.label} / {selectedLanguageLabel}:{' '}
-                &quot;{repeatPromptInNative}&quot; / &quot;{explainPromptInNative}&quot;{' '}
-                {localText('hoặc', 'or')} &quot;{repeatPromptInTarget}&quot; / &quot;{explainPromptInTarget}&quot;{' '}
-                {localText(
-                  'để thầy/cô giải thích đúng câu em đang vướng.',
-                  'so the teacher can explain exactly the sentence you are stuck on.'
-                )}
-              </p>
             </CardContent>
           </Card>
 
@@ -5728,297 +5688,56 @@ export default function HocTiengAnhAiClientPage() {
                   </ul>
                 )}
               </div>
-              <div className="rounded-md border p-3">
-                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-sm font-semibold text-slate-800">{localText('Từ mới của buổi học này', 'New words in this lesson')}</p>
-                  <Button type="button" variant="ghost" size="sm" onClick={() => void fetchSessionWords()} disabled={todayWordsBusy}>
-                    {localText('Làm mới', 'Refresh')}
-                  </Button>
-                </div>
-                {todayWordsBusy ? (
-                  <p className="text-sm text-muted-foreground">{localText('Đang tải danh sách từ mới của buổi học...', 'Loading new words for this lesson...')}</p>
-                ) : todayWords.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">{localText('Chưa có từ mới trong buổi này. Bấm vào từ trong câu teacher để lưu.', 'No new words yet. Tap words in teacher sentences to save them.')}</p>
-                ) : (
-                  <div className="space-y-1.5">
-                    {todayWords.map((item) => (
-                      <div key={item.id} className="rounded-md border bg-slate-50 p-1.5 text-xs leading-snug">
-                        <p>
-                          <button
-                            type="button"
-                            className="font-semibold text-blue-600 dark:text-blue-400 underline-offset-2 hover:underline"
-                            onClick={() => startWordPractice(item.word, item.meaning)}
-                          >
-                            {item.word}
-                          </button>{' '}
-                          - {item.meaning || localText('Chưa có nghĩa', 'No meaning yet')}
-                        </p>
-                        <p className="text-muted-foreground">{localText('Phát âm:', 'Pronunciation:')} {item.pronunciation || item.word}</p>
-                        {renderWordPracticeBox(item.word, item.meaning)}
-                        {((item.exampleItems ?? []).length > 0
-                          ? item.exampleItems!
-                          : item.exampleTarget && item.exampleNative
-                            ? [{ targetText: item.exampleTarget, nativeText: item.exampleNative, targetPinyin: undefined }]
-                            : []
-                        ).map((ex, idx) => {
-                          const exampleText = String(ex.targetText || '').trim()
-                          const exampleNative = String(ex.nativeText || '').trim()
-                          const storedPinyin = String(ex.targetPinyin || '').trim()
-                          const itemTargetLang = item.targetLanguage
-                          const fallbackKey = toWritingRomanizationKey(exampleText, itemTargetLang)
-                          const fallbackPinyin = String(writingRomanizationByKey[fallbackKey] || '').trim()
-                          const busyPinyin = Boolean(writingRomanizationBusyByKey[fallbackKey])
-                          const pinyin = storedPinyin || fallbackPinyin
-                          const showPinyin = isCjkTargetLanguage(itemTargetLang)
-                          if (!exampleText) return null
-                          const targetWord = item.word.trim()
-                          const cleanExampleText = exampleText.replace(/\*\*/g, '')
-                          const renderExampleWithHighlight = () => {
-                            if (!targetWord || !cleanExampleText.includes(targetWord)) return cleanExampleText
-                            const parts = cleanExampleText.split(targetWord)
-                            return parts.map((part, i) => (
-                              <span key={i}>
-                                {part}
-                                {i < parts.length - 1 ? <span className="font-semibold text-blue-600 dark:text-blue-400">{targetWord}</span> : null}
-                              </span>
-                            ))
-                          }
-                          return (
-                            <div key={idx} className="mt-1 space-y-0">
-                              <div className="flex items-start gap-2">
-                                <p className="flex-1">
-                                  <span className="font-semibold text-slate-800">{localText('Ví dụ:', 'Example:')}</span>{' '}
-                                  {renderExampleWithHighlight()}
-                                </p>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-7 w-7 shrink-0"
-                                  onClick={() => void playWordTextSnippet(cleanExampleText)}
-                                >
-                                  <Volume2 className="h-4 w-4" />
-                                </Button>
-                              </div>
-                              {showPinyin && (pinyin || busyPinyin) ? (
-                                pinyin ? (
-                                  <p className="text-muted-foreground">
-                                    <span className="font-semibold text-slate-800">{localText('Pinyin:', 'Pinyin:')}</span>{' '}
-                                    {pinyin}
-                                  </p>
-                                ) : (
-                                  <p className="text-muted-foreground">
-                                    <span className="font-semibold text-slate-800">{localText('Pinyin:', 'Pinyin:')}</span>{' '}
-                                    {localText('Đang tạo...', 'Generating...')}
-                                  </p>
-                                )
-                              ) : null}
-                              {exampleNative ? (
-                                <p className="text-muted-foreground">
-                                  <span className="font-semibold text-slate-800">{localText('Dịch:', 'Translation:')}</span>{' '}
-                                  {exampleNative}
-                                </p>
-                              ) : null}
-                            </div>
-                          )
-                        })}
-                        <div className="mt-1.5">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="h-8 px-2.5 text-xs"
-                            onClick={() => {
-                              startWordPractice(item.word, item.meaning, { forceSwitch: true })
-                              void playWordPronunciation(item.word)
-                            }}
-                          >
-                            <Volume2 className="mr-2 h-4 w-4" />
-                            {localText('Nghe lại từ này', 'Replay this word')}
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-              <div className="rounded-md border p-3">
-                <div className="mb-2 flex items-center justify-between gap-2">
-                  <p className="text-sm font-semibold text-slate-800">{localText('Ôn tập thông minh (SRS)', 'Smart review (SRS)')}</p>
-                  <Button type="button" variant="ghost" size="sm" onClick={() => void fetchReviewDue()} disabled={reviewBusy}>
-                    {localText('Làm mới', 'Refresh')}
-                  </Button>
-                </div>
-                {reviewBusy ? (
-                  <p className="text-sm text-muted-foreground">{localText('Đang tải danh sách từ đến hạn ôn...', 'Loading words due for review...')}</p>
-                ) : reviewItems.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">{localText('Chưa có từ đến hạn ôn. Tiếp tục hội thoại để tích lũy từ mới.', 'No words due yet. Keep chatting to build vocabulary.')}</p>
-                ) : (
-                  <div className="space-y-1.5">
-                    {reviewItems.map((item) => (
-                      <div key={item.id} className="rounded-md border bg-slate-50 p-1.5 text-xs leading-snug">
-                        <p>
-                          <button
-                            type="button"
-                            className="font-semibold text-blue-600 dark:text-blue-400 underline-offset-2 hover:underline"
-                            onClick={() => startWordPractice(item.word, item.meaning || (item.meaningItems?.[0]?.text ?? ''))}
-                          >
-                            {item.word}
-                          </button>{' '}
-                          - {((item.meaningItems ?? []).map((m) => m.text).join('; ') || item.meaning || localText('Chưa có nghĩa', 'No meaning yet'))}
-                        </p>
-                        <p className="text-muted-foreground">{localText('Phát âm:', 'Pronunciation:')} {item.pronunciation || item.word}</p>
-                        {renderWordPracticeBox(item.word, item.meaning || item.meaningItems?.[0]?.text)}
-                        {((item.exampleItems ?? []).length > 0
-                          ? item.exampleItems!
-                          : item.exampleTarget && item.exampleNative
-                            ? [{ targetText: item.exampleTarget, nativeText: item.exampleNative, targetPinyin: undefined }]
-                            : []
-                        ).map((ex, idx) => {
-                          const exampleText = String(ex.targetText || '').trim()
-                          const exampleNative = String(ex.nativeText || '').trim()
-                          const storedPinyin = String(ex.targetPinyin || '').trim()
-                          const itemTargetLang = item.targetLanguage
-                          const fallbackKey = toWritingRomanizationKey(exampleText, itemTargetLang)
-                          const fallbackPinyin = String(writingRomanizationByKey[fallbackKey] || '').trim()
-                          const busyPinyin = Boolean(writingRomanizationBusyByKey[fallbackKey])
-                          const pinyin = storedPinyin || fallbackPinyin
-                          const showPinyin = isCjkTargetLanguage(itemTargetLang)
-                          if (!exampleText) return null
-                          const targetWord = item.word.trim()
-                          const cleanExampleText = exampleText.replace(/\*\*/g, '')
-                          const renderExampleWithHighlight = () => {
-                            if (!targetWord || !cleanExampleText.includes(targetWord)) return cleanExampleText
-                            const parts = cleanExampleText.split(targetWord)
-                            return parts.map((part, i) => (
-                              <span key={i}>
-                                {part}
-                                {i < parts.length - 1 ? <span className="font-semibold text-blue-600 dark:text-blue-400">{targetWord}</span> : null}
-                              </span>
-                            ))
-                          }
-                          return (
-                            <div key={idx} className="mt-1 space-y-0">
-                              <div className="flex items-start gap-2">
-                                <p className="flex-1">
-                                  <span className="font-semibold text-slate-800">{localText('Ví dụ:', 'Example:')}</span>{' '}
-                                  {renderExampleWithHighlight()}
-                                </p>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-7 w-7 shrink-0"
-                                  onClick={() => void playWordTextSnippet(cleanExampleText)}
-                                >
-                                  <Volume2 className="h-4 w-4" />
-                                </Button>
-                              </div>
-                              {showPinyin && (pinyin || busyPinyin) ? (
-                                pinyin ? (
-                                  <p className="text-muted-foreground">
-                                    <span className="font-semibold text-slate-800">{localText('Pinyin:', 'Pinyin:')}</span>{' '}
-                                    {pinyin}
-                                  </p>
-                                ) : (
-                                  <p className="text-muted-foreground">
-                                    <span className="font-semibold text-slate-800">{localText('Pinyin:', 'Pinyin:')}</span>{' '}
-                                    {localText('Đang tạo...', 'Generating...')}
-                                  </p>
-                                )
-                              ) : null}
-                              {exampleNative ? (
-                                <p className="text-muted-foreground">
-                                  <span className="font-semibold text-slate-800">{localText('Dịch:', 'Translation:')}</span>{' '}
-                                  {exampleNative}
-                                </p>
-                              ) : null}
-                            </div>
-                          )
-                        })}
-                        <div className="mt-1.5 flex flex-wrap gap-1">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="h-8 px-2.5 text-xs"
-                            onClick={() => {
-                              startWordPractice(item.word, item.meaning || item.meaningItems?.[0]?.text ?? '', { forceSwitch: true })
-                              void playWordPronunciation(item.word)
-                            }}
-                          >
-                            <Volume2 className="mr-2 h-4 w-4" />
-                            {localText('Nghe lại từ này', 'Replay this word')}
-                          </Button>
-                          <Button type="button" variant="outline" size="sm" className="h-8 px-2.5 text-xs" onClick={() => void markReviewDone(item.id, 2)}>
-                            {localText('Khó', 'Hard')}
-                          </Button>
-                          <Button type="button" variant="outline" size="sm" className="h-8 px-2.5 text-xs" onClick={() => void markReviewDone(item.id, 3)}>
-                            {localText('Ổn', 'Okay')}
-                          </Button>
-                          <Button type="button" variant="outline" size="sm" className="h-8 px-2.5 text-xs" onClick={() => void markReviewDone(item.id, 5)}>
-                            {localText('Dễ', 'Easy')}
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <TodayWordsPanel
+                localText={localText}
+                todayWordsBusy={todayWordsBusy}
+                todayWords={todayWords}
+                writingRomanizationByKey={writingRomanizationByKey}
+                writingRomanizationBusyByKey={writingRomanizationBusyByKey}
+                toWritingRomanizationKey={toWritingRomanizationKey}
+                isCjkTargetLanguage={isCjkTargetLanguage}
+                onRefreshTodayWords={() => void fetchSessionWords()}
+                onStartWordPractice={startWordPractice}
+                onPlayWordTextSnippet={(text) => void playWordTextSnippet(text)}
+                onPlayWordPronunciation={(word) => void playWordPronunciation(word)}
+              />
+              <ReviewItemsPanel
+                localText={localText}
+                reviewBusy={reviewBusy}
+                reviewItems={reviewItems}
+                writingRomanizationByKey={writingRomanizationByKey}
+                writingRomanizationBusyByKey={writingRomanizationBusyByKey}
+                toWritingRomanizationKey={toWritingRomanizationKey}
+                isCjkTargetLanguage={isCjkTargetLanguage}
+                onRefreshReviewItems={() => void fetchReviewDue()}
+                onStartWordPractice={startWordPractice}
+                onPlayWordTextSnippet={(text) => void playWordTextSnippet(text)}
+                onPlayWordPronunciation={(word) => void playWordPronunciation(word)}
+                onMarkReviewDone={(id, quality) => void markReviewDone(id, quality)}
+              />
             </CardContent>
           </Card>
         </div>
 
-        <Card className="border shadow-sm bg-white/80 backdrop-blur">
-          <CardHeader>
-            <CardTitle>{coachUiText.historyTitle}</CardTitle>
-            <CardDescription>{coachUiText.historyDesc}</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="mb-2 flex items-center justify-between gap-2">
-              <p className="text-sm font-semibold text-slate-800">
-                {localText('Danh sách buổi học đã lưu', 'Saved lesson list')}
-                {openedHistorySessionId ? localText(' • Đang mở 1 buổi cũ', ' • Opening one past lesson') : ''}
-              </p>
-              <Button type="button" variant="ghost" size="sm" onClick={() => void fetchHistorySessions()}>
-                {localText('Làm mới', 'Refresh')}
-              </Button>
-            </div>
-            {historySessions.length === 0 ? (
-              <p className="text-sm text-muted-foreground">{localText('Chưa có buổi học nào được lưu.', 'No saved lessons yet.')}</p>
-            ) : (
-              <div className="space-y-2">
-                {historySessions.map((session) => (
-                  <div key={session.sessionId} className="flex flex-col gap-2 rounded-md border bg-white p-2 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-slate-800">{session.teacherLabel || localText('Giáo viên AI', 'AI teacher')}</p>
-                      <p className="truncate text-xs text-muted-foreground">
-                        {session.languageCode?.toUpperCase() || 'N/A'} • {
-                          session.mode === 'listen_speak'
-                            ? localText('Luyện nghe nói', 'Listen & Speak')
-                            : session.mode === 'roleplay_short'
-                              ? localText('Nhập vai ngắn', 'Short roleplay')
-                              : localText('Hội thoại', 'Conversation')
-                        } • {session.messageCount} {localText('tin nhắn', 'messages')}
-                      </p>
-                      <p className="truncate text-xs text-slate-600">{session.lastTeacherText || localText('Không có bản xem trước.', 'No preview available.')}</p>
-                    </div>
-                    <Button
-                      type="button"
-                      variant={openedHistorySessionId === session.sessionId ? 'secondary' : 'outline'}
-                      size="sm"
-                      disabled={historyBusy || isWordPracticeLocked}
-                      onClick={() => void loadHistorySession(session.sessionId)}
-                    >
-                      {openedHistorySessionId === session.sessionId ? localText('Đang mở', 'Opened') : localText('Mở buổi này', 'Open this lesson')}
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <HistoryPanel
+          title={coachUiText.historyTitle}
+          description={coachUiText.historyDesc}
+          sessions={historySessions}
+          openedHistorySessionId={openedHistorySessionId}
+          historyBusy={historyBusy}
+          localText={localText}
+          onRefresh={() => void fetchHistorySessions()}
+          onOpenSession={(sessionId) => void loadHistorySession(sessionId)}
+        />
       </div>
+      <WordPracticeOverlay
+        wordPractice={wordPractice}
+        practiceInputStatus={practiceInputStatus}
+        t={t}
+        onWordPracticeDraftChange={onWordPracticeDraftChange}
+        onWordPracticeMeaningSelect={onWordPracticeMeaningSelect}
+        onPlayWordPronunciation={(word) => void playWordPronunciation(word)}
+      />
       {showPreLessonReview ? (
         <PreLessonReviewOverlay
           words={preLessonRetryWords ?? preLessonWords}
@@ -6028,35 +5747,19 @@ export default function HocTiengAnhAiClientPage() {
           input={preLessonInput}
           recallDirection={preLessonRecallDirection}
           passed={preLessonPassed}
+          languageCode={languageCode}
           onInputChange={setPreLessonInput}
           onRecallDirectionChange={setPreLessonRecallDirection}
-          onClozeSubmit={(word, correct) => {
-            setPreLessonResults((prev) => ({
-              ...prev,
-              [word]: { ...prev[word], cloze: correct, listen: prev[word]?.listen ?? false, recall: prev[word]?.recall ?? false },
-            }))
-            setPreLessonInput('')
-            if (preLessonWordIndex < (preLessonRetryWords ?? preLessonWords).length - 1) {
-              setPreLessonWordIndex((i) => i + 1)
-            } else {
-              setPreLessonWordIndex(0)
-              setPreLessonExerciseIndex(1)
-            }
-          }}
-          onListenSubmit={(word, correct) => {
-            setPreLessonResults((prev) => ({
-              ...prev,
-              [word]: { ...prev[word], cloze: prev[word]?.cloze ?? false, listen: correct, recall: prev[word]?.recall ?? false },
-            }))
-            setPreLessonInput('')
-            if (preLessonWordIndex < (preLessonRetryWords ?? preLessonWords).length - 1) {
-              setPreLessonWordIndex((i) => i + 1)
-            } else {
-              setPreLessonWordIndex(0)
-              setPreLessonExerciseIndex(2)
-            }
-          }}
+          onClozeSubmit={onPreLessonClozeSubmit}
+          onListenSubmit={onPreLessonListenSubmit}
           onRecallSubmit={(word, correct) => {
+            if (!correct) {
+              const words = preLessonRetryWords ?? preLessonWords
+              const item = words.find((w) => w.word === word)
+              if (item?.targetLanguage) {
+                void rescheduleReviewWords({ words: [{ word, targetLanguage: item.targetLanguage }] })
+              }
+            }
             const words = preLessonRetryWords ?? preLessonWords
             const isLast = preLessonWordIndex >= words.length - 1
             setPreLessonResults((prev) => {
@@ -6083,6 +5786,7 @@ export default function HocTiengAnhAiClientPage() {
                   setPreLessonExerciseIndex(0)
                   setPreLessonWordIndex(0)
                   setPreLessonResults({})
+                  setPreLessonInput('')
                 }, 0)
               }
               return newResults
@@ -6103,184 +5807,63 @@ export default function HocTiengAnhAiClientPage() {
             setPreLessonWords([])
             setPreLessonRetryWords(null)
             setPreLessonResults({})
+            setPreLessonInput('')
           }}
           localText={localText}
         />
       ) : null}
-      {quickStartModalOpen ? (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 pt-6 sm:pt-10">
-          <div className="relative flex w-full max-w-3xl max-h-[calc(100vh-4.5rem)] flex-col rounded-lg border bg-white shadow-xl">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              onClick={() => setQuickStartModalOpen(false)}
-              disabled={quickStartBusy}
-              aria-label={localText('Đóng popup', 'Close popup')}
-              className="absolute right-2 top-2 z-10 h-8 w-8"
-            >
-              <X className="h-4 w-4" />
-            </Button>
-            <div className="border-b px-4 py-3">
-              <p className="text-base font-semibold text-slate-900">
-                {localText('Bắt đầu nhanh - Cài đặt bài học', 'Quick start - Lesson setup')}
-              </p>
-              <p className="text-xs text-slate-600">
-                {localText(
-                  'Chọn nhanh các tùy chọn dưới đây, rồi bấm "Tạo bài học" để tạo giáo trình và mở buổi học luôn.',
-                  'Pick your settings below, then click "Create lesson" to generate curriculum and start immediately.'
-                )}
-              </p>
-            </div>
-            <div className="overflow-auto px-4 py-3">
-              <div className="grid gap-3 grid-cols-1 md:grid-cols-2">
-                <div className="space-y-1">
-                  <label className="text-sm font-medium">{coachUiText.learningLanguage}</label>
-                  <select
-                    value={languageCode}
-                    onChange={(e) => {
-                      const code = e.target.value as LanguageCode
-                      setLanguageCode(code)
-                      const firstTeacher = TEACHERS_BY_LANGUAGE[code]?.[0]
-                      if (firstTeacher) setTeacherId(firstTeacher.id)
-                    }}
-                    className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
-                  >
-                    {languageOptions.map((lang) => (
-                      <option key={lang.code} value={lang.code}>
-                        {lang.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-sm font-medium">{coachUiText.nativeLanguage}</label>
-                  <select
-                    value={nativeLanguageCode}
-                    onChange={(e) => setNativeLanguageCode(e.target.value as NativeLanguageCode)}
-                    className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
-                  >
-                    {nativeLanguageOptions.map((lang) => (
-                      <option key={lang.code} value={lang.code}>
-                        {lang.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-sm font-medium">{coachUiText.nativeTeacher}</label>
-                  <select
-                    value={selectedTeacher.id}
-                    onChange={(e) => setTeacherId(e.target.value)}
-                    className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
-                  >
-                    {teacherOptions.map((teacher) => (
-                      <option key={teacher.id} value={teacher.id}>
-                        {teacher.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-sm font-medium">{coachUiText.learnerLevel}</label>
-                  <select
-                    value={learnerLevel}
-                    onChange={(e) => setLearnerLevel(Number(e.target.value) as LearnerLevel)}
-                    className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
-                  >
-                    <option value={0}>{levelLabelUi(0)}</option>
-                    <option value={1}>{levelLabelUi(1)}</option>
-                    <option value={2}>{levelLabelUi(2)}</option>
-                    <option value={3}>{levelLabelUi(3)}</option>
-                    <option value={4}>{levelLabelUi(4)}</option>
-                  </select>
-                </div>
-              </div>
-              <div className="mt-3 grid gap-3 grid-cols-1 md:grid-cols-2">
-                <div className="space-y-1">
-                  <p className="text-xs font-medium text-slate-700">{localText('Chủ đề có sẵn', 'Built-in topics')}</p>
-                  <select
-                    value={builtInTopicOptions.some((x) => x.id === pendingTopicId) ? pendingTopicId : ''}
-                    onChange={(e) => {
-                      const value = String(e.target.value || '').trim()
-                      if (!value) return
-                      setTopicSourceMode('builtin')
-                      setPendingTopicId(value)
-                    }}
-                    className={`w-full rounded-md border px-3 py-2 text-sm ${
-                      topicSourceMode === 'builtin'
-                        ? 'border-slate-900 bg-slate-50 text-slate-900'
-                        : 'border-slate-300 bg-white text-slate-700'
-                    }`}
-                  >
-                    <option value="">{localText('Chọn chủ đề có sẵn...', 'Select built-in topic...')}</option>
-                    {builtInTopicOptions.map((topic) => (
-                      <option key={topic.id} value={topic.id}>{topic.label}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs font-medium text-slate-700">{localText('Chủ đề mới tạo', 'Custom topics')}</p>
-                  <select
-                    value={customTopicOptions.some((x) => x.id === pendingTopicId) ? pendingTopicId : ''}
-                    onChange={(e) => {
-                      const value = String(e.target.value || '').trim()
-                      if (!value) return
-                      setTopicSourceMode('custom')
-                      setPendingTopicId(value)
-                    }}
-                    className={`w-full rounded-md border px-3 py-2 text-sm ${
-                      topicSourceMode === 'custom'
-                        ? 'border-slate-900 bg-slate-50 text-slate-900'
-                        : 'border-slate-300 bg-white text-slate-700'
-                    }`}
-                  >
-                    <option value="">
-                      {customTopicOptions.length > 0
-                        ? localText('Chọn chủ đề mới tạo...', 'Select custom topic...')
-                        : localText('Chưa có chủ đề mới tạo', 'No custom topic yet')}
-                    </option>
-                    {customTopicOptions.map((topic) => (
-                      <option key={topic.id} value={topic.id}>{topic.label}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              <div className="mt-3 space-y-2 rounded-md border bg-slate-50 p-3">
-                <p className="text-xs font-medium text-slate-700">{localText('Tạo chủ đề mới ngay trong popup', 'Create a new topic in this popup')}</p>
-                <div className="flex flex-col gap-2 sm:flex-row">
-                  <Input
-                    value={customTopicDraft}
-                    onChange={(e) => setCustomTopicDraft(e.target.value)}
-                    placeholder={coachUiText.customTopicPlaceholder}
-                    className="h-11 w-full text-base sm:flex-1"
-                    disabled={customTopicBusy || quickStartBusy}
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => void normalizeAndSaveCustomTopic()}
-                    disabled={customTopicBusy || quickStartBusy}
-                    className="h-11 px-4 sm:shrink-0"
-                  >
-                    {customTopicBusy ? localText('Đang tạo chủ đề mới...', 'Creating topic...') : localText('Tạo chủ đề mới', 'Create topic')}
-                  </Button>
-                </div>
-              </div>
-            </div>
-            <div className="flex flex-col gap-2 border-t px-4 py-3 sm:flex-row sm:justify-end">
-              <Button
-                type="button"
-                onClick={() => void runQuickStartFlow()}
-                disabled={quickStartBusy}
-                className="min-h-[44px]"
-              >
-                {quickStartBusy ? quickStartStageLabel : localText('Tạo bài học', 'Create lesson')}
-              </Button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <QuickStartModal
+        open={quickStartModalOpen}
+        quickStartBusy={quickStartBusy}
+        quickStartStageLabel={quickStartStageLabel}
+        localText={localText}
+        learningLanguageLabel={coachUiText.learningLanguage}
+        nativeLanguageLabel={coachUiText.nativeLanguage}
+        nativeTeacherLabel={coachUiText.nativeTeacher}
+        learnerLevelLabel={coachUiText.learnerLevel}
+        customTopicPlaceholder={coachUiText.customTopicPlaceholder}
+        languageCode={languageCode}
+        languageOptions={languageOptions.map((x) => ({ value: x.code, label: x.label }))}
+        onLanguageChange={(code) => {
+          const nextCode = code as LanguageCode
+          setLanguageCode(nextCode)
+          const firstTeacher = TEACHERS_BY_LANGUAGE[nextCode]?.[0]
+          if (firstTeacher) setTeacherId(firstTeacher.id)
+        }}
+        nativeLanguageCode={nativeLanguageCode}
+        nativeLanguageOptions={nativeLanguageOptions.map((x) => ({ value: x.code, label: x.label }))}
+        onNativeLanguageChange={(code) => setNativeLanguageCode(code as NativeLanguageCode)}
+        selectedTeacherId={selectedTeacher.id}
+        teacherOptions={teacherOptions.map((x) => ({ value: x.id, label: x.label }))}
+        onTeacherChange={(id) => setTeacherId(id)}
+        learnerLevel={learnerLevel}
+        learnerLevelOptions={[
+          { value: '0', label: levelLabelUi(0) },
+          { value: '1', label: levelLabelUi(1) },
+          { value: '2', label: levelLabelUi(2) },
+          { value: '3', label: levelLabelUi(3) },
+          { value: '4', label: levelLabelUi(4) },
+        ]}
+        onLearnerLevelChange={(value) => setLearnerLevel(value as LearnerLevel)}
+        pendingTopicId={pendingTopicId}
+        topicSourceMode={topicSourceMode}
+        builtInTopicOptions={builtInTopicOptions}
+        customTopicOptions={customTopicOptions}
+        onPickBuiltInTopic={(topicId) => {
+          setTopicSourceMode('builtin')
+          setPendingTopicId(topicId)
+        }}
+        onPickCustomTopic={(topicId) => {
+          setTopicSourceMode('custom')
+          setPendingTopicId(topicId)
+        }}
+        customTopicDraft={customTopicDraft}
+        customTopicBusy={customTopicBusy}
+        onCustomTopicDraftChange={setCustomTopicDraft}
+        onCreateCustomTopic={() => void normalizeAndSaveCustomTopic()}
+        onClose={() => setQuickStartModalOpen(false)}
+        onCreateLesson={() => void runQuickStartFlow()}
+      />
     </>
   )
 }

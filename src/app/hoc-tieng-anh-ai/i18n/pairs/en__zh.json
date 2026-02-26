@@ -1,0 +1,26 @@
+{
+  "key": "en__zh",
+  "nativeLanguageCode": "en",
+  "targetLanguageCode": "zh",
+  "uiTone": "professional",
+  "enforceStrictPair": true,
+  "nativeFirstExplanation": true,
+  "maxReplyCharsConcise": 500,
+  "maxReplyCharsDetailed": 720,
+  "conversationFocus": [
+    "Dùng hội thoại ngắn theo ngữ cảnh thực dụng: chào hỏi, mua bán, lịch hẹn."
+  ],
+  "correctionFocus": [
+    "Ưu tiên sửa từ lượng từ, trật tự từ và sắc thái lịch sự."
+  ],
+  "lexicalFocus": [
+    "Kèm từ/cụm cố định theo ngữ cảnh và nhắc pinyin khi cần."
+  ],
+  "avoidPatterns": [
+    "Không trộn câu chính sang ngôn ngữ thứ ba ngoài English-Chinese."
+  ],
+  "extraSystemRules": [
+    "Khi có câu tiếng Trung, luôn ưu tiên câu ngắn và phát âm rõ cho người học nền tiếng Anh.",
+    "Giữ phần giải thích tiếng mẹ đẻ thật ngắn để tăng thời lượng luyện câu tiếng Trung."
+  ]
+}

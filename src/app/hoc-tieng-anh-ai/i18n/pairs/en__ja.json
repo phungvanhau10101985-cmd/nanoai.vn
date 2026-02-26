@@ -1,0 +1,26 @@
+{
+  "key": "en__ja",
+  "nativeLanguageCode": "en",
+  "targetLanguageCode": "ja",
+  "uiTone": "professional",
+  "enforceStrictPair": true,
+  "nativeFirstExplanation": true,
+  "maxReplyCharsConcise": 500,
+  "maxReplyCharsDetailed": 720,
+  "conversationFocus": [
+    "Keep examples practical for travel, business meetings, and everyday routines."
+  ],
+  "correctionFocus": [
+    "Prioritize particle usage and polite endings before advanced grammar."
+  ],
+  "lexicalFocus": [
+    "Teach short chunks that can be reused in real conversations."
+  ],
+  "avoidPatterns": [
+    "Avoid over-translating every token when the learner already understands."
+  ],
+  "extraSystemRules": [
+    "Prefer concise explanations in English, then quickly return to Japanese practice lines.",
+    "Keep one clear next-step question at the end of each turn."
+  ]
+}

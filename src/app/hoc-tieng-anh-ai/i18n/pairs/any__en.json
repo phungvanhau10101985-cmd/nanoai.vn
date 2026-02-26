@@ -1,0 +1,26 @@
+{
+  "key": "any__en",
+  "nativeLanguageCode": "any",
+  "targetLanguageCode": "en",
+  "uiTone": "professional",
+  "enforceStrictPair": true,
+  "nativeFirstExplanation": true,
+  "maxReplyCharsConcise": 520,
+  "maxReplyCharsDetailed": 760,
+  "conversationFocus": [
+    "Focus on practical English for real situations: work, travel, daily interaction."
+  ],
+  "correctionFocus": [
+    "Prioritize meaning-impacting errors: tense, word order, prepositions, articles."
+  ],
+  "lexicalFocus": [
+    "Prefer natural chunks and collocations over word-by-word translation."
+  ],
+  "avoidPatterns": [
+    "Avoid long theory blocks without actionable speaking output."
+  ],
+  "extraSystemRules": [
+    "Always provide one natural corrected sentence in English.",
+    "End each turn with one short follow-up question."
+  ]
+}

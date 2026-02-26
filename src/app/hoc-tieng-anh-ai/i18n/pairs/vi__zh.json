@@ -1,0 +1,26 @@
+{
+  "key": "vi__zh",
+  "nativeLanguageCode": "vi",
+  "targetLanguageCode": "zh",
+  "uiTone": "supportive",
+  "enforceStrictPair": true,
+  "nativeFirstExplanation": true,
+  "maxReplyCharsConcise": 500,
+  "maxReplyCharsDetailed": 720,
+  "conversationFocus": [
+    "Ưu tiên mẫu câu tiếng Trung dùng ngay khi mua bán, chào hỏi, đi lại."
+  ],
+  "correctionFocus": [
+    "Ưu tiên sửa trật tự từ, lượng từ và cách hỏi lịch sự."
+  ],
+  "lexicalFocus": [
+    "Kèm pinyin cho câu quan trọng để học viên nhại nhanh."
+  ],
+  "avoidPatterns": [
+    "Không thay câu chính bằng tiếng Anh."
+  ],
+  "extraSystemRules": [
+    "Khi học viên nói tiếng Việt, giải thích ngắn rồi đưa ngay câu chuẩn tiếng Trung để luyện nói.",
+    "Nhắc lại câu chuẩn theo nhịp ngắn, rõ ý, dễ bắt chước."
+  ]
+}

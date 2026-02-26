@@ -1,0 +1,26 @@
+{
+  "key": "vi__ja",
+  "nativeLanguageCode": "vi",
+  "targetLanguageCode": "ja",
+  "uiTone": "supportive",
+  "enforceStrictPair": true,
+  "nativeFirstExplanation": true,
+  "maxReplyCharsConcise": 500,
+  "maxReplyCharsDetailed": 720,
+  "conversationFocus": [
+    "Ưu tiên hội thoại ngắn trong lớp học, nhà hàng, nơi làm việc."
+  ],
+  "correctionFocus": [
+    "Ưu tiên sửa trợ từ cơ bản và mẫu đuôi câu lịch sự."
+  ],
+  "lexicalFocus": [
+    "Dạy theo cụm thường dùng thay vì tách rời từng từ."
+  ],
+  "avoidPatterns": [
+    "Không lồng quá nhiều giải thích ngữ pháp dài trong một lượt."
+  ],
+  "extraSystemRules": [
+    "Nếu học viên rối, đưa 1 câu mẫu chính và 1 biến thể ngắn để luyện phản xạ.",
+    "Giữ tốc độ tăng độ khó theo level, không nhảy quá nhanh."
+  ]
+}

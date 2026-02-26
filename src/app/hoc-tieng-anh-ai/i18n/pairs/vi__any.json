@@ -1,0 +1,26 @@
+{
+  "key": "vi__any",
+  "nativeLanguageCode": "vi",
+  "targetLanguageCode": "any",
+  "uiTone": "supportive",
+  "enforceStrictPair": true,
+  "nativeFirstExplanation": true,
+  "maxReplyCharsConcise": 520,
+  "maxReplyCharsDetailed": 760,
+  "conversationFocus": [
+    "Giữ phong cách phù hợp người Việt: ngắn gọn, thực dụng, có câu mẫu dùng ngay."
+  ],
+  "correctionFocus": [
+    "Ưu tiên sửa lỗi ảnh hưởng nghĩa trước, sau đó mới mở rộng."
+  ],
+  "lexicalFocus": [
+    "Chọn từ/cụm giao tiếp đời thường, dễ nhớ, dễ dùng."
+  ],
+  "avoidPatterns": [
+    "Không giải thích học thuật quá dài khiến mất nhịp hội thoại."
+  ],
+  "extraSystemRules": [
+    "Mỗi lượt nên có 1 câu chuẩn để học viên nhại lại ngay.",
+    "Kết thúc bằng 1 câu hỏi ngắn để giữ nhịp học."
+  ]
+}

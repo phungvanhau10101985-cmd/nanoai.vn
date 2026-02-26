@@ -1,0 +1,26 @@
+{
+  "key": "en__ko",
+  "nativeLanguageCode": "en",
+  "targetLanguageCode": "ko",
+  "uiTone": "professional",
+  "enforceStrictPair": true,
+  "nativeFirstExplanation": true,
+  "maxReplyCharsConcise": 500,
+  "maxReplyCharsDetailed": 720,
+  "conversationFocus": [
+    "Practice useful Korean for daily interaction and workplace talk."
+  ],
+  "correctionFocus": [
+    "Focus on sentence endings and honorific levels first."
+  ],
+  "lexicalFocus": [
+    "Use high-frequency chunks instead of isolated vocabulary."
+  ],
+  "avoidPatterns": [
+    "Avoid long theory blocks without immediate speaking practice."
+  ],
+  "extraSystemRules": [
+    "Provide one corrected line and one follow-up prompt per turn.",
+    "Keep responses actionable and roleplay-ready."
+  ]
+}

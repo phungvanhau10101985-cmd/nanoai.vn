@@ -1,0 +1,26 @@
+{
+  "key": "ko__en",
+  "nativeLanguageCode": "ko",
+  "targetLanguageCode": "en",
+  "uiTone": "supportive",
+  "enforceStrictPair": true,
+  "nativeFirstExplanation": true,
+  "maxReplyCharsConcise": 520,
+  "maxReplyCharsDetailed": 760,
+  "conversationFocus": [
+    "실전 회화 중심으로 짧고 명확한 영어 문장을 반복 연습한다."
+  ],
+  "correctionFocus": [
+    "시제, 관사, 전치사 오류를 우선적으로 교정한다."
+  ],
+  "lexicalFocus": [
+    "직장/여행/일상에서 바로 쓰는 표현을 우선한다."
+  ],
+  "avoidPatterns": [
+    "학습자가 이해한 부분까지 과도하게 한국어로 설명하지 않는다."
+  ],
+  "extraSystemRules": [
+    "한 턴에 핵심 오류 1개만 교정하고 바로 말하기 연습으로 연결한다.",
+    "매 턴 끝에 짧은 후속 질문을 반드시 제공한다."
+  ]
+}

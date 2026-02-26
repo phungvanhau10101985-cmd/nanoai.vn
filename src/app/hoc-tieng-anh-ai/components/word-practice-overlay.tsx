@@ -1,0 +1,98 @@
+'use client'
+
+import { Volume2 } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { cn } from '@/lib/utils'
+import type { WordPracticeProgress } from './types'
+
+type WordPracticeOverlayProps = {
+  wordPractice: WordPracticeProgress | null
+  practiceInputStatus: 'idle' | 'correct' | 'incorrect'
+  t: (key: string, params?: Record<string, string | number>) => string
+  onWordPracticeDraftChange: (targetWord: string, nextDraft: string) => void
+  onWordPracticeMeaningSelect: (targetWord: string, selectedMeaning: string) => void
+  onPlayWordPronunciation: (word: string) => void
+}
+
+export function WordPracticeOverlay({
+  wordPractice,
+  practiceInputStatus,
+  t,
+  onWordPracticeDraftChange,
+  onWordPracticeMeaningSelect,
+  onPlayWordPronunciation,
+}: WordPracticeOverlayProps) {
+  if (!wordPractice || wordPractice.unlocked) return null
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4">
+      <div className="w-full max-w-lg rounded-lg border bg-white p-5 shadow-xl">
+        <h3 className="text-lg font-semibold text-slate-900">
+          {t('Required new-word practice')}
+        </h3>
+        <p className="mt-1 text-sm text-slate-600">
+          {t('Listen and type the word correctly 3 times, then choose the correct meaning each round.')}
+        </p>
+        <p className="mt-1 text-sm font-medium text-slate-800">
+          {t('Current word:')} {wordPractice.targetWord}
+        </p>
+        <p className="mt-1 text-xs text-slate-500">
+          {t('You are doing great! Complete 3/3 and you can continue right away.')}
+        </p>
+        <p className="mt-1 text-sm font-medium text-slate-800">
+          {t('Progress:')} {wordPractice.correctCount}/3
+        </p>
+
+        <div className="mt-3 flex items-center gap-2">
+          <Button type="button" variant="outline" onClick={() => onPlayWordPronunciation(wordPractice.targetWord)}>
+            <Volume2 className="mr-2 h-4 w-4" />
+            {t('Replay new word')}
+          </Button>
+        </div>
+
+        {!wordPractice.awaitingMeaningChoice ? (
+          <div className="mt-3">
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">
+              {t('Type the exact word:')}
+            </label>
+            <Input
+              value={wordPractice.draft}
+              onChange={(e) => onWordPracticeDraftChange(wordPractice.targetWord, e.target.value)}
+              placeholder={t('Type the new word...')}
+              className={cn(
+                'h-11 text-base',
+                practiceInputStatus === 'correct' && 'border-emerald-500 bg-emerald-50 focus-visible:ring-emerald-500',
+                practiceInputStatus === 'incorrect' && 'border-rose-500 bg-rose-50 focus-visible:ring-rose-500'
+              )}
+              autoFocus
+            />
+          </div>
+        ) : (
+          <div className="mt-3">
+            <p className="mb-2 text-sm font-medium text-slate-700">{t('Choose the correct meaning:')}</p>
+            <div className="max-h-52 space-y-2 overflow-auto pr-1">
+              {wordPractice.meaningOptions.map((option, idx) => (
+                <Button
+                  key={`practice-meaning-option-${idx}`}
+                  type="button"
+                  variant="outline"
+                  className="h-auto min-h-[40px] w-full justify-start whitespace-normal text-left"
+                  onClick={() => onWordPracticeMeaningSelect(wordPractice.targetWord, option)}
+                >
+                  {option}
+                </Button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {wordPractice.feedback ? (
+          <p className={`mt-3 text-sm ${wordPractice.feedback.includes('Sai') || wordPractice.feedback.includes('Wrong') ? 'text-rose-700' : 'text-emerald-700'}`}>
+            {wordPractice.feedback}
+          </p>
+        ) : null}
+      </div>
+    </div>
+  )
+}

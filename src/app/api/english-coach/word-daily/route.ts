@@ -107,15 +107,47 @@ function hasMeaning(row: { meaning?: string | null; meaning_items_json?: string 
   return Array.isArray(items) && items.some((x) => String((x as { text?: unknown })?.text ?? '').trim())
 }
 
+const hasCjk = (s: string) => /[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff\uac00-\ud7af]/.test(s)
+
 function exampleItemsNeedFix(items: Array<{ targetText?: string }>, targetLang: string | null): boolean {
   const norm = String(targetLang || '').toLowerCase()
   if (!norm.includes('chinese') && !norm.includes('zh') && !norm.includes('mandarin') && !norm.includes('japanese') && !norm.includes('ja') && !norm.includes('korean') && !norm.includes('ko')) return false
-  const hasCjk = (s: string) => /[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff\uac00-\ud7af]/.test(s)
   for (const item of items) {
     const t = String(item.targetText || '').trim()
     if (t && !hasCjk(t)) return true
   }
   return false
+}
+
+function isTargetCjk(targetLang: string | null): boolean {
+  const n = String(targetLang || '').toLowerCase()
+  return /chinese|zh|mandarin|japanese|ja|korean|ko/.test(n)
+}
+
+function isNativeCjk(nativeLang: string | null): boolean {
+  const n = String(nativeLang || '').toLowerCase()
+  return /chinese|zh|mandarin|japanese|ja|korean|ko/.test(n)
+}
+
+function getMeaningText(row: { meaning?: string | null; meaning_items_json?: string | null }): string {
+  const m = String(row.meaning ?? '').trim()
+  if (m) return m
+  const items = parseJsonArrayText(row.meaning_items_json)
+  return String((items[0] as { text?: unknown })?.text ?? '').trim()
+}
+
+/** Nghĩa đang ở ngôn ngữ đích (CJK) thay vì mẹ đẻ */
+function meaningInWrongLanguage(row: {
+  meaning?: string | null
+  meaning_items_json?: string | null
+  target_language?: string | null
+  native_language?: string | null
+}): boolean {
+  if (!isTargetCjk(row.target_language)) return false
+  if (isNativeCjk(row.native_language)) return false
+  const text = getMeaningText(row)
+  if (!text) return false
+  return hasCjk(text)
 }
 
 async function normalizeIncompleteWords(
@@ -244,6 +276,143 @@ async function normalizeIncompleteWords(
       console.error(`[WORD-FIX] Error fixing word "${r.word}":`, e)
     }
   }
+
+  // Chuẩn hóa nghĩa mẹ đẻ sai (CJK thay vì native) - chạy tự động 1 lần
+  try {
+    const { data: dailyMeaningRows } = await adminSupabase
+      .from('language_coach_daily_words')
+      .select('id, user_id, word, target_language, native_language, meaning, meaning_items_json')
+      .eq('user_id', userId)
+      .eq('meaning_fix_attempted', false)
+
+    const meaningToFix: Array<{ table: 'daily' | 'review'; id: string; word: string; target: string; native: string }> = []
+    for (const r of dailyMeaningRows ?? []) {
+      if (meaningInWrongLanguage(r)) {
+        meaningToFix.push({
+          table: 'daily',
+          id: r.id,
+          word: r.word,
+          target: r.target_language || 'Chinese',
+          native: r.native_language || 'Vietnamese',
+        })
+      }
+    }
+
+    const { data: reviewMeaningRows } = await adminSupabase
+      .from('language_coach_review_queue')
+      .select('id, user_id, word, target_language, native_language, meaning, meaning_items_json')
+      .eq('user_id', userId)
+      .eq('meaning_fix_attempted', false)
+
+    for (const r of reviewMeaningRows ?? []) {
+      if (meaningInWrongLanguage(r)) {
+        meaningToFix.push({
+          table: 'review',
+          id: r.id,
+          word: r.word,
+          target: r.target_language || 'Chinese',
+          native: r.native_language || 'Vietnamese',
+        })
+      }
+    }
+
+    const meaningByKey = new Map<string, (typeof meaningToFix)[0]>()
+    for (const r of meaningToFix) {
+      const k = `${r.word}::${r.target}::${r.native}`
+      if (!meaningByKey.has(k)) meaningByKey.set(k, r)
+    }
+
+    let meaningFixed = 0
+    for (const [, r] of meaningByKey) {
+      if (meaningFixed >= 5) break
+      const rowsToMark = meaningToFix.filter((x) => x.word === r.word && x.target === r.target && x.native === r.native)
+      try {
+        for (const row of rowsToMark) {
+          const tbl = row.table === 'daily' ? 'language_coach_daily_words' : 'language_coach_review_queue'
+          await adminSupabase.from(tbl).update({ meaning_fix_attempted: true }).eq('id', row.id)
+        }
+
+        const res = await fetch(`${baseUrl}/api/english-coach/word`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            word: r.word,
+            contextSentence: '',
+            targetLanguage: r.target,
+            nativeLanguage: r.native,
+          }),
+        })
+        const data = (await res.json().catch(() => ({}))) as {
+          meaning?: string
+          meaningItems?: Array<{ text: string; pinyin?: string }>
+          exampleItems?: Array<{ targetText: string; targetPinyin?: string; nativeText: string }>
+        }
+
+        if (!res.ok || !data.meaning) {
+          const errMsg = (data as { error?: string }).error || `Status ${res.status}`
+          for (const row of rowsToMark) {
+            await adminSupabase.from('language_coach_meaning_fix_failed').insert({
+              word: r.word,
+              target_language: r.target,
+              native_language: r.native,
+              user_id: userId,
+              source_table: row.table === 'daily' ? 'language_coach_daily_words' : 'language_coach_review_queue',
+              source_id: row.id,
+              error_message: errMsg,
+            })
+          }
+          continue
+        }
+
+        const meaningItems = sanitizeMeaningItems(data.meaningItems)
+        const exampleItems = sanitizeExampleItems(data.exampleItems)
+        const primaryEx = exampleItems[0]
+
+        for (const row of rowsToMark) {
+          if (row.table === 'daily') {
+            await adminSupabase
+              .from('language_coach_daily_words')
+              .update({
+                meaning: data.meaning || null,
+                meaning_items_json: meaningItems.length > 0 ? JSON.stringify(meaningItems) : null,
+                example_items_json: exampleItems.length > 0 ? JSON.stringify(exampleItems) : null,
+                example_target: primaryEx?.targetText || null,
+                example_native: primaryEx?.nativeText || null,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', row.id)
+          } else {
+            await adminSupabase
+              .from('language_coach_review_queue')
+              .update({
+                meaning: data.meaning || null,
+                meaning_items_json: meaningItems.length > 0 ? JSON.stringify(meaningItems) : null,
+                example_items_json: exampleItems.length > 0 ? JSON.stringify(exampleItems) : null,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', row.id)
+          }
+        }
+        meaningFixed++
+        console.log(`[MEANING-FIX] Fixed native meaning for "${r.word}"`)
+      } catch (e) {
+        const errMsg = e instanceof Error ? e.message : 'Lỗi không xác định'
+        for (const row of rowsToMark) {
+          await adminSupabase.from('language_coach_meaning_fix_failed').insert({
+            word: r.word,
+            target_language: r.target,
+            native_language: r.native,
+            user_id: userId,
+            source_table: row.table === 'daily' ? 'language_coach_daily_words' : 'language_coach_review_queue',
+            source_id: row.id,
+            error_message: errMsg,
+          })
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('[MEANING-FIX] Skip (column meaning_fix_attempted may not exist):', e)
+  }
 }
 
 export async function GET(request: NextRequest) {
@@ -259,9 +428,35 @@ export async function GET(request: NextRequest) {
 
     const dateQuery = String(request.nextUrl.searchParams.get('date') || '').trim()
     const sessionId = String(request.nextUrl.searchParams.get('sessionId') || '').trim()
-    const learnedDate = toSafeDate(dateQuery || new Date().toISOString().slice(0, 10))
     const limitRaw = Number(request.nextUrl.searchParams.get('limit') || 30)
     const limit = Number.isFinite(limitRaw) ? Math.min(100, Math.max(1, Math.floor(limitRaw))) : 30
+
+    let learnedDate: string
+    let previousSessionId = ''
+    if (sessionId) {
+      learnedDate = new Date().toISOString().slice(0, 10)
+    } else if (dateQuery === 'last' || dateQuery === 'previous') {
+      const { data: latestSessionRows } = await adminSupabase
+        .from('language_coach_daily_words')
+        .select('session_id, learned_date')
+        .eq('user_id', user.id)
+        .not('session_id', 'is', null)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+      previousSessionId = String(latestSessionRows?.[0]?.session_id || '').trim()
+
+      const { data: maxRow } = await adminSupabase
+        .from('language_coach_daily_words')
+        .select('learned_date')
+        .eq('user_id', user.id)
+        .order('learned_date', { ascending: false })
+        .limit(1)
+      learnedDate = maxRow?.[0]?.learned_date
+        ? String(maxRow[0].learned_date).slice(0, 10)
+        : new Date().toISOString().slice(0, 10)
+    } else {
+      learnedDate = toSafeDate(dateQuery || new Date().toISOString().slice(0, 10))
+    }
 
     const baseQuery = adminSupabase
       .from('language_coach_daily_words')
@@ -272,7 +467,8 @@ export async function GET(request: NextRequest) {
       .order('updated_at', { ascending: false })
       .limit(limit)
 
-    const query = sessionId ? baseQuery.eq('session_id', sessionId) : baseQuery.eq('learned_date', learnedDate)
+    const effectiveSessionId = sessionId || previousSessionId
+    const query = effectiveSessionId ? baseQuery.eq('session_id', effectiveSessionId) : baseQuery.eq('learned_date', learnedDate)
     const { data, error } = await query
 
     if (error) return NextResponse.json({ error: error.message || 'Không tải được từ mới trong ngày.' }, { status: 500 })

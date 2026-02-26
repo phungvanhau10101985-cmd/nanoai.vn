@@ -1,0 +1,191 @@
+type JsonResult<T> = { ok: boolean; status: number; data: T }
+
+async function parseJsonSafe<T>(res: Response): Promise<T> {
+  return (await res.json().catch(() => ({}))) as T
+}
+
+async function getJson<T>(url: string): Promise<JsonResult<T>> {
+  const res = await fetch(url)
+  const data = await parseJsonSafe<T>(res)
+  return { ok: res.ok, status: res.status, data }
+}
+
+async function sendJson<T>(url: string, method: 'POST' | 'DELETE', body?: unknown): Promise<JsonResult<T>> {
+  const res = await fetch(url, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  })
+  const data = await parseJsonSafe<T>(res)
+  return { ok: res.ok, status: res.status, data }
+}
+
+async function sendFormData<T>(url: string, formData: FormData): Promise<JsonResult<T>> {
+  const res = await fetch(url, {
+    method: 'POST',
+    body: formData,
+  })
+  const data = await parseJsonSafe<T>(res)
+  return { ok: res.ok, status: res.status, data }
+}
+
+export function listCustomTopics(params: {
+  limit: number
+  targetLanguage: string
+  nativeLanguage: string
+  learnerLevel: number
+}) {
+  const query = new URLSearchParams({
+    limit: String(params.limit),
+    targetLanguage: params.targetLanguage,
+    nativeLanguage: params.nativeLanguage,
+    learnerLevel: String(params.learnerLevel),
+  })
+  return getJson<{ items?: unknown[] }>(`/api/english-coach/topic-normalize?${query.toString()}`)
+}
+
+export function normalizeCustomTopic(payload: {
+  rawTopic: string
+  targetLanguage: string
+  nativeLanguage: string
+  learnerLevel: number
+}) {
+  return sendJson<{ topicId?: string; topicLabel?: string; topicDifficulty?: string; error?: string }>(
+    '/api/english-coach/topic-normalize',
+    'POST',
+    payload
+  )
+}
+
+export function createTopicCurriculum(payload: {
+  topicId: string
+  topicLabel: string
+  topicDifficulty: string
+  targetLanguage: string
+  nativeLanguage: string
+  learnerLevel: number
+}) {
+  return sendJson<Record<string, unknown> & { error?: string }>('/api/english-coach/topic-curriculum', 'POST', payload)
+}
+
+export function getReviewDue(limit: number) {
+  return getJson<{ items?: unknown[] }>(`/api/english-coach/review-due?limit=${encodeURIComponent(String(limit))}`)
+}
+
+export function getHistorySessions(limit: number) {
+  return getJson<{ sessions?: unknown[]; error?: string }>(`/api/english-coach/history?limit=${encodeURIComponent(String(limit))}`)
+}
+
+export function getHistorySession(sessionId: string) {
+  return getJson<{ items?: unknown[]; error?: string }>(`/api/english-coach/history?sessionId=${encodeURIComponent(sessionId)}`)
+}
+
+export function getPreviousLessonWords(limit: number) {
+  return getJson<{ items?: unknown[]; error?: string }>(
+    `/api/english-coach/word-daily?date=last&limit=${encodeURIComponent(String(limit))}`
+  )
+}
+
+export function cleanupIncompleteWords() {
+  return sendJson<{ deleted?: number }>('/api/english-coach/word-daily?cleanup=incomplete', 'DELETE')
+}
+
+export function getSessionWords(sessionId: string, limit: number) {
+  return getJson<{ items?: unknown[]; error?: string }>(
+    `/api/english-coach/word-daily?sessionId=${encodeURIComponent(sessionId)}&limit=${encodeURIComponent(String(limit))}`
+  )
+}
+
+export function saveWordDaily(payload: unknown) {
+  return sendJson<{ error?: string }>('/api/english-coach/word-daily', 'POST', payload)
+}
+
+export function rescheduleReviewWords(payload: { words: Array<{ word: string; targetLanguage: string }> }) {
+  return sendJson<unknown>('/api/english-coach/review-reschedule', 'POST', payload)
+}
+
+export function transliterateText(payload: { text: string; languageCode: string }) {
+  return sendJson<{ transliteration?: string }>('/api/english-coach/transliterate', 'POST', payload)
+}
+
+export function saveLearningGoal(payload: unknown) {
+  return sendJson<{ goal?: unknown; error?: string }>('/api/english-coach/goal', 'POST', payload)
+}
+
+export function recordProgress(payload: unknown) {
+  return sendJson<unknown>('/api/english-coach/progress', 'POST', payload)
+}
+
+export function markReviewDue(payload: { id: string; score: number }) {
+  return sendJson<unknown>('/api/english-coach/review-due', 'POST', payload)
+}
+
+export function runPlacementLevel(payload: unknown) {
+  return sendJson<{ recommendedLevel?: number; confidence?: number; reason?: string; error?: string }>(
+    '/api/english-coach/placement-level',
+    'POST',
+    payload
+  )
+}
+
+export function runCefrAssessment(payload: unknown) {
+  return sendJson<
+    {
+      assessment?: {
+        id: string
+        assessment_type: 'baseline' | 'checkpoint'
+        cefr_level: string
+        learner_level: number
+        confidence: number
+        overall_score: number
+        speaking_score?: number | null
+        listening_score?: number | null
+        reading_score?: number | null
+        writing_score?: number | null
+        summary: string
+      }
+      error?: string
+    }
+  >('/api/english-coach/assessment', 'POST', payload)
+}
+
+export function evaluateWriting(payload: unknown) {
+  return sendJson<Record<string, unknown> & { error?: string }>('/api/english-coach/writing-eval', 'POST', payload)
+}
+
+export function generateTts(payload: unknown) {
+  return sendJson<Record<string, unknown> & { error?: string }>('/api/english-coach/tts', 'POST', payload)
+}
+
+export function getTtsCache(payload: unknown) {
+  return sendJson<{ found?: boolean; audioBase64?: string; mimeType?: string }>('/api/english-coach/tts-cache', 'POST', payload)
+}
+
+export function saveHistoryMessage(payload: unknown) {
+  return sendJson<{ id?: string; error?: string }>('/api/english-coach/history', 'POST', payload)
+}
+
+export function uploadAudio(formData: FormData) {
+  return sendFormData<{ audioUrl?: string; error?: string }>('/api/english-coach/audio-upload', formData)
+}
+
+export function explainIntent(payload: unknown) {
+  return sendJson<{ explanation?: string; error?: string }>('/api/english-coach/intent-explain', 'POST', payload)
+}
+
+export function tokenizeSentence(payload: unknown) {
+  return sendJson<{ tokens?: string[] }>('/api/english-coach/tokenize', 'POST', payload)
+}
+
+export function analyzeWord(payload: unknown) {
+  return sendJson<Record<string, unknown> & { error?: string }>('/api/english-coach/word', 'POST', payload)
+}
+
+export function chatWithCoach(payload: unknown) {
+  return sendJson<Record<string, unknown> & { error?: string }>('/api/english-coach/chat', 'POST', payload)
+}
+
+export function transcribeMixed(payload: unknown) {
+  return sendJson<Record<string, unknown> & { error?: string }>('/api/english-coach/transcribe-mixed', 'POST', payload)
+}
+

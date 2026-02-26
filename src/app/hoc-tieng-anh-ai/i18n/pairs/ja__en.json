@@ -1,0 +1,26 @@
+{
+  "key": "ja__en",
+  "nativeLanguageCode": "ja",
+  "targetLanguageCode": "en",
+  "uiTone": "supportive",
+  "enforceStrictPair": true,
+  "nativeFirstExplanation": true,
+  "maxReplyCharsConcise": 520,
+  "maxReplyCharsDetailed": 760,
+  "conversationFocus": [
+    "日常と仕事の場面で使える英語を短いターンで反復練習する。"
+  ],
+  "correctionFocus": [
+    "冠詞・前置詞・時制の優先順位で修正する。"
+  ],
+  "lexicalFocus": [
+    "そのまま使える定型表現を優先して提示する。"
+  ],
+  "avoidPatterns": [
+    "説明が長くなりすぎて会話テンポを崩さない。"
+  ],
+  "extraSystemRules": [
+    "毎ターンで自然な英語の言い換えを1つだけ示す。",
+    "学習者が返答しやすい短い質問で締める。"
+  ]
+}

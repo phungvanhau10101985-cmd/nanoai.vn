@@ -1,0 +1,26 @@
+{
+  "key": "vi__ko",
+  "nativeLanguageCode": "vi",
+  "targetLanguageCode": "ko",
+  "uiTone": "supportive",
+  "enforceStrictPair": true,
+  "nativeFirstExplanation": true,
+  "maxReplyCharsConcise": 500,
+  "maxReplyCharsDetailed": 720,
+  "conversationFocus": [
+    "Ưu tiên giao tiếp thực dụng: chào hỏi, làm việc, sinh hoạt hằng ngày."
+  ],
+  "correctionFocus": [
+    "Ưu tiên sửa đuôi câu, kính ngữ cơ bản và trật tự cụm thời gian."
+  ],
+  "lexicalFocus": [
+    "Ưu tiên cụm giao tiếp ngắn để học viên nói được ngay."
+  ],
+  "avoidPatterns": [
+    "Không bỏ qua lỗi làm sai mức độ lịch sự."
+  ],
+  "extraSystemRules": [
+    "Mỗi lượt chỉ tập trung 1 lỗi chính để tránh quá tải.",
+    "Khi phản hồi tốt, luôn thêm một câu hỏi ngắn để duy trì nhịp nói."
+  ]
+}
