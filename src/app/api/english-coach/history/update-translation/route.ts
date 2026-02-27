@@ -7,7 +7,11 @@ type Payload = {
   messageId: string
   sessionId?: string
   clientMessageId?: string
-  translation: string
+  translation?: string
+  mainSentence?: string
+  correctionNote?: string
+  intentAnswer?: string
+  tokensJson?: string
 }
 
 function adminClient() {
@@ -21,9 +25,20 @@ export async function POST(request: NextRequest) {
     const sessionId = String(payload.sessionId || '').trim()
     const clientMessageId = String(payload.clientMessageId || '').trim()
     const translation = String(payload.translation || '').trim()
+    const mainSentence = String(payload.mainSentence || '').trim().slice(0, 2000) || null
+    const correctionNote = String(payload.correctionNote || '').trim().slice(0, 2000) || null
+    const intentAnswer = String(payload.intentAnswer || '').trim().slice(0, 2000) || null
+    const tokensJson = String(payload.tokensJson || '').trim().slice(0, 4000) || null
 
-    if (!translation) {
-      return NextResponse.json({ error: 'Thiếu nội dung dịch.' }, { status: 400 })
+    const updates: Record<string, string | null> = {}
+    if (payload.translation !== undefined) updates.translation = translation ? translation.slice(0, 4000) : null
+    if (payload.mainSentence !== undefined) updates.main_sentence = mainSentence
+    if (payload.correctionNote !== undefined) updates.correction_note = correctionNote
+    if (payload.intentAnswer !== undefined) updates.intent_answer = intentAnswer
+    if (payload.tokensJson !== undefined) updates.tokens_json = tokensJson
+
+    if (Object.keys(updates).length === 0) {
+      return NextResponse.json({ error: 'Thiếu dữ liệu cập nhật.' }, { status: 400 })
     }
 
     const supabase = createClient()
@@ -37,14 +52,14 @@ export async function POST(request: NextRequest) {
     if (isUuid) {
       const { data, error } = await adminSupabase
         .from('language_coach_messages')
-        .update({ translation: translation.slice(0, 4000) })
+        .update(updates)
         .eq('id', messageId)
         .eq('user_id', user.id)
         .select('id')
         .single()
 
       if (error) {
-        return NextResponse.json({ error: error.message || 'Không cập nhật được dịch.' }, { status: 500 })
+        return NextResponse.json({ error: error.message || 'Không cập nhật được.' }, { status: 500 })
       }
       if (!data) {
         return NextResponse.json({ error: 'Không tìm thấy tin nhắn.' }, { status: 404 })
@@ -55,7 +70,7 @@ export async function POST(request: NextRequest) {
     if (sessionId && clientMessageId) {
       const { data, error } = await adminSupabase
         .from('language_coach_messages')
-        .update({ translation: translation.slice(0, 4000) })
+        .update(updates)
         .eq('session_id', sessionId)
         .eq('client_message_id', clientMessageId)
         .eq('user_id', user.id)
@@ -63,7 +78,7 @@ export async function POST(request: NextRequest) {
         .single()
 
       if (error) {
-        return NextResponse.json({ error: error.message || 'Không cập nhật được dịch.' }, { status: 500 })
+        return NextResponse.json({ error: error.message || 'Không cập nhật được.' }, { status: 500 })
       }
       if (!data) {
         return NextResponse.json({ error: 'Không tìm thấy tin nhắn.' }, { status: 404 })

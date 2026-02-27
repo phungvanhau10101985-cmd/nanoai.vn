@@ -169,7 +169,11 @@ export function updateMessageTranslation(payload: {
   messageId: string
   sessionId?: string
   clientMessageId?: string
-  translation: string
+  translation?: string
+  mainSentence?: string
+  correctionNote?: string
+  intentAnswer?: string
+  tokensJson?: string
 }) {
   return sendJson<{ ok?: boolean; error?: string }>('/api/english-coach/history/update-translation', 'POST', payload)
 }

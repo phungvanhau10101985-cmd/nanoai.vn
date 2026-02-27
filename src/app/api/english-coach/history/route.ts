@@ -18,6 +18,10 @@ type HistoryPayload = {
   teacherLabel?: string
   teacherLocale?: string
   mode?: LearnMode
+  mainSentence?: string
+  correctionNote?: string
+  intentAnswer?: string
+  tokensJson?: string
 }
 
 function adminClient() {
@@ -39,7 +43,7 @@ export async function GET(request: NextRequest) {
     if (sessionId) {
       const { data, error } = await adminSupabase
         .from('language_coach_messages')
-        .select('id, session_id, role, text, audio_url, translation, language_code, target_language, teacher_label, teacher_locale, mode, created_at')
+        .select('id, session_id, role, text, audio_url, translation, language_code, target_language, teacher_label, teacher_locale, mode, main_sentence, correction_note, intent_answer, tokens_json, created_at')
         .eq('user_id', user.id)
         .eq('session_id', sessionId)
         .order('created_at', { ascending: true })
@@ -62,6 +66,10 @@ export async function GET(request: NextRequest) {
           teacherLabel: row.teacher_label,
           teacherLocale: row.teacher_locale,
           mode: row.mode,
+          mainSentence: (row as { main_sentence?: string }).main_sentence ?? null,
+          correctionNote: (row as { correction_note?: string }).correction_note ?? null,
+          intentAnswer: (row as { intent_answer?: string }).intent_answer ?? null,
+          tokensJson: (row as { tokens_json?: string }).tokens_json ?? null,
           createdAt: row.created_at,
         })),
       })
@@ -141,6 +149,10 @@ export async function POST(request: NextRequest) {
     const teacherLabel = String(payload.teacherLabel || '').trim()
     const teacherLocale = String(payload.teacherLocale || '').trim()
     const mode: LearnMode = payload.mode === 'story' ? 'story' : 'chat'
+    const mainSentence = String(payload.mainSentence || '').trim().slice(0, 2000) || null
+    const correctionNote = String(payload.correctionNote || '').trim().slice(0, 2000) || null
+    const intentAnswer = String(payload.intentAnswer || '').trim().slice(0, 2000) || null
+    const tokensJson = String(payload.tokensJson || '').trim().slice(0, 4000) || null
 
     if (!sessionId || !text) {
       return NextResponse.json({ error: 'Thiếu dữ liệu lưu lịch sử.' }, { status: 400 })
@@ -166,6 +178,10 @@ export async function POST(request: NextRequest) {
         teacher_label: teacherLabel || null,
         teacher_locale: teacherLocale || null,
         mode,
+        main_sentence: mainSentence,
+        correction_note: correctionNote,
+        intent_answer: intentAnswer,
+        tokens_json: tokensJson,
       })
       .select('id')
       .single()

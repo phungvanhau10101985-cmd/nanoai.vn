@@ -3035,11 +3035,19 @@ export default function HocTiengAnhAiClientPage() {
     text,
     audioUrl,
     clientMessageId,
+    mainSentence,
+    correctionNote,
+    intentAnswer,
+    tokensJson,
   }: {
     role: 'teacher' | 'student'
     text: string
     audioUrl?: string
     clientMessageId?: string
+    mainSentence?: string
+    correctionNote?: string
+    intentAnswer?: string
+    tokensJson?: string
   }) => {
     const { ok, data } = await saveHistoryMessageApi({
       sessionId,
@@ -3052,6 +3060,10 @@ export default function HocTiengAnhAiClientPage() {
       teacherLabel: activeTeacher.label,
       teacherLocale: activeTeacher.locale,
       mode,
+      mainSentence: mainSentence || '',
+      correctionNote: correctionNote || '',
+      intentAnswer: intentAnswer || '',
+      tokensJson: tokensJson || '',
     })
     if (!ok) {
       throw new Error(data.error || localText('Không lưu được lịch sử học.', 'Failed to save lesson history.'))
@@ -3363,7 +3375,11 @@ export default function HocTiengAnhAiClientPage() {
     return false
   }
 
-  const generateAndStoreTeacherAudio = async (messageId: string, text: string) => {
+  const generateAndStoreTeacherAudio = async (
+    messageId: string,
+    text: string,
+    opts?: { mainSentence?: string; correctionNote?: string; intentAnswer?: string }
+  ) => {
     let generated: { url: string; blob: Blob; blobType: string } | null = null
     try {
       const segmented = await playBestEffortTts(text)
@@ -3397,7 +3413,15 @@ export default function HocTiengAnhAiClientPage() {
       }
 
       try {
-        await saveHistoryMessage({ role: 'teacher', text, audioUrl: uploadedAudioUrl, clientMessageId: messageId })
+        await saveHistoryMessage({
+          role: 'teacher',
+          text,
+          audioUrl: uploadedAudioUrl,
+          clientMessageId: messageId,
+          mainSentence: opts?.mainSentence,
+          correctionNote: opts?.correctionNote,
+          intentAnswer: opts?.intentAnswer,
+        })
         persistedMessageIdsRef.current[messageId] = true
         const { ok, data } = await getHistorySessions(12)
         if (ok && Array.isArray(data.sessions)) {
@@ -3474,13 +3498,25 @@ export default function HocTiengAnhAiClientPage() {
           : finalTokens.map((w) => ({ word: w, usageLevel: 'medium' as const }))
       setTokensByMessageId((prev) => ({ ...prev, [messageId]: finalTokens }))
       setTokensWithUsageByMessageId((prev) => ({ ...prev, [messageId]: finalWithUsage }))
+      const tokensJson = JSON.stringify(finalWithUsage)
+      const isDbId = Boolean(openedHistorySessionId && sessionId === openedHistorySessionId)
+      void updateMessageTranslationApi({
+        messageId,
+        ...(isDbId ? {} : { sessionId, clientMessageId: messageId }),
+        tokensJson,
+      }).catch(() => {})
     } catch {
       const fallback = basicTokenizeBySpace(sentence)
+      const fallbackWithUsage = fallback.map((w) => ({ word: w, usageLevel: 'medium' as const }))
       setTokensByMessageId((prev) => ({ ...prev, [messageId]: fallback }))
-      setTokensWithUsageByMessageId((prev) => ({
-        ...prev,
-        [messageId]: fallback.map((w) => ({ word: w, usageLevel: 'medium' as const })),
-      }))
+      setTokensWithUsageByMessageId((prev) => ({ ...prev, [messageId]: fallbackWithUsage }))
+      const tokensJson = JSON.stringify(fallbackWithUsage)
+      const isDbId = Boolean(openedHistorySessionId && sessionId === openedHistorySessionId)
+      void updateMessageTranslationApi({
+        messageId,
+        ...(isDbId ? {} : { sessionId, clientMessageId: messageId }),
+        tokensJson,
+      }).catch(() => {})
     } finally {
       setTokenizingByMessageId((prev) => ({ ...prev, [messageId]: false }))
     }
@@ -3898,6 +3934,10 @@ export default function HocTiengAnhAiClientPage() {
           languageCode?: string
           teacherLabel?: string
           mode?: string
+          mainSentence?: string | null
+          correctionNote?: string | null
+          intentAnswer?: string | null
+          tokensJson?: string | null
         }>
         error?: string
       }
@@ -3917,6 +3957,47 @@ export default function HocTiengAnhAiClientPage() {
       })
       setOpeningTranslateByMessageId(openingTrans)
       setIntentExplainByMessageId(intentTrans)
+      const mainSentenceMap: Record<string, string> = {}
+      const correctionNoteMap: Record<string, string> = {}
+      const intentAnswerMap: Record<string, string> = {}
+      const tokensMap: Record<string, string[]> = {}
+      const tokensWithUsageMap: Record<string, Array<{ word: string; usageLevel: 'high' | 'medium' | 'low' }>> = {}
+      items.forEach((item) => {
+        if (item.role !== 'teacher') return
+        const ms = String((item as { mainSentence?: string | null }).mainSentence || '').trim()
+        if (ms) mainSentenceMap[item.id] = ms
+        const cn = String((item as { correctionNote?: string | null }).correctionNote || '').trim()
+        if (cn) correctionNoteMap[item.id] = cn
+        const ia = String((item as { intentAnswer?: string | null }).intentAnswer || '').trim()
+        if (ia) intentAnswerMap[item.id] = ia
+        const tj = String((item as { tokensJson?: string | null }).tokensJson || '').trim()
+        if (tj) {
+          try {
+            const parsed = JSON.parse(tj) as Array<{ word?: string; usageLevel?: string }>
+            if (Array.isArray(parsed)) {
+              const withUsage = parsed
+                .map((t) => ({
+                  word: String(t.word || '').trim(),
+                  usageLevel: (['high', 'medium', 'low'].includes(String(t.usageLevel || '').toLowerCase())
+                    ? String(t.usageLevel).toLowerCase()
+                    : 'medium') as 'high' | 'medium' | 'low',
+                }))
+                .filter((t) => t.word)
+              if (withUsage.length > 0) {
+                tokensMap[item.id] = withUsage.map((t) => t.word)
+                tokensWithUsageMap[item.id] = withUsage
+              }
+            }
+          } catch {
+            // ignore invalid tokensJson
+          }
+        }
+      })
+      setMainSentenceByMessageId(mainSentenceMap)
+      setCorrectionNoteByMessageId(correctionNoteMap)
+      setIntentAnswerByMessageId(intentAnswerMap)
+      setTokensByMessageId(tokensMap)
+      setTokensWithUsageByMessageId(tokensWithUsageMap)
       const firstMeta = items.find((x) => x.role === 'teacher') || items[0]
       const metaLanguage = String(firstMeta?.languageCode || '').trim() as LanguageCode
       if (metaLanguage && TEACHERS_BY_LANGUAGE[metaLanguage]) {
@@ -3946,8 +4027,6 @@ export default function HocTiengAnhAiClientPage() {
       setOpenedWordKey('')
       setWordBusyKey('')
       setWordInsightByKey({})
-      setTokensByMessageId({})
-      setTokensWithUsageByMessageId({})
       setTokenizingByMessageId({})
       const loadedAudioMap = items.reduce<Record<string, string>>((acc, item) => {
         if (item.role === 'teacher' && item.audioUrl) acc[item.id] = item.audioUrl
@@ -4297,7 +4376,11 @@ export default function HocTiengAnhAiClientPage() {
         source
       )
       try {
-        await generateAndStoreTeacherAudio(teacherMessageId, speakText)
+        await generateAndStoreTeacherAudio(teacherMessageId, speakText, {
+          mainSentence,
+          correctionNote,
+          intentAnswer,
+        })
       } catch {
         toast({
           title: localText('Không phát được âm thanh', 'Audio playback failed'),
