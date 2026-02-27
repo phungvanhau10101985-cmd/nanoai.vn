@@ -1071,6 +1071,27 @@ const LOCAL_TEXT_TRANSLATIONS: Record<string, Partial<Record<UiLocale, string>>>
     th: 'เลือกความหมายที่ถูกต้อง:',
     hi: 'सही अर्थ चुनें:',
   },
+  'Play opening sentence': {
+    zh: '播放开场句',
+    ja: '冒頭文を再生',
+    ko: '시작 문장 듣기',
+    th: 'เล่นประโยคเปิด',
+    hi: 'शुरुआती वाक्य सुनें',
+  },
+  'Translate opening line': {
+    zh: '翻译开场句',
+    ja: '冒頭文を翻訳',
+    ko: '시작 문장 번역',
+    th: 'แปลประโยคเปิด',
+    hi: 'शुरुआती वाक्य का अनुवाद',
+  },
+  'Hide opening translation': {
+    zh: '隐藏开场翻译',
+    ja: '冒頭文の翻訳を閉じる',
+    ko: '시작 문장 번역 숨기기',
+    th: 'ซ่อนการแปลประโยคเปิด',
+    hi: 'शुरुआती अनुवाद छिपाएं',
+  },
 }
 
 const TEACHERS_BY_LANGUAGE: Record<LanguageCode, TeacherProfile[]> = {
@@ -6146,61 +6167,76 @@ export default function HocTiengAnhAiClientPage() {
                       )}
                       {m.role === 'teacher' ? (
                         <div className="mt-2 flex flex-wrap gap-2">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => void replayTeacherCorrectionNote(m.id)}
-                            disabled={isReplayButtonDisabled(`${m.id}__correction_note`, hasCachedTeacherAudio(`${m.id}__correction_note`))}
-                          >
-                            <Volume2 className="mr-2 h-4 w-4" />
-                            {localText('Nghe ý 1', 'Play idea 1')}
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            size="sm"
-                            onClick={() => void replayTeacherMainSentence(m.id, m.text)}
-                            disabled={isReplayButtonDisabled(`${m.id}__main`, hasCachedTeacherAudio(`${m.id}__main`))}
-                          >
-                            <Volume2 className="mr-2 h-4 w-4" />
-                            {localText('Nghe ý 2', 'Play idea 2')}
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => void replayTeacherIntentAnswer(m.id)}
-                            disabled={isReplayButtonDisabled(`${m.id}__intent_answer`, hasCachedTeacherAudio(`${m.id}__intent_answer`))}
-                          >
-                            <Volume2 className="mr-2 h-4 w-4" />
-                            {localText('Nghe ý 3', 'Play idea 3')}
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            size="sm"
-                            onClick={() => void replayTeacherMessage(m.id, m.text)}
-                            disabled={isReplayButtonDisabled(`${m.id}__full`, hasCachedTeacherAudio(m.id))}
-                          >
-                            <Volume2 className="mr-2 h-4 w-4" />
-                            {localText('Nghe ý 1,2,3', 'Play ideas 1, 2, 3')}
-                          </Button>
                           {idx === 0 ? (
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => void translateOpeningMessage(m.id, m.text)}
-                              disabled={Boolean(openingTranslateBusyByMessageId[m.id])}
-                            >
-                              {openingTranslateBusyByMessageId[m.id]
-                                ? localText('Đang dịch...', 'Translating...')
-                                : openingTranslateByMessageId[m.id]
-                                  ? localText('Ẩn dịch câu mở đầu', 'Hide opening translation')
-                                  : localText('Dịch câu mở đầu', 'Translate opening line')}
-                            </Button>
-                          ) : null}
+                            <>
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => void replayTeacherMessage(m.id, m.text)}
+                                disabled={isReplayButtonDisabled(`${m.id}__full`, hasCachedTeacherAudio(m.id))}
+                              >
+                                <Volume2 className="mr-2 h-4 w-4" />
+                                {localText('Nghe câu mở đầu', 'Play opening sentence')}
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => void translateOpeningMessage(m.id, m.text)}
+                                disabled={Boolean(openingTranslateBusyByMessageId[m.id])}
+                              >
+                                {openingTranslateBusyByMessageId[m.id]
+                                  ? localText('Đang dịch...', 'Translating...')
+                                  : openingTranslateByMessageId[m.id]
+                                    ? localText('Ẩn dịch câu đầu bài', 'Hide opening translation')
+                                    : localText('Dịch câu đầu bài', 'Translate opening line')}
+                              </Button>
+                            </>
+                          ) : (
+                            <>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => void replayTeacherCorrectionNote(m.id)}
+                                disabled={isReplayButtonDisabled(`${m.id}__correction_note`, hasCachedTeacherAudio(`${m.id}__correction_note`))}
+                              >
+                                <Volume2 className="mr-2 h-4 w-4" />
+                                {localText('Nghe ý 1', 'Play idea 1')}
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => void replayTeacherMainSentence(m.id, m.text)}
+                                disabled={isReplayButtonDisabled(`${m.id}__main`, hasCachedTeacherAudio(`${m.id}__main`))}
+                              >
+                                <Volume2 className="mr-2 h-4 w-4" />
+                                {localText('Nghe ý 2', 'Play idea 2')}
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => void replayTeacherIntentAnswer(m.id)}
+                                disabled={isReplayButtonDisabled(`${m.id}__intent_answer`, hasCachedTeacherAudio(`${m.id}__intent_answer`))}
+                              >
+                                <Volume2 className="mr-2 h-4 w-4" />
+                                {localText('Nghe ý 3', 'Play idea 3')}
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => void replayTeacherMessage(m.id, m.text)}
+                                disabled={isReplayButtonDisabled(`${m.id}__full`, hasCachedTeacherAudio(m.id))}
+                              >
+                                <Volume2 className="mr-2 h-4 w-4" />
+                                {localText('Nghe ý 1,2,3', 'Play ideas 1, 2, 3')}
+                              </Button>
+                            </>
+                          )}
                         </div>
                       ) : null}
                       {m.role === 'teacher' && openingTranslateByMessageId[m.id] ? (
