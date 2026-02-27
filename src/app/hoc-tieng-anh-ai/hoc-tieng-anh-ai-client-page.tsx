@@ -1840,6 +1840,8 @@ export default function HocTiengAnhAiClientPage() {
   const [teacherSpeakTextByMessageId, setTeacherSpeakTextByMessageId] = useState<Record<string, string>>({})
   const [intentExplainByMessageId, setIntentExplainByMessageId] = useState<Record<string, string>>({})
   const [intentExplainBusyByMessageId, setIntentExplainBusyByMessageId] = useState<Record<string, boolean>>({})
+  const [mainSentenceExplainByMessageId, setMainSentenceExplainByMessageId] = useState<Record<string, string>>({})
+  const [mainSentenceExplainBusyByMessageId, setMainSentenceExplainBusyByMessageId] = useState<Record<string, boolean>>({})
   const [openingTranslateByMessageId, setOpeningTranslateByMessageId] = useState<Record<string, string>>({})
   const [openingTranslateBusyByMessageId, setOpeningTranslateBusyByMessageId] = useState<Record<string, boolean>>({})
   const supabase = useMemo(() => createClient(), [])
@@ -3237,6 +3239,60 @@ export default function HocTiengAnhAiClientPage() {
       })
     } finally {
       setIntentExplainBusyByMessageId((prev) => ({ ...prev, [messageId]: false }))
+    }
+  }
+
+  const explainMainSentence = async (messageId: string) => {
+    const correctedSentence = String(mainSentenceByMessageId[messageId] || '').trim()
+    if (!correctedSentence) return
+    if (mainSentenceExplainBusyByMessageId[messageId]) return
+    if (mainSentenceExplainByMessageId[messageId]) {
+      setMainSentenceExplainByMessageId((prev) => ({ ...prev, [messageId]: '' }))
+      return
+    }
+    setMainSentenceExplainBusyByMessageId((prev) => ({ ...prev, [messageId]: true }))
+    try {
+      const teacherIndex = messages.findIndex((m) => m.id === messageId)
+      const previousStudentText =
+        teacherIndex > 0
+          ? String(
+              messages
+                .slice(0, teacherIndex)
+                .reverse()
+                .find((m) => m.role === 'student')
+                ?.text || ''
+            ).trim()
+          : ''
+      const intentAnswer = String(intentAnswerByMessageId[messageId] || '').trim()
+      const correctionNote = String(correctionNoteByMessageId[messageId] || '').trim()
+
+      const { ok, data } = await explainIntent({
+        studentText: previousStudentText,
+        intentAnswer,
+        correctedSentence,
+        correctionNote,
+        targetLanguage: activeTeacher.languageLabel,
+        targetLanguageCode: languageCode,
+        nativeLanguage: selectedNativeLanguage.apiLabel,
+        topicLabel: selectedTopic.label,
+        explainType: 'idea2',
+      })
+      if (!ok) throw new Error(data.error || localText('Không giải thích được câu sửa.', 'Unable to explain corrected sentence.'))
+      const meaning = String(data.explanation || '').trim()
+      if (!meaning) throw new Error(localText('Không có nội dung giải thích.', 'No explanation content.'))
+      const transliteration = await requestTransliteration(correctedSentence)
+      const combined = transliteration
+        ? `${meaning}\n${localText('Phiên âm Latin:', 'Latin transliteration:')} ${transliteration}`
+        : meaning
+      setMainSentenceExplainByMessageId((prev) => ({ ...prev, [messageId]: combined }))
+    } catch (e) {
+      toast({
+        title: localText('Không giải thích được', 'Cannot explain now'),
+        description: unknownErrorMsg(e),
+        variant: 'destructive',
+      })
+    } finally {
+      setMainSentenceExplainBusyByMessageId((prev) => ({ ...prev, [messageId]: false }))
     }
   }
 
@@ -5691,30 +5747,56 @@ export default function HocTiengAnhAiClientPage() {
                                     </p>
                                   ) : null}
                                 </div>
-                                {intentAnswer ? (
-                                  <div className="space-y-1">
-                                    <Button
-                                      type="button"
-                                      variant="outline"
-                                      size="sm"
-                                      className="min-h-[44px] px-3 text-xs"
-                                      onClick={() => void explainIntentAnswer(m.id)}
-                                      disabled={Boolean(intentExplainBusyByMessageId[m.id])}
-                                    >
-                                      {intentExplainBusyByMessageId[m.id]
-                                        ? localText('Đang dịch...', 'Translating...')
-                                        : intentExplainByMessageId[m.id]
-                                          ? localText('Ẩn dịch ý 3', 'Hide idea 3 translation')
-                                          : localText('Dịch ý 3', 'Translate idea 3')}
-                                    </Button>
-                                    {intentExplainByMessageId[m.id] ? (
-                                      <p className="text-slate-600">
-                                        <span className="font-semibold">{localText('Dịch ý 3:', 'Idea 3 translation:')}</span>{' '}
-                                        {intentExplainByMessageId[m.id]}
-                                      </p>
-                                    ) : null}
-                                  </div>
-                                ) : null}
+                                <div className="flex flex-wrap gap-2">
+                                  {correctedSentence ? (
+                                    <div className="space-y-1">
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        className="min-h-[44px] px-3 text-xs"
+                                        onClick={() => void explainMainSentence(m.id)}
+                                        disabled={Boolean(mainSentenceExplainBusyByMessageId[m.id])}
+                                      >
+                                        {mainSentenceExplainBusyByMessageId[m.id]
+                                          ? localText('Đang dịch...', 'Translating...')
+                                          : mainSentenceExplainByMessageId[m.id]
+                                            ? localText('Ẩn dịch ý 2', 'Hide idea 2 translation')
+                                            : localText('Dịch ý 2', 'Translate idea 2')}
+                                      </Button>
+                                      {mainSentenceExplainByMessageId[m.id] ? (
+                                        <p className="text-slate-600">
+                                          <span className="font-semibold">{localText('Dịch ý 2:', 'Idea 2 translation:')}</span>{' '}
+                                          {mainSentenceExplainByMessageId[m.id]}
+                                        </p>
+                                      ) : null}
+                                    </div>
+                                  ) : null}
+                                  {intentAnswer ? (
+                                    <div className="space-y-1">
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        className="min-h-[44px] px-3 text-xs"
+                                        onClick={() => void explainIntentAnswer(m.id)}
+                                        disabled={Boolean(intentExplainBusyByMessageId[m.id])}
+                                      >
+                                        {intentExplainBusyByMessageId[m.id]
+                                          ? localText('Đang dịch...', 'Translating...')
+                                          : intentExplainByMessageId[m.id]
+                                            ? localText('Ẩn dịch ý 3', 'Hide idea 3 translation')
+                                            : localText('Dịch ý 3', 'Translate idea 3')}
+                                      </Button>
+                                      {intentExplainByMessageId[m.id] ? (
+                                        <p className="text-slate-600">
+                                          <span className="font-semibold">{localText('Dịch ý 3:', 'Idea 3 translation:')}</span>{' '}
+                                          {intentExplainByMessageId[m.id]}
+                                        </p>
+                                      ) : null}
+                                    </div>
+                                  ) : null}
+                                </div>
                               </div>
                             )
                           })()}

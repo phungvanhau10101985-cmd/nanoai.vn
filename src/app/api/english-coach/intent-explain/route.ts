@@ -7,8 +7,8 @@ function adminClient() {
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 }
 
-async function buildCacheKey(intentAnswer: string, targetLanguageCode: string, nativeLanguage: string): Promise<string> {
-  const normalized = `${String(intentAnswer || '').trim()}::${String(targetLanguageCode || '').trim()}::${String(nativeLanguage || '').trim()}`
+async function buildCacheKey(text: string, targetLanguageCode: string, nativeLanguage: string, explainType?: string): Promise<string> {
+  const normalized = `${String(explainType || '')}::${String(text || '').trim()}::${String(targetLanguageCode || '').trim()}::${String(nativeLanguage || '').trim()}`
   const encoder = new TextEncoder()
   const data = encoder.encode(normalized)
   const h = await crypto.subtle.digest('SHA-256', data)
@@ -27,6 +27,7 @@ type Payload = {
   targetLanguageCode?: string
   nativeLanguage?: string
   topicLabel?: string
+  explainType?: 'idea2' | 'idea3'
 }
 
 function normalizeShortMeaning(text: string): string {
@@ -79,16 +80,18 @@ export async function POST(request: NextRequest) {
     const targetLanguage = String(payload.targetLanguage || 'English').trim()
     const nativeLanguage = String(payload.nativeLanguage || 'Vietnamese').trim()
     const topicLabel = String(payload.topicLabel || '').trim()
+    const explainType = payload.explainType === 'idea2' ? 'idea2' : 'idea3'
 
-    if (!intentAnswer) {
-      return NextResponse.json({ error: 'Thiếu câu trả lời cần giải thích.' }, { status: 400 })
+    const textToExplain = explainType === 'idea2' ? correctedSentence : intentAnswer
+    if (!textToExplain) {
+      return NextResponse.json({ error: 'Thiếu câu cần giải thích.' }, { status: 400 })
     }
 
     const targetLanguageCode = String(payload.targetLanguageCode || 'en').trim()
-    const isOpeningStyle = !studentText && !correctionNote && !correctedSentence
+    const isOpeningStyle = !studentText && !correctionNote && (explainType === 'idea3' ? !correctedSentence : !intentAnswer)
 
     if (isOpeningStyle) {
-      const cacheKey = await buildCacheKey(intentAnswer, targetLanguageCode, nativeLanguage)
+      const cacheKey = await buildCacheKey(textToExplain, targetLanguageCode, nativeLanguage, explainType)
       const adminSupabase = adminClient()
       const { data: cached } = await adminSupabase
         .from('language_coach_opening_translation_cache')
@@ -100,19 +103,21 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const ideaLabel = explainType === 'idea2' ? 'Ý 2' : 'Ý 3'
     const prompt = `Bạn là giáo viên ngôn ngữ đa ngữ.
-Nhiệm vụ: chỉ DỊCH Ý 3 theo đúng ngữ cảnh hội thoại, viết bằng ${nativeLanguage}.
+Nhiệm vụ: chỉ DỊCH ${ideaLabel} theo đúng ngữ cảnh hội thoại, viết bằng ${nativeLanguage}.
 
 Ngữ cảnh:
 - Câu học sinh vừa nói: ${studentText || '(không có)'}
 - Ý 1 (sửa lỗi): ${correctionNote || '(không có)'}
 - Ý 2 (câu sửa hoàn chỉnh): ${correctedSentence || '(không có)'}
-- Ý 3 cần giải thích: ${intentAnswer}
+- Ý 3 (trả lời tự nhiên): ${intentAnswer || '(không có)'}
+- ${ideaLabel} cần giải thích: ${textToExplain}
 - Chủ đề buổi học: ${topicLabel || '(không có)'}
 - Ngôn ngữ đang học: ${targetLanguage}
 
 Yêu cầu:
-1) Trả về đúng nghĩa của Ý 3 theo ngữ cảnh hiện tại, diễn đạt rõ ràng cho người học.
+1) Trả về đúng nghĩa của ${ideaLabel} theo ngữ cảnh hiện tại, diễn đạt rõ ràng cho người học.
 2) Viết 2-3 câu ngắn, bám sát ngữ cảnh thực tế.
 3) Không phân tích ngữ pháp, không liệt kê thêm, không ghi chú ngoài lề.
 4) Không dùng ngôn ngữ thứ ba ngoài ${nativeLanguage}.
@@ -132,15 +137,15 @@ Trả về JSON hợp lệ, không markdown:
     if (!parsed) {
       return NextResponse.json({
         explanation: nativeLanguage.toLowerCase().includes('vietnamese')
-          ? 'Ý 3 là câu trả lời tự nhiên của giáo viên trong ngữ cảnh hiện tại.'
-          : 'Idea 3 is the teacher natural contextual reply for this context.',
+          ? `${ideaLabel} là câu trong ngữ cảnh hiện tại.`
+          : `${ideaLabel} is the sentence in this context.`,
       })
     }
 
     const explanation = normalizeShortMeaning(parsed.explanation)
 
     if (isOpeningStyle) {
-      const cacheKey = await buildCacheKey(intentAnswer, targetLanguageCode, nativeLanguage)
+      const cacheKey = await buildCacheKey(textToExplain, targetLanguageCode, nativeLanguage, explainType)
       const adminSupabase = adminClient()
       await adminSupabase.from('language_coach_opening_translation_cache').upsert(
         { cache_key: cacheKey, translation: explanation },
