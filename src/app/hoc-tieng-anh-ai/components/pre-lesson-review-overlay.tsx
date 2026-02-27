@@ -22,7 +22,8 @@ type PreLessonReviewOverlayProps = {
   onListenSubmit: (word: string, correct: boolean) => void
   onRecallSubmit: (word: string, correct: boolean) => void
   onStartNewLesson: () => void
-  onPlayWord: (word: string, pronunciationAudioUrl?: string) => void
+  onPlayWord: (word: string, pronunciationAudioUrl?: string, wordItem?: PreLessonWordItem) => void
+  onRegenerateWordAudio?: (word: string, wordItem: PreLessonWordItem) => void
   onClose: () => void
   localText: LocalTextFn
 }
@@ -72,6 +73,7 @@ export function PreLessonReviewOverlay({
   onRecallSubmit,
   onStartNewLesson,
   onPlayWord,
+  onRegenerateWordAudio,
   onClose,
   localText,
 }: PreLessonReviewOverlayProps) {
@@ -135,7 +137,7 @@ export function PreLessonReviewOverlay({
     if (!autoPlayKey) return
     if (autoPlayedListenWordRef.current[autoPlayKey]) return
     autoPlayedListenWordRef.current[autoPlayKey] = true
-    const t = setTimeout(() => onPlayWord(currentWord.word, currentWord.pronunciationAudioUrl), 600)
+    const t = setTimeout(() => onPlayWord(currentWord.word, currentWord.pronunciationAudioUrl, currentWord), 600)
     return () => clearTimeout(t)
   }, [exerciseIndex, wordIndex, currentWord, wrongHint, onPlayWord])
 
@@ -387,15 +389,27 @@ export function PreLessonReviewOverlay({
             {wrongHint.meaning ? (
               <p className="mt-1 text-sm text-slate-600">{localText('Nghĩa:', 'Meaning:')} {wrongHint.meaning}</p>
             ) : null}
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => onPlayWord(wrongHint.word, currentWord?.pronunciationAudioUrl)}
-              className="mt-2"
-            >
-              <Volume2 className="mr-2 h-4 w-4" /> {localText('Nghe từ đúng', 'Listen to correct word')}
-            </Button>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => onPlayWord(wrongHint.word, currentWord?.pronunciationAudioUrl, currentWord ?? undefined)}
+              >
+                <Volume2 className="mr-2 h-4 w-4" /> {localText('Nghe từ đúng', 'Listen to correct word')}
+              </Button>
+              {onRegenerateWordAudio && currentWord ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onRegenerateWordAudio(wrongHint.word, currentWord)}
+                  title={localText('Tạo lại âm thanh và lưu thay dữ liệu cũ', 'Regenerate audio and save, replacing old data')}
+                >
+                  {localText('Tạo lại âm thanh', 'Regenerate audio')}
+                </Button>
+              ) : null}
+            </div>
             {(wrongHint.type === 'cloze' || wrongHint.type === 'listen') && (
               <div className="mt-3">
                 <label className="mb-1.5 block break-words text-sm font-medium text-slate-700">
@@ -511,7 +525,7 @@ export function PreLessonReviewOverlay({
                 <Button
                   type="button"
                   variant="default"
-                  onClick={() => onPlayWord(currentWord.word, currentWord.pronunciationAudioUrl)}
+                  onClick={() => onPlayWord(currentWord.word, currentWord.pronunciationAudioUrl, currentWord)}
                   className="w-full min-h-[52px] text-base"
                 >
                   <Volume2 className="mr-2 h-5 w-5" /> {localText('🔊 Bấm để nghe từ', '🔊 Tap to hear the word')}

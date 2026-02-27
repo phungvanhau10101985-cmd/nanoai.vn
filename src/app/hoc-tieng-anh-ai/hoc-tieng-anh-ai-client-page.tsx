@@ -3580,17 +3580,29 @@ export default function HocTiengAnhAiClientPage() {
     }
   }
 
-  const playWordPronunciation = async (word: string, preloadedAudioUrl?: string) => {
+  const playWordPronunciation = async (
+    word: string,
+    options?: {
+      pronunciationAudioUrl?: string
+      forceRegenerate?: boolean
+      wordDetailForSave?: Partial<WordInsight> & { sessionId?: string }
+    }
+  ) => {
+    const preloadedAudioUrl = typeof options === 'string' ? options : options?.pronunciationAudioUrl
+    const forceRegenerate = typeof options === 'object' && options?.forceRegenerate
+    const wordDetailForSave = typeof options === 'object' ? options?.wordDetailForSave : undefined
+
     const savedWord = findSessionWord(word)
     const savedAudioUrl = String(
       preloadedAudioUrl || savedWord?.pronunciationAudioUrl || ''
     ).trim()
-    if (savedAudioUrl) {
+
+    if (savedAudioUrl && !forceRegenerate) {
       try {
         await playAudioUrl(savedAudioUrl)
         return
       } catch {
-        // URL có thể hết hạn (signed URL) hoặc lỗi – fallback sang TTS
+        // URL hết hạn hoặc lỗi – fallback sang TTS và lưu lại
       }
     }
 
@@ -3602,20 +3614,23 @@ export default function HocTiengAnhAiClientPage() {
       const safeWordId = toStorageSafeToken(word)
       const audioMessageId = `word_${safeWordId}_${Date.now().toString(36)}`
       const uploadedAudioUrl = await uploadTeacherAudio(audioMessageId, firstPart.blob, firstPart.blobType)
+      const detail = wordDetailForSave ?? savedWord
+      const detailSessionId = detail && 'sessionId' in detail ? (detail as { sessionId?: string }).sessionId : undefined
       await saveDailyWord(
         word,
         {
-          meaning: savedWord?.meaning || '',
-          pronunciation: savedWord?.pronunciation || word,
-          exampleTarget: String(savedWord?.exampleTarget || '').trim(),
-          exampleNative: String(savedWord?.exampleNative || '').trim(),
-          usageLevel: normalizeWordUsageLevel(savedWord?.usageLevel),
-          importanceScore: normalizeWordImportanceScore(savedWord?.importanceScore),
-          contextSensitive: normalizeWordContextSensitive(savedWord?.contextSensitive),
-          meaningItems: sanitizeWordMeaningItems(savedWord?.meaningItems),
-          exampleItems: sanitizeWordExampleItems(savedWord?.exampleItems),
+          meaning: detail?.meaning || '',
+          pronunciation: detail?.pronunciation || word,
+          exampleTarget: String(detail?.exampleTarget || '').trim(),
+          exampleNative: String(detail?.exampleNative || '').trim(),
+          usageLevel: normalizeWordUsageLevel(detail?.usageLevel),
+          importanceScore: normalizeWordImportanceScore(detail?.importanceScore),
+          contextSensitive: normalizeWordContextSensitive(detail?.contextSensitive),
+          meaningItems: sanitizeWordMeaningItems(detail?.meaningItems),
+          exampleItems: sanitizeWordExampleItems(detail?.exampleItems),
         },
-        uploadedAudioUrl
+        uploadedAudioUrl,
+        detailSessionId
       )
       void fetchSessionWords()
     } catch (e) {
@@ -3814,7 +3829,8 @@ export default function HocTiengAnhAiClientPage() {
   const saveDailyWord = async (
     word: string,
     detail: Partial<WordInsight>,
-    pronunciationAudioUrl?: string
+    pronunciationAudioUrl?: string,
+    sessionIdOverride?: string
   ) => {
     const meaning = String(detail.meaning || '').trim()
     const meaningItems = sanitizeWordMeaningItems((detail as { meaningItems?: unknown }).meaningItems)
@@ -3823,8 +3839,10 @@ export default function HocTiengAnhAiClientPage() {
       return
     }
     const date = getLocalDateString()
+    const sid = sessionIdOverride || sessionId
+    if (!sid) return
     const { ok, data } = await saveWordDaily({
-        sessionId,
+        sessionId: sid,
         learnedDate: date,
         word,
         targetLanguage: activeTeacher.languageLabel,
@@ -6126,8 +6144,41 @@ export default function HocTiengAnhAiClientPage() {
             }
           }}
           onStartNewLesson={startLessonAfterPreReview}
-          onPlayWord={(word, pronunciationAudioUrl) =>
-            void playWordPronunciation(word, pronunciationAudioUrl)
+          onPlayWord={(word, pronunciationAudioUrl, wordItem) =>
+            void playWordPronunciation(word, {
+              pronunciationAudioUrl,
+              wordDetailForSave: wordItem
+                ? {
+                    meaning: wordItem.meaning,
+                    pronunciation: wordItem.pronunciation,
+                    exampleTarget: wordItem.exampleTarget,
+                    exampleNative: wordItem.exampleNative,
+                    meaningItems: wordItem.meaningItems,
+                    exampleItems: wordItem.exampleItems,
+                    usageLevel: wordItem.usageLevel,
+                    importanceScore: wordItem.importanceScore,
+                    contextSensitive: wordItem.contextSensitive,
+                    sessionId: wordItem.sessionId,
+                  }
+                : undefined,
+            })
+          }
+          onRegenerateWordAudio={(word, wordItem) =>
+            void playWordPronunciation(word, {
+              forceRegenerate: true,
+              wordDetailForSave: {
+                meaning: wordItem.meaning,
+                pronunciation: wordItem.pronunciation,
+                exampleTarget: wordItem.exampleTarget,
+                exampleNative: wordItem.exampleNative,
+                meaningItems: wordItem.meaningItems,
+                exampleItems: wordItem.exampleItems,
+                usageLevel: wordItem.usageLevel,
+                importanceScore: wordItem.importanceScore,
+                contextSensitive: wordItem.contextSensitive,
+                sessionId: wordItem.sessionId,
+              },
+            })
           }
           onClose={() => {
             setShowPreLessonReview(false)
