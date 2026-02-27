@@ -204,3 +204,123 @@ export function transcribeMixed(payload: unknown) {
   return sendJson<Record<string, unknown> & { error?: string }>('/api/english-coach/transcribe-mixed', 'POST', payload)
 }
 
+export function listLiveLessons(params?: {
+  limit?: number
+  mine?: boolean
+  topicId?: string
+  targetLanguage?: string
+  nativeLanguage?: string
+  learnerLevel?: number
+  goalType?: string
+  durationBucket?: 'short' | 'medium' | 'long'
+}) {
+  const query = new URLSearchParams()
+  if (params?.limit != null) query.set('limit', String(params.limit))
+  if (params?.mine) query.set('mine', '1')
+  if (params?.topicId) query.set('topicId', params.topicId)
+  if (params?.targetLanguage) query.set('targetLanguage', params.targetLanguage)
+  if (params?.nativeLanguage) query.set('nativeLanguage', params.nativeLanguage)
+  if (params?.learnerLevel != null) query.set('learnerLevel', String(params.learnerLevel))
+  if (params?.goalType) query.set('goalType', params.goalType)
+  if (params?.durationBucket) query.set('durationBucket', params.durationBucket)
+  return getJson<{ items?: unknown[]; error?: string }>(
+    `/api/english-coach/live-lesson${query.toString() ? `?${query.toString()}` : ''}`
+  )
+}
+
+export function getLiveLessonDetail(lessonId: string) {
+  return getJson<{ lesson?: unknown; turns?: unknown[]; error?: string }>(
+    `/api/english-coach/live-lesson?lessonId=${encodeURIComponent(lessonId)}`
+  )
+}
+
+export function createLiveLessonFromSession(payload: {
+  sessionId: string
+  title?: string
+  topicId?: string
+  topicLabel?: string
+  targetLanguage?: string
+  nativeLanguage?: string
+  learnerLevel?: number
+  goalType?: string
+  estimatedMinutes?: number
+  durationBucket?: 'short' | 'medium' | 'long'
+  priceCredits?: number
+}) {
+  return sendJson<Record<string, unknown> & { error?: string }>(
+    '/api/english-coach/live-lesson',
+    'POST',
+    { action: 'create_from_session', ...payload }
+  )
+}
+
+export function publishLiveLesson(lessonId: string) {
+  return sendJson<{ ok?: boolean; error?: string; issues?: string[] }>('/api/english-coach/live-lesson', 'POST', {
+    action: 'publish',
+    lessonId,
+  })
+}
+
+export function validateLiveLessonPublish(lessonId: string) {
+  return sendJson<{ ok?: boolean; issues?: string[]; stats?: Record<string, unknown>; error?: string }>(
+    '/api/english-coach/live-lesson',
+    'POST',
+    {
+      action: 'validate_publish',
+      lessonId,
+    }
+  )
+}
+
+export function purchaseLiveLesson(lessonId: string) {
+  return sendJson<{ ok?: boolean; purchased?: boolean; error?: string }>('/api/english-coach/live-lesson', 'POST', {
+    action: 'purchase',
+    lessonId,
+  })
+}
+
+export function matchLiveLessonTurn(payload: {
+  lessonId: string
+  turnIndex: number
+  answerText: string
+  topicId: string
+  targetLanguage: string
+  nativeLanguage: string
+  teacherGender?: 'male' | 'female' | 'unknown'
+  teacherVoice?: string
+  matchMode?: 'strict' | 'soft'
+}) {
+  return sendJson<Record<string, unknown> & { error?: string }>(
+    '/api/english-coach/live-lesson',
+    'POST',
+    { action: 'match_turn', ...payload }
+  )
+}
+
+export function assistLiveLessonWord(payload: {
+  lessonId: string
+  word: string
+  contextSentence?: string
+}) {
+  return sendJson<Record<string, unknown> & { error?: string }>(
+    '/api/english-coach/live-lesson',
+    'POST',
+    { action: 'assist_word', ...payload }
+  )
+}
+
+export function pickRandomLiveLesson(payload: {
+  topicId: string
+  targetLanguage: string
+  nativeLanguage: string
+  learnerLevel: number
+  goalType?: string
+  durationBucket?: 'short' | 'medium' | 'long'
+}) {
+  return sendJson<Record<string, unknown> & { error?: string }>(
+    '/api/english-coach/live-lesson',
+    'POST',
+    { action: 'pick_random', ...payload }
+  )
+}
+
