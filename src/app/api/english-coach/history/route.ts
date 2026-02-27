@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
     if (sessionId) {
       const { data, error } = await adminSupabase
         .from('language_coach_messages')
-        .select('id, session_id, role, text, audio_url, translation, language_code, target_language, teacher_label, teacher_locale, mode, main_sentence, correction_note, intent_answer, tokens_json, created_at')
+        .select('id, session_id, role, text, audio_url, translation, language_code, target_language, teacher_label, teacher_locale, mode, main_sentence, correction_note, intent_answer, tokens_json, writing_task_json, created_at')
         .eq('user_id', user.id)
         .eq('session_id', sessionId)
         .order('created_at', { ascending: true })
@@ -70,6 +70,7 @@ export async function GET(request: NextRequest) {
           correctionNote: (row as { correction_note?: string }).correction_note ?? null,
           intentAnswer: (row as { intent_answer?: string }).intent_answer ?? null,
           tokensJson: (row as { tokens_json?: string }).tokens_json ?? null,
+          writingTaskJson: (row as { writing_task_json?: string }).writing_task_json ?? null,
           createdAt: row.created_at,
         })),
       })

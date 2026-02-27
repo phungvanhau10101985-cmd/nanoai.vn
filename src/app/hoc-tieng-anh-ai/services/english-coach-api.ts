@@ -175,6 +175,7 @@ export function updateMessageTranslation(payload: {
   intentAnswer?: string
   tokensJson?: string
   audioUrl?: string
+  writingTaskJson?: string
 }) {
   return sendJson<{ ok?: boolean; error?: string }>('/api/english-coach/history/update-translation', 'POST', payload)
 }

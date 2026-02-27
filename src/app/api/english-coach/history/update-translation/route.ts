@@ -13,6 +13,7 @@ type Payload = {
   intentAnswer?: string
   tokensJson?: string
   audioUrl?: string
+  writingTaskJson?: string
 }
 
 function adminClient() {
@@ -31,6 +32,7 @@ export async function POST(request: NextRequest) {
     const intentAnswer = String(payload.intentAnswer || '').trim().slice(0, 2000) || null
     const tokensJson = String(payload.tokensJson || '').trim().slice(0, 4000) || null
     const audioUrl = String(payload.audioUrl || '').trim().slice(0, 2000) || null
+    const writingTaskJson = String(payload.writingTaskJson || '').trim().slice(0, 8000) || null
 
     const updates: Record<string, string | null> = {}
     if (payload.translation !== undefined) updates.translation = translation ? translation.slice(0, 4000) : null
@@ -39,6 +41,7 @@ export async function POST(request: NextRequest) {
     if (payload.intentAnswer !== undefined) updates.intent_answer = intentAnswer
     if (payload.tokensJson !== undefined) updates.tokens_json = tokensJson
     if (payload.audioUrl !== undefined) updates.audio_url = audioUrl
+    if (payload.writingTaskJson !== undefined) updates.writing_task_json = writingTaskJson
 
     if (Object.keys(updates).length === 0) {
       return NextResponse.json({ error: 'Thiếu dữ liệu cập nhật.' }, { status: 400 })

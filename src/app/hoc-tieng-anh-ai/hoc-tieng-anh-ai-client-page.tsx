@@ -2866,6 +2866,26 @@ export default function HocTiengAnhAiClientPage() {
   }, [writingTask, writingDraft, localText, languageCode])
 
   useEffect(() => {
+    if (!writingTask || !sessionId) return
+    const json = JSON.stringify({
+      messageId: writingTask.messageId,
+      requiredSentences: writingTask.requiredSentences,
+      currentIndex: writingTask.currentIndex,
+      completed: writingTask.completed,
+      teacherText: writingTask.teacherText,
+      instruction: writingTask.instruction,
+      referenceSentence: writingTask.referenceSentence,
+      taskType: writingTask.taskType,
+    })
+    const isDbId = Boolean(openedHistorySessionId && sessionId === openedHistorySessionId)
+    void updateMessageTranslationApi({
+      messageId: writingTask.messageId,
+      ...(isDbId ? {} : { sessionId, clientMessageId: writingTask.messageId }),
+      writingTaskJson: json,
+    }).catch(() => {})
+  }, [writingTask, sessionId, openedHistorySessionId])
+
+  useEffect(() => {
     return () => {
       if (mixedRecorderRef.current && mixedRecorderRef.current.state !== 'inactive') {
         mixedRecorderRef.current.stop()
@@ -3997,6 +4017,7 @@ export default function HocTiengAnhAiClientPage() {
           correctionNote?: string | null
           intentAnswer?: string | null
           tokensJson?: string | null
+          writingTaskJson?: string | null
         }>
         error?: string
       }
@@ -4057,6 +4078,48 @@ export default function HocTiengAnhAiClientPage() {
       setIntentAnswerByMessageId(intentAnswerMap)
       setTokensByMessageId(tokensMap)
       setTokensWithUsageByMessageId(tokensWithUsageMap)
+      const lastTeacherItem = [...items].reverse().find((x) => x.role === 'teacher')
+      const wtj = lastTeacherItem ? String((lastTeacherItem as { writingTaskJson?: string | null }).writingTaskJson || '').trim() : ''
+      let writingRestored = false
+      if (lastTeacherItem && wtj) {
+        try {
+          const parsed = JSON.parse(wtj) as { messageId?: string; requiredSentences?: string[]; currentIndex?: number; completed?: boolean; teacherText?: string; instruction?: string; referenceSentence?: string; taskType?: string }
+          if (parsed && Array.isArray(parsed.requiredSentences) && parsed.requiredSentences.length > 0 && !parsed.completed) {
+            setWritingTask({
+              messageId: parsed.messageId || lastTeacherItem.id,
+              taskType: (parsed.taskType as WritingTaskType) || 'copy',
+              instruction: parsed.instruction || localText('Hãy gõ lại y nguyên từng câu theo thứ tự. Chỉ khi gõ đúng mới mở lượt nói tiếp theo.', 'Type each sentence exactly in order. The next speaking turn unlocks only after exact copy.'),
+              referenceSentence: parsed.referenceSentence || parsed.requiredSentences[parsed.currentIndex ?? 0] || '',
+              requiredSentences: parsed.requiredSentences,
+              currentIndex: Math.max(0, Math.min(parsed.currentIndex ?? 0, parsed.requiredSentences.length - 1)),
+              teacherText: parsed.teacherText || lastTeacherItem.text,
+              completed: false,
+            })
+            setWritingDraft('')
+            setWritingEvalResult(null)
+            writingRestored = true
+          }
+        } catch {
+          // ignore invalid writing_task_json
+        }
+      }
+      if (!writingRestored && lastTeacherItem && !wtj) {
+        const ms = String((lastTeacherItem as { mainSentence?: string | null }).mainSentence || '').trim()
+        const ia = String((lastTeacherItem as { intentAnswer?: string | null }).intentAnswer || '').trim()
+        const copyTargets = Array.from(new Set([takeFirstSentenceOnly(ms), takeFirstSentenceOnly(ia)].filter(Boolean)))
+        if (copyTargets.length > 0) {
+          const task = buildWritingTask(lastTeacherItem.id, lastTeacherItem.text, copyTargets)
+          setWritingTask(task)
+          setWritingDraft('')
+          setWritingEvalResult(null)
+          writingRestored = true
+        }
+      }
+      if (!writingRestored) {
+        setWritingTask(null)
+        setWritingDraft('')
+        setWritingEvalResult(null)
+      }
       const firstMeta = items.find((x) => x.role === 'teacher') || items[0]
       const metaLanguage = String(firstMeta?.languageCode || '').trim() as LanguageCode
       if (metaLanguage && TEACHERS_BY_LANGUAGE[metaLanguage]) {

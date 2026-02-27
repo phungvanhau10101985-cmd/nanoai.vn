@@ -1,6 +1,7 @@
 'use client'
 
-import { Volume2 } from 'lucide-react'
+import { useState } from 'react'
+import { Loader2, Volume2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
@@ -12,7 +13,7 @@ type WordPracticeOverlayProps = {
   t: (key: string, params?: Record<string, string | number>) => string
   onWordPracticeDraftChange: (targetWord: string, nextDraft: string) => void
   onWordPracticeMeaningSelect: (targetWord: string, selectedMeaning: string) => void
-  onPlayWordPronunciation: (word: string) => void
+  onPlayWordPronunciation: (word: string) => void | Promise<void>
 }
 
 export function WordPracticeOverlay({
@@ -23,7 +24,20 @@ export function WordPracticeOverlay({
   onWordPracticeMeaningSelect,
   onPlayWordPronunciation,
 }: WordPracticeOverlayProps) {
+  const [replayBusy, setReplayBusy] = useState(false)
   if (!wordPractice || wordPractice.unlocked) return null
+
+  const displayWord = wordPractice.targetWord.charAt(0).toUpperCase() + wordPractice.targetWord.slice(1)
+
+  const handleReplay = async () => {
+    if (replayBusy) return
+    setReplayBusy(true)
+    try {
+      await Promise.resolve(onPlayWordPronunciation(wordPractice.targetWord))
+    } finally {
+      setReplayBusy(false)
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto bg-black/60 p-3 sm:items-center sm:p-4">
@@ -35,7 +49,7 @@ export function WordPracticeOverlay({
           {t('Listen and type the word correctly 3 times, then choose the correct meaning each round.')}
         </p>
         <p className="mt-1 text-sm font-medium text-slate-800">
-          {t('Current word:')} {wordPractice.targetWord}
+          {t('Current word:')} {displayWord}
         </p>
         <p className="mt-1 break-words text-xs text-slate-500">
           {t('You are doing great! Complete 3/3 and you can continue right away.')}
@@ -45,8 +59,18 @@ export function WordPracticeOverlay({
         </p>
 
         <div className="mt-3 flex items-center gap-2">
-          <Button type="button" variant="outline" onClick={() => onPlayWordPronunciation(wordPractice.targetWord)}>
-            <Volume2 className="mr-2 h-4 w-4" />
+          <Button
+            type="button"
+            variant="outline"
+            disabled={replayBusy}
+            onClick={() => void handleReplay()}
+            className={replayBusy ? 'ring-2 ring-indigo-300' : 'transition-all active:scale-95'}
+          >
+            {replayBusy ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Volume2 className="mr-2 h-4 w-4" />
+            )}
             {t('Replay new word')}
           </Button>
         </div>

@@ -32,6 +32,7 @@ export function WordPracticeBox({
 }: WordPracticeBoxProps) {
   const normalizedTarget = normalizeWordPracticeText(targetWord)
   const active = wordPractice && wordPractice.normalizedTarget === normalizedTarget ? wordPractice : null
+  const displayWord = targetWord.charAt(0).toUpperCase() + targetWord.slice(1)
   if (!active) {
     return (
       <div className="mt-1 rounded-md border bg-white p-2">
@@ -47,8 +48,8 @@ export function WordPracticeBox({
         {active.unlocked
           ? localText('Đã hoàn thành gõ từ 3 lần. Bạn có thể tiếp tục thao tác khác.', 'Typing practice completed 3/3. You can continue other actions.')
           : localText(
-              `Gõ lại đúng từ "${active.targetWord}" 3 lần để mở khóa thao tác khác. Đúng: ${active.correctCount}/3`,
-              `Type "${active.targetWord}" correctly 3 times to unlock other actions. Correct: ${active.correctCount}/3`
+              `Gõ lại đúng từ "${displayWord}" 3 lần để mở khóa thao tác khác. Đúng: ${active.correctCount}/3`,
+              `Type "${displayWord}" correctly 3 times to unlock other actions. Correct: ${active.correctCount}/3`
             )}
       </p>
       {!active.unlocked ? (
