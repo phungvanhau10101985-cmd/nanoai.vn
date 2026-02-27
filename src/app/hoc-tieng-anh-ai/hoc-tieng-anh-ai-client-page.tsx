@@ -3876,10 +3876,7 @@ export default function HocTiengAnhAiClientPage() {
   }
 
   const fetchPreviousLessonWords = async (): Promise<TodayWordItem[]> => {
-    const { ok, data } = await getPreviousLessonWords(50, {
-      targetLanguage: activeTeacher.languageLabel,
-      nativeLanguage: selectedNativeLanguage.apiLabel,
-    })
+    const { ok, data } = await getPreviousLessonWords(50)
     if (!ok) throw new Error(data.error || localText('Không tải được từ buổi trước.', 'Failed to load previous words.'))
     const raw = Array.isArray(data.items) ? data.items : []
     const normalized = raw.map((item) => {
