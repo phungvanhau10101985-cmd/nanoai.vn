@@ -2263,6 +2263,10 @@ export default function HocTiengAnhAiClientPage() {
     return id
   }
 
+  const updateMessageText = (messageId: string, text: string) => {
+    setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, text } : m)))
+  }
+
   const confirmTopicForLearning = (nextTopicId: string, opts?: { silent?: boolean }) => {
     const trimmed = String(nextTopicId || '').trim()
     if (!trimmed) return false
@@ -4392,10 +4396,12 @@ export default function HocTiengAnhAiClientPage() {
   const handleSend = async (
     raw?: string,
     source: 'text' | 'mic' = 'text',
-    micAnalysis?: MixedSpeechAnalysis
+    micAnalysis?: MixedSpeechAnalysis,
+    opts?: { existingStudentMessageId?: string }
   ) => {
     const studentText = String(raw ?? draft).trim()
-    if (!studentText || busy) return
+    if (!studentText) return
+    if (busy && !opts?.existingStudentMessageId) return
     if (source === 'mic') {
       const now = Date.now()
       const duplicate =
@@ -4405,9 +4411,17 @@ export default function HocTiengAnhAiClientPage() {
       lastMicSentAtRef.current = now
     }
 
-    setBusy(true)
-    setAwaitingTeacherReply(true)
-    const studentMessageId = appendMessage('student', studentText)
+    const hadExistingMessage = Boolean(opts?.existingStudentMessageId)
+    if (!hadExistingMessage) {
+      setBusy(true)
+      setAwaitingTeacherReply(true)
+    }
+    const studentMessageId = hadExistingMessage
+      ? opts!.existingStudentMessageId!
+      : appendMessage('student', studentText)
+    if (hadExistingMessage) {
+      updateMessageText(studentMessageId, studentText)
+    }
     setDraft('')
     void saveHistoryMessage({ role: 'student', text: studentText })
       .then(() => {
@@ -5015,6 +5029,11 @@ export default function HocTiengAnhAiClientPage() {
     if (!blob) return
     pendingRecordingBlobRef.current = null
     setRecordingPending(false)
+    setBusy(true)
+    setAwaitingTeacherReply(true)
+    const placeholderText = localText('Đang chuyển giọng nói thành chữ...', 'Converting speech to text...')
+    const studentMessageId = appendMessage('student', placeholderText)
+    chatScrollRef.current?.scrollIntoView({ behavior: 'smooth' })
     try {
       const analysis = await transcribeSpeechAudio(blob)
       setLatestPronunciationScore(analysis.pronunciationScore || null)
@@ -5032,10 +5051,22 @@ export default function HocTiengAnhAiClientPage() {
             ? analysis.nativeTranscript || analysis.mergedTranscript || analysis.targetTranscript
             : analysis.mergedTranscript || analysis.targetTranscript || analysis.nativeTranscript
       setDraft(transcriptByMode)
-      await handleSend(transcriptByMode, 'mic', analysis)
+      const transcript = String(transcriptByMode || '').trim()
+      updateMessageText(studentMessageId, transcript || placeholderText)
+      if (!transcript) {
+        setBusy(false)
+        setAwaitingTeacherReply(false)
+        updateMessageText(studentMessageId, localText('Không nhận được chữ từ giọng nói.', 'Could not convert speech to text.'))
+        toast({ title: coachUiText.micErrorTitle, description: localText('Không chuyển được giọng nói thành chữ.', 'Could not convert speech to text.'), variant: 'destructive' })
+        return
+      }
+      await handleSend(transcript, 'mic', analysis, { existingStudentMessageId: studentMessageId })
     } catch (e) {
       const msg = unknownErrorMsg(e)
       toast({ title: coachUiText.micErrorTitle, description: msg, variant: 'destructive' })
+      setBusy(false)
+      setAwaitingTeacherReply(false)
+      updateMessageText(studentMessageId, localText('Lỗi khi chuyển giọng nói.', 'Error converting speech.'))
     }
   }
 
