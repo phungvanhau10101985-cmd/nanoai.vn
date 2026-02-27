@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
 import { createClient } from '@/lib/supabase/client'
-import { Mic, MicOff, Send, Languages, Volume2, Play, RotateCcw } from 'lucide-react'
+import { Loader2, Mic, MicOff, Send, Languages, Volume2, Play, RotateCcw } from 'lucide-react'
 import { WordPracticeOverlay } from './components/word-practice-overlay'
 import { PreLessonReviewOverlay } from './components/pre-lesson-review-overlay'
 import { QuickStartModal } from './components/quick-start-modal'
@@ -4233,6 +4233,15 @@ export default function HocTiengAnhAiClientPage() {
   }, [messages, tokensByMessageId])
 
   useEffect(() => {
+    if (!busy) return
+    const el = chatScrollRef.current
+    if (!el) return
+    window.requestAnimationFrame(() => {
+      el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
+    })
+  }, [busy])
+
+  useEffect(() => {
     try {
       const webLocale = getWebLocaleFromCookie()
       const saved = localStorage.getItem(NATIVE_LANGUAGE_PREF_KEY)
@@ -5627,7 +5636,8 @@ export default function HocTiengAnhAiClientPage() {
                     </p>
                   </div>
                 ) : (
-                  messages.map((m, idx) => (
+                  <>
+                  {messages.map((m, idx) => (
                     <div
                       key={m.id}
                       className={`rounded-md px-3 py-2 text-sm ${
@@ -5890,7 +5900,7 @@ export default function HocTiengAnhAiClientPage() {
                             disabled={isReplayButtonDisabled(`${m.id}__main`, hasCachedTeacherAudio(`${m.id}__main`))}
                           >
                             <Volume2 className="mr-2 h-4 w-4" />
-                            {localText('Nghe câu chính', 'Play main sentence')}
+                            {localText('Nghe ý 1', 'Play idea 1')}
                           </Button>
                           <Button
                             type="button"
@@ -5900,7 +5910,7 @@ export default function HocTiengAnhAiClientPage() {
                             disabled={isReplayButtonDisabled(`${m.id}__correction_note`, hasCachedTeacherAudio(`${m.id}__correction_note`))}
                           >
                             <Volume2 className="mr-2 h-4 w-4" />
-                            {localText('Nghe sửa lỗi', 'Play error fix')}
+                            {localText('Nghe ý 2', 'Play idea 2')}
                           </Button>
                           <Button
                             type="button"
@@ -5910,7 +5920,7 @@ export default function HocTiengAnhAiClientPage() {
                             disabled={isReplayButtonDisabled(`${m.id}__intent_answer`, hasCachedTeacherAudio(`${m.id}__intent_answer`))}
                           >
                             <Volume2 className="mr-2 h-4 w-4" />
-                            {localText('Nghe ý 3', 'Play idea 3')}
+                            {localText('Bỏ nghe câu chính', 'Skip main sentence')}
                           </Button>
                           <Button
                             type="button"
@@ -5920,7 +5930,7 @@ export default function HocTiengAnhAiClientPage() {
                             disabled={isReplayButtonDisabled(`${m.id}__full`, hasCachedTeacherAudio(m.id))}
                           >
                             <Volume2 className="mr-2 h-4 w-4" />
-                            {localText('Nói lại câu này', 'Repeat this sentence')}
+                            {localText('Nghe câu sửa', 'Listen to corrected sentence')}
                           </Button>
                           {idx === 0 ? (
                             <Button
@@ -5946,7 +5956,24 @@ export default function HocTiengAnhAiClientPage() {
                         </p>
                       ) : null}
                     </div>
-                  ))
+                  ))}
+                  {busy ? (
+                    <div className="rounded-md border border-indigo-200 bg-indigo-50/80 px-3 py-3 text-sm animate-pulse">
+                      <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-indigo-600">
+                        {localText('Teacher', 'Teacher')}
+                      </p>
+                      <div className="flex items-center gap-2 text-indigo-700">
+                        <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+                        <p className="text-xs">
+                          {localText(
+                            'Thầy/cô đang suy nghĩ và chuẩn bị giảng giải cho bạn...',
+                            'Teacher is thinking and preparing an explanation for you...'
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                  ) : null}
+                  </>
                 )}
               </div>
               </div>
@@ -6022,9 +6049,11 @@ export default function HocTiengAnhAiClientPage() {
                   )}
                 </div>
                 <p className="text-xs text-slate-500">
-                  {recordingPending
-                    ? localText('Đã ghi âm xong. Nghe lại, gửi hoặc nói lại.', 'Recording done. Play back, send, or record again.')
-                    : micLanguageHint}
+                  {busy
+                    ? localText('Thầy/cô đang suy nghĩ và chuẩn bị giảng giải cho bạn...', 'Teacher is thinking and preparing an explanation for you...')
+                    : recordingPending
+                      ? localText('Đã ghi âm xong. Nghe lại, gửi hoặc nói lại.', 'Recording done. Play back, send, or record again.')
+                      : micLanguageHint}
                 </p>
                 {writingTask && !writingTask.completed ? (
                   <p className="rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-xs text-amber-800">
