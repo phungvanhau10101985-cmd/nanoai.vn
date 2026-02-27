@@ -16,6 +16,7 @@ type TodayWordsPanelProps = {
   onStartWordPractice: (word: string, expectedMeaning?: string, opts?: { forceSwitch?: boolean }) => void
   onPlayWordTextSnippet: (text: string) => void
   onPlayWordPronunciation: (word: string) => void
+  onRegenerateWordPronunciation?: (word: string) => void
 }
 
 export function TodayWordsPanel({
@@ -30,6 +31,7 @@ export function TodayWordsPanel({
   onStartWordPractice,
   onPlayWordTextSnippet,
   onPlayWordPronunciation,
+  onRegenerateWordPronunciation,
 }: TodayWordsPanelProps) {
   const usageTagLabel = (level?: 'high' | 'medium' | 'low') => {
     if (level === 'high') return localText('Dùng nhiều', 'High use')
@@ -158,7 +160,7 @@ export function TodayWordsPanel({
                 ) : null}
               </div>
               {renderExamples(item)}
-              <div className="mt-1.5">
+              <div className="mt-1.5 flex flex-wrap gap-1">
                 <Button
                   type="button"
                   variant="outline"
@@ -172,6 +174,18 @@ export function TodayWordsPanel({
                   <Volume2 className="mr-2 h-4 w-4" />
                   {localText('Nghe lại từ này', 'Replay this word')}
                 </Button>
+                {onRegenerateWordPronunciation ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 px-2.5 text-xs text-amber-700 hover:bg-amber-50"
+                    onClick={() => onRegenerateWordPronunciation(item.word)}
+                    title={localText('Phát âm sai? Tạo lại bằng TTS', 'Wrong pronunciation? Regenerate with TTS')}
+                  >
+                    {localText('Phát âm sai? Tạo lại', 'Wrong? Regenerate')}
+                  </Button>
+                ) : null}
               </div>
             </div>
           ))}

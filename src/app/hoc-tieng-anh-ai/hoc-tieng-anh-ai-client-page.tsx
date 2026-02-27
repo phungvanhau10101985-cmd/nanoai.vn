@@ -6507,6 +6507,12 @@ export default function HocTiengAnhAiClientPage() {
                 onStartWordPractice={startWordPractice}
                 onPlayWordTextSnippet={(text) => void playWordTextSnippet(text)}
                 onPlayWordPronunciation={(word) => void playWordPronunciation(word)}
+                onRegenerateWordPronunciation={(word) =>
+                  void playWordPronunciation(word, {
+                    forceRegenerate: true,
+                    wordDetailForSave: findSessionWord(word),
+                  })
+                }
               />
               <ReviewItemsPanel
                 localText={localText}
@@ -6520,6 +6526,12 @@ export default function HocTiengAnhAiClientPage() {
                 onStartWordPractice={startWordPractice}
                 onPlayWordTextSnippet={(text) => void playWordTextSnippet(text)}
                 onPlayWordPronunciation={(word) => void playWordPronunciation(word)}
+                onRegenerateWordPronunciation={(word) =>
+                  void playWordPronunciation(word, {
+                    forceRegenerate: true,
+                    wordDetailForSave: findSessionWord(word),
+                  })
+                }
                 onMarkReviewDone={(id, quality) => void markReviewDone(id, quality)}
               />
             </CardContent>

@@ -16,6 +16,7 @@ type ReviewItemsPanelProps = {
   onStartWordPractice: (word: string, expectedMeaning?: string, opts?: { forceSwitch?: boolean }) => void
   onPlayWordTextSnippet: (text: string) => void
   onPlayWordPronunciation: (word: string) => void
+  onRegenerateWordPronunciation?: (word: string) => void
   onMarkReviewDone: (id: string, quality: number) => void
 }
 
@@ -31,6 +32,7 @@ export function ReviewItemsPanel({
   onStartWordPractice,
   onPlayWordTextSnippet,
   onPlayWordPronunciation,
+  onRegenerateWordPronunciation,
   onMarkReviewDone,
 }: ReviewItemsPanelProps) {
   const usageTagLabel = (level?: 'high' | 'medium' | 'low') => {
@@ -174,6 +176,18 @@ export function ReviewItemsPanel({
                   <Volume2 className="mr-2 h-4 w-4" />
                   {localText('Nghe lại từ này', 'Replay this word')}
                 </Button>
+                {onRegenerateWordPronunciation ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 px-2.5 text-xs text-amber-700 hover:bg-amber-50"
+                    onClick={() => onRegenerateWordPronunciation(item.word)}
+                    title={localText('Phát âm sai? Tạo lại bằng TTS', 'Wrong pronunciation? Regenerate with TTS')}
+                  >
+                    {localText('Phát âm sai? Tạo lại', 'Wrong? Regenerate')}
+                  </Button>
+                ) : null}
                 <Button type="button" variant="outline" size="sm" className="h-8 px-2.5 text-xs" onClick={() => onMarkReviewDone(item.id, 2)}>
                   {localText('Khó', 'Hard')}
                 </Button>

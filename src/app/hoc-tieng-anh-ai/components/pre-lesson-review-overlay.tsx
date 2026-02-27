@@ -536,14 +536,28 @@ export function PreLessonReviewOverlay({
                     {localText('📌 Nhiệm vụ: Nghe từ → Gõ lại từ bạn nghe được', '📌 Task: Listen to the word → Type what you heard')}
                   </p>
                 </div>
-                <Button
-                  type="button"
-                  variant="default"
-                  onClick={() => onPlayWord(currentWord.word, currentWord.pronunciationAudioUrl, currentWord)}
-                  className="w-full min-h-[52px] text-base active:scale-[0.98] transition-transform"
-                >
-                  <Volume2 className="mr-2 h-5 w-5" /> {localText('🔊 Bấm để nghe từ', '🔊 Tap to hear the word')}
-                </Button>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Button
+                    type="button"
+                    variant="default"
+                    onClick={() => onPlayWord(currentWord.word, currentWord.pronunciationAudioUrl, currentWord)}
+                    className="flex-1 min-h-[52px] text-base active:scale-[0.98] transition-transform"
+                  >
+                    <Volume2 className="mr-2 h-5 w-5" /> {localText('🔊 Bấm để nghe từ', '🔊 Tap to hear the word')}
+                  </Button>
+                  {onRegenerateWordAudio && currentWord ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => onRegenerateWordAudio(currentWord.word, currentWord)}
+                      title={localText('Phát âm sai? Tạo lại bằng TTS', 'Wrong pronunciation? Regenerate with TTS')}
+                      className="sm:self-center shrink-0 text-amber-700 border-amber-300 hover:bg-amber-50"
+                    >
+                      {localText('Phát âm sai? Tạo lại', 'Wrong? Regenerate')}
+                    </Button>
+                  ) : null}
+                </div>
                 <div>
                   <label className="mb-1.5 block text-sm font-medium text-slate-700">
                     {localText('Gõ từ bạn nghe được:', 'Type the word you heard:')}
