@@ -5747,7 +5747,7 @@ export default function HocTiengAnhAiClientPage() {
                                   className={`min-h-[44px] rounded-md border px-3 text-xs font-medium transition-colors ${tokenBadgeClass}`}
                                   onClick={() => void fetchWordInsight(m.id, word, sentenceForWordContext)}
                                 >
-                                  {word}
+                                  {capitalizeWordForDisplay(word)}
                                   {usageLevel ? (
                                     <span
                                       className={`ml-1.5 inline-block h-1.5 w-1.5 shrink-0 rounded-full ${
@@ -5894,20 +5894,20 @@ export default function HocTiengAnhAiClientPage() {
                         <div className="mt-2 flex flex-wrap gap-2">
                           <Button
                             type="button"
-                            variant="secondary"
+                            variant="outline"
                             size="sm"
-                            onClick={() => void replayTeacherMainSentence(m.id, m.text)}
-                            disabled={isReplayButtonDisabled(`${m.id}__main`, hasCachedTeacherAudio(`${m.id}__main`))}
+                            onClick={() => void replayTeacherCorrectionNote(m.id)}
+                            disabled={isReplayButtonDisabled(`${m.id}__correction_note`, hasCachedTeacherAudio(`${m.id}__correction_note`))}
                           >
                             <Volume2 className="mr-2 h-4 w-4" />
                             {localText('Nghe ý 1', 'Play idea 1')}
                           </Button>
                           <Button
                             type="button"
-                            variant="outline"
+                            variant="secondary"
                             size="sm"
-                            onClick={() => void replayTeacherCorrectionNote(m.id)}
-                            disabled={isReplayButtonDisabled(`${m.id}__correction_note`, hasCachedTeacherAudio(`${m.id}__correction_note`))}
+                            onClick={() => void replayTeacherMainSentence(m.id, m.text)}
+                            disabled={isReplayButtonDisabled(`${m.id}__main`, hasCachedTeacherAudio(`${m.id}__main`))}
                           >
                             <Volume2 className="mr-2 h-4 w-4" />
                             {localText('Nghe ý 2', 'Play idea 2')}
@@ -5920,7 +5920,7 @@ export default function HocTiengAnhAiClientPage() {
                             disabled={isReplayButtonDisabled(`${m.id}__intent_answer`, hasCachedTeacherAudio(`${m.id}__intent_answer`))}
                           >
                             <Volume2 className="mr-2 h-4 w-4" />
-                            {localText('Bỏ nghe câu chính', 'Skip main sentence')}
+                            {localText('Nghe ý 3', 'Play idea 3')}
                           </Button>
                           <Button
                             type="button"
@@ -5930,7 +5930,7 @@ export default function HocTiengAnhAiClientPage() {
                             disabled={isReplayButtonDisabled(`${m.id}__full`, hasCachedTeacherAudio(m.id))}
                           >
                             <Volume2 className="mr-2 h-4 w-4" />
-                            {localText('Nghe câu sửa', 'Listen to corrected sentence')}
+                            {localText('Nghe ý 1,2,3', 'Play ideas 1, 2, 3')}
                           </Button>
                           {idx === 0 ? (
                             <Button
