@@ -1694,6 +1694,9 @@ export default function HocTiengAnhAiClientPage() {
   const [historyBusy, setHistoryBusy] = useState(false)
   const [todayWordsBusy, setTodayWordsBusy] = useState(false)
   const [wordBusyKey, setWordBusyKey] = useState('')
+  const wordAnalyzingKeysRef = useRef<Set<string>>(new Set())
+  const wordPlayingRef = useRef<Set<string>>(new Set())
+  const textSnippetPlayingRef = useRef<Set<string>>(new Set())
   const [openedHistorySessionId, setOpenedHistorySessionId] = useState('')
   const [draft, setDraft] = useState('')
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -3484,6 +3487,7 @@ export default function HocTiengAnhAiClientPage() {
 
   const fetchWordInsight = async (messageId: string, word: string, sentence: string) => {
     const key = `${messageId}:${word.toLowerCase()}`
+    if (wordAnalyzingKeysRef.current.has(key)) return
     setOpenedWordKey(key)
     const savedWord = findSessionWord(word)
     if (savedWord && (savedWord.meaning || savedWord.pronunciation)) {
@@ -3530,6 +3534,7 @@ export default function HocTiengAnhAiClientPage() {
       return
     }
 
+    wordAnalyzingKeysRef.current.add(key)
     setWordBusyKey(key)
     // Phát âm từ NGAY khi bấm (user gesture còn hiệu lực) – tránh iOS/Android chặn audio sau async dài
     const wordPlayPromise = playWordPronunciation(word)
@@ -3576,6 +3581,7 @@ export default function HocTiengAnhAiClientPage() {
       const msg = unknownErrorMsg(e)
       toast({ title: localText('Không phân tích được từ', 'Word analysis failed'), description: msg, variant: 'destructive' })
     } finally {
+      wordAnalyzingKeysRef.current.delete(key)
       setWordBusyKey('')
     }
   }
@@ -3588,25 +3594,30 @@ export default function HocTiengAnhAiClientPage() {
       wordDetailForSave?: Partial<WordInsight> & { sessionId?: string }
     }
   ) => {
+    const playKey = String(word || '').trim().toLowerCase()
+    if (!playKey) return
+    if (wordPlayingRef.current.has(playKey)) return
+    wordPlayingRef.current.add(playKey)
+
     const preloadedAudioUrl = typeof options === 'string' ? options : options?.pronunciationAudioUrl
     const forceRegenerate = typeof options === 'object' && options?.forceRegenerate
     const wordDetailForSave = typeof options === 'object' ? options?.wordDetailForSave : undefined
 
-    const savedWord = findSessionWord(word)
-    const savedAudioUrl = String(
-      preloadedAudioUrl || savedWord?.pronunciationAudioUrl || ''
-    ).trim()
-
-    if (savedAudioUrl && !forceRegenerate) {
-      try {
-        await playAudioUrl(savedAudioUrl)
-        return
-      } catch {
-        // URL hết hạn hoặc lỗi – fallback sang TTS và lưu lại
-      }
-    }
-
     try {
+      const savedWord = findSessionWord(word)
+      const savedAudioUrl = String(
+        preloadedAudioUrl || savedWord?.pronunciationAudioUrl || ''
+      ).trim()
+
+      if (savedAudioUrl && !forceRegenerate) {
+        try {
+          await playAudioUrl(savedAudioUrl)
+          return
+        } catch {
+          // URL hết hạn hoặc lỗi – fallback sang TTS và lưu lại
+        }
+      }
+
       const generatedParts = await playBestEffortTts(word)
       const firstPart = generatedParts[0]
       if (!firstPart) throw new Error(localText('Không tạo được âm thanh.', 'Unable to create audio.'))
@@ -3636,6 +3647,8 @@ export default function HocTiengAnhAiClientPage() {
     } catch (e) {
       const msg = e instanceof Error ? e.message : localText('Không phát âm được từ.', 'Unable to pronounce this word.')
       toast({ title: localText('Lỗi phát âm từ', 'Word pronunciation error'), description: msg, variant: 'destructive' })
+    } finally {
+      wordPlayingRef.current.delete(playKey)
     }
   }
 
@@ -3680,11 +3693,15 @@ export default function HocTiengAnhAiClientPage() {
       .join(' ')
       .trim()
     if (!speakText) return
+    if (textSnippetPlayingRef.current.has(speakText)) return
+    textSnippetPlayingRef.current.add(speakText)
     try {
       await playBestEffortTts(speakText)
     } catch (e) {
       const msg = e instanceof Error ? e.message : localText('Không phát được câu này.', 'Unable to play this sentence.')
       toast({ title: localText('Lỗi phát âm thanh', 'Audio playback error'), description: msg, variant: 'destructive' })
+    } finally {
+      textSnippetPlayingRef.current.delete(speakText)
     }
   }
 
