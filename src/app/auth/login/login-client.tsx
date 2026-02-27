@@ -2,11 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { login, signup, signInWithGoogle } from '../actions'
+import { signInWithGoogle } from '../actions'
 import { Chrome } from 'lucide-react'
 
 type LoginClientProps = {
@@ -49,8 +46,6 @@ function useFormSubmitWithNgrok() {
 
 export default function LoginClient({ message, error }: LoginClientProps) {
   const [uiLocale, setUiLocale] = useState<'vi' | 'en' | 'zh' | 'ja' | 'ko'>('vi')
-  const handleLoginNgrok = useFormSubmitWithNgrok()
-  const handleSignupNgrok = useFormSubmitWithNgrok()
   const handleGoogleNgrok = useFormSubmitWithNgrok()
   const tr = (vi: string, en: string, zh: string, ja: string, ko: string) => {
     if (uiLocale === 'en') return en
@@ -87,9 +82,9 @@ export default function LoginClient({ message, error }: LoginClientProps) {
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 via-white to-indigo-50 px-4 py-10">
       <Card className="w-full max-w-md border-muted/60 shadow-lg">
         <CardHeader className="text-center space-y-2">
-          <CardTitle className="text-2xl font-bold">{tr('Chào mừng trở lại', 'Welcome back', '欢迎回来', 'おかえりなさい', '다시 오신 것을 환영합니다')}</CardTitle>
+          <CardTitle className="text-2xl font-bold">{tr('Đăng nhập', 'Sign in', '登录', 'ログイン', '로그인')}</CardTitle>
           <CardDescription>
-            {tr('Đăng nhập để bắt đầu trải nghiệm thử đồ ảo theo phong cách riêng của bạn.', 'Sign in to start your personalized virtual try-on experience.', '登录以开始你的个性化虚拟试衣体验。', 'ログインして、あなた好みのバーチャル試着を始めましょう。', '로그인하고 나만의 가상 피팅을 시작하세요.')}
+            {tr('Đăng nhập bằng tài khoản Google để bắt đầu trải nghiệm.', 'Sign in with your Google account to get started.', '使用 Google 账号登录以开始体验。', 'Googleアカウントでログインして始めましょう。', 'Google 계정으로 로그인하여 시작하세요.')}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -104,64 +99,10 @@ export default function LoginClient({ message, error }: LoginClientProps) {
             </div>
           )}
 
-          <Tabs defaultValue="login" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 mb-4">
-              <TabsTrigger value="login">{tr('Đăng nhập', 'Sign in', '登录', 'ログイン', '로그인')}</TabsTrigger>
-              <TabsTrigger value="register">{tr('Đăng ký', 'Sign up', '注册', '新規登録', '회원가입')}</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="login">
-              <form action={login} onSubmit={handleLoginNgrok} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input id="email" name="email" type="email" placeholder="m@example.com" required />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="password">{tr('Mật khẩu', 'Password', '密码', 'パスワード', '비밀번호')}</Label>
-                  <Input id="password" name="password" type="password" required />
-                </div>
-                <Button type="submit" className="w-full h-11">
-                  {tr('Đăng nhập', 'Sign in', '登录', 'ログイン', '로그인')}
-                </Button>
-              </form>
-            </TabsContent>
-
-            <TabsContent value="register">
-              <form action={signup} onSubmit={handleSignupNgrok} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="fullName">{tr('Họ và Tên', 'Full name', '姓名', '氏名', '이름')}</Label>
-                  <Input id="fullName" name="fullName" placeholder="John Doe" required />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input id="email" name="email" type="email" placeholder="m@example.com" required />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="password">{tr('Mật khẩu', 'Password', '密码', 'パスワード', '비밀번호')}</Label>
-                  <Input id="password" name="password" type="password" required />
-                </div>
-                <Button type="submit" className="w-full h-11">
-                  {tr('Tạo tài khoản', 'Create account', '创建账号', 'アカウント作成', '계정 만들기')}
-                </Button>
-              </form>
-            </TabsContent>
-          </Tabs>
-
-          <div className="relative my-5">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-background px-2 text-muted-foreground">
-                {tr('Hoặc tiếp tục với', 'Or continue with', '或使用以下方式继续', 'または次で続行', '또는 다음으로 계속')}
-              </span>
-            </div>
-          </div>
-
           <form action={signInWithGoogle} onSubmit={handleGoogleNgrok}>
-            <Button variant="outline" type="submit" className="w-full h-11">
+            <Button type="submit" className="w-full h-11">
               <Chrome className="mr-2 h-4 w-4" />
-              Google
+              {tr('Đăng nhập bằng Google', 'Sign in with Google', '使用 Google 登录', 'Googleでログイン', 'Google로 로그인')}
             </Button>
           </form>
         </CardContent>
