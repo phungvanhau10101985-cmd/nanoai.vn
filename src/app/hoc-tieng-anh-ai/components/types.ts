@@ -35,6 +35,9 @@ export type VocabularyItem = {
   targetLanguage?: string
   meaning?: string | null
   pronunciation?: string | null
+  usageLevel?: 'high' | 'medium' | 'low'
+  importanceScore?: number
+  contextSensitive?: boolean
   meaningItems?: MeaningItem[]
   exampleItems?: ExampleItem[]
   exampleTarget?: string
@@ -46,6 +49,9 @@ export type PreLessonWordItem = {
   meaning: string
   pronunciation: string
   targetLanguage?: string
+  usageLevel?: 'high' | 'medium' | 'low'
+  importanceScore?: number
+  contextSensitive?: boolean
   exampleTarget?: string
   meaningItems?: MeaningItem[]
   exampleItems?: ExampleItem[]

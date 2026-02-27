@@ -1,5 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
 import { GoogleGenerativeAI } from '@google/generative-ai'
+import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
+
+function adminClient() {
+  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+}
+
+async function buildCacheKey(intentAnswer: string, targetLanguageCode: string, nativeLanguage: string): Promise<string> {
+  const normalized = `${String(intentAnswer || '').trim()}::${String(targetLanguageCode || '').trim()}::${String(nativeLanguage || '').trim()}`
+  const encoder = new TextEncoder()
+  const data = encoder.encode(normalized)
+  const h = await crypto.subtle.digest('SHA-256', data)
+  const hex = Array.from(new Uint8Array(h))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('')
+  return `opening:${hex}`
+}
 
 type Payload = {
   studentText?: string
@@ -67,6 +84,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Thiếu câu trả lời cần giải thích.' }, { status: 400 })
     }
 
+    const targetLanguageCode = String(payload.targetLanguageCode || 'en').trim()
+    const isOpeningStyle = !studentText && !correctionNote && !correctedSentence
+
+    if (isOpeningStyle) {
+      const cacheKey = await buildCacheKey(intentAnswer, targetLanguageCode, nativeLanguage)
+      const adminSupabase = adminClient()
+      const { data: cached } = await adminSupabase
+        .from('language_coach_opening_translation_cache')
+        .select('translation')
+        .eq('cache_key', cacheKey)
+        .single()
+      if (cached?.translation) {
+        return NextResponse.json({ explanation: cached.translation })
+      }
+    }
+
     const prompt = `Bạn là giáo viên ngôn ngữ đa ngữ.
 Nhiệm vụ: chỉ DỊCH Ý 3 theo đúng ngữ cảnh hội thoại, viết bằng ${nativeLanguage}.
 
@@ -91,7 +124,7 @@ Trả về JSON hợp lệ, không markdown:
 }`
 
     const ai = new GoogleGenerativeAI(apiKey)
-    const model = ai.getGenerativeModel({ model: 'gemini-2.5-flash' })
+    const model = ai.getGenerativeModel(GEMINI_25_FLASH_NO_THINKING)
     const result = await model.generateContent(prompt)
     const text = result.response.text()?.trim() || ''
     const parsed = safeParse(text)
@@ -104,7 +137,18 @@ Trả về JSON hợp lệ, không markdown:
       })
     }
 
-    return NextResponse.json({ explanation: normalizeShortMeaning(parsed.explanation) })
+    const explanation = normalizeShortMeaning(parsed.explanation)
+
+    if (isOpeningStyle) {
+      const cacheKey = await buildCacheKey(intentAnswer, targetLanguageCode, nativeLanguage)
+      const adminSupabase = adminClient()
+      await adminSupabase.from('language_coach_opening_translation_cache').upsert(
+        { cache_key: cacheKey, translation: explanation },
+        { onConflict: 'cache_key' }
+      )
+    }
+
+    return NextResponse.json({ explanation })
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Lỗi không xác định.'
     return NextResponse.json({ error: msg }, { status: 500 })

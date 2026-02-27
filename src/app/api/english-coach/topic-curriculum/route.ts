@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
+import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 
 type Payload = {
@@ -117,7 +118,7 @@ export async function POST(request: NextRequest) {
     if (!apiKey) return NextResponse.json({ error: msg(locale, 'Thiếu GOOGLE_API_KEY.', 'Missing GOOGLE_API_KEY.') }, { status: 500 })
 
     const genAI = new GoogleGenerativeAI(apiKey)
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
+    const model = genAI.getGenerativeModel(GEMINI_25_FLASH_NO_THINKING)
     const difficultyGuide =
       topicDifficulty === 'advanced'
         ? 'Độ khó: Nâng cao. Tạo tình huống thực tế nhiều biến thể, từ vựng và phản xạ cao hơn.'

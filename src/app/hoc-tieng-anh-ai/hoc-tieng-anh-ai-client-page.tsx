@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
 import { createClient } from '@/lib/supabase/client'
-import { Mic, MicOff, Send, Languages, Volume2 } from 'lucide-react'
+import { Mic, MicOff, Send, Languages, Volume2, Play, RotateCcw } from 'lucide-react'
 import { WordPracticeOverlay } from './components/word-practice-overlay'
 import { PreLessonReviewOverlay } from './components/pre-lesson-review-overlay'
 import { QuickStartModal } from './components/quick-start-modal'
@@ -37,6 +37,7 @@ import {
   runCefrAssessment,
   saveWordDaily,
   saveHistoryMessage as saveHistoryMessageApi,
+  updateMessageTranslation as updateMessageTranslationApi,
   saveLearningGoal as saveLearningGoalApi,
   tokenizeSentence,
   transliterateText,
@@ -76,6 +77,9 @@ type WordInsight = {
   pronunciation: string
   exampleTarget: string
   exampleNative: string
+  usageLevel: 'high' | 'medium' | 'low'
+  importanceScore: number
+  contextSensitive: boolean
   meaningItems: Array<{
     text: string
     pinyin?: string
@@ -94,6 +98,9 @@ type TodayWordItem = {
   meaning: string
   pronunciation: string
   pronunciationAudioUrl?: string
+  usageLevel?: 'high' | 'medium' | 'low'
+  importanceScore?: number
+  contextSensitive?: boolean
   exampleTarget?: string
   exampleNative?: string
   meaningItems?: Array<{
@@ -213,6 +220,9 @@ type ReviewItem = {
   native_language?: string | null
   meaning?: string | null
   pronunciation?: string | null
+  usageLevel?: 'high' | 'medium' | 'low'
+  importanceScore?: number
+  contextSensitive?: boolean
   meaningItems?: Array<{ text: string; pinyin?: string }>
   exampleItems?: Array<{ targetText: string; targetPinyin?: string; nativeText: string }>
   exampleTarget?: string
@@ -1335,6 +1345,24 @@ function sanitizeWordExampleItems(input: unknown): Array<{ targetText: string; t
     .slice(0, 6)
 }
 
+function normalizeWordUsageLevel(input: unknown): 'high' | 'medium' | 'low' {
+  const normalized = String(input || '').trim().toLowerCase()
+  if (normalized === 'high' || normalized === 'medium' || normalized === 'low') return normalized
+  return 'medium'
+}
+
+function normalizeWordImportanceScore(input: unknown): number {
+  const n = Number(input)
+  if (!Number.isFinite(n)) return 50
+  return Math.min(100, Math.max(0, Math.round(n)))
+}
+
+function normalizeWordContextSensitive(input: unknown): boolean {
+  if (typeof input === 'boolean') return input
+  const normalized = String(input || '').trim().toLowerCase()
+  return normalized === '1' || normalized === 'true' || normalized === 'yes'
+}
+
 function buildWordInsightFromAny(data: {
   meaning?: unknown
   pronunciation?: unknown
@@ -1342,6 +1370,9 @@ function buildWordInsightFromAny(data: {
   exampleNative?: unknown
   meaningItems?: unknown
   exampleItems?: unknown
+  usageLevel?: unknown
+  importanceScore?: unknown
+  contextSensitive?: unknown
 }): WordInsight {
   const meaning = String(data.meaning || '').trim()
   const pronunciation = String(data.pronunciation || '').trim()
@@ -1360,6 +1391,9 @@ function buildWordInsightFromAny(data: {
     pronunciation,
     exampleTarget,
     exampleNative,
+    usageLevel: normalizeWordUsageLevel(data.usageLevel),
+    importanceScore: normalizeWordImportanceScore(data.importanceScore),
+    contextSensitive: normalizeWordContextSensitive(data.contextSensitive),
     meaningItems: normalizedMeaningItems,
     exampleItems: exampleItemsRaw.length > 0
       ? exampleItemsRaw
@@ -1419,13 +1453,22 @@ function extractTeacherSpeechText(text: string): string {
   return String(text || '').trim()
 }
 
+/** Lấy 1 câu đầu tiên (trước dấu chấm câu đầu tiên). Dùng cho copyTargets bài viết mini. */
+function takeFirstSentenceOnly(text: string): string {
+  const s = String(text || '').trim()
+  if (!s) return ''
+  // Chỉ cắt ở 句号 (。) 或 问号 (？) - không cắt ở ！
+  const match = s.match(/^[^。？.?]*[。？.?]/u)
+  return match ? match[0] : s
+}
+
 function normalizeCopyText(text: string, targetCode?: LanguageCode): string {
   const base = String(text || '')
     .replace(/[’‘]/g, "'")
     .replace(/[“”]/g, '"')
     .replace(/\s+/g, ' ')
     .trim()
-  if (targetCode === 'zh' || targetCode === 'ja' || targetCode === 'ko') {
+  if (targetCode === 'zh' || targetCode === 'ja' || targetCode === 'ko' || targetCode === 'th' || targetCode === 'hi') {
     return base.replace(/\s+/g, '')
   }
   return base
@@ -1465,7 +1508,7 @@ function sanitizeRomanizedText(text: string): string {
 function sanitizeSentenceForCopy(text: string, targetCode: LanguageCode): string {
   const raw = String(text || '').trim()
   if (!raw) return ''
-  if (targetCode !== 'zh' && targetCode !== 'ja' && targetCode !== 'ko') {
+  if (targetCode !== 'zh' && targetCode !== 'ja' && targetCode !== 'ko' && targetCode !== 'th' && targetCode !== 'hi') {
     return sanitizeRomanizedText(raw)
   }
 
@@ -1474,7 +1517,13 @@ function sanitizeSentenceForCopy(text: string, targetCode: LanguageCode): string
       ? /[\u4E00-\u9FFF]/u.test(raw)
       : targetCode === 'ja'
         ? /[\u3040-\u30FF\u4E00-\u9FFF]/u.test(raw)
-        : /[\uAC00-\uD7AF]/u.test(raw)
+        : targetCode === 'ko'
+          ? /[\uAC00-\uD7AF]/u.test(raw)
+          : targetCode === 'th'
+            ? /[\u0E00-\u0E7F]/u.test(raw)
+            : targetCode === 'hi'
+              ? /[\u0900-\u097F]/u.test(raw)
+              : false
   if (!hasTargetScript) return raw
 
   const withoutLatin = raw
@@ -1487,9 +1536,9 @@ function sanitizeSentenceForCopy(text: string, targetCode: LanguageCode): string
     .replace(/:/g, '：')
     .replace(/\s+([，。！？、；：,.!?])/g, '$1')
     .replace(/([，。！？、；：、]){2,}/g, (m) => pickCjkPunctuation(m))
-    .replace(/([，。！？、；：、])\s+([\u4E00-\u9FFF\u3040-\u30FF\uAC00-\uD7AF])/g, '$1$2')
+    .replace(/([，。！？、；：、])\s+([\u4E00-\u9FFF\u3040-\u30FF\uAC00-\uD7AF\u0E00-\u0E7F\u0900-\u097F])/g, '$1$2')
     .replace(/^[\s)\](\}）】」』》〉、，。！？；：:;,.!?'"`-]+/u, '')
-    .replace(/([\u4E00-\u9FFF\u3040-\u30FF\uAC00-\uD7AF])\s+([\u4E00-\u9FFF\u3040-\u30FF\uAC00-\uD7AF])/g, '$1$2')
+    .replace(/([\u4E00-\u9FFF\u3040-\u30FF\uAC00-\uD7AF\u0E00-\u0E7F\u0900-\u097F])\s+([\u4E00-\u9FFF\u3040-\u30FF\uAC00-\uD7AF\u0E00-\u0E7F\u0900-\u097F])/g, '$1$2')
     .replace(/^[，。！？、；：]+/g, '')
     .replace(/\s+/g, ' ')
     .trim()
@@ -1639,6 +1688,7 @@ export default function HocTiengAnhAiClientPage() {
   const [writingRomanizationByKey, setWritingRomanizationByKey] = useState<Record<string, string>>({})
   const [writingRomanizationBusyByKey, setWritingRomanizationBusyByKey] = useState<Record<string, boolean>>({})
   const [listening, setListening] = useState(false)
+  const [recordingPending, setRecordingPending] = useState(false)
   const [busy, setBusy] = useState(false)
   const [awaitingTeacherReply, setAwaitingTeacherReply] = useState(false)
   const [historyBusy, setHistoryBusy] = useState(false)
@@ -1767,6 +1817,9 @@ export default function HocTiengAnhAiClientPage() {
   const [wordInsightByKey, setWordInsightByKey] = useState<Record<string, WordInsight>>({})
   const [openedWordKey, setOpenedWordKey] = useState('')
   const [tokensByMessageId, setTokensByMessageId] = useState<Record<string, string[]>>({})
+  const [tokensWithUsageByMessageId, setTokensWithUsageByMessageId] = useState<
+    Record<string, Array<{ word: string; usageLevel: 'high' | 'medium' | 'low' }>>
+  >({})
   const [tokenizingByMessageId, setTokenizingByMessageId] = useState<Record<string, boolean>>({})
   const [mainSentenceByMessageId, setMainSentenceByMessageId] = useState<Record<string, string>>({})
   const [correctionNoteByMessageId, setCorrectionNoteByMessageId] = useState<Record<string, string>>({})
@@ -1783,6 +1836,7 @@ export default function HocTiengAnhAiClientPage() {
   const shouldCountNewSessionRef = useRef(true)
   const mixedRecorderRef = useRef<MediaRecorder | null>(null)
   const mixedChunksRef = useRef<BlobPart[]>([])
+  const pendingRecordingBlobRef = useRef<Blob | null>(null)
   const micStreamRef = useRef<MediaStream | null>(null)
   const micSilenceStopTimerRef = useRef<number | null>(null)
   const micMaxDurationTimerRef = useRef<number | null>(null)
@@ -1803,13 +1857,15 @@ export default function HocTiengAnhAiClientPage() {
     if (translated !== en) return translated
     return LOCAL_TEXT_TRANSLATIONS[en]?.[uiLocale] || en
   }, [t, uiLocale])
-  const supportsLatinTransliteration = languageCode === 'zh' || languageCode === 'ja' || languageCode === 'ko'
-  const isCjkTargetLanguage = (tl: string | undefined) => /chinese|zh|mandarin|japanese|ja|korean|ko/i.test(String(tl || ''))
-  const targetLangToCode = (tl: string | undefined): 'zh' | 'ja' | 'ko' | '' => {
+  const supportsLatinTransliteration = languageCode === 'zh' || languageCode === 'ja' || languageCode === 'ko' || languageCode === 'th' || languageCode === 'hi'
+  const isCjkTargetLanguage = (tl: string | undefined) => /chinese|zh|mandarin|japanese|ja|korean|ko|thai|th|hindi|hi/i.test(String(tl || ''))
+  const targetLangToCode = (tl: string | undefined): 'zh' | 'ja' | 'ko' | 'th' | 'hi' | '' => {
     const s = String(tl || '').toLowerCase()
     if (/chinese|zh|mandarin/.test(s)) return 'zh'
     if (/japanese|ja/.test(s)) return 'ja'
     if (/korean|ko/.test(s)) return 'ko'
+    if (/thai|th/.test(s)) return 'th'
+    if (/hindi|hi/.test(s)) return 'hi'
     return ''
   }
   const toWritingRomanizationKey = (text: string, lang?: string) => {
@@ -1819,7 +1875,7 @@ export default function HocTiengAnhAiClientPage() {
 
   const requestTransliteration = async (text: string, langCode?: string) => {
     const code = langCode || languageCode
-    if (code !== 'zh' && code !== 'ja' && code !== 'ko') return ''
+    if (code !== 'zh' && code !== 'ja' && code !== 'ko' && code !== 'th' && code !== 'hi') return ''
     const sourceText = String(text || '').trim()
     if (!sourceText) return ''
     try {
@@ -1833,7 +1889,7 @@ export default function HocTiengAnhAiClientPage() {
 
   const ensureWritingRomanization = async (text: string, targetLang?: string) => {
     const code = targetLang ? targetLangToCode(targetLang) : languageCode
-    if (code !== 'zh' && code !== 'ja' && code !== 'ko') return
+    if (code !== 'zh' && code !== 'ja' && code !== 'ko' && code !== 'th' && code !== 'hi') return
     const sourceText = String(text || '').trim()
     if (!sourceText) return
     const key = toWritingRomanizationKey(sourceText, targetLang)
@@ -2437,6 +2493,9 @@ export default function HocTiengAnhAiClientPage() {
           ...item,
           meaning,
           pronunciation,
+          usageLevel: normalizeWordUsageLevel(item.usageLevel),
+          importanceScore: normalizeWordImportanceScore(item.importanceScore),
+          contextSensitive: normalizeWordContextSensitive(item.contextSensitive),
           meaningItems: meaningItems.length > 0 ? meaningItems : (meaning ? [{ text: meaning, pinyin: pronunciation || undefined }] : []),
           exampleItems: exampleItems.length > 0 ? exampleItems : (exampleTarget && exampleNative ? [{ targetText: exampleTarget, nativeText: exampleNative }] : []),
           exampleTarget,
@@ -2970,16 +3029,19 @@ export default function HocTiengAnhAiClientPage() {
     role,
     text,
     audioUrl,
+    clientMessageId,
   }: {
     role: 'teacher' | 'student'
     text: string
     audioUrl?: string
+    clientMessageId?: string
   }) => {
     const { ok, data } = await saveHistoryMessageApi({
       sessionId,
       role,
       text,
       audioUrl: audioUrl || '',
+      clientMessageId: clientMessageId || '',
       languageCode,
       targetLanguage: activeTeacher.languageLabel,
       teacherLabel: activeTeacher.label,
@@ -3137,6 +3199,12 @@ export default function HocTiengAnhAiClientPage() {
         ? `${meaning}\n${localText('Phiên âm Latin:', 'Latin transliteration:')} ${transliteration}`
         : meaning
       setIntentExplainByMessageId((prev) => ({ ...prev, [messageId]: combined }))
+      const isDbId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(messageId)
+      void updateMessageTranslationApi({
+        messageId,
+        ...(isDbId ? {} : { sessionId, clientMessageId: messageId }),
+        translation: combined,
+      }).catch(() => {})
     } catch (e) {
       toast({
         title: localText('Không giải thích được', 'Cannot explain now'),
@@ -3176,6 +3244,12 @@ export default function HocTiengAnhAiClientPage() {
         ? `${meaning}\n${localText('Phiên âm Latin:', 'Latin transliteration:')} ${transliteration}`
         : meaning
       setOpeningTranslateByMessageId((prev) => ({ ...prev, [messageId]: combined }))
+      const isDbId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(messageId)
+      void updateMessageTranslationApi({
+        messageId,
+        ...(isDbId ? {} : { sessionId, clientMessageId: messageId }),
+        translation: combined,
+      }).catch(() => {})
     } catch (e) {
       toast({
         title: localText('Không dịch được', 'Cannot translate now'),
@@ -3318,7 +3392,7 @@ export default function HocTiengAnhAiClientPage() {
       }
 
       try {
-        await saveHistoryMessage({ role: 'teacher', text, audioUrl: uploadedAudioUrl })
+        await saveHistoryMessage({ role: 'teacher', text, audioUrl: uploadedAudioUrl, clientMessageId: messageId })
         persistedMessageIdsRef.current[messageId] = true
         const { ok, data } = await getHistorySessions(12)
         if (ok && Array.isArray(data.sessions)) {
@@ -3367,19 +3441,41 @@ export default function HocTiengAnhAiClientPage() {
         targetLanguage: activeTeacher.languageLabel,
         targetLanguageCode: languageCode,
       })
-      const tokens = Array.isArray(data.tokens)
-        ? data.tokens
-            .map((t) => extractClickableWord(String(t)))
-            .filter((token) => isTokenInTargetLanguage(token, languageCode))
-            .filter(Boolean)
-            .slice(0, 24)
+      const rawWithUsage = Array.isArray((data as { tokensWithUsage?: unknown }).tokensWithUsage)
+        ? (data as { tokensWithUsage: Array<{ word: string; usageLevel?: string }> }).tokensWithUsage
         : []
-      setTokensByMessageId((prev) => ({
-        ...prev,
-        [messageId]: tokens.length > 0 ? tokens : basicTokenizeBySpace(sentence),
-      }))
+      const rawTokens = Array.isArray(data.tokens) ? (data.tokens as string[]) : []
+      const withUsage = rawWithUsage
+        .map((t) => ({
+          word: extractClickableWord(String(t.word || '')),
+          usageLevel: (['high', 'medium', 'low'].includes(String(t.usageLevel || '').toLowerCase())
+            ? String(t.usageLevel).toLowerCase()
+            : 'medium') as 'high' | 'medium' | 'low',
+        }))
+        .filter((t) => t.word && isTokenInTargetLanguage(t.word, languageCode))
+        .slice(0, 24)
+      const tokens =
+        withUsage.length > 0
+          ? withUsage.map((t) => t.word)
+          : rawTokens
+              .map((t) => extractClickableWord(String(t)))
+              .filter((token) => isTokenInTargetLanguage(token, languageCode))
+              .filter(Boolean)
+              .slice(0, 24)
+      const finalTokens = tokens.length > 0 ? tokens : basicTokenizeBySpace(sentence)
+      const finalWithUsage =
+        withUsage.length > 0
+          ? withUsage
+          : finalTokens.map((w) => ({ word: w, usageLevel: 'medium' as const }))
+      setTokensByMessageId((prev) => ({ ...prev, [messageId]: finalTokens }))
+      setTokensWithUsageByMessageId((prev) => ({ ...prev, [messageId]: finalWithUsage }))
     } catch {
-      setTokensByMessageId((prev) => ({ ...prev, [messageId]: basicTokenizeBySpace(sentence) }))
+      const fallback = basicTokenizeBySpace(sentence)
+      setTokensByMessageId((prev) => ({ ...prev, [messageId]: fallback }))
+      setTokensWithUsageByMessageId((prev) => ({
+        ...prev,
+        [messageId]: fallback.map((w) => ({ word: w, usageLevel: 'medium' as const })),
+      }))
     } finally {
       setTokenizingByMessageId((prev) => ({ ...prev, [messageId]: false }))
     }
@@ -3409,10 +3505,15 @@ export default function HocTiengAnhAiClientPage() {
           pronunciation: savedWord.pronunciation || savedWord.word,
           exampleTarget: String(savedWord.exampleTarget || '').trim(),
           exampleNative: String(savedWord.exampleNative || '').trim(),
+          usageLevel: normalizeWordUsageLevel(savedWord.usageLevel),
+          importanceScore: normalizeWordImportanceScore(savedWord.importanceScore),
+          contextSensitive: normalizeWordContextSensitive(savedWord.contextSensitive),
           meaningItems: sanitizeWordMeaningItems(savedWord.meaningItems),
           exampleItems: sanitizeWordExampleItems(savedWord.exampleItems),
         },
       }))
+      const meaningText = savedWord.meaning || (savedWord.meaningItems?.[0]?.text ?? '')
+      void playWordPronunciation(word).then(() => playMeaningInNativeLanguage(meaningText))
       return
     }
     if (wordInsightByKey[key]) {
@@ -3422,6 +3523,9 @@ export default function HocTiengAnhAiClientPage() {
       } catch {
         // ignore daily word save failure on cached click
       }
+      const cached = wordInsightByKey[key]
+      const meaningText = cached.meaning || (cached.meaningItems?.[0]?.text ?? '')
+      void playWordPronunciation(word).then(() => playMeaningInNativeLanguage(meaningText))
       return
     }
 
@@ -3463,6 +3567,8 @@ export default function HocTiengAnhAiClientPage() {
       const audioUrl = String((payload as { pronunciationAudioUrl?: string }).pronunciationAudioUrl || '').trim()
       await saveDailyWord(word, detail, audioUrl || undefined)
       void fetchSessionWords()
+      const meaningText = detail.meaning || (detail.meaningItems?.[0]?.text ?? '')
+      void playWordPronunciation(word).then(() => playMeaningInNativeLanguage(meaningText))
     } catch (e) {
       const msg = unknownErrorMsg(e)
       toast({ title: localText('Không phân tích được từ', 'Word analysis failed'), description: msg, variant: 'destructive' })
@@ -3494,6 +3600,9 @@ export default function HocTiengAnhAiClientPage() {
           pronunciation: savedWord?.pronunciation || word,
           exampleTarget: String(savedWord?.exampleTarget || '').trim(),
           exampleNative: String(savedWord?.exampleNative || '').trim(),
+          usageLevel: normalizeWordUsageLevel(savedWord?.usageLevel),
+          importanceScore: normalizeWordImportanceScore(savedWord?.importanceScore),
+          contextSensitive: normalizeWordContextSensitive(savedWord?.contextSensitive),
           meaningItems: sanitizeWordMeaningItems(savedWord?.meaningItems),
           exampleItems: sanitizeWordExampleItems(savedWord?.exampleItems),
         },
@@ -3503,6 +3612,36 @@ export default function HocTiengAnhAiClientPage() {
     } catch (e) {
       const msg = e instanceof Error ? e.message : localText('Không phát âm được từ.', 'Unable to pronounce this word.')
       toast({ title: localText('Lỗi phát âm từ', 'Word pronunciation error'), description: msg, variant: 'destructive' })
+    }
+  }
+
+  const getNativeTtsLocale = (): string => {
+    const code = String(nativeLanguageCode || 'vi').toLowerCase()
+    const map: Record<string, string> = {
+      vi: 'vi-VN',
+      en: 'en-US',
+      zh: 'zh-CN',
+      ja: 'ja-JP',
+      ko: 'ko-KR',
+      th: 'th-TH',
+      hi: 'hi-IN',
+    }
+    return map[code] || 'vi-VN'
+  }
+
+  const playMeaningInNativeLanguage = async (meaningText: string) => {
+    const text = String(meaningText || '').trim().slice(0, 500)
+    if (!text) return
+    try {
+      const nativeLabel = selectedNativeLanguage?.apiLabel || 'Vietnamese'
+      const single = await createTtsAudioData(text, {
+        locale: getNativeTtsLocale(),
+        languageLabel: nativeLabel,
+        forceEngine: 'auto',
+      })
+      await playAudioUrl(single.url)
+    } catch {
+      // ignore TTS errors for meaning
     }
   }
 
@@ -3565,6 +3704,9 @@ export default function HocTiengAnhAiClientPage() {
         pronunciation,
         exampleTarget,
         exampleNative,
+        usageLevel: normalizeWordUsageLevel((item as { usageLevel?: unknown }).usageLevel),
+        importanceScore: normalizeWordImportanceScore((item as { importanceScore?: unknown }).importanceScore),
+        contextSensitive: normalizeWordContextSensitive((item as { contextSensitive?: unknown }).contextSensitive),
         pronunciationAudioUrl: String(item.pronunciationAudioUrl || '').trim(),
         meaningItems: meaningItems.length > 0 ? meaningItems : (meaning ? [{ text: meaning, pinyin: pronunciation || undefined }] : []),
         exampleItems: exampleItems.length > 0 ? exampleItems : (
@@ -3624,6 +3766,9 @@ export default function HocTiengAnhAiClientPage() {
               pronunciation,
               exampleTarget,
               exampleNative,
+              usageLevel: normalizeWordUsageLevel((item as { usageLevel?: unknown }).usageLevel),
+              importanceScore: normalizeWordImportanceScore((item as { importanceScore?: unknown }).importanceScore),
+              contextSensitive: normalizeWordContextSensitive((item as { contextSensitive?: unknown }).contextSensitive),
               pronunciationAudioUrl: String(item.pronunciationAudioUrl || '').trim(),
               meaningItems: meaningItems.length > 0 ? meaningItems : (meaning ? [{ text: meaning, pinyin: pronunciation || undefined }] : []),
               exampleItems: exampleItems.length > 0 ? exampleItems : (
@@ -3680,6 +3825,9 @@ export default function HocTiengAnhAiClientPage() {
         pronunciationAudioUrl: pronunciationAudioUrl || '',
         exampleTarget: String(detail.exampleTarget || '').trim(),
         exampleNative: String(detail.exampleNative || '').trim(),
+        usageLevel: normalizeWordUsageLevel((detail as { usageLevel?: unknown }).usageLevel),
+        importanceScore: normalizeWordImportanceScore((detail as { importanceScore?: unknown }).importanceScore),
+        contextSensitive: normalizeWordContextSensitive((detail as { contextSensitive?: unknown }).contextSensitive),
         meaningItems: sanitizeWordMeaningItems((detail as { meaningItems?: unknown }).meaningItems),
         exampleItems: sanitizeWordExampleItems((detail as { exampleItems?: unknown }).exampleItems),
     })
@@ -3701,6 +3849,7 @@ export default function HocTiengAnhAiClientPage() {
           role: 'teacher' | 'student'
           text: string
           audioUrl?: string
+          translation?: string
           languageCode?: string
           teacherLabel?: string
           mode?: string
@@ -3712,6 +3861,17 @@ export default function HocTiengAnhAiClientPage() {
       const items = Array.isArray(payload.items) ? payload.items : []
       setSessionId(targetSessionId)
       setMessages(items.map((x) => ({ id: x.id, role: x.role, text: x.text })))
+      const firstTeacherIdx = items.findIndex((x) => x.role === 'teacher')
+      const openingTrans: Record<string, string> = {}
+      const intentTrans: Record<string, string> = {}
+      items.forEach((item, idx) => {
+        const trans = String((item as { translation?: string }).translation || '').trim()
+        if (!trans || item.role !== 'teacher') return
+        if (idx === firstTeacherIdx) openingTrans[item.id] = trans
+        else intentTrans[item.id] = trans
+      })
+      setOpeningTranslateByMessageId(openingTrans)
+      setIntentExplainByMessageId(intentTrans)
       const firstMeta = items.find((x) => x.role === 'teacher') || items[0]
       const metaLanguage = String(firstMeta?.languageCode || '').trim() as LanguageCode
       if (metaLanguage && TEACHERS_BY_LANGUAGE[metaLanguage]) {
@@ -3742,6 +3902,7 @@ export default function HocTiengAnhAiClientPage() {
       setWordBusyKey('')
       setWordInsightByKey({})
       setTokensByMessageId({})
+      setTokensWithUsageByMessageId({})
       setTokenizingByMessageId({})
       const loadedAudioMap = items.reduce<Record<string, string>>((acc, item) => {
         if (item.role === 'teacher' && item.audioUrl) acc[item.id] = item.audioUrl
@@ -3773,6 +3934,9 @@ export default function HocTiengAnhAiClientPage() {
     setOpenedHistorySessionId('')
     lastMicSentTextRef.current = ''
     lastMicSentAtRef.current = 0
+    pendingRecordingBlobRef.current = null
+    setRecordingPending(false)
+    setListening(false)
     setMessages([])
     setCorrections([])
     setPronunciationTips([])
@@ -3781,6 +3945,7 @@ export default function HocTiengAnhAiClientPage() {
     setWordBusyKey('')
     setWordInsightByKey({})
     setTokensByMessageId({})
+    setTokensWithUsageByMessageId({})
     setTokenizingByMessageId({})
     setMainSentenceByMessageId({})
     setCorrectionNoteByMessageId({})
@@ -3884,7 +4049,12 @@ export default function HocTiengAnhAiClientPage() {
       if (mustUseAi || shouldUseAiTokenize(tokenSource)) {
         void fetchMessageTokens(message.id, tokenSource)
       } else {
-        localUpdates[message.id] = basicTokenizeBySpace(tokenSource)
+        const fallback = basicTokenizeBySpace(tokenSource)
+        localUpdates[message.id] = fallback
+        setTokensWithUsageByMessageId((prev) => ({
+          ...prev,
+          [message.id]: fallback.map((w) => ({ word: w, usageLevel: 'medium' as const })),
+        }))
       }
     }
     if (Object.keys(localUpdates).length > 0) {
@@ -4038,8 +4208,8 @@ export default function HocTiengAnhAiClientPage() {
         .filter(Boolean)
       const speakText = speakParts.join('. ').trim() || extractTeacherSpeechText(payload.reply)
       setTeacherSpeakTextByMessageId((prev) => ({ ...prev, [teacherMessageId]: speakText }))
-      const correctedForCopy = String(mainSentence || '').trim()
-      const teacherReplyForCopy = String(intentAnswer || extractTeacherSpeechText(payload.reply)).trim()
+      const correctedForCopy = takeFirstSentenceOnly(String(mainSentence || '').trim())
+      const teacherReplyForCopy = takeFirstSentenceOnly(String(intentAnswer || extractTeacherSpeechText(payload.reply)).trim())
       const copyTargets = Array.from(new Set([correctedForCopy, teacherReplyForCopy].filter(Boolean)))
       setWritingTask(buildWritingTask(teacherMessageId, payload.reply, copyTargets))
       setWritingDraft('')
@@ -4472,9 +4642,10 @@ export default function HocTiengAnhAiClientPage() {
           lastVoiceAt = Date.now()
         } else if (Date.now() - lastVoiceAt > SILENCE_MS && !autoStoppingMicRef.current) {
           autoStoppingMicRef.current = true
-          void stopMixedRecordingAndSend().catch((e) => {
+          void stopMixedRecording().catch((e) => {
             const msg = unknownErrorMsg(e)
             setListening(false)
+            setRecordingPending(false)
             toast({ title: coachUiText.micErrorTitle, description: msg, variant: 'destructive' })
           })
           cleanupAudioDetect()
@@ -4490,9 +4661,10 @@ export default function HocTiengAnhAiClientPage() {
     micMaxDurationTimerRef.current = window.setTimeout(() => {
       if (!autoStoppingMicRef.current && mixedRecorderRef.current?.state === 'recording') {
         autoStoppingMicRef.current = true
-        void stopMixedRecordingAndSend().catch((e) => {
+        void stopMixedRecording().catch((e) => {
           const msg = unknownErrorMsg(e)
           setListening(false)
+          setRecordingPending(false)
           toast({ title: coachUiText.micErrorTitle, description: msg, variant: 'destructive' })
         })
       }
@@ -4501,7 +4673,7 @@ export default function HocTiengAnhAiClientPage() {
     setListening(true)
   }
 
-  const stopMixedRecordingAndSend = async () => {
+  const stopMixedRecording = async () => {
     const recorder = mixedRecorderRef.current
     if (!recorder) return
     if (micSilenceStopTimerRef.current != null) {
@@ -4528,23 +4700,55 @@ export default function HocTiengAnhAiClientPage() {
     if (blob.size === 0) {
       throw new Error(localText('Không thu được âm thanh từ mic.', 'No audio captured from microphone.'))
     }
-    const analysis = await transcribeSpeechAudio(blob)
-    setLatestPronunciationScore(analysis.pronunciationScore || null)
-    setLatestWeakWords(analysis.weakWords || [])
-    setLatestPronunciationBreakdown({
-      accuracy: analysis.pronunciationAccuracy || null,
-      fluency: analysis.pronunciationFluency || null,
-      prosody: analysis.pronunciationProsody || null,
+    pendingRecordingBlobRef.current = blob
+    setRecordingPending(true)
+  }
+
+  const sendPendingRecording = async () => {
+    const blob = pendingRecordingBlobRef.current
+    if (!blob) return
+    pendingRecordingBlobRef.current = null
+    setRecordingPending(false)
+    try {
+      const analysis = await transcribeSpeechAudio(blob)
+      setLatestPronunciationScore(analysis.pronunciationScore || null)
+      setLatestWeakWords(analysis.weakWords || [])
+      setLatestPronunciationBreakdown({
+        accuracy: analysis.pronunciationAccuracy || null,
+        fluency: analysis.pronunciationFluency || null,
+        prosody: analysis.pronunciationProsody || null,
+      })
+      setLatestWordScores(analysis.wordScores || [])
+      const transcriptByMode =
+        speakingLanguageMode === 'target'
+          ? analysis.targetTranscript || analysis.mergedTranscript || analysis.nativeTranscript
+          : speakingLanguageMode === 'native'
+            ? analysis.nativeTranscript || analysis.mergedTranscript || analysis.targetTranscript
+            : analysis.mergedTranscript || analysis.targetTranscript || analysis.nativeTranscript
+      setDraft(transcriptByMode)
+      await handleSend(transcriptByMode, 'mic', analysis)
+    } catch (e) {
+      const msg = unknownErrorMsg(e)
+      toast({ title: coachUiText.micErrorTitle, description: msg, variant: 'destructive' })
+    }
+  }
+
+  const handlePlaybackRecording = () => {
+    const blob = pendingRecordingBlobRef.current
+    if (!blob) return
+    const url = URL.createObjectURL(blob)
+    const audio = new Audio(url)
+    audio.onended = () => URL.revokeObjectURL(url)
+    void audio.play().catch(() => URL.revokeObjectURL(url))
+  }
+
+  const handleRecordAgain = () => {
+    pendingRecordingBlobRef.current = null
+    setRecordingPending(false)
+    void startMixedRecording().catch((e) => {
+      const msg = e instanceof Error ? e.message : localText('Không bật được mic.', 'Unable to start microphone.')
+      toast({ title: coachUiText.micErrorTitle, description: msg, variant: 'destructive' })
     })
-    setLatestWordScores(analysis.wordScores || [])
-    const transcriptByMode =
-      speakingLanguageMode === 'target'
-        ? analysis.targetTranscript || analysis.mergedTranscript || analysis.nativeTranscript
-        : speakingLanguageMode === 'native'
-          ? analysis.nativeTranscript || analysis.mergedTranscript || analysis.targetTranscript
-          : analysis.mergedTranscript || analysis.targetTranscript || analysis.nativeTranscript
-    setDraft(transcriptByMode)
-    await handleSend(transcriptByMode, 'mic', analysis)
   }
 
   const handleMic = () => {
@@ -4560,10 +4764,11 @@ export default function HocTiengAnhAiClientPage() {
       return
     }
     if (listening) {
-      void stopMixedRecordingAndSend().catch((e) => {
+      void stopMixedRecording().catch((e) => {
         const msg = unknownErrorMsg(e)
         setListening(false)
-          toast({ title: coachUiText.micErrorTitle, description: msg, variant: 'destructive' })
+        setRecordingPending(false)
+        toast({ title: coachUiText.micErrorTitle, description: msg, variant: 'destructive' })
       })
       return
     }
@@ -5156,20 +5361,42 @@ export default function HocTiengAnhAiClientPage() {
                             const intentAnswer = String(intentAnswerByMessageId[m.id] || '').trim()
                             const hasStructured = Boolean(correctionNote || correctedSentence || intentAnswer)
                             if (!hasStructured) return <p>{m.text}</p>
+                            if (supportsLatinTransliteration && correctedSentence) void ensureWritingRomanization(correctedSentence)
+                            if (supportsLatinTransliteration && intentAnswer) void ensureWritingRomanization(intentAnswer)
+                            const pinyin2 = correctedSentence ? sanitizeRomanizedText(String(writingRomanizationByKey[toWritingRomanizationKey(correctedSentence)] || '').trim()) : ''
+                            const pinyin3 = intentAnswer ? sanitizeRomanizedText(String(writingRomanizationByKey[toWritingRomanizationKey(intentAnswer)] || '').trim()) : ''
+                            const busy2 = correctedSentence ? Boolean(writingRomanizationBusyByKey[toWritingRomanizationKey(correctedSentence)]) : false
+                            const busy3 = intentAnswer ? Boolean(writingRomanizationBusyByKey[toWritingRomanizationKey(intentAnswer)]) : false
                             return (
                               <div className="space-y-1 text-xs">
                                 <p>
                                   <span className="font-semibold text-rose-700">{localText('Ý 1 - Sửa lỗi:', 'Idea 1 - Error fix:')}</span>{' '}
                                   {correctionNote || localText('Không có lỗi lớn cần sửa.', 'No major correction needed.')}
                                 </p>
-                                <p>
-                                  <span className="font-semibold text-emerald-700">{localText('Ý 2 - Câu sửa hoàn chỉnh:', 'Idea 2 - Corrected full sentence:')}</span>{' '}
-                                  {correctedSentence || localText('Chưa có câu chuẩn.', 'No corrected sentence yet.')}
-                                </p>
-                                <p>
-                                  <span className="font-semibold text-indigo-700">{localText('Ý 3 - Trả lời tự nhiên:', 'Idea 3 - Natural contextual reply:')}</span>{' '}
-                                  {intentAnswer || localText('Chưa có phần trả lời ngữ cảnh riêng.', 'No separate contextual reply yet.')}
-                                </p>
+                                <div>
+                                  <p>
+                                    <span className="font-semibold text-emerald-700">{localText('Ý 2 - Câu sửa hoàn chỉnh:', 'Idea 2 - Corrected full sentence:')}</span>{' '}
+                                    {correctedSentence || localText('Chưa có câu chuẩn.', 'No corrected sentence yet.')}
+                                  </p>
+                                  {(pinyin2 || busy2) ? (
+                                    <p className="mt-0.5 text-slate-500">
+                                      {localText('Phiên âm Latin:', 'Latin transliteration:')}{' '}
+                                      {busy2 ? localText('đang tải...', 'loading...') : pinyin2}
+                                    </p>
+                                  ) : null}
+                                </div>
+                                <div>
+                                  <p>
+                                    <span className="font-semibold text-indigo-700">{localText('Ý 3 - Trả lời tự nhiên:', 'Idea 3 - Natural contextual reply:')}</span>{' '}
+                                    {intentAnswer || localText('Chưa có phần trả lời ngữ cảnh riêng.', 'No separate contextual reply yet.')}
+                                  </p>
+                                  {(pinyin3 || busy3) ? (
+                                    <p className="mt-0.5 text-slate-500">
+                                      {localText('Phiên âm Latin:', 'Latin transliteration:')}{' '}
+                                      {busy3 ? localText('đang tải...', 'loading...') : pinyin3}
+                                    </p>
+                                  ) : null}
+                                </div>
                                 {intentAnswer ? (
                                   <div className="space-y-1">
                                     <Button
@@ -5200,16 +5427,47 @@ export default function HocTiengAnhAiClientPage() {
                           <div className="flex flex-wrap gap-1">
                             {(tokensByMessageId[m.id] || []).map((word, idx) => {
                               const key = `${m.id}:${word.toLowerCase()}`
+                              const withUsage = tokensWithUsageByMessageId[m.id]
+                              const usageFromTokenize = withUsage?.[idx]?.usageLevel ?? withUsage?.find((t) => t.word.toLowerCase() === word.toLowerCase())?.usageLevel
+                              const insight = wordInsightByKey[key]
+                              const saved = findSessionWord(word)
+                              const usageLevel = usageFromTokenize ?? insight?.usageLevel ?? saved?.usageLevel
+                              const tokenBadgeClass =
+                                usageLevel === 'high'
+                                  ? 'border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100'
+                                  : usageLevel === 'low'
+                                    ? 'border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100'
+                                    : usageLevel === 'medium'
+                                      ? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                                      : 'border-slate-200 hover:bg-slate-50'
                               return (
                                 <Button
                                   key={`${m.id}-word-${idx}`}
                                   type="button"
                                   variant="ghost"
                                   size="sm"
-                                  className="min-h-[44px] px-3 text-xs"
+                                  className={`min-h-[44px] rounded-md border px-3 text-xs font-medium transition-colors ${tokenBadgeClass}`}
                                   onClick={() => void fetchWordInsight(m.id, word, m.text)}
                                 >
                                   {word}
+                                  {usageLevel ? (
+                                    <span
+                                      className={`ml-1.5 inline-block h-1.5 w-1.5 shrink-0 rounded-full ${
+                                        usageLevel === 'high'
+                                          ? 'bg-blue-500'
+                                          : usageLevel === 'low'
+                                            ? 'bg-amber-500'
+                                            : 'bg-emerald-500'
+                                      }`}
+                                      title={
+                                        usageLevel === 'high'
+                                          ? localText('Dùng nhiều', 'High use')
+                                          : usageLevel === 'low'
+                                            ? localText('Ít dùng', 'Low use')
+                                            : localText('Dùng trung bình', 'Medium use')
+                                      }
+                                    />
+                                  ) : null}
                                   {openedWordKey === key ? ' •' : ''}
                                 </Button>
                               )
@@ -5219,7 +5477,11 @@ export default function HocTiengAnhAiClientPage() {
                             <p className="text-xs text-muted-foreground">{localText('AI đang tách từ theo ngôn ngữ...', 'AI is tokenizing words by language...')}</p>
                           ) : (tokensByMessageId[m.id] || []).length === 0 ? (
                             <p className="text-xs text-muted-foreground">{localText('Không có token phù hợp để bấm trong câu này.', 'No tappable tokens found in this sentence.')}</p>
-                          ) : null}
+                          ) : (
+                            <p className="text-xs text-muted-foreground">
+                              {localText('Màu hiển thị ngay sau khi tách từ. Xanh dương = dùng nhiều, xanh lá = trung bình, vàng = ít dùng. Bấm từ để xem nghĩa chi tiết.', 'Colors show right after tokenization. Blue = high use, green = medium, yellow = low. Tap for full meaning.')}
+                            </p>
+                          )}
                           {openedWordKey.startsWith(`${m.id}:`) ? (
                             <div className="rounded-md border bg-white p-2 text-xs">
                               {wordBusyKey === openedWordKey ? (
@@ -5233,6 +5495,31 @@ export default function HocTiengAnhAiClientPage() {
                                     {((wordInsightByKey[openedWordKey].meaningItems ?? []).map((m) => m.text).join('; ') || wordInsightByKey[openedWordKey].meaning)}
                                   </p>
                                   <p><span className="font-semibold text-slate-800">{localText('Phát âm:', 'Pronunciation:')}</span> {wordInsightByKey[openedWordKey].pronunciation}</p>
+                                  <div className="flex flex-wrap items-center gap-1">
+                                    <span
+                                      className={`inline-flex rounded border px-1.5 py-0.5 text-[10px] font-semibold ${
+                                        wordInsightByKey[openedWordKey].usageLevel === 'high'
+                                          ? 'border-blue-300 bg-blue-50 text-blue-700'
+                                          : wordInsightByKey[openedWordKey].usageLevel === 'low'
+                                            ? 'border-amber-300 bg-amber-50 text-amber-700'
+                                            : 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                                      }`}
+                                    >
+                                      {wordInsightByKey[openedWordKey].usageLevel === 'high'
+                                        ? localText('Dùng nhiều', 'High use')
+                                        : wordInsightByKey[openedWordKey].usageLevel === 'low'
+                                          ? localText('Ít dùng', 'Low use')
+                                          : localText('Dùng trung bình', 'Medium use')}
+                                    </span>
+                                    <span className="inline-flex rounded border border-indigo-200 bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-700">
+                                      {localText('Ưu tiên:', 'Priority:')} {wordInsightByKey[openedWordKey].importanceScore}
+                                    </span>
+                                    {wordInsightByKey[openedWordKey].contextSensitive ? (
+                                      <span className="inline-flex rounded border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-[10px] font-semibold text-sky-700">
+                                        {localText('Phụ thuộc ngữ cảnh', 'Context-sensitive')}
+                                      </span>
+                                    ) : null}
+                                  </div>
                                   {((wordInsightByKey[openedWordKey].exampleItems ?? []).length > 0
                                     ? wordInsightByKey[openedWordKey].exampleItems!
                                     : wordInsightByKey[openedWordKey].exampleTarget && wordInsightByKey[openedWordKey].exampleNative
@@ -5415,20 +5702,60 @@ export default function HocTiengAnhAiClientPage() {
                   >
                     {localText('Ngắn gọn', 'Concise')}
                   </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={listening ? 'destructive' : 'outline'}
-                    onClick={handleMic}
-                    disabled={busy || awaitingTeacherReply || (Boolean(writingTask) && !writingTask?.completed)}
-                    className="min-h-[44px] px-3 text-xs"
-                  >
-                    {listening ? <MicOff className="mr-2 h-4 w-4" /> : <Mic className="mr-2 h-4 w-4" />}
-                    {listening ? localText('Dừng mic', 'Stop mic') : localText('Nói', 'Speak')}
-                  </Button>
+                  {recordingPending ? (
+                    <>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={handlePlaybackRecording}
+                        disabled={busy}
+                        className="min-h-[44px] px-3 text-xs"
+                      >
+                        <Play className="mr-2 h-4 w-4" />
+                        {localText('Nghe lại', 'Play back')}
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={handleRecordAgain}
+                        disabled={busy}
+                        className="min-h-[44px] px-3 text-xs"
+                      >
+                        <RotateCcw className="mr-2 h-4 w-4" />
+                        {localText('Nói lại', 'Record again')}
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="default"
+                        onClick={() => void sendPendingRecording()}
+                        disabled={busy || awaitingTeacherReply || (Boolean(writingTask) && !writingTask?.completed)}
+                        className="min-h-[44px] px-3 text-xs"
+                      >
+                        <Send className="mr-2 h-4 w-4" />
+                        {localText('Gửi', 'Send')}
+                      </Button>
+                    </>
+                  ) : (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={listening ? 'destructive' : 'outline'}
+                      onClick={handleMic}
+                      disabled={busy || awaitingTeacherReply || (Boolean(writingTask) && !writingTask?.completed)}
+                      className="min-h-[44px] px-3 text-xs"
+                    >
+                      {listening ? <MicOff className="mr-2 h-4 w-4" /> : <Mic className="mr-2 h-4 w-4" />}
+                      {listening ? localText('Dừng mic', 'Stop mic') : localText('Nói', 'Speak')}
+                    </Button>
+                  )}
                 </div>
                 <p className="text-xs text-slate-500">
-                  {micLanguageHint}
+                  {recordingPending
+                    ? localText('Đã ghi âm xong. Nghe lại, gửi hoặc nói lại.', 'Recording done. Play back, send, or record again.')
+                    : micLanguageHint}
                 </p>
                 {writingTask && !writingTask.completed ? (
                   <p className="rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-xs text-amber-800">
@@ -5485,7 +5812,7 @@ export default function HocTiengAnhAiClientPage() {
                     ) : null}
                     <div className="space-y-1">
                       <p className="text-sm font-semibold text-slate-800">{localText('Bài viết mini bắt buộc', 'Required mini-writing task')}</p>
-                      <p className="text-xs text-muted-foreground">{writingTask.instruction}</p>
+                      <p className="text-xs text-muted-foreground break-words">{writingTask.instruction}</p>
                       <p className="text-xs text-slate-600">
                         {localText(
                           `Tiến độ: câu ${Math.min(writingTask.currentIndex + 1, Math.max(1, writingTask.requiredSentences.length))}/${Math.max(1, writingTask.requiredSentences.length)}.`,
@@ -5510,9 +5837,9 @@ export default function HocTiengAnhAiClientPage() {
                                 >
                                   <p className="leading-6">
                                     <span className="font-semibold">{localText('Câu', 'Sentence')} {idx + 1}:</span>{' '}
-                                    <span className="inline-block align-middle">
+                                    <span className="inline align-middle break-words [overflow-wrap:anywhere]">
                                       {Array.from(sentence).map((char, charIdx) => {
-                                        const displayChar = char === ' ' ? '\u00A0' : char
+                                        const displayChar = char
                                         return (
                                           <span
                                             key={`sentence-${idx}-char-${charIdx}`}

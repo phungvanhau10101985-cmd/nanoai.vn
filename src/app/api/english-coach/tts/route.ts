@@ -382,7 +382,7 @@ ${speechInput.text}`
       )
     }
     console.info(
-      `[TTS][${requestId}] gemini-success model=${successMeta?.model || 'unknown'} voice=${successMeta?.voice || 'unknown'} attempts=${compactAttempts(attemptLogs)}`
+      `[TTS][${requestId}] tts-success model=${successMeta?.model || 'unknown'} voice=${successMeta?.voice || 'unknown'} attempts=${compactAttempts(attemptLogs)}`
     )
     await adminSupabase.from('language_coach_tts_cache').upsert(
       {

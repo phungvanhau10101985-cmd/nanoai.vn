@@ -53,6 +53,24 @@ function hasMeaning(row: { meaning?: string | null; meaning_items_json?: string 
   return Array.isArray(items) && items.some((x) => String((x as { text?: unknown })?.text ?? '').trim())
 }
 
+function normalizeUsageLevel(input: unknown): 'high' | 'medium' | 'low' {
+  const normalized = String(input || '').trim().toLowerCase()
+  if (normalized === 'high' || normalized === 'medium' || normalized === 'low') return normalized
+  return 'medium'
+}
+
+function normalizeImportanceScore(input: unknown): number {
+  const n = Number(input)
+  if (!Number.isFinite(n)) return 50
+  return Math.min(100, Math.max(0, Math.round(n)))
+}
+
+function normalizeContextSensitive(input: unknown): boolean {
+  if (typeof input === 'boolean') return input
+  const normalized = String(input || '').trim().toLowerCase()
+  return normalized === '1' || normalized === 'true' || normalized === 'yes'
+}
+
 function exampleItemsNeedFix(items: Array<{ targetText?: string }>, targetLang: string | null): boolean {
   const norm = String(targetLang || '').toLowerCase()
   if (!norm.includes('chinese') && !norm.includes('zh') && !norm.includes('mandarin') && !norm.includes('japanese') && !norm.includes('ja') && !norm.includes('korean') && !norm.includes('ko')) return false
@@ -131,6 +149,9 @@ async function normalizeIncompleteWords(
         pronunciation?: string
         meaningItems?: Array<{ text: string; pinyin?: string }>
         exampleItems?: Array<{ targetText: string; targetPinyin?: string; nativeText: string }>
+        usageLevel?: string
+        importanceScore?: number
+        contextSensitive?: boolean
       }
       if (!res.ok || !data.meaning) continue
       const meaningItems = sanitizeMeaningItems(data.meaningItems)
@@ -146,6 +167,9 @@ async function normalizeIncompleteWords(
               pronunciation: data.pronunciation || null,
               meaning_items_json: meaningItems.length > 0 ? JSON.stringify(meaningItems) : null,
               example_items_json: exampleItems.length > 0 ? JSON.stringify(exampleItems) : null,
+              usage_level: normalizeUsageLevel(data.usageLevel),
+              importance_score: normalizeImportanceScore(data.importanceScore),
+              is_context_sensitive: normalizeContextSensitive(data.contextSensitive),
               example_target: primaryEx?.targetText || null,
               example_native: primaryEx?.nativeText || null,
               updated_at: new Date().toISOString(),
@@ -159,6 +183,9 @@ async function normalizeIncompleteWords(
               pronunciation: data.pronunciation || null,
               meaning_items_json: meaningItems.length > 0 ? JSON.stringify(meaningItems) : null,
               example_items_json: exampleItems.length > 0 ? JSON.stringify(exampleItems) : null,
+              usage_level: normalizeUsageLevel(data.usageLevel),
+              importance_score: normalizeImportanceScore(data.importanceScore),
+              is_context_sensitive: normalizeContextSensitive(data.contextSensitive),
               updated_at: new Date().toISOString(),
             })
             .eq('id', row.id)
@@ -193,7 +220,7 @@ export async function GET(request: NextRequest) {
 
     const { data, error } = await adminSupabase
       .from('language_coach_review_queue')
-      .select('id, word, target_language, native_language, meaning, pronunciation, meaning_items_json, example_items_json, due_at, repetitions, interval_days')
+      .select('id, word, target_language, native_language, meaning, pronunciation, meaning_items_json, example_items_json, usage_level, importance_score, is_context_sensitive, due_at, repetitions, interval_days')
       .eq('user_id', user.id)
       .lte('due_at', new Date().toISOString())
       .order('due_at', { ascending: true })
@@ -225,6 +252,9 @@ export async function GET(request: NextRequest) {
           exampleItems: ei,
           exampleTarget: firstEx?.targetText || '',
           exampleNative: firstEx?.nativeText || '',
+          usageLevel: normalizeUsageLevel(row.usage_level),
+          importanceScore: normalizeImportanceScore(row.importance_score),
+          contextSensitive: normalizeContextSensitive(row.is_context_sensitive),
           pronunciationAudioUrl: '',
           dueAt: row.due_at,
           repetitions: row.repetitions,

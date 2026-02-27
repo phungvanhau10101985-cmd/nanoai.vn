@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
+import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
 
 type Payload = {
   learnerText?: string
@@ -68,7 +69,7 @@ export async function POST(request: NextRequest) {
     }
 
     const genAI = new GoogleGenerativeAI(apiKey)
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
+    const model = genAI.getGenerativeModel(GEMINI_25_FLASH_NO_THINKING)
     const passRule =
       learnerLevel === 0 ? 'passed=true khi score >= 90'
       : learnerLevel === 1 ? 'passed=true khi score >= 82'

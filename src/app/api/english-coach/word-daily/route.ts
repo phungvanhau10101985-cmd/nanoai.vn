@@ -16,6 +16,9 @@ type DailyWordPayload = {
   pronunciationAudioUrl?: string
   meaningItems?: unknown[]
   exampleItems?: unknown[]
+  usageLevel?: string
+  importanceScore?: number
+  contextSensitive?: boolean
 }
 
 function adminClient() {
@@ -36,6 +39,47 @@ function preferIncomingOrExisting(incoming: string, existing?: string | null): s
   if (nextValue) return nextValue
   const oldValue = String(existing || '').trim()
   return oldValue || null
+}
+
+function normalizeUsageLevel(input: unknown): 'high' | 'medium' | 'low' {
+  const normalized = String(input || '').trim().toLowerCase()
+  if (normalized === 'high' || normalized === 'medium' || normalized === 'low') return normalized
+  return 'medium'
+}
+
+function normalizeImportanceScore(input: unknown): number {
+  const n = Number(input)
+  if (!Number.isFinite(n)) return 50
+  return Math.min(100, Math.max(0, Math.round(n)))
+}
+
+function normalizeContextSensitive(input: unknown): boolean {
+  if (typeof input === 'boolean') return input
+  const normalized = String(input || '').trim().toLowerCase()
+  return normalized === '1' || normalized === 'true' || normalized === 'yes'
+}
+
+function preferIncomingOrExistingLevel(
+  incoming: unknown,
+  existing?: string | null
+): 'high' | 'medium' | 'low' {
+  const incomingRaw = String(incoming || '').trim()
+  if (incomingRaw) return normalizeUsageLevel(incomingRaw)
+  return normalizeUsageLevel(existing)
+}
+
+function preferIncomingOrExistingScore(incoming: unknown, existing?: number | null): number {
+  if (incoming !== undefined && incoming !== null && String(incoming).trim() !== '') {
+    return normalizeImportanceScore(incoming)
+  }
+  return normalizeImportanceScore(existing)
+}
+
+function preferIncomingOrExistingContextSensitive(incoming: unknown, existing?: boolean | null): boolean {
+  if (incoming !== undefined && incoming !== null && String(incoming).trim() !== '') {
+    return normalizeContextSensitive(incoming)
+  }
+  return normalizeContextSensitive(existing)
 }
 
 function sanitizeMeaningItems(input: unknown): Array<{ text: string; pinyin?: string }> {
@@ -234,6 +278,9 @@ async function normalizeIncompleteWords(
         pronunciation?: string
         meaningItems?: Array<{ text: string; pinyin?: string }>
         exampleItems?: Array<{ targetText: string; targetPinyin?: string; nativeText: string }>
+        usageLevel?: string
+        importanceScore?: number
+        contextSensitive?: boolean
       }
       if (!res.ok || !data.meaning) {
         console.error(`[WORD-FIX] Failed to get meaning for "${r.word}". Status: ${res.status}. It will not be retried.`)
@@ -252,6 +299,9 @@ async function normalizeIncompleteWords(
               pronunciation: data.pronunciation || null,
               meaning_items_json: meaningItems.length > 0 ? JSON.stringify(meaningItems) : null,
               example_items_json: exampleItems.length > 0 ? JSON.stringify(exampleItems) : null,
+              usage_level: normalizeUsageLevel(data.usageLevel),
+              importance_score: normalizeImportanceScore(data.importanceScore),
+              is_context_sensitive: normalizeContextSensitive(data.contextSensitive),
               example_target: primaryEx?.targetText || null,
               example_native: primaryEx?.nativeText || null,
               updated_at: new Date().toISOString(),
@@ -265,6 +315,9 @@ async function normalizeIncompleteWords(
               pronunciation: data.pronunciation || null,
               meaning_items_json: meaningItems.length > 0 ? JSON.stringify(meaningItems) : null,
               example_items_json: exampleItems.length > 0 ? JSON.stringify(exampleItems) : null,
+              usage_level: normalizeUsageLevel(data.usageLevel),
+              importance_score: normalizeImportanceScore(data.importanceScore),
+              is_context_sensitive: normalizeContextSensitive(data.contextSensitive),
               updated_at: new Date().toISOString(),
             })
             .eq('id', row.id)
@@ -346,6 +399,9 @@ async function normalizeIncompleteWords(
           meaning?: string
           meaningItems?: Array<{ text: string; pinyin?: string }>
           exampleItems?: Array<{ targetText: string; targetPinyin?: string; nativeText: string }>
+          usageLevel?: string
+          importanceScore?: number
+          contextSensitive?: boolean
         }
 
         if (!res.ok || !data.meaning) {
@@ -376,6 +432,9 @@ async function normalizeIncompleteWords(
                 meaning: data.meaning || null,
                 meaning_items_json: meaningItems.length > 0 ? JSON.stringify(meaningItems) : null,
                 example_items_json: exampleItems.length > 0 ? JSON.stringify(exampleItems) : null,
+                usage_level: normalizeUsageLevel(data.usageLevel),
+                importance_score: normalizeImportanceScore(data.importanceScore),
+                is_context_sensitive: normalizeContextSensitive(data.contextSensitive),
                 example_target: primaryEx?.targetText || null,
                 example_native: primaryEx?.nativeText || null,
                 updated_at: new Date().toISOString(),
@@ -388,6 +447,9 @@ async function normalizeIncompleteWords(
                 meaning: data.meaning || null,
                 meaning_items_json: meaningItems.length > 0 ? JSON.stringify(meaningItems) : null,
                 example_items_json: exampleItems.length > 0 ? JSON.stringify(exampleItems) : null,
+                usage_level: normalizeUsageLevel(data.usageLevel),
+                importance_score: normalizeImportanceScore(data.importanceScore),
+                is_context_sensitive: normalizeContextSensitive(data.contextSensitive),
                 updated_at: new Date().toISOString(),
               })
               .eq('id', row.id)
@@ -461,7 +523,7 @@ export async function GET(request: NextRequest) {
     const baseQuery = adminSupabase
       .from('language_coach_daily_words')
       .select(
-        'id, session_id, learned_date, word, target_language, native_language, meaning, pronunciation, pronunciation_audio_url, example_target, example_native, meaning_items_json, example_items_json, updated_at'
+        'id, session_id, learned_date, word, target_language, native_language, meaning, pronunciation, pronunciation_audio_url, example_target, example_native, meaning_items_json, example_items_json, usage_level, importance_score, is_context_sensitive, updated_at'
       )
       .eq('user_id', user.id)
       .order('updated_at', { ascending: false })
@@ -496,6 +558,9 @@ export async function GET(request: NextRequest) {
         exampleNative: row.example_native || '',
         meaningItems: sanitizeMeaningItems(parseJsonArrayText(row.meaning_items_json || '')),
         exampleItems: sanitizeExampleItems(parseJsonArrayText(row.example_items_json || '')),
+        usageLevel: normalizeUsageLevel(row.usage_level),
+        importanceScore: normalizeImportanceScore(row.importance_score),
+        contextSensitive: normalizeContextSensitive(row.is_context_sensitive),
         updatedAt: row.updated_at,
       }))
 
@@ -522,6 +587,9 @@ export async function POST(request: NextRequest) {
     const exampleTarget = String(payload.exampleTarget || '').trim()
     const exampleNative = String(payload.exampleNative || '').trim()
     const pronunciationAudioUrl = String(payload.pronunciationAudioUrl || '').trim()
+    const usageLevel = preferIncomingOrExistingLevel(payload.usageLevel, null)
+    const importanceScore = preferIncomingOrExistingScore(payload.importanceScore, null)
+    const contextSensitive = preferIncomingOrExistingContextSensitive(payload.contextSensitive, null)
     const incomingMeaningItems = sanitizeMeaningItems(payload.meaningItems)
     const incomingExampleItems = sanitizeExampleItems(payload.exampleItems)
 
@@ -539,7 +607,7 @@ export async function POST(request: NextRequest) {
     const normalizedTargetLanguage = targetLanguage || null
     let existingDailyQuery = adminSupabase
       .from('language_coach_daily_words')
-      .select('meaning, pronunciation, pronunciation_audio_url, example_target, example_native, meaning_items_json, example_items_json')
+      .select('meaning, pronunciation, pronunciation_audio_url, example_target, example_native, meaning_items_json, example_items_json, usage_level, importance_score, is_context_sensitive')
       .eq('user_id', user.id)
       .eq('session_id', sessionId)
       .eq('word', normalizedWord)
@@ -558,6 +626,12 @@ export async function POST(request: NextRequest) {
     )
     const mergedExampleTarget = preferIncomingOrExisting(exampleTarget, existingDailyRow?.example_target)
     const mergedExampleNative = preferIncomingOrExisting(exampleNative, existingDailyRow?.example_native)
+    const mergedUsageLevel = preferIncomingOrExistingLevel(usageLevel, existingDailyRow?.usage_level)
+    const mergedImportanceScore = preferIncomingOrExistingScore(importanceScore, existingDailyRow?.importance_score)
+    const mergedContextSensitive = preferIncomingOrExistingContextSensitive(
+      contextSensitive,
+      existingDailyRow?.is_context_sensitive
+    )
     const mergedMeaningItems = mergeMeaningItems(incomingMeaningItems, existingDailyRow?.meaning_items_json, mergedMeaning || '')
 
     const hasMeaning = (mergedMeaning?.length ?? 0) > 0 || mergedMeaningItems.length > 0
@@ -578,7 +652,7 @@ export async function POST(request: NextRequest) {
 
     const { data: existingReviewRows } = await adminSupabase
       .from('language_coach_review_queue')
-      .select('id, meaning, pronunciation, meaning_items_json, example_items_json')
+      .select('id, meaning, pronunciation, meaning_items_json, example_items_json, usage_level, importance_score, is_context_sensitive')
       .eq('user_id', user.id)
       .eq('word', normalizedWord)
       .eq('target_language', targetLanguage || '')
@@ -600,6 +674,15 @@ export async function POST(request: NextRequest) {
       primaryExample?.nativeText || mergedExampleNative,
       mergedReviewPronunciation
     )
+    const mergedReviewUsageLevel = preferIncomingOrExistingLevel(mergedUsageLevel, existingReviewRow?.usage_level)
+    const mergedReviewImportanceScore = preferIncomingOrExistingScore(
+      mergedImportanceScore,
+      existingReviewRow?.importance_score
+    )
+    const mergedReviewContextSensitive = preferIncomingOrExistingContextSensitive(
+      mergedContextSensitive,
+      existingReviewRow?.is_context_sensitive
+    )
 
     const { error } = await adminSupabase.from('language_coach_daily_words').upsert(
       {
@@ -616,6 +699,9 @@ export async function POST(request: NextRequest) {
         example_native: primaryExample?.nativeText || mergedExampleNative,
         meaning_items_json: mergedMeaningItems.length > 0 ? JSON.stringify(mergedMeaningItems) : null,
         example_items_json: mergedExampleItems.length > 0 ? JSON.stringify(mergedExampleItems) : null,
+        usage_level: mergedUsageLevel,
+        importance_score: mergedImportanceScore,
+        is_context_sensitive: mergedContextSensitive,
         updated_at: new Date().toISOString(),
       },
       {
@@ -636,6 +722,9 @@ export async function POST(request: NextRequest) {
           pronunciation: mergedReviewPronunciation,
           meaning_items_json: mergedReviewMeaningItems.length > 0 ? JSON.stringify(mergedReviewMeaningItems) : null,
           example_items_json: mergedReviewExampleItems.length > 0 ? JSON.stringify(mergedReviewExampleItems) : null,
+          usage_level: mergedReviewUsageLevel,
+          importance_score: mergedReviewImportanceScore,
+          is_context_sensitive: mergedReviewContextSensitive,
           due_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         },
@@ -657,6 +746,9 @@ export async function POST(request: NextRequest) {
         example_target?: string | null
         example_native?: string | null
         pronunciation_audio_url?: string | null
+        usage_level?: 'high' | 'medium' | 'low' | null
+        importance_score?: number | null
+        is_context_sensitive?: boolean | null
         source_model: string
         last_used_at: string
         updated_at: string
@@ -673,6 +765,9 @@ export async function POST(request: NextRequest) {
         example_native: primaryExample?.nativeText || mergedExampleNative,
         meaning_items_json: mergedMeaningItems.length > 0 ? JSON.stringify(mergedMeaningItems) : null,
         example_items_json: mergedExampleItems.length > 0 ? JSON.stringify(mergedExampleItems) : null,
+        usage_level: mergedUsageLevel,
+        importance_score: mergedImportanceScore,
+        is_context_sensitive: mergedContextSensitive,
         source_model: 'daily-word-save',
         last_used_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),

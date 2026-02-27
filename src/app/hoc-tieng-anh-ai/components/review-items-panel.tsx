@@ -33,6 +33,18 @@ export function ReviewItemsPanel({
   onPlayWordPronunciation,
   onMarkReviewDone,
 }: ReviewItemsPanelProps) {
+  const usageTagLabel = (level?: 'high' | 'medium' | 'low') => {
+    if (level === 'high') return localText('Dùng nhiều', 'High use')
+    if (level === 'low') return localText('Ít dùng', 'Low use')
+    return localText('Dùng trung bình', 'Medium use')
+  }
+
+  const usageTagClass = (level?: 'high' | 'medium' | 'low') => {
+    if (level === 'high') return 'border-blue-300 bg-blue-50 text-blue-700'
+    if (level === 'low') return 'border-amber-300 bg-amber-50 text-amber-700'
+    return 'border-emerald-300 bg-emerald-50 text-emerald-700'
+  }
+
   const renderExamples = (item: VocabularyItem) => {
     const itemExamples =
       (item.exampleItems ?? []).length > 0
@@ -133,6 +145,19 @@ export function ReviewItemsPanel({
                 - {((item.meaningItems ?? []).map((m) => m.text).join('; ') || item.meaning || localText('Chưa có nghĩa', 'No meaning yet'))}
               </p>
               <p className="text-muted-foreground">{localText('Phát âm:', 'Pronunciation:')} {item.pronunciation || item.word}</p>
+              <div className="mt-1 flex flex-wrap items-center gap-1">
+                <span className={`inline-flex rounded border px-1.5 py-0.5 text-[10px] font-semibold ${usageTagClass(item.usageLevel)}`}>
+                  {usageTagLabel(item.usageLevel)}
+                </span>
+                <span className="inline-flex rounded border border-indigo-200 bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-700">
+                  {localText('Ưu tiên:', 'Priority:')} {Math.max(0, Math.min(100, Number(item.importanceScore ?? 50)))}
+                </span>
+                {item.contextSensitive ? (
+                  <span className="inline-flex rounded border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-[10px] font-semibold text-sky-700">
+                    {localText('Phụ thuộc ngữ cảnh', 'Context-sensitive')}
+                  </span>
+                ) : null}
+              </div>
               {renderExamples(item)}
               <div className="mt-1.5 flex flex-wrap gap-1">
                 <Button

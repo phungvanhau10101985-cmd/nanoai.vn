@@ -4,6 +4,7 @@
  */
 
 import type { GoogleGenerativeAI } from '@google/generative-ai'
+import { GEMINI_25_FLASH_TEXT_NO_THINKING } from '@/lib/gemini-config'
 import { HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
 import { documentOcrWithScale } from './vision-ocr'
 import { hasVisionConfig } from './vision-api'
@@ -50,7 +51,7 @@ export async function applyPostCheckOcr(
     const targetName = TARGET_LANGUAGES[targetLang] || targetLang
 
     const verifyPrompt = `This image was translated from ${sourceNames} to ${targetName}. Which segments are STILL in the source language(s)? Return JSON: {"missed":["exact text 1","exact text 2"]}. If none: {"missed":[]}. Ignore: numbers, codes, units, brand names.`
-    const flashModel = genAI.getGenerativeModel({ model: 'gemini-2.5-flash', generationConfig: { responseModalities: ['TEXT'] } })
+    const flashModel = genAI.getGenerativeModel(GEMINI_25_FLASH_TEXT_NO_THINKING)
     const safetySettings = [
       { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
       { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },

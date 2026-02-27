@@ -5,6 +5,7 @@ import { getUserForAction } from '@/lib/auth'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { revalidatePath } from 'next/cache'
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
+import { GEMINI_25_FLASH_TEXT_NO_THINKING } from '@/lib/gemini-config'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 
 const STORY_COSTS = { '2K': 3, '4K': 6 } as const
@@ -79,10 +80,7 @@ export async function createStoryImage(formData: FormData) {
   const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!)
 
   // Bước 1: Gemini Flash 2.5 mở rộng ý tưởng thành câu chuyện dẫn dắt (tiếng Việt)
-  const flashModel = genAI.getGenerativeModel({
-    model: 'gemini-2.5-flash',
-    generationConfig: { responseModalities: ['TEXT'] },
-  })
+  const flashModel = genAI.getGenerativeModel(GEMINI_25_FLASH_TEXT_NO_THINKING)
   const expansionResult = await flashModel.generateContent(
     `${STORY_EXPANSION_PROMPT}\n\nÝ TƯỞNG CỦA NGƯỜI DÙNG: "${prompt}"`
   )

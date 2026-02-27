@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
+import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
 import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
@@ -177,7 +178,7 @@ export async function POST(request: NextRequest) {
     const apiKey = process.env.GOOGLE_API_KEY
     if (!apiKey) return NextResponse.json({ error: msg(locale, 'Thiếu GOOGLE_API_KEY.', 'Missing GOOGLE_API_KEY.') }, { status: 500 })
     const genAI = new GoogleGenerativeAI(apiKey)
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
+    const model = genAI.getGenerativeModel(GEMINI_25_FLASH_NO_THINKING)
 
     const prompt = `Bạn là chuyên gia chuẩn hóa chủ đề học ngoại ngữ.
 Chuẩn hóa chủ đề học sinh tự nhập thành JSON ngắn gọn để lưu DB.

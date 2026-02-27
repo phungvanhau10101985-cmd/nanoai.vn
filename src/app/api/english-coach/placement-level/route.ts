@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
+import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
 
 type Payload = {
   targetLanguage?: string
@@ -55,7 +56,7 @@ export async function POST(request: NextRequest) {
     }
 
     const genAI = new GoogleGenerativeAI(apiKey)
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
+    const model = genAI.getGenerativeModel(GEMINI_25_FLASH_NO_THINKING)
     const prompt = `Bạn là trợ lý phân loại trình độ người học ngoại ngữ.
 Mục tiêu: gợi ý level 0-4 cho học viên dựa trên các câu họ tự nói.
 

@@ -9,6 +9,7 @@ type LanguageCode = 'en' | 'zh' | 'hi' | 'th' | 'ja' | 'ko' | 'vi'
 
 type HistoryPayload = {
   sessionId?: string
+  clientMessageId?: string
   role?: MessageRole
   text?: string
   audioUrl?: string
@@ -38,7 +39,7 @@ export async function GET(request: NextRequest) {
     if (sessionId) {
       const { data, error } = await adminSupabase
         .from('language_coach_messages')
-        .select('id, session_id, role, text, audio_url, language_code, target_language, teacher_label, teacher_locale, mode, created_at')
+        .select('id, session_id, role, text, audio_url, translation, language_code, target_language, teacher_label, teacher_locale, mode, created_at')
         .eq('user_id', user.id)
         .eq('session_id', sessionId)
         .order('created_at', { ascending: true })
@@ -55,6 +56,7 @@ export async function GET(request: NextRequest) {
           role: row.role,
           text: row.text,
           audioUrl: row.audio_url,
+          translation: (row as { translation?: string }).translation ?? null,
           languageCode: row.language_code,
           targetLanguage: row.target_language,
           teacherLabel: row.teacher_label,
@@ -130,6 +132,7 @@ export async function POST(request: NextRequest) {
   try {
     const payload = (await request.json()) as HistoryPayload
     const sessionId = String(payload.sessionId || '').trim()
+    const clientMessageId = String(payload.clientMessageId || '').trim()
     const role: MessageRole = payload.role === 'teacher' ? 'teacher' : 'student'
     const text = String(payload.text || '').trim()
     const audioUrl = String(payload.audioUrl || '').trim()
@@ -154,6 +157,7 @@ export async function POST(request: NextRequest) {
       .insert({
         user_id: user.id,
         session_id: sessionId,
+        client_message_id: clientMessageId || null,
         role,
         text: text.slice(0, 4000),
         audio_url: audioUrl || null,

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
+import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { createHash } from 'crypto'
 
@@ -29,6 +30,9 @@ type WordResult = {
   exampleNative: string
   meaningItems: WordMeaningItem[]
   exampleItems: WordExampleItem[]
+  usageLevel: 'high' | 'medium' | 'low'
+  importanceScore: number
+  contextSensitive: boolean
 }
 const wordCacheStats = { hit: 0, miss: 0 }
 
@@ -71,18 +75,18 @@ function logWordCacheStats(word: string) {
   console.info(`[WORD] "${word}" cache-stats hit=${wordCacheStats.hit} miss=${wordCacheStats.miss} hitRate=${hitRate}%`)
 }
 
-/** Zh/ja/ko: targetText phải là chữ gốc, không phải pinyin. Nếu targetText trông như pinyin (Latin) thì coi là sai format. */
+/** Zh/ja/ko/th/hi: targetText phải là chữ gốc, không phải romanization. Nếu targetText trông như Latin thì coi là sai format. */
 function exampleItemsTargetTextLooksWrong(
   items: Array<{ targetText: string }>,
   targetLanguage: string
 ): boolean {
   const norm = String(targetLanguage || '').toLowerCase()
-  if (!norm.includes('chinese') && !norm.includes('zh') && !norm.includes('mandarin') && !norm.includes('japanese') && !norm.includes('ja') && !norm.includes('korean') && !norm.includes('ko')) return false
-  const hasCjk = (s: string) => /[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff\uac00-\ud7af]/.test(s)
+  if (!norm.includes('chinese') && !norm.includes('zh') && !norm.includes('mandarin') && !norm.includes('japanese') && !norm.includes('ja') && !norm.includes('korean') && !norm.includes('ko') && !norm.includes('thai') && !norm.includes('th') && !norm.includes('hindi') && !norm.includes('hi')) return false
+  const hasNonLatin = (s: string) => /[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff\uac00-\ud7af\u0e00-\u0e7f\u0900-\u097f]/.test(s)
   for (const item of items) {
     const t = String(item.targetText || '').trim()
     if (!t) continue
-    if (!hasCjk(t)) return true
+    if (!hasNonLatin(t)) return true
   }
   return false
 }
@@ -122,6 +126,24 @@ function parseJsonListField(input: unknown): unknown[] {
   }
 }
 
+function normalizeUsageLevel(input: unknown): 'high' | 'medium' | 'low' {
+  const normalized = String(input || '').trim().toLowerCase()
+  if (normalized === 'high' || normalized === 'medium' || normalized === 'low') return normalized
+  return 'medium'
+}
+
+function normalizeImportanceScore(input: unknown): number {
+  const n = Number(input)
+  if (!Number.isFinite(n)) return 50
+  return Math.min(100, Math.max(0, Math.round(n)))
+}
+
+function normalizeContextSensitive(input: unknown): boolean {
+  if (typeof input === 'boolean') return input
+  const normalized = String(input || '').trim().toLowerCase()
+  return normalized === '1' || normalized === 'true' || normalized === 'yes'
+}
+
 function safeParse(text: string): WordResult | null {
   const cleaned = text
     .replace(/^```json\s*/i, '')
@@ -154,6 +176,9 @@ function safeParse(text: string): WordResult | null {
       exampleNative: String(parsed.exampleNative || '').trim(),
       meaningItems: fallbackMeaningItems,
       exampleItems: fallbackExampleItems,
+      usageLevel: normalizeUsageLevel((parsed as { usageLevel?: unknown }).usageLevel),
+      importanceScore: normalizeImportanceScore((parsed as { importanceScore?: unknown }).importanceScore),
+      contextSensitive: normalizeContextSensitive((parsed as { contextSensitive?: unknown }).contextSensitive),
     }
   }
 
@@ -196,7 +221,7 @@ export async function POST(request: NextRequest) {
     const { data: cachedRows } = await adminSupabase
       .from('language_coach_vocab_cache')
       .select(
-        'id, meaning, pronunciation, part_of_speech, example_target, example_native, pronunciation_audio_url, meaning_items_json, example_items_json'
+        'id, meaning, pronunciation, part_of_speech, example_target, example_native, pronunciation_audio_url, meaning_items_json, example_items_json, usage_level, importance_score, is_context_sensitive'
       )
       .eq('normalized_word', normalizedWord)
       .eq('normalized_target_language', normalizedTarget)
@@ -237,6 +262,9 @@ export async function POST(request: NextRequest) {
           ? cachedExampleItems
           : [{ targetText: fallbackExampleTarget, nativeText: fallbackExampleNative }],
         pronunciationAudioUrl: String(cached.pronunciation_audio_url || '').trim(),
+        usageLevel: normalizeUsageLevel(cached.usage_level),
+        importanceScore: normalizeImportanceScore(cached.importance_score),
+        contextSensitive: normalizeContextSensitive(cached.is_context_sensitive),
         cached: true,
       })
       }
@@ -257,15 +285,18 @@ Ngôn ngữ mẹ đẻ của học sinh: ${nativeLanguage}.
 
 Yêu cầu:
 1) meaning: giải thích nghĩa ĐẦY ĐỦ bằng ${nativeLanguage} (1-3 câu), nêu sắc thái dùng từ và ngữ cảnh thường gặp.
-2) pronunciation: phiên âm dễ đọc. Nếu ngôn ngữ là tiếng Trung thì dùng pinyin có dấu; tiếng Nhật dùng romaji; tiếng Hàn dùng romanization.
+2) pronunciation: phiên âm dễ đọc. Nếu ngôn ngữ là tiếng Trung thì dùng pinyin có dấu; tiếng Nhật dùng romaji; tiếng Hàn dùng romanization; tiếng Thái dùng RTGS; tiếng Hindi dùng IAST.
 3) partOfSpeech: loại từ ngắn gọn (noun/verb/adj/adv/...).
-4) meaningItems: mảng 1-3 ý nghĩa, mỗi item gồm text + pinyin (bắt buộc có pinyin/romanization cho zh/ja/ko).
+4) meaningItems: mảng 1-3 ý nghĩa, mỗi item gồm text + pinyin (bắt buộc có pinyin/romanization cho zh/ja/ko/th/hi).
 5) exampleItems: mảng 2-3 ví dụ. QUAN TRỌNG:
-   - targetText: PHẢI là chữ gốc (tiếng Trung = chữ Hán 汉字, tiếng Nhật = かな/漢字, tiếng Hàn = 한글). KHÔNG được dùng pinyin/romaji/romanization cho targetText.
-   - targetPinyin: phiên âm Latin (pinyin cho zh, romaji cho ja, romanization cho ko).
+   - targetText: PHẢI là chữ gốc (zh=汉字, ja=かな/漢字, ko=한글, th=อักษรไทย, hi=देवनागरी). KHÔNG được dùng pinyin/romaji/romanization cho targetText.
+   - targetPinyin: phiên âm Latin (zh=pinyin, ja=romaji, ko=romanization, th=RTGS, hi=IAST).
    - nativeText: bản dịch sang ${nativeLanguage}.
 6) exampleTarget: lấy từ exampleItems[0].targetText.
 7) exampleNative: lấy từ exampleItems[0].nativeText.
+8) usageLevel: mức độ dùng trong giao tiếp hằng ngày, chỉ nhận một trong: "high", "medium", "low".
+9) importanceScore: điểm ưu tiên học từ 0-100 (cao = nên học sớm).
+10) contextSensitive: true nếu nghĩa thay đổi nhiều theo ngữ cảnh, false nếu nghĩa khá ổn định.
 
 Trả về JSON hợp lệ, không markdown:
 {
@@ -275,11 +306,14 @@ Trả về JSON hợp lệ, không markdown:
   "meaningItems": [{"text":"...","pinyin":"..."}],
   "exampleItems": [{"targetText":"汉字/かな/한글","targetPinyin":"pinyin/romaji","nativeText":"..."}],
   "exampleTarget": "...",
-  "exampleNative": "..."
+  "exampleNative": "...",
+  "usageLevel": "high|medium|low",
+  "importanceScore": 0,
+  "contextSensitive": false
 }`
 
     const genAI = new GoogleGenerativeAI(apiKey)
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
+    const model = genAI.getGenerativeModel(GEMINI_25_FLASH_NO_THINKING)
     const result = await model.generateContent(prompt)
     const text = result.response.text()?.trim() || ''
     const parsed = safeParse(text)
@@ -311,6 +345,9 @@ Trả về JSON hợp lệ, không markdown:
             nativeText: msg(locale, `Ví dụ dùng từ "${word}" trong câu.`, `An example using "${word}" in a sentence.`),
           },
         ],
+        usageLevel: 'medium',
+        importanceScore: 50,
+        contextSensitive: true,
         cached: false,
       })
     }
@@ -351,6 +388,9 @@ Trả về JSON hợp lệ, không markdown:
         example_native: completed.exampleNative || null,
         meaning_items_json: JSON.stringify(completed.meaningItems),
         example_items_json: JSON.stringify(completed.exampleItems),
+        usage_level: completed.usageLevel,
+        importance_score: completed.importanceScore,
+        is_context_sensitive: completed.contextSensitive,
         source_model: 'gemini-2.5-flash',
         last_used_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),

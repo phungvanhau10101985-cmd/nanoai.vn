@@ -26,18 +26,18 @@ export function WordPracticeOverlay({
   if (!wordPractice || wordPractice.unlocked) return null
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4">
-      <div className="w-full max-w-lg rounded-lg border bg-white p-5 shadow-xl">
+    <div className="fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto bg-black/60 p-3 sm:items-center sm:p-4">
+      <div className="max-h-[calc(100dvh-1.5rem)] w-full max-w-lg overflow-y-auto rounded-lg border bg-white p-5 shadow-xl sm:max-h-[calc(100dvh-2rem)]">
         <h3 className="text-lg font-semibold text-slate-900">
           {t('Required new-word practice')}
         </h3>
-        <p className="mt-1 text-sm text-slate-600">
+        <p className="mt-1 break-words text-sm text-slate-600">
           {t('Listen and type the word correctly 3 times, then choose the correct meaning each round.')}
         </p>
         <p className="mt-1 text-sm font-medium text-slate-800">
           {t('Current word:')} {wordPractice.targetWord}
         </p>
-        <p className="mt-1 text-xs text-slate-500">
+        <p className="mt-1 break-words text-xs text-slate-500">
           {t('You are doing great! Complete 3/3 and you can continue right away.')}
         </p>
         <p className="mt-1 text-sm font-medium text-slate-800">

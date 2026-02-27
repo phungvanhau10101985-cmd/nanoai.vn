@@ -5,6 +5,7 @@ import { getUserForAction } from '@/lib/auth'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { revalidatePath } from 'next/cache'
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
+import { GEMINI_25_FLASH_TEXT_NO_THINKING } from '@/lib/gemini-config'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 
 const COSTS = {
@@ -277,7 +278,7 @@ export async function step1Build3D(formData: FormData) {
   ].filter(Boolean).join('. ')
 
   const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!)
-  const flashModel = genAI.getGenerativeModel({ model: 'gemini-2.5-flash', generationConfig: { responseModalities: ['TEXT'] } })
+  const flashModel = genAI.getGenerativeModel(GEMINI_25_FLASH_TEXT_NO_THINKING)
   const synthRes = await flashModel.generateContent(`${SYNTH_PROMPT}\n\nNội dung người dùng nhập:\n${userInput}`)
   trackFromUsageMetadata(synthRes.response.usageMetadata, 'gemini-2.5-flash', 'xay-nha-synth', user.id)
   let promptEn = (synthRes.response.text?.() || '').trim()
@@ -415,7 +416,7 @@ export async function stepFloorPlan(sourceProjectId: string, floorNum: number, f
   ].filter(Boolean).join('. ')
 
   const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!)
-  const flashModel = genAI.getGenerativeModel({ model: 'gemini-2.5-flash', generationConfig: { responseModalities: ['TEXT'] } })
+  const flashModel = genAI.getGenerativeModel(GEMINI_25_FLASH_TEXT_NO_THINKING)
   const synthRes = await flashModel.generateContent(`${FLOOR_PLAN_SYNTH}\n\nNội dung người dùng nhập:\n${userInput}`)
   trackFromUsageMetadata(synthRes.response.usageMetadata, 'gemini-2.5-flash', 'xay-nha-fp-synth', user.id)
   let promptEn = (synthRes.response.text?.() || '').trim()

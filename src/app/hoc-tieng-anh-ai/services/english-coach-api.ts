@@ -165,6 +165,15 @@ export function saveHistoryMessage(payload: unknown) {
   return sendJson<{ id?: string; error?: string }>('/api/english-coach/history', 'POST', payload)
 }
 
+export function updateMessageTranslation(payload: {
+  messageId: string
+  sessionId?: string
+  clientMessageId?: string
+  translation: string
+}) {
+  return sendJson<{ ok?: boolean; error?: string }>('/api/english-coach/history/update-translation', 'POST', payload)
+}
+
 export function uploadAudio(formData: FormData) {
   return sendFormData<{ audioUrl?: string; error?: string }>('/api/english-coach/audio-upload', formData)
 }

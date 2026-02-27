@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { GoogleGenerativeAI } from '@google/generative-ai'
+import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
 
 function adminClient() {
   return createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
@@ -54,7 +55,7 @@ async function fetchWordExamplesFromAI(
   const apiKey = process.env.GOOGLE_API_KEY
   if (!apiKey) return null
   const genAI = new GoogleGenerativeAI(apiKey)
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
+  const model = genAI.getGenerativeModel(GEMINI_25_FLASH_NO_THINKING)
   const prompt = `Bạn là giáo viên ngôn ngữ.
 Hãy giải thích từ "${word}" (chỉ trả ví dụ câu, không cần giải nghĩa chi tiết).
 Ngôn ngữ mục tiêu: ${targetLanguage}.

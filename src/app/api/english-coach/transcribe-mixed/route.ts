@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
+import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
 
 type Payload = {
   audioBase64?: string
@@ -142,7 +143,7 @@ export async function POST(request: NextRequest) {
     }
 
     const ai = new GoogleGenerativeAI(apiKey)
-    const model = ai.getGenerativeModel({ model: 'gemini-2.5-flash' })
+    const model = ai.getGenerativeModel(GEMINI_25_FLASH_NO_THINKING)
 
     const prompt = `Bạn là bộ nhận dạng lời nói cho người học ngoại ngữ.
 Nhiệm vụ:

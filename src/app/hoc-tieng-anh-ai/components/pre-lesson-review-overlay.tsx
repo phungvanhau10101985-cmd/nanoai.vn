@@ -88,7 +88,7 @@ export function PreLessonReviewOverlay({
   onClozeSubmitRef.current = onClozeSubmit
   onListenSubmitRef.current = onListenSubmit
   const currentWord = words[wordIndex]
-  const isCjk = languageCode === 'zh' || languageCode === 'ja' || languageCode === 'ko'
+  const isCjk = languageCode === 'zh' || languageCode === 'ja' || languageCode === 'ko' || languageCode === 'th' || languageCode === 'hi'
   const ex0 = exerciseIndex === 0
   const ex1 = exerciseIndex === 1
   const ex2 = exerciseIndex === 2
@@ -128,14 +128,14 @@ export function PreLessonReviewOverlay({
     }
   }, [exerciseIndex, wordIndex])
 
-  // Bài nghe (ex1): mỗi từ chỉ tự phát 1 lần, các lần sau học viên tự bấm phát lại
+  // Bài nghe (ex1): thử tự phát sau 600ms. Trình duyệt thường chặn autoplay → nút "Bấm để nghe" là fallback chắc chắn.
   useEffect(() => {
     if (exerciseIndex !== 1 || !currentWord || wrongHint) return
     const autoPlayKey = `${wordIndex}::${normalizeWordForCompare(currentWord.word)}`
     if (!autoPlayKey) return
     if (autoPlayedListenWordRef.current[autoPlayKey]) return
     autoPlayedListenWordRef.current[autoPlayKey] = true
-    const t = setTimeout(() => onPlayWord(currentWord.word), 300)
+    const t = setTimeout(() => onPlayWord(currentWord.word), 600)
     return () => clearTimeout(t)
   }, [exerciseIndex, wordIndex, currentWord, wrongHint, onPlayWord])
 
@@ -174,18 +174,22 @@ export function PreLessonReviewOverlay({
       const normalizedTarget = normalizeWordForCompare(targetWord)
       const inputNfc = input.trim().normalize('NFC')
       const targetNfc = targetWord.trim().normalize('NFC')
-      const matches =
+      const exactMatch =
         normalizedInput === normalizedTarget || (inputNfc === targetNfc && inputNfc.length > 0)
-      if (matches) {
+      const isCorrectPrefix =
+        normalizedTarget.length >= normalizedInput.length &&
+        normalizedTarget.slice(0, normalizedInput.length) === normalizedInput
+      if (exactMatch) {
         setInputCheckStatus('correct')
         submittedRef.current = true
         const submit = ex0 ? onClozeSubmitRef.current : onListenSubmitRef.current
         if (submitTimerRef.current) clearTimeout(submitTimerRef.current)
-        // Delay a bit so learner can clearly see the green "correct" feedback.
         submitTimerRef.current = setTimeout(() => {
           submit(currentWord.word, true)
           submitTimerRef.current = null
         }, 350)
+      } else if (isCorrectPrefix) {
+        setInputCheckStatus('idle')
       } else {
         setInputCheckStatus('incorrect')
       }
@@ -234,9 +238,12 @@ export function PreLessonReviewOverlay({
       const normalizedTarget = normalizeWordForCompare(targetWord)
       const inputNfc = input.trim().normalize('NFC')
       const targetNfc = targetWord.trim().normalize('NFC')
-      const matches =
+      const exactMatch =
         normalizedInput === normalizedTarget || (inputNfc === targetNfc && inputNfc.length > 0)
-      if (matches) {
+      const isCorrectPrefix =
+        normalizedTarget.length >= normalizedInput.length &&
+        normalizedTarget.slice(0, normalizedInput.length) === normalizedInput
+      if (exactMatch) {
         setInputCheckStatus('correct')
         submittedRef.current = true
         setWrongHint(null)
@@ -246,6 +253,8 @@ export function PreLessonReviewOverlay({
           else onListenSubmitRef.current(currentWord.word, false)
           submitTimerRef.current = null
         }, 350)
+      } else if (isCorrectPrefix) {
+        setInputCheckStatus('idle')
       } else {
         setInputCheckStatus('incorrect')
       }
@@ -318,8 +327,8 @@ export function PreLessonReviewOverlay({
 
   if (passed) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-        <div className="relative w-full max-w-md rounded-lg border bg-white p-6 shadow-xl">
+      <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-3 sm:items-center sm:p-4">
+        <div className="relative max-h-[calc(100dvh-1.5rem)] w-full max-w-md overflow-y-auto rounded-lg border bg-white p-6 shadow-xl sm:max-h-[calc(100dvh-2rem)]">
           <Button
             type="button"
             variant="ghost"
@@ -349,8 +358,8 @@ export function PreLessonReviewOverlay({
   if (!currentWord) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="relative w-full max-w-lg rounded-lg border bg-white p-6 shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-3 sm:items-center sm:p-4">
+      <div className="relative max-h-[calc(100dvh-1.5rem)] w-full max-w-lg overflow-y-auto rounded-lg border bg-white p-6 shadow-xl sm:max-h-[calc(100dvh-2rem)]">
         <Button
           type="button"
           variant="ghost"
@@ -362,13 +371,13 @@ export function PreLessonReviewOverlay({
           <X className="h-4 w-4" />
         </Button>
         <h2 className="text-lg font-semibold text-slate-900">{localText('Ôn bài cũ', 'Review previous lesson')}</h2>
-        <p className="mt-1 text-xs text-slate-500">
+        <p className="mt-1 break-words text-xs text-slate-500">
           {localText('Từ', 'Word')} {wordIndex + 1}/{words.length} • {exerciseLabels[exerciseIndex]}
         </p>
 
         {wrongHint ? (
           <div className="mt-4 rounded-lg border-2 border-amber-200 bg-amber-50 p-4">
-            <p className="font-medium text-amber-900">
+            <p className="break-words font-medium text-amber-900">
               {localText('Gợi ý để nhớ lại (sẽ kiểm tra lại từ này lần sau):', 'Hint to remember (this word will be reviewed again):')}
             </p>
             <p className="mt-2 text-lg font-semibold text-slate-900">{wrongHint.word}</p>
@@ -389,7 +398,7 @@ export function PreLessonReviewOverlay({
             </Button>
             {(wrongHint.type === 'cloze' || wrongHint.type === 'listen') && (
               <div className="mt-3">
-                <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                <label className="mb-1.5 block break-words text-sm font-medium text-slate-700">
                   {localText('Gõ từ để ôn tập (đúng mới chuyển tiếp, từ này vẫn kiểm tra lại lần sau):', 'Type the word to review (correct to continue, this word will be reviewed again):')}
                 </label>
                 <Input
@@ -409,7 +418,8 @@ export function PreLessonReviewOverlay({
                   className={cn(
                     'h-11 text-base',
                     inputCheckStatus === 'correct' && 'border-emerald-500 bg-emerald-50 focus-visible:ring-emerald-500',
-                    inputCheckStatus === 'incorrect' && 'border-rose-500 bg-rose-50 focus-visible:ring-rose-500'
+                    inputCheckStatus === 'incorrect' && 'border-rose-500 bg-rose-50 focus-visible:ring-rose-500',
+                    inputCheckStatus === 'idle' && input.trim().length > 0 && 'border-sky-300 bg-sky-50/70 focus-visible:ring-sky-300'
                   )}
                   autoFocus
                 />
@@ -471,8 +481,9 @@ export function PreLessonReviewOverlay({
                     className={cn(
                       'h-11 text-base',
                       inputCheckStatus === 'correct' && 'border-emerald-500 bg-emerald-50 focus-visible:ring-emerald-500',
-                      inputCheckStatus === 'incorrect' && 'border-rose-500 bg-rose-50 focus-visible:ring-rose-500'
-                    )}
+                      inputCheckStatus === 'incorrect' && 'border-rose-500 bg-rose-50 focus-visible:ring-rose-500',
+                      inputCheckStatus === 'idle' && input.trim().length > 0 && 'border-sky-300 bg-sky-50/70 focus-visible:ring-sky-300'
+                  )}
                     autoFocus
                   />
                   {inputCheckStatus === 'incorrect' && (
@@ -499,11 +510,11 @@ export function PreLessonReviewOverlay({
                 </div>
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="default"
                   onClick={() => onPlayWord(currentWord.word)}
-                  className="w-full min-h-[44px]"
+                  className="w-full min-h-[52px] text-base"
                 >
-                  <Volume2 className="mr-2 h-4 w-4" /> {localText('🔊 Phát lại', '🔊 Play again')}
+                  <Volume2 className="mr-2 h-5 w-5" /> {localText('🔊 Bấm để nghe từ', '🔊 Tap to hear the word')}
                 </Button>
                 <div>
                   <label className="mb-1.5 block text-sm font-medium text-slate-700">
@@ -527,8 +538,9 @@ export function PreLessonReviewOverlay({
                     className={cn(
                       'h-11 text-base',
                       inputCheckStatus === 'correct' && 'border-emerald-500 bg-emerald-50 focus-visible:ring-emerald-500',
-                      inputCheckStatus === 'incorrect' && 'border-rose-500 bg-rose-50 focus-visible:ring-rose-500'
-                    )}
+                      inputCheckStatus === 'incorrect' && 'border-rose-500 bg-rose-50 focus-visible:ring-rose-500',
+                      inputCheckStatus === 'idle' && input.trim().length > 0 && 'border-sky-300 bg-sky-50/70 focus-visible:ring-sky-300'
+                  )}
                     autoFocus
                   />
                   {inputCheckStatus === 'incorrect' && (
@@ -582,6 +594,7 @@ export function PreLessonReviewOverlay({
                           key={m}
                           type="button"
                           variant="outline"
+                          className="h-auto min-h-[40px] max-w-full whitespace-normal break-words text-left leading-snug"
                           onClick={() => {
                             if (m === correctMeaning) onRecallSubmit(currentWord.word, true)
                             else setWrongHint({ word: currentWord.word, meaning: correctMeaning, pronunciation: currentWord.pronunciation, type: 'recall' })

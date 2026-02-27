@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
+import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
 import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
@@ -42,7 +43,10 @@ function sanitizeTokens(raw: unknown, targetLanguageCode: string): string[] {
   if (!Array.isArray(raw)) return []
   const out: string[] = []
   for (const item of raw) {
-    const token = String(item || '')
+    const rawToken = typeof item === 'object' && item !== null && 'word' in item
+      ? String((item as { word?: unknown }).word || '')
+      : String(item || '')
+    const token = rawToken
       .replace(/^[\s"'“”‘’.,;:!?()\[\]{}<>|\\/`~@#$%^&*_+=-]+/g, '')
       .replace(/[\s"'“”‘’.,;:!?()\[\]{}<>|\\/`~@#$%^&*_+=-]+$/g, '')
       .trim()
@@ -63,6 +67,50 @@ function sanitizeTokens(raw: unknown, targetLanguageCode: string): string[] {
     }
 
     if (!out.includes(token)) out.push(token)
+    if (out.length >= 24) break
+  }
+  return out
+}
+
+type TokenWithUsage = { word: string; usageLevel: 'high' | 'medium' | 'low' }
+
+function normalizeUsageLevel(input: unknown): 'high' | 'medium' | 'low' {
+  const s = String(input || '').trim().toLowerCase()
+  if (s === 'high' || s === 'medium' || s === 'low') return s
+  return 'medium'
+}
+
+function sanitizeTokensWithUsage(raw: unknown, targetLanguageCode: string): TokenWithUsage[] {
+  if (!Array.isArray(raw)) return []
+  const out: TokenWithUsage[] = []
+  const seen = new Set<string>()
+  for (const item of raw) {
+    const rawToken = typeof item === 'object' && item !== null && 'word' in item
+      ? String((item as { word?: unknown }).word || '')
+      : String(item || '')
+    const token = rawToken
+      .replace(/^[\s"'""''.,;:!?()\[\]{}<>|\\/`~@#$%^&*_+=-]+/g, '')
+      .replace(/[\s"'""''.,;:!?()\[\]{}<>|\\/`~@#$%^&*_+=-]+$/g, '')
+      .trim()
+    if (!token || seen.has(token)) continue
+    if (/[\n\r\t]/.test(token)) continue
+    if (/[，。！？；：]/u.test(token)) continue
+    if (!keepTokenByTargetLanguage(token, targetLanguageCode)) continue
+
+    const hasCjkThai = /[\u4E00-\u9FFF\u3040-\u30FF\u0E00-\u0E7F]/u.test(token)
+    const words = token.split(/\s+/).filter(Boolean)
+    if (hasCjkThai) {
+      if (token.length > 8) continue
+    } else {
+      if (words.length > 3) continue
+      if (token.length > 24) continue
+    }
+
+    seen.add(token)
+    const usageLevel = typeof item === 'object' && item !== null && 'usageLevel' in item
+      ? normalizeUsageLevel((item as { usageLevel?: unknown }).usageLevel)
+      : 'medium'
+    out.push({ word: token, usageLevel })
     if (out.length >= 24) break
   }
   return out
@@ -109,9 +157,23 @@ export async function POST(request: NextRequest) {
 
     if (cached?.tokens_json) {
       try {
-        const parsed = JSON.parse(cached.tokens_json) as string[]
+        const parsed = JSON.parse(cached.tokens_json) as unknown
+        const withUsage = sanitizeTokensWithUsage(parsed, targetLanguageCode)
+        if (withUsage.length > 0) {
+          return NextResponse.json({
+            tokens: withUsage.map((t) => t.word),
+            tokensWithUsage: withUsage,
+            cached: true,
+          })
+        }
         const tokens = sanitizeTokens(parsed, targetLanguageCode)
-        if (tokens.length > 0) return NextResponse.json({ tokens, cached: true })
+        if (tokens.length > 0) {
+          return NextResponse.json({
+            tokens,
+            tokensWithUsage: tokens.map((w) => ({ word: w, usageLevel: 'medium' as const })),
+            cached: true,
+          })
+        }
       } catch {
         // fallback to AI below
       }
@@ -146,40 +208,70 @@ Yêu cầu:
 4) Với Chinese/Japanese/Thai: tách đúng ranh giới từ tự nhiên, mỗi token ngắn (thường 1-4 ký tự, tối đa 8).
 5) Không trả dấu câu, không trả cụm dịch nghĩa, không trả đoạn giải thích.
 6) Tối đa 24 token.
-7) Trả về JSON hợp lệ, không markdown:
-{"tokens":["...", "..."]}
+7) Với mỗi token, gán usageLevel: "high" (dùng rất nhiều trong giao tiếp), "medium" (dùng vừa), "low" (ít dùng).
+8) Trả về JSON hợp lệ, không markdown:
+{"tokens":[{"word":"...", "usageLevel":"high|medium|low"}, ...]}
 
 Câu:
 ${sentence}`
 
     const genAI = new GoogleGenerativeAI(apiKey)
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
+    const model = genAI.getGenerativeModel(GEMINI_25_FLASH_NO_THINKING)
     const result = await model.generateContent(prompt)
     const text = result.response.text()?.trim() || ''
     const cleaned = text.replace(/^```json\s*/i, '').replace(/^```/i, '').replace(/```$/i, '').trim()
 
     try {
       const parsed = JSON.parse(cleaned) as { tokens?: unknown }
-      const tokens = sanitizeTokens(parsed.tokens, targetLanguageCode)
-      if (tokens.length > 0) {
+      const withUsage = sanitizeTokensWithUsage(parsed.tokens, targetLanguageCode)
+      if (withUsage.length > 0) {
         await adminSupabase.from('language_coach_tokenizations').upsert(
           {
             user_id: user.id,
             target_language: targetLanguage,
             sentence,
-            tokens_json: JSON.stringify(tokens),
+            tokens_json: JSON.stringify(withUsage),
             updated_at: new Date().toISOString(),
           },
           { onConflict: 'user_id,target_language,sentence' }
         )
-        return NextResponse.json({ tokens, cached: false })
+        return NextResponse.json({
+          tokens: withUsage.map((t) => t.word),
+          tokensWithUsage: withUsage,
+          cached: false,
+        })
+      }
+      const tokens = sanitizeTokens(parsed.tokens, targetLanguageCode)
+      if (tokens.length > 0) {
+        const fallbackWithUsage = tokens.map((w) => ({ word: w, usageLevel: 'medium' as const }))
+        await adminSupabase.from('language_coach_tokenizations').upsert(
+          {
+            user_id: user.id,
+            target_language: targetLanguage,
+            sentence,
+            tokens_json: JSON.stringify(fallbackWithUsage),
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'user_id,target_language,sentence' }
+        )
+        return NextResponse.json({
+          tokens,
+          tokensWithUsage: fallbackWithUsage,
+          cached: false,
+        })
       }
     } catch {
       // fallback below
     }
 
     const fallbackTokens = sanitizeTokens([sentence], targetLanguageCode)
-    return NextResponse.json({ tokens: fallbackTokens, cached: false, targetLanguageCode })
+    const fallbackWithUsage = fallbackTokens.map((w) => ({ word: w, usageLevel: 'medium' as const }))
+    return NextResponse.json({
+      tokens: fallbackTokens,
+      tokensWithUsage: fallbackWithUsage,
+      cached: false,
+      targetLanguageCode,
+    })
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Lỗi không xác định.'
     return NextResponse.json({ error: msg }, { status: 500 })
