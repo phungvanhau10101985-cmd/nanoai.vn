@@ -22,7 +22,7 @@ type PreLessonReviewOverlayProps = {
   onListenSubmit: (word: string, correct: boolean) => void
   onRecallSubmit: (word: string, correct: boolean) => void
   onStartNewLesson: () => void
-  onPlayWord: (word: string) => void
+  onPlayWord: (word: string, pronunciationAudioUrl?: string) => void
   onClose: () => void
   localText: LocalTextFn
 }
@@ -77,7 +77,7 @@ export function PreLessonReviewOverlay({
 }: PreLessonReviewOverlayProps) {
   void results
   const [wrongHint, setWrongHint] = useState<{ word: string; meaning: string; pronunciation?: string; type: 'cloze' | 'listen' | 'recall' } | null>(null)
-  const [inputCheckStatus, setInputCheckStatus] = useState<'idle' | 'correct' | 'incorrect'>('idle')
+  const [inputCheckStatus, setInputCheckStatus] = useState<'idle' | 'partial' | 'correct' | 'incorrect'>('idle')
   const [compositionEndAt, setCompositionEndAt] = useState(0)
   const autoPlayedListenWordRef = useRef<Record<string, true>>({})
   const submittedRef = useRef(false)
@@ -135,7 +135,7 @@ export function PreLessonReviewOverlay({
     if (!autoPlayKey) return
     if (autoPlayedListenWordRef.current[autoPlayKey]) return
     autoPlayedListenWordRef.current[autoPlayKey] = true
-    const t = setTimeout(() => onPlayWord(currentWord.word), 600)
+    const t = setTimeout(() => onPlayWord(currentWord.word, currentWord.pronunciationAudioUrl), 600)
     return () => clearTimeout(t)
   }, [exerciseIndex, wordIndex, currentWord, wrongHint, onPlayWord])
 
@@ -189,7 +189,7 @@ export function PreLessonReviewOverlay({
           submitTimerRef.current = null
         }, 350)
       } else if (isCorrectPrefix) {
-        setInputCheckStatus('idle')
+        setInputCheckStatus('partial')
       } else {
         setInputCheckStatus('incorrect')
       }
@@ -254,7 +254,7 @@ export function PreLessonReviewOverlay({
           submitTimerRef.current = null
         }, 350)
       } else if (isCorrectPrefix) {
-        setInputCheckStatus('idle')
+        setInputCheckStatus('partial')
       } else {
         setInputCheckStatus('incorrect')
       }
@@ -391,7 +391,7 @@ export function PreLessonReviewOverlay({
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => onPlayWord(wrongHint.word)}
+              onClick={() => onPlayWord(wrongHint.word, currentWord?.pronunciationAudioUrl)}
               className="mt-2"
             >
               <Volume2 className="mr-2 h-4 w-4" /> {localText('Nghe từ đúng', 'Listen to correct word')}
@@ -418,8 +418,8 @@ export function PreLessonReviewOverlay({
                   className={cn(
                     'h-11 text-base',
                     inputCheckStatus === 'correct' && 'border-emerald-500 bg-emerald-50 focus-visible:ring-emerald-500',
-                    inputCheckStatus === 'incorrect' && 'border-rose-500 bg-rose-50 focus-visible:ring-rose-500',
-                    inputCheckStatus === 'idle' && input.trim().length > 0 && 'border-sky-300 bg-sky-50/70 focus-visible:ring-sky-300'
+                    inputCheckStatus === 'partial' && 'border-sky-300 bg-sky-50 focus-visible:ring-sky-400',
+                    inputCheckStatus === 'incorrect' && 'border-rose-500 bg-rose-50 focus-visible:ring-rose-500'
                   )}
                   autoFocus
                 />
@@ -481,9 +481,9 @@ export function PreLessonReviewOverlay({
                     className={cn(
                       'h-11 text-base',
                       inputCheckStatus === 'correct' && 'border-emerald-500 bg-emerald-50 focus-visible:ring-emerald-500',
-                      inputCheckStatus === 'incorrect' && 'border-rose-500 bg-rose-50 focus-visible:ring-rose-500',
-                      inputCheckStatus === 'idle' && input.trim().length > 0 && 'border-sky-300 bg-sky-50/70 focus-visible:ring-sky-300'
-                  )}
+                      inputCheckStatus === 'partial' && 'border-sky-300 bg-sky-50 focus-visible:ring-sky-400',
+                      inputCheckStatus === 'incorrect' && 'border-rose-500 bg-rose-50 focus-visible:ring-rose-500'
+                    )}
                     autoFocus
                   />
                   {inputCheckStatus === 'incorrect' && (
@@ -511,7 +511,7 @@ export function PreLessonReviewOverlay({
                 <Button
                   type="button"
                   variant="default"
-                  onClick={() => onPlayWord(currentWord.word)}
+                  onClick={() => onPlayWord(currentWord.word, currentWord.pronunciationAudioUrl)}
                   className="w-full min-h-[52px] text-base"
                 >
                   <Volume2 className="mr-2 h-5 w-5" /> {localText('🔊 Bấm để nghe từ', '🔊 Tap to hear the word')}
@@ -538,9 +538,9 @@ export function PreLessonReviewOverlay({
                     className={cn(
                       'h-11 text-base',
                       inputCheckStatus === 'correct' && 'border-emerald-500 bg-emerald-50 focus-visible:ring-emerald-500',
-                      inputCheckStatus === 'incorrect' && 'border-rose-500 bg-rose-50 focus-visible:ring-rose-500',
-                      inputCheckStatus === 'idle' && input.trim().length > 0 && 'border-sky-300 bg-sky-50/70 focus-visible:ring-sky-300'
-                  )}
+                      inputCheckStatus === 'partial' && 'border-sky-300 bg-sky-50 focus-visible:ring-sky-400',
+                      inputCheckStatus === 'incorrect' && 'border-rose-500 bg-rose-50 focus-visible:ring-rose-500'
+                    )}
                     autoFocus
                   />
                   {inputCheckStatus === 'incorrect' && (

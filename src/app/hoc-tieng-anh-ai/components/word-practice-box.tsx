@@ -9,7 +9,7 @@ type WordPracticeBoxProps = {
   targetWord: string
   expectedMeaning?: string
   wordPractice: WordPracticeProgress | null
-  practiceInputStatus: 'idle' | 'correct' | 'incorrect'
+  practiceInputStatus: 'idle' | 'partial' | 'correct' | 'incorrect'
   localText: LocalTextFn
   onStartWordPractice: (word: string, expectedMeaning?: string) => void
   onWordPracticeDraftChange: (targetWord: string, nextDraft: string) => void
@@ -61,6 +61,7 @@ export function WordPracticeBox({
               className={cn(
                 'mt-1 h-8 text-xs',
                 practiceInputStatus === 'correct' && 'border-emerald-500 bg-emerald-50 focus:ring-emerald-500',
+                practiceInputStatus === 'partial' && 'border-sky-300 bg-sky-50 focus:ring-sky-400',
                 practiceInputStatus === 'incorrect' && 'border-rose-500 bg-rose-50 focus:ring-rose-500'
               )}
               disabled={active.awaitingMeaningChoice}

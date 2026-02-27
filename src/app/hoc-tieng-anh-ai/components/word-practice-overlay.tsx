@@ -8,7 +8,7 @@ import type { WordPracticeProgress } from './types'
 
 type WordPracticeOverlayProps = {
   wordPractice: WordPracticeProgress | null
-  practiceInputStatus: 'idle' | 'correct' | 'incorrect'
+  practiceInputStatus: 'idle' | 'partial' | 'correct' | 'incorrect'
   t: (key: string, params?: Record<string, string | number>) => string
   onWordPracticeDraftChange: (targetWord: string, nextDraft: string) => void
   onWordPracticeMeaningSelect: (targetWord: string, selectedMeaning: string) => void
@@ -63,6 +63,7 @@ export function WordPracticeOverlay({
               className={cn(
                 'h-11 text-base',
                 practiceInputStatus === 'correct' && 'border-emerald-500 bg-emerald-50 focus-visible:ring-emerald-500',
+                practiceInputStatus === 'partial' && 'border-sky-300 bg-sky-50 focus-visible:ring-sky-400',
                 practiceInputStatus === 'incorrect' && 'border-rose-500 bg-rose-50 focus-visible:ring-rose-500'
               )}
               autoFocus

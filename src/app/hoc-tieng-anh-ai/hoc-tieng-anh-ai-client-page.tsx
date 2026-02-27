@@ -1684,7 +1684,7 @@ export default function HocTiengAnhAiClientPage() {
   const [writingDraft, setWritingDraft] = useState('')
   const [writingBusy, setWritingBusy] = useState(false)
   const [writingEvalResult, setWritingEvalResult] = useState<WritingEvalResult | null>(null)
-  const [writingInputStatus, setWritingInputStatus] = useState<'idle' | 'incorrect' | 'matched'>('idle')
+  const [writingInputStatus, setWritingInputStatus] = useState<'idle' | 'partial' | 'incorrect' | 'matched'>('idle')
   const [writingRomanizationByKey, setWritingRomanizationByKey] = useState<Record<string, string>>({})
   const [writingRomanizationBusyByKey, setWritingRomanizationBusyByKey] = useState<Record<string, boolean>>({})
   const [listening, setListening] = useState(false)
@@ -1712,7 +1712,7 @@ export default function HocTiengAnhAiClientPage() {
   const [ttsLoadingByKey, setTtsLoadingByKey] = useState<Record<string, boolean>>({})
   const [todayWords, setTodayWords] = useState<TodayWordItem[]>([])
   const [wordPractice, setWordPractice] = useState<WordPracticeProgress | null>(null)
-  const [practiceInputStatus, setPracticeInputStatus] = useState<'idle' | 'correct' | 'incorrect'>('idle')
+  const [practiceInputStatus, setPracticeInputStatus] = useState<'idle' | 'partial' | 'correct' | 'incorrect'>('idle')
 
   // Debounce hook
   function useDebounce<T>(value: T, delay: number): T {
@@ -1809,6 +1809,9 @@ export default function HocTiengAnhAiClientPage() {
         onWordPracticeCorrect(wordPractice.targetWord)
         setPracticeInputStatus('idle')
       }, 300) // Đợi 300ms để người dùng thấy màu xanh
+    } else if (wordPractice.normalizedTarget.startsWith(normalizedDraft)) {
+      // Đúng nhưng chưa đủ → màu dễ chịu, không đỏ
+      setPracticeInputStatus('partial')
     } else {
       setPracticeInputStatus('incorrect')
     }
@@ -1973,8 +1976,6 @@ export default function HocTiengAnhAiClientPage() {
     setWordPractice((prev) => {
       if (!prev || prev.normalizedTarget !== normalizedTarget || prev.unlocked) return prev
       if (prev.awaitingMeaningChoice) return prev
-      
-      setPracticeInputStatus('idle') // Reset status khi đang gõ
       
       const normalizedDraft = normalizeWordPracticeText(nextDraft)
       if (normalizedDraft && !normalizedTarget.startsWith(normalizedDraft)) {
@@ -2806,7 +2807,7 @@ export default function HocTiengAnhAiClientPage() {
     }
 
     if (!isExactMatch) {
-      setWritingInputStatus('idle')
+      setWritingInputStatus('partial')
       return
     }
 
@@ -2873,7 +2874,7 @@ export default function HocTiengAnhAiClientPage() {
     }
   }, [])
 
-  const playAudioUrl = async (url: string) => {
+  const playAudioUrl = async (url: string): Promise<void> => {
     const run = async () => {
       if (audioRef.current) {
         audioRef.current.pause()
@@ -2881,20 +2882,20 @@ export default function HocTiengAnhAiClientPage() {
       }
       const audio = new Audio(url)
       audioRef.current = audio
-      await new Promise<void>((resolve) => {
+      await new Promise<void>((resolve, reject) => {
         let settled = false
-        const done = () => {
+        const done = (err?: unknown) => {
           if (settled) return
           settled = true
-          resolve()
+          if (err) reject(err)
+          else resolve()
         }
-        audio.onended = done
-        audio.onerror = done
+        audio.onended = () => done()
+        audio.onerror = (e) => done(e)
         void audio.play().then(() => {
           // normal path: resolved by onended/onerror
-        }).catch(() => {
-          // keep queue alive when autoplay/playback fails
-          done()
+        }).catch((e) => {
+          done(e)
         })
       })
     }
@@ -3530,6 +3531,8 @@ export default function HocTiengAnhAiClientPage() {
     }
 
     setWordBusyKey(key)
+    // Phát âm từ NGAY khi bấm (user gesture còn hiệu lực) – tránh iOS/Android chặn audio sau async dài
+    const wordPlayPromise = playWordPronunciation(word)
     try {
       const { ok, data } = await analyzeWord({
         word,
@@ -3568,7 +3571,7 @@ export default function HocTiengAnhAiClientPage() {
       await saveDailyWord(word, detail, audioUrl || undefined)
       void fetchSessionWords()
       const meaningText = detail.meaning || (detail.meaningItems?.[0]?.text ?? '')
-      void playWordPronunciation(word).then(() => playMeaningInNativeLanguage(meaningText))
+      void wordPlayPromise.then(() => playMeaningInNativeLanguage(meaningText))
     } catch (e) {
       const msg = unknownErrorMsg(e)
       toast({ title: localText('Không phân tích được từ', 'Word analysis failed'), description: msg, variant: 'destructive' })
@@ -3577,12 +3580,18 @@ export default function HocTiengAnhAiClientPage() {
     }
   }
 
-  const playWordPronunciation = async (word: string) => {
+  const playWordPronunciation = async (word: string, preloadedAudioUrl?: string) => {
     const savedWord = findSessionWord(word)
-    const savedAudioUrl = String(savedWord?.pronunciationAudioUrl || '').trim()
+    const savedAudioUrl = String(
+      preloadedAudioUrl || savedWord?.pronunciationAudioUrl || ''
+    ).trim()
     if (savedAudioUrl) {
-      await playAudioUrl(savedAudioUrl)
-      return
+      try {
+        await playAudioUrl(savedAudioUrl)
+        return
+      } catch {
+        // URL có thể hết hạn (signed URL) hoặc lỗi – fallback sang TTS
+      }
     }
 
     try {
@@ -5687,26 +5696,6 @@ export default function HocTiengAnhAiClientPage() {
                   </Button>
                 </div>
                 <div className="flex items-center gap-1 rounded-md border px-1 py-1 overflow-x-auto whitespace-nowrap">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={responseStyle === 'detailed' ? 'default' : 'ghost'}
-                    onClick={() => setResponseStyle('detailed')}
-                    disabled={busy}
-                    className="min-h-[44px] px-3 text-xs"
-                  >
-                    {localText('Chi tiết', 'Detailed')}
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={responseStyle === 'concise' ? 'default' : 'ghost'}
-                    onClick={() => setResponseStyle('concise')}
-                    disabled={busy}
-                    className="min-h-[44px] px-3 text-xs"
-                  >
-                    {localText('Ngắn gọn', 'Concise')}
-                  </Button>
                   {recordingPending ? (
                     <>
                       <Button
@@ -5796,7 +5785,9 @@ export default function HocTiengAnhAiClientPage() {
                             ? 'border-emerald-400 bg-emerald-50'
                             : writingInputStatus === 'incorrect'
                               ? 'border-rose-400 bg-rose-50'
-                              : ''
+                              : writingInputStatus === 'partial'
+                                ? 'border-sky-300 bg-sky-50'
+                                : ''
                         }`}
                       />
                       <Button type="button" size="sm" onClick={() => void evaluateWritingTask()} disabled={writingBusy || !writingDraft.trim()}>
@@ -5809,6 +5800,10 @@ export default function HocTiengAnhAiClientPage() {
                           'Bạn đang gõ sai so với câu tham chiếu. Hãy chỉnh lại ngay ở vị trí đang đỏ.',
                           'Your typing does not match the reference sentence. Please correct it now.'
                         )}
+                      </p>
+                    ) : writingInputStatus === 'partial' ? (
+                      <p className="text-xs text-sky-700">
+                        {localText('Đúng rồi, tiếp tục gõ cho đủ câu.', 'Correct so far, keep typing to complete the sentence.')}
                       </p>
                     ) : writingInputStatus === 'matched' ? (
                       <p className="text-xs text-emerald-700">
@@ -6131,7 +6126,9 @@ export default function HocTiengAnhAiClientPage() {
             }
           }}
           onStartNewLesson={startLessonAfterPreReview}
-          onPlayWord={playWordPronunciation}
+          onPlayWord={(word, pronunciationAudioUrl) =>
+            void playWordPronunciation(word, pronunciationAudioUrl)
+          }
           onClose={() => {
             setShowPreLessonReview(false)
             setPreLessonCurriculum(null)

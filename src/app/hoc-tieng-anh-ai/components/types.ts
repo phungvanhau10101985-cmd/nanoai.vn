@@ -48,6 +48,7 @@ export type PreLessonWordItem = {
   word: string
   meaning: string
   pronunciation: string
+  pronunciationAudioUrl?: string
   targetLanguage?: string
   usageLevel?: 'high' | 'medium' | 'low'
   importanceScore?: number
