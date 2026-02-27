@@ -69,10 +69,11 @@ export function ReviewItemsPanel({
       const renderExampleWithHighlight = () => {
         if (!targetWord || !cleanExampleText.includes(targetWord)) return cleanExampleText
         const parts = cleanExampleText.split(targetWord)
+        const displayWord = targetWord.charAt(0).toUpperCase() + targetWord.slice(1)
         return parts.map((part, i) => (
           <span key={i}>
             {part}
-            {i < parts.length - 1 ? <span className="font-semibold text-blue-600 dark:text-blue-400">{targetWord}</span> : null}
+            {i < parts.length - 1 ? <span className="font-semibold text-blue-600 dark:text-blue-400">{displayWord}</span> : null}
           </span>
         ))
       }
@@ -140,7 +141,7 @@ export function ReviewItemsPanel({
                   className="font-semibold text-blue-600 dark:text-blue-400 underline-offset-2 hover:underline"
                   onClick={() => onStartWordPractice(item.word, String(item.meaning || item.meaningItems?.[0]?.text || ''))}
                 >
-                  {item.word}
+                  {item.word.charAt(0).toUpperCase() + item.word.slice(1)}
                 </button>{' '}
                 - {((item.meaningItems ?? []).map((m) => m.text).join('; ') || item.meaning || localText('Chưa có nghĩa', 'No meaning yet'))}
               </p>

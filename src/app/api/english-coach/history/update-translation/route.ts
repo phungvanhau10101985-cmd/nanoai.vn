@@ -12,6 +12,7 @@ type Payload = {
   correctionNote?: string
   intentAnswer?: string
   tokensJson?: string
+  audioUrl?: string
 }
 
 function adminClient() {
@@ -29,6 +30,7 @@ export async function POST(request: NextRequest) {
     const correctionNote = String(payload.correctionNote || '').trim().slice(0, 2000) || null
     const intentAnswer = String(payload.intentAnswer || '').trim().slice(0, 2000) || null
     const tokensJson = String(payload.tokensJson || '').trim().slice(0, 4000) || null
+    const audioUrl = String(payload.audioUrl || '').trim().slice(0, 2000) || null
 
     const updates: Record<string, string | null> = {}
     if (payload.translation !== undefined) updates.translation = translation ? translation.slice(0, 4000) : null
@@ -36,6 +38,7 @@ export async function POST(request: NextRequest) {
     if (payload.correctionNote !== undefined) updates.correction_note = correctionNote
     if (payload.intentAnswer !== undefined) updates.intent_answer = intentAnswer
     if (payload.tokensJson !== undefined) updates.tokens_json = tokensJson
+    if (payload.audioUrl !== undefined) updates.audio_url = audioUrl
 
     if (Object.keys(updates).length === 0) {
       return NextResponse.json({ error: 'Thiếu dữ liệu cập nhật.' }, { status: 400 })

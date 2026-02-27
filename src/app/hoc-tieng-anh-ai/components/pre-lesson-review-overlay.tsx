@@ -382,7 +382,7 @@ export function PreLessonReviewOverlay({
             <p className="break-words font-medium text-amber-900">
               {localText('Gợi ý để nhớ lại (sẽ kiểm tra lại từ này lần sau):', 'Hint to remember (this word will be reviewed again):')}
             </p>
-            <p className="mt-2 text-lg font-semibold text-slate-900">{wrongHint.word}</p>
+            <p className="mt-2 text-lg font-semibold text-slate-900">{wrongHint.word.charAt(0).toUpperCase() + wrongHint.word.slice(1)}</p>
             {wrongHint.pronunciation ? (
               <p className="mt-1 text-sm text-slate-500 italic">{wrongHint.pronunciation}</p>
             ) : null}
@@ -600,7 +600,7 @@ export function PreLessonReviewOverlay({
                 {recallDirection === 'word' ? (
                   <>
                     <p className="text-sm font-medium text-slate-600">{localText('Từ:', 'Word:')}</p>
-                    <p className="mb-3 text-xl font-semibold text-slate-900">{currentWord.word}</p>
+                    <p className="mb-3 text-xl font-semibold text-slate-900">{currentWord.word.charAt(0).toUpperCase() + currentWord.word.slice(1)}</p>
                     <p className="mb-2 text-sm font-medium text-slate-700">{localText('Chọn nghĩa đúng:', 'Choose the correct meaning:')}</p>
                     <div className="flex flex-wrap gap-2">
                       {meaningOptions.map((m) => (
@@ -638,7 +638,7 @@ export function PreLessonReviewOverlay({
                             }
                           }}
                         >
-                          {opt}
+                          {opt.charAt(0).toUpperCase() + opt.slice(1)}
                         </Button>
                       ))}
                     </div>

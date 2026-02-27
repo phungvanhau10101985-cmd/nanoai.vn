@@ -1363,6 +1363,13 @@ function normalizeWordContextSensitive(input: unknown): boolean {
   return normalized === '1' || normalized === 'true' || normalized === 'yes'
 }
 
+/** Từ mới hiển thị chữ đầu viết hoa (e.g. conversation → Conversation) */
+function capitalizeWordForDisplay(word: string): string {
+  const s = String(word || '').trim()
+  if (s.length === 0) return s
+  return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
 function buildWordInsightFromAny(data: {
   meaning?: unknown
   pronunciation?: unknown
@@ -3397,8 +3404,6 @@ export default function HocTiengAnhAiClientPage() {
     }
     setTeacherAudioByMessageId((prev) => ({ ...prev, [messageId]: url }))
 
-    if (persistedMessageIdsRef.current[messageId]) return
-
     void (async () => {
       let uploadedAudioUrl = ''
       try {
@@ -3412,15 +3417,13 @@ export default function HocTiengAnhAiClientPage() {
         // keep local blob URL for current session if upload fails
       }
 
+      // Cập nhật audio_url vào tin nhắn đã lưu (message đã được lưu ngay khi chat trả về)
       try {
-        await saveHistoryMessage({
-          role: 'teacher',
-          text,
+        const isDbId = Boolean(openedHistorySessionId && sessionId === openedHistorySessionId)
+        await updateMessageTranslationApi({
+          messageId,
+          ...(isDbId ? {} : { sessionId, clientMessageId: messageId }),
           audioUrl: uploadedAudioUrl,
-          clientMessageId: messageId,
-          mainSentence: opts?.mainSentence,
-          correctionNote: opts?.correctionNote,
-          intentAnswer: opts?.intentAnswer,
         })
         persistedMessageIdsRef.current[messageId] = true
         const { ok, data } = await getHistorySessions(12)
@@ -3428,7 +3431,7 @@ export default function HocTiengAnhAiClientPage() {
           setHistorySessions(data.sessions as HistorySession[])
         }
       } catch {
-        // do not block learning flow when history save fails
+        // do not block learning flow when history update fails
       }
     })()
   }
@@ -4356,6 +4359,18 @@ export default function HocTiengAnhAiClientPage() {
       if (intentAnswer) {
         setIntentAnswerByMessageId((prev) => ({ ...prev, [teacherMessageId]: intentAnswer }))
       }
+      // Lưu ngay tin nhắn thầy/cô để mở lại buổi học không thiếu (không chờ TTS/upload)
+      void saveHistoryMessage({
+        role: 'teacher',
+        text: payload.reply,
+        audioUrl: '',
+        clientMessageId: teacherMessageId,
+        mainSentence,
+        correctionNote,
+        intentAnswer,
+      }).then(() => {
+        persistedMessageIdsRef.current[teacherMessageId] = true
+      }).catch(() => {})
       const speakParts = [correctionNote, mainSentence, intentAnswer]
         .map((x) => String(x || '').trim())
         .filter(Boolean)
@@ -4507,6 +4522,12 @@ export default function HocTiengAnhAiClientPage() {
     const openingCore = aiOpening || openingByLanguage[languageCode]
     const opening = `${curriculumRole ? `[${curriculumRole}] ` : ''}${openingCore}`
     const teacherMessageId = appendMessage('teacher', opening)
+    void saveHistoryMessage({
+      role: 'teacher',
+      text: opening,
+      audioUrl: '',
+      clientMessageId: teacherMessageId,
+    }).then(() => { persistedMessageIdsRef.current[teacherMessageId] = true }).catch(() => {})
     try {
       await generateAndStoreTeacherAudio(teacherMessageId, extractTeacherSpeechText(opening))
     } catch {
@@ -5757,7 +5778,7 @@ export default function HocTiengAnhAiClientPage() {
                                 <div className="space-y-1">
                                   <p>
                                     <span className="font-semibold text-slate-800">
-                                      {openedWordKey.split(':').slice(1).join(':') || localText('Từ này', 'This word')} {localText('nghĩa là:', 'means:')}
+                                      {capitalizeWordForDisplay(openedWordKey.split(':').slice(1).join(':')) || localText('Từ này', 'This word')} {localText('nghĩa là:', 'means:')}
                                     </span>{' '}
                                     {((wordInsightByKey[openedWordKey].meaningItems ?? []).map((m) => m.text).join('; ') || wordInsightByKey[openedWordKey].meaning)}
                                   </p>
