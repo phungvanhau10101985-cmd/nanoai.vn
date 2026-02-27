@@ -1855,6 +1855,7 @@ export default function HocTiengAnhAiClientPage() {
   const persistedMessageIdsRef = useRef<Record<string, true>>({})
   const createdAudioUrlsRef = useRef<string[]>([])
   const lastAutoScrollTokenMessageIdRef = useRef('')
+  const lessonCompletedToastShownForSessionRef = useRef<string | null>(null)
   const uiLocale: UiLocale = nativeLanguageCode
   const t = useMemo(() => createCoachTranslator(uiLocale), [uiLocale])
   const localText = useCallback((vi: string, en: string) => {
@@ -3969,8 +3970,17 @@ export default function HocTiengAnhAiClientPage() {
     }
   }
 
+  const endLessonAndStartNew = () => {
+    startNewSession()
+    toast({
+      title: localText('Đã kết thúc buổi học', 'Lesson ended'),
+      description: localText('Bạn có thể chọn chủ đề khác để bắt đầu bài mới.', 'You can choose another topic to start a new lesson.'),
+    })
+  }
+
   const startNewSession = () => {
     if (startingLesson || busy || historyBusy) return
+    lessonCompletedToastShownForSessionRef.current = null
     setWordPractice(null)
     setSessionId(createSessionId())
     shouldCountNewSessionRef.current = true
@@ -4038,6 +4048,25 @@ export default function HocTiengAnhAiClientPage() {
     required.forEach((x) => void ensureWritingRomanization(x))
     if (corrected) void ensureWritingRomanization(corrected)
   }, [supportsLatinTransliteration, writingTask?.referenceSentence, writingTask?.requiredSentences, writingEvalResult?.correctedText, languageCode])
+
+  useEffect(() => {
+    const curriculum = topicCurriculum || preLessonCurriculum
+    const steps = curriculum?.lessonSteps ?? []
+    if (steps.length === 0) return
+    const teacherCount = messages.filter((m) => m.role === 'teacher').length
+    const turnsPerStep = Math.max(1, Math.ceil(steps.length / 6))
+    const completedCount = Math.min(Math.floor(teacherCount / turnsPerStep), steps.length)
+    if (completedCount >= steps.length && lessonCompletedToastShownForSessionRef.current !== sessionId) {
+      lessonCompletedToastShownForSessionRef.current = sessionId
+      toast({
+        title: localText('Đã hoàn thành các bước trong giáo trình', 'Curriculum steps completed'),
+        description: localText(
+          'Có thể tiếp tục luyện hoặc bắt đầu bài mới.',
+          'You can continue practicing or start a new lesson.'
+        ),
+      })
+    }
+  }, [messages, topicCurriculum, preLessonCurriculum, sessionId, toast])
 
   useEffect(() => {
     const collectExamples = (items: Array<{ targetLanguage?: string; exampleItems?: Array<{ targetText?: string; targetPinyin?: string }>; exampleTarget?: string; exampleNative?: string }>) => {
@@ -5377,16 +5406,122 @@ export default function HocTiengAnhAiClientPage() {
 
         <div ref={activeLessonRef} className="grid gap-4 md:grid-cols-[1.1fr_0.9fr]">
           <Card className="border shadow-sm bg-white/80 backdrop-blur">
-            <CardHeader>
-              <CardTitle>{coachUiText.chatTitle}</CardTitle>
-              <CardDescription>{coachUiText.chatDesc}</CardDescription>
+            <CardHeader className="flex flex-row items-start justify-between gap-2 space-y-0 pb-2">
+              <div>
+                <CardTitle>{coachUiText.chatTitle}</CardTitle>
+                <CardDescription>{coachUiText.chatDesc}</CardDescription>
+              </div>
+              {messages.length > 0 ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={endLessonAndStartNew}
+                  disabled={startingLesson || busy || historyBusy}
+                  className="shrink-0 text-xs"
+                >
+                  {localText('Kết thúc buổi học', 'End lesson')}
+                </Button>
+              ) : null}
             </CardHeader>
             <CardContent className="space-y-3 px-2 pb-3 sm:px-6 sm:pb-6">
-              <div ref={chatScrollRef} className="max-h-[60vh] space-y-2 overflow-auto rounded-md border bg-slate-50 p-2 sm:max-h-80 sm:p-3">
+              <div className="flex flex-col gap-3 sm:flex-row">
+                {(() => {
+                  const curriculum = topicCurriculum || preLessonCurriculum
+                  const steps = curriculum?.lessonSteps ?? []
+                  const teacherCount = messages.filter((m) => m.role === 'teacher').length
+                  const turnsPerStep = Math.max(1, Math.ceil((steps.length || 1) / 6))
+                  const completedCount = steps.length > 0 ? Math.min(Math.floor(teacherCount / turnsPerStep), steps.length) : 0
+                  const hasSteps = steps.length > 0
+                  return hasSteps ? (
+                    <>
+                    <div className="hidden shrink-0 w-36 sm:block">
+                      <p className="mb-2 text-xs font-semibold text-slate-600">
+                        {localText('Tiến độ buổi học', 'Lesson progress')}
+                      </p>
+                      <div className="relative flex flex-col">
+                        {steps.map((step, i) => {
+                          const isCompleted = i < completedCount
+                          const isCurrent = i === completedCount
+                          const isUpcoming = i > completedCount
+                          return (
+                            <div key={i} className="relative flex items-start gap-2">
+                              <div className="flex flex-col items-center">
+                                <div
+                                  className={`mt-1.5 h-3 w-3 shrink-0 rounded-full border-2 ${
+                                    isCompleted
+                                      ? 'border-emerald-500 bg-emerald-500'
+                                      : isCurrent
+                                        ? 'border-indigo-500 bg-indigo-400 ring-2 ring-indigo-200'
+                                        : 'border-slate-300 bg-slate-100'
+                                  }`}
+                                />
+                                {i < steps.length - 1 ? (
+                                  <div
+                                    className={`w-0.5 shrink-0 ${
+                                      isCompleted ? 'bg-emerald-300' : 'bg-slate-200'
+                                    }`}
+                                    style={{ height: 20 }}
+                                  />
+                                ) : null}
+                              </div>
+                              <div
+                                className={`flex-1 pb-4 text-xs ${
+                                  isCompleted ? 'text-slate-600' : isCurrent ? 'font-medium text-indigo-700' : 'text-slate-400'
+                                }`}
+                              >
+                                {step.slice(0, 50)}
+                                {step.length > 50 ? '…' : ''}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                      <p className="mt-1 text-[10px] text-slate-500">
+                        {completedCount}/{steps.length} {localText('bước', 'steps')} • {teacherCount} {localText('lượt', 'turns')}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 rounded border border-slate-200 bg-slate-50 px-2 py-1.5 sm:hidden order-first">
+                      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-200">
+                        <div
+                          className="h-full rounded-full bg-emerald-500 transition-all"
+                          style={{ width: `${steps.length > 0 ? (completedCount / steps.length) * 100 : 0}%` }}
+                        />
+                      </div>
+                      <span className="text-[10px] font-medium text-slate-600">
+                        {completedCount}/{steps.length} • {teacherCount} {localText('lượt', 'turns')}
+                      </span>
+                    </div>
+                    </>
+                  ) : null
+                })()}
+              <div ref={chatScrollRef} className="max-h-[60vh] flex-1 space-y-2 overflow-auto rounded-md border bg-slate-50 p-2 sm:max-h-80 sm:p-3">
                 {messages.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    {localText('Chưa có hội thoại. Bấm "Bắt đầu buổi học" để bắt đầu.', 'No conversation yet. Click "Start lesson" to begin.')}
-                  </p>
+                  <div className="space-y-3">
+                    {historySessions.length > 0 ? (
+                      <div className="rounded-md border border-indigo-200 bg-indigo-50 p-3">
+                        <p className="mb-2 text-sm font-medium text-indigo-900">
+                          {localText('Bạn có buổi học đã lưu. Bấm để tiếp tục học.', 'You have a saved lesson. Tap to continue.')}
+                        </p>
+                        <Button
+                          type="button"
+                          variant="default"
+                          size="sm"
+                          onClick={() => {
+                            const latest = historySessions[0]
+                            if (latest?.sessionId) void loadHistorySession(latest.sessionId)
+                          }}
+                          disabled={historyBusy}
+                          className="min-h-[44px]"
+                        >
+                          {localText('Tiếp tục buổi học gần nhất', 'Continue latest lesson')}
+                        </Button>
+                      </div>
+                    ) : null}
+                    <p className="text-sm text-muted-foreground">
+                      {localText('Chưa có hội thoại. Bấm "Bắt đầu buổi học" để bắt đầu.', 'No conversation yet. Click "Start lesson" to begin.')}
+                    </p>
+                  </div>
                 ) : (
                   messages.map((m, idx) => (
                     <div
@@ -5709,6 +5844,7 @@ export default function HocTiengAnhAiClientPage() {
                     </div>
                   ))
                 )}
+              </div>
               </div>
 
               <div className="space-y-2">
