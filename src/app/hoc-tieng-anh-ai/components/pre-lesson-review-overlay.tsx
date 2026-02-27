@@ -23,6 +23,7 @@ type PreLessonReviewOverlayProps = {
   onRecallSubmit: (word: string, correct: boolean) => void
   onStartNewLesson: () => void
   onPlayWord: (word: string, pronunciationAudioUrl?: string, wordItem?: PreLessonWordItem) => void
+  onRegenerateWordAudio?: (word: string, wordItem: PreLessonWordItem) => void
   onClose: () => void
   localText: LocalTextFn
 }
@@ -72,6 +73,7 @@ export function PreLessonReviewOverlay({
   onRecallSubmit,
   onStartNewLesson,
   onPlayWord,
+  onRegenerateWordAudio,
   onClose,
   localText,
 }: PreLessonReviewOverlayProps) {
@@ -80,6 +82,7 @@ export function PreLessonReviewOverlay({
   const [inputCheckStatus, setInputCheckStatus] = useState<'idle' | 'partial' | 'correct' | 'incorrect'>('idle')
   const [compositionEndAt, setCompositionEndAt] = useState(0)
   const autoPlayedListenWordRef = useRef<Record<string, true>>({})
+  const autoPlayedHintRef = useRef<string | null>(null)
   const submittedRef = useRef(false)
   const submitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isComposingRef = useRef(false)
@@ -102,6 +105,7 @@ export function PreLessonReviewOverlay({
     setInputCheckStatus('idle')
     setCompositionEndAt(0)
     submittedRef.current = false
+    autoPlayedHintRef.current = null
     if (submitTimerRef.current) {
       clearTimeout(submitTimerRef.current)
       submitTimerRef.current = null
@@ -120,6 +124,16 @@ export function PreLessonReviewOverlay({
   useEffect(() => {
     if (wrongHint) setInputCheckStatus('idle')
   }, [wrongHint])
+
+  // Khi chuyển sang ô gợi ý, tự động phát từ một lần.
+  useEffect(() => {
+    if (!wrongHint || !currentWord) return
+    const hintKey = `${wordIndex}-${exerciseIndex}-${wrongHint.word}`
+    if (autoPlayedHintRef.current === hintKey) return
+    autoPlayedHintRef.current = hintKey
+    const t = setTimeout(() => onPlayWord(wrongHint.word, currentWord.pronunciationAudioUrl, currentWord), 400)
+    return () => clearTimeout(t)
+  }, [wrongHint, currentWord, wordIndex, exerciseIndex, onPlayWord])
 
   // Reset auto-play marks for each fresh listening pass.
   useEffect(() => {
@@ -387,7 +401,7 @@ export function PreLessonReviewOverlay({
             {wrongHint.meaning ? (
               <p className="mt-1 text-sm text-slate-600">{localText('Nghĩa:', 'Meaning:')} {wrongHint.meaning}</p>
             ) : null}
-            <div className="mt-2">
+            <div className="mt-2 flex flex-wrap gap-2">
               <Button
                 type="button"
                 variant="outline"
@@ -397,6 +411,18 @@ export function PreLessonReviewOverlay({
               >
                 <Volume2 className="mr-2 h-4 w-4" /> {localText('Nghe từ đúng', 'Listen to correct word')}
               </Button>
+              {onRegenerateWordAudio && currentWord ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onRegenerateWordAudio(wrongHint.word, currentWord)}
+                  title={localText('Phát âm sai? Tạo lại bằng TTS', 'Wrong pronunciation? Regenerate with TTS')}
+                  className="text-amber-700 hover:text-amber-800 hover:bg-amber-100"
+                >
+                  {localText('Phát âm sai? Tạo lại', 'Wrong? Regenerate')}
+                </Button>
+              ) : null}
             </div>
             {(wrongHint.type === 'cloze' || wrongHint.type === 'listen') && (
               <div className="mt-3">

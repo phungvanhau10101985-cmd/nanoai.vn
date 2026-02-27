@@ -46,6 +46,7 @@ function useFormSubmitWithNgrok() {
 
 export default function LoginClient({ message, error }: LoginClientProps) {
   const [uiLocale, setUiLocale] = useState<'vi' | 'en' | 'zh' | 'ja' | 'ko'>('vi')
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const handleGoogleNgrok = useFormSubmitWithNgrok()
   const tr = (vi: string, en: string, zh: string, ja: string, ko: string) => {
     if (uiLocale === 'en') return en
@@ -99,10 +100,22 @@ export default function LoginClient({ message, error }: LoginClientProps) {
             </div>
           )}
 
-          <form action={signInWithGoogle} onSubmit={handleGoogleNgrok}>
-            <Button type="submit" className="w-full h-11">
+          <form
+            action={signInWithGoogle}
+            onSubmit={(e) => {
+              if (isSubmitting) {
+                e.preventDefault()
+                return
+              }
+              setIsSubmitting(true)
+              handleGoogleNgrok(e)
+            }}
+          >
+            <Button type="submit" disabled={isSubmitting} className="w-full h-11">
               <Chrome className="mr-2 h-4 w-4" />
-              {tr('Đăng nhập bằng Google', 'Sign in with Google', '使用 Google 登录', 'Googleでログイン', 'Google로 로그인')}
+              {isSubmitting
+                ? tr('Đang chuyển hướng...', 'Redirecting...', '正在跳转...', 'リダイレクト中...', '리디렉션 중...')
+                : tr('Đăng nhập bằng Google', 'Sign in with Google', '使用 Google 登录', 'Googleでログイン', 'Google로 로그인')}
             </Button>
           </form>
         </CardContent>

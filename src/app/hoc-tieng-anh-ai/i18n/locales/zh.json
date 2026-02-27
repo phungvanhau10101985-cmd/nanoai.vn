@@ -19,5 +19,5 @@
   "Replay new word": "重听新词",
   "Type the exact word:": "请准确输入该单词：",
   "Type the new word...": "请输入新词...",
-  "Choose the correct meaning:": "请选择正确释义："
+  "Choose the correct meaning:": "请选择正确释义：","Wrong pronunciation? Regenerate with TTS":"发音错误？用TTS重新生成","Wrong? Regenerate":"发音错？重新生成"
 }

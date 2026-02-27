@@ -19,5 +19,5 @@
   "Replay new word": "새 단어 다시 듣기",
   "Type the exact word:": "정확한 단어를 입력하세요:",
   "Type the new word...": "새 단어를 입력하세요...",
-  "Choose the correct meaning:": "올바른 의미를 선택하세요:"
+  "Choose the correct meaning:": "올바른 의미를 선택하세요:","Wrong pronunciation? Regenerate with TTS":"발음이 잘못되었나요? TTS로 재생성","Wrong? Regenerate":"잘못됐나요? 재생성"
 }

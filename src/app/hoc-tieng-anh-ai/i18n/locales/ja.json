@@ -19,5 +19,5 @@
   "Replay new word": "新出単語をもう一度聞く",
   "Type the exact word:": "単語を正確に入力してください：",
   "Type the new word...": "新しい単語を入力...",
-  "Choose the correct meaning:": "正しい意味を選択してください："
+  "Choose the correct meaning:": "正しい意味を選択してください：","Wrong pronunciation? Regenerate with TTS":"発音が間違っています？TTSで再生成","Wrong? Regenerate":"間違い？再生成"
 }

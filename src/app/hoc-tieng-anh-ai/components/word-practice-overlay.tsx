@@ -14,6 +14,7 @@ type WordPracticeOverlayProps = {
   onWordPracticeDraftChange: (targetWord: string, nextDraft: string) => void
   onWordPracticeMeaningSelect: (targetWord: string, selectedMeaning: string) => void
   onPlayWordPronunciation: (word: string) => void | Promise<void>
+  onRegenerateWordPronunciation?: (word: string) => void | Promise<void>
 }
 
 export function WordPracticeOverlay({
@@ -23,6 +24,7 @@ export function WordPracticeOverlay({
   onWordPracticeDraftChange,
   onWordPracticeMeaningSelect,
   onPlayWordPronunciation,
+  onRegenerateWordPronunciation,
 }: WordPracticeOverlayProps) {
   const [replayBusy, setReplayBusy] = useState(false)
   if (!wordPractice || wordPractice.unlocked) return null
@@ -58,7 +60,7 @@ export function WordPracticeOverlay({
           {t('Progress:')} {wordPractice.correctCount}/3
         </p>
 
-        <div className="mt-3 flex items-center gap-2">
+        <div className="mt-3 flex flex-wrap items-center gap-2">
           <Button
             type="button"
             variant="outline"
@@ -73,6 +75,18 @@ export function WordPracticeOverlay({
             )}
             {t('Replay new word')}
           </Button>
+          {onRegenerateWordPronunciation ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => void onRegenerateWordPronunciation(wordPractice.targetWord)}
+              title={t('Wrong pronunciation? Regenerate with TTS')}
+              className="text-amber-700 hover:text-amber-800 hover:bg-amber-100"
+            >
+              {t('Wrong? Regenerate')}
+            </Button>
+          ) : null}
         </div>
 
         {!wordPractice.awaitingMeaningChoice ? (
