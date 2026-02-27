@@ -6625,23 +6625,6 @@ export default function HocTiengAnhAiClientPage() {
                 : undefined,
             })
           }
-          onRegenerateWordAudio={(word, wordItem) =>
-            void playWordPronunciation(word, {
-              forceRegenerate: true,
-              wordDetailForSave: {
-                meaning: wordItem.meaning,
-                pronunciation: wordItem.pronunciation,
-                exampleTarget: wordItem.exampleTarget,
-                exampleNative: wordItem.exampleNative,
-                meaningItems: wordItem.meaningItems,
-                exampleItems: wordItem.exampleItems,
-                usageLevel: wordItem.usageLevel,
-                importanceScore: wordItem.importanceScore,
-                contextSensitive: wordItem.contextSensitive,
-                sessionId: wordItem.sessionId,
-              },
-            })
-          }
           onClose={() => {
             setShowPreLessonReview(false)
             setPreLessonCurriculum(null)
