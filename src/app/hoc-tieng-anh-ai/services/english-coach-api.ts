@@ -80,10 +80,19 @@ export function getHistorySession(sessionId: string) {
   return getJson<{ items?: unknown[]; error?: string }>(`/api/english-coach/history?sessionId=${encodeURIComponent(sessionId)}`)
 }
 
-export function getPreviousLessonWords(limit: number) {
-  return getJson<{ items?: unknown[]; error?: string }>(
-    `/api/english-coach/word-daily?date=last&limit=${encodeURIComponent(String(limit))}`
-  )
+export function getPreviousLessonWords(
+  limit: number,
+  filters?: { targetLanguage?: string; nativeLanguage?: string }
+) {
+  const query = new URLSearchParams({
+    date: 'last',
+    limit: String(limit),
+  })
+  const targetLanguage = String(filters?.targetLanguage || '').trim()
+  const nativeLanguage = String(filters?.nativeLanguage || '').trim()
+  if (targetLanguage) query.set('targetLanguage', targetLanguage)
+  if (nativeLanguage) query.set('nativeLanguage', nativeLanguage)
+  return getJson<{ items?: unknown[]; error?: string }>(`/api/english-coach/word-daily?${query.toString()}`)
 }
 
 export function cleanupIncompleteWords() {

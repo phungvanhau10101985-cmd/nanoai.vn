@@ -23,6 +23,8 @@ type Payload = {
   forceEngine?: 'auto' | 'gemini-only'
   targetLanguage?: string
   nativeLanguage?: string
+  /** Bỏ qua cache, tạo âm thanh mới (dùng khi user báo phát âm sai) */
+  skipCache?: boolean
 }
 
 type TtsExtracted = { audioBase64: string; mimeType: string } | null
@@ -213,19 +215,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: msg(localeUi, 'Thiếu văn bản cần đọc.', 'Missing text for speech synthesis.') }, { status: 400 })
     }
     const normalizedLocale = (locale || 'en-US').trim() || 'en-US'
+    const skipCache = Boolean(payload.skipCache)
     const cacheKey = toTtsCacheKey(speechInput.text, voiceName, normalizedLocale)
     const textHash = createHash('sha256').update(speechInput.text).digest('hex')
     console.info(
-      `[TTS][${requestId}] start locale=${locale || 'n/a'} gender=${teacherGender || 'n/a'} voice=${voiceName} textLen=${text.length} spokenLen=${speechInput.text.length} engine=${requestedEngine}`
+      `[TTS][${requestId}] start locale=${locale || 'n/a'} gender=${teacherGender || 'n/a'} voice=${voiceName} textLen=${text.length} spokenLen=${speechInput.text.length} engine=${requestedEngine} skipCache=${skipCache}`
     )
 
     const adminSupabase = adminClient()
-    const { data: cachedRows } = await adminSupabase
-      .from('language_coach_tts_cache')
-      .select('id, audio_base64, mime_type, source_model')
-      .eq('cache_key', cacheKey)
-      .limit(1)
-    const cached = Array.isArray(cachedRows) && cachedRows.length > 0 ? cachedRows[0] : null
+    let cached: { id: string; audio_base64: string; mime_type: string; source_model: string } | null = null
+    if (!skipCache) {
+      const { data: cachedRows } = await adminSupabase
+        .from('language_coach_tts_cache')
+        .select('id, audio_base64, mime_type, source_model')
+        .eq('cache_key', cacheKey)
+        .limit(1)
+      cached = Array.isArray(cachedRows) && cachedRows.length > 0 ? cachedRows[0] : null
+    }
     const cachedSource = String(cached?.source_model || '')
     const cacheAllowed =
       !!cached && (requestedEngine !== 'gemini-only' || cachedSource.includes('gemini'))

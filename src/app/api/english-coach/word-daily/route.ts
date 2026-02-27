@@ -35,6 +35,19 @@ function normalizeLookup(input: string): string {
   return String(input || '').trim().toLowerCase()
 }
 
+function normalizeLanguageLabel(input: string): string {
+  const normalized = normalizeLookup(input)
+  if (!normalized) return ''
+  if (normalized === 'en' || normalized.includes('english')) return 'english'
+  if (normalized === 'ja' || normalized.includes('japanese')) return 'japanese'
+  if (normalized === 'zh' || normalized.includes('chinese') || normalized.includes('mandarin')) return 'chinese'
+  if (normalized === 'ko' || normalized.includes('korean')) return 'korean'
+  if (normalized === 'th' || normalized.includes('thai')) return 'thai'
+  if (normalized === 'hi' || normalized.includes('hindi')) return 'hindi'
+  if (normalized === 'vi' || normalized.includes('vietnamese')) return 'vietnamese'
+  return normalized
+}
+
 function preferIncomingOrExisting(incoming: string, existing?: string | null): string | null {
   const nextValue = String(incoming || '').trim()
   if (nextValue) return nextValue
@@ -181,6 +194,12 @@ function getMeaningText(row: { meaning?: string | null; meaning_items_json?: str
   return String((items[0] as { text?: unknown })?.text ?? '').trim()
 }
 
+function hasRequiredLanguages(row: { target_language?: string | null; native_language?: string | null }): boolean {
+  const target = String(row.target_language || '').trim()
+  const native = String(row.native_language || '').trim()
+  return Boolean(target && native)
+}
+
 /** Nghĩa đang ở ngôn ngữ đích (CJK) thay vì mẹ đẻ */
 function meaningInWrongLanguage(row: {
   meaning?: string | null
@@ -208,6 +227,7 @@ async function normalizeIncompleteWords(
 
   const toFix: Array<{ table: 'daily' | 'review'; id: string; word: string; target: string; native: string }> = []
   for (const r of dailyRows ?? []) {
+    if (!hasRequiredLanguages(r)) continue
     const needsMeaning = !hasMeaning(r)
     const exItems = parseJsonArrayText(r.example_items_json) as Array<{ targetText?: string }>
     const needsExamples = exItems.length > 0 && exampleItemsNeedFix(exItems, r.target_language)
@@ -216,8 +236,8 @@ async function normalizeIncompleteWords(
         table: 'daily',
         id: r.id,
         word: r.word,
-        target: r.target_language || 'Chinese',
-        native: r.native_language || 'Vietnamese',
+        target: String(r.target_language || '').trim(),
+        native: String(r.native_language || '').trim(),
       })
     }
   }
@@ -228,6 +248,7 @@ async function normalizeIncompleteWords(
     .eq('enrich_attempted', false) // Chỉ chọn những từ chưa thử
 
   for (const r of reviewRows ?? []) {
+    if (!hasRequiredLanguages(r)) continue
     const needsMeaning = !hasMeaning(r)
     const exItems = parseJsonArrayText(r.example_items_json) as Array<{ targetText?: string }>
     const needsExamples = exItems.length > 0 && exampleItemsNeedFix(exItems, r.target_language)
@@ -236,8 +257,8 @@ async function normalizeIncompleteWords(
         table: 'review',
         id: r.id,
         word: r.word,
-        target: r.target_language || 'Chinese',
-        native: r.native_language || 'Vietnamese',
+        target: String(r.target_language || '').trim(),
+        native: String(r.native_language || '').trim(),
       })
     }
   }
@@ -341,13 +362,14 @@ async function normalizeIncompleteWords(
 
     const meaningToFix: Array<{ table: 'daily' | 'review'; id: string; word: string; target: string; native: string }> = []
     for (const r of dailyMeaningRows ?? []) {
+      if (!hasRequiredLanguages(r)) continue
       if (meaningInWrongLanguage(r)) {
         meaningToFix.push({
           table: 'daily',
           id: r.id,
           word: r.word,
-          target: r.target_language || 'Chinese',
-          native: r.native_language || 'Vietnamese',
+          target: String(r.target_language || '').trim(),
+          native: String(r.native_language || '').trim(),
         })
       }
     }
@@ -359,13 +381,14 @@ async function normalizeIncompleteWords(
       .eq('meaning_fix_attempted', false)
 
     for (const r of reviewMeaningRows ?? []) {
+      if (!hasRequiredLanguages(r)) continue
       if (meaningInWrongLanguage(r)) {
         meaningToFix.push({
           table: 'review',
           id: r.id,
           word: r.word,
-          target: r.target_language || 'Chinese',
-          native: r.native_language || 'Vietnamese',
+          target: String(r.target_language || '').trim(),
+          native: String(r.native_language || '').trim(),
         })
       }
     }
@@ -490,6 +513,8 @@ export async function GET(request: NextRequest) {
 
     const dateQuery = String(request.nextUrl.searchParams.get('date') || '').trim()
     const sessionId = String(request.nextUrl.searchParams.get('sessionId') || '').trim()
+    const targetLanguageQuery = String(request.nextUrl.searchParams.get('targetLanguage') || '').trim()
+    const nativeLanguageQuery = String(request.nextUrl.searchParams.get('nativeLanguage') || '').trim()
     const limitRaw = Number(request.nextUrl.searchParams.get('limit') || 30)
     const limit = Number.isFinite(limitRaw) ? Math.min(100, Math.max(1, Math.floor(limitRaw))) : 30
 
@@ -498,19 +523,25 @@ export async function GET(request: NextRequest) {
     if (sessionId) {
       learnedDate = new Date().toISOString().slice(0, 10)
     } else if (dateQuery === 'last' || dateQuery === 'previous') {
-      const { data: latestSessionRows } = await adminSupabase
+      let latestSessionQuery = adminSupabase
         .from('language_coach_daily_words')
         .select('session_id, learned_date')
         .eq('user_id', user.id)
         .not('session_id', 'is', null)
+      if (targetLanguageQuery) latestSessionQuery = latestSessionQuery.eq('target_language', targetLanguageQuery)
+      if (nativeLanguageQuery) latestSessionQuery = latestSessionQuery.eq('native_language', nativeLanguageQuery)
+      const { data: latestSessionRows } = await latestSessionQuery
         .order('updated_at', { ascending: false })
         .limit(1)
       previousSessionId = String(latestSessionRows?.[0]?.session_id || '').trim()
 
-      const { data: maxRow } = await adminSupabase
+      let maxRowQuery = adminSupabase
         .from('language_coach_daily_words')
         .select('learned_date')
         .eq('user_id', user.id)
+      if (targetLanguageQuery) maxRowQuery = maxRowQuery.eq('target_language', targetLanguageQuery)
+      if (nativeLanguageQuery) maxRowQuery = maxRowQuery.eq('native_language', nativeLanguageQuery)
+      const { data: maxRow } = await maxRowQuery
         .order('learned_date', { ascending: false })
         .limit(1)
       learnedDate = maxRow?.[0]?.learned_date
@@ -530,7 +561,9 @@ export async function GET(request: NextRequest) {
       .limit(limit)
 
     const effectiveSessionId = sessionId || previousSessionId
-    const query = effectiveSessionId ? baseQuery.eq('session_id', effectiveSessionId) : baseQuery.eq('learned_date', learnedDate)
+    let query = effectiveSessionId ? baseQuery.eq('session_id', effectiveSessionId) : baseQuery.eq('learned_date', learnedDate)
+    if (targetLanguageQuery) query = query.eq('target_language', targetLanguageQuery)
+    if (nativeLanguageQuery) query = query.eq('native_language', nativeLanguageQuery)
     const { data, error } = await query
 
     if (error) return NextResponse.json({ error: error.message || 'Không tải được từ mới trong ngày.' }, { status: 500 })
@@ -580,7 +613,7 @@ export async function POST(request: NextRequest) {
     const learnedDate = toSafeDate(String(payload.learnedDate || new Date().toISOString().slice(0, 10)))
     const sessionId = String(payload.sessionId || '').trim()
     const word = String(payload.word || '').trim()
-    const targetLanguage = String(payload.targetLanguage || '').trim()
+    const targetLanguageInput = String(payload.targetLanguage || '').trim()
     const nativeLanguage = String(payload.nativeLanguage || '').trim()
     const meaning = String(payload.meaning || '').trim()
     const pronunciation = String(payload.pronunciation || '').trim()
@@ -604,7 +637,25 @@ export async function POST(request: NextRequest) {
 
     const adminSupabase = adminClient()
     const normalizedWord = word.slice(0, 120)
-    const normalizedTargetLanguage = targetLanguage || null
+    const { data: sessionLangRows } = await adminSupabase
+      .from('language_coach_messages')
+      .select('target_language')
+      .eq('user_id', user.id)
+      .eq('session_id', sessionId)
+      .not('target_language', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(1)
+    const sessionTargetLanguage = String(sessionLangRows?.[0]?.target_language || '').trim()
+    const payloadLangNorm = normalizeLanguageLabel(targetLanguageInput)
+    const sessionLangNorm = normalizeLanguageLabel(sessionTargetLanguage)
+    const effectiveTargetLanguage = sessionTargetLanguage || targetLanguageInput
+    const shouldForceSessionLanguage =
+      Boolean(sessionTargetLanguage) &&
+      Boolean(targetLanguageInput) &&
+      payloadLangNorm.length > 0 &&
+      sessionLangNorm.length > 0 &&
+      payloadLangNorm !== sessionLangNorm
+    const normalizedTargetLanguage = (shouldForceSessionLanguage ? sessionTargetLanguage : effectiveTargetLanguage) || null
     let existingDailyQuery = adminSupabase
       .from('language_coach_daily_words')
       .select('meaning, pronunciation, pronunciation_audio_url, example_target, example_native, meaning_items_json, example_items_json, usage_level, importance_score, is_context_sensitive')
@@ -655,7 +706,7 @@ export async function POST(request: NextRequest) {
       .select('id, meaning, pronunciation, meaning_items_json, example_items_json, usage_level, importance_score, is_context_sensitive')
       .eq('user_id', user.id)
       .eq('word', normalizedWord)
-      .eq('target_language', targetLanguage || '')
+      .eq('target_language', normalizedTargetLanguage || '')
       .limit(1)
     const existedInReviewQueue = Array.isArray(existingReviewRows) && existingReviewRows.length > 0
     const existingReviewRow = Array.isArray(existingReviewRows) && existingReviewRows.length > 0 ? existingReviewRows[0] : null
@@ -711,12 +762,12 @@ export async function POST(request: NextRequest) {
 
     if (error) return NextResponse.json({ error: error.message || 'Không lưu được từ mới.' }, { status: 500 })
 
-    if (word && targetLanguage) {
+    if (word && normalizedTargetLanguage) {
       await adminSupabase.from('language_coach_review_queue').upsert(
         {
           user_id: user.id,
           word: normalizedWord,
-          target_language: targetLanguage,
+          target_language: normalizedTargetLanguage,
           native_language: nativeLanguage || null,
           meaning: mergedReviewMeaning,
           pronunciation: mergedReviewPronunciation,
@@ -732,7 +783,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (word && targetLanguage && nativeLanguage && mergedMeaning) {
+    if (word && normalizedTargetLanguage && nativeLanguage && mergedMeaning) {
       const sharedPayload: {
         word: string
         normalized_word: string
@@ -755,8 +806,8 @@ export async function POST(request: NextRequest) {
       } = {
         word: normalizedWord,
         normalized_word: normalizeLookup(word).slice(0, 120),
-        target_language: targetLanguage,
-        normalized_target_language: normalizeLookup(targetLanguage).slice(0, 120),
+        target_language: normalizedTargetLanguage,
+        normalized_target_language: normalizeLookup(normalizedTargetLanguage).slice(0, 120),
         native_language: nativeLanguage,
         normalized_native_language: normalizeLookup(nativeLanguage).slice(0, 120),
         meaning: mergedMeaning.slice(0, 1500),
@@ -780,11 +831,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (!existedInReviewQueue && targetLanguage) {
+    if (!existedInReviewQueue && normalizedTargetLanguage) {
       await adminSupabase.rpc('increment_language_coach_progress_new_words', {
         p_user_id: user.id,
         p_progress_date: learnedDate,
-        p_target_language: targetLanguage,
+        p_target_language: normalizedTargetLanguage,
         p_inc: 1,
       })
     }

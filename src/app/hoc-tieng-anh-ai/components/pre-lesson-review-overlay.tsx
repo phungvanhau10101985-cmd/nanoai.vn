@@ -16,6 +16,8 @@ type PreLessonReviewOverlayProps = {
   recallDirection: 'word' | 'meaning'
   passed: boolean
   languageCode: string
+  /** Bắt buộc: map targetLanguage (và word khi cần) → languageCode. Ôn bài cũ luôn theo ngôn ngữ gốc của từ, không theo ngôn ngữ đang học. */
+  targetLangToLanguageCode: (targetLanguage?: string, word?: string) => string
   onInputChange: (v: string) => void
   onRecallDirectionChange: (v: 'word' | 'meaning') => void
   onClozeSubmit: (word: string, correct: boolean) => void
@@ -66,6 +68,7 @@ export function PreLessonReviewOverlay({
   recallDirection,
   passed,
   languageCode,
+  targetLangToLanguageCode,
   onInputChange,
   onRecallDirectionChange,
   onClozeSubmit,
@@ -91,7 +94,9 @@ export function PreLessonReviewOverlay({
   onClozeSubmitRef.current = onClozeSubmit
   onListenSubmitRef.current = onListenSubmit
   const currentWord = words[wordIndex]
-  const isCjk = languageCode === 'zh' || languageCode === 'ja' || languageCode === 'ko' || languageCode === 'th' || languageCode === 'hi'
+  /** Ngôn ngữ gốc của từ – từ DB (targetLanguage), không dùng ngôn ngữ phiên học */
+  const wordLanguageCode = targetLangToLanguageCode(currentWord?.targetLanguage, currentWord?.word) || languageCode
+  const isCjk = wordLanguageCode === 'zh' || wordLanguageCode === 'ja' || wordLanguageCode === 'ko' || wordLanguageCode === 'th' || wordLanguageCode === 'hi'
   const ex0 = exerciseIndex === 0
   const ex1 = exerciseIndex === 1
   const ex2 = exerciseIndex === 2
@@ -211,9 +216,20 @@ export function PreLessonReviewOverlay({
 
     return () => clearTimeout(timer)
   }, [input, targetWord, currentWord, ex0, ex1, wrongHint, isCjk, compositionEndAt])
-  const clozeSentence = exampleSentence
-    ? exampleSentence.replace(new RegExp(`\\b${escapeRegex(targetWord)}\\b`, 'gi'), '______')
-    : ''
+  /** Lấy câu ví dụ của chính từ từ DB, xóa đúng từ đó để tạo ô trống. Không sinh/cải biên thêm. */
+  const clozeSentence = (() => {
+    if (!exampleSentence) return ''
+    const sentNfc = exampleSentence.normalize('NFC')
+    const targetNfc = String(targetWord || '').trim().normalize('NFC')
+    if (!targetNfc) return ''
+    if (isCjk) {
+      if (!sentNfc.includes(targetNfc)) return ''
+      const replaced = sentNfc.replace(new RegExp(escapeRegex(targetNfc), 'gu'), '______')
+      return replaced !== sentNfc ? replaced : ''
+    }
+    const replaced = exampleSentence.replace(new RegExp(`\\b${escapeRegex(targetWord)}\\b`, 'gi'), '______')
+    return replaced !== exampleSentence ? replaced : ''
+  })()
 
   useEffect(() => {
     if (!currentWord || wrongHint || submittedRef.current) return
@@ -433,7 +449,7 @@ export function PreLessonReviewOverlay({
                   type="text"
                   inputMode="text"
                   autoComplete="off"
-                  lang={languageCode === 'zh' ? 'zh-CN' : languageCode === 'ja' ? 'ja' : languageCode === 'ko' ? 'ko' : undefined}
+                  lang={wordLanguageCode === 'zh' ? 'zh-CN' : wordLanguageCode === 'ja' ? 'ja' : wordLanguageCode === 'ko' ? 'ko' : undefined}
                   value={input}
                   onChange={(e) => onInputChange(e.target.value)}
                   onCompositionStart={() => { isComposingRef.current = true }}
@@ -470,7 +486,9 @@ export function PreLessonReviewOverlay({
                   {clozeSentence ? (
                     <>
                       <p className="mb-1.5 text-xs font-medium text-slate-500">{localText('Câu ví dụ chứa từ mới (______ = chỗ cần điền):', 'Example sentence with the new word (______ = fill in):')}</p>
-                      <p className="text-base text-slate-800">{clozeSentence}</p>
+                      <p className="text-base text-slate-800" lang={wordLanguageCode === 'zh' ? 'zh-CN' : wordLanguageCode === 'ja' ? 'ja' : wordLanguageCode === 'ko' ? 'ko' : undefined}>
+                        {clozeSentence}
+                      </p>
                       <p className="mt-2 mb-1 text-xs font-medium text-slate-500">{localText('Nghĩa của từ cần điền:', 'Meaning of the word to fill:')}</p>
                       <p className="text-slate-700">{displayMeaning}</p>
                     </>
@@ -491,7 +509,7 @@ export function PreLessonReviewOverlay({
                     type="text"
                     inputMode="text"
                     autoComplete="off"
-                    lang={languageCode === 'zh' ? 'zh-CN' : languageCode === 'ja' ? 'ja' : languageCode === 'ko' ? 'ko' : undefined}
+                    lang={wordLanguageCode === 'zh' ? 'zh-CN' : wordLanguageCode === 'ja' ? 'ja' : wordLanguageCode === 'ko' ? 'ko' : undefined}
                     value={input}
                     onChange={(e) => onInputChange(e.target.value)}
                     onCompositionStart={() => { isComposingRef.current = true }}
@@ -566,7 +584,7 @@ export function PreLessonReviewOverlay({
                     type="text"
                     inputMode="text"
                     autoComplete="off"
-                    lang={languageCode === 'zh' ? 'zh-CN' : languageCode === 'ja' ? 'ja' : languageCode === 'ko' ? 'ko' : undefined}
+                    lang={wordLanguageCode === 'zh' ? 'zh-CN' : wordLanguageCode === 'ja' ? 'ja' : wordLanguageCode === 'ko' ? 'ko' : undefined}
                     value={input}
                     onChange={(e) => onInputChange(e.target.value)}
                     onCompositionStart={() => { isComposingRef.current = true }}

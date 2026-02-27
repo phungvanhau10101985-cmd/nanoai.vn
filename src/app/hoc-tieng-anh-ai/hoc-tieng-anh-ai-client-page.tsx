@@ -57,6 +57,7 @@ type LanguageCode = 'en' | 'zh' | 'hi' | 'th' | 'ja' | 'ko' | 'vi'
 type NativeLanguageCode = 'vi' | 'en' | 'zh' | 'hi' | 'th' | 'ja' | 'ko'
 type UiLocale = NativeLanguageCode
 const NATIVE_LANGUAGE_PREF_KEY = 'english-coach-native-language'
+const LESSON_SETUP_PREF_KEY = 'english-coach-lesson-setup'
 
 type ChatMessage = {
   id: string
@@ -1884,6 +1885,26 @@ export default function HocTiengAnhAiClientPage() {
     if (/hindi|hi/.test(s)) return 'hi'
     return ''
   }
+  /** Ngôn ngữ gốc của từ – lấy từ targetLanguage trong DB. Ôn bài cũ không dùng ngôn ngữ phiên học. */
+  const targetLangToLanguageCode = (tl: string | undefined, word?: string): LanguageCode => {
+    const s = String(tl || '').toLowerCase()
+    if (/chinese|zh|mandarin/.test(s)) return 'zh'
+    if (/japanese|ja/.test(s)) return 'ja'
+    if (/korean|ko/.test(s)) return 'ko'
+    if (/thai|th/.test(s)) return 'th'
+    if (/hindi|hi/.test(s)) return 'hi'
+    if (/english|en/.test(s)) return 'en'
+    if (/vietnamese|vi/.test(s)) return 'vi'
+    if (word) {
+      const w = String(word).trim()
+      if (/[\u3040-\u30FF]/.test(w)) return 'ja'
+      if (/[\uAC00-\uD7AF]/.test(w)) return 'ko'
+      if (/[\u4E00-\u9FFF]/.test(w)) return 'zh'
+      if (/[\u0E00-\u0E7F]/.test(w)) return 'th'
+      if (/[\u0900-\u097F]/.test(w)) return 'hi'
+    }
+    return languageCode
+  }
   const toWritingRomanizationKey = (text: string, lang?: string) => {
     const code = (lang ? targetLangToCode(lang) : '') || languageCode
     return `${code}::${String(text || '').trim()}`
@@ -2946,7 +2967,7 @@ export default function HocTiengAnhAiClientPage() {
 
   const createTtsAudioData = async (
     text: string,
-    opts?: { locale?: string; languageLabel?: string; forceEngine?: 'auto' | 'gemini-only' }
+    opts?: { locale?: string; languageLabel?: string; forceEngine?: 'auto' | 'gemini-only'; skipCache?: boolean }
   ) => {
     const localeToUse = String(opts?.locale || activeTeacher.locale || '').trim() || 'en-US'
     const labelToUse = String(opts?.languageLabel || activeTeacher.languageLabel || '').trim() || 'English'
@@ -2956,6 +2977,7 @@ export default function HocTiengAnhAiClientPage() {
       locale: localeToUse,
       teacherGender: activeTeacher.gender,
       forceEngine: opts?.forceEngine || 'auto',
+      skipCache: opts?.skipCache,
       targetLanguage: activeTeacher.languageLabel,
       nativeLanguage: selectedNativeLanguage.apiLabel,
       voiceStyle:
@@ -3053,11 +3075,12 @@ export default function HocTiengAnhAiClientPage() {
     return { url, blob, blobType }
   }
 
-  const playBestEffortTts = async (text: string) => {
+  const playBestEffortTts = async (text: string, opts?: { skipCache?: boolean }) => {
     const single = await createTtsAudioData(String(text || '').trim(), {
       locale: activeTeacher.locale,
       languageLabel: activeTeacher.languageLabel,
       forceEngine: 'auto',
+      skipCache: opts?.skipCache,
     })
     await playAudioUrl(single.url)
     return [single]
@@ -3712,6 +3735,8 @@ export default function HocTiengAnhAiClientPage() {
       pronunciationAudioUrl?: string
       forceRegenerate?: boolean
       wordDetailForSave?: Partial<WordInsight> & { sessionId?: string }
+      /** Gọi khi lưu xong âm mới (sau regenerate) – dùng để cập nhật overlay */
+      onSaved?: (savedWord: string, pronunciationAudioUrl: string) => void
     }
   ) => {
     const playKey = String(word || '').trim().toLowerCase()
@@ -3722,6 +3747,7 @@ export default function HocTiengAnhAiClientPage() {
     const preloadedAudioUrl = typeof options === 'string' ? options : options?.pronunciationAudioUrl
     const forceRegenerate = typeof options === 'object' && options?.forceRegenerate
     const wordDetailForSave = typeof options === 'object' ? options?.wordDetailForSave : undefined
+    const onSaved = typeof options === 'object' ? options?.onSaved : undefined
 
     try {
       const savedWord = findSessionWord(word)
@@ -3738,7 +3764,7 @@ export default function HocTiengAnhAiClientPage() {
         }
       }
 
-      const generatedParts = await playBestEffortTts(word)
+      const generatedParts = await playBestEffortTts(word, { skipCache: forceRegenerate })
       const firstPart = generatedParts[0]
       if (!firstPart) throw new Error(localText('Không tạo được âm thanh.', 'Unable to create audio.'))
 
@@ -3763,6 +3789,7 @@ export default function HocTiengAnhAiClientPage() {
         uploadedAudioUrl,
         detailSessionId
       )
+      onSaved?.(word, uploadedAudioUrl)
       void fetchSessionWords()
     } catch (e) {
       const msg = e instanceof Error ? e.message : localText('Không phát âm được từ.', 'Unable to pronounce this word.')
@@ -4387,11 +4414,62 @@ export default function HocTiengAnhAiClientPage() {
 
   useEffect(() => {
     try {
+      const raw = localStorage.getItem(LESSON_SETUP_PREF_KEY)
+      if (!raw) return
+      const parsed = JSON.parse(raw) as {
+        languageCode?: string
+        teacherId?: string
+        learnerLevel?: number
+        topicSourceMode?: string
+        pendingTopicId?: string
+      }
+      if (parsed.languageCode && LANGUAGE_CODES.includes(parsed.languageCode as LanguageCode)) {
+        setLanguageCode(parsed.languageCode as LanguageCode)
+        const teachers = TEACHERS_BY_LANGUAGE[parsed.languageCode as LanguageCode]
+        if (teachers?.some((t) => t.id === parsed.teacherId)) {
+          setTeacherId(parsed.teacherId!)
+        } else if (teachers?.[0]) {
+          setTeacherId(teachers[0].id)
+        }
+      }
+      if (typeof parsed.learnerLevel === 'number' && parsed.learnerLevel >= 0 && parsed.learnerLevel <= 4) {
+        setLearnerLevel(parsed.learnerLevel as LearnerLevel)
+      }
+      if (parsed.topicSourceMode === 'builtin' || parsed.topicSourceMode === 'custom') {
+        setTopicSourceMode(parsed.topicSourceMode)
+      }
+      if (typeof parsed.pendingTopicId === 'string' && parsed.pendingTopicId.trim()) {
+        const tid = parsed.pendingTopicId.trim()
+        setPendingTopicId(tid)
+        setTopicId(tid)
+      }
+    } catch {
+      // ignore storage issues
+    }
+  }, [])
+
+  useEffect(() => {
+    try {
       localStorage.setItem(NATIVE_LANGUAGE_PREF_KEY, nativeLanguageCode)
     } catch {
       // ignore storage issues
     }
   }, [nativeLanguageCode])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(LESSON_SETUP_PREF_KEY, JSON.stringify({
+        languageCode,
+        teacherId,
+        learnerLevel,
+        topicSourceMode,
+        pendingTopicId,
+        topicId,
+      }))
+    } catch {
+      // ignore storage issues
+    }
+  }, [languageCode, teacherId, learnerLevel, topicSourceMode, pendingTopicId, topicId])
 
   const handleSend = async (
     raw?: string,
@@ -6573,6 +6651,7 @@ export default function HocTiengAnhAiClientPage() {
           recallDirection={preLessonRecallDirection}
           passed={preLessonPassed}
           languageCode={languageCode}
+          targetLangToLanguageCode={targetLangToLanguageCode}
           onInputChange={setPreLessonInput}
           onRecallDirectionChange={setPreLessonRecallDirection}
           onClozeSubmit={onPreLessonClozeSubmit}
@@ -6657,6 +6736,13 @@ export default function HocTiengAnhAiClientPage() {
                 importanceScore: wordItem.importanceScore,
                 contextSensitive: wordItem.contextSensitive,
                 sessionId: wordItem.sessionId,
+              },
+              onSaved: (w, url) => {
+                const key = (x: TodayWordItem) => x.word.trim().toLowerCase() === w.trim().toLowerCase()
+                setPreLessonWords((prev) => prev.map((x) => (key(x) ? { ...x, pronunciationAudioUrl: url } : x)))
+                setPreLessonRetryWords((prev) =>
+                  prev ? prev.map((x) => (key(x) ? { ...x, pronunciationAudioUrl: url } : x)) : null
+                )
               },
             })
           }
