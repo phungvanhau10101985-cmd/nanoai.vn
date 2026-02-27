@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+import { getInternalBaseUrl } from '@/lib/internal-url'
 
 type DailyWordPayload = {
   learnedDate?: string
@@ -485,8 +486,7 @@ export async function GET(request: NextRequest) {
     const { user } = auth
 
     const adminSupabase = adminClient()
-    const baseUrl = request.nextUrl.origin || process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'
-    void normalizeIncompleteWords(adminSupabase, user.id, baseUrl)
+    void normalizeIncompleteWords(adminSupabase, user.id, getInternalBaseUrl())
 
     const dateQuery = String(request.nextUrl.searchParams.get('date') || '').trim()
     const sessionId = String(request.nextUrl.searchParams.get('sessionId') || '').trim()

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+import { getInternalBaseUrl } from '@/lib/internal-url'
 
 type ReviewPayload = {
   id?: string
@@ -215,8 +216,7 @@ export async function GET(request: NextRequest) {
     const limit = Number.isFinite(limitRaw) ? Math.min(50, Math.max(1, Math.floor(limitRaw))) : 10
 
     const adminSupabase = adminClient()
-    const baseUrl = request.nextUrl.origin || process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'
-    void normalizeIncompleteWords(adminSupabase, user.id, baseUrl)
+    void normalizeIncompleteWords(adminSupabase, user.id, getInternalBaseUrl())
 
     const { data, error } = await adminSupabase
       .from('language_coach_review_queue')

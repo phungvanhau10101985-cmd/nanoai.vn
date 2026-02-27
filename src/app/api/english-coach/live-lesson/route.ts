@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+import { getInternalBaseUrl } from '@/lib/internal-url'
 
 type ActionPayload = {
   action?: 'create_from_session' | 'publish' | 'purchase' | 'match_turn' | 'assist_word' | 'validate_publish' | 'pick_random'
@@ -1322,7 +1323,7 @@ export async function POST(request: NextRequest) {
         })
       }
 
-      const baseUrl = request.nextUrl.origin || process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'
+      const baseUrl = getInternalBaseUrl()
       const aiRes = await fetch(`${baseUrl}/api/english-coach/word`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

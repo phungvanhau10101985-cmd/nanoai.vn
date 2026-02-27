@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { getInternalBaseUrl } from '@/lib/internal-url'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { getUserForAction } from '@/lib/auth'
@@ -101,7 +102,7 @@ export async function POST() {
     }
 
     const adminSupabase = adminClient()
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'
+    const baseUrl = getInternalBaseUrl()
 
     const toFix: Array<{ table: 'daily' | 'review'; id: string; word: string; target: string; native: string; userId?: string }> = []
 
