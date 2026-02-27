@@ -4040,10 +4040,11 @@ export default function HocTiengAnhAiClientPage() {
     for (const message of messages) {
       if (message.role !== 'teacher') continue
       if (tokensByMessageId[message.id] || tokenizingByMessageId[message.id]) continue
-      // Include idea-3 contextual reply explicitly so vocabulary extraction
-      // always covers the natural conversation part learners need to practice.
+      // Gom ý 2 (câu sửa hoàn chỉnh) và ý 3 (trả lời ngữ cảnh) để tách từ trong một lần gọi AI.
+      // Đảm bảo từ mới được trích từ đúng nội dung học viên cần luyện.
+      const idea2 = String(mainSentenceByMessageId[message.id] || '').trim()
       const idea3 = String(intentAnswerByMessageId[message.id] || '').trim()
-      const tokenSource = [message.text, idea3].filter(Boolean).join('\n')
+      const tokenSource = [idea2, idea3].filter(Boolean).join('\n') || message.text
       // Always use AI tokenization for accuracy across mixed/target scripts.
       const mustUseAi = true
       if (mustUseAi || shouldUseAiTokenize(tokenSource)) {
@@ -4060,7 +4061,7 @@ export default function HocTiengAnhAiClientPage() {
     if (Object.keys(localUpdates).length > 0) {
       setTokensByMessageId((prev) => ({ ...prev, ...localUpdates }))
     }
-  }, [messages, tokensByMessageId, tokenizingByMessageId, intentAnswerByMessageId])
+  }, [messages, tokensByMessageId, tokenizingByMessageId, mainSentenceByMessageId, intentAnswerByMessageId])
 
   useEffect(() => {
     const latestTeacherWithTokens = [...messages]
@@ -5440,6 +5441,10 @@ export default function HocTiengAnhAiClientPage() {
                                     : usageLevel === 'medium'
                                       ? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
                                       : 'border-slate-200 hover:bg-slate-50'
+                              const sentenceForWordContext =
+                                [String(mainSentenceByMessageId[m.id] || '').trim(), String(intentAnswerByMessageId[m.id] || '').trim()]
+                                  .filter(Boolean)
+                                  .join('\n') || m.text
                               return (
                                 <Button
                                   key={`${m.id}-word-${idx}`}
@@ -5447,7 +5452,7 @@ export default function HocTiengAnhAiClientPage() {
                                   variant="ghost"
                                   size="sm"
                                   className={`min-h-[44px] rounded-md border px-3 text-xs font-medium transition-colors ${tokenBadgeClass}`}
-                                  onClick={() => void fetchWordInsight(m.id, word, m.text)}
+                                  onClick={() => void fetchWordInsight(m.id, word, sentenceForWordContext)}
                                 >
                                   {word}
                                   {usageLevel ? (
