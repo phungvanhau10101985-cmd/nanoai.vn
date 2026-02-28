@@ -57,6 +57,7 @@ type ChatPayload = {
   topicObjective?: string
   topicKeywords?: string[]
   topicStarterSentences?: string[]
+  learningMode?: 'review' | 'reflex'
   micAnalysis?: {
     targetTranscript?: string
     nativeTranscript?: string
@@ -742,6 +743,7 @@ export async function POST(request: NextRequest) {
         pinnedFacts: parsePinnedFacts(String(memory?.pinned_facts_json || '{}')),
       }
     }
+    const learningMode = payload.learningMode === 'reflex' ? 'reflex' : 'review'
     const asksReviewFar =
       /(ôn lại|ôn tập|review|recap|nhắc lại phần trước|phần trước|earlier lesson|previous lesson|lúc nãy|hồi nãy)/i.test(studentText)
     const isShortUtterance = isTooShortStudentSentence(studentText, targetLanguageCode)
@@ -826,6 +828,142 @@ ${latestQuestion}`
         correctedSentence: latestQuestion,
       })
     }
+
+    if (learningMode === 'reflex') {
+      const genAI = new GoogleGenerativeAI(apiKey)
+      const model = genAI.getGenerativeModel(GEMINI_25_FLASH_NO_THINKING)
+      const transcript = history
+        .map((m) => `${m.role === 'teacher' ? 'Teacher' : 'Student'}: ${m.text}`)
+        .join('\n')
+      const reflexPrompt = `Bạn là giáo viên ${targetLanguage} đang luyện PHẢN XẠ NGHE NÓI với học sinh.
+Ngôn ngữ mẹ đẻ: ${nativeLanguage}. Ngôn ngữ đang học: ${targetLanguage}.
+
+QUY TẮC BẮT BUỘC – LUÔN CÓ CÂU SỬA + TRẢ LỜI + CÂU HỎI:
+
+1) CÂU SỬA (bắt buộc có):
+   - Học sinh nói ${nativeLanguage}: "[cụm ${nativeLanguage}] ${targetLanguage} nói là: [câu ${targetLanguage} đúng]"
+     Ví dụ: "Cửa hàng của bạn có món gì tiếng Anh nói là: What dishes do you have?"
+   - Học sinh nói SAI ${targetLanguage}: "Câu của bạn nói đúng là: [câu ${targetLanguage} sửa]"
+
+2) CÂU TRẢ LỜI + CÂU HỎI (nói liền mạch):
+   - Trả lời đúng câu hỏi/câu nói của học viên.
+   - Hỏi thêm 1 câu để học viên trả lời tiếp.
+   - Ví dụ: "We have pasta, salad and grilled fish. What would you like to try?"
+
+ĐẦY ĐỦ: [câu sửa]. [câu trả lời]. [câu hỏi gợi ý] – tất cả nói liền mạch.
+Ví dụ hoàn chỉnh: "Cửa hàng của bạn có món gì tiếng Anh nói là: What dishes do you have? We have pasta, salad and grilled fish. What would you like to try?"
+
+Với cặp ngôn ngữ khác (zh, ja, ko...): thay "tiếng Anh nói là" bằng "[tên ${targetLanguage}] nói là" tương ứng.
+
+CẤM: Không giải thích ngữ pháp, không dài dòng.
+
+Trả về JSON:
+{
+  "reply": "[câu sửa]. [câu trả lời]. [câu hỏi gợi ý] – nói liền mạch",
+  "translationToNative": "dịch toàn bộ reply sang ${nativeLanguage}"
+}
+
+Lịch sử:
+${transcript}
+
+Học sinh vừa nói:
+${studentText}`
+
+      try {
+        const reflexResult = await model.generateContent(reflexPrompt)
+        const reflexText = reflexResult.response.text()?.trim() || ''
+        const reflexParsed = (() => {
+          try {
+            const cleaned = reflexText.replace(/^```\w*\n?|\n?```$/g, '').trim()
+            return JSON.parse(cleaned) as { reply?: string; translationToNative?: string }
+          } catch {
+            return null
+          }
+        })()
+        const reply = String(reflexParsed?.reply || reflexText || '').trim()
+        const translationToNative = String(reflexParsed?.translationToNative || '').trim()
+        if (!reply) {
+          const fallback = fallbackFollowUpByLanguageCode(targetLanguageCode, targetLanguage)
+          return NextResponse.json({
+            reply: fallback,
+            corrections: [],
+            pronunciationTips: [],
+            correctionNote: '',
+            intentAnswer: fallback,
+            correctedSentence: fallback,
+            mainSentence: fallback,
+            mustKnowText: fallback,
+            translationToNative: '',
+            learningMode: 'reflex',
+          })
+        }
+        let pinyin = ''
+        const nonLatinCodes = ['zh', 'ja', 'ko', 'th', 'hi'] as const
+        if (reply && nonLatinCodes.includes(targetLanguageCode as (typeof nonLatinCodes)[number])) {
+          try {
+            if (targetLanguageCode === 'zh') {
+              pinyin = await generatePinyinForSentence(
+                { generateContent: (input: string) => model.generateContent(input) },
+                reply
+              )
+            } else {
+              const romanizePrompts: Record<string, string> = {
+                ja: `Convert to Latin romaji (Hepburn). One line only, no explanation:\n${reply}`,
+                ko: `Convert to Latin romanization (Revised). One line only, no explanation:\n${reply}`,
+                th: `Convert to Latin romanization (RTGS). One line only, no explanation:\n${reply}`,
+                hi: `Convert Devanagari to Latin (IAST). One line only, no explanation:\n${reply}`,
+              }
+              const prompt = romanizePrompts[targetLanguageCode] || ''
+              if (prompt) {
+                const res = await model.generateContent(prompt)
+                pinyin = String(res.response.text?.() || '').replace(/^```|```$/g, '').trim()
+              }
+            }
+          } catch {
+            // keep without pinyin
+          }
+        }
+        const fullReply = pinyin
+          ? `${reply}\n\nPinyin: ${pinyin}\n\n${labels.quickTranslation} (${nativeLanguage}): ${translationToNative}`
+          : `${reply}\n\n${labels.quickTranslation} (${nativeLanguage}): ${translationToNative}`
+        const intentAnswer = ensureIntentAnswerTwoPart(reply, targetLanguageCode, targetLanguage)
+        if (userId && sessionId) {
+          const nextSummary = updateRunningSummary(sessionMemory.runningSummary, studentText, fullReply)
+          await adminSupabase.from('language_coach_session_memories').upsert(
+            {
+              user_id: userId,
+              session_id: sessionId,
+              target_language: targetLanguage,
+              native_language: nativeLanguage,
+              learner_level: learnerLevel,
+              topic_id: topicId || null,
+              topic_label: topicLabel || null,
+              running_summary: nextSummary,
+              pinned_facts_json: JSON.stringify(sessionMemory.pinnedFacts),
+              learning_mode: 'reflex',
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: 'user_id,session_id' }
+          )
+        }
+        return NextResponse.json({
+          reply: fullReply,
+          corrections: [],
+          pronunciationTips: [],
+          correctionNote: '',
+          intentAnswer,
+          correctedSentence: reply,
+          mainSentence: reply,
+          mustKnowText: reply,
+          translationToNative,
+          learningMode: 'reflex',
+        })
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : 'Reflex mode error'
+        return NextResponse.json({ error: msg }, { status: 500 })
+      }
+    }
+
     if (asksHowToSay) {
       const { data: phraseCachedRows } = await adminSupabase
         .from('language_coach_phrase_cache')
@@ -1528,6 +1666,7 @@ ${intentAnswer || parsed.reply}`
           topic_label: topicLabel || null,
           running_summary: nextSummary,
           pinned_facts_json: JSON.stringify(nextFacts),
+          learning_mode: 'review',
           updated_at: new Date().toISOString(),
         },
         { onConflict: 'user_id,session_id' }

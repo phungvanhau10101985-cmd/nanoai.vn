@@ -76,6 +76,14 @@ export function getHistorySessions(limit: number) {
   return getJson<{ sessions?: unknown[]; error?: string }>(`/api/english-coach/history?limit=${encodeURIComponent(String(limit))}`)
 }
 
+export function deleteHistorySession(sessionId: string) {
+  return sendJson<{ ok?: boolean; error?: string }>(`/api/english-coach/history?sessionId=${encodeURIComponent(sessionId)}`, 'DELETE')
+}
+
+export function endHistorySession(sessionId: string) {
+  return sendJson<{ ok?: boolean; error?: string }>('/api/english-coach/history/end', 'POST', { sessionId })
+}
+
 export function getHistorySession(sessionId: string) {
   return getJson<{ items?: unknown[]; error?: string }>(`/api/english-coach/history?sessionId=${encodeURIComponent(sessionId)}`)
 }

@@ -27,6 +27,8 @@ type QuickStartModalProps = {
   learnerLevel: number
   learnerLevelOptions: SelectOption[]
   onLearnerLevelChange: (value: number) => void
+  learningMode: 'review' | 'reflex'
+  onLearningModeChange: (value: 'review' | 'reflex') => void
   pendingTopicId: string
   topicSourceMode: 'builtin' | 'custom'
   builtInTopicOptions: Array<{ id: string; label: string }>
@@ -63,6 +65,8 @@ export function QuickStartModal({
   learnerLevel,
   learnerLevelOptions,
   onLearnerLevelChange,
+  learningMode,
+  onLearningModeChange,
   pendingTopicId,
   topicSourceMode,
   builtInTopicOptions,
@@ -160,6 +164,42 @@ export function QuickStartModal({
                   </option>
                 ))}
               </select>
+            </div>
+            <div className="space-y-1 md:col-span-2">
+              <label className="text-sm font-medium">{localText('Chế độ học', 'Learning mode')}</label>
+              <div className="flex gap-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="learningMode"
+                    value="review"
+                    checked={learningMode === 'review'}
+                    onChange={() => onLearningModeChange('review')}
+                    className="h-4 w-4"
+                  />
+                  <span className="text-sm">
+                    {localText('Ôn tập (đầy đủ)', 'Review (full)')}
+                  </span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="learningMode"
+                    value="reflex"
+                    checked={learningMode === 'reflex'}
+                    onChange={() => onLearningModeChange('reflex')}
+                    className="h-4 w-4"
+                  />
+                  <span className="text-sm">
+                    {localText('Phản xạ (chỉ nghe nói)', 'Reflex (listen-speak only)')}
+                  </span>
+                </label>
+              </div>
+              <p className="text-xs text-slate-500 mt-1">
+                {learningMode === 'review'
+                  ? localText('Ôn bài cũ, bài viết mini, luyện gõ từ. Phù hợp khi muốn tiến bộ nhanh.', 'Pre-lesson review, mini writing, word typing. Best for fast progress.')
+                  : localText('Chỉ nói qua nói lại, không ôn tập. Phù hợp luyện phản xạ giao tiếp.', 'Conversation only, no review. Best for listening-speaking reflex.')}
+              </p>
             </div>
           </div>
           <div className="mt-3 grid gap-3 grid-cols-1 md:grid-cols-2">

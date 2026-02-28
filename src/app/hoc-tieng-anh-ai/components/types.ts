@@ -66,5 +66,7 @@ export type HistorySessionItem = {
   mode: string
   lastTeacherText: string
   messageCount: number
+  topicLabel?: string
+  learningMode?: 'review' | 'reflex'
 }
 

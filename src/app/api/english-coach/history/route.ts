@@ -1,7 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createHash } from 'crypto'
 import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+
+function toTransliterationCacheKey(text: string, languageCode: string): string {
+  const normalized = String(text || '').trim()
+  const hash = createHash('sha256').update(normalized).digest('hex')
+  return `${languageCode}:${hash}`
+}
+
+const TRANSLITERATION_LANGS = ['zh', 'ja', 'ko', 'th', 'hi'] as const
+function needsTransliteration(lang: string): lang is (typeof TRANSLITERATION_LANGS)[number] {
+  return TRANSLITERATION_LANGS.includes(lang as (typeof TRANSLITERATION_LANGS)[number])
+}
 
 type MessageRole = 'teacher' | 'student'
 type LearnMode = 'chat' | 'story'
@@ -41,51 +53,203 @@ export async function GET(request: NextRequest) {
     const adminSupabase = adminClient()
 
     if (sessionId) {
-      const { data, error } = await adminSupabase
-        .from('language_coach_messages')
-        .select('id, session_id, role, text, audio_url, translation, language_code, target_language, teacher_label, teacher_locale, mode, main_sentence, correction_note, intent_answer, tokens_json, writing_task_json, created_at')
-        .eq('user_id', user.id)
-        .eq('session_id', sessionId)
-        .order('created_at', { ascending: true })
-        .limit(500)
+      const [messagesResult, memoryResult, hiddenCheck, endedCheck] = await Promise.all([
+        adminSupabase
+          .from('language_coach_messages')
+          .select('id, session_id, role, text, audio_url, translation, language_code, target_language, teacher_label, teacher_locale, mode, main_sentence, correction_note, intent_answer, tokens_json, writing_task_json, created_at')
+          .eq('user_id', user.id)
+          .eq('session_id', sessionId)
+          .order('created_at', { ascending: true })
+          .limit(500),
+        adminSupabase
+          .from('language_coach_session_memories')
+          .select('learning_mode, topic_id, topic_label')
+          .eq('user_id', user.id)
+          .eq('session_id', sessionId)
+          .limit(1)
+          .maybeSingle(),
+        adminSupabase
+          .from('language_coach_hidden_sessions')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('session_id', sessionId)
+          .limit(1)
+          .maybeSingle(),
+        adminSupabase
+          .from('language_coach_ended_sessions')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('session_id', sessionId)
+          .limit(1)
+          .maybeSingle(),
+      ])
 
+      if (hiddenCheck.data) {
+        return NextResponse.json({ error: 'Buổi học đã bị ẩn.' }, { status: 404 })
+      }
+      if (endedCheck.data) {
+        return NextResponse.json({ error: 'Buổi học đã kết thúc.' }, { status: 404 })
+      }
+
+      const { data, error } = messagesResult
       if (error) {
         return NextResponse.json({ error: error.message || 'Không tải được buổi học.' }, { status: 500 })
       }
 
+      const memory = memoryResult.data as { learning_mode?: string; topic_id?: string; topic_label?: string } | null
+      const learningMode = memory?.learning_mode
+      const safeLearningMode = learningMode === 'reflex' ? 'reflex' : 'review'
+      const sessionTopicId = String(memory?.topic_id || '').trim()
+      const sessionTopicLabel = String(memory?.topic_label || '').trim()
+
+      const rows = data ?? []
+      const cacheKeysToFetch: string[] = []
+      for (const row of rows) {
+        if (row.role !== 'teacher') continue
+        const lang = String(row.language_code || '').trim().toLowerCase()
+        if (!needsTransliteration(lang)) continue
+        for (const field of ['main_sentence', 'correction_note', 'intent_answer'] as const) {
+          const text = String((row as Record<string, unknown>)[field] || '').trim()
+          if (!text) continue
+          cacheKeysToFetch.push(toTransliterationCacheKey(text, lang))
+        }
+        const wtj = String((row as { writing_task_json?: string }).writing_task_json || '').trim()
+        if (wtj) {
+          try {
+            const parsed = JSON.parse(wtj) as { requiredSentences?: string[] }
+            for (const s of parsed.requiredSentences ?? []) {
+              const t = String(s || '').trim()
+              if (t) cacheKeysToFetch.push(toTransliterationCacheKey(t, lang))
+            }
+          } catch {
+            /* ignore */
+          }
+        }
+      }
+      const transliterationByKey = new Map<string, string>()
+      if (cacheKeysToFetch.length > 0) {
+        const uniqueKeys = [...new Set(cacheKeysToFetch)]
+        const { data: cacheRows } = await adminSupabase
+          .from('language_coach_transliteration_cache')
+          .select('cache_key, transliteration')
+          .in('cache_key', uniqueKeys)
+        for (const r of (cacheRows ?? []) as Array<{ cache_key?: string; transliteration?: string }>) {
+          const ck = String(r.cache_key || '')
+          const t = String(r.transliteration || '').trim()
+          if (ck && t) transliterationByKey.set(ck, t)
+        }
+      }
+
+      const lastTeacher = [...rows].reverse().find((r) => r.role === 'teacher')
+      let writingTaskTransliterations: Record<string, string> = {}
+      if (lastTeacher) {
+        const wtj = String((lastTeacher as { writing_task_json?: string }).writing_task_json || '').trim()
+        if (wtj) {
+          try {
+            const parsed = JSON.parse(wtj) as { requiredSentences?: string[] }
+            const lang = String(lastTeacher.language_code || '').trim().toLowerCase()
+            if (needsTransliteration(lang)) {
+              for (const s of parsed.requiredSentences ?? []) {
+                const t = String(s || '').trim()
+                if (t) {
+                  const tr = transliterationByKey.get(toTransliterationCacheKey(t, lang))
+                  if (tr) writingTaskTransliterations[t] = tr
+                }
+              }
+            }
+          } catch {
+            /* ignore */
+          }
+        }
+      }
+
       return NextResponse.json({
-        items: (data ?? []).map((row) => ({
-          id: row.id,
-          sessionId: row.session_id,
-          role: row.role,
-          text: row.text,
-          audioUrl: row.audio_url,
-          translation: (row as { translation?: string }).translation ?? null,
-          languageCode: row.language_code,
-          targetLanguage: row.target_language,
-          teacherLabel: row.teacher_label,
-          teacherLocale: row.teacher_locale,
-          mode: row.mode,
-          mainSentence: (row as { main_sentence?: string }).main_sentence ?? null,
-          correctionNote: (row as { correction_note?: string }).correction_note ?? null,
-          intentAnswer: (row as { intent_answer?: string }).intent_answer ?? null,
-          tokensJson: (row as { tokens_json?: string }).tokens_json ?? null,
-          writingTaskJson: (row as { writing_task_json?: string }).writing_task_json ?? null,
-          createdAt: row.created_at,
-        })),
+        learningMode: safeLearningMode,
+        topicId: sessionTopicId || undefined,
+        topicLabel: sessionTopicLabel || undefined,
+        writingTaskTransliterations,
+        items: rows.map((row) => {
+          const lang = String(row.language_code || '').trim().toLowerCase()
+          const mainSentence = (row as { main_sentence?: string }).main_sentence ?? null
+          const correctionNote = (row as { correction_note?: string }).correction_note ?? null
+          const intentAnswer = (row as { intent_answer?: string }).intent_answer ?? null
+          const ms = String(mainSentence || '').trim()
+          const cn = String(correctionNote || '').trim()
+          const ia = String(intentAnswer || '').trim()
+          const mainSentenceTransliteration =
+            ms && needsTransliteration(lang) ? transliterationByKey.get(toTransliterationCacheKey(ms, lang)) ?? null : null
+          const correctionNoteTransliteration =
+            cn && needsTransliteration(lang) ? transliterationByKey.get(toTransliterationCacheKey(cn, lang)) ?? null : null
+          const intentAnswerTransliteration =
+            ia && needsTransliteration(lang) ? transliterationByKey.get(toTransliterationCacheKey(ia, lang)) ?? null : null
+          return {
+            id: row.id,
+            sessionId: row.session_id,
+            role: row.role,
+            text: row.text,
+            audioUrl: row.audio_url,
+            translation: (row as { translation?: string }).translation ?? null,
+            languageCode: row.language_code,
+            targetLanguage: row.target_language,
+            teacherLabel: row.teacher_label,
+            teacherLocale: row.teacher_locale,
+            mode: row.mode,
+            mainSentence,
+            correctionNote,
+            intentAnswer,
+            mainSentenceTransliteration,
+            correctionNoteTransliteration,
+            intentAnswerTransliteration,
+            tokensJson: (row as { tokens_json?: string }).tokens_json ?? null,
+            writingTaskJson: (row as { writing_task_json?: string }).writing_task_json ?? null,
+            createdAt: row.created_at,
+          }
+        }),
       })
     }
 
-    const { data, error } = await adminSupabase
-      .from('language_coach_messages')
-      .select('session_id, role, text, language_code, target_language, teacher_label, teacher_locale, mode, created_at')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
-      .limit(1000)
+    const [messagesResult, memoriesResult, hiddenResult, endedResult] = await Promise.all([
+      adminSupabase
+        .from('language_coach_messages')
+        .select('session_id, role, text, language_code, target_language, teacher_label, teacher_locale, mode, created_at')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(1000),
+      adminSupabase
+        .from('language_coach_session_memories')
+        .select('session_id, learning_mode, topic_label')
+        .eq('user_id', user.id),
+      adminSupabase
+        .from('language_coach_hidden_sessions')
+        .select('session_id')
+        .eq('user_id', user.id),
+      adminSupabase
+        .from('language_coach_ended_sessions')
+        .select('session_id')
+        .eq('user_id', user.id),
+    ])
 
+    const { data, error } = messagesResult
     if (error) {
       return NextResponse.json({ error: error.message || 'Không tải được danh sách buổi học.' }, { status: 500 })
     }
+
+    const learningModeBySession = new Map<string, string>()
+    const topicLabelBySession = new Map<string, string>()
+    for (const row of (memoriesResult.data ?? []) as Array<{ session_id?: string; learning_mode?: string; topic_label?: string }>) {
+      const sid = String(row.session_id || '')
+      if (sid) {
+        if (row.learning_mode) learningModeBySession.set(sid, row.learning_mode)
+        if (row.topic_label) topicLabelBySession.set(sid, String(row.topic_label).trim())
+      }
+    }
+
+    const hiddenSessionIds = new Set(
+      ((hiddenResult.data ?? []) as Array<{ session_id?: string }>).map((r) => String(r.session_id || '')).filter(Boolean)
+    )
+    const endedSessionIds = new Set(
+      ((endedResult.data ?? []) as Array<{ session_id?: string }>).map((r) => String(r.session_id || '')).filter(Boolean)
+    )
 
     const bySession = new Map<
       string,
@@ -99,13 +263,18 @@ export async function GET(request: NextRequest) {
         lastMessageAt: string
         lastTeacherText: string
         messageCount: number
+        learningMode: 'review' | 'reflex'
+        topicLabel: string
       }
     >()
 
     for (const row of data ?? []) {
       const sid = String(row.session_id || '')
-      if (!sid) continue
+      if (!sid || hiddenSessionIds.has(sid) || endedSessionIds.has(sid)) continue
       const existing = bySession.get(sid)
+      const lm = learningModeBySession.get(sid)
+      const safeLm = lm === 'reflex' ? 'reflex' : 'review'
+      const topicLabel = topicLabelBySession.get(sid) || ''
       if (!existing) {
         bySession.set(sid, {
           sessionId: sid,
@@ -117,6 +286,8 @@ export async function GET(request: NextRequest) {
           lastMessageAt: String(row.created_at || ''),
           lastTeacherText: row.role === 'teacher' ? String(row.text || '') : '',
           messageCount: 1,
+          learningMode: safeLm,
+          topicLabel,
         })
         continue
       }
@@ -131,6 +302,36 @@ export async function GET(request: NextRequest) {
       .slice(0, limit)
 
     return NextResponse.json({ sessions })
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Lỗi không xác định.'
+    return NextResponse.json({ error: msg }, { status: 500 })
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const sessionId = String(request.nextUrl.searchParams.get('sessionId') || '').trim()
+    if (!sessionId) {
+      return NextResponse.json({ error: 'Thiếu sessionId.' }, { status: 400 })
+    }
+    const supabase = createClient()
+    const auth = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập để xóa buổi học.')
+    if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
+    const { user } = auth
+    const adminSupabase = adminClient()
+
+    const { error } = await adminSupabase.from('language_coach_hidden_sessions').upsert(
+      { user_id: user.id, session_id: sessionId },
+      { onConflict: 'user_id,session_id' }
+    )
+
+    if (error) {
+      return NextResponse.json(
+        { error: error.message || 'Không ẩn được buổi học.' },
+        { status: 500 }
+      )
+    }
+    return NextResponse.json({ ok: true })
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Lỗi không xác định.'
     return NextResponse.json({ error: msg }, { status: 500 })

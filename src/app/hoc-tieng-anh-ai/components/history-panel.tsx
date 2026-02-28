@@ -2,6 +2,7 @@
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Trash2 } from 'lucide-react'
 import type { HistorySessionItem, LocalTextFn } from './types'
 
 type HistoryPanelProps = {
@@ -13,6 +14,7 @@ type HistoryPanelProps = {
   localText: LocalTextFn
   onRefresh: () => void
   onOpenSession: (sessionId: string) => void
+  onDeleteSession?: (sessionId: string) => void
 }
 
 export function HistoryPanel({
@@ -24,6 +26,7 @@ export function HistoryPanel({
   localText,
   onRefresh,
   onOpenSession,
+  onDeleteSession,
 }: HistoryPanelProps) {
   return (
     <Card className="border shadow-sm bg-white/80 backdrop-blur">
@@ -47,8 +50,18 @@ export function HistoryPanel({
           <div className="space-y-2">
             {sessions.map((session) => (
               <div key={session.sessionId} className="flex flex-col gap-2 rounded-md border bg-white p-2 sm:flex-row sm:items-center sm:justify-between">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-slate-800">{session.teacherLabel || localText('Giáo viên AI', 'AI teacher')}</p>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-slate-800">
+                    {session.topicLabel ? (
+                      <>
+                        <span className="font-semibold text-indigo-700">{session.topicLabel}</span>
+                        {' • '}
+                        {session.teacherLabel || localText('Giáo viên AI', 'AI teacher')}
+                      </>
+                    ) : (
+                      session.teacherLabel || localText('Giáo viên AI', 'AI teacher')
+                    )}
+                  </p>
                   <p className="truncate text-xs text-muted-foreground">
                     {session.languageCode?.toUpperCase() || 'N/A'} • {
                       session.mode === 'listen_speak'
@@ -60,15 +73,30 @@ export function HistoryPanel({
                   </p>
                   <p className="truncate text-xs text-slate-600">{session.lastTeacherText || localText('Không có bản xem trước.', 'No preview available.')}</p>
                 </div>
-                <Button
-                  type="button"
-                  variant={openedHistorySessionId === session.sessionId ? 'secondary' : 'outline'}
-                  size="sm"
-                  disabled={historyBusy}
-                  onClick={() => onOpenSession(session.sessionId)}
-                >
-                  {openedHistorySessionId === session.sessionId ? localText('Đang mở', 'Opened') : localText('Mở buổi này', 'Open this lesson')}
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant={openedHistorySessionId === session.sessionId ? 'secondary' : 'outline'}
+                    size="sm"
+                    disabled={historyBusy}
+                    onClick={() => onOpenSession(session.sessionId)}
+                  >
+                    {openedHistorySessionId === session.sessionId ? localText('Đang mở', 'Opened') : localText('Mở buổi này', 'Open this lesson')}
+                  </Button>
+                  {onDeleteSession ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      disabled={historyBusy}
+                      onClick={() => onDeleteSession(session.sessionId)}
+                      title={localText('Xóa buổi học', 'Delete lesson')}
+                      className="text-muted-foreground hover:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  ) : null}
+                </div>
               </div>
             ))}
           </div>

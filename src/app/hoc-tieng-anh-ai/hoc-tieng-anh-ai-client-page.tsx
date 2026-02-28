@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
 import { createClient } from '@/lib/supabase/client'
-import { Loader2, Mic, MicOff, Send, Languages, Volume2, Play, RotateCcw } from 'lucide-react'
+import { Loader2, Mic, MicOff, Minus, Plus, Send, Languages, Volume2, Play, RotateCcw, Trash2 } from 'lucide-react'
 import { WordPracticeOverlay } from './components/word-practice-overlay'
 import { PreLessonReviewOverlay } from './components/pre-lesson-review-overlay'
 import { QuickStartModal } from './components/quick-start-modal'
@@ -23,6 +23,8 @@ import {
   createTopicCurriculum,
   explainIntent,
   generateTts,
+  deleteHistorySession,
+  endHistorySession,
   getHistorySession,
   getHistorySessions,
   getPreviousLessonWords,
@@ -59,6 +61,8 @@ type UiLocale = NativeLanguageCode
 const NATIVE_LANGUAGE_PREF_KEY = 'english-coach-native-language'
 const LESSON_SETUP_PREF_KEY = 'english-coach-lesson-setup'
 
+type LearningMode = 'review' | 'reflex'
+
 type ChatMessage = {
   id: string
   role: 'teacher' | 'student'
@@ -72,6 +76,8 @@ type HistorySession = {
   lastMessageAt: string
   lastTeacherText: string
   messageCount: number
+  learningMode?: 'review' | 'reflex'
+  topicLabel?: string
 }
 type WordInsight = {
   meaning: string
@@ -1482,13 +1488,68 @@ function extractTeacherSpeechText(text: string): string {
   return String(text || '').trim()
 }
 
-/** Lấy 1 câu đầu tiên (trước dấu chấm câu đầu tiên). Dùng cho copyTargets bài viết mini. */
-function takeFirstSentenceOnly(text: string): string {
+/** Kiểm tra văn bản đã chứa pinyin/phiên âm (từ AI) thì không cần hiển thị thêm. */
+function hasEmbeddedPinyin(text: string): boolean {
   const s = String(text || '').trim()
-  if (!s) return ''
-  // Chỉ cắt ở 句号 (。) 或 问号 (？) - không cắt ở ！
-  const match = s.match(/^[^。？.?]*[。？.?]/u)
-  return match ? match[0] : s
+  if (!s) return false
+  return (
+    /\bPinyin\s*:/i.test(s) ||
+    /\bPhiên âm\s*(Latin)?\s*:/i.test(s) ||
+    /\bRomaji\s*:/i.test(s) ||
+    /\bRomanization\s*:/i.test(s)
+  )
+}
+
+/** Bỏ phần pinyin trong ngoặc (Wǒ xǐhuān Hànyǔ) hoặc （...）. Dùng trước khi cắt câu. */
+function stripPinyinInParentheses(text: string): string {
+  return String(text || '')
+    .trim()
+    .replace(/\s*[（(][^）)]*[A-Za-z\u00C0-\u024F\u0100-\u017F][^）)]*[）)]/gu, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+/** Bỏ phiên âm Latin (pinyin, romaji, v.v.) trước khi gửi TTS – tránh đọc 2 lần. Áp dụng đa ngôn ngữ. */
+function stripPhoneticForTts(text: string, targetCode: LanguageCode): string {
+  const s = String(text || '').trim()
+  if (!s) return s
+  if (targetCode === 'en' || targetCode === 'vi') return s
+  let result = stripPinyinInParentheses(s)
+  const hasNonLatin = /[\u4E00-\u9FFF\u3040-\u30FF\uAC00-\uD7AF\u0E00-\u0E7F\u0900-\u097F]/u.test(result)
+  if (!hasNonLatin) return result
+  result = result.replace(/^[A-Za-z\u00C0-\u024F\u0100-\u017F][A-Za-z\u00C0-\u024F\u0100-\u017F\s,.!?;:'"\-]*\s*/u, '')
+  result = result.replace(/\s+[A-Za-z\u00C0-\u024F\u0100-\u017F][A-Za-z\u00C0-\u024F\u0100-\u017F\s,.!?;:'"\-]*/gu, ' ')
+  return result.replace(/\s+/g, ' ').trim()
+}
+
+/** Bỏ phiên âm + thêm chấm câu nếu thiếu. Dùng cho hiển thị Ý 2, Ý 3 (giống nhau). */
+function sanitizeForDisplay(text: string, targetCode: LanguageCode): string {
+  return sanitizeSentenceForCopy(stripPhoneticForTts(text, targetCode), targetCode)
+}
+
+/** Tách văn bản thành các đoạn ngắn theo dấu chấm câu (。？.?!！). Dùng cho copyTargets bài viết mini. */
+function splitBySentencePunctuation(text: string): string[] {
+  const s = stripPinyinInParentheses(text)
+  if (!s) return []
+  const segments = s.split(/([。？.?!！]+)/u)
+  const result: string[] = []
+  let buf = ''
+  for (let i = 0; i < segments.length; i++) {
+    buf += segments[i]
+    if (/[。？.?!！]/u.test(segments[i])) {
+      const t = buf.trim()
+      if (t) result.push(t)
+      buf = ''
+    }
+  }
+  if (buf.trim()) result.push(buf.trim())
+  return result
+}
+
+/** Lấy đoạn đầu tiên (đến dấu chấm câu đầu: 。？.?!！). Đã bỏ pinyin trong ngoặc. */
+function takeFirstSentenceOnly(text: string): string {
+  const segments = splitBySentencePunctuation(text)
+  return segments[0] || stripPinyinInParentheses(String(text || '').trim())
 }
 
 function normalizeCopyText(text: string, targetCode?: LanguageCode): string {
@@ -1555,7 +1616,8 @@ function sanitizeSentenceForCopy(text: string, targetCode: LanguageCode): string
               : false
   if (!hasTargetScript) return raw
 
-  const withoutLatin = raw
+  const stripped = stripPinyinInParentheses(raw)
+  const withoutLatin = stripped
     .replace(/[A-Za-z\u00C0-\u024F]+/g, ' ')
     .replace(/,/g, '，')
     .replace(/\./g, '。')
@@ -1571,7 +1633,11 @@ function sanitizeSentenceForCopy(text: string, targetCode: LanguageCode): string
     .replace(/^[，。！？、；：]+/g, '')
     .replace(/\s+/g, ' ')
     .trim()
-  return withoutLatin || raw
+  const result = withoutLatin || stripped
+  if (targetCode === 'zh' && result && !/[。？！.?!]$/u.test(result)) {
+    return result + '。'
+  }
+  return result
 }
 
 function buildWordContextSnippet(sentence: string, word: string): string {
@@ -1658,6 +1724,7 @@ export default function HocTiengAnhAiClientPage() {
   const [preLessonRetryWords, setPreLessonRetryWords] = useState<TodayWordItem[] | null>(null)
   const [preLessonInput, setPreLessonInput] = useState('')
   const [preLessonRecallDirection, setPreLessonRecallDirection] = useState<'word' | 'meaning'>('word')
+  const [learningMode, setLearningMode] = useState<LearningMode>('review')
 
   const onPreLessonClozeSubmit = useCallback(
     (word: string, correct: boolean) => {
@@ -1880,6 +1947,8 @@ export default function HocTiengAnhAiClientPage() {
   const autoStoppingMicRef = useRef(false)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const audioQueueRef = useRef<Promise<void>>(Promise.resolve())
+  const playbackSpeedRef = useRef(1)
+  const [playbackSpeed, setPlaybackSpeed] = useState(1)
   const activeLessonRef = useRef<HTMLDivElement | null>(null)
   const chatScrollRef = useRef<HTMLDivElement | null>(null)
   const teacherAudioByMessageIdRef = useRef<Record<string, string>>({})
@@ -2423,10 +2492,11 @@ export default function HocTiengAnhAiClientPage() {
     }
   }
 
-  const fetchTopicCurriculum = async (opts?: { skipConfirm?: boolean; topicId?: string }) => {
+  const fetchTopicCurriculum = async (opts?: { skipConfirm?: boolean; topicId?: string; topicLabelOverride?: string; silent?: boolean }) => {
     const topicIdToUse = String(opts?.topicId || topicId || '').trim()
-    const topicToUse = allTopicOptions.find((x) => x.id === topicIdToUse) || selectedTopic
-    const topicDifficultyToUse = resolveTopicDifficulty(topicBaseDifficultyById[topicToUse.id] || 'basic', learnerLevel)
+    const topicToUse = allTopicOptions.find((x) => x.id === topicIdToUse) || selectedTopic || (topicIdToUse ? { id: topicIdToUse, label: String(opts?.topicLabelOverride || '').trim() || topicIdToUse } : null)
+    const topicLabelToUse = String(opts?.topicLabelOverride || topicToUse?.label || '').trim() || topicToUse?.label || topicIdToUse
+    const topicDifficultyToUse = resolveTopicDifficulty(topicBaseDifficultyById[topicToUse?.id] || 'basic', learnerLevel)
     if (!opts?.skipConfirm && confirmedTopicId !== topicIdToUse) {
       toast({
         title: localText('Cần chọn chủ đề trước', 'Select topic first'),
@@ -2442,8 +2512,8 @@ export default function HocTiengAnhAiClientPage() {
     setHasCurriculumReady(false)
     try {
       const { ok, data } = await createTopicCurriculum({
-        topicId: topicToUse.id,
-        topicLabel: topicToUse.label,
+        topicId: topicIdToUse || topicToUse?.id,
+        topicLabel: topicLabelToUse || topicToUse?.label,
         topicDifficulty: topicDifficultyToUse,
         targetLanguage: activeTeacher.languageLabel,
         nativeLanguage: selectedNativeLanguage.apiLabel,
@@ -2462,7 +2532,7 @@ export default function HocTiengAnhAiClientPage() {
       }
       setTopicCurriculum(nextCurriculum)
       setHasCurriculumReady(true)
-      const hadExistingLesson = messages.length > 0 || Boolean(openedHistorySessionId)
+      const hadExistingLesson = !opts?.silent && (messages.length > 0 || Boolean(openedHistorySessionId))
       if (hadExistingLesson) {
         startNewSession()
         toast({
@@ -2475,8 +2545,10 @@ export default function HocTiengAnhAiClientPage() {
       }
       return nextCurriculum
     } catch (e) {
-      const msg = unknownErrorMsg(e)
-      toast({ title: localText('Lỗi giáo trình chủ đề', 'Curriculum error'), description: msg, variant: 'destructive' })
+      if (!opts?.silent) {
+        const msg = unknownErrorMsg(e)
+        toast({ title: localText('Lỗi giáo trình chủ đề', 'Curriculum error'), description: msg, variant: 'destructive' })
+      }
       return null
     } finally {
       setTopicBusy(false)
@@ -2960,6 +3032,7 @@ export default function HocTiengAnhAiClientPage() {
         audioRef.current.src = ''
       }
       const audio = new Audio(url)
+      audio.playbackRate = playbackSpeedRef.current
       audioRef.current = audio
       await new Promise<void>((resolve, reject) => {
         let settled = false
@@ -3164,7 +3237,7 @@ export default function HocTiengAnhAiClientPage() {
     const key = `${messageId}__full`
     if (ttsLoadingByKey[key]) return
     const cached = teacherAudioByMessageIdRef.current[messageId]
-    const textToSpeak = String(teacherSpeakTextByMessageId[messageId] || text || '').trim()
+    const textToSpeak = stripPhoneticForTts(String(teacherSpeakTextByMessageId[messageId] || text || '').trim(), languageCode)
     if (cached) {
       await playAudioUrl(cached)
       return
@@ -3196,6 +3269,7 @@ export default function HocTiengAnhAiClientPage() {
   const replayTeacherCorrectionNote = async (messageId: string) => {
     const correctionNote = String(correctionNoteByMessageId[messageId] || '').trim()
     if (!correctionNote) return
+    const textForTts = stripPhoneticForTts(correctionNote, languageCode)
     const key = `${messageId}__correction_note`
     if (ttsLoadingByKey[key]) return
     const cached = teacherAudioByMessageIdRef.current[key]
@@ -3206,7 +3280,7 @@ export default function HocTiengAnhAiClientPage() {
     if (busy || listening) return
     setTtsLoadingByKey((prev) => ({ ...prev, [key]: true }))
     try {
-      const generated = await playBestEffortTts(correctionNote)
+      const generated = await playBestEffortTts(textForTts)
       teacherAudioByMessageIdRef.current = {
         ...teacherAudioByMessageIdRef.current,
         [key]: generated[0]?.url || '',
@@ -3220,6 +3294,7 @@ export default function HocTiengAnhAiClientPage() {
   const replayTeacherIntentAnswer = async (messageId: string) => {
     const intentAnswer = String(intentAnswerByMessageId[messageId] || '').trim()
     if (!intentAnswer) return
+    const textForTts = stripPhoneticForTts(intentAnswer, languageCode)
     const key = `${messageId}__intent_answer`
     if (ttsLoadingByKey[key]) return
     const cached = teacherAudioByMessageIdRef.current[key]
@@ -3228,7 +3303,7 @@ export default function HocTiengAnhAiClientPage() {
       return
     }
     if (busy || listening) {
-      const cachedDb = await tryLoadCachedTtsAudio(intentAnswer)
+      const cachedDb = await tryLoadCachedTtsAudio(textForTts)
       if (!cachedDb) return
       teacherAudioByMessageIdRef.current = {
         ...teacherAudioByMessageIdRef.current,
@@ -3240,7 +3315,7 @@ export default function HocTiengAnhAiClientPage() {
     }
     setTtsLoadingByKey((prev) => ({ ...prev, [key]: true }))
     try {
-      const generated = await playBestEffortTts(intentAnswer)
+      const generated = await playBestEffortTts(textForTts)
       teacherAudioByMessageIdRef.current = {
         ...teacherAudioByMessageIdRef.current,
         [key]: generated[0]?.url || '',
@@ -3415,6 +3490,7 @@ export default function HocTiengAnhAiClientPage() {
       await replayTeacherMessage(messageId, text)
       return
     }
+    const textForTts = stripPhoneticForTts(mainSentence, languageCode)
     const key = `${messageId}__main`
     if (ttsLoadingByKey[key]) return
     const cached = teacherAudioByMessageIdRef.current[key]
@@ -3423,7 +3499,7 @@ export default function HocTiengAnhAiClientPage() {
       return
     }
     if (busy) {
-      const cachedDb = await tryLoadCachedTtsAudio(mainSentence)
+      const cachedDb = await tryLoadCachedTtsAudio(textForTts)
       if (!cachedDb) return
       teacherAudioByMessageIdRef.current = {
         ...teacherAudioByMessageIdRef.current,
@@ -3435,7 +3511,7 @@ export default function HocTiengAnhAiClientPage() {
     }
     setTtsLoadingByKey((prev) => ({ ...prev, [key]: true }))
     try {
-      const generated = await playBestEffortTts(mainSentence)
+      const generated = await playBestEffortTts(textForTts)
       teacherAudioByMessageIdRef.current = {
         ...teacherAudioByMessageIdRef.current,
         [key]: generated[0]?.url || '',
@@ -3459,7 +3535,7 @@ export default function HocTiengAnhAiClientPage() {
   }
 
   const replayCorrectionSentence = async (text: string) => {
-    const normalized = String(text || '').trim()
+    const normalized = stripPhoneticForTts(String(text || '').trim(), languageCode)
     if (!normalized) return
     const key = correctionAudioKey(normalized)
     if (!key) return
@@ -3853,13 +3929,14 @@ export default function HocTiengAnhAiClientPage() {
   const playWordTextSnippet = async (text: string) => {
     const normalized = String(text || '').trim()
     if (!normalized) return
-    const speakText = normalized
+    let speakText = normalized
       .split(/\r?\n/)
       .map((line) => String(line || '').trim())
       .filter(Boolean)
       .filter((line) => !/^(pinyin|phiên âm latin|translation|dịch)\s*:/i.test(line))
       .join(' ')
       .trim()
+    speakText = stripPhoneticForTts(speakText, languageCode)
     if (!speakText) return
     if (textSnippetPlayingRef.current.has(speakText)) return
     textSnippetPlayingRef.current.add(speakText)
@@ -3894,6 +3971,31 @@ export default function HocTiengAnhAiClientPage() {
     const { ok, data } = await getHistorySessions(12)
     if (!ok) throw new Error(data.error || localText('Không tải được lịch sử buổi học.', 'Failed to load lesson history.'))
     setHistorySessions(Array.isArray(data.sessions) ? data.sessions : [])
+  }
+
+  const deleteSession = async (targetSessionId: string) => {
+    const { ok, data } = await deleteHistorySession(targetSessionId)
+    if (!ok) {
+      toast({ title: localText('Không xóa được buổi học.', 'Failed to delete lesson.'), variant: 'destructive' })
+      return
+    }
+    setHistorySessions((prev) => prev.filter((s) => s.sessionId !== targetSessionId))
+    if (sessionId === targetSessionId || openedHistorySessionId === targetSessionId) {
+      setSessionId('')
+      setOpenedHistorySessionId('')
+      setMessages([])
+      setWritingTask(null)
+      setWritingDraft('')
+      setWritingEvalResult(null)
+      setMainSentenceByMessageId({})
+      setCorrectionNoteByMessageId({})
+      setIntentAnswerByMessageId({})
+      setTokensByMessageId({})
+      setTokensWithUsageByMessageId({})
+      setOpeningTranslateByMessageId({})
+      setIntentExplainByMessageId({})
+    }
+    toast({ title: localText('Đã xóa buổi học.', 'Lesson deleted.') })
   }
 
   const fetchPreviousLessonWords = async (): Promise<TodayWordItem[]> => {
@@ -4017,6 +4119,7 @@ export default function HocTiengAnhAiClientPage() {
     pronunciationAudioUrl?: string,
     sessionIdOverride?: string
   ) => {
+    if (learningMode === 'reflex') return
     const meaning = String(detail.meaning || '').trim()
     const meaningItems = sanitizeWordMeaningItems((detail as { meaningItems?: unknown }).meaningItems)
     const hasMeaning = meaning.length > 0 || meaningItems.length > 0
@@ -4071,11 +4174,17 @@ export default function HocTiengAnhAiClientPage() {
           tokensJson?: string | null
           writingTaskJson?: string | null
         }>
+        learningMode?: 'review' | 'reflex'
+        topicId?: string
+        topicLabel?: string
         error?: string
       }
       if (!ok) throw new Error(payload.error || localText('Không tải được nội dung buổi học.', 'Failed to load lesson content.'))
 
       const items = Array.isArray(payload.items) ? payload.items : []
+      if (payload.learningMode === 'reflex' || payload.learningMode === 'review') {
+        setLearningMode(payload.learningMode)
+      }
       setSessionId(targetSessionId)
       setMessages(items.map((x) => ({ id: x.id, role: x.role, text: x.text })))
       const firstTeacherIdx = items.findIndex((x) => x.role === 'teacher')
@@ -4089,6 +4198,8 @@ export default function HocTiengAnhAiClientPage() {
       })
       setOpeningTranslateByMessageId(openingTrans)
       setIntentExplainByMessageId(intentTrans)
+      const firstMetaForLang = items.find((x) => x.role === 'teacher') || items[0]
+      const langForSanitize = String(firstMetaForLang?.languageCode || '').trim() as LanguageCode
       const mainSentenceMap: Record<string, string> = {}
       const correctionNoteMap: Record<string, string> = {}
       const intentAnswerMap: Record<string, string> = {}
@@ -4096,11 +4207,13 @@ export default function HocTiengAnhAiClientPage() {
       const tokensWithUsageMap: Record<string, Array<{ word: string; usageLevel: 'high' | 'medium' | 'low' }>> = {}
       items.forEach((item) => {
         if (item.role !== 'teacher') return
-        const ms = String((item as { mainSentence?: string | null }).mainSentence || '').trim()
+        const msRaw = String((item as { mainSentence?: string | null }).mainSentence || '').trim()
+        const ms = msRaw ? sanitizeForDisplay(msRaw, langForSanitize || 'zh') : ''
         if (ms) mainSentenceMap[item.id] = ms
         const cn = String((item as { correctionNote?: string | null }).correctionNote || '').trim()
         if (cn) correctionNoteMap[item.id] = cn
-        const ia = String((item as { intentAnswer?: string | null }).intentAnswer || '').trim()
+        const iaRaw = String((item as { intentAnswer?: string | null }).intentAnswer || '').trim()
+        const ia = iaRaw ? sanitizeForDisplay(iaRaw, langForSanitize || 'zh') : ''
         if (ia) intentAnswerMap[item.id] = ia
         const tj = String((item as { tokensJson?: string | null }).tokensJson || '').trim()
         if (tj) {
@@ -4130,22 +4243,60 @@ export default function HocTiengAnhAiClientPage() {
       setIntentAnswerByMessageId(intentAnswerMap)
       setTokensByMessageId(tokensMap)
       setTokensWithUsageByMessageId(tokensWithUsageMap)
+      const preloadRomanization: Record<string, string> = {}
+      items.forEach((item) => {
+        if (item.role !== 'teacher') return
+        const lang = String((item as { languageCode?: string }).languageCode || '').trim().toLowerCase()
+        const msRaw = String((item as { mainSentence?: string | null }).mainSentence || '').trim()
+        const ms = msRaw ? sanitizeForDisplay(msRaw, (langForSanitize || lang) as LanguageCode) : ''
+        const cn = String((item as { correctionNote?: string | null }).correctionNote || '').trim()
+        const iaRaw = String((item as { intentAnswer?: string | null }).intentAnswer || '').trim()
+        const ia = iaRaw ? sanitizeForDisplay(iaRaw, (langForSanitize || lang) as LanguageCode) : ''
+        const mst = (item as { mainSentenceTransliteration?: string | null }).mainSentenceTransliteration
+        const cnt = (item as { correctionNoteTransliteration?: string | null }).correctionNoteTransliteration
+        const iat = (item as { intentAnswerTransliteration?: string | null }).intentAnswerTransliteration
+        if (ms && mst) preloadRomanization[`${lang}::${ms}`] = sanitizeRomanizedText(String(mst).trim())
+        if (cn && cnt) preloadRomanization[`${lang}::${cn}`] = sanitizeRomanizedText(String(cnt).trim())
+        if (ia && iat) preloadRomanization[`${lang}::${ia}`] = sanitizeRomanizedText(String(iat).trim())
+      })
+      const wtTrans = (payload as { writingTaskTransliterations?: Record<string, string> }).writingTaskTransliterations
+      const lastTeacherForTrans = items.filter((x) => x.role === 'teacher').pop()
+      if (lastTeacherForTrans && wtTrans && Object.keys(wtTrans).length > 0) {
+        const lang = String((lastTeacherForTrans as { languageCode?: string }).languageCode || '').trim().toLowerCase()
+        for (const [sentence, transliteration] of Object.entries(wtTrans)) {
+          const t = String(sentence || '').trim()
+          if (t && transliteration) preloadRomanization[`${lang}::${t}`] = sanitizeRomanizedText(String(transliteration).trim())
+        }
+      }
+      if (Object.keys(preloadRomanization).length > 0) {
+        setWritingRomanizationByKey((prev) => ({ ...prev, ...preloadRomanization }))
+      }
       const lastTeacherItem = [...items].reverse().find((x) => x.role === 'teacher')
+      const firstMeta = items.find((x) => x.role === 'teacher') || items[0]
+      const metaLanguage = String(firstMeta?.languageCode || '').trim() as LanguageCode
       const wtj = lastTeacherItem ? String((lastTeacherItem as { writingTaskJson?: string | null }).writingTaskJson || '').trim() : ''
       let writingRestored = false
-      if (lastTeacherItem && wtj) {
+      if (learningMode === 'reflex') {
+        setWritingTask(null)
+        setWritingDraft('')
+        setWritingEvalResult(null)
+      } else if (lastTeacherItem && wtj) {
         try {
           const parsed = JSON.parse(wtj) as { messageId?: string; requiredSentences?: string[]; currentIndex?: number; completed?: boolean; teacherText?: string; instruction?: string; referenceSentence?: string; taskType?: string }
-          if (parsed && Array.isArray(parsed.requiredSentences) && parsed.requiredSentences.length > 0 && !parsed.completed) {
+          if (parsed && Array.isArray(parsed.requiredSentences) && parsed.requiredSentences.length > 0) {
+            const isCompleted = Boolean(parsed.completed)
+            const sanitized = parsed.requiredSentences.map((s: string) => sanitizeSentenceForCopy(String(s || '').trim(), metaLanguage || 'zh')).filter(Boolean)
+            const finalSentences = sanitized.length > 0 ? sanitized : parsed.requiredSentences
+            const refIdx = Math.max(0, Math.min(parsed.currentIndex ?? 0, finalSentences.length - 1))
             setWritingTask({
               messageId: parsed.messageId || lastTeacherItem.id,
               taskType: (parsed.taskType as WritingTaskType) || 'copy',
               instruction: parsed.instruction || localText('Hãy gõ lại y nguyên từng câu theo thứ tự. Chỉ khi gõ đúng mới mở lượt nói tiếp theo.', 'Type each sentence exactly in order. The next speaking turn unlocks only after exact copy.'),
-              referenceSentence: parsed.referenceSentence || parsed.requiredSentences[parsed.currentIndex ?? 0] || '',
-              requiredSentences: parsed.requiredSentences,
-              currentIndex: Math.max(0, Math.min(parsed.currentIndex ?? 0, parsed.requiredSentences.length - 1)),
+              referenceSentence: finalSentences[refIdx] || finalSentences[0] || '',
+              requiredSentences: finalSentences,
+              currentIndex: isCompleted ? Math.max(0, finalSentences.length - 1) : Math.max(0, Math.min(parsed.currentIndex ?? 0, finalSentences.length - 1)),
               teacherText: parsed.teacherText || lastTeacherItem.text,
-              completed: false,
+              completed: isCompleted,
             })
             setWritingDraft('')
             setWritingEvalResult(null)
@@ -4155,10 +4306,12 @@ export default function HocTiengAnhAiClientPage() {
           // ignore invalid writing_task_json
         }
       }
-      if (!writingRestored && lastTeacherItem && !wtj) {
+      if (learningMode !== 'reflex' && !writingRestored && lastTeacherItem && !wtj) {
         const ms = String((lastTeacherItem as { mainSentence?: string | null }).mainSentence || '').trim()
         const ia = String((lastTeacherItem as { intentAnswer?: string | null }).intentAnswer || '').trim()
-        const copyTargets = Array.from(new Set([takeFirstSentenceOnly(ms), takeFirstSentenceOnly(ia)].filter(Boolean)))
+        const firstFromMain = takeFirstSentenceOnly(ms)
+        const firstFromIntent = takeFirstSentenceOnly(ia)
+        const copyTargets = Array.from(new Set([firstFromMain, firstFromIntent].filter(Boolean)))
         if (copyTargets.length > 0) {
           const task = buildWritingTask(lastTeacherItem.id, lastTeacherItem.text, copyTargets)
           setWritingTask(task)
@@ -4167,13 +4320,11 @@ export default function HocTiengAnhAiClientPage() {
           writingRestored = true
         }
       }
-      if (!writingRestored) {
+      if (learningMode !== 'reflex' && !writingRestored) {
         setWritingTask(null)
         setWritingDraft('')
         setWritingEvalResult(null)
       }
-      const firstMeta = items.find((x) => x.role === 'teacher') || items[0]
-      const metaLanguage = String(firstMeta?.languageCode || '').trim() as LanguageCode
       if (metaLanguage && TEACHERS_BY_LANGUAGE[metaLanguage]) {
         setLanguageCode(metaLanguage)
         const matchedByLabel = TEACHERS_BY_LANGUAGE[metaLanguage].find((t) => t.label === String(firstMeta?.teacherLabel || ''))
@@ -4215,6 +4366,13 @@ export default function HocTiengAnhAiClientPage() {
       setOpenedHistorySessionId(targetSessionId)
       activeLessonRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
       void fetchSessionWords(targetSessionId)
+      const sessionTopicId = String(payload.topicId || '').trim()
+      const sessionTopicLabel = String(payload.topicLabel || '').trim()
+      if (sessionTopicId && sessionTopicLabel && items.length > 0) {
+        void fetchTopicCurriculum({ skipConfirm: true, topicId: sessionTopicId, topicLabelOverride: sessionTopicLabel, silent: true }).then((curriculum) => {
+          if (curriculum) setTopicCurriculum(curriculum)
+        })
+      }
     } catch (e) {
       const msg = unknownErrorMsg(e)
       toast({ title: localText('Không mở được buổi học', 'Cannot open session'), description: msg, variant: 'destructive' })
@@ -4223,8 +4381,14 @@ export default function HocTiengAnhAiClientPage() {
     }
   }
 
-  const endLessonAndStartNew = () => {
+  const endLessonAndStartNew = async () => {
+    const currentSessionId = sessionId
+    if (currentSessionId) {
+      await endHistorySession(currentSessionId)
+      setHistorySessions((prev) => prev.filter((s) => s.sessionId !== currentSessionId))
+    }
     startNewSession()
+    void fetchHistorySessions()
     toast({
       title: localText('Đã kết thúc buổi học', 'Lesson ended'),
       description: localText('Bạn có thể chọn chủ đề khác để bắt đầu bài mới.', 'You can choose another topic to start a new lesson.'),
@@ -4362,6 +4526,7 @@ export default function HocTiengAnhAiClientPage() {
   }, [activeTeacher.languageLabel, selectedNativeLanguage.apiLabel, learnerLevel])
 
   useEffect(() => {
+    if (learningMode === 'reflex') return
     const localUpdates: Record<string, string[]> = {}
     for (const message of messages) {
       if (message.role !== 'teacher') continue
@@ -4387,7 +4552,7 @@ export default function HocTiengAnhAiClientPage() {
     if (Object.keys(localUpdates).length > 0) {
       setTokensByMessageId((prev) => ({ ...prev, ...localUpdates }))
     }
-  }, [messages, tokensByMessageId, tokenizingByMessageId, mainSentenceByMessageId, intentAnswerByMessageId])
+  }, [learningMode, messages, tokensByMessageId, tokenizingByMessageId, mainSentenceByMessageId, intentAnswerByMessageId])
 
   useEffect(() => {
     const latestTeacherWithTokens = [...messages]
@@ -4443,6 +4608,7 @@ export default function HocTiengAnhAiClientPage() {
         learnerLevel?: number
         topicSourceMode?: string
         pendingTopicId?: string
+        learningMode?: string
       }
       if (parsed.languageCode && LANGUAGE_CODES.includes(parsed.languageCode as LanguageCode)) {
         setLanguageCode(parsed.languageCode as LanguageCode)
@@ -4463,6 +4629,9 @@ export default function HocTiengAnhAiClientPage() {
         const tid = parsed.pendingTopicId.trim()
         setPendingTopicId(tid)
         setTopicId(tid)
+      }
+      if (parsed.learningMode === 'reflex' || parsed.learningMode === 'review') {
+        setLearningMode(parsed.learningMode as LearningMode)
       }
     } catch {
       // ignore storage issues
@@ -4486,11 +4655,12 @@ export default function HocTiengAnhAiClientPage() {
         topicSourceMode,
         pendingTopicId,
         topicId,
+        learningMode,
       }))
     } catch {
       // ignore storage issues
     }
-  }, [languageCode, teacherId, learnerLevel, topicSourceMode, pendingTopicId, topicId])
+  }, [languageCode, teacherId, learnerLevel, topicSourceMode, pendingTopicId, topicId, learningMode])
 
   const handleSend = async (
     raw?: string,
@@ -4539,9 +4709,10 @@ export default function HocTiengAnhAiClientPage() {
         sessionId,
         studentText,
         history,
+        learningMode,
         accent: activeTeacher.accent || 'us',
         gender: activeTeacher.gender,
-        mode,
+        mode: learningMode === 'reflex' ? 'listen_speak' : mode,
         targetLanguage: activeTeacher.languageLabel,
         targetLanguageCode: languageCode,
         teacherLabel: activeTeacher.label,
@@ -4588,7 +4759,8 @@ export default function HocTiengAnhAiClientPage() {
       const fullSentenceCandidate = [correctedSentence, apiMainSentence, extractedMainSentence, correctedMainSentence]
         .map((x) => String(x || '').trim())
         .find((x) => x.split(/\s+/).filter(Boolean).length >= 4)
-      const mainSentence = fullSentenceCandidate || apiMainSentence || extractedMainSentence || correctedMainSentence
+      const rawMainSentence = fullSentenceCandidate || apiMainSentence || extractedMainSentence || correctedMainSentence
+      const mainSentence = rawMainSentence ? sanitizeForDisplay(rawMainSentence, languageCode) : ''
       if (mainSentence) {
         setMainSentenceByMessageId((prev) => ({ ...prev, [teacherMessageId]: mainSentence }))
       }
@@ -4596,7 +4768,8 @@ export default function HocTiengAnhAiClientPage() {
       if (correctionNote) {
         setCorrectionNoteByMessageId((prev) => ({ ...prev, [teacherMessageId]: correctionNote }))
       }
-      const intentAnswer = String(payload.intentAnswer || '').trim()
+      const rawIntentAnswer = String(payload.intentAnswer || '').trim()
+      const intentAnswer = rawIntentAnswer ? sanitizeForDisplay(rawIntentAnswer, languageCode) : ''
       if (intentAnswer) {
         setIntentAnswerByMessageId((prev) => ({ ...prev, [teacherMessageId]: intentAnswer }))
       }
@@ -4612,15 +4785,20 @@ export default function HocTiengAnhAiClientPage() {
       }).then(() => {
         persistedMessageIdsRef.current[teacherMessageId] = true
       }).catch(() => {})
-      const speakParts = [correctionNote, mainSentence, intentAnswer]
-        .map((x) => String(x || '').trim())
-        .filter(Boolean)
-      const speakText = speakParts.join('. ').trim() || extractTeacherSpeechText(payload.reply)
+      const speakParts =
+        learningMode === 'reflex'
+          ? [mainSentence].map((x) => stripPhoneticForTts(String(x || '').trim(), languageCode)).filter(Boolean)
+          : [correctionNote, mainSentence, intentAnswer].map((x) => stripPhoneticForTts(String(x || '').trim(), languageCode)).filter(Boolean)
+      const speakText = speakParts.join('. ').trim() || stripPhoneticForTts(extractTeacherSpeechText(payload.reply), languageCode)
       setTeacherSpeakTextByMessageId((prev) => ({ ...prev, [teacherMessageId]: speakText }))
-      const correctedForCopy = takeFirstSentenceOnly(String(mainSentence || '').trim())
-      const teacherReplyForCopy = takeFirstSentenceOnly(String(intentAnswer || extractTeacherSpeechText(payload.reply)).trim())
-      const copyTargets = Array.from(new Set([correctedForCopy, teacherReplyForCopy].filter(Boolean)))
-      setWritingTask(buildWritingTask(teacherMessageId, payload.reply, copyTargets))
+      const firstFromMain = takeFirstSentenceOnly(String(mainSentence || '').trim())
+      const firstFromIntent = takeFirstSentenceOnly(String(intentAnswer || extractTeacherSpeechText(payload.reply)).trim())
+      const copyTargets = Array.from(new Set([firstFromMain, firstFromIntent].filter(Boolean)))
+      if (learningMode === 'review') {
+        setWritingTask(buildWritingTask(teacherMessageId, payload.reply, copyTargets))
+      } else {
+        setWritingTask(null)
+      }
       setWritingDraft('')
       setWritingEvalResult(null)
       setCorrections(latestCorrections)
@@ -4671,6 +4849,9 @@ export default function HocTiengAnhAiClientPage() {
     }
     const curriculumToUse = opts?.curriculumOverride || topicCurriculum
     const topicToUse = opts?.topicOverride || selectedTopic
+    if (opts?.curriculumOverride) {
+      setTopicCurriculum(opts.curriculumOverride)
+    }
     if (!opts?.skipPrerequisiteCheck && !hasCurriculumReady) {
       toast({
         title: localText('Cần tạo giáo trình trước', 'Create curriculum first'),
@@ -4810,7 +4991,7 @@ export default function HocTiengAnhAiClientPage() {
       }
 
       const previousWords = await fetchPreviousLessonWords()
-      if (previousWords.length > 0) {
+      if (learningMode === 'review' && previousWords.length > 0) {
         setPreLessonWords(previousWords)
         setPreLessonPassed(false)
         setPreLessonCurriculum(curriculum)
@@ -4892,7 +5073,7 @@ export default function HocTiengAnhAiClientPage() {
     setWordPractice(null)
     try {
       const previousWords = await fetchPreviousLessonWords()
-      if (previousWords.length > 0) {
+      if (learningMode === 'review' && previousWords.length > 0) {
         setPreLessonWords(previousWords)
         setPreLessonPassed(false)
         setPreLessonCurriculum(topicCurriculum)
@@ -5188,7 +5369,7 @@ export default function HocTiengAnhAiClientPage() {
   }
 
   const handleMic = () => {
-    if (writingTask && !writingTask.completed) {
+    if (learningMode === 'review' && writingTask && !writingTask.completed) {
       toast({
         title: localText('Hoàn thành bài viết trước', 'Complete writing task first'),
         description: localText(
@@ -5605,6 +5786,35 @@ export default function HocTiengAnhAiClientPage() {
               </div>
             </div>
             <div className="rounded-md border bg-indigo-50/50 p-3">
+              <div className="mb-3 flex flex-wrap items-center gap-4">
+                <div>
+                  <p className="text-xs font-medium text-slate-700 mb-1">{localText('Chế độ học', 'Learning mode')}</p>
+                  <div className="flex gap-3">
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="learningModeSetup"
+                        value="review"
+                        checked={learningMode === 'review'}
+                        onChange={() => setLearningMode('review')}
+                        className="h-3.5 w-3.5"
+                      />
+                      <span className="text-sm">{localText('Ôn tập', 'Review')}</span>
+                    </label>
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="learningModeSetup"
+                        value="reflex"
+                        checked={learningMode === 'reflex'}
+                        onChange={() => setLearningMode('reflex')}
+                        className="h-3.5 w-3.5"
+                      />
+                      <span className="text-sm">{localText('Phản xạ', 'Reflex')}</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
               <div className="mb-2 flex flex-wrap items-center gap-2">
                 <span
                   className={`rounded-full border px-2.5 py-1 text-xs ${
@@ -5778,7 +5988,7 @@ export default function HocTiengAnhAiClientPage() {
                   type="button"
                   variant="ghost"
                   size="sm"
-                  onClick={endLessonAndStartNew}
+                  onClick={() => void endLessonAndStartNew()}
                   disabled={startingLesson || busy || historyBusy}
                   className="shrink-0 text-xs"
                 >
@@ -5795,65 +6005,78 @@ export default function HocTiengAnhAiClientPage() {
                   const turnsPerStep = Math.max(1, Math.ceil((steps.length || 1) / 6))
                   const completedCount = steps.length > 0 ? Math.min(Math.floor(teacherCount / turnsPerStep), steps.length) : 0
                   const hasSteps = steps.length > 0
-                  return hasSteps ? (
+                  const showTimeline = messages.length > 0
+                  return showTimeline ? (
                     <>
-                    <div className="hidden shrink-0 w-36 sm:block">
-                      <p className="mb-2 text-xs font-semibold text-slate-600">
-                        {localText('Tiến độ buổi học', 'Lesson progress')}
-                      </p>
-                      <div className="relative flex flex-col">
-                        {steps.map((step, i) => {
-                          const isCompleted = i < completedCount
-                          const isCurrent = i === completedCount
-                          const isUpcoming = i > completedCount
-                          return (
-                            <div key={i} className="relative flex items-start gap-2">
-                              <div className="flex flex-col items-center">
-                                <div
-                                  className={`mt-1.5 h-3 w-3 shrink-0 rounded-full border-2 ${
-                                    isCompleted
-                                      ? 'border-emerald-500 bg-emerald-500'
-                                      : isCurrent
-                                        ? 'border-indigo-500 bg-indigo-400 ring-2 ring-indigo-200'
-                                        : 'border-slate-300 bg-slate-100'
-                                  }`}
-                                />
-                                {i < steps.length - 1 ? (
+                    {hasSteps ? (
+                      <>
+                      <div className="shrink-0 w-32 sm:w-36 max-h-[40vh] sm:max-h-none overflow-y-auto">
+                        <p className="mb-2 text-xs font-semibold text-slate-600">
+                          {localText('Tiến độ buổi học', 'Lesson progress')}
+                        </p>
+                        <div className="relative flex flex-col">
+                          {steps.map((step, i) => {
+                            const isCompleted = i < completedCount
+                            const isCurrent = i === completedCount
+                            return (
+                              <div key={i} className="relative flex items-start gap-2 cursor-help" title={step}>
+                                <div className="flex flex-col items-center">
                                   <div
-                                    className={`w-0.5 shrink-0 ${
-                                      isCompleted ? 'bg-emerald-300' : 'bg-slate-200'
+                                    className={`mt-1.5 h-3 w-3 shrink-0 rounded-full border-2 ${
+                                      isCompleted
+                                        ? 'border-emerald-500 bg-emerald-500'
+                                        : isCurrent
+                                          ? 'border-indigo-500 bg-indigo-400 ring-2 ring-indigo-200'
+                                          : 'border-slate-300 bg-slate-100'
                                     }`}
-                                    style={{ height: 20 }}
                                   />
-                                ) : null}
+                                  {i < steps.length - 1 ? (
+                                    <div
+                                      className={`w-0.5 shrink-0 ${
+                                        isCompleted ? 'bg-emerald-300' : 'bg-slate-200'
+                                      }`}
+                                      style={{ height: 20 }}
+                                    />
+                                  ) : null}
+                                </div>
+                                <div
+                                  className={`flex-1 pb-4 text-xs ${
+                                    isCompleted ? 'text-slate-600' : isCurrent ? 'font-medium text-indigo-700' : 'text-slate-400'
+                                  }`}
+                                >
+                                  {step.slice(0, 50)}
+                                  {step.length > 50 ? '…' : ''}
+                                </div>
                               </div>
-                              <div
-                                className={`flex-1 pb-4 text-xs ${
-                                  isCompleted ? 'text-slate-600' : isCurrent ? 'font-medium text-indigo-700' : 'text-slate-400'
-                                }`}
-                              >
-                                {step.slice(0, 50)}
-                                {step.length > 50 ? '…' : ''}
-                              </div>
-                            </div>
-                          )
-                        })}
+                            )
+                          })}
+                        </div>
+                        <p className="mt-1 text-[10px] text-slate-500">
+                          {completedCount}/{steps.length} {localText('bước', 'steps')} • {teacherCount} {localText('lượt', 'turns')}
+                        </p>
                       </div>
-                      <p className="mt-1 text-[10px] text-slate-500">
-                        {completedCount}/{steps.length} {localText('bước', 'steps')} • {teacherCount} {localText('lượt', 'turns')}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2 rounded border border-slate-200 bg-slate-50 px-2 py-1.5 sm:hidden order-first">
-                      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-200">
-                        <div
-                          className="h-full rounded-full bg-emerald-500 transition-all"
-                          style={{ width: `${steps.length > 0 ? (completedCount / steps.length) * 100 : 0}%` }}
-                        />
+                      <div className="flex items-center gap-2 rounded border border-slate-200 bg-slate-50 px-2 py-1.5 sm:hidden order-first">
+                        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-200">
+                          <div
+                            className="h-full rounded-full bg-emerald-500 transition-all"
+                            style={{ width: `${(completedCount / steps.length) * 100}%` }}
+                          />
+                        </div>
+                        <span className="text-[10px] font-medium text-slate-600">
+                          {completedCount}/{steps.length} • {teacherCount} {localText('lượt', 'turns')}
+                        </span>
                       </div>
-                      <span className="text-[10px] font-medium text-slate-600">
-                        {completedCount}/{steps.length} • {teacherCount} {localText('lượt', 'turns')}
-                      </span>
-                    </div>
+                      </>
+                    ) : (
+                      <div className="shrink-0 w-28 sm:w-32">
+                        <p className="mb-2 text-xs font-semibold text-slate-600">
+                          {localText('Tiến độ buổi học', 'Lesson progress')}
+                        </p>
+                        <p className="text-xs text-slate-600">
+                          {teacherCount} {localText('lượt hội thoại', 'turns')}
+                        </p>
+                      </div>
+                    )}
                     </>
                   ) : null
                 })()}
@@ -5863,21 +6086,96 @@ export default function HocTiengAnhAiClientPage() {
                     {historySessions.length > 0 ? (
                       <div className="rounded-md border border-indigo-200 bg-indigo-50 p-3">
                         <p className="mb-2 text-sm font-medium text-indigo-900">
-                          {localText('Bạn có buổi học đã lưu. Bấm để tiếp tục học.', 'You have a saved lesson. Tap to continue.')}
+                          {historySessions.length === 1
+                            ? localText('Bạn có buổi học đã lưu. Bấm để tiếp tục học.', 'You have a saved lesson. Tap to continue.')
+                            : localText('Bạn có nhiều buổi học dở. Chọn buổi để tiếp tục:', 'You have multiple lessons in progress. Choose one to continue:')}
                         </p>
-                        <Button
-                          type="button"
-                          variant="default"
-                          size="sm"
-                          onClick={() => {
-                            const latest = historySessions[0]
-                            if (latest?.sessionId) void loadHistorySession(latest.sessionId)
-                          }}
-                          disabled={historyBusy}
-                          className="min-h-[44px]"
-                        >
-                          {localText('Tiếp tục buổi học gần nhất', 'Continue latest lesson')}
-                        </Button>
+                        {historySessions.length === 1 ? (
+                          <div className="flex items-center gap-2">
+                          <Button
+                            type="button"
+                            variant="default"
+                            size="sm"
+                            onClick={() => {
+                              const s = historySessions[0]
+                              if (s?.sessionId) void loadHistorySession(s.sessionId)
+                            }}
+                            disabled={historyBusy}
+                            className="min-h-[44px] flex-1"
+                          >
+                            {localText('Tiếp tục buổi học', 'Continue lesson')}
+                            {historySessions[0]?.topicLabel ? `: ${historySessions[0].topicLabel}` : ''}
+                            {historySessions[0]?.learningMode === 'reflex'
+                              ? ` (${localText('Phản xạ', 'Reflex')})`
+                              : historySessions[0]?.learningMode === 'review'
+                                ? ` (${localText('Ôn tập', 'Review')})`
+                                : ''}
+                          </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                const s = historySessions[0]
+                                if (s?.sessionId) void deleteSession(s.sessionId)
+                              }}
+                              disabled={historyBusy}
+                              title={localText('Xóa buổi học', 'Delete lesson')}
+                              className="shrink-0 text-muted-foreground hover:text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            {historySessions.slice(0, 5).map((s) => (
+                              <div key={s.sessionId} className="flex items-center gap-2">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => void loadHistorySession(s.sessionId)}
+                                  disabled={historyBusy}
+                                  className="min-h-[44px] flex-1 justify-start text-left"
+                                >
+                                  <span className="truncate flex-1">
+                                    {s.topicLabel ? (
+                                      <>
+                                        <span className="font-medium">{s.topicLabel}</span>
+                                        {' • '}
+                                        {s.teacherLabel || localText('Buổi học', 'Lesson')} • {s.messageCount} {localText('lượt', 'turns')}
+                                      </>
+                                    ) : (
+                                      <>
+                                        {s.teacherLabel || localText('Buổi học', 'Lesson')} • {s.messageCount} {localText('lượt', 'turns')}
+                                      </>
+                                    )}
+                                    {s.learningMode === 'reflex'
+                                      ? ` • ${localText('Phản xạ', 'Reflex')}`
+                                      : s.learningMode === 'review'
+                                        ? ` • ${localText('Ôn tập', 'Review')}`
+                                        : ''}
+                                  </span>
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    void deleteSession(s.sessionId)
+                                  }}
+                                  disabled={historyBusy}
+                                  title={localText('Xóa buổi học', 'Delete lesson')}
+                                  className="shrink-0 text-muted-foreground hover:text-destructive"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     ) : null}
                     <p className="text-sm text-muted-foreground">
@@ -5899,17 +6197,20 @@ export default function HocTiengAnhAiClientPage() {
                       {m.role === 'teacher' ? (
                         <div className="space-y-2">
                           {(() => {
+                            if (learningMode === 'reflex') return <p className="whitespace-pre-wrap">{m.text}</p>
                             const correctionNote = String(correctionNoteByMessageId[m.id] || '').trim()
                             const correctedSentence = String(mainSentenceByMessageId[m.id] || '').trim()
                             const intentAnswer = String(intentAnswerByMessageId[m.id] || '').trim()
                             const hasStructured = Boolean(correctionNote || correctedSentence || intentAnswer)
                             if (!hasStructured) return <p>{m.text}</p>
-                            if (supportsLatinTransliteration && correctedSentence) void ensureWritingRomanization(correctedSentence)
-                            if (supportsLatinTransliteration && intentAnswer) void ensureWritingRomanization(intentAnswer)
-                            const pinyin2 = correctedSentence ? sanitizeRomanizedText(String(writingRomanizationByKey[toWritingRomanizationKey(correctedSentence)] || '').trim()) : ''
-                            const pinyin3 = intentAnswer ? sanitizeRomanizedText(String(writingRomanizationByKey[toWritingRomanizationKey(intentAnswer)] || '').trim()) : ''
-                            const busy2 = correctedSentence ? Boolean(writingRomanizationBusyByKey[toWritingRomanizationKey(correctedSentence)]) : false
-                            const busy3 = intentAnswer ? Boolean(writingRomanizationBusyByKey[toWritingRomanizationKey(intentAnswer)]) : false
+                            const skipPinyin2 = correctedSentence && hasEmbeddedPinyin(correctedSentence)
+                            const skipPinyin3 = intentAnswer && hasEmbeddedPinyin(intentAnswer)
+                            if (supportsLatinTransliteration && correctedSentence && !skipPinyin2) void ensureWritingRomanization(correctedSentence)
+                            if (supportsLatinTransliteration && intentAnswer && !skipPinyin3) void ensureWritingRomanization(intentAnswer)
+                            const pinyin2 = !skipPinyin2 && correctedSentence ? sanitizeRomanizedText(String(writingRomanizationByKey[toWritingRomanizationKey(correctedSentence)] || '').trim()) : ''
+                            const pinyin3 = !skipPinyin3 && intentAnswer ? sanitizeRomanizedText(String(writingRomanizationByKey[toWritingRomanizationKey(intentAnswer)] || '').trim()) : ''
+                            const busy2 = !skipPinyin2 && correctedSentence ? Boolean(writingRomanizationBusyByKey[toWritingRomanizationKey(correctedSentence)]) : false
+                            const busy3 = !skipPinyin3 && intentAnswer ? Boolean(writingRomanizationBusyByKey[toWritingRomanizationKey(intentAnswer)]) : false
                             return (
                               <div className="space-y-1 text-xs">
                                 <p>
@@ -5993,6 +6294,8 @@ export default function HocTiengAnhAiClientPage() {
                               </div>
                             )
                           })()}
+                          {learningMode !== 'reflex' ? (
+                          <>
                           <div className="flex flex-wrap gap-1">
                             {(tokensByMessageId[m.id] || []).map((word, idx) => {
                               const key = `${m.id}:${word.toLowerCase()}`
@@ -6161,13 +6464,26 @@ export default function HocTiengAnhAiClientPage() {
                               )}
                             </div>
                           ) : null}
+                          </>
+                          ) : null}
                         </div>
                       ) : (
                         <p>{m.text}</p>
                       )}
                       {m.role === 'teacher' ? (
                         <div className="mt-2 flex flex-wrap gap-2">
-                          {idx === 0 ? (
+                          {learningMode === 'reflex' ? (
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => void replayTeacherMessage(m.id, m.text)}
+                              disabled={isReplayButtonDisabled(`${m.id}__full`, hasCachedTeacherAudio(m.id))}
+                            >
+                              <Volume2 className="mr-2 h-4 w-4" />
+                              {localText('Nghe lại', 'Play again')}
+                            </Button>
+                          ) : idx === 0 ? (
                             <>
                               <Button
                                 type="button"
@@ -6239,7 +6555,7 @@ export default function HocTiengAnhAiClientPage() {
                           )}
                         </div>
                       ) : null}
-                      {m.role === 'teacher' && openingTranslateByMessageId[m.id] ? (
+                      {m.role === 'teacher' && learningMode !== 'reflex' && openingTranslateByMessageId[m.id] ? (
                         <p className="mt-2 text-xs text-slate-600">
                           <span className="font-semibold">{localText('Dịch ngữ cảnh:', 'Context translation:')}</span>{' '}
                           {openingTranslateByMessageId[m.id]}
@@ -6247,7 +6563,7 @@ export default function HocTiengAnhAiClientPage() {
                       ) : null}
                     </div>
                   ))}
-                  {busy ? (
+                  {busy && (messages.length === 0 || messages[messages.length - 1]?.role !== 'teacher') ? (
                     <div className="rounded-md border border-indigo-200 bg-indigo-50/80 px-3 py-3 text-sm animate-pulse">
                       <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-indigo-600">
                         {localText('Teacher', 'Teacher')}
@@ -6281,7 +6597,7 @@ export default function HocTiengAnhAiClientPage() {
                     type="button"
                     size="sm"
                     onClick={() => void handleSend()}
-                    disabled={busy || !draft.trim() || (Boolean(writingTask) && !writingTask?.completed)}
+                    disabled={busy || !draft.trim() || (learningMode === 'review' && Boolean(writingTask) && !writingTask?.completed)}
                     className="h-9 px-2"
                   >
                     <Send className="h-4 w-4" />
@@ -6317,7 +6633,7 @@ export default function HocTiengAnhAiClientPage() {
                         size="sm"
                         variant="default"
                         onClick={() => void sendPendingRecording()}
-                        disabled={busy || awaitingTeacherReply || (Boolean(writingTask) && !writingTask?.completed)}
+                        disabled={busy || awaitingTeacherReply || (learningMode === 'review' && Boolean(writingTask) && !writingTask?.completed)}
                         className="min-h-[44px] px-3 text-xs"
                       >
                         <Send className="mr-2 h-4 w-4" />
@@ -6325,27 +6641,82 @@ export default function HocTiengAnhAiClientPage() {
                       </Button>
                     </>
                   ) : (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant={listening ? 'destructive' : 'outline'}
-                      onClick={handleMic}
-                      disabled={busy || awaitingTeacherReply || (Boolean(writingTask) && !writingTask?.completed)}
-                      className="min-h-[44px] px-3 text-xs"
-                    >
-                      {listening ? <MicOff className="mr-2 h-4 w-4" /> : <Mic className="mr-2 h-4 w-4" />}
-                      {listening ? localText('Dừng mic', 'Stop mic') : localText('Nói', 'Speak')}
-                    </Button>
+                    <>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={listening ? 'destructive' : 'outline'}
+                        onClick={handleMic}
+                        disabled={busy || awaitingTeacherReply || (learningMode === 'review' && Boolean(writingTask) && !writingTask?.completed)}
+                        className="min-h-[44px] px-3 text-xs"
+                      >
+                        {listening ? <MicOff className="mr-2 h-4 w-4" /> : <Mic className="mr-2 h-4 w-4" />}
+                        {listening ? localText('Dừng mic', 'Stop mic') : localText('Nói', 'Speak')}
+                      </Button>
+                      <div
+                        className="flex flex-col items-center gap-0.5"
+                        title={localText('Tốc độ phát giọng thầy/cô', 'Teacher voice playback speed')}
+                      >
+                        <span className="text-[10px] text-slate-500 whitespace-nowrap">
+                          {localText('Tốc độ giọng thầy/cô', 'Teacher voice speed')}
+                        </span>
+                        <div className="flex items-center rounded-md border border-slate-200 bg-slate-50">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 min-w-8 p-0 shrink-0"
+                            disabled={playbackSpeed <= 0.75}
+                            onClick={() => {
+                              const speeds = [0.75, 1, 1.25, 1.5]
+                              const i = speeds.indexOf(playbackSpeed)
+                              if (i <= 0) return
+                              const next = speeds[i - 1]
+                              playbackSpeedRef.current = next
+                              setPlaybackSpeed(next)
+                              if (audioRef.current && !audioRef.current.paused) {
+                                audioRef.current.playbackRate = next
+                              }
+                            }}
+                          >
+                            <Minus className="h-3.5 w-3.5" />
+                          </Button>
+                          <span className="min-w-[2.25rem] text-center text-xs font-medium text-slate-600">
+                            {playbackSpeed}x
+                          </span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 min-w-8 p-0 shrink-0"
+                            disabled={playbackSpeed >= 1.5}
+                            onClick={() => {
+                              const speeds = [0.75, 1, 1.25, 1.5]
+                              const i = speeds.indexOf(playbackSpeed)
+                              if (i >= speeds.length - 1) return
+                              const next = speeds[i + 1]
+                              playbackSpeedRef.current = next
+                              setPlaybackSpeed(next)
+                              if (audioRef.current && !audioRef.current.paused) {
+                                audioRef.current.playbackRate = next
+                              }
+                            }}
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    </>
                   )}
                 </div>
                 <p className="text-xs text-slate-500">
-                  {busy
+                  {busy && (messages.length === 0 || messages[messages.length - 1]?.role !== 'teacher')
                     ? localText('Thầy/cô đang suy nghĩ và chuẩn bị giảng giải cho bạn...', 'Teacher is thinking and preparing an explanation for you...')
                     : recordingPending
                       ? localText('Đã ghi âm xong. Nghe lại, gửi hoặc nói lại.', 'Recording done. Play back, send, or record again.')
                       : micLanguageHint}
                 </p>
-                {writingTask && !writingTask.completed ? (
+                {learningMode === 'review' && writingTask && !writingTask.completed ? (
                   <p className="rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-xs text-amber-800">
                     {localText(
                       'Cần hoàn thành bài viết mini bên dưới để tiếp tục nói/gửi lượt mới.',
@@ -6354,7 +6725,7 @@ export default function HocTiengAnhAiClientPage() {
                   </p>
                 ) : null}
               </div>
-              {writingTask ? (
+              {learningMode === 'review' && writingTask ? (
                 <div
                   className={`rounded-md border p-2.5 ${
                     !writingTask.completed
@@ -6609,45 +6980,49 @@ export default function HocTiengAnhAiClientPage() {
                   </ul>
                 )}
               </div>
-              <TodayWordsPanel
-                localText={localText}
-                todayWordsBusy={todayWordsBusy}
-                todayWords={todayWords}
-                writingRomanizationByKey={writingRomanizationByKey}
-                writingRomanizationBusyByKey={writingRomanizationBusyByKey}
-                toWritingRomanizationKey={toWritingRomanizationKey}
-                isCjkTargetLanguage={isCjkTargetLanguage}
-                onRefreshTodayWords={() => void fetchSessionWords()}
-                onStartWordPractice={startWordPractice}
-                onPlayWordTextSnippet={(text) => void playWordTextSnippet(text)}
-                onPlayWordPronunciation={(word) => void playWordPronunciation(word)}
-                onRegenerateWordPronunciation={(word) =>
-                  void playWordPronunciation(word, {
-                    forceRegenerate: true,
-                    wordDetailForSave: findSessionWord(word),
-                  })
-                }
-              />
-              <ReviewItemsPanel
-                localText={localText}
-                reviewBusy={reviewBusy}
-                reviewItems={reviewItems}
-                writingRomanizationByKey={writingRomanizationByKey}
-                writingRomanizationBusyByKey={writingRomanizationBusyByKey}
-                toWritingRomanizationKey={toWritingRomanizationKey}
-                isCjkTargetLanguage={isCjkTargetLanguage}
-                onRefreshReviewItems={() => void fetchReviewDue()}
-                onStartWordPractice={startWordPractice}
-                onPlayWordTextSnippet={(text) => void playWordTextSnippet(text)}
-                onPlayWordPronunciation={(word) => void playWordPronunciation(word)}
-                onRegenerateWordPronunciation={(word) =>
-                  void playWordPronunciation(word, {
-                    forceRegenerate: true,
-                    wordDetailForSave: findSessionWord(word),
-                  })
-                }
-                onMarkReviewDone={(id, quality) => void markReviewDone(id, quality)}
-              />
+              {learningMode === 'review' ? (
+                <>
+                  <TodayWordsPanel
+                    localText={localText}
+                    todayWordsBusy={todayWordsBusy}
+                    todayWords={todayWords}
+                    writingRomanizationByKey={writingRomanizationByKey}
+                    writingRomanizationBusyByKey={writingRomanizationBusyByKey}
+                    toWritingRomanizationKey={toWritingRomanizationKey}
+                    isCjkTargetLanguage={isCjkTargetLanguage}
+                    onRefreshTodayWords={() => void fetchSessionWords()}
+                    onStartWordPractice={startWordPractice}
+                    onPlayWordTextSnippet={(text) => void playWordTextSnippet(text)}
+                    onPlayWordPronunciation={(word) => void playWordPronunciation(word)}
+                    onRegenerateWordPronunciation={(word) =>
+                      void playWordPronunciation(word, {
+                        forceRegenerate: true,
+                        wordDetailForSave: findSessionWord(word),
+                      })
+                    }
+                  />
+                  <ReviewItemsPanel
+                    localText={localText}
+                    reviewBusy={reviewBusy}
+                    reviewItems={reviewItems}
+                    writingRomanizationByKey={writingRomanizationByKey}
+                    writingRomanizationBusyByKey={writingRomanizationBusyByKey}
+                    toWritingRomanizationKey={toWritingRomanizationKey}
+                    isCjkTargetLanguage={isCjkTargetLanguage}
+                    onRefreshReviewItems={() => void fetchReviewDue()}
+                    onStartWordPractice={startWordPractice}
+                    onPlayWordTextSnippet={(text) => void playWordTextSnippet(text)}
+                    onPlayWordPronunciation={(word) => void playWordPronunciation(word)}
+                    onRegenerateWordPronunciation={(word) =>
+                      void playWordPronunciation(word, {
+                        forceRegenerate: true,
+                        wordDetailForSave: findSessionWord(word),
+                      })
+                    }
+                    onMarkReviewDone={(id, quality) => void markReviewDone(id, quality)}
+                  />
+                </>
+              ) : null}
             </CardContent>
           </Card>
         </div>
@@ -6661,6 +7036,7 @@ export default function HocTiengAnhAiClientPage() {
           localText={localText}
           onRefresh={() => void fetchHistorySessions()}
           onOpenSession={(sessionId) => void loadHistorySession(sessionId)}
+          onDeleteSession={(sid) => void deleteSession(sid)}
         />
       </div>
       <WordPracticeOverlay
@@ -6827,6 +7203,8 @@ export default function HocTiengAnhAiClientPage() {
           { value: '4', label: levelLabelUi(4) },
         ]}
         onLearnerLevelChange={(value) => setLearnerLevel(value as LearnerLevel)}
+        learningMode={learningMode}
+        onLearningModeChange={setLearningMode}
         pendingTopicId={pendingTopicId}
         topicSourceMode={topicSourceMode}
         builtInTopicOptions={builtInTopicOptions}
