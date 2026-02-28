@@ -84,6 +84,21 @@ type SessionPinnedFacts = {
   topicFocus: string
 }
 
+type PresetReplayTurn = {
+  reply: string
+  correctionNote?: string
+  mainSentence?: string
+  intentAnswer?: string
+  mustKnowText?: string
+}
+
+type PresetReplayState = {
+  sourceLessonId: string
+  active: boolean
+  nextTurnIndex: number
+  turns: PresetReplayTurn[]
+}
+
 type ReplayCacheRow = {
   id: string
   normalized_student_text: string
@@ -130,6 +145,40 @@ function parsePinnedFacts(raw: string): SessionPinnedFacts {
     }
   } catch {
     return { repeatedMistakes: [], correctedSentences: [], learnedPhrases: [], topicFocus: '' }
+  }
+}
+
+function parsePresetReplay(raw: string): PresetReplayState | null {
+  try {
+    const root = JSON.parse(String(raw || '{}')) as Record<string, unknown>
+    const preset = (root?.preset_replay && typeof root.preset_replay === 'object'
+      ? (root.preset_replay as Record<string, unknown>)
+      : null)
+    if (!preset) return null
+    const turnsRaw = Array.isArray(preset.turns) ? preset.turns : []
+    const turns = turnsRaw
+      .map((x) => {
+        if (!x || typeof x !== 'object') return null
+        const row = x as Record<string, unknown>
+        const reply = String(row.reply || '').trim()
+        if (!reply) return null
+        return {
+          reply,
+          correctionNote: String(row.correctionNote || '').trim() || undefined,
+          mainSentence: String(row.mainSentence || '').trim() || undefined,
+          intentAnswer: String(row.intentAnswer || '').trim() || undefined,
+          mustKnowText: String(row.mustKnowText || '').trim() || undefined,
+        } satisfies PresetReplayTurn
+      })
+      .filter((x): x is PresetReplayTurn => Boolean(x))
+    if (turns.length === 0) return null
+    const nextTurnIndexRaw = Number(preset.next_turn_index ?? preset.nextTurnIndex ?? 0)
+    const nextTurnIndex = Number.isFinite(nextTurnIndexRaw) ? Math.max(0, Math.floor(nextTurnIndexRaw)) : 0
+    const sourceLessonId = String(preset.source_lesson_id ?? preset.sourceLessonId ?? '').trim()
+    const active = preset.active !== false
+    return { sourceLessonId, active, nextTurnIndex, turns }
+  } catch {
+    return null
   }
 }
 
@@ -962,10 +1011,12 @@ export async function POST(request: NextRequest) {
     }
 
     let userId = ''
+    let sessionPinnedFactsRaw = '{}'
     let sessionMemory: { runningSummary: string; pinnedFacts: SessionPinnedFacts } = {
       runningSummary: '',
       pinnedFacts: { repeatedMistakes: [], correctedSentences: [], learnedPhrases: [], topicFocus: '' },
     }
+    let presetReplay: PresetReplayState | null = null
     if (sessionId) {
       const supabase = createClient()
       const auth = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập để học cùng AI.')
@@ -978,9 +1029,81 @@ export async function POST(request: NextRequest) {
         .eq('session_id', sessionId)
         .limit(1)
       const memory = Array.isArray(memoryRows) && memoryRows.length > 0 ? memoryRows[0] : null
+      sessionPinnedFactsRaw = String(memory?.pinned_facts_json || '{}')
+      presetReplay = parsePresetReplay(sessionPinnedFactsRaw)
       sessionMemory = {
         runningSummary: String(memory?.running_summary || '').trim(),
-        pinnedFacts: parsePinnedFacts(String(memory?.pinned_facts_json || '{}')),
+        pinnedFacts: parsePinnedFacts(sessionPinnedFactsRaw),
+      }
+    }
+    if (userId && sessionId && presetReplay?.active) {
+      const turnIdx = Math.max(0, Math.floor(Number(presetReplay.nextTurnIndex || 0)))
+      const turn = presetReplay.turns[turnIdx]
+      if (turn) {
+        const turnReply = String(turn.reply || '').trim()
+        const turnMainSentence =
+          String(turn.mainSentence || '').trim()
+          || extractPhraseTargetSentence(turnReply)
+          || ''
+        const turnMustKnowText =
+          String(turn.mustKnowText || '').trim()
+          || turnMainSentence
+          || turnReply
+        const turnIntentAnswer = ensureIntentAnswerTwoPart(
+          String(turn.intentAnswer || '').trim() || turnReply,
+          targetLanguageCode,
+          targetLanguage
+        )
+        const nextPinnedRaw = (() => {
+          try {
+            const parsed = JSON.parse(sessionPinnedFactsRaw || '{}') as Record<string, unknown>
+            const root = parsed && typeof parsed === 'object' ? { ...parsed } : {}
+            root.preset_replay = {
+              source_lesson_id: presetReplay.sourceLessonId || '',
+              active: turnIdx + 1 < presetReplay.turns.length,
+              next_turn_index: turnIdx + 1,
+              turns: presetReplay.turns,
+            }
+            return JSON.stringify(root)
+          } catch {
+            return JSON.stringify({
+              preset_replay: {
+                source_lesson_id: presetReplay.sourceLessonId || '',
+                active: turnIdx + 1 < presetReplay.turns.length,
+                next_turn_index: turnIdx + 1,
+                turns: presetReplay.turns,
+              },
+            })
+          }
+        })()
+        const nextSummary = updateRunningSummary(sessionMemory.runningSummary, studentText, turnReply)
+        await adminSupabase.from('language_coach_session_memories').upsert(
+          {
+            user_id: userId,
+            session_id: sessionId,
+            target_language: targetLanguage,
+            native_language: nativeLanguage,
+            learner_level: learnerLevel,
+            topic_id: topicId || null,
+            topic_label: topicLabel || null,
+            running_summary: nextSummary,
+            pinned_facts_json: nextPinnedRaw,
+            learning_mode: learningMode,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'user_id,session_id' }
+        )
+        return NextResponse.json({
+          reply: turnReply,
+          corrections: [],
+          pronunciationTips: [],
+          correctionNote: String(turn.correctionNote || '').trim(),
+          intentAnswer: turnIntentAnswer,
+          correctedSentence: turnMainSentence,
+          mainSentence: turnMainSentence,
+          mustKnowText: turnMustKnowText,
+          replayedFromPreset: true,
+        })
       }
     }
     const asksReviewFar =

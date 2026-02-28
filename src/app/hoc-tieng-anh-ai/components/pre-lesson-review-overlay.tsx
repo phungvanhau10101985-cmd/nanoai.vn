@@ -23,8 +23,8 @@ type PreLessonReviewOverlayProps = {
   onClozeSubmit: (word: string, correct: boolean) => void
   onListenSubmit: (word: string, correct: boolean) => void
   onRecallSubmit: (word: string, correct: boolean) => void
-  onStartLiveLesson: () => void
-  onStartPresetLesson: () => void
+  onContinueAfterPass: () => void
+  continueAfterPassBusy?: boolean
   onPlayWord: (word: string, pronunciationAudioUrl?: string, wordItem?: PreLessonWordItem) => void
   onRegenerateWordAudio?: (word: string, wordItem: PreLessonWordItem) => void
   onClose: () => void
@@ -75,8 +75,8 @@ export function PreLessonReviewOverlay({
   onClozeSubmit,
   onListenSubmit,
   onRecallSubmit,
-  onStartLiveLesson,
-  onStartPresetLesson,
+  onContinueAfterPass,
+  continueAfterPassBusy,
   onPlayWord,
   onRegenerateWordAudio,
   onClose,
@@ -88,6 +88,7 @@ export function PreLessonReviewOverlay({
   const [compositionEndAt, setCompositionEndAt] = useState(0)
   const autoPlayedListenWordRef = useRef<Record<string, true>>({})
   const autoPlayedHintRef = useRef<string | null>(null)
+  const autoContinueTriggeredRef = useRef(false)
   const submittedRef = useRef(false)
   const submitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isComposingRef = useRef(false)
@@ -131,6 +132,17 @@ export function PreLessonReviewOverlay({
   useEffect(() => {
     if (wrongHint) setInputCheckStatus('idle')
   }, [wrongHint])
+
+  useEffect(() => {
+    if (!passed) {
+      autoContinueTriggeredRef.current = false
+      return
+    }
+    if (autoContinueTriggeredRef.current) return
+    autoContinueTriggeredRef.current = true
+    const timer = setTimeout(() => onContinueAfterPass(), 120)
+    return () => clearTimeout(timer)
+  }, [passed, onContinueAfterPass])
 
   // Khi chuyển sang ô gợi ý, tự động phát từ một lần.
   useEffect(() => {
@@ -375,23 +387,11 @@ export function PreLessonReviewOverlay({
           <p className="mt-2 text-sm text-slate-600">
             {localText('Bạn đã đạt yêu cầu! Có thể bắt đầu bài mới.', 'You passed! You can start the new lesson.')}
           </p>
-          <div className="mt-4 grid gap-2 sm:grid-cols-2">
-            <Button
-              type="button"
-              onClick={onStartLiveLesson}
-              className="min-h-[44px]"
-            >
-              {localText('Học live trực tiếp', 'Start live lesson')}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={onStartPresetLesson}
-              className="min-h-[44px]"
-            >
-              {localText('Học bài có sẵn', 'Study saved lesson')}
-            </Button>
-          </div>
+          <p className="mt-4 text-sm text-slate-500">
+            {continueAfterPassBusy
+              ? localText('Đang chuyển sang bài học...', 'Redirecting to lesson...')
+              : localText('Đang kiểm tra buổi học phù hợp...', 'Checking matching lessons...')}
+          </p>
         </div>
       </div>
     )

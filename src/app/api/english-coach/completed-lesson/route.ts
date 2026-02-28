@@ -19,6 +19,18 @@ type Payload = {
   learningMode?: 'review' | 'reflex'
 }
 
+type PresetTurn = {
+  reply: string
+  correctionNote?: string
+  mainSentence?: string
+  intentAnswer?: string
+  mustKnowText?: string
+  teacherLabel?: string
+  teacherLocale?: string
+  languageCode?: string
+  targetLanguage?: string
+}
+
 function normalizeLookup(input: string): string {
   return String(input || '').trim().toLowerCase()
 }
@@ -106,40 +118,76 @@ export async function POST(request: NextRequest) {
       // keep defaults
     }
 
+    const teacherRows = transcript
+      .filter((item) => String(item.role || '').trim() === 'teacher')
+      .map((item) => ({
+        text: String(item.text || '').trim().slice(0, 4000),
+        audioUrl: String(item.audioUrl || '').trim() || null,
+        translation: String(item.translation || '').trim() || null,
+        languageCode: String(item.languageCode || '').trim() || null,
+        targetLanguage: String(item.targetLanguage || '').trim() || null,
+        teacherLabel: String(item.teacherLabel || '').trim() || null,
+        teacherLocale: String(item.teacherLocale || '').trim() || null,
+        mode: String(item.mode || mode || 'chat').trim() || 'chat',
+        mainSentence: String(item.mainSentence || '').trim(),
+        correctionNote: String(item.correctionNote || '').trim(),
+        intentAnswer: String(item.intentAnswer || '').trim(),
+      }))
+      .filter((x) => x.text)
+
+    if (teacherRows.length === 0) {
+      return NextResponse.json({ found: false })
+    }
+
+    const firstTeacher = teacherRows[0]
+    const presetTurns: PresetTurn[] = teacherRows.slice(1).map((x) => ({
+      reply: x.text,
+      correctionNote: x.correctionNote || undefined,
+      mainSentence: x.mainSentence || undefined,
+      intentAnswer: x.intentAnswer || undefined,
+      mustKnowText: x.mainSentence || x.intentAnswer || x.text,
+      teacherLabel: x.teacherLabel || undefined,
+      teacherLocale: x.teacherLocale || undefined,
+      languageCode: x.languageCode || undefined,
+      targetLanguage: x.targetLanguage || undefined,
+    }))
+
     const newSessionId = randomUUID()
     const nowIso = new Date().toISOString()
-    const records = transcript.map((item) => {
-      const role = String(item.role || '').trim() === 'teacher' ? 'teacher' : 'student'
-      return {
-        user_id: user.id,
-        session_id: newSessionId,
-        role,
-        text: String(item.text || '').trim().slice(0, 4000),
-        audio_url: String(item.audioUrl || '').trim() || null,
-        translation: String(item.translation || '').trim() || null,
-        language_code: String(item.languageCode || '').trim() || null,
-        target_language: String(item.targetLanguage || '').trim() || null,
-        teacher_label: String(item.teacherLabel || '').trim() || null,
-        teacher_locale: String(item.teacherLocale || '').trim() || null,
-        mode: String(item.mode || 'chat').trim() || 'chat',
-        main_sentence: String(item.mainSentence || '').trim() || null,
-        correction_note: String(item.correctionNote || '').trim() || null,
-        intent_answer: String(item.intentAnswer || '').trim() || null,
-        tokens_json: String(item.tokensJson || '').trim() || null,
-        writing_task_json: String(item.writingTaskJson || '').trim() || null,
-      }
-    }).filter((x) => x.text)
-
-    if (records.length === 0) {
-      return NextResponse.json({ found: false })
+    const openingRecord = {
+      user_id: user.id,
+      session_id: newSessionId,
+      role: 'teacher' as const,
+      text: firstTeacher.text,
+      audio_url: firstTeacher.audioUrl,
+      translation: firstTeacher.translation,
+      language_code: firstTeacher.languageCode,
+      target_language: firstTeacher.targetLanguage,
+      teacher_label: firstTeacher.teacherLabel,
+      teacher_locale: firstTeacher.teacherLocale,
+      mode: firstTeacher.mode,
+      main_sentence: firstTeacher.mainSentence || null,
+      correction_note: firstTeacher.correctionNote || null,
+      intent_answer: firstTeacher.intentAnswer || null,
+      tokens_json: null,
+      writing_task_json: null,
     }
 
     const { error: insertError } = await adminSupabase
       .from('language_coach_messages')
-      .insert(records)
+      .insert(openingRecord)
     if (insertError) {
       return NextResponse.json({ error: insertError.message || 'Không copy được transcript bài có sẵn.' }, { status: 500 })
     }
+
+    const parsedPinnedFacts = (() => {
+      try {
+        const obj = JSON.parse(pinnedFactsJson || '{}') as unknown
+        return obj && typeof obj === 'object' ? (obj as Record<string, unknown>) : {}
+      } catch {
+        return {}
+      }
+    })()
 
     const { error: memoryError } = await adminSupabase
       .from('language_coach_session_memories')
@@ -154,7 +202,15 @@ export async function POST(request: NextRequest) {
           topic_label: topicLabel || null,
           learning_mode: learningMode,
           running_summary: runningSummary,
-          pinned_facts_json: pinnedFactsJson,
+          pinned_facts_json: JSON.stringify({
+            ...parsedPinnedFacts,
+            preset_replay: {
+              source_lesson_id: String(picked.id || ''),
+              active: true,
+              next_turn_index: 0,
+              turns: presetTurns,
+            },
+          }),
           updated_at: nowIso,
         },
         { onConflict: 'user_id,session_id' }
@@ -168,6 +224,7 @@ export async function POST(request: NextRequest) {
       sessionId: newSessionId,
       sourceLessonId: String(picked.id || ''),
       strictMatched: strict.length > 0,
+      scriptedTurns: presetTurns.length,
     })
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Lỗi không xác định.'

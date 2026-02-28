@@ -13,9 +13,11 @@ export async function POST(request: NextRequest) {
       sessionId?: string
       markEnded?: boolean
       completionReason?: string
+      qualityPassed?: boolean
     }
     const sessionId = String(payload.sessionId || '').trim()
     const markEnded = payload.markEnded !== false
+    const qualityPassed = payload.qualityPassed === true
     const completionReasonRaw = String(payload.completionReason || '').trim()
     const completionReason = completionReasonRaw || (markEnded ? 'user_ended' : 'timeline_completed_auto')
     if (!sessionId) {
@@ -105,38 +107,46 @@ export async function POST(request: NextRequest) {
       createdAt: r.created_at,
     }))
 
-    const { error: completedError } = await adminSupabase.from('language_coach_completed_lessons').upsert(
-      {
-        user_id: user.id,
-        session_id: sessionId,
-        target_language: String(memory?.target_language || first?.target_language || '').trim() || null,
-        native_language: String(memory?.native_language || '').trim() || null,
-        learner_level: Number.isFinite(Number(memory?.learner_level)) ? Math.max(0, Math.round(Number(memory?.learner_level))) : 0,
-        language_code: String(first?.language_code || '').trim() || null,
-        mode: String(first?.mode || '').trim() || null,
-        learning_mode: String(memory?.learning_mode || 'review').trim() || 'review',
-        topic_id: String(memory?.topic_id || '').trim() || null,
-        topic_label: String(memory?.topic_label || '').trim() || null,
-        teacher_label: String(first?.teacher_label || '').trim() || null,
-        teacher_locale: String(first?.teacher_locale || '').trim() || null,
-        total_messages: rows.length,
-        student_messages: studentMessages,
-        teacher_messages: teacherMessages,
-        started_at: startedAt,
-        ended_at: endedAt,
-        duration_seconds: durationSeconds,
-        completion_reason: completionReason,
-        summary_json: JSON.stringify(summary),
-        transcript_json: JSON.stringify(transcript),
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'user_id,session_id' }
-    )
-    if (completedError) {
-      return NextResponse.json(
-        { error: completedError.message || 'Không lưu được dữ liệu buổi học hoàn thành.' },
-        { status: 500 }
+    if (qualityPassed) {
+      const { error: completedError } = await adminSupabase.from('language_coach_completed_lessons').upsert(
+        {
+          user_id: user.id,
+          session_id: sessionId,
+          target_language: String(memory?.target_language || first?.target_language || '').trim() || null,
+          native_language: String(memory?.native_language || '').trim() || null,
+          learner_level: Number.isFinite(Number(memory?.learner_level)) ? Math.max(0, Math.round(Number(memory?.learner_level))) : 0,
+          language_code: String(first?.language_code || '').trim() || null,
+          mode: String(first?.mode || '').trim() || null,
+          learning_mode: String(memory?.learning_mode || 'review').trim() || 'review',
+          topic_id: String(memory?.topic_id || '').trim() || null,
+          topic_label: String(memory?.topic_label || '').trim() || null,
+          teacher_label: String(first?.teacher_label || '').trim() || null,
+          teacher_locale: String(first?.teacher_locale || '').trim() || null,
+          total_messages: rows.length,
+          student_messages: studentMessages,
+          teacher_messages: teacherMessages,
+          started_at: startedAt,
+          ended_at: endedAt,
+          duration_seconds: durationSeconds,
+          completion_reason: completionReason,
+          summary_json: JSON.stringify(summary),
+          transcript_json: JSON.stringify(transcript),
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'user_id,session_id' }
       )
+      if (completedError) {
+        return NextResponse.json(
+          { error: completedError.message || 'Không lưu được dữ liệu buổi học hoàn thành.' },
+          { status: 500 }
+        )
+      }
+    } else {
+      await adminSupabase
+        .from('language_coach_completed_lessons')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('session_id', sessionId)
     }
 
     if (markEnded) {
@@ -152,7 +162,7 @@ export async function POST(request: NextRequest) {
         )
       }
     }
-    return NextResponse.json({ ok: true, markEnded })
+    return NextResponse.json({ ok: true, markEnded, qualityPassed })
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Lỗi không xác định.'
     return NextResponse.json({ error: msg }, { status: 500 })

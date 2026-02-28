@@ -73,6 +73,7 @@ type ChatMessage = {
 type HistorySession = {
   sessionId: string
   languageCode: string
+  targetLanguage?: string
   teacherLabel: string
   mode: string
   lastMessageAt: string
@@ -1758,12 +1759,17 @@ export default function HocTiengAnhAiClientPage() {
   const [lessonStartChoiceOpen, setLessonStartChoiceOpen] = useState(false)
   const [lessonStartChoiceBusy, setLessonStartChoiceBusy] = useState(false)
   const [lessonStartPlan, setLessonStartPlan] = useState<{ curriculum: TopicCurriculum | null; topic: TopicOption } | null>(null)
+  const [matchedSessionChoiceOpen, setMatchedSessionChoiceOpen] = useState(false)
+  const [matchedSessionChoiceBusy, setMatchedSessionChoiceBusy] = useState(false)
+  const [matchedSessionPlan, setMatchedSessionPlan] = useState<{ curriculum: TopicCurriculum | null; topic: TopicOption } | null>(null)
+  const [matchedHistorySessions, setMatchedHistorySessions] = useState<HistorySession[]>([])
   const [preLessonExerciseIndex, setPreLessonExerciseIndex] = useState(0)
   const [preLessonWordIndex, setPreLessonWordIndex] = useState(0)
   const [preLessonResults, setPreLessonResults] = useState<Record<string, { cloze: boolean; listen: boolean; recall: boolean }>>({})
   const [preLessonRetryWords, setPreLessonRetryWords] = useState<TodayWordItem[] | null>(null)
   const [preLessonInput, setPreLessonInput] = useState('')
   const [preLessonRecallDirection, setPreLessonRecallDirection] = useState<'word' | 'meaning'>('word')
+  const [preLessonContinueBusy, setPreLessonContinueBusy] = useState(false)
   const [learningMode, setLearningMode] = useState<LearningMode>('review')
 
   const onPreLessonClozeSubmit = useCallback(
@@ -4595,7 +4601,16 @@ export default function HocTiengAnhAiClientPage() {
   const endLessonAndStartNew = async () => {
     const currentSessionId = sessionId
     if (currentSessionId) {
-      await endHistorySession(currentSessionId)
+      const curriculum = topicCurriculum || preLessonCurriculum
+      const steps = curriculum?.lessonSteps ?? []
+      const teacherCount = messages.filter((m) => m.role === 'teacher').length
+      const turnsPerStep = Math.max(1, Math.ceil((steps.length || 1) / 6))
+      const completedCount = steps.length > 0 ? Math.min(Math.floor(teacherCount / turnsPerStep), steps.length) : 0
+      const qualityPassed = steps.length > 0 && completedCount >= steps.length
+      await endHistorySession(currentSessionId, {
+        qualityPassed,
+        completionReason: qualityPassed ? 'timeline_completed' : 'not_qualified_auto_deleted',
+      })
       setHistorySessions((prev) => prev.filter((s) => s.sessionId !== currentSessionId))
     }
     startNewSession()
@@ -5283,19 +5298,49 @@ export default function HocTiengAnhAiClientPage() {
     setPreLessonInput('')
   }
 
+  const normalizeMatchText = (value: string) =>
+    String(value || '')
+      .toLowerCase()
+      .normalize('NFKC')
+      .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+
+  const findMatchingHistorySessions = useCallback((plan: { curriculum: TopicCurriculum | null; topic: TopicOption }) => {
+    const normalizedTopic = normalizeMatchText(plan.topic.label)
+    const modeToUse = learningMode === 'reflex' ? 'listen_speak' : mode
+    return historySessions
+      .filter((s) => {
+        if (String(s.learningMode || 'review') !== String(learningMode)) return false
+        if (String(s.mode || '') !== String(modeToUse)) return false
+        if (String(s.languageCode || '').trim().toLowerCase() !== String(languageCode || '').trim().toLowerCase()) return false
+        const topic = normalizeMatchText(String(s.topicLabel || ''))
+        if (!normalizedTopic || !topic) return false
+        return topic === normalizedTopic
+      })
+      .sort((a, b) => (String(a.lastMessageAt || '') < String(b.lastMessageAt || '') ? 1 : -1))
+  }, [historySessions, learningMode, mode, languageCode])
+
   const openLessonStartChoice = (curriculum: TopicCurriculum | null, topic: TopicOption) => {
     setLessonStartPlan({ curriculum, topic })
     setLessonStartChoiceOpen(true)
   }
 
   const startLiveLessonFromChoice = async (planArg?: { curriculum: TopicCurriculum | null; topic: TopicOption }) => {
-    const plan = planArg || lessonStartPlan
+    const plan = planArg || lessonStartPlan || matchedSessionPlan
     if (!plan) return
+    let curriculumToUse = plan.curriculum
+    if (!curriculumToUse) {
+      curriculumToUse = await fetchTopicCurriculum({ skipConfirm: true, topicId: plan.topic.id, silent: true })
+    }
+    setMatchedSessionChoiceOpen(false)
+    setMatchedSessionPlan(null)
+    setMatchedHistorySessions([])
     setLessonStartChoiceOpen(false)
     setLessonStartPlan(null)
     await startLesson({
       skipPrerequisiteCheck: true,
-      curriculumOverride: plan.curriculum,
+      curriculumOverride: curriculumToUse,
       topicOverride: plan.topic,
     })
     setSetupCollapsed(true)
@@ -5329,7 +5374,7 @@ export default function HocTiengAnhAiClientPage() {
           title: localText('Chưa có bài phù hợp', 'No matching saved lesson'),
           description: localText('Sẽ chuyển sang học live để không gián đoạn.', 'Switching to live lesson to keep learning flow.'),
         })
-        await startLiveLessonFromChoice()
+        await startLiveLessonFromChoice(plan)
         return
       }
       setLessonStartChoiceOpen(false)
@@ -5352,23 +5397,43 @@ export default function HocTiengAnhAiClientPage() {
   }
 
   const startLiveAfterPreReview = async () => {
+    if (preLessonContinueBusy) return
     const curriculum = preLessonCurriculum
     const topic = preLessonTopic
     if (!curriculum || !topic) return
     const plan = { curriculum, topic }
-    clearPreLessonGate()
-    setLessonStartPlan(plan)
-    await startLiveLessonFromChoice(plan)
+    setPreLessonContinueBusy(true)
+    try {
+      clearPreLessonGate()
+      const matched = findMatchingHistorySessions(plan)
+      if (matched.length === 0) {
+        setLessonStartPlan(plan)
+        await startLiveLessonFromChoice(plan)
+        return
+      }
+      setMatchedHistorySessions(matched)
+      setMatchedSessionPlan(plan)
+      setMatchedSessionChoiceOpen(true)
+    } finally {
+      setPreLessonContinueBusy(false)
+    }
   }
 
-  const startPresetAfterPreReview = async () => {
-    const curriculum = preLessonCurriculum
-    const topic = preLessonTopic
-    if (!curriculum || !topic) return
-    const plan = { curriculum, topic }
-    clearPreLessonGate()
-    setLessonStartPlan(plan)
-    await startPresetLessonFromChoice(plan)
+  const openMatchedHistorySession = async (targetSessionId: string) => {
+    if (!targetSessionId) return
+    setMatchedSessionChoiceBusy(true)
+    try {
+      setMatchedSessionChoiceOpen(false)
+      setMatchedSessionPlan(null)
+      await loadHistorySession(targetSessionId)
+      setSetupCollapsed(true)
+      toast({
+        title: localText('Đã mở buổi học đang lưu', 'In-progress lesson loaded'),
+        description: localText('Bạn có thể tiếp tục từ buổi học phù hợp này.', 'You can continue from this matched lesson.'),
+      })
+    } finally {
+      setMatchedSessionChoiceBusy(false)
+    }
   }
 
   const handleStartLessonClick = async () => {
@@ -5825,7 +5890,7 @@ export default function HocTiengAnhAiClientPage() {
                         size="sm"
                         onClick={() => void loadHistorySession(s.sessionId)}
                         disabled={historyBusy}
-                        className="min-h-[44px] min-w-0 flex-1 justify-start overflow-visible text-left"
+                        className="min-h-[44px] min-w-0 flex-1 justify-start overflow-visible text-left sm:flex-none sm:w-auto sm:max-w-[min(78vw,52rem)]"
                       >
                         <span className="block min-w-0 whitespace-normal break-words text-left">
                           {s.topicLabel || localText('Buổi học', 'Lesson')}
@@ -6515,7 +6580,7 @@ export default function HocTiengAnhAiClientPage() {
                               if (s?.sessionId) void loadHistorySession(s.sessionId)
                             }}
                             disabled={historyBusy}
-                            className="min-h-[44px] min-w-0 flex-1 justify-start overflow-visible text-left"
+                            className="min-h-[44px] min-w-0 flex-1 justify-start overflow-visible text-left sm:flex-none sm:w-auto sm:max-w-[min(78vw,52rem)]"
                           >
                             <span className="block min-w-0 break-words text-left whitespace-normal">
                               {localText('Tiếp tục buổi học', 'Continue lesson')}
@@ -6553,7 +6618,7 @@ export default function HocTiengAnhAiClientPage() {
                                   size="sm"
                                   onClick={() => void loadHistorySession(s.sessionId)}
                                   disabled={historyBusy}
-                                  className="min-h-[44px] min-w-0 flex-1 justify-start overflow-visible text-left"
+                                  className="min-h-[44px] min-w-0 flex-1 justify-start overflow-visible text-left sm:flex-none sm:w-auto sm:max-w-[min(78vw,52rem)]"
                                 >
                                   <span className="block min-w-0 break-words text-left whitespace-normal">
                                     {s.topicLabel ? (
@@ -7574,8 +7639,8 @@ export default function HocTiengAnhAiClientPage() {
               setPreLessonWordIndex((i) => i + 1)
             }
           }}
-          onStartLiveLesson={() => void startLiveAfterPreReview()}
-          onStartPresetLesson={() => void startPresetAfterPreReview()}
+          onContinueAfterPass={() => void startLiveAfterPreReview()}
+          continueAfterPassBusy={preLessonContinueBusy}
           onPlayWord={(word, pronunciationAudioUrl, wordItem) =>
             void playWordPronunciation(word, {
               pronunciationAudioUrl,
@@ -7624,6 +7689,68 @@ export default function HocTiengAnhAiClientPage() {
           }}
           localText={localText}
         />
+      ) : null}
+      {matchedSessionChoiceOpen ? (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-3 sm:items-center sm:p-4">
+          <div className="w-full max-w-2xl rounded-lg border bg-white p-5 shadow-xl">
+            <h3 className="text-lg font-semibold text-slate-900">
+              {localText('Có buổi học đang lưu phù hợp', 'Matching in-progress lessons found')}
+            </h3>
+            <p className="mt-2 text-sm text-slate-600">
+              {localText(
+                'Chọn một buổi để tiếp tục, hoặc bấm học live mới để tạo giáo trình và mở đầu mới theo cài đặt hiện tại.',
+                'Pick one lesson to continue, or start a new live lesson with fresh curriculum and opening from current settings.'
+              )}
+            </p>
+            <div className="mt-4 max-h-72 space-y-2 overflow-auto rounded-md border border-slate-200 p-2">
+              {matchedHistorySessions.map((s) => (
+                <div key={s.sessionId} className="flex min-w-0 items-center gap-2 rounded-md border border-slate-200 p-2">
+                  <div className="min-w-0 flex-1 text-sm text-slate-700">
+                    <p className="break-words font-medium text-slate-900">
+                      {s.topicLabel || localText('Buổi học', 'Lesson')}
+                    </p>
+                    <p className="break-words text-xs text-slate-500">
+                      {(s.teacherLabel || localText('Giáo viên AI', 'AI teacher'))} • {s.messageCount} {localText('lượt', 'turns')}
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => void openMatchedHistorySession(s.sessionId)}
+                    disabled={matchedSessionChoiceBusy}
+                    className="min-h-[40px]"
+                  >
+                    {localText('Tiếp tục', 'Continue')}
+                  </Button>
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 grid gap-2 sm:grid-cols-2">
+              <Button
+                type="button"
+                onClick={() => void startLiveLessonFromChoice(matchedSessionPlan || undefined)}
+                disabled={matchedSessionChoiceBusy}
+                className="min-h-[44px]"
+              >
+                {localText('Học live mới với AI', 'Start new live lesson')}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  setMatchedSessionChoiceOpen(false)
+                  setMatchedSessionPlan(null)
+                  setMatchedHistorySessions([])
+                }}
+                disabled={matchedSessionChoiceBusy}
+                className="min-h-[44px]"
+              >
+                {localText('Đóng', 'Close')}
+              </Button>
+            </div>
+          </div>
+        </div>
       ) : null}
       {lessonStartChoiceOpen ? (
         <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-3 sm:items-center sm:p-4">

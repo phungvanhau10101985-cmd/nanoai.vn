@@ -80,15 +80,26 @@ export function deleteHistorySession(sessionId: string) {
   return sendJson<{ ok?: boolean; error?: string }>(`/api/english-coach/history?sessionId=${encodeURIComponent(sessionId)}`, 'DELETE')
 }
 
-export function endHistorySession(sessionId: string) {
-  return sendJson<{ ok?: boolean; error?: string }>('/api/english-coach/history/end', 'POST', { sessionId })
+export function endHistorySession(
+  sessionId: string,
+  opts?: { qualityPassed?: boolean; completionReason?: string }
+) {
+  return sendJson<{ ok?: boolean; error?: string }>(
+    '/api/english-coach/history/end',
+    'POST',
+    {
+      sessionId,
+      qualityPassed: opts?.qualityPassed,
+      completionReason: opts?.completionReason,
+    }
+  )
 }
 
 export function snapshotCompletedLessonSession(sessionId: string) {
   return sendJson<{ ok?: boolean; error?: string }>(
     '/api/english-coach/history/end',
     'POST',
-    { sessionId, markEnded: false, completionReason: 'timeline_completed_auto' }
+    { sessionId, markEnded: false, completionReason: 'timeline_completed_auto', qualityPassed: true }
   )
 }
 
