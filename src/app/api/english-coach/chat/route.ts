@@ -89,6 +89,11 @@ type ReplayCacheRow = {
   normalized_student_text: string
   student_text: string
   teacher_gender: TeacherGender
+  learner_level: number
+  topic_id: string
+  normalized_topic_id: string
+  topic_label: string
+  normalized_topic_label: string
   target_language: string
   normalized_target_language: string
   native_language: string
@@ -791,6 +796,8 @@ export async function POST(request: NextRequest) {
       learnerLevelRaw === 4 ? 4 : learnerLevelRaw === 3 ? 3 : learnerLevelRaw === 2 ? 2 : learnerLevelRaw === 1 ? 1 : 0
     const topicId = String(payload.topicId || 'solo-teacher').trim()
     const topicLabel = String(payload.topicLabel || 'Solo hội thoại với thầy/cô').trim()
+    const normalizedTopicId = normalizeLookup(topicId)
+    const normalizedTopicLabel = normalizeLookup(topicLabel)
     const topicDifficulty =
       payload.topicDifficulty === 'advanced'
         ? 'advanced'
@@ -864,9 +871,12 @@ export async function POST(request: NextRequest) {
       const { data } = await adminSupabase
         .from('language_coach_dialogue_replay_cache')
         .select(
-          'id, normalized_student_text, student_text, teacher_gender, target_language, normalized_target_language, native_language, normalized_native_language, mode, learning_mode, reply, corrections_json, pronunciation_tips_json, correction_note, corrected_sentence, intent_answer, main_sentence, must_know_text, updated_at, last_used_at, hit_count'
+          'id, normalized_student_text, student_text, teacher_gender, learner_level, topic_id, normalized_topic_id, topic_label, normalized_topic_label, target_language, normalized_target_language, native_language, normalized_native_language, mode, learning_mode, reply, corrections_json, pronunciation_tips_json, correction_note, corrected_sentence, intent_answer, main_sentence, must_know_text, updated_at, last_used_at, hit_count'
         )
         .eq('teacher_gender', gender)
+        .eq('learner_level', learnerLevel)
+        .eq('normalized_topic_id', normalizedTopicId)
+        .eq('normalized_topic_label', normalizedTopicLabel)
         .eq('normalized_target_language', normalizedTargetLanguage)
         .eq('normalized_native_language', normalizedNativeLanguage)
         .eq('mode', mode)
@@ -919,6 +929,11 @@ export async function POST(request: NextRequest) {
         student_text: studentText,
         normalized_student_text: normalizedStudentText,
         teacher_gender: gender,
+        learner_level: learnerLevel,
+        topic_id: topicId,
+        normalized_topic_id: normalizedTopicId,
+        topic_label: topicLabel,
+        normalized_topic_label: normalizedTopicLabel,
         target_language: targetLanguage,
         normalized_target_language: normalizedTargetLanguage,
         native_language: nativeLanguage,
@@ -939,7 +954,7 @@ export async function POST(request: NextRequest) {
       await adminSupabase
         .from('language_coach_dialogue_replay_cache')
         .upsert(payloadToSave, {
-          onConflict: 'normalized_student_text,normalized_target_language,normalized_native_language,teacher_gender,mode,learning_mode',
+          onConflict: 'normalized_student_text,normalized_target_language,normalized_native_language,teacher_gender,mode,learning_mode,learner_level,normalized_topic_id,normalized_topic_label',
         })
       console.info(
         `[REPLAY][${replayRequestId}] save gender=${gender} mode=${mode} learningMode=${learningMode} pair=${normalizedTargetLanguage}/${normalizedNativeLanguage}`

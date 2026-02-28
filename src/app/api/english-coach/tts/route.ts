@@ -123,6 +123,21 @@ function normalizeTextForTts(input: string): string {
     .trim()
 }
 
+// Normalize only for cache key; do not alter spoken text content.
+function normalizeTextForTtsCacheKey(input: string): string {
+  return String(input || '')
+    .normalize('NFKC')
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .replace(/[‐‑‒–—]/g, '-')
+    .replace(/…/g, '...')
+    .replace(/\s+/g, ' ')
+    .replace(/\s+([,.;:!?])/g, '$1')
+    .replace(/([([{])\s+/g, '$1')
+    .replace(/\s+([)\]}])/g, '$1')
+    .trim()
+}
+
 function clampTtsTextBySentence(input: string, maxChars = 1800, minBoundary = 220): { text: string; clipped: boolean } {
   const source = String(input || '').trim()
   if (!source) return { text: '', clipped: false }
@@ -216,8 +231,9 @@ export async function POST(request: NextRequest) {
     }
     const normalizedLocale = (locale || 'en-US').trim() || 'en-US'
     const skipCache = Boolean(payload.skipCache)
-    const cacheKey = toTtsCacheKey(speechInput.text, voiceName, normalizedLocale)
-    const textHash = createHash('sha256').update(speechInput.text).digest('hex')
+    const cacheKeyText = normalizeTextForTtsCacheKey(speechInput.text)
+    const cacheKey = toTtsCacheKey(cacheKeyText, voiceName, normalizedLocale)
+    const textHash = createHash('sha256').update(cacheKeyText).digest('hex')
     console.info(
       `[TTS][${requestId}] start locale=${locale || 'n/a'} gender=${teacherGender || 'n/a'} voice=${voiceName} textLen=${text.length} spokenLen=${speechInput.text.length} engine=${requestedEngine} skipCache=${skipCache}`
     )

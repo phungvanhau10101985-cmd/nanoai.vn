@@ -20,6 +20,20 @@ function normalizeTextForTts(input: string): string {
     .trim()
 }
 
+function normalizeTextForTtsCacheKey(input: string): string {
+  return String(input || '')
+    .normalize('NFKC')
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .replace(/[‐‑‒–—]/g, '-')
+    .replace(/…/g, '...')
+    .replace(/\s+/g, ' ')
+    .replace(/\s+([,.;:!?])/g, '$1')
+    .replace(/([([{])\s+/g, '$1')
+    .replace(/\s+([)\]}])/g, '$1')
+    .trim()
+}
+
 function toTtsCacheKey(text: string, voiceName: string, locale: string): string {
   const textHash = createHash('sha256').update(text).digest('hex')
   const keyRaw = `${textHash}::${voiceName}::${locale || 'en-US'}`
@@ -35,7 +49,7 @@ export async function POST(request: NextRequest) {
     const locale = String(payload.locale || 'en-US').trim() || 'en-US'
     if (!text) return NextResponse.json({ found: false }, { status: 200 })
 
-    const cacheKey = toTtsCacheKey(text, voiceName, locale)
+    const cacheKey = toTtsCacheKey(normalizeTextForTtsCacheKey(text), voiceName, locale)
     const adminSupabase = adminClient()
     const { data: rows } = await adminSupabase
       .from('language_coach_tts_cache')
