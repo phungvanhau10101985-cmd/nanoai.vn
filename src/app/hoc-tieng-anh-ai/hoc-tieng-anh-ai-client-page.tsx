@@ -3227,7 +3227,11 @@ export default function HocTiengAnhAiClientPage() {
       forceEngine: 'auto',
       skipCache: opts?.skipCache,
     })
-    await playAudioUrl(single.url)
+    try {
+      await playAudioUrl(single.url)
+    } catch {
+      // iOS Safari may block async autoplay; keep audio URL so user can replay manually.
+    }
     return [single]
   }
 
@@ -4419,7 +4423,13 @@ export default function HocTiengAnhAiClientPage() {
         return acc
       }, {})
       setOpenedHistorySessionId(targetSessionId)
-      activeLessonRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      // Ensure scroll works even when conversation UI is mounted right after state update.
+      requestAnimationFrame(() => {
+        activeLessonRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      })
+      window.setTimeout(() => {
+        activeLessonRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }, 120)
       void fetchSessionWords(targetSessionId)
       const sessionTopicId = String(payload.topicId || '').trim()
       const sessionTopicLabel = String(payload.topicLabel || '').trim()
@@ -5515,6 +5525,23 @@ export default function HocTiengAnhAiClientPage() {
                 {quickStartStageLabel}
               </Button>
             </div>
+            {historySessions[0]?.sessionId ? (
+              <div className="mt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void loadHistorySession(historySessions[0].sessionId)}
+                  disabled={historyBusy}
+                  className="min-h-[44px] w-full justify-start text-left sm:w-auto"
+                >
+                  <span className="truncate">
+                    {localText('Quay lại buổi học trước:', 'Resume previous lesson:')}{' '}
+                    {historySessions[0].topicLabel || localText('Buổi học trước', 'Previous lesson')}
+                  </span>
+                </Button>
+              </div>
+            ) : null}
           </CardHeader>
           <CardContent className={`min-w-0 space-y-4 px-0 sm:px-1 ${showSetupPanel ? '' : 'hidden'}`}>
             <div className="min-w-0 rounded-xl border border-border/70 bg-slate-50/80 p-3 sm:p-4">
@@ -7112,7 +7139,7 @@ export default function HocTiengAnhAiClientPage() {
                 )}
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-3">
               <p className="text-sm text-muted-foreground">
                 {localText(
                   'Hoàn thành B1 và B2 ở phần thiết lập phía trên, sau đó bấm "Bắt đầu buổi học".',

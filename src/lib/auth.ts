@@ -15,6 +15,9 @@ function isLocalhostEnv(): boolean {
  * - Production (tên miền thật): bắt buộc đăng nhập
  */
 export function isAuthRequired(): boolean {
+  // In production runtime (including local production test via `next start`),
+  // always require real authentication and disable local bypass completely.
+  if (process.env.NODE_ENV === 'production') return true
   if (process.env.AUTH_BYPASS_LOCAL === 'true') return false
   if (!isLocalhostEnv()) return true
   const cookieStore = cookies()
