@@ -958,6 +958,13 @@ const LOCAL_TEXT_TRANSLATIONS: Record<string, Partial<Record<UiLocale, string>>>
     th: 'ผู้เรียน',
     hi: 'शिक्षार्थी',
   },
+  'Selected teacher:': {
+    zh: '所选教师：',
+    ja: '選択中の教師：',
+    ko: '선택된 선생님:',
+    th: 'ครูที่เลือก:',
+    hi: 'चुनी गई शिक्षक:',
+  },
   'Play word pronunciation': {
     zh: '播放单词读音',
     ja: '単語の発音を再生',
@@ -2190,6 +2197,14 @@ export default function HocTiengAnhAiClientPage() {
   const activeTeacher = sessionTeacher || selectedTeacher
   const selectedVoice = activeTeacher.voiceName
   const teacherLabel = activeTeacher.label
+  const teacherRoleLabel = useMemo(() => {
+    if (uiLocale === 'vi') return activeTeacher.gender === 'male' ? 'Thầy' : 'Cô'
+    return t('Teacher')
+  }, [uiLocale, activeTeacher.gender, t])
+  const selectedTeacherLabel = useMemo(() => {
+    if (uiLocale === 'vi') return activeTeacher.gender === 'male' ? 'Thầy đang chọn:' : 'Cô đang chọn:'
+    return LOCAL_TEXT_TRANSLATIONS['Selected teacher:']?.[uiLocale] || 'Selected teacher:'
+  }, [uiLocale, activeTeacher.gender])
   const languageOptions = useMemo<Array<{ code: LanguageCode; label: string }>>(
     () => LANGUAGE_CODES.map((code) => ({ code, label: LANGUAGE_LABELS[uiLocale][code] })),
     [uiLocale]
@@ -5993,7 +6008,7 @@ export default function HocTiengAnhAiClientPage() {
             ) : null}
             <div className="min-w-0 rounded-md border bg-slate-50 p-3">
               <p className="break-words text-sm text-slate-700">
-                {localText('Giáo viên đang chọn:', 'Selected teacher:')} <span className="font-semibold">{teacherLabel}</span>
+                {selectedTeacherLabel} <span className="font-semibold">{teacherLabel}</span>
               </p>
             </div>
             {!isTopicConfirmedForLesson ? (
@@ -6048,19 +6063,24 @@ export default function HocTiengAnhAiClientPage() {
                     <>
                     {hasSteps ? (
                       <>
-                      <div className="min-w-0 shrink-0 w-32 sm:w-36 max-h-[40vh] sm:max-h-none overflow-y-auto">
+                      {/* Mobile: timeline nằm ngang, scroll ngang */}
+                      <div className="min-w-0 shrink-0 sm:w-36 sm:max-h-[40vh] sm:max-h-none">
                         <p className="mb-2 text-xs font-semibold text-slate-600">
                           {localText('Tiến độ buổi học', 'Lesson progress')}
                         </p>
-                        <div className="relative flex flex-col">
+                        <div className="flex flex-row gap-0 overflow-x-auto pb-2 scroll-smooth sm:flex-col sm:overflow-visible sm:gap-0 sm:pb-0">
                           {steps.map((step, i) => {
                             const isCompleted = i < completedCount
                             const isCurrent = i === completedCount
                             return (
-                              <div key={i} className="relative flex items-start gap-2 cursor-help" title={step}>
-                                <div className="flex flex-col items-center">
+                              <div
+                                key={i}
+                                className="relative flex min-w-[72px] shrink-0 flex-col items-center gap-0 cursor-help sm:min-w-0 sm:flex-row sm:items-start sm:gap-2"
+                                title={step}
+                              >
+                                <div className="flex flex-row items-center sm:flex-col sm:items-center">
                                   <div
-                                    className={`mt-1.5 h-3 w-3 shrink-0 rounded-full border-2 ${
+                                    className={`h-3 w-3 shrink-0 rounded-full border-2 ${
                                       isCompleted
                                         ? 'border-emerald-500 bg-emerald-500'
                                         : isCurrent
@@ -6070,15 +6090,14 @@ export default function HocTiengAnhAiClientPage() {
                                   />
                                   {i < steps.length - 1 ? (
                                     <div
-                                      className={`w-0.5 shrink-0 ${
+                                      className={`h-0.5 w-4 shrink-0 sm:h-5 sm:w-0.5 ${
                                         isCompleted ? 'bg-emerald-300' : 'bg-slate-200'
                                       }`}
-                                      style={{ height: 20 }}
                                     />
                                   ) : null}
                                 </div>
                                 <div
-                                  className={`min-w-0 flex-1 break-words pb-4 text-xs ${
+                                  className={`mt-0.5 w-[72px] truncate text-center text-[10px] sm:mt-1.5 sm:w-auto sm:flex-1 sm:truncate-none sm:text-left sm:text-xs ${
                                     isCompleted ? 'text-slate-600' : isCurrent ? 'font-medium text-indigo-700' : 'text-slate-400'
                                   }`}
                                 >
@@ -6092,17 +6111,6 @@ export default function HocTiengAnhAiClientPage() {
                         <p className="mt-1 text-[10px] text-slate-500">
                           {completedCount}/{steps.length} {localText('bước', 'steps')} • {teacherCount} {localText('lượt', 'turns')}
                         </p>
-                      </div>
-                      <div className="flex min-w-0 items-center gap-2 rounded border border-slate-200 bg-slate-50 px-2 py-1.5 sm:hidden order-first">
-                        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-200">
-                          <div
-                            className="h-full rounded-full bg-emerald-500 transition-all"
-                            style={{ width: `${(completedCount / steps.length) * 100}%` }}
-                          />
-                        </div>
-                        <span className="text-[10px] font-medium text-slate-600">
-                          {completedCount}/{steps.length} • {teacherCount} {localText('lượt', 'turns')}
-                        </span>
                       </div>
                       </>
                     ) : (
@@ -6122,7 +6130,7 @@ export default function HocTiengAnhAiClientPage() {
                 {messages.length === 0 ? (
                   <div className="space-y-3">
                     {historySessions.length > 0 ? (
-                      <div className="min-w-0 overflow-hidden rounded-md border border-indigo-200 bg-indigo-50 p-3">
+                      <div className="min-w-0 rounded-md border border-indigo-200 bg-indigo-50 p-3">
                         <p className="mb-2 break-words text-sm font-medium text-indigo-900">
                           {historySessions.length === 1
                             ? localText('Bạn có buổi học đã lưu. Bấm để tiếp tục học.', 'You have a saved lesson. Tap to continue.')
@@ -6139,9 +6147,9 @@ export default function HocTiengAnhAiClientPage() {
                               if (s?.sessionId) void loadHistorySession(s.sessionId)
                             }}
                             disabled={historyBusy}
-                            className="min-h-[44px] min-w-0 flex-1 justify-start text-left"
+                            className="min-h-[44px] min-w-0 flex-1 justify-start overflow-visible text-left"
                           >
-                            <span className="block min-w-0 break-words text-left">
+                            <span className="block min-w-0 break-words text-left whitespace-normal">
                               {localText('Tiếp tục buổi học', 'Continue lesson')}
                               {historySessions[0]?.topicLabel ? `: ${historySessions[0].topicLabel}` : ''}
                               {historySessions[0]?.learningMode === 'reflex'
@@ -6177,9 +6185,9 @@ export default function HocTiengAnhAiClientPage() {
                                   size="sm"
                                   onClick={() => void loadHistorySession(s.sessionId)}
                                   disabled={historyBusy}
-                                  className="min-h-[44px] min-w-0 flex-1 justify-start overflow-hidden text-left"
+                                  className="min-h-[44px] min-w-0 flex-1 justify-start overflow-visible text-left"
                                 >
-                                  <span className="block min-w-0 break-words text-left">
+                                  <span className="block min-w-0 break-words text-left whitespace-normal">
                                     {s.topicLabel ? (
                                       <>
                                         <span className="font-medium">{s.topicLabel}</span>
@@ -6232,7 +6240,7 @@ export default function HocTiengAnhAiClientPage() {
                       }`}
                     >
                       <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                        {m.role === 'teacher' ? localText('Teacher', 'Teacher') : localText('Student', 'Student')}
+                        {m.role === 'teacher' ? teacherRoleLabel : localText('Học sinh', 'Student')}
                       </p>
                       {m.role === 'teacher' ? (
                         <div className="space-y-2">
@@ -6695,13 +6703,10 @@ export default function HocTiengAnhAiClientPage() {
                       </Button>
                       <div
                         className="flex shrink-0 flex-col items-center gap-0.5"
-                        title={localText('Tốc độ phát giọng thầy/cô', 'Teacher voice playback speed')}
+                        title={localText('Tốc độ giọng nói', 'Voice playback speed')}
                       >
-                        <span className="hidden text-[10px] text-slate-500 sm:inline">
-                          {localText('Tốc độ giọng thầy/cô', 'Teacher voice speed')}
-                        </span>
-                        <span className="text-[10px] text-slate-500 sm:hidden">
-                          {localText('Tốc độ', 'Speed')}
+                        <span className="text-[10px] text-slate-500">
+                          {localText('Tốc độ giọng nói', 'Voice speed')}
                         </span>
                         <div className="flex items-center rounded-md border border-slate-200 bg-slate-50">
                           <Button

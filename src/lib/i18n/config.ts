@@ -1,6 +1,14 @@
+/**
+ * Web đa ngôn ngữ (Multilingual).
+ * Mọi chuỗi hiển thị phải dùng dictionary hoặc localText – không hardcode.
+ * @see .cursor/rules/multilingual-i18n.mdc
+ */
+export const IS_MULTILINGUAL_WEB = true
+
 export const WEB_LOCALES = ['vi', 'en', 'zh', 'ja', 'ko'] as const
 export type WebLocale = (typeof WEB_LOCALES)[number]
 
+/** Ngôn ngữ mẹ đẻ & đích trong học ngoại ngữ AI – do người dùng chọn, không cố định vi. */
 export const LEARNING_LOCALES = ['vi', 'en', 'zh', 'ja', 'ko', 'th', 'hi'] as const
 export type LearningLocale = (typeof LEARNING_LOCALES)[number]
 
