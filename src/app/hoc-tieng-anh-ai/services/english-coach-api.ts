@@ -217,6 +217,22 @@ export function chatWithCoach(payload: unknown) {
   return sendJson<Record<string, unknown> & { error?: string }>('/api/english-coach/chat', 'POST', payload)
 }
 
+export function createSessionFromRandomCompletedLesson(payload: {
+  targetLanguage: string
+  nativeLanguage: string
+  learnerLevel: number
+  topicId: string
+  topicLabel: string
+  mode: string
+  learningMode: 'review' | 'reflex'
+}) {
+  return sendJson<{ found?: boolean; sessionId?: string; sourceLessonId?: string; strictMatched?: boolean; error?: string }>(
+    '/api/english-coach/completed-lesson',
+    'POST',
+    { action: 'random_copy', ...payload }
+  )
+}
+
 export function transcribeMixed(payload: unknown) {
   return sendJson<Record<string, unknown> & { error?: string }>('/api/english-coach/transcribe-mixed', 'POST', payload)
 }

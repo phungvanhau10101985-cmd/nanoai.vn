@@ -23,7 +23,8 @@ type PreLessonReviewOverlayProps = {
   onClozeSubmit: (word: string, correct: boolean) => void
   onListenSubmit: (word: string, correct: boolean) => void
   onRecallSubmit: (word: string, correct: boolean) => void
-  onStartNewLesson: () => void
+  onStartLiveLesson: () => void
+  onStartPresetLesson: () => void
   onPlayWord: (word: string, pronunciationAudioUrl?: string, wordItem?: PreLessonWordItem) => void
   onRegenerateWordAudio?: (word: string, wordItem: PreLessonWordItem) => void
   onClose: () => void
@@ -74,7 +75,8 @@ export function PreLessonReviewOverlay({
   onClozeSubmit,
   onListenSubmit,
   onRecallSubmit,
-  onStartNewLesson,
+  onStartLiveLesson,
+  onStartPresetLesson,
   onPlayWord,
   onRegenerateWordAudio,
   onClose,
@@ -373,13 +375,23 @@ export function PreLessonReviewOverlay({
           <p className="mt-2 text-sm text-slate-600">
             {localText('Bạn đã đạt yêu cầu! Có thể bắt đầu bài mới.', 'You passed! You can start the new lesson.')}
           </p>
-          <Button
-            type="button"
-            onClick={onStartNewLesson}
-            className="mt-4 w-full min-h-[44px]"
-          >
-            {localText('Bắt đầu bài mới', 'Start new lesson')}
-          </Button>
+          <div className="mt-4 grid gap-2 sm:grid-cols-2">
+            <Button
+              type="button"
+              onClick={onStartLiveLesson}
+              className="min-h-[44px]"
+            >
+              {localText('Học live trực tiếp', 'Start live lesson')}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onStartPresetLesson}
+              className="min-h-[44px]"
+            >
+              {localText('Học bài có sẵn', 'Study saved lesson')}
+            </Button>
+          </div>
         </div>
       </div>
     )

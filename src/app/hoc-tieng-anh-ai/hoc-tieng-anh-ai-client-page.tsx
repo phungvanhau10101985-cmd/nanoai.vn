@@ -20,6 +20,7 @@ import {
   analyzeWord,
   chatWithCoach,
   cleanupIncompleteWords,
+  createSessionFromRandomCompletedLesson,
   createTopicCurriculum,
   explainIntent,
   generateTts,
@@ -1753,6 +1754,9 @@ export default function HocTiengAnhAiClientPage() {
   const [preLessonPassed, setPreLessonPassed] = useState(false)
   const [preLessonCurriculum, setPreLessonCurriculum] = useState<TopicCurriculum | null>(null)
   const [preLessonTopic, setPreLessonTopic] = useState<TopicOption | null>(null)
+  const [lessonStartChoiceOpen, setLessonStartChoiceOpen] = useState(false)
+  const [lessonStartChoiceBusy, setLessonStartChoiceBusy] = useState(false)
+  const [lessonStartPlan, setLessonStartPlan] = useState<{ curriculum: TopicCurriculum | null; topic: TopicOption } | null>(null)
   const [preLessonExerciseIndex, setPreLessonExerciseIndex] = useState(0)
   const [preLessonWordIndex, setPreLessonWordIndex] = useState(0)
   const [preLessonResults, setPreLessonResults] = useState<Record<string, { cloze: boolean; listen: boolean; recall: boolean }>>({})
@@ -5235,20 +5239,12 @@ export default function HocTiengAnhAiClientPage() {
       }
 
       setQuickStartModalOpen(false)
-      await new Promise((resolve) => setTimeout(resolve, 60))
-
-      setQuickStartStage('start_lesson')
-      await startLesson({
-        skipPrerequisiteCheck: true,
-        curriculumOverride: curriculum,
-        topicOverride: topicToUse,
-      })
-      setSetupCollapsed(true)
+      openLessonStartChoice(curriculum, topicToUse)
       toast({
-        title: localText('Đã tạo bài học mới', 'New lesson created'),
+        title: localText('Chọn hình thức học', 'Choose lesson type'),
         description: hadExistingLesson
-          ? localText('Buổi học cũ đã được thay bằng buổi học mới từ Bắt đầu nhanh.', 'Previous lesson has been replaced by a new quick-start lesson.')
-          : localText('Buổi học mới đã sẵn sàng.', 'Your new lesson is ready.'),
+          ? localText('Đã sẵn sàng. Chọn học live hoặc học bài có sẵn để bắt đầu.', 'Ready. Choose live lesson or saved lesson to continue.')
+          : localText('Chọn học live hoặc học bài có sẵn để bắt đầu.', 'Choose live lesson or saved lesson to begin.'),
       })
     } catch (e) {
       toast({
@@ -5262,10 +5258,7 @@ export default function HocTiengAnhAiClientPage() {
     }
   }
 
-  const startLessonAfterPreReview = async () => {
-    const curriculum = preLessonCurriculum
-    const topic = preLessonTopic
-    if (!curriculum || !topic) return
+  const clearPreLessonGate = () => {
     setShowPreLessonReview(false)
     setPreLessonCurriculum(null)
     setPreLessonTopic(null)
@@ -5273,16 +5266,95 @@ export default function HocTiengAnhAiClientPage() {
     setPreLessonPassed(false)
     setPreLessonResults({})
     setPreLessonRetryWords(null)
+    setPreLessonInput('')
+  }
+
+  const openLessonStartChoice = (curriculum: TopicCurriculum | null, topic: TopicOption) => {
+    setLessonStartPlan({ curriculum, topic })
+    setLessonStartChoiceOpen(true)
+  }
+
+  const startLiveLessonFromChoice = async (planArg?: { curriculum: TopicCurriculum | null; topic: TopicOption }) => {
+    const plan = planArg || lessonStartPlan
+    if (!plan) return
+    setLessonStartChoiceOpen(false)
+    setLessonStartPlan(null)
     await startLesson({
       skipPrerequisiteCheck: true,
-      curriculumOverride: curriculum,
-      topicOverride: topic,
+      curriculumOverride: plan.curriculum,
+      topicOverride: plan.topic,
     })
     setSetupCollapsed(true)
     toast({
       title: localText('Đã mở bài mới', 'New lesson unlocked'),
       description: localText('Chúc bạn học tốt!', 'Happy learning!'),
     })
+  }
+
+  const startPresetLessonFromChoice = async (planArg?: { curriculum: TopicCurriculum | null; topic: TopicOption }) => {
+    const plan = planArg || lessonStartPlan
+    if (!plan) return
+    setLessonStartChoiceBusy(true)
+    try {
+      const { ok, data } = await createSessionFromRandomCompletedLesson({
+        targetLanguage: activeTeacher.languageLabel,
+        nativeLanguage: selectedNativeLanguage.apiLabel,
+        learnerLevel,
+        topicId: plan.topic.id,
+        topicLabel: plan.topic.label,
+        mode: learningMode === 'reflex' ? 'listen_speak' : mode,
+        learningMode,
+      })
+      if (!ok) {
+        throw new Error(data.error || localText('Không lấy được bài học có sẵn.', 'Unable to load a saved lesson.'))
+      }
+      if (!data.found || !data.sessionId) {
+        setLessonStartChoiceOpen(false)
+        setLessonStartPlan(null)
+        toast({
+          title: localText('Chưa có bài phù hợp', 'No matching saved lesson'),
+          description: localText('Sẽ chuyển sang học live để không gián đoạn.', 'Switching to live lesson to keep learning flow.'),
+        })
+        await startLiveLessonFromChoice()
+        return
+      }
+      setLessonStartChoiceOpen(false)
+      setLessonStartPlan(null)
+      await loadHistorySession(String(data.sessionId || ''))
+      setSetupCollapsed(true)
+      toast({
+        title: localText('Đã mở bài học có sẵn', 'Saved lesson loaded'),
+        description: localText('Bạn đang học một bài đã hoàn thành phù hợp cài đặt hiện tại.', 'You are now studying a saved lesson matching your setup.'),
+      })
+    } catch (e) {
+      toast({
+        title: localText('Không mở được bài có sẵn', 'Cannot load saved lesson'),
+        description: unknownErrorMsg(e),
+        variant: 'destructive',
+      })
+    } finally {
+      setLessonStartChoiceBusy(false)
+    }
+  }
+
+  const startLiveAfterPreReview = async () => {
+    const curriculum = preLessonCurriculum
+    const topic = preLessonTopic
+    if (!curriculum || !topic) return
+    const plan = { curriculum, topic }
+    clearPreLessonGate()
+    setLessonStartPlan(plan)
+    await startLiveLessonFromChoice(plan)
+  }
+
+  const startPresetAfterPreReview = async () => {
+    const curriculum = preLessonCurriculum
+    const topic = preLessonTopic
+    if (!curriculum || !topic) return
+    const plan = { curriculum, topic }
+    clearPreLessonGate()
+    setLessonStartPlan(plan)
+    await startPresetLessonFromChoice(plan)
   }
 
   const handleStartLessonClick = async () => {
@@ -5312,7 +5384,7 @@ export default function HocTiengAnhAiClientPage() {
         })
         return
       }
-      await startLesson()
+      openLessonStartChoice(topicCurriculum, selectedTopic)
     } catch (e) {
       toast({
         title: localText('Lỗi', 'Error'),
@@ -7459,7 +7531,8 @@ export default function HocTiengAnhAiClientPage() {
               setPreLessonWordIndex((i) => i + 1)
             }
           }}
-          onStartNewLesson={startLessonAfterPreReview}
+          onStartLiveLesson={() => void startLiveAfterPreReview()}
+          onStartPresetLesson={() => void startPresetAfterPreReview()}
           onPlayWord={(word, pronunciationAudioUrl, wordItem) =>
             void playWordPronunciation(word, {
               pronunciationAudioUrl,
@@ -7504,16 +7577,58 @@ export default function HocTiengAnhAiClientPage() {
             })
           }
           onClose={() => {
-            setShowPreLessonReview(false)
-            setPreLessonCurriculum(null)
-            setPreLessonTopic(null)
-            setPreLessonWords([])
-            setPreLessonRetryWords(null)
-            setPreLessonResults({})
-            setPreLessonInput('')
+            clearPreLessonGate()
           }}
           localText={localText}
         />
+      ) : null}
+      {lessonStartChoiceOpen ? (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-3 sm:items-center sm:p-4">
+          <div className="w-full max-w-md rounded-lg border bg-white p-5 shadow-xl">
+            <h3 className="text-lg font-semibold text-slate-900">
+              {localText('Chọn hình thức học', 'Choose lesson type')}
+            </h3>
+            <p className="mt-2 text-sm text-slate-600">
+              {localText(
+                'Bạn muốn học live trực tiếp với AI hay học một bài có sẵn phù hợp đúng cài đặt hiện tại?',
+                'Do you want a live AI lesson or a saved lesson matching your current settings?'
+              )}
+            </p>
+            <div className="mt-4 grid gap-2 sm:grid-cols-2">
+              <Button
+                type="button"
+                onClick={() => void startLiveLessonFromChoice()}
+                disabled={lessonStartChoiceBusy}
+                className="min-h-[44px]"
+              >
+                {localText('Học live trực tiếp', 'Start live lesson')}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => void startPresetLessonFromChoice()}
+                disabled={lessonStartChoiceBusy}
+                className="min-h-[44px]"
+              >
+                {lessonStartChoiceBusy ? localText('Đang mở...', 'Loading...') : localText('Học bài có sẵn', 'Study saved lesson')}
+              </Button>
+            </div>
+            <div className="mt-3 flex justify-end">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  setLessonStartChoiceOpen(false)
+                  setLessonStartPlan(null)
+                }}
+                disabled={lessonStartChoiceBusy}
+                className="min-h-[40px]"
+              >
+                {localText('Đóng', 'Close')}
+              </Button>
+            </div>
+          </div>
+        </div>
       ) : null}
       <QuickStartModal
         open={quickStartModalOpen}
