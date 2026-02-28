@@ -5797,21 +5797,50 @@ export default function HocTiengAnhAiClientPage() {
                 {quickStartStageLabel}
               </Button>
             </div>
-            {historySessions[0]?.sessionId ? (
-              <div className="mt-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => void loadHistorySession(historySessions[0].sessionId)}
-                  disabled={historyBusy}
-                  className="min-h-[44px] w-full justify-start text-left sm:w-auto"
-                >
-                  <span className="truncate">
-                    {localText('Quay lại buổi học trước:', 'Resume previous lesson:')}{' '}
-                    {historySessions[0].topicLabel || localText('Buổi học trước', 'Previous lesson')}
-                  </span>
-                </Button>
+            {historySessions.length > 0 ? (
+              <div className="mt-2 space-y-2">
+                <p className="text-xs font-medium text-slate-700">
+                  {localText('Danh sách buổi học đang dở (mới → cũ)', 'In-progress lessons (newest → oldest)')}
+                </p>
+                <div className="max-h-56 space-y-2 overflow-auto pr-1">
+                  {historySessions.map((s) => (
+                    <div key={s.sessionId} className="flex min-w-0 items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => void loadHistorySession(s.sessionId)}
+                        disabled={historyBusy}
+                        className="min-h-[44px] min-w-0 flex-1 justify-start overflow-visible text-left"
+                      >
+                        <span className="block min-w-0 whitespace-normal break-words text-left">
+                          {s.topicLabel || localText('Buổi học', 'Lesson')}
+                          {s.learningMode === 'reflex'
+                            ? ` • ${localText('Phản xạ', 'Reflex')}`
+                            : s.learningMode === 'review'
+                              ? ` • ${localText('Ôn tập', 'Review')}`
+                              : ''}
+                          {' • '}
+                          {s.messageCount} {localText('lượt', 'turns')}
+                        </span>
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          void deleteSession(s.sessionId)
+                        }}
+                        disabled={historyBusy}
+                        title={localText('Xóa buổi học', 'Delete lesson')}
+                        className="shrink-0 text-muted-foreground hover:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
               </div>
             ) : null}
           </CardHeader>
