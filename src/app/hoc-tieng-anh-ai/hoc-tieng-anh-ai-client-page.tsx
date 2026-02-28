@@ -6122,14 +6122,14 @@ export default function HocTiengAnhAiClientPage() {
                 {messages.length === 0 ? (
                   <div className="space-y-3">
                     {historySessions.length > 0 ? (
-                      <div className="rounded-md border border-indigo-200 bg-indigo-50 p-3">
-                        <p className="mb-2 text-sm font-medium text-indigo-900">
+                      <div className="min-w-0 overflow-hidden rounded-md border border-indigo-200 bg-indigo-50 p-3">
+                        <p className="mb-2 break-words text-sm font-medium text-indigo-900">
                           {historySessions.length === 1
                             ? localText('Bạn có buổi học đã lưu. Bấm để tiếp tục học.', 'You have a saved lesson. Tap to continue.')
                             : localText('Bạn có nhiều buổi học dở. Chọn buổi để tiếp tục:', 'You have multiple lessons in progress. Choose one to continue:')}
                         </p>
                         {historySessions.length === 1 ? (
-                          <div className="flex items-center gap-2">
+                          <div className="flex min-w-0 items-center gap-2">
                           <Button
                             type="button"
                             variant="default"
@@ -6139,15 +6139,17 @@ export default function HocTiengAnhAiClientPage() {
                               if (s?.sessionId) void loadHistorySession(s.sessionId)
                             }}
                             disabled={historyBusy}
-                            className="min-h-[44px] flex-1"
+                            className="min-h-[44px] min-w-0 flex-1 justify-start text-left"
                           >
-                            {localText('Tiếp tục buổi học', 'Continue lesson')}
-                            {historySessions[0]?.topicLabel ? `: ${historySessions[0].topicLabel}` : ''}
-                            {historySessions[0]?.learningMode === 'reflex'
-                              ? ` (${localText('Phản xạ', 'Reflex')})`
-                              : historySessions[0]?.learningMode === 'review'
-                                ? ` (${localText('Ôn tập', 'Review')})`
-                                : ''}
+                            <span className="block min-w-0 break-words text-left">
+                              {localText('Tiếp tục buổi học', 'Continue lesson')}
+                              {historySessions[0]?.topicLabel ? `: ${historySessions[0].topicLabel}` : ''}
+                              {historySessions[0]?.learningMode === 'reflex'
+                                ? ` (${localText('Phản xạ', 'Reflex')})`
+                                : historySessions[0]?.learningMode === 'review'
+                                  ? ` (${localText('Ôn tập', 'Review')})`
+                                  : ''}
+                            </span>
                           </Button>
                             <Button
                               type="button"
@@ -6166,18 +6168,18 @@ export default function HocTiengAnhAiClientPage() {
                             </Button>
                           </div>
                         ) : (
-                          <div className="space-y-2">
+                          <div className="min-w-0 space-y-2">
                             {historySessions.slice(0, 5).map((s) => (
-                              <div key={s.sessionId} className="flex items-center gap-2">
+                              <div key={s.sessionId} className="flex min-w-0 items-center gap-2">
                                 <Button
                                   type="button"
                                   variant="outline"
                                   size="sm"
                                   onClick={() => void loadHistorySession(s.sessionId)}
                                   disabled={historyBusy}
-                                  className="min-h-[44px] flex-1 justify-start text-left"
+                                  className="min-h-[44px] min-w-0 flex-1 justify-start overflow-hidden text-left"
                                 >
-                                  <span className="truncate flex-1">
+                                  <span className="block min-w-0 break-words text-left">
                                     {s.topicLabel ? (
                                       <>
                                         <span className="font-medium">{s.topicLabel}</span>

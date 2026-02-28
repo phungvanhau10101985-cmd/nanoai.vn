@@ -49,8 +49,8 @@ export function HistoryPanel({
         ) : (
           <div className="space-y-2">
             {sessions.map((session) => (
-              <div key={session.sessionId} className="flex min-w-0 flex-col gap-2 rounded-md border bg-white p-2 sm:flex-row sm:items-center sm:justify-between">
-                <div className="min-w-0 flex-1">
+              <div key={session.sessionId} className="flex min-w-0 max-w-full flex-col gap-2 overflow-hidden rounded-md border bg-white p-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0 flex-1 overflow-hidden">
                   <p className="break-words text-sm font-medium text-slate-800">
                     {session.topicLabel ? (
                       <>
@@ -73,15 +73,21 @@ export function HistoryPanel({
                   </p>
                   <p className="break-words text-xs text-slate-600">{session.lastTeacherText || localText('Không có bản xem trước.', 'No preview available.')}</p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex shrink-0 flex-wrap items-center gap-2">
                   <Button
                     type="button"
                     variant={openedHistorySessionId === session.sessionId ? 'secondary' : 'outline'}
                     size="sm"
                     disabled={historyBusy}
                     onClick={() => onOpenSession(session.sessionId)}
+                    className="min-w-0 shrink-0"
                   >
-                    {openedHistorySessionId === session.sessionId ? localText('Đang mở', 'Opened') : localText('Mở buổi này', 'Open this lesson')}
+                    {openedHistorySessionId === session.sessionId ? localText('Đang mở', 'Opened') : (
+                      <>
+                        <span className="hidden sm:inline">{localText('Mở buổi này', 'Open this lesson')}</span>
+                        <span className="sm:hidden">{localText('Mở', 'Open')}</span>
+                      </>
+                    )}
                   </Button>
                   {onDeleteSession ? (
                     <Button
