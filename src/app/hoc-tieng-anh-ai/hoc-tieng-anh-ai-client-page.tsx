@@ -5465,6 +5465,9 @@ export default function HocTiengAnhAiClientPage() {
     const blob = pendingRecordingBlobRef.current
     if (!blob) return
     if (audioRef.current) {
+      audioRef.current.onended = null
+      audioRef.current.onerror = null
+      audioRef.current.onplaying = null
       audioRef.current.pause()
       audioRef.current.src = ''
     }
@@ -5472,9 +5475,18 @@ export default function HocTiengAnhAiClientPage() {
     const audio = new Audio(url)
     audio.playbackRate = playbackSpeedRef.current
     audioRef.current = audio
-    audio.onended = () => URL.revokeObjectURL(url)
+    let didStartPlaying = false
+    let didFinish = false
+    audio.onplaying = () => {
+      didStartPlaying = true
+    }
+    audio.onended = () => {
+      didFinish = true
+      URL.revokeObjectURL(url)
+    }
     audio.onerror = () => {
       URL.revokeObjectURL(url)
+      if (didStartPlaying || didFinish) return
       toast({
         title: localText('Không phát được ghi âm', 'Unable to play recording'),
         description: localText(
@@ -5486,6 +5498,7 @@ export default function HocTiengAnhAiClientPage() {
     }
     void audio.play().catch(() => {
       URL.revokeObjectURL(url)
+      if (didStartPlaying || didFinish) return
       toast({
         title: localText('Không phát được ghi âm', 'Unable to play recording'),
         description: localText(
@@ -6680,7 +6693,7 @@ export default function HocTiengAnhAiClientPage() {
                             <>
                               <Button
                                 type="button"
-                                variant="outline"
+                                variant="secondary"
                                 size="sm"
                                 onClick={() => void replayTeacherCorrectionNote(m.id)}
                                 disabled={isReplayButtonDisabled(`${m.id}__correction_note`, hasCachedTeacherAudio(`${m.id}__correction_note`))}
@@ -6700,7 +6713,7 @@ export default function HocTiengAnhAiClientPage() {
                               </Button>
                               <Button
                                 type="button"
-                                variant="outline"
+                                variant="secondary"
                                 size="sm"
                                 onClick={() => void replayTeacherIntentAnswer(m.id)}
                                 disabled={isReplayButtonDisabled(`${m.id}__intent_answer`, hasCachedTeacherAudio(`${m.id}__intent_answer`))}
