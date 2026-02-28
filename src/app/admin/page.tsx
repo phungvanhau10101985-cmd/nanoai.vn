@@ -22,6 +22,12 @@ const ADMIN_LINKS = [
     description: 'Chạy fix word examples cho Học tiếng Anh AI.',
     icon: BookOpen,
   },
+  {
+    href: '/admin/english-coach',
+    title: 'Bài học đã lưu',
+    description: 'Xem danh sách bài học đã hoàn thành để tái sử dụng.',
+    icon: BookOpen,
+  },
 ]
 
 export default function AdminPage() {
