@@ -2340,6 +2340,7 @@ export default function HocTiengAnhAiClientPage() {
   )
   const isTopicConfirmedForLesson = Boolean(topicId) && confirmedTopicId === topicId
   const isLessonReadyToStart = isTopicConfirmedForLesson && hasCurriculumReady
+  const canShowDirectConversation = isLessonReadyToStart || messages.length > 0 || Boolean(openedHistorySessionId)
   const customTopicDifficultyById = useMemo<Record<string, TopicDifficulty>>(
     () =>
       customTopics.reduce<Record<string, TopicDifficulty>>((acc, item) => {
@@ -6053,6 +6054,7 @@ export default function HocTiengAnhAiClientPage() {
           </CardContent>
         </Card>
 
+        {canShowDirectConversation ? (
         <div ref={activeLessonRef} className="grid min-w-0 gap-4 xl:grid-cols-[1.15fr_0.85fr]">
           <Card className="section-surface min-w-0">
             <CardHeader className="flex min-w-0 flex-row flex-wrap items-start justify-between gap-2 space-y-0 pb-2">
@@ -7099,6 +7101,27 @@ export default function HocTiengAnhAiClientPage() {
             </CardContent>
           </Card>
         </div>
+        ) : (
+          <Card className="section-surface min-w-0">
+            <CardHeader className="min-w-0">
+              <CardTitle className="break-words">{coachUiText.chatTitle}</CardTitle>
+              <CardDescription className="break-words">
+                {localText(
+                  'Phần hội thoại sẽ hiện sau khi bạn chọn lớp học: xác nhận chủ đề và tạo giáo trình.',
+                  'The conversation area will appear after you select a class: confirm topic and generate curriculum.'
+                )}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                {localText(
+                  'Hoàn thành B1 và B2 ở phần thiết lập phía trên, sau đó bấm "Bắt đầu buổi học".',
+                  'Complete S1 and S2 in setup above, then click "Start lesson".'
+                )}
+              </p>
+            </CardContent>
+          </Card>
+        )}
 
         <HistoryPanel
           title={coachUiText.historyTitle}
