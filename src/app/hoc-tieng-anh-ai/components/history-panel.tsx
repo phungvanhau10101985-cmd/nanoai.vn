@@ -29,14 +29,14 @@ export function HistoryPanel({
   onDeleteSession,
 }: HistoryPanelProps) {
   return (
-    <Card className="border shadow-sm bg-white/80 backdrop-blur">
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-        <CardDescription>{description}</CardDescription>
+    <Card className="min-w-0 border shadow-sm bg-white/80 backdrop-blur">
+      <CardHeader className="min-w-0">
+        <CardTitle className="break-words">{title}</CardTitle>
+        <CardDescription className="break-words">{description}</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="mb-2 flex items-center justify-between gap-2">
-          <p className="text-sm font-semibold text-slate-800">
+      <CardContent className="min-w-0 space-y-3">
+        <div className="mb-2 flex min-w-0 items-center justify-between gap-2">
+          <p className="min-w-0 break-words text-sm font-semibold text-slate-800">
             {localText('Danh sách buổi học đã lưu', 'Saved lesson list')}
             {openedHistorySessionId ? localText(' • Đang mở 1 buổi cũ', ' • Opening one past lesson') : ''}
           </p>
@@ -49,9 +49,9 @@ export function HistoryPanel({
         ) : (
           <div className="space-y-2">
             {sessions.map((session) => (
-              <div key={session.sessionId} className="flex flex-col gap-2 rounded-md border bg-white p-2 sm:flex-row sm:items-center sm:justify-between">
+              <div key={session.sessionId} className="flex min-w-0 flex-col gap-2 rounded-md border bg-white p-2 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-slate-800">
+                  <p className="break-words text-sm font-medium text-slate-800">
                     {session.topicLabel ? (
                       <>
                         <span className="font-semibold text-indigo-700">{session.topicLabel}</span>
@@ -62,7 +62,7 @@ export function HistoryPanel({
                       session.teacherLabel || localText('Giáo viên AI', 'AI teacher')
                     )}
                   </p>
-                  <p className="truncate text-xs text-muted-foreground">
+                  <p className="break-words text-xs text-muted-foreground">
                     {session.languageCode?.toUpperCase() || 'N/A'} • {
                       session.mode === 'listen_speak'
                         ? localText('Luyện nghe nói', 'Listen & Speak')
@@ -71,7 +71,7 @@ export function HistoryPanel({
                           : localText('Hội thoại', 'Conversation')
                     } • {session.messageCount} {localText('tin nhắn', 'messages')}
                   </p>
-                  <p className="truncate text-xs text-slate-600">{session.lastTeacherText || localText('Không có bản xem trước.', 'No preview available.')}</p>
+                  <p className="break-words text-xs text-slate-600">{session.lastTeacherText || localText('Không có bản xem trước.', 'No preview available.')}</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <Button

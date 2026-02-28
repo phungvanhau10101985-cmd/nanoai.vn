@@ -1488,6 +1488,33 @@ function extractTeacherSpeechText(text: string): string {
   return String(text || '').trim()
 }
 
+/** Chế độ phản xạ: chỉ lấy câu tiếng cần học cho TTS, bỏ phần dịch nghĩa (Câu của bạn nói đúng là: ..., Dịch nhanh, v.v.). */
+function extractTargetLanguageOnlyForReflexTts(text: string, targetLanguageCode: string): string {
+  let s = String(text || '').trim()
+  if (!s) return s
+  // Bỏ phần Dịch nhanh / Quick translation / Pinyin – chỉ giữ nội dung chính
+  const translationMarkers = [
+    /\n\s*(?:Dịch nhanh|Quick translation|แปลเร็ว|クイック訳|빠른 번역|快速翻译|त्वरित अनुवाद)\s*\([^)]+\)\s*[:：]?\s*[\s\S]*/i,
+    /\n\s*Pinyin\s*[:：]\s*[\s\S]*/i,
+  ]
+  for (const re of translationMarkers) {
+    s = s.replace(re, '').trim()
+  }
+  // Bỏ tiền tố "Câu của bạn nói đúng là: " / "Your correct sentence is: "
+  s = s.replace(/^Câu của bạn nói đúng là\s*[:：]?\s*/i, '').trim()
+  s = s.replace(/^Your correct sentence is\s*[:：]?\s*/i, '').trim()
+  s = s.replace(/^Your sentence is correct\s*[:：]?\s*/i, '').trim()
+  // Bỏ "[Vietnamese] tiếng Anh nói là: " / "[...] nói là: "
+  s = s.replace(/^.+?tiếng\s+Anh\s+nói\s+là\s*[:：]\s*/i, '').trim()
+  s = s.replace(/^.+?tiếng\s+Trung\s+nói\s+là\s*[:：]\s*/i, '').trim()
+  s = s.replace(/^.+?tiếng\s+Nhật\s+nói\s+là\s*[:：]\s*/i, '').trim()
+  s = s.replace(/^.+?tiếng\s+Hàn\s+nói\s+là\s*[:：]\s*/i, '').trim()
+  s = s.replace(/^.+?tiếng\s+Thái\s+nói\s+là\s*[:：]\s*/i, '').trim()
+  s = s.replace(/^.+?tiếng\s+Hindi\s+nói\s+là\s*[:：]\s*/i, '').trim()
+  s = s.replace(/^.+?nói\s+là\s*[:：]\s*/i, '').trim()
+  return s.trim()
+}
+
 /** Kiểm tra văn bản đã chứa pinyin/phiên âm (từ AI) thì không cần hiển thị thêm. */
 function hasEmbeddedPinyin(text: string): boolean {
   const s = String(text || '').trim()
@@ -3237,7 +3264,11 @@ export default function HocTiengAnhAiClientPage() {
     const key = `${messageId}__full`
     if (ttsLoadingByKey[key]) return
     const cached = teacherAudioByMessageIdRef.current[messageId]
-    const textToSpeak = stripPhoneticForTts(String(teacherSpeakTextByMessageId[messageId] || text || '').trim(), languageCode)
+    let raw = String(teacherSpeakTextByMessageId[messageId] || text || '').trim()
+    if (learningMode === 'reflex' && !teacherSpeakTextByMessageId[messageId]) {
+      raw = extractTargetLanguageOnlyForReflexTts(raw, languageCode)
+    }
+    const textToSpeak = stripPhoneticForTts(raw, languageCode)
     if (cached) {
       await playAudioUrl(cached)
       return
@@ -4787,9 +4818,16 @@ export default function HocTiengAnhAiClientPage() {
       }).catch(() => {})
       const speakParts =
         learningMode === 'reflex'
-          ? [mainSentence].map((x) => stripPhoneticForTts(String(x || '').trim(), languageCode)).filter(Boolean)
+          ? [mainSentence]
+              .map((x) => extractTargetLanguageOnlyForReflexTts(String(x || '').trim(), languageCode))
+              .map((x) => stripPhoneticForTts(x, languageCode))
+              .filter(Boolean)
           : [correctionNote, mainSentence, intentAnswer].map((x) => stripPhoneticForTts(String(x || '').trim(), languageCode)).filter(Boolean)
-      const speakText = speakParts.join('. ').trim() || stripPhoneticForTts(extractTeacherSpeechText(payload.reply), languageCode)
+      const fallbackRaw =
+        learningMode === 'reflex'
+          ? extractTargetLanguageOnlyForReflexTts(extractTeacherSpeechText(payload.reply), languageCode)
+          : extractTeacherSpeechText(payload.reply)
+      const speakText = speakParts.join('. ').trim() || stripPhoneticForTts(fallbackRaw, languageCode)
       setTeacherSpeakTextByMessageId((prev) => ({ ...prev, [teacherMessageId]: speakText }))
       const firstFromMain = takeFirstSentenceOnly(String(mainSentence || '').trim())
       const firstFromIntent = takeFirstSentenceOnly(String(intentAnswer || extractTeacherSpeechText(payload.reply)).trim())
@@ -5410,13 +5448,13 @@ export default function HocTiengAnhAiClientPage() {
   return (
     <>
       <Toaster />
-      <div className="mx-auto w-full space-y-6 overflow-x-hidden sm:max-w-5xl lg:max-w-7xl">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-foreground flex items-center justify-center gap-2">
-            <Languages className="h-6 w-6 text-indigo-600" />
-            {localText('Học ngoại ngữ tương tác cùng giáo viên bản địa AI', 'Interactive language learning with native AI teachers')}
+      <div className="mx-auto w-full min-w-0 max-w-full space-y-6 overflow-x-hidden px-2 sm:max-w-5xl sm:px-0 lg:max-w-7xl">
+        <div className="min-w-0 text-center">
+          <h1 className="text-xl font-bold text-foreground flex flex-wrap items-center justify-center gap-2 break-words sm:text-2xl">
+            <Languages className="h-6 w-6 shrink-0 text-indigo-600" />
+            <span className="min-w-0">{localText('Học ngoại ngữ tương tác cùng giáo viên bản địa AI', 'Interactive language learning with native AI teachers')}</span>
           </h1>
-          <p className="mt-1 text-muted-foreground">
+          <p className="mt-1 min-w-0 break-words text-muted-foreground">
             {localText(
               'Chọn ngôn ngữ muốn học và chọn giáo viên bản địa tương ứng. Nói chuyện trực tiếp và được sửa lỗi phát âm/ngữ pháp ngay sau mỗi lượt.',
               'Choose your target language and matching native teacher. Talk live and get instant pronunciation/grammar corrections each turn.'
@@ -5424,10 +5462,10 @@ export default function HocTiengAnhAiClientPage() {
           </p>
         </div>
 
-        <Card className="border shadow-sm bg-white/80 backdrop-blur">
-          <CardHeader>
-            <CardTitle>{coachUiText.setupTitle}</CardTitle>
-            <CardDescription>{coachUiText.setupDesc}</CardDescription>
+        <Card className="min-w-0 border shadow-sm bg-white/80 backdrop-blur">
+          <CardHeader className="min-w-0">
+            <CardTitle className="break-words">{coachUiText.setupTitle}</CardTitle>
+            <CardDescription className="break-words">{coachUiText.setupDesc}</CardDescription>
             <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
               <Button
                 type="button"
@@ -5439,12 +5477,12 @@ export default function HocTiengAnhAiClientPage() {
               </Button>
             </div>
           </CardHeader>
-          <CardContent className={`space-y-4 ${showSetupPanel ? '' : 'hidden'}`}>
-            <div className="rounded-md border bg-slate-50 p-3">
-              <p className="text-sm font-semibold text-slate-900">
+          <CardContent className={`min-w-0 space-y-4 ${showSetupPanel ? '' : 'hidden'}`}>
+            <div className="min-w-0 rounded-md border bg-slate-50 p-3">
+              <p className="break-words text-sm font-semibold text-slate-900">
                 {localText('Chẩn đoán level tự động (khuyến nghị)', 'Auto placement test (recommended)')}
               </p>
-              <p className="mt-1 text-xs text-slate-600">
+              <p className="mt-1 break-words text-xs text-slate-600">
                 {localText(
                   'Nhập 2-3 câu bạn tự nói bằng ngôn ngữ đang học. Hệ thống sẽ gợi ý level, sau đó bạn vẫn chỉnh tay được.',
                   'Enter 2-3 sentences in your target language. The system recommends a level; you can still change it manually.'
@@ -5500,7 +5538,7 @@ export default function HocTiengAnhAiClientPage() {
                     : localText('Chạy checkpoint CEFR', 'Run CEFR checkpoint')}
                 </Button>
                 {placementResult ? (
-                  <p className="text-xs text-slate-700">
+                  <p className="break-words text-xs text-slate-700">
                     {localText('Kết quả:', 'Result:')} <span className="font-semibold">{levelLabelUi(placementResult.recommendedLevel)}</span>
                     {' • '}
                     {localText('Độ tin cậy', 'Confidence')} {placementResult.confidence}%
@@ -5514,7 +5552,7 @@ export default function HocTiengAnhAiClientPage() {
                 )}
               </div>
             </div>
-            <div className="grid gap-3 grid-cols-1 md:grid-cols-3 lg:grid-cols-6">
+            <div className="grid min-w-0 grid-cols-1 gap-3 md:grid-cols-3 lg:grid-cols-6">
               <div className="space-y-1">
                 <label className="text-sm font-medium">{coachUiText.learningLanguage}</label>
                 <select
@@ -5682,7 +5720,7 @@ export default function HocTiengAnhAiClientPage() {
                     value={customTopicDraft}
                     onChange={(e) => setCustomTopicDraft(e.target.value)}
                     placeholder={coachUiText.customTopicPlaceholder}
-                    className="h-11 w-full text-base sm:flex-1 sm:min-w-[320px]"
+                    className="h-11 min-w-0 w-full text-base sm:flex-1 sm:min-w-0"
                   />
                   <Button
                     type="button"
@@ -5710,9 +5748,9 @@ export default function HocTiengAnhAiClientPage() {
                 ) : null}
               </div>
             </div>
-            <div className="grid gap-3 md:grid-cols-2">
-              <div className="rounded-md border bg-emerald-50/50 p-3 space-y-2">
-                <p className="text-sm font-semibold text-emerald-900">{localText('Goal Path (30 ngày)', 'Goal Path (30 days)')}</p>
+            <div className="grid min-w-0 gap-3 md:grid-cols-2">
+              <div className="min-w-0 rounded-md border bg-emerald-50/50 p-3 space-y-2">
+                <p className="break-words text-sm font-semibold text-emerald-900">{localText('Goal Path (30 ngày)', 'Goal Path (30 days)')}</p>
                 <div className="flex flex-col gap-2 sm:flex-row">
                   <select
                     value={goalType}
@@ -5729,7 +5767,7 @@ export default function HocTiengAnhAiClientPage() {
                     {goalBusy ? localText('Đang lưu...', 'Saving...') : localText('Lưu mục tiêu', 'Save goal')}
                   </Button>
                 </div>
-                <p className="text-xs text-slate-600">
+                <p className="break-words text-xs text-slate-600">
                   {activeGoal
                     ? localText(
                         `Đang theo mục tiêu: ${goalLabelById[activeGoalType]} • ${activeGoal.target_days} ngày • ${activeGoal.target_daily_minutes} phút/ngày`,
@@ -5741,21 +5779,21 @@ export default function HocTiengAnhAiClientPage() {
                       )}
                 </p>
               </div>
-              <div className="rounded-md border bg-slate-50 p-3 space-y-1">
-                <p className="text-sm font-semibold text-slate-900">{localText('Dashboard tiến độ hôm nay', "Today's progress dashboard")}</p>
-                <p className="text-sm text-slate-700">
+              <div className="min-w-0 rounded-md border bg-slate-50 p-3 space-y-1">
+                <p className="break-words text-sm font-semibold text-slate-900">{localText('Dashboard tiến độ hôm nay', "Today's progress dashboard")}</p>
+                <p className="break-words text-sm text-slate-700">
                   {localText('Chuỗi học:', 'Streak:')} <span className="font-semibold">{progressSnapshot?.streak_days ?? 0} {localText('ngày', 'days')}</span>
                 </p>
-                <p className="text-sm text-slate-700">
+                <p className="break-words text-sm text-slate-700">
                   {localText('Lượt hội thoại:', 'Turns:')} <span className="font-semibold">{progressSnapshot?.turns_count ?? 0}</span> •
                   {localText('Điểm phát âm TB:', 'Avg pronunciation:')} <span className="font-semibold">{progressSnapshot?.avg_pronunciation_score ?? 0}</span>
                 </p>
-                <p className="text-sm text-slate-700">
+                <p className="break-words text-sm text-slate-700">
                   {localText('Từ mới hôm nay:', 'New words today:')} <span className="font-semibold">{progressSnapshot?.new_words_count ?? 0}</span> •
                   {localText('Đến hạn ôn:', 'Due for review:')} <span className="font-semibold">{dueReviewCount}</span>
                 </p>
                 {weeklySnapshot ? (
-                  <p className="text-sm text-slate-700">
+                  <p className="break-words text-sm text-slate-700">
                     {localText('Tiến độ tuần:', 'Weekly progress:')}{' '}
                     <span className="font-semibold">
                       {weeklySnapshot.sessions}/{weeklySnapshot.targetSessions}
@@ -5763,7 +5801,7 @@ export default function HocTiengAnhAiClientPage() {
                     {localText('buổi', 'sessions')} • {weeklySnapshot.completionPercent}%
                   </p>
                 ) : null}
-                <p className="text-sm text-slate-700">
+                <p className="break-words text-sm text-slate-700">
                   {localText('CEFR baseline/checkpoint:', 'CEFR baseline/checkpoint:')}{' '}
                   <span className="font-semibold">
                     {assessmentBaseline?.cefr_level || '-'} / {assessmentCheckpoint?.cefr_level || '-'}
@@ -5785,11 +5823,11 @@ export default function HocTiengAnhAiClientPage() {
                 ) : null}
               </div>
             </div>
-            <div className="rounded-md border bg-indigo-50/50 p-3">
-              <div className="mb-3 flex flex-wrap items-center gap-4">
-                <div>
-                  <p className="text-xs font-medium text-slate-700 mb-1">{localText('Chế độ học', 'Learning mode')}</p>
-                  <div className="flex gap-3">
+            <div className="min-w-0 rounded-md border bg-indigo-50/50 p-3">
+              <div className="mb-3 flex min-w-0 flex-wrap items-center gap-4">
+                <div className="min-w-0">
+                  <p className="mb-1 break-words text-xs font-medium text-slate-700">{localText('Chế độ học', 'Learning mode')}</p>
+                  <div className="flex flex-wrap gap-3">
                     <label className="flex items-center gap-1.5 cursor-pointer">
                       <input
                         type="radio"
@@ -5815,23 +5853,23 @@ export default function HocTiengAnhAiClientPage() {
                   </div>
                 </div>
               </div>
-              <div className="mb-2 flex flex-wrap items-center gap-2">
+              <div className="mb-2 flex min-w-0 flex-wrap items-center gap-2">
                 <span
-                  className={`rounded-full border px-2.5 py-1 text-xs ${
+                  className={`shrink-0 rounded-full border px-2.5 py-1 break-words text-xs ${
                     isTopicConfirmedForLesson ? 'border-emerald-300 bg-emerald-100 text-emerald-800' : 'border-slate-300 bg-white text-slate-700'
                   }`}
                 >
                   {isTopicConfirmedForLesson ? '✅' : '⏳'} {localText('B1: Chọn chủ đề', 'S1: Select topic')}
                 </span>
                 <span
-                  className={`rounded-full border px-2.5 py-1 text-xs ${
+                  className={`shrink-0 rounded-full border px-2.5 py-1 break-words text-xs ${
                     hasCurriculumReady ? 'border-emerald-300 bg-emerald-100 text-emerald-800' : 'border-slate-300 bg-white text-slate-700'
                   }`}
                 >
                   {hasCurriculumReady ? '✅' : '⏳'} {localText('B2: Tạo giáo trình', 'S2: Create curriculum')}
                 </span>
                 <span
-                  className={`rounded-full border px-2.5 py-1 text-xs ${
+                  className={`shrink-0 rounded-full border px-2.5 py-1 break-words text-xs ${
                     isLessonReadyToStart ? 'border-emerald-300 bg-emerald-100 text-emerald-800' : 'border-slate-300 bg-white text-slate-700'
                   }`}
                 >
@@ -5920,9 +5958,9 @@ export default function HocTiengAnhAiClientPage() {
                     : 'border-amber-200 bg-amber-50'
                 }`}
               >
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <p
-                    className={`text-sm ${
+                    className={`min-w-0 break-words text-sm ${
                       levelRecommendation.direction === 'up' ? 'text-emerald-800' : 'text-amber-800'
                     }`}
                   >
@@ -5953,8 +5991,8 @@ export default function HocTiengAnhAiClientPage() {
                 </div>
               </div>
             ) : null}
-            <div className="rounded-md border bg-slate-50 p-3">
-              <p className="text-sm text-slate-700">
+            <div className="min-w-0 rounded-md border bg-slate-50 p-3">
+              <p className="break-words text-sm text-slate-700">
                 {localText('Giáo viên đang chọn:', 'Selected teacher:')} <span className="font-semibold">{teacherLabel}</span>
               </p>
             </div>
@@ -5976,12 +6014,12 @@ export default function HocTiengAnhAiClientPage() {
           </CardContent>
         </Card>
 
-        <div ref={activeLessonRef} className="grid gap-4 md:grid-cols-[1.1fr_0.9fr]">
-          <Card className="border shadow-sm bg-white/80 backdrop-blur">
-            <CardHeader className="flex flex-row items-start justify-between gap-2 space-y-0 pb-2">
-              <div>
-                <CardTitle>{coachUiText.chatTitle}</CardTitle>
-                <CardDescription>{coachUiText.chatDesc}</CardDescription>
+        <div ref={activeLessonRef} className="grid min-w-0 gap-4 md:grid-cols-[1.1fr_0.9fr]">
+          <Card className="min-w-0 border shadow-sm bg-white/80 backdrop-blur">
+            <CardHeader className="flex min-w-0 flex-row flex-wrap items-start justify-between gap-2 space-y-0 pb-2">
+              <div className="min-w-0 flex-1">
+                <CardTitle className="break-words">{coachUiText.chatTitle}</CardTitle>
+                <CardDescription className="break-words">{coachUiText.chatDesc}</CardDescription>
               </div>
               {messages.length > 0 ? (
                 <Button
@@ -5997,7 +6035,7 @@ export default function HocTiengAnhAiClientPage() {
               ) : null}
             </CardHeader>
             <CardContent className="space-y-3 px-2 pb-3 sm:px-6 sm:pb-6">
-              <div className="flex flex-col gap-3 sm:flex-row">
+              <div className="flex min-w-0 flex-col gap-3 sm:flex-row">
                 {(() => {
                   const curriculum = topicCurriculum || preLessonCurriculum
                   const steps = curriculum?.lessonSteps ?? []
@@ -6010,7 +6048,7 @@ export default function HocTiengAnhAiClientPage() {
                     <>
                     {hasSteps ? (
                       <>
-                      <div className="shrink-0 w-32 sm:w-36 max-h-[40vh] sm:max-h-none overflow-y-auto">
+                      <div className="min-w-0 shrink-0 w-32 sm:w-36 max-h-[40vh] sm:max-h-none overflow-y-auto">
                         <p className="mb-2 text-xs font-semibold text-slate-600">
                           {localText('Tiến độ buổi học', 'Lesson progress')}
                         </p>
@@ -6040,7 +6078,7 @@ export default function HocTiengAnhAiClientPage() {
                                   ) : null}
                                 </div>
                                 <div
-                                  className={`flex-1 pb-4 text-xs ${
+                                  className={`min-w-0 flex-1 break-words pb-4 text-xs ${
                                     isCompleted ? 'text-slate-600' : isCurrent ? 'font-medium text-indigo-700' : 'text-slate-400'
                                   }`}
                                 >
@@ -6055,7 +6093,7 @@ export default function HocTiengAnhAiClientPage() {
                           {completedCount}/{steps.length} {localText('bước', 'steps')} • {teacherCount} {localText('lượt', 'turns')}
                         </p>
                       </div>
-                      <div className="flex items-center gap-2 rounded border border-slate-200 bg-slate-50 px-2 py-1.5 sm:hidden order-first">
+                      <div className="flex min-w-0 items-center gap-2 rounded border border-slate-200 bg-slate-50 px-2 py-1.5 sm:hidden order-first">
                         <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-200">
                           <div
                             className="h-full rounded-full bg-emerald-500 transition-all"
@@ -6080,7 +6118,7 @@ export default function HocTiengAnhAiClientPage() {
                     </>
                   ) : null
                 })()}
-              <div ref={chatScrollRef} className="max-h-[60vh] flex-1 space-y-2 overflow-auto rounded-md border bg-slate-50 p-2 sm:max-h-80 sm:p-3">
+              <div ref={chatScrollRef} className="max-h-[60vh] min-w-0 flex-1 space-y-2 overflow-auto rounded-md border bg-slate-50 p-2 sm:max-h-80 sm:p-3">
                 {messages.length === 0 ? (
                   <div className="space-y-3">
                     {historySessions.length > 0 ? (
@@ -6187,7 +6225,7 @@ export default function HocTiengAnhAiClientPage() {
                   {messages.map((m, idx) => (
                     <div
                       key={m.id}
-                      className={`rounded-md px-3 py-2 text-sm ${
+                      className={`min-w-0 break-words rounded-md px-3 py-2 text-sm ${
                         m.role === 'teacher' ? 'bg-indigo-50 border border-indigo-100' : 'bg-white border'
                       }`}
                     >
@@ -6197,12 +6235,12 @@ export default function HocTiengAnhAiClientPage() {
                       {m.role === 'teacher' ? (
                         <div className="space-y-2">
                           {(() => {
-                            if (learningMode === 'reflex') return <p className="whitespace-pre-wrap">{m.text}</p>
+                            if (learningMode === 'reflex') return <p className="whitespace-pre-wrap break-words">{m.text}</p>
                             const correctionNote = String(correctionNoteByMessageId[m.id] || '').trim()
                             const correctedSentence = String(mainSentenceByMessageId[m.id] || '').trim()
                             const intentAnswer = String(intentAnswerByMessageId[m.id] || '').trim()
                             const hasStructured = Boolean(correctionNote || correctedSentence || intentAnswer)
-                            if (!hasStructured) return <p>{m.text}</p>
+                            if (!hasStructured) return <p className="break-words">{m.text}</p>
                             const skipPinyin2 = correctedSentence && hasEmbeddedPinyin(correctedSentence)
                             const skipPinyin3 = intentAnswer && hasEmbeddedPinyin(intentAnswer)
                             if (supportsLatinTransliteration && correctedSentence && !skipPinyin2) void ensureWritingRomanization(correctedSentence)
@@ -6212,7 +6250,7 @@ export default function HocTiengAnhAiClientPage() {
                             const busy2 = !skipPinyin2 && correctedSentence ? Boolean(writingRomanizationBusyByKey[toWritingRomanizationKey(correctedSentence)]) : false
                             const busy3 = !skipPinyin3 && intentAnswer ? Boolean(writingRomanizationBusyByKey[toWritingRomanizationKey(intentAnswer)]) : false
                             return (
-                              <div className="space-y-1 text-xs">
+                              <div className="space-y-1 break-words text-xs">
                                 <p>
                                   <span className="font-semibold text-rose-700">{localText('Ý 1 - Sửa lỗi:', 'Idea 1 - Error fix:')}</span>{' '}
                                   {correctionNote || localText('Không có lỗi lớn cần sửa.', 'No major correction needed.')}
@@ -6564,13 +6602,13 @@ export default function HocTiengAnhAiClientPage() {
                     </div>
                   ))}
                   {busy && (messages.length === 0 || messages[messages.length - 1]?.role !== 'teacher') ? (
-                    <div className="rounded-md border border-indigo-200 bg-indigo-50/80 px-3 py-3 text-sm animate-pulse">
-                      <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-indigo-600">
+                      <div className="min-w-0 rounded-md border border-indigo-200 bg-indigo-50/80 px-3 py-3 text-sm animate-pulse">
+                      <p className="mb-1.5 break-words text-xs font-semibold uppercase tracking-wide text-indigo-600">
                         {localText('Teacher', 'Teacher')}
                       </p>
-                      <div className="flex items-center gap-2 text-indigo-700">
+                      <div className="flex min-w-0 items-center gap-2 text-indigo-700">
                         <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
-                        <p className="text-xs">
+                        <p className="min-w-0 break-words text-xs">
                           {localText(
                             'Thầy/cô đang suy nghĩ và chuẩn bị giảng giải cho bạn...',
                             'Teacher is thinking and preparing an explanation for you...'
@@ -6584,14 +6622,14 @@ export default function HocTiengAnhAiClientPage() {
               </div>
               </div>
 
-              <div className="space-y-2">
-                <div className="flex items-center gap-1 sm:flex-1">
+              <div className="min-w-0 space-y-2">
+                <div className="flex min-w-0 items-center gap-1 sm:flex-1">
                   <Input
                     value={draft}
                     onChange={(e) => setDraft(e.target.value)}
                     placeholder={coachUiText.inputPlaceholder}
                     disabled={busy}
-                    className="sm:flex-1"
+                    className="min-w-0 sm:flex-1"
                   />
                   <Button
                     type="button"
@@ -6603,7 +6641,7 @@ export default function HocTiengAnhAiClientPage() {
                     <Send className="h-4 w-4" />
                   </Button>
                 </div>
-                <div className="flex items-center gap-1 rounded-md border px-1 py-1 overflow-x-auto whitespace-nowrap">
+                <div className="flex flex-wrap items-center gap-1 rounded-md border px-1 py-1 overflow-x-auto min-w-0">
                   {recordingPending ? (
                     <>
                       <Button
@@ -6654,11 +6692,14 @@ export default function HocTiengAnhAiClientPage() {
                         {listening ? localText('Dừng mic', 'Stop mic') : localText('Nói', 'Speak')}
                       </Button>
                       <div
-                        className="flex flex-col items-center gap-0.5"
+                        className="flex shrink-0 flex-col items-center gap-0.5"
                         title={localText('Tốc độ phát giọng thầy/cô', 'Teacher voice playback speed')}
                       >
-                        <span className="text-[10px] text-slate-500 whitespace-nowrap">
+                        <span className="hidden text-[10px] text-slate-500 sm:inline">
                           {localText('Tốc độ giọng thầy/cô', 'Teacher voice speed')}
+                        </span>
+                        <span className="text-[10px] text-slate-500 sm:hidden">
+                          {localText('Tốc độ', 'Speed')}
                         </span>
                         <div className="flex items-center rounded-md border border-slate-200 bg-slate-50">
                           <Button
@@ -6727,14 +6768,14 @@ export default function HocTiengAnhAiClientPage() {
               </div>
               {learningMode === 'review' && writingTask ? (
                 <div
-                  className={`rounded-md border p-2.5 ${
+                  className={`min-w-0 rounded-md border p-2.5 ${
                     !writingTask.completed
                       ? 'border-amber-300 bg-amber-50/60 ring-1 ring-amber-200'
                       : 'bg-slate-50/70'
                   }`}
                 >
                   <div className="mt-2 space-y-2">
-                    <div className="flex items-center gap-2">
+                    <div className="flex min-w-0 items-center gap-2">
                       <Input
                         value={writingDraft}
                         onChange={(e) => {
@@ -6745,7 +6786,7 @@ export default function HocTiengAnhAiClientPage() {
                         }}
                         placeholder={localText('Viết câu của bạn tại đây...', 'Write your sentence here...')}
                         disabled={writingBusy}
-                        className={`flex-1 ${
+                        className={`min-w-0 flex-1 ${
                           writingInputStatus === 'matched'
                             ? 'border-emerald-400 bg-emerald-50'
                             : writingInputStatus === 'incorrect'
@@ -6883,23 +6924,23 @@ export default function HocTiengAnhAiClientPage() {
             </CardContent>
           </Card>
 
-          <Card className="border shadow-sm bg-white/80 backdrop-blur">
-            <CardHeader>
-              <CardTitle>{coachUiText.fixTitle}</CardTitle>
-              <CardDescription>{coachUiText.fixDesc}</CardDescription>
+          <Card className="min-w-0 border shadow-sm bg-white/80 backdrop-blur">
+            <CardHeader className="min-w-0">
+              <CardTitle className="break-words">{coachUiText.fixTitle}</CardTitle>
+              <CardDescription className="break-words">{coachUiText.fixDesc}</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="rounded-md border p-3">
-                <p className="text-sm font-semibold text-slate-800">{localText('Lỗi cần sửa', 'Corrections needed')}</p>
+            <CardContent className="min-w-0 space-y-3">
+              <div className="min-w-0 rounded-md border p-3">
+                <p className="break-words text-sm font-semibold text-slate-800">{localText('Lỗi cần sửa', 'Corrections needed')}</p>
                 {corrections.length === 0 ? (
-                  <p className="mt-1 text-sm text-muted-foreground">{localText('Chưa có lỗi nào gần đây.', 'No recent errors.')}</p>
+                  <p className="mt-1 break-words text-sm text-muted-foreground">{localText('Chưa có lỗi nào gần đây.', 'No recent errors.')}</p>
                 ) : (
                   <div className="mt-2 space-y-2">
                     {corrections.map((c, idx) => (
-                      <div key={`${c.original}-${idx}`} className="rounded-md border bg-slate-50 p-2 text-xs">
+                      <div key={`${c.original}-${idx}`} className="min-w-0 rounded-md border bg-slate-50 p-2 break-words text-xs">
                         <p><span className="font-semibold text-red-600">{localText('Bạn nói:', 'You said:')}</span> {c.original}</p>
                         <p><span className="font-semibold text-emerald-700">{localText('Nên nói:', 'Better:')}</span> {c.fixed}</p>
-                        <p className="text-muted-foreground">{c.explanationVi}</p>
+                        <p className="break-words text-muted-foreground">{c.explanationVi}</p>
                         <div className="mt-2">
                           <Button
                             type="button"
@@ -6917,12 +6958,12 @@ export default function HocTiengAnhAiClientPage() {
                   </div>
                 )}
               </div>
-              <div className="rounded-md border p-3">
-                <p className="text-sm font-semibold text-slate-800">{localText('Điểm phát âm gần nhất', 'Latest pronunciation score')}</p>
+              <div className="min-w-0 rounded-md border p-3">
+                <p className="break-words text-sm font-semibold text-slate-800">{localText('Điểm phát âm gần nhất', 'Latest pronunciation score')}</p>
                 {latestPronunciationScore == null ? (
-                  <p className="mt-1 text-sm text-muted-foreground">{localText('Chưa có điểm phát âm từ mic.', 'No pronunciation score from mic yet.')}</p>
+                  <p className="mt-1 break-words text-sm text-muted-foreground">{localText('Chưa có điểm phát âm từ mic.', 'No pronunciation score from mic yet.')}</p>
                 ) : (
-                  <div className="mt-2 space-y-1 text-sm">
+                  <div className="mt-2 space-y-1 break-words text-sm">
                     <p>
                       <span className="font-semibold text-indigo-700">{latestPronunciationScore}/100</span>
                       {' '}({latestPronunciationScore >= 85 ? localText('Tốt', 'Good') : latestPronunciationScore >= 70 ? localText('Khá', 'Fair') : localText('Cần cải thiện', 'Needs improvement')})
@@ -6950,18 +6991,18 @@ export default function HocTiengAnhAiClientPage() {
                   </div>
                 )}
               </div>
-              <div className="rounded-md border p-3">
-                <p className="text-sm font-semibold text-slate-800">{localText('Mẹo phát âm', 'Pronunciation tips')}</p>
+              <div className="min-w-0 rounded-md border p-3">
+                <p className="break-words text-sm font-semibold text-slate-800">{localText('Mẹo phát âm', 'Pronunciation tips')}</p>
                 {pronunciationTips.length === 0 ? (
-                  <p className="mt-1 text-sm text-muted-foreground">{localText('Chưa có mẹo phát âm mới.', 'No new pronunciation tips yet.')}</p>
+                  <p className="mt-1 break-words text-sm text-muted-foreground">{localText('Chưa có mẹo phát âm mới.', 'No new pronunciation tips yet.')}</p>
                 ) : (
                   <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-700">
                     {pronunciationTips.map((tip, idx) => {
                       const tipWord = extractPronunciationWordFromTip(tip)
                       return (
-                        <li key={`${tip}-${idx}`} className="space-y-1">
-                          <div className="flex items-start gap-2">
-                            <p className="flex-1">{tip}</p>
+                        <li key={`${tip}-${idx}`} className="min-w-0 space-y-1">
+                          <div className="flex min-w-0 items-start gap-2">
+                            <p className="min-w-0 flex-1 break-words">{tip}</p>
                             {tipWord ? (
                               <Button
                                 type="button"
