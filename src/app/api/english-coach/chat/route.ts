@@ -84,6 +84,30 @@ type SessionPinnedFacts = {
   topicFocus: string
 }
 
+type ReplayCacheRow = {
+  id: string
+  normalized_student_text: string
+  student_text: string
+  teacher_gender: TeacherGender
+  target_language: string
+  normalized_target_language: string
+  native_language: string
+  normalized_native_language: string
+  mode: 'chat' | 'listen_speak' | 'roleplay_short'
+  learning_mode: 'review' | 'reflex'
+  reply: string
+  corrections_json: unknown
+  pronunciation_tips_json: unknown
+  correction_note: string | null
+  corrected_sentence: string | null
+  intent_answer: string | null
+  main_sentence: string | null
+  must_know_text: string | null
+  updated_at: string
+  last_used_at: string
+  hit_count: number
+}
+
 function parsePinnedFacts(raw: string): SessionPinnedFacts {
   try {
     const parsed = JSON.parse(String(raw || '{}')) as Partial<SessionPinnedFacts>
@@ -437,6 +461,84 @@ function normalizeForSimilarity(input: string): string {
   return normalizeLookup(input).replace(/[\s.,!?;:()[\]{}'"`~@#$%^&*+=<>|\\/_-]+/g, '')
 }
 
+function parseCorrectionList(input: unknown): Correction[] {
+  const source = (() => {
+    if (Array.isArray(input)) return input
+    const raw = String(input || '').trim()
+    if (!raw) return []
+    try {
+      const parsed = JSON.parse(raw) as unknown
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      return []
+    }
+  })()
+  return source
+    .map((row) => {
+      if (!row || typeof row !== 'object') return null
+      const item = row as { original?: unknown; fixed?: unknown; explanationVi?: unknown }
+      const original = String(item.original || '').trim()
+      const fixed = String(item.fixed || '').trim()
+      const explanationVi = String(item.explanationVi || '').trim()
+      if (!original && !fixed && !explanationVi) return null
+      return { original, fixed, explanationVi }
+    })
+    .filter((x): x is Correction => Boolean(x))
+    .slice(0, 5)
+}
+
+function parseStringList(input: unknown): string[] {
+  const source = (() => {
+    if (Array.isArray(input)) return input
+    const raw = String(input || '').trim()
+    if (!raw) return []
+    try {
+      const parsed = JSON.parse(raw) as unknown
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      return []
+    }
+  })()
+  return source
+    .map((x) => String(x || '').trim())
+    .filter(Boolean)
+    .slice(0, 5)
+}
+
+function levenshteinDistance(a: string, b: string): number {
+  const left = String(a || '')
+  const right = String(b || '')
+  if (!left) return right.length
+  if (!right) return left.length
+  const prev = new Array<number>(right.length + 1)
+  const curr = new Array<number>(right.length + 1)
+  for (let j = 0; j <= right.length; j += 1) prev[j] = j
+  for (let i = 1; i <= left.length; i += 1) {
+    curr[0] = i
+    for (let j = 1; j <= right.length; j += 1) {
+      const cost = left[i - 1] === right[j - 1] ? 0 : 1
+      curr[j] = Math.min(
+        prev[j] + 1,
+        curr[j - 1] + 1,
+        prev[j - 1] + cost
+      )
+    }
+    for (let j = 0; j <= right.length; j += 1) prev[j] = curr[j]
+  }
+  return prev[right.length]
+}
+
+function similarityScore(a: string, b: string): number {
+  const left = normalizeForSimilarity(a)
+  const right = normalizeForSimilarity(b)
+  if (!left || !right) return 0
+  if (left === right) return 1
+  const maxLen = Math.max(left.length, right.length)
+  if (maxLen === 0) return 1
+  const distance = levenshteinDistance(left, right)
+  return Math.max(0, 1 - distance / maxLen)
+}
+
 function isIntentAnswerTooCloseToStudent(
   intentAnswer: string,
   studentText: string,
@@ -703,6 +805,7 @@ export async function POST(request: NextRequest) {
     const topicStarterSentences = Array.isArray(payload.topicStarterSentences)
       ? payload.topicStarterSentences.map((x) => String(x || '').trim()).filter(Boolean).slice(0, 4)
       : []
+    const learningMode: 'review' | 'reflex' = payload.learningMode === 'reflex' ? 'reflex' : 'review'
     const micAnalysis = payload.micAnalysis && typeof payload.micAnalysis === 'object'
       ? payload.micAnalysis
       : null
@@ -755,6 +858,94 @@ export async function POST(request: NextRequest) {
     const normalizedTargetLanguage = normalizeLookup(targetLanguage)
     const normalizedNativeLanguage = normalizeLookup(nativeLanguage)
     const adminSupabase = adminClient()
+    const replayRequestId = `replay_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
+
+    const tryLoadReplayFlow = async (): Promise<ReplayCacheRow | null> => {
+      const { data } = await adminSupabase
+        .from('language_coach_dialogue_replay_cache')
+        .select(
+          'id, normalized_student_text, student_text, teacher_gender, target_language, normalized_target_language, native_language, normalized_native_language, mode, learning_mode, reply, corrections_json, pronunciation_tips_json, correction_note, corrected_sentence, intent_answer, main_sentence, must_know_text, updated_at, last_used_at, hit_count'
+        )
+        .eq('teacher_gender', gender)
+        .eq('normalized_target_language', normalizedTargetLanguage)
+        .eq('normalized_native_language', normalizedNativeLanguage)
+        .eq('mode', mode)
+        .eq('learning_mode', learningMode)
+        .order('updated_at', { ascending: false })
+        .limit(40)
+      const rows = Array.isArray(data) ? (data as ReplayCacheRow[]) : []
+      if (rows.length === 0) {
+        console.info(
+          `[REPLAY][${replayRequestId}] miss reason=no-candidate gender=${gender} mode=${mode} learningMode=${learningMode} pair=${normalizedTargetLanguage}/${normalizedNativeLanguage}`
+        )
+        return null
+      }
+      let best: ReplayCacheRow | null = null
+      let bestScore = 0
+      for (const row of rows) {
+        const score = similarityScore(studentText, String(row.student_text || row.normalized_student_text || ''))
+        if (score > bestScore) {
+          bestScore = score
+          best = row
+        }
+      }
+      if (!best || bestScore < 0.95) {
+        console.info(
+          `[REPLAY][${replayRequestId}] miss reason=score-below-threshold bestScore=${bestScore.toFixed(3)} threshold=0.950 gender=${gender} mode=${mode} learningMode=${learningMode}`
+        )
+        return null
+      }
+      console.info(
+        `[REPLAY][${replayRequestId}] hit score=${bestScore.toFixed(3)} cacheId=${best.id} gender=${gender} mode=${mode} learningMode=${learningMode}`
+      )
+      void adminSupabase
+        .from('language_coach_dialogue_replay_cache')
+        .update({ last_used_at: new Date().toISOString(), hit_count: Math.max(0, Number(best.hit_count || 0)) + 1 })
+        .eq('id', best.id)
+      return best
+    }
+
+    const saveReplayFlow = async (input: {
+      reply: string
+      corrections: Correction[]
+      pronunciationTips: string[]
+      correctionNote: string
+      correctedSentence: string
+      intentAnswer: string
+      mainSentence: string
+      mustKnowText: string
+    }) => {
+      const payloadToSave = {
+        student_text: studentText,
+        normalized_student_text: normalizedStudentText,
+        teacher_gender: gender,
+        target_language: targetLanguage,
+        normalized_target_language: normalizedTargetLanguage,
+        native_language: nativeLanguage,
+        normalized_native_language: normalizedNativeLanguage,
+        mode,
+        learning_mode: learningMode,
+        reply: String(input.reply || '').trim(),
+        corrections_json: JSON.stringify(input.corrections || []),
+        pronunciation_tips_json: JSON.stringify(input.pronunciationTips || []),
+        correction_note: String(input.correctionNote || '').trim() || null,
+        corrected_sentence: String(input.correctedSentence || '').trim() || null,
+        intent_answer: String(input.intentAnswer || '').trim() || null,
+        main_sentence: String(input.mainSentence || '').trim() || null,
+        must_know_text: String(input.mustKnowText || '').trim() || null,
+        updated_at: new Date().toISOString(),
+        last_used_at: new Date().toISOString(),
+      }
+      await adminSupabase
+        .from('language_coach_dialogue_replay_cache')
+        .upsert(payloadToSave, {
+          onConflict: 'normalized_student_text,normalized_target_language,normalized_native_language,teacher_gender,mode,learning_mode',
+        })
+      console.info(
+        `[REPLAY][${replayRequestId}] save gender=${gender} mode=${mode} learningMode=${learningMode} pair=${normalizedTargetLanguage}/${normalizedNativeLanguage}`
+      )
+    }
+
     let userId = ''
     let sessionMemory: { runningSummary: string; pinnedFacts: SessionPinnedFacts } = {
       runningSummary: '',
@@ -777,7 +968,6 @@ export async function POST(request: NextRequest) {
         pinnedFacts: parsePinnedFacts(String(memory?.pinned_facts_json || '{}')),
       }
     }
-    const learningMode = payload.learningMode === 'reflex' ? 'reflex' : 'review'
     const asksReviewFar =
       /(ôn lại|ôn tập|review|recap|nhắc lại phần trước|phần trước|earlier lesson|previous lesson|lúc nãy|hồi nãy)/i.test(studentText)
     const isShortUtterance = isTooShortStudentSentence(studentText, targetLanguageCode)
@@ -806,6 +996,39 @@ export async function POST(request: NextRequest) {
         mustKnowText: retry,
       })
     }
+
+    const replayFlow = await tryLoadReplayFlow()
+    if (replayFlow) {
+      const replayReply = String(replayFlow.reply || '').trim()
+      const replayCorrections = parseCorrectionList(replayFlow.corrections_json)
+      const replayPronunciationTips = parseStringList(replayFlow.pronunciation_tips_json)
+      const replayCorrectionNote = String(replayFlow.correction_note || '').trim()
+      const replayMainSentence =
+        String(replayFlow.main_sentence || '').trim()
+        || String(replayFlow.corrected_sentence || '').trim()
+        || replayReply
+      const replayMustKnowText =
+        String(replayFlow.must_know_text || '').trim()
+        || replayMainSentence
+        || replayReply
+      const replayIntentAnswer = ensureIntentAnswerTwoPart(
+        String(replayFlow.intent_answer || '').trim() || replayReply,
+        targetLanguageCode,
+        targetLanguage
+      )
+      return NextResponse.json({
+        reply: replayReply,
+        corrections: replayCorrections,
+        pronunciationTips: replayPronunciationTips,
+        correctionNote: replayCorrectionNote,
+        intentAnswer: replayIntentAnswer,
+        correctedSentence: replayMainSentence,
+        mainSentence: replayMainSentence,
+        mustKnowText: replayMustKnowText,
+        replayedFromCache: true,
+      })
+    }
+
     let retrievalGuide = 'Không yêu cầu truy xuất ngữ cảnh xa.'
     if (asksReviewFar && userId) {
       const recallQuery = adminSupabase
@@ -979,6 +1202,20 @@ ${studentText}`
             },
             { onConflict: 'user_id,session_id' }
           )
+        }
+        try {
+          await saveReplayFlow({
+            reply: fullReply,
+            corrections: [],
+            pronunciationTips: [],
+            correctionNote: '',
+            correctedSentence: reply,
+            intentAnswer,
+            mainSentence: reply,
+            mustKnowText: reply,
+          })
+        } catch {
+          // Keep reflex response path resilient even if replay cache write fails.
         }
         return NextResponse.json({
           reply: fullReply,
@@ -1708,6 +1945,20 @@ ${intentAnswer || parsed.reply}`
         },
         { onConflict: 'user_id,session_id' }
       )
+    }
+    try {
+      await saveReplayFlow({
+        reply: parsed.reply,
+        corrections: parsed.corrections || [],
+        pronunciationTips: parsed.pronunciationTips || [],
+        correctionNote,
+        correctedSentence: mainSentence,
+        intentAnswer,
+        mainSentence,
+        mustKnowText,
+      })
+    } catch {
+      // Keep chat response path resilient even if replay cache write fails.
     }
     return NextResponse.json({
       ...parsed,
