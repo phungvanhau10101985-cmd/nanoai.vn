@@ -1997,7 +1997,6 @@ export default function HocTiengAnhAiClientPage() {
   const speakActionsRef = useRef<HTMLDivElement | null>(null)
   const writingTaskRef = useRef<HTMLDivElement | null>(null)
   const writingInputRef = useRef<HTMLInputElement | null>(null)
-  const miniWritingNoticeAtRef = useRef(0)
   const wasMiniWritingBlockedRef = useRef(false)
   const teacherAudioByMessageIdRef = useRef<Record<string, string>>({})
   const persistedMessageIdsRef = useRef<Record<string, true>>({})
@@ -2350,23 +2349,14 @@ export default function HocTiengAnhAiClientPage() {
   const isMiniWritingBlocking =
     learningMode === 'review' && Boolean(writingTask) && !Boolean(writingTask?.completed)
 
+  const getWritingTaskProgressStorageKey = useCallback((sid: string) => `nanoai_writing_task_progress:${sid}`, [])
+
   const redirectToMiniWriting = useCallback(() => {
-    writingTaskRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    writingTaskRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
     window.setTimeout(() => {
       writingInputRef.current?.focus()
     }, 180)
-    const now = Date.now()
-    if (now - miniWritingNoticeAtRef.current > 1500) {
-      miniWritingNoticeAtRef.current = now
-      toast({
-        title: localText('Hoàn thành bài viết mini trước', 'Complete mini-writing first'),
-        description: localText(
-          'Hãy hoàn thành bài viết mini bên dưới rồi tiếp tục nói hoặc nhập tin nhắn.',
-          'Please finish the mini-writing task below, then continue speaking or typing.'
-        ),
-      })
-    }
-  }, [localText, toast])
+  }, [])
 
   useEffect(() => {
     if (wasMiniWritingBlockedRef.current && !isMiniWritingBlocking) {
@@ -3088,6 +3078,32 @@ export default function HocTiengAnhAiClientPage() {
       writingTaskJson: json,
     }).catch(() => {})
   }, [writingTask, sessionId, openedHistorySessionId])
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !sessionId) return
+    const key = getWritingTaskProgressStorageKey(sessionId)
+    if (!writingTask) {
+      window.localStorage.removeItem(key)
+      return
+    }
+    try {
+      window.localStorage.setItem(
+        key,
+        JSON.stringify({
+          messageId: writingTask.messageId,
+          requiredSentences: writingTask.requiredSentences,
+          currentIndex: writingTask.currentIndex,
+          completed: writingTask.completed,
+          teacherText: writingTask.teacherText,
+          instruction: writingTask.instruction,
+          referenceSentence: writingTask.referenceSentence,
+          taskType: writingTask.taskType,
+        })
+      )
+    } catch {
+      // ignore localStorage failures
+    }
+  }, [writingTask, sessionId, getWritingTaskProgressStorageKey])
 
   useEffect(() => {
     return () => {
@@ -4418,6 +4434,55 @@ export default function HocTiengAnhAiClientPage() {
           }
         } catch {
           // ignore invalid writing_task_json
+        }
+      }
+      if (learningMode !== 'reflex' && lastTeacherItem) {
+        try {
+          const key = getWritingTaskProgressStorageKey(targetSessionId)
+          const raw = typeof window !== 'undefined' ? window.localStorage.getItem(key) : null
+          if (raw) {
+            const localTask = JSON.parse(raw) as {
+              messageId?: string
+              requiredSentences?: string[]
+              currentIndex?: number
+              completed?: boolean
+              teacherText?: string
+              instruction?: string
+              referenceSentence?: string
+              taskType?: string
+            }
+            const sameMessage = String(localTask.messageId || '') === String(lastTeacherItem.id || '')
+            const hasSentences = Array.isArray(localTask.requiredSentences) && localTask.requiredSentences.length > 0
+            if (sameMessage && hasSentences) {
+              const localIndex = Math.max(0, Math.min(Number(localTask.currentIndex || 0), localTask.requiredSentences!.length - 1))
+              const localCompleted = Boolean(localTask.completed)
+              setWritingTask((prev) => {
+                if (!prev || prev.messageId !== String(lastTeacherItem.id || '')) {
+                  return {
+                    messageId: String(localTask.messageId || lastTeacherItem.id || ''),
+                    taskType: (localTask.taskType as WritingTaskType) || 'copy',
+                    instruction: String(localTask.instruction || localText('Hãy gõ lại y nguyên từng câu theo thứ tự. Chỉ khi gõ đúng mới mở lượt nói tiếp theo.', 'Type each sentence exactly in order. The next speaking turn unlocks only after exact copy.')),
+                    referenceSentence: String(localTask.referenceSentence || localTask.requiredSentences![localIndex] || ''),
+                    requiredSentences: localTask.requiredSentences!,
+                    currentIndex: localCompleted ? Math.max(0, localTask.requiredSentences!.length - 1) : localIndex,
+                    teacherText: String(localTask.teacherText || lastTeacherItem.text || ''),
+                    completed: localCompleted,
+                  }
+                }
+                if (localCompleted && !prev.completed) return { ...prev, completed: true, currentIndex: Math.max(prev.currentIndex, prev.requiredSentences.length - 1) }
+                if (!localCompleted && localIndex > prev.currentIndex) {
+                  return {
+                    ...prev,
+                    currentIndex: localIndex,
+                    referenceSentence: prev.requiredSentences[localIndex] || prev.referenceSentence,
+                  }
+                }
+                return prev
+              })
+            }
+          }
+        } catch {
+          // ignore invalid local progress backup
         }
       }
       if (learningMode !== 'reflex' && !writingRestored && lastTeacherItem && !wtj) {
@@ -6960,14 +7025,6 @@ export default function HocTiengAnhAiClientPage() {
                         : localText('Đã ghi âm xong. Nghe lại, gửi hoặc nói lại.', 'Recording done. Play back, send, or record again.')}
                   </p>
                 ) : null}
-                {learningMode === 'review' && writingTask && !writingTask.completed ? (
-                  <p className="rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-xs text-amber-800">
-                    {localText(
-                      'Mình làm bài viết mini trước một chút nhé, xong là nói tiếp mượt ngay.',
-                      'Let us finish this mini-writing step first, then you can continue speaking smoothly.'
-                    )}
-                  </p>
-                ) : null}
               </div>
               {learningMode === 'review' && writingTask ? (
                 <div
@@ -6979,14 +7036,6 @@ export default function HocTiengAnhAiClientPage() {
                   }`}
                 >
                   <div className="mt-2 space-y-2">
-                    {!writingTask.completed ? (
-                      <p className="rounded-md border border-rose-200 bg-rose-50/70 px-2.5 py-1.5 text-xs text-rose-700">
-                        {localText(
-                          'Bạn làm rất tốt rồi. Hoàn thành nốt bài viết mini này để mở khóa phần nói tiếp nhé.',
-                          'You are doing great. Finish this mini-writing task to unlock the next speaking turn.'
-                        )}
-                      </p>
-                    ) : null}
                     <div className="flex min-w-0 items-center gap-2">
                       <Input
                         ref={writingInputRef}
