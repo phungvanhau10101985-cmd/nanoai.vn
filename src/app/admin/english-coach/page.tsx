@@ -231,10 +231,12 @@ export default async function AdminEnglishCoachPage() {
                     <TableRow>
                       <TableHead>{tr('Thời điểm', 'Ended at', '结束时间', '終了日時', '종료 시각')}</TableHead>
                       <TableHead>{tr('Chủ đề', 'Topic', '主题', 'トピック', '주제')}</TableHead>
-                      <TableHead>{tr('Cặp ngôn ngữ', 'Language pair', '语言对', '言語ペア', '언어 페어')}</TableHead>
+                      <TableHead>{tr('Ngôn ngữ học', 'Target language', '学习语言', '学習言語', '학습 언어')}</TableHead>
+                      <TableHead>{tr('Ngôn ngữ mẹ đẻ', 'Native language', '母语', '母語', '모국어')}</TableHead>
+                      <TableHead>{tr('Giáo viên', 'Teacher', '教师', '教師', '교사')}</TableHead>
                       <TableHead>{tr('Level', 'Level', '级别', 'レベル', '레벨')}</TableHead>
-                      <TableHead>{tr('Mode', 'Mode', '模式', 'モード', '모드')}</TableHead>
-                      <TableHead>{tr('Setup', 'Setup', '设置', '設定', '설정')}</TableHead>
+                      <TableHead>{tr('Chế độ học', 'Learning mode', '学习模式', '学習モード', '학습 모드')}</TableHead>
+                      <TableHead>{tr('Mode hội thoại', 'Conversation mode', '会话模式', '会話モード', '대화 모드')}</TableHead>
                       <TableHead>{tr('Lượt chat', 'Messages', '消息数', 'メッセージ数', '메시지 수')}</TableHead>
                       <TableHead>{tr('Thời lượng', 'Duration', '时长', '時間', '시간')}</TableHead>
                       <TableHead>{tr('Loại / Xóa', 'Reason / Delete', '类型 / 删除', '種別 / 削除', '유형 / 삭제')}</TableHead>
@@ -250,22 +252,20 @@ export default async function AdminEnglishCoachPage() {
                           {item.topic_label || '-'}
                         </TableCell>
                         <TableCell className="text-xs">
-                          {(item.target_language || '-')} / {(item.native_language || '-')}
+                          {item.target_language || '-'}
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          {item.native_language || '-'}
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          {item.teacher_label || '-'}
                         </TableCell>
                         <TableCell>{item.learner_level ?? 0}</TableCell>
                         <TableCell className="text-xs">
-                          <div className="flex flex-wrap gap-1">
-                            <Badge variant="outline">{item.mode || '-'}</Badge>
-                            <Badge variant="secondary">{item.learning_mode || '-'}</Badge>
-                          </div>
+                          <Badge variant="secondary">{item.learning_mode || '-'}</Badge>
                         </TableCell>
                         <TableCell className="text-xs">
-                          <div className="space-y-1">
-                            <p><span className="text-muted-foreground">{tr('Giáo viên', 'Teacher', '教师', '教師', '교사')}:</span> {item.teacher_label || '-'}</p>
-                            <p><span className="text-muted-foreground">{tr('Locale', 'Locale', '地区', 'ロケール', '로케일')}:</span> {item.teacher_locale || '-'}</p>
-                            <p><span className="text-muted-foreground">{tr('Mã ngôn ngữ', 'Language code', '语言代码', '言語コード', '언어 코드')}:</span> {item.language_code || '-'}</p>
-                            <p><span className="text-muted-foreground">{tr('Topic ID', 'Topic ID', '主题ID', 'トピックID', '주제 ID')}:</span> {item.topic_id || '-'}</p>
-                          </div>
+                          <Badge variant="outline">{item.mode || '-'}</Badge>
                         </TableCell>
                         <TableCell>{item.total_messages ?? 0}</TableCell>
                         <TableCell>{formatDuration(Number(item.duration_seconds || 0))}</TableCell>

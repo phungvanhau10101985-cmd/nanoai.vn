@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
           .limit(500),
         adminSupabase
           .from('language_coach_session_memories')
-          .select('learning_mode, topic_id, topic_label')
+          .select('learning_mode, topic_id, topic_label, pinned_facts_json')
           .eq('user_id', user.id)
           .eq('session_id', sessionId)
           .limit(1)
@@ -96,11 +96,23 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: error.message || 'Không tải được buổi học.' }, { status: 500 })
       }
 
-      const memory = memoryResult.data as { learning_mode?: string; topic_id?: string; topic_label?: string } | null
+      const memory = memoryResult.data as { learning_mode?: string; topic_id?: string; topic_label?: string; pinned_facts_json?: string } | null
       const learningMode = memory?.learning_mode
       const safeLearningMode = learningMode === 'reflex' ? 'reflex' : 'review'
       const sessionTopicId = String(memory?.topic_id || '').trim()
       const sessionTopicLabel = String(memory?.topic_label || '').trim()
+      const presetReplaySourceLessonId = (() => {
+        try {
+          const parsed = JSON.parse(String(memory?.pinned_facts_json || '{}')) as Record<string, unknown>
+          const preset = parsed?.preset_replay
+          if (!preset || typeof preset !== 'object') return ''
+          return String((preset as { source_lesson_id?: unknown; sourceLessonId?: unknown }).source_lesson_id
+            ?? (preset as { sourceLessonId?: unknown }).sourceLessonId
+            ?? '').trim()
+        } catch {
+          return ''
+        }
+      })()
 
       const rows = data ?? []
       const cacheKeysToFetch: string[] = []
@@ -167,6 +179,8 @@ export async function GET(request: NextRequest) {
         learningMode: safeLearningMode,
         topicId: sessionTopicId || undefined,
         topicLabel: sessionTopicLabel || undefined,
+        presetReplaySession: Boolean(presetReplaySourceLessonId),
+        presetReplaySourceLessonId: presetReplaySourceLessonId || undefined,
         writingTaskTransliterations,
         items: rows.map((row) => {
           const lang = String(row.language_code || '').trim().toLowerCase()

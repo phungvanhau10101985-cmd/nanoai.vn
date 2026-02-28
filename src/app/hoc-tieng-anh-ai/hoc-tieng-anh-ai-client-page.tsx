@@ -4319,6 +4319,7 @@ export default function HocTiengAnhAiClientPage() {
   const loadHistorySession = async (targetSessionId: string) => {
     if (!targetSessionId) return
     setHistoryBusy(true)
+    let presetOpeningToReplay: { messageId: string; text: string } | null = null
     try {
       const { ok, data } = await getHistorySession(targetSessionId)
       const payload = data as {
@@ -4340,6 +4341,8 @@ export default function HocTiengAnhAiClientPage() {
         learningMode?: 'review' | 'reflex'
         topicId?: string
         topicLabel?: string
+        presetReplaySession?: boolean
+        presetReplaySourceLessonId?: string
         error?: string
       }
       if (!ok) throw new Error(payload.error || localText('Không tải được nội dung buổi học.', 'Failed to load lesson content.'))
@@ -4591,11 +4594,22 @@ export default function HocTiengAnhAiClientPage() {
           if (curriculum) setTopicCurriculum(curriculum)
         })
       }
+      if (Boolean(payload.presetReplaySession)) {
+        const firstTeacher = items.find((x) => x.role === 'teacher')
+        if (firstTeacher) {
+          presetOpeningToReplay = { messageId: firstTeacher.id, text: firstTeacher.text }
+        }
+      }
     } catch (e) {
       const msg = unknownErrorMsg(e)
       toast({ title: localText('Không mở được buổi học', 'Cannot open session'), description: msg, variant: 'destructive' })
     } finally {
       setHistoryBusy(false)
+      if (presetOpeningToReplay) {
+        window.setTimeout(() => {
+          void replayTeacherMessage(presetOpeningToReplay!.messageId, presetOpeningToReplay!.text)
+        }, 320)
+      }
     }
   }
 
