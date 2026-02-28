@@ -37,9 +37,9 @@ export default async function HistoryPage() {
   }
 
   return (
-    <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+    <div className="app-shell space-y-6 md:space-y-8">
       <Toaster />
-      <div className="flex items-center justify-between flex-wrap gap-2">
+      <div className="section-surface flex items-center justify-between flex-wrap gap-2">
         <h1 className="text-3xl font-bold tracking-tight">{tr('Ảnh đã xử lý', 'Processed images', '已处理图片', '処理済み画像', '처리된 이미지')}</h1>
         <div className="flex items-center gap-4">
           <p className="text-muted-foreground">
@@ -54,7 +54,7 @@ export default async function HistoryPage() {
       {history && history.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {history.map((item) => (
-            <Card key={item.id} className="overflow-hidden flex flex-col">
+            <Card key={item.id} className="tool-tile overflow-hidden flex flex-col">
               <CardHeader className="p-4 pb-2 flex flex-row items-center justify-between space-y-0">
                 <div className="flex items-center text-sm text-muted-foreground">
                   <Calendar className="mr-1 h-3 w-3" />
@@ -139,7 +139,7 @@ export default async function HistoryPage() {
           ))}
         </div>
       ) : (
-        <div className="text-center py-12 border-2 border-dashed rounded-lg">
+        <div className="section-surface text-center py-12 border-2 border-dashed rounded-lg">
           <h3 className="text-lg font-medium">{tr('Chưa có lịch sử', 'No history yet', '暂无历史记录', '履歴はまだありません', '기록이 없습니다')}</h3>
           <p className="text-muted-foreground mt-1">{tr('Hãy thử các tính năng thử đồ, phục dựng ảnh, làm nét, ghép ảnh ngay bây giờ!', 'Try virtual try-on, restoration, sharpen, and merge features now!', '快去试试试衣、修复、清晰化和拼图功能吧！', '試着・復元・高画質化・合成機能を今すぐ試してみましょう！', '가상 피팅, 복원, 선명화, 합성 기능을 지금 사용해 보세요!')}</p>
           <div className="flex flex-wrap justify-center gap-3 mt-4">

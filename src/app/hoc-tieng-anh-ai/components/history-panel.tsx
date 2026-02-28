@@ -29,7 +29,7 @@ export function HistoryPanel({
   onDeleteSession,
 }: HistoryPanelProps) {
   return (
-    <Card className="min-w-0 border shadow-sm bg-white/80 backdrop-blur">
+    <Card className="section-surface min-w-0">
       <CardHeader className="min-w-0">
         <CardTitle className="break-words">{title}</CardTitle>
         <CardDescription className="break-words">{description}</CardDescription>
@@ -49,7 +49,7 @@ export function HistoryPanel({
         ) : (
           <div className="space-y-2">
             {sessions.map((session) => (
-              <div key={session.sessionId} className="flex min-w-0 max-w-full flex-col gap-2 overflow-hidden rounded-md border bg-white p-2 sm:flex-row sm:items-center sm:justify-between">
+              <div key={session.sessionId} className="flex min-w-0 max-w-full flex-col gap-2 overflow-hidden rounded-xl border border-border/70 bg-background/80 p-2.5 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0 flex-1 overflow-hidden">
                   <p className="break-words text-sm font-medium text-slate-800">
                     {session.topicLabel ? (

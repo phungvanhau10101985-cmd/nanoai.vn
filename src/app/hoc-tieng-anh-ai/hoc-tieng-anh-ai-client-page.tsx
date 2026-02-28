@@ -1715,6 +1715,7 @@ export default function HocTiengAnhAiClientPage() {
   const [quickStartStage, setQuickStartStage] = useState<QuickStartStage>('idle')
   const [quickStartModalOpen, setQuickStartModalOpen] = useState(false)
   const [setupCollapsed, setSetupCollapsed] = useState(true)
+  const [compactMode, setCompactMode] = useState(false)
   const [learnerLevel, setLearnerLevel] = useState<LearnerLevel>(0)
   const [topicId, setTopicId] = useState<string>(TOPIC_OPTIONS[0].id)
   const [pendingTopicId, setPendingTopicId] = useState<string>(TOPIC_OPTIONS[0].id)
@@ -1876,6 +1877,13 @@ export default function HocTiengAnhAiClientPage() {
       window.removeEventListener('keydown', onKeyDown, true)
     }
   }, [wordPractice])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (window.matchMedia('(max-width: 639px)').matches) {
+      setCompactMode(true)
+    }
+  }, [])
 
   const onWordPracticeCorrect = (targetWord: string) => {
     const normalizedTarget = normalizeWordPracticeText(targetWord)
@@ -5463,24 +5471,39 @@ export default function HocTiengAnhAiClientPage() {
   return (
     <>
       <Toaster />
-      <div className="mx-auto w-full min-w-0 max-w-full space-y-6 overflow-x-hidden px-2 sm:max-w-5xl sm:px-0 lg:max-w-7xl">
-        <div className="min-w-0 text-center">
-          <h1 className="text-xl font-bold text-foreground flex flex-wrap items-center justify-center gap-2 break-words sm:text-2xl">
+      <div className="mx-auto w-full min-w-0 max-w-full space-y-5 overflow-x-hidden sm:space-y-6">
+        <div className="min-w-0 rounded-2xl border border-border/70 bg-card/80 px-3 py-4 text-center shadow-sm backdrop-blur-sm sm:px-5 sm:py-5">
+          <h1 className="flex flex-wrap items-center justify-center gap-2 break-words text-xl font-bold text-foreground sm:text-2xl lg:text-3xl">
             <Languages className="h-6 w-6 shrink-0 text-indigo-600" />
             <span className="min-w-0">{localText('Học ngoại ngữ tương tác cùng giáo viên bản địa AI', 'Interactive language learning with native AI teachers')}</span>
           </h1>
-          <p className="mt-1 min-w-0 break-words text-muted-foreground">
-            {localText(
-              'Chọn ngôn ngữ muốn học và chọn giáo viên bản địa tương ứng. Nói chuyện trực tiếp và được sửa lỗi phát âm/ngữ pháp ngay sau mỗi lượt.',
-              'Choose your target language and matching native teacher. Talk live and get instant pronunciation/grammar corrections each turn.'
-            )}
-          </p>
+          <div className="mt-2 flex items-center justify-center gap-2 sm:hidden">
+            <Button
+              type="button"
+              size="sm"
+              variant={compactMode ? 'default' : 'outline'}
+              onClick={() => setCompactMode((prev) => !prev)}
+              className="min-h-[40px] rounded-lg px-3 text-xs"
+            >
+              {compactMode
+                ? localText('Chế độ gọn: Bật', 'Compact mode: On')
+                : localText('Chế độ gọn: Tắt', 'Compact mode: Off')}
+            </Button>
+          </div>
+          {!compactMode ? (
+            <p className="mx-auto mt-2 max-w-4xl min-w-0 break-words text-sm text-muted-foreground sm:text-base">
+              {localText(
+                'Chọn ngôn ngữ muốn học và chọn giáo viên bản địa tương ứng. Nói chuyện trực tiếp và được sửa lỗi phát âm/ngữ pháp ngay sau mỗi lượt.',
+                'Choose your target language and matching native teacher. Talk live and get instant pronunciation/grammar corrections each turn.'
+              )}
+            </p>
+          ) : null}
         </div>
 
-        <Card className="min-w-0 border shadow-sm bg-white/80 backdrop-blur">
+        <Card className="section-surface min-w-0">
           <CardHeader className="min-w-0">
             <CardTitle className="break-words">{coachUiText.setupTitle}</CardTitle>
-            <CardDescription className="break-words">{coachUiText.setupDesc}</CardDescription>
+            {!compactMode ? <CardDescription className="break-words">{coachUiText.setupDesc}</CardDescription> : null}
             <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
               <Button
                 type="button"
@@ -5492,17 +5515,19 @@ export default function HocTiengAnhAiClientPage() {
               </Button>
             </div>
           </CardHeader>
-          <CardContent className={`min-w-0 space-y-4 ${showSetupPanel ? '' : 'hidden'}`}>
-            <div className="min-w-0 rounded-md border bg-slate-50 p-3">
+          <CardContent className={`min-w-0 space-y-4 px-0 sm:px-1 ${showSetupPanel ? '' : 'hidden'}`}>
+            <div className="min-w-0 rounded-xl border border-border/70 bg-slate-50/80 p-3 sm:p-4">
               <p className="break-words text-sm font-semibold text-slate-900">
                 {localText('Chẩn đoán level tự động (khuyến nghị)', 'Auto placement test (recommended)')}
               </p>
-              <p className="mt-1 break-words text-xs text-slate-600">
-                {localText(
-                  'Nhập 2-3 câu bạn tự nói bằng ngôn ngữ đang học. Hệ thống sẽ gợi ý level, sau đó bạn vẫn chỉnh tay được.',
-                  'Enter 2-3 sentences in your target language. The system recommends a level; you can still change it manually.'
-                )}
-              </p>
+              {!compactMode ? (
+                <p className="mt-1 break-words text-xs text-slate-600">
+                  {localText(
+                    'Nhập 2-3 câu bạn tự nói bằng ngôn ngữ đang học. Hệ thống sẽ gợi ý level, sau đó bạn vẫn chỉnh tay được.',
+                    'Enter 2-3 sentences in your target language. The system recommends a level; you can still change it manually.'
+                  )}
+                </p>
+              ) : null}
               <div className="mt-2 grid gap-2 sm:grid-cols-3">
                 {placementSamples.map((value, idx) => (
                   <Input
@@ -5557,8 +5582,12 @@ export default function HocTiengAnhAiClientPage() {
                     {localText('Kết quả:', 'Result:')} <span className="font-semibold">{levelLabelUi(placementResult.recommendedLevel)}</span>
                     {' • '}
                     {localText('Độ tin cậy', 'Confidence')} {placementResult.confidence}%
-                    {' • '}
-                    {placementResult.reason}
+                    {!compactMode ? (
+                      <>
+                        {' • '}
+                        {placementResult.reason}
+                      </>
+                    ) : null}
                   </p>
                 ) : (
                   <p className="text-xs text-slate-500">
@@ -5567,8 +5596,8 @@ export default function HocTiengAnhAiClientPage() {
                 )}
               </div>
             </div>
-            <div className="grid min-w-0 grid-cols-1 gap-3 md:grid-cols-3 lg:grid-cols-6">
-              <div className="space-y-1">
+            <div className="grid min-w-0 grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-12">
+              <div className="space-y-1 xl:col-span-2">
                 <label className="text-sm font-medium">{coachUiText.learningLanguage}</label>
                 <select
                   value={languageCode}
@@ -5578,7 +5607,7 @@ export default function HocTiengAnhAiClientPage() {
                     const firstTeacher = TEACHERS_BY_LANGUAGE[code]?.[0]
                     if (firstTeacher) setTeacherId(firstTeacher.id)
                   }}
-                  className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+                  className="min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
                 >
                   {languageOptions.map((lang) => (
                     <option key={lang.code} value={lang.code}>
@@ -5587,12 +5616,12 @@ export default function HocTiengAnhAiClientPage() {
                   ))}
                 </select>
               </div>
-              <div className="space-y-1">
+              <div className="space-y-1 xl:col-span-2">
                 <label className="text-sm font-medium">{coachUiText.nativeLanguage}</label>
                 <select
                   value={nativeLanguageCode}
                   onChange={(e) => setNativeLanguageCode(e.target.value as NativeLanguageCode)}
-                  className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+                  className="min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
                 >
                   {nativeLanguageOptions.map((lang) => (
                     <option key={lang.code} value={lang.code}>
@@ -5601,13 +5630,13 @@ export default function HocTiengAnhAiClientPage() {
                   ))}
                 </select>
               </div>
-              <div className="space-y-1">
+              <div className="space-y-1 xl:col-span-2">
                 <label className="text-sm font-medium">{coachUiText.nativeTeacher}</label>
                 <select
                   value={selectedTeacher.id}
                   onChange={(e) => setTeacherId(e.target.value)}
                   disabled={messages.length > 0}
-                  className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+                  className="min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
                 >
                   {teacherOptions.map((teacher) => (
                     <option key={teacher.id} value={teacher.id}>
@@ -5624,24 +5653,24 @@ export default function HocTiengAnhAiClientPage() {
                   </p>
                 ) : null}
               </div>
-              <div className="space-y-1">
+              <div className="space-y-1 xl:col-span-2">
                 <label className="text-sm font-medium">{coachUiText.learningMode}</label>
                 <select
                   value={mode}
                   onChange={(e) => setMode(e.target.value as Mode)}
-                  className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+                  className="min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
                 >
                   <option value="chat">{modeLabelUi('chat')}</option>
                   <option value="listen_speak">{modeLabelUi('listen_speak')}</option>
                   <option value="roleplay_short">{modeLabelUi('roleplay_short')}</option>
                 </select>
               </div>
-              <div className="space-y-1">
+              <div className="space-y-1 xl:col-span-2">
                 <label className="text-sm font-medium">{coachUiText.learnerLevel}</label>
                 <select
                   value={learnerLevel}
                   onChange={(e) => setLearnerLevel(Number(e.target.value) as LearnerLevel)}
-                  className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+                  className="min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
                 >
                   <option value={0}>{levelLabelUi(0)}</option>
                   <option value={1}>{levelLabelUi(1)}</option>
@@ -5650,7 +5679,7 @@ export default function HocTiengAnhAiClientPage() {
                   <option value={4}>{levelLabelUi(4)}</option>
                 </select>
               </div>
-              <div className="space-y-1 md:col-span-2 lg:col-span-2">
+              <div className="space-y-1 md:col-span-2 xl:col-span-4">
                 <label className="text-sm font-medium">{coachUiText.lessonTopic}</label>
                 <div className="grid gap-2 md:grid-cols-2">
                   <div className="space-y-1">
@@ -5724,36 +5753,40 @@ export default function HocTiengAnhAiClientPage() {
                     <option value="all">{localText('Tất cả', 'All')}</option>
                   </select>
                 </div>
-                <p className="text-xs text-slate-500">
-                  {localText(
-                    'Bấm chọn ở 1 trong 2 ô chủ đề bên trên, sau đó bấm 1 nút xác nhận chung ở cụm hành động bên dưới.',
-                    'Pick a topic from one of the two topic boxes above, then use the single confirm button in the action block below.'
-                  )}
-                </p>
+                {!compactMode ? (
+                  <p className="text-xs text-slate-500">
+                    {localText(
+                      'Bấm chọn ở 1 trong 2 ô chủ đề bên trên, sau đó bấm 1 nút xác nhận chung ở cụm hành động bên dưới.',
+                      'Pick a topic from one of the two topic boxes above, then use the single confirm button in the action block below.'
+                    )}
+                  </p>
+                ) : null}
                 <div className="flex flex-col gap-2 sm:flex-row">
                   <Input
                     value={customTopicDraft}
                     onChange={(e) => setCustomTopicDraft(e.target.value)}
                     placeholder={coachUiText.customTopicPlaceholder}
-                    className="h-11 min-w-0 w-full text-base sm:flex-1 sm:min-w-0"
+                    className="h-11 min-w-0 w-full rounded-xl text-base sm:min-w-0 sm:flex-1"
                   />
                   <Button
                     type="button"
                     variant="outline"
                     onClick={() => void normalizeAndSaveCustomTopic()}
                     disabled={customTopicBusy}
-                    className="h-11 px-4 sm:shrink-0"
+                    className="h-11 rounded-xl px-4 sm:shrink-0"
                   >
                     {customTopicBusy ? localText('Đang tạo chủ đề mới...', 'Creating topic...') : localText('Tạo chủ đề mới', 'Create topic')}
                   </Button>
                 </div>
-                <p className="text-xs text-slate-500">
-                  {localText(
-                    'Nhập ý tưởng để AI chuẩn hóa thành chủ đề mới, tự lưu và tự chọn để bắt đầu học.',
-                    'Enter an idea for AI to normalize into a new topic, save it, and auto-select it for learning.'
-                  )}
-                </p>
-                {customTopicOptions.length === 0 && topicSourceMode === 'custom' ? (
+                {!compactMode ? (
+                  <p className="text-xs text-slate-500">
+                    {localText(
+                      'Nhập ý tưởng để AI chuẩn hóa thành chủ đề mới, tự lưu và tự chọn để bắt đầu học.',
+                      'Enter an idea for AI to normalize into a new topic, save it, and auto-select it for learning.'
+                    )}
+                  </p>
+                ) : null}
+                {!compactMode && customTopicOptions.length === 0 && topicSourceMode === 'custom' ? (
                   <p className="text-xs text-slate-500">
                     {localText(
                       'Chưa có chủ đề mới tạo cho cặp ngôn ngữ/level hiện tại. Bạn có thể tạo mới ở ô bên trên.',
@@ -5770,7 +5803,7 @@ export default function HocTiengAnhAiClientPage() {
                   <select
                     value={goalType}
                     onChange={(e) => setGoalType(e.target.value as GoalType)}
-                    className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+                    className="min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
                   >
                   {goalOptions.map((g) => (
                       <option key={g.id} value={g.id}>
@@ -5794,7 +5827,7 @@ export default function HocTiengAnhAiClientPage() {
                       )}
                 </p>
               </div>
-              <div className="min-w-0 rounded-md border bg-slate-50 p-3 space-y-1">
+              <div className="min-w-0 rounded-xl border border-border/70 bg-slate-50/80 p-3 space-y-1">
                 <p className="break-words text-sm font-semibold text-slate-900">{localText('Dashboard tiến độ hôm nay', "Today's progress dashboard")}</p>
                 <p className="break-words text-sm text-slate-700">
                   {localText('Chuỗi học:', 'Streak:')} <span className="font-semibold">{progressSnapshot?.streak_days ?? 0} {localText('ngày', 'days')}</span>
@@ -5838,7 +5871,7 @@ export default function HocTiengAnhAiClientPage() {
                 ) : null}
               </div>
             </div>
-            <div className="min-w-0 rounded-md border bg-indigo-50/50 p-3">
+            <div className="min-w-0 rounded-xl border border-indigo-200/70 bg-indigo-50/60 p-3 sm:p-4">
               <div className="mb-3 flex min-w-0 flex-wrap items-center gap-4">
                 <div className="min-w-0">
                   <p className="mb-1 break-words text-xs font-medium text-slate-700">{localText('Chế độ học', 'Learning mode')}</p>
@@ -5870,21 +5903,21 @@ export default function HocTiengAnhAiClientPage() {
               </div>
               <div className="mb-2 flex min-w-0 flex-wrap items-center gap-2">
                 <span
-                  className={`shrink-0 rounded-full border px-2.5 py-1 break-words text-xs ${
+                  className={`shrink-0 rounded-full border px-3 py-1.5 break-words text-[11px] font-medium ${
                     isTopicConfirmedForLesson ? 'border-emerald-300 bg-emerald-100 text-emerald-800' : 'border-slate-300 bg-white text-slate-700'
                   }`}
                 >
                   {isTopicConfirmedForLesson ? '✅' : '⏳'} {localText('B1: Chọn chủ đề', 'S1: Select topic')}
                 </span>
                 <span
-                  className={`shrink-0 rounded-full border px-2.5 py-1 break-words text-xs ${
+                  className={`shrink-0 rounded-full border px-3 py-1.5 break-words text-[11px] font-medium ${
                     hasCurriculumReady ? 'border-emerald-300 bg-emerald-100 text-emerald-800' : 'border-slate-300 bg-white text-slate-700'
                   }`}
                 >
                   {hasCurriculumReady ? '✅' : '⏳'} {localText('B2: Tạo giáo trình', 'S2: Create curriculum')}
                 </span>
                 <span
-                  className={`shrink-0 rounded-full border px-2.5 py-1 break-words text-xs ${
+                  className={`shrink-0 rounded-full border px-3 py-1.5 break-words text-[11px] font-medium ${
                     isLessonReadyToStart ? 'border-emerald-300 bg-emerald-100 text-emerald-800' : 'border-slate-300 bg-white text-slate-700'
                   }`}
                 >
@@ -5892,6 +5925,23 @@ export default function HocTiengAnhAiClientPage() {
                 </span>
               </div>
               <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                <Button
+                  type="button"
+                  onClick={() => void handleStartLessonClick()}
+                  disabled={quickStartBusy || !isLessonReadyToStart || startingLesson}
+                  className="min-h-[44px] w-full"
+                >
+                  <Volume2 className="mr-2 h-4 w-4" /> {localText('Bắt đầu buổi học', 'Start lesson')}
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={startNewSession}
+                  disabled={quickStartBusy || messages.length === 0 || startingLesson || busy || historyBusy}
+                  className="min-h-[44px] w-full"
+                >
+                  {localText('Buổi học mới', 'New lesson')}
+                </Button>
                 <Button
                   type="button"
                   variant="outline"
@@ -5913,41 +5963,15 @@ export default function HocTiengAnhAiClientPage() {
                 >
                   {topicBusy ? localText('Đang tạo...', 'Generating...') : localText('Tạo/Lấy giáo trình', 'Create/Get curriculum')}
                 </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => void handleStartLessonClick()}
-                  disabled={quickStartBusy || !isLessonReadyToStart || startingLesson}
-                  className="min-h-[44px] w-full"
-                >
-                  <Volume2 className="mr-2 h-4 w-4" /> {localText('Bắt đầu buổi học', 'Start lesson')}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={startNewSession}
-                  disabled={quickStartBusy || messages.length === 0 || startingLesson || busy || historyBusy}
-                  className="min-h-[44px] w-full"
-                >
-                  {localText('Buổi học mới', 'New lesson')}
-                </Button>
               </div>
               <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                 <p className="text-sm font-semibold text-indigo-900">{localText('Giáo trình theo chủ đề', 'Topic curriculum')}</p>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => void fetchTopicCurriculum()}
-                  disabled={quickStartBusy || topicBusy || !isTopicConfirmedForLesson}
-                  className="min-h-[44px]"
-                >
-                  {topicBusy ? localText('Đang tạo...', 'Generating...') : localText('Tạo/Lấy giáo trình chủ đề', 'Create/Get curriculum')}
-                </Button>
               </div>
-              <p className="mb-2 text-xs text-slate-600">
-                {localText('Độ khó tự động theo level hiện tại:', 'Auto difficulty for current level:')} <span className="font-semibold">{difficultyLabelUi(selectedTopicDifficulty)}</span>
-              </p>
+              {!compactMode ? (
+                <p className="mb-2 text-xs text-slate-600">
+                  {localText('Độ khó tự động theo level hiện tại:', 'Auto difficulty for current level:')} <span className="font-semibold">{difficultyLabelUi(selectedTopicDifficulty)}</span>
+                </p>
+              ) : null}
               {!topicCurriculum ? (
                 <p className="text-sm text-muted-foreground">
                   {localText(
@@ -5967,7 +5991,7 @@ export default function HocTiengAnhAiClientPage() {
             </div>
             {levelRecommendation && levelRecommendation.suggestedLevel !== learnerLevel ? (
               <div
-                className={`rounded-md border p-3 ${
+                className={`rounded-xl border p-3 ${
                   levelRecommendation.direction === 'up'
                     ? 'border-emerald-200 bg-emerald-50'
                     : 'border-amber-200 bg-amber-50'
@@ -6006,7 +6030,7 @@ export default function HocTiengAnhAiClientPage() {
                 </div>
               </div>
             ) : null}
-            <div className="min-w-0 rounded-md border bg-slate-50 p-3">
+            <div className="min-w-0 rounded-xl border border-border/70 bg-slate-50/80 p-3">
               <p className="break-words text-sm text-slate-700">
                 {selectedTeacherLabel} <span className="font-semibold">{teacherLabel}</span>
               </p>
@@ -6029,12 +6053,12 @@ export default function HocTiengAnhAiClientPage() {
           </CardContent>
         </Card>
 
-        <div ref={activeLessonRef} className="grid min-w-0 gap-4 md:grid-cols-[1.1fr_0.9fr]">
-          <Card className="min-w-0 border shadow-sm bg-white/80 backdrop-blur">
+        <div ref={activeLessonRef} className="grid min-w-0 gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+          <Card className="section-surface min-w-0">
             <CardHeader className="flex min-w-0 flex-row flex-wrap items-start justify-between gap-2 space-y-0 pb-2">
               <div className="min-w-0 flex-1">
                 <CardTitle className="break-words">{coachUiText.chatTitle}</CardTitle>
-                <CardDescription className="break-words">{coachUiText.chatDesc}</CardDescription>
+                {!compactMode ? <CardDescription className="break-words">{coachUiText.chatDesc}</CardDescription> : null}
               </div>
               {messages.length > 0 ? (
                 <Button
@@ -6049,7 +6073,7 @@ export default function HocTiengAnhAiClientPage() {
                 </Button>
               ) : null}
             </CardHeader>
-            <CardContent className="space-y-3 px-2 pb-3 sm:px-6 sm:pb-6">
+            <CardContent className="space-y-3 px-0 pb-1 sm:px-1 sm:pb-2">
               <div className="flex min-w-0 flex-col gap-3 sm:flex-row">
                 {(() => {
                   const curriculum = topicCurriculum || preLessonCurriculum
@@ -6126,7 +6150,7 @@ export default function HocTiengAnhAiClientPage() {
                     </>
                   ) : null
                 })()}
-              <div ref={chatScrollRef} className="max-h-[60vh] min-w-0 flex-1 space-y-2 overflow-auto rounded-md border bg-slate-50 p-2 sm:max-h-80 sm:p-3">
+              <div ref={chatScrollRef} className="max-h-[64vh] min-w-0 flex-1 space-y-2 overflow-auto rounded-xl border border-border/70 bg-slate-50/90 p-2.5 sm:max-h-[34rem] sm:p-3">
                 {messages.length === 0 ? (
                   <div className="space-y-3">
                     {historySessions.length > 0 ? (
@@ -6407,7 +6431,7 @@ export default function HocTiengAnhAiClientPage() {
                             </p>
                           )}
                           {openedWordKey.startsWith(`${m.id}:`) ? (
-                            <div className="rounded-md border bg-white p-2 text-xs">
+                            <div className="rounded-xl border border-border/70 bg-white p-2 text-xs">
                               {wordBusyKey === openedWordKey ? (
                                 <p className="text-muted-foreground">{localText('Đang phân tích từ...', 'Analyzing word...')}</p>
                               ) : wordInsightByKey[openedWordKey] ? (
@@ -6633,7 +6657,7 @@ export default function HocTiengAnhAiClientPage() {
               </div>
 
               <div className="min-w-0 space-y-2">
-                <div className="flex min-w-0 items-center gap-1 sm:flex-1">
+                <div className="flex min-w-0 items-center gap-2 sm:flex-1">
                   <Input
                     value={draft}
                     onChange={(e) => setDraft(e.target.value)}
@@ -6646,12 +6670,13 @@ export default function HocTiengAnhAiClientPage() {
                     size="sm"
                     onClick={() => void handleSend()}
                     disabled={busy || !draft.trim() || (learningMode === 'review' && Boolean(writingTask) && !writingTask?.completed)}
-                    className="h-9 px-2"
+                    className="h-10 rounded-xl px-3"
                   >
-                    <Send className="h-4 w-4" />
+                    <Send className="mr-1.5 h-4 w-4" />
+                    {localText('Gửi', 'Send')}
                   </Button>
                 </div>
-                <div className="flex flex-wrap items-center gap-1 rounded-md border px-1 py-1 overflow-x-auto min-w-0">
+                <div className={`flex min-w-0 flex-wrap items-center gap-2 overflow-x-auto rounded-xl border border-border/70 bg-background/95 px-2 py-2 ${compactMode ? 'sticky bottom-0 z-20 shadow-md' : ''}`}>
                   {recordingPending ? (
                     <>
                       <Button
@@ -6702,7 +6727,7 @@ export default function HocTiengAnhAiClientPage() {
                         {listening ? localText('Dừng mic', 'Stop mic') : localText('Nói', 'Speak')}
                       </Button>
                       <div
-                        className="flex shrink-0 flex-col items-center gap-0.5"
+                        className="ml-auto flex shrink-0 flex-col items-center gap-0.5"
                         title={localText('Tốc độ giọng nói', 'Voice playback speed')}
                       >
                         <span className="text-[10px] text-slate-500">
@@ -6894,7 +6919,7 @@ export default function HocTiengAnhAiClientPage() {
                       )}
                     </div>
                     {writingEvalResult ? (
-                      <div className="rounded-md border bg-white p-2 text-xs">
+                      <div className="rounded-xl border border-border/70 bg-white p-2 text-xs">
                         <p>
                           <span className="font-semibold">{localText('Điểm:', 'Score:')}</span> {writingEvalResult.score}/100
                           {' • '}
@@ -6931,20 +6956,20 @@ export default function HocTiengAnhAiClientPage() {
             </CardContent>
           </Card>
 
-          <Card className="min-w-0 border shadow-sm bg-white/80 backdrop-blur">
+          <Card className="section-surface min-w-0 xl:sticky xl:top-[5.5rem] xl:h-fit">
             <CardHeader className="min-w-0">
               <CardTitle className="break-words">{coachUiText.fixTitle}</CardTitle>
-              <CardDescription className="break-words">{coachUiText.fixDesc}</CardDescription>
+              {!compactMode ? <CardDescription className="break-words">{coachUiText.fixDesc}</CardDescription> : null}
             </CardHeader>
             <CardContent className="min-w-0 space-y-3">
-              <div className="min-w-0 rounded-md border p-3">
+              <div className="min-w-0 rounded-xl border border-border/70 p-3">
                 <p className="break-words text-sm font-semibold text-slate-800">{localText('Lỗi cần sửa', 'Corrections needed')}</p>
                 {corrections.length === 0 ? (
                   <p className="mt-1 break-words text-sm text-muted-foreground">{localText('Chưa có lỗi nào gần đây.', 'No recent errors.')}</p>
                 ) : (
                   <div className="mt-2 space-y-2">
                     {corrections.map((c, idx) => (
-                      <div key={`${c.original}-${idx}`} className="min-w-0 rounded-md border bg-slate-50 p-2 break-words text-xs">
+                      <div key={`${c.original}-${idx}`} className="min-w-0 rounded-xl border border-border/70 bg-slate-50/80 p-2.5 break-words text-xs">
                         <p><span className="font-semibold text-red-600">{localText('Bạn nói:', 'You said:')}</span> {c.original}</p>
                         <p><span className="font-semibold text-emerald-700">{localText('Nên nói:', 'Better:')}</span> {c.fixed}</p>
                         <p className="break-words text-muted-foreground">{c.explanationVi}</p>
@@ -6965,7 +6990,7 @@ export default function HocTiengAnhAiClientPage() {
                   </div>
                 )}
               </div>
-              <div className="min-w-0 rounded-md border p-3">
+              <div className="min-w-0 rounded-xl border border-border/70 p-3">
                 <p className="break-words text-sm font-semibold text-slate-800">{localText('Điểm phát âm gần nhất', 'Latest pronunciation score')}</p>
                 {latestPronunciationScore == null ? (
                   <p className="mt-1 break-words text-sm text-muted-foreground">{localText('Chưa có điểm phát âm từ mic.', 'No pronunciation score from mic yet.')}</p>
@@ -6998,7 +7023,7 @@ export default function HocTiengAnhAiClientPage() {
                   </div>
                 )}
               </div>
-              <div className="min-w-0 rounded-md border p-3">
+              <div className="min-w-0 rounded-xl border border-border/70 p-3">
                 <p className="break-words text-sm font-semibold text-slate-800">{localText('Mẹo phát âm', 'Pronunciation tips')}</p>
                 {pronunciationTips.length === 0 ? (
                   <p className="mt-1 break-words text-sm text-muted-foreground">{localText('Chưa có mẹo phát âm mới.', 'No new pronunciation tips yet.')}</p>

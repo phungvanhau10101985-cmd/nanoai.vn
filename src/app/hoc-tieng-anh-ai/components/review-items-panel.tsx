@@ -122,7 +122,7 @@ export function ReviewItemsPanel({
   }
 
   return (
-    <div className="rounded-md border p-3">
+    <div className="rounded-xl border border-border/70 bg-background/70 p-3">
       <div className="mb-2 flex items-center justify-between gap-2">
         <p className="text-sm font-semibold text-slate-800">{localText('Ôn tập thông minh (SRS)', 'Smart review (SRS)')}</p>
         <Button type="button" variant="ghost" size="sm" onClick={onRefreshReviewItems} disabled={reviewBusy}>
@@ -136,7 +136,7 @@ export function ReviewItemsPanel({
       ) : (
         <div className="space-y-1.5">
           {reviewItems.map((item) => (
-            <div key={item.id} className="rounded-md border bg-slate-50 p-1.5 text-xs leading-snug">
+            <div key={item.id} className="rounded-xl border border-border/70 bg-slate-50/80 p-2 text-xs leading-snug">
               <p>
                 <button
                   type="button"
@@ -162,12 +162,12 @@ export function ReviewItemsPanel({
                 ) : null}
               </div>
               {renderExamples(item)}
-              <div className="mt-1.5 flex flex-wrap gap-1">
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="h-8 px-2.5 text-xs"
+                  className="h-9 rounded-lg px-3 text-xs"
                   onClick={() => {
                     onStartWordPractice(item.word, String(item.meaning || item.meaningItems?.[0]?.text || ''), { forceSwitch: true })
                     onPlayWordPronunciation(item.word)
@@ -181,20 +181,20 @@ export function ReviewItemsPanel({
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="h-8 px-2.5 text-xs text-amber-700 hover:bg-amber-50"
+                    className="h-9 rounded-lg px-3 text-xs text-amber-700 hover:bg-amber-50"
                     onClick={() => onRegenerateWordPronunciation(item.word)}
                     title={localText('Phát âm sai? Tạo lại bằng TTS', 'Wrong pronunciation? Regenerate with TTS')}
                   >
                     {localText('Phát âm sai? Tạo lại', 'Wrong? Regenerate')}
                   </Button>
                 ) : null}
-                <Button type="button" variant="outline" size="sm" className="h-8 px-2.5 text-xs" onClick={() => onMarkReviewDone(item.id, 2)}>
+                <Button type="button" variant="outline" size="sm" className="h-9 rounded-lg px-3 text-xs" onClick={() => onMarkReviewDone(item.id, 2)}>
                   {localText('Khó', 'Hard')}
                 </Button>
-                <Button type="button" variant="outline" size="sm" className="h-8 px-2.5 text-xs" onClick={() => onMarkReviewDone(item.id, 3)}>
+                <Button type="button" variant="outline" size="sm" className="h-9 rounded-lg px-3 text-xs" onClick={() => onMarkReviewDone(item.id, 3)}>
                   {localText('Ổn', 'Okay')}
                 </Button>
-                <Button type="button" variant="outline" size="sm" className="h-8 px-2.5 text-xs" onClick={() => onMarkReviewDone(item.id, 5)}>
+                <Button type="button" variant="outline" size="sm" className="h-9 rounded-lg px-3 text-xs" onClick={() => onMarkReviewDone(item.id, 5)}>
                   {localText('Dễ', 'Easy')}
                 </Button>
               </div>

@@ -72,9 +72,9 @@ export default async function TranslateHistoryPage() {
   const batches = groupByBatch(history ?? [])
 
   return (
-    <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+    <div className="app-shell space-y-6 md:space-y-8">
       <Toaster />
-      <div className="flex items-center justify-between flex-wrap gap-2">
+      <div className="section-surface flex items-center justify-between flex-wrap gap-2">
         <h1 className="text-3xl font-bold tracking-tight">{tr('Lịch sử dịch ảnh', 'Translation history', '翻译记录', '翻訳履歴', '번역 기록')}</h1>
         <div className="flex items-center gap-3 flex-wrap">
           <p className="text-muted-foreground">
@@ -94,7 +94,7 @@ export default async function TranslateHistoryPage() {
       {batches.length > 0 ? (
         <div className="space-y-10">
           {batches.map((batch, batchIdx) => (
-            <div key={batchIdx} className="space-y-3">
+            <div key={batchIdx} className="section-surface space-y-3">
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
                   {tr('Gói', 'Batch', '批次', 'バッチ', '묶음')} {batchIdx + 1} • {new Date(batch[0].created_at).toLocaleString('vi-VN')} • {batch.length} {tr('ảnh', 'images', '张', '枚', '장')}
@@ -103,7 +103,7 @@ export default async function TranslateHistoryPage() {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {batch.map((item) => (
-            <Card key={item.id} className="overflow-hidden flex flex-col">
+            <Card key={item.id} className="tool-tile overflow-hidden flex flex-col">
               <CardHeader className="p-4 pb-2 flex flex-row items-center justify-between space-y-0">
                 <div className="flex items-center text-sm text-muted-foreground">
                   <Calendar className="mr-1 h-3 w-3" />
@@ -168,7 +168,7 @@ export default async function TranslateHistoryPage() {
           ))}
         </div>
       ) : (
-        <div className="text-center py-12 border-2 border-dashed rounded-lg">
+        <div className="section-surface text-center py-12 border-2 border-dashed rounded-lg">
           <h3 className="text-lg font-medium">{tr('Chưa có lịch sử dịch ảnh', 'No translation history yet', '暂无翻译记录', '翻訳履歴はまだありません', '번역 기록이 없습니다')}</h3>
           <p className="text-muted-foreground mt-1">{tr('Dịch ảnh tài liệu (1 ảnh, thư mục hoặc file Excel) để xem lịch sử tại đây.', 'Translate document images (single image, folder, or Excel file) to see history here.', '翻译文档图片（单图、文件夹或 Excel）后可在此查看历史。', '文書画像（単画像・フォルダ・Excel）を翻訳すると、ここに履歴が表示されます。', '문서 이미지(단일, 폴더, Excel)를 번역하면 이곳에서 기록을 볼 수 있습니다.')}</p>
           <Button className="mt-4" asChild>

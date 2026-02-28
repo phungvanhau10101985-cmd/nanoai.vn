@@ -52,10 +52,10 @@ export function MobileBottomBar() {
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-40 md:hidden border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 safe-area-pb"
+      className="fixed bottom-0 left-0 right-0 z-40 px-2 pb-2 md:hidden safe-area-pb"
       aria-label={tr('Điều hướng nhanh', 'Quick navigation', '快速导航', 'クイックナビ', '빠른 탐색')}
     >
-      <div className="flex items-center justify-around h-16 px-2">
+      <div className="mx-auto flex h-16 max-w-xl items-center justify-around rounded-2xl border border-border/70 bg-background/92 px-2 shadow-[0_-8px_24px_rgba(2,6,23,0.08)] backdrop-blur-xl supports-[backdrop-filter]:bg-background/80 dark:shadow-[0_-8px_24px_rgba(2,6,23,0.45)]">
         {MOBILE_BAR_ITEMS.map((item) => {
           const Icon = item.icon
           const isActive =
@@ -66,9 +66,9 @@ export function MobileBottomBar() {
               key={item.href}
               href={item.href}
               className={cn(
-                'flex flex-col items-center justify-center flex-1 min-w-0 gap-1 py-2 touch-manipulation transition-colors rounded-lg mx-1',
+                'mx-1 flex min-w-0 flex-1 touch-manipulation flex-col items-center justify-center gap-1 rounded-xl py-2 transition-colors',
                 isActive
-                  ? 'text-primary font-medium'
+                  ? 'bg-primary/8 text-primary font-semibold'
                   : 'text-muted-foreground hover:text-foreground active:bg-muted/50'
               )}
             >

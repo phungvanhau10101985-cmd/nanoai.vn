@@ -35,15 +35,15 @@ export function WordPracticeBox({
   const displayWord = targetWord.charAt(0).toUpperCase() + targetWord.slice(1)
   if (!active) {
     return (
-      <div className="mt-1 rounded-md border bg-white p-2">
-        <Button type="button" size="sm" className="h-8 px-2.5 text-xs" onClick={() => onStartWordPractice(targetWord, expectedMeaning)}>
+      <div className="mt-1 rounded-xl border border-border/70 bg-white p-2">
+        <Button type="button" size="sm" className="h-9 rounded-lg px-3 text-xs" onClick={() => onStartWordPractice(targetWord, expectedMeaning)}>
           {localText('Luyện gõ từ này (3 lần)', 'Practice typing this word (3 times)')}
         </Button>
       </div>
     )
   }
   return (
-    <div className="mt-1 rounded-md border bg-white p-2">
+    <div className="mt-1 rounded-xl border border-border/70 bg-white p-2">
       <p className="text-[11px] text-slate-700">
         {active.unlocked
           ? localText('Đã hoàn thành gõ từ 3 lần. Bạn có thể tiếp tục thao tác khác.', 'Typing practice completed 3/3. You can continue other actions.')
@@ -60,7 +60,7 @@ export function WordPracticeBox({
               onChange={(e) => onWordPracticeDraftChange(targetWord, e.target.value)}
               placeholder={localText('Gõ lại từ mới...', 'Type the new word...')}
               className={cn(
-                'mt-1 h-8 text-xs',
+                'mt-1 h-9 rounded-lg text-xs',
                 practiceInputStatus === 'correct' && 'border-emerald-500 bg-emerald-50 focus:ring-emerald-500',
                 practiceInputStatus === 'partial' && 'border-sky-300 bg-sky-50 focus:ring-sky-400',
                 practiceInputStatus === 'incorrect' && 'border-rose-500 bg-rose-50 focus:ring-rose-500'
@@ -71,7 +71,7 @@ export function WordPracticeBox({
               type="button"
               variant="ghost"
               size="sm"
-              className="ml-2 mt-1 h-8 px-2 text-xs text-slate-500"
+              className="ml-2 mt-1 h-9 rounded-lg px-2.5 text-xs text-slate-500"
               onClick={onCancelWordPractice}
             >
               {localText('Hủy', 'Cancel')}
@@ -85,7 +85,7 @@ export function WordPracticeBox({
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="h-8 px-2 text-xs"
+                  className="h-9 rounded-lg px-2.5 text-xs"
                   onClick={() => onWordPracticeMeaningSelect(targetWord, option)}
                 >
                   {option}

@@ -54,12 +54,12 @@ export default async function DashboardPage() {
     .limit(5)
 
   return (
-    <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-      <div className="flex items-center justify-between space-y-2">
+    <div className="app-shell space-y-6 md:space-y-8">
+      <div className="section-surface flex items-center justify-between">
         <h2 className="text-xl sm:text-3xl font-bold tracking-tight">{ui.title}</h2>
       </div>
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-        <Card>
+        <Card className="tool-tile">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">{ui.totalCredits}</CardTitle>
             <Wallet className="h-4 w-4 text-muted-foreground" />
@@ -74,7 +74,7 @@ export default async function DashboardPage() {
             </Link>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="tool-tile">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
               {ui.newTryOn}
@@ -93,19 +93,19 @@ export default async function DashboardPage() {
         </Card>
       </div>
 
-      <div className="space-y-4">
+      <div className="section-surface space-y-4">
         <h3 className="text-lg sm:text-xl font-semibold">{ui.aiTools}</h3>
-        <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-0 sm:gap-3">
+        <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 sm:gap-3 lg:grid-cols-5">
           {AI_TOOLS.map((tool) => {
             const Icon = tool.icon
             return (
               <Link key={tool.href} href={tool.href}>
-                <Card className="h-full hover:bg-muted/50 transition-colors cursor-pointer rounded-none sm:rounded-lg border border-r-0 last:border-r border-t-0 first:border-t sm:border">
-                  <CardContent className="p-0.5 sm:p-3 flex flex-col items-center justify-center gap-1 text-center">
-                    <div className="w-[30vw] max-w-[150px] aspect-square">
-                      <Icon className="h-full w-full text-muted-foreground" />
+                <Card className="tool-tile cursor-pointer">
+                  <CardContent className="flex min-h-[132px] flex-col items-center justify-center gap-2 p-2 text-center sm:min-h-[152px] sm:p-3">
+                    <div className="flex aspect-square w-full max-w-[92px] items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500/10 to-indigo-500/10 sm:max-w-[106px]">
+                      <Icon className="h-[82%] w-[82%] text-blue-600 dark:text-blue-400" />
                     </div>
-                    <span className="text-xs sm:text-sm md:text-base font-medium leading-tight mt-0.5 sm:mt-1 px-1">{t.tool[tool.labelKey]}</span>
+                    <span className="mt-1 px-1 text-[11px] font-medium leading-tight sm:text-sm md:text-[15px]">{t.tool[tool.labelKey]}</span>
                   </CardContent>
                 </Card>
               </Link>
@@ -114,7 +114,7 @@ export default async function DashboardPage() {
         </div>
       </div>
       
-      <div className="space-y-4">
+      <div className="section-surface space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-lg sm:text-xl font-semibold">{ui.recentHistory}</h3>
           <Button variant="ghost" size="sm" asChild>
@@ -124,7 +124,7 @@ export default async function DashboardPage() {
         {history && history.length > 0 ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
             {history.map((item) => (
-              <Card key={item.id} className="overflow-hidden group">
+              <Card key={item.id} className="tool-tile overflow-hidden group">
                 <div className="aspect-[3/4] relative">
                   {item.result_image_url && (
                     <ImagePreview 
@@ -138,7 +138,7 @@ export default async function DashboardPage() {
             ))}
           </div>
         ) : (
-          <Card>
+          <Card className="tool-tile">
             <CardContent className="flex flex-col items-center justify-center py-8 text-center">
               <History className="h-12 w-12 text-muted-foreground mb-4" />
               <p className="text-lg font-medium">{ui.noHistory}</p>

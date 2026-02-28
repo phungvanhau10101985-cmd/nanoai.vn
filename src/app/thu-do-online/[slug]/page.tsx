@@ -63,7 +63,7 @@ export default async function TryOnSlugPage({ params }: { params: { slug: string
   const faqJsonLd = seo ? buildFeatureFaqJsonLd(seo) : null
 
   return (
-    <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="app-shell">
       <JsonLd data={jsonLd} />
       {faqJsonLd && <JsonLd data={faqJsonLd} />}
       <Suspense fallback={<div className="text-sm text-muted-foreground">{locale === 'vi' ? 'Đang tải công cụ thử đồ...' : locale === 'en' ? 'Loading virtual try-on tool...' : locale === 'zh' ? '正在加载试衣工具...' : locale === 'ja' ? 'バーチャル試着ツールを読み込み中...' : '가상피팅 도구를 불러오는 중...'}</div>}>

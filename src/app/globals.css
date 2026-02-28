@@ -118,6 +118,30 @@
   }
   body {
     @apply bg-background text-foreground;
+    background-image:
+      radial-gradient(circle at 15% -10%, hsl(220 100% 96%) 0%, transparent 32%),
+      radial-gradient(circle at 85% -25%, hsl(262 95% 96%) 0%, transparent 35%);
+    background-attachment: fixed;
+  }
+  .dark body {
+    background-image:
+      radial-gradient(circle at 15% -10%, hsl(220 32% 14%) 0%, transparent 40%),
+      radial-gradient(circle at 85% -25%, hsl(262 42% 16%) 0%, transparent 42%);
+  }
+}
+
+@layer components {
+  .surface-card {
+    @apply rounded-2xl border border-border/70 bg-card/85 backdrop-blur-sm shadow-sm;
+  }
+  .app-shell {
+    @apply container mx-auto max-w-7xl px-3 py-5 sm:px-6 sm:py-7 lg:px-8 lg:py-8;
+  }
+  .section-surface {
+    @apply rounded-2xl border border-border/70 bg-card/85 p-4 shadow-sm backdrop-blur-sm sm:p-5;
+  }
+  .tool-tile {
+    @apply h-full rounded-xl border border-border/70 bg-card/90 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-blue-200/80 hover:shadow-lg hover:shadow-blue-500/10 dark:hover:border-blue-800/50 dark:hover:bg-slate-900/70;
   }
 }
 

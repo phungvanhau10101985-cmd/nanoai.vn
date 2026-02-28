@@ -120,7 +120,7 @@ export function TodayWordsPanel({
   }
 
   return (
-    <div className="rounded-md border p-3">
+    <div className="rounded-xl border border-border/70 bg-background/70 p-3">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm font-semibold text-slate-800">{localText('Từ mới của buổi học này', 'New words in this lesson')}</p>
         <Button type="button" variant="ghost" size="sm" onClick={onRefreshTodayWords} disabled={todayWordsBusy}>
@@ -134,7 +134,7 @@ export function TodayWordsPanel({
       ) : (
         <div className="space-y-1.5">
           {todayWords.map((item) => (
-            <div key={item.id} className="rounded-md border bg-slate-50 p-1.5 text-xs leading-snug">
+            <div key={item.id} className="rounded-xl border border-border/70 bg-slate-50/80 p-2 text-xs leading-snug">
               <p>
                 <button
                   type="button"
@@ -160,12 +160,12 @@ export function TodayWordsPanel({
                 ) : null}
               </div>
               {renderExamples(item)}
-              <div className="mt-1.5 flex flex-wrap gap-1">
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="h-8 px-2.5 text-xs"
+                  className="h-9 rounded-lg px-3 text-xs"
                   onClick={() => {
                     onStartWordPractice(item.word, String(item.meaning || ''), { forceSwitch: true })
                     onPlayWordPronunciation(item.word)
@@ -179,7 +179,7 @@ export function TodayWordsPanel({
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="h-8 px-2.5 text-xs text-amber-700 hover:bg-amber-50"
+                    className="h-9 rounded-lg px-3 text-xs text-amber-700 hover:bg-amber-50"
                     onClick={() => onRegenerateWordPronunciation(item.word)}
                     title={localText('Phát âm sai? Tạo lại bằng TTS', 'Wrong pronunciation? Regenerate with TTS')}
                   >

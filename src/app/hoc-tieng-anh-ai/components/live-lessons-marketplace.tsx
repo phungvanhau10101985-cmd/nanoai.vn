@@ -447,8 +447,8 @@ export function LiveLessonsMarketplace() {
   }, [studyMode, effectiveTopicId, filterTargetLanguage, filterNativeLanguage, filterLearnerLevel, filterGoalType, filterDurationBucket, openLesson, toast])
 
   return (
-    <div className="mt-6 grid gap-4 md:grid-cols-2">
-      <Card className="border shadow-sm bg-white/80 backdrop-blur">
+    <div className="grid gap-4 xl:grid-cols-2">
+      <Card className="section-surface">
         <CardHeader>
           <CardTitle>Tao Live lesson tu session</CardTitle>
           <CardDescription>Lay buoi hoc chat AI da xong, chuan hoa thanh bai co the ban lai.</CardDescription>
@@ -521,13 +521,13 @@ export function LiveLessonsMarketplace() {
         </CardContent>
       </Card>
 
-      <Card className="border shadow-sm bg-white/80 backdrop-blur">
+      <Card className="section-surface">
         <CardHeader>
           <CardTitle>Live lesson marketplace</CardTitle>
           <CardDescription>Chon tieu chi hoc xong chon kieu hoc: AI live hoac bai mau co san.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="rounded-md border bg-slate-50 p-3">
+          <div className="rounded-xl border border-border/70 bg-slate-50/80 p-3 sm:p-4">
             <p className="text-sm font-semibold">Buoc 1: Chon tieu chi bai hoc</p>
             <div className="mt-2 grid gap-2 md:grid-cols-2">
               <div className="space-y-2">
@@ -601,7 +601,7 @@ export function LiveLessonsMarketplace() {
               </select>
             </div>
             <p className="mt-3 text-sm font-semibold">Buoc 2: Chon kieu hoc</p>
-            <div className="mt-2 flex flex-wrap gap-2">
+            <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
               <Button type="button" variant={studyMode === 'sample' ? 'default' : 'outline'} onClick={() => setStudyMode('sample')}>
                 Bai mau co san
               </Button>
@@ -616,12 +616,12 @@ export function LiveLessonsMarketplace() {
               <p className="mt-2 text-xs text-amber-700">Hay nhap custom topic id truoc khi mo bai.</p>
             ) : null}
           </div>
-          <div className="max-h-52 space-y-2 overflow-auto rounded-md border p-2">
+          <div className="max-h-56 space-y-2 overflow-auto rounded-xl border border-border/70 p-2">
             {marketLessons.length === 0 ? (
               <p className="text-xs text-slate-500">Chua co bai da publish.</p>
             ) : (
               marketLessons.map((x) => (
-                <div key={x.id} className={`rounded border p-2 text-xs ${selectedLessonId === x.id ? 'bg-indigo-50 border-indigo-200' : 'bg-white'}`}>
+                <div key={x.id} className={`rounded-xl border p-2.5 text-xs ${selectedLessonId === x.id ? 'border-indigo-200 bg-indigo-50' : 'border-border/70 bg-background/90'}`}>
                   <p className="font-medium">{x.title}</p>
                   <p>
                     Score {x.qualityScore} • Turns {x.turnsCount} • Price {x.priceCredits} • Sold {x.salesCount || 0}
@@ -642,7 +642,7 @@ export function LiveLessonsMarketplace() {
           </div>
 
           {selectedLesson ? (
-            <div className="rounded-md border p-3 text-sm">
+            <div className="rounded-xl border border-border/70 p-3 text-sm">
               <p className="font-semibold">{selectedLesson.title}</p>
               <p className="text-xs text-slate-600">
                 {selectedLesson.turnsCount} turns • Price {selectedLesson.priceCredits} • {selectedLesson.locked ? 'Locked' : 'Unlocked'}

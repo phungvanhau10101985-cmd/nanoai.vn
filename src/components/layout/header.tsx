@@ -38,25 +38,27 @@ export async function Header() {
   }
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
-        <div className="flex items-center justify-between gap-4">
-          <Link href="/" className="flex items-center gap-2 shrink-0">
-            <img src="/icons/icon-192x192.png" alt={t.app.siteName} width={44} height={44} className="rounded-lg" />
-            <span className="font-bold text-lg">{t.app.siteName}</span>
+    <header className="sticky top-0 z-50 w-full border-b border-border/70 bg-background/85 backdrop-blur-xl supports-[backdrop-filter]:bg-background/65">
+      <div className="container mx-auto max-w-7xl px-3 py-3 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between gap-3 sm:gap-4">
+          <Link href="/" className="group flex items-center gap-2.5 shrink-0">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-border/70 bg-card/90 shadow-sm transition-transform duration-200 group-hover:scale-[1.02]">
+              <img src="/icons/icon-192x192.png" alt={t.app.siteName} width={30} height={30} className="rounded-md" />
+            </span>
+            <span className="text-base font-semibold tracking-tight sm:text-lg">{t.app.siteName}</span>
           </Link>
 
-          <nav className="hidden md:flex items-center gap-2">
+          <nav className="hidden items-center gap-2 md:flex">
             <LocaleSwitcher currentLocale={locale} />
             <Link href="/dashboard">
-              <Button variant="outline" size="sm" className="gap-2">
+              <Button variant="outline" size="sm" className="h-9 gap-2 rounded-xl border-border/70 bg-card/80 px-3">
                 <LayoutGrid className="h-4 w-4" />
                 {t.app.toolHub}
               </Button>
             </Link>
           </nav>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex shrink-0 items-center gap-2">
             <div className="md:hidden">
               <MobileNav isAdmin={isAdmin} t={clientDictionary} />
             </div>
@@ -64,7 +66,7 @@ export async function Header() {
               <HeaderUserMenu user={user} credits={credits} isAdmin={isAdmin} t={clientDictionary} />
             ) : (
               <Link href="/auth/login">
-                <Button variant="secondary" size="sm">
+                <Button variant="secondary" size="sm" className="rounded-xl px-3">
                   {t.app.login}
                 </Button>
               </Link>
