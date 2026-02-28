@@ -9,7 +9,7 @@ function adminClient() {
 }
 
 type Payload = {
-  action?: 'random_copy'
+  action?: 'random_copy' | 'check_match'
   targetLanguage?: string
   nativeLanguage?: string
   learnerLevel?: number
@@ -17,6 +17,9 @@ type Payload = {
   topicLabel?: string
   mode?: string
   learningMode?: 'review' | 'reflex'
+  teacherLabel?: string
+  teacherLocale?: string
+  languageCode?: string
 }
 
 type PresetTurn = {
@@ -35,11 +38,52 @@ function normalizeLookup(input: string): string {
   return String(input || '').trim().toLowerCase()
 }
 
+function parseTeacherRowsFromTranscript(
+  transcriptRaw: string,
+  fallbackMode: string
+): Array<{
+  text: string
+  audioUrl: string | null
+  translation: string | null
+  languageCode: string | null
+  targetLanguage: string | null
+  teacherLabel: string | null
+  teacherLocale: string | null
+  mode: string
+  mainSentence: string
+  correctionNote: string
+  intentAnswer: string
+}> {
+  let transcript: Array<Record<string, unknown>> = []
+  try {
+    const parsed = JSON.parse(String(transcriptRaw || '[]')) as unknown
+    transcript = Array.isArray(parsed) ? parsed.filter((x) => x && typeof x === 'object') as Array<Record<string, unknown>> : []
+  } catch {
+    transcript = []
+  }
+  return transcript
+    .filter((item) => String(item.role || '').trim() === 'teacher')
+    .map((item) => ({
+      text: String(item.text || '').trim().slice(0, 4000),
+      audioUrl: String(item.audioUrl || '').trim() || null,
+      translation: String(item.translation || '').trim() || null,
+      languageCode: String(item.languageCode || '').trim() || null,
+      targetLanguage: String(item.targetLanguage || '').trim() || null,
+      teacherLabel: String(item.teacherLabel || '').trim() || null,
+      teacherLocale: String(item.teacherLocale || '').trim() || null,
+      mode: String(item.mode || fallbackMode || 'chat').trim() || 'chat',
+      mainSentence: String(item.mainSentence || '').trim(),
+      correctionNote: String(item.correctionNote || '').trim(),
+      intentAnswer: String(item.intentAnswer || '').trim(),
+    }))
+    .filter((x) => x.text)
+}
+
 export async function POST(request: NextRequest) {
   try {
     const payload = (await request.json()) as Payload
     const action = payload.action || 'random_copy'
-    if (action !== 'random_copy') {
+    if (action !== 'random_copy' && action !== 'check_match') {
       return NextResponse.json({ error: 'Action không hợp lệ.' }, { status: 400 })
     }
 
@@ -56,15 +100,21 @@ export async function POST(request: NextRequest) {
     const topicLabel = String(payload.topicLabel || '').trim()
     const mode = String(payload.mode || 'chat').trim()
     const learningMode = payload.learningMode === 'reflex' ? 'reflex' : 'review'
+    const teacherLabel = String(payload.teacherLabel || '').trim()
+    const teacherLocale = String(payload.teacherLocale || '').trim()
+    const languageCode = String(payload.languageCode || '').trim()
 
     const normalizedTarget = normalizeLookup(targetLanguage)
     const normalizedNative = normalizeLookup(nativeLanguage)
     const normalizedTopicId = normalizeLookup(topicId)
     const normalizedTopicLabel = normalizeLookup(topicLabel)
+    const normalizedTeacherLabel = normalizeLookup(teacherLabel)
+    const normalizedTeacherLocale = normalizeLookup(teacherLocale)
+    const normalizedLanguageCode = normalizeLookup(languageCode)
 
     const { data: candidates, error: candidateError } = await adminSupabase
       .from('language_coach_completed_lessons')
-      .select('id, target_language, native_language, learner_level, topic_id, topic_label, mode, learning_mode, transcript_json, summary_json')
+      .select('id, target_language, native_language, learner_level, topic_id, topic_label, mode, learning_mode, language_code, teacher_label, teacher_locale, transcript_json, summary_json')
       .neq('user_id', user.id)
       .eq('learner_level', learnerLevel)
       .eq('learning_mode', learningMode)
@@ -80,18 +130,33 @@ export async function POST(request: NextRequest) {
     const strict = rows.filter((r) => {
       const sameTarget = normalizeLookup(String(r.target_language || '')) === normalizedTarget
       const sameNative = normalizeLookup(String(r.native_language || '')) === normalizedNative
-      const sameTopicId = normalizedTopicId && normalizeLookup(String(r.topic_id || '')) === normalizedTopicId
-      const sameTopicLabel = normalizedTopicLabel && normalizeLookup(String(r.topic_label || '')) === normalizedTopicLabel
-      return sameTarget && sameNative && (sameTopicId || sameTopicLabel)
+      const rowTopicId = normalizeLookup(String(r.topic_id || ''))
+      const rowTopicLabel = normalizeLookup(String(r.topic_label || ''))
+      const sameTopic =
+        normalizedTopicId
+          ? rowTopicId === normalizedTopicId
+          : (normalizedTopicLabel ? rowTopicLabel === normalizedTopicLabel : false)
+      const sameTeacherLabel = !normalizedTeacherLabel || normalizeLookup(String((r as { teacher_label?: string }).teacher_label || '')) === normalizedTeacherLabel
+      const sameTeacherLocale = !normalizedTeacherLocale || normalizeLookup(String((r as { teacher_locale?: string }).teacher_locale || '')) === normalizedTeacherLocale
+      const sameLanguageCode = !normalizedLanguageCode || normalizeLookup(String((r as { language_code?: string }).language_code || '')) === normalizedLanguageCode
+      return sameTarget && sameNative && sameTopic && sameTeacherLabel && sameTeacherLocale && sameLanguageCode
     })
-    const fallback = rows.filter((r) => {
-      const sameTarget = normalizeLookup(String(r.target_language || '')) === normalizedTarget
-      const sameNative = normalizeLookup(String(r.native_language || '')) === normalizedNative
-      return sameTarget && sameNative
+    const strictUsable = strict.filter((r) => {
+      const transcriptRaw = String((r as { transcript_json?: string }).transcript_json || '[]').trim()
+      const teacherRows = parseTeacherRowsFromTranscript(transcriptRaw, mode)
+      return teacherRows.length > 0
     })
-    const pool = strict.length > 0 ? strict : fallback
+
+    if (action === 'check_match') {
+      return NextResponse.json({
+        found: strictUsable.length > 0,
+        strictCount: strictUsable.length,
+      })
+    }
+
+    const pool = strictUsable
     if (pool.length === 0) {
-      return NextResponse.json({ found: false })
+      return NextResponse.json({ found: false, strictMatched: false })
     }
     const picked = pool[Math.floor(Math.random() * pool.length)]
     const transcriptRaw = String((picked as { transcript_json?: string }).transcript_json || '[]').trim()
@@ -104,9 +169,7 @@ export async function POST(request: NextRequest) {
     } catch {
       transcript = []
     }
-    if (transcript.length === 0) {
-      return NextResponse.json({ found: false })
-    }
+    if (transcript.length === 0) return NextResponse.json({ found: false })
 
     let runningSummary = ''
     let pinnedFactsJson = '{}'
@@ -118,22 +181,7 @@ export async function POST(request: NextRequest) {
       // keep defaults
     }
 
-    const teacherRows = transcript
-      .filter((item) => String(item.role || '').trim() === 'teacher')
-      .map((item) => ({
-        text: String(item.text || '').trim().slice(0, 4000),
-        audioUrl: String(item.audioUrl || '').trim() || null,
-        translation: String(item.translation || '').trim() || null,
-        languageCode: String(item.languageCode || '').trim() || null,
-        targetLanguage: String(item.targetLanguage || '').trim() || null,
-        teacherLabel: String(item.teacherLabel || '').trim() || null,
-        teacherLocale: String(item.teacherLocale || '').trim() || null,
-        mode: String(item.mode || mode || 'chat').trim() || 'chat',
-        mainSentence: String(item.mainSentence || '').trim(),
-        correctionNote: String(item.correctionNote || '').trim(),
-        intentAnswer: String(item.intentAnswer || '').trim(),
-      }))
-      .filter((x) => x.text)
+    const teacherRows = parseTeacherRowsFromTranscript(transcriptRaw, mode)
 
     if (teacherRows.length === 0) {
       return NextResponse.json({ found: false })

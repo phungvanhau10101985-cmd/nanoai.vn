@@ -7,6 +7,20 @@ function adminClient() {
   return createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 }
 
+function isPresetCopiedSession(pinnedFactsRaw: string): boolean {
+  try {
+    const parsed = JSON.parse(String(pinnedFactsRaw || '{}')) as Record<string, unknown>
+    const preset = parsed?.preset_replay
+    if (!preset || typeof preset !== 'object') return false
+    const sourceLessonId = String((preset as { source_lesson_id?: unknown; sourceLessonId?: unknown }).source_lesson_id
+      ?? (preset as { sourceLessonId?: unknown }).sourceLessonId
+      ?? '').trim()
+    return Boolean(sourceLessonId)
+  } catch {
+    return false
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const payload = (await request.json()) as {
@@ -82,6 +96,7 @@ export async function POST(request: NextRequest) {
       running_summary?: string
       pinned_facts_json?: string
     } | null
+    const isPresetSession = isPresetCopiedSession(String(memory?.pinned_facts_json || '{}'))
     const summary = {
       runningSummary: String(memory?.running_summary || '').trim(),
       pinnedFactsJson: String(memory?.pinned_facts_json || '{}').trim(),
@@ -107,7 +122,7 @@ export async function POST(request: NextRequest) {
       createdAt: r.created_at,
     }))
 
-    if (qualityPassed) {
+    if (qualityPassed && !isPresetSession) {
       const { error: completedError } = await adminSupabase.from('language_coach_completed_lessons').upsert(
         {
           user_id: user.id,
@@ -162,7 +177,7 @@ export async function POST(request: NextRequest) {
         )
       }
     }
-    return NextResponse.json({ ok: true, markEnded, qualityPassed })
+    return NextResponse.json({ ok: true, markEnded, qualityPassed, skippedCompletedSave: isPresetSession })
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Lỗi không xác định.'
     return NextResponse.json({ error: msg }, { status: 500 })

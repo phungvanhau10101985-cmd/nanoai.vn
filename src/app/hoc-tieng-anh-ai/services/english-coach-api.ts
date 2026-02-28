@@ -244,11 +244,33 @@ export function createSessionFromRandomCompletedLesson(payload: {
   topicLabel: string
   mode: string
   learningMode: 'review' | 'reflex'
+  teacherLabel?: string
+  teacherLocale?: string
+  languageCode?: string
 }) {
   return sendJson<{ found?: boolean; sessionId?: string; sourceLessonId?: string; strictMatched?: boolean; error?: string }>(
     '/api/english-coach/completed-lesson',
     'POST',
     { action: 'random_copy', ...payload }
+  )
+}
+
+export function checkCompletedLessonMatch(payload: {
+  targetLanguage: string
+  nativeLanguage: string
+  learnerLevel: number
+  topicId: string
+  topicLabel: string
+  mode: string
+  learningMode: 'review' | 'reflex'
+  teacherLabel?: string
+  teacherLocale?: string
+  languageCode?: string
+}) {
+  return sendJson<{ found?: boolean; strictCount?: number; error?: string }>(
+    '/api/english-coach/completed-lesson',
+    'POST',
+    { action: 'check_match', ...payload }
   )
 }
 

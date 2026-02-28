@@ -21,6 +21,7 @@ import {
   chatWithCoach,
   cleanupIncompleteWords,
   createSessionFromRandomCompletedLesson,
+  checkCompletedLessonMatch,
   createTopicCurriculum,
   explainIntent,
   generateTts,
@@ -5268,13 +5269,20 @@ export default function HocTiengAnhAiClientPage() {
       }
 
       setQuickStartModalOpen(false)
-      openLessonStartChoice(curriculum, topicToUse)
-      toast({
-        title: localText('Chọn hình thức học', 'Choose lesson type'),
-        description: hadExistingLesson
-          ? localText('Đã sẵn sàng. Chọn học live hoặc học bài có sẵn để bắt đầu.', 'Ready. Choose live lesson or saved lesson to continue.')
-          : localText('Chọn học live hoặc học bài có sẵn để bắt đầu.', 'Choose live lesson or saved lesson to begin.'),
-      })
+      const plan = { curriculum, topic: topicToUse }
+      const hasPreset = await hasStrictPresetMatch(plan)
+      if (hasPreset) {
+        openLessonStartChoice(curriculum, topicToUse)
+        toast({
+          title: localText('Chọn hình thức học', 'Choose lesson type'),
+          description: hadExistingLesson
+            ? localText('Đã sẵn sàng. Chọn học live hoặc học bài có sẵn để bắt đầu.', 'Ready. Choose live lesson or saved lesson to continue.')
+            : localText('Chọn học live hoặc học bài có sẵn để bắt đầu.', 'Choose live lesson or saved lesson to begin.'),
+        })
+      } else {
+        setLessonStartPlan(plan)
+        await startLiveLessonFromChoice(plan)
+      }
     } catch (e) {
       toast({
         title: localText('Bắt đầu nhanh chưa thành công', 'Quick start failed'),
@@ -5326,6 +5334,23 @@ export default function HocTiengAnhAiClientPage() {
     setLessonStartChoiceOpen(true)
   }
 
+  const hasStrictPresetMatch = async (plan: { curriculum: TopicCurriculum | null; topic: TopicOption }) => {
+    const { ok, data } = await checkCompletedLessonMatch({
+      targetLanguage: activeTeacher.languageLabel,
+      nativeLanguage: selectedNativeLanguage.apiLabel,
+      learnerLevel,
+      topicId: plan.topic.id,
+      topicLabel: plan.topic.label,
+      mode: learningMode === 'reflex' ? 'listen_speak' : mode,
+      learningMode,
+      teacherLabel: activeTeacher.label,
+      teacherLocale: activeTeacher.ttsLocale,
+      languageCode,
+    })
+    if (!ok) throw new Error(data.error || localText('Không kiểm tra được bài học có sẵn.', 'Cannot check saved lesson match.'))
+    return Boolean(data.found)
+  }
+
   const startLiveLessonFromChoice = async (planArg?: { curriculum: TopicCurriculum | null; topic: TopicOption }) => {
     const plan = planArg || lessonStartPlan || matchedSessionPlan
     if (!plan) return
@@ -5363,18 +5388,22 @@ export default function HocTiengAnhAiClientPage() {
         topicLabel: plan.topic.label,
         mode: learningMode === 'reflex' ? 'listen_speak' : mode,
         learningMode,
+        teacherLabel: activeTeacher.label,
+        teacherLocale: activeTeacher.ttsLocale,
+        languageCode,
       })
       if (!ok) {
         throw new Error(data.error || localText('Không lấy được bài học có sẵn.', 'Unable to load a saved lesson.'))
       }
       if (!data.found || !data.sessionId) {
-        setLessonStartChoiceOpen(false)
-        setLessonStartPlan(null)
         toast({
-          title: localText('Chưa có bài phù hợp', 'No matching saved lesson'),
-          description: localText('Sẽ chuyển sang học live để không gián đoạn.', 'Switching to live lesson to keep learning flow.'),
+          title: localText('Không còn bài phù hợp', 'No matching saved lesson now'),
+          description: localText(
+            'Danh sách bài có sẵn vừa thay đổi. Bạn chọn học live hoặc đóng để kiểm tra lại.',
+            'Saved lessons changed. Choose live lesson or close and check again.'
+          ),
+          variant: 'destructive',
         })
-        await startLiveLessonFromChoice(plan)
         return
       }
       setLessonStartChoiceOpen(false)
@@ -5463,7 +5492,14 @@ export default function HocTiengAnhAiClientPage() {
         })
         return
       }
-      openLessonStartChoice(topicCurriculum, selectedTopic)
+      const plan = { curriculum: topicCurriculum, topic: selectedTopic }
+      const hasPreset = await hasStrictPresetMatch(plan)
+      if (hasPreset) {
+        openLessonStartChoice(topicCurriculum, selectedTopic)
+      } else {
+        setLessonStartPlan(plan)
+        await startLiveLessonFromChoice(plan)
+      }
     } catch (e) {
       toast({
         title: localText('Lỗi', 'Error'),
