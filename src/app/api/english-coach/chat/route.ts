@@ -423,6 +423,40 @@ function defaultIdea3LeadByLanguageCode(code: string): string {
   return "Great, let's continue."
 }
 
+function detailFollowUpByLanguageCode(code: string, targetLanguage: string): string {
+  if (code === 'zh') return '你可以在刚才那句话里再加一个细节吗？'
+  if (code === 'ja') return '今の文に、もう一つ具体的な情報を足して言えますか？'
+  if (code === 'ko') return '방금 문장에 구체적인 정보 하나를 더해서 말해 볼까요?'
+  if (code === 'th') return 'คุณช่วยเพิ่มรายละเอียดอีกหนึ่งอย่างจากประโยคเมื่อกี้ได้ไหม?'
+  if (code === 'hi') return 'क्या आप अभी वाले वाक्य में एक और विवरण जोड़कर बोल सकते हैं?'
+  if (code === 'vi') return 'Em có thể thêm một chi tiết nữa vào câu vừa rồi không?'
+  return `Can you add one more detail to your last sentence in ${targetLanguage}?`
+}
+
+function normalizeForSimilarity(input: string): string {
+  return normalizeLookup(input).replace(/[\s.,!?;:()[\]{}'"`~@#$%^&*+=<>|\\/_-]+/g, '')
+}
+
+function isIntentAnswerTooCloseToStudent(
+  intentAnswer: string,
+  studentText: string,
+  correctedSentence: string
+): boolean {
+  const firstLine = String(intentAnswer || '')
+    .split('\n')
+    .map((x) => x.trim())
+    .filter(Boolean)[0] || ''
+  if (!firstLine) return false
+  const intentLead = firstLine
+    .split(/(?<=[.!?。！？])\s+/u)
+    .map((x) => x.trim())
+    .find((x) => x && !/[?？]$/.test(x)) || firstLine
+  const normalizedIntent = normalizeForSimilarity(intentLead)
+  if (!normalizedIntent || normalizedIntent.length < 8) return false
+  const bases = [studentText, correctedSentence].map(normalizeForSimilarity).filter((x) => x.length >= 8)
+  return bases.some((base) => normalizedIntent === base || normalizedIntent.includes(base) || base.includes(normalizedIntent))
+}
+
 function ensureIntentAnswerTwoPart(
   intentAnswer: string,
   targetLanguageCode: string,
@@ -1616,6 +1650,9 @@ ${intentAnswer || parsed.reply}`
     }
     if (!intentAnswer || shouldRepairIntentAnswerToTargetLanguage(intentAnswer, targetLanguageCode, targetScriptRe)) {
       intentAnswer = fallbackFollowUpByLanguageCode(targetLanguageCode, targetLanguage)
+    }
+    if (isIntentAnswerTooCloseToStudent(intentAnswer, studentText, String(parsed.correctedSentence || ''))) {
+      intentAnswer = detailFollowUpByLanguageCode(targetLanguageCode, targetLanguage)
     }
     intentAnswer = ensureIntentAnswerTwoPart(intentAnswer, targetLanguageCode, targetLanguage)
     const correctedSentenceJson = String(parsed.correctedSentence || '').trim()
