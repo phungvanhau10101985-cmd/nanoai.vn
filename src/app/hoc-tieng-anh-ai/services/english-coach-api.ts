@@ -84,6 +84,14 @@ export function endHistorySession(sessionId: string) {
   return sendJson<{ ok?: boolean; error?: string }>('/api/english-coach/history/end', 'POST', { sessionId })
 }
 
+export function snapshotCompletedLessonSession(sessionId: string) {
+  return sendJson<{ ok?: boolean; error?: string }>(
+    '/api/english-coach/history/end',
+    'POST',
+    { sessionId, markEnded: false, completionReason: 'timeline_completed_auto' }
+  )
+}
+
 export function getHistorySession(sessionId: string) {
   return getJson<{ items?: unknown[]; error?: string }>(`/api/english-coach/history?sessionId=${encodeURIComponent(sessionId)}`)
 }

@@ -9,8 +9,15 @@ function adminClient() {
 
 export async function POST(request: NextRequest) {
   try {
-    const payload = (await request.json()) as { sessionId?: string }
+    const payload = (await request.json()) as {
+      sessionId?: string
+      markEnded?: boolean
+      completionReason?: string
+    }
     const sessionId = String(payload.sessionId || '').trim()
+    const markEnded = payload.markEnded !== false
+    const completionReasonRaw = String(payload.completionReason || '').trim()
+    const completionReason = completionReasonRaw || (markEnded ? 'user_ended' : 'timeline_completed_auto')
     if (!sessionId) {
       return NextResponse.json({ error: 'Thiếu sessionId.' }, { status: 400 })
     }
@@ -118,7 +125,7 @@ export async function POST(request: NextRequest) {
         started_at: startedAt,
         ended_at: endedAt,
         duration_seconds: durationSeconds,
-        completion_reason: 'user_ended',
+        completion_reason: completionReason,
         summary_json: JSON.stringify(summary),
         transcript_json: JSON.stringify(transcript),
         updated_at: new Date().toISOString(),
@@ -132,18 +139,20 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { error } = await adminSupabase.from('language_coach_ended_sessions').upsert(
-      { user_id: user.id, session_id: sessionId },
-      { onConflict: 'user_id,session_id' }
-    )
-
-    if (error) {
-      return NextResponse.json(
-        { error: error.message || 'Không đánh dấu kết thúc được.' },
-        { status: 500 }
+    if (markEnded) {
+      const { error } = await adminSupabase.from('language_coach_ended_sessions').upsert(
+        { user_id: user.id, session_id: sessionId },
+        { onConflict: 'user_id,session_id' }
       )
+
+      if (error) {
+        return NextResponse.json(
+          { error: error.message || 'Không đánh dấu kết thúc được.' },
+          { status: 500 }
+        )
+      }
     }
-    return NextResponse.json({ ok: true })
+    return NextResponse.json({ ok: true, markEnded })
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Lỗi không xác định.'
     return NextResponse.json({ error: msg }, { status: 500 })

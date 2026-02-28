@@ -42,6 +42,7 @@ import {
   saveHistoryMessage as saveHistoryMessageApi,
   updateMessageTranslation as updateMessageTranslationApi,
   saveLearningGoal as saveLearningGoalApi,
+  snapshotCompletedLessonSession,
   tokenizeSentence,
   transliterateText,
   transcribeMixed,
@@ -2007,6 +2008,8 @@ export default function HocTiengAnhAiClientPage() {
   const createdAudioUrlsRef = useRef<string[]>([])
   const lastAutoScrollTokenMessageIdRef = useRef('')
   const lessonCompletedToastShownForSessionRef = useRef<string | null>(null)
+  const lessonAutoSnapshotBusyRef = useRef(false)
+  const lessonAutoSnapshotTeacherCountBySessionRef = useRef<Record<string, number>>({})
   const uiLocale: UiLocale = nativeLanguageCode
   const t = useMemo(() => createCoachTranslator(uiLocale), [uiLocale])
   const localText = useCallback((vi: string, en: string) => {
@@ -4677,7 +4680,7 @@ export default function HocTiengAnhAiClientPage() {
   useEffect(() => {
     const curriculum = topicCurriculum || preLessonCurriculum
     const steps = curriculum?.lessonSteps ?? []
-    if (steps.length === 0) return
+    if (steps.length === 0 || !sessionId) return
     const teacherCount = messages.filter((m) => m.role === 'teacher').length
     const turnsPerStep = Math.max(1, Math.ceil(steps.length / 6))
     const completedCount = Math.min(Math.floor(teacherCount / turnsPerStep), steps.length)
@@ -4691,6 +4694,17 @@ export default function HocTiengAnhAiClientPage() {
         ),
       })
     }
+    if (completedCount < steps.length) return
+    const lastSavedTeacherCount = lessonAutoSnapshotTeacherCountBySessionRef.current[sessionId] ?? 0
+    if (teacherCount <= lastSavedTeacherCount || lessonAutoSnapshotBusyRef.current) return
+    lessonAutoSnapshotBusyRef.current = true
+    void snapshotCompletedLessonSession(sessionId)
+      .then(({ ok }) => {
+        if (ok) lessonAutoSnapshotTeacherCountBySessionRef.current[sessionId] = teacherCount
+      })
+      .finally(() => {
+        lessonAutoSnapshotBusyRef.current = false
+      })
   }, [messages, topicCurriculum, preLessonCurriculum, sessionId, toast])
 
   useEffect(() => {
@@ -5804,7 +5818,7 @@ export default function HocTiengAnhAiClientPage() {
                 </p>
                 <div className="max-h-56 space-y-2 overflow-auto pr-1">
                   {historySessions.map((s) => (
-                    <div key={s.sessionId} className="flex min-w-0 items-center gap-2">
+                    <div key={s.sessionId} className="flex min-w-0 items-center gap-1 sm:gap-1">
                       <Button
                         type="button"
                         variant="outline"
@@ -5834,7 +5848,7 @@ export default function HocTiengAnhAiClientPage() {
                         }}
                         disabled={historyBusy}
                         title={localText('Xóa buổi học', 'Delete lesson')}
-                        className="shrink-0 text-muted-foreground hover:text-destructive"
+                        className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -6532,7 +6546,7 @@ export default function HocTiengAnhAiClientPage() {
                         ) : (
                           <div className="min-w-0 space-y-2">
                             {historySessions.slice(0, 5).map((s) => (
-                              <div key={s.sessionId} className="flex min-w-0 items-center gap-2">
+                              <div key={s.sessionId} className="flex min-w-0 items-center gap-1 sm:gap-1">
                                 <Button
                                   type="button"
                                   variant="outline"
@@ -6570,7 +6584,7 @@ export default function HocTiengAnhAiClientPage() {
                                   }}
                                   disabled={historyBusy}
                                   title={localText('Xóa buổi học', 'Delete lesson')}
-                                  className="shrink-0 text-muted-foreground hover:text-destructive"
+                                  className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
                                 >
                                   <Trash2 className="h-4 w-4" />
                                 </Button>
