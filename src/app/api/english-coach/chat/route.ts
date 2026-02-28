@@ -307,9 +307,9 @@ function localizedCoachLabels(nativeLanguageCode: string) {
       quickTranslation: 'Dịch nhanh',
       teacherSaid: 'Câu thầy/cô vừa nói',
       repeatSlowly: 'Không sao, thầy/cô nhắc lại câu vừa rồi thật chậm nhé.',
-      askReplyAgain: 'Em thử trả lời lại theo câu này nhé?',
+      askReplyAgain: 'Em dùng mẫu này để trả lời một ý mới nhé?',
       howToSayExplain: 'Đây là câu hỏi cách nói rất thông dụng.',
-      howToSayPrompt: 'Em thử đọc lại câu chuẩn này một lần nhé?',
+      howToSayPrompt: 'Giờ em dùng câu chuẩn này để nói thêm một ý mới nhé?',
       howToSayExplainDynamic: (targetLanguage: string) => `Em đang hỏi cách nói câu này bằng ${targetLanguage}.`,
       fullSentence: 'Câu hoàn chỉnh',
       standardSentence: 'Câu chuẩn',
@@ -319,9 +319,9 @@ function localizedCoachLabels(nativeLanguageCode: string) {
       quickTranslation: 'Quick translation',
       teacherSaid: 'Teacher just said',
       repeatSlowly: 'No worries. I will repeat the previous sentence more slowly.',
-      askReplyAgain: 'Please try answering again using this sentence.',
+      askReplyAgain: 'Use this pattern to answer a new question.',
       howToSayExplain: 'This is a common “how to say it” question.',
-      howToSayPrompt: 'Please repeat this correct sentence once.',
+      howToSayPrompt: 'Now use this correct sentence pattern for a new idea.',
       howToSayExplainDynamic: (targetLanguage: string) => `You are asking how to say this sentence in ${targetLanguage}.`,
       fullSentence: 'Complete sentence',
       standardSentence: 'Correct sentence',
@@ -331,9 +331,9 @@ function localizedCoachLabels(nativeLanguageCode: string) {
       quickTranslation: 'แปลเร็ว',
       teacherSaid: 'ประโยคที่ครูเพิ่งพูด',
       repeatSlowly: 'ไม่เป็นไร เดี๋ยวครูพูดประโยคเมื่อกี้ช้า ๆ อีกครั้งนะ',
-      askReplyAgain: 'ลองตอบอีกครั้งด้วยประโยคนี้นะ',
+      askReplyAgain: 'ลองใช้ประโยคนี้ตอบคำถามใหม่ดูนะ',
       howToSayExplain: 'นี่เป็นคำถาม “พูดแบบนี้ว่าอย่างไร” ที่ใช้บ่อยมาก',
-      howToSayPrompt: 'ลองพูดประโยคมาตรฐานนี้อีกหนึ่งครั้งนะ',
+      howToSayPrompt: 'ตอนนี้ลองใช้รูปประโยคนี้พูดไอเดียใหม่ดูนะ',
       howToSayExplainDynamic: (targetLanguage: string) => `คุณกำลังถามว่า ประโยคนี้พูดเป็น ${targetLanguage} อย่างไร`,
       fullSentence: 'ประโยคสมบูรณ์',
       standardSentence: 'ประโยคมาตรฐาน',
@@ -343,9 +343,9 @@ function localizedCoachLabels(nativeLanguageCode: string) {
       quickTranslation: 'クイック訳',
       teacherSaid: '先生がさっき言った文',
       repeatSlowly: '大丈夫です。今の文をゆっくりもう一度言いますね。',
-      askReplyAgain: 'この文でもう一度答えてみましょう。',
+      askReplyAgain: 'この文型を使って、別の内容で答えてみましょう。',
       howToSayExplain: 'これはよく使う「どう言うの？」の質問です。',
-      howToSayPrompt: 'この自然な文を一度読んでみましょう。',
+      howToSayPrompt: 'この自然な文型を使って、新しい内容を一文で言ってみましょう。',
       howToSayExplainDynamic: (targetLanguage: string) => `この文を${targetLanguage}でどう言うかを聞いています。`,
       fullSentence: '完成文',
       standardSentence: '自然な文',
@@ -355,9 +355,9 @@ function localizedCoachLabels(nativeLanguageCode: string) {
       quickTranslation: '빠른 번역',
       teacherSaid: '방금 선생님이 말한 문장',
       repeatSlowly: '괜찮아요. 방금 문장을 천천히 다시 말해 줄게요.',
-      askReplyAgain: '이 문장으로 다시 대답해 볼까요?',
+      askReplyAgain: '이 문장 패턴으로 새로운 내용을 답해 볼까요?',
       howToSayExplain: '이건 자주 쓰는 “이걸 어떻게 말해요?” 질문이에요.',
-      howToSayPrompt: '이 자연스러운 문장을 한 번 따라 말해 보세요.',
+      howToSayPrompt: '이 자연스러운 문장 패턴으로 새 내용을 말해 보세요.',
       howToSayExplainDynamic: (targetLanguage: string) => `이 문장을 ${targetLanguage}로 어떻게 말하는지 묻고 있어요.`,
       fullSentence: '완성 문장',
       standardSentence: '표준 문장',
@@ -367,9 +367,9 @@ function localizedCoachLabels(nativeLanguageCode: string) {
       quickTranslation: '快速翻译',
       teacherSaid: '老师刚才说的句子',
       repeatSlowly: '没关系，我把刚才那句话慢慢再说一遍。',
-      askReplyAgain: '你再用这句话回答一次吧。',
+      askReplyAgain: '你用这个句型回答一个新问题吧。',
       howToSayExplain: '这是很常见的“这句话怎么说”提问。',
-      howToSayPrompt: '请把这句标准句再读一遍。',
+      howToSayPrompt: '现在请用这个标准句型说一个新意思。',
       howToSayExplainDynamic: (targetLanguage: string) => `你在问这句话用${targetLanguage}怎么说。`,
       fullSentence: '完整句子',
       standardSentence: '标准句子',
@@ -379,9 +379,9 @@ function localizedCoachLabels(nativeLanguageCode: string) {
       quickTranslation: 'त्वरित अनुवाद',
       teacherSaid: 'शिक्षक ने अभी कहा',
       repeatSlowly: 'कोई बात नहीं, मैं वही वाक्य धीरे से फिर बोलता/बोलती हूँ।',
-      askReplyAgain: 'कृपया इसी वाक्य से फिर उत्तर दें।',
+      askReplyAgain: 'कृपया इसी पैटर्न से एक नया जवाब दें।',
       howToSayExplain: 'यह बहुत सामान्य “इसे कैसे कहें” वाला प्रश्न है।',
-      howToSayPrompt: 'कृपया इस सही वाक्य को एक बार दोहराएँ।',
+      howToSayPrompt: 'अब इसी सही पैटर्न से एक नया वाक्य बोलें।',
       howToSayExplainDynamic: (targetLanguage: string) => `आप पूछ रहे हैं कि यह वाक्य ${targetLanguage} में कैसे कहें।`,
       fullSentence: 'पूरा वाक्य',
       standardSentence: 'मानक वाक्य',
@@ -1045,7 +1045,7 @@ ${studentText}`
   2) KHÔNG sửa nhiều; tối đa 1 lỗi trọng tâm nếu lỗi làm sai nghĩa.
   3) corrections chỉ trả tối đa 1 item, pronunciationTips tối đa 1 item.
   4) Giữ phản hồi thật ngắn, thiên về mẫu câu để học sinh nhại lại.
-  5) Mỗi lượt đều có lời mời học sinh nói lại 1 câu mới để duy trì nhịp phản xạ.
+  5) KHÔNG yêu cầu học sinh lặp lại nguyên văn câu vừa nói/vừa sửa; hãy đưa 1 câu hỏi mới hoặc nhiệm vụ biến đổi câu để tránh vòng lặp.
 - Tránh giải thích dài dòng ngữ pháp trong mode này.`
       }
       if (mode === 'roleplay_short') {
@@ -1144,7 +1144,7 @@ BẮT BUỘC phản hồi theo thứ tự tự nhiên:
 - Tỷ lệ ngôn ngữ: ~90% ${nativeLanguage}, ~10% ${targetLanguage}.
 - Câu mẫu ${targetLanguage}: siêu ngắn, 3-6 từ; tối đa 1 câu chính + 1 câu hỏi đóng.
 - Từ vựng: cực cơ bản, lặp lại có kiểm soát.
-- Cách phản hồi: khen ngắn + sửa 1 lỗi lớn nhất + yêu cầu lặp lại đúng đúng 1 câu.`
+- Cách phản hồi: khen ngắn + sửa 1 lỗi lớn nhất + yêu cầu tạo 1 câu mới theo mẫu (không lặp nguyên văn).`
         : learnerLevel === 1
           ? `PROMPT LEVEL 1 (độc lập):
 - Mục tiêu: beginner vững căn bản và bắt đầu tự nói.
@@ -1354,31 +1354,31 @@ ${text}`
     if (!parsed) {
       const fallbackByCode: Record<string, { reply: string; tip: string }> = {
         en: {
-          reply: "Nice try! Please say it again in one short sentence.",
+          reply: 'Nice try! Can you answer this with a new short sentence?',
           tip: 'Speak a little slower and stress key words clearly.',
         },
         zh: {
-          reply: '很好！请再用一句更短、更清楚的话说一遍。',
+          reply: '很好！请用一句更短、更清楚的新句子来回答。',
           tip: '先放慢语速，再把关键词说清楚。',
         },
         hi: {
-          reply: 'बहुत बढ़िया कोशिश! कृपया इसे एक छोटे, स्पष्ट वाक्य में फिर से कहें।',
+          reply: 'बहुत बढ़िया कोशिश! कृपया इसी विचार पर एक नया, छोटा और स्पष्ट वाक्य बोलें।',
           tip: 'थोड़ा धीरे बोलें और मुख्य शब्द साफ़ बोलें।',
         },
         th: {
-          reply: 'ดีมากครับ/ค่ะ ลองพูดอีกครั้งด้วยประโยคสั้น ๆ ที่ชัดเจนนะ',
+          reply: 'ดีมากครับ/ค่ะ ลองตอบด้วยประโยคใหม่สั้น ๆ ที่ชัดเจนนะ',
           tip: 'พูดช้าลงเล็กน้อยและเน้นคำสำคัญให้ชัดเจน',
         },
         ja: {
-          reply: 'いいですね。短くて分かりやすい一文でもう一度言ってみましょう。',
+          reply: 'いいですね。同じ内容を短く分かりやすい新しい一文で言ってみましょう。',
           tip: '少しゆっくり話して、キーワードをはっきり発音しましょう。',
         },
         ko: {
-          reply: '좋아요! 짧고 분명한 한 문장으로 다시 말해 볼까요?',
+          reply: '좋아요! 같은 뜻을 짧고 분명한 새 문장으로 말해 볼까요?',
           tip: '조금 천천히 말하고 핵심 단어를 또렷하게 발음해 보세요.',
         },
         vi: {
-          reply: 'Tốt lắm! Em thử nói lại bằng một câu ngắn, rõ ý nhé.',
+          reply: 'Tốt lắm! Em thử trả lời bằng một câu mới, ngắn và rõ ý nhé.',
           tip: 'Nói chậm hơn một chút và nhấn rõ từ khóa.',
         },
       }

@@ -2358,6 +2358,34 @@ export default function HocTiengAnhAiClientPage() {
     }, 180)
   }, [])
 
+  const persistWritingTaskSnapshot = useCallback(
+    async (task: WritingTask, retries = 2) => {
+      if (!task || !sessionId) return
+      const json = JSON.stringify({
+        messageId: task.messageId,
+        requiredSentences: task.requiredSentences,
+        currentIndex: task.currentIndex,
+        completed: task.completed,
+        teacherText: task.teacherText,
+        instruction: task.instruction,
+        referenceSentence: task.referenceSentence,
+        taskType: task.taskType,
+      })
+      const isDbId = Boolean(openedHistorySessionId && sessionId === openedHistorySessionId)
+      const res = await updateMessageTranslationApi({
+        messageId: task.messageId,
+        ...(isDbId ? {} : { sessionId, clientMessageId: task.messageId }),
+        writingTaskJson: json,
+      })
+      if (!res.ok && retries > 0) {
+        window.setTimeout(() => {
+          void persistWritingTaskSnapshot(task, retries - 1)
+        }, 700)
+      }
+    },
+    [openedHistorySessionId, sessionId]
+  )
+
   useEffect(() => {
     if (wasMiniWritingBlockedRef.current && !isMiniWritingBlocking) {
       requestAnimationFrame(() => {
@@ -2972,12 +3000,15 @@ export default function HocTiengAnhAiClientPage() {
       setWritingDraft('')
       setWritingTask((prev) => {
         if (!prev) return prev
-        if (isDone) return { ...prev, completed: true }
-        return {
+        const nextTask = isDone
+          ? { ...prev, completed: true }
+          : {
           ...prev,
           currentIndex: nextIndex,
           referenceSentence: prev.requiredSentences[nextIndex] || prev.referenceSentence,
         }
+        void persistWritingTaskSnapshot(nextTask, 2)
+        return nextTask
       })
     } catch (e) {
       const msg = unknownErrorMsg(e)
@@ -3047,12 +3078,15 @@ export default function HocTiengAnhAiClientPage() {
         })
         setWritingDraft('')
         setWritingInputStatus('idle')
-        if (isDone) return { ...prev, completed: true }
-        return {
+        const nextTask = isDone
+          ? { ...prev, completed: true }
+          : {
           ...prev,
           currentIndex: nextIndex,
           referenceSentence: prev.requiredSentences[nextIndex] || prev.referenceSentence,
         }
+        void persistWritingTaskSnapshot(nextTask, 2)
+        return nextTask
       })
     }, 220)
 
@@ -3061,23 +3095,8 @@ export default function HocTiengAnhAiClientPage() {
 
   useEffect(() => {
     if (!writingTask || !sessionId) return
-    const json = JSON.stringify({
-      messageId: writingTask.messageId,
-      requiredSentences: writingTask.requiredSentences,
-      currentIndex: writingTask.currentIndex,
-      completed: writingTask.completed,
-      teacherText: writingTask.teacherText,
-      instruction: writingTask.instruction,
-      referenceSentence: writingTask.referenceSentence,
-      taskType: writingTask.taskType,
-    })
-    const isDbId = Boolean(openedHistorySessionId && sessionId === openedHistorySessionId)
-    void updateMessageTranslationApi({
-      messageId: writingTask.messageId,
-      ...(isDbId ? {} : { sessionId, clientMessageId: writingTask.messageId }),
-      writingTaskJson: json,
-    }).catch(() => {})
-  }, [writingTask, sessionId, openedHistorySessionId])
+    void persistWritingTaskSnapshot(writingTask, 2)
+  }, [writingTask, sessionId, persistWritingTaskSnapshot])
 
   useEffect(() => {
     if (typeof window === 'undefined' || !sessionId) return
@@ -4991,7 +5010,9 @@ export default function HocTiengAnhAiClientPage() {
       const firstFromIntent = takeFirstSentenceOnly(String(intentAnswer || extractTeacherSpeechText(payload.reply)).trim())
       const copyTargets = Array.from(new Set([firstFromMain, firstFromIntent].filter(Boolean)))
       if (learningMode === 'review') {
-        setWritingTask(buildWritingTask(teacherMessageId, payload.reply, copyTargets))
+        const nextTask = buildWritingTask(teacherMessageId, payload.reply, copyTargets)
+        setWritingTask(nextTask)
+        void persistWritingTaskSnapshot(nextTask, 2)
       } else {
         setWritingTask(null)
       }
