@@ -1983,6 +1983,7 @@ export default function HocTiengAnhAiClientPage() {
   const mixedRecorderRef = useRef<MediaRecorder | null>(null)
   const mixedChunksRef = useRef<BlobPart[]>([])
   const pendingRecordingBlobRef = useRef<Blob | null>(null)
+  const recordingMimeTypeRef = useRef<string>('')
   const micStreamRef = useRef<MediaStream | null>(null)
   const micSilenceStopTimerRef = useRef<number | null>(null)
   const micMaxDurationTimerRef = useRef<number | null>(null)
@@ -3291,6 +3292,13 @@ export default function HocTiengAnhAiClientPage() {
   const replayTeacherMessage = async (messageId: string, text: string) => {
     const key = `${messageId}__full`
     if (ttsLoadingByKey[key]) return
+    if (listening) {
+      try {
+        await stopMixedRecording()
+      } catch {
+        // continue replay flow even if mic stop fails
+      }
+    }
     const cached = teacherAudioByMessageIdRef.current[messageId]
     let raw = String(teacherSpeakTextByMessageId[messageId] || text || '').trim()
     if (learningMode === 'reflex' && !teacherSpeakTextByMessageId[messageId]) {
@@ -3331,12 +3339,19 @@ export default function HocTiengAnhAiClientPage() {
     const textForTts = stripPhoneticForTts(correctionNote, languageCode)
     const key = `${messageId}__correction_note`
     if (ttsLoadingByKey[key]) return
+    if (listening) {
+      try {
+        await stopMixedRecording()
+      } catch {
+        // continue replay flow even if mic stop fails
+      }
+    }
     const cached = teacherAudioByMessageIdRef.current[key]
     if (cached) {
       await playAudioUrl(cached)
       return
     }
-    if (busy || listening) return
+    if (busy) return
     setTtsLoadingByKey((prev) => ({ ...prev, [key]: true }))
     try {
       const generated = await playBestEffortTts(textForTts)
@@ -3356,6 +3371,13 @@ export default function HocTiengAnhAiClientPage() {
     const textForTts = stripPhoneticForTts(intentAnswer, languageCode)
     const key = `${messageId}__intent_answer`
     if (ttsLoadingByKey[key]) return
+    if (listening) {
+      try {
+        await stopMixedRecording()
+      } catch {
+        // continue replay flow even if mic stop fails
+      }
+    }
     const cached = teacherAudioByMessageIdRef.current[key]
     if (cached) {
       await playAudioUrl(cached)
@@ -3635,7 +3657,6 @@ export default function HocTiengAnhAiClientPage() {
   }
 
   const isReplayButtonDisabled = (key: string, hasCached: boolean) => {
-    if (listening) return true
     if (ttsLoadingByKey[key]) return true
     if (busy && !hasCached) return true
     return false
@@ -5249,7 +5270,21 @@ export default function HocTiengAnhAiClientPage() {
   const startMixedRecording = async () => {
     const media = await navigator.mediaDevices.getUserMedia({ audio: true })
     micStreamRef.current = media
-    const recorder = new MediaRecorder(media)
+    const preferredMimeTypes = [
+      'audio/mp4;codecs=mp4a.40.2',
+      'audio/mp4',
+      'audio/webm;codecs=opus',
+      'audio/webm',
+    ]
+    const supportedMimeType = preferredMimeTypes.find((mime) =>
+      typeof MediaRecorder !== 'undefined'
+      && typeof MediaRecorder.isTypeSupported === 'function'
+      && MediaRecorder.isTypeSupported(mime)
+    )
+    const recorder = supportedMimeType
+      ? new MediaRecorder(media, { mimeType: supportedMimeType })
+      : new MediaRecorder(media)
+    recordingMimeTypeRef.current = recorder.mimeType || supportedMimeType || ''
     mixedChunksRef.current = []
     recorder.ondataavailable = (event) => {
       if (event.data && event.data.size > 0) mixedChunksRef.current.push(event.data)
@@ -5367,8 +5402,12 @@ export default function HocTiengAnhAiClientPage() {
     mixedRecorderRef.current = null
     setListening(false)
 
-    const blob = new Blob(mixedChunksRef.current, { type: 'audio/webm' })
+    const preferredMimeType = String(recordingMimeTypeRef.current || '').trim()
+    const chunkMimeType = String(mixedChunksRef.current[0]?.type || '').trim()
+    const finalMimeType = preferredMimeType || chunkMimeType || 'audio/webm'
+    const blob = new Blob(mixedChunksRef.current, { type: finalMimeType })
     mixedChunksRef.current = []
+    recordingMimeTypeRef.current = ''
     if (blob.size === 0) {
       throw new Error(localText('Không thu được âm thanh từ mic.', 'No audio captured from microphone.'))
     }
@@ -5425,10 +5464,37 @@ export default function HocTiengAnhAiClientPage() {
   const handlePlaybackRecording = () => {
     const blob = pendingRecordingBlobRef.current
     if (!blob) return
+    if (audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current.src = ''
+    }
     const url = URL.createObjectURL(blob)
     const audio = new Audio(url)
+    audio.playbackRate = playbackSpeedRef.current
+    audioRef.current = audio
     audio.onended = () => URL.revokeObjectURL(url)
-    void audio.play().catch(() => URL.revokeObjectURL(url))
+    audio.onerror = () => {
+      URL.revokeObjectURL(url)
+      toast({
+        title: localText('Không phát được ghi âm', 'Unable to play recording'),
+        description: localText(
+          'Thiết bị hiện tại không hỗ trợ định dạng ghi âm này. Hãy bấm "Nói lại" để thử lại.',
+          'This device does not support the recorded audio format. Please tap "Record again" and try once more.'
+        ),
+        variant: 'destructive',
+      })
+    }
+    void audio.play().catch(() => {
+      URL.revokeObjectURL(url)
+      toast({
+        title: localText('Không phát được ghi âm', 'Unable to play recording'),
+        description: localText(
+          'iPhone có thể đã chặn phát âm thanh. Hãy bấm lại "Nghe lại" hoặc "Nói lại".',
+          'iPhone may have blocked audio playback. Please tap "Play back" again or "Record again".'
+        ),
+        variant: 'destructive',
+      })
+    })
   }
 
   const handleRecordAgain = () => {
