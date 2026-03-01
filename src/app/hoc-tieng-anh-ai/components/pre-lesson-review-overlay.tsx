@@ -185,6 +185,14 @@ export function PreLessonReviewOverlay({
     localText('2. Nghe và gõ từ', '2. Listen and type the word'),
     localText('3. Recall 2 chiều (từ ↔ nghĩa)', '3. Two-way recall (word ↔ meaning)'),
   ]
+  const statusTextColor =
+    inputCheckStatus === 'correct'
+      ? '#065f46'
+      : inputCheckStatus === 'partial'
+        ? '#1d4ed8'
+        : inputCheckStatus === 'incorrect'
+          ? '#b91c1c'
+          : undefined
 
   useEffect(() => {
     if (!currentWord || wrongHint || submittedRef.current) return
@@ -477,6 +485,7 @@ export function PreLessonReviewOverlay({
                     inputCheckStatus === 'partial' && 'border-sky-300 bg-sky-50 text-sky-800 focus-visible:ring-sky-400',
                     inputCheckStatus === 'incorrect' && 'border-rose-500 bg-rose-50 text-rose-800 focus-visible:ring-rose-500'
                   )}
+                  style={{ color: statusTextColor }}
                   autoFocus
                 />
               </div>
@@ -542,6 +551,7 @@ export function PreLessonReviewOverlay({
                       inputCheckStatus === 'partial' && 'border-sky-300 bg-sky-50 text-sky-800 focus-visible:ring-sky-400',
                       inputCheckStatus === 'incorrect' && 'border-rose-500 bg-rose-50 text-rose-800 focus-visible:ring-rose-500'
                     )}
+                    style={{ color: statusTextColor }}
                     autoFocus
                   />
                   {inputCheckStatus === 'incorrect' && (
@@ -613,6 +623,7 @@ export function PreLessonReviewOverlay({
                       inputCheckStatus === 'partial' && 'border-sky-300 bg-sky-50 text-sky-800 focus-visible:ring-sky-400',
                       inputCheckStatus === 'incorrect' && 'border-rose-500 bg-rose-50 text-rose-800 focus-visible:ring-rose-500'
                     )}
+                    style={{ color: statusTextColor }}
                     autoFocus
                   />
                   {inputCheckStatus === 'incorrect' && (
