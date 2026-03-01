@@ -1,7 +1,6 @@
 import { Metadata } from 'next'
 import dynamic from 'next/dynamic'
 import { buildMetadata } from '@/lib/seo'
-import { LiveLessonsMarketplace } from './components/live-lessons-marketplace'
 
 const HocTiengAnhAiClientPage = dynamic(() => import('./hoc-tieng-anh-ai-client-page'), { ssr: false })
 
@@ -15,9 +14,8 @@ export const metadata: Metadata = buildMetadata({
 
 export default function HocTiengAnhAiPage() {
   return (
-    <div className="app-shell space-y-8">
+    <div className="app-shell">
       <HocTiengAnhAiClientPage />
-      <LiveLessonsMarketplace />
     </div>
   )
 }
