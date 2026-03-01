@@ -1461,6 +1461,7 @@ export async function POST(request: NextRequest) {
                 minPronunciationScore: presetTurnDrill.speaking.minPronunciationScore,
               }
             : undefined,
+          startMiniPack: learningMode === 'review',
           replayedFromPreset: true,
         })
       }
@@ -2756,6 +2757,7 @@ ${intentAnswer || parsed.reply}`
       mainSentence,
       mustKnowText,
       reviewDrill: responseReviewDrill,
+      startMiniPack: learningMode === 'review',
     })
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Lỗi không xác định.'

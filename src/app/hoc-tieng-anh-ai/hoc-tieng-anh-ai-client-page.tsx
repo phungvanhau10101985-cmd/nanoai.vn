@@ -1842,7 +1842,7 @@ export default function HocTiengAnhAiClientPage() {
   const [recordingPending, setRecordingPending] = useState(false)
   const [busy, setBusy] = useState(false)
   const [awaitingTeacherReply, setAwaitingTeacherReply] = useState(false)
-  const [reviewDrillStage, setReviewDrillStage] = useState<'idle' | 'speaking' | 'listening'>('idle')
+  const [reviewDrillStage, setReviewDrillStage] = useState<'idle' | 'writing' | 'speaking' | 'listening'>('idle')
   const [reviewListeningPopupOpen, setReviewListeningPopupOpen] = useState(false)
   const [reviewListeningPrompt, setReviewListeningPrompt] = useState('')
   const [reviewListeningOptions, setReviewListeningOptions] = useState<string[]>([])
@@ -5135,6 +5135,7 @@ export default function HocTiengAnhAiClientPage() {
           minSimilarity?: number
           minPronunciationScore?: number
         }
+        startMiniPack?: boolean
         error?: string
       }
       if (!ok || !payload.reply) {
@@ -5214,11 +5215,12 @@ export default function HocTiengAnhAiClientPage() {
       const firstFromMain = takeFirstSentenceOnly(String(mainSentence || '').trim())
       const firstFromIntent = takeFirstSentenceOnly(String(intentAnswer || extractTeacherSpeechText(payload.reply)).trim())
       const copyTargets = Array.from(new Set([firstFromMain, firstFromIntent].filter(Boolean)))
-      if (learningMode === 'review' && !payload.reviewDrill?.type) {
+      if (learningMode === 'review' && payload.startMiniPack) {
+        setReviewDrillStage('writing')
         const nextTask = buildWritingTask(teacherMessageId, payload.reply, copyTargets)
         setWritingTask(nextTask)
         void persistWritingTaskSnapshot(nextTask, 2)
-      } else {
+      } else if (payload.reviewDrill?.type === 'speaking' || payload.reviewDrill?.type === 'listening' || payload.reviewDrill?.type === 'done') {
         setWritingTask(null)
       }
       setWritingDraft('')
@@ -7298,9 +7300,11 @@ export default function HocTiengAnhAiClientPage() {
               <div ref={speakActionsRef} className="min-w-0 space-y-2">
                 {learningMode === 'review' && reviewDrillStage !== 'idle' ? (
                   <div className="rounded-md border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs text-indigo-700">
-                    {reviewDrillStage === 'speaking'
-                      ? localText('Mini-drill 1/2: Nói lại câu sửa để luyện phát âm', 'Mini-drill 1/2: Repeat the corrected sentence')
-                      : localText('Mini-drill 2/2: Chọn từ bạn nghe thấy', 'Mini-drill 2/2: Pick words you heard')}
+                    {reviewDrillStage === 'writing'
+                      ? localText('Mini 1/3: Viết lại câu mục tiêu', 'Mini 1/3: Rewrite the target sentence')
+                      : reviewDrillStage === 'speaking'
+                        ? localText('Mini 2/3: Nói lại câu sửa để luyện phát âm', 'Mini 2/3: Repeat the corrected sentence')
+                        : localText('Mini 3/3: Chọn từ bạn nghe thấy', 'Mini 3/3: Pick words you heard')}
                   </div>
                 ) : null}
                 <div className="flex min-w-0 items-center gap-2 sm:flex-1">
