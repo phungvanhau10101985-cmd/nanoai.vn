@@ -1843,6 +1843,7 @@ export default function HocTiengAnhAiClientPage() {
   const [busy, setBusy] = useState(false)
   const [awaitingTeacherReply, setAwaitingTeacherReply] = useState(false)
   const [reviewDrillStage, setReviewDrillStage] = useState<'idle' | 'writing' | 'speaking' | 'listening'>('idle')
+  const [reviewSpeakingTargetSentence, setReviewSpeakingTargetSentence] = useState('')
   const [reviewListeningPopupOpen, setReviewListeningPopupOpen] = useState(false)
   const [reviewListeningPrompt, setReviewListeningPrompt] = useState('')
   const [reviewListeningOptions, setReviewListeningOptions] = useState<string[]>([])
@@ -5176,6 +5177,7 @@ export default function HocTiengAnhAiClientPage() {
       setTeacherSpeakTextByMessageId((prev) => ({ ...prev, [teacherMessageId]: speakText }))
       if (payload.reviewDrill?.type === 'speaking') {
         setReviewDrillStage('speaking')
+        setReviewSpeakingTargetSentence(String(payload.reviewDrill.targetSentence || '').trim())
       } else if (payload.reviewDrill?.type === 'listening') {
         setReviewDrillStage('listening')
         const optsWords = Array.isArray(payload.reviewDrill.options)
@@ -5185,7 +5187,7 @@ export default function HocTiengAnhAiClientPage() {
           setReviewListeningPrompt(String(payload.reviewDrill.prompt || mainSentence || payload.reply || '').trim())
           setReviewListeningOptions(optsWords)
           setReviewListeningSelected([])
-          setReviewListeningPopupOpen(true)
+          setReviewListeningPopupOpen(false)
         }
       } else if (payload.reviewDrill?.type === 'done') {
         setReviewDrillStage('idle')
@@ -5203,9 +5205,13 @@ export default function HocTiengAnhAiClientPage() {
         setReviewDrillStage('writing')
         const nextTask = buildWritingTask(teacherMessageId, payload.reply, copyTargets)
         setWritingTask(nextTask)
+        if (copyTargets.length > 0 && !String(payload.reviewDrill?.targetSentence || '').trim()) {
+          setReviewSpeakingTargetSentence(String(copyTargets[0] || '').trim())
+        }
         void persistWritingTaskSnapshot(nextTask, 2)
-      } else if (payload.reviewDrill?.type === 'speaking' || payload.reviewDrill?.type === 'listening' || payload.reviewDrill?.type === 'done') {
+      } else if (payload.reviewDrill?.type === 'done') {
         setWritingTask(null)
+        setReviewSpeakingTargetSentence('')
       }
       setWritingDraft('')
       setWritingEvalResult(null)
@@ -7606,6 +7612,98 @@ export default function HocTiengAnhAiClientPage() {
                         ) : null}
                       </div>
                     ) : null}
+                  </div>
+                </div>
+              ) : null}
+              {learningMode === 'review' &&
+                writingTask?.completed &&
+                (reviewDrillStage === 'writing' || reviewDrillStage === 'speaking') ? (
+                <div className="min-w-0 rounded-md border border-indigo-200 bg-indigo-50/60 p-2.5">
+                  <p className="text-sm font-semibold text-indigo-800">
+                    {localText('Mini 2/3: Nói lại câu sửa', 'Mini 2/3: Repeat the corrected sentence')}
+                  </p>
+                  <p className="mt-1 text-xs text-indigo-700">
+                    {localText(
+                      'Dùng nút mic bên dưới để nói lại câu mục tiêu. Chỉ khi nói đúng mới mở lượt nghe tiếp theo.',
+                      'Use the mic button below to repeat the target sentence. Only correct pronunciation unlocks the next listening turn.'
+                    )}
+                  </p>
+                  {reviewSpeakingTargetSentence ? (
+                    <p className="mt-2 rounded border border-indigo-200 bg-white px-2 py-1.5 text-sm font-medium text-slate-800">
+                      {reviewSpeakingTargetSentence}
+                    </p>
+                  ) : null}
+                  <div className="mt-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void replayCorrectionSentence(reviewSpeakingTargetSentence)}
+                      disabled={!reviewSpeakingTargetSentence || isReplayButtonDisabled(correctionAudioKey(reviewSpeakingTargetSentence), hasCachedTeacherAudio(correctionAudioKey(reviewSpeakingTargetSentence)))}
+                    >
+                      <Volume2 className="mr-2 h-4 w-4" />
+                      {localText('Nghe câu mục tiêu', 'Play target sentence')}
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+              {learningMode === 'review' && reviewDrillStage === 'listening' && reviewListeningOptions.length > 0 ? (
+                <div className="min-w-0 rounded-md border border-emerald-200 bg-emerald-50/60 p-2.5">
+                  <p className="text-sm font-semibold text-emerald-800">
+                    {localText('Mini 3/3: Chọn từ bạn nghe thấy', 'Mini 3/3: Pick words you heard')}
+                  </p>
+                  <p className="mt-1 text-xs text-emerald-700">
+                    {localText(
+                      'Nghe lại câu của giáo viên và chọn các từ bạn nghe thấy.',
+                      'Listen to the teacher line again and pick words you heard.'
+                    )}
+                  </p>
+                  {reviewListeningPrompt ? (
+                    <p className="mt-2 rounded border border-emerald-200 bg-white px-2 py-1.5 text-sm text-slate-700">
+                      {reviewListeningPrompt}
+                    </p>
+                  ) : null}
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {reviewListeningOptions.map((word) => {
+                      const active = reviewListeningSelected.includes(word)
+                      return (
+                        <Button
+                          key={word}
+                          type="button"
+                          variant={active ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => {
+                            setReviewListeningSelected((prev) =>
+                              prev.includes(word) ? prev.filter((x) => x !== word) : [...prev, word]
+                            )
+                          }}
+                          className="h-auto min-h-[36px] whitespace-normal"
+                        >
+                          {word}
+                        </Button>
+                      )
+                    })}
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      onClick={() => void submitReviewListeningDrill()}
+                      disabled={reviewListeningSubmitBusy}
+                      className="min-h-[36px]"
+                    >
+                      {reviewListeningSubmitBusy
+                        ? localText('Đang chấm...', 'Checking...')
+                        : localText('Nộp đáp án nghe', 'Submit listening answer')}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => void replayCorrectionSentence(reviewListeningPrompt)}
+                      disabled={reviewListeningSubmitBusy}
+                      className="min-h-[36px]"
+                    >
+                      {localText('Nghe lại câu', 'Play line again')}
+                    </Button>
                   </div>
                 </div>
               ) : null}
