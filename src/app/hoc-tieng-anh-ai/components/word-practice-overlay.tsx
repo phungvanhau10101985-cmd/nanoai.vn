@@ -100,12 +100,19 @@ export function WordPracticeOverlay({
               placeholder={t('Type the new word...')}
               className={cn(
                 'h-11 text-base',
-                practiceInputStatus === 'correct' && 'border-emerald-500 bg-emerald-50 focus-visible:ring-emerald-500',
-                practiceInputStatus === 'partial' && 'border-sky-300 bg-sky-50 focus-visible:ring-sky-400',
-                practiceInputStatus === 'incorrect' && 'border-rose-500 bg-rose-50 focus-visible:ring-rose-500'
+                practiceInputStatus === 'correct' && 'border-emerald-500 bg-emerald-50 text-emerald-800 focus-visible:ring-emerald-500',
+                practiceInputStatus === 'partial' && 'border-sky-300 bg-sky-50 text-sky-800 focus-visible:ring-sky-400',
+                practiceInputStatus === 'incorrect' && 'border-rose-500 bg-rose-50 text-rose-800 focus-visible:ring-rose-500'
               )}
               autoFocus
             />
+            {practiceInputStatus === 'incorrect' ? (
+              <p className="mt-1 text-xs text-rose-700">{t('Wrong spelling, keep typing to fix it.')}</p>
+            ) : practiceInputStatus === 'partial' ? (
+              <p className="mt-1 text-xs text-sky-700">{t('Correct so far, continue typing.')}</p>
+            ) : practiceInputStatus === 'correct' ? (
+              <p className="mt-1 text-xs text-emerald-700">{t('Correct!')}</p>
+            ) : null}
           </div>
         ) : (
           <div className="mt-3">

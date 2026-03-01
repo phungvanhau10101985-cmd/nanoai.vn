@@ -200,7 +200,7 @@ export function PreLessonReviewOverlay({
     const inputLen = normalizedInput.length
     const targetLen = normalizeWordForCompare(targetWord).length
     const lengthMatches = isCjk && inputLen > 0 && inputLen === targetLen
-    const checkDebounceMs = justComposed ? 200 : lengthMatches ? 250 : isCjk ? 500 : 400
+    const checkDebounceMs = justComposed ? 100 : lengthMatches ? 120 : isCjk ? 220 : 160
 
     const timer = setTimeout(() => {
       if (submittedRef.current || isComposingRef.current) return
@@ -274,7 +274,7 @@ export function PreLessonReviewOverlay({
     const justComposed = compositionEndAt > 0 && Date.now() - compositionEndAt < 600
     const targetNorm = normalizeWordForCompare(targetWord)
     const lengthMatches = isCjk && normalizedInput.length > 0 && normalizedInput.length === targetNorm.length
-    const debounceMs = justComposed ? 200 : lengthMatches ? 250 : isCjk ? 500 : 400
+    const debounceMs = justComposed ? 100 : lengthMatches ? 120 : isCjk ? 220 : 160
 
     const timer = setTimeout(() => {
       setCompositionEndAt(0)
@@ -473,12 +473,25 @@ export function PreLessonReviewOverlay({
                   placeholder={localText('Gõ từ...', 'Type the word...')}
                   className={cn(
                     'h-11 text-base',
-                    inputCheckStatus === 'correct' && 'border-emerald-500 bg-emerald-50 focus-visible:ring-emerald-500',
-                    inputCheckStatus === 'partial' && 'border-sky-300 bg-sky-50 focus-visible:ring-sky-400',
-                    inputCheckStatus === 'incorrect' && 'border-rose-500 bg-rose-50 focus-visible:ring-rose-500'
+                    inputCheckStatus === 'correct' && 'border-emerald-500 bg-emerald-50 text-emerald-800 focus-visible:ring-emerald-500',
+                    inputCheckStatus === 'partial' && 'border-sky-300 bg-sky-50 text-sky-800 focus-visible:ring-sky-400',
+                    inputCheckStatus === 'incorrect' && 'border-rose-500 bg-rose-50 text-rose-800 focus-visible:ring-rose-500'
                   )}
                   autoFocus
                 />
+                {inputCheckStatus === 'incorrect' ? (
+                  <p className="mt-1 text-xs text-rose-700">
+                    {localText('Sai rồi, sửa ngay trong ô này.', 'Incorrect, fix it directly in this input.')}
+                  </p>
+                ) : inputCheckStatus === 'partial' ? (
+                  <p className="mt-1 text-xs text-sky-700">
+                    {localText('Đúng phần đầu, tiếp tục gõ.', 'Correct so far, keep typing.')}
+                  </p>
+                ) : inputCheckStatus === 'correct' ? (
+                  <p className="mt-1 text-xs text-emerald-700">
+                    {localText('Đúng rồi!', 'Correct!')}
+                  </p>
+                ) : null}
               </div>
             )}
             {wrongHint.type === 'recall' && (
@@ -538,12 +551,25 @@ export function PreLessonReviewOverlay({
                     }
                     className={cn(
                       'h-11 text-base',
-                      inputCheckStatus === 'correct' && 'border-emerald-500 bg-emerald-50 focus-visible:ring-emerald-500',
-                      inputCheckStatus === 'partial' && 'border-sky-300 bg-sky-50 focus-visible:ring-sky-400',
-                      inputCheckStatus === 'incorrect' && 'border-rose-500 bg-rose-50 focus-visible:ring-rose-500'
+                      inputCheckStatus === 'correct' && 'border-emerald-500 bg-emerald-50 text-emerald-800 focus-visible:ring-emerald-500',
+                      inputCheckStatus === 'partial' && 'border-sky-300 bg-sky-50 text-sky-800 focus-visible:ring-sky-400',
+                      inputCheckStatus === 'incorrect' && 'border-rose-500 bg-rose-50 text-rose-800 focus-visible:ring-rose-500'
                     )}
                     autoFocus
                   />
+                  {inputCheckStatus === 'incorrect' ? (
+                    <p className="mt-1 text-xs text-rose-700">
+                      {localText('Sai rồi, sửa ngay trong ô này.', 'Incorrect, fix it directly in this input.')}
+                    </p>
+                  ) : inputCheckStatus === 'partial' ? (
+                    <p className="mt-1 text-xs text-sky-700">
+                      {localText('Đúng phần đầu, tiếp tục gõ.', 'Correct so far, keep typing.')}
+                    </p>
+                  ) : inputCheckStatus === 'correct' ? (
+                    <p className="mt-1 text-xs text-emerald-700">
+                      {localText('Đúng rồi!', 'Correct!')}
+                    </p>
+                  ) : null}
                   {inputCheckStatus === 'incorrect' && (
                     <Button
                       type="button"

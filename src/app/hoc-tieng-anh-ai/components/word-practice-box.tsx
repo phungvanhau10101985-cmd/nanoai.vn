@@ -61,9 +61,9 @@ export function WordPracticeBox({
               placeholder={localText('Gõ lại từ mới...', 'Type the new word...')}
               className={cn(
                 'mt-1 h-9 rounded-lg text-xs',
-                practiceInputStatus === 'correct' && 'border-emerald-500 bg-emerald-50 focus:ring-emerald-500',
-                practiceInputStatus === 'partial' && 'border-sky-300 bg-sky-50 focus:ring-sky-400',
-                practiceInputStatus === 'incorrect' && 'border-rose-500 bg-rose-50 focus:ring-rose-500'
+                practiceInputStatus === 'correct' && 'border-emerald-500 bg-emerald-50 text-emerald-800 focus:ring-emerald-500',
+                practiceInputStatus === 'partial' && 'border-sky-300 bg-sky-50 text-sky-800 focus:ring-sky-400',
+                practiceInputStatus === 'incorrect' && 'border-rose-500 bg-rose-50 text-rose-800 focus:ring-rose-500'
               )}
               disabled={active.awaitingMeaningChoice}
             />
@@ -77,6 +77,19 @@ export function WordPracticeBox({
               {localText('Hủy', 'Cancel')}
             </Button>
           </div>
+          {practiceInputStatus === 'incorrect' ? (
+            <p className="mt-1 text-[11px] text-rose-700">
+              {localText('Sai chữ, tiếp tục gõ để sửa ngay.', 'Wrong spelling, keep typing to fix it.')}
+            </p>
+          ) : practiceInputStatus === 'partial' ? (
+            <p className="mt-1 text-[11px] text-sky-700">
+              {localText('Đúng phần đầu, gõ tiếp.', 'Correct so far, keep typing.')}
+            </p>
+          ) : practiceInputStatus === 'correct' ? (
+            <p className="mt-1 text-[11px] text-emerald-700">
+              {localText('Đúng rồi!', 'Correct!')}
+            </p>
+          ) : null}
           {active.awaitingMeaningChoice && active.meaningOptions.length > 0 ? (
             <div className="mt-1 flex flex-wrap gap-1">
               {active.meaningOptions.map((option, idx) => (

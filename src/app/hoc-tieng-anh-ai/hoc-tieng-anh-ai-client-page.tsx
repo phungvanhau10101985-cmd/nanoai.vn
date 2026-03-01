@@ -1874,22 +1874,6 @@ export default function HocTiengAnhAiClientPage() {
   const [wordPractice, setWordPractice] = useState<WordPracticeProgress | null>(null)
   const [practiceInputStatus, setPracticeInputStatus] = useState<'idle' | 'partial' | 'correct' | 'incorrect'>('idle')
 
-  // Debounce hook
-  function useDebounce<T>(value: T, delay: number): T {
-    const [debouncedValue, setDebouncedValue] = useState<T>(value)
-    useEffect(() => {
-      const handler = setTimeout(() => {
-        setDebouncedValue(value)
-      }, delay)
-      return () => {
-        clearTimeout(handler)
-      }
-    }, [value, delay])
-    return debouncedValue
-  }
-
-  const debouncedDraft = useDebounce(wordPractice?.draft, 500)
-
   useEffect(() => {
     if (!wordPractice || wordPractice.unlocked) return
     // Lock active practice flow: block Escape so learner cannot dismiss by keyboard shortcuts.
@@ -1959,12 +1943,12 @@ export default function HocTiengAnhAiClientPage() {
   }
 
   useEffect(() => {
-    if (!wordPractice || debouncedDraft === undefined || wordPractice.awaitingMeaningChoice) {
+    if (!wordPractice || wordPractice.awaitingMeaningChoice) {
       setPracticeInputStatus('idle')
       return
     }
 
-    const normalizedDraft = normalizeWordPracticeText(debouncedDraft)
+    const normalizedDraft = normalizeWordPracticeText(wordPractice.draft)
     if (!normalizedDraft) {
       setPracticeInputStatus('idle')
       return
@@ -1982,7 +1966,7 @@ export default function HocTiengAnhAiClientPage() {
     } else {
       setPracticeInputStatus('incorrect')
     }
-  }, [debouncedDraft, wordPractice])
+  }, [wordPractice])
 
   const [wordInsightByKey, setWordInsightByKey] = useState<Record<string, WordInsight>>({})
   const [openedWordKey, setOpenedWordKey] = useState('')
@@ -7492,11 +7476,11 @@ export default function HocTiengAnhAiClientPage() {
                         disabled={writingBusy}
                         className={`min-w-0 flex-1 ${
                           writingInputStatus === 'matched'
-                            ? 'border-emerald-400 bg-emerald-50'
+                            ? 'border-emerald-400 bg-emerald-50 text-emerald-800'
                             : writingInputStatus === 'incorrect'
-                              ? 'border-rose-400 bg-rose-50'
+                              ? 'border-rose-400 bg-rose-50 text-rose-800'
                               : writingInputStatus === 'partial'
-                                ? 'border-sky-300 bg-sky-50'
+                                ? 'border-sky-300 bg-sky-50 text-sky-800'
                                 : ''
                         }`}
                       />
