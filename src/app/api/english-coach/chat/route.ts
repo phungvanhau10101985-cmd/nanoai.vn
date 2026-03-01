@@ -86,6 +86,7 @@ type SessionPinnedFacts = {
 
 type PresetReplayTurn = {
   reply: string
+  expectedStudent?: string
   correctionNote?: string
   mainSentence?: string
   intentAnswer?: string
@@ -164,6 +165,7 @@ function parsePresetReplay(raw: string): PresetReplayState | null {
         if (!reply) return null
         return {
           reply,
+          expectedStudent: String(row.expectedStudent || row.expected_student || '').trim() || undefined,
           correctionNote: String(row.correctionNote || '').trim() || undefined,
           mainSentence: String(row.mainSentence || '').trim() || undefined,
           intentAnswer: String(row.intentAnswer || '').trim() || undefined,
@@ -180,6 +182,33 @@ function parsePresetReplay(raw: string): PresetReplayState | null {
   } catch {
     return null
   }
+}
+
+function strictReplayRetryPromptByLanguageCode(
+  code: string,
+  expectedStudent: string,
+  targetLanguage: string,
+  seed = 0
+): string {
+  const expected = String(expectedStudent || '').trim()
+  if (!expected) return fallbackFollowUpByLanguageCode(code, targetLanguage)
+  if (code === 'vi') {
+    const prompts = [
+      'Đến lượt em nhé. Nói câu này:',
+      'Rất tốt, giờ em nói theo mẫu này:',
+      'Giờ em thử nói câu sau thật rõ:',
+      'Mình tiếp tục nhé, em nói câu này:',
+      'Em nói đúng câu mục tiêu của lượt này:',
+    ]
+    const idx = Math.abs(Math.floor(seed)) % prompts.length
+    return `${prompts[idx]} "${expected}".`
+  }
+  if (code === 'zh') return `请你再读一遍这句话： "${expected}"。`
+  if (code === 'ja') return `次の文をそのまま言ってください: "${expected}"。`
+  if (code === 'ko') return `다음 문장을 그대로 말해 주세요: "${expected}".`
+  if (code === 'th') return `พูดประโยคนี้ให้ตรงตามต้นฉบับ: "${expected}".`
+  if (code === 'hi') return `कृपया यह वाक्य बिल्कुल वैसे ही बोलें: "${expected}"।`
+  return `Please repeat this sentence exactly: "${expected}".`
 }
 
 function mergeUniqueLimited(base: string[], add: string[], limit: number): string[] {
@@ -1040,6 +1069,28 @@ export async function POST(request: NextRequest) {
       const turnIdx = Math.max(0, Math.floor(Number(presetReplay.nextTurnIndex || 0)))
       const turn = presetReplay.turns[turnIdx]
       if (turn) {
+        const expectedStudent = String(turn.expectedStudent || '').trim()
+        if (expectedStudent) {
+          const score = similarityScore(studentText, expectedStudent)
+          if (score < 0.95) {
+            const retry = strictReplayRetryPromptByLanguageCode(targetLanguageCode, expectedStudent, targetLanguage, turnIdx)
+            const retryIntent = ensureIntentAnswerTwoPart(retry, targetLanguageCode, targetLanguage)
+            return NextResponse.json({
+              reply: retry,
+              corrections: [],
+              pronunciationTips: [pronunciationTipByNativeLanguageCode(nativeLanguageCode)],
+              correctionNote: nativeLanguageCode === 'vi'
+                ? 'Bạn chưa nói khớp câu mục tiêu của bài học lưu sẵn.'
+                : 'Your sentence does not match the expected line yet.',
+              intentAnswer: retryIntent,
+              correctedSentence: expectedStudent,
+              mainSentence: expectedStudent,
+              mustKnowText: expectedStudent,
+              replayedFromPreset: true,
+              strictReplayLocked: true,
+            })
+          }
+        }
         const turnReply = String(turn.reply || '').trim()
         const turnMainSentence =
           String(turn.mainSentence || '').trim()

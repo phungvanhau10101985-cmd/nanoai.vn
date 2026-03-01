@@ -63,6 +63,7 @@ type NativeLanguageCode = 'vi' | 'en' | 'zh' | 'hi' | 'th' | 'ja' | 'ko'
 type UiLocale = NativeLanguageCode
 const NATIVE_LANGUAGE_PREF_KEY = 'english-coach-native-language'
 const LESSON_SETUP_PREF_KEY = 'english-coach-lesson-setup'
+const LEARNER_PROFILE_PROMPT_DISMISSED_KEY = 'english-coach-learner-profile-prompt-dismissed-v1'
 
 type LearningMode = 'review' | 'reflex'
 
@@ -1730,6 +1731,13 @@ export default function HocTiengAnhAiClientPage() {
   const [customTopics, setCustomTopics] = useState<CustomTopicItem[]>([])
   const [customTopicBusy, setCustomTopicBusy] = useState(false)
   const [learnerDisplayName, setLearnerDisplayName] = useState('')
+  const [learnerProfilePromptOpen, setLearnerProfilePromptOpen] = useState(false)
+  const [learnerProfileBusy, setLearnerProfileBusy] = useState(false)
+  const [learnerProfileNameDraft, setLearnerProfileNameDraft] = useState('')
+  const [learnerProfileJobDraft, setLearnerProfileJobDraft] = useState('')
+  const [learnerProfileCityDraft, setLearnerProfileCityDraft] = useState('')
+  const [learnerProfileAgeDraft, setLearnerProfileAgeDraft] = useState('')
+  const [learnerProfileGenderDraft, setLearnerProfileGenderDraft] = useState('')
   const [topicCurriculum, setTopicCurriculum] = useState<TopicCurriculum | null>(null)
   const [hasCurriculumReady, setHasCurriculumReady] = useState(false)
   const [topicBusy, setTopicBusy] = useState(false)
@@ -4764,14 +4772,114 @@ export default function HocTiengAnhAiClientPage() {
         if (!user) return
         const profile = await supabase.from('profiles').select('full_name').eq('id', user.id).single()
         const profileName = String((profile.data as { full_name?: string } | null)?.full_name || '').trim()
-        const metaName = String((user.user_metadata as { full_name?: string; name?: string } | undefined)?.full_name || (user.user_metadata as { name?: string } | undefined)?.name || '').trim()
-        setLearnerDisplayName(profileName || metaName || '')
+        const userMeta = user.user_metadata as {
+          full_name?: string
+          name?: string
+          coach_job?: string
+          coach_city?: string
+          coach_age?: number | string
+          coach_gender?: string
+        } | undefined
+        const metaName = String(userMeta?.full_name || userMeta?.name || '').trim()
+        const metaJob = String(userMeta?.coach_job || '').trim()
+        const metaCity = String(userMeta?.coach_city || '').trim()
+        const metaAge = String(userMeta?.coach_age || '').trim()
+        const metaGender = String(userMeta?.coach_gender || '').trim().toLowerCase()
+        const resolvedName = profileName || metaName || ''
+        setLearnerDisplayName(resolvedName)
+        setLearnerProfileNameDraft(resolvedName)
+        setLearnerProfileJobDraft(metaJob)
+        setLearnerProfileCityDraft(metaCity)
+        setLearnerProfileAgeDraft(metaAge)
+        setLearnerProfileGenderDraft(
+          metaGender === 'male' || metaGender === 'female' || metaGender === 'other' ? metaGender : ''
+        )
+        if (typeof window !== 'undefined') {
+          const dismissed = window.localStorage.getItem(LEARNER_PROFILE_PROMPT_DISMISSED_KEY) === '1'
+          const missingProfileInfo = !resolvedName || !metaJob || !metaCity || !metaAge || !metaGender
+          if (!dismissed && missingProfileInfo) {
+            setLearnerProfilePromptOpen(true)
+          }
+        }
       } catch {
         // keep page usable when profile lookup fails
       }
     }
     void loadLearnerName()
   }, [supabase])
+
+  const submitLearnerProfilePrompt = async () => {
+    if (learnerProfileBusy) return
+    const fullName = String(learnerProfileNameDraft || '').trim()
+    const coachJob = String(learnerProfileJobDraft || '').trim()
+    const coachCity = String(learnerProfileCityDraft || '').trim()
+    const ageRaw = String(learnerProfileAgeDraft || '').trim()
+    const coachAge = Number.isFinite(Number(ageRaw)) ? Math.max(1, Math.min(120, Math.round(Number(ageRaw)))) : 0
+    const coachGender = String(learnerProfileGenderDraft || '').trim().toLowerCase()
+    if (!fullName) {
+      toast({
+        title: localText('Thiếu tên hiển thị', 'Display name is required'),
+        description: localText('Vui lòng nhập tên để cá nhân hóa bài học.', 'Please enter your name to personalize lessons.'),
+        variant: 'destructive',
+      })
+      return
+    }
+    if (!coachAge) {
+      toast({
+        title: localText('Thiếu tuổi', 'Age is required'),
+        description: localText('Vui lòng nhập tuổi hợp lệ.', 'Please enter a valid age.'),
+        variant: 'destructive',
+      })
+      return
+    }
+    if (!['male', 'female', 'other'].includes(coachGender)) {
+      toast({
+        title: localText('Thiếu giới tính', 'Gender is required'),
+        description: localText('Vui lòng chọn giới tính để cá nhân hóa.', 'Please select your gender for personalization.'),
+        variant: 'destructive',
+      })
+      return
+    }
+    setLearnerProfileBusy(true)
+    try {
+      const { error: authErr } = await supabase.auth.updateUser({
+        data: {
+          full_name: fullName,
+          name: fullName,
+          coach_job: coachJob,
+          coach_city: coachCity,
+          coach_age: coachAge,
+          coach_gender: coachGender,
+        },
+      })
+      if (authErr) throw authErr
+      await supabase.from('profiles').update({ full_name: fullName }).eq('id', (await supabase.auth.getUser()).data.user?.id || '')
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(LEARNER_PROFILE_PROMPT_DISMISSED_KEY, '1')
+      }
+      setLearnerDisplayName(fullName)
+      setLearnerProfilePromptOpen(false)
+      toast({
+        title: localText('Đã lưu thông tin cá nhân hóa', 'Profile info saved'),
+        description: localText('Bài học có sẵn sẽ cá nhân hóa theo tài khoản của bạn.', 'Saved lessons will be personalized to your account.'),
+      })
+    } catch (e) {
+      toast({
+        title: localText('Không lưu được thông tin', 'Cannot save profile info'),
+        description: unknownErrorMsg(e),
+        variant: 'destructive',
+      })
+    } finally {
+      setLearnerProfileBusy(false)
+    }
+  }
+
+  const skipLearnerProfilePrompt = () => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(LEARNER_PROFILE_PROMPT_DISMISSED_KEY, '1')
+    }
+    setLearnerProfilePromptOpen(false)
+  }
 
   useEffect(() => {
     void fetchCustomTopics()
@@ -7845,6 +7953,94 @@ export default function HocTiengAnhAiClientPage() {
                 className="min-h-[40px]"
               >
                 {localText('Đóng', 'Close')}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {learnerProfilePromptOpen ? (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-3 sm:items-center sm:p-4">
+          <div className="w-full max-w-md rounded-lg border bg-white p-5 shadow-xl">
+            <h3 className="text-lg font-semibold text-slate-900">
+              {localText('Thông tin cá nhân hóa học viên', 'Learner personalization info')}
+            </h3>
+            <p className="mt-2 text-sm text-slate-600">
+              {localText(
+                'Điền nhanh để hệ thống cá nhân hóa bài học có sẵn đúng theo tài khoản của bạn.',
+                'Fill these fields to personalize saved lessons to your account.'
+              )}
+            </p>
+            <div className="mt-4 space-y-3">
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-slate-700">{localText('Tên hiển thị', 'Display name')}</p>
+                <Input
+                  value={learnerProfileNameDraft}
+                  onChange={(e) => setLearnerProfileNameDraft(e.target.value)}
+                  placeholder={localText('Ví dụ: Minh Anh', 'Example: Alex')}
+                  className="h-10"
+                />
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-slate-700">{localText('Nghề nghiệp (tuỳ chọn)', 'Job title (optional)')}</p>
+                <Input
+                  value={learnerProfileJobDraft}
+                  onChange={(e) => setLearnerProfileJobDraft(e.target.value)}
+                  placeholder={localText('Ví dụ: Kỹ sư phần mềm', 'Example: Software engineer')}
+                  className="h-10"
+                />
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-slate-700">{localText('Thành phố (tuỳ chọn)', 'City (optional)')}</p>
+                <Input
+                  value={learnerProfileCityDraft}
+                  onChange={(e) => setLearnerProfileCityDraft(e.target.value)}
+                  placeholder={localText('Ví dụ: Hà Nội', 'Example: Ho Chi Minh City')}
+                  className="h-10"
+                />
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-slate-700">{localText('Tuổi', 'Age')}</p>
+                <Input
+                  type="number"
+                  min={1}
+                  max={120}
+                  value={learnerProfileAgeDraft}
+                  onChange={(e) => setLearnerProfileAgeDraft(e.target.value)}
+                  placeholder={localText('Ví dụ: 25', 'Example: 25')}
+                  className="h-10"
+                />
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-slate-700">{localText('Giới tính', 'Gender')}</p>
+                <select
+                  value={learnerProfileGenderDraft}
+                  onChange={(e) => setLearnerProfileGenderDraft(e.target.value)}
+                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  <option value="">{localText('Chọn giới tính', 'Select gender')}</option>
+                  <option value="male">{localText('Nam', 'Male')}</option>
+                  <option value="female">{localText('Nữ', 'Female')}</option>
+                  <option value="other">{localText('Khác', 'Other')}</option>
+                </select>
+              </div>
+            </div>
+            <div className="mt-4 grid gap-2 sm:grid-cols-2">
+              <Button
+                type="button"
+                onClick={() => void submitLearnerProfilePrompt()}
+                disabled={learnerProfileBusy}
+                className="min-h-[44px]"
+              >
+                {learnerProfileBusy ? localText('Đang lưu...', 'Saving...') : localText('Lưu thông tin', 'Save info')}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={skipLearnerProfilePrompt}
+                disabled={learnerProfileBusy}
+                className="min-h-[44px]"
+              >
+                {localText('Để sau', 'Later')}
               </Button>
             </div>
           </div>
