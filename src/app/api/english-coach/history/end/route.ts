@@ -21,6 +21,39 @@ function isPresetCopiedSession(pinnedFactsRaw: string): boolean {
   }
 }
 
+function parseReviewDrillStatsFromPinnedFacts(raw: string): {
+  speakingPass: number
+  speakingFail: number
+  listeningPass: number
+  listeningFail: number
+  hintServed: number
+} | null {
+  try {
+    const parsed = JSON.parse(String(raw || '{}')) as Record<string, unknown>
+    const stats = parsed?.review_drill_stats
+    if (!stats || typeof stats !== 'object') return null
+    const row = stats as Record<string, unknown>
+    return {
+      speakingPass: Math.max(0, Math.floor(Number(row.speakingPass || 0) || 0)),
+      speakingFail: Math.max(0, Math.floor(Number(row.speakingFail || 0) || 0)),
+      listeningPass: Math.max(0, Math.floor(Number(row.listeningPass || 0) || 0)),
+      listeningFail: Math.max(0, Math.floor(Number(row.listeningFail || 0) || 0)),
+      hintServed: Math.max(0, Math.floor(Number(row.hintServed || 0) || 0)),
+    }
+  } catch {
+    return null
+  }
+}
+
+const MIN_STUDENT_MESSAGES_FOR_COMPLETED_SAVE = 6
+const MIN_TEACHER_MESSAGES_FOR_COMPLETED_SAVE = 6
+const MIN_DURATION_SECONDS_FOR_COMPLETED_SAVE = 180
+
+function isTimelineCompletedReason(reason: string): boolean {
+  const r = String(reason || '').trim().toLowerCase()
+  return r === 'timeline_completed' || r === 'timeline_completed_auto'
+}
+
 export async function POST(request: NextRequest) {
   try {
     const payload = (await request.json()) as {
@@ -97,9 +130,11 @@ export async function POST(request: NextRequest) {
       pinned_facts_json?: string
     } | null
     const isPresetSession = isPresetCopiedSession(String(memory?.pinned_facts_json || '{}'))
+    const reviewDrillStats = parseReviewDrillStatsFromPinnedFacts(String(memory?.pinned_facts_json || '{}'))
     const summary = {
       runningSummary: String(memory?.running_summary || '').trim(),
       pinnedFactsJson: String(memory?.pinned_facts_json || '{}').trim(),
+      reviewDrillStats: reviewDrillStats || undefined,
       latestStudentText: String([...rows].reverse().find((r) => r.role === 'student')?.text || '').trim(),
       latestTeacherText: String([...rows].reverse().find((r) => r.role === 'teacher')?.text || '').trim(),
     }
@@ -122,7 +157,14 @@ export async function POST(request: NextRequest) {
       createdAt: r.created_at,
     }))
 
-    if (qualityPassed && !isPresetSession) {
+    const meetsDepthGate =
+      studentMessages >= MIN_STUDENT_MESSAGES_FOR_COMPLETED_SAVE
+      && teacherMessages >= MIN_TEACHER_MESSAGES_FOR_COMPLETED_SAVE
+      && durationSeconds >= MIN_DURATION_SECONDS_FOR_COMPLETED_SAVE
+    const timelineCompleted = isTimelineCompletedReason(completionReason)
+    const allowCompletedSave = qualityPassed && timelineCompleted && meetsDepthGate && !isPresetSession
+
+    if (allowCompletedSave) {
       const { error: completedError } = await adminSupabase.from('language_coach_completed_lessons').upsert(
         {
           user_id: user.id,
@@ -177,7 +219,7 @@ export async function POST(request: NextRequest) {
         )
       }
     }
-    return NextResponse.json({ ok: true, markEnded, qualityPassed, skippedCompletedSave: isPresetSession })
+    return NextResponse.json({ ok: true })
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Lỗi không xác định.'
     return NextResponse.json({ error: msg }, { status: 500 })

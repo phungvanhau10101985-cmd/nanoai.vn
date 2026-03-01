@@ -1842,6 +1842,12 @@ export default function HocTiengAnhAiClientPage() {
   const [recordingPending, setRecordingPending] = useState(false)
   const [busy, setBusy] = useState(false)
   const [awaitingTeacherReply, setAwaitingTeacherReply] = useState(false)
+  const [reviewDrillStage, setReviewDrillStage] = useState<'idle' | 'speaking' | 'listening'>('idle')
+  const [reviewListeningPopupOpen, setReviewListeningPopupOpen] = useState(false)
+  const [reviewListeningPrompt, setReviewListeningPrompt] = useState('')
+  const [reviewListeningOptions, setReviewListeningOptions] = useState<string[]>([])
+  const [reviewListeningSelected, setReviewListeningSelected] = useState<string[]>([])
+  const [reviewListeningSubmitBusy, setReviewListeningSubmitBusy] = useState(false)
   const [historyBusy, setHistoryBusy] = useState(false)
   const [todayWordsBusy, setTodayWordsBusy] = useState(false)
   const [wordBusyKey, setWordBusyKey] = useState('')
@@ -4327,6 +4333,11 @@ export default function HocTiengAnhAiClientPage() {
   const loadHistorySession = async (targetSessionId: string) => {
     if (!targetSessionId) return
     setHistoryBusy(true)
+    setReviewDrillStage('idle')
+    setReviewListeningPopupOpen(false)
+    setReviewListeningPrompt('')
+    setReviewListeningOptions([])
+    setReviewListeningSelected([])
     let presetOpeningToReplay: { messageId: string; text: string } | null = null
     try {
       const { ok, data } = await getHistorySession(targetSessionId)
@@ -5026,7 +5037,7 @@ export default function HocTiengAnhAiClientPage() {
     raw?: string,
     source: 'text' | 'mic' = 'text',
     micAnalysis?: MixedSpeechAnalysis,
-    opts?: { existingStudentMessageId?: string }
+    opts?: { existingStudentMessageId?: string; silentDrill?: boolean; drillType?: 'listening'; drillSelectedWords?: string[] }
   ) => {
     const studentText = String(raw ?? draft).trim()
     if (!studentText) return
@@ -5045,24 +5056,29 @@ export default function HocTiengAnhAiClientPage() {
     }
 
     const hadExistingMessage = Boolean(opts?.existingStudentMessageId)
+    const shouldAppendStudentMessage = !opts?.silentDrill
     if (!hadExistingMessage) {
       setBusy(true)
       setAwaitingTeacherReply(true)
     }
     const studentMessageId = hadExistingMessage
       ? opts!.existingStudentMessageId!
-      : appendMessage('student', studentText)
-    if (hadExistingMessage) {
+      : shouldAppendStudentMessage
+        ? appendMessage('student', studentText)
+        : ''
+    if (hadExistingMessage && studentMessageId) {
       updateMessageText(studentMessageId, studentText)
     }
-    setDraft('')
-    void saveHistoryMessage({ role: 'student', text: studentText })
-      .then(() => {
-        persistedMessageIdsRef.current[studentMessageId] = true
-      })
-      .catch(() => {
-        // keep conversation usable if history save fails
-      })
+    if (!opts?.silentDrill) setDraft('')
+    if (shouldAppendStudentMessage && studentMessageId) {
+      void saveHistoryMessage({ role: 'student', text: studentText })
+        .then(() => {
+          persistedMessageIdsRef.current[studentMessageId] = true
+        })
+        .catch(() => {
+          // keep conversation usable if history save fails
+        })
+    }
     try {
       if (!sessionTeacher) {
         setSessionTeacher(selectedTeacher)
@@ -5099,6 +5115,8 @@ export default function HocTiengAnhAiClientPage() {
         topicKeywords: topicCurriculum?.keywords || [],
         topicStarterSentences: topicCurriculum?.starterSentences || [],
         micAnalysis: source === 'mic' ? micAnalysis : undefined,
+        drillType: opts?.drillType,
+        drillSelectedWords: opts?.drillSelectedWords || [],
       })
       const payload = data as {
         reply?: string
@@ -5108,6 +5126,15 @@ export default function HocTiengAnhAiClientPage() {
         intentAnswer?: string
         correctedSentence?: string
         mainSentence?: string
+        reviewDrill?: {
+          type?: 'speaking' | 'listening' | 'done'
+          prompt?: string
+          options?: string[]
+          expectedKeywords?: string[]
+          targetSentence?: string
+          minSimilarity?: number
+          minPronunciationScore?: number
+        }
         error?: string
       }
       if (!ok || !payload.reply) {
@@ -5162,10 +5189,32 @@ export default function HocTiengAnhAiClientPage() {
           : extractTeacherSpeechText(payload.reply)
       const speakText = speakParts.join('. ').trim() || stripPhoneticForTts(fallbackRaw, languageCode)
       setTeacherSpeakTextByMessageId((prev) => ({ ...prev, [teacherMessageId]: speakText }))
+      if (payload.reviewDrill?.type === 'speaking') {
+        setReviewDrillStage('speaking')
+      } else if (payload.reviewDrill?.type === 'listening') {
+        setReviewDrillStage('listening')
+        const optsWords = Array.isArray(payload.reviewDrill.options)
+          ? payload.reviewDrill.options.map((x) => String(x || '').trim()).filter(Boolean)
+          : []
+        if (optsWords.length > 0) {
+          setReviewListeningPrompt(String(payload.reviewDrill.prompt || mainSentence || payload.reply || '').trim())
+          setReviewListeningOptions(optsWords)
+          setReviewListeningSelected([])
+          setReviewListeningPopupOpen(true)
+        }
+      } else if (payload.reviewDrill?.type === 'done') {
+        setReviewDrillStage('idle')
+        setReviewListeningPopupOpen(false)
+        setReviewListeningPrompt('')
+        setReviewListeningOptions([])
+        setReviewListeningSelected([])
+      } else if (!payload.reviewDrill?.type) {
+        setReviewDrillStage('idle')
+      }
       const firstFromMain = takeFirstSentenceOnly(String(mainSentence || '').trim())
       const firstFromIntent = takeFirstSentenceOnly(String(intentAnswer || extractTeacherSpeechText(payload.reply)).trim())
       const copyTargets = Array.from(new Set([firstFromMain, firstFromIntent].filter(Boolean)))
-      if (learningMode === 'review') {
+      if (learningMode === 'review' && !payload.reviewDrill?.type) {
         const nextTask = buildWritingTask(teacherMessageId, payload.reply, copyTargets)
         setWritingTask(nextTask)
         void persistWritingTaskSnapshot(nextTask, 2)
@@ -5204,6 +5253,29 @@ export default function HocTiengAnhAiClientPage() {
     } finally {
       setBusy(false)
       setAwaitingTeacherReply(false)
+    }
+  }
+
+  const submitReviewListeningDrill = async () => {
+    if (reviewListeningSubmitBusy) return
+    const picked = reviewListeningSelected.map((x) => String(x || '').trim()).filter(Boolean)
+    if (picked.length === 0) {
+      toast({
+        title: localText('Chưa chọn từ nào', 'No words selected'),
+        description: localText('Hãy chọn ít nhất 1 từ bạn nghe thấy.', 'Pick at least one word you heard.'),
+        variant: 'destructive',
+      })
+      return
+    }
+    setReviewListeningSubmitBusy(true)
+    try {
+      await handleSend(picked.join(' '), 'text', undefined, {
+        silentDrill: true,
+        drillType: 'listening',
+        drillSelectedWords: picked,
+      })
+    } finally {
+      setReviewListeningSubmitBusy(false)
     }
   }
 
@@ -7224,6 +7296,13 @@ export default function HocTiengAnhAiClientPage() {
               </div>
 
               <div ref={speakActionsRef} className="min-w-0 space-y-2">
+                {learningMode === 'review' && reviewDrillStage !== 'idle' ? (
+                  <div className="rounded-md border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs text-indigo-700">
+                    {reviewDrillStage === 'speaking'
+                      ? localText('Mini-drill 1/2: Nói lại câu sửa để luyện phát âm', 'Mini-drill 1/2: Repeat the corrected sentence')
+                      : localText('Mini-drill 2/2: Chọn từ bạn nghe thấy', 'Mini-drill 2/2: Pick words you heard')}
+                  </div>
+                ) : null}
                 <div className="flex min-w-0 items-center gap-2 sm:flex-1">
                   <Input
                     value={draft}
@@ -7240,7 +7319,7 @@ export default function HocTiengAnhAiClientPage() {
                       setDraft(e.target.value)
                     }}
                     placeholder={coachUiText.inputPlaceholder}
-                    disabled={busy}
+                    disabled={busy || reviewListeningPopupOpen}
                     className="min-w-0 sm:flex-1"
                   />
                   <Button
@@ -7253,7 +7332,7 @@ export default function HocTiengAnhAiClientPage() {
                       }
                       void handleSend()
                     }}
-                    disabled={busy || !draft.trim()}
+                    disabled={busy || reviewListeningPopupOpen || !draft.trim()}
                     className="h-10 rounded-xl px-3"
                   >
                     <Send className="mr-1.5 h-4 w-4" />
@@ -7953,6 +8032,68 @@ export default function HocTiengAnhAiClientPage() {
                 className="min-h-[40px]"
               >
                 {localText('Đóng', 'Close')}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {reviewListeningPopupOpen ? (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-3 sm:items-center sm:p-4">
+          <div className="w-full max-w-lg rounded-lg border bg-white p-5 shadow-xl">
+            <h3 className="text-lg font-semibold text-slate-900">
+              {localText('Luyện nghe nhanh', 'Quick listening drill')}
+            </h3>
+            <p className="mt-2 text-sm text-slate-600">
+              {localText(
+                'Nghe lại câu của giáo viên và chọn các từ bạn nghe thấy.',
+                'Listen to the teacher line again and pick words you heard.'
+              )}
+            </p>
+            {reviewListeningPrompt ? (
+              <p className="mt-3 rounded-md bg-slate-50 p-3 text-sm text-slate-700">
+                {reviewListeningPrompt}
+              </p>
+            ) : null}
+            <div className="mt-3 flex flex-wrap gap-2">
+              {reviewListeningOptions.map((word) => {
+                const active = reviewListeningSelected.includes(word)
+                return (
+                  <Button
+                    key={word}
+                    type="button"
+                    variant={active ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => {
+                      setReviewListeningSelected((prev) =>
+                        prev.includes(word) ? prev.filter((x) => x !== word) : [...prev, word]
+                      )
+                    }}
+                    className="h-auto min-h-[36px] whitespace-normal"
+                  >
+                    {word}
+                  </Button>
+                )
+              })}
+            </div>
+            <div className="mt-4 grid gap-2 sm:grid-cols-2">
+              <Button
+                type="button"
+                onClick={() => void submitReviewListeningDrill()}
+                disabled={reviewListeningSubmitBusy}
+                className="min-h-[44px]"
+              >
+                {reviewListeningSubmitBusy ? localText('Đang chấm...', 'Checking...') : localText('Nộp đáp án nghe', 'Submit listening answer')}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  void replayCorrectionSentence(reviewListeningPrompt)
+                }}
+                disabled={reviewListeningSubmitBusy}
+                className="min-h-[44px]"
+              >
+                {localText('Nghe lại câu', 'Play line again')}
               </Button>
             </div>
           </div>

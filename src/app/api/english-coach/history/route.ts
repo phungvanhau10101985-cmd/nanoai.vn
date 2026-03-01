@@ -36,6 +36,34 @@ type HistoryPayload = {
   tokensJson?: string
 }
 
+type ReviewDrillStats = {
+  speakingPass: number
+  speakingFail: number
+  listeningPass: number
+  listeningFail: number
+  hintServed: number
+  updatedAt?: string
+}
+
+function parseReviewDrillStatsFromPinnedFacts(raw: string): ReviewDrillStats | null {
+  try {
+    const root = JSON.parse(String(raw || '{}')) as Record<string, unknown>
+    const src = root?.review_drill_stats
+    if (!src || typeof src !== 'object') return null
+    const row = src as Record<string, unknown>
+    return {
+      speakingPass: Math.max(0, Math.floor(Number(row.speakingPass || 0) || 0)),
+      speakingFail: Math.max(0, Math.floor(Number(row.speakingFail || 0) || 0)),
+      listeningPass: Math.max(0, Math.floor(Number(row.listeningPass || 0) || 0)),
+      listeningFail: Math.max(0, Math.floor(Number(row.listeningFail || 0) || 0)),
+      hintServed: Math.max(0, Math.floor(Number(row.hintServed || 0) || 0)),
+      updatedAt: String(row.updatedAt || '').trim() || undefined,
+    }
+  } catch {
+    return null
+  }
+}
+
 function adminClient() {
   return createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 }
@@ -113,6 +141,7 @@ export async function GET(request: NextRequest) {
           return ''
         }
       })()
+      const reviewDrillStats = parseReviewDrillStatsFromPinnedFacts(String(memory?.pinned_facts_json || '{}'))
 
       const rows = data ?? []
       const cacheKeysToFetch: string[] = []
@@ -181,6 +210,7 @@ export async function GET(request: NextRequest) {
         topicLabel: sessionTopicLabel || undefined,
         presetReplaySession: Boolean(presetReplaySourceLessonId),
         presetReplaySourceLessonId: presetReplaySourceLessonId || undefined,
+        reviewDrillStats: reviewDrillStats || undefined,
         writingTaskTransliterations,
         items: rows.map((row) => {
           const lang = String(row.language_code || '').trim().toLowerCase()
@@ -231,7 +261,7 @@ export async function GET(request: NextRequest) {
         .limit(1000),
       adminSupabase
         .from('language_coach_session_memories')
-        .select('session_id, learning_mode, topic_label')
+        .select('session_id, learning_mode, topic_label, pinned_facts_json')
         .eq('user_id', user.id),
       adminSupabase
         .from('language_coach_hidden_sessions')
@@ -250,11 +280,14 @@ export async function GET(request: NextRequest) {
 
     const learningModeBySession = new Map<string, string>()
     const topicLabelBySession = new Map<string, string>()
-    for (const row of (memoriesResult.data ?? []) as Array<{ session_id?: string; learning_mode?: string; topic_label?: string }>) {
+    const reviewDrillStatsBySession = new Map<string, ReviewDrillStats>()
+    for (const row of (memoriesResult.data ?? []) as Array<{ session_id?: string; learning_mode?: string; topic_label?: string; pinned_facts_json?: string }>) {
       const sid = String(row.session_id || '')
       if (sid) {
         if (row.learning_mode) learningModeBySession.set(sid, row.learning_mode)
         if (row.topic_label) topicLabelBySession.set(sid, String(row.topic_label).trim())
+        const stats = parseReviewDrillStatsFromPinnedFacts(String(row.pinned_facts_json || '{}'))
+        if (stats) reviewDrillStatsBySession.set(sid, stats)
       }
     }
 
@@ -279,6 +312,7 @@ export async function GET(request: NextRequest) {
         messageCount: number
         learningMode: 'review' | 'reflex'
         topicLabel: string
+        reviewDrillStats?: ReviewDrillStats
       }
     >()
 
@@ -302,6 +336,7 @@ export async function GET(request: NextRequest) {
           messageCount: 1,
           learningMode: safeLm,
           topicLabel,
+          reviewDrillStats: reviewDrillStatsBySession.get(sid),
         })
         continue
       }

@@ -75,6 +75,8 @@ type ChatPayload = {
       issueType?: string
     }>
   }
+  drillType?: 'listening'
+  drillSelectedWords?: string[]
 }
 
 type SessionPinnedFacts = {
@@ -98,6 +100,31 @@ type PresetReplayState = {
   active: boolean
   nextTurnIndex: number
   turns: PresetReplayTurn[]
+}
+
+type ReviewDrillState = {
+  speaking?: {
+    targetSentence: string
+    minSimilarity: number
+    minPronunciationScore: number
+    attempt: number
+  }
+  listening?: {
+    prompt: string
+    expectedKeywords: string[]
+    options: string[]
+    minMatchedKeywords: number
+    attempt: number
+  }
+}
+
+type ReviewDrillStats = {
+  speakingPass: number
+  speakingFail: number
+  listeningPass: number
+  listeningFail: number
+  hintServed: number
+  updatedAt: string
 }
 
 type ReplayCacheRow = {
@@ -184,6 +211,197 @@ function parsePresetReplay(raw: string): PresetReplayState | null {
   }
 }
 
+function parseReviewDrill(raw: string): ReviewDrillState | null {
+  try {
+    const root = JSON.parse(String(raw || '{}')) as Record<string, unknown>
+    const drill = root?.review_drill
+    if (!drill || typeof drill !== 'object') return null
+    const d = drill as Record<string, unknown>
+    const speakingRaw = d.speaking && typeof d.speaking === 'object' ? (d.speaking as Record<string, unknown>) : null
+    const listeningRaw = d.listening && typeof d.listening === 'object' ? (d.listening as Record<string, unknown>) : null
+    const speaking = speakingRaw
+      ? {
+          targetSentence: String(speakingRaw.targetSentence || '').trim(),
+          minSimilarity: Math.max(0.6, Math.min(0.99, Number(speakingRaw.minSimilarity || 0.85) || 0.85)),
+          minPronunciationScore: Math.max(0, Math.min(100, Math.round(Number(speakingRaw.minPronunciationScore || 60) || 60))),
+          attempt: Math.max(0, Math.floor(Number(speakingRaw.attempt || 0) || 0)),
+        }
+      : undefined
+    const listening = listeningRaw
+      ? {
+          prompt: String(listeningRaw.prompt || '').trim(),
+          expectedKeywords: Array.isArray(listeningRaw.expectedKeywords)
+            ? listeningRaw.expectedKeywords.map((x) => String(x || '').trim()).filter(Boolean).slice(0, 8)
+            : [],
+          options: Array.isArray(listeningRaw.options)
+            ? listeningRaw.options.map((x) => String(x || '').trim()).filter(Boolean).slice(0, 12)
+            : [],
+          minMatchedKeywords: Math.max(1, Math.floor(Number(listeningRaw.minMatchedKeywords || 1) || 1)),
+          attempt: Math.max(0, Math.floor(Number(listeningRaw.attempt || 0) || 0)),
+        }
+      : undefined
+    if (!speaking && !listening) return null
+    if (speaking && !speaking.targetSentence) return null
+    return { speaking, listening }
+  } catch {
+    return null
+  }
+}
+
+function parseReviewDrillStats(raw: string): ReviewDrillStats {
+  try {
+    const root = JSON.parse(String(raw || '{}')) as Record<string, unknown>
+    const s = root?.review_drill_stats
+    const row = s && typeof s === 'object' ? (s as Record<string, unknown>) : {}
+    return {
+      speakingPass: Math.max(0, Math.floor(Number(row.speakingPass || 0) || 0)),
+      speakingFail: Math.max(0, Math.floor(Number(row.speakingFail || 0) || 0)),
+      listeningPass: Math.max(0, Math.floor(Number(row.listeningPass || 0) || 0)),
+      listeningFail: Math.max(0, Math.floor(Number(row.listeningFail || 0) || 0)),
+      hintServed: Math.max(0, Math.floor(Number(row.hintServed || 0) || 0)),
+      updatedAt: String(row.updatedAt || '').trim() || new Date().toISOString(),
+    }
+  } catch {
+    return {
+      speakingPass: 0,
+      speakingFail: 0,
+      listeningPass: 0,
+      listeningFail: 0,
+      hintServed: 0,
+      updatedAt: new Date().toISOString(),
+    }
+  }
+}
+
+function buildReviewDrillRaw(
+  currentPinnedFactsRaw: string,
+  next: ReviewDrillState | null,
+  statsDelta?: Partial<Pick<ReviewDrillStats, 'speakingPass' | 'speakingFail' | 'listeningPass' | 'listeningFail' | 'hintServed'>>
+): string {
+  try {
+    const parsed = JSON.parse(String(currentPinnedFactsRaw || '{}')) as Record<string, unknown>
+    const root = parsed && typeof parsed === 'object' ? { ...parsed } : {}
+    if (next && (next.speaking || next.listening)) {
+      root.review_drill = next
+    } else {
+      delete root.review_drill
+    }
+    if (statsDelta) {
+      const prev = parseReviewDrillStats(currentPinnedFactsRaw)
+      const nextStats: ReviewDrillStats = {
+        speakingPass: Math.max(0, prev.speakingPass + Math.floor(Number(statsDelta.speakingPass || 0) || 0)),
+        speakingFail: Math.max(0, prev.speakingFail + Math.floor(Number(statsDelta.speakingFail || 0) || 0)),
+        listeningPass: Math.max(0, prev.listeningPass + Math.floor(Number(statsDelta.listeningPass || 0) || 0)),
+        listeningFail: Math.max(0, prev.listeningFail + Math.floor(Number(statsDelta.listeningFail || 0) || 0)),
+        hintServed: Math.max(0, prev.hintServed + Math.floor(Number(statsDelta.hintServed || 0) || 0)),
+        updatedAt: new Date().toISOString(),
+      }
+      root.review_drill_stats = nextStats
+    }
+    return JSON.stringify(root)
+  } catch {
+    const base: Record<string, unknown> = {}
+    if (next && (next.speaking || next.listening)) base.review_drill = next
+    if (statsDelta) {
+      const prev = parseReviewDrillStats('{}')
+      base.review_drill_stats = {
+        speakingPass: Math.max(0, prev.speakingPass + Math.floor(Number(statsDelta.speakingPass || 0) || 0)),
+        speakingFail: Math.max(0, prev.speakingFail + Math.floor(Number(statsDelta.speakingFail || 0) || 0)),
+        listeningPass: Math.max(0, prev.listeningPass + Math.floor(Number(statsDelta.listeningPass || 0) || 0)),
+        listeningFail: Math.max(0, prev.listeningFail + Math.floor(Number(statsDelta.listeningFail || 0) || 0)),
+        hintServed: Math.max(0, prev.hintServed + Math.floor(Number(statsDelta.hintServed || 0) || 0)),
+        updatedAt: new Date().toISOString(),
+      }
+    }
+    return JSON.stringify(base)
+  }
+}
+
+function extractListeningKeywords(text: string): string[] {
+  const tokens = String(text || '')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .split(/\s+/)
+    .map((x) => x.trim())
+    .filter((x) => x.length >= 3)
+  const stop = new Set(['the', 'and', 'for', 'with', 'you', 'that', 'this', 'have', 'from', 'your', 'about', 'đây', 'câu', 'với', 'của', 'bạn'])
+  const out: string[] = []
+  for (const t of tokens) {
+    if (stop.has(t)) continue
+    if (!out.includes(t)) out.push(t)
+    if (out.length >= 6) break
+  }
+  return out
+}
+
+function speakingDrillThresholdByLevel(learnerLevel: number): { minSimilarity: number; minPronunciationScore: number } {
+  if (learnerLevel <= 0) return { minSimilarity: 0.8, minPronunciationScore: 52 }
+  if (learnerLevel === 1) return { minSimilarity: 0.83, minPronunciationScore: 56 }
+  if (learnerLevel === 2) return { minSimilarity: 0.86, minPronunciationScore: 60 }
+  if (learnerLevel === 3) return { minSimilarity: 0.89, minPronunciationScore: 65 }
+  return { minSimilarity: 0.92, minPronunciationScore: 70 }
+}
+
+function defaultListeningDistractorsByLanguageCode(code: string): string[] {
+  if (code === 'vi') return ['hôm nay', 'ngày mai', 'đi học', 'đi làm', 'được rồi', 'không sao']
+  if (code === 'zh') return ['今天', '明天', '可以', '一起', '现在', '谢谢']
+  if (code === 'ja') return ['きょう', 'あした', 'はい', 'いいえ', 'ありがとう', 'だいじょうぶ']
+  if (code === 'ko') return ['오늘', '내일', '괜찮아요', '고마워요', '지금', '같이']
+  if (code === 'th') return ['วันนี้', 'พรุ่งนี้', 'ได้เลย', 'ตอนนี้', 'ขอบคุณ', 'ไม่เป็นไร']
+  if (code === 'hi') return ['आज', 'कल', 'ठीक है', 'अभी', 'धन्यवाद', 'साथ']
+  return ['today', 'tomorrow', 'please', 'thanks', 'together', 'right']
+}
+
+function buildListeningOptionPool(expectedKeywords: string[], candidateKeywords: string[], languageCode: string): string[] {
+  const options: string[] = []
+  for (const x of [...expectedKeywords, ...candidateKeywords]) {
+    const t = String(x || '').trim()
+    if (!t) continue
+    if (!options.includes(t)) options.push(t)
+    if (options.length >= 8) break
+  }
+  const distractors = defaultListeningDistractorsByLanguageCode(languageCode)
+  for (const d of distractors) {
+    if (options.length >= 10) break
+    if (!options.includes(d)) options.push(d)
+  }
+  return options
+}
+
+function seededShuffle(words: string[], seedInput: string): string[] {
+  const out = [...words]
+  let seed = 0
+  for (let i = 0; i < seedInput.length; i++) {
+    seed = (seed * 31 + seedInput.charCodeAt(i)) >>> 0
+  }
+  const nextRand = () => {
+    seed = (seed * 1664525 + 1013904223) >>> 0
+    return seed / 4294967296
+  }
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(nextRand() * (i + 1))
+    const temp = out[i]
+    out[i] = out[j]
+    out[j] = temp
+  }
+  return out
+}
+
+function speakingCooldownHint(sentence: string, code: string): string {
+  const words = String(sentence || '').trim().split(/\s+/).filter(Boolean)
+  if (words.length < 4) return ''
+  const mid = Math.max(1, Math.floor(words.length / 2))
+  const chunkA = words.slice(0, mid).join(' ')
+  const chunkB = words.slice(mid).join(' ')
+  if (code === 'vi') return `Mẹo nhanh: tách câu thành 2 cụm "${chunkA}" + "${chunkB}".`
+  if (code === 'zh') return `小提示：把句子分成两段 "${chunkA}" + "${chunkB}"。`
+  if (code === 'ja') return `コツ：文を2つのかたまりに分けます "${chunkA}" + "${chunkB}"。`
+  if (code === 'ko') return `팁: 문장을 두 덩어리로 나눠 말해 보세요 "${chunkA}" + "${chunkB}".`
+  if (code === 'th') return `เคล็ดลับ: แยกประโยคเป็น 2 ช่วง "${chunkA}" + "${chunkB}".`
+  if (code === 'hi') return `टिप: वाक्य को दो हिस्सों में बोलें "${chunkA}" + "${chunkB}"।`
+  return `Quick tip: split into 2 chunks: "${chunkA}" + "${chunkB}".`
+}
+
 function strictReplayRetryPromptByLanguageCode(
   code: string,
   expectedStudent: string,
@@ -209,6 +427,46 @@ function strictReplayRetryPromptByLanguageCode(
   if (code === 'th') return `พูดประโยคนี้ให้ตรงตามต้นฉบับ: "${expected}".`
   if (code === 'hi') return `कृपया यह वाक्य बिल्कुल वैसे ही बोलें: "${expected}"।`
   return `Please repeat this sentence exactly: "${expected}".`
+}
+
+function reviewDrillSpeakingHintByLanguageCode(code: string): string {
+  if (code === 'vi') return 'Mình luyện nói lại câu sửa thêm một lượt nữa nhé.'
+  if (code === 'zh') return '我们再把修改后的句子说一遍。'
+  if (code === 'ja') return '修正文をもう一度声に出してみましょう。'
+  if (code === 'ko') return '수정한 문장을 한 번 더 말해 봐요.'
+  if (code === 'th') return 'ลองพูดประโยคที่แก้ไขแล้วอีกครั้งนะ'
+  if (code === 'hi') return 'सुधारे गए वाक्य को एक बार फिर बोलिए।'
+  return 'Please retry the corrected sentence one more time.'
+}
+
+function reviewDrillListeningStartByLanguageCode(code: string): string {
+  if (code === 'vi') return 'Tốt lắm. Giờ luyện nghe nhanh nhé: hãy chọn các từ em nghe thấy.'
+  if (code === 'zh') return '很好。现在做一个听力小练习：请选择你听到的词。'
+  if (code === 'ja') return 'いいですね。次はリスニング練習です。聞こえた単語を選んでください。'
+  if (code === 'ko') return '좋아요. 이제 짧은 듣기 연습입니다. 들린 단어를 선택해 주세요.'
+  if (code === 'th') return 'ดีมาก ต่อไปฝึกฟังสั้น ๆ เลือกคำที่คุณได้ยิน'
+  if (code === 'hi') return 'बहुत अच्छा। अब एक छोटा listening अभ्यास: जो शब्द सुने, उन्हें चुनें।'
+  return 'Great. Quick listening check: pick the words you heard.'
+}
+
+function reviewDrillListeningRetryByLanguageCode(code: string): string {
+  if (code === 'vi') return 'Chưa khớp hết từ khóa nghe. Em thử nghe lại và chọn lại nhé.'
+  if (code === 'zh') return '还没匹配到足够关键词。请再听一次并重新选择。'
+  if (code === 'ja') return 'キーワードがまだ足りません。もう一度聞いて選び直しましょう。'
+  if (code === 'ko') return '핵심 단어가 아직 부족해요. 다시 듣고 다시 선택해 주세요.'
+  if (code === 'th') return 'ยังจับคำสำคัญไม่ครบ ลองฟังอีกครั้งแล้วเลือกใหม่'
+  if (code === 'hi') return 'अभी पर्याप्त कीवर्ड मैच नहीं हुए। फिर से सुनकर दोबारा चुनें।'
+  return 'Not enough matched keywords. Listen again and try once more.'
+}
+
+function reviewDrillListeningDoneByLanguageCode(code: string): string {
+  if (code === 'vi') return 'Tốt rồi, mình quay lại hội thoại chính nhé.'
+  if (code === 'zh') return '很好，我们回到主对话吧。'
+  if (code === 'ja') return 'よくできました。メイン会話に戻りましょう。'
+  if (code === 'ko') return '좋아요. 이제 메인 대화로 돌아가요.'
+  if (code === 'th') return 'ดีมาก กลับไปที่บทสนทนาหลักกัน'
+  if (code === 'hi') return 'बहुत बढ़िया, अब मुख्य बातचीत पर लौटते हैं।'
+  return 'Great. Back to the main conversation now.'
 }
 
 function mergeUniqueLimited(base: string[], add: string[], limit: number): string[] {
@@ -891,6 +1149,10 @@ export async function POST(request: NextRequest) {
       ? payload.topicStarterSentences.map((x) => String(x || '').trim()).filter(Boolean).slice(0, 4)
       : []
     const learningMode: 'review' | 'reflex' = payload.learningMode === 'reflex' ? 'reflex' : 'review'
+    const drillType = payload.drillType === 'listening' ? 'listening' : ''
+    const drillSelectedWords = Array.isArray(payload.drillSelectedWords)
+      ? payload.drillSelectedWords.map((x) => String(x || '').trim().toLowerCase()).filter(Boolean).slice(0, 12)
+      : []
     const micAnalysis = payload.micAnalysis && typeof payload.micAnalysis === 'object'
       ? payload.micAnalysis
       : null
@@ -1046,6 +1308,7 @@ export async function POST(request: NextRequest) {
       pinnedFacts: { repeatedMistakes: [], correctedSentences: [], learnedPhrases: [], topicFocus: '' },
     }
     let presetReplay: PresetReplayState | null = null
+    let reviewDrill: ReviewDrillState | null = null
     if (sessionId) {
       const supabase = createClient()
       const auth = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập để học cùng AI.')
@@ -1060,12 +1323,13 @@ export async function POST(request: NextRequest) {
       const memory = Array.isArray(memoryRows) && memoryRows.length > 0 ? memoryRows[0] : null
       sessionPinnedFactsRaw = String(memory?.pinned_facts_json || '{}')
       presetReplay = parsePresetReplay(sessionPinnedFactsRaw)
+      reviewDrill = parseReviewDrill(sessionPinnedFactsRaw)
       sessionMemory = {
         runningSummary: String(memory?.running_summary || '').trim(),
         pinnedFacts: parsePinnedFacts(sessionPinnedFactsRaw),
       }
     }
-    if (userId && sessionId && presetReplay?.active) {
+    if (userId && sessionId && presetReplay?.active && !reviewDrill) {
       const turnIdx = Math.max(0, Math.floor(Number(presetReplay.nextTurnIndex || 0)))
       const turn = presetReplay.turns[turnIdx]
       if (turn) {
@@ -1105,6 +1369,34 @@ export async function POST(request: NextRequest) {
           targetLanguageCode,
           targetLanguage
         )
+        const presetSpeakingTarget = String(turnMainSentence || turnMustKnowText || '').trim()
+        const presetListeningKeywords = extractListeningKeywords(String(turnMainSentence || turnReply || '').trim())
+        const presetReplyKeywords = extractListeningKeywords(String(turnReply || '').trim())
+        const presetListeningOptions = seededShuffle(
+          buildListeningOptionPool(presetListeningKeywords, presetReplyKeywords, targetLanguageCode),
+          `${sessionId}:preset:${turnIdx}:${presetSpeakingTarget}`
+        )
+        const presetSpeakingThreshold = speakingDrillThresholdByLevel(learnerLevel)
+        const presetTurnDrill: ReviewDrillState | null =
+          learningMode === 'review' && presetSpeakingTarget
+            ? {
+                speaking: {
+                  targetSentence: presetSpeakingTarget,
+                  minSimilarity: presetSpeakingThreshold.minSimilarity,
+                  minPronunciationScore: presetSpeakingThreshold.minPronunciationScore,
+                  attempt: 0,
+                },
+                listening: presetListeningOptions.length > 0
+                  ? {
+                      prompt: String(turnReply || '').trim(),
+                      expectedKeywords: presetListeningKeywords.length > 0 ? presetListeningKeywords : presetListeningOptions.slice(0, 2),
+                      options: presetListeningOptions,
+                      minMatchedKeywords: presetListeningKeywords.length >= 3 ? 2 : 1,
+                      attempt: 0,
+                    }
+                  : undefined,
+              }
+            : null
         const nextPinnedRaw = (() => {
           try {
             const parsed = JSON.parse(sessionPinnedFactsRaw || '{}') as Record<string, unknown>
@@ -1115,6 +1407,11 @@ export async function POST(request: NextRequest) {
               next_turn_index: turnIdx + 1,
               turns: presetReplay.turns,
             }
+            if (presetTurnDrill && (presetTurnDrill.speaking || presetTurnDrill.listening)) {
+              root.review_drill = presetTurnDrill
+            } else {
+              delete root.review_drill
+            }
             return JSON.stringify(root)
           } catch {
             return JSON.stringify({
@@ -1124,6 +1421,9 @@ export async function POST(request: NextRequest) {
                 next_turn_index: turnIdx + 1,
                 turns: presetReplay.turns,
               },
+              ...(presetTurnDrill && (presetTurnDrill.speaking || presetTurnDrill.listening)
+                ? { review_drill: presetTurnDrill }
+                : {}),
             })
           }
         })()
@@ -1153,7 +1453,244 @@ export async function POST(request: NextRequest) {
           correctedSentence: turnMainSentence,
           mainSentence: turnMainSentence,
           mustKnowText: turnMustKnowText,
+          reviewDrill: presetTurnDrill?.speaking
+            ? {
+                type: 'speaking',
+                targetSentence: presetTurnDrill.speaking.targetSentence,
+                minSimilarity: presetTurnDrill.speaking.minSimilarity,
+                minPronunciationScore: presetTurnDrill.speaking.minPronunciationScore,
+              }
+            : undefined,
           replayedFromPreset: true,
+        })
+      }
+    }
+    if (userId && sessionId && learningMode === 'review' && reviewDrill) {
+      if (reviewDrill.speaking) {
+        const speaking = reviewDrill.speaking
+        const sim = similarityScore(studentText, speaking.targetSentence)
+        const pronunciationScore = micPronunciationScore ?? 0
+        const passBySimilarity = sim >= speaking.minSimilarity
+        const passByPronunciation = pronunciationScore >= speaking.minPronunciationScore || inputSource !== 'mic'
+        if (!passBySimilarity || !passByPronunciation) {
+          const nextAttempt = speaking.attempt + 1
+          const showCooldownHint = nextAttempt >= 3 && nextAttempt % 3 === 0
+          const nextState: ReviewDrillState = {
+            speaking: { ...speaking, attempt: nextAttempt },
+            listening: reviewDrill.listening,
+          }
+          const pinned = buildReviewDrillRaw(sessionPinnedFactsRaw, nextState, {
+            speakingFail: 1,
+            hintServed: showCooldownHint ? 1 : 0,
+          })
+          await adminSupabase.from('language_coach_session_memories').upsert(
+            {
+              user_id: userId,
+              session_id: sessionId,
+              target_language: targetLanguage,
+              native_language: nativeLanguage,
+              learner_level: learnerLevel,
+              topic_id: topicId || null,
+              topic_label: topicLabel || null,
+              running_summary: sessionMemory.runningSummary,
+              pinned_facts_json: pinned,
+              learning_mode: learningMode,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: 'user_id,session_id' }
+          )
+          const retry = strictReplayRetryPromptByLanguageCode(targetLanguageCode, speaking.targetSentence, targetLanguage, speaking.attempt)
+          const cooldownHint = showCooldownHint ? speakingCooldownHint(speaking.targetSentence, nativeLanguageCode) : ''
+          const correctionNote = [reviewDrillSpeakingHintByLanguageCode(nativeLanguageCode), cooldownHint].filter(Boolean).join(' ')
+          return NextResponse.json({
+            reply: retry,
+            corrections: [],
+            pronunciationTips: [pronunciationTipByNativeLanguageCode(nativeLanguageCode)],
+            correctionNote,
+            intentAnswer: ensureIntentAnswerTwoPart(retry, targetLanguageCode, targetLanguage),
+            correctedSentence: speaking.targetSentence,
+            mainSentence: speaking.targetSentence,
+            mustKnowText: speaking.targetSentence,
+            reviewDrill: { type: 'speaking', targetSentence: speaking.targetSentence, minSimilarity: speaking.minSimilarity },
+          })
+        }
+        const afterSpeaking: ReviewDrillState | null = reviewDrill.listening
+          ? { listening: { ...reviewDrill.listening, attempt: reviewDrill.listening.attempt || 0 } }
+          : null
+        const pinnedAfterSpeaking = buildReviewDrillRaw(sessionPinnedFactsRaw, afterSpeaking, { speakingPass: 1 })
+        await adminSupabase.from('language_coach_session_memories').upsert(
+          {
+            user_id: userId,
+            session_id: sessionId,
+            target_language: targetLanguage,
+            native_language: nativeLanguage,
+            learner_level: learnerLevel,
+            topic_id: topicId || null,
+            topic_label: topicLabel || null,
+            running_summary: sessionMemory.runningSummary,
+            pinned_facts_json: pinnedAfterSpeaking,
+            learning_mode: learningMode,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'user_id,session_id' }
+        )
+        if (reviewDrill.listening) {
+          const listening = reviewDrill.listening
+          return NextResponse.json({
+            reply: reviewDrillListeningStartByLanguageCode(nativeLanguageCode),
+            corrections: [],
+            pronunciationTips: [],
+            correctionNote: '',
+            intentAnswer: ensureIntentAnswerTwoPart(
+              fallbackFollowUpByLanguageCode(targetLanguageCode, targetLanguage),
+              targetLanguageCode,
+              targetLanguage
+            ),
+            correctedSentence: speaking.targetSentence,
+            mainSentence: speaking.targetSentence,
+            mustKnowText: speaking.targetSentence,
+            reviewDrill: {
+              type: 'listening',
+              prompt: listening.prompt,
+              options: seededShuffle(listening.options, `${sessionId}:${listening.attempt}`),
+              expectedKeywords: listening.expectedKeywords,
+            },
+          })
+        }
+        const pinnedCleared = buildReviewDrillRaw(sessionPinnedFactsRaw, null, { speakingPass: 1 })
+        await adminSupabase.from('language_coach_session_memories').upsert(
+          {
+            user_id: userId,
+            session_id: sessionId,
+            target_language: targetLanguage,
+            native_language: nativeLanguage,
+            learner_level: learnerLevel,
+            topic_id: topicId || null,
+            topic_label: topicLabel || null,
+            running_summary: sessionMemory.runningSummary,
+            pinned_facts_json: pinnedCleared,
+            learning_mode: learningMode,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'user_id,session_id' }
+        )
+        return NextResponse.json({
+          reply: reviewDrillListeningDoneByLanguageCode(nativeLanguageCode),
+          corrections: [],
+          pronunciationTips: [],
+          correctionNote: '',
+          intentAnswer: ensureIntentAnswerTwoPart(
+            fallbackFollowUpByLanguageCode(targetLanguageCode, targetLanguage),
+            targetLanguageCode,
+            targetLanguage
+          ),
+          correctedSentence: speaking.targetSentence,
+          mainSentence: speaking.targetSentence,
+          mustKnowText: speaking.targetSentence,
+          reviewDrill: { type: 'done' },
+        })
+      } else if (reviewDrill.listening) {
+        const listening = reviewDrill.listening
+        const selected = drillType === 'listening'
+          ? drillSelectedWords
+          : String(studentText || '')
+            .toLowerCase()
+            .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+            .split(/\s+/)
+            .map((x) => x.trim())
+            .filter(Boolean)
+        const matched = listening.expectedKeywords.filter((kw) => selected.includes(String(kw || '').toLowerCase()))
+        if (matched.length < listening.minMatchedKeywords) {
+          const nextAttempt = listening.attempt + 1
+          const showCooldownHint = nextAttempt >= 3 && nextAttempt % 3 === 0
+          const nextState: ReviewDrillState = { listening: { ...listening, attempt: nextAttempt } }
+          const pinned = buildReviewDrillRaw(sessionPinnedFactsRaw, nextState, {
+            listeningFail: 1,
+            hintServed: showCooldownHint ? 1 : 0,
+          })
+          await adminSupabase.from('language_coach_session_memories').upsert(
+            {
+              user_id: userId,
+              session_id: sessionId,
+              target_language: targetLanguage,
+              native_language: nativeLanguage,
+              learner_level: learnerLevel,
+              topic_id: topicId || null,
+              topic_label: topicLabel || null,
+              running_summary: sessionMemory.runningSummary,
+              pinned_facts_json: pinned,
+              learning_mode: learningMode,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: 'user_id,session_id' }
+          )
+          const hint = showCooldownHint
+            ? (nativeLanguageCode === 'vi'
+              ? `Mẹo nhanh: tập trung vào ${listening.minMatchedKeywords} từ khóa rõ nhất trong câu.`
+              : nativeLanguageCode === 'zh'
+                ? `小提示：先抓住句子里最清楚的 ${listening.minMatchedKeywords} 个关键词。`
+                : nativeLanguageCode === 'ja'
+                  ? `コツ：文の中で最もはっきり聞こえるキーワードを ${listening.minMatchedKeywords} 個に絞りましょう。`
+                  : nativeLanguageCode === 'ko'
+                    ? `팁: 문장에서 가장 또렷한 키워드 ${listening.minMatchedKeywords}개에 먼저 집중하세요.`
+                    : nativeLanguageCode === 'th'
+                      ? `เคล็ดลับ: โฟกัสคำสำคัญที่ได้ยินชัดที่สุด ${listening.minMatchedKeywords} คำก่อน`
+                      : nativeLanguageCode === 'hi'
+                        ? `टिप: वाक्य में सबसे स्पष्ट सुनाई देने वाले ${listening.minMatchedKeywords} कीवर्ड पर ध्यान दें।`
+                        : `Quick tip: focus on ${listening.minMatchedKeywords} clearest keywords.`)
+            : ''
+          return NextResponse.json({
+            reply: reviewDrillListeningRetryByLanguageCode(nativeLanguageCode),
+            corrections: [],
+            pronunciationTips: [],
+            correctionNote: hint,
+            intentAnswer: ensureIntentAnswerTwoPart(
+              fallbackFollowUpByLanguageCode(targetLanguageCode, targetLanguage),
+              targetLanguageCode,
+              targetLanguage
+            ),
+            correctedSentence: '',
+            mainSentence: '',
+            mustKnowText: '',
+            reviewDrill: {
+              type: 'listening',
+              prompt: listening.prompt,
+              options: seededShuffle(listening.options, `${sessionId}:${listening.attempt + 1}`),
+              expectedKeywords: listening.expectedKeywords,
+            },
+          })
+        }
+        const pinnedCleared = buildReviewDrillRaw(sessionPinnedFactsRaw, null, { listeningPass: 1 })
+        await adminSupabase.from('language_coach_session_memories').upsert(
+          {
+            user_id: userId,
+            session_id: sessionId,
+            target_language: targetLanguage,
+            native_language: nativeLanguage,
+            learner_level: learnerLevel,
+            topic_id: topicId || null,
+            topic_label: topicLabel || null,
+            running_summary: sessionMemory.runningSummary,
+            pinned_facts_json: pinnedCleared,
+            learning_mode: learningMode,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'user_id,session_id' }
+        )
+        return NextResponse.json({
+          reply: reviewDrillListeningDoneByLanguageCode(nativeLanguageCode),
+          corrections: [],
+          pronunciationTips: [],
+          correctionNote: '',
+          intentAnswer: ensureIntentAnswerTwoPart(
+            fallbackFollowUpByLanguageCode(targetLanguageCode, targetLanguage),
+            targetLanguageCode,
+            targetLanguage
+          ),
+          correctedSentence: '',
+          mainSentence: '',
+          mustKnowText: '',
+          reviewDrill: { type: 'done' },
         })
       }
     }
@@ -2103,6 +2640,9 @@ ${intentAnswer || parsed.reply}`
       || ''
     const replyMaxChars = responseStyle === 'concise' ? 520 : 760
     parsed.reply = clampReplyBySentence(parsed.reply, replyMaxChars)
+    let responseReviewDrill:
+      | { type: 'speaking'; targetSentence: string; minSimilarity: number; minPronunciationScore: number }
+      | undefined
     if (userId && sessionId) {
       const previousFacts = sessionMemory.pinnedFacts
       const correctionFacts = (parsed.corrections || []).map((c) => String(c.fixed || '').trim()).filter(Boolean).slice(0, 5)
@@ -2117,6 +2657,65 @@ ${intentAnswer || parsed.reply}`
         ),
         topicFocus: topicLabel || previousFacts.topicFocus || '',
       }
+      const speakingTargetSentence = String(mainSentence || mustKnowText || '').trim()
+      const listeningKeywords = extractListeningKeywords(String(mainSentence || parsed.reply || '').trim())
+      const replyKeywords = extractListeningKeywords(String(parsed.reply || '').trim())
+      const listeningOptions = seededShuffle(
+        buildListeningOptionPool(listeningKeywords, replyKeywords, targetLanguageCode),
+        `${sessionId}:${studentText}:${mainSentence}`
+      )
+      const speakingThreshold = speakingDrillThresholdByLevel(learnerLevel)
+      const nextReviewDrill: ReviewDrillState | null =
+        learningMode === 'review' && speakingTargetSentence
+          ? {
+              speaking: {
+                targetSentence: speakingTargetSentence,
+                minSimilarity: speakingThreshold.minSimilarity,
+                minPronunciationScore: speakingThreshold.minPronunciationScore,
+                attempt: 0,
+              },
+              listening: listeningOptions.length > 0
+                ? {
+                    prompt: String(parsed.reply || '').trim(),
+                    expectedKeywords: listeningKeywords.length > 0 ? listeningKeywords : listeningOptions.slice(0, 2),
+                    options: listeningOptions,
+                    minMatchedKeywords: listeningKeywords.length >= 3 ? 2 : 1,
+                    attempt: 0,
+                  }
+                : undefined,
+            }
+          : null
+      if (nextReviewDrill?.speaking) {
+        responseReviewDrill = {
+          type: 'speaking',
+          targetSentence: nextReviewDrill.speaking.targetSentence,
+          minSimilarity: nextReviewDrill.speaking.minSimilarity,
+          minPronunciationScore: nextReviewDrill.speaking.minPronunciationScore,
+        }
+      }
+      const nextPinnedRoot = (() => {
+        try {
+          const parsedPinned = JSON.parse(sessionPinnedFactsRaw || '{}') as Record<string, unknown>
+          const base = parsedPinned && typeof parsedPinned === 'object' ? { ...parsedPinned } : {}
+          base.repeatedMistakes = nextFacts.repeatedMistakes
+          base.correctedSentences = nextFacts.correctedSentences
+          base.learnedPhrases = nextFacts.learnedPhrases
+          base.topicFocus = nextFacts.topicFocus
+          if (nextReviewDrill && (nextReviewDrill.speaking || nextReviewDrill.listening)) {
+            base.review_drill = nextReviewDrill
+          } else {
+            delete base.review_drill
+          }
+          return base
+        } catch {
+          return {
+            ...nextFacts,
+            ...(nextReviewDrill && (nextReviewDrill.speaking || nextReviewDrill.listening)
+              ? { review_drill: nextReviewDrill }
+              : {}),
+          }
+        }
+      })()
       const nextSummary = updateRunningSummary(sessionMemory.runningSummary, studentText, parsed.reply)
       await adminSupabase.from('language_coach_session_memories').upsert(
         {
@@ -2128,7 +2727,7 @@ ${intentAnswer || parsed.reply}`
           topic_id: topicId || null,
           topic_label: topicLabel || null,
           running_summary: nextSummary,
-          pinned_facts_json: JSON.stringify(nextFacts),
+          pinned_facts_json: JSON.stringify(nextPinnedRoot),
           learning_mode: 'review',
           updated_at: new Date().toISOString(),
         },
@@ -2156,6 +2755,7 @@ ${intentAnswer || parsed.reply}`
       correctedSentence: mainSentence,
       mainSentence,
       mustKnowText,
+      reviewDrill: responseReviewDrill,
     })
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Lỗi không xác định.'
