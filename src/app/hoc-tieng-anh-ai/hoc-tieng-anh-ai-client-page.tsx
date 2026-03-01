@@ -2007,6 +2007,8 @@ export default function HocTiengAnhAiClientPage() {
   const chatScrollRef = useRef<HTMLDivElement | null>(null)
   const speakActionsRef = useRef<HTMLDivElement | null>(null)
   const writingTaskRef = useRef<HTMLDivElement | null>(null)
+  const miniSpeakingBlockRef = useRef<HTMLDivElement | null>(null)
+  const miniListeningBlockRef = useRef<HTMLDivElement | null>(null)
   const writingInputRef = useRef<HTMLInputElement | null>(null)
   const wasMiniWritingBlockedRef = useRef(false)
   const teacherAudioByMessageIdRef = useRef<Record<string, string>>({})
@@ -2359,10 +2361,24 @@ export default function HocTiengAnhAiClientPage() {
   const isTopicConfirmedForLesson = Boolean(topicId) && confirmedTopicId === topicId
   const isLessonReadyToStart = isTopicConfirmedForLesson && hasCurriculumReady
   const canShowDirectConversation = isLessonReadyToStart || messages.length > 0 || Boolean(openedHistorySessionId)
+  const isMiniDrillBlocking = learningMode === 'review' && reviewDrillStage !== 'idle'
   const isMiniWritingBlocking =
     learningMode === 'review' && Boolean(writingTask) && !Boolean(writingTask?.completed)
 
   const getWritingTaskProgressStorageKey = useCallback((sid: string) => `nanoai_writing_task_progress:${sid}`, [])
+
+  const redirectToMiniDrill = useCallback(() => {
+    if (reviewDrillStage === 'writing') {
+      writingTaskRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      window.setTimeout(() => {
+        writingInputRef.current?.focus()
+      }, 180)
+    } else if (reviewDrillStage === 'speaking') {
+      miniSpeakingBlockRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    } else if (reviewDrillStage === 'listening') {
+      miniListeningBlockRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+  }, [reviewDrillStage])
 
   const redirectToMiniWriting = useCallback(() => {
     writingTaskRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
@@ -2400,13 +2416,13 @@ export default function HocTiengAnhAiClientPage() {
   )
 
   useEffect(() => {
-    if (wasMiniWritingBlockedRef.current && !isMiniWritingBlocking) {
+    if (wasMiniWritingBlockedRef.current && !isMiniDrillBlocking) {
       requestAnimationFrame(() => {
         speakActionsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
       })
     }
-    wasMiniWritingBlockedRef.current = isMiniWritingBlocking
-  }, [isMiniWritingBlocking])
+    wasMiniWritingBlockedRef.current = isMiniDrillBlocking
+  }, [isMiniDrillBlocking])
   const customTopicDifficultyById = useMemo<Record<string, TopicDifficulty>>(
     () =>
       customTopics.reduce<Record<string, TopicDifficulty>>((acc, item) => {
@@ -5027,8 +5043,8 @@ export default function HocTiengAnhAiClientPage() {
     const studentText = String(raw ?? draft).trim()
     if (!studentText) return
     if (busy && !opts?.existingStudentMessageId) return
-    if (isMiniWritingBlocking) {
-      redirectToMiniWriting()
+    if (isMiniDrillBlocking && !opts?.silentDrill && reviewDrillStage !== 'speaking') {
+      redirectToMiniDrill()
       return
     }
     if (source === 'mic') {
@@ -5913,8 +5929,8 @@ export default function HocTiengAnhAiClientPage() {
   }
 
   const sendPendingRecording = async () => {
-    if (isMiniWritingBlocking) {
-      redirectToMiniWriting()
+    if (isMiniDrillBlocking && reviewDrillStage !== 'speaking') {
+      redirectToMiniDrill()
       return
     }
     const blob = pendingRecordingBlobRef.current
@@ -6030,8 +6046,8 @@ export default function HocTiengAnhAiClientPage() {
       })
       return
     }
-    if (isMiniWritingBlocking) {
-      redirectToMiniWriting()
+    if (isMiniDrillBlocking && reviewDrillStage !== 'speaking') {
+      redirectToMiniDrill()
       return
     }
 
@@ -7301,32 +7317,32 @@ export default function HocTiengAnhAiClientPage() {
                   <Input
                     value={draft}
                     onFocus={(e) => {
-                      if (!isMiniWritingBlocking) return
+                      if (!isMiniDrillBlocking) return
                       e.currentTarget.blur()
-                      redirectToMiniWriting()
+                      redirectToMiniDrill()
                     }}
                     onChange={(e) => {
-                      if (isMiniWritingBlocking) {
-                        redirectToMiniWriting()
+                      if (isMiniDrillBlocking) {
+                        redirectToMiniDrill()
                         return
                       }
                       setDraft(e.target.value)
                     }}
                     placeholder={coachUiText.inputPlaceholder}
-                    disabled={busy || reviewListeningPopupOpen}
+                    disabled={busy || reviewListeningPopupOpen || isMiniDrillBlocking}
                     className="min-w-0 sm:flex-1"
                   />
                   <Button
                     type="button"
                     size="sm"
                     onClick={() => {
-                      if (isMiniWritingBlocking) {
-                        redirectToMiniWriting()
+                      if (isMiniDrillBlocking) {
+                        redirectToMiniDrill()
                         return
                       }
                       void handleSend()
                     }}
-                    disabled={busy || reviewListeningPopupOpen || !draft.trim()}
+                    disabled={busy || reviewListeningPopupOpen || isMiniDrillBlocking || !draft.trim()}
                     className="h-10 rounded-xl px-3"
                   >
                     <Send className="mr-1.5 h-4 w-4" />
@@ -7363,8 +7379,8 @@ export default function HocTiengAnhAiClientPage() {
                         size="sm"
                         variant="default"
                         onClick={() => {
-                          if (isMiniWritingBlocking) {
-                            redirectToMiniWriting()
+                          if (isMiniDrillBlocking && reviewDrillStage !== 'speaking') {
+                            redirectToMiniDrill()
                             return
                           }
                           void sendPendingRecording()
@@ -7383,7 +7399,7 @@ export default function HocTiengAnhAiClientPage() {
                         size="sm"
                         variant={listening ? 'destructive' : 'outline'}
                         onClick={handleMic}
-                        disabled={busy || awaitingTeacherReply}
+                        disabled={busy || awaitingTeacherReply || (isMiniDrillBlocking && reviewDrillStage !== 'speaking')}
                         className="min-h-[44px] px-3 text-xs"
                       >
                         {listening ? <MicOff className="mr-2 h-4 w-4" /> : <Mic className="mr-2 h-4 w-4" />}
@@ -7445,12 +7461,12 @@ export default function HocTiengAnhAiClientPage() {
                     </>
                   )}
                 </div>
-                {isMiniWritingBlocking || (busy && (messages.length === 0 || messages[messages.length - 1]?.role !== 'teacher')) || recordingPending ? (
+                {isMiniDrillBlocking || (busy && (messages.length === 0 || messages[messages.length - 1]?.role !== 'teacher')) || recordingPending ? (
                   <p className="text-xs text-slate-500">
-                    {isMiniWritingBlocking
+                    {isMiniDrillBlocking
                       ? localText(
-                          'Hãy hoàn thành bài viết mini trước khi tiếp tục nói hoặc gửi nhé.',
-                          'Please complete the mini writing task before continuing to speak or send.'
+                          'Hãy hoàn thành đủ 3 bài ôn tập mini (viết, nói, nghe) trước khi tiếp tục nói hoặc gửi.',
+                          'Complete all 3 mini review drills (write, speak, listen) before continuing to speak or send.'
                         )
                       : busy && (messages.length === 0 || messages[messages.length - 1]?.role !== 'teacher')
                         ? localText('Thầy/cô đang suy nghĩ và chuẩn bị giảng giải cho bạn...', 'Teacher is thinking and preparing an explanation for you...')
@@ -7618,7 +7634,7 @@ export default function HocTiengAnhAiClientPage() {
               {learningMode === 'review' &&
                 writingTask?.completed &&
                 (reviewDrillStage === 'writing' || reviewDrillStage === 'speaking') ? (
-                <div className="min-w-0 rounded-md border border-indigo-200 bg-indigo-50/60 p-2.5">
+                <div ref={miniSpeakingBlockRef} className="min-w-0 rounded-md border border-indigo-200 bg-indigo-50/60 p-2.5">
                   <p className="text-sm font-semibold text-indigo-800">
                     {localText('Mini 2/3: Nói lại câu sửa', 'Mini 2/3: Repeat the corrected sentence')}
                   </p>
@@ -7648,7 +7664,7 @@ export default function HocTiengAnhAiClientPage() {
                 </div>
               ) : null}
               {learningMode === 'review' && reviewDrillStage === 'listening' && reviewListeningOptions.length > 0 ? (
-                <div className="min-w-0 rounded-md border border-emerald-200 bg-emerald-50/60 p-2.5">
+                <div ref={miniListeningBlockRef} className="min-w-0 rounded-md border border-emerald-200 bg-emerald-50/60 p-2.5">
                   <p className="text-sm font-semibold text-emerald-800">
                     {localText('Mini 3/3: Chọn từ bạn nghe thấy', 'Mini 3/3: Pick words you heard')}
                   </p>
