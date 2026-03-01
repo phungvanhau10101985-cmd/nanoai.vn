@@ -106,13 +106,6 @@ export function WordPracticeOverlay({
               )}
               autoFocus
             />
-            {practiceInputStatus === 'incorrect' ? (
-              <p className="mt-1 text-xs text-rose-700">{t('Wrong spelling, keep typing to fix it.')}</p>
-            ) : practiceInputStatus === 'partial' ? (
-              <p className="mt-1 text-xs text-sky-700">{t('Correct so far, continue typing.')}</p>
-            ) : practiceInputStatus === 'correct' ? (
-              <p className="mt-1 text-xs text-emerald-700">{t('Correct!')}</p>
-            ) : null}
           </div>
         ) : (
           <div className="mt-3">

@@ -479,19 +479,6 @@ export function PreLessonReviewOverlay({
                   )}
                   autoFocus
                 />
-                {inputCheckStatus === 'incorrect' ? (
-                  <p className="mt-1 text-xs text-rose-700">
-                    {localText('Sai rồi, sửa ngay trong ô này.', 'Incorrect, fix it directly in this input.')}
-                  </p>
-                ) : inputCheckStatus === 'partial' ? (
-                  <p className="mt-1 text-xs text-sky-700">
-                    {localText('Đúng phần đầu, tiếp tục gõ.', 'Correct so far, keep typing.')}
-                  </p>
-                ) : inputCheckStatus === 'correct' ? (
-                  <p className="mt-1 text-xs text-emerald-700">
-                    {localText('Đúng rồi!', 'Correct!')}
-                  </p>
-                ) : null}
               </div>
             )}
             {wrongHint.type === 'recall' && (
@@ -557,19 +544,6 @@ export function PreLessonReviewOverlay({
                     )}
                     autoFocus
                   />
-                  {inputCheckStatus === 'incorrect' ? (
-                    <p className="mt-1 text-xs text-rose-700">
-                      {localText('Sai rồi, sửa ngay trong ô này.', 'Incorrect, fix it directly in this input.')}
-                    </p>
-                  ) : inputCheckStatus === 'partial' ? (
-                    <p className="mt-1 text-xs text-sky-700">
-                      {localText('Đúng phần đầu, tiếp tục gõ.', 'Correct so far, keep typing.')}
-                    </p>
-                  ) : inputCheckStatus === 'correct' ? (
-                    <p className="mt-1 text-xs text-emerald-700">
-                      {localText('Đúng rồi!', 'Correct!')}
-                    </p>
-                  ) : null}
                   {inputCheckStatus === 'incorrect' && (
                     <Button
                       type="button"
@@ -635,9 +609,9 @@ export function PreLessonReviewOverlay({
                     placeholder={localText('Gõ từ...', 'Type the word...')}
                     className={cn(
                       'h-11 text-base',
-                      inputCheckStatus === 'correct' && 'border-emerald-500 bg-emerald-50 focus-visible:ring-emerald-500',
-                      inputCheckStatus === 'partial' && 'border-sky-300 bg-sky-50 focus-visible:ring-sky-400',
-                      inputCheckStatus === 'incorrect' && 'border-rose-500 bg-rose-50 focus-visible:ring-rose-500'
+                      inputCheckStatus === 'correct' && 'border-emerald-500 bg-emerald-50 text-emerald-800 focus-visible:ring-emerald-500',
+                      inputCheckStatus === 'partial' && 'border-sky-300 bg-sky-50 text-sky-800 focus-visible:ring-sky-400',
+                      inputCheckStatus === 'incorrect' && 'border-rose-500 bg-rose-50 text-rose-800 focus-visible:ring-rose-500'
                     )}
                     autoFocus
                   />

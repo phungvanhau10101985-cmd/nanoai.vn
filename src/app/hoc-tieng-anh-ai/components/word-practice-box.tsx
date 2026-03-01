@@ -77,19 +77,6 @@ export function WordPracticeBox({
               {localText('Hủy', 'Cancel')}
             </Button>
           </div>
-          {practiceInputStatus === 'incorrect' ? (
-            <p className="mt-1 text-[11px] text-rose-700">
-              {localText('Sai chữ, tiếp tục gõ để sửa ngay.', 'Wrong spelling, keep typing to fix it.')}
-            </p>
-          ) : practiceInputStatus === 'partial' ? (
-            <p className="mt-1 text-[11px] text-sky-700">
-              {localText('Đúng phần đầu, gõ tiếp.', 'Correct so far, keep typing.')}
-            </p>
-          ) : practiceInputStatus === 'correct' ? (
-            <p className="mt-1 text-[11px] text-emerald-700">
-              {localText('Đúng rồi!', 'Correct!')}
-            </p>
-          ) : null}
           {active.awaitingMeaningChoice && active.meaningOptions.length > 0 ? (
             <div className="mt-1 flex flex-wrap gap-1">
               {active.meaningOptions.map((option, idx) => (
