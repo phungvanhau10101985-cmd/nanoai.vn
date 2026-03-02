@@ -5334,16 +5334,6 @@ export default function HocTiengAnhAiClientPage() {
     }
   }
 
-  const stopDrillSpeakingRecording = () => {
-    void stopMixedRecording().catch((e) => {
-      recordingForDrillRef.current = false
-      onDrillRecordingCompleteRef.current = null
-      setSpeakingDrillPhase('afterListen')
-      const msg = unknownErrorMsg(e)
-      toast({ title: coachUiText.micErrorTitle, description: msg, variant: 'destructive' })
-    })
-  }
-
   const playSpeakingDrillBlob = () => {
     if (!speakingDrillBlob) return
     const url = URL.createObjectURL(speakingDrillBlob)
@@ -7778,16 +7768,10 @@ export default function HocTiengAnhAiClientPage() {
                         {localText('Nói', 'Speak')}
                       </Button>
                     ) : speakingDrillPhase === 'recording' ? (
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        size="sm"
-                        onClick={stopDrillSpeakingRecording}
-                        className="min-h-[36px]"
-                      >
-                        <MicOff className="mr-2 h-4 w-4" />
-                        {localText('Dừng', 'Stop')}
-                      </Button>
+                      <p className="flex items-center gap-2 text-sm text-indigo-700">
+                        <span className="inline-flex h-2 w-2 animate-pulse rounded-full bg-indigo-500" />
+                        {localText('Đang ghi âm... (tự động dừng khi im lặng)', 'Recording... (auto-stops when silent)')}
+                      </p>
                     ) : (
                       <>
                         <Button
