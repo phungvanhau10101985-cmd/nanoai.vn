@@ -1844,6 +1844,9 @@ export default function HocTiengAnhAiClientPage() {
   const [awaitingTeacherReply, setAwaitingTeacherReply] = useState(false)
   const [reviewDrillStage, setReviewDrillStage] = useState<'idle' | 'writing' | 'speaking' | 'listening'>('idle')
   const [reviewSpeakingTargetSentence, setReviewSpeakingTargetSentence] = useState('')
+  const [speakingDrillPhase, setSpeakingDrillPhase] = useState<'listen' | 'afterListen' | 'recording' | 'afterRecord'>('listen')
+  const [speakingDrillCycleCount, setSpeakingDrillCycleCount] = useState(0)
+  const [speakingDrillBlob, setSpeakingDrillBlob] = useState<Blob | null>(null)
   const [reviewListeningPopupOpen, setReviewListeningPopupOpen] = useState(false)
   const [reviewListeningPrompt, setReviewListeningPrompt] = useState('')
   const [reviewListeningOptions, setReviewListeningOptions] = useState<string[]>([])
@@ -2009,6 +2012,8 @@ export default function HocTiengAnhAiClientPage() {
   const writingTaskRef = useRef<HTMLDivElement | null>(null)
   const miniSpeakingBlockRef = useRef<HTMLDivElement | null>(null)
   const miniListeningBlockRef = useRef<HTMLDivElement | null>(null)
+  const recordingForDrillRef = useRef(false)
+  const onDrillRecordingCompleteRef = useRef<((blob: Blob) => void) | null>(null)
   const writingInputRef = useRef<HTMLInputElement | null>(null)
   const wasMiniWritingBlockedRef = useRef(false)
   const teacherAudioByMessageIdRef = useRef<Record<string, string>>({})
@@ -5038,12 +5043,12 @@ export default function HocTiengAnhAiClientPage() {
     raw?: string,
     source: 'text' | 'mic' = 'text',
     micAnalysis?: MixedSpeechAnalysis,
-    opts?: { existingStudentMessageId?: string; silentDrill?: boolean; drillType?: 'listening'; drillSelectedWords?: string[] }
+    opts?: { existingStudentMessageId?: string; silentDrill?: boolean; drillType?: 'listening'; drillSelectedWords?: string[]; drillSpeaking?: boolean }
   ) => {
     const studentText = String(raw ?? draft).trim()
     if (!studentText) return
     if (busy && !opts?.existingStudentMessageId) return
-    if (isMiniDrillBlocking && !opts?.silentDrill && reviewDrillStage !== 'speaking') {
+    if (isMiniDrillBlocking && !opts?.silentDrill && !opts?.drillSpeaking) {
       redirectToMiniDrill()
       return
     }
@@ -5196,6 +5201,9 @@ export default function HocTiengAnhAiClientPage() {
         setReviewSpeakingTargetSentence(String(payload.reviewDrill.targetSentence || '').trim())
       } else if (payload.reviewDrill?.type === 'listening') {
         setReviewDrillStage('listening')
+        setSpeakingDrillPhase('listen')
+        setSpeakingDrillCycleCount(0)
+        setSpeakingDrillBlob(null)
         const optsWords = Array.isArray(payload.reviewDrill.options)
           ? payload.reviewDrill.options.map((x) => String(x || '').trim()).filter(Boolean)
           : []
@@ -5211,6 +5219,9 @@ export default function HocTiengAnhAiClientPage() {
         setReviewListeningPrompt('')
         setReviewListeningOptions([])
         setReviewListeningSelected([])
+        setSpeakingDrillPhase('listen')
+        setSpeakingDrillCycleCount(0)
+        setSpeakingDrillBlob(null)
       } else if (!payload.reviewDrill?.type) {
         setReviewDrillStage('idle')
       }
@@ -5284,6 +5295,89 @@ export default function HocTiengAnhAiClientPage() {
       })
     } finally {
       setReviewListeningSubmitBusy(false)
+    }
+  }
+
+  const handleDrillListen = async () => {
+    if (!reviewSpeakingTargetSentence) return
+    try {
+      await replayCorrectionSentence(reviewSpeakingTargetSentence)
+      setSpeakingDrillPhase('afterListen')
+    } catch {
+      // keep phase as listen on error
+    }
+  }
+
+  const startDrillSpeakingRecording = async () => {
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+      toast({
+        title: localText('Thiết bị chưa hỗ trợ', 'Device not supported'),
+        description: localText('Trình duyệt này chưa hỗ trợ ghi âm microphone.', 'This browser does not support microphone recording.'),
+        variant: 'destructive',
+      })
+      return
+    }
+    recordingForDrillRef.current = true
+    onDrillRecordingCompleteRef.current = (blob: Blob) => {
+      setSpeakingDrillBlob(blob)
+      setSpeakingDrillPhase('afterRecord')
+    }
+    setSpeakingDrillPhase('recording')
+    try {
+      await startMixedRecording()
+    } catch (e) {
+      recordingForDrillRef.current = false
+      onDrillRecordingCompleteRef.current = null
+      setSpeakingDrillPhase('afterListen')
+      const msg = unknownErrorMsg(e)
+      toast({ title: coachUiText.micErrorTitle, description: msg, variant: 'destructive' })
+    }
+  }
+
+  const stopDrillSpeakingRecording = () => {
+    void stopMixedRecording().catch((e) => {
+      recordingForDrillRef.current = false
+      onDrillRecordingCompleteRef.current = null
+      setSpeakingDrillPhase('afterListen')
+      const msg = unknownErrorMsg(e)
+      toast({ title: coachUiText.micErrorTitle, description: msg, variant: 'destructive' })
+    })
+  }
+
+  const playSpeakingDrillBlob = () => {
+    if (!speakingDrillBlob) return
+    const url = URL.createObjectURL(speakingDrillBlob)
+    const audio = new Audio(url)
+    audio.playbackRate = playbackSpeedRef.current
+    audio.onended = () => URL.revokeObjectURL(url)
+    audio.onerror = () => URL.revokeObjectURL(url)
+    void audio.play().catch(() => URL.revokeObjectURL(url))
+  }
+
+  const submitSpeakingDrillCycle = async () => {
+    const nextCount = speakingDrillCycleCount + 1
+    setSpeakingDrillCycleCount(nextCount)
+    setSpeakingDrillBlob(null)
+    if (nextCount < 3) {
+      setSpeakingDrillPhase('listen')
+      return
+    }
+    setSpeakingDrillPhase('listen')
+    setBusy(true)
+    setAwaitingTeacherReply(true)
+    const studentMessageId = appendMessage('student', reviewSpeakingTargetSentence)
+    chatScrollRef.current?.scrollIntoView({ behavior: 'smooth' })
+    try {
+      await handleSend(reviewSpeakingTargetSentence, 'text', undefined, {
+        existingStudentMessageId: studentMessageId,
+        drillSpeaking: true,
+      })
+    } catch (e) {
+      const msg = unknownErrorMsg(e)
+      toast({ title: localText('Lỗi hội thoại', 'Conversation error'), description: msg, variant: 'destructive' })
+    } finally {
+      setBusy(false)
+      setAwaitingTeacherReply(false)
     }
   }
 
@@ -5924,12 +6018,19 @@ export default function HocTiengAnhAiClientPage() {
     if (blob.size === 0) {
       throw new Error(localText('Không thu được âm thanh từ mic.', 'No audio captured from microphone.'))
     }
+    if (recordingForDrillRef.current) {
+      recordingForDrillRef.current = false
+      const cb = onDrillRecordingCompleteRef.current
+      onDrillRecordingCompleteRef.current = null
+      if (cb) cb(blob)
+      return
+    }
     pendingRecordingBlobRef.current = blob
     setRecordingPending(true)
   }
 
   const sendPendingRecording = async () => {
-    if (isMiniDrillBlocking && reviewDrillStage !== 'speaking') {
+    if (isMiniDrillBlocking) {
       redirectToMiniDrill()
       return
     }
@@ -6046,7 +6147,7 @@ export default function HocTiengAnhAiClientPage() {
       })
       return
     }
-    if (isMiniDrillBlocking && reviewDrillStage !== 'speaking') {
+    if (isMiniDrillBlocking) {
       redirectToMiniDrill()
       return
     }
@@ -7379,7 +7480,7 @@ export default function HocTiengAnhAiClientPage() {
                         size="sm"
                         variant="default"
                         onClick={() => {
-                          if (isMiniDrillBlocking && reviewDrillStage !== 'speaking') {
+                          if (isMiniDrillBlocking) {
                             redirectToMiniDrill()
                             return
                           }
@@ -7399,7 +7500,7 @@ export default function HocTiengAnhAiClientPage() {
                         size="sm"
                         variant={listening ? 'destructive' : 'outline'}
                         onClick={handleMic}
-                        disabled={busy || awaitingTeacherReply || (isMiniDrillBlocking && reviewDrillStage !== 'speaking')}
+                        disabled={busy || awaitingTeacherReply || isMiniDrillBlocking}
                         className="min-h-[44px] px-3 text-xs"
                       >
                         {listening ? <MicOff className="mr-2 h-4 w-4" /> : <Mic className="mr-2 h-4 w-4" />}
@@ -7636,30 +7737,93 @@ export default function HocTiengAnhAiClientPage() {
                 (reviewDrillStage === 'writing' || reviewDrillStage === 'speaking') ? (
                 <div ref={miniSpeakingBlockRef} className="min-w-0 rounded-md border border-indigo-200 bg-indigo-50/60 p-2.5">
                   <p className="text-sm font-semibold text-indigo-800">
-                    {localText('Mini 2/3: Nói lại câu sửa', 'Mini 2/3: Repeat the corrected sentence')}
-                  </p>
-                  <p className="mt-1 text-xs text-indigo-700">
-                    {localText(
-                      'Dùng nút mic bên dưới để nói lại câu mục tiêu. Chỉ khi nói đúng mới mở lượt nghe tiếp theo.',
-                      'Use the mic button below to repeat the target sentence. Only correct pronunciation unlocks the next listening turn.'
-                    )}
+                    {localText('Mini 2/3: Luyện phát âm', 'Mini 2/3: Pronunciation practice')}
                   </p>
                   {reviewSpeakingTargetSentence ? (
                     <p className="mt-2 rounded border border-indigo-200 bg-white px-2 py-1.5 text-sm font-medium text-slate-800">
                       {reviewSpeakingTargetSentence}
                     </p>
                   ) : null}
-                  <div className="mt-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => void replayCorrectionSentence(reviewSpeakingTargetSentence)}
-                      disabled={!reviewSpeakingTargetSentence || isReplayButtonDisabled(correctionAudioKey(reviewSpeakingTargetSentence), hasCachedTeacherAudio(correctionAudioKey(reviewSpeakingTargetSentence)))}
-                    >
-                      <Volume2 className="mr-2 h-4 w-4" />
-                      {localText('Nghe câu mục tiêu', 'Play target sentence')}
-                    </Button>
+                  <p className="mt-2 text-xs text-indigo-700">
+                    {localText(
+                      'Em hãy thực hiện nghe và nói câu trên 3 lần.',
+                      'Listen and repeat the sentence above 3 times.'
+                    )}
+                  </p>
+                  <p className="mt-1 text-xs font-medium text-indigo-600">
+                    {localText('Tiến độ:', 'Progress:')} {speakingDrillCycleCount}/3
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {speakingDrillPhase === 'listen' ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => void handleDrillListen()}
+                        disabled={!reviewSpeakingTargetSentence || isReplayButtonDisabled(correctionAudioKey(reviewSpeakingTargetSentence), hasCachedTeacherAudio(correctionAudioKey(reviewSpeakingTargetSentence)))}
+                        className="min-h-[36px]"
+                      >
+                        <Volume2 className="mr-2 h-4 w-4" />
+                        {localText('Nghe', 'Listen')}
+                      </Button>
+                    ) : speakingDrillPhase === 'afterListen' ? (
+                      <Button
+                        type="button"
+                        variant="default"
+                        size="sm"
+                        onClick={() => void startDrillSpeakingRecording()}
+                        className="min-h-[36px] ring-2 ring-indigo-400 ring-offset-2"
+                      >
+                        <Mic className="mr-2 h-4 w-4" />
+                        {localText('Nói', 'Speak')}
+                      </Button>
+                    ) : speakingDrillPhase === 'recording' ? (
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="sm"
+                        onClick={stopDrillSpeakingRecording}
+                        className="min-h-[36px]"
+                      >
+                        <MicOff className="mr-2 h-4 w-4" />
+                        {localText('Dừng', 'Stop')}
+                      </Button>
+                    ) : (
+                      <>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={playSpeakingDrillBlob}
+                          disabled={!speakingDrillBlob}
+                          className="min-h-[36px]"
+                        >
+                          <Play className="mr-2 h-4 w-4" />
+                          {localText('Nghe lại', 'Play back')}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => void startDrillSpeakingRecording()}
+                          className="min-h-[36px]"
+                        >
+                          <RotateCcw className="mr-2 h-4 w-4" />
+                          {localText('Nói lại', 'Record again')}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="default"
+                          size="sm"
+                          onClick={() => void submitSpeakingDrillCycle()}
+                          disabled={busy}
+                          className="min-h-[36px]"
+                        >
+                          <Send className="mr-2 h-4 w-4" />
+                          {localText('Gửi', 'Submit')}
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </div>
               ) : null}
