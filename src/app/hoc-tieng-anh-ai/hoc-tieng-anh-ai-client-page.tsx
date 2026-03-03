@@ -2563,14 +2563,6 @@ export default function HocTiengAnhAiClientPage() {
     learningMode === 'review' && Boolean(writingTask) && !Boolean(writingTask?.completed)
   const latestMainSentenceForLearner = useMemo(() => {
     if (isCurrentPresetSession) {
-      const directSpeakingTarget = sanitizeLearnerReadingSentence(reviewSpeakingTargetSentence)
-      if (directSpeakingTarget) {
-        return {
-          messageId: String(messages.filter((m) => m.role === 'teacher').pop()?.id || ''),
-          sentence: directSpeakingTarget,
-          teacherText: directSpeakingTarget,
-        }
-      }
       const targets = messages
         .filter((m) => m.role === 'teacher')
         .map((m) => {
@@ -2595,7 +2587,6 @@ export default function HocTiengAnhAiClientPage() {
     messages,
     mainSentenceByMessageId,
     isCurrentPresetSession,
-    reviewSpeakingTargetSentence,
     liveSessionStudentTurnCount,
     sessionEntryStudentTurnBaseline,
   ])
@@ -5121,6 +5112,7 @@ export default function HocTiengAnhAiClientPage() {
           || stageSnapshot === 'idle'
             ? stageSnapshot
             : ''
+        const shouldForceWritingFirstForPreset = presetSessionLoaded && !writingCompletedRestored
 
         // Fallback: if speaking drill exists but writing task snapshot is missing,
         // rebuild writing mini task from speaking target to keep 1->2->3 flow.
@@ -5199,12 +5191,17 @@ export default function HocTiengAnhAiClientPage() {
           setReviewListeningPopupOpen(true)
           setReviewMiniPackCompleted(false)
         } else if (snapshotStage === 'speaking' && activeSpeaking && speakingTargetValid) {
-          setReviewDrillStage('speaking')
-          setReviewSpeakingTargetSentence(activeSpeakingTarget)
-          setSpeakingDrillPhase('idle')
-          setSpeakingDrillCycleCount(0)
-          setSpeakingDrillBlob(null)
-          setReviewMiniPackCompleted(false)
+          if (shouldForceWritingFirstForPreset && writingRestored) {
+            setReviewDrillStage('writing')
+            setReviewMiniPackCompleted(false)
+          } else {
+            setReviewDrillStage('speaking')
+            setReviewSpeakingTargetSentence(activeSpeakingTarget)
+            setSpeakingDrillPhase('idle')
+            setSpeakingDrillCycleCount(0)
+            setSpeakingDrillBlob(null)
+            setReviewMiniPackCompleted(false)
+          }
         } else if (snapshotStage === 'writing' && writingRestored && !writingCompletedRestored) {
           setReviewDrillStage('writing')
           setReviewMiniPackCompleted(false)
@@ -5219,12 +5216,17 @@ export default function HocTiengAnhAiClientPage() {
           setReviewDrillStage('writing')
           setReviewMiniPackCompleted(false)
         } else if (activeSpeaking && speakingTargetValid) {
-          setReviewDrillStage('speaking')
-          setReviewSpeakingTargetSentence(activeSpeakingTarget)
-          setSpeakingDrillPhase('idle')
-          setSpeakingDrillCycleCount(0)
-          setSpeakingDrillBlob(null)
-          setReviewMiniPackCompleted(false)
+          if (shouldForceWritingFirstForPreset && writingRestored) {
+            setReviewDrillStage('writing')
+            setReviewMiniPackCompleted(false)
+          } else {
+            setReviewDrillStage('speaking')
+            setReviewSpeakingTargetSentence(activeSpeakingTarget)
+            setSpeakingDrillPhase('idle')
+            setSpeakingDrillCycleCount(0)
+            setSpeakingDrillBlob(null)
+            setReviewMiniPackCompleted(false)
+          }
         } else if (activeSpeaking && activeSpeakingTarget && !speakingTargetValid) {
           setReviewDrillStage('idle')
           setReviewMiniPackCompleted(true)
