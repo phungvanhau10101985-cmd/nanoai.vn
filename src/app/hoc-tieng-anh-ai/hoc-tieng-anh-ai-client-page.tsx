@@ -2160,7 +2160,6 @@ export default function HocTiengAnhAiClientPage() {
   const [correctionNoteByMessageId, setCorrectionNoteByMessageId] = useState<Record<string, string>>({})
   const [intentAnswerByMessageId, setIntentAnswerByMessageId] = useState<Record<string, string>>({})
   const [studentAudioByMessageId, setStudentAudioByMessageId] = useState<Record<string, string>>({})
-  const [studentAudioByMessageId, setStudentAudioByMessageId] = useState<Record<string, string>>({})
   const [teacherSpeakTextByMessageId, setTeacherSpeakTextByMessageId] = useState<Record<string, string>>({})
   const [intentExplainByMessageId, setIntentExplainByMessageId] = useState<Record<string, string>>({})
   const [intentExplainBusyByMessageId, setIntentExplainBusyByMessageId] = useState<Record<string, boolean>>({})
