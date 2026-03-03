@@ -8536,78 +8536,6 @@ export default function HocTiengAnhAiClientPage() {
                     {localText('Gửi', 'Send')}
                   </Button>
                 </div>
-                {!isCurrentPresetSession ? (
-                  <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
-                    <p>
-                      {localText('Lượt hỏi buổi live:', 'Live lesson turns:')}{' '}
-                      <span className="font-semibold">{liveSessionStudentTurnCount}/{liveSessionTurnLimit}</span>
-                      {' • '}
-                      {localText('Giá buổi 10 lượt:', 'Price per 10-turn lesson:')}{' '}
-                      <span className="font-semibold">{LIVE_SESSION_PRICE_CREDITS} credit</span>
-                    </p>
-                    {liveSessionTurnLimitReached ? (
-                      <div className="mt-2 flex flex-wrap items-center gap-2">
-                        <p className="text-rose-700">
-                          {localText(
-                            'Đã hết lượt hỏi của gói hiện tại.',
-                            'You reached the turn limit for the current pack.'
-                          )}
-                        </p>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            if (liveUnlockBusy) return
-                            const sid = String(sessionId || '').trim()
-                            if (!sid) return
-                            setLiveUnlockBusy(true)
-                            void chargeEnglishCoachCredits({
-                              action: 'charge_live_unlock',
-                              sessionId: sid,
-                            }).then(({ ok, data }) => {
-                              if (!ok) {
-                                toast({
-                                  title: localText('Không mở thêm được lượt', 'Unable to unlock extra turns'),
-                                  description: String(data.error || localText('Không thể trừ credit để mở thêm lượt.', 'Unable to charge credits for extra turns.')),
-                                  variant: 'destructive',
-                                })
-                                return
-                              }
-                              notifyCreditsUpdated()
-                              const unlockCount = Math.max(0, Math.floor(Number(data.liveUnlockCount || 0) || 0))
-                              setLiveSessionExtraTurnUnlocks(unlockCount)
-                              const newBalance = Number(data.newBalance || 0)
-                              toast({
-                                title: localText('Đã mở thêm lượt hỏi', 'Extra turns unlocked'),
-                                description: localText(
-                                  `Đã trừ ${LIVE_SESSION_EXTRA_STEP_PRICE_CREDITS} credit, mở thêm ${LIVE_SESSION_EXTRA_TURN_STEP} lượt. Số dư còn lại: ${newBalance.toFixed(2)}.`,
-                                  `${LIVE_SESSION_EXTRA_STEP_PRICE_CREDITS} credits deducted and ${LIVE_SESSION_EXTRA_TURN_STEP} extra turns unlocked. Remaining balance: ${newBalance.toFixed(2)}.`
-                                ),
-                              })
-                            }).finally(() => {
-                              setLiveUnlockBusy(false)
-                            })
-                          }}
-                          disabled={liveUnlockBusy}
-                          className="h-8"
-                        >
-                          {localText(
-                            `Mở thêm ${LIVE_SESSION_EXTRA_TURN_STEP} lượt (${LIVE_SESSION_EXTRA_STEP_PRICE_CREDITS} credit)`,
-                            `Unlock ${LIVE_SESSION_EXTRA_TURN_STEP} turns (${LIVE_SESSION_EXTRA_STEP_PRICE_CREDITS} credits)`
-                          )}
-                        </Button>
-                      </div>
-                    ) : null}
-                  </div>
-                ) : (
-                  <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
-                    {localText(
-                      `Bài học có sẵn: ${PRESET_SESSION_PRICE_CREDITS} credit/buổi (không mở thêm lượt, học hết buổi hiện tại).`,
-                      `Saved lesson: ${PRESET_SESSION_PRICE_CREDITS} credit per lesson (no extra turn unlock, finish current lesson).`
-                    )}
-                  </div>
-                )}
                 <div className={`flex min-w-0 flex-wrap items-center gap-2 overflow-x-auto rounded-xl border border-border/70 bg-background/95 px-2 py-2 ${compactMode ? 'sticky bottom-0 z-20 shadow-md' : ''}`}>
                   {recordingPending ? (
                     <>
@@ -8720,6 +8648,79 @@ export default function HocTiengAnhAiClientPage() {
                     </>
                   )}
                 </div>
+                {!isCurrentPresetSession ? (
+                  <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+                    <p>
+                      {localText('Lượt hỏi buổi live:', 'Live lesson turns:')}{' '}
+                      <span className="font-semibold">{liveSessionStudentTurnCount}/{liveSessionTurnLimit}</span>
+                      {' • '}
+                      {localText('Giá buổi 10 lượt:', 'Price per 10-turn lesson:')}{' '}
+                      <span className="font-semibold">{LIVE_SESSION_PRICE_CREDITS} credit</span>
+                      {localText(', đã thanh toán.', ', paid.')}
+                    </p>
+                    {liveSessionTurnLimitReached ? (
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <p className="text-rose-700">
+                          {localText(
+                            'Đã hết lượt hỏi của gói hiện tại.',
+                            'You reached the turn limit for the current pack.'
+                          )}
+                        </p>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            if (liveUnlockBusy) return
+                            const sid = String(sessionId || '').trim()
+                            if (!sid) return
+                            setLiveUnlockBusy(true)
+                            void chargeEnglishCoachCredits({
+                              action: 'charge_live_unlock',
+                              sessionId: sid,
+                            }).then(({ ok, data }) => {
+                              if (!ok) {
+                                toast({
+                                  title: localText('Không mở thêm được lượt', 'Unable to unlock extra turns'),
+                                  description: String(data.error || localText('Không thể trừ credit để mở thêm lượt.', 'Unable to charge credits for extra turns.')),
+                                  variant: 'destructive',
+                                })
+                                return
+                              }
+                              notifyCreditsUpdated()
+                              const unlockCount = Math.max(0, Math.floor(Number(data.liveUnlockCount || 0) || 0))
+                              setLiveSessionExtraTurnUnlocks(unlockCount)
+                              const newBalance = Number(data.newBalance || 0)
+                              toast({
+                                title: localText('Đã mở thêm lượt hỏi', 'Extra turns unlocked'),
+                                description: localText(
+                                  `Đã trừ ${LIVE_SESSION_EXTRA_STEP_PRICE_CREDITS} credit, mở thêm ${LIVE_SESSION_EXTRA_TURN_STEP} lượt. Số dư còn lại: ${newBalance.toFixed(2)}.`,
+                                  `${LIVE_SESSION_EXTRA_STEP_PRICE_CREDITS} credits deducted and ${LIVE_SESSION_EXTRA_TURN_STEP} extra turns unlocked. Remaining balance: ${newBalance.toFixed(2)}.`
+                                ),
+                              })
+                            }).finally(() => {
+                              setLiveUnlockBusy(false)
+                            })
+                          }}
+                          disabled={liveUnlockBusy}
+                          className="h-8"
+                        >
+                          {localText(
+                            `Mở thêm ${LIVE_SESSION_EXTRA_TURN_STEP} lượt (${LIVE_SESSION_EXTRA_STEP_PRICE_CREDITS} credit)`,
+                            `Unlock ${LIVE_SESSION_EXTRA_TURN_STEP} turns (${LIVE_SESSION_EXTRA_STEP_PRICE_CREDITS} credits)`
+                          )}
+                        </Button>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : (
+                  <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+                    {localText(
+                      `Bài học có sẵn: ${PRESET_SESSION_PRICE_CREDITS} credit/buổi (không mở thêm lượt, học hết buổi hiện tại).`,
+                      `Saved lesson: ${PRESET_SESSION_PRICE_CREDITS} credit per lesson (no extra turn unlock, finish current lesson).`
+                    )}
+                  </div>
+                )}
                 {isMiniDrillBlocking || (busy && (messages.length === 0 || messages[messages.length - 1]?.role !== 'teacher')) || recordingPending ? (
                   <p className="text-xs text-slate-500">
                     {isMiniDrillBlocking
