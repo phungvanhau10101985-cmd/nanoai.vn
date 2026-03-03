@@ -83,6 +83,12 @@ Không trộn ${input.nativeLanguage}.
 - Nếu câu học sinh là MIX (${input.nativeLanguage} + ${input.targetLanguage}), mainSentence bắt buộc phải gộp ĐỦ TẤT CẢ ý học sinh đã nói thành 1 câu/2 câu tự nhiên bằng ${input.targetLanguage}, KHÔNG được bỏ sót vế.
 - Tuyệt đối không chỉ sửa một mảnh nhỏ rồi bỏ phần còn lại (ví dụ chỉ sửa "I am forty years old" nhưng quên vế "I am a construction engineer").
 - Với câu MIX có phần ${input.nativeLanguage} chưa đổi, corrections phải có item thể hiện rõ cặp native -> target cho phần bị thiếu đó.
+- RÀNG BUỘC NHẤT QUÁN corrections <-> mainSentence: nếu có ít nhất 1 lỗi thật sự trong corrections (original != fixed), thì mainSentence BẮT BUỘC phải phản ánh bản đã sửa; không được giữ nguyên cụm sai trong câu gốc.
+- Cấm mâu thuẫn nội bộ: không được vừa ghi "Nên nói: X" trong corrections nhưng mainSentence vẫn chứa lại cụm sai tương ứng.
+- Nếu corrections có các cặp kiểu "need live" -> "need to live", "live there in Vietnam" -> "live in Vietnam", thì mainSentence phải dùng dạng đã sửa hoàn chỉnh (ví dụ: "I need to live in Vietnam"), không dùng lại dạng lỗi.
+- Khi có nhiều lỗi, mainSentence phải hợp nhất TẤT CẢ sửa lỗi vào cùng một câu đúng cuối cùng; không chỉ áp dụng một phần sửa lỗi.
+- Chỉ khi corrections rỗng (hoặc chỉ là mẹo phát âm không sửa ngữ pháp/từ vựng) thì mới được phép giữ nguyên câu học sinh.
+- TỰ KIỂM TRA trước khi xuất JSON: đọc lại corrections rồi kiểm tra mainSentence lần cuối; nếu còn chứa bất kỳ cụm sai đã nêu trong corrections.original thì phải sửa mainSentence trước khi trả kết quả.
 36) MEMORY NGẮN HẠN (hỗ trợ, không thay thế dữ liệu gốc):
 - Running summary: ${input.sessionMemory.runningSummary || '(chưa có)'}
 - Pinned repeatedMistakes: ${input.sessionMemory.pinnedFacts.repeatedMistakes.join(' | ') || '(trống)'}
