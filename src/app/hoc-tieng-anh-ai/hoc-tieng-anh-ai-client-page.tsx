@@ -1839,10 +1839,10 @@ function ensureListeningVisibleHasCorrectOption(
     currentCorrect = nextVisible.filter((x) => isExpected(x)).length
   }
 
-  // Rule 2: cap visible correct options to at most 2.
-  if (currentCorrect > 2) {
+  // Rule 2: keep exactly 1 correct option visible at a time.
+  if (currentCorrect > 1) {
     for (let i = 0; i < nextVisible.length; i++) {
-      if (currentCorrect <= 2) break
+      if (currentCorrect <= 1) break
       if (!isExpected(nextVisible[i])) continue
       const replacement = wrongPool.find((x) => !nextVisible.includes(x))
       if (!replacement) break
@@ -8891,11 +8891,7 @@ export default function HocTiengAnhAiClientPage() {
                   </div>
                 </div>
               ) : null}
-              {learningMode === 'review' &&
-                (
-                  reviewDrillStage === 'speaking'
-                  || reviewDrillStage === 'writing'
-                ) ? (
+              {learningMode === 'review' && reviewDrillStage === 'speaking' ? (
                 <div ref={miniSpeakingBlockRef} className="min-w-0 rounded-md border border-indigo-200 bg-indigo-50/60 p-2.5">
                   <p className="text-sm font-semibold text-indigo-800">
                     {localText('Mini 2/3: Luyện phát âm', 'Mini 2/3: Pronunciation practice')}
@@ -8914,11 +8910,6 @@ export default function HocTiengAnhAiClientPage() {
                   <p className="mt-1 text-xs font-medium text-indigo-600">
                     {localText('Tiến độ:', 'Progress:')} {speakingDrillCycleCount}/3
                   </p>
-                  {learningMode === 'review' && reviewDrillStage === 'writing' && Boolean(writingTask) && !writingTask.completed ? (
-                    <p className="mt-1 text-xs text-indigo-700">
-                      {localText('Đã hiển thị sẵn mini nói. Ưu tiên hoàn thành mini viết trước, sau đó nói sẽ mượt hơn.', 'Speaking mini is shown. Complete writing mini first for a smoother flow.')}
-                    </p>
-                  ) : null}
                   <div className="mt-3 flex flex-wrap gap-2">
                     {speakingDrillPhase === 'idle' ? (
                       <Button

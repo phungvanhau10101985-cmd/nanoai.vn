@@ -1837,11 +1837,10 @@ export async function POST(request: NextRequest) {
               delete root.review_drill
             }
             root.mini_stage_snapshot = {
-              stage: presetTurnDrill?.listening
-                ? 'listening'
-                : presetTurnDrill?.speaking
-                  ? 'speaking'
-                  : 'idle',
+              // Preset lessons follow strict timeline: writing -> speaking -> listening.
+              stage: presetTurnDrill?.speaking
+                ? 'writing'
+                : 'idle',
               updatedAt: new Date().toISOString(),
             }
             return JSON.stringify(root)
@@ -1857,11 +1856,9 @@ export async function POST(request: NextRequest) {
                 ? { review_drill: presetTurnDrill }
                 : {}),
               mini_stage_snapshot: {
-                stage: presetTurnDrill?.listening
-                  ? 'listening'
-                  : presetTurnDrill?.speaking
-                    ? 'speaking'
-                    : 'idle',
+                stage: presetTurnDrill?.speaking
+                  ? 'writing'
+                  : 'idle',
                 updatedAt: new Date().toISOString(),
               },
             })
