@@ -4962,9 +4962,24 @@ export default function HocTiengAnhAiClientPage() {
           }
         }
 
-        if (snapshotStage === 'done' || snapshotStage === 'idle') {
+        if (snapshotStage === 'done') {
           setReviewDrillStage('idle')
-          setReviewMiniPackCompleted(snapshotStage === 'done' || (writingRestored && writingCompletedRestored))
+          setReviewMiniPackCompleted(true)
+          setWritingTask((prev) => {
+            if (!prev) return prev
+            const lastIndex = Math.max(0, prev.requiredSentences.length - 1)
+            return {
+              ...prev,
+              completed: true,
+              currentIndex: lastIndex,
+              referenceSentence: prev.requiredSentences[lastIndex] || prev.referenceSentence,
+            }
+          })
+          setWritingDraft('')
+          setWritingEvalResult(null)
+        } else if (snapshotStage === 'idle') {
+          setReviewDrillStage('idle')
+          setReviewMiniPackCompleted(writingRestored && writingCompletedRestored)
         } else if (snapshotStage === 'listening' && activeListening) {
           const promptForListening = String(activeListening.prompt || '').trim()
           let optsWords = Array.isArray(activeListening.options)
