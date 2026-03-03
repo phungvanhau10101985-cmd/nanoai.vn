@@ -2559,7 +2559,6 @@ export default function HocTiengAnhAiClientPage() {
     learningMode === 'review'
     && reviewDrillStage !== 'idle'
     && hasStudentTurnsInCurrentSession
-    && !(isCurrentPresetSession && reviewDrillStage === 'writing')
   const isMiniWritingBlocking =
     learningMode === 'review' && Boolean(writingTask) && !Boolean(writingTask?.completed)
   const latestMainSentenceForLearner = useMemo(() => {
@@ -2575,10 +2574,8 @@ export default function HocTiengAnhAiClientPage() {
       const targets = messages
         .filter((m) => m.role === 'teacher')
         .map((m) => {
-          const idea3 = sanitizeLearnerReadingSentence(String(intentAnswerByMessageId[m.id] || '').trim())
           const idea2 = sanitizeLearnerReadingSentence(String(mainSentenceByMessageId[m.id] || '').trim())
-          const fallback = sanitizeLearnerReadingSentence(takeFirstSentenceOnly(extractTeacherSpeechText(m.text)).trim())
-          const sentence = idea3 || idea2 || fallback
+          const sentence = idea2
           return sentence ? { messageId: m.id, sentence, teacherText: m.text } : null
         })
         .filter(Boolean) as Array<{ messageId: string; sentence: string; teacherText: string }>
@@ -2597,7 +2594,6 @@ export default function HocTiengAnhAiClientPage() {
   }, [
     messages,
     mainSentenceByMessageId,
-    intentAnswerByMessageId,
     isCurrentPresetSession,
     reviewSpeakingTargetSentence,
     liveSessionStudentTurnCount,
@@ -6006,7 +6002,7 @@ export default function HocTiengAnhAiClientPage() {
         if (copyTargets.length < 2) pushIfDistinct(String(speakingTargetFromPayload || '').trim())
         if (copyTargets.length > 2) copyTargets.splice(2)
         currentWritingCopyTargets = copyTargets
-        if (learningMode === 'review' && payload.startMiniPack && !reviewMiniPackCompleted && !isCurrentPresetSession) {
+        if (learningMode === 'review' && payload.startMiniPack && !reviewMiniPackCompleted) {
           mustStayWritingStage = true
           setReviewMiniPackCompleted(false)
           setReviewDrillStage('writing')
@@ -6046,7 +6042,7 @@ export default function HocTiengAnhAiClientPage() {
       }
 
       if (payload.reviewDrill?.type === 'speaking') {
-        const hasPendingWriting = Boolean(writingTask && !writingTask.completed) && !isCurrentPresetSession
+        const hasPendingWriting = Boolean(writingTask && !writingTask.completed)
         const speakingTarget = String(payload.reviewDrill.targetSentence || '').trim()
         const speakingTargetValid = speakingTarget ? isSentenceInTargetLanguage(speakingTarget, languageCode) : false
         const fallbackSpeakingTarget = String(
@@ -6082,7 +6078,6 @@ export default function HocTiengAnhAiClientPage() {
         }
         const shouldCreateWritingFallback =
           learningMode === 'review'
-          && !isCurrentPresetSession
           && !isFromDrill
           && !mustStayWritingStage
           && Boolean(finalSpeakingTarget)
@@ -8998,7 +8993,7 @@ export default function HocTiengAnhAiClientPage() {
                   </p>
                 ) : null}
               </div>
-              {learningMode === 'review' && !isCurrentPresetSession && reviewDrillStage === 'writing' && hasStudentTurnsInCurrentSession && writingTask && !writingTask.completed ? (
+              {learningMode === 'review' && reviewDrillStage === 'writing' && writingTask && !writingTask.completed ? (
                 <div
                   ref={writingTaskRef}
                   className={`min-w-0 rounded-md border p-2.5 ${
