@@ -2556,6 +2556,20 @@ export default function HocTiengAnhAiClientPage() {
   const isMiniWritingBlocking =
     learningMode === 'review' && Boolean(writingTask) && !Boolean(writingTask?.completed)
   const latestMainSentenceForLearner = useMemo(() => {
+    if (isCurrentPresetSession) {
+      const targets = messages
+        .filter((m) => m.role === 'teacher')
+        .map((m) => {
+          const idea3 = String(intentAnswerByMessageId[m.id] || '').trim()
+          const idea2 = String(mainSentenceByMessageId[m.id] || '').trim()
+          const fallback = takeFirstSentenceOnly(extractTeacherSpeechText(m.text)).trim()
+          const sentence = idea3 || idea2 || fallback
+          return sentence ? { messageId: m.id, sentence, teacherText: m.text } : null
+        })
+        .filter(Boolean) as Array<{ messageId: string; sentence: string; teacherText: string }>
+      const progress = Math.max(0, liveSessionStudentTurnCount - sessionEntryStudentTurnBaseline)
+      return targets[progress] || null
+    }
     for (let i = messages.length - 1; i >= 0; i--) {
       const m = messages[i]
       if (m.role !== 'teacher') continue
@@ -2564,20 +2578,15 @@ export default function HocTiengAnhAiClientPage() {
         return { messageId: m.id, sentence, teacherText: m.text }
       }
     }
-    // Preset lessons can start with only opening line (no structured mainSentence yet).
-    // Fallback to the latest teacher text first sentence so learner always has a line to read.
-    if (isCurrentPresetSession) {
-      for (let i = messages.length - 1; i >= 0; i--) {
-        const m = messages[i]
-        if (m.role !== 'teacher') continue
-        const fallbackSentence = takeFirstSentenceOnly(extractTeacherSpeechText(m.text)).trim()
-        if (fallbackSentence) {
-          return { messageId: m.id, sentence: fallbackSentence, teacherText: m.text }
-        }
-      }
-    }
     return null
-  }, [messages, mainSentenceByMessageId, isCurrentPresetSession])
+  }, [
+    messages,
+    mainSentenceByMessageId,
+    intentAnswerByMessageId,
+    isCurrentPresetSession,
+    liveSessionStudentTurnCount,
+    sessionEntryStudentTurnBaseline,
+  ])
 
   useEffect(() => {
     latestMiniStageRef.current = reviewMiniPackCompleted ? 'done' : reviewDrillStage
@@ -5759,6 +5768,17 @@ export default function HocTiengAnhAiClientPage() {
 
     const hadExistingMessage = Boolean(opts?.existingStudentMessageId)
     const isFromDrill = opts?.silentDrill || opts?.drillSpeaking || opts?.drillType === 'listening'
+    if (isCurrentPresetSession && !isFromDrill && source === 'text') {
+      toast({
+        title: localText('Bài học có sẵn dùng ghi âm', 'Saved lesson uses voice recording'),
+        description: localText(
+          'Bấm "Nói" rồi "Gửi" để lưu câu đọc của bạn. Không gửi text ở bước này.',
+          'Tap "Speak" then "Send" to submit your reading. Text send is disabled at this step.'
+        ),
+        variant: 'destructive',
+      })
+      return
+    }
     if (!hadExistingMessage && !isFromDrill && liveSessionTurnLimitReached) {
       toast({
         title: localText('Đã chạm giới hạn lượt hỏi', 'Turn limit reached'),
@@ -7197,6 +7217,15 @@ export default function HocTiengAnhAiClientPage() {
     }
     const blob = pendingRecordingBlobRef.current
     if (!blob) return
+    if (isCurrentPresetSession && !isMiniDrillBlocking && !latestMainSentenceForLearner) {
+      toast({
+        title: localText('Đã hoàn thành bài học có sẵn', 'Saved lesson completed'),
+        description: localText('Bạn đã đọc hết các câu của bài học này.', 'You have completed all reading lines in this saved lesson.'),
+      })
+      pendingRecordingBlobRef.current = null
+      setRecordingPending(false)
+      return
+    }
     const isPresetDirectReadFlow =
       isCurrentPresetSession
       && !isMiniDrillBlocking
@@ -7262,6 +7291,19 @@ export default function HocTiengAnhAiClientPage() {
         }
       } catch {
         // keep local object URL for in-session replay if upload fails
+      }
+      if (isPresetDirectReadFlow) {
+        void saveHistoryMessage({
+          role: 'student',
+          text: transcript,
+          audioUrl: uploadedStudentAudioUrl || localAudioUrl,
+          clientMessageId: studentMessageId,
+        }).then(() => {
+          persistedMessageIdsRef.current[studentMessageId] = true
+        }).catch(() => {})
+        setBusy(false)
+        setAwaitingTeacherReply(false)
+        return
       }
       await handleSend(transcript, 'mic', analysis, {
         existingStudentMessageId: studentMessageId,
@@ -8696,6 +8738,14 @@ export default function HocTiengAnhAiClientPage() {
                         {localText('Dùng câu này', 'Use this sentence')}
                       </Button>
                     </div>
+                  </div>
+                ) : null}
+                {!isMiniDrillBlocking && isCurrentPresetSession && !latestMainSentenceForLearner ? (
+                  <div className="rounded-md border border-emerald-200 bg-emerald-50/70 px-3 py-2 text-xs text-emerald-800">
+                    <p className="font-semibold">{localText('Đã hoàn thành câu đọc chính', 'Main reading lines completed')}</p>
+                    <p className="mt-1">
+                      {localText('Bạn đã đọc hết các câu của bài học có sẵn này.', 'You finished all reading lines of this saved lesson.')}
+                    </p>
                   </div>
                 ) : null}
                 <div className="flex min-w-0 items-center gap-2 sm:flex-1">
