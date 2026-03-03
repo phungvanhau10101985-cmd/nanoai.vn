@@ -128,6 +128,15 @@ type ReviewDrillStats = {
   updatedAt: string
 }
 
+type ChatJsonPayload = {
+  reply: string
+  corrections: Correction[]
+  pronunciationTips: string[]
+  mainSentence: string
+  correctionNote: string
+  intentAnswer: string
+}
+
 const LIVE_SESSION_BASE_TURN_LIMIT = 10
 const LIVE_SESSION_EXTRA_TURN_STEP = 5
 const LIVE_SESSION_PRICE_CREDITS = 2.5
@@ -1218,6 +1227,79 @@ function safeJsonParse(text: string): {
     }
   }
   return null
+}
+
+function hasCoreChatFields(input: {
+  mainSentence?: string
+  correctionNote?: string
+  intentAnswer?: string
+}): boolean {
+  const mainSentence = String(input.mainSentence || '').trim()
+  const correctionNote = String(input.correctionNote || '').trim()
+  const intentAnswer = String(input.intentAnswer || '').trim()
+  return Boolean(mainSentence && correctionNote && intentAnswer)
+}
+
+async function generateDeepSeekChatJson(params: {
+  systemPrompt: string
+  userPrompt: string
+  apiKey: string
+}): Promise<ChatJsonPayload | null> {
+  const model = String(process.env.DEEPSEEK_MODEL || 'deepseek-chat').trim() || 'deepseek-chat'
+  const res = await fetch('https://api.deepseek.com/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${params.apiKey}`,
+    },
+    body: JSON.stringify({
+      model,
+      temperature: 0.2,
+      messages: [
+        { role: 'system', content: params.systemPrompt },
+        { role: 'user', content: params.userPrompt },
+      ],
+      response_format: { type: 'json_object' },
+    }),
+  })
+  if (!res.ok) return null
+  const data = (await res.json().catch(() => ({}))) as {
+    choices?: Array<{ message?: { content?: string } }>
+  }
+  const text = String(data?.choices?.[0]?.message?.content || '').trim()
+  if (!text) return null
+  return safeJsonParse(text)
+}
+
+async function generateOpenAiFallbackChatJson(params: {
+  systemPrompt: string
+  userPrompt: string
+  apiKey: string
+}): Promise<ChatJsonPayload | null> {
+  const model = String(process.env.OPENAI_FALLBACK_MODEL || 'gpt-5-mini').trim() || 'gpt-5-mini'
+  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${params.apiKey}`,
+    },
+    body: JSON.stringify({
+      model,
+      temperature: 0.2,
+      response_format: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: params.systemPrompt },
+        { role: 'user', content: params.userPrompt },
+      ],
+    }),
+  })
+  if (!res.ok) return null
+  const data = (await res.json().catch(() => ({}))) as {
+    choices?: Array<{ message?: { content?: string } }>
+  }
+  const text = String(data?.choices?.[0]?.message?.content || '').trim()
+  if (!text) return null
+  return safeJsonParse(text)
 }
 
 function safeJsonObject(text: string): Record<string, unknown> | null {
@@ -2773,6 +2855,9 @@ ${text}`
       }
     }
 
+    const deepSeekApiKey = String(process.env.DEEPSEEK_API_KEY || '').trim()
+    const openAiApiKey = String(process.env.OPENAI_API_KEY || '').trim()
+
     if (!parsed) {
       const strictRetryPrompt = `Bạn là giáo viên ${targetLanguage}. Học sinh vừa nói:
 ${studentText}
@@ -2799,7 +2884,37 @@ Ràng buộc bắt buộc:
       }
     }
 
-    if (!parsed) {
+    if ((!parsed || !hasCoreChatFields(parsed)) && deepSeekApiKey) {
+      try {
+        const deepSeekParsed = await generateDeepSeekChatJson({
+          systemPrompt,
+          userPrompt,
+          apiKey: deepSeekApiKey,
+        })
+        if (deepSeekParsed && hasCoreChatFields(deepSeekParsed)) {
+          parsed = deepSeekParsed
+        }
+      } catch {
+        // keep existing parsed/fallback path
+      }
+    }
+
+    if ((!parsed || !hasCoreChatFields(parsed)) && openAiApiKey) {
+      try {
+        const openAiParsed = await generateOpenAiFallbackChatJson({
+          systemPrompt,
+          userPrompt,
+          apiKey: openAiApiKey,
+        })
+        if (openAiParsed && hasCoreChatFields(openAiParsed)) {
+          parsed = openAiParsed
+        }
+      } catch {
+        // keep existing parsed/fallback path
+      }
+    }
+
+    if (!parsed || !hasCoreChatFields(parsed)) {
       return NextResponse.json(
         {
           error: nativeLanguageCode === 'vi'
