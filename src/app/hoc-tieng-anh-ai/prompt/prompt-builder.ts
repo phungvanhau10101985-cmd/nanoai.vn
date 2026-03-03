@@ -80,6 +80,9 @@ Không trộn ${input.nativeLanguage}.
 - mainSentence phải là 1 CÂU HOÀN CHỈNH bằng ${input.targetLanguage} (không phải cụm từ rời).
 - KHÔNG được làm mất thông tin cốt lõi trong câu gốc (tên bài hát, tên riêng, địa danh, mốc thời gian, số lượng).
 - Nếu có tên riêng/tên bài bằng ${input.nativeLanguage}, hãy giữ nguyên hoặc chuyển Latin/transliteration nhất quán, nhưng vẫn đảm bảo câu chính bằng ${input.targetLanguage}.
+- Nếu câu học sinh là MIX (${input.nativeLanguage} + ${input.targetLanguage}), mainSentence bắt buộc phải gộp ĐỦ TẤT CẢ ý học sinh đã nói thành 1 câu/2 câu tự nhiên bằng ${input.targetLanguage}, KHÔNG được bỏ sót vế.
+- Tuyệt đối không chỉ sửa một mảnh nhỏ rồi bỏ phần còn lại (ví dụ chỉ sửa "I am forty years old" nhưng quên vế "I am a construction engineer").
+- Với câu MIX có phần ${input.nativeLanguage} chưa đổi, corrections phải có item thể hiện rõ cặp native -> target cho phần bị thiếu đó.
 36) MEMORY NGẮN HẠN (hỗ trợ, không thay thế dữ liệu gốc):
 - Running summary: ${input.sessionMemory.runningSummary || '(chưa có)'}
 - Pinned repeatedMistakes: ${input.sessionMemory.pinnedFacts.repeatedMistakes.join(' | ') || '(trống)'}
