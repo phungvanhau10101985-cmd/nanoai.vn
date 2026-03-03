@@ -1519,6 +1519,13 @@ function extractTeacherSpeechText(text: string): string {
   return String(text || '').trim()
 }
 
+function sanitizeLearnerReadingSentence(text: string): string {
+  return String(text || '')
+    .replace(/^\[[^\]]+\]\s*/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 /** Chế độ phản xạ: chỉ lấy câu tiếng cần học cho TTS, bỏ phần dịch nghĩa (Câu của bạn nói đúng là: ..., Dịch nhanh, v.v.). */
 function extractTargetLanguageOnlyForReflexTts(text: string, targetLanguageCode: string): string {
   let s = String(text || '').trim()
@@ -2557,12 +2564,20 @@ export default function HocTiengAnhAiClientPage() {
     learningMode === 'review' && Boolean(writingTask) && !Boolean(writingTask?.completed)
   const latestMainSentenceForLearner = useMemo(() => {
     if (isCurrentPresetSession) {
+      const directSpeakingTarget = sanitizeLearnerReadingSentence(reviewSpeakingTargetSentence)
+      if (directSpeakingTarget) {
+        return {
+          messageId: String(messages.filter((m) => m.role === 'teacher').pop()?.id || ''),
+          sentence: directSpeakingTarget,
+          teacherText: directSpeakingTarget,
+        }
+      }
       const targets = messages
         .filter((m) => m.role === 'teacher')
         .map((m) => {
-          const idea3 = String(intentAnswerByMessageId[m.id] || '').trim()
-          const idea2 = String(mainSentenceByMessageId[m.id] || '').trim()
-          const fallback = takeFirstSentenceOnly(extractTeacherSpeechText(m.text)).trim()
+          const idea3 = sanitizeLearnerReadingSentence(String(intentAnswerByMessageId[m.id] || '').trim())
+          const idea2 = sanitizeLearnerReadingSentence(String(mainSentenceByMessageId[m.id] || '').trim())
+          const fallback = sanitizeLearnerReadingSentence(takeFirstSentenceOnly(extractTeacherSpeechText(m.text)).trim())
           const sentence = idea3 || idea2 || fallback
           return sentence ? { messageId: m.id, sentence, teacherText: m.text } : null
         })
@@ -2584,6 +2599,7 @@ export default function HocTiengAnhAiClientPage() {
     mainSentenceByMessageId,
     intentAnswerByMessageId,
     isCurrentPresetSession,
+    reviewSpeakingTargetSentence,
     liveSessionStudentTurnCount,
     sessionEntryStudentTurnBaseline,
   ])
@@ -9139,7 +9155,7 @@ export default function HocTiengAnhAiClientPage() {
                   </div>
                 </div>
               ) : null}
-              {learningMode === 'review' && reviewDrillStage === 'speaking' ? (
+              {learningMode === 'review' && reviewDrillStage === 'speaking' && (!isCurrentPresetSession || hasStudentTurnsInCurrentSession) ? (
                 <div ref={miniSpeakingBlockRef} className="min-w-0 rounded-md border border-indigo-200 bg-indigo-50/60 p-2.5">
                   <p className="text-sm font-semibold text-indigo-800">
                     {localText('Mini 2/3: Luyện phát âm', 'Mini 2/3: Pronunciation practice')}
@@ -9220,7 +9236,7 @@ export default function HocTiengAnhAiClientPage() {
                   </div>
                 </div>
               ) : null}
-              {learningMode === 'review' && reviewDrillStage === 'listening' && reviewListeningVisibleOptions.length > 0 && !reviewListeningPopupOpen ? (
+              {learningMode === 'review' && reviewDrillStage === 'listening' && (!isCurrentPresetSession || hasStudentTurnsInCurrentSession) && reviewListeningVisibleOptions.length > 0 && !reviewListeningPopupOpen ? (
                 <div ref={miniListeningBlockRef} className="min-w-0 rounded-md border border-emerald-200 bg-emerald-50/60 p-2.5">
                   <p className="text-sm font-semibold text-emerald-800">
                     {localText('Mini 3/3: Chọn từ bạn nghe thấy', 'Mini 3/3: Pick words you heard')}
