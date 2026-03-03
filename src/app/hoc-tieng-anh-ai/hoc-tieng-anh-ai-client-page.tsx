@@ -2564,8 +2564,20 @@ export default function HocTiengAnhAiClientPage() {
         return { messageId: m.id, sentence, teacherText: m.text }
       }
     }
+    // Preset lessons can start with only opening line (no structured mainSentence yet).
+    // Fallback to the latest teacher text first sentence so learner always has a line to read.
+    if (isCurrentPresetSession) {
+      for (let i = messages.length - 1; i >= 0; i--) {
+        const m = messages[i]
+        if (m.role !== 'teacher') continue
+        const fallbackSentence = takeFirstSentenceOnly(extractTeacherSpeechText(m.text)).trim()
+        if (fallbackSentence) {
+          return { messageId: m.id, sentence: fallbackSentence, teacherText: m.text }
+        }
+      }
+    }
     return null
-  }, [messages, mainSentenceByMessageId])
+  }, [messages, mainSentenceByMessageId, isCurrentPresetSession])
 
   useEffect(() => {
     latestMiniStageRef.current = reviewMiniPackCompleted ? 'done' : reviewDrillStage
