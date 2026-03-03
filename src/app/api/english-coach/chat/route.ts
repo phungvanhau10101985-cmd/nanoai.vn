@@ -1075,12 +1075,74 @@ function hasEnglishMainVerb(sentence: string): boolean {
   return /\b\w+'s\b/i.test(s)
 }
 
+const EN_MEANING_STOPWORDS = new Set([
+  'i', 'you', 'he', 'she', 'it', 'we', 'they',
+  'am', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
+  'a', 'an', 'the', 'to', 'of', 'for', 'in', 'on', 'at', 'with', 'and', 'or',
+  'do', 'does', 'did', 'have', 'has', 'had',
+  'this', 'that', 'these', 'those', 'my', 'your', 'his', 'her', 'our', 'their',
+])
+
+function tokenizeEnglishContentWords(text: string): string[] {
+  const normalized = String(text || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9'\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (!normalized) return []
+  return normalized
+    .split(' ')
+    .map((x) => x.trim())
+    .filter((x) => x.length >= 2 && !EN_MEANING_STOPWORDS.has(x))
+}
+
+function shouldRepairMainSentenceForMissingMeaning(
+  mainSentence: string,
+  referencePhrases: string[],
+  targetLanguageCode: string
+): boolean {
+  if (targetLanguageCode !== 'en') return false
+  const mainWords = new Set(tokenizeEnglishContentWords(mainSentence))
+  if (mainWords.size === 0) return true
+  const refs = referencePhrases
+    .map((x) => String(x || '').trim())
+    .filter(Boolean)
+    .slice(0, 8)
+  if (refs.length === 0) return false
+  for (const ref of refs) {
+    const refWords = Array.from(new Set(tokenizeEnglishContentWords(ref)))
+    if (refWords.length === 0) continue
+    let overlap = 0
+    for (const w of refWords) {
+      if (mainWords.has(w)) overlap += 1
+    }
+    const ratio = overlap / refWords.length
+    const passed = refWords.length <= 2 ? overlap >= 1 : ratio >= 0.5
+    if (!passed) return true
+  }
+  return false
+}
+
+function isBareEnglishPredicate(sentence: string): boolean {
+  const s = String(sentence || '').trim().replace(/[.!?]+$/g, '').trim()
+  if (!s) return true
+  // Incomplete clauses that end at the predicate without object/complement.
+  if (/\b(i|you|we|they|he|she|it)\s+(also\s+)?(have|has|had|need|needs|needed|want|wants|wanted|like|likes|liked|love|loves|loved|prefer|prefers|preferred)$/i.test(s)) {
+    return true
+  }
+  if (/\b(i|you|we|they|he|she|it)\s+(am|is|are|was|were)$/i.test(s)) {
+    return true
+  }
+  return false
+}
+
 function shouldRepairEnglishMainSentence(mainSentence: string, studentText: string): boolean {
   const base = String(mainSentence || '').trim()
   if (!base) return true
   if (!isLikelyTargetLanguageSentence(base, 'en', null)) return true
   if (!isLikelyFullSentence(base, 'en')) return true
   if (/^to\s+[a-z]/i.test(base)) return true
+  if (isBareEnglishPredicate(base)) return true
   const titleCandidate = extractSongTitleCandidateFromVietnamese(studentText)
   if (titleCandidate) {
     const asciiTitle = stripVietnameseDiacritics(titleCandidate)
@@ -2858,7 +2920,7 @@ ${text}`
     const deepSeekApiKey = String(process.env.DEEPSEEK_API_KEY || '').trim()
     const openAiApiKey = String(process.env.OPENAI_API_KEY || '').trim()
 
-    if (!parsed) {
+    if (!parsed || !hasCoreChatFields(parsed)) {
       const strictRetryPrompt = `Bạn là giáo viên ${targetLanguage}. Học sinh vừa nói:
 ${studentText}
 
@@ -3208,10 +3270,26 @@ ${intentAnswer || parsed.reply}`
         ? studentMainSentenceCandidate
         : (targetMainCandidates[0] || '')
     let mainSentenceFinal = mainSentence
+    const meaningReferencePhrases = (
+      [
+        speakingMode === 'mixed' || speakingMode === 'auto' ? mixedNormalizedStudentText : '',
+        correctedSentence,
+        ...(parsed.corrections || []).map((row) => String(row?.fixed || '').trim()),
+      ]
+    )
+      .map((x) => String(x || '').trim())
+      .filter((x) => Boolean(x) && isLikelyTargetLanguageSentence(x, targetLanguageCode, targetScriptRe))
+      .slice(0, 8)
+    const missingMeaningNeedsRepair = shouldRepairMainSentenceForMissingMeaning(
+      mainSentenceFinal,
+      meaningReferencePhrases,
+      targetLanguageCode
+    )
     if (
       targetLanguageCode === 'en'
       && (
         isTooShortStudentSentence(mainSentenceFinal, targetLanguageCode)
+        || missingMeaningNeedsRepair
         || shouldRepairEnglishMainSentence(mainSentenceFinal, studentText)
       )
     ) {
@@ -3244,6 +3322,34 @@ ${intentAnswer}`
     }
     if (targetLanguageCode === 'en') {
       mainSentenceFinal = enrichEnglishSongMainSentence(mainSentenceFinal, studentText)
+    }
+    try {
+      const mainSentenceGatePrompt = `câu "${mainSentenceFinal}" có đủ ý với câu "${studentText}" không?
+Nếu đủ ý, trả JSON:
+{"status":"ok"}
+Nếu không đủ ý, hãy viết lại câu "${studentText}" bằng tiếng "${targetLanguage}" đầy đủ ý và chỉ trả JSON:
+{"status":"rewrite","complete_sentence":"..."}
+Không phân tích gì thêm.`
+      const gateResult = await model.generateContent(mainSentenceGatePrompt)
+      const gateObj = safeJsonObject(gateResult.response.text()?.trim() || '')
+      const gateStatus = String(gateObj?.status || '').trim().toLowerCase()
+      if (gateStatus !== 'ok') {
+        const rewritten = String(
+          gateObj?.complete_sentence
+          || gateObj?.corrected_sentence
+          || gateObj?.mainSentence
+          || ''
+        ).trim()
+        if (
+          rewritten
+          && isLikelyTargetLanguageSentence(rewritten, targetLanguageCode, targetScriptRe)
+          && isLikelyFullSentence(rewritten, targetLanguageCode)
+        ) {
+          mainSentenceFinal = rewritten
+        }
+      }
+    } catch {
+      // keep original mainSentenceFinal when gate prompt fails
     }
     if ((parsed.corrections || []).length === 0 && studentMainSentenceCandidate && mainSentenceFinal) {
       const score = similarityScore(studentMainSentenceCandidate, mainSentenceFinal)
