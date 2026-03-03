@@ -118,6 +118,17 @@ export function updateMiniStageSnapshot(payload: {
   )
 }
 
+export function chargeEnglishCoachCredits(payload: {
+  action: 'status' | 'charge_live_start' | 'charge_live_unlock' | 'charge_preset_start'
+  sessionId: string
+}) {
+  return sendJson<Record<string, unknown> & { error?: string }>(
+    '/api/english-coach/credits',
+    'POST',
+    payload
+  )
+}
+
 export function getPreviousLessonWords(
   limit: number,
   filters?: { targetLanguage?: string; nativeLanguage?: string }

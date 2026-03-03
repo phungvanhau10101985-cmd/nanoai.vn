@@ -35,6 +35,10 @@ type HistoryPayload = {
   intentAnswer?: string
   tokensJson?: string
   aiPayloadJson?: string
+  nativeLanguage?: string
+  learningMode?: 'review' | 'reflex'
+  topicId?: string
+  topicLabel?: string
 }
 
 type ReviewDrillStats = {
@@ -348,7 +352,7 @@ export async function GET(request: NextRequest) {
         .limit(1000),
       adminSupabase
         .from('language_coach_session_memories')
-        .select('session_id, learning_mode, topic_label, pinned_facts_json')
+        .select('session_id, learning_mode, topic_id, topic_label, target_language, native_language, pinned_facts_json')
         .eq('user_id', user.id),
       adminSupabase
         .from('language_coach_hidden_sessions')
@@ -366,13 +370,27 @@ export async function GET(request: NextRequest) {
     }
 
     const learningModeBySession = new Map<string, string>()
+    const topicIdBySession = new Map<string, string>()
     const topicLabelBySession = new Map<string, string>()
+    const targetLanguageBySession = new Map<string, string>()
+    const nativeLanguageBySession = new Map<string, string>()
     const reviewDrillStatsBySession = new Map<string, ReviewDrillStats>()
-    for (const row of (memoriesResult.data ?? []) as Array<{ session_id?: string; learning_mode?: string; topic_label?: string; pinned_facts_json?: string }>) {
+    for (const row of (memoriesResult.data ?? []) as Array<{
+      session_id?: string
+      learning_mode?: string
+      topic_id?: string
+      topic_label?: string
+      target_language?: string
+      native_language?: string
+      pinned_facts_json?: string
+    }>) {
       const sid = String(row.session_id || '')
       if (sid) {
         if (row.learning_mode) learningModeBySession.set(sid, row.learning_mode)
+        if (row.topic_id) topicIdBySession.set(sid, String(row.topic_id).trim())
         if (row.topic_label) topicLabelBySession.set(sid, String(row.topic_label).trim())
+        if (row.target_language) targetLanguageBySession.set(sid, String(row.target_language).trim())
+        if (row.native_language) nativeLanguageBySession.set(sid, String(row.native_language).trim())
         const stats = parseReviewDrillStatsFromPinnedFacts(String(row.pinned_facts_json || '{}'))
         if (stats) reviewDrillStatsBySession.set(sid, stats)
       }
@@ -391,6 +409,7 @@ export async function GET(request: NextRequest) {
         sessionId: string
         languageCode: string
         targetLanguage: string
+        nativeLanguage: string
         teacherLabel: string
         teacherLocale: string
         mode: string
@@ -398,6 +417,7 @@ export async function GET(request: NextRequest) {
         lastTeacherText: string
         messageCount: number
         learningMode: 'review' | 'reflex'
+        topicId: string
         topicLabel: string
         reviewDrillStats?: ReviewDrillStats
       }
@@ -409,12 +429,16 @@ export async function GET(request: NextRequest) {
       const existing = bySession.get(sid)
       const lm = learningModeBySession.get(sid)
       const safeLm = lm === 'reflex' ? 'reflex' : 'review'
+      const topicId = topicIdBySession.get(sid) || ''
       const topicLabel = topicLabelBySession.get(sid) || ''
+      const targetLanguageFromMemory = targetLanguageBySession.get(sid) || ''
+      const nativeLanguage = nativeLanguageBySession.get(sid) || ''
       if (!existing) {
         bySession.set(sid, {
           sessionId: sid,
           languageCode: String(row.language_code || ''),
-          targetLanguage: String(row.target_language || ''),
+          targetLanguage: targetLanguageFromMemory || String(row.target_language || ''),
+          nativeLanguage,
           teacherLabel: String(row.teacher_label || ''),
           teacherLocale: String(row.teacher_locale || ''),
           mode: String(row.mode || ''),
@@ -422,6 +446,7 @@ export async function GET(request: NextRequest) {
           lastTeacherText: row.role === 'teacher' ? String(row.text || '') : '',
           messageCount: 1,
           learningMode: safeLm,
+          topicId,
           topicLabel,
           reviewDrillStats: reviewDrillStatsBySession.get(sid),
         })
@@ -484,6 +509,7 @@ export async function POST(request: NextRequest) {
     const audioUrl = String(payload.audioUrl || '').trim()
     const languageCode = String(payload.languageCode || '').trim()
     const targetLanguage = String(payload.targetLanguage || '').trim()
+    const nativeLanguage = String(payload.nativeLanguage || '').trim()
     const teacherLabel = String(payload.teacherLabel || '').trim()
     const teacherLocale = String(payload.teacherLocale || '').trim()
     const mode: LearnMode = payload.mode === 'story' ? 'story' : 'chat'
@@ -492,6 +518,9 @@ export async function POST(request: NextRequest) {
     const intentAnswer = String(payload.intentAnswer || '').trim().slice(0, 2000) || null
     const tokensJson = String(payload.tokensJson || '').trim().slice(0, 4000) || null
     const aiPayloadJson = String(payload.aiPayloadJson || '').trim().slice(0, 32000) || null
+    const learningMode: 'review' | 'reflex' = payload.learningMode === 'reflex' ? 'reflex' : 'review'
+    const topicId = String(payload.topicId || '').trim() || null
+    const topicLabel = String(payload.topicLabel || '').trim() || null
 
     if (!sessionId || !text) {
       return NextResponse.json({ error: 'Thiếu dữ liệu lưu lịch sử.' }, { status: 400 })
@@ -529,6 +558,46 @@ export async function POST(request: NextRequest) {
     if (error) {
       return NextResponse.json({ error: error.message || 'Không lưu được lịch sử học.' }, { status: 500 })
     }
+
+    if (targetLanguage && nativeLanguage) {
+      const memoryUpdate = {
+        target_language: targetLanguage,
+        native_language: nativeLanguage,
+        topic_id: topicId,
+        topic_label: topicLabel,
+        learning_mode: learningMode,
+        updated_at: new Date().toISOString(),
+      }
+      const { data: updatedRows, error: updateMemoryError } = await adminSupabase
+        .from('language_coach_session_memories')
+        .update(memoryUpdate)
+        .eq('user_id', user.id)
+        .eq('session_id', sessionId)
+        .select('id')
+        .limit(1)
+
+      if (updateMemoryError) {
+        return NextResponse.json({ error: updateMemoryError.message || 'Không cập nhật được metadata buổi học.' }, { status: 500 })
+      }
+
+      if (!updatedRows || updatedRows.length === 0) {
+        const { error: insertMemoryError } = await adminSupabase
+          .from('language_coach_session_memories')
+          .insert({
+            user_id: user.id,
+            session_id: sessionId,
+            target_language: targetLanguage,
+            native_language: nativeLanguage,
+            topic_id: topicId,
+            topic_label: topicLabel,
+            learning_mode: learningMode,
+          })
+        if (insertMemoryError) {
+          return NextResponse.json({ error: insertMemoryError.message || 'Không tạo được metadata buổi học.' }, { status: 500 })
+        }
+      }
+    }
+
     return NextResponse.json({ id: data.id })
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Lỗi không xác định.'

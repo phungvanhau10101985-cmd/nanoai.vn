@@ -128,6 +128,11 @@ type ReviewDrillStats = {
   updatedAt: string
 }
 
+const LIVE_SESSION_BASE_TURN_LIMIT = 10
+const LIVE_SESSION_EXTRA_TURN_STEP = 5
+const LIVE_SESSION_PRICE_CREDITS = 2.5
+const LIVE_SESSION_EXTRA_STEP_PRICE_CREDITS = 1.25
+
 type MiniStageSnapshot = {
   stage: 'idle' | 'writing' | 'speaking' | 'listening' | 'done'
   updatedAt: string
@@ -252,6 +257,11 @@ function parseReviewDrill(raw: string): ReviewDrillState | null {
   } catch {
     return null
   }
+}
+
+function asUuidOrEmpty(value: string): string {
+  const v = String(value || '').trim()
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v) ? v : ''
 }
 
 function parseReviewDrillStats(raw: string): ReviewDrillStats {
@@ -1519,6 +1529,80 @@ export async function POST(request: NextRequest) {
         runningSummary: String(memory?.running_summary || '').trim(),
         pinnedFacts: parsePinnedFacts(sessionPinnedFactsRaw),
       }
+    }
+    const isPresetSession = Boolean(presetReplay && presetReplay.turns.length > 0)
+    if (userId && sessionId && !isFromDrill && !isPresetSession) {
+      const sessionUuid = asUuidOrEmpty(sessionId)
+      if (!sessionUuid) {
+        return NextResponse.json({ error: 'sessionId không hợp lệ.' }, { status: 400 })
+      }
+      const [{ count: liveStartCount, error: liveStartError }, { count: liveUnlockCountRaw, error: liveUnlockError }] = await Promise.all([
+        adminSupabase
+          .from('language_coach_credit_events')
+          .select('id', { head: true, count: 'exact' })
+          .eq('user_id', userId)
+          .eq('session_id', sessionUuid)
+          .eq('charge_type', 'english_coach_live_start'),
+        adminSupabase
+          .from('language_coach_credit_events')
+          .select('id', { head: true, count: 'exact' })
+          .eq('user_id', userId)
+          .eq('session_id', sessionUuid)
+          .eq('charge_type', 'english_coach_live_unlock'),
+      ])
+      if (liveStartError || liveUnlockError) {
+        return NextResponse.json({ error: 'Không đọc được trạng thái credit của buổi học.' }, { status: 500 })
+      }
+      const liveStartCharged = (liveStartCount || 0) > 0
+      if (!liveStartCharged) {
+        return NextResponse.json(
+          {
+            error: `Buổi live chưa được mở khóa. Cần ${LIVE_SESSION_PRICE_CREDITS} credit cho gói ${LIVE_SESSION_BASE_TURN_LIMIT} lượt.`,
+            requiredAction: 'charge_live_start',
+            requiredCredits: LIVE_SESSION_PRICE_CREDITS,
+          },
+          { status: 402 }
+        )
+      }
+      const liveUnlockCount = Math.max(0, Math.floor(Number(liveUnlockCountRaw || 0) || 0))
+      const turnLimit = LIVE_SESSION_BASE_TURN_LIMIT + liveUnlockCount * LIVE_SESSION_EXTRA_TURN_STEP
+      const root = (() => {
+        try {
+          const parsed = JSON.parse(String(sessionPinnedFactsRaw || '{}')) as Record<string, unknown>
+          return parsed && typeof parsed === 'object' ? { ...parsed } : {}
+        } catch {
+          return {} as Record<string, unknown>
+        }
+      })()
+      const billingRaw = (root.lesson_credit_billing && typeof root.lesson_credit_billing === 'object')
+        ? (root.lesson_credit_billing as Record<string, unknown>)
+        : {}
+      const turnsUsed = Math.max(0, Math.floor(Number(billingRaw.turnsUsed || 0) || 0))
+      const attemptedTurns = turnsUsed + 1
+      if (attemptedTurns > turnLimit) {
+        return NextResponse.json(
+          {
+            error: `Đã chạm giới hạn ${turnLimit} lượt của buổi live hiện tại.`,
+            requiredAction: 'charge_live_unlock',
+            requiredCredits: LIVE_SESSION_EXTRA_STEP_PRICE_CREDITS,
+            turnLimit,
+            turnsUsed,
+          },
+          { status: 402 }
+        )
+      }
+      root.lesson_credit_billing = {
+        ...billingRaw,
+        plan: 'live',
+        liveStartCharged: true,
+        baseTurnLimit: LIVE_SESSION_BASE_TURN_LIMIT,
+        extraTurnStep: LIVE_SESSION_EXTRA_TURN_STEP,
+        extraUnlockCount: liveUnlockCount,
+        turnsUsed: attemptedTurns,
+        updatedAt: new Date().toISOString(),
+      }
+      sessionPinnedFactsRaw = JSON.stringify(root)
+      sessionMemory.pinnedFacts = parsePinnedFacts(sessionPinnedFactsRaw)
     }
     if (userId && sessionId && isFromDrill && presetReplay?.active && !reviewDrill) {
       const turnIdx = Math.max(0, Math.floor(Number(presetReplay.nextTurnIndex || 0)))

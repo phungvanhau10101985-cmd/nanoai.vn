@@ -22,6 +22,7 @@ import {
   cleanupIncompleteWords,
   createSessionFromRandomCompletedLesson,
   checkCompletedLessonMatch,
+  chargeEnglishCoachCredits,
   createTopicCurriculum,
   explainIntent,
   generateTts,
@@ -65,6 +66,11 @@ type UiLocale = NativeLanguageCode
 const NATIVE_LANGUAGE_PREF_KEY = 'english-coach-native-language'
 const LESSON_SETUP_PREF_KEY = 'english-coach-lesson-setup'
 const LEARNER_PROFILE_PROMPT_DISMISSED_KEY = 'english-coach-learner-profile-prompt-dismissed-v1'
+const LIVE_SESSION_BASE_TURN_LIMIT = 10
+const LIVE_SESSION_EXTRA_TURN_STEP = 5
+const LIVE_SESSION_PRICE_CREDITS = 2.5
+const LIVE_SESSION_EXTRA_STEP_PRICE_CREDITS = LIVE_SESSION_PRICE_CREDITS / 2
+const PRESET_SESSION_PRICE_CREDITS = 1
 
 type LearningMode = 'review' | 'reflex'
 type MiniStage = 'idle' | 'writing' | 'speaking' | 'listening' | 'done'
@@ -78,12 +84,14 @@ type HistorySession = {
   sessionId: string
   languageCode: string
   targetLanguage?: string
+  nativeLanguage?: string
   teacherLabel: string
   mode: string
   lastMessageAt: string
   lastTeacherText: string
   messageCount: number
   learningMode?: 'review' | 'reflex'
+  topicId?: string
   topicLabel?: string
 }
 type WordInsight = {
@@ -1907,6 +1915,7 @@ export default function HocTiengAnhAiClientPage() {
   const [preLessonTopic, setPreLessonTopic] = useState<TopicOption | null>(null)
   const [lessonStartChoiceOpen, setLessonStartChoiceOpen] = useState(false)
   const [lessonStartChoiceBusy, setLessonStartChoiceBusy] = useState(false)
+  const [lessonStartPresetAvailable, setLessonStartPresetAvailable] = useState(true)
   const [lessonStartPlan, setLessonStartPlan] = useState<{ curriculum: TopicCurriculum | null; topic: TopicOption } | null>(null)
   const [matchedSessionChoiceOpen, setMatchedSessionChoiceOpen] = useState(false)
   const [matchedSessionChoiceBusy, setMatchedSessionChoiceBusy] = useState(false)
@@ -2005,6 +2014,9 @@ export default function HocTiengAnhAiClientPage() {
   const wordPlayingRef = useRef<Set<string>>(new Set())
   const textSnippetPlayingRef = useRef<Set<string>>(new Set())
   const [openedHistorySessionId, setOpenedHistorySessionId] = useState('')
+  const [isCurrentPresetSession, setIsCurrentPresetSession] = useState(false)
+  const [liveSessionExtraTurnUnlocks, setLiveSessionExtraTurnUnlocks] = useState(0)
+  const [liveUnlockBusy, setLiveUnlockBusy] = useState(false)
   const [draft, setDraft] = useState('')
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [corrections, setCorrections] = useState<Correction[]>([])
@@ -2024,6 +2036,14 @@ export default function HocTiengAnhAiClientPage() {
   const [todayWords, setTodayWords] = useState<TodayWordItem[]>([])
   const [wordPractice, setWordPractice] = useState<WordPracticeProgress | null>(null)
   const [practiceInputStatus, setPracticeInputStatus] = useState<'idle' | 'partial' | 'correct' | 'incorrect'>('idle')
+  const liveSessionStudentTurnCount = useMemo(
+    () => messages.filter((m) => m.role === 'student').length,
+    [messages]
+  )
+  const liveSessionTurnLimit = LIVE_SESSION_BASE_TURN_LIMIT + liveSessionExtraTurnUnlocks * LIVE_SESSION_EXTRA_TURN_STEP
+  const liveSessionTurnLimitReached =
+    !isCurrentPresetSession
+    && liveSessionStudentTurnCount >= liveSessionTurnLimit
 
   useEffect(() => {
     if (!wordPractice || wordPractice.unlocked) return
@@ -3557,6 +3577,8 @@ export default function HocTiengAnhAiClientPage() {
     intentAnswer,
     tokensJson,
     aiPayloadJson,
+    topicId: topicIdOverride,
+    topicLabel: topicLabelOverride,
   }: {
     role: 'teacher' | 'student'
     text: string
@@ -3567,6 +3589,8 @@ export default function HocTiengAnhAiClientPage() {
     intentAnswer?: string
     tokensJson?: string
     aiPayloadJson?: string
+    topicId?: string
+    topicLabel?: string
   }) => {
     const { ok, data } = await saveHistoryMessageApi({
       sessionId,
@@ -3584,6 +3608,10 @@ export default function HocTiengAnhAiClientPage() {
       intentAnswer: intentAnswer || '',
       tokensJson: tokensJson || '',
       aiPayloadJson: aiPayloadJson || '',
+      nativeLanguage: selectedNativeLanguage.apiLabel,
+      learningMode,
+      topicId: topicIdOverride || selectedTopic.id,
+      topicLabel: topicLabelOverride || selectedTopic.label,
     })
     if (!ok) {
       throw new Error(data.error || localText('Không lưu được lịch sử học.', 'Failed to save lesson history.'))
@@ -4746,6 +4774,17 @@ export default function HocTiengAnhAiClientPage() {
       }
       setSessionId(targetSessionId)
       setMessages(items.map((x) => ({ id: x.id, role: x.role, text: x.text })))
+      const loadedStudentTurns = items.filter((x) => x.role === 'student').length
+      const inferredExtraUnlocks =
+        loadedStudentTurns > LIVE_SESSION_BASE_TURN_LIMIT
+          ? Math.ceil((loadedStudentTurns - LIVE_SESSION_BASE_TURN_LIMIT) / LIVE_SESSION_EXTRA_TURN_STEP)
+          : 0
+      setLiveSessionExtraTurnUnlocks(Math.max(0, inferredExtraUnlocks))
+      const presetSessionLoaded = Boolean(payload.presetReplaySession)
+      setIsCurrentPresetSession(presetSessionLoaded)
+      if (!presetSessionLoaded) {
+        await syncSessionCreditStatus(targetSessionId)
+      }
       setCorrectionsByMessageId({})
       const firstTeacherIdx = items.findIndex((x) => x.role === 'teacher')
       const openingTrans: Record<string, string> = {}
@@ -5145,6 +5184,24 @@ export default function HocTiengAnhAiClientPage() {
       const sessionTopicId = String(payload.topicId || '').trim()
       const sessionTopicLabel = String(payload.topicLabel || '').trim()
       if (sessionTopicId && sessionTopicLabel && items.length > 0) {
+        // Lock topic state to the loaded session so next turns do not fall back to default "solo-teacher".
+        setTopicId(sessionTopicId)
+        setPendingTopicId(sessionTopicId)
+        setConfirmedTopicId(sessionTopicId)
+        if (!allTopicOptions.some((x) => x.id === sessionTopicId)) {
+          setCustomTopics((prev) => {
+            if (prev.some((x) => x.topicId === sessionTopicId)) return prev
+            return [
+              {
+                topicId: sessionTopicId,
+                topicLabel: sessionTopicLabel,
+                topicDifficulty: 'basic',
+              },
+              ...prev,
+            ].slice(0, 30)
+          })
+          setTopicSourceMode('custom')
+        }
         void fetchTopicCurriculum({ skipConfirm: true, topicId: sessionTopicId, topicLabelOverride: sessionTopicLabel, silent: true }).then((curriculum) => {
           if (curriculum) setTopicCurriculum(curriculum)
         })
@@ -5198,6 +5255,8 @@ export default function HocTiengAnhAiClientPage() {
     setSessionId(createSessionId())
     shouldCountNewSessionRef.current = true
     setSessionTeacher(null)
+    setIsCurrentPresetSession(false)
+    setLiveSessionExtraTurnUnlocks(0)
     setOpenedHistorySessionId('')
     lastMicSentTextRef.current = ''
     lastMicSentAtRef.current = 0
@@ -5596,6 +5655,17 @@ export default function HocTiengAnhAiClientPage() {
 
     const hadExistingMessage = Boolean(opts?.existingStudentMessageId)
     const isFromDrill = opts?.silentDrill || opts?.drillSpeaking || opts?.drillType === 'listening'
+    if (!hadExistingMessage && !isFromDrill && liveSessionTurnLimitReached) {
+      toast({
+        title: localText('Đã chạm giới hạn lượt hỏi', 'Turn limit reached'),
+        description: localText(
+          `Buổi live hiện tại đã dùng ${liveSessionTurnLimit}/${liveSessionTurnLimit} lượt. Bấm mở thêm ${LIVE_SESSION_EXTRA_TURN_STEP} lượt (${LIVE_SESSION_EXTRA_STEP_PRICE_CREDITS} credit) để tiếp tục.`,
+          `This live lesson has reached ${liveSessionTurnLimit}/${liveSessionTurnLimit} turns. Unlock ${LIVE_SESSION_EXTRA_TURN_STEP} more turns (${LIVE_SESSION_EXTRA_STEP_PRICE_CREDITS} credits) to continue.`
+        ),
+        variant: 'destructive',
+      })
+      return
+    }
     const shouldAppendStudentMessage = !isFromDrill
     if (!hadExistingMessage) {
       setBusy(true)
@@ -6466,20 +6536,51 @@ export default function HocTiengAnhAiClientPage() {
 
   const findMatchingHistorySessions = useCallback((plan: { curriculum: TopicCurriculum | null; topic: TopicOption }) => {
     const normalizedTopic = normalizeMatchText(plan.topic.label)
+    const topicIdToMatch = String(plan.topic.id || '').trim().toLowerCase()
     const modeToUse = learningMode === 'reflex' ? 'listen_speak' : mode
+    const targetLanguageToMatch = String(activeTeacher.languageLabel || '').trim().toLowerCase()
+    const nativeLanguageToMatch = String(selectedNativeLanguage.apiLabel || '').trim().toLowerCase()
+    const teacherLabelToMatch = String(activeTeacher.label || '').trim().toLowerCase()
+    const languageCodeToMatch = String(languageCode || '').trim().toLowerCase()
     return historySessions
       .filter((s) => {
         if (String(s.learningMode || 'review') !== String(learningMode)) return false
         if (String(s.mode || '') !== String(modeToUse)) return false
-        if (String(s.languageCode || '').trim().toLowerCase() !== String(languageCode || '').trim().toLowerCase()) return false
+        if (String(s.languageCode || '').trim().toLowerCase() !== languageCodeToMatch) return false
+
+        const sessionTargetLanguage = String(s.targetLanguage || '').trim().toLowerCase()
+        if (targetLanguageToMatch && sessionTargetLanguage && sessionTargetLanguage !== targetLanguageToMatch) return false
+
+        const sessionNativeLanguage = String(s.nativeLanguage || '').trim().toLowerCase()
+        if (nativeLanguageToMatch && sessionNativeLanguage && sessionNativeLanguage !== nativeLanguageToMatch) return false
+
+        const sessionTeacherLabel = String(s.teacherLabel || '').trim().toLowerCase()
+        if (teacherLabelToMatch && sessionTeacherLabel && sessionTeacherLabel !== teacherLabelToMatch) return false
+
+        const sessionTopicId = String(s.topicId || '').trim().toLowerCase()
+        if (topicIdToMatch && sessionTopicId) return sessionTopicId === topicIdToMatch
+
         const topic = normalizeMatchText(String(s.topicLabel || ''))
         if (!normalizedTopic || !topic) return false
         return topic === normalizedTopic
       })
       .sort((a, b) => (String(a.lastMessageAt || '') < String(b.lastMessageAt || '') ? 1 : -1))
-  }, [historySessions, learningMode, mode, languageCode])
+  }, [
+    historySessions,
+    learningMode,
+    mode,
+    languageCode,
+    activeTeacher.languageLabel,
+    activeTeacher.label,
+    selectedNativeLanguage.apiLabel,
+  ])
 
-  const openLessonStartChoice = (curriculum: TopicCurriculum | null, topic: TopicOption) => {
+  const openLessonStartChoice = (
+    curriculum: TopicCurriculum | null,
+    topic: TopicOption,
+    opts?: { presetAvailable?: boolean }
+  ) => {
+    setLessonStartPresetAvailable(opts?.presetAvailable !== false)
     setLessonStartPlan({ curriculum, topic })
     setLessonStartChoiceOpen(true)
   }
@@ -6501,6 +6602,23 @@ export default function HocTiengAnhAiClientPage() {
     return Boolean(data.found)
   }
 
+  const notifyCreditsUpdated = useCallback(() => {
+    if (typeof window === 'undefined') return
+    window.dispatchEvent(new Event('credits-updated'))
+  }, [])
+
+  const syncSessionCreditStatus = useCallback(async (targetSessionId: string) => {
+    const sid = String(targetSessionId || '').trim()
+    if (!sid) return
+    const { ok, data } = await chargeEnglishCoachCredits({
+      action: 'status',
+      sessionId: sid,
+    })
+    if (!ok) return
+    const unlockCount = Math.max(0, Math.floor(Number(data.liveUnlockCount || 0) || 0))
+    setLiveSessionExtraTurnUnlocks(unlockCount)
+  }, [])
+
   const startLiveLessonFromChoice = async (planArg?: { curriculum: TopicCurriculum | null; topic: TopicOption }) => {
     const plan = planArg || lessonStartPlan || matchedSessionPlan
     if (!plan) return
@@ -6512,7 +6630,39 @@ export default function HocTiengAnhAiClientPage() {
     setMatchedSessionPlan(null)
     setMatchedHistorySessions([])
     setLessonStartChoiceOpen(false)
+    setLessonStartPresetAvailable(true)
     setLessonStartPlan(null)
+    const sessionIdForCharge = String(sessionId || '').trim()
+    if (!sessionIdForCharge) {
+      throw new Error(localText('Thiếu sessionId để mở buổi live.', 'Missing sessionId to open live lesson.'))
+    }
+    const liveCharge = await chargeEnglishCoachCredits({
+      action: 'charge_live_start',
+      sessionId: sessionIdForCharge,
+    })
+    if (!liveCharge.ok) {
+      throw new Error(String(liveCharge.data.error || localText('Không thể trừ credit cho buổi live.', 'Unable to charge credits for live lesson.')))
+    }
+    notifyCreditsUpdated()
+    const chargedNow = Boolean(liveCharge.data.charged)
+    const liveBalance = Number(liveCharge.data.newBalance || 0)
+    toast({
+      title: chargedNow
+        ? localText('Đã trừ credit mở buổi live', 'Live lesson credits charged')
+        : localText('Buổi live đã được trừ credit trước đó', 'Live lesson already charged earlier'),
+      description: chargedNow
+        ? localText(
+            `Đã trừ ${LIVE_SESSION_PRICE_CREDITS} credit. Số dư còn lại: ${liveBalance.toFixed(2)}.`,
+            `${LIVE_SESSION_PRICE_CREDITS} credits deducted. Remaining balance: ${liveBalance.toFixed(2)}.`
+          )
+        : localText(
+            `Không trừ thêm. Số dư hiện tại: ${liveBalance.toFixed(2)}.`,
+            `No extra deduction. Current balance: ${liveBalance.toFixed(2)}.`
+          ),
+    })
+    const unlockCount = Math.max(0, Math.floor(Number(liveCharge.data.liveUnlockCount || 0) || 0))
+    setLiveSessionExtraTurnUnlocks(unlockCount)
+    setIsCurrentPresetSession(false)
     await startLesson({
       skipPrerequisiteCheck: true,
       curriculumOverride: curriculumToUse,
@@ -6526,6 +6676,7 @@ export default function HocTiengAnhAiClientPage() {
   }
 
   const startPresetLessonFromChoice = async (planArg?: { curriculum: TopicCurriculum | null; topic: TopicOption }) => {
+    if (!lessonStartPresetAvailable) return
     const plan = planArg || lessonStartPlan
     if (!plan) return
     setLessonStartChoiceBusy(true)
@@ -6556,9 +6707,35 @@ export default function HocTiengAnhAiClientPage() {
         })
         return
       }
+      const presetSessionId = String(data.sessionId || '').trim()
+      const presetCharge = await chargeEnglishCoachCredits({
+        action: 'charge_preset_start',
+        sessionId: presetSessionId,
+      })
+      if (!presetCharge.ok) {
+        throw new Error(String(presetCharge.data.error || localText('Không thể trừ credit cho bài có sẵn.', 'Unable to charge credits for saved lesson.')))
+      }
+      notifyCreditsUpdated()
+      const chargedNow = Boolean(presetCharge.data.charged)
+      const presetBalance = Number(presetCharge.data.newBalance || 0)
+      toast({
+        title: chargedNow
+          ? localText('Đã trừ credit mở bài có sẵn', 'Saved lesson credits charged')
+          : localText('Bài có sẵn đã được trừ credit trước đó', 'Saved lesson already charged earlier'),
+        description: chargedNow
+          ? localText(
+              `Đã trừ ${PRESET_SESSION_PRICE_CREDITS} credit. Số dư còn lại: ${presetBalance.toFixed(2)}.`,
+              `${PRESET_SESSION_PRICE_CREDITS} credits deducted. Remaining balance: ${presetBalance.toFixed(2)}.`
+            )
+          : localText(
+              `Không trừ thêm. Số dư hiện tại: ${presetBalance.toFixed(2)}.`,
+              `No extra deduction. Current balance: ${presetBalance.toFixed(2)}.`
+            ),
+      })
       setLessonStartChoiceOpen(false)
+      setLessonStartPresetAvailable(true)
       setLessonStartPlan(null)
-      await loadHistorySession(String(data.sessionId || ''))
+      await loadHistorySession(presetSessionId)
       setSetupCollapsed(true)
       toast({
         title: localText('Đã mở bài học có sẵn', 'Saved lesson loaded'),
@@ -6584,15 +6761,25 @@ export default function HocTiengAnhAiClientPage() {
     setPreLessonContinueBusy(true)
     try {
       clearPreLessonGate()
-      const matched = findMatchingHistorySessions(plan)
-      if (matched.length === 0) {
-        setLessonStartPlan(plan)
-        await startLiveLessonFromChoice(plan)
-        return
-      }
-      setMatchedHistorySessions(matched)
-      setMatchedSessionPlan(plan)
-      setMatchedSessionChoiceOpen(true)
+      const hasPreset = await hasStrictPresetMatch(plan)
+      openLessonStartChoice(curriculum, topic, { presetAvailable: hasPreset })
+      toast({
+        title: localText('Chọn hình thức học', 'Choose lesson type'),
+        description: hasPreset
+          ? localText(
+              'Có bài học có sẵn khớp cài đặt hiện tại. Bạn có thể học live với AI hoặc học bài có sẵn.',
+              'A saved lesson matches your current setup. You can start a live AI lesson or study the saved lesson.'
+            )
+          : localText(
+              'Chưa có bài có sẵn khớp cài đặt hiện tại. Bạn vẫn có thể học live với AI ngay.',
+              'No saved lesson matches your current setup yet. You can start a live AI lesson now.'
+            ),
+      })
+      // Legacy in-progress matching popup is intentionally skipped here.
+      // After pre-review, flow is standardized to Live AI vs Saved preset choice.
+      setMatchedHistorySessions([])
+      setMatchedSessionPlan(null)
+      setMatchedSessionChoiceOpen(false)
     } finally {
       setPreLessonContinueBusy(false)
     }
@@ -6888,6 +7075,17 @@ export default function HocTiengAnhAiClientPage() {
       redirectToMiniDrill()
       return
     }
+    if (liveSessionTurnLimitReached) {
+      toast({
+        title: localText('Đã chạm giới hạn lượt hỏi', 'Turn limit reached'),
+        description: localText(
+          `Buổi live hiện tại đã dùng ${liveSessionTurnLimit}/${liveSessionTurnLimit} lượt. Bấm mở thêm ${LIVE_SESSION_EXTRA_TURN_STEP} lượt (${LIVE_SESSION_EXTRA_STEP_PRICE_CREDITS} credit) để tiếp tục.`,
+          `This live lesson has reached ${liveSessionTurnLimit}/${liveSessionTurnLimit} turns. Unlock ${LIVE_SESSION_EXTRA_TURN_STEP} more turns (${LIVE_SESSION_EXTRA_STEP_PRICE_CREDITS} credits) to continue.`
+        ),
+        variant: 'destructive',
+      })
+      return
+    }
     const blob = pendingRecordingBlobRef.current
     if (!blob) return
     pendingRecordingBlobRef.current = null
@@ -7003,6 +7201,17 @@ export default function HocTiengAnhAiClientPage() {
     }
     if (isMiniDrillBlocking) {
       redirectToMiniDrill()
+      return
+    }
+    if (liveSessionTurnLimitReached) {
+      toast({
+        title: localText('Đã chạm giới hạn lượt hỏi', 'Turn limit reached'),
+        description: localText(
+          `Buổi live hiện tại đã dùng ${liveSessionTurnLimit}/${liveSessionTurnLimit} lượt. Bấm mở thêm ${LIVE_SESSION_EXTRA_TURN_STEP} lượt (${LIVE_SESSION_EXTRA_STEP_PRICE_CREDITS} credit) để tiếp tục.`,
+          `This live lesson has reached ${liveSessionTurnLimit}/${liveSessionTurnLimit} turns. Unlock ${LIVE_SESSION_EXTRA_TURN_STEP} more turns (${LIVE_SESSION_EXTRA_STEP_PRICE_CREDITS} credits) to continue.`
+        ),
+        variant: 'destructive',
+      })
       return
     }
 
@@ -8301,7 +8510,7 @@ export default function HocTiengAnhAiClientPage() {
                       setDraft(e.target.value)
                     }}
                     placeholder={coachUiText.inputPlaceholder}
-                    disabled={busy || reviewListeningPopupOpen || isMiniDrillBlocking}
+                    disabled={busy || reviewListeningPopupOpen || isMiniDrillBlocking || liveSessionTurnLimitReached}
                     className="min-w-0 sm:flex-1"
                   />
                   <Button
@@ -8314,13 +8523,85 @@ export default function HocTiengAnhAiClientPage() {
                       }
                       void handleSend()
                     }}
-                    disabled={busy || reviewListeningPopupOpen || isMiniDrillBlocking || !draft.trim()}
+                    disabled={busy || reviewListeningPopupOpen || isMiniDrillBlocking || liveSessionTurnLimitReached || !draft.trim()}
                     className="h-10 rounded-xl px-3"
                   >
                     <Send className="mr-1.5 h-4 w-4" />
                     {localText('Gửi', 'Send')}
                   </Button>
                 </div>
+                {!isCurrentPresetSession ? (
+                  <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+                    <p>
+                      {localText('Lượt hỏi buổi live:', 'Live lesson turns:')}{' '}
+                      <span className="font-semibold">{liveSessionStudentTurnCount}/{liveSessionTurnLimit}</span>
+                      {' • '}
+                      {localText('Giá buổi 10 lượt:', 'Price per 10-turn lesson:')}{' '}
+                      <span className="font-semibold">{LIVE_SESSION_PRICE_CREDITS} credit</span>
+                    </p>
+                    {liveSessionTurnLimitReached ? (
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <p className="text-rose-700">
+                          {localText(
+                            'Đã hết lượt hỏi của gói hiện tại.',
+                            'You reached the turn limit for the current pack.'
+                          )}
+                        </p>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            if (liveUnlockBusy) return
+                            const sid = String(sessionId || '').trim()
+                            if (!sid) return
+                            setLiveUnlockBusy(true)
+                            void chargeEnglishCoachCredits({
+                              action: 'charge_live_unlock',
+                              sessionId: sid,
+                            }).then(({ ok, data }) => {
+                              if (!ok) {
+                                toast({
+                                  title: localText('Không mở thêm được lượt', 'Unable to unlock extra turns'),
+                                  description: String(data.error || localText('Không thể trừ credit để mở thêm lượt.', 'Unable to charge credits for extra turns.')),
+                                  variant: 'destructive',
+                                })
+                                return
+                              }
+                              notifyCreditsUpdated()
+                              const unlockCount = Math.max(0, Math.floor(Number(data.liveUnlockCount || 0) || 0))
+                              setLiveSessionExtraTurnUnlocks(unlockCount)
+                              const newBalance = Number(data.newBalance || 0)
+                              toast({
+                                title: localText('Đã mở thêm lượt hỏi', 'Extra turns unlocked'),
+                                description: localText(
+                                  `Đã trừ ${LIVE_SESSION_EXTRA_STEP_PRICE_CREDITS} credit, mở thêm ${LIVE_SESSION_EXTRA_TURN_STEP} lượt. Số dư còn lại: ${newBalance.toFixed(2)}.`,
+                                  `${LIVE_SESSION_EXTRA_STEP_PRICE_CREDITS} credits deducted and ${LIVE_SESSION_EXTRA_TURN_STEP} extra turns unlocked. Remaining balance: ${newBalance.toFixed(2)}.`
+                                ),
+                              })
+                            }).finally(() => {
+                              setLiveUnlockBusy(false)
+                            })
+                          }}
+                          disabled={liveUnlockBusy}
+                          className="h-8"
+                        >
+                          {localText(
+                            `Mở thêm ${LIVE_SESSION_EXTRA_TURN_STEP} lượt (${LIVE_SESSION_EXTRA_STEP_PRICE_CREDITS} credit)`,
+                            `Unlock ${LIVE_SESSION_EXTRA_TURN_STEP} turns (${LIVE_SESSION_EXTRA_STEP_PRICE_CREDITS} credits)`
+                          )}
+                        </Button>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : (
+                  <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+                    {localText(
+                      `Bài học có sẵn: ${PRESET_SESSION_PRICE_CREDITS} credit/buổi (không mở thêm lượt, học hết buổi hiện tại).`,
+                      `Saved lesson: ${PRESET_SESSION_PRICE_CREDITS} credit per lesson (no extra turn unlock, finish current lesson).`
+                    )}
+                  </div>
+                )}
                 <div className={`flex min-w-0 flex-wrap items-center gap-2 overflow-x-auto rounded-xl border border-border/70 bg-background/95 px-2 py-2 ${compactMode ? 'sticky bottom-0 z-20 shadow-md' : ''}`}>
                   {recordingPending ? (
                     <>
@@ -8357,7 +8638,7 @@ export default function HocTiengAnhAiClientPage() {
                           }
                           void sendPendingRecording()
                         }}
-                        disabled={busy || awaitingTeacherReply}
+                        disabled={busy || awaitingTeacherReply || liveSessionTurnLimitReached}
                         className="min-h-[44px] px-3 text-xs"
                       >
                         <Send className="mr-2 h-4 w-4" />
@@ -8371,7 +8652,7 @@ export default function HocTiengAnhAiClientPage() {
                         size="sm"
                         variant={listening ? 'destructive' : 'outline'}
                         onClick={handleMic}
-                        disabled={busy || awaitingTeacherReply || isMiniDrillBlocking}
+                        disabled={busy || awaitingTeacherReply || isMiniDrillBlocking || liveSessionTurnLimitReached}
                         className="min-h-[44px] px-3 text-xs"
                       >
                         {listening ? <MicOff className="mr-2 h-4 w-4" /> : <Mic className="mr-2 h-4 w-4" />}
@@ -9107,6 +9388,20 @@ export default function HocTiengAnhAiClientPage() {
                 'Do you want a live AI lesson or a saved lesson matching your current settings?'
               )}
             </p>
+            <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-2 text-xs text-slate-700 space-y-1">
+              <p>
+                {localText('Học live với AI:', 'Live AI lesson:')} <span className="font-semibold">{LIVE_SESSION_PRICE_CREDITS} credit</span>{' '}
+                {localText(`/ ${LIVE_SESSION_BASE_TURN_LIMIT} lượt hỏi`, `/ ${LIVE_SESSION_BASE_TURN_LIMIT} turns`)}
+              </p>
+              <p>
+                {localText('Mở thêm lượt live:', 'Unlock extra live turns:')} <span className="font-semibold">{LIVE_SESSION_EXTRA_STEP_PRICE_CREDITS} credit</span>{' '}
+                {localText(`/ ${LIVE_SESSION_EXTRA_TURN_STEP} lượt`, `/ ${LIVE_SESSION_EXTRA_TURN_STEP} turns`)}
+              </p>
+              <p>
+                {localText('Học bài có sẵn:', 'Saved lesson:')} <span className="font-semibold">{PRESET_SESSION_PRICE_CREDITS} credit</span>{' '}
+                {localText('/ buổi', '/ lesson')}
+              </p>
+            </div>
             <div className="mt-4 grid gap-2 sm:grid-cols-2">
               <Button
                 type="button"
@@ -9120,10 +9415,14 @@ export default function HocTiengAnhAiClientPage() {
                 type="button"
                 variant="outline"
                 onClick={() => void startPresetLessonFromChoice()}
-                disabled={lessonStartChoiceBusy}
+                disabled={lessonStartChoiceBusy || !lessonStartPresetAvailable}
                 className="min-h-[44px]"
               >
-                {lessonStartChoiceBusy ? localText('Đang mở...', 'Loading...') : localText('Học bài có sẵn', 'Study saved lesson')}
+                {!lessonStartPresetAvailable
+                  ? localText('Chưa có bài có sẵn phù hợp', 'No matching saved lesson')
+                  : lessonStartChoiceBusy
+                    ? localText('Đang mở...', 'Loading...')
+                    : localText('Học bài có sẵn', 'Study saved lesson')}
               </Button>
             </div>
             <div className="mt-3 flex justify-end">
@@ -9132,6 +9431,7 @@ export default function HocTiengAnhAiClientPage() {
                 variant="ghost"
                 onClick={() => {
                   setLessonStartChoiceOpen(false)
+                  setLessonStartPresetAvailable(true)
                   setLessonStartPlan(null)
                 }}
                 disabled={lessonStartChoiceBusy}

@@ -1,11 +1,12 @@
 "use client"
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { LogOut, Wallet, Shield } from 'lucide-react'
 import { DepositCreditButton } from '@/components/deposit-credit-button'
 import { DepositCreditMenuItem } from '@/components/deposit-credit-menu-item'
+import { createClient } from '@/lib/supabase/client'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,12 +28,38 @@ interface HeaderUserMenuProps {
 
 export function HeaderUserMenu({ user, credits, isAdmin, t }: HeaderUserMenuProps) {
   const [open, setOpen] = useState(false)
+  const [displayCredits, setDisplayCredits] = useState<number>(Number(credits || 0))
+
+  useEffect(() => {
+    setDisplayCredits(Number(credits || 0))
+  }, [credits])
+
+  useEffect(() => {
+    let mounted = true
+    const supabase = createClient()
+    const refreshCredits = async () => {
+      const { data } = await supabase
+        .from('credits')
+        .select('balance')
+        .eq('user_id', user.id)
+        .single()
+      if (!mounted) return
+      const nextBalance = Number(data?.balance)
+      if (Number.isFinite(nextBalance)) setDisplayCredits(nextBalance)
+    }
+    void refreshCredits()
+    window.addEventListener('credits-updated', refreshCredits)
+    return () => {
+      mounted = false
+      window.removeEventListener('credits-updated', refreshCredits)
+    }
+  }, [user.id])
 
   return (
     <div className="flex items-center gap-2 sm:gap-4">
       <div className="hidden sm:flex items-center gap-2 text-sm font-medium">
         <Wallet className="h-4 w-4" />
-        <span>{credits} {t.menu.credits}</span>
+        <span>{displayCredits} {t.menu.credits}</span>
       </div>
       <DepositCreditButton variant="outline" size="sm" className="hidden sm:flex" />
       <DropdownMenu open={open} onOpenChange={setOpen}>
@@ -62,7 +89,7 @@ export function HeaderUserMenu({ user, credits, isAdmin, t }: HeaderUserMenuProp
           <DropdownMenuItem asChild className="sm:hidden">
             <div className="flex items-center gap-2 text-sm font-medium">
               <Wallet className="h-4 w-4" />
-              <span>{credits} {t.menu.credits}</span>
+              <span>{displayCredits} {t.menu.credits}</span>
             </div>
           </DropdownMenuItem>
           <DepositCreditMenuItem />
