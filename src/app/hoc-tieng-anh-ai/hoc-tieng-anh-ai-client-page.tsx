@@ -2169,7 +2169,7 @@ export default function HocTiengAnhAiClientPage() {
   const lastAutoScrollTokenMessageIdRef = useRef('')
   const lessonCompletedToastShownForSessionRef = useRef<string | null>(null)
   const lessonAutoSnapshotBusyRef = useRef(false)
-  const lessonAutoSnapshotTeacherCountBySessionRef = useRef<Record<string, number>>({})
+  const lessonAutoSnapshotMessageCountBySessionRef = useRef<Record<string, number>>({})
   const miniStageSyncKeyRef = useRef('')
   const latestMiniStageRef = useRef<MiniStage>('idle')
   const uiLocale: UiLocale = nativeLanguageCode
@@ -5267,12 +5267,13 @@ export default function HocTiengAnhAiClientPage() {
       })
     }
     if (completedCount < steps.length) return
-    const lastSavedTeacherCount = lessonAutoSnapshotTeacherCountBySessionRef.current[sessionId] ?? 0
-    if (teacherCount <= lastSavedTeacherCount || lessonAutoSnapshotBusyRef.current) return
+    const messageCount = messages.length
+    const lastSavedMessageCount = lessonAutoSnapshotMessageCountBySessionRef.current[sessionId] ?? 0
+    if (messageCount <= lastSavedMessageCount || lessonAutoSnapshotBusyRef.current) return
     lessonAutoSnapshotBusyRef.current = true
     void snapshotCompletedLessonSession(sessionId)
       .then(({ ok }) => {
-        if (ok) lessonAutoSnapshotTeacherCountBySessionRef.current[sessionId] = teacherCount
+        if (ok) lessonAutoSnapshotMessageCountBySessionRef.current[sessionId] = messageCount
       })
       .finally(() => {
         lessonAutoSnapshotBusyRef.current = false
@@ -8411,7 +8412,7 @@ export default function HocTiengAnhAiClientPage() {
                   </p>
                 ) : null}
               </div>
-              {learningMode === 'review' && writingTask ? (
+              {learningMode === 'review' && writingTask && !writingTask.completed ? (
                 <div
                   ref={writingTaskRef}
                   className={`min-w-0 rounded-md border p-2.5 ${
