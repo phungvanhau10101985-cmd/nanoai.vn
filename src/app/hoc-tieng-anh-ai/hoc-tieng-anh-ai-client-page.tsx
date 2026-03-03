@@ -2159,6 +2159,8 @@ export default function HocTiengAnhAiClientPage() {
   const [mainSentenceByMessageId, setMainSentenceByMessageId] = useState<Record<string, string>>({})
   const [correctionNoteByMessageId, setCorrectionNoteByMessageId] = useState<Record<string, string>>({})
   const [intentAnswerByMessageId, setIntentAnswerByMessageId] = useState<Record<string, string>>({})
+  const [studentAudioByMessageId, setStudentAudioByMessageId] = useState<Record<string, string>>({})
+  const [studentAudioByMessageId, setStudentAudioByMessageId] = useState<Record<string, string>>({})
   const [teacherSpeakTextByMessageId, setTeacherSpeakTextByMessageId] = useState<Record<string, string>>({})
   const [intentExplainByMessageId, setIntentExplainByMessageId] = useState<Record<string, string>>({})
   const [intentExplainBusyByMessageId, setIntentExplainBusyByMessageId] = useState<Record<string, boolean>>({})
@@ -2194,6 +2196,7 @@ export default function HocTiengAnhAiClientPage() {
   const writingInputRef = useRef<HTMLInputElement | null>(null)
   const wasMiniWritingBlockedRef = useRef(false)
   const teacherAudioByMessageIdRef = useRef<Record<string, string>>({})
+  const studentAudioByMessageIdRef = useRef<Record<string, string>>({})
   const persistedMessageIdsRef = useRef<Record<string, true>>({})
   const createdAudioUrlsRef = useRef<string[]>([])
   const lastAutoScrollTokenMessageIdRef = useRef('')
@@ -2547,9 +2550,23 @@ export default function HocTiengAnhAiClientPage() {
   const canShowDirectConversation = isLessonReadyToStart || messages.length > 0 || Boolean(openedHistorySessionId)
   const hasStudentTurnsInCurrentSession = liveSessionStudentTurnCount > sessionEntryStudentTurnBaseline
   const isMiniDrillBlocking =
-    learningMode === 'review' && reviewDrillStage !== 'idle' && hasStudentTurnsInCurrentSession
+    learningMode === 'review'
+    && reviewDrillStage !== 'idle'
+    && hasStudentTurnsInCurrentSession
+    && !(isCurrentPresetSession && reviewDrillStage === 'writing')
   const isMiniWritingBlocking =
     learningMode === 'review' && Boolean(writingTask) && !Boolean(writingTask?.completed)
+  const latestMainSentenceForLearner = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i]
+      if (m.role !== 'teacher') continue
+      const sentence = String(mainSentenceByMessageId[m.id] || '').trim()
+      if (sentence) {
+        return { messageId: m.id, sentence, teacherText: m.text }
+      }
+    }
+    return null
+  }, [messages, mainSentenceByMessageId])
 
   useEffect(() => {
     latestMiniStageRef.current = reviewMiniPackCompleted ? 'done' : reviewDrillStage
@@ -3432,6 +3449,14 @@ export default function HocTiengAnhAiClientPage() {
     await audioQueueRef.current
   }
 
+  const replayStudentMessageAudio = async (messageId: string) => {
+    const fromRef = String(studentAudioByMessageIdRef.current[messageId] || '').trim()
+    const fromState = String(studentAudioByMessageId[messageId] || '').trim()
+    const url = fromRef || fromState
+    if (!url) return
+    await playAudioUrl(url)
+  }
+
   const createTtsAudioData = async (
     text: string,
     opts?: { locale?: string; languageLabel?: string; forceEngine?: 'auto' | 'gemini-only' | 'openai-only'; skipCache?: boolean }
@@ -3643,6 +3668,18 @@ export default function HocTiengAnhAiClientPage() {
     return data.audioUrl
   }
 
+  const uploadStudentAudio = async (messageId: string, blob: Blob, blobType: string) => {
+    const formData = new FormData()
+    formData.append('audio', new File([blob], `${messageId}.webm`, { type: blobType || 'audio/webm' }))
+    formData.append('sessionId', sessionId)
+    formData.append('messageId', messageId)
+    const { ok, data } = await uploadAudio(formData)
+    if (!ok || !data.audioUrl) {
+      throw new Error(data.error || localText('Không upload được ghi âm học viên.', 'Failed to upload student recording.'))
+    }
+    return data.audioUrl
+  }
+
   const replayTeacherMessage = async (messageId: string, text: string) => {
     const key = `${messageId}__full`
     if (ttsLoadingByKey[key]) return
@@ -3744,6 +3781,19 @@ export default function HocTiengAnhAiClientPage() {
     } finally {
       setTtsLoadingByKey((prev) => ({ ...prev, [key]: false }))
     }
+  }
+
+  const replayStudentMessage = async (messageId: string) => {
+    const audioUrl = String(studentAudioByMessageId[messageId] || '').trim()
+    if (!audioUrl) {
+      toast({
+        title: localText('Chưa có ghi âm', 'No recording available'),
+        description: localText('Tin nhắn này không có audio để phát lại.', 'This message has no audio to replay.'),
+        variant: 'destructive',
+      })
+      return
+    }
+    await playAudioUrl(audioUrl)
   }
 
   const replayTeacherCorrectionNote = async (messageId: string) => {
@@ -4554,6 +4604,8 @@ export default function HocTiengAnhAiClientPage() {
       setMainSentenceByMessageId({})
       setCorrectionNoteByMessageId({})
       setIntentAnswerByMessageId({})
+      studentAudioByMessageIdRef.current = {}
+      setStudentAudioByMessageId({})
       setTokensByMessageId({})
       setTokensWithUsageByMessageId({})
       setOpeningTranslateByMessageId({})
@@ -5179,8 +5231,14 @@ export default function HocTiengAnhAiClientPage() {
         if (item.role === 'teacher' && item.audioUrl) acc[item.id] = item.audioUrl
         return acc
       }, {})
+      const loadedStudentAudioMap = items.reduce<Record<string, string>>((acc, item) => {
+        if (item.role === 'student' && item.audioUrl) acc[item.id] = item.audioUrl
+        return acc
+      }, {})
       teacherAudioByMessageIdRef.current = loadedAudioMap
       setTeacherAudioByMessageId(loadedAudioMap)
+      studentAudioByMessageIdRef.current = loadedStudentAudioMap
+      setStudentAudioByMessageId(loadedStudentAudioMap)
       persistedMessageIdsRef.current = items.reduce<Record<string, true>>((acc, item) => {
         acc[item.id] = true
         return acc
@@ -5305,6 +5363,8 @@ export default function HocTiengAnhAiClientPage() {
     setMainSentenceByMessageId({})
     setCorrectionNoteByMessageId({})
     setIntentAnswerByMessageId({})
+    studentAudioByMessageIdRef.current = {}
+    setStudentAudioByMessageId({})
     setTeacherSpeakTextByMessageId({})
     setIntentExplainByMessageId({})
     setIntentExplainBusyByMessageId({})
@@ -5661,7 +5721,14 @@ export default function HocTiengAnhAiClientPage() {
     raw?: string,
     source: 'text' | 'mic' = 'text',
     micAnalysis?: MixedSpeechAnalysis,
-    opts?: { existingStudentMessageId?: string; silentDrill?: boolean; drillType?: 'listening'; drillSelectedWords?: string[]; drillSpeaking?: boolean }
+    opts?: {
+      existingStudentMessageId?: string
+      studentAudioUrl?: string
+      silentDrill?: boolean
+      drillType?: 'listening'
+      drillSelectedWords?: string[]
+      drillSpeaking?: boolean
+    }
   ) => {
     const studentText = String(raw ?? draft).trim()
     if (!studentText) return
@@ -5707,7 +5774,7 @@ export default function HocTiengAnhAiClientPage() {
     }
     if (!isFromDrill) setDraft('')
     if (shouldAppendStudentMessage && studentMessageId) {
-      void saveHistoryMessage({ role: 'student', text: studentText })
+      void saveHistoryMessage({ role: 'student', text: studentText, audioUrl: opts?.studentAudioUrl || '' })
         .then(() => {
           persistedMessageIdsRef.current[studentMessageId] = true
         })
@@ -5776,6 +5843,10 @@ export default function HocTiengAnhAiClientPage() {
       }
       if (!ok) {
         throw new Error(payload.error || localText('Không nhận được phản hồi từ giáo viên AI.', 'No response received from AI teacher.'))
+      }
+      if (!isFromDrill) {
+        const randomThinkingDelayMs = 2000 + Math.floor(Math.random() * 2001)
+        await new Promise((resolve) => setTimeout(resolve, randomThinkingDelayMs))
       }
 
       let mustStayWritingStage = false
@@ -5888,7 +5959,7 @@ export default function HocTiengAnhAiClientPage() {
         if (copyTargets.length < 2) pushIfDistinct(String(speakingTargetFromPayload || '').trim())
         if (copyTargets.length > 2) copyTargets.splice(2)
         currentWritingCopyTargets = copyTargets
-        if (learningMode === 'review' && payload.startMiniPack && !reviewMiniPackCompleted) {
+        if (learningMode === 'review' && payload.startMiniPack && !reviewMiniPackCompleted && !isCurrentPresetSession) {
           mustStayWritingStage = true
           setReviewMiniPackCompleted(false)
           setReviewDrillStage('writing')
@@ -5928,7 +5999,7 @@ export default function HocTiengAnhAiClientPage() {
       }
 
       if (payload.reviewDrill?.type === 'speaking') {
-        const hasPendingWriting = Boolean(writingTask && !writingTask.completed)
+        const hasPendingWriting = Boolean(writingTask && !writingTask.completed) && !isCurrentPresetSession
         const speakingTarget = String(payload.reviewDrill.targetSentence || '').trim()
         const speakingTargetValid = speakingTarget ? isSentenceInTargetLanguage(speakingTarget, languageCode) : false
         const fallbackSpeakingTarget = String(
@@ -5964,6 +6035,7 @@ export default function HocTiengAnhAiClientPage() {
         }
         const shouldCreateWritingFallback =
           learningMode === 'review'
+          && !isCurrentPresetSession
           && !isFromDrill
           && !mustStayWritingStage
           && Boolean(finalSpeakingTarget)
@@ -7114,31 +7186,51 @@ export default function HocTiengAnhAiClientPage() {
     }
     const blob = pendingRecordingBlobRef.current
     if (!blob) return
+    const isPresetDirectReadFlow =
+      isCurrentPresetSession
+      && !isMiniDrillBlocking
+      && Boolean(String(latestMainSentenceForLearner?.sentence || '').trim())
     pendingRecordingBlobRef.current = null
     setRecordingPending(false)
     setBusy(true)
     setAwaitingTeacherReply(true)
-    const placeholderText = localText('Đang chuyển giọng nói thành chữ...', 'Converting speech to text...')
+    const placeholderText = isPresetDirectReadFlow
+      ? localText('Đang gửi câu đọc...', 'Submitting your reading...')
+      : localText('Đang chuyển giọng nói thành chữ...', 'Converting speech to text...')
     const studentMessageId = appendMessage('student', placeholderText)
+    const localAudioUrl = URL.createObjectURL(blob)
+    createdAudioUrlsRef.current.push(localAudioUrl)
+    studentAudioByMessageIdRef.current = {
+      ...studentAudioByMessageIdRef.current,
+      [studentMessageId]: localAudioUrl,
+    }
+    setStudentAudioByMessageId((prev) => ({ ...prev, [studentMessageId]: localAudioUrl }))
     chatScrollRef.current?.scrollIntoView({ behavior: 'smooth' })
     try {
-      const analysis = await transcribeSpeechAudio(blob)
-      setLatestPronunciationScore(analysis.pronunciationScore || null)
-      setLatestWeakWords(analysis.weakWords || [])
-      setLatestPronunciationBreakdown({
-        accuracy: analysis.pronunciationAccuracy || null,
-        fluency: analysis.pronunciationFluency || null,
-        prosody: analysis.pronunciationProsody || null,
-      })
-      setLatestWordScores(analysis.wordScores || [])
-      const transcriptByMode =
-        speakingLanguageMode === 'target'
-          ? analysis.targetTranscript || analysis.mergedTranscript || analysis.nativeTranscript
-          : speakingLanguageMode === 'native'
-            ? analysis.nativeTranscript || analysis.mergedTranscript || analysis.targetTranscript
-            : analysis.mergedTranscript || analysis.targetTranscript || analysis.nativeTranscript
-      setDraft(transcriptByMode)
-      const transcript = String(transcriptByMode || '').trim()
+      let analysis: MixedSpeechAnalysis | undefined
+      let transcript = ''
+      if (isPresetDirectReadFlow) {
+        transcript = String(latestMainSentenceForLearner?.sentence || '').trim()
+        setDraft(transcript)
+      } else {
+        analysis = await transcribeSpeechAudio(blob)
+        setLatestPronunciationScore(analysis.pronunciationScore || null)
+        setLatestWeakWords(analysis.weakWords || [])
+        setLatestPronunciationBreakdown({
+          accuracy: analysis.pronunciationAccuracy || null,
+          fluency: analysis.pronunciationFluency || null,
+          prosody: analysis.pronunciationProsody || null,
+        })
+        setLatestWordScores(analysis.wordScores || [])
+        const transcriptByMode =
+          speakingLanguageMode === 'target'
+            ? analysis.targetTranscript || analysis.mergedTranscript || analysis.nativeTranscript
+            : speakingLanguageMode === 'native'
+              ? analysis.nativeTranscript || analysis.mergedTranscript || analysis.targetTranscript
+              : analysis.mergedTranscript || analysis.targetTranscript || analysis.nativeTranscript
+        setDraft(transcriptByMode)
+        transcript = String(transcriptByMode || '').trim()
+      }
       updateMessageText(studentMessageId, transcript || placeholderText)
       if (!transcript) {
         setBusy(false)
@@ -7147,7 +7239,23 @@ export default function HocTiengAnhAiClientPage() {
         toast({ title: coachUiText.micErrorTitle, description: localText('Không chuyển được giọng nói thành chữ.', 'Could not convert speech to text.'), variant: 'destructive' })
         return
       }
-      await handleSend(transcript, 'mic', analysis, { existingStudentMessageId: studentMessageId })
+      let uploadedStudentAudioUrl = ''
+      try {
+        uploadedStudentAudioUrl = await uploadStudentAudio(studentMessageId, blob, blob.type || 'audio/webm')
+        if (uploadedStudentAudioUrl) {
+          studentAudioByMessageIdRef.current = {
+            ...studentAudioByMessageIdRef.current,
+            [studentMessageId]: uploadedStudentAudioUrl,
+          }
+          setStudentAudioByMessageId((prev) => ({ ...prev, [studentMessageId]: uploadedStudentAudioUrl }))
+        }
+      } catch {
+        // keep local object URL for in-session replay if upload fails
+      }
+      await handleSend(transcript, 'mic', analysis, {
+        existingStudentMessageId: studentMessageId,
+        studentAudioUrl: uploadedStudentAudioUrl || localAudioUrl,
+      })
     } catch (e) {
       const msg = unknownErrorMsg(e)
       toast({ title: coachUiText.micErrorTitle, description: msg, variant: 'destructive' })
@@ -8393,7 +8501,20 @@ export default function HocTiengAnhAiClientPage() {
                           ) : null}
                         </div>
                       ) : (
-                        <p>{m.text}</p>
+                        <div className="space-y-2">
+                          <p>{m.text}</p>
+                          {studentAudioByMessageId[m.id] ? (
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => void replayStudentMessageAudio(m.id)}
+                            >
+                              <Volume2 className="mr-2 h-4 w-4" />
+                              {localText('Nghe lại câu học viên', 'Play student audio')}
+                            </Button>
+                          ) : null}
+                        </div>
                       )}
                       {m.role === 'teacher' ? (
                         <div className="mt-2 flex flex-wrap gap-2">
@@ -8479,6 +8600,18 @@ export default function HocTiengAnhAiClientPage() {
                             </>
                           )}
                         </div>
+                      ) : String(studentAudioByMessageId[m.id] || '').trim() ? (
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => void replayStudentMessage(m.id)}
+                          >
+                            <Volume2 className="mr-2 h-4 w-4" />
+                            {localText('Nghe lại học viên', 'Play student recording')}
+                          </Button>
+                        </div>
                       ) : null}
                       {m.role === 'teacher' && learningMode !== 'reflex' && openingTranslateByMessageId[m.id] ? (
                         <p className="mt-2 text-xs text-slate-600">
@@ -8517,6 +8650,41 @@ export default function HocTiengAnhAiClientPage() {
                       : reviewDrillStage === 'speaking'
                         ? localText('Mini 2/3: Nói lại câu sửa để luyện phát âm', 'Mini 2/3: Repeat the corrected sentence')
                         : localText('Mini 3/3: Chọn từ bạn nghe thấy', 'Mini 3/3: Pick words you heard')}
+                  </div>
+                ) : null}
+                {!isMiniDrillBlocking && latestMainSentenceForLearner ? (
+                  <div className="rounded-md border border-emerald-200 bg-emerald-50/70 px-3 py-2 text-xs text-emerald-800">
+                    <p className="font-semibold">{localText('Câu nói chính để bạn đọc mic', 'Main sentence for microphone practice')}</p>
+                    <p className="mt-1 break-words text-sm font-medium text-emerald-900">
+                      {latestMainSentenceForLearner.sentence}
+                    </p>
+                    <p className="mt-1 text-[11px] text-emerald-700">
+                      {localText(
+                        'Bấm "Nói" để đọc theo câu này, sau đó bấm "Gửi".',
+                        'Tap "Speak" to read this sentence, then tap "Send".'
+                      )}
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => void replayTeacherMainSentence(latestMainSentenceForLearner.messageId, latestMainSentenceForLearner.teacherText)}
+                        disabled={isReplayButtonDisabled(`${latestMainSentenceForLearner.messageId}__main`, hasCachedTeacherAudio(`${latestMainSentenceForLearner.messageId}__main`))}
+                      >
+                        <Volume2 className="mr-2 h-4 w-4" />
+                        {localText('Nghe đọc chuẩn', 'Play standard reading')}
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setDraft(latestMainSentenceForLearner.sentence)}
+                        disabled={busy || recordingPending}
+                      >
+                        {localText('Dùng câu này', 'Use this sentence')}
+                      </Button>
+                    </div>
                   </div>
                 ) : null}
                 <div className="flex min-w-0 items-center gap-2 sm:flex-1">
@@ -8753,7 +8921,7 @@ export default function HocTiengAnhAiClientPage() {
                   </p>
                 ) : null}
               </div>
-              {learningMode === 'review' && reviewDrillStage === 'writing' && hasStudentTurnsInCurrentSession && writingTask && !writingTask.completed ? (
+              {learningMode === 'review' && !isCurrentPresetSession && reviewDrillStage === 'writing' && hasStudentTurnsInCurrentSession && writingTask && !writingTask.completed ? (
                 <div
                   ref={writingTaskRef}
                   className={`min-w-0 rounded-md border p-2.5 ${
