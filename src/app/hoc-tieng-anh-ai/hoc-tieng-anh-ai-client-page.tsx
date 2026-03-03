@@ -2045,6 +2045,7 @@ export default function HocTiengAnhAiClientPage() {
   const [todayWords, setTodayWords] = useState<TodayWordItem[]>([])
   const [wordPractice, setWordPractice] = useState<WordPracticeProgress | null>(null)
   const [practiceInputStatus, setPracticeInputStatus] = useState<'idle' | 'partial' | 'correct' | 'incorrect'>('idle')
+  const [sessionEntryStudentTurnBaseline, setSessionEntryStudentTurnBaseline] = useState(0)
   const liveSessionStudentTurnCount = useMemo(
     () => messages.filter((m) => m.role === 'student').length,
     [messages]
@@ -2544,7 +2545,9 @@ export default function HocTiengAnhAiClientPage() {
   const isTopicConfirmedForLesson = Boolean(topicId) && confirmedTopicId === topicId
   const isLessonReadyToStart = isTopicConfirmedForLesson && hasCurriculumReady
   const canShowDirectConversation = isLessonReadyToStart || messages.length > 0 || Boolean(openedHistorySessionId)
-  const isMiniDrillBlocking = learningMode === 'review' && reviewDrillStage !== 'idle'
+  const hasStudentTurnsInCurrentSession = liveSessionStudentTurnCount > sessionEntryStudentTurnBaseline
+  const isMiniDrillBlocking =
+    learningMode === 'review' && reviewDrillStage !== 'idle' && hasStudentTurnsInCurrentSession
   const isMiniWritingBlocking =
     learningMode === 'review' && Boolean(writingTask) && !Boolean(writingTask?.completed)
 
@@ -4784,6 +4787,7 @@ export default function HocTiengAnhAiClientPage() {
       setSessionId(targetSessionId)
       setMessages(items.map((x) => ({ id: x.id, role: x.role, text: x.text })))
       const loadedStudentTurns = items.filter((x) => x.role === 'student').length
+      setSessionEntryStudentTurnBaseline(loadedStudentTurns)
       const inferredExtraUnlocks =
         loadedStudentTurns > LIVE_SESSION_BASE_TURN_LIMIT
           ? Math.ceil((loadedStudentTurns - LIVE_SESSION_BASE_TURN_LIMIT) / LIVE_SESSION_EXTRA_TURN_STEP)
@@ -5264,6 +5268,7 @@ export default function HocTiengAnhAiClientPage() {
     shouldCountNewSessionRef.current = true
     setSessionTeacher(null)
     setIsCurrentPresetSession(false)
+    setSessionEntryStudentTurnBaseline(0)
     setLiveSessionExtraTurnUnlocks(0)
     setOpenedHistorySessionId('')
     lastMicSentTextRef.current = ''
@@ -5272,6 +5277,20 @@ export default function HocTiengAnhAiClientPage() {
     setRecordingPending(false)
     setListening(false)
     setReviewMiniPackCompleted(false)
+    setReviewDrillStage('idle')
+    setReviewListeningPopupOpen(false)
+    setReviewListeningPrompt('')
+    setReviewListeningOptions([])
+    setReviewListeningVisibleOptions([])
+    setReviewListeningRemainingOptions([])
+    setReviewListeningExpectedKeywords([])
+    setReviewListeningRequiredCount(3)
+    setReviewListeningResultByWord({})
+    setReviewListeningSelected([])
+    setReviewSpeakingTargetSentence('')
+    setSpeakingDrillPhase('idle')
+    setSpeakingDrillCycleCount(0)
+    setSpeakingDrillBlob(null)
     setMessages([])
     setCorrections([])
     setCorrectionsByMessageId({})
@@ -8491,7 +8510,7 @@ export default function HocTiengAnhAiClientPage() {
               </div>
 
               <div ref={speakActionsRef} className="min-w-0 space-y-2">
-                {learningMode === 'review' && reviewDrillStage !== 'idle' ? (
+                {isMiniDrillBlocking ? (
                   <div className="rounded-md border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs text-indigo-700">
                     {reviewDrillStage === 'writing'
                       ? localText('Mini 1/3: Viết lại câu mục tiêu', 'Mini 1/3: Rewrite the target sentence')
@@ -8734,7 +8753,7 @@ export default function HocTiengAnhAiClientPage() {
                   </p>
                 ) : null}
               </div>
-              {learningMode === 'review' && writingTask && !writingTask.completed ? (
+              {learningMode === 'review' && reviewDrillStage === 'writing' && hasStudentTurnsInCurrentSession && writingTask && !writingTask.completed ? (
                 <div
                   ref={writingTaskRef}
                   className={`min-w-0 rounded-md border p-2.5 ${
