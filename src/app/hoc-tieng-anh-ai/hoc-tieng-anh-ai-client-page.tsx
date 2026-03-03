@@ -2618,7 +2618,7 @@ export default function HocTiengAnhAiClientPage() {
         }
       })
     const progress = Math.max(0, liveSessionStudentTurnCount - sessionEntryStudentTurnBaseline)
-    console.info('[preset-main-sentence-debug]', {
+    const debugPayload = {
       sessionId,
       reviewDrillStage,
       reviewSpeakingTargetSentence: sanitizeLearnerReadingSentence(reviewSpeakingTargetSentence),
@@ -2627,7 +2627,9 @@ export default function HocTiengAnhAiClientPage() {
       progress,
       selected: latestMainSentenceForLearner,
       teacherRows,
-    })
+    }
+    console.info('[preset-main-sentence-debug]', debugPayload)
+    console.info('[preset-main-sentence-debug-json]', JSON.stringify(debugPayload))
   }, [
     isCurrentPresetSession,
     messages,
