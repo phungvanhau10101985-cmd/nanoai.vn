@@ -34,6 +34,7 @@ type HistoryPayload = {
   correctionNote?: string
   intentAnswer?: string
   tokensJson?: string
+  aiPayloadJson?: string
 }
 
 type ReviewDrillStats = {
@@ -42,6 +43,27 @@ type ReviewDrillStats = {
   listeningPass: number
   listeningFail: number
   hintServed: number
+  updatedAt?: string
+}
+
+type ActiveReviewDrill = {
+  speaking?: {
+    targetSentence: string
+    minSimilarity: number
+    minPronunciationScore: number
+    attempt: number
+  }
+  listening?: {
+    prompt: string
+    expectedKeywords: string[]
+    options: string[]
+    minMatchedKeywords: number
+    attempt: number
+  }
+}
+
+type MiniStageSnapshot = {
+  stage: 'idle' | 'writing' | 'speaking' | 'listening' | 'done'
   updatedAt?: string
 }
 
@@ -58,6 +80,66 @@ function parseReviewDrillStatsFromPinnedFacts(raw: string): ReviewDrillStats | n
       listeningFail: Math.max(0, Math.floor(Number(row.listeningFail || 0) || 0)),
       hintServed: Math.max(0, Math.floor(Number(row.hintServed || 0) || 0)),
       updatedAt: String(row.updatedAt || '').trim() || undefined,
+    }
+  } catch {
+    return null
+  }
+}
+
+function parseActiveReviewDrillFromPinnedFacts(raw: string): ActiveReviewDrill | null {
+  try {
+    const root = JSON.parse(String(raw || '{}')) as Record<string, unknown>
+    const src = root?.review_drill
+    if (!src || typeof src !== 'object') return null
+    const row = src as Record<string, unknown>
+    const speakingRaw = row.speaking
+    const listeningRaw = row.listening
+    const speaking = speakingRaw && typeof speakingRaw === 'object'
+      ? {
+          targetSentence: String((speakingRaw as { targetSentence?: unknown }).targetSentence || '').trim(),
+          minSimilarity: Number.isFinite(Number((speakingRaw as { minSimilarity?: unknown }).minSimilarity))
+            ? Number((speakingRaw as { minSimilarity?: unknown }).minSimilarity)
+            : 0.82,
+          minPronunciationScore: Number.isFinite(Number((speakingRaw as { minPronunciationScore?: unknown }).minPronunciationScore))
+            ? Number((speakingRaw as { minPronunciationScore?: unknown }).minPronunciationScore)
+            : 65,
+          attempt: Math.max(0, Math.floor(Number((speakingRaw as { attempt?: unknown }).attempt || 0) || 0)),
+        }
+      : undefined
+    const listening = listeningRaw && typeof listeningRaw === 'object'
+      ? {
+          prompt: String((listeningRaw as { prompt?: unknown }).prompt || '').trim(),
+          expectedKeywords: Array.isArray((listeningRaw as { expectedKeywords?: unknown }).expectedKeywords)
+            ? (listeningRaw as { expectedKeywords: unknown[] }).expectedKeywords.map((x) => String(x || '').trim()).filter(Boolean).slice(0, 12)
+            : [],
+          options: Array.isArray((listeningRaw as { options?: unknown }).options)
+            ? (listeningRaw as { options: unknown[] }).options.map((x) => String(x || '').trim()).filter(Boolean).slice(0, 24)
+            : [],
+          minMatchedKeywords: Math.max(1, Math.min(3, Math.floor(Number((listeningRaw as { minMatchedKeywords?: unknown }).minMatchedKeywords || 1) || 1))),
+          attempt: Math.max(0, Math.floor(Number((listeningRaw as { attempt?: unknown }).attempt || 0) || 0)),
+        }
+      : undefined
+    if (!speaking && !listening) return null
+    return { ...(speaking ? { speaking } : {}), ...(listening ? { listening } : {}) }
+  } catch {
+    return null
+  }
+}
+
+function parseMiniStageSnapshotFromPinnedFacts(raw: string): MiniStageSnapshot | null {
+  try {
+    const root = JSON.parse(String(raw || '{}')) as Record<string, unknown>
+    const src = root?.mini_stage_snapshot
+    if (!src || typeof src !== 'object') return null
+    const row = src as Record<string, unknown>
+    const stageRaw = String(row.stage || '').trim().toLowerCase()
+    const stage =
+      stageRaw === 'writing' || stageRaw === 'speaking' || stageRaw === 'listening' || stageRaw === 'done'
+        ? stageRaw
+        : 'idle'
+    return {
+      stage,
+      updatedAt: String(row.updatedAt || row.updated_at || '').trim() || undefined,
     }
   } catch {
     return null
@@ -84,7 +166,7 @@ export async function GET(request: NextRequest) {
       const [messagesResult, memoryResult, hiddenCheck, endedCheck] = await Promise.all([
         adminSupabase
           .from('language_coach_messages')
-          .select('id, session_id, role, text, audio_url, translation, language_code, target_language, teacher_label, teacher_locale, mode, main_sentence, correction_note, intent_answer, tokens_json, writing_task_json, created_at')
+          .select('id, session_id, role, text, audio_url, translation, language_code, target_language, teacher_label, teacher_locale, mode, main_sentence, correction_note, intent_answer, tokens_json, writing_task_json, ai_payload_json, created_at')
           .eq('user_id', user.id)
           .eq('session_id', sessionId)
           .order('created_at', { ascending: true })
@@ -142,6 +224,8 @@ export async function GET(request: NextRequest) {
         }
       })()
       const reviewDrillStats = parseReviewDrillStatsFromPinnedFacts(String(memory?.pinned_facts_json || '{}'))
+      const reviewDrill = parseActiveReviewDrillFromPinnedFacts(String(memory?.pinned_facts_json || '{}'))
+      const miniStageSnapshot = parseMiniStageSnapshotFromPinnedFacts(String(memory?.pinned_facts_json || '{}'))
 
       const rows = data ?? []
       const cacheKeysToFetch: string[] = []
@@ -211,6 +295,8 @@ export async function GET(request: NextRequest) {
         presetReplaySession: Boolean(presetReplaySourceLessonId),
         presetReplaySourceLessonId: presetReplaySourceLessonId || undefined,
         reviewDrillStats: reviewDrillStats || undefined,
+        reviewDrill: reviewDrill || undefined,
+        miniStageSnapshot: miniStageSnapshot || undefined,
         writingTaskTransliterations,
         items: rows.map((row) => {
           const lang = String(row.language_code || '').trim().toLowerCase()
@@ -246,6 +332,7 @@ export async function GET(request: NextRequest) {
             intentAnswerTransliteration,
             tokensJson: (row as { tokens_json?: string }).tokens_json ?? null,
             writingTaskJson: (row as { writing_task_json?: string }).writing_task_json ?? null,
+            aiPayloadJson: (row as { ai_payload_json?: string }).ai_payload_json ?? null,
             createdAt: row.created_at,
           }
         }),
@@ -404,6 +491,7 @@ export async function POST(request: NextRequest) {
     const correctionNote = String(payload.correctionNote || '').trim().slice(0, 2000) || null
     const intentAnswer = String(payload.intentAnswer || '').trim().slice(0, 2000) || null
     const tokensJson = String(payload.tokensJson || '').trim().slice(0, 4000) || null
+    const aiPayloadJson = String(payload.aiPayloadJson || '').trim().slice(0, 32000) || null
 
     if (!sessionId || !text) {
       return NextResponse.json({ error: 'Thiếu dữ liệu lưu lịch sử.' }, { status: 400 })
@@ -433,6 +521,7 @@ export async function POST(request: NextRequest) {
         correction_note: correctionNote,
         intent_answer: intentAnswer,
         tokens_json: tokensJson,
+        ai_payload_json: aiPayloadJson,
       })
       .select('id')
       .single()

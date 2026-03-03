@@ -7,8 +7,9 @@ import { Input } from '@/components/ui/input'
 import { useToast } from '@/hooks/use-toast'
 import {
   assistLiveLessonWord,
-  chatWithCoach,
   createLiveLessonFromSession,
+  generateTts,
+  getTtsCache,
   getHistorySessions,
   getLiveLessonDetail,
   listLiveLessons,
@@ -58,15 +59,12 @@ type HistorySessionItem = {
   sessionId: string
 }
 
-function toLanguageCode(language: string): 'en' | 'vi' | 'zh' | 'ja' | 'ko' | 'th' | 'hi' {
-  const normalized = String(language || '').toLowerCase()
-  if (normalized.includes('vietnam')) return 'vi'
-  if (normalized.includes('chinese') || normalized.includes('mandarin')) return 'zh'
-  if (normalized.includes('japanese')) return 'ja'
-  if (normalized.includes('korean')) return 'ko'
-  if (normalized.includes('thai')) return 'th'
-  if (normalized.includes('hindi')) return 'hi'
-  return 'en'
+function base64ToBlob(base64: string, mimeType: string): Blob {
+  const clean = String(base64 || '').trim()
+  const binary = atob(clean)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i)
+  return new Blob([bytes], { type: mimeType || 'audio/mpeg' })
 }
 
 export function LiveLessonsMarketplace() {
@@ -98,11 +96,13 @@ export function LiveLessonsMarketplace() {
   const [answerText, setAnswerText] = useState('')
   const [matchInfo, setMatchInfo] = useState<{ matched: boolean; similarity: number } | null>(null)
   const [teacherReply, setTeacherReply] = useState('')
+  const [matchedTeacherAudioUrl, setMatchedTeacherAudioUrl] = useState('')
   const [matchedTeacherDetail, setMatchedTeacherDetail] = useState<{
     correctionNote?: string
     mainSentence?: string
     intentAnswer?: string
   } | null>(null)
+  const [audioBusyKey, setAudioBusyKey] = useState('')
   const [assistWord, setAssistWord] = useState('')
   const [assistResult, setAssistResult] = useState<{
     source: string
@@ -172,6 +172,7 @@ export function LiveLessonsMarketplace() {
       setSelectedTurns(turns)
       setCurrentTurnIndex(0)
       setAnswerText('')
+      setMatchedTeacherAudioUrl('')
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Lỗi không xác định.'
       toast({ title: 'Lỗi mở bài Live', description: message, variant: 'destructive' })
@@ -179,6 +180,64 @@ export function LiveLessonsMarketplace() {
       setBusy(false)
     }
   }, [toast])
+
+  const playTeacherAudioWithFallback = useCallback(
+    async (text: string, audioUrl?: string, slot?: 'full' | 'idea1' | 'idea2' | 'idea3') => {
+      const listenText = String(text || '').trim()
+      if (!listenText && !String(audioUrl || '').trim()) return
+      const key = `${slot || 'full'}:${listenText.slice(0, 60)}`
+      if (audioBusyKey === key) return
+      setAudioBusyKey(key)
+      try {
+      const directUrl = String(audioUrl || '').trim()
+      if (directUrl) {
+        const audio = new Audio(directUrl)
+        await audio.play()
+        return
+      }
+      const sourceText = listenText
+      if (!sourceText) return
+      if (!selectedLesson) return
+      const locale = String(selectedLesson.teacherLocale || '').trim() || 'en-US'
+      const voiceName = 'Kore'
+      const cached = await getTtsCache({ text: sourceText, voiceName, locale })
+      const cachedPayload = cached.data as { found?: boolean; audioBase64?: string; mimeType?: string }
+      if (cached.ok && cachedPayload?.found && String(cachedPayload.audioBase64 || '').trim()) {
+        const blob = base64ToBlob(String(cachedPayload.audioBase64 || ''), String(cachedPayload.mimeType || 'audio/mpeg'))
+        const objectUrl = URL.createObjectURL(blob)
+        try {
+          const audio = new Audio(objectUrl)
+          await audio.play()
+        } finally {
+          URL.revokeObjectURL(objectUrl)
+        }
+        return
+      }
+      const ttsRes = await generateTts({
+        text: sourceText,
+        voiceName,
+        locale,
+        targetLanguage: String(selectedLesson.targetLanguage || '').trim() || 'English',
+        nativeLanguage: String(selectedLesson.nativeLanguage || '').trim() || 'Vietnamese',
+      })
+      if (!ttsRes.ok) throw new Error(ttsRes.data?.error || 'Khong tao duoc TTS.')
+      const payload = ttsRes.data as { audioBase64?: string; mimeType?: string; error?: string }
+      const audioBase64 = String(payload.audioBase64 || '').trim()
+      if (!audioBase64) throw new Error(payload.error || 'Khong co du lieu audio.')
+      const blob = base64ToBlob(audioBase64, String(payload.mimeType || 'audio/mpeg'))
+      const objectUrl = URL.createObjectURL(blob)
+      try {
+        const audio = new Audio(objectUrl)
+        await audio.play()
+      } finally {
+        URL.revokeObjectURL(objectUrl)
+      }
+      } finally {
+        setAudioBusyKey((prev) => (prev === key ? '' : prev))
+      }
+    },
+    [selectedLesson, audioBusyKey]
+  )
 
   const createFromSession = useCallback(async () => {
     if (!selectedSessionId) {
@@ -310,41 +369,19 @@ export function LiveLessonsMarketplace() {
       if (!res.ok) throw new Error(res.data?.error || 'So khớp thất bại.')
       if (Boolean(res.data?.useAiDirect)) {
         const reason = String(res.data?.reason || 'unknown')
-        const targetCode = toLanguageCode(targetLanguage)
-        const nativeCode = toLanguageCode(nativeLanguage)
-        const aiRes = await chatWithCoach({
-          sessionId: selectedLesson.id,
-          studentText: answerText,
-          history: [
-            { role: 'teacher', text: String(selectedTurn.teacherReplyText || '').trim() },
-            { role: 'student', text: answerText },
-          ],
-          targetLanguage,
-          nativeLanguage,
-          targetLanguageCode: targetCode,
-          nativeLanguageCode: nativeCode,
-          teacherLabel: selectedLesson.teacherLabel || 'Teacher',
-          teacherLocale: selectedLesson.teacherLocale || '',
-          mode: 'chat',
-        })
-        if (!aiRes.ok) throw new Error(aiRes.data?.error || 'AI direct that bai.')
-        const aiReply = String(aiRes.data?.reply || '').trim()
-        setTeacherReply(aiReply)
-        setMatchedTeacherDetail({
-          correctionNote: String(aiRes.data?.correctionNote || '').trim() || undefined,
-          mainSentence: String(aiRes.data?.mainSentence || '').trim() || undefined,
-          intentAnswer: String(aiRes.data?.intentAnswer || '').trim() || undefined,
-        })
+        setTeacherReply('')
+        setMatchedTeacherAudioUrl('')
+        setMatchedTeacherDetail(null)
         setMatchInfo({
           matched: false,
           similarity: Number(res.data?.similarity || 0),
         })
         toast({
-          title: 'AI xu ly truc tiep',
+          title: 'Bai mau chi dung du lieu da luu',
           description:
             reason === 'metadata_mismatch'
-              ? 'Metadata khong khop voi kho bai mau. Da chuyen sang AI live cho luot nay.'
-              : 'Do tuong dong < 90%. Da chuyen sang AI live cho luot nay.',
+              ? 'Metadata khong khop voi bai mau DB. Hay doi cau tra loi theo bai hoac chuyen sang mode AI live.'
+              : 'Cau tra loi chua khop bai mau (<95%). He thong khong goi AI moi trong mode bai mau.',
         })
         return
       }
@@ -353,16 +390,14 @@ export function LiveLessonsMarketplace() {
       setMatchInfo({ matched, similarity })
       if (matched) {
         setTeacherReply(String(res.data?.teacherReplyText || ''))
+        setMatchedTeacherAudioUrl(String(res.data?.teacherAudioUrl || '').trim())
         setMatchedTeacherDetail({
           correctionNote: String(res.data?.teacherCorrectionNote || '').trim() || undefined,
           mainSentence: String(res.data?.teacherMainSentence || '').trim() || undefined,
           intentAnswer: String(res.data?.teacherIntentAnswer || '').trim() || undefined,
         })
-        const audioUrl = String(res.data?.teacherAudioUrl || '').trim()
-        if (audioUrl) {
-          const audio = new Audio(audioUrl)
-          void audio.play().catch(() => undefined)
-        }
+        const teacherReplyText = String(res.data?.teacherReplyText || '').trim()
+        void playTeacherAudioWithFallback(teacherReplyText, String(res.data?.teacherAudioUrl || '').trim(), 'full').catch(() => undefined)
         const isLastTurn = Boolean(res.data?.isLastTurn)
         if (!isLastTurn) {
           setCurrentTurnIndex((prev) => prev + 1)
@@ -370,6 +405,7 @@ export function LiveLessonsMarketplace() {
         }
       } else {
         setTeacherReply('')
+        setMatchedTeacherAudioUrl('')
         setMatchedTeacherDetail(null)
       }
     } catch (e) {
@@ -378,7 +414,7 @@ export function LiveLessonsMarketplace() {
     } finally {
       setBusy(false)
     }
-  }, [selectedLesson, selectedTurn, answerText, toast])
+  }, [selectedLesson, selectedTurn, answerText, toast, playTeacherAudioWithFallback])
 
   const handleAssistWord = useCallback(async () => {
     if (!selectedLesson || !assistWord.trim()) return
@@ -683,6 +719,44 @@ export function LiveLessonsMarketplace() {
                       {matchedTeacherDetail?.intentAnswer ? (
                         <p><span className="font-semibold">Y 3 - Tra loi tu nhien:</span> {matchedTeacherDetail.intentAnswer}</p>
                       ) : null}
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => void playTeacherAudioWithFallback(teacherReply, matchedTeacherAudioUrl, 'full')}
+                          disabled={busy || !teacherReply}
+                        >
+                          Nghe full
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => void playTeacherAudioWithFallback(String(matchedTeacherDetail?.correctionNote || ''), '', 'idea1')}
+                          disabled={busy || !String(matchedTeacherDetail?.correctionNote || '').trim()}
+                        >
+                          Nghe y 1
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => void playTeacherAudioWithFallback(String(matchedTeacherDetail?.mainSentence || ''), '', 'idea2')}
+                          disabled={busy || !String(matchedTeacherDetail?.mainSentence || '').trim()}
+                        >
+                          Nghe y 2
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => void playTeacherAudioWithFallback(String(matchedTeacherDetail?.intentAnswer || ''), '', 'idea3')}
+                          disabled={busy || !String(matchedTeacherDetail?.intentAnswer || '').trim()}
+                        >
+                          Nghe y 3
+                        </Button>
+                      </div>
                     </div>
                   ) : null}
                   <div className="rounded border border-slate-200 bg-white p-2">

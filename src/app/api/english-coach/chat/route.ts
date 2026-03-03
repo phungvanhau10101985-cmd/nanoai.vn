@@ -77,6 +77,7 @@ type ChatPayload = {
   }
   drillType?: 'listening'
   drillSelectedWords?: string[]
+  drillSpeaking?: boolean
 }
 
 type SessionPinnedFacts = {
@@ -124,6 +125,11 @@ type ReviewDrillStats = {
   listeningPass: number
   listeningFail: number
   hintServed: number
+  updatedAt: string
+}
+
+type MiniStageSnapshot = {
+  stage: 'idle' | 'writing' | 'speaking' | 'listening' | 'done'
   updatedAt: string
 }
 
@@ -231,10 +237,10 @@ function parseReviewDrill(raw: string): ReviewDrillState | null {
       ? {
           prompt: String(listeningRaw.prompt || '').trim(),
           expectedKeywords: Array.isArray(listeningRaw.expectedKeywords)
-            ? listeningRaw.expectedKeywords.map((x) => String(x || '').trim()).filter(Boolean).slice(0, 8)
+            ? listeningRaw.expectedKeywords.map((x) => String(x || '').trim()).filter(Boolean).slice(0, 24)
             : [],
           options: Array.isArray(listeningRaw.options)
-            ? listeningRaw.options.map((x) => String(x || '').trim()).filter(Boolean).slice(0, 12)
+            ? listeningRaw.options.map((x) => String(x || '').trim()).filter(Boolean).slice(0, 24)
             : [],
           minMatchedKeywords: Math.max(1, Math.floor(Number(listeningRaw.minMatchedKeywords || 1) || 1)),
           attempt: Math.max(0, Math.floor(Number(listeningRaw.attempt || 0) || 0)),
@@ -276,8 +282,12 @@ function parseReviewDrillStats(raw: string): ReviewDrillStats {
 function buildReviewDrillRaw(
   currentPinnedFactsRaw: string,
   next: ReviewDrillState | null,
-  statsDelta?: Partial<Pick<ReviewDrillStats, 'speakingPass' | 'speakingFail' | 'listeningPass' | 'listeningFail' | 'hintServed'>>
+  statsDelta?: Partial<Pick<ReviewDrillStats, 'speakingPass' | 'speakingFail' | 'listeningPass' | 'listeningFail' | 'hintServed'>>,
+  stageOverride?: MiniStageSnapshot['stage']
 ): string {
+  const derivedStage: MiniStageSnapshot['stage'] =
+    stageOverride
+    || (next?.listening ? 'listening' : next?.speaking ? 'speaking' : 'idle')
   try {
     const parsed = JSON.parse(String(currentPinnedFactsRaw || '{}')) as Record<string, unknown>
     const root = parsed && typeof parsed === 'object' ? { ...parsed } : {}
@@ -298,6 +308,10 @@ function buildReviewDrillRaw(
       }
       root.review_drill_stats = nextStats
     }
+    root.mini_stage_snapshot = {
+      stage: derivedStage,
+      updatedAt: new Date().toISOString(),
+    }
     return JSON.stringify(root)
   } catch {
     const base: Record<string, unknown> = {}
@@ -312,6 +326,10 @@ function buildReviewDrillRaw(
         hintServed: Math.max(0, prev.hintServed + Math.floor(Number(statsDelta.hintServed || 0) || 0)),
         updatedAt: new Date().toISOString(),
       }
+    }
+    base.mini_stage_snapshot = {
+      stage: derivedStage,
+      updatedAt: new Date().toISOString(),
     }
     return JSON.stringify(base)
   }
@@ -330,6 +348,21 @@ function extractListeningKeywords(text: string): string[] {
     if (stop.has(t)) continue
     if (!out.includes(t)) out.push(t)
     if (out.length >= 6) break
+  }
+  return out
+}
+
+function extractListeningAllWords(text: string): string[] {
+  const tokens = String(text || '')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .split(/\s+/)
+    .map((x) => x.trim())
+    .filter(Boolean)
+  const out: string[] = []
+  for (const t of tokens) {
+    if (!out.includes(t)) out.push(t)
+    if (out.length >= 24) break
   }
   return out
 }
@@ -358,11 +391,11 @@ function buildListeningOptionPool(expectedKeywords: string[], candidateKeywords:
     const t = String(x || '').trim()
     if (!t) continue
     if (!options.includes(t)) options.push(t)
-    if (options.length >= 8) break
+    if (options.length >= 12) break
   }
   const distractors = defaultListeningDistractorsByLanguageCode(languageCode)
   for (const d of distractors) {
-    if (options.length >= 10) break
+    if (options.length >= 12) break
     if (!options.includes(d)) options.push(d)
   }
   return options
@@ -900,6 +933,146 @@ function isIntentAnswerTooCloseToStudent(
   return bases.some((base) => normalizedIntent === base || normalizedIntent.includes(base) || base.includes(normalizedIntent))
 }
 
+function hasMeaningfulSentenceCorrection(
+  corrections: Correction[],
+  studentText: string,
+  targetLanguageCode: string
+): boolean {
+  const student = String(studentText || '').trim()
+  for (const row of corrections || []) {
+    const fixed = String(row?.fixed || '').trim()
+    if (!fixed) continue
+    if (!isLikelyFullSentence(fixed, targetLanguageCode)) continue
+    if (!student) return true
+    if (similarityScore(student, fixed) < 0.985) return true
+  }
+  return false
+}
+
+function isLikelyTargetLanguageSentence(
+  text: string,
+  targetLanguageCode: string,
+  targetScriptRe: RegExp | null
+): boolean {
+  const t = String(text || '').trim()
+  if (!t) return false
+  if (targetLanguageCode === 'en') {
+    if (!/[a-z]/i.test(t)) return false
+    if (hasVietnameseDiacritics(t)) return false
+    if (/[\u4E00-\u9FFF\u3040-\u30FF\uAC00-\uD7AF\u0E00-\u0E7F\u0900-\u097F]/u.test(t)) return false
+    return true
+  }
+  if (targetLanguageCode === 'vi') {
+    if (!/[a-zA-ZăâđêôơưĂÂĐÊÔƠƯ]/u.test(t)) return false
+    if (/[\u4E00-\u9FFF\u3040-\u30FF\uAC00-\uD7AF\u0E00-\u0E7F\u0900-\u097F]/u.test(t)) return false
+    return true
+  }
+  if (targetScriptRe) return targetScriptRe.test(t)
+  return true
+}
+
+function correctionHintByNativeLanguageCode(code: string): string {
+  if (code === 'zh') return '你原句意思很清楚。这里给你一个更自然的目标语言表达。'
+  if (code === 'ja') return '元の文の意味は伝わっています。こちらはより自然な目標言語の言い方です。'
+  if (code === 'ko') return '원래 문장 의미는 잘 전달됐어요. 아래는 목표 언어에서 더 자연스러운 표현입니다.'
+  if (code === 'th') return 'ความหมายเดิมชัดเจนแล้ว ประโยคด้านล่างเป็นรูปแบบที่เป็นธรรมชาติกว่าในภาษาเป้าหมาย'
+  if (code === 'hi') return 'आपका मूल अर्थ स्पष्ट है। नीचे लक्ष्य भाषा में अधिक स्वाभाविक अभिव्यक्ति दी गई है।'
+  if (code === 'en') return 'Your meaning is clear. Here is a more natural sentence in the target language.'
+  return 'Ý của em rõ rồi. Câu dưới đây là cách nói tự nhiên hơn bằng ngôn ngữ đang học.'
+}
+
+function stripVietnameseDiacritics(text: string): string {
+  return String(text || '')
+    .normalize('NFD')
+    .replace(/\p{M}+/gu, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+}
+
+function toSimpleTitleCase(text: string): string {
+  return String(text || '')
+    .split(/\s+/)
+    .map((x) => x.trim())
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ')
+}
+
+function extractSongTitleCandidateFromVietnamese(input: string): string {
+  const source = String(input || '').trim()
+  if (!source) return ''
+  const patterns = [
+    /là\s+bài\s+(.+)$/iu,
+    /la\s+bai\s+(.+)$/iu,
+    /bài\s+(.+)$/iu,
+    /bai\s+(.+)$/iu,
+  ]
+  for (const re of patterns) {
+    const m = source.match(re)
+    const captured = String(m?.[1] || '').trim()
+    if (!captured) continue
+    const cleaned = captured
+      .replace(/[“”"']/g, ' ')
+      .replace(/[.,!?;:]+$/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+    if (!cleaned) continue
+    const words = cleaned.split(/\s+/).filter(Boolean)
+    if (words.length >= 2 && words.length <= 8) return cleaned
+  }
+  return ''
+}
+
+function enrichEnglishSongMainSentence(mainSentence: string, studentText: string): string {
+  const base = String(mainSentence || '').trim()
+  if (!base) return base
+  if (!/\bsong\b/i.test(base)) return base
+  const titleCandidate = extractSongTitleCandidateFromVietnamese(studentText)
+  if (!titleCandidate) return base
+  const asciiTitle = stripVietnameseDiacritics(titleCandidate)
+    .replace(/[^A-Za-z0-9' -]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (!asciiTitle) return base
+  const normalizedBase = normalizeForSimilarity(base)
+  const normalizedTitle = normalizeForSimilarity(asciiTitle)
+  if (normalizedTitle && normalizedBase.includes(normalizedTitle)) return base
+  const title = toSimpleTitleCase(asciiTitle)
+  const baseNoPunct = base.replace(/[.!?]+$/g, '').trim()
+  if (!baseNoPunct) return base
+  if (/\bis\b/i.test(baseNoPunct)) return `${baseNoPunct} "${title}".`
+  return `${baseNoPunct} is "${title}".`
+}
+
+function hasEnglishMainVerb(sentence: string): boolean {
+  const s = String(sentence || '').trim()
+  if (!s) return false
+  if (/\b(am|is|are|was|were|be|been|being|have|has|had|do|does|did|can|could|will|would|should|may|might|must)\b/i.test(s)) {
+    return true
+  }
+  return /\b\w+'s\b/i.test(s)
+}
+
+function shouldRepairEnglishMainSentence(mainSentence: string, studentText: string): boolean {
+  const base = String(mainSentence || '').trim()
+  if (!base) return true
+  if (!isLikelyTargetLanguageSentence(base, 'en', null)) return true
+  const titleCandidate = extractSongTitleCandidateFromVietnamese(studentText)
+  if (titleCandidate) {
+    const asciiTitle = stripVietnameseDiacritics(titleCandidate)
+      .replace(/[^A-Za-z0-9' -]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+    if (asciiTitle) {
+      const normalizedBase = normalizeForSimilarity(base)
+      const normalizedTitle = normalizeForSimilarity(asciiTitle)
+      if (!normalizedBase.includes(normalizedTitle)) return true
+    }
+  }
+  if (/\bsong\b/i.test(base) && !hasEnglishMainVerb(base)) return true
+  return false
+}
+
 function ensureIntentAnswerTwoPart(
   intentAnswer: string,
   targetLanguageCode: string,
@@ -981,10 +1154,8 @@ function safeJsonParse(text: string): {
   corrections: Correction[]
   pronunciationTips: string[]
   mainSentence: string
-  mustKnowText: string
   correctionNote: string
   intentAnswer: string
-  correctedSentence: string
 } | null {
   const cleaned = text
     .replace(/^```json\s*/i, '')
@@ -997,21 +1168,20 @@ function safeJsonParse(text: string): {
       corrections?: Correction[]
       pronunciationTips?: string[]
       mainSentence?: string
-      mustKnowText?: string
       correctionNote?: string
       intentAnswer?: string
-      correctedSentence?: string
     }
-    if (!parsed.reply || typeof parsed.reply !== 'string') return null
+    const correctionNote = String(parsed.correctionNote || '').trim()
+    const mainSentence = String(parsed.mainSentence || '').trim()
+    const intentAnswer = String(parsed.intentAnswer || '').trim()
+    if (!correctionNote && !mainSentence && !intentAnswer) return null
     return {
-      reply: parsed.reply,
+      reply: String(parsed.reply || '').trim() || composeTeacherReply(correctionNote, mainSentence, intentAnswer),
       corrections: Array.isArray(parsed.corrections) ? parsed.corrections.slice(0, 5) : [],
       pronunciationTips: Array.isArray(parsed.pronunciationTips) ? parsed.pronunciationTips.slice(0, 5) : [],
-      mainSentence: String(parsed.mainSentence || '').trim(),
-      mustKnowText: String(parsed.mustKnowText || '').trim(),
-      correctionNote: String(parsed.correctionNote || '').trim(),
-      intentAnswer: String(parsed.intentAnswer || '').trim(),
-      correctedSentence: String(parsed.correctedSentence || '').trim(),
+      mainSentence,
+      correctionNote,
+      intentAnswer,
     }
   }
 
@@ -1047,6 +1217,13 @@ function safeJsonObject(text: string): Record<string, unknown> | null {
   } catch {
     return null
   }
+}
+
+function composeTeacherReply(correctionNote: string, mainSentence: string, intentAnswer: string): string {
+  return [correctionNote, mainSentence, intentAnswer]
+    .map((x) => String(x || '').trim())
+    .filter(Boolean)
+    .join('\n\n')
 }
 
 function toMixedAnalyzeResult(input: Record<string, unknown> | null): MixedAnalyzeResult | null {
@@ -1150,6 +1327,8 @@ export async function POST(request: NextRequest) {
       : []
     const learningMode: 'review' | 'reflex' = payload.learningMode === 'reflex' ? 'reflex' : 'review'
     const drillType = payload.drillType === 'listening' ? 'listening' : ''
+    const drillSpeaking = Boolean(payload.drillSpeaking)
+    const isFromDrill = drillType === 'listening' || drillSpeaking
     const drillSelectedWords = Array.isArray(payload.drillSelectedWords)
       ? payload.drillSelectedWords.map((x) => String(x || '').trim().toLowerCase()).filter(Boolean).slice(0, 12)
       : []
@@ -1265,6 +1444,18 @@ export async function POST(request: NextRequest) {
       mainSentence: string
       mustKnowText: string
     }) => {
+      const mainSentenceRaw = String(input.mainSentence || '').trim()
+      const mainSentenceValid = isLikelyTargetLanguageSentence(
+        mainSentenceRaw,
+        targetLanguageCode,
+        targetScriptRegexByCode(targetLanguageCode)
+      )
+      if (!mainSentenceRaw || !mainSentenceValid) {
+        console.info(
+          `[REPLAY][${replayRequestId}] skip-save reason=invalid-main-sentence lang=${targetLanguageCode} main="${mainSentenceRaw.slice(0, 80)}"`
+        )
+        return
+      }
       const payloadToSave = {
         student_text: studentText,
         normalized_student_text: normalizedStudentText,
@@ -1286,7 +1477,7 @@ export async function POST(request: NextRequest) {
         correction_note: String(input.correctionNote || '').trim() || null,
         corrected_sentence: String(input.correctedSentence || '').trim() || null,
         intent_answer: String(input.intentAnswer || '').trim() || null,
-        main_sentence: String(input.mainSentence || '').trim() || null,
+        main_sentence: mainSentenceRaw || null,
         must_know_text: String(input.mustKnowText || '').trim() || null,
         updated_at: new Date().toISOString(),
         last_used_at: new Date().toISOString(),
@@ -1329,7 +1520,7 @@ export async function POST(request: NextRequest) {
         pinnedFacts: parsePinnedFacts(sessionPinnedFactsRaw),
       }
     }
-    if (userId && sessionId && presetReplay?.active && !reviewDrill) {
+    if (userId && sessionId && isFromDrill && presetReplay?.active && !reviewDrill) {
       const turnIdx = Math.max(0, Math.floor(Number(presetReplay.nextTurnIndex || 0)))
       const turn = presetReplay.turns[turnIdx]
       if (turn) {
@@ -1370,8 +1561,8 @@ export async function POST(request: NextRequest) {
           targetLanguage
         )
         const presetSpeakingTarget = String(turnMainSentence || turnMustKnowText || '').trim()
-        const presetListeningKeywords = extractListeningKeywords(String(turnMainSentence || turnReply || '').trim())
-        const presetReplyKeywords = extractListeningKeywords(String(turnReply || '').trim())
+        const presetListeningKeywords = extractListeningAllWords(String(turnMainSentence || turnReply || '').trim())
+        const presetReplyKeywords = extractListeningAllWords(String(turnReply || '').trim())
         const presetListeningOptions = seededShuffle(
           buildListeningOptionPool(presetListeningKeywords, presetReplyKeywords, targetLanguageCode),
           `${sessionId}:preset:${turnIdx}:${presetSpeakingTarget}`
@@ -1389,9 +1580,9 @@ export async function POST(request: NextRequest) {
                 listening: presetListeningOptions.length > 0
                   ? {
                       prompt: String(turnReply || '').trim(),
-                      expectedKeywords: presetListeningKeywords.length > 0 ? presetListeningKeywords : presetListeningOptions.slice(0, 2),
+                      expectedKeywords: extractListeningAllWords(String(turnReply || '').trim()).slice(0, 24),
                       options: presetListeningOptions,
-                      minMatchedKeywords: presetListeningKeywords.length >= 3 ? 2 : 1,
+                      minMatchedKeywords: Math.min(3, Math.max(1, extractListeningAllWords(String(turnReply || '').trim()).length)),
                       attempt: 0,
                     }
                   : undefined,
@@ -1412,6 +1603,14 @@ export async function POST(request: NextRequest) {
             } else {
               delete root.review_drill
             }
+            root.mini_stage_snapshot = {
+              stage: presetTurnDrill?.listening
+                ? 'listening'
+                : presetTurnDrill?.speaking
+                  ? 'speaking'
+                  : 'idle',
+              updatedAt: new Date().toISOString(),
+            }
             return JSON.stringify(root)
           } catch {
             return JSON.stringify({
@@ -1424,6 +1623,14 @@ export async function POST(request: NextRequest) {
               ...(presetTurnDrill && (presetTurnDrill.speaking || presetTurnDrill.listening)
                 ? { review_drill: presetTurnDrill }
                 : {}),
+              mini_stage_snapshot: {
+                stage: presetTurnDrill?.listening
+                  ? 'listening'
+                  : presetTurnDrill?.speaking
+                    ? 'speaking'
+                    : 'idle',
+                updatedAt: new Date().toISOString(),
+              },
             })
           }
         })()
@@ -1466,7 +1673,7 @@ export async function POST(request: NextRequest) {
         })
       }
     }
-    if (userId && sessionId && learningMode === 'review' && reviewDrill) {
+    if (userId && sessionId && isFromDrill && learningMode === 'review' && reviewDrill) {
       if (reviewDrill.speaking) {
         const speaking = reviewDrill.speaking
         const sim = similarityScore(studentText, speaking.targetSentence)
@@ -1518,7 +1725,12 @@ export async function POST(request: NextRequest) {
         const afterSpeaking: ReviewDrillState | null = reviewDrill.listening
           ? { listening: { ...reviewDrill.listening, attempt: reviewDrill.listening.attempt || 0 } }
           : null
-        const pinnedAfterSpeaking = buildReviewDrillRaw(sessionPinnedFactsRaw, afterSpeaking, { speakingPass: 1 })
+        const pinnedAfterSpeaking = buildReviewDrillRaw(
+          sessionPinnedFactsRaw,
+          afterSpeaking,
+          { speakingPass: 1 },
+          afterSpeaking?.listening ? 'listening' : 'done'
+        )
         await adminSupabase.from('language_coach_session_memories').upsert(
           {
             user_id: userId,
@@ -1555,10 +1767,11 @@ export async function POST(request: NextRequest) {
               prompt: listening.prompt,
               options: seededShuffle(listening.options, `${sessionId}:${listening.attempt}`),
               expectedKeywords: listening.expectedKeywords,
+              minMatchedKeywords: listening.minMatchedKeywords,
             },
           })
         }
-        const pinnedCleared = buildReviewDrillRaw(sessionPinnedFactsRaw, null, { speakingPass: 1 })
+        const pinnedCleared = buildReviewDrillRaw(sessionPinnedFactsRaw, null, { speakingPass: 1 }, 'done')
         await adminSupabase.from('language_coach_session_memories').upsert(
           {
             user_id: userId,
@@ -1592,7 +1805,7 @@ export async function POST(request: NextRequest) {
         })
       } else if (reviewDrill.listening) {
         const listening = reviewDrill.listening
-        const selected = drillType === 'listening'
+        const selectedRaw = drillType === 'listening'
           ? drillSelectedWords
           : String(studentText || '')
             .toLowerCase()
@@ -1600,8 +1813,11 @@ export async function POST(request: NextRequest) {
             .split(/\s+/)
             .map((x) => x.trim())
             .filter(Boolean)
+        const selected = Array.from(new Set(selectedRaw))
+        const expectedCount = Math.max(1, Math.min(3, listening.minMatchedKeywords || 1))
+        const selectedCountInvalid = drillType === 'listening' && selected.length !== expectedCount
         const matched = listening.expectedKeywords.filter((kw) => selected.includes(String(kw || '').toLowerCase()))
-        if (matched.length < listening.minMatchedKeywords) {
+        if (selectedCountInvalid || matched.length < listening.minMatchedKeywords) {
           const nextAttempt = listening.attempt + 1
           const showCooldownHint = nextAttempt >= 3 && nextAttempt % 3 === 0
           const nextState: ReviewDrillState = { listening: { ...listening, attempt: nextAttempt } }
@@ -1625,21 +1841,51 @@ export async function POST(request: NextRequest) {
             },
             { onConflict: 'user_id,session_id' }
           )
-          const hint = showCooldownHint
+          const sampleKeyword = String(listening.expectedKeywords?.[Math.min(nextAttempt - 1, Math.max(0, listening.expectedKeywords.length - 1))] || '').trim()
+          const hintBase = nativeLanguageCode === 'vi'
+            ? `Gợi ý: em cần chọn đúng ${expectedCount} từ nghe được rõ nhất.`
+            : nativeLanguageCode === 'zh'
+              ? `提示：请选择你最清楚听到的 ${expectedCount} 个词。`
+              : nativeLanguageCode === 'ja'
+                ? `ヒント：はっきり聞こえた ${expectedCount} 語を選んでください。`
+                : nativeLanguageCode === 'ko'
+                  ? `힌트: 또렷하게 들린 단어 ${expectedCount}개를 선택하세요.`
+                  : nativeLanguageCode === 'th'
+                    ? `คำใบ้: เลือกคำที่ได้ยินชัดเจน ${expectedCount} คำ`
+                    : nativeLanguageCode === 'hi'
+                      ? `संकेत: जो शब्द स्पष्ट सुनाई दिए हों, उनमें से ${expectedCount} चुनें।`
+                      : `Hint: pick exactly ${expectedCount} words you hear clearly.`
+          const hintKeyword = sampleKeyword
             ? (nativeLanguageCode === 'vi'
-              ? `Mẹo nhanh: tập trung vào ${listening.minMatchedKeywords} từ khóa rõ nhất trong câu.`
+              ? ` Từ gợi ý: ${sampleKeyword}.`
               : nativeLanguageCode === 'zh'
-                ? `小提示：先抓住句子里最清楚的 ${listening.minMatchedKeywords} 个关键词。`
+                ? ` 提示词：${sampleKeyword}。`
                 : nativeLanguageCode === 'ja'
-                  ? `コツ：文の中で最もはっきり聞こえるキーワードを ${listening.minMatchedKeywords} 個に絞りましょう。`
+                  ? ` ヒント語：${sampleKeyword}。`
                   : nativeLanguageCode === 'ko'
-                    ? `팁: 문장에서 가장 또렷한 키워드 ${listening.minMatchedKeywords}개에 먼저 집중하세요.`
+                    ? ` 힌트 단어: ${sampleKeyword}.`
                     : nativeLanguageCode === 'th'
-                      ? `เคล็ดลับ: โฟกัสคำสำคัญที่ได้ยินชัดที่สุด ${listening.minMatchedKeywords} คำก่อน`
+                      ? ` คำใบ้: ${sampleKeyword}`
                       : nativeLanguageCode === 'hi'
-                        ? `टिप: वाक्य में सबसे स्पष्ट सुनाई देने वाले ${listening.minMatchedKeywords} कीवर्ड पर ध्यान दें।`
-                        : `Quick tip: focus on ${listening.minMatchedKeywords} clearest keywords.`)
+                        ? ` संकेत शब्द: ${sampleKeyword}।`
+                        : ` Hint word: ${sampleKeyword}.`)
             : ''
+          const hintCooldown = showCooldownHint
+            ? (nativeLanguageCode === 'vi'
+              ? ` Mẹo thêm: nghe theo cụm, rồi chọn ${expectedCount} từ chắc chắn nhất.`
+              : nativeLanguageCode === 'zh'
+                ? ` 额外提示：先按词组听，再选最确定的 ${expectedCount} 个词。`
+                : nativeLanguageCode === 'ja'
+                  ? ` 追加ヒント：語句単位で聞き取り、確実な ${expectedCount} 語を選びましょう。`
+                  : nativeLanguageCode === 'ko'
+                    ? ` 추가 팁: 구 단위로 듣고 확실한 ${expectedCount}개를 고르세요.`
+                    : nativeLanguageCode === 'th'
+                      ? ` เคล็ดลับเพิ่ม: ฟังเป็นวลีแล้วเลือก ${expectedCount} คำที่มั่นใจที่สุด`
+                      : nativeLanguageCode === 'hi'
+                        ? ` अतिरिक्त सुझाव: वाक्यांश के रूप में सुनें और सबसे पक्के ${expectedCount} शब्द चुनें।`
+                        : ` Extra tip: listen by chunks, then pick the most certain ${expectedCount} words.`)
+            : ''
+          const hint = `${hintBase}${hintKeyword}${hintCooldown}`.trim()
           return NextResponse.json({
             reply: reviewDrillListeningRetryByLanguageCode(nativeLanguageCode),
             corrections: [],
@@ -1658,10 +1904,11 @@ export async function POST(request: NextRequest) {
               prompt: listening.prompt,
               options: seededShuffle(listening.options, `${sessionId}:${listening.attempt + 1}`),
               expectedKeywords: listening.expectedKeywords,
+              minMatchedKeywords: listening.minMatchedKeywords,
             },
           })
         }
-        const pinnedCleared = buildReviewDrillRaw(sessionPinnedFactsRaw, null, { listeningPass: 1 })
+        const pinnedCleared = buildReviewDrillRaw(sessionPinnedFactsRaw, null, { listeningPass: 1 }, 'done')
         await adminSupabase.from('language_coach_session_memories').upsert(
           {
             user_id: userId,
@@ -1734,15 +1981,115 @@ export async function POST(request: NextRequest) {
         String(replayFlow.main_sentence || '').trim()
         || String(replayFlow.corrected_sentence || '').trim()
         || replayReply
-      const replayMustKnowText =
-        String(replayFlow.must_know_text || '').trim()
-        || replayMainSentence
-        || replayReply
+      const replayMainSentenceValid = isLikelyTargetLanguageSentence(
+        replayMainSentence,
+        targetLanguageCode,
+        targetScriptRegexByCode(targetLanguageCode)
+      )
+      if (!replayMainSentenceValid) {
+        console.info(
+          `[REPLAY][${replayRequestId}] skip-cache reason=invalid-main-sentence cacheId=${replayFlow.id} lang=${targetLanguageCode} main="${replayMainSentence.slice(0, 80)}"`
+        )
+      } else {
       const replayIntentAnswer = ensureIntentAnswerTwoPart(
         String(replayFlow.intent_answer || '').trim() || replayReply,
         targetLanguageCode,
         targetLanguage
       )
+      let replayResponseReviewDrill:
+        | { type: 'speaking'; targetSentence: string; minSimilarity: number; minPronunciationScore: number }
+        | undefined
+      if (learningMode === 'review' && replayMainSentence) {
+        const speakingTargetSentence = String(replayMainSentence || '').trim()
+        const listeningSource =
+          String(replayIntentAnswer || '').trim()
+          || String(speakingTargetSentence || '').trim()
+        const listeningKeywords = extractListeningAllWords(listeningSource)
+        const replyKeywords = extractListeningAllWords(listeningSource)
+        let listeningOptions = seededShuffle(
+          buildListeningOptionPool(listeningKeywords, replyKeywords, targetLanguageCode),
+          `${sessionId || 'no-session'}:${studentText}:${replayIntentAnswer || replayMainSentence}`
+        )
+        if (listeningOptions.length === 0 && listeningSource) {
+          listeningOptions = listeningSource
+            .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+            .split(/\s+/)
+            .map((x) => x.trim())
+            .filter((x) => x.length >= 2)
+            .slice(0, 10)
+        }
+        const listeningExpectedKeywords =
+          extractListeningAllWords(listeningSource).slice(0, 24)
+        const speakingThreshold = speakingDrillThresholdByLevel(learnerLevel)
+        const nextReviewDrill: ReviewDrillState | null =
+          speakingTargetSentence
+            ? {
+                speaking: {
+                  targetSentence: speakingTargetSentence,
+                  minSimilarity: speakingThreshold.minSimilarity,
+                  minPronunciationScore: speakingThreshold.minPronunciationScore,
+                  attempt: 0,
+                },
+                listening: {
+                  prompt: listeningSource || speakingTargetSentence,
+                  expectedKeywords: listeningExpectedKeywords,
+                  options: listeningOptions,
+                  minMatchedKeywords: Math.min(3, Math.max(1, listeningExpectedKeywords.length)),
+                  attempt: 0,
+                },
+              }
+            : null
+        if (nextReviewDrill?.speaking) {
+          replayResponseReviewDrill = {
+            type: 'speaking',
+            targetSentence: nextReviewDrill.speaking.targetSentence,
+            minSimilarity: nextReviewDrill.speaking.minSimilarity,
+            minPronunciationScore: nextReviewDrill.speaking.minPronunciationScore,
+          }
+          if (userId && sessionId) {
+            const nextPinnedRoot = (() => {
+              try {
+                const parsedPinned = JSON.parse(sessionPinnedFactsRaw || '{}') as Record<string, unknown>
+                const base = parsedPinned && typeof parsedPinned === 'object' ? { ...parsedPinned } : {}
+                base.review_drill = nextReviewDrill
+                base.mini_stage_snapshot = {
+                  stage: 'writing',
+                  updatedAt: new Date().toISOString(),
+                }
+                return base
+              } catch {
+                return {
+                  review_drill: nextReviewDrill,
+                  mini_stage_snapshot: {
+                    stage: 'writing',
+                    updatedAt: new Date().toISOString(),
+                  },
+                }
+              }
+            })()
+            await adminSupabase.from('language_coach_session_memories').upsert(
+              {
+                user_id: userId,
+                session_id: sessionId,
+                target_language: targetLanguage,
+                native_language: nativeLanguage,
+                learner_level: learnerLevel,
+                topic_id: topicId || null,
+                topic_label: topicLabel || null,
+                running_summary: sessionMemory.runningSummary,
+                pinned_facts_json: JSON.stringify(nextPinnedRoot),
+                learning_mode: 'review',
+                updated_at: new Date().toISOString(),
+              },
+              { onConflict: 'user_id,session_id' }
+            )
+          }
+        }
+      }
+      const replayMustKnowText =
+        String(replayFlow.must_know_text || '').trim()
+        || replayMainSentence
+        || replayReply
       return NextResponse.json({
         reply: replayReply,
         corrections: replayCorrections,
@@ -1752,8 +2099,11 @@ export async function POST(request: NextRequest) {
         correctedSentence: replayMainSentence,
         mainSentence: replayMainSentence,
         mustKnowText: replayMustKnowText,
+        reviewDrill: replayResponseReviewDrill,
+        startMiniPack: learningMode === 'review',
         replayedFromCache: true,
       })
+      }
     }
 
     let retrievalGuide = 'Không yêu cầu truy xuất ngữ cảnh xa.'
@@ -2314,16 +2664,13 @@ ${studentText}`
     if (!parsed) {
       const repairPrompt = `Chuyển nội dung sau thành JSON hợp lệ đúng schema, KHÔNG thêm markdown, KHÔNG thêm giải thích:
 {
-  "reply": "string",
   "corrections": [
     { "original": "string", "fixed": "string", "explanationVi": "string" }
   ],
   "pronunciationTips": ["string"],
   "correctionNote": "string",
   "intentAnswer": "string",
-  "correctedSentence": "string",
-  "mainSentence": "string",
-  "mustKnowText": "string"
+  "mainSentence": "string"
 }
 
 Nội dung cần chuyển:
@@ -2383,14 +2730,11 @@ ${text}`
       const fallback = fallbackByCode[targetLanguageCode] || fallbackByCode.en
       const fallbackIdea3 = ensureIntentAnswerTwoPart(fallback.reply, targetLanguageCode, targetLanguage)
       return NextResponse.json({
-        reply: fallback.reply,
         corrections: [],
         pronunciationTips: [fallback.tip],
         mainSentence: fallback.reply,
-        mustKnowText: fallback.reply,
         correctionNote: '',
         intentAnswer: fallbackIdea3,
-        correctedSentence: fallback.reply,
       })
     }
 
@@ -2589,7 +2933,7 @@ Trả về JSON hợp lệ, không markdown:
       }
     }
 
-    const correctionNote =
+    let correctionNote =
       String(parsed.correctionNote || '').trim()
       || String(parsed.corrections?.[0]?.explanationVi || '').trim()
       || ''
@@ -2615,30 +2959,86 @@ ${intentAnswer || parsed.reply}`
     if (!intentAnswer || shouldRepairIntentAnswerToTargetLanguage(intentAnswer, targetLanguageCode, targetScriptRe)) {
       intentAnswer = fallbackFollowUpByLanguageCode(targetLanguageCode, targetLanguage)
     }
-    if (isIntentAnswerTooCloseToStudent(intentAnswer, studentText, String(parsed.correctedSentence || ''))) {
+    if (isIntentAnswerTooCloseToStudent(intentAnswer, studentText, String(parsed.mainSentence || ''))) {
       intentAnswer = detailFollowUpByLanguageCode(targetLanguageCode, targetLanguage)
     }
     intentAnswer = ensureIntentAnswerTwoPart(intentAnswer, targetLanguageCode, targetLanguage)
-    const correctedSentenceJson = String(parsed.correctedSentence || '').trim()
     const aiMainSentence = String(parsed.mainSentence || '').trim()
     const extractedMainSentence = extractPhraseTargetSentence(parsed.reply)
     const correctedSentence = String(parsed.corrections?.[0]?.fixed || '').trim()
+    const studentMainSentenceCandidate = String(studentText || '').trim()
+    const hasMeaningfulCorrection = hasMeaningfulSentenceCorrection(
+      parsed.corrections || [],
+      studentMainSentenceCandidate,
+      targetLanguageCode
+    )
+    const shouldKeepStudentSentenceAsMain =
+      isLikelyFullSentence(studentMainSentenceCandidate, targetLanguageCode)
+      && isLikelyTargetLanguageSentence(studentMainSentenceCandidate, targetLanguageCode, targetScriptRe)
+      && !hasMeaningfulCorrection
+    const intentLead = String(intentAnswer || '')
+      .split(/(?<=[.!?。！？])\s+/u)
+      .map((x) => x.trim())
+      .find(Boolean) || ''
+    const targetMainCandidates = [
+      aiMainSentence,
+      extractedMainSentence,
+      correctedSentence,
+      intentLead,
+      studentMainSentenceCandidate,
+    ]
+      .map((x) => String(x || '').trim())
+      .filter(Boolean)
+      .filter((x) => isLikelyTargetLanguageSentence(x, targetLanguageCode, targetScriptRe))
     const mainSentence =
-      (isLikelyFullSentence(correctedSentenceJson, targetLanguageCode) ? correctedSentenceJson : '')
-      ||
-      (isLikelyFullSentence(aiMainSentence, targetLanguageCode) ? aiMainSentence : '')
-      || (isLikelyFullSentence(extractedMainSentence, targetLanguageCode) ? extractedMainSentence : '')
-      || (isLikelyFullSentence(correctedSentence, targetLanguageCode) ? correctedSentence : '')
-      || correctedSentenceJson
-      || aiMainSentence
-      || extractedMainSentence
-      || correctedSentence
-      || ''
-    const mustKnowText =
-      String(parsed.mustKnowText || '').trim()
-      || String(parsed.corrections?.[0]?.fixed || '').trim()
-      || mainSentence
-      || ''
+      shouldKeepStudentSentenceAsMain
+        ? studentMainSentenceCandidate
+        : (targetMainCandidates[0] || '')
+    let mainSentenceFinal = mainSentence
+    if (targetLanguageCode === 'en' && shouldRepairEnglishMainSentence(mainSentenceFinal, studentText)) {
+      try {
+        const repairMainSentencePrompt = `Sửa lại trường mainSentence thành 1 câu tiếng Anh hoàn chỉnh, tự nhiên, giữ đủ ý từ câu học sinh.
+Ưu tiên giữ thực thể quan trọng như tên bài hát/tên riêng (có thể dùng transliteration Latin).
+Không thêm giải thích, chỉ trả JSON:
+{"mainSentence":"..."}
+
+Câu học sinh:
+${studentText}
+
+mainSentence hiện tại:
+${mainSentenceFinal}
+
+corrections:
+${JSON.stringify(parsed.corrections || [])}
+
+intentAnswer:
+${intentAnswer}`
+        const repairedMain = await model.generateContent(repairMainSentencePrompt)
+        const repairedObj = safeJsonObject(repairedMain.response.text()?.trim() || '')
+        const repairedSentence = String(repairedObj?.mainSentence || '').trim()
+        if (repairedSentence && isLikelyTargetLanguageSentence(repairedSentence, 'en', null)) {
+          mainSentenceFinal = repairedSentence
+        }
+      } catch {
+        // keep fallback below
+      }
+    }
+    if (targetLanguageCode === 'en') {
+      mainSentenceFinal = enrichEnglishSongMainSentence(mainSentenceFinal, studentText)
+    }
+    if ((parsed.corrections || []).length === 0 && studentMainSentenceCandidate && mainSentenceFinal) {
+      const score = similarityScore(studentMainSentenceCandidate, mainSentenceFinal)
+      if (score < 0.985) {
+        parsed.corrections = [{
+          original: studentMainSentenceCandidate,
+          fixed: mainSentenceFinal,
+          explanationVi: correctionHintByNativeLanguageCode(nativeLanguageCode),
+        }]
+        if (!correctionNote) correctionNote = String(parsed.corrections[0]?.explanationVi || '').trim()
+      }
+    }
+    const mustKnowText = String(mainSentenceFinal || '').trim()
+    parsed.reply = composeTeacherReply(correctionNote, mainSentenceFinal, intentAnswer) || parsed.reply
     const replyMaxChars = responseStyle === 'concise' ? 520 : 760
     parsed.reply = clampReplyBySentence(parsed.reply, replyMaxChars)
     let responseReviewDrill:
@@ -2653,18 +3053,47 @@ ${intentAnswer || parsed.reply}`
         correctedSentences: mergeUniqueLimited(previousFacts.correctedSentences, correctionFacts, 12),
         learnedPhrases: mergeUniqueLimited(
           previousFacts.learnedPhrases,
-          [mainSentence, mustKnowText].filter(Boolean),
+          [mainSentenceFinal, mustKnowText].filter(Boolean),
           16
         ),
         topicFocus: topicLabel || previousFacts.topicFocus || '',
       }
-      const speakingTargetSentence = String(mainSentence || mustKnowText || '').trim()
-      const listeningKeywords = extractListeningKeywords(String(mainSentence || parsed.reply || '').trim())
-      const replyKeywords = extractListeningKeywords(String(parsed.reply || '').trim())
-      const listeningOptions = seededShuffle(
-        buildListeningOptionPool(listeningKeywords, replyKeywords, targetLanguageCode),
-        `${sessionId}:${studentText}:${mainSentence}`
+      const speakingTargetCandidate = String(mainSentenceFinal || mustKnowText || '').trim()
+      const speakingTargetSentence = isLikelyTargetLanguageSentence(
+        speakingTargetCandidate,
+        targetLanguageCode,
+        targetScriptRe
       )
+        ? speakingTargetCandidate
+        : ''
+      const listeningSource =
+        String(intentAnswer || '').trim()
+        || String(mainSentenceFinal || '').trim()
+        || String(speakingTargetSentence || '').trim()
+      const listeningKeywords = extractListeningAllWords(listeningSource)
+      const replyKeywords = extractListeningAllWords(listeningSource)
+      let listeningOptions = seededShuffle(
+        buildListeningOptionPool(listeningKeywords, replyKeywords, targetLanguageCode),
+        `${sessionId}:${studentText}:${intentAnswer || mainSentenceFinal}`
+      )
+      if (listeningOptions.length === 0 && listeningSource) {
+        listeningOptions = listeningSource
+          .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+          .split(/\s+/)
+          .map((x) => x.trim())
+          .filter((x) => x.length >= 2)
+          .slice(0, 10)
+      }
+      if (listeningOptions.length === 0 && speakingTargetSentence) {
+        listeningOptions = speakingTargetSentence
+          .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+          .split(/\s+/)
+          .map((x) => x.trim())
+          .filter((x) => x.length >= 2)
+          .slice(0, 10)
+      }
+      const listeningExpectedKeywords =
+        extractListeningAllWords(listeningSource).slice(0, 24)
       const speakingThreshold = speakingDrillThresholdByLevel(learnerLevel)
       const nextReviewDrill: ReviewDrillState | null =
         learningMode === 'review' && speakingTargetSentence
@@ -2675,15 +3104,13 @@ ${intentAnswer || parsed.reply}`
                 minPronunciationScore: speakingThreshold.minPronunciationScore,
                 attempt: 0,
               },
-              listening: listeningOptions.length > 0
-                ? {
-                    prompt: String(parsed.reply || '').trim(),
-                    expectedKeywords: listeningKeywords.length > 0 ? listeningKeywords : listeningOptions.slice(0, 2),
-                    options: listeningOptions,
-                    minMatchedKeywords: listeningKeywords.length >= 3 ? 2 : 1,
-                    attempt: 0,
-                  }
-                : undefined,
+              listening: {
+                prompt: listeningSource || speakingTargetSentence,
+                expectedKeywords: listeningExpectedKeywords,
+                options: listeningOptions,
+                minMatchedKeywords: Math.min(3, Math.max(1, listeningExpectedKeywords.length)),
+                attempt: 0,
+              },
             }
           : null
       if (nextReviewDrill?.speaking) {
@@ -2707,6 +3134,10 @@ ${intentAnswer || parsed.reply}`
           } else {
             delete base.review_drill
           }
+          base.mini_stage_snapshot = {
+            stage: nextReviewDrill && (nextReviewDrill.speaking || nextReviewDrill.listening) ? 'writing' : 'idle',
+            updatedAt: new Date().toISOString(),
+          }
           return base
         } catch {
           return {
@@ -2714,6 +3145,10 @@ ${intentAnswer || parsed.reply}`
             ...(nextReviewDrill && (nextReviewDrill.speaking || nextReviewDrill.listening)
               ? { review_drill: nextReviewDrill }
               : {}),
+            mini_stage_snapshot: {
+              stage: nextReviewDrill && (nextReviewDrill.speaking || nextReviewDrill.listening) ? 'writing' : 'idle',
+              updatedAt: new Date().toISOString(),
+            },
           }
         }
       })()
@@ -2741,21 +3176,20 @@ ${intentAnswer || parsed.reply}`
         corrections: parsed.corrections || [],
         pronunciationTips: parsed.pronunciationTips || [],
         correctionNote,
-        correctedSentence: mainSentence,
+        correctedSentence: mainSentenceFinal,
         intentAnswer,
-        mainSentence,
+        mainSentence: mainSentenceFinal,
         mustKnowText,
       })
     } catch {
       // Keep chat response path resilient even if replay cache write fails.
     }
     return NextResponse.json({
-      ...parsed,
+      corrections: parsed.corrections || [],
+      pronunciationTips: parsed.pronunciationTips || [],
       correctionNote,
       intentAnswer,
-      correctedSentence: mainSentence,
-      mainSentence,
-      mustKnowText,
+      mainSentence: mainSentenceFinal,
       reviewDrill: responseReviewDrill,
       startMiniPack: learningMode === 'review',
     })

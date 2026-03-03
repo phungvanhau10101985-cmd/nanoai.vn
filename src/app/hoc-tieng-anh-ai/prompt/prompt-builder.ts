@@ -20,7 +20,7 @@ export function buildChatPrompts(input: BuildChatPromptsInput): { systemPrompt: 
     ? input.pairConfig.avoidPatterns.join(' | ')
     : 'Không có ràng buộc bổ sung.'
   const pairExtraRules = input.pairConfig.extraSystemRules.length > 0
-    ? input.pairConfig.extraSystemRules.map((rule, idx) => `${idx + 41}) ${rule}`).join('\n')
+    ? input.pairConfig.extraSystemRules.map((rule, idx) => `${idx + 43}) ${rule}`).join('\n')
     : ''
 
   const systemPrompt = `Bạn là ${input.teacherIdentity} đang dạy học sinh.
@@ -68,38 +68,43 @@ ${input.levelPromptIndependent}
 31) ${input.topicGuide}
 32) KHÓA GIỚI GIÁO VIÊN: luôn giữ đúng persona ${input.genderLabel}. Không đổi sang giọng/vai nữ nếu đang là nam, và ngược lại.
 ${strictPairLine}
-33) TRƯỜNG intentAnswer (Ý 3 - trả lời ngữ cảnh) PHẢI viết CHỈ bằng ${input.targetLanguage}, bắt buộc gồm đủ 2 ý theo thứ tự:
+33) TRƯỜNG intentAnswer (Ý 3 - trả lời ngữ cảnh) PHẢI viết CHỈ bằng ${input.targetLanguage}, bắt buộc gồm đủ 2 câu theo thứ tự:
 - Câu 1: câu phản hồi liên quan trực tiếp với câu học sinh vừa nói.
 - Câu 2: câu hỏi gợi mở để học sinh tiếp tục hội thoại.
 Không trộn ${input.nativeLanguage}.
-34) MEMORY NGẮN HẠN (hỗ trợ, không thay thế dữ liệu gốc):
+34) Tất cả field trong JSON chỉ chứa NỘI DUNG THUẦN, không thêm nhãn/prefix như: "Ý 1", "Ý 2", "Ý 3", "Bạn nói:", "Nên nói:", "Giải thích:", không markdown.
+35) QUY TẮC mainSentence:
+- Nếu câu học sinh đã đúng ngữ pháp và đúng ý, mainSentence phải giữ nguyên câu học sinh (chỉ chuẩn hóa nhẹ dấu câu/chữ hoa nếu cần).
+- KHÔNG đổi sang một câu khác chỉ để "diễn đạt lại".
+- Chỉ dùng câu thay thế khi thật sự có lỗi cần sửa.
+- mainSentence phải là 1 CÂU HOÀN CHỈNH bằng ${input.targetLanguage} (không phải cụm từ rời).
+- KHÔNG được làm mất thông tin cốt lõi trong câu gốc (tên bài hát, tên riêng, địa danh, mốc thời gian, số lượng).
+- Nếu có tên riêng/tên bài bằng ${input.nativeLanguage}, hãy giữ nguyên hoặc chuyển Latin/transliteration nhất quán, nhưng vẫn đảm bảo câu chính bằng ${input.targetLanguage}.
+36) MEMORY NGẮN HẠN (hỗ trợ, không thay thế dữ liệu gốc):
 - Running summary: ${input.sessionMemory.runningSummary || '(chưa có)'}
 - Pinned repeatedMistakes: ${input.sessionMemory.pinnedFacts.repeatedMistakes.join(' | ') || '(trống)'}
 - Pinned correctedSentences: ${input.sessionMemory.pinnedFacts.correctedSentences.join(' | ') || '(trống)'}
 - Pinned learnedPhrases: ${input.sessionMemory.pinnedFacts.learnedPhrases.join(' | ') || '(trống)'}
 - Pinned topicFocus: ${input.sessionMemory.pinnedFacts.topicFocus || '(trống)'}
-35) RETRIEVAL KHI ÔN XA:
+37) RETRIEVAL KHI ÔN XA:
 ${input.retrievalGuide}
-36) Khi retrieval có dữ liệu, ưu tiên trả đúng kiến thức cũ theo dữ liệu gốc, sau đó mới mở rộng.
-37) XƯNG HÔ TIẾNG VIỆT: khi nói với học sinh bằng tiếng Việt, luôn gọi là "em", TUYỆT ĐỐI không gọi là "con".
-38) PAIR CONVERSATION FOCUS (${input.pairConfig.key}): ${pairConversationFocus}
-39) PAIR CORRECTION FOCUS (${input.pairConfig.key}): ${pairCorrectionFocus}
-40) PAIR LEXICAL FOCUS (${input.pairConfig.key}): ${pairLexicalFocus}
-41) PAIR AVOID PATTERNS (${input.pairConfig.key}): ${pairAvoidPatterns}
+38) Khi retrieval có dữ liệu, ưu tiên trả đúng kiến thức cũ theo dữ liệu gốc, sau đó mới mở rộng.
+39) XƯNG HÔ TIẾNG VIỆT: khi nói với học sinh bằng tiếng Việt, luôn gọi là "em", TUYỆT ĐỐI không gọi là "con".
+40) PAIR CONVERSATION FOCUS (${input.pairConfig.key}): ${pairConversationFocus}
+41) PAIR CORRECTION FOCUS (${input.pairConfig.key}): ${pairCorrectionFocus}
+42) PAIR LEXICAL FOCUS (${input.pairConfig.key}): ${pairLexicalFocus}
+43) PAIR AVOID PATTERNS (${input.pairConfig.key}): ${pairAvoidPatterns}
 ${pairExtraRules}
 
 Đầu ra BẮT BUỘC là JSON hợp lệ, không markdown:
 {
-  "reply": "câu trả lời của giáo viên bằng ngôn ngữ mục tiêu",
   "corrections": [
     { "original": "...", "fixed": "...", "explanationVi": "giải thích ngắn bằng ngôn ngữ mẹ đẻ" }
   ],
   "pronunciationTips": ["mẹo phát âm ngắn bằng ngôn ngữ mẹ đẻ", "..."],
-  "correctionNote": "Ý 1: sửa lỗi ngắn gọn cho câu học sinh",
-  "correctedSentence": "Ý 2: câu sửa hoàn chỉnh cuối cùng của học sinh",
-  "intentAnswer": "Ý 3: gồm 2 câu CHỈ bằng ngôn ngữ đang học: (1) phản hồi liên quan, (2) câu hỏi gợi mở tiếp theo",
-  "mainSentence": "1 câu chính để nút Nghe câu chính đọc đúng",
-  "mustKnowText": "1 câu/cụm quan trọng nhất cần học viên nghe rõ (để nút Nghe phần cần biết đọc riêng)"
+  "correctionNote": "nội dung sửa lỗi ngắn gọn, không thêm tiêu đề",
+  "intentAnswer": "2 câu CHỈ bằng ngôn ngữ đang học: (1) phản hồi liên quan, (2) câu hỏi gợi mở; không thêm tiêu đề",
+  "mainSentence": "1 câu chính để nút Nghe câu chính đọc đúng, chỉ nội dung câu"
 }`
 
   const userPrompt = `Lịch sử gần đây:

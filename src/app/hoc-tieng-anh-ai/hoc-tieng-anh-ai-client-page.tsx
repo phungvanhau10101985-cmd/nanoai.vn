@@ -42,6 +42,7 @@ import {
   saveWordDaily,
   saveHistoryMessage as saveHistoryMessageApi,
   updateMessageTranslation as updateMessageTranslationApi,
+  updateMiniStageSnapshot as updateMiniStageSnapshotApi,
   saveLearningGoal as saveLearningGoalApi,
   snapshotCompletedLessonSession,
   tokenizeSentence,
@@ -66,6 +67,7 @@ const LESSON_SETUP_PREF_KEY = 'english-coach-lesson-setup'
 const LEARNER_PROFILE_PROMPT_DISMISSED_KEY = 'english-coach-learner-profile-prompt-dismissed-v1'
 
 type LearningMode = 'review' | 'reflex'
+type MiniStage = 'idle' | 'writing' | 'speaking' | 'listening' | 'done'
 
 type ChatMessage = {
   id: string
@@ -1566,6 +1568,23 @@ function sanitizeForDisplay(text: string, targetCode: LanguageCode): string {
   return sanitizeSentenceForCopy(stripPhoneticForTts(text, targetCode), targetCode)
 }
 
+function sanitizeIdeaContent(text: string): string {
+  const raw = String(text || '').trim()
+  if (!raw) return ''
+  return raw
+    .replace(/^\s*(Ý|Y)\s*[123]\s*[-:]\s*/i, '')
+    .replace(/^\s*Idea\s*[123]\s*[-:]\s*/i, '')
+    .replace(/^\s*(Bạn nói|You said)\s*[:：]\s*/i, '')
+    .trim()
+}
+
+function composeTeacherMessageText(correctionNote: string, mainSentence: string, intentAnswer: string): string {
+  return [correctionNote, mainSentence, intentAnswer]
+    .map((x) => String(x || '').trim())
+    .filter(Boolean)
+    .join('\n\n')
+}
+
 /** Tách văn bản thành các đoạn ngắn theo dấu chấm câu (。？.?!！). Dùng cho copyTargets bài viết mini. */
 function splitBySentencePunctuation(text: string): string[] {
   const s = stripPinyinInParentheses(text)
@@ -1707,6 +1726,127 @@ function isTokenInTargetLanguage(token: string, targetCode: LanguageCode): boole
   return true
 }
 
+function isSentenceInTargetLanguage(text: string, targetCode: LanguageCode): boolean {
+  const source = String(text || '').trim()
+  if (!source) return false
+  if (targetCode === 'zh') return /[\u4E00-\u9FFF]/u.test(source)
+  if (targetCode === 'ja') return /[\u3040-\u30FF\u4E00-\u9FFF]/u.test(source)
+  if (targetCode === 'ko') return /[\uAC00-\uD7AF]/u.test(source)
+  if (targetCode === 'th') return /[\u0E00-\u0E7F]/u.test(source)
+  if (targetCode === 'hi') return /[\u0900-\u097F]/u.test(source)
+
+  const words = source
+    .replace(/[^\p{L}\p{N}\s'’-]/gu, ' ')
+    .split(/\s+/)
+    .map((x) => x.trim())
+    .filter(Boolean)
+  if (words.length === 0) return false
+  const targetWords = words.filter((w) => isTokenInTargetLanguage(w, targetCode)).length
+  const ratio = targetWords / words.length
+  return ratio >= 0.8
+}
+
+function normalizedToken(text: string): string {
+  return String(text || '')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function displayListeningWord(text: string): string {
+  const t = String(text || '').trim()
+  if (!t) return ''
+  return t.charAt(0).toLocaleUpperCase() + t.slice(1)
+}
+
+function shuffleListeningWords(words: string[]): string[] {
+  const out = [...words]
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    const tmp = out[i]
+    out[i] = out[j]
+    out[j] = tmp
+  }
+  return out
+}
+
+function ensureListeningVisibleHasCorrectOption(
+  visible: string[],
+  remaining: string[],
+  allOptions: string[],
+  expectedKeywords: string[]
+): { visible: string[]; remaining: string[] } {
+  const expected = new Set(
+    expectedKeywords
+      .map((x) => normalizedToken(x))
+      .filter(Boolean)
+  )
+  const visibleSafe = visible.map((x) => String(x || '').trim()).filter(Boolean)
+  const remainingSafe = remaining.map((x) => String(x || '').trim()).filter(Boolean)
+  const allSafe = allOptions.map((x) => String(x || '').trim()).filter(Boolean)
+  if (expected.size === 0 || visibleSafe.length === 0) return { visible: visibleSafe, remaining: remainingSafe }
+
+  const isExpected = (x: string) => expected.has(normalizedToken(x))
+  const uniquePush = (arr: string[], value: string) => {
+    const t = String(value || '').trim()
+    if (!t) return
+    if (!arr.includes(t)) arr.push(t)
+  }
+
+  const expectedPool = Array.from(
+    new Set(
+      [...remainingSafe, ...allSafe]
+        .map((x) => String(x || '').trim())
+        .filter((x) => isExpected(x))
+    )
+  )
+  const wrongPool = Array.from(
+    new Set(
+      [...remainingSafe, ...allSafe]
+        .map((x) => String(x || '').trim())
+        .filter(Boolean)
+        .filter((x) => !isExpected(x))
+    )
+  )
+
+  let nextVisible = [...visibleSafe]
+  let currentCorrect = nextVisible.filter((x) => isExpected(x)).length
+
+  // Rule 1: always keep at least 1 correct option visible.
+  if (currentCorrect < 1 && expectedPool.length > 0) {
+    const replacement = expectedPool.find((x) => !nextVisible.includes(x)) || expectedPool[0]
+    const replaceIdx = nextVisible.findIndex((x) => !isExpected(x))
+    if (replaceIdx >= 0) nextVisible[replaceIdx] = replacement
+    else nextVisible[nextVisible.length - 1] = replacement
+    currentCorrect = nextVisible.filter((x) => isExpected(x)).length
+  }
+
+  // Rule 2: cap visible correct options to at most 2.
+  if (currentCorrect > 2) {
+    for (let i = 0; i < nextVisible.length; i++) {
+      if (currentCorrect <= 2) break
+      if (!isExpected(nextVisible[i])) continue
+      const replacement = wrongPool.find((x) => !nextVisible.includes(x))
+      if (!replacement) break
+      nextVisible[i] = replacement
+      currentCorrect = nextVisible.filter((x) => isExpected(x)).length
+    }
+  }
+
+  // Keep visible size stable and rebuild remaining without duplicates.
+  const finalVisible: string[] = []
+  for (const x of nextVisible) uniquePush(finalVisible, x)
+  const nextRemaining: string[] = []
+  for (const x of [...remainingSafe, ...allSafe]) {
+    const t = String(x || '').trim()
+    if (!t || finalVisible.includes(t)) continue
+    uniquePush(nextRemaining, t)
+  }
+
+  return { visible: finalVisible, remaining: nextRemaining }
+}
+
 export default function HocTiengAnhAiClientPage() {
   const { toast } = useToast()
   const [sessionId, setSessionId] = useState<string>(createSessionId)
@@ -1844,14 +1984,20 @@ export default function HocTiengAnhAiClientPage() {
   const [awaitingTeacherReply, setAwaitingTeacherReply] = useState(false)
   const [reviewDrillStage, setReviewDrillStage] = useState<'idle' | 'writing' | 'speaking' | 'listening'>('idle')
   const [reviewSpeakingTargetSentence, setReviewSpeakingTargetSentence] = useState('')
-  const [speakingDrillPhase, setSpeakingDrillPhase] = useState<'listen' | 'afterListen' | 'recording' | 'afterRecord'>('listen')
+  const [speakingDrillPhase, setSpeakingDrillPhase] = useState<'idle' | 'playing' | 'recording' | 'afterRecord'>('idle')
   const [speakingDrillCycleCount, setSpeakingDrillCycleCount] = useState(0)
   const [speakingDrillBlob, setSpeakingDrillBlob] = useState<Blob | null>(null)
   const [reviewListeningPopupOpen, setReviewListeningPopupOpen] = useState(false)
   const [reviewListeningPrompt, setReviewListeningPrompt] = useState('')
   const [reviewListeningOptions, setReviewListeningOptions] = useState<string[]>([])
   const [reviewListeningSelected, setReviewListeningSelected] = useState<string[]>([])
+  const [reviewListeningVisibleOptions, setReviewListeningVisibleOptions] = useState<string[]>([])
+  const [reviewListeningRemainingOptions, setReviewListeningRemainingOptions] = useState<string[]>([])
+  const [reviewListeningExpectedKeywords, setReviewListeningExpectedKeywords] = useState<string[]>([])
+  const [reviewListeningRequiredCount, setReviewListeningRequiredCount] = useState(3)
+  const [reviewListeningResultByWord, setReviewListeningResultByWord] = useState<Record<string, 'correct' | 'wrong'>>({})
   const [reviewListeningSubmitBusy, setReviewListeningSubmitBusy] = useState(false)
+  const [reviewMiniPackCompleted, setReviewMiniPackCompleted] = useState(false)
   const [historyBusy, setHistoryBusy] = useState(false)
   const [todayWordsBusy, setTodayWordsBusy] = useState(false)
   const [wordBusyKey, setWordBusyKey] = useState('')
@@ -1862,6 +2008,7 @@ export default function HocTiengAnhAiClientPage() {
   const [draft, setDraft] = useState('')
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [corrections, setCorrections] = useState<Correction[]>([])
+  const [correctionsByMessageId, setCorrectionsByMessageId] = useState<Record<string, Correction[]>>({})
   const [pronunciationTips, setPronunciationTips] = useState<string[]>([])
   const [latestPronunciationScore, setLatestPronunciationScore] = useState<number | null>(null)
   const [latestWeakWords, setLatestWeakWords] = useState<string[]>([])
@@ -2023,6 +2170,8 @@ export default function HocTiengAnhAiClientPage() {
   const lessonCompletedToastShownForSessionRef = useRef<string | null>(null)
   const lessonAutoSnapshotBusyRef = useRef(false)
   const lessonAutoSnapshotTeacherCountBySessionRef = useRef<Record<string, number>>({})
+  const miniStageSyncKeyRef = useRef('')
+  const latestMiniStageRef = useRef<MiniStage>('idle')
   const uiLocale: UiLocale = nativeLanguageCode
   const t = useMemo(() => createCoachTranslator(uiLocale), [uiLocale])
   const localText = useCallback((vi: string, en: string) => {
@@ -2369,6 +2518,43 @@ export default function HocTiengAnhAiClientPage() {
   const isMiniDrillBlocking = learningMode === 'review' && reviewDrillStage !== 'idle'
   const isMiniWritingBlocking =
     learningMode === 'review' && Boolean(writingTask) && !Boolean(writingTask?.completed)
+
+  useEffect(() => {
+    latestMiniStageRef.current = reviewMiniPackCompleted ? 'done' : reviewDrillStage
+  }, [reviewDrillStage, reviewMiniPackCompleted])
+
+  useEffect(() => {
+    if (!sessionId || learningMode !== 'review' || historyBusy) return
+    const stage: MiniStage = reviewMiniPackCompleted ? 'done' : reviewDrillStage
+    const key = `${sessionId}:${stage}`
+    if (miniStageSyncKeyRef.current === key) return
+    miniStageSyncKeyRef.current = key
+    void updateMiniStageSnapshotApi({ sessionId, stage })
+      .then((res) => {
+        if (!res.ok && miniStageSyncKeyRef.current === key) {
+          miniStageSyncKeyRef.current = ''
+        }
+      })
+      .catch(() => {
+        if (miniStageSyncKeyRef.current === key) miniStageSyncKeyRef.current = ''
+      })
+  }, [sessionId, learningMode, historyBusy, reviewDrillStage, reviewMiniPackCompleted])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const onPageHide = () => {
+      if (!sessionId || learningMode !== 'review') return
+      const stage = latestMiniStageRef.current
+      void fetch('/api/english-coach/history/mini-stage', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId, stage }),
+        keepalive: true,
+      }).catch(() => {})
+    }
+    window.addEventListener('pagehide', onPageHide)
+    return () => window.removeEventListener('pagehide', onPageHide)
+  }, [sessionId, learningMode])
 
   const getWritingTaskProgressStorageKey = useCallback((sid: string) => `nanoai_writing_task_progress:${sid}`, [])
 
@@ -3028,7 +3214,7 @@ export default function HocTiengAnhAiClientPage() {
           ? localText('Đúng hoàn toàn. Đã mở khóa lượt nói tiếp theo.', 'Perfect copy. Next speaking turn is unlocked.')
           : localText('Đúng câu này. Tiếp tục gõ câu kế tiếp.', 'This sentence is correct. Continue with the next one.'),
         shortHint: isDone
-          ? localText('Bạn có thể nói tiếp.', 'You can continue speaking now.')
+          ? localText('Đã mở Mini 2/3: luyện nói.', 'Mini 2/3 speaking is now unlocked.')
           : localText('Gõ tiếp câu số 2 để mở khóa.', 'Type sentence #2 to unlock.'),
       })
       setWritingDraft('')
@@ -3107,7 +3293,7 @@ export default function HocTiengAnhAiClientPage() {
             ? localText('Đúng hoàn toàn. Đã mở khóa lượt nói tiếp theo.', 'Perfect copy. Next speaking turn is unlocked.')
             : localText('Đúng câu này. Tiếp tục gõ câu kế tiếp.', 'This sentence is correct. Continue with the next one.'),
           shortHint: isDone
-            ? localText('Bạn có thể nói tiếp.', 'You can continue speaking now.')
+            ? localText('Đã mở Mini 2/3: luyện nói.', 'Mini 2/3 speaking is now unlocked.')
             : localText('Gõ tiếp câu số 2 để mở khóa.', 'Type sentence #2 to unlock.'),
         })
         setWritingDraft('')
@@ -3216,7 +3402,7 @@ export default function HocTiengAnhAiClientPage() {
 
   const createTtsAudioData = async (
     text: string,
-    opts?: { locale?: string; languageLabel?: string; forceEngine?: 'auto' | 'gemini-only'; skipCache?: boolean }
+    opts?: { locale?: string; languageLabel?: string; forceEngine?: 'auto' | 'gemini-only' | 'openai-only'; skipCache?: boolean }
   ) => {
     const localeToUse = String(opts?.locale || activeTeacher.locale || '').trim() || 'en-US'
     const labelToUse = String(opts?.languageLabel || activeTeacher.languageLabel || '').trim() || 'English'
@@ -3291,6 +3477,28 @@ export default function HocTiengAnhAiClientPage() {
     return { url, blob, blobType }
   }
 
+  const createConsistentTeacherTtsAudioData = async (
+    text: string,
+    opts?: { locale?: string; languageLabel?: string; skipCache?: boolean }
+  ) => {
+    try {
+      return await createTtsAudioData(text, {
+        locale: opts?.locale || activeTeacher.locale,
+        languageLabel: opts?.languageLabel || activeTeacher.languageLabel,
+        forceEngine: 'openai-only',
+        skipCache: opts?.skipCache,
+      })
+    } catch {
+      // Fallback engine keeps feature resilient when OpenAI-only is unavailable.
+      return await createTtsAudioData(text, {
+        locale: opts?.locale || activeTeacher.locale,
+        languageLabel: opts?.languageLabel || activeTeacher.languageLabel,
+        forceEngine: 'auto',
+        skipCache: opts?.skipCache,
+      })
+    }
+  }
+
   const tryLoadCachedTtsAudio = async (text: string) => {
     const normalized = String(text || '').trim()
     if (!normalized) return null
@@ -3348,6 +3556,7 @@ export default function HocTiengAnhAiClientPage() {
     correctionNote,
     intentAnswer,
     tokensJson,
+    aiPayloadJson,
   }: {
     role: 'teacher' | 'student'
     text: string
@@ -3357,6 +3566,7 @@ export default function HocTiengAnhAiClientPage() {
     correctionNote?: string
     intentAnswer?: string
     tokensJson?: string
+    aiPayloadJson?: string
   }) => {
     const { ok, data } = await saveHistoryMessageApi({
       sessionId,
@@ -3373,6 +3583,7 @@ export default function HocTiengAnhAiClientPage() {
       correctionNote: correctionNote || '',
       intentAnswer: intentAnswer || '',
       tokensJson: tokensJson || '',
+      aiPayloadJson: aiPayloadJson || '',
     })
     if (!ok) {
       throw new Error(data.error || localText('Không lưu được lịch sử học.', 'Failed to save lesson history.'))
@@ -3402,35 +3613,94 @@ export default function HocTiengAnhAiClientPage() {
         // continue replay flow even if mic stop fails
       }
     }
-    const cached = teacherAudioByMessageIdRef.current[messageId]
-    let raw = String(teacherSpeakTextByMessageId[messageId] || text || '').trim()
-    if (learningMode === 'reflex' && !teacherSpeakTextByMessageId[messageId]) {
-      raw = extractTargetLanguageOnlyForReflexTts(raw, languageCode)
-    }
-    const textToSpeak = stripPhoneticForTts(raw, languageCode)
-    if (cached) {
-      await playAudioUrl(cached)
-      return
-    }
-    if (busy) {
-      const cachedDb = await tryLoadCachedTtsAudio(textToSpeak)
-      if (!cachedDb) return
-      teacherAudioByMessageIdRef.current = {
-        ...teacherAudioByMessageIdRef.current,
-        [messageId]: cachedDb.url,
+
+    const correctionNote = String(correctionNoteByMessageId[messageId] || '').trim()
+    const mainSentence = String(mainSentenceByMessageId[messageId] || '').trim()
+    const intentAnswer = String(intentAnswerByMessageId[messageId] || '').trim()
+    const segments = (
+      learningMode === 'reflex'
+        ? [{ key: `${messageId}__main`, text: String(mainSentence || text || '').trim() }]
+        : [
+          { key: `${messageId}__correction_note`, text: correctionNote },
+          { key: `${messageId}__main`, text: mainSentence },
+          { key: `${messageId}__intent_answer`, text: intentAnswer },
+        ]
+    )
+      .map((seg) => ({ key: seg.key, text: stripPhoneticForTts(String(seg.text || '').trim(), languageCode) }))
+      .filter((seg) => Boolean(seg.text))
+
+    if (segments.length === 0) {
+      let raw = String(teacherSpeakTextByMessageId[messageId] || text || '').trim()
+      if (learningMode === 'reflex' && !teacherSpeakTextByMessageId[messageId]) {
+        raw = extractTargetLanguageOnlyForReflexTts(raw, languageCode)
       }
-      setTeacherAudioByMessageId((prev) => ({ ...prev, [messageId]: cachedDb.url }))
-      await playAudioUrl(cachedDb.url)
+      const textToSpeak = stripPhoneticForTts(raw, languageCode)
+      const cached = teacherAudioByMessageIdRef.current[messageId]
+      if (cached) {
+        await playAudioUrl(cached)
+        return
+      }
+      if (busy) {
+        const cachedDb = await tryLoadCachedTtsAudio(textToSpeak)
+        if (!cachedDb) return
+        teacherAudioByMessageIdRef.current = {
+          ...teacherAudioByMessageIdRef.current,
+          [messageId]: cachedDb.url,
+        }
+        setTeacherAudioByMessageId((prev) => ({ ...prev, [messageId]: cachedDb.url }))
+        await playAudioUrl(cachedDb.url)
+        return
+      }
+      setTtsLoadingByKey((prev) => ({ ...prev, [key]: true }))
+      try {
+        const generated = await playBestEffortTts(textToSpeak)
+        teacherAudioByMessageIdRef.current = {
+          ...teacherAudioByMessageIdRef.current,
+          [messageId]: generated[0]?.url || '',
+        }
+        setTeacherAudioByMessageId((prev) => ({ ...prev, [messageId]: generated[0]?.url || '' }))
+      } finally {
+        setTtsLoadingByKey((prev) => ({ ...prev, [key]: false }))
+      }
       return
     }
+
     setTtsLoadingByKey((prev) => ({ ...prev, [key]: true }))
     try {
-      const generated = await playBestEffortTts(textToSpeak)
-      teacherAudioByMessageIdRef.current = {
-        ...teacherAudioByMessageIdRef.current,
-        [messageId]: generated[0]?.url || '',
+      const urls: string[] = []
+      const nextCache: Record<string, string> = {}
+      for (const seg of segments) {
+        let url = String(teacherAudioByMessageIdRef.current[seg.key] || '').trim()
+        if (!url) {
+          const cachedDb = await tryLoadCachedTtsAudio(seg.text)
+          if (cachedDb?.url) url = cachedDb.url
+        }
+        if (!url && !busy) {
+          const single = await createConsistentTeacherTtsAudioData(seg.text, {
+            locale: activeTeacher.locale,
+            languageLabel: activeTeacher.languageLabel,
+          })
+          url = String(single?.url || '').trim()
+        }
+        if (!url) continue
+        nextCache[seg.key] = url
+        urls.push(url)
       }
-      setTeacherAudioByMessageId((prev) => ({ ...prev, [messageId]: generated[0]?.url || '' }))
+      if (Object.keys(nextCache).length > 0) {
+        teacherAudioByMessageIdRef.current = {
+          ...teacherAudioByMessageIdRef.current,
+          ...nextCache,
+          [messageId]: urls[0] || teacherAudioByMessageIdRef.current[messageId] || '',
+        }
+        setTeacherAudioByMessageId((prev) => ({
+          ...prev,
+          ...nextCache,
+          [messageId]: urls[0] || prev[messageId] || '',
+        }))
+      }
+      for (const url of urls) {
+        await playAudioUrl(url)
+      }
     } finally {
       setTtsLoadingByKey((prev) => ({ ...prev, [key]: false }))
     }
@@ -3756,7 +4026,16 @@ export default function HocTiengAnhAiClientPage() {
   const hasCachedTeacherAudio = (key: string) => {
     const fromRef = String(teacherAudioByMessageIdRef.current[key] || '').trim()
     const fromState = String(teacherAudioByMessageId[key] || '').trim()
-    return Boolean(fromRef || fromState)
+    if (fromRef || fromState) return true
+    if (!key.includes('__')) {
+      const segKeys = [`${key}__correction_note`, `${key}__main`, `${key}__intent_answer`]
+      return segKeys.some((k) => {
+        const r = String(teacherAudioByMessageIdRef.current[k] || '').trim()
+        const s = String(teacherAudioByMessageId[k] || '').trim()
+        return Boolean(r || s)
+      })
+    }
+    return false
   }
 
   const isReplayButtonDisabled = (key: string, hasCached: boolean) => {
@@ -3768,34 +4047,94 @@ export default function HocTiengAnhAiClientPage() {
   const generateAndStoreTeacherAudio = async (
     messageId: string,
     text: string,
-    opts?: { mainSentence?: string; correctionNote?: string; intentAnswer?: string }
+    opts?: { mainSentence?: string; correctionNote?: string; intentAnswer?: string; delayBeforePlayMs?: number }
   ) => {
-    let generated: { url: string; blob: Blob; blobType: string } | null = null
-    try {
-      const segmented = await playBestEffortTts(text)
-      generated = segmented[0] || null
-    } catch (e) {
-      throw new Error(unknownErrorMsg(e))
+    const delayMs = Number(opts?.delayBeforePlayMs || 0)
+    if (delayMs > 0) {
+      await new Promise((r) => setTimeout(r, delayMs))
     }
-    if (!generated) {
+    const segments = (
+      learningMode === 'reflex'
+        ? [{ key: `${messageId}__main`, text: String(opts?.mainSentence || text || '').trim() }]
+        : [
+          { key: `${messageId}__correction_note`, text: String(opts?.correctionNote || '').trim() },
+          { key: `${messageId}__main`, text: String(opts?.mainSentence || '').trim() },
+          { key: `${messageId}__intent_answer`, text: String(opts?.intentAnswer || '').trim() },
+        ]
+    )
+      .map((seg) => ({ key: seg.key, text: stripPhoneticForTts(seg.text, languageCode) }))
+      .filter((seg) => Boolean(seg.text))
+
+    if (segments.length === 0) {
+      const fallback = stripPhoneticForTts(String(text || '').trim(), languageCode)
+      if (!fallback) throw new Error(localText('Không tạo được âm thanh.', 'Unable to create audio.'))
+      segments.push({ key: `${messageId}__main`, text: fallback })
+    }
+
+    const nextCache: Record<string, string> = {}
+    let firstPart: { url: string; blob: Blob; blobType: string } | null = null
+    for (const seg of segments) {
+      const existing = String(teacherAudioByMessageIdRef.current[seg.key] || '').trim()
+      if (existing) {
+        nextCache[seg.key] = existing
+        continue
+      }
+      const cachedDb = await tryLoadCachedTtsAudio(seg.text)
+      if (cachedDb?.url) {
+        nextCache[seg.key] = cachedDb.url
+        if (!firstPart) firstPart = cachedDb
+        continue
+      }
+      try {
+        const single = await createConsistentTeacherTtsAudioData(seg.text, {
+          locale: activeTeacher.locale,
+          languageLabel: activeTeacher.languageLabel,
+        })
+        if (single?.url) {
+          nextCache[seg.key] = single.url
+          if (!firstPart) firstPart = single
+        }
+      } catch {
+        // Keep flow resilient; missing segment can still be generated on-demand when replaying.
+      }
+    }
+
+    const orderedUrls = segments
+      .map((seg) => String(nextCache[seg.key] || teacherAudioByMessageIdRef.current[seg.key] || '').trim())
+      .filter(Boolean)
+    if (orderedUrls.length === 0) {
       throw new Error(localText('Không tạo được âm thanh.', 'Unable to create audio.'))
     }
-    const { url, blob, blobType } = generated
+
     teacherAudioByMessageIdRef.current = {
       ...teacherAudioByMessageIdRef.current,
-      [messageId]: url,
+      ...nextCache,
+      [messageId]: orderedUrls[0] || '',
     }
-    setTeacherAudioByMessageId((prev) => ({ ...prev, [messageId]: url }))
+    setTeacherAudioByMessageId((prev) => ({
+      ...prev,
+      ...nextCache,
+      [messageId]: orderedUrls[0] || prev[messageId] || '',
+    }))
+
+    for (const url of orderedUrls) {
+      await playAudioUrl(url)
+    }
 
     void (async () => {
       let uploadedAudioUrl = ''
       try {
-        uploadedAudioUrl = await uploadTeacherAudio(messageId, blob, blobType)
+        if (firstPart) {
+          uploadedAudioUrl = await uploadTeacherAudio(messageId, firstPart.blob, firstPart.blobType)
+        }
         teacherAudioByMessageIdRef.current = {
           ...teacherAudioByMessageIdRef.current,
-          [messageId]: uploadedAudioUrl,
+          [messageId]: uploadedAudioUrl || teacherAudioByMessageIdRef.current[messageId] || '',
         }
-        setTeacherAudioByMessageId((prev) => ({ ...prev, [messageId]: uploadedAudioUrl }))
+        setTeacherAudioByMessageId((prev) => ({
+          ...prev,
+          [messageId]: uploadedAudioUrl || prev[messageId] || '',
+        }))
       } catch {
         // keep local blob URL for current session if upload fails
       }
@@ -4168,8 +4507,10 @@ export default function HocTiengAnhAiClientPage() {
       setOpenedHistorySessionId('')
       setMessages([])
       setWritingTask(null)
+      setReviewMiniPackCompleted(false)
       setWritingDraft('')
       setWritingEvalResult(null)
+      setCorrectionsByMessageId({})
       setMainSentenceByMessageId({})
       setCorrectionNoteByMessageId({})
       setIntentAnswerByMessageId({})
@@ -4340,9 +4681,15 @@ export default function HocTiengAnhAiClientPage() {
     if (!targetSessionId) return
     setHistoryBusy(true)
     setReviewDrillStage('idle')
+    setReviewMiniPackCompleted(false)
     setReviewListeningPopupOpen(false)
     setReviewListeningPrompt('')
     setReviewListeningOptions([])
+    setReviewListeningVisibleOptions([])
+    setReviewListeningRemainingOptions([])
+    setReviewListeningExpectedKeywords([])
+    setReviewListeningRequiredCount(3)
+    setReviewListeningResultByWord({})
     setReviewListeningSelected([])
     let presetOpeningToReplay: { messageId: string; text: string } | null = null
     try {
@@ -4366,6 +4713,25 @@ export default function HocTiengAnhAiClientPage() {
         learningMode?: 'review' | 'reflex'
         topicId?: string
         topicLabel?: string
+        reviewDrill?: {
+          speaking?: {
+            targetSentence?: string
+            minSimilarity?: number
+            minPronunciationScore?: number
+            attempt?: number
+          }
+          listening?: {
+            prompt?: string
+            expectedKeywords?: string[]
+            options?: string[]
+            minMatchedKeywords?: number
+            attempt?: number
+          }
+        }
+        miniStageSnapshot?: {
+          stage?: 'idle' | 'writing' | 'speaking' | 'listening' | 'done'
+          updatedAt?: string
+        }
         presetReplaySession?: boolean
         presetReplaySourceLessonId?: string
         error?: string
@@ -4373,11 +4739,14 @@ export default function HocTiengAnhAiClientPage() {
       if (!ok) throw new Error(payload.error || localText('Không tải được nội dung buổi học.', 'Failed to load lesson content.'))
 
       const items = Array.isArray(payload.items) ? payload.items : []
+      const loadedLearningMode: 'review' | 'reflex' =
+        payload.learningMode === 'reflex' ? 'reflex' : 'review'
       if (payload.learningMode === 'reflex' || payload.learningMode === 'review') {
         setLearningMode(payload.learningMode)
       }
       setSessionId(targetSessionId)
       setMessages(items.map((x) => ({ id: x.id, role: x.role, text: x.text })))
+      setCorrectionsByMessageId({})
       const firstTeacherIdx = items.findIndex((x) => x.role === 'teacher')
       const openingTrans: Record<string, string> = {}
       const intentTrans: Record<string, string> = {}
@@ -4401,10 +4770,10 @@ export default function HocTiengAnhAiClientPage() {
         const msRaw = String((item as { mainSentence?: string | null }).mainSentence || '').trim()
         const ms = msRaw ? sanitizeForDisplay(msRaw, langForSanitize || 'zh') : ''
         if (ms) mainSentenceMap[item.id] = ms
-        const cn = String((item as { correctionNote?: string | null }).correctionNote || '').trim()
+        const cn = sanitizeIdeaContent(String((item as { correctionNote?: string | null }).correctionNote || '').trim())
         if (cn) correctionNoteMap[item.id] = cn
         const iaRaw = String((item as { intentAnswer?: string | null }).intentAnswer || '').trim()
-        const ia = iaRaw ? sanitizeForDisplay(iaRaw, langForSanitize || 'zh') : ''
+        const ia = iaRaw ? sanitizeForDisplay(sanitizeIdeaContent(iaRaw), langForSanitize || 'zh') : ''
         if (ia) intentAnswerMap[item.id] = ia
         const tj = String((item as { tokensJson?: string | null }).tokensJson || '').trim()
         if (tj) {
@@ -4440,9 +4809,9 @@ export default function HocTiengAnhAiClientPage() {
         const lang = String((item as { languageCode?: string }).languageCode || '').trim().toLowerCase()
         const msRaw = String((item as { mainSentence?: string | null }).mainSentence || '').trim()
         const ms = msRaw ? sanitizeForDisplay(msRaw, (langForSanitize || lang) as LanguageCode) : ''
-        const cn = String((item as { correctionNote?: string | null }).correctionNote || '').trim()
+        const cn = sanitizeIdeaContent(String((item as { correctionNote?: string | null }).correctionNote || '').trim())
         const iaRaw = String((item as { intentAnswer?: string | null }).intentAnswer || '').trim()
-        const ia = iaRaw ? sanitizeForDisplay(iaRaw, (langForSanitize || lang) as LanguageCode) : ''
+        const ia = iaRaw ? sanitizeForDisplay(sanitizeIdeaContent(iaRaw), (langForSanitize || lang) as LanguageCode) : ''
         const mst = (item as { mainSentenceTransliteration?: string | null }).mainSentenceTransliteration
         const cnt = (item as { correctionNoteTransliteration?: string | null }).correctionNoteTransliteration
         const iat = (item as { intentAnswerTransliteration?: string | null }).intentAnswerTransliteration
@@ -4465,9 +4834,11 @@ export default function HocTiengAnhAiClientPage() {
       const lastTeacherItem = [...items].reverse().find((x) => x.role === 'teacher')
       const firstMeta = items.find((x) => x.role === 'teacher') || items[0]
       const metaLanguage = String(firstMeta?.languageCode || '').trim() as LanguageCode
+      const restoreLanguageCode = metaLanguage || languageCode
       const wtj = lastTeacherItem ? String((lastTeacherItem as { writingTaskJson?: string | null }).writingTaskJson || '').trim() : ''
       let writingRestored = false
-      if (learningMode === 'reflex') {
+      let writingCompletedRestored = false
+      if (loadedLearningMode === 'reflex') {
         setWritingTask(null)
         setWritingDraft('')
         setWritingEvalResult(null)
@@ -4492,12 +4863,13 @@ export default function HocTiengAnhAiClientPage() {
             setWritingDraft('')
             setWritingEvalResult(null)
             writingRestored = true
+            writingCompletedRestored = isCompleted
           }
         } catch {
           // ignore invalid writing_task_json
         }
       }
-      if (learningMode !== 'reflex' && lastTeacherItem) {
+      if (loadedLearningMode !== 'reflex' && lastTeacherItem) {
         try {
           const key = getWritingTaskProgressStorageKey(targetSessionId)
           const raw = typeof window !== 'undefined' ? window.localStorage.getItem(key) : null
@@ -4517,6 +4889,8 @@ export default function HocTiengAnhAiClientPage() {
             if (sameMessage && hasSentences) {
               const localIndex = Math.max(0, Math.min(Number(localTask.currentIndex || 0), localTask.requiredSentences!.length - 1))
               const localCompleted = Boolean(localTask.completed)
+              writingRestored = true
+              writingCompletedRestored = writingCompletedRestored || localCompleted
               setWritingTask((prev) => {
                 if (!prev || prev.messageId !== String(lastTeacherItem.id || '')) {
                   return {
@@ -4546,24 +4920,165 @@ export default function HocTiengAnhAiClientPage() {
           // ignore invalid local progress backup
         }
       }
-      if (learningMode !== 'reflex' && !writingRestored && lastTeacherItem && !wtj) {
-        const ms = String((lastTeacherItem as { mainSentence?: string | null }).mainSentence || '').trim()
-        const ia = String((lastTeacherItem as { intentAnswer?: string | null }).intentAnswer || '').trim()
-        const firstFromMain = takeFirstSentenceOnly(ms)
-        const firstFromIntent = takeFirstSentenceOnly(ia)
-        const copyTargets = Array.from(new Set([firstFromMain, firstFromIntent].filter(Boolean)))
-        if (copyTargets.length > 0) {
-          const task = buildWritingTask(lastTeacherItem.id, lastTeacherItem.text, copyTargets)
-          setWritingTask(task)
-          setWritingDraft('')
-          setWritingEvalResult(null)
-          writingRestored = true
-        }
-      }
-      if (learningMode !== 'reflex' && !writingRestored) {
+      if (loadedLearningMode !== 'reflex' && !writingRestored) {
         setWritingTask(null)
         setWritingDraft('')
         setWritingEvalResult(null)
+      }
+      if (loadedLearningMode !== 'reflex') {
+        const activeReviewDrill = payload.reviewDrill
+        const activeSpeaking = activeReviewDrill?.speaking
+        const activeListening = activeReviewDrill?.listening
+        const activeSpeakingTarget = String(activeSpeaking?.targetSentence || '').trim()
+        const speakingTargetValid = activeSpeakingTarget
+          ? isSentenceInTargetLanguage(activeSpeakingTarget, restoreLanguageCode as LanguageCode)
+          : false
+        const stageSnapshot = String(payload.miniStageSnapshot?.stage || '').trim().toLowerCase()
+        const snapshotStage =
+          stageSnapshot === 'writing'
+          || stageSnapshot === 'speaking'
+          || stageSnapshot === 'listening'
+          || stageSnapshot === 'done'
+          || stageSnapshot === 'idle'
+            ? stageSnapshot
+            : ''
+
+        // Fallback: if speaking drill exists but writing task snapshot is missing,
+        // rebuild writing mini task from speaking target to keep 1->2->3 flow.
+        if (!writingRestored && !writingCompletedRestored) {
+          const speakingTarget = activeSpeakingTarget
+          if (speakingTarget) {
+            const syntheticTeacherText = String(lastTeacherItem?.text || speakingTarget).trim()
+            const syntheticMessageId = String(lastTeacherItem?.id || '').trim()
+            if (syntheticMessageId) {
+              const rebuiltTask = buildWritingTask(syntheticMessageId, syntheticTeacherText, [speakingTarget])
+              setWritingTask(rebuiltTask)
+              setWritingDraft('')
+              setWritingEvalResult(null)
+              writingRestored = true
+              writingCompletedRestored = false
+              void persistWritingTaskSnapshot(rebuiltTask, 2)
+            }
+          }
+        }
+
+        if (snapshotStage === 'done' || snapshotStage === 'idle') {
+          setReviewDrillStage('idle')
+          setReviewMiniPackCompleted(snapshotStage === 'done' || (writingRestored && writingCompletedRestored))
+        } else if (snapshotStage === 'listening' && activeListening) {
+          const promptForListening = String(activeListening.prompt || '').trim()
+          let optsWords = Array.isArray(activeListening.options)
+            ? activeListening.options.map((x) => String(x || '').trim()).filter(Boolean)
+            : []
+          if (optsWords.length === 0 && promptForListening) {
+            optsWords = promptForListening
+              .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+              .split(/\s+/)
+              .map((x) => x.trim())
+              .filter((x) => x.length >= 2)
+              .slice(0, 16)
+          }
+          const expectedKeywords = Array.isArray(activeListening.expectedKeywords)
+            ? activeListening.expectedKeywords.map((x) => String(x || '').trim()).filter(Boolean)
+            : []
+          const requiredCountRaw = Number(activeListening.minMatchedKeywords || 3)
+          const requiredCount = Number.isFinite(requiredCountRaw)
+            ? Math.max(1, Math.min(3, Math.floor(requiredCountRaw)))
+            : 3
+          const uniqueOptions = Array.from(new Set(optsWords))
+          const visibleLimit = Math.min(8, Math.max(requiredCount + 2, 5))
+          const seeded = ensureListeningVisibleHasCorrectOption(
+            uniqueOptions.slice(0, visibleLimit),
+            uniqueOptions.slice(visibleLimit),
+            uniqueOptions,
+            expectedKeywords
+          )
+          setReviewDrillStage('listening')
+          setReviewListeningPrompt(promptForListening)
+          setReviewListeningOptions(uniqueOptions)
+          setReviewListeningVisibleOptions(seeded.visible)
+          setReviewListeningRemainingOptions(seeded.remaining)
+          setReviewListeningExpectedKeywords(expectedKeywords)
+          setReviewListeningRequiredCount(requiredCount)
+          setReviewListeningResultByWord({})
+          setReviewListeningSelected([])
+          setReviewListeningPopupOpen(true)
+          setReviewMiniPackCompleted(false)
+        } else if (snapshotStage === 'speaking' && activeSpeaking && speakingTargetValid) {
+          setReviewDrillStage('speaking')
+          setReviewSpeakingTargetSentence(activeSpeakingTarget)
+          setSpeakingDrillPhase('idle')
+          setSpeakingDrillCycleCount(0)
+          setSpeakingDrillBlob(null)
+          setReviewMiniPackCompleted(false)
+        } else if (snapshotStage === 'writing' && writingRestored && !writingCompletedRestored) {
+          setReviewDrillStage('writing')
+          setReviewMiniPackCompleted(false)
+        } else if (snapshotStage === 'writing' && writingCompletedRestored && activeSpeaking && speakingTargetValid) {
+          setReviewDrillStage('speaking')
+          setReviewSpeakingTargetSentence(activeSpeakingTarget)
+          setSpeakingDrillPhase('idle')
+          setSpeakingDrillCycleCount(0)
+          setSpeakingDrillBlob(null)
+          setReviewMiniPackCompleted(false)
+        } else if (writingRestored && !writingCompletedRestored) {
+          setReviewDrillStage('writing')
+          setReviewMiniPackCompleted(false)
+        } else if (activeSpeaking && speakingTargetValid) {
+          setReviewDrillStage('speaking')
+          setReviewSpeakingTargetSentence(activeSpeakingTarget)
+          setSpeakingDrillPhase('idle')
+          setSpeakingDrillCycleCount(0)
+          setSpeakingDrillBlob(null)
+          setReviewMiniPackCompleted(false)
+        } else if (activeSpeaking && activeSpeakingTarget && !speakingTargetValid) {
+          setReviewDrillStage('idle')
+          setReviewMiniPackCompleted(true)
+          setWritingTask(null)
+          setReviewSpeakingTargetSentence('')
+        } else if (activeListening) {
+          const promptForListening = String(activeListening.prompt || '').trim()
+          let optsWords = Array.isArray(activeListening.options)
+            ? activeListening.options.map((x) => String(x || '').trim()).filter(Boolean)
+            : []
+          if (optsWords.length === 0 && promptForListening) {
+            optsWords = promptForListening
+              .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+              .split(/\s+/)
+              .map((x) => x.trim())
+              .filter((x) => x.length >= 2)
+              .slice(0, 16)
+          }
+          const expectedKeywords = Array.isArray(activeListening.expectedKeywords)
+            ? activeListening.expectedKeywords.map((x) => String(x || '').trim()).filter(Boolean)
+            : []
+          const requiredCountRaw = Number(activeListening.minMatchedKeywords || 3)
+          const requiredCount = Number.isFinite(requiredCountRaw)
+            ? Math.max(1, Math.min(3, Math.floor(requiredCountRaw)))
+            : 3
+          const uniqueOptions = Array.from(new Set(optsWords))
+          const visibleLimit = Math.min(8, Math.max(requiredCount + 2, 5))
+          const seeded = ensureListeningVisibleHasCorrectOption(
+            uniqueOptions.slice(0, visibleLimit),
+            uniqueOptions.slice(visibleLimit),
+            uniqueOptions,
+            expectedKeywords
+          )
+          setReviewDrillStage('listening')
+          setReviewListeningPrompt(promptForListening)
+          setReviewListeningOptions(uniqueOptions)
+          setReviewListeningVisibleOptions(seeded.visible)
+          setReviewListeningRemainingOptions(seeded.remaining)
+          setReviewListeningExpectedKeywords(expectedKeywords)
+          setReviewListeningRequiredCount(requiredCount)
+          setReviewListeningResultByWord({})
+          setReviewListeningSelected([])
+          setReviewListeningPopupOpen(true)
+          setReviewMiniPackCompleted(false)
+        } else {
+          setReviewDrillStage('idle')
+          setReviewMiniPackCompleted(writingRestored && writingCompletedRestored)
+        }
       }
       if (metaLanguage && TEACHERS_BY_LANGUAGE[metaLanguage]) {
         setLanguageCode(metaLanguage)
@@ -4674,8 +5189,10 @@ export default function HocTiengAnhAiClientPage() {
     pendingRecordingBlobRef.current = null
     setRecordingPending(false)
     setListening(false)
+    setReviewMiniPackCompleted(false)
     setMessages([])
     setCorrections([])
+    setCorrectionsByMessageId({})
     setPronunciationTips([])
     setTodayWords([])
     setOpenedWordKey('')
@@ -5062,7 +5579,8 @@ export default function HocTiengAnhAiClientPage() {
     }
 
     const hadExistingMessage = Boolean(opts?.existingStudentMessageId)
-    const shouldAppendStudentMessage = !opts?.silentDrill
+    const isFromDrill = opts?.silentDrill || opts?.drillSpeaking || opts?.drillType === 'listening'
+    const shouldAppendStudentMessage = !isFromDrill
     if (!hadExistingMessage) {
       setBusy(true)
       setAwaitingTeacherReply(true)
@@ -5075,7 +5593,7 @@ export default function HocTiengAnhAiClientPage() {
     if (hadExistingMessage && studentMessageId) {
       updateMessageText(studentMessageId, studentText)
     }
-    if (!opts?.silentDrill) setDraft('')
+    if (!isFromDrill) setDraft('')
     if (shouldAppendStudentMessage && studentMessageId) {
       void saveHistoryMessage({ role: 'student', text: studentText })
         .then(() => {
@@ -5123,20 +5641,20 @@ export default function HocTiengAnhAiClientPage() {
         micAnalysis: source === 'mic' ? micAnalysis : undefined,
         drillType: opts?.drillType,
         drillSelectedWords: opts?.drillSelectedWords || [],
+        drillSpeaking: opts?.drillSpeaking ?? false,
       })
       const payload = data as {
-        reply?: string
         corrections?: Correction[]
         pronunciationTips?: string[]
         correctionNote?: string
         intentAnswer?: string
-        correctedSentence?: string
         mainSentence?: string
         reviewDrill?: {
           type?: 'speaking' | 'listening' | 'done'
           prompt?: string
           options?: string[]
           expectedKeywords?: string[]
+          minMatchedKeywords?: number
           targetSentence?: string
           minSimilarity?: number
           minPronunciationScore?: number
@@ -5144,127 +5662,296 @@ export default function HocTiengAnhAiClientPage() {
         startMiniPack?: boolean
         error?: string
       }
-      if (!ok || !payload.reply) {
+      if (!ok) {
         throw new Error(payload.error || localText('Không nhận được phản hồi từ giáo viên AI.', 'No response received from AI teacher.'))
       }
 
-      const teacherMessageId = appendMessage('teacher', payload.reply)
-      const latestCorrections = Array.isArray(payload.corrections) ? payload.corrections : []
-      const correctedMainSentence = String(latestCorrections[0]?.fixed || '').trim()
-      const extractedMainSentence = extractTargetSentenceForTokenization(String(payload.reply || ''))
-      const correctedSentence = String(payload.correctedSentence || '').trim()
-      const apiMainSentence = String(payload.mainSentence || '').trim()
-      const fullSentenceCandidate = [correctedSentence, apiMainSentence, extractedMainSentence, correctedMainSentence]
-        .map((x) => String(x || '').trim())
-        .find((x) => x.split(/\s+/).filter(Boolean).length >= 4)
-      const rawMainSentence = fullSentenceCandidate || apiMainSentence || extractedMainSentence || correctedMainSentence
-      const mainSentence = rawMainSentence ? sanitizeForDisplay(rawMainSentence, languageCode) : ''
-      if (mainSentence) {
-        setMainSentenceByMessageId((prev) => ({ ...prev, [teacherMessageId]: mainSentence }))
-      }
-      const correctionNote = String(payload.correctionNote || '').trim()
-      if (correctionNote) {
-        setCorrectionNoteByMessageId((prev) => ({ ...prev, [teacherMessageId]: correctionNote }))
-      }
-      const rawIntentAnswer = String(payload.intentAnswer || '').trim()
-      const intentAnswer = rawIntentAnswer ? sanitizeForDisplay(rawIntentAnswer, languageCode) : ''
-      if (intentAnswer) {
-        setIntentAnswerByMessageId((prev) => ({ ...prev, [teacherMessageId]: intentAnswer }))
-      }
-      // Lưu ngay tin nhắn thầy/cô để mở lại buổi học không thiếu (không chờ TTS/upload)
-      void saveHistoryMessage({
-        role: 'teacher',
-        text: payload.reply,
-        audioUrl: '',
-        clientMessageId: teacherMessageId,
-        mainSentence,
-        correctionNote,
-        intentAnswer,
-      }).then(() => {
-        persistedMessageIdsRef.current[teacherMessageId] = true
-      }).catch(() => {})
-      const speakParts =
-        learningMode === 'reflex'
-          ? [mainSentence]
-              .map((x) => extractTargetLanguageOnlyForReflexTts(String(x || '').trim(), languageCode))
-              .map((x) => stripPhoneticForTts(x, languageCode))
-              .filter(Boolean)
-          : [correctionNote, mainSentence, intentAnswer].map((x) => stripPhoneticForTts(String(x || '').trim(), languageCode)).filter(Boolean)
-      const fallbackRaw =
-        learningMode === 'reflex'
-          ? extractTargetLanguageOnlyForReflexTts(extractTeacherSpeechText(payload.reply), languageCode)
-          : extractTeacherSpeechText(payload.reply)
-      const speakText = speakParts.join('. ').trim() || stripPhoneticForTts(fallbackRaw, languageCode)
-      setTeacherSpeakTextByMessageId((prev) => ({ ...prev, [teacherMessageId]: speakText }))
-      if (payload.reviewDrill?.type === 'speaking') {
-        setReviewDrillStage('speaking')
-        setReviewSpeakingTargetSentence(String(payload.reviewDrill.targetSentence || '').trim())
-      } else if (payload.reviewDrill?.type === 'listening') {
-        setReviewDrillStage('listening')
-        setSpeakingDrillPhase('listen')
-        setSpeakingDrillCycleCount(0)
-        setSpeakingDrillBlob(null)
-        const optsWords = Array.isArray(payload.reviewDrill.options)
-          ? payload.reviewDrill.options.map((x) => String(x || '').trim()).filter(Boolean)
+      let mustStayWritingStage = false
+      let currentTeacherMessageId = ''
+      let currentTeacherText = ''
+      let currentWritingCopyTargets: string[] = []
+      if (!isFromDrill) {
+        const latestCorrections = Array.isArray(payload.corrections)
+          ? payload.corrections
+            .map((c) => ({
+              original: sanitizeIdeaContent(String(c?.original || '').trim()),
+              fixed: sanitizeIdeaContent(String(c?.fixed || '').trim()),
+              explanationVi: sanitizeIdeaContent(String(c?.explanationVi || '').trim()),
+            }))
+            .filter((c) => c.original || c.fixed || c.explanationVi)
           : []
-        if (optsWords.length > 0) {
-          setReviewListeningPrompt(String(payload.reviewDrill.prompt || mainSentence || payload.reply || '').trim())
-          setReviewListeningOptions(optsWords)
-          setReviewListeningSelected([])
-          setReviewListeningPopupOpen(false)
+        const correctionNote = sanitizeIdeaContent(String(payload.correctionNote || '').trim())
+        const rawIntentAnswer = String(payload.intentAnswer || '').trim()
+        const intentAnswer = rawIntentAnswer ? sanitizeForDisplay(sanitizeIdeaContent(rawIntentAnswer), languageCode) : ''
+        const correctedMainSentence = sanitizeIdeaContent(String(latestCorrections[0]?.fixed || '').trim())
+        const apiMainSentence = sanitizeIdeaContent(String(payload.mainSentence || '').trim())
+        const fullSentenceCandidate = [apiMainSentence, correctedMainSentence]
+          .map((x) => String(x || '').trim())
+          .find((x) => x.split(/\s+/).filter(Boolean).length >= 4)
+        const rawMainSentence = fullSentenceCandidate || apiMainSentence || correctedMainSentence
+        const mainSentence = rawMainSentence ? sanitizeForDisplay(rawMainSentence, languageCode) : ''
+        const teacherText = composeTeacherMessageText(correctionNote, mainSentence, intentAnswer)
+        if (!teacherText) {
+          throw new Error(localText('Không nhận được nội dung phản hồi hợp lệ từ AI.', 'No valid AI response content received.'))
         }
-      } else if (payload.reviewDrill?.type === 'done') {
-        setReviewDrillStage('idle')
-        setReviewListeningPopupOpen(false)
-        setReviewListeningPrompt('')
-        setReviewListeningOptions([])
-        setReviewListeningSelected([])
-        setSpeakingDrillPhase('listen')
-        setSpeakingDrillCycleCount(0)
-        setSpeakingDrillBlob(null)
-      } else if (!payload.reviewDrill?.type) {
-        setReviewDrillStage('idle')
-      }
-      const firstFromMain = takeFirstSentenceOnly(String(mainSentence || '').trim())
-      const firstFromIntent = takeFirstSentenceOnly(String(intentAnswer || extractTeacherSpeechText(payload.reply)).trim())
-      const copyTargets = Array.from(new Set([firstFromMain, firstFromIntent].filter(Boolean)))
-      if (learningMode === 'review' && payload.startMiniPack) {
-        setReviewDrillStage('writing')
-        const nextTask = buildWritingTask(teacherMessageId, payload.reply, copyTargets)
-        setWritingTask(nextTask)
-        if (copyTargets.length > 0 && !String(payload.reviewDrill?.targetSentence || '').trim()) {
-          setReviewSpeakingTargetSentence(String(copyTargets[0] || '').trim())
+        const teacherMessageId = appendMessage('teacher', teacherText)
+        currentTeacherMessageId = teacherMessageId
+        currentTeacherText = teacherText
+        if (latestCorrections.length > 0) {
+          setCorrectionsByMessageId((prev) => ({ ...prev, [teacherMessageId]: latestCorrections }))
         }
-        void persistWritingTaskSnapshot(nextTask, 2)
-      } else if (payload.reviewDrill?.type === 'done') {
-        setWritingTask(null)
-        setReviewSpeakingTargetSentence('')
-      }
-      setWritingDraft('')
-      setWritingEvalResult(null)
-      setCorrections(latestCorrections)
-      setPronunciationTips(Array.isArray(payload.pronunciationTips) ? payload.pronunciationTips : [])
-      void recordProgressTurn(
-        latestCorrections.length > 0,
-        micAnalysis?.pronunciationScore ?? null,
-        micAnalysis || null,
-        source
-      )
-      try {
-        await generateAndStoreTeacherAudio(teacherMessageId, speakText, {
+        if (mainSentence) {
+          setMainSentenceByMessageId((prev) => ({ ...prev, [teacherMessageId]: mainSentence }))
+        }
+        if (correctionNote) {
+          setCorrectionNoteByMessageId((prev) => ({ ...prev, [teacherMessageId]: correctionNote }))
+        }
+        if (intentAnswer) {
+          setIntentAnswerByMessageId((prev) => ({ ...prev, [teacherMessageId]: intentAnswer }))
+        }
+        const aiPayloadJson = (() => {
+          try {
+            return JSON.stringify({
+              corrections: latestCorrections,
+              pronunciationTips: Array.isArray(payload.pronunciationTips) ? payload.pronunciationTips : [],
+              correctionNote,
+              mainSentence,
+              intentAnswer,
+              reviewDrill: payload.reviewDrill || null,
+              startMiniPack: Boolean(payload.startMiniPack),
+              source,
+              micAnalysis: source === 'mic' ? (micAnalysis || null) : null,
+            })
+          } catch {
+            return ''
+          }
+        })()
+        void saveHistoryMessage({
+          role: 'teacher',
+          text: teacherText,
+          audioUrl: '',
+          clientMessageId: teacherMessageId,
           mainSentence,
           correctionNote,
           intentAnswer,
-        })
-      } catch {
-        toast({
-          title: localText('Không phát được âm thanh', 'Audio playback failed'),
-          description: localText(
-            'Nội dung thầy/cô vẫn hiển thị, bạn có thể tiếp tục học bình thường.',
-            'Teacher text is still shown. You can continue learning normally.'
-          ),
-          variant: 'destructive',
-        })
+          aiPayloadJson,
+        }).then(() => {
+          persistedMessageIdsRef.current[teacherMessageId] = true
+        }).catch(() => {})
+        const speakParts =
+          learningMode === 'reflex'
+            ? [mainSentence]
+                .map((x) => extractTargetLanguageOnlyForReflexTts(String(x || '').trim(), languageCode))
+                .map((x) => stripPhoneticForTts(x, languageCode))
+                .filter(Boolean)
+            : [correctionNote, mainSentence, intentAnswer].map((x) => stripPhoneticForTts(String(x || '').trim(), languageCode)).filter(Boolean)
+        const fallbackRaw =
+          learningMode === 'reflex'
+            ? extractTargetLanguageOnlyForReflexTts(extractTeacherSpeechText(teacherText), languageCode)
+            : extractTeacherSpeechText(teacherText)
+        const speakText = speakParts.join('. ').trim() || stripPhoneticForTts(fallbackRaw, languageCode)
+        setTeacherSpeakTextByMessageId((prev) => ({ ...prev, [teacherMessageId]: speakText }))
+        const firstFromMain = takeFirstSentenceOnly(String(mainSentence || '').trim())
+        const firstFromIntent = takeFirstSentenceOnly(String(rawIntentAnswer || extractTeacherSpeechText(teacherText)).trim())
+        const speakingTargetFromPayloadRaw = String(payload.reviewDrill?.targetSentence || '').trim()
+        const speakingTargetFromPayload = speakingTargetFromPayloadRaw && isSentenceInTargetLanguage(speakingTargetFromPayloadRaw, languageCode)
+          ? speakingTargetFromPayloadRaw
+          : ''
+        const intentSentence = String(firstFromIntent || '').trim()
+        const mainSentenceForWriting = String(firstFromMain || '').trim()
+        const intentIsDistinct =
+          intentSentence
+          && normalizeCopyText(intentSentence, languageCode) !== normalizeCopyText(mainSentenceForWriting, languageCode)
+        const copyTargets = Array.from(
+          new Set(
+            [
+              mainSentenceForWriting,
+              intentIsDistinct ? intentSentence : '',
+              // fallback last: speaking target when one of y2/y3 is missing
+              String(speakingTargetFromPayload || '').trim(),
+            ].filter(Boolean)
+          )
+        )
+        currentWritingCopyTargets = copyTargets
+        if (learningMode === 'review' && payload.startMiniPack && !reviewMiniPackCompleted) {
+          mustStayWritingStage = true
+          setReviewMiniPackCompleted(false)
+          setReviewDrillStage('writing')
+          const nextTask = buildWritingTask(teacherMessageId, teacherText, copyTargets)
+          setWritingTask(nextTask)
+          const speakingTarget = String(speakingTargetFromPayload || copyTargets[0] || '').trim()
+          if (speakingTarget) setReviewSpeakingTargetSentence(speakingTarget)
+          void persistWritingTaskSnapshot(nextTask, 2)
+        }
+        setWritingDraft('')
+        setWritingEvalResult(null)
+        setCorrections(latestCorrections)
+        setPronunciationTips(Array.isArray(payload.pronunciationTips) ? payload.pronunciationTips : [])
+        void recordProgressTurn(
+          latestCorrections.length > 0,
+          micAnalysis?.pronunciationScore ?? null,
+          micAnalysis || null,
+          source
+        )
+        try {
+          await generateAndStoreTeacherAudio(teacherMessageId, speakText, {
+            mainSentence,
+            correctionNote,
+            intentAnswer,
+            delayBeforePlayMs: opts?.drillSpeaking ? 1800 : undefined,
+          })
+        } catch {
+          toast({
+            title: localText('Không phát được âm thanh', 'Audio playback failed'),
+            description: localText(
+              'Nội dung thầy/cô vẫn hiển thị, bạn có thể tiếp tục học bình thường.',
+              'Teacher text is still shown. You can continue learning normally.'
+            ),
+            variant: 'destructive',
+          })
+        }
+      }
+
+      if (payload.reviewDrill?.type === 'speaking') {
+        const hasPendingWriting = Boolean(writingTask && !writingTask.completed)
+        const speakingTarget = String(payload.reviewDrill.targetSentence || '').trim()
+        const speakingTargetValid = speakingTarget ? isSentenceInTargetLanguage(speakingTarget, languageCode) : false
+        const fallbackSpeakingTarget = String(
+          speakingTarget
+          || writingTask?.referenceSentence
+          || writingTask?.requiredSentences?.[0]
+          || ''
+        ).trim()
+        const finalSpeakingTarget = fallbackSpeakingTarget && isSentenceInTargetLanguage(fallbackSpeakingTarget, languageCode)
+          ? fallbackSpeakingTarget
+          : ''
+        if (speakingTarget && !speakingTargetValid) {
+          // Invalid speaking target (native language) => skip mini pack and resume normal chat.
+          setReviewDrillStage('idle')
+          setReviewMiniPackCompleted(true)
+          setReviewListeningPopupOpen(false)
+          setReviewListeningPrompt('')
+          setReviewListeningOptions([])
+          setReviewListeningVisibleOptions([])
+          setReviewListeningRemainingOptions([])
+          setReviewListeningExpectedKeywords([])
+          setReviewListeningRequiredCount(3)
+          setReviewListeningResultByWord({})
+          setReviewListeningSelected([])
+          setSpeakingDrillPhase('idle')
+          setSpeakingDrillCycleCount(0)
+          setSpeakingDrillBlob(null)
+          setWritingTask(null)
+          setReviewSpeakingTargetSentence('')
+          setWritingDraft('')
+          setWritingEvalResult(null)
+          return
+        }
+        const shouldCreateWritingFallback =
+          learningMode === 'review'
+          && !isFromDrill
+          && !mustStayWritingStage
+          && Boolean(finalSpeakingTarget)
+          && Boolean(currentTeacherMessageId)
+          && (
+            !writingTask
+            || writingTask.completed
+            || String(writingTask.messageId || '').trim() !== String(currentTeacherMessageId || '').trim()
+          )
+        if (shouldCreateWritingFallback) {
+          const fallbackTeacherText = String(currentTeacherText || finalSpeakingTarget).trim()
+          const rebuiltTargets = currentWritingCopyTargets.length > 0
+            ? currentWritingCopyTargets
+            : [finalSpeakingTarget]
+          const rebuiltTask = buildWritingTask(currentTeacherMessageId, fallbackTeacherText, rebuiltTargets)
+          setWritingTask(rebuiltTask)
+          setWritingDraft('')
+          setWritingEvalResult(null)
+          setReviewMiniPackCompleted(false)
+          setReviewDrillStage('writing')
+          setReviewSpeakingTargetSentence(finalSpeakingTarget)
+          void persistWritingTaskSnapshot(rebuiltTask, 2)
+        }
+        if (mustStayWritingStage || hasPendingWriting || shouldCreateWritingFallback) {
+          setReviewDrillStage('writing')
+        } else {
+          setReviewDrillStage('speaking')
+        }
+        if (finalSpeakingTarget) {
+          setReviewSpeakingTargetSentence(finalSpeakingTarget)
+        }
+        if (isFromDrill && payload.correctionNote) {
+          toast({ title: payload.correctionNote, variant: 'default' })
+        }
+      } else if (payload.reviewDrill?.type === 'listening') {
+        setReviewDrillStage('listening')
+        setSpeakingDrillPhase('idle')
+        setSpeakingDrillCycleCount(0)
+        setSpeakingDrillBlob(null)
+        let optsWords = Array.isArray(payload.reviewDrill.options)
+          ? payload.reviewDrill.options.map((x) => String(x || '').trim()).filter(Boolean)
+          : []
+        if (optsWords.length === 0) {
+          const promptForFallback = String(
+            payload.reviewDrill.prompt || payload.intentAnswer || payload.mainSentence || ''
+          ).trim()
+          optsWords = promptForFallback
+            .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+            .split(/\s+/)
+            .map((x) => x.trim())
+            .filter((x) => x.length >= 2)
+            .slice(0, 10)
+        }
+        const promptForListening = String(
+          payload.reviewDrill.prompt || payload.intentAnswer || payload.mainSentence || ''
+        ).trim()
+        const expectedKeywords = Array.isArray(payload.reviewDrill.expectedKeywords)
+          ? payload.reviewDrill.expectedKeywords.map((x) => String(x || '').trim()).filter(Boolean)
+          : []
+        const requiredCountRaw = Number(payload.reviewDrill.minMatchedKeywords || 3)
+        const requiredCount = Number.isFinite(requiredCountRaw)
+          ? Math.max(1, Math.min(3, Math.floor(requiredCountRaw)))
+          : 3
+        const uniqueOptions = Array.from(new Set(optsWords))
+        const visibleLimit = Math.min(8, Math.max(requiredCount + 2, 5))
+        const seeded = ensureListeningVisibleHasCorrectOption(
+          uniqueOptions.slice(0, visibleLimit),
+          uniqueOptions.slice(visibleLimit),
+          uniqueOptions,
+          expectedKeywords
+        )
+        setReviewListeningPrompt(promptForListening)
+        setReviewListeningOptions(uniqueOptions)
+        setReviewListeningVisibleOptions(seeded.visible)
+        setReviewListeningRemainingOptions(seeded.remaining)
+        setReviewListeningExpectedKeywords(expectedKeywords)
+        setReviewListeningRequiredCount(requiredCount)
+        setReviewListeningResultByWord({})
+        setReviewListeningSelected([])
+        setReviewListeningPopupOpen(true)
+        if (isFromDrill && payload.correctionNote) {
+          toast({ title: payload.correctionNote, variant: 'default' })
+        }
+      } else if (payload.reviewDrill?.type === 'done') {
+        setReviewDrillStage('idle')
+        setReviewMiniPackCompleted(true)
+        setReviewListeningPopupOpen(false)
+        setReviewListeningPrompt('')
+        setReviewListeningOptions([])
+        setReviewListeningVisibleOptions([])
+        setReviewListeningRemainingOptions([])
+        setReviewListeningExpectedKeywords([])
+        setReviewListeningRequiredCount(3)
+        setReviewListeningResultByWord({})
+        setReviewListeningSelected([])
+        setSpeakingDrillPhase('idle')
+        setSpeakingDrillCycleCount(0)
+        setSpeakingDrillBlob(null)
+        setWritingTask(null)
+        setReviewSpeakingTargetSentence('')
+        setWritingDraft('')
+      } else if (!payload.reviewDrill?.type && !isFromDrill) {
+        setReviewDrillStage('idle')
       }
     } catch (e) {
       const msg = unknownErrorMsg(e)
@@ -5275,13 +5962,16 @@ export default function HocTiengAnhAiClientPage() {
     }
   }
 
-  const submitReviewListeningDrill = async () => {
+  const submitReviewListeningDrill = async (pickedOverride?: string[]) => {
     if (reviewListeningSubmitBusy) return
-    const picked = reviewListeningSelected.map((x) => String(x || '').trim()).filter(Boolean)
-    if (picked.length === 0) {
+    const picked = (pickedOverride || reviewListeningSelected).map((x) => String(x || '').trim()).filter(Boolean)
+    if (picked.length !== reviewListeningRequiredCount) {
       toast({
-        title: localText('Chưa chọn từ nào', 'No words selected'),
-        description: localText('Hãy chọn ít nhất 1 từ bạn nghe thấy.', 'Pick at least one word you heard.'),
+        title: localText('Chưa đủ từ đúng', 'Not enough correct words yet'),
+        description: localText(
+          `Hãy tìm đủ ${reviewListeningRequiredCount} từ nghe đúng để hoàn thành.`,
+          `Find ${reviewListeningRequiredCount} correct words to complete.`
+        ),
         variant: 'destructive',
       })
       return
@@ -5298,13 +5988,148 @@ export default function HocTiengAnhAiClientPage() {
     }
   }
 
-  const handleDrillListen = async () => {
+  useEffect(() => {
+    if (reviewDrillStage !== 'listening') return
+    if (!reviewListeningPopupOpen) return
+    if (reviewListeningSubmitBusy) return
+    if (reviewListeningSelected.length < reviewListeningRequiredCount) return
+    void submitReviewListeningDrill(reviewListeningSelected)
+  }, [
+    reviewDrillStage,
+    reviewListeningPopupOpen,
+    reviewListeningSubmitBusy,
+    reviewListeningSelected,
+    reviewListeningRequiredCount,
+  ])
+
+  useEffect(() => {
+    if (reviewDrillStage !== 'listening') return
+    if (!reviewListeningPopupOpen) return
+    const next = ensureListeningVisibleHasCorrectOption(
+      reviewListeningVisibleOptions,
+      reviewListeningRemainingOptions,
+      reviewListeningOptions,
+      reviewListeningExpectedKeywords
+    )
+    const sameVisible =
+      next.visible.length === reviewListeningVisibleOptions.length
+      && next.visible.every((x, i) => x === reviewListeningVisibleOptions[i])
+    const sameRemaining =
+      next.remaining.length === reviewListeningRemainingOptions.length
+      && next.remaining.every((x, i) => x === reviewListeningRemainingOptions[i])
+    if (!sameVisible) setReviewListeningVisibleOptions(next.visible)
+    if (!sameRemaining) setReviewListeningRemainingOptions(next.remaining)
+  }, [
+    reviewDrillStage,
+    reviewListeningPopupOpen,
+    reviewListeningVisibleOptions,
+    reviewListeningRemainingOptions,
+    reviewListeningOptions,
+    reviewListeningExpectedKeywords,
+  ])
+
+  useEffect(() => {
+    if (reviewDrillStage !== 'listening') return
+    if (!reviewListeningPopupOpen) return
+    const textToPlay = String(reviewListeningPrompt || '').trim()
+    if (!textToPlay) return
+    const timer = window.setTimeout(() => {
+      void replayCorrectionSentence(textToPlay)
+    }, 1000)
+    return () => window.clearTimeout(timer)
+  }, [reviewDrillStage, reviewListeningPopupOpen, reviewListeningPrompt])
+
+  useEffect(() => {
+    if (reviewDrillStage !== 'speaking') return
+    if (String(reviewSpeakingTargetSentence || '').trim()) return
+    const fallbackTarget = String(
+      writingTask?.referenceSentence
+      || writingTask?.requiredSentences?.[0]
+      || ''
+    ).trim()
+    if (fallbackTarget && isSentenceInTargetLanguage(fallbackTarget, languageCode)) {
+      setReviewSpeakingTargetSentence(fallbackTarget)
+    }
+  }, [
+    reviewDrillStage,
+    reviewSpeakingTargetSentence,
+    writingTask?.referenceSentence,
+    writingTask?.requiredSentences,
+    languageCode,
+  ])
+
+  const onReviewListeningWordTap = (word: string) => {
+    if (reviewListeningSubmitBusy) return
+    const normalizedWord = String(word || '').trim().toLowerCase()
+    if (!normalizedWord) return
+    const expected = new Set(reviewListeningExpectedKeywords.map((x) => String(x || '').trim().toLowerCase()).filter(Boolean))
+    const isCorrect = expected.has(normalizedWord)
+    setReviewListeningResultByWord((prev) => ({ ...prev, [word]: isCorrect ? 'correct' : 'wrong' }))
+
+    if (isCorrect && !reviewListeningSelected.includes(word)) {
+      const nextPicked = [...reviewListeningSelected, word].slice(0, reviewListeningRequiredCount)
+      setReviewListeningSelected(nextPicked)
+    }
+
+    window.setTimeout(() => {
+      let replacement = ''
+      setReviewListeningRemainingOptions((prev) => {
+        if (prev.length === 0) return prev
+        replacement = String(prev[0] || '').trim()
+        return prev.slice(1)
+      })
+      setReviewListeningVisibleOptions((prev) => {
+        if (!replacement) {
+          const currentSet = new Set(prev)
+          replacement =
+            reviewListeningOptions.find((x) => {
+              const t = String(x || '').trim()
+              return t && t !== word && !currentSet.has(t)
+            }) || ''
+        }
+        const next = replacement ? prev.map((x) => (x === word ? replacement : x)) : [...prev]
+        return shuffleListeningWords(next)
+      })
+      setReviewListeningResultByWord((prev) => {
+        const next = { ...prev }
+        delete next[word]
+        if (replacement) delete next[replacement]
+        return next
+      })
+    }, 320)
+  }
+
+  const startDrillListenAndRecord = async () => {
     if (!reviewSpeakingTargetSentence) return
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+      toast({
+        title: localText('Thiết bị chưa hỗ trợ', 'Device not supported'),
+        description: localText('Trình duyệt này chưa hỗ trợ ghi âm microphone.', 'This browser does not support microphone recording.'),
+        variant: 'destructive',
+      })
+      return
+    }
+    setSpeakingDrillPhase('playing')
     try {
       await replayCorrectionSentence(reviewSpeakingTargetSentence)
-      setSpeakingDrillPhase('afterListen')
     } catch {
-      // keep phase as listen on error
+      setSpeakingDrillPhase('idle')
+      return
+    }
+    recordingForDrillRef.current = true
+    onDrillRecordingCompleteRef.current = (blob: Blob) => {
+      setSpeakingDrillBlob(blob)
+      setSpeakingDrillPhase('afterRecord')
+    }
+    setSpeakingDrillPhase('recording')
+    try {
+      await startMixedRecording()
+    } catch (e) {
+      recordingForDrillRef.current = false
+      onDrillRecordingCompleteRef.current = null
+      setSpeakingDrillPhase('idle')
+      const msg = unknownErrorMsg(e)
+      toast({ title: coachUiText.micErrorTitle, description: msg, variant: 'destructive' })
     }
   }
 
@@ -5328,14 +6153,19 @@ export default function HocTiengAnhAiClientPage() {
     } catch (e) {
       recordingForDrillRef.current = false
       onDrillRecordingCompleteRef.current = null
-      setSpeakingDrillPhase('afterListen')
+      setSpeakingDrillPhase('afterRecord')
       const msg = unknownErrorMsg(e)
       toast({ title: coachUiText.micErrorTitle, description: msg, variant: 'destructive' })
     }
   }
 
-  const playSpeakingDrillBlob = () => {
-    if (!speakingDrillBlob) return
+  const playSpeakingDrillBlob = async () => {
+    if (!speakingDrillBlob) {
+      if (reviewSpeakingTargetSentence) {
+        await replayCorrectionSentence(reviewSpeakingTargetSentence)
+      }
+      return
+    }
     const url = URL.createObjectURL(speakingDrillBlob)
     const audio = new Audio(url)
     audio.playbackRate = playbackSpeedRef.current
@@ -5349,19 +6179,18 @@ export default function HocTiengAnhAiClientPage() {
     setSpeakingDrillCycleCount(nextCount)
     setSpeakingDrillBlob(null)
     if (nextCount < 3) {
-      setSpeakingDrillPhase('listen')
+      void startDrillListenAndRecord()
       return
     }
-    setSpeakingDrillPhase('listen')
+    setSpeakingDrillPhase('idle')
     setBusy(true)
     setAwaitingTeacherReply(true)
-    const studentMessageId = appendMessage('student', reviewSpeakingTargetSentence)
-    chatScrollRef.current?.scrollIntoView({ behavior: 'smooth' })
     try {
       await handleSend(reviewSpeakingTargetSentence, 'text', undefined, {
-        existingStudentMessageId: studentMessageId,
+        silentDrill: true,
         drillSpeaking: true,
       })
+      chatScrollRef.current?.scrollIntoView({ behavior: 'smooth' })
     } catch (e) {
       const msg = unknownErrorMsg(e)
       toast({ title: localText('Lỗi hội thoại', 'Conversation error'), description: msg, variant: 'destructive' })
@@ -7011,7 +7840,8 @@ export default function HocTiengAnhAiClientPage() {
                             const correctionNote = String(correctionNoteByMessageId[m.id] || '').trim()
                             const correctedSentence = String(mainSentenceByMessageId[m.id] || '').trim()
                             const intentAnswer = String(intentAnswerByMessageId[m.id] || '').trim()
-                            const hasStructured = Boolean(correctionNote || correctedSentence || intentAnswer)
+                            const correctionItems = correctionsByMessageId[m.id] || []
+                            const hasStructured = Boolean(correctionNote || correctedSentence || intentAnswer || correctionItems.length > 0)
                             if (!hasStructured) return <p className="break-words">{m.text}</p>
                             const skipPinyin2 = correctedSentence && hasEmbeddedPinyin(correctedSentence)
                             const skipPinyin3 = intentAnswer && hasEmbeddedPinyin(intentAnswer)
@@ -7027,6 +7857,22 @@ export default function HocTiengAnhAiClientPage() {
                                   <span className="font-semibold text-rose-700">{localText('Ý 1 - Sửa lỗi:', 'Idea 1 - Error fix:')}</span>{' '}
                                   {correctionNote || localText('Không có lỗi lớn cần sửa.', 'No major correction needed.')}
                                 </p>
+                                {correctionItems.length > 0 ? (
+                                  <div className="ml-1 rounded-md border border-rose-100 bg-rose-50/40 p-2 text-[11px]">
+                                    <p className="font-semibold text-rose-800">{localText('Lỗi cần sửa', 'Corrections needed')}</p>
+                                    <div className="mt-1 space-y-1.5">
+                                      {correctionItems.map((item, itemIdx) => (
+                                        <div key={`${item.original}-${item.fixed}-${itemIdx}`} className="space-y-0.5 text-slate-700">
+                                          <p><span className="font-semibold text-rose-700">{localText('Bạn nói:', 'You said:')}</span> {item.original || '-'}</p>
+                                          <p><span className="font-semibold text-emerald-700">{localText('Nên nói:', 'Better:')}</span> {item.fixed || '-'}</p>
+                                          {item.explanationVi ? (
+                                            <p className="text-slate-500">{item.explanationVi}</p>
+                                          ) : null}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                ) : null}
                                 <div>
                                   <p>
                                     <span className="font-semibold text-emerald-700">{localText('Ý 2 - Câu sửa hoàn chỉnh:', 'Idea 2 - Corrected full sentence:')}</span>{' '}
@@ -7684,7 +8530,7 @@ export default function HocTiengAnhAiClientPage() {
                           )}
                         </p>
                       ) : (
-                        <p className="text-xs text-emerald-700">{localText('Đã hoàn thành. Bạn có thể tiếp tục hội thoại.', 'Completed. You can continue the conversation.')}</p>
+                        <p className="text-xs text-emerald-700">{localText('Đã hoàn thành mini viết. Tiếp tục Mini 2/3 (luyện nói), rồi Mini 3/3 (luyện nghe).', 'Writing mini is completed. Continue Mini 2/3 (speaking), then Mini 3/3 (listening).')}</p>
                       )}
                     </div>
                     {writingEvalResult ? (
@@ -7723,8 +8569,10 @@ export default function HocTiengAnhAiClientPage() {
                 </div>
               ) : null}
               {learningMode === 'review' &&
-                writingTask?.completed &&
-                (reviewDrillStage === 'writing' || reviewDrillStage === 'speaking') ? (
+                (
+                  reviewDrillStage === 'speaking'
+                  || reviewDrillStage === 'writing'
+                ) ? (
                 <div ref={miniSpeakingBlockRef} className="min-w-0 rounded-md border border-indigo-200 bg-indigo-50/60 p-2.5">
                   <p className="text-sm font-semibold text-indigo-800">
                     {localText('Mini 2/3: Luyện phát âm', 'Mini 2/3: Pronunciation practice')}
@@ -7743,30 +8591,32 @@ export default function HocTiengAnhAiClientPage() {
                   <p className="mt-1 text-xs font-medium text-indigo-600">
                     {localText('Tiến độ:', 'Progress:')} {speakingDrillCycleCount}/3
                   </p>
+                  {learningMode === 'review' && reviewDrillStage === 'writing' && Boolean(writingTask) && !writingTask.completed ? (
+                    <p className="mt-1 text-xs text-indigo-700">
+                      {localText('Đã hiển thị sẵn mini nói. Hãy hoàn thành mini viết để mở nút luyện nói.', 'Speaking mini is shown. Complete writing mini to unlock speaking actions.')}
+                    </p>
+                  ) : null}
                   <div className="mt-3 flex flex-wrap gap-2">
-                    {speakingDrillPhase === 'listen' ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => void handleDrillListen()}
-                        disabled={!reviewSpeakingTargetSentence || isReplayButtonDisabled(correctionAudioKey(reviewSpeakingTargetSentence), hasCachedTeacherAudio(correctionAudioKey(reviewSpeakingTargetSentence)))}
-                        className="min-h-[36px]"
-                      >
-                        <Volume2 className="mr-2 h-4 w-4" />
-                        {localText('Nghe', 'Listen')}
-                      </Button>
-                    ) : speakingDrillPhase === 'afterListen' ? (
+                    {speakingDrillPhase === 'idle' ? (
                       <Button
                         type="button"
                         variant="default"
                         size="sm"
-                        onClick={() => void startDrillSpeakingRecording()}
-                        className="min-h-[36px] ring-2 ring-indigo-400 ring-offset-2"
+                        onClick={() => void startDrillListenAndRecord()}
+                        disabled={
+                          !reviewSpeakingTargetSentence
+                          || (learningMode === 'review' && reviewDrillStage === 'writing' && Boolean(writingTask) && !writingTask.completed)
+                        }
+                        className="min-h-[36px]"
                       >
-                        <Mic className="mr-2 h-4 w-4" />
-                        {localText('Nói', 'Speak')}
+                        <Volume2 className="mr-2 h-4 w-4" />
+                        {localText('Luyện phát âm câu mục tiêu', 'Practice target sentence pronunciation')}
                       </Button>
+                    ) : speakingDrillPhase === 'playing' ? (
+                      <p className="flex items-center gap-2 text-sm text-indigo-700">
+                        <span className="inline-flex h-2 w-2 animate-pulse rounded-full bg-indigo-500" />
+                        {localText('Đang phát câu mục tiêu...', 'Playing target sentence...')}
+                      </p>
                     ) : speakingDrillPhase === 'recording' ? (
                       <p className="flex items-center gap-2 text-sm text-indigo-700">
                         <span className="inline-flex h-2 w-2 animate-pulse rounded-full bg-indigo-500" />
@@ -7779,7 +8629,10 @@ export default function HocTiengAnhAiClientPage() {
                           variant="outline"
                           size="sm"
                           onClick={playSpeakingDrillBlob}
-                          disabled={!speakingDrillBlob}
+                          disabled={
+                            (!speakingDrillBlob && !reviewSpeakingTargetSentence)
+                            || (learningMode === 'review' && reviewDrillStage === 'writing' && Boolean(writingTask) && !writingTask.completed)
+                          }
                           className="min-h-[36px]"
                         >
                           <Play className="mr-2 h-4 w-4" />
@@ -7790,6 +8643,7 @@ export default function HocTiengAnhAiClientPage() {
                           variant="outline"
                           size="sm"
                           onClick={() => void startDrillSpeakingRecording()}
+                          disabled={learningMode === 'review' && reviewDrillStage === 'writing' && Boolean(writingTask) && !writingTask.completed}
                           className="min-h-[36px]"
                         >
                           <RotateCcw className="mr-2 h-4 w-4" />
@@ -7800,7 +8654,7 @@ export default function HocTiengAnhAiClientPage() {
                           variant="default"
                           size="sm"
                           onClick={() => void submitSpeakingDrillCycle()}
-                          disabled={busy}
+                          disabled={busy || (learningMode === 'review' && reviewDrillStage === 'writing' && Boolean(writingTask) && !writingTask.completed)}
                           className="min-h-[36px]"
                         >
                           <Send className="mr-2 h-4 w-4" />
@@ -7811,7 +8665,7 @@ export default function HocTiengAnhAiClientPage() {
                   </div>
                 </div>
               ) : null}
-              {learningMode === 'review' && reviewDrillStage === 'listening' && reviewListeningOptions.length > 0 ? (
+              {learningMode === 'review' && reviewDrillStage === 'listening' && reviewListeningVisibleOptions.length > 0 && !reviewListeningPopupOpen ? (
                 <div ref={miniListeningBlockRef} className="min-w-0 rounded-md border border-emerald-200 bg-emerald-50/60 p-2.5">
                   <p className="text-sm font-semibold text-emerald-800">
                     {localText('Mini 3/3: Chọn từ bạn nghe thấy', 'Mini 3/3: Pick words you heard')}
@@ -7822,43 +8676,29 @@ export default function HocTiengAnhAiClientPage() {
                       'Listen to the teacher line again and pick words you heard.'
                     )}
                   </p>
-                  {reviewListeningPrompt ? (
-                    <p className="mt-2 rounded border border-emerald-200 bg-white px-2 py-1.5 text-sm text-slate-700">
-                      {reviewListeningPrompt}
-                    </p>
-                  ) : null}
+                  <p className="mt-1 text-xs text-emerald-700">
+                    {localText('Đúng:', 'Correct:')} {reviewListeningSelected.length}/{reviewListeningRequiredCount}
+                  </p>
                   <div className="mt-3 flex flex-wrap gap-2">
-                    {reviewListeningOptions.map((word) => {
-                      const active = reviewListeningSelected.includes(word)
+                    {reviewListeningVisibleOptions.map((word) => {
+                      const status = reviewListeningResultByWord[word]
+                      const variant = status === 'correct' ? 'default' : status === 'wrong' ? 'destructive' : 'outline'
                       return (
                         <Button
                           key={word}
                           type="button"
-                          variant={active ? 'default' : 'outline'}
+                          variant={variant}
                           size="sm"
-                          onClick={() => {
-                            setReviewListeningSelected((prev) =>
-                              prev.includes(word) ? prev.filter((x) => x !== word) : [...prev, word]
-                            )
-                          }}
+                          onClick={() => onReviewListeningWordTap(word)}
+                          disabled={reviewListeningSubmitBusy || Boolean(status)}
                           className="h-auto min-h-[36px] whitespace-normal"
                         >
-                          {word}
+                          {displayListeningWord(word)}
                         </Button>
                       )
                     })}
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
-                    <Button
-                      type="button"
-                      onClick={() => void submitReviewListeningDrill()}
-                      disabled={reviewListeningSubmitBusy}
-                      className="min-h-[36px]"
-                    >
-                      {reviewListeningSubmitBusy
-                        ? localText('Đang chấm...', 'Checking...')
-                        : localText('Nộp đáp án nghe', 'Submit listening answer')}
-                    </Button>
                     <Button
                       type="button"
                       variant="ghost"
@@ -7891,18 +8731,6 @@ export default function HocTiengAnhAiClientPage() {
                         <p><span className="font-semibold text-red-600">{localText('Bạn nói:', 'You said:')}</span> {c.original}</p>
                         <p><span className="font-semibold text-emerald-700">{localText('Nên nói:', 'Better:')}</span> {c.fixed}</p>
                         <p className="break-words text-muted-foreground">{c.explanationVi}</p>
-                        <div className="mt-2">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => void replayCorrectionSentence(c.fixed)}
-                            disabled={isReplayButtonDisabled(correctionAudioKey(c.fixed), hasCachedTeacherAudio(correctionAudioKey(c.fixed)))}
-                          >
-                            <Volume2 className="mr-2 h-4 w-4" />
-                            {localText('Nghe câu đúng', 'Play corrected sentence')}
-                          </Button>
-                        </div>
                       </div>
                     ))}
                   </div>
@@ -8288,52 +9116,40 @@ export default function HocTiengAnhAiClientPage() {
         </div>
       ) : null}
       {reviewListeningPopupOpen ? (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-3 sm:items-center sm:p-4">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/90 backdrop-blur-sm p-3 sm:items-center sm:p-4">
           <div className="w-full max-w-lg rounded-lg border bg-white p-5 shadow-xl">
             <h3 className="text-lg font-semibold text-slate-900">
               {localText('Luyện nghe nhanh', 'Quick listening drill')}
             </h3>
             <p className="mt-2 text-sm text-slate-600">
               {localText(
-                'Nghe lại câu của giáo viên và chọn các từ bạn nghe thấy.',
-                'Listen to the teacher line again and pick words you heard.'
+                'Nghe lại câu audio và chọn đúng 3 từ bạn nghe thấy.',
+                'Replay the audio and pick exactly 3 words you heard.'
               )}
             </p>
-            {reviewListeningPrompt ? (
-              <p className="mt-3 rounded-md bg-slate-50 p-3 text-sm text-slate-700">
-                {reviewListeningPrompt}
-              </p>
-            ) : null}
+            <p className="mt-1 text-sm text-slate-600">
+              {localText('Đúng:', 'Correct:')} {reviewListeningSelected.length}/{reviewListeningRequiredCount}
+            </p>
             <div className="mt-3 flex flex-wrap gap-2">
-              {reviewListeningOptions.map((word) => {
-                const active = reviewListeningSelected.includes(word)
+              {reviewListeningVisibleOptions.map((word) => {
+                const status = reviewListeningResultByWord[word]
+                const variant = status === 'correct' ? 'default' : status === 'wrong' ? 'destructive' : 'outline'
                 return (
                   <Button
                     key={word}
                     type="button"
-                    variant={active ? 'default' : 'outline'}
+                    variant={variant}
                     size="sm"
-                    onClick={() => {
-                      setReviewListeningSelected((prev) =>
-                        prev.includes(word) ? prev.filter((x) => x !== word) : [...prev, word]
-                      )
-                    }}
+                    onClick={() => onReviewListeningWordTap(word)}
+                    disabled={reviewListeningSubmitBusy || Boolean(status)}
                     className="h-auto min-h-[36px] whitespace-normal"
                   >
-                    {word}
+                    {displayListeningWord(word)}
                   </Button>
                 )
               })}
             </div>
             <div className="mt-4 grid gap-2 sm:grid-cols-2">
-              <Button
-                type="button"
-                onClick={() => void submitReviewListeningDrill()}
-                disabled={reviewListeningSubmitBusy}
-                className="min-h-[44px]"
-              >
-                {reviewListeningSubmitBusy ? localText('Đang chấm...', 'Checking...') : localText('Nộp đáp án nghe', 'Submit listening answer')}
-              </Button>
               <Button
                 type="button"
                 variant="ghost"
@@ -8345,6 +9161,59 @@ export default function HocTiengAnhAiClientPage() {
               >
                 {localText('Nghe lại câu', 'Play line again')}
               </Button>
+              <div
+                className="inline-flex min-h-[44px] flex-col items-start justify-center gap-0.5 rounded-md border border-slate-200 bg-slate-50 px-2"
+                title={localText('Tốc độ giọng nói', 'Voice playback speed')}
+              >
+                <span className="text-[11px] text-slate-500">
+                  {localText('Tốc độ giọng nói', 'Voice speed')}
+                </span>
+                <div className="flex items-center rounded-md border border-slate-200 bg-white">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 min-w-8 p-0 shrink-0"
+                    disabled={playbackSpeed <= 0.75}
+                    onClick={() => {
+                      const speeds = [0.75, 1, 1.25, 1.5]
+                      const i = speeds.indexOf(playbackSpeed)
+                      if (i <= 0) return
+                      const next = speeds[i - 1]
+                      playbackSpeedRef.current = next
+                      setPlaybackSpeed(next)
+                      if (audioRef.current && !audioRef.current.paused) {
+                        audioRef.current.playbackRate = next
+                      }
+                    }}
+                  >
+                    <Minus className="h-3.5 w-3.5" />
+                  </Button>
+                  <span className="min-w-[2.25rem] text-center text-xs font-medium text-slate-600">
+                    {playbackSpeed}x
+                  </span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 min-w-8 p-0 shrink-0"
+                    disabled={playbackSpeed >= 1.5}
+                    onClick={() => {
+                      const speeds = [0.75, 1, 1.25, 1.5]
+                      const i = speeds.indexOf(playbackSpeed)
+                      if (i >= speeds.length - 1) return
+                      const next = speeds[i + 1]
+                      playbackSpeedRef.current = next
+                      setPlaybackSpeed(next)
+                      if (audioRef.current && !audioRef.current.paused) {
+                        audioRef.current.playbackRate = next
+                      }
+                    }}
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
             </div>
           </div>
         </div>

@@ -117,6 +117,165 @@ function softSimilarity(a: string, b: string): number {
   return (2 * overlap) / (aa.size + bb.size)
 }
 
+type TurnDiagnosticsSnapshot = {
+  inputSource: 'text' | 'mic'
+  speakingMode: 'auto' | 'target' | 'native' | 'mixed'
+  hadCorrections: boolean
+  pronunciationScore: number | null
+  pronunciationAccuracy: number | null
+  pronunciationFluency: number | null
+  pronunciationProsody: number | null
+  weakWords: string[]
+  wordScores: Array<{ word: string; score: number; issueType: string }>
+  inferredMeaning: string | null
+  targetTranscript: string | null
+  nativeTranscript: string | null
+  mergedTranscript: string | null
+  createdAt: string | null
+}
+
+type RawTurnDiagnosticsRow = {
+  input_source?: string | null
+  speaking_mode?: string | null
+  had_corrections?: boolean | null
+  pronunciation_score?: number | null
+  pronunciation_accuracy?: number | null
+  pronunciation_fluency?: number | null
+  pronunciation_prosody?: number | null
+  weak_words_json?: string | null
+  word_scores_json?: string | null
+  inferred_meaning?: string | null
+  target_transcript?: string | null
+  native_transcript?: string | null
+  merged_transcript?: string | null
+  created_at?: string | null
+}
+
+function parseJsonArraySafe<T>(input: string | null | undefined): T[] {
+  const raw = String(input || '').trim()
+  if (!raw) return []
+  try {
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? (parsed as T[]) : []
+  } catch {
+    return []
+  }
+}
+
+function normalizeDiagnosticsRow(row: RawTurnDiagnosticsRow): TurnDiagnosticsSnapshot {
+  const weakWords = parseJsonArraySafe<unknown>(row.weak_words_json)
+    .map((x) => String(x || '').trim())
+    .filter(Boolean)
+    .slice(0, 24)
+  const wordScores = parseJsonArraySafe<{ word?: unknown; score?: unknown; issueType?: unknown }>(row.word_scores_json)
+    .map((x) => ({
+      word: String(x?.word || '').trim(),
+      score: Number.isFinite(Number(x?.score)) ? Math.min(100, Math.max(0, Math.round(Number(x?.score)))) : 0,
+      issueType: String(x?.issueType || '').trim() || 'unclear',
+    }))
+    .filter((x) => x.word)
+    .slice(0, 24)
+  const toScore = (value: unknown) =>
+    Number.isFinite(Number(value)) ? Math.min(100, Math.max(0, Math.round(Number(value)))) : null
+  return {
+    inputSource: String(row.input_source || '').trim() === 'mic' ? 'mic' : 'text',
+    speakingMode: (() => {
+      const mode = String(row.speaking_mode || '').trim().toLowerCase()
+      return mode === 'target' || mode === 'native' || mode === 'mixed' ? mode : 'auto'
+    })(),
+    hadCorrections: Boolean(row.had_corrections),
+    pronunciationScore: toScore(row.pronunciation_score),
+    pronunciationAccuracy: toScore(row.pronunciation_accuracy),
+    pronunciationFluency: toScore(row.pronunciation_fluency),
+    pronunciationProsody: toScore(row.pronunciation_prosody),
+    weakWords,
+    wordScores,
+    inferredMeaning: String(row.inferred_meaning || '').trim() || null,
+    targetTranscript: String(row.target_transcript || '').trim() || null,
+    nativeTranscript: String(row.native_transcript || '').trim() || null,
+    mergedTranscript: String(row.merged_transcript || '').trim() || null,
+    createdAt: String(row.created_at || '').trim() || null,
+  }
+}
+
+function mapDiagnosticsToStudentMessages(
+  rows: Array<{ id: string; role: string; text: string | null }>,
+  diagnosticsRows: RawTurnDiagnosticsRow[]
+): Map<string, TurnDiagnosticsSnapshot> {
+  const snapshots = diagnosticsRows.map((r) => normalizeDiagnosticsRow(r))
+  const used = new Set<number>()
+  const mapped = new Map<string, TurnDiagnosticsSnapshot>()
+
+  const candidatesByIndex = snapshots.map((s) => {
+    const rawCandidates = [s.mergedTranscript, s.targetTranscript, s.nativeTranscript]
+    const normalized = rawCandidates
+      .map((x) => normalizeText(String(x || '')))
+      .filter(Boolean)
+    return Array.from(new Set(normalized))
+  })
+
+  for (const row of rows) {
+    if (row.role !== 'student') continue
+    const rowText = normalizeText(String(row.text || ''))
+    if (!rowText) continue
+
+    let pickedIndex = -1
+    let pickedScore = 0
+
+    for (let i = 0; i < snapshots.length; i += 1) {
+      if (used.has(i)) continue
+      const candidates = candidatesByIndex[i]
+      if (candidates.length === 0) continue
+      for (const candidate of candidates) {
+        const sim = softSimilarity(rowText, candidate)
+        if (sim > pickedScore) {
+          pickedScore = sim
+          pickedIndex = i
+        }
+      }
+    }
+
+    if (pickedIndex >= 0 && pickedScore >= 0.72) {
+      used.add(pickedIndex)
+      mapped.set(row.id, snapshots[pickedIndex])
+    }
+  }
+
+  return mapped
+}
+
+function parseWritingTaskRaw(input: string | null | undefined): {
+  messageId?: string
+  requiredSentences?: string[]
+  currentIndex?: number
+  completed?: boolean
+  teacherText?: string
+  instruction?: string
+  referenceSentence?: string
+  taskType?: 'copy_exact'
+} | null {
+  const raw = String(input || '').trim()
+  if (!raw) return null
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>
+    const requiredSentences = Array.isArray(parsed.requiredSentences)
+      ? parsed.requiredSentences.map((x) => String(x || '').trim()).filter(Boolean).slice(0, 6)
+      : []
+    return {
+      messageId: String(parsed.messageId || '').trim() || undefined,
+      requiredSentences: requiredSentences.length > 0 ? requiredSentences : undefined,
+      currentIndex: Number.isFinite(Number(parsed.currentIndex)) ? Math.max(0, Math.floor(Number(parsed.currentIndex))) : undefined,
+      completed: typeof parsed.completed === 'boolean' ? parsed.completed : undefined,
+      teacherText: String(parsed.teacherText || '').trim() || undefined,
+      instruction: String(parsed.instruction || '').trim() || undefined,
+      referenceSentence: String(parsed.referenceSentence || '').trim() || undefined,
+      taskType: String(parsed.taskType || '').trim() === 'copy_exact' ? 'copy_exact' : undefined,
+    }
+  } catch {
+    return null
+  }
+}
+
 function buildTurns(
   rows: Array<{
     id: string
@@ -130,9 +289,11 @@ function buildTurns(
     intent_answer: string | null
     tokens_json: string | null
     writing_task_json: string | null
+    ai_payload_json: string | null
     teacher_label: string | null
     teacher_locale: string | null
-  }>
+  }>,
+  studentDiagnosticsByMessageId?: Map<string, TurnDiagnosticsSnapshot>
 ) {
   const turns: Array<{
     sourceStudentDbMessageId: string
@@ -151,9 +312,11 @@ function buildTurns(
     teacherTranslation: string | null
     teacherTokensJson: string | null
     teacherWritingTaskJson: string | null
+    teacherAiPayloadJson: string | null
     teacherMainSentence: string | null
     teacherCorrectionNote: string | null
     teacherIntentAnswer: string | null
+    studentDiagnostics: TurnDiagnosticsSnapshot | null
     replayPayloadJson: string
   }> = []
 
@@ -173,6 +336,16 @@ function buildTurns(
     const teacherReply = String(teacher.text || '').trim()
     if (!teacherReply) continue
     const standardizedStudentText = String(teacher.main_sentence || '').trim() || expected
+    const studentDiagnostics = studentDiagnosticsByMessageId?.get(row.id) || null
+    const writingTask = parseWritingTaskRaw(teacher.writing_task_json)
+    const speakingTarget =
+      String(teacher.main_sentence || '').trim()
+      || String(writingTask?.requiredSentences?.[0] || '').trim()
+      || null
+    const listeningPrompt =
+      String(teacher.intent_answer || '').trim()
+      || teacherReply
+      || null
     const replayPayloadJson = JSON.stringify({
       sourceStudentText: expected,
       standardizedStudentText,
@@ -180,6 +353,7 @@ function buildTurns(
         dbMessageId: row.id,
         clientMessageId: row.client_message_id || null,
         audioUrl: row.audio_url || null,
+        diagnostics: studentDiagnostics,
       },
       teacher: {
         dbMessageId: teacher.id,
@@ -193,6 +367,12 @@ function buildTurns(
         intentAnswer: teacher.intent_answer || null,
         tokensJson: teacher.tokens_json || null,
         writingTaskJson: teacher.writing_task_json || null,
+        aiPayloadJson: teacher.ai_payload_json || null,
+      },
+      miniDrillBundle: {
+        writingTask,
+        speakingTarget,
+        listeningPrompt,
       },
     })
     turns.push({
@@ -212,9 +392,11 @@ function buildTurns(
       teacherTranslation: teacher.translation || null,
       teacherTokensJson: teacher.tokens_json || null,
       teacherWritingTaskJson: teacher.writing_task_json || null,
+      teacherAiPayloadJson: teacher.ai_payload_json || null,
       teacherMainSentence: teacher.main_sentence || null,
       teacherCorrectionNote: teacher.correction_note || null,
       teacherIntentAnswer: teacher.intent_answer || null,
+      studentDiagnostics,
       replayPayloadJson,
     })
   }
@@ -663,16 +845,34 @@ export async function POST(request: NextRequest) {
       const sessionId = String(payload.sessionId || '').trim()
       if (!sessionId) return NextResponse.json({ error: 'Thiếu sessionId.' }, { status: 400 })
 
-      const { data: rows, error } = await adminSupabase
-        .from('language_coach_messages')
-        .select('id, client_message_id, role, text, audio_url, translation, main_sentence, correction_note, intent_answer, tokens_json, writing_task_json, teacher_label, teacher_locale, target_language')
-        .eq('user_id', user.id)
-        .eq('session_id', sessionId)
-        .order('created_at', { ascending: true })
-        .limit(500)
+      const [rowsResult, diagnosticsResult] = await Promise.all([
+        adminSupabase
+          .from('language_coach_messages')
+          .select('id, client_message_id, role, text, audio_url, translation, main_sentence, correction_note, intent_answer, tokens_json, writing_task_json, ai_payload_json, teacher_label, teacher_locale, target_language')
+          .eq('user_id', user.id)
+          .eq('session_id', sessionId)
+          .order('created_at', { ascending: true })
+          .limit(500),
+        adminSupabase
+          .from('language_coach_turn_diagnostics')
+          .select(
+            'input_source, speaking_mode, had_corrections, pronunciation_score, pronunciation_accuracy, pronunciation_fluency, pronunciation_prosody, weak_words_json, word_scores_json, inferred_meaning, target_transcript, native_transcript, merged_transcript, created_at'
+          )
+          .eq('user_id', user.id)
+          .eq('session_id', sessionId)
+          .order('created_at', { ascending: true })
+          .limit(1200),
+      ])
 
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-      const turns = buildTurns(rows || [])
+      if (rowsResult.error) return NextResponse.json({ error: rowsResult.error.message }, { status: 500 })
+      if (diagnosticsResult.error) return NextResponse.json({ error: diagnosticsResult.error.message }, { status: 500 })
+
+      const rows = rowsResult.data || []
+      const studentDiagnosticsByMessageId = mapDiagnosticsToStudentMessages(
+        rows as Array<{ id: string; role: string; text: string | null }>,
+        (diagnosticsResult.data || []) as RawTurnDiagnosticsRow[]
+      )
+      const turns = buildTurns(rows, studentDiagnosticsByMessageId)
       if (turns.length < MIN_TURNS_TO_SELL) {
         return NextResponse.json(
           { error: `Session cần tối thiểu ${MIN_TURNS_TO_SELL} lượt student->teacher rõ ràng để tạo Live lesson.` },
@@ -1164,7 +1364,7 @@ export async function POST(request: NextRequest) {
       const normalizedExpected = String(turn.standardized_student_norm || '').trim()
       const strictMatch = normalizedAnswer === normalizedExpected
       const similarity = softSimilarity(answerText, String(turn.standardized_student_text || ''))
-      const matched = strictMatch || similarity >= 0.9
+      const matched = strictMatch || similarity >= 0.95
 
       if (!matched) {
         return NextResponse.json({
@@ -1173,7 +1373,7 @@ export async function POST(request: NextRequest) {
           matched: false,
           strictMatch,
           similarity: Number(similarity.toFixed(3)),
-          threshold: 0.9,
+          threshold: 0.95,
           useAiDirect: true,
           reason: 'similarity_below_threshold',
         })

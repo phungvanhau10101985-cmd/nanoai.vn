@@ -107,6 +107,17 @@ export function getHistorySession(sessionId: string) {
   return getJson<{ items?: unknown[]; error?: string }>(`/api/english-coach/history?sessionId=${encodeURIComponent(sessionId)}`)
 }
 
+export function updateMiniStageSnapshot(payload: {
+  sessionId: string
+  stage: 'idle' | 'writing' | 'speaking' | 'listening' | 'done'
+}) {
+  return sendJson<{ ok?: boolean; error?: string }>(
+    '/api/english-coach/history/mini-stage',
+    'POST',
+    payload
+  )
+}
+
 export function getPreviousLessonWords(
   limit: number,
   filters?: { targetLanguage?: string; nativeLanguage?: string }
@@ -212,6 +223,7 @@ export function updateMessageTranslation(payload: {
   tokensJson?: string
   audioUrl?: string
   writingTaskJson?: string
+  aiPayloadJson?: string
 }) {
   return sendJson<{ ok?: boolean; error?: string }>('/api/english-coach/history/update-translation', 'POST', payload)
 }

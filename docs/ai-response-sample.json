@@ -1,0 +1,34 @@
+{
+  "_usage": {
+    "reply": "Hiển thị tin nhắn thầy/cô; listening.prompt; replay; runningSummary; fallback TTS",
+    "corrections": "Hiển thị sửa lỗi (original→fixed+giải thích); repeatedMistakes, correctedSentences",
+    "pronunciationTips": "Hiển thị mẹo phát âm dưới tin nhắn",
+    "correctionNote": "Ý 1 – Sửa lỗi; nút Nghe ý 1",
+    "correctedSentence": "Ý 2 – fallback mainSentence; kiểm tra intentAnswer",
+    "intentAnswer": "Ý 3 – Trả lời tự nhiên; nút Nghe ý 3; explain",
+    "mainSentence": "Ý 2 – Câu chính; nút Nghe ý 2; drill nói; listeningKeywords; learnedPhrases",
+    "mustKnowText": "Fallback mainSentence; learnedPhrases; drill; cache (chưa có nút Nghe riêng)"
+  },
+  "reply": "Câu hoàn chỉnh (Complete sentence): I want an ice cream.\n\nBạn muốn một que kem! Từ 'ice cream' là kem trong tiếng Anh. Bạn thích vị kem nào?",
+  "corrections": [
+    {
+      "original": "i want một que kem",
+      "fixed": "I want an ice cream.",
+      "explanationVi": "Câu dùng lẫn tiếng Việt 'một que kem'. Trong tiếng Anh: 'an ice cream' (một que kem). Dùng 'an' vì 'ice cream' bắt đầu bằng nguyên âm."
+    },
+    {
+      "original": "i want",
+      "fixed": "I want",
+      "explanationVi": "Chữ 'I' (tôi) luôn viết hoa."
+    }
+  ],
+  "pronunciationTips": [
+    "Phát âm 'ice cream' /aɪs kriːm/ - hai âm tiết, nhấn 'cream'.",
+    "'an' nối với 'ice': đọc như 'a-nice' /ən aɪs/."
+  ],
+  "correctionNote": "Ý 1: Bạn dùng lẫn tiếng Việt 'một que kem'. Câu đúng bằng tiếng Anh: I want an ice cream.",
+  "correctedSentence": "I want an ice cream.",
+  "intentAnswer": "That sounds delicious! What flavor do you like?",
+  "mainSentence": "I want an ice cream.",
+  "mustKnowText": "I want an ice cream."
+}

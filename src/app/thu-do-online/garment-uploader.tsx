@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, ChangeEvent } from 'react'
+import { useRef, useState, useEffect, ChangeEvent } from 'react'
 import { Button } from '@/components/ui/button'
 import { ImagePreview } from '@/components/ui/image-preview'
 import { Upload, Shirt } from 'lucide-react'

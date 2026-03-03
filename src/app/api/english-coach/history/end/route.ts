@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
       adminSupabase
         .from('language_coach_messages')
         .select(
-          'id, role, text, audio_url, translation, language_code, target_language, teacher_label, teacher_locale, mode, main_sentence, correction_note, intent_answer, tokens_json, writing_task_json, created_at'
+          'id, role, text, audio_url, translation, language_code, target_language, teacher_label, teacher_locale, mode, main_sentence, correction_note, intent_answer, tokens_json, writing_task_json, ai_payload_json, created_at'
         )
         .eq('user_id', user.id)
         .eq('session_id', sessionId)
@@ -154,6 +154,7 @@ export async function POST(request: NextRequest) {
       intentAnswer: (r as { intent_answer?: string }).intent_answer || null,
       tokensJson: (r as { tokens_json?: string }).tokens_json || null,
       writingTaskJson: (r as { writing_task_json?: string }).writing_task_json || null,
+      aiPayloadJson: (r as { ai_payload_json?: string }).ai_payload_json || null,
       createdAt: r.created_at,
     }))
 
