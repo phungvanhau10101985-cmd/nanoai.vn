@@ -78,6 +78,8 @@ Không trộn ${input.nativeLanguage}.
 - KHÔNG đổi sang một câu khác chỉ để "diễn đạt lại".
 - Chỉ dùng câu thay thế khi thật sự có lỗi cần sửa.
 - mainSentence phải là 1 CÂU HOÀN CHỈNH bằng ${input.targetLanguage} (không phải cụm từ rời).
+- mainSentence là câu sửa câu học sinh (Ý 2), TUYỆT ĐỐI không lấy câu từ intentAnswer/Ý 3.
+- KHÔNG dùng câu chào hỏi hoặc câu hỏi mở rộng hội thoại làm mainSentence.
 - KHÔNG được làm mất thông tin cốt lõi trong câu gốc (tên bài hát, tên riêng, địa danh, mốc thời gian, số lượng).
 - Nếu có tên riêng/tên bài bằng ${input.nativeLanguage}, hãy giữ nguyên hoặc chuyển Latin/transliteration nhất quán, nhưng vẫn đảm bảo câu chính bằng ${input.targetLanguage}.
 - Nếu câu học sinh là MIX (${input.nativeLanguage} + ${input.targetLanguage}), mainSentence bắt buộc phải gộp ĐỦ TẤT CẢ ý học sinh đã nói thành 1 câu/2 câu tự nhiên bằng ${input.targetLanguage}, KHÔNG được bỏ sót vế.

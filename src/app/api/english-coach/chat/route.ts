@@ -3064,11 +3064,16 @@ ${intentAnswer || parsed.reply}`
       .split(/(?<=[.!?。！？])\s+/u)
       .map((x) => x.trim())
       .find(Boolean) || ''
+    const shouldPreferCorrectionForMainSentence =
+      hasMeaningfulCorrection && Boolean(correctedSentence)
+    const aiMainLooksLikeIntentLead =
+      Boolean(aiMainSentence)
+      && Boolean(intentLead)
+      && similarityScore(aiMainSentence, intentLead) >= 0.9
     const targetMainCandidates = [
-      aiMainSentence,
-      extractedMainSentence,
       correctedSentence,
-      intentLead,
+      aiMainLooksLikeIntentLead && shouldPreferCorrectionForMainSentence ? '' : aiMainSentence,
+      extractedMainSentence,
       studentMainSentenceCandidate,
     ]
       .map((x) => String(x || '').trim())
