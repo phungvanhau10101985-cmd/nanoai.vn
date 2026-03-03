@@ -2601,6 +2601,47 @@ export default function HocTiengAnhAiClientPage() {
   ])
 
   useEffect(() => {
+    if (!isCurrentPresetSession) return
+    const teacherRows = messages
+      .filter((m) => m.role === 'teacher')
+      .map((m, idx) => {
+        const idea2 = sanitizeLearnerReadingSentence(String(mainSentenceByMessageId[m.id] || '').trim())
+        const idea3 = sanitizeLearnerReadingSentence(String(intentAnswerByMessageId[m.id] || '').trim())
+        const fallback = sanitizeLearnerReadingSentence(takeFirstSentenceOnly(extractTeacherSpeechText(m.text)).trim())
+        return {
+          idx,
+          messageId: m.id,
+          idea2,
+          idea3,
+          fallback,
+          teacherPreview: String(m.text || '').trim().slice(0, 120),
+        }
+      })
+    const progress = Math.max(0, liveSessionStudentTurnCount - sessionEntryStudentTurnBaseline)
+    console.info('[preset-main-sentence-debug]', {
+      sessionId,
+      reviewDrillStage,
+      reviewSpeakingTargetSentence: sanitizeLearnerReadingSentence(reviewSpeakingTargetSentence),
+      sessionEntryStudentTurnBaseline,
+      liveSessionStudentTurnCount,
+      progress,
+      selected: latestMainSentenceForLearner,
+      teacherRows,
+    })
+  }, [
+    isCurrentPresetSession,
+    messages,
+    mainSentenceByMessageId,
+    intentAnswerByMessageId,
+    latestMainSentenceForLearner,
+    reviewSpeakingTargetSentence,
+    reviewDrillStage,
+    sessionId,
+    sessionEntryStudentTurnBaseline,
+    liveSessionStudentTurnCount,
+  ])
+
+  useEffect(() => {
     latestMiniStageRef.current = reviewMiniPackCompleted ? 'done' : reviewDrillStage
   }, [reviewDrillStage, reviewMiniPackCompleted])
 
