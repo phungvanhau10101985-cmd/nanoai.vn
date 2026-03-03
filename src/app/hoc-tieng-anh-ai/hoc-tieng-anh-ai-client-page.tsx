@@ -5760,19 +5760,22 @@ export default function HocTiengAnhAiClientPage() {
           : ''
         const intentSentence = String(firstFromIntent || '').trim()
         const mainSentenceForWriting = String(firstFromMain || '').trim()
-        const intentIsDistinct =
-          intentSentence
-          && normalizeCopyText(intentSentence, languageCode) !== normalizeCopyText(mainSentenceForWriting, languageCode)
-        const copyTargets = Array.from(
-          new Set(
-            [
-              mainSentenceForWriting,
-              intentIsDistinct ? intentSentence : '',
-              // fallback last: speaking target when one of y2/y3 is missing
-              String(speakingTargetFromPayload || '').trim(),
-            ].filter(Boolean)
-          )
-        )
+        const normalizedSeen = new Set<string>()
+        const copyTargets: string[] = []
+        const pushIfDistinct = (value: string) => {
+          const next = String(value || '').trim()
+          if (!next) return
+          const norm = normalizeCopyText(next, languageCode)
+          if (!norm || normalizedSeen.has(norm)) return
+          normalizedSeen.add(norm)
+          copyTargets.push(next)
+        }
+        // Rule: writing mini should have max 2 sentences (Y2 + Y3).
+        pushIfDistinct(mainSentenceForWriting)
+        pushIfDistinct(intentSentence)
+        // Fallback: only fill missing slot(s), never create a 3rd sentence.
+        if (copyTargets.length < 2) pushIfDistinct(String(speakingTargetFromPayload || '').trim())
+        if (copyTargets.length > 2) copyTargets.splice(2)
         currentWritingCopyTargets = copyTargets
         if (learningMode === 'review' && payload.startMiniPack && !reviewMiniPackCompleted) {
           mustStayWritingStage = true
@@ -6101,6 +6104,10 @@ export default function HocTiengAnhAiClientPage() {
   }
 
   const startDrillListenAndRecord = async () => {
+    if (learningMode === 'review' && reviewDrillStage === 'writing' && Boolean(writingTask) && !writingTask.completed) {
+      redirectToMiniWriting()
+      return
+    }
     if (!reviewSpeakingTargetSentence) return
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
       toast({
@@ -6135,6 +6142,10 @@ export default function HocTiengAnhAiClientPage() {
   }
 
   const startDrillSpeakingRecording = async () => {
+    if (learningMode === 'review' && reviewDrillStage === 'writing' && Boolean(writingTask) && !writingTask.completed) {
+      redirectToMiniWriting()
+      return
+    }
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
       toast({
         title: localText('Thiết bị chưa hỗ trợ', 'Device not supported'),
@@ -6161,6 +6172,10 @@ export default function HocTiengAnhAiClientPage() {
   }
 
   const playSpeakingDrillBlob = async () => {
+    if (learningMode === 'review' && reviewDrillStage === 'writing' && Boolean(writingTask) && !writingTask.completed) {
+      redirectToMiniWriting()
+      return
+    }
     if (!speakingDrillBlob) {
       if (reviewSpeakingTargetSentence) {
         await replayCorrectionSentence(reviewSpeakingTargetSentence)
@@ -6176,6 +6191,10 @@ export default function HocTiengAnhAiClientPage() {
   }
 
   const submitSpeakingDrillCycle = async () => {
+    if (learningMode === 'review' && reviewDrillStage === 'writing' && Boolean(writingTask) && !writingTask.completed) {
+      redirectToMiniWriting()
+      return
+    }
     const nextCount = speakingDrillCycleCount + 1
     setSpeakingDrillCycleCount(nextCount)
     setSpeakingDrillBlob(null)
