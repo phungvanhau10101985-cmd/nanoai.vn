@@ -6044,7 +6044,7 @@ export default function HocTiengAnhAiClientPage() {
   }, [reviewDrillStage, reviewListeningPopupOpen, reviewListeningPrompt])
 
   useEffect(() => {
-    if (reviewDrillStage !== 'speaking') return
+    if (reviewDrillStage !== 'speaking' && reviewDrillStage !== 'writing') return
     if (String(reviewSpeakingTargetSentence || '').trim()) return
     const fallbackTarget = String(
       writingTask?.referenceSentence
@@ -8613,7 +8613,7 @@ export default function HocTiengAnhAiClientPage() {
                   </p>
                   {learningMode === 'review' && reviewDrillStage === 'writing' && Boolean(writingTask) && !writingTask.completed ? (
                     <p className="mt-1 text-xs text-indigo-700">
-                      {localText('Đã hiển thị sẵn mini nói. Hãy hoàn thành mini viết để mở nút luyện nói.', 'Speaking mini is shown. Complete writing mini to unlock speaking actions.')}
+                      {localText('Đã hiển thị sẵn mini nói. Ưu tiên hoàn thành mini viết trước, sau đó nói sẽ mượt hơn.', 'Speaking mini is shown. Complete writing mini first for a smoother flow.')}
                     </p>
                   ) : null}
                   <div className="mt-3 flex flex-wrap gap-2">
@@ -8623,10 +8623,7 @@ export default function HocTiengAnhAiClientPage() {
                         variant="default"
                         size="sm"
                         onClick={() => void startDrillListenAndRecord()}
-                        disabled={
-                          !reviewSpeakingTargetSentence
-                          || (learningMode === 'review' && reviewDrillStage === 'writing' && Boolean(writingTask) && !writingTask.completed)
-                        }
+                        disabled={!reviewSpeakingTargetSentence}
                         className="min-h-[36px]"
                       >
                         <Volume2 className="mr-2 h-4 w-4" />
@@ -8649,10 +8646,7 @@ export default function HocTiengAnhAiClientPage() {
                           variant="outline"
                           size="sm"
                           onClick={playSpeakingDrillBlob}
-                          disabled={
-                            (!speakingDrillBlob && !reviewSpeakingTargetSentence)
-                            || (learningMode === 'review' && reviewDrillStage === 'writing' && Boolean(writingTask) && !writingTask.completed)
-                          }
+                          disabled={!speakingDrillBlob && !reviewSpeakingTargetSentence}
                           className="min-h-[36px]"
                         >
                           <Play className="mr-2 h-4 w-4" />
@@ -8663,7 +8657,6 @@ export default function HocTiengAnhAiClientPage() {
                           variant="outline"
                           size="sm"
                           onClick={() => void startDrillSpeakingRecording()}
-                          disabled={learningMode === 'review' && reviewDrillStage === 'writing' && Boolean(writingTask) && !writingTask.completed}
                           className="min-h-[36px]"
                         >
                           <RotateCcw className="mr-2 h-4 w-4" />
@@ -8674,7 +8667,7 @@ export default function HocTiengAnhAiClientPage() {
                           variant="default"
                           size="sm"
                           onClick={() => void submitSpeakingDrillCycle()}
-                          disabled={busy || (learningMode === 'review' && reviewDrillStage === 'writing' && Boolean(writingTask) && !writingTask.completed)}
+                          disabled={busy}
                           className="min-h-[36px]"
                         >
                           <Send className="mr-2 h-4 w-4" />
