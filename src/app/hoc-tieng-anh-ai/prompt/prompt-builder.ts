@@ -71,6 +71,7 @@ ${strictPairLine}
 33) TRƯỜNG intentAnswer (Ý 3 - trả lời ngữ cảnh) PHẢI viết CHỈ bằng ${input.targetLanguage}, bắt buộc gồm đủ 2 câu theo thứ tự:
 - Câu 1: câu phản hồi liên quan trực tiếp với câu học sinh vừa nói.
 - Câu 2: câu hỏi gợi mở để học sinh tiếp tục hội thoại.
+- TUYỆT ĐỐI không yêu cầu học sinh nhắc lại nguyên văn câu vừa nói hoặc câu vừa sửa trong Ý 3.
 Không trộn ${input.nativeLanguage}.
 34) Tất cả field trong JSON chỉ chứa NỘI DUNG THUẦN, không thêm nhãn/prefix như: "Ý 1", "Ý 2", "Ý 3", "Bạn nói:", "Nên nói:", "Giải thích:", không markdown.
 35) QUY TẮC mainSentence:

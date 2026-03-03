@@ -586,7 +586,10 @@ function isLikelyFullSentence(text: string, targetLanguageCode: string): boolean
   if (targetLanguageCode === 'th') return /[\u0E00-\u0E7F]/u.test(t) && t.length >= 4
   if (targetLanguageCode === 'hi') return /[\u0900-\u097F]/u.test(t) && t.length >= 4
   const words = t.split(/\s+/).filter(Boolean)
-  return words.length >= 4
+  if (words.length < 3) return false
+  // English fragment like "to eat fish" is not a complete corrected sentence.
+  if (targetLanguageCode === 'en' && /^to\s+[a-z]/i.test(t)) return false
+  return true
 }
 
 function isTooShortStudentSentence(text: string, targetLanguageCode: string): boolean {
@@ -1067,6 +1070,8 @@ function shouldRepairEnglishMainSentence(mainSentence: string, studentText: stri
   const base = String(mainSentence || '').trim()
   if (!base) return true
   if (!isLikelyTargetLanguageSentence(base, 'en', null)) return true
+  if (!isLikelyFullSentence(base, 'en')) return true
+  if (/^to\s+[a-z]/i.test(base)) return true
   const titleCandidate = extractSongTitleCandidateFromVietnamese(studentText)
   if (titleCandidate) {
     const asciiTitle = stripVietnameseDiacritics(titleCandidate)
@@ -2768,6 +2773,45 @@ ${text}`
       }
     }
 
+    if (!parsed) {
+      const strictRetryPrompt = `Bạn là giáo viên ${targetLanguage}. Học sinh vừa nói:
+${studentText}
+
+Hãy trả JSON hợp lệ (không markdown, không text thừa) đúng schema:
+{
+  "corrections": [{"original":"...","fixed":"...","explanationVi":"..."}],
+  "pronunciationTips": ["..."],
+  "correctionNote": "...",
+  "intentAnswer": "...",
+  "mainSentence": "..."
+}
+
+Ràng buộc bắt buộc:
+- mainSentence phải là câu sửa hoàn chỉnh, đầy đủ ý câu học sinh, chỉ bằng ${targetLanguage}.
+- Không dùng fragment ngắn kiểu "to eat fish" làm mainSentence.
+- Không lấy nội dung mainSentence từ intentAnswer.
+- intentAnswer gồm 2 câu: (1) phản hồi ngữ cảnh, (2) câu hỏi tiếp theo.`
+      try {
+        const strictRetry = await model.generateContent(strictRetryPrompt)
+        parsed = safeJsonParse(strictRetry.response.text()?.trim() || '')
+      } catch {
+        // keep parsed null and return explicit error below
+      }
+    }
+
+    if (!parsed) {
+      return NextResponse.json(
+        {
+          error: nativeLanguageCode === 'vi'
+            ? 'AI trả dữ liệu sai định dạng nhiều lần. Vui lòng gửi lại.'
+            : 'Model returned invalid JSON repeatedly. Please retry.',
+          code: 'MODEL_JSON_INVALID',
+          retryable: true,
+        },
+        { status: 502 }
+      )
+    }
+
     if (nativeLanguageCode === 'vi') {
       parsed.reply = normalizeVietnameseLearnerAddressing(parsed.reply)
       parsed.correctionNote = normalizeVietnameseLearnerAddressing(parsed.correctionNote)
@@ -2778,48 +2822,6 @@ ${text}`
       parsed.pronunciationTips = (parsed.pronunciationTips || []).map((tip) =>
         normalizeVietnameseLearnerAddressing(String(tip || ''))
       )
-    }
-
-    if (!parsed) {
-      const fallbackByCode: Record<string, { reply: string; tip: string }> = {
-        en: {
-          reply: 'Nice try! Can you answer this with a new short sentence?',
-          tip: 'Speak a little slower and stress key words clearly.',
-        },
-        zh: {
-          reply: '很好！请用一句更短、更清楚的新句子来回答。',
-          tip: '先放慢语速，再把关键词说清楚。',
-        },
-        hi: {
-          reply: 'बहुत बढ़िया कोशिश! कृपया इसी विचार पर एक नया, छोटा और स्पष्ट वाक्य बोलें।',
-          tip: 'थोड़ा धीरे बोलें और मुख्य शब्द साफ़ बोलें।',
-        },
-        th: {
-          reply: 'ดีมากครับ/ค่ะ ลองตอบด้วยประโยคใหม่สั้น ๆ ที่ชัดเจนนะ',
-          tip: 'พูดช้าลงเล็กน้อยและเน้นคำสำคัญให้ชัดเจน',
-        },
-        ja: {
-          reply: 'いいですね。同じ内容を短く分かりやすい新しい一文で言ってみましょう。',
-          tip: '少しゆっくり話して、キーワードをはっきり発音しましょう。',
-        },
-        ko: {
-          reply: '좋아요! 같은 뜻을 짧고 분명한 새 문장으로 말해 볼까요?',
-          tip: '조금 천천히 말하고 핵심 단어를 또렷하게 발음해 보세요.',
-        },
-        vi: {
-          reply: 'Tốt lắm! Em thử trả lời bằng một câu mới, ngắn và rõ ý nhé.',
-          tip: 'Nói chậm hơn một chút và nhấn rõ từ khóa.',
-        },
-      }
-      const fallback = fallbackByCode[targetLanguageCode] || fallbackByCode.en
-      const fallbackIdea3 = ensureIntentAnswerTwoPart(fallback.reply, targetLanguageCode, targetLanguage)
-      return NextResponse.json({
-        corrections: [],
-        pronunciationTips: [fallback.tip],
-        mainSentence: fallback.reply,
-        correctionNote: '',
-        intentAnswer: fallbackIdea3,
-      })
     }
 
     if (mode === 'listen_speak') {
@@ -3054,6 +3056,7 @@ ${intentAnswer || parsed.reply}`
       .find((fixed) => (
         Boolean(fixed)
         && isLikelyTargetLanguageSentence(fixed, targetLanguageCode, targetScriptRe)
+        && isLikelyFullSentence(fixed, targetLanguageCode)
         && !isTooShortStudentSentence(fixed, targetLanguageCode)
       )) || ''
     const studentMainSentenceCandidate = String(studentText || '').trim()
