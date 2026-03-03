@@ -3049,7 +3049,13 @@ ${intentAnswer || parsed.reply}`
     intentAnswer = ensureIntentAnswerTwoPart(intentAnswer, targetLanguageCode, targetLanguage)
     const aiMainSentence = String(parsed.mainSentence || '').trim()
     const extractedMainSentence = extractPhraseTargetSentence(parsed.reply)
-    const correctedSentence = String(parsed.corrections?.[0]?.fixed || '').trim()
+    const correctedSentence = (parsed.corrections || [])
+      .map((row) => String(row?.fixed || '').trim())
+      .find((fixed) => (
+        Boolean(fixed)
+        && isLikelyTargetLanguageSentence(fixed, targetLanguageCode, targetScriptRe)
+        && !isTooShortStudentSentence(fixed, targetLanguageCode)
+      )) || ''
     const studentMainSentenceCandidate = String(studentText || '').trim()
     const hasMeaningfulCorrection = hasMeaningfulSentenceCorrection(
       parsed.corrections || [],
@@ -3084,7 +3090,13 @@ ${intentAnswer || parsed.reply}`
         ? studentMainSentenceCandidate
         : (targetMainCandidates[0] || '')
     let mainSentenceFinal = mainSentence
-    if (targetLanguageCode === 'en' && shouldRepairEnglishMainSentence(mainSentenceFinal, studentText)) {
+    if (
+      targetLanguageCode === 'en'
+      && (
+        isTooShortStudentSentence(mainSentenceFinal, targetLanguageCode)
+        || shouldRepairEnglishMainSentence(mainSentenceFinal, studentText)
+      )
+    ) {
       try {
         const repairMainSentencePrompt = `Sửa lại trường mainSentence thành 1 câu tiếng Anh hoàn chỉnh, tự nhiên, giữ đủ ý từ câu học sinh.
 Ưu tiên giữ thực thể quan trọng như tên bài hát/tên riêng (có thể dùng transliteration Latin).

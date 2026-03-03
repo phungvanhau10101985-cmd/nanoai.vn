@@ -71,6 +71,15 @@ const LIVE_SESSION_EXTRA_TURN_STEP = 5
 const LIVE_SESSION_PRICE_CREDITS = 2.5
 const LIVE_SESSION_EXTRA_STEP_PRICE_CREDITS = LIVE_SESSION_PRICE_CREDITS / 2
 const PRESET_SESSION_PRICE_CREDITS = 1
+const LESSON_TIMELINE_TARGET_TURNS = LIVE_SESSION_BASE_TURN_LIMIT
+
+function computeTimelineCompletedSteps(stepCount: number, studentTurnCount: number): number {
+  const safeStepCount = Math.max(0, Math.floor(Number(stepCount || 0) || 0))
+  if (safeStepCount <= 0) return 0
+  const safeTurns = Math.max(0, Math.floor(Number(studentTurnCount || 0) || 0))
+  const completed = Math.floor((safeTurns * safeStepCount) / LESSON_TIMELINE_TARGET_TURNS)
+  return Math.min(completed, safeStepCount)
+}
 
 type LearningMode = 'review' | 'reflex'
 type MiniStage = 'idle' | 'writing' | 'speaking' | 'listening' | 'done'
@@ -5230,9 +5239,8 @@ export default function HocTiengAnhAiClientPage() {
     if (currentSessionId) {
       const curriculum = topicCurriculum || preLessonCurriculum
       const steps = curriculum?.lessonSteps ?? []
-      const teacherCount = messages.filter((m) => m.role === 'teacher').length
-      const turnsPerStep = Math.max(1, Math.ceil((steps.length || 1) / 6))
-      const completedCount = steps.length > 0 ? Math.min(Math.floor(teacherCount / turnsPerStep), steps.length) : 0
+      const studentTurnCount = messages.filter((m) => m.role === 'student').length
+      const completedCount = computeTimelineCompletedSteps(steps.length, studentTurnCount)
       const qualityPassed = steps.length > 0 && completedCount >= steps.length
       await endHistorySession(currentSessionId, {
         qualityPassed,
@@ -5327,9 +5335,8 @@ export default function HocTiengAnhAiClientPage() {
     const curriculum = topicCurriculum || preLessonCurriculum
     const steps = curriculum?.lessonSteps ?? []
     if (steps.length === 0 || !sessionId) return
-    const teacherCount = messages.filter((m) => m.role === 'teacher').length
-    const turnsPerStep = Math.max(1, Math.ceil(steps.length / 6))
-    const completedCount = Math.min(Math.floor(teacherCount / turnsPerStep), steps.length)
+    const studentTurnCount = messages.filter((m) => m.role === 'student').length
+    const completedCount = computeTimelineCompletedSteps(steps.length, studentTurnCount)
     if (completedCount >= steps.length && lessonCompletedToastShownForSessionRef.current !== sessionId) {
       lessonCompletedToastShownForSessionRef.current = sessionId
       toast({
@@ -7889,9 +7896,8 @@ export default function HocTiengAnhAiClientPage() {
                 {(() => {
                   const curriculum = topicCurriculum || preLessonCurriculum
                   const steps = curriculum?.lessonSteps ?? []
-                  const teacherCount = messages.filter((m) => m.role === 'teacher').length
-                  const turnsPerStep = Math.max(1, Math.ceil((steps.length || 1) / 6))
-                  const completedCount = steps.length > 0 ? Math.min(Math.floor(teacherCount / turnsPerStep), steps.length) : 0
+                  const studentTurnCount = messages.filter((m) => m.role === 'student').length
+                  const completedCount = computeTimelineCompletedSteps(steps.length, studentTurnCount)
                   const hasSteps = steps.length > 0
                   const showTimeline = messages.length > 0
                   return showTimeline ? (
@@ -7944,7 +7950,7 @@ export default function HocTiengAnhAiClientPage() {
                           })}
                         </div>
                         <p className="mt-1 text-[10px] text-slate-500">
-                          {completedCount}/{steps.length} {localText('bước', 'steps')} • {teacherCount} {localText('lượt', 'turns')}
+                          {completedCount}/{steps.length} {localText('bước', 'steps')} • {studentTurnCount}/{LESSON_TIMELINE_TARGET_TURNS} {localText('lượt hỏi', 'question turns')}
                         </p>
                       </div>
                       </>
@@ -7954,7 +7960,7 @@ export default function HocTiengAnhAiClientPage() {
                           {localText('Tiến độ buổi học', 'Lesson progress')}
                         </p>
                         <p className="text-xs text-slate-600">
-                          {teacherCount} {localText('lượt hội thoại', 'turns')}
+                          {studentTurnCount}/{LESSON_TIMELINE_TARGET_TURNS} {localText('lượt hỏi', 'question turns')}
                         </p>
                       </div>
                     )}
