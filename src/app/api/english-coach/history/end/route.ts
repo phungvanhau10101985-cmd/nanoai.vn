@@ -58,6 +58,7 @@ function hasPersonalizationSignals(text: string): boolean {
   const s = String(text || '').trim()
   if (!s) return false
   const patterns: RegExp[] = [
+    /\bmy\s+name\b/i,
     /\bmy\s+name(?:\s+is|\s*'s)?\s+[A-ZÀ-Ỹ][\wÀ-ỹ'.-]{1,}(?:\s+[A-ZÀ-Ỹ][\wÀ-ỹ'.-]{1,}){0,3}\b/u,
     /\bmy\s+name\s+[A-ZÀ-Ỹ][\wÀ-ỹ'.-]{1,}(?:\s+[A-ZÀ-Ỹ][\wÀ-ỹ'.-]{1,}){0,3}\b/u,
     /(?:tên\s+(?:tôi|em|mình|anh|chị)\s+là)\s+[^\n,.!?;:]{1,80}/iu,
@@ -65,6 +66,10 @@ function hasPersonalizationSignals(text: string): boolean {
     /(?:私の名前は|僕の名前は|俺の名前は)[^\n。！？!?，,]{1,40}(?:です|だ)?/u,
     /(?:제\s*이름은|내\s*이름은)\s*[^\n.!?]{1,40}/u,
     /मेरा\s+नाम\s+[^\n।.!?]{1,40}/u,
+    /\bhttps?:\/\//i,
+    /\bwww\./i,
+    /\b[a-z0-9-]+\s*(?:\.|\s+dot\s+|\s+chấm\s+)\s*(?:com|vn|net|org|io)\b/i,
+    /\b\d{2,}\s*com\s*vn\b/i,
   ]
   return patterns.some((re) => re.test(s))
 }

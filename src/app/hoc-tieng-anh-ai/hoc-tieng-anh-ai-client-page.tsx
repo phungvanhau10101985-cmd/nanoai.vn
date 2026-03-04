@@ -1565,6 +1565,23 @@ function escapeRegExp(value: string): string {
   return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
+function isUnsafePresetReadingSentence(text: string): boolean {
+  const s = sanitizeLearnerReadingSentence(text)
+  if (!s) return true
+  const patterns: RegExp[] = [
+    /\bmy\s+name\b/i,
+    /\btên\s+(?:tôi|em|mình|anh|chị)\s+là\b/iu,
+    /\bhttps?:\/\//i,
+    /\bwww\./i,
+    /\b[a-z0-9-]+\s*(?:\.|\s+dot\s+|\s+chấm\s+)\s*(?:com|vn|net|org|io)\b/i,
+    /\b\d{2,}\s*com\s*vn\b/i,
+  ]
+  if (patterns.some((re) => re.test(s))) return true
+  const noisyTokenCount = (s.match(/\d+/g) || []).length + (s.match(/[./\\|_@#]/g) || []).length
+  if (noisyTokenCount >= 3) return true
+  return false
+}
+
 function personalizeLearnerNameInSentence(
   sentence: string,
   learnerDisplayName: string,
@@ -2647,7 +2664,10 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
     learningMode === 'review' && Boolean(writingTask) && !Boolean(writingTask?.completed)
   const latestMainSentenceForLearner = useMemo(() => {
     const personalize = (raw: string) =>
-      personalizeLearnerNameInSentence(raw, learnerDisplayName, languageCode)
+      {
+        const sentence = personalizeLearnerNameInSentence(raw, learnerDisplayName, languageCode)
+        return isUnsafePresetReadingSentence(sentence) ? '' : sentence
+      }
     if (isPresetPageSession) {
       const teacherById = new Map(
         messages
@@ -5175,7 +5195,9 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
       const presetSessionLoaded = Boolean(payload.presetReplaySession)
       setIsCurrentPresetSession(presetSessionLoaded)
       const presetExpected = sanitizeLearnerReadingSentence(String(payload.presetReplay?.expectedStudentText || '').trim())
-      setPresetReplayExpectedSentence(presetSessionLoaded ? presetExpected : '')
+      setPresetReplayExpectedSentence(
+        presetSessionLoaded && !isUnsafePresetReadingSentence(presetExpected) ? presetExpected : ''
+      )
       if (!presetSessionLoaded) {
         await syncSessionCreditStatus(targetSessionId)
       }
