@@ -2069,6 +2069,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
   const textSnippetPlayingRef = useRef<Set<string>>(new Set())
   const [openedHistorySessionId, setOpenedHistorySessionId] = useState('')
   const [isCurrentPresetSession, setIsCurrentPresetSession] = useState(false)
+  const [presetReplayExpectedSentence, setPresetReplayExpectedSentence] = useState('')
   const isPresetPageSession = isSavedStandalonePage && isCurrentPresetSession
   const [liveSessionExtraTurnUnlocks, setLiveSessionExtraTurnUnlocks] = useState(0)
   const [liveUnlockBusy, setLiveUnlockBusy] = useState(false)
@@ -2625,6 +2626,10 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
           return { messageId: m.id, sentence: idea2, teacherText: m.text }
         }
       }
+      const presetExpected = sanitizeLearnerReadingSentence(String(presetReplayExpectedSentence || '').trim())
+      if (presetExpected) {
+        return { messageId: 'preset-replay-next', sentence: presetExpected, teacherText: presetExpected }
+      }
       return null
     }
     for (let i = messages.length - 1; i >= 0; i--) {
@@ -2640,6 +2645,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
     messages,
     mainSentenceByMessageId,
     isPresetPageSession,
+    presetReplayExpectedSentence,
     writingTask?.messageId,
   ])
 
@@ -5074,6 +5080,13 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
           stage?: 'idle' | 'writing' | 'speaking' | 'listening' | 'done'
           updatedAt?: string
         }
+        presetReplay?: {
+          active?: boolean
+          sourceLessonId?: string
+          nextTurnIndex?: number
+          totalTurns?: number
+          expectedStudentText?: string
+        }
         presetReplaySession?: boolean
         presetReplaySourceLessonId?: string
         error?: string
@@ -5097,6 +5110,8 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
       setLiveSessionExtraTurnUnlocks(Math.max(0, inferredExtraUnlocks))
       const presetSessionLoaded = Boolean(payload.presetReplaySession)
       setIsCurrentPresetSession(presetSessionLoaded)
+      const presetExpected = sanitizeLearnerReadingSentence(String(payload.presetReplay?.expectedStudentText || '').trim())
+      setPresetReplayExpectedSentence(presetSessionLoaded ? presetExpected : '')
       if (!presetSessionLoaded) {
         await syncSessionCreditStatus(targetSessionId)
       }
@@ -5613,6 +5628,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
     shouldCountNewSessionRef.current = true
     setSessionTeacher(null)
     setIsCurrentPresetSession(false)
+    setPresetReplayExpectedSentence('')
     setSessionEntryStudentTurnBaseline(0)
     setLiveSessionExtraTurnUnlocks(0)
     setOpenedHistorySessionId('')
@@ -6036,6 +6052,11 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
 
     const hadExistingMessage = Boolean(opts?.existingStudentMessageId)
     const isFromDrill = opts?.silentDrill || opts?.drillSpeaking || opts?.drillType === 'listening'
+    const isPresetReplayTurnSubmission =
+      isPresetPageSession
+      && source === 'mic'
+      && !isFromDrill
+      && !hadExistingMessage
     if (isPresetPageSession && !isFromDrill && source === 'text') {
       toast({
         title: localText('Bài học có sẵn dùng ghi âm', 'Saved lesson uses voice recording'),
@@ -6119,7 +6140,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
         micAnalysis: source === 'mic' ? micAnalysis : undefined,
         drillType: opts?.drillType,
         drillSelectedWords: opts?.drillSelectedWords || [],
-        drillSpeaking: opts?.drillSpeaking ?? false,
+        drillSpeaking: isPresetReplayTurnSubmission ? true : (opts?.drillSpeaking ?? false),
       })
       const payload = data as {
         corrections?: Correction[]
@@ -7082,6 +7103,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
     const unlockCount = Math.max(0, Math.floor(Number(liveCharge.data.liveUnlockCount || 0) || 0))
     setLiveSessionExtraTurnUnlocks(unlockCount)
     setIsCurrentPresetSession(false)
+    setPresetReplayExpectedSentence('')
     await startLesson({
       skipPrerequisiteCheck: true,
       curriculumOverride: curriculumToUse,
@@ -8458,7 +8480,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                     </>
                   ) : null
                 })()}
-              <div ref={chatScrollRef} className="relative left-1/2 right-1/2 w-[calc(100vw-0.4rem)] -translate-x-1/2 max-h-[64vh] min-w-0 flex-1 space-y-2.5 overflow-auto rounded-xl border border-border/70 bg-slate-50/90 p-3 pb-24 scroll-pb-24 sm:static sm:left-auto sm:right-auto sm:w-auto sm:translate-x-0 sm:max-h-[34rem] sm:p-3.5 sm:pb-28 sm:scroll-pb-28">
+              <div ref={chatScrollRef} className="relative left-1/2 right-1/2 w-[calc(100vw-0.4rem)] -translate-x-1/2 max-h-[64vh] min-w-0 flex-1 space-y-2.5 overflow-auto rounded-xl border border-border/70 bg-slate-50/90 p-3 pb-14 scroll-pb-14 sm:static sm:left-auto sm:right-auto sm:w-auto sm:translate-x-0 sm:max-h-[34rem] sm:p-3.5 sm:pb-20 sm:scroll-pb-20">
                 {messages.length === 0 ? (
                   <div className="space-y-3">
                     {historySessions.length > 0 ? (

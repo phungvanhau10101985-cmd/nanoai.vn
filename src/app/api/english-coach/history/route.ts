@@ -71,6 +71,14 @@ type MiniStageSnapshot = {
   updatedAt?: string
 }
 
+type PresetReplayPreview = {
+  active: boolean
+  sourceLessonId?: string
+  nextTurnIndex: number
+  totalTurns: number
+  expectedStudentText?: string
+}
+
 function parseReviewDrillStatsFromPinnedFacts(raw: string): ReviewDrillStats | null {
   try {
     const root = JSON.parse(String(raw || '{}')) as Record<string, unknown>
@@ -144,6 +152,38 @@ function parseMiniStageSnapshotFromPinnedFacts(raw: string): MiniStageSnapshot |
     return {
       stage,
       updatedAt: String(row.updatedAt || row.updated_at || '').trim() || undefined,
+    }
+  } catch {
+    return null
+  }
+}
+
+function parsePresetReplayPreviewFromPinnedFacts(raw: string): PresetReplayPreview | null {
+  try {
+    const root = JSON.parse(String(raw || '{}')) as Record<string, unknown>
+    const preset = root?.preset_replay
+    if (!preset || typeof preset !== 'object') return null
+    const row = preset as Record<string, unknown>
+    const turns = Array.isArray(row.turns) ? row.turns : []
+    const totalTurns = turns.length
+    if (totalTurns <= 0) return null
+    const nextTurnIndexRaw = Number(row.next_turn_index ?? row.nextTurnIndex ?? 0)
+    const nextTurnIndex = Number.isFinite(nextTurnIndexRaw)
+      ? Math.max(0, Math.min(totalTurns - 1, Math.floor(nextTurnIndexRaw)))
+      : 0
+    const turn = turns[nextTurnIndex]
+    const expectedStudentText =
+      turn && typeof turn === 'object'
+        ? String((turn as { expectedStudent?: unknown; expected_student?: unknown }).expectedStudent
+            ?? (turn as { expected_student?: unknown }).expected_student
+            ?? '').trim() || undefined
+        : undefined
+    return {
+      active: Boolean(row.active),
+      sourceLessonId: String(row.source_lesson_id ?? row.sourceLessonId ?? '').trim() || undefined,
+      nextTurnIndex,
+      totalTurns,
+      expectedStudentText,
     }
   } catch {
     return null
@@ -230,6 +270,7 @@ export async function GET(request: NextRequest) {
       const reviewDrillStats = parseReviewDrillStatsFromPinnedFacts(String(memory?.pinned_facts_json || '{}'))
       const reviewDrill = parseActiveReviewDrillFromPinnedFacts(String(memory?.pinned_facts_json || '{}'))
       const miniStageSnapshot = parseMiniStageSnapshotFromPinnedFacts(String(memory?.pinned_facts_json || '{}'))
+      const presetReplayPreview = parsePresetReplayPreviewFromPinnedFacts(String(memory?.pinned_facts_json || '{}'))
 
       const rows = data ?? []
       const cacheKeysToFetch: string[] = []
@@ -301,6 +342,7 @@ export async function GET(request: NextRequest) {
         reviewDrillStats: reviewDrillStats || undefined,
         reviewDrill: reviewDrill || undefined,
         miniStageSnapshot: miniStageSnapshot || undefined,
+        presetReplay: presetReplayPreview || undefined,
         writingTaskTransliterations,
         items: rows.map((row) => {
           const lang = String(row.language_code || '').trim().toLowerCase()
