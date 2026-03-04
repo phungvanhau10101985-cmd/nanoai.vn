@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -1909,6 +1909,7 @@ type HocTiengAnhAiClientPageProps = {
 
 export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengAnhAiClientPageProps) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const isSavedStandalonePage = pageMode === 'saved'
   const { toast } = useToast()
   const [sessionId, setSessionId] = useState<string>(createSessionId)
@@ -2217,6 +2218,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
   const supabase = useMemo(() => createClient(), [])
   const lastMicSentTextRef = useRef('')
   const lastMicSentAtRef = useRef(0)
+  const routeOpenSessionHandledRef = useRef('')
   const writingAutoAdvanceSignatureRef = useRef('')
   const shouldCountNewSessionRef = useRef(true)
   const mixedRecorderRef = useRef<MediaRecorder | null>(null)
@@ -5598,6 +5600,19 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
     }
   }
 
+  useEffect(() => {
+    const targetSessionId = String(searchParams.get('sessionId') || '').trim()
+    if (!targetSessionId) return
+    if (routeOpenSessionHandledRef.current === targetSessionId) return
+    if (openedHistorySessionId === targetSessionId) {
+      routeOpenSessionHandledRef.current = targetSessionId
+      return
+    }
+    if (historyBusy) return
+    routeOpenSessionHandledRef.current = targetSessionId
+    void loadHistorySession(targetSessionId)
+  }, [searchParams, openedHistorySessionId, historyBusy])
+
   const endLessonAndStartNew = async () => {
     const currentSessionId = sessionId
     if (currentSessionId) {
@@ -7110,7 +7125,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
       topicOverride: plan.topic,
     })
     if (isSavedStandalonePage) {
-      router.replace('/hoc-tieng-anh-ai')
+      router.replace(`/hoc-tieng-anh-ai?sessionId=${encodeURIComponent(sessionIdForCharge)}`)
     }
     setSetupCollapsed(true)
     toast({
@@ -7180,7 +7195,8 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
       setLessonStartPresetAvailable(true)
       setLessonStartPlan(null)
       if (!isSavedStandalonePage) {
-        router.replace('/hoc-bai-hoc-co-san')
+        router.replace(`/hoc-bai-hoc-co-san?sessionId=${encodeURIComponent(presetSessionId)}`)
+        return
       }
       await loadHistorySession(presetSessionId)
       setSetupCollapsed(true)
