@@ -35,6 +35,18 @@ function sanitizeMeaningItems(input: unknown): Array<{ text: string; pinyin?: st
     .slice(0, 8)
 }
 
+function sanitizeSenseItems(input: unknown): Array<{ gloss: string; exampleTarget: string; exampleNative: string }> {
+  if (!Array.isArray(input)) return []
+  return input
+    .map((row) => ({
+      gloss: String((row as { gloss?: unknown })?.gloss || '').trim(),
+      exampleTarget: String((row as { exampleTarget?: unknown })?.exampleTarget || '').trim(),
+      exampleNative: String((row as { exampleNative?: unknown })?.exampleNative || '').trim(),
+    }))
+    .filter((row) => row.gloss || (row.exampleTarget && row.exampleNative))
+    .slice(0, 8)
+}
+
 function sanitizeExampleItems(input: unknown): Array<{ targetText: string; targetPinyin?: string; nativeText: string }> {
   if (!Array.isArray(input)) return []
   return input
@@ -49,9 +61,7 @@ function sanitizeExampleItems(input: unknown): Array<{ targetText: string; targe
 
 function hasMeaning(row: { meaning?: string | null; meaning_items_json?: string | null }): boolean {
   const meaning = String(row.meaning ?? '').trim()
-  if (meaning) return true
-  const items = parseJsonArrayText(row.meaning_items_json)
-  return Array.isArray(items) && items.some((x) => String((x as { text?: unknown })?.text ?? '').trim())
+  return Boolean(meaning)
 }
 
 function normalizeUsageLevel(input: unknown): 'high' | 'medium' | 'low' {
@@ -148,14 +158,14 @@ async function normalizeIncompleteWords(
       const data = (await res.json().catch(() => ({}))) as {
         meaning?: string
         pronunciation?: string
-        meaningItems?: Array<{ text: string; pinyin?: string }>
+        senses?: Array<{ gloss: string; exampleTarget: string; exampleNative: string }>
         exampleItems?: Array<{ targetText: string; targetPinyin?: string; nativeText: string }>
         usageLevel?: string
         importanceScore?: number
         contextSensitive?: boolean
       }
       if (!res.ok || !data.meaning) continue
-      const meaningItems = sanitizeMeaningItems(data.meaningItems)
+      const senses = sanitizeSenseItems(data.senses)
       const exampleItems = sanitizeExampleItems(data.exampleItems)
       const primaryEx = exampleItems[0]
       const rowsToUpdate = toFix.filter((x) => x.word === r.word && x.target === r.target && x.native === r.native)
@@ -166,7 +176,7 @@ async function normalizeIncompleteWords(
             .update({
               meaning: data.meaning || null,
               pronunciation: data.pronunciation || null,
-              meaning_items_json: meaningItems.length > 0 ? JSON.stringify(meaningItems) : null,
+              meaning_items_json: senses.length > 0 ? JSON.stringify(senses) : null,
               example_items_json: exampleItems.length > 0 ? JSON.stringify(exampleItems) : null,
               usage_level: normalizeUsageLevel(data.usageLevel),
               importance_score: normalizeImportanceScore(data.importanceScore),
@@ -182,7 +192,7 @@ async function normalizeIncompleteWords(
             .update({
               meaning: data.meaning || null,
               pronunciation: data.pronunciation || null,
-              meaning_items_json: meaningItems.length > 0 ? JSON.stringify(meaningItems) : null,
+              meaning_items_json: senses.length > 0 ? JSON.stringify(senses) : null,
               example_items_json: exampleItems.length > 0 ? JSON.stringify(exampleItems) : null,
               usage_level: normalizeUsageLevel(data.usageLevel),
               importance_score: normalizeImportanceScore(data.importanceScore),
@@ -226,11 +236,8 @@ export async function GET(request: NextRequest) {
       .order('due_at', { ascending: true })
       .limit(limit)
     if (error) return NextResponse.json({ error: error.message || 'Không tải được danh sách ôn tập.' }, { status: 500 })
-    const meaningItems = (row: { meaning?: string | null; meaning_items_json?: string | null }) => {
-      const items = sanitizeMeaningItems(parseJsonArrayText(row.meaning_items_json))
-      if (items.length > 0) return items
-      const m = String(row.meaning ?? '').trim()
-      return m ? [{ text: m }] : []
+    const senses = (row: { meaning_items_json?: string | null }) => {
+      return sanitizeSenseItems(parseJsonArrayText(row.meaning_items_json))
     }
     const getExampleItems = (row: { example_items_json?: string | null }) => {
       return sanitizeExampleItems(parseJsonArrayText(row.example_items_json))
@@ -238,7 +245,7 @@ export async function GET(request: NextRequest) {
     const items = (data ?? [])
       .filter(hasMeaning)
       .map((row) => {
-        const mi = meaningItems(row)
+        const si = senses(row)
         const ei = getExampleItems(row)
         const firstEx = ei[0]
         return {
@@ -248,7 +255,8 @@ export async function GET(request: NextRequest) {
           nativeLanguage: row.native_language,
           meaning: row.meaning || '',
           pronunciation: row.pronunciation || '',
-          meaningItems: mi,
+          senses: si,
+          meaningItems: [],
           exampleItems: ei,
           exampleTarget: firstEx?.targetText || '',
           exampleNative: firstEx?.nativeText || '',

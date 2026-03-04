@@ -3059,18 +3059,23 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
       const normalized = raw.map((item) => {
         const meaning = String(item.meaning || '').trim()
         const pronunciation = String(item.pronunciation || '').trim()
+        const senses = sanitizeWordSenses((item as { senses?: unknown }).senses)
         const exampleItems = sanitizeWordExampleItems(item.exampleItems)
         const exampleTarget = String(item.exampleTarget || '').trim()
         const exampleNative = String(item.exampleNative || '').trim()
+        const senseExamples = senses
+          .map((s) => ({ targetText: String(s.exampleTarget || '').trim(), nativeText: String(s.exampleNative || '').trim() }))
+          .filter((s) => s.targetText && s.nativeText)
         return {
           ...item,
           meaning,
           pronunciation,
+          senses,
           usageLevel: normalizeWordUsageLevel(item.usageLevel),
           importanceScore: normalizeWordImportanceScore(item.importanceScore),
           contextSensitive: normalizeWordContextSensitive(item.contextSensitive),
           meaningItems: [],
-          exampleItems: exampleItems.length > 0 ? exampleItems : (exampleTarget && exampleNative ? [{ targetText: exampleTarget, nativeText: exampleNative }] : []),
+          exampleItems: exampleItems.length > 0 ? exampleItems : (senseExamples.length > 0 ? senseExamples : (exampleTarget && exampleNative ? [{ targetText: exampleTarget, nativeText: exampleNative }] : [])),
           exampleTarget,
           exampleNative,
         }
@@ -4758,19 +4763,27 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
       const pronunciation = String(item.pronunciation || '').trim()
       const exampleTarget = String(item.exampleTarget || '').trim()
       const exampleNative = String(item.exampleNative || '').trim()
+      const senses = sanitizeWordSenses((item as { senses?: unknown }).senses)
       const exampleItems = sanitizeWordExampleItems((item as { exampleItems?: unknown }).exampleItems)
+      const senseExamples = senses
+        .map((s) => ({ targetText: String(s.exampleTarget || '').trim(), nativeText: String(s.exampleNative || '').trim() }))
+        .filter((s) => s.targetText && s.nativeText)
       return {
         ...item,
         meaning,
         pronunciation,
         exampleTarget,
         exampleNative,
+        senses,
         usageLevel: normalizeWordUsageLevel((item as { usageLevel?: unknown }).usageLevel),
         importanceScore: normalizeWordImportanceScore((item as { importanceScore?: unknown }).importanceScore),
         contextSensitive: normalizeWordContextSensitive((item as { contextSensitive?: unknown }).contextSensitive),
         pronunciationAudioUrl: String(item.pronunciationAudioUrl || '').trim(),
         meaningItems: [],
         exampleItems: exampleItems.length > 0 ? exampleItems : (
+          senseExamples.length > 0
+            ? senseExamples
+            :
           exampleTarget && exampleNative
             ? [{ targetText: exampleTarget, nativeText: exampleNative }]
             : []
@@ -4816,19 +4829,27 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
             const pronunciation = String(item.pronunciation || '').trim()
             const exampleTarget = String(item.exampleTarget || '').trim()
             const exampleNative = String(item.exampleNative || '').trim()
+            const senses = sanitizeWordSenses((item as { senses?: unknown }).senses)
             const exampleItems = sanitizeWordExampleItems((item as { exampleItems?: unknown }).exampleItems)
+            const senseExamples = senses
+              .map((s) => ({ targetText: String(s.exampleTarget || '').trim(), nativeText: String(s.exampleNative || '').trim() }))
+              .filter((s) => s.targetText && s.nativeText)
             return {
               ...item,
               meaning,
               pronunciation,
               exampleTarget,
               exampleNative,
+              senses,
               usageLevel: normalizeWordUsageLevel((item as { usageLevel?: unknown }).usageLevel),
               importanceScore: normalizeWordImportanceScore((item as { importanceScore?: unknown }).importanceScore),
               contextSensitive: normalizeWordContextSensitive((item as { contextSensitive?: unknown }).contextSensitive),
               pronunciationAudioUrl: String(item.pronunciationAudioUrl || '').trim(),
               meaningItems: [],
               exampleItems: exampleItems.length > 0 ? exampleItems : (
+                senseExamples.length > 0
+                  ? senseExamples
+                  :
                 exampleTarget && exampleNative
                   ? [{ targetText: exampleTarget, nativeText: exampleNative }]
                   : []
@@ -4887,6 +4908,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
         usageLevel: normalizeWordUsageLevel((detail as { usageLevel?: unknown }).usageLevel),
         importanceScore: normalizeWordImportanceScore((detail as { importanceScore?: unknown }).importanceScore),
         contextSensitive: normalizeWordContextSensitive((detail as { contextSensitive?: unknown }).contextSensitive),
+        senses: sanitizeWordSenses((detail as { senses?: unknown }).senses),
         meaningItems: [],
         exampleItems: sanitizeWordExampleItems((detail as { exampleItems?: unknown }).exampleItems),
     })
@@ -8617,12 +8639,18 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                                 <p className="text-muted-foreground">{localText('Đang phân tích từ...', 'Analyzing word...')}</p>
                               ) : wordInsightByKey[openedWordKey] ? (
                                 <div className="space-y-1">
-                                  <p>
-                                    <span className="font-semibold text-slate-800">
-                                      {capitalizeWordForDisplay(openedWordKey.split(':').slice(1).join(':')) || localText('Từ này', 'This word')} {localText('nghĩa là:', 'means:')}
-                                    </span>{' '}
-                                    {wordInsightByKey[openedWordKey].meaning}
-                                  </p>
+                                  {((wordInsightByKey[openedWordKey].senses ?? []).length === 0) ? (
+                                    <p>
+                                      <span className="font-semibold text-slate-800">
+                                        {capitalizeWordForDisplay(openedWordKey.split(':').slice(1).join(':')) || localText('Từ này', 'This word')} {localText('nghĩa là:', 'means:')}
+                                      </span>{' '}
+                                      {wordInsightByKey[openedWordKey].meaning}
+                                    </p>
+                                  ) : (
+                                    <p className="font-semibold text-slate-800">
+                                      {capitalizeWordForDisplay(openedWordKey.split(':').slice(1).join(':')) || localText('Từ này', 'This word')}
+                                    </p>
+                                  )}
                                   <p><span className="font-semibold text-slate-800">{localText('Phát âm:', 'Pronunciation:')}</span> {wordInsightByKey[openedWordKey].pronunciation}</p>
                                   <div className="flex flex-wrap items-center gap-1">
                                     <span
@@ -8678,37 +8706,18 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                                           const pinyin = storedPinyin || fallbackPinyin
                                           return (
                                             <div key={`sense-${idx}`} className="rounded-md border border-slate-200 bg-slate-50/70 px-2 py-1.5">
+                                              <p className="font-semibold text-slate-800">
+                                                {localText(`Nghĩa ${idx + 1}`, `Sense ${idx + 1}`)}
+                                              </p>
                                               {gloss ? (
-                                                <div className="flex items-start gap-2">
-                                                  <p className="flex-1">
-                                                    <span className="font-semibold text-slate-800">{localText('Nghĩa:', 'Meaning:')}</span> {gloss}
-                                                  </p>
-                                                  <Button
-                                                    type="button"
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="h-7 w-7 shrink-0"
-                                                    onClick={() => void playWordSenseGloss(gloss)}
-                                                  >
-                                                    <Volume2 className="h-4 w-4" />
-                                                  </Button>
-                                                </div>
+                                                <p className="mt-0.5">
+                                                  <span className="font-semibold text-slate-700">{localText('Giải nghĩa:', 'Gloss:')}</span> {gloss}
+                                                </p>
                                               ) : null}
                                               {exampleText ? (
-                                                <div className="mt-0.5 flex items-start gap-2">
-                                                  <p className="flex-1">
-                                                    <span className="font-semibold text-slate-800">{localText('Ví dụ:', 'Example:')}</span> {exampleText}
-                                                  </p>
-                                                  <Button
-                                                    type="button"
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="h-7 w-7 shrink-0"
-                                                    onClick={() => void playWordSenseExampleTarget(exampleText)}
-                                                  >
-                                                    <Volume2 className="h-4 w-4" />
-                                                  </Button>
-                                                </div>
+                                                <p className="mt-0.5">
+                                                  <span className="font-semibold text-slate-700">{localText('Ví dụ:', 'Example:')}</span> {exampleText}
+                                                </p>
                                               ) : null}
                                               {supportsLatinTransliteration && exampleText && (pinyin || busyPinyin) ? (
                                                 pinyin ? (
@@ -8722,21 +8731,48 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                                                 )
                                               ) : null}
                                               {exampleNative ? (
-                                                <div className="mt-0.5 flex items-start gap-2">
-                                                  <p className="flex-1 text-muted-foreground">
-                                                    <span className="font-semibold text-slate-800">{localText('Dịch:', 'Translation:')}</span> {exampleNative}
-                                                  </p>
+                                                <p className="mt-0.5 text-muted-foreground">
+                                                  <span className="font-semibold text-slate-800">{localText('Dịch:', 'Translation:')}</span> {exampleNative}
+                                                </p>
+                                              ) : null}
+                                              <div className="mt-1 flex flex-wrap gap-1.5">
+                                                {gloss ? (
                                                   <Button
                                                     type="button"
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="h-7 w-7 shrink-0"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="h-7 px-2 text-[11px]"
+                                                    onClick={() => void playWordSenseGloss(gloss)}
+                                                  >
+                                                    <Volume2 className="mr-1 h-3.5 w-3.5" />
+                                                    {localText('Nghe nghĩa', 'Play gloss')}
+                                                  </Button>
+                                                ) : null}
+                                                {exampleText ? (
+                                                  <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="h-7 px-2 text-[11px]"
+                                                    onClick={() => void playWordSenseExampleTarget(exampleText)}
+                                                  >
+                                                    <Volume2 className="mr-1 h-3.5 w-3.5" />
+                                                    {localText('Nghe ví dụ', 'Play example')}
+                                                  </Button>
+                                                ) : null}
+                                                {exampleNative ? (
+                                                  <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="h-7 px-2 text-[11px]"
                                                     onClick={() => void playWordSenseNative(exampleNative)}
                                                   >
-                                                    <Volume2 className="h-4 w-4" />
+                                                    <Volume2 className="mr-1 h-3.5 w-3.5" />
+                                                    {localText('Nghe dịch', 'Play translation')}
                                                   </Button>
-                                                </div>
-                                              ) : null}
+                                                ) : null}
+                                              </div>
                                             </div>
                                           )
                                         })}

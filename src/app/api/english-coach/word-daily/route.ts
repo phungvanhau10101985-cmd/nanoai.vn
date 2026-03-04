@@ -5,6 +5,8 @@ import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { getInternalBaseUrl } from '@/lib/internal-url'
 
 type DailyWordPayload = {
+  action?: string
+  limit?: number
   learnedDate?: string
   sessionId?: string
   word?: string
@@ -15,6 +17,7 @@ type DailyWordPayload = {
   exampleTarget?: string
   exampleNative?: string
   pronunciationAudioUrl?: string
+  senses?: unknown[]
   meaningItems?: unknown[]
   exampleItems?: unknown[]
   usageLevel?: string
@@ -107,6 +110,23 @@ function sanitizeMeaningItems(input: unknown): Array<{ text: string; pinyin?: st
     .slice(0, 8)
 }
 
+function sanitizeSenseItems(input: unknown): Array<{ gloss: string; exampleTarget: string; exampleNative: string }> {
+  if (!Array.isArray(input)) return []
+  return input
+    .map((row) => ({
+      gloss: String((row as { gloss?: unknown })?.gloss || '').trim(),
+      exampleTarget: String((row as { exampleTarget?: unknown })?.exampleTarget || '').trim(),
+      exampleNative: String((row as { exampleNative?: unknown })?.exampleNative || '').trim(),
+    }))
+    .filter((row) => row.gloss || (row.exampleTarget && row.exampleNative))
+    .slice(0, 8)
+}
+
+function hasStandardSenses(input: string | null | undefined): boolean {
+  const senses = sanitizeSenseItems(parseJsonArrayText(input))
+  return senses.length > 0
+}
+
 function sanitizeExampleItems(input: unknown): Array<{ targetText: string; targetPinyin?: string; nativeText: string }> {
   if (!Array.isArray(input)) return []
   return input
@@ -160,9 +180,7 @@ function mergeExampleItems(
 
 function hasMeaning(row: { meaning?: string | null; meaning_items_json?: string | null }): boolean {
   const meaning = String(row.meaning ?? '').trim()
-  if (meaning) return true
-  const items = parseJsonArrayText(row.meaning_items_json)
-  return Array.isArray(items) && items.some((x) => String((x as { text?: unknown })?.text ?? '').trim())
+  return Boolean(meaning)
 }
 
 const hasCjk = (s: string) => /[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff\uac00-\ud7af]/.test(s)
@@ -229,9 +247,10 @@ async function normalizeIncompleteWords(
   for (const r of dailyRows ?? []) {
     if (!hasRequiredLanguages(r)) continue
     const needsMeaning = !hasMeaning(r)
+    const needsStandard = !hasStandardSenses(r.meaning_items_json)
     const exItems = parseJsonArrayText(r.example_items_json) as Array<{ targetText?: string }>
     const needsExamples = exItems.length > 0 && exampleItemsNeedFix(exItems, r.target_language)
-    if (needsMeaning || needsExamples) {
+    if (needsMeaning || needsExamples || needsStandard) {
       toFix.push({
         table: 'daily',
         id: r.id,
@@ -250,9 +269,10 @@ async function normalizeIncompleteWords(
   for (const r of reviewRows ?? []) {
     if (!hasRequiredLanguages(r)) continue
     const needsMeaning = !hasMeaning(r)
+    const needsStandard = !hasStandardSenses(r.meaning_items_json)
     const exItems = parseJsonArrayText(r.example_items_json) as Array<{ targetText?: string }>
     const needsExamples = exItems.length > 0 && exampleItemsNeedFix(exItems, r.target_language)
-    if (needsMeaning || needsExamples) {
+    if (needsMeaning || needsExamples || needsStandard) {
       toFix.push({
         table: 'review',
         id: r.id,
@@ -298,7 +318,7 @@ async function normalizeIncompleteWords(
       const data = (await res.json().catch(() => ({}))) as {
         meaning?: string
         pronunciation?: string
-        meaningItems?: Array<{ text: string; pinyin?: string }>
+        senses?: Array<{ gloss: string; exampleTarget: string; exampleNative: string }>
         exampleItems?: Array<{ targetText: string; targetPinyin?: string; nativeText: string }>
         usageLevel?: string
         importanceScore?: number
@@ -308,7 +328,7 @@ async function normalizeIncompleteWords(
         console.error(`[WORD-FIX] Failed to get meaning for "${r.word}". Status: ${res.status}. It will not be retried.`)
         continue
       }
-      const meaningItems = sanitizeMeaningItems(data.meaningItems)
+      const senses = sanitizeSenseItems(data.senses)
       const exampleItems = sanitizeExampleItems(data.exampleItems)
       const primaryEx = exampleItems[0]
       const rowsToUpdate = toFix.filter((x) => x.word === r.word && x.target === r.target && x.native === r.native)
@@ -319,7 +339,7 @@ async function normalizeIncompleteWords(
             .update({
               meaning: data.meaning || null,
               pronunciation: data.pronunciation || null,
-              meaning_items_json: meaningItems.length > 0 ? JSON.stringify(meaningItems) : null,
+              meaning_items_json: senses.length > 0 ? JSON.stringify(senses) : null,
               example_items_json: exampleItems.length > 0 ? JSON.stringify(exampleItems) : null,
               usage_level: normalizeUsageLevel(data.usageLevel),
               importance_score: normalizeImportanceScore(data.importanceScore),
@@ -335,7 +355,7 @@ async function normalizeIncompleteWords(
             .update({
               meaning: data.meaning || null,
               pronunciation: data.pronunciation || null,
-              meaning_items_json: meaningItems.length > 0 ? JSON.stringify(meaningItems) : null,
+              meaning_items_json: senses.length > 0 ? JSON.stringify(senses) : null,
               example_items_json: exampleItems.length > 0 ? JSON.stringify(exampleItems) : null,
               usage_level: normalizeUsageLevel(data.usageLevel),
               importance_score: normalizeImportanceScore(data.importanceScore),
@@ -421,7 +441,7 @@ async function normalizeIncompleteWords(
         })
         const data = (await res.json().catch(() => ({}))) as {
           meaning?: string
-          meaningItems?: Array<{ text: string; pinyin?: string }>
+          senses?: Array<{ gloss: string; exampleTarget: string; exampleNative: string }>
           exampleItems?: Array<{ targetText: string; targetPinyin?: string; nativeText: string }>
           usageLevel?: string
           importanceScore?: number
@@ -444,7 +464,7 @@ async function normalizeIncompleteWords(
           continue
         }
 
-        const meaningItems = sanitizeMeaningItems(data.meaningItems)
+        const senses = sanitizeSenseItems(data.senses)
         const exampleItems = sanitizeExampleItems(data.exampleItems)
         const primaryEx = exampleItems[0]
 
@@ -454,7 +474,7 @@ async function normalizeIncompleteWords(
               .from('language_coach_daily_words')
               .update({
                 meaning: data.meaning || null,
-                meaning_items_json: meaningItems.length > 0 ? JSON.stringify(meaningItems) : null,
+                meaning_items_json: senses.length > 0 ? JSON.stringify(senses) : null,
                 example_items_json: exampleItems.length > 0 ? JSON.stringify(exampleItems) : null,
                 usage_level: normalizeUsageLevel(data.usageLevel),
                 importance_score: normalizeImportanceScore(data.importanceScore),
@@ -469,7 +489,7 @@ async function normalizeIncompleteWords(
               .from('language_coach_review_queue')
               .update({
                 meaning: data.meaning || null,
-                meaning_items_json: meaningItems.length > 0 ? JSON.stringify(meaningItems) : null,
+                meaning_items_json: senses.length > 0 ? JSON.stringify(senses) : null,
                 example_items_json: exampleItems.length > 0 ? JSON.stringify(exampleItems) : null,
                 usage_level: normalizeUsageLevel(data.usageLevel),
                 importance_score: normalizeImportanceScore(data.importanceScore),
@@ -589,7 +609,8 @@ export async function GET(request: NextRequest) {
         pronunciationAudioUrl: row.pronunciation_audio_url || '',
         exampleTarget: row.example_target || '',
         exampleNative: row.example_native || '',
-        meaningItems: sanitizeMeaningItems(parseJsonArrayText(row.meaning_items_json || '')),
+        senses: sanitizeSenseItems(parseJsonArrayText(row.meaning_items_json || '')),
+        meaningItems: [],
         exampleItems: sanitizeExampleItems(parseJsonArrayText(row.example_items_json || '')),
         usageLevel: normalizeUsageLevel(row.usage_level),
         importanceScore: normalizeImportanceScore(row.importance_score),
@@ -610,6 +631,17 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const payload = (await request.json()) as DailyWordPayload
+    const action = String(payload.action || '').trim().toLowerCase()
+    if (action === 'normalize_standard') {
+      const supabase = createClient()
+      const auth = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập để chuẩn hóa dữ liệu từ mới.')
+      if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
+      const { user } = auth
+      const adminSupabase = adminClient()
+      const baseUrl = getInternalBaseUrl()
+      await normalizeIncompleteWords(adminSupabase, user.id, baseUrl)
+      return NextResponse.json({ ok: true })
+    }
     const learnedDate = toSafeDate(String(payload.learnedDate || new Date().toISOString().slice(0, 10)))
     const sessionId = String(payload.sessionId || '').trim()
     const word = String(payload.word || '').trim()
@@ -623,6 +655,7 @@ export async function POST(request: NextRequest) {
     const usageLevel = preferIncomingOrExistingLevel(payload.usageLevel, null)
     const importanceScore = preferIncomingOrExistingScore(payload.importanceScore, null)
     const contextSensitive = preferIncomingOrExistingContextSensitive(payload.contextSensitive, null)
+    const incomingSenses = sanitizeSenseItems(payload.senses)
     const incomingMeaningItems = sanitizeMeaningItems(payload.meaningItems)
     const incomingExampleItems = sanitizeExampleItems(payload.exampleItems)
 
@@ -683,9 +716,12 @@ export async function POST(request: NextRequest) {
       contextSensitive,
       existingDailyRow?.is_context_sensitive
     )
-    const mergedMeaningItems = mergeMeaningItems(incomingMeaningItems, existingDailyRow?.meaning_items_json, mergedMeaning || '')
+    const mergedSenses =
+      incomingSenses.length > 0
+        ? incomingSenses
+        : sanitizeSenseItems(parseJsonArrayText(existingDailyRow?.meaning_items_json))
 
-    const hasMeaning = (mergedMeaning?.length ?? 0) > 0 || mergedMeaningItems.length > 0
+    const hasMeaning = (mergedMeaning?.length ?? 0) > 0
     if (!hasMeaning) {
       return NextResponse.json(
         { error: 'Thiếu nghĩa. Không lưu từ thiếu thông tin. Vui lòng bấm từ để phân tích nghĩa trước khi lưu.' },
@@ -714,10 +750,14 @@ export async function POST(request: NextRequest) {
     const mergedReviewMeaning = preferIncomingOrExisting(mergedMeaning || '', existingReviewRow?.meaning)
     const mergedReviewPronunciation = preferIncomingOrExisting(mergedPronunciation || '', existingReviewRow?.pronunciation)
     const mergedReviewMeaningItems = mergeMeaningItems(
-      mergedMeaningItems,
+      incomingMeaningItems.length > 0 ? incomingMeaningItems : [],
       existingReviewRow?.meaning_items_json,
       mergedReviewMeaning || ''
     )
+    const mergedReviewSenses =
+      mergedSenses.length > 0
+        ? mergedSenses
+        : sanitizeSenseItems(parseJsonArrayText(existingReviewRow?.meaning_items_json))
     const mergedReviewExampleItems = mergeExampleItems(
       mergedExampleItems,
       existingReviewRow?.example_items_json,
@@ -748,7 +788,7 @@ export async function POST(request: NextRequest) {
         pronunciation_audio_url: mergedPronunciationAudioUrl,
         example_target: primaryExample?.targetText || mergedExampleTarget,
         example_native: primaryExample?.nativeText || mergedExampleNative,
-        meaning_items_json: mergedMeaningItems.length > 0 ? JSON.stringify(mergedMeaningItems) : null,
+        meaning_items_json: mergedSenses.length > 0 ? JSON.stringify(mergedSenses) : null,
         example_items_json: mergedExampleItems.length > 0 ? JSON.stringify(mergedExampleItems) : null,
         usage_level: mergedUsageLevel,
         importance_score: mergedImportanceScore,
@@ -771,7 +811,7 @@ export async function POST(request: NextRequest) {
           native_language: nativeLanguage || null,
           meaning: mergedReviewMeaning,
           pronunciation: mergedReviewPronunciation,
-          meaning_items_json: mergedReviewMeaningItems.length > 0 ? JSON.stringify(mergedReviewMeaningItems) : null,
+          meaning_items_json: mergedReviewSenses.length > 0 ? JSON.stringify(mergedReviewSenses) : null,
           example_items_json: mergedReviewExampleItems.length > 0 ? JSON.stringify(mergedReviewExampleItems) : null,
           usage_level: mergedReviewUsageLevel,
           importance_score: mergedReviewImportanceScore,
@@ -814,7 +854,7 @@ export async function POST(request: NextRequest) {
         pronunciation: mergedPronunciation,
         example_target: primaryExample?.targetText || mergedExampleTarget,
         example_native: primaryExample?.nativeText || mergedExampleNative,
-        meaning_items_json: mergedMeaningItems.length > 0 ? JSON.stringify(mergedMeaningItems) : null,
+        meaning_items_json: mergedSenses.length > 0 ? JSON.stringify(mergedSenses) : null,
         example_items_json: mergedExampleItems.length > 0 ? JSON.stringify(mergedExampleItems) : null,
         usage_level: mergedUsageLevel,
         importance_score: mergedImportanceScore,

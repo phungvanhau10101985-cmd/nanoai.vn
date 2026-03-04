@@ -52,9 +52,12 @@ function msg(locale: 'vi' | 'en', vi: string, en: string): string {
 }
 
 function normalizeMeaningOutput(input: string): string {
-  return String(input || '')
+  const cleaned = String(input || '')
     .replace(/\bNghĩa cốt lõi:\s*/gi, '')
     .replace(/\bCore meaning:\s*/gi, '')
+    .replace(/\n?\s*[-•]?\s*(Ví dụ|Example)\s*:\s*[^.\n]*(?:[.\n]|$)/gi, ' ')
+    .replace(/\n?\s*[-•]?\s*(Ngữ cảnh hay gặp|Common contexts?)\s*:\s*/gi, ' ')
+  return cleaned
     .replace(/\s+/g, ' ')
     .trim()
 }

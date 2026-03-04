@@ -158,6 +158,13 @@ export function saveWordDaily(payload: unknown) {
   return sendJson<{ error?: string }>('/api/english-coach/word-daily', 'POST', payload)
 }
 
+export function normalizeWordDailyStandard(limit?: number) {
+  return sendJson<{ ok?: boolean; error?: string }>('/api/english-coach/word-daily', 'POST', {
+    action: 'normalize_standard',
+    limit: limit ?? 0,
+  })
+}
+
 export function rescheduleReviewWords(payload: { words: Array<{ word: string; targetLanguage: string }> }) {
   return sendJson<unknown>('/api/english-coach/review-reschedule', 'POST', payload)
 }
