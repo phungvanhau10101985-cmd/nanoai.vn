@@ -3495,10 +3495,45 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
     text: string,
     opts?: { locale?: string; languageLabel?: string; forceEngine?: 'auto' | 'gemini-only' | 'openai-only'; skipCache?: boolean }
   ) => {
+    const normalizedText = String(text || '').trim()
+    if (!normalizedText) {
+      throw new Error(localText('Thiếu văn bản để tạo âm thanh.', 'Missing text to generate audio.'))
+    }
     const localeToUse = String(opts?.locale || activeTeacher.locale || '').trim() || 'en-US'
     const labelToUse = String(opts?.languageLabel || activeTeacher.languageLabel || '').trim() || 'English'
+    if (!opts?.skipCache) {
+      const { ok: cacheOk, data: cacheData } = await getTtsCache({
+        text: normalizedText,
+        voiceName: selectedVoice,
+        locale: localeToUse,
+      })
+      const cachePayload = cacheData as {
+        found?: boolean
+        audioBase64?: string
+        mimeType?: string
+      }
+      if (cacheOk && cachePayload.found && cachePayload.audioBase64) {
+        const bytes = base64ToBytes(String(cachePayload.audioBase64 || ''))
+        const mime = String(cachePayload.mimeType || '').toLowerCase()
+        const browserPlayable =
+          mime.includes('audio/wav') ||
+          mime.includes('audio/wave') ||
+          mime.includes('audio/mp3') ||
+          mime.includes('audio/mpeg') ||
+          mime.includes('audio/ogg') ||
+          mime.includes('audio/aac') ||
+          mime.includes('audio/flac')
+        const blob = browserPlayable
+          ? new Blob([bytes], { type: cachePayload.mimeType || 'audio/wav' })
+          : pcm16MonoToWavBlob(bytes, 24000)
+        const blobType = browserPlayable ? cachePayload.mimeType || 'audio/wav' : 'audio/wav'
+        const url = URL.createObjectURL(blob)
+        createdAudioUrlsRef.current.push(url)
+        return { url, blob, blobType }
+      }
+    }
     const { ok, status, data } = await generateTts({
-      text,
+      text: normalizedText,
       voiceName: selectedVoice,
       locale: localeToUse,
       teacherGender: activeTeacher.gender,

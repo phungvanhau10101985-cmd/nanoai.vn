@@ -44,6 +44,14 @@ function msg(locale: 'vi' | 'en', vi: string, en: string): string {
   return locale === 'vi' ? vi : en
 }
 
+function normalizeMeaningOutput(input: string): string {
+  return String(input || '')
+    .replace(/\bNghĩa cốt lõi:\s*/gi, '')
+    .replace(/\bCore meaning:\s*/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 function adminClient() {
   return createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 }
@@ -226,7 +234,7 @@ export async function POST(request: NextRequest) {
           .from('language_coach_vocab_cache')
           .update({ last_used_at: new Date().toISOString(), updated_at: new Date().toISOString() })
           .eq('id', cached.id)
-        const fallbackMeaning = String(cached.meaning || '').trim()
+        const fallbackMeaning = normalizeMeaningOutput(String(cached.meaning || '').trim())
         const fallbackExampleTarget = String(cached.example_target || '').trim() || word
         const fallbackExampleNative = String(cached.example_native || '').trim()
           || msg(locale, `Bạn vừa bấm từ "${word}".`, `You just tapped the word "${word}".`)
@@ -266,7 +274,7 @@ Ngôn ngữ mẹ đẻ của học sinh: ${nativeLanguage}.
 
 Yêu cầu:
 1) meaning: viết bằng ${nativeLanguage}, theo format từ điển NGẮN GỌN, dùng rộng:
-   - Dòng 1 (bắt buộc): "Nghĩa cốt lõi" dùng trong đa số trường hợp (1 câu ngắn, dễ hiểu như từ điển).
+   - Dòng 1 (bắt buộc): viết nghĩa cốt lõi dùng trong đa số trường hợp (1 câu ngắn, dễ hiểu như từ điển), KHÔNG thêm nhãn tiêu đề như "Nghĩa cốt lõi:".
    - Dòng 2 (bắt buộc): "Trong câu hiện tại..." giải nghĩa theo đúng ngữ cảnh "${contextSentence || '(không có ngữ cảnh)'}" (1 câu ngắn).
    - Dòng 3 (nếu cần): liệt kê 2-4 nghĩa phổ biến khác (ngắn, ngăn bằng dấu chấm phẩy).
    - Dòng 4 (nếu cần): nêu thật ngắn các ngữ cảnh hay gặp của các nghĩa phổ biến đó.
@@ -333,7 +341,7 @@ Trả về JSON hợp lệ, không markdown:
     const primaryExample = normalizedExampleItems[0] || null
     const completed: WordResult = {
       partOfSpeech: parsed.partOfSpeech || '',
-      meaning: parsed.meaning,
+      meaning: normalizeMeaningOutput(parsed.meaning),
       pronunciation: parsed.pronunciation || word,
       exampleTarget: primaryExample?.targetText || parsed.exampleTarget || `I use "${word}" in a sentence.`,
       exampleNative: primaryExample?.nativeText
@@ -358,7 +366,7 @@ Trả về JSON hợp lệ, không markdown:
         normalized_native_language: normalizedNative,
         context_hash: contextHash || null,
         part_of_speech: completed.partOfSpeech || null,
-        meaning: completed.meaning,
+        meaning: normalizeMeaningOutput(completed.meaning),
         pronunciation: completed.pronunciation || null,
         example_target: completed.exampleTarget || null,
         example_native: completed.exampleNative || null,
