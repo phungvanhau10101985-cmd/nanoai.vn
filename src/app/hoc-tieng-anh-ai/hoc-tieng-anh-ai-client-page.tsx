@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
 import { createClient } from '@/lib/supabase/client'
-import { Loader2, Mic, MicOff, Minus, Plus, Send, Languages, Volume2, Play, RotateCcw, Trash2 } from 'lucide-react'
+import { Loader2, Mic, MicOff, Minus, Plus, Send, Languages, Volume2, Play, RotateCcw, Trash2, Navigation } from 'lucide-react'
 import { WordPracticeOverlay } from './components/word-practice-overlay'
 import { PreLessonReviewOverlay } from './components/pre-lesson-review-overlay'
 import { QuickStartModal } from './components/quick-start-modal'
@@ -7709,6 +7709,10 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
     })
   }
 
+  const scrollToSpeakActions = useCallback(() => {
+    speakActionsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [])
+
   return (
     <>
       <Toaster />
@@ -10144,6 +10148,15 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
           localText={localText}
         />
       ) : null}
+      <Button
+        type="button"
+        onClick={scrollToSpeakActions}
+        className="fixed bottom-[calc(8rem+env(safe-area-inset-bottom))] right-2 z-40 h-12 w-12 rounded-full p-0 shadow-lg sm:hidden"
+        aria-label={localText('Đi tới nút nói', 'Go to speak button')}
+        title={localText('Đi tới nút nói', 'Go to speak button')}
+      >
+        <Navigation className="h-5 w-5" />
+      </Button>
       {matchedSessionChoiceOpen ? (
         <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-3 sm:items-center sm:p-4">
           <div className="w-full max-w-2xl rounded-lg border bg-white p-5 shadow-xl">
