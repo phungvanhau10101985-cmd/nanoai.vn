@@ -7955,21 +7955,21 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
               </div>
               <div className="mb-2 flex min-w-0 flex-wrap items-center gap-2">
                 <span
-                  className={`shrink-0 rounded-full border px-3 py-1.5 break-words text-[11px] font-medium ${
+                  className={`shrink-0 rounded-full border px-3 py-1.5 break-words text-xs font-semibold ${
                     isTopicConfirmedForLesson ? 'border-emerald-300 bg-emerald-100 text-emerald-800' : 'border-slate-300 bg-white text-slate-700'
                   }`}
                 >
                   {isTopicConfirmedForLesson ? '✅' : '⏳'} {localText('B1: Chọn chủ đề', 'S1: Select topic')}
                 </span>
                 <span
-                  className={`shrink-0 rounded-full border px-3 py-1.5 break-words text-[11px] font-medium ${
+                  className={`shrink-0 rounded-full border px-3 py-1.5 break-words text-xs font-semibold ${
                     hasCurriculumReady ? 'border-emerald-300 bg-emerald-100 text-emerald-800' : 'border-slate-300 bg-white text-slate-700'
                   }`}
                 >
                   {hasCurriculumReady ? '✅' : '⏳'} {localText('B2: Tạo giáo trình', 'S2: Create curriculum')}
                 </span>
                 <span
-                  className={`shrink-0 rounded-full border px-3 py-1.5 break-words text-[11px] font-medium ${
+                  className={`shrink-0 rounded-full border px-3 py-1.5 break-words text-xs font-semibold ${
                     isLessonReadyToStart ? 'border-emerald-300 bg-emerald-100 text-emerald-800' : 'border-slate-300 bg-white text-slate-700'
                   }`}
                 >
@@ -8126,7 +8126,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                 </Button>
               ) : null}
             </CardHeader>
-            <CardContent className="space-y-3 px-0 pb-1 sm:px-1 sm:pb-2">
+            <CardContent className="space-y-4 px-0 pb-20 sm:px-1 sm:pb-24">
               <div className="flex min-w-0 flex-col gap-3 sm:flex-row">
                 {(() => {
                   const curriculum = topicCurriculum || preLessonCurriculum
@@ -8202,7 +8202,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                     </>
                   ) : null
                 })()}
-              <div ref={chatScrollRef} className="max-h-[64vh] min-w-0 flex-1 space-y-2 overflow-auto rounded-xl border border-border/70 bg-slate-50/90 p-2.5 sm:max-h-[34rem] sm:p-3">
+              <div ref={chatScrollRef} className="max-h-[64vh] min-w-0 flex-1 space-y-2.5 overflow-auto rounded-xl border border-border/70 bg-slate-50/90 p-3 pb-24 scroll-pb-24 sm:max-h-[34rem] sm:p-3.5 sm:pb-28 sm:scroll-pb-28">
                 {messages.length === 0 ? (
                   <div className="space-y-3">
                     {historySessions.length > 0 ? (
@@ -8761,9 +8761,9 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                     <p className="font-semibold">
                       {localText('Nhóm mini ôn tập (làm lần lượt):', 'Mini review pack (complete in order):')}
                     </p>
-                    <div className="mt-2 flex flex-wrap gap-2">
+                    <div className="mt-2 flex flex-wrap gap-2.5 sm:gap-2">
                       <span
-                        className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${
+                        className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${
                           writingTask?.completed
                             ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
                             : reviewDrillStage === 'writing'
@@ -8779,7 +8779,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                             : localText('chờ', 'pending')}
                       </span>
                       <span
-                        className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${
+                        className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${
                           reviewMiniPackCompleted || reviewDrillStage === 'listening'
                             ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
                             : reviewDrillStage === 'speaking'
@@ -8795,7 +8795,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                             : localText('chờ', 'pending')}
                       </span>
                       <span
-                        className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${
+                        className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${
                           reviewMiniPackCompleted
                             ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
                             : reviewDrillStage === 'listening'
@@ -8868,43 +8868,44 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                     </p>
                   </div>
                 ) : null}
-                <div className="flex min-w-0 items-center gap-2 sm:flex-1">
-                  <Input
-                    value={draft}
-                    onFocus={(e) => {
-                      if (!isMiniDrillBlocking) return
-                      e.currentTarget.blur()
-                      redirectToMiniDrill()
-                    }}
-                    onChange={(e) => {
-                      if (isMiniDrillBlocking) {
+                <div className="sticky bottom-0 z-20 -mx-1 rounded-xl border border-border/70 bg-background/95 p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-md backdrop-blur supports-[backdrop-filter]:bg-background/85">
+                  <div className="flex min-w-0 items-center gap-2 sm:flex-1">
+                    <Input
+                      value={draft}
+                      onFocus={(e) => {
+                        if (!isMiniDrillBlocking) return
+                        e.currentTarget.blur()
                         redirectToMiniDrill()
-                        return
-                      }
-                      setDraft(e.target.value)
-                    }}
-                    placeholder={coachUiText.inputPlaceholder}
-                    disabled={busy || reviewListeningPopupOpen || isMiniDrillBlocking || liveSessionTurnLimitReached}
-                    className="min-w-0 sm:flex-1"
-                  />
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={() => {
-                      if (isMiniDrillBlocking) {
-                        redirectToMiniDrill()
-                        return
-                      }
-                      void handleSend()
-                    }}
-                    disabled={busy || reviewListeningPopupOpen || isMiniDrillBlocking || liveSessionTurnLimitReached || !draft.trim()}
-                    className="h-10 rounded-xl px-3"
-                  >
-                    <Send className="mr-1.5 h-4 w-4" />
-                    {localText('Gửi', 'Send')}
-                  </Button>
-                </div>
-                <div className={`flex min-w-0 flex-wrap items-center gap-2 overflow-x-auto rounded-xl border border-border/70 bg-background/95 px-2 py-2 ${compactMode ? 'sticky bottom-0 z-20 shadow-md' : ''}`}>
+                      }}
+                      onChange={(e) => {
+                        if (isMiniDrillBlocking) {
+                          redirectToMiniDrill()
+                          return
+                        }
+                        setDraft(e.target.value)
+                      }}
+                      placeholder={coachUiText.inputPlaceholder}
+                      disabled={busy || reviewListeningPopupOpen || isMiniDrillBlocking || liveSessionTurnLimitReached}
+                      className="min-w-0 sm:flex-1"
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => {
+                        if (isMiniDrillBlocking) {
+                          redirectToMiniDrill()
+                          return
+                        }
+                        void handleSend()
+                      }}
+                      disabled={busy || reviewListeningPopupOpen || isMiniDrillBlocking || liveSessionTurnLimitReached || !draft.trim()}
+                      className="min-h-[46px] rounded-xl px-3.5 text-sm font-semibold"
+                    >
+                      <Send className="mr-1.5 h-4 w-4" />
+                      {localText('Gửi', 'Send')}
+                    </Button>
+                  </div>
+                  <div className="mt-2 flex min-w-0 flex-wrap items-center gap-2 overflow-x-auto rounded-lg border border-slate-200 bg-slate-50/80 px-2 py-2">
                   {recordingPending ? (
                     <>
                       <Button
@@ -8913,7 +8914,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                         variant="outline"
                         onClick={handlePlaybackRecording}
                         disabled={busy}
-                        className="min-h-[44px] px-3 text-xs"
+                        className="min-h-[46px] px-3.5 text-sm font-semibold"
                       >
                         <Play className="mr-2 h-4 w-4" />
                         {localText('Nghe lại', 'Play back')}
@@ -8924,7 +8925,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                         variant="outline"
                         onClick={handleRecordAgain}
                         disabled={busy}
-                        className="min-h-[44px] px-3 text-xs"
+                        className="min-h-[46px] px-3.5 text-sm font-semibold"
                       >
                         <RotateCcw className="mr-2 h-4 w-4" />
                         {localText('Nói lại', 'Record again')}
@@ -8941,7 +8942,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                           void sendPendingRecording()
                         }}
                         disabled={busy || awaitingTeacherReply || liveSessionTurnLimitReached}
-                        className="min-h-[44px] px-3 text-xs"
+                        className="min-h-[46px] px-3.5 text-sm font-semibold"
                       >
                         <Send className="mr-2 h-4 w-4" />
                         {localText('Gửi', 'Send')}
@@ -8955,7 +8956,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                         variant={listening ? 'destructive' : 'outline'}
                         onClick={handleMic}
                         disabled={busy || awaitingTeacherReply || isMiniDrillBlocking || liveSessionTurnLimitReached}
-                        className="min-h-[44px] px-3 text-xs"
+                        className="min-h-[46px] px-3.5 text-sm font-semibold"
                       >
                         {listening ? <MicOff className="mr-2 h-4 w-4" /> : <Mic className="mr-2 h-4 w-4" />}
                         {listening ? localText('Dừng mic', 'Stop mic') : localText('Nói', 'Speak')}
@@ -9015,9 +9016,10 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                       </div>
                     </>
                   )}
+                  </div>
                 </div>
                 {!isPresetPageSession ? (
-                  <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+                  <div className="rounded-md border border-slate-200 bg-slate-50/80 px-3 py-2 text-xs text-slate-700">
                     <p>
                       {localText('Lượt hỏi buổi live:', 'Live lesson turns:')}{' '}
                       <span className="font-semibold">{liveSessionStudentTurnCount}/{liveSessionTurnLimit}</span>
@@ -9116,9 +9118,9 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                       <p className="font-semibold">
                         {localText('Nhóm mini ôn tập (làm lần lượt):', 'Mini review pack (complete in order):')}
                       </p>
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-wrap gap-2.5 sm:gap-2">
                         <span
-                          className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${
+                          className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${
                             writingTask?.completed
                               ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
                               : reviewDrillStage === 'writing'
@@ -9134,7 +9136,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                               : localText('chờ', 'pending')}
                         </span>
                         <span
-                          className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${
+                          className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${
                             reviewMiniPackCompleted || reviewDrillStage === 'listening'
                               ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
                               : reviewDrillStage === 'speaking'
@@ -9150,7 +9152,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                               : localText('chờ', 'pending')}
                         </span>
                         <span
-                          className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${
+                          className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${
                             reviewMiniPackCompleted
                               ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
                               : reviewDrillStage === 'listening'
@@ -9171,32 +9173,37 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                       </div>
                     </div>
                   ) : null}
-                  <div className="mt-2 space-y-2">
-                    <div className="flex min-w-0 items-center gap-2">
-                      <Input
-                        ref={writingInputRef}
-                        value={writingDraft}
-                        onChange={(e) => {
-                          setWritingDraft(e.target.value)
-                          if (writingEvalResult && !writingTask?.completed) {
-                            setWritingEvalResult(null)
-                          }
-                        }}
-                        placeholder={localText('Viết câu của bạn tại đây...', 'Write your sentence here...')}
-                        disabled={writingBusy}
-                        className={`min-w-0 flex-1 ${
-                          writingInputStatus === 'matched'
-                            ? 'border-emerald-400 bg-emerald-50 text-emerald-800'
-                            : writingInputStatus === 'incorrect'
-                              ? 'border-rose-400 bg-rose-50 text-rose-800'
-                              : writingInputStatus === 'partial'
-                                ? 'border-sky-300 bg-sky-50 text-sky-800'
-                                : ''
-                        }`}
-                      />
-                      <Button type="button" size="sm" onClick={() => void evaluateWritingTask()} disabled={writingBusy || !writingDraft.trim()}>
-                        {writingBusy ? localText('Đang gửi...', 'Sending...') : localText('Gửi', 'Send')}
-                      </Button>
+                  <div className="mt-3 space-y-3">
+                    <div className="rounded-md border border-amber-200 bg-white p-2.5">
+                      <p className="mb-2 text-xs font-semibold text-slate-700">
+                        {localText('Nhập câu của bạn', 'Type your sentence')}
+                      </p>
+                      <div className="flex min-w-0 items-center gap-2">
+                        <Input
+                          ref={writingInputRef}
+                          value={writingDraft}
+                          onChange={(e) => {
+                            setWritingDraft(e.target.value)
+                            if (writingEvalResult && !writingTask?.completed) {
+                              setWritingEvalResult(null)
+                            }
+                          }}
+                          placeholder={localText('Viết câu của bạn tại đây...', 'Write your sentence here...')}
+                          disabled={writingBusy}
+                          className={`min-w-0 flex-1 ${
+                            writingInputStatus === 'matched'
+                              ? 'border-emerald-400 bg-emerald-50 text-emerald-800'
+                              : writingInputStatus === 'incorrect'
+                                ? 'border-rose-400 bg-rose-50 text-rose-800'
+                                : writingInputStatus === 'partial'
+                                  ? 'border-sky-300 bg-sky-50 text-sky-800'
+                                  : ''
+                          }`}
+                        />
+                        <Button type="button" size="sm" onClick={() => void evaluateWritingTask()} disabled={writingBusy || !writingDraft.trim()}>
+                          {writingBusy ? localText('Đang gửi...', 'Sending...') : localText('Gửi', 'Send')}
+                        </Button>
+                      </div>
                     </div>
                     {writingInputStatus === 'incorrect' ? (
                       <p className="text-xs text-rose-700">
@@ -9214,7 +9221,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                         {localText('Đúng rồi, đang chuyển sang câu tiếp theo...', 'Correct, moving to the next sentence...')}
                       </p>
                     ) : null}
-                    <div className="space-y-1">
+                    <div className="space-y-1 rounded-md border border-slate-200 bg-white p-2.5">
                       <p className="text-sm font-semibold text-slate-800">{localText('Bài viết mini bắt buộc', 'Required mini-writing task')}</p>
                       <p className="text-xs text-muted-foreground break-words">{writingTask.instruction}</p>
                       <p className="text-xs text-slate-600">
@@ -9239,24 +9246,10 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                                     isCurrent ? 'border-indigo-300 bg-indigo-50' : 'border-slate-200 bg-white'
                                   }`}
                                 >
-                                  <p className="leading-6">
+                                  <p className="leading-6 break-words [overflow-wrap:anywhere]">
                                     <span className="font-semibold">{localText('Câu', 'Sentence')} {idx + 1}:</span>{' '}
-                                    <span className="inline align-middle break-words [overflow-wrap:anywhere]">
-                                      {Array.from(sentence).map((char, charIdx) => {
-                                        const displayChar = char
-                                        return (
-                                          <span
-                                            key={`sentence-${idx}-char-${charIdx}`}
-                                            className={
-                                              isCurrent
-                                                ? 'bg-emerald-100 text-emerald-900'
-                                                : 'bg-slate-100 text-slate-800'
-                                            }
-                                          >
-                                            {displayChar}
-                                          </span>
-                                        )
-                                      })}
+                                    <span className={isCurrent ? 'font-medium text-emerald-900' : 'text-slate-800'}>
+                                      {sentence}
                                     </span>
                                   </p>
                                   {supportsLatinTransliteration && (romanized || busyKey) ? (
@@ -9272,7 +9265,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                         </div>
                       ) : null}
                     </div>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="rounded-md border border-amber-200 bg-amber-50/70 px-2.5 py-2">
                       {!writingTask.completed ? (
                         <p className="text-xs text-amber-700">
                           {localText(
@@ -9326,9 +9319,9 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                       <p className="font-semibold">
                         {localText('Nhóm mini ôn tập (làm lần lượt):', 'Mini review pack (complete in order):')}
                       </p>
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-wrap gap-2.5 sm:gap-2">
                         <span
-                          className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${
+                          className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${
                             writingTask?.completed
                               ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
                               : reviewDrillStage === 'writing'
@@ -9344,7 +9337,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                               : localText('chờ', 'pending')}
                         </span>
                         <span
-                          className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${
+                          className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${
                             reviewMiniPackCompleted || reviewDrillStage === 'listening'
                               ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
                               : reviewDrillStage === 'speaking'
@@ -9360,7 +9353,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                               : localText('chờ', 'pending')}
                         </span>
                         <span
-                          className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${
+                          className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${
                             reviewMiniPackCompleted
                               ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
                               : reviewDrillStage === 'listening'
@@ -9467,9 +9460,9 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                       <p className="font-semibold">
                         {localText('Nhóm mini ôn tập (làm lần lượt):', 'Mini review pack (complete in order):')}
                       </p>
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-wrap gap-2.5 sm:gap-2">
                         <span
-                          className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${
+                          className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${
                             writingTask?.completed
                               ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
                               : reviewDrillStage === 'writing'
@@ -9485,7 +9478,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                               : localText('chờ', 'pending')}
                         </span>
                         <span
-                          className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${
+                          className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${
                             reviewMiniPackCompleted || reviewDrillStage === 'listening'
                               ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
                               : reviewDrillStage === 'speaking'
@@ -9501,7 +9494,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                               : localText('chờ', 'pending')}
                         </span>
                         <span
-                          className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${
+                          className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${
                             reviewMiniPackCompleted
                               ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
                               : reviewDrillStage === 'listening'
