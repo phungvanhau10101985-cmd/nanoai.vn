@@ -130,21 +130,10 @@ function detectTeacherGenderFromLabel(teacherLabelRaw: string): 'male' | 'female
 }
 
 function buildFixedPresetOpeningText(languageCodeRaw: string, teacherGender: 'male' | 'female'): string {
-  const code = normalizeLookup(languageCodeRaw)
-  if (code === 'vi') {
-    return teacherGender === 'female'
-      ? 'Cô chào em. Hôm nay chúng ta học bài hội thoại dựng sẵn. Em hãy bắt đầu bằng câu mẫu theo hướng dẫn.'
-      : 'Thầy chào em. Hôm nay chúng ta học bài hội thoại dựng sẵn. Em hãy bắt đầu bằng câu mẫu theo hướng dẫn.'
-  }
-  if (code === 'en') {
-    return 'Hello. Today we practice a preset dialogue lesson. Please start with the guided sample sentence.'
-  }
-  if (code === 'zh') return '你好。今天我们练习预设对话课程。请先按提示说示例句。'
-  if (code === 'ja') return 'こんにちは。今日はプリセット会話レッスンを練習します。まずはガイドの例文から始めてください。'
-  if (code === 'ko') return '안녕하세요. 오늘은 미리 구성된 대화 수업을 연습합니다. 안내된 예문부터 시작해 주세요.'
-  if (code === 'th') return 'สวัสดี วันนี้เราจะฝึกบทสนทนาที่ตั้งไว้ล่วงหน้า กรุณาเริ่มจากประโยคตัวอย่างตามคำแนะนำ'
-  if (code === 'hi') return 'नमस्ते। आज हम प्रीसेट संवाद पाठ का अभ्यास करेंगे। कृपया दिए गए नमूना वाक्य से शुरू करें।'
-  return 'Hello. Today we practice a preset dialogue lesson. Please start with the guided sample sentence.'
+  void languageCodeRaw
+  return teacherGender === 'female'
+    ? 'Cô chào em, hôm nay em thế nào? Hôm nay em muốn chia sẻ điều gì?'
+    : 'Thầy chào em, hôm nay em thế nào? Hôm nay em muốn chia sẻ điều gì?'
 }
 
 function personalizeTextForLearner(text: string, learnerProfile: LearnerProfileLite): string {
