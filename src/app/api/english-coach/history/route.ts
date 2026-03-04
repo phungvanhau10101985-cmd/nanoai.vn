@@ -202,6 +202,7 @@ export async function GET(request: NextRequest) {
     const { user } = auth
 
     const sessionId = String(request.nextUrl.searchParams.get('sessionId') || '').trim()
+    const scope = String(request.nextUrl.searchParams.get('scope') || 'active').trim().toLowerCase()
     const limitRaw = Number(request.nextUrl.searchParams.get('limit') || 20)
     const limit = Number.isFinite(limitRaw) ? Math.min(50, Math.max(1, Math.floor(limitRaw))) : 20
     const adminSupabase = adminClient()
@@ -239,10 +240,10 @@ export async function GET(request: NextRequest) {
       ])
 
       if (hiddenCheck.data) {
-        return NextResponse.json({ error: 'Buổi học đã bị ẩn.' }, { status: 404 })
+        // hidden sessions are still readable from "learned lessons"
       }
       if (endedCheck.data) {
-        return NextResponse.json({ error: 'Buổi học đã kết thúc.' }, { status: 404 })
+        // ended sessions are still readable from "learned lessons"
       }
 
       const { data, error } = messagesResult
@@ -472,7 +473,13 @@ export async function GET(request: NextRequest) {
 
     for (const row of data ?? []) {
       const sid = String(row.session_id || '')
-      if (!sid || hiddenSessionIds.has(sid) || endedSessionIds.has(sid)) continue
+      if (!sid) continue
+      const isLearnedSession = hiddenSessionIds.has(sid) || endedSessionIds.has(sid)
+      if (scope === 'learned') {
+        if (!isLearnedSession) continue
+      } else {
+        if (isLearnedSession) continue
+      }
       const existing = bySession.get(sid)
       const lm = learningModeBySession.get(sid)
       const safeLm = lm === 'reflex' ? 'reflex' : 'review'

@@ -2090,6 +2090,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
   }>({ accuracy: null, fluency: null, prosody: null })
   const [latestWordScores, setLatestWordScores] = useState<Array<{ word: string; score: number; issueType: string }>>([])
   const [historySessions, setHistorySessions] = useState<HistorySession[]>([])
+  const [learnedHistorySessions, setLearnedHistorySessions] = useState<HistorySession[]>([])
   const [teacherAudioByMessageId, setTeacherAudioByMessageId] = useState<Record<string, string>>({})
   const [ttsLoadingByKey, setTtsLoadingByKey] = useState<Record<string, boolean>>({})
   const [todayWords, setTodayWords] = useState<TodayWordItem[]>([])
@@ -4827,9 +4828,18 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
   }
 
   const fetchHistorySessions = async () => {
-    const { ok, data } = await getHistorySessions(12)
-    if (!ok) throw new Error(data.error || localText('Không tải được lịch sử buổi học.', 'Failed to load lesson history.'))
-    setHistorySessions(Array.isArray(data.sessions) ? data.sessions : [])
+    const [activeRes, learnedRes] = await Promise.all([
+      getHistorySessions(12, 'active'),
+      getHistorySessions(20, 'learned'),
+    ])
+    if (!activeRes.ok) {
+      throw new Error(activeRes.data.error || localText('Không tải được lịch sử buổi học.', 'Failed to load lesson history.'))
+    }
+    if (!learnedRes.ok) {
+      throw new Error(learnedRes.data.error || localText('Không tải được danh sách đã học.', 'Failed to load learned lessons.'))
+    }
+    setHistorySessions(Array.isArray(activeRes.data.sessions) ? activeRes.data.sessions as HistorySession[] : [])
+    setLearnedHistorySessions(Array.isArray(learnedRes.data.sessions) ? learnedRes.data.sessions as HistorySession[] : [])
   }
 
   const deleteSession = async (targetSessionId: string) => {
@@ -4859,6 +4869,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
       setIntentExplainByMessageId({})
     }
     toast({ title: localText('Đã xóa buổi học.', 'Lesson deleted.') })
+    void fetchHistorySessions()
   }
 
   const fetchPreviousLessonWords = async (): Promise<TodayWordItem[]> => {
@@ -10144,6 +10155,19 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
           onRefresh={() => void fetchHistorySessions()}
           onOpenSession={(sessionId) => void loadHistorySession(sessionId)}
           onDeleteSession={(sid) => void deleteSession(sid)}
+        />
+        <HistoryPanel
+          title={localText('Danh sách bài học đã học', 'Learned lesson list')}
+          description={localText(
+            'Mở lại để ôn tập. Buổi live có thể mua thêm lượt để học tiếp; bài có sẵn chỉ mở lại để xem và ôn.',
+            'Open again for review. Live lessons can buy extra turns to continue; saved lessons are review-only.'
+          )}
+          sessions={learnedHistorySessions}
+          openedHistorySessionId={openedHistorySessionId}
+          historyBusy={historyBusy}
+          localText={localText}
+          onRefresh={() => void fetchHistorySessions()}
+          onOpenSession={(sessionId) => void loadHistorySession(sessionId)}
         />
       </div>
       <WordPracticeOverlay

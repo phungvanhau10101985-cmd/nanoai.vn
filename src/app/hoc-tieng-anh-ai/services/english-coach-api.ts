@@ -72,8 +72,10 @@ export function getReviewDue(limit: number) {
   return getJson<{ items?: unknown[] }>(`/api/english-coach/review-due?limit=${encodeURIComponent(String(limit))}`)
 }
 
-export function getHistorySessions(limit: number) {
-  return getJson<{ sessions?: unknown[]; error?: string }>(`/api/english-coach/history?limit=${encodeURIComponent(String(limit))}`)
+export function getHistorySessions(limit: number, scope: 'active' | 'learned' = 'active') {
+  return getJson<{ sessions?: unknown[]; error?: string }>(
+    `/api/english-coach/history?limit=${encodeURIComponent(String(limit))}&scope=${encodeURIComponent(scope)}`
+  )
 }
 
 export function deleteHistorySession(sessionId: string) {
