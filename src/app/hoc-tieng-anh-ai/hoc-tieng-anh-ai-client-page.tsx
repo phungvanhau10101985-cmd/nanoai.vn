@@ -5752,13 +5752,58 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
         : undefined)
       || selectedTopic
 
-    void startLiveLessonFromChoice({
-      curriculum: null,
-      topic: topicFromPending,
-    }).finally(() => {
+    void (async () => {
+      const plan = { curriculum: null as TopicCurriculum | null, topic: topicFromPending }
+      let presetAvailable = false
+      try {
+        const { ok, data } = await checkCompletedLessonMatch({
+          targetLanguage: activeTeacher.languageLabel,
+          nativeLanguage: selectedNativeLanguage.apiLabel,
+          learnerLevel,
+          topicId: plan.topic.id,
+          topicLabel: plan.topic.label,
+          mode: learningMode === 'reflex' ? 'listen_speak' : mode,
+          learningMode,
+          teacherLabel: activeTeacher.label,
+          teacherLocale: activeTeacher.ttsLocale,
+          languageCode,
+        })
+        presetAvailable = ok ? Boolean(data.found) : false
+      } catch {
+        presetAvailable = false
+      }
+      openLessonStartChoice(null, topicFromPending, { presetAvailable })
+      toast({
+        title: localText('Chọn hình thức học', 'Choose lesson type'),
+        description: presetAvailable
+          ? localText(
+              'Có bài học có sẵn khớp cài đặt hiện tại. Bạn có thể học live với AI hoặc học bài có sẵn.',
+              'A saved lesson matches your current setup. You can start a live AI lesson or study the saved lesson.'
+            )
+          : localText(
+              'Chưa có bài có sẵn khớp cài đặt hiện tại. Bạn vẫn có thể học live với AI ngay.',
+              'No saved lesson matches your current setup yet. You can start a live AI lesson now.'
+            ),
+      })
+    })().finally(() => {
       router.replace('/hoc-tieng-anh-ai')
     })
-  }, [searchParams, isSavedStandalonePage, allTopicOptions, selectedTopic, router])
+  }, [
+    searchParams,
+    isSavedStandalonePage,
+    allTopicOptions,
+    selectedTopic,
+    router,
+    activeTeacher.languageLabel,
+    activeTeacher.label,
+    activeTeacher.ttsLocale,
+    selectedNativeLanguage.apiLabel,
+    learnerLevel,
+    learningMode,
+    mode,
+    languageCode,
+    toast,
+  ])
 
   const endLessonAndStartNew = async () => {
     const currentSessionId = sessionId
