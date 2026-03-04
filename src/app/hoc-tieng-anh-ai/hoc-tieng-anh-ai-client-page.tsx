@@ -8766,7 +8766,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                               : 'border-slate-300 bg-white text-slate-600'
                         }`}
                       >
-                        {localText('1) Viết', '1) Writing'} —{' '}
+                        {localText('1) Viết', '1) Writing')} -{' '}
                         {writingTask?.completed
                           ? localText('xong', 'done')
                           : reviewDrillStage === 'writing'
@@ -8782,7 +8782,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                               : 'border-slate-300 bg-white text-slate-600'
                         }`}
                       >
-                        {localText('2) Nói', '2) Speaking'} —{' '}
+                        {localText('2) Nói', '2) Speaking')} -{' '}
                         {reviewMiniPackCompleted || reviewDrillStage === 'listening'
                           ? localText('xong', 'done')
                           : reviewDrillStage === 'speaking'
@@ -8798,7 +8798,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                               : 'border-slate-300 bg-white text-slate-600'
                         }`}
                       >
-                        {localText('3) Nghe', '3) Listening'} —{' '}
+                        {localText('3) Nghe', '3) Listening')} -{' '}
                         {reviewMiniPackCompleted
                           ? localText('xong', 'done')
                           : reviewDrillStage === 'listening'
