@@ -4906,6 +4906,8 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
     }
     setHistorySessions((prev) => prev.filter((s) => s.sessionId !== targetSessionId))
     if (sessionId === targetSessionId || openedHistorySessionId === targetSessionId) {
+      const basePath = isSavedStandalonePage ? '/hoc-bai-hoc-co-san' : '/hoc-tieng-anh-ai'
+      routeOpenSessionHandledRef.current = ''
       setSessionId('')
       setOpenedHistorySessionId('')
       setMessages([])
@@ -4923,6 +4925,8 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
       setTokensWithUsageByMessageId({})
       setOpeningTranslateByMessageId({})
       setIntentExplainByMessageId({})
+      // Prevent URL sessionId from reopening a just-deleted session.
+      router.replace(basePath)
     }
     toast({ title: localText('Đã xóa buổi học.', 'Lesson deleted.') })
     void fetchHistorySessions()
