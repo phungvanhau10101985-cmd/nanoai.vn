@@ -7104,6 +7104,9 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
     setLiveSessionExtraTurnUnlocks(unlockCount)
     setIsCurrentPresetSession(false)
     setPresetReplayExpectedSentence('')
+    if (isSavedStandalonePage) {
+      router.replace('/hoc-tieng-anh-ai')
+    }
     await startLesson({
       skipPrerequisiteCheck: true,
       curriculumOverride: curriculumToUse,
@@ -7176,6 +7179,9 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
       setLessonStartChoiceOpen(false)
       setLessonStartPresetAvailable(true)
       setLessonStartPlan(null)
+      if (!isSavedStandalonePage) {
+        router.replace('/hoc-bai-hoc-co-san')
+      }
       await loadHistorySession(presetSessionId)
       setSetupCollapsed(true)
       toast({
