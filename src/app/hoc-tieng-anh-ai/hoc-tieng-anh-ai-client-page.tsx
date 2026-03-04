@@ -3988,6 +3988,23 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
     await playAudioUrl(audioUrl)
   }
 
+  const replayDbStandardForStudentMessage = async (studentMessageId: string) => {
+    const idx = messages.findIndex((m) => m.id === studentMessageId)
+    if (idx < 0) return
+    for (let i = idx - 1; i >= 0; i -= 1) {
+      const m = messages[i]
+      if (m.role !== 'teacher') continue
+      await replayTeacherMainSentence(m.id, m.text)
+      return
+    }
+    if (latestMainSentenceForLearner) {
+      await replayTeacherMainSentence(
+        latestMainSentenceForLearner.messageId,
+        latestMainSentenceForLearner.teacherText
+      )
+    }
+  }
+
   const replayTeacherCorrectionNote = async (messageId: string) => {
     const correctionNote = String(correctionNoteByMessageId[messageId] || '').trim()
     if (!correctionNote) return
@@ -6378,6 +6395,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
         correctionNote?: string
         intentAnswer?: string
         mainSentence?: string
+        replayedFromPreset?: boolean
         reviewDrill?: {
           type?: 'speaking' | 'listening' | 'done'
           prompt?: string
@@ -6423,7 +6441,10 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
           .find((x) => x.split(/\s+/).filter(Boolean).length >= 4)
         const rawMainSentence = fullSentenceCandidate || apiMainSentence || correctedMainSentence
         const mainSentence = rawMainSentence ? sanitizeForDisplay(rawMainSentence, languageCode) : ''
-        const teacherText = composeTeacherMessageText(correctionNote, mainSentence, intentAnswer)
+        const isPresetReplayReply = Boolean(isPresetPageSession && payload.replayedFromPreset)
+        const teacherText = isPresetReplayReply
+          ? (intentAnswer || mainSentence || correctionNote)
+          : composeTeacherMessageText(correctionNote, mainSentence, intentAnswer)
         if (!teacherText) {
           throw new Error(localText('Không nhận được nội dung phản hồi hợp lệ từ AI.', 'No valid AI response content received.'))
         }
@@ -6477,7 +6498,13 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                 .map((x) => extractTargetLanguageOnlyForReflexTts(String(x || '').trim(), languageCode))
                 .map((x) => stripPhoneticForTts(x, languageCode))
                 .filter(Boolean)
-            : [correctionNote, mainSentence, intentAnswer].map((x) => stripPhoneticForTts(String(x || '').trim(), languageCode)).filter(Boolean)
+            : isPresetReplayReply
+              ? [intentAnswer || mainSentence || correctionNote]
+                  .map((x) => stripPhoneticForTts(String(x || '').trim(), languageCode))
+                  .filter(Boolean)
+              : [correctionNote, mainSentence, intentAnswer]
+                  .map((x) => stripPhoneticForTts(String(x || '').trim(), languageCode))
+                  .filter(Boolean)
         const fallbackRaw =
           learningMode === 'reflex'
             ? extractTargetLanguageOnlyForReflexTts(extractTeacherSpeechText(teacherText), languageCode)
@@ -9213,7 +9240,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                               onClick={() => void replayStudentMessageAudio(m.id)}
                             >
                               <Volume2 className="mr-2 h-4 w-4" />
-                              {localText('Nghe lại câu học viên', 'Play student audio')}
+                              {localText('Nghe lại học viên', 'Play student recording')}
                             </Button>
                           ) : null}
                         </div>
@@ -9312,6 +9339,15 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                           >
                             <Volume2 className="mr-2 h-4 w-4" />
                             {localText('Nghe lại học viên', 'Play student recording')}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => void replayDbStandardForStudentMessage(m.id)}
+                          >
+                            <Volume2 className="mr-2 h-4 w-4" />
+                            {localText('Nghe đọc chuẩn (DB)', 'Play standard reading (DB)')}
                           </Button>
                         </div>
                       ) : null}
@@ -9432,16 +9468,6 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                       )}
                     </p>
                     <div className="mt-2 flex flex-wrap gap-2">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => void replayStudentMessage(latestStudentReplayMessageId)}
-                        disabled={!latestStudentReplayMessageId}
-                      >
-                        <Volume2 className="mr-2 h-4 w-4" />
-                        {localText('Nghe lại học viên', 'Play student recording')}
-                      </Button>
                       <Button
                         type="button"
                         size="sm"
