@@ -2243,6 +2243,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
   const teacherAudioByMessageIdRef = useRef<Record<string, string>>({})
   const studentAudioByMessageIdRef = useRef<Record<string, string>>({})
   const wordSenseAudioByKeyRef = useRef<Record<string, string>>({})
+  const wordSenseAutoPlayedByKeyRef = useRef<Record<string, true>>({})
   const persistedMessageIdsRef = useRef<Record<string, true>>({})
   const createdAudioUrlsRef = useRef<string[]>([])
   const lastAutoScrollTokenMessageIdRef = useRef('')
@@ -4483,7 +4484,11 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
           exampleItems: sanitizeWordExampleItems(savedWord.exampleItems),
         },
       }))
-      void playWordPronunciation(word)
+      const savedSenses = sanitizeWordSenses((savedWord as { senses?: unknown }).senses)
+      void (async () => {
+        await playWordPronunciation(word)
+        await autoPlayWordSenseAllFirstTime(key, word, savedSenses)
+      })()
       return
     }
     if (wordInsightByKey[key]) {
@@ -4494,7 +4499,10 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
         // ignore daily word save failure on cached click
       }
       const cached = wordInsightByKey[key]
-      void playWordPronunciation(word)
+      void (async () => {
+        await playWordPronunciation(word)
+        await autoPlayWordSenseAllFirstTime(key, word, sanitizeWordSenses(cached.senses))
+      })()
       return
     }
 
@@ -4539,7 +4547,8 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
       const audioUrl = String((payload as { pronunciationAudioUrl?: string }).pronunciationAudioUrl || '').trim()
       await saveDailyWord(word, detail, audioUrl || undefined)
       void fetchSessionWords()
-      void wordPlayPromise
+      await wordPlayPromise
+      await autoPlayWordSenseAllFirstTime(key, word, sanitizeWordSenses(detail.senses))
     } catch (e) {
       const msg = unknownErrorMsg(e)
       toast({ title: localText('Không phân tích được từ', 'Word analysis failed'), description: msg, variant: 'destructive' })
@@ -4734,6 +4743,18 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
     for (const url of urls) {
       await playAudioUrl(url)
     }
+  }
+
+  const autoPlayWordSenseAllFirstTime = async (
+    key: string,
+    word: string,
+    senses: Array<{ gloss: string; exampleTarget: string; exampleNative: string }>
+  ) => {
+    if (!key || wordSenseAutoPlayedByKeyRef.current[key]) return
+    const validSenseItems = sanitizeWordSenses(senses)
+    if (validSenseItems.length === 0) return
+    wordSenseAutoPlayedByKeyRef.current[key] = true
+    await playWordSenseAll(word, validSenseItems)
   }
 
   const playWordTextSnippet = async (text: string) => {
@@ -5471,6 +5492,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
       setOpenedWordKey('')
       setWordBusyKey('')
       setWordInsightByKey({})
+      wordSenseAutoPlayedByKeyRef.current = {}
       setTokenizingByMessageId({})
       const loadedAudioMap = items.reduce<Record<string, string>>((acc, item) => {
         if (item.role === 'teacher' && item.audioUrl) acc[item.id] = item.audioUrl
@@ -5602,6 +5624,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
     setOpenedWordKey('')
     setWordBusyKey('')
     setWordInsightByKey({})
+    wordSenseAutoPlayedByKeyRef.current = {}
     setTokensByMessageId({})
     setTokensWithUsageByMessageId({})
     setTokenizingByMessageId({})
