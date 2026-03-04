@@ -7093,18 +7093,15 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
       setQuickStartModalOpen(false)
       const plan = { curriculum, topic: topicToUse }
       const hasPreset = await hasStrictPresetMatch(plan)
-      if (hasPreset) {
-        openLessonStartChoice(curriculum, topicToUse)
-        toast({
-          title: localText('Chọn hình thức học', 'Choose lesson type'),
-          description: hadExistingLesson
+      openLessonStartChoice(curriculum, topicToUse, { presetAvailable: hasPreset })
+      toast({
+        title: localText('Chọn hình thức học', 'Choose lesson type'),
+        description: hasPreset
+          ? (hadExistingLesson
             ? localText('Đã sẵn sàng. Chọn học live hoặc học bài có sẵn để bắt đầu.', 'Ready. Choose live lesson or saved lesson to continue.')
-            : localText('Chọn học live hoặc học bài có sẵn để bắt đầu.', 'Choose live lesson or saved lesson to begin.'),
-        })
-      } else {
-        setLessonStartPlan(plan)
-        await startLiveLessonFromChoice(plan)
-      }
+            : localText('Chọn học live hoặc học bài có sẵn để bắt đầu.', 'Choose live lesson or saved lesson to begin.'))
+          : localText('Chưa có bài có sẵn khớp. Bạn có thể học live với AI ngay.', 'No matching saved lesson. You can start a live AI lesson now.'),
+      })
     } catch (e) {
       toast({
         title: localText('Bắt đầu nhanh chưa thành công', 'Quick start failed'),
