@@ -9174,37 +9174,6 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                     </div>
                   ) : null}
                   <div className="mt-3 space-y-3">
-                    <div className="rounded-md border border-amber-200 bg-white p-2.5">
-                      <p className="mb-2 text-xs font-semibold text-slate-700">
-                        {localText('Nhập câu của bạn', 'Type your sentence')}
-                      </p>
-                      <div className="flex min-w-0 items-center gap-2">
-                        <Input
-                          ref={writingInputRef}
-                          value={writingDraft}
-                          onChange={(e) => {
-                            setWritingDraft(e.target.value)
-                            if (writingEvalResult && !writingTask?.completed) {
-                              setWritingEvalResult(null)
-                            }
-                          }}
-                          placeholder={localText('Viết câu của bạn tại đây...', 'Write your sentence here...')}
-                          disabled={writingBusy}
-                          className={`min-w-0 flex-1 ${
-                            writingInputStatus === 'matched'
-                              ? 'border-emerald-400 bg-emerald-50 text-emerald-800'
-                              : writingInputStatus === 'incorrect'
-                                ? 'border-rose-400 bg-rose-50 text-rose-800'
-                                : writingInputStatus === 'partial'
-                                  ? 'border-sky-300 bg-sky-50 text-sky-800'
-                                  : ''
-                          }`}
-                        />
-                        <Button type="button" size="sm" onClick={() => void evaluateWritingTask()} disabled={writingBusy || !writingDraft.trim()}>
-                          {writingBusy ? localText('Đang gửi...', 'Sending...') : localText('Gửi', 'Send')}
-                        </Button>
-                      </div>
-                    </div>
                     {writingInputStatus === 'incorrect' ? (
                       <p className="text-xs text-rose-700">
                         {localText(
@@ -9265,12 +9234,43 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                         </div>
                       ) : null}
                     </div>
+                    <div className="rounded-md border border-amber-200 bg-white p-2.5">
+                      <p className="mb-2 text-xs font-semibold text-slate-700">
+                        {localText('Nhập câu của bạn', 'Type your sentence')}
+                      </p>
+                      <div className="flex min-w-0 items-center gap-2">
+                        <Input
+                          ref={writingInputRef}
+                          value={writingDraft}
+                          onChange={(e) => {
+                            setWritingDraft(e.target.value)
+                            if (writingEvalResult && !writingTask?.completed) {
+                              setWritingEvalResult(null)
+                            }
+                          }}
+                          placeholder={localText('Viết câu của bạn tại đây...', 'Write your sentence here...')}
+                          disabled={writingBusy}
+                          className={`min-w-0 flex-1 ${
+                            writingInputStatus === 'matched'
+                              ? 'border-emerald-400 bg-emerald-50 text-emerald-800'
+                              : writingInputStatus === 'incorrect'
+                                ? 'border-rose-400 bg-rose-50 text-rose-800'
+                                : writingInputStatus === 'partial'
+                                  ? 'border-sky-300 bg-sky-50 text-sky-800'
+                                  : ''
+                          }`}
+                        />
+                        <Button type="button" size="sm" onClick={() => void evaluateWritingTask()} disabled={writingBusy || !writingDraft.trim()}>
+                          {writingBusy ? localText('Đang gửi...', 'Sending...') : localText('Gửi', 'Send')}
+                        </Button>
+                      </div>
+                    </div>
                     <div className="rounded-md border border-amber-200 bg-amber-50/70 px-2.5 py-2">
                       {!writingTask.completed ? (
                         <p className="text-xs text-amber-700">
                           {localText(
-                            'Bạn cần hoàn thành bài viết này để mở khóa lượt nói/gửi tiếp theo.',
-                            'Complete this writing task to unlock the next speak/send turn.'
+                            'Bạn cần hoàn thành đủ 3 bài mini (viết, nói, nghe) để mở khóa lượt nói/gửi tiếp theo.',
+                            'Complete all 3 mini drills (write, speak, listen) to unlock the next speak/send turn.'
                           )}
                         </p>
                       ) : (
