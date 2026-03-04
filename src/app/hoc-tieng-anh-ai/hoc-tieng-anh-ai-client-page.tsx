@@ -8437,7 +8437,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                     </>
                   ) : null
                 })()}
-              <div ref={chatScrollRef} className="-mx-2 max-h-[64vh] min-w-0 flex-1 space-y-2.5 overflow-auto rounded-xl border border-border/70 bg-slate-50/90 p-3 pb-24 scroll-pb-24 sm:mx-0 sm:max-h-[34rem] sm:p-3.5 sm:pb-28 sm:scroll-pb-28">
+              <div ref={chatScrollRef} className="relative left-1/2 right-1/2 w-[calc(100vw-0.4rem)] -translate-x-1/2 max-h-[64vh] min-w-0 flex-1 space-y-2.5 overflow-auto rounded-xl border border-border/70 bg-slate-50/90 p-3 pb-24 scroll-pb-24 sm:static sm:left-auto sm:right-auto sm:w-auto sm:translate-x-0 sm:max-h-[34rem] sm:p-3.5 sm:pb-28 sm:scroll-pb-28">
                 {messages.length === 0 ? (
                   <div className="space-y-3">
                     {historySessions.length > 0 ? (
