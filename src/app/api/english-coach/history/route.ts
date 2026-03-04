@@ -79,6 +79,29 @@ type PresetReplayPreview = {
   expectedStudentText?: string
 }
 
+function sanitizePresetSentence(text: string): string {
+  return String(text || '')
+    .replace(/^\[[^\]]+\]\s*/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function isUnsafePresetSentence(text: string): boolean {
+  const s = sanitizePresetSentence(text)
+  if (!s) return true
+  const patterns: RegExp[] = [
+    /\bmy\s+name\b/i,
+    /\btên\s+(?:tôi|em|mình|anh|chị)\s+là\b/iu,
+    /\bhttps?:\/\//i,
+    /\bwww\./i,
+    /\b[a-z0-9-]+\s*(?:\.|\s+dot\s+|\s+chấm\s+)\s*(?:com|vn|net|org|io)\b/i,
+    /\b\d{2,}\s*com\s*vn\b/i,
+  ]
+  if (patterns.some((re) => re.test(s))) return true
+  const noisyTokenCount = (s.match(/\d+/g) || []).length + (s.match(/[./\\|_@#]/g) || []).length
+  return noisyTokenCount >= 3
+}
+
 function parseReviewDrillStatsFromPinnedFacts(raw: string): ReviewDrillStats | null {
   try {
     const root = JSON.parse(String(raw || '{}')) as Record<string, unknown>
@@ -171,13 +194,21 @@ function parsePresetReplayPreviewFromPinnedFacts(raw: string): PresetReplayPrevi
     const nextTurnIndex = Number.isFinite(nextTurnIndexRaw)
       ? Math.max(0, Math.min(totalTurns - 1, Math.floor(nextTurnIndexRaw)))
       : 0
-    const turn = turns[nextTurnIndex]
-    const expectedStudentText =
-      turn && typeof turn === 'object'
-        ? String((turn as { expectedStudent?: unknown; expected_student?: unknown }).expectedStudent
-            ?? (turn as { expected_student?: unknown }).expected_student
-            ?? '').trim() || undefined
-        : undefined
+    let expectedStudentText: string | undefined
+    for (let i = nextTurnIndex; i < turns.length; i += 1) {
+      const turn = turns[i]
+      if (!turn || typeof turn !== 'object') continue
+      const candidate = sanitizePresetSentence(
+        String(
+          (turn as { expectedStudent?: unknown; expected_student?: unknown }).expectedStudent
+          ?? (turn as { expected_student?: unknown }).expected_student
+          ?? ''
+        ).trim()
+      )
+      if (!candidate || isUnsafePresetSentence(candidate)) continue
+      expectedStudentText = candidate
+      break
+    }
     return {
       active: Boolean(row.active),
       sourceLessonId: String(row.source_lesson_id ?? row.sourceLessonId ?? '').trim() || undefined,

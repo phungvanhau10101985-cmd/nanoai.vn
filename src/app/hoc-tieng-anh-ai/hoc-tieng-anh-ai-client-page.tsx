@@ -2682,6 +2682,12 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
           return { messageId: writingMessageId, sentence: idea2, teacherText: selectedTeacher.text }
         }
       }
+      // Prefer server-provided "next expected sentence" for preset replay flow.
+      // This keeps progression moving forward even when one turn is filtered as unsafe.
+      const presetExpected = personalize(String(presetReplayExpectedSentence || '').trim())
+      if (presetExpected) {
+        return { messageId: 'preset-replay-next', sentence: presetExpected, teacherText: presetExpected }
+      }
       for (let i = messages.length - 1; i >= 0; i--) {
         const m = messages[i]
         if (m.role !== 'teacher') continue
@@ -2689,10 +2695,6 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
         if (idea2) {
           return { messageId: m.id, sentence: idea2, teacherText: m.text }
         }
-      }
-      const presetExpected = personalize(String(presetReplayExpectedSentence || '').trim())
-      if (presetExpected) {
-        return { messageId: 'preset-replay-next', sentence: presetExpected, teacherText: presetExpected }
       }
       return null
     }
