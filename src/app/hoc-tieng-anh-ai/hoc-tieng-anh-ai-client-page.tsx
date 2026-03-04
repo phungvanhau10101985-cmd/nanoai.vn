@@ -4457,7 +4457,8 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
     delete wordSenseAutoPlayedByKeyRef.current[key]
     setOpenedWordKey(key)
     const savedWord = findSessionWord(word)
-    if (savedWord && (savedWord.meaning || savedWord.pronunciation)) {
+    const savedSenses = sanitizeWordSenses((savedWord as { senses?: unknown } | undefined)?.senses)
+    if (savedWord && (savedWord.meaning || savedWord.pronunciation || savedSenses.length > 0)) {
       if (supportsLatinTransliteration) {
         const examples = sanitizeWordExampleItems(savedWord.exampleItems)
         const fallback = savedWord.exampleTarget && savedWord.exampleNative
@@ -4473,11 +4474,11 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
       setWordInsightByKey((prev) => ({
         ...prev,
         [key]: {
-          meaning: savedWord.meaning || '',
+          meaning: savedWord.meaning || savedSenses[0]?.gloss || '',
           pronunciation: savedWord.pronunciation || savedWord.word,
           exampleTarget: String(savedWord.exampleTarget || '').trim(),
           exampleNative: String(savedWord.exampleNative || '').trim(),
-          senses: sanitizeWordSenses((savedWord as { senses?: unknown }).senses),
+          senses: savedSenses,
           usageLevel: normalizeWordUsageLevel(savedWord.usageLevel),
           importanceScore: normalizeWordImportanceScore(savedWord.importanceScore),
           contextSensitive: normalizeWordContextSensitive(savedWord.contextSensitive),
@@ -4485,7 +4486,6 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
           exampleItems: sanitizeWordExampleItems(savedWord.exampleItems),
         },
       }))
-      const savedSenses = sanitizeWordSenses((savedWord as { senses?: unknown }).senses)
       void (async () => {
         void playWordPronunciation(word).catch(() => {})
         await autoPlayWordSenseAllFirstTime(key, word, savedSenses)
@@ -4549,7 +4549,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
       await saveDailyWord(word, detail, audioUrl || undefined)
       void fetchSessionWords()
       void wordPlayPromise.catch(() => {})
-      await autoPlayWordSenseAllFirstTime(key, word, sanitizeWordSenses(detail.senses))
+      void autoPlayWordSenseAllFirstTime(key, word, sanitizeWordSenses(detail.senses))
     } catch (e) {
       const msg = unknownErrorMsg(e)
       toast({ title: localText('Không phân tích được từ', 'Word analysis failed'), description: msg, variant: 'destructive' })
@@ -4755,6 +4755,18 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
     const validSenseItems = sanitizeWordSenses(senses)
     if (validSenseItems.length === 0) return
     try {
+      // Let React paint the word detail panel before starting autoplay.
+      await new Promise<void>((resolve) => {
+        if (typeof window === 'undefined') {
+          resolve()
+          return
+        }
+        window.requestAnimationFrame(() => {
+          window.requestAnimationFrame(() => {
+            window.setTimeout(resolve, 80)
+          })
+        })
+      })
       await playWordSenseAll(word, validSenseItems)
       wordSenseAutoPlayedByKeyRef.current[key] = true
     } catch {
@@ -4960,8 +4972,11 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
   }
 
   const findSessionWord = (word: string) => {
-    const targetWord = word.trim().toLowerCase()
-    return todayWords.find((item) => item.word.trim().toLowerCase() === targetWord)
+    const targetWord = extractClickableWord(String(word || '').trim()).toLowerCase() || String(word || '').trim().toLowerCase()
+    return todayWords.find((item) => {
+      const candidate = extractClickableWord(String(item.word || '').trim()).toLowerCase() || String(item.word || '').trim().toLowerCase()
+      return candidate === targetWord
+    })
   }
 
   const saveDailyWord = async (
@@ -8721,9 +8736,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                           )}
                           {openedWordKey.startsWith(`${m.id}:`) ? (
                             <div className="rounded-xl border border-border/70 bg-white p-2 text-xs">
-                              {wordBusyKey === openedWordKey ? (
-                                <p className="text-muted-foreground">{localText('Đang phân tích từ...', 'Analyzing word...')}</p>
-                              ) : wordInsightByKey[openedWordKey] ? (
+                              {wordInsightByKey[openedWordKey] ? (
                                 <div className="space-y-1">
                                   {((wordInsightByKey[openedWordKey].senses ?? []).length === 0) ? (
                                     <p>
@@ -8876,6 +8889,8 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                                     {localText('Phát âm từ này', 'Play word pronunciation')}
                                   </Button>
                                 </div>
+                              ) : wordBusyKey === openedWordKey ? (
+                                <p className="text-muted-foreground">{localText('Đang phân tích từ...', 'Analyzing word...')}</p>
                               ) : (
                                 <p className="text-muted-foreground">{localText('Bấm từ khác để xem nghĩa.', 'Tap another word to view meaning.')}</p>
                               )}
