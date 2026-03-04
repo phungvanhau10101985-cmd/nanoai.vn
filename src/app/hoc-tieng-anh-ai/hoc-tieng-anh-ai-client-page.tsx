@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -1911,6 +1911,7 @@ type HocTiengAnhAiClientPageProps = {
 
 export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengAnhAiClientPageProps) {
   const router = useRouter()
+  const pathname = usePathname()
   const searchParams = useSearchParams()
   const isSavedStandalonePage = pageMode === 'saved'
   const { toast } = useToast()
@@ -5043,6 +5044,10 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
 
   const loadHistorySession = async (targetSessionId: string) => {
     if (!targetSessionId) return
+    if (openedHistorySessionId === targetSessionId && !historyBusy) {
+      scrollToSpeakActions()
+      return
+    }
     const requestSeq = loadHistoryRequestSeqRef.current + 1
     loadHistoryRequestSeqRef.current = requestSeq
     setHistoryBusy(true)
@@ -5570,7 +5575,11 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
       // Lock routing state to the exact opened session to avoid URL-effect reopening an older session.
       routeOpenSessionHandledRef.current = targetSessionId
       const basePath = isSavedStandalonePage ? '/hoc-bai-hoc-co-san' : '/hoc-tieng-anh-ai'
-      router.replace(`${basePath}?sessionId=${encodeURIComponent(targetSessionId)}`)
+      const currentSessionIdInUrl = String(searchParams.get('sessionId') || '').trim()
+      const shouldReplaceUrl = pathname !== basePath || currentSessionIdInUrl !== targetSessionId
+      if (shouldReplaceUrl) {
+        router.replace(`${basePath}?sessionId=${encodeURIComponent(targetSessionId)}`)
+      }
       // After opening a session, jump user directly to the main action area (Speak / Input).
       requestAnimationFrame(() => {
         scrollToSpeakActions()
