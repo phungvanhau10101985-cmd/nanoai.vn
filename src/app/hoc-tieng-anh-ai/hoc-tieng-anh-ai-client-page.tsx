@@ -5639,24 +5639,6 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
   }, [searchParams, openedHistorySessionId, historyBusy])
 
   useEffect(() => {
-    if (!openedHistorySessionId || typeof window === 'undefined') return
-    const rafId = window.requestAnimationFrame(() => {
-      scrollToSpeakActions()
-    })
-    const t1 = window.setTimeout(() => {
-      scrollToSpeakActions()
-    }, 180)
-    const t2 = window.setTimeout(() => {
-      scrollToSpeakActions()
-    }, 420)
-    return () => {
-      window.cancelAnimationFrame(rafId)
-      window.clearTimeout(t1)
-      window.clearTimeout(t2)
-    }
-  }, [openedHistorySessionId, scrollToSpeakActions])
-
-  useEffect(() => {
     if (isSavedStandalonePage) return
     const autoStartFlag = String(searchParams.get('autoStart') || '').trim().toLowerCase()
     if (autoStartFlag !== 'live') return
