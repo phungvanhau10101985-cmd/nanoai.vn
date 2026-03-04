@@ -265,12 +265,13 @@ Ngôn ngữ mục tiêu: ${targetLanguage}.
 Ngôn ngữ mẹ đẻ của học sinh: ${nativeLanguage}.
 
 Yêu cầu:
-1) meaning: viết bằng ${nativeLanguage}, theo đúng thứ tự sau:
-   - Phần A (bắt buộc, viết trước): giải thích NGHĨA trong NGỮ CẢNH HIỆN TẠI của câu "${contextSentence || '(không có ngữ cảnh)'}".
-   - Phần B (viết sau): liệt kê một số nghĩa phổ biến khác của từ (ví dụ dạng danh sách ngắn: "thích, sở thích, giống như...").
-   - Phần C (viết sau cùng): giải thích ngắn ngữ cảnh dùng cho từng nghĩa phổ biến ở Phần B.
-   - Ưu tiên ngắn gọn, rõ ràng, dễ hiểu cho người học; không lặp lại ý.
-   - Tuyệt đối không đảo thứ tự (ngữ cảnh hiện tại luôn đứng đầu).
+1) meaning: viết bằng ${nativeLanguage}, theo format từ điển NGẮN GỌN, dùng rộng:
+   - Dòng 1 (bắt buộc): "Nghĩa cốt lõi" dùng trong đa số trường hợp (1 câu ngắn, dễ hiểu như từ điển).
+   - Dòng 2 (bắt buộc): "Trong câu hiện tại..." giải nghĩa theo đúng ngữ cảnh "${contextSentence || '(không có ngữ cảnh)'}" (1 câu ngắn).
+   - Dòng 3 (nếu cần): liệt kê 2-4 nghĩa phổ biến khác (ngắn, ngăn bằng dấu chấm phẩy).
+   - Dòng 4 (nếu cần): nêu thật ngắn các ngữ cảnh hay gặp của các nghĩa phổ biến đó.
+   - Ưu tiên cách diễn đạt trung tính kiểu từ điển/Google Translate; không lan man, không dài dòng.
+   - Tổng độ dài meaning tối đa 4-6 câu ngắn.
 2) pronunciation: phiên âm dễ đọc. Nếu ngôn ngữ là tiếng Trung thì dùng pinyin có dấu; tiếng Nhật dùng romaji; tiếng Hàn dùng romanization; tiếng Thái dùng RTGS; tiếng Hindi dùng IAST.
 3) partOfSpeech: loại từ ngắn gọn (noun/verb/adj/adv/...).
 4) exampleItems: mảng 2-3 ví dụ. QUAN TRỌNG:
