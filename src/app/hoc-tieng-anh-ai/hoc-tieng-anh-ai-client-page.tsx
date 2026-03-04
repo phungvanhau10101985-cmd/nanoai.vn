@@ -2238,6 +2238,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
   const wasMiniWritingBlockedRef = useRef(false)
   const teacherAudioByMessageIdRef = useRef<Record<string, string>>({})
   const studentAudioByMessageIdRef = useRef<Record<string, string>>({})
+  const wordSenseAudioByKeyRef = useRef<Record<string, string>>({})
   const persistedMessageIdsRef = useRef<Record<string, true>>({})
   const createdAudioUrlsRef = useRef<string[]>([])
   const lastAutoScrollTokenMessageIdRef = useRef('')
@@ -4644,10 +4645,80 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
     }
   }
 
-  const playWordSenseGloss = async (text: string) => {
+  const getWordSenseSegmentAudioUrl = async (text: string): Promise<string> => {
     const normalized = String(text || '').trim()
-    if (!normalized) return
-    await playMeaningInNativeLanguage(normalized)
+    if (!normalized) return ''
+    const locale = getNativeTtsLocale()
+    const voice = String(selectedVoice || '').trim()
+    const gender = String(activeTeacher.gender || '').trim()
+    const cacheKey = `${locale}::${voice}::${gender}::${normalized}`
+    const cachedUrl = String(wordSenseAudioByKeyRef.current[cacheKey] || '').trim()
+    if (cachedUrl) return cachedUrl
+    const nativeLabel = selectedNativeLanguage?.apiLabel || 'Vietnamese'
+    const single = await createTtsAudioData(normalized, {
+      locale,
+      languageLabel: nativeLabel,
+      forceEngine: 'auto',
+    })
+    const url = String(single.url || '').trim()
+    if (url) wordSenseAudioByKeyRef.current[cacheKey] = url
+    return url
+  }
+
+  const getWordSenseConnectors = (): { meansIntro: string; singleSenseIntro: string; orSenseLabel: string } => {
+    const code = String(nativeLanguageCode || 'vi').toLowerCase()
+    const gender = activeTeacher.gender === 'female' ? 'female' : 'male'
+    if (code === 'vi') {
+      return gender === 'female'
+        ? { meansIntro: 'cô giải nghĩa là', singleSenseIntro: 'trong trường hợp này nghĩa là', orSenseLabel: 'hoặc cũng có nghĩa là' }
+        : { meansIntro: 'thầy giải nghĩa là', singleSenseIntro: 'trong trường hợp này nghĩa là', orSenseLabel: 'hoặc cũng có nghĩa là' }
+    }
+    if (code === 'en') {
+      return gender === 'female'
+        ? { meansIntro: 'she explains this means', singleSenseIntro: 'in this case, it means', orSenseLabel: 'or another meaning is' }
+        : { meansIntro: 'he explains this means', singleSenseIntro: 'in this case, it means', orSenseLabel: 'or another meaning is' }
+    }
+    if (code === 'zh') {
+      return gender === 'female'
+        ? { meansIntro: '女老师解释意思是', singleSenseIntro: '在这里的意思是', orSenseLabel: '或者另一层意思是' }
+        : { meansIntro: '男老师解释意思是', singleSenseIntro: '在这里的意思是', orSenseLabel: '或者另一层意思是' }
+    }
+    if (code === 'ja') {
+      return gender === 'female'
+        ? { meansIntro: '女性の先生が説明すると意味は', singleSenseIntro: 'この場合の意味は', orSenseLabel: 'または別の意味は' }
+        : { meansIntro: '男性の先生が説明すると意味は', singleSenseIntro: 'この場合の意味は', orSenseLabel: 'または別の意味は' }
+    }
+    if (code === 'ko') {
+      return gender === 'female'
+        ? { meansIntro: '여자 선생님이 설명하면 뜻은', singleSenseIntro: '이 경우의 뜻은', orSenseLabel: '또 다른 의미는' }
+        : { meansIntro: '남자 선생님이 설명하면 뜻은', singleSenseIntro: '이 경우의 뜻은', orSenseLabel: '또 다른 의미는' }
+    }
+    if (code === 'th') {
+      return gender === 'female'
+        ? { meansIntro: 'ครูผู้หญิงอธิบายว่าแปลว่า', singleSenseIntro: 'ในกรณีนี้แปลว่า', orSenseLabel: 'หรืออีกความหมายคือ' }
+        : { meansIntro: 'ครูผู้ชายอธิบายว่าแปลว่า', singleSenseIntro: 'ในกรณีนี้แปลว่า', orSenseLabel: 'หรืออีกความหมายคือ' }
+    }
+    if (code === 'hi') {
+      return gender === 'female'
+        ? { meansIntro: 'शिक्षिका समझाती हैं कि मतलब है', singleSenseIntro: 'इस मामले में मतलब है', orSenseLabel: 'या दूसरा अर्थ है' }
+        : { meansIntro: 'शिक्षक समझाते हैं कि मतलब है', singleSenseIntro: 'इस मामले में मतलब है', orSenseLabel: 'या दूसरा अर्थ है' }
+    }
+    return gender === 'female'
+      ? { meansIntro: 'cô giải nghĩa là', singleSenseIntro: 'trong trường hợp này nghĩa là', orSenseLabel: 'hoặc nghĩa là' }
+      : { meansIntro: 'thầy giải nghĩa là', singleSenseIntro: 'trong trường hợp này nghĩa là', orSenseLabel: 'hoặc nghĩa là' }
+  }
+
+  const playWordSenseGloss = async (word: string, text: string) => {
+    const normalizedWord = String(word || '').trim()
+    const normalizedGloss = String(text || '').trim()
+    if (!normalizedWord || !normalizedGloss) return
+    const c = getWordSenseConnectors()
+    const segments = [normalizedWord, c.singleSenseIntro, normalizedGloss]
+    for (const segment of segments) {
+      const url = await getWordSenseSegmentAudioUrl(segment)
+      if (!url) continue
+      await playAudioUrl(url)
+    }
   }
 
   const playWordSenseExampleTarget = async (text: string) => {
@@ -4657,11 +4728,24 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
   }
 
   const playWordSenseAll = async (
+    word: string,
     senses: Array<{ gloss: string; exampleTarget: string; exampleNative: string }>
   ) => {
-    for (const sense of senses) {
-      const gloss = String(sense.gloss || '').trim()
-      if (gloss) await playWordSenseGloss(gloss)
+    const normalizedWord = String(word || '').trim()
+    const validGlosses = senses.map((s) => String(s.gloss || '').trim()).filter(Boolean)
+    if (!normalizedWord || validGlosses.length === 0) return
+    const c = getWordSenseConnectors()
+    const segments: string[] = [normalizedWord, c.meansIntro, validGlosses[0]]
+    for (let i = 1; i < validGlosses.length; i += 1) {
+      segments.push(c.orSenseLabel, validGlosses[i])
+    }
+    const urls: string[] = []
+    for (const segment of segments) {
+      const url = await getWordSenseSegmentAudioUrl(segment)
+      if (url) urls.push(url)
+    }
+    for (const url of urls) {
+      await playAudioUrl(url)
     }
   }
 
@@ -8729,10 +8813,10 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                                                     variant="outline"
                                                     size="sm"
                                                     className="h-7 px-2 text-[11px]"
-                                                    onClick={() => void playWordSenseGloss(gloss)}
+                                                    onClick={() => void playWordSenseGloss(openedWordKey.split(':').slice(1).join(':'), gloss)}
                                                   >
                                                     <Volume2 className="mr-1 h-3.5 w-3.5" />
-                                                    {localText('Nghe nghĩa', 'Play gloss')}
+                                                    {localText('Nghe nghĩa này', 'Play this meaning')}
                                                   </Button>
                                                 ) : null}
                                                 {exampleText ? (
@@ -8755,7 +8839,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                                           type="button"
                                           variant="outline"
                                           size="sm"
-                                          onClick={() => void playWordSenseAll(senses)}
+                                          onClick={() => void playWordSenseAll(openedWordKey.split(':').slice(1).join(':'), senses)}
                                         >
                                           <Volume2 className="mr-2 h-4 w-4" />
                                           {localText('Nghe toàn bộ giải nghĩa', 'Play full meaning')}
