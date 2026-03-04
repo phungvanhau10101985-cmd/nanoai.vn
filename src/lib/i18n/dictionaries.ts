@@ -73,6 +73,18 @@ export type Dictionary = {
   home: {
     title: string
   }
+  footer: {
+    platformTitle: string
+    platformDescription: string
+    policyTitle: string
+    policyNotice: string
+    contactTitle: string
+    contactEmailLabel: string
+    contactEmailValue: string
+    supportHours: string
+    adDisclosure: string
+    rights: string
+  }
   navGroup: Record<NavGroupKey, string>
   tool: Record<ToolKey, string>
 }
@@ -104,6 +116,18 @@ const VI_DICTIONARY: Dictionary = {
   },
   home: {
     title: 'NanoAI - Sáng tạo không giới hạn cùng AI',
+  },
+  footer: {
+    platformTitle: 'NanoAI Platform',
+    platformDescription: 'Nền tảng AI hỗ trợ học tập và sáng tạo nội dung số.',
+    policyTitle: 'Minh bạch quảng cáo',
+    policyNotice: 'Nội dung trên nền tảng được hiển thị trung tính, không cam kết kết quả tuyệt đối. Người dùng cần dùng thử và tự đánh giá đầu ra trước khi sử dụng.',
+    contactTitle: 'Liên hệ hỗ trợ',
+    contactEmailLabel: 'Email',
+    contactEmailValue: 'support@nanoai.vn',
+    supportHours: 'Giờ hỗ trợ: 08:30 - 17:30 (Thứ 2 - Thứ 7)',
+    adDisclosure: 'NanoAI tuân thủ chính sách nội dung quảng cáo của Google, Meta và TikTok tại Việt Nam.',
+    rights: '© NanoAI. All rights reserved.',
   },
   navGroup: {
     try_on: 'Thử đồ & Phối đồ',
@@ -179,6 +203,18 @@ const EN_DICTIONARY: Dictionary = {
     switchToRealAccount: 'Sign in with real account',
     exitDevMode: 'Exit dev mode',
   },
+  footer: {
+    platformTitle: 'NanoAI Platform',
+    platformDescription: 'An AI platform for learning and digital content creation.',
+    policyTitle: 'Advertising transparency',
+    policyNotice: 'Content is presented in a neutral way and does not guarantee absolute outcomes. Users should review outputs before use.',
+    contactTitle: 'Support contact',
+    contactEmailLabel: 'Email',
+    contactEmailValue: 'support@nanoai.vn',
+    supportHours: 'Support hours: 08:30 - 17:30 (Mon - Sat)',
+    adDisclosure: 'NanoAI aligns with Google, Meta, and TikTok ad content policies in Vietnam.',
+    rights: '© NanoAI. All rights reserved.',
+  },
   navGroup: {
     try_on: 'Try-on & Styling',
     image_edit: 'Image Editing',
@@ -235,6 +271,18 @@ const ZH_DICTIONARY: Dictionary = {
     defaultDescription: '体验 AI 虚拟试衣。支持 1-5 人试衣、修复照片、清晰化和合成图片。',
     toolHub: 'AI 工具',
     login: '登录',
+  },
+  footer: {
+    platformTitle: 'NanoAI 平台',
+    platformDescription: '用于学习与数字内容创作的 AI 平台。',
+    policyTitle: '广告透明说明',
+    policyNotice: '平台内容以中性方式呈现，不承诺绝对结果。请在使用前自行评估输出内容。',
+    contactTitle: '支持联系',
+    contactEmailLabel: '邮箱',
+    contactEmailValue: 'support@nanoai.vn',
+    supportHours: '支持时间：08:30 - 17:30（周一至周六）',
+    adDisclosure: 'NanoAI 在越南遵循 Google、Meta 与 TikTok 的广告内容政策。',
+    rights: '© NanoAI. 保留所有权利。',
   },
   menu: {
     ...EN_DICTIONARY.menu,
@@ -311,6 +359,18 @@ const JA_DICTIONARY: Dictionary = {
     toolHub: 'AI ツール',
     login: 'ログイン',
   },
+  footer: {
+    platformTitle: 'NanoAI プラットフォーム',
+    platformDescription: '学習とデジタルコンテンツ制作を支援する AI プラットフォーム。',
+    policyTitle: '広告ポリシーの透明性',
+    policyNotice: 'コンテンツは中立的に表示され、絶対的な結果を保証しません。利用前に出力内容をご確認ください。',
+    contactTitle: 'サポート連絡先',
+    contactEmailLabel: 'メール',
+    contactEmailValue: 'support@nanoai.vn',
+    supportHours: 'サポート時間: 08:30 - 17:30（月 - 土）',
+    adDisclosure: 'NanoAI はベトナムにおける Google・Meta・TikTok の広告コンテンツ方針に準拠します。',
+    rights: '© NanoAI. All rights reserved.',
+  },
   menu: {
     ...EN_DICTIONARY.menu,
     openMenu: 'メニューを開く',
@@ -385,6 +445,18 @@ const KO_DICTIONARY: Dictionary = {
     defaultDescription: 'AI 가상 피팅을 경험하세요. 1-5인 피팅, 사진 복원, 선명화, 이미지 합성 지원.',
     toolHub: 'AI 도구',
     login: '로그인',
+  },
+  footer: {
+    platformTitle: 'NanoAI 플랫폼',
+    platformDescription: '학습 및 디지털 콘텐츠 제작을 지원하는 AI 플랫폼입니다.',
+    policyTitle: '광고 정책 투명성',
+    policyNotice: '콘텐츠는 중립적으로 제공되며 절대적인 결과를 보장하지 않습니다. 사용 전 결과를 검토해 주세요.',
+    contactTitle: '지원 연락처',
+    contactEmailLabel: '이메일',
+    contactEmailValue: 'support@nanoai.vn',
+    supportHours: '지원 시간: 08:30 - 17:30 (월 - 토)',
+    adDisclosure: 'NanoAI는 베트남 내 Google, Meta, TikTok 광고 콘텐츠 정책을 준수합니다.',
+    rights: '© NanoAI. All rights reserved.',
   },
   menu: {
     ...EN_DICTIONARY.menu,

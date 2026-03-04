@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import Script from "next/script";
 import "./globals.css";
 import { Header } from "@/components/layout/header";
+import { Footer } from "@/components/layout/footer";
 import { DepositCreditProvider } from "@/components/deposit-credit-context";
 import { buildMetadata, buildJsonLdWebApplication, buildJsonLdOrganization, SITE_URL, SITE_NAME } from "@/lib/seo";
 import { JsonLd } from "@/components/seo-json-ld";
@@ -125,6 +126,7 @@ export default function RootLayout({
             <Header />
           </Suspense>
           <main className="pb-16 md:pb-0">{children}</main>
+          <Footer />
           <MobileBottomBar />
           <InstallPrompt />
         </DepositCreditProvider>
