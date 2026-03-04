@@ -2222,6 +2222,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
   const lastMicSentTextRef = useRef('')
   const lastMicSentAtRef = useRef(0)
   const routeOpenSessionHandledRef = useRef('')
+  const loadHistoryRequestSeqRef = useRef(0)
   const crossPageStartHandledRef = useRef('')
   const writingAutoAdvanceSignatureRef = useRef('')
   const shouldCountNewSessionRef = useRef(true)
@@ -5042,6 +5043,8 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
 
   const loadHistorySession = async (targetSessionId: string) => {
     if (!targetSessionId) return
+    const requestSeq = loadHistoryRequestSeqRef.current + 1
+    loadHistoryRequestSeqRef.current = requestSeq
     setHistoryBusy(true)
     setReviewDrillStage('idle')
     setReviewMiniPackCompleted(false)
@@ -5057,6 +5060,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
     let presetOpeningToReplay: { messageId: string; text: string } | null = null
     try {
       const { ok, data } = await getHistorySession(targetSessionId)
+      if (loadHistoryRequestSeqRef.current !== requestSeq) return
       const payload = data as {
         items?: Array<{
           id: string
@@ -5108,6 +5112,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
         error?: string
       }
       if (!ok) throw new Error(payload.error || localText('Không tải được nội dung buổi học.', 'Failed to load lesson content.'))
+      if (loadHistoryRequestSeqRef.current !== requestSeq) return
 
       const items = Array.isArray(payload.items) ? payload.items : []
       const loadedLearningMode: 'review' | 'reflex' =
@@ -5562,12 +5567,12 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
         return acc
       }, {})
       setOpenedHistorySessionId(targetSessionId)
-      // Ensure scroll works even when conversation UI is mounted right after state update.
+      // After opening a session, jump user directly to the main action area (Speak / Input).
       requestAnimationFrame(() => {
-        activeLessonRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        scrollToSpeakActions()
       })
       window.setTimeout(() => {
-        activeLessonRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        scrollToSpeakActions()
       }, 120)
       void fetchSessionWords(targetSessionId)
       const sessionTopicId = String(payload.topicId || '').trim()
@@ -5602,9 +5607,11 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
         }
       }
     } catch (e) {
+      if (loadHistoryRequestSeqRef.current !== requestSeq) return
       const msg = unknownErrorMsg(e)
       toast({ title: localText('Không mở được buổi học', 'Cannot open session'), description: msg, variant: 'destructive' })
     } finally {
+      if (loadHistoryRequestSeqRef.current !== requestSeq) return
       setHistoryBusy(false)
       if (presetOpeningToReplay) {
         window.setTimeout(() => {
@@ -7197,6 +7204,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
       router.replace(`/hoc-tieng-anh-ai?sessionId=${encodeURIComponent(sessionIdForCharge)}`)
     }
     setSetupCollapsed(true)
+    jumpToConversationStart()
     toast({
       title: localText('Đã mở bài mới', 'New lesson unlocked'),
       description: localText('Chúc bạn học tốt!', 'Happy learning!'),
@@ -7269,6 +7277,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
       }
       await loadHistorySession(presetSessionId)
       setSetupCollapsed(true)
+      jumpToConversationStart()
       toast({
         title: localText('Đã mở bài học có sẵn', 'Saved lesson loaded'),
         description: localText('Bạn đang học một bài đã hoàn thành phù hợp cài đặt hiện tại.', 'You are now studying a saved lesson matching your setup.'),
@@ -7821,6 +7830,19 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
       toast({ title: coachUiText.micErrorTitle, description: msg, variant: 'destructive' })
     })
   }
+
+  const jumpToConversationStart = useCallback(() => {
+    if (typeof window === 'undefined') return
+    window.requestAnimationFrame(() => {
+      activeLessonRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      if (chatScrollRef.current) {
+        chatScrollRef.current.scrollTo({ top: 0, behavior: 'smooth' })
+      }
+    })
+    window.setTimeout(() => {
+      activeLessonRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 120)
+  }, [])
 
   const scrollToSpeakActions = useCallback(() => {
     const target = speakActionsRef.current
