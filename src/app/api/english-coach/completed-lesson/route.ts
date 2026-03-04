@@ -102,23 +102,26 @@ function hasPersonalizationSignals(text: string): boolean {
   return patterns.some((re) => re.test(s))
 }
 
-function transcriptHasPersonalizationSignals(transcriptRaw: string): boolean {
+function parseTranscriptWithoutPersonalization(transcriptRaw: string): Array<Record<string, unknown>> {
   try {
     const parsed = JSON.parse(String(transcriptRaw || '[]')) as unknown
     const rows = Array.isArray(parsed)
       ? parsed.filter((x) => x && typeof x === 'object') as Array<Record<string, unknown>>
       : []
-    return rows.some((row) => {
+    const sanitized = rows.filter((row) => {
       const fields = [
         String(row.text || '').trim(),
         String(row.mainSentence || row.main_sentence || '').trim(),
         String(row.correctionNote || row.correction_note || '').trim(),
         String(row.intentAnswer || row.intent_answer || '').trim(),
       ]
-      return fields.some((field) => hasPersonalizationSignals(field))
+      return !fields.some((field) => hasPersonalizationSignals(field))
     })
+    const firstTeacherIndex = sanitized.findIndex((row) => String(row.role || '').trim() === 'teacher')
+    if (firstTeacherIndex < 0) return sanitized
+    return sanitized.filter((_, idx) => idx !== firstTeacherIndex)
   } catch {
-    return false
+    return []
   }
 }
 
@@ -291,24 +294,7 @@ export async function POST(request: NextRequest) {
     }
 
     const rows = Array.isArray(candidates) ? candidates : []
-    const personalizedRows = rows.filter((r) =>
-      transcriptHasPersonalizationSignals(String((r as { transcript_json?: string }).transcript_json || '[]').trim())
-    )
-    if (personalizedRows.length > 0) {
-      const idsToDelete = personalizedRows
-        .map((r) => String((r as { id?: string }).id || '').trim())
-        .filter(Boolean)
-      if (idsToDelete.length > 0) {
-        await adminSupabase
-          .from('language_coach_completed_lessons')
-          .delete()
-          .in('id', idsToDelete)
-      }
-    }
-    const cleanRows = rows.filter((r) => {
-      const id = String((r as { id?: string }).id || '').trim()
-      return !personalizedRows.some((p) => String((p as { id?: string }).id || '').trim() === id)
-    })
+    const cleanRows = rows
 
     const strict = cleanRows.filter((r) => {
       const sameTarget = normalizeLookup(String(r.target_language || '')) === normalizedTarget
@@ -326,7 +312,8 @@ export async function POST(request: NextRequest) {
     })
     const strictUsable = strict.filter((r) => {
       const transcriptRaw = String((r as { transcript_json?: string }).transcript_json || '[]').trim()
-      const teacherRows = parseTeacherRowsFromTranscript(transcriptRaw, mode)
+      const sanitizedTranscript = parseTranscriptWithoutPersonalization(transcriptRaw)
+      const teacherRows = parseTeacherRowsFromTranscript(JSON.stringify(sanitizedTranscript), mode)
       return teacherRows.length > 0
     })
 
@@ -345,13 +332,7 @@ export async function POST(request: NextRequest) {
     const transcriptRaw = String((picked as { transcript_json?: string }).transcript_json || '[]').trim()
     const summaryRaw = String((picked as { summary_json?: string }).summary_json || '{}').trim()
 
-    let transcript: Array<Record<string, unknown>> = []
-    try {
-      const parsed = JSON.parse(transcriptRaw) as unknown
-      transcript = Array.isArray(parsed) ? parsed.filter((x) => x && typeof x === 'object') as Array<Record<string, unknown>> : []
-    } catch {
-      transcript = []
-    }
+    const transcript = parseTranscriptWithoutPersonalization(transcriptRaw)
     if (transcript.length === 0) return NextResponse.json({ found: false })
 
     let runningSummary = ''
@@ -364,7 +345,7 @@ export async function POST(request: NextRequest) {
       // keep defaults
     }
 
-    const teacherRows = parseTeacherRowsFromTranscript(transcriptRaw, mode)
+    const teacherRows = parseTeacherRowsFromTranscript(JSON.stringify(transcript), mode)
 
     if (teacherRows.length === 0) {
       return NextResponse.json({ found: false })

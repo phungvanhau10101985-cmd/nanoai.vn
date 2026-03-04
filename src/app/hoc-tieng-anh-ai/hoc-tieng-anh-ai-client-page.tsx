@@ -5808,11 +5808,8 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
   const endLessonAndStartNew = async () => {
     const currentSessionId = sessionId
     if (currentSessionId) {
-      const curriculum = topicCurriculum || preLessonCurriculum
-      const steps = curriculum?.lessonSteps ?? []
       const studentTurnCount = messages.filter((m) => m.role === 'student').length
-      const completedCount = computeTimelineCompletedSteps(steps.length, studentTurnCount)
-      const qualityPassed = steps.length > 0 && completedCount >= steps.length
+      const qualityPassed = studentTurnCount >= 10 && messages.length > 10
       await endHistorySession(currentSessionId, {
         qualityPassed,
         completionReason: qualityPassed ? 'timeline_completed' : 'not_qualified_auto_deleted',
@@ -5922,23 +5919,11 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
   }, [supportsLatinTransliteration, writingTask?.referenceSentence, writingTask?.requiredSentences, writingEvalResult?.correctedText, languageCode])
 
   useEffect(() => {
-    const curriculum = topicCurriculum || preLessonCurriculum
-    const steps = curriculum?.lessonSteps ?? []
-    if (steps.length === 0 || !sessionId) return
+    if (!sessionId) return
     const studentTurnCount = messages.filter((m) => m.role === 'student').length
-    const completedCount = computeTimelineCompletedSteps(steps.length, studentTurnCount)
-    if (completedCount >= steps.length && lessonCompletedToastShownForSessionRef.current !== sessionId) {
-      lessonCompletedToastShownForSessionRef.current = sessionId
-      toast({
-        title: localText('Đã hoàn thành các bước trong giáo trình', 'Curriculum steps completed'),
-        description: localText(
-          'Có thể tiếp tục luyện hoặc bắt đầu bài mới.',
-          'You can continue practicing or start a new lesson.'
-        ),
-      })
-    }
-    if (completedCount < steps.length) return
+    if (studentTurnCount < 10) return
     const messageCount = messages.length
+    if (messageCount <= 10) return
     const lastSavedMessageCount = lessonAutoSnapshotMessageCountBySessionRef.current[sessionId] ?? 0
     if (messageCount <= lastSavedMessageCount || lessonAutoSnapshotBusyRef.current) return
     lessonAutoSnapshotBusyRef.current = true
@@ -5949,7 +5934,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
       .finally(() => {
         lessonAutoSnapshotBusyRef.current = false
       })
-  }, [messages, topicCurriculum, preLessonCurriculum, sessionId, toast])
+  }, [messages, sessionId])
 
   useEffect(() => {
     const collectExamples = (items: Array<{ targetLanguage?: string; exampleItems?: Array<{ targetText?: string; targetPinyin?: string }>; exampleTarget?: string; exampleNative?: string }>) => {
@@ -7062,12 +7047,6 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
     const openingCore = aiOpening || openingByLanguage[languageCode]
     const opening = `${curriculumRole ? `[${curriculumRole}] ` : ''}${openingCore}`
     const teacherMessageId = appendMessage('teacher', opening)
-    void saveHistoryMessage({
-      role: 'teacher',
-      text: opening,
-      audioUrl: '',
-      clientMessageId: teacherMessageId,
-    }).then(() => { persistedMessageIdsRef.current[teacherMessageId] = true }).catch(() => {})
     try {
       await generateAndStoreTeacherAudio(teacherMessageId, extractTeacherSpeechText(opening))
     } catch {

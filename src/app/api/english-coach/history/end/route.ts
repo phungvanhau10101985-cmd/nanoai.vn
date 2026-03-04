@@ -45,9 +45,8 @@ function parseReviewDrillStatsFromPinnedFacts(raw: string): {
   }
 }
 
-const MIN_STUDENT_MESSAGES_FOR_COMPLETED_SAVE = 6
-const MIN_TEACHER_MESSAGES_FOR_COMPLETED_SAVE = 6
-const MIN_DURATION_SECONDS_FOR_COMPLETED_SAVE = 180
+const MIN_STUDENT_MESSAGES_FOR_COMPLETED_SAVE = 10
+const MIN_TOTAL_MESSAGES_FOR_COMPLETED_SAVE = 11
 
 function isTimelineCompletedReason(reason: string): boolean {
   const r = String(reason || '').trim().toLowerCase()
@@ -89,6 +88,15 @@ function transcriptHasPersonalizationSignals(rows: Array<{
     ]
     return fields.some((field) => hasPersonalizationSignals(field))
   })
+}
+
+function rowHasPersonalizationSignals(row: {
+  text?: string | null
+  main_sentence?: string | null
+  correction_note?: string | null
+  intent_answer?: string | null
+}): boolean {
+  return transcriptHasPersonalizationSignals([row])
 }
 
 export async function POST(request: NextRequest) {
@@ -149,7 +157,6 @@ export async function POST(request: NextRequest) {
     const first = rows[0]
     const last = rows.length > 0 ? rows[rows.length - 1] : null
     const studentMessages = rows.filter((r) => r.role === 'student').length
-    const teacherMessages = rows.filter((r) => r.role === 'teacher').length
     const startedAt = String(first?.created_at || '').trim() || null
     const endedAt = String(last?.created_at || '').trim() || new Date().toISOString()
     const durationSeconds =
@@ -168,14 +175,23 @@ export async function POST(request: NextRequest) {
     } | null
     const isPresetSession = isPresetCopiedSession(String(memory?.pinned_facts_json || '{}'))
     const reviewDrillStats = parseReviewDrillStatsFromPinnedFacts(String(memory?.pinned_facts_json || '{}'))
+    const rowsWithoutPersonalization = rows.filter((r) => !rowHasPersonalizationSignals({
+      text: String((r as { text?: string }).text || ''),
+      main_sentence: String((r as { main_sentence?: string }).main_sentence || ''),
+      correction_note: String((r as { correction_note?: string }).correction_note || ''),
+      intent_answer: String((r as { intent_answer?: string }).intent_answer || ''),
+    }))
+    // Do not save opening line in completed lesson snapshots.
+    const firstTeacherId = String((rowsWithoutPersonalization.find((r) => r.role === 'teacher')?.id || '')).trim()
+    const replayRows = rowsWithoutPersonalization.filter((r) => String(r.id || '').trim() !== firstTeacherId)
     const summary = {
       runningSummary: String(memory?.running_summary || '').trim(),
       pinnedFactsJson: String(memory?.pinned_facts_json || '{}').trim(),
       reviewDrillStats: reviewDrillStats || undefined,
-      latestStudentText: String([...rows].reverse().find((r) => r.role === 'student')?.text || '').trim(),
-      latestTeacherText: String([...rows].reverse().find((r) => r.role === 'teacher')?.text || '').trim(),
+      latestStudentText: String([...replayRows].reverse().find((r) => r.role === 'student')?.text || '').trim(),
+      latestTeacherText: String([...replayRows].reverse().find((r) => r.role === 'teacher')?.text || '').trim(),
     }
-    const transcript = rows.map((r) => ({
+    const transcript = replayRows.map((r) => ({
       id: r.id,
       role: r.role,
       text: r.text,
@@ -197,19 +213,10 @@ export async function POST(request: NextRequest) {
 
     const meetsDepthGate =
       studentMessages >= MIN_STUDENT_MESSAGES_FOR_COMPLETED_SAVE
-      && teacherMessages >= MIN_TEACHER_MESSAGES_FOR_COMPLETED_SAVE
-      && durationSeconds >= MIN_DURATION_SECONDS_FOR_COMPLETED_SAVE
-    const hasPersonalizedTranscript = transcriptHasPersonalizationSignals(
-      rows.map((r) => ({
-        text: String((r as { text?: string }).text || ''),
-        main_sentence: String((r as { main_sentence?: string }).main_sentence || ''),
-        correction_note: String((r as { correction_note?: string }).correction_note || ''),
-        intent_answer: String((r as { intent_answer?: string }).intent_answer || ''),
-      }))
-    )
+      && rows.length >= MIN_TOTAL_MESSAGES_FOR_COMPLETED_SAVE
     const timelineCompleted = isTimelineCompletedReason(completionReason)
     const allowCompletedSave =
-      qualityPassed && timelineCompleted && meetsDepthGate && !isPresetSession && !hasPersonalizedTranscript
+      qualityPassed && timelineCompleted && meetsDepthGate && !isPresetSession && transcript.length > 0
 
     if (allowCompletedSave) {
       const { error: completedError } = await adminSupabase.from('language_coach_completed_lessons').upsert(
@@ -226,9 +233,9 @@ export async function POST(request: NextRequest) {
           topic_label: String(memory?.topic_label || '').trim() || null,
           teacher_label: String(first?.teacher_label || '').trim() || null,
           teacher_locale: String(first?.teacher_locale || '').trim() || null,
-          total_messages: rows.length,
-          student_messages: studentMessages,
-          teacher_messages: teacherMessages,
+          total_messages: replayRows.length,
+          student_messages: replayRows.filter((r) => r.role === 'student').length,
+          teacher_messages: replayRows.filter((r) => r.role === 'teacher').length,
           started_at: startedAt,
           ended_at: endedAt,
           duration_seconds: durationSeconds,
