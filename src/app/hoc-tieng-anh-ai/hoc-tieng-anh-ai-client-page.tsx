@@ -2688,14 +2688,8 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
       if (presetExpected) {
         return { messageId: 'preset-replay-next', sentence: presetExpected, teacherText: presetExpected }
       }
-      for (let i = messages.length - 1; i >= 0; i--) {
-        const m = messages[i]
-        if (m.role !== 'teacher') continue
-        const idea2 = personalize(String(mainSentenceByMessageId[m.id] || '').trim())
-        if (idea2) {
-          return { messageId: m.id, sentence: idea2, teacherText: m.text }
-        }
-      }
+      // Preset flow should not reuse teacher opening/mainSentence fallback.
+      // Only timeline-driven expected sentences are shown to the learner.
       return null
     }
     for (let i = messages.length - 1; i >= 0; i--) {
