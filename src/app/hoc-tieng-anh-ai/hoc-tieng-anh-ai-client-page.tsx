@@ -2558,21 +2558,33 @@ export default function HocTiengAnhAiClientPage() {
   const isMiniDrillBlocking =
     learningMode === 'review'
     && reviewDrillStage !== 'idle'
-    && hasStudentTurnsInCurrentSession
+    && (isCurrentPresetSession ? hasStudentTurnsInCurrentSession : true)
   const isMiniWritingBlocking =
     learningMode === 'review' && Boolean(writingTask) && !Boolean(writingTask?.completed)
   const latestMainSentenceForLearner = useMemo(() => {
     if (isCurrentPresetSession) {
-      const targets = messages
-        .filter((m) => m.role === 'teacher')
-        .map((m) => {
-          const idea2 = sanitizeLearnerReadingSentence(String(mainSentenceByMessageId[m.id] || '').trim())
-          const sentence = idea2
-          return sentence ? { messageId: m.id, sentence, teacherText: m.text } : null
-        })
-        .filter(Boolean) as Array<{ messageId: string; sentence: string; teacherText: string }>
-      const progress = Math.max(0, liveSessionStudentTurnCount - sessionEntryStudentTurnBaseline)
-      return targets[progress] || null
+      const teacherById = new Map(
+        messages
+          .filter((m) => m.role === 'teacher')
+          .map((m) => [m.id, m] as const)
+      )
+      const writingMessageId = String(writingTask?.messageId || '').trim()
+      if (writingMessageId && teacherById.has(writingMessageId)) {
+        const selectedTeacher = teacherById.get(writingMessageId)!
+        const idea2 = sanitizeLearnerReadingSentence(String(mainSentenceByMessageId[writingMessageId] || '').trim())
+        if (idea2) {
+          return { messageId: writingMessageId, sentence: idea2, teacherText: selectedTeacher.text }
+        }
+      }
+      for (let i = messages.length - 1; i >= 0; i--) {
+        const m = messages[i]
+        if (m.role !== 'teacher') continue
+        const idea2 = sanitizeLearnerReadingSentence(String(mainSentenceByMessageId[m.id] || '').trim())
+        if (idea2) {
+          return { messageId: m.id, sentence: idea2, teacherText: m.text }
+        }
+      }
+      return null
     }
     for (let i = messages.length - 1; i >= 0; i--) {
       const m = messages[i]
@@ -2587,8 +2599,7 @@ export default function HocTiengAnhAiClientPage() {
     messages,
     mainSentenceByMessageId,
     isCurrentPresetSession,
-    liveSessionStudentTurnCount,
-    sessionEntryStudentTurnBaseline,
+    writingTask?.messageId,
   ])
 
   useEffect(() => {
@@ -2608,14 +2619,13 @@ export default function HocTiengAnhAiClientPage() {
           teacherPreview: String(m.text || '').trim().slice(0, 120),
         }
       })
-    const progress = Math.max(0, liveSessionStudentTurnCount - sessionEntryStudentTurnBaseline)
     const debugPayload = {
       sessionId,
       reviewDrillStage,
       reviewSpeakingTargetSentence: sanitizeLearnerReadingSentence(reviewSpeakingTargetSentence),
       sessionEntryStudentTurnBaseline,
       liveSessionStudentTurnCount,
-      progress,
+      writingTaskMessageId: String(writingTask?.messageId || '').trim(),
       selected: latestMainSentenceForLearner,
       teacherRows,
     }
@@ -2632,6 +2642,7 @@ export default function HocTiengAnhAiClientPage() {
     sessionId,
     sessionEntryStudentTurnBaseline,
     liveSessionStudentTurnCount,
+    writingTask?.messageId,
   ])
 
   useEffect(() => {
@@ -8761,7 +8772,7 @@ export default function HocTiengAnhAiClientPage() {
                         : localText('Mini 3/3: Chọn từ bạn nghe thấy', 'Mini 3/3: Pick words you heard')}
                   </div>
                 ) : null}
-                {!isMiniDrillBlocking && latestMainSentenceForLearner ? (
+                {!isMiniDrillBlocking && isCurrentPresetSession && latestMainSentenceForLearner ? (
                   <div className="rounded-md border border-emerald-200 bg-emerald-50/70 px-3 py-2 text-xs text-emerald-800">
                     <p className="font-semibold">{localText('Câu nói chính để bạn đọc mic', 'Main sentence for microphone practice')}</p>
                     <p className="mt-1 break-words text-sm font-medium text-emerald-900">
