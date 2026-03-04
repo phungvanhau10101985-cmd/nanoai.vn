@@ -4843,6 +4843,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
           intentAnswer?: string | null
           tokensJson?: string | null
           writingTaskJson?: string | null
+          aiPayloadJson?: string | null
         }>
         learningMode?: 'review' | 'reflex'
         topicId?: string
@@ -4909,6 +4910,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
       const mainSentenceMap: Record<string, string> = {}
       const correctionNoteMap: Record<string, string> = {}
       const intentAnswerMap: Record<string, string> = {}
+      const correctionsMap: Record<string, Correction[]> = {}
       const tokensMap: Record<string, string[]> = {}
       const tokensWithUsageMap: Record<string, Array<{ word: string; usageLevel: 'high' | 'medium' | 'low' }>> = {}
       items.forEach((item) => {
@@ -4921,6 +4923,29 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
         const iaRaw = String((item as { intentAnswer?: string | null }).intentAnswer || '').trim()
         const ia = iaRaw ? sanitizeForDisplay(sanitizeIdeaContent(iaRaw), langForSanitize || 'zh') : ''
         if (ia) intentAnswerMap[item.id] = ia
+        const aiPayloadJsonRaw = String((item as { aiPayloadJson?: string | null }).aiPayloadJson || '').trim()
+        if (aiPayloadJsonRaw) {
+          try {
+            const parsed = JSON.parse(aiPayloadJsonRaw) as { corrections?: unknown[] }
+            const parsedCorrections = Array.isArray(parsed.corrections)
+              ? parsed.corrections
+                  .map((c) => {
+                    const row = c as { original?: unknown; fixed?: unknown; explanationVi?: unknown }
+                    return {
+                      original: sanitizeIdeaContent(String(row.original || '').trim()),
+                      fixed: sanitizeIdeaContent(String(row.fixed || '').trim()),
+                      explanationVi: sanitizeIdeaContent(String(row.explanationVi || '').trim()),
+                    }
+                  })
+                  .filter((c) => c.original || c.fixed || c.explanationVi)
+              : []
+            if (parsedCorrections.length > 0) {
+              correctionsMap[item.id] = parsedCorrections
+            }
+          } catch {
+            // ignore invalid aiPayloadJson
+          }
+        }
         const tj = String((item as { tokensJson?: string | null }).tokensJson || '').trim()
         if (tj) {
           try {
@@ -4947,6 +4972,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
       setMainSentenceByMessageId(mainSentenceMap)
       setCorrectionNoteByMessageId(correctionNoteMap)
       setIntentAnswerByMessageId(intentAnswerMap)
+      setCorrectionsByMessageId(correctionsMap)
       setTokensByMessageId(tokensMap)
       setTokensWithUsageByMessageId(tokensWithUsageMap)
       const preloadRomanization: Record<string, string> = {}
