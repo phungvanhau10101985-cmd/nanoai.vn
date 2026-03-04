@@ -129,11 +129,39 @@ function detectTeacherGenderFromLabel(teacherLabelRaw: string): 'male' | 'female
   return 'male'
 }
 
-function buildFixedPresetOpeningText(languageCodeRaw: string, teacherGender: 'male' | 'female'): string {
-  void languageCodeRaw
-  return teacherGender === 'female'
-    ? 'Cô chào em, hôm nay em thế nào? Hôm nay em muốn chia sẻ điều gì?'
-    : 'Thầy chào em, hôm nay em thế nào? Hôm nay em muốn chia sẻ điều gì?'
+function resolveOpeningLanguageCode(languageCodeRaw: string, targetLanguageRaw: string): string {
+  const code = normalizeLookup(languageCodeRaw)
+  if (code) return code
+  const target = normalizeLookup(targetLanguageRaw)
+  if (!target) return 'en'
+  if (target.includes('english') || target.includes('tieng anh') || target.includes('tiếng anh')) return 'en'
+  if (target.includes('chinese') || target.includes('tieng trung') || target.includes('tiếng trung') || target.includes('mandarin')) return 'zh'
+  if (target.includes('japanese') || target.includes('tieng nhat') || target.includes('tiếng nhật')) return 'ja'
+  if (target.includes('korean') || target.includes('tieng han') || target.includes('tiếng hàn')) return 'ko'
+  if (target.includes('thai') || target.includes('tieng thai') || target.includes('tiếng thái')) return 'th'
+  if (target.includes('hindi') || target.includes('tieng hindi') || target.includes('tiếng hindi')) return 'hi'
+  if (target.includes('vietnamese') || target.includes('tieng viet') || target.includes('tiếng việt')) return 'vi'
+  return 'en'
+}
+
+function buildFixedPresetOpeningText(languageCodeRaw: string, targetLanguageRaw: string, teacherGender: 'male' | 'female'): string {
+  const code = resolveOpeningLanguageCode(languageCodeRaw, targetLanguageRaw)
+  if (code === 'en') {
+    return teacherGender === 'female'
+      ? 'Hello, how are you today? What would you like to share today?'
+      : 'Hello, how are you today? What would you like to share today?'
+  }
+  if (code === 'vi') {
+    return teacherGender === 'female'
+      ? 'Cô chào em, hôm nay em thế nào? Hôm nay em muốn chia sẻ điều gì?'
+      : 'Thầy chào em, hôm nay em thế nào? Hôm nay em muốn chia sẻ điều gì?'
+  }
+  if (code === 'zh') return '你好，今天你怎么样？今天你想分享什么？'
+  if (code === 'ja') return 'こんにちは。今日はどうですか？今日は何を話したいですか？'
+  if (code === 'ko') return '안녕하세요. 오늘 기분이 어때요? 오늘 무엇을 나누고 싶나요?'
+  if (code === 'th') return 'สวัสดี วันนี้คุณเป็นอย่างไรบ้าง และวันนี้อยากแบ่งปันเรื่องอะไร'
+  if (code === 'hi') return 'नमस्ते, आज आप कैसे हैं? आज आप क्या साझा करना चाहते हैं?'
+  return 'Hello, how are you today? What would you like to share today?'
 }
 
 function personalizeTextForLearner(text: string, learnerProfile: LearnerProfileLite): string {
@@ -369,7 +397,11 @@ export async function POST(request: NextRequest) {
     const openingLanguageCode = languageCode || firstTeacher.languageCode || 'en'
     const openingTargetLanguage = targetLanguage || firstTeacher.targetLanguage || null
     const openingGender = detectTeacherGenderFromLabel(openingTeacherLabel)
-    const openingText = buildFixedPresetOpeningText(openingLanguageCode, openingGender)
+    const openingText = buildFixedPresetOpeningText(
+      openingLanguageCode,
+      openingTargetLanguage ? String(openingTargetLanguage) : targetLanguage,
+      openingGender
+    )
 
     const newSessionId = randomUUID()
     const nowIso = new Date().toISOString()
