@@ -2710,6 +2710,16 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
     learnerDisplayName,
     languageCode,
   ])
+  const latestStudentReplayMessageId = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      const m = messages[i]
+      if (m.role !== 'student') continue
+      const hasAudio = Boolean(String(studentAudioByMessageId[m.id] || studentAudioByMessageIdRef.current[m.id] || '').trim())
+      if (!hasAudio) continue
+      return m.id
+    }
+    return ''
+  }, [messages, studentAudioByMessageId])
 
   useEffect(() => {
     latestMiniStageRef.current = reviewMiniPackCompleted ? 'done' : reviewDrillStage
@@ -9426,20 +9436,21 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                         type="button"
                         size="sm"
                         variant="secondary"
-                        onClick={() => void replayTeacherMainSentence(latestMainSentenceForLearner.messageId, latestMainSentenceForLearner.teacherText)}
-                        disabled={isReplayButtonDisabled(`${latestMainSentenceForLearner.messageId}__main`, hasCachedTeacherAudio(`${latestMainSentenceForLearner.messageId}__main`))}
+                        onClick={() => void replayStudentMessage(latestStudentReplayMessageId)}
+                        disabled={!latestStudentReplayMessageId}
                       >
                         <Volume2 className="mr-2 h-4 w-4" />
-                        {localText('Nghe đọc chuẩn', 'Play standard reading')}
+                        {localText('Nghe lại học viên', 'Play student recording')}
                       </Button>
                       <Button
                         type="button"
                         size="sm"
-                        variant="outline"
-                        onClick={() => setDraft(latestMainSentenceForLearner.sentence)}
-                        disabled={busy || recordingPending}
+                        variant="secondary"
+                        onClick={() => void replayTeacherMainSentence(latestMainSentenceForLearner.messageId, latestMainSentenceForLearner.teacherText)}
+                        disabled={isReplayButtonDisabled(`${latestMainSentenceForLearner.messageId}__main`, hasCachedTeacherAudio(`${latestMainSentenceForLearner.messageId}__main`))}
                       >
-                        {localText('Dùng câu này', 'Use this sentence')}
+                        <Volume2 className="mr-2 h-4 w-4" />
+                        {localText('Nghe đọc chuẩn (DB)', 'Play standard reading (DB)')}
                       </Button>
                     </div>
                   </div>
@@ -9453,42 +9464,44 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                   </div>
                 ) : null}
                 <div className="sticky bottom-0 z-20 -mx-1 rounded-xl border border-border/70 bg-background/95 p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-md backdrop-blur supports-[backdrop-filter]:bg-background/85">
-                  <div className="flex min-w-0 items-center gap-2 sm:flex-1">
-                    <Input
-                      value={draft}
-                      onFocus={(e) => {
-                        if (!isMiniDrillBlocking) return
-                        e.currentTarget.blur()
-                        redirectToMiniDrill()
-                      }}
-                      onChange={(e) => {
-                        if (isMiniDrillBlocking) {
+                  {!isPresetPageSession ? (
+                    <div className="flex min-w-0 items-center gap-2 sm:flex-1">
+                      <Input
+                        value={draft}
+                        onFocus={(e) => {
+                          if (!isMiniDrillBlocking) return
+                          e.currentTarget.blur()
                           redirectToMiniDrill()
-                          return
-                        }
-                        setDraft(e.target.value)
-                      }}
-                      placeholder={coachUiText.inputPlaceholder}
-                      disabled={busy || reviewListeningPopupOpen || isMiniDrillBlocking || liveSessionTurnLimitReached}
-                      className="min-w-0 sm:flex-1"
-                    />
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={() => {
-                        if (isMiniDrillBlocking) {
-                          redirectToMiniDrill()
-                          return
-                        }
-                        void handleSend()
-                      }}
-                      disabled={busy || reviewListeningPopupOpen || isMiniDrillBlocking || liveSessionTurnLimitReached || !draft.trim()}
-                      className="min-h-[46px] rounded-xl px-3.5 text-sm font-semibold"
-                    >
-                      <Send className="mr-1.5 h-4 w-4" />
-                      {localText('Gửi', 'Send')}
-                    </Button>
-                  </div>
+                        }}
+                        onChange={(e) => {
+                          if (isMiniDrillBlocking) {
+                            redirectToMiniDrill()
+                            return
+                          }
+                          setDraft(e.target.value)
+                        }}
+                        placeholder={coachUiText.inputPlaceholder}
+                        disabled={busy || reviewListeningPopupOpen || isMiniDrillBlocking || liveSessionTurnLimitReached}
+                        className="min-w-0 sm:flex-1"
+                      />
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => {
+                          if (isMiniDrillBlocking) {
+                            redirectToMiniDrill()
+                            return
+                          }
+                          void handleSend()
+                        }}
+                        disabled={busy || reviewListeningPopupOpen || isMiniDrillBlocking || liveSessionTurnLimitReached || !draft.trim()}
+                        className="min-h-[46px] rounded-xl px-3.5 text-sm font-semibold"
+                      >
+                        <Send className="mr-1.5 h-4 w-4" />
+                        {localText('Gửi', 'Send')}
+                      </Button>
+                    </div>
+                  ) : null}
                   <div className="mt-2 flex min-w-0 flex-wrap items-center gap-2 overflow-x-auto rounded-lg border border-slate-200 bg-slate-50/80 px-2 py-2">
                   {recordingPending ? (
                     <>
