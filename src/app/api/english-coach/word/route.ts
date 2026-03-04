@@ -62,6 +62,54 @@ function normalizeMeaningOutput(input: string): string {
     .trim()
 }
 
+function normalizeSenseGloss(input: string): string {
+  const raw = String(input || '')
+    .replace(/^\s*(nghĩa\s*\d+|sense\s*\d+)\s*[:\-]\s*/i, '')
+    .replace(/\b(trong câu này|trong câu hiện tại|in this sentence|in the current context)\b.*$/i, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (!raw) return ''
+  const firstClause = raw.split(/[;。！？!?]/).map((x) => x.trim()).filter(Boolean)[0] || raw
+  const short = firstClause
+    .replace(/\([^)]*\)/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  const words = short.split(' ').filter(Boolean)
+  if (words.length <= 12) return short
+  return words.slice(0, 12).join(' ').trim()
+}
+
+function normalizeSensesForDictionary(input: WordSenseItem[]): WordSenseItem[] {
+  const seen = new Set<string>()
+  const out: WordSenseItem[] = []
+  for (const row of input) {
+    const gloss = normalizeSenseGloss(row.gloss)
+    const exampleTarget = String(row.exampleTarget || '').trim()
+    const exampleNative = String(row.exampleNative || '').trim()
+    if (!gloss && !(exampleTarget && exampleNative)) continue
+    const key = gloss.toLowerCase()
+    if (key && seen.has(key)) continue
+    if (key) seen.add(key)
+    out.push({
+      gloss,
+      exampleTarget,
+      exampleNative,
+    })
+    if (out.length >= 3) break
+  }
+  return out
+}
+
+function buildShortMeaningFromSenses(
+  senses: WordSenseItem[],
+  fallbackMeaning: string
+): string {
+  const glosses = senses.map((s) => normalizeSenseGloss(s.gloss)).filter(Boolean)
+  if (glosses.length === 0) return normalizeSenseGloss(normalizeMeaningOutput(fallbackMeaning))
+  if (glosses.length === 1) return glosses[0]
+  return `${glosses[0]} / ${glosses[1]}`
+}
+
 function adminClient() {
   return createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 }
@@ -268,12 +316,16 @@ export async function POST(request: NextRequest) {
           .from('language_coach_vocab_cache')
           .update({ last_used_at: new Date().toISOString(), updated_at: new Date().toISOString() })
           .eq('id', cached.id)
-        const fallbackMeaning = normalizeMeaningOutput(String(cached.meaning || '').trim())
+        const normalizedCachedSenses = normalizeSensesForDictionary(cachedSenseItemsRaw)
+        const fallbackMeaning = buildShortMeaningFromSenses(
+          normalizedCachedSenses,
+          String(cached.meaning || '').trim()
+        )
         const fallbackExampleTarget = String(cached.example_target || '').trim() || word
         const fallbackExampleNative = String(cached.example_native || '').trim()
           || msg(locale, `Bạn vừa bấm từ "${word}".`, `You just tapped the word "${word}".`)
-        const cachedSenseItems = cachedSenseItemsRaw.length > 0
-          ? cachedSenseItemsRaw
+        const cachedSenseItems = normalizedCachedSenses.length > 0
+          ? normalizedCachedSenses
           : (cachedExampleItems.length > 0
               ? cachedExampleItems.map((ex) => ({
                   gloss: '',
@@ -319,20 +371,21 @@ Ngôn ngữ mục tiêu: ${targetLanguage}.
 Ngôn ngữ mẹ đẻ của học sinh: ${nativeLanguage}.
 
 Yêu cầu:
-1) meaning: viết bằng ${nativeLanguage}, theo format từ điển NGẮN GỌN, ưu tiên dùng lại cho nhiều tình huống:
-   - Phần A (bắt buộc, viết trước): liệt kê 3-5 nghĩa phổ biến nhất của từ, xếp theo mức độ thường dùng.
-   - Phần B (bắt buộc): với mỗi nghĩa ở Phần A, ghi 1 ngữ cảnh điển hình thật ngắn.
+1) meaning: viết bằng ${nativeLanguage}, dạng rất ngắn gọn (1 dòng), chỉ là bản dịch từ điển phổ biến.
+   - Ưu tiên nghĩa dùng nhiều nhất, có thể dùng được trong nhiều ngữ cảnh.
+   - Không viết định nghĩa dài dòng kiểu bách khoa.
    - Tuyệt đối KHÔNG nhắc, trích dẫn, hoặc suy diễn từ câu ngữ cảnh hiện tại "${contextSentence || '(không có ngữ cảnh)'}" trong meaning.
    - Không tạo bất kỳ mục nào dạng "Trong câu hiện tại..." hoặc "Trong câu này...".
-   - Ưu tiên văn phong trung tính kiểu từ điển/Google Translate; ngắn gọn, dễ tra cứu, không lan man.
-   - Tổng độ dài meaning tối đa 4-6 câu ngắn.
-2) senses: mảng 3-5 mục, mỗi mục gồm:
-   - gloss: nghĩa ngắn gọn của mục đó (bằng ${nativeLanguage})
+   - Văn phong kiểu từ điển/Google Translate, tối đa 12 từ.
+2) senses: mảng 1-3 mục, mỗi mục gồm:
+   - gloss: nghĩa ngắn gọn của mục đó (bằng ${nativeLanguage}), tối đa 12 từ.
+   - BẮT BUỘC: senses[0].gloss phải là bản dịch trực tiếp, dễ hiểu nhất của từ (ví dụ seafood -> hải sản).
+   - Chỉ thêm senses[1..] khi thật sự là nghĩa phổ biến khác, không tách vụn vô nghĩa.
    - exampleTarget: ví dụ ngắn ở ngôn ngữ mục tiêu
    - exampleNative: bản dịch ví dụ sang ${nativeLanguage}
 3) pronunciation: phiên âm dễ đọc. Nếu ngôn ngữ là tiếng Trung thì dùng pinyin có dấu; tiếng Nhật dùng romaji; tiếng Hàn dùng romanization; tiếng Thái dùng RTGS; tiếng Hindi dùng IAST.
 4) partOfSpeech: loại từ ngắn gọn (noun/verb/adj/adv/...).
-5) exampleItems: mảng 2-3 ví dụ. QUAN TRỌNG:
+5) exampleItems: mảng 1-2 ví dụ. QUAN TRỌNG:
    - targetText: PHẢI là chữ gốc (zh=汉字, ja=かな/漢字, ko=한글, th=อักษรไทย, hi=देवनागरी). KHÔNG được dùng pinyin/romaji/romanization cho targetText.
    - targetPinyin: phiên âm Latin (zh=pinyin, ja=romaji, ko=romanization, th=RTGS, hi=IAST).
    - nativeText: bản dịch sang ${nativeLanguage}.
@@ -390,7 +443,7 @@ Trả về JSON hợp lệ, không markdown:
     }
 
     const normalizedExampleItems = sanitizeExampleItems(parsed.exampleItems)
-    const normalizedSenses = sanitizeSenseItems(parsed.senses)
+    const normalizedSenses = normalizeSensesForDictionary(sanitizeSenseItems(parsed.senses))
     const senseExamples = normalizedSenses
       .map((s) => ({
         targetText: String(s.exampleTarget || '').trim(),
@@ -401,7 +454,7 @@ Trả về JSON hợp lệ, không markdown:
     const primaryExample = normalizedExampleItems[0] || null
     const completed: WordResult = {
       partOfSpeech: parsed.partOfSpeech || '',
-      meaning: normalizeMeaningOutput(parsed.meaning),
+      meaning: buildShortMeaningFromSenses(normalizedSenses, parsed.meaning),
       pronunciation: parsed.pronunciation || word,
       exampleTarget: primaryExample?.targetText || parsed.exampleTarget || `I use "${word}" in a sentence.`,
       exampleNative: primaryExample?.nativeText
