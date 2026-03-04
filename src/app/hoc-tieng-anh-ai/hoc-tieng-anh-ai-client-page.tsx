@@ -109,6 +109,11 @@ type WordInsight = {
   pronunciation: string
   exampleTarget: string
   exampleNative: string
+  senses: Array<{
+    gloss: string
+    exampleTarget: string
+    exampleNative: string
+  }>
   usageLevel: 'high' | 'medium' | 'low'
   importanceScore: number
   contextSensitive: boolean
@@ -135,6 +140,11 @@ type TodayWordItem = {
   contextSensitive?: boolean
   exampleTarget?: string
   exampleNative?: string
+  senses?: Array<{
+    gloss: string
+    exampleTarget: string
+    exampleNative: string
+  }>
   meaningItems?: Array<{
     text: string
     pinyin?: string
@@ -1405,6 +1415,18 @@ function sanitizeWordExampleItems(input: unknown): Array<{ targetText: string; t
     .slice(0, 6)
 }
 
+function sanitizeWordSenses(input: unknown): Array<{ gloss: string; exampleTarget: string; exampleNative: string }> {
+  if (!Array.isArray(input)) return []
+  return input
+    .map((row) => ({
+      gloss: String((row as { gloss?: unknown })?.gloss || '').trim(),
+      exampleTarget: String((row as { exampleTarget?: unknown })?.exampleTarget || '').trim(),
+      exampleNative: String((row as { exampleNative?: unknown })?.exampleNative || '').trim(),
+    }))
+    .filter((row) => row.gloss || (row.exampleTarget && row.exampleNative))
+    .slice(0, 5)
+}
+
 function normalizeWordUsageLevel(input: unknown): 'high' | 'medium' | 'low' {
   const normalized = String(input || '').trim().toLowerCase()
   if (normalized === 'high' || normalized === 'medium' || normalized === 'low') return normalized
@@ -1435,6 +1457,7 @@ function buildWordInsightFromAny(data: {
   pronunciation?: unknown
   exampleTarget?: unknown
   exampleNative?: unknown
+  senses?: unknown
   meaningItems?: unknown
   exampleItems?: unknown
   usageLevel?: unknown
@@ -1445,18 +1468,29 @@ function buildWordInsightFromAny(data: {
   const pronunciation = String(data.pronunciation || '').trim()
   const exampleTarget = String(data.exampleTarget || '').trim()
   const exampleNative = String(data.exampleNative || '').trim()
+  const sensesRaw = sanitizeWordSenses(data.senses)
   const exampleItemsRaw = sanitizeWordExampleItems(data.exampleItems)
+  const senseExamples = sensesRaw
+    .map((s) => ({
+      targetText: String(s.exampleTarget || '').trim(),
+      targetPinyin: '',
+      nativeText: String(s.exampleNative || '').trim(),
+    }))
+    .filter((s) => s.targetText && s.nativeText)
   return {
     meaning,
     pronunciation,
     exampleTarget,
     exampleNative,
+    senses: sensesRaw,
     usageLevel: normalizeWordUsageLevel(data.usageLevel),
     importanceScore: normalizeWordImportanceScore(data.importanceScore),
     contextSensitive: normalizeWordContextSensitive(data.contextSensitive),
     meaningItems: [],
     exampleItems: exampleItemsRaw.length > 0
       ? exampleItemsRaw
+      : senseExamples.length > 0
+        ? senseExamples
       : (exampleTarget && exampleNative
           ? [{ targetText: exampleTarget, targetPinyin: pronunciation || undefined, nativeText: exampleNative }]
           : []),
@@ -4431,6 +4465,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
           pronunciation: savedWord.pronunciation || savedWord.word,
           exampleTarget: String(savedWord.exampleTarget || '').trim(),
           exampleNative: String(savedWord.exampleNative || '').trim(),
+          senses: sanitizeWordSenses((savedWord as { senses?: unknown }).senses),
           usageLevel: normalizeWordUsageLevel(savedWord.usageLevel),
           importanceScore: normalizeWordImportanceScore(savedWord.importanceScore),
           contextSensitive: normalizeWordContextSensitive(savedWord.contextSensitive),
@@ -4604,6 +4639,37 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
       await playAudioUrl(single.url)
     } catch {
       // ignore TTS errors for meaning
+    }
+  }
+
+  const playWordSenseGloss = async (text: string) => {
+    const normalized = String(text || '').trim()
+    if (!normalized) return
+    await playMeaningInNativeLanguage(normalized)
+  }
+
+  const playWordSenseNative = async (text: string) => {
+    const normalized = String(text || '').trim()
+    if (!normalized) return
+    await playMeaningInNativeLanguage(normalized)
+  }
+
+  const playWordSenseExampleTarget = async (text: string) => {
+    const normalized = String(text || '').trim()
+    if (!normalized) return
+    await playWordTextSnippet(normalized)
+  }
+
+  const playWordSenseAll = async (
+    senses: Array<{ gloss: string; exampleTarget: string; exampleNative: string }>
+  ) => {
+    for (const sense of senses) {
+      const gloss = String(sense.gloss || '').trim()
+      const exampleTarget = String(sense.exampleTarget || '').trim()
+      const exampleNative = String(sense.exampleNative || '').trim()
+      if (gloss) await playWordSenseGloss(gloss)
+      if (exampleTarget) await playWordSenseExampleTarget(exampleTarget)
+      if (exampleNative) await playWordSenseNative(exampleNative)
     }
   }
 
@@ -8583,55 +8649,109 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                                       </span>
                                     ) : null}
                                   </div>
-                                  {((wordInsightByKey[openedWordKey].exampleItems ?? []).length > 0
-                                    ? wordInsightByKey[openedWordKey].exampleItems!
-                                    : wordInsightByKey[openedWordKey].exampleTarget && wordInsightByKey[openedWordKey].exampleNative
-                                      ? [{ targetText: wordInsightByKey[openedWordKey].exampleTarget!, nativeText: wordInsightByKey[openedWordKey].exampleNative!, targetPinyin: undefined }]
-                                      : []
-                                  ).map((ex, idx) => {
-                                    const exampleText = String(ex.targetText || '').trim()
-                                    const exampleNative = String(ex.nativeText || '').trim()
-                                    const storedPinyin = sanitizeRomanizedText(String(ex.targetPinyin || '').trim())
-                                    const fallbackKey = toWritingRomanizationKey(exampleText)
-                                    const fallbackPinyin = sanitizeRomanizedText(String(writingRomanizationByKey[fallbackKey] || '').trim())
-                                    const busyPinyin = Boolean(writingRomanizationBusyByKey[fallbackKey])
-                                    const pinyin = storedPinyin || fallbackPinyin
-                                    if (!exampleText) return null
+                                  {(() => {
+                                    const insight = wordInsightByKey[openedWordKey]
+                                    const senses =
+                                      (insight.senses ?? []).length > 0
+                                        ? insight.senses
+                                        : (((insight.exampleItems ?? []).length > 0
+                                            ? insight.exampleItems
+                                            : insight.exampleTarget && insight.exampleNative
+                                              ? [{ targetText: insight.exampleTarget, nativeText: insight.exampleNative, targetPinyin: undefined }]
+                                              : []
+                                          ).map((ex) => ({
+                                            gloss: '',
+                                            exampleTarget: String(ex.targetText || '').trim(),
+                                            exampleNative: String(ex.nativeText || '').trim(),
+                                          })))
+                                    if (senses.length === 0) return null
                                     return (
-                                      <div key={idx} className="space-y-0.5">
-                                        <div className="flex items-start gap-2">
-                                          <p className="flex-1">
-                                            <span className="font-semibold text-slate-800">{localText('Ví dụ:', 'Example:')}</span> {exampleText}
-                                          </p>
-                                          <Button
-                                            type="button"
-                                            variant="ghost"
-                                            size="icon"
-                                            className="h-7 w-7 shrink-0"
-                                            onClick={() => void playWordTextSnippet(exampleText)}
-                                          >
-                                            <Volume2 className="h-4 w-4" />
-                                          </Button>
-                                        </div>
-                                        {supportsLatinTransliteration ? (
-                                          pinyin ? (
-                                            <p className="text-muted-foreground">
-                                              <span className="font-semibold text-slate-800">{localText('Pinyin:', 'Pinyin:')}</span> {pinyin}
-                                            </p>
-                                          ) : busyPinyin ? (
-                                            <p className="text-muted-foreground">
-                                              <span className="font-semibold text-slate-800">{localText('Pinyin:', 'Pinyin:')}</span> {localText('Đang tạo...', 'Generating...')}
-                                            </p>
-                                          ) : null
-                                        ) : null}
-                                        {exampleNative ? (
-                                          <p className="text-muted-foreground">
-                                            <span className="font-semibold text-slate-800">{localText('Dịch:', 'Translation:')}</span> {exampleNative}
-                                          </p>
-                                        ) : null}
+                                      <div className="space-y-1.5">
+                                        {senses.map((sense, idx) => {
+                                          const gloss = String(sense.gloss || '').trim()
+                                          const exampleText = String(sense.exampleTarget || '').trim()
+                                          const exampleNative = String(sense.exampleNative || '').trim()
+                                          const storedPinyin = sanitizeRomanizedText(String((sense as { targetPinyin?: string }).targetPinyin || '').trim())
+                                          const fallbackKey = toWritingRomanizationKey(exampleText)
+                                          const fallbackPinyin = sanitizeRomanizedText(String(writingRomanizationByKey[fallbackKey] || '').trim())
+                                          const busyPinyin = Boolean(writingRomanizationBusyByKey[fallbackKey])
+                                          const pinyin = storedPinyin || fallbackPinyin
+                                          return (
+                                            <div key={`sense-${idx}`} className="rounded-md border border-slate-200 bg-slate-50/70 px-2 py-1.5">
+                                              {gloss ? (
+                                                <div className="flex items-start gap-2">
+                                                  <p className="flex-1">
+                                                    <span className="font-semibold text-slate-800">{localText('Nghĩa:', 'Meaning:')}</span> {gloss}
+                                                  </p>
+                                                  <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-7 w-7 shrink-0"
+                                                    onClick={() => void playWordSenseGloss(gloss)}
+                                                  >
+                                                    <Volume2 className="h-4 w-4" />
+                                                  </Button>
+                                                </div>
+                                              ) : null}
+                                              {exampleText ? (
+                                                <div className="mt-0.5 flex items-start gap-2">
+                                                  <p className="flex-1">
+                                                    <span className="font-semibold text-slate-800">{localText('Ví dụ:', 'Example:')}</span> {exampleText}
+                                                  </p>
+                                                  <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-7 w-7 shrink-0"
+                                                    onClick={() => void playWordSenseExampleTarget(exampleText)}
+                                                  >
+                                                    <Volume2 className="h-4 w-4" />
+                                                  </Button>
+                                                </div>
+                                              ) : null}
+                                              {supportsLatinTransliteration && exampleText && (pinyin || busyPinyin) ? (
+                                                pinyin ? (
+                                                  <p className="text-muted-foreground">
+                                                    <span className="font-semibold text-slate-800">{localText('Pinyin:', 'Pinyin:')}</span> {pinyin}
+                                                  </p>
+                                                ) : (
+                                                  <p className="text-muted-foreground">
+                                                    <span className="font-semibold text-slate-800">{localText('Pinyin:', 'Pinyin:')}</span> {localText('Đang tạo...', 'Generating...')}
+                                                  </p>
+                                                )
+                                              ) : null}
+                                              {exampleNative ? (
+                                                <div className="mt-0.5 flex items-start gap-2">
+                                                  <p className="flex-1 text-muted-foreground">
+                                                    <span className="font-semibold text-slate-800">{localText('Dịch:', 'Translation:')}</span> {exampleNative}
+                                                  </p>
+                                                  <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-7 w-7 shrink-0"
+                                                    onClick={() => void playWordSenseNative(exampleNative)}
+                                                  >
+                                                    <Volume2 className="h-4 w-4" />
+                                                  </Button>
+                                                </div>
+                                              ) : null}
+                                            </div>
+                                          )
+                                        })}
+                                        <Button
+                                          type="button"
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() => void playWordSenseAll(senses)}
+                                        >
+                                          <Volume2 className="mr-2 h-4 w-4" />
+                                          {localText('Nghe toàn bộ giải nghĩa', 'Play full meaning')}
+                                        </Button>
                                       </div>
                                     )
-                                  })}
+                                  })()}
                                   <Button
                                     type="button"
                                     variant="outline"

@@ -141,11 +141,11 @@ export function ReviewItemsPanel({
                 <button
                   type="button"
                   className="font-semibold text-blue-600 dark:text-blue-400 underline-offset-2 hover:underline"
-                  onClick={() => onStartWordPractice(item.word, String(item.meaning || item.meaningItems?.[0]?.text || ''))}
+                  onClick={() => onStartWordPractice(item.word, String(item.meaning || ''))}
                 >
                   {item.word.charAt(0).toUpperCase() + item.word.slice(1)}
                 </button>{' '}
-                - {((item.meaningItems ?? []).map((m) => m.text).join('; ') || item.meaning || localText('Chưa có nghĩa', 'No meaning yet'))}
+                - {(item.meaning || localText('Chưa có nghĩa', 'No meaning yet'))}
               </p>
               <p className="text-muted-foreground">{localText('Phát âm:', 'Pronunciation:')} {item.pronunciation || item.word}</p>
               <div className="mt-1 flex flex-wrap items-center gap-1">
@@ -169,7 +169,7 @@ export function ReviewItemsPanel({
                   size="sm"
                   className="h-9 rounded-lg px-3 text-xs"
                   onClick={() => {
-                    onStartWordPractice(item.word, String(item.meaning || item.meaningItems?.[0]?.text || ''), { forceSwitch: true })
+                    onStartWordPractice(item.word, String(item.meaning || ''), { forceSwitch: true })
                     onPlayWordPronunciation(item.word)
                   }}
                 >

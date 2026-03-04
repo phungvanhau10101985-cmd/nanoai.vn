@@ -16,6 +16,12 @@ export type ExampleItem = {
   nativeText: string
 }
 
+export type WordSense = {
+  gloss: string
+  exampleTarget: string
+  exampleNative: string
+}
+
 export type WordPracticeProgress = {
   targetWord: string
   normalizedTarget: string
@@ -38,6 +44,7 @@ export type VocabularyItem = {
   usageLevel?: 'high' | 'medium' | 'low'
   importanceScore?: number
   contextSensitive?: boolean
+  senses?: WordSense[]
   meaningItems?: MeaningItem[]
   exampleItems?: ExampleItem[]
   exampleTarget?: string
@@ -54,6 +61,7 @@ export type PreLessonWordItem = {
   usageLevel?: 'high' | 'medium' | 'low'
   importanceScore?: number
   contextSensitive?: boolean
+  senses?: WordSense[]
   exampleTarget?: string
   meaningItems?: MeaningItem[]
   exampleItems?: ExampleItem[]
