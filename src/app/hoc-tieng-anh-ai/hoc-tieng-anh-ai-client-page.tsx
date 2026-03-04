@@ -4454,6 +4454,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
   const fetchWordInsight = async (messageId: string, word: string, sentence: string) => {
     const key = `${messageId}:${word.toLowerCase()}`
     if (wordAnalyzingKeysRef.current.has(key)) return
+    delete wordSenseAutoPlayedByKeyRef.current[key]
     setOpenedWordKey(key)
     const savedWord = findSessionWord(word)
     if (savedWord && (savedWord.meaning || savedWord.pronunciation)) {
@@ -4486,7 +4487,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
       }))
       const savedSenses = sanitizeWordSenses((savedWord as { senses?: unknown }).senses)
       void (async () => {
-        await playWordPronunciation(word).catch(() => {})
+        void playWordPronunciation(word).catch(() => {})
         await autoPlayWordSenseAllFirstTime(key, word, savedSenses)
       })()
       return
@@ -4500,7 +4501,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
       }
       const cached = wordInsightByKey[key]
       void (async () => {
-        await playWordPronunciation(word).catch(() => {})
+        void playWordPronunciation(word).catch(() => {})
         await autoPlayWordSenseAllFirstTime(key, word, sanitizeWordSenses(cached.senses))
       })()
       return
@@ -4547,7 +4548,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
       const audioUrl = String((payload as { pronunciationAudioUrl?: string }).pronunciationAudioUrl || '').trim()
       await saveDailyWord(word, detail, audioUrl || undefined)
       void fetchSessionWords()
-      await wordPlayPromise.catch(() => {})
+      void wordPlayPromise.catch(() => {})
       await autoPlayWordSenseAllFirstTime(key, word, sanitizeWordSenses(detail.senses))
     } catch (e) {
       const msg = unknownErrorMsg(e)
