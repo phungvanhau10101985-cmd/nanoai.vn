@@ -5588,8 +5588,30 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
       }
       if (metaLanguage && TEACHERS_BY_LANGUAGE[metaLanguage]) {
         setLanguageCode(metaLanguage)
-        const matchedByLabel = TEACHERS_BY_LANGUAGE[metaLanguage].find((t) => t.label === String(firstMeta?.teacherLabel || ''))
-        const fallbackTeacher = matchedByLabel || TEACHERS_BY_LANGUAGE[metaLanguage][0]
+        const teachers = TEACHERS_BY_LANGUAGE[metaLanguage]
+        const normalize = (value: string) => String(value || '').trim().toLowerCase()
+        const teacherLabelMeta = normalize(String(firstMeta?.teacherLabel || ''))
+        const teacherLocaleMeta = normalize(String(firstMeta?.teacherLocale || ''))
+        const inferGenderFromLabel = (label: string): Gender | null => {
+          if (!label) return null
+          if (/(^|\s)(thay|thầy|male|mr|nam|anh)(\s|$)/i.test(label)) return 'male'
+          if (/(^|\s)(co|cô|female|miss|ms|mrs|nu|nữ|chi|chị)(\s|$)/i.test(label)) return 'female'
+          return null
+        }
+        const matchedByLabel = teachers.find((t) => normalize(t.label) === teacherLabelMeta)
+        const matchedByLocale = teacherLocaleMeta
+          ? teachers.find((t) => normalize(t.locale) === teacherLocaleMeta)
+          : undefined
+        const inferredGender = inferGenderFromLabel(teacherLabelMeta)
+        const matchedByGender = inferredGender
+          ? teachers.find((t) => t.gender === inferredGender)
+          : undefined
+        const fallbackTeacher =
+          matchedByLabel
+          || matchedByLocale
+          || matchedByGender
+          || (teachers.find((t) => t.id === selectedTeacher.id))
+          || teachers[0]
         if (fallbackTeacher) {
           setTeacherId(fallbackTeacher.id)
           setSessionTeacher(fallbackTeacher)
@@ -5615,7 +5637,9 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
       setWordInsightByKey({})
       wordSenseAutoPlayedByKeyRef.current = {}
       setTokenizingByMessageId({})
+      const firstTeacherMessageId = String(items.find((x) => x.role === 'teacher')?.id || '').trim()
       const loadedAudioMap = items.reduce<Record<string, string>>((acc, item) => {
+        if (presetSessionLoaded && firstTeacherMessageId && item.id === firstTeacherMessageId) return acc
         if (item.role === 'teacher' && item.audioUrl) acc[item.id] = item.audioUrl
         return acc
       }, {})
