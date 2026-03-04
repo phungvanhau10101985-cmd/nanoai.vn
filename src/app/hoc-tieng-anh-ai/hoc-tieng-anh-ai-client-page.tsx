@@ -77,6 +77,7 @@ const FIXED_TTS_VOICE_BY_GENDER: Record<Gender, VoiceName> = {
   female: 'Kore',
   male: 'Orus',
 }
+const CROSS_PAGE_START_STORAGE_KEY = 'english-coach-cross-page-start-v1'
 
 function computeTimelineCompletedSteps(stepCount: number, studentTurnCount: number): number {
   const safeStepCount = Math.max(0, Math.floor(Number(stepCount || 0) || 0))
@@ -2220,6 +2221,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
   const lastMicSentTextRef = useRef('')
   const lastMicSentAtRef = useRef(0)
   const routeOpenSessionHandledRef = useRef('')
+  const crossPageStartHandledRef = useRef('')
   const writingAutoAdvanceSignatureRef = useRef('')
   const shouldCountNewSessionRef = useRef(true)
   const mixedRecorderRef = useRef<MediaRecorder | null>(null)
@@ -5614,6 +5616,44 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
     void loadHistorySession(targetSessionId)
   }, [searchParams, openedHistorySessionId, historyBusy])
 
+  useEffect(() => {
+    if (isSavedStandalonePage) return
+    const autoStartFlag = String(searchParams.get('autoStart') || '').trim().toLowerCase()
+    if (autoStartFlag !== 'live') return
+    if (crossPageStartHandledRef.current === autoStartFlag) return
+    crossPageStartHandledRef.current = autoStartFlag
+
+    let pendingTopicId = ''
+    let pendingTopicLabel = ''
+    try {
+      const raw = window.sessionStorage.getItem(CROSS_PAGE_START_STORAGE_KEY)
+      if (raw) {
+        const parsed = JSON.parse(raw) as { action?: string; topicId?: string; topicLabel?: string }
+        if (String(parsed.action || '').trim() === 'start_live') {
+          pendingTopicId = String(parsed.topicId || '').trim()
+          pendingTopicLabel = String(parsed.topicLabel || '').trim()
+        }
+      }
+      window.sessionStorage.removeItem(CROSS_PAGE_START_STORAGE_KEY)
+    } catch {
+      // ignore sessionStorage failures
+    }
+
+    const topicFromPending =
+      (pendingTopicId && allTopicOptions.find((x) => String(x.id || '').trim() === pendingTopicId))
+      || (pendingTopicLabel
+        ? allTopicOptions.find((x) => String(x.label || '').trim() === pendingTopicLabel)
+        : undefined)
+      || selectedTopic
+
+    void startLiveLessonFromChoice({
+      curriculum: null,
+      topic: topicFromPending,
+    }).finally(() => {
+      router.replace('/hoc-tieng-anh-ai')
+    })
+  }, [searchParams, isSavedStandalonePage, allTopicOptions, selectedTopic, router])
+
   const endLessonAndStartNew = async () => {
     const currentSessionId = sessionId
     if (currentSessionId) {
@@ -7078,6 +7118,23 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
   const startLiveLessonFromChoice = async (planArg?: { curriculum: TopicCurriculum | null; topic: TopicOption }) => {
     const plan = planArg || lessonStartPlan || matchedSessionPlan
     if (!plan) return
+    if (isSavedStandalonePage) {
+      try {
+        window.sessionStorage.setItem(
+          CROSS_PAGE_START_STORAGE_KEY,
+          JSON.stringify({
+            action: 'start_live',
+            topicId: String(plan.topic.id || '').trim(),
+            topicLabel: String(plan.topic.label || '').trim(),
+            ts: Date.now(),
+          })
+        )
+      } catch {
+        // ignore sessionStorage failures
+      }
+      router.replace('/hoc-tieng-anh-ai?autoStart=live')
+      return
+    }
     let curriculumToUse = plan.curriculum
     if (!curriculumToUse) {
       curriculumToUse = await fetchTopicCurriculum({ skipConfirm: true, topicId: plan.topic.id, silent: true })
