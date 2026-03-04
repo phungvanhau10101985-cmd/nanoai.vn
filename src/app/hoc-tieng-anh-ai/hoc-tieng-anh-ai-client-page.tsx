@@ -1445,14 +1445,7 @@ function buildWordInsightFromAny(data: {
   const pronunciation = String(data.pronunciation || '').trim()
   const exampleTarget = String(data.exampleTarget || '').trim()
   const exampleNative = String(data.exampleNative || '').trim()
-  const meaningItemsRaw = sanitizeWordMeaningItems(data.meaningItems)
   const exampleItemsRaw = sanitizeWordExampleItems(data.exampleItems)
-  const normalizedMeaningItems = meaningItemsRaw.length > 0
-    ? meaningItemsRaw.map((item) => ({
-        ...item,
-        pinyin: item.pinyin || pronunciation || undefined,
-      }))
-    : (meaning ? [{ text: meaning, pinyin: pronunciation || undefined }] : [])
   return {
     meaning,
     pronunciation,
@@ -1461,7 +1454,7 @@ function buildWordInsightFromAny(data: {
     usageLevel: normalizeWordUsageLevel(data.usageLevel),
     importanceScore: normalizeWordImportanceScore(data.importanceScore),
     contextSensitive: normalizeWordContextSensitive(data.contextSensitive),
-    meaningItems: normalizedMeaningItems,
+    meaningItems: [],
     exampleItems: exampleItemsRaw.length > 0
       ? exampleItemsRaw
       : (exampleTarget && exampleNative
@@ -3032,7 +3025,6 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
       const normalized = raw.map((item) => {
         const meaning = String(item.meaning || '').trim()
         const pronunciation = String(item.pronunciation || '').trim()
-        const meaningItems = sanitizeWordMeaningItems(item.meaningItems)
         const exampleItems = sanitizeWordExampleItems(item.exampleItems)
         const exampleTarget = String(item.exampleTarget || '').trim()
         const exampleNative = String(item.exampleNative || '').trim()
@@ -3043,7 +3035,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
           usageLevel: normalizeWordUsageLevel(item.usageLevel),
           importanceScore: normalizeWordImportanceScore(item.importanceScore),
           contextSensitive: normalizeWordContextSensitive(item.contextSensitive),
-          meaningItems: meaningItems.length > 0 ? meaningItems : (meaning ? [{ text: meaning, pinyin: pronunciation || undefined }] : []),
+          meaningItems: [],
           exampleItems: exampleItems.length > 0 ? exampleItems : (exampleTarget && exampleNative ? [{ targetText: exampleTarget, nativeText: exampleNative }] : []),
           exampleTarget,
           exampleNative,
@@ -4407,11 +4399,11 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
           usageLevel: normalizeWordUsageLevel(savedWord.usageLevel),
           importanceScore: normalizeWordImportanceScore(savedWord.importanceScore),
           contextSensitive: normalizeWordContextSensitive(savedWord.contextSensitive),
-          meaningItems: sanitizeWordMeaningItems(savedWord.meaningItems),
+          meaningItems: [],
           exampleItems: sanitizeWordExampleItems(savedWord.exampleItems),
         },
       }))
-      const meaningText = savedWord.meaning || (savedWord.meaningItems?.[0]?.text ?? '')
+      const meaningText = savedWord.meaning
       void playWordPronunciation(word).then(() => playMeaningInNativeLanguage(meaningText))
       return
     }
@@ -4423,7 +4415,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
         // ignore daily word save failure on cached click
       }
       const cached = wordInsightByKey[key]
-      const meaningText = cached.meaning || (cached.meaningItems?.[0]?.text ?? '')
+      const meaningText = cached.meaning
       void playWordPronunciation(word).then(() => playMeaningInNativeLanguage(meaningText))
       return
     }
@@ -4469,7 +4461,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
       const audioUrl = String((payload as { pronunciationAudioUrl?: string }).pronunciationAudioUrl || '').trim()
       await saveDailyWord(word, detail, audioUrl || undefined)
       void fetchSessionWords()
-      const meaningText = detail.meaning || (detail.meaningItems?.[0]?.text ?? '')
+      const meaningText = detail.meaning
       void wordPlayPromise.then(() => playMeaningInNativeLanguage(meaningText))
     } catch (e) {
       const msg = unknownErrorMsg(e)
@@ -4534,7 +4526,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
           usageLevel: normalizeWordUsageLevel(detail?.usageLevel),
           importanceScore: normalizeWordImportanceScore(detail?.importanceScore),
           contextSensitive: normalizeWordContextSensitive(detail?.contextSensitive),
-          meaningItems: sanitizeWordMeaningItems(detail?.meaningItems),
+          meaningItems: [],
           exampleItems: sanitizeWordExampleItems(detail?.exampleItems),
         },
         uploadedAudioUrl,
@@ -4665,7 +4657,6 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
       const pronunciation = String(item.pronunciation || '').trim()
       const exampleTarget = String(item.exampleTarget || '').trim()
       const exampleNative = String(item.exampleNative || '').trim()
-      const meaningItems = sanitizeWordMeaningItems((item as { meaningItems?: unknown }).meaningItems)
       const exampleItems = sanitizeWordExampleItems((item as { exampleItems?: unknown }).exampleItems)
       return {
         ...item,
@@ -4677,7 +4668,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
         importanceScore: normalizeWordImportanceScore((item as { importanceScore?: unknown }).importanceScore),
         contextSensitive: normalizeWordContextSensitive((item as { contextSensitive?: unknown }).contextSensitive),
         pronunciationAudioUrl: String(item.pronunciationAudioUrl || '').trim(),
-        meaningItems: meaningItems.length > 0 ? meaningItems : (meaning ? [{ text: meaning, pinyin: pronunciation || undefined }] : []),
+        meaningItems: [],
         exampleItems: exampleItems.length > 0 ? exampleItems : (
           exampleTarget && exampleNative
             ? [{ targetText: exampleTarget, nativeText: exampleNative }]
@@ -4685,10 +4676,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
         ),
       }
     })
-    const filtered = normalized.filter((item) => {
-      const hasMeaning = item.meaning.length > 0 || (item.meaningItems?.length ?? 0) > 0
-      return hasMeaning
-    })
+    const filtered = normalized.filter((item) => item.meaning.length > 0)
     const uniqueByWord = new Map<string, TodayWordItem>()
     for (const item of filtered) {
       const key = `${String(item.word || '').trim().toLowerCase()}::${String(item.targetLanguage || '').trim().toLowerCase()}`
@@ -4727,7 +4715,6 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
             const pronunciation = String(item.pronunciation || '').trim()
             const exampleTarget = String(item.exampleTarget || '').trim()
             const exampleNative = String(item.exampleNative || '').trim()
-            const meaningItems = sanitizeWordMeaningItems((item as { meaningItems?: unknown }).meaningItems)
             const exampleItems = sanitizeWordExampleItems((item as { exampleItems?: unknown }).exampleItems)
             return {
               ...item,
@@ -4739,7 +4726,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
               importanceScore: normalizeWordImportanceScore((item as { importanceScore?: unknown }).importanceScore),
               contextSensitive: normalizeWordContextSensitive((item as { contextSensitive?: unknown }).contextSensitive),
               pronunciationAudioUrl: String(item.pronunciationAudioUrl || '').trim(),
-              meaningItems: meaningItems.length > 0 ? meaningItems : (meaning ? [{ text: meaning, pinyin: pronunciation || undefined }] : []),
+              meaningItems: [],
               exampleItems: exampleItems.length > 0 ? exampleItems : (
                 exampleTarget && exampleNative
                   ? [{ targetText: exampleTarget, nativeText: exampleNative }]
@@ -4779,9 +4766,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
   ) => {
     if (learningMode === 'reflex') return
     const meaning = String(detail.meaning || '').trim()
-    const meaningItems = sanitizeWordMeaningItems((detail as { meaningItems?: unknown }).meaningItems)
-    const hasMeaning = meaning.length > 0 || meaningItems.length > 0
-    if (!hasMeaning) {
+    if (!meaning) {
       return
     }
     const date = getLocalDateString()
@@ -4801,7 +4786,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
         usageLevel: normalizeWordUsageLevel((detail as { usageLevel?: unknown }).usageLevel),
         importanceScore: normalizeWordImportanceScore((detail as { importanceScore?: unknown }).importanceScore),
         contextSensitive: normalizeWordContextSensitive((detail as { contextSensitive?: unknown }).contextSensitive),
-        meaningItems: sanitizeWordMeaningItems((detail as { meaningItems?: unknown }).meaningItems),
+        meaningItems: [],
         exampleItems: sanitizeWordExampleItems((detail as { exampleItems?: unknown }).exampleItems),
     })
     if (!ok) {
@@ -8535,7 +8520,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                                     <span className="font-semibold text-slate-800">
                                       {capitalizeWordForDisplay(openedWordKey.split(':').slice(1).join(':')) || localText('Từ này', 'This word')} {localText('nghĩa là:', 'means:')}
                                     </span>{' '}
-                                    {((wordInsightByKey[openedWordKey].meaningItems ?? []).map((m) => m.text).join('; ') || wordInsightByKey[openedWordKey].meaning)}
+                                    {wordInsightByKey[openedWordKey].meaning}
                                   </p>
                                   <p><span className="font-semibold text-slate-800">{localText('Phát âm:', 'Pronunciation:')}</span> {wordInsightByKey[openedWordKey].pronunciation}</p>
                                   <div className="flex flex-wrap items-center gap-1">
@@ -9839,7 +9824,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                     pronunciation: wordItem.pronunciation,
                     exampleTarget: wordItem.exampleTarget,
                     exampleNative: wordItem.exampleNative,
-                    meaningItems: wordItem.meaningItems,
+                    meaningItems: [],
                     exampleItems: wordItem.exampleItems,
                     usageLevel: wordItem.usageLevel,
                     importanceScore: wordItem.importanceScore,
@@ -9857,7 +9842,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                 pronunciation: wordItem.pronunciation,
                 exampleTarget: wordItem.exampleTarget,
                 exampleNative: wordItem.exampleNative,
-                meaningItems: wordItem.meaningItems,
+                meaningItems: [],
                 exampleItems: wordItem.exampleItems,
                 usageLevel: wordItem.usageLevel,
                 importanceScore: wordItem.importanceScore,

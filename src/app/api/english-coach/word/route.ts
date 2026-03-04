@@ -91,17 +91,6 @@ function exampleItemsTargetTextLooksWrong(
   return false
 }
 
-function sanitizeMeaningItems(input: unknown): WordMeaningItem[] {
-  if (!Array.isArray(input)) return []
-  return input
-    .map((row) => ({
-      text: String((row as { text?: unknown })?.text || '').trim(),
-      pinyin: String((row as { pinyin?: unknown })?.pinyin || '').trim(),
-    }))
-    .filter((row) => row.text)
-    .slice(0, 6)
-}
-
 function sanitizeExampleItems(input: unknown): WordExampleItem[] {
   if (!Array.isArray(input)) return []
   return input
@@ -154,12 +143,7 @@ function safeParse(text: string): WordResult | null {
     const parsed = JSON.parse(candidate) as Partial<WordResult>
     const meaning = String(parsed.meaning || '').trim()
     if (!meaning) return null
-    const meaningItems = sanitizeMeaningItems(parseJsonListField((parsed as { meaningItems?: unknown }).meaningItems))
     const exampleItems = sanitizeExampleItems(parseJsonListField((parsed as { exampleItems?: unknown }).exampleItems))
-    const fallbackMeaningItems =
-      meaningItems.length > 0
-        ? meaningItems
-        : [{ text: meaning, pinyin: String((parsed as { pronunciation?: unknown }).pronunciation || '').trim() || undefined }]
     const fallbackExampleItems =
       exampleItems.length > 0
         ? exampleItems
@@ -174,7 +158,7 @@ function safeParse(text: string): WordResult | null {
       pronunciation: String(parsed.pronunciation || '').trim(),
       exampleTarget: String(parsed.exampleTarget || '').trim(),
       exampleNative: String(parsed.exampleNative || '').trim(),
-      meaningItems: fallbackMeaningItems,
+      meaningItems: [],
       exampleItems: fallbackExampleItems,
       usageLevel: normalizeUsageLevel((parsed as { usageLevel?: unknown }).usageLevel),
       importanceScore: normalizeImportanceScore((parsed as { importanceScore?: unknown }).importanceScore),
@@ -242,7 +226,6 @@ export async function POST(request: NextRequest) {
           .from('language_coach_vocab_cache')
           .update({ last_used_at: new Date().toISOString(), updated_at: new Date().toISOString() })
           .eq('id', cached.id)
-        const cachedMeaningItems = sanitizeMeaningItems(parseJsonListField(cached.meaning_items_json))
         const fallbackMeaning = String(cached.meaning || '').trim()
         const fallbackExampleTarget = String(cached.example_target || '').trim() || word
         const fallbackExampleNative = String(cached.example_native || '').trim()
@@ -255,9 +238,7 @@ export async function POST(request: NextRequest) {
         pronunciation: String(cached.pronunciation || '').trim() || word,
         exampleTarget: fallbackExampleTarget,
         exampleNative: fallbackExampleNative,
-        meaningItems: cachedMeaningItems.length > 0
-          ? cachedMeaningItems
-          : (fallbackMeaning ? [{ text: fallbackMeaning }] : []),
+        meaningItems: [],
         exampleItems: cachedExampleItems.length > 0
           ? cachedExampleItems
           : [{ targetText: fallbackExampleTarget, nativeText: fallbackExampleNative }],
@@ -287,23 +268,21 @@ Yêu cầu:
 1) meaning: giải thích nghĩa ĐẦY ĐỦ bằng ${nativeLanguage} (1-3 câu), nêu sắc thái dùng từ và ngữ cảnh thường gặp.
 2) pronunciation: phiên âm dễ đọc. Nếu ngôn ngữ là tiếng Trung thì dùng pinyin có dấu; tiếng Nhật dùng romaji; tiếng Hàn dùng romanization; tiếng Thái dùng RTGS; tiếng Hindi dùng IAST.
 3) partOfSpeech: loại từ ngắn gọn (noun/verb/adj/adv/...).
-4) meaningItems: mảng 1-3 ý nghĩa, mỗi item gồm text + pinyin (bắt buộc có pinyin/romanization cho zh/ja/ko/th/hi).
-5) exampleItems: mảng 2-3 ví dụ. QUAN TRỌNG:
+4) exampleItems: mảng 2-3 ví dụ. QUAN TRỌNG:
    - targetText: PHẢI là chữ gốc (zh=汉字, ja=かな/漢字, ko=한글, th=อักษรไทย, hi=देवनागरी). KHÔNG được dùng pinyin/romaji/romanization cho targetText.
    - targetPinyin: phiên âm Latin (zh=pinyin, ja=romaji, ko=romanization, th=RTGS, hi=IAST).
    - nativeText: bản dịch sang ${nativeLanguage}.
-6) exampleTarget: lấy từ exampleItems[0].targetText.
-7) exampleNative: lấy từ exampleItems[0].nativeText.
-8) usageLevel: mức độ dùng trong giao tiếp hằng ngày, chỉ nhận một trong: "high", "medium", "low".
-9) importanceScore: điểm ưu tiên học từ 0-100 (cao = nên học sớm).
-10) contextSensitive: true nếu nghĩa thay đổi nhiều theo ngữ cảnh, false nếu nghĩa khá ổn định.
+5) exampleTarget: lấy từ exampleItems[0].targetText.
+6) exampleNative: lấy từ exampleItems[0].nativeText.
+7) usageLevel: mức độ dùng trong giao tiếp hằng ngày, chỉ nhận một trong: "high", "medium", "low".
+8) importanceScore: điểm ưu tiên học từ 0-100 (cao = nên học sớm).
+9) contextSensitive: true nếu nghĩa thay đổi nhiều theo ngữ cảnh, false nếu nghĩa khá ổn định.
 
 Trả về JSON hợp lệ, không markdown:
 {
   "partOfSpeech": "...",
   "meaning": "...",
   "pronunciation": "...",
-  "meaningItems": [{"text":"...","pinyin":"..."}],
   "exampleItems": [{"targetText":"汉字/かな/한글","targetPinyin":"pinyin/romaji","nativeText":"..."}],
   "exampleTarget": "...",
   "exampleNative": "...",
@@ -330,15 +309,7 @@ Trả về JSON hợp lệ, không markdown:
         pronunciation: word,
         exampleTarget: `I use "${word}" in a sentence.`,
         exampleNative: msg(locale, `Ví dụ dùng từ "${word}" trong câu.`, `An example using "${word}" in a sentence.`),
-        meaningItems: [
-          {
-            text: msg(
-              locale,
-              `Nghĩa phổ biến của "${word}" đang được cập nhật. Hãy thử lại sau vài giây.`,
-              `The common meaning of "${word}" is being updated. Please try again in a few seconds.`
-            ),
-          },
-        ],
+        meaningItems: [],
         exampleItems: [
           {
             targetText: `I use "${word}" in a sentence.`,
@@ -352,7 +323,6 @@ Trả về JSON hợp lệ, không markdown:
       })
     }
 
-    const normalizedMeaningItems = sanitizeMeaningItems(parsed.meaningItems)
     const normalizedExampleItems = sanitizeExampleItems(parsed.exampleItems)
     const primaryExample = normalizedExampleItems[0] || null
     const completed: WordResult = {
@@ -363,7 +333,7 @@ Trả về JSON hợp lệ, không markdown:
       exampleNative: primaryExample?.nativeText
         || parsed.exampleNative
         || msg(locale, `Ví dụ dùng từ "${word}" trong câu.`, `An example using "${word}" in a sentence.`),
-      meaningItems: normalizedMeaningItems.length > 0 ? normalizedMeaningItems : [{ text: parsed.meaning }],
+      meaningItems: [],
       exampleItems: normalizedExampleItems.length > 0
         ? normalizedExampleItems
         : [{
@@ -386,7 +356,7 @@ Trả về JSON hợp lệ, không markdown:
         pronunciation: completed.pronunciation || null,
         example_target: completed.exampleTarget || null,
         example_native: completed.exampleNative || null,
-        meaning_items_json: JSON.stringify(completed.meaningItems),
+        meaning_items_json: JSON.stringify([]),
         example_items_json: JSON.stringify(completed.exampleItems),
         usage_level: completed.usageLevel,
         importance_score: completed.importanceScore,
