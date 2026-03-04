@@ -46,14 +46,9 @@ type LearnerProfileLite = {
 function buildPresetTurnsFromTranscript(transcript: Array<Record<string, unknown>>, learnerProfile: LearnerProfileLite): PresetTurn[] {
   const turns: PresetTurn[] = []
   let seenFirstTeacher = false
-  let pendingExpectedStudent = ''
   for (const item of transcript) {
     const role = String(item.role || '').trim()
-    if (role === 'student') {
-      const text = personalizeTextForLearner(String(item.text || '').trim(), learnerProfile).trim()
-      if (text) pendingExpectedStudent = text
-      continue
-    }
+    if (role === 'student') continue
     if (role !== 'teacher') continue
     const reply = personalizeTextForLearner(String(item.text || '').trim(), learnerProfile).trim().slice(0, 4000)
     if (!reply) continue
@@ -61,9 +56,13 @@ function buildPresetTurnsFromTranscript(transcript: Array<Record<string, unknown
       seenFirstTeacher = true
       continue
     }
+    const expectedFromIdea2 = personalizeTextForLearner(String(item.mainSentence || '').trim(), learnerProfile).trim()
+    const expectedFromIdea3 = personalizeTextForLearner(String(item.intentAnswer || '').trim(), learnerProfile).trim()
     turns.push({
       reply,
-      expectedStudent: pendingExpectedStudent || undefined,
+      // Saved-lesson replay should guide learner with corrected idea 2,
+      // not the original raw sentence from previous student.
+      expectedStudent: expectedFromIdea2 || expectedFromIdea3 || undefined,
       correctionNote: personalizeTextForLearner(String(item.correctionNote || '').trim(), learnerProfile) || undefined,
       mainSentence: personalizeTextForLearner(String(item.mainSentence || '').trim(), learnerProfile) || undefined,
       intentAnswer: personalizeTextForLearner(String(item.intentAnswer || '').trim(), learnerProfile) || undefined,
@@ -73,7 +72,6 @@ function buildPresetTurnsFromTranscript(transcript: Array<Record<string, unknown
       languageCode: String(item.languageCode || '').trim() || undefined,
       targetLanguage: String(item.targetLanguage || '').trim() || undefined,
     })
-    pendingExpectedStudent = ''
   }
   return turns
 }
@@ -117,12 +115,36 @@ function parseTranscriptWithoutPersonalization(transcriptRaw: string): Array<Rec
       ]
       return !fields.some((field) => hasPersonalizationSignals(field))
     })
-    const firstTeacherIndex = sanitized.findIndex((row) => String(row.role || '').trim() === 'teacher')
-    if (firstTeacherIndex < 0) return sanitized
-    return sanitized.filter((_, idx) => idx !== firstTeacherIndex)
+    return sanitized
   } catch {
     return []
   }
+}
+
+function detectTeacherGenderFromLabel(teacherLabelRaw: string): 'male' | 'female' {
+  const s = normalizeLookup(teacherLabelRaw)
+  if (!s) return 'male'
+  if (/(^|\s)(co|cô|female|miss|ms|mrs|chi|chị)(\s|$)/i.test(s)) return 'female'
+  if (/(^|\s)(thay|thầy|male|mr|nam|anh)(\s|$)/i.test(s)) return 'male'
+  return 'male'
+}
+
+function buildFixedPresetOpeningText(languageCodeRaw: string, teacherGender: 'male' | 'female'): string {
+  const code = normalizeLookup(languageCodeRaw)
+  if (code === 'vi') {
+    return teacherGender === 'female'
+      ? 'Cô chào em. Hôm nay chúng ta học bài hội thoại dựng sẵn. Em hãy bắt đầu bằng câu mẫu theo hướng dẫn.'
+      : 'Thầy chào em. Hôm nay chúng ta học bài hội thoại dựng sẵn. Em hãy bắt đầu bằng câu mẫu theo hướng dẫn.'
+  }
+  if (code === 'en') {
+    return 'Hello. Today we practice a preset dialogue lesson. Please start with the guided sample sentence.'
+  }
+  if (code === 'zh') return '你好。今天我们练习预设对话课程。请先按提示说示例句。'
+  if (code === 'ja') return 'こんにちは。今日はプリセット会話レッスンを練習します。まずはガイドの例文から始めてください。'
+  if (code === 'ko') return '안녕하세요. 오늘은 미리 구성된 대화 수업을 연습합니다. 안내된 예문부터 시작해 주세요.'
+  if (code === 'th') return 'สวัสดี วันนี้เราจะฝึกบทสนทนาที่ตั้งไว้ล่วงหน้า กรุณาเริ่มจากประโยคตัวอย่างตามคำแนะนำ'
+  if (code === 'hi') return 'नमस्ते। आज हम प्रीसेट संवाद पाठ का अभ्यास करेंगे। कृपया दिए गए नमूना वाक्य से शुरू करें।'
+  return 'Hello. Today we practice a preset dialogue lesson. Please start with the guided sample sentence.'
 }
 
 function personalizeTextForLearner(text: string, learnerProfile: LearnerProfileLite): string {
@@ -353,6 +375,12 @@ export async function POST(request: NextRequest) {
 
     const firstTeacher = teacherRows[0]
     const presetTurns: PresetTurn[] = buildPresetTurnsFromTranscript(transcript, resolvedLearnerProfile)
+    const openingTeacherLabel = teacherLabel || firstTeacher.teacherLabel || ''
+    const openingTeacherLocale = teacherLocale || firstTeacher.teacherLocale || ''
+    const openingLanguageCode = languageCode || firstTeacher.languageCode || 'en'
+    const openingTargetLanguage = targetLanguage || firstTeacher.targetLanguage || null
+    const openingGender = detectTeacherGenderFromLabel(openingTeacherLabel)
+    const openingText = buildFixedPresetOpeningText(openingLanguageCode, openingGender)
 
     const newSessionId = randomUUID()
     const nowIso = new Date().toISOString()
@@ -360,17 +388,17 @@ export async function POST(request: NextRequest) {
       user_id: user.id,
       session_id: newSessionId,
       role: 'teacher' as const,
-      text: personalizeTextForLearner(firstTeacher.text, resolvedLearnerProfile),
-      audio_url: firstTeacher.audioUrl,
-      translation: firstTeacher.translation,
-      language_code: firstTeacher.languageCode,
-      target_language: firstTeacher.targetLanguage,
-      teacher_label: firstTeacher.teacherLabel,
-      teacher_locale: firstTeacher.teacherLocale,
+      text: openingText,
+      audio_url: null,
+      translation: null,
+      language_code: openingLanguageCode || null,
+      target_language: openingTargetLanguage,
+      teacher_label: openingTeacherLabel || null,
+      teacher_locale: openingTeacherLocale || null,
       mode: firstTeacher.mode,
-      main_sentence: personalizeTextForLearner(firstTeacher.mainSentence || '', resolvedLearnerProfile) || null,
-      correction_note: personalizeTextForLearner(firstTeacher.correctionNote || '', resolvedLearnerProfile) || null,
-      intent_answer: personalizeTextForLearner(firstTeacher.intentAnswer || '', resolvedLearnerProfile) || null,
+      main_sentence: null,
+      correction_note: null,
+      intent_answer: null,
       tokens_json: null,
       writing_task_json: null,
     }

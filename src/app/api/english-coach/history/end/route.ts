@@ -181,9 +181,7 @@ export async function POST(request: NextRequest) {
       correction_note: String((r as { correction_note?: string }).correction_note || ''),
       intent_answer: String((r as { intent_answer?: string }).intent_answer || ''),
     }))
-    // Do not save opening line in completed lesson snapshots.
-    const firstTeacherId = String((rowsWithoutPersonalization.find((r) => r.role === 'teacher')?.id || '')).trim()
-    const replayRows = rowsWithoutPersonalization.filter((r) => String(r.id || '').trim() !== firstTeacherId)
+    const replayRows = rowsWithoutPersonalization
     const summary = {
       runningSummary: String(memory?.running_summary || '').trim(),
       pinnedFactsJson: String(memory?.pinned_facts_json || '{}').trim(),
