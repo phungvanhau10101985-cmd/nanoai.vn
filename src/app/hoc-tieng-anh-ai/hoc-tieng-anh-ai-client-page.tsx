@@ -7712,6 +7712,15 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
   const scrollToSpeakActions = useCallback(() => {
     const target = speakActionsRef.current
     if (!target || typeof window === 'undefined') return
+    const chatScroller = chatScrollRef.current
+    if (chatScroller) {
+      const supportsSmooth = typeof chatScroller.scrollTo === 'function'
+      if (supportsSmooth) {
+        chatScroller.scrollTo({ top: chatScroller.scrollHeight, behavior: 'smooth' })
+      } else {
+        chatScroller.scrollTop = chatScroller.scrollHeight
+      }
+    }
     const mobileBottomNav = document.querySelector('nav.safe-area-pb') as HTMLElement | null
     const navHeight = mobileBottomNav ? mobileBottomNav.getBoundingClientRect().height : 0
     const marginAboveNav = 10
