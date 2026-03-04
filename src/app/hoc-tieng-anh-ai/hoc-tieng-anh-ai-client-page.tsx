@@ -9232,17 +9232,6 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                       ) : (
                         <div className="space-y-2">
                           <p>{m.text}</p>
-                          {studentAudioByMessageId[m.id] ? (
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              size="sm"
-                              onClick={() => void replayStudentMessageAudio(m.id)}
-                            >
-                              <Volume2 className="mr-2 h-4 w-4" />
-                              {localText('Nghe lại học viên', 'Play student recording')}
-                            </Button>
-                          ) : null}
                         </div>
                       )}
                       {m.role === 'teacher' ? (
@@ -9347,7 +9336,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                             onClick={() => void replayDbStandardForStudentMessage(m.id)}
                           >
                             <Volume2 className="mr-2 h-4 w-4" />
-                            {localText('Nghe đọc chuẩn (DB)', 'Play standard reading (DB)')}
+                            {localText('Nghe đọc chuẩn', 'Play standard reading')}
                           </Button>
                         </div>
                       ) : null}
@@ -9476,7 +9465,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                         disabled={isReplayButtonDisabled(`${latestMainSentenceForLearner.messageId}__main`, hasCachedTeacherAudio(`${latestMainSentenceForLearner.messageId}__main`))}
                       >
                         <Volume2 className="mr-2 h-4 w-4" />
-                        {localText('Nghe đọc chuẩn (DB)', 'Play standard reading (DB)')}
+                        {localText('Nghe đọc chuẩn', 'Play standard reading')}
                       </Button>
                     </div>
                   </div>
