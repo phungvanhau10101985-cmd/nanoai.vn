@@ -7104,14 +7104,14 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
     setLiveSessionExtraTurnUnlocks(unlockCount)
     setIsCurrentPresetSession(false)
     setPresetReplayExpectedSentence('')
-    if (isSavedStandalonePage) {
-      router.replace('/hoc-tieng-anh-ai')
-    }
     await startLesson({
       skipPrerequisiteCheck: true,
       curriculumOverride: curriculumToUse,
       topicOverride: plan.topic,
     })
+    if (isSavedStandalonePage) {
+      router.replace('/hoc-tieng-anh-ai')
+    }
     setSetupCollapsed(true)
     toast({
       title: localText('Đã mở bài mới', 'New lesson unlocked'),
