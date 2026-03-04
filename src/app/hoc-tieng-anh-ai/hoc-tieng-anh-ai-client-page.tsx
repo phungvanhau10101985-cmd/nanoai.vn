@@ -5567,6 +5567,10 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
         return acc
       }, {})
       setOpenedHistorySessionId(targetSessionId)
+      // Lock routing state to the exact opened session to avoid URL-effect reopening an older session.
+      routeOpenSessionHandledRef.current = targetSessionId
+      const basePath = isSavedStandalonePage ? '/hoc-bai-hoc-co-san' : '/hoc-tieng-anh-ai'
+      router.replace(`${basePath}?sessionId=${encodeURIComponent(targetSessionId)}`)
       // After opening a session, jump user directly to the main action area (Speak / Input).
       requestAnimationFrame(() => {
         scrollToSpeakActions()
@@ -5633,6 +5637,24 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
     routeOpenSessionHandledRef.current = targetSessionId
     void loadHistorySession(targetSessionId)
   }, [searchParams, openedHistorySessionId, historyBusy])
+
+  useEffect(() => {
+    if (!openedHistorySessionId || typeof window === 'undefined') return
+    const rafId = window.requestAnimationFrame(() => {
+      scrollToSpeakActions()
+    })
+    const t1 = window.setTimeout(() => {
+      scrollToSpeakActions()
+    }, 180)
+    const t2 = window.setTimeout(() => {
+      scrollToSpeakActions()
+    }, 420)
+    return () => {
+      window.cancelAnimationFrame(rafId)
+      window.clearTimeout(t1)
+      window.clearTimeout(t2)
+    }
+  }, [openedHistorySessionId, scrollToSpeakActions])
 
   useEffect(() => {
     if (isSavedStandalonePage) return
