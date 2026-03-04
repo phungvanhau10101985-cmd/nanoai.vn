@@ -4478,8 +4478,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
           exampleItems: sanitizeWordExampleItems(savedWord.exampleItems),
         },
       }))
-      const meaningText = savedWord.meaning
-      void playWordPronunciation(word).then(() => playMeaningInNativeLanguage(meaningText))
+      void playWordPronunciation(word)
       return
     }
     if (wordInsightByKey[key]) {
@@ -4490,8 +4489,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
         // ignore daily word save failure on cached click
       }
       const cached = wordInsightByKey[key]
-      const meaningText = cached.meaning
-      void playWordPronunciation(word).then(() => playMeaningInNativeLanguage(meaningText))
+      void playWordPronunciation(word)
       return
     }
 
@@ -4536,8 +4534,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
       const audioUrl = String((payload as { pronunciationAudioUrl?: string }).pronunciationAudioUrl || '').trim()
       await saveDailyWord(word, detail, audioUrl || undefined)
       void fetchSessionWords()
-      const meaningText = detail.meaning
-      void wordPlayPromise.then(() => playMeaningInNativeLanguage(meaningText))
+      void wordPlayPromise
     } catch (e) {
       const msg = unknownErrorMsg(e)
       toast({ title: localText('Không phân tích được từ', 'Word analysis failed'), description: msg, variant: 'destructive' })
