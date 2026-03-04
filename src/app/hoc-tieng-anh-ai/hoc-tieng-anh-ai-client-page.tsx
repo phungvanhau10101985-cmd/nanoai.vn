@@ -73,6 +73,10 @@ const LIVE_SESSION_PRICE_CREDITS = 2.5
 const LIVE_SESSION_EXTRA_STEP_PRICE_CREDITS = LIVE_SESSION_PRICE_CREDITS / 2
 const PRESET_SESSION_PRICE_CREDITS = 1
 const LESSON_TIMELINE_TARGET_TURNS = LIVE_SESSION_BASE_TURN_LIMIT
+const FIXED_TTS_VOICE_BY_GENDER: Record<Gender, VoiceName> = {
+  female: 'Kore',
+  male: 'Orus',
+}
 
 function computeTimelineCompletedSteps(stepCount: number, studentTurnCount: number): number {
   const safeStepCount = Math.max(0, Math.floor(Number(stepCount || 0) || 0))
@@ -2452,7 +2456,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
     [teacherId, teacherOptions]
   )
   const activeTeacher = sessionTeacher || selectedTeacher
-  const selectedVoice = activeTeacher.voiceName
+  const selectedVoice = FIXED_TTS_VOICE_BY_GENDER[activeTeacher.gender === 'female' ? 'female' : 'male']
   const teacherLabel = activeTeacher.label
   const teacherRoleLabel = useMemo(() => {
     if (uiLocale === 'vi') return activeTeacher.gender === 'male' ? 'Thầy' : 'Cô'
@@ -3670,7 +3674,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
     if (!normalized) return null
     const { ok, data } = await getTtsCache({
       text: normalized,
-      voiceName: activeTeacher.voiceName,
+      voiceName: selectedVoice,
       locale: activeTeacher.locale,
     })
     const payload = data as {
@@ -4667,45 +4671,28 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
 
   const getWordSenseConnectors = (): { meansIntro: string; singleSenseIntro: string; orSenseLabel: string } => {
     const code = String(nativeLanguageCode || 'vi').toLowerCase()
-    const gender = activeTeacher.gender === 'female' ? 'female' : 'male'
     if (code === 'vi') {
-      return gender === 'female'
-        ? { meansIntro: 'cô giải nghĩa là', singleSenseIntro: 'trong trường hợp này nghĩa là', orSenseLabel: 'hoặc cũng có nghĩa là' }
-        : { meansIntro: 'thầy giải nghĩa là', singleSenseIntro: 'trong trường hợp này nghĩa là', orSenseLabel: 'hoặc cũng có nghĩa là' }
+      return { meansIntro: 'có nghĩa là', singleSenseIntro: 'trong trường hợp này nghĩa là', orSenseLabel: 'hoặc cũng có nghĩa là' }
     }
     if (code === 'en') {
-      return gender === 'female'
-        ? { meansIntro: 'she explains this means', singleSenseIntro: 'in this case, it means', orSenseLabel: 'or another meaning is' }
-        : { meansIntro: 'he explains this means', singleSenseIntro: 'in this case, it means', orSenseLabel: 'or another meaning is' }
+      return { meansIntro: 'means', singleSenseIntro: 'in this case, it means', orSenseLabel: 'or another meaning is' }
     }
     if (code === 'zh') {
-      return gender === 'female'
-        ? { meansIntro: '女老师解释意思是', singleSenseIntro: '在这里的意思是', orSenseLabel: '或者另一层意思是' }
-        : { meansIntro: '男老师解释意思是', singleSenseIntro: '在这里的意思是', orSenseLabel: '或者另一层意思是' }
+      return { meansIntro: '意思是', singleSenseIntro: '在这里的意思是', orSenseLabel: '或者另一层意思是' }
     }
     if (code === 'ja') {
-      return gender === 'female'
-        ? { meansIntro: '女性の先生が説明すると意味は', singleSenseIntro: 'この場合の意味は', orSenseLabel: 'または別の意味は' }
-        : { meansIntro: '男性の先生が説明すると意味は', singleSenseIntro: 'この場合の意味は', orSenseLabel: 'または別の意味は' }
+      return { meansIntro: 'の意味は', singleSenseIntro: 'この場合の意味は', orSenseLabel: 'または別の意味は' }
     }
     if (code === 'ko') {
-      return gender === 'female'
-        ? { meansIntro: '여자 선생님이 설명하면 뜻은', singleSenseIntro: '이 경우의 뜻은', orSenseLabel: '또 다른 의미는' }
-        : { meansIntro: '남자 선생님이 설명하면 뜻은', singleSenseIntro: '이 경우의 뜻은', orSenseLabel: '또 다른 의미는' }
+      return { meansIntro: '의 뜻은', singleSenseIntro: '이 경우의 뜻은', orSenseLabel: '또 다른 의미는' }
     }
     if (code === 'th') {
-      return gender === 'female'
-        ? { meansIntro: 'ครูผู้หญิงอธิบายว่าแปลว่า', singleSenseIntro: 'ในกรณีนี้แปลว่า', orSenseLabel: 'หรืออีกความหมายคือ' }
-        : { meansIntro: 'ครูผู้ชายอธิบายว่าแปลว่า', singleSenseIntro: 'ในกรณีนี้แปลว่า', orSenseLabel: 'หรืออีกความหมายคือ' }
+      return { meansIntro: 'หมายความว่า', singleSenseIntro: 'ในกรณีนี้แปลว่า', orSenseLabel: 'หรืออีกความหมายคือ' }
     }
     if (code === 'hi') {
-      return gender === 'female'
-        ? { meansIntro: 'शिक्षिका समझाती हैं कि मतलब है', singleSenseIntro: 'इस मामले में मतलब है', orSenseLabel: 'या दूसरा अर्थ है' }
-        : { meansIntro: 'शिक्षक समझाते हैं कि मतलब है', singleSenseIntro: 'इस मामले में मतलब है', orSenseLabel: 'या दूसरा अर्थ है' }
+      return { meansIntro: 'का मतलब है', singleSenseIntro: 'इस मामले में मतलब है', orSenseLabel: 'या दूसरा अर्थ है' }
     }
-    return gender === 'female'
-      ? { meansIntro: 'cô giải nghĩa là', singleSenseIntro: 'trong trường hợp này nghĩa là', orSenseLabel: 'hoặc nghĩa là' }
-      : { meansIntro: 'thầy giải nghĩa là', singleSenseIntro: 'trong trường hợp này nghĩa là', orSenseLabel: 'hoặc nghĩa là' }
+    return { meansIntro: 'có nghĩa là', singleSenseIntro: 'trong trường hợp này nghĩa là', orSenseLabel: 'hoặc nghĩa là' }
   }
 
   const playWordSenseGloss = async (word: string, text: string) => {
