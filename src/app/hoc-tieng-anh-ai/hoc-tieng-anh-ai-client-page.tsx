@@ -1561,6 +1561,10 @@ function sanitizeLearnerReadingSentence(text: string): string {
     .trim()
 }
 
+function escapeRegExp(value: string): string {
+  return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
 function personalizeLearnerNameInSentence(
   sentence: string,
   learnerDisplayName: string,
