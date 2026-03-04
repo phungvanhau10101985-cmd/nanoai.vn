@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -1871,7 +1872,13 @@ function ensureListeningVisibleHasCorrectOption(
   return { visible: finalVisible, remaining: nextRemaining }
 }
 
-export default function HocTiengAnhAiClientPage() {
+type HocTiengAnhAiClientPageProps = {
+  pageMode?: 'live' | 'saved'
+}
+
+export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengAnhAiClientPageProps) {
+  const router = useRouter()
+  const isSavedStandalonePage = pageMode === 'saved'
   const { toast } = useToast()
   const [sessionId, setSessionId] = useState<string>(createSessionId)
   const [languageCode, setLanguageCode] = useState<LanguageCode>('en')
@@ -2031,6 +2038,7 @@ export default function HocTiengAnhAiClientPage() {
   const textSnippetPlayingRef = useRef<Set<string>>(new Set())
   const [openedHistorySessionId, setOpenedHistorySessionId] = useState('')
   const [isCurrentPresetSession, setIsCurrentPresetSession] = useState(false)
+  const isPresetPageSession = isSavedStandalonePage && isCurrentPresetSession
   const [liveSessionExtraTurnUnlocks, setLiveSessionExtraTurnUnlocks] = useState(0)
   const [liveUnlockBusy, setLiveUnlockBusy] = useState(false)
   const [draft, setDraft] = useState('')
@@ -2059,7 +2067,7 @@ export default function HocTiengAnhAiClientPage() {
   )
   const liveSessionTurnLimit = LIVE_SESSION_BASE_TURN_LIMIT + liveSessionExtraTurnUnlocks * LIVE_SESSION_EXTRA_TURN_STEP
   const liveSessionTurnLimitReached =
-    !isCurrentPresetSession
+    !isPresetPageSession
     && liveSessionStudentTurnCount >= liveSessionTurnLimit
 
   useEffect(() => {
@@ -2558,11 +2566,11 @@ export default function HocTiengAnhAiClientPage() {
   const isMiniDrillBlocking =
     learningMode === 'review'
     && reviewDrillStage !== 'idle'
-    && (isCurrentPresetSession ? hasStudentTurnsInCurrentSession : true)
+    && (isPresetPageSession ? hasStudentTurnsInCurrentSession : true)
   const isMiniWritingBlocking =
     learningMode === 'review' && Boolean(writingTask) && !Boolean(writingTask?.completed)
   const latestMainSentenceForLearner = useMemo(() => {
-    if (isCurrentPresetSession) {
+    if (isPresetPageSession) {
       const teacherById = new Map(
         messages
           .filter((m) => m.role === 'teacher')
@@ -2598,50 +2606,7 @@ export default function HocTiengAnhAiClientPage() {
   }, [
     messages,
     mainSentenceByMessageId,
-    isCurrentPresetSession,
-    writingTask?.messageId,
-  ])
-
-  useEffect(() => {
-    if (!isCurrentPresetSession) return
-    const teacherRows = messages
-      .filter((m) => m.role === 'teacher')
-      .map((m, idx) => {
-        const idea2 = sanitizeLearnerReadingSentence(String(mainSentenceByMessageId[m.id] || '').trim())
-        const idea3 = sanitizeLearnerReadingSentence(String(intentAnswerByMessageId[m.id] || '').trim())
-        const fallback = sanitizeLearnerReadingSentence(takeFirstSentenceOnly(extractTeacherSpeechText(m.text)).trim())
-        return {
-          idx,
-          messageId: m.id,
-          idea2,
-          idea3,
-          fallback,
-          teacherPreview: String(m.text || '').trim().slice(0, 120),
-        }
-      })
-    const debugPayload = {
-      sessionId,
-      reviewDrillStage,
-      reviewSpeakingTargetSentence: sanitizeLearnerReadingSentence(reviewSpeakingTargetSentence),
-      sessionEntryStudentTurnBaseline,
-      liveSessionStudentTurnCount,
-      writingTaskMessageId: String(writingTask?.messageId || '').trim(),
-      selected: latestMainSentenceForLearner,
-      teacherRows,
-    }
-    console.info('[preset-main-sentence-debug]', debugPayload)
-    console.info('[preset-main-sentence-debug-json]', JSON.stringify(debugPayload))
-  }, [
-    isCurrentPresetSession,
-    messages,
-    mainSentenceByMessageId,
-    intentAnswerByMessageId,
-    latestMainSentenceForLearner,
-    reviewSpeakingTargetSentence,
-    reviewDrillStage,
-    sessionId,
-    sessionEntryStudentTurnBaseline,
-    liveSessionStudentTurnCount,
+    isPresetPageSession,
     writingTask?.messageId,
   ])
 
@@ -5836,7 +5801,7 @@ export default function HocTiengAnhAiClientPage() {
 
     const hadExistingMessage = Boolean(opts?.existingStudentMessageId)
     const isFromDrill = opts?.silentDrill || opts?.drillSpeaking || opts?.drillType === 'listening'
-    if (isCurrentPresetSession && !isFromDrill && source === 'text') {
+    if (isPresetPageSession && !isFromDrill && source === 'text') {
       toast({
         title: localText('Bài học có sẵn dùng ghi âm', 'Saved lesson uses voice recording'),
         description: localText(
@@ -7284,7 +7249,7 @@ export default function HocTiengAnhAiClientPage() {
     }
     const blob = pendingRecordingBlobRef.current
     if (!blob) return
-    if (isCurrentPresetSession && !isMiniDrillBlocking && !latestMainSentenceForLearner) {
+    if (isPresetPageSession && !isMiniDrillBlocking && !latestMainSentenceForLearner) {
       toast({
         title: localText('Đã hoàn thành bài học có sẵn', 'Saved lesson completed'),
         description: localText('Bạn đã đọc hết các câu của bài học này.', 'You have completed all reading lines in this saved lesson.'),
@@ -7294,7 +7259,7 @@ export default function HocTiengAnhAiClientPage() {
       return
     }
     const isPresetDirectReadFlow =
-      isCurrentPresetSession
+      isPresetPageSession
       && !isMiniDrillBlocking
       && Boolean(String(latestMainSentenceForLearner?.sentence || '').trim())
     pendingRecordingBlobRef.current = null
@@ -8772,7 +8737,7 @@ export default function HocTiengAnhAiClientPage() {
                         : localText('Mini 3/3: Chọn từ bạn nghe thấy', 'Mini 3/3: Pick words you heard')}
                   </div>
                 ) : null}
-                {!isMiniDrillBlocking && isCurrentPresetSession && latestMainSentenceForLearner ? (
+                {!isMiniDrillBlocking && isPresetPageSession && latestMainSentenceForLearner ? (
                   <div className="rounded-md border border-emerald-200 bg-emerald-50/70 px-3 py-2 text-xs text-emerald-800">
                     <p className="font-semibold">{localText('Câu nói chính để bạn đọc mic', 'Main sentence for microphone practice')}</p>
                     <p className="mt-1 break-words text-sm font-medium text-emerald-900">
@@ -8807,7 +8772,7 @@ export default function HocTiengAnhAiClientPage() {
                     </div>
                   </div>
                 ) : null}
-                {!isMiniDrillBlocking && isCurrentPresetSession && !latestMainSentenceForLearner ? (
+                {!isMiniDrillBlocking && isPresetPageSession && !latestMainSentenceForLearner ? (
                   <div className="rounded-md border border-emerald-200 bg-emerald-50/70 px-3 py-2 text-xs text-emerald-800">
                     <p className="font-semibold">{localText('Đã hoàn thành câu đọc chính', 'Main reading lines completed')}</p>
                     <p className="mt-1">
@@ -8963,7 +8928,7 @@ export default function HocTiengAnhAiClientPage() {
                     </>
                   )}
                 </div>
-                {!isCurrentPresetSession ? (
+                {!isPresetPageSession ? (
                   <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
                     <p>
                       {localText('Lượt hỏi buổi live:', 'Live lesson turns:')}{' '}
@@ -9206,7 +9171,7 @@ export default function HocTiengAnhAiClientPage() {
                   </div>
                 </div>
               ) : null}
-              {learningMode === 'review' && reviewDrillStage === 'speaking' && (!isCurrentPresetSession || hasStudentTurnsInCurrentSession) ? (
+              {learningMode === 'review' && reviewDrillStage === 'speaking' && (!isPresetPageSession || hasStudentTurnsInCurrentSession) ? (
                 <div ref={miniSpeakingBlockRef} className="min-w-0 rounded-md border border-indigo-200 bg-indigo-50/60 p-2.5">
                   <p className="text-sm font-semibold text-indigo-800">
                     {localText('Mini 2/3: Luyện phát âm', 'Mini 2/3: Pronunciation practice')}
@@ -9287,7 +9252,7 @@ export default function HocTiengAnhAiClientPage() {
                   </div>
                 </div>
               ) : null}
-              {learningMode === 'review' && reviewDrillStage === 'listening' && (!isCurrentPresetSession || hasStudentTurnsInCurrentSession) && reviewListeningVisibleOptions.length > 0 && !reviewListeningPopupOpen ? (
+              {learningMode === 'review' && reviewDrillStage === 'listening' && (!isPresetPageSession || hasStudentTurnsInCurrentSession) && reviewListeningVisibleOptions.length > 0 && !reviewListeningPopupOpen ? (
                 <div ref={miniListeningBlockRef} className="min-w-0 rounded-md border border-emerald-200 bg-emerald-50/60 p-2.5">
                   <p className="text-sm font-semibold text-emerald-800">
                     {localText('Mini 3/3: Chọn từ bạn nghe thấy', 'Mini 3/3: Pick words you heard')}
@@ -9696,10 +9661,15 @@ export default function HocTiengAnhAiClientPage() {
               {localText('Chọn hình thức học', 'Choose lesson type')}
             </h3>
             <p className="mt-2 text-sm text-slate-600">
-              {localText(
-                'Bạn muốn học live trực tiếp với AI hay học một bài có sẵn phù hợp đúng cài đặt hiện tại?',
-                'Do you want a live AI lesson or a saved lesson matching your current settings?'
-              )}
+              {isSavedStandalonePage
+                ? localText(
+                    'Bạn đang ở trang bài học có sẵn. Có thể học live trực tiếp hoặc mở một bài có sẵn phù hợp cài đặt hiện tại.',
+                    'You are on the saved lesson page. You can start a live lesson or open a saved lesson matching your setup.'
+                  )
+                : localText(
+                    'Bạn muốn học live trực tiếp với AI hay học một bài có sẵn phù hợp đúng cài đặt hiện tại?',
+                    'Do you want a live AI lesson or a saved lesson matching your current settings?'
+                  )}
             </p>
             <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-2 text-xs text-slate-700 space-y-1">
               <p>
@@ -9727,7 +9697,16 @@ export default function HocTiengAnhAiClientPage() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => void startPresetLessonFromChoice()}
+                onClick={() => {
+                  if (!isSavedStandalonePage) {
+                    setLessonStartChoiceOpen(false)
+                    setLessonStartPresetAvailable(true)
+                    setLessonStartPlan(null)
+                    router.push('/hoc-bai-hoc-co-san')
+                    return
+                  }
+                  void startPresetLessonFromChoice()
+                }}
                 disabled={lessonStartChoiceBusy || !lessonStartPresetAvailable}
                 className="min-h-[44px]"
               >
