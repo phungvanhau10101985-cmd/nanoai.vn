@@ -68,15 +68,7 @@ function normalizeSenseGloss(input: string): string {
     .replace(/\b(trong câu này|trong câu hiện tại|in this sentence|in the current context)\b.*$/i, '')
     .replace(/\s+/g, ' ')
     .trim()
-  if (!raw) return ''
-  const firstClause = raw.split(/[;。！？!?]/).map((x) => x.trim()).filter(Boolean)[0] || raw
-  const short = firstClause
-    .replace(/\([^)]*\)/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-  const words = short.split(' ').filter(Boolean)
-  if (words.length <= 12) return short
-  return words.slice(0, 12).join(' ').trim()
+  return raw
 }
 
 function normalizeSensesForDictionary(input: WordSenseItem[]): WordSenseItem[] {
@@ -95,19 +87,33 @@ function normalizeSensesForDictionary(input: WordSenseItem[]): WordSenseItem[] {
       exampleTarget,
       exampleNative,
     })
-    if (out.length >= 3) break
+    if (out.length >= 5) break
   }
   return out
 }
 
-function buildShortMeaningFromSenses(
+function buildMeaningFromSenses(
   senses: WordSenseItem[],
   fallbackMeaning: string
 ): string {
   const glosses = senses.map((s) => normalizeSenseGloss(s.gloss)).filter(Boolean)
-  if (glosses.length === 0) return normalizeSenseGloss(normalizeMeaningOutput(fallbackMeaning))
+  if (glosses.length === 0) return normalizeMeaningOutput(fallbackMeaning)
   if (glosses.length === 1) return glosses[0]
-  return `${glosses[0]} / ${glosses[1]}`
+  return `${glosses[0]}; ${glosses[1]}`
+}
+
+function formatMeaningWithWord(word: string, meaning: string, locale: 'vi' | 'en'): string {
+  const normalizedWord = String(word || '').trim()
+  const normalizedMeaning = String(meaning || '').trim()
+  if (!normalizedMeaning) return normalizedWord
+  const lower = normalizedMeaning.toLowerCase()
+  const wordPrefix = `${normalizedWord.toLowerCase()}:`
+  if (lower.startsWith(wordPrefix)) return normalizedMeaning
+  if (locale === 'vi') {
+    const text = /^là\b/i.test(normalizedMeaning) ? normalizedMeaning : `là ${normalizedMeaning}`
+    return `${normalizedWord}: ${text}`
+  }
+  return `${normalizedWord}: ${normalizedMeaning}`
 }
 
 function adminClient() {
@@ -317,10 +323,10 @@ export async function POST(request: NextRequest) {
           .update({ last_used_at: new Date().toISOString(), updated_at: new Date().toISOString() })
           .eq('id', cached.id)
         const normalizedCachedSenses = normalizeSensesForDictionary(cachedSenseItemsRaw)
-        const fallbackMeaning = buildShortMeaningFromSenses(
+        const fallbackMeaning = formatMeaningWithWord(word, buildMeaningFromSenses(
           normalizedCachedSenses,
           String(cached.meaning || '').trim()
-        )
+        ), locale)
         const fallbackExampleTarget = String(cached.example_target || '').trim() || word
         const fallbackExampleNative = String(cached.example_native || '').trim()
           || msg(locale, `Bạn vừa bấm từ "${word}".`, `You just tapped the word "${word}".`)
@@ -371,21 +377,20 @@ Ngôn ngữ mục tiêu: ${targetLanguage}.
 Ngôn ngữ mẹ đẻ của học sinh: ${nativeLanguage}.
 
 Yêu cầu:
-1) meaning: viết bằng ${nativeLanguage}, dạng rất ngắn gọn (1 dòng), chỉ là bản dịch từ điển phổ biến.
-   - Ưu tiên nghĩa dùng nhiều nhất, có thể dùng được trong nhiều ngữ cảnh.
-   - Không viết định nghĩa dài dòng kiểu bách khoa.
+1) meaning: viết bằng ${nativeLanguage}, kiểu từ điển ngắn gọn nhưng đủ ý để học.
+   - Bắt buộc mở đầu theo format: "${word}: ..." (ví dụ: "seafood: là hải sản, động vật biển dùng làm thức ăn.").
+   - Ưu tiên nghĩa phổ biến trước, sau đó có thể thêm 1 ý mở rộng ngắn.
    - Tuyệt đối KHÔNG nhắc, trích dẫn, hoặc suy diễn từ câu ngữ cảnh hiện tại "${contextSentence || '(không có ngữ cảnh)'}" trong meaning.
    - Không tạo bất kỳ mục nào dạng "Trong câu hiện tại..." hoặc "Trong câu này...".
-   - Văn phong kiểu từ điển/Google Translate, tối đa 12 từ.
-2) senses: mảng 1-3 mục, mỗi mục gồm:
-   - gloss: nghĩa ngắn gọn của mục đó (bằng ${nativeLanguage}), tối đa 12 từ.
-   - BẮT BUỘC: senses[0].gloss phải là bản dịch trực tiếp, dễ hiểu nhất của từ (ví dụ seafood -> hải sản).
-   - Chỉ thêm senses[1..] khi thật sự là nghĩa phổ biến khác, không tách vụn vô nghĩa.
+   - Văn phong tự nhiên, không lan man; dài khoảng 1-2 câu ngắn.
+2) senses: mảng 3-5 mục, mỗi mục gồm:
+   - gloss: nghĩa ngắn gọn của mục đó (bằng ${nativeLanguage}).
+   - Ưu tiên senses[0] là nghĩa trực tiếp dễ hiểu nhất (ví dụ seafood -> hải sản).
    - exampleTarget: ví dụ ngắn ở ngôn ngữ mục tiêu
    - exampleNative: bản dịch ví dụ sang ${nativeLanguage}
 3) pronunciation: phiên âm dễ đọc. Nếu ngôn ngữ là tiếng Trung thì dùng pinyin có dấu; tiếng Nhật dùng romaji; tiếng Hàn dùng romanization; tiếng Thái dùng RTGS; tiếng Hindi dùng IAST.
 4) partOfSpeech: loại từ ngắn gọn (noun/verb/adj/adv/...).
-5) exampleItems: mảng 1-2 ví dụ. QUAN TRỌNG:
+5) exampleItems: mảng 2-3 ví dụ. QUAN TRỌNG:
    - targetText: PHẢI là chữ gốc (zh=汉字, ja=かな/漢字, ko=한글, th=อักษรไทย, hi=देवनागरी). KHÔNG được dùng pinyin/romaji/romanization cho targetText.
    - targetPinyin: phiên âm Latin (zh=pinyin, ja=romaji, ko=romanization, th=RTGS, hi=IAST).
    - nativeText: bản dịch sang ${nativeLanguage}.
@@ -454,7 +459,7 @@ Trả về JSON hợp lệ, không markdown:
     const primaryExample = normalizedExampleItems[0] || null
     const completed: WordResult = {
       partOfSpeech: parsed.partOfSpeech || '',
-      meaning: buildShortMeaningFromSenses(normalizedSenses, parsed.meaning),
+      meaning: formatMeaningWithWord(word, buildMeaningFromSenses(normalizedSenses, parsed.meaning), locale),
       pronunciation: parsed.pronunciation || word,
       exampleTarget: primaryExample?.targetText || parsed.exampleTarget || `I use "${word}" in a sentence.`,
       exampleNative: primaryExample?.nativeText
