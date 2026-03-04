@@ -7460,12 +7460,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
       }
       const plan = { curriculum: topicCurriculum, topic: selectedTopic }
       const hasPreset = await hasStrictPresetMatch(plan)
-      if (hasPreset) {
-        openLessonStartChoice(topicCurriculum, selectedTopic)
-      } else {
-        setLessonStartPlan(plan)
-        await startLiveLessonFromChoice(plan)
-      }
+      openLessonStartChoice(topicCurriculum, selectedTopic, { presetAvailable: hasPreset })
     } catch (e) {
       toast({
         title: localText('Lỗi', 'Error'),
