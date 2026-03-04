@@ -135,6 +135,10 @@ export function TodayWordsPanel({
         <div className="space-y-1.5">
           {todayWords.map((item) => (
             <div key={item.id} className="rounded-xl border border-border/70 bg-slate-50/80 p-2 text-xs leading-snug">
+              {(() => {
+                const itemSenses = Array.isArray(item.senses) ? item.senses : []
+                return (
+                  <>
               <p>
                 <button
                   type="button"
@@ -143,7 +147,7 @@ export function TodayWordsPanel({
                 >
                   {item.word.charAt(0).toUpperCase() + item.word.slice(1)}
                 </button>{' '}
-                - {item.meaning || localText('Chưa có nghĩa', 'No meaning yet')}
+                - {itemSenses.length > 0 ? localText('Nghĩa theo nhóm bên dưới', 'See senses below') : (item.meaning || localText('Chưa có nghĩa', 'No meaning yet'))}
               </p>
               <p className="text-muted-foreground">{localText('Phát âm:', 'Pronunciation:')} {item.pronunciation || item.word}</p>
               <div className="mt-1 flex flex-wrap items-center gap-1">
@@ -159,7 +163,38 @@ export function TodayWordsPanel({
                   </span>
                 ) : null}
               </div>
-              {renderExamples(item)}
+              {itemSenses.length > 0 ? (
+                <div className="mt-1.5 space-y-1">
+                  {itemSenses.map((sense, idx) => {
+                    const gloss = String(sense.gloss || '').trim()
+                    const exampleTarget = String(sense.exampleTarget || '').trim()
+                    const exampleNative = String(sense.exampleNative || '').trim()
+                    return (
+                      <div key={`${item.id}-sense-${idx}`} className="rounded-md border border-slate-200 bg-white/80 px-2 py-1.5">
+                        <p className="font-semibold text-slate-800">{localText(`Nghĩa ${idx + 1}`, `Sense ${idx + 1}`)}</p>
+                        {gloss ? <p className="mt-0.5"><span className="font-semibold">{localText('Giải nghĩa:', 'Gloss:')}</span> {gloss}</p> : null}
+                        {exampleTarget ? (
+                          <div className="mt-0.5 flex items-start gap-2">
+                            <p className="flex-1"><span className="font-semibold">{localText('Ví dụ:', 'Example:')}</span> {exampleTarget}</p>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 shrink-0"
+                              onClick={() => onPlayWordTextSnippet(exampleTarget)}
+                            >
+                              <Volume2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ) : null}
+                        {exampleNative ? <p className="text-muted-foreground"><span className="font-semibold text-slate-800">{localText('Dịch:', 'Translation:')}</span> {exampleNative}</p> : null}
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                renderExamples(item)
+              )}
               <div className="mt-1.5 flex flex-wrap gap-1.5">
                 <Button
                   type="button"
@@ -187,6 +222,9 @@ export function TodayWordsPanel({
                   </Button>
                 ) : null}
               </div>
+                  </>
+                )
+              })()}
             </div>
           ))}
         </div>

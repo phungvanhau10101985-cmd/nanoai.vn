@@ -226,7 +226,6 @@ export async function GET(request: NextRequest) {
     const limit = Number.isFinite(limitRaw) ? Math.min(50, Math.max(1, Math.floor(limitRaw))) : 10
 
     const adminSupabase = adminClient()
-    void normalizeIncompleteWords(adminSupabase, user.id, getInternalBaseUrl())
 
     const { data, error } = await adminSupabase
       .from('language_coach_review_queue')

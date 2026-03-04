@@ -529,7 +529,6 @@ export async function GET(request: NextRequest) {
     const { user } = auth
 
     const adminSupabase = adminClient()
-    void normalizeIncompleteWords(adminSupabase, user.id, getInternalBaseUrl())
 
     const dateQuery = String(request.nextUrl.searchParams.get('date') || '').trim()
     const sessionId = String(request.nextUrl.searchParams.get('sessionId') || '').trim()

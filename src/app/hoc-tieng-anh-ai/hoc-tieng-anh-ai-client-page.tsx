@@ -4653,12 +4653,6 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
     await playMeaningInNativeLanguage(normalized)
   }
 
-  const playWordSenseNative = async (text: string) => {
-    const normalized = String(text || '').trim()
-    if (!normalized) return
-    await playMeaningInNativeLanguage(normalized)
-  }
-
   const playWordSenseExampleTarget = async (text: string) => {
     const normalized = String(text || '').trim()
     if (!normalized) return
@@ -4670,11 +4664,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
   ) => {
     for (const sense of senses) {
       const gloss = String(sense.gloss || '').trim()
-      const exampleTarget = String(sense.exampleTarget || '').trim()
-      const exampleNative = String(sense.exampleNative || '').trim()
       if (gloss) await playWordSenseGloss(gloss)
-      if (exampleTarget) await playWordSenseExampleTarget(exampleTarget)
-      if (exampleNative) await playWordSenseNative(exampleNative)
     }
   }
 
@@ -8758,18 +8748,6 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                                                   >
                                                     <Volume2 className="mr-1 h-3.5 w-3.5" />
                                                     {localText('Nghe ví dụ', 'Play example')}
-                                                  </Button>
-                                                ) : null}
-                                                {exampleNative ? (
-                                                  <Button
-                                                    type="button"
-                                                    variant="outline"
-                                                    size="sm"
-                                                    className="h-7 px-2 text-[11px]"
-                                                    onClick={() => void playWordSenseNative(exampleNative)}
-                                                  >
-                                                    <Volume2 className="mr-1 h-3.5 w-3.5" />
-                                                    {localText('Nghe dịch', 'Play translation')}
                                                   </Button>
                                                 ) : null}
                                               </div>
