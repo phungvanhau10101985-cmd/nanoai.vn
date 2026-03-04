@@ -273,12 +273,12 @@ Ngôn ngữ mục tiêu: ${targetLanguage}.
 Ngôn ngữ mẹ đẻ của học sinh: ${nativeLanguage}.
 
 Yêu cầu:
-1) meaning: viết bằng ${nativeLanguage}, theo format từ điển NGẮN GỌN, dùng rộng:
-   - Dòng 1 (bắt buộc): viết nghĩa cốt lõi dùng trong đa số trường hợp (1 câu ngắn, dễ hiểu như từ điển), KHÔNG thêm nhãn tiêu đề như "Nghĩa cốt lõi:".
-   - Dòng 2 (bắt buộc): "Trong câu hiện tại..." giải nghĩa theo đúng ngữ cảnh "${contextSentence || '(không có ngữ cảnh)'}" (1 câu ngắn).
-   - Dòng 3 (nếu cần): liệt kê 2-4 nghĩa phổ biến khác (ngắn, ngăn bằng dấu chấm phẩy).
-   - Dòng 4 (nếu cần): nêu thật ngắn các ngữ cảnh hay gặp của các nghĩa phổ biến đó.
-   - Ưu tiên cách diễn đạt trung tính kiểu từ điển/Google Translate; không lan man, không dài dòng.
+1) meaning: viết bằng ${nativeLanguage}, theo format từ điển NGẮN GỌN, ưu tiên dùng lại cho nhiều tình huống:
+   - Phần A (bắt buộc, viết trước): liệt kê 3-5 nghĩa phổ biến nhất của từ, xếp theo mức độ thường dùng.
+   - Phần B (bắt buộc): với mỗi nghĩa ở Phần A, ghi 1 ngữ cảnh điển hình thật ngắn.
+   - Tuyệt đối KHÔNG nhắc, trích dẫn, hoặc suy diễn từ câu ngữ cảnh hiện tại "${contextSentence || '(không có ngữ cảnh)'}" trong meaning.
+   - Không tạo bất kỳ mục nào dạng "Trong câu hiện tại..." hoặc "Trong câu này...".
+   - Ưu tiên văn phong trung tính kiểu từ điển/Google Translate; ngắn gọn, dễ tra cứu, không lan man.
    - Tổng độ dài meaning tối đa 4-6 câu ngắn.
 2) pronunciation: phiên âm dễ đọc. Nếu ngôn ngữ là tiếng Trung thì dùng pinyin có dấu; tiếng Nhật dùng romaji; tiếng Hàn dùng romanization; tiếng Thái dùng RTGS; tiếng Hindi dùng IAST.
 3) partOfSpeech: loại từ ngắn gọn (noun/verb/adj/adv/...).
