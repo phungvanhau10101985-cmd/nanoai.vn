@@ -8751,7 +8751,12 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
               </div>
 
               <div ref={speakActionsRef} className="min-w-0 space-y-2">
-                {learningMode === 'review' && !isPresetPageSession && reviewDrillStage !== 'writing' && (reviewDrillStage !== 'idle' || (writingTask && !writingTask.completed)) ? (
+                {learningMode === 'review' &&
+                !isPresetPageSession &&
+                reviewDrillStage !== 'writing' &&
+                reviewDrillStage !== 'speaking' &&
+                reviewDrillStage !== 'listening' &&
+                (reviewDrillStage !== 'idle' || (writingTask && !writingTask.completed)) ? (
                   <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
                     <p className="font-semibold">
                       {localText('Nhóm mini ôn tập (làm lần lượt):', 'Mini review pack (complete in order):')}
@@ -8808,7 +8813,10 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                     </div>
                   </div>
                 ) : null}
-                {isMiniDrillBlocking && reviewDrillStage !== 'writing' ? (
+                {isMiniDrillBlocking &&
+                reviewDrillStage !== 'writing' &&
+                reviewDrillStage !== 'speaking' &&
+                reviewDrillStage !== 'listening' ? (
                   <div className="rounded-md border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs text-indigo-700">
                     {reviewDrillStage === 'writing'
                       ? localText('Mini 1/3: Viết lại câu mục tiêu', 'Mini 1/3: Rewrite the target sentence')
@@ -9313,6 +9321,66 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
               ) : null}
               {learningMode === 'review' && reviewDrillStage === 'speaking' && (!isPresetPageSession || hasStudentTurnsInCurrentSession) ? (
                 <div ref={miniSpeakingBlockRef} className="min-w-0 rounded-md border border-indigo-200 bg-indigo-50/60 p-2.5">
+                  {!isPresetPageSession ? (
+                    <div className="mb-2 space-y-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+                      <p className="font-semibold">
+                        {localText('Nhóm mini ôn tập (làm lần lượt):', 'Mini review pack (complete in order):')}
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        <span
+                          className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${
+                            writingTask?.completed
+                              ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                              : reviewDrillStage === 'writing'
+                                ? 'border-amber-300 bg-amber-50 text-amber-700'
+                                : 'border-slate-300 bg-white text-slate-600'
+                          }`}
+                        >
+                          {localText('1) Viết', '1) Writing')} -{' '}
+                          {writingTask?.completed
+                            ? localText('xong', 'done')
+                            : reviewDrillStage === 'writing'
+                              ? localText('đang làm', 'in progress')
+                              : localText('chờ', 'pending')}
+                        </span>
+                        <span
+                          className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${
+                            reviewMiniPackCompleted || reviewDrillStage === 'listening'
+                              ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                              : reviewDrillStage === 'speaking'
+                                ? 'border-amber-300 bg-amber-50 text-amber-700'
+                                : 'border-slate-300 bg-white text-slate-600'
+                          }`}
+                        >
+                          {localText('2) Nói', '2) Speaking')} -{' '}
+                          {reviewMiniPackCompleted || reviewDrillStage === 'listening'
+                            ? localText('xong', 'done')
+                            : reviewDrillStage === 'speaking'
+                              ? localText('đang làm', 'in progress')
+                              : localText('chờ', 'pending')}
+                        </span>
+                        <span
+                          className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${
+                            reviewMiniPackCompleted
+                              ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                              : reviewDrillStage === 'listening'
+                                ? 'border-amber-300 bg-amber-50 text-amber-700'
+                                : 'border-slate-300 bg-white text-slate-600'
+                          }`}
+                        >
+                          {localText('3) Nghe', '3) Listening')} -{' '}
+                          {reviewMiniPackCompleted
+                            ? localText('xong', 'done')
+                            : reviewDrillStage === 'listening'
+                              ? localText('đang làm', 'in progress')
+                              : localText('chờ', 'pending')}
+                        </span>
+                      </div>
+                      <div className="rounded-md border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs text-indigo-700">
+                        {localText('Mini 2/3: Nói lại câu sửa để luyện phát âm', 'Mini 2/3: Repeat the corrected sentence')}
+                      </div>
+                    </div>
+                  ) : null}
                   <p className="text-sm font-semibold text-indigo-800">
                     {localText('Mini 2/3: Luyện phát âm', 'Mini 2/3: Pronunciation practice')}
                   </p>
@@ -9394,6 +9462,66 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
               ) : null}
               {learningMode === 'review' && reviewDrillStage === 'listening' && (!isPresetPageSession || hasStudentTurnsInCurrentSession) && reviewListeningVisibleOptions.length > 0 && !reviewListeningPopupOpen ? (
                 <div ref={miniListeningBlockRef} className="min-w-0 rounded-md border border-emerald-200 bg-emerald-50/60 p-2.5">
+                  {!isPresetPageSession ? (
+                    <div className="mb-2 space-y-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+                      <p className="font-semibold">
+                        {localText('Nhóm mini ôn tập (làm lần lượt):', 'Mini review pack (complete in order):')}
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        <span
+                          className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${
+                            writingTask?.completed
+                              ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                              : reviewDrillStage === 'writing'
+                                ? 'border-amber-300 bg-amber-50 text-amber-700'
+                                : 'border-slate-300 bg-white text-slate-600'
+                          }`}
+                        >
+                          {localText('1) Viết', '1) Writing')} -{' '}
+                          {writingTask?.completed
+                            ? localText('xong', 'done')
+                            : reviewDrillStage === 'writing'
+                              ? localText('đang làm', 'in progress')
+                              : localText('chờ', 'pending')}
+                        </span>
+                        <span
+                          className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${
+                            reviewMiniPackCompleted || reviewDrillStage === 'listening'
+                              ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                              : reviewDrillStage === 'speaking'
+                                ? 'border-amber-300 bg-amber-50 text-amber-700'
+                                : 'border-slate-300 bg-white text-slate-600'
+                          }`}
+                        >
+                          {localText('2) Nói', '2) Speaking')} -{' '}
+                          {reviewMiniPackCompleted || reviewDrillStage === 'listening'
+                            ? localText('xong', 'done')
+                            : reviewDrillStage === 'speaking'
+                              ? localText('đang làm', 'in progress')
+                              : localText('chờ', 'pending')}
+                        </span>
+                        <span
+                          className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${
+                            reviewMiniPackCompleted
+                              ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                              : reviewDrillStage === 'listening'
+                                ? 'border-amber-300 bg-amber-50 text-amber-700'
+                                : 'border-slate-300 bg-white text-slate-600'
+                          }`}
+                        >
+                          {localText('3) Nghe', '3) Listening')} -{' '}
+                          {reviewMiniPackCompleted
+                            ? localText('xong', 'done')
+                            : reviewDrillStage === 'listening'
+                              ? localText('đang làm', 'in progress')
+                              : localText('chờ', 'pending')}
+                        </span>
+                      </div>
+                      <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+                        {localText('Mini 3/3: Chọn từ bạn nghe thấy', 'Mini 3/3: Pick words you heard')}
+                      </div>
+                    </div>
+                  ) : null}
                   <p className="text-sm font-semibold text-emerald-800">
                     {localText('Mini 3/3: Chọn từ bạn nghe thấy', 'Mini 3/3: Pick words you heard')}
                   </p>
