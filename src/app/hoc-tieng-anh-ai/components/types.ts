@@ -76,5 +76,6 @@ export type HistorySessionItem = {
   messageCount: number
   topicLabel?: string
   learningMode?: 'review' | 'reflex'
+  isPresetReplaySession?: boolean
 }
 

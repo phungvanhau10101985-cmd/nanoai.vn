@@ -107,6 +107,7 @@ type HistorySession = {
   learningMode?: 'review' | 'reflex'
   topicId?: string
   topicLabel?: string
+  isPresetReplaySession?: boolean
 }
 type WordInsight = {
   meaning: string
@@ -7838,6 +7839,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                       >
                         <span className="block min-w-0 whitespace-normal break-words text-left">
                           {s.topicLabel || localText('Buổi học', 'Lesson')}
+                          {` • ${s.isPresetReplaySession ? localText('Bài có sẵn', 'Saved lesson') : localText('Live AI', 'Live AI')}`}
                           {s.learningMode === 'reflex'
                             ? ` • ${localText('Phản xạ', 'Reflex')}`
                             : s.learningMode === 'review'
@@ -8568,10 +8570,14 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                                       <>
                                         <span className="font-medium">{s.topicLabel}</span>
                                         {' • '}
+                                        {s.isPresetReplaySession ? localText('Bài có sẵn', 'Saved lesson') : localText('Live AI', 'Live AI')}
+                                        {' • '}
                                         {s.teacherLabel || localText('Buổi học', 'Lesson')} • {s.messageCount} {localText('lượt', 'turns')}
                                       </>
                                     ) : (
                                       <>
+                                        {s.isPresetReplaySession ? localText('Bài có sẵn', 'Saved lesson') : localText('Live AI', 'Live AI')}
+                                        {' • '}
                                         {s.teacherLabel || localText('Buổi học', 'Lesson')} • {s.messageCount} {localText('lượt', 'turns')}
                                       </>
                                     )}
@@ -10238,6 +10244,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                       {s.topicLabel || localText('Buổi học', 'Lesson')}
                     </p>
                     <p className="break-words text-xs text-slate-500">
+                      {s.isPresetReplaySession ? localText('Bài có sẵn', 'Saved lesson') : localText('Live AI', 'Live AI')} •{' '}
                       {(s.teacherLabel || localText('Giáo viên AI', 'AI teacher'))} • {s.messageCount} {localText('lượt', 'turns')}
                     </p>
                   </div>
@@ -10323,16 +10330,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => {
-                  if (!isSavedStandalonePage) {
-                    setLessonStartChoiceOpen(false)
-                    setLessonStartPresetAvailable(true)
-                    setLessonStartPlan(null)
-                    router.push('/hoc-bai-hoc-co-san')
-                    return
-                  }
-                  void startPresetLessonFromChoice()
-                }}
+                onClick={() => void startPresetLessonFromChoice()}
                 disabled={lessonStartChoiceBusy || !lessonStartPresetAvailable}
                 className="min-h-[44px]"
               >

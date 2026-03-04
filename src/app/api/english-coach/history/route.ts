@@ -417,6 +417,7 @@ export async function GET(request: NextRequest) {
     const targetLanguageBySession = new Map<string, string>()
     const nativeLanguageBySession = new Map<string, string>()
     const reviewDrillStatsBySession = new Map<string, ReviewDrillStats>()
+    const presetReplayBySession = new Map<string, boolean>()
     for (const row of (memoriesResult.data ?? []) as Array<{
       session_id?: string
       learning_mode?: string
@@ -433,8 +434,11 @@ export async function GET(request: NextRequest) {
         if (row.topic_label) topicLabelBySession.set(sid, String(row.topic_label).trim())
         if (row.target_language) targetLanguageBySession.set(sid, String(row.target_language).trim())
         if (row.native_language) nativeLanguageBySession.set(sid, String(row.native_language).trim())
-        const stats = parseReviewDrillStatsFromPinnedFacts(String(row.pinned_facts_json || '{}'))
+        const pinnedFactsRaw = String(row.pinned_facts_json || '{}')
+        const stats = parseReviewDrillStatsFromPinnedFacts(pinnedFactsRaw)
         if (stats) reviewDrillStatsBySession.set(sid, stats)
+        const presetReplay = parsePresetReplayPreviewFromPinnedFacts(pinnedFactsRaw)
+        presetReplayBySession.set(sid, Boolean(presetReplay))
       }
     }
 
@@ -462,6 +466,7 @@ export async function GET(request: NextRequest) {
         topicId: string
         topicLabel: string
         reviewDrillStats?: ReviewDrillStats
+        isPresetReplaySession: boolean
       }
     >()
 
@@ -491,6 +496,7 @@ export async function GET(request: NextRequest) {
           topicId,
           topicLabel,
           reviewDrillStats: reviewDrillStatsBySession.get(sid),
+          isPresetReplaySession: Boolean(presetReplayBySession.get(sid)),
         })
         continue
       }

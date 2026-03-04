@@ -63,6 +63,9 @@ export function HistoryPanel({
                     )}
                   </p>
                   <p className="break-words text-xs text-muted-foreground">
+                    {session.isPresetReplaySession
+                      ? localText('Bài có sẵn', 'Saved lesson')
+                      : localText('Live AI', 'Live AI')} •{' '}
                     {session.languageCode?.toUpperCase() || 'N/A'} • {
                       session.mode === 'listen_speak'
                         ? localText('Luyện nghe nói', 'Listen & Speak')
