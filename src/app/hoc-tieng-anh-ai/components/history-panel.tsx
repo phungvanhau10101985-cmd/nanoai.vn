@@ -13,7 +13,7 @@ type HistoryPanelProps = {
   historyBusy: boolean
   localText: LocalTextFn
   onRefresh: () => void
-  onOpenSession: (sessionId: string) => void
+  onOpenSession: (sessionId: string, isPresetReplaySession?: boolean) => void
   onDeleteSession?: (sessionId: string) => void
 }
 
@@ -82,7 +82,7 @@ export function HistoryPanel({
                     variant={openedHistorySessionId === session.sessionId ? 'secondary' : 'outline'}
                     size="sm"
                     disabled={historyBusy}
-                    onClick={() => onOpenSession(session.sessionId)}
+                    onClick={() => onOpenSession(session.sessionId, Boolean(session.isPresetReplaySession))}
                     className="min-w-0 shrink-0"
                   >
                     {openedHistorySessionId === session.sessionId ? localText('Đang mở', 'Opened') : (

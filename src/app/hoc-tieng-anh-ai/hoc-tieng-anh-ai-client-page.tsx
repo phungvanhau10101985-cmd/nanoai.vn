@@ -78,6 +78,7 @@ const FIXED_TTS_VOICE_BY_GENDER: Record<Gender, VoiceName> = {
   male: 'Orus',
 }
 const CROSS_PAGE_START_STORAGE_KEY = 'english-coach-cross-page-start-v1'
+const SESSION_NAV_LOCK_MS = 500
 
 function computeTimelineCompletedSteps(stepCount: number, studentTurnCount: number): number {
   const safeStepCount = Math.max(0, Math.floor(Number(stepCount || 0) || 0))
@@ -2225,6 +2226,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
   const routeOpenSessionHandledRef = useRef('')
   const loadHistoryRequestSeqRef = useRef(0)
   const crossPageStartHandledRef = useRef('')
+  const sessionNavLockUntilRef = useRef(0)
   const writingAutoAdvanceSignatureRef = useRef('')
   const shouldCountNewSessionRef = useRef(true)
   const mixedRecorderRef = useRef<MediaRecorder | null>(null)
@@ -5634,6 +5636,25 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
     }
   }
 
+  const openSessionByRoute = useCallback((targetSessionId: string, isPresetReplaySession?: boolean) => {
+    const sid = String(targetSessionId || '').trim()
+    if (!sid) return
+    const now = Date.now()
+    if (now < sessionNavLockUntilRef.current) return
+    sessionNavLockUntilRef.current = now + SESSION_NAV_LOCK_MS
+    const targetPath = isPresetReplaySession ? '/hoc-bai-hoc-co-san' : '/hoc-tieng-anh-ai'
+    const currentPath = String(pathname || '').trim()
+    const currentSessionIdInUrl = String(searchParams.get('sessionId') || '').trim()
+    const sameUrlTarget = currentPath === targetPath && currentSessionIdInUrl === sid
+
+    routeOpenSessionHandledRef.current = ''
+    if (sameUrlTarget) {
+      void loadHistorySession(sid)
+      return
+    }
+    router.replace(`${targetPath}?sessionId=${encodeURIComponent(sid)}`)
+  }, [pathname, searchParams, router, loadHistorySession])
+
   useEffect(() => {
     const targetSessionId = String(searchParams.get('sessionId') || '').trim()
     if (!targetSessionId) return
@@ -7936,7 +7957,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                         type="button"
                         variant="outline"
                         size="sm"
-                        onClick={() => void loadHistorySession(s.sessionId)}
+                        onClick={() => openSessionByRoute(s.sessionId, Boolean(s.isPresetReplaySession))}
                         disabled={historyBusy}
                         className="min-h-[44px] min-w-0 flex-1 justify-start overflow-visible text-left sm:flex-none sm:w-auto sm:max-w-[min(78vw,52rem)]"
                       >
@@ -8625,7 +8646,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                             size="sm"
                             onClick={() => {
                               const s = historySessions[0]
-                              if (s?.sessionId) void loadHistorySession(s.sessionId)
+                              if (s?.sessionId) openSessionByRoute(s.sessionId, Boolean(s.isPresetReplaySession))
                             }}
                             disabled={historyBusy}
                             className="min-h-[44px] min-w-0 flex-1 justify-start overflow-visible text-left sm:flex-none sm:w-auto sm:max-w-[min(78vw,52rem)]"
@@ -8664,7 +8685,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                                   type="button"
                                   variant="outline"
                                   size="sm"
-                                  onClick={() => void loadHistorySession(s.sessionId)}
+                                  onClick={() => openSessionByRoute(s.sessionId, Boolean(s.isPresetReplaySession))}
                                   disabled={historyBusy}
                                   className="min-h-[44px] min-w-0 flex-1 justify-start overflow-visible text-left sm:flex-none sm:w-auto sm:max-w-[min(78vw,52rem)]"
                                 >
@@ -10188,7 +10209,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
           historyBusy={historyBusy}
           localText={localText}
           onRefresh={() => void fetchHistorySessions()}
-          onOpenSession={(sessionId) => void loadHistorySession(sessionId)}
+          onOpenSession={(sessionId, isPresetReplaySession) => openSessionByRoute(sessionId, isPresetReplaySession)}
           onDeleteSession={(sid) => void deleteSession(sid)}
         />
         <HistoryPanel
@@ -10202,7 +10223,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
           historyBusy={historyBusy}
           localText={localText}
           onRefresh={() => void fetchHistorySessions()}
-          onOpenSession={(sessionId) => void loadHistorySession(sessionId)}
+          onOpenSession={(sessionId, isPresetReplaySession) => openSessionByRoute(sessionId, isPresetReplaySession)}
         />
       </div>
       <WordPracticeOverlay
