@@ -1561,6 +1561,34 @@ function sanitizeLearnerReadingSentence(text: string): string {
     .trim()
 }
 
+function personalizeLearnerNameInSentence(
+  sentence: string,
+  learnerDisplayName: string,
+  targetLanguageCode: LanguageCode
+): string {
+  const base = sanitizeLearnerReadingSentence(sentence)
+  const learnerName = String(learnerDisplayName || '').trim()
+  if (!base || !learnerName) return base
+  if (new RegExp(`\\b${escapeRegExp(learnerName)}\\b`, 'i').test(base)) return base
+
+  let next = base
+  if (targetLanguageCode === 'en') {
+    // Covers: "my name is X", "my name's X", and typo variant "my name X".
+    next = next.replace(/\b(my name(?:\s+is|'s)?\s+)([^,.!?;\n]+)/i, `$1${learnerName}`)
+    // Covers: "I'm X", "I am X" when X is likely a proper name.
+    next = next.replace(
+      /\b(i am|i'm)\s+([A-ZÀ-ỹ][\wÀ-ỹ'.-]*(?:\s+[A-ZÀ-ỹ][\wÀ-ỹ'.-]*){0,2})(?=[,.!?;]|$)/i,
+      `$1 ${learnerName}`
+    )
+  } else if (targetLanguageCode === 'vi') {
+    next = next.replace(
+      /\b(tên\s+(?:tôi|mình|em|anh|chị)\s+là\s+)([^,.!?;\n]+)/i,
+      `$1${learnerName}`
+    )
+  }
+  return sanitizeLearnerReadingSentence(next)
+}
+
 /** Chế độ phản xạ: chỉ lấy câu tiếng cần học cho TTS, bỏ phần dịch nghĩa (Câu của bạn nói đúng là: ..., Dịch nhanh, v.v.). */
 function extractTargetLanguageOnlyForReflexTts(text: string, targetLanguageCode: string): string {
   let s = String(text || '').trim()
@@ -2614,6 +2642,8 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
   const isMiniWritingBlocking =
     learningMode === 'review' && Boolean(writingTask) && !Boolean(writingTask?.completed)
   const latestMainSentenceForLearner = useMemo(() => {
+    const personalize = (raw: string) =>
+      personalizeLearnerNameInSentence(raw, learnerDisplayName, languageCode)
     if (isPresetPageSession) {
       const teacherById = new Map(
         messages
@@ -2623,7 +2653,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
       const writingMessageId = String(writingTask?.messageId || '').trim()
       if (writingMessageId && teacherById.has(writingMessageId)) {
         const selectedTeacher = teacherById.get(writingMessageId)!
-        const idea2 = sanitizeLearnerReadingSentence(String(mainSentenceByMessageId[writingMessageId] || '').trim())
+        const idea2 = personalize(String(mainSentenceByMessageId[writingMessageId] || '').trim())
         if (idea2) {
           return { messageId: writingMessageId, sentence: idea2, teacherText: selectedTeacher.text }
         }
@@ -2631,12 +2661,12 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
       for (let i = messages.length - 1; i >= 0; i--) {
         const m = messages[i]
         if (m.role !== 'teacher') continue
-        const idea2 = sanitizeLearnerReadingSentence(String(mainSentenceByMessageId[m.id] || '').trim())
+        const idea2 = personalize(String(mainSentenceByMessageId[m.id] || '').trim())
         if (idea2) {
           return { messageId: m.id, sentence: idea2, teacherText: m.text }
         }
       }
-      const presetExpected = sanitizeLearnerReadingSentence(String(presetReplayExpectedSentence || '').trim())
+      const presetExpected = personalize(String(presetReplayExpectedSentence || '').trim())
       if (presetExpected) {
         return { messageId: 'preset-replay-next', sentence: presetExpected, teacherText: presetExpected }
       }
@@ -2657,6 +2687,8 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
     isPresetPageSession,
     presetReplayExpectedSentence,
     writingTask?.messageId,
+    learnerDisplayName,
+    languageCode,
   ])
 
   useEffect(() => {

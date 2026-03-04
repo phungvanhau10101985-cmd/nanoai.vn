@@ -54,6 +54,38 @@ function isTimelineCompletedReason(reason: string): boolean {
   return r === 'timeline_completed' || r === 'timeline_completed_auto'
 }
 
+function hasPersonalizationSignals(text: string): boolean {
+  const s = String(text || '').trim()
+  if (!s) return false
+  const patterns: RegExp[] = [
+    /\bmy\s+name(?:\s+is|\s*'s)?\s+[A-ZÀ-Ỹ][\wÀ-ỹ'.-]{1,}(?:\s+[A-ZÀ-Ỹ][\wÀ-ỹ'.-]{1,}){0,3}\b/u,
+    /\bmy\s+name\s+[A-ZÀ-Ỹ][\wÀ-ỹ'.-]{1,}(?:\s+[A-ZÀ-Ỹ][\wÀ-ỹ'.-]{1,}){0,3}\b/u,
+    /(?:tên\s+(?:tôi|em|mình|anh|chị)\s+là)\s+[^\n,.!?;:]{1,80}/iu,
+    /我叫[^\n。！？!?，,]{1,40}/u,
+    /(?:私の名前は|僕の名前は|俺の名前は)[^\n。！？!?，,]{1,40}(?:です|だ)?/u,
+    /(?:제\s*이름은|내\s*이름은)\s*[^\n.!?]{1,40}/u,
+    /मेरा\s+नाम\s+[^\n।.!?]{1,40}/u,
+  ]
+  return patterns.some((re) => re.test(s))
+}
+
+function transcriptHasPersonalizationSignals(rows: Array<{
+  text?: string | null
+  main_sentence?: string | null
+  correction_note?: string | null
+  intent_answer?: string | null
+}>): boolean {
+  return rows.some((row) => {
+    const fields = [
+      String(row.text || '').trim(),
+      String(row.main_sentence || '').trim(),
+      String(row.correction_note || '').trim(),
+      String(row.intent_answer || '').trim(),
+    ]
+    return fields.some((field) => hasPersonalizationSignals(field))
+  })
+}
+
 export async function POST(request: NextRequest) {
   try {
     const payload = (await request.json()) as {
@@ -162,8 +194,17 @@ export async function POST(request: NextRequest) {
       studentMessages >= MIN_STUDENT_MESSAGES_FOR_COMPLETED_SAVE
       && teacherMessages >= MIN_TEACHER_MESSAGES_FOR_COMPLETED_SAVE
       && durationSeconds >= MIN_DURATION_SECONDS_FOR_COMPLETED_SAVE
+    const hasPersonalizedTranscript = transcriptHasPersonalizationSignals(
+      rows.map((r) => ({
+        text: String((r as { text?: string }).text || ''),
+        main_sentence: String((r as { main_sentence?: string }).main_sentence || ''),
+        correction_note: String((r as { correction_note?: string }).correction_note || ''),
+        intent_answer: String((r as { intent_answer?: string }).intent_answer || ''),
+      }))
+    )
     const timelineCompleted = isTimelineCompletedReason(completionReason)
-    const allowCompletedSave = qualityPassed && timelineCompleted && meetsDepthGate && !isPresetSession
+    const allowCompletedSave =
+      qualityPassed && timelineCompleted && meetsDepthGate && !isPresetSession && !hasPersonalizedTranscript
 
     if (allowCompletedSave) {
       const { error: completedError } = await adminSupabase.from('language_coach_completed_lessons').upsert(

@@ -82,6 +82,41 @@ function normalizeLookup(input: string): string {
   return String(input || '').trim().toLowerCase()
 }
 
+function hasPersonalizationSignals(text: string): boolean {
+  const s = String(text || '').trim()
+  if (!s) return false
+  const patterns: RegExp[] = [
+    /\bmy\s+name(?:\s+is|\s*'s)?\s+[A-ZÀ-Ỹ][\wÀ-ỹ'.-]{1,}(?:\s+[A-ZÀ-Ỹ][\wÀ-ỹ'.-]{1,}){0,3}\b/u,
+    /\bmy\s+name\s+[A-ZÀ-Ỹ][\wÀ-ỹ'.-]{1,}(?:\s+[A-ZÀ-Ỹ][\wÀ-ỹ'.-]{1,}){0,3}\b/u,
+    /(?:tên\s+(?:tôi|em|mình|anh|chị)\s+là)\s+[^\n,.!?;:]{1,80}/iu,
+    /我叫[^\n。！？!?，,]{1,40}/u,
+    /(?:私の名前は|僕の名前は|俺の名前は)[^\n。！？!?，,]{1,40}(?:です|だ)?/u,
+    /(?:제\s*이름은|내\s*이름은)\s*[^\n.!?]{1,40}/u,
+    /मेरा\s+नाम\s+[^\n।.!?]{1,40}/u,
+  ]
+  return patterns.some((re) => re.test(s))
+}
+
+function transcriptHasPersonalizationSignals(transcriptRaw: string): boolean {
+  try {
+    const parsed = JSON.parse(String(transcriptRaw || '[]')) as unknown
+    const rows = Array.isArray(parsed)
+      ? parsed.filter((x) => x && typeof x === 'object') as Array<Record<string, unknown>>
+      : []
+    return rows.some((row) => {
+      const fields = [
+        String(row.text || '').trim(),
+        String(row.mainSentence || row.main_sentence || '').trim(),
+        String(row.correctionNote || row.correction_note || '').trim(),
+        String(row.intentAnswer || row.intent_answer || '').trim(),
+      ]
+      return fields.some((field) => hasPersonalizationSignals(field))
+    })
+  } catch {
+    return false
+  }
+}
+
 function personalizeTextForLearner(text: string, learnerProfile: LearnerProfileLite): string {
   const name = String(learnerProfile.name || '').trim()
   const job = String(learnerProfile.job || '').trim()
@@ -251,7 +286,26 @@ export async function POST(request: NextRequest) {
     }
 
     const rows = Array.isArray(candidates) ? candidates : []
-    const strict = rows.filter((r) => {
+    const personalizedRows = rows.filter((r) =>
+      transcriptHasPersonalizationSignals(String((r as { transcript_json?: string }).transcript_json || '[]').trim())
+    )
+    if (personalizedRows.length > 0) {
+      const idsToDelete = personalizedRows
+        .map((r) => String((r as { id?: string }).id || '').trim())
+        .filter(Boolean)
+      if (idsToDelete.length > 0) {
+        await adminSupabase
+          .from('language_coach_completed_lessons')
+          .delete()
+          .in('id', idsToDelete)
+      }
+    }
+    const cleanRows = rows.filter((r) => {
+      const id = String((r as { id?: string }).id || '').trim()
+      return !personalizedRows.some((p) => String((p as { id?: string }).id || '').trim() === id)
+    })
+
+    const strict = cleanRows.filter((r) => {
       const sameTarget = normalizeLookup(String(r.target_language || '')) === normalizedTarget
       const sameNative = normalizeLookup(String(r.native_language || '')) === normalizedNative
       const rowTopicId = normalizeLookup(String(r.topic_id || ''))
