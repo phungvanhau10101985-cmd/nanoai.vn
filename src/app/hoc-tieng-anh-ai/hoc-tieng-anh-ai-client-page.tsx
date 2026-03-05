@@ -2317,6 +2317,7 @@ export default function HocTiengAnhAiClientPage() {
   const [wordInsightByKey, setWordInsightByKey] = useState<Record<string, WordInsight>>({})
   const [openedWordKey, setOpenedWordKey] = useState('')
   const [tappedWordKey, setTappedWordKey] = useState('')
+  const compactBarRef = useRef<HTMLDivElement | null>(null)
   const [tokensByMessageId, setTokensByMessageId] = useState<Record<string, string[]>>({})
   const [tokensWithUsageByMessageId, setTokensWithUsageByMessageId] = useState<
     Record<string, Array<{ word: string; usageLevel: 'high' | 'medium' | 'low' }>>
@@ -6429,6 +6430,16 @@ export default function HocTiengAnhAiClientPage() {
   }, [messages, tokensByMessageId])
 
   useEffect(() => {
+    if (!tappedWordKey || openedWordKey === tappedWordKey) return
+    const el = compactBarRef.current
+    if (el) {
+      window.requestAnimationFrame(() => {
+        el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+      })
+    }
+  }, [tappedWordKey, openedWordKey])
+
+  useEffect(() => {
     if (!busy) return
     const el = chatScrollRef.current
     if (!el) return
@@ -9383,8 +9394,10 @@ export default function HocTiengAnhAiClientPage() {
                                   type="button"
                                   variant="ghost"
                                   size="sm"
-                                  className={`min-h-[44px] rounded-md border px-3 text-xs font-medium transition-colors ${tokenBadgeClass} ${tappedWordKey === key ? 'ring-2 ring-indigo-400 bg-indigo-50' : ''}`}
-                                  onClick={() => {
+                                  className={`min-h-[44px] cursor-pointer select-none rounded-md border px-3 text-xs font-medium transition-colors ${tokenBadgeClass} ${tappedWordKey === key ? 'ring-2 ring-indigo-400 bg-indigo-50' : ''}`}
+                                  onClick={(e) => {
+                                    e.preventDefault()
+                                    e.stopPropagation()
                                     if (tappedWordKey === key) {
                                       setTappedWordKey('')
                                       return
@@ -9427,7 +9440,10 @@ export default function HocTiengAnhAiClientPage() {
                             </p>
                           )}
                           {tappedWordKey.startsWith(`${m.id}:`) && openedWordKey !== tappedWordKey ? (
-                            <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50/80 px-2 py-1.5">
+                            <div
+                              ref={compactBarRef}
+                              className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50/80 px-2 py-1.5"
+                            >
                               <Button
                                 type="button"
                                 size="sm"

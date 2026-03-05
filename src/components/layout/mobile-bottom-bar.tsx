@@ -52,7 +52,7 @@ export function MobileBottomBar() {
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-40 px-2 pb-2 safe-area-pb"
+      className="fixed bottom-0 left-0 right-0 z-40 px-2 pb-2 md:hidden safe-area-pb"
       aria-label={tr('Điều hướng nhanh', 'Quick navigation', '快速导航', 'クイックナビ', '빠른 탐색')}
     >
       <div className="mx-auto flex h-16 max-w-xl items-center justify-around rounded-2xl border border-border/70 bg-background/92 px-2 shadow-[0_-8px_24px_rgba(2,6,23,0.08)] backdrop-blur-xl supports-[backdrop-filter]:bg-background/80 dark:shadow-[0_-8px_24px_rgba(2,6,23,0.45)]">

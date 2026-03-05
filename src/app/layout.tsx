@@ -125,7 +125,7 @@ export default function RootLayout({
           <Suspense fallback={<header className="h-14 border-b bg-background" />}>
             <Header />
           </Suspense>
-          <main className="pb-20">{children}</main>
+          <main className="pb-16 md:pb-0">{children}</main>
           <Footer />
           <MobileBottomBar />
           <InstallPrompt />
