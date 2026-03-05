@@ -3041,7 +3041,7 @@ Ràng buộc bắt buộc:
 - mainSentence phải là câu sửa hoàn chỉnh, đầy đủ ý câu học sinh, chỉ bằng ${targetLanguage}.
 - Không dùng fragment ngắn kiểu "to eat fish" làm mainSentence.
 - Không lấy nội dung mainSentence từ intentAnswer.
-- intentAnswer gồm 2 câu: (1) phản hồi ngữ cảnh, (2) câu hỏi tiếp theo.`
+- intentAnswer gồm 2 câu: (1) trả lời câu/câu hỏi của học sinh (nếu có hỏi phải đáp), (2) câu hỏi mới mở rộng hội thoại.`
       try {
         const strictRetry = await model.generateContent(strictRetryPrompt)
         parsed = safeJsonParse(strictRetry.response.text()?.trim() || '')

@@ -2,8 +2,8 @@ import { Metadata } from 'next'
 import dynamic from 'next/dynamic'
 import { buildMetadata } from '@/lib/seo'
 
-const HocTiengAnhAiClientPage = dynamic(
-  () => import('../hoc-tieng-anh-ai/hoc-tieng-anh-ai-client-page'),
+const HocBaiHocCoSanClientPage = dynamic(
+  () => import('../hoc-tieng-anh-ai/hoc-bai-hoc-co-san-client-page'),
   { ssr: false }
 )
 
@@ -18,7 +18,7 @@ export const metadata: Metadata = buildMetadata({
 export default function HocBaiHocCoSanPage() {
   return (
     <div className="app-shell">
-      <HocTiengAnhAiClientPage pageMode="saved" />
+      <HocBaiHocCoSanClientPage />
     </div>
   )
 }

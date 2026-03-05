@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
 import { createClient } from '@/lib/supabase/client'
-import { Loader2, Mic, MicOff, Minus, Plus, Send, Languages, Volume2, Play, RotateCcw, Trash2, Navigation, X } from 'lucide-react'
+import { Loader2, Mic, MicOff, Minus, Plus, Send, Languages, Volume2, Play, RotateCcw, Trash2, Navigation } from 'lucide-react'
 import { WordPracticeOverlay } from './components/word-practice-overlay'
 import { PreLessonReviewOverlay } from './components/pre-lesson-review-overlay'
 import { QuickStartModal } from './components/quick-start-modal'
@@ -433,9 +433,6 @@ const COACH_NATIVE_UI_TEXT: Record<NativeLanguageCode, {
   customTopicPlaceholder: string
   micHintPrefix: string
   micErrorTitle: string
-  wordTranslate: string
-  wordClose: string
-  tapWordTranslateHint: string
 }> = {
   vi: {
     setupTitle: 'Thiết lập buổi học',
@@ -456,9 +453,6 @@ const COACH_NATIVE_UI_TEXT: Record<NativeLanguageCode, {
     customTopicPlaceholder: 'Ví dụ: Phỏng vấn xin việc ngành IT, giao tiếp ở sân bay, thuyết trình dự án...',
     micHintPrefix: 'Nếu chưa nghe rõ/chưa hiểu, hãy nói kèm câu đó theo',
     micErrorTitle: 'Mic lỗi',
-    wordTranslate: 'Dịch',
-    wordClose: 'Đóng',
-    tapWordTranslateHint: 'Bấm từ để tra nghĩa. Chạm Dịch để xem chi tiết.',
   },
   en: {
     setupTitle: 'Lesson setup',
@@ -479,9 +473,6 @@ const COACH_NATIVE_UI_TEXT: Record<NativeLanguageCode, {
     customTopicPlaceholder: 'Example: IT interview, airport communication, project presentation...',
     micHintPrefix: 'If you do not hear/understand clearly, include the sentence in',
     micErrorTitle: 'Microphone error',
-    wordTranslate: 'Translate',
-    wordClose: 'Close',
-    tapWordTranslateHint: 'Tap a word to look up. Tap Translate for details.',
   },
   zh: {
     setupTitle: '课程设置',
@@ -502,9 +493,6 @@ const COACH_NATIVE_UI_TEXT: Record<NativeLanguageCode, {
     customTopicPlaceholder: '例如：IT 面试、机场交流、项目演示...',
     micHintPrefix: '如果没听清/没理解，请连同句子一起说（',
     micErrorTitle: '麦克风错误',
-    wordTranslate: '翻译',
-    wordClose: '关闭',
-    tapWordTranslateHint: '点击单词查义。点击翻译查看详情。',
   },
   ja: {
     setupTitle: 'レッスン設定',
@@ -525,9 +513,6 @@ const COACH_NATIVE_UI_TEXT: Record<NativeLanguageCode, {
     customTopicPlaceholder: '例: IT面接、空港での会話、プロジェクト発表...',
     micHintPrefix: '聞き取れない/わからない場合は文を添えて（',
     micErrorTitle: 'マイクエラー',
-    wordTranslate: '翻訳',
-    wordClose: '閉じる',
-    tapWordTranslateHint: '単語をタップして意味を調べる。翻訳で詳細表示。',
   },
   ko: {
     setupTitle: '수업 설정',
@@ -548,9 +533,6 @@ const COACH_NATIVE_UI_TEXT: Record<NativeLanguageCode, {
     customTopicPlaceholder: '예: IT 면접, 공항 의사소통, 프로젝트 발표...',
     micHintPrefix: '잘 안 들리거나 이해가 안 되면 문장을 함께 말하세요(',
     micErrorTitle: '마이크 오류',
-    wordTranslate: '번역',
-    wordClose: '닫기',
-    tapWordTranslateHint: '단어를 탭하여 뜻을 확인. 번역으로 상세 보기.',
   },
   th: {
     setupTitle: 'ตั้งค่าบทเรียน',
@@ -571,9 +553,6 @@ const COACH_NATIVE_UI_TEXT: Record<NativeLanguageCode, {
     customTopicPlaceholder: 'ตัวอย่าง: สัมภาษณ์งาน IT, สื่อสารที่สนามบิน, พรีเซนต์โปรเจกต์...',
     micHintPrefix: 'ถ้าได้ยินไม่ชัด/ไม่เข้าใจ ให้พูดพร้อมประโยคใน',
     micErrorTitle: 'ไมค์มีปัญหา',
-    wordTranslate: 'แปล',
-    wordClose: 'ปิด',
-    tapWordTranslateHint: 'แตะคำเพื่อค้นหาความหมาย แตะแปลเพื่อดูรายละเอียด',
   },
   hi: {
     setupTitle: 'पाठ सेटअप',
@@ -594,9 +573,6 @@ const COACH_NATIVE_UI_TEXT: Record<NativeLanguageCode, {
     customTopicPlaceholder: 'उदाहरण: IT इंटरव्यू, एयरपोर्ट बातचीत, प्रोजेक्ट प्रेज़ेंटेशन...',
     micHintPrefix: 'अगर स्पष्ट न सुनें/समझें, तो वाक्य सहित कहें (',
     micErrorTitle: 'माइक त्रुटि',
-    wordTranslate: 'अनुवाद',
-    wordClose: 'बंद',
-    tapWordTranslateHint: 'शब्द पर टैप करें। अनुवाद पर टैप कर विवरण देखें।',
   },
 }
 
@@ -2015,8 +1991,8 @@ function isUuidMessageId(value: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(value || '').trim())
 }
 
-/** Trang học Live AI – tách riêng, không dùng chung logic với bài học có sẵn */
-export default function HocTiengAnhAiClientPage() {
+/** Trang bài học có sẵn – tách riêng, không dùng chung logic với Live AI */
+export default function HocBaiHocCoSanClientPage() {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -2187,7 +2163,7 @@ export default function HocTiengAnhAiClientPage() {
   const [isCurrentPresetSession, setIsCurrentPresetSession] = useState(false)
   const [presetReplayExpectedSentence, setPresetReplayExpectedSentence] = useState('')
   const [presetReplayNextTurnIndex, setPresetReplayNextTurnIndex] = useState(0)
-  const isPresetPageSession = false
+  const isPresetPageSession = isCurrentPresetSession
   const [liveSessionExtraTurnUnlocks, setLiveSessionExtraTurnUnlocks] = useState(0)
   const [liveUnlockBusy, setLiveUnlockBusy] = useState(false)
   const [draft, setDraft] = useState('')
@@ -2316,7 +2292,6 @@ export default function HocTiengAnhAiClientPage() {
 
   const [wordInsightByKey, setWordInsightByKey] = useState<Record<string, WordInsight>>({})
   const [openedWordKey, setOpenedWordKey] = useState('')
-  const [tappedWordKey, setTappedWordKey] = useState('')
   const [tokensByMessageId, setTokensByMessageId] = useState<Record<string, string[]>>({})
   const [tokensWithUsageByMessageId, setTokensWithUsageByMessageId] = useState<
     Record<string, Array<{ word: string; usageLevel: 'high' | 'medium' | 'low' }>>
@@ -5120,7 +5095,7 @@ export default function HocTiengAnhAiClientPage() {
     }
     setHistorySessions((prev) => prev.filter((s) => s.sessionId !== targetSessionId))
     if (sessionId === targetSessionId || openedHistorySessionId === targetSessionId) {
-      const basePath = '/hoc-tieng-anh-ai'
+      const basePath = '/hoc-bai-hoc-co-san'
       routeOpenSessionHandledRef.current = ''
       setSessionId('')
       setOpenedHistorySessionId('')
@@ -5295,7 +5270,6 @@ export default function HocTiengAnhAiClientPage() {
     if (!meaning) {
       return
     }
-    const wordToSave = capitalizeWordForDisplay(word)
     const date = getLocalDateString()
     const sid = sessionIdOverride || sessionId
     if (!sid) return
@@ -5303,7 +5277,7 @@ export default function HocTiengAnhAiClientPage() {
     const { ok, data } = await saveWordDaily({
         sessionId: sid,
         learnedDate: date,
-        word: wordToSave,
+        word,
         targetLanguage: activeTeacher.languageLabel,
         nativeLanguage: selectedNativeLanguage.apiLabel,
         meaning: String(detail.meaning || '').trim(),
@@ -5940,7 +5914,7 @@ export default function HocTiengAnhAiClientPage() {
       setOpenedHistorySessionId(targetSessionId)
       // Lock routing state to the exact opened session to avoid URL-effect reopening an older session.
       routeOpenSessionHandledRef.current = targetSessionId
-      const basePath = '/hoc-tieng-anh-ai'
+      const basePath = '/hoc-bai-hoc-co-san'
       const currentSessionIdInUrl = String(searchParams.get('sessionId') || '').trim()
       const shouldReplaceUrl = pathname !== basePath || currentSessionIdInUrl !== targetSessionId
       if (shouldReplaceUrl) {
@@ -6032,86 +6006,8 @@ export default function HocTiengAnhAiClientPage() {
     void loadHistorySession(targetSessionId)
   }, [searchParams, openedHistorySessionId, historyBusy])
 
-  useEffect(() => {
-    const autoStartFlag = String(searchParams.get('autoStart') || '').trim().toLowerCase()
-    if (autoStartFlag !== 'live') return
-    if (crossPageStartHandledRef.current === autoStartFlag) return
-    crossPageStartHandledRef.current = autoStartFlag
-
-    let pendingTopicId = ''
-    let pendingTopicLabel = ''
-    try {
-      const raw = window.sessionStorage.getItem(CROSS_PAGE_START_STORAGE_KEY)
-      if (raw) {
-        const parsed = JSON.parse(raw) as { action?: string; topicId?: string; topicLabel?: string }
-        if (String(parsed.action || '').trim() === 'start_live') {
-          pendingTopicId = String(parsed.topicId || '').trim()
-          pendingTopicLabel = String(parsed.topicLabel || '').trim()
-        }
-      }
-      window.sessionStorage.removeItem(CROSS_PAGE_START_STORAGE_KEY)
-    } catch {
-      // ignore sessionStorage failures
-    }
-
-    const topicFromPending =
-      (pendingTopicId && allTopicOptions.find((x) => String(x.id || '').trim() === pendingTopicId))
-      || (pendingTopicLabel
-        ? allTopicOptions.find((x) => String(x.label || '').trim() === pendingTopicLabel)
-        : undefined)
-      || selectedTopic
-
-    void (async () => {
-      const plan = { curriculum: null as TopicCurriculum | null, topic: topicFromPending }
-      let presetAvailable = false
-      try {
-        const { ok, data } = await checkCompletedLessonMatch({
-          targetLanguage: activeTeacher.languageLabel,
-          nativeLanguage: selectedNativeLanguage.apiLabel,
-          learnerLevel,
-          topicId: plan.topic.id,
-          topicLabel: plan.topic.label,
-          mode: learningMode === 'reflex' ? 'listen_speak' : mode,
-          learningMode,
-          teacherLabel: activeTeacher.label,
-          teacherLocale: activeTeacher.ttsLocale,
-          languageCode,
-        })
-        presetAvailable = ok ? Boolean(data.found) : false
-      } catch {
-        presetAvailable = false
-      }
-      openLessonStartChoice(null, topicFromPending, { presetAvailable })
-      toast({
-        title: localText('Chọn hình thức học', 'Choose lesson type'),
-        description: presetAvailable
-          ? localText(
-              'Có bài học có sẵn khớp cài đặt hiện tại. Bạn có thể học live với AI hoặc học bài có sẵn.',
-              'A saved lesson matches your current setup. You can start a live AI lesson or study the saved lesson.'
-            )
-          : localText(
-              'Chưa có bài có sẵn khớp cài đặt hiện tại. Bạn vẫn có thể học live với AI ngay.',
-              'No saved lesson matches your current setup yet. You can start a live AI lesson now.'
-            ),
-      })
-    })().finally(() => {
-      router.replace('/hoc-tieng-anh-ai')
-    })
-  }, [
-    searchParams,
-    allTopicOptions,
-    selectedTopic,
-    router,
-    activeTeacher.languageLabel,
-    activeTeacher.label,
-    activeTeacher.ttsLocale,
-    selectedNativeLanguage.apiLabel,
-    learnerLevel,
-    learningMode,
-    mode,
-    languageCode,
-    toast,
-  ])
+  // Trang bài có sẵn: autoStart=live chuyển sang trang Live AI, không cần useEffect này
+  useEffect(() => {}, [])
 
   const endLessonAndStartNew = async () => {
     const currentSessionId = sessionId
@@ -7610,59 +7506,20 @@ export default function HocTiengAnhAiClientPage() {
   const startLiveLessonFromChoice = async (planArg?: { curriculum: TopicCurriculum | null; topic: TopicOption }) => {
     const plan = planArg || lessonStartPlan || matchedSessionPlan
     if (!plan) return
-    let curriculumToUse = plan.curriculum
-    if (!curriculumToUse) {
-      curriculumToUse = await fetchTopicCurriculum({ skipConfirm: true, topicId: plan.topic.id, silent: true })
+    try {
+      window.sessionStorage.setItem(
+        CROSS_PAGE_START_STORAGE_KEY,
+        JSON.stringify({
+          action: 'start_live',
+          topicId: String(plan.topic.id || '').trim(),
+          topicLabel: String(plan.topic.label || '').trim(),
+          ts: Date.now(),
+        })
+      )
+    } catch {
+      // ignore sessionStorage failures
     }
-    setMatchedSessionChoiceOpen(false)
-    setMatchedSessionPlan(null)
-    setMatchedHistorySessions([])
-    setLessonStartChoiceOpen(false)
-    setLessonStartPresetAvailable(true)
-    setLessonStartPlan(null)
-    const sessionIdForCharge = String(sessionId || '').trim()
-    if (!sessionIdForCharge) {
-      throw new Error(localText('Thiếu sessionId để mở buổi live.', 'Missing sessionId to open live lesson.'))
-    }
-    const liveCharge = await chargeEnglishCoachCredits({
-      action: 'charge_live_start',
-      sessionId: sessionIdForCharge,
-    })
-    if (!liveCharge.ok) {
-      throw new Error(String(liveCharge.data.error || localText('Không thể trừ credit cho buổi live.', 'Unable to charge credits for live lesson.')))
-    }
-    notifyCreditsUpdated()
-    const chargedNow = Boolean(liveCharge.data.charged)
-    const liveBalance = Number(liveCharge.data.newBalance || 0)
-    toast({
-      title: chargedNow
-        ? localText('Đã trừ credit mở buổi live', 'Live lesson credits charged')
-        : localText('Buổi live đã được trừ credit trước đó', 'Live lesson already charged earlier'),
-      description: chargedNow
-        ? localText(
-            `Đã trừ ${LIVE_SESSION_PRICE_CREDITS} credit. Số dư còn lại: ${liveBalance.toFixed(2)}.`,
-            `${LIVE_SESSION_PRICE_CREDITS} credits deducted. Remaining balance: ${liveBalance.toFixed(2)}.`
-          )
-        : localText(
-            `Không trừ thêm. Số dư hiện tại: ${liveBalance.toFixed(2)}.`,
-            `No extra deduction. Current balance: ${liveBalance.toFixed(2)}.`
-          ),
-    })
-    const unlockCount = Math.max(0, Math.floor(Number(liveCharge.data.liveUnlockCount || 0) || 0))
-    setLiveSessionExtraTurnUnlocks(unlockCount)
-    setIsCurrentPresetSession(false)
-    setPresetReplayExpectedSentence('')
-    await startLesson({
-      skipPrerequisiteCheck: true,
-      curriculumOverride: curriculumToUse,
-      topicOverride: plan.topic,
-    })
-    setSetupCollapsed(true)
-    jumpToConversationStart()
-    toast({
-      title: localText('Đã mở bài mới', 'New lesson unlocked'),
-      description: localText('Chúc bạn học tốt!', 'Happy learning!'),
-    })
+    router.replace('/hoc-tieng-anh-ai?autoStart=live')
   }
 
   const startPresetLessonFromChoice = async (planArg?: { curriculum: TopicCurriculum | null; topic: TopicOption }) => {
@@ -7725,8 +7582,7 @@ export default function HocTiengAnhAiClientPage() {
       setLessonStartChoiceOpen(false)
       setLessonStartPresetAvailable(true)
       setLessonStartPlan(null)
-      router.replace(`/hoc-bai-hoc-co-san?sessionId=${encodeURIComponent(presetSessionId)}`)
-      return
+      await loadHistorySession(presetSessionId)
       setSetupCollapsed(true)
       jumpToConversationStart()
       toast({
@@ -9383,15 +9239,8 @@ export default function HocTiengAnhAiClientPage() {
                                   type="button"
                                   variant="ghost"
                                   size="sm"
-                                  className={`min-h-[44px] rounded-md border px-3 text-xs font-medium transition-colors ${tokenBadgeClass} ${tappedWordKey === key ? 'ring-2 ring-indigo-400 bg-indigo-50' : ''}`}
-                                  onClick={() => {
-                                    if (tappedWordKey === key) {
-                                      setTappedWordKey('')
-                                      return
-                                    }
-                                    setTappedWordKey(key)
-                                    if (openedWordKey && openedWordKey !== key) setOpenedWordKey('')
-                                  }}
+                                  className={`min-h-[44px] rounded-md border px-3 text-xs font-medium transition-colors ${tokenBadgeClass}`}
+                                  onClick={() => void fetchWordInsight(m.id, word, sentenceForWordContext)}
                                 >
                                   {capitalizeWordForDisplay(word)}
                                   {usageLevel ? (
@@ -9423,58 +9272,14 @@ export default function HocTiengAnhAiClientPage() {
                             <p className="text-xs text-muted-foreground">{localText('Không có token phù hợp để bấm trong câu này.', 'No tappable tokens found in this sentence.')}</p>
                           ) : (
                             <p className="text-xs text-muted-foreground">
-                              {localText('Màu hiển thị ngay sau khi tách từ. Xanh dương = dùng nhiều, xanh lá = trung bình, vàng = ít dùng.', 'Colors show right after tokenization. Blue = high use, green = medium, yellow = low.')} {coachUiText.tapWordTranslateHint}
+                              {localText('Màu hiển thị ngay sau khi tách từ. Xanh dương = dùng nhiều, xanh lá = trung bình, vàng = ít dùng. Bấm từ để xem nghĩa chi tiết.', 'Colors show right after tokenization. Blue = high use, green = medium, yellow = low. Tap for full meaning.')}
                             </p>
                           )}
-                          {tappedWordKey.startsWith(`${m.id}:`) && openedWordKey !== tappedWordKey ? (
-                            <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50/80 px-2 py-1.5">
-                              <Button
-                                type="button"
-                                size="sm"
-                                className="h-8 text-xs"
-                                onClick={() => {
-                                  const w = tappedWordKey.split(':').slice(1).join(':')
-                                  const sent = sentenceForWordContext
-                                  void fetchWordInsight(m.id, w, sent)
-                                }}
-                              >
-                                {coachUiText.wordTranslate}
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 px-2 text-muted-foreground hover:text-foreground"
-                                onClick={() => {
-                                  setTappedWordKey('')
-                                  setOpenedWordKey('')
-                                }}
-                                title={coachUiText.wordClose}
-                              >
-                                <X className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          ) : null}
                           </>
                             )
                           })()}
                           {openedWordKey.startsWith(`${m.id}:`) ? (
                             <div className="rounded-xl border border-border/70 bg-white p-2 text-xs">
-                              <div className="mb-1.5 flex items-center justify-end">
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-7 px-2 text-muted-foreground hover:text-foreground"
-                                  onClick={() => {
-                                    setOpenedWordKey('')
-                                    setTappedWordKey('')
-                                  }}
-                                  title={coachUiText.wordClose}
-                                >
-                                  <X className="h-4 w-4" />
-                                </Button>
-                              </div>
                               {wordInsightByKey[openedWordKey] ? (
                                 <div className="space-y-1">
                                   {((wordInsightByKey[openedWordKey].senses ?? []).length === 0) ? (
@@ -9682,63 +9487,50 @@ export default function HocTiengAnhAiClientPage() {
                                     : localText('Dịch câu đầu bài', 'Translate opening line')}
                               </Button>
                             </>
-                          ) : (
+                          ) : null}
+                        </div>
+                      ) : m.role === 'student' ? (
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {String(studentAudioByMessageId[m.id] || '').trim() ? (
                             <>
                               <Button
                                 type="button"
                                 variant="secondary"
                                 size="sm"
-                                onClick={() => void replayTeacherCorrectionNote(m.id)}
-                                disabled={isReplayButtonDisabled(`${m.id}__correction_note`, hasCachedTeacherAudio(`${m.id}__correction_note`))}
+                                onClick={() => void replayStudentMessage(m.id)}
                               >
                                 <Volume2 className="mr-2 h-4 w-4" />
-                                {localText('Nghe ý 1', 'Play idea 1')}
+                                {localText('Nghe lại học viên', 'Play student recording')}
                               </Button>
                               <Button
                                 type="button"
                                 variant="secondary"
                                 size="sm"
-                                onClick={() => void replayTeacherMainSentence(m.id, m.text)}
-                                disabled={isReplayButtonDisabled(`${m.id}__main`, hasCachedTeacherAudio(`${m.id}__main`))}
+                                onClick={() => void replayDbStandardForStudentMessage(m.id, m.text)}
                               >
                                 <Volume2 className="mr-2 h-4 w-4" />
-                                {localText('Nghe ý 2', 'Play idea 2')}
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="secondary"
-                                size="sm"
-                                onClick={() => void replayTeacherIntentAnswer(m.id)}
-                                disabled={isReplayButtonDisabled(`${m.id}__intent_answer`, hasCachedTeacherAudio(`${m.id}__intent_answer`))}
-                              >
-                                <Volume2 className="mr-2 h-4 w-4" />
-                                {localText('Nghe ý 3', 'Play idea 3')}
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="secondary"
-                                size="sm"
-                                onClick={() => void replayTeacherMessage(m.id, m.text)}
-                                disabled={isReplayButtonDisabled(`${m.id}__full`, hasCachedTeacherAudio(m.id))}
-                              >
-                                <Volume2 className="mr-2 h-4 w-4" />
-                                {localText('Nghe ý 1,2,3', 'Play ideas 1, 2, 3')}
+                                {localText('Nghe đọc chuẩn', 'Play standard reading')}
                               </Button>
                             </>
-                          )}
-                        </div>
-                      ) : m.role === 'student' ? (
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {String(studentAudioByMessageId[m.id] || '').trim() ? (
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              size="sm"
-                              onClick={() => void replayStudentMessage(m.id)}
-                            >
-                              <Volume2 className="mr-2 h-4 w-4" />
-                              {localText('Nghe lại học viên', 'Play student recording')}
-                            </Button>
+                          ) : null}
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => void translateStudentMessage(m.id, m.text)}
+                            disabled={Boolean(studentTranslateBusyByMessageId[m.id])}
+                          >
+                            {studentTranslateBusyByMessageId[m.id]
+                              ? localText('Đang dịch...', 'Translating...')
+                              : studentTranslateByMessageId[m.id]
+                                ? localText('Ẩn dịch câu này', 'Hide this translation')
+                                : localText('Dịch câu này', 'Translate this sentence')}
+                          </Button>
+                          {studentTranslateByMessageId[m.id] ? (
+                            <p className="w-full text-xs text-slate-600">
+                              <span className="font-semibold">{localText('Dịch câu này:', 'This sentence translation:')}</span>{' '}
+                              {studentTranslateByMessageId[m.id]}
+                            </p>
                           ) : null}
                         </div>
                       ) : null}
@@ -10713,27 +10505,7 @@ export default function HocTiengAnhAiClientPage() {
             </CardContent>
           </Card>
         </div>
-        ) : (
-          <Card className="section-surface min-w-0">
-            <CardHeader className="min-w-0">
-              <CardTitle className="break-words">{coachUiText.chatTitle}</CardTitle>
-              <CardDescription className="break-words">
-                {localText(
-                  'Phần hội thoại sẽ hiện sau khi bạn chọn lớp học: xác nhận chủ đề và tạo giáo trình.',
-                  'The conversation area will appear after you select a class: confirm topic and generate curriculum.'
-                )}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-sm text-muted-foreground">
-                {localText(
-                  'Hoàn thành B1 và B2 ở phần thiết lập phía trên, sau đó bấm "Bắt đầu buổi học".',
-                  'Complete S1 and S2 in setup above, then click "Start lesson".'
-                )}
-              </p>
-            </CardContent>
-          </Card>
-        )}
+        ) : null}
 
         <HistoryPanel
           title={coachUiText.historyTitle}
@@ -10966,8 +10738,8 @@ export default function HocTiengAnhAiClientPage() {
             </h3>
             <p className="mt-2 text-sm text-slate-600">
               {localText(
-                'Bạn muốn học live trực tiếp với AI hay học một bài có sẵn phù hợp đúng cài đặt hiện tại?',
-                'Do you want a live AI lesson or a saved lesson matching your current settings?'
+                'Bạn đang ở trang bài học có sẵn. Có thể học live trực tiếp hoặc mở một bài có sẵn phù hợp cài đặt hiện tại.',
+                'You are on the saved lesson page. You can start a live lesson or open a saved lesson matching your setup.'
               )}
             </p>
             <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-2 text-xs text-slate-700 space-y-1">

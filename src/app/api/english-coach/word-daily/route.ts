@@ -40,6 +40,12 @@ function normalizeLookup(input: string): string {
   return String(input || '').trim().toLowerCase()
 }
 
+function capitalizeWordForStorage(input: string): string {
+  const s = String(input || '').trim()
+  if (s.length === 0) return s
+  return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
 function normalizeLanguageLabel(input: string): string {
   const normalized = normalizeLookup(input)
   if (!normalized) return ''
@@ -685,7 +691,7 @@ export async function POST(request: NextRequest) {
     const { user } = auth
 
     const adminSupabase = adminClient()
-    const normalizedWord = word.slice(0, 120)
+    const normalizedWord = capitalizeWordForStorage(word).slice(0, 120)
     const { data: sessionLangRows } = await adminSupabase
       .from('language_coach_messages')
       .select('target_language')
