@@ -1695,14 +1695,22 @@ function composeTeacherMessageText(correctionNote: string, mainSentence: string,
     .join('\n\n')
 }
 
-/** Tạo tóm tắt ngắn từ correctionItems cho Ý 1: "a → b; c → d" (có tính đào tạo, không fluff). */
-function buildCorrectionSummary(items: Array<{ original: string; fixed: string }>): string {
+/** Tạo nội dung Ý 1 từ correctionItems: format "Tiếng X nói là: a. Tiếng Y nói là: b." – dùng cho hiển thị và TTS (thống nhất, dễ đọc). */
+function buildCorrectionDisplayText(
+  items: Array<{ original: string; fixed: string }>,
+  originalLabel: string,
+  fixedLabel: string
+): string {
   if (!items || items.length === 0) return ''
-  const pairs = items
+  return items
     .slice(0, 5)
-    .map((c) => `${(c.original || '-').trim()} → ${(c.fixed || '-').trim()}`)
+    .map((c) => {
+      const orig = (c.original || '-').trim()
+      const fix = (c.fixed || '-').trim()
+      return `${originalLabel} ${orig}. ${fixedLabel} ${fix}.`
+    })
     .filter(Boolean)
-  return pairs.join('; ')
+    .join(' ')
 }
 
 /** Chuyển correctionNote từ format cũ (Bạn nói:/Nên nói:) sang format mới (Tiếng X nói là:) và bỏ phần giải thích. */
@@ -4112,9 +4120,14 @@ export default function HocBaiHocCoSanClientPage() {
   }
 
   const replayTeacherCorrectionNote = async (messageId: string) => {
+    const items = correctionsByMessageId[messageId] || []
     const correctionNote = String(correctionNoteByMessageId[messageId] || '').trim()
-    if (!correctionNote) return
-    const textForTts = stripPhoneticForTts(correctionNote, languageCode)
+    const textForDisplay =
+      items.length > 0
+        ? buildCorrectionDisplayText(items, correctionLabels.original, correctionLabels.fixed)
+        : correctionNote
+    if (!textForDisplay) return
+    const textForTts = stripPhoneticForTts(textForDisplay, languageCode)
     const key = `${messageId}__correction_note`
     if (ttsLoadingByKey[key]) return
     if (listening) {
@@ -6739,7 +6752,12 @@ export default function HocBaiHocCoSanClientPage() {
         )
         try {
           const audioMainSentence = isPresetReplayReply ? '' : mainSentence
-          const audioCorrectionNote = isPresetReplayReply ? '' : correctionNote
+          const audioCorrectionNote =
+            isPresetReplayReply
+              ? ''
+              : latestCorrections.length > 0
+                ? buildCorrectionDisplayText(latestCorrections, correctionLabels.original, correctionLabels.fixed)
+                : correctionNote
           const audioIntentAnswer = isPresetReplayReply
             ? String(intentAnswer || mainSentence || correctionNote).trim()
             : intentAnswer
@@ -9124,30 +9142,25 @@ export default function HocBaiHocCoSanClientPage() {
                             const busy3 = !skipPinyin3 && intentAnswer ? Boolean(writingRomanizationBusyByKey[toWritingRomanizationKey(intentAnswer)]) : false
                             return (
                               <div className="space-y-1 break-words text-base">
-                                <p className="whitespace-pre-wrap">
-                                  <span className="font-semibold text-rose-700">{localText('Ý 1 - Sửa lỗi:', 'Idea 1 - Error fix:')}</span>{' '}
-                                  {correctionItems.length > 0
-                                    ? (() => {
-                                        const summary = buildCorrectionSummary(correctionItems)
-                                        return summary || localText('Xem chi tiết bên dưới.', 'See details below.')
-                                      })()
-                                    : correctionNote
-                                      ? transformCorrectionNoteForDisplay(correctionNote, correctionLabels.original, correctionLabels.fixed)
-                                      : localText('Không có lỗi lớn cần sửa.', 'No major correction needed.')}
-                                </p>
-                                {correctionItems.length > 0 ? (
-                                  <div className="ml-1 rounded-md border border-rose-100 bg-rose-50/40 p-2 text-base">
-                                    <p className="font-semibold text-rose-800">{localText('Lỗi cần sửa', 'Corrections needed')}</p>
-                                    <div className="mt-1 space-y-1.5">
-                                      {correctionItems.map((item, itemIdx) => (
-                                        <div key={`${item.original}-${item.fixed}-${itemIdx}`} className="space-y-0.5 text-slate-700">
-                                          <p><span className="font-semibold text-rose-700">{correctionLabels.original}</span> {item.original || '-'}</p>
-                                          <p><span className="font-semibold text-emerald-700">{correctionLabels.fixed}</span> {item.fixed || '-'}</p>
+                                <div className="rounded-md border border-rose-100 bg-rose-50/40 p-2 text-base">
+                                  <p className="font-semibold text-rose-700">{localText('Ý 1 - Sửa lỗi:', 'Idea 1 - Error fix:')}</p>
+                                  <div className="mt-1 space-y-1.5 text-slate-700">
+                                    {correctionItems.length > 0 ? (
+                                      correctionItems.map((item, itemIdx) => (
+                                        <div key={`${item.original}-${item.fixed}-${itemIdx}`} className="space-y-0.5">
+                                          <p><span className="font-semibold text-rose-600">{correctionLabels.original}</span> {item.original || '-'}</p>
+                                          <p><span className="font-semibold text-emerald-600">{correctionLabels.fixed}</span> {item.fixed || '-'}</p>
                                         </div>
-                                      ))}
-                                    </div>
+                                      ))
+                                    ) : correctionNote ? (
+                                      <p className="whitespace-pre-wrap">
+                                        {transformCorrectionNoteForDisplay(correctionNote, correctionLabels.original, correctionLabels.fixed)}
+                                      </p>
+                                    ) : (
+                                      <p className="text-muted-foreground">{localText('Không có lỗi lớn cần sửa.', 'No major correction needed.')}</p>
+                                    )}
                                   </div>
-                                ) : null}
+                                </div>
                                 <div>
                                   <p>
                                     <span className="font-semibold text-emerald-700">{localText('Ý 2 - Câu sửa hoàn chỉnh:', 'Idea 2 - Corrected full sentence:')}</span>{' '}
