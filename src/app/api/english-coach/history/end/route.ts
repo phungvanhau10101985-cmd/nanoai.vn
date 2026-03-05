@@ -217,6 +217,51 @@ export async function POST(request: NextRequest) {
       qualityPassed && timelineCompleted && meetsDepthGate && !isPresetSession && transcript.length > 0
 
     if (allowCompletedSave) {
+      await adminSupabase
+        .from('language_coach_preset_turns')
+        .delete()
+        .eq('source_user_id', user.id)
+        .eq('source_session_id', sessionId)
+
+      const turnIds: string[] = []
+      let turnIndex = 0
+      let seenFirstTeacher = false
+      for (const r of replayRows) {
+        if (r.role !== 'teacher') continue
+        const reply = String((r as { text?: string }).text || '').trim().slice(0, 4000)
+        if (!reply) continue
+        if (!seenFirstTeacher) {
+          seenFirstTeacher = true
+          continue
+        }
+        const mainSentence = String((r as { main_sentence?: string }).main_sentence || '').trim()
+        const intentAnswer = String((r as { intent_answer?: string }).intent_answer || '').trim()
+        const expectedStudent = mainSentence || intentAnswer || ''
+        const { data: inserted } = await adminSupabase
+          .from('language_coach_preset_turns')
+          .insert({
+            turn_index: turnIndex,
+            source_user_id: user.id,
+            source_session_id: sessionId,
+            reply,
+            expected_student_text: expectedStudent || null,
+            main_sentence: mainSentence || null,
+            correction_note: String((r as { correction_note?: string }).correction_note || '').trim() || null,
+            intent_answer: intentAnswer || null,
+            must_know_text: (mainSentence || intentAnswer || reply).trim() || null,
+            teacher_label: String((r as { teacher_label?: string }).teacher_label || '').trim() || null,
+            teacher_locale: String((r as { teacher_locale?: string }).teacher_locale || '').trim() || null,
+            language_code: String((r as { language_code?: string }).language_code || '').trim() || null,
+            target_language: String((r as { target_language?: string }).target_language || '').trim() || null,
+            tokens_json: String((r as { tokens_json?: string }).tokens_json || '').trim() || null,
+            writing_task_json: String((r as { writing_task_json?: string }).writing_task_json || '').trim() || null,
+          })
+          .select('id')
+          .single()
+        if (inserted?.id) turnIds.push(inserted.id)
+        turnIndex += 1
+      }
+
       const { error: completedError } = await adminSupabase.from('language_coach_completed_lessons').upsert(
         {
           user_id: user.id,
@@ -240,6 +285,7 @@ export async function POST(request: NextRequest) {
           completion_reason: completionReason,
           summary_json: JSON.stringify(summary),
           transcript_json: JSON.stringify(transcript),
+          turn_ids: turnIds.length > 0 ? turnIds : null,
           updated_at: new Date().toISOString(),
         },
         { onConflict: 'user_id,session_id' }

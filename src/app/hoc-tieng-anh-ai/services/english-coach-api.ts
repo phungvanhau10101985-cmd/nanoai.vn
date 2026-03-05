@@ -150,10 +150,29 @@ export function cleanupIncompleteWords() {
   return sendJson<{ deleted?: number }>('/api/english-coach/word-daily?cleanup=incomplete', 'DELETE')
 }
 
-export function getSessionWords(sessionId: string, limit: number) {
-  return getJson<{ items?: unknown[]; error?: string }>(
-    `/api/english-coach/word-daily?sessionId=${encodeURIComponent(sessionId)}&limit=${encodeURIComponent(String(limit))}`
-  )
+export function getSessionWords(sessionId: string, limit: number, turnIndex?: number) {
+  const params = new URLSearchParams({
+    sessionId,
+    limit: String(limit),
+  })
+  if (turnIndex !== undefined && turnIndex >= 0) params.set('turnIndex', String(turnIndex))
+  return getJson<{ items?: unknown[]; error?: string }>(`/api/english-coach/word-daily?${params.toString()}`)
+}
+
+export function getListeningDistractors(params: {
+  sessionId?: string
+  turnIndex?: number
+  exclude?: string[]
+  limit?: number
+  languageCode?: string
+}) {
+  const q = new URLSearchParams()
+  if (params.sessionId) q.set('sessionId', params.sessionId)
+  if (params.turnIndex !== undefined && params.turnIndex >= 0) q.set('turnIndex', String(params.turnIndex))
+  if (params.exclude?.length) q.set('exclude', params.exclude.join(','))
+  if (params.limit != null) q.set('limit', String(params.limit))
+  if (params.languageCode) q.set('languageCode', params.languageCode)
+  return getJson<{ words?: string[]; error?: string }>(`/api/english-coach/listening-distractors?${q.toString()}`)
 }
 
 export function saveWordDaily(payload: unknown) {

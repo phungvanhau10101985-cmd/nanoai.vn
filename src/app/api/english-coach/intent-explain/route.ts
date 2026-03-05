@@ -37,6 +37,14 @@ function normalizeShortMeaning(text: string): string {
   return `${compact.slice(0, 357).trim()}...`
 }
 
+function normalizeVietnameseLearnerAddressing(text: string): string {
+  const input = String(text || '')
+  if (!input) return ''
+  return input
+    .replace(/\bCon\b/g, 'Em')
+    .replace(/\bcon\b/g, 'em')
+}
+
 function safeParse(text: string): { explanation: string } | null {
   const cleaned = String(text || '')
     .replace(/^```json\s*/i, '')
@@ -99,7 +107,8 @@ export async function POST(request: NextRequest) {
         .eq('cache_key', cacheKey)
         .single()
       if (cached?.translation) {
-        return NextResponse.json({ explanation: cached.translation })
+        const cachedNormalized = normalizeVietnameseLearnerAddressing(String(cached.translation || '').trim())
+        return NextResponse.json({ explanation: cachedNormalized })
       }
     }
 
@@ -122,6 +131,7 @@ Yêu cầu:
 3) Không phân tích ngữ pháp, không liệt kê thêm, không ghi chú ngoài lề.
 4) Không dùng ngôn ngữ thứ ba ngoài ${nativeLanguage}.
 5) Nếu có từ dễ nhầm, chọn nghĩa đúng ngữ cảnh và dịch luôn, không diễn giải thêm.
+6) Nếu ${nativeLanguage} là tiếng Việt: xưng hô người học là "em", tuyệt đối không dùng "con".
 
 Trả về JSON hợp lệ, không markdown:
 {
@@ -142,7 +152,7 @@ Trả về JSON hợp lệ, không markdown:
       })
     }
 
-    const explanation = normalizeShortMeaning(parsed.explanation)
+    const explanation = normalizeVietnameseLearnerAddressing(normalizeShortMeaning(parsed.explanation))
 
     if (isOpeningStyle) {
       const cacheKey = await buildCacheKey(textToExplain, targetLanguageCode, nativeLanguage, explainType)

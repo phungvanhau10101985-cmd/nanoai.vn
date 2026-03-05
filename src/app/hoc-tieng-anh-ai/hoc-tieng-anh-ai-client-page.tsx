@@ -34,6 +34,7 @@ import {
   getPreviousLessonWords,
   getReviewDue,
   getSessionWords,
+  getListeningDistractors,
   getTtsCache,
   listCustomTopics,
   markReviewDue,
@@ -73,6 +74,7 @@ const LIVE_SESSION_PRICE_CREDITS = 2.5
 const LIVE_SESSION_EXTRA_STEP_PRICE_CREDITS = LIVE_SESSION_PRICE_CREDITS / 2
 const PRESET_SESSION_PRICE_CREDITS = 1
 const LESSON_TIMELINE_TARGET_TURNS = LIVE_SESSION_BASE_TURN_LIMIT
+const LISTENING_VISIBLE_OPTION_COUNT = 5
 const FIXED_TTS_VOICE_BY_GENDER: Record<Gender, VoiceName> = {
   female: 'Kore',
   male: 'Orus',
@@ -1862,10 +1864,47 @@ function normalizedToken(text: string): string {
     .trim()
 }
 
+function extractComparableWords(text: string): string[] {
+  return String(text || '')
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .split(/\s+/)
+    .map((x) => String(x || '').trim())
+    .filter(Boolean)
+}
+
+function extractIdea3OnlyText(raw: string): string {
+  const text = String(raw || '').trim()
+  if (!text) return ''
+  const match = text.match(/(?:^|\n)\s*(?:ý|y|idea)\s*3\s*[-:]\s*([\s\S]*)$/i)
+  if (match?.[1]) return String(match[1]).trim()
+  return text
+}
+
 function displayListeningWord(text: string): string {
   const t = String(text || '').trim()
   if (!t) return ''
   return t.charAt(0).toLocaleUpperCase() + t.slice(1)
+}
+
+function buildListeningFallbackCandidates(prompt: string, targetCode: LanguageCode): string[] {
+  const allowSingleChar = targetCode === 'zh' || targetCode === 'ja' || targetCode === 'ko' || targetCode === 'th' || targetCode === 'hi'
+  const minLen = allowSingleChar ? 1 : 2
+  const fromPrompt = String(prompt || '')
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .split(/\s+/)
+    .map((x) => x.trim())
+    .filter((x) => x.length >= minLen)
+    .slice(0, 20)
+  const byLanguage: Record<LanguageCode, string[]> = {
+    en: ['book', 'school', 'water', 'market', 'family', 'today', 'friend', 'morning'],
+    vi: ['hôm', 'nay', 'bạn', 'đi', 'học', 'nhà', 'ăn', 'uống'],
+    zh: ['我', '你', '他', '今天', '喜欢', '学习', '朋友', '家'],
+    ja: ['わたし', 'あなた', 'きょう', 'すき', 'たべる', 'がっこう', 'ともだち', 'いえ'],
+    ko: ['나', '너', '오늘', '좋아', '먹다', '학교', '친구', '집'],
+    th: ['ฉัน', 'คุณ', 'วันนี้', 'ชอบ', 'กิน', 'โรงเรียน', 'เพื่อน', 'บ้าน'],
+    hi: ['मैं', 'तुम', 'आज', 'पसंद', 'खाना', 'स्कूल', 'दोस्त', 'घर'],
+  }
+  return Array.from(new Set([...fromPrompt, ...(byLanguage[targetCode] || byLanguage.en)]))
 }
 
 function shuffleListeningWords(words: string[]): string[] {
@@ -1883,7 +1922,8 @@ function ensureListeningVisibleHasCorrectOption(
   visible: string[],
   remaining: string[],
   allOptions: string[],
-  expectedKeywords: string[]
+  expectedKeywords: string[],
+  fallbackCandidates?: string[]
 ): { visible: string[]; remaining: string[] } {
   const expected = new Set(
     expectedKeywords
@@ -1904,55 +1944,51 @@ function ensureListeningVisibleHasCorrectOption(
 
   const expectedPool = Array.from(
     new Set(
-      [...remainingSafe, ...allSafe]
+      [...visibleSafe, ...remainingSafe, ...allSafe]
         .map((x) => String(x || '').trim())
         .filter((x) => isExpected(x))
     )
   )
   const wrongPool = Array.from(
     new Set(
-      [...remainingSafe, ...allSafe]
+      [...remainingSafe, ...allSafe, ...(fallbackCandidates || [])]
         .map((x) => String(x || '').trim())
         .filter(Boolean)
         .filter((x) => !isExpected(x))
     )
   )
 
-  let nextVisible = [...visibleSafe]
-  let currentCorrect = nextVisible.filter((x) => isExpected(x)).length
-
-  // Rule 1: always keep at least 1 correct option visible.
-  if (currentCorrect < 1 && expectedPool.length > 0) {
-    const replacement = expectedPool.find((x) => !nextVisible.includes(x)) || expectedPool[0]
-    const replaceIdx = nextVisible.findIndex((x) => !isExpected(x))
-    if (replaceIdx >= 0) nextVisible[replaceIdx] = replacement
-    else nextVisible[nextVisible.length - 1] = replacement
-    currentCorrect = nextVisible.filter((x) => isExpected(x)).length
+  // Force display policy: show all 3 correct + wrong options (up to LISTENING_VISIBLE_OPTION_COUNT).
+  const shuffledExpected = shuffleListeningWords(expectedPool)
+  const shuffledWrong = shuffleListeningWords(wrongPool)
+  const finalVisible: string[] = []
+  for (const c of shuffledExpected) {
+    if (c) uniquePush(finalVisible, c)
   }
-
-  // Rule 2: keep exactly 1 correct option visible at a time.
-  if (currentCorrect > 1) {
-    for (let i = 0; i < nextVisible.length; i++) {
-      if (currentCorrect <= 1) break
-      if (!isExpected(nextVisible[i])) continue
-      const replacement = wrongPool.find((x) => !nextVisible.includes(x))
-      if (!replacement) break
-      nextVisible[i] = replacement
-      currentCorrect = nextVisible.filter((x) => isExpected(x)).length
+  for (const w of shuffledWrong) {
+    if (finalVisible.length >= LISTENING_VISIBLE_OPTION_COUNT) break
+    uniquePush(finalVisible, w)
+  }
+  if (finalVisible.length < LISTENING_VISIBLE_OPTION_COUNT) {
+    for (const candidate of (fallbackCandidates || [])) {
+      if (finalVisible.length >= LISTENING_VISIBLE_OPTION_COUNT) break
+      if (isExpected(candidate)) continue
+      uniquePush(finalVisible, candidate)
     }
   }
-
-  // Keep visible size stable and rebuild remaining without duplicates.
-  const finalVisible: string[] = []
-  for (const x of nextVisible) uniquePush(finalVisible, x)
+  const finalVisibleShuffled = shuffleListeningWords(finalVisible)
   const nextRemaining: string[] = []
   for (const x of [...remainingSafe, ...allSafe]) {
     const t = String(x || '').trim()
-    if (!t || finalVisible.includes(t)) continue
+    if (!t || finalVisibleShuffled.includes(t)) continue
     uniquePush(nextRemaining, t)
   }
 
-  return { visible: finalVisible, remaining: nextRemaining }
+  return { visible: finalVisibleShuffled, remaining: nextRemaining }
+}
+
+function isUuidMessageId(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(value || '').trim())
 }
 
 type HocTiengAnhAiClientPageProps = {
@@ -2114,6 +2150,12 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
   const [reviewListeningRequiredCount, setReviewListeningRequiredCount] = useState(3)
   const [reviewListeningResultByWord, setReviewListeningResultByWord] = useState<Record<string, 'correct' | 'wrong'>>({})
   const [reviewListeningSubmitBusy, setReviewListeningSubmitBusy] = useState(false)
+  const [reviewListeningCorrectCount, setReviewListeningCorrectCount] = useState(0)
+  const [reviewListeningCurrentWordIndex, setReviewListeningCurrentWordIndex] = useState(0)
+  const [reviewListeningCollectedCorrect, setReviewListeningCollectedCorrect] = useState<string[]>([])
+  const [reviewListeningCurrentCorrectWord, setReviewListeningCurrentCorrectWord] = useState('')
+  const [reviewListeningDistractorsLoading, setReviewListeningDistractorsLoading] = useState(false)
+  const [reviewListeningTurnIndex, setReviewListeningTurnIndex] = useState(-1)
   const [reviewMiniPackCompleted, setReviewMiniPackCompleted] = useState(false)
   const [historyBusy, setHistoryBusy] = useState(false)
   const [todayWordsBusy, setTodayWordsBusy] = useState(false)
@@ -2124,6 +2166,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
   const [openedHistorySessionId, setOpenedHistorySessionId] = useState('')
   const [isCurrentPresetSession, setIsCurrentPresetSession] = useState(false)
   const [presetReplayExpectedSentence, setPresetReplayExpectedSentence] = useState('')
+  const [presetReplayNextTurnIndex, setPresetReplayNextTurnIndex] = useState(0)
   const isPresetPageSession = isSavedStandalonePage && isCurrentPresetSession
   const [liveSessionExtraTurnUnlocks, setLiveSessionExtraTurnUnlocks] = useState(0)
   const [liveUnlockBusy, setLiveUnlockBusy] = useState(false)
@@ -2269,6 +2312,8 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
   const [mainSentenceExplainBusyByMessageId, setMainSentenceExplainBusyByMessageId] = useState<Record<string, boolean>>({})
   const [openingTranslateByMessageId, setOpeningTranslateByMessageId] = useState<Record<string, string>>({})
   const [openingTranslateBusyByMessageId, setOpeningTranslateBusyByMessageId] = useState<Record<string, boolean>>({})
+  const [studentTranslateByMessageId, setStudentTranslateByMessageId] = useState<Record<string, string>>({})
+  const [studentTranslateBusyByMessageId, setStudentTranslateBusyByMessageId] = useState<Record<string, boolean>>({})
   const supabase = useMemo(() => createClient(), [])
   const lastMicSentTextRef = useRef('')
   const lastMicSentAtRef = useRef(0)
@@ -2656,10 +2701,9 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
   const isLessonReadyToStart = isTopicConfirmedForLesson && hasCurriculumReady
   const canShowDirectConversation = isLessonReadyToStart || messages.length > 0 || Boolean(openedHistorySessionId)
   const hasStudentTurnsInCurrentSession = liveSessionStudentTurnCount > sessionEntryStudentTurnBaseline
-  const isMiniDrillBlocking =
-    learningMode === 'review'
-    && reviewDrillStage !== 'idle'
-    && (isPresetPageSession ? hasStudentTurnsInCurrentSession : true)
+  // Preset lessons must finish mini flow (writing -> speaking -> listening)
+  // before allowing the next mic turn.
+  const isMiniDrillBlocking = learningMode === 'review' && reviewDrillStage !== 'idle'
   const isMiniWritingBlocking =
     learningMode === 'review' && Boolean(writingTask) && !Boolean(writingTask?.completed)
   const latestMainSentenceForLearner = useMemo(() => {
@@ -2793,7 +2837,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
         referenceSentence: task.referenceSentence,
         taskType: task.taskType,
       })
-      const isDbId = Boolean(openedHistorySessionId && sessionId === openedHistorySessionId)
+      const isDbId = isUuidMessageId(task.messageId)
       const res = await updateMessageTranslationApi({
         messageId: task.messageId,
         ...(isDbId ? {} : { sessionId, clientMessageId: task.messageId }),
@@ -3988,20 +4032,43 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
     await playAudioUrl(audioUrl)
   }
 
-  const replayDbStandardForStudentMessage = async (studentMessageId: string) => {
-    const idx = messages.findIndex((m) => m.id === studentMessageId)
-    if (idx < 0) return
-    for (let i = idx - 1; i >= 0; i -= 1) {
-      const m = messages[i]
-      if (m.role !== 'teacher') continue
-      await replayTeacherMainSentence(m.id, m.text)
+  const replayDbStandardForStudentMessage = async (studentMessageId: string, studentTextRaw?: string) => {
+    const studentText = stripPhoneticForTts(String(studentTextRaw || '').trim(), languageCode)
+    if (!studentText) return
+    const key = `${studentMessageId}__student_standard`
+    if (ttsLoadingByKey[key]) return
+    const cached = String(teacherAudioByMessageIdRef.current[key] || '').trim()
+    if (cached) {
+      await playAudioUrl(cached)
       return
     }
-    if (latestMainSentenceForLearner) {
-      await replayTeacherMainSentence(
-        latestMainSentenceForLearner.messageId,
-        latestMainSentenceForLearner.teacherText
-      )
+    const cachedDb = await tryLoadCachedTtsAudio(studentText)
+    if (cachedDb?.url) {
+      teacherAudioByMessageIdRef.current = {
+        ...teacherAudioByMessageIdRef.current,
+        [key]: cachedDb.url,
+      }
+      setTeacherAudioByMessageId((prev) => ({ ...prev, [key]: cachedDb.url }))
+      await playAudioUrl(cachedDb.url)
+      return
+    }
+    if (busy) return
+    setTtsLoadingByKey((prev) => ({ ...prev, [key]: true }))
+    try {
+      const generated = await createConsistentTeacherTtsAudioData(studentText, {
+        locale: activeTeacher.locale,
+        languageLabel: activeTeacher.languageLabel,
+      })
+      const nextUrl = String(generated?.url || '').trim()
+      if (!nextUrl) return
+      teacherAudioByMessageIdRef.current = {
+        ...teacherAudioByMessageIdRef.current,
+        [key]: nextUrl,
+      }
+      setTeacherAudioByMessageId((prev) => ({ ...prev, [key]: nextUrl }))
+      await playAudioUrl(nextUrl)
+    } finally {
+      setTtsLoadingByKey((prev) => ({ ...prev, [key]: false }))
     }
   }
 
@@ -4074,6 +4141,28 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
         [key]: generated[0]?.url || '',
       }
       setTeacherAudioByMessageId((prev) => ({ ...prev, [key]: generated[0]?.url || '' }))
+      // Preset lessons: when idea-3 audio is missing, persist generated audio
+      // so current session and next sessions can reuse it.
+      if (isPresetPageSession && generated[0]) {
+        try {
+          const uploadedAudioUrl = await uploadTeacherAudio(messageId, generated[0].blob, generated[0].blobType)
+          if (uploadedAudioUrl) {
+            teacherAudioByMessageIdRef.current = {
+              ...teacherAudioByMessageIdRef.current,
+              [messageId]: uploadedAudioUrl,
+            }
+            setTeacherAudioByMessageId((prev) => ({ ...prev, [messageId]: uploadedAudioUrl }))
+            const isDbId = isUuidMessageId(messageId)
+            await updateMessageTranslationApi({
+              messageId,
+              ...(isDbId ? {} : { sessionId, clientMessageId: messageId }),
+              audioUrl: uploadedAudioUrl,
+            })
+          }
+        } catch {
+          // keep replay working even when upload/update fails
+        }
+      }
     } finally {
       setTtsLoadingByKey((prev) => ({ ...prev, [key]: false }))
     }
@@ -4237,6 +4326,47 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
     }
   }
 
+  const translateStudentMessage = async (messageId: string, studentTextRaw: string) => {
+    const sourceText = String(studentTextRaw || '').trim()
+    if (!sourceText) return
+    if (studentTranslateBusyByMessageId[messageId]) return
+    if (studentTranslateByMessageId[messageId]) {
+      setStudentTranslateByMessageId((prev) => ({ ...prev, [messageId]: '' }))
+      return
+    }
+    setStudentTranslateBusyByMessageId((prev) => ({ ...prev, [messageId]: true }))
+    try {
+      const { ok, data } = await explainIntent({
+        studentText: '',
+        intentAnswer: sourceText,
+        correctedSentence: '',
+        correctionNote: '',
+        targetLanguage: activeTeacher.languageLabel,
+        targetLanguageCode: languageCode,
+        nativeLanguage: selectedNativeLanguage.apiLabel,
+        topicLabel: selectedTopic.label,
+      })
+      if (!ok) throw new Error(data.error || localText('Không dịch được câu học viên.', 'Unable to translate student sentence.'))
+      const meaning = String(data.explanation || '').trim()
+      if (!meaning) throw new Error(localText('Không có nội dung dịch.', 'No translation content.'))
+      setStudentTranslateByMessageId((prev) => ({ ...prev, [messageId]: meaning }))
+      const isDbId = isUuidMessageId(messageId)
+      void updateMessageTranslationApi({
+        messageId,
+        ...(isDbId ? {} : { sessionId, clientMessageId: messageId }),
+        translation: meaning,
+      }).catch(() => {})
+    } catch (e) {
+      toast({
+        title: localText('Không dịch được', 'Cannot translate now'),
+        description: unknownErrorMsg(e),
+        variant: 'destructive',
+      })
+    } finally {
+      setStudentTranslateBusyByMessageId((prev) => ({ ...prev, [messageId]: false }))
+    }
+  }
+
   const replayTeacherMainSentence = async (messageId: string, text: string) => {
     const mainSentence = String(mainSentenceByMessageId[messageId] || '').trim()
     if (!mainSentence) {
@@ -4298,17 +4428,40 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
       await playAudioUrl(cached)
       return
     }
-    if (busy || listening) {
-      const cachedDb = await tryLoadCachedTtsAudio(normalized)
-      if (!cachedDb) return
-      teacherAudioByMessageIdRef.current = {
-        ...teacherAudioByMessageIdRef.current,
-        [key]: cachedDb.url,
+    // Reuse audio from conversation if same sentence was already played (mainSentence or intentAnswer)
+    const norm = (s: string) => stripPhoneticForTts(String(s || '').trim(), languageCode)
+    for (const m of messages) {
+      if (m.role !== 'teacher') continue
+      const main = norm(mainSentenceByMessageId[m.id] || '')
+      const intent = norm(intentAnswerByMessageId[m.id] || '')
+      if (main && main === normalized) {
+        const url = String(teacherAudioByMessageIdRef.current[`${m.id}__main`] || teacherAudioByMessageId[m.id + '__main'] || '').trim()
+        if (url) {
+          teacherAudioByMessageIdRef.current = { ...teacherAudioByMessageIdRef.current, [key]: url }
+          setTeacherAudioByMessageId((prev) => ({ ...prev, [key]: url }))
+          await playAudioUrl(url)
+          return
+        }
       }
+      if (intent && intent === normalized) {
+        const url = String(teacherAudioByMessageIdRef.current[`${m.id}__intent_answer`] || teacherAudioByMessageId[m.id + '__intent_answer'] || '').trim()
+        if (url) {
+          teacherAudioByMessageIdRef.current = { ...teacherAudioByMessageIdRef.current, [key]: url }
+          setTeacherAudioByMessageId((prev) => ({ ...prev, [key]: url }))
+          await playAudioUrl(url)
+          return
+        }
+      }
+    }
+    // Try DB cache before calling TTS API
+    const cachedDb = await tryLoadCachedTtsAudio(normalized)
+    if (cachedDb?.url) {
+      teacherAudioByMessageIdRef.current = { ...teacherAudioByMessageIdRef.current, [key]: cachedDb.url }
       setTeacherAudioByMessageId((prev) => ({ ...prev, [key]: cachedDb.url }))
       await playAudioUrl(cachedDb.url)
       return
     }
+    if (busy || listening) return
     setTtsLoadingByKey((prev) => ({ ...prev, [key]: true }))
     try {
       const generated = await playBestEffortTts(normalized)
@@ -4440,7 +4593,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
 
       // Cập nhật audio_url vào tin nhắn đã lưu (message đã được lưu ngay khi chat trả về)
       try {
-        const isDbId = Boolean(openedHistorySessionId && sessionId === openedHistorySessionId)
+        const isDbId = isUuidMessageId(messageId)
         await updateMessageTranslationApi({
           messageId,
           ...(isDbId ? {} : { sessionId, clientMessageId: messageId }),
@@ -4493,7 +4646,12 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
         sentence,
         targetLanguage: activeTeacher.languageLabel,
         targetLanguageCode: languageCode,
+        ...(isUuidMessageId(messageId) ? { messageId } : {}),
       })
+      const fromCache = Boolean((data as { cached?: boolean }).cached)
+      if (typeof window !== 'undefined') {
+        console.log('[tokenize] client:', fromCache ? 'DB cache hit' : 'AI/fallback', { messageId: messageId.slice(0, 8), tokenCount: Array.isArray((data as { tokens?: unknown }).tokens) ? (data as { tokens: string[] }).tokens.length : 0 })
+      }
       const rawWithUsage = Array.isArray((data as { tokensWithUsage?: unknown }).tokensWithUsage)
         ? (data as { tokensWithUsage: Array<{ word: string; usageLevel?: string }> }).tokensWithUsage
         : []
@@ -4523,7 +4681,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
       setTokensByMessageId((prev) => ({ ...prev, [messageId]: finalTokens }))
       setTokensWithUsageByMessageId((prev) => ({ ...prev, [messageId]: finalWithUsage }))
       const tokensJson = JSON.stringify(finalWithUsage)
-      const isDbId = Boolean(openedHistorySessionId && sessionId === openedHistorySessionId)
+      const isDbId = isUuidMessageId(messageId)
       void updateMessageTranslationApi({
         messageId,
         ...(isDbId ? {} : { sessionId, clientMessageId: messageId }),
@@ -4535,7 +4693,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
       setTokensByMessageId((prev) => ({ ...prev, [messageId]: fallback }))
       setTokensWithUsageByMessageId((prev) => ({ ...prev, [messageId]: fallbackWithUsage }))
       const tokensJson = JSON.stringify(fallbackWithUsage)
-      const isDbId = Boolean(openedHistorySessionId && sessionId === openedHistorySessionId)
+      const isDbId = isUuidMessageId(messageId)
       void updateMessageTranslationApi({
         messageId,
         ...(isDbId ? {} : { sessionId, clientMessageId: messageId }),
@@ -4546,11 +4704,18 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
     }
   }
 
+  const getTeacherTurnIndex = (messageId: string): number => {
+    const teacherMessages = messages.filter((m) => m.role === 'teacher')
+    const idx = teacherMessages.findIndex((m) => m.id === messageId)
+    return idx >= 0 ? idx : -1
+  }
+
   const fetchWordInsight = async (messageId: string, word: string, sentence: string) => {
     const key = `${messageId}:${word.toLowerCase()}`
     if (wordAnalyzingKeysRef.current.has(key)) return
     delete wordSenseAutoPlayedByKeyRef.current[key]
     setOpenedWordKey(key)
+    const teacherTurnIndex = getTeacherTurnIndex(messageId)
     const savedWord = findSessionWord(word)
     const savedSenses = sanitizeWordSenses((savedWord as { senses?: unknown } | undefined)?.senses)
     if (savedWord && (savedWord.meaning || savedWord.pronunciation || savedSenses.length > 0)) {
@@ -4589,7 +4754,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
     }
     if (wordInsightByKey[key]) {
       try {
-        await saveDailyWord(word, wordInsightByKey[key])
+        await saveDailyWord(word, wordInsightByKey[key], undefined, undefined, teacherTurnIndex)
         void fetchSessionWords()
       } catch {
         // ignore daily word save failure on cached click
@@ -4641,7 +4806,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
         [key]: detail,
       }))
       const audioUrl = String((payload as { pronunciationAudioUrl?: string }).pronunciationAudioUrl || '').trim()
-      await saveDailyWord(word, detail, audioUrl || undefined)
+      await saveDailyWord(word, detail, audioUrl || undefined, undefined, teacherTurnIndex)
       void fetchSessionWords()
       void wordPlayPromise.catch(() => {})
       void autoPlayWordSenseAllFirstTime(key, word, sanitizeWordSenses(detail.senses))
@@ -4952,6 +5117,8 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
       setTokensWithUsageByMessageId({})
       setOpeningTranslateByMessageId({})
       setIntentExplainByMessageId({})
+      setStudentTranslateByMessageId({})
+      setStudentTranslateBusyByMessageId({})
       // Prevent URL sessionId from reopening a just-deleted session.
       router.replace(basePath)
     }
@@ -5018,7 +5185,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
     }
   }
 
-  const fetchSessionWords = async (targetSessionId?: string) => {
+  const fetchSessionWords = async (targetSessionId?: string, turnIndexOverride?: number) => {
     const sid = String(targetSessionId || sessionId || '').trim()
     if (!sid) {
       setTodayWords([])
@@ -5026,7 +5193,13 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
     }
     setTodayWordsBusy(true)
     try {
-      const { ok, data } = await getSessionWords(sid, 80)
+      const turnIdx =
+        turnIndexOverride !== undefined
+          ? turnIndexOverride
+          : isPresetPageSession
+            ? presetReplayNextTurnIndex
+            : undefined
+      const { ok, data } = await getSessionWords(sid, 80, turnIdx)
       if (!ok) throw new Error(data.error || localText('Không tải được từ mới buổi học.', 'Failed to load lesson vocabulary.'))
       const normalizedItems = Array.isArray(data.items)
         ? data.items.map((item) => {
@@ -5092,7 +5265,8 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
     word: string,
     detail: Partial<WordInsight>,
     pronunciationAudioUrl?: string,
-    sessionIdOverride?: string
+    sessionIdOverride?: string,
+    turnIndexOverride?: number
   ) => {
     if (learningMode === 'reflex') return
     const meaning = String(detail.meaning || '').trim()
@@ -5102,6 +5276,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
     const date = getLocalDateString()
     const sid = sessionIdOverride || sessionId
     if (!sid) return
+    const turnIdx = turnIndexOverride !== undefined ? turnIndexOverride : -1
     const { ok, data } = await saveWordDaily({
         sessionId: sid,
         learnedDate: date,
@@ -5119,6 +5294,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
         senses: sanitizeWordSenses((detail as { senses?: unknown }).senses),
         meaningItems: [],
         exampleItems: sanitizeWordExampleItems((detail as { exampleItems?: unknown }).exampleItems),
+        turnIndex: turnIdx >= 0 ? turnIdx : undefined,
     })
     if (!ok) {
       throw new Error(data.error || localText('Không lưu được từ mới.', 'Failed to save new word.'))
@@ -5144,7 +5320,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
     setReviewListeningVisibleOptions([])
     setReviewListeningRemainingOptions([])
     setReviewListeningExpectedKeywords([])
-    setReviewListeningRequiredCount(3)
+    setReviewListeningRequiredCount(1)
     setReviewListeningResultByWord({})
     setReviewListeningSelected([])
     let presetOpeningToReplay: { messageId: string; text: string } | null = null
@@ -5221,6 +5397,9 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
       setLiveSessionExtraTurnUnlocks(Math.max(0, inferredExtraUnlocks))
       const presetSessionLoaded = Boolean(payload.presetReplaySession)
       setIsCurrentPresetSession(presetSessionLoaded)
+      setPresetReplayNextTurnIndex(
+        presetSessionLoaded ? Math.max(0, Number(payload.presetReplay?.nextTurnIndex ?? 0)) : 0
+      )
       const presetExpected = sanitizeLearnerReadingSentence(String(payload.presetReplay?.expectedStudentText || '').trim())
       setPresetReplayExpectedSentence(
         presetSessionLoaded && !isUnsafePresetReadingSentence(presetExpected) ? presetExpected : ''
@@ -5232,14 +5411,22 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
       const firstTeacherIdx = items.findIndex((x) => x.role === 'teacher')
       const openingTrans: Record<string, string> = {}
       const intentTrans: Record<string, string> = {}
+      const studentTrans: Record<string, string> = {}
       items.forEach((item, idx) => {
         const trans = String((item as { translation?: string }).translation || '').trim()
-        if (!trans || item.role !== 'teacher') return
-        if (idx === firstTeacherIdx) openingTrans[item.id] = trans
-        else intentTrans[item.id] = trans
+        if (!trans) return
+        if (item.role === 'teacher') {
+          if (idx === firstTeacherIdx) openingTrans[item.id] = trans
+          else intentTrans[item.id] = trans
+          return
+        }
+        if (item.role === 'student') {
+          studentTrans[item.id] = trans
+        }
       })
       setOpeningTranslateByMessageId(openingTrans)
       setIntentExplainByMessageId(intentTrans)
+      setStudentTranslateByMessageId(studentTrans)
       const firstMetaForLang = items.find((x) => x.role === 'teacher') || items[0]
       const langForSanitize = String(firstMetaForLang?.languageCode || '').trim() as LanguageCode
       const mainSentenceMap: Record<string, string> = {}
@@ -5297,6 +5484,9 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
               if (withUsage.length > 0) {
                 tokensMap[item.id] = withUsage.map((t) => t.word)
                 tokensWithUsageMap[item.id] = withUsage
+                if (typeof window !== 'undefined') {
+                  console.log('[tokenize] client: loaded from history (messages.tokens_json), no API call', { messageId: item.id?.slice(0, 8), tokenCount: withUsage.length })
+                }
               }
             }
           } catch {
@@ -5489,44 +5679,65 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
           setReviewDrillStage('idle')
           setReviewMiniPackCompleted(writingRestored && writingCompletedRestored)
         } else if (snapshotStage === 'listening' && activeListening) {
+          setReviewListeningTurnIndex(-1)
           const promptForListening = String(activeListening.prompt || '').trim()
-          let optsWords = Array.isArray(activeListening.options)
-            ? activeListening.options.map((x) => String(x || '').trim()).filter(Boolean)
-            : []
-          if (optsWords.length === 0 && promptForListening) {
-            optsWords = promptForListening
+          const tokenList = Array.isArray(activeListening.expectedKeywords)
+            ? activeListening.expectedKeywords.map((x) => String(x || '').trim()).filter(Boolean)
+            : promptForListening
               .replace(/[^\p{L}\p{N}\s]/gu, ' ')
               .split(/\s+/)
-              .map((x) => x.trim())
+              .map((x) => x.trim().toLowerCase())
               .filter((x) => x.length >= 2)
-              .slice(0, 16)
-          }
-          const expectedKeywords = Array.isArray(activeListening.expectedKeywords)
-            ? activeListening.expectedKeywords.map((x) => String(x || '').trim()).filter(Boolean)
-            : []
-          const requiredCountRaw = Number(activeListening.minMatchedKeywords || 3)
-          const requiredCount = Number.isFinite(requiredCountRaw)
-            ? Math.max(1, Math.min(3, Math.floor(requiredCountRaw)))
-            : 3
-          const uniqueOptions = Array.from(new Set(optsWords))
-          const visibleLimit = Math.min(8, Math.max(requiredCount + 2, 5))
-          const seeded = ensureListeningVisibleHasCorrectOption(
-            uniqueOptions.slice(0, visibleLimit),
-            uniqueOptions.slice(visibleLimit),
-            uniqueOptions,
-            expectedKeywords
-          )
+              .slice(0, 24)
+          const sentenceLower = promptForListening.toLowerCase()
+          const inSentence = (w: string) => sentenceLower.includes(String(w || '').trim().toLowerCase())
           setReviewDrillStage('listening')
           setReviewListeningPrompt(promptForListening)
-          setReviewListeningOptions(uniqueOptions)
-          setReviewListeningVisibleOptions(seeded.visible)
-          setReviewListeningRemainingOptions(seeded.remaining)
-          setReviewListeningExpectedKeywords(expectedKeywords)
-          setReviewListeningRequiredCount(requiredCount)
+          setReviewListeningOptions(tokenList)
+          setReviewListeningExpectedKeywords(tokenList)
+          setReviewListeningRequiredCount(3)
+          setReviewListeningCorrectCount(0)
+          setReviewListeningCurrentWordIndex(0)
+          setReviewListeningCollectedCorrect([])
           setReviewListeningResultByWord({})
           setReviewListeningSelected([])
           setReviewListeningPopupOpen(true)
+          setReviewListeningVisibleOptions([])
           setReviewMiniPackCompleted(false)
+          const loadFirstRound = async () => {
+            let idx = 0
+            let correctWord = ''
+            for (; idx < tokenList.length; idx++) {
+              const w = tokenList[idx]
+              if (w && inSentence(w)) {
+                correctWord = w
+                break
+              }
+            }
+            if (!correctWord) return
+            setReviewListeningCurrentWordIndex(idx)
+            setReviewListeningCurrentCorrectWord(correctWord)
+            setReviewListeningDistractorsLoading(true)
+            try {
+              const { data } = await getListeningDistractors({
+                sessionId,
+                turnIndex: undefined,
+                exclude: [correctWord, ...tokenList],
+                limit: 4,
+                languageCode,
+              })
+              const distractors = Array.isArray((data as { words?: string[] }).words) ? (data as { words?: string[] }).words : []
+              const fallback = buildListeningFallbackCandidates(promptForListening, languageCode).filter(
+                (x) => String(x || '').trim().toLowerCase() !== correctWord && !tokenList.includes(String(x || '').trim().toLowerCase())
+              )
+              const wrong = distractors.length >= 4 ? distractors.slice(0, 4) : [...distractors, ...fallback].slice(0, 4)
+              const opts = shuffleListeningWords([correctWord, ...wrong])
+              setReviewListeningVisibleOptions(opts)
+            } finally {
+              setReviewListeningDistractorsLoading(false)
+            }
+          }
+          void loadFirstRound()
         } else if (snapshotStage === 'speaking' && activeSpeaking && speakingTargetValid) {
           if (shouldForceWritingFirstForPreset && writingRestored) {
             setReviewDrillStage('writing')
@@ -5570,44 +5781,65 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
           setWritingTask(null)
           setReviewSpeakingTargetSentence('')
         } else if (activeListening) {
+          setReviewListeningTurnIndex(-1)
           const promptForListening = String(activeListening.prompt || '').trim()
-          let optsWords = Array.isArray(activeListening.options)
-            ? activeListening.options.map((x) => String(x || '').trim()).filter(Boolean)
-            : []
-          if (optsWords.length === 0 && promptForListening) {
-            optsWords = promptForListening
+          const tokenList = Array.isArray(activeListening.expectedKeywords)
+            ? activeListening.expectedKeywords.map((x) => String(x || '').trim()).filter(Boolean)
+            : promptForListening
               .replace(/[^\p{L}\p{N}\s]/gu, ' ')
               .split(/\s+/)
-              .map((x) => x.trim())
+              .map((x) => x.trim().toLowerCase())
               .filter((x) => x.length >= 2)
-              .slice(0, 16)
-          }
-          const expectedKeywords = Array.isArray(activeListening.expectedKeywords)
-            ? activeListening.expectedKeywords.map((x) => String(x || '').trim()).filter(Boolean)
-            : []
-          const requiredCountRaw = Number(activeListening.minMatchedKeywords || 3)
-          const requiredCount = Number.isFinite(requiredCountRaw)
-            ? Math.max(1, Math.min(3, Math.floor(requiredCountRaw)))
-            : 3
-          const uniqueOptions = Array.from(new Set(optsWords))
-          const visibleLimit = Math.min(8, Math.max(requiredCount + 2, 5))
-          const seeded = ensureListeningVisibleHasCorrectOption(
-            uniqueOptions.slice(0, visibleLimit),
-            uniqueOptions.slice(visibleLimit),
-            uniqueOptions,
-            expectedKeywords
-          )
+              .slice(0, 24)
+          const sentenceLower = promptForListening.toLowerCase()
+          const inSentence = (w: string) => sentenceLower.includes(String(w || '').trim().toLowerCase())
           setReviewDrillStage('listening')
           setReviewListeningPrompt(promptForListening)
-          setReviewListeningOptions(uniqueOptions)
-          setReviewListeningVisibleOptions(seeded.visible)
-          setReviewListeningRemainingOptions(seeded.remaining)
-          setReviewListeningExpectedKeywords(expectedKeywords)
-          setReviewListeningRequiredCount(requiredCount)
+          setReviewListeningOptions(tokenList)
+          setReviewListeningExpectedKeywords(tokenList)
+          setReviewListeningRequiredCount(3)
+          setReviewListeningCorrectCount(0)
+          setReviewListeningCurrentWordIndex(0)
+          setReviewListeningCollectedCorrect([])
           setReviewListeningResultByWord({})
           setReviewListeningSelected([])
           setReviewListeningPopupOpen(true)
+          setReviewListeningVisibleOptions([])
           setReviewMiniPackCompleted(false)
+          const loadFirstRound = async () => {
+            let idx = 0
+            let correctWord = ''
+            for (; idx < tokenList.length; idx++) {
+              const w = tokenList[idx]
+              if (w && inSentence(w)) {
+                correctWord = w
+                break
+              }
+            }
+            if (!correctWord) return
+            setReviewListeningCurrentWordIndex(idx)
+            setReviewListeningCurrentCorrectWord(correctWord)
+            setReviewListeningDistractorsLoading(true)
+            try {
+              const { data } = await getListeningDistractors({
+                sessionId,
+                turnIndex: undefined,
+                exclude: [correctWord, ...tokenList],
+                limit: 4,
+                languageCode,
+              })
+              const distractors = Array.isArray((data as { words?: string[] }).words) ? (data as { words?: string[] }).words : []
+              const fallback = buildListeningFallbackCandidates(promptForListening, languageCode).filter(
+                (x) => String(x || '').trim().toLowerCase() !== correctWord && !tokenList.includes(String(x || '').trim().toLowerCase())
+              )
+              const wrong = distractors.length >= 4 ? distractors.slice(0, 4) : [...distractors, ...fallback].slice(0, 4)
+              const opts = shuffleListeningWords([correctWord, ...wrong])
+              setReviewListeningVisibleOptions(opts)
+            } finally {
+              setReviewListeningDistractorsLoading(false)
+            }
+          }
+          void loadFirstRound()
         } else {
           setReviewDrillStage('idle')
           setReviewMiniPackCompleted(writingRestored && writingCompletedRestored)
@@ -5904,7 +6136,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
     setReviewListeningVisibleOptions([])
     setReviewListeningRemainingOptions([])
     setReviewListeningExpectedKeywords([])
-    setReviewListeningRequiredCount(3)
+    setReviewListeningRequiredCount(1)
     setReviewListeningResultByWord({})
     setReviewListeningSelected([])
     setReviewSpeakingTargetSentence('')
@@ -5933,6 +6165,8 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
     setIntentExplainBusyByMessageId({})
     setOpeningTranslateByMessageId({})
     setOpeningTranslateBusyByMessageId({})
+    setStudentTranslateByMessageId({})
+    setStudentTranslateBusyByMessageId({})
     setLatestPronunciationScore(null)
     setLatestWeakWords([])
     setLatestPronunciationBreakdown({ accuracy: null, fluency: null, prosody: null })
@@ -6040,13 +6274,10 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
         setLearnerProfileGenderDraft(
           metaGender === 'male' || metaGender === 'female' || metaGender === 'other' ? metaGender : ''
         )
-        if (typeof window !== 'undefined') {
-          const dismissed = window.localStorage.getItem(LEARNER_PROFILE_PROMPT_DISMISSED_KEY) === '1'
-          const missingProfileInfo = !resolvedName || !metaJob || !metaCity || !metaAge || !metaGender
-          if (!dismissed && missingProfileInfo) {
-            setLearnerProfilePromptOpen(true)
-          }
-        }
+        void metaJob
+        void metaCity
+        void metaAge
+        void metaGender
       } catch {
         // keep page usable when profile lookup fails
       }
@@ -6141,7 +6372,9 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
       // Đảm bảo từ mới được trích từ đúng nội dung học viên cần luyện.
       const idea2 = String(mainSentenceByMessageId[message.id] || '').trim()
       const idea3 = String(intentAnswerByMessageId[message.id] || '').trim()
-      const tokenSource = [idea2, idea3].filter(Boolean).join('\n') || message.text
+      const tokenSource = isPresetPageSession
+        ? (idea3 || message.text)
+        : ([idea2, idea3].filter(Boolean).join('\n') || message.text)
       // Always use AI tokenization for accuracy across mixed/target scripts.
       const mustUseAi = true
       if (mustUseAi || shouldUseAiTokenize(tokenSource)) {
@@ -6158,7 +6391,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
     if (Object.keys(localUpdates).length > 0) {
       setTokensByMessageId((prev) => ({ ...prev, ...localUpdates }))
     }
-  }, [learningMode, messages, tokensByMessageId, tokenizingByMessageId, mainSentenceByMessageId, intentAnswerByMessageId])
+  }, [learningMode, messages, tokensByMessageId, tokenizingByMessageId, mainSentenceByMessageId, intentAnswerByMessageId, isPresetPageSession])
 
   useEffect(() => {
     const latestTeacherWithTokens = [...messages]
@@ -6279,6 +6512,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
       drillType?: 'listening'
       drillSelectedWords?: string[]
       drillSpeaking?: boolean
+      forcePresetReplaySubmission?: boolean
     }
   ) => {
     const studentText = String(raw ?? draft).trim()
@@ -6303,7 +6537,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
       isPresetPageSession
       && source === 'mic'
       && !isFromDrill
-      && !hadExistingMessage
+      && (!hadExistingMessage || opts?.forcePresetReplaySubmission === true)
     if (isPresetPageSession && !isFromDrill && source === 'text') {
       toast({
         title: localText('Bài học có sẵn dùng ghi âm', 'Saved lesson uses voice recording'),
@@ -6340,12 +6574,14 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
       updateMessageText(studentMessageId, studentText)
     }
     if (!isFromDrill) setDraft('')
-    if (shouldAppendStudentMessage && studentMessageId) {
-      void saveHistoryMessage({ role: 'student', text: studentText, audioUrl: opts?.studentAudioUrl || '' })
+    if (shouldAppendStudentMessage && studentMessageId && !persistedMessageIdsRef.current[studentMessageId]) {
+      persistedMessageIdsRef.current[studentMessageId] = true
+      void saveHistoryMessage({ role: 'student', text: studentText, audioUrl: opts?.studentAudioUrl || '', clientMessageId: studentMessageId })
         .then(() => {
           persistedMessageIdsRef.current[studentMessageId] = true
         })
         .catch(() => {
+          delete persistedMessageIdsRef.current[studentMessageId]
           // keep conversation usable if history save fails
         })
     }
@@ -6396,6 +6632,8 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
         intentAnswer?: string
         mainSentence?: string
         replayedFromPreset?: boolean
+        strictReplayLocked?: boolean
+        presetReplayNextExpectedStudentText?: string
         reviewDrill?: {
           type?: 'speaking' | 'listening' | 'done'
           prompt?: string
@@ -6411,6 +6649,15 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
       }
       if (!ok) {
         throw new Error(payload.error || localText('Không nhận được phản hồi từ giáo viên AI.', 'No response received from AI teacher.'))
+      }
+      if (isPresetPageSession && payload.replayedFromPreset) {
+        const nextExpected = sanitizeLearnerReadingSentence(String(payload.presetReplayNextExpectedStudentText || '').trim())
+        setPresetReplayExpectedSentence(
+          nextExpected && !isUnsafePresetReadingSentence(nextExpected) ? nextExpected : ''
+        )
+        const nextTurnIdx = presetReplayNextTurnIndex + 1
+        setPresetReplayNextTurnIndex(nextTurnIdx)
+        void fetchSessionWords(undefined, nextTurnIdx)
       }
       if (!isFromDrill) {
         const randomThinkingDelayMs = 2000 + Math.floor(Math.random() * 2001)
@@ -6557,10 +6804,15 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
           source
         )
         try {
+          const audioMainSentence = isPresetReplayReply ? '' : mainSentence
+          const audioCorrectionNote = isPresetReplayReply ? '' : correctionNote
+          const audioIntentAnswer = isPresetReplayReply
+            ? String(intentAnswer || mainSentence || correctionNote).trim()
+            : intentAnswer
           await generateAndStoreTeacherAudio(teacherMessageId, speakText, {
-            mainSentence,
-            correctionNote,
-            intentAnswer,
+            mainSentence: audioMainSentence,
+            correctionNote: audioCorrectionNote,
+            intentAnswer: audioIntentAnswer,
             delayBeforePlayMs: opts?.drillSpeaking ? 1800 : undefined,
           })
         } catch {
@@ -6598,7 +6850,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
           setReviewListeningVisibleOptions([])
           setReviewListeningRemainingOptions([])
           setReviewListeningExpectedKeywords([])
-          setReviewListeningRequiredCount(3)
+          setReviewListeningRequiredCount(1)
           setReviewListeningResultByWord({})
           setReviewListeningSelected([])
           setSpeakingDrillPhase('idle')
@@ -6651,50 +6903,70 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
         setSpeakingDrillPhase('idle')
         setSpeakingDrillCycleCount(0)
         setSpeakingDrillBlob(null)
-        let optsWords = Array.isArray(payload.reviewDrill.options)
-          ? payload.reviewDrill.options.map((x) => String(x || '').trim()).filter(Boolean)
-          : []
-        if (optsWords.length === 0) {
-          const promptForFallback = String(
-            payload.reviewDrill.prompt || payload.intentAnswer || payload.mainSentence || ''
-          ).trim()
-          optsWords = promptForFallback
-            .replace(/[^\p{L}\p{N}\s]/gu, ' ')
-            .split(/\s+/)
-            .map((x) => x.trim())
-            .filter((x) => x.length >= 2)
-            .slice(0, 10)
-        }
+        const studentTurnCount = messages.filter((m) => m.role === 'student').length
+        const turnIdx = Math.max(-1, studentTurnCount - 1)
+        setReviewListeningTurnIndex(turnIdx)
         const promptForListening = String(
           payload.reviewDrill.prompt || payload.intentAnswer || payload.mainSentence || ''
         ).trim()
-        const expectedKeywords = Array.isArray(payload.reviewDrill.expectedKeywords)
+        const tokenList = Array.isArray(payload.reviewDrill.expectedKeywords)
           ? payload.reviewDrill.expectedKeywords.map((x) => String(x || '').trim()).filter(Boolean)
-          : []
-        const requiredCountRaw = Number(payload.reviewDrill.minMatchedKeywords || 3)
-        const requiredCount = Number.isFinite(requiredCountRaw)
-          ? Math.max(1, Math.min(3, Math.floor(requiredCountRaw)))
-          : 3
-        const uniqueOptions = Array.from(new Set(optsWords))
-        const visibleLimit = Math.min(8, Math.max(requiredCount + 2, 5))
-        const seeded = ensureListeningVisibleHasCorrectOption(
-          uniqueOptions.slice(0, visibleLimit),
-          uniqueOptions.slice(visibleLimit),
-          uniqueOptions,
-          expectedKeywords
-        )
+          : promptForListening
+            .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+            .split(/\s+/)
+            .map((x) => x.trim().toLowerCase())
+            .filter((x) => x.length >= 2)
+            .slice(0, 24)
+        const sentenceLower = promptForListening.toLowerCase()
+        const norm = (w: string) => String(w || '').trim().toLowerCase()
+        const inSentence = (w: string) => sentenceLower.includes(norm(w)) || new RegExp(`\\b${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(promptForListening)
         setReviewListeningPrompt(promptForListening)
-        setReviewListeningOptions(uniqueOptions)
-        setReviewListeningVisibleOptions(seeded.visible)
-        setReviewListeningRemainingOptions(seeded.remaining)
-        setReviewListeningExpectedKeywords(expectedKeywords)
-        setReviewListeningRequiredCount(requiredCount)
+        setReviewListeningOptions(tokenList)
+        setReviewListeningExpectedKeywords(tokenList)
+        setReviewListeningRequiredCount(3)
+        setReviewListeningCorrectCount(0)
+        setReviewListeningCurrentWordIndex(0)
+        setReviewListeningCollectedCorrect([])
         setReviewListeningResultByWord({})
         setReviewListeningSelected([])
         setReviewListeningPopupOpen(true)
+        setReviewListeningVisibleOptions([])
+        setReviewListeningRemainingOptions([])
         if (isFromDrill && payload.correctionNote) {
           toast({ title: payload.correctionNote, variant: 'default' })
         }
+        const loadFirstRound = async () => {
+          let idx = 0
+          let correctWord = ''
+          for (; idx < tokenList.length; idx++) {
+            const w = tokenList[idx]
+            if (w && inSentence(w)) {
+              correctWord = w
+              break
+            }
+          }
+          if (!correctWord) return
+          setReviewListeningCurrentWordIndex(idx)
+          setReviewListeningCurrentCorrectWord(correctWord)
+          setReviewListeningDistractorsLoading(true)
+          try {
+            const { data } = await getListeningDistractors({
+              sessionId,
+              turnIndex: turnIdx >= 0 ? turnIdx : undefined,
+              exclude: [correctWord, ...tokenList],
+              limit: 4,
+              languageCode,
+            })
+            const distractors = Array.isArray((data as { words?: string[] }).words) ? (data as { words?: string[] }).words : []
+            const fallback = buildListeningFallbackCandidates(promptForListening, languageCode).filter((x) => norm(x) !== norm(correctWord) && !tokenList.includes(norm(x)))
+            const wrong = distractors.length >= 4 ? distractors.slice(0, 4) : [...distractors, ...fallback].slice(0, 4)
+            const opts = shuffleListeningWords([correctWord, ...wrong])
+            setReviewListeningVisibleOptions(opts)
+          } finally {
+            setReviewListeningDistractorsLoading(false)
+          }
+        }
+        void loadFirstRound()
       } else if (payload.reviewDrill?.type === 'done') {
         setReviewDrillStage('idle')
         setReviewMiniPackCompleted(true)
@@ -6707,6 +6979,11 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
         setReviewListeningRequiredCount(3)
         setReviewListeningResultByWord({})
         setReviewListeningSelected([])
+        setReviewListeningCorrectCount(0)
+        setReviewListeningCurrentWordIndex(0)
+        setReviewListeningCollectedCorrect([])
+        setReviewListeningCurrentCorrectWord('')
+        setReviewListeningTurnIndex(-1)
         setSpeakingDrillPhase('idle')
         setSpeakingDrillCycleCount(0)
         setSpeakingDrillBlob(null)
@@ -6727,7 +7004,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
 
   const submitReviewListeningDrill = async (pickedOverride?: string[]) => {
     if (reviewListeningSubmitBusy) return
-    const picked = (pickedOverride || reviewListeningSelected).map((x) => String(x || '').trim()).filter(Boolean)
+    const picked = (pickedOverride || reviewListeningCollectedCorrect).map((x) => String(x || '').trim()).filter(Boolean)
     if (picked.length !== reviewListeningRequiredCount) {
       toast({
         title: localText('Chưa đủ từ đúng', 'Not enough correct words yet'),
@@ -6751,45 +7028,9 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
     }
   }
 
-  useEffect(() => {
-    if (reviewDrillStage !== 'listening') return
-    if (!reviewListeningPopupOpen) return
-    if (reviewListeningSubmitBusy) return
-    if (reviewListeningSelected.length < reviewListeningRequiredCount) return
-    void submitReviewListeningDrill(reviewListeningSelected)
-  }, [
-    reviewDrillStage,
-    reviewListeningPopupOpen,
-    reviewListeningSubmitBusy,
-    reviewListeningSelected,
-    reviewListeningRequiredCount,
-  ])
+  // Listening drill submits inline when user gets 3 correct (no auto-submit from selection)
 
-  useEffect(() => {
-    if (reviewDrillStage !== 'listening') return
-    if (!reviewListeningPopupOpen) return
-    const next = ensureListeningVisibleHasCorrectOption(
-      reviewListeningVisibleOptions,
-      reviewListeningRemainingOptions,
-      reviewListeningOptions,
-      reviewListeningExpectedKeywords
-    )
-    const sameVisible =
-      next.visible.length === reviewListeningVisibleOptions.length
-      && next.visible.every((x, i) => x === reviewListeningVisibleOptions[i])
-    const sameRemaining =
-      next.remaining.length === reviewListeningRemainingOptions.length
-      && next.remaining.every((x, i) => x === reviewListeningRemainingOptions[i])
-    if (!sameVisible) setReviewListeningVisibleOptions(next.visible)
-    if (!sameRemaining) setReviewListeningRemainingOptions(next.remaining)
-  }, [
-    reviewDrillStage,
-    reviewListeningPopupOpen,
-    reviewListeningVisibleOptions,
-    reviewListeningRemainingOptions,
-    reviewListeningOptions,
-    reviewListeningExpectedKeywords,
-  ])
+  // New listening flow: 1 correct + 4 wrong per round, built client-side. No heal effect.
 
   useEffect(() => {
     if (reviewDrillStage !== 'listening') return
@@ -6844,45 +7085,83 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
     languageCode,
   ])
 
-  const onReviewListeningWordTap = (word: string) => {
-    if (reviewListeningSubmitBusy) return
+  const onReviewListeningWordTap = async (word: string) => {
+    if (reviewListeningSubmitBusy || reviewListeningDistractorsLoading) return
     const normalizedWord = String(word || '').trim().toLowerCase()
     if (!normalizedWord) return
-    const expected = new Set(reviewListeningExpectedKeywords.map((x) => String(x || '').trim().toLowerCase()).filter(Boolean))
-    const isCorrect = expected.has(normalizedWord)
-    setReviewListeningResultByWord((prev) => ({ ...prev, [word]: isCorrect ? 'correct' : 'wrong' }))
+    const currentCorrect = String(reviewListeningCurrentCorrectWord || '').trim().toLowerCase()
+    const isCorrect = currentCorrect && normalizedWord === currentCorrect
 
-    if (isCorrect && !reviewListeningSelected.includes(word)) {
-      const nextPicked = [...reviewListeningSelected, word].slice(0, reviewListeningRequiredCount)
-      setReviewListeningSelected(nextPicked)
+    setReviewListeningResultByWord((r) => ({ ...r, [word]: isCorrect ? 'correct' : 'wrong' }))
+
+    const showFeedbackMs = 600
+    const applyNext = () => {
+      setReviewListeningResultByWord({})
+      setReviewListeningDistractorsLoading(true)
     }
 
-    window.setTimeout(() => {
-      let replacement = ''
-      setReviewListeningRemainingOptions((prev) => {
-        if (prev.length === 0) return prev
-        replacement = String(prev[0] || '').trim()
-        return prev.slice(1)
-      })
-      setReviewListeningVisibleOptions((prev) => {
-        if (!replacement) {
-          const currentSet = new Set(prev)
-          replacement =
-            reviewListeningOptions.find((x) => {
-              const t = String(x || '').trim()
-              return t && t !== word && !currentSet.has(t)
-            }) || ''
+    if (isCorrect) {
+      const newCollected = [...reviewListeningCollectedCorrect, word]
+      setReviewListeningCollectedCorrect(newCollected)
+      setReviewListeningCorrectCount((c) => c + 1)
+
+      if (newCollected.length >= 3) {
+        setTimeout(() => void submitReviewListeningDrill(newCollected), showFeedbackMs)
+        return
+      }
+
+      const tokenList = reviewListeningExpectedKeywords
+      const prompt = reviewListeningPrompt
+      const sentenceLower = prompt.toLowerCase()
+      const inSentence = (w: string) => sentenceLower.includes(String(w || '').trim().toLowerCase())
+      let nextIdx = reviewListeningCurrentWordIndex + 1
+      let nextCorrect = ''
+      for (; nextIdx < tokenList.length; nextIdx++) {
+        const w = tokenList[nextIdx]
+        if (w && inSentence(w) && !newCollected.some((c) => String(c || '').trim().toLowerCase() === String(w || '').trim().toLowerCase())) {
+          nextCorrect = w
+          break
         }
-        const next = replacement ? prev.map((x) => (x === word ? replacement : x)) : [...prev]
-        return shuffleListeningWords(next)
-      })
-      setReviewListeningResultByWord((prev) => {
-        const next = { ...prev }
-        delete next[word]
-        if (replacement) delete next[replacement]
-        return next
-      })
-    }, 320)
+      }
+      if (!nextCorrect) return
+      setReviewListeningCurrentWordIndex(nextIdx)
+      setReviewListeningCurrentCorrectWord(nextCorrect)
+      setTimeout(() => {
+        applyNext()
+        getListeningDistractors({
+          sessionId,
+          turnIndex: reviewListeningTurnIndex >= 0 ? reviewListeningTurnIndex : undefined,
+          exclude: [nextCorrect, ...tokenList, ...newCollected],
+          limit: 4,
+          languageCode,
+        }).then(({ data }) => {
+          const distractors = Array.isArray((data as { words?: string[] }).words) ? (data as { words?: string[] }).words : []
+          const fallback = buildListeningFallbackCandidates(prompt, languageCode).filter(
+            (x) => String(x || '').trim().toLowerCase() !== nextCorrect && !tokenList.some((t) => String(t || '').trim().toLowerCase() === String(x || '').trim().toLowerCase())
+          )
+          const wrong = distractors.length >= 4 ? distractors.slice(0, 4) : [...distractors, ...fallback].slice(0, 4)
+          setReviewListeningVisibleOptions(shuffleListeningWords([nextCorrect, ...wrong]))
+        }).finally(() => setReviewListeningDistractorsLoading(false))
+      }, showFeedbackMs)
+    } else {
+      setTimeout(() => {
+        applyNext()
+        getListeningDistractors({
+          sessionId,
+          turnIndex: reviewListeningTurnIndex >= 0 ? reviewListeningTurnIndex : undefined,
+          exclude: [currentCorrect, ...reviewListeningExpectedKeywords],
+          limit: 4,
+          languageCode,
+        }).then(({ data }) => {
+          const distractors = Array.isArray((data as { words?: string[] }).words) ? (data as { words?: string[] }).words : []
+          const fallback = buildListeningFallbackCandidates(reviewListeningPrompt, languageCode).filter(
+            (x) => String(x || '').trim().toLowerCase() !== currentCorrect && !reviewListeningExpectedKeywords.some((t) => String(t || '').trim().toLowerCase() === String(x || '').trim().toLowerCase())
+          )
+          const wrong = distractors.length >= 4 ? distractors.slice(0, 4) : [...distractors, ...fallback].slice(0, 4)
+          setReviewListeningVisibleOptions(shuffleListeningWords([currentCorrect, ...wrong]))
+        }).finally(() => setReviewListeningDistractorsLoading(false))
+      }, showFeedbackMs)
+    }
   }
 
   const startDrillListenAndRecord = async () => {
@@ -7874,6 +8153,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
         // keep local object URL for in-session replay if upload fails
       }
       if (isPresetDirectReadFlow) {
+        persistedMessageIdsRef.current[studentMessageId] = true
         void saveHistoryMessage({
           role: 'student',
           text: transcript,
@@ -7881,14 +8161,14 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
           clientMessageId: studentMessageId,
         }).then(() => {
           persistedMessageIdsRef.current[studentMessageId] = true
-        }).catch(() => {})
-        setBusy(false)
-        setAwaitingTeacherReply(false)
-        return
+        }).catch(() => {
+          delete persistedMessageIdsRef.current[studentMessageId]
+        })
       }
       await handleSend(transcript, 'mic', analysis, {
         existingStudentMessageId: studentMessageId,
         studentAudioUrl: uploadedStudentAudioUrl || localAudioUrl,
+        forcePresetReplaySubmission: isPresetDirectReadFlow,
       })
     } catch (e) {
       const msg = unknownErrorMsg(e)
@@ -8876,23 +9156,90 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                   {messages.map((m, idx) => (
                     <div
                       key={m.id}
-                      className={`min-w-0 break-words rounded-md px-3 py-2 text-sm ${
-                        m.role === 'teacher' ? 'bg-indigo-50 border border-indigo-100' : 'bg-white border'
+                      className={`min-w-0 break-words rounded-md px-3 py-2.5 text-base ${
+                        m.role === 'teacher'
+                          ? 'border border-indigo-200 bg-indigo-50/90 text-indigo-900'
+                          : 'border border-emerald-200 bg-emerald-50/70 text-emerald-900'
                       }`}
                     >
-                      <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      <p
+                        className={`mb-1.5 text-sm font-semibold uppercase tracking-wide ${
+                          m.role === 'teacher' ? 'text-indigo-700' : 'text-emerald-700'
+                        }`}
+                      >
                         {m.role === 'teacher' ? teacherRoleLabel : localText('Học sinh', 'Student')}
                       </p>
                       {m.role === 'teacher' ? (
                         <div className="space-y-2">
                           {(() => {
-                            if (learningMode === 'reflex') return <p className="whitespace-pre-wrap break-words">{m.text}</p>
+                            if (learningMode === 'reflex') return <p className="whitespace-pre-wrap break-words text-base leading-relaxed">{m.text}</p>
                             const correctionNote = String(correctionNoteByMessageId[m.id] || '').trim()
                             const correctedSentence = String(mainSentenceByMessageId[m.id] || '').trim()
                             const intentAnswer = String(intentAnswerByMessageId[m.id] || '').trim()
+                            if (isPresetPageSession && idx !== 0) {
+                              const idea3Only = String(intentAnswer || m.text || '').trim()
+                              const skipPinyin3 = idea3Only && hasEmbeddedPinyin(idea3Only)
+                              if (supportsLatinTransliteration && idea3Only && !skipPinyin3) {
+                                void ensureWritingRomanization(idea3Only)
+                              }
+                              const pinyin3 = !skipPinyin3 && idea3Only
+                                ? sanitizeRomanizedText(String(writingRomanizationByKey[toWritingRomanizationKey(idea3Only)] || '').trim())
+                                : ''
+                              const busy3 = !skipPinyin3 && idea3Only
+                                ? Boolean(writingRomanizationBusyByKey[toWritingRomanizationKey(idea3Only)])
+                                : false
+                              return (
+                                <div className="space-y-1 break-words text-base">
+                                  <p>{idea3Only}</p>
+                                  {(pinyin3 || busy3) ? (
+                                    <p className="mt-0.5 text-slate-500">
+                                      {localText('Phiên âm Latin:', 'Latin transliteration:')}{' '}
+                                      {busy3 ? localText('đang tải...', 'loading...') : pinyin3}
+                                    </p>
+                                  ) : null}
+                                  {idea3Only ? (
+                                    <div className="space-y-1">
+                                      <div className="flex flex-wrap gap-2">
+                                        <Button
+                                          type="button"
+                                          variant="outline"
+                                          size="sm"
+                                          className="min-h-[44px] px-3 text-xs"
+                                          onClick={() => void explainIntentAnswer(m.id)}
+                                          disabled={Boolean(intentExplainBusyByMessageId[m.id])}
+                                        >
+                                          {intentExplainBusyByMessageId[m.id]
+                                            ? localText('Đang dịch...', 'Translating...')
+                                            : intentExplainByMessageId[m.id]
+                                              ? localText('Ẩn dịch câu này', 'Hide this translation')
+                                              : localText('Dịch câu này', 'Translate this sentence')}
+                                        </Button>
+                                        <Button
+                                          type="button"
+                                          variant="secondary"
+                                          size="sm"
+                                          className="min-h-[44px] px-3 text-xs"
+                                          onClick={() => void replayTeacherIntentAnswer(m.id)}
+                                          disabled={isReplayButtonDisabled(`${m.id}__intent_answer`, hasCachedTeacherAudio(`${m.id}__intent_answer`))}
+                                        >
+                                          <Volume2 className="mr-2 h-4 w-4" />
+                                          {localText('Nghe đọc chuẩn', 'Play standard reading')}
+                                        </Button>
+                                      </div>
+                                      {intentExplainByMessageId[m.id] ? (
+                                        <p className="text-slate-600">
+                                          <span className="font-semibold">{localText('Dịch câu này:', 'This sentence translation:')}</span>{' '}
+                                          {intentExplainByMessageId[m.id]}
+                                        </p>
+                                      ) : null}
+                                    </div>
+                                  ) : null}
+                                </div>
+                              )
+                            }
                             const correctionItems = correctionsByMessageId[m.id] || []
                             const hasStructured = Boolean(correctionNote || correctedSentence || intentAnswer || correctionItems.length > 0)
-                            if (!hasStructured) return <p className="break-words">{m.text}</p>
+                            if (!hasStructured) return <p className="break-words text-base leading-relaxed">{m.text}</p>
                             const skipPinyin2 = correctedSentence && hasEmbeddedPinyin(correctedSentence)
                             const skipPinyin3 = intentAnswer && hasEmbeddedPinyin(intentAnswer)
                             if (supportsLatinTransliteration && correctedSentence && !skipPinyin2) void ensureWritingRomanization(correctedSentence)
@@ -8902,13 +9249,13 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                             const busy2 = !skipPinyin2 && correctedSentence ? Boolean(writingRomanizationBusyByKey[toWritingRomanizationKey(correctedSentence)]) : false
                             const busy3 = !skipPinyin3 && intentAnswer ? Boolean(writingRomanizationBusyByKey[toWritingRomanizationKey(intentAnswer)]) : false
                             return (
-                              <div className="space-y-1 break-words text-xs">
+                              <div className="space-y-1 break-words text-base">
                                 <p>
                                   <span className="font-semibold text-rose-700">{localText('Ý 1 - Sửa lỗi:', 'Idea 1 - Error fix:')}</span>{' '}
                                   {correctionNote || localText('Không có lỗi lớn cần sửa.', 'No major correction needed.')}
                                 </p>
                                 {correctionItems.length > 0 ? (
-                                  <div className="ml-1 rounded-md border border-rose-100 bg-rose-50/40 p-2 text-[11px]">
+                                  <div className="ml-1 rounded-md border border-rose-100 bg-rose-50/40 p-2 text-base">
                                     <p className="font-semibold text-rose-800">{localText('Lỗi cần sửa', 'Corrections needed')}</p>
                                     <div className="mt-1 space-y-1.5">
                                       {correctionItems.map((item, itemIdx) => (
@@ -9002,11 +9349,16 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                           })()}
                           {learningMode !== 'reflex' ? (
                           <>
+                          {(() => {
+                            const rawTokens = tokensByMessageId[m.id] || []
+                            const displayTokens = rawTokens
+                            return (
+                          <>
                           <div className="flex flex-wrap gap-1">
-                            {(tokensByMessageId[m.id] || []).map((word, idx) => {
+                            {displayTokens.map((word, idx) => {
                               const key = `${m.id}:${word.toLowerCase()}`
                               const withUsage = tokensWithUsageByMessageId[m.id]
-                              const usageFromTokenize = withUsage?.[idx]?.usageLevel ?? withUsage?.find((t) => t.word.toLowerCase() === word.toLowerCase())?.usageLevel
+                              const usageFromTokenize = withUsage?.find((t) => t.word.toLowerCase() === word.toLowerCase())?.usageLevel
                               const insight = wordInsightByKey[key]
                               const saved = findSessionWord(word)
                               const usageLevel = usageFromTokenize ?? insight?.usageLevel ?? saved?.usageLevel
@@ -9019,9 +9371,11 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                                       ? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
                                       : 'border-slate-200 hover:bg-slate-50'
                               const sentenceForWordContext =
-                                [String(mainSentenceByMessageId[m.id] || '').trim(), String(intentAnswerByMessageId[m.id] || '').trim()]
-                                  .filter(Boolean)
-                                  .join('\n') || m.text
+                                isPresetPageSession
+                                  ? (String(intentAnswerByMessageId[m.id] || '').trim() || m.text)
+                                  : ([String(mainSentenceByMessageId[m.id] || '').trim(), String(intentAnswerByMessageId[m.id] || '').trim()]
+                                      .filter(Boolean)
+                                      .join('\n') || m.text)
                               return (
                                 <Button
                                   key={`${m.id}-word-${idx}`}
@@ -9057,13 +9411,16 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                           </div>
                           {tokenizingByMessageId[m.id] ? (
                             <p className="text-xs text-muted-foreground">{localText('AI đang tách từ theo ngôn ngữ...', 'AI is tokenizing words by language...')}</p>
-                          ) : (tokensByMessageId[m.id] || []).length === 0 ? (
+                          ) : displayTokens.length === 0 ? (
                             <p className="text-xs text-muted-foreground">{localText('Không có token phù hợp để bấm trong câu này.', 'No tappable tokens found in this sentence.')}</p>
                           ) : (
                             <p className="text-xs text-muted-foreground">
                               {localText('Màu hiển thị ngay sau khi tách từ. Xanh dương = dùng nhiều, xanh lá = trung bình, vàng = ít dùng. Bấm từ để xem nghĩa chi tiết.', 'Colors show right after tokenization. Blue = high use, green = medium, yellow = low. Tap for full meaning.')}
                             </p>
                           )}
+                          </>
+                            )
+                          })()}
                           {openedWordKey.startsWith(`${m.id}:`) ? (
                             <div className="rounded-xl border border-border/70 bg-white p-2 text-xs">
                               {wordInsightByKey[openedWordKey] ? (
@@ -9231,7 +9588,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                         </div>
                       ) : (
                         <div className="space-y-2">
-                          <p>{m.text}</p>
+                          <p className="text-base leading-relaxed">{m.text}</p>
                         </div>
                       )}
                       {m.role === 'teacher' ? (
@@ -9273,7 +9630,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                                     : localText('Dịch câu đầu bài', 'Translate opening line')}
                               </Button>
                             </>
-                          ) : (
+                          ) : isSavedStandalonePage ? null : (
                             <>
                               <Button
                                 type="button"
@@ -9318,26 +9675,49 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                             </>
                           )}
                         </div>
-                      ) : String(studentAudioByMessageId[m.id] || '').trim() ? (
+                      ) : m.role === 'student' ? (
                         <div className="mt-2 flex flex-wrap gap-2">
+                          {String(studentAudioByMessageId[m.id] || '').trim() ? (
+                            <>
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => void replayStudentMessage(m.id)}
+                              >
+                                <Volume2 className="mr-2 h-4 w-4" />
+                                {localText('Nghe lại học viên', 'Play student recording')}
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => void replayDbStandardForStudentMessage(m.id, m.text)}
+                              >
+                                <Volume2 className="mr-2 h-4 w-4" />
+                                {localText('Nghe đọc chuẩn', 'Play standard reading')}
+                              </Button>
+                            </>
+                          ) : null}
                           <Button
                             type="button"
-                            variant="secondary"
+                            variant="outline"
                             size="sm"
-                            onClick={() => void replayStudentMessage(m.id)}
+                            onClick={() => void translateStudentMessage(m.id, m.text)}
+                            disabled={Boolean(studentTranslateBusyByMessageId[m.id])}
                           >
-                            <Volume2 className="mr-2 h-4 w-4" />
-                            {localText('Nghe lại học viên', 'Play student recording')}
+                            {studentTranslateBusyByMessageId[m.id]
+                              ? localText('Đang dịch...', 'Translating...')
+                              : studentTranslateByMessageId[m.id]
+                                ? localText('Ẩn dịch câu này', 'Hide this translation')
+                                : localText('Dịch câu này', 'Translate this sentence')}
                           </Button>
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            size="sm"
-                            onClick={() => void replayDbStandardForStudentMessage(m.id)}
-                          >
-                            <Volume2 className="mr-2 h-4 w-4" />
-                            {localText('Nghe đọc chuẩn', 'Play standard reading')}
-                          </Button>
+                          {studentTranslateByMessageId[m.id] ? (
+                            <p className="w-full text-xs text-slate-600">
+                              <span className="font-semibold">{localText('Dịch câu này:', 'This sentence translation:')}</span>{' '}
+                              {studentTranslateByMessageId[m.id]}
+                            </p>
+                          ) : null}
                         </div>
                       ) : null}
                       {m.role === 'teacher' && learningMode !== 'reflex' && openingTranslateByMessageId[m.id] ? (
@@ -9349,13 +9729,13 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                     </div>
                   ))}
                   {busy && (messages.length === 0 || messages[messages.length - 1]?.role !== 'teacher') ? (
-                      <div className="min-w-0 rounded-md border border-indigo-200 bg-indigo-50/80 px-3 py-3 text-sm animate-pulse">
-                      <p className="mb-1.5 break-words text-xs font-semibold uppercase tracking-wide text-indigo-600">
+                      <div className="min-w-0 rounded-md border border-indigo-200 bg-indigo-50/90 px-3 py-3 text-base text-indigo-900 animate-pulse">
+                      <p className="mb-1.5 text-sm font-semibold uppercase tracking-wide text-indigo-700">
                         {localText('Teacher', 'Teacher')}
                       </p>
-                      <div className="flex min-w-0 items-center gap-2 text-indigo-700">
+                      <div className="flex min-w-0 items-center gap-2 text-indigo-800">
                         <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
-                        <p className="min-w-0 break-words text-xs">
+                        <p className="min-w-0 break-words text-sm">
                           {localText(
                             'Thầy/cô đang suy nghĩ và chuẩn bị giảng giải cho bạn...',
                             'Teacher is thinking and preparing an explanation for you...'
@@ -9446,23 +9826,25 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                 ) : null}
                 {!isMiniDrillBlocking && isPresetPageSession && latestMainSentenceForLearner ? (
                   <div className="rounded-md border border-emerald-200 bg-emerald-50/70 px-3 py-2 text-xs text-emerald-800">
-                    <p className="font-semibold">{localText('Câu nói chính để bạn đọc mic', 'Main sentence for microphone practice')}</p>
-                    <p className="mt-1 break-words text-sm font-medium text-emerald-900">
-                      {latestMainSentenceForLearner.sentence}
-                    </p>
-                    <p className="mt-1 text-[11px] text-emerald-700">
+                    <p className="font-semibold text-[11px] text-emerald-700">
                       {localText(
                         'Bấm "Nói" để đọc theo câu này, sau đó bấm "Gửi".',
                         'Tap "Speak" to read this sentence, then tap "Send".'
                       )}
                     </p>
-                    <div className="mt-2 flex flex-wrap gap-2">
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                      <p className="m-0 break-words text-sm font-medium text-emerald-900">
+                        {latestMainSentenceForLearner.sentence}
+                      </p>
                       <Button
                         type="button"
                         size="sm"
                         variant="secondary"
-                        onClick={() => void replayTeacherMainSentence(latestMainSentenceForLearner.messageId, latestMainSentenceForLearner.teacherText)}
-                        disabled={isReplayButtonDisabled(`${latestMainSentenceForLearner.messageId}__main`, hasCachedTeacherAudio(`${latestMainSentenceForLearner.messageId}__main`))}
+                        onClick={() => void replayCorrectionSentence(latestMainSentenceForLearner.sentence)}
+                        disabled={isReplayButtonDisabled(
+                          correctionAudioKey(stripPhoneticForTts(latestMainSentenceForLearner.sentence, languageCode)),
+                          hasCachedTeacherAudio(correctionAudioKey(stripPhoneticForTts(latestMainSentenceForLearner.sentence, languageCode)))
+                        )}
                       >
                         <Volume2 className="mr-2 h-4 w-4" />
                         {localText('Nghe đọc chuẩn', 'Play standard reading')}
@@ -9924,7 +10306,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                   </div>
                 </div>
               ) : null}
-              {learningMode === 'review' && reviewDrillStage === 'speaking' && (!isPresetPageSession || hasStudentTurnsInCurrentSession) ? (
+              {learningMode === 'review' && reviewDrillStage === 'speaking' ? (
                 <div ref={miniSpeakingBlockRef} className="min-w-0 rounded-md border border-indigo-200 bg-indigo-50/60 p-2.5">
                   {!isPresetPageSession ? (
                     <div className="mb-2 space-y-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
@@ -10065,7 +10447,7 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                   </div>
                 </div>
               ) : null}
-              {learningMode === 'review' && reviewDrillStage === 'listening' && (!isPresetPageSession || hasStudentTurnsInCurrentSession) && reviewListeningVisibleOptions.length > 0 && !reviewListeningPopupOpen ? (
+              {learningMode === 'review' && reviewDrillStage === 'listening' && reviewListeningVisibleOptions.length > 0 && !reviewListeningPopupOpen ? (
                 <div ref={miniListeningBlockRef} className="min-w-0 rounded-md border border-emerald-200 bg-emerald-50/60 p-2.5">
                   {!isPresetPageSession ? (
                     <div className="mb-2 space-y-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
@@ -10137,21 +10519,25 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                     )}
                   </p>
                   <p className="mt-1 text-xs text-emerald-700">
-                    {localText('Đúng:', 'Correct:')} {reviewListeningSelected.length}/{reviewListeningRequiredCount}
+                    {localText('Đúng:', 'Correct:')} {reviewListeningCorrectCount}/{reviewListeningRequiredCount}
                   </p>
                   <div className="mt-3 flex flex-wrap gap-2">
+                    {reviewListeningDistractorsLoading && reviewListeningVisibleOptions.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">{localText('Đang tải...', 'Loading...')}</p>
+                    ) : null}
                     {reviewListeningVisibleOptions.map((word) => {
                       const status = reviewListeningResultByWord[word]
                       const variant = status === 'correct' ? 'default' : status === 'wrong' ? 'destructive' : 'outline'
+                      const colorClass = status === 'correct' ? '!bg-emerald-600 !text-white hover:!bg-emerald-700 !border-emerald-600' : status === 'wrong' ? '!bg-red-600 !text-white hover:!bg-red-700 !border-red-600' : ''
                       return (
                         <Button
                           key={word}
                           type="button"
                           variant={variant}
                           size="sm"
-                          onClick={() => onReviewListeningWordTap(word)}
-                          disabled={reviewListeningSubmitBusy || Boolean(status)}
-                          className="h-auto min-h-[36px] whitespace-normal"
+                          onClick={() => void onReviewListeningWordTap(word)}
+                          disabled={reviewListeningSubmitBusy || reviewListeningDistractorsLoading}
+                          className={`h-auto min-h-[36px] whitespace-normal ${colorClass}`}
                         >
                           {displayListeningWord(word)}
                         </Button>
@@ -10635,21 +11021,25 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
               )}
             </p>
             <p className="mt-1 text-sm text-slate-600">
-              {localText('Đúng:', 'Correct:')} {reviewListeningSelected.length}/{reviewListeningRequiredCount}
+              {localText('Đúng:', 'Correct:')} {reviewListeningCorrectCount}/{reviewListeningRequiredCount}
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
+              {reviewListeningDistractorsLoading && reviewListeningVisibleOptions.length === 0 ? (
+                <p className="text-sm text-muted-foreground">{localText('Đang tải...', 'Loading...')}</p>
+              ) : null}
               {reviewListeningVisibleOptions.map((word) => {
                 const status = reviewListeningResultByWord[word]
                 const variant = status === 'correct' ? 'default' : status === 'wrong' ? 'destructive' : 'outline'
+                const colorClass = status === 'correct' ? '!bg-emerald-600 !text-white hover:!bg-emerald-700 !border-emerald-600' : status === 'wrong' ? '!bg-red-600 !text-white hover:!bg-red-700 !border-red-600' : ''
                 return (
                   <Button
                     key={word}
                     type="button"
                     variant={variant}
                     size="sm"
-                    onClick={() => onReviewListeningWordTap(word)}
-                    disabled={reviewListeningSubmitBusy || Boolean(status)}
-                    className="h-auto min-h-[36px] whitespace-normal"
+                    onClick={() => void onReviewListeningWordTap(word)}
+                    disabled={reviewListeningSubmitBusy || reviewListeningDistractorsLoading}
+                    className={`h-auto min-h-[36px] whitespace-normal ${colorClass}`}
                   >
                     {displayListeningWord(word)}
                   </Button>
@@ -10721,94 +11111,6 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
                   </Button>
                 </div>
               </div>
-            </div>
-          </div>
-        </div>
-      ) : null}
-      {learnerProfilePromptOpen ? (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-3 sm:items-center sm:p-4">
-          <div className="w-full max-w-md rounded-lg border bg-white p-5 shadow-xl">
-            <h3 className="text-lg font-semibold text-slate-900">
-              {localText('Thông tin cá nhân hóa học viên', 'Learner personalization info')}
-            </h3>
-            <p className="mt-2 text-sm text-slate-600">
-              {localText(
-                'Điền nhanh để hệ thống cá nhân hóa bài học có sẵn đúng theo tài khoản của bạn.',
-                'Fill these fields to personalize saved lessons to your account.'
-              )}
-            </p>
-            <div className="mt-4 space-y-3">
-              <div className="space-y-1">
-                <p className="text-xs font-medium text-slate-700">{localText('Tên hiển thị', 'Display name')}</p>
-                <Input
-                  value={learnerProfileNameDraft}
-                  onChange={(e) => setLearnerProfileNameDraft(e.target.value)}
-                  placeholder={localText('Ví dụ: Minh Anh', 'Example: Alex')}
-                  className="h-10"
-                />
-              </div>
-              <div className="space-y-1">
-                <p className="text-xs font-medium text-slate-700">{localText('Nghề nghiệp (tuỳ chọn)', 'Job title (optional)')}</p>
-                <Input
-                  value={learnerProfileJobDraft}
-                  onChange={(e) => setLearnerProfileJobDraft(e.target.value)}
-                  placeholder={localText('Ví dụ: Kỹ sư phần mềm', 'Example: Software engineer')}
-                  className="h-10"
-                />
-              </div>
-              <div className="space-y-1">
-                <p className="text-xs font-medium text-slate-700">{localText('Thành phố (tuỳ chọn)', 'City (optional)')}</p>
-                <Input
-                  value={learnerProfileCityDraft}
-                  onChange={(e) => setLearnerProfileCityDraft(e.target.value)}
-                  placeholder={localText('Ví dụ: Hà Nội', 'Example: Ho Chi Minh City')}
-                  className="h-10"
-                />
-              </div>
-              <div className="space-y-1">
-                <p className="text-xs font-medium text-slate-700">{localText('Tuổi', 'Age')}</p>
-                <Input
-                  type="number"
-                  min={1}
-                  max={120}
-                  value={learnerProfileAgeDraft}
-                  onChange={(e) => setLearnerProfileAgeDraft(e.target.value)}
-                  placeholder={localText('Ví dụ: 25', 'Example: 25')}
-                  className="h-10"
-                />
-              </div>
-              <div className="space-y-1">
-                <p className="text-xs font-medium text-slate-700">{localText('Giới tính', 'Gender')}</p>
-                <select
-                  value={learnerProfileGenderDraft}
-                  onChange={(e) => setLearnerProfileGenderDraft(e.target.value)}
-                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                >
-                  <option value="">{localText('Chọn giới tính', 'Select gender')}</option>
-                  <option value="male">{localText('Nam', 'Male')}</option>
-                  <option value="female">{localText('Nữ', 'Female')}</option>
-                  <option value="other">{localText('Khác', 'Other')}</option>
-                </select>
-              </div>
-            </div>
-            <div className="mt-4 grid gap-2 sm:grid-cols-2">
-              <Button
-                type="button"
-                onClick={() => void submitLearnerProfilePrompt()}
-                disabled={learnerProfileBusy}
-                className="min-h-[44px]"
-              >
-                {learnerProfileBusy ? localText('Đang lưu...', 'Saving...') : localText('Lưu thông tin', 'Save info')}
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={skipLearnerProfilePrompt}
-                disabled={learnerProfileBusy}
-                className="min-h-[44px]"
-              >
-                {localText('Để sau', 'Later')}
-              </Button>
             </div>
           </div>
         </div>

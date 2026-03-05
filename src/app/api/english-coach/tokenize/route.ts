@@ -9,6 +9,12 @@ type TokenizePayload = {
   sentence?: string
   targetLanguage?: string
   targetLanguageCode?: string
+  messageId?: string
+}
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+function isUuid(s: string): boolean {
+  return UUID_REGEX.test(String(s || '').trim())
 }
 
 function resolveTargetLanguageCode(rawCode: string, rawTargetLanguage: string): string {
@@ -120,6 +126,15 @@ function adminClient() {
   return createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 }
 
+/** Normalize sentence for flexible matching: trim, collapse whitespace */
+function normalizeForMatch(s: string): string {
+  return String(s || '')
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 export async function POST(request: NextRequest) {
   try {
     const apiKey = process.env.GOOGLE_API_KEY
@@ -146,8 +161,59 @@ export async function POST(request: NextRequest) {
     if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
     const { user } = auth
     const adminSupabase = adminClient()
+    const messageId = String(payload.messageId || '').trim()
 
-    const { data: cached } = await adminSupabase
+    // 0) Nếu có messageId (UUID của đoạn hỏi đáp) → lấy tokens_json trực tiếp từ message
+    if (messageId && isUuid(messageId)) {
+      const { data: msgRow } = await adminSupabase
+        .from('language_coach_messages')
+        .select('tokens_json, target_language')
+        .eq('id', messageId)
+        .eq('user_id', user.id)
+        .maybeSingle()
+
+      if (msgRow?.tokens_json) {
+        try {
+          const targetLang = String(msgRow.target_language || targetLanguage).trim()
+          const langCode = resolveTargetLanguageCode(
+            String(payload.targetLanguageCode || ''),
+            targetLang || targetLanguage
+          )
+          const parsed = JSON.parse(msgRow.tokens_json) as unknown
+          const withUsage = sanitizeTokensWithUsage(parsed, langCode)
+          if (withUsage.length > 0) {
+            console.log('[tokenize] DB_HIT_MESSAGE_ID: lấy tokens theo id message', {
+              messageId: messageId.slice(0, 8),
+              tokenCount: withUsage.length,
+            })
+            return NextResponse.json({
+              tokens: withUsage.map((t) => t.word),
+              tokensWithUsage: withUsage,
+              cached: true,
+            })
+          }
+          const tokens = sanitizeTokens(parsed, langCode)
+          if (tokens.length > 0) {
+            console.log('[tokenize] DB_HIT_MESSAGE_ID: lấy tokens theo id (fallback parse)', {
+              messageId: messageId.slice(0, 8),
+              tokenCount: tokens.length,
+            })
+            return NextResponse.json({
+              tokens,
+              tokensWithUsage: tokens.map((w) => ({ word: w, usageLevel: 'medium' as const })),
+              cached: true,
+            })
+          }
+        } catch {
+          // fall through
+        }
+      }
+    }
+
+    const normSentence = normalizeForMatch(sentence)
+
+    // 1) Check language_coach_tokenizations (exact + normalized match)
+    const { data: cachedExact } = await adminSupabase
       .from('language_coach_tokenizations')
       .select('tokens_json')
       .eq('user_id', user.id)
@@ -155,11 +221,29 @@ export async function POST(request: NextRequest) {
       .eq('sentence', sentence)
       .maybeSingle()
 
+    let cached = cachedExact
+    if (!cached?.tokens_json) {
+      const { data: tokenRows } = await adminSupabase
+        .from('language_coach_tokenizations')
+        .select('sentence, tokens_json')
+        .eq('user_id', user.id)
+        .eq('target_language', targetLanguage)
+        .limit(500)
+      const matchedToken = Array.isArray(tokenRows)
+        ? tokenRows.find((r) => normalizeForMatch(String(r.sentence || '')) === normSentence)
+        : null
+      if (matchedToken?.tokens_json) cached = { tokens_json: matchedToken.tokens_json }
+    }
+
     if (cached?.tokens_json) {
       try {
         const parsed = JSON.parse(cached.tokens_json) as unknown
         const withUsage = sanitizeTokensWithUsage(parsed, targetLanguageCode)
         if (withUsage.length > 0) {
+          console.log('[tokenize] DB_HIT: cache hit, returning from language_coach_tokenizations', {
+            sentenceLen: sentence.length,
+            tokenCount: withUsage.length,
+          })
           return NextResponse.json({
             tokens: withUsage.map((t) => t.word),
             tokensWithUsage: withUsage,
@@ -168,6 +252,10 @@ export async function POST(request: NextRequest) {
         }
         const tokens = sanitizeTokens(parsed, targetLanguageCode)
         if (tokens.length > 0) {
+          console.log('[tokenize] DB_HIT: cache hit (fallback parse), returning from language_coach_tokenizations', {
+            sentenceLen: sentence.length,
+            tokenCount: tokens.length,
+          })
           return NextResponse.json({
             tokens,
             tokensWithUsage: tokens.map((w) => ({ word: w, usageLevel: 'medium' as const })),
@@ -175,9 +263,101 @@ export async function POST(request: NextRequest) {
           })
         }
       } catch {
+        console.log('[tokenize] DB_HIT_PARSE_FAIL: cached tokens_json invalid, falling through to AI')
         // fallback to AI below
       }
     }
+
+    // 2) Fallback: check language_coach_messages (main_sentence, intent_answer, text) - reuse tokens_json đã có
+    // Chạy khi tokenizations miss HOẶC parse lỗi
+    {
+      let msgQuery = adminSupabase
+        .from('language_coach_messages')
+        .select('main_sentence, intent_answer, text, tokens_json')
+        .eq('user_id', user.id)
+        .eq('role', 'teacher')
+        .not('tokens_json', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(200)
+      if (targetLanguage) msgQuery = msgQuery.eq('target_language', targetLanguage)
+      const { data: msgRows } = await msgQuery
+
+      const matched = Array.isArray(msgRows)
+        ? msgRows.find((r) => {
+            const main = String(r.main_sentence || '').trim()
+            const intent = String(r.intent_answer || '').trim()
+            const text = String(r.text || '').trim()
+            const combined = [main, intent].filter(Boolean).join('\n')
+            const combinedAlt = [main, intent].filter(Boolean).join(' ')
+            return (
+              normSentence === normalizeForMatch(main) ||
+              normSentence === normalizeForMatch(intent) ||
+              normSentence === normalizeForMatch(text) ||
+              normSentence === normalizeForMatch(combined) ||
+              normSentence === normalizeForMatch(combinedAlt)
+            )
+          })
+        : null
+
+      if (matched?.tokens_json) {
+        try {
+          const parsed = JSON.parse(matched.tokens_json) as unknown
+          const withUsage = sanitizeTokensWithUsage(parsed, targetLanguageCode)
+          if (withUsage.length > 0) {
+            console.log('[tokenize] DB_HIT_MESSAGES: reused tokens from language_coach_messages', {
+              sentenceLen: sentence.length,
+              tokenCount: withUsage.length,
+            })
+            // Backfill tokenizations for next time
+            await adminSupabase.from('language_coach_tokenizations').upsert(
+              {
+                user_id: user.id,
+                target_language: targetLanguage,
+                sentence,
+                tokens_json: JSON.stringify(withUsage),
+                updated_at: new Date().toISOString(),
+              },
+              { onConflict: 'user_id,target_language,sentence' }
+            )
+            return NextResponse.json({
+              tokens: withUsage.map((t) => t.word),
+              tokensWithUsage: withUsage,
+              cached: true,
+            })
+          }
+          const tokens = sanitizeTokens(parsed, targetLanguageCode)
+          if (tokens.length > 0) {
+            const fallbackWithUsage = tokens.map((w) => ({ word: w, usageLevel: 'medium' as const }))
+            console.log('[tokenize] DB_HIT_MESSAGES: reused tokens (fallback parse)', {
+              sentenceLen: sentence.length,
+              tokenCount: tokens.length,
+            })
+            await adminSupabase.from('language_coach_tokenizations').upsert(
+              {
+                user_id: user.id,
+                target_language: targetLanguage,
+                sentence,
+                tokens_json: JSON.stringify(fallbackWithUsage),
+                updated_at: new Date().toISOString(),
+              },
+              { onConflict: 'user_id,target_language,sentence' }
+            )
+            return NextResponse.json({
+              tokens,
+              tokensWithUsage: fallbackWithUsage,
+              cached: true,
+            })
+          }
+        } catch {
+          // ignore parse error, fall through to AI
+        }
+      }
+    }
+
+    console.log('[tokenize] DB_MISS: no cache (tokenizations + messages), calling AI', {
+      sentenceLen: sentence.length,
+      targetLanguage,
+    })
 
     const strictLanguageInstruction =
       targetLanguageCode === 'en'
@@ -235,6 +415,10 @@ ${sentence}`
           },
           { onConflict: 'user_id,target_language,sentence' }
         )
+        console.log('[tokenize] AI_SUCCESS: Gemini returned tokens, saved to DB', {
+          sentenceLen: sentence.length,
+          tokenCount: withUsage.length,
+        })
         return NextResponse.json({
           tokens: withUsage.map((t) => t.word),
           tokensWithUsage: withUsage,
@@ -254,18 +438,29 @@ ${sentence}`
           },
           { onConflict: 'user_id,target_language,sentence' }
         )
+        console.log('[tokenize] AI_SUCCESS: Gemini returned (fallback parse), saved to DB', {
+          sentenceLen: sentence.length,
+          tokenCount: tokens.length,
+        })
         return NextResponse.json({
           tokens,
           tokensWithUsage: fallbackWithUsage,
           cached: false,
         })
       }
-    } catch {
+    } catch (e) {
+      console.log('[tokenize] AI_PARSE_FAIL: Gemini response invalid, using fallback', {
+        error: e instanceof Error ? e.message : String(e),
+      })
       // fallback below
     }
 
     const fallbackTokens = sanitizeTokens([sentence], targetLanguageCode)
     const fallbackWithUsage = fallbackTokens.map((w) => ({ word: w, usageLevel: 'medium' as const }))
+    console.log('[tokenize] AI_FALLBACK: using basic tokenize (no AI)', {
+      sentenceLen: sentence.length,
+      tokenCount: fallbackTokens.length,
+    })
     return NextResponse.json({
       tokens: fallbackTokens,
       tokensWithUsage: fallbackWithUsage,

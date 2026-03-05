@@ -640,7 +640,7 @@ export async function GET(request: NextRequest) {
       const { data: lesson, error: lessonError } = await adminSupabase
         .from('language_coach_live_lessons')
         .select(
-          'id, source_user_id, title, topic_id, topic_label, target_language, native_language, learner_level, goal_type, estimated_minutes, duration_bucket, catalog_key, teacher_gender, teacher_label, teacher_locale, language_pair_key, quality_score, quality_meta_json, price_credits, turns_count, status, approved, sales_count, published_at, created_at'
+          'id, source_user_id, title, topic_id, topic_label, target_language, native_language, learner_level, goal_type, estimated_minutes, duration_bucket, catalog_key, teacher_gender, teacher_label, teacher_locale, language_pair_key, quality_score, quality_meta_json, price_credits, turns_count, status, approved, sales_count, published_at, created_at, turn_ids'
         )
         .eq('id', lessonId)
         .limit(1)
@@ -699,15 +699,47 @@ export async function GET(request: NextRequest) {
         })
       }
 
-      const { data: turns, error: turnsError } = await adminSupabase
-        .from('language_coach_live_lesson_turns')
-        .select(
-          'turn_index, source_student_text, source_student_audio_url, source_student_client_message_id, source_student_db_message_id, standardized_student_text, teacher_reply_text, teacher_audio_url, teacher_translation, teacher_tokens_json, teacher_writing_task_json, teacher_main_sentence, teacher_correction_note, teacher_intent_answer, teacher_db_message_id, replay_payload_json'
-        )
-        .eq('lesson_id', lesson.id)
-        .order('turn_index', { ascending: true })
+      const turnIdsRaw = (lesson as { turn_ids?: string[] }).turn_ids
+      const turnIds = Array.isArray(turnIdsRaw) ? turnIdsRaw.filter((id): id is string => typeof id === 'string') : []
+      let turns: Array<{
+        turn_index?: number
+        source_student_text?: string
+        source_student_audio_url?: string
+        source_student_client_message_id?: string
+        source_student_db_message_id?: string
+        standardized_student_text?: string
+        teacher_reply_text?: string
+        teacher_audio_url?: string
+        teacher_translation?: string
+        teacher_tokens_json?: string
+        teacher_writing_task_json?: string
+        teacher_main_sentence?: string
+        teacher_correction_note?: string
+        teacher_intent_answer?: string
+        teacher_db_message_id?: string
+        replay_payload_json?: string
+      }> = []
 
-      if (turnsError) return NextResponse.json({ error: turnsError.message }, { status: 500 })
+      if (turnIds.length > 0) {
+        const { data: turnRows, error: turnsErr } = await adminSupabase
+          .from('language_coach_live_lesson_turns')
+          .select(
+            'id, turn_index, source_student_text, source_student_audio_url, source_student_client_message_id, source_student_db_message_id, standardized_student_text, teacher_reply_text, teacher_audio_url, teacher_translation, teacher_tokens_json, teacher_writing_task_json, teacher_main_sentence, teacher_correction_note, teacher_intent_answer, teacher_db_message_id, replay_payload_json'
+          )
+          .in('id', turnIds)
+        if (turnsErr) return NextResponse.json({ error: turnsErr.message }, { status: 500 })
+        turns = (turnRows || []).sort((a, b) => turnIds.indexOf(a.id) - turnIds.indexOf(b.id))
+      } else {
+        const { data: turnRows, error: turnsErr } = await adminSupabase
+          .from('language_coach_live_lesson_turns')
+          .select(
+            'turn_index, source_student_text, source_student_audio_url, source_student_client_message_id, source_student_db_message_id, standardized_student_text, teacher_reply_text, teacher_audio_url, teacher_translation, teacher_tokens_json, teacher_writing_task_json, teacher_main_sentence, teacher_correction_note, teacher_intent_answer, teacher_db_message_id, replay_payload_json'
+          )
+          .eq('lesson_id', lesson.id)
+          .order('turn_index', { ascending: true })
+        if (turnsErr) return NextResponse.json({ error: turnsErr.message }, { status: 500 })
+        turns = turnRows || []
+      }
 
       return NextResponse.json({
         lesson: {
@@ -984,31 +1016,42 @@ export async function POST(request: NextRequest) {
 
       await adminSupabase.from('language_coach_live_lesson_turns').delete().eq('lesson_id', lesson.id)
 
-      const { error: insertTurnsError } = await adminSupabase.from('language_coach_live_lesson_turns').insert(
-        turns.map((t, index) => ({
-          lesson_id: lesson.id,
-          turn_index: index,
-          source_student_db_message_id: t.sourceStudentDbMessageId,
-          source_student_client_message_id: t.sourceStudentClientMessageId,
-          source_student_text: t.sourceStudentText,
-          source_student_norm: t.sourceStudentNorm,
-          source_student_audio_url: t.sourceStudentAudioUrl,
-          standardized_student_text: t.standardizedStudentText,
-          standardized_student_norm: t.standardizedStudentNorm,
-          teacher_db_message_id: t.teacherDbMessageId,
-          teacher_reply_text: t.teacherReplyText,
-          teacher_audio_url: t.teacherAudioUrl,
-          teacher_translation: t.teacherTranslation,
-          teacher_tokens_json: t.teacherTokensJson,
-          teacher_writing_task_json: t.teacherWritingTaskJson,
-          teacher_main_sentence: t.teacherMainSentence,
-          teacher_correction_note: t.teacherCorrectionNote,
-          teacher_intent_answer: t.teacherIntentAnswer,
-          replay_payload_json: t.replayPayloadJson,
-        }))
-      )
+      const { data: insertedTurns, error: insertTurnsError } = await adminSupabase
+        .from('language_coach_live_lesson_turns')
+        .insert(
+          turns.map((t, index) => ({
+            lesson_id: lesson.id,
+            turn_index: index,
+            source_student_db_message_id: t.sourceStudentDbMessageId,
+            source_student_client_message_id: t.sourceStudentClientMessageId,
+            source_student_text: t.sourceStudentText,
+            source_student_norm: t.sourceStudentNorm,
+            source_student_audio_url: t.sourceStudentAudioUrl,
+            standardized_student_text: t.standardizedStudentText,
+            standardized_student_norm: t.standardizedStudentNorm,
+            teacher_db_message_id: t.teacherDbMessageId,
+            teacher_reply_text: t.teacherReplyText,
+            teacher_audio_url: t.teacherAudioUrl,
+            teacher_translation: t.teacherTranslation,
+            teacher_tokens_json: t.teacherTokensJson,
+            teacher_writing_task_json: t.teacherWritingTaskJson,
+            teacher_main_sentence: t.teacherMainSentence,
+            teacher_correction_note: t.teacherCorrectionNote,
+            teacher_intent_answer: t.teacherIntentAnswer,
+            replay_payload_json: t.replayPayloadJson,
+          }))
+        )
+        .select('id')
 
       if (insertTurnsError) return NextResponse.json({ error: insertTurnsError.message }, { status: 500 })
+
+      const turnIds = (insertedTurns || []).map((r) => String(r.id || '')).filter(Boolean)
+      if (turnIds.length > 0) {
+        await adminSupabase
+          .from('language_coach_live_lessons')
+          .update({ turn_ids: turnIds, updated_at: new Date().toISOString() })
+          .eq('id', lesson.id)
+      }
 
       const qa = validateLessonForPublish(
         { quality_score: qualityEvaluation.qualityScore, turns_count: turns.length },
@@ -1292,7 +1335,7 @@ export async function POST(request: NextRequest) {
 
       const { data: lesson, error: lessonError } = await adminSupabase
         .from('language_coach_live_lessons')
-        .select('id, source_user_id, topic_id, target_language, native_language, teacher_gender, teacher_label, teacher_locale, price_credits, turns_count, status')
+        .select('id, source_user_id, topic_id, target_language, native_language, teacher_gender, teacher_label, teacher_locale, price_credits, turns_count, status, turn_ids')
         .eq('id', lessonId)
         .limit(1)
         .maybeSingle()
@@ -1348,16 +1391,51 @@ export async function POST(request: NextRequest) {
         })
       }
 
-      const { data: turn, error: turnError } = await adminSupabase
-        .from('language_coach_live_lesson_turns')
-        .select(
-          'turn_index, source_student_text, standardized_student_text, standardized_student_norm, teacher_reply_text, teacher_audio_url, teacher_translation, teacher_tokens_json, teacher_writing_task_json, teacher_main_sentence, teacher_correction_note, teacher_intent_answer, replay_payload_json'
-        )
-        .eq('lesson_id', lesson.id)
-        .eq('turn_index', turnIndex)
-        .limit(1)
-        .maybeSingle()
-      if (turnError) return NextResponse.json({ error: turnError.message }, { status: 500 })
+      const matchTurnIds = Array.isArray((lesson as { turn_ids?: string[] }).turn_ids)
+        ? ((lesson as { turn_ids?: string[] }).turn_ids || []).filter((id): id is string => typeof id === 'string')
+        : []
+      const turnId = matchTurnIds.length > turnIndex ? matchTurnIds[turnIndex] : null
+
+      let turn: {
+        turn_index?: number
+        source_student_text?: string
+        standardized_student_text?: string
+        standardized_student_norm?: string
+        teacher_reply_text?: string
+        teacher_audio_url?: string
+        teacher_translation?: string
+        teacher_tokens_json?: string
+        teacher_writing_task_json?: string
+        teacher_main_sentence?: string
+        teacher_correction_note?: string
+        teacher_intent_answer?: string
+        replay_payload_json?: string
+      } | null = null
+
+      if (turnId) {
+        const { data: t, error: turnErr } = await adminSupabase
+          .from('language_coach_live_lesson_turns')
+          .select(
+            'turn_index, source_student_text, standardized_student_text, standardized_student_norm, teacher_reply_text, teacher_audio_url, teacher_translation, teacher_tokens_json, teacher_writing_task_json, teacher_main_sentence, teacher_correction_note, teacher_intent_answer, replay_payload_json'
+          )
+          .eq('id', turnId)
+          .limit(1)
+          .maybeSingle()
+        if (!turnErr) turn = t
+      }
+      if (!turn) {
+        const { data: t, error: turnErr } = await adminSupabase
+          .from('language_coach_live_lesson_turns')
+          .select(
+            'turn_index, source_student_text, standardized_student_text, standardized_student_norm, teacher_reply_text, teacher_audio_url, teacher_translation, teacher_tokens_json, teacher_writing_task_json, teacher_main_sentence, teacher_correction_note, teacher_intent_answer, replay_payload_json'
+          )
+          .eq('lesson_id', lesson.id)
+          .eq('turn_index', turnIndex)
+          .limit(1)
+          .maybeSingle()
+        if (turnErr) return NextResponse.json({ error: turnErr.message }, { status: 500 })
+        turn = t
+      }
       if (!turn) return NextResponse.json({ error: 'Không tìm thấy lượt học.' }, { status: 404 })
 
       const normalizedAnswer = normalizeText(answerText)
@@ -1540,6 +1618,10 @@ export async function POST(request: NextRequest) {
       }
 
       const lessonSessionId = lesson.id
+      const turnIdx =
+        payload.turnIndex !== undefined && Number.isInteger(payload.turnIndex) && payload.turnIndex >= 0
+          ? payload.turnIndex
+          : -1
       await adminSupabase.from('language_coach_daily_words').upsert(
         {
           user_id: user.id,
@@ -1557,9 +1639,10 @@ export async function POST(request: NextRequest) {
           usage_level: String(aiData.usageLevel || 'medium'),
           importance_score: Number(aiData.importanceScore || 50),
           is_context_sensitive: Boolean(aiData.contextSensitive),
+          turn_index: turnIdx,
           updated_at: new Date().toISOString(),
         },
-        { onConflict: 'user_id,session_id,word,target_language' }
+        { onConflict: 'user_id,session_id,word,target_language,turn_index' }
       )
 
       return NextResponse.json({

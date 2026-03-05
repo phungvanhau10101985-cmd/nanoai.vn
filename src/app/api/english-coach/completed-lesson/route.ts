@@ -33,6 +33,8 @@ type PresetTurn = {
   teacherLocale?: string
   languageCode?: string
   targetLanguage?: string
+  tokensJson?: string
+  writingTaskJson?: string
 }
 
 type LearnerProfileLite = {
@@ -71,6 +73,8 @@ function buildPresetTurnsFromTranscript(transcript: Array<Record<string, unknown
       teacherLocale: String(item.teacherLocale || '').trim() || undefined,
       languageCode: String(item.languageCode || '').trim() || undefined,
       targetLanguage: String(item.targetLanguage || '').trim() || undefined,
+      tokensJson: String(item.tokensJson || (item as { tokens_json?: string }).tokens_json || '').trim() || undefined,
+      writingTaskJson: String(item.writingTaskJson || (item as { writing_task_json?: string }).writing_task_json || '').trim() || undefined,
     })
   }
   return turns
@@ -320,7 +324,7 @@ export async function POST(request: NextRequest) {
 
     const { data: candidates, error: candidateError } = await adminSupabase
       .from('language_coach_completed_lessons')
-      .select('id, user_id, session_id, target_language, native_language, learner_level, topic_id, topic_label, mode, learning_mode, language_code, teacher_label, teacher_locale, transcript_json, summary_json')
+      .select('id, user_id, session_id, target_language, native_language, learner_level, topic_id, topic_label, mode, learning_mode, language_code, teacher_label, teacher_locale, transcript_json, summary_json, turn_ids')
       .neq('user_id', user.id)
       .eq('learner_level', learnerLevel)
       .eq('learning_mode', learningMode)
@@ -350,6 +354,8 @@ export async function POST(request: NextRequest) {
       return sameTarget && sameNative && sameTopic && sameTeacherLabel && sameTeacherLocale && sameLanguageCode
     })
     const strictUsable = strict.filter((r) => {
+      const turnIdsArr = (r as { turn_ids?: string[] }).turn_ids
+      if (Array.isArray(turnIdsArr) && turnIdsArr.length > 0) return true
       const transcriptRaw = String((r as { transcript_json?: string }).transcript_json || '[]').trim()
       const sanitizedTranscript = parseTranscriptWithoutPersonalization(transcriptRaw)
       const teacherRows = parseTeacherRowsFromTranscript(JSON.stringify(sanitizedTranscript), mode)
@@ -368,11 +374,56 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ found: false, strictMatched: false })
     }
     const picked = pool[Math.floor(Math.random() * pool.length)]
+    const turnIdsRaw = (picked as { turn_ids?: string[] }).turn_ids
+    const turnIds = Array.isArray(turnIdsRaw) ? turnIdsRaw.filter((id): id is string => typeof id === 'string') : []
     const transcriptRaw = String((picked as { transcript_json?: string }).transcript_json || '[]').trim()
     const summaryRaw = String((picked as { summary_json?: string }).summary_json || '{}').trim()
 
-    const transcript = parseTranscriptWithoutPersonalization(transcriptRaw)
-    if (transcript.length === 0) return NextResponse.json({ found: false })
+    let presetTurns: PresetTurn[]
+    let firstTeacher: { teacherLabel?: string; teacherLocale?: string; languageCode?: string; targetLanguage?: string; mode?: string }
+
+    if (turnIds.length > 0) {
+      const { data: turnRows } = await adminSupabase
+        .from('language_coach_preset_turns')
+        .select('id, reply, expected_student_text, main_sentence, correction_note, intent_answer, must_know_text, teacher_label, teacher_locale, language_code, target_language, tokens_json, writing_task_json')
+        .in('id', turnIds)
+
+      const orderedTurns = (turnRows || [])
+        .sort((a, b) => turnIds.indexOf(a.id) - turnIds.indexOf(b.id))
+        .map((t) => ({
+          reply: personalizeTextForLearner(String(t.reply || '').trim(), resolvedLearnerProfile).trim().slice(0, 4000),
+          expectedStudent: personalizeTextForLearner(String(t.expected_student_text || '').trim(), resolvedLearnerProfile).trim() || undefined,
+          correctionNote: personalizeTextForLearner(String(t.correction_note || '').trim(), resolvedLearnerProfile) || undefined,
+          mainSentence: personalizeTextForLearner(String(t.main_sentence || '').trim(), resolvedLearnerProfile) || undefined,
+          intentAnswer: personalizeTextForLearner(String(t.intent_answer || '').trim(), resolvedLearnerProfile) || undefined,
+          mustKnowText: personalizeTextForLearner(String(t.must_know_text || '').trim(), resolvedLearnerProfile) || undefined,
+          teacherLabel: String(t.teacher_label || '').trim() || undefined,
+          teacherLocale: String(t.teacher_locale || '').trim() || undefined,
+          languageCode: String(t.language_code || '').trim() || undefined,
+          targetLanguage: String(t.target_language || '').trim() || undefined,
+          tokensJson: String((t as { tokens_json?: string }).tokens_json || '').trim() || undefined,
+          writingTaskJson: String((t as { writing_task_json?: string }).writing_task_json || '').trim() || undefined,
+        }))
+        .filter((t) => t.reply)
+
+      if (orderedTurns.length === 0) return NextResponse.json({ found: false })
+      presetTurns = orderedTurns
+      const lessonMode = String((picked as { mode?: string }).mode || mode || 'chat').trim()
+      firstTeacher = {
+        teacherLabel: orderedTurns[0]?.teacherLabel,
+        teacherLocale: orderedTurns[0]?.teacherLocale,
+        languageCode: orderedTurns[0]?.languageCode,
+        targetLanguage: orderedTurns[0]?.targetLanguage,
+        mode: lessonMode || 'chat',
+      }
+    } else {
+      const transcript = parseTranscriptWithoutPersonalization(transcriptRaw)
+      if (transcript.length === 0) return NextResponse.json({ found: false })
+      const teacherRows = parseTeacherRowsFromTranscript(JSON.stringify(transcript), mode)
+      if (teacherRows.length === 0) return NextResponse.json({ found: false })
+      firstTeacher = teacherRows[0]
+      presetTurns = buildPresetTurnsFromTranscript(transcript, resolvedLearnerProfile)
+    }
 
     let runningSummary = ''
     let pinnedFactsJson = '{}'
@@ -384,14 +435,7 @@ export async function POST(request: NextRequest) {
       // keep defaults
     }
 
-    const teacherRows = parseTeacherRowsFromTranscript(JSON.stringify(transcript), mode)
-
-    if (teacherRows.length === 0) {
-      return NextResponse.json({ found: false })
-    }
-
-    const firstTeacher = teacherRows[0]
-    const presetTurns: PresetTurn[] = buildPresetTurnsFromTranscript(transcript, resolvedLearnerProfile)
+    if (presetTurns.length === 0) return NextResponse.json({ found: false })
     const openingTeacherLabel = teacherLabel || firstTeacher.teacherLabel || ''
     const openingTeacherLocale = teacherLocale || firstTeacher.teacherLocale || ''
     const openingLanguageCode = languageCode || firstTeacher.languageCode || 'en'
@@ -471,19 +515,23 @@ export async function POST(request: NextRequest) {
     }
 
     // Copy saved vocabulary from source learner session so new learner can
-    // immediately see "new words" list from the prepared lesson.
+    // immediately see "new words" list from the prepared lesson, per turn.
     const sourceUserId = String((picked as { user_id?: string }).user_id || '').trim()
     const sourceSessionId = String((picked as { session_id?: string }).session_id || '').trim()
     if (sourceUserId && sourceSessionId) {
       const { data: sourceWords } = await adminSupabase
         .from('language_coach_daily_words')
-        .select('word, target_language, native_language, meaning, pronunciation, pronunciation_audio_url, example_target, example_native, meaning_items_json, example_items_json, usage_level, importance_score, is_context_sensitive')
+        .select('word, target_language, native_language, meaning, pronunciation, pronunciation_audio_url, example_target, example_native, meaning_items_json, example_items_json, usage_level, importance_score, is_context_sensitive, turn_index')
         .eq('user_id', sourceUserId)
         .eq('session_id', sourceSessionId)
+        .order('turn_index', { ascending: true })
         .order('updated_at', { ascending: false })
-        .limit(120)
+        .limit(200)
 
-      const uniqueByWordTarget = new Map<string, {
+      const rowsToInsert: Array<{
+        user_id: string
+        session_id: string
+        learned_date: string
         word: string
         target_language: string | null
         native_language: string | null
@@ -497,14 +545,22 @@ export async function POST(request: NextRequest) {
         usage_level: string | null
         importance_score: number | null
         is_context_sensitive: boolean | null
-      }>()
+        turn_index: number
+        updated_at: string
+      }> = []
+      const seen = new Set<string>()
       for (const row of (sourceWords || []) as Array<Record<string, unknown>>) {
         const word = String(row.word || '').trim().slice(0, 120)
         const targetLang = String(row.target_language || '').trim()
         if (!word || !targetLang) continue
-        const key = `${word.toLowerCase()}::${targetLang.toLowerCase()}`
-        if (uniqueByWordTarget.has(key)) continue
-        uniqueByWordTarget.set(key, {
+        const turnIdx = row.turn_index != null ? Math.max(-1, Math.floor(Number(row.turn_index))) : -1
+        const key = `${word.toLowerCase()}::${targetLang.toLowerCase()}::${turnIdx}`
+        if (seen.has(key)) continue
+        seen.add(key)
+        rowsToInsert.push({
+          user_id: user.id,
+          session_id: newSessionId,
+          learned_date: nowIso.slice(0, 10),
           word,
           target_language: targetLang,
           native_language: String(row.native_language || '').trim() || null,
@@ -518,20 +574,14 @@ export async function POST(request: NextRequest) {
           usage_level: String(row.usage_level || '').trim() || null,
           importance_score: Number.isFinite(Number(row.importance_score)) ? Number(row.importance_score) : null,
           is_context_sensitive: typeof row.is_context_sensitive === 'boolean' ? row.is_context_sensitive : null,
+          turn_index: turnIdx,
+          updated_at: nowIso,
         })
       }
-
-      const rowsToInsert = Array.from(uniqueByWordTarget.values()).map((row) => ({
-        user_id: user.id,
-        session_id: newSessionId,
-        learned_date: nowIso.slice(0, 10),
-        ...row,
-        updated_at: nowIso,
-      }))
       if (rowsToInsert.length > 0) {
         await adminSupabase
           .from('language_coach_daily_words')
-          .upsert(rowsToInsert, { onConflict: 'user_id,session_id,word,target_language' })
+          .upsert(rowsToInsert, { onConflict: 'user_id,session_id,word,target_language,turn_index' })
       }
     }
 

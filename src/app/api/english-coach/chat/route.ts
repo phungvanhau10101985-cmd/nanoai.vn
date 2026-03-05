@@ -94,6 +94,8 @@ type PresetReplayTurn = {
   mainSentence?: string
   intentAnswer?: string
   mustKnowText?: string
+  tokensJson?: string
+  writingTaskJson?: string
 }
 
 type PresetReplayState = {
@@ -217,6 +219,8 @@ function parsePresetReplay(raw: string): PresetReplayState | null {
           mainSentence: String(row.mainSentence || '').trim() || undefined,
           intentAnswer: String(row.intentAnswer || '').trim() || undefined,
           mustKnowText: String(row.mustKnowText || '').trim() || undefined,
+          tokensJson: String(row.tokensJson || (row as { tokens_json?: string }).tokens_json || '').trim() || undefined,
+          writingTaskJson: String(row.writingTaskJson || (row as { writing_task_json?: string }).writing_task_json || '').trim() || undefined,
         } satisfies PresetReplayTurn
       })
       .filter((x): x is PresetReplayTurn => Boolean(x))
@@ -386,6 +390,14 @@ function extractListeningAllWords(text: string): string[] {
   return out
 }
 
+/** Token list from sentence for listening drill - words that can be picked one-by-one. */
+function extractListeningTokenList(text: string, languageCode: string): string[] {
+  const allowSingleChar = ['zh', 'ja', 'ko', 'th', 'hi'].includes(String(languageCode || '').toLowerCase())
+  const minLen = allowSingleChar ? 1 : 2
+  const tokens = extractListeningAllWords(text)
+  return tokens.filter((t) => t.length >= minLen).slice(0, 24)
+}
+
 function speakingDrillThresholdByLevel(learnerLevel: number): { minSimilarity: number; minPronunciationScore: number } {
   if (learnerLevel <= 0) return { minSimilarity: 0.8, minPronunciationScore: 52 }
   if (learnerLevel === 1) return { minSimilarity: 0.83, minPronunciationScore: 56 }
@@ -395,29 +407,111 @@ function speakingDrillThresholdByLevel(learnerLevel: number): { minSimilarity: n
 }
 
 function defaultListeningDistractorsByLanguageCode(code: string): string[] {
-  if (code === 'vi') return ['hôm nay', 'ngày mai', 'đi học', 'đi làm', 'được rồi', 'không sao']
-  if (code === 'zh') return ['今天', '明天', '可以', '一起', '现在', '谢谢']
-  if (code === 'ja') return ['きょう', 'あした', 'はい', 'いいえ', 'ありがとう', 'だいじょうぶ']
-  if (code === 'ko') return ['오늘', '내일', '괜찮아요', '고마워요', '지금', '같이']
-  if (code === 'th') return ['วันนี้', 'พรุ่งนี้', 'ได้เลย', 'ตอนนี้', 'ขอบคุณ', 'ไม่เป็นไร']
-  if (code === 'hi') return ['आज', 'कल', 'ठीक है', 'अभी', 'धन्यवाद', 'साथ']
-  return ['today', 'tomorrow', 'please', 'thanks', 'together', 'right']
+  if (code === 'vi') return ['hôm', 'nay', 'mai', 'học', 'đi', 'nhà', 'ăn', 'uống']
+  if (code === 'zh') return ['今天', '明天', '现在', '谢谢', '喜欢', '学习', '朋友', '家']
+  if (code === 'ja') return ['きょう', 'あした', 'いま', 'ありがとう', 'すき', 'べんきょう', 'ともだち', 'いえ']
+  if (code === 'ko') return ['오늘', '내일', '지금', '고마워요', '좋아해요', '공부', '친구', '집']
+  if (code === 'th') return ['วันนี้', 'พรุ่งนี้', 'ตอนนี้', 'ขอบคุณ', 'ชอบ', 'เรียน', 'เพื่อน', 'บ้าน']
+  if (code === 'hi') return ['आज', 'कल', 'अभी', 'धन्यवाद', 'पसंद', 'पढ़ाई', 'दोस्त', 'घर']
+  return ['today', 'tomorrow', 'now', 'thanks', 'learn', 'friend', 'home', 'work']
+}
+
+function pickListeningCorrectKeywords(prompt: string, languageCode: string): string[] {
+  const all = extractListeningAllWords(prompt)
+  const allowSingleChar = ['zh', 'ja', 'ko', 'th', 'hi'].includes(String(languageCode || '').toLowerCase())
+  const minLen = allowSingleChar ? 1 : 2
+  const out: string[] = []
+  for (const token of all) {
+    const t = String(token || '').trim().toLowerCase()
+    if (!t || t.length < minLen) continue
+    if (out.includes(t)) continue
+    out.push(t)
+    if (out.length >= 3) break
+  }
+  return out
 }
 
 function buildListeningOptionPool(expectedKeywords: string[], candidateKeywords: string[], languageCode: string): string[] {
-  const options: string[] = []
-  for (const x of [...expectedKeywords, ...candidateKeywords]) {
-    const t = String(x || '').trim()
-    if (!t) continue
-    if (!options.includes(t)) options.push(t)
-    if (options.length >= 12) break
+  const correctSet = new Set(expectedKeywords.map((x) => normalizeLookup(x)).filter(Boolean))
+  if (correctSet.size < 3) return []
+  const correct = Array.from(correctSet).slice(0, 3)
+  const allowSingleChar = ['zh', 'ja', 'ko', 'th', 'hi'].includes(String(languageCode || '').toLowerCase())
+  const minLen = allowSingleChar ? 1 : 2
+  const wrong: string[] = []
+  for (const token of candidateKeywords) {
+    const t = String(token || '').trim().toLowerCase()
+    if (!t || t.length < minLen) continue
+    if (correctSet.has(t)) continue
+    if (wrong.includes(t)) continue
+    wrong.push(t)
+    if (wrong.length >= 8) break
   }
-  const distractors = defaultListeningDistractorsByLanguageCode(languageCode)
-  for (const d of distractors) {
-    if (options.length >= 12) break
-    if (!options.includes(d)) options.push(d)
+  if (wrong.length < 6) {
+    for (const token of defaultListeningDistractorsByLanguageCode(languageCode)) {
+      const t = String(token || '').trim().toLowerCase()
+      if (!t || correctSet.has(t) || wrong.includes(t)) continue
+      wrong.push(t)
+      if (wrong.length >= 8) break
+    }
   }
-  return options
+  if (wrong.length < 6) return []
+  return [...correct, ...wrong.slice(0, 8)]
+}
+
+async function loadListeningDistractorsFromDailyWords(
+  adminSupabase: ReturnType<typeof adminClient>,
+  userId: string,
+  sessionId: string,
+  targetLanguageCode: string,
+  expectedKeywords: string[]
+): Promise<string[]> {
+  const uid = String(userId || '').trim()
+  const sid = String(sessionId || '').trim()
+  if (!uid) return []
+  const expectedSet = new Set(expectedKeywords.map((x) => normalizeLookup(x)).filter(Boolean))
+  const minLen = ['zh', 'ja', 'ko', 'th', 'hi'].includes(String(targetLanguageCode || '').toLowerCase()) ? 1 : 2
+  const out: string[] = []
+
+  const collect = (rows: Array<{ word?: string }> | null | undefined) => {
+    for (const row of (rows || [])) {
+      const tokens = extractListeningAllWords(String(row.word || '').trim())
+      for (const token of tokens) {
+        const t = String(token || '').trim().toLowerCase()
+        if (!t || t.length < minLen) continue
+        if (expectedSet.has(t)) continue
+        if (out.includes(t)) continue
+        out.push(t)
+        if (out.length >= 24) return
+      }
+    }
+  }
+
+  try {
+    if (sid) {
+      const { data: sessionRows } = await adminSupabase
+        .from('language_coach_daily_words')
+        .select('word')
+        .eq('user_id', uid)
+        .eq('session_id', sid)
+        .order('updated_at', { ascending: false })
+        .limit(180)
+      collect((sessionRows || []) as Array<{ word?: string }>)
+    }
+
+    if (out.length < 4) {
+      const { data: userRows } = await adminSupabase
+        .from('language_coach_daily_words')
+        .select('word')
+        .eq('user_id', uid)
+        .order('updated_at', { ascending: false })
+        .limit(300)
+      collect((userRows || []) as Array<{ word?: string }>)
+    }
+
+    return out
+  } catch {
+    return out
+  }
 }
 
 function seededShuffle(words: string[], seedInput: string): string[] {
@@ -566,6 +660,21 @@ function extractPhraseTargetSentence(reply: string): string {
       .replace(/^\*+|\*+$/g, '')
       .trim()
     if (sentence) return sentence
+  }
+  return ''
+}
+
+function extractPresetIdea3Line(reply: string): string {
+  const source = String(reply || '').trim()
+  if (!source) return ''
+  const patterns = [
+    /Ý\s*3\s*[-:–—]\s*[^:\n]*:\s*([^\n]+)/i,
+    /Idea\s*3\s*[-:–—]\s*[^:\n]*:\s*([^\n]+)/i,
+  ]
+  for (const re of patterns) {
+    const m = source.match(re)
+    const line = String(m?.[1] || '').trim()
+    if (line) return line
   }
   return ''
 }
@@ -1776,30 +1885,32 @@ export async function POST(request: NextRequest) {
               mustKnowText: expectedStudent,
               replayedFromPreset: true,
               strictReplayLocked: true,
+              presetReplayNextExpectedStudentText: expectedStudent,
             })
           }
         }
-        const turnReply = String(turn.reply || '').trim()
+        const rawTurnReply = String(turn.reply || '').trim()
+        const extractedIdea3FromReply = extractPresetIdea3Line(rawTurnReply)
         const turnMainSentence =
           String(turn.mainSentence || '').trim()
-          || extractPhraseTargetSentence(turnReply)
+          || extractPhraseTargetSentence(rawTurnReply)
           || ''
         const turnMustKnowText =
           String(turn.mustKnowText || '').trim()
           || turnMainSentence
-          || turnReply
-        const turnIntentAnswer = ensureIntentAnswerTwoPart(
-          String(turn.intentAnswer || '').trim() || turnReply,
-          targetLanguageCode,
-          targetLanguage
-        )
-        const presetSpeakingTarget = String(turnMainSentence || turnMustKnowText || '').trim()
-        const presetListeningKeywords = extractListeningAllWords(String(turnMainSentence || turnReply || '').trim())
-        const presetReplyKeywords = extractListeningAllWords(String(turnReply || '').trim())
-        const presetListeningOptions = seededShuffle(
-          buildListeningOptionPool(presetListeningKeywords, presetReplyKeywords, targetLanguageCode),
-          `${sessionId}:preset:${turnIdx}:${presetSpeakingTarget}`
-        )
+          || rawTurnReply
+        // Preset lessons: keep idea 3 exactly as stored in DB.
+        const turnIntentAnswer =
+          String(turn.intentAnswer || '').trim()
+          || extractedIdea3FromReply
+          || rawTurnReply
+        const turnReply = turnIntentAnswer
+        // Preset mini-drill policy:
+        // - speaking: learner repeats the saved learner line (expectedStudent)
+        // - listening: learner listens to teacher line (idea 3 / teacher reply)
+        const presetSpeakingTarget = String(expectedStudent || turnMainSentence || turnMustKnowText || '').trim()
+        const listeningPrompt = String(turnIntentAnswer || turnReply || '').trim()
+        const presetTokenList = extractListeningTokenList(listeningPrompt, targetLanguageCode)
         const presetSpeakingThreshold = speakingDrillThresholdByLevel(learnerLevel)
         const presetTurnDrill: ReviewDrillState | null =
           learningMode === 'review' && presetSpeakingTarget
@@ -1810,12 +1921,12 @@ export async function POST(request: NextRequest) {
                   minPronunciationScore: presetSpeakingThreshold.minPronunciationScore,
                   attempt: 0,
                 },
-                listening: presetListeningOptions.length > 0
+                listening: presetTokenList.length >= 3
                   ? {
-                      prompt: String(turnReply || '').trim(),
-                      expectedKeywords: extractListeningAllWords(String(turnReply || '').trim()).slice(0, 24),
-                      options: presetListeningOptions,
-                      minMatchedKeywords: Math.min(3, Math.max(1, extractListeningAllWords(String(turnReply || '').trim()).length)),
+                      prompt: listeningPrompt,
+                      expectedKeywords: presetTokenList,
+                      options: [],
+                      minMatchedKeywords: 3,
                       attempt: 0,
                     }
                   : undefined,
@@ -1881,6 +1992,7 @@ export async function POST(request: NextRequest) {
           },
           { onConflict: 'user_id,session_id' }
         )
+        const nextExpectedStudentText = String(presetReplay.turns[turnIdx + 1]?.expectedStudent || '').trim()
         return NextResponse.json({
           reply: turnReply,
           corrections: [],
@@ -1900,6 +2012,7 @@ export async function POST(request: NextRequest) {
             : undefined,
           startMiniPack: learningMode === 'review',
           replayedFromPreset: true,
+          presetReplayNextExpectedStudentText: nextExpectedStudentText,
         })
       }
     }
@@ -2043,11 +2156,17 @@ export async function POST(request: NextRequest) {
             .split(/\s+/)
             .map((x) => x.trim())
             .filter(Boolean)
-        const selected = Array.from(new Set(selectedRaw))
-        const expectedCount = Math.max(1, Math.min(3, listening.minMatchedKeywords || 1))
+        const selected = Array.from(
+          new Set(
+            selectedRaw
+              .map((x) => normalizeLookup(String(x || '')))
+              .filter(Boolean)
+          )
+        )
+        const expectedCount = Math.max(1, listening.minMatchedKeywords || 1)
         const selectedCountInvalid = drillType === 'listening' && selected.length !== expectedCount
-        const matched = listening.expectedKeywords.filter((kw) => selected.includes(String(kw || '').toLowerCase()))
-        if (selectedCountInvalid || matched.length < listening.minMatchedKeywords) {
+        const matched = listening.expectedKeywords.filter((kw) => selected.includes(normalizeLookup(String(kw || ''))))
+        if (selectedCountInvalid || matched.length < expectedCount) {
           const nextAttempt = listening.attempt + 1
           const showCooldownHint = nextAttempt >= 3 && nextAttempt % 3 === 0
           const nextState: ReviewDrillState = { listening: { ...listening, attempt: nextAttempt } }
@@ -2234,22 +2353,8 @@ export async function POST(request: NextRequest) {
         const listeningSource =
           String(replayIntentAnswer || '').trim()
           || String(speakingTargetSentence || '').trim()
-        const listeningKeywords = extractListeningAllWords(listeningSource)
-        const replyKeywords = extractListeningAllWords(listeningSource)
-        let listeningOptions = seededShuffle(
-          buildListeningOptionPool(listeningKeywords, replyKeywords, targetLanguageCode),
-          `${sessionId || 'no-session'}:${studentText}:${replayIntentAnswer || replayMainSentence}`
-        )
-        if (listeningOptions.length === 0 && listeningSource) {
-          listeningOptions = listeningSource
-            .replace(/[^\p{L}\p{N}\s]/gu, ' ')
-            .split(/\s+/)
-            .map((x) => x.trim())
-            .filter((x) => x.length >= 2)
-            .slice(0, 10)
-        }
-        const listeningExpectedKeywords =
-          extractListeningAllWords(listeningSource).slice(0, 24)
+        const listeningTokenList = extractListeningTokenList(listeningSource, targetLanguageCode)
+        const listeningExpectedKeywords = listeningTokenList
         const speakingThreshold = speakingDrillThresholdByLevel(learnerLevel)
         const nextReviewDrill: ReviewDrillState | null =
           speakingTargetSentence
@@ -2260,13 +2365,15 @@ export async function POST(request: NextRequest) {
                   minPronunciationScore: speakingThreshold.minPronunciationScore,
                   attempt: 0,
                 },
-                listening: {
-                  prompt: listeningSource || speakingTargetSentence,
-                  expectedKeywords: listeningExpectedKeywords,
-                  options: listeningOptions,
-                  minMatchedKeywords: Math.min(3, Math.max(1, listeningExpectedKeywords.length)),
-                  attempt: 0,
-                },
+                listening: listeningExpectedKeywords.length >= 3
+                  ? {
+                      prompt: listeningSource || speakingTargetSentence,
+                      expectedKeywords: listeningExpectedKeywords,
+                      options: [],
+                      minMatchedKeywords: 3,
+                      attempt: 0,
+                    }
+                  : undefined,
               }
             : null
         if (nextReviewDrill?.speaking) {
@@ -3392,30 +3499,8 @@ Không phân tích gì thêm.`
         String(intentAnswer || '').trim()
         || String(mainSentenceFinal || '').trim()
         || String(speakingTargetSentence || '').trim()
-      const listeningKeywords = extractListeningAllWords(listeningSource)
-      const replyKeywords = extractListeningAllWords(listeningSource)
-      let listeningOptions = seededShuffle(
-        buildListeningOptionPool(listeningKeywords, replyKeywords, targetLanguageCode),
-        `${sessionId}:${studentText}:${intentAnswer || mainSentenceFinal}`
-      )
-      if (listeningOptions.length === 0 && listeningSource) {
-        listeningOptions = listeningSource
-          .replace(/[^\p{L}\p{N}\s]/gu, ' ')
-          .split(/\s+/)
-          .map((x) => x.trim())
-          .filter((x) => x.length >= 2)
-          .slice(0, 10)
-      }
-      if (listeningOptions.length === 0 && speakingTargetSentence) {
-        listeningOptions = speakingTargetSentence
-          .replace(/[^\p{L}\p{N}\s]/gu, ' ')
-          .split(/\s+/)
-          .map((x) => x.trim())
-          .filter((x) => x.length >= 2)
-          .slice(0, 10)
-      }
-      const listeningExpectedKeywords =
-        extractListeningAllWords(listeningSource).slice(0, 24)
+      const listeningTokenList = extractListeningTokenList(listeningSource, targetLanguageCode)
+      const listeningExpectedKeywords = listeningTokenList
       const speakingThreshold = speakingDrillThresholdByLevel(learnerLevel)
       const nextReviewDrill: ReviewDrillState | null =
         learningMode === 'review' && speakingTargetSentence
@@ -3426,13 +3511,15 @@ Không phân tích gì thêm.`
                 minPronunciationScore: speakingThreshold.minPronunciationScore,
                 attempt: 0,
               },
-              listening: {
-                prompt: listeningSource || speakingTargetSentence,
-                expectedKeywords: listeningExpectedKeywords,
-                options: listeningOptions,
-                minMatchedKeywords: Math.min(3, Math.max(1, listeningExpectedKeywords.length)),
-                attempt: 0,
-              },
+              listening: listeningExpectedKeywords.length >= 3
+                ? {
+                    prompt: listeningSource || speakingTargetSentence,
+                    expectedKeywords: listeningExpectedKeywords,
+                    options: [],
+                    minMatchedKeywords: 3,
+                    attempt: 0,
+                  }
+                : undefined,
             }
           : null
       if (nextReviewDrill?.speaking) {

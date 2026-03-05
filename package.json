@@ -9,7 +9,8 @@
     "lint": "next lint",
     "generate-pwa-icons": "node scripts/generate-pwa-icons.js",
     "generate-icons": "node scripts/generate-icons-from-logo.js",
-    "fix-word-examples": "node scripts/fix-example-targettext-format.mjs"
+    "fix-word-examples": "node scripts/fix-example-targettext-format.mjs",
+    "reset-db:language-coach": "node scripts/reset-language-coach-db.mjs"
   },
   "overrides": {
     "react": "^18.3.1",

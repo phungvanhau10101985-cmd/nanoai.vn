@@ -23,6 +23,8 @@ type DailyWordPayload = {
   usageLevel?: string
   importanceScore?: number
   contextSensitive?: boolean
+  /** 0-based teacher turn index. -1 or omit = session-level (backward compat). */
+  turnIndex?: number
 }
 
 function adminClient() {
@@ -534,6 +536,11 @@ export async function GET(request: NextRequest) {
     const sessionId = String(request.nextUrl.searchParams.get('sessionId') || '').trim()
     const targetLanguageQuery = String(request.nextUrl.searchParams.get('targetLanguage') || '').trim()
     const nativeLanguageQuery = String(request.nextUrl.searchParams.get('nativeLanguage') || '').trim()
+    const turnIndexRaw = request.nextUrl.searchParams.get('turnIndex')
+    const turnIndexParam =
+      turnIndexRaw !== null && turnIndexRaw !== undefined && turnIndexRaw !== ''
+        ? Math.max(-1, Math.floor(Number(turnIndexRaw)))
+        : undefined
     const limitRaw = Number(request.nextUrl.searchParams.get('limit') || 30)
     const limit = Number.isFinite(limitRaw) ? Math.min(100, Math.max(1, Math.floor(limitRaw))) : 30
 
@@ -573,7 +580,7 @@ export async function GET(request: NextRequest) {
     const baseQuery = adminSupabase
       .from('language_coach_daily_words')
       .select(
-        'id, session_id, learned_date, word, target_language, native_language, meaning, pronunciation, pronunciation_audio_url, example_target, example_native, meaning_items_json, example_items_json, usage_level, importance_score, is_context_sensitive, updated_at'
+        'id, session_id, learned_date, word, target_language, native_language, meaning, pronunciation, pronunciation_audio_url, example_target, example_native, meaning_items_json, example_items_json, usage_level, importance_score, is_context_sensitive, turn_index, updated_at'
       )
       .eq('user_id', user.id)
       .order('updated_at', { ascending: false })
@@ -583,6 +590,10 @@ export async function GET(request: NextRequest) {
     let query = effectiveSessionId ? baseQuery.eq('session_id', effectiveSessionId) : baseQuery.eq('learned_date', learnedDate)
     if (targetLanguageQuery) query = query.eq('target_language', targetLanguageQuery)
     if (nativeLanguageQuery) query = query.eq('native_language', nativeLanguageQuery)
+    // When turnIndex provided: return session-level (turn_index=-1) + turn-specific words
+    if (effectiveSessionId && turnIndexParam !== undefined && turnIndexParam >= 0) {
+      query = query.or(`turn_index.eq.${-1},turn_index.eq.${turnIndexParam}`)
+    }
     const { data, error } = await query
 
     if (error) return NextResponse.json({ error: error.message || 'Không tải được từ mới trong ngày.' }, { status: 500 })
@@ -614,6 +625,7 @@ export async function GET(request: NextRequest) {
         usageLevel: normalizeUsageLevel(row.usage_level),
         importanceScore: normalizeImportanceScore(row.importance_score),
         contextSensitive: normalizeContextSensitive(row.is_context_sensitive),
+        turnIndex: row.turn_index != null ? Number(row.turn_index) : -1,
         updatedAt: row.updated_at,
       }))
 
@@ -644,6 +656,11 @@ export async function POST(request: NextRequest) {
     const learnedDate = toSafeDate(String(payload.learnedDate || new Date().toISOString().slice(0, 10)))
     const sessionId = String(payload.sessionId || '').trim()
     const word = String(payload.word || '').trim()
+    const turnIndexRaw = payload.turnIndex
+    const turnIndex =
+      turnIndexRaw !== undefined && turnIndexRaw !== null && Number.isInteger(Number(turnIndexRaw)) && Number(turnIndexRaw) >= 0
+        ? Math.floor(Number(turnIndexRaw))
+        : -1
     const targetLanguageInput = String(payload.targetLanguage || '').trim()
     const nativeLanguage = String(payload.nativeLanguage || '').trim()
     const meaning = String(payload.meaning || '').trim()
@@ -694,6 +711,7 @@ export async function POST(request: NextRequest) {
       .eq('user_id', user.id)
       .eq('session_id', sessionId)
       .eq('word', normalizedWord)
+      .eq('turn_index', turnIndex)
       .limit(1)
     existingDailyQuery = normalizedTargetLanguage
       ? existingDailyQuery.eq('target_language', normalizedTargetLanguage)
@@ -792,10 +810,11 @@ export async function POST(request: NextRequest) {
         usage_level: mergedUsageLevel,
         importance_score: mergedImportanceScore,
         is_context_sensitive: mergedContextSensitive,
+        turn_index: turnIndex,
         updated_at: new Date().toISOString(),
       },
       {
-        onConflict: 'user_id,session_id,word,target_language',
+        onConflict: 'user_id,session_id,word,target_language,turn_index',
       }
     )
 
