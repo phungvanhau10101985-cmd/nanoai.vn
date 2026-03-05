@@ -6386,24 +6386,29 @@ export default function HocTiengAnhAiClientPage() {
 
   useEffect(() => {
     if (learningMode === 'reflex') return
+    if (isPresetPageSession) return // Bài có sẵn: tokens lấy từ DB khi load, không chạy tách từ
     const localUpdates: Record<string, string[]> = {}
-    // Tiếng Anh: 1 từ có nghĩa → regex tách theo space đủ. Tiếng Việt: từ có nghĩa thường 2+ từ (học sinh, trường học) → cần AI. Ngôn ngữ không dấu cách (zh, ja, ko, th) → cần AI.
-    const skipAiTokenize = languageCode === 'en'
     for (const message of messages) {
       if (message.role !== 'teacher') continue
       if (tokensByMessageId[message.id] || tokenizingByMessageId[message.id]) continue
       const idea2 = String(mainSentenceByMessageId[message.id] || '').trim()
       const idea3 = String(intentAnswerByMessageId[message.id] || '').trim()
-      const tokenSource = isPresetPageSession
-        ? (idea3 || message.text)
-        : ([idea2, idea3].filter(Boolean).join('\n') || message.text)
-      if (skipAiTokenize) {
+      const tokenSource = ([idea2, idea3].filter(Boolean).join('\n') || message.text)
+      if (languageCode === 'en') {
         const fallback = basicTokenizeBySpace(tokenSource)
+        const fallbackWithUsage = fallback.map((w) => ({ word: w, usageLevel: 'medium' as const }))
         localUpdates[message.id] = fallback
         setTokensWithUsageByMessageId((prev) => ({
           ...prev,
-          [message.id]: fallback.map((w) => ({ word: w, usageLevel: 'medium' as const })),
+          [message.id]: fallbackWithUsage,
         }))
+        const tokensJson = JSON.stringify(fallbackWithUsage)
+        const isDbId = isUuidMessageId(message.id)
+        void updateMessageTranslationApi({
+          messageId: message.id,
+          ...(isDbId ? {} : { sessionId, clientMessageId: message.id }),
+          tokensJson,
+        }).catch(() => {})
       } else {
         void fetchMessageTokens(message.id, tokenSource)
       }
@@ -6436,48 +6441,6 @@ export default function HocTiengAnhAiClientPage() {
       })
     }
   }, [tappedWordKey, openedWordKey])
-
-  const renderClickableSentence = (text: string, messageId: string) => {
-    if (!text || !text.trim()) return <>{text}</>
-    const parts = text.split(/(\b[\w']+\b)/)
-    return (
-      <>
-        {parts.map((part, i) => {
-          if (/^[\w']+$/.test(part)) {
-            const key = `${messageId}:${part.toLowerCase()}`
-            const isTapped = tappedWordKey === key
-            return (
-              <span
-                key={`${messageId}-${i}-${part}`}
-                role="button"
-                tabIndex={0}
-                className={`cursor-pointer select-none rounded px-0.5 py-0.5 hover:bg-indigo-100 hover:underline ${isTapped ? 'bg-indigo-100 ring-1 ring-indigo-400' : ''}`}
-                onClick={(e) => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  if (tappedWordKey === key) {
-                    setTappedWordKey('')
-                    return
-                  }
-                  setTappedWordKey(key)
-                  if (openedWordKey && openedWordKey !== key) setOpenedWordKey('')
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault()
-                    ;(e.target as HTMLElement).click()
-                  }
-                }}
-              >
-                {part}
-              </span>
-            )
-          }
-          return <span key={`${messageId}-${i}`}>{part}</span>
-        })}
-      </>
-    )
-  }
 
   useEffect(() => {
     if (!busy) return
@@ -9243,7 +9206,7 @@ export default function HocTiengAnhAiClientPage() {
                               const sentenceForContext = idea3Only || m.text
                               return (
                                 <div className="space-y-1 break-words text-base">
-                                  <p>{renderClickableSentence(idea3Only, m.id)}</p>
+                                  <p>{idea3Only}</p>
                                   {(pinyin3 || busy3) ? (
                                     <p className="mt-0.5 text-slate-500">
                                       {localText('Phiên âm Latin:', 'Latin transliteration:')}{' '}
@@ -9371,7 +9334,7 @@ export default function HocTiengAnhAiClientPage() {
                                 <div>
                                   <p>
                                     <span className="font-semibold text-emerald-700">{localText('Ý 2 - Câu sửa hoàn chỉnh:', 'Idea 2 - Corrected full sentence:')}</span>{' '}
-                                    {correctedSentence ? renderClickableSentence(correctedSentence, m.id) : localText('Chưa có câu chuẩn.', 'No corrected sentence yet.')}
+                                    {correctedSentence || localText('Chưa có câu chuẩn.', 'No corrected sentence yet.')}
                                   </p>
                                   {(pinyin2 || busy2) ? (
                                     <p className="mt-0.5 text-slate-500">
@@ -9383,7 +9346,7 @@ export default function HocTiengAnhAiClientPage() {
                                 <div>
                                   <p>
                                     <span className="font-semibold text-indigo-700">{localText('Ý 3 - Trả lời tự nhiên:', 'Idea 3 - Natural contextual reply:')}</span>{' '}
-                                    {intentAnswer ? renderClickableSentence(intentAnswer, m.id) : localText('Chưa có phần trả lời ngữ cảnh riêng.', 'No separate contextual reply yet.')}
+                                    {intentAnswer || localText('Chưa có phần trả lời ngữ cảnh riêng.', 'No separate contextual reply yet.')}
                                   </p>
                                   {(pinyin3 || busy3) ? (
                                     <p className="mt-0.5 text-slate-500">

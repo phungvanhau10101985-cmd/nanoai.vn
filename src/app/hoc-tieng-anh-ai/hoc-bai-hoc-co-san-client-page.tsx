@@ -6281,32 +6281,9 @@ export default function HocBaiHocCoSanClientPage() {
 
   useEffect(() => {
     if (learningMode === 'reflex') return
-    const localUpdates: Record<string, string[]> = {}
-    // Tiếng Anh: 1 từ có nghĩa → regex tách theo space đủ. Tiếng Việt: từ có nghĩa thường 2+ từ (học sinh, trường học) → cần AI. Ngôn ngữ không dấu cách (zh, ja, ko, th) → cần AI.
-    const skipAiTokenize = languageCode === 'en'
-    for (const message of messages) {
-      if (message.role !== 'teacher') continue
-      if (tokensByMessageId[message.id] || tokenizingByMessageId[message.id]) continue
-      const idea2 = String(mainSentenceByMessageId[message.id] || '').trim()
-      const idea3 = String(intentAnswerByMessageId[message.id] || '').trim()
-      const tokenSource = isPresetPageSession
-        ? (idea3 || message.text)
-        : ([idea2, idea3].filter(Boolean).join('\n') || message.text)
-      if (skipAiTokenize) {
-        const fallback = basicTokenizeBySpace(tokenSource)
-        localUpdates[message.id] = fallback
-        setTokensWithUsageByMessageId((prev) => ({
-          ...prev,
-          [message.id]: fallback.map((w) => ({ word: w, usageLevel: 'medium' as const })),
-        }))
-      } else {
-        void fetchMessageTokens(message.id, tokenSource)
-      }
-    }
-    if (Object.keys(localUpdates).length > 0) {
-      setTokensByMessageId((prev) => ({ ...prev, ...localUpdates }))
-    }
-  }, [learningMode, languageCode, messages, tokensByMessageId, tokenizingByMessageId, mainSentenceByMessageId, intentAnswerByMessageId, isPresetPageSession])
+    // Bài học có sẵn: tokens lấy từ DB khi load (tokensJson), không chạy tách từ
+    return
+  }, [learningMode, messages, tokensByMessageId, tokenizingByMessageId, mainSentenceByMessageId, intentAnswerByMessageId, isPresetPageSession])
 
   useEffect(() => {
     const latestTeacherWithTokens = [...messages]
