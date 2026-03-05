@@ -2387,6 +2387,12 @@ export default function HocTiengAnhAiClientPage() {
     if (translated !== en) return translated
     return LOCAL_TEXT_TRANSLATIONS[en]?.[uiLocale] || en
   }, [t, uiLocale])
+  const correctionLabels = useMemo(() => {
+    const loc = (['vi', 'en', 'zh', 'ja', 'ko', 'th', 'hi'].includes(nativeLanguageCode) ? nativeLanguageCode : 'vi') as keyof typeof NATIVE_LANGUAGE_LABELS
+    const nativeName = NATIVE_LANGUAGE_LABELS[loc]?.[nativeLanguageCode] ?? 'Tiếng mẹ đẻ'
+    const targetName = LANGUAGE_LABELS[loc]?.[languageCode] ?? 'Tiếng đích'
+    return { original: `${nativeName} nói là:`, fixed: `${targetName} nói là:` }
+  }, [nativeLanguageCode, languageCode])
   const supportsLatinTransliteration = languageCode === 'zh' || languageCode === 'ja' || languageCode === 'ko' || languageCode === 'th' || languageCode === 'hi'
   const isCjkTargetLanguage = (tl: string | undefined) => /chinese|zh|mandarin|japanese|ja|korean|ko|thai|th|hindi|hi/i.test(String(tl || ''))
   const targetLangToCode = (tl: string | undefined): 'zh' | 'ja' | 'ko' | 'th' | 'hi' | '' => {
@@ -9321,11 +9327,8 @@ export default function HocTiengAnhAiClientPage() {
                                     <div className="mt-1 space-y-1.5">
                                       {correctionItems.map((item, itemIdx) => (
                                         <div key={`${item.original}-${item.fixed}-${itemIdx}`} className="space-y-0.5 text-slate-700">
-                                          <p><span className="font-semibold text-rose-700">{localText('Bạn nói:', 'You said:')}</span> {item.original || '-'}</p>
-                                          <p><span className="font-semibold text-emerald-700">{localText('Nên nói:', 'Better:')}</span> {item.fixed || '-'}</p>
-                                          {item.explanationVi ? (
-                                            <p className="text-slate-500">{item.explanationVi}</p>
-                                          ) : null}
+                                          <p><span className="font-semibold text-rose-700">{correctionLabels.original}</span> {item.original || '-'}</p>
+                                          <p><span className="font-semibold text-emerald-700">{correctionLabels.fixed}</span> {item.fixed || '-'}</p>
                                         </div>
                                       ))}
                                     </div>
@@ -10513,9 +10516,8 @@ export default function HocTiengAnhAiClientPage() {
                   <div className="mt-2 space-y-2">
                     {corrections.map((c, idx) => (
                       <div key={`${c.original}-${idx}`} className="min-w-0 rounded-xl border border-border/70 bg-slate-50/80 p-2.5 break-words text-xs">
-                        <p><span className="font-semibold text-red-600">{localText('Bạn nói:', 'You said:')}</span> {c.original}</p>
-                        <p><span className="font-semibold text-emerald-700">{localText('Nên nói:', 'Better:')}</span> {c.fixed}</p>
-                        <p className="break-words text-muted-foreground">{c.explanationVi}</p>
+                        <p><span className="font-semibold text-red-600">{correctionLabels.original}</span> {c.original}</p>
+                        <p><span className="font-semibold text-emerald-700">{correctionLabels.fixed}</span> {c.fixed}</p>
                       </div>
                     ))}
                   </div>
