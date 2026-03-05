@@ -6439,6 +6439,48 @@ export default function HocTiengAnhAiClientPage() {
     }
   }, [tappedWordKey, openedWordKey])
 
+  const renderClickableSentence = (text: string, messageId: string) => {
+    if (!text || !text.trim()) return <>{text}</>
+    const parts = text.split(/(\b[\w']+\b)/)
+    return (
+      <>
+        {parts.map((part, i) => {
+          if (/^[\w']+$/.test(part)) {
+            const key = `${messageId}:${part.toLowerCase()}`
+            const isTapped = tappedWordKey === key
+            return (
+              <span
+                key={`${messageId}-${i}-${part}`}
+                role="button"
+                tabIndex={0}
+                className={`cursor-pointer select-none rounded px-0.5 py-0.5 hover:bg-indigo-100 hover:underline ${isTapped ? 'bg-indigo-100 ring-1 ring-indigo-400' : ''}`}
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  if (tappedWordKey === key) {
+                    setTappedWordKey('')
+                    return
+                  }
+                  setTappedWordKey(key)
+                  if (openedWordKey && openedWordKey !== key) setOpenedWordKey('')
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    ;(e.target as HTMLElement).click()
+                  }
+                }}
+              >
+                {part}
+              </span>
+            )
+          }
+          return <span key={`${messageId}-${i}`}>{part}</span>
+        })}
+      </>
+    )
+  }
+
   useEffect(() => {
     if (!busy) return
     const el = chatScrollRef.current
@@ -9200,9 +9242,10 @@ export default function HocTiengAnhAiClientPage() {
                               const busy3 = !skipPinyin3 && idea3Only
                                 ? Boolean(writingRomanizationBusyByKey[toWritingRomanizationKey(idea3Only)])
                                 : false
+                              const sentenceForContext = idea3Only || m.text
                               return (
                                 <div className="space-y-1 break-words text-base">
-                                  <p>{idea3Only}</p>
+                                  <p>{renderClickableSentence(idea3Only, m.id)}</p>
                                   {(pinyin3 || busy3) ? (
                                     <p className="mt-0.5 text-slate-500">
                                       {localText('Phiên âm Latin:', 'Latin transliteration:')}{' '}
@@ -9246,6 +9289,51 @@ export default function HocTiengAnhAiClientPage() {
                                       ) : null}
                                     </div>
                                   ) : null}
+                                  {tappedWordKey.startsWith(`${m.id}:`) && openedWordKey !== tappedWordKey ? (
+                                    <div ref={compactBarRef} className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50/80 px-2 py-1.5">
+                                      <Button type="button" size="sm" className="h-8 text-xs" onClick={() => {
+                                        const w = tappedWordKey.split(':').slice(1).join(':')
+                                        void fetchWordInsight(m.id, w, sentenceForContext)
+                                      }}>
+                                        {coachUiText.wordTranslate}
+                                      </Button>
+                                      <Button type="button" variant="ghost" size="sm" className="h-8 px-2 text-muted-foreground hover:text-foreground" onClick={() => { setTappedWordKey(''); setOpenedWordKey('') }} title={coachUiText.wordClose}>
+                                        <X className="h-4 w-4" />
+                                      </Button>
+                                    </div>
+                                  ) : null}
+                                  {openedWordKey.startsWith(`${m.id}:`) ? (
+                                    <div className="mt-2 rounded-xl border border-border/70 bg-white p-2 text-xs">
+                                      <div className="mb-1.5 flex items-center justify-end">
+                                        <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-muted-foreground hover:text-foreground" onClick={() => { setOpenedWordKey(''); setTappedWordKey('') }} title={coachUiText.wordClose}>
+                                          <X className="h-4 w-4" />
+                                        </Button>
+                                      </div>
+                                      {wordInsightByKey[openedWordKey] ? (
+                                        <div className="space-y-1">
+                                          {((wordInsightByKey[openedWordKey].senses ?? []).length === 0) ? (
+                                            <p><span className="font-semibold text-slate-800">{capitalizeWordForDisplay(openedWordKey.split(':').slice(1).join(':')) || localText('Từ này', 'This word')} {localText('nghĩa là:', 'means:')}</span> {wordInsightByKey[openedWordKey].meaning}</p>
+                                          ) : (
+                                            <p className="font-semibold text-slate-800">{capitalizeWordForDisplay(openedWordKey.split(':').slice(1).join(':')) || localText('Từ này', 'This word')}</p>
+                                          )}
+                                          <p><span className="font-semibold text-slate-800">{localText('Phát âm:', 'Pronunciation:')}</span> {wordInsightByKey[openedWordKey].pronunciation}</p>
+                                          <div className="flex flex-wrap items-center gap-1">
+                                            <span className={`inline-flex rounded border px-1.5 py-0.5 text-[10px] font-semibold ${wordInsightByKey[openedWordKey].usageLevel === 'high' ? 'border-blue-300 bg-blue-50 text-blue-700' : wordInsightByKey[openedWordKey].usageLevel === 'low' ? 'border-amber-300 bg-amber-50 text-amber-700' : 'border-emerald-300 bg-emerald-50 text-emerald-700'}`}>
+                                              {wordInsightByKey[openedWordKey].usageLevel === 'high' ? localText('Dùng nhiều', 'High use') : wordInsightByKey[openedWordKey].usageLevel === 'low' ? localText('Ít dùng', 'Low use') : localText('Dùng trung bình', 'Medium use')}
+                                            </span>
+                                          </div>
+                                          <Button type="button" variant="outline" size="sm" onClick={() => { const targetWord = openedWordKey.split(':').slice(1).join(':'); startWordPractice(targetWord, wordInsightByKey[openedWordKey].meaning, { forceSwitch: true }); void playWordPronunciation(targetWord) }}>
+                                            <Volume2 className="mr-2 h-4 w-4" />
+                                            {localText('Phát âm từ này', 'Play word pronunciation')}
+                                          </Button>
+                                        </div>
+                                      ) : wordBusyKey === openedWordKey ? (
+                                        <p className="text-muted-foreground">{localText('Đang phân tích từ...', 'Analyzing word...')}</p>
+                                      ) : (
+                                        <p className="text-muted-foreground">{localText('Bấm Dịch để xem nghĩa.', 'Click Translate to view meaning.')}</p>
+                                      )}
+                                    </div>
+                                  ) : null}
                                 </div>
                               )
                             }
@@ -9285,7 +9373,7 @@ export default function HocTiengAnhAiClientPage() {
                                 <div>
                                   <p>
                                     <span className="font-semibold text-emerald-700">{localText('Ý 2 - Câu sửa hoàn chỉnh:', 'Idea 2 - Corrected full sentence:')}</span>{' '}
-                                    {correctedSentence || localText('Chưa có câu chuẩn.', 'No corrected sentence yet.')}
+                                    {correctedSentence ? renderClickableSentence(correctedSentence, m.id) : localText('Chưa có câu chuẩn.', 'No corrected sentence yet.')}
                                   </p>
                                   {(pinyin2 || busy2) ? (
                                     <p className="mt-0.5 text-slate-500">
@@ -9297,7 +9385,7 @@ export default function HocTiengAnhAiClientPage() {
                                 <div>
                                   <p>
                                     <span className="font-semibold text-indigo-700">{localText('Ý 3 - Trả lời tự nhiên:', 'Idea 3 - Natural contextual reply:')}</span>{' '}
-                                    {intentAnswer || localText('Chưa có phần trả lời ngữ cảnh riêng.', 'No separate contextual reply yet.')}
+                                    {intentAnswer ? renderClickableSentence(intentAnswer, m.id) : localText('Chưa có phần trả lời ngữ cảnh riêng.', 'No separate contextual reply yet.')}
                                   </p>
                                   {(pinyin3 || busy3) ? (
                                     <p className="mt-0.5 text-slate-500">
@@ -9364,6 +9452,10 @@ export default function HocTiengAnhAiClientPage() {
                           {(() => {
                             const rawTokens = tokensByMessageId[m.id] || []
                             const displayTokens = rawTokens
+                            const sentenceForWordContext =
+                              isPresetPageSession
+                                ? (String(intentAnswerByMessageId[m.id] || '').trim() || m.text)
+                                : ([String(mainSentenceByMessageId[m.id] || '').trim(), String(intentAnswerByMessageId[m.id] || '').trim()].filter(Boolean).join('\n') || m.text)
                             return (
                           <>
                           <div className="flex flex-wrap gap-1">
@@ -9382,12 +9474,6 @@ export default function HocTiengAnhAiClientPage() {
                                     : usageLevel === 'medium'
                                       ? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
                                       : 'border-slate-200 hover:bg-slate-50'
-                              const sentenceForWordContext =
-                                isPresetPageSession
-                                  ? (String(intentAnswerByMessageId[m.id] || '').trim() || m.text)
-                                  : ([String(mainSentenceByMessageId[m.id] || '').trim(), String(intentAnswerByMessageId[m.id] || '').trim()]
-                                      .filter(Boolean)
-                                      .join('\n') || m.text)
                               return (
                                 <Button
                                   key={`${m.id}-word-${idx}`}
@@ -9398,32 +9484,14 @@ export default function HocTiengAnhAiClientPage() {
                                   onClick={(e) => {
                                     e.preventDefault()
                                     e.stopPropagation()
-                                    if (tappedWordKey === key) {
-                                      setTappedWordKey('')
-                                      return
-                                    }
+                                    if (tappedWordKey === key) { setTappedWordKey(''); return }
                                     setTappedWordKey(key)
                                     if (openedWordKey && openedWordKey !== key) setOpenedWordKey('')
                                   }}
                                 >
                                   {capitalizeWordForDisplay(word)}
                                   {usageLevel ? (
-                                    <span
-                                      className={`ml-1.5 inline-block h-1.5 w-1.5 shrink-0 rounded-full ${
-                                        usageLevel === 'high'
-                                          ? 'bg-blue-500'
-                                          : usageLevel === 'low'
-                                            ? 'bg-amber-500'
-                                            : 'bg-emerald-500'
-                                      }`}
-                                      title={
-                                        usageLevel === 'high'
-                                          ? localText('Dùng nhiều', 'High use')
-                                          : usageLevel === 'low'
-                                            ? localText('Ít dùng', 'Low use')
-                                            : localText('Dùng trung bình', 'Medium use')
-                                      }
-                                    />
+                                    <span className={`ml-1.5 inline-block h-1.5 w-1.5 shrink-0 rounded-full ${usageLevel === 'high' ? 'bg-blue-500' : usageLevel === 'low' ? 'bg-amber-500' : 'bg-emerald-500'}`} title={usageLevel === 'high' ? localText('Dùng nhiều', 'High use') : usageLevel === 'low' ? localText('Ít dùng', 'Low use') : localText('Dùng trung bình', 'Medium use')} />
                                   ) : null}
                                   {openedWordKey === key ? ' •' : ''}
                                 </Button>
@@ -9440,206 +9508,75 @@ export default function HocTiengAnhAiClientPage() {
                             </p>
                           )}
                           {tappedWordKey.startsWith(`${m.id}:`) && openedWordKey !== tappedWordKey ? (
-                            <div
-                              ref={compactBarRef}
-                              className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50/80 px-2 py-1.5"
-                            >
-                              <Button
-                                type="button"
-                                size="sm"
-                                className="h-8 text-xs"
-                                onClick={() => {
-                                  const w = tappedWordKey.split(':').slice(1).join(':')
-                                  const sent = sentenceForWordContext
-                                  void fetchWordInsight(m.id, w, sent)
-                                }}
-                              >
+                            <div ref={compactBarRef} className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50/80 px-2 py-1.5">
+                              <Button type="button" size="sm" className="h-8 text-xs" onClick={() => {
+                                const w = tappedWordKey.split(':').slice(1).join(':')
+                                void fetchWordInsight(m.id, w, sentenceForWordContext)
+                              }}>
                                 {coachUiText.wordTranslate}
                               </Button>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 px-2 text-muted-foreground hover:text-foreground"
-                                onClick={() => {
-                                  setTappedWordKey('')
-                                  setOpenedWordKey('')
-                                }}
-                                title={coachUiText.wordClose}
-                              >
+                              <Button type="button" variant="ghost" size="sm" className="h-8 px-2 text-muted-foreground hover:text-foreground" onClick={() => { setTappedWordKey(''); setOpenedWordKey('') }} title={coachUiText.wordClose}>
                                 <X className="h-4 w-4" />
                               </Button>
                             </div>
                           ) : null}
-                          </>
-                            )
-                          })()}
                           {openedWordKey.startsWith(`${m.id}:`) ? (
-                            <div className="rounded-xl border border-border/70 bg-white p-2 text-xs">
+                            <div className="mt-2 rounded-xl border border-border/70 bg-white p-2 text-xs">
                               <div className="mb-1.5 flex items-center justify-end">
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-7 px-2 text-muted-foreground hover:text-foreground"
-                                  onClick={() => {
-                                    setOpenedWordKey('')
-                                    setTappedWordKey('')
-                                  }}
-                                  title={coachUiText.wordClose}
-                                >
+                                <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-muted-foreground hover:text-foreground" onClick={() => { setOpenedWordKey(''); setTappedWordKey('') }} title={coachUiText.wordClose}>
                                   <X className="h-4 w-4" />
                                 </Button>
                               </div>
                               {wordInsightByKey[openedWordKey] ? (
                                 <div className="space-y-1">
                                   {((wordInsightByKey[openedWordKey].senses ?? []).length === 0) ? (
-                                    <p>
-                                      <span className="font-semibold text-slate-800">
-                                        {capitalizeWordForDisplay(openedWordKey.split(':').slice(1).join(':')) || localText('Từ này', 'This word')} {localText('nghĩa là:', 'means:')}
-                                      </span>{' '}
-                                      {wordInsightByKey[openedWordKey].meaning}
-                                    </p>
+                                    <p><span className="font-semibold text-slate-800">{capitalizeWordForDisplay(openedWordKey.split(':').slice(1).join(':')) || localText('Từ này', 'This word')} {localText('nghĩa là:', 'means:')}</span> {wordInsightByKey[openedWordKey].meaning}</p>
                                   ) : (
-                                    <p className="font-semibold text-slate-800">
-                                      {capitalizeWordForDisplay(openedWordKey.split(':').slice(1).join(':')) || localText('Từ này', 'This word')}
-                                    </p>
+                                    <p className="font-semibold text-slate-800">{capitalizeWordForDisplay(openedWordKey.split(':').slice(1).join(':')) || localText('Từ này', 'This word')}</p>
                                   )}
                                   <p><span className="font-semibold text-slate-800">{localText('Phát âm:', 'Pronunciation:')}</span> {wordInsightByKey[openedWordKey].pronunciation}</p>
                                   <div className="flex flex-wrap items-center gap-1">
-                                    <span
-                                      className={`inline-flex rounded border px-1.5 py-0.5 text-[10px] font-semibold ${
-                                        wordInsightByKey[openedWordKey].usageLevel === 'high'
-                                          ? 'border-blue-300 bg-blue-50 text-blue-700'
-                                          : wordInsightByKey[openedWordKey].usageLevel === 'low'
-                                            ? 'border-amber-300 bg-amber-50 text-amber-700'
-                                            : 'border-emerald-300 bg-emerald-50 text-emerald-700'
-                                      }`}
-                                    >
-                                      {wordInsightByKey[openedWordKey].usageLevel === 'high'
-                                        ? localText('Dùng nhiều', 'High use')
-                                        : wordInsightByKey[openedWordKey].usageLevel === 'low'
-                                          ? localText('Ít dùng', 'Low use')
-                                          : localText('Dùng trung bình', 'Medium use')}
+                                    <span className={`inline-flex rounded border px-1.5 py-0.5 text-[10px] font-semibold ${wordInsightByKey[openedWordKey].usageLevel === 'high' ? 'border-blue-300 bg-blue-50 text-blue-700' : wordInsightByKey[openedWordKey].usageLevel === 'low' ? 'border-amber-300 bg-amber-50 text-amber-700' : 'border-emerald-300 bg-emerald-50 text-emerald-700'}`}>
+                                      {wordInsightByKey[openedWordKey].usageLevel === 'high' ? localText('Dùng nhiều', 'High use') : wordInsightByKey[openedWordKey].usageLevel === 'low' ? localText('Ít dùng', 'Low use') : localText('Dùng trung bình', 'Medium use')}
                                     </span>
-                                    <span className="inline-flex rounded border border-indigo-200 bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-700">
-                                      {localText('Ưu tiên:', 'Priority:')} {wordInsightByKey[openedWordKey].importanceScore}
-                                    </span>
-                                    {wordInsightByKey[openedWordKey].contextSensitive ? (
-                                      <span className="inline-flex rounded border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-[10px] font-semibold text-sky-700">
-                                        {localText('Phụ thuộc ngữ cảnh', 'Context-sensitive')}
-                                      </span>
-                                    ) : null}
                                   </div>
                                   {(() => {
                                     const insight = wordInsightByKey[openedWordKey]
-                                    const senses =
-                                      (insight.senses ?? []).length > 0
-                                        ? insight.senses
-                                        : (((insight.exampleItems ?? []).length > 0
-                                            ? insight.exampleItems
-                                            : insight.exampleTarget && insight.exampleNative
-                                              ? [{ targetText: insight.exampleTarget, nativeText: insight.exampleNative, targetPinyin: undefined }]
-                                              : []
-                                          ).map((ex) => ({
-                                            gloss: '',
-                                            exampleTarget: String(ex.targetText || '').trim(),
-                                            exampleNative: String(ex.nativeText || '').trim(),
-                                          })))
+                                    const senses = (insight.senses ?? []).length > 0
+                                      ? sanitizeWordSenses(insight.senses)
+                                      : (insight.exampleItems ?? []).length > 0
+                                        ? (insight.exampleItems ?? []).map((ex: { targetText?: string; nativeText?: string }) => ({ gloss: '', exampleTarget: String((ex as { targetText?: string }).targetText || '').trim(), exampleNative: String((ex as { nativeText?: string }).nativeText || '').trim() }))
+                                        : insight.exampleTarget && insight.exampleNative
+                                          ? [{ gloss: '', exampleTarget: String(insight.exampleTarget || '').trim(), exampleNative: String(insight.exampleNative || '').trim() }]
+                                          : []
                                     if (senses.length === 0) return null
                                     return (
                                       <div className="space-y-1.5">
-                                        {senses.map((sense, idx) => {
+                                        {senses.map((sense, si) => {
                                           const gloss = String(sense.gloss || '').trim()
                                           const exampleText = String(sense.exampleTarget || '').trim()
                                           const exampleNative = String(sense.exampleNative || '').trim()
-                                          const storedPinyin = sanitizeRomanizedText(String((sense as { targetPinyin?: string }).targetPinyin || '').trim())
-                                          const fallbackKey = toWritingRomanizationKey(exampleText)
-                                          const fallbackPinyin = sanitizeRomanizedText(String(writingRomanizationByKey[fallbackKey] || '').trim())
-                                          const busyPinyin = Boolean(writingRomanizationBusyByKey[fallbackKey])
-                                          const pinyin = storedPinyin || fallbackPinyin
                                           return (
-                                            <div key={`sense-${idx}`} className="rounded-md border border-slate-200 bg-slate-50/70 px-2 py-1.5">
-                                              <p className="font-semibold text-slate-800">
-                                                {localText(`Nghĩa ${idx + 1}`, `Sense ${idx + 1}`)}
-                                              </p>
-                                              {gloss ? (
-                                                <p className="mt-0.5">
-                                                  <span className="font-semibold text-slate-700">{localText('Giải nghĩa:', 'Gloss:')}</span> {gloss}
-                                                </p>
-                                              ) : null}
-                                              {exampleText ? (
-                                                <p className="mt-0.5">
-                                                  <span className="font-semibold text-slate-700">{localText('Ví dụ:', 'Example:')}</span> {exampleText}
-                                                </p>
-                                              ) : null}
-                                              {supportsLatinTransliteration && exampleText && (pinyin || busyPinyin) ? (
-                                                pinyin ? (
-                                                  <p className="text-muted-foreground">
-                                                    <span className="font-semibold text-slate-800">{localText('Pinyin:', 'Pinyin:')}</span> {pinyin}
-                                                  </p>
-                                                ) : (
-                                                  <p className="text-muted-foreground">
-                                                    <span className="font-semibold text-slate-800">{localText('Pinyin:', 'Pinyin:')}</span> {localText('Đang tạo...', 'Generating...')}
-                                                  </p>
-                                                )
-                                              ) : null}
-                                              {exampleNative ? (
-                                                <p className="mt-0.5 text-muted-foreground">
-                                                  <span className="font-semibold text-slate-800">{localText('Dịch:', 'Translation:')}</span> {exampleNative}
-                                                </p>
-                                              ) : null}
+                                            <div key={si} className="rounded-md border border-slate-200 bg-slate-50/70 px-2 py-1.5">
+                                              <p className="font-semibold text-slate-800">{localText(`Nghĩa ${si + 1}`, `Sense ${si + 1}`)}</p>
+                                              {gloss ? <p className="mt-0.5"><span className="font-semibold text-slate-700">{localText('Giải nghĩa:', 'Gloss:')}</span> {gloss}</p> : null}
+                                              {exampleText ? <p className="mt-0.5"><span className="font-semibold text-slate-700">{localText('Ví dụ:', 'Example:')}</span> {exampleText}</p> : null}
+                                              {exampleNative ? <p className="mt-0.5 text-muted-foreground"><span className="font-semibold text-slate-800">{localText('Dịch:', 'Translation:')}</span> {exampleNative}</p> : null}
                                               <div className="mt-1 flex flex-wrap gap-1.5">
-                                                {gloss ? (
-                                                  <Button
-                                                    type="button"
-                                                    variant="outline"
-                                                    size="sm"
-                                                    className="h-7 px-2 text-[11px]"
-                                                    onClick={() => void playWordSenseGloss(openedWordKey.split(':').slice(1).join(':'), gloss)}
-                                                  >
-                                                    <Volume2 className="mr-1 h-3.5 w-3.5" />
-                                                    {localText('Nghe nghĩa này', 'Play this meaning')}
-                                                  </Button>
-                                                ) : null}
-                                                {exampleText ? (
-                                                  <Button
-                                                    type="button"
-                                                    variant="outline"
-                                                    size="sm"
-                                                    className="h-7 px-2 text-[11px]"
-                                                    onClick={() => void playWordSenseExampleTarget(exampleText)}
-                                                  >
-                                                    <Volume2 className="mr-1 h-3.5 w-3.5" />
-                                                    {localText('Nghe ví dụ', 'Play example')}
-                                                  </Button>
-                                                ) : null}
+                                                {gloss ? <Button type="button" variant="outline" size="sm" className="h-7 px-2 text-[11px]" onClick={() => void playWordSenseGloss(openedWordKey.split(':').slice(1).join(':'), gloss)}><Volume2 className="mr-1 h-3.5 w-3.5" />{localText('Nghe nghĩa này', 'Play this meaning')}</Button> : null}
+                                                {exampleText ? <Button type="button" variant="outline" size="sm" className="h-7 px-2 text-[11px]" onClick={() => void playWordSenseExampleTarget(exampleText)}><Volume2 className="mr-1 h-3.5 w-3.5" />{localText('Nghe ví dụ', 'Play example')}</Button> : null}
                                               </div>
                                             </div>
                                           )
                                         })}
-                                        <Button
-                                          type="button"
-                                          variant="outline"
-                                          size="sm"
-                                          onClick={() => void playWordSenseAll(openedWordKey.split(':').slice(1).join(':'), senses)}
-                                        >
+                                        <Button type="button" variant="outline" size="sm" onClick={() => void playWordSenseAll(openedWordKey.split(':').slice(1).join(':'), senses)}>
                                           <Volume2 className="mr-2 h-4 w-4" />
                                           {localText('Nghe toàn bộ giải nghĩa', 'Play full meaning')}
                                         </Button>
-                                      </div>
+                                  </div>
                                     )
                                   })()}
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => {
-                                      const targetWord = openedWordKey.split(':').slice(1).join(':')
-                                      startWordPractice(targetWord, wordInsightByKey[openedWordKey].meaning, { forceSwitch: true })
-                                      void playWordPronunciation(targetWord)
-                                    }}
-                                  >
+                                  <Button type="button" variant="outline" size="sm" onClick={() => { const targetWord = openedWordKey.split(':').slice(1).join(':'); startWordPractice(targetWord, wordInsightByKey[openedWordKey].meaning, { forceSwitch: true }); void playWordPronunciation(targetWord) }}>
                                     <Volume2 className="mr-2 h-4 w-4" />
                                     {localText('Phát âm từ này', 'Play word pronunciation')}
                                   </Button>
@@ -9647,10 +9584,13 @@ export default function HocTiengAnhAiClientPage() {
                               ) : wordBusyKey === openedWordKey ? (
                                 <p className="text-muted-foreground">{localText('Đang phân tích từ...', 'Analyzing word...')}</p>
                               ) : (
-                                <p className="text-muted-foreground">{localText('Bấm từ khác để xem nghĩa.', 'Tap another word to view meaning.')}</p>
+                                <p className="text-muted-foreground">{localText('Bấm Dịch để xem nghĩa.', 'Click Translate to view meaning.')}</p>
                               )}
                             </div>
                           ) : null}
+                          </>
+                            )
+                          })()}
                           </>
                           ) : null}
                         </div>
