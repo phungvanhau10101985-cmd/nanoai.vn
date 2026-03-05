@@ -8946,7 +8946,8 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
           </CardContent>
         </Card>
 
-        {canShowDirectConversation ? (
+        {(canShowDirectConversation || !isSavedStandalonePage) ? (
+        canShowDirectConversation ? (
         <div ref={activeLessonRef} className="grid min-w-0 gap-4 xl:grid-cols-[1.15fr_0.85fr]">
           <Card className="section-surface min-w-0">
             <CardHeader className="flex min-w-0 flex-row flex-wrap items-start justify-between gap-2 space-y-0 pb-2">
@@ -10711,7 +10712,8 @@ export default function HocTiengAnhAiClientPage({ pageMode = 'live' }: HocTiengA
               </p>
             </CardContent>
           </Card>
-        )}
+        )
+        ) : null}
 
         <HistoryPanel
           title={coachUiText.historyTitle}
