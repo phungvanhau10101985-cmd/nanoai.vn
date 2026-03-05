@@ -1719,6 +1719,42 @@ function composeTeacherMessageText(correctionNote: string, mainSentence: string,
     .join('\n\n')
 }
 
+/** Tạo tóm tắt ngắn từ correctionItems cho Ý 1: "a → b; c → d" (có tính đào tạo, không fluff). */
+function buildCorrectionSummary(items: Array<{ original: string; fixed: string }>): string {
+  if (!items || items.length === 0) return ''
+  const pairs = items
+    .slice(0, 5)
+    .map((c) => `${(c.original || '-').trim()} → ${(c.fixed || '-').trim()}`)
+    .filter(Boolean)
+  return pairs.join('; ')
+}
+
+/** Chuyển correctionNote từ format cũ (Bạn nói:/Nên nói:) sang format mới (Tiếng X nói là:) và bỏ phần giải thích. */
+function transformCorrectionNoteForDisplay(
+  text: string,
+  originalLabel: string,
+  fixedLabel: string
+): string {
+  const s = String(text || '').trim()
+  if (!s) return ''
+  const lines = s.split(/\n/)
+  const result: string[] = []
+  let skipExplanation = false
+  for (const line of lines) {
+    const trimmed = line.trim()
+    if (/^(Bạn nói|You said)\s*[:：]?\s*/i.test(trimmed)) {
+      skipExplanation = false
+      result.push(trimmed.replace(/^(Bạn nói|You said)\s*[:：]?\s*/i, originalLabel + ' '))
+    } else if (/^(Nên nói|Better)\s*[:：]?\s*/i.test(trimmed)) {
+      skipExplanation = true
+      result.push(trimmed.replace(/^(Nên nói|Better)\s*[:：]?\s*/i, fixedLabel + ' '))
+    } else if (!skipExplanation && trimmed) {
+      result.push(line)
+    }
+  }
+  return result.join('\n').trim()
+}
+
 /** Tách văn bản thành các đoạn ngắn theo dấu chấm câu (。？.?!！). Dùng cho copyTargets bài viết mini. */
 function splitBySentencePunctuation(text: string): string[] {
   const s = stripPinyinInParentheses(text)
@@ -9317,9 +9353,16 @@ export default function HocTiengAnhAiClientPage() {
                             const busy3 = !skipPinyin3 && intentAnswer ? Boolean(writingRomanizationBusyByKey[toWritingRomanizationKey(intentAnswer)]) : false
                             return (
                               <div className="space-y-1 break-words text-base">
-                                <p>
+                                <p className="whitespace-pre-wrap">
                                   <span className="font-semibold text-rose-700">{localText('Ý 1 - Sửa lỗi:', 'Idea 1 - Error fix:')}</span>{' '}
-                                  {correctionNote || localText('Không có lỗi lớn cần sửa.', 'No major correction needed.')}
+                                  {correctionItems.length > 0
+                                    ? (() => {
+                                        const summary = buildCorrectionSummary(correctionItems)
+                                        return summary || localText('Xem chi tiết bên dưới.', 'See details below.')
+                                      })()
+                                    : correctionNote
+                                      ? transformCorrectionNoteForDisplay(correctionNote, correctionLabels.original, correctionLabels.fixed)
+                                      : localText('Không có lỗi lớn cần sửa.', 'No major correction needed.')}
                                 </p>
                                 {correctionItems.length > 0 ? (
                                   <div className="ml-1 rounded-md border border-rose-100 bg-rose-50/40 p-2 text-base">

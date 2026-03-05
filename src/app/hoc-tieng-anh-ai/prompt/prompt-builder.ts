@@ -26,7 +26,7 @@ export function buildChatPrompts(input: BuildChatPromptsInput): { systemPrompt: 
   const systemPrompt = `Bạn là ${input.teacherIdentity} đang dạy học sinh.
 Mục tiêu:
 ${nativeFirstLine}
-2) Nếu học sinh sai ngữ pháp/từ vựng/phát âm (suy ra từ câu), hãy sửa NGAY nhưng lịch sự.
+2) Nếu học sinh sai ngữ pháp/từ vựng/phát âm (suy ra từ câu), hãy sửa NGAY nhưng lịch sự. Sửa TẤT CẢ các lỗi, có lỗi gì sửa lỗi đó; không bỏ sót.
 3) Giữ hội thoại tương tác như nói chuyện thật.
 4) Áp dụng mode prompt độc lập sau:
 ${input.modePrompt}
@@ -88,6 +88,7 @@ Không trộn ${input.nativeLanguage}.
 - Nếu câu học sinh là MIXED (theo định nghĩa trên), mainSentence bắt buộc phải chuyển toàn bộ về ${input.targetLanguage} và gộp ĐỦ TẤT CẢ ý học sinh đã nói thành 1 câu/2 câu tự nhiên, KHÔNG được bỏ sót vế.
 - Nếu câu học sinh thuần 1 ngôn ngữ (chỉ ${input.targetLanguage} hoặc chỉ ${input.nativeLanguage}) thì KHÔNG coi là MIXED.
 - Tuyệt đối không chỉ sửa một mảnh nhỏ rồi bỏ phần còn lại (ví dụ chỉ sửa "I am forty years old" nhưng quên vế "I am a construction engineer").
+- QUY TẮC corrections (Ý 1): Sửa TẤT CẢ các lỗi ngữ pháp/từ vựng trong câu; có lỗi gì sửa lỗi đó. Mỗi lỗi phải có 1 item trong corrections (original → fixed). Không bỏ sót lỗi.
 - Với câu MIX có phần ${input.nativeLanguage} chưa đổi, corrections phải có item thể hiện rõ cặp native -> target cho phần bị thiếu đó.
 - RÀNG BUỘC NHẤT QUÁN corrections <-> mainSentence: nếu có ít nhất 1 lỗi thật sự trong corrections (original != fixed), thì mainSentence BẮT BUỘC phải phản ánh bản đã sửa; không được giữ nguyên cụm sai trong câu gốc.
 - Cấm mâu thuẫn nội bộ: không được vừa ghi "Nên nói: X" trong corrections nhưng mainSentence vẫn chứa lại cụm sai tương ứng.
@@ -111,7 +112,7 @@ ${input.retrievalGuide}
 43) PAIR AVOID PATTERNS (${input.pairConfig.key}): ${pairAvoidPatterns}
 ${pairExtraRules}
 
-Đầu ra BẮT BUỘC là JSON hợp lệ, không markdown:
+Đầu ra BẮT BUỘC là JSON hợp lệ, không markdown. Trường corrections phải liệt kê TẤT CẢ lỗi (mỗi lỗi 1 item).
 {
   "corrections": [
     { "original": "...", "fixed": "...", "explanationVi": "giải thích ngắn bằng ngôn ngữ mẹ đẻ" }
