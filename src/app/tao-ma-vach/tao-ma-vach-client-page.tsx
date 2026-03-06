@@ -11,7 +11,11 @@ import { Toaster } from '@/components/ui/toaster'
 import { QrCode, Barcode, Download, Building2, Sparkles, ClipboardPaste } from 'lucide-react'
 
 const VIETQR_STORAGE_KEY = 'tao_ma_vach_vietqr'
-const POPULAR_BANKS = ['VCB', 'BIDV', 'TCB', 'MB', 'VPB', 'VTB', 'ACB', 'TPB', 'MSB', 'HDB']
+const POPULAR_BANKS = ['VCB', 'BIDV', 'ICB', 'VBA', 'TCB', 'MB', 'VPB', 'ACB', 'TPB', 'HDB', 'STB', 'MSB', 'SCB', 'OCB', 'EIB', 'VIB', 'SHB']
+const BANK_NAME_TO_CODE: Record<string, string> = {
+  Vietcombank: 'VCB', VietinBank: 'ICB', BIDV: 'BIDV', Techcombank: 'TCB', MBBank: 'MB', VPBank: 'VPB',
+  TPBank: 'TPB', ACB: 'ACB', HDBank: 'HDB', MSB: 'MSB', Agribank: 'VBA', Sacombank: 'STB',
+}
 const QUICK_AMOUNTS = [50000, 100000, 200000, 500000, 1000000]
 const QR_EXAMPLES: { label: string; value: string }[] = [
   { label: 'https://example.com', value: 'https://example.com' },
@@ -90,7 +94,11 @@ export default function TaoMaVachClientPage() {
       if (saved) {
         const parsed = JSON.parse(saved)
         if (parsed?.bankId || parsed?.accountNo || parsed?.accountName) {
-          setVietqr((p) => ({ ...p, ...parsed }))
+          let bankId = parsed.bankId || ''
+          if (bankId && !/^[A-Z0-9]{2,10}$/i.test(bankId)) {
+            bankId = BANK_NAME_TO_CODE[bankId] || bankId
+          }
+          setVietqr((p) => ({ ...p, ...parsed, bankId: bankId || parsed.bankId }))
         }
       }
     } catch { /* ignore */ }
@@ -123,8 +131,8 @@ export default function TaoMaVachClientPage() {
         if (!d?.data) return
         const list = d.data.filter((b: BankItem & { transferSupported?: number }) => b.transferSupported === 1)
         const sorted = [...list].sort((a: BankItem, b: BankItem) => {
-          const ai = POPULAR_BANKS.indexOf(a.shortName)
-          const bi = POPULAR_BANKS.indexOf(b.shortName)
+          const ai = POPULAR_BANKS.indexOf(a.code)
+          const bi = POPULAR_BANKS.indexOf(b.code)
           if (ai >= 0 && bi >= 0) return ai - bi
           if (ai >= 0) return -1
           if (bi >= 0) return 1
@@ -269,7 +277,7 @@ export default function TaoMaVachClientPage() {
                     >
                       <option value="">{tr('Chọn ngân hàng', 'Select bank', '选择银行', '銀行を選択', '은행 선택')}</option>
                       {banks.map((b) => (
-                        <option key={b.id} value={b.shortName}>{b.shortName} - {b.name}</option>
+                        <option key={b.id} value={b.code}>{b.shortName} - {b.name}</option>
                       ))}
                     </select>
                   </div>
@@ -283,35 +291,35 @@ export default function TaoMaVachClientPage() {
                     />
                   </div>
                 </div>
-                <div className="grid sm:grid-cols-2 gap-3">
-                  <div className="space-y-2">
-                    <label className="text-xs font-medium text-muted-foreground">{tr('Số tiền (tùy chọn)', 'Amount (optional)', '金额（可选）', '金額（任意）', '금액 (선택)')}</label>
-                    <Input
-                      type="number"
-                      placeholder="100000"
-                      value={vietqr.amount}
-                      onChange={(e) => setVietqr((p) => ({ ...p, amount: e.target.value }))}
-                    />
-                    <div className="flex flex-wrap gap-1.5">
-                      {QUICK_AMOUNTS.map((a) => (
-                        <button
-                          key={a}
-                          type="button"
-                          onClick={() => setVietqr((p) => ({ ...p, amount: String(a) }))}
-                          className="px-2 py-1 rounded text-xs border bg-white hover:bg-sky-50 hover:border-sky-300 cursor-pointer"
-                        >
-                          {a >= 1000000 ? `${a / 1000000}tr` : `${a / 1000}k`}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-xs font-medium text-muted-foreground">{tr('Tên thụ hưởng (tùy chọn)', 'Beneficiary name (optional)', '收款人（可选）', '受取人名（任意）', '수취인 (선택)')}</label>
-                    <Input
-                      placeholder="Nguyen Van A"
-                      value={vietqr.accountName}
-                      onChange={(e) => setVietqr((p) => ({ ...p, accountName: e.target.value }))}
-                    />
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-muted-foreground">
+                    {tr('Tên thụ hưởng (tùy chọn – app ngân hàng hiển thị khi quét)', 'Beneficiary name (optional – shown in banking app when scanned)', '收款人（可选 – 扫描时银行应用显示）', '受取人名（任意 – スキャン時に銀行アプリで表示）', '수취인 (선택 – 스캔 시 뱅킹 앱에 표시)')}
+                  </label>
+                  <Input
+                    placeholder="Nguyen Van A"
+                    value={vietqr.accountName}
+                    onChange={(e) => setVietqr((p) => ({ ...p, accountName: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-muted-foreground">{tr('Số tiền (tùy chọn)', 'Amount (optional)', '金额（可选）', '金額（任意）', '금액 (선택)')}</label>
+                  <Input
+                    type="number"
+                    placeholder="100000"
+                    value={vietqr.amount}
+                    onChange={(e) => setVietqr((p) => ({ ...p, amount: e.target.value }))}
+                  />
+                  <div className="flex flex-wrap gap-1.5">
+                    {QUICK_AMOUNTS.map((a) => (
+                      <button
+                        key={a}
+                        type="button"
+                        onClick={() => setVietqr((p) => ({ ...p, amount: String(a) }))}
+                        className="px-2 py-1 rounded text-xs border bg-white hover:bg-sky-50 hover:border-sky-300 cursor-pointer"
+                      >
+                        {a >= 1000000 ? `${a / 1000000}tr` : `${a / 1000}k`}
+                      </button>
+                    ))}
                   </div>
                 </div>
                 <div className="space-y-2">
