@@ -258,7 +258,16 @@ export default function ThietKeLogoClientPage() {
                   <Button size="sm" variant="outline" onClick={handleReset}>
                     <RefreshCw className="mr-2 h-3 w-3" /> {tr('Thử lại', 'Try again', '重试', 'やり直す', '다시 시도')}
                   </Button>
-                  <DownloadImageButton imageUrl={resultUrl} filename="logo-result" size="sm" className="bg-amber-600 hover:bg-amber-700 text-white border-0" />
+                  <DownloadImageButton
+                    imageUrl={resultUrl}
+                    filename="logo-result"
+                    size="sm"
+                    className="bg-amber-600 hover:bg-amber-700 text-white border-0"
+                    printReady
+                    printReadyAspectRatio={aspectRatio}
+                    printReadyLabel={tr('Tải PDF chuẩn in', 'Download print-ready PDF', '下载印刷用PDF', '印刷用PDFをダウンロード', '인쇄용 PDF 다운로드')}
+                    printReadySuccessToast={tr('Đã tạo PDF chuẩn in. Bleed 3mm, crop marks.', 'Print-ready PDF created. Bleed 3mm, crop marks.', '已生成印刷用PDF。出血3mm，裁切线。', '印刷用PDFを作成しました。塗り足し3mm、トンボ付き。', '인쇄용 PDF 생성됨. 블리드 3mm, 크롭 마크.')}
+                  />
                 </div>
               </div>
               <div

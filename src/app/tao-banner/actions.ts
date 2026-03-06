@@ -151,7 +151,7 @@ export async function createBanner(formData: FormData) {
     }
     const newBalance = fromTenths(toTenths(latestCredit.balance) - toTenths(COST))
     await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', user.id)
-    await adminSupabase.from('try_on_history').update({ result_image_url: urlData.publicUrl, status: 'completed' }).eq('id', historyItem.id)
+    await adminSupabase.from('try_on_history').update({ result_image_url: urlData.publicUrl, status: 'completed', feature: 'tao-banner', aspect_ratio: aspectRatio }).eq('id', historyItem.id)
 
     revalidatePath('/tao-banner')
     revalidatePath('/dashboard/history')

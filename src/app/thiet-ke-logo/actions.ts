@@ -111,7 +111,7 @@ export async function createLogo(formData: FormData) {
     }
     const newBalance = fromTenths(toTenths(latestCredit.balance) - toTenths(COST))
     await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', user.id)
-    await adminSupabase.from('try_on_history').update({ result_image_url: urlData.publicUrl, status: 'completed' }).eq('id', historyItem.id)
+    await adminSupabase.from('try_on_history').update({ result_image_url: urlData.publicUrl, status: 'completed', feature: 'thiet-ke-logo', aspect_ratio: aspectRatio }).eq('id', historyItem.id)
 
     revalidatePath('/thiet-ke-logo')
     revalidatePath('/dashboard/history')
