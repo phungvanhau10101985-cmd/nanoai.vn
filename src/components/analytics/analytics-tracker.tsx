@@ -20,6 +20,8 @@ const FEATURE_ROUTES = [
   '/thiet-ke-logo',
   '/ke-chuyen-bang-hinh-anh',
   '/tao-nhan-gian',
+  '/tao-nhan-gioi-thieu-san-pham',
+  '/tao-ma-vach',
   '/che-anh',
   '/xoa-vat-the',
   '/xoa-nen-png',

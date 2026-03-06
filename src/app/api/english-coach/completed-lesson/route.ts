@@ -314,6 +314,12 @@ export async function POST(request: NextRequest) {
     const teacherLocale = String(payload.teacherLocale || '').trim()
     const languageCode = String(payload.languageCode || '').trim()
 
+    // Bài học có sẵn chỉ khớp khi học viên chọn chế độ ôn tập. Phản xạ không dùng làm preset.
+    if (learningMode === 'reflex') {
+      if (action === 'check_match') return NextResponse.json({ found: false, strictCount: 0 })
+      return NextResponse.json({ found: false, strictMatched: false })
+    }
+
     const normalizedTarget = normalizeLookup(targetLanguage)
     const normalizedNative = normalizeLookup(nativeLanguage)
     const normalizedTopicId = normalizeLookup(topicId)
@@ -322,12 +328,13 @@ export async function POST(request: NextRequest) {
     const normalizedTeacherLocale = normalizeLookup(teacherLocale)
     const normalizedLanguageCode = normalizeLookup(languageCode)
 
+    // Chỉ lấy bài ôn tập làm preset, không lấy bài phản xạ
     const { data: candidates, error: candidateError } = await adminSupabase
       .from('language_coach_completed_lessons')
       .select('id, user_id, session_id, target_language, native_language, learner_level, topic_id, topic_label, mode, learning_mode, language_code, teacher_label, teacher_locale, transcript_json, summary_json, turn_ids')
       .neq('user_id', user.id)
       .eq('learner_level', learnerLevel)
-      .eq('learning_mode', learningMode)
+      .eq('learning_mode', 'review')
       .eq('mode', mode)
       .order('ended_at', { ascending: false })
       .limit(240)
@@ -514,76 +521,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: memoryError.message || 'Không tạo được memory cho buổi copy.' }, { status: 500 })
     }
 
-    // Copy saved vocabulary from source learner session so new learner can
-    // immediately see "new words" list from the prepared lesson, per turn.
-    const sourceUserId = String((picked as { user_id?: string }).user_id || '').trim()
-    const sourceSessionId = String((picked as { session_id?: string }).session_id || '').trim()
-    if (sourceUserId && sourceSessionId) {
-      const { data: sourceWords } = await adminSupabase
-        .from('language_coach_daily_words')
-        .select('word, target_language, native_language, meaning, pronunciation, pronunciation_audio_url, example_target, example_native, meaning_items_json, example_items_json, usage_level, importance_score, is_context_sensitive, turn_index')
-        .eq('user_id', sourceUserId)
-        .eq('session_id', sourceSessionId)
-        .order('turn_index', { ascending: true })
-        .order('updated_at', { ascending: false })
-        .limit(200)
-
-      const rowsToInsert: Array<{
-        user_id: string
-        session_id: string
-        learned_date: string
-        word: string
-        target_language: string | null
-        native_language: string | null
-        meaning: string | null
-        pronunciation: string | null
-        pronunciation_audio_url: string | null
-        example_target: string | null
-        example_native: string | null
-        meaning_items_json: string | null
-        example_items_json: string | null
-        usage_level: string | null
-        importance_score: number | null
-        is_context_sensitive: boolean | null
-        turn_index: number
-        updated_at: string
-      }> = []
-      const seen = new Set<string>()
-      for (const row of (sourceWords || []) as Array<Record<string, unknown>>) {
-        const word = String(row.word || '').trim().slice(0, 120)
-        const targetLang = String(row.target_language || '').trim()
-        if (!word || !targetLang) continue
-        const turnIdx = row.turn_index != null ? Math.max(-1, Math.floor(Number(row.turn_index))) : -1
-        const key = `${word.toLowerCase()}::${targetLang.toLowerCase()}::${turnIdx}`
-        if (seen.has(key)) continue
-        seen.add(key)
-        rowsToInsert.push({
-          user_id: user.id,
-          session_id: newSessionId,
-          learned_date: nowIso.slice(0, 10),
-          word,
-          target_language: targetLang,
-          native_language: String(row.native_language || '').trim() || null,
-          meaning: String(row.meaning || '').trim() || null,
-          pronunciation: String(row.pronunciation || '').trim() || null,
-          pronunciation_audio_url: String(row.pronunciation_audio_url || '').trim() || null,
-          example_target: String(row.example_target || '').trim() || null,
-          example_native: String(row.example_native || '').trim() || null,
-          meaning_items_json: String(row.meaning_items_json || '').trim() || null,
-          example_items_json: String(row.example_items_json || '').trim() || null,
-          usage_level: String(row.usage_level || '').trim() || null,
-          importance_score: Number.isFinite(Number(row.importance_score)) ? Number(row.importance_score) : null,
-          is_context_sensitive: typeof row.is_context_sensitive === 'boolean' ? row.is_context_sensitive : null,
-          turn_index: turnIdx,
-          updated_at: nowIso,
-        })
-      }
-      if (rowsToInsert.length > 0) {
-        await adminSupabase
-          .from('language_coach_daily_words')
-          .upsert(rowsToInsert, { onConflict: 'user_id,session_id,word,target_language,turn_index' })
-      }
-    }
+    // Không copy từ mới từ người tạo bài sang học viên khác.
+    // Từ mới của mỗi người là của người đó – chỉ thêm khi học viên bấm tra từ trong đoạn hội thoại.
 
     return NextResponse.json({
       found: true,

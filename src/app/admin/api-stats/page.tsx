@@ -57,6 +57,7 @@ const FEATURE_LABELS: Record<string, string> = {
   'lam-net-anh': 'Làm nét ảnh',
   'lam-dep-anh': 'Làm đẹp ảnh',
   'tao-banner': 'Tạo banner',
+  'tao-nhan-gioi-thieu-san-pham': 'Tạo nhãn giới thiệu sản phẩm',
   'phuc-dung-anh': 'Phục dựng ảnh',
   'che-anh': 'Chế ảnh',
   'xoa-vat-the': 'Xóa vật thể',

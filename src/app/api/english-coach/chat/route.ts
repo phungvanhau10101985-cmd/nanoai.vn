@@ -1993,6 +1993,7 @@ export async function POST(request: NextRequest) {
           { onConflict: 'user_id,session_id' }
         )
         const nextExpectedStudentText = String(presetReplay.turns[turnIdx + 1]?.expectedStudent || '').trim()
+        const turnTokensJson = String(turn.tokensJson || '').trim() || undefined
         return NextResponse.json({
           reply: turnReply,
           corrections: [],
@@ -2002,6 +2003,7 @@ export async function POST(request: NextRequest) {
           correctedSentence: turnMainSentence,
           mainSentence: turnMainSentence,
           mustKnowText: turnMustKnowText,
+          tokensJson: turnTokensJson,
           reviewDrill: presetTurnDrill?.speaking
             ? {
                 type: 'speaking',
@@ -2509,29 +2511,23 @@ ${latestQuestion}`
       const reflexPrompt = `Bạn là giáo viên ${targetLanguage} đang luyện PHẢN XẠ NGHE NÓI với học sinh.
 Ngôn ngữ mẹ đẻ: ${nativeLanguage}. Ngôn ngữ đang học: ${targetLanguage}.
 
-QUY TẮC BẮT BUỘC – LUÔN CÓ CÂU SỬA + TRẢ LỜI + CÂU HỎI:
+QUY TẮC BẮT BUỘC – CHỈ TRẢ VỀ NỘI DUNG BẰNG ${targetLanguage}:
 
-1) CÂU SỬA (bắt buộc có):
-   - Học sinh nói ${nativeLanguage}: "[cụm ${nativeLanguage}] ${targetLanguage} nói là: [câu ${targetLanguage} đúng]"
-     Ví dụ: "Cửa hàng của bạn có món gì tiếng Anh nói là: What dishes do you have?"
-   - Học sinh nói SAI ${targetLanguage}: "Câu của bạn nói đúng là: [câu ${targetLanguage} sửa]"
+1) CÂU SỬA (bắt buộc có): câu đúng/câu sửa bằng ${targetLanguage} – KHÔNG thêm nhãn "Câu của bạn nói đúng là:", "tiếng Anh nói là:", v.v. UI sẽ tự thêm.
+   - Học sinh nói ${nativeLanguage}: trả [câu ${targetLanguage} đúng].
+   - Học sinh nói SAI ${targetLanguage}: trả [câu ${targetLanguage} đã sửa].
 
-2) CÂU TRẢ LỜI + CÂU HỎI (nói liền mạch):
-   - Trả lời đúng câu hỏi/câu nói của học viên.
-   - Hỏi thêm 1 câu để học viên trả lời tiếp.
-   - Ví dụ: "We have pasta, salad and grilled fish. What would you like to try?"
+2) CÂU TRẢ LỜI + CÂU HỎI (nói liền mạch): trả lời câu hỏi/câu nói của học viên, rồi hỏi thêm 1 câu gợi ý.
 
-ĐẦY ĐỦ: [câu sửa]. [câu trả lời]. [câu hỏi gợi ý] – tất cả nói liền mạch.
-Ví dụ hoàn chỉnh: "Cửa hàng của bạn có món gì tiếng Anh nói là: What dishes do you have? We have pasta, salad and grilled fish. What would you like to try?"
+ĐẦY ĐỦ: [câu sửa]. [câu trả lời]. [câu hỏi gợi ý] – tất cả CHỈ bằng ${targetLanguage}, nói liền mạch.
+Ví dụ: "What dishes do you have? We have pasta, salad and grilled fish. What would you like to try?"
+Ví dụ khác: "Yes, my name is Phung Van Hao. I am an engineer. Nice to meet you, Hao! An engineer, that's interesting. What kind of engineering do you specialize in?"
 
-Với cặp ngôn ngữ khác (zh, ja, ko...): thay "tiếng Anh nói là" bằng "[tên ${targetLanguage}] nói là" tương ứng.
+CẤM: Không thêm nhãn tiếng mẹ đẻ, không giải thích ngữ pháp, không dài dòng.
 
-CẤM: Không giải thích ngữ pháp, không dài dòng.
-
-Trả về JSON:
+Trả về JSON (chỉ 1 trường, không dịch – dịch gọi sau khi học viên bấm nút):
 {
-  "reply": "[câu sửa]. [câu trả lời]. [câu hỏi gợi ý] – nói liền mạch",
-  "translationToNative": "dịch toàn bộ reply sang ${nativeLanguage}"
+  "reply": "[câu sửa]. [câu trả lời]. [câu hỏi gợi ý] – CHỈ bằng ${targetLanguage}"
 }
 
 Lịch sử:
@@ -2546,27 +2542,16 @@ ${studentText}`
         const reflexParsed = (() => {
           try {
             const cleaned = reflexText.replace(/^```\w*\n?|\n?```$/g, '').trim()
-            return JSON.parse(cleaned) as { reply?: string; translationToNative?: string }
+            return JSON.parse(cleaned) as { reply?: string }
           } catch {
             return null
           }
         })()
         const reply = String(reflexParsed?.reply || reflexText || '').trim()
-        const translationToNative = String(reflexParsed?.translationToNative || '').trim()
         if (!reply) {
           const fallback = fallbackFollowUpByLanguageCode(targetLanguageCode, targetLanguage)
-          return NextResponse.json({
-            reply: fallback,
-            corrections: [],
-            pronunciationTips: [],
-            correctionNote: '',
-            intentAnswer: fallback,
-            correctedSentence: fallback,
-            mainSentence: fallback,
-            mustKnowText: fallback,
-            translationToNative: '',
-            learningMode: 'reflex',
-          })
+          const mainSentence = fallback
+          return NextResponse.json({ mainSentence, learningMode: 'reflex' })
         }
         let pinyin = ''
         const nonLatinCodes = ['zh', 'ja', 'ko', 'th', 'hi'] as const
@@ -2594,12 +2579,9 @@ ${studentText}`
             // keep without pinyin
           }
         }
-        const fullReply = pinyin
-          ? `${reply}\n\nPinyin: ${pinyin}\n\n${labels.quickTranslation} (${nativeLanguage}): ${translationToNative}`
-          : `${reply}\n\n${labels.quickTranslation} (${nativeLanguage}): ${translationToNative}`
-        const intentAnswer = ensureIntentAnswerTwoPart(reply, targetLanguageCode, targetLanguage)
+        const mainSentence = pinyin ? `${reply}\n\nPinyin: ${pinyin}` : reply
         if (userId && sessionId) {
-          const nextSummary = updateRunningSummary(sessionMemory.runningSummary, studentText, fullReply)
+          const nextSummary = updateRunningSummary(sessionMemory.runningSummary, studentText, mainSentence)
           await adminSupabase.from('language_coach_session_memories').upsert(
             {
               user_id: userId,
@@ -2619,30 +2601,19 @@ ${studentText}`
         }
         try {
           await saveReplayFlow({
-            reply: fullReply,
+            reply: mainSentence,
             corrections: [],
             pronunciationTips: [],
             correctionNote: '',
             correctedSentence: reply,
-            intentAnswer,
-            mainSentence: reply,
+            intentAnswer: reply,
+            mainSentence,
             mustKnowText: reply,
           })
         } catch {
           // Keep reflex response path resilient even if replay cache write fails.
         }
-        return NextResponse.json({
-          reply: fullReply,
-          corrections: [],
-          pronunciationTips: [],
-          correctionNote: '',
-          intentAnswer,
-          correctedSentence: reply,
-          mainSentence: reply,
-          mustKnowText: reply,
-          translationToNative,
-          learningMode: 'reflex',
-        })
+        return NextResponse.json({ mainSentence, learningMode: 'reflex' })
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Reflex mode error'
         return NextResponse.json({ error: msg }, { status: 500 })

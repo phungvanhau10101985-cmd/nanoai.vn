@@ -1,6 +1,7 @@
 'use client'
 
-import { Volume2 } from 'lucide-react'
+import Link from 'next/link'
+import { Volume2, BookOpen } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { LocalTextFn, VocabularyItem } from './types'
 
@@ -123,9 +124,17 @@ export function TodayWordsPanel({
     <div className="rounded-xl border border-border/70 bg-background/70 p-3">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm font-semibold text-slate-800">{localText('Từ mới của buổi học này', 'New words in this lesson')}</p>
-        <Button type="button" variant="ghost" size="sm" onClick={onRefreshTodayWords} disabled={todayWordsBusy}>
-          {localText('Làm mới', 'Refresh')}
-        </Button>
+        <div className="flex items-center gap-1">
+          <Link href="/hoc-tieng-anh-ai/tu-moi">
+            <Button type="button" variant="ghost" size="sm" className="h-8 px-2">
+              <BookOpen className="mr-1 h-3.5 w-3.5" />
+              {localText('Tất cả', 'All')}
+            </Button>
+          </Link>
+          <Button type="button" variant="ghost" size="sm" onClick={onRefreshTodayWords} disabled={todayWordsBusy}>
+            {localText('Làm mới', 'Refresh')}
+          </Button>
+        </div>
       </div>
       {todayWordsBusy ? (
         <p className="text-sm text-muted-foreground">{localText('Đang tải danh sách từ mới của buổi học...', 'Loading new words for this lesson...')}</p>

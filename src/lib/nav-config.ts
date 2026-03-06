@@ -22,6 +22,8 @@ import { TaoAnhTheIcon } from '@/components/icons/tao-anh-the-icon'
 import { ThietKeLogoIcon } from '@/components/icons/thiet-ke-logo-icon'
 import { KeChuyenBangHinhAnhIcon } from '@/components/icons/ke-chuyen-bang-hinh-anh-icon'
 import { TaoNhanGianIcon } from '@/components/icons/tao-nhan-gian-icon'
+import { TaoNhanGioiThieuSanPhamIcon } from '@/components/icons/tao-nhan-gioi-thieu-san-pham-icon'
+import { TaoMaVachIcon } from '@/components/icons/tao-ma-vach-icon'
 import { CheAnhIcon } from '@/components/icons/che-anh-icon'
 import { TaoAnh3DIcon } from '@/components/icons/tao-anh-3d-icon'
 import { TaoMoHinh3DTuAnhIcon } from '@/components/icons/tao-mo-hinh-3d-tu-anh-icon'
@@ -43,6 +45,8 @@ export const AI_TOOLS = [
   { href: '/thiet-ke-logo', labelKey: 'design_logo' as ToolKey, icon: ThietKeLogoIcon },
   { href: '/ke-chuyen-bang-hinh-anh', labelKey: 'story_with_images' as ToolKey, icon: KeChuyenBangHinhAnhIcon },
   { href: '/tao-nhan-gian', labelKey: 'create_sticker' as ToolKey, icon: TaoNhanGianIcon },
+  { href: '/tao-nhan-gioi-thieu-san-pham', labelKey: 'create_product_label' as ToolKey, icon: TaoNhanGioiThieuSanPhamIcon },
+  { href: '/tao-ma-vach', labelKey: 'create_barcode' as ToolKey, icon: TaoMaVachIcon },
   { href: '/che-anh', labelKey: 'meme_maker' as ToolKey, icon: CheAnhIcon },
   { href: '/xoa-vat-the', labelKey: 'remove_object' as ToolKey, icon: XoaVatTheIcon },
   { href: '/xoa-nen-png', labelKey: 'remove_bg_png' as ToolKey, icon: XoaNenPngIcon },
@@ -96,6 +100,8 @@ export const NAV_GROUPS = [
       { href: '/thiet-ke-logo', labelKey: 'design_logo' as ToolKey, icon: ThietKeLogoIcon },
       { href: '/ke-chuyen-bang-hinh-anh', labelKey: 'story_with_images' as ToolKey, icon: KeChuyenBangHinhAnhIcon },
       { href: '/tao-nhan-gian', labelKey: 'create_sticker' as ToolKey, icon: TaoNhanGianIcon },
+      { href: '/tao-nhan-gioi-thieu-san-pham', labelKey: 'create_product_label' as ToolKey, icon: TaoNhanGioiThieuSanPhamIcon },
+      { href: '/tao-ma-vach', labelKey: 'create_barcode' as ToolKey, icon: TaoMaVachIcon },
       { href: '/che-anh', labelKey: 'meme_maker' as ToolKey, icon: CheAnhIcon },
     ],
   },

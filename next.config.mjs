@@ -22,6 +22,12 @@ const nextConfig = {
                 port: '',
                 pathname: '/storage/v1/object/sign/**',
             },
+            {
+                protocol: 'https',
+                hostname: 'img.vietqr.io',
+                port: '',
+                pathname: '/image/**',
+            },
         ],
     },
     // Tắt webpack cache có thể gây lỗi clientModules trên Windows

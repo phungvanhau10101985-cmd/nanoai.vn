@@ -436,6 +436,7 @@ const COACH_NATIVE_UI_TEXT: Record<NativeLanguageCode, {
   wordTranslate: string
   wordClose: string
   tapWordTranslateHint: string
+  reflexCorrectPrefix: string
 }> = {
   vi: {
     setupTitle: 'Thiết lập buổi học',
@@ -458,7 +459,8 @@ const COACH_NATIVE_UI_TEXT: Record<NativeLanguageCode, {
     micErrorTitle: 'Mic lỗi',
     wordTranslate: 'Dịch',
     wordClose: 'Đóng',
-    tapWordTranslateHint: 'Bấm từ để tra nghĩa. Chạm Dịch để xem chi tiết.',
+    tapWordTranslateHint: 'Bấm từ để tra nghĩa.',
+    reflexCorrectPrefix: 'Câu của bạn nói đúng là: ',
   },
   en: {
     setupTitle: 'Lesson setup',
@@ -481,7 +483,8 @@ const COACH_NATIVE_UI_TEXT: Record<NativeLanguageCode, {
     micErrorTitle: 'Microphone error',
     wordTranslate: 'Translate',
     wordClose: 'Close',
-    tapWordTranslateHint: 'Tap a word to look up. Tap Translate for details.',
+    tapWordTranslateHint: 'Tap a word to look up its meaning.',
+    reflexCorrectPrefix: 'Your correct sentence is: ',
   },
   zh: {
     setupTitle: '课程设置',
@@ -504,7 +507,8 @@ const COACH_NATIVE_UI_TEXT: Record<NativeLanguageCode, {
     micErrorTitle: '麦克风错误',
     wordTranslate: '翻译',
     wordClose: '关闭',
-    tapWordTranslateHint: '点击单词查义。点击翻译查看详情。',
+    tapWordTranslateHint: '点击单词查义。',
+    reflexCorrectPrefix: '你说的正确句子是：',
   },
   ja: {
     setupTitle: 'レッスン設定',
@@ -527,7 +531,8 @@ const COACH_NATIVE_UI_TEXT: Record<NativeLanguageCode, {
     micErrorTitle: 'マイクエラー',
     wordTranslate: '翻訳',
     wordClose: '閉じる',
-    tapWordTranslateHint: '単語をタップして意味を調べる。翻訳で詳細表示。',
+    tapWordTranslateHint: '単語をタップして意味を調べる。',
+    reflexCorrectPrefix: '正しい文は：',
   },
   ko: {
     setupTitle: '수업 설정',
@@ -550,7 +555,8 @@ const COACH_NATIVE_UI_TEXT: Record<NativeLanguageCode, {
     micErrorTitle: '마이크 오류',
     wordTranslate: '번역',
     wordClose: '닫기',
-    tapWordTranslateHint: '단어를 탭하여 뜻을 확인. 번역으로 상세 보기.',
+    tapWordTranslateHint: '단어를 탭하여 뜻을 확인.',
+    reflexCorrectPrefix: '맞는 문장은: ',
   },
   th: {
     setupTitle: 'ตั้งค่าบทเรียน',
@@ -573,7 +579,8 @@ const COACH_NATIVE_UI_TEXT: Record<NativeLanguageCode, {
     micErrorTitle: 'ไมค์มีปัญหา',
     wordTranslate: 'แปล',
     wordClose: 'ปิด',
-    tapWordTranslateHint: 'แตะคำเพื่อค้นหาความหมาย แตะแปลเพื่อดูรายละเอียด',
+    tapWordTranslateHint: 'แตะคำเพื่อค้นหาความหมาย',
+    reflexCorrectPrefix: 'ประโยคที่ถูกต้องคือ: ',
   },
   hi: {
     setupTitle: 'पाठ सेटअप',
@@ -596,7 +603,8 @@ const COACH_NATIVE_UI_TEXT: Record<NativeLanguageCode, {
     micErrorTitle: 'माइक त्रुटि',
     wordTranslate: 'अनुवाद',
     wordClose: 'बंद',
-    tapWordTranslateHint: 'शब्द पर टैप करें। अनुवाद पर टैप कर विवरण देखें।',
+    tapWordTranslateHint: 'शब्द पर टैप कर अर्थ देखें।',
+    reflexCorrectPrefix: 'आपका सही वाक्य है: ',
   },
 }
 
@@ -1636,6 +1644,24 @@ function personalizeLearnerNameInSentence(
   return sanitizeLearnerReadingSentence(next)
 }
 
+/** Chế độ phản xạ: tách câu sửa (học viên) và câu đáp (thầy/cô) để hiển thị 2 màu khác nhau. */
+function splitReflexReplyForDisplay(text: string): { studentPart: string; teacherPart: string } {
+  let s = String(text || '').trim()
+  if (!s) return { studentPart: '', teacherPart: '' }
+  // Bỏ Pinyin / Dịch nhanh ở cuối
+  s = s.replace(/\n\nPinyin:\s*[\s\S]*$/i, '').trim()
+  s = s.replace(/\n\s*(?:Dịch nhanh|Quick translation)[^\n]*/i, '').trim()
+  const segments = s.split(/(?<=[.!?。！？])\s+/).filter(Boolean)
+  if (segments.length <= 1) return { studentPart: s, teacherPart: '' }
+  if (segments.length === 2) return { studentPart: segments[0]!.trim(), teacherPart: segments[1]!.trim() }
+  const teacherSegments = segments.slice(-2)
+  const studentSegments = segments.slice(0, -2)
+  return {
+    studentPart: studentSegments.join(' ').trim(),
+    teacherPart: teacherSegments.join(' ').trim(),
+  }
+}
+
 /** Chế độ phản xạ: chỉ lấy câu tiếng cần học cho TTS, bỏ phần dịch nghĩa (Câu của bạn nói đúng là: ..., Dịch nhanh, v.v.). */
 function extractTargetLanguageOnlyForReflexTts(text: string, targetLanguageCode: string): string {
   let s = String(text || '').trim()
@@ -1719,9 +1745,9 @@ function composeTeacherMessageText(correctionNote: string, mainSentence: string,
     .join('\n\n')
 }
 
-/** Tạo nội dung Ý 1 từ correctionItems: format "Tiếng X nói là: a. Tiếng Y nói là: b." – dùng cho hiển thị và TTS (thống nhất, dễ đọc). */
+/** Tạo nội dung Ý 1 từ correctionItems – dùng cho TTS. Ưu tiên explanationVi (format sư phạm) nếu có. */
 function buildCorrectionDisplayText(
-  items: Array<{ original: string; fixed: string }>,
+  items: Array<{ original: string; fixed: string; explanationVi?: string }>,
   originalLabel: string,
   fixedLabel: string
 ): string {
@@ -1729,9 +1755,11 @@ function buildCorrectionDisplayText(
   return items
     .slice(0, 5)
     .map((c) => {
+      const expl = (c.explanationVi || '').trim()
+      if (expl) return expl
       const orig = (c.original || '-').trim()
       const fix = (c.fixed || '-').trim()
-      return `${originalLabel} ${orig}. ${fixedLabel} ${fix}.`
+      return `${originalLabel} ${orig}, ${fixedLabel} ${fix}.`
     })
     .filter(Boolean)
     .join(' ')
@@ -2380,6 +2408,8 @@ export default function HocTiengAnhAiClientPage() {
   const [openingTranslateBusyByMessageId, setOpeningTranslateBusyByMessageId] = useState<Record<string, boolean>>({})
   const [studentTranslateByMessageId, setStudentTranslateByMessageId] = useState<Record<string, string>>({})
   const [studentTranslateBusyByMessageId, setStudentTranslateBusyByMessageId] = useState<Record<string, boolean>>({})
+  const [reflexTranslateByMessageId, setReflexTranslateByMessageId] = useState<Record<string, string>>({})
+  const [reflexTranslateBusyByMessageId, setReflexTranslateBusyByMessageId] = useState<Record<string, boolean>>({})
   const supabase = useMemo(() => createClient(), [])
   const lastMicSentTextRef = useRef('')
   const lastMicSentAtRef = useRef(0)
@@ -2674,27 +2704,27 @@ export default function HocTiengAnhAiClientPage() {
     [nativeLanguageCode, nativeLanguageOptions]
   )
   const micLanguageHint = useMemo(() => {
-    const nativeLabel = selectedNativeLanguage?.label || localText('tiếng mẹ đẻ', 'native language')
+    const targetLabel = selectedLanguageLabel || localText('ngôn ngữ đích', 'target language')
     if (uiLocale === 'zh') {
-      return `你可以说${nativeLabel}或学习语言；建议优先说学习语言，进步更快。`
+      return `你可以同时说两种语言；想进步更快，请多说${targetLabel}。`
     }
     if (uiLocale === 'ja') {
-      return `${nativeLabel}でも学習中の言語でも話せます。上達を早めるため、学習中の言語を優先してください。`
+      return `2つの言語を同時に話せます。上達を早めるため、${targetLabel}をもっと話してください。`
     }
     if (uiLocale === 'ko') {
-      return `${nativeLabel} 또는 학습 언어로 말할 수 있어요. 더 빨리 늘려면 학습 언어를 우선 사용하세요.`
+      return `두 언어를 동시에 말할 수 있어요. 더 빨리 늘려면 ${targetLabel}를 더 많이 말하세요.`
     }
     if (uiLocale === 'th') {
-      return `คุณสามารถพูด${nativeLabel}หรือภาษาที่กำลังเรียนได้ แต่แนะนำให้ใช้ภาษาที่กำลังเรียนเพื่อพัฒนาได้เร็วกว่า`
+      return `คุณสามารถพูด 2 ภาษาได้พร้อมกัน เพื่อพัฒนาได้เร็วกว่า ให้พูด ${targetLabel} มากขึ้น`
     }
     if (uiLocale === 'hi') {
-      return `आप ${nativeLabel} या सीखी जा रही भाषा बोल सकते हैं; तेज प्रगति के लिए सीखी जा रही भाषा को प्राथमिकता दें।`
+      return `आप एक साथ 2 भाषाएं बोल सकते हैं; तेज प्रगति के लिए ${targetLabel} अधिक बोलें।`
     }
     if (uiLocale === 'vi') {
-      return `Bạn có thể nói ${nativeLabel} hoặc ngôn ngữ đang học; nên ưu tiên ngôn ngữ đang học để tiến bộ nhanh hơn.`
+      return `Bạn có thể nói 2 thứ tiếng 1 lúc, để tiến bộ nhanh hãy nói ${targetLabel} nhiều hơn.`
     }
-    return `You can speak ${nativeLabel} or the target language; prefer the target language to improve faster.`
-  }, [localText, selectedNativeLanguage?.label, uiLocale])
+    return `You can speak 2 languages at once; to improve faster, speak more ${targetLabel}.`
+  }, [selectedLanguageLabel, uiLocale, localText])
   const coachUiText = useMemo(
     () => COACH_NATIVE_UI_TEXT[nativeLanguageCode] || COACH_NATIVE_UI_TEXT.vi,
     [nativeLanguageCode]
@@ -4404,6 +4434,42 @@ export default function HocTiengAnhAiClientPage() {
     }
   }
 
+  const translateReflexMessage = async (messageId: string, teacherText: string) => {
+    const sourceText = String(teacherText || '').trim()
+    if (!sourceText) return
+    if (reflexTranslateBusyByMessageId[messageId]) return
+    if (reflexTranslateByMessageId[messageId]) {
+      setReflexTranslateByMessageId((prev) => ({ ...prev, [messageId]: '' }))
+      return
+    }
+    setReflexTranslateBusyByMessageId((prev) => ({ ...prev, [messageId]: true }))
+    try {
+      const textToTranslate = sourceText.replace(/\n\nPinyin:\s*[\s\S]*$/i, '').trim() || sourceText
+      const { ok, data } = await explainIntent({
+        studentText: '',
+        intentAnswer: textToTranslate,
+        correctedSentence: '',
+        correctionNote: '',
+        targetLanguage: activeTeacher.languageLabel,
+        targetLanguageCode: languageCode,
+        nativeLanguage: selectedNativeLanguage.apiLabel,
+        topicLabel: selectedTopic.label,
+      })
+      if (!ok) throw new Error(data.error || localText('Không dịch được.', 'Unable to translate.'))
+      const meaning = String(data.explanation || '').trim()
+      if (!meaning) throw new Error(localText('Không có nội dung dịch.', 'No translation content.'))
+      setReflexTranslateByMessageId((prev) => ({ ...prev, [messageId]: meaning }))
+    } catch (e) {
+      toast({
+        title: localText('Không dịch được', 'Cannot translate now'),
+        description: unknownErrorMsg(e),
+        variant: 'destructive',
+      })
+    } finally {
+      setReflexTranslateBusyByMessageId((prev) => ({ ...prev, [messageId]: false }))
+    }
+  }
+
   const translateStudentMessage = async (messageId: string, studentTextRaw: string) => {
     const sourceText = String(studentTextRaw || '').trim()
     if (!sourceText) return
@@ -4703,7 +4769,7 @@ export default function HocTiengAnhAiClientPage() {
       .map((token) => extractClickableWord(token))
       .filter((token) => isTokenInTargetLanguage(token, languageCode))
       .filter(Boolean)
-      .slice(0, 24)
+      .slice(0, 60)
   }
 
   const shouldUseAiTokenize = (sentence: string) => {
@@ -4742,7 +4808,7 @@ export default function HocTiengAnhAiClientPage() {
             : 'medium') as 'high' | 'medium' | 'low',
         }))
         .filter((t) => t.word && isTokenInTargetLanguage(t.word, languageCode))
-        .slice(0, 24)
+        .slice(0, 60)
       const tokens =
         withUsage.length > 0
           ? withUsage.map((t) => t.word)
@@ -4750,7 +4816,7 @@ export default function HocTiengAnhAiClientPage() {
               .map((t) => extractClickableWord(String(t)))
               .filter((token) => isTokenInTargetLanguage(token, languageCode))
               .filter(Boolean)
-              .slice(0, 24)
+              .slice(0, 60)
       const finalTokens = tokens.length > 0 ? tokens : basicTokenizeBySpace(sentence)
       const finalWithUsage =
         withUsage.length > 0
@@ -5197,6 +5263,8 @@ export default function HocTiengAnhAiClientPage() {
       setIntentExplainByMessageId({})
       setStudentTranslateByMessageId({})
       setStudentTranslateBusyByMessageId({})
+      setReflexTranslateByMessageId({})
+      setReflexTranslateBusyByMessageId({})
       // Prevent URL sessionId from reopening a just-deleted session.
       router.replace(basePath)
     }
@@ -5346,7 +5414,6 @@ export default function HocTiengAnhAiClientPage() {
     sessionIdOverride?: string,
     turnIndexOverride?: number
   ) => {
-    if (learningMode === 'reflex') return
     const meaning = String(detail.meaning || '').trim()
     if (!meaning) {
       return
@@ -6244,6 +6311,8 @@ export default function HocTiengAnhAiClientPage() {
     setOpeningTranslateBusyByMessageId({})
     setStudentTranslateByMessageId({})
     setStudentTranslateBusyByMessageId({})
+    setReflexTranslateByMessageId({})
+    setReflexTranslateBusyByMessageId({})
     setLatestPronunciationScore(null)
     setLatestWeakWords([])
     setLatestPronunciationBreakdown({ accuracy: null, fluency: null, prosody: null })
@@ -6440,7 +6509,6 @@ export default function HocTiengAnhAiClientPage() {
   }, [activeTeacher.languageLabel, selectedNativeLanguage.apiLabel, learnerLevel])
 
   useEffect(() => {
-    if (learningMode === 'reflex') return
     if (isPresetPageSession) return // Bài có sẵn: tokens lấy từ DB khi load, không chạy tách từ
     const localUpdates: Record<string, string[]> = {}
     for (const message of messages) {
@@ -6448,7 +6516,11 @@ export default function HocTiengAnhAiClientPage() {
       if (tokensByMessageId[message.id] || tokenizingByMessageId[message.id]) continue
       const idea2 = String(mainSentenceByMessageId[message.id] || '').trim()
       const idea3 = String(intentAnswerByMessageId[message.id] || '').trim()
-      const tokenSource = ([idea2, idea3].filter(Boolean).join('\n') || message.text)
+      const tokenSource =
+        learningMode === 'reflex'
+          ? (idea2.replace(/\n\nPinyin:\s*[\s\S]*$/i, '').trim() || idea2)
+          : [idea2, idea3].filter(Boolean).join('\n')
+      if (!tokenSource.trim()) continue
       if (languageCode === 'en') {
         const fallback = basicTokenizeBySpace(tokenSource)
         const fallbackWithUsage = fallback.map((w) => ({ word: w, usageLevel: 'medium' as const }))
@@ -6488,14 +6560,14 @@ export default function HocTiengAnhAiClientPage() {
   }, [messages, tokensByMessageId])
 
   useEffect(() => {
-    if (!tappedWordKey || openedWordKey === tappedWordKey) return
+    if (!openedWordKey) return
     const el = compactBarRef.current
     if (el) {
       window.requestAnimationFrame(() => {
         el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
       })
     }
-  }, [tappedWordKey, openedWordKey])
+  }, [openedWordKey])
 
   useEffect(() => {
     if (!busy) return
@@ -6781,7 +6853,9 @@ export default function HocTiengAnhAiClientPage() {
         const isPresetReplayReply = Boolean(isPresetPageSession && payload.replayedFromPreset)
         const teacherText = isPresetReplayReply
           ? (intentAnswer || mainSentence || correctionNote)
-          : composeTeacherMessageText(correctionNote, mainSentence, intentAnswer)
+          : learningMode === 'reflex'
+            ? (mainSentence || intentAnswer || correctionNote)
+            : composeTeacherMessageText(correctionNote, mainSentence, intentAnswer)
         if (!teacherText) {
           throw new Error(localText('Không nhận được nội dung phản hồi hợp lệ từ AI.', 'No valid AI response content received.'))
         }
@@ -6920,6 +6994,9 @@ export default function HocTiengAnhAiClientPage() {
             variant: 'destructive',
           })
         }
+        // Khi giáo viên trả lời xong (ý 2, ý 3), cuộn tới danh sách từ để học viên thấy và bấm tra từ
+        requestAnimationFrame(() => scrollToSpeakActions())
+        window.setTimeout(() => scrollToSpeakActions(), 120)
       }
 
       if (payload.reviewDrill?.type === 'speaking') {
@@ -9244,14 +9321,69 @@ export default function HocTiengAnhAiClientPage() {
                       {m.role === 'teacher' ? (
                         <div className="space-y-2">
                           {(() => {
-                            if (learningMode === 'reflex') return <p className="whitespace-pre-wrap break-words text-base leading-relaxed">{m.text}</p>
+                            if (learningMode === 'reflex') {
+                              const { studentPart, teacherPart } = splitReflexReplyForDisplay(m.text)
+                              return (
+                                <>
+                                  <div className="space-y-2">
+                                    {studentPart ? (
+                                      <p className="whitespace-pre-wrap break-words text-base leading-relaxed">
+                                        <span className="text-muted-foreground">{coachUiText.reflexCorrectPrefix}</span>
+                                        <span className="text-emerald-700">{studentPart}</span>
+                                      </p>
+                                    ) : null}
+                                    {teacherPart ? (
+                                      <p className="whitespace-pre-wrap break-words text-base leading-relaxed text-indigo-700">
+                                        {teacherPart}
+                                      </p>
+                                    ) : null}
+                                    {!studentPart && !teacherPart ? (
+                                      <p className="whitespace-pre-wrap break-words text-base leading-relaxed">{m.text}</p>
+                                    ) : null}
+                                  </div>
+                                  <div className="flex flex-wrap gap-2">
+                                    <Button
+                                      type="button"
+                                      variant="secondary"
+                                      size="sm"
+                                      onClick={() => void replayTeacherMessage(m.id, m.text)}
+                                      disabled={isReplayButtonDisabled(`${m.id}__full`, hasCachedTeacherAudio(m.id))}
+                                    >
+                                      <Volume2 className="mr-2 h-4 w-4" />
+                                      {localText('Nghe lại', 'Play again')}
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => void translateReflexMessage(m.id, m.text)}
+                                      disabled={Boolean(reflexTranslateBusyByMessageId[m.id])}
+                                    >
+                                      {reflexTranslateBusyByMessageId[m.id]
+                                        ? localText('Đang dịch...', 'Translating...')
+                                        : reflexTranslateByMessageId[m.id]
+                                          ? localText('Ẩn dịch', 'Hide translation')
+                                          : localText('Dịch', 'Translate')}
+                                    </Button>
+                                  </div>
+                                  {reflexTranslateByMessageId[m.id] ? (
+                                    <p className="text-xs text-slate-600">
+                                      <span className="font-semibold">{localText('Dịch:', 'Translation:')}</span>{' '}
+                                      {reflexTranslateByMessageId[m.id]}
+                                    </p>
+                                  ) : null}
+                                </>
+                              )
+                            }
                             const correctionNote = String(correctionNoteByMessageId[m.id] || '').trim()
                             const mainSentenceFromApi = String(mainSentenceByMessageId[m.id] || '').trim()
                             const prevStudentMsg = idx > 0 && messages[idx - 1]?.role === 'student' ? messages[idx - 1] : null
                             const studentText = prevStudentMsg ? String(prevStudentMsg.text || '').trim() : ''
                             const correctedSentence = mainSentenceFromApi || studentText
                             const intentAnswer = String(intentAnswerByMessageId[m.id] || '').trim()
-                            if (isPresetPageSession && idx !== 0) {
+                            const correctionItems = correctionsByMessageId[m.id] || []
+                            const hasCorrectionsToShow = correctionItems.length > 0 || correctionNote
+                            if (isPresetPageSession && idx !== 0 && !hasCorrectionsToShow) {
                               const idea3Only = String(intentAnswer || m.text || '').trim()
                               const skipPinyin3 = idea3Only && hasEmbeddedPinyin(idea3Only)
                               if (supportsLatinTransliteration && idea3Only && !skipPinyin3) {
@@ -9310,21 +9442,8 @@ export default function HocTiengAnhAiClientPage() {
                                       ) : null}
                                     </div>
                                   ) : null}
-                                  {tappedWordKey.startsWith(`${m.id}:`) && openedWordKey !== tappedWordKey ? (
-                                    <div ref={compactBarRef} className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50/80 px-2 py-1.5">
-                                      <Button type="button" size="sm" className="h-8 text-xs" onClick={() => {
-                                        const w = tappedWordKey.split(':').slice(1).join(':')
-                                        void fetchWordInsight(m.id, w, sentenceForContext)
-                                      }}>
-                                        {coachUiText.wordTranslate}
-                                      </Button>
-                                      <Button type="button" variant="ghost" size="sm" className="h-8 px-2 text-muted-foreground hover:text-foreground" onClick={() => { setTappedWordKey(''); setOpenedWordKey('') }} title={coachUiText.wordClose}>
-                                        <X className="h-4 w-4" />
-                                      </Button>
-                                    </div>
-                                  ) : null}
                                   {openedWordKey.startsWith(`${m.id}:`) ? (
-                                    <div className="mt-2 rounded-xl border border-border/70 bg-white p-2 text-xs">
+                                    <div ref={compactBarRef} className="mt-2 rounded-xl border border-border/70 bg-white p-2 text-xs">
                                       <div className="mb-1.5 flex items-center justify-end">
                                         <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-muted-foreground hover:text-foreground" onClick={() => { setOpenedWordKey(''); setTappedWordKey('') }} title={coachUiText.wordClose}>
                                           <X className="h-4 w-4" />
@@ -9351,14 +9470,13 @@ export default function HocTiengAnhAiClientPage() {
                                       ) : wordBusyKey === openedWordKey ? (
                                         <p className="text-muted-foreground">{localText('Đang phân tích từ...', 'Analyzing word...')}</p>
                                       ) : (
-                                        <p className="text-muted-foreground">{localText('Bấm Dịch để xem nghĩa.', 'Click Translate to view meaning.')}</p>
+                                        <p className="text-muted-foreground">{localText('Không tải được nghĩa. Thử bấm lại từ.', 'Could not load meaning. Try tapping the word again.')}</p>
                                       )}
                                     </div>
                                   ) : null}
                                 </div>
                               )
                             }
-                            const correctionItems = correctionsByMessageId[m.id] || []
                             const hasStructured = Boolean(correctionNote || correctedSentence || intentAnswer || correctionItems.length > 0)
                             if (!hasStructured) return <p className="break-words text-base leading-relaxed">{m.text}</p>
                             const skipPinyin2 = correctedSentence && hasEmbeddedPinyin(correctedSentence)
@@ -9376,10 +9494,18 @@ export default function HocTiengAnhAiClientPage() {
                                   <div className="mt-1 space-y-1.5 text-slate-700">
                                     {correctionItems.length > 0 ? (
                                       correctionItems.map((item, itemIdx) => (
-                                        <div key={`${item.original}-${item.fixed}-${itemIdx}`} className="space-y-0.5">
-                                          <p><span className="font-semibold text-rose-600">{correctionLabels.original}</span> {item.original || '-'}</p>
-                                          <p><span className="font-semibold text-emerald-600">{correctionLabels.fixed}</span> {item.fixed || '-'}</p>
-                                        </div>
+                                        <p key={`${item.original}-${item.fixed}-${itemIdx}`} className="leading-relaxed">
+                                          {item.explanationVi?.trim() ? (
+                                            item.explanationVi.trim()
+                                          ) : (
+                                            <>
+                                              <span className="font-semibold text-rose-600">{correctionLabels.original}</span>{' '}
+                                              {item.original || '-'}
+                                              <span className="font-semibold text-emerald-600">, {correctionLabels.fixed}</span>{' '}
+                                              {item.fixed || '-'}.
+                                            </>
+                                          )}
+                                        </p>
                                       ))
                                     ) : correctionNote ? (
                                       <p className="whitespace-pre-wrap">
@@ -9467,15 +9593,15 @@ export default function HocTiengAnhAiClientPage() {
                               </div>
                             )
                           })()}
-                          {learningMode !== 'reflex' ? (
-                          <>
                           {(() => {
                             const rawTokens = tokensByMessageId[m.id] || []
                             const displayTokens = rawTokens
                             const sentenceForWordContext =
                               isPresetPageSession
                                 ? (String(intentAnswerByMessageId[m.id] || '').trim() || m.text)
-                                : ([String(mainSentenceByMessageId[m.id] || '').trim(), String(intentAnswerByMessageId[m.id] || '').trim()].filter(Boolean).join('\n') || m.text)
+                                : learningMode === 'reflex'
+                                  ? (String(mainSentenceByMessageId[m.id] || '').trim().replace(/\n\nPinyin:\s*[\s\S]*$/i, '').trim() || m.text)
+                                  : ([String(mainSentenceByMessageId[m.id] || '').trim(), String(intentAnswerByMessageId[m.id] || '').trim()].filter(Boolean).join('\n') || m.text)
                             return (
                           <>
                           <div className="flex flex-wrap gap-1">
@@ -9504,9 +9630,14 @@ export default function HocTiengAnhAiClientPage() {
                                   onClick={(e) => {
                                     e.preventDefault()
                                     e.stopPropagation()
-                                    if (tappedWordKey === key) { setTappedWordKey(''); return }
+                                    if (openedWordKey === key) {
+                                      setOpenedWordKey('')
+                                      setTappedWordKey('')
+                                      return
+                                    }
                                     setTappedWordKey(key)
-                                    if (openedWordKey && openedWordKey !== key) setOpenedWordKey('')
+                                    setOpenedWordKey(key)
+                                    void fetchWordInsight(m.id, word, sentenceForWordContext)
                                   }}
                                 >
                                   {capitalizeWordForDisplay(word)}
@@ -9527,21 +9658,8 @@ export default function HocTiengAnhAiClientPage() {
                               {localText('Màu hiển thị ngay sau khi tách từ. Xanh dương = dùng nhiều, xanh lá = trung bình, vàng = ít dùng.', 'Colors show right after tokenization. Blue = high use, green = medium, yellow = low.')} {coachUiText.tapWordTranslateHint}
                             </p>
                           )}
-                          {tappedWordKey.startsWith(`${m.id}:`) && openedWordKey !== tappedWordKey ? (
-                            <div ref={compactBarRef} className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50/80 px-2 py-1.5">
-                              <Button type="button" size="sm" className="h-8 text-xs" onClick={() => {
-                                const w = tappedWordKey.split(':').slice(1).join(':')
-                                void fetchWordInsight(m.id, w, sentenceForWordContext)
-                              }}>
-                                {coachUiText.wordTranslate}
-                              </Button>
-                              <Button type="button" variant="ghost" size="sm" className="h-8 px-2 text-muted-foreground hover:text-foreground" onClick={() => { setTappedWordKey(''); setOpenedWordKey('') }} title={coachUiText.wordClose}>
-                                <X className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          ) : null}
                           {openedWordKey.startsWith(`${m.id}:`) ? (
-                            <div className="mt-2 rounded-xl border border-border/70 bg-white p-2 text-xs">
+                            <div ref={compactBarRef} className="mt-2 rounded-xl border border-border/70 bg-white p-2 text-xs">
                               <div className="mb-1.5 flex items-center justify-end">
                                 <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-muted-foreground hover:text-foreground" onClick={() => { setOpenedWordKey(''); setTappedWordKey('') }} title={coachUiText.wordClose}>
                                   <X className="h-4 w-4" />
@@ -9604,35 +9722,22 @@ export default function HocTiengAnhAiClientPage() {
                               ) : wordBusyKey === openedWordKey ? (
                                 <p className="text-muted-foreground">{localText('Đang phân tích từ...', 'Analyzing word...')}</p>
                               ) : (
-                                <p className="text-muted-foreground">{localText('Bấm Dịch để xem nghĩa.', 'Click Translate to view meaning.')}</p>
+                                <p className="text-muted-foreground">{localText('Không tải được nghĩa. Thử bấm lại từ.', 'Could not load meaning. Try tapping the word again.')}</p>
                               )}
                             </div>
                           ) : null}
                           </>
                             )
                           })()}
-                          </>
-                          ) : null}
                         </div>
                       ) : (
                         <div className="space-y-2">
                           <p className="text-base leading-relaxed">{m.text}</p>
                         </div>
                       )}
-                      {m.role === 'teacher' ? (
+                      {m.role === 'teacher' && learningMode !== 'reflex' ? (
                         <div className="mt-2 flex flex-wrap gap-2">
-                          {learningMode === 'reflex' ? (
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              size="sm"
-                              onClick={() => void replayTeacherMessage(m.id, m.text)}
-                              disabled={isReplayButtonDisabled(`${m.id}__full`, hasCachedTeacherAudio(m.id))}
-                            >
-                              <Volume2 className="mr-2 h-4 w-4" />
-                              {localText('Nghe lại', 'Play again')}
-                            </Button>
-                          ) : idx === 0 ? (
+                          {idx === 0 ? (
                             <>
                               <Button
                                 type="button"
@@ -10009,6 +10114,9 @@ export default function HocTiengAnhAiClientPage() {
                     </>
                   )}
                   </div>
+                  {(speakingLanguageMode === 'auto' || speakingLanguageMode === 'mixed') ? (
+                    <p className="mt-1.5 text-xs text-slate-600">{micLanguageHint}</p>
+                  ) : null}
                 </div>
                 {!isPresetPageSession ? (
                   <div className="rounded-md border border-slate-200 bg-slate-50/80 px-3 py-2 text-xs text-slate-700">
@@ -10571,10 +10679,16 @@ export default function HocTiengAnhAiClientPage() {
                 ) : (
                   <div className="mt-2 space-y-2">
                     {corrections.map((c, idx) => (
-                      <div key={`${c.original}-${idx}`} className="min-w-0 rounded-xl border border-border/70 bg-slate-50/80 p-2.5 break-words text-xs">
-                        <p><span className="font-semibold text-red-600">{correctionLabels.original}</span> {c.original}</p>
-                        <p><span className="font-semibold text-emerald-700">{correctionLabels.fixed}</span> {c.fixed}</p>
-                      </div>
+                      <p key={`${c.original}-${idx}`} className="min-w-0 rounded-xl border border-border/70 bg-slate-50/80 p-2.5 break-words text-xs leading-relaxed">
+                        {c.explanationVi?.trim() ? (
+                          c.explanationVi.trim()
+                        ) : (
+                          <>
+                            <span className="font-semibold text-red-600">{correctionLabels.original}</span> {c.original}
+                            <span className="font-semibold text-emerald-700">, {correctionLabels.fixed}</span> {c.fixed}.
+                          </>
+                        )}
+                      </p>
                     ))}
                   </div>
                 )}
@@ -10642,7 +10756,7 @@ export default function HocTiengAnhAiClientPage() {
                   </ul>
                 )}
               </div>
-              {learningMode === 'review' ? (
+              {(learningMode === 'review' || learningMode === 'reflex') ? (
                 <>
                   <TodayWordsPanel
                     localText={localText}

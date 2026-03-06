@@ -1695,7 +1695,7 @@ function composeTeacherMessageText(correctionNote: string, mainSentence: string,
     .join('\n\n')
 }
 
-/** Tạo nội dung Ý 1 từ correctionItems: format "Tiếng X nói là: a. Tiếng Y nói là: b." – dùng cho hiển thị và TTS (thống nhất, dễ đọc). */
+/** Tạo nội dung Ý 1 từ correctionItems: 1 câu/lỗi "Tiếng X nói là a, Tiếng Y nói là b." – dùng cho TTS. */
 function buildCorrectionDisplayText(
   items: Array<{ original: string; fixed: string }>,
   originalLabel: string,
@@ -1707,7 +1707,7 @@ function buildCorrectionDisplayText(
     .map((c) => {
       const orig = (c.original || '-').trim()
       const fix = (c.fixed || '-').trim()
-      return `${originalLabel} ${orig}. ${fixedLabel} ${fix}.`
+      return `${originalLabel} ${orig}, ${fixedLabel} ${fix}.`
     })
     .filter(Boolean)
     .join(' ')
@@ -2748,6 +2748,7 @@ export default function HocBaiHocCoSanClientPage() {
   // Chỉ hiện phần hội thoại (input, gửi, nói, tốc độ) khi đã vào buổi học (có tin nhắn hoặc đang mở buổi cũ)
   const canShowDirectConversation = messages.length > 0 || Boolean(openedHistorySessionId)
   const hasStudentTurnsInCurrentSession = liveSessionStudentTurnCount > sessionEntryStudentTurnBaseline
+  const isPresetFirstEntering = isPresetPageSession && liveSessionStudentTurnCount === 0
   // Preset lessons must finish mini flow (writing -> speaking -> listening)
   // before allowing the next mic turn.
   const isMiniDrillBlocking = learningMode === 'review' && reviewDrillStage !== 'idle'
@@ -2801,6 +2802,29 @@ export default function HocBaiHocCoSanClientPage() {
     learnerDisplayName,
     languageCode,
   ])
+  /** Câu ý 3 (intentAnswer) của thầy/cô – cùng đoạn hỏi đáp với câu học sinh. Dùng khi mới vào bài preset. */
+  const latestIdea3ForPreset = useMemo(() => {
+    if (!isPresetPageSession) return null
+    const teachers = messages.filter((m) => m.role === 'teacher')
+    const turnIdx = Math.max(0, Math.min(presetReplayNextTurnIndex, teachers.length - 1))
+    const teacher = teachers[turnIdx]
+    if (!teacher) return null
+    const idea3 = String(intentAnswerByMessageId[teacher.id] || '').trim()
+    if (!idea3) return null
+    const personalized = (() => {
+      const s = personalizeLearnerNameInSentence(idea3, learnerDisplayName, languageCode)
+      return isUnsafePresetReadingSentence(s) ? '' : s
+    })()
+    return personalized ? { messageId: teacher.id, sentence: personalized, teacherText: teacher.text } : null
+  }, [messages, intentAnswerByMessageId, isPresetPageSession, presetReplayNextTurnIndex, learnerDisplayName, languageCode])
+  /** Khi mới vào preset: dùng latestIdea3ForPreset, nếu null (câu mở đầu không có intentAnswer) thì fallback presetReplayExpectedSentence */
+  const firstPresetReadingDisplay = useMemo(() => {
+    if (!isPresetPageSession || !isPresetFirstEntering) return null
+    if (latestIdea3ForPreset) return latestIdea3ForPreset
+    const expected = String(presetReplayExpectedSentence || '').trim()
+    if (!expected || isUnsafePresetReadingSentence(expected)) return null
+    return { messageId: 'preset-expected', sentence: expected, teacherText: expected }
+  }, [isPresetPageSession, isPresetFirstEntering, latestIdea3ForPreset, presetReplayExpectedSentence])
   const latestStudentReplayMessageId = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i -= 1) {
       const m = messages[i]
@@ -4120,14 +4144,9 @@ export default function HocBaiHocCoSanClientPage() {
   }
 
   const replayTeacherCorrectionNote = async (messageId: string) => {
-    const items = correctionsByMessageId[messageId] || []
     const correctionNote = String(correctionNoteByMessageId[messageId] || '').trim()
-    const textForDisplay =
-      items.length > 0
-        ? buildCorrectionDisplayText(items, correctionLabels.original, correctionLabels.fixed)
-        : correctionNote
-    if (!textForDisplay) return
-    const textForTts = stripPhoneticForTts(textForDisplay, languageCode)
+    if (!correctionNote) return
+    const textForTts = stripPhoneticForTts(correctionNote, languageCode)
     const key = `${messageId}__correction_note`
     if (ttsLoadingByKey[key]) return
     if (listening) {
@@ -5728,8 +5747,13 @@ export default function HocBaiHocCoSanClientPage() {
           setWritingDraft('')
           setWritingEvalResult(null)
         } else if (snapshotStage === 'idle') {
-          setReviewDrillStage('idle')
-          setReviewMiniPackCompleted(writingRestored && writingCompletedRestored)
+          if (writingRestored && !writingCompletedRestored) {
+            setReviewDrillStage('writing')
+            setReviewMiniPackCompleted(false)
+          } else {
+            setReviewDrillStage('idle')
+            setReviewMiniPackCompleted(writingRestored && writingCompletedRestored)
+          }
         } else if (snapshotStage === 'listening' && activeListening) {
           setReviewListeningTurnIndex(-1)
           const promptForListening = String(activeListening.prompt || '').trim()
@@ -5895,6 +5919,10 @@ export default function HocBaiHocCoSanClientPage() {
         } else {
           setReviewDrillStage('idle')
           setReviewMiniPackCompleted(writingRestored && writingCompletedRestored)
+        }
+        // Mới vào bài preset: ẩn phần 3 mini ôn tập, hiển thị câu ý 2 cho học viên đọc trước
+        if (presetSessionLoaded && loadedStudentTurns === 0) {
+          setReviewDrillStage('idle')
         }
       }
       if (metaLanguage && TEACHERS_BY_LANGUAGE[metaLanguage]) {
@@ -6578,6 +6606,7 @@ export default function HocBaiHocCoSanClientPage() {
         correctionNote?: string
         intentAnswer?: string
         mainSentence?: string
+        tokensJson?: string
         replayedFromPreset?: boolean
         strictReplayLocked?: boolean
         presetReplayNextExpectedStudentText?: string
@@ -6638,7 +6667,9 @@ export default function HocBaiHocCoSanClientPage() {
         const isPresetReplayReply = Boolean(isPresetPageSession && payload.replayedFromPreset)
         const teacherText = isPresetReplayReply
           ? (intentAnswer || mainSentence || correctionNote)
-          : composeTeacherMessageText(correctionNote, mainSentence, intentAnswer)
+          : learningMode === 'reflex'
+            ? (mainSentence || intentAnswer || correctionNote)
+            : composeTeacherMessageText(correctionNote, mainSentence, intentAnswer)
         if (!teacherText) {
           throw new Error(localText('Không nhận được nội dung phản hồi hợp lệ từ AI.', 'No valid AI response content received.'))
         }
@@ -6656,6 +6687,33 @@ export default function HocBaiHocCoSanClientPage() {
         }
         if (intentAnswer) {
           setIntentAnswerByMessageId((prev) => ({ ...prev, [teacherMessageId]: intentAnswer }))
+        }
+        const presetTokensJson = String(payload.tokensJson || '').trim()
+        if (isPresetReplayReply) {
+          if (presetTokensJson) {
+            try {
+              const parsed = JSON.parse(presetTokensJson) as Array<{ word?: string; usageLevel?: string }>
+              if (Array.isArray(parsed)) {
+                const withUsage = parsed
+                  .map((t) => ({
+                    word: String(t.word || '').trim(),
+                    usageLevel: (['high', 'medium', 'low'].includes(String(t.usageLevel || '').toLowerCase())
+                      ? String(t.usageLevel).toLowerCase()
+                      : 'medium') as 'high' | 'medium' | 'low',
+                  }))
+                  .filter((t) => t.word)
+                if (withUsage.length > 0) {
+                  setTokensByMessageId((prev) => ({ ...prev, [teacherMessageId]: withUsage.map((t) => t.word) }))
+                  setTokensWithUsageByMessageId((prev) => ({ ...prev, [teacherMessageId]: withUsage }))
+                }
+              }
+            } catch {
+              // ignore invalid tokensJson
+            }
+          } else {
+            const sentenceForTokenize = [mainSentence, intentAnswer].filter(Boolean).join('\n').trim()
+            if (sentenceForTokenize) void fetchMessageTokens(teacherMessageId, sentenceForTokenize)
+          }
         }
         const aiPayloadJson = (() => {
           try {
@@ -6682,6 +6740,7 @@ export default function HocBaiHocCoSanClientPage() {
           mainSentence,
           correctionNote,
           intentAnswer,
+          tokensJson: isPresetReplayReply && presetTokensJson ? presetTokensJson : undefined,
           aiPayloadJson,
         }).then(() => {
           persistedMessageIdsRef.current[teacherMessageId] = true
@@ -6752,12 +6811,7 @@ export default function HocBaiHocCoSanClientPage() {
         )
         try {
           const audioMainSentence = isPresetReplayReply ? '' : mainSentence
-          const audioCorrectionNote =
-            isPresetReplayReply
-              ? ''
-              : latestCorrections.length > 0
-                ? buildCorrectionDisplayText(latestCorrections, correctionLabels.original, correctionLabels.fixed)
-                : correctionNote
+          const audioCorrectionNote = isPresetReplayReply ? '' : correctionNote
           const audioIntentAnswer = isPresetReplayReply
             ? String(intentAnswer || mainSentence || correctionNote).trim()
             : intentAnswer
@@ -6777,6 +6831,9 @@ export default function HocBaiHocCoSanClientPage() {
             variant: 'destructive',
           })
         }
+        // Khi giáo viên trả lời xong (ý 2, ý 3), cuộn tới danh sách từ để học viên thấy và bấm tra từ
+        requestAnimationFrame(() => scrollToSpeakActions())
+        window.setTimeout(() => scrollToSpeakActions(), 120)
       }
 
       if (payload.reviewDrill?.type === 'speaking') {
@@ -9142,25 +9199,30 @@ export default function HocBaiHocCoSanClientPage() {
                             const busy3 = !skipPinyin3 && intentAnswer ? Boolean(writingRomanizationBusyByKey[toWritingRomanizationKey(intentAnswer)]) : false
                             return (
                               <div className="space-y-1 break-words text-base">
-                                <div className="rounded-md border border-rose-100 bg-rose-50/40 p-2 text-base">
-                                  <p className="font-semibold text-rose-700">{localText('Ý 1 - Sửa lỗi:', 'Idea 1 - Error fix:')}</p>
-                                  <div className="mt-1 space-y-1.5 text-slate-700">
-                                    {correctionItems.length > 0 ? (
-                                      correctionItems.map((item, itemIdx) => (
-                                        <div key={`${item.original}-${item.fixed}-${itemIdx}`} className="space-y-0.5">
-                                          <p><span className="font-semibold text-rose-600">{correctionLabels.original}</span> {item.original || '-'}</p>
-                                          <p><span className="font-semibold text-emerald-600">{correctionLabels.fixed}</span> {item.fixed || '-'}</p>
+                                <p className="whitespace-pre-wrap">
+                                  <span className="font-semibold text-rose-700">{localText('Ý 1 - Sửa lỗi:', 'Idea 1 - Error fix:')}</span>{' '}
+                                  {correctionItems.length > 0
+                                    ? (() => {
+                                        const pairs = correctionItems.slice(0, 5).map((c) => `${(c.original || '-').trim()} → ${(c.fixed || '-').trim()}`).filter(Boolean)
+                                        return pairs.join('; ') || localText('Xem chi tiết bên dưới.', 'See details below.')
+                                      })()
+                                    : correctionNote
+                                      ? transformCorrectionNoteForDisplay(correctionNote, correctionLabels.original, correctionLabels.fixed)
+                                      : localText('Không có lỗi lớn cần sửa.', 'No major correction needed.')}
+                                </p>
+                                {correctionItems.length > 0 ? (
+                                  <div className="ml-1 rounded-md border border-rose-100 bg-rose-50/40 p-2 text-base">
+                                    <p className="font-semibold text-rose-800">{localText('Lỗi cần sửa', 'Corrections needed')}</p>
+                                    <div className="mt-1 space-y-1.5">
+                                      {correctionItems.map((item, itemIdx) => (
+                                        <div key={`${item.original}-${item.fixed}-${itemIdx}`} className="space-y-0.5 text-slate-700">
+                                          <p><span className="font-semibold text-rose-700">{correctionLabels.original}</span> {item.original || '-'}</p>
+                                          <p><span className="font-semibold text-emerald-700">{correctionLabels.fixed}</span> {item.fixed || '-'}</p>
                                         </div>
-                                      ))
-                                    ) : correctionNote ? (
-                                      <p className="whitespace-pre-wrap">
-                                        {transformCorrectionNoteForDisplay(correctionNote, correctionLabels.original, correctionLabels.fixed)}
-                                      </p>
-                                    ) : (
-                                      <p className="text-muted-foreground">{localText('Không có lỗi lớn cần sửa.', 'No major correction needed.')}</p>
-                                    )}
+                                      ))}
+                                    </div>
                                   </div>
-                                </div>
+                                ) : null}
                                 <div>
                                   <p>
                                     <span className="font-semibold text-emerald-700">{localText('Ý 2 - Câu sửa hoàn chỉnh:', 'Idea 2 - Corrected full sentence:')}</span>{' '}
@@ -9599,7 +9661,7 @@ export default function HocBaiHocCoSanClientPage() {
 
               <div ref={speakActionsRef} className="min-w-0 space-y-2">
                 {learningMode === 'review' &&
-                !isPresetPageSession &&
+                !isPresetFirstEntering &&
                 reviewDrillStage !== 'writing' &&
                 reviewDrillStage !== 'speaking' &&
                 reviewDrillStage !== 'listening' &&
@@ -9672,35 +9734,45 @@ export default function HocBaiHocCoSanClientPage() {
                         : localText('Mini 3/3: Chọn từ bạn nghe thấy', 'Mini 3/3: Pick words you heard')}
                   </div>
                 ) : null}
-                {!isMiniDrillBlocking && isPresetPageSession && latestMainSentenceForLearner ? (
+                {!isMiniDrillBlocking && isPresetPageSession && (isPresetFirstEntering ? firstPresetReadingDisplay : latestMainSentenceForLearner) ? (
                   <div className="rounded-md border border-emerald-200 bg-emerald-50/70 px-3 py-2 text-xs text-emerald-800">
-                    <p className="font-semibold text-[11px] text-emerald-700">
-                      {localText(
-                        'Bấm "Nói" để đọc theo câu này, sau đó bấm "Gửi".',
-                        'Tap "Speak" to read this sentence, then tap "Send".'
-                      )}
-                    </p>
-                    <div className="mt-1 flex flex-wrap items-center gap-2">
-                      <p className="m-0 break-words text-sm font-medium text-emerald-900">
-                        {latestMainSentenceForLearner.sentence}
-                      </p>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => void replayCorrectionSentence(latestMainSentenceForLearner.sentence)}
-                        disabled={isReplayButtonDisabled(
-                          correctionAudioKey(stripPhoneticForTts(latestMainSentenceForLearner.sentence, languageCode)),
-                          hasCachedTeacherAudio(correctionAudioKey(stripPhoneticForTts(latestMainSentenceForLearner.sentence, languageCode)))
-                        )}
-                      >
-                        <Volume2 className="mr-2 h-4 w-4" />
-                        {localText('Nghe đọc chuẩn', 'Play standard reading')}
-                      </Button>
-                    </div>
+                    {(() => {
+                      const display = isPresetFirstEntering ? firstPresetReadingDisplay : latestMainSentenceForLearner
+                      if (!display) return null
+                      return (
+                        <>
+                          <p className="font-semibold text-[11px] text-emerald-700">
+                            {isPresetFirstEntering
+                              ? localText('Câu ý 3 - Đọc theo câu của cô:', 'Idea 3 - Read the teacher\'s sentence:')
+                              : localText(
+                                  'Bấm "Nói" để đọc theo câu này, sau đó bấm "Gửi".',
+                                  'Tap "Speak" to read this sentence, then tap "Send".'
+                                )}
+                          </p>
+                          <div className="mt-1 flex flex-wrap items-center gap-2">
+                            <p className="m-0 break-words text-sm font-medium text-emerald-900">
+                              {display.sentence}
+                            </p>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => void replayCorrectionSentence(display.sentence)}
+                              disabled={isReplayButtonDisabled(
+                                correctionAudioKey(stripPhoneticForTts(display.sentence, languageCode)),
+                                hasCachedTeacherAudio(correctionAudioKey(stripPhoneticForTts(display.sentence, languageCode)))
+                              )}
+                            >
+                              <Volume2 className="mr-2 h-4 w-4" />
+                              {localText('Nghe đọc chuẩn', 'Play standard reading')}
+                            </Button>
+                          </div>
+                        </>
+                      )
+                    })()}
                   </div>
                 ) : null}
-                {!isMiniDrillBlocking && isPresetPageSession && !latestMainSentenceForLearner ? (
+                {!isMiniDrillBlocking && isPresetPageSession && !(isPresetFirstEntering ? firstPresetReadingDisplay : latestMainSentenceForLearner) ? (
                   <div className="rounded-md border border-emerald-200 bg-emerald-50/70 px-3 py-2 text-xs text-emerald-800">
                     <p className="font-semibold">{localText('Đã hoàn thành câu đọc chính', 'Main reading lines completed')}</p>
                     <p className="mt-1">
@@ -9946,7 +10018,7 @@ export default function HocBaiHocCoSanClientPage() {
                   </p>
                 ) : null}
               </div>
-              {learningMode === 'review' && reviewDrillStage === 'writing' && writingTask && !writingTask.completed ? (
+              {learningMode === 'review' && !isPresetFirstEntering && reviewDrillStage === 'writing' && writingTask && !writingTask.completed ? (
                 <div
                   ref={writingTaskRef}
                   className={`min-w-0 rounded-md border p-2.5 ${
@@ -9955,8 +10027,7 @@ export default function HocBaiHocCoSanClientPage() {
                       : 'bg-slate-50/70'
                   }`}
                 >
-                  {!isPresetPageSession ? (
-                    <div className="space-y-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+                  <div className="space-y-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
                       <p className="font-semibold">
                         {localText('Nhóm mini ôn tập (làm lần lượt):', 'Mini review pack (complete in order):')}
                       </p>
@@ -10014,7 +10085,6 @@ export default function HocBaiHocCoSanClientPage() {
                         {localText('Mini 1/3: Viết lại câu mục tiêu', 'Mini 1/3: Rewrite the target sentence')}
                       </div>
                     </div>
-                  ) : null}
                   <div className="mt-3 space-y-3">
                     {writingInputStatus === 'incorrect' ? (
                       <p className="text-xs text-rose-700">
@@ -10154,10 +10224,9 @@ export default function HocBaiHocCoSanClientPage() {
                   </div>
                 </div>
               ) : null}
-              {learningMode === 'review' && reviewDrillStage === 'speaking' ? (
+              {learningMode === 'review' && !isPresetFirstEntering && reviewDrillStage === 'speaking' ? (
                 <div ref={miniSpeakingBlockRef} className="min-w-0 rounded-md border border-indigo-200 bg-indigo-50/60 p-2.5">
-                  {!isPresetPageSession ? (
-                    <div className="mb-2 space-y-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+                  <div className="mb-2 space-y-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
                       <p className="font-semibold">
                         {localText('Nhóm mini ôn tập (làm lần lượt):', 'Mini review pack (complete in order):')}
                       </p>
@@ -10215,7 +10284,6 @@ export default function HocBaiHocCoSanClientPage() {
                         {localText('Mini 2/3: Nói lại câu sửa để luyện phát âm', 'Mini 2/3: Repeat the corrected sentence')}
                       </div>
                     </div>
-                  ) : null}
                   <p className="text-sm font-semibold text-indigo-800">
                     {localText('Mini 2/3: Luyện phát âm', 'Mini 2/3: Pronunciation practice')}
                   </p>
@@ -10295,10 +10363,9 @@ export default function HocBaiHocCoSanClientPage() {
                   </div>
                 </div>
               ) : null}
-              {learningMode === 'review' && reviewDrillStage === 'listening' && reviewListeningVisibleOptions.length > 0 && !reviewListeningPopupOpen ? (
+              {learningMode === 'review' && !isPresetFirstEntering && reviewDrillStage === 'listening' && reviewListeningVisibleOptions.length > 0 && !reviewListeningPopupOpen ? (
                 <div ref={miniListeningBlockRef} className="min-w-0 rounded-md border border-emerald-200 bg-emerald-50/60 p-2.5">
-                  {!isPresetPageSession ? (
-                    <div className="mb-2 space-y-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+                  <div className="mb-2 space-y-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
                       <p className="font-semibold">
                         {localText('Nhóm mini ôn tập (làm lần lượt):', 'Mini review pack (complete in order):')}
                       </p>
@@ -10356,7 +10423,6 @@ export default function HocBaiHocCoSanClientPage() {
                         {localText('Mini 3/3: Chọn từ bạn nghe thấy', 'Mini 3/3: Pick words you heard')}
                       </div>
                     </div>
-                  ) : null}
                   <p className="text-sm font-semibold text-emerald-800">
                     {localText('Mini 3/3: Chọn từ bạn nghe thấy', 'Mini 3/3: Pick words you heard')}
                   </p>

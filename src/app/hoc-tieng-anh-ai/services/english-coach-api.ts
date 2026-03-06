@@ -150,6 +150,13 @@ export function cleanupIncompleteWords() {
   return sendJson<{ deleted?: number }>('/api/english-coach/word-daily?cleanup=incomplete', 'DELETE')
 }
 
+export function deleteWordById(id: string) {
+  return sendJson<{ ok?: boolean; deleted?: number; error?: string }>(
+    `/api/english-coach/word-daily?id=${encodeURIComponent(id)}`,
+    'DELETE'
+  )
+}
+
 export function getSessionWords(sessionId: string, limit: number, turnIndex?: number) {
   const params = new URLSearchParams({
     sessionId,
@@ -157,6 +164,19 @@ export function getSessionWords(sessionId: string, limit: number, turnIndex?: nu
   })
   if (turnIndex !== undefined && turnIndex >= 0) params.set('turnIndex', String(turnIndex))
   return getJson<{ items?: unknown[]; error?: string }>(`/api/english-coach/word-daily?${params.toString()}`)
+}
+
+/** Lấy tất cả từ mới của học viên (không theo buổi học cụ thể). */
+export function getAllWords(limit = 200, filters?: { targetLanguage?: string; nativeLanguage?: string }) {
+  const params = new URLSearchParams({
+    date: 'all',
+    limit: String(limit),
+  })
+  const targetLanguage = String(filters?.targetLanguage || '').trim()
+  const nativeLanguage = String(filters?.nativeLanguage || '').trim()
+  if (targetLanguage) params.set('targetLanguage', targetLanguage)
+  if (nativeLanguage) params.set('nativeLanguage', nativeLanguage)
+  return getJson<{ items?: unknown[]; date?: string; error?: string }>(`/api/english-coach/word-daily?${params.toString()}`)
 }
 
 export function getListeningDistractors(params: {

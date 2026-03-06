@@ -548,12 +548,16 @@ export async function GET(request: NextRequest) {
         ? Math.max(-1, Math.floor(Number(turnIndexRaw)))
         : undefined
     const limitRaw = Number(request.nextUrl.searchParams.get('limit') || 30)
-    const limit = Number.isFinite(limitRaw) ? Math.min(100, Math.max(1, Math.floor(limitRaw))) : 30
+    const maxLimit = dateQuery === 'all' ? 500 : 100
+    const limit = Number.isFinite(limitRaw) ? Math.min(maxLimit, Math.max(1, Math.floor(limitRaw))) : (dateQuery === 'all' ? 200 : 30)
 
     let learnedDate: string
     let previousSessionId = ''
+    const fetchAllWords = dateQuery === 'all' && !sessionId
     if (sessionId) {
       learnedDate = new Date().toISOString().slice(0, 10)
+    } else if (dateQuery === 'all') {
+      learnedDate = ''
     } else if (dateQuery === 'last' || dateQuery === 'previous') {
       let latestSessionQuery = adminSupabase
         .from('language_coach_daily_words')
@@ -593,7 +597,11 @@ export async function GET(request: NextRequest) {
       .limit(limit)
 
     const effectiveSessionId = sessionId || previousSessionId
-    let query = effectiveSessionId ? baseQuery.eq('session_id', effectiveSessionId) : baseQuery.eq('learned_date', learnedDate)
+    let query = effectiveSessionId
+      ? baseQuery.eq('session_id', effectiveSessionId)
+      : fetchAllWords
+        ? baseQuery
+        : baseQuery.eq('learned_date', learnedDate)
     if (targetLanguageQuery) query = query.eq('target_language', targetLanguageQuery)
     if (nativeLanguageQuery) query = query.eq('native_language', nativeLanguageQuery)
     // When turnIndex provided: return session-level (turn_index=-1) + turn-specific words
@@ -918,15 +926,46 @@ export async function DELETE(request: NextRequest) {
     if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
     const { user } = auth
 
+    const idParam = String(request.nextUrl.searchParams.get('id') || '').trim()
     const cleanup = String(request.nextUrl.searchParams.get('cleanup') || '').trim()
+
+    const adminSupabase = adminClient()
+
+    if (idParam) {
+      const { data: row, error: fetchErr } = await adminSupabase
+        .from('language_coach_daily_words')
+        .select('id, word, target_language')
+        .eq('id', idParam)
+        .eq('user_id', user.id)
+        .maybeSingle()
+      if (fetchErr || !row) {
+        return NextResponse.json({ error: 'Không tìm thấy từ cần xóa.' }, { status: 404 })
+      }
+      const wordVal = String(row.word || '').trim()
+      const targetLang = String(row.target_language || '').trim()
+      const { error: dailyErr } = await adminSupabase
+        .from('language_coach_daily_words')
+        .delete()
+        .eq('id', idParam)
+        .eq('user_id', user.id)
+      if (dailyErr) return NextResponse.json({ error: dailyErr.message }, { status: 500 })
+      if (wordVal && targetLang) {
+        await adminSupabase
+          .from('language_coach_review_queue')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('word', wordVal)
+          .eq('target_language', targetLang)
+      }
+      return NextResponse.json({ ok: true, deleted: 1 })
+    }
+
     if (cleanup !== 'incomplete' && cleanup !== 'all') {
       return NextResponse.json(
-        { error: 'Thiếu ?cleanup=incomplete (xóa từ thiếu nghĩa) hoặc ?cleanup=all (xóa hết để lưu lại từ đầu).' },
+        { error: 'Thiếu ?id=... (xóa 1 từ) hoặc ?cleanup=incomplete (xóa từ thiếu nghĩa) hoặc ?cleanup=all (xóa hết).' },
         { status: 400 }
       )
     }
-
-    const adminSupabase = adminClient()
 
     if (cleanup === 'all') {
       const { data: deletedDaily, error: dailyErr } = await adminSupabase

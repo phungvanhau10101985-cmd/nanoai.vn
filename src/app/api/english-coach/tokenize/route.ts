@@ -73,7 +73,7 @@ function sanitizeTokens(raw: unknown, targetLanguageCode: string): string[] {
     }
 
     if (!out.includes(token)) out.push(token)
-    if (out.length >= 24) break
+    if (out.length >= 60) break
   }
   return out
 }
@@ -117,7 +117,7 @@ function sanitizeTokensWithUsage(raw: unknown, targetLanguageCode: string): Toke
       ? normalizeUsageLevel((item as { usageLevel?: unknown }).usageLevel)
       : 'medium'
     out.push({ word: token, usageLevel })
-    if (out.length >= 24) break
+    if (out.length >= 60) break
   }
   return out
 }
@@ -387,7 +387,7 @@ Yêu cầu:
 3) Với tiếng có khoảng trắng: mỗi token tối đa 1-3 từ.
 4) Với Chinese/Japanese/Thai: tách đúng ranh giới từ tự nhiên, mỗi token ngắn (thường 1-4 ký tự, tối đa 8).
 5) Không trả dấu câu, không trả cụm dịch nghĩa, không trả đoạn giải thích.
-6) Tối đa 24 token.
+6) Tối đa 60 token (đủ để hiển thị tất cả từ trong Ý 2 và Ý 3).
 7) Với mỗi token, gán usageLevel: "high" (dùng rất nhiều trong giao tiếp), "medium" (dùng vừa), "low" (ít dùng).
 8) Trả về JSON hợp lệ, không markdown:
 {"tokens":[{"word":"...", "usageLevel":"high|medium|low"}, ...]}

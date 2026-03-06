@@ -21,6 +21,8 @@ export type ToolKey =
   | 'design_logo'
   | 'story_with_images'
   | 'create_sticker'
+  | 'create_product_label'
+  | 'create_barcode'
   | 'meme_maker'
   | 'remove_object'
   | 'remove_bg_png'
@@ -150,6 +152,8 @@ const VI_DICTIONARY: Dictionary = {
     design_logo: 'Thiết kế logo',
     story_with_images: 'Kể chuyện bằng ảnh',
     create_sticker: 'Tạo nhãn gián',
+    create_product_label: 'Tạo nhãn giới thiệu sản phẩm',
+    create_barcode: 'Tạo mã vạch & QR Code',
     meme_maker: 'Chế ảnh',
     remove_object: 'Xóa vật thể',
     remove_bg_png: 'Xóa nền PNG',
@@ -237,6 +241,8 @@ const EN_DICTIONARY: Dictionary = {
     design_logo: 'Design Logo',
     story_with_images: 'Story with Images',
     create_sticker: 'Create Sticker',
+    create_product_label: 'Create Product Label',
+    create_barcode: 'Create Barcode & QR Code',
     meme_maker: 'Meme Maker',
     remove_object: 'Remove Object',
     remove_bg_png: 'Remove PNG Background',
@@ -324,6 +330,8 @@ const ZH_DICTIONARY: Dictionary = {
     design_logo: '设计 Logo',
     story_with_images: '图像故事',
     create_sticker: '生成贴纸',
+    create_product_label: '创建产品介绍标签',
+    create_barcode: '创建条形码和二维码',
     meme_maker: '表情包制作',
     remove_object: '移除物体',
     remove_bg_png: '去除 PNG 背景',
@@ -411,6 +419,8 @@ const JA_DICTIONARY: Dictionary = {
     design_logo: 'ロゴ作成',
     story_with_images: '画像でストーリー作成',
     create_sticker: 'ステッカー作成',
+    create_product_label: '商品紹介ラベル作成',
+    create_barcode: 'バーコード・QRコード作成',
     meme_maker: 'ミーム作成',
     remove_object: 'オブジェクト削除',
     remove_bg_png: 'PNG 背景削除',
@@ -498,6 +508,8 @@ const KO_DICTIONARY: Dictionary = {
     design_logo: '로고 디자인',
     story_with_images: '이미지 스토리 만들기',
     create_sticker: '스티커 생성',
+    create_product_label: '제품 소개 라벨 만들기',
+    create_barcode: '바코드·QR 코드 만들기',
     meme_maker: '밈 만들기',
     remove_object: '객체 제거',
     remove_bg_png: 'PNG 배경 제거',
