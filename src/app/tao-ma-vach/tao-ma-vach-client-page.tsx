@@ -97,8 +97,11 @@ export default function TaoMaVachClientPage() {
   }, [])
 
   useEffect(() => {
-    if (!vietqr.bankId && !vietqr.accountNo && !vietqr.accountName) return
     try {
+      if (!vietqr.bankId && !vietqr.accountNo && !vietqr.accountName) {
+        localStorage.removeItem(VIETQR_STORAGE_KEY)
+        return
+      }
       localStorage.setItem(VIETQR_STORAGE_KEY, JSON.stringify({
         bankId: vietqr.bankId,
         accountNo: vietqr.accountNo,
@@ -106,6 +109,12 @@ export default function TaoMaVachClientPage() {
       }))
     } catch { /* ignore */ }
   }, [vietqr.bankId, vietqr.accountNo, vietqr.accountName])
+
+  const clearSavedVietqr = () => {
+    setVietqr((p) => ({ ...p, bankId: '', accountNo: '', accountName: '' }))
+    try { localStorage.removeItem(VIETQR_STORAGE_KEY) } catch { /* ignore */ }
+    toast({ title: tr('Đã xóa', 'Cleared', '已清除', '削除しました', '삭제됨'), description: tr('Thông tin đã lưu đã được xóa.', 'Saved info has been cleared.', '已清除保存的信息。', '保存した情報を削除しました。', '저장된 정보가 삭제되었습니다.'), duration: 2000 })
+  }
 
   useEffect(() => {
     fetch('https://api.vietqr.io/v2/banks')
@@ -236,12 +245,20 @@ export default function TaoMaVachClientPage() {
               {mode === 'vietqr' ? 'VietQR' : tr('Loại mã', 'Barcode type', '条码类型', 'バーコード種類', '바코드 유형')}
             </CardTitle>
             <CardDescription className="text-xs">
-              {mode === 'vietqr' ? tr('Chọn ngân hàng, nhập số tài khoản, rồi bấm Tạo VietQR. VietQR.io, app ngân hàng quét được.', 'Select bank, enter account, then click Generate VietQR. VietQR.io, banking apps can scan.', '选择银行、输入账号，然后点击生成 VietQR。VietQR.io，银行应用可扫描。', '銀行・口座を入力し、VietQRを生成をクリック。VietQR.io、銀行アプリでスキャン可能。', '은행·계좌 입력 후 VietQR 생성 클릭. VietQR.io, 뱅킹 앱 스캔 가능.') : tr('Chọn loại mã, nhập nội dung, rồi bấm Tạo mã vạch.', 'Select type, enter content, then click Generate barcode.', '选择类型、输入内容，然后点击生成条码。', '種類を選び内容を入力し、バーコードを生成をクリック。', '유형 선택, 내용 입력 후 바코드 생성 클릭.')}
+              {mode === 'vietqr' ? tr('Nhập ngân hàng, số tài khoản, tên chủ – lưu vĩnh viễn trong trình duyệt. Lần sau chỉ cần nhập số tiền.', 'Enter bank, account, name – saved permanently in browser. Next time just enter amount.', '输入银行、账号、户名 – 永久保存在浏览器。下次只需输入金额。', '銀行・口座・名義を入力 – ブラウザに永久保存。次回は金額のみ。', '은행·계좌·예금주 입력 – 브라우저에 영구 저장. 다음엔 금액만.') : tr('Chọn loại mã, nhập nội dung, rồi bấm Tạo mã vạch.', 'Select type, enter content, then click Generate barcode.', '选择类型、输入内容，然后点击生成条码。', '種類を選び内容を入力し、バーコードを生成をクリック。', '유형 선택, 내용 입력 후 바코드 생성 클릭.')}
             </CardDescription>
           </CardHeader>
           <CardContent className="p-4 pt-0 space-y-4">
             {mode === 'vietqr' ? (
               <>
+                {(vietqr.bankId || vietqr.accountNo || vietqr.accountName) && (
+                  <p className="text-xs text-emerald-600 flex items-center gap-2">
+                    <span>✓</span> {tr('Đã lưu trong trình duyệt – chỉ cần nhập số tiền mỗi lần.', 'Saved in browser – just enter amount each time.', '已保存到浏览器 – 每次只需输入金额。', 'ブラウザに保存済み – 毎回金額のみ入力。', '브라우저에 저장됨 – 매번 금액만 입력.')}
+                    <button type="button" onClick={clearSavedVietqr} className="text-muted-foreground hover:text-red-600 underline">
+                      {tr('Xóa', 'Clear', '清除', '削除', '삭제')}
+                    </button>
+                  </p>
+                )}
                 <div className="grid sm:grid-cols-2 gap-3">
                   <div className="space-y-2">
                     <label className="text-xs font-medium text-muted-foreground">{tr('Ngân hàng', 'Bank', '银行', '銀行', '은행')}</label>
