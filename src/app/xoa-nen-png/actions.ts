@@ -13,12 +13,12 @@ const toTenths = (value: number) => Math.round(value * 10)
 const fromTenths = (value: number) => value / 10
 const formatCredits = (value: number) => value.toLocaleString('vi-VN', { maximumFractionDigits: 1 })
 
-const MASK_PROMPT = `Create a precise foreground segmentation mask for this image.
+const MASK_PROMPT = `Create a precise segmentation mask for this image.
 Return ONLY one grayscale mask image:
-- White = subject to KEEP.
-- Black = background to REMOVE.
-- Preserve fine details (hair, fur, transparent edges) with smooth anti-aliased boundaries.
-- No color, no text, no extra graphics, no additional objects.`
+- White = KEEP: main subject, product, people, text, logos, important content, textured/gradient areas.
+- Black = REMOVE: only unimportant solid/flat color elements – plain backgrounds, decorative borders, flat color blocks, empty areas. Do NOT remove product, text, or main subject.
+- Preserve fine details (hair, fur, edges) with smooth anti-aliased boundaries.
+- No color, no text, no extra graphics in the mask output.`
 
 export async function removeBackgroundToTransparentPng(formData: FormData) {
   if (!formData || typeof formData.get !== 'function') {
