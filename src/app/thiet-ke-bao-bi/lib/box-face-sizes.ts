@@ -24,11 +24,11 @@ export function getDimensionsFromSizeKey(
 export function getSizeKeyLabel(sizeKey: FaceSizeKey, L: number, W: number, H: number): string {
   switch (sizeKey) {
     case 'LxW':
-      return `L×W (${L}×${W})`
+      return `L×W (${L}×${W} mm)`
     case 'LxH':
-      return `L×H (${L}×${H})`
+      return `L×H (${L}×${H} mm)`
     case 'WxH':
-      return `W×H (${W}×${H})`
+      return `W×H (${W}×${H} mm)`
     default:
       return sizeKey
   }

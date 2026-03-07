@@ -107,9 +107,6 @@ export async function removeBackgroundToTransparentPng(formData: FormData) {
   } catch (e) {
     await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
     const msg = e instanceof Error ? e.message : String(e)
-    if (/no module named PIL|ModuleNotFoundError: No module named 'PIL'/i.test(msg)) {
-      return { error: 'Thiếu thư viện Pillow trên server Python. Cài: pip install pillow' }
-    }
     if (/500|Internal Server Error|Internal error/i.test(msg)) {
       return { error: 'Hệ thống quá tải. Bạn có thể chọn 2K hoặc thử lại sau ít phút.' }
     }

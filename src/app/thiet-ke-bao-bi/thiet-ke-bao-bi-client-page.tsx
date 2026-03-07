@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
-import { Box, ShoppingBag, Sparkles, Upload, X, ImageIcon, LayoutTemplate, FileText, Eye, ChevronLeft, ChevronRight, Trash2, FolderOpen } from 'lucide-react'
+import { Box, ShoppingBag, Sparkles, Upload, X, ImageIcon, LayoutTemplate, FileText, FileEdit, Eye, ChevronLeft, ChevronRight, Trash2, FolderOpen, Plus } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { DownloadImageButton } from '@/components/download-image-button'
@@ -28,7 +28,15 @@ const ASPECT_RATIOS = [
   { value: '3:4', label: '3:4' },
   { value: '3:2', label: '3:2' },
   { value: '2:3', label: '2:3' },
+  { value: '5:4', label: '5:4' },
+  { value: '4:5', label: '4:5' },
+  { value: '16:9', label: '16:9' },
+  { value: '9:16', label: '9:16' },
+  { value: '21:9', label: '21:9' },
+  { value: '9:21', label: '9:21' },
 ] as const
+
+/** Không ràng buộc kích thước hộp và ảnh – nhập tự do, tất cả tạo được. */
 
 const STYLES = [
   { value: 'modern', labelVi: 'Hiện đại', labelEn: 'Modern' },
@@ -152,6 +160,7 @@ type ProjectItem = {
   packagingWeight: string
   packagingShipping: string
   packagingOther: string
+  manufacturerMessage: string
   packagingBatchLot: string
   packagingProdDate: string
   packagingExpiryDate: string
@@ -237,6 +246,7 @@ type DraftState = {
   packagingWeight: string
   packagingShipping: string
   packagingOther: string
+  manufacturerMessage: string
   packagingBatchLot: string
   packagingProdDate: string
   packagingExpiryDate: string
@@ -270,16 +280,18 @@ export default function ThietKeBaoBiClientPage() {
   const [contentBlocks, setContentBlocks] = useState<ContentBlock[]>(() => [{ id: `cb-${Date.now()}`, label: '', content: '' }])
   const [style, setStyle] = useState('modern')
   const [logo, setLogo] = useState<{ file: File | null; preview: string | null }>({ file: null, preview: null })
-  /** Ảnh tham khảo kiểu mẫu (chỉ face 1). Nếu có thì ẩn màu nền, khung viền. */
+  /** Ảnh tham khảo kiểu mẫu (chỉ face 1). Khi có vẫn hiển thị chọn màu nền và khung viền. */
   const [referenceImage, setReferenceImage] = useState<{ file: File | null; preview: string | null }>({ file: null, preview: null })
   const [productImages, setProductImages] = useState<{ file: File; preview: string }[]>([])
   const [imageQuality, setImageQuality] = useState<'2K' | '4K'>('2K')
   const [aspectRatio, setAspectRatio] = useState('1:1')
   const [resultUrl, setResultUrl] = useState<string | null>(null)
-  // Box: L×W×H mm
+  // Box: L×W×H mm – nhập tự do, không ràng buộc tỷ lệ
   const [boxLength, setBoxLength] = useState(200)
   const [boxWidth, setBoxWidth] = useState(150)
   const [boxHeight, setBoxHeight] = useState(100)
+  const [boxWidthInput, setBoxWidthInput] = useState('150')
+  const [boxHeightInput, setBoxHeightInput] = useState('100')
   // Box flow: 1–6 faces + mockup
   const [faces, setFaces] = useState<CreatedFace[]>([])
   const [selectedFaceSize, setSelectedFaceSize] = useState<FaceSizeKey | null>('LxW')
@@ -300,6 +312,7 @@ export default function ThietKeBaoBiClientPage() {
   const [packagingWeight, setPackagingWeight] = useState('')
   const [packagingShipping, setPackagingShipping] = useState('')
   const [packagingOther, setPackagingOther] = useState('')
+  const [manufacturerMessage, setManufacturerMessage] = useState('')
   const [packagingBatchLot, setPackagingBatchLot] = useState('')
   const [packagingProdDate, setPackagingProdDate] = useState('')
   const [packagingExpiryDate, setPackagingExpiryDate] = useState('')
@@ -401,6 +414,7 @@ export default function ThietKeBaoBiClientPage() {
       packagingWeight,
       packagingShipping,
       packagingOther,
+      manufacturerMessage,
       packagingBatchLot,
       packagingProdDate,
       packagingExpiryDate,
@@ -462,8 +476,11 @@ export default function ThietKeBaoBiClientPage() {
       setMockupResultUrl(draft.mockupResultUrl)
       setResultUrl(draft.resultUrl)
       setBoxLength(draft.boxLength ?? 200)
+      setBoxLengthInput(String(draft.boxLength ?? 200))
       setBoxWidth(draft.boxWidth ?? 150)
       setBoxHeight(draft.boxHeight ?? 100)
+      setBoxWidthInput(String(draft.boxWidth ?? 150))
+      setBoxHeightInput(String(draft.boxHeight ?? 100))
       setSurfaceLength(draft.surfaceLength ?? 200)
       setSurfaceWidth(draft.surfaceWidth ?? 150)
       setTextOrientation(draft.textOrientation ?? 'horizontal')
@@ -475,6 +492,7 @@ export default function ThietKeBaoBiClientPage() {
       setPackagingWeight(draft.packagingWeight ?? '')
       setPackagingShipping(draft.packagingShipping ?? '')
       setPackagingOther(draft.packagingOther ?? '')
+      setManufacturerMessage(draft.manufacturerMessage ?? '')
       setPackagingBatchLot(draft.packagingBatchLot ?? '')
       setPackagingProdDate(draft.packagingProdDate ?? '')
       setPackagingExpiryDate(draft.packagingExpiryDate ?? '')
@@ -544,6 +562,7 @@ export default function ThietKeBaoBiClientPage() {
     packagingWeight,
     packagingShipping,
     packagingOther,
+    manufacturerMessage,
     packagingBatchLot,
     packagingProdDate,
     packagingExpiryDate,
@@ -555,6 +574,9 @@ export default function ThietKeBaoBiClientPage() {
     bagHeight,
     bagGusset,
   ])
+
+  /** Chuỗi nhập chiều dài – cập nhật khi blur để tránh nhảy số khi gõ. */
+  const [boxLengthInput, setBoxLengthInput] = useState('200')
 
   useEffect(() => {
     if (selectedFaceSize) {
@@ -572,17 +594,18 @@ export default function ThietKeBaoBiClientPage() {
 
   const handleSubmit = async () => {
     const hasProductImg = productImages.length > 0
-    if (!brandName.trim() && !productName.trim() && !hasProductImg) {
+    const hasRefForFace1 = designType === 'box' && referenceImage.preview
+    if (!brandName.trim() && !productName.trim() && !hasProductImg && !hasRefForFace1) {
       toast({
         title: tr('Vui lòng nhập', 'Please enter', '请输入', '入力してください', '입력해 주세요'),
-        description: tr('Tên thương hiệu, tên sản phẩm hoặc tải ảnh sản phẩm', 'Brand name, product name or product image', '品牌名、产品名或产品图片', 'ブランド名・商品名または商品画像', '브랜드명·상품명 또는 상품 이미지'),
+        description: tr('Tên thương hiệu, tên sản phẩm, ảnh sản phẩm hoặc ảnh tham khảo in lên thiết kế', 'Brand name, product name, product image or reference image to print', '品牌名、产品名、产品图或参考图', 'ブランド名・商品名・商品画像または参考画像', '브랜드명·상품명·상품 이미지 또는 참조 이미지'),
         variant: 'destructive',
       })
       return
     }
     if (designType === 'box') {
-      setSelectedFaceSize('LxW')
-      setStep('FACE_INPUT')
+      setSelectedFaceSize(selectedFaceSize || 'LxW')
+      handleFaceSubmit(selectedFaceSize || 'LxW')
       return
     }
     setStep('GENERATING')
@@ -661,6 +684,7 @@ export default function ThietKeBaoBiClientPage() {
         packagingWeight,
         packagingShipping,
         packagingOther,
+        manufacturerMessage,
         packagingBatchLot,
         packagingProdDate,
         packagingExpiryDate,
@@ -696,6 +720,7 @@ export default function ThietKeBaoBiClientPage() {
     setPackagingWeight('')
     setPackagingShipping('')
     setPackagingOther('')
+    setManufacturerMessage('')
     setPackagingBatchLot('')
     setPackagingProdDate('')
     setPackagingExpiryDate('')
@@ -731,8 +756,11 @@ export default function ThietKeBaoBiClientPage() {
     setMockupResultUrl(p.mockupResultUrl)
     setResultUrl(p.resultUrl)
     setBoxLength(p.boxLength ?? 200)
+    setBoxLengthInput(String(p.boxLength ?? 200))
     setBoxWidth(p.boxWidth ?? 150)
     setBoxHeight(p.boxHeight ?? 100)
+    setBoxWidthInput(String(p.boxWidth ?? 150))
+    setBoxHeightInput(String(p.boxHeight ?? 100))
     setSurfaceLength(p.surfaceLength ?? 200)
     setSurfaceWidth(p.surfaceWidth ?? 150)
     setTextOrientation(p.textOrientation ?? 'horizontal')
@@ -751,6 +779,7 @@ export default function ThietKeBaoBiClientPage() {
     setPackagingWeight(p.packagingWeight ?? '')
     setPackagingShipping(p.packagingShipping ?? '')
     setPackagingOther(p.packagingOther ?? '')
+    setManufacturerMessage(p.manufacturerMessage ?? '')
     setPackagingBatchLot(p.packagingBatchLot ?? '')
     setPackagingProdDate(p.packagingProdDate ?? '')
     setPackagingExpiryDate(p.packagingExpiryDate ?? '')
@@ -775,20 +804,19 @@ export default function ThietKeBaoBiClientPage() {
     refreshProjects()
   }
 
-  const handleFaceSubmit = async () => {
+  const handleFaceSubmit = async (overrideSize?: FaceSizeKey) => {
     const hasProductImg = productImages.length > 0
-    if (!brandName.trim() && !productName.trim() && !hasProductImg) {
+    const hasRefForFace1 = faces.length === 0 && referenceImage.preview
+    if (!brandName.trim() && !productName.trim() && !hasProductImg && !hasRefForFace1) {
       toast({
         title: tr('Vui lòng nhập', 'Please enter', '请输入', '入力してください', '입력해 주세요'),
-        description: tr('Tên thương hiệu, tên sản phẩm hoặc tải ảnh sản phẩm', 'Brand name, product name or product image', '品牌名、产品名或产品图片', 'ブランド名・商品名または商品画像', '브랜드명·상품명 또는 상품 이미지'),
+        description: tr('Tên thương hiệu, tên sản phẩm, ảnh sản phẩm hoặc ảnh tham khảo in lên thiết kế', 'Brand name, product name, product image or reference image to print', '品牌名、产品名、产品图或参考图', 'ブランド名・商品名・商品画像または参考画像', '브랜드명·상품명·상품 이미지 또는 참조 이미지'),
         variant: 'destructive',
       })
       return
     }
-    const sizeKey = selectedFaceSize
+    const sizeKey = (overrideSize ?? selectedFaceSize) as FaceSizeKey
     if (!sizeKey) return
-    const countBySize = (k: FaceSizeKey) => faces.filter((f) => f.sizeKey === k).length
-    if (countBySize(sizeKey) >= 2) return
     if (faces.length >= 6) return
     setStep('FACE_GENERATING')
     const formData = new FormData()
@@ -827,6 +855,7 @@ export default function ThietKeBaoBiClientPage() {
     if (packagingWeight.trim()) formData.append('packagingWeight', packagingWeight.trim())
     if (packagingShipping.trim()) formData.append('packagingShipping', packagingShipping.trim())
     if (packagingOther.trim()) formData.append('packagingOther', packagingOther.trim())
+    if (manufacturerMessage.trim()) formData.append('manufacturerMessage', manufacturerMessage.trim())
     if (packagingBatchLot.trim()) formData.append('packagingBatchLot', packagingBatchLot.trim())
     if (packagingProdDate.trim()) formData.append('packagingProdDate', packagingProdDate.trim())
     if (packagingExpiryDate.trim()) formData.append('packagingExpiryDate', packagingExpiryDate.trim())
@@ -938,6 +967,7 @@ export default function ThietKeBaoBiClientPage() {
         packagingWeight,
         packagingShipping,
         packagingOther,
+        manufacturerMessage,
         packagingBatchLot,
         packagingProdDate,
         packagingExpiryDate,
@@ -1060,19 +1090,6 @@ export default function ThietKeBaoBiClientPage() {
     <>
       <Toaster />
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
-        {step === 'INPUT' && draftExists && (
-          <Card className="border-amber-200/60 bg-amber-50/50">
-            <CardContent className="py-3 flex flex-wrap items-center justify-between gap-2">
-              <p className="text-sm text-foreground">
-                {tr('Có bản nháp đã lưu. Tiếp tục chỉnh sửa?', 'Draft saved. Continue editing?', '有已保存的草稿。继续编辑？', '下書きが保存されています。続けて編集しますか？', '저장된 초안이 있습니다. 계속 편집할까요?')}
-              </p>
-              <Button variant="outline" size="sm" onClick={loadDraft}>
-                {tr('Tiếp tục bản nháp', 'Continue draft', '继续草稿', '下書きを続ける', '초안 계속')}
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-
         <div className="text-center">
           <h1 className="text-2xl font-bold text-foreground">
             {tr('Thiết kế bao bì AI - Hộp carton, túi đựng', 'AI Packaging Design - Carton box, flat bag', 'AI包装设计 - 纸箱、袋子', 'AIパッケージデザイン - 段ボール箱・平面袋', 'AI 패키징 디자인 - 골판지 상자, 평면 가방')}
@@ -1082,7 +1099,28 @@ export default function ThietKeBaoBiClientPage() {
           </p>
         </div>
 
-        {projects.length > 0 && (
+        {(step === 'INPUT' && draftExists) || projects.length > 0 ? (
+          <div className="space-y-4">
+            {step === 'INPUT' && draftExists && (
+              <Card className="border-amber-300 bg-amber-50 shadow-sm ring-1 ring-amber-200/60">
+                <CardHeader className="pb-2">
+                  <CardTitle className="flex items-center gap-2 text-base text-amber-900">
+                    <FileEdit className="h-4 w-4" />
+                    {tr('Bản nháp chưa hoàn thành', 'Unfinished draft', '未完成的草稿', '未完成の下書き', '미완성 초안')}
+                  </CardTitle>
+                  <CardDescription className="text-xs text-amber-800/80">
+                    {tr('Có bản nháp đã lưu. Tiếp tục chỉnh sửa?', 'Draft saved. Continue editing?', '有已保存的草稿。继续编辑？', '下書きが保存されています。続けて編集しますか？', '저장된 초안이 있습니다. 계속 편집할까요?')}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <Button variant="default" size="sm" onClick={loadDraft} className="bg-amber-600 hover:bg-amber-700">
+                    {tr('Tiếp tục bản nháp', 'Continue draft', '继续草稿', '下書きを続ける', '초안 계속')}
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
+            {projects.length > 0 && (
           <Card className="border-slate-200/80">
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-sm">
@@ -1137,7 +1175,9 @@ export default function ThietKeBaoBiClientPage() {
               </div>
             </CardContent>
           </Card>
-        )}
+            )}
+          </div>
+        ) : null}
 
         {designType === 'box' && ['FACE_INPUT', 'FACE_RESULT', 'MOCKUP_INPUT', 'MOCKUP_RESULT'].includes(step) && (
           <Card className="border-slate-200/80">
@@ -1215,14 +1255,26 @@ export default function ThietKeBaoBiClientPage() {
             </DialogHeader>
             {faces.length >= 1 && (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-2">
-                {faces.map((f, i) => (
-                  <div key={f.id} className="space-y-1">
-                    <p className="text-xs font-medium text-muted-foreground">
-                      {tr('Ảnh', 'Image', '图', '画像', '이미지')} {i + 1} – {getSizeKeyLabel(f.sizeKey, boxLength, boxWidth, boxHeight)}
-                    </p>
-                    <img src={f.url} alt="" className="w-full aspect-square object-contain rounded border bg-muted/30" />
-                  </div>
-                ))}
+                {faces.map((f, i) => {
+                  const [len, wid] = getDimensionsFromSizeKey(f.sizeKey, boxLength, boxWidth, boxHeight)
+                  return (
+                    <div key={f.id} className="space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground">
+                        {tr('Ảnh', 'Image', '图', '画像', '이미지')} {i + 1} – {getSizeKeyLabel(f.sizeKey, boxLength, boxWidth, boxHeight)}
+                      </p>
+                      <img src={f.url} alt="" className="w-full aspect-square object-contain rounded border bg-muted/30" />
+                      <DownloadImageButton
+                        imageUrl={f.url}
+                        filename={`box-flat-${f.sizeKey}-${i + 1}-${Date.now()}.png`}
+                        printReady
+                        printReadyAspectRatio={getAspectRatioFromDimensions(len, wid, textOrientation)}
+                        printReadyLabel={tr('Tải PDF chuẩn in', 'Download print-ready PDF', '下载印刷用PDF', '印刷用PDFをダウンロード', '인쇄용 PDF 다운로드')}
+                        size="sm"
+                        className="w-full mt-1"
+                      />
+                    </div>
+                  )
+                })}
               </div>
             )}
           </DialogContent>
@@ -1301,7 +1353,7 @@ export default function ThietKeBaoBiClientPage() {
             <ImageProcessingLoader
               mode="seal"
               title={String(tr('Đang tạo ảnh phẳng', 'Creating flat design', '正在创建平面图', '平面デザイン作成中', '평면 디자인 생성 중'))}
-              description={String(tr('AI đang tạo ảnh thiết kế phẳng', 'AI is creating flat design', 'AI 正在创建平面设计', 'AIが平面デザインを作成中', 'AI가 평면 디자인 생성 중'))}
+              description={`${tr('AI đang tạo ảnh thiết kế phẳng', 'AI is creating flat design', 'AI 正在创建平面设计', 'AIが平面デザインを作成中', 'AI가 평면 디자인 생성 중')}${selectedFaceSize ? ` – ${getSizeKeyLabel(selectedFaceSize, boxLength, boxWidth, boxHeight)}` : ''}`}
             />
           </div>
         )}
@@ -1311,7 +1363,7 @@ export default function ThietKeBaoBiClientPage() {
             <Card className="border shadow-sm overflow-hidden">
               <CardContent className="p-4">
                 <p className="text-sm font-medium text-muted-foreground mb-2">
-                  {tr('Ảnh phẳng', 'Flat design', '平面图', '平面デザイン', '평면 디자인')} – {getSizeKeyLabel(lastCreatedFace.sizeKey, boxLength, boxWidth, boxHeight)}
+                  {tr('Ảnh', 'Image', '图', '画像', '이미지')} {faces.length} – {getSizeKeyLabel(lastCreatedFace.sizeKey, boxLength, boxWidth, boxHeight)}
                 </p>
                 <div className="flex items-center justify-center bg-[repeating-conic-gradient(#e5e7eb_0%_25%,#f9fafb_0%_50%)] bg-[length:12px_12px] rounded-lg border p-4 min-h-[200px]">
                   <FaceResultImage
@@ -1360,18 +1412,30 @@ export default function ThietKeBaoBiClientPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {faces.map((f, i) => (
-                  <div key={f.id} className="space-y-1">
-                    <p className="text-xs text-muted-foreground">
-                      {tr('Ảnh phẳng', 'Flat design', '平面图', '平面デザイン', '평면 디자인')} {i + 1} – {getSizeKeyLabel(f.sizeKey, boxLength, boxWidth, boxHeight)}
-                    </p>
-                    <img src={f.url} alt="" className="w-full aspect-square object-contain rounded border" />
-                  </div>
-                ))}
+                {faces.map((f, i) => {
+                  const [len, wid] = getDimensionsFromSizeKey(f.sizeKey, boxLength, boxWidth, boxHeight)
+                  return (
+                    <div key={f.id} className="space-y-1">
+                      <p className="text-xs text-muted-foreground">
+                        {tr('Ảnh phẳng', 'Flat design', '平面图', '平面デザイン', '평면 디자인')} {i + 1} – {getSizeKeyLabel(f.sizeKey, boxLength, boxWidth, boxHeight)}
+                      </p>
+                      <img src={f.url} alt="" className="w-full aspect-square object-contain rounded border" />
+                      <DownloadImageButton
+                        imageUrl={f.url}
+                        filename={`box-flat-${f.sizeKey}-${i + 1}-${Date.now()}.png`}
+                        printReady
+                        printReadyAspectRatio={getAspectRatioFromDimensions(len, wid, textOrientation)}
+                        printReadyLabel={tr('Tải PDF chuẩn in', 'Download print-ready PDF', '下载印刷用PDF', '印刷用PDFをダウンロード', '인쇄용 PDF 다운로드')}
+                        size="sm"
+                        className="w-full"
+                      />
+                    </div>
+                  )
+                })}
               </div>
               <div className="flex flex-wrap gap-2">
                 <div className="space-y-1">
-                  <label className="text-xs text-muted-foreground">{tr('Tỷ lệ', 'Aspect ratio', '比例', '比率', '비율')}</label>
+                  <label className="text-xs text-muted-foreground">{tr('Tỷ lệ', 'Aspect ratio', '比例', '比率', '비율')}{opt}</label>
                   <div className="flex gap-2">
                     {ASPECT_RATIOS.map((r) => (
                       <button
@@ -1386,7 +1450,7 @@ export default function ThietKeBaoBiClientPage() {
                   </div>
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs text-muted-foreground">{tr('Chất lượng', 'Quality', '质量', '画質', '품질')}</label>
+                  <label className="text-xs text-muted-foreground">{tr('Chất lượng', 'Quality', '质量', '画質', '품질')}{opt}</label>
                   <div className="flex gap-2">
                     <button type="button" onClick={() => setImageQuality('2K')} className={`px-2 py-1 rounded text-sm ${imageQuality === '2K' ? 'border-amber-500 bg-amber-50' : 'border'}`}>
                       2K
@@ -1402,6 +1466,12 @@ export default function ThietKeBaoBiClientPage() {
                   <Sparkles className="h-4 w-4 mr-2" />
                   {tr('In lên hộp 3D', 'Print onto 3D box', '印到3D盒子上', '3D箱に印刷', '3D 상자에 인쇄')} ({formatCredits(cost)} {tr('credits', 'credits', '积分', 'クレジット', '크레딧')})
                 </Button>
+                {faces.length < 6 && (
+                  <Button variant="outline" size="lg" onClick={() => setStep('FACE_INPUT')} className="gap-2">
+                    <Plus className="h-4 w-4" />
+                    {tr('Quay lại tạo ảnh phẳng tiếp theo', 'Back to create more flat designs', '返回创建更多平面图', '戻って平面デザインを追加', '돌아가서 평면 디자인 추가')}
+                  </Button>
+                )}
                 {faces.map((f, i) => (
                   <Button key={f.id} variant="outline" size="lg" onClick={() => handleEditFace(f, 'MOCKUP_INPUT')}>
                     {tr('Sửa ảnh', 'Edit image', '编辑图', '画像を編集', '이미지 편집')} {i + 1}
@@ -1451,8 +1521,33 @@ export default function ThietKeBaoBiClientPage() {
                     </Button>
                   </div>
                   <div className="space-y-1">
+                    <p className="text-xs font-medium text-muted-foreground">{tr('Tải ảnh phẳng', 'Download flat designs', '下载平面图', '平面デザインをダウンロード', '평면 디자인 다운로드')}</p>
+                    <div className="flex flex-wrap gap-2">
+                      {faces.map((f, i) => {
+                        const [len, wid] = getDimensionsFromSizeKey(f.sizeKey, boxLength, boxWidth, boxHeight)
+                        return (
+                          <DownloadImageButton
+                            key={f.id}
+                            imageUrl={f.url}
+                            filename={`box-flat-${f.sizeKey}-${i + 1}-${Date.now()}.png`}
+                            printReady
+                            printReadyAspectRatio={getAspectRatioFromDimensions(len, wid, textOrientation)}
+                            printReadyLabel={tr('Tải PDF chuẩn in', 'Download print-ready PDF', '下载印刷用PDF', '印刷用PDFをダウンロード', '인쇄용 PDF 다운로드')}
+                            size="sm"
+                          />
+                        )
+                      })}
+                    </div>
+                  </div>
+                  <div className="space-y-1">
                     <p className="text-xs font-medium text-muted-foreground">{tr('Sửa / Làm lại ảnh phẳng', 'Edit / Redo flat design', '编辑/重做平面图', '編集・やり直し', '편집/다시 하기')}</p>
                     <div className="flex flex-wrap gap-2">
+                      {faces.length < 6 && (
+                        <Button variant="outline" size="sm" onClick={() => setStep('FACE_INPUT')} className="gap-1.5">
+                          <Plus className="h-3.5 w-3.5" />
+                          {tr('Quay lại tạo ảnh phẳng tiếp theo', 'Back to create more flat designs', '返回创建更多平面图', '戻って平面デザインを追加', '돌아가서 평면 디자인 추가')}
+                        </Button>
+                      )}
                       {faces.map((f, i) => (
                         <Button key={f.id} variant="outline" size="sm" onClick={() => handleEditFace(f, 'MOCKUP_RESULT')}>
                           {tr('Sửa / Làm lại ảnh', 'Edit / Redo image', '编辑/重做图', '画像を編集・やり直す', '이미지 편집/다시 하기')} {i + 1}
@@ -1507,7 +1602,7 @@ export default function ThietKeBaoBiClientPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <label className="text-xs font-medium text-muted-foreground">{tr('Loại bao bì', 'Packaging type', '包装类型', '包装タイプ', '포장 유형')}</label>
+                <label className="text-xs font-medium text-muted-foreground">{tr('Loại bao bì', 'Packaging type', '包装类型', '包装タイプ', '포장 유형')}{opt}</label>
                 <div className="flex flex-wrap gap-2">
                   {DESIGN_TABS.map((t) => {
                     const Icon = t.icon
@@ -1534,67 +1629,87 @@ export default function ThietKeBaoBiClientPage() {
                 <>
                   <div className="space-y-2">
                     <label className="text-xs font-medium text-muted-foreground">{tr('Kích thước hộp (mm)', 'Box dimensions (mm)', '盒子尺寸（毫米）', '箱のサイズ（mm）', '상자 크기 (mm)')}{opt}</label>
-                    <div className="grid grid-cols-3 gap-2">
-                      <div className="space-y-1">
-                        <label className="text-xs text-muted-foreground">L</label>
-                        <Input type="number" min={20} max={500} value={boxLength} onChange={(e) => setBoxLength(Number(e.target.value) || 20)} placeholder="200" />
+                    <p className="text-xs text-muted-foreground">
+                      {tr('Nhập tự do L×W×H. Không ràng buộc tỷ lệ.', 'Free input L×W×H. No ratio constraints.', '自由输入L×W×H。无比例限制。', 'L×W×Hを自由入力。比率制限なし。', 'L×W×H 자유 입력. 비율 제한 없음.')}
+                    </p>
+                    <div className="flex flex-wrap gap-4 items-end">
+                      <div className="space-y-1 min-w-[100px]">
+                        <label className="text-xs text-muted-foreground">{tr('Chiều dài (L)', 'Length (L)', '长度（L）', '長さ（L）', '길이 (L)')} mm</label>
+                        <Input
+                          type="number"
+                          min={20}
+                          max={500}
+                          value={boxLengthInput}
+                          onChange={(e) => setBoxLengthInput(e.target.value)}
+                          onBlur={() => {
+                            const n = Math.max(20, Math.min(500, parseInt(boxLengthInput, 10) || 20))
+                            setBoxLength(n)
+                            setBoxLengthInput(String(n))
+                          }}
+                          placeholder="200"
+                        />
                       </div>
-                      <div className="space-y-1">
-                        <label className="text-xs text-muted-foreground">W</label>
-                        <Input type="number" min={20} max={500} value={boxWidth} onChange={(e) => setBoxWidth(Number(e.target.value) || 20)} placeholder="150" />
+                      <div className="space-y-1 min-w-[100px]">
+                        <label className="text-xs text-muted-foreground">{tr('Chiều rộng (W)', 'Width (W)', '宽度（W）', '幅（W）', '너비 (W)')} mm</label>
+                        <Input
+                          type="number"
+                          min={20}
+                          max={500}
+                          value={boxWidthInput}
+                          onChange={(e) => setBoxWidthInput(e.target.value)}
+                          onBlur={() => {
+                            const n = Math.max(20, Math.min(500, parseInt(boxWidthInput, 10) || 20))
+                            setBoxWidth(n)
+                            setBoxWidthInput(String(n))
+                          }}
+                          placeholder="150"
+                        />
                       </div>
-                      <div className="space-y-1">
-                        <label className="text-xs text-muted-foreground">H</label>
-                        <Input type="number" min={20} max={500} value={boxHeight} onChange={(e) => setBoxHeight(Number(e.target.value) || 20)} placeholder="100" />
+                      <div className="space-y-1 min-w-[100px]">
+                        <label className="text-xs text-muted-foreground">{tr('Chiều cao (H)', 'Height (H)', '高度（H）', '高さ（H）', '높이 (H)')} mm</label>
+                        <Input
+                          type="number"
+                          min={20}
+                          max={500}
+                          value={boxHeightInput}
+                          onChange={(e) => setBoxHeightInput(e.target.value)}
+                          onBlur={() => {
+                            const n = Math.max(20, Math.min(500, parseInt(boxHeightInput, 10) || 20))
+                            setBoxHeight(n)
+                            setBoxHeightInput(String(n))
+                          }}
+                          placeholder="100"
+                        />
                       </div>
+                      <p className="text-xs text-muted-foreground pb-2">{boxLength}×{boxWidth}×{boxHeight} mm</p>
                     </div>
-                    <p className="text-xs text-muted-foreground">{tr('Chiều dài × Rộng × Cao (mm)', 'Length × Width × Height (mm)', '长×宽×高（毫米）', '長さ×幅×高さ（mm）', '길이×너비×높이 (mm)')}</p>
                   </div>
 
-                  <Card className="border-blue-200/60 bg-blue-50/30">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm">{tr('Tư vấn số mặt in', 'Print faces advice', '印刷面数建议', '印刷面数のアドバイス', '인쇄 면 수 상담')}</CardTitle>
-                      <CardDescription className="text-xs">
-                        {tr('Hộp có 6 mặt. Thường in 3–5 mặt. Chọn theo ngân sách và mục đích:', 'Box has 6 faces. Usually print 3–5 faces. Choose by budget and purpose:', '盒子有6个面。通常印刷3–5个面。根据预算和目的选择：', '箱は6面。通常3–5面を印刷。予算と目的で選択：', '상자 6면. 보통 3–5면 인쇄. 예산·목적에 맞게 선택:')}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="pt-0 space-y-2 text-xs">
-                      <div className="grid gap-1.5 sm:grid-cols-2">
-                        <div className="rounded border bg-white/60 p-2">
-                          <span className="font-medium">1 {tr('mặt', 'face', '面', '面', '면')}:</span>{' '}
-                          {tr('Chỉ mặt trước. Tiết kiệm nhất. Hộp vận chuyển, đơn giản.', 'Front only. Most economical. Shipping box, simple.', '仅正面。最省。运输箱、简单。', '正面のみ。最も経済的。配送用、シンプル。', '앞면만. 가장 저렴. 배송용, 단순.')}
-                        </div>
-                        <div className="rounded border bg-white/60 p-2">
-                          <span className="font-medium">2 {tr('mặt', 'faces', '面', '面', '면')}:</span>{' '}
-                          {tr('Trước + sau. Tiết kiệm. Hộp trưng bày cơ bản.', 'Front + back. Economical. Basic display box.', '前+后。省。基本展示盒。', '前+後。経済的。基本ディスプレイ箱。', '앞+뒤. 저렴. 기본 진열 상자.')}
-                        </div>
-                        <div className="rounded border border-amber-300 bg-amber-50/60 p-2">
-                          <span className="font-medium">3 {tr('mặt', 'faces', '面', '面', '면')}:</span>{' '}
-                          {tr('Trước + 2 bên. Phổ biến nhất. Cân bằng chi phí – thẩm mỹ.', 'Front + 2 sides. Most common. Cost–aesthetic balance.', '前+两侧。最常见。成本与美观平衡。', '前+左右。最も一般的。コストと美観のバランス。', '앞+양옆. 가장 흔함. 비용·미관 균형.')}
-                        </div>
-                        <div className="rounded border bg-white/60 p-2">
-                          <span className="font-medium">4 {tr('mặt', 'faces', '面', '面', '면')}:</span>{' '}
-                          {tr('4 mặt bên (sleeve). Hộp ốp không nắp.', '4 vertical sides (sleeve). Box without lid.', '4侧面（套筒）。无盖盒。', '4側面（スリーブ）。蓋なし箱。', '4측면(슬리브). 뚜껑 없는 상자.')}
-                        </div>
-                        <div className="rounded border bg-white/60 p-2">
-                          <span className="font-medium">5 {tr('mặt', 'faces', '面', '面', '면')}:</span>{' '}
-                          {tr('Nắp + 4 bên. Cao cấp. Đáy thường không in.', 'Lid + 4 sides. Premium. Bottom usually unprinted.', '盖+4侧。高档。底通常不印。', '蓋+4側。高級。底は通常無印刷。', '뚜껑+4측면. 고급. 바닥은 보통 미인쇄.')}
-                        </div>
-                        <div className="rounded border bg-white/60 p-2">
-                          <span className="font-medium">6 {tr('mặt', 'faces', '面', '面', '면')}:</span>{' '}
-                          {tr('In full 6 mặt. Cao cấp nhất. Quà tặng, hộp mở hoàn toàn.', 'Full 6-face print. Highest end. Premium gift, fully open box.', '全6面印刷。最高档。礼品、全开盒。', '6面フル印刷。最高級。ギフト、全開箱。', '6면 풀 인쇄. 최고급. 선물, 완전 개방 상자.')}
-                        </div>
-                      </div>
-                      <p className="text-muted-foreground pt-1">
-                        {tr('Công cụ này tạo 3 ảnh phẳng (mặt 1, 2, 3) – tương ứng in 3–5 mặt tùy layout. Phù hợp hầu hết nhu cầu.', 'This tool creates 3 flat designs (faces 1–3) – maps to 3–5 printed faces depending on layout. Fits most needs.', '本工具创建3张平面图（面1–3）– 根据布局对应3–5个印刷面。满足大多数需求。', 'このツールは3枚の平面デザイン（面1–3）を作成– レイアウトに応じて3–5面に印刷。ほとんどのニーズに対応。', '이 도구는 3장 평면 디자인(면 1–3) 생성 – 레이아웃에 따라 3–5면 인쇄. 대부분의 요구 충족.')}
-                      </p>
-                    </CardContent>
-                  </Card>
+                  <div className="space-y-2">
+                    <label className="text-xs font-medium text-muted-foreground">{tr('Kích thước ảnh đầu tiên', 'First image size', '首张图片尺寸', '1枚目の画像サイズ', '첫 이미지 크기')} {opt}</label>
+                    <p className="text-xs text-muted-foreground">
+                      {tr('Chọn trước khi nhập thông tin khác. Ảnh 1 sẽ có kích thước:', 'Choose before entering other info. Image 1 will be:', '先选择再填其他信息。图1尺寸：', '他の情報入力前に選択。画像1のサイズ：', '다른 정보 입력 전 선택. 이미지 1 크기:')}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {FACE_SIZE_KEYS.map((k) => (
+                        <button
+                          key={k}
+                          type="button"
+                          onClick={() => setSelectedFaceSize(k)}
+                          className={`px-3 py-2 rounded-md border text-sm font-medium transition-colors ${
+                            selectedFaceSize === k ? 'border-amber-500 bg-amber-50 text-amber-800' : 'border-gray-200 bg-white hover:bg-gray-50'
+                          }`}
+                        >
+                          {getSizeKeyLabel(k, boxLength, boxWidth, boxHeight)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
 
                   <div className="space-y-2">
-                    <label className="text-xs font-medium text-muted-foreground">{tr('Ảnh tham khảo kiểu mẫu', 'Style reference image', '风格参考图', 'スタイル参考画像', '스타일 참조 이미지')} {opt}</label>
+                    <label className="text-xs font-medium text-muted-foreground">{tr('Ảnh tham khảo phong cách', 'Style reference image', '风格参考图', 'スタイル参考画像', '스타일 참조 이미지')} {opt}</label>
                     <p className="text-xs text-muted-foreground">
-                      {tr('Chỉ dùng để tham khảo phong cách ảnh 1. Nếu có, AI bắt chước style ảnh này; ẩn ô chọn màu nền và khung viền.', 'For style reference of image 1 only. If set, AI mimics this style; background and border options are hidden.', '仅作图1风格参考。若设置，AI将模仿此图风格；隐藏背景和边框选项。', '画像1のスタイル参考のみ。設定時はAIがこのスタイルを模倣；背景・枠オプションは非表示。', '이미지 1 스타일 참조용. 설정 시 AI가 이 스타일 모방; 배경·테두리 옵션 숨김.')}
+                      {tr('AI lấy thông tin của bạn (thương hiệu, sản phẩm...) và tùy biến theo style ảnh này. Không bê nguyên ảnh tham khảo. Khi có ảnh này, không dùng ảnh sản phẩm. Vẫn chọn màu nền và viền bên dưới.', 'AI uses your info (brand, product...) and customizes to match this style. Do not copy reference verbatim. When set, product images are not used. Still choose background and border below.', 'AI使用您的信息（品牌、产品等）并按此风格定制。不原样复制参考图。设置后不使用产品图。下方仍可选择背景和边框。', 'AIがあなたの情報（ブランド・商品など）を使い、このスタイルに合わせてカスタマイズ。参考画像をそのままコピーしない。設定時は商品画像を使用しない。下で背景・枠を選択可能。', 'AI가 귀하의 정보(브랜드·상품 등)를 사용해 이 스타일에 맞춤. 참조 이미지 그대로 복사 안 함. 설정 시 상품 이미지 미사용. 아래에서 배경·테두리 선택 가능.')}
                     </p>
                     <div className="flex items-center gap-3">
                       <input ref={referenceImageInputRef} type="file" accept="image/*" onChange={handleReferenceImageChange} className="hidden" />
@@ -1613,9 +1728,13 @@ export default function ThietKeBaoBiClientPage() {
                     </div>
                   </div>
 
-                  {!referenceImage.preview && (
-                    <div className="space-y-2">
-                      <label className="text-xs font-medium text-muted-foreground">{tr('Khung viền ảnh phẳng', 'Flat image border', '平面图边框', '平面画像の枠', '평면 이미지 테두리')}{opt}</label>
+                  {referenceImage.preview && (
+                    <p className="text-xs font-medium text-amber-700">
+                      {tr('Vẫn chọn khung viền và màu nền bên dưới:', 'Still choose border and background below:', '仍可选择下方边框和背景：', '下で枠と背景を選択：', '아래에서 테두리와 배경 선택:')}
+                    </p>
+                  )}
+                  <div className="space-y-2">
+                    <label className="text-xs font-medium text-muted-foreground">{tr('Khung viền ảnh phẳng', 'Flat image border', '平面图边框', '平面画像の枠', '평면 이미지 테두리')}{opt}</label>
                       <div className="flex flex-wrap items-center gap-3">
                         <button
                           type="button"
@@ -1638,7 +1757,7 @@ export default function ThietKeBaoBiClientPage() {
                       </div>
                       {hasBorder && (
                         <div className="mt-2">
-                          <p className="text-xs text-muted-foreground mb-2">{tr('Kiểu viền:', 'Border style:', '边框样式:', '枠のスタイル:', '테두리 스타일:')}</p>
+                          <p className="text-xs text-muted-foreground mb-2">{tr('Kiểu viền:', 'Border style:', '边框样式:', '枠のスタイル:', '테두리 스타일:')}{opt}</p>
                           <Select value={borderStyle} onValueChange={setBorderStyle}>
                             <SelectTrigger className="w-full max-w-xs">
                               <SelectValue placeholder={tr('Chọn kiểu viền', 'Select border style', '选择边框样式', '枠のスタイルを選択', '테두리 스타일 선택')} />
@@ -1649,16 +1768,14 @@ export default function ThietKeBaoBiClientPage() {
                                   {getBorderLabel(b)}
                                 </SelectItem>
                               ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      )}
+                        </SelectContent>
+                      </Select>
                     </div>
                   )}
+                </div>
 
-                  {!referenceImage.preview && (
-                    <div className="space-y-2">
-                      <label className="text-xs font-medium text-muted-foreground">{tr('Màu nền ảnh phẳng', 'Flat image background', '平面图背景色', '平面画像の背景色', '평면 이미지 배경색')}{opt}</label>
+                  <div className="space-y-2">
+                    <label className="text-xs font-medium text-muted-foreground">{tr('Màu nền ảnh phẳng', 'Flat image background', '平面图背景色', '平面画像の背景色', '평면 이미지 배경색')}{opt}</label>
                     <Select value={backgroundType} onValueChange={setBackgroundType}>
                       <SelectTrigger className="w-full max-w-xs">
                         <SelectValue placeholder={tr('Chọn màu nền', 'Select background', '选择背景色', '背景色を選択', '배경색 선택')} />
@@ -1688,8 +1805,7 @@ export default function ThietKeBaoBiClientPage() {
                         </div>
                       </div>
                     )}
-                    </div>
-                  )}
+                  </div>
 
                   <div className="space-y-2 pt-2 border-t">
                     <p className="text-xs font-medium text-muted-foreground">
@@ -1697,32 +1813,36 @@ export default function ThietKeBaoBiClientPage() {
                     </p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <div className="space-y-1">
-                        <label className="text-xs text-muted-foreground">{tr('Số lượng', 'Quantity', '数量', '数量', '수량')}</label>
+                        <label className="text-xs text-muted-foreground">{tr('Số lượng', 'Quantity', '数量', '数量', '수량')}{opt}</label>
                         <Input placeholder="VD: 12 gói" value={packagingQuantity} onChange={(e) => setPackagingQuantity(e.target.value)} />
                       </div>
                       <div className="space-y-1">
-                        <label className="text-xs text-muted-foreground">{tr('Trọng lượng', 'Weight', '重量', '重量', '중량')}</label>
+                        <label className="text-xs text-muted-foreground">{tr('Trọng lượng', 'Weight', '重量', '重量', '중량')}{opt}</label>
                         <Input placeholder="VD: 120g, NET WT. 4.23 OZ" value={packagingWeight} onChange={(e) => setPackagingWeight(e.target.value)} />
                       </div>
                       <div className="space-y-1">
-                        <label className="text-xs text-muted-foreground">{tr('Số lô', 'Batch/Lot no.', '批号', 'ロット番号', '로트 번호')}</label>
+                        <label className="text-xs text-muted-foreground">{tr('Số lô', 'Batch/Lot no.', '批号', 'ロット番号', '로트 번호')}{opt}</label>
                         <Input placeholder="VD: Lô 001" value={packagingBatchLot} onChange={(e) => setPackagingBatchLot(e.target.value)} />
                       </div>
                       <div className="space-y-1">
-                        <label className="text-xs text-muted-foreground">{tr('Ngày sản xuất', 'Production date', '生产日期', '製造日', '제조일')}</label>
+                        <label className="text-xs text-muted-foreground">{tr('Ngày sản xuất', 'Production date', '生产日期', '製造日', '제조일')}{opt}</label>
                         <Input type="date" value={packagingProdDate} onChange={(e) => setPackagingProdDate(e.target.value)} />
                       </div>
                       <div className="space-y-1">
-                        <label className="text-xs text-muted-foreground">{tr('Ngày hết hạn sử dụng', 'Expiry date', '保质期至', '賞味期限', '유통기한')}</label>
+                        <label className="text-xs text-muted-foreground">{tr('Ngày hết hạn sử dụng', 'Expiry date', '保质期至', '賞味期限', '유통기한')}{opt}</label>
                         <Input type="date" value={packagingExpiryDate} onChange={(e) => setPackagingExpiryDate(e.target.value)} />
                       </div>
                       <div className="space-y-1 sm:col-span-2">
-                        <label className="text-xs text-muted-foreground">{tr('Yêu cầu vận chuyển', 'Shipping requirements', '运输要求', '輸送要件', '운송 요건')}</label>
+                        <label className="text-xs text-muted-foreground">{tr('Yêu cầu vận chuyển', 'Shipping requirements', '运输要求', '輸送要件', '운송 요건')}{opt}</label>
                         <Input placeholder="VD: Fragile, Keep dry" value={packagingShipping} onChange={(e) => setPackagingShipping(e.target.value)} />
                       </div>
                       <div className="space-y-1 sm:col-span-2">
-                        <label className="text-xs text-muted-foreground">{tr('Quy cách đóng gói khác', 'Other packaging specs', '其他包装规格', 'その他包装仕様', '기타 포장 규격')}</label>
+                        <label className="text-xs text-muted-foreground">{tr('Quy cách đóng gói khác', 'Other packaging specs', '其他包装规格', 'その他包装仕様', '기타 포장 규격')}{opt}</label>
                         <Input placeholder="VD: hạn dùng..." value={packagingOther} onChange={(e) => setPackagingOther(e.target.value)} />
+                      </div>
+                      <div className="space-y-1 sm:col-span-2">
+                        <label className="text-xs text-muted-foreground">{tr('Thông điệp nhà sản xuất (in lên hộp không kèm nhãn)', 'Manufacturer message (printed without label)', '制造商信息（印刷无标签）', '製造者メッセージ（ラベルなしで印刷）', '제조사 메시지 (라벨 없이 인쇄)')}{opt}</label>
+                        <Input placeholder={tr('VD: Mỳ ngon hảo hạng', 'e.g. Premium delicious noodles', '例如：优质美味面条', '例：プレミアム美味麺', '예: 프리미엄 맛있는 국수')} value={manufacturerMessage} onChange={(e) => setManufacturerMessage(e.target.value)} />
                       </div>
                       <div className="flex items-center gap-2 sm:col-span-2">
                         <button
@@ -1791,39 +1911,39 @@ export default function ThietKeBaoBiClientPage() {
                 <p className="text-xs font-medium text-muted-foreground">{tr('Thông tin bổ sung (tùy chọn – để trống nếu không cần)', 'Additional info (optional – leave blank if not needed)', '补充信息（可选）', '追加情報（任意）', '추가 정보 (선택)')}</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">{tr('Website', 'Website', '网站', 'ウェブサイト', '웹사이트')}</label>
+                    <label className="text-xs text-muted-foreground">{tr('Website', 'Website', '网站', 'ウェブサイト', '웹사이트')}{opt}</label>
                     <Input placeholder="VD: www.nanoai.vn" value={website} onChange={(e) => setWebsite(e.target.value)} />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">{tr('Email', 'Email', '邮箱', 'メール', '이메일')}</label>
+                    <label className="text-xs text-muted-foreground">{tr('Email', 'Email', '邮箱', 'メール', '이메일')}{opt}</label>
                     <Input placeholder="VD: contact@nanoai.vn" value={email} onChange={(e) => setEmail(e.target.value)} />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">{tr('Hotline / SĐT', 'Hotline / Phone', '热线/电话', 'ホットライン', '홀라인/전화')}</label>
+                    <label className="text-xs text-muted-foreground">{tr('Hotline / SĐT', 'Hotline / Phone', '热线/电话', 'ホットライン', '홀라인/전화')}{opt}</label>
                     <Input placeholder="VD: 1900 1234" value={hotline} onChange={(e) => setHotline(e.target.value)} />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">{tr('Nguồn gốc xuất xứ', 'Country of origin', '原产地', '原産国', '원산지')}</label>
+                    <label className="text-xs text-muted-foreground">{tr('Nguồn gốc xuất xứ', 'Country of origin', '原产地', '原産国', '원산지')}{opt}</label>
                     <Input placeholder="VD: Sản xuất tại Việt Nam" value={countryOfOrigin} onChange={(e) => setCountryOfOrigin(e.target.value)} />
                   </div>
                   <div className="space-y-1 sm:col-span-2">
-                    <label className="text-xs text-muted-foreground">{tr('Hướng dẫn bảo quản', 'Storage instructions', '保存方法', '保存方法', '보관 방법')}</label>
+                    <label className="text-xs text-muted-foreground">{tr('Hướng dẫn bảo quản', 'Storage instructions', '保存方法', '保存方法', '보관 방법')}{opt}</label>
                     <Input placeholder="VD: Bảo quản nơi khô ráo, tránh ánh nắng" value={storageInstructions} onChange={(e) => setStorageInstructions(e.target.value)} />
                   </div>
                   <div className="space-y-1 sm:col-span-2">
-                    <label className="text-xs text-muted-foreground">{tr('Cảnh báo / Allergy', 'Warning / Allergy', '警示/过敏', '警告・アレルギー', '경고/알레르기')}</label>
+                    <label className="text-xs text-muted-foreground">{tr('Cảnh báo / Allergy', 'Warning / Allergy', '警示/过敏', '警告・アレルギー', '경고/알레르기')}{opt}</label>
                     <Input placeholder="VD: Tránh xa tầm tay trẻ em | Có thể gây dị ứng" value={warningAllergy} onChange={(e) => setWarningAllergy(e.target.value)} />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">{tr('Thể tích', 'Volume', '体积', '容量', '용량')}</label>
+                    <label className="text-xs text-muted-foreground">{tr('Thể tích', 'Volume', '体积', '容量', '용량')}{opt}</label>
                     <Input placeholder="VD: 500ml, 1L" value={volume} onChange={(e) => setVolume(e.target.value)} />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">{tr('Mã đăng ký', 'Registration code', '注册号', '登録番号', '등록번호')}</label>
+                    <label className="text-xs text-muted-foreground">{tr('Mã đăng ký', 'Registration code', '注册号', '登録番号', '등록번호')}{opt}</label>
                     <Input placeholder="VD: Mã số ĐKSP, Đăng ký ATVSTP" value={registrationCode} onChange={(e) => setRegistrationCode(e.target.value)} />
                   </div>
                   <div className="space-y-1 sm:col-span-2">
-                    <label className="text-xs text-muted-foreground">{tr('Link mạng xã hội', 'Social media links', '社交媒体', 'SNS', '소셜 미디어')}</label>
+                    <label className="text-xs text-muted-foreground">{tr('Link mạng xã hội', 'Social media links', '社交媒体', 'SNS', '소셜 미디어')}{opt}</label>
                     <Input placeholder="VD: facebook.com/nanoai | instagram.com/nanoai" value={socialLinks} onChange={(e) => setSocialLinks(e.target.value)} />
                   </div>
                 </div>
@@ -2031,16 +2151,16 @@ export default function ThietKeBaoBiClientPage() {
                 {tr('Tạo ảnh phẳng', 'Create flat design', '创建平面图', '平面デザインを作成', '평면 디자인 생성')} (1–6)
               </CardTitle>
               <CardDescription>
-                {tr('Chọn kích thước L×W, L×H hoặc W×H. Mỗi kích thước tối đa 2 ảnh. Có thể chuyển Mockup 3D bất kỳ lúc nào.', 'Choose size L×W, L×H or W×H. Max 2 per size. Go to 3D Mockup anytime.', '选择尺寸L×W、L×H或W×H。每种最多2张。可随时转3D样机。', 'L×W、L×H、W×Hを選択。各2枚まで。いつでも3Dモックアップへ。', 'L×W, L×H, W×H 선택. 각 최대 2장. 언제든 3D 목업으로.')}
+                {tr('Chọn kích thước L×W, L×H hoặc W×H. Tối đa 6 ảnh. Có thể chuyển Mockup 3D bất kỳ lúc nào.', 'Choose size L×W, L×H or W×H. Max 6 images. Go to 3D Mockup anytime.', '选择尺寸L×W、L×H或W×H。最多6张。可随时转3D样机。', 'L×W、L×H、W×Hを選択。最大6枚。いつでも3Dモックアップへ。', 'L×W, L×H, W×H 선택. 최대 6장. 언제든 3D 목업으로.')}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <label className="text-xs font-medium text-muted-foreground">{tr('Kích thước ảnh sắp tạo', 'Size for next image', '下一张尺寸', '次の画像サイズ', '다음 이미지 크기')}</label>
+                <label className="text-xs font-medium text-muted-foreground">{tr('Kích thước ảnh sắp tạo', 'Size for next image', '下一张尺寸', '次の画像サイズ', '다음 이미지 크기')}{opt}</label>
                 <div className="flex flex-wrap gap-2">
                   {FACE_SIZE_KEYS.map((k) => {
                     const count = faces.filter((f) => f.sizeKey === k).length
-                    const disabled = count >= 2 || faces.length >= 6
+                    const disabled = faces.length >= 6
                     return (
                       <button
                         key={k}
@@ -2051,23 +2171,42 @@ export default function ThietKeBaoBiClientPage() {
                           selectedFaceSize === k ? 'border-amber-500 bg-amber-50 text-amber-800' : disabled ? 'border-gray-200 bg-gray-50 text-muted-foreground cursor-not-allowed' : 'border-gray-200 bg-white hover:bg-gray-50'
                         }`}
                       >
-                        {getSizeKeyLabel(k, boxLength, boxWidth, boxHeight)} ({count}/2)
+                        {getSizeKeyLabel(k, boxLength, boxWidth, boxHeight)} ({count})
                       </button>
                     )
                   })}
                 </div>
+                {selectedFaceSize && (
+                  <p className="text-xs text-amber-700 font-medium">
+                    {tr('Ảnh số', 'Image', '图', '画像', '이미지')} {faces.length + 1} {tr('sẽ là', 'will be', '将是', 'は', '는')}: {getSizeKeyLabel(selectedFaceSize, boxLength, boxWidth, boxHeight)}
+                  </p>
+                )}
               </div>
 
               {faces.length >= 1 && (
                 <div className="space-y-2">
                   <label className="text-xs font-medium text-muted-foreground">{tr('Ảnh đã tạo', 'Created images', '已创建', '作成済み', '생성된 이미지')} ({faces.length}/6)</label>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {faces.map((f, i) => (
-                      <div key={f.id} className="relative group">
-                        <img src={f.url} alt="" className="w-full aspect-square object-contain rounded border bg-muted/30" />
-                        <p className="text-[10px] text-muted-foreground mt-0.5">{getSizeKeyLabel(f.sizeKey, boxLength, boxWidth, boxHeight)}</p>
-                      </div>
-                    ))}
+                    {faces.map((f, i) => {
+                      const [len, wid] = getDimensionsFromSizeKey(f.sizeKey, boxLength, boxWidth, boxHeight)
+                      return (
+                        <div key={f.id} className="relative group space-y-1">
+                          <p className="text-xs font-medium text-muted-foreground mb-1">
+                            {tr('Ảnh', 'Image', '图', '画像', '이미지')} {i + 1} – {getSizeKeyLabel(f.sizeKey, boxLength, boxWidth, boxHeight)}
+                          </p>
+                          <img src={f.url} alt="" className="w-full aspect-square object-contain rounded border bg-muted/30" />
+                          <DownloadImageButton
+                            imageUrl={f.url}
+                            filename={`box-flat-${f.sizeKey}-${i + 1}-${Date.now()}.png`}
+                            printReady
+                            printReadyAspectRatio={getAspectRatioFromDimensions(len, wid, textOrientation)}
+                            printReadyLabel={tr('Tải PDF chuẩn in', 'Download print-ready PDF', '下载印刷用PDF', '印刷用PDFをダウンロード', '인쇄용 PDF 다운로드')}
+                            size="sm"
+                            className="w-full"
+                          />
+                        </div>
+                      )
+                    })}
                   </div>
                 </div>
               )}
@@ -2078,14 +2217,17 @@ export default function ThietKeBaoBiClientPage() {
                   <div className="flex justify-center">
                     <img src={faces[0].url} alt="" className="max-h-24 object-contain rounded border" />
                   </div>
+                  <p className="text-xs font-medium text-amber-700">
+                    {tr('Vẫn chọn khung viền và màu nền bên dưới.', 'Still choose border and background below.', '仍可选择下方边框和背景。', '下で枠と背景を選択。', '아래에서 테두리와 배경 선택.')}
+                  </p>
                 </div>
               )}
 
               {faces.length === 0 && (
                 <div className="space-y-2">
-                  <label className="text-xs font-medium text-muted-foreground">{tr('Ảnh tham khảo kiểu mẫu', 'Style reference image', '风格参考图', 'スタイル参考画像', '스타일 참조 이미지')} {opt}</label>
+                  <label className="text-xs font-medium text-muted-foreground">{tr('Ảnh tham khảo phong cách', 'Style reference image', '风格参考图', 'スタイル参考画像', '스타일 참조 이미지')} {opt}</label>
                   <p className="text-xs text-muted-foreground">
-                    {tr('Chỉ dùng để tham khảo phong cách. Nếu có, AI bắt chước style ảnh này; ẩn ô chọn màu nền và khung viền.', 'For style reference only. If set, AI mimics this style; background and border options are hidden.', '仅作风格参考。若设置，AI将模仿此图风格；隐藏背景和边框选项。', 'スタイル参考のみ。設定時はAIがこのスタイルを模倣；背景・枠オプションは非表示。', '스타일 참조용. 설정 시 AI가 이 스타일 모방; 배경·테두리 옵션 숨김.')}
+                    {tr('AI lấy thông tin của bạn (thương hiệu, sản phẩm...) và tùy biến theo style ảnh này. Không bê nguyên ảnh tham khảo. Khi có ảnh này, không dùng ảnh sản phẩm. Vẫn chọn màu nền và viền bên dưới.', 'AI uses your info (brand, product...) and customizes to match this style. Do not copy reference verbatim. When set, product images are not used. Still choose background and border below.', 'AI使用您的信息（品牌、产品等）并按此风格定制。不原样复制参考图。设置后不使用产品图。下方仍可选择背景和边框。', 'AIがあなたの情報（ブランド・商品など）を使い、このスタイルに合わせてカスタマイズ。参考画像をそのままコピーしない。設定時は商品画像を使用しない。下で背景・枠を選択可能。', 'AI가 귀하의 정보(브랜드·상품 등)를 사용해 이 스타일에 맞춤. 참조 이미지 그대로 복사 안 함. 설정 시 상품 이미지 미사용. 아래에서 배경·테두리 선택 가능.')}
                   </p>
                   <div className="flex items-center gap-3">
                     <input ref={referenceImageInputRef} type="file" accept="image/*" onChange={handleReferenceImageChange} className="hidden" />
@@ -2102,11 +2244,88 @@ export default function ThietKeBaoBiClientPage() {
                       </div>
                     )}
                   </div>
+                  {referenceImage.preview && (
+                    <p className="text-xs font-medium text-amber-700">
+                      {tr('Vẫn chọn khung viền và màu nền bên dưới.', 'Still choose border and background below.', '仍可选择下方边框和背景。', '下で枠と背景を選択。', '아래에서 테두리와 배경 선택.')}
+                    </p>
+                  )}
                 </div>
               )}
 
+              <div className="rounded-lg border border-amber-200/60 bg-amber-50/50 p-4 space-y-4">
+                <p className="text-xs font-medium text-amber-800">
+                  {(faces.length >= 1 || referenceImage.preview) ? tr('Khung viền và màu nền (vẫn áp dụng khi có ảnh tham khảo)', 'Border and background (still apply with reference)', '边框和背景（有参考图时仍适用）', '枠と背景（参考ありでも適用）', '테두리·배경 (참조 시에도 적용)') : tr('Khung viền và màu nền', 'Border and background', '边框和背景', '枠と背景', '테두리와 배경')}
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-medium text-muted-foreground">{tr('Khung viền ảnh', 'Image border', '图片边框', '画像の枠', '이미지 테두리')}{opt}</label>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setHasBorder(false)}
+                        className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
+                          !hasBorder ? 'border-amber-500 bg-amber-50 text-amber-800' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'
+                        }`}
+                      >
+                        {tr('Không có', 'None', '无', 'なし', '없음')}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setHasBorder(true)}
+                        className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
+                          hasBorder ? 'border-amber-500 bg-amber-50 text-amber-800' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'
+                        }`}
+                      >
+                        {tr('Có khung viền', 'With border', '有边框', 'あり', '있음')}
+                      </button>
+                    </div>
+                    {hasBorder && (
+                      <div className="mt-2">
+                        <p className="text-xs text-muted-foreground mb-2">{tr('Kiểu viền:', 'Border style:', '边框样式:', '枠のスタイル:', '테두리 스타일:')}{opt}</p>
+                        <Select value={borderStyle} onValueChange={setBorderStyle}>
+                          <SelectTrigger className="w-full max-w-xs">
+                            <SelectValue placeholder={tr('Chọn kiểu viền', 'Select border style', '选择边框样式', '枠のスタイルを選択', '테두리 스타일 선택')} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {BORDER_STYLES.map((b) => (
+                              <SelectItem key={b.value} value={b.value}>
+                                {getBorderLabel(b)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-medium text-muted-foreground">{tr('Màu nền', 'Background', '背景色', '背景色', '배경색')}{opt}</label>
+                    <Select value={backgroundType} onValueChange={setBackgroundType}>
+                      <SelectTrigger className="w-full max-w-xs">
+                        <SelectValue placeholder={tr('Chọn màu nền', 'Select background', '选择背景色', '背景色を選択', '배경색 선택')} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {BACKGROUND_OPTIONS.map((b) => (
+                          <SelectItem key={b.value} value={b.value}>
+                            {getBgLabel(b)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {backgroundType === 'patterned' && (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {PATTERN_OPTIONS.map((p) => (
+                          <button key={p.value} type="button" onClick={() => setPatternStyle(p.value)} className={`px-3 py-2 rounded-md border text-sm ${patternStyle === p.value ? 'border-amber-500 bg-amber-50' : 'border-gray-200'}`}>
+                            {getPatternLabel(p)}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               <div className="space-y-2">
-                <label className="text-xs font-medium text-muted-foreground">{tr('Hướng chữ', 'Text orientation', '文字方向', '文字の向き', '텍스트 방향')}</label>
+                <label className="text-xs font-medium text-muted-foreground">{tr('Hướng chữ', 'Text orientation', '文字方向', '文字の向き', '텍스트 방향')}{opt}</label>
                 <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
@@ -2134,118 +2353,52 @@ export default function ThietKeBaoBiClientPage() {
                 </p>
               </div>
 
-              <div className="space-y-2">
-                <label className="text-xs font-medium text-muted-foreground">{tr('Kích thước ảnh phẳng', 'Flat design dimensions', '平面图尺寸', '平面デザインサイズ', '평면 디자인 크기')} (mm)</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">{tr('Chiều dài', 'Length', '长', '長さ', '길이')}</label>
-                    <Input type="number" min={20} max={800} value={surfaceLength} onChange={(e) => setSurfaceLength(Number(e.target.value) || 20)} placeholder="200" />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">{tr('Chiều rộng', 'Width', '宽', '幅', '너비')}</label>
-                    <Input type="number" min={20} max={800} value={surfaceWidth} onChange={(e) => setSurfaceWidth(Number(e.target.value) || 20)} placeholder="150" />
-                  </div>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {tr('Tỷ lệ:', 'Ratio:', '比例:', '比率:', '비율:')} {getAspectRatioFromDimensions(surfaceLength, surfaceWidth, textOrientation)}
-                  <span className="text-muted-foreground"> ({GEMINI_ASPECT_RATIO_LIST.join(', ')})</span>
-                </p>
-              </div>
-
-              {!(faces.length === 0 && referenceImage.preview) && (
-                <div className="space-y-2">
-                  <label className="text-xs font-medium text-muted-foreground">{tr('Khung viền ảnh', 'Image border', '图片边框', '画像の枠', '이미지 테두리')}{opt}</label>
-                  <div className="flex flex-wrap items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setHasBorder(false)}
-                      className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
-                        !hasBorder ? 'border-amber-500 bg-amber-50 text-amber-800' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'
-                      }`}
-                    >
-                      {tr('Không có', 'None', '无', 'なし', '없음')}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setHasBorder(true)}
-                      className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
-                        hasBorder ? 'border-amber-500 bg-amber-50 text-amber-800' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'
-                      }`}
-                    >
-                      {tr('Có khung viền', 'With border', '有边框', 'あり', '있음')}
-                    </button>
-                  </div>
-                  {hasBorder && (
-                    <div className="mt-2">
-                      <p className="text-xs text-muted-foreground mb-2">{tr('Kiểu viền:', 'Border style:', '边框样式:', '枠のスタイル:', '테두리 스타일:')}</p>
-                      <Select value={borderStyle} onValueChange={setBorderStyle}>
-                        <SelectTrigger className="w-full max-w-xs">
-                          <SelectValue placeholder={tr('Chọn kiểu viền', 'Select border style', '选择边框样式', '枠のスタイルを選択', '테두리 스타일 선택')} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {BORDER_STYLES.map((b) => (
-                            <SelectItem key={b.value} value={b.value}>
-                              {getBorderLabel(b)}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-                </div>
-              )}
+              <p className="text-xs text-muted-foreground">
+                {tr('Tỷ lệ theo kích thước đã chọn:', 'Ratio from selection:', '根据所选尺寸比例:', '選択サイズの比率:', '선택 크기 비율:')}{' '}
+                <span className="font-medium text-foreground">{getAspectRatioFromDimensions(surfaceLength, surfaceWidth, textOrientation)}</span>
+                <span className="text-muted-foreground"> ({GEMINI_ASPECT_RATIO_LIST.join(', ')})</span>
+              </p>
 
               <div className="space-y-2 border-t pt-4">
                 <p className="text-xs font-medium text-muted-foreground">{tr('Thông tin đóng gói (tùy chọn)', 'Packaging info (optional)', '包装信息（可选）', '包装情報（任意）', '포장 정보 (선택)')}</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">{tr('Số lô', 'Batch/Lot', '批号', 'ロット', '로트')}</label>
+                    <label className="text-xs text-muted-foreground">{tr('Số lô', 'Batch/Lot', '批号', 'ロット', '로트')}{opt}</label>
                     <Input placeholder="VD: Lô 001" value={packagingBatchLot} onChange={(e) => setPackagingBatchLot(e.target.value)} />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">{tr('Ngày SX', 'Prod. date', '生产日期', '製造日', '제조일')}</label>
+                    <label className="text-xs text-muted-foreground">{tr('Ngày SX', 'Prod. date', '生产日期', '製造日', '제조일')}{opt}</label>
                     <Input type="date" value={packagingProdDate} onChange={(e) => setPackagingProdDate(e.target.value)} />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">{tr('Hạn dùng', 'Expiry date', '保质期', '賞味期限', '유통기한')}</label>
+                    <label className="text-xs text-muted-foreground">{tr('Hạn dùng', 'Expiry date', '保质期', '賞味期限', '유통기한')}{opt}</label>
                     <Input type="date" value={packagingExpiryDate} onChange={(e) => setPackagingExpiryDate(e.target.value)} />
                   </div>
-                  <Input placeholder={tr('Số lượng', 'Quantity', '数量', '数量', '수량')} value={packagingQuantity} onChange={(e) => setPackagingQuantity(e.target.value)} />
-                  <Input placeholder={tr('Trọng lượng', 'Weight', '重量', '重量', '중량')} value={packagingWeight} onChange={(e) => setPackagingWeight(e.target.value)} />
-                  <Input placeholder={tr('Yêu cầu vận chuyển', 'Shipping', '运输要求', '輸送要件', '운송')} value={packagingShipping} onChange={(e) => setPackagingShipping(e.target.value)} className="sm:col-span-2" />
-                  <Input placeholder={tr('Quy cách khác', 'Other specs', '其他规格', 'その他', '기타')} value={packagingOther} onChange={(e) => setPackagingOther(e.target.value)} className="sm:col-span-2" />
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">{tr('Số lượng', 'Quantity', '数量', '数量', '수량')}{opt}</label>
+                    <Input placeholder={tr('Số lượng', 'Quantity', '数量', '数量', '수량')} value={packagingQuantity} onChange={(e) => setPackagingQuantity(e.target.value)} />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">{tr('Trọng lượng', 'Weight', '重量', '重量', '중량')}{opt}</label>
+                    <Input placeholder={tr('Trọng lượng', 'Weight', '重量', '重量', '중량')} value={packagingWeight} onChange={(e) => setPackagingWeight(e.target.value)} />
+                  </div>
+                  <div className="space-y-1 sm:col-span-2">
+                    <label className="text-xs text-muted-foreground">{tr('Yêu cầu vận chuyển', 'Shipping', '运输要求', '輸送要件', '운송')}{opt}</label>
+                    <Input placeholder={tr('Yêu cầu vận chuyển', 'Shipping', '运输要求', '輸送要件', '운송')} value={packagingShipping} onChange={(e) => setPackagingShipping(e.target.value)} />
+                  </div>
+                  <div className="space-y-1 sm:col-span-2">
+                    <label className="text-xs text-muted-foreground">{tr('Quy cách khác', 'Other specs', '其他规格', 'その他', '기타')}{opt}</label>
+                    <Input placeholder={tr('Quy cách khác', 'Other specs', '其他规格', 'その他', '기타')} value={packagingOther} onChange={(e) => setPackagingOther(e.target.value)} />
+                  </div>
+                  <div className="space-y-1 sm:col-span-2">
+                    <label className="text-xs text-muted-foreground">{tr('Thông điệp nhà sản xuất (in không nhãn)', 'Manufacturer message (no label)', '制造商信息（无标签）', '製造者メッセージ（ラベルなし）', '제조사 메시지 (라벨 없음)')}{opt}</label>
+                    <Input placeholder={tr('VD: Mỳ ngon hảo hạng', 'e.g. Premium noodles', '例如：优质面条', '例：プレミアム麺', '예: 프리미엄 국수')} value={manufacturerMessage} onChange={(e) => setManufacturerMessage(e.target.value)} />
+                  </div>
                   <button type="button" onClick={() => setIncludeBoxDims((v) => !v)} className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm sm:col-span-2 ${includeBoxDims ? 'border-amber-500 bg-amber-50' : 'border-gray-200'}`}>
-                    {includeBoxDims ? '✓' : ''} {tr('Thêm kích thước hộp L×W×H', 'Include box dimensions', '添加盒子尺寸', '箱サイズ追加', '상자 크기 추가')}
+                    {includeBoxDims ? '✓' : ''} {tr('Thêm kích thước hộp L×W×H', 'Include box dimensions', '添加盒子尺寸', '箱サイズ追加', '상자 크기 추가')}{opt}
                   </button>
                 </div>
               </div>
-
-              {!(faces.length === 0 && referenceImage.preview) && (
-                <div className="space-y-2">
-                  <label className="text-xs font-medium text-muted-foreground">{tr('Màu nền', 'Background', '背景色', '背景色', '배경색')}{opt}</label>
-                  <Select value={backgroundType} onValueChange={setBackgroundType}>
-                    <SelectTrigger className="w-full max-w-xs">
-                      <SelectValue placeholder={tr('Chọn màu nền', 'Select background', '选择背景色', '背景色を選択', '배경색 선택')} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {BACKGROUND_OPTIONS.map((b) => (
-                        <SelectItem key={b.value} value={b.value}>
-                          {getBgLabel(b)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {backgroundType === 'patterned' && (
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {PATTERN_OPTIONS.map((p) => (
-                        <button key={p.value} type="button" onClick={() => setPatternStyle(p.value)} className={`px-3 py-2 rounded-md border text-sm ${patternStyle === p.value ? 'border-amber-500 bg-amber-50' : 'border-gray-200'}`}>
-                          {getPatternLabel(p)}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -2271,39 +2424,39 @@ export default function ThietKeBaoBiClientPage() {
                 <p className="text-xs font-medium text-muted-foreground">{tr('Thông tin bổ sung (tùy chọn)', 'Additional info (optional)', '补充信息（可选）', '追加情報（任意）', '추가 정보 (선택)')}</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">{tr('Website', 'Website', '网站', 'ウェブサイト', '웹사이트')}</label>
+                    <label className="text-xs text-muted-foreground">{tr('Website', 'Website', '网站', 'ウェブサイト', '웹사이트')}{opt}</label>
                     <Input placeholder="www.nanoai.vn" value={website} onChange={(e) => setWebsite(e.target.value)} />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">{tr('Email', 'Email', '邮箱', 'メール', '이메일')}</label>
+                    <label className="text-xs text-muted-foreground">{tr('Email', 'Email', '邮箱', 'メール', '이메일')}{opt}</label>
                     <Input placeholder="contact@nanoai.vn" value={email} onChange={(e) => setEmail(e.target.value)} />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">{tr('Hotline', 'Hotline', '热线', 'ホットライン', '홀라인')}</label>
+                    <label className="text-xs text-muted-foreground">{tr('Hotline', 'Hotline', '热线', 'ホットライン', '홀라인')}{opt}</label>
                     <Input placeholder="1900 1234" value={hotline} onChange={(e) => setHotline(e.target.value)} />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">{tr('Nguồn gốc', 'Origin', '原产地', '原産国', '원산지')}</label>
+                    <label className="text-xs text-muted-foreground">{tr('Nguồn gốc', 'Origin', '原产地', '原産国', '원산지')}{opt}</label>
                     <Input placeholder="Sản xuất tại VN" value={countryOfOrigin} onChange={(e) => setCountryOfOrigin(e.target.value)} />
                   </div>
                   <div className="space-y-1 sm:col-span-2">
-                    <label className="text-xs text-muted-foreground">{tr('Bảo quản', 'Storage', '保存', '保存', '보관')}</label>
+                    <label className="text-xs text-muted-foreground">{tr('Bảo quản', 'Storage', '保存', '保存', '보관')}{opt}</label>
                     <Input placeholder="VD: Nơi khô ráo, tránh ánh nắng" value={storageInstructions} onChange={(e) => setStorageInstructions(e.target.value)} />
                   </div>
                   <div className="space-y-1 sm:col-span-2">
-                    <label className="text-xs text-muted-foreground">{tr('Cảnh báo / Allergy', 'Warning / Allergy', '警示', '警告', '경고')}</label>
+                    <label className="text-xs text-muted-foreground">{tr('Cảnh báo / Allergy', 'Warning / Allergy', '警示', '警告', '경고')}{opt}</label>
                     <Input placeholder="VD: Tránh xa trẻ em" value={warningAllergy} onChange={(e) => setWarningAllergy(e.target.value)} />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">{tr('Thể tích', 'Volume', '体积', '容量', '용량')}</label>
+                    <label className="text-xs text-muted-foreground">{tr('Thể tích', 'Volume', '体积', '容量', '용량')}{opt}</label>
                     <Input placeholder="500ml" value={volume} onChange={(e) => setVolume(e.target.value)} />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">{tr('Mã ĐK', 'Reg. code', '注册号', '登録番号', '등록번호')}</label>
+                    <label className="text-xs text-muted-foreground">{tr('Mã ĐK', 'Reg. code', '注册号', '登録番号', '등록번호')}{opt}</label>
                     <Input placeholder="Mã số ĐKSP" value={registrationCode} onChange={(e) => setRegistrationCode(e.target.value)} />
                   </div>
                   <div className="space-y-1 sm:col-span-2">
-                    <label className="text-xs text-muted-foreground">{tr('Mạng xã hội', 'Social media', '社交媒体', 'SNS', '소셜')}</label>
+                    <label className="text-xs text-muted-foreground">{tr('Mạng xã hội', 'Social media', '社交媒体', 'SNS', '소셜')}{opt}</label>
                     <Input placeholder="facebook.com/..." value={socialLinks} onChange={(e) => setSocialLinks(e.target.value)} />
                   </div>
                 </div>
@@ -2424,7 +2577,7 @@ export default function ThietKeBaoBiClientPage() {
                   onClick={() => handleFaceSubmit()}
                   className="flex-1 min-h-[44px] touch-manipulation"
                   size="lg"
-                  disabled={!selectedFaceSize || faces.filter((f) => f.sizeKey === selectedFaceSize).length >= 2 || faces.length >= 6}
+                  disabled={!selectedFaceSize || faces.length >= 6}
                 >
                   <Sparkles className="h-4 w-4 mr-2" />
                   {tr('Tạo ảnh phẳng', 'Create flat design', '创建平面图', '平面デザイン作成', '평면 디자인 생성')} ({formatCredits(cost)} {tr('credits', 'credits', '积分', 'クレジット', '크레딧')})

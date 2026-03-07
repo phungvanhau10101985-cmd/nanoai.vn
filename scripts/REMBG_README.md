@@ -1,13 +1,14 @@
-# rembg – Tách nền (Tạo nhãn dán)
+# rembg & Pillow – Tách nền (Tạo nhãn dán, Xóa nền PNG)
 
 ## Cài đặt
 
 ```bash
-# CPU (khuyến nghị)
-pip install "rembg[cpu,cli]"
-
-# Hoặc dùng requirements
+# Khuyến nghị: cài đủ cả rembg và Pillow
 pip install -r scripts/requirements-rembg.txt
+
+# Hoặc cài thủ công
+pip install "rembg[cpu,cli]"
+pip install pillow
 ```
 
 **Yêu cầu:** Python 3.11+
@@ -40,6 +41,12 @@ rembg 2.x không còn `__main__.py`. Code đã dùng `python -m rembg.cli` thay 
 
 ```bash
 pip install "rembg[cpu,cli]"
+```
+
+### Thiếu thư viện Pillow / No module named 'PIL' (Xóa nền PNG)
+
+```bash
+pip install pillow
 ```
 
 ### ModuleNotFoundError: No module named 'onnxruntime'

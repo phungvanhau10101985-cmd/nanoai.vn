@@ -12,7 +12,7 @@ import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { getAspectRatioFromDimensions } from '@/lib/aspect-ratio-from-dimensions'
 
 const PACKAGING_COSTS = { '2K': 1.5, '4K': 3 } as const
-const VALID_ASPECT_RATIOS = ['1:1', '4:3', '3:4', '3:2', '2:3'] as const
+const VALID_ASPECT_RATIOS = ['1:1', '4:3', '3:4', '3:2', '2:3', '5:4', '4:5', '16:9', '9:16', '21:9', '9:21'] as const
 const toTenths = (value: number) => Math.round(value * 10)
 const fromTenths = (value: number) => value / 10
 const formatCredits = (value: number) => value.toLocaleString('vi-VN', { maximumFractionDigits: 1 })
@@ -247,7 +247,8 @@ export async function createPackagingDesignWithAI(formData: FormData): Promise<
     if (content) textParts.push(`Block "${label}": ${content}`)
   }
   const blocksInstruction = textParts.some((p) => p.startsWith('Block "')) ? 'Place each block in a separate, non-adjacent area. Display content exactly as provided.' : ''
-  const textInstruction = textParts.length ? `Include these content blocks on the packaging: ${textParts.join('. ')}. ${blocksInstruction}` : ''
+  const leftAlignRule = 'All text on the packaging MUST be left-aligned. Tất cả chữ căn lề trái.'
+  const textInstruction = textParts.length ? `Include these content blocks on the packaging: ${textParts.join('. ')}. ${blocksInstruction}. ${leftAlignRule}` : leftAlignRule
 
   let prompt = `Generate a single high-quality product packaging mockup image. ${designPrompt} ${stylePrompt} ${textInstruction} Output only the image, no text overlay or watermark. Professional commercial quality.`
 
@@ -367,6 +368,7 @@ export async function createBoxSurfaceImageWithAI(formData: FormData): Promise<
   const packagingWeight = (formData.get('packagingWeight') as string)?.trim() || ''
   const packagingShipping = (formData.get('packagingShipping') as string)?.trim() || ''
   const packagingOther = (formData.get('packagingOther') as string)?.trim() || ''
+  const manufacturerMessage = (formData.get('manufacturerMessage') as string)?.trim() || ''
   const packagingBatchLot = (formData.get('packagingBatchLot') as string)?.trim() || ''
   const packagingProdDate = (formData.get('packagingProdDate') as string)?.trim() || ''
   const packagingExpiryDate = (formData.get('packagingExpiryDate') as string)?.trim() || ''
@@ -377,8 +379,9 @@ export async function createBoxSurfaceImageWithAI(formData: FormData): Promise<
   const hasProductImage = productImageFiles.length > 0
 
   if (faceIndex >= 2 && !referenceImageUrl) return { error: 'Thiếu ảnh tham khảo (mặt trước).' }
-  if (!brandName && !productName && !hasProductImage) {
-    return { error: 'Vui lòng nhập tên thương hiệu, tên sản phẩm hoặc tải ảnh sản phẩm.' }
+  const hasReferenceForFace1 = faceIndex === 1 && !!(referenceImageFile?.size && referenceImageFile.size > 0)
+  if (!brandName && !productName && !hasProductImage && !hasReferenceForFace1) {
+    return { error: 'Vui lòng nhập tên thương hiệu, tên sản phẩm, tải ảnh sản phẩm hoặc ảnh tham khảo in lên thiết kế.' }
   }
 
   const aspectRatio = getAspectRatioFromDimensions(surfaceLength, surfaceWidth, textOrientation)
@@ -486,11 +489,13 @@ export async function createBoxSurfaceImageWithAI(formData: FormData): Promise<
   if (packagingWeight) textParts.push(`${L.weight}: ${packagingWeight}`)
   if (packagingShipping) textParts.push(`${L.shipping}: ${packagingShipping}`)
   if (packagingOther) textParts.push(`Packaging specs: ${packagingOther}`)
-  if (includeBoxDims) textParts.push(`${L.boxDims}: ${boxLength}mm × ${boxWidth}mm × ${boxHeight}mm (L×W×H)`)
+  if (manufacturerMessage) textParts.push(`Display this message WITHOUT any label (no prefix, no "Packaging specs:", just the text as-is): "${manufacturerMessage}"`)
+  if (includeBoxDims) textParts.push(`${L.boxDims}: ${boxLength}mm × ${boxWidth}mm × ${boxHeight}mm (L×W×H). CRITICAL: Display EXACTLY 3 numbers only - Length, Width, Height. Do NOT repeat any dimension.`)
+  const leftAlignRule = 'CRITICAL: All text on the packaging MUST be left-aligned. Tất cả chữ căn lề trái.'
   const contentBlocksInstruction = textParts.some((p) => p.startsWith('Block "'))
     ? 'Place each content block in a SEPARATE, NON-ADJACENT area of the design (e.g. one block for ingredients in one corner, another for usage in another area). Blocks should be spaced apart, not clustered together.'
     : ''
-  const textInstruction = textParts.length ? `Include ONLY these texts (do not add any other text): ${textParts.join('. ')}. ${contentBlocksInstruction}` : ''
+  const textInstruction = textParts.length ? `Include ONLY these texts (do not add any other text): ${textParts.join('. ')}. ${contentBlocksInstruction}. ${leftAlignRule}` : leftAlignRule
   const packagingRule = !textParts.length
     ? 'CRITICAL: Do NOT add any packaging information (weight, quantity, dimensions, shipping requirements, net weight, etc.) to the design. Only include what the user explicitly provides. If nothing is provided, do not invent or add any such text.'
     : 'Only include the packaging/text information explicitly listed above. Do NOT add any other packaging specs. CRITICAL: Display quantity and weight EXACTLY as provided - do NOT convert numbers to words (e.g. 15 must show as 15, not "fifteen" or "Mười lăm"; 500g must show as 500g, not "Năm trăm gam"). Content as entered, no translation.'
@@ -552,25 +557,32 @@ export async function createBoxSurfaceImageWithAI(formData: FormData): Promise<
   const contentParts: object[] = []
 
   const fullBleedRule = 'CRITICAL: Design MUST be full bleed - extend to ALL edges of the frame. No transparent margins, no white space, no padding. The artwork must fill the entire rectangular output from edge to edge. Kích thước ảnh phải full viền.'
+  const safeZoneRule = `CRITICAL - Safe zone / Vùng in thực tế: The ACTUAL print area is EXACTLY ${surfaceLength}mm × ${surfaceWidth}mm. Place ALL important content (brand, logos, text, product images) ONLY within this area. The output frame may have aspect ratio ${aspectRatio} (approximate) - any extra/overflow space outside the ${surfaceLength}×${surfaceWidth} area must remain EMPTY or background only. Do NOT draw critical content in overflow areas. Chỉ vẽ nội dung trong diện tích ${surfaceLength}×${surfaceWidth}mm, phần thừa để trống.`
+  const backgroundRule = `CRITICAL - Màu nền (background): ${backgroundHint} User's background choice MUST be applied.`
   if (faceIndex === 1 && referenceBase64) {
-    prompt = `Generate a single flat 2D design artwork. ${fullBleedRule} Plain design for print. The first image provided is a STYLE REFERENCE ONLY - mimic its colors, layout, aesthetic. Create a flat artwork for Face 1 that matches this style. All details must come from user input (brand, product, content). Surface dimensions: ${surfaceLength}mm × ${surfaceWidth}mm. No border. ${textOrientationHint} ${stylePrompt} ${textInstruction} ${packagingRule} Output only the image, no watermark. Professional print-ready quality.`
+    prompt = `Generate a single flat 2D design artwork. ${fullBleedRule} ${safeZoneRule} Plain design for print.
+
+CRITICAL - The first image provided is STYLE REFERENCE ONLY. Do NOT copy it verbatim. Use it ONLY to understand: colors, layout style, aesthetic, typography feel. Create a COMPLETELY NEW design using ONLY the user's information (brand, product, content blocks below). Customize and adapt the user's content to match the reference's visual style. The output must be a fresh design with user's brand/product/text, styled like the reference - NOT the reference image itself. Do NOT use customer product images when reference is provided.
+
+${backgroundRule} Surface dimensions: ${surfaceLength}mm × ${surfaceWidth}mm. ${borderHint} ${textOrientationHint} ${stylePrompt} ${textInstruction} ${packagingRule} Output only the image, no watermark. Professional print-ready quality.`
     contentParts.push({ text: prompt })
     contentParts.push({ inlineData: { data: referenceBase64, mimeType: 'image/png' } })
   } else if (faceIndex === 1) {
-    prompt = `Generate a single flat 2D design artwork. ${fullBleedRule} Plain design for print. Surface dimensions: ${surfaceLength}mm × ${surfaceWidth}mm. ${backgroundHint} ${borderHint} ${faceTypeHint} ${textOrientationHint} ${stylePrompt} ${textInstruction} ${packagingRule} Output only the image, no watermark. Professional print-ready quality.`
+    prompt = `Generate a single flat 2D design artwork. ${fullBleedRule} ${safeZoneRule} Plain design for print. ${backgroundRule} Surface dimensions: ${surfaceLength}mm × ${surfaceWidth}mm. ${borderHint} ${faceTypeHint} ${textOrientationHint} ${stylePrompt} ${textInstruction} ${packagingRule} Output only the image, no watermark. Professional print-ready quality.`
     contentParts.push({ text: prompt })
   } else {
-    prompt = `Generate a single flat 2D design artwork. ${fullBleedRule} Plain design for print.
+    prompt = `Generate a single flat 2D design artwork. ${fullBleedRule} ${safeZoneRule} Plain design for print.
 
 CRITICAL - Reference image (Face 1) is STYLE REFERENCE ONLY: Use it ONLY for color palette, layout style, and overall aesthetic. Do NOT copy its text, logos, or specific content. Create a NEW design for Face ${faceIndex} with content from user input (brand, product, content blocks below). The reference is for visual style inspiration only - simpler, complementary to the main face.
 
-Surface dimensions: ${surfaceLength}mm × ${surfaceWidth}mm. ${backgroundHint} ${borderHint} ${textOrientationHint} ${stylePrompt} ${textInstruction} ${packagingRule} Output only the image, no watermark. Professional print-ready quality.`
+${backgroundRule} Surface dimensions: ${surfaceLength}mm × ${surfaceWidth}mm. ${borderHint} ${textOrientationHint} ${stylePrompt} ${textInstruction} ${packagingRule} Output only the image, no watermark. Professional print-ready quality.`
     contentParts.push({ text: prompt })
     if (referenceBase64) contentParts.push({ inlineData: { data: referenceBase64, mimeType: 'image/png' } })
   }
   const hasLogo = logoFile?.size && logoFile.size > 0
 
-  if (hasProductImage && productImageFiles.length > 0) {
+  const useReferenceAsMainVisual = faceIndex === 1 && !!referenceBase64
+  if (hasProductImage && productImageFiles.length > 0 && !useReferenceAsMainVisual) {
     for (const f of productImageFiles) {
       contentParts.push({
         inlineData: { data: Buffer.from(await f.arrayBuffer()).toString('base64'), mimeType: f.type || 'image/png' },
@@ -824,13 +836,18 @@ export async function createBoxMockupFromFaces(params: {
     LxH: ['FRONT', 'BACK'],
     WxH: ['LEFT', 'RIGHT'],
   }
+  const faceDims: Record<FaceSizeKey, string> = {
+    LxW: `${boxLength}×${boxWidth}mm`,
+    LxH: `${boxLength}×${boxHeight}mm`,
+    WxH: `${boxWidth}×${boxHeight}mm`,
+  }
   const mapping: string[] = []
   const idxBySize: Record<FaceSizeKey, number> = { LxW: 0, LxH: 0, WxH: 0 }
   for (let i = 0; i < orderedFaces.length; i++) {
     const sk = orderedFaces[i].sizeKey
     const faceName = faceNames[sk][idxBySize[sk]] || faceNames[sk][0]
     idxBySize[sk]++
-    mapping.push(`- Image ${i + 1} → ${faceName} FACE (${FACE_LABELS[sk]}). Print the full design on this face.`)
+    mapping.push(`- Image ${i + 1} → ${faceName} FACE (${FACE_LABELS[sk]}). Face size: ${faceDims[sk]}. This image was created for ${faceDims[sk]} – apply it to this face WITHOUT stretching or distorting. Preserve aspect ratio.`)
   }
 
   let imagesBase64: string[]
@@ -841,9 +858,14 @@ export async function createBoxMockupFromFaces(params: {
     return { error: 'Không thể tải ảnh bề mặt.' }
   }
 
-  const prompt = `Create a photorealistic 3D cardboard box mockup. Box dimensions: ${boxLength}mm (length) × ${boxWidth}mm (width) × ${boxHeight}mm (height).
+  const ratioL = (boxLength / Math.min(boxLength, boxWidth, boxHeight)).toFixed(1)
+  const ratioW = (boxWidth / Math.min(boxLength, boxWidth, boxHeight)).toFixed(1)
+  const ratioH = (boxHeight / Math.min(boxLength, boxWidth, boxHeight)).toFixed(1)
+  const prompt = `Create a photorealistic 3D cardboard box mockup.
 
-CRITICAL - You are given ${orderedFaces.length} flat print design(s). Apply EACH design to the specified face. Faces with designs MUST show the printed design. Faces without a design may remain plain cardboard.
+CRITICAL - Box dimensions and proportions: ${boxLength}mm (L) × ${boxWidth}mm (W) × ${boxHeight}mm (H). The 3D box MUST have EXACT proportions: L:W:H = ${ratioL}:${ratioW}:${ratioH}. The visible faces must show correct aspect ratios: L×W face = ${boxLength}×${boxWidth}mm, L×H face = ${boxLength}×${boxHeight}mm, W×H face = ${boxWidth}×${boxHeight}mm. Do NOT render a cube or wrong proportions – the box shape must match these dimensions. Tỷ lệ hộp phải đúng kích thước.
+
+CRITICAL - You are given ${orderedFaces.length} flat print design(s). Each image has dimensions matching its face (L×W, L×H, or W×H). Apply EACH design to the specified face preserving its aspect ratio – do NOT stretch, squash, or distort. Kích thước ảnh phải phù hợp kích thước từng mặt. Faces with designs MUST show the printed design. Faces without a design may remain plain cardboard.
 
 CRITICAL - Transparent/unprinted areas: The flat designs may have TRANSPARENT areas (alpha) or unprinted regions. When compositing onto the 3D box, those areas MUST show the NATURAL CARTON color (brown, beige, kraft paper). The box is cardboard – unprinted/transparent regions = raw carton color. Do NOT fill with white or solid color. Vùng trong suốt / không in = màu bìa carton tự nhiên.
 
