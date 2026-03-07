@@ -274,7 +274,7 @@ export default function ThietKeLogoClientPage() {
                 className="max-w-md mx-auto rounded-lg border overflow-hidden bg-white p-8"
                 style={{ aspectRatio: aspectRatio.replace(':', '/') }}
               >
-                <ImagePreview src={resultUrl} alt={tr('Logo', 'Logo', 'Logo', 'ロゴ', '로고')} className="w-full h-full object-contain" />
+                <ImagePreview src={resultUrl} alt={tr('Logo', 'Logo', 'Logo', 'ロゴ', '로고')} className="w-full h-full object-contain" printReadyAspectRatio={aspectRatio} />
               </div>
             </CardContent>
           </Card>

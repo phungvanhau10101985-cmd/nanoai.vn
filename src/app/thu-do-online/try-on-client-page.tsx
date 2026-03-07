@@ -690,7 +690,14 @@ export default function TryOnClientPage({ gender: initialGender, initialMode = '
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <h3 className="font-semibold text-sm text-center">{tr('Sau', 'After', '之后', '後', '후')}</h3>
-                  <DownloadImageButton imageUrl={resultUrl!} filename="try-on-result" size="sm" className={cn('h-8 text-xs', theme.primaryButton, 'border-0')} />
+                  <DownloadImageButton
+                  imageUrl={resultUrl!}
+                  filename="try-on-result"
+                  size="sm"
+                  className={cn('h-8 text-xs', theme.primaryButton, 'border-0')}
+                  printReady
+                  printReadyInferFromImage
+                />
                 </div>
                 {resultUrl && (
                   <div className="relative w-full aspect-square rounded-md border shadow-sm overflow-hidden">

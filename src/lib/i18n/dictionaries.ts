@@ -23,12 +23,17 @@ export type ToolKey =
   | 'create_sticker'
   | 'create_product_label'
   | 'create_barcode'
+  | 'design_package'
+  | 'design_flat_bag'
+  | 'cylinder_wrap_mockup'
+  | 'create_seal_warranty_label'
   | 'meme_maker'
   | 'remove_object'
   | 'remove_bg_png'
   | 'replace_product_bg'
   | 'product_3d_sample'
   | 'model_3d_from_image'
+  | 'create_video_from_image'
   | 'interior_exterior'
   | 'my_house'
   | 'portrait_photo'
@@ -154,12 +159,17 @@ const VI_DICTIONARY: Dictionary = {
     create_sticker: 'Tạo nhãn gián',
     create_product_label: 'Tạo nhãn giới thiệu sản phẩm',
     create_barcode: 'Tạo mã vạch & QR Code',
+    design_package: 'Thiết kế bao bì (hộp, túi)',
+    design_flat_bag: 'Thiết kế túi đựng (mặt phẳng)',
+    cylinder_wrap_mockup: 'Mockup nhãn chai / lon',
+    create_seal_warranty_label: 'Tạo tem niêm phong, bảo hành',
     meme_maker: 'Chế ảnh',
     remove_object: 'Xóa vật thể',
     remove_bg_png: 'Xóa nền PNG',
     replace_product_bg: 'Thay nền sản phẩm',
     product_3d_sample: 'Ảnh sản phẩm mẫu 3D',
     model_3d_from_image: 'Mô hình 3D từ ảnh',
+    create_video_from_image: 'Tạo video từ ảnh',
     interior_exterior: 'Nội ngoại thất',
     my_house: 'Nhà của bạn',
     portrait_photo: 'Ảnh chân dung',
@@ -243,12 +253,17 @@ const EN_DICTIONARY: Dictionary = {
     create_sticker: 'Create Sticker',
     create_product_label: 'Create Product Label',
     create_barcode: 'Create Barcode & QR Code',
+    design_package: 'Packaging Design (box, bag)',
+    design_flat_bag: 'Flat bag design',
+    cylinder_wrap_mockup: 'Bottle / Can Label Mockup',
+    create_seal_warranty_label: 'Create seal & warranty label',
     meme_maker: 'Meme Maker',
     remove_object: 'Remove Object',
     remove_bg_png: 'Remove PNG Background',
     replace_product_bg: 'Replace Product Background',
     product_3d_sample: '3D Product Sample',
     model_3d_from_image: '3D Model from Image',
+    create_video_from_image: 'Create Video from Image',
     interior_exterior: 'Interior & Exterior',
     my_house: 'Your House',
     portrait_photo: 'Portrait Photo',
@@ -332,12 +347,17 @@ const ZH_DICTIONARY: Dictionary = {
     create_sticker: '生成贴纸',
     create_product_label: '创建产品介绍标签',
     create_barcode: '创建条形码和二维码',
+    design_package: '包装设计（箱・袋）',
+    design_flat_bag: '平面袋设计',
+    cylinder_wrap_mockup: '瓶子/罐子标签样机',
+    create_seal_warranty_label: '创建封条/保修标签',
     meme_maker: '表情包制作',
     remove_object: '移除物体',
     remove_bg_png: '去除 PNG 背景',
     replace_product_bg: '替换商品背景',
     product_3d_sample: '3D 商品样图',
     model_3d_from_image: '从图片生成 3D 模型',
+    create_video_from_image: '从图片创建视频',
     interior_exterior: '室内与室外',
     my_house: '我的房屋',
     portrait_photo: '人像照片',
@@ -421,12 +441,17 @@ const JA_DICTIONARY: Dictionary = {
     create_sticker: 'ステッカー作成',
     create_product_label: '商品紹介ラベル作成',
     create_barcode: 'バーコード・QRコード作成',
+    design_package: '包装設計（箱・袋）',
+    design_flat_bag: '平面袋デザイン',
+    cylinder_wrap_mockup: 'ボトル・缶ラベルモックアップ',
+    create_seal_warranty_label: '封印・保証ラベル作成',
     meme_maker: 'ミーム作成',
     remove_object: 'オブジェクト削除',
     remove_bg_png: 'PNG 背景削除',
     replace_product_bg: '商品背景置換',
     product_3d_sample: '3D 商品サンプル',
     model_3d_from_image: '画像から 3D モデル生成',
+    create_video_from_image: '画像から動画作成',
     interior_exterior: '内装・外装',
     my_house: 'あなたの家',
     portrait_photo: 'ポートレート写真',
@@ -510,12 +535,17 @@ const KO_DICTIONARY: Dictionary = {
     create_sticker: '스티커 생성',
     create_product_label: '제품 소개 라벨 만들기',
     create_barcode: '바코드·QR 코드 만들기',
+    design_package: '포장 설계 (상자, 가방)',
+    design_flat_bag: '평면 가방 설계',
+    cylinder_wrap_mockup: '병/캔 라벨 목업',
+    create_seal_warranty_label: '봉인·보증 라벨 만들기',
     meme_maker: '밈 만들기',
     remove_object: '객체 제거',
     remove_bg_png: 'PNG 배경 제거',
     replace_product_bg: '상품 배경 교체',
     product_3d_sample: '3D 상품 샘플',
     model_3d_from_image: '이미지로 3D 모델 생성',
+    create_video_from_image: '이미지에서 비디오 만들기',
     interior_exterior: '인테리어·익스테리어',
     my_house: '내 집',
     portrait_photo: '인물 사진',

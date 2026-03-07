@@ -390,7 +390,14 @@ export default function LamNetAnhClientPage() {
                     <Button size="sm" variant="outline" onClick={handleReset}>
                       <RefreshCw className="mr-2 h-3 w-3" /> {t.tryAgain}
                     </Button>
-                    <DownloadImageButton imageUrl={resultUrl} filename="lam-net-result" size="sm" className="bg-amber-600 hover:bg-amber-700 text-white border-0" />
+                    <DownloadImageButton
+                    imageUrl={resultUrl}
+                    filename="lam-net-result"
+                    size="sm"
+                    className="bg-amber-600 hover:bg-amber-700 text-white border-0"
+                    printReady
+                    printReadyInferFromImage
+                  />
                   </div>
                 </div>
                 <div className="aspect-square rounded-lg border overflow-hidden">

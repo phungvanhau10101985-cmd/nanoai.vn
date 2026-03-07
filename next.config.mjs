@@ -6,6 +6,9 @@ const nextConfig = {
     allowedDevOrigins: ['*.ngrok-free.dev', '*.ngrok.io'],
     experimental: {
         serverComponentsExternalPackages: ['xlsx', 'pdf-to-img', 'pdfjs-dist', 'node-poppler'],
+        serverActions: {
+            bodySizeLimit: '10mb',
+        },
     },
     typescript: { ignoreBuildErrors: true },
     images: {

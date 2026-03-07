@@ -401,7 +401,14 @@ export default function XoaVatTheClientPage() {
                     <Button size="sm" variant="outline" onClick={handleReset}>
                       <RefreshCw className="mr-2 h-3 w-3" /> {t.tryAgain}
                     </Button>
-                    <DownloadImageButton imageUrl={resultUrl} filename="xoa-vat-the-result" size="sm" className="bg-teal-600 hover:bg-teal-700 text-white border-0" />
+                    <DownloadImageButton
+                    imageUrl={resultUrl}
+                    filename="xoa-vat-the-result"
+                    size="sm"
+                    className="bg-teal-600 hover:bg-teal-700 text-white border-0"
+                    printReady
+                    printReadyInferFromImage
+                  />
                   </div>
                 </div>
                 <div className="aspect-square rounded-lg border overflow-hidden">

@@ -209,7 +209,7 @@ export default function TaoNhanGianClientPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="relative aspect-square max-h-[55vh] w-full min-w-0 overflow-hidden rounded-lg border bg-[repeating-conic-gradient(#e5e7eb_0%_25%,#f9fafb_0%_50%)] bg-[length:16px_16px]">
-                <ImagePreview src={resultUrl} alt={tr('Nhãn gián', 'Sticker label', '贴纸标签', 'ステッカーラベル', '스티커 라벨')} className="w-full h-full object-contain" />
+                <ImagePreview src={resultUrl} alt={tr('Nhãn gián', 'Sticker label', '贴纸标签', 'ステッカーラベル', '스티커 라벨')} className="w-full h-full object-contain" printReadyAspectRatio={aspectRatio} />
               </div>
               <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
                 <Button size="sm" variant="outline" onClick={handleReset}>

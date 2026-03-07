@@ -267,7 +267,14 @@ export default function ThayNenSanPhamClientPage() {
                   <h3 className="text-sm font-medium text-muted-foreground">{tr('Sau', 'After', '之后', '後', '후')}</h3>
                   <div className="flex gap-2">
                     <Button size="sm" variant="outline" onClick={handleReset}><RefreshCw className="mr-2 h-3 w-3" /> {tr('Thử lại', 'Try again', '重试', 'やり直す', '다시 시도')}</Button>
-                    <DownloadImageButton imageUrl={resultUrl} filename="thay-nen-result" size="sm" className="bg-amber-600 hover:bg-amber-700 text-white border-0" />
+                    <DownloadImageButton
+                    imageUrl={resultUrl}
+                    filename="thay-nen-result"
+                    size="sm"
+                    className="bg-amber-600 hover:bg-amber-700 text-white border-0"
+                    printReady
+                    printReadyInferFromImage
+                  />
                   </div>
                 </div>
                 <div className="aspect-square rounded-lg border overflow-hidden">

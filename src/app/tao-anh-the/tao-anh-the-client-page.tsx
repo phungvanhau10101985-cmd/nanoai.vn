@@ -349,14 +349,21 @@ export default function TaoAnhTheClientPage() {
                     <Button size="sm" variant="outline" onClick={handleReset}>
                       <RefreshCw className="mr-2 h-3 w-3" /> {t.retry}
                     </Button>
-                    <DownloadImageButton imageUrl={resultUrl} filename="anh-the-result" size="sm" className="bg-amber-600 hover:bg-amber-700 text-white border-0" />
+                    <DownloadImageButton
+                    imageUrl={resultUrl}
+                    filename="anh-the-result"
+                    size="sm"
+                    className="bg-amber-600 hover:bg-amber-700 text-white border-0"
+                    printReady
+                    printReadyAspectRatio={aspectRatio}
+                  />
                   </div>
                 </div>
                 <div
                   className="rounded-lg border overflow-hidden"
                   style={{ aspectRatio: aspectRatio.replace(':', '/') }}
                 >
-                  <ImagePreview src={resultUrl} alt={t.after} className="w-full h-full object-cover" />
+                  <ImagePreview src={resultUrl} alt={t.after} className="w-full h-full object-cover" printReadyAspectRatio={aspectRatio} />
                 </div>
               </div>
             </CardContent>

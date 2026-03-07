@@ -387,7 +387,7 @@ export default function TaoBannerClientPage() {
                 className="max-w-2xl mx-auto rounded-lg border overflow-hidden"
                 style={{ aspectRatio: aspectRatio.replace(':', '/') }}
               >
-                <ImagePreview src={resultUrl} alt={tr('Banner', 'Banner', '横幅', 'バナー', '배너')} className="w-full h-full object-contain" />
+                <ImagePreview src={resultUrl} alt={tr('Banner', 'Banner', '横幅', 'バナー', '배너')} className="w-full h-full object-contain" printReadyAspectRatio={aspectRatio} />
               </div>
             </CardContent>
           </Card>

@@ -375,7 +375,14 @@ export default function TaoAnh3DClientPage() {
                   <h3 className="text-sm font-medium text-muted-foreground">{tr('Mockup 3D', '3D mockup', '3D 模型图', '3Dモックアップ', '3D 목업')}</h3>
                   <div className="flex gap-2">
                     <Button size="sm" variant="outline" onClick={handleReset}><RefreshCw className="mr-2 h-3 w-3" /> {tr('Thử lại', 'Try again', '重试', '再試行', '다시 시도')}</Button>
-                    <DownloadImageButton imageUrl={resultUrl} filename="mockup-3d-result" size="sm" className="bg-cyan-600 hover:bg-cyan-700 text-white border-0" />
+                    <DownloadImageButton
+                    imageUrl={resultUrl}
+                    filename="mockup-3d-result"
+                    size="sm"
+                    className="bg-cyan-600 hover:bg-cyan-700 text-white border-0"
+                    printReady
+                    printReadyInferFromImage
+                  />
                   </div>
                 </div>
                 <div className="aspect-square rounded-lg border overflow-hidden">

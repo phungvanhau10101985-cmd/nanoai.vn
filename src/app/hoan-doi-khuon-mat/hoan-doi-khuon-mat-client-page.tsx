@@ -362,7 +362,14 @@ export default function HoanDoiKhuonMatClientPage() {
                   <h3 className="text-sm font-medium text-muted-foreground">{t.afterSwap}</h3>
                   <div className="flex gap-2">
                     <Button size="sm" variant="outline" onClick={handleReset}><RefreshCw className="mr-2 h-3 w-3" /> {t.retry}</Button>
-                    <DownloadImageButton imageUrl={resultUrl} filename="faceswap-result" size="sm" className="bg-fuchsia-600 hover:bg-fuchsia-700 text-white border-0" />
+                    <DownloadImageButton
+                    imageUrl={resultUrl}
+                    filename="faceswap-result"
+                    size="sm"
+                    className="bg-fuchsia-600 hover:bg-fuchsia-700 text-white border-0"
+                    printReady
+                    printReadyInferFromImage
+                  />
                   </div>
                 </div>
                 <div className="aspect-square max-w-[400px] max-h-[400px] rounded-lg border overflow-hidden">

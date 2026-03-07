@@ -7,11 +7,12 @@ import { Input } from '@/components/ui/input'
 import { removeBackgroundToTransparentPng } from './actions'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
-import { Upload, Sparkles, RefreshCw, Link2, Download } from 'lucide-react'
+import { Upload, Sparkles, RefreshCw, Link2 } from 'lucide-react'
 import { DepositCreditButton } from '@/components/deposit-credit-button'
 import { useCredits } from '@/hooks/use-credits'
 import { ImagePreview } from '@/components/ui/image-preview'
 import { ImageProcessingLoader } from '@/components/image-processing-loader'
+import { DownloadImageButton } from '@/components/download-image-button'
 
 type Step = 'UPLOAD' | 'GENERATING' | 'RESULT'
 type UiLocale = 'vi' | 'en' | 'zh' | 'ja' | 'ko'
@@ -384,11 +385,14 @@ export default function XoaNenPngClientPage() {
                     <Button size="sm" variant="outline" onClick={handleReset}>
                       <RefreshCw className="mr-2 h-3 w-3" /> {t.tryAgain}
                     </Button>
-                    <a href={resultUrl} download="xoa-nen-png-result.png">
-                      <Button size="sm" className="bg-teal-600 hover:bg-teal-700 text-white border-0">
-                        <Download className="mr-2 h-3 w-3" /> {t.downloadPng}
-                      </Button>
-                    </a>
+                    <DownloadImageButton
+                      imageUrl={resultUrl}
+                      filename="xoa-nen-png-result"
+                      size="sm"
+                      className="bg-teal-600 hover:bg-teal-700 text-white border-0"
+                      printReady
+                      printReadyInferFromImage
+                    />
                   </div>
                 </div>
                 <div className="aspect-square rounded-lg border overflow-hidden bg-[linear-gradient(45deg,#eee_25%,transparent_25%,transparent_75%,#eee_75%,#eee),linear-gradient(45deg,#eee_25%,transparent_25%,transparent_75%,#eee_75%,#eee)] bg-[length:24px_24px] bg-[position:0_0,12px_12px]">

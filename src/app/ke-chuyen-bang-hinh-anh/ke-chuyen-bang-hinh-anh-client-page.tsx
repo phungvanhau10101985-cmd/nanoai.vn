@@ -210,13 +210,20 @@ export default function KeChuyenBangHinhAnhClientPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="relative aspect-[4/3] max-h-[55vh] w-full min-w-0 overflow-hidden rounded-lg border bg-black/5">
-                <ImagePreview src={resultUrl} alt={tr('Ảnh minh họa', 'Illustration', '插图', 'イラスト', '일러스트')} className="w-full h-full object-contain" />
+                <ImagePreview src={resultUrl} alt={tr('Ảnh minh họa', 'Illustration', '插图', 'イラスト', '일러스트')} className="w-full h-full object-contain" printReadyAspectRatio={aspectRatio} />
               </div>
               <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
                 <Button size="sm" variant="outline" onClick={handleReset}>
                   <RefreshCw className="mr-2 h-3 w-3" /> {tr('Thử lại', 'Try again', '重试', 'もう一度', '다시 시도')}
                 </Button>
-                <DownloadImageButton imageUrl={resultUrl} filename="ke-chuyen-anh" size="sm" className="bg-rose-600 hover:bg-rose-700 text-white border-0" />
+                <DownloadImageButton
+                  imageUrl={resultUrl}
+                  filename="ke-chuyen-anh"
+                  size="sm"
+                  className="bg-rose-600 hover:bg-rose-700 text-white border-0"
+                  printReady
+                  printReadyAspectRatio={aspectRatio}
+                />
               </div>
             </CardContent>
           </Card>

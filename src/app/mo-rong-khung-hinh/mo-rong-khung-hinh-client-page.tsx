@@ -285,11 +285,18 @@ export default function MoRongKhungHinhClientPage() {
                   <h3 className="text-sm font-medium text-muted-foreground">{tr('Sau', 'After', '之后', '後', '후')}</h3>
                   <div className="flex gap-2">
                     <Button size="sm" variant="outline" onClick={handleReset}><RefreshCw className="mr-2 h-3 w-3" /> {tr('Thử lại', 'Try again', '重试', 'やり直す', '다시 시도')}</Button>
-                    <DownloadImageButton imageUrl={resultUrl} filename="mo-rong-result" size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white border-0" />
+                    <DownloadImageButton
+                    imageUrl={resultUrl}
+                    filename="mo-rong-result"
+                    size="sm"
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white border-0"
+                    printReady
+                    printReadyAspectRatio={aspectRatio}
+                  />
                   </div>
                 </div>
                 <div className="aspect-square rounded-lg border overflow-hidden">
-                  <ImagePreview src={resultUrl} alt={tr('Sau', 'After', '之后', '後', '후')} className="w-full h-full object-cover" />
+                  <ImagePreview src={resultUrl} alt={tr('Sau', 'After', '之后', '後', '후')} className="w-full h-full object-cover" printReadyAspectRatio={aspectRatio} />
                 </div>
               </div>
             </CardContent>

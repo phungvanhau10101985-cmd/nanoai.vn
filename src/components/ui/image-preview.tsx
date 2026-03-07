@@ -2,20 +2,29 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
-import { Maximize2, X, Download } from 'lucide-react'
+import { Maximize2, X, Download, FileText } from 'lucide-react'
 import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+} from '@/components/ui/dropdown-menu'
+import { getPresetsForAspectRatio, inferAspectRatioFromDimensions } from '@/lib/print-ready-presets'
+import { generatePrintReadyPdf } from '@/app/actions/print-ready'
+import { useToast } from '@/hooks/use-toast'
 
 interface ImagePreviewProps {
   src: string
   alt: string
   className?: string
+  /** Tỷ lệ ảnh (vd: "1:1", "16:9") – nếu không thì tự suy từ kích thước */
+  printReadyAspectRatio?: string
 }
 
 function isRestrictedInAppBrowser(): boolean {
@@ -24,12 +33,18 @@ function isRestrictedInAppBrowser(): boolean {
   return /(FBAN|FBAV|FB_IAB|Instagram|Line\/|Zalo|TikTok)/i.test(ua)
 }
 
-export function ImagePreview({ src, alt, className }: ImagePreviewProps) {
+export function ImagePreview({ src, alt, className, printReadyAspectRatio }: ImagePreviewProps) {
   const [uiLocale, setUiLocale] = useState<'vi' | 'en' | 'zh' | 'ja' | 'ko'>('vi')
   const [isOpen, setIsOpen] = useState(false)
+  const [inferredAspectRatio, setInferredAspectRatio] = useState<string | null>(null)
+  const [pdfLoading, setPdfLoading] = useState(false)
   const imageRef = useRef<HTMLImageElement>(null)
   const hasPushedHistoryRef = useRef(false)
   const closingFromPopStateRef = useRef(false)
+  const { toast } = useToast()
+
+  const aspectRatio = printReadyAspectRatio || inferredAspectRatio
+  const printPresets = aspectRatio ? getPresetsForAspectRatio(aspectRatio) : []
   const tr = (vi: string, en: string, zh: string, ja: string, ko: string) => {
     if (uiLocale === 'en') return en
     if (uiLocale === 'zh') return zh
@@ -37,6 +52,10 @@ export function ImagePreview({ src, alt, className }: ImagePreviewProps) {
     if (uiLocale === 'ko') return ko
     return vi
   }
+
+  useEffect(() => {
+    setInferredAspectRatio(null)
+  }, [src])
 
   useEffect(() => {
     const syncLocale = () => {
@@ -133,6 +152,37 @@ export function ImagePreview({ src, alt, className }: ImagePreviewProps) {
     link.click()
   }
 
+  const handleImageLoad = () => {
+    const img = imageRef.current
+    if (img?.naturalWidth && img?.naturalHeight && !printReadyAspectRatio) {
+      const inferred = inferAspectRatioFromDimensions(img.naturalWidth, img.naturalHeight)
+      setInferredAspectRatio(inferred)
+    }
+  }
+
+  const handlePrintReadyPdf = async (widthMm: number, heightMm: number) => {
+    if (!src) return
+    setPdfLoading(true)
+    try {
+      const result = await generatePrintReadyPdf(src, widthMm, heightMm)
+      if ('error' in result) {
+        toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: result.error, variant: 'destructive' })
+        return
+      }
+      const a = document.createElement('a')
+      a.href = result.pdfUrl
+      a.download = `${(alt || 'image').replace(/\s+/g, '-')}-${widthMm}x${heightMm}mm.pdf`
+      a.target = '_blank'
+      a.rel = 'noopener noreferrer'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      toast({ title: tr('Đã tạo PDF chuẩn in', 'Print-ready PDF created', '已生成印刷用PDF', '印刷用PDFを作成しました', '인쇄용 PDF 생성됨'), duration: 3000 })
+    } finally {
+      setPdfLoading(false)
+    }
+  }
+
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
@@ -167,12 +217,34 @@ export function ImagePreview({ src, alt, className }: ImagePreviewProps) {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => handleDownload('png')}>
+                <DropdownMenuItem onClick={() => handleDownload('png')} disabled={pdfLoading}>
                   {tr('Lưu dưới dạng PNG (Chất lượng cao nhất)', 'Save as PNG (Highest quality)', '保存为 PNG（最高质量）', 'PNGで保存（最高画質）', 'PNG로 저장 (최고 품질)')}
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleDownload('jpeg')}>
+                <DropdownMenuItem onClick={() => handleDownload('jpeg')} disabled={pdfLoading}>
                   {tr('Lưu dưới dạng JPG (Chất lượng cao)', 'Save as JPG (High quality)', '保存为 JPG（高质量）', 'JPGで保存（高画質）', 'JPG로 저장 (고품질)')}
                 </DropdownMenuItem>
+                {printPresets.length > 0 && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger disabled={pdfLoading}>
+                        <FileText className="h-3 w-3" />
+                        {tr('Tải PDF chuẩn in', 'Download print-ready PDF', '下载印刷用PDF', '印刷用PDFをダウンロード', '인쇄용 PDF 다운로드')}
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent>
+                        {printPresets.map((p) => (
+                          <DropdownMenuItem
+                            key={p.value}
+                            onClick={() => handlePrintReadyPdf(p.widthMm, p.heightMm)}
+                            disabled={pdfLoading}
+                          >
+                            {p.label}
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+                  </>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
             
@@ -193,6 +265,7 @@ export function ImagePreview({ src, alt, className }: ImagePreviewProps) {
             alt={alt}
             className="max-w-full max-h-[90vh] w-auto h-auto object-contain"
             crossOrigin="anonymous"
+            onLoad={handleImageLoad}
           />
         </div>
       </DialogContent>

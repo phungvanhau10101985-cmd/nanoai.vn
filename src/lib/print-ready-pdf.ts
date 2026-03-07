@@ -10,6 +10,9 @@ const MM_TO_PT = 2.834645669
 const BLEED_MM = 3
 const CROP_MARK_LENGTH_MM = 5
 const CROP_MARK_THICKNESS = 0.25
+/** 300 DPI cho in sắc nét – mm → pixel */
+const PRINT_DPI = 300
+const MM_TO_PX = (mm: number) => Math.round((mm * PRINT_DPI) / 25.4)
 
 export interface PrintReadyOptions {
   widthMm: number
@@ -52,13 +55,15 @@ export async function createPrintReadyPdf(
   const trimRightPt = trimRight * MM_TO_PT
   const trimTopPt = trimTop * MM_TO_PT
 
+  const imgWpx = MM_TO_PX(contentW)
+  const imgHpx = MM_TO_PX(contentH)
   const pngBuffer = await sharp(imageBuffer)
-    .resize(Math.round(contentWpt), Math.round(contentHpt), {
+    .resize(imgWpx, imgHpx, {
       fit: 'contain',
       position: 'center',
       background: { r: 255, g: 255, b: 255, alpha: 1 },
     })
-    .png()
+    .png({ compressionLevel: 4 })
     .toBuffer()
 
   const pdfDoc = await PDFDocument.create()

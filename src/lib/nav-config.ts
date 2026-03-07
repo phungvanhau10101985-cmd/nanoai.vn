@@ -7,6 +7,9 @@ import {
   ImagePlus,
   Radio,
   Languages,
+  Video,
+  Box,
+  Shield,
 } from 'lucide-react'
 import { TryOnIcon } from '@/components/icons/try-on-icon'
 import { ImageRestorationIcon } from '@/components/icons/image-restoration-icon'
@@ -46,6 +49,8 @@ export const AI_TOOLS = [
   { href: '/ke-chuyen-bang-hinh-anh', labelKey: 'story_with_images' as ToolKey, icon: KeChuyenBangHinhAnhIcon },
   { href: '/tao-nhan-gian', labelKey: 'create_sticker' as ToolKey, icon: TaoNhanGianIcon },
   { href: '/tao-nhan-gioi-thieu-san-pham', labelKey: 'create_product_label' as ToolKey, icon: TaoNhanGioiThieuSanPhamIcon },
+  { href: '/tao-tem-niem-phong-bao-hanh', labelKey: 'create_seal_warranty_label' as ToolKey, icon: Shield },
+  { href: '/thiet-ke-bao-bi', labelKey: 'design_package' as ToolKey, icon: Box },
   { href: '/tao-ma-vach', labelKey: 'create_barcode' as ToolKey, icon: TaoMaVachIcon },
   { href: '/che-anh', labelKey: 'meme_maker' as ToolKey, icon: CheAnhIcon },
   { href: '/xoa-vat-the', labelKey: 'remove_object' as ToolKey, icon: XoaVatTheIcon },
@@ -53,6 +58,7 @@ export const AI_TOOLS = [
   { href: '/thay-nen-san-pham', labelKey: 'replace_product_bg' as ToolKey, icon: ThayNenSanPhamIcon },
   { href: '/tao-anh-3d', labelKey: 'product_3d_sample' as ToolKey, icon: TaoAnh3DIcon },
   { href: '/tao-mo-hinh-3d-tu-anh', labelKey: 'model_3d_from_image' as ToolKey, icon: TaoMoHinh3DTuAnhIcon },
+  { href: '/tao-video-tu-anh', labelKey: 'create_video_from_image' as ToolKey, icon: Video },
   { href: '/thiet-ke-noi-ngoai-that', labelKey: 'interior_exterior' as ToolKey, icon: ThietKeNoiNgoaiThatIcon },
   { href: '/xay-nha-tu-dat-nen', labelKey: 'my_house' as ToolKey, icon: XayNhaTuDatNenIcon },
   { href: '/tao-anh-chain-dung', labelKey: 'portrait_photo' as ToolKey, icon: TaoAnhChanDungIcon },
@@ -64,7 +70,6 @@ export const AI_TOOLS = [
   { href: '/nhac-theo-cam-xuc-anh', labelKey: 'music_from_image_mood' as ToolKey, icon: ImagePlus },
   { href: '/dieu-khien-nhac-realtime', labelKey: 'realtime_music_control' as ToolKey, icon: Radio },
   { href: '/hoc-tieng-anh-ai', labelKey: 'ai_language_learning' as ToolKey, icon: Languages },
-  // { href: '/tao-video-tu-anh', label: 'Tạo video từ ảnh', icon: Video }, // Tạm ẩn
 ] as const
 
 export const NAV_GROUPS = [
@@ -101,6 +106,8 @@ export const NAV_GROUPS = [
       { href: '/ke-chuyen-bang-hinh-anh', labelKey: 'story_with_images' as ToolKey, icon: KeChuyenBangHinhAnhIcon },
       { href: '/tao-nhan-gian', labelKey: 'create_sticker' as ToolKey, icon: TaoNhanGianIcon },
       { href: '/tao-nhan-gioi-thieu-san-pham', labelKey: 'create_product_label' as ToolKey, icon: TaoNhanGioiThieuSanPhamIcon },
+      { href: '/tao-tem-niem-phong-bao-hanh', labelKey: 'create_seal_warranty_label' as ToolKey, icon: Shield },
+      { href: '/thiet-ke-bao-bi', labelKey: 'design_package' as ToolKey, icon: Box },
       { href: '/tao-ma-vach', labelKey: 'create_barcode' as ToolKey, icon: TaoMaVachIcon },
       { href: '/che-anh', labelKey: 'meme_maker' as ToolKey, icon: CheAnhIcon },
     ],
@@ -110,10 +117,10 @@ export const NAV_GROUPS = [
     links: [
       { href: '/tao-anh-3d', labelKey: 'product_3d_sample' as ToolKey, icon: TaoAnh3DIcon },
       { href: '/tao-mo-hinh-3d-tu-anh', labelKey: 'model_3d_from_image' as ToolKey, icon: TaoMoHinh3DTuAnhIcon },
+      { href: '/tao-video-tu-anh', labelKey: 'create_video_from_image' as ToolKey, icon: Video },
       { href: '/thiet-ke-noi-ngoai-that', labelKey: 'interior_exterior' as ToolKey, icon: ThietKeNoiNgoaiThatIcon },
       { href: '/xay-nha-tu-dat-nen', labelKey: 'my_house' as ToolKey, icon: XayNhaTuDatNenIcon },
       { href: '/tao-anh-chain-dung', labelKey: 'portrait_photo' as ToolKey, icon: TaoAnhChanDungIcon },
-      // { href: '/tao-video-tu-anh', label: 'Tạo video từ ảnh', icon: Video }, // Tạm ẩn
     ],
   },
   {

@@ -446,7 +446,12 @@ function Step1Form({
               <ImagePreview src={floor3dUrl} alt="3D" className="w-full h-full object-contain" />
             </div>
             <div className="flex flex-wrap gap-2 items-center">
-              <DownloadImageButton imageUrl={floor3dUrl} filename="mat-tien-nha-3d" />
+              <DownloadImageButton
+              imageUrl={floor3dUrl}
+              filename="mat-tien-nha-3d"
+              printReady
+              printReadyInferFromImage
+            />
               <Button variant="outline" onClick={onGoBackToForm}>
                 <RefreshCw className="mr-2 h-4 w-4" /> {tr(uiLocale, 'Tạo thiết kế khác', 'Create another design', '创建其他设计', '別のデザインを作成', '다른 디자인 만들기')}
               </Button>

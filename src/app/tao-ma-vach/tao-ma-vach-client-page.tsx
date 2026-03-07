@@ -9,6 +9,7 @@ import { generateBarcode, fetchVietQRImage, type BarcodeType } from './actions'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
 import { QrCode, Barcode, Download, Building2, Sparkles, ClipboardPaste } from 'lucide-react'
+import { DownloadImageButton } from '@/components/download-image-button'
 
 const VIETQR_STORAGE_KEY = 'tao_ma_vach_vietqr'
 const POPULAR_BANKS = ['VCB', 'BIDV', 'ICB', 'VBA', 'TCB', 'MB', 'VPB', 'ACB', 'TPB', 'HDB', 'STB', 'MSB', 'SCB', 'OCB', 'EIB', 'VIB', 'SHB']
@@ -445,9 +446,19 @@ export default function TaoMaVachClientPage() {
                     className="max-w-[min(320px,90vw)] max-h-[380px] w-auto h-auto object-contain block"
                   />
                 </div>
-                <Button onClick={handleDownload} variant="outline" size="sm" className="gap-2" disabled={loading}>
-                  {loading ? tr('Đang tải...', 'Downloading...', '下载中...', 'ダウンロード中...', '다운로드 중...') : <><Download className="h-4 w-4" /> {tr('Tải PNG', 'Download PNG', '下载 PNG', 'PNGをダウンロード', 'PNG 다운로드')}</>}
-                </Button>
+                <div className="flex gap-2">
+                  <Button onClick={handleDownload} variant="outline" size="sm" className="gap-2" disabled={loading}>
+                    {loading ? tr('Đang tải...', 'Downloading...', '下载中...', 'ダウンロード中...', '다운로드 중...') : <><Download className="h-4 w-4" /> {tr('Tải PNG', 'Download PNG', '下载 PNG', 'PNGをダウンロード', 'PNG 다운로드')}</>}
+                  </Button>
+                  <DownloadImageButton
+                    imageUrl={dataUrl || vietqrUrl || ''}
+                    filename={vietqrUrl ? `vietqr-${Date.now()}` : `barcode-${type}-${Date.now()}`}
+                    size="sm"
+                    variant="outline"
+                    printReady
+                    printReadyInferFromImage
+                  />
+                </div>
               </div>
             </CardContent>
           </Card>

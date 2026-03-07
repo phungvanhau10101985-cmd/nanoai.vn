@@ -1736,7 +1736,15 @@ export default function ThietKeNoiNgoaiThatClientPage() {
                           <Button size="sm" variant="outline" className="flex-1" onClick={() => handleContinueEdit(url)}>
                             <Check className="h-3 w-3 mr-1" /> {tr('Dùng', 'Use', '使用', '使用', '사용')}
                           </Button>
-                          <DownloadImageButton imageUrl={url} filename={`interior-${i + 1}`} variant="outline" size="sm" showLabel={false} />
+                          <DownloadImageButton
+                            imageUrl={url}
+                            filename={`interior-${i + 1}`}
+                            variant="outline"
+                            size="sm"
+                            showLabel={false}
+                            printReady
+                            printReadyInferFromImage
+                          />
                         </div>
                       </div>
                     ))}
@@ -1751,7 +1759,14 @@ export default function ThietKeNoiNgoaiThatClientPage() {
                   <Check className="mr-2 h-3 w-3" /> {tr('Tiếp tục sửa với ảnh mới', 'Continue edit with new image', '使用新图继续编辑', '新しい画像で編集続行', '새 이미지로 편집 계속')}
                 </Button>
                 {resultUrls.length === 1 && (
-                  <DownloadImageButton imageUrl={resultUrl} filename="interior-result" variant="outline" size="sm" />
+                  <DownloadImageButton
+                  imageUrl={resultUrl}
+                  filename="interior-result"
+                  variant="outline"
+                  size="sm"
+                  printReady
+                  printReadyInferFromImage
+                />
                 )}
               </div>
               <div className="flex gap-2 flex-wrap">

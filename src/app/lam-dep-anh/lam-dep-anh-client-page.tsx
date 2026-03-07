@@ -565,7 +565,14 @@ export default function LamDepAnhClientPage() {
                     <Button size="sm" variant="outline" onClick={handleReset}>
                       <RefreshCw className="mr-2 h-3 w-3" /> {t.retry}
                     </Button>
-                    <DownloadImageButton imageUrl={resultUrl} filename="lam-dep-result" size="sm" className="bg-rose-600 hover:bg-rose-700 text-white border-0" />
+                    <DownloadImageButton
+                    imageUrl={resultUrl}
+                    filename="lam-dep-result"
+                    size="sm"
+                    className="bg-rose-600 hover:bg-rose-700 text-white border-0"
+                    printReady
+                    printReadyInferFromImage
+                  />
                   </div>
                 </div>
                 <div className="aspect-square rounded-lg border overflow-hidden">

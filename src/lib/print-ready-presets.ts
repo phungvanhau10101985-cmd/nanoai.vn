@@ -34,6 +34,36 @@ function parseAspectRatio(ratioStr: string): number {
   return parts[0] / parts[1]
 }
 
+/** Tỷ lệ chuẩn để map từ kích thước ảnh */
+const KNOWN_RATIOS: { str: string; value: number }[] = [
+  { str: '1:1', value: 1 },
+  { str: '2:3', value: 2 / 3 },
+  { str: '3:2', value: 1.5 },
+  { str: '3:4', value: 0.75 },
+  { str: '4:3', value: 4 / 3 },
+  { str: '4:5', value: 0.8 },
+  { str: '5:4', value: 1.25 },
+  { str: '9:16', value: 9 / 16 },
+  { str: '16:9', value: 16 / 9 },
+  { str: '21:9', value: 21 / 9 },
+]
+
+/** Từ kích thước ảnh (width, height) suy ra tỷ lệ chuẩn gần nhất */
+export function inferAspectRatioFromDimensions(width: number, height: number): string | null {
+  if (!width || !height || !Number.isFinite(width) || !Number.isFinite(height)) return null
+  const ratio = width / height
+  let best = KNOWN_RATIOS[0]
+  let bestDiff = Infinity
+  for (const r of KNOWN_RATIOS) {
+    const diff = Math.abs(r.value - ratio) / Math.max(ratio, 0.01)
+    if (diff < bestDiff && diff <= ASPECT_TOLERANCE) {
+      bestDiff = diff
+      best = r
+    }
+  }
+  return bestDiff <= ASPECT_TOLERANCE ? best.str : null
+}
+
 /**
  * Lọc preset chỉ giữ những kích thước phù hợp tỷ lệ ảnh.
  * Mỗi ảnh chỉ in đúng với khổ có cùng tỷ lệ.

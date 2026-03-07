@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Download, ChevronDown, FileText } from 'lucide-react'
 import { generatePrintReadyPdf } from '@/app/actions/print-ready'
-import { getPresetsForAspectRatio } from '@/lib/print-ready-presets'
+import { getPresetsForAspectRatio, inferAspectRatioFromDimensions } from '@/lib/print-ready-presets'
 import { useToast } from '@/hooks/use-toast'
 
 function isRestrictedInAppBrowser(): boolean {
@@ -98,6 +98,8 @@ export interface DownloadImageButtonProps {
   printReady?: boolean
   /** Tỷ lệ ảnh đang chọn (vd: "1:1", "3:4") – chỉ hiện khổ in phù hợp */
   printReadyAspectRatio?: string
+  /** Khi true: nếu không có printReadyAspectRatio thì tự suy từ kích thước ảnh */
+  printReadyInferFromImage?: boolean
   /** Nhãn cho mục PDF chuẩn in (đa ngôn ngữ) */
   printReadyLabel?: string
   /** Toast khi tạo PDF thành công (đa ngôn ngữ) */
@@ -114,15 +116,37 @@ export function DownloadImageButton({
   showLabel = true,
   printReady = false,
   printReadyAspectRatio,
+  printReadyInferFromImage = false,
   printReadyLabel = 'Tải PDF chuẩn in',
   printReadySuccessToast = 'Đã tạo PDF chuẩn in. Bleed 3mm, crop marks. Gửi file cho xưởng in.',
 }: DownloadImageButtonProps) {
-  const printPresets = printReadyAspectRatio
-    ? getPresetsForAspectRatio(printReadyAspectRatio)
+  const [inferredAspectRatio, setInferredAspectRatio] = useState<string | null>(null)
+  const effectiveAspectRatio = printReadyAspectRatio ?? inferredAspectRatio ?? undefined
+  const printPresets = effectiveAspectRatio
+    ? getPresetsForAspectRatio(effectiveAspectRatio)
     : []
   const [loading, setLoading] = useState(false)
   const [pdfLoading, setPdfLoading] = useState(false)
   const { toast } = useToast()
+
+  useEffect(() => {
+    if (!printReady || !printReadyInferFromImage || printReadyAspectRatio || !imageUrl) return
+    setInferredAspectRatio(null)
+    const img = new Image()
+    img.crossOrigin = 'anonymous'
+    const onLoad = () => {
+      const ratio = inferAspectRatioFromDimensions(img.naturalWidth, img.naturalHeight)
+      setInferredAspectRatio(ratio)
+    }
+    img.onload = onLoad
+    img.onerror = () => setInferredAspectRatio(null)
+    img.src = imageUrl
+    return () => {
+      img.onload = null
+      img.onerror = null
+      img.src = ''
+    }
+  }, [printReady, printReadyInferFromImage, printReadyAspectRatio, imageUrl])
 
   const handlePrintReadyPdf = async (widthMm: number, heightMm: number) => {
     if (!imageUrl) return
@@ -186,7 +210,7 @@ export function DownloadImageButton({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant={variant} size={size} className={className} disabled={isBusy || !imageUrl}>
+        <Button type="button" variant={variant} size={size} className={className} disabled={isBusy || !imageUrl}>
           <Download className="h-3 w-3" />
           {hasLabel && <span className="ml-1.5">{children || 'Tải về'}</span>}
           <ChevronDown className={`h-3 w-3 ${hasLabel ? 'ml-1' : 'ml-0.5'}`} />
@@ -199,26 +223,51 @@ export function DownloadImageButton({
         <DropdownMenuItem onClick={() => handleDownload('jpeg')} disabled={isBusy}>
           Tải JPG (chất lượng tốt nhất)
         </DropdownMenuItem>
-        {printReady && printPresets.length > 0 && (
+        {printReady && (printPresets.length > 0 || printReadyInferFromImage) && (
           <>
             <DropdownMenuSeparator />
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger disabled={isBusy}>
+            {printPresets.length > 0 ? (
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger disabled={isBusy}>
+                  <FileText className="h-3 w-3" />
+                  {printReadyLabel}
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  {printPresets.map((p) => (
+                    <DropdownMenuItem
+                      key={p.value}
+                      onClick={() => handlePrintReadyPdf(p.widthMm, p.heightMm)}
+                      disabled={isBusy}
+                    >
+                      {p.label}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+            ) : (
+              <DropdownMenuItem
+                onClick={async () => {
+                  if (!imageUrl) return
+                  const img = new Image()
+                  img.crossOrigin = 'anonymous'
+                  await new Promise<void>((resolve, reject) => {
+                    img.onload = () => resolve()
+                    img.onerror = () => reject(new Error('Load failed'))
+                    img.src = imageUrl
+                  })
+                  const pxPerMm = 300 / 25.4
+                  const widthMm = Math.round((img.naturalWidth / pxPerMm) * 10) / 10
+                  const heightMm = Math.round((img.naturalHeight / pxPerMm) * 10) / 10
+                  const w = Math.max(10, Math.min(500, widthMm))
+                  const h = Math.max(10, Math.min(500, heightMm))
+                  await handlePrintReadyPdf(w, h)
+                }}
+                disabled={isBusy}
+              >
                 <FileText className="h-3 w-3" />
                 {printReadyLabel}
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent>
-                {printPresets.map((p) => (
-                  <DropdownMenuItem
-                    key={p.value}
-                    onClick={() => handlePrintReadyPdf(p.widthMm, p.heightMm)}
-                    disabled={isBusy}
-                  >
-                    {p.label}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
+              </DropdownMenuItem>
+            )}
           </>
         )}
       </DropdownMenuContent>

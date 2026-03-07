@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import dynamic from 'next/dynamic'
 import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase/server'
 import { getUserOrBypass } from '@/lib/auth'
@@ -6,8 +7,12 @@ import { MobileNav } from './mobile-nav'
 import { HeaderUserMenu } from './header-user-menu'
 import { LayoutGrid } from 'lucide-react'
 import { getServerDictionary, getCurrentWebLocale } from '@/lib/i18n/server'
-import { LocaleSwitcher } from '@/components/layout/locale-switcher'
 import { getDictionary, type Dictionary } from '@/lib/i18n/dictionaries'
+
+const LocaleSwitcher = dynamic(
+  () => import('@/components/layout/locale-switcher').then((m) => m.LocaleSwitcher),
+  { ssr: false }
+)
 
 export async function Header() {
   const { t } = getServerDictionary()

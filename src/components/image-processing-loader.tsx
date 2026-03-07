@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { Sparkles, ImageIcon, Focus, Layers, Layout, User, Palette, Smile, Eraser, Package, Briefcase, Expand, Repeat, Box, BoxSelect, Home, BookOpen, Tag } from 'lucide-react'
 import { ImagePreview } from '@/components/ui/image-preview'
 
-export type ProcessingMode = 'restore' | 'sharpen' | 'beautify' | 'merge' | 'tryon' | 'banner' | 'idcard' | 'logo' | 'cheanh' | 'eraser' | 'product' | 'headshot' | 'outpaint' | 'faceswap' | 'mockup3d' | 'model3d' | 'interior' | 'story' | 'sticker'
+export type ProcessingMode = 'restore' | 'sharpen' | 'beautify' | 'merge' | 'tryon' | 'banner' | 'idcard' | 'logo' | 'cheanh' | 'eraser' | 'product' | 'headshot' | 'outpaint' | 'faceswap' | 'mockup3d' | 'model3d' | 'interior' | 'story' | 'sticker' | 'seal'
 
 interface ImageProcessingLoaderProps {
   mode: ProcessingMode
@@ -129,6 +129,12 @@ const modeConfig = {
     gradient: 'from-teal-100/80 via-cyan-50/60 to-teal-100/80',
     accent: 'text-teal-700',
     steps: ['Mở rộng ý tưởng nhãn gián', 'Phác thảo thiết kế', 'Tạo ảnh nền trong suốt', 'Hoàn thiện'],
+  },
+  seal: {
+    icon: Tag,
+    gradient: 'from-rose-100/80 via-pink-50/60 to-rose-100/80',
+    accent: 'text-rose-700',
+    steps: ['Phân tích loại tem', 'Thiết kế layout', 'AI vẽ tem chuyên nghiệp', 'Hoàn thiện'],
   },
 }
 

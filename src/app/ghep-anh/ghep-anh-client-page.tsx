@@ -268,7 +268,14 @@ export default function GhepAnhClientPage() {
                     <Button size="sm" variant="outline" onClick={handleReset}>
                       <RefreshCw className="mr-2 h-3 w-3" /> {tr('Thử lại', 'Try again', '重试', 'やり直す', '다시 시도')}
                     </Button>
-                    <DownloadImageButton imageUrl={resultUrl} filename="ghep-anh-result" size="sm" className="bg-amber-600 hover:bg-amber-700 text-white border-0" />
+                    <DownloadImageButton
+                    imageUrl={resultUrl}
+                    filename="ghep-anh-result"
+                    size="sm"
+                    className="bg-amber-600 hover:bg-amber-700 text-white border-0"
+                    printReady
+                    printReadyInferFromImage
+                  />
                   </div>
                 </div>
                 <div className="aspect-square rounded-lg border overflow-hidden">

@@ -68,10 +68,11 @@ export default async function HistoryPage() {
                 {item.result_image_url && (
                   <div className="space-y-2">
                     <div className="relative aspect-[3/4] rounded-md overflow-hidden border-2 border-primary shadow-sm group">
-                      <ImagePreview 
-                        src={item.result_image_url} 
-                        alt="Result" 
+<ImagePreview
+                        src={item.result_image_url}
+                        alt="Result"
                         className="w-full h-full"
+                        printReadyAspectRatio={item.aspect_ratio ?? undefined}
                       />
                       <div className="absolute top-2 right-2 pointer-events-none">
                         <Badge className="bg-primary text-primary-foreground">{tr('Kết quả', 'Result', '结果', '結果', '결과')}</Badge>
@@ -92,6 +93,7 @@ export default async function HistoryPage() {
                           className="w-full"
                           printReady
                           printReadyAspectRatio={item.aspect_ratio ?? undefined}
+                          printReadyInferFromImage={!item.aspect_ratio}
                           printReadyLabel={tr('Tải PDF chuẩn in', 'Download print-ready PDF', '下载印刷用PDF', '印刷用PDFをダウンロード', '인쇄용 PDF 다운로드')}
                           printReadySuccessToast={tr('Đã tạo PDF chuẩn in. Bleed 3mm, crop marks.', 'Print-ready PDF created. Bleed 3mm, crop marks.', '已生成印刷用PDF。出血3mm，裁切线。', '印刷用PDFを作成しました。塗り足し3mm、トンボ付き。', '인쇄용 PDF 생성됨. 블리드 3mm, 크롭 마크.')}
                         />

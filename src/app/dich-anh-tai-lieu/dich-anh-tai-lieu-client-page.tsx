@@ -918,7 +918,14 @@ export default function DichAnhTaiLieuClientPage() {
                           <div className="aspect-[4/3] rounded-lg border overflow-hidden bg-white">
                             <ImagePreview src={r.resultUrl} alt={`${tr(uiLocale, 'Đã dịch', 'Translated', '已翻译', '翻訳済み', '번역됨')} ${i + 1}`} className="w-full h-full object-contain" />
                           </div>
-                          <DownloadImageButton imageUrl={r.resultUrl} filename={`dich-tai-lieu-${i + 1}`} size="sm" className="bg-slate-700 hover:bg-slate-800 text-white border-0" />
+                          <DownloadImageButton
+                            imageUrl={r.resultUrl}
+                            filename={`dich-tai-lieu-${i + 1}`}
+                            size="sm"
+                            className="bg-slate-700 hover:bg-slate-800 text-white border-0"
+                            printReady
+                            printReadyInferFromImage
+                          />
                         </div>
                       </div>
                     ))}
@@ -965,7 +972,14 @@ export default function DichAnhTaiLieuClientPage() {
                     </Button>
                   )}
                   {batchResults.length === 0 && !resultPdfUrl && resultUrl && (
-                    <DownloadImageButton imageUrl={resultUrl} filename="dich-tai-lieu" size="sm" className="w-full bg-slate-700 hover:bg-slate-800 text-white border-0" />
+                    <DownloadImageButton
+                    imageUrl={resultUrl}
+                    filename="dich-tai-lieu"
+                    size="sm"
+                    className="w-full bg-slate-700 hover:bg-slate-800 text-white border-0"
+                    printReady
+                    printReadyInferFromImage
+                  />
                   )}
                   <Button size="sm" variant="outline" onClick={handleReset} className="w-full border-slate-300 bg-slate-100 text-slate-700 hover:bg-slate-200">
                     <RefreshCw className="mr-2 h-3 w-3" /> {tr(uiLocale, 'Thử lại', 'Try again', '重试', '再試行', '다시 시도')}

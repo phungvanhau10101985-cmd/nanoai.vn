@@ -393,7 +393,7 @@ export default function TaoNhanGioiThieuSanPhamClientPage() {
                 className="max-w-2xl mx-auto rounded-lg border overflow-hidden"
                 style={{ aspectRatio: aspectRatio.replace(':', '/') }}
               >
-                <ImagePreview src={resultUrl} alt={tr('Nhãn sản phẩm', 'Product label', '产品标签', '商品ラベル', '제품 라벨')} className="w-full h-full object-contain" />
+                <ImagePreview src={resultUrl} alt={tr('Nhãn sản phẩm', 'Product label', '产品标签', '商品ラベル', '제품 라벨')} className="w-full h-full object-contain" printReadyAspectRatio={aspectRatio} />
               </div>
             </CardContent>
           </Card>
