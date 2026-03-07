@@ -20,7 +20,7 @@ export async function buildTransparentPngFromMask(
     .resize(width, height, { fit: 'fill' })
     .grayscale()
     .normalize()
-    .gaussianBlur(0.8)
+    .blur(0.8)
     .toBuffer()
 
   return sharp(originalBuffer)
