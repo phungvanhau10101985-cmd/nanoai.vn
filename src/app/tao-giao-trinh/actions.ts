@@ -226,6 +226,13 @@ ${curriculumMarkdown.slice(0, 8000)}
 - Lời giải chi tiết từng bước cho tất cả bài tự luận, kèm giải thích ngắn gọn.
 
 **Format:** Markdown, dùng ## cho phần, ### cho mục con. Công thức dùng LaTeX $...$. Ngôn ngữ: Tiếng Việt.
+
+**QUAN TRỌNG – Viết cho học sinh dễ đọc:**
+- Phân số đơn giản: viết $\\frac{1}{2}$ hoặc 1/2, KHÔNG viết ((1)/(2)) hay ngoặc thừa.
+- Hàm số: viết y(1/2) thay vì y((1)/(2)).
+- Trong căn: viết $\\sqrt{\\frac{1}{4} - \\frac{1}{2} + 1}$ hoặc √(1/4 - 1/2 + 1), dùng ngoặc tròn ) đóng, KHÔNG dùng } thay cho ).
+- Mỗi bước tính nên xuống dòng, tránh viết quá dài trên một dòng.
+
 Chỉ trả về nội dung phiếu bài tập, không có lời giải thích thêm.`
 
   try {
