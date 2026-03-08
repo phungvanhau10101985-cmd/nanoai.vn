@@ -100,8 +100,9 @@ sudo apt update && sudo apt upgrade -y
 # Cài build tools (cho sharp, canvas, opencv4nodejs)
 sudo apt install -y build-essential python3 python3-pip git
 
-# Cài rembg cho tách nền (Tạo nhãn dán). Xem scripts/REMBG_README.md nếu lỗi.
+# Cài rembg + Pillow cho tách nền (Tạo nhãn dán, Xóa nền PNG). Xem scripts/REMBG_README.md nếu lỗi.
 sudo pip3 install "rembg[cpu,cli]"
+sudo pip3 install pillow
 
 # Cài Node.js 20 LTS
 curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -

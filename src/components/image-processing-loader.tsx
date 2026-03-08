@@ -202,8 +202,7 @@ export function ImageProcessingLoader({
   ]
   const activeStatus = statusMessages[Math.floor(elapsedSec / 6) % statusMessages.length]
   const progressValue = Math.min(96, Math.max(8, Math.round((1 - Math.exp(-elapsedSec / 18)) * 100)))
-  const subtitle = tr('Hệ thống đang xử lý tự động. Kết quả sẽ xuất hiện ngay khi sẵn sàng.', 'The system is processing automatically. Result will appear when ready.', '系统正在自动处理。结果准备好后将立即显示。', 'システムが自動処理中です。準備ができ次第結果を表示します。', '시스템이 자동 처리 중입니다. 준비되면 결과가 표시됩니다.')
-  void _description
+  const subtitle = _description?.trim() || tr('Hệ thống đang xử lý tự động. Kết quả sẽ xuất hiện ngay khi sẵn sàng.', 'The system is processing automatically. Result will appear when ready.', '系统正在自动处理。结果准备好后将立即显示。', 'システムが自動処理中です。準備ができ次第結果を表示します。', '시스템이 자동 처리 중입니다. 준비되면 결과가 표시됩니다.')
   void customSteps
 
   return (

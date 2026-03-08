@@ -10,23 +10,15 @@ import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 
 const MOCKUP_COSTS = { '2K': 1.5, '4K': 3 } as const
 
-const SAMPLE_PRODUCTS = [
-  { id: 'phone', label: 'Điện thoại', url: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=800' },
-  { id: 'cup', label: 'Cốc/Tumbler', url: 'https://images.unsplash.com/photo-1514228742587-6b1558fcca3d?w=800' },
-  { id: 'box', label: 'Hộp sản phẩm', url: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800' },
-  { id: 'bag', label: 'Túi vải', url: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=800' },
-  { id: 'bottle', label: 'Chai nước', url: 'https://images.unsplash.com/photo-1602143407151-7111542de6e8?w=800' },
-]
-
 const toTenths = (value: number) => Math.round(value * 10)
 const fromTenths = (value: number) => value / 10
 const formatCredits = (value: number) => value.toLocaleString('vi-VN', { maximumFractionDigits: 1 })
 
 const PROMPT_BASE = `Tạo mockup 3D chuyên nghiệp với HAI ảnh đầu vào.
 - ẢNH 1: ảnh sản phẩm nền (điện thoại, cốc, hộp, túi, áo...).
-- ẢNH 2: logo hoặc thiết kế thương hiệu để in/đặt lên bề mặt sản phẩm.
+- ẢNH 2: logo, ảnh hoặc thiết kế để in/đặt lên bề mặt sản phẩm.
 
-Nhiệm vụ: đặt logo/thiết kế từ ẢNH 2 lên sản phẩm ở ẢNH 1. Thiết kế phải bám đúng bề mặt, tỷ lệ tự nhiên, ánh sáng và phối cảnh 3D chân thực. Kết quả giống ảnh mockup sản phẩm thật. Chỉ trả về ảnh kết quả, không chèn chữ.`
+Nhiệm vụ: đặt logo/ảnh/thiết kế từ ẢNH 2 lên sản phẩm ở ẢNH 1. Thiết kế phải bám đúng bề mặt, tỷ lệ tự nhiên, ánh sáng và phối cảnh 3D chân thực. Kết quả giống ảnh mockup sản phẩm thật. Chỉ trả về ảnh kết quả, không chèn chữ.`
 
 /** Tạo ảnh 3D Mockup. Ảnh 1 = sản phẩm (hoặc mẫu), Ảnh 2 = logo in lên. 2K: 1,5 credit, 4K: 3 credit. */
 export async function create3DMockup(formData: FormData) {
@@ -35,14 +27,12 @@ export async function create3DMockup(formData: FormData) {
   }
   const productImage = formData.get('productImage') as File | null
   const logoImage = formData.get('logoImage') as File
-  const useSample = (formData.get('useSample') as string) === 'true'
-  const sampleId = (formData.get('sampleId') as string)?.trim() || ''
   const imageQuality = (formData.get('imageQuality') as '2K' | '4K') || '2K'
   const note = (formData.get('note') as string)?.trim() || ''
 
-  if (!logoImage || logoImage.size === 0) return { error: 'Cần tải lên ảnh logo/thương hiệu (Ảnh 2) để in lên sản phẩm.' }
-  if (!useSample && (!productImage || productImage.size === 0)) {
-    return { error: 'Cần tải ảnh sản phẩm (Ảnh 1) hoặc chọn mẫu.' }
+  if (!logoImage || logoImage.size === 0) return { error: 'Cần tải lên ảnh hoặc logo (Ảnh 2) để in lên sản phẩm.' }
+  if (!productImage || productImage.size === 0) {
+    return { error: 'Cần tải ảnh sản phẩm (Ảnh 1).' }
   }
 
   const noteEn = note ? await normalizeToEnglish(note) : ''
@@ -71,20 +61,8 @@ export async function create3DMockup(formData: FormData) {
   await supabase.storage.from('try-on-images').upload(logoPath, logoImage)
   const { data: logoUrlData } = supabase.storage.from('try-on-images').getPublicUrl(logoPath)
 
-  let productImagePart: { inlineData: { data: string; mimeType: string } }
-  if (useSample && sampleId) {
-    const sampleUrl = SAMPLE_PRODUCTS.find((s) => s.id === sampleId)?.url
-    if (!sampleUrl) return { error: 'Mẫu không hợp lệ.' }
-    const res = await fetch(sampleUrl)
-    if (!res.ok) return { error: 'Không tải được ảnh mẫu.' }
-    const buf = Buffer.from(await res.arrayBuffer())
-    productImagePart = { inlineData: { data: buf.toString('base64'), mimeType: 'image/png' } }
-  } else if (productImage?.size) {
-    const buf = Buffer.from(await productImage.arrayBuffer())
-    productImagePart = { inlineData: { data: buf.toString('base64'), mimeType: productImage.type } }
-  } else {
-    return { error: 'Cần ảnh sản phẩm hoặc chọn mẫu.' }
-  }
+  const buf = Buffer.from(await productImage.arrayBuffer())
+  const productImagePart = { inlineData: { data: buf.toString('base64'), mimeType: productImage.type } }
 
   const { data: historyItem, error: historyError } = await supabase.from('try_on_history').insert({
     user_id: user.id,

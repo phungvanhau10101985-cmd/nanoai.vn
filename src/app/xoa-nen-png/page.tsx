@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { getUserOrBypass } from '@/lib/auth'
 import XoaNenPngClientPage from './xoa-nen-png-client-page'
 import { Metadata } from 'next'
+import { Suspense } from 'react'
 import { buildMetadata, buildJsonLdService, SITE_URL } from '@/lib/seo'
 import { JsonLd } from '@/components/seo-json-ld'
 import { getFeatureSeo, buildFeatureFaqJsonLd } from '@/lib/feature-seo'
@@ -33,7 +34,9 @@ export default async function XoaNenPngPage() {
     <div className="app-shell">
       <JsonLd data={jsonLd} />
       <JsonLd data={faqJsonLd} />
-      <XoaNenPngClientPage />
+      <Suspense fallback={<div className="min-h-[200px] flex items-center justify-center text-muted-foreground">Loading...</div>}>
+        <XoaNenPngClientPage />
+      </Suspense>
       <FeatureSeoSection seo={seo} />
     </div>
   )

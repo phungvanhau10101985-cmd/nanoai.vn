@@ -7,13 +7,6 @@ import { Input } from '@/components/ui/input'
 import { create3DMockup } from './actions'
 import { preloadImageUrl } from '@/lib/preload-image-url'
 
-const SAMPLE_PRODUCTS = [
-  { id: 'phone', label: 'Điện thoại', url: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=800' },
-  { id: 'cup', label: 'Cốc/Tumbler', url: 'https://images.unsplash.com/photo-1514228742587-6b1558fcca3d?w=800' },
-  { id: 'box', label: 'Hộp sản phẩm', url: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800' },
-  { id: 'bag', label: 'Túi vải', url: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=800' },
-  { id: 'bottle', label: 'Chai nước', url: 'https://images.unsplash.com/photo-1602143407151-7111542de6e8?w=800' },
-]
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
 import { Upload, Sparkles, RefreshCw, Link2, Box, ImageIcon, Tag } from 'lucide-react'
@@ -48,10 +41,8 @@ const setImageFromFile = (file: File, setImage: (v: { file: File; preview: strin
 export default function TaoAnh3DClientPage() {
   const [uiLocale, setUiLocale] = useState<UiLocale>('vi')
   const [step, setStep] = useState<Step>('UPLOAD')
-  const [useSample, setUseSample] = useState(false)
   const [productImage, setProductImage] = useState<{ file: File | null; preview: string | null }>({ file: null, preview: null })
   const [logoImage, setLogoImage] = useState<{ file: File | null; preview: string | null }>({ file: null, preview: null })
-  const [selectedSampleId, setSelectedSampleId] = useState('')
   const [imageQuality, setImageQuality] = useState<'2K' | '4K'>('2K')
   const [note, setNote] = useState('')
   const [imageUrl, setImageUrl] = useState('')
@@ -86,21 +77,12 @@ export default function TaoAnh3DClientPage() {
 
   const handleProductChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (file && setImageFromFile(file, (v) => setProductImage({ file: v.file, preview: v.preview }))) {
-      setUseSample(false)
-      setSelectedSampleId('')
-    }
+    if (file) setImageFromFile(file, (v) => setProductImage({ file: v.file, preview: v.preview }))
   }
 
   const handleLogoChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) setImageFromFile(file, (v) => setLogoImage({ file: v.file, preview: v.preview }))
-  }
-
-  const handleSelectSample = (id: string) => {
-    setSelectedSampleId(id)
-    setUseSample(true)
-    setProductImage({ file: null, preview: null })
   }
 
   const handleFetchFromUrl = async () => {
@@ -122,8 +104,6 @@ export default function TaoAnh3DClientPage() {
       const file = new File([blob], 'image-from-url.png', { type: blob.type || 'image/png' })
       if (urlTarget === 'product') {
         setImageFromFile(file, (v) => setProductImage({ file: v.file, preview: v.preview }))
-        setUseSample(false)
-        setSelectedSampleId('')
       } else {
         setImageFromFile(file, (v) => setLogoImage({ file: v.file, preview: v.preview }))
       }
@@ -151,7 +131,7 @@ export default function TaoAnh3DClientPage() {
           const file = item.getAsFile()
           if (file && setImageFromFile(file, (v) => setLogoImage({ file: v.file, preview: v.preview }))) {
             e.preventDefault()
-            toast({ title: tr('Đã dán ảnh', 'Image pasted', '已粘贴图片', '画像を貼り付けました', '이미지 붙여넣음'), description: tr('Ảnh logo đã được thêm.', 'Logo image has been added.', '已添加 Logo 图片。', 'ロゴ画像を追加しました。', '로고 이미지가 추가되었습니다.'), duration: 2000 })
+            toast({ title: tr('Đã dán ảnh', 'Image pasted', '已粘贴图片', '画像を貼り付けました', '이미지 붙여넣음'), description: tr('Ảnh 2 đã được thêm.', 'Image 2 has been added.', '已添加图 2。', '画像2を追加しました。', '이미지 2가 추가되었습니다.'), duration: 2000 })
           }
           break
         }
@@ -161,19 +141,17 @@ export default function TaoAnh3DClientPage() {
     return () => document.removeEventListener('paste', fn)
   }, [step, toast])
 
-  const canSubmit = logoImage.file && (useSample ? !!selectedSampleId : !!productImage.file)
+  const canSubmit = logoImage.file && !!productImage.file
 
   const handleSubmit = async () => {
     if (!canSubmit) {
-      toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: tr('Cần ảnh sản phẩm (hoặc chọn mẫu) và ảnh logo.', 'Need product image (or select sample) and logo.', '需要产品图片（或选择样本）和 Logo。', '商品画像（またはサンプル選択）とロゴが必要です。', '제품 이미지(또는 샘플 선택)와 로고가 필요합니다.'), variant: 'destructive' })
+      toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: tr('Cần ảnh sản phẩm và ảnh/logo in lên sản phẩm.', 'Need product image and logo/image to print on product.', '需要产品图片和印在产品上的 Logo/图片。', '商品画像と印刷用のロゴ/画像が必要です。', '제품 이미지와 인쇄할 로고/이미지가 필요합니다.'), variant: 'destructive' })
       return
     }
     setStep('GENERATING')
     const formData = new FormData()
-    if (productImage.file) formData.append('productImage', productImage.file)
+    formData.append('productImage', productImage.file!)
     formData.append('logoImage', logoImage.file!)
-    formData.append('useSample', String(useSample))
-    formData.append('sampleId', selectedSampleId)
     formData.append('imageQuality', imageQuality)
     formData.append('note', note)
     const result = await create3DMockup(formData)
@@ -192,8 +170,6 @@ export default function TaoAnh3DClientPage() {
     setStep('UPLOAD')
     setProductImage({ file: null, preview: null })
     setLogoImage({ file: null, preview: null })
-    setUseSample(false)
-    setSelectedSampleId('')
     setNote('')
     setResultUrl(null)
   }
@@ -206,7 +182,7 @@ export default function TaoAnh3DClientPage() {
           <h1 className="text-2xl font-bold text-foreground flex items-center justify-center gap-2">
             <Box className="h-8 w-8 text-cyan-600" /> {tr('Tạo ảnh 3D (Mockup sản phẩm)', 'Create 3D image (Product mockup)', '创建 3D 图片（产品模型）', '3D画像を作成（商品モックアップ）', '3D 이미지 만들기 (제품 목업)')}
           </h1>
-          <p className="text-muted-foreground mt-1">{tr('Ảnh 1: Sản phẩm (hoặc chọn mẫu). Ảnh 2: Logo in lên sản phẩm. 1,5–3 credits/ảnh.', 'Image 1: Product (or select sample). Image 2: Logo on product. 1.5–3 credits/image.', '图 1：产品（或选样本）。图 2：产品上的 Logo。1.5–3 积分/张。', '画像1：商品（またはサンプル選択）。画像2：商品にロゴ。1.5〜3クレジット/枚。', '이미지 1: 제품(또는 샘플 선택). 이미지 2: 제품에 로고. 1.5–3 크레딧/장.')}</p>
+          <p className="text-muted-foreground mt-1">{tr('Ảnh 1: Sản phẩm. Ảnh 2: Logo hoặc ảnh in lên sản phẩm. 1,5–3 credits/ảnh.', 'Image 1: Product. Image 2: Logo or image to print on product. 1.5–3 credits/image.', '图 1：产品。图 2：印在产品上的 Logo 或图片。1.5–3 积分/张。', '画像1：商品。画像2：商品に印刷するロゴまたは画像。1.5〜3クレジット/枚。', '이미지 1: 제품. 이미지 2: 제품에 인쇄할 로고 또는 이미지. 1.5–3 크레딧/장.')}</p>
         </div>
 
         {step === 'UPLOAD' && (
@@ -217,27 +193,10 @@ export default function TaoAnh3DClientPage() {
                   <CardTitle className="flex items-center gap-2 text-base">
                     <ImageIcon className="h-4 w-4 text-cyan-600" /> {tr('Ảnh 1: Ảnh sản phẩm', 'Image 1: Product image', '图 1：产品图片', '画像1：商品画像', '이미지 1: 제품 이미지')}
                   </CardTitle>
-                  <CardDescription className="text-xs">{tr('Ảnh sản phẩm của bạn hoặc chọn mẫu (điện thoại, cốc, hộp...). Logo sẽ in lên đây.', 'Use your product image or select a sample (phone, cup, box...). The logo will be placed here.', '使用你的产品图或选择样本（手机、杯子、盒子...）。Logo 将放在这里。', '商品画像を使うかサンプルを選択（スマホ・カップ・箱など）。ここにロゴを配置します。', '제품 이미지를 사용하거나 샘플(폰, 컵, 박스 등)을 선택하세요. 여기에 로고가 적용됩니다.')}</CardDescription>
+                  <CardDescription className="text-xs">{tr('Ảnh sản phẩm của bạn (điện thoại, cốc, hộp...). Logo hoặc ảnh sẽ in lên đây.', 'Use your product image (phone, cup, box...). Logo or image will be printed here.', '使用你的产品图（手机、杯子、盒子...）。Logo 或图片将印在这里。', '商品画像（スマホ・カップ・箱など）を使用。ここにロゴまたは画像を印刷します。', '제품 이미지(폰, 컵, 박스 등)를 사용하세요. 여기에 로고 또는 이미지가 인쇄됩니다.')}</CardDescription>
                 </CardHeader>
                 <CardContent className="p-4 pt-0 space-y-4">
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => { setUseSample(false); setSelectedSampleId(''); setProductImage({ file: null, preview: null }) }}
-                      className={`flex-1 px-3 py-2 rounded-md border text-xs font-medium ${!useSample ? 'border-cyan-500 bg-cyan-50 text-cyan-800' : 'border-gray-200 hover:bg-gray-50'}`}
-                    >
-                      {tr('Tải ảnh sản phẩm', 'Upload product image', '上传产品图片', '商品画像をアップロード', '제품 이미지 업로드')}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setUseSample(true)}
-                      className={`flex-1 px-3 py-2 rounded-md border text-xs font-medium ${useSample ? 'border-cyan-500 bg-cyan-50 text-cyan-800' : 'border-gray-200 hover:bg-gray-50'}`}
-                    >
-                      {tr('Chọn mẫu', 'Choose sample', '选择样本', 'サンプルを選択', '샘플 선택')}
-                    </button>
-                  </div>
-                  {!useSample ? (
-                    <label
+                  <label
                       htmlFor="product-input"
                       className="block w-full aspect-[4/3] max-h-[220px] rounded-lg border-2 border-dashed border-cyan-200 bg-cyan-50/60 flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-cyan-300"
                     >
@@ -250,26 +209,10 @@ export default function TaoAnh3DClientPage() {
                         </>
                       )}
                     </label>
-                  ) : null}
-                  {!useSample && productImage.preview && (
+                  {productImage.preview && (
                     <button type="button" onClick={() => productInputRef.current?.click()} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
                       <RefreshCw className="h-3.5 w-3.5" /> {tr('Chọn lại', 'Choose again', '重新选择', '選び直す', '다시 선택')}
                     </button>
-                  )}
-                  {useSample && (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                      {SAMPLE_PRODUCTS.map((s) => (
-                        <button
-                          key={s.id}
-                          type="button"
-                          onClick={() => handleSelectSample(s.id)}
-                          className={`relative aspect-square rounded-lg border-2 overflow-hidden transition-all ${selectedSampleId === s.id ? 'border-cyan-500 ring-2 ring-cyan-200' : 'border-gray-200 hover:border-cyan-300'}`}
-                        >
-                          <img src={s.url} alt={s.label} className="w-full h-full object-cover" />
-                          <span className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[10px] py-0.5 text-center">{s.label}</span>
-                        </button>
-                      ))}
-                    </div>
                   )}
                   <input id="product-input" ref={productInputRef} type="file" accept="image/*" className="hidden" onChange={handleProductChange} />
                 </CardContent>
@@ -278,9 +221,9 @@ export default function TaoAnh3DClientPage() {
               <Card className="border shadow-sm bg-white/80 backdrop-blur border-cyan-200/60">
                 <CardHeader className="p-4 pb-2">
                   <CardTitle className="flex items-center gap-2 text-base">
-                    <Tag className="h-4 w-4 text-cyan-600" /> {tr('Ảnh 2: Logo / Thương hiệu', 'Image 2: Logo / Brand', '图 2：Logo / 品牌', '画像2：ロゴ / ブランド', '이미지 2: 로고 / 브랜드')}
+                    <Tag className="h-4 w-4 text-cyan-600" /> {tr('Ảnh 2: Logo hoặc ảnh in lên sản phẩm', 'Image 2: Logo or image to print on product', '图 2：印在产品上的 Logo 或图片', '画像2：商品に印刷するロゴまたは画像', '이미지 2: 제품에 인쇄할 로고 또는 이미지')}
                   </CardTitle>
-                  <CardDescription className="text-xs">{tr('Logo, thiết kế in lên sản phẩm. Bắt buộc.', 'Logo/design to print on the product. Required.', '用于印在产品上的 Logo/设计。必填。', '商品に印刷するロゴ/デザイン。必須です。', '제품에 인쇄할 로고/디자인. 필수입니다.')}</CardDescription>
+                  <CardDescription className="text-xs">{tr('Logo, ảnh hoặc thiết kế in lên sản phẩm. Bắt buộc.', 'Logo, image or design to print on product. Required.', 'Logo、图片或设计印在产品上。必填。', 'ロゴ・画像・デザインを商品に印刷。必須です。', '로고, 이미지 또는 디자인을 제품에 인쇄. 필수입니다.')}</CardDescription>
                 </CardHeader>
                 <CardContent className="p-4 pt-0 space-y-4">
                   <label
@@ -288,11 +231,11 @@ export default function TaoAnh3DClientPage() {
                     className="block w-full aspect-[4/3] max-h-[220px] rounded-lg border-2 border-dashed border-cyan-200 bg-cyan-50/60 flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-cyan-300"
                   >
                     {logoImage.preview ? (
-                      <ImagePreview src={logoImage.preview} alt="Logo" className="w-full h-full object-contain rounded-lg" />
+                      <ImagePreview src={logoImage.preview} alt={tr('Ảnh 2', 'Image 2', '图 2', '画像2', '이미지 2')} className="w-full h-full object-contain rounded-lg" />
                     ) : (
                       <>
                         <Upload className="h-10 w-10 text-cyan-500" />
-                        <p className="text-sm text-muted-foreground">{tr('Chọn ảnh logo / thương hiệu', 'Select logo/brand image', '选择 Logo/品牌图片', 'ロゴ/ブランド画像を選択', '로고/브랜드 이미지 선택')}</p>
+                        <p className="text-sm text-muted-foreground">{tr('Chọn logo, ảnh hoặc thiết kế', 'Select logo, image or design', '选择 Logo、图片或设计', 'ロゴ・画像・デザインを選択', '로고, 이미지 또는 디자인 선택')}</p>
                       </>
                     )}
                   </label>
@@ -312,7 +255,7 @@ export default function TaoAnh3DClientPage() {
               <div className="flex gap-2">
                 <select value={urlTarget} onChange={(e) => setUrlTarget(e.target.value as 'product' | 'logo')} className="px-3 py-2 rounded-md border border-gray-200 bg-white text-sm w-36">
                   <option value="product">{tr('Ảnh sản phẩm', 'Product image', '产品图片', '商品画像', '제품 이미지')}</option>
-                  <option value="logo">{tr('Ảnh logo', 'Logo image', 'Logo 图片', 'ロゴ画像', '로고 이미지')}</option>
+                  <option value="logo">{tr('Ảnh 2 (logo/ảnh)', 'Image 2 (logo/image)', '图 2（Logo/图片）', '画像2（ロゴ/画像）', '이미지 2 (로고/이미지)')}</option>
                 </select>
                 <Input placeholder={tr('Dán link ảnh rồi bấm Lấy ảnh', 'Paste image URL then click Fetch', '粘贴图片链接后点击获取', '画像URLを貼り付けて取得をクリック', '이미지 링크 붙여넣기 후 가져오기 클릭')} value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} className="flex-1" />
                 <Button type="button" variant="outline" onClick={handleFetchFromUrl} disabled={urlLoading} className="shrink-0 border-cyan-200 text-cyan-700 hover:bg-cyan-50">
@@ -350,7 +293,7 @@ export default function TaoAnh3DClientPage() {
         {step === 'GENERATING' && (
           <Card className="border shadow-sm bg-white/80 backdrop-blur border-cyan-200/60">
             <CardContent className="flex flex-col items-center py-8">
-              <ImageProcessingLoader mode="mockup3d" title={tr('Đang tạo mockup 3D', 'Creating 3D mockup', '正在创建 3D 模型图', '3Dモックアップを作成中', '3D 목업 생성 중')} description={tr('AI đang in logo lên sản phẩm', 'AI is applying logo onto product', 'AI 正在将 Logo 应用于产品', 'AIが商品にロゴを適用中', 'AI가 제품에 로고를 적용 중')} imagePreview={logoImage.preview} />
+              <ImageProcessingLoader mode="mockup3d" title={tr('Đang tạo mockup 3D', 'Creating 3D mockup', '正在创建 3D 模型图', '3Dモックアップを作成中', '3D 목업 생성 중')} description={tr('AI đang in ảnh/logo lên sản phẩm', 'AI is applying image/logo onto product', 'AI 正在将图片/Logo 印到产品上', 'AIが商品に画像/ロゴを印刷中', 'AI가 제품에 이미지/로고를 인쇄 중')} imagePreview={logoImage.preview} />
             </CardContent>
           </Card>
         )}
@@ -363,10 +306,10 @@ export default function TaoAnh3DClientPage() {
             </CardHeader>
             <CardContent className="grid md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <h3 className="text-sm font-medium text-muted-foreground">{tr('Logo gốc', 'Original logo', '原始 Logo', '元ロゴ', '원본 로고')}</h3>
+                <h3 className="text-sm font-medium text-muted-foreground">{tr('Ảnh 2 gốc', 'Original image 2', '原始图 2', '元画像2', '원본 이미지 2')}</h3>
                 {logoImage.preview && (
                   <div className="aspect-square rounded-lg border overflow-hidden">
-                    <ImagePreview src={logoImage.preview} alt="Logo" className="w-full h-full object-cover" />
+                    <ImagePreview src={logoImage.preview} alt={tr('Ảnh 2', 'Image 2', '图 2', '画像2', '이미지 2')} className="w-full h-full object-cover" />
                   </div>
                 )}
               </div>

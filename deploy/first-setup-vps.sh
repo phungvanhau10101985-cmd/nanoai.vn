@@ -19,18 +19,21 @@ REPO_URL="$1"
 APP_DIR="/var/www/Thu-do-online"
 APP_NAME="thu-do-online"
 
-echo "[1/9] Update apt and install base packages"
+echo "[1/10] Update apt and install base packages"
 apt update
 apt install -y build-essential python3 python3-pip git curl nginx
 
-echo "[2/9] Install Node.js 20 LTS"
+echo "[2/10] Install Python packages (rembg, pillow) for sticker & xoa-nen-png"
+pip3 install "rembg[cpu,cli]" pillow || true
+
+echo "[3/10] Install Node.js 20 LTS"
 curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
 apt install -y nodejs
 
-echo "[3/9] Install PM2"
+echo "[4/10] Install PM2"
 npm install -g pm2
 
-echo "[4/9] Prepare app directory"
+echo "[5/10] Prepare app directory"
 mkdir -p /var/www
 cd /var/www
 if [ ! -d "${APP_DIR}" ]; then
@@ -41,7 +44,7 @@ elif [ ! -d "${APP_DIR}/.git" ]; then
   exit 1
 fi
 
-echo "[5/9] Create .env.local if missing"
+echo "[6/10] Create .env.local if missing"
 cd "${APP_DIR}"
 if [ ! -f ".env.local" ]; then
   cp .env.example .env.local
@@ -49,11 +52,11 @@ if [ ! -f ".env.local" ]; then
   echo "Edit .env.local before running production."
 fi
 
-echo "[6/9] Install dependencies and build"
+echo "[7/10] Install dependencies and build"
 npm install
 NODE_OPTIONS="--max-old-space-size=4096" npm run build
 
-echo "[7/9] Start app with PM2"
+echo "[8/10] Start app with PM2"
 if pm2 describe "${APP_NAME}" >/dev/null 2>&1; then
   pm2 restart "${APP_NAME}"
 else
@@ -62,13 +65,13 @@ fi
 pm2 save
 pm2 startup systemd -u root --hp /root || true
 
-echo "[8/9] Enable Nginx site (manual server_name check still needed)"
+echo "[9/10] Enable Nginx site (manual server_name check still needed)"
 if [ -f "${APP_DIR}/deploy/nginx-nanoai.conf" ]; then
   cp "${APP_DIR}/deploy/nginx-nanoai.conf" /etc/nginx/sites-available/nanoai
   ln -sf /etc/nginx/sites-available/nanoai /etc/nginx/sites-enabled/nanoai
   nginx -t && systemctl reload nginx
 fi
 
-echo "[9/9] Done"
+echo "[10/10] Done"
 echo "Remember to set real values in ${APP_DIR}/.env.local and restart:"
 echo "pm2 restart ${APP_NAME}"

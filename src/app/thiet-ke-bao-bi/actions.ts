@@ -10,6 +10,7 @@ import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/ge
 import { normalizeToEnglish } from '@/lib/ai-normalize'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { getAspectRatioFromDimensions } from '@/lib/aspect-ratio-from-dimensions'
+import { BAG_TYPE_OPTIONS, type BagType } from './bag-types'
 
 const PACKAGING_COSTS = { '2K': 1.5, '4K': 3 } as const
 const VALID_ASPECT_RATIOS = ['1:1', '4:3', '3:4', '3:2', '2:3', '5:4', '4:5', '16:9', '9:16', '21:9', '9:21'] as const
@@ -171,6 +172,10 @@ export async function createPackagingDesignWithAI(formData: FormData): Promise<
   const bagWidth = Math.max(20, Math.min(500, Number(formData.get('bagWidth')) || 200))
   const bagHeight = Math.max(20, Math.min(500, Number(formData.get('bagHeight')) || 280))
   const bagGusset = Math.max(10, Math.min(200, Number(formData.get('bagGusset')) || 60))
+  const hasBorder = (formData.get('hasBorder') as string) === '1'
+  const borderStyle = (formData.get('borderStyle') as string) || 'single'
+  const backgroundType = (formData.get('backgroundType') as string) || 'transparent'
+  const patternStyle = (formData.get('patternStyle') as string) || 'waves'
 
   if (!brandName && !productName && !hasProductImage) {
     return { error: 'Vui lòng nhập tên thương hiệu, tên sản phẩm hoặc tải ảnh sản phẩm.' }
@@ -250,7 +255,51 @@ export async function createPackagingDesignWithAI(formData: FormData): Promise<
   const leftAlignRule = 'All text on the packaging MUST be left-aligned. Tất cả chữ căn lề trái.'
   const textInstruction = textParts.length ? `Include these content blocks on the packaging: ${textParts.join('. ')}. ${blocksInstruction}. ${leftAlignRule}` : leftAlignRule
 
-  let prompt = `Generate a single high-quality product packaging mockup image. ${designPrompt} ${stylePrompt} ${textInstruction} Output only the image, no text overlay or watermark. Professional commercial quality.`
+  let bagDesignHints = ''
+  if (designType === 'bag') {
+    const BORDER_HINTS: Record<string, string> = {
+      single: 'Include a clean single-line border/frame around the design edge.',
+      double: 'Include a double-line border/frame around the design edge.',
+      dotted: 'Include a dotted border/frame around the design edge.',
+      dashed: 'Include a dashed border/frame around the design edge.',
+      rounded: 'Include a border with rounded corners framing the design.',
+      decorative: 'Include an ornamental/decorative border/frame around the design.',
+    }
+    const PATTERN_HINTS: Record<string, string> = {
+      waves: 'Patterned background with wave/flowing patterns. Subtle, elegant waves or curves.',
+      geometric: 'Patterned background with geometric shapes (lines, triangles, hexagons).',
+      traditional: 'Patterned background with traditional/ornamental motifs (Asian, floral, gold accents).',
+      dots: 'Patterned background with dot/circle pattern. Polka-dot style.',
+      floral: 'Patterned background with floral/botanical motifs.',
+      stripes: 'Patterned background with stripes (horizontal, vertical, or diagonal).',
+    }
+    const BACKGROUND_HINTS: Record<string, string> = {
+      transparent: 'Background: solid CARTON/KRAFT color. Use natural cardboard color: brown, beige, kraft paper tone. Areas without design MUST be filled with this solid carton color. Output PNG with SOLID background – NOT transparent.',
+      ai: 'Use a solid background color that complements the design, brand and style. Choose the color yourself.',
+      patterned: `Patterned background. ${PATTERN_HINTS[patternStyle] || PATTERN_HINTS.waves} Background should have a decorative pattern, not solid color.`,
+      white: 'Solid white background (#FFFFFF).',
+      offwhite: 'Solid off-white/ivory background. Slightly warm white.',
+      cream: 'Solid cream background. Warm, soft tone.',
+      beige: 'Solid beige/tan background. Warm neutral.',
+      sand: 'Solid sand/tan background. Warm earthy tone.',
+      lightgray: 'Solid light gray background. Cool, soft neutral.',
+      lightblue: 'Solid light blue background. Soft, cool tone.',
+      mint: 'Solid mint/teal background. Fresh, cool green-blue.',
+      lightpink: 'Solid light pink/pastel pink background. Soft, gentle.',
+      lavender: 'Solid lavender background. Soft purple.',
+      lightyellow: 'Solid light yellow/pastel yellow background. Soft, warm.',
+      lightgreen: 'Solid light green/pastel green background. Fresh, soft.',
+      peach: 'Solid peach background. Warm, soft orange-pink.',
+      charcoal: 'Solid charcoal/dark gray background. Sophisticated.',
+      navy: 'Solid navy blue background. Deep, professional.',
+      black: 'Solid black background (#000000).',
+    }
+    const borderHint = hasBorder && BORDER_HINTS[borderStyle] ? BORDER_HINTS[borderStyle] : 'No border. Design extends edge-to-edge, clean edges.'
+    const backgroundHint = BACKGROUND_HINTS[backgroundType] || BACKGROUND_HINTS.transparent
+    bagDesignHints = ` CRITICAL - Bag design surface (${bagWidth}mm × ${bagHeight}mm main face): ${backgroundHint} ${borderHint}`
+  }
+
+  let prompt = `Generate a single high-quality product packaging mockup image. ${designPrompt} ${stylePrompt}${bagDesignHints} ${textInstruction} Output only the image, no text overlay or watermark. Professional commercial quality.`
 
   const contentParts: object[] = []
   const hasLogo = logoFile?.size && logoFile.size > 0
@@ -526,7 +575,7 @@ export async function createBoxSurfaceImageWithAI(formData: FormData): Promise<
   }
   const patternHint = backgroundType === 'patterned' ? (PATTERN_HINTS[patternStyle] || PATTERN_HINTS.waves) : ''
   const BACKGROUND_HINTS: Record<string, string> = {
-    transparent: 'Background: areas WITHOUT printed design must be fully TRANSPARENT (alpha channel). Output PNG with transparent background. Design elements (brand, text, images) are opaque; unprinted areas = transparent. Vùng không in = trong suốt.',
+    transparent: 'Background: solid CARTON/KRAFT color. Use natural cardboard color: brown, beige, kraft paper tone (e.g. #C4A574, #D4A574). Areas without design MUST be filled with this solid carton color. Output PNG with SOLID background – NOT transparent, NO alpha. Màu bìa carton tự nhiên – nền solid.',
     ai: 'Use a solid background color that complements the design, brand and style. Choose the color yourself.',
     patterned: `Patterned background. ${patternHint} Background should have a decorative pattern, not solid color.`,
     white: 'Solid white background (#FFFFFF).',
@@ -556,26 +605,33 @@ export async function createBoxSurfaceImageWithAI(formData: FormData): Promise<
   let prompt: string
   const contentParts: object[] = []
 
-  const fullBleedRule = 'CRITICAL: Design MUST be full bleed - extend to ALL edges of the frame. No transparent margins, no white space, no padding. The artwork must fill the entire rectangular output from edge to edge. Kích thước ảnh phải full viền.'
-  const safeZoneRule = `CRITICAL - Safe zone / Vùng in thực tế: The ACTUAL print area is EXACTLY ${surfaceLength}mm × ${surfaceWidth}mm. Place ALL important content (brand, logos, text, product images) ONLY within this area. The output frame may have aspect ratio ${aspectRatio} (approximate) - any extra/overflow space outside the ${surfaceLength}×${surfaceWidth} area must remain EMPTY or background only. Do NOT draw critical content in overflow areas. Chỉ vẽ nội dung trong diện tích ${surfaceLength}×${surfaceWidth}mm, phần thừa để trống.`
+  const dimensionRule = `Design dimensions: ${surfaceLength}mm × ${surfaceWidth}mm. Output image MUST match this aspect ratio (full bleed, edge-to-edge design).`
   const backgroundRule = `CRITICAL - Màu nền (background): ${backgroundHint} User's background choice MUST be applied.`
   if (faceIndex === 1 && referenceBase64) {
-    prompt = `Generate a single flat 2D design artwork. ${fullBleedRule} ${safeZoneRule} Plain design for print.
+    prompt = `Generate a single flat 2D design artwork for print.
 
-CRITICAL - The first image provided is STYLE REFERENCE ONLY. Do NOT copy it verbatim. Use it ONLY to understand: colors, layout style, aesthetic, typography feel. Create a COMPLETELY NEW design using ONLY the user's information (brand, product, content blocks below). Customize and adapt the user's content to match the reference's visual style. The output must be a fresh design with user's brand/product/text, styled like the reference - NOT the reference image itself. Do NOT use customer product images when reference is provided.
+${dimensionRule}
 
-${backgroundRule} Surface dimensions: ${surfaceLength}mm × ${surfaceWidth}mm. ${borderHint} ${textOrientationHint} ${stylePrompt} ${textInstruction} ${packagingRule} Output only the image, no watermark. Professional print-ready quality.`
+CRITICAL - IMAGE 1 is STYLE REFERENCE ONLY. Do NOT copy it verbatim. Use it ONLY for colors, layout style, aesthetic. Create a COMPLETELY NEW design using user's information (brand, product, content below). Do NOT use customer product images when reference is provided.
+
+${backgroundRule} ${borderHint} ${textOrientationHint} ${stylePrompt} ${textInstruction} ${packagingRule} Output only the image, no watermark. Professional print-ready quality.`
     contentParts.push({ text: prompt })
     contentParts.push({ inlineData: { data: referenceBase64, mimeType: 'image/png' } })
   } else if (faceIndex === 1) {
-    prompt = `Generate a single flat 2D design artwork. ${fullBleedRule} ${safeZoneRule} Plain design for print. ${backgroundRule} Surface dimensions: ${surfaceLength}mm × ${surfaceWidth}mm. ${borderHint} ${faceTypeHint} ${textOrientationHint} ${stylePrompt} ${textInstruction} ${packagingRule} Output only the image, no watermark. Professional print-ready quality.`
+    prompt = `Generate a single flat 2D design artwork for print.
+
+${dimensionRule}
+
+${backgroundRule} ${borderHint} ${faceTypeHint} ${textOrientationHint} ${stylePrompt} ${textInstruction} ${packagingRule} Output only the image, no watermark. Professional print-ready quality.`
     contentParts.push({ text: prompt })
   } else {
-    prompt = `Generate a single flat 2D design artwork. ${fullBleedRule} ${safeZoneRule} Plain design for print.
+    prompt = `Generate a single flat 2D design artwork for print.
 
-CRITICAL - Reference image (Face 1) is STYLE REFERENCE ONLY: Use it ONLY for color palette, layout style, and overall aesthetic. Do NOT copy its text, logos, or specific content. Create a NEW design for Face ${faceIndex} with content from user input (brand, product, content blocks below). The reference is for visual style inspiration only - simpler, complementary to the main face.
+${dimensionRule}
 
-${backgroundRule} Surface dimensions: ${surfaceLength}mm × ${surfaceWidth}mm. ${borderHint} ${textOrientationHint} ${stylePrompt} ${textInstruction} ${packagingRule} Output only the image, no watermark. Professional print-ready quality.`
+CRITICAL - IMAGE 1 (Face 1) is STYLE REFERENCE ONLY: Use for color palette, layout style. Create NEW design for Face ${faceIndex} from user input.
+
+${backgroundRule} ${borderHint} ${textOrientationHint} ${stylePrompt} ${textInstruction} ${packagingRule} Output only the image, no watermark. Professional print-ready quality.`
     contentParts.push({ text: prompt })
     if (referenceBase64) contentParts.push({ inlineData: { data: referenceBase64, mimeType: 'image/png' } })
   }
@@ -613,7 +669,14 @@ ${backgroundRule} Surface dimensions: ${surfaceLength}mm × ${surfaceWidth}mm. $
   ]
 
   try {
-    const genResult = await model.generateContent(contentParts, { safetySettings })
+    const genResult = await model.generateContent({
+      contents: [{ role: 'user', parts: contentParts }],
+      generationConfig: {
+        responseModalities: ['TEXT', 'IMAGE'],
+        imageConfig: { imageSize: imageQuality, aspectRatio },
+      },
+      safetySettings,
+    })
     const response = genResult.response
     trackFromUsageMetadata(response.usageMetadata, 'gemini-3-pro-image-preview', 'thiet-ke-bao-bi-surface', user.id, imageQuality)
     const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
@@ -645,6 +708,280 @@ ${backgroundRule} Surface dimensions: ${surfaceLength}mm × ${surfaceWidth}mm. $
       return { error: 'Hệ thống quá tải. Bạn có thể chọn 2K hoặc thử lại sau ít phút.' }
     }
     return { error: `Tạo ảnh bề mặt thất bại: ${msg}` }
+  }
+}
+
+/** Tạo ảnh phẳng túi (mặt in chính W×H). Quy trình giống hộp: ảnh phẳng → mockup 3D. */
+export async function createBagSurfaceImageWithAI(formData: FormData): Promise<
+  | { success: true; resultUrl: string }
+  | { error: string }
+> {
+  const bagWidth = Math.max(20, Math.min(500, Number(formData.get('bagWidth')) || 200))
+  const bagHeight = Math.max(20, Math.min(500, Number(formData.get('bagHeight')) || 280))
+  const surfaceLength = bagWidth
+  const surfaceWidth = bagHeight
+  const textOrientation = ((formData.get('textOrientation') as string) || 'horizontal') as 'horizontal' | 'vertical'
+  const hasBorder = (formData.get('hasBorder') as string) === '1'
+  const borderStyle = (formData.get('borderStyle') as string) || 'single'
+  const backgroundType = (formData.get('backgroundType') as string) || 'transparent'
+  const patternStyle = (formData.get('patternStyle') as string) || 'waves'
+  const uiLocale = ((formData.get('uiLocale') as string) || 'vi') as 'vi' | 'en' | 'zh' | 'ja' | 'ko'
+  const brandName = (formData.get('brandName') as string)?.trim() || ''
+  const productName = (formData.get('productName') as string)?.trim() || ''
+  const companyAddress = (formData.get('companyAddress') as string)?.trim() || ''
+  const website = (formData.get('website') as string)?.trim() || ''
+  const email = (formData.get('email') as string)?.trim() || ''
+  const hotline = (formData.get('hotline') as string)?.trim() || ''
+  const countryOfOrigin = (formData.get('countryOfOrigin') as string)?.trim() || ''
+  const storageInstructions = (formData.get('storageInstructions') as string)?.trim() || ''
+  const warningAllergy = (formData.get('warningAllergy') as string)?.trim() || ''
+  const volume = (formData.get('volume') as string)?.trim() || ''
+  const registrationCode = (formData.get('registrationCode') as string)?.trim() || ''
+  const socialLinks = (formData.get('socialLinks') as string)?.trim() || ''
+  const contentBlocksRaw = (formData.get('contentBlocks') as string) || '[]'
+  let contentBlocks: { label: string; content: string }[] = []
+  try {
+    contentBlocks = JSON.parse(contentBlocksRaw)
+    if (!Array.isArray(contentBlocks)) contentBlocks = []
+  } catch {
+    contentBlocks = []
+  }
+  const style = (formData.get('style') as string) || 'modern'
+  const imageQuality = (formData.get('imageQuality') as '2K' | '4K') || '2K'
+  const logoFile = formData.get('logo') as File | null
+  const referenceImageFile = formData.get('referenceImageFile') as File | null
+  const productImageFiles = (formData.getAll('productImage') as File[]).filter((f) => f?.size && f.size > 0).slice(0, 6)
+  const hasProductImage = productImageFiles.length > 0
+  const hasReferenceForBag = !!(referenceImageFile?.size && referenceImageFile.size > 0)
+
+  if (!brandName && !productName && !hasProductImage && !hasReferenceForBag) {
+    return { error: 'Vui lòng nhập tên thương hiệu, tên sản phẩm, tải ảnh sản phẩm hoặc ảnh tham khảo style.' }
+  }
+
+  const aspectRatio = getAspectRatioFromDimensions(surfaceLength, surfaceWidth, textOrientation)
+
+  const supabase = createClient()
+  const result = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập để tạo ảnh phẳng túi.')
+  if ('error' in result) return { error: result.error }
+  const { user } = result
+
+  const COST = PACKAGING_COSTS[imageQuality]
+  const adminSupabase = createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+
+  const { data: creditData, error: creditError } = await supabase.from('credits').select('balance').eq('user_id', user.id).single()
+  if (creditError || !creditData || toTenths(creditData.balance) < toTenths(COST)) {
+    return { error: `Không đủ credits. Cần ${formatCredits(COST)} credits, hiện có ${formatCredits(creditData?.balance || 0)}.` }
+  }
+
+  const { data: historyItem, error: historyError } = await supabase.from('try_on_history').insert({
+    user_id: user.id,
+    original_image_url: '',
+    garment_image_url: '',
+    status: 'processing',
+    feature: 'thiet-ke-bao-bi',
+  }).select().single()
+  if (historyError || !historyItem) return { error: 'Không thể khởi tạo phiên xử lý.' }
+
+  const stylePrompt = STYLE_PROMPTS[style] || STYLE_PROMPTS.modern
+  const isVi = uiLocale === 'vi'
+  const L = {
+    brand: isVi ? 'Thương hiệu' : 'Brand',
+    product: isVi ? 'Sản phẩm' : 'Product',
+    companyAddress: isVi ? 'Địa chỉ công ty / Liên hệ' : 'Company address / Contact',
+    website: isVi ? 'Website' : 'Website',
+    email: isVi ? 'Email' : 'Email',
+    hotline: isVi ? 'Hotline / SĐT' : 'Hotline / Phone',
+    countryOfOrigin: isVi ? 'Nguồn gốc xuất xứ' : 'Country of origin',
+    storageInstructions: isVi ? 'Hướng dẫn bảo quản' : 'Storage instructions',
+    warningAllergy: isVi ? 'Cảnh báo / Allergy' : 'Warning / Allergy',
+    volume: isVi ? 'Thể tích' : 'Volume',
+    registrationCode: isVi ? 'Mã đăng ký' : 'Registration code',
+    socialLinks: isVi ? 'Mạng xã hội' : 'Social media',
+  }
+
+  const textParts: string[] = []
+  if (brandName.trim()) textParts.push(`${L.brand}: ${brandName.trim()}`)
+  if (productName.trim()) textParts.push(`${L.product}: ${productName.trim()}`)
+  if (companyAddress.trim()) textParts.push(`${L.companyAddress}: ${companyAddress.trim()}`)
+  if (website.trim()) textParts.push(`${L.website}: ${website.trim()}`)
+  if (email.trim()) textParts.push(`${L.email}: ${email.trim()}`)
+  if (hotline.trim()) textParts.push(`${L.hotline}: ${hotline.trim()}`)
+  if (countryOfOrigin.trim()) textParts.push(`${L.countryOfOrigin}: ${countryOfOrigin.trim()}`)
+  if (storageInstructions.trim()) textParts.push(`${L.storageInstructions}: ${storageInstructions.trim()}`)
+  if (warningAllergy.trim()) textParts.push(`${L.warningAllergy}: ${warningAllergy.trim()}`)
+  if (volume.trim()) textParts.push(`${L.volume}: ${volume.trim()}`)
+  if (registrationCode.trim()) textParts.push(`${L.registrationCode}: ${registrationCode.trim()}`)
+  if (socialLinks.trim()) textParts.push(`${L.socialLinks}: ${socialLinks.trim()}`)
+  for (const b of contentBlocks.filter((x) => x.label?.trim() || x.content?.trim())) {
+    const label = b.label?.trim() || (isVi ? 'Nội dung' : 'Content')
+    const content = b.content?.trim() || ''
+    if (content) textParts.push(`Block "${label}": ${content}`)
+  }
+  const contentBlocksInstruction = textParts.some((p) => p.startsWith('Block "'))
+    ? 'Place each content block in a SEPARATE, NON-ADJACENT area. Display content exactly as provided.'
+    : ''
+  const leftAlignRule = 'CRITICAL: All text on the packaging MUST be left-aligned.'
+  const textInstruction = textParts.length ? `Include ONLY these texts: ${textParts.join('. ')}. ${contentBlocksInstruction}. ${leftAlignRule}` : leftAlignRule
+  const packagingRule = !textParts.length
+    ? 'CRITICAL: Do NOT add any packaging information. Only include what the user explicitly provides.'
+    : 'Only include the information explicitly listed above. Do NOT add any other text.'
+
+  const textOrientationHint = textOrientation === 'horizontal'
+    ? 'Text and content should be oriented horizontally along the longer dimension (landscape layout).'
+    : 'Text and content should be oriented horizontally along the shorter dimension (portrait layout).'
+
+  const BORDER_HINTS: Record<string, string> = {
+    single: 'Include a clean single-line border/frame around the design edge.',
+    double: 'Include a double-line border/frame around the design edge.',
+    dotted: 'Include a dotted border/frame around the design edge.',
+    dashed: 'Include a dashed border/frame around the design edge.',
+    rounded: 'Include a border with rounded corners framing the design.',
+    decorative: 'Include an ornamental/decorative border/frame around the design.',
+  }
+  const borderHint = hasBorder && BORDER_HINTS[borderStyle] ? BORDER_HINTS[borderStyle] : 'No border. Design extends edge-to-edge, full bleed, clean edges.'
+
+  const PATTERN_HINTS: Record<string, string> = {
+    waves: 'Patterned background with wave/flowing patterns. Subtle, elegant waves or curves.',
+    geometric: 'Patterned background with geometric shapes (lines, triangles, hexagons).',
+    traditional: 'Patterned background with traditional/ornamental motifs (Asian, floral, gold accents).',
+    dots: 'Patterned background with dot/circle pattern. Polka-dot style.',
+    floral: 'Patterned background with floral/botanical motifs.',
+    stripes: 'Patterned background with stripes (horizontal, vertical, or diagonal).',
+  }
+  const patternHint = backgroundType === 'patterned' ? (PATTERN_HINTS[patternStyle] || PATTERN_HINTS.waves) : ''
+  const BACKGROUND_HINTS: Record<string, string> = {
+    transparent: 'Background: solid CARTON/KRAFT color. Use natural cardboard color: brown, beige, kraft paper tone. Areas without design MUST be filled with this solid carton color. Output PNG with SOLID background – NOT transparent.',
+    ai: 'Use a solid background color that complements the design, brand and style. Choose the color yourself.',
+    patterned: `Patterned background. ${patternHint} Background should have a decorative pattern, not solid color.`,
+    white: 'Solid white background (#FFFFFF).',
+    offwhite: 'Solid off-white/ivory background. Slightly warm white.',
+    cream: 'Solid cream background. Warm, soft tone.',
+    beige: 'Solid beige/tan background. Warm neutral.',
+    sand: 'Solid sand/tan background. Warm earthy tone.',
+    lightgray: 'Solid light gray background. Cool, soft neutral.',
+    lightblue: 'Solid light blue background. Soft, cool tone.',
+    mint: 'Solid mint/teal background. Fresh, cool green-blue.',
+    lightpink: 'Solid light pink/pastel pink background. Soft, gentle.',
+    lavender: 'Solid lavender background. Soft purple.',
+    lightyellow: 'Solid light yellow/pastel yellow background. Soft, warm.',
+    lightgreen: 'Solid light green/pastel green background. Fresh, soft.',
+    peach: 'Solid peach background. Warm, soft orange-pink.',
+    charcoal: 'Solid charcoal/dark gray background. Sophisticated.',
+    navy: 'Solid navy blue background. Deep, professional.',
+    black: 'Solid black background (#000000).',
+  }
+  const backgroundHint = BACKGROUND_HINTS[backgroundType] || BACKGROUND_HINTS.transparent
+
+  const dimensionRule = `Design dimensions: ${surfaceLength}mm × ${surfaceWidth}mm. This is a FLAT BAG design – the main print face for a paper bag/pouch. Output image MUST match this aspect ratio (full bleed, edge-to-edge design).`
+  const backgroundRule = `CRITICAL - Màu nền (background): ${backgroundHint} User's background choice MUST be applied.`
+
+  let referenceBase64: string | null = null
+  if (hasReferenceForBag && referenceImageFile) {
+    try {
+      const buf = await referenceImageFile.arrayBuffer()
+      referenceBase64 = Buffer.from(buf).toString('base64')
+    } catch (e) {
+      return { error: 'Không thể đọc ảnh tham khảo.' }
+    }
+  }
+
+  const useReferenceAsMainVisual = !!referenceBase64
+  let prompt: string
+  const contentParts: object[] = []
+
+  if (useReferenceAsMainVisual) {
+    prompt = `Generate a single flat 2D design artwork for a PAPER BAG / POUCH packaging. This design will be printed on the main face (front and back) of the bag.
+
+${dimensionRule}
+
+CRITICAL - IMAGE 1 is STYLE REFERENCE ONLY. Do NOT copy it verbatim. Use it ONLY for colors, layout style, aesthetic. Create a COMPLETELY NEW design using user's information (brand, product, content below). Do NOT use customer product images when reference is provided.
+
+${backgroundRule} ${borderHint} ${textOrientationHint} ${stylePrompt} ${textInstruction} ${packagingRule} Output only the image, no watermark. Professional print-ready quality for bag packaging.`
+    contentParts.push({ text: prompt })
+    contentParts.push({ inlineData: { data: referenceBase64, mimeType: 'image/png' } })
+  } else {
+    prompt = `Generate a single flat 2D design artwork for a PAPER BAG / POUCH packaging. This design will be printed on the main face (front and back) of the bag.
+
+${dimensionRule}
+
+${backgroundRule} ${borderHint} ${textOrientationHint} ${stylePrompt} ${textInstruction} ${packagingRule} Output only the image, no watermark. Professional print-ready quality for bag packaging.`
+    contentParts.push({ text: prompt })
+  }
+
+  const hasLogo = logoFile?.size && logoFile.size > 0
+  if (hasProductImage && productImageFiles.length > 0 && !useReferenceAsMainVisual) {
+    for (const f of productImageFiles) {
+      contentParts.push({
+        inlineData: { data: Buffer.from(await f.arrayBuffer()).toString('base64'), mimeType: f.type || 'image/png' },
+      })
+    }
+    contentParts.push({ text: 'Integrate the product images above into the flat design.' })
+  }
+  if (hasLogo && logoFile) {
+    contentParts.push({
+      inlineData: { data: Buffer.from(await logoFile.arrayBuffer()).toString('base64'), mimeType: logoFile.type || 'image/png' },
+    })
+    contentParts.push({ text: 'Integrate the logo into the design.' })
+  }
+
+  const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!)
+  const model = genAI.getGenerativeModel({
+    model: 'gemini-3-pro-image-preview',
+    generationConfig: {
+      responseModalities: ['TEXT', 'IMAGE'],
+      imageConfig: { imageSize: imageQuality, aspectRatio },
+    },
+  })
+  const safetySettings = [
+    { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+    { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+    { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+    { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+  ]
+
+  try {
+    const genResult = await model.generateContent({
+      contents: [{ role: 'user', parts: contentParts }],
+      generationConfig: {
+        responseModalities: ['TEXT', 'IMAGE'],
+        imageConfig: { imageSize: imageQuality, aspectRatio },
+      },
+      safetySettings,
+    })
+    const response = genResult.response
+    trackFromUsageMetadata(response.usageMetadata, 'gemini-3-pro-image-preview', 'thiet-ke-bao-bi-bag-surface', user.id, imageQuality)
+    const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
+    if (!imagePartRes || !('inlineData' in imagePartRes)) {
+      await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+      return { error: 'AI không trả về ảnh. Vui lòng thử lại (đôi khi AI tạm thời không tạo được ảnh).' }
+    }
+    const resultBuffer = Buffer.from(imagePartRes.inlineData.data, 'base64')
+    const resultPath = `results/${user.id}/bag_surface_${Date.now()}.png`
+    await adminSupabase.storage.from('try-on-images').upload(resultPath, resultBuffer, { contentType: 'image/png', upsert: true })
+    const { data: urlData } = adminSupabase.storage.from('try-on-images').getPublicUrl(resultPath)
+
+    const { data: latestCredit } = await adminSupabase.from('credits').select('balance').eq('user_id', user.id).single()
+    if (!latestCredit || toTenths(latestCredit.balance) < toTenths(COST)) {
+      await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+      return { error: 'Không đủ credits để hoàn tất.' }
+    }
+    const newBalance = fromTenths(toTenths(latestCredit.balance) - toTenths(COST))
+    await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', user.id)
+    await adminSupabase.from('try_on_history').update({ result_image_url: urlData.publicUrl, status: 'completed', aspect_ratio: aspectRatio }).eq('id', historyItem.id)
+
+    revalidatePath('/thiet-ke-bao-bi')
+    revalidatePath('/dashboard/history')
+    return { success: true, resultUrl: urlData.publicUrl }
+  } catch (e) {
+    await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+    const msg = e instanceof Error ? e.message : String(e)
+    if (/500|Internal Server Error|Internal error/i.test(msg)) {
+      return { error: 'Hệ thống quá tải. Bạn có thể chọn 2K hoặc thử lại sau ít phút.' }
+    }
+    return { error: `Tạo ảnh phẳng túi thất bại: ${msg}` }
   }
 }
 
@@ -865,14 +1202,12 @@ export async function createBoxMockupFromFaces(params: {
 
 CRITICAL - Box dimensions and proportions: ${boxLength}mm (L) × ${boxWidth}mm (W) × ${boxHeight}mm (H). The 3D box MUST have EXACT proportions: L:W:H = ${ratioL}:${ratioW}:${ratioH}. The visible faces must show correct aspect ratios: L×W face = ${boxLength}×${boxWidth}mm, L×H face = ${boxLength}×${boxHeight}mm, W×H face = ${boxWidth}×${boxHeight}mm. Do NOT render a cube or wrong proportions – the box shape must match these dimensions. Tỷ lệ hộp phải đúng kích thước.
 
-CRITICAL - You are given ${orderedFaces.length} flat print design(s). Each image has dimensions matching its face (L×W, L×H, or W×H). Apply EACH design to the specified face preserving its aspect ratio – do NOT stretch, squash, or distort. Kích thước ảnh phải phù hợp kích thước từng mặt. Faces with designs MUST show the printed design. Faces without a design may remain plain cardboard.
-
-CRITICAL - Transparent/unprinted areas: The flat designs may have TRANSPARENT areas (alpha) or unprinted regions. When compositing onto the 3D box, those areas MUST show the NATURAL CARTON color (brown, beige, kraft paper). The box is cardboard – unprinted/transparent regions = raw carton color. Do NOT fill with white or solid color. Vùng trong suốt / không in = màu bìa carton tự nhiên.
+CRITICAL - You are given ${orderedFaces.length} flat print design(s). Apply EACH image directly to its specified face. Match each image to its face by dimensions – do NOT stretch, squash, or distort. Preserve aspect ratio. Ốp thẳng ảnh lên từng mặt, kích thước ảnh khớp kích thước mặt.
 
 Mapping (strict):
 ${mapping.join('\n')}
 
-Result: a 3D box where the specified faces show the respective designs. Transparent areas reveal carton color. Professional lighting, shadows, perspective. Output only the image, no watermark.`
+Result: a 3D box where the specified faces show the respective designs. Professional lighting, shadows, perspective. Output only the image, no watermark.`
 
   const contentParts: object[] = [{ text: prompt }, ...imagesBase64.map((d) => ({ inlineData: { data: d, mimeType: 'image/png' as const } }))]
 
@@ -924,5 +1259,117 @@ Result: a 3D box where the specified faces show the respective designs. Transpar
       return { error: 'Hệ thống quá tải. Bạn có thể chọn 2K hoặc thử lại sau ít phút.' }
     }
     return { error: `Tạo mockup 3D thất bại: ${msg}` }
+  }
+}
+
+/** Tạo mockup 3D túi từ ảnh phẳng đã tạo. Ảnh phẳng in lên mặt trước/sau túi. */
+export async function createBagMockupFromFlat(params: {
+  flatImageUrl: string
+  bagWidth: number
+  bagHeight: number
+  bagGusset: number
+  bagType: BagType
+  aspectRatio: string
+  imageQuality: '2K' | '4K'
+}): Promise<{ success: true; resultUrl: string } | { error: string }> {
+  const { flatImageUrl, bagWidth, bagHeight, bagGusset, bagType, aspectRatio, imageQuality } = params
+  if (!flatImageUrl?.trim()) return { error: 'Thiếu ảnh phẳng túi.' }
+  if (!VALID_ASPECT_RATIOS.includes(aspectRatio)) return { error: 'Tỷ lệ khung hình không hợp lệ.' }
+
+  const supabase = createClient()
+  const result = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập để tạo mockup 3D túi.')
+  if ('error' in result) return { error: result.error }
+  const { user } = result
+
+  const COST = PACKAGING_COSTS[imageQuality]
+  const adminSupabase = createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+
+  const { data: creditData, error: creditError } = await supabase.from('credits').select('balance').eq('user_id', user.id).single()
+  if (creditError || !creditData || toTenths(creditData.balance) < toTenths(COST)) {
+    return { error: `Không đủ credits. Cần ${formatCredits(COST)} credits, hiện có ${formatCredits(creditData?.balance || 0)}.` }
+  }
+
+  const { data: historyItem, error: historyError } = await supabase.from('try_on_history').insert({
+    user_id: user.id,
+    original_image_url: flatImageUrl,
+    garment_image_url: '',
+    status: 'processing',
+    feature: 'thiet-ke-bao-bi',
+  }).select().single()
+  if (historyError || !historyItem) return { error: 'Không thể khởi tạo phiên xử lý.' }
+
+  let flatBase64: string
+  try {
+    const res = await fetch(flatImageUrl)
+    if (!res.ok) throw new Error('Fetch failed')
+    const buf = await res.arrayBuffer()
+    flatBase64 = Buffer.from(buf).toString('base64')
+  } catch (e) {
+    await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+    return { error: 'Không thể tải ảnh phẳng túi.' }
+  }
+
+  const bagTypeDesc = BAG_TYPE_OPTIONS.find((o) => o.value === bagType)?.prompt ?? BAG_TYPE_OPTIONS[0].prompt
+  const prompt = `Create a photorealistic 3D bag mockup. Bag type: ${bagTypeDesc}.
+
+CRITICAL - Bag dimensions: ${bagWidth}mm (width) × ${bagHeight}mm (height). Gusset depth: ${bagGusset}mm. The 3D bag MUST reflect these proportions. The bag is for packaging products.
+
+CRITICAL - You are given 1 flat print design. This design is for the MAIN FACE (front and back) of the bag. Apply this design to the visible front face of the bag. The design was created for ${bagWidth}mm × ${bagHeight}mm – apply it to the bag surface WITHOUT stretching or distorting. Preserve aspect ratio. The printed design should wrap naturally onto the 3D bag shape.
+
+Result: a 3D bag/pouch mockup where the front face shows the provided design. Professional lighting, shadows, perspective. Output only the image, no watermark.`
+
+  const contentParts: object[] = [{ text: prompt }, { inlineData: { data: flatBase64, mimeType: 'image/png' as const } }]
+
+  const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!)
+  const model = genAI.getGenerativeModel({
+    model: 'gemini-3-pro-image-preview',
+    generationConfig: {
+      responseModalities: ['TEXT', 'IMAGE'],
+      imageConfig: { imageSize: imageQuality, aspectRatio },
+    },
+  })
+  const safetySettings = [
+    { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+    { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+    { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+    { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+  ]
+
+  try {
+    const genResult = await model.generateContent(contentParts, { safetySettings })
+    const response = genResult.response
+    trackFromUsageMetadata(response.usageMetadata, 'gemini-3-pro-image-preview', 'thiet-ke-bao-bi-bag-mockup', user.id, imageQuality)
+    const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
+    if (!imagePartRes || !('inlineData' in imagePartRes)) {
+      await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+      return { error: 'AI không trả về ảnh. Vui lòng thử lại (đôi khi AI tạm thời không tạo được ảnh).' }
+    }
+    const resultBuffer = Buffer.from(imagePartRes.inlineData.data, 'base64')
+    const resultPath = `results/${user.id}/bag_mockup_${Date.now()}.png`
+    await adminSupabase.storage.from('try-on-images').upload(resultPath, resultBuffer, { contentType: 'image/png', upsert: true })
+    const { data: urlData } = adminSupabase.storage.from('try-on-images').getPublicUrl(resultPath)
+
+    const { data: latestCredit } = await adminSupabase.from('credits').select('balance').eq('user_id', user.id).single()
+    if (!latestCredit || toTenths(latestCredit.balance) < toTenths(COST)) {
+      await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+      return { error: 'Không đủ credits để hoàn tất.' }
+    }
+    const newBalance = fromTenths(toTenths(latestCredit.balance) - toTenths(COST))
+    await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', user.id)
+    await adminSupabase.from('try_on_history').update({ result_image_url: urlData.publicUrl, status: 'completed', aspect_ratio: aspectRatio }).eq('id', historyItem.id)
+
+    revalidatePath('/thiet-ke-bao-bi')
+    revalidatePath('/dashboard/history')
+    return { success: true, resultUrl: urlData.publicUrl }
+  } catch (e) {
+    await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+    const msg = e instanceof Error ? e.message : String(e)
+    if (/500|Internal Server Error|Internal error/i.test(msg)) {
+      return { error: 'Hệ thống quá tải. Bạn có thể chọn 2K hoặc thử lại sau ít phút.' }
+    }
+    return { error: `Tạo mockup 3D túi thất bại: ${msg}` }
   }
 }

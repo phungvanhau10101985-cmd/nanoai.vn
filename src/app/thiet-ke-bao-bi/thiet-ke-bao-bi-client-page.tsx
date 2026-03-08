@@ -6,14 +6,21 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
-import { Box, ShoppingBag, Sparkles, Upload, X, ImageIcon, LayoutTemplate, FileText, FileEdit, Eye, ChevronLeft, ChevronRight, Trash2, FolderOpen, Plus } from 'lucide-react'
+import { Box, ShoppingBag, Sparkles, Upload, X, ImageIcon, LayoutTemplate, FileText, FileEdit, Eye, ChevronLeft, ChevronRight, Trash2, FolderOpen, Plus, Eraser } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { DownloadImageButton } from '@/components/download-image-button'
+import { ImagePreview } from '@/components/ui/image-preview'
 import { ImageProcessingLoader } from '@/components/image-processing-loader'
-import { createPackagingDesignWithAI, createBoxSurfaceImageWithAI, createBoxMockupFromFaces, generateBoxDielinePdf, type PackagingDesignType } from './actions'
+import { createBoxSurfaceImageWithAI, createBoxMockupFromFaces, createBagSurfaceImageWithAI, createBagMockupFromFlat, generateBoxDielinePdf, type PackagingDesignType } from './actions'
+import { BAG_TYPE_OPTIONS, type BagType } from './bag-types'
 import { getBoxFaceDimensions } from '@/lib/box-face-dimensions'
 import { getDimensionsFromSizeKey, getSizeKeyLabel, FACE_SIZE_KEYS, type FaceSizeKey } from './lib/box-face-sizes'
+import { useRouter } from 'next/navigation'
+
+/** faceIndex 1–3 cho API: LxW=1, LxH=2, WxH=3 */
+const FACE_ORDER: FaceSizeKey[] = ['LxW', 'LxH', 'WxH']
+const getFaceIndexFromSizeKey = (sizeKey: FaceSizeKey) => FACE_ORDER.indexOf(sizeKey) + 1
 import { getAspectRatioFromDimensions, GEMINI_ASPECT_RATIO_LIST } from '@/lib/aspect-ratio-from-dimensions'
 import { preloadImageUrl } from '@/lib/preload-image-url'
 
@@ -55,7 +62,7 @@ const BORDER_STYLES: { value: string; labelVi: string; labelEn: string; labelZh:
 ]
 
 const BACKGROUND_OPTIONS: { value: string; labelVi: string; labelEn: string; labelZh: string; labelJa: string; labelKo: string }[] = [
-  { value: 'transparent', labelVi: 'Trong suốt', labelEn: 'Transparent', labelZh: '透明', labelJa: '透明', labelKo: '투명' },
+  { value: 'transparent', labelVi: 'Màu bìa carton', labelEn: 'Carton color', labelZh: '纸板色', labelJa: '段ボール色', labelKo: '골판지색' },
   { value: 'ai', labelVi: 'AI tự chọn', labelEn: 'AI chooses', labelZh: 'AI选择', labelJa: 'AIが選択', labelKo: 'AI 선택' },
   { value: 'white', labelVi: 'Trắng', labelEn: 'White', labelZh: '白色', labelJa: '白', labelKo: '흰색' },
   { value: 'offwhite', labelVi: 'Trắng ngà', labelEn: 'Off-white', labelZh: '米白', labelJa: 'オフホワイト', labelKo: '아이보리' },
@@ -74,6 +81,29 @@ const BACKGROUND_OPTIONS: { value: string; labelVi: string; labelEn: string; lab
   { value: 'navy', labelVi: 'Xanh navy', labelEn: 'Navy', labelZh: '藏青', labelJa: 'ネイビー', labelKo: '네이비' },
   { value: 'black', labelVi: 'Đen', labelEn: 'Black', labelZh: '黑色', labelJa: '黒', labelKo: '검정' },
   { value: 'patterned', labelVi: 'Nền hoa văn', labelEn: 'Patterned', labelZh: '图案背景', labelJa: '模様背景', labelKo: '패턴 배경' },
+]
+
+const BAG_TYPE_LABELS: { value: BagType; labelVi: string; labelEn: string; labelZh: string; labelJa: string; labelKo: string }[] = [
+  { value: 'stand-up-pouch', labelVi: 'Túi đứng', labelEn: 'Stand-up pouch', labelZh: '立式袋', labelJa: 'スタンドパウチ', labelKo: '스탠드 파우치' },
+  { value: 'flat-pouch', labelVi: 'Túi phẳng', labelEn: 'Flat pouch', labelZh: '平袋', labelJa: 'フラットパウチ', labelKo: '플랫 파우치' },
+  { value: 'side-gusset', labelVi: 'Túi đáy bên', labelEn: 'Side gusset bag', labelZh: '侧边风琴袋', labelJa: 'サイドガセット袋', labelKo: '사이드 거셋 백' },
+  { value: 'paper-bag', labelVi: 'Túi giấy có quai', labelEn: 'Paper bag with handles', labelZh: '纸袋带提手', labelJa: '紙袋（取っ手付き）', labelKo: '손잡이 종이백' },
+  { value: 'pillow-pouch', labelVi: 'Túi gối', labelEn: 'Pillow pouch', labelZh: '枕形袋', labelJa: 'ピローパウチ', labelKo: '필로우 파우치' },
+  { value: 'zipper-pouch', labelVi: 'Túi khóa kéo', labelEn: 'Zipper pouch', labelZh: '拉链袋', labelJa: 'ジッパーパウチ', labelKo: '지퍼 파우치' },
+  { value: 'three-side-seal', labelVi: 'Túi 3 mép seal', labelEn: 'Three-side seal', labelZh: '三边封袋', labelJa: '三辺シール袋', labelKo: '3면 실 파우치' },
+  { value: 'four-side-seal', labelVi: 'Túi 4 mép seal', labelEn: 'Four-side seal', labelZh: '四边封袋', labelJa: '四辺シール袋', labelKo: '4면 실 파우치' },
+  { value: 'doypack', labelVi: 'Túi Doypack', labelEn: 'Doypack', labelZh: '自立袋', labelJa: 'ドイパック', labelKo: '도이팩' },
+  { value: 'kraft-paper', labelVi: 'Túi kraft', labelEn: 'Kraft paper bag', labelZh: '牛皮纸袋', labelJa: 'クラフト紙袋', labelKo: '크라프트 종이백' },
+  { value: 'mesh-bag', labelVi: 'Túi lưới', labelEn: 'Mesh bag', labelZh: '网袋', labelJa: 'メッシュ袋', labelKo: '메쉬 백' },
+  { value: 'vacuum-bag', labelVi: 'Túi hút chân không', labelEn: 'Vacuum bag', labelZh: '真空袋', labelJa: '真空パック', labelKo: '진공 백' },
+  { value: 'retort-pouch', labelVi: 'Túi retort', labelEn: 'Retort pouch', labelZh: '蒸煮袋', labelJa: 'レトルトパウチ', labelKo: '레토르트 파우치' },
+  { value: 'window-pouch', labelVi: 'Túi có cửa sổ', labelEn: 'Window pouch', labelZh: '开窗袋', labelJa: '窓付きパウチ', labelKo: '윈도우 파우치' },
+  { value: 'gusset-bottom', labelVi: 'Túi đáy gusset', labelEn: 'Gusset bottom', labelZh: '底风琴袋', labelJa: '底ガセット袋', labelKo: '바닥 거셋 백' },
+  { value: 'flat-bottom', labelVi: 'Túi đáy phẳng', labelEn: 'Flat bottom', labelZh: '平底袋', labelJa: '平底袋', labelKo: '플랫 바닥 백' },
+  { value: 'handle-bag', labelVi: 'Túi có quai', labelEn: 'Handle bag', labelZh: '提手袋', labelJa: '取っ手付き袋', labelKo: '손잡이 백' },
+  { value: 'drawstring', labelVi: 'Túi rút dây', labelEn: 'Drawstring bag', labelZh: '抽绳袋', labelJa: '巾着袋', labelKo: '드로스트링 백' },
+  { value: 'slider-pouch', labelVi: 'Túi slider', labelEn: 'Slider pouch', labelZh: '滑条袋', labelJa: 'スライダーパウチ', labelKo: '슬라이더 파우치' },
+  { value: 'spout-pouch', labelVi: 'Túi có vòi', labelEn: 'Spout pouch', labelZh: '带嘴袋', labelJa: 'スポートパウチ', labelKo: '스파우트 파우치' },
 ]
 
 const PATTERN_OPTIONS: { value: string; labelVi: string; labelEn: string; labelZh: string; labelJa: string; labelKo: string }[] = [
@@ -155,6 +185,7 @@ type ProjectItem = {
   bagWidth: number
   bagHeight: number
   bagGusset: number
+  bagType?: BagType
   contentBlocks: { id: string; label: string; content: string }[]
   packagingQuantity: string
   packagingWeight: string
@@ -257,6 +288,7 @@ type DraftState = {
   bagWidth: number
   bagHeight: number
   bagGusset: number
+  bagType: BagType
   updatedAt: number
 }
 
@@ -297,8 +329,11 @@ export default function ThietKeBaoBiClientPage() {
   const [selectedFaceSize, setSelectedFaceSize] = useState<FaceSizeKey | null>('LxW')
   const [lastCreatedFace, setLastCreatedFace] = useState<CreatedFace | null>(null)
   const [mockupResultUrl, setMockupResultUrl] = useState<string | null>(null)
+  const router = useRouter()
   /** Khi sửa ảnh từ MOCKUP_INPUT/MOCKUP_RESULT, Back quay về đúng bước đó */
   const [returnToStep, setReturnToStep] = useState<'MOCKUP_INPUT' | 'MOCKUP_RESULT' | 'FACE_RESULT' | null>(null)
+  /** Khi sửa ảnh, lưu sizeKey cần thay thế – ảnh mới tạo ra sẽ thay đúng vị trí */
+  const [editingFaceSizeKey, setEditingFaceSizeKey] = useState<FaceSizeKey | null>(null)
   // Surface: 2 dims (flat face) - derived from selectedFaceSize
   const [surfaceLength, setSurfaceLength] = useState(200)
   const [surfaceWidth, setSurfaceWidth] = useState(150)
@@ -321,6 +356,7 @@ export default function ThietKeBaoBiClientPage() {
   const [bagWidth, setBagWidth] = useState(200)
   const [bagHeight, setBagHeight] = useState(280)
   const [bagGusset, setBagGusset] = useState(60)
+  const [bagType, setBagType] = useState<BagType>('stand-up-pouch')
   const [dielineLoading, setDielineLoading] = useState(false)
   const [quickViewFlatOpen, setQuickViewFlatOpen] = useState(false)
   const [quickView3dOpen, setQuickView3dOpen] = useState(false)
@@ -328,6 +364,7 @@ export default function ThietKeBaoBiClientPage() {
   const logoInputRef = useRef<HTMLInputElement>(null)
   const referenceImageInputRef = useRef<HTMLInputElement>(null)
   const productImageInputRef = useRef<HTMLInputElement>(null)
+  const stepContentRef = useRef<HTMLDivElement>(null)
   const { toast } = useToast()
   const cost = imageQuality === '2K' ? 1.5 : 3
 
@@ -364,6 +401,13 @@ export default function ThietKeBaoBiClientPage() {
     if (uiLocale === 'ja') return p.labelJa
     if (uiLocale === 'ko') return p.labelKo
     return p.labelVi
+  }
+  const getBagTypeLabel = (b: (typeof BAG_TYPE_LABELS)[number]) => {
+    if (uiLocale === 'en') return b.labelEn
+    if (uiLocale === 'zh') return b.labelZh
+    if (uiLocale === 'ja') return b.labelJa
+    if (uiLocale === 'ko') return b.labelKo
+    return b.labelVi
   }
 
   useEffect(() => {
@@ -425,6 +469,7 @@ export default function ThietKeBaoBiClientPage() {
       bagWidth,
       bagHeight,
       bagGusset,
+      bagType,
       updatedAt: Date.now(),
     }
     try {
@@ -459,6 +504,7 @@ export default function ThietKeBaoBiClientPage() {
       setFaces(loadedFaces)
       setSelectedFaceSize('LxW')
       setLastCreatedFace(loadedFaces[loadedFaces.length - 1] ?? null)
+      setEditingFaceSizeKey(null)
       setDesignType(draft.designType)
       setBrandName(draft.brandName)
       setProductName(draft.productName)
@@ -503,6 +549,7 @@ export default function ThietKeBaoBiClientPage() {
       setBagWidth(draft.bagWidth ?? 200)
       setBagHeight(draft.bagHeight ?? 280)
       setBagGusset(draft.bagGusset ?? 60)
+      setBagType(draft.bagType ?? 'stand-up-pouch')
       setReturnToStep(null)
     } catch {
       /* ignore */
@@ -573,6 +620,7 @@ export default function ThietKeBaoBiClientPage() {
     bagWidth,
     bagHeight,
     bagGusset,
+    bagType,
   ])
 
   /** Chuỗi nhập chiều dài – cập nhật khi blur để tránh nhảy số khi gõ. */
@@ -587,18 +635,18 @@ export default function ThietKeBaoBiClientPage() {
   }, [selectedFaceSize, boxLength, boxWidth, boxHeight])
 
   useEffect(() => {
-    if (['FACE_INPUT', 'FACE_GENERATING', 'FACE_RESULT', 'MOCKUP_INPUT', 'MOCKUP_GENERATING', 'MOCKUP_RESULT'].includes(step)) {
-      window.scrollTo({ top: 0, behavior: 'smooth' })
+    if (['FACE_GENERATING', 'FACE_RESULT', 'MOCKUP_INPUT', 'MOCKUP_GENERATING', 'MOCKUP_RESULT', 'GENERATING', 'RESULT'].includes(step)) {
+      stepContentRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }
   }, [step])
 
   const handleSubmit = async () => {
     const hasProductImg = productImages.length > 0
-    const hasRefForFace1 = designType === 'box' && referenceImage.preview
-    if (!brandName.trim() && !productName.trim() && !hasProductImg && !hasRefForFace1) {
+    const hasRef = !!referenceImage.preview
+    if (!brandName.trim() && !productName.trim() && !hasProductImg && !hasRef) {
       toast({
         title: tr('Vui lòng nhập', 'Please enter', '请输入', '入力してください', '입력해 주세요'),
-        description: tr('Tên thương hiệu, tên sản phẩm, ảnh sản phẩm hoặc ảnh tham khảo in lên thiết kế', 'Brand name, product name, product image or reference image to print', '品牌名、产品名、产品图或参考图', 'ブランド名・商品名・商品画像または参考画像', '브랜드명·상품명·상품 이미지 또는 참조 이미지'),
+        description: tr('Tên thương hiệu, tên sản phẩm, ảnh sản phẩm hoặc ảnh tham khảo style', 'Brand name, product name, product image or style reference image', '品牌名、产品名、产品图或风格参考图', 'ブランド名・商品名・商品画像またはスタイル参考画像', '브랜드명·상품명·상품 이미지 또는 스타일 참조 이미지'),
         variant: 'destructive',
       })
       return
@@ -608,9 +656,30 @@ export default function ThietKeBaoBiClientPage() {
       handleFaceSubmit(selectedFaceSize || 'LxW')
       return
     }
-    setStep('GENERATING')
+    handleBagFaceSubmit()
+  }
+
+  const handleBagFaceSubmit = async () => {
+    const hasProductImg = productImages.length > 0
+    const hasRefForBag = !!referenceImage.preview
+    if (!brandName.trim() && !productName.trim() && !hasProductImg && !hasRefForBag) {
+      toast({
+        title: tr('Vui lòng nhập', 'Please enter', '请输入', '入力してください', '입력해 주세요'),
+        description: tr('Tên thương hiệu, tên sản phẩm, ảnh sản phẩm hoặc ảnh tham khảo style', 'Brand name, product name, product image or style reference image', '品牌名、产品名、产品图或风格参考图', 'ブランド名・商品名・商品画像またはスタイル参考画像', '브랜드명·상품명·상품 이미지 또는 스타일 참조 이미지'),
+        variant: 'destructive',
+      })
+      return
+    }
+    setStep('FACE_GENERATING')
     const formData = new FormData()
-    formData.append('designType', designType)
+    formData.append('bagWidth', String(Math.max(20, Math.min(500, bagWidth))))
+    formData.append('bagHeight', String(Math.max(20, Math.min(500, bagHeight))))
+    formData.append('bagGusset', String(Math.max(10, Math.min(200, bagGusset))))
+    formData.append('textOrientation', textOrientation)
+    formData.append('hasBorder', hasBorder ? '1' : '0')
+    formData.append('borderStyle', borderStyle)
+    formData.append('backgroundType', backgroundType)
+    if (backgroundType === 'patterned') formData.append('patternStyle', patternStyle)
     formData.append('brandName', brandName.trim())
     formData.append('productName', productName.trim())
     formData.append('companyAddress', companyAddress.trim())
@@ -627,82 +696,50 @@ export default function ThietKeBaoBiClientPage() {
     formData.append('uiLocale', uiLocale)
     formData.append('style', style)
     formData.append('imageQuality', imageQuality)
-    formData.append('aspectRatio', getAspectRatioFromDimensions(bagWidth, bagHeight, textOrientation))
-    formData.append('bagWidth', String(Math.max(20, Math.min(500, bagWidth))))
-    formData.append('bagHeight', String(Math.max(20, Math.min(500, bagHeight))))
-    formData.append('bagGusset', String(Math.max(10, Math.min(200, bagGusset))))
     if (logo.file) formData.append('logo', logo.file)
+    if (referenceImage.file) formData.append('referenceImageFile', referenceImage.file)
     productImages.forEach((p) => formData.append('productImage', p.file))
-    const result = await createPackagingDesignWithAI(formData)
+    const result = await createBagSurfaceImageWithAI(formData)
     if (result.error) {
       setStep('INPUT')
       toast({
-        title: tr('Thiết kế thất bại', 'Design failed', '设计失败', 'デザインに失敗', '디자인 실패'),
+        title: tr('Tạo ảnh phẳng thất bại', 'Create flat design failed', '创建平面图失败', '平面デザイン作成に失敗', '평면 디자인 생성 실패'),
         description: typeof result.error === 'string' ? result.error : String(result.error ?? ''),
         variant: 'destructive',
         duration: 5000,
       })
     } else if (result.success && result.resultUrl) {
+      const newFace: CreatedFace = { id: `f-${Date.now()}`, sizeKey: 'WxH', url: result.resultUrl }
       await preloadImageUrl(result.resultUrl)
-      setResultUrl(result.resultUrl)
-      setStep('RESULT')
-      saveProject({
-        designType: 'bag',
-        brandName,
-        productName,
-        companyAddress,
-        website,
-        email,
-        hotline,
-        countryOfOrigin,
-        storageInstructions,
-        warningAllergy,
-        volume,
-        registrationCode,
-        socialLinks,
-        faces: [],
-        mockupResultUrl: null,
-        resultUrl: result.resultUrl,
-        boxLength,
-        boxWidth,
-        boxHeight,
-        surfaceLength,
-        surfaceWidth,
-        textOrientation,
-        hasBorder,
-        borderStyle,
-        backgroundType,
-        patternStyle,
-        style,
-        imageQuality,
-        aspectRatio,
-        bagWidth,
-        bagHeight,
-        bagGusset,
-        contentBlocks,
-        packagingQuantity,
-        packagingWeight,
-        packagingShipping,
-        packagingOther,
-        manufacturerMessage,
-        packagingBatchLot,
-        packagingProdDate,
-        packagingExpiryDate,
-        includeBoxDims,
-      })
-      refreshProjects()
+      setFaces([newFace])
+      setLastCreatedFace(newFace)
+      setStep('FACE_RESULT')
       window.dispatchEvent(new Event('credits-updated'))
       toast({
         title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'),
-        description: tr('Mockup bao bì đã được tạo.', 'Packaging mockup has been created.', '包装样机已创建。', 'パッケージモックアップを作成しました。', '패키징 목업이 생성되었습니다.'),
+        description: tr('Ảnh phẳng túi đã được tạo.', 'Bag flat design has been created.', '袋子平面图已创建。', '袋の平面デザインを作成しました。', '가방 평면 디자인이 생성되었습니다.'),
         duration: 3000,
       })
+    }
+  }
+
+  const handleOpenRemoveBg = () => {
+    const items = faces.map((f, i) => ({
+      url: f.url,
+      label: designType === 'bag' ? `W×H (${bagWidth}×${bagHeight} mm)` : getSizeKeyLabel(f.sizeKey, boxLength, boxWidth, boxHeight),
+    }))
+    try {
+      sessionStorage.setItem('xoa_nen_source_images', JSON.stringify(items))
+      router.push('/xoa-nen-png?from=bao-bi')
+    } catch {
+      toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: tr('Không thể mở trang tách nền.', 'Cannot open remove BG page.', '无法打开抠图页面。', '背景削除ページを開けません。', '배경 제거 페이지를 열 수 없습니다.'), variant: 'destructive' })
     }
   }
 
   const handleReset = () => {
     setStep('INPUT')
     setReturnToStep(null)
+    setEditingFaceSizeKey(null)
     if (referenceImage.preview) URL.revokeObjectURL(referenceImage.preview)
     setReferenceImage({ file: null, preview: null })
     setResultUrl(null)
@@ -716,6 +753,19 @@ export default function ThietKeBaoBiClientPage() {
     setLastCreatedFace(null)
     setSelectedFaceSize('LxW')
     setMockupResultUrl(null)
+    setDesignType('box')
+    setBrandName('')
+    setProductName('')
+    setCompanyAddress('')
+    setWebsite('')
+    setEmail('')
+    setHotline('')
+    setCountryOfOrigin('')
+    setStorageInstructions('')
+    setWarningAllergy('')
+    setVolume('')
+    setRegistrationCode('')
+    setSocialLinks('')
     setPackagingQuantity('')
     setPackagingWeight('')
     setPackagingShipping('')
@@ -727,6 +777,9 @@ export default function ThietKeBaoBiClientPage() {
     setIncludeBoxDims(false)
     setContentBlocks([{ id: `cb-${Date.now()}`, label: '', content: '' }])
     setPatternStyle('waves')
+    setBagType('stand-up-pouch')
+    clearLogo()
+    clearAllProductImages()
   }
 
   const loadProject = (p: ProjectItem) => {
@@ -774,6 +827,7 @@ export default function ThietKeBaoBiClientPage() {
     setBagWidth(p.bagWidth ?? 200)
     setBagHeight(p.bagHeight ?? 280)
     setBagGusset(p.bagGusset ?? 60)
+    setBagType(p.bagType ?? 'stand-up-pouch')
     setContentBlocks(p.contentBlocks?.length ? p.contentBlocks : [{ id: `cb-${Date.now()}`, label: '', content: '' }])
     setPackagingQuantity(p.packagingQuantity ?? '')
     setPackagingWeight(p.packagingWeight ?? '')
@@ -785,8 +839,10 @@ export default function ThietKeBaoBiClientPage() {
     setPackagingExpiryDate(p.packagingExpiryDate ?? '')
     setIncludeBoxDims(p.includeBoxDims ?? false)
     setReturnToStep(null)
-    if (p.designType === 'bag' && p.resultUrl) {
-      setStep('RESULT')
+    setEditingFaceSizeKey(null)
+    if (p.designType === 'bag' && p.resultUrl && !p.mockupResultUrl) {
+      setMockupResultUrl(p.resultUrl)
+      setStep('MOCKUP_RESULT')
     } else if (p.mockupResultUrl) {
       setStep('MOCKUP_RESULT')
     } else if (loadedFaces.length >= 6) {
@@ -817,10 +873,10 @@ export default function ThietKeBaoBiClientPage() {
     }
     const sizeKey = (overrideSize ?? selectedFaceSize) as FaceSizeKey
     if (!sizeKey) return
-    if (faces.length >= 6) return
+    if (faces.length >= 6 && !editingFaceSizeKey) return
     setStep('FACE_GENERATING')
     const formData = new FormData()
-    formData.append('faceIndex', String(faces.length + 1))
+    formData.append('faceIndex', String(getFaceIndexFromSizeKey(sizeKey)))
     if (faces.length >= 1) formData.append('referenceImageUrl', faces[0].url)
     else if (referenceImage.file) formData.append('referenceImageFile', referenceImage.file)
     formData.append('surfaceLength', String(Math.max(20, Math.min(800, surfaceLength))))
@@ -872,7 +928,13 @@ export default function ThietKeBaoBiClientPage() {
     } else if (result.success && result.resultUrl) {
       const newFace: CreatedFace = { id: `f-${Date.now()}`, sizeKey: sizeKey!, url: result.resultUrl }
       await preloadImageUrl(result.resultUrl)
-      setFaces((prev) => [...prev, newFace])
+      setFaces((prev) => {
+        const next = editingFaceSizeKey
+          ? prev.filter((f) => f.sizeKey !== editingFaceSizeKey).concat([newFace])
+          : [...prev, newFace]
+        return next.sort((a, b) => FACE_ORDER.indexOf(a.sizeKey) - FACE_ORDER.indexOf(b.sizeKey))
+      })
+      setEditingFaceSizeKey(null)
       setLastCreatedFace(newFace)
       setStep('FACE_RESULT')
       window.dispatchEvent(new Event('credits-updated'))
@@ -893,6 +955,13 @@ export default function ThietKeBaoBiClientPage() {
   }
 
   const handleFaceApprove = () => {
+    setEditingFaceSizeKey(null)
+    setStep('FACE_INPUT')
+  }
+
+  /** Quay lại form để tạo ảnh mới (không phải sửa) */
+  const handleAddNewFace = () => {
+    setEditingFaceSizeKey(null)
     setStep('FACE_INPUT')
   }
 
@@ -903,20 +972,32 @@ export default function ThietKeBaoBiClientPage() {
       setSelectedFaceSize(lastCreatedFace.sizeKey)
       setLastCreatedFace(null)
     }
-    setStep('FACE_INPUT')
+    setEditingFaceSizeKey(null)
+    setStep(designType === 'bag' ? 'INPUT' : 'FACE_INPUT')
   }
 
   const handleMockupSubmit = async () => {
     if (faces.length < 1) return
     setStep('MOCKUP_GENERATING')
-    const result = await createBoxMockupFromFaces({
-      faces: faces.map((f) => ({ url: f.url, sizeKey: f.sizeKey })),
-      boxLength,
-      boxWidth,
-      boxHeight,
-      aspectRatio,
-      imageQuality,
-    })
+    const result =
+      designType === 'bag'
+        ? await createBagMockupFromFlat({
+            flatImageUrl: faces[0].url,
+            bagWidth,
+            bagHeight,
+            bagGusset,
+            bagType,
+            aspectRatio: getAspectRatioFromDimensions(bagWidth, bagHeight, textOrientation),
+            imageQuality,
+          })
+        : await createBoxMockupFromFaces({
+            faces: faces.map((f) => ({ url: f.url, sizeKey: f.sizeKey })),
+            boxLength,
+            boxWidth,
+            boxHeight,
+            aspectRatio,
+            imageQuality,
+          })
     if (result.error) {
       setStep('MOCKUP_INPUT')
       toast({
@@ -930,7 +1011,7 @@ export default function ThietKeBaoBiClientPage() {
       setMockupResultUrl(result.resultUrl)
       setStep('MOCKUP_RESULT')
       saveProject({
-        designType: 'box',
+        designType,
         brandName,
         productName,
         companyAddress,
@@ -962,6 +1043,7 @@ export default function ThietKeBaoBiClientPage() {
         bagWidth,
         bagHeight,
         bagGusset,
+        bagType,
         contentBlocks,
         packagingQuantity,
         packagingWeight,
@@ -977,18 +1059,25 @@ export default function ThietKeBaoBiClientPage() {
       window.dispatchEvent(new Event('credits-updated'))
       toast({
         title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'),
-        description: tr('Đã in 3 ảnh phẳng lên hộp 3D.', '3 flat designs printed onto 3D box.', '已将3张平面图印到3D盒子上。', '3枚の平面デザインを3D箱に印刷しました。', '3장 평면 디자인을 3D 상자에 인쇄했습니다.'),
+        description:
+          designType === 'bag'
+            ? tr('Đã in ảnh phẳng lên túi 3D.', 'Flat design printed onto 3D bag.', '已将平面图印到3D袋子上。', '平面デザインを3D袋に印刷しました。', '평면 디자인을 3D 가방에 인쇄했습니다.')
+            : tr('Đã in 3 ảnh phẳng lên hộp 3D.', '3 flat designs printed onto 3D box.', '已将3张平面图印到3D盒子上。', '3枚の平面デザインを3D箱に印刷しました。', '3장 평면 디자인을 3D 상자에 인쇄했습니다.'),
         duration: 3000,
       })
     }
   }
 
-  /** Xóa ảnh và quay FACE_INPUT để tạo lại với cùng kích thước. */
+  /** Sửa ảnh: quay FACE_INPUT (hộp) hoặc INPUT (túi), giữ ảnh cũ. Khi tạo xong ảnh mới sẽ thay đúng vị trí. */
   const handleEditFace = (face: CreatedFace, fromStep?: 'MOCKUP_INPUT' | 'MOCKUP_RESULT') => {
-    setFaces((prev) => prev.filter((f) => f.id !== face.id))
+    setEditingFaceSizeKey(face.sizeKey)
     setSelectedFaceSize(face.sizeKey)
     setReturnToStep(fromStep ?? null)
-    setStep('FACE_INPUT')
+    if (designType === 'bag') {
+      setStep('INPUT')
+    } else {
+      setStep('FACE_INPUT')
+    }
   }
 
   const handleDielineDownload = async () => {
@@ -1090,13 +1179,19 @@ export default function ThietKeBaoBiClientPage() {
     <>
       <Toaster />
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-foreground">
-            {tr('Thiết kế bao bì AI - Hộp carton, túi đựng', 'AI Packaging Design - Carton box, flat bag', 'AI包装设计 - 纸箱、袋子', 'AIパッケージデザイン - 段ボール箱・平面袋', 'AI 패키징 디자인 - 골판지 상자, 평면 가방')}
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            {tr('Tải ảnh sản phẩm in lên hộp/túi, nhập thương hiệu & sản phẩm. AI tạo mockup chuyên nghiệp, thẩm mỹ cao. 1,5–3 credits/lượt.', 'Upload product image to print on box/bag, enter brand & product. AI creates professional, high-aesthetic mockup. 1.5–3 credits/creation.', '上传产品图片打印到包装上，输入品牌和产品。AI 生成专业高美学样机。1.5–3 积分/次。', '商品画像をアップロードして箱・袋に印刷、ブランド・商品を入力。AIがプロ品質のモックアップを生成。1.5〜3クレジット/回。', '상품 이미지 업로드하여 상자/가방에 인쇄, 브랜드·상품 입력. AI가 전문적 고품질 목업 생성. 1.5–3 크레딧/회.')}
-          </p>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="text-center sm:text-left">
+            <h1 className="text-2xl font-bold text-foreground">
+              {tr('Thiết kế bao bì AI - Hộp carton, túi đựng', 'AI Packaging Design - Carton box, flat bag', 'AI包装设计 - 纸箱、袋子', 'AIパッケージデザイン - 段ボール箱・平面袋', 'AI 패키징 디자인 - 골판지 상자, 평면 가방')}
+            </h1>
+            <p className="text-muted-foreground mt-1">
+              {tr('Tải ảnh sản phẩm in lên hộp/túi, nhập thương hiệu & sản phẩm. AI tạo mockup chuyên nghiệp, thẩm mỹ cao. 1,5–3 credits/lượt.', 'Upload product image to print on box/bag, enter brand & product. AI creates professional, high-aesthetic mockup. 1.5–3 credits/creation.', '上传产品图片打印到包装上，输入品牌和产品。AI 生成专业高美学样机。1.5–3 积分/次。', '商品画像をアップロードして箱・袋に印刷、ブランド・商品を入力。AIがプロ品質のモックアップを生成。1.5〜3クレジット/回。', '상품 이미지 업로드하여 상자/가방에 인쇄, 브랜드·상품 입력. AI가 전문적 고품질 목업 생성. 1.5–3 크레딧/회.')}
+            </p>
+          </div>
+          <Button variant="outline" size="sm" onClick={handleReset} className="gap-2 shrink-0 self-center">
+            <Plus className="h-4 w-4" />
+            {tr('Tạo mới', 'Create new', '新建', '新規作成', '새로 만들기')}
+          </Button>
         </div>
 
         {(step === 'INPUT' && draftExists) || projects.length > 0 ? (
@@ -1179,7 +1274,7 @@ export default function ThietKeBaoBiClientPage() {
           </div>
         ) : null}
 
-        {designType === 'box' && ['FACE_INPUT', 'FACE_RESULT', 'MOCKUP_INPUT', 'MOCKUP_RESULT'].includes(step) && (
+        {(designType === 'box' || designType === 'bag') && ['FACE_INPUT', 'FACE_RESULT', 'MOCKUP_INPUT', 'MOCKUP_RESULT'].includes(step) && (
           <Card className="border-slate-200/80">
             <CardContent className="py-3">
               <div className="flex flex-wrap items-center justify-center gap-2">
@@ -1256,22 +1351,31 @@ export default function ThietKeBaoBiClientPage() {
             {faces.length >= 1 && (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-2">
                 {faces.map((f, i) => {
-                  const [len, wid] = getDimensionsFromSizeKey(f.sizeKey, boxLength, boxWidth, boxHeight)
+                  const [len, wid] = designType === 'bag' ? getDimensionsFromSizeKey(f.sizeKey, 0, bagWidth, bagHeight) : getDimensionsFromSizeKey(f.sizeKey, boxLength, boxWidth, boxHeight)
+                  const sizeLabel = designType === 'bag' ? `W×H (${bagWidth}×${bagHeight} mm)` : getSizeKeyLabel(f.sizeKey, boxLength, boxWidth, boxHeight)
                   return (
                     <div key={f.id} className="space-y-1">
                       <p className="text-xs font-medium text-muted-foreground">
-                        {tr('Ảnh', 'Image', '图', '画像', '이미지')} {i + 1} – {getSizeKeyLabel(f.sizeKey, boxLength, boxWidth, boxHeight)}
+                        {tr('Ảnh', 'Image', '图', '画像', '이미지')} {i + 1} – {sizeLabel}
                       </p>
-                      <img src={f.url} alt="" className="w-full aspect-square object-contain rounded border bg-muted/30" />
-                      <DownloadImageButton
-                        imageUrl={f.url}
-                        filename={`box-flat-${f.sizeKey}-${i + 1}-${Date.now()}.png`}
-                        printReady
-                        printReadyAspectRatio={getAspectRatioFromDimensions(len, wid, textOrientation)}
-                        printReadyLabel={tr('Tải PDF chuẩn in', 'Download print-ready PDF', '下载印刷用PDF', '印刷用PDFをダウンロード', '인쇄용 PDF 다운로드')}
-                        size="sm"
-                        className="w-full mt-1"
-                      />
+                      <div className="w-full aspect-square rounded border bg-muted/30 overflow-hidden">
+                        <ImagePreview src={f.url} alt="" className="w-full h-full" asImg />
+                      </div>
+                      <div className="flex gap-1 mt-1">
+                        <DownloadImageButton
+                          imageUrl={f.url}
+                          filename={`${designType}-flat-${f.sizeKey}-${i + 1}-${Date.now()}.png`}
+                          printReady
+                          printReadyAspectRatio={getAspectRatioFromDimensions(len, wid, textOrientation)}
+                          printReadyLabel={tr('Tải PDF chuẩn in', 'Download print-ready PDF', '下载印刷用PDF', '印刷用PDFをダウンロード', '인쇄용 PDF 다운로드')}
+                          size="sm"
+                          className="flex-1"
+                        />
+                        <Button variant="outline" size="sm" onClick={handleOpenRemoveBg} className="gap-1 shrink-0 border-teal-200 text-teal-700 hover:bg-teal-50">
+                          <Eraser className="h-3.5 w-3.5" />
+                          {tr('Tách nền', 'Remove BG', '抠图', '背景削除', '배경 제거')}
+                        </Button>
+                      </div>
                     </div>
                   )
                 })}
@@ -1288,16 +1392,19 @@ export default function ThietKeBaoBiClientPage() {
               </DialogTitle>
             </DialogHeader>
             {mockupResultUrl && (
-              <div className="mt-2">
-                <img
-                  src={mockupResultUrl}
-                  alt={tr('Hộp 3D', '3D box', '3D盒子', '3D箱', '3D 상자')}
-                  className="w-full max-h-[60vh] object-contain rounded border bg-muted/30"
-                />
+              <div className="mt-2 space-y-3">
+                <div className="w-full aspect-video max-h-[60vh] rounded overflow-hidden border bg-muted/30">
+                  <ImagePreview
+                    src={mockupResultUrl}
+                    alt={tr('Hộp 3D', '3D box', '3D盒子', '3D箱', '3D 상자')}
+                    className="w-full h-full object-contain"
+                    asImg
+                  />
+                </div>
                 <Button
                   variant="outline"
                   size="sm"
-                  className="mt-3 w-full"
+                  className="w-full"
                   onClick={() => {
                     setQuickView3dOpen(false)
                     setStep('MOCKUP_RESULT')
@@ -1310,41 +1417,14 @@ export default function ThietKeBaoBiClientPage() {
           </DialogContent>
         </Dialog>
 
+        <div ref={stepContentRef}>
         {step === 'GENERATING' && (
           <div className="flex flex-col items-center justify-center py-12">
             <ImageProcessingLoader
               mode="seal"
               title={String(tr('Đang tạo mockup', 'Creating mockup', '正在创建样机', 'モックアップ作成中', '목업 생성 중'))}
-              description={String(tr('AI đang thiết kế bao bì chuyên nghiệp', 'AI is designing professional packaging', 'AI 正在设计专业包装', 'AIがプロのパッケージをデザイン中', 'AI가 전문 패키징 디자인 중'))}
+              description={`${tr('AI đang thiết kế bao bì chuyên nghiệp', 'AI is designing professional packaging', 'AI 正在设计专业包装', 'AIがプロのパッケージをデザイン中', 'AI가 전문 패키징 디자인 중')}${designType === 'bag' ? ` – W×H (${bagWidth}×${bagHeight} mm)` : ''}`}
             />
-          </div>
-        )}
-
-        {step === 'RESULT' && resultUrl && designType === 'bag' && (
-          <div className="max-w-2xl mx-auto space-y-4">
-            <Card className="border shadow-sm overflow-hidden">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-center bg-[repeating-conic-gradient(#e5e7eb_0%_25%,#f9fafb_0%_50%)] bg-[length:12px_12px] rounded-lg border p-4">
-                  <img
-                    src={resultUrl}
-                    alt={tr('Mockup bao bì', 'Packaging mockup', '包装样机', 'パッケージモックアップ', '패키징 목업')}
-                    className="max-w-full max-h-[400px] object-contain rounded shadow"
-                  />
-                </div>
-                <div className="flex flex-wrap gap-2 mt-4">
-                  <DownloadImageButton
-                    imageUrl={resultUrl}
-                    filename={`packaging-${designType}-${Date.now()}.png`}
-                    printReady
-                    printReadyInferFromImage
-                    printReadyLabel={tr('Tải PDF chuẩn in', 'Download print-ready PDF', '下载印刷用PDF', '印刷用PDFをダウンロード', '인쇄용 PDF 다운로드')}
-                  />
-                  <Button variant="outline" size="sm" onClick={handleReset}>
-                    {tr('Tạo mới', 'Create new', '新建', '新規作成', '새로 만들기')}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
           </div>
         )}
 
@@ -1353,7 +1433,7 @@ export default function ThietKeBaoBiClientPage() {
             <ImageProcessingLoader
               mode="seal"
               title={String(tr('Đang tạo ảnh phẳng', 'Creating flat design', '正在创建平面图', '平面デザイン作成中', '평면 디자인 생성 중'))}
-              description={`${tr('AI đang tạo ảnh thiết kế phẳng', 'AI is creating flat design', 'AI 正在创建平面设计', 'AIが平面デザインを作成中', 'AI가 평면 디자인 생성 중')}${selectedFaceSize ? ` – ${getSizeKeyLabel(selectedFaceSize, boxLength, boxWidth, boxHeight)}` : ''}`}
+              description={`${tr('AI đang tạo ảnh thiết kế phẳng', 'AI is creating flat design', 'AI 正在创建平面设计', 'AIが平面デザインを作成中', 'AI가 평면 디자인 생성 중')}${designType === 'bag' ? ` – W×H (${bagWidth}×${bagHeight} mm)` : selectedFaceSize ? ` – ${getSizeKeyLabel(selectedFaceSize, boxLength, boxWidth, boxHeight)}` : ''}`}
             />
           </div>
         )}
@@ -1363,7 +1443,7 @@ export default function ThietKeBaoBiClientPage() {
             <Card className="border shadow-sm overflow-hidden">
               <CardContent className="p-4">
                 <p className="text-sm font-medium text-muted-foreground mb-2">
-                  {tr('Ảnh', 'Image', '图', '画像', '이미지')} {faces.length} – {getSizeKeyLabel(lastCreatedFace.sizeKey, boxLength, boxWidth, boxHeight)}
+                  {tr('Ảnh', 'Image', '图', '画像', '이미지')} {faces.length} – {designType === 'bag' ? `W×H (${bagWidth}×${bagHeight} mm)` : getSizeKeyLabel(lastCreatedFace.sizeKey, boxLength, boxWidth, boxHeight)}
                 </p>
                 <div className="flex items-center justify-center bg-[repeating-conic-gradient(#e5e7eb_0%_25%,#f9fafb_0%_50%)] bg-[length:12px_12px] rounded-lg border p-4 min-h-[200px]">
                   <FaceResultImage
@@ -1376,14 +1456,16 @@ export default function ThietKeBaoBiClientPage() {
                 <div className="flex flex-wrap gap-2 mt-4">
                   <DownloadImageButton
                     imageUrl={lastCreatedFace.url}
-                    filename={`box-flat-${lastCreatedFace.sizeKey}-${Date.now()}.png`}
+                    filename={`${designType}-flat-${lastCreatedFace.sizeKey}-${Date.now()}.png`}
                     printReady
-                    printReadyAspectRatio={getAspectRatioFromDimensions(surfaceLength, surfaceWidth, textOrientation)}
+                    printReadyAspectRatio={getAspectRatioFromDimensions(designType === 'bag' ? bagWidth : surfaceLength, designType === 'bag' ? bagHeight : surfaceWidth, textOrientation)}
                     printReadyLabel={tr('Tải PDF chuẩn in', 'Download print-ready PDF', '下载印刷用PDF', '印刷用PDFをダウンロード', '인쇄용 PDF 다운로드')}
                   />
-                  <Button variant="default" size="sm" onClick={handleFaceApprove} className="gap-2">
-                    {tr('Tiếp tục tạo ảnh', 'Continue creating', '继续创建', '続けて作成', '계속 생성')}
-                  </Button>
+                  {designType === 'box' && (
+                    <Button variant="default" size="sm" onClick={handleFaceApprove} className="gap-2">
+                      {tr('Tiếp tục tạo ảnh', 'Continue creating', '继续创建', '続けて作成', '계속 생성')}
+                    </Button>
+                  )}
                   <Button variant="default" size="sm" onClick={() => setStep('MOCKUP_INPUT')} className="gap-2">
                     {tr('Chuyển sang Mockup 3D', 'Go to 3D Mockup', '转到3D样机', '3Dモックアップへ', '3D 목업으로')}
                   </Button>
@@ -1404,35 +1486,69 @@ export default function ThietKeBaoBiClientPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
                 <LayoutTemplate className="h-4 w-4 text-amber-600" />
-                {tr('In 1–6 ảnh phẳng lên hộp 3D', 'Print 1–6 flat designs onto 3D box', '将1–6张平面图印到3D盒子上', '1–6枚の平面デザインを3D箱に印刷', '1–6장 평면 디자인을 3D 상자에 인쇄')}
+                {designType === 'bag'
+                  ? tr('In ảnh phẳng lên túi 3D', 'Print flat design onto 3D bag', '将平面图印到3D袋子上', '平面デザインを3D袋に印刷', '평면 디자인을 3D 가방에 인쇄')
+                  : tr('In 1–6 ảnh phẳng lên hộp 3D', 'Print 1–6 flat designs onto 3D box', '将1–6张平面图印到3D盒子上', '1–6枚の平面デザインを3D箱に印刷', '1–6장 평면 디자인을 3D 상자에 인쇄')}
               </CardTitle>
               <CardDescription>
-                {tr('Đã có ảnh phẳng (thiết kế in). Bước này ghép in lên hộp 3D.', 'Flat designs ready. This step prints them onto the 3D box.', '已有平面设计。此步骤将其印到3D盒子上。', '平面デザイン準備完了。このステップで3D箱に印刷。', '평면 디자인 준비 완료. 이 단계에서 3D 상자에 인쇄.')}
+                {designType === 'bag'
+                  ? tr('Đã có ảnh phẳng túi. Bước này ghép in lên túi 3D.', 'Bag flat design ready. This step prints it onto the 3D bag.', '袋子平面图已就绪。此步骤将其印到3D袋子上。', '袋の平面デザイン準備完了。このステップで3D袋に印刷。', '가방 평면 디자인 준비 완료. 이 단계에서 3D 가방에 인쇄.')
+                  : tr('Đã có ảnh phẳng. Bước này ghép in lên hộp 3D.', 'Flat designs ready. This step prints them onto the 3D box.', '已有平面设计。此步骤将其印到3D盒子上。', '平面デザイン準備完了。このステップで3D箱に印刷。', '평면 디자인 준비 완료. 이 단계에서 3D 상자에 인쇄.')}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {faces.map((f, i) => {
-                  const [len, wid] = getDimensionsFromSizeKey(f.sizeKey, boxLength, boxWidth, boxHeight)
+                  const [len, wid] =
+                    designType === 'bag'
+                      ? getDimensionsFromSizeKey(f.sizeKey, 0, bagWidth, bagHeight)
+                      : getDimensionsFromSizeKey(f.sizeKey, boxLength, boxWidth, boxHeight)
+                  const sizeLabel =
+                    designType === 'bag' ? `W×H (${bagWidth} x ${bagHeight} mm)` : getSizeKeyLabel(f.sizeKey, boxLength, boxWidth, boxHeight)
                   return (
                     <div key={f.id} className="space-y-1">
                       <p className="text-xs text-muted-foreground">
-                        {tr('Ảnh phẳng', 'Flat design', '平面图', '平面デザイン', '평면 디자인')} {i + 1} – {getSizeKeyLabel(f.sizeKey, boxLength, boxWidth, boxHeight)}
+                        {tr('Ảnh phẳng', 'Flat design', '平面图', '平面デザイン', '평면 디자인')} {i + 1} – {sizeLabel}
                       </p>
-                      <img src={f.url} alt="" className="w-full aspect-square object-contain rounded border" />
-                      <DownloadImageButton
-                        imageUrl={f.url}
-                        filename={`box-flat-${f.sizeKey}-${i + 1}-${Date.now()}.png`}
-                        printReady
-                        printReadyAspectRatio={getAspectRatioFromDimensions(len, wid, textOrientation)}
-                        printReadyLabel={tr('Tải PDF chuẩn in', 'Download print-ready PDF', '下载印刷用PDF', '印刷用PDFをダウンロード', '인쇄용 PDF 다운로드')}
-                        size="sm"
-                        className="w-full"
-                      />
+                      <div className="w-full aspect-square rounded border overflow-hidden">
+                        <ImagePreview src={f.url} alt="" className="w-full h-full" asImg />
+                      </div>
+                      <div className="flex gap-1">
+                        <DownloadImageButton
+                          imageUrl={f.url}
+                          filename={`${designType}-flat-${f.sizeKey}-${i + 1}-${Date.now()}.png`}
+                          printReady
+                          printReadyAspectRatio={getAspectRatioFromDimensions(len, wid, textOrientation)}
+                          printReadyLabel={tr('Tải PDF chuẩn in', 'Download print-ready PDF', '下载印刷用PDF', '印刷用PDFをダウンロード', '인쇄용 PDF 다운로드')}
+                          size="sm"
+                          className="flex-1"
+                        />
+                        <Button variant="outline" size="sm" onClick={handleOpenRemoveBg} className="gap-1 shrink-0 border-teal-200 text-teal-700 hover:bg-teal-50">
+                          <Eraser className="h-3.5 w-3.5" />
+                          {tr('Tách nền', 'Remove BG', '抠图', '背景削除', '배경 제거')}
+                        </Button>
+                      </div>
                     </div>
                   )
                 })}
               </div>
+              {designType === 'bag' && (
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground">{tr('Loại túi', 'Bag type', '袋子类型', '袋の種類', '가방 유형')}</label>
+                  <Select value={bagType} onValueChange={(v) => setBagType(v as BagType)}>
+                    <SelectTrigger className="w-full max-w-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {BAG_TYPE_LABELS.map((b) => (
+                        <SelectItem key={b.value} value={b.value}>
+                          {getBagTypeLabel(b)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div className="flex flex-wrap gap-2">
                 <div className="space-y-1">
                   <label className="text-xs text-muted-foreground">{tr('Tỷ lệ', 'Aspect ratio', '比例', '比率', '비율')}{opt}</label>
@@ -1464,10 +1580,13 @@ export default function ThietKeBaoBiClientPage() {
               <div className="flex flex-wrap gap-2">
                 <Button onClick={handleMockupSubmit} className="flex-1 min-h-[44px]" size="lg">
                   <Sparkles className="h-4 w-4 mr-2" />
-                  {tr('In lên hộp 3D', 'Print onto 3D box', '印到3D盒子上', '3D箱に印刷', '3D 상자에 인쇄')} ({formatCredits(cost)} {tr('credits', 'credits', '积分', 'クレジット', '크레딧')})
+                  {designType === 'bag'
+                    ? tr('In lên túi 3D', 'Print onto 3D bag', '印到3D袋子上', '3D袋に印刷', '3D 가방에 인쇄')
+                    : tr('In lên hộp 3D', 'Print onto 3D box', '印到3D盒子上', '3D箱に印刷', '3D 상자에 인쇄')}{' '}
+                  ({formatCredits(cost)} {tr('credits', 'credits', '积分', 'クレジット', '크레딧')})
                 </Button>
-                {faces.length < 6 && (
-                  <Button variant="outline" size="lg" onClick={() => setStep('FACE_INPUT')} className="gap-2">
+                {designType === 'box' && faces.length < 6 && (
+                  <Button variant="outline" size="lg" onClick={handleAddNewFace} className="gap-2">
                     <Plus className="h-4 w-4" />
                     {tr('Quay lại tạo ảnh phẳng tiếp theo', 'Back to create more flat designs', '返回创建更多平面图', '戻って平面デザインを追加', '돌아가서 평면 디자인 추가')}
                   </Button>
@@ -1489,8 +1608,8 @@ export default function ThietKeBaoBiClientPage() {
           <div className="flex flex-col items-center justify-center py-12">
             <ImageProcessingLoader
               mode="seal"
-              title={String(tr('Đang in ảnh phẳng lên hộp 3D', 'Printing flat designs onto 3D box', '正在将平面图印到3D盒子上', '平面デザインを3D箱に印刷中', '평면 디자인을 3D 상자에 인쇄 중'))}
-              description={String(tr('AI đang ghép in ảnh thiết kế lên hộp carton 3D', 'AI is printing designs onto 3D carton box', 'AI 正在将设计印到3D纸箱上', 'AIがデザインを3D段ボール箱に印刷中', 'AI가 디자인을 3D 골판지 상자에 인쇄 중'))}
+              title={String(designType === 'bag' ? tr('Đang in ảnh phẳng lên túi 3D', 'Printing flat design onto 3D bag', '正在将平面图印到3D袋子上', '平面デザインを3D袋に印刷中', '평면 디자인을 3D 가방에 인쇄 중') : tr('Đang in ảnh phẳng lên hộp 3D', 'Printing flat designs onto 3D box', '正在将平面图印到3D盒子上', '平面デザインを3D箱に印刷中', '평면 디자인을 3D 상자에 인쇄 중'))}
+              description={String(designType === 'bag' ? tr('AI đang ghép in ảnh thiết kế lên túi 3D', 'AI is printing design onto 3D bag', 'AI 正在将设计印到3D袋子上', 'AIがデザインを3D袋に印刷中', 'AI가 디자인을 3D 가방에 인쇄 중') : tr('AI đang ghép in ảnh thiết kế lên hộp carton 3D', 'AI is printing designs onto 3D carton box', 'AI 正在将设计印到3D纸箱上', 'AIがデザインを3D段ボール箱に印刷中', 'AI가 디자인을 3D 골판지 상자에 인쇄 중'))}
             />
           </div>
         )}
@@ -1500,17 +1619,20 @@ export default function ThietKeBaoBiClientPage() {
             <Card className="border shadow-sm overflow-hidden">
               <CardContent className="p-4">
                 <div className="flex items-center justify-center bg-[repeating-conic-gradient(#e5e7eb_0%_25%,#f9fafb_0%_50%)] bg-[length:12px_12px] rounded-lg border p-4">
-                  <img
-                    src={mockupResultUrl}
-                    alt={tr('Hộp 3D đã in 3 ảnh phẳng', '3D box with 3 flat designs printed', '已印3张平面图的3D盒子', '3枚の平面デザインを印刷した3D箱', '3장 평면 디자인 인쇄된 3D 상자')}
-                    className="max-w-full max-h-[400px] object-contain rounded shadow"
-                  />
+                  <div className="w-full max-w-full aspect-video max-h-[400px] rounded overflow-hidden">
+                    <ImagePreview
+                      src={mockupResultUrl}
+                      alt={designType === 'bag' ? tr('Túi 3D đã in ảnh phẳng', '3D bag with flat design printed', '已印平面图的3D袋子', '平面デザインを印刷した3D袋', '평면 디자인 인쇄된 3D 가방') : tr('Hộp 3D đã in 3 ảnh phẳng', '3D box with 3 flat designs printed', '已印3张平面图的3D盒子', '3枚の平面デザインを印刷した3D箱', '3장 평면 디자인 인쇄된 3D 상자')}
+                      className="w-full h-full object-contain rounded shadow"
+                      asImg
+                    />
+                  </div>
                 </div>
                 <div className="flex flex-col gap-3 mt-4">
                   <div className="flex flex-wrap gap-2">
                     <DownloadImageButton
                       imageUrl={mockupResultUrl}
-                      filename={`box-mockup-3d-${Date.now()}.png`}
+                      filename={`${designType}-mockup-3d-${Date.now()}.png`}
                       printReady
                       printReadyAspectRatio={aspectRatio}
                       printReadyInferFromImage
@@ -1522,14 +1644,14 @@ export default function ThietKeBaoBiClientPage() {
                   </div>
                   <div className="space-y-1">
                     <p className="text-xs font-medium text-muted-foreground">{tr('Tải ảnh phẳng', 'Download flat designs', '下载平面图', '平面デザインをダウンロード', '평면 디자인 다운로드')}</p>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-2 items-center">
                       {faces.map((f, i) => {
-                        const [len, wid] = getDimensionsFromSizeKey(f.sizeKey, boxLength, boxWidth, boxHeight)
+                        const [len, wid] = designType === 'bag' ? getDimensionsFromSizeKey(f.sizeKey, 0, bagWidth, bagHeight) : getDimensionsFromSizeKey(f.sizeKey, boxLength, boxWidth, boxHeight)
                         return (
                           <DownloadImageButton
                             key={f.id}
                             imageUrl={f.url}
-                            filename={`box-flat-${f.sizeKey}-${i + 1}-${Date.now()}.png`}
+                            filename={`${designType}-flat-${f.sizeKey}-${i + 1}-${Date.now()}.png`}
                             printReady
                             printReadyAspectRatio={getAspectRatioFromDimensions(len, wid, textOrientation)}
                             printReadyLabel={tr('Tải PDF chuẩn in', 'Download print-ready PDF', '下载印刷用PDF', '印刷用PDFをダウンロード', '인쇄용 PDF 다운로드')}
@@ -1537,13 +1659,17 @@ export default function ThietKeBaoBiClientPage() {
                           />
                         )
                       })}
+                      <Button variant="outline" size="sm" onClick={handleOpenRemoveBg} className="gap-1.5 border-teal-200 text-teal-700 hover:bg-teal-50">
+                        <Eraser className="h-3.5 w-3.5" />
+                        {tr('Tách nền', 'Remove BG', '抠图', '背景削除', '배경 제거')}
+                      </Button>
                     </div>
                   </div>
                   <div className="space-y-1">
                     <p className="text-xs font-medium text-muted-foreground">{tr('Sửa / Làm lại ảnh phẳng', 'Edit / Redo flat design', '编辑/重做平面图', '編集・やり直し', '편집/다시 하기')}</p>
                     <div className="flex flex-wrap gap-2">
-                      {faces.length < 6 && (
-                        <Button variant="outline" size="sm" onClick={() => setStep('FACE_INPUT')} className="gap-1.5">
+                      {designType === 'box' && faces.length < 6 && (
+                        <Button variant="outline" size="sm" onClick={handleAddNewFace} className="gap-1.5">
                           <Plus className="h-3.5 w-3.5" />
                           {tr('Quay lại tạo ảnh phẳng tiếp theo', 'Back to create more flat designs', '返回创建更多平面图', '戻って平面デザインを追加', '돌아가서 평면 디자인 추가')}
                         </Button>
@@ -1558,36 +1684,39 @@ export default function ThietKeBaoBiClientPage() {
                       {tr('Chọn ảnh cần sửa/làm lại. Quay về form, chỉnh rồi tạo lại. Các ảnh khác giữ nguyên.', 'Select image to edit/redo. Return to form, adjust and regenerate. Other images stay unchanged.', '选择要编辑/重做的图片。返回表单修改后重新生成。其他图片保持不变。', '編集・やり直す画像を選択。フォームに戻り、修正して再生成。他はそのまま。', '편집/다시 할 이미지 선택. 폼으로 돌아가 수정 후 재생성. 다른 이미지는 유지.')}
                     </p>
                   </div>
-                  <Card className="border-emerald-200/60 bg-emerald-50/30">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="flex items-center gap-2 text-sm">
-                        <FileText className="h-4 w-4 text-emerald-600" />
-                        {tr('Bản vẽ Dieline chuẩn in', 'Print-ready Dieline', '印刷用Dieline', '印刷用Dieline', '인쇄용 Dieline')}
-                      </CardTitle>
-                      <CardDescription className="text-xs">
-                        {tr('Layer đường cắt (Cut, đỏ) và đường cấn (Crease, xanh) tách biệt cho máy bế. Bleed 3mm. PDF chất lượng cao.', 'Cut (red) and Crease (green) layers separated for die-cutting. Bleed 3mm. High-quality PDF.', '裁切(红)与压痕(绿)分层，便于模切。出血3mm。高质量PDF。', 'カット(赤)と折り(緑)を分離。塗り足し3mm。高品質PDF。', '절단(빨강)과 접힘(초록) 레이어 분리. 블리드 3mm. 고품질 PDF.')}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="pt-0">
-                      <Button
-                        size="sm"
-                        variant="default"
-                        onClick={handleDielineDownload}
-                        disabled={dielineLoading || !faces.find((f) => f.sizeKey === 'LxW') || !faces.find((f) => f.sizeKey === 'LxH') || !faces.find((f) => f.sizeKey === 'WxH')}
-                        className="gap-2 bg-emerald-600 hover:bg-emerald-700"
-                      >
-                        <FileText className="h-3 w-3" />
-                        {dielineLoading
-                          ? tr('Đang tạo...', 'Creating...', '生成中...', '作成中...', '생성 중...')
-                          : tr('Tải Bản vẽ Dieline chuẩn', 'Download Dieline PDF', '下载Dieline PDF', 'Dieline PDFをダウンロード', 'Dieline PDF 다운로드')}
-                      </Button>
-                    </CardContent>
-                  </Card>
+                  {designType === 'box' && (
+                    <Card className="border-emerald-200/60 bg-emerald-50/30">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="flex items-center gap-2 text-sm">
+                          <FileText className="h-4 w-4 text-emerald-600" />
+                          {tr('Bản vẽ Dieline chuẩn in', 'Print-ready Dieline', '印刷用Dieline', '印刷用Dieline', '인쇄용 Dieline')}
+                        </CardTitle>
+                        <CardDescription className="text-xs">
+                          {tr('Layer đường cắt (Cut, đỏ) và đường cấn (Crease, xanh) tách biệt cho máy bế. Bleed 3mm. PDF chất lượng cao.', 'Cut (red) and Crease (green) layers separated for die-cutting. Bleed 3mm. High-quality PDF.', '裁切(红)与压痕(绿)分层，便于模切。出血3mm。高质量PDF。', 'カット(赤)と折り(緑)を分離。塗り足し3mm。高品質PDF。', '절단(빨강)과 접힘(초록) 레이어 분리. 블리드 3mm. 고품질 PDF.')}
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="pt-0">
+                        <Button
+                          size="sm"
+                          variant="default"
+                          onClick={handleDielineDownload}
+                          disabled={dielineLoading || !faces.find((f) => f.sizeKey === 'LxW') || !faces.find((f) => f.sizeKey === 'LxH') || !faces.find((f) => f.sizeKey === 'WxH')}
+                          className="gap-2 bg-emerald-600 hover:bg-emerald-700"
+                        >
+                          <FileText className="h-3 w-3" />
+                          {dielineLoading
+                            ? tr('Đang tạo...', 'Creating...', '生成中...', '作成中...', '생성 중...')
+                            : tr('Tải Bản vẽ Dieline chuẩn', 'Download Dieline PDF', '下载Dieline PDF', 'Dieline PDFをダウンロード', 'Dieline PDF 다운로드')}
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  )}
                 </div>
               </CardContent>
             </Card>
           </div>
         )}
+        </div>
 
         {step === 'INPUT' && (
           <Card className="border shadow-sm bg-white/80 backdrop-blur border-amber-200/60">
@@ -1858,24 +1987,138 @@ export default function ThietKeBaoBiClientPage() {
                 </>
               )}
               {designType === 'bag' && (
-                <div className="space-y-2">
-                  <label className="text-xs font-medium text-muted-foreground">{tr('Kích thước túi (mm)', 'Bag dimensions (mm)', '袋子尺寸（毫米）', '袋のサイズ（mm）', '가방 크기 (mm)')}{opt}</label>
-                  <div className="grid grid-cols-3 gap-2">
-                    <div className="space-y-1">
-                      <label className="text-xs text-muted-foreground">W</label>
-                      <Input type="number" min={20} max={500} value={bagWidth} onChange={(e) => setBagWidth(Number(e.target.value) || 20)} placeholder="200" />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-xs text-muted-foreground">H</label>
-                      <Input type="number" min={20} max={500} value={bagHeight} onChange={(e) => setBagHeight(Number(e.target.value) || 20)} placeholder="280" />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-xs text-muted-foreground">G</label>
-                      <Input type="number" min={10} max={200} value={bagGusset} onChange={(e) => setBagGusset(Number(e.target.value) || 10)} placeholder="60" />
+                <>
+                  <div className="space-y-2">
+                    <label className="text-xs font-medium text-muted-foreground">{tr('Ảnh tham khảo phong cách', 'Style reference image', '风格参考图', 'スタイル参考画像', '스타일 참조 이미지')} {opt}</label>
+                    <p className="text-xs text-muted-foreground">
+                      {tr('AI lấy thông tin của bạn (thương hiệu, sản phẩm...) và tùy biến theo style ảnh này. Không bê nguyên ảnh tham khảo. Khi có ảnh này, không dùng ảnh sản phẩm. Vẫn chọn màu nền và viền bên dưới.', 'AI uses your info (brand, product...) and customizes to match this style. Do not copy reference verbatim. When set, product images are not used. Still choose background and border below.', 'AI使用您的信息（品牌、产品等）并按此风格定制。不原样复制参考图。设置后不使用产品图。下方仍可选择背景和边框。', 'AIがあなたの情報（ブランド・商品など）を使い、このスタイルに合わせてカスタマイズ。参考画像をそのままコピーしない。設定時は商品画像を使用しない。下で背景・枠を選択可能。', 'AI가 귀하의 정보(브랜드·상품 등)를 사용해 이 스타일에 맞춤. 참조 이미지 그대로 복사 안 함. 설정 시 상품 이미지 미사용. 아래에서 배경·테두리 선택 가능.')}
+                    </p>
+                    <div className="flex items-center gap-3">
+                      <input ref={referenceImageInputRef} type="file" accept="image/*" onChange={handleReferenceImageChange} className="hidden" />
+                      <Button variant="outline" size="sm" type="button" onClick={() => referenceImageInputRef.current?.click()} className="shrink-0">
+                        <Upload className="h-3 w-3 mr-2" />
+                        {tr('Chọn ảnh tham khảo', 'Choose reference image', '选择参考图', '参考画像を選択', '참조 이미지 선택')}
+                      </Button>
+                      {referenceImage.preview && (
+                        <div className="relative inline-block">
+                          <img src={referenceImage.preview} alt="Reference" className="h-24 w-24 sm:h-32 sm:w-32 object-contain rounded-lg border-2 border-amber-200 bg-white shadow-sm" />
+                          <Button variant="ghost" size="icon" className="h-7 w-7 absolute -top-1 -right-1 bg-white rounded-full shadow border hover:bg-muted" onClick={clearReferenceImage}>
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   </div>
-                  <p className="text-xs text-muted-foreground">{tr('Rộng × Cao × Hông (gusset) mm', 'Width × Height × Gusset (mm)', '宽×高×侧边（毫米）', '幅×高さ×ガセット（mm）', '너비×높이×가셋 (mm)')}</p>
-                </div>
+
+                  {referenceImage.preview && (
+                    <p className="text-xs font-medium text-amber-700">
+                      {tr('Vẫn chọn khung viền và màu nền bên dưới:', 'Still choose border and background below:', '仍可选择下方边框和背景：', '下で枠と背景を選択：', '아래에서 테두리와 배경 선택:')}
+                    </p>
+                  )}
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-medium text-muted-foreground">{tr('Kích thước túi (mm)', 'Bag dimensions (mm)', '袋子尺寸（毫米）', '袋のサイズ（mm）', '가방 크기 (mm)')}{opt}</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="space-y-1">
+                        <label className="text-xs text-muted-foreground">W</label>
+                        <Input type="number" min={20} max={500} value={bagWidth} onChange={(e) => setBagWidth(Number(e.target.value) || 20)} placeholder="200" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs text-muted-foreground">H</label>
+                        <Input type="number" min={20} max={500} value={bagHeight} onChange={(e) => setBagHeight(Number(e.target.value) || 20)} placeholder="280" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs text-muted-foreground">G</label>
+                        <Input type="number" min={10} max={200} value={bagGusset} onChange={(e) => setBagGusset(Number(e.target.value) || 10)} placeholder="60" />
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground">{tr('Rộng × Cao × Hông (gusset) mm', 'Width × Height × Gusset (mm)', '宽×高×侧边（毫米）', '幅×高さ×ガセット（mm）', '너비×높이×가셋 (mm)')}</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-medium text-muted-foreground">{tr('Kích thước ảnh đang tạo', 'Image size being created', '正在创建的图片尺寸', '作成中の画像サイズ', '생성 중인 이미지 크기')}{opt}</label>
+                    <p className="text-xs text-muted-foreground">
+                      {tr('Mặt in chính túi (W×H):', 'Main print face (W×H):', '主印刷面（宽×高）：', '主印刷面（幅×高さ）：', '주 인쇄면 (W×H):')}
+                    </p>
+                    <p className="text-sm font-medium text-amber-800">
+                      W×H ({bagWidth}×{bagHeight} mm)
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-medium text-muted-foreground">{tr('Khung viền ảnh phẳng', 'Flat image border', '平面图边框', '平面画像の枠', '평면 이미지 테두리')}{opt}</label>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setHasBorder(false)}
+                        className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
+                          !hasBorder ? 'border-amber-500 bg-amber-50 text-amber-800' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'
+                        }`}
+                      >
+                        {tr('Không có', 'None', '无', 'なし', '없음')}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setHasBorder(true)}
+                        className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
+                          hasBorder ? 'border-amber-500 bg-amber-50 text-amber-800' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'
+                        }`}
+                      >
+                        {tr('Có khung viền', 'With border', '有边框', 'あり', '있음')}
+                      </button>
+                    </div>
+                    {hasBorder && (
+                      <div className="mt-2">
+                        <p className="text-xs text-muted-foreground mb-2">{tr('Kiểu viền:', 'Border style:', '边框样式:', '枠のスタイル:', '테두리 스타일:')}{opt}</p>
+                        <Select value={borderStyle} onValueChange={setBorderStyle}>
+                          <SelectTrigger className="w-full max-w-xs">
+                            <SelectValue placeholder={tr('Chọn kiểu viền', 'Select border style', '选择边框样式', '枠のスタイルを選択', '테두리 스타일 선택')} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {BORDER_STYLES.map((b) => (
+                              <SelectItem key={b.value} value={b.value}>
+                                {getBorderLabel(b)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-medium text-muted-foreground">{tr('Màu nền ảnh phẳng', 'Flat image background', '平面图背景色', '平面画像の背景色', '평면 이미지 배경색')}{opt}</label>
+                    <Select value={backgroundType} onValueChange={setBackgroundType}>
+                      <SelectTrigger className="w-full max-w-xs">
+                        <SelectValue placeholder={tr('Chọn màu nền', 'Select background', '选择背景色', '背景色を選択', '배경색 선택')} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {BACKGROUND_OPTIONS.map((b) => (
+                          <SelectItem key={b.value} value={b.value}>
+                            {getBgLabel(b)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {backgroundType === 'patterned' && (
+                      <div className="mt-2">
+                        <p className="text-xs text-muted-foreground mb-2">{tr('Kiểu hoa văn:', 'Pattern style:', '图案样式:', '模様のスタイル:', '패턴 스타일:')}</p>
+                        <div className="flex flex-wrap gap-2">
+                          {PATTERN_OPTIONS.map((p) => (
+                            <button
+                              key={p.value}
+                              type="button"
+                              onClick={() => setPatternStyle(p.value)}
+                              className={`px-3 py-2 rounded-md border text-sm font-medium ${patternStyle === p.value ? 'border-amber-500 bg-amber-50' : 'border-gray-200'}`}
+                            >
+                              {getPatternLabel(p)}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </>
               )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -2136,7 +2379,7 @@ export default function ThietKeBaoBiClientPage() {
                 <Sparkles className="h-4 w-4 mr-2" />
                 {designType === 'box'
                   ? tr('Bắt đầu - Tạo ảnh phẳng 1', 'Start - Create flat design 1', '开始 - 创建平面图1', '開始 - 平面デザイン1を作成', '시작 - 평면 디자인 1 생성')
-                  : tr('Tạo mockup bằng AI', 'Create mockup with AI', 'AI 创建样机', 'AIでモックアップ作成', 'AI로 목업 생성')}{' '}
+                  : tr('Bắt đầu - Tạo ảnh phẳng túi', 'Start - Create bag flat design', '开始 - 创建袋子平面图', '開始 - 袋の平面デザインを作成', '시작 - 가방 평면 디자인 생성')}{' '}
                 {designType === 'bag' && `(${formatCredits(cost)} ${tr('credits', 'credits', '积分', 'クレジット', '크레딧')})`}
               </Button>
             </CardContent>
@@ -2194,7 +2437,9 @@ export default function ThietKeBaoBiClientPage() {
                           <p className="text-xs font-medium text-muted-foreground mb-1">
                             {tr('Ảnh', 'Image', '图', '画像', '이미지')} {i + 1} – {getSizeKeyLabel(f.sizeKey, boxLength, boxWidth, boxHeight)}
                           </p>
-                          <img src={f.url} alt="" className="w-full aspect-square object-contain rounded border bg-muted/30" />
+                          <div className="w-full aspect-square rounded border bg-muted/30 overflow-hidden">
+                            <ImagePreview src={f.url} alt="" className="w-full h-full" asImg />
+                          </div>
                           <DownloadImageButton
                             imageUrl={f.url}
                             filename={`box-flat-${f.sizeKey}-${i + 1}-${Date.now()}.png`}

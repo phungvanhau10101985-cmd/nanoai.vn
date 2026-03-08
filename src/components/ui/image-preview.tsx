@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
-import { Maximize2, X, Download, FileText } from 'lucide-react'
+import { Maximize2, X, Download, FileText, ExternalLink } from 'lucide-react'
 import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import {
@@ -25,6 +25,8 @@ interface ImagePreviewProps {
   className?: string
   /** Tỷ lệ ảnh (vd: "1:1", "16:9") – nếu không thì tự suy từ kích thước */
   printReadyAspectRatio?: string
+  /** Dùng img thay vì Image fill – cho grid/thumbnail không cần fill */
+  asImg?: boolean
 }
 
 function isRestrictedInAppBrowser(): boolean {
@@ -33,7 +35,7 @@ function isRestrictedInAppBrowser(): boolean {
   return /(FBAN|FBAV|FB_IAB|Instagram|Line\/|Zalo|TikTok)/i.test(ua)
 }
 
-export function ImagePreview({ src, alt, className, printReadyAspectRatio }: ImagePreviewProps) {
+export function ImagePreview({ src, alt, className, printReadyAspectRatio, asImg }: ImagePreviewProps) {
   const [uiLocale, setUiLocale] = useState<'vi' | 'en' | 'zh' | 'ja' | 'ko'>('vi')
   const [isOpen, setIsOpen] = useState(false)
   const [inferredAspectRatio, setInferredAspectRatio] = useState<string | null>(null)
@@ -186,37 +188,55 @@ export function ImagePreview({ src, alt, className, printReadyAspectRatio }: Ima
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <button
-          type="button"
-          className={`relative cursor-pointer group block w-full h-full min-w-0 min-h-0 border-0 p-0 bg-transparent text-left ${className}`}
-          aria-label={tr('Xem ảnh phóng to', 'View enlarged image', '查看大图', '拡大画像を表示', '확대 이미지 보기')}
-        >
-          <Image
-            src={src}
-            alt={alt}
-            fill
-            className="object-cover transition-transform duration-300 group-hover:scale-105"
-          />
-          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100 pointer-events-none">
-            <Maximize2 className="text-white w-6 h-6 drop-shadow-md" />
-          </div>
-        </button>
+        {asImg ? (
+          <button
+            type="button"
+            className={`relative cursor-pointer group block w-full h-full min-w-0 min-h-0 border-0 p-0 bg-transparent text-left overflow-hidden ${className}`}
+            aria-label={tr('Xem ảnh phóng to', 'View enlarged image', '查看大图', '拡大画像を表示', '확대 이미지 보기')}
+          >
+            <img src={src} alt={alt} className="w-full h-full object-contain transition-transform duration-300 group-hover:scale-105" />
+            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100 pointer-events-none">
+              <Maximize2 className="text-white w-6 h-6 drop-shadow-md" />
+            </div>
+          </button>
+        ) : (
+          <button
+            type="button"
+            className={`relative cursor-pointer group block w-full h-full min-w-0 min-h-0 border-0 p-0 bg-transparent text-left ${className}`}
+            aria-label={tr('Xem ảnh phóng to', 'View enlarged image', '查看大图', '拡大画像を表示', '확대 이미지 보기')}
+          >
+            <Image
+              src={src}
+              alt={alt}
+              fill
+              className="object-cover transition-transform duration-300 group-hover:scale-105"
+            />
+            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100 pointer-events-none">
+              <Maximize2 className="text-white w-6 h-6 drop-shadow-md" />
+            </div>
+          </button>
+        )}
       </DialogTrigger>
       <DialogContent className="max-w-[98vw] w-[98vw] min-h-[95vh] max-h-[95vh] p-0 bg-black/90 border-none shadow-lg flex items-center justify-center overflow-hidden">
-        <div className="relative w-full h-full flex items-center justify-center p-2 min-h-[90vh]">
-          <div className="absolute top-2 right-2 z-50 flex gap-2">
+        <div className="relative w-full h-full flex items-center justify-center p-2 min-h-[90vh] overflow-hidden">
+          <div className="absolute top-2 right-2 z-50 flex gap-1.5">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="text-white hover:text-white bg-white/20 hover:bg-white/40 rounded-full border border-white/30"
+                  className="text-white hover:text-white bg-white/20 hover:bg-white/40 rounded-full border border-white/30 h-8 w-8 shrink-0"
                   title={tr('Tải ảnh xuống', 'Download image', '下载图片', '画像をダウンロード', '이미지 다운로드')}
                 >
-                  <Download className="h-6 w-6" />
+                  <Download className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => window.open(src, '_blank', 'noopener,noreferrer')}>
+                  <ExternalLink className="h-3 w-3 mr-2" />
+                  {tr('Mở ảnh full size (tab mới)', 'Open full size (new tab)', '新标签页打开大图', '新タブで実寸表示', '새 탭에서 실제 크기')}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => handleDownload('png')} disabled={pdfLoading}>
                   {tr('Lưu dưới dạng PNG (Chất lượng cao nhất)', 'Save as PNG (Highest quality)', '保存为 PNG（最高质量）', 'PNGで保存（最高画質）', 'PNG로 저장 (최고 품질)')}
                 </DropdownMenuItem>
@@ -251,11 +271,11 @@ export function ImagePreview({ src, alt, className, printReadyAspectRatio }: Ima
             <Button
               variant="ghost"
               size="icon"
-              className="text-white hover:text-white bg-white/20 hover:bg-white/40 rounded-full border border-white/30"
+              className="text-white hover:text-white bg-white/20 hover:bg-white/40 rounded-full border border-white/30 h-8 w-8 shrink-0"
               onClick={() => handleOpenChange(false)}
               title={tr('Đóng', 'Close', '关闭', '閉じる', '닫기')}
             >
-              <X className="h-6 w-6" />
+              <X className="h-4 w-4" />
             </Button>
           </div>
           {/* Dùng img thay vì Next/Image để đảm bảo ảnh hiển thị (tránh lỗi domain/CORS) */}

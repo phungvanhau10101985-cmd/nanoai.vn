@@ -8,15 +8,16 @@ import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/ge
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { buildTransparentPngFromMask } from '@/lib/mask-to-transparent'
 
-const REMOVE_BG_COSTS = { '2K': 1.5, '4K': 3 } as const
+const REMOVE_BG_COST = 1.5
 const toTenths = (value: number) => Math.round(value * 10)
 const fromTenths = (value: number) => value / 10
 const formatCredits = (value: number) => value.toLocaleString('vi-VN', { maximumFractionDigits: 1 })
 
 const MASK_PROMPT = `Create a precise segmentation mask for this image.
 Return ONLY one grayscale mask image:
-- White = KEEP: main subject, product, people, text, logos, important content, textured/gradient areas.
+- White = KEEP: main subject, product, people, text, important content, textured/gradient areas.
 - Black = REMOVE: only unimportant solid/flat color elements – plain backgrounds, decorative borders, flat color blocks, empty areas. Do NOT remove product, text, or main subject.
+- Brand logos: do NOT remove background from logo areas. Keep logo + its background block together as one unit (no transparency around logos).
 - Preserve fine details (hair, fur, edges) with smooth anti-aliased boundaries.
 - No color, no text, no extra graphics in the mask output.`
 
@@ -25,10 +26,9 @@ export async function removeBackgroundToTransparentPng(formData: FormData) {
     return { error: 'Dữ liệu không hợp lệ. Vui lòng thử lại.' }
   }
   const image = formData.get('image') as File
-  const imageQuality = (formData.get('imageQuality') as '2K' | '4K') || '2K'
   if (!image || image.size === 0) return { error: 'Cần tải lên ít nhất một ảnh.' }
 
-  const COST = REMOVE_BG_COSTS[imageQuality]
+  const COST = REMOVE_BG_COST
   const supabase = createClient()
   const adminSupabase = createSupabaseClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -61,7 +61,7 @@ export async function removeBackgroundToTransparentPng(formData: FormData) {
     model: 'gemini-3-pro-image-preview',
     generationConfig: {
       responseModalities: ['TEXT', 'IMAGE'],
-      imageConfig: { imageSize: imageQuality },
+      imageConfig: { imageSize: '2K' },
     },
   })
 
@@ -77,7 +77,7 @@ export async function removeBackgroundToTransparentPng(formData: FormData) {
   try {
     const gemResult = await model.generateContent([MASK_PROMPT, imagePart], { safetySettings })
     const response = gemResult.response
-    trackFromUsageMetadata(response.usageMetadata, 'gemini-3-pro-image-preview', 'xoa-nen-png', user.id, imageQuality)
+    trackFromUsageMetadata(response.usageMetadata, 'gemini-3-pro-image-preview', 'xoa-nen-png', user.id, '2K')
 
     const maskPart = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
     if (!maskPart || !('inlineData' in maskPart)) {
