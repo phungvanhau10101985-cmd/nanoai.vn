@@ -17,7 +17,7 @@ git fetch origin "${BRANCH}"
 
 echo "[3/6] Checkout branch ${BRANCH}"
 git checkout "${BRANCH}"
-git pull --ff-only origin "${BRANCH}"
+git reset --hard origin/"${BRANCH}"
 
 echo "[4/6] Install dependencies"
 npm install
