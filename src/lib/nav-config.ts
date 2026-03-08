@@ -10,6 +10,9 @@ import {
   Video,
   Box,
   Shield,
+  Stamp,
+  BookOpen,
+  FileQuestion,
 } from 'lucide-react'
 import { TryOnIcon } from '@/components/icons/try-on-icon'
 import { ImageRestorationIcon } from '@/components/icons/image-restoration-icon'
@@ -70,6 +73,8 @@ export const AI_TOOLS = [
   { href: '/nhac-theo-cam-xuc-anh', labelKey: 'music_from_image_mood' as ToolKey, icon: ImagePlus },
   { href: '/dieu-khien-nhac-realtime', labelKey: 'realtime_music_control' as ToolKey, icon: Radio },
   { href: '/hoc-tieng-anh-ai', labelKey: 'ai_language_learning' as ToolKey, icon: Languages },
+  { href: '/tao-giao-trinh', labelKey: 'create_curriculum' as ToolKey, icon: BookOpen },
+  { href: '/tao-de-trac-nghiem', labelKey: 'create_exam' as ToolKey, icon: FileQuestion },
 ] as const
 
 export const NAV_GROUPS = [
@@ -107,6 +112,7 @@ export const NAV_GROUPS = [
       { href: '/tao-nhan-gian', labelKey: 'create_sticker' as ToolKey, icon: TaoNhanGianIcon },
       { href: '/tao-nhan-gioi-thieu-san-pham', labelKey: 'create_product_label' as ToolKey, icon: TaoNhanGioiThieuSanPhamIcon },
       { href: '/tao-tem-niem-phong-bao-hanh', labelKey: 'create_seal_warranty_label' as ToolKey, icon: Shield },
+      { href: '/thiet-ke-con-dau', labelKey: 'design_stamp' as ToolKey, icon: Stamp },
       { href: '/thiet-ke-bao-bi', labelKey: 'design_package' as ToolKey, icon: Box },
       { href: '/tao-ma-vach', labelKey: 'create_barcode' as ToolKey, icon: TaoMaVachIcon },
       { href: '/che-anh', labelKey: 'meme_maker' as ToolKey, icon: CheAnhIcon },
@@ -142,6 +148,8 @@ export const NAV_GROUPS = [
     titleKey: 'learning_ai' as NavGroupKey,
     links: [
       { href: '/hoc-tieng-anh-ai', labelKey: 'ai_language_learning' as ToolKey, icon: Languages },
+      { href: '/tao-giao-trinh', labelKey: 'create_curriculum' as ToolKey, icon: BookOpen },
+      { href: '/tao-de-trac-nghiem', labelKey: 'create_exam' as ToolKey, icon: FileQuestion },
     ],
   },
 ] as const

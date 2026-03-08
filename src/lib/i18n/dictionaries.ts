@@ -27,6 +27,7 @@ export type ToolKey =
   | 'design_flat_bag'
   | 'cylinder_wrap_mockup'
   | 'create_seal_warranty_label'
+  | 'design_stamp'
   | 'meme_maker'
   | 'remove_object'
   | 'remove_bg_png'
@@ -45,6 +46,8 @@ export type ToolKey =
   | 'music_from_image_mood'
   | 'realtime_music_control'
   | 'ai_language_learning'
+  | 'create_curriculum'
+  | 'create_exam'
   | 'try_on_1'
   | 'try_on_2'
   | 'try_on_3'
@@ -181,6 +184,8 @@ const VI_DICTIONARY: Dictionary = {
     music_from_image_mood: 'Nhạc theo cảm xúc ảnh',
     realtime_music_control: 'Điều khiển nhạc realtime',
     ai_language_learning: 'Học ngoại ngữ AI',
+    create_curriculum: 'Tạo giáo trình',
+    create_exam: 'Tạo đề trắc nghiệm',
     try_on_1: 'Thử đồ 1 người',
     try_on_2: 'Thử đồ 2 người',
     try_on_3: 'Thử đồ 3 người',
@@ -257,6 +262,7 @@ const EN_DICTIONARY: Dictionary = {
     design_flat_bag: 'Flat bag design',
     cylinder_wrap_mockup: 'Bottle / Can Label Mockup',
     create_seal_warranty_label: 'Create seal & warranty label',
+    design_stamp: 'Design stamp',
     meme_maker: 'Meme Maker',
     remove_object: 'Remove Object',
     remove_bg_png: 'Remove PNG Background',
@@ -275,6 +281,8 @@ const EN_DICTIONARY: Dictionary = {
     music_from_image_mood: 'Music from Image Mood',
     realtime_music_control: 'Realtime Music Control',
     ai_language_learning: 'AI Language Learning',
+    create_curriculum: 'Create curriculum',
+    create_exam: 'Create exam',
     try_on_1: 'Try-on 1 Person',
     try_on_2: 'Try-on 2 People',
     try_on_3: 'Try-on 3 People',
@@ -351,6 +359,7 @@ const ZH_DICTIONARY: Dictionary = {
     design_flat_bag: '平面袋设计',
     cylinder_wrap_mockup: '瓶子/罐子标签样机',
     create_seal_warranty_label: '创建封条/保修标签',
+    design_stamp: '设计印章',
     meme_maker: '表情包制作',
     remove_object: '移除物体',
     remove_bg_png: '去除 PNG 背景',
@@ -369,6 +378,8 @@ const ZH_DICTIONARY: Dictionary = {
     music_from_image_mood: '按图片情绪生成音乐',
     realtime_music_control: '实时音乐控制',
     ai_language_learning: 'AI 语言学习',
+    create_curriculum: '创建课程',
+    create_exam: '创建试题',
     try_on_1: '1 人试衣',
     try_on_2: '2 人试衣',
     try_on_3: '3 人试衣',
@@ -445,6 +456,7 @@ const JA_DICTIONARY: Dictionary = {
     design_flat_bag: '平面袋デザイン',
     cylinder_wrap_mockup: 'ボトル・缶ラベルモックアップ',
     create_seal_warranty_label: '封印・保証ラベル作成',
+    design_stamp: 'スタンプデザイン',
     meme_maker: 'ミーム作成',
     remove_object: 'オブジェクト削除',
     remove_bg_png: 'PNG 背景削除',
@@ -463,6 +475,7 @@ const JA_DICTIONARY: Dictionary = {
     music_from_image_mood: '画像の雰囲気から音楽生成',
     realtime_music_control: 'リアルタイム音楽制御',
     ai_language_learning: 'AI 語学学習',
+    create_curriculum: 'カリキュラム作成',
     try_on_1: '1人試着',
     try_on_2: '2人試着',
     try_on_3: '3人試着',
@@ -539,6 +552,7 @@ const KO_DICTIONARY: Dictionary = {
     design_flat_bag: '평면 가방 설계',
     cylinder_wrap_mockup: '병/캔 라벨 목업',
     create_seal_warranty_label: '봉인·보증 라벨 만들기',
+    design_stamp: '스탬프 디자인',
     meme_maker: '밈 만들기',
     remove_object: '객체 제거',
     remove_bg_png: 'PNG 배경 제거',
@@ -557,6 +571,8 @@ const KO_DICTIONARY: Dictionary = {
     music_from_image_mood: '이미지 분위기 음악 생성',
     realtime_music_control: '실시간 음악 제어',
     ai_language_learning: 'AI 외국어 학습',
+    create_curriculum: '교육과정 생성',
+    create_exam: '시험 생성',
     try_on_1: '1인 피팅',
     try_on_2: '2인 피팅',
     try_on_3: '3인 피팅',

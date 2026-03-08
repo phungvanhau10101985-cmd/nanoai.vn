@@ -10,10 +10,11 @@ import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/ge
 import { normalizeToEnglish } from '@/lib/ai-normalize'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { getAspectRatioFromDimensions } from '@/lib/aspect-ratio-from-dimensions'
+import { GEMINI_ASPECT_RATIOS } from '@/lib/label-size-presets'
 import { BAG_TYPE_OPTIONS, type BagType } from './bag-types'
 
 const PACKAGING_COSTS = { '2K': 1.5, '4K': 3 } as const
-const VALID_ASPECT_RATIOS = ['1:1', '4:3', '3:4', '3:2', '2:3', '5:4', '4:5', '16:9', '9:16', '21:9', '9:21'] as const
+const VALID_ASPECT_RATIOS = GEMINI_ASPECT_RATIOS
 const toTenths = (value: number) => Math.round(value * 10)
 const fromTenths = (value: number) => value / 10
 const formatCredits = (value: number) => value.toLocaleString('vi-VN', { maximumFractionDigits: 1 })
@@ -428,10 +429,6 @@ export async function createBoxSurfaceImageWithAI(formData: FormData): Promise<
   const hasProductImage = productImageFiles.length > 0
 
   if (faceIndex >= 2 && !referenceImageUrl) return { error: 'Thiếu ảnh tham khảo (mặt trước).' }
-  const hasReferenceForFace1 = faceIndex === 1 && !!(referenceImageFile?.size && referenceImageFile.size > 0)
-  if (!brandName && !productName && !hasProductImage && !hasReferenceForFace1) {
-    return { error: 'Vui lòng nhập tên thương hiệu, tên sản phẩm, tải ảnh sản phẩm hoặc ảnh tham khảo in lên thiết kế.' }
-  }
 
   const aspectRatio = getAspectRatioFromDimensions(surfaceLength, surfaceWidth, textOrientation)
 
@@ -753,10 +750,6 @@ export async function createBagSurfaceImageWithAI(formData: FormData): Promise<
   const productImageFiles = (formData.getAll('productImage') as File[]).filter((f) => f?.size && f.size > 0).slice(0, 6)
   const hasProductImage = productImageFiles.length > 0
   const hasReferenceForBag = !!(referenceImageFile?.size && referenceImageFile.size > 0)
-
-  if (!brandName && !productName && !hasProductImage && !hasReferenceForBag) {
-    return { error: 'Vui lòng nhập tên thương hiệu, tên sản phẩm, tải ảnh sản phẩm hoặc ảnh tham khảo style.' }
-  }
 
   const aspectRatio = getAspectRatioFromDimensions(surfaceLength, surfaceWidth, textOrientation)
 

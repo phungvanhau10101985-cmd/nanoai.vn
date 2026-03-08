@@ -23,6 +23,7 @@ export const PRINT_SIZE_PRESETS: PrintSizePreset[] = [
   { value: 'a4', widthMm: 210, heightMm: 297, label: 'A4 (210×297 mm)' },
   { value: 'a4-landscape', widthMm: 297, heightMm: 210, label: 'A4 ngang (297×210 mm)' },
   { value: '21x9-banner', widthMm: 210, heightMm: 90, label: '210×90 mm (21:9)' },
+  { value: '9x21-portrait', widthMm: 90, heightMm: 210, label: '90×210 mm (9:21)' },
 ]
 
 const ASPECT_TOLERANCE = 0.08
@@ -46,6 +47,7 @@ const KNOWN_RATIOS: { str: string; value: number }[] = [
   { str: '9:16', value: 9 / 16 },
   { str: '16:9', value: 16 / 9 },
   { str: '21:9', value: 21 / 9 },
+  { str: '9:21', value: 9 / 21 },
 ]
 
 /** Từ kích thước ảnh (width, height) suy ra tỷ lệ chuẩn gần nhất */

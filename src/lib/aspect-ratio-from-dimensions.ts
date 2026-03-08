@@ -1,16 +1,9 @@
-/** Tất cả tỷ lệ Gemini hỗ trợ (landscape, portrait, square) */
-const GEMINI_ASPECT_RATIOS: [string, number][] = [
-  ['1:1', 1],
-  ['4:3', 4 / 3],
-  ['3:4', 3 / 4],
-  ['3:2', 3 / 2],
-  ['2:3', 2 / 3],
-  ['5:4', 5 / 4],
-  ['4:5', 4 / 5],
-  ['16:9', 16 / 9],
-  ['9:16', 9 / 16],
-  ['21:9', 21 / 9],
-]
+import { GEMINI_ASPECT_RATIOS } from '@/lib/label-size-presets'
+
+const RATIO_VALUES: [string, number][] = GEMINI_ASPECT_RATIOS.map((ar) => {
+  const [w, h] = ar.split(':').map(Number)
+  return [ar, w / h]
+})
 
 /**
  * Chọn tỷ lệ khung hình khớp nhất với kích thước.
@@ -26,7 +19,7 @@ export function getAspectRatioFromDimensions(
   const ratio = textOrientation === 'horizontal' ? long / short : short / long
   let best = '1:1'
   let bestDiff = Infinity
-  for (const [ar, v] of GEMINI_ASPECT_RATIOS) {
+  for (const [ar, v] of RATIO_VALUES) {
     const diff = Math.abs(ratio - v)
     if (diff < bestDiff) {
       bestDiff = diff
@@ -36,4 +29,4 @@ export function getAspectRatioFromDimensions(
   return best
 }
 
-export const GEMINI_ASPECT_RATIO_LIST = GEMINI_ASPECT_RATIOS.map(([ar]) => ar)
+export const GEMINI_ASPECT_RATIO_LIST = GEMINI_ASPECT_RATIOS

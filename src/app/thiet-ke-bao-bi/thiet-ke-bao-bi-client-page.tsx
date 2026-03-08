@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, type ChangeEvent } from 'react'
+import * as XLSX from 'xlsx'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
-import { Box, ShoppingBag, Sparkles, Upload, X, ImageIcon, LayoutTemplate, FileText, FileEdit, Eye, ChevronLeft, ChevronRight, Trash2, FolderOpen, Plus, Eraser } from 'lucide-react'
+import { Box, ShoppingBag, Sparkles, Upload, X, ImageIcon, LayoutTemplate, FileText, FileEdit, Eye, ChevronLeft, ChevronRight, Trash2, FolderOpen, Plus, Eraser, FileSpreadsheet, FileDown } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { DownloadImageButton } from '@/components/download-image-button'
@@ -22,6 +23,7 @@ import { useRouter } from 'next/navigation'
 const FACE_ORDER: FaceSizeKey[] = ['LxW', 'LxH', 'WxH']
 const getFaceIndexFromSizeKey = (sizeKey: FaceSizeKey) => FACE_ORDER.indexOf(sizeKey) + 1
 import { getAspectRatioFromDimensions, GEMINI_ASPECT_RATIO_LIST } from '@/lib/aspect-ratio-from-dimensions'
+import { GEMINI_ASPECT_RATIO_OPTIONS } from '@/lib/label-size-presets'
 import { preloadImageUrl } from '@/lib/preload-image-url'
 
 const DESIGN_TABS: { value: PackagingDesignType; icon: typeof Box }[] = [
@@ -29,19 +31,8 @@ const DESIGN_TABS: { value: PackagingDesignType; icon: typeof Box }[] = [
   { value: 'bag', icon: ShoppingBag },
 ]
 
-const ASPECT_RATIOS = [
-  { value: '1:1', label: '1:1' },
-  { value: '4:3', label: '4:3' },
-  { value: '3:4', label: '3:4' },
-  { value: '3:2', label: '3:2' },
-  { value: '2:3', label: '2:3' },
-  { value: '5:4', label: '5:4' },
-  { value: '4:5', label: '4:5' },
-  { value: '16:9', label: '16:9' },
-  { value: '9:16', label: '9:16' },
-  { value: '21:9', label: '21:9' },
-  { value: '9:21', label: '9:21' },
-] as const
+/** Tỷ lệ khung hình – dùng chung với tao-nhan, đầy đủ từ label-size-presets */
+const ASPECT_RATIOS = GEMINI_ASPECT_RATIO_OPTIONS
 
 /** Không ràng buộc kích thước hộp và ảnh – nhập tự do, tất cả tạo được. */
 
@@ -364,6 +355,7 @@ export default function ThietKeBaoBiClientPage() {
   const logoInputRef = useRef<HTMLInputElement>(null)
   const referenceImageInputRef = useRef<HTMLInputElement>(null)
   const productImageInputRef = useRef<HTMLInputElement>(null)
+  const excelImportRef = useRef<HTMLInputElement>(null)
   const stepContentRef = useRef<HTMLDivElement>(null)
   const { toast } = useToast()
   const cost = imageQuality === '2K' ? 1.5 : 3
@@ -556,6 +548,58 @@ export default function ThietKeBaoBiClientPage() {
     }
   }
 
+  const handleImportExcel = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !file.name.match(/\.(xlsx|xls|csv)$/i)) {
+      toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: tr('Chọn file Excel (.xlsx, .xls, .csv)', 'Select Excel file (.xlsx, .xls, .csv)', '选择 Excel 文件', 'Excelファイルを選択', 'Excel 파일 선택'), variant: 'destructive' })
+      e.target.value = ''
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      try {
+        const data = ev.target?.result
+        if (!data) return
+        const wb = XLSX.read(data, { type: 'binary' })
+        const ws = wb.Sheets[wb.SheetNames[0]]
+        const rows = XLSX.utils.sheet_to_json<string[]>(ws, { header: 1 }) as (string | number)[][]
+        const map: Record<string, string> = {}
+        for (let i = 1; i < rows.length; i++) {
+          const row = rows[i]
+          const key = String(row[0] ?? '').trim()
+          const val = row[1] != null ? String(row[1]).trim() : ''
+          if (key) map[key] = val
+        }
+        const set = (k: string, fn: (v: string) => void) => { if (map[k] != null) fn(map[k]) }
+        set('brandName', setBrandName)
+        set('productName', setProductName)
+        set('companyAddress', setCompanyAddress)
+        set('website', setWebsite)
+        set('email', setEmail)
+        set('hotline', setHotline)
+        set('countryOfOrigin', setCountryOfOrigin)
+        set('storageInstructions', setStorageInstructions)
+        set('warningAllergy', setWarningAllergy)
+        set('volume', setVolume)
+        set('registrationCode', setRegistrationCode)
+        set('socialLinks', setSocialLinks)
+        set('packagingQuantity', setPackagingQuantity)
+        set('packagingWeight', setPackagingWeight)
+        set('packagingShipping', setPackagingShipping)
+        set('packagingOther', setPackagingOther)
+        set('packagingBatchLot', setPackagingBatchLot)
+        set('packagingProdDate', setPackagingProdDate)
+        set('packagingExpiryDate', setPackagingExpiryDate)
+        set('manufacturerMessage', setManufacturerMessage)
+        toast({ title: tr('Đã import Excel', 'Excel imported', '已导入 Excel', 'Excelをインポートしました', 'Excel 가져옴'), duration: 2000 })
+      } catch (err) {
+        toast({ title: tr('Lỗi đọc Excel', 'Excel read error', '读取 Excel 失败', 'Excel読み込みエラー', 'Excel 읽기 오류'), description: String(err), variant: 'destructive' })
+      }
+      if (excelImportRef.current) excelImportRef.current.value = ''
+    }
+    reader.readAsBinaryString(file)
+  }
+
   const [draftExists, setDraftExists] = useState(false)
   useEffect(() => {
     try {
@@ -641,16 +685,6 @@ export default function ThietKeBaoBiClientPage() {
   }, [step])
 
   const handleSubmit = async () => {
-    const hasProductImg = productImages.length > 0
-    const hasRef = !!referenceImage.preview
-    if (!brandName.trim() && !productName.trim() && !hasProductImg && !hasRef) {
-      toast({
-        title: tr('Vui lòng nhập', 'Please enter', '请输入', '入力してください', '입력해 주세요'),
-        description: tr('Tên thương hiệu, tên sản phẩm, ảnh sản phẩm hoặc ảnh tham khảo style', 'Brand name, product name, product image or style reference image', '品牌名、产品名、产品图或风格参考图', 'ブランド名・商品名・商品画像またはスタイル参考画像', '브랜드명·상품명·상품 이미지 또는 스타일 참조 이미지'),
-        variant: 'destructive',
-      })
-      return
-    }
     if (designType === 'box') {
       setSelectedFaceSize(selectedFaceSize || 'LxW')
       handleFaceSubmit(selectedFaceSize || 'LxW')
@@ -660,16 +694,6 @@ export default function ThietKeBaoBiClientPage() {
   }
 
   const handleBagFaceSubmit = async () => {
-    const hasProductImg = productImages.length > 0
-    const hasRefForBag = !!referenceImage.preview
-    if (!brandName.trim() && !productName.trim() && !hasProductImg && !hasRefForBag) {
-      toast({
-        title: tr('Vui lòng nhập', 'Please enter', '请输入', '入力してください', '입력해 주세요'),
-        description: tr('Tên thương hiệu, tên sản phẩm, ảnh sản phẩm hoặc ảnh tham khảo style', 'Brand name, product name, product image or style reference image', '品牌名、产品名、产品图或风格参考图', 'ブランド名・商品名・商品画像またはスタイル参考画像', '브랜드명·상품명·상품 이미지 또는 스타일 참조 이미지'),
-        variant: 'destructive',
-      })
-      return
-    }
     setStep('FACE_GENERATING')
     const formData = new FormData()
     formData.append('bagWidth', String(Math.max(20, Math.min(500, bagWidth))))
@@ -861,16 +885,6 @@ export default function ThietKeBaoBiClientPage() {
   }
 
   const handleFaceSubmit = async (overrideSize?: FaceSizeKey) => {
-    const hasProductImg = productImages.length > 0
-    const hasRefForFace1 = faces.length === 0 && referenceImage.preview
-    if (!brandName.trim() && !productName.trim() && !hasProductImg && !hasRefForFace1) {
-      toast({
-        title: tr('Vui lòng nhập', 'Please enter', '请输入', '入力してください', '입력해 주세요'),
-        description: tr('Tên thương hiệu, tên sản phẩm, ảnh sản phẩm hoặc ảnh tham khảo in lên thiết kế', 'Brand name, product name, product image or reference image to print', '品牌名、产品名、产品图或参考图', 'ブランド名・商品名・商品画像または参考画像', '브랜드명·상품명·상품 이미지 또는 참조 이미지'),
-        variant: 'destructive',
-      })
-      return
-    }
     const sizeKey = (overrideSize ?? selectedFaceSize) as FaceSizeKey
     if (!sizeKey) return
     if (faces.length >= 6 && !editingFaceSizeKey) return
@@ -1730,6 +1744,17 @@ export default function ThietKeBaoBiClientPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div className="flex flex-wrap gap-2">
+                <a href="/api/thiet-ke-bao-bi-mau" download="thiet-ke-bao-bi-mau.xlsx">
+                  <Button type="button" variant="outline" size="sm" className="border-amber-200 text-amber-700 hover:bg-amber-50">
+                    <FileDown className="h-3.5 w-3.5 mr-1" /> {tr('Tải file mẫu', 'Download template', '下载模板', 'テンプレートをダウンロード', '템플릿 다운로드')}
+                  </Button>
+                </a>
+                <Button type="button" variant="outline" size="sm" onClick={() => excelImportRef.current?.click()} className="border-amber-200 text-amber-700 hover:bg-amber-50">
+                  <FileSpreadsheet className="h-3.5 w-3.5 mr-1" /> {tr('Import Excel', 'Import Excel', '导入 Excel', 'Excelをインポート', 'Excel 가져오기')}
+                </Button>
+                <input ref={excelImportRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleImportExcel} />
+              </div>
               <div className="space-y-2">
                 <label className="text-xs font-medium text-muted-foreground">{tr('Loại bao bì', 'Packaging type', '包装类型', '包装タイプ', '포장 유형')}{opt}</label>
                 <div className="flex flex-wrap gap-2">
@@ -1757,7 +1782,7 @@ export default function ThietKeBaoBiClientPage() {
               {designType === 'box' && (
                 <>
                   <div className="space-y-2">
-                    <label className="text-xs font-medium text-muted-foreground">{tr('Kích thước hộp (mm)', 'Box dimensions (mm)', '盒子尺寸（毫米）', '箱のサイズ（mm）', '상자 크기 (mm)')}{opt}</label>
+                    <label className="text-xs font-medium text-muted-foreground">{tr('Kích thước hộp (mm)', 'Box dimensions (mm)', '盒子尺寸（毫米）', '箱のサイズ（mm）', '상자 크기 (mm)')} <span className="text-red-500">*</span></label>
                     <p className="text-xs text-muted-foreground">
                       {tr('Nhập tự do L×W×H. Không ràng buộc tỷ lệ.', 'Free input L×W×H. No ratio constraints.', '自由输入L×W×H。无比例限制。', 'L×W×Hを自由入力。比率制限なし。', 'L×W×H 자유 입력. 비율 제한 없음.')}
                     </p>
@@ -1815,7 +1840,7 @@ export default function ThietKeBaoBiClientPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-xs font-medium text-muted-foreground">{tr('Kích thước ảnh đầu tiên', 'First image size', '首张图片尺寸', '1枚目の画像サイズ', '첫 이미지 크기')} {opt}</label>
+                    <label className="text-xs font-medium text-muted-foreground">{tr('Kích thước ảnh đầu tiên', 'First image size', '首张图片尺寸', '1枚目の画像サイズ', '첫 이미지 크기')} <span className="text-red-500">*</span></label>
                     <p className="text-xs text-muted-foreground">
                       {tr('Chọn trước khi nhập thông tin khác. Ảnh 1 sẽ có kích thước:', 'Choose before entering other info. Image 1 will be:', '先选择再填其他信息。图1尺寸：', '他の情報入力前に選択。画像1のサイズ：', '다른 정보 입력 전 선택. 이미지 1 크기:')}
                     </p>
@@ -1836,7 +1861,7 @@ export default function ThietKeBaoBiClientPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-xs font-medium text-muted-foreground">{tr('Ảnh tham khảo phong cách', 'Style reference image', '风格参考图', 'スタイル参考画像', '스타일 참조 이미지')} {opt}</label>
+                    <label className="text-xs font-medium text-muted-foreground">{tr('Ảnh tham khảo phong cách', 'Style reference image', '风格参考图', 'スタイル参考画像', '스타일 참조 이미지')}{opt}</label>
                     <p className="text-xs text-muted-foreground">
                       {tr('AI lấy thông tin của bạn (thương hiệu, sản phẩm...) và tùy biến theo style ảnh này. Không bê nguyên ảnh tham khảo. Khi có ảnh này, không dùng ảnh sản phẩm. Vẫn chọn màu nền và viền bên dưới.', 'AI uses your info (brand, product...) and customizes to match this style. Do not copy reference verbatim. When set, product images are not used. Still choose background and border below.', 'AI使用您的信息（品牌、产品等）并按此风格定制。不原样复制参考图。设置后不使用产品图。下方仍可选择背景和边框。', 'AIがあなたの情報（ブランド・商品など）を使い、このスタイルに合わせてカスタマイズ。参考画像をそのままコピーしない。設定時は商品画像を使用しない。下で背景・枠を選択可能。', 'AI가 귀하의 정보(브랜드·상품 등)를 사용해 이 스타일에 맞춤. 참조 이미지 그대로 복사 안 함. 설정 시 상품 이미지 미사용. 아래에서 배경·테두리 선택 가능.')}
                     </p>
@@ -1989,7 +2014,7 @@ export default function ThietKeBaoBiClientPage() {
               {designType === 'bag' && (
                 <>
                   <div className="space-y-2">
-                    <label className="text-xs font-medium text-muted-foreground">{tr('Ảnh tham khảo phong cách', 'Style reference image', '风格参考图', 'スタイル参考画像', '스타일 참조 이미지')} {opt}</label>
+                    <label className="text-xs font-medium text-muted-foreground">{tr('Ảnh tham khảo phong cách', 'Style reference image', '风格参考图', 'スタイル参考画像', '스타일 참조 이미지')}{opt}</label>
                     <p className="text-xs text-muted-foreground">
                       {tr('AI lấy thông tin của bạn (thương hiệu, sản phẩm...) và tùy biến theo style ảnh này. Không bê nguyên ảnh tham khảo. Khi có ảnh này, không dùng ảnh sản phẩm. Vẫn chọn màu nền và viền bên dưới.', 'AI uses your info (brand, product...) and customizes to match this style. Do not copy reference verbatim. When set, product images are not used. Still choose background and border below.', 'AI使用您的信息（品牌、产品等）并按此风格定制。不原样复制参考图。设置后不使用产品图。下方仍可选择背景和边框。', 'AIがあなたの情報（ブランド・商品など）を使い、このスタイルに合わせてカスタマイズ。参考画像をそのままコピーしない。設定時は商品画像を使用しない。下で背景・枠を選択可能。', 'AI가 귀하의 정보(브랜드·상품 등)를 사용해 이 스타일에 맞춤. 참조 이미지 그대로 복사 안 함. 설정 시 상품 이미지 미사용. 아래에서 배경·테두리 선택 가능.')}
                     </p>
@@ -2017,7 +2042,7 @@ export default function ThietKeBaoBiClientPage() {
                   )}
 
                   <div className="space-y-2">
-                    <label className="text-xs font-medium text-muted-foreground">{tr('Kích thước túi (mm)', 'Bag dimensions (mm)', '袋子尺寸（毫米）', '袋のサイズ（mm）', '가방 크기 (mm)')}{opt}</label>
+                    <label className="text-xs font-medium text-muted-foreground">{tr('Kích thước túi (mm)', 'Bag dimensions (mm)', '袋子尺寸（毫米）', '袋のサイズ（mm）', '가방 크기 (mm)')} <span className="text-red-500">*</span></label>
                     <div className="grid grid-cols-3 gap-2">
                       <div className="space-y-1">
                         <label className="text-xs text-muted-foreground">W</label>
@@ -2121,6 +2146,7 @@ export default function ThietKeBaoBiClientPage() {
                 </>
               )}
 
+              <p className="text-xs text-muted-foreground">{tr('Tất cả tùy chọn trừ kích thước.', 'All optional except dimensions.', '除尺寸外均为可选。', 'サイズ以外は任意。', '크기 외 모두 선택.')}</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-xs font-medium text-muted-foreground">{tr('Tên thương hiệu', 'Brand name', '品牌名', 'ブランド名', '브랜드명')}{opt}</label>
@@ -2470,7 +2496,7 @@ export default function ThietKeBaoBiClientPage() {
 
               {faces.length === 0 && (
                 <div className="space-y-2">
-                  <label className="text-xs font-medium text-muted-foreground">{tr('Ảnh tham khảo phong cách', 'Style reference image', '风格参考图', 'スタイル参考画像', '스타일 참조 이미지')} {opt}</label>
+                  <label className="text-xs font-medium text-muted-foreground">{tr('Ảnh tham khảo phong cách', 'Style reference image', '风格参考图', 'スタイル参考画像', '스타일 참조 이미지')}{opt}</label>
                   <p className="text-xs text-muted-foreground">
                     {tr('AI lấy thông tin của bạn (thương hiệu, sản phẩm...) và tùy biến theo style ảnh này. Không bê nguyên ảnh tham khảo. Khi có ảnh này, không dùng ảnh sản phẩm. Vẫn chọn màu nền và viền bên dưới.', 'AI uses your info (brand, product...) and customizes to match this style. Do not copy reference verbatim. When set, product images are not used. Still choose background and border below.', 'AI使用您的信息（品牌、产品等）并按此风格定制。不原样复制参考图。设置后不使用产品图。下方仍可选择背景和边框。', 'AIがあなたの情報（ブランド・商品など）を使い、このスタイルに合わせてカスタマイズ。参考画像をそのままコピーしない。設定時は商品画像を使用しない。下で背景・枠を選択可能。', 'AI가 귀하의 정보(브랜드·상품 등)를 사용해 이 스타일에 맞춤. 참조 이미지 그대로 복사 안 함. 설정 시 상품 이미지 미사용. 아래에서 배경·테두리 선택 가능.')}
                   </p>
