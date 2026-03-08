@@ -73,6 +73,13 @@ export async function createCurriculum(formData: FormData) {
   const numTiet = Math.min(10, Math.max(1, numLessons))
   const thoiLuong = Math.min(120, Math.max(15, lessonDurationMinutes))
 
+  const isMenDePhuDinh = /mệnh\s*đề\s*phủ\s*định|phủ\s*định\s*mệnh\s*đề|mệnh\s*đề.*phủ\s*định/i.test(topic)
+  const curriculumMenDeNote = isMenDePhuDinh
+    ? `
+
+LƯU Ý ĐẶC BIỆT (Mệnh đề phủ định): Phân biệt rõ nội dung phát biểu và giá trị chân lý (Đúng/Sai). Tránh dùng khái niệm đối lập không hoàn toàn như "số nguyên tố" và "hợp số" làm phủ định của nhau (vì 1 không phải số nguyên tố cũng không phải hợp số).`
+    : ''
+
   const prompt = `Hãy soạn giáo trình cho bài "${topic}", môn ${subjectName}, ${gradeLabel}, bộ sách ${textbookName}.
 
 LOẠI BÀI HỌC: ${lessonTypeName}
@@ -94,6 +101,7 @@ Lưu ý theo loại bài:
 - Bài hình thành kiến thức mới: tập trung lý thuyết + thí nghiệm minh họa.
 - Bài luyện tập/Ôn tập: tập trung phương pháp giải bài tập, hệ thống hóa.
 - Bài thực hành: tập trung quy trình thí nghiệm, an toàn, báo cáo.
+${curriculumMenDeNote}
 
 Yêu cầu format:
 - Trả về Markdown, dùng ## cho tiêu đề bài, ### cho mục con, - cho bullet list.
@@ -191,6 +199,11 @@ export async function createWorksheet(formData: FormData) {
   const subjectName = SUBJECT_NAMES[subjectId] || subjectId
   const gradeLabel = gradeLevelId.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
 
+  const isMenDePhuDinh = /mệnh\s*đề\s*phủ\s*định|phủ\s*định\s*mệnh\s*đề|mệnh\s*đề.*phủ\s*định/i.test(topic)
+  const menDePhuDinhNote = isMenDePhuDinh
+    ? `\n\n**LƯU Ý – Mệnh đề phủ định:** Phân biệt rõ nội dung phát biểu và giá trị chân lý (Đúng/Sai). Tránh dùng khái niệm đối lập không hoàn toàn như "số nguyên tố" và "hợp số" làm phủ định của nhau.`
+    : ''
+
   const systemPrompt = `Bạn là chuyên gia soạn phiếu bài tập cho giáo viên Việt Nam. Trả về đúng nội dung Markdown theo yêu cầu, không thêm giải thích. Dùng LaTeX inline cho công thức toán/lý (ví dụ: $y = x^2$, $F = ma$).`
 
   const userPrompt = `Dựa trên giáo trình dưới đây, hãy soạn một PHIẾU BÀI TẬP chuyên nghiệp cho học sinh.
@@ -205,6 +218,7 @@ ${curriculumMarkdown.slice(0, 8000)}
 **Chủ đề:** ${topic}
 **Môn:** ${subjectName}
 **Cấp độ:** ${gradeLabel}
+${menDePhuDinhNote}
 
 **Cấu trúc bắt buộc (phân hóa 4 mức độ nhận thức theo Thang Bloom):**
 

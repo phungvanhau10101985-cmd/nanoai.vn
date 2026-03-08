@@ -63,6 +63,16 @@ export async function createExam(formData: FormData) {
   const textbookName = TEXTBOOK_NAMES[textbookSetId] || TEXTBOOK_NAMES.khac
   const questionTypeName = QUESTION_TYPE_NAMES[questionTypeId] || QUESTION_TYPE_NAMES['trac-nghiem']
 
+  const isMenDePhuDinh = /mệnh\s*đề\s*phủ\s*định|phủ\s*định\s*mệnh\s*đề|mệnh\s*đề.*phủ\s*định/i.test(topic)
+  const topicSpecificNote = isMenDePhuDinh
+    ? `
+
+### 4. LƯU Ý ĐẶC BIỆT – Mệnh đề phủ định
+- Phân biệt rõ **nội dung phát biểu** và **giá trị chân lý** (Đúng/Sai).
+- Tránh sử dụng các khái niệm đối lập không hoàn toàn như "số nguyên tố" và "hợp số" để làm phủ định của nhau (vì 1 không phải số nguyên tố cũng không phải hợp số).
+- Mệnh đề phủ định phải phủ định toàn bộ nội dung mệnh đề gốc, không chỉ một phần.`
+    : ''
+
   const prompt = `Bạn là chuyên gia ra đề thi cho giáo dục Việt Nam. Tạo đề thi theo FORMAT THPT 2025, bám sát cấu trúc mới của Bộ Giáo dục.
 
 ## THÔNG TIN ĐỀ THI
@@ -95,6 +105,7 @@ ${questionTypeId === 'hon-hop' ? '- Kết hợp: ~60% trắc nghiệm A/B/C/D, ~
 - Cuối đề: phần **ĐÁP ÁN** liệt kê đáp án từng câu (1. A, 2. B, ...).
 - Nếu có câu trả lời ngắn: ghi đáp án cụ thể.
 - Nếu có câu Đúng/Sai: ghi Đ hoặc S.
+${topicSpecificNote}
 
 Chỉ trả về nội dung đề thi + đáp án, không có lời giải thích thêm.`
 

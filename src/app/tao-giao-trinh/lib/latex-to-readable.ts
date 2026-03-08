@@ -1,6 +1,12 @@
 /**
- * Chuyển LaTeX phổ biến sang ký hiệu Unicode để học sinh đọc được
- * (không cần render MathJax/KaTeX)
+ * Chuyển LaTeX sang ký hiệu Unicode – sửa lỗi định dạng phổ biến cho học sinh dễ đọc.
+ * Không cần MathJax/KaTeX.
+ *
+ * Các nhóm xử lý:
+ * 1. Ký hiệu toán: \in→∈, \mathbb{R}→ℝ, \frac{1}{2}→(1)/(2)
+ * 2. Chỉ số: x_1→x₁, x^2→x²
+ * 3. Lỗi AI: } thay ), ≤ft (từ \left), \frac{1){2}
+ * 4. Làm gọn: (1)/(2)→1/2, (√(3))/(2)→(√3)/2
  */
 
 const SUBSCRIPT_MAP: Record<string, string> = {
@@ -101,7 +107,10 @@ function convertLatexInline(match: string): string {
 /** Chuyển LaTeX ngoài $...$ (plain text có ký hiệu LaTeX) */
 function convertPlainLatex(text: string): string {
   return text
-    .replace(/≤ft/g, '(') // sửa lỗi \left bị thành ≤ft do thứ tự replace
+    // --- Lỗi AI phổ biến ---
+    .replace(/≤ft/g, '(') // \left bị thành ≤ft do thứ tự replace
+    .replace(/\\frac\{([^}]*)\)\{([^}]*)\}/g, '($1)/($2)') // \frac{1){2} (lỗi AI)
+    // --- Ký hiệu toán ---
     .replace(/\\in\b/g, '∈')
     .replace(/\\setminus/g, '∖')
     .replace(/\\Leftrightarrow/g, '⇔')
@@ -115,8 +124,18 @@ function convertPlainLatex(text: string): string {
     .replace(/\\mathbb\{Z\}/g, 'ℤ')
     .replace(/\\Delta\b/g, 'Δ')
     .replace(/\\cdot\b/g, '·')
+    .replace(/\\times\b/g, '×')
+    .replace(/\\div\b/g, '÷')
+    .replace(/\\forall\b/g, '∀')
+    .replace(/\\exists\b/g, '∃')
+    .replace(/\\subset\b/g, '⊂')
+    .replace(/\\supset\b/g, '⊃')
+    .replace(/\\approx\b/g, '≈')
+    .replace(/\\equiv\b/g, '≡')
+    .replace(/\\perp\b/g, '⊥')
+    .replace(/\\parallel\b/g, '∥')
+    .replace(/\\angle\b/g, '∠')
     .replace(/\\sqrt\{([^}]*)\}/g, '√($1)')
-    .replace(/\\frac\{([^}]*)\)\{([^}]*)\}/g, '($1)/($2)') // \frac{1){2} (lỗi AI)
     .replace(/\\frac\{([^}]*)\}\{([^}]*)\}/g, '($1)/($2)')
     .replace(/\\left\(/g, '(')
     .replace(/\\right\)/g, ')')
@@ -132,17 +151,35 @@ function convertPlainLatex(text: string): string {
 }
 
 /**
- * Làm gọn biểu thức cho học sinh dễ đọc:
- * - (1)/(2) → 1/2; (3)/(4) → 3/4
- * - (√(3))/(2) → (√3)/2
- * - } = → ) = (sửa lỗi AI dùng } thay )
- * - Giảm ngoặc thừa: ((1)/(2)) → (1/2)
+ * Làm gọn biểu thức cho học sinh dễ đọc.
+ * Regex sửa lỗi định dạng LaTeX phổ biến:
  */
 function studentFriendlyFormat(text: string): string {
   return text
     .replace(/\(√\(([^)]*)\)\)\/\((\d+)\)/g, '(√$1)/$2') // (√(3))/(2) → (√3)/2
     .replace(/\((\d+)\)\/\((\d+)\)/g, '$1/$2') // (1)/(2) → 1/2
-    .replace(/\}\s*=/g, ') =') // } = → ) = (sửa lỗi AI)
+    .replace(/\}\s*=/g, ') =') // } = → ) = (lỗi AI dùng } thay )
+}
+
+/**
+ * Danh sách regex fix – dùng để kiểm tra / mở rộng.
+ * Gọi applyLatexFixes(text) để áp dụng tất cả.
+ */
+export const LATEX_FIX_PATTERNS = [
+  { pattern: /≤ft/g, replacement: '(', desc: '\\left bị corrupt' },
+  { pattern: /\\frac\{([^}]*)\)\{([^}]*)\}/g, replacement: '($1)/($2)', desc: '\\frac{1){2}' },
+  { pattern: /\(√\(([^)]*)\)\)\/\((\d+)\)/g, replacement: '(√$1)/$2', desc: '(√(3))/(2) → (√3)/2' },
+  { pattern: /\((\d+)\)\/\((\d+)\)/g, replacement: '$1/$2', desc: '(1)/(2) → 1/2' },
+  { pattern: /\}\s*=/g, replacement: ') =', desc: '} = → ) =' },
+] as const
+
+/** Áp dụng các regex fix lên text (chỉ phần student-friendly, không chạy toàn bộ latexToReadable) */
+export function applyLatexFixes(text: string): string {
+  let out = text
+  for (const { pattern, replacement } of LATEX_FIX_PATTERNS) {
+    out = out.replace(pattern, replacement)
+  }
+  return out
 }
 
 /** Chuyển toàn bộ LaTeX trong text sang ký hiệu đọc được */
