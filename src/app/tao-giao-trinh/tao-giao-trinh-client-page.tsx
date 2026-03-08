@@ -12,6 +12,7 @@ import QRCode from 'qrcode'
 import { exportWorksheetToPdf, exportWorksheetToWord } from './lib/worksheet-export'
 import { latexToReadable } from './lib/latex-to-readable'
 import { curriculumToSlidesMarkdown } from './lib/curriculum-to-slides'
+import { GammaSlideViewer } from './components/gamma-slide-viewer'
 import { SUBJECTS, GRADE_LEVELS, TEXTBOOK_SETS, LESSON_TYPES } from './lib/curriculum-subjects'
 import { createCurriculum, createWorksheet, listCurricula, listWorksheets, getCurriculumById, getWorksheetById } from './actions'
 
@@ -53,6 +54,7 @@ export default function TaoGiaoTrinhClientPage() {
   const [curriculaList, setCurriculaList] = useState<Array<{ id: string; topic: string; subject_id: string; grade_level_id: string; textbook_set_id?: string; lesson_type_id?: string; num_lessons?: number; lesson_duration_minutes?: number; created_at: string }>>([])
   const [worksheetsList, setWorksheetsList] = useState<Array<{ id: string; topic: string; subject_id: string; grade_level_id: string; created_at: string }>>([])
   const [browseLoading, setBrowseLoading] = useState(false)
+  const [showSlideViewer, setShowSlideViewer] = useState(false)
   const { toast } = useToast()
 
   const tr = (vi: string, en: string, zh: string, ja: string, ko: string) => {
@@ -143,6 +145,10 @@ export default function TaoGiaoTrinhClientPage() {
     toast({ title: tr('Đã tải xuống', 'Downloaded', '已下载', 'ダウンロードしました', '다운로드됨'), duration: 2000 })
   }
 
+  const handleOpenSlides = () => {
+    setShowSlideViewer(true)
+  }
+
   const handleDownloadSlides = () => {
     const slidesMd = curriculumToSlidesMarkdown(curriculumMarkdown, topic.trim() || 'Bài giảng')
     const blob = new Blob([slidesMd], { type: 'text/markdown;charset=utf-8' })
@@ -152,11 +158,7 @@ export default function TaoGiaoTrinhClientPage() {
     a.download = `slide-bai-giang-${topic.slice(0, 25).replace(/\s+/g, '-')}.md`
     a.click()
     URL.revokeObjectURL(url)
-    toast({
-      title: tr('Đã tải slide', 'Slides downloaded', '已下载幻灯片', 'スライドをダウンロード', '슬라이드 다운로드됨'),
-      description: tr('Định dạng Marp. Mở bằng VS Code + Marp hoặc marp-cli để xuất PDF.', 'Marp format. Open with VS Code + Marp or marp-cli to export PDF.', 'Marp格式。用VS Code+Marp或marp-cli导出PDF。', 'Marp形式。VS Code+Marpまたはmarp-cliでPDFにエクスポート。', 'Marp 형식. VS Code+Marp 또는 marp-cli로 PDF 내보내기.'),
-      duration: 4000,
-    })
+    toast({ title: tr('Đã tải slide', 'Slides downloaded', '已下载幻灯片', 'スライドをダウンロード', '슬라이드 다운로드됨'), duration: 2000 })
   }
 
   const handleReset = () => {
@@ -287,6 +289,13 @@ export default function TaoGiaoTrinhClientPage() {
   return (
     <>
       <Toaster />
+      {showSlideViewer && curriculumMarkdown && (
+        <GammaSlideViewer
+          curriculumMarkdown={curriculumMarkdown}
+          topic={topic.trim() || 'Bài giảng'}
+          onClose={() => setShowSlideViewer(false)}
+        />
+      )}
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-foreground">
@@ -538,8 +547,11 @@ export default function TaoGiaoTrinhClientPage() {
                   <Button variant="outline" size="sm" onClick={handleDownload}>
                     <FileDown className="h-3.5 w-3.5 mr-1" /> {tr('Tải .md', 'Download .md', '下载 .md', '.md をダウンロード', '.md 다운로드')}
                   </Button>
-                  <Button variant="outline" size="sm" onClick={handleDownloadSlides} className="border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-600 dark:text-amber-300 dark:hover:bg-amber-950/30">
-                    <Presentation className="h-3.5 w-3.5 mr-1" /> {tr('Tạo slide bài giảng', 'Create slides', '创建幻灯片', 'スライド作成', '슬라이드 생성')}
+                  <Button variant="outline" size="sm" onClick={handleOpenSlides} className="border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-600 dark:text-amber-300 dark:hover:bg-amber-950/30">
+                    <Presentation className="h-3.5 w-3.5 mr-1" /> {tr('Xem slide (Gamma)', 'View slides (Gamma)', '查看幻灯片', 'スライド表示', '슬라이드 보기')}
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={handleDownloadSlides} className="text-amber-600 hover:text-amber-700">
+                    .md
                   </Button>
                   <Button
                     variant="default"
