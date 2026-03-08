@@ -1,6 +1,7 @@
 /**
  * Xuất phiếu bài tập ra PDF và Word.
  */
+import { latexToReadable } from './latex-to-readable'
 import { jsPDF } from 'jspdf'
 import html2canvas from 'html2canvas'
 import {
@@ -72,7 +73,8 @@ export async function exportWorksheetToPdf(
 }
 
 function markdownToSimpleHtml(md: string): string {
-  let html = md
+  const readable = latexToReadable(md)
+  let html = readable
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
@@ -83,7 +85,6 @@ function markdownToSimpleHtml(md: string): string {
   html = html.replace(/^-\s+(.+)$/gm, '<p style="margin:2px 0 2px 16px">• $1</p>')
   html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
   html = html.replace(/\*(.+?)\*/g, '<em>$1</em>')
-  html = html.replace(/\$([^$]+)\$/g, '<code style="background:#f0f0f0;padding:1px 4px;border-radius:2px">$1</code>')
   const lines = html.split(/\n\n+/)
   const wrapped = lines.map((line) => {
     if (line.startsWith('<h') || line.startsWith('<p') || line.startsWith('<li')) return line
@@ -94,8 +95,9 @@ function markdownToSimpleHtml(md: string): string {
 
 /** Xuất Markdown ra Word (.docx). */
 export async function exportWorksheetToWord(content: string, filename: string): Promise<void> {
+  const readable = latexToReadable(content)
   const children: Paragraph[] = []
-  const lines = content.split(/\n/)
+  const lines = readable.split(/\n/)
   let i = 0
   while (i < lines.length) {
     const line = lines[i]
@@ -143,7 +145,6 @@ export async function exportWorksheetToWord(content: string, filename: string): 
       const text = line
         .replace(/\*\*(.+?)\*\*/g, '$1')
         .replace(/\*(.+?)\*/g, '$1')
-        .replace(/\$([^$]+)\$/g, '$1')
       children.push(
         new Paragraph({
           children: [new TextRun({ text, size: 22 })],

@@ -10,6 +10,7 @@ import { Sparkles, Copy, FileDown, RefreshCw, FileQuestion } from 'lucide-react'
 import { SUBJECTS, GRADE_LEVELS, TEXTBOOK_SETS, QUESTION_TYPES } from './lib/exam-config'
 import { createExam } from './actions'
 import { exportWorksheetToPdf, exportWorksheetToWord } from '@/app/tao-giao-trinh/lib/worksheet-export'
+import { latexToReadable } from '@/app/tao-giao-trinh/lib/latex-to-readable'
 
 type UiLocale = 'vi' | 'en' | 'zh' | 'ja' | 'ko'
 
@@ -299,7 +300,7 @@ export default function TaoDeTracNghiemClientPage() {
             <CardContent>
               <div className="rounded-lg border bg-slate-50 dark:bg-slate-900/50 p-4 overflow-auto max-h-[60vh]">
                 <pre className="text-sm whitespace-pre-wrap font-sans leading-relaxed prose prose-slate dark:prose-invert max-w-none">
-                  {examMarkdown}
+                  {latexToReadable(examMarkdown)}
                 </pre>
               </div>
             </CardContent>

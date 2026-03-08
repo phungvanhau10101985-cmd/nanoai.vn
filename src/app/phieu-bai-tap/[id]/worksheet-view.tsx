@@ -1,8 +1,11 @@
 'use client'
 
-/** Hiển thị nội dung phiếu bài tập (Markdown đơn giản, LaTeX hiển thị dạng text). */
+import { latexToReadable } from '@/app/tao-giao-trinh/lib/latex-to-readable'
+
+/** Hiển thị nội dung phiếu bài tập (Markdown đơn giản, LaTeX chuyển sang ký hiệu đọc được). */
 export default function WorksheetView({ content }: { content: string }) {
-  const html = markdownToSimpleHtml(content)
+  const readable = latexToReadable(content)
+  const html = markdownToSimpleHtml(readable)
   return (
     <article
       className="prose prose-slate dark:prose-invert max-w-none text-sm leading-relaxed"
@@ -34,7 +37,6 @@ function markdownToSimpleHtml(md: string): string {
       const formatted = line
         .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
         .replace(/\*(.+?)\*/g, '<em>$1</em>')
-        .replace(/\$([^$]+)\$/g, '<code class="bg-muted px-1 rounded">$1</code>')
       out.push(`<p class="my-1">${formatted}</p>`)
     } else {
       out.push('<br/>')

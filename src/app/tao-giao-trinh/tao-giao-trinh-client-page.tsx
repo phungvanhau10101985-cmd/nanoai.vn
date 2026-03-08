@@ -7,11 +7,12 @@ import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
-import { Sparkles, Copy, FileDown, RefreshCw, FileSpreadsheet, QrCode } from 'lucide-react'
+import { Sparkles, Copy, FileDown, RefreshCw, FileSpreadsheet, QrCode, FolderOpen, BookOpen, FileText } from 'lucide-react'
 import QRCode from 'qrcode'
 import { exportWorksheetToPdf, exportWorksheetToWord } from './lib/worksheet-export'
+import { latexToReadable } from './lib/latex-to-readable'
 import { SUBJECTS, GRADE_LEVELS, TEXTBOOK_SETS, LESSON_TYPES } from './lib/curriculum-subjects'
-import { createCurriculum, createWorksheet } from './actions'
+import { createCurriculum, createWorksheet, listCurricula, listWorksheets, getCurriculumById, getWorksheetById } from './actions'
 
 type UiLocale = 'vi' | 'en' | 'zh' | 'ja' | 'ko'
 
@@ -47,6 +48,10 @@ export default function TaoGiaoTrinhClientPage() {
   const [worksheetId, setWorksheetId] = useState<string | null>(null)
   const [worksheetQrDataUrl, setWorksheetQrDataUrl] = useState<string | null>(null)
   const [worksheetLoading, setWorksheetLoading] = useState(false)
+  const [showBrowse, setShowBrowse] = useState(false)
+  const [curriculaList, setCurriculaList] = useState<Array<{ id: string; topic: string; subject_id: string; grade_level_id: string; textbook_set_id?: string; lesson_type_id?: string; num_lessons?: number; lesson_duration_minutes?: number; created_at: string }>>([])
+  const [worksheetsList, setWorksheetsList] = useState<Array<{ id: string; topic: string; subject_id: string; grade_level_id: string; created_at: string }>>([])
+  const [browseLoading, setBrowseLoading] = useState(false)
   const { toast } = useToast()
 
   const tr = (vi: string, en: string, zh: string, ja: string, ko: string) => {
@@ -63,6 +68,23 @@ export default function TaoGiaoTrinhClientPage() {
     const timer = window.setInterval(syncLocale, 1000)
     return () => window.clearInterval(timer)
   }, [])
+
+  useEffect(() => {
+    if (!showBrowse) return
+    setBrowseLoading(true)
+    Promise.all([
+      listCurricula({ subjectId: subjectId || undefined, gradeLevelId: gradeLevelId || undefined }),
+      listWorksheets({ subjectId: subjectId || undefined, gradeLevelId: gradeLevelId || undefined }),
+    ]).then(([curRes, wsRes]) => {
+      if (curRes && 'items' in curRes) setCurriculaList(curRes.items)
+      else setCurriculaList([])
+      if (wsRes && 'items' in wsRes) setWorksheetsList(wsRes.items)
+      else setWorksheetsList([])
+    }).catch(() => {
+      setCurriculaList([])
+      setWorksheetsList([])
+    }).finally(() => setBrowseLoading(false))
+  }, [showBrowse, subjectId, gradeLevelId])
 
   const handleSubmit = async () => {
     if (!topic.trim()) {
@@ -126,6 +148,54 @@ export default function TaoGiaoTrinhClientPage() {
     setWorksheetMarkdown('')
     setWorksheetId(null)
     setWorksheetQrDataUrl(null)
+  }
+
+  const handleLoadCurriculum = async (id: string) => {
+    const result = await getCurriculumById(id)
+    if (result.error) {
+      toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: result.error, variant: 'destructive' })
+      return
+    }
+    if (result.success && result.curriculum) {
+      const c = result.curriculum
+      setTopic(c.topic ?? '')
+      setSubjectId(c.subject_id ?? 'toan')
+      setGradeLevelId(c.grade_level_id ?? 'lop-6')
+      setTextbookSetId(c.textbook_set_id ?? 'ket-noi-tri-thuc')
+      setLessonTypeId(c.lesson_type_id ?? 'hinh-thanh-kien-thuc')
+      setNumLessons(c.num_lessons ?? 5)
+      setLessonDurationMinutes(c.lesson_duration_minutes ?? 45)
+      setGoals(c.goals ?? '')
+      setCurriculumMarkdown(c.content_markdown ?? '')
+      setWorksheetMarkdown('')
+      setWorksheetId(null)
+      setWorksheetQrDataUrl(null)
+      setStep('RESULT')
+      setShowBrowse(false)
+      toast({ title: tr('Đã tải giáo trình', 'Curriculum loaded', '已加载课程', 'カリキュラムを読み込み', '교육과정 로드됨'), duration: 2000 })
+    }
+  }
+
+  const handleLoadWorksheet = async (id: string) => {
+    const result = await getWorksheetById(id)
+    if (result.error) {
+      toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: result.error, variant: 'destructive' })
+      return
+    }
+    if (result.success && result.worksheet) {
+      const w = result.worksheet
+      setTopic(w.topic ?? '')
+      setSubjectId(w.subject_id ?? 'toan')
+      setGradeLevelId(w.grade_level_id ?? 'lop-6')
+      setWorksheetMarkdown(w.content_markdown ?? '')
+      setWorksheetId(w.id)
+      setCurriculumMarkdown('')
+      const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
+      QRCode.toDataURL(`${baseUrl}/phieu-bai-tap/${w.id}`, { width: 180, margin: 2 }).then(setWorksheetQrDataUrl).catch(() => setWorksheetQrDataUrl(null))
+      setStep('RESULT')
+      setShowBrowse(false)
+      toast({ title: tr('Đã tải phiếu bài tập', 'Worksheet loaded', '已加载练习', 'ワークシートを読み込み', '워크시트 로드됨'), duration: 2000 })
+    }
   }
 
   const handleCreateWorksheet = async () => {
@@ -215,6 +285,81 @@ export default function TaoGiaoTrinhClientPage() {
             )}
           </p>
         </div>
+
+        <Card className="border shadow-sm border-slate-200/80 dark:border-slate-700/50">
+          <CardHeader className="py-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <FolderOpen className="h-4 w-4 text-violet-600" />
+                {tr('Kho giáo trình & phiếu bài tập', 'Curriculum & worksheet library', '课程与练习库', 'カリキュラム・ワークシートライブラリ', '교육과정·워크시트 라이브러리')}
+              </CardTitle>
+              <Button variant="ghost" size="sm" onClick={() => setShowBrowse(!showBrowse)}>
+                {showBrowse ? tr('Thu gọn', 'Collapse', '收起', '閉じる', '접기') : tr('Xem kho', 'Browse library', '浏览库', 'ライブラリを見る', '라이브러리 보기')}
+              </Button>
+            </div>
+            <CardDescription className="text-xs">
+              {tr('Dùng lại giáo trình hoặc phiếu bài tập đã tạo bởi bạn hoặc giáo viên khác.', 'Reuse curricula or worksheets created by you or other teachers.', '重用您或其他教师创建的课程或练习。', '自分や他の教師が作成したカリキュラム・ワークシートを再利用。', '본인 또는 다른 교사가 만든 교육과정·워크시트 재사용.')}
+            </CardDescription>
+          </CardHeader>
+          {showBrowse && (
+            <CardContent className="pt-0 space-y-4">
+              {browseLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <RefreshCw className="h-8 w-8 text-violet-500 animate-spin" />
+                </div>
+              ) : (
+                <>
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
+                      <BookOpen className="h-3.5 w-3.5" />
+                      {tr('Giáo trình', 'Curricula', '课程', 'カリキュラム', '교육과정')} ({curriculaList.length})
+                    </p>
+                    <div className="max-h-40 overflow-y-auto space-y-1 rounded border p-2 bg-slate-50/50 dark:bg-slate-900/30">
+                      {curriculaList.length === 0 ? (
+                        <p className="text-xs text-muted-foreground py-2">{tr('Chưa có giáo trình nào.', 'No curricula yet.', '暂无课程。', 'カリキュラムがありません。', '교육과정이 없습니다.')}</p>
+                      ) : (
+                        curriculaList.map((c) => (
+                          <button
+                            key={c.id}
+                            type="button"
+                            onClick={() => void handleLoadCurriculum(c.id)}
+                            className="w-full text-left text-sm px-2 py-1.5 rounded hover:bg-violet-100 dark:hover:bg-violet-900/30 transition-colors"
+                          >
+                            <span className="font-medium truncate block">{c.topic}</span>
+                            <span className="text-xs text-muted-foreground">{c.subject_id} · {c.grade_level_id}</span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
+                      <FileText className="h-3.5 w-3.5" />
+                      {tr('Phiếu bài tập', 'Worksheets', '练习', 'ワークシート', '워크시트')} ({worksheetsList.length})
+                    </p>
+                    <div className="max-h-40 overflow-y-auto space-y-1 rounded border p-2 bg-slate-50/50 dark:bg-slate-900/30">
+                      {worksheetsList.length === 0 ? (
+                        <p className="text-xs text-muted-foreground py-2">{tr('Chưa có phiếu bài tập nào.', 'No worksheets yet.', '暂无练习。', 'ワークシートがありません。', '워크시트가 없습니다.')}</p>
+                      ) : (
+                        worksheetsList.map((w) => (
+                          <button
+                            key={w.id}
+                            type="button"
+                            onClick={() => void handleLoadWorksheet(w.id)}
+                            className="w-full text-left text-sm px-2 py-1.5 rounded hover:bg-emerald-100 dark:hover:bg-emerald-900/30 transition-colors"
+                          >
+                            <span className="font-medium truncate block">{w.topic}</span>
+                            <span className="text-xs text-muted-foreground">{w.subject_id} · {w.grade_level_id}</span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          )}
+        </Card>
 
         {step === 'INPUT' && (
           <Card className="border shadow-sm bg-white/80 backdrop-blur border-violet-200/60">
@@ -363,8 +508,9 @@ export default function TaoGiaoTrinhClientPage() {
           </Card>
         )}
 
-        {step === 'RESULT' && curriculumMarkdown && (
+        {step === 'RESULT' && (curriculumMarkdown || worksheetMarkdown) && (
           <>
+            {curriculumMarkdown && (
             <Card className="border shadow-sm overflow-hidden">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-base">{tr('Giáo trình đã tạo', 'Generated curriculum', '已创建课程', '作成したカリキュラム', '생성된 교육과정')}</CardTitle>
@@ -395,11 +541,12 @@ export default function TaoGiaoTrinhClientPage() {
               <CardContent>
                 <div className="rounded-lg border bg-slate-50 dark:bg-slate-900/50 p-4 overflow-auto max-h-[60vh]">
                   <pre className="text-sm whitespace-pre-wrap font-sans leading-relaxed prose prose-slate dark:prose-invert max-w-none">
-                    {curriculumMarkdown}
+                    {latexToReadable(curriculumMarkdown)}
                   </pre>
                 </div>
               </CardContent>
             </Card>
+            )}
 
             {worksheetMarkdown && (
               <Card className="border shadow-sm overflow-hidden border-emerald-200/60">
@@ -437,6 +584,9 @@ export default function TaoGiaoTrinhClientPage() {
                     <Button variant="outline" size="sm" onClick={handleExportWord}>
                       <FileDown className="h-3.5 w-3.5 mr-1" /> Word
                     </Button>
+                    <Button variant="outline" size="sm" onClick={handleReset}>
+                      {tr('Tạo mới', 'Create new', '新建', '新規作成', '새로 만들기')}
+                    </Button>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -464,7 +614,7 @@ export default function TaoGiaoTrinhClientPage() {
                   )}
                   <div className="rounded-lg border bg-slate-50 dark:bg-slate-900/50 p-4 overflow-auto max-h-[60vh]">
                     <pre className="text-sm whitespace-pre-wrap font-sans leading-relaxed prose prose-slate dark:prose-invert max-w-none">
-                      {worksheetMarkdown}
+                      {latexToReadable(worksheetMarkdown)}
                     </pre>
                   </div>
                 </CardContent>

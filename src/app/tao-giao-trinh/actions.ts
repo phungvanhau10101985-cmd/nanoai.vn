@@ -140,7 +140,28 @@ Yêu cầu format:
     }
 
     if (!text) return { error: 'AI không trả về nội dung.' }
-    return { success: true, curriculumMarkdown: text }
+
+    const { data: row, error: insertErr } = await supabase
+      .from('worksheet_curricula')
+      .insert({
+        user_id: user?.id ?? null,
+        topic: topic.trim(),
+        subject_id: subjectId,
+        grade_level_id: gradeLevelId,
+        textbook_set_id: textbookSetId,
+        lesson_type_id: lessonTypeId,
+        num_lessons: numTiet,
+        lesson_duration_minutes: thoiLuong,
+        goals: goals.trim() || null,
+        content_markdown: text,
+      })
+      .select('id')
+      .single()
+
+    if (insertErr) {
+      return { success: true, curriculumMarkdown: text, curriculumId: null }
+    }
+    return { success: true, curriculumMarkdown: text, curriculumId: row?.id ?? null }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     return { error: `Tạo giáo trình thất bại: ${msg}` }
@@ -268,4 +289,76 @@ Chỉ trả về nội dung phiếu bài tập, không có lời giải thích t
     const msg = e instanceof Error ? e.message : String(e)
     return { error: `Tạo phiếu bài tập thất bại: ${msg}` }
   }
+}
+
+/** Danh sách giáo trình đã lưu – để giáo viên browse và reuse */
+export async function listCurricula(opts?: { subjectId?: string; gradeLevelId?: string; limit?: number }) {
+  const supabase = createClient()
+  const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập để xem danh sách giáo trình.')
+  if ('error' in authResult) return { error: authResult.error }
+
+  let q = supabase
+    .from('worksheet_curricula')
+    .select('id, topic, subject_id, grade_level_id, textbook_set_id, lesson_type_id, num_lessons, lesson_duration_minutes, created_at')
+    .order('created_at', { ascending: false })
+    .limit(Math.min(100, opts?.limit ?? 50))
+
+  if (opts?.subjectId) q = q.eq('subject_id', opts.subjectId)
+  if (opts?.gradeLevelId) q = q.eq('grade_level_id', opts.gradeLevelId)
+
+  const { data, error } = await q
+  if (error) return { error: error.message }
+  return { success: true, items: data ?? [] }
+}
+
+/** Lấy chi tiết giáo trình theo id */
+export async function getCurriculumById(id: string) {
+  const supabase = createClient()
+  const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+  if ('error' in authResult) return { error: authResult.error }
+
+  const { data, error } = await supabase
+    .from('worksheet_curricula')
+    .select('*')
+    .eq('id', id)
+    .single()
+
+  if (error || !data) return { error: error?.message ?? 'Không tìm thấy giáo trình.' }
+  return { success: true, curriculum: data }
+}
+
+/** Danh sách phiếu bài tập đã lưu */
+export async function listWorksheets(opts?: { subjectId?: string; gradeLevelId?: string; limit?: number }) {
+  const supabase = createClient()
+  const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập để xem danh sách phiếu bài tập.')
+  if ('error' in authResult) return { error: authResult.error }
+
+  let q = supabase
+    .from('worksheet_worksheets')
+    .select('id, topic, subject_id, grade_level_id, created_at')
+    .order('created_at', { ascending: false })
+    .limit(Math.min(100, opts?.limit ?? 50))
+
+  if (opts?.subjectId) q = q.eq('subject_id', opts.subjectId)
+  if (opts?.gradeLevelId) q = q.eq('grade_level_id', opts.gradeLevelId)
+
+  const { data, error } = await q
+  if (error) return { error: error.message }
+  return { success: true, items: data ?? [] }
+}
+
+/** Lấy chi tiết phiếu bài tập theo id */
+export async function getWorksheetById(id: string) {
+  const supabase = createClient()
+  const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+  if ('error' in authResult) return { error: authResult.error }
+
+  const { data, error } = await supabase
+    .from('worksheet_worksheets')
+    .select('*')
+    .eq('id', id)
+    .single()
+
+  if (error || !data) return { error: error?.message ?? 'Không tìm thấy phiếu bài tập.' }
+  return { success: true, worksheet: data }
 }
