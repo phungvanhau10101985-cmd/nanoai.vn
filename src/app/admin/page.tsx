@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Users, BarChart3, BookOpen } from 'lucide-react'
+import { Users, BarChart3, BookOpen, FileEdit } from 'lucide-react'
 import { getCurrentWebLocale } from '@/lib/i18n/server'
 
 const ADMIN_LINKS = [
@@ -58,6 +58,24 @@ const ADMIN_LINKS = [
       ko: '영어 코치용 예문 보정 실행.',
     },
     icon: BookOpen,
+  },
+  {
+    href: '/admin/slide-proposals',
+    title: {
+      vi: 'Đề xuất sửa slide',
+      en: 'Slide edit proposals',
+      zh: '幻灯片编辑建议',
+      ja: 'スライド編集提案',
+      ko: '슬라이드 편집 제안',
+    },
+    description: {
+      vi: 'Danh sách đề xuất sửa/bổ sung slide từ giáo viên. 5 người đồng ý tự áp dụng.',
+      en: 'List of slide edit proposals from teachers. Auto-apply when 5 agree.',
+      zh: '教师提交的幻灯片编辑建议列表。5人同意自动应用。',
+      ja: '教師からのスライド編集提案一覧。5人賛成で自動適用。',
+      ko: '교사 제출 슬라이드 편집 제안 목록. 5명 찬성 시 자동 적용.',
+    },
+    icon: FileEdit,
   },
   {
     href: '/admin/english-coach',

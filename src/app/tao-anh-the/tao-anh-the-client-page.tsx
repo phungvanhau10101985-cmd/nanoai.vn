@@ -9,6 +9,13 @@ import { createIdCard } from './actions'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
 import { Upload, Sparkles, RefreshCw, Link2 } from 'lucide-react'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { DepositCreditButton } from '@/components/deposit-credit-button'
 import { useCredits } from '@/hooks/use-credits'
 import { DownloadImageButton } from '@/components/download-image-button'
@@ -39,6 +46,21 @@ const IDCARD_ASPECT_RATIOS = [
   { value: '1:1', label: '1:1 Vuông' },
 ] as const
 
+const BACKGROUND_COLORS = [
+  { value: 'white', labelVi: 'Trắng', labelEn: 'White', labelZh: '白色', labelJa: '白', labelKo: '흰색', hex: '#FFFFFF' },
+  { value: 'blue', labelVi: 'Xanh nhạt', labelEn: 'Light blue', labelZh: '浅蓝', labelJa: '薄い青', labelKo: '연한 파랑', hex: '#4A90E2' },
+  { value: 'gray', labelVi: 'Xám nhạt', labelEn: 'Light gray', labelZh: '浅灰', labelJa: '薄いグレー', labelKo: '연한 회색', hex: '#E5E7EB' },
+  { value: 'red', labelVi: 'Đỏ nhạt', labelEn: 'Light red', labelZh: '浅红', labelJa: '薄い赤', labelKo: '연한 빨강', hex: '#E8B4B8' },
+] as const
+
+const SHIRT_STYLES = [
+  { value: 'default', labelVi: 'Không chỉ định', labelEn: 'Default', labelZh: '默认', labelJa: '指定なし', labelKo: '기본' },
+  { value: 'formal', labelVi: 'Áo sơ mi', labelEn: 'Formal shirt', labelZh: '衬衫', labelJa: 'シャツ', labelKo: '셔츠' },
+  { value: 'casual', labelVi: 'Áo thun', labelEn: 'Casual T-shirt', labelZh: 'T恤', labelJa: 'Tシャツ', labelKo: '티셔츠' },
+  { value: 'vest', labelVi: 'Áo vest', labelEn: 'Blazer/Vest', labelZh: '西装', labelJa: 'スーツ', labelKo: '정장' },
+  { value: 'traditional', labelVi: 'Áo dài', labelEn: 'Traditional', labelZh: '传统服装', labelJa: '民族衣装', labelKo: '전통 의상' },
+] as const
+
 const setImageFromFile = (file: File, setImage: (v: { file: File; preview: string }) => void) => {
   if (!file.type.startsWith('image/')) return false
   setImage({ file, preview: URL.createObjectURL(file) })
@@ -51,6 +73,8 @@ export default function TaoAnhTheClientPage() {
   const [image, setImage] = useState<{ file: File | null; preview: string | null }>({ file: null, preview: null })
   const [imageQuality, setImageQuality] = useState<'2K' | '4K'>('2K')
   const [aspectRatio, setAspectRatio] = useState<string>('3:4')
+  const [backgroundColor, setBackgroundColor] = useState<string>('white')
+  const [shirtStyle, setShirtStyle] = useState<string>('default')
   const [note, setNote] = useState('')
   const [imageUrl, setImageUrl] = useState('')
   const [urlLoading, setUrlLoading] = useState(false)
@@ -60,11 +84,11 @@ export default function TaoAnhTheClientPage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const cost = imageQuality === '2K' ? 1.5 : 3
   const t = useMemo(() => {
-    if (uiLocale === 'en') return { err: 'Error', title: 'Create ID Photo', subtitle: 'Remove background and create standard ID photo sizes. 1.5-3 credits/image.', uploadCard: 'Upload portrait image', uploadDesc: 'Choose image, paste one (Ctrl+V), or paste image URL.', chooseOrPaste: 'Choose image or paste (Ctrl+V)', reselect: 'Select again', urlPlaceholder: 'Paste image URL then click Fetch', loading: 'Loading...', fetch: 'Fetch image', options: 'Options', optionsDesc: 'Choose ratio, extra request, and quality.', ratio: 'ID ratio', extra: 'Extra request', extraPlaceholder: 'e.g. white background, blue background, 3x4, 4x6...', quality: 'Image quality', create: 'Create ID photo', time: '* Time: 15-45 seconds', generatingTitle: 'Generating ID photo', generatingDesc: 'AI is removing background and standardizing ID photo', resultTitle: 'ID photo result', resultDesc: 'ID photo generated.', before: 'Before', after: 'After', retry: 'Try again', download: 'Download', footer: 'Sharper input gives better output. AI-generated images may contain minor errors.' }
-    if (uiLocale === 'zh') return { err: '错误', title: '制作证件照', subtitle: '抠图并生成标准证件照尺寸。1.5-3 credits/张。', uploadCard: '上传人像图片', uploadDesc: '可选择图片、粘贴图片（Ctrl+V）或粘贴链接。', chooseOrPaste: '选择图片或粘贴图片（Ctrl+V）', reselect: '重新选择', urlPlaceholder: '粘贴图片链接后点击获取图片', loading: '加载中...', fetch: '获取图片', options: '选项', optionsDesc: '选择比例、附加要求与画质。', ratio: '证件照比例', extra: '附加要求', extraPlaceholder: '例如：白底、蓝底、3x4、4x6...', quality: '图片质量', create: '生成证件照', time: '* 时间：15-45 秒', generatingTitle: '正在生成证件照', generatingDesc: 'AI 正在抠图并标准化证件照', resultTitle: '证件照结果', resultDesc: '证件照已生成。', before: '之前', after: '之后', retry: '重试', download: '下载', footer: '输入越清晰，结果越准确。AI 生成结果可能存在误差。' }
-    if (uiLocale === 'ja') return { err: 'エラー', title: '証明写真作成', subtitle: '背景を除去し、標準サイズの証明写真を作成します。1.5-3 credits/枚。', uploadCard: 'ポートレートをアップロード', uploadDesc: '画像選択・貼り付け（Ctrl+V）・リンク貼り付けに対応。', chooseOrPaste: '画像を選択または貼り付け（Ctrl+V）', reselect: '再選択', urlPlaceholder: '画像リンクを貼って「取得」を押してください', loading: '読み込み中...', fetch: '画像を取得', options: 'オプション', optionsDesc: '比率、追加要望、画質を設定。', ratio: '証明写真の比率', extra: '追加要望', extraPlaceholder: '例：白背景、青背景、3x4、4x6...', quality: '画質', create: '証明写真を作成', time: '* 時間：15-45秒', generatingTitle: '証明写真を生成中', generatingDesc: 'AI が背景を除去し証明写真を最適化しています', resultTitle: '証明写真の結果', resultDesc: '証明写真を生成しました。', before: '前', after: '後', retry: 'やり直す', download: 'ダウンロード', footer: '元画像が鮮明なほど精度が上がります。AI生成結果には誤差が含まれる場合があります。' }
-    if (uiLocale === 'ko') return { err: '오류', title: '증명사진 만들기', subtitle: '배경 제거 후 표준 증명사진 규격으로 생성합니다. 1.5-3 credits/장.', uploadCard: '인물 사진 업로드', uploadDesc: '이미지 선택, 붙여넣기(Ctrl+V), 링크 붙여넣기 지원.', chooseOrPaste: '이미지를 선택하거나 붙여넣기(Ctrl+V)', reselect: '다시 선택', urlPlaceholder: '이미지 링크를 붙여넣고 가져오기를 누르세요', loading: '불러오는 중...', fetch: '가져오기', options: '옵션', optionsDesc: '비율, 추가 요청, 화질 선택.', ratio: '증명사진 비율', extra: '추가 요청', extraPlaceholder: '예: 흰 배경, 파란 배경, 3x4, 4x6...', quality: '이미지 품질', create: '증명사진 생성', time: '* 시간: 15-45초', generatingTitle: '증명사진 생성 중', generatingDesc: 'AI가 배경을 제거하고 증명사진 규격으로 보정 중입니다', resultTitle: '증명사진 결과', resultDesc: '증명사진 생성 완료.', before: '전', after: '후', retry: '다시 시도', download: '다운로드', footer: '원본이 선명할수록 결과가 정확합니다. AI 생성 결과에는 오차가 있을 수 있습니다.' }
-    return { err: 'Lỗi', title: 'Tạo ảnh thẻ', subtitle: 'Tách nền, thay nền trắng/xanh. Chuẩn 3x4, 4x6. 1,5-3 credits/ảnh.', uploadCard: 'Tải ảnh cần tạo ảnh thẻ', uploadDesc: 'Chọn ảnh, dán ảnh (Ctrl+V) hoặc dán link ảnh.', chooseOrPaste: 'Chọn ảnh hoặc dán ảnh (Ctrl+V)', reselect: 'Chọn lại', urlPlaceholder: 'Dán link ảnh rồi bấm Lấy ảnh', loading: 'Đang tải...', fetch: 'Lấy ảnh', options: 'Tùy chọn', optionsDesc: 'Chọn tỷ lệ ảnh thẻ, yêu cầu thêm và chất lượng.', ratio: 'Tỷ lệ ảnh thẻ', extra: 'Yêu cầu thêm', extraPlaceholder: 'Ví dụ: nền trắng, nền xanh, size 3x4, 4x6...', quality: 'Chất lượng ảnh', create: 'Tạo ảnh thẻ', time: '* Thời gian: 15-45 giây', generatingTitle: 'Đang tạo ảnh thẻ', generatingDesc: 'AI đang tách nền và chuẩn hóa ảnh thẻ', resultTitle: 'Kết quả ảnh thẻ', resultDesc: 'Ảnh thẻ đã được tạo.', before: 'Trước', after: 'Sau', retry: 'Thử lại', download: 'Tải xuống', footer: 'Ảnh càng nét càng chính xác. Ảnh do AI tạo có thể có sai sót.' }
+    if (uiLocale === 'en') return { err: 'Error', title: 'Create ID Photo', subtitle: 'Remove background and create standard ID photo sizes. 1.5-3 credits/image.', uploadCard: 'Upload portrait image', uploadDesc: 'Choose image, paste one (Ctrl+V), or paste image URL.', chooseOrPaste: 'Choose image or paste (Ctrl+V)', reselect: 'Select again', urlPlaceholder: 'Paste image URL then click Fetch', loading: 'Loading...', fetch: 'Fetch image', options: 'Options', optionsDesc: 'Choose ratio, extra request, and quality.', ratio: 'ID ratio', bgColor: 'Background color', shirtStyle: 'Shirt style', extra: 'Extra request', extraPlaceholder: 'e.g. white background, blue background, 3x4, 4x6...', quality: 'Image quality', create: 'Create ID photo', time: '* Time: 15-45 seconds', generatingTitle: 'Generating ID photo', generatingDesc: 'AI is removing background and standardizing ID photo', resultTitle: 'ID photo result', resultDesc: 'ID photo generated.', before: 'Before', after: 'After', retry: 'Try again', download: 'Download', footer: 'Sharper input gives better output. AI-generated images may contain minor errors.' }
+    if (uiLocale === 'zh') return { err: '错误', title: '制作证件照', subtitle: '抠图并生成标准证件照尺寸。1.5-3 credits/张。', uploadCard: '上传人像图片', uploadDesc: '可选择图片、粘贴图片（Ctrl+V）或粘贴链接。', chooseOrPaste: '选择图片或粘贴图片（Ctrl+V）', reselect: '重新选择', urlPlaceholder: '粘贴图片链接后点击获取图片', loading: '加载中...', fetch: '获取图片', options: '选项', optionsDesc: '选择比例、附加要求与画质。', ratio: '证件照比例', bgColor: '背景颜色', shirtStyle: '服装款式', extra: '附加要求', extraPlaceholder: '例如：白底、蓝底、3x4、4x6...', quality: '图片质量', create: '生成证件照', time: '* 时间：15-45 秒', generatingTitle: '正在生成证件照', generatingDesc: 'AI 正在抠图并标准化证件照', resultTitle: '证件照结果', resultDesc: '证件照已生成。', before: '之前', after: '之后', retry: '重试', download: '下载', footer: '输入越清晰，结果越准确。AI 生成结果可能存在误差。' }
+    if (uiLocale === 'ja') return { err: 'エラー', title: '証明写真作成', subtitle: '背景を除去し、標準サイズの証明写真を作成します。1.5-3 credits/枚。', uploadCard: 'ポートレートをアップロード', uploadDesc: '画像選択・貼り付け（Ctrl+V）・リンク貼り付けに対応。', chooseOrPaste: '画像を選択または貼り付け（Ctrl+V）', reselect: '再選択', urlPlaceholder: '画像リンクを貼って「取得」を押してください', loading: '読み込み中...', fetch: '画像を取得', options: 'オプション', optionsDesc: '比率、追加要望、画質を設定。', ratio: '証明写真の比率', bgColor: '背景色', shirtStyle: '服装スタイル', extra: '追加要望', extraPlaceholder: '例：白背景、青背景、3x4、4x6...', quality: '画質', create: '証明写真を作成', time: '* 時間：15-45秒', generatingTitle: '証明写真を生成中', generatingDesc: 'AI が背景を除去し証明写真を最適化しています', resultTitle: '証明写真の結果', resultDesc: '証明写真を生成しました。', before: '前', after: '後', retry: 'やり直す', download: 'ダウンロード', footer: '元画像が鮮明なほど精度が上がります。AI生成結果には誤差が含まれる場合があります。' }
+    if (uiLocale === 'ko') return { err: '오류', title: '증명사진 만들기', subtitle: '배경 제거 후 표준 증명사진 규격으로 생성합니다. 1.5-3 credits/장.', uploadCard: '인물 사진 업로드', uploadDesc: '이미지 선택, 붙여넣기(Ctrl+V), 링크 붙여넣기 지원.', chooseOrPaste: '이미지를 선택하거나 붙여넣기(Ctrl+V)', reselect: '다시 선택', urlPlaceholder: '이미지 링크를 붙여넣고 가져오기를 누르세요', loading: '불러오는 중...', fetch: '가져오기', options: '옵션', optionsDesc: '비율, 추가 요청, 화질 선택.', ratio: '증명사진 비율', bgColor: '배경색', shirtStyle: '의상 스타일', extra: '추가 요청', extraPlaceholder: '예: 흰 배경, 파란 배경, 3x4, 4x6...', quality: '이미지 품질', create: '증명사진 생성', time: '* 시간: 15-45초', generatingTitle: '증명사진 생성 중', generatingDesc: 'AI가 배경을 제거하고 증명사진 규격으로 보정 중입니다', resultTitle: '증명사진 결과', resultDesc: '증명사진 생성 완료.', before: '전', after: '후', retry: '다시 시도', download: '다운로드', footer: '원본이 선명할수록 결과가 정확합니다. AI 생성 결과에는 오차가 있을 수 있습니다.' }
+    return { err: 'Lỗi', title: 'Tạo ảnh thẻ', subtitle: 'Tách nền, thay nền trắng/xanh. Chuẩn 3x4, 4x6. 1,5-3 credits/ảnh.', uploadCard: 'Tải ảnh cần tạo ảnh thẻ', uploadDesc: 'Chọn ảnh, dán ảnh (Ctrl+V) hoặc dán link ảnh.', chooseOrPaste: 'Chọn ảnh hoặc dán ảnh (Ctrl+V)', reselect: 'Chọn lại', urlPlaceholder: 'Dán link ảnh rồi bấm Lấy ảnh', loading: 'Đang tải...', fetch: 'Lấy ảnh', options: 'Tùy chọn', optionsDesc: 'Chọn tỷ lệ ảnh thẻ, yêu cầu thêm và chất lượng.', ratio: 'Tỷ lệ ảnh thẻ', bgColor: 'Màu nền', shirtStyle: 'Kiểu áo', extra: 'Yêu cầu thêm', extraPlaceholder: 'Ví dụ: nền trắng, nền xanh, size 3x4, 4x6...', quality: 'Chất lượng ảnh', create: 'Tạo ảnh thẻ', time: '* Thời gian: 15-45 giây', generatingTitle: 'Đang tạo ảnh thẻ', generatingDesc: 'AI đang tách nền và chuẩn hóa ảnh thẻ', resultTitle: 'Kết quả ảnh thẻ', resultDesc: 'Ảnh thẻ đã được tạo.', before: 'Trước', after: 'Sau', retry: 'Thử lại', download: 'Tải xuống', footer: 'Ảnh càng nét càng chính xác. Ảnh do AI tạo có thể có sai sót.' }
   }, [uiLocale])
   const getAspectLabel = (value: string, fallback: string) => {
     if (value === '3:4') return uiLocale === 'vi' ? '3:4 Chuẩn 3x4 (CMND/CCCD)' : uiLocale === 'en' ? '3:4 Standard 3x4 (ID card)' : uiLocale === 'zh' ? '3:4 标准 3x4（证件）' : uiLocale === 'ja' ? '3:4 標準 3x4（身分証）' : '3:4 표준 3x4 (신분증)'
@@ -151,6 +175,8 @@ export default function TaoAnhTheClientPage() {
     formData.append('image', image.file)
     formData.append('imageQuality', imageQuality)
     formData.append('aspectRatio', aspectRatio)
+    formData.append('backgroundColor', backgroundColor)
+    formData.append('shirtStyle', shirtStyle)
     formData.append('note', note)
     const result = await createIdCard(formData)
     if (result.error) {
@@ -168,8 +194,29 @@ export default function TaoAnhTheClientPage() {
     setStep('UPLOAD')
     setImage({ file: null, preview: null })
     setAspectRatio('3:4')
+    setBackgroundColor('white')
+    setShirtStyle('default')
     setNote('')
     setResultUrl(null)
+  }
+
+  const getBgLabel = (value: string) => {
+    const c = BACKGROUND_COLORS.find((x) => x.value === value)
+    if (!c) return value
+    if (uiLocale === 'en') return c.labelEn
+    if (uiLocale === 'zh') return c.labelZh
+    if (uiLocale === 'ja') return c.labelJa
+    if (uiLocale === 'ko') return c.labelKo
+    return c.labelVi
+  }
+  const getShirtLabel = (value: string) => {
+    const s = SHIRT_STYLES.find((x) => x.value === value)
+    if (!s) return value
+    if (uiLocale === 'en') return s.labelEn
+    if (uiLocale === 'zh') return s.labelZh
+    if (uiLocale === 'ja') return s.labelJa
+    if (uiLocale === 'ko') return s.labelKo
+    return s.labelVi
   }
 
   return (
@@ -264,6 +311,38 @@ export default function TaoAnhTheClientPage() {
                         </button>
                       ))}
                     </div>
+                  </div>
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t.bgColor}</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {BACKGROUND_COLORS.map((c) => (
+                        <button
+                          key={c.value}
+                          type="button"
+                          onClick={() => setBackgroundColor(c.value)}
+                          className={`w-9 h-9 rounded-full border-2 transition-all ${
+                            backgroundColor === c.value ? 'border-amber-500 ring-2 ring-amber-200 scale-110' : 'border-gray-200 hover:border-gray-300'
+                          }`}
+                          style={{ backgroundColor: c.hex }}
+                          title={getBgLabel(c.value)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t.shirtStyle}</h4>
+                    <Select value={shirtStyle} onValueChange={setShirtStyle}>
+                      <SelectTrigger className="h-9 text-xs border-amber-200/60 bg-white">
+                        <SelectValue placeholder={getShirtLabel('default')} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {SHIRT_STYLES.map((s) => (
+                          <SelectItem key={s.value} value={s.value} className="text-xs">
+                            {getShirtLabel(s.value)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-2">
                     <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t.extra}</h4>

@@ -48,6 +48,8 @@ export function parseCurriculumToSlides(markdown: string): Slide[] {
       }
       i = j - 1
       flushSlide()
+    } else if (line.trim()) {
+      currentContent.push(line)
     }
   }
 
@@ -88,4 +90,84 @@ export function curriculumToSlidesMarkdown(curriculumMarkdown: string, topic: st
   const readable = latexToReadable(curriculumMarkdown)
   const slides = parseCurriculumToSlides(readable)
   return slidesToMarpMarkdown(slides, topic)
+}
+
+/** Block nội dung: tiêu đề + nội dung (từ ### hoặc dòng in đậm) */
+export interface ContentBlock {
+  header: string
+  content: string
+}
+
+/** Slide từ AI: đã có sẵn blocks, không cần parse */
+export interface AISlideData {
+  title: string
+  blocks: ContentBlock[]
+  /** URL ảnh minh họa phù hợp nội dung */
+  imageUrl?: string
+}
+
+/** Parse nội dung slide thành các block (Định nghĩa, Quy tắc, Khởi động...) */
+export function parseContentToBlocks(content: string): ContentBlock[] {
+  const blocks: ContentBlock[] = []
+  const lines = content.split(/\r?\n/)
+  let currentHeader = ''
+  let currentContent: string[] = []
+
+  const flush = () => {
+    const text = currentContent.join('\n').trim()
+    if (currentHeader || text) {
+      blocks.push({ header: currentHeader || 'Nội dung', content: text })
+    }
+    currentHeader = ''
+    currentContent = []
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    const h3Match = line.match(/^###\s+(.+)$/)
+    const numBoldMatch = line.match(/^\d+\.\s+\*\*(.+?)\*\*/)
+    const boldMatch = line.match(/^\*\*(.+?)\*\*\s*[-–—:]?\s*(.*)$/)
+
+    if (h3Match) {
+      flush()
+      currentHeader = h3Match[1].trim()
+      let j = i + 1
+      while (j < lines.length && !lines[j].match(/^###\s/) && !lines[j].match(/^\d+\.\s+\*\*.+\*\*/)) {
+        currentContent.push(lines[j])
+        j++
+      }
+      i = j - 1
+      flush()
+    } else if (numBoldMatch) {
+      flush()
+      currentHeader = numBoldMatch[1].trim()
+      const rest = line.replace(/^\d+\.\s+\*\*.+?\*\*\s*[-–—:]?\s*/, '').trim()
+      if (rest) currentContent.push(rest)
+      let j = i + 1
+      while (j < lines.length && !lines[j].match(/^\d+\.\s+\*\*.+\*\*/) && !lines[j].match(/^###\s/)) {
+        currentContent.push(lines[j])
+        j++
+      }
+      i = j - 1
+      flush()
+    } else if (boldMatch && boldMatch[1].length < 50) {
+      flush()
+      currentHeader = boldMatch[1].trim()
+      if (boldMatch[2]) currentContent.push(boldMatch[2])
+      let j = i + 1
+      while (j < lines.length && !lines[j].match(/^\*\*.+\*\*/) && !lines[j].match(/^###\s/)) {
+        currentContent.push(lines[j])
+        j++
+      }
+      i = j - 1
+      flush()
+    } else if (!currentHeader && line.trim()) {
+      currentContent.push(line)
+    }
+  }
+  flush()
+  if (blocks.length === 0 && content.trim()) {
+    blocks.push({ header: 'Nội dung', content: content.trim() })
+  }
+  return blocks
 }

@@ -1,10 +1,11 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+import { normalizeTopicForSearch, topicsMatch } from './lib/topic-normalize'
 import { getUserForAction } from '@/lib/auth'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 
 const TEXTBOOK_NAMES: Record<string, string> = {
   'ket-noi-tri-thuc': 'Kết nối tri thức với cuộc sống',
@@ -45,6 +46,9 @@ export async function createCurriculum(formData: FormData) {
   const subjectId = (formData.get('subjectId') as string)?.trim() || 'toan'
   const gradeLevelId = (formData.get('gradeLevelId') as string)?.trim() || 'lop-6'
   const textbookSetId = (formData.get('textbookSetId') as string)?.trim() || 'ket-noi-tri-thuc'
+  const textbookVolume = (formData.get('textbookVolume') as string)?.trim() || ''
+  const lessonNumberRaw = (formData.get('lessonNumber') as string)?.trim() || ''
+  const lessonNumber = lessonNumberRaw ? parseInt(lessonNumberRaw, 10) : null
   const lessonTypeId = (formData.get('lessonTypeId') as string)?.trim() || 'hinh-thanh-kien-thuc'
   const topic = (formData.get('topic') as string)?.trim() || ''
   const numLessons = parseInt(String(formData.get('numLessons') || '5'), 10) || 5
@@ -52,8 +56,9 @@ export async function createCurriculum(formData: FormData) {
   const modelProvider = ((formData.get('modelProvider') as string)?.trim() || 'gemini') as 'gemini' | 'deepseek'
   const goals = (formData.get('goals') as string)?.trim() || ''
 
-  if (!topic.trim()) {
-    return { error: 'Vui lòng nhập chủ đề / bài học.' }
+  const lessonNum = lessonNumber != null && lessonNumber >= 1 && lessonNumber <= 100 ? lessonNumber : null
+  if (!lessonNum) {
+    return { error: 'Vui lòng chọn bài số (1–100).' }
   }
 
   const subjectName = SUBJECT_NAMES[subjectId] || subjectId
@@ -62,25 +67,40 @@ export async function createCurriculum(formData: FormData) {
   const lessonTypeName = LESSON_TYPE_NAMES[lessonTypeId] || LESSON_TYPE_NAMES['hinh-thanh-kien-thuc']
 
   const supabase = createClient()
-  const adminSupabase = createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
   const result = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập để tạo giáo trình.')
   if ('error' in result) return { error: result.error }
   const { user } = result
 
+  const vol = textbookVolume === '1' || textbookVolume === '2' ? textbookVolume : null
   const numTiet = Math.min(10, Math.max(1, numLessons))
   const thoiLuong = Math.min(120, Math.max(15, lessonDurationMinutes))
 
-  const isMenDePhuDinh = /mệnh\s*đề\s*phủ\s*định|phủ\s*định\s*mệnh\s*đề|mệnh\s*đề.*phủ\s*định/i.test(topic)
-  const curriculumMenDeNote = isMenDePhuDinh
-    ? `
+  // Match toàn DB: chỉ theo lesson_number và các trường khác. Không dùng topic.
+  const { data: existing } = await supabase
+    .from('worksheet_curricula')
+    .select('id, content_markdown, textbook_volume, lesson_number')
+    .eq('subject_id', subjectId)
+    .eq('grade_level_id', gradeLevelId)
+    .eq('textbook_set_id', textbookSetId)
+    .eq('lesson_type_id', lessonTypeId)
+    .eq('num_lessons', numTiet)
+    .eq('lesson_duration_minutes', thoiLuong)
+    .limit(100)
 
-LƯU Ý ĐẶC BIỆT (Mệnh đề phủ định): Phân biệt rõ nội dung phát biểu và giá trị chân lý (Đúng/Sai). Tránh dùng khái niệm đối lập không hoàn toàn như "số nguyên tố" và "hợp số" làm phủ định của nhau (vì 1 không phải số nguyên tố cũng không phải hợp số).`
-    : ''
+  const match = existing?.find((r) => {
+    const rVol = (r as { textbook_volume?: string | null }).textbook_volume
+    const rNum = (r as { lesson_number?: number | null }).lesson_number
+    const volMatch = (vol ?? '') === (rVol ?? '')
+    const numMatch = lessonNum === (rNum ?? 0)
+    return volMatch && numMatch
+  })
+  if (match) {
+    return { success: true, curriculumMarkdown: match.content_markdown ?? '', curriculumId: match.id, matched: true }
+  }
 
-  const prompt = `Hãy soạn giáo trình cho bài "${topic}", môn ${subjectName}, ${gradeLabel}, bộ sách ${textbookName}.
+  const curriculumMenDeNote = ''
+
+  const prompt = `Hãy soạn giáo trình cho Bài ${lessonNum}, môn ${subjectName}, ${gradeLabel}, bộ sách ${textbookName}.
 
 LOẠI BÀI HỌC: ${lessonTypeName}
 
@@ -153,10 +173,12 @@ Yêu cầu format:
       .from('worksheet_curricula')
       .insert({
         user_id: user?.id ?? null,
-        topic: topic.trim(),
+        topic: `Bài ${lessonNum}`,
         subject_id: subjectId,
         grade_level_id: gradeLevelId,
         textbook_set_id: textbookSetId,
+        textbook_volume: vol,
+        lesson_number: lessonNum,
         lesson_type_id: lessonTypeId,
         num_lessons: numTiet,
         lesson_duration_minutes: thoiLuong,
@@ -167,7 +189,8 @@ Yêu cầu format:
       .single()
 
     if (insertErr) {
-      return { success: true, curriculumMarkdown: text, curriculumId: null }
+      console.warn('[createCurriculum] Insert failed:', insertErr.message)
+      return { success: true, curriculumMarkdown: text, curriculumId: null, saveFailed: insertErr.message }
     }
     return { success: true, curriculumMarkdown: text, curriculumId: row?.id ?? null }
   } catch (e) {
@@ -176,12 +199,13 @@ Yêu cầu format:
   }
 }
 
-/** Tạo Phiếu bài tập đi kèm giáo trình – phân hóa 4 mức độ nhận thức. */
+/** Tạo Phiếu bài tập đi kèm giáo trình – phân hóa 4 mức độ nhận thức. Lưu theo bộ giáo trình (curriculum_id). */
 export async function createWorksheet(formData: FormData) {
   if (!formData || typeof formData.get !== 'function') {
     return { error: 'Dữ liệu không hợp lệ. Vui lòng thử lại.' }
   }
   const curriculumMarkdown = (formData.get('curriculumMarkdown') as string)?.trim() || ''
+  const curriculumId = (formData.get('curriculumId') as string)?.trim() || null
   const topic = (formData.get('topic') as string)?.trim() || ''
   const subjectId = (formData.get('subjectId') as string)?.trim() || 'toan'
   const gradeLevelId = (formData.get('gradeLevelId') as string)?.trim() || 'lop-6'
@@ -294,6 +318,7 @@ Chỉ trả về nội dung phiếu bài tập, không có lời giải thích t
       .from('worksheet_worksheets')
       .insert({
         user_id: user?.id ?? null,
+        curriculum_id: curriculumId || null,
         topic: topic || 'Phiếu bài tập',
         subject_id: subjectId,
         grade_level_id: gradeLevelId,
@@ -312,27 +337,255 @@ Chỉ trả về nội dung phiếu bài tập, không có lời giải thích t
   }
 }
 
-/** Danh sách giáo trình đã lưu – để giáo viên browse và reuse */
+/** Lưu giáo trình vào kho (khi tạo mới lỗi insert hoặc chưa lưu) */
+export async function saveCurriculum(formData: FormData) {
+  if (!formData || typeof formData.get !== 'function') {
+    return { error: 'Dữ liệu không hợp lệ.' }
+  }
+  const curriculumMarkdown = (formData.get('curriculumMarkdown') as string)?.trim() || ''
+  const topic = (formData.get('topic') as string)?.trim() || ''
+  const subjectId = (formData.get('subjectId') as string)?.trim() || 'toan'
+  const gradeLevelId = (formData.get('gradeLevelId') as string)?.trim() || 'lop-6'
+  const textbookSetId = (formData.get('textbookSetId') as string)?.trim() || 'ket-noi-tri-thuc'
+  const textbookVolume = (formData.get('textbookVolume') as string)?.trim() || ''
+  const lessonNumberRaw = (formData.get('lessonNumber') as string)?.trim() || ''
+  const lessonNumber = lessonNumberRaw ? parseInt(lessonNumberRaw, 10) : null
+  const lessonTypeId = (formData.get('lessonTypeId') as string)?.trim() || 'hinh-thanh-kien-thuc'
+  const numLessons = parseInt(String(formData.get('numLessons') || '5'), 10) || 5
+  const lessonDurationMinutes = parseInt(String(formData.get('lessonDurationMinutes') || '45'), 10) || 45
+  const goals = (formData.get('goals') as string)?.trim() || ''
+
+  const lessonNum = lessonNumber != null && lessonNumber >= 1 && lessonNumber <= 100 ? lessonNumber : null
+  if (!curriculumMarkdown || !lessonNum) {
+    return { error: 'Thiếu nội dung giáo trình hoặc bài số.' }
+  }
+
+  const supabase = createClient()
+  const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập để lưu giáo trình.')
+  if ('error' in authResult) return { error: authResult.error }
+  const { user } = authResult
+
+  const numTiet = Math.min(10, Math.max(1, numLessons))
+  const thoiLuong = Math.min(120, Math.max(15, lessonDurationMinutes))
+  const vol = textbookVolume === '1' || textbookVolume === '2' ? textbookVolume : null
+
+  const { data: row, error } = await supabase
+    .from('worksheet_curricula')
+    .insert({
+      user_id: user?.id ?? null,
+      topic: `Bài ${lessonNum}`,
+      subject_id: subjectId,
+      grade_level_id: gradeLevelId,
+      textbook_set_id: textbookSetId,
+      textbook_volume: vol,
+      lesson_number: lessonNum,
+      lesson_type_id: lessonTypeId,
+      num_lessons: numTiet,
+      lesson_duration_minutes: thoiLuong,
+      goals: goals || null,
+      content_markdown: curriculumMarkdown,
+    })
+    .select('id')
+    .single()
+
+  if (error) return { error: `Lưu thất bại: ${error.message}` }
+  return { success: true, curriculumId: row?.id ?? null }
+}
+
+/** Danh sách bài học chuẩn SGK – để giáo viên chọn, không gõ tay */
+export async function listTextbookLessons(opts: {
+  subjectId: string
+  gradeLevelId: string
+  textbookSetId: string
+  textbookVolume?: string
+}) {
+  const supabase = createClient()
+  const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+  if ('error' in authResult) return { error: authResult.error }
+
+  try {
+    let q = supabase
+      .from('worksheet_textbook_lessons')
+      .select('id, title, lesson_order, chapter_label')
+      .eq('subject_id', opts.subjectId)
+      .eq('grade_level_id', opts.gradeLevelId)
+      .eq('textbook_set_id', opts.textbookSetId)
+      .order('lesson_order', { ascending: true })
+    if (opts.textbookVolume === '1' || opts.textbookVolume === '2') {
+      q = q.or(`textbook_volume.eq.${opts.textbookVolume},textbook_volume.is.null`)
+    }
+    const { data, error } = await q
+    if (error) return { success: true, items: [] }
+    return { success: true, items: data ?? [] }
+  } catch {
+    return { success: true, items: [] }
+  }
+}
+
+/** Xem thêm: xóa mục lục cũ, gọi AI lấy mục lục đầy đủ, lưu DB */
+export async function refreshTextbookLessonsByAI(opts: {
+  subjectId: string
+  gradeLevelId: string
+  textbookSetId: string
+  textbookVolume?: string
+}) {
+  const supabase = createClient()
+  const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+  if ('error' in authResult) return { error: authResult.error }
+
+  const { subjectId, gradeLevelId, textbookSetId, textbookVolume } = opts
+  const vol = textbookVolume === '1' || textbookVolume === '2' ? textbookVolume : null
+
+  let q = supabase
+    .from('worksheet_textbook_lessons')
+    .delete()
+    .eq('subject_id', subjectId)
+    .eq('grade_level_id', gradeLevelId)
+    .eq('textbook_set_id', textbookSetId)
+  if (vol) q = q.or(`textbook_volume.eq.${vol},textbook_volume.is.null`)
+  else q = q.is('textbook_volume', null)
+  const { error: delErr } = await q
+  if (delErr) console.warn('[refreshTextbookLessonsByAI] Delete failed:', delErr.message)
+
+  return fetchTextbookLessonsByAI(opts)
+}
+
+/** Khi DB chưa có mục lục: dùng AI lấy mục lục SGK, lưu DB, trả về cho giáo viên khác dùng lại */
+export async function fetchTextbookLessonsByAI(opts: {
+  subjectId: string
+  gradeLevelId: string
+  textbookSetId: string
+  textbookVolume?: string
+}) {
+  const supabase = createClient()
+  const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+  if ('error' in authResult) return { error: authResult.error }
+
+  const { subjectId, gradeLevelId, textbookSetId, textbookVolume } = opts
+  const subjectName = SUBJECT_NAMES[subjectId] || subjectId
+  const gradeLabel = gradeLevelId.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+  const textbookName = TEXTBOOK_NAMES[textbookSetId] || TEXTBOOK_NAMES.khac
+  const volLabel = textbookVolume === '1' ? 'Tập 1' : textbookVolume === '2' ? 'Tập 2' : ''
+
+  const prompt = `Bạn là chuyên gia về sách giáo khoa Việt Nam (GDPT 2018). Cho tôi MỤC LỤC đầy đủ của sách:
+
+- Môn: ${subjectName}
+- Lớp: ${gradeLabel}
+- Bộ sách: ${textbookName}
+${volLabel ? `- Tập: ${volLabel}` : ''}
+
+Yêu cầu:
+1. Liệt kê TẤT CẢ các bài học trong sách theo đúng thứ tự mục lục.
+2. Mỗi dòng 1 bài, format: "Bài [số]: [tên bài]"
+3. Ví dụ: "Bài 1: Tính đơn điệu và cực trị của hàm số"
+4. Chỉ trả về danh sách, không giải thích thêm.
+5. Ngôn ngữ: Tiếng Việt, tên bài đúng như trong sách.`
+
+  try {
+    const apiKey = process.env.GOOGLE_API_KEY
+    if (!apiKey) return { error: 'Thiếu GOOGLE_API_KEY.' }
+    const genAI = new GoogleGenerativeAI(apiKey)
+    const model = genAI.getGenerativeModel(GEMINI_25_FLASH_NO_THINKING)
+    const genResult = await model.generateContent(prompt)
+    const text = genResult.response.text()?.trim() || ''
+    if (!text) return { error: 'AI không trả về mục lục.' }
+
+    const lines = text.split('\n').filter((s) => s.trim())
+    const lessons: Array<{ lesson_order: number; title: string; title_normalized: string }> = []
+    for (const line of lines) {
+      const m = line.trim().match(/^Bài\s*(\d+)\s*[:\.]?\s*(.+)$/i)
+      if (m) {
+        const order = parseInt(m[1], 10)
+        const title = m[2].trim()
+        if (title) {
+          lessons.push({
+            lesson_order: order,
+            title: `Bài ${order}: ${title}`,
+            title_normalized: `bai ${order} ${normalizeTopicForSearch(title)}`.trim(),
+          })
+        }
+      }
+    }
+    if (lessons.length === 0) return { error: 'Không parse được mục lục từ AI.' }
+
+    const vol = textbookVolume === '1' || textbookVolume === '2' ? textbookVolume : null
+    const rows = lessons.map((l) => ({
+      subject_id: subjectId,
+      grade_level_id: gradeLevelId,
+      textbook_set_id: textbookSetId,
+      textbook_volume: vol,
+      lesson_order: l.lesson_order,
+      title: l.title,
+      title_normalized: l.title_normalized,
+    }))
+
+    const { data: inserted, error } = await supabase
+      .from('worksheet_textbook_lessons')
+      .insert(rows)
+      .select('id, title, lesson_order, chapter_label')
+
+    if (error) {
+      console.warn('[fetchTextbookLessonsByAI] Insert failed:', error.message)
+      return { success: true, items: lessons.map((l, i) => ({ id: `temp-${i}`, title: l.title, lesson_order: l.lesson_order, chapter_label: null })) }
+    }
+    return { success: true, items: inserted ?? [] }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    return { error: `Lấy mục lục thất bại: ${msg}` }
+  }
+}
+
+/** Danh sách giáo trình đã lưu – loại trừ những giáo trình user đã ẩn (soft delete) */
 export async function listCurricula(opts?: { subjectId?: string; gradeLevelId?: string; limit?: number }) {
   const supabase = createClient()
   const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập để xem danh sách giáo trình.')
   if ('error' in authResult) return { error: authResult.error }
+  const { user } = authResult
+
+  const hiddenIds: string[] = []
+  if (user?.id) {
+    const { data: hidden } = await supabase
+      .from('user_hidden_curricula')
+      .select('curriculum_id')
+      .eq('user_id', user.id)
+    if (hidden) hiddenIds.push(...hidden.map((r) => r.curriculum_id))
+  }
 
   let q = supabase
     .from('worksheet_curricula')
     .select('id, topic, subject_id, grade_level_id, textbook_set_id, lesson_type_id, num_lessons, lesson_duration_minutes, created_at')
+    .eq('user_id', user.id)
     .order('created_at', { ascending: false })
     .limit(Math.min(100, opts?.limit ?? 50))
 
   if (opts?.subjectId) q = q.eq('subject_id', opts.subjectId)
   if (opts?.gradeLevelId) q = q.eq('grade_level_id', opts.gradeLevelId)
+  if (hiddenIds.length > 0) q = q.not('id', 'in', `(${hiddenIds.join(',')})`)
 
   const { data, error } = await q
   if (error) return { error: error.message }
   return { success: true, items: data ?? [] }
 }
 
-/** Lấy chi tiết giáo trình theo id */
+/** Ẩn giáo trình khỏi danh sách của mình (soft delete) – dữ liệu vẫn lưu DB cho giáo viên khác */
+export async function deleteCurriculum(id: string) {
+  const supabase = createClient()
+  const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập để ẩn giáo trình.')
+  if ('error' in authResult) return { error: authResult.error }
+  const { user } = authResult
+
+  const { error } = await supabase
+    .from('user_hidden_curricula')
+    .upsert(
+      { user_id: user!.id, curriculum_id: id },
+      { onConflict: 'user_id,curriculum_id' }
+    )
+
+  if (error) return { error: error.message }
+  return { success: true }
+}
+
+/** Lấy chi tiết giáo trình theo id – cho phép load bất kỳ (kể cả khi match từ giáo viên khác) */
 export async function getCurriculumById(id: string) {
   const supabase = createClient()
   const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
@@ -346,6 +599,23 @@ export async function getCurriculumById(id: string) {
 
   if (error || !data) return { error: error?.message ?? 'Không tìm thấy giáo trình.' }
   return { success: true, curriculum: data }
+}
+
+/** Kiểm tra người dùng hiện tại có phải chủ sở hữu giáo trình không */
+export async function isCurriculumOwner(curriculumId: string) {
+  const supabase = createClient()
+  const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+  if ('error' in authResult) return { success: false, isOwner: false }
+
+  const { data, error } = await supabase
+    .from('worksheet_curricula')
+    .select('user_id')
+    .eq('id', curriculumId)
+    .single()
+
+  if (error || !data) return { success: false, isOwner: false }
+  const isOwner = (data as { user_id?: string | null }).user_id === authResult.user?.id
+  return { success: true, isOwner: !!isOwner }
 }
 
 /** Danh sách phiếu bài tập đã lưu */
@@ -382,4 +652,641 @@ export async function getWorksheetById(id: string) {
 
   if (error || !data) return { error: error?.message ?? 'Không tìm thấy phiếu bài tập.' }
   return { success: true, worksheet: data }
+}
+
+/** Lấy danh sách phiếu bài tập thuộc một giáo trình (kể cả khi match từ giáo viên khác) */
+export async function getWorksheetsByCurriculumId(curriculumId: string) {
+  const supabase = createClient()
+  const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+  if ('error' in authResult) return { error: authResult.error }
+
+  const { data, error } = await supabase
+    .from('worksheet_worksheets')
+    .select('id, topic, subject_id, grade_level_id, content_markdown, created_at')
+    .eq('curriculum_id', curriculumId)
+    .order('created_at', { ascending: false })
+
+  if (error) return { error: error.message }
+  return { success: true, items: data ?? [] }
+}
+
+type SlideBlock = { header: string; content: string }
+type SlideItem = { title: string; blocks: SlideBlock[]; imageUrl?: string }
+
+/** Trích xuất tất cả marker [quiz:...] từ một slide */
+function extractQuizMarkersFromSlide(slide: SlideItem): string[] {
+  const markers: string[] = []
+  for (const block of slide.blocks ?? []) {
+    const re = /\[quiz:\s*([^\]]+)\]/gi
+    let m
+    while ((m = re.exec(block.content)) !== null) {
+      markers.push(`[quiz:${m[1]}]`)
+    }
+  }
+  return markers
+}
+
+/** Áp dụng quiz markers vào slide – thay thế quiz cũ bằng quiz mới, giữ nguyên nội dung khác */
+function applyQuizMarkersToSlide(slide: SlideItem, markers: string[]): SlideItem {
+  if (markers.length === 0) return slide
+  const quizText = markers.join('\n\n')
+  const newBlocks = (slide.blocks ?? []).map((b) => ({
+    ...b,
+    content: b.content.replace(/\[quiz:\s*[^\]]+\]/gi, '').replace(/\n\s*\n\s*\n/g, '\n\n').trim(),
+  })).filter((b) => b.content || b.header)
+  if (newBlocks.length > 0) {
+    const last = newBlocks[newBlocks.length - 1]
+    newBlocks[newBlocks.length - 1] = {
+      ...last,
+      content: last.content ? last.content + '\n\n' + quizText : quizText,
+    }
+  } else {
+    newBlocks.push({ header: 'Trắc nghiệm', content: quizText })
+  }
+  return { ...slide, blocks: newBlocks }
+}
+
+/** Đồng bộ quiz từ sourceSlides sang các bản còn lại (shared, original, personal) */
+async function syncQuizAcrossVersions(
+  curriculumId: string,
+  sourceSlides: SlideItem[],
+  opts: {
+    supabase: ReturnType<typeof createClient>
+    adminClient?: ReturnType<typeof createSupabaseClient>
+    userId: string | null
+    topic?: string
+    subjectId?: string
+    gradeLevelId?: string
+  }
+) {
+  const { supabase, adminClient, userId } = opts
+  const admin = adminClient ?? createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+
+  const applyQuizToSlides = (targetSlides: SlideItem[] | null): SlideItem[] | null => {
+    if (!targetSlides || targetSlides.length === 0) return targetSlides
+    return targetSlides.map((s, i) => {
+      const sourceSlide = sourceSlides[i]
+      if (!sourceSlide) return s
+      const markers = extractQuizMarkersFromSlide(sourceSlide)
+      if (markers.length === 0) return s
+      return applyQuizMarkersToSlide(s, markers)
+    })
+  }
+
+  const [sharedRes, originalRes, personalRes] = await Promise.all([
+    supabase.from('worksheet_slides').select('content_json, topic, subject_id, grade_level_id').eq('curriculum_id', curriculumId).single(),
+    admin.from('worksheet_slides_original').select('content_json').eq('curriculum_id', curriculumId).single(),
+    userId ? supabase.from('user_customized_slides').select('slides_json').eq('user_id', userId).eq('curriculum_id', curriculumId).single() : { data: null },
+  ])
+
+  const sharedSlides = sharedRes.data?.content_json as SlideItem[] | null
+  const originalSlides = originalRes.data?.content_json as SlideItem[] | null
+  const personalSlides = personalRes.data?.slides_json as SlideItem[] | null
+
+  const promises: Promise<unknown>[] = []
+
+  const newShared = applyQuizToSlides(Array.isArray(sharedSlides) ? sharedSlides : null)
+  if (newShared && newShared.length > 0) {
+    promises.push(
+      supabase
+        .from('worksheet_slides')
+        .update({
+          content_json: newShared,
+          topic: opts.topic ?? (sharedRes.data as { topic?: string })?.topic,
+          subject_id: opts.subjectId ?? (sharedRes.data as { subject_id?: string })?.subject_id ?? 'toan',
+          grade_level_id: opts.gradeLevelId ?? (sharedRes.data as { grade_level_id?: string })?.grade_level_id ?? 'lop-6',
+        })
+        .eq('curriculum_id', curriculumId)
+    )
+  }
+
+  const newOriginal = applyQuizToSlides(Array.isArray(originalSlides) ? originalSlides : null)
+  if (newOriginal && newOriginal.length > 0) {
+    promises.push(admin.from('worksheet_slides_original').update({ content_json: newOriginal }).eq('curriculum_id', curriculumId))
+  }
+
+  const newPersonal = applyQuizToSlides(Array.isArray(personalSlides) ? personalSlides : null)
+  if (newPersonal && newPersonal.length > 0 && userId) {
+    promises.push(
+      supabase
+        .from('user_customized_slides')
+        .update({ slides_json: newPersonal, updated_at: new Date().toISOString() })
+        .eq('user_id', userId)
+        .eq('curriculum_id', curriculumId)
+    )
+  }
+
+  await Promise.all(promises)
+}
+
+/** Lưu slide bài giảng AI vào DB (gắn với giáo trình) – bản chung, mọi giáo viên dùng */
+export async function saveSlidesToCurriculum(opts: {
+  curriculumId: string
+  topic: string
+  subjectId: string
+  gradeLevelId: string
+  slides: Array<{ title: string; blocks: Array<{ header: string; content: string }>; imageUrl?: string }>
+}) {
+  const supabase = createClient()
+  const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập để lưu slide.')
+  if ('error' in authResult) return { error: authResult.error }
+  const { user } = authResult
+
+  const { error } = await supabase
+    .from('worksheet_slides')
+    .upsert(
+      {
+        curriculum_id: opts.curriculumId,
+        user_id: user?.id ?? null,
+        topic: opts.topic || null,
+        subject_id: opts.subjectId || 'toan',
+        grade_level_id: opts.gradeLevelId || 'lop-6',
+        content_json: opts.slides,
+      },
+      { onConflict: 'curriculum_id' }
+    )
+
+  if (error) return { error: error.message }
+
+  await supabase.from('worksheet_slide_edit_history').insert({
+    curriculum_id: opts.curriculumId,
+    user_id: user?.id ?? null,
+    slides_json: opts.slides,
+  })
+
+  try {
+    await syncQuizAcrossVersions(opts.curriculumId, opts.slides, {
+      supabase,
+      userId: user?.id ?? null,
+      topic: opts.topic,
+      subjectId: opts.subjectId,
+      gradeLevelId: opts.gradeLevelId,
+    })
+  } catch (e) {
+    console.warn('[saveSlidesToCurriculum] Quiz sync failed:', e)
+  }
+
+  return { success: true }
+}
+
+/** Lấy slide bản chung theo giáo trình */
+export async function getSlidesByCurriculumId(curriculumId: string) {
+  const supabase = createClient()
+  const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+  if ('error' in authResult) return { error: authResult.error }
+
+  const { data, error } = await supabase
+    .from('worksheet_slides')
+    .select('content_json')
+    .eq('curriculum_id', curriculumId)
+    .single()
+
+  if (error || !data) return { success: true, slides: null }
+  const slides = data.content_json as Array<{ title: string; blocks: Array<{ header: string; content: string }>; imageUrl?: string }>
+  return { success: true, slides: Array.isArray(slides) ? slides : null }
+}
+
+/** Lấy bản gốc slide (AI tạo lần đầu, không bị ghi đè) */
+export async function getOriginalSlides(curriculumId: string) {
+  const supabase = createClient()
+  const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+  if ('error' in authResult) return { error: authResult.error }
+
+  const { data, error } = await supabase
+    .from('worksheet_slides_original')
+    .select('content_json')
+    .eq('curriculum_id', curriculumId)
+    .single()
+
+  if (error || !data) return { success: true, slides: null }
+  const slides = data.content_json as Array<{ title: string; blocks: Array<{ header: string; content: string }>; imageUrl?: string }>
+  return { success: true, slides: Array.isArray(slides) ? slides : null }
+}
+
+/** Lưu bản gốc lần đầu (khi AI tạo) – chỉ gọi khi chưa có bản gốc */
+export async function saveOriginalSlidesIfNotExists(opts: {
+  curriculumId: string
+  slides: Array<{ title: string; blocks: Array<{ header: string; content: string }>; imageUrl?: string }>
+}) {
+  const supabase = createClient()
+  const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+  if ('error' in authResult) return { error: authResult.error }
+
+  const { data: existing } = await supabase
+    .from('worksheet_slides_original')
+    .select('id')
+    .eq('curriculum_id', opts.curriculumId)
+    .single()
+
+  if (existing) return { success: true, saved: false }
+
+  const { error } = await supabase.from('worksheet_slides_original').insert({
+    curriculum_id: opts.curriculumId,
+    content_json: opts.slides,
+  })
+
+  if (error) return { error: error.message }
+  return { success: true, saved: true }
+}
+
+/** Lịch sử chỉnh sửa bản chung */
+export async function getSlideEditHistory(curriculumId: string, limit = 20) {
+  const supabase = createClient()
+  const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+  if ('error' in authResult) return { error: authResult.error }
+
+  const { data, error } = await supabase
+    .from('worksheet_slide_edit_history')
+    .select('id, user_id, slides_json, created_at')
+    .eq('curriculum_id', curriculumId)
+    .order('created_at', { ascending: false })
+    .limit(limit)
+
+  if (error) return { error: error.message }
+  return { success: true, items: data ?? [] }
+}
+
+/** Lấy slide đã chỉnh sửa của giáo viên (thêm biểu đồ, sửa nội dung) – không đổi dữ liệu gốc */
+export async function getUserCustomizedSlides(curriculumId: string) {
+  const supabase = createClient()
+  const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+  if ('error' in authResult) return { error: authResult.error }
+  const { user } = authResult
+
+  const { data, error } = await supabase
+    .from('user_customized_slides')
+    .select('slides_json')
+    .eq('user_id', user.id)
+    .eq('curriculum_id', curriculumId)
+    .single()
+
+  if (error || !data) return { success: true, slides: null }
+  const slides = data.slides_json as Array<{ title: string; blocks: Array<{ header: string; content: string }>; imageUrl?: string }>
+  return { success: true, slides: Array.isArray(slides) ? slides : null }
+}
+
+/** Lưu slide đã chỉnh sửa của giáo viên – chỉ ghi vào user_customized_slides, không đổi worksheet_slides */
+export async function saveUserCustomizedSlides(opts: {
+  curriculumId: string
+  slides: Array<{ title: string; blocks: Array<{ header: string; content: string }>; imageUrl?: string }>
+}) {
+  const supabase = createClient()
+  const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập để lưu chỉnh sửa.')
+  if ('error' in authResult) return { error: authResult.error }
+  const { user } = authResult
+
+  const { error } = await supabase
+    .from('user_customized_slides')
+    .upsert(
+      {
+        user_id: user.id,
+        curriculum_id: opts.curriculumId,
+        slides_json: opts.slides,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'user_id,curriculum_id' }
+    )
+
+  if (error) return { error: error.message }
+
+  try {
+    await syncQuizAcrossVersions(opts.curriculumId, opts.slides, {
+      supabase,
+      userId: user.id,
+    })
+  } catch (e) {
+    console.warn('[saveUserCustomizedSlides] Quiz sync failed:', e)
+  }
+
+  return { success: true }
+}
+
+/** Đề xuất sửa/bổ sung slide – đánh dấu đoạn, gõ nội dung đề xuất */
+export async function createSlideEditProposal(opts: {
+  curriculumId: string
+  slideIndex: number
+  blockIndex: number
+  segmentType: 'edit' | 'add'
+  originalText?: string
+  proposedText: string
+  proposedHeader?: string
+}) {
+  const supabase = createClient()
+  const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập để đề xuất sửa.')
+  if ('error' in authResult) return { error: authResult.error }
+  const { user } = authResult
+
+  const { data, error } = await supabase
+    .from('slide_edit_proposals')
+    .insert({
+      curriculum_id: opts.curriculumId,
+      slide_index: opts.slideIndex,
+      block_index: opts.blockIndex,
+      segment_type: opts.segmentType,
+      original_text: opts.originalText ?? null,
+      proposed_text: opts.proposedText,
+      proposed_header: opts.segmentType === 'add' ? (opts.proposedHeader ?? 'Nội dung bổ sung') : null,
+      proposed_by: user?.id ?? null,
+      status: 'pending',
+    })
+    .select('id')
+    .single()
+
+  if (error) return { error: error.message }
+  return { success: true, proposalId: data?.id }
+}
+
+/** Xóa đề xuất – chỉ người tạo, khi chưa có ai bình chọn */
+export async function deleteSlideProposal(proposalId: string) {
+  const supabase = createClient()
+  const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+  if ('error' in authResult) return { error: authResult.error }
+  const { user } = authResult
+
+  const { data: p, error: fetchErr } = await supabase
+    .from('slide_edit_proposals')
+    .select('id, proposed_by, agree_count, disagree_count, status')
+    .eq('id', proposalId)
+    .single()
+
+  if (fetchErr || !p) return { error: 'Không tìm thấy đề xuất.' }
+  if (p.status !== 'pending') return { error: 'Chỉ xóa được đề xuất đang chờ.' }
+  if (p.proposed_by !== user?.id) return { error: 'Chỉ người tạo mới xóa được.' }
+  const totalVotes = (p.agree_count ?? 0) + (p.disagree_count ?? 0)
+  if (totalVotes > 0) return { error: 'Đã có người bình chọn, không thể xóa.' }
+
+  const { error: delErr } = await supabase.from('slide_edit_proposals').delete().eq('id', proposalId)
+  if (delErr) return { error: delErr.message }
+  return { success: true }
+}
+
+/** Bỏ phiếu đồng ý/không đồng ý cho đề xuất */
+export async function voteOnSlideProposal(proposalId: string, vote: 'agree' | 'disagree') {
+  const supabase = createClient()
+  const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập để bỏ phiếu.')
+  if ('error' in authResult) return { error: authResult.error }
+  const { user } = authResult
+
+  const { error } = await supabase
+    .from('slide_edit_votes')
+    .upsert(
+      { proposal_id: proposalId, user_id: user!.id, vote },
+      { onConflict: 'proposal_id,user_id' }
+    )
+
+  if (error) return { error: error.message }
+
+  const adminClient = createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+  const applied = await applySlideProposalIfEligible(adminClient, proposalId)
+  if (applied) return { success: true, applied: true }
+
+  const { data: p } = await adminClient
+    .from('slide_edit_proposals')
+    .select('id, disagree_count, status')
+    .eq('id', proposalId)
+    .single()
+
+  if (p && p.status === 'pending' && (p.disagree_count ?? 0) >= 5) {
+    await adminClient.from('slide_edit_proposals').delete().eq('id', proposalId)
+    return { success: true, applied: false, deleted: true }
+  }
+
+  return { success: true, applied: false }
+}
+
+/** Áp dụng đề xuất khi có >= 5 người đồng ý – dùng service role để bypass RLS (voter không phải proposer) */
+async function applySlideProposalIfEligible(supabase: ReturnType<typeof createSupabaseClient>, proposalId: string) {
+  const { data: p } = await supabase
+    .from('slide_edit_proposals')
+    .select('id, curriculum_id, slide_index, block_index, segment_type, original_text, proposed_text, proposed_header, agree_count, status')
+    .eq('id', proposalId)
+    .single()
+
+  if (!p || p.status !== 'pending' || (p.agree_count ?? 0) < 5) return null
+
+  const { data: slidesRow } = await supabase
+    .from('worksheet_slides')
+    .select('content_json, topic, subject_id, grade_level_id')
+    .eq('curriculum_id', p.curriculum_id)
+    .single()
+
+  if (!slidesRow) return null
+
+  const slides = slidesRow.content_json as Array<{ title: string; blocks: Array<{ header: string; content: string }>; imageUrl?: string }>
+  if (!Array.isArray(slides)) return null
+
+  const slide = slides[p.slide_index]
+  if (!slide) return null
+
+  const blocks = [...(slide.blocks ?? [])]
+  if (p.segment_type === 'edit') {
+    const block = blocks[p.block_index]
+    if (!block || !p.original_text || !block.content.includes(p.original_text)) return null
+    const newContent = block.content.replace(p.original_text, p.proposed_text)
+    blocks[p.block_index] = { ...block, content: newContent }
+  } else {
+    const newBlock = { header: p.proposed_header ?? 'Nội dung bổ sung', content: p.proposed_text }
+    blocks.splice(Math.min(p.block_index + 1, blocks.length), 0, newBlock)
+  }
+
+  const newSlides = slides.map((s, i) =>
+    i === p.slide_index ? { ...s, blocks } : s
+  )
+
+  await supabase
+    .from('worksheet_slides')
+    .update({
+      content_json: newSlides,
+      topic: slidesRow.topic,
+      subject_id: slidesRow.subject_id,
+      grade_level_id: slidesRow.grade_level_id,
+    })
+    .eq('curriculum_id', p.curriculum_id)
+
+  await supabase.from('worksheet_slide_edit_history').insert({
+    curriculum_id: p.curriculum_id,
+    user_id: null,
+    slides_json: newSlides,
+  })
+
+  await supabase
+    .from('slide_edit_proposals')
+    .update({ status: 'approved', approved_at: new Date().toISOString() })
+    .eq('id', proposalId)
+
+  try {
+    await syncQuizAcrossVersions(p.curriculum_id, newSlides, {
+      supabase,
+      userId: null,
+      topic: slidesRow.topic,
+      subjectId: slidesRow.subject_id,
+      gradeLevelId: slidesRow.grade_level_id,
+    })
+  } catch (e) {
+    console.warn('[applySlideProposalIfEligible] Quiz sync failed:', e)
+  }
+
+  return true
+}
+
+/** Lấy đề xuất sửa slide theo curriculum (để hiển thị trong viewer) */
+export async function getSlideProposalsForCurriculum(curriculumId: string) {
+  const supabase = createClient()
+  const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+  if ('error' in authResult) return { error: authResult.error }
+
+  const { data: userData } = await supabase.auth.getUser()
+  const userId = userData.user?.id ?? ''
+
+  const { data, error } = await supabase
+    .from('slide_edit_proposals')
+    .select('id, slide_index, block_index, segment_type, original_text, proposed_text, proposed_header, status, agree_count, disagree_count, proposed_by, created_at')
+    .eq('curriculum_id', curriculumId)
+    .in('status', ['pending', 'approved'])
+    .order('created_at', { ascending: false })
+
+  if (error) return { error: error.message }
+
+  const { data: myVotes } = await supabase
+    .from('slide_edit_votes')
+    .select('proposal_id, vote')
+    .eq('user_id', userId)
+
+  const voteMap = new Map((myVotes ?? []).map((v) => [v.proposal_id, v.vote]))
+
+  const items = (data ?? []).map((r) => ({
+    ...r,
+    myVote: voteMap.get(r.id),
+  }))
+
+  return { success: true, items, currentUserId: userId || null }
+}
+
+/** Admin: danh sách tất cả đề xuất sửa slide */
+export async function listSlideProposalsForAdmin(opts?: { status?: string; limit?: number }) {
+  const supabase = createClient()
+  const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+  if ('error' in authResult) return { error: authResult.error }
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user?.id) return { error: 'Vui lòng đăng nhập.' }
+
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  if (profile?.role !== 'admin') return { error: 'Bạn cần quyền admin.' }
+
+  let q = supabase
+    .from('slide_edit_proposals')
+    .select('id, curriculum_id, slide_index, block_index, segment_type, original_text, proposed_text, proposed_header, status, agree_count, disagree_count, proposed_by, created_at')
+    .order('created_at', { ascending: false })
+    .limit(opts?.limit ?? 100)
+
+  if (opts?.status) q = q.eq('status', opts.status)
+
+  const { data, error } = await q
+  if (error) return { error: error.message }
+  return { success: true, items: data ?? [] }
+}
+
+/** Admin: duyệt hoặc từ chối đề xuất (admin có thể duyệt bất kể số phiếu) */
+export async function adminReviewSlideProposal(proposalId: string, action: 'approve' | 'reject') {
+  const supabase = createClient()
+  const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+  if ('error' in authResult) return { error: authResult.error }
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user?.id) return { error: 'Vui lòng đăng nhập.' }
+
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  if (profile?.role !== 'admin') return { error: 'Bạn cần quyền admin.' }
+
+  if (action === 'approve') {
+    const adminClient = createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+    const applied = await applySlideProposalIfEligible(adminClient, proposalId)
+    if (!applied) {
+      const appliedForce = await applySlideProposalForce(adminClient, proposalId)
+      if (!appliedForce) {
+        return { error: 'Không thể áp dụng đề xuất (slide có thể đã bị xóa hoặc cấu trúc không khớp).' }
+      }
+    }
+  } else {
+    const { error } = await supabase.from('slide_edit_proposals').update({ status: 'rejected' }).eq('id', proposalId)
+    if (error) return { error: error.message }
+  }
+
+  return { success: true }
+}
+
+/** Áp dụng đề xuất (bỏ qua kiểm tra 5 phiếu – dùng khi admin duyệt) */
+async function applySlideProposalForce(supabase: ReturnType<typeof createSupabaseClient>, proposalId: string) {
+  const { data: p } = await supabase
+    .from('slide_edit_proposals')
+    .select('id, curriculum_id, slide_index, block_index, segment_type, original_text, proposed_text, proposed_header, status')
+    .eq('id', proposalId)
+    .single()
+
+  if (!p || p.status !== 'pending') return null
+
+  const { data: slidesRow } = await supabase
+    .from('worksheet_slides')
+    .select('content_json, topic, subject_id, grade_level_id')
+    .eq('curriculum_id', p.curriculum_id)
+    .single()
+
+  if (!slidesRow) return null
+
+  const slides = slidesRow.content_json as Array<{ title: string; blocks: Array<{ header: string; content: string }>; imageUrl?: string }>
+  if (!Array.isArray(slides)) return null
+
+  const slide = slides[p.slide_index]
+  if (!slide) return null
+
+  const blocks = [...(slide.blocks ?? [])]
+  if (p.segment_type === 'edit') {
+    const block = blocks[p.block_index]
+    if (!block || !p.original_text || !block.content.includes(p.original_text)) return null
+    const newContent = block.content.replace(p.original_text, p.proposed_text)
+    blocks[p.block_index] = { ...block, content: newContent }
+  } else {
+    const newBlock = { header: p.proposed_header ?? 'Nội dung bổ sung', content: p.proposed_text }
+    blocks.splice(Math.min(p.block_index + 1, blocks.length), 0, newBlock)
+  }
+
+  const newSlides = slides.map((s, i) =>
+    i === p.slide_index ? { ...s, blocks } : s
+  )
+
+  await supabase
+    .from('worksheet_slides')
+    .update({
+      content_json: newSlides,
+      topic: slidesRow.topic,
+      subject_id: slidesRow.subject_id,
+      grade_level_id: slidesRow.grade_level_id,
+    })
+    .eq('curriculum_id', p.curriculum_id)
+
+  await supabase.from('worksheet_slide_edit_history').insert({
+    curriculum_id: p.curriculum_id,
+    user_id: null,
+    slides_json: newSlides,
+  })
+
+  await supabase
+    .from('slide_edit_proposals')
+    .update({ status: 'approved', approved_at: new Date().toISOString() })
+    .eq('id', proposalId)
+
+  try {
+    await syncQuizAcrossVersions(p.curriculum_id, newSlides, {
+      supabase,
+      userId: null,
+      topic: slidesRow.topic,
+      subjectId: slidesRow.subject_id,
+      gradeLevelId: slidesRow.grade_level_id,
+    })
+  } catch (e) {
+    console.warn('[applySlideProposalForce] Quiz sync failed:', e)
+  }
+
+  return true
 }

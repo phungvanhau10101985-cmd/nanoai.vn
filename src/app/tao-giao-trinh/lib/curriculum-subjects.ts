@@ -21,24 +21,30 @@ export const SUBJECTS = [
   { id: 'khac', labelVi: 'Khác', labelEn: 'Other' },
 ] as const
 
+/** Cấp độ có thể chọn – chỉ lớp cụ thể, không có nhóm */
 export const GRADE_LEVELS = [
-  { id: 'tieu-hoc', labelVi: 'Tiểu học (1–5)', labelEn: 'Primary (1–5)' },
   { id: 'lop-1', labelVi: 'Lớp 1', labelEn: 'Grade 1' },
   { id: 'lop-2', labelVi: 'Lớp 2', labelEn: 'Grade 2' },
   { id: 'lop-3', labelVi: 'Lớp 3', labelEn: 'Grade 3' },
   { id: 'lop-4', labelVi: 'Lớp 4', labelEn: 'Grade 4' },
   { id: 'lop-5', labelVi: 'Lớp 5', labelEn: 'Grade 5' },
-  { id: 'thcs', labelVi: 'THCS (6–9)', labelEn: 'Middle School (6–9)' },
   { id: 'lop-6', labelVi: 'Lớp 6', labelEn: 'Grade 6' },
   { id: 'lop-7', labelVi: 'Lớp 7', labelEn: 'Grade 7' },
   { id: 'lop-8', labelVi: 'Lớp 8', labelEn: 'Grade 8' },
   { id: 'lop-9', labelVi: 'Lớp 9', labelEn: 'Grade 9' },
-  { id: 'thpt', labelVi: 'THPT (10–12)', labelEn: 'High School (10–12)' },
   { id: 'lop-10', labelVi: 'Lớp 10', labelEn: 'Grade 10' },
   { id: 'lop-11', labelVi: 'Lớp 11', labelEn: 'Grade 11' },
   { id: 'lop-12', labelVi: 'Lớp 12', labelEn: 'Grade 12' },
   { id: 'dai-hoc', labelVi: 'Đại học', labelEn: 'University' },
   { id: 'khac', labelVi: 'Khác', labelEn: 'Other' },
+] as const
+
+/** Nhóm cấp độ – chỉ để hiển thị, không chọn được */
+export const GRADE_LEVEL_GROUPS = [
+  { labelVi: 'Tiểu học (1–5)', labelEn: 'Primary (1–5)', ids: ['lop-1', 'lop-2', 'lop-3', 'lop-4', 'lop-5'] },
+  { labelVi: 'THCS (6–9)', labelEn: 'Middle School (6–9)', ids: ['lop-6', 'lop-7', 'lop-8', 'lop-9'] },
+  { labelVi: 'THPT (10–12)', labelEn: 'High School (10–12)', ids: ['lop-10', 'lop-11', 'lop-12'] },
+  { labelVi: 'Khác', labelEn: 'Other', ids: ['dai-hoc', 'khac'] },
 ] as const
 
 /** Bộ sách giáo khoa GDPT 2018 (VN) */

@@ -14,6 +14,19 @@ const toTenths = (value: number) => Math.round(value * 10)
 const fromTenths = (value: number) => value / 10
 const formatCredits = (value: number) => value.toLocaleString('vi-VN', { maximumFractionDigits: 1 })
 
+const BG_PROMPTS: Record<string, string> = {
+  white: 'nền trắng (white background)',
+  blue: 'nền xanh nhạt (light blue background)',
+  gray: 'nền xám nhạt (light gray background)',
+  red: 'nền đỏ nhạt (light red/pink background)',
+}
+const SHIRT_PROMPTS: Record<string, string> = {
+  default: '',
+  formal: 'Người trong ảnh mặc áo sơ mi có cổ (formal shirt with collar).',
+  casual: 'Người trong ảnh mặc áo thun (casual T-shirt).',
+  vest: 'Người trong ảnh mặc áo vest/áo khoác (blazer/vest).',
+  traditional: 'Người trong ảnh mặc áo dài truyền thống (traditional Vietnamese ao dai).',
+}
 const PROMPT_BASE = `Tạo ảnh thẻ từ ảnh này. Xóa nền và thay bằng nền trắng hoặc xanh nhạt. Cắt khung chuẩn 3x4 hoặc 4x6, chỉ gồm khuôn mặt và vai. Chất lượng chuyên nghiệp theo chuẩn ảnh hồ sơ. Chỉ trả về ảnh kết quả, không chèn chữ.`
 
 /** Tạo ảnh thẻ. 2K: 1,5 credit, 4K: 3 credit. */
@@ -27,13 +40,21 @@ export async function createIdCard(formData: FormData) {
   const aspectRatio = VALID_ASPECT_RATIOS.includes(aspectRatioRaw as (typeof VALID_ASPECT_RATIOS)[number])
     ? aspectRatioRaw
     : '3:4'
+  const bgColor = (formData.get('backgroundColor') as string)?.trim() || 'white'
+  const shirtStyle = (formData.get('shirtStyle') as string)?.trim() || 'default'
   const note = (formData.get('note') as string)?.trim() || ''
   if (!image || image.size === 0) return { error: 'Cần tải lên ít nhất một ảnh.' }
 
   const noteEn = note ? await normalizeToEnglish(note) : ''
   let prompt = PROMPT_BASE
-  if (noteEn) {
-    prompt = prompt.replace('Chỉ trả về ảnh kết quả, không chèn chữ.', `YÊU CẦU BỔ SUNG CỦA NGƯỜI DÙNG: "${noteEn}". Chỉ trả về ảnh kết quả, không chèn chữ.`)
+  const bgPrompt = BG_PROMPTS[bgColor] || BG_PROMPTS.white
+  prompt = prompt.replace('nền trắng hoặc xanh nhạt', bgPrompt)
+  const extras: string[] = []
+  const shirtPrompt = SHIRT_PROMPTS[shirtStyle]
+  if (shirtPrompt) extras.push(shirtPrompt)
+  if (noteEn) extras.push(`YÊU CẦU BỔ SUNG CỦA NGƯỜI DÙNG: "${noteEn}".`)
+  if (extras.length > 0) {
+    prompt = prompt.replace('Chỉ trả về ảnh kết quả, không chèn chữ.', `${extras.join(' ')} Chỉ trả về ảnh kết quả, không chèn chữ.`)
   }
 
   const COST = IDCARD_COSTS[imageQuality]
