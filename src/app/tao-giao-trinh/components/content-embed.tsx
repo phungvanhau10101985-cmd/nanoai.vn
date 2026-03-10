@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { Timer } from 'lucide-react'
 import QRCode from 'qrcode'
 
 /**
@@ -89,11 +90,11 @@ function QuizContentWrapper({ urlOrId, liveQuizContext, tr }: { urlOrId: string;
       </div>
     )
   }
-  if (liveQuizContext?.curriculumId) {
+  if (liveQuizContext) {
     return (
       <LiveQuizEmbed
         quizData={quizData}
-        curriculumId={liveQuizContext.curriculumId}
+        curriculumId={liveQuizContext.curriculumId || null}
         slideIndex={liveQuizContext.slideIndex}
         blockIndex={liveQuizContext.blockIndex}
         tr={tr}
@@ -155,6 +156,40 @@ export function ContentEmbed({ type, urlOrId, width = 560, height = 350, classNa
   return null
 }
 
+function playQuizTimerEndBell() {
+  try {
+    const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+    if (!Ctx) return
+    const ctx = new Ctx()
+    const play = () => {
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.connect(gain)
+      gain.connect(ctx.destination)
+      osc.frequency.setValueAtTime(880, ctx.currentTime)
+      osc.frequency.exponentialRampToValueAtTime(660, ctx.currentTime + 0.15)
+      osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.3)
+      osc.type = 'sine'
+      gain.gain.setValueAtTime(0.3, ctx.currentTime)
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5)
+      osc.start(ctx.currentTime)
+      osc.stop(ctx.currentTime + 0.5)
+    }
+    if (ctx.state === 'suspended') ctx.resume().then(play).catch(() => {})
+    else play()
+  } catch {
+    /* ignore */
+  }
+}
+
+const QUIZ_DURATION_OPTIONS = [
+  { value: 30, label: '30s' },
+  { value: 60, label: '1 phút' },
+  { value: 90, label: '1.5 phút' },
+  { value: 120, label: '2 phút' },
+  { value: 180, label: '3 phút' },
+] as const
+
 function LiveQuizEmbed({
   quizData,
   curriculumId,
@@ -163,7 +198,7 @@ function LiveQuizEmbed({
   tr,
 }: {
   quizData: { question: string; options: string[]; correctIndex: number }
-  curriculumId: string
+  curriculumId: string | null
   slideIndex: number
   blockIndex: number
   tr?: (vi: string, en: string, zh: string, ja: string, ko: string) => string
@@ -175,27 +210,68 @@ function LiveQuizEmbed({
   const [total, setTotal] = useState(0)
   const [revealed, setRevealed] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [createError, setCreateError] = useState<string | null>(null)
+  const [quizDurationSeconds, setQuizDurationSeconds] = useState(60)
+  const [autoRevealOnTimerEnd, setAutoRevealOnTimerEnd] = useState(true)
+  const [quizTimerSeconds, setQuizTimerSeconds] = useState(0)
+  const [quizTimerRunning, setQuizTimerRunning] = useState(false)
+  const [quizTimerEnded, setQuizTimerEnded] = useState(false)
+
+  const formatTimer = (sec: number) => `${Math.floor(sec / 60)}:${(sec % 60).toString().padStart(2, '0')}`
 
   const startSession = useCallback(async () => {
+    if (!curriculumId) return
+    setCreateError(null)
     setLoading(true)
-    const res = await fetch('/api/slide-quiz/create', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        curriculumId,
-        slideIndex,
-        blockIndex,
-        quizData,
-      }),
-    })
-    const data = await res.json()
-    setLoading(false)
-    if (data.code) {
-      setSessionCode(data.code)
-      const url = typeof window !== 'undefined' ? `${window.location.origin}/quiz/${data.code}` : ''
-      QRCode.toDataURL(url, { width: 140, margin: 2 }).then(setQrDataUrl).catch(() => setQrDataUrl(null))
+    try {
+      const res = await fetch('/api/slide-quiz/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          curriculumId,
+          slideIndex,
+          blockIndex,
+          quizData,
+        }),
+      })
+      const data = await res.json()
+      if (data.code) {
+        setSessionCode(data.code)
+        setQuizTimerSeconds(quizDurationSeconds)
+        setQuizTimerRunning(true)
+        const url = typeof window !== 'undefined' ? `${window.location.origin}/quiz/${data.code}` : ''
+        QRCode.toDataURL(url, { width: 140, margin: 2 }).then(setQrDataUrl).catch(() => setQrDataUrl(null))
+      } else {
+        setCreateError(data.error || (res.status === 401 ? t('Vui lòng đăng nhập.', 'Please sign in.', '请登录。', 'ログインしてください。', '로그인해 주세요.') : t('Không tạo được phiên.', 'Could not create session.', '无法创建会话。', 'セッションを作成できません。', '세션을 만들 수 없습니다.')))
+      }
+    } finally {
+      setLoading(false)
     }
-  }, [curriculumId, slideIndex, blockIndex, quizData])
+  }, [curriculumId, slideIndex, blockIndex, quizData, quizDurationSeconds, t])
+
+  useEffect(() => {
+    if (!quizTimerRunning || quizTimerSeconds <= 0 || revealed) return
+    const id = setInterval(() => {
+      setQuizTimerSeconds((s) => {
+        if (s <= 1) {
+          setQuizTimerRunning(false)
+          setQuizTimerEnded(true)
+          playQuizTimerEndBell()
+          return 0
+        }
+        return s - 1
+      })
+    }, 1000)
+    return () => clearInterval(id)
+  }, [quizTimerRunning, quizTimerSeconds, revealed])
+
+  useEffect(() => {
+    if (!quizTimerEnded || !sessionCode || revealed) return
+    if (autoRevealOnTimerEnd) {
+      revealAnswer()
+      setQuizTimerEnded(false)
+    }
+  }, [quizTimerEnded, sessionCode, revealed, autoRevealOnTimerEnd, revealAnswer])
 
   useEffect(() => {
     if (!sessionCode) return
@@ -236,14 +312,50 @@ function LiveQuizEmbed({
       </div>
 
       {!sessionCode ? (
-        <button
-          type="button"
-          onClick={startSession}
-          disabled={loading}
-          className="px-4 py-2 rounded-lg bg-violet-600 text-white font-medium hover:bg-violet-700 disabled:opacity-50"
-        >
-          {loading ? t('Đang tạo...', 'Creating...', '创建中...', '作成中...', '생성 중...') : t('Bắt đầu – Học sinh làm bài', 'Start – Students answer', '开始 - 学生作答', '開始 - 生徒が回答', '시작 - 학생 답변')}
-        </button>
+        <div className="space-y-3">
+          <div className="flex flex-wrap gap-4 items-center">
+            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('Thời gian', 'Duration', '时间', '時間', '시간')}:</span>
+            <div className="flex gap-1">
+              {QUIZ_DURATION_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setQuizDurationSeconds(opt.value)}
+                  className={`px-2.5 py-1 rounded text-xs font-medium ${quizDurationSeconds === opt.value ? 'bg-violet-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'}`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-4 items-center">
+            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('Khi hết giờ', 'When time ends', '时间到', '時間切れ', '시간 종료')}:</span>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="radio" name="quiz-reveal" checked={autoRevealOnTimerEnd} onChange={() => setAutoRevealOnTimerEnd(true)} className="rounded-full" />
+              <span className="text-sm">{t('Tự mở đáp án', 'Auto reveal', '自动显示', '自動表示', '자동 공개')}</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="radio" name="quiz-reveal" checked={!autoRevealOnTimerEnd} onChange={() => setAutoRevealOnTimerEnd(false)} className="rounded-full" />
+              <span className="text-sm">{t('Giáo viên mở', 'Teacher reveals', '教师显示', '教師が表示', '교사가 공개')}</span>
+            </label>
+          </div>
+          <button
+            type="button"
+            onClick={startSession}
+            disabled={loading || !curriculumId}
+            className="px-4 py-2 rounded-lg bg-violet-600 text-white font-medium hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading ? t('Đang tạo...', 'Creating...', '创建中...', '作成中...', '생성 중...') : !curriculumId ? t('Lưu giáo trình để bắt đầu', 'Save curriculum to start', '保存课程以开始', '保存して開始', '저장 후 시작') : t('Bắt đầu – Học sinh làm bài', 'Start – Students answer', '开始 - 学生作答', '開始 - 生徒が回答', '시작 - 학생 답변')}
+          </button>
+          {!curriculumId && (
+            <p className="text-sm text-amber-600 dark:text-amber-400">
+              {t('Lưu giáo trình vào kho trước để bắt đầu phiên trắc nghiệm.', 'Save curriculum to library first to start quiz session.', '请先将课程保存到库以开始测验。', '先にカリキュラムを保存してください。', '먼저 교육과정을 저장하세요.')}
+            </p>
+          )}
+          {createError && (
+            <p className="text-sm text-red-600 dark:text-red-400">{createError}</p>
+          )}
+        </div>
       ) : (
         <div className="space-y-3 print:hidden">
           <div className="flex flex-wrap gap-4 items-start">
@@ -267,18 +379,57 @@ function LiveQuizEmbed({
             </div>
           </div>
           {!revealed && (
-            <button
-              type="button"
-              onClick={revealAnswer}
-              className="px-4 py-2 rounded-lg bg-emerald-600 text-white font-medium hover:bg-emerald-700"
-            >
-              {t('Hiện đáp án', 'Reveal answer', '显示答案', '答えを表示', '정답 공개')}
-            </button>
+            <div className="space-y-2">
+              {quizTimerSeconds > 0 && (
+                <div className={cn('flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-500/20 border border-amber-400/50', quizTimerRunning && quizTimerSeconds <= 15 && 'animate-pulse')}>
+                  <Timer className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                  <span className="text-amber-600 dark:text-amber-400 font-medium">{t('Đồng hồ cát', 'Sand timer', '沙漏', '砂時計', '모래시계')}:</span>
+                  <span className={cn('font-mono font-bold', quizTimerSeconds <= 15 && 'text-amber-700 dark:text-amber-300')}>{formatTimer(quizTimerSeconds)}</span>
+                </div>
+              )}
+              {quizTimerSeconds === 0 && quizTimerEnded && !autoRevealOnTimerEnd && (
+                <p className="text-sm text-amber-600 dark:text-amber-400 font-medium">
+                  {t('Hết giờ! Bấm nút bên dưới để mở đáp án.', 'Time\'s up! Click the button below to reveal.', '时间到！点击下方按钮显示答案。', '時間切れ！下のボタンで答えを表示。', '시간 종료! 아래 버튼으로 정답 공개.')}
+                </p>
+              )}
+              <button
+                type="button"
+                onClick={revealAnswer}
+                className="px-4 py-2 rounded-lg bg-emerald-600 text-white font-medium hover:bg-emerald-700"
+              >
+                {t('Hiện đáp án', 'Reveal answer', '显示答案', '答えを表示', '정답 공개')}
+              </button>
+            </div>
           )}
           {revealed && (
-            <p className="text-sm font-medium text-green-600 dark:text-green-400">
-              {t('Đáp án đúng', 'Correct answer', '正确答案', '正解', '정답')}: {String.fromCharCode(65 + quizData.correctIndex)}
-            </p>
+            <div className="space-y-3 pt-2 border-t border-slate-200 dark:border-slate-700">
+              <p className="text-sm font-medium text-green-600 dark:text-green-400">
+                {t('Đáp án đúng', 'Correct answer', '正确答案', '正解', '정답')}: {String.fromCharCode(65 + quizData.correctIndex)}
+              </p>
+              {total > 0 && (() => {
+                const correctCount = results[quizData.correctIndex] ?? 0
+                const wrongCount = total - correctCount
+                const correctPct = Math.round((correctCount / total) * 100)
+                const wrongPct = 100 - correctPct
+                return (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                      {t('Thống kê', 'Statistics', '统计', '統計', '통계')}: {correctCount}/{total} {t('đúng', 'correct', '正确', '正解', '정답')} ({correctPct}%) · {wrongCount} {t('sai', 'wrong', '错误', '不正解', '오답')} ({wrongPct}%)
+                    </p>
+                    <div className="h-4 rounded-full overflow-hidden flex bg-slate-200 dark:bg-slate-700">
+                      <div
+                        className="h-full bg-green-500 transition-all"
+                        style={{ width: `${correctPct}%` }}
+                      />
+                      <div
+                        className="h-full bg-red-500 transition-all"
+                        style={{ width: `${wrongPct}%` }}
+                      />
+                    </div>
+                  </div>
+                )
+              })()}
+            </div>
           )}
         </div>
       )}

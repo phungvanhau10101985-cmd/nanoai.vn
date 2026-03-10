@@ -109,7 +109,7 @@ export function QuizPopupDialog({
                       urlOrId={q.urlOrId}
                       width={560}
                       height={200}
-                      liveQuizContext={curriculumId ? { curriculumId, slideIndex, blockIndex: i } : undefined}
+                      liveQuizContext={{ curriculumId: curriculumId ?? '', slideIndex, blockIndex: i }}
                       tr={tr}
                     />
                   </div>
