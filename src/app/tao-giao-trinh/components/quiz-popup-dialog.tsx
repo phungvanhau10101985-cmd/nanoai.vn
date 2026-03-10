@@ -15,14 +15,19 @@ import { Button } from '@/components/ui/button'
 import { ContentEmbed, parseContentEmbeds, parseQuizData } from './content-embed'
 import { Sparkles, X } from 'lucide-react'
 
-type SlideBlock = { header: string; content: string }
+type SlideBlock = { header?: string; content?: string }
+type VisualCell = { visualEmbed?: string; imageUrl?: string }
 
-export function extractQuizFromSlide(slide: { blocks?: SlideBlock[]; content?: string }): Array<{ urlOrId: string; rawMarker: string }> {
+export function extractQuizFromSlide(slide: { blocks?: SlideBlock[]; content?: string; visualEmbed?: string; visualCells?: VisualCell[] }): Array<{ urlOrId: string; rawMarker: string }> {
   const texts: string[] = []
   for (const b of slide.blocks ?? []) {
     if (b.content) texts.push(b.content)
   }
   if (slide.content) texts.push(slide.content)
+  if (slide.visualEmbed) texts.push(slide.visualEmbed)
+  for (const c of slide.visualCells ?? []) {
+    if (c.visualEmbed) texts.push(c.visualEmbed)
+  }
   const all = parseContentEmbeds(texts.join('\n\n')).filter((e) => e.type === 'quiz')
   return all.map((e) => ({ urlOrId: e.urlOrId, rawMarker: e.rawMarker }))
 }
@@ -30,7 +35,7 @@ export function extractQuizFromSlide(slide: { blocks?: SlideBlock[]; content?: s
 interface QuizPopupDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  slide: { title: string; blocks?: SlideBlock[]; content?: string }
+  slide: { title: string; blocks?: SlideBlock[]; content?: string; visualEmbed?: string; visualCells?: VisualCell[] }
   slideIndex: number
   curriculumId?: string | null
   tr: (vi: string, en: string, zh: string, ja: string, ko: string) => string
@@ -55,7 +60,12 @@ export function QuizPopupDialog({
 }: QuizPopupDialogProps) {
   const quizzes = extractQuizFromSlide(slide)
   const hasQuiz = quizzes.length > 0
-  const slideContentKey = slide.blocks?.map((b) => b.content).join('\n') ?? slide.content ?? ''
+  const slideContentKey = [
+    slide.blocks?.map((b) => b.content).join('\n'),
+    slide.content,
+    slide.visualEmbed,
+    slide.visualCells?.map((c) => c.visualEmbed).join('\n'),
+  ].filter(Boolean).join('\n---\n') || 'empty'
 
   const handleGenerate = useCallback(async () => {
     if (onGenerateQuiz) await onGenerateQuiz()
@@ -68,16 +78,23 @@ export function QuizPopupDialog({
         <DialogOverlay className={zClass} />
         <DialogPrimitive.Content
           className={cn(
-            'fixed left-[50%] top-[50%] grid w-full max-w-2xl max-h-[85vh] overflow-y-auto translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:rounded-lg',
+            'fixed left-[50%] top-[50%] flex flex-col w-full max-w-2xl max-h-[85vh] translate-x-[-50%] translate-y-[-50%] border bg-background shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:rounded-lg overflow-hidden',
             zClass
           )}
         >
-          <DialogHeader>
-            <DialogTitle>
-              {tr('Câu hỏi trắc nghiệm', 'Quiz questions', '测验题', 'クイズ', '퀴즈')} – {slide.title}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-6 py-4" key={slideContentKey}>
+          <div className="shrink-0 flex items-start justify-between gap-4 p-6 pb-0 border-b bg-background">
+            <DialogHeader className="p-0 space-y-0">
+              <DialogTitle className="pr-8 text-base">
+                {tr('Câu hỏi trắc nghiệm', 'Quiz questions', '测验题', 'クイズ', '퀴즈')} – {slide.title}
+              </DialogTitle>
+            </DialogHeader>
+            <DialogClose className="shrink-0 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none p-1">
+              <X className="h-4 w-4" />
+              <span className="sr-only">Close</span>
+            </DialogClose>
+          </div>
+          <div className="flex-1 overflow-y-auto min-h-0 p-6 pt-4">
+          <div className="space-y-6" key={slideContentKey}>
             {hasQuiz ? (
               quizzes.map((q, i) => {
                 const parsed = parseQuizData(q.urlOrId)
@@ -139,10 +156,7 @@ export function QuizPopupDialog({
               </div>
             )}
           </div>
-          <DialogClose className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none">
-            <X className="h-4 w-4" />
-            <span className="sr-only">Close</span>
-          </DialogClose>
+          </div>
         </DialogPrimitive.Content>
       </DialogPortal>
     </Dialog>

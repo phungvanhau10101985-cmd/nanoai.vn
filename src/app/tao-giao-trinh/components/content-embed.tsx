@@ -265,6 +265,16 @@ function LiveQuizEmbed({
     return () => clearInterval(id)
   }, [quizTimerRunning, quizTimerSeconds, revealed])
 
+  const revealAnswer = useCallback(async () => {
+    if (!sessionCode) return
+    await fetch(`/api/slide-quiz/${sessionCode}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'revealed' }),
+    })
+    setRevealed(true)
+  }, [sessionCode])
+
   useEffect(() => {
     if (!quizTimerEnded || !sessionCode || revealed) return
     if (autoRevealOnTimerEnd) {
@@ -288,40 +298,22 @@ function LiveQuizEmbed({
     return () => clearInterval(id)
   }, [sessionCode])
 
-  const revealAnswer = useCallback(async () => {
-    if (!sessionCode) return
-    await fetch(`/api/slide-quiz/${sessionCode}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'revealed' }),
-    })
-    setRevealed(true)
-  }, [sessionCode])
-
   const joinUrl = typeof window !== 'undefined' && sessionCode ? `${window.location.origin}/quiz/${sessionCode}` : ''
 
   return (
     <div className={WRAPPER_CLASS + ' p-4 bg-slate-50 dark:bg-slate-900/50'}>
-      <p className="font-medium mb-3"><QuizMathText text={quizData.question} /></p>
-      <div className="space-y-2 mb-4">
-        {quizData.options.map((opt, i) => (
-          <div key={i} className="px-3 py-2 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
-            {String.fromCharCode(65 + i)}. <QuizMathText text={opt} />
-          </div>
-        ))}
-      </div>
-
       {!sessionCode ? (
-        <div className="space-y-3">
+        <div className="space-y-4 mb-4 pb-4 border-b border-slate-200 dark:border-slate-700">
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">{t('Cài đặt', 'Settings', '设置', '設定', '설정')}</p>
           <div className="flex flex-wrap gap-4 items-center">
             <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('Thời gian', 'Duration', '时间', '時間', '시간')}:</span>
-            <div className="flex gap-1">
+            <div className="flex gap-1 flex-wrap">
               {QUIZ_DURATION_OPTIONS.map((opt) => (
                 <button
                   key={opt.value}
                   type="button"
                   onClick={() => setQuizDurationSeconds(opt.value)}
-                  className={`px-2.5 py-1 rounded text-xs font-medium ${quizDurationSeconds === opt.value ? 'bg-violet-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'}`}
+                  className={`px-2.5 py-1.5 rounded text-xs font-medium ${quizDurationSeconds === opt.value ? 'bg-violet-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'}`}
                 >
                   {opt.label}
                 </button>
@@ -331,11 +323,11 @@ function LiveQuizEmbed({
           <div className="flex flex-wrap gap-4 items-center">
             <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('Khi hết giờ', 'When time ends', '时间到', '時間切れ', '시간 종료')}:</span>
             <label className="flex items-center gap-2 cursor-pointer">
-              <input type="radio" name="quiz-reveal" checked={autoRevealOnTimerEnd} onChange={() => setAutoRevealOnTimerEnd(true)} className="rounded-full" />
+              <input type="radio" name={`quiz-reveal-${slideIndex}-${blockIndex}`} checked={autoRevealOnTimerEnd} onChange={() => setAutoRevealOnTimerEnd(true)} className="rounded-full" />
               <span className="text-sm">{t('Tự mở đáp án', 'Auto reveal', '自动显示', '自動表示', '자동 공개')}</span>
             </label>
             <label className="flex items-center gap-2 cursor-pointer">
-              <input type="radio" name="quiz-reveal" checked={!autoRevealOnTimerEnd} onChange={() => setAutoRevealOnTimerEnd(false)} className="rounded-full" />
+              <input type="radio" name={`quiz-reveal-${slideIndex}-${blockIndex}`} checked={!autoRevealOnTimerEnd} onChange={() => setAutoRevealOnTimerEnd(false)} className="rounded-full" />
               <span className="text-sm">{t('Giáo viên mở', 'Teacher reveals', '教师显示', '教師が表示', '교사가 공개')}</span>
             </label>
           </div>
@@ -356,8 +348,19 @@ function LiveQuizEmbed({
             <p className="text-sm text-red-600 dark:text-red-400">{createError}</p>
           )}
         </div>
-      ) : (
-        <div className="space-y-3 print:hidden">
+      ) : null}
+
+      <p className="font-medium mb-3"><QuizMathText text={quizData.question} /></p>
+      <div className="space-y-2 mb-4">
+        {quizData.options.map((opt, i) => (
+          <div key={i} className="px-3 py-2 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
+            {String.fromCharCode(65 + i)}. <QuizMathText text={opt} />
+          </div>
+        ))}
+      </div>
+
+      {sessionCode ? (
+        <div className="space-y-3 print:hidden mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
           <div className="flex flex-wrap gap-4 items-start">
             {qrDataUrl && (
               <div className="flex flex-col items-center">
@@ -432,7 +435,7 @@ function LiveQuizEmbed({
             </div>
           )}
         </div>
-      )}
+      ) : null}
     </div>
   )
 }
