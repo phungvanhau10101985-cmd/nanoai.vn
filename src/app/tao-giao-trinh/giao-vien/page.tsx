@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useEffect, useState, useCallback, useRef } from 'react'
-import { Timer, Play, Pause, RotateCcw, ChevronLeft, ChevronRight, LayoutGrid, Square, Sparkles, Edit3, Plus, Save, FileText, FileEdit, History, BarChart2, Maximize2, X } from 'lucide-react'
+import { Timer, Play, Pause, RotateCcw, ChevronLeft, ChevronRight, LayoutGrid, Square, Sparkles, Edit3, Plus, Save, FileText, FileEdit, History, BarChart2, Maximize2, X, ClipboardList } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { canSplitBlockAtQuiz, splitContentWithEmbeds, parseQuizData, parseContentEmbeds, ContentEmbed } from '../components/content-embed'
 import { parseContentToBlocks } from '../lib/curriculum-to-slides'
@@ -10,6 +10,7 @@ import { SlideProposalVote } from '../components/slide-proposal-vote'
 import { PersonalHistorySheet } from '../components/personal-history-sheet'
 import { SlideEditHistorySheet } from '../components/slide-edit-history-sheet'
 import { EmbedInsertDialog } from '../components/embed-insert-dialog'
+import { QuizPopupDialog, extractQuizFromSlide } from '../components/quiz-popup-dialog'
 import { getSlideProposalsForCurriculum, resetPersonalToOriginal } from '../actions'
 
 type VisualCell = { visualEmbed?: string; imageUrl?: string }
@@ -203,6 +204,7 @@ export default function CurriculumViewPage() {
   const [embedDialogOpen, setEmbedDialogOpen] = useState(false)
   const [leftPanelMode, setLeftPanelMode] = useState<'curriculum' | 'slide' | 'visual'>('curriculum')
   const [visualFullscreenOpen, setVisualFullscreenOpen] = useState(false)
+  const [quizPopupOpen, setQuizPopupOpen] = useState(false)
   const prevSlideModeRef = useRef<string | null>(null)
   const sectionRefs = useRef<(HTMLDivElement | null)[]>([])
   const firstMatchRef = useRef<HTMLElement | null>(null)
@@ -557,9 +559,21 @@ export default function CurriculumViewPage() {
         <div className="flex-1 flex min-h-0 overflow-hidden isolate">
           {/* Trái: Giáo trình hoặc Slide hiện tại */}
           <div className="w-1/2 min-w-0 border-r border-slate-700/60 flex flex-col overflow-hidden isolate bg-slate-900/20">
-            <div className="px-4 py-2.5 text-slate-400 text-xs font-medium uppercase tracking-wider border-b border-slate-700/60 shrink-0 flex items-center justify-between gap-2">
+            <div className="px-4 py-2.5 text-slate-400 text-xs font-medium uppercase tracking-wider border-b border-slate-700/60 shrink-0 flex items-center justify-between gap-2 flex-wrap">
               <span>{leftPanelMode === 'curriculum' ? tr('Giáo trình', 'Curriculum', '课程', 'カリキュラム', '교육과정') : leftPanelMode === 'visual' ? tr('Visual (như học sinh)', 'Visual (as student)', '视觉（学生视图）', 'ビジュアル（生徒表示）', '비주얼 (학생 화면)') : tr('Slide hiện tại', 'Current slide', '当前幻灯片', '表示中のスライド', '표시 중 슬라이드')}</span>
-              <div className="flex rounded-lg border border-slate-600/80 overflow-hidden bg-slate-800/50">
+              <div className="flex items-center gap-2">
+                {(leftPanelMode === 'visual' || leftPanelMode === 'slide') && extractQuizFromSlide(slides[currentIndex] ?? {}).length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setQuizPopupOpen(true)}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-violet-500/20 border border-violet-400/40 text-violet-300 hover:bg-violet-500/30 text-[11px] font-medium transition-colors"
+                    title={tr('Mở quiz: thời gian, đồng hồ cát, thống kê', 'Open quiz: duration, timer, stats', '打开测验：时间、沙漏、统计', 'クイズを開く：時間・砂時計・統計', '퀴즈 열기: 시간·모래시계·통계')}
+                  >
+                    <ClipboardList className="h-3.5 w-3.5" />
+                    {tr('Mở quiz', 'Open quiz', '打开测验', 'クイズを開く', '퀴즈 열기')}
+                  </button>
+                )}
+                <div className="flex rounded-lg border border-slate-600/80 overflow-hidden bg-slate-800/50">
                 <button type="button" onClick={() => setLeftPanelMode('curriculum')} className={['px-2.5 py-1 text-[11px] font-medium transition-colors', leftPanelMode === 'curriculum' ? 'bg-amber-500/30 text-amber-300' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'].join(' ')}>
                   {tr('Giáo trình', 'Curriculum', '课程', 'カリキュラム', '교육과정')}
                 </button>
@@ -569,6 +583,7 @@ export default function CurriculumViewPage() {
                 <button type="button" onClick={() => setLeftPanelMode('visual')} className={['px-2.5 py-1 text-[11px] font-medium transition-colors', leftPanelMode === 'visual' ? 'bg-amber-500/30 text-amber-300' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'].join(' ')}>
                   {tr('Visual', 'Visual', '视觉', 'ビジュアル', '비주얼')}
                 </button>
+              </div>
               </div>
             </div>
             <div className="flex-1 overflow-y-scroll overflow-x-hidden overscroll-y-contain p-4 space-y-3 pr-2 scroll-smooth min-h-0 text-left">
@@ -1411,6 +1426,17 @@ export default function CurriculumViewPage() {
           </div>
         )
       })()}
+      {slides[currentIndex] && (
+        <QuizPopupDialog
+          open={quizPopupOpen}
+          onOpenChange={setQuizPopupOpen}
+          slide={slides[currentIndex]}
+          slideIndex={currentIndex}
+          curriculumId={curriculumId ?? undefined}
+          tr={tr}
+          teacherMode
+        />
+      )}
     </div>
   )
 }
