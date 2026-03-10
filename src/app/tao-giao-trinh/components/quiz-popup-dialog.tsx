@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback } from 'react'
+import { useCallback, useEffect } from 'react'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
 import {
   Dialog,
@@ -10,9 +10,9 @@ import {
   DialogOverlay,
   DialogClose,
 } from '@/components/ui/dialog'
-import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { ContentEmbed, parseContentEmbeds, parseQuizData } from './content-embed'
+import { QuizErrorBoundary } from './quiz-error-boundary'
 import { Sparkles, X } from 'lucide-react'
 
 type SlideBlock = { header?: string; content?: string }
@@ -71,16 +71,25 @@ export function QuizPopupDialog({
     if (onGenerateQuiz) await onGenerateQuiz()
   }, [onGenerateQuiz])
 
+  useEffect(() => {
+    if (!open || typeof window === 'undefined') return
+    import('@/lib/utils')
+      .then((m) => console.log('[QuizPopup] cn available:', typeof m?.cn))
+      .catch((e) => console.error('[QuizPopup] utils import error:', e))
+    const h = (e: ErrorEvent) => {
+      if (e.message?.includes('cn')) console.error('[QuizPopup] window.error:', e.message, e.filename, e.lineno, e.colno, e.error?.stack)
+    }
+    window.addEventListener('error', h)
+    return () => window.removeEventListener('error', h)
+  }, [open])
+
   const zClass = 'z-[110]'
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogPortal>
         <DialogOverlay className={zClass} />
         <DialogPrimitive.Content
-          className={cn(
-            'fixed left-[50%] top-[50%] flex flex-col w-full max-w-2xl max-h-[85vh] translate-x-[-50%] translate-y-[-50%] border bg-background shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:rounded-lg overflow-hidden',
-            zClass
-          )}
+          className={`fixed left-[50%] top-[50%] flex flex-col w-full max-w-2xl max-h-[85vh] translate-x-[-50%] translate-y-[-50%] border bg-background shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:rounded-lg overflow-hidden ${zClass}`}
         >
           <div className="shrink-0 flex items-start justify-between gap-4 p-6 pb-0 border-b bg-background">
             <DialogHeader className="p-0 space-y-0">
@@ -94,6 +103,7 @@ export function QuizPopupDialog({
             </DialogClose>
           </div>
           <div className="flex-1 overflow-y-auto min-h-0 p-6 pt-4">
+          <QuizErrorBoundary>
           <div className="space-y-6" key={slideContentKey}>
             {hasQuiz ? (
               quizzes.map((q, i) => {
@@ -156,6 +166,7 @@ export function QuizPopupDialog({
               </div>
             )}
           </div>
+          </QuizErrorBoundary>
           </div>
         </DialogPrimitive.Content>
       </DialogPortal>
