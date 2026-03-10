@@ -42,13 +42,11 @@ export async function POST(
     device_id: did,
   }
 
-  const { error } = await supabase.from('slide_quiz_responses').upsert(row, {
-    onConflict: 'session_id,device_id',
-  })
+  const { error } = await supabase.from('slide_quiz_responses').insert(row)
 
   if (error) {
     if ((error as { code?: string }).code === '23505') {
-      return NextResponse.json({ success: true, message: 'Bạn đã trả lời rồi.' })
+      return NextResponse.json({ success: false, error: 'Bạn đã gửi rồi. Chỉ được gửi 1 lần.' })
     }
     return NextResponse.json({ error: error.message }, { status: 500 })
   }

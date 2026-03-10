@@ -12,12 +12,22 @@ BRANCH="${1:-main}"
 echo "[1/6] Go to app directory: ${APP_DIR}"
 cd "${APP_DIR}"
 
+OLD_COMMIT=$(git rev-parse HEAD 2>/dev/null || true)
+
 echo "[2/6] Fetch latest code"
 git fetch origin "${BRANCH}"
 
 echo "[3/6] Checkout branch ${BRANCH}"
 git checkout "${BRANCH}"
 git reset --hard origin/"${BRANCH}"
+
+if [[ -n "${OLD_COMMIT}" ]] && [[ "${OLD_COMMIT}" != "$(git rev-parse HEAD)" ]]; then
+  echo ""
+  echo "--- Thay đổi code (so với trước khi deploy) ---"
+  git diff --shortstat "${OLD_COMMIT}" HEAD || true
+  echo "----------------------------------------------"
+  echo ""
+fi
 
 echo "[4/6] Install dependencies"
 npm install

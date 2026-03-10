@@ -22,6 +22,7 @@ export default function QuizJoinClient({ code }: { code: string }) {
   const [options, setOptions] = useState<string[]>([])
   const [status, setStatus] = useState<'active' | 'revealed'>('active')
   const [correctIndex, setCorrectIndex] = useState<number | null>(null)
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null)
   const [submitted, setSubmitted] = useState<number | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
@@ -50,18 +51,18 @@ export default function QuizJoinClient({ code }: { code: string }) {
     return () => clearInterval(interval)
   }, [status, fetchSession])
 
-  const handleSubmit = async (index: number) => {
-    if (submitted !== null) return
+  const handleSubmit = async () => {
+    if (selectedIndex === null || submitted !== null) return
     setSubmitting(true)
     const res = await fetch(`/api/slide-quiz/${code}/submit`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ answerIndex: index, deviceId: getDeviceId() }),
+      body: JSON.stringify({ answerIndex: selectedIndex, deviceId: getDeviceId() }),
     })
     const data = await res.json()
     setSubmitting(false)
     if (data.success) {
-      setSubmitted(index)
+      setSubmitted(selectedIndex)
     } else {
       setError(data.error || 'Gửi thất bại.')
     }
@@ -97,21 +98,22 @@ export default function QuizJoinClient({ code }: { code: string }) {
         <p className="font-medium text-lg mb-4"><QuizMathText text={question} /></p>
         <div className="space-y-2">
           {options.map((opt, i) => {
-            const isSelected = submitted === i
+            const isChosen = submitted !== null ? submitted === i : selectedIndex === i
             const isCorrect = showCorrect && i === correctIndex
-            const isWrong = showCorrect && isSelected && i !== correctIndex
+            const isWrong = showCorrect && isChosen && i !== correctIndex
+            const canSelect = submitted === null && !submitting
             return (
               <button
                 key={i}
                 type="button"
-                onClick={() => handleSubmit(i)}
-                disabled={submitted !== null || submitting}
+                onClick={() => canSelect && setSelectedIndex(i)}
+                disabled={!canSelect}
                 className={`w-full text-left px-4 py-3 rounded-lg border-2 transition-all ${
                   isCorrect ? 'border-green-500 bg-green-50 dark:bg-green-900/20' :
                   isWrong ? 'border-red-500 bg-red-50 dark:bg-red-900/20' :
-                  isSelected ? 'border-violet-500 bg-violet-50 dark:bg-violet-900/20' :
+                  isChosen ? 'border-violet-500 bg-violet-50 dark:bg-violet-900/20' :
                   'border-slate-200 dark:border-slate-700 hover:border-violet-300 hover:bg-violet-50/50 dark:hover:bg-violet-900/10'
-                } ${submitted !== null ? 'cursor-default' : ''}`}
+                } ${!canSelect ? 'cursor-default' : 'cursor-pointer'}`}
               >
                 <span className="font-medium">{String.fromCharCode(65 + i)}.</span> <QuizMathText text={opt} />
               </button>
@@ -119,13 +121,33 @@ export default function QuizJoinClient({ code }: { code: string }) {
           })}
         </div>
 
+        {submitted === null && selectedIndex !== null && (
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={submitting}
+            className="w-full mt-4 px-4 py-3 rounded-lg bg-violet-600 hover:bg-violet-700 disabled:bg-violet-400 text-white font-semibold transition-colors"
+          >
+            {submitting ? 'Đang gửi...' : 'Gửi'}
+          </button>
+        )}
+
         {submitted !== null && !revealed && (
           <p className="mt-0.5 text-sm text-muted-foreground">Đã gửi. Chờ cô giáo hiện đáp án.</p>
         )}
         {showCorrect && (
-          <p className="mt-0.5 text-sm font-medium text-green-600 dark:text-green-400">
-            Đáp án đúng: {String.fromCharCode(65 + (correctIndex ?? 0))}
-          </p>
+          <>
+            {submitted !== null && (
+              <p className={`mt-3 text-base font-semibold ${submitted === correctIndex ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                {submitted === correctIndex
+                  ? 'Chúc mừng! Bạn chọn đúng.'
+                  : `Rất tiếc, bạn chọn sai. Đáp án đúng là ${String.fromCharCode(65 + (correctIndex ?? 0))}.`}
+              </p>
+            )}
+            <p className="mt-0.5 text-sm font-medium text-green-600 dark:text-green-400">
+              Đáp án đúng: {String.fromCharCode(65 + (correctIndex ?? 0))}
+            </p>
+          </>
         )}
       </div>
     </div>
