@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Timer } from 'lucide-react'
 import QRCode from 'qrcode'
-import { cn } from '@/lib/utils'
 
 /**
  * Nhúng nhiều loại nội dung vào slide: GeoGebra, Desmos, YouTube, PhET, Maps, Image, Audio, Quiz, Code, LaTeX
@@ -385,10 +384,10 @@ function LiveQuizEmbed({
           {!revealed && (
             <div className="space-y-2">
               {quizTimerSeconds > 0 && (
-                <div className={cn('flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-500/20 border border-amber-400/50', quizTimerRunning && quizTimerSeconds <= 15 && 'animate-pulse')}>
+                <div className={`flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-500/20 border border-amber-400/50 ${quizTimerRunning && quizTimerSeconds <= 15 ? 'animate-pulse' : ''}`}>
                   <Timer className="h-4 w-4 text-amber-600 dark:text-amber-400" />
                   <span className="text-amber-600 dark:text-amber-400 font-medium">{t('Đồng hồ cát', 'Sand timer', '沙漏', '砂時計', '모래시계')}:</span>
-                  <span className={cn('font-mono font-bold', quizTimerSeconds <= 15 && 'text-amber-700 dark:text-amber-300')}>{formatTimer(quizTimerSeconds)}</span>
+                  <span className={`font-mono font-bold ${quizTimerSeconds <= 15 ? 'text-amber-700 dark:text-amber-300' : ''}`}>{formatTimer(quizTimerSeconds)}</span>
                 </div>
               )}
               {quizTimerSeconds === 0 && quizTimerEnded && !autoRevealOnTimerEnd && (
