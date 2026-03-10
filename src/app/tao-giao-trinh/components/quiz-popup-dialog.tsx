@@ -12,20 +12,19 @@ import {
 } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-import { ContentEmbed } from './content-embed'
-import { parseContentEmbeds } from './content-embed'
+import { ContentEmbed, parseContentEmbeds, parseQuizData } from './content-embed'
 import { Sparkles, X } from 'lucide-react'
 
 type SlideBlock = { header: string; content: string }
 
-function extractQuizFromSlide(slide: { blocks?: SlideBlock[]; content?: string }): Array<{ urlOrId: string }> {
+export function extractQuizFromSlide(slide: { blocks?: SlideBlock[]; content?: string }): Array<{ urlOrId: string; rawMarker: string }> {
   const texts: string[] = []
   for (const b of slide.blocks ?? []) {
     if (b.content) texts.push(b.content)
   }
   if (slide.content) texts.push(slide.content)
   const all = parseContentEmbeds(texts.join('\n\n')).filter((e) => e.type === 'quiz')
-  return all.map((e) => ({ urlOrId: e.urlOrId }))
+  return all.map((e) => ({ urlOrId: e.urlOrId, rawMarker: e.rawMarker }))
 }
 
 interface QuizPopupDialogProps {
@@ -35,8 +34,11 @@ interface QuizPopupDialogProps {
   slideIndex: number
   curriculumId?: string | null
   tr: (vi: string, en: string, zh: string, ja: string, ko: string) => string
-  onGenerateQuiz: () => Promise<void>
-  quizGenLoading: boolean
+  /** Chế độ giáo viên: hiện nút tạo/thay câu hỏi. Học sinh: chỉ xem. */
+  teacherMode?: boolean
+  onGenerateQuiz?: () => Promise<void>
+  onReplaceBrokenQuiz?: (rawMarker: string) => Promise<void>
+  quizGenLoading?: boolean
 }
 
 export function QuizPopupDialog({
@@ -46,14 +48,17 @@ export function QuizPopupDialog({
   slideIndex,
   curriculumId,
   tr,
+  teacherMode = false,
   onGenerateQuiz,
-  quizGenLoading,
+  onReplaceBrokenQuiz,
+  quizGenLoading = false,
 }: QuizPopupDialogProps) {
   const quizzes = extractQuizFromSlide(slide)
   const hasQuiz = quizzes.length > 0
+  const slideContentKey = slide.blocks?.map((b) => b.content).join('\n') ?? slide.content ?? ''
 
   const handleGenerate = useCallback(async () => {
-    await onGenerateQuiz()
+    if (onGenerateQuiz) await onGenerateQuiz()
   }, [onGenerateQuiz])
 
   const zClass = 'z-[110]'
@@ -72,21 +77,45 @@ export function QuizPopupDialog({
               {tr('Câu hỏi trắc nghiệm', 'Quiz questions', '测验题', 'クイズ', '퀴즈')} – {slide.title}
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-6 py-4">
+          <div className="space-y-6 py-4" key={slideContentKey}>
             {hasQuiz ? (
-              quizzes.map((q, i) => (
-                <div key={i} className="border rounded-lg p-4 bg-slate-50 dark:bg-slate-900/30">
-                  <ContentEmbed
-                    type="quiz"
-                    urlOrId={q.urlOrId}
-                    width={560}
-                    height={200}
-                    liveQuizContext={curriculumId ? { curriculumId, slideIndex, blockIndex: i } : undefined}
-                    tr={tr}
-                  />
-                </div>
-              ))
-            ) : (
+              quizzes.map((q, i) => {
+                const parsed = parseQuizData(q.urlOrId)
+                if (!parsed) {
+                  return (
+                    <div key={`${i}-${q.urlOrId.slice(0, 30)}`} className="border border-amber-200 rounded-lg p-4 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-800">
+                      <p className="text-sm text-amber-800 dark:text-amber-200 mb-3">
+                        {tr('Câu hỏi chưa hiển thị được. Định dạng có thể không đúng.', 'Quiz could not be displayed. Format may be invalid.', '题目无法显示，格式可能不正确。', 'クイズを表示できません。形式が不正かもしれません。', '퀴즈를 표시할 수 없습니다. 형식이 잘못되었을 수 있습니다.')}
+                      </p>
+                      {teacherMode && onReplaceBrokenQuiz && (
+                        <Button
+                          onClick={() => onReplaceBrokenQuiz(q.rawMarker)}
+                          disabled={quizGenLoading}
+                          className="bg-emerald-600 hover:bg-emerald-700"
+                        >
+                          <Sparkles className="h-4 w-4 mr-2" />
+                          {quizGenLoading
+                            ? tr('Đang tạo...', 'Creating...', '创建中...', '作成中...', '생성 중...')
+                            : tr('Tạo lại câu hỏi trắc nghiệm', 'Regenerate quiz', '重新生成测验', 'クイズを再生成', '퀴즈 다시 생성')}
+                        </Button>
+                      )}
+                    </div>
+                  )
+                }
+                return (
+                  <div key={`${i}-${q.urlOrId.slice(0, 30)}`} className="border rounded-lg p-4 bg-slate-50 dark:bg-slate-900/30">
+                    <ContentEmbed
+                      type="quiz"
+                      urlOrId={q.urlOrId}
+                      width={560}
+                      height={200}
+                      liveQuizContext={curriculumId ? { curriculumId, slideIndex, blockIndex: i } : undefined}
+                      tr={tr}
+                    />
+                  </div>
+                )
+              })
+            ) : teacherMode ? (
               <div className="text-center py-8 space-y-4">
                 <p className="text-muted-foreground">
                   {tr('Slide này chưa có câu hỏi trắc nghiệm.', 'This slide has no quiz yet.', '此幻灯片暂无测验。', 'このスライドにクイズがありません。', '이 슬라이드에 퀴즈가 없습니다.')}
@@ -101,6 +130,12 @@ export function QuizPopupDialog({
                     ? tr('Đang tạo...', 'Creating...', '创建中...', '作成中...', '생성 중...')
                     : tr('Bắt đầu tạo câu hỏi trắc nghiệm', 'Generate quiz questions', '生成测验题', 'クイズを生成', '퀴즈 생성')}
                 </Button>
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-muted-foreground">
+                  {tr('Slide này chưa có câu hỏi trắc nghiệm.', 'This slide has no quiz yet.', '此幻灯片暂无测验。', 'このスライドにクイズがありません。', '이 슬라이드에 퀴즈가 없습니다.')}
+                </p>
               </div>
             )}
           </div>

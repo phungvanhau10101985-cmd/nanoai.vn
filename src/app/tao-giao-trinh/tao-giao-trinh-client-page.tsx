@@ -7,16 +7,16 @@ import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
-import { Sparkles, Copy, FileDown, RefreshCw, FileSpreadsheet, QrCode, FolderOpen, BookOpen, FileText, Presentation, Trash2 } from 'lucide-react'
+import { Sparkles, Copy, FileDown, RefreshCw, FileSpreadsheet, QrCode, FolderOpen, BookOpen, FileText, Presentation, Trash2, Upload, ImageIcon } from 'lucide-react'
 import QRCode from 'qrcode'
 import { exportWorksheetToPdf, exportWorksheetToWord } from './lib/worksheet-export'
 import { latexToReadable } from './lib/latex-to-readable'
 import { curriculumToSlidesMarkdown } from './lib/curriculum-to-slides'
-import { GammaSlideViewer } from './components/gamma-slide-viewer'
+import { NanoAISlideViewer } from './components/nano-ai-slide-viewer'
 import { SlideVersionDialog, type SlideVersionChoice } from './components/slide-version-dialog'
 import type { AISlideData } from './lib/curriculum-to-slides'
-import { SUBJECTS, GRADE_LEVELS, GRADE_LEVEL_GROUPS, TEXTBOOK_SETS, LESSON_TYPES } from './lib/curriculum-subjects'
-import { createCurriculum, createWorksheet, saveCurriculum, listCurricula, getCurriculumById, getWorksheetById, getWorksheetsByCurriculumId, deleteCurriculum, saveSlidesToCurriculum, getSlidesByCurriculumId, getOriginalSlides, getUserCustomizedSlides, saveOriginalSlidesIfNotExists } from './actions'
+import { SUBJECTS, GRADE_LEVELS, GRADE_LEVEL_GROUPS, TEXTBOOK_SETS } from './lib/curriculum-subjects'
+import { createCurriculum, createWorksheet, saveCurriculum, saveTextbookLessonFromImage, listCurricula, getCurriculumById, getWorksheetById, getWorksheetsByCurriculumId, deleteCurriculum, saveSlidesToCurriculum, getSlidesByCurriculumId, getOriginalSlides, getUserCustomizedSlides, saveOriginalSlidesIfNotExists, checkCurriculumExists } from './actions'
 
 type UiLocale = 'vi' | 'en' | 'zh' | 'ja' | 'ko'
 
@@ -39,7 +39,6 @@ function getWebLocaleFromCookie(): UiLocale {
 }
 
 type Step = 'INPUT' | 'GENERATING' | 'RESULT'
-
 export default function TaoGiaoTrinhClientPage() {
   const [uiLocale, setUiLocale] = useState<UiLocale>('vi')
   const [step, setStep] = useState<Step>('INPUT')
@@ -50,9 +49,8 @@ export default function TaoGiaoTrinhClientPage() {
   const [lessonNumber, setLessonNumber] = useState<string>('1')
   const [lessonTypeId, setLessonTypeId] = useState('hinh-thanh-kien-thuc')
   const [topic, setTopic] = useState('')
-  const [numLessons, setNumLessons] = useState(5)
+  const [numLessons, setNumLessons] = useState(3)
   const [lessonDurationMinutes, setLessonDurationMinutes] = useState(45)
-  const [modelProvider, setModelProvider] = useState<'gemini' | 'deepseek'>('gemini')
   const [goals, setGoals] = useState('')
   const [curriculumMarkdown, setCurriculumMarkdown] = useState('')
   const [curriculumId, setCurriculumId] = useState<string | null>(null)
@@ -75,7 +73,14 @@ export default function TaoGiaoTrinhClientPage() {
   const [sharedSlides, setSharedSlides] = useState<AISlideData[] | null>(null)
   const [originalSlides, setOriginalSlides] = useState<AISlideData[] | null>(null)
   const [personalSlides, setPersonalSlides] = useState<AISlideData[] | null>(null)
+  const [curriculumExists, setCurriculumExists] = useState<boolean | null>(null)
+  const [existingCurriculumId, setExistingCurriculumId] = useState<string | null>(null)
+  const [existingCurriculumTopic, setExistingCurriculumTopic] = useState<string | null>(null)
+  const [checkLoading, setCheckLoading] = useState(false)
+  const [lessonImages, setLessonImages] = useState<File[]>([])
+  const lessonImageInputRef = useRef<HTMLInputElement>(null)
   const { toast } = useToast()
+  const curriculumResultRef = useRef<HTMLDivElement>(null)
 
   const formatCreatedAt = (iso: string) => {
     try {
@@ -112,6 +117,12 @@ export default function TaoGiaoTrinhClientPage() {
   }, [])
 
   useEffect(() => {
+    if (step === 'GENERATING' || step === 'RESULT') {
+      curriculumResultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }, [step])
+
+  useEffect(() => {
     if (!showBrowse) return
     setBrowseLoading(true)
     listCurricula({
@@ -127,14 +138,165 @@ export default function TaoGiaoTrinhClientPage() {
       .finally(() => setBrowseLoading(false))
   }, [showBrowse, browseSubjectFilter, browseGradeFilter])
 
+  useEffect(() => {
+    const num = parseInt(lessonNumber, 10)
+    if (!num || num < 1 || num > 999) {
+      setCurriculumExists(null)
+      setExistingCurriculumId(null)
+      setExistingCurriculumTopic(null)
+      return
+    }
+    let cancelled = false
+    setCheckLoading(true)
+    checkCurriculumExists({
+      subjectId,
+      gradeLevelId,
+      textbookSetId,
+      lessonNumber: num,
+      numLessons,
+      lessonDurationMinutes,
+    })
+      .then((res) => {
+        if (cancelled) return
+        if (res && 'exists' in res && res.exists) {
+          setCurriculumExists(true)
+          setExistingCurriculumId(res.curriculumId ?? null)
+          setExistingCurriculumTopic(res.topic ?? null)
+        } else {
+          setCurriculumExists(false)
+          setExistingCurriculumId(null)
+          setExistingCurriculumTopic(null)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCurriculumExists(null)
+          setExistingCurriculumId(null)
+          setExistingCurriculumTopic(null)
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setCheckLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [subjectId, gradeLevelId, textbookSetId, lessonNumber, numLessons, lessonDurationMinutes])
+
+  const handleLoadExistingCurriculum = async () => {
+    if (!existingCurriculumId) return
+    await handleLoadCurriculum(existingCurriculumId)
+  }
+
+  const handleSubmitFromImage = async () => {
+    const num = parseInt(lessonNumber, 10)
+    if (!num || num < 1 || num > 999 || lessonImages.length === 0) return
+    setStep('GENERATING')
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
+    try {
+      const fd = new FormData()
+      for (const img of lessonImages) fd.append('images', img)
+      fd.append('subjectId', subjectId)
+      fd.append('gradeLevelId', gradeLevelId)
+      fd.append('textbookSetId', textbookSetId)
+      fd.append('lessonNumber', lessonNumber)
+      fd.append('numLessons', String(numLessons))
+      fd.append('lessonDurationMinutes', String(lessonDurationMinutes))
+      const res = await fetch('/api/curriculum-from-image', { method: 'POST', body: fd })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setStep('INPUT')
+        toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: data?.error || res.statusText, variant: 'destructive' })
+        return
+      }
+      const { curriculumMarkdown: md, topic: t, lessonNumber: extractedNum, lessonTitle: extractedTitle } = data
+      if (!md) {
+        setStep('INPUT')
+        toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: tr('AI không trả về nội dung.', 'AI did not return content.', 'AI未返回内容。', 'AIがコンテンツを返しませんでした。', 'AI가 내용을 반환하지 않았습니다.'), variant: 'destructive' })
+        return
+      }
+      const finalLessonNum = typeof extractedNum === 'number' && extractedNum >= 1 && extractedNum <= 999 ? String(extractedNum) : lessonNumber
+      const finalTopic = t || extractedTitle || `Bài ${finalLessonNum}`
+      setCurriculumMarkdown(md)
+      setTopic(finalTopic)
+      const saveFd = new FormData()
+      saveFd.append('curriculumMarkdown', md)
+      saveFd.append('topic', finalTopic)
+      saveFd.append('subjectId', subjectId)
+      saveFd.append('gradeLevelId', gradeLevelId)
+      saveFd.append('textbookSetId', textbookSetId)
+      saveFd.append('textbookVolume', '')
+      saveFd.append('lessonNumber', finalLessonNum)
+      saveFd.append('lessonTypeId', 'hinh-thanh-kien-thuc')
+      saveFd.append('numLessons', String(numLessons))
+      saveFd.append('lessonDurationMinutes', String(lessonDurationMinutes))
+      saveFd.append('goals', goals)
+      const saveRes = await saveCurriculum(saveFd)
+      if (saveRes?.success && saveRes.curriculumId) {
+        setCurriculumId(saveRes.curriculumId)
+        setStep('RESULT')
+        toast({ title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'), description: tr('Giáo trình và giáo án đã tạo từ ảnh.', 'Curriculum and slides created from image.', '已从图片创建课程和教案。', '画像からカリキュラムとスライドを作成しました。', '이미지에서 교육과정과 슬라이드 생성됨.'), duration: 3000 })
+        await saveTextbookLessonFromImage({ subjectId, gradeLevelId, textbookSetId, lessonNumber: parseInt(finalLessonNum, 10), lessonTitle: finalTopic })
+        const slidesFromApi = Array.isArray(data?.slides) && data.slides.length > 0 ? (data.slides as AISlideData[]) : null
+        if (slidesFromApi) {
+          setCurriculumSlides(slidesFromApi)
+          await saveSlidesToCurriculum({ curriculumId: saveRes.curriculumId!, topic: finalTopic, subjectId, gradeLevelId, slides: slidesFromApi })
+          await saveOriginalSlidesIfNotExists({ curriculumId: saveRes.curriculumId!, slides: slidesFromApi })
+        } else {
+          void (async () => {
+            try {
+              const slideRes = await fetch('/api/curriculum-analyze-slides', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ curriculumMarkdown: md, topic: finalTopic }),
+              })
+              const slideData = await slideRes.json().catch(() => ({}))
+              if (slideRes.ok && Array.isArray(slideData?.slides) && slideData.slides.length > 0) {
+                const slides = slideData.slides as AISlideData[]
+                setCurriculumSlides(slides)
+                await saveSlidesToCurriculum({ curriculumId: saveRes.curriculumId!, topic: finalTopic, subjectId, gradeLevelId, slides })
+                await saveOriginalSlidesIfNotExists({ curriculumId: saveRes.curriculumId!, slides })
+              }
+            } catch (e) {
+              console.warn('[auto-slides]', e)
+            }
+          })()
+        }
+      } else {
+        setCurriculumId(null)
+        setStep('RESULT')
+        toast({ title: tr('Giáo trình đã tạo', 'Curriculum created', '课程已创建', 'カリキュラム作成', '교육과정 생성'), description: saveRes?.error || tr('Chưa lưu vào kho.', 'Not saved to library.', '未保存到库。', 'ライブラリに未保存。', '라이브러리에 미저장.'), variant: 'default' })
+      }
+    } catch (e) {
+      setStep('INPUT')
+      toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: e instanceof Error ? e.message : String(e), variant: 'destructive' })
+    }
+  }
+
   const handleSubmit = async () => {
     const num = parseInt(lessonNumber, 10)
-    if (!num || num < 1 || num > 100) {
+    if (!num || num < 1 || num > 999) {
       toast({
         title: tr('Thiếu thông tin', 'Missing information', '缺少信息', '情報不足', '정보 누락'),
-        description: tr('Vui lòng chọn bài số (1–100).', 'Please select lesson number (1–100).', '请选择课号（1–100）。', '課番号（1–100）を選択してください。', '차시 번호(1–100)를 선택해 주세요.'),
+        description: tr('Vui lòng nhập bài số (1–999).', 'Please enter lesson number (1–999).', '请输入课号（1–999）。', '課番号（1–999）を入力してください。', '차시 번호(1–999)를 입력해 주세요.'),
         variant: 'destructive',
       })
+      return
+    }
+    if (curriculumExists && existingCurriculumId) {
+      await handleLoadExistingCurriculum()
+      return
+    }
+    if (curriculumExists === false) {
+      if (lessonImages.length === 0) {
+        toast({
+          title: tr('Cần gửi ảnh bài học', 'Upload lesson image required', '需要上传课程图片', '授業画像のアップロードが必要', '수업 이미지 업로드 필요'),
+          description: tr('Vui lòng gửi ảnh trang sách để tạo giáo trình.', 'Please upload a textbook page image to create curriculum.', '请上传教材页面图片以创建课程。', '教科書のページ画像をアップロードしてください。', '교과서 페이지 이미지를 업로드해 주세요.'),
+          variant: 'destructive',
+        })
+        return
+      }
+      await handleSubmitFromImage()
       return
     }
     setStep('GENERATING')
@@ -149,7 +311,6 @@ export default function TaoGiaoTrinhClientPage() {
     formData.append('topic', displayTopic)
     formData.append('numLessons', String(numLessons))
     formData.append('lessonDurationMinutes', String(lessonDurationMinutes))
-    formData.append('modelProvider', modelProvider)
     formData.append('goals', goals.trim())
     const result = await createCurriculum(formData)
     if (result.error) {
@@ -162,7 +323,8 @@ export default function TaoGiaoTrinhClientPage() {
       })
     } else if (result.success && result.curriculumMarkdown) {
       setCurriculumMarkdown(result.curriculumMarkdown)
-      setCurriculumId(result.curriculumId ?? null)
+      const newCurriculumId = result.curriculumId ?? null
+      setCurriculumId(newCurriculumId)
       setStep('RESULT')
       if (result.matched) {
         toast({
@@ -183,6 +345,36 @@ export default function TaoGiaoTrinhClientPage() {
           description: tr('Giáo trình đã được tạo và lưu.', 'Curriculum created and saved.', '课程已创建并保存。', 'カリキュラムを作成・保存しました。', '교육과정 생성 및 저장됨.'),
           duration: 3000,
         })
+      }
+      // Tự động tạo slide và lưu DB – giáo viên sau mở sẵn, không cần gọi AI
+      if (newCurriculumId && !result.matched) {
+        void (async () => {
+          try {
+            const res = await fetch('/api/curriculum-analyze-slides', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                curriculumMarkdown: result.curriculumMarkdown,
+                topic: displayTopic,
+              }),
+            })
+            const data = await res.json().catch(() => ({}))
+            if (res.ok && Array.isArray(data?.slides) && data.slides.length > 0) {
+              const slides = data.slides as AISlideData[]
+              setCurriculumSlides(slides)
+              await saveSlidesToCurriculum({
+                curriculumId: newCurriculumId,
+                topic: displayTopic,
+                subjectId,
+                gradeLevelId,
+                slides,
+              })
+              await saveOriginalSlidesIfNotExists({ curriculumId: newCurriculumId, slides })
+            }
+          } catch (e) {
+            console.warn('[auto-slides] Lỗi:', e)
+          }
+        })()
       }
     }
   }
@@ -333,6 +525,8 @@ export default function TaoGiaoTrinhClientPage() {
     setCurriculumSlides(null)
     setAiSlides(null)
     setShowSlideViewer(false)
+    setLessonImages([])
+    if (lessonImageInputRef.current) lessonImageInputRef.current.value = ''
   }
 
   const [saveCurriculumLoading, setSaveCurriculumLoading] = useState(false)
@@ -380,7 +574,7 @@ export default function TaoGiaoTrinhClientPage() {
       setTopic(c.topic ?? '')
       setLessonNumber(c.lesson_number != null ? String(c.lesson_number) : '1')
       setLessonTypeId(c.lesson_type_id ?? 'hinh-thanh-kien-thuc')
-      setNumLessons(c.num_lessons ?? 5)
+      setNumLessons(c.num_lessons ?? 3)
       setLessonDurationMinutes(c.lesson_duration_minutes ?? 45)
       setGoals(c.goals ?? '')
       setCurriculumMarkdown(c.content_markdown ?? '')
@@ -459,7 +653,7 @@ export default function TaoGiaoTrinhClientPage() {
           setTopic(c.topic ?? '')
           setLessonNumber(c.lesson_number != null ? String(c.lesson_number) : '1')
           setLessonTypeId(c.lesson_type_id ?? 'hinh-thanh-kien-thuc')
-          setNumLessons(c.num_lessons ?? 5)
+          setNumLessons(c.num_lessons ?? 3)
           setLessonDurationMinutes(c.lesson_duration_minutes ?? 45)
           setGoals(c.goals ?? '')
           setCurriculumMarkdown(c.content_markdown ?? '')
@@ -485,7 +679,6 @@ export default function TaoGiaoTrinhClientPage() {
     formData.append('topic', displayTopic)
     formData.append('subjectId', subjectId)
     formData.append('gradeLevelId', gradeLevelId)
-    formData.append('modelProvider', modelProvider)
     const result = await createWorksheet(formData)
     setWorksheetLoading(false)
     if (result.error) {
@@ -562,7 +755,7 @@ export default function TaoGiaoTrinhClientPage() {
         tr={tr}
       />
       {showSlideViewer && curriculumMarkdown && (
-        <GammaSlideViewer
+        <NanoAISlideViewer
           curriculumMarkdown={curriculumMarkdown}
           topic={displayTopic}
           onClose={() => { setShowSlideViewer(false); setAiSlides(null); setSlideVersionChoice(null) }}
@@ -770,63 +963,33 @@ export default function TaoGiaoTrinhClientPage() {
                   </select>
                 </div>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-xs font-medium text-muted-foreground">{tr('Bộ sách giáo khoa', 'Textbook set', '教材', '教科書', '교과서')}</label>
-                  <select
-                    value={textbookSetId}
-                    onChange={(e) => setTextbookSetId(e.target.value)}
-                    className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
-                  >
-                    {TEXTBOOK_SETS.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {uiLocale === 'en' ? t.labelEn : t.labelVi}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-medium text-muted-foreground">{tr('Tập', 'Volume', '册', '巻', '권')}</label>
-                  <select
-                    value={textbookVolume}
-                    onChange={(e) => setTextbookVolume(e.target.value)}
-                    className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
-                  >
-                    <option value="">{tr('Không phân tập', 'N/A', '不分册', '巻なし', '권 없음')}</option>
-                    <option value="1">1</option>
-                    <option value="2">2</option>
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-medium text-muted-foreground">{tr('Loại bài học', 'Lesson type', '课程类型', '授業タイプ', '수업 유형')}</label>
-                  <select
-                    value={lessonTypeId}
-                    onChange={(e) => setLessonTypeId(e.target.value)}
-                    className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
-                  >
-                    {LESSON_TYPES.map((l) => (
-                      <option key={l.id} value={l.id}>
-                        {uiLocale === 'en' ? l.labelEn : l.labelVi}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-muted-foreground">{tr('Bộ sách giáo khoa', 'Textbook set', '教材', '教科書', '교과서')}</label>
+                <select
+                  value={textbookSetId}
+                  onChange={(e) => setTextbookSetId(e.target.value)}
+                  className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
+                >
+                  {TEXTBOOK_SETS.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {uiLocale === 'en' ? t.labelEn : t.labelVi}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="space-y-2">
                 <label className="text-xs font-medium text-muted-foreground">
                   {tr('Bài số', 'Lesson number', '课号', '課番号', '차시 번호')} <span className="text-red-500">*</span>
                 </label>
-                <select
+                <Input
+                  type="number"
+                  min={1}
+                  max={999}
+                  placeholder={tr('Nhập số bài (ví dụ: 1, 2, 3...)', 'Enter lesson number (e.g. 1, 2, 3...)', '输入课号（如：1、2、3...）', '課番号を入力（例：1、2、3...）', '차시 번호 입력 (예: 1, 2, 3...)')}
                   value={lessonNumber}
                   onChange={(e) => setLessonNumber(e.target.value)}
-                  className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm max-w-[120px]"
-                >
-                  {Array.from({ length: 100 }, (_, i) => i + 1).map((n) => (
-                    <option key={n} value={String(n)}>
-                      {n}
-                    </option>
-                  ))}
-                </select>
+                  className="w-24 h-9 bg-white/80"
+                />
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -856,17 +1019,6 @@ export default function TaoGiaoTrinhClientPage() {
                 </div>
               </div>
               <div className="space-y-2">
-                <label className="text-xs font-medium text-muted-foreground">{tr('Mô hình AI', 'AI model', 'AI 模型', 'AIモデル', 'AI 모델')}</label>
-                <select
-                  value={modelProvider}
-                  onChange={(e) => setModelProvider(e.target.value as 'gemini' | 'deepseek')}
-                  className="w-full sm:max-w-xs h-9 rounded-md border border-input bg-background px-3 py-1 text-sm bg-white/80"
-                >
-                  <option value="gemini">{tr('Gemini 2.0 Flash', 'Gemini 2.0 Flash', 'Gemini 2.0 Flash', 'Gemini 2.0 Flash', 'Gemini 2.0 Flash')}</option>
-                  <option value="deepseek">{tr('DeepSeek V3', 'DeepSeek V3', 'DeepSeek V3', 'DeepSeek V3', 'DeepSeek V3')}</option>
-                </select>
-              </div>
-              <div className="space-y-2">
                 <label className="text-xs font-medium text-muted-foreground">{tr('Mục tiêu bổ sung (tùy chọn)', 'Additional goals (optional)', '补充目标（可选）', '追加目標（任意）', '추가 목표 (선택)')}</label>
                 <Textarea
                   placeholder={tr('Mô tả mục tiêu, yêu cầu đặc biệt...', 'Describe goals, special requirements...', '描述目标、特殊要求...', '目標・特別な要件を記述...', '목표, 특별 요구사항 설명...')}
@@ -875,14 +1027,77 @@ export default function TaoGiaoTrinhClientPage() {
                   className="bg-white/80 min-h-[80px] resize-y"
                 />
               </div>
-              <Button onClick={() => void handleSubmit()} disabled={step === 'GENERATING'} className="w-full bg-violet-600 hover:bg-violet-700 text-white">
+              {curriculumExists === true && existingCurriculumTopic && (
+                <div className="space-y-2 rounded-lg border border-emerald-300 dark:border-emerald-700 p-4 bg-emerald-50/50 dark:bg-emerald-950/20">
+                  <p className="text-sm font-medium text-emerald-800 dark:text-emerald-200">
+                    {tr('Bài học có sẵn:', 'Lesson available:', '已有课程：', 'レッスンあり：', '수업 있음:')}
+                  </p>
+                  <p className="text-base font-semibold text-emerald-900 dark:text-emerald-100">
+                    {existingCurriculumTopic}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {tr('Chọn nút bên dưới để xem giáo trình.', 'Click the button below to view curriculum.', '点击下方按钮查看课程。', '下のボタンをクリックしてカリキュラムを表示。', '아래 버튼을 클릭하여 교육과정 보기.')}
+                  </p>
+                </div>
+              )}
+              {curriculumExists === false && (
+                <div className="space-y-2 rounded-lg border border-dashed border-violet-300 dark:border-violet-700 p-4 bg-violet-50/50 dark:bg-violet-950/20">
+                  <label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                    <ImageIcon className="h-4 w-4" />
+                    {tr('Gửi ảnh bài học', 'Upload lesson image', '上传课程图片', '授業画像をアップロード', '수업 이미지 업로드')}
+                  </label>
+                  <p className="text-xs text-muted-foreground">
+                    {tr('Chưa có giáo trình trong kho. Chụp/gửi ảnh trang sách (tối đa 10 ảnh).', 'No curriculum in library. Upload photo(s) of the textbook page(s) (max 10).', '库中无课程。请上传教材页面照片（最多10张）。', 'ライブラリにありません。教科書のページ写真をアップロード（最大10枚）。', '라이브러리에 없습니다. 교과서 페이지 사진 업로드 (최대 10개).')}
+                  </p>
+                  <input
+                    ref={lessonImageInputRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => {
+                    const list = Array.from(e.target.files ?? [])
+                    setLessonImages(list.slice(0, 10))
+                  }}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => lessonImageInputRef.current?.click()}
+                    className="border-violet-400 text-violet-700 hover:bg-violet-100 dark:border-violet-600 dark:text-violet-300"
+                  >
+                    <Upload className="h-4 w-4 mr-2" />
+                    {lessonImages.length > 0
+                      ? `${tr('Đã chọn', 'Selected', '已选', '選択済み', '선택됨')} ${lessonImages.length} ${tr('ảnh', 'image(s)', '张图片', '枚の画像', '개 이미지')}`
+                      : tr('Chọn ảnh, có thể nhiều', 'Choose image(s)', '选择图片（可多选）', '画像を選択（複数可）', '이미지 선택 여러 개')}
+                  </Button>
+                  {lessonImages.length > 1 && (
+                    <ul className="text-xs text-muted-foreground mt-2 space-y-0.5 max-h-24 overflow-y-auto">
+                      {lessonImages.map((f, i) => (
+                        <li key={i} className="truncate">• {f.name}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+              <Button
+                onClick={() => void handleSubmit()}
+                disabled={step === 'GENERATING' || checkLoading || curriculumExists === null || (curriculumExists === false && lessonImages.length === 0)}
+                className="w-full bg-violet-600 hover:bg-violet-700 text-white disabled:opacity-50"
+              >
                 <Sparkles className="h-4 w-4 mr-2" />
-                {tr('Tạo giáo trình', 'Create curriculum', '创建课程', 'カリキュラムを作成', '교육과정 생성')}
+                {checkLoading
+                  ? tr('Đang kiểm tra...', 'Checking...', '正在检查...', '確認中...', '확인 중...')
+                  : curriculumExists
+                    ? tr('Xem giáo trình', 'View curriculum', '查看课程', 'カリキュラムを見る', '교육과정 보기')
+                    : tr('Tạo giáo trình', 'Create curriculum', '创建课程', 'カリキュラムを作成', '교육과정 생성')}
               </Button>
             </CardContent>
           </Card>
         )}
 
+        <div ref={curriculumResultRef}>
         {step === 'GENERATING' && (
           <Card className="border shadow-sm bg-white/80 backdrop-blur border-violet-200/60">
             <CardContent className="flex flex-col items-center py-12">
@@ -912,7 +1127,7 @@ export default function TaoGiaoTrinhClientPage() {
                   )}
                   <Button variant="outline" size="sm" onClick={() => void handleOpenSlides()} disabled={slideAnalysisLoading} className="border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-600 dark:text-amber-300 dark:hover:bg-amber-950/30">
                     <Presentation className="h-3.5 w-3.5 mr-1" />
-                    {slideAnalysisLoading ? tr('Đang tạo nội dung giảng...', 'Generating teaching content...', '正在生成教学内容...', '授業内容を生成中...', '수업 내용 생성 중...') : tr('Xem slide (Gamma)', 'View slides (Gamma)', '查看幻灯片', 'スライド表示', '슬라이드 보기')}
+                    {slideAnalysisLoading ? tr('Đang tạo nội dung giảng...', 'Generating teaching content...', '正在生成教学内容...', '授業内容を生成中...', '수업 내용 생성 중...') : tr('Xem slide (NanoAI)', 'View slides (NanoAI)', '查看幻灯片 (NanoAI)', 'スライド表示 (NanoAI)', '슬라이드 보기 (NanoAI)')}
                   </Button>
                   <Button
                     variant="default"
@@ -937,9 +1152,11 @@ export default function TaoGiaoTrinhClientPage() {
                     ref={curriculumTextareaRef}
                     value={curriculumMarkdown}
                     onChange={(e) => setCurriculumMarkdown(e.target.value)}
-                    className="w-full min-h-[200px] text-sm font-sans leading-relaxed prose prose-slate dark:prose-invert max-w-none bg-transparent border-0 resize-y focus:outline-none focus:ring-0"
+                    readOnly={!!curriculumId}
+                    className={`w-full min-h-[200px] text-sm font-sans leading-relaxed prose prose-slate dark:prose-invert max-w-none bg-transparent border-0 resize-y focus:outline-none focus:ring-0 ${curriculumId ? 'cursor-not-allowed opacity-95' : ''}`}
                     placeholder={tr('Nội dung giáo trình...', 'Curriculum content...', '课程内容...', 'カリキュラム内容...', '교육과정 내용...')}
                     spellCheck={false}
+                    title={curriculumId ? tr('Giáo trình đã lưu, không cho sửa.', 'Curriculum saved, editing disabled.', '课程已保存，不可编辑。', '保存済み、編集不可。', '저장됨, 편집 불가.') : undefined}
                   />
                 </div>
               </CardContent>
@@ -1048,6 +1265,7 @@ export default function TaoGiaoTrinhClientPage() {
 
           </>
         )}
+        </div>
       </div>
     </>
   )

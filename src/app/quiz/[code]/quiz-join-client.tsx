@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { QuizMathText } from '@/app/tao-giao-trinh/components/content-embed'
 
 const DEVICE_ID_KEY = 'quiz_device_id'
 
@@ -93,7 +94,7 @@ export default function QuizJoinClient({ code }: { code: string }) {
       </header>
 
       <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900/50 p-6 shadow-sm">
-        <p className="font-medium text-lg mb-4">{question}</p>
+        <p className="font-medium text-lg mb-4"><QuizMathText text={question} /></p>
         <div className="space-y-2">
           {options.map((opt, i) => {
             const isSelected = submitted === i
@@ -112,7 +113,7 @@ export default function QuizJoinClient({ code }: { code: string }) {
                   'border-slate-200 dark:border-slate-700 hover:border-violet-300 hover:bg-violet-50/50 dark:hover:bg-violet-900/10'
                 } ${submitted !== null ? 'cursor-default' : ''}`}
               >
-                <span className="font-medium">{String.fromCharCode(65 + i)}.</span> {opt}
+                <span className="font-medium">{String.fromCharCode(65 + i)}.</span> <QuizMathText text={opt} />
               </button>
             )
           })}

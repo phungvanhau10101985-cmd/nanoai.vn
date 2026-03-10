@@ -160,6 +160,13 @@
   50% { width: 70%; }
   100% { width: 100%; }
 }
+@keyframes write {
+  0%, 100% { transform: translateY(0) rotate(-15deg); }
+  50% { transform: translateY(-3px) rotate(-12deg); }
+}
+.animate-write {
+  animation: write 0.5s ease-in-out infinite;
+}
 .animate-shimmer-loader {
   animation: shimmer-loader 2.5s ease-in-out infinite;
 }

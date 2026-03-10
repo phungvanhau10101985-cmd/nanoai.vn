@@ -4,11 +4,14 @@ import { GoogleGenAI } from '@google/genai'
 import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
 
 /** Tìm ảnh qua Google Search grounding – fallback khi không có Pexels */
+const SEARCH_IMAGE_MODEL = 'gemini-2.0-flash'
+
 async function searchImageViaGoogle(apiKey: string, query: string): Promise<string | undefined> {
   try {
+    console.log('[curriculum-analyze-slides] Gọi AI model=' + SEARCH_IMAGE_MODEL + ' (tìm ảnh) query:', query.slice(0, 50))
     const ai = new GoogleGenAI({ apiKey })
     const res = await ai.models.generateContent({
-      model: 'gemini-2.0-flash',
+      model: SEARCH_IMAGE_MODEL,
       contents: `Tìm một link ảnh trực tiếp (URL) của ảnh minh họa giáo dục/học tập về "${query}". Chỉ trả về đúng một URL ảnh (bắt đầu https://, kết thúc .jpg .png .webp hoặc tương tự). Không giải thích, không markdown.`,
       config: {
         tools: [{ googleSearch: {} }],
@@ -52,52 +55,97 @@ export interface AnalyzeSlidesResponse {
   slides: AISlideData[]
 }
 
+const MAX_CONTENT_PER_SLIDE = 220
+
 const JSON_SCHEMA = `{
   "slides": [
     {
-      "title": "Ý chính duy nhất của slide",
+      "title": "Một ý duy nhất – VD: Bước 1: Mô hình hóa",
       "blocks": [
-        { "header": "Nội dung", "content": "Một ý chính – giải thích rõ, ví dụ ngắn gọn..." }
+        { "header": "Nội dung", "content": "1 ý duy nhất, tối đa ${MAX_CONTENT_PER_SLIDE} ký tự. Không gộp nhiều ý vào 1 slide." }
       ],
-      "imageQuery": "math education school",
-      "quizzes": [
-        { "question": "Câu hỏi trắc nghiệm về nội dung slide?", "options": ["Đáp án A", "Đáp án B", "Đáp án C", "Đáp án D"], "correctIndex": 0 }
-      ]
+      "imageQuery": "math education school"
     }
   ]
 }`
 
-/** Chuyển quiz thành marker [quiz:...] */
-function quizToMarker(q: { question: string; options: string[]; correctIndex: number }): string {
-  const opts = (q.options || []).slice(0, 6).join('|')
-  const idx = Math.max(0, Math.min(q.correctIndex ?? 0, (q.options?.length ?? 1) - 1))
-  return `[quiz:${q.question}|${opts}|${idx}]`
+/** Chuẩn hóa text slide, không làm mất ý sư phạm của giáo trình */
+function normalizeSlideText(text: string): string {
+  return text
+    .replace(/\r/g, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
 }
 
-const SYSTEM_PROMPT = `Bạn là giáo viên chuyên nghiệp. Nhiệm vụ: RÚT GỌN giáo trình thành SLIDE BÀI GIẢNG – CHỈ NỘI DUNG HỌC TẬP cho học sinh.
+/** Tách slide có nội dung quá dài thành nhiều slide ngắn */
+function splitLongSlides(
+  slides: Array<{ title: string; blocks: SlideBlock[]; imageQuery?: string }>
+): Array<{ title: string; blocks: SlideBlock[]; imageQuery?: string }> {
+  const result: Array<{ title: string; blocks: SlideBlock[]; imageQuery?: string }> = []
+  for (const s of slides) {
+    const text = (s.blocks?.[0]?.content ?? '').trim()
+    if (text.length <= MAX_CONTENT_PER_SLIDE) {
+      result.push(s)
+      continue
+    }
+    const parts: string[] = []
+    const byBullet = text.split(/(?:\n\s*[-*•]\s*|\n\n+)/)
+    const chunks = byBullet.length > 1 ? byBullet : text.split(/\.\s+(?=[A-ZÀÁẠẢÃÂẦẤẬẨẪĂẰẮẶẲẴÈÉẸẺẼÊỀẾỆỂỄÌÍỊỈĨÒÓỌỎÕÔỒỐỘỔỖƠỜỚỢỞỠÙÚỤỦŨƯỪỨỰỬỮỲÝỴỶỸĐ])/)
+    for (const chunk of chunks) {
+      const t = chunk.trim()
+      if (!t || t.length < 15) continue
+      if (t.length <= MAX_CONTENT_PER_SLIDE) {
+        parts.push(t)
+      } else {
+        const lines = t.split(/\n/)
+        let buf = ''
+        for (const line of lines) {
+          const L = line.trim()
+          if (!L) continue
+          if (buf.length + L.length + 1 <= MAX_CONTENT_PER_SLIDE) {
+            buf = buf ? buf + '\n' + L : L
+          } else {
+            if (buf) parts.push(buf)
+            buf = L.length <= MAX_CONTENT_PER_SLIDE ? L : L.slice(0, MAX_CONTENT_PER_SLIDE) + '…'
+          }
+        }
+        if (buf) parts.push(buf)
+      }
+    }
+    if (parts.length <= 1) {
+      result.push(s)
+      continue
+    }
+    for (let i = 0; i < parts.length; i++) {
+      result.push({
+        title: parts.length > 1 ? `${s.title} (${i + 1}/${parts.length})` : s.title,
+        blocks: [{ header: s.blocks?.[0]?.header ?? 'Nội dung', content: parts[i] }],
+        imageQuery: i === 0 ? s.imageQuery : s.imageQuery,
+      })
+    }
+  }
+  return result
+}
 
-QUY TẮC BẮT BUỘC – CHỈ NỘI DUNG BÀI GIẢNG:
-- Slide bài giảng CHỈ bao gồm nội dung kiến thức học sinh cần học. KHÔNG nhắc đến: giáo trình, mục tiêu bài học, thời lượng tiết, công văn, bộ sách, loại bài học, hoạt động khởi động/luyện tập/vận dụng (chỉ lấy nội dung kiến thức bên trong).
-- Bỏ hết phần "dành cho giáo viên" – học sinh sẽ bị phân tâm nếu thấy thông tin không liên quan đến bài học.
-- Mỗi slide = MỘT ý chính kiến thức. "title" = ý chính đó; "blocks" = giải thích, ví dụ, ngôn ngữ dễ hiểu cho học sinh.
+const SYSTEM_PROMPT = `Bạn là chuyên gia thiết kế slide giảng dạy THPT. Nhiệm vụ: PHÂN TÍCH giáo trình đã có và tạo slide giảng dạy bám sát giáo trình, không tóm tắt sơ sài.
+
+=== NGUYÊN TẮC BÁM SÁT GIÁO TRÌNH ===
+- Giữ đầy đủ mạch dạy học theo TIẾT và HOẠT ĐỘNG trong giáo trình.
+- KHÔNG bỏ các phần sư phạm quan trọng: Mục tiêu, khởi động, hình thành kiến thức, ví dụ, luyện tập, vận dụng, dặn dò.
+- Mỗi ý dạy học chính (định nghĩa/công thức/ví dụ/bài tập/câu hỏi) nên là 1 slide riêng.
+- Khi gặp danh sách nhiều mục (a,b,c hoặc lỗi 1,2,3), tách thành nhiều slide.
+- Nội dung mỗi slide tối đa ${MAX_CONTENT_PER_SLIDE} ký tự.
+- Ưu tiên ngôn ngữ tự nhiên, dễ giảng trên lớp; không viết kiểu ghi chú thô.
 
 QUY TẮC BẮT BUỘC – TỪ KHÓA TÌM ẢNH:
 - Mỗi slide PHẢI có "imageQuery": chuỗi từ khóa TIẾNG ANH (2-4 từ) để tìm ảnh minh họa nội dung bài học.
 - Ví dụ: "math education", "function graph", "chemistry lab", "history ancient"...
 
-QUY TẮC TRẮC NGHIỆM (BẮT BUỘC):
-- Mỗi slide PHẢI có "quizzes": mảng 1–2 câu hỏi trắc nghiệm (tối đa 2).
-- Mỗi quiz: "question" (câu hỏi ngắn gọn), "options" (đúng 4 đáp án A/B/C/D), "correctIndex" (0–3).
-- Đáp án đúng PHẢI chính xác về mặt nội dung (công thức, định nghĩa, quy tắc). Không đoán mò.
-- Mỗi đáp án phải là câu/ý hoàn chỉnh, không rời rạc (ví dụ: không tạo "f(x)", "dx" riêng lẻ).
-- Nếu có công thức toán: đáp án đúng phải dùng đúng ký hiệu (ví dụ |f(x)| cho trị tuyệt đối, [f(x)]² cho bình phương).
-- Thể tích khối tròn xoay quanh Ox: V = π ∫ [f(x)]² dx (bắt buộc có BÌNH PHƯƠNG).
-- Diện tích hình phẳng: S = ∫ |f(x)| dx (bắt buộc có trị tuyệt đối).
-- BẮT BUỘC đúng 4 đáp án. Ngôn ngữ: Tiếng Việt.
+LƯU Ý: KHÔNG tạo câu hỏi trắc nghiệm. Giáo viên sẽ tạo và lưu sau (mỗi slide tối đa 1 câu).
 
 QUY TẮC KHÁC:
 1. Chỉ trả về JSON hợp lệ, không markdown code block.
-2. Dùng Unicode thay vì LaTeX (∈, ℝ, ½, ⇒, ...).
+2. CHO HỌC SINH ĐỌC ĐƯỢC: BẮT BUỘC dùng Unicode, KHÔNG LaTeX $...$. Ví dụ: ∈, ℝ, ∫, π, ², √, ∞, ↗, ↘, ⇒, ½, y=x², f'(x), (0;+∞). Phân số: 1/2. Căn: √(x+1).
 3. Ngôn ngữ: Tiếng Việt, phù hợp học sinh.`
 
 export async function POST(req: NextRequest) {
@@ -114,15 +162,37 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Thiếu nội dung giáo trình.' }, { status: 400 })
     }
 
-    const apiKey = process.env.GOOGLE_API_KEY
-    if (!apiKey) {
+    const useOpenAI =
+      process.env.SLIDE_USE_OPENAI === 'true' ||
+      process.env.SLIDE_USE_OPENAI === '1' ||
+      process.env.SLIDE_OPENAI_MODEL?.trim()
+    const openAiKey = process.env.OPENAI_API_KEY?.trim()
+    const openAiModel =
+      process.env.SLIDE_OPENAI_MODEL?.trim() ||
+      process.env.OPENAI_FALLBACK_MODEL?.trim() ||
+      'gpt-5-mini'
+
+    const googleApiKey = process.env.GOOGLE_API_KEY
+    if (!useOpenAI && !googleApiKey) {
       console.error('[curriculum-analyze-slides] Thiếu GOOGLE_API_KEY')
       return NextResponse.json({ error: 'Thiếu GOOGLE_API_KEY.' }, { status: 500 })
+    }
+    if (useOpenAI && !openAiKey) {
+      console.error('[curriculum-analyze-slides] SLIDE_USE_OPENAI=true nhưng thiếu OPENAI_API_KEY')
+      return NextResponse.json({ error: 'Thiếu OPENAI_API_KEY.' }, { status: 500 })
     }
 
     console.log('[curriculum-analyze-slides] Bắt đầu, topic:', topic, 'length:', curriculumMarkdown.length)
 
-    const userPrompt = `Rút gọn nội dung sau thành SLIDE BÀI GIẢNG – CHỈ kiến thức học sinh cần học. Bỏ mọi thứ không phải nội dung bài giảng (mục tiêu, thời lượng, hoạt động giáo viên...). MỖI SLIDE CHỈ 1 Ý CHÍNH.
+    const estimatedMinSlides = Math.max(24, Math.min(80, Math.ceil(curriculumMarkdown.length / 320)))
+    const userPrompt = `Chuyển giáo trình sau thành slide giảng dạy bám sát nội dung.
+
+YÊU CẦU:
+- Tạo ÍT NHẤT ${estimatedMinSlides} slide (có thể nhiều hơn nếu cần để bám sát).
+- Bám theo cấu trúc tiết/hđ trong giáo trình; không được gộp nhiều hoạt động lớn vào 1 slide.
+- Mỗi ví dụ, mỗi bài tập, mỗi câu hỏi trọng tâm nên có slide riêng.
+- Mỗi slide chỉ 1 trọng tâm; tối đa ${MAX_CONTENT_PER_SLIDE} ký tự.
+- Không trả lời lan man ngoài JSON schema.
 
 ${topic ? `Chủ đề: ${topic}\n\n` : ''}NỘI DUNG THAM KHẢO:
 ---
@@ -132,24 +202,69 @@ ${curriculumMarkdown}
 Schema JSON (chỉ JSON, không markdown):
 ${JSON_SCHEMA}`
 
-    const genAI = new GoogleGenerativeAI(apiKey)
-    const model = genAI.getGenerativeModel({
-      ...GEMINI_25_FLASH_NO_THINKING,
-      generationConfig: {
-        temperature: 0.2,
-        responseMimeType: 'application/json',
-      },
-    })
-
     const fullPrompt = SYSTEM_PROMPT + '\n\n' + userPrompt
-    console.log('[curriculum-analyze-slides] Gọi Gemini...')
-    const geminiStart = Date.now()
-    const result = await model.generateContent(fullPrompt)
-    console.log('[curriculum-analyze-slides] Gemini xong sau', Date.now() - geminiStart, 'ms')
+    let rawText = ''
 
-    const rawText = result.response.text()?.trim() || ''
+    if (useOpenAI && openAiKey) {
+      console.log('[curriculum-analyze-slides] Gọi AI model=' + openAiModel + ' (tạo slide)')
+      const gptStart = Date.now()
+      const OPENAI_FETCH_TIMEOUT_MS = 600000 // 10 phút – giáo trình dài có thể mất 5+ phút
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), OPENAI_FETCH_TIMEOUT_MS)
+      let gptRes: Response
+      try {
+        gptRes = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${openAiKey}`,
+          },
+          body: JSON.stringify({
+            model: openAiModel,
+            response_format: { type: 'json_object' },
+            messages: [
+              { role: 'system', content: 'Trả về đúng JSON theo schema. Không markdown.' },
+              { role: 'user', content: fullPrompt },
+            ],
+          }),
+          signal: controller.signal,
+        })
+      } finally {
+        clearTimeout(timeoutId)
+      }
+      if (!gptRes.ok) {
+        const errBody = await gptRes.text().catch(() => '')
+        console.error('[curriculum-analyze-slides] OpenAI lỗi:', gptRes.status, errBody.slice(0, 300))
+        return NextResponse.json(
+          { error: `OpenAI lỗi ${gptRes.status}: ${errBody.slice(0, 300)}` },
+          { status: 500 }
+        )
+      }
+      const gptData = (await gptRes.json().catch(() => ({}))) as {
+        choices?: Array<{ message?: { content?: string } }>
+      }
+      rawText = String(gptData?.choices?.[0]?.message?.content ?? '').trim()
+      console.log('[curriculum-analyze-slides] AI model=' + openAiModel + ' xong sau', Date.now() - gptStart, 'ms')
+    } else {
+      if (!googleApiKey) {
+        return NextResponse.json({ error: 'Thiếu GOOGLE_API_KEY.' }, { status: 500 })
+      }
+      const genAI = new GoogleGenerativeAI(googleApiKey)
+      const model = genAI.getGenerativeModel({
+        ...GEMINI_25_FLASH_NO_THINKING,
+        generationConfig: {
+          temperature: 0.2,
+          responseMimeType: 'application/json',
+        },
+      })
+      console.log('[curriculum-analyze-slides] Gọi AI model=' + GEMINI_25_FLASH_NO_THINKING.model + ' (tạo slide)')
+      const geminiStart = Date.now()
+      const result = await model.generateContent(fullPrompt)
+      console.log('[curriculum-analyze-slides] AI model=' + GEMINI_25_FLASH_NO_THINKING.model + ' xong sau', Date.now() - geminiStart, 'ms')
+      rawText = result.response.text()?.trim() || ''
+    }
     if (!rawText) {
-      console.error('[curriculum-analyze-slides] Gemini không trả về text. response:', JSON.stringify(result.response).slice(0, 500))
+      console.error('[curriculum-analyze-slides] AI không trả về text')
       return NextResponse.json({ error: 'AI không trả về nội dung.' }, { status: 500 })
     }
 
@@ -171,39 +286,28 @@ ${JSON_SCHEMA}`
       return NextResponse.json({ error: 'AI không tạo được slide nào.' }, { status: 500 })
     }
 
-    console.log('[curriculum-analyze-slides] Có', parsed.slides.length, 'slides, bắt đầu tìm ảnh...')
+    const toSplit = parsed.slides
+      .map((s) => {
+        const raw = String((s?.blocks as SlideBlock[])?.[0]?.content ?? '')
+        const content = normalizeSlideText(raw)
+        return {
+          title: String(s?.title ?? 'Slide'),
+          blocks: [{ header: 'Nội dung', content }],
+          imageQuery: typeof (s as { imageQuery?: string })?.imageQuery === 'string' ? (s as { imageQuery: string }).imageQuery.trim() : undefined,
+        }
+      })
+      .filter((s) => s.blocks[0].content.length > 0)
+    const afterSplit = splitLongSlides(toSplit)
 
-    const slidesRaw = parsed.slides.map((s) => {
+    console.log('[curriculum-analyze-slides] Có', afterSplit.length, 'slides (sau tách), bắt đầu tìm ảnh...')
+
+    const slidesRaw = afterSplit.map((s) => {
       const blocks = Array.isArray(s?.blocks)
         ? (s.blocks as SlideBlock[]).map((b) => ({
             header: String(b?.header ?? 'Nội dung'),
             content: String(b?.content ?? ''),
           }))
         : []
-      const quizzes = Array.isArray((s as { quizzes?: Array<{ question?: string; options?: string[]; correctIndex?: number }> })?.quizzes)
-        ? ((s as { quizzes: Array<{ question?: string; options?: string[]; correctIndex?: number }> }).quizzes)
-            .slice(0, 2)
-            .filter((q) => q?.question && Array.isArray(q?.options) && q.options.length >= 4)
-            .map((q) => ({
-              question: q.question,
-              options: (q.options ?? []).slice(0, 4).map(String),
-              correctIndex: Math.max(0, Math.min(q.correctIndex ?? 0, 3)),
-            }))
-        : []
-      for (const q of quizzes) {
-        const opts = (q.options ?? []).slice(0, 4)
-        const marker = quizToMarker({
-          question: String(q?.question ?? ''),
-          options: opts,
-          correctIndex: Math.max(0, Math.min(q.correctIndex ?? 0, opts.length - 1)),
-        })
-        const lastBlock = blocks[blocks.length - 1]
-        if (lastBlock) {
-          lastBlock.content = lastBlock.content ? lastBlock.content + '\n\n' + marker : marker
-        } else {
-          blocks.push({ header: 'Trắc nghiệm', content: marker })
-        }
-      }
       return {
         title: String(s?.title ?? 'Slide'),
         blocks,
@@ -241,9 +345,9 @@ ${JSON_SCHEMA}`
               console.warn('[curriculum-analyze-slides] Pexels slide', i, 'lỗi:', pexErr)
             }
           }
-          if (!imageUrl && apiKey) {
+          if (!imageUrl && googleApiKey) {
             try {
-              imageUrl = await searchImageViaGoogle(apiKey, s.imageQuery)
+              imageUrl = await searchImageViaGoogle(googleApiKey, s.imageQuery)
               if (!imageUrl) console.warn('[curriculum-analyze-slides] Google Search slide', i, 'không tìm thấy ảnh')
             } catch (googleErr) {
               console.warn('[curriculum-analyze-slides] Google Search slide', i, 'lỗi:', googleErr)

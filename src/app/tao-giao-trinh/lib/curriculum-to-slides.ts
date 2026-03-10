@@ -104,6 +104,12 @@ export interface AISlideData {
   blocks: ContentBlock[]
   /** URL ảnh minh họa phù hợp nội dung */
   imageUrl?: string
+  /** Embed marker [youtube:...], [image:...] – ưu tiên hơn imageUrl */
+  visualEmbed?: string
+  /** 1=toàn bộ, 2=chia 2 (trên/dưới), 4=chia 4 ô */
+  visualLayout?: 1 | 2 | 4
+  /** Nội dung từng ô */
+  visualCells?: Array<{ visualEmbed?: string; imageUrl?: string }>
 }
 
 /** Parse nội dung slide thành các block (Định nghĩa, Quy tắc, Khởi động...) */

@@ -11,3 +11,8 @@ export const GEMINI_25_FLASH_TEXT_NO_THINKING = {
   model: 'gemini-2.5-flash' as const,
   generationConfig: { responseModalities: ['TEXT'] as const },
 }
+
+/** Gemini 2.5 Pro – model mạnh hơn cho tác vụ cần độ chính xác cao (ví dụ: tạo câu trắc nghiệm). */
+export const GEMINI_25_PRO = {
+  model: 'gemini-2.5-pro' as const,
+}

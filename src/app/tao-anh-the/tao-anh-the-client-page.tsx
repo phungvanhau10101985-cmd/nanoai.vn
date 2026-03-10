@@ -55,7 +55,7 @@ const BACKGROUND_COLORS = [
 
 const SHIRT_STYLES = [
   { value: 'default', labelVi: 'Không chỉ định', labelEn: 'Default', labelZh: '默认', labelJa: '指定なし', labelKo: '기본' },
-  { value: 'formal', labelVi: 'Áo sơ mi', labelEn: 'Formal shirt', labelZh: '衬衫', labelJa: 'シャツ', labelKo: '셔츠' },
+  { value: 'formal', labelVi: 'Áo sơ mi trắng', labelEn: 'White formal shirt', labelZh: '白衬衫', labelJa: '白シャツ', labelKo: '흰색 셔츠' },
   { value: 'casual', labelVi: 'Áo thun', labelEn: 'Casual T-shirt', labelZh: 'T恤', labelJa: 'Tシャツ', labelKo: '티셔츠' },
   { value: 'vest', labelVi: 'Áo vest', labelEn: 'Blazer/Vest', labelZh: '西装', labelJa: 'スーツ', labelKo: '정장' },
   { value: 'traditional', labelVi: 'Áo dài', labelEn: 'Traditional', labelZh: '传统服装', labelJa: '民族衣装', labelKo: '전통 의상' },
@@ -74,7 +74,7 @@ export default function TaoAnhTheClientPage() {
   const [imageQuality, setImageQuality] = useState<'2K' | '4K'>('2K')
   const [aspectRatio, setAspectRatio] = useState<string>('3:4')
   const [backgroundColor, setBackgroundColor] = useState<string>('white')
-  const [shirtStyle, setShirtStyle] = useState<string>('default')
+  const [shirtStyle, setShirtStyle] = useState<string>('formal')
   const [note, setNote] = useState('')
   const [imageUrl, setImageUrl] = useState('')
   const [urlLoading, setUrlLoading] = useState(false)
@@ -195,7 +195,7 @@ export default function TaoAnhTheClientPage() {
     setImage({ file: null, preview: null })
     setAspectRatio('3:4')
     setBackgroundColor('white')
-    setShirtStyle('default')
+    setShirtStyle('formal')
     setNote('')
     setResultUrl(null)
   }

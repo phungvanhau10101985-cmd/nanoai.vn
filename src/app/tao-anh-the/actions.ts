@@ -22,7 +22,7 @@ const BG_PROMPTS: Record<string, string> = {
 }
 const SHIRT_PROMPTS: Record<string, string> = {
   default: '',
-  formal: 'Người trong ảnh mặc áo sơ mi có cổ (formal shirt with collar).',
+  formal: 'Người trong ảnh mặc áo sơ mi trắng có cổ (white formal shirt with collar).',
   casual: 'Người trong ảnh mặc áo thun (casual T-shirt).',
   vest: 'Người trong ảnh mặc áo vest/áo khoác (blazer/vest).',
   traditional: 'Người trong ảnh mặc áo dài truyền thống (traditional Vietnamese ao dai).',
@@ -41,7 +41,7 @@ export async function createIdCard(formData: FormData) {
     ? aspectRatioRaw
     : '3:4'
   const bgColor = (formData.get('backgroundColor') as string)?.trim() || 'white'
-  const shirtStyle = (formData.get('shirtStyle') as string)?.trim() || 'default'
+  const shirtStyle = (formData.get('shirtStyle') as string)?.trim() || 'formal'
   const note = (formData.get('note') as string)?.trim() || ''
   if (!image || image.size === 0) return { error: 'Cần tải lên ít nhất một ảnh.' }
 

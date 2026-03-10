@@ -101,7 +101,7 @@ ${questionTypeId === 'hon-hop' ? '- Kết hợp: ~60% trắc nghiệm A/B/C/D, ~
 ### 3. Format output
 - Trả về Markdown, dùng ## cho phần, ### cho mục.
 - Đánh số câu rõ ràng: **Câu 1.**, **Câu 2.**, ...
-- Công thức toán/lý dùng LaTeX $...$. Ngôn ngữ: Tiếng Việt.
+- CHO HỌC SINH ĐỌC ĐƯỢC: BẮT BUỘC dùng Unicode cho công thức, KHÔNG LaTeX $...$. Ví dụ: ∈, ℝ, ∫, π, ², √, ∞, ⇒, ½, y=x², f'(x), (0;+∞). Phân số: 1/2. Căn: √(x+1). Ngôn ngữ: Tiếng Việt.
 - Cuối đề: phần **ĐÁP ÁN** liệt kê đáp án từng câu (1. A, 2. B, ...).
 - Nếu có câu trả lời ngắn: ghi đáp án cụ thể.
 - Nếu có câu Đúng/Sai: ghi Đ hoặc S.

@@ -52,7 +52,6 @@ export const TEXTBOOK_SETS = [
   { id: 'ket-noi-tri-thuc', labelVi: 'Kết nối tri thức với cuộc sống', labelEn: 'Kết nối tri thức' },
   { id: 'canh-dieu', labelVi: 'Cánh diều', labelEn: 'Cánh diều' },
   { id: 'chan-troi-sang-tao', labelVi: 'Chân trời sáng tạo', labelEn: 'Chân trời sáng tạo' },
-  { id: 'khac', labelVi: 'Không chỉ định / Khác', labelEn: 'Not specified / Other' },
 ] as const
 
 /** Loại bài học – mỗi loại có cấu trúc giáo án khác nhau */
