@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Timer } from 'lucide-react'
 import QRCode from 'qrcode'
+import { cn } from '@/lib/utils'
 
 /**
  * Nhúng nhiều loại nội dung vào slide: GeoGebra, Desmos, YouTube, PhET, Maps, Image, Audio, Quiz, Code, LaTeX
