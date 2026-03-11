@@ -52,7 +52,10 @@ export async function POST(req: NextRequest) {
     const title = String(body?.title ?? 'Bài thi').trim() || 'Bài thi'
     const difficulty = ['easy', 'medium', 'hard'].includes(String(body?.difficulty ?? '')) ? body.difficulty : undefined
 
-    const totalQuestions = Math.max(1, Math.floor(config.duration / config.minutesPerQuestion))
+    const minsPerQ = typeof body?.minutesPerQuestion === 'number' && body.minutesPerQuestion >= 0.5 && body.minutesPerQuestion <= 10
+      ? body.minutesPerQuestion
+      : config.minutesPerQuestion
+    const totalQuestions = Math.max(1, Math.floor(config.duration / minsPerQ))
 
     let q = adminSupabase
       .from('worksheet_official_questions')
@@ -108,7 +111,7 @@ export async function POST(req: NextRequest) {
         subject_id: subjectId,
         grade_level_id: gradeLevelId,
         duration_minutes: config.duration,
-        minutes_per_question: config.minutesPerQuestion,
+        minutes_per_question: minsPerQ,
         config: { lessonTopics, difficulty },
         status: 'active',
       })

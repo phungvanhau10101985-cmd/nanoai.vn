@@ -43,6 +43,7 @@ export default function TaoBaiThiClientPage() {
   const [gradeLevelId, setGradeLevelId] = useState('lop-12')
   const [title, setTitle] = useState('')
   const [difficulty, setDifficulty] = useState<string>('')
+  const [minutesPerQuestion, setMinutesPerQuestion] = useState<number>(1.5)
   const [selectedCurriculumIds, setSelectedCurriculumIds] = useState<Set<string>>(new Set())
   const [curriculaList, setCurriculaList] = useState<Array<{ id: string; topic: string; subject_id: string; grade_level_id: string; isOwn?: boolean }>>([])
   const [openedCurriculaList, setOpenedCurriculaList] = useState<Array<{ id: string; topic: string; subject_id: string; grade_level_id: string; isOwn?: boolean }>>([])
@@ -106,6 +107,7 @@ export default function TaoBaiThiClientPage() {
           title: title.trim() || 'Bài thi',
           curriculumIds: [...selectedCurriculumIds],
           difficulty: difficulty || undefined,
+          minutesPerQuestion,
         }),
       })
       const data = await res.json().catch(() => ({}))
@@ -329,6 +331,35 @@ export default function TaoBaiThiClientPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
+                  <label className="text-xs font-medium text-muted-foreground">{tr('Thời gian mỗi câu (phút)', 'Minutes per question')}</label>
+                  <select
+                    value={String(minutesPerQuestion)}
+                    onChange={(e) => setMinutesPerQuestion(parseFloat(e.target.value))}
+                    className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
+                  >
+                    <option value="0.5">0.5 {tr('phút', 'min')}</option>
+                    <option value="1">1 {tr('phút', 'min')}</option>
+                    <option value="1.5">1.5 {tr('phút', 'min')}</option>
+                    <option value="2">2 {tr('phút', 'min')}</option>
+                    <option value="2.5">2.5 {tr('phút', 'min')}</option>
+                    <option value="3">3 {tr('phút', 'min')}</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-muted-foreground">{tr('Số câu hỏi (tự tính)', 'Number of questions (auto)')}</label>
+                  <div className="h-9 flex items-center rounded-md border border-input bg-muted/50 px-3 text-sm font-medium">
+                    {(() => {
+                      const t = EXAM_TYPES.find((x) => x.id === examType)
+                      const dur = t?.duration ?? 15
+                      const n = Math.max(1, Math.floor(dur / minutesPerQuestion))
+                      return `${n} ${tr('câu', 'questions')}`
+                    })()}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
                   <label className="text-xs font-medium text-muted-foreground">{tr('Môn học', 'Subject')}</label>
                   <select
                     value={subjectId}
@@ -404,7 +435,7 @@ export default function TaoBaiThiClientPage() {
                 ) : (
                   <>
                     <Input
-                      placeholder={tr('Tìm giáo trình theo chủ đề...', 'Search curricula by topic...')}
+                      placeholder={tr('Tìm theo tên bài học và chủ đề...', 'Search by lesson name and topic...')}
                       value={curriculumSearch}
                       onChange={(e) => setCurriculumSearch(e.target.value)}
                       className="text-sm h-8"
