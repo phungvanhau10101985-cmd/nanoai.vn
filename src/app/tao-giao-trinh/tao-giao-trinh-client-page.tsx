@@ -7,7 +7,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
-import { Sparkles, Copy, FileDown, RefreshCw, FileSpreadsheet, QrCode, FolderOpen, BookOpen, FileText, Presentation, Trash2, Upload, ImageIcon } from 'lucide-react'
+import { Sparkles, Copy, FileDown, RefreshCw, FileSpreadsheet, QrCode, FolderOpen, BookOpen, FileText, Presentation, Trash2, Upload, ImageIcon, FileQuestion } from 'lucide-react'
+import Link from 'next/link'
 import QRCode from 'qrcode'
 import { exportWorksheetToPdf, exportWorksheetToWord } from './lib/worksheet-export'
 import { latexToReadable } from './lib/latex-to-readable'
@@ -794,6 +795,14 @@ export default function TaoGiaoTrinhClientPage() {
               '과목, 학년 선택, 주제 입력. AI가 교사를 위한 상세 교육과정 생성.'
             )}
           </p>
+          <div className="flex flex-wrap justify-center gap-2 mt-3">
+            <Link href="/tao-bai-thi">
+              <Button variant="outline" size="sm" className="gap-1.5">
+                <FileQuestion className="h-4 w-4" />
+                {tr('Tạo bài thi', 'Create exam', '创建测验', 'テスト作成', '시험 생성')}
+              </Button>
+            </Link>
+          </div>
         </div>
 
         <Card className="border shadow-sm border-slate-200/80 dark:border-slate-700/50">

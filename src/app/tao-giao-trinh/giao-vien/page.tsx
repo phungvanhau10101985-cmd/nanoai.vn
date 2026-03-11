@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useEffect, useState, useCallback, useRef } from 'react'
-import { Timer, Play, Pause, RotateCcw, ChevronLeft, ChevronRight, LayoutGrid, Square, Sparkles, Edit3, Plus, Save, FileText, FileEdit, History, BarChart2, Maximize2, X, ClipboardList } from 'lucide-react'
+import { Timer, Play, Pause, RotateCcw, ChevronLeft, ChevronRight, LayoutGrid, Square, Sparkles, Edit3, Plus, Save, FileText, FileEdit, History, BarChart2, Maximize2, X, ClipboardList, Flag } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { canSplitBlockAtQuiz, splitContentWithEmbeds, parseQuizData, parseContentEmbeds, ContentEmbed } from '../components/content-embed'
 import { parseContentToBlocks } from '../lib/curriculum-to-slides'
@@ -12,6 +12,9 @@ import { SlideEditHistorySheet } from '../components/slide-edit-history-sheet'
 import { EmbedInsertDialog } from '../components/embed-insert-dialog'
 import { QuizPopupDialog, extractQuizFromSlide } from '../components/quiz-popup-dialog'
 import { getSlideProposalsForCurriculum, resetPersonalToOriginal } from '../actions'
+import { useToast } from '@/hooks/use-toast'
+import { Toaster } from '@/components/ui/toaster'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 
 type VisualCell = { visualEmbed?: string; imageUrl?: string }
 type SlideItem = {
@@ -185,6 +188,9 @@ export default function CurriculumViewPage() {
   const [splitAtBlock, setSplitAtBlock] = useState<number | null>(null)
   const [curriculumId, setCurriculumId] = useState<string | null>(null)
   const [quizGenLoading, setQuizGenLoading] = useState<number | null>(null)
+  const [quizDifficultyPopoverSlide, setQuizDifficultyPopoverSlide] = useState<number | null>(null)
+  const [quizReportLoading, setQuizReportLoading] = useState<string | null>(null)
+  const { toast } = useToast()
   const [proposals, setProposals] = useState<Array<{ id: string; slide_index: number; block_index: number; segment_type?: string; proposed_text: string; proposed_header?: string | null; original_text?: string | null; status: string; agree_count: number; disagree_count: number; proposed_by?: string | null; myVote?: 'agree' | 'disagree' }>>([])
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [proposalDialog, setProposalDialog] = useState<{ open: boolean; slideIndex: number; blockIndex: number; type: 'edit' | 'add'; originalContent?: string; blockHeader?: string } | null>(null)
@@ -254,10 +260,11 @@ export default function CurriculumViewPage() {
     setSplitAtBlock(null)
   }, [])
 
-  const handleGenerateQuiz = useCallback(async (slideIndex: number) => {
+  const handleGenerateQuiz = useCallback(async (slideIndex: number, difficulty: 'easy' | 'medium' | 'hard' = 'medium') => {
     const s = slides[slideIndex]
     if (!s) return
     setQuizGenLoading(slideIndex)
+    setQuizDifficultyPopoverSlide(null)
     try {
       const blocks = s.blocks ?? parseContentToBlocks((s as { content?: string }).content ?? '')
       const existingCount = getQuizCount(blocks)
@@ -266,6 +273,13 @@ export default function CurriculumViewPage() {
         title: s.title,
         content: blocks.map((b) => b?.content ?? '').join('\n\n'),
         blocks: blocks.map((b) => ({ header: b?.header, content: b?.content ?? '' })),
+        difficulty,
+        lessonContext: {
+          topic,
+          allSlideTitles: slides.map((sl) => sl.title || 'Slide'),
+          currentSlideIndex: slideIndex,
+          totalSlides: slides.length,
+        },
       }
       const res = await fetch('/api/slide-generate-quiz', {
         method: 'POST',
@@ -287,7 +301,63 @@ export default function CurriculumViewPage() {
     } finally {
       setQuizGenLoading(null)
     }
-  }, [slides])
+  }, [slides, topic])
+
+  const sendUpdateSlideBlocks = useCallback((slideIndex: number, blocks: Array<{ header?: string; content?: string }>) => {
+    if (window.opener) window.opener.postMessage({ type: 'update-slide-blocks', slideIndex, blocks }, window.location.origin)
+  }, [])
+
+  const reportQuizWrong = useCallback(async (opts: {
+    curriculumId: string
+    slideIndex: number
+    blockIndex: number
+    quizMarker: string
+    slideTitle: string
+    slideContent: string
+  }) => {
+    const key = `${opts.curriculumId}-${opts.slideIndex}-${opts.blockIndex}-${opts.quizMarker.slice(0, 30)}`
+    setQuizReportLoading(key)
+    try {
+      const res = await fetch('/api/slide-quiz-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          curriculumId: opts.curriculumId,
+          slideIndex: opts.slideIndex,
+          blockIndex: opts.blockIndex,
+          quizMarker: opts.quizMarker,
+          slideTitle: opts.slideTitle,
+          slideContent: opts.slideContent,
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: data?.error ?? String(res.status), variant: 'destructive' })
+        return
+      }
+      if (data.action === 'replaced' && data.newMarker) {
+        const s = slides[opts.slideIndex]
+        const blks = s?.blocks ?? (s?.content ? parseContentToBlocks(s.content) : [])
+        const block = blks[opts.blockIndex]
+        const rawContent = block?.content ?? (opts.blockIndex === 0 && s?.content ? s.content : '')
+        if (rawContent?.includes(opts.quizMarker)) {
+          const newContent = rawContent.replace(opts.quizMarker, data.newMarker)
+          const newBlocks = blks.length > 0
+            ? blks.map((b, j) => (j === opts.blockIndex ? { ...b, content: newContent } : b))
+            : parseContentToBlocks(newContent)
+          setSlides((prev) => prev.map((sl, i) => (i === opts.slideIndex ? { ...sl, blocks: newBlocks, content: blks.length === 0 ? newContent : sl.content } : sl)))
+          sendUpdateSlideBlocks(opts.slideIndex, newBlocks)
+        }
+        toast({ title: tr('Đã thay câu mới', 'Replaced with new question', '已替换为新题目', '新しい問題に置き換えました', '새 문제로 교체됨'), description: data.reasoning?.slice(0, 120), duration: 4000 })
+      } else if (data.action === 'kept') {
+        toast({ title: tr('AI đã kiểm tra', 'AI checked', 'AI已检查', 'AIが確認しました', 'AI 확인됨'), description: data.reasoning?.slice(0, 120) ?? tr('Câu hỏi đúng theo nội dung. Vui lòng xem lại.', 'Question is correct. Please review.', '题目正确。请复查。', '問題は正しいです。再確認してください。', '문제가 맞습니다. 다시 확인해 주세요.'), duration: 4000 })
+      } else if (data.action === 'admin_pending') {
+        toast({ title: tr('Đã gửi admin', 'Sent to admin', '已发送给管理员', '管理者に送信しました', '관리자에게 전송됨'), description: data.message ?? '', duration: 3000 })
+      }
+    } finally {
+      setQuizReportLoading(null)
+    }
+  }, [slides, toast, tr, sendUpdateSlideBlocks])
 
   useEffect(() => {
     const syncLocale = () => setUiLocale(getWebLocaleFromCookie())
@@ -314,6 +384,32 @@ export default function CurriculumViewPage() {
       }
     })
   }, [curriculumId])
+
+  const hasShownResolvedRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!curriculumId) return
+    if (hasShownResolvedRef.current === curriculumId) return
+    fetch(`/api/slide-quiz-report?curriculumId=${encodeURIComponent(curriculumId)}&resolved=1`)
+      .then((res) => res.json())
+      .then((data) => {
+        const items = data?.items ?? []
+        if (items.length > 0) {
+          hasShownResolvedRef.current = curriculumId
+          toast({
+            title: tr('Báo cáo đã được xử lý', 'Report resolved', '报告已处理', '報告は処理されました', '신고 처리됨'),
+            description: tr(
+              `Admin đã xử lý ${items.length} báo cáo câu hỏi sai của bạn. Vui lòng xem lại slide.`,
+              `Admin has resolved ${items.length} of your quiz reports. Please review the slides.`,
+              `管理员已处理您的${items.length}个题目报告。请复查幻灯片。`,
+              `管理者が${items.length}件の報告を処理しました。スライドを確認してください。`,
+              `관리자가 ${items.length}건의 신고를 처리했습니다. 슬라이드를 확인해 주세요.`
+            ),
+            duration: 6000,
+          })
+        }
+      })
+      .catch(() => {})
+  }, [curriculumId, toast, tr])
 
   useEffect(() => {
     const handler = (e: MessageEvent) => {
@@ -358,10 +454,6 @@ export default function CurriculumViewPage() {
       }
     })
   }, [curriculumId])
-
-  const sendUpdateSlideBlocks = useCallback((slideIndex: number, blocks: Array<{ header?: string; content?: string }>) => {
-    if (window.opener) window.opener.postMessage({ type: 'update-slide-blocks', slideIndex, blocks }, window.location.origin)
-  }, [])
 
   const sendUpdateSlideTitle = useCallback((slideIndex: number, title: string) => {
     if (window.opener) window.opener.postMessage({ type: 'update-slide-title', slideIndex, title }, window.location.origin)
@@ -636,32 +728,42 @@ export default function CurriculumViewPage() {
                 (() => {
                   const s = slides[currentIndex]
                   const blks = !s ? [] : (s.blocks?.length ? s.blocks : s.content ? parseContentToBlocks(s.content ?? '') : [])
+                  const isQuizHeader = (h: string) => /câu hỏi|quiz|trắc nghiệm|测验|クイズ|퀴즈/i.test(h ?? '')
                   return (
-                    <div className="space-y-3">
-                      <div className="rounded-xl bg-amber-500/10 ring-2 ring-amber-400/40 border border-amber-400/30 p-3">
-                        <div className="text-amber-300 font-medium text-sm mb-2">{currentIndex + 1}/{slides.length} {s?.title ?? ''}</div>
-                        {blks.length > 0 ? (
-                          <div className="space-y-2">
-                            {blks.map((b, i) => {
-                              const parts = splitContentWithEmbeds(b.content ?? '')
-                              return (
-                                <div key={i} className="rounded-lg bg-slate-800/60 p-2.5 border border-slate-600/60">
-                                  {b.header && <div className="text-amber-300/95 font-medium text-xs mb-1">{b.header}</div>}
-                                  <div className="text-slate-200/95 text-sm whitespace-pre-wrap break-words leading-relaxed min-w-0 text-left space-y-2">
+                    <div className="space-y-4">
+                      {/* Tiêu đề slide – ý chính nổi bật */}
+                      <div className="pb-3 border-b border-slate-600/60">
+                        <span className="inline-block px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 text-xs font-medium mb-1.5">{currentIndex + 1}/{slides.length}</span>
+                        <h2 className="text-base font-semibold text-white leading-snug">{s?.title ?? ''}</h2>
+                      </div>
+                      {blks.length > 0 ? (
+                        <div className="space-y-4">
+                          {blks.map((b, i) => {
+                            const parts = splitContentWithEmbeds(b.content ?? '')
+                            const accent = isQuizHeader(b.header ?? '') ? 'violet' : 'amber'
+                            return (
+                              <div key={i} className={`rounded-lg overflow-hidden border border-slate-600/60 bg-slate-800/50 flex min-w-0`}>
+                                <div className={`w-1 shrink-0 ${accent === 'violet' ? 'bg-violet-500/60' : 'bg-amber-500/60'}`} />
+                                <div className="flex-1 min-w-0 p-3 pl-4">
+                                  {b.header && (
+                                    <span className={`inline-block text-[10px] font-medium uppercase tracking-wider px-1.5 py-0.5 rounded mb-2 ${accent === 'violet' ? 'bg-violet-500/20 text-violet-300/90' : 'bg-amber-500/20 text-amber-300/90'}`}>
+                                      {b.header}
+                                    </span>
+                                  )}
+                                  <div className="text-slate-100 text-[13px] leading-relaxed whitespace-pre-wrap break-words min-w-0 text-left space-y-2">
                                     {parts.map((p, j) => {
-                                      if (p.type === 'text') return p.value ? <span key={j}>{p.value}</span> : null
+                                      if (p.type === 'text') return p.value ? <span key={j} className="block">{p.value}</span> : null
                                       if (p.type === 'embed' && p.embedType === 'quiz') {
                                         const q = parseQuizData(p.urlOrId)
                                         if (!q) return null
                                         return (
-                                          <div key={j} className="rounded-lg bg-violet-500/15 border border-violet-400/30 p-2.5 mt-1.5">
-                                            <div className="text-violet-200 font-medium text-xs mb-1.5">{tr('Câu hỏi trắc nghiệm', 'Quiz question', '测验题', 'クイズ', '퀴즈')}</div>
-                                            <p className="text-slate-200/95 text-sm mb-2">{q.question}</p>
-                                            <div className="space-y-1">
+                                          <div key={j} className="rounded-lg bg-violet-500/10 border border-violet-400/20 p-3 mt-2">
+                                            <p className="text-slate-100 text-[13px] font-medium mb-2">{q.question}</p>
+                                            <div className="space-y-1.5">
                                               {q.options.map((opt, k) => (
-                                                <div key={k} className={['text-xs pl-2 border-l-2', k === q.correctIndex ? 'border-emerald-400 text-emerald-300' : 'border-slate-600 text-slate-300'].join(' ')}>
+                                                <div key={k} className={['text-[13px] pl-2.5 py-1 rounded border-l-2', k === q.correctIndex ? 'border-emerald-400 text-emerald-300 bg-emerald-500/10' : 'border-slate-600 text-slate-300'].join(' ')}>
                                                   {String.fromCharCode(65 + k)}. {opt}
-                                                  {k === q.correctIndex && <span className="ml-1.5 text-emerald-400/80 text-[10px]">({tr('Đáp án đúng', 'Correct', '正确', '正解', '정답')})</span>}
+                                                  {k === q.correctIndex && <span className="ml-1.5 text-emerald-400/90 text-[11px]">({tr('Đáp án đúng', 'Correct', '正确', '正解', '정답')})</span>}
                                                 </div>
                                               ))}
                                             </div>
@@ -679,28 +781,29 @@ export default function CurriculumViewPage() {
                                     })}
                                   </div>
                                 </div>
-                              )
-                            })}
-                          </div>
-                        ) : s?.content ? (
-                          (() => {
-                            const parts = splitContentWithEmbeds(s.content)
-                            return (
-                              <div className="space-y-2">
+                              </div>
+                            )
+                          })}
+                        </div>
+                      ) : s?.content ? (
+                        (() => {
+                          const parts = splitContentWithEmbeds(s.content)
+                          return (
+                            <div className="rounded-lg bg-slate-800/50 border border-slate-600/60 p-4">
+                              <div className="text-slate-100 text-[13px] leading-relaxed whitespace-pre-wrap break-words min-w-0 text-left space-y-2">
                                 {parts.map((p, j) => {
-                                  if (p.type === 'text') return p.value ? <span key={j} className="text-slate-200/95 text-sm whitespace-pre-wrap break-words leading-relaxed min-w-0 text-left">{p.value}</span> : null
+                                  if (p.type === 'text') return p.value ? <span key={j} className="block">{p.value}</span> : null
                                   if (p.type === 'embed' && p.embedType === 'quiz') {
                                     const q = parseQuizData(p.urlOrId)
                                     if (!q) return null
                                     return (
-                                      <div key={j} className="rounded-lg bg-violet-500/15 border border-violet-400/30 p-2.5">
-                                        <div className="text-violet-200 font-medium text-xs mb-1.5">{tr('Câu hỏi trắc nghiệm', 'Quiz question', '测验题', 'クイズ', '퀴즈')}</div>
-                                        <p className="text-slate-200/95 text-sm mb-2">{q.question}</p>
-                                        <div className="space-y-1">
+                                      <div key={j} className="rounded-lg bg-violet-500/10 border border-violet-400/20 p-3 mt-2">
+                                        <p className="text-slate-100 text-[13px] font-medium mb-2">{q.question}</p>
+                                        <div className="space-y-1.5">
                                           {q.options.map((opt, k) => (
-                                            <div key={k} className={['text-xs pl-2 border-l-2', k === q.correctIndex ? 'border-emerald-400 text-emerald-300' : 'border-slate-600 text-slate-300'].join(' ')}>
+                                            <div key={k} className={['text-[13px] pl-2.5 py-1 rounded border-l-2', k === q.correctIndex ? 'border-emerald-400 text-emerald-300 bg-emerald-500/10' : 'border-slate-600 text-slate-300'].join(' ')}>
                                               {String.fromCharCode(65 + k)}. {opt}
-                                              {k === q.correctIndex && <span className="ml-1.5 text-emerald-400/80 text-[10px]">({tr('Đáp án đúng', 'Correct', '正确', '正解', '정답')})</span>}
+                                              {k === q.correctIndex && <span className="ml-1.5 text-emerald-400/90 text-[11px]">({tr('Đáp án đúng', 'Correct', '正确', '正解', '정답')})</span>}
                                             </div>
                                           ))}
                                         </div>
@@ -717,12 +820,12 @@ export default function CurriculumViewPage() {
                                   return null
                                 })}
                               </div>
-                            )
-                          })()
-                        ) : (
-                          <p className="text-slate-500 text-sm">{tr('Không có nội dung', 'No content', '无内容', 'コンテンツなし', '내용 없음')}</p>
-                        )}
-                      </div>
+                            </div>
+                          )
+                        })()
+                      ) : (
+                        <p className="text-slate-500 text-sm">{tr('Không có nội dung', 'No content', '无内容', 'コンテンツなし', '내용 없음')}</p>
+                      )}
                     </div>
                   )
                 })()
@@ -819,16 +922,34 @@ export default function CurriculumViewPage() {
                                   <button type="button" onClick={() => { setEditingTitle(currentIndex); setEditingTitleValue(s?.title ?? '') }} className="text-xs text-slate-400 hover:text-amber-400 px-2 py-1 rounded-md hover:bg-slate-700/50 transition-colors">{tr('Sửa tiêu đề', 'Edit title', '编辑标题', 'タイトル編集', '제목 편집')}</button>
                                 )}
                                 {getQuizCount(blks) < 1 && editingTitle !== currentIndex && (
-                                  <button
-                                    type="button"
-                                    onClick={() => void handleGenerateQuiz(currentIndex)}
-                                    disabled={quizGenLoading !== null}
-                                    className="text-xs text-violet-400 hover:text-violet-300 px-2.5 py-1 rounded-lg bg-violet-500/15 border border-violet-400/30 flex items-center gap-1.5 transition-colors disabled:opacity-50"
-                                    title={tr('Tạo câu hỏi trắc nghiệm', 'Generate quiz', '生成测验', 'クイズ作成', '퀴즈 생성')}
-                                  >
-                                    <Sparkles className="h-3.5 w-3.5" />
-                                    {quizGenLoading === currentIndex ? tr('Đang tạo...', 'Creating...', '创建中...', '作成中...', '생성 중...') : tr('Tạo câu hỏi', 'Add quiz', '添加测验', 'クイズ追加', '퀴즈 추가')}
-                                  </button>
+                                  <Popover open={quizDifficultyPopoverSlide === currentIndex} onOpenChange={(o) => setQuizDifficultyPopoverSlide(o ? currentIndex : null)}>
+                                    <PopoverTrigger asChild>
+                                      <button
+                                        type="button"
+                                        disabled={quizGenLoading !== null}
+                                        className="text-xs text-violet-400 hover:text-violet-300 px-2.5 py-1 rounded-lg bg-violet-500/15 border border-violet-400/30 flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                                        title={tr('Tạo câu hỏi trắc nghiệm', 'Generate quiz', '生成测验', 'クイズ作成', '퀴즈 생성')}
+                                      >
+                                        <Sparkles className="h-3.5 w-3.5" />
+                                        {quizGenLoading === currentIndex ? tr('Đang tạo...', 'Creating...', '创建中...', '作成中...', '생성 중...') : tr('Tạo câu hỏi', 'Add quiz', '添加测验', 'クイズ追加', '퀴즈 추가')}
+                                      </button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-48 p-2" align="start">
+                                      <p className="text-xs text-muted-foreground mb-2">{tr('Chọn độ khó', 'Select difficulty', '选择难度', '難易度を選択', '난이도 선택')}</p>
+                                      <div className="flex flex-col gap-1">
+                                        {(['easy', 'medium', 'hard'] as const).map((d) => (
+                                          <button
+                                            key={d}
+                                            type="button"
+                                            onClick={() => void handleGenerateQuiz(currentIndex, d)}
+                                            className="text-left text-xs px-2 py-1.5 rounded hover:bg-violet-500/20 text-violet-200"
+                                          >
+                                            {d === 'easy' ? tr('Dễ', 'Easy', '简单', '易しい', '쉬움') : d === 'medium' ? tr('Trung bình', 'Medium', '中等', '普通', '보통') : tr('Khó', 'Hard', '困难', '難しい', '어려움')}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    </PopoverContent>
+                                  </Popover>
                                 )}
                                 {curriculumId && (
                                   <button
@@ -924,6 +1045,27 @@ export default function CurriculumViewPage() {
                                         })}
                                       </div>
                                       <div className="mt-2 flex flex-wrap gap-1.5">
+                                        {curriculumId && (splitContentWithEmbeds(b.content ?? '')).some((p) => p.type === 'embed' && p.embedType === 'quiz') && (
+                                          (splitContentWithEmbeds(b.content ?? '')).filter((p) => p.type === 'embed' && p.embedType === 'quiz').map((p, qIdx) => (
+                                            <button
+                                              key={qIdx}
+                                              type="button"
+                                              disabled={!!quizReportLoading}
+                                              onClick={() => reportQuizWrong({
+                                                curriculumId,
+                                                slideIndex: currentIndex,
+                                                blockIndex: i,
+                                                quizMarker: p.rawMarker,
+                                                slideTitle: s?.title ?? '',
+                                                slideContent: (blks ?? []).map((bl) => (bl.header ? `### ${bl.header}\n\n` : '') + (bl.content ?? '')).join('\n\n'),
+                                              })}
+                                              className="text-xs font-medium text-rose-300 hover:text-rose-200 px-2 py-1 rounded-lg bg-rose-500/20 border border-rose-400/30 flex items-center gap-1 transition-colors disabled:opacity-50"
+                                            >
+                                              <Flag className="h-3.5 w-3.5" />
+                                              {tr('Báo câu hỏi sai', 'Report wrong question', '报告题目错误', '問題が間違っていると報告', '문제 오류 신고')}
+                                            </button>
+                                          ))
+                                        )}
                                         {showDirectEdit && (
                                           <button type="button" onClick={() => { setEditingBlock({ slideIndex: currentIndex, blockIndex: i }); setEditingValue(b.content ?? '') }} className="text-xs font-medium text-violet-300 hover:text-violet-200 px-2 py-1 rounded-lg bg-violet-500/20 border border-violet-400/30 flex items-center gap-1 transition-colors">
                                             <Edit3 className="h-3.5 w-3.5" />
@@ -1014,6 +1156,25 @@ export default function CurriculumViewPage() {
                                     })}
                                   </div>
                                   <div className="mt-2 flex flex-wrap gap-1.5">
+                                    {curriculumId && (splitContentWithEmbeds(s.content ?? '')).filter((p) => p.type === 'embed' && p.embedType === 'quiz').map((p, qIdx) => (
+                                      <button
+                                        key={qIdx}
+                                        type="button"
+                                        disabled={!!quizReportLoading}
+                                        onClick={() => reportQuizWrong({
+                                          curriculumId,
+                                          slideIndex: currentIndex,
+                                          blockIndex: 0,
+                                          quizMarker: p.rawMarker,
+                                          slideTitle: s?.title ?? '',
+                                          slideContent: s.content ?? '',
+                                        })}
+                                        className="text-xs font-medium text-rose-300 hover:text-rose-200 px-2 py-1 rounded-lg bg-rose-500/20 border border-rose-400/30 flex items-center gap-1 transition-colors disabled:opacity-50"
+                                      >
+                                        <Flag className="h-3.5 w-3.5" />
+                                        {tr('Báo câu hỏi sai', 'Report wrong question', '报告题目错误', '問題が間違っていると報告', '문제 오류 신고')}
+                                      </button>
+                                    ))}
                                     {slideMode === 'personal' && personalViewSubMode === 'current' && curriculumId && (
                                       <button type="button" onClick={() => { setEditingBlock({ slideIndex: currentIndex, blockIndex: 0 }); setEditingValue(s.content ?? '') }} className="text-xs font-medium text-violet-300 hover:text-violet-200 px-2 py-1 rounded-lg bg-violet-500/20 border border-violet-400/30 flex items-center gap-1">
                                         <Edit3 className="h-3.5 w-3.5" />{tr('Sửa', 'Edit', '编辑', '編集', '편집')}
@@ -1097,16 +1258,29 @@ export default function CurriculumViewPage() {
                           </button>
                         )}
                         {isCurrent && getQuizCount(blks) < 1 && (
-                          <button
-                            type="button"
-                            onClick={() => void handleGenerateQuiz(idx)}
-                            disabled={quizGenLoading !== null}
-                            className="text-xs text-violet-400 hover:text-violet-300 px-1.5 py-0.5 rounded bg-slate-700/50 flex items-center gap-1"
-                            title="Tạo câu hỏi trắc nghiệm cho slide này"
-                          >
-                            <Sparkles className="h-3 w-3" />
-                            {quizGenLoading === idx ? 'Đang tạo...' : 'Tạo câu hỏi'}
-                          </button>
+                          <Popover open={quizDifficultyPopoverSlide === idx} onOpenChange={(o) => setQuizDifficultyPopoverSlide(o ? idx : null)}>
+                            <PopoverTrigger asChild>
+                              <button
+                                type="button"
+                                disabled={quizGenLoading !== null}
+                                className="text-xs text-violet-400 hover:text-violet-300 px-1.5 py-0.5 rounded bg-slate-700/50 flex items-center gap-1"
+                                title={tr('Tạo câu hỏi trắc nghiệm', 'Generate quiz', '生成测验', 'クイズ作成', '퀴즈 생성')}
+                              >
+                                <Sparkles className="h-3 w-3" />
+                                {quizGenLoading === idx ? tr('Đang tạo...', 'Creating...', '创建中...', '作成中...', '생성 중...') : tr('Tạo câu hỏi', 'Add quiz', '添加测验', 'クイズ追加', '퀴즈 추가')}
+                              </button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-48 p-2" align="start">
+                              <p className="text-xs text-muted-foreground mb-2">{tr('Chọn độ khó', 'Select difficulty', '选择难度', '難易度を選択', '난이도 선택')}</p>
+                              <div className="flex flex-col gap-1">
+                                {(['easy', 'medium', 'hard'] as const).map((d) => (
+                                  <button key={d} type="button" onClick={() => void handleGenerateQuiz(idx, d)} className="text-left text-xs px-2 py-1.5 rounded hover:bg-violet-500/20 text-violet-200">
+                                    {d === 'easy' ? tr('Dễ', 'Easy', '简单', '易しい', '쉬움') : d === 'medium' ? tr('Trung bình', 'Medium', '中等', '普通', '보통') : tr('Khó', 'Hard', '困难', '難しい', '어려움')}
+                                  </button>
+                                ))}
+                              </div>
+                            </PopoverContent>
+                          </Popover>
                         )}
                         {isCurrent && curriculumId && (
                           <button
@@ -1192,6 +1366,11 @@ export default function CurriculumViewPage() {
                                     })}
                                   </div>
                                   <div className="mt-1 flex flex-wrap gap-1">
+                                    {curriculumId && (splitContentWithEmbeds(b.content ?? '')).filter((p) => p.type === 'embed' && p.embedType === 'quiz').map((p, qIdx) => (
+                                      <button key={qIdx} type="button" disabled={!!quizReportLoading} onClick={() => reportQuizWrong({ curriculumId, slideIndex: idx, blockIndex: i, quizMarker: p.rawMarker, slideTitle: s?.title ?? '', slideContent: (blks ?? []).map((bl) => (bl.header ? `### ${bl.header}\n\n` : '') + (bl.content ?? '')).join('\n\n') })} className="text-[10px] font-medium text-rose-300 hover:text-rose-200 px-1.5 py-0.5 rounded bg-rose-500/20 flex items-center gap-0.5 disabled:opacity-50">
+                                        <Flag className="h-2.5 w-2.5" />{tr('Báo sai', 'Report wrong', '报告错误', '誤り報告', '오류 신고')}
+                                      </button>
+                                    ))}
                                     {showDirectEdit && (
                                       <button type="button" onClick={() => { setEditingBlock({ slideIndex: idx, blockIndex: i }); setEditingValue(b.content ?? '') }} className="text-[10px] font-medium text-violet-300 hover:text-violet-200 px-1.5 py-0.5 rounded bg-violet-500/20 flex items-center gap-0.5">
                                         <Edit3 className="h-2.5 w-2.5" />{tr('Sửa', 'Edit', '编辑', '編集', '편집')}
@@ -1266,6 +1445,11 @@ export default function CurriculumViewPage() {
                                   return null
                                 })}
                               </div>
+                              {isCurrent && curriculumId && (splitContentWithEmbeds(s.content ?? '')).filter((p) => p.type === 'embed' && p.embedType === 'quiz').map((p, qIdx) => (
+                                <button key={qIdx} type="button" disabled={!!quizReportLoading} onClick={() => reportQuizWrong({ curriculumId, slideIndex: idx, blockIndex: 0, quizMarker: p.rawMarker, slideTitle: s?.title ?? '', slideContent: s.content ?? '' })} className="text-[10px] text-rose-400 hover:text-rose-300 px-1.5 py-0.5 rounded bg-slate-700/50 flex items-center gap-0.5 border border-rose-500/50 mt-1 disabled:opacity-50">
+                                  <Flag className="h-2.5 w-2.5" />{tr('Báo sai', 'Report wrong', '报告错误', '誤り報告', '오류 신고')}
+                                </button>
+                              ))}
                               {isCurrent && slideMode === 'personal' && personalViewSubMode === 'current' && curriculumId && (
                                 <div className="mt-1">
                                   <button type="button" onClick={() => { setEditingBlock({ slideIndex: idx, blockIndex: 0 }); setEditingValue(s.content ?? '') }} className="text-[10px] text-violet-400 hover:text-violet-300 px-1.5 py-0.5 rounded bg-slate-700/50 flex items-center gap-0.5 border border-violet-500/50">
@@ -1437,6 +1621,7 @@ export default function CurriculumViewPage() {
           teacherMode
         />
       )}
+      <Toaster />
     </div>
   )
 }

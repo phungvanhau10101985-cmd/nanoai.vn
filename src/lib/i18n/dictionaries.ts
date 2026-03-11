@@ -79,6 +79,8 @@ export type Dictionary = {
     signOut: string
     switchToRealAccount: string
     exitDevMode: string
+    notifications: string
+    noNotifications: string
   }
   home: {
     title: string
@@ -122,6 +124,8 @@ const VI_DICTIONARY: Dictionary = {
     signIn: 'Đăng nhập',
     signOut: 'Đăng xuất',
     switchToRealAccount: 'Đăng nhập tài khoản thật',
+    notifications: 'Thông báo',
+    noNotifications: 'Chưa có thông báo',
     exitDevMode: 'Thoát chế độ dev',
   },
   home: {
@@ -221,6 +225,8 @@ const EN_DICTIONARY: Dictionary = {
     signOut: 'Sign out',
     switchToRealAccount: 'Sign in with real account',
     exitDevMode: 'Exit dev mode',
+    notifications: 'Notifications',
+    noNotifications: 'No notifications yet',
   },
   footer: {
     platformTitle: 'NanoAI Platform',
@@ -330,6 +336,8 @@ const ZH_DICTIONARY: Dictionary = {
     signOut: '退出登录',
     switchToRealAccount: '登录真实账号',
     exitDevMode: '退出开发模式',
+    notifications: '通知',
+    noNotifications: '暂无通知',
   },
   navGroup: {
     try_on: '试衣与穿搭',
@@ -427,6 +435,8 @@ const JA_DICTIONARY: Dictionary = {
     signOut: 'ログアウト',
     switchToRealAccount: '本番アカウントでログイン',
     exitDevMode: '開発モードを終了',
+    notifications: '通知',
+    noNotifications: '通知はありません',
   },
   navGroup: {
     try_on: '試着・コーデ',
@@ -523,6 +533,8 @@ const KO_DICTIONARY: Dictionary = {
     signOut: '로그아웃',
     switchToRealAccount: '실계정으로 로그인',
     exitDevMode: '개발 모드 종료',
+    notifications: '알림',
+    noNotifications: '알림 없음',
   },
   navGroup: {
     try_on: '가상 피팅·스타일링',

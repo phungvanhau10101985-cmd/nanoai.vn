@@ -40,19 +40,25 @@ const SUBJECT_NAMES: Record<string, string> = {
 
 const OPTION_LABELS = ['A', 'B', 'C', 'D']
 
-/** Lấy câu hỏi có sẵn từ ngân hàng (VNHSGE, Bộ GD) cho môn + lớp. */
+/** Lấy câu hỏi có sẵn từ ngân hàng (VNHSGE, Bộ GD). Nếu lessonTopics có ≥1 phần tử thì lọc theo topic khớp. */
 async function getOfficialQuestions(
   supabase: ReturnType<typeof createClient>,
   subjectId: string,
   gradeLevelId: string,
-  limit: number = 5
+  limit: number = 5,
+  lessonTopics?: string[]
 ) {
-  const { data } = await supabase
+  let q = supabase
     .from('worksheet_official_questions')
     .select('question_text, options, correct_index')
     .eq('subject_id', subjectId)
     .eq('grade_level_id', gradeLevelId)
-    .limit(limit * 3)
+
+  if (lessonTopics && lessonTopics.length >= 1) {
+    q = q.not('topic_normalized', 'is', null).in('topic_normalized', lessonTopics)
+  }
+
+  const { data } = await q.limit(limit * 5)
   if (!data || data.length < 3) return null
   const shuffled = [...data].sort(() => Math.random() - 0.5).slice(0, limit)
   return shuffled
@@ -75,6 +81,40 @@ function formatOfficialQuestionsAsMarkdown(questions: Array<{ question_text: str
   })
   lines.push('**Đáp án trắc nghiệm:** ' + answers.join(', '))
   return lines.join('\n')
+}
+
+/** AI trích ≥5 topic từ nội dung giáo trình – dùng để khớp câu hỏi. */
+async function extractLessonTopicsFromContent(
+  content: string,
+  genAI: GoogleGenerativeAI
+): Promise<string[]> {
+  try {
+    const prompt = `Trích từ giáo trình dưới đây ít nhất 5 chủ đề/kiến thức chính (mỗi topic 1-5 từ, tiếng Việt, cụ thể không chung chung).
+Ví dụ: Nguyên hàm, Tích phân, Ứng dụng tích phân, Đạo hàm, Cực trị hàm số.
+
+GIÁO TRÌNH:
+---
+${content.slice(0, 6000)}
+---
+
+Trả về JSON: { "topics": ["topic1", "topic2", ...] }
+Chỉ trả về JSON, không markdown.`
+    const model = genAI.getGenerativeModel({
+      ...GEMINI_25_FLASH_NO_THINKING,
+      generationConfig: { temperature: 0.1, responseMimeType: 'application/json' },
+    })
+    const result = await model.generateContent(prompt)
+    const text = result.response.text()?.trim() || ''
+    if (!text) return []
+    const parsed = JSON.parse(text) as { topics?: string[] }
+    const raw = Array.isArray(parsed?.topics) ? parsed.topics : []
+    const normalized = raw
+      .map((t) => normalizeTopicForSearch(String(t ?? '').trim()))
+      .filter((n) => n.length >= 2)
+    return [...new Set(normalized)].slice(0, 10)
+  } catch {
+    return []
+  }
 }
 
 /** Tạo giáo trình bằng AI cho mọi môn học. */
@@ -212,6 +252,8 @@ Yêu cầu:
     let text = genResult.response.text()?.trim() || ''
     if (!text) return { error: 'AI không trả về nội dung.' }
 
+    const lessonTopics = await extractLessonTopicsFromContent(text, genAI)
+
     const { data: row, error: insertErr } = await supabase
       .from('worksheet_curricula')
       .insert({
@@ -227,6 +269,7 @@ Yêu cầu:
         lesson_duration_minutes: thoiLuong,
         goals: goals.trim() || null,
         content_markdown: text,
+        lesson_topics: lessonTopics.length >= 5 ? lessonTopics : null,
       })
       .select('id')
       .single()
@@ -264,7 +307,26 @@ export async function createWorksheet(formData: FormData) {
   const subjectName = SUBJECT_NAMES[subjectId] || subjectId
   const gradeLabel = gradeLevelId.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
 
-  const officialQuestions = await getOfficialQuestions(supabase, subjectId, gradeLevelId, 5)
+  let lessonTopics: string[] | undefined
+  if (curriculumId) {
+    const { data: curriculum } = await supabase
+      .from('worksheet_curricula')
+      .select('lesson_topics')
+      .eq('id', curriculumId)
+      .single()
+    lessonTopics =
+      Array.isArray(curriculum?.lesson_topics) && curriculum.lesson_topics.length >= 1
+        ? (curriculum.lesson_topics as string[])
+        : undefined
+  }
+
+  const officialQuestions = await getOfficialQuestions(
+    supabase,
+    subjectId,
+    gradeLevelId,
+    5,
+    lessonTopics
+  )
   const useOfficialQuiz = officialQuestions && officialQuestions.length >= 3
 
   const isMenDePhuDinh = /mệnh\s*đề\s*phủ\s*định|phủ\s*định\s*mệnh\s*đề|mệnh\s*đề.*phủ\s*định/i.test(topic)
@@ -407,6 +469,14 @@ export async function saveCurriculum(formData: FormData) {
 
   const topicFinal = topic || `Bài ${lessonNum}`
 
+  let lessonTopics: string[] | null = null
+  const apiKey = process.env.GOOGLE_API_KEY?.trim()
+  if (apiKey && curriculumMarkdown.length >= 100) {
+    const genAI = new GoogleGenerativeAI(apiKey)
+    const extracted = await extractLessonTopicsFromContent(curriculumMarkdown, genAI)
+    lessonTopics = extracted.length >= 5 ? extracted : null
+  }
+
   const { data: row, error } = await supabase
     .from('worksheet_curricula')
     .insert({
@@ -422,6 +492,7 @@ export async function saveCurriculum(formData: FormData) {
       lesson_duration_minutes: thoiLuong,
       goals: goals || null,
       content_markdown: curriculumMarkdown,
+      lesson_topics: lessonTopics,
     })
     .select('id')
     .single()

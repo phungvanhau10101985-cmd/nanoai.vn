@@ -860,6 +860,25 @@ const FEATURE_SEO_DATA: Record<string, FeatureSeoData> = {
       { question: 'Xuất file thế nào?', answer: 'Tải .md, PDF hoặc Word.' },
     ],
   },
+  'tao-bai-thi': {
+    key: 'tao-bai-thi',
+    pageTitle: 'Tạo bài thi trực tuyến – 15 phút, 1 tiết, học kỳ, tốt nghiệp',
+    pageDescription: 'Tạo bài thi trắc nghiệm trực tuyến. 15 phút, 1 tiết, học kỳ, tốt nghiệp. Chọn môn, lớp, bài. QR + link cho học sinh làm bài.',
+    path: '/tao-bai-thi',
+    keywords: ['tạo bài thi', 'bài thi trực tuyến', 'kiểm tra 15 phút', 'thi học kỳ', 'trắc nghiệm online'],
+    serviceName: 'Tạo bài thi trực tuyến',
+    serviceDescription: 'Tạo bài thi trắc nghiệm trực tuyến. 15 phút, 1 tiết, học kỳ, tốt nghiệp. QR + link cho học sinh.',
+    h2: 'Tạo bài thi trực tuyến',
+    overview: 'Giáo viên tạo bài thi trắc nghiệm trực tuyến. Chọn loại: 15 phút, 1 tiết, học kỳ, tốt nghiệp. Chọn môn, lớp, bài (từ giáo trình). Hệ thống lấy câu hỏi từ ngân hàng, sinh QR và link. Học sinh quét QR hoặc mở link để làm bài.',
+    benefits: ['4 loại đề: 15 phút, 1 tiết, học kỳ, tốt nghiệp', 'Câu hỏi từ ngân hàng bám sát bài học', 'QR + link cho học sinh', 'Chấm tự động'],
+    useCases: ['Kiểm tra 15 phút', 'Kiểm tra 1 tiết', 'Thi học kỳ', 'Ôn thi tốt nghiệp'],
+    tips: ['Tạo câu hỏi trên slide trước để có đủ câu trong ngân hàng', 'Chọn độ khó khi tạo câu hỏi (dễ, trung bình, khó)'],
+    faqs: [
+      { question: 'Cần tạo câu hỏi trước không?', answer: 'Nên có. Hệ thống lấy câu từ ngân hàng. Tạo câu hỏi trên slide giáo trình trước.' },
+      { question: 'Học sinh làm bài thế nào?', answer: 'Quét QR hoặc mở link. Không cần đăng nhập.' },
+      { question: 'Có chấm tự động không?', answer: 'Có, trắc nghiệm chấm tự động.' },
+    ],
+  },
 }
 
 export function getFeatureSeo(key: string): FeatureSeoData {

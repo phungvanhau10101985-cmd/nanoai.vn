@@ -18,12 +18,43 @@ const QUIZ_SCHEMA = `{
   ]
 }`
 
-function buildQuizPrompt(fullContent: string): string {
-  return `Bạn là giáo viên chuyên môn. Tạo ĐÚNG 1 câu trắc nghiệm CHUẨN, CHÍNH XÁC từ nội dung slide.
+type LessonContext = {
+  topic?: string
+  allSlideTitles?: string[]
+  currentSlideIndex?: number
+  totalSlides?: number
+}
 
+type Difficulty = 'easy' | 'medium' | 'hard'
+
+const DIFFICULTY_PROMPT: Record<Difficulty, string> = {
+  easy: 'Độ khó DỄ: câu hỏi nhận biết, kiến thức cơ bản, áp dụng trực tiếp công thức/định nghĩa.',
+  medium: 'Độ khó TRUNG BÌNH: câu hỏi thông hiểu, vận dụng đơn giản, cần suy luận nhẹ.',
+  hard: 'Độ khó KHÓ: câu hỏi vận dụng cao, phân tích, tổng hợp, đáp án nhiễu tinh vi.',
+}
+
+function buildQuizPrompt(fullContent: string, lessonContext?: LessonContext, difficulty: Difficulty = 'medium'): string {
+  const contextBlock =
+    lessonContext?.topic || (lessonContext?.allSlideTitles && lessonContext.allSlideTitles.length > 0)
+      ? `
+BÀI HỌC / GIÁO TRÌNH (ngữ cảnh):
+- Chủ đề bài học: ${lessonContext?.topic ?? '(không có)'}
+- Các slide trong bài: ${(lessonContext?.allSlideTitles ?? []).map((t, i) => `${i + 1}. ${t}`).join(' | ')}
+- Slide hiện tại: ${(lessonContext?.currentSlideIndex ?? 0) + 1}/${lessonContext?.totalSlides ?? 1}
+
+QUAN TRỌNG: Câu hỏi phải BÁM SÁT NỘI DUNG BÀI HỌC, không chỉ hỏi ý nhỏ của 1 slide. Nếu slide chỉ là mục con/tiêu đề phụ, câu hỏi nên kiểm tra kiến thức tổng hợp của bài (công thức chính, định nghĩa quan trọng, quy tắc cốt lõi). Tránh câu hỏi quá ngắn, quá hẹp, không phản ánh mục tiêu bài học.
+`
+      : ''
+
+  const diffHint = DIFFICULTY_PROMPT[difficulty] ?? DIFFICULTY_PROMPT.medium
+  return `Bạn là giáo viên chuyên môn. Tạo ĐÚNG 1 câu trắc nghiệm CHUẨN, CHÍNH XÁC từ nội dung slide VÀ BÁM SÁT BÀI HỌC.
+
+${diffHint}
+
+${contextBlock}
 QUY TRÌNH BẮT BUỘC:
-1. ĐỌC KỸ slide, xác định công thức/định nghĩa/quy tắc CHÍNH XÁC được nêu.
-2. Tạo đáp án ĐÚNG trước – phải khớp 100% với nội dung slide, không thiếu ký hiệu.
+1. ĐỌC KỸ slide hiện tại VÀ ngữ cảnh bài học. Xác định kiến thức CỐT LÕI cần kiểm tra (công thức/định nghĩa/quy tắc quan trọng của bài).
+2. Tạo đáp án ĐÚNG trước – phải khớp 100% với nội dung slide/bài, không thiếu ký hiệu.
 3. Tạo 3 đáp án SAI – plausible nhưng rõ ràng sai (thiếu dấu, sai công thức, nhầm khái niệm).
 
 QUY TẮC CÔNG THỨC TOÁN (BẮT BUỘC):
@@ -39,7 +70,7 @@ QUY TẮC CHUNG:
 - Ngôn ngữ: Tiếng Việt.
 - Chỉ trả về JSON hợp lệ, không markdown.
 
-NỘI DUNG SLIDE:
+NỘI DUNG SLIDE HIỆN TẠI:
 ---
 ${fullContent.slice(0, 4000)}
 ---
@@ -82,6 +113,20 @@ export async function POST(req: NextRequest) {
     const title = String(body?.title ?? '').trim()
     const content = String(body?.content ?? '').trim()
     const blocks = Array.isArray(body?.blocks) ? body.blocks as Array<{ header?: string; content?: string }> : []
+    const difficultyRaw = String(body?.difficulty ?? 'medium').toLowerCase()
+    const difficulty: Difficulty = ['easy', 'medium', 'hard'].includes(difficultyRaw) ? (difficultyRaw as Difficulty) : 'medium'
+
+    const lessonContext: LessonContext | undefined =
+      body?.lessonContext && typeof body.lessonContext === 'object'
+        ? {
+            topic: String(body.lessonContext.topic ?? '').trim() || undefined,
+            allSlideTitles: Array.isArray(body.lessonContext.allSlideTitles)
+              ? (body.lessonContext.allSlideTitles as string[]).map((t) => String(t ?? '').trim()).filter(Boolean)
+              : undefined,
+            currentSlideIndex: typeof body.lessonContext.currentSlideIndex === 'number' ? body.lessonContext.currentSlideIndex : undefined,
+            totalSlides: typeof body.lessonContext.totalSlides === 'number' ? body.lessonContext.totalSlides : undefined,
+          }
+        : undefined
 
     const slideText = blocks.length > 0
       ? blocks.map((b) => `${b.header || ''}: ${b.content || ''}`).join('\n\n')
@@ -97,7 +142,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Thiếu GOOGLE_API_KEY.' }, { status: 500 })
     }
 
-    const prompt = buildQuizPrompt(fullContent)
+    const prompt = buildQuizPrompt(fullContent, lessonContext, difficulty)
     const genAI = new GoogleGenerativeAI(apiKey)
 
     // Bước 1: Gemini Pro tạo

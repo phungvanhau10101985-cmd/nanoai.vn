@@ -6,6 +6,7 @@ import { getUserOrBypass } from '@/lib/auth'
 import { MobileNav } from './mobile-nav'
 import { HeaderUserMenu } from './header-user-menu'
 import { LayoutGrid } from 'lucide-react'
+import { NotificationBell } from './notification-bell'
 import { getServerDictionary, getCurrentWebLocale } from '@/lib/i18n/server'
 import { getDictionary, type Dictionary } from '@/lib/i18n/dictionaries'
 
@@ -68,7 +69,10 @@ export async function Header() {
               <MobileNav isAdmin={isAdmin} t={clientDictionary} />
             </div>
             {user ? (
-              <HeaderUserMenu user={user} credits={credits} isAdmin={isAdmin} t={clientDictionary} />
+              <>
+                <NotificationBell t={clientDictionary} />
+                <HeaderUserMenu user={user} credits={credits} isAdmin={isAdmin} t={clientDictionary} />
+              </>
             ) : (
               <Link href="/auth/login">
                 <Button variant="secondary" size="sm" className="rounded-xl px-3">

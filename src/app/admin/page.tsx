@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Users, BarChart3, BookOpen, FileEdit } from 'lucide-react'
+import { Users, BarChart3, BookOpen, FileEdit, Flag } from 'lucide-react'
 import { getCurrentWebLocale } from '@/lib/i18n/server'
 
 const ADMIN_LINKS = [
@@ -76,6 +76,24 @@ const ADMIN_LINKS = [
       ko: '교사 제출 슬라이드 편집 제안 목록. 5명 찬성 시 자동 적용.',
     },
     icon: FileEdit,
+  },
+  {
+    href: '/admin/quiz-reports',
+    title: {
+      vi: 'Báo cáo câu hỏi sai',
+      en: 'Quiz question reports',
+      zh: '题目错误报告',
+      ja: '問題の誤り報告',
+      ko: '문제 오류 신고',
+    },
+    description: {
+      vi: 'Giáo viên báo câu hỏi trắc nghiệm sai. Sau 3 lần báo chuyển admin duyệt.',
+      en: 'Teachers report wrong quiz questions. After 3 reports, admin reviews.',
+      zh: '教师报告题目错误。3次后转管理员审核。',
+      ja: '教師が問題の誤りを報告。3回後、管理者が確認。',
+      ko: '교사가 문제 오류 신고. 3회 후 관리자 검토.',
+    },
+    icon: Flag,
   },
   {
     href: '/admin/english-coach',

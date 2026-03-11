@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -25,7 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { parseContentEmbeds, type EmbedType } from './content-embed'
+import { parseContentEmbeds, parseQuizData, type EmbedType } from './content-embed'
 
 export type EmbedPlacement = 'end' | 'newBlock' | number
 
@@ -138,14 +138,67 @@ export function EmbedInsertDialog({ open, onOpenChange, type: initialType, onIns
   const [alsoApplyTo, setAlsoApplyTo] = useState<Set<number>>(new Set())
   const [visualLayout, setVisualLayout] = useState<1 | 2 | 4>(1)
   const [visualCellIndex, setVisualCellIndex] = useState<number>(-1)
+  const [verifyLoading, setVerifyLoading] = useState(false)
+  const [verifyResult, setVerifyResult] = useState<{ verified: boolean; correctIndex?: number; suggestedCorrectLetter?: string; error?: string } | null>(null)
 
   useEffect(() => {
     if (!open) {
       setAlsoApplyTo(new Set())
       setVisualLayout(1)
       setVisualCellIndex(-1)
+      setVerifyResult(null)
     }
   }, [open])
+
+  const slideContent = blocks.map((b) => `${b.header ?? ''}: ${b.content ?? ''}`).join('\n\n')
+  const slideTitle = slides[currentSlideIndex]?.title ?? ''
+
+  const handleVerifyQuiz = useCallback(async () => {
+    const parsed = parseQuizData(value.trim())
+    if (!parsed || parsed.options.length < 2) return
+    setVerifyLoading(true)
+    setVerifyResult(null)
+    try {
+      const res = await fetch('/api/slide-verify-quiz', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          slideTitle,
+          slideContent,
+          question: parsed.question,
+          options: parsed.options,
+          correctIndex: parsed.correctIndex,
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setVerifyResult({ verified: false, error: data.error ?? 'Lỗi kiểm tra' })
+        return
+      }
+      setVerifyResult({
+        verified: data.verified === true,
+        correctIndex: data.correctIndex,
+        suggestedCorrectLetter: data.suggestedCorrectLetter,
+        error: data.error,
+      })
+    } catch (e) {
+      setVerifyResult({ verified: false, error: e instanceof Error ? e.message : 'Lỗi kết nối' })
+    } finally {
+      setVerifyLoading(false)
+    }
+  }, [value, slideTitle, slideContent])
+
+  const applySuggestedCorrectIndex = useCallback(() => {
+    const parsed = parseQuizData(value.trim())
+    const r = verifyResult
+    if (!parsed || typeof r?.correctIndex !== 'number' || r.correctIndex < 0 || r.correctIndex > 3) return
+    const parts = value.trim().split('|')
+    if (parts.length >= 6) {
+      parts[parts.length - 1] = String(r.correctIndex)
+      setValue(parts.join('|'))
+      setVerifyResult(null)
+    }
+  }, [value, verifyResult])
 
   const handleInsert = () => {
     if (mode === 'replaceImage' && onReplaceSlideImage) {
@@ -271,10 +324,42 @@ export function EmbedInsertDialog({ open, onOpenChange, type: initialType, onIns
                 id="embed-value-replace"
                 placeholder={PLACEHOLDERS[embedType]}
                 value={value}
-                onChange={(e) => setValue(e.target.value)}
+                onChange={(e) => { setValue(e.target.value); setVerifyResult(null) }}
                 onKeyDown={(e) => e.key === 'Enter' && handleInsert()}
                 className="mt-1"
               />
+              {embedType === 'quiz' && canReplaceVisual && slideContent.trim() && (
+                <div className="mt-2 space-y-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleVerifyQuiz}
+                    disabled={verifyLoading}
+                    className="text-violet-600 border-violet-400/50 hover:bg-violet-50 dark:text-violet-400 dark:border-violet-500/50 dark:hover:bg-violet-950/30"
+                  >
+                    {verifyLoading ? tr('Đang kiểm tra...', 'Verifying...', '正在验证...', '検証中...', '검증 중...') : tr('Kiểm tra bằng AI', 'Verify with AI', 'AI验证', 'AIで検証', 'AI로 검증')}
+                  </Button>
+                  {verifyResult && (
+                    <div className={`rounded-lg border p-2.5 text-sm ${verifyResult.verified ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200' : 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200'}`}>
+                      {verifyResult.verified ? (
+                        <span>{tr('Đáp án đúng theo nội dung slide.', 'Answer matches slide content.', '答案与幻灯片内容一致。', '正解はスライド内容と一致。', '정답이 슬라이드 내용과 일치합니다.')}</span>
+                      ) : verifyResult.error ? (
+                        <span>{verifyResult.error}</span>
+                      ) : (
+                        <div className="space-y-1.5">
+                          <span>{tr('Đáp án có thể sai. Đáp án đúng theo slide:', 'Answer may be wrong. Correct answer per slide:', '答案可能错误。根据幻灯片正确答案：', '正解が違う可能性。スライドに正解：', '정답이 틀렸을 수 있습니다. 슬라이드 기준 정답:')} <strong>{verifyResult.suggestedCorrectLetter ?? String.fromCharCode(65 + (verifyResult.correctIndex ?? 0))}</strong></span>
+                          {typeof verifyResult.correctIndex === 'number' && (
+                            <Button type="button" variant="outline" size="sm" onClick={applySuggestedCorrectIndex} className="mt-1 h-7 text-xs">
+                              {tr('Sửa thành đáp án', 'Fix to answer', '修正为答案', '正解に修正', '정답으로 수정')} {verifyResult.suggestedCorrectLetter ?? String.fromCharCode(65 + verifyResult.correctIndex)}
+                            </Button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
             {slides.length > 1 && (
               <div>
@@ -335,10 +420,42 @@ export function EmbedInsertDialog({ open, onOpenChange, type: initialType, onIns
                 id="embed-value"
                 placeholder={PLACEHOLDERS[embedType]}
                 value={value}
-                onChange={(e) => setValue(e.target.value)}
+                onChange={(e) => { setValue(e.target.value); setVerifyResult(null) }}
                 onKeyDown={(e) => e.key === 'Enter' && handleInsert()}
                 className="mt-1"
               />
+              {embedType === 'quiz' && canInsertContent && slideContent.trim() && (
+                <div className="mt-2 space-y-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleVerifyQuiz}
+                    disabled={verifyLoading}
+                    className="text-violet-600 border-violet-400/50 hover:bg-violet-50 dark:text-violet-400 dark:border-violet-500/50 dark:hover:bg-violet-950/30"
+                  >
+                    {verifyLoading ? tr('Đang kiểm tra...', 'Verifying...', '正在验证...', '検証中...', '검증 중...') : tr('Kiểm tra bằng AI', 'Verify with AI', 'AI验证', 'AIで検証', 'AI로 검증')}
+                  </Button>
+                  {verifyResult && (
+                    <div className={`rounded-lg border p-2.5 text-sm ${verifyResult.verified ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200' : 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200'}`}>
+                      {verifyResult.verified ? (
+                        <span>{tr('Đáp án đúng theo nội dung slide.', 'Answer matches slide content.', '答案与幻灯片内容一致。', '正解はスライド内容と一致。', '정답이 슬라이드 내용과 일치합니다.')}</span>
+                      ) : verifyResult.error ? (
+                        <span>{verifyResult.error}</span>
+                      ) : (
+                        <div className="space-y-1.5">
+                          <span>{tr('Đáp án có thể sai. Đáp án đúng theo slide:', 'Answer may be wrong. Correct answer per slide:', '答案可能错误。根据幻灯片正确答案：', '正解が違う可能性。スライドに正解：', '정답이 틀렸을 수 있습니다. 슬라이드 기준 정답:')} <strong>{verifyResult.suggestedCorrectLetter ?? String.fromCharCode(65 + (verifyResult.correctIndex ?? 0))}</strong></span>
+                          {typeof verifyResult.correctIndex === 'number' && (
+                            <Button type="button" variant="outline" size="sm" onClick={applySuggestedCorrectIndex} className="mt-1 h-7 text-xs">
+                              {tr('Sửa thành đáp án', 'Fix to answer', '修正为答案', '正解に修正', '정답으로 수정')} {verifyResult.suggestedCorrectLetter ?? String.fromCharCode(65 + verifyResult.correctIndex)}
+                            </Button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
             <div>
               <Label>{tr('Vị trí chèn', 'Insert position', '插入位置', '挿入位置', '삽입 위치')}</Label>
