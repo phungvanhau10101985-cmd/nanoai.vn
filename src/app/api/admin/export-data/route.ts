@@ -64,6 +64,25 @@ export const PUBLIC_TABLES = [
   'language_coach_live_lesson_starts',
 ] as const
 
+/** Chuyển options (mảng đáp án) và các jsonb/array thành chuỗi dễ đọc trong Excel */
+function flattenRowForExcel(row: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  for (const [key, val] of Object.entries(row)) {
+    if (Array.isArray(val)) {
+      if (key === 'options' && val.every((x) => typeof x === 'string')) {
+        out[key] = (val as string[]).map((s, i) => `${String.fromCharCode(65 + i)}. ${s}`).join(' | ')
+      } else {
+        out[key] = val.map((v) => (typeof v === 'object' && v !== null ? JSON.stringify(v) : String(v))).join(' | ')
+      }
+    } else if (val !== null && typeof val === 'object') {
+      out[key] = JSON.stringify(val)
+    } else {
+      out[key] = val
+    }
+  }
+  return out
+}
+
 async function requireAdmin() {
   const supabase = createClient()
   const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
@@ -129,7 +148,8 @@ export async function POST(req: NextRequest) {
       const wb = XLSX.utils.book_new()
       for (const [tableName, rows] of Object.entries(tablesData)) {
         const sheetName = tableName.slice(0, 31) // Excel sheet name max 31 chars
-        const ws = XLSX.utils.json_to_sheet(rows as Record<string, unknown>[])
+        const flatRows = (rows as Record<string, unknown>[]).map((row) => flattenRowForExcel(row))
+        const ws = XLSX.utils.json_to_sheet(flatRows)
         XLSX.utils.book_append_sheet(wb, ws, sheetName)
       }
       const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' })
