@@ -182,9 +182,61 @@ export function applyLatexFixes(text: string): string {
   return out
 }
 
+/**
+ * Chuyển khối [bien_thien]...[/bien_thien] thành bảng biến thiên dễ đọc.
+ * Cú pháp: [bien_thien]x:-∞,-2,0,2,+∞|f'(x):+,0,-,0,+|f(x):↗,↘,↗,↘,↗[/bien_thien]
+ * Hoặc nhiều dòng: [bien_thien]\nx: -∞ | -2 | 0 | 2 | +∞\nf'(x): + | 0 | - | 0 | +\nf(x): ↗ | ↘ | ↗ | ↘ | ↗\n[/bien_thien]
+ */
+function renderVariationTable(inner: string): string {
+  const rows: string[][] = []
+  const rawRows = inner.split(/\|(?=\s*[^|]+:)/).map((s) => s.trim()).filter(Boolean)
+  if (rawRows.length <= 1) {
+    const lines = inner.split('\n').map((s) => s.trim()).filter(Boolean)
+    for (const line of lines) {
+      const colonIdx = line.indexOf(':')
+      if (colonIdx >= 0) {
+        const label = line.slice(0, colonIdx).trim()
+        const rest = line.slice(colonIdx + 1)
+        const cells = rest.split(/[|,;]/).map((c) => c.trim()).filter(Boolean)
+        if (cells.length > 0) rows.push([label, ...cells])
+      }
+    }
+  } else {
+    for (const block of rawRows) {
+      const colonIdx = block.indexOf(':')
+      if (colonIdx >= 0) {
+        const label = block.slice(0, colonIdx).trim()
+        const rest = block.slice(colonIdx + 1)
+        const cells = rest.split(/[|,;]/).map((c) => c.trim()).filter(Boolean)
+        if (cells.length > 0) rows.push([label, ...cells])
+      }
+    }
+  }
+  if (rows.length === 0) return inner
+  const norm = (s: string) => s.replace(/^-\s*infty$/i, '-∞').replace(/^\+\s*infty$/i, '+∞').trim()
+  const normRows = rows.map((r) => [r[0], ...r.slice(1).map(norm)])
+  const colCount = Math.max(...normRows.map((r) => r.length))
+  const maxW = 5
+  const pad = (s: string, w: number) => {
+    const t = String(s).slice(0, w)
+    return t.padEnd(w)
+  }
+  let result = '┌' + Array(colCount).fill('─'.repeat(maxW)).join('┬') + '┐\n'
+  for (let i = 0; i < normRows.length; i++) {
+    const r = normRows[i]
+    const cells = [...r, ...Array(colCount - r.length).fill('')]
+    result += '│' + cells.map((c) => pad(c, maxW)).join('│') + '│\n'
+    if (i < normRows.length - 1) result += '├' + Array(colCount).fill('─'.repeat(maxW)).join('┼') + '┤\n'
+  }
+  result += '└' + Array(colCount).fill('─'.repeat(maxW)).join('┴') + '┘'
+  return result
+}
+
 /** Chuyển toàn bộ LaTeX trong text sang ký hiệu đọc được */
 export function latexToReadable(text: string): string {
   let out = text
+  // Bước 0: Xử lý bảng biến thiên [bien_thien]...[/bien_thien]
+  out = out.replace(/\[bien_thien\]\s*([\s\S]*?)\s*\[\/bien_thien\]/gi, (_, inner) => renderVariationTable(inner))
   // Bước 1: Chuyển LaTeX ngoài $...$ (plain text)
   out = convertPlainLatex(out)
   out = convertSubscripts(out)
@@ -199,3 +251,19 @@ export function latexToReadable(text: string): string {
   out = studentFriendlyFormat(out)
   return out
 }
+
+/**
+ * Cú pháp bảng biến thiên cho AI / người nhập:
+ * [bien_thien]
+ * x: -∞ | -2 | 0 | 2 | +∞
+ * f'(x): + | 0 | - | 0 | +
+ * f(x): ↗ | ↘ | ↗ | ↘ | ↗
+ * [/bien_thien]
+ *
+ * Hoặc dạng ngắn: [bien_thien]x:-∞,-2,0,2,+∞|f'(x):+,0,-,0,+|f(x):↗,↘,↗,↘,↗[/bien_thien]
+ */
+export const BIEN_THIEN_SYNTAX = `[bien_thien]
+x: -∞ | -2 | 0 | 2 | +∞
+f'(x): + | 0 | - | 0 | +
+f(x): ↗ | ↘ | ↗ | ↘ | ↗
+[/bien_thien]`

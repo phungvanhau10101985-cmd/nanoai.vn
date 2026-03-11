@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { FileQuestion, RefreshCw, CheckCircle } from 'lucide-react'
+import { FileQuestion, RefreshCw, CheckCircle, Clock } from 'lucide-react'
+import { latexToReadable } from '@/app/tao-giao-trinh/lib/latex-to-readable'
 
 type Question = { id: string; index: number; question_text: string; options: string[] }
 
@@ -18,6 +19,8 @@ export default function LamBaiClientPage({ code }: { code: string }) {
   const [submitting, setSubmitting] = useState(false)
   const [result, setResult] = useState<{ score: number; maxScore: number } | null>(null)
   const [startedAt, setStartedAt] = useState<number | null>(null)
+  const [now, setNow] = useState(Date.now())
+  const autoSubmittedRef = useRef(false)
 
   useEffect(() => {
     let cancelled = false
@@ -46,6 +49,12 @@ export default function LamBaiClientPage({ code }: { code: string }) {
       })
     return () => { cancelled = true }
   }, [code])
+
+  useEffect(() => {
+    if (!exam || result) return
+    const t = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(t)
+  }, [exam, result])
 
   const handleAnswer = (questionId: string, optionIndex: number) => {
     setAnswers((prev) => ({ ...prev, [questionId]: optionIndex }))
@@ -77,8 +86,20 @@ export default function LamBaiClientPage({ code }: { code: string }) {
     }
   }
 
-  const elapsed = startedAt ? Math.floor((Date.now() - startedAt) / 60000) : 0
-  const remaining = exam ? Math.max(0, exam.durationMinutes - elapsed) : 0
+  const elapsedMs = startedAt ? now - startedAt : 0
+  const totalMs = exam ? exam.durationMinutes * 60 * 1000 : 0
+  const remainingMs = Math.max(0, totalMs - elapsedMs)
+  const remainingMin = Math.floor(remainingMs / 60000)
+  const remainingSec = Math.floor((remainingMs % 60000) / 1000)
+  const isLowTime = remainingMin < 2 && remainingMin * 60 + remainingSec <= 120
+  const isTimeUp = remainingMs === 0
+
+  useEffect(() => {
+    if (isTimeUp && exam && !submitting && !result && !autoSubmittedRef.current) {
+      autoSubmittedRef.current = true
+      void handleSubmit()
+    }
+  }, [isTimeUp, exam, submitting, result])
 
   if (loading) {
     return (
@@ -131,22 +152,21 @@ export default function LamBaiClientPage({ code }: { code: string }) {
   if (!exam) return null
 
   return (
-    <div className="min-h-screen bg-muted/30 py-6 px-4">
-      <div className="max-w-2xl mx-auto space-y-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <CardTitle className="flex items-center gap-2">
-                <FileQuestion className="h-5 w-5" />
-                {exam.title}
-              </CardTitle>
-              <span className="text-sm text-muted-foreground">
-                Thời gian: {remaining} phút
-              </span>
-            </div>
-          </CardHeader>
-        </Card>
-
+    <div className="min-h-screen bg-muted/30 pb-6">
+      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b shadow-sm">
+        <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
+          <span className="font-medium truncate">{exam.title}</span>
+          <div
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-mono font-bold text-xl shrink-0 ${
+              isTimeUp ? 'bg-destructive/20 text-destructive' : isLowTime ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400 animate-pulse' : 'bg-primary/10 text-primary'
+            }`}
+          >
+            <Clock className="h-5 w-5" />
+            {String(remainingMin).padStart(2, '0')}:{String(remainingSec).padStart(2, '0')}
+          </div>
+        </div>
+      </div>
+      <div className="max-w-2xl mx-auto px-4 pt-6 space-y-4">
         <Card>
           <CardHeader>
             <CardTitle className="text-sm">Thông tin thí sinh (tùy chọn)</CardTitle>
@@ -171,8 +191,8 @@ export default function LamBaiClientPage({ code }: { code: string }) {
           {exam.questions.map((q) => (
             <Card key={q.id}>
               <CardHeader className="pb-2">
-                <CardTitle className="text-base">
-                  Câu {q.index}. {q.question_text}
+                <CardTitle className={`text-base ${/[┌┐└┘│├┤┬┴┼─]/.test(latexToReadable(q.question_text)) ? 'whitespace-pre-wrap font-sans' : ''}`}>
+                  Câu {q.index}. {latexToReadable(q.question_text)}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -193,8 +213,8 @@ export default function LamBaiClientPage({ code }: { code: string }) {
                         onChange={() => handleAnswer(q.id, i)}
                         className="h-4 w-4"
                       />
-                      <span className="flex-1">
-                        {String.fromCharCode(65 + i)}. {opt}
+                      <span className={`flex-1 ${/[┌┐└┘│├┤┬┴┼─]/.test(latexToReadable(opt)) ? 'whitespace-pre-wrap block' : ''}`}>
+                        {String.fromCharCode(65 + i)}. {latexToReadable(opt)}
                       </span>
                     </label>
                   ))}

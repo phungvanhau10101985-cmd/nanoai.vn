@@ -62,6 +62,7 @@ QUY TẮC CÔNG THỨC TOÁN (BẮT BUỘC):
 - Thể tích khối tròn xoay quanh Ox: V = π∫[f(x)]²dx  → phải có BÌNH PHƯƠNG [f(x)]².
 - CHO HỌC SINH ĐỌC ĐƯỢC: BẮT BUỘC dùng Unicode, KHÔNG LaTeX $...$. Ví dụ: π, ∫, x², 1/2, √, ∞, ∈, ℝ, ⇒.
 - Đáp án đúng phải copy đúng ký hiệu từ slide (∈, ℝ, π, ∫, ², √, ...).
+- BẢNG BIẾN THIÊN: Nếu câu hỏi có bảng biến thiên, dùng cú pháp [bien_thien]x:-∞,-2,0,2,+∞|f'(x):+,0,-,0,+|f(x):↗,↘,↗,↘,↗[/bien_thien] (dấu | phân tách các hàng, dấu , phân tách ô; ↗↘ cho chiều biến thiên).
 
 QUY TẮC CHUNG:
 - Mỗi đáp án là CÂU HOÀN CHỈNH, không rời rạc (SAI: "f(x)", "dx", "S =" riêng lẻ).

@@ -6,10 +6,12 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
-import { FileQuestion, RefreshCw, QrCode, Copy, Link2, BookOpen } from 'lucide-react'
+import { FileQuestion, RefreshCw, QrCode, Copy, Link2, BookOpen, FileDown, FileText } from 'lucide-react'
 import QRCode from 'qrcode'
 import { SUBJECTS, GRADE_LEVELS, GRADE_LEVEL_GROUPS } from '../tao-giao-trinh/lib/curriculum-subjects'
 import { listCurricula } from '../tao-giao-trinh/actions'
+import { latexToReadable } from '../tao-giao-trinh/lib/latex-to-readable'
+import { exportWorksheetToPdf, exportWorksheetToWord } from '../tao-giao-trinh/lib/worksheet-export'
 
 type UiLocale = 'vi' | 'en' | 'zh' | 'ja' | 'ko'
 
@@ -44,8 +46,9 @@ export default function TaoBaiThiClientPage() {
   const [curriculaList, setCurriculaList] = useState<Array<{ id: string; topic: string; subject_id: string; grade_level_id: string }>>([])
   const [loading, setLoading] = useState(false)
   const [browseLoading, setBrowseLoading] = useState(false)
-  const [result, setResult] = useState<{ code: string; examUrl: string; totalQuestions: number; durationMinutes: number } | null>(null)
+  const [result, setResult] = useState<{ code: string; examUrl: string; totalQuestions: number; durationMinutes: number; title: string } | null>(null)
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
+  const [exportLoading, setExportLoading] = useState<'pdf' | 'word' | null>(null)
   const { toast } = useToast()
 
   const tr = (vi: string, en: string) => (uiLocale === 'en' ? en : vi)
@@ -105,6 +108,7 @@ export default function TaoBaiThiClientPage() {
           examUrl: data.examUrl,
           totalQuestions: data.totalQuestions ?? 0,
           durationMinutes: data.durationMinutes ?? 15,
+          title: title.trim() || 'Bài thi',
         })
         try {
           const qr = await QRCode.toDataURL(data.examUrl, { width: 200, margin: 2 })
@@ -125,6 +129,79 @@ export default function TaoBaiThiClientPage() {
     if (!result?.examUrl) return
     navigator.clipboard.writeText(result.examUrl)
     toast({ title: tr('Đã copy', 'Copied'), description: tr('Link đã được sao chép.', 'Link copied.'), duration: 2000 })
+  }
+
+  const buildExamMarkdown = (examData: { title: string; durationMinutes: number; questions: Array<{ question_text: string; options: string[] }> }): string => {
+    const lines: string[] = [
+      `# ${examData.title}`,
+      '',
+      `**Thời gian: ${examData.durationMinutes} phút**`,
+      '',
+      '---',
+      '',
+    ]
+    examData.questions.forEach((q, i) => {
+      const qText = latexToReadable(q.question_text)
+      lines.push(`### Câu ${i + 1}. ${qText}`)
+      lines.push('')
+      const opts = Array.isArray(q.options) ? q.options : []
+      ;['A', 'B', 'C', 'D'].forEach((label, j) => {
+        const opt = opts[j]
+        if (opt) lines.push(`${label}. ${latexToReadable(opt)}`)
+      })
+      lines.push('')
+    })
+    return lines.join('\n')
+  }
+
+  const handleExportPdf = async () => {
+    if (!result?.code) return
+    setExportLoading('pdf')
+    try {
+      const res = await fetch(`/api/exam-session/${encodeURIComponent(result.code)}`)
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || data.error) {
+        toast({ title: tr('Lỗi', 'Error'), description: data?.error ?? 'Không tải được đề thi.', variant: 'destructive' })
+        return
+      }
+      const md = buildExamMarkdown({
+        title: data.title || result.title,
+        durationMinutes: data.durationMinutes ?? result.durationMinutes,
+        questions: data.questions ?? [],
+      })
+      const filename = `bai-thi-${result.code}.pdf`
+      await exportWorksheetToPdf(md, filename, null)
+      toast({ title: tr('Đã xuất PDF', 'PDF exported'), description: filename, duration: 2000 })
+    } catch (e) {
+      toast({ title: tr('Lỗi', 'Error'), description: e instanceof Error ? e.message : String(e), variant: 'destructive' })
+    } finally {
+      setExportLoading(null)
+    }
+  }
+
+  const handleExportWord = async () => {
+    if (!result?.code) return
+    setExportLoading('word')
+    try {
+      const res = await fetch(`/api/exam-session/${encodeURIComponent(result.code)}`)
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || data.error) {
+        toast({ title: tr('Lỗi', 'Error'), description: data?.error ?? 'Không tải được đề thi.', variant: 'destructive' })
+        return
+      }
+      const md = buildExamMarkdown({
+        title: data.title || result.title,
+        durationMinutes: data.durationMinutes ?? result.durationMinutes,
+        questions: data.questions ?? [],
+      })
+      const filename = `bai-thi-${result.code}.docx`
+      await exportWorksheetToWord(md, filename)
+      toast({ title: tr('Đã xuất Word', 'Word exported'), description: filename, duration: 2000 })
+    } catch (e) {
+      toast({ title: tr('Lỗi', 'Error'), description: e instanceof Error ? e.message : String(e), variant: 'destructive' })
+    } finally {
+      setExportLoading(null)
+    }
   }
 
   return (
@@ -172,6 +249,36 @@ export default function TaoBaiThiClientPage() {
                   <p className="text-xs text-muted-foreground">
                     {tr('Mã bài thi', 'Exam code')}: <strong>{result.code}</strong>
                   </p>
+                  <div className="flex flex-wrap gap-2 pt-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleExportPdf}
+                      disabled={exportLoading !== null}
+                      className="gap-1.5"
+                    >
+                      {exportLoading === 'pdf' ? (
+                        <RefreshCw className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <FileDown className="h-4 w-4" />
+                      )}
+                      {tr('Xuất PDF', 'Export PDF')}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleExportWord}
+                      disabled={exportLoading !== null}
+                      className="gap-1.5"
+                    >
+                      {exportLoading === 'word' ? (
+                        <RefreshCw className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <FileText className="h-4 w-4" />
+                      )}
+                      {tr('Xuất Word', 'Export Word')}
+                    </Button>
+                  </div>
                 </div>
               </div>
               <Button variant="secondary" onClick={() => { setResult(null); setQrDataUrl(null) }}>

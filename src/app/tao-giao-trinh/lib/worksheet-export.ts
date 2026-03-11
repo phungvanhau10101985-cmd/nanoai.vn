@@ -88,6 +88,9 @@ function markdownToSimpleHtml(md: string): string {
   const lines = html.split(/\n\n+/)
   const wrapped = lines.map((line) => {
     if (line.startsWith('<h') || line.startsWith('<p') || line.startsWith('<li')) return line
+    if (/[┌┐└┘│├┤┬┴┼─]/.test(line)) {
+      return `<pre style="font-family:ui-monospace,monospace;font-size:12px;white-space:pre;overflow-x:auto;margin:8px 0;padding:8px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:4px">${line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>`
+    }
     return `<p style="margin:6px 0">${line.replace(/\n/g, '<br/>')}</p>`
   })
   return wrapped.join('')
