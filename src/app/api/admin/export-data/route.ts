@@ -103,14 +103,24 @@ export async function POST(req: NextRequest) {
       { auth: { persistSession: false } }
     )
 
+    const PAGE_SIZE = 1000
     const tablesData: Record<string, unknown[]> = {}
     for (const table of tables) {
-      const { data, error } = await admin.from(table).select('*')
-      if (error) {
-        tablesData[table] = [{ _error: error.message }]
-      } else {
-        tablesData[table] = data ?? []
+      const allRows: unknown[] = []
+      let offset = 0
+      let hasMore = true
+      while (hasMore) {
+        const { data, error } = await admin.from(table).select('*').range(offset, offset + PAGE_SIZE - 1)
+        if (error) {
+          tablesData[table] = [{ _error: error.message }]
+          break
+        }
+        const rows = data ?? []
+        allRows.push(...rows)
+        hasMore = rows.length === PAGE_SIZE
+        offset += PAGE_SIZE
       }
+      if (!tablesData[table]) tablesData[table] = allRows
     }
 
     const dateStr = new Date().toISOString().slice(0, 10)
