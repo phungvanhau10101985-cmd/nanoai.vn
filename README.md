@@ -92,7 +92,16 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000) in your browser to see the result.
 
-### 5. Integrating the Real AI Model
+### 5. Reset dữ liệu AI test
+
+Để xóa toàn bộ dữ liệu do AI tạo ra (giáo trình, bài thi, phiếu bài tập, v.v.) và test lại từ đầu, **giữ nguyên** tài khoản, credit và câu hỏi đã up:
+
+1. Mở `supabase/scripts/reset-ai-test-data.sql`
+2. Chạy trong Supabase Dashboard → SQL Editor
+
+Chi tiết: `docs/reset-ai-test-data.md`
+
+### 6. Integrating the Real AI Model
 
 The current AI logic is a placeholder. To make it work, you need to:
 

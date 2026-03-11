@@ -1,10 +1,17 @@
 import Link from 'next/link'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Users, BarChart3, BookOpen, FileEdit, Flag } from 'lucide-react'
+import { Users, BarChart3, BookOpen, FileEdit, Flag, Download } from 'lucide-react'
 import { getCurrentWebLocale } from '@/lib/i18n/server'
 
-const ADMIN_LINKS = [
+type AdminLink = {
+  href: string
+  title: Record<string, string>
+  description: Record<string, string>
+  icon: React.ComponentType<{ className?: string }>
+}
+
+const ADMIN_LINKS: AdminLink[] = [
   {
     href: '/admin/users',
     title: {
@@ -96,6 +103,24 @@ const ADMIN_LINKS = [
     icon: Flag,
   },
   {
+    href: '/admin/export-data',
+    title: {
+      vi: 'Xuất dữ liệu',
+      en: 'Export data',
+      zh: '导出数据',
+      ja: 'データをエクスポート',
+      ko: '데이터 내보내기',
+    },
+    description: {
+      vi: 'Chọn bảng, format JSON/Excel. Xuất theo từng bảng.',
+      en: 'Select tables, JSON/Excel format. Export by table.',
+      zh: '选择表，JSON/Excel 格式。按表导出。',
+      ja: 'テーブル選択、JSON/Excel形式。テーブルごとにエクスポート。',
+      ko: '테이블 선택, JSON/Excel 형식. 테이블별 내보내기.',
+    },
+    icon: Download,
+  },
+  {
     href: '/admin/english-coach',
     title: {
       vi: 'Bài học đã lưu',
@@ -147,24 +172,29 @@ export default function AdminPage() {
             const Icon = item.icon
             const localeTitle = item.title[uiLocale] || item.title.vi
             const localeDescription = item.description[uiLocale] || item.description.vi
-            return (
-              <Link key={`${item.href}-${index}`} href={item.href}>
-                <Card className="h-full rounded-xl border-muted/70 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
-                  <CardHeader className="space-y-3 pb-3">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10">
-                        <Icon className="h-5 w-5 text-primary" />
-                      </div>
-                      <CardTitle className="text-lg">{localeTitle}</CardTitle>
+            const card = (
+              <Card className="h-full rounded-xl border-muted/70 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
+                <CardHeader className="space-y-3 pb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10">
+                      <Icon className="h-5 w-5 text-primary" />
                     </div>
-                    <CardDescription>{localeDescription}</CardDescription>
-                  </CardHeader>
-                  <CardContent>
+                    <CardTitle className="text-lg">{localeTitle}</CardTitle>
+                  </div>
+                  <CardDescription>{localeDescription}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Link href={item.href}>
                     <Button variant="outline" size="sm" className="w-full">
                       {tr('Mở chức năng', 'Open tool', '打开功能', '機能を開く', '기능 열기')}
                     </Button>
-                  </CardContent>
-                </Card>
+                  </Link>
+                </CardContent>
+              </Card>
+            )
+            return (
+              <Link key={`${item.href}-${index}`} href={item.href}>
+                {card}
               </Link>
             )
           })}

@@ -3,6 +3,7 @@ import { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
+import { Toaster } from '@/components/ui/toaster'
 import { getUserOrBypass } from '@/lib/auth'
 import { buildMetadata } from '@/lib/seo'
 import { ChevronLeft } from 'lucide-react'
@@ -22,6 +23,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   if (profile?.role !== 'admin') redirect('/')
   return (
     <div className="container max-w-5xl py-6 space-y-6">
+      <Toaster />
       <Link
         href="/admin"
         className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"

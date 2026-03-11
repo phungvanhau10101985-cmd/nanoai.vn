@@ -14,6 +14,16 @@ const SUBSCRIPT_MAP: Record<string, string> = {
   '5': '₅', '6': '₆', '7': '₇', '8': '₈', '9': '₉',
 }
 
+/** Unicode subscript (₁₂₃...) → ASCII để regex khớp */
+const UNICODE_SUB_TO_ASCII: Record<string, string> = {
+  '₀': '0', '₁': '1', '₂': '2', '₃': '3', '₄': '4',
+  '₅': '5', '₆': '6', '₇': '7', '₈': '8', '₉': '9',
+}
+
+function unicodeSubToAscii(s: string): string {
+  return s.replace(/[₀₁₂₃₄₅₆₇₈₉]/g, (c) => UNICODE_SUB_TO_ASCII[c] ?? c)
+}
+
 const LATEX_MAP: [RegExp | string, string][] = [
   [/\$\\mathbb\{R\}\$/g, 'ℝ'],
   [/\$\\mathbb\{N\}\$/g, 'ℕ'],
@@ -79,9 +89,14 @@ function convertLatexInline(match: string): string {
     .replace(/\\right\)/g, ')')
     .replace(/\\left\[/g, '[')
     .replace(/\\right\]/g, ']')
+    .replace(/\\left\{/g, '{')
+    .replace(/\\right\}/g, '}')
     .replace(/\\left\./g, '')
     .replace(/\\right\./g, '')
     .replace(/\\infty/g, '∞')
+    .replace(/\\int\^(\d+)_(\d+)/g, '∫[$2→$1]')
+    .replace(/\\log_2\s*\{([^}]*)\}/g, 'log₂($1)')
+    .replace(/\\log_2\s*\(([^)]*)\)/g, 'log₂($1)')
     .replace(/\\mathbb\{R\}/g, 'ℝ')
     .replace(/\\mathbb\{N\}/g, 'ℕ')
     .replace(/\\mathbb\{Z\}/g, 'ℤ')
@@ -107,6 +122,47 @@ function convertLatexInline(match: string): string {
 /** Chuyển LaTeX ngoài $...$ (plain text có ký hiệu LaTeX) */
 function convertPlainLatex(text: string): string {
   return text
+    // --- \begin{cases}...\end{cases} → f(x) = {...} ---
+    .replace(/\\begin\{cases\}\s*([\s\S]*?)\\end\{cases\}/g, (_, body) => {
+      const lines = body.split(/\\\\/).map((l: string) => l.trim()).filter(Boolean)
+      const parts = lines.map((line: string) => {
+        const m = line.match(/^(.+?)\s*&\s*\\text\{\s*khi\s*\}\s*(.+)$/) || line.match(/^(.+?)\s*&\s*(.+)$/)
+        if (m) return `${m[1].trim()} khi ${m[2].trim()}`
+        return line.replace(/\\text\{\s*([^}]*)\s*\}/g, '$1')
+      })
+      return parts.join('; ')
+    })
+    .replace(/\\text\{\s*([^}]*)\s*\}/g, '$1')
+    // --- \int_0^{\pi/2} hoặc \int^\pi/2{0} (lỗi format) ---
+    .replace(/\\int_\{0\}\^\{\\pi\/2\}/g, '∫[0→π/2]')
+    .replace(/\\int\^\\pi\/2\{0\}/g, '∫[0→π/2]')
+    // --- \vec{AB} → AB (từ "Vectơ" đã rõ) ---
+    .replace(/\\vec\{([^}]*)\}/g, '$1')
+    // --- \pi → π ---
+    .replace(/\\pi\b/g, 'π')
+    // --- Tập hợp \left{...\right} → {...} ---
+    .replace(/\\left\{([^}]*)\\right\}\s*\.?/g, '{$1}')
+    .replace(/\\left\{([^}]*)\}/g, '{$1}')
+    .replace(/\\left\s*\{\s*([^}]*)\s*\}\s*\\right\s*\.?/g, '{$1}')
+    // --- Log: {log}₂{(x²-x+2)) hoặc {log}2{...} ---
+    .replace(/\{log\}₂\{\(([^)]+)\)\)/g, 'log₂($1)')
+    .replace(/\{log\}2\{\(([^)]+)\)\)/g, 'log₂($1)')
+    .replace(/\{log\}₂\{([^}]+)\)\}/g, 'log₂($1)')
+    .replace(/\{log\}2\{([^}]+)\)\}/g, 'log₂($1)')
+    .replace(/\{log\}₂\{([^}]+)\}/g, 'log₂($1)')
+    .replace(/\{log\}2\{([^}]+)\}/g, 'log₂($1)')
+    .replace(/\\log_2\s*\{([^}]*)\}/g, 'log₂($1)')
+    .replace(/\\log_2\s*\(([^)]*)\)/g, 'log₂($1)')
+    // --- Tích phân: \int^2₁ (Unicode subscript), \int^a_b, \int_-1^2 ---
+    .replace(/\\int\^(\d+)_([₁₂₃₄₅₆₇₈₉₀\d]+)\s/g, (_, a, b) => `∫[${unicodeSubToAscii(b)}→${a}] `)
+    .replace(/\\int\^(\d+)_([₁₂₃₄₅₆₇₈₉₀\d]+)([^\s])/g, (_, a, b, c) => `∫[${unicodeSubToAscii(b)}→${a}]${c}`)
+    .replace(/\\int\^(\d+)_(\d+)\s/g, '∫[$2→$1] ')
+    .replace(/\\int\^(\d+)_(\d+)([^\s])/g, '∫[$2→$1]$3')
+    .replace(/\\int_(-?\d+)\^(\d+)/g, '∫[$1→$2]')
+    .replace(/\\int_(-?\d+)²/g, '∫[$1→2]')
+    .replace(/\\int_\{([^}]+)\}\^\{([^}]+)\}/g, '∫[$1→$2]')
+    .replace(/\\int\^(\d+)_(\d+)\s+f\(x\)\s*dx/g, '∫[$2→$1] f(x)dx')
+    .replace(/\\int_(-?\d+)\^(\d+)\(/g, '∫[$1→$2](')
     // --- Lỗi AI phổ biến ---
     .replace(/≤ft/g, '(') // \left bị thành ≤ft do thứ tự replace
     .replace(/\\frac\{([^}]*)\)\{([^}]*)\}/g, '($1)/($2)') // \frac{1){2} (lỗi AI)
@@ -158,6 +214,7 @@ function studentFriendlyFormat(text: string): string {
   return text
     .replace(/\(√\(([^)]*)\)\)\/\((\d+)\)/g, '(√$1)/$2') // (√(3))/(2) → (√3)/2
     .replace(/\((\d+)\)\/\((\d+)\)/g, '$1/$2') // (1)/(2) → 1/2
+    .replace(/\(([^)]+)\)\/\(([^)]+)\)/g, '$1/$2') // (4πa³)/(3) → 4πa³/3
     .replace(/\}\s*=/g, ') =') // } = → ) = (lỗi AI dùng } thay )
 }
 
@@ -235,6 +292,9 @@ function renderVariationTable(inner: string): string {
 /** Chuyển toàn bộ LaTeX trong text sang ký hiệu đọc được */
 export function latexToReadable(text: string): string {
   let out = text
+  // Bước -1: Chuẩn hóa Unicode subscript (₁₂₃...) trong \int, {log} để regex khớp
+  out = out.replace(/\\int\^(\d+)_([₁₂₃₄₅₆₇₈₉₀]+)/g, (_, a, b) => `\\int^${a}_${unicodeSubToAscii(b)}`)
+  out = out.replace(/\{log\}([₁₂₃₄₅₆₇₈₉₀])/g, (_, d) => `{log}${unicodeSubToAscii(d)}`)
   // Bước 0: Xử lý bảng biến thiên [bien_thien]...[/bien_thien]
   out = out.replace(/\[bien_thien\]\s*([\s\S]*?)\s*\[\/bien_thien\]/gi, (_, inner) => renderVariationTable(inner))
   // Bước 1: Chuyển LaTeX ngoài $...$ (plain text)

@@ -1,13 +1,32 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { FileQuestion, RefreshCw, CheckCircle, Clock } from 'lucide-react'
+import { RefreshCw, CheckCircle, Clock, Share2, Play } from 'lucide-react'
 import { latexToReadable } from '@/app/tao-giao-trinh/lib/latex-to-readable'
 
 type Question = { id: string; index: number; question_text: string; options: string[] }
+
+function playBell() {
+  try {
+    const ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)()
+    for (let i = 0; i < 3; i++) {
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.connect(gain)
+      gain.connect(ctx.destination)
+      osc.frequency.value = 880
+      osc.type = 'sine'
+      const t = ctx.currentTime + i * 0.3
+      gain.gain.setValueAtTime(0.2, t)
+      gain.gain.exponentialRampToValueAtTime(0.01, t + 0.25)
+      osc.start(t)
+      osc.stop(t + 0.25)
+    }
+  } catch {}
+}
 
 export default function LamBaiClientPage({ code }: { code: string }) {
   const [loading, setLoading] = useState(true)
@@ -15,12 +34,16 @@ export default function LamBaiClientPage({ code }: { code: string }) {
   const [exam, setExam] = useState<{ title: string; durationMinutes: number; questions: Question[] } | null>(null)
   const [answers, setAnswers] = useState<Record<string, number>>({})
   const [studentName, setStudentName] = useState('')
-  const [studentCode, setStudentCode] = useState('')
+  const [className, setClassName] = useState('')
+  const [studentCard, setStudentCard] = useState('')
+  const [examStarted, setExamStarted] = useState(false)
   const [submitting, setSubmitting] = useState(false)
-  const [result, setResult] = useState<{ score: number; maxScore: number } | null>(null)
+  const [result, setResult] = useState<{ score: number; maxScore: number; grade10: number; comment: string; shareHint: string } | null>(null)
   const [startedAt, setStartedAt] = useState<number | null>(null)
+  const [shared, setShared] = useState(false)
   const [now, setNow] = useState(Date.now())
   const autoSubmittedRef = useRef(false)
+  const bellPlayedRef = useRef(false)
 
   useEffect(() => {
     let cancelled = false
@@ -39,7 +62,6 @@ export default function LamBaiClientPage({ code }: { code: string }) {
           durationMinutes: data.durationMinutes || 15,
           questions: data.questions || [],
         })
-        setStartedAt(Date.now())
       })
       .catch((e) => {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e))
@@ -51,16 +73,16 @@ export default function LamBaiClientPage({ code }: { code: string }) {
   }, [code])
 
   useEffect(() => {
-    if (!exam || result) return
+    if (!exam || result || !examStarted) return
     const t = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(t)
-  }, [exam, result])
+  }, [exam, result, examStarted])
 
   const handleAnswer = (questionId: string, optionIndex: number) => {
     setAnswers((prev) => ({ ...prev, [questionId]: optionIndex }))
   }
 
-  const handleSubmit = async () => {
+  const handleSubmit = useCallback(async () => {
     if (!exam || submitting) return
     setSubmitting(true)
     try {
@@ -68,8 +90,8 @@ export default function LamBaiClientPage({ code }: { code: string }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          studentName: studentName.trim() || undefined,
-          studentCode: studentCode.trim() || undefined,
+          studentName: [studentName.trim(), className.trim()].filter(Boolean).join(' – ') || undefined,
+          studentCode: studentCard.trim() || undefined,
           answers,
         }),
       })
@@ -78,13 +100,19 @@ export default function LamBaiClientPage({ code }: { code: string }) {
         setError(data?.error ?? 'Nộp bài thất bại.')
         return
       }
-      setResult({ score: data.score ?? 0, maxScore: data.maxScore ?? 0 })
+      setResult({
+        score: data.score ?? 0,
+        maxScore: data.maxScore ?? 0,
+        grade10: data.grade10 ?? 0,
+        comment: data.comment ?? '',
+        shareHint: data.shareHint ?? '',
+      })
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
       setSubmitting(false)
     }
-  }
+  }, [exam, code, studentName, className, studentCard, answers, submitting])
 
   const elapsedMs = startedAt ? now - startedAt : 0
   const totalMs = exam ? exam.durationMinutes * 60 * 1000 : 0
@@ -93,13 +121,23 @@ export default function LamBaiClientPage({ code }: { code: string }) {
   const remainingSec = Math.floor((remainingMs % 60000) / 1000)
   const isLowTime = remainingMin < 2 && remainingMin * 60 + remainingSec <= 120
   const isTimeUp = remainingMs === 0
+  const gracePeriodMs = 60 * 1000
+  const timeUpElapsed = isTimeUp && startedAt ? now - (startedAt + totalMs) : 0
+  const shouldAutoSubmit = isTimeUp && timeUpElapsed >= gracePeriodMs
 
   useEffect(() => {
-    if (isTimeUp && exam && !submitting && !result && !autoSubmittedRef.current) {
+    if (isTimeUp && !bellPlayedRef.current) {
+      bellPlayedRef.current = true
+      playBell()
+    }
+  }, [isTimeUp])
+
+  useEffect(() => {
+    if (shouldAutoSubmit && exam && !submitting && !result && !autoSubmittedRef.current && studentCard.trim()) {
       autoSubmittedRef.current = true
       void handleSubmit()
     }
-  }, [isTimeUp, exam, submitting, result])
+  }, [shouldAutoSubmit, exam, submitting, result, studentCard, handleSubmit])
 
   if (loading) {
     return (
@@ -129,6 +167,21 @@ export default function LamBaiClientPage({ code }: { code: string }) {
 
   if (result) {
     const pct = result.maxScore > 0 ? Math.round((result.score / result.maxScore) * 100) : 0
+    const shareText = `${exam?.title ?? 'Bài thi'}: Điểm ${result.grade10}/10 (${result.score}/${result.maxScore} đúng - ${pct}%)`
+    const handleShare = () => {
+      if (navigator.share) {
+        navigator.share({
+          title: exam?.title ?? 'Kết quả bài thi',
+          text: shareText,
+          url: window.location.href,
+        }).then(() => { setShared(true); setTimeout(() => setShared(false), 2000) }).catch(() => {})
+      } else {
+        navigator.clipboard.writeText(shareText).then(() => {
+          setShared(true)
+          setTimeout(() => setShared(false), 2000)
+        })
+      }
+    }
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
         <Card className="max-w-md w-full border-emerald-200 dark:border-emerald-800">
@@ -139,10 +192,19 @@ export default function LamBaiClientPage({ code }: { code: string }) {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <p className="text-2xl font-bold">
-              {result.score}/{result.maxScore} ({pct}%)
+            <p className="text-3xl font-bold">
+              Điểm {result.grade10}/10
             </p>
-            <p className="text-sm text-muted-foreground">Cảm ơn bạn đã hoàn thành bài thi.</p>
+            <p className="text-sm text-muted-foreground">
+              {result.score}/{result.maxScore} câu đúng ({pct}%)
+            </p>
+            <p className="text-sm leading-relaxed">{result.comment}</p>
+            {result.shareHint && (
+              <Button variant="outline" size="sm" onClick={handleShare} className="w-full" disabled={shared}>
+                <Share2 className="h-4 w-4 mr-2" />
+                {shared ? 'Đã chia sẻ!' : result.shareHint}
+              </Button>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -150,6 +212,64 @@ export default function LamBaiClientPage({ code }: { code: string }) {
   }
 
   if (!exam) return null
+
+  if (!examStarted) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4 bg-muted/30">
+        <Card className="max-w-md w-full">
+          <CardHeader>
+            <CardTitle>{exam.title}</CardTitle>
+            <CardDescription>
+              Nhập thông tin và bấm Bắt đầu để làm bài. Đồng hồ chỉ chạy sau khi bấm Bắt đầu.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Họ tên</label>
+              <Input
+                placeholder="Nguyễn Văn A"
+                value={studentName}
+                onChange={(e) => setStudentName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Lớp</label>
+              <Input
+                placeholder="Ví dụ: 12A1"
+                value={className}
+                onChange={(e) => setClassName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Số thẻ học sinh *</label>
+              <Input
+                placeholder="Số thẻ học sinh"
+                value={studentCard}
+                onChange={(e) => setStudentCard(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">Bắt buộc – mỗi thí sinh chỉ được làm bài một lần.</p>
+            </div>
+            <Button
+              onClick={() => {
+                if (!studentCard.trim()) return
+                setExamStarted(true)
+                setStartedAt(Date.now())
+              }}
+              disabled={!studentCard.trim()}
+              className="w-full"
+            >
+              <Play className="h-4 w-4 mr-2" />
+              Bắt đầu bài kiểm tra
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  const canSelect = !isTimeUp
+  const graceRemaining = isTimeUp ? Math.max(0, gracePeriodMs - timeUpElapsed) : 0
+  const graceSec = Math.ceil(graceRemaining / 1000)
 
   return (
     <div className="min-h-screen bg-muted/30 pb-6">
@@ -162,30 +282,23 @@ export default function LamBaiClientPage({ code }: { code: string }) {
             }`}
           >
             <Clock className="h-5 w-5" />
-            {String(remainingMin).padStart(2, '0')}:{String(remainingSec).padStart(2, '0')}
+            {isTimeUp ? (
+              graceSec > 0 ? `Hết giờ! Gửi trong ${graceSec}s` : 'Đang gửi...'
+            ) : (
+              `${String(remainingMin).padStart(2, '0')}:${String(remainingSec).padStart(2, '0')}`
+            )}
           </div>
         </div>
       </div>
       <div className="max-w-2xl mx-auto px-4 pt-6 space-y-4">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Thông tin thí sinh (tùy chọn)</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col sm:flex-row gap-3">
-            <Input
-              placeholder="Họ tên"
-              value={studentName}
-              onChange={(e) => setStudentName(e.target.value)}
-              className="flex-1"
-            />
-            <Input
-              placeholder="Mã số / SBD"
-              value={studentCode}
-              onChange={(e) => setStudentCode(e.target.value)}
-              className="flex-1"
-            />
-          </CardContent>
-        </Card>
+        {isTimeUp && (
+          <Card className="border-amber-500/50 bg-amber-500/5">
+            <CardContent className="py-3 text-center">
+              <p className="font-medium text-amber-700 dark:text-amber-400">Hết giờ! Không thể chọn đáp án nữa. Bấm Gửi bài để nộp.</p>
+              {graceSec > 0 && <p className="text-sm text-muted-foreground mt-1">Tự động gửi sau {graceSec} giây nếu không bấm.</p>}
+            </CardContent>
+          </Card>
+        )}
 
         <div className="space-y-4">
           {exam.questions.map((q) => (
@@ -201,16 +314,17 @@ export default function LamBaiClientPage({ code }: { code: string }) {
                     <label
                       key={i}
                       htmlFor={`${q.id}-${i}`}
-                      className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors ${
-                        answers[q.id] === i ? 'bg-primary/10 border border-primary/30' : 'hover:bg-muted/50'
-                      }`}
+                      className={`flex items-center gap-2 p-2 rounded-lg transition-colors ${
+                        !canSelect ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:bg-muted/50'
+                      } ${answers[q.id] === i ? 'bg-primary/10 border border-primary/30' : ''}`}
                     >
                       <input
                         type="radio"
                         id={`${q.id}-${i}`}
                         name={q.id}
                         checked={answers[q.id] === i}
-                        onChange={() => handleAnswer(q.id, i)}
+                        onChange={() => canSelect && handleAnswer(q.id, i)}
+                        disabled={!canSelect}
                         className="h-4 w-4"
                       />
                       <span className={`flex-1 ${/[┌┐└┘│├┤┬┴┼─]/.test(latexToReadable(opt)) ? 'whitespace-pre-wrap block' : ''}`}>
@@ -237,7 +351,7 @@ export default function LamBaiClientPage({ code }: { code: string }) {
                   Đang nộp...
                 </>
               ) : (
-                'Nộp bài'
+                'Gửi bài'
               )}
             </Button>
           </CardContent>
