@@ -702,6 +702,176 @@ export async function listCurricula(opts?: { subjectId?: string; gradeLevelId?: 
   return { success: true, items }
 }
 
+/** Ghi nhận giáo viên đã mở giáo trình – dùng khi load/xem giáo trình trong tao-giao-trinh */
+export async function recordCurriculumOpen(curriculumId: string) {
+  const supabase = createClient()
+  const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+  if ('error' in authResult) return { error: authResult.error }
+  const { user } = authResult
+  if (!user?.id) return { success: true }
+
+  await supabase
+    .from('user_opened_curricula')
+    .upsert(
+      { user_id: user.id, curriculum_id: curriculumId, opened_at: new Date().toISOString() },
+      { onConflict: 'user_id,curriculum_id' }
+    )
+  return { success: true }
+}
+
+/** Danh sách giáo trình đã mở – hiển thị ở trên cùng khi chọn giáo trình cho bài thi */
+export async function listOpenedCurriculaForExam(opts?: { subjectId?: string; gradeLevelId?: string; limit?: number }) {
+  const supabase = createClient()
+  const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+  if ('error' in authResult) return { error: authResult.error }
+  const { user } = authResult
+  if (!user?.id) return { success: true, items: [] }
+
+  const hiddenIds: string[] = []
+  const { data: hidden } = await supabase
+    .from('user_hidden_curricula')
+    .select('curriculum_id')
+    .eq('user_id', user.id)
+  if (hidden) hiddenIds.push(...hidden.map((r) => r.curriculum_id))
+
+  let q = supabase
+    .from('user_opened_curricula')
+    .select('curriculum_id, opened_at')
+    .eq('user_id', user.id)
+    .order('opened_at', { ascending: false })
+    .limit(Math.min(50, opts?.limit ?? 30))
+
+  const { data: openedRows, error } = await q
+  if (error || !openedRows?.length) return { success: true, items: [] }
+
+  const curriculumIds = openedRows.map((r) => r.curriculum_id)
+  let qCurr = supabase
+    .from('worksheet_curricula')
+    .select('id, topic, subject_id, grade_level_id, textbook_set_id, textbook_volume, lesson_number, lesson_type_id, num_lessons, lesson_duration_minutes, created_at, user_id')
+    .in('id', curriculumIds)
+
+  if (opts?.subjectId) qCurr = qCurr.eq('subject_id', opts.subjectId)
+  if (opts?.gradeLevelId) qCurr = qCurr.eq('grade_level_id', opts.gradeLevelId)
+  if (hiddenIds.length > 0) qCurr = qCurr.not('id', 'in', `(${hiddenIds.join(',')})`)
+
+  const { data: curricula, error: currErr } = await qCurr
+  if (currErr || !curricula?.length) return { success: true, items: [] }
+
+  const openedMap = new Map(openedRows.map((r) => [r.curriculum_id, r.opened_at]))
+  const needEnrich = curricula.filter(
+    (c) => (c as { lesson_number?: number | null }).lesson_number != null && !(c.topic ?? '').includes(': ')
+  )
+  if (needEnrich.length > 0) {
+    const lessonOrders = [...new Set(needEnrich.map((c) => (c as { lesson_number?: number }).lesson_number!))]
+    const subjectIds = [...new Set(needEnrich.map((c) => c.subject_id))]
+    const gradeIds = [...new Set(needEnrich.map((c) => c.grade_level_id))]
+    const textbookIds = [...new Set(needEnrich.map((c) => (c as { textbook_set_id?: string }).textbook_set_id).filter(Boolean) as string[])]
+    if (subjectIds.length && gradeIds.length && textbookIds.length) {
+      const { data: lessons } = await supabase
+        .from('worksheet_textbook_lessons')
+        .select('subject_id, grade_level_id, textbook_set_id, textbook_volume, lesson_order, title')
+        .in('subject_id', subjectIds)
+        .in('grade_level_id', gradeIds)
+        .in('textbook_set_id', textbookIds)
+        .in('lesson_order', lessonOrders)
+      const titleMap = new Map<string, string>()
+      for (const l of lessons ?? []) {
+        const vol = l.textbook_volume ?? ''
+        const key = `${l.subject_id}|${l.grade_level_id}|${l.textbook_set_id}|${l.lesson_order}|${vol}`
+        if (!titleMap.has(key)) titleMap.set(key, l.title)
+      }
+      for (const c of curricula) {
+        const r = c as { lesson_number?: number | null; textbook_volume?: string | null; textbook_set_id?: string }
+        const num = r.lesson_number
+        if (num == null || (c.topic ?? '').includes(': ')) continue
+        const vol = r.textbook_volume ?? ''
+        const key = `${c.subject_id}|${c.grade_level_id}|${r.textbook_set_id ?? ''}|${num}|${vol}`
+        const title = titleMap.get(key)
+        if (title) (c as { topic: string }).topic = title
+      }
+    }
+  }
+
+  const ordered = curriculumIds
+    .map((id) => curricula.find((c) => c.id === id))
+    .filter(Boolean) as typeof curricula
+  const enriched = ordered.map((c) => ({
+    ...c,
+    isOwn: c.user_id === user?.id,
+    isOpened: true,
+  }))
+  return { success: true, items: enriched }
+}
+
+/** Danh sách giáo trình cho Tạo bài thi – lấy chung từ mọi giáo viên (RLS cho phép xem tất cả). */
+export async function listCurriculaForExam(opts?: { subjectId?: string; gradeLevelId?: string; limit?: number }) {
+  const supabase = createClient()
+  const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+  if ('error' in authResult) return { error: authResult.error }
+  const { user } = authResult
+
+  const hiddenIds: string[] = []
+  if (user?.id) {
+    const { data: hidden } = await supabase
+      .from('user_hidden_curricula')
+      .select('curriculum_id')
+      .eq('user_id', user.id)
+    if (hidden) hiddenIds.push(...hidden.map((r) => r.curriculum_id))
+  }
+
+  const limit = Math.min(100, opts?.limit ?? 100)
+
+  let q = supabase
+    .from('worksheet_curricula')
+    .select('id, topic, subject_id, grade_level_id, textbook_set_id, textbook_volume, lesson_number, lesson_type_id, num_lessons, lesson_duration_minutes, created_at, user_id')
+    .order('created_at', { ascending: false })
+    .limit(limit)
+
+  if (opts?.subjectId) q = q.eq('subject_id', opts.subjectId)
+  if (opts?.gradeLevelId) q = q.eq('grade_level_id', opts.gradeLevelId)
+  if (hiddenIds.length > 0) q = q.not('id', 'in', `(${hiddenIds.join(',')})`)
+
+  const { data, error } = await q
+  if (error) return { error: error.message }
+  const items = (data ?? []) as Array<{ id: string; topic: string; subject_id: string; grade_level_id: string; textbook_set_id?: string; textbook_volume?: string | null; lesson_number?: number | null; user_id?: string | null }>
+
+  const needEnrich = items.filter(
+    (c) => c.lesson_number != null && !(c.topic ?? '').includes(': ')
+  )
+  if (needEnrich.length > 0) {
+    const lessonOrders = [...new Set(needEnrich.map((c) => c.lesson_number!))]
+    const subjectIds = [...new Set(needEnrich.map((c) => c.subject_id))]
+    const gradeIds = [...new Set(needEnrich.map((c) => c.grade_level_id))]
+    const textbookIds = [...new Set(needEnrich.map((c) => c.textbook_set_id).filter(Boolean) as string[])]
+    if (subjectIds.length && gradeIds.length && textbookIds.length) {
+      const { data: lessons } = await supabase
+        .from('worksheet_textbook_lessons')
+        .select('subject_id, grade_level_id, textbook_set_id, textbook_volume, lesson_order, title')
+        .in('subject_id', subjectIds)
+        .in('grade_level_id', gradeIds)
+        .in('textbook_set_id', textbookIds)
+        .in('lesson_order', lessonOrders)
+      const titleMap = new Map<string, string>()
+      for (const l of lessons ?? []) {
+        const vol = l.textbook_volume ?? ''
+        const key = `${l.subject_id}|${l.grade_level_id}|${l.textbook_set_id}|${l.lesson_order}|${vol}`
+        if (!titleMap.has(key)) titleMap.set(key, l.title)
+      }
+      for (const c of items) {
+        const num = c.lesson_number
+        if (num == null || (c.topic ?? '').includes(': ')) continue
+        const vol = c.textbook_volume ?? ''
+        const key = `${c.subject_id}|${c.grade_level_id}|${c.textbook_set_id ?? ''}|${num}|${vol}`
+        const title = titleMap.get(key)
+        if (title) c.topic = title
+      }
+    }
+  }
+
+  const enriched = items.map((c) => ({ ...c, isOwn: c.user_id === user?.id }))
+  return { success: true, items: enriched }
+}
+
 /** Ẩn giáo trình khỏi danh sách của mình (soft delete) – dữ liệu vẫn lưu DB cho giáo viên khác */
 export async function deleteCurriculum(id: string) {
   const supabase = createClient()

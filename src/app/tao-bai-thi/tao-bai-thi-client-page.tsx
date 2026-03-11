@@ -6,10 +6,11 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
+import Link from 'next/link'
 import { FileQuestion, RefreshCw, QrCode, Copy, Link2, BookOpen, FileDown, FileText } from 'lucide-react'
 import QRCode from 'qrcode'
 import { SUBJECTS, GRADE_LEVELS, GRADE_LEVEL_GROUPS } from '../tao-giao-trinh/lib/curriculum-subjects'
-import { listCurricula } from '../tao-giao-trinh/actions'
+import { listCurriculaForExam, listOpenedCurriculaForExam } from '../tao-giao-trinh/actions'
 import { latexToReadable } from '../tao-giao-trinh/lib/latex-to-readable'
 import { exportWorksheetToPdf, exportWorksheetToWord } from '../tao-giao-trinh/lib/worksheet-export'
 
@@ -43,7 +44,9 @@ export default function TaoBaiThiClientPage() {
   const [title, setTitle] = useState('')
   const [difficulty, setDifficulty] = useState<string>('')
   const [selectedCurriculumIds, setSelectedCurriculumIds] = useState<Set<string>>(new Set())
-  const [curriculaList, setCurriculaList] = useState<Array<{ id: string; topic: string; subject_id: string; grade_level_id: string }>>([])
+  const [curriculaList, setCurriculaList] = useState<Array<{ id: string; topic: string; subject_id: string; grade_level_id: string; isOwn?: boolean }>>([])
+  const [openedCurriculaList, setOpenedCurriculaList] = useState<Array<{ id: string; topic: string; subject_id: string; grade_level_id: string; isOwn?: boolean }>>([])
+  const [curriculumSearch, setCurriculumSearch] = useState('')
   const [loading, setLoading] = useState(false)
   const [browseLoading, setBrowseLoading] = useState(false)
   const [result, setResult] = useState<{ code: string; examUrl: string; totalQuestions: number; durationMinutes: number; title: string } | null>(null)
@@ -62,12 +65,20 @@ export default function TaoBaiThiClientPage() {
 
   useEffect(() => {
     setBrowseLoading(true)
-    listCurricula({ subjectId, gradeLevelId, limit: 100 })
-      .then((res) => {
-        if (res && 'items' in res) setCurriculaList(res.items)
+    Promise.all([
+      listCurriculaForExam({ subjectId, gradeLevelId, limit: 100 }),
+      listOpenedCurriculaForExam({ subjectId, gradeLevelId, limit: 30 }),
+    ])
+      .then(([allRes, openedRes]) => {
+        if (allRes && 'items' in allRes) setCurriculaList(allRes.items)
         else setCurriculaList([])
+        if (openedRes && 'items' in openedRes) setOpenedCurriculaList(openedRes.items)
+        else setOpenedCurriculaList([])
       })
-      .catch(() => setCurriculaList([]))
+      .catch(() => {
+        setCurriculaList([])
+        setOpenedCurriculaList([])
+      })
       .finally(() => setBrowseLoading(false))
   }, [subjectId, gradeLevelId])
 
@@ -375,32 +386,85 @@ export default function TaoBaiThiClientPage() {
               <div className="space-y-2">
                 <label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
                   <BookOpen className="h-3.5 w-3.5" />
-                  {tr('Chọn giáo trình (để lấy câu bám sát bài)', 'Select curricula (to match questions to lessons)')}
+                  {tr('Chọn giáo trình (đã mở + của bạn + giáo viên khác)', 'Select curricula (opened + yours + other teachers)')}
                 </label>
                 {browseLoading ? (
                   <div className="flex items-center gap-2 py-2 text-muted-foreground text-sm">
                     <RefreshCw className="h-4 w-4 animate-spin" />
                     {tr('Đang tải...', 'Loading...')}
                   </div>
-                ) : curriculaList.length === 0 ? (
+                ) : curriculaList.length === 0 && openedCurriculaList.length === 0 ? (
                   <p className="text-xs text-muted-foreground py-2">
-                    {tr('Chưa có giáo trình. Tạo giáo trình trước, hoặc để trống để lấy câu hỏi chung.', 'No curricula. Create curriculum first, or leave empty for general questions.')}
+                    {tr('Chưa có giáo trình cho môn/lớp này. ', 'No curricula for this subject/grade. ')}
+                    <Link href="/tao-giao-trinh" className="text-primary hover:underline">
+                      {tr('Tạo giáo trình', 'Create curriculum')}
+                    </Link>
+                    {tr(' trước, hoặc để trống để lấy câu hỏi chung.', ' first, or leave empty for general questions.')}
                   </p>
                 ) : (
-                  <div className="max-h-32 overflow-y-auto space-y-1 rounded border p-2 bg-muted/30">
-                    {curriculaList.map((c) => (
-                      <label key={c.id} className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 rounded px-2 py-1">
-                        <input
-                          type="checkbox"
-                          checked={selectedCurriculumIds.has(c.id)}
-                          onChange={() => toggleCurriculum(c.id)}
-                          className="rounded"
-                        />
-                        <span className="text-sm truncate">{c.topic}</span>
-                        <span className="text-xs text-muted-foreground">{c.subject_id} · {c.grade_level_id}</span>
-                      </label>
-                    ))}
-                  </div>
+                  <>
+                    <Input
+                      placeholder={tr('Tìm giáo trình theo chủ đề...', 'Search curricula by topic...')}
+                      value={curriculumSearch}
+                      onChange={(e) => setCurriculumSearch(e.target.value)}
+                      className="text-sm h-8"
+                    />
+                    <div className="max-h-48 overflow-y-auto space-y-2 rounded border p-2 bg-muted/30">
+                      {(() => {
+                        const q = curriculumSearch.trim().toLowerCase()
+                        const filterFn = (c: { topic: string; subject_id: string; grade_level_id: string }) =>
+                          !q || c.topic.toLowerCase().includes(q) || c.subject_id.toLowerCase().includes(q) || c.grade_level_id.toLowerCase().includes(q)
+                        const openedFiltered = openedCurriculaList.filter(filterFn)
+                        const openedIds = new Set(openedFiltered.map((c) => c.id))
+                        const allFiltered = q ? curriculaList.filter(filterFn) : curriculaList
+                        const mine = allFiltered.filter((c) => c.isOwn && !openedIds.has(c.id))
+                        const others = allFiltered.filter((c) => !c.isOwn && !openedIds.has(c.id))
+                        return (
+                          <>
+                            {openedFiltered.length > 0 && (
+                              <div className="space-y-1">
+                                <p className="text-xs font-medium text-primary">{tr('Giáo trình đã mở', 'Recently opened curricula')}</p>
+                                {openedFiltered.map((c) => (
+                                  <label key={c.id} className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 rounded px-2 py-1">
+                                    <input type="checkbox" checked={selectedCurriculumIds.has(c.id)} onChange={() => toggleCurriculum(c.id)} className="rounded" />
+                                    <span className="text-sm truncate flex-1 min-w-0">{c.topic}</span>
+                                    <span className="text-xs text-muted-foreground shrink-0">{c.subject_id} · {c.grade_level_id}</span>
+                                  </label>
+                                ))}
+                              </div>
+                            )}
+                            {mine.length > 0 && (
+                              <div className="space-y-1">
+                                <p className="text-xs font-medium text-primary">{tr('Giáo trình của bạn', 'Your curricula')}</p>
+                                {mine.map((c) => (
+                                  <label key={c.id} className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 rounded px-2 py-1">
+                                    <input type="checkbox" checked={selectedCurriculumIds.has(c.id)} onChange={() => toggleCurriculum(c.id)} className="rounded" />
+                                    <span className="text-sm truncate flex-1 min-w-0">{c.topic}</span>
+                                    <span className="text-xs text-muted-foreground shrink-0">{c.subject_id} · {c.grade_level_id}</span>
+                                  </label>
+                                ))}
+                              </div>
+                            )}
+                            {others.length > 0 && (
+                              <div className="space-y-1">
+                                <p className="text-xs font-medium text-muted-foreground">{tr('Giáo trình giáo viên khác', 'Other teachers\' curricula')}</p>
+                                {others.map((c) => (
+                                  <label key={c.id} className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 rounded px-2 py-1">
+                                    <input type="checkbox" checked={selectedCurriculumIds.has(c.id)} onChange={() => toggleCurriculum(c.id)} className="rounded" />
+                                    <span className="text-sm truncate flex-1 min-w-0">{c.topic}</span>
+                                    <span className="text-xs text-muted-foreground shrink-0">{c.subject_id} · {c.grade_level_id}</span>
+                                  </label>
+                                ))}
+                              </div>
+                            )}
+                            {openedFiltered.length === 0 && mine.length === 0 && others.length === 0 && (
+                              <p className="text-xs text-muted-foreground py-2">{tr('Không tìm thấy giáo trình phù hợp.', 'No matching curricula.')}</p>
+                            )}
+                          </>
+                        )
+                      })()}
+                    </div>
+                  </>
                 )}
               </div>
 

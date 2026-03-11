@@ -17,7 +17,7 @@ import { NanoAISlideViewer } from './components/nano-ai-slide-viewer'
 import { SlideVersionDialog, type SlideVersionChoice } from './components/slide-version-dialog'
 import type { AISlideData } from './lib/curriculum-to-slides'
 import { SUBJECTS, GRADE_LEVELS, GRADE_LEVEL_GROUPS, TEXTBOOK_SETS } from './lib/curriculum-subjects'
-import { createCurriculum, createWorksheet, saveCurriculum, saveTextbookLessonFromImage, listCurricula, getCurriculumById, getWorksheetById, getWorksheetsByCurriculumId, deleteCurriculum, saveSlidesToCurriculum, getSlidesByCurriculumId, getOriginalSlides, getUserCustomizedSlides, saveOriginalSlidesIfNotExists, checkCurriculumExists } from './actions'
+import { createCurriculum, createWorksheet, saveCurriculum, saveTextbookLessonFromImage, listCurricula, getCurriculumById, getWorksheetById, getWorksheetsByCurriculumId, deleteCurriculum, saveSlidesToCurriculum, getSlidesByCurriculumId, getOriginalSlides, getUserCustomizedSlides, saveOriginalSlidesIfNotExists, checkCurriculumExists, recordCurriculumOpen } from './actions'
 
 type UiLocale = 'vi' | 'en' | 'zh' | 'ja' | 'ko'
 
@@ -592,6 +592,7 @@ export default function TaoGiaoTrinhClientPage() {
       const slidesRes = await getSlidesByCurriculumId(id)
       if (slidesRes?.success && slidesRes.slides) setCurriculumSlides(slidesRes.slides)
       else setCurriculumSlides(null)
+      void recordCurriculumOpen(id)
       toast({ title: tr('Đã tải giáo trình', 'Curriculum loaded', '已加载课程', 'カリキュラムを読み込み', '교육과정 로드됨'), duration: 2000 })
     }
   }
