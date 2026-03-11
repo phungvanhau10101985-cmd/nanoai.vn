@@ -629,7 +629,7 @@ export async function fetchTextbookLessonsByAI(_opts: {
   return { error: 'Mục lục không được tạo bằng AI. Vui lòng dùng dữ liệu có sẵn trong DB hoặc import từ nguồn chính thức.' }
 }
 
-/** Danh sách giáo trình đã lưu – loại trừ những giáo trình user đã ẩn (soft delete) */
+/** Danh sách giáo trình đã lưu – gồm: (1) giáo trình user tạo, (2) giáo trình user đã mở (kể cả của người khác). Loại trừ user đã ẩn. */
 export async function listCurricula(opts?: { subjectId?: string; gradeLevelId?: string; limit?: number }) {
   const supabase = createClient()
   const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập để xem danh sách giáo trình.')
@@ -645,20 +645,59 @@ export async function listCurricula(opts?: { subjectId?: string; gradeLevelId?: 
     if (hidden) hiddenIds.push(...hidden.map((r) => r.curriculum_id))
   }
 
-  let q = supabase
+  const limit = Math.min(200, opts?.limit ?? 200)
+
+  // 1. Giáo trình do user tạo
+  let qOwn = supabase
     .from('worksheet_curricula')
     .select('id, topic, subject_id, grade_level_id, textbook_set_id, textbook_volume, lesson_number, lesson_type_id, num_lessons, lesson_duration_minutes, created_at')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
-    .limit(Math.min(100, opts?.limit ?? 50))
+    .limit(limit)
 
-  if (opts?.subjectId) q = q.eq('subject_id', opts.subjectId)
-  if (opts?.gradeLevelId) q = q.eq('grade_level_id', opts.gradeLevelId)
-  if (hiddenIds.length > 0) q = q.not('id', 'in', `(${hiddenIds.join(',')})`)
+  if (opts?.subjectId) qOwn = qOwn.eq('subject_id', opts.subjectId)
+  if (opts?.gradeLevelId) qOwn = qOwn.eq('grade_level_id', opts.gradeLevelId)
+  if (hiddenIds.length > 0) qOwn = qOwn.not('id', 'in', `(${hiddenIds.join(',')})`)
 
-  const { data, error } = await q
+  const { data: ownData, error } = await qOwn
   if (error) return { error: error.message }
-  const items = data ?? []
+  const ownItems = (ownData ?? []) as Array<{ id: string; topic: string; subject_id: string; grade_level_id: string; textbook_set_id?: string; textbook_volume?: string | null; lesson_number?: number | null; lesson_type_id?: string; num_lessons?: number; lesson_duration_minutes?: number; created_at: string }>
+
+  // 2. Giáo trình user đã mở (từ user_opened_curricula) – kể cả của người khác
+  const ownIds = new Set(ownItems.map((c) => c.id))
+  let openedItems: typeof ownItems = []
+  if (user?.id) {
+    const { data: openedRows } = await supabase
+      .from('user_opened_curricula')
+      .select('curriculum_id, opened_at')
+      .eq('user_id', user.id)
+      .order('opened_at', { ascending: false })
+      .limit(limit)
+
+    if (openedRows?.length) {
+      const openedIds = openedRows.map((r) => r.curriculum_id).filter((id) => !ownIds.has(id) && !hiddenIds.includes(id))
+      if (openedIds.length > 0) {
+        let qOpened = supabase
+          .from('worksheet_curricula')
+          .select('id, topic, subject_id, grade_level_id, textbook_set_id, textbook_volume, lesson_number, lesson_type_id, num_lessons, lesson_duration_minutes, created_at')
+          .in('id', openedIds)
+
+        if (opts?.subjectId) qOpened = qOpened.eq('subject_id', opts.subjectId)
+        if (opts?.gradeLevelId) qOpened = qOpened.eq('grade_level_id', opts.gradeLevelId)
+
+        const { data: openedData } = await qOpened
+        openedItems = (openedData ?? []) as typeof ownItems
+        const openedOrder = new Map(openedRows.map((r) => [r.curriculum_id, r.opened_at]))
+        openedItems.sort((a, b) => {
+          const ta = openedOrder.get(a.id) ?? ''
+          const tb = openedOrder.get(b.id) ?? ''
+          return tb.localeCompare(ta)
+        })
+      }
+    }
+  }
+
+  const items = [...openedItems, ...ownItems]
 
   // Bổ sung tên bài từ mục lục SGK cho giáo trình có lesson_number nhưng topic chỉ là "Bài X"
   const needEnrich = items.filter(
