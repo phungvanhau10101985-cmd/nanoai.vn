@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Loader2, Download, FileJson, FileSpreadsheet } from 'lucide-react'
+import { Loader2, Download, FileJson, FileSpreadsheet, Search } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 
 function tr(locale: string, vi: string, en: string, zh: string, ja: string, ko: string) {
@@ -20,6 +20,8 @@ export function ExportDataClient({ locale = 'vi' }: { locale?: string }) {
   const [format, setFormat] = useState<'json' | 'xlsx'>('json')
   const [loading, setLoading] = useState(false)
   const [loadingTables, setLoadingTables] = useState(true)
+  const [longCells, setLongCells] = useState<Array<{ table: string; id: string; column: string; length: number; preview: string }> | null>(null)
+  const [checkingLong, setCheckingLong] = useState(false)
   const { toast } = useToast()
 
   useEffect(() => {
@@ -48,6 +50,25 @@ export function ExportDataClient({ locale = 'vi' }: { locale?: string }) {
     })
   }
 
+  async function handleCheckLongCells() {
+    setCheckingLong(true)
+    setLongCells(null)
+    try {
+      const res = await fetch('/api/admin/export-data/long-cells')
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error || 'Lỗi kiểm tra')
+      setLongCells(data.violations ?? [])
+      toast({
+        title: data.summary,
+        variant: data.violations?.length ? 'destructive' : 'default',
+      })
+    } catch (e) {
+      toast({ title: e instanceof Error ? e.message : 'Lỗi kiểm tra', variant: 'destructive' })
+    } finally {
+      setCheckingLong(false)
+    }
+  }
+
   async function handleExport() {
     if (selected.size === 0) {
       toast({ title: 'Chọn ít nhất một bảng', variant: 'destructive' })
@@ -55,11 +76,15 @@ export function ExportDataClient({ locale = 'vi' }: { locale?: string }) {
     }
     setLoading(true)
     try {
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 120000)
       const res = await fetch('/api/admin/export-data', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tables: [...selected], format }),
+        signal: controller.signal,
       })
+      clearTimeout(timeout)
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
         throw new Error(err?.error || 'Lỗi xuất dữ liệu')
@@ -77,9 +102,10 @@ export function ExportDataClient({ locale = 'vi' }: { locale?: string }) {
         duration: 2000,
       })
     } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Lỗi xuất dữ liệu'
       toast({
         title: 'Lỗi xuất dữ liệu',
-        description: e instanceof Error ? e.message : 'Lỗi xuất dữ liệu',
+        description: msg.includes('abort') ? 'Quá thời gian chờ. Thử xuất ít bảng hơn.' : msg,
         variant: 'destructive',
       })
     } finally {
@@ -99,33 +125,6 @@ export function ExportDataClient({ locale = 'vi' }: { locale?: string }) {
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>{tr(locale, 'Định dạng xuất', 'Export format', '导出格式', 'エクスポート形式', '내보내기 형식')}</CardTitle>
-          <CardDescription>
-            {tr(locale, 'JSON: backup/restore, giữ nguyên kiểu dữ liệu. Excel: mở Excel/Google Sheets, xem dễ.', 'JSON: backup/restore, preserves types. Excel: open in Excel/Sheets.', 'JSON: 备份/恢复，保留类型。Excel: 在 Excel/Sheets 中打开。', 'JSON: バックアップ/復元向け。Excel: Excel/Sheetsで開く。', 'JSON: 백업/복원. Excel: Excel/Sheets에서 열기.')}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex gap-4">
-          <Button
-            variant={format === 'json' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setFormat('json')}
-          >
-            <FileJson className="mr-2 h-4 w-4" />
-            JSON
-          </Button>
-          <Button
-            variant={format === 'xlsx' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setFormat('xlsx')}
-          >
-            <FileSpreadsheet className="mr-2 h-4 w-4" />
-            Excel
-          </Button>
-        </CardContent>
-      </Card>
-
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -163,23 +162,76 @@ export function ExportDataClient({ locale = 'vi' }: { locale?: string }) {
         </CardContent>
       </Card>
 
-      <Button
-        size="lg"
-        onClick={handleExport}
-        disabled={loading || selected.size === 0}
-      >
-        {loading ? (
-          <>
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            {tr(locale, 'Đang xuất...', 'Exporting...', '导出中...', 'エクスポート中...', '내보내는 중...')}
-          </>
-        ) : (
-          <>
-            <Download className="mr-2 h-4 w-4" />
-            {tr(locale, `Xuất ${selected.size} bảng`, `Export ${selected.size} tables`, `导出 ${selected.size} 表`, `${selected.size} テーブルをエクスポート`, `${selected.size} 테이블 내보내기`)} ({format.toUpperCase()})
-          </>
-        )}
-      </Button>
+      <Card>
+        <CardHeader>
+          <CardTitle>{tr(locale, 'Kiểm tra ô quá dài', 'Check long cells', '检查超长单元格', '長いセルをチェック', '긴 셀 확인')}</CardTitle>
+          <CardDescription>
+            {tr(locale, 'Excel giới hạn 32.767 ký tự/ô. Bấm để tìm ô vượt giới hạn (bảng worksheet_official_questions).', 'Excel limits 32,767 chars/cell. Click to find violations in worksheet_official_questions.', 'Excel 每单元格限制 32,767 字符。点击查找 worksheet_official_questions 中的违规。', 'Excelは1セル32,767文字まで。worksheet_official_questionsの違反を検索。', 'Excel 셀당 32,767자 제한. worksheet_official_questions 위반 검색.')}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Button variant="outline" onClick={handleCheckLongCells} disabled={checkingLong}>
+            {checkingLong ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
+            {tr(locale, 'Tìm ô vượt giới hạn', 'Find cells over limit', '查找超限单元格', '制限超過セルを検索', '제한 초과 셀 찾기')}
+          </Button>
+          {longCells !== null && (
+            <div className="rounded-md border p-3 text-sm">
+              {longCells.length === 0 ? (
+                <p className="text-muted-foreground">{tr(locale, 'Không có ô nào vượt 32.767 ký tự.', 'No cells exceed 32,767 characters.', '没有单元格超过 32,767 字符。', '32,767文字を超えるセルはありません。', '32,767자를 초과하는 셀이 없습니다.')}</p>
+              ) : (
+                <ul className="space-y-2">
+                  {longCells.map((v, i) => (
+                    <li key={i} className="border-b pb-2 last:border-0">
+                      <span className="font-mono text-amber-600">{v.table}</span> id={v.id.slice(0, 8)}… cột <strong>{v.column}</strong>: {v.length.toLocaleString()} ký tự
+                      <div className="mt-1 truncate text-muted-foreground">{v.preview}</div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="text-sm text-muted-foreground">
+          {tr(locale, 'Định dạng:', 'Format:', '格式:', '形式:', '형식:')}
+        </span>
+        <Button
+          variant={format === 'json' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setFormat('json')}
+        >
+          <FileJson className="mr-2 h-4 w-4" />
+          JSON
+        </Button>
+        <Button
+          variant={format === 'xlsx' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setFormat('xlsx')}
+        >
+          <FileSpreadsheet className="mr-2 h-4 w-4" />
+          Excel
+        </Button>
+        <Button
+          size="lg"
+          onClick={handleExport}
+          disabled={loading || selected.size === 0}
+          className="ml-2"
+        >
+          {loading ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              {tr(locale, 'Đang xuất...', 'Exporting...', '导出中...', 'エクスポート中...', '내보내는 중...')}
+            </>
+          ) : (
+            <>
+              <Download className="mr-2 h-4 w-4" />
+              {tr(locale, `Xuất ${selected.size} bảng`, `Export ${selected.size} tables`, `导出 ${selected.size} 表`, `${selected.size} テーブルをエクスポート`, `${selected.size} 테이블 내보내기`)} ({format.toUpperCase()})
+            </>
+          )}
+        </Button>
+      </div>
     </div>
   )
 }

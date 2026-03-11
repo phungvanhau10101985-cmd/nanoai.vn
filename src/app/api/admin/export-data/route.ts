@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+
+export const maxDuration = 120
 import { getUserForAction } from '@/lib/auth'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import * as XLSX from 'xlsx'
@@ -64,20 +66,34 @@ export const PUBLIC_TABLES = [
   'language_coach_live_lesson_starts',
 ] as const
 
+const EXCEL_MAX_CELL = 32767
+
+function truncateForExcel(s: string): string {
+  if (s.length <= EXCEL_MAX_CELL) return s
+  return s.slice(0, EXCEL_MAX_CELL - 3) + '...'
+}
+
 /** Chuyển options (mảng đáp án) và các jsonb/array thành chuỗi dễ đọc trong Excel */
 function flattenRowForExcel(row: Record<string, unknown>): Record<string, unknown> {
+  if (row._error) return row
   const out: Record<string, unknown> = {}
   for (const [key, val] of Object.entries(row)) {
-    if (Array.isArray(val)) {
-      if (key === 'options' && val.every((x) => typeof x === 'string')) {
-        out[key] = (val as string[]).map((s, i) => `${String.fromCharCode(65 + i)}. ${s}`).join(' | ')
+    try {
+      let str: string
+      if (Array.isArray(val)) {
+        if (key === 'options' && val.every((x) => typeof x === 'string')) {
+          str = (val as string[]).map((s, i) => `${String.fromCharCode(65 + i)}. ${s}`).join(' | ')
+        } else {
+          str = val.map((v) => (typeof v === 'object' && v !== null ? JSON.stringify(v) : String(v))).join(' | ')
+        }
+      } else if (val !== null && typeof val === 'object') {
+        str = JSON.stringify(val)
       } else {
-        out[key] = val.map((v) => (typeof v === 'object' && v !== null ? JSON.stringify(v) : String(v))).join(' | ')
+        str = val == null ? '' : String(val)
       }
-    } else if (val !== null && typeof val === 'object') {
-      out[key] = JSON.stringify(val)
-    } else {
-      out[key] = val
+      out[key] = truncateForExcel(str)
+    } catch {
+      out[key] = truncateForExcel(String(val ?? ''))
     }
   }
   return out
@@ -168,7 +184,8 @@ export async function POST(req: NextRequest) {
       },
     })
   } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
     console.error('[export-data]', e)
-    return NextResponse.json({ error: 'Lỗi xuất dữ liệu.' }, { status: 500 })
+    return NextResponse.json({ error: msg || 'Lỗi xuất dữ liệu.' }, { status: 500 })
   }
 }
