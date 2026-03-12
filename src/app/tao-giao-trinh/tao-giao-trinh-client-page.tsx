@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -12,8 +12,7 @@ import Link from 'next/link'
 import QRCode from 'qrcode'
 import { exportWorksheetToPdf, exportWorksheetToWord } from './lib/worksheet-export'
 import { latexToReadable } from './lib/latex-to-readable'
-import { curriculumToSlidesMarkdown } from './lib/curriculum-to-slides'
-import { NanoAISlideViewer } from './components/nano-ai-slide-viewer'
+import { curriculumToSlidesMarkdown, parseCurriculumToSlides, parseContentToBlocks } from './lib/curriculum-to-slides'
 import { SlideVersionDialog, type SlideVersionChoice } from './components/slide-version-dialog'
 import type { AISlideData } from './lib/curriculum-to-slides'
 import { SUBJECTS, GRADE_LEVELS, GRADE_LEVEL_GROUPS, TEXTBOOK_SETS } from './lib/curriculum-subjects'
@@ -65,7 +64,6 @@ export default function TaoGiaoTrinhClientPage() {
   const [browseLoading, setBrowseLoading] = useState(false)
   const [browseSubjectFilter, setBrowseSubjectFilter] = useState<string>('')
   const [browseGradeFilter, setBrowseGradeFilter] = useState<string>('')
-  const [showSlideViewer, setShowSlideViewer] = useState(false)
   const [aiSlides, setAiSlides] = useState<AISlideData[] | null>(null)
   const [curriculumSlides, setCurriculumSlides] = useState<AISlideData[] | null>(null)
   const [slideAnalysisLoading, setSlideAnalysisLoading] = useState(false)
@@ -396,6 +394,110 @@ export default function TaoGiaoTrinhClientPage() {
     toast({ title: tr('Đã tải xuống', 'Downloaded', '已下载', 'ダウンロードしました', '다운로드됨'), duration: 2000 })
   }
 
+  const openGiaoVienWindow = useCallback(
+    (slidesToUse: AISlideData[] | null, mode: SlideVersionChoice | null = null) => {
+      const slides =
+        slidesToUse && slidesToUse.length > 0
+          ? slidesToUse.map((s) => ({
+              title: s.title,
+              blocks: s.blocks ?? [],
+              teacherNotes: '',
+              imageUrl: s.imageUrl,
+              visualEmbed: s.visualEmbed,
+              visualLayout: s.visualLayout,
+              visualCells: s.visualCells,
+            }))
+          : parseCurriculumToSlides(curriculumMarkdown).map((s) => ({
+              title: s.title,
+              blocks: parseContentToBlocks(s.content ?? ''),
+              teacherNotes: '',
+            }))
+      const sw = typeof screen !== 'undefined' ? screen.width : 1920
+      const sh = typeof screen !== 'undefined' ? screen.height : 1080
+      const w = window.open(
+        '/tao-giao-trinh/giao-vien?t=' + Date.now(),
+        'giao-vien-' + Date.now(),
+        `width=${sw},height=${sh},scrollbars=yes,left=0,top=0`
+      )
+      if (w) {
+        const send = () => {
+          try {
+            if (!w.closed) {
+              w.postMessage(
+                {
+                  type: 'curriculum-data',
+                  content: curriculumMarkdown,
+                  topic: displayTopic,
+                  currentIndex: 0,
+                  curriculumId: curriculumId ?? null,
+                  slideMode: mode === 'personal' ? 'personal' : mode === 'shared' ? 'shared' : mode === 'original' ? 'original' : null,
+                  personalViewSubMode: 'current',
+                  hasOriginalSlides: !!(originalSlides?.length || sharedSlides?.length),
+                  slides,
+                  teacherTimerSeconds: 0,
+                  teacherTimerRunning: false,
+                },
+                window.location.origin
+              )
+            }
+          } catch {
+            /* ignore */
+          }
+        }
+        setTimeout(send, 200)
+        setTimeout(send, 700)
+      }
+    },
+    [curriculumMarkdown, displayTopic, curriculumId, originalSlides, sharedSlides]
+  )
+
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      if (e.origin !== window.location.origin || e.data?.type !== 'request-curriculum') return
+      const target = e.source as Window | null
+      if (!target) return
+      const slidesToUse = aiSlides ?? curriculumSlides ?? null
+      const slides =
+        slidesToUse && slidesToUse.length > 0
+          ? slidesToUse.map((s) => ({
+              title: s.title,
+              blocks: s.blocks ?? [],
+              teacherNotes: '',
+              imageUrl: s.imageUrl,
+              visualEmbed: s.visualEmbed,
+              visualLayout: s.visualLayout,
+              visualCells: s.visualCells,
+            }))
+          : parseCurriculumToSlides(curriculumMarkdown).map((s) => ({
+              title: s.title,
+              blocks: parseContentToBlocks(s.content ?? ''),
+              teacherNotes: '',
+            }))
+      try {
+        target.postMessage(
+          {
+            type: 'curriculum-data',
+            content: curriculumMarkdown,
+            topic: displayTopic,
+            currentIndex: 0,
+            curriculumId: curriculumId ?? null,
+            slideMode: slideVersionChoice ?? null,
+            personalViewSubMode: 'current',
+            hasOriginalSlides: !!(originalSlides?.length || sharedSlides?.length),
+            slides,
+            teacherTimerSeconds: 0,
+            teacherTimerRunning: false,
+          },
+          window.location.origin
+        )
+      } catch {
+        /* ignore */
+      }
+    }
+    window.addEventListener('message', handler)
+    return () => window.removeEventListener('message', handler)
+  }, [curriculumMarkdown, displayTopic, curriculumId, aiSlides, curriculumSlides, slideVersionChoice, originalSlides, sharedSlides])
+
   const handleOpenSlides = async () => {
     if (!curriculumMarkdown.trim()) return
     if (curriculumId) {
@@ -417,8 +519,8 @@ export default function TaoGiaoTrinhClientPage() {
     }
     if (curriculumSlides && curriculumSlides.length > 0 && !curriculumId) {
       setAiSlides(curriculumSlides)
-      setShowSlideViewer(true)
       setSlideVersionChoice(null)
+      openGiaoVienWindow(curriculumSlides, null)
       return
     }
     setSlideAnalysisLoading(true)
@@ -461,13 +563,13 @@ export default function TaoGiaoTrinhClientPage() {
           setShowSlideVersionDialog(true)
         } else {
           setAiSlides(slides)
-          setShowSlideViewer(true)
           setSlideVersionChoice(null)
+          openGiaoVienWindow(slides, null)
         }
       } else {
         setAiSlides(null)
-        setShowSlideViewer(true)
         setSlideVersionChoice(null)
+        openGiaoVienWindow(null, null)
         if (!res.ok) {
           toast({
             title: tr('Tạo nội dung giảng thất bại', 'Teaching content generation failed', '生成教学内容失败', '授業内容生成失敗', '수업 내용 생성 실패'),
@@ -479,8 +581,8 @@ export default function TaoGiaoTrinhClientPage() {
     } catch (err) {
       console.error('[curriculum-analyze-slides] Fetch lỗi:', err)
       setAiSlides(null)
-      setShowSlideViewer(true)
       setSlideVersionChoice(null)
+      openGiaoVienWindow(null, null)
       toast({
         title: tr('Lỗi kết nối', 'Connection error', '连接错误', '接続エラー', '연결 오류'),
         description: err instanceof Error ? err.message : tr('Dùng nội dung parse từ Markdown.', 'Using Markdown parsing.', '使用Markdown解析。', 'Markdown解析を使用。', 'Markdown 파싱 사용.'),
@@ -493,14 +595,14 @@ export default function TaoGiaoTrinhClientPage() {
 
   const handleSlideVersionChoose = (choice: SlideVersionChoice) => {
     setSlideVersionChoice(choice)
-    if (choice === 'original') {
-      setAiSlides(originalSlides ?? sharedSlides ?? [])
-    } else if (choice === 'shared') {
-      setAiSlides(sharedSlides ?? originalSlides ?? [])
-    } else {
-      setAiSlides(personalSlides ?? [])
-    }
-    setShowSlideViewer(true)
+    const slides =
+      choice === 'original'
+        ? originalSlides ?? sharedSlides ?? []
+        : choice === 'shared'
+          ? sharedSlides ?? originalSlides ?? []
+          : personalSlides ?? []
+    setAiSlides(slides)
+    openGiaoVienWindow(slides.length > 0 ? slides : null, choice)
   }
 
   const handleDownloadSlides = () => {
@@ -525,7 +627,6 @@ export default function TaoGiaoTrinhClientPage() {
     setCurriculumWorksheets([])
     setCurriculumSlides(null)
     setAiSlides(null)
-    setShowSlideViewer(false)
     setLessonImages([])
     if (lessonImageInputRef.current) lessonImageInputRef.current.value = ''
   }
@@ -756,32 +857,6 @@ export default function TaoGiaoTrinhClientPage() {
         onChoose={handleSlideVersionChoose}
         tr={tr}
       />
-      {showSlideViewer && curriculumMarkdown && (
-        <NanoAISlideViewer
-          curriculumMarkdown={curriculumMarkdown}
-          topic={displayTopic}
-          onClose={() => { setShowSlideViewer(false); setAiSlides(null); setSlideVersionChoice(null) }}
-          aiSlides={aiSlides}
-          curriculumId={curriculumId}
-          subjectId={subjectId}
-          gradeLevelId={gradeLevelId}
-          tr={tr}
-          slideMode={slideVersionChoice ?? undefined}
-          originalSlides={originalSlides ?? undefined}
-          personalSlides={personalSlides ?? undefined}
-          sharedSlides={sharedSlides ?? undefined}
-          onSlidesSaved={async () => {
-            if (curriculumId) {
-              const [sharedRes, personalRes] = await Promise.all([
-                getSlidesByCurriculumId(curriculumId),
-                getUserCustomizedSlides(curriculumId),
-              ])
-              if (sharedRes?.success && sharedRes.slides) setSharedSlides(sharedRes.slides)
-              if (personalRes?.success && personalRes.slides) setPersonalSlides(personalRes.slides)
-            }
-          }}
-        />
-      )}
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-foreground">

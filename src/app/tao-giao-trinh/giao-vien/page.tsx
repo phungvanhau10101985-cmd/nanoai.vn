@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useEffect, useState, useCallback, useRef } from 'react'
-import { Timer, Play, Pause, RotateCcw, ChevronLeft, ChevronRight, LayoutGrid, Square, Sparkles, Edit3, Plus, Save, FileText, FileEdit, History, BarChart2, Maximize2, X, ClipboardList, Flag } from 'lucide-react'
+import { Timer, Play, Pause, RotateCcw, ChevronLeft, ChevronRight, LayoutGrid, Square, Sparkles, Edit3, Plus, Save, FileText, FileEdit, History, BarChart2, Maximize2, X, ClipboardList, Flag, Presentation, PenLine, Settings2, MoreVertical, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { canSplitBlockAtQuiz, splitContentWithEmbeds, parseQuizData, parseContentEmbeds, ContentEmbed } from '../components/content-embed'
 import { parseContentToBlocks } from '../lib/curriculum-to-slides'
@@ -9,12 +9,15 @@ import { SlideProposalDialog } from '../components/slide-proposal-dialog'
 import { SlideProposalVote } from '../components/slide-proposal-vote'
 import { PersonalHistorySheet } from '../components/personal-history-sheet'
 import { SlideEditHistorySheet } from '../components/slide-edit-history-sheet'
-import { EmbedInsertDialog } from '../components/embed-insert-dialog'
+import { EmbedInsertDialog, type EmbedPlacement } from '../components/embed-insert-dialog'
+import { PresentationControlBar } from '../components/presentation-control-bar'
 import { QuizPopupDialog, extractQuizFromSlide } from '../components/quiz-popup-dialog'
-import { getSlideProposalsForCurriculum, resetPersonalToOriginal } from '../actions'
+import { getSlideProposalsForCurriculum, resetPersonalToOriginal, saveSlidesToCurriculum, saveUserCustomizedSlides } from '../actions'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 
 type VisualCell = { visualEmbed?: string; imageUrl?: string }
 type SlideItem = {
@@ -26,6 +29,30 @@ type SlideItem = {
   visualEmbed?: string
   visualLayout?: 1 | 2 | 4
   visualCells?: VisualCell[]
+}
+
+const DARK_GRADIENTS = [
+  'linear-gradient(160deg, #1e3a5f 0%, #0f172a 50%)',
+  'linear-gradient(160deg, #312e81 0%, #1e1b4b 50%)',
+  'linear-gradient(160deg, #1e3a5f 0%, #0f172a 50%)',
+  'linear-gradient(160deg, #1e3a5f 0%, #0c4a6e 50%)',
+]
+const QUIZ_DIFFICULTIES = ['easy', 'medium', 'hard'] as const
+
+/** Vùng ảnh thực sự hiển thị (object-contain) – dùng tâm ảnh + tỷ lệ để tính chuột ảo */
+function getVisibleImageBounds(img: HTMLImageElement): { left: number; top: number; width: number; height: number } {
+  const rect = img.getBoundingClientRect()
+  const nw = img.naturalWidth || rect.width
+  const nh = img.naturalHeight || rect.height
+  if (nw <= 0 || nh <= 0) return { left: rect.left, top: rect.top, width: rect.width, height: rect.height }
+  const cw = rect.width
+  const ch = rect.height
+  const scale = Math.min(cw / nw, ch / nh)
+  const dw = nw * scale
+  const dh = nh * scale
+  const ox = (cw - dw) / 2
+  const oy = (ch - dh) / 2
+  return { left: rect.left + ox, top: rect.top + oy, width: dw, height: dh }
 }
 
 function getVisualCells(slide: SlideItem): { layout: 1 | 2 | 4; cells: VisualCell[] } {
@@ -56,7 +83,7 @@ function getWebLocaleFromCookie(): UiLocale {
 }
 
 function getQuizCount(blocks: SlideItem['blocks']): number {
-  return (blocks ?? []).reduce((acc, b) => acc + (b.content?.match(/\[quiz:/g)?.length ?? 0), 0)
+  return (Array.isArray(blocks) ? blocks : []).reduce((acc, b) => acc + (b.content?.match(/\[quiz:/g)?.length ?? 0), 0)
 }
 
 /** Tách giáo trình thành các section theo ## hoặc ### */
@@ -75,6 +102,7 @@ function normalizeForMatch(s: string): string {
 }
 
 const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+const asArray = <T,>(value: T[] | null | undefined): T[] => (Array.isArray(value) ? value : [])
 
 /** Tìm các đoạn khớp trong section – trả về [start, end) trong text gốc, dùng regex linh hoạt khoảng trắng */
 function getMatchRangesInSection(section: string, slideTexts: string[]): Array<[number, number]> {
@@ -119,7 +147,7 @@ function getSectionIndexForSlide(sections: string[], slides: SlideItem[], curren
   const slide = slides[currentIndex]
   if (!slide) return Math.min(currentIndex, Math.max(0, sections.length - 1))
 
-  const blocks = slide.blocks ?? (slide.content ? parseContentToBlocks(slide.content) : [])
+  const blocks = Array.isArray(slide.blocks) && slide.blocks.length > 0 ? slide.blocks : (slide.content ? parseContentToBlocks(slide.content) : [])
   const slideTexts = blocks.length > 0
     ? blocks.map((b) => (b?.content ?? '').trim()).filter(Boolean)
     : slide.content
@@ -210,10 +238,33 @@ export default function CurriculumViewPage() {
   const [embedDialogOpen, setEmbedDialogOpen] = useState(false)
   const [leftPanelMode, setLeftPanelMode] = useState<'curriculum' | 'slide' | 'visual'>('curriculum')
   const [visualFullscreenOpen, setVisualFullscreenOpen] = useState(false)
+  const [teacherExpandedCellIndex, setTeacherExpandedCellIndex] = useState<number | null>(null)
   const [quizPopupOpen, setQuizPopupOpen] = useState(false)
   const prevSlideModeRef = useRef<string | null>(null)
+  const studentViewWindowRef = useRef<Window | null>(null)
+  const [remoteTeacherWritingMode, setRemoteTeacherWritingMode] = useState(false)
+  const [remoteTeacherWritingSpeedMs, setRemoteTeacherWritingSpeedMs] = useState(80)
+  const [remoteAutoPlay, setRemoteAutoPlay] = useState(false)
+  const [remoteAutoPlayIntervalMs, setRemoteAutoPlayIntervalMs] = useState(5000)
+  const pointerThrottleRef = useRef(0)
+  const syncSeqRef = useRef(1)
+  const syncChannelRef = useRef<BroadcastChannel | null>(null)
   const sectionRefs = useRef<(HTMLDivElement | null)[]>([])
   const firstMatchRef = useRef<HTMLElement | null>(null)
+  const teacherVisualFrameRef = useRef<HTMLDivElement | null>(null)
+  const [layoutWidth, setLayoutWidth] = useState(1280)
+  const [viewportW, setViewportW] = useState(1280)
+  useEffect(() => {
+    const sync = () => {
+      const w = window.innerWidth
+      setViewportW(w)
+      setLayoutWidth((prev) => Math.max(prev, Math.max(1280, w)))
+    }
+    sync()
+    window.addEventListener('resize', sync)
+    return () => window.removeEventListener('resize', sync)
+  }, [])
+  const clipLeft = viewportW < layoutWidth
 
   const tr = (vi: string, en: string, zh: string, ja: string, ko: string) => {
     if (uiLocale === 'en') return en
@@ -234,31 +285,559 @@ export default function CurriculumViewPage() {
   }, [])
 
   const sendTeacherTimer = useCallback((action: 'teacher-timer-start' | 'teacher-timer-stop' | 'teacher-timer-reset') => {
+    if (action === 'teacher-timer-start') setTeacherTimerRunning(true)
+    else if (action === 'teacher-timer-stop') setTeacherTimerRunning(false)
+    else if (action === 'teacher-timer-reset') { setTeacherTimerRunning(false); setTeacherTimerSeconds(0) }
     if (window.opener) window.opener.postMessage({ type: action }, window.location.origin)
+    try {
+      const w = studentViewWindowRef.current
+      if (w && !w.closed) w.postMessage({ type: action }, window.location.origin)
+    } catch {
+      /* ignore */
+    }
   }, [])
 
+  useEffect(() => {
+    if (!teacherTimerRunning) return
+    const id = window.setInterval(() => setTeacherTimerSeconds((s) => s + 1), 1000)
+    return () => window.clearInterval(id)
+  }, [teacherTimerRunning])
+
   const sendSlideControl = useCallback((action: 'slide-prev' | 'slide-next') => {
+    const nextIndex = action === 'slide-next'
+      ? Math.min(currentIndex + 1, slides.length - 1)
+      : Math.max(currentIndex - 1, 0)
+    setCurrentIndex(nextIndex)
     if (window.opener) window.opener.postMessage({ type: action }, window.location.origin)
+    try {
+      const w = studentViewWindowRef.current
+      if (w && !w.closed) w.postMessage({ type: 'slide-go', index: nextIndex }, window.location.origin)
+    } catch {
+      /* ignore */
+    }
+  }, [currentIndex, slides.length])
+
+  const sendToStudentView = useCallback((msg: Record<string, unknown>) => {
+    const payload = { ...msg, __syncSeq: syncSeqRef.current++ }
+    try {
+      const w = studentViewWindowRef.current
+      if (w && !w.closed) w.postMessage(payload, window.location.origin)
+    } catch {
+      /* ignore */
+    }
+    try {
+      syncChannelRef.current?.postMessage(payload)
+    } catch {
+      /* ignore */
+    }
   }, [])
+
+  const sendCurriculumDataToStudent = useCallback((slidesToSend: SlideItem[], currentIndexOverride?: number) => {
+    const idx = typeof currentIndexOverride === 'number' ? currentIndexOverride : currentIndex
+    const payload = {
+      type: 'curriculum-data',
+      content,
+      topic,
+      currentIndex: Math.max(0, Math.min(idx, slidesToSend.length - 1)),
+      curriculumId: curriculumId ?? null,
+      slideMode: slideMode ?? null,
+      personalViewSubMode,
+      hasOriginalSlides,
+      slides: slidesToSend.map((s) => ({
+        title: s.title,
+        blocks: s.blocks ?? [],
+        teacherNotes: s.teacherNotes ?? '',
+        imageUrl: s.imageUrl,
+        visualEmbed: s.visualEmbed,
+        visualLayout: s.visualLayout,
+        visualCells: s.visualCells,
+      })),
+      teacherTimerSeconds,
+      teacherTimerRunning,
+    }
+    try {
+      const w = studentViewWindowRef.current
+      if (w && !w.closed) w.postMessage(payload, window.location.origin)
+    } catch {
+      /* ignore */
+    }
+    try {
+      syncChannelRef.current?.postMessage(payload)
+    } catch {
+      /* ignore */
+    }
+  }, [content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, teacherTimerSeconds, teacherTimerRunning])
+
+  const persistSlidesRef = useRef<(s: SlideItem[]) => Promise<void>>(async () => {})
+  useEffect(() => {
+    persistSlidesRef.current = async (updatedSlides: SlideItem[]) => {
+      if (!curriculumId || updatedSlides.length === 0) return
+      const payload = updatedSlides.map((s) => ({ title: s.title, blocks: s.blocks ?? [], imageUrl: s.imageUrl, visualEmbed: s.visualEmbed, visualLayout: s.visualLayout, visualCells: s.visualCells, teacherNotes: s.teacherNotes }))
+      if (slideMode === 'personal' || slideMode === 'original') {
+        const r = await saveUserCustomizedSlides({ curriculumId, slides: payload })
+        if (r?.error) toast({ title: tr('Lỗi lưu', 'Save error', '保存错误', '保存エラー', '저장 오류'), description: r.error, variant: 'destructive' })
+        else { toast({ title: tr('Đã lưu', 'Saved', '已保存', '保存しました', '저장됨'), duration: 1500 }) }
+      } else if (slideMode === 'shared' || !slideMode) {
+        const r = await saveSlidesToCurriculum({ curriculumId, topic: topic || 'Bài giảng', subjectId: 'toan', gradeLevelId: 'lop-6', slides: payload })
+        if (r?.error) toast({ title: tr('Lỗi lưu', 'Save error', '保存错误', '保存エラー', '저장 오류'), description: r.error, variant: 'destructive' })
+        else { toast({ title: tr('Đã lưu', 'Saved', '已保存', '保存しました', '저장됨'), duration: 1500 }) }
+      }
+    }
+  }, [curriculumId, slideMode, topic, toast, tr])
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof BroadcastChannel === 'undefined') return
+    const channel = new BroadcastChannel('tao-giao-trinh-sync')
+    syncChannelRef.current = channel
+    const onMessage = (event: MessageEvent) => {
+      if (event.data?.type !== 'request-curriculum' || !content) return
+      channel.postMessage({
+        type: 'curriculum-data',
+        content,
+        topic,
+        currentIndex,
+        curriculumId: curriculumId ?? null,
+        slideMode: slideMode ?? null,
+        personalViewSubMode,
+        hasOriginalSlides,
+        slides: slides.map((s) => ({
+          title: s.title,
+          blocks: s.blocks ?? [],
+          teacherNotes: s.teacherNotes ?? '',
+          imageUrl: s.imageUrl,
+          visualEmbed: s.visualEmbed,
+          visualLayout: s.visualLayout,
+          visualCells: s.visualCells,
+        })),
+        teacherTimerSeconds,
+        teacherTimerRunning,
+      })
+      channel.postMessage({ type: 'presentation-mode', mode: 'slide-interaction' })
+      channel.postMessage({ type: 'set-teacher-writing-mode', value: remoteTeacherWritingMode })
+      channel.postMessage({ type: 'set-teacher-writing-speed', ms: remoteTeacherWritingSpeedMs })
+      channel.postMessage({ type: 'set-auto-play', value: remoteAutoPlay })
+      channel.postMessage({ type: 'set-auto-play-interval', ms: remoteAutoPlayIntervalMs })
+      if (visualFullscreenOpen) channel.postMessage({ type: 'visual-fullscreen-open', cellIndex: undefined })
+    }
+    channel.addEventListener('message', onMessage)
+    return () => {
+      channel.removeEventListener('message', onMessage)
+      channel.close()
+      if (syncChannelRef.current === channel) syncChannelRef.current = null
+    }
+  }, [content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning, remoteTeacherWritingMode, remoteTeacherWritingSpeedMs, remoteAutoPlay, remoteAutoPlayIntervalMs, visualFullscreenOpen])
+
+  const openTeacherVisualFullscreen = useCallback((cellIndex?: number) => {
+    setTeacherExpandedCellIndex(typeof cellIndex === 'number' ? cellIndex : null)
+    setVisualFullscreenOpen(true)
+    sendToStudentView({ type: 'visual-fullscreen-open', cellIndex: typeof cellIndex === 'number' ? cellIndex : undefined })
+  }, [sendToStudentView])
+
+  const closeTeacherVisualFullscreen = useCallback(() => {
+    setVisualFullscreenOpen(false)
+    setTeacherExpandedCellIndex(null)
+    sendToStudentView({ type: 'visual-fullscreen-close' })
+  }, [sendToStudentView])
+
+  useEffect(() => {
+    const sendPointerMove = (e: MouseEvent) => {
+      const now = Date.now()
+      if (now - pointerThrottleRef.current < 16) return
+      pointerThrottleRef.current = now
+      const w = window.innerWidth || 1
+      const h = window.innerHeight || 1
+      if (visualFullscreenOpen && teacherVisualFrameRef.current) {
+        const frame = teacherVisualFrameRef.current
+        const children = Array.from(frame.children) as HTMLElement[]
+        let sent = false
+        for (let i = 0; i < children.length; i++) {
+          const cell = children[i]
+          const rect = cell.getBoundingClientRect()
+          if (e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom) {
+            const img = cell.querySelector('img')
+            if (img?.complete && img.naturalWidth > 0) {
+              const vis = getVisibleImageBounds(img)
+              const cx = vis.left + vis.width / 2
+              const cy = vis.top + vis.height / 2
+              const dx = e.clientX - cx
+              const dy = e.clientY - cy
+              sendToStudentView({
+                type: 'mouse-pos',
+                visualFrame: true,
+                imageCenter: true,
+                cellIndex: i,
+                dxFromCenter: dx,
+                dyFromCenter: dy,
+                visW: vis.width,
+                visH: vis.height,
+              })
+            } else {
+              const cx = rect.left + rect.width / 2
+              const cy = rect.top + rect.height / 2
+              sendToStudentView({
+                type: 'mouse-pos',
+                visualFrame: true,
+                imageCenter: true,
+                cellIndex: i,
+                dxFromCenter: e.clientX - cx,
+                dyFromCenter: e.clientY - cy,
+                visW: rect.width,
+                visH: rect.height,
+              })
+            }
+            sent = true
+            break
+          }
+        }
+        if (!sent) {
+          const rect = frame.getBoundingClientRect()
+          const relX = rect.width > 0 ? (e.clientX - rect.left) / rect.width : 0.5
+          const relY = rect.height > 0 ? (e.clientY - rect.top) / rect.height : 0.5
+          sendToStudentView({ type: 'mouse-pos', visualFrame: true, relX, relY })
+        }
+      } else {
+        sendToStudentView({
+          type: 'mouse-pos',
+          xrPx: Math.max(0, w - e.clientX),
+          yPx: Math.max(0, Math.min(h, e.clientY)),
+        })
+      }
+    }
+    const sendPointerClick = (e: MouseEvent) => {
+      const w = window.innerWidth || 1
+      const h = window.innerHeight || 1
+      if (visualFullscreenOpen && teacherVisualFrameRef.current) {
+        const frame = teacherVisualFrameRef.current
+        const children = Array.from(frame.children) as HTMLElement[]
+        let sent = false
+        for (let i = 0; i < children.length; i++) {
+          const cell = children[i]
+          const rect = cell.getBoundingClientRect()
+          if (e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom) {
+            const img = cell.querySelector('img')
+            if (img?.complete && img.naturalWidth > 0) {
+              const vis = getVisibleImageBounds(img)
+              const cx = vis.left + vis.width / 2
+              const cy = vis.top + vis.height / 2
+              sendToStudentView({
+                type: 'mouse-click',
+                visualFrame: true,
+                imageCenter: true,
+                cellIndex: i,
+                dxFromCenter: e.clientX - cx,
+                dyFromCenter: e.clientY - cy,
+                visW: vis.width,
+                visH: vis.height,
+              })
+            } else {
+              const cx = rect.left + rect.width / 2
+              const cy = rect.top + rect.height / 2
+              sendToStudentView({
+                type: 'mouse-click',
+                visualFrame: true,
+                imageCenter: true,
+                cellIndex: i,
+                dxFromCenter: e.clientX - cx,
+                dyFromCenter: e.clientY - cy,
+                visW: rect.width,
+                visH: rect.height,
+              })
+            }
+            sent = true
+            break
+          }
+        }
+        if (!sent) {
+          const rect = frame.getBoundingClientRect()
+          const relX = rect.width > 0 ? (e.clientX - rect.left) / rect.width : 0.5
+          const relY = rect.height > 0 ? (e.clientY - rect.top) / rect.height : 0.5
+          sendToStudentView({ type: 'mouse-click', visualFrame: true, relX, relY })
+        }
+      } else {
+        sendToStudentView({
+          type: 'mouse-click',
+          xrPx: Math.max(0, w - e.clientX),
+          yPx: Math.max(0, Math.min(h, e.clientY)),
+        })
+      }
+    }
+    window.addEventListener('mousemove', sendPointerMove)
+    window.addEventListener('mousedown', sendPointerClick)
+    return () => {
+      window.removeEventListener('mousemove', sendPointerMove)
+      window.removeEventListener('mousedown', sendPointerClick)
+    }
+  }, [sendToStudentView, visualFullscreenOpen])
+
+  const openStudentView = useCallback(() => {
+    const existing = studentViewWindowRef.current
+    if (existing && !existing.closed) {
+      existing.focus()
+      const send = () => {
+        try {
+          if (!existing.closed) {
+            existing.postMessage(
+              {
+                type: 'curriculum-data',
+                content,
+                topic,
+                currentIndex,
+                curriculumId: curriculumId ?? null,
+                slideMode: slideMode ?? null,
+                personalViewSubMode,
+                hasOriginalSlides,
+                slides: slides.map((s) => ({
+                  title: s.title,
+                  blocks: s.blocks ?? [],
+                  teacherNotes: s.teacherNotes ?? '',
+                  imageUrl: s.imageUrl,
+                  visualEmbed: s.visualEmbed,
+                  visualLayout: s.visualLayout,
+                  visualCells: s.visualCells,
+                })),
+                teacherTimerSeconds,
+                teacherTimerRunning,
+              },
+              window.location.origin
+            )
+          }
+        } catch { /* ignore */ }
+      }
+      setTimeout(send, 0)
+      setTimeout(() => {
+        try {
+          if (!existing.closed) {
+            existing.postMessage({ type: 'presentation-mode', mode: 'slide-interaction' }, window.location.origin)
+            if (visualFullscreenOpen) {
+              existing.postMessage({ type: 'visual-fullscreen-open', cellIndex: undefined }, window.location.origin)
+            }
+            existing.postMessage({ type: 'teacher-timer-sync', seconds: teacherTimerSeconds, running: teacherTimerRunning }, window.location.origin)
+            existing.postMessage({ type: 'set-teacher-writing-mode', value: remoteTeacherWritingMode }, window.location.origin)
+            existing.postMessage({ type: 'set-teacher-writing-speed', ms: remoteTeacherWritingSpeedMs }, window.location.origin)
+            existing.postMessage({ type: 'set-auto-play', value: remoteAutoPlay }, window.location.origin)
+            existing.postMessage({ type: 'set-auto-play-interval', ms: remoteAutoPlayIntervalMs }, window.location.origin)
+          }
+        } catch { /* ignore */ }
+      }, 100)
+      return
+    }
+    const width = typeof screen !== 'undefined' ? Math.min(screen.availWidth || 1920, 1920) : 1920
+    const height = typeof screen !== 'undefined' ? Math.min(screen.availHeight || 1080, 1080) : 1080
+    const w = window.open(
+      '/tao-giao-trinh/xem-slide?t=' + Date.now(),
+      'xem-slide',
+      `width=${width},height=${height},scrollbars=no,left=0,top=0`
+    )
+    studentViewWindowRef.current = w
+    if (w) {
+      const send = () => {
+        try {
+          if (!w.closed) {
+            w.postMessage(
+              {
+                type: 'curriculum-data',
+                content,
+                topic,
+                currentIndex,
+                curriculumId: curriculumId ?? null,
+                slideMode: slideMode ?? null,
+                personalViewSubMode,
+                hasOriginalSlides,
+                slides: slides.map((s) => ({
+                  title: s.title,
+                  blocks: s.blocks ?? [],
+                  teacherNotes: s.teacherNotes ?? '',
+                  imageUrl: s.imageUrl,
+                  visualEmbed: s.visualEmbed,
+                  visualLayout: s.visualLayout,
+                  visualCells: s.visualCells,
+                })),
+                teacherTimerSeconds,
+                teacherTimerRunning,
+              },
+              window.location.origin
+            )
+          }
+        } catch {
+          /* ignore */
+        }
+      }
+      setTimeout(send, 200)
+      setTimeout(send, 700)
+      setTimeout(() => {
+        try {
+          if (!w.closed) {
+            w.postMessage({ type: 'presentation-mode', mode: 'slide-interaction' }, window.location.origin)
+            if (visualFullscreenOpen) {
+              w.postMessage({ type: 'visual-fullscreen-open', cellIndex: undefined }, window.location.origin)
+            }
+            w.postMessage({ type: 'teacher-timer-sync', seconds: teacherTimerSeconds, running: teacherTimerRunning }, window.location.origin)
+            w.postMessage({ type: 'set-teacher-writing-mode', value: remoteTeacherWritingMode }, window.location.origin)
+            w.postMessage({ type: 'set-teacher-writing-speed', ms: remoteTeacherWritingSpeedMs }, window.location.origin)
+            w.postMessage({ type: 'set-auto-play', value: remoteAutoPlay }, window.location.origin)
+            w.postMessage({ type: 'set-auto-play-interval', ms: remoteAutoPlayIntervalMs }, window.location.origin)
+          }
+        } catch { /* ignore */ }
+      }, 1000)
+    }
+  }, [content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning, remoteTeacherWritingMode, remoteTeacherWritingSpeedMs, remoteAutoPlay, remoteAutoPlayIntervalMs, visualFullscreenOpen])
+
+  const applyEmbedToSlide = useCallback((sl: SlideItem, marker: string, placement: EmbedPlacement = 'end'): SlideItem => {
+    const blocks = (Array.isArray(sl.blocks) && sl.blocks.length > 0) ? sl.blocks : parseContentToBlocks(sl.content ?? '')
+    const newBlocks = blocks.length > 0 ? blocks.map((b) => ({ ...b })) : [{ header: tr('Biểu đồ', 'Graph', '图表', 'グラフ', '그래프'), content: '' }]
+    if (placement === 'newBlock') {
+      newBlocks.push({ header: tr('Biểu đồ', 'Graph', '图表', 'グラフ', '그래프'), content: marker })
+    } else if (typeof placement === 'number' && placement >= 0 && placement < newBlocks.length) {
+      const b = newBlocks[placement]
+      newBlocks[placement] = { ...b, content: b.content ? b.content + '\n\n' + marker : marker }
+    } else {
+      const lastIdx = newBlocks.length - 1
+      const last = newBlocks[lastIdx]
+      newBlocks[lastIdx] = { ...last, content: last.content ? last.content + '\n\n' + marker : marker }
+    }
+    return { ...sl, blocks: newBlocks, content: '' }
+  }, [tr])
+
+  const handleInsertEmbed = useCallback((marker: string, placement: EmbedPlacement = 'end', alsoApplyToSlideIndices?: number[]) => {
+    const indicesToUpdate = new Set([currentIndex, ...(alsoApplyToSlideIndices ?? [])])
+    const updatedSlides = slides.map((sl, i) =>
+      indicesToUpdate.has(i) ? applyEmbedToSlide(sl, marker, placement) : sl
+    )
+    setSlides(updatedSlides)
+    if (window.opener) window.opener.postMessage({ type: 'insert-embed', marker, placement, alsoApplyToSlideIndices: alsoApplyToSlideIndices }, window.location.origin)
+    sendToStudentView({ type: 'insert-embed', marker, placement, alsoApplyToSlideIndices: alsoApplyToSlideIndices })
+    sendCurriculumDataToStudent(updatedSlides)
+    const count = indicesToUpdate.size
+    if (count > 1) toast({ title: tr(`Đã chèn vào ${count} slide`, `Inserted into ${count} slides`, `已插入到${count}张幻灯片`, `${count}スライドに挿入`, `${count}개 슬라이드에 삽입`), duration: 1500 })
+  }, [currentIndex, slides, applyEmbedToSlide, sendToStudentView, sendCurriculumDataToStudent, toast, tr])
+
+  const handleReplaceSlideImage = useCallback((markerOrUrl: string, alsoApplyToSlideIndices?: number[], layout: 1 | 2 | 4 = 1, cellIndex?: number) => {
+    const isEmbed = markerOrUrl.trim().startsWith('[')
+    const cell: VisualCell = isEmbed ? { visualEmbed: markerOrUrl } : { imageUrl: markerOrUrl }
+    const indicesToUpdate = new Set([currentIndex, ...(alsoApplyToSlideIndices ?? [])])
+    const updatedSlides = slides.map((sl, i) => {
+      if (!indicesToUpdate.has(i)) return sl
+      const numCells = layout === 1 ? 1 : layout === 2 ? 2 : 4
+      let cells: VisualCell[] = [...(sl.visualCells ?? [])]
+      if (cells.length !== numCells) cells = Array.from({ length: numCells }, (_, j) => cells[j] ?? {})
+      if (cellIndex !== undefined && cellIndex >= 0) {
+        cells[cellIndex] = cell
+      } else {
+        cells = Array(numCells).fill(cell).map((c) => ({ ...c }))
+      }
+      return {
+        ...sl,
+        visualLayout: layout,
+        visualCells: cells,
+        visualEmbed: layout === 1 ? (isEmbed ? markerOrUrl : undefined) : undefined,
+        imageUrl: layout === 1 ? (isEmbed ? undefined : markerOrUrl) : undefined,
+      }
+    })
+    setSlides(updatedSlides)
+    if (window.opener) window.opener.postMessage({ type: 'replace-slide-image', markerOrUrl, alsoApplyToSlideIndices: alsoApplyToSlideIndices, layout, cellIndex }, window.location.origin)
+    sendToStudentView({ type: 'replace-slide-image', markerOrUrl, alsoApplyToSlideIndices: alsoApplyToSlideIndices, layout, cellIndex })
+    sendCurriculumDataToStudent(updatedSlides)
+    const count = indicesToUpdate.size
+    toast({ title: count > 1 ? tr(`Đã thay visual ${count} slide`, `Visual replaced on ${count} slides`, `已替换${count}张幻灯片视觉`, `${count}スライドのビジュアルを差し替え`, `${count}개 슬라이드 비주얼 교체됨`) : tr('Đã thay visual slide', 'Slide visual replaced', '已替换幻灯片视觉', 'スライドのビジュアルを差し替えました', '슬라이드 비주얼 교체됨'), duration: 1500 })
+  }, [currentIndex, slides, sendToStudentView, sendCurriculumDataToStudent, toast, tr])
+
+  const handleDeleteVisual = useCallback((alsoApplyToSlideIndices?: number[]) => {
+    const indicesToUpdate = new Set([currentIndex, ...(alsoApplyToSlideIndices ?? [])])
+    const updatedSlides = slides.map((sl, i) =>
+      indicesToUpdate.has(i)
+        ? { ...sl, visualEmbed: undefined, imageUrl: undefined, visualLayout: 1 as 1 | 2 | 4, visualCells: undefined }
+        : sl
+    )
+    setSlides(updatedSlides)
+    if (window.opener) window.opener.postMessage({ type: 'delete-visual', alsoApplyToSlideIndices: alsoApplyToSlideIndices }, window.location.origin)
+    sendToStudentView({ type: 'delete-visual', alsoApplyToSlideIndices: alsoApplyToSlideIndices })
+    sendCurriculumDataToStudent(updatedSlides)
+    toast({ title: tr('Đã xóa visual', 'Visual deleted', '已删除视觉', 'ビジュアルを削除', '비주얼 삭제됨'), duration: 1500 })
+  }, [currentIndex, slides, sendToStudentView, sendCurriculumDataToStudent, toast, tr])
+
+  const handleDeleteSlide = useCallback(() => {
+    if (slides.length <= 1) return
+    const idx = currentIndex
+    const next = slides.filter((_, i) => i !== idx)
+    const newIdx = idx >= 1 ? idx - 1 : 0
+    setSlides(next)
+    setCurrentIndex(newIdx)
+    if (curriculumId) void persistSlidesRef.current(next)
+    if (window.opener) window.opener.postMessage({ type: 'delete-slide', index: idx }, window.location.origin)
+    sendToStudentView({ type: 'delete-slide', index: idx })
+    sendCurriculumDataToStudent(next, newIdx)
+    toast({ title: tr('Đã xóa slide', 'Slide deleted', '已删除幻灯片', 'スライドを削除', '슬라이드 삭제됨'), duration: 1500 })
+  }, [currentIndex, slides, curriculumId, sendToStudentView, sendCurriculumDataToStudent, toast, tr])
 
   const sendNotesToParent = useCallback((value: string) => {
     if (window.opener) window.opener.postMessage({ type: 'update-notes', slideIndex: currentIndex, teacherNotes: value }, window.location.origin)
   }, [currentIndex])
 
   const sendMergeSlides = useCallback((index: number) => {
-    if (window.opener) window.opener.postMessage({ type: 'merge-slides', index }, window.location.origin)
-  }, [])
+    setSlides((prev) => {
+      if (index < 0 || index >= prev.length - 1) return prev
+      const a = prev[index]
+      const b = prev[index + 1]
+      const merged: SlideItem = {
+        ...a,
+        blocks: [...(a.blocks ?? []), ...(b.blocks ?? [])],
+        teacherNotes: (a.teacherNotes || '') + (b.teacherNotes ? '\n\n' + b.teacherNotes : ''),
+      }
+      const next = [...prev.slice(0, index), merged, ...prev.slice(index + 2)]
+      if (curriculumId) void persistSlidesRef.current(next)
+      if (window.opener) window.opener.postMessage({ type: 'merge-slides', index }, window.location.origin)
+      try {
+        const w = studentViewWindowRef.current
+        if (w && !w.closed) w.postMessage({ type: 'merge-slides', index }, window.location.origin)
+      } catch { /* ignore */ }
+      return next
+    })
+    setCurrentIndex((i) => (i === index + 1 ? index : i > index + 1 ? i - 1 : i))
+    toast({ title: tr('Đã gộp 2 slide', 'Merged 2 slides', '已合并2张幻灯片', '2スライドを結合', '2개 슬라이드 병합'), duration: 1500 })
+  }, [curriculumId, toast, tr])
 
   const sendSplitSlide = useCallback((index: number, splitAtBlock: number) => {
-    if (window.opener) window.opener.postMessage({ type: 'split-slide', index, splitAtBlock }, window.location.origin)
+    let nextIndex = index
+    setSlides((prev) => {
+      const s = prev[index]
+      const blks = Array.isArray(s?.blocks) ? s.blocks : (s?.content ? parseContentToBlocks(s.content) : [])
+      let firstBlocks: typeof blks
+      let secondBlocks: typeof blks
+      let secondHeader: string
+      if (splitAtBlock === -1 && blks.length === 1) {
+        const singleBlock = blks[0]
+        const content = singleBlock?.content ?? ''
+        const split = splitBlockContentAtQuizBoundary(content)
+        if (!split) return prev
+        firstBlocks = [{ header: singleBlock?.header ?? 'Nội dung', content: split.before }]
+        secondBlocks = [{ header: singleBlock?.header ?? s.title, content: split.after }]
+        secondHeader = singleBlock?.header ?? s.title
+      } else if (splitAtBlock >= 0 && splitAtBlock < blks.length - 1) {
+        firstBlocks = blks.slice(0, splitAtBlock + 1)
+        secondBlocks = blks.slice(splitAtBlock + 1)
+        secondHeader = secondBlocks[0]?.header ?? s.title
+      } else {
+        return prev
+      }
+      const slide1: SlideItem = { ...s, blocks: firstBlocks }
+      const slide2: SlideItem = { ...s, title: secondHeader, blocks: secondBlocks, teacherNotes: '', imageUrl: undefined, visualEmbed: undefined, visualLayout: undefined, visualCells: undefined }
+      const next = [...prev.slice(0, index), slide1, slide2, ...prev.slice(index + 1)]
+      if (curriculumId) void persistSlidesRef.current(next)
+      if (window.opener) window.opener.postMessage({ type: 'split-slide', index, splitAtBlock }, window.location.origin)
+      try {
+        const w = studentViewWindowRef.current
+        if (w && !w.closed) w.postMessage({ type: 'split-slide', index, splitAtBlock }, window.location.origin)
+      } catch { /* ignore */ }
+      return next
+    })
+    setCurrentIndex((i) => (i > index ? i + 1 : i))
     setSplitAtBlock(null)
-  }, [])
+    toast({ title: tr('Đã tách slide', 'Split slide', '已拆分幻灯片', 'スライドを分割', '슬라이드 분할'), duration: 1500 })
+  }, [curriculumId, toast, tr])
 
   /** splitAtBlock: -1 = tách tại ranh giới quiz (khi 1 block có quiz + nội dung sau) */
   const sendSplitAtQuiz = useCallback((index: number) => {
-    if (window.opener) window.opener.postMessage({ type: 'split-slide', index, splitAtBlock: -1 }, window.location.origin)
-    setSplitAtBlock(null)
-  }, [])
+    sendSplitSlide(index, -1)
+  }, [sendSplitSlide])
 
   const handleGenerateQuiz = useCallback(async (slideIndex: number, difficulty: 'easy' | 'medium' | 'hard' = 'medium') => {
     const s = slides[slideIndex]
@@ -414,6 +993,41 @@ export default function CurriculumViewPage() {
   useEffect(() => {
     const handler = (e: MessageEvent) => {
       if (e.origin !== window.location.origin) return
+      if (e.data?.type === 'request-curriculum' && e.source && content) {
+        try {
+          const src = e.source as Window
+          src.postMessage(
+            {
+              type: 'curriculum-data',
+              content,
+              topic,
+              currentIndex,
+              curriculumId: curriculumId ?? null,
+              slideMode: slideMode ?? null,
+              personalViewSubMode,
+              hasOriginalSlides,
+              slides: slides.map((s) => ({
+                title: s.title,
+                blocks: s.blocks ?? [],
+                teacherNotes: s.teacherNotes ?? '',
+                imageUrl: s.imageUrl,
+                visualEmbed: s.visualEmbed,
+                visualLayout: s.visualLayout,
+                visualCells: s.visualCells,
+              })),
+              teacherTimerSeconds,
+              teacherTimerRunning,
+            },
+            window.location.origin
+          )
+          src.postMessage({ type: 'presentation-mode', mode: 'slide-interaction' }, window.location.origin)
+        } catch {
+          /* ignore */
+        }
+      }
+      if (e.data?.type === 'visual-fullscreen-close' && e.source === studentViewWindowRef.current) {
+        setVisualFullscreenOpen(false)
+      }
       if (e.data?.type === 'curriculum-data') {
         setContent(e.data.content ?? '')
         setTopic(e.data.topic ?? '')
@@ -434,7 +1048,7 @@ export default function CurriculumViewPage() {
     }
     window.addEventListener('message', handler)
     return () => window.removeEventListener('message', handler)
-  }, [])
+  }, [content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning])
 
   useEffect(() => {
     setNotesValue(slides[currentIndex]?.teacherNotes ?? '')
@@ -507,6 +1121,9 @@ export default function CurriculumViewPage() {
     if (fromBlocks.length > 0) return fromBlocks
     return slide.content ? [slide.content.trim()] : []
   })()
+  const tripleIdxPrev = currentIndex - 1
+  const tripleIdxCur = currentIndex
+  const tripleIdxNext = currentIndex + 1
 
   useEffect(() => {
     if (sections.length === 0 || leftPanelMode !== 'curriculum') return
@@ -522,118 +1139,107 @@ export default function CurriculumViewPage() {
 
   useEffect(() => {
     if (!visualFullscreenOpen) return
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setVisualFullscreenOpen(false) }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closeTeacherVisualFullscreen() }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [visualFullscreenOpen])
+  }, [visualFullscreenOpen, closeTeacherVisualFullscreen])
 
   return (
-    <div className="fixed inset-0 z-50 h-screen w-screen overflow-hidden bg-slate-950 text-white flex flex-col">
-      <header className="shrink-0 px-5 py-3 border-b border-slate-700/80 bg-slate-900/80 backdrop-blur-sm flex items-center justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-3">
-          <h1 className="text-base font-semibold text-amber-400/95 tracking-tight">{tr('Giáo trình + Ghi chú', 'Curriculum + Notes', '课程+备注', 'カリキュラム+メモ', '교육과정+메모')}</h1>
-          {(slideMode || slideMode === null) && slides.length > 0 && (
-            <span className={['text-xs font-medium px-2.5 py-1 rounded-md', slideMode === 'personal' ? 'bg-violet-500/25 text-violet-200 border border-violet-400/40' : 'bg-amber-500/25 text-amber-200 border border-amber-400/40'].join(' ')}>
-              {slideMode === 'personal' ? tr('Bản riêng', 'Personal', '个人版', '個人版', '개인') : tr('Bản chung', 'Shared', '共享版', '共有版', '공유')}
-            </span>
-          )}
-          {!curriculumId && slides.length > 0 && (
-            <span className="text-xs px-2 py-0.5 rounded bg-slate-600/40 text-amber-200/90" title={tr('Lưu giáo trình vào kho để sửa và đề xuất', 'Save curriculum to edit and propose', '保存课程以编辑和建议', '保存して編集・提案', '저장 후 편집·제안')}>
-              {tr('Lưu giáo trình vào kho', 'Save to library', '保存到库', '保存して利用', '저장 후 사용')}
-            </span>
-          )}
-          {slideMode === 'personal' && (
-            <div className="flex items-center gap-2">
-              {hasOriginalSlides && (
-                <div className="flex rounded-lg border border-slate-600/60 overflow-hidden bg-slate-800/40">
-                  <button
-                    type="button"
-                    onClick={() => sendPersonalViewSubMode('current')}
-                    className={['px-2.5 py-1.5 text-xs font-medium transition-colors flex items-center gap-1', personalViewSubMode === 'current' ? 'bg-violet-500/30 text-violet-200 border-r border-slate-600/60' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'].join(' ')}
-                    title={tr('Bản bạn đang chỉnh sửa', 'Your edited version', '您编辑的版本', '編集中の版', '편집 중인 버전')}
-                  >
-                    <FileEdit className="h-3.5 w-3.5" />
-                    {tr('Bản hiện tại', 'Current', '当前', '現在', '현재')}
+    <div className={cn('fixed inset-0 z-50 h-screen w-screen overflow-x-hidden overflow-y-auto bg-slate-950 text-white flex flex-col', clipLeft ? 'items-end' : 'items-stretch')}>
+      {/* Full màn: w-full fill hết không mất phải. Thu hẹp: layoutWidth cố định, ẩn trái giữ phải */}
+      <div className="flex-1 flex flex-col min-h-0 shrink-0" style={clipLeft ? { width: layoutWidth, minWidth: layoutWidth, maxWidth: layoutWidth } : { width: '100%', minWidth: '100%' }}>
+      {/* Thanh điều khiển đặt trên cùng để trùng tọa độ với màn học sinh */}
+      <div className="shrink-0 border-b border-slate-700/80 bg-slate-900/80 backdrop-blur-sm">
+        <PresentationControlBar
+          variant="teacher"
+          tr={tr}
+          currentIndex={currentIndex}
+          totalSlides={slideTitles.length || slides.length}
+          teacherTimerSeconds={teacherTimerSeconds}
+          teacherTimerRunning={teacherTimerRunning}
+          onTeacherTimerStart={() => sendTeacherTimer('teacher-timer-start')}
+          onTeacherTimerStop={() => sendTeacherTimer('teacher-timer-stop')}
+          onTeacherTimerReset={() => sendTeacherTimer('teacher-timer-reset')}
+          teacherTimerInteractive
+          curriculumId={curriculumId ?? undefined}
+          onInsertClick={() => setEmbedDialogOpen(true)}
+          writingMode={remoteTeacherWritingMode}
+          onWritingModeToggle={() => { setRemoteTeacherWritingMode((v) => !v); sendToStudentView({ type: 'set-teacher-writing-mode', value: !remoteTeacherWritingMode }) }}
+          writingSpeedMs={remoteTeacherWritingSpeedMs}
+          onWritingSpeedChange={(ms) => { setRemoteTeacherWritingSpeedMs(ms); sendToStudentView({ type: 'set-teacher-writing-speed', ms }) }}
+          autoPlay={remoteAutoPlay}
+          onAutoPlayToggle={() => { setRemoteAutoPlay((v) => !v); sendToStudentView({ type: 'set-auto-play', value: !remoteAutoPlay }) }}
+          autoPlayIntervalMs={remoteAutoPlayIntervalMs}
+          onAutoPlayIntervalChange={(ms) => { setRemoteAutoPlayIntervalMs(ms); sendToStudentView({ type: 'set-auto-play-interval', ms }) }}
+          sandTimerSeconds={0}
+          sandTimerRunning={false}
+          onSandTimerStart={(sec) => sendToStudentView({ type: 'sand-timer-start', seconds: sec })}
+          onPrev={() => sendSlideControl('slide-prev')}
+          onNext={() => sendSlideControl('slide-next')}
+          slideViewMode={slideViewMode}
+          onSlideViewModeChange={(m) => setSlideViewMode(m)}
+          onOpenStudentView={slides.length > 0 ? openStudentView : undefined}
+          hideIndex
+        />
+      </div>
+
+      <header className="shrink-0 border-b border-slate-700/80 bg-slate-900/80 backdrop-blur-sm flex flex-col">
+        {/* Hàng thông tin dành riêng cho giáo viên – không wrap, ẩn khi thu hẹp */}
+        <div className="px-5 py-2 flex items-center justify-end gap-3 flex-nowrap min-w-0 overflow-x-hidden">
+          <div className="flex items-center gap-3 flex-nowrap shrink-0">
+            <span className="text-sm font-medium tabular-nums shrink-0 text-slate-300">{currentIndex + 1} / {slideTitles.length || slides.length}</span>
+            <h1 className="text-base font-semibold text-amber-400/95 tracking-tight">{tr('Giáo trình + Ghi chú', 'Curriculum + Notes', '课程+备注', 'カリキュラム+メモ', '교육과정+메모')}</h1>
+            {(slideMode || slideMode === null) && slides.length > 0 && (
+              <span className={['text-xs font-medium px-2.5 py-1 rounded-md', slideMode === 'personal' ? 'bg-violet-500/25 text-violet-200 border border-violet-400/40' : 'bg-amber-500/25 text-amber-200 border border-amber-400/40'].join(' ')}>
+                {slideMode === 'personal' ? tr('Bản riêng', 'Personal', '个人版', '個人版', '개인') : tr('Bản chung', 'Shared', '共享版', '共有版', '공유')}
+              </span>
+            )}
+            {!curriculumId && slides.length > 0 && (
+              <span className="text-xs px-2 py-0.5 rounded bg-slate-600/40 text-amber-200/90" title={tr('Lưu giáo trình vào kho để sửa và đề xuất', 'Save curriculum to edit and propose', '保存课程以编辑和建议', '保存して編集・提案', '저장 후 편집·제안')}>
+                {tr('Lưu giáo trình vào kho', 'Save to library', '保存到库', '保存して利用', '저장 후 사용')}
+              </span>
+            )}
+            {slideMode === 'personal' && (
+              <div className="flex items-center gap-2">
+                {hasOriginalSlides && (
+                  <div className="flex rounded-lg border border-slate-600/60 overflow-hidden bg-slate-800/40">
+                    <button type="button" onClick={() => sendPersonalViewSubMode('current')} className={['px-2.5 py-1.5 text-xs font-medium transition-colors flex items-center gap-1', personalViewSubMode === 'current' ? 'bg-violet-500/30 text-violet-200 border-r border-slate-600/60' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'].join(' ')} title={tr('Bản bạn đang chỉnh sửa', 'Your edited version', '您编辑的版本', '編集中の版', '편집 중인 버전')}>
+                      <FileEdit className="h-3.5 w-3.5" />
+                      {tr('Bản hiện tại', 'Current', '当前', '現在', '현재')}
+                    </button>
+                    <button type="button" onClick={() => sendPersonalViewSubMode('original')} className={['px-2.5 py-1.5 text-xs font-medium transition-colors flex items-center gap-1', personalViewSubMode === 'original' ? 'bg-slate-600/50 text-slate-200' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'].join(' ')} title={tr('Bản gốc AI tạo', 'Original AI version', 'AI原始版本', 'AIオリジナル', 'AI 원본')}>
+                      <FileText className="h-3.5 w-3.5" />
+                      {tr('Bản gốc', 'Original', '原版', 'オリジナル', '원본')}
+                    </button>
+                  </div>
+                )}
+                {curriculumId && personalViewSubMode === 'current' && (
+                  <button type="button" onClick={sendSaveNow} className="text-xs font-medium px-2.5 py-1.5 rounded-lg bg-emerald-500/25 text-emerald-200 border border-emerald-400/40 hover:bg-emerald-500/35 flex items-center gap-1.5 transition-colors" title={tr('Lưu bản riêng', 'Save personal version', '保存个人版本', '個人版を保存', '개인 버전 저장')}>
+                    <Save className="h-3.5 w-3.5" />
+                    {tr('Lưu', 'Save', '保存', '保存', '저장')}
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => sendPersonalViewSubMode('original')}
-                    className={['px-2.5 py-1.5 text-xs font-medium transition-colors flex items-center gap-1', personalViewSubMode === 'original' ? 'bg-slate-600/50 text-slate-200' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'].join(' ')}
-                    title={tr('Bản gốc AI tạo', 'Original AI version', 'AI原始版本', 'AIオリジナル', 'AI 원본')}
-                  >
-                    <FileText className="h-3.5 w-3.5" />
-                    {tr('Bản gốc', 'Original', '原版', 'オリジナル', '원본')}
+                )}
+                {curriculumId && personalViewSubMode === 'original' && (
+                  <button type="button" onClick={() => void handleResetToOriginal()} disabled={resetLoading} className="text-xs font-medium px-2.5 py-1.5 rounded-lg bg-amber-500/25 text-amber-200 border border-amber-400/40 hover:bg-amber-500/35 flex items-center gap-1.5 transition-colors disabled:opacity-50" title={tr('Reset bản riêng về bản gốc', 'Reset personal to original', '将个人版重置为原版', '原版にリセット', '원본으로 리셋')}>
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    {resetLoading ? tr('Đang reset...', 'Resetting...', '重置中...', 'リセット中...', '리셋 중...') : tr('Reset về bản gốc', 'Reset to original', '重置为原版', '原版にリセット', '원본으로 리셋')}
                   </button>
-                </div>
-              )}
-              {curriculumId && personalViewSubMode === 'current' && (
-                <button
-                  type="button"
-                  onClick={sendSaveNow}
-                  className="text-xs font-medium px-2.5 py-1.5 rounded-lg bg-emerald-500/25 text-emerald-200 border border-emerald-400/40 hover:bg-emerald-500/35 flex items-center gap-1.5 transition-colors"
-                  title={tr('Lưu bản riêng', 'Save personal version', '保存个人版本', '個人版を保存', '개인 버전 저장')}
-                >
-                  <Save className="h-3.5 w-3.5" />
-                  {tr('Lưu', 'Save', '保存', '保存', '저장')}
-                </button>
-              )}
-              {curriculumId && personalViewSubMode === 'original' && (
-                <button
-                  type="button"
-                  onClick={() => void handleResetToOriginal()}
-                  disabled={resetLoading}
-                  className="text-xs font-medium px-2.5 py-1.5 rounded-lg bg-amber-500/25 text-amber-200 border border-amber-400/40 hover:bg-amber-500/35 flex items-center gap-1.5 transition-colors disabled:opacity-50"
-                  title={tr('Reset bản riêng về bản gốc. Bản hiện tại lưu vào lịch sử, khôi phục trong 5 ngày.', 'Reset personal to original. Current version saved to history, restorable within 5 days.', '将个人版重置为原版。当前版本保存到历史，5天内可恢复。', '個人版を原版にリセット。現在の版は履歴に保存、5日以内に復元可能。', '개인 버전을 원본으로 리셋. 현재 버전은 기록에 저장, 5일 이내 복원 가능.')}
-                >
-                  <RotateCcw className="h-3.5 w-3.5" />
-                  {resetLoading ? tr('Đang reset...', 'Resetting...', '重置中...', 'リセット中...', '리셋 중...') : tr('Reset về bản gốc', 'Reset to original', '重置为原版', '原版にリセット', '원본으로 리셋')}
-                </button>
-              )}
-              {curriculumId && slideMode === 'personal' && (
-                <button
-                  type="button"
-                  onClick={() => setPersonalHistoryOpen(true)}
-                  className="text-xs font-medium px-2.5 py-1.5 rounded-lg bg-slate-600/40 text-slate-200 border border-slate-500/50 hover:bg-slate-600/60 flex items-center gap-1.5 transition-colors"
-                  title={tr('Lịch sử bản riêng – khôi phục trong 5 ngày', 'Personal history – restore within 5 days', '个人历史–5天内恢复', '個人履歴–5日以内に復元', '개인 기록–5일 이내 복원')}
-                >
-                  <History className="h-3.5 w-3.5" />
-                  {tr('Lịch sử', 'History', '历史', '履歴', '기록')}
-                </button>
-              )}
-            </div>
-          )}
-          {slideMode === 'shared' && curriculumId && (
-            <button
-              type="button"
-              onClick={() => setSharedHistoryOpen(true)}
-              className="text-xs font-medium px-2.5 py-1.5 rounded-lg bg-slate-600/40 text-slate-200 border border-slate-500/50 hover:bg-slate-600/60 flex items-center gap-1.5 transition-colors"
-              title={tr('Lịch sử chỉnh sửa bản chung', 'Shared version edit history', '共享版本编辑历史', '共有版の編集履歴', '공유 버전 편집 기록')}
-            >
-              <History className="h-3.5 w-3.5" />
-              {tr('Lịch sử', 'History', '历史', '履歴', '기록')}
-            </button>
-          )}
-        </div>
-        <div className="flex items-center gap-4 flex-wrap">
-          {topic && <span className="text-slate-400 text-sm truncate max-w-[180px]" title={topic}>{topic}</span>}
-          {slideTitles.length > 0 && (
-            <span className="text-slate-300 text-sm font-medium tabular-nums">
-              {currentIndex + 1} / {slideTitles.length}
-            </span>
-          )}
-          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-500/15 border border-emerald-400/30" title={tr('Bấm giờ giảng dạy', 'Teaching timer', '教学计时', '授業タイマー', '수업 타이머')}>
-            <Timer className="h-4 w-4 text-emerald-400/90 shrink-0" />
-            <span className="font-mono font-semibold text-emerald-300 min-w-[2.5rem]">{formatTimer(teacherTimerSeconds)}</span>
-            <button type="button" onClick={() => sendTeacherTimer(teacherTimerRunning ? 'teacher-timer-stop' : 'teacher-timer-start')} className="p-1 rounded-md hover:bg-emerald-500/25 text-emerald-300 transition-colors" title={teacherTimerRunning ? tr('Tạm dừng', 'Pause', '暂停', '一時停止', '일시정지') : tr('Bắt đầu', 'Start', '开始', '開始', '시작')}>{teacherTimerRunning ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}</button>
-            <button type="button" onClick={() => sendTeacherTimer('teacher-timer-reset')} className="p-1 rounded-md hover:bg-emerald-500/25 text-emerald-300 transition-colors" title={tr('Đặt lại', 'Reset', '重置', 'リセット', '초기화')}><RotateCcw className="h-3.5 w-3.5" /></button>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="flex rounded-lg border border-slate-600/80 overflow-hidden bg-slate-800/50">
-              <button type="button" onClick={() => setSlideViewMode('single')} className={['px-2.5 py-1.5 text-xs font-medium transition-colors', slideViewMode === 'single' ? 'bg-amber-500/30 text-amber-300' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'].join(' ')} title="1 slide"><Square className="h-3.5 w-3.5 inline mr-1" />1</button>
-              <button type="button" onClick={() => setSlideViewMode('triple')} className={['px-2.5 py-1.5 text-xs font-medium transition-colors', slideViewMode === 'triple' ? 'bg-amber-500/30 text-amber-300' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'].join(' ')} title="3 slide"><LayoutGrid className="h-3.5 w-3.5 inline mr-1" />3</button>
-            </div>
-            <button type="button" onClick={() => sendSlideControl('slide-prev')} disabled={currentIndex === 0} className="p-2 rounded-lg bg-slate-700/80 hover:bg-slate-600 disabled:opacity-35 disabled:cursor-not-allowed transition-colors" title={tr('Slide trước', 'Prev slide', '上一张', '前へ', '이전')}><ChevronLeft className="h-5 w-5" /></button>
-            <button type="button" onClick={() => sendSlideControl('slide-next')} disabled={currentIndex >= slides.length - 1} className="p-2 rounded-lg bg-slate-700/80 hover:bg-slate-600 disabled:opacity-35 disabled:cursor-not-allowed transition-colors" title={tr('Slide sau', 'Next slide', '下一张', '次へ', '다음')}><ChevronRight className="h-5 w-5" /></button>
+                )}
+                {curriculumId && slideMode === 'personal' && (
+                  <button type="button" onClick={() => setPersonalHistoryOpen(true)} className="text-xs font-medium px-2.5 py-1.5 rounded-lg bg-slate-600/40 text-slate-200 border border-slate-500/50 hover:bg-slate-600/60 flex items-center gap-1.5 transition-colors" title={tr('Lịch sử bản riêng', 'Personal history', '个人历史', '個人履歴', '개인 기록')}>
+                    <History className="h-3.5 w-3.5" />
+                    {tr('Lịch sử', 'History', '历史', '履歴', '기록')}
+                  </button>
+                )}
+              </div>
+            )}
+            {slideMode === 'shared' && curriculumId && (
+              <button type="button" onClick={() => setSharedHistoryOpen(true)} className="text-xs font-medium px-2.5 py-1.5 rounded-lg bg-slate-600/40 text-slate-200 border border-slate-500/50 hover:bg-slate-600/60 flex items-center gap-1.5 transition-colors" title={tr('Lịch sử chỉnh sửa bản chung', 'Shared version edit history', '共享版本编辑历史', '共有版の編集履歴', '공유 버전 편집 기록')}>
+                <History className="h-3.5 w-3.5" />
+                {tr('Lịch sử', 'History', '历史', '履歴', '기록')}
+              </button>
+            )}
+            {topic && <span className="text-slate-400 text-sm truncate max-w-[180px]" title={topic}>{topic}</span>}
           </div>
         </div>
       </header>
@@ -641,100 +1247,169 @@ export default function CurriculumViewPage() {
       {!content ? (
         <div className="flex-1 flex items-center justify-center p-8 bg-slate-900/30">
           <div className="text-center space-y-6 max-w-sm">
-            <p className="text-slate-400 text-sm leading-relaxed">{tr('Đang chờ dữ liệu từ cửa sổ trình chiếu. Mở slide và bấm "Giáo trình + Ghi chú".', 'Waiting for data from slide window. Open slides and click "Curriculum + Notes".', '等待幻灯片窗口数据。打开幻灯片并点击"课程+备注"。', 'スライドウィンドウのデータを待機中。スライドを開き「カリキュラム+メモ」をクリック。', '슬라이드 창 데이터 대기 중. 슬라이드를 열고 "교육과정+메모" 클릭.')}</p>
+            <p className="text-slate-400 text-sm leading-relaxed">{tr('Mở giáo trình từ trang Tạo giáo trình (bấm "Xem slide" hoặc "Xem giáo trình").', 'Open curriculum from Create curriculum page (click "View slides" or "View curriculum").', '从创建课程页面打开课程（点击"查看幻灯片"或"查看课程"）。', '作成ページからカリキュラムを開く（「スライド表示」または「カリキュラムを見る」をクリック）。', '교육과정 생성 페이지에서 열기 ("슬라이드 보기" 또는 "교육과정 보기" 클릭).')}</p>
             <button type="button" onClick={requestCurriculum} className="px-5 py-2.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-900 font-medium text-sm transition-colors shadow-lg shadow-amber-500/20">
               {tr('Tải giáo trình', 'Load curriculum', '加载课程', 'カリキュラムを読み込む', '교육과정 로드')}
             </button>
           </div>
         </div>
       ) : (
-        <div className="flex-1 flex min-h-0 overflow-hidden isolate">
-          {/* Trái: Giáo trình hoặc Slide hiện tại */}
-          <div className="w-1/2 min-w-0 border-r border-slate-700/60 flex flex-col overflow-hidden isolate bg-slate-900/20">
-            <div className="px-4 py-2.5 text-slate-400 text-xs font-medium uppercase tracking-wider border-b border-slate-700/60 shrink-0 flex items-center justify-between gap-2 flex-wrap">
-              <span>{leftPanelMode === 'curriculum' ? tr('Giáo trình', 'Curriculum', '课程', 'カリキュラム', '교육과정') : leftPanelMode === 'visual' ? tr('Visual (như học sinh)', 'Visual (as student)', '视觉（学生视图）', 'ビジュアル（生徒表示）', '비주얼 (학생 화면)') : tr('Slide hiện tại', 'Current slide', '当前幻灯片', '表示中のスライド', '표시 중 슬라이드')}</span>
-              <div className="flex items-center gap-2">
-                {(leftPanelMode === 'visual' || leftPanelMode === 'slide') && extractQuizFromSlide(slides[currentIndex] ?? {}).length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setQuizPopupOpen(true)}
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-violet-500/20 border border-violet-400/40 text-violet-300 hover:bg-violet-500/30 text-[11px] font-medium transition-colors"
-                    title={tr('Mở quiz: thời gian, đồng hồ cát, thống kê', 'Open quiz: duration, timer, stats', '打开测验：时间、沙漏、统计', 'クイズを開く：時間・砂時計・統計', '퀴즈 열기: 시간·모래시계·통계')}
-                  >
-                    <ClipboardList className="h-3.5 w-3.5" />
-                    {tr('Mở quiz', 'Open quiz', '打开测验', 'クイズを開く', '퀴즈 열기')}
-                  </button>
-                )}
-                <div className="flex rounded-lg border border-slate-600/80 overflow-hidden bg-slate-800/50">
-                <button type="button" onClick={() => setLeftPanelMode('curriculum')} className={['px-2.5 py-1 text-[11px] font-medium transition-colors', leftPanelMode === 'curriculum' ? 'bg-amber-500/30 text-amber-300' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'].join(' ')}>
-                  {tr('Giáo trình', 'Curriculum', '课程', 'カリキュラム', '교육과정')}
-                </button>
-                <button type="button" onClick={() => setLeftPanelMode('slide')} className={['px-2.5 py-1 text-[11px] font-medium transition-colors', leftPanelMode === 'slide' ? 'bg-amber-500/30 text-amber-300' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'].join(' ')}>
-                  {tr('Slide', 'Slide', '幻灯片', 'スライド', '슬라이드')}
-                </button>
-                <button type="button" onClick={() => setLeftPanelMode('visual')} className={['px-2.5 py-1 text-[11px] font-medium transition-colors', leftPanelMode === 'visual' ? 'bg-amber-500/30 text-amber-300' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'].join(' ')}>
-                  {tr('Visual', 'Visual', '视觉', 'ビジュアル', '비주얼')}
-                </button>
+        <div className="flex-1 flex min-h-0 overflow-hidden isolate shrink-0 w-full">
+          <div className={cn('shrink-0 flex flex-col overflow-hidden isolate bg-slate-900/20 border-r border-slate-700/60', leftPanelMode === 'visual' ? 'w-[45%]' : 'w-1/2')}>
+            {leftPanelMode !== 'visual' && (
+              <div className="px-4 py-2.5 text-slate-400 text-xs font-medium uppercase tracking-wider border-b border-slate-700/60 shrink-0 flex items-center justify-between gap-2 flex-nowrap">
+                <span>{leftPanelMode === 'curriculum' ? tr('Giáo trình', 'Curriculum', '课程', 'カリキュラム', '교육과정') : tr('Slide hiện tại', 'Current slide', '当前幻灯片', '表示中のスライド', '표시 중 슬라이드')}</span>
+                <div className="flex items-center gap-2">
+                  {(leftPanelMode === 'slide') && extractQuizFromSlide(slides[currentIndex] ?? {}).length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setQuizPopupOpen(true)}
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-violet-500/20 border border-violet-400/40 text-violet-300 hover:bg-violet-500/30 text-[11px] font-medium transition-colors"
+                      title={tr('Mở quiz: thời gian, đồng hồ cát, thống kê', 'Open quiz: duration, timer, stats', '打开测验：时间、沙漏、统计', 'クイズを開く：時間・砂時計・統計', '퀴즈 열기: 시간·모래시계·통계')}
+                    >
+                      <ClipboardList className="h-3.5 w-3.5" />
+                      {tr('Mở quiz', 'Open quiz', '打开测验', 'クイズを開く', '퀴즈 열기')}
+                    </button>
+                  )}
+                  <div className="flex rounded-lg border border-slate-600/80 overflow-hidden bg-slate-800/50">
+                    <button type="button" onClick={() => setLeftPanelMode('curriculum')} className={['px-2.5 py-1 text-[11px] font-medium transition-colors', leftPanelMode === 'curriculum' ? 'bg-amber-500/30 text-amber-300' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'].join(' ')}>
+                      {tr('Giáo trình', 'Curriculum', '课程', 'カリキュラム', '교육과정')}
+                    </button>
+                    <button type="button" onClick={() => setLeftPanelMode('slide')} className={['px-2.5 py-1 text-[11px] font-medium transition-colors', leftPanelMode === 'slide' ? 'bg-amber-500/30 text-amber-300' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'].join(' ')}>
+                      {tr('Slide', 'Slide', '幻灯片', 'スライド', '슬라이드')}
+                    </button>
+                    <button type="button" onClick={() => setLeftPanelMode('visual')} className={['px-2.5 py-1 text-[11px] font-medium transition-colors', leftPanelMode === 'visual' ? 'bg-amber-500/30 text-amber-300' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'].join(' ')}>
+                      {tr('Visual', 'Visual', '视觉', 'ビジュアル', '비주얼')}
+                    </button>
+                  </div>
+                </div>
               </div>
-              </div>
-            </div>
-            <div className="flex-1 overflow-y-scroll overflow-x-hidden overscroll-y-contain p-4 space-y-3 pr-2 scroll-smooth min-h-0 text-left">
+            )}
+            <div className={cn('flex-1 overflow-y-scroll overflow-x-hidden overscroll-y-contain p-4 space-y-3 pr-2 scroll-smooth min-h-0 text-left', leftPanelMode === 'visual' && 'p-0 pr-0 space-y-0 overflow-hidden')}>
               {leftPanelMode === 'visual' ? (
                 (() => {
                   const s = slides[currentIndex]
                   if (!s) return <p className="text-slate-500 text-sm">{tr('Không có slide', 'No slide', '无幻灯片', 'スライドなし', '슬라이드 없음')}</p>
                   const { layout, cells } = getVisualCells(s)
                   const hasAny = cells.some((c) => c.visualEmbed || c.imageUrl)
-                  const gridClass = layout === 2 ? 'grid grid-rows-2 gap-2' : layout === 4 ? 'grid grid-cols-2 grid-rows-2 gap-2' : ''
+                  const slideNum = currentIndex + 1
+                  const gradient = DARK_GRADIENTS[currentIndex % DARK_GRADIENTS.length]
+                  const gridClass = layout === 2 ? 'grid grid-rows-2 gap-1' : layout === 4 ? 'grid grid-cols-2 grid-rows-2 gap-1' : ''
                   return (
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between gap-2 flex-wrap">
-                        <span className="text-amber-300 font-medium text-sm">{currentIndex + 1}/{slides.length} {s.title}</span>
+                    <div className="h-full w-full relative overflow-hidden" style={{ background: gradient }}>
+                      <div className="absolute top-3 right-3 z-20 flex items-center rounded-lg border border-slate-600/80 overflow-hidden bg-slate-900/70">
+                        <button type="button" onClick={() => setLeftPanelMode('curriculum')} className="px-2 py-1 text-[10px] text-slate-300 hover:bg-slate-700/50">{tr('Giáo trình', 'Curriculum', '课程', 'カリキュラム', '교육과정')}</button>
+                        <button type="button" onClick={() => setLeftPanelMode('slide')} className="px-2 py-1 text-[10px] text-slate-300 hover:bg-slate-700/50">{tr('Slide', 'Slide', '幻灯片', 'スライド', '슬라이드')}</button>
+                        <button type="button" onClick={() => setLeftPanelMode('visual')} className="px-2 py-1 text-[10px] bg-amber-500/30 text-amber-300">{tr('Visual', 'Visual', '视觉', 'ビジュアル', '비주얼')}</button>
                         {hasAny && (
                           <button
                             type="button"
-                            onClick={() => setVisualFullscreenOpen(true)}
-                            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-500/20 border border-amber-400/40 text-amber-300 hover:bg-amber-500/30 text-xs font-medium transition-colors"
-                            title={tr('Mở rộng full màn hình', 'Expand fullscreen', '全屏展开', '全画面表示', '전체 화면')}
+                            onClick={() => openTeacherVisualFullscreen()}
+                            className="px-2 py-1 text-[10px] text-slate-200 hover:bg-slate-700/50 border-l border-slate-600/70"
+                            title={tr('Mở rộng tất cả', 'Expand all', '展开全部', 'すべて展開', '모두 확장')}
                           >
-                            <Maximize2 className="h-3.5 w-3.5" />
-                            {tr('Mở rộng', 'Expand', '展开', '展開', '확장')}
+                            <Maximize2 className="h-3 w-3" />
                           </button>
                         )}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button type="button" className="px-2 py-1 text-slate-300 hover:bg-slate-700/50 border-l border-slate-600/70" title={tr('Tùy chọn', 'Options', '选项', 'オプション', '옵션')}>
+                              <MoreVertical className="h-3.5 w-3.5" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="z-[120]">
+                            <DropdownMenuItem onClick={() => handleDeleteVisual()} disabled={!hasAny} className="text-rose-600 focus:text-rose-600 dark:text-rose-400">
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              {tr('Xóa visual', 'Delete visual', '删除视觉', 'ビジュアル削除', '비주얼 삭제')}
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
-                      <div className={cn('rounded-xl bg-slate-800/60 border border-slate-600/60 overflow-hidden', layout === 1 ? 'flex flex-col' : gridClass)} style={layout === 1 ? { minHeight: 200 } : {}}>
-                        {cells.map((cell, idx) => (
-                          <div key={idx} className="relative rounded-lg overflow-hidden bg-black/30 border border-slate-600/60 min-h-[160px]">
-                            {cell.visualEmbed ? (
+                      <div className="absolute top-4 left-4 w-9 h-9 rounded-full bg-red-500 flex items-center justify-center text-white font-bold text-sm shadow-lg z-10">
+                        {slideNum}
+                      </div>
+                      <div className={cn('absolute inset-0 pt-14 pb-4 px-4', layout === 1 ? 'flex flex-col' : gridClass)}>
+                        {layout === 1 ? (
+                          <div className="flex-1 min-h-0 relative rounded-lg overflow-hidden bg-black/30 border border-white/10">
+                            <span className="absolute top-1 left-1 z-10 px-1.5 py-0.5 rounded bg-black/60 text-white text-xs font-mono">
+                              {slideNum}-1
+                            </span>
+                            {cells[0]?.visualEmbed ? (
                               (() => {
-                                const embeds = parseContentEmbeds(cell.visualEmbed)
+                                const embeds = parseContentEmbeds(cells[0].visualEmbed)
                                 const first = embeds[0]
-                                if (!first) return <div className="w-full h-full min-h-[160px]" />
-                                return <div className="w-full h-full min-h-[160px]"><ContentEmbed type={first.type} urlOrId={first.urlOrId} width={320} height={200} tr={tr} hideQuiz className="!my-0 !rounded-lg !border-0" /></div>
+                                if (!first) return <div className="w-full h-full" />
+                                return <div className="w-full h-full"><ContentEmbed type={first.type} urlOrId={first.urlOrId} tr={tr} hideQuiz fill className="!my-0 !rounded-lg !border-0" /></div>
                               })()
-                            ) : cell.imageUrl ? (
-                              <img src={cell.imageUrl} alt="" className="w-full h-full min-h-[160px] object-contain" referrerPolicy="no-referrer" />
+                            ) : cells[0]?.imageUrl ? (
+                              <img src={cells[0].imageUrl} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                             ) : (
-                              <div className="w-full h-full min-h-[160px] flex items-center justify-center text-slate-500 text-sm">{tr('Không có ảnh', 'No image', '无图片', '画像なし', '이미지 없음')}</div>
+                              <div className="w-full h-full flex items-center justify-center"><div className="w-8 h-8 rounded bg-white/5" /></div>
                             )}
                           </div>
-                        ))}
+                        ) : (
+                          <>
+                            {cells.map((cell, idx) => (
+                              <div key={idx} className="relative rounded-lg overflow-hidden bg-black/30 border border-white/10 min-h-0 group">
+                                <span className="absolute top-1 left-1 z-10 px-1.5 py-0.5 rounded bg-black/60 text-white text-xs font-mono">
+                                  {slideNum}-{idx + 1}
+                                </span>
+                                {(cell.visualEmbed || cell.imageUrl) && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); openTeacherVisualFullscreen(idx) }}
+                                    className="absolute top-1 right-1 z-10 opacity-50 group-hover:opacity-100 p-1 rounded bg-black/60 text-white hover:bg-black/80 transition-opacity"
+                                    title={tr('Mở rộng ô này', 'Expand this cell', '展开此格', 'このセルを展開', '이 셀 확장')}
+                                  >
+                                    <Maximize2 className="h-3 w-3" />
+                                  </button>
+                                )}
+                                {cell.visualEmbed ? (
+                                  (() => {
+                                    const embeds = parseContentEmbeds(cell.visualEmbed)
+                                    const first = embeds[0]
+                                    if (!first) return <div className="w-full h-full" />
+                                    return <div className="w-full h-full"><ContentEmbed type={first.type} urlOrId={first.urlOrId} tr={tr} hideQuiz fill className="!my-0 !rounded-lg !border-0" /></div>
+                                  })()
+                                ) : cell.imageUrl ? (
+                                  <img src={cell.imageUrl} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center"><div className="w-8 h-8 rounded bg-white/5" /></div>
+                                )}
+                              </div>
+                            ))}
+                          </>
+                        )}
                       </div>
-                      {!hasAny && <p className="text-slate-500 text-sm">{tr('Slide này chưa có ảnh/visual', 'This slide has no image/visual', '此幻灯片无图片', 'このスライドに画像なし', '이 슬라이드에 이미지 없음')}</p>}
                     </div>
                   )
                 })()
               ) : leftPanelMode === 'slide' ? (
                 (() => {
                   const s = slides[currentIndex]
-                  const blks = !s ? [] : (s.blocks?.length ? s.blocks : s.content ? parseContentToBlocks(s.content ?? '') : [])
+                  const blks = !s ? [] : (Array.isArray(s.blocks) && s.blocks.length ? s.blocks : s.content ? parseContentToBlocks(s.content ?? '') : [])
                   const isQuizHeader = (h: string) => /câu hỏi|quiz|trắc nghiệm|测验|クイズ|퀴즈/i.test(h ?? '')
                   return (
                     <div className="space-y-4">
                       {/* Tiêu đề slide – ý chính nổi bật */}
-                      <div className="pb-3 border-b border-slate-600/60">
-                        <span className="inline-block px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 text-xs font-medium mb-1.5">{currentIndex + 1}/{slides.length}</span>
-                        <h2 className="text-base font-semibold text-white leading-snug">{s?.title ?? ''}</h2>
+                      <div className="pb-3 border-b border-slate-600/60 flex items-start justify-between gap-2">
+                        <div>
+                          <span className="inline-block px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 text-xs font-medium mb-1.5">{currentIndex + 1}/{slides.length}</span>
+                          <h2 className="text-base font-semibold text-white leading-snug">{s?.title ?? ''}</h2>
+                        </div>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button type="button" className="p-1.5 rounded-md text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 shrink-0" title={tr('Tùy chọn', 'Options', '选项', 'オプション', '옵션')}>
+                              <MoreVertical className="h-4 w-4" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="z-[120]">
+                            <DropdownMenuItem onClick={() => handleDeleteSlide()} disabled={slides.length <= 1} className="text-rose-600 focus:text-rose-600 dark:text-rose-400">
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              {tr('Xóa slide', 'Delete slide', '删除幻灯片', 'スライド削除', '슬라이드 삭제')}
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                       {blks.length > 0 ? (
                         <div className="space-y-4">
@@ -875,24 +1550,24 @@ export default function CurriculumViewPage() {
           </div>
 
           {/* Phải: Slide */}
-          <div className="w-1/2 min-w-0 flex flex-col overflow-hidden isolate">
+          <div className={cn('shrink-0 flex flex-col overflow-hidden isolate', leftPanelMode === 'visual' ? 'w-[55%]' : 'w-1/2')}>
             <div className="px-4 py-2.5 text-slate-400 text-xs font-medium uppercase tracking-wider border-b border-slate-700/60 shrink-0 bg-slate-900/30">
               {slideViewMode === 'single' ? tr('Slide đang hiển thị', 'Current slide', '当前幻灯片', '表示中のスライド', '표시 중 슬라이드') : tr('3 slide: trước · hiện tại · sau', '3 slides: prev · current · next', '3张: 前·当前·后', '3枚: 前·現在·次', '3장: 이전·현재·다음')}
             </div>
             {slideViewMode === 'single' ? (
-              <div className="flex-1 overflow-y-scroll overflow-x-hidden overscroll-y-contain p-3 space-y-2 min-h-0 flex flex-col text-left">
+              <div className="flex-1 flex items-start justify-start min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain p-3">
                 {(() => {
                   const s = slides[currentIndex]
-                  const blks = !s ? [] : (s.blocks?.length ? s.blocks : s.content ? parseContentToBlocks(s.content ?? '') : [])
+                  const blks = !s ? [] : (Array.isArray(s.blocks) && s.blocks.length ? s.blocks : s.content ? parseContentToBlocks(s.content ?? '') : [])
                   const showDirectEdit = curriculumId && slideMode === 'personal' && personalViewSubMode === 'current'
                   return (
-                    <>
+                    <div className="w-full flex flex-col gap-2 items-stretch text-left">
                       {slideMode === 'personal' && personalViewSubMode === 'current' && !curriculumId && (
                         <div className="rounded-lg bg-violet-500/15 border border-violet-400/30 px-4 py-2 text-sm text-violet-200">
                           {tr('Lưu giáo trình vào kho để sửa bản riêng.', 'Save curriculum to library to edit personal version.', '保存课程到库以编辑个人版。', 'カリキュラムを保存して個人版を編集。', '교육과정 저장 후 개인 버전 편집.')}
                         </div>
                       )}
-                      <div className="rounded-xl bg-amber-500/10 ring-2 ring-amber-400/40 border border-amber-400/30 p-2.5 shadow-lg flex flex-col">
+                      <div className="w-full rounded-xl bg-amber-500/10 ring-2 ring-amber-400/40 border border-amber-400/30 p-2.5 shadow-lg flex flex-col">
                         <div className="flex items-center justify-between gap-1.5 mb-2 flex-wrap shrink-0">
                           {editingTitle === currentIndex ? (
                             <div className="flex-1 flex gap-2 items-center flex-wrap min-w-0">
@@ -921,35 +1596,53 @@ export default function CurriculumViewPage() {
                                 {showDirectEdit && (
                                   <button type="button" onClick={() => { setEditingTitle(currentIndex); setEditingTitleValue(s?.title ?? '') }} className="text-xs text-slate-400 hover:text-amber-400 px-2 py-1 rounded-md hover:bg-slate-700/50 transition-colors">{tr('Sửa tiêu đề', 'Edit title', '编辑标题', 'タイトル編集', '제목 편집')}</button>
                                 )}
-                                {getQuizCount(blks) < 1 && editingTitle !== currentIndex && (
-                                  <Popover open={quizDifficultyPopoverSlide === currentIndex} onOpenChange={(o) => setQuizDifficultyPopoverSlide(o ? currentIndex : null)}>
-                                    <PopoverTrigger asChild>
-                                      <button
-                                        type="button"
-                                        disabled={quizGenLoading !== null}
-                                        className="text-xs text-violet-400 hover:text-violet-300 px-2.5 py-1 rounded-lg bg-violet-500/15 border border-violet-400/30 flex items-center gap-1.5 transition-colors disabled:opacity-50"
-                                        title={tr('Tạo câu hỏi trắc nghiệm', 'Generate quiz', '生成测验', 'クイズ作成', '퀴즈 생성')}
-                                      >
-                                        <Sparkles className="h-3.5 w-3.5" />
-                                        {quizGenLoading === currentIndex ? tr('Đang tạo...', 'Creating...', '创建中...', '作成中...', '생성 중...') : tr('Tạo câu hỏi', 'Add quiz', '添加测验', 'クイズ追加', '퀴즈 추가')}
-                                      </button>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-48 p-2" align="start">
-                                      <p className="text-xs text-muted-foreground mb-2">{tr('Chọn độ khó', 'Select difficulty', '选择难度', '難易度を選択', '난이도 선택')}</p>
-                                      <div className="flex flex-col gap-1">
-                                        {(['easy', 'medium', 'hard'] as const).map((d) => (
-                                          <button
-                                            key={d}
-                                            type="button"
-                                            onClick={() => void handleGenerateQuiz(currentIndex, d)}
-                                            className="text-left text-xs px-2 py-1.5 rounded hover:bg-violet-500/20 text-violet-200"
-                                          >
-                                            {d === 'easy' ? tr('Dễ', 'Easy', '简单', '易しい', '쉬움') : d === 'medium' ? tr('Trung bình', 'Medium', '中等', '普通', '보통') : tr('Khó', 'Hard', '困难', '難しい', '어려움')}
-                                          </button>
-                                        ))}
-                                      </div>
-                                    </PopoverContent>
-                                  </Popover>
+                                {editingTitle !== currentIndex && (
+                                  getQuizCount(blks) < 1 ? (
+                                    <Popover open={quizDifficultyPopoverSlide === currentIndex} onOpenChange={(o) => setQuizDifficultyPopoverSlide(o ? currentIndex : null)}>
+                                      <PopoverTrigger asChild>
+                                        <button
+                                          type="button"
+                                          disabled={quizGenLoading !== null}
+                                          className="text-xs text-violet-400 hover:text-violet-300 px-2.5 py-1 rounded-lg bg-violet-500/15 border border-violet-400/30 flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                                          title={tr('Tạo câu hỏi trắc nghiệm', 'Generate quiz', '生成测验', 'クイズ作成', '퀴즈 생성')}
+                                        >
+                                          <Sparkles className="h-3.5 w-3.5" />
+                                          {quizGenLoading === currentIndex ? tr('Đang tạo...', 'Creating...', '创建中...', '作成中...', '생성 중...') : tr('Tạo câu hỏi', 'Add quiz', '添加测验', 'クイズ追加', '퀴즈 추가')}
+                                        </button>
+                                      </PopoverTrigger>
+                                      <PopoverContent className="w-48 p-2" align="start">
+                                        <p className="text-xs font-medium text-foreground mb-2">{tr('Chọn độ khó', 'Select difficulty', '选择难度', '難易度を選択', '난이도 선택')}</p>
+                                        <div className="flex flex-col gap-1">
+                                          {QUIZ_DIFFICULTIES.map((d) => (
+                                            <button
+                                              key={d}
+                                              type="button"
+                                              onClick={() => void handleGenerateQuiz(currentIndex, d)}
+                                              className={`text-left text-sm font-medium px-2.5 py-2 rounded-md transition-colors ${
+                                                d === 'easy'
+                                                  ? 'text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20'
+                                                  : d === 'medium'
+                                                    ? 'text-amber-600 dark:text-amber-400 hover:bg-amber-500/20'
+                                                    : 'text-rose-600 dark:text-rose-400 hover:bg-rose-500/20'
+                                              }`}
+                                            >
+                                              {d === 'easy' ? tr('Dễ', 'Easy', '简单', '易しい', '쉬움') : d === 'medium' ? tr('Trung bình', 'Medium', '中等', '普通', '보통') : tr('Khó', 'Hard', '困难', '難しい', '어려움')}
+                                            </button>
+                                          ))}
+                                        </div>
+                                      </PopoverContent>
+                                    </Popover>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => setQuizPopupOpen(true)}
+                                      className="text-xs text-violet-400 hover:text-violet-300 px-2.5 py-1 rounded-lg bg-violet-500/15 border border-violet-400/30 flex items-center gap-1.5 transition-colors"
+                                      title={tr('Xem câu hỏi trắc nghiệm', 'View quiz', '查看测验', 'クイズを見る', '퀴즈 보기')}
+                                    >
+                                      <ClipboardList className="h-3.5 w-3.5" />
+                                      {tr('Xem câu hỏi', 'View quiz', '查看测验', 'クイズを見る', '퀴즈 보기')}
+                                    </button>
+                                  )
                                 )}
                                 {curriculumId && (
                                   <button
@@ -990,7 +1683,7 @@ export default function CurriculumViewPage() {
                                     </div>
                                   ) : (
                                     b.header && (
-                                      <div className="flex items-center gap-1.5 mb-1.5">
+                                      <div className="flex items-center gap-1.5 mb-2">
                                         <div className="text-amber-300/95 font-medium text-sm">{b.header}</div>
                                         {showDirectEdit && (
                                           <button type="button" onClick={() => { setEditingHeader({ slideIndex: currentIndex, blockIndex: i }); setEditingHeaderValue(b.header ?? '') }} className="text-[11px] text-slate-400 hover:text-amber-400 px-1.5 py-0.5 rounded hover:bg-slate-700/50 transition-colors">{tr('Sửa', 'Edit', '编辑', '編集', '편집')}</button>
@@ -1014,7 +1707,7 @@ export default function CurriculumViewPage() {
                                   ) : (
                                     <>
                                       <div className="text-slate-200/95 text-sm whitespace-pre-wrap break-words leading-relaxed min-w-0 text-left space-y-2">
-                                        {(splitContentWithEmbeds(b.content ?? '')).map((p, j) => {
+                                        {asArray(splitContentWithEmbeds(b.content ?? '')).map((p, j) => {
                                           if (p.type === 'text') return p.value ? <span key={j}>{p.value}</span> : null
                                           if (p.type === 'embed' && p.embedType === 'quiz') {
                                             const q = parseQuizData(p.urlOrId)
@@ -1045,8 +1738,8 @@ export default function CurriculumViewPage() {
                                         })}
                                       </div>
                                       <div className="mt-2 flex flex-wrap gap-1.5">
-                                        {curriculumId && (splitContentWithEmbeds(b.content ?? '')).some((p) => p.type === 'embed' && p.embedType === 'quiz') && (
-                                          (splitContentWithEmbeds(b.content ?? '')).filter((p) => p.type === 'embed' && p.embedType === 'quiz').map((p, qIdx) => (
+                                        {curriculumId && asArray(splitContentWithEmbeds(b.content ?? '')).some((p) => p.type === 'embed' && p.embedType === 'quiz') && (
+                                          asArray(splitContentWithEmbeds(b.content ?? '')).filter((p) => p.type === 'embed' && p.embedType === 'quiz').map((p, qIdx) => (
                                             <button
                                               key={qIdx}
                                               type="button"
@@ -1125,7 +1818,7 @@ export default function CurriculumViewPage() {
                               ) : (
                                 <>
                                   <div className="text-slate-200 text-sm whitespace-pre-wrap break-words leading-relaxed min-w-0 text-left space-y-2">
-                                    {(splitContentWithEmbeds(s.content ?? '')).map((p, j) => {
+                                    {asArray(splitContentWithEmbeds(s.content ?? '')).map((p, j) => {
                                       if (p.type === 'text') return p.value ? <span key={j}>{p.value}</span> : null
                                       if (p.type === 'embed' && p.embedType === 'quiz') {
                                         const q = parseQuizData(p.urlOrId)
@@ -1156,7 +1849,7 @@ export default function CurriculumViewPage() {
                                     })}
                                   </div>
                                   <div className="mt-2 flex flex-wrap gap-1.5">
-                                    {curriculumId && (splitContentWithEmbeds(s.content ?? '')).filter((p) => p.type === 'embed' && p.embedType === 'quiz').map((p, qIdx) => (
+                                    {curriculumId && asArray(splitContentWithEmbeds(s.content ?? '')).filter((p) => p.type === 'embed' && p.embedType === 'quiz').map((p, qIdx) => (
                                       <button
                                         key={qIdx}
                                         type="button"
@@ -1211,23 +1904,21 @@ export default function CurriculumViewPage() {
                           <p className="text-slate-500 text-sm py-2">{tr('Không có nội dung', 'No content', '无内容', 'コンテンツなし', '내용 없음')}</p>
                         )}
                       </div>
-                      <div className="rounded-lg bg-slate-800/50 p-2 border border-slate-600/60 shrink-0">
-                        <label className="block text-amber-300/95 font-medium mb-1 text-xs">{tr('Ghi chú', 'Notes', '备注', 'メモ', '메모')}</label>
-                        <textarea value={notesValue} onChange={(e) => setNotesValue(e.target.value)} onBlur={handleBlur} placeholder={tr('Gợi ý câu hỏi, ví dụ...', 'Question hints, examples...', '问题提示、示例...', '質問のヒント、例...', '질문 힌트, 예시...')} className="w-full rounded-lg bg-slate-700/60 p-2 min-h-[44px] max-h-[100px] text-slate-200 placeholder-slate-500 border border-slate-600 focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 text-xs resize-y transition-colors" />
+                      <div className="w-full rounded-lg bg-slate-800/50 p-3 border border-slate-600/60 shrink-0">
+                        <label className="block text-amber-300/95 font-medium mb-1.5 text-sm">{tr('Ghi chú', 'Notes', '备注', 'メモ', '메모')}</label>
+                        <textarea value={notesValue} onChange={(e) => setNotesValue(e.target.value)} onBlur={handleBlur} placeholder={tr('Gợi ý câu hỏi, ví dụ...', 'Question hints, examples...', '问题提示、示例...', '質問のヒント、例...', '질문 힌트, 예시...')} className="w-full rounded-lg bg-slate-700/60 p-3 min-h-[64px] max-h-[120px] text-slate-200 placeholder-slate-500 border border-slate-600 focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 text-sm resize-y transition-colors" />
                       </div>
-                    </>
+                    </div>
                   )
                 })()}
               </div>
             ) : (
             <div className="flex-1 min-h-0 flex flex-col gap-1.5 p-3 overflow-hidden">
-              {[
-                { idx: currentIndex - 1, label: tr('Slide trước', 'Prev slide', '上一张', '前のスライド', '이전 슬라이드'), isCurrent: false },
-                { idx: currentIndex, label: tr('Đang hiển thị', 'Displaying', '正在显示', '表示中', '표시 중'), isCurrent: true },
-                { idx: currentIndex + 1, label: tr('Slide sau', 'Next slide', '下一张', '次のスライド', '다음 슬라이드'), isCurrent: false },
-              ].map(({ idx, label, isCurrent }) => {
+              {([tripleIdxPrev, tripleIdxCur, tripleIdxNext] as const).map((idx, step) => {
+                const isCurrent = step === 1
+                const label = `Slide ${idx + 1}`
                 const s = slides[idx]
-                const blks = !s ? [] : (s.blocks?.length ? s.blocks : s.content ? parseContentToBlocks(s.content ?? '') : [])
+                const blks = !s ? [] : (Array.isArray(s.blocks) && s.blocks.length ? s.blocks : s.content ? parseContentToBlocks(s.content ?? '') : [])
                 const canGo = idx >= 0 && idx < slides.length && idx !== currentIndex
                 return (
                   <div
@@ -1257,30 +1948,53 @@ export default function CurriculumViewPage() {
                             {tr('Gộp sau', 'Merge next', '合并后', '次を結合', '다음 병합')}
                           </button>
                         )}
-                        {isCurrent && getQuizCount(blks) < 1 && (
-                          <Popover open={quizDifficultyPopoverSlide === idx} onOpenChange={(o) => setQuizDifficultyPopoverSlide(o ? idx : null)}>
-                            <PopoverTrigger asChild>
-                              <button
-                                type="button"
-                                disabled={quizGenLoading !== null}
-                                className="text-xs text-violet-400 hover:text-violet-300 px-1.5 py-0.5 rounded bg-slate-700/50 flex items-center gap-1"
-                                title={tr('Tạo câu hỏi trắc nghiệm', 'Generate quiz', '生成测验', 'クイズ作成', '퀴즈 생성')}
-                              >
-                                <Sparkles className="h-3 w-3" />
-                                {quizGenLoading === idx ? tr('Đang tạo...', 'Creating...', '创建中...', '作成中...', '생성 중...') : tr('Tạo câu hỏi', 'Add quiz', '添加测验', 'クイズ追加', '퀴즈 추가')}
-                              </button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-48 p-2" align="start">
-                              <p className="text-xs text-muted-foreground mb-2">{tr('Chọn độ khó', 'Select difficulty', '选择难度', '難易度を選択', '난이도 선택')}</p>
-                              <div className="flex flex-col gap-1">
-                                {(['easy', 'medium', 'hard'] as const).map((d) => (
-                                  <button key={d} type="button" onClick={() => void handleGenerateQuiz(idx, d)} className="text-left text-xs px-2 py-1.5 rounded hover:bg-violet-500/20 text-violet-200">
-                                    {d === 'easy' ? tr('Dễ', 'Easy', '简单', '易しい', '쉬움') : d === 'medium' ? tr('Trung bình', 'Medium', '中等', '普通', '보통') : tr('Khó', 'Hard', '困难', '難しい', '어려움')}
-                                  </button>
-                                ))}
-                              </div>
-                            </PopoverContent>
-                          </Popover>
+                        {isCurrent && (
+                          getQuizCount(blks) < 1 ? (
+                            <Popover open={quizDifficultyPopoverSlide === idx} onOpenChange={(o) => setQuizDifficultyPopoverSlide(o ? idx : null)}>
+                              <PopoverTrigger asChild>
+                                <button
+                                  type="button"
+                                  disabled={quizGenLoading !== null}
+                                  className="text-xs text-violet-400 hover:text-violet-300 px-1.5 py-0.5 rounded bg-slate-700/50 flex items-center gap-1"
+                                  title={tr('Tạo câu hỏi trắc nghiệm', 'Generate quiz', '生成测验', 'クイズ作成', '퀴즈 생성')}
+                                >
+                                  <Sparkles className="h-3 w-3" />
+                                  {quizGenLoading === idx ? tr('Đang tạo...', 'Creating...', '创建中...', '作成中...', '생성 중...') : tr('Tạo câu hỏi', 'Add quiz', '添加测验', 'クイズ追加', '퀴즈 추가')}
+                                </button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-48 p-2" align="start">
+                                <p className="text-xs font-medium text-foreground mb-2">{tr('Chọn độ khó', 'Select difficulty', '选择难度', '難易度を選択', '난이도 선택')}</p>
+                                <div className="flex flex-col gap-1">
+                                  {QUIZ_DIFFICULTIES.map((d) => (
+                                    <button
+                                      key={d}
+                                      type="button"
+                                      onClick={() => void handleGenerateQuiz(idx, d)}
+                                      className={`text-left text-sm font-medium px-2.5 py-2 rounded-md transition-colors ${
+                                        d === 'easy'
+                                          ? 'text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20'
+                                          : d === 'medium'
+                                            ? 'text-amber-600 dark:text-amber-400 hover:bg-amber-500/20'
+                                            : 'text-rose-600 dark:text-rose-400 hover:bg-rose-500/20'
+                                      }`}
+                                    >
+                                      {d === 'easy' ? tr('Dễ', 'Easy', '简单', '易しい', '쉬움') : d === 'medium' ? tr('Trung bình', 'Medium', '中等', '普通', '보통') : tr('Khó', 'Hard', '困难', '難しい', '어려움')}
+                                    </button>
+                                  ))}
+                                </div>
+                              </PopoverContent>
+                            </Popover>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setQuizPopupOpen(true)}
+                              className="text-xs text-violet-400 hover:text-violet-300 px-1.5 py-0.5 rounded bg-slate-700/50 flex items-center gap-1"
+                              title={tr('Xem câu hỏi trắc nghiệm', 'View quiz', '查看测验', 'クイズを見る', '퀴즈 보기')}
+                            >
+                              <ClipboardList className="h-3 w-3" />
+                              {tr('Xem câu hỏi', 'View quiz', '查看测验', 'クイズを見る', '퀴즈 보기')}
+                            </button>
+                          )
                         )}
                         {isCurrent && curriculumId && (
                           <button
@@ -1343,7 +2057,7 @@ export default function CurriculumViewPage() {
                               ) : (
                                 <>
                                   <div className="text-slate-200 text-xs whitespace-pre-wrap break-words leading-relaxed min-w-0 text-left space-y-1">
-                                    {(splitContentWithEmbeds(b.content ?? '')).map((p, j) => {
+                                    {asArray(splitContentWithEmbeds(b.content ?? '')).map((p, j) => {
                                       if (p.type === 'text') return p.value ? <span key={j} className="line-clamp-3">{p.value}</span> : null
                                       if (p.type === 'embed' && p.embedType === 'quiz') {
                                         const q = parseQuizData(p.urlOrId)
@@ -1366,7 +2080,7 @@ export default function CurriculumViewPage() {
                                     })}
                                   </div>
                                   <div className="mt-1 flex flex-wrap gap-1">
-                                    {curriculumId && (splitContentWithEmbeds(b.content ?? '')).filter((p) => p.type === 'embed' && p.embedType === 'quiz').map((p, qIdx) => (
+                                    {curriculumId && asArray(splitContentWithEmbeds(b.content ?? '')).filter((p) => p.type === 'embed' && p.embedType === 'quiz').map((p, qIdx) => (
                                       <button key={qIdx} type="button" disabled={!!quizReportLoading} onClick={() => reportQuizWrong({ curriculumId, slideIndex: idx, blockIndex: i, quizMarker: p.rawMarker, slideTitle: s?.title ?? '', slideContent: (blks ?? []).map((bl) => (bl.header ? `### ${bl.header}\n\n` : '') + (bl.content ?? '')).join('\n\n') })} className="text-[10px] font-medium text-rose-300 hover:text-rose-200 px-1.5 py-0.5 rounded bg-rose-500/20 flex items-center gap-0.5 disabled:opacity-50">
                                         <Flag className="h-2.5 w-2.5" />{tr('Báo sai', 'Report wrong', '报告错误', '誤り報告', '오류 신고')}
                                       </button>
@@ -1423,7 +2137,7 @@ export default function CurriculumViewPage() {
                           ) : (
                             <>
                               <div className="text-slate-200 text-xs whitespace-pre-wrap break-words leading-relaxed min-w-0 text-left space-y-1">
-                                {(splitContentWithEmbeds(s.content ?? '')).map((p, j) => {
+                                {asArray(splitContentWithEmbeds(s.content ?? '')).map((p, j) => {
                                   if (p.type === 'text') return p.value ? <span key={j} className="line-clamp-3">{p.value}</span> : null
                                   if (p.type === 'embed' && p.embedType === 'quiz') {
                                     const q = parseQuizData(p.urlOrId)
@@ -1445,7 +2159,7 @@ export default function CurriculumViewPage() {
                                   return null
                                 })}
                               </div>
-                              {isCurrent && curriculumId && (splitContentWithEmbeds(s.content ?? '')).filter((p) => p.type === 'embed' && p.embedType === 'quiz').map((p, qIdx) => (
+                              {isCurrent && curriculumId && asArray(splitContentWithEmbeds(s.content ?? '')).filter((p) => p.type === 'embed' && p.embedType === 'quiz').map((p, qIdx) => (
                                 <button key={qIdx} type="button" disabled={!!quizReportLoading} onClick={() => reportQuizWrong({ curriculumId, slideIndex: idx, blockIndex: 0, quizMarker: p.rawMarker, slideTitle: s?.title ?? '', slideContent: s.content ?? '' })} className="text-[10px] text-rose-400 hover:text-rose-300 px-1.5 py-0.5 rounded bg-slate-700/50 flex items-center gap-0.5 border border-rose-500/50 mt-1 disabled:opacity-50">
                                   <Flag className="h-2.5 w-2.5" />{tr('Báo sai', 'Report wrong', '报告错误', '誤り報告', '오류 신고')}
                                 </button>
@@ -1501,11 +2215,12 @@ export default function CurriculumViewPage() {
                   </div>
                 )
               })}
-            </div>
+              </div>
             )}
           </div>
         </div>
       )}
+      </div>
       {proposalDialog && curriculumId && (
         <SlideProposalDialog
           open={proposalDialog.open}
@@ -1538,28 +2253,22 @@ export default function CurriculumViewPage() {
           open={embedDialogOpen}
           onOpenChange={setEmbedDialogOpen}
           onInsert={(marker, placement, alsoTo) => {
-            if (window.opener) {
-              window.opener.postMessage({ type: 'insert-embed', marker, placement, alsoApplyToSlideIndices: alsoTo }, window.location.origin)
-            }
+            handleInsertEmbed(marker, placement ?? 'end', alsoTo)
             setEmbedDialogOpen(false)
           }}
           onReplaceSlideImage={(markerOrUrl, alsoTo, layout, cellIndex) => {
-            if (window.opener) {
-              window.opener.postMessage({ type: 'replace-slide-image', markerOrUrl, alsoApplyToSlideIndices: alsoTo, layout, cellIndex }, window.location.origin)
-            }
+            handleReplaceSlideImage(markerOrUrl, alsoTo, layout ?? 1, cellIndex)
             setEmbedDialogOpen(false)
           }}
           onDeleteVisual={(alsoTo) => {
-            if (window.opener) {
-              window.opener.postMessage({ type: 'delete-visual', alsoApplyToSlideIndices: alsoTo }, window.location.origin)
-            }
+            handleDeleteVisual(alsoTo)
             setEmbedDialogOpen(false)
           }}
           tr={tr}
           highZIndex
           blocks={(() => {
             const s = slides[currentIndex]
-            const blks = s?.blocks?.length ? s.blocks : s?.content ? parseContentToBlocks(s.content) : []
+            const blks = Array.isArray(s?.blocks) && s.blocks.length ? s.blocks : s?.content ? parseContentToBlocks(s.content) : []
             return blks.map((b) => ({ header: b.header ?? tr('Nội dung', 'Content', '内容', '内容', '내용'), content: b.content }))
           })()}
           slides={slides.map((s) => ({ title: s.title }))}
@@ -1570,42 +2279,50 @@ export default function CurriculumViewPage() {
       {visualFullscreenOpen && leftPanelMode === 'visual' && slides[currentIndex] && (() => {
         const s = slides[currentIndex]
         const { layout, cells } = getVisualCells(s)
-        const gridClass = layout === 2 ? 'grid grid-cols-2 gap-4' : layout === 4 ? 'grid grid-cols-2 grid-rows-2 gap-4' : ''
+        const showSingleCell = teacherExpandedCellIndex != null && layout > 1
+        const displayCells = showSingleCell && cells[teacherExpandedCellIndex] ? [cells[teacherExpandedCellIndex]] : cells
+        const displayIndices = showSingleCell && teacherExpandedCellIndex != null ? [teacherExpandedCellIndex] : cells.map((_, i) => i)
+        const gridClass = !showSingleCell && layout === 2 ? 'grid grid-rows-2 gap-2' : !showSingleCell && layout === 4 ? 'grid grid-cols-2 grid-rows-2 gap-2' : ''
         return (
           <div
             className="fixed inset-0 z-[105] bg-black flex flex-col"
-            onClick={(e) => { if (e.target === e.currentTarget) setVisualFullscreenOpen(false) }}
+            onClick={(e) => { if (e.target === e.currentTarget) closeTeacherVisualFullscreen() }}
           >
-            <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-slate-700/80 bg-slate-900/80">
-              <span className="text-amber-300 font-medium">{currentIndex + 1}/{slides.length} {s.title}</span>
+            <div className="absolute top-0 left-0 right-0 h-14 flex items-center justify-between px-4 bg-black/70 z-20 shrink-0">
+              <span className="text-white/80 text-sm">{currentIndex + 1}/{slides.length} {s.title}</span>
               <button
                 type="button"
-                onClick={() => setVisualFullscreenOpen(false)}
-                className="p-2 rounded-lg hover:bg-slate-700/60 text-slate-300 hover:text-white transition-colors"
+                onClick={closeTeacherVisualFullscreen}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/20 hover:bg-white/30 text-white font-medium transition-colors"
                 title={tr('Đóng', 'Close', '关闭', '閉じる', '닫기')}
               >
                 <X className="h-5 w-5" />
+                {tr('Đóng', 'Close', '关闭', '閉じる', '닫기')}
               </button>
             </div>
-            <div className={cn('flex-1 overflow-auto p-4 flex items-center justify-center', layout === 1 ? 'flex flex-col gap-4' : gridClass)}>
-              {cells.map((cell, i) => (
-                <div key={i} className="flex items-center justify-center">
+            <div className={cn('flex-1 min-h-0 relative px-4 pb-4 pt-14 flex flex-col', showSingleCell || layout === 1 ? 'gap-4' : '')}>
+              <div ref={teacherVisualFrameRef} className={cn('flex-1 min-h-0 overflow-hidden', showSingleCell || layout === 1 ? 'flex flex-col gap-4' : gridClass)}>
+              {displayCells.map((cell, i) => (
+                <div key={displayIndices[i] ?? i} className="flex-1 min-h-0 relative rounded-xl overflow-hidden bg-black/30 border border-white/10">
                   {cell.visualEmbed ? (
                     (() => {
                       const embeds = parseContentEmbeds(cell.visualEmbed)
                       const first = embeds[0]
-                      if (!first) return null
+                      if (!first) return <div className="w-full h-full" />
                       return (
-                        <div className="w-full max-w-3xl aspect-video rounded-lg overflow-hidden bg-slate-800">
-                          <ContentEmbed type={first.type} urlOrId={first.urlOrId} width={960} height={540} tr={tr} hideQuiz className="!my-0 !rounded-lg !border-0 !w-full !h-full !min-w-0 !min-h-0" />
+                        <div className="w-full h-full">
+                          <ContentEmbed type={first.type} urlOrId={first.urlOrId} tr={tr} hideQuiz fill className="!my-0 !rounded-xl !border-0" />
                         </div>
                       )
                     })()
                   ) : cell.imageUrl ? (
-                    <img src={cell.imageUrl} alt="" className="max-w-full max-h-[70vh] object-contain rounded-lg" referrerPolicy="no-referrer" />
-                  ) : null}
+                    <img src={cell.imageUrl} alt="" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
+                  ) : (
+                    <div className="w-full h-full bg-white/5" />
+                  )}
                 </div>
               ))}
+              </div>
             </div>
           </div>
         )

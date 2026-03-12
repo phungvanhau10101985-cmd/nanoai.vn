@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { ChevronLeft, ChevronRight, X, Printer, ArrowRight, TrendingUp, CalendarCheck, Lightbulb, BookOpen, Target, BarChart2, Trash2, Play, Pause, Settings2, ClipboardList, Maximize2, PenLine, FileText, Timer, RotateCcw } from 'lucide-react'
+import { ChevronLeft, ChevronRight, X, Printer, ArrowRight, TrendingUp, CalendarCheck, Lightbulb, BookOpen, Target, BarChart2, Trash2, Play, Pause, Settings2, ClipboardList, Maximize2, PenLine, Timer, RotateCcw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -15,6 +15,7 @@ import { parseCurriculumToSlides, parseContentToBlocks, type AISlideData } from 
 import { latexToReadable } from '../lib/latex-to-readable'
 import { ContentEmbed, splitContentWithEmbeds, parseContentEmbeds, splitBlockContentAtQuizBoundary, type EmbedType } from './content-embed'
 import { EmbedInsertDialog } from './embed-insert-dialog'
+import { PresentationControlBar } from './presentation-control-bar'
 import { QuizPopupDialog, extractQuizFromSlide } from './quiz-popup-dialog'
 import { useToast } from '@/hooks/use-toast'
 import { saveSlidesToCurriculum, saveUserCustomizedSlides } from '../actions'
@@ -52,6 +53,22 @@ const DARK_GRADIENTS = [
   'linear-gradient(160deg, #1e3a5f 0%, #0f172a 50%)',
   'linear-gradient(160deg, #1e3a5f 0%, #0c4a6e 50%)',
 ]
+
+/** Vùng ảnh thực sự hiển thị (object-contain) – dùng tâm ảnh + tỷ lệ để tính chuột ảo */
+function getVisibleImageBounds(img: HTMLImageElement): { left: number; top: number; width: number; height: number } {
+  const rect = img.getBoundingClientRect()
+  const nw = img.naturalWidth || rect.width
+  const nh = img.naturalHeight || rect.height
+  if (nw <= 0 || nh <= 0) return { left: rect.left, top: rect.top, width: rect.width, height: rect.height }
+  const cw = rect.width
+  const ch = rect.height
+  const scale = Math.min(cw / nw, ch / nh)
+  const dw = nw * scale
+  const dh = nh * scale
+  const ox = (cw - dw) / 2
+  const oy = (ch - dh) / 2
+  return { left: rect.left + ox, top: rect.top + oy, width: dw, height: dh }
+}
 
 const ICON_MAP: Record<string, React.ReactNode> = {
   'định nghĩa': <ArrowRight className="h-5 w-5" />,
@@ -295,6 +312,8 @@ interface NanoAISlideViewerProps {
   originalSlides?: AISlideData[] | null
   personalSlides?: AISlideData[] | null
   sharedSlides?: AISlideData[] | null
+  /** Slide hiện tại từ giáo viên (đồng bộ khi mở/refresh) */
+  initialSlideIndex?: number
 }
 
 function getVisualCells(slide: SlideItem): { layout: 1 | 2 | 4; cells: VisualCell[] } {
@@ -323,7 +342,7 @@ function getBaseSlides(curriculumMarkdown: string, topic: string, aiSlides: AISl
   return topic ? [{ title: topic, content: '' }, ...parsed] : parsed
 }
 
-export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides, curriculumId, subjectId, gradeLevelId, tr, onSlidesSaved, slideMode, originalSlides, personalSlides, sharedSlides }: NanoAISlideViewerProps) {
+export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides, curriculumId, subjectId, gradeLevelId, tr, onSlidesSaved, slideMode, originalSlides, personalSlides, sharedSlides, initialSlideIndex }: NanoAISlideViewerProps) {
   const { toast } = useToast()
   const [slides, setSlides] = useState<SlideItem[]>([])
   const [currentIndex, setCurrentIndex] = useState(0)
@@ -338,14 +357,18 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   const [visualFullscreenOpen, setVisualFullscreenOpen] = useState(false)
   const [expandedCellIndex, setExpandedCellIndex] = useState<number | null>(null)
   const fullscreenOverlayRef = useRef<HTMLDivElement>(null)
-  const curriculumWindowRef = useRef<Window | null>(null)
-  const [curriculumOpenedAt, setCurriculumOpenedAt] = useState(0)
+  const studentVisualFrameRef = useRef<HTMLDivElement | null>(null)
   const [timerSeconds, setTimerSeconds] = useState(0)
   const [timerRunning, setTimerRunning] = useState(false)
   const [teacherTimerSeconds, setTeacherTimerSeconds] = useState(0)
   const [teacherTimerRunning, setTeacherTimerRunning] = useState(false)
   const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const [slideVisibleCount, setSlideVisibleCount] = useState(0)
+  const [presentationMode, setPresentationMode] = useState<'independent' | 'slide-interaction'>('independent')
+  const [virtualMousePos, setVirtualMousePos] = useState<{ x: number; y: number } | null>(null)
+  const [mouseTrail, setMouseTrail] = useState<Array<{ x: number; y: number }>>([])
+  const [mouseClicks, setMouseClicks] = useState<Array<{ id: number; x: number; y: number }>>([])
+  const mouseThrottleRef = useRef(0)
 
   const openVisualFullscreen = useCallback((cellIndex?: number) => {
     setExpandedCellIndex(cellIndex ?? null)
@@ -371,83 +394,10 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     }
     setVisualFullscreenOpen(false)
     setExpandedCellIndex(null)
-  }, [])
-
-  const openCurriculumWindow = useCallback(() => {
-    const w = window.open('/tao-giao-trinh/giao-vien?t=' + Date.now(), 'giao-vien-' + Date.now(), 'width=1000,height=800,scrollbars=yes')
-    curriculumWindowRef.current = w
-    setCurriculumOpenedAt(Date.now())
-    if (w) {
-      const send = () => {
-        try {
-          if (!w.closed) {
-            w.postMessage({
-              type: 'curriculum-data',
-              content: curriculumMarkdown,
-              topic,
-              currentIndex,
-              curriculumId: curriculumId ?? null,
-              slideMode: slideMode ?? null,
-              personalViewSubMode: slideMode === 'personal' ? personalViewSubMode : null,
-              hasOriginalSlides: slideMode === 'personal' && !!(originalSlides?.length),
-              slides: slides.map((s) => ({ title: s.title, blocks: s.blocks?.length ? s.blocks : parseContentToBlocks(s.content ?? ''), teacherNotes: s.teacherNotes ?? '', imageUrl: s.imageUrl, visualEmbed: s.visualEmbed, visualLayout: s.visualLayout, visualCells: s.visualCells })),
-              teacherTimerSeconds,
-              teacherTimerRunning,
-            }, window.location.origin)
-          }
-        } catch { /* ignore */ }
-      }
-      setTimeout(send, 200)
-      setTimeout(send, 700)
-      setTimeout(send, 1500)
+    if (presentationMode === 'slide-interaction' && typeof window !== 'undefined' && window.opener) {
+      window.opener.postMessage({ type: 'visual-fullscreen-close' }, window.location.origin)
     }
-  }, [curriculumMarkdown, topic, currentIndex, slides, teacherTimerSeconds, teacherTimerRunning, curriculumId, slideMode, personalViewSubMode, originalSlides])
-
-  useEffect(() => {
-    const handler = (e: MessageEvent) => {
-      if (e.origin !== window.location.origin) return
-      if (e.data?.type === 'request-curriculum' && e.source) {
-        curriculumWindowRef.current = e.source as Window
-        try {
-          (e.source as Window).postMessage({
-            type: 'curriculum-data',
-            content: curriculumMarkdown,
-            topic,
-            currentIndex,
-            curriculumId: curriculumId ?? null,
-            slideMode: slideMode ?? null,
-            personalViewSubMode: slideMode === 'personal' ? personalViewSubMode : null,
-            hasOriginalSlides: slideMode === 'personal' && !!(originalSlides?.length),
-            slides: slides.map((s) => ({ title: s.title, blocks: s.blocks?.length ? s.blocks : parseContentToBlocks(s.content ?? ''), teacherNotes: s.teacherNotes ?? '', imageUrl: s.imageUrl, visualEmbed: s.visualEmbed, visualLayout: s.visualLayout, visualCells: s.visualCells })),
-            teacherTimerSeconds,
-            teacherTimerRunning,
-          }, window.location.origin)
-        } catch { /* ignore */ }
-      }
-    }
-    window.addEventListener('message', handler)
-    return () => window.removeEventListener('message', handler)
-  }, [curriculumMarkdown, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, originalSlides, slides, teacherTimerSeconds, teacherTimerRunning])
-
-  useEffect(() => {
-    const w = curriculumWindowRef.current
-    if (!curriculumOpenedAt || !w || w.closed) return
-    try {
-      w.postMessage({
-        type: 'curriculum-data',
-        content: curriculumMarkdown,
-        topic,
-        currentIndex,
-        curriculumId: curriculumId ?? null,
-        slideMode: slideMode ?? null,
-        personalViewSubMode: slideMode === 'personal' ? personalViewSubMode : null,
-        hasOriginalSlides: slideMode === 'personal' && !!(originalSlides?.length),
-        slides: slides.map((s) => ({ title: s.title, blocks: s.blocks?.length ? s.blocks : parseContentToBlocks(s.content ?? ''), teacherNotes: s.teacherNotes ?? '', imageUrl: s.imageUrl, visualEmbed: s.visualEmbed, visualLayout: s.visualLayout, visualCells: s.visualCells })),
-        teacherTimerSeconds,
-        teacherTimerRunning,
-      }, window.location.origin)
-    } catch { /* ignore */ }
-  }, [curriculumMarkdown, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, originalSlides, slides, curriculumOpenedAt, teacherTimerSeconds, teacherTimerRunning])
+  }, [presentationMode])
 
   useEffect(() => {
     if (timerSeconds <= 0) setTimerRunning(false)
@@ -481,16 +431,199 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       if (t === 'teacher-timer-start') setTeacherTimerRunning(true)
       else if (t === 'teacher-timer-stop') setTeacherTimerRunning(false)
       else if (t === 'teacher-timer-reset') { setTeacherTimerRunning(false); setTeacherTimerSeconds(0) }
+      else if (t === 'teacher-timer-sync' && typeof e.data?.seconds === 'number') {
+        setTeacherTimerSeconds(e.data.seconds)
+        setTeacherTimerRunning(Boolean(e.data?.running))
+      }
       else if (t === 'set-personal-view-submode' && (e.data?.value === 'current' || e.data?.value === 'original')) {
         setPersonalViewSubMode(e.data.value)
       }
       else if (t === 'refresh-personal-after-reset') {
         onSlidesSaved?.()
       }
+      else if (t === 'set-teacher-writing-mode' && typeof e.data?.value === 'boolean') setTeacherWritingMode(e.data.value)
+      else if (t === 'set-teacher-writing-speed' && typeof e.data?.ms === 'number') setTeacherWritingSpeedMs(e.data.ms)
+      else if (t === 'set-auto-play' && typeof e.data?.value === 'boolean') setAutoPlay(e.data.value)
+      else if (t === 'set-auto-play-interval' && typeof e.data?.ms === 'number') setAutoPlayIntervalMs(e.data.ms)
+      else if (t === 'sand-timer-start' && typeof e.data?.seconds === 'number') {
+        setTimerSeconds(e.data.seconds)
+        setTimerRunning(true)
+      }
+      else if (t === 'presentation-mode' && (e.data?.mode === 'independent' || e.data?.mode === 'slide-interaction')) {
+        setPresentationMode(e.data.mode)
+        if (e.data.mode === 'independent') {
+          setVirtualMousePos(null)
+          setMouseTrail([])
+          setMouseClicks([])
+        }
+      }
+      else if (t === 'visual-fullscreen-open') {
+        const cellIndex = typeof e.data?.cellIndex === 'number' ? e.data.cellIndex : undefined
+        openVisualFullscreen(cellIndex)
+      }
+      else if (t === 'visual-fullscreen-close') {
+        closeVisualFullscreen()
+      }
+      else if (t === 'mouse-pos' && presentationMode === 'slide-interaction') {
+        let px: number
+        let py: number
+        if (e.data?.visualFrame && e.data?.imageCenter && typeof e.data?.cellIndex === 'number' && typeof e.data?.dxFromCenter === 'number' && typeof e.data?.dyFromCenter === 'number' && typeof e.data?.visW === 'number' && typeof e.data?.visH === 'number' && studentVisualFrameRef.current && visualFullscreenOpen) {
+          const frame = studentVisualFrameRef.current
+          const children = Array.from(frame.children) as HTMLElement[]
+          const cell = children[e.data.cellIndex]
+          if (cell) {
+            const img = cell.querySelector('img')
+            if (img?.complete && img.naturalWidth > 0) {
+              const vis = getVisibleImageBounds(img)
+              const cx = vis.left + vis.width / 2
+              const cy = vis.top + vis.height / 2
+              const scaleX = vis.width / (e.data.visW || 1)
+              const scaleY = vis.height / (e.data.visH || 1)
+              px = cx + e.data.dxFromCenter * scaleX
+              py = cy + e.data.dyFromCenter * scaleY
+            } else {
+              const rect = cell.getBoundingClientRect()
+              const cx = rect.left + rect.width / 2
+              const cy = rect.top + rect.height / 2
+              const scaleX = rect.width / (e.data.visW || 1)
+              const scaleY = rect.height / (e.data.visH || 1)
+              px = cx + e.data.dxFromCenter * scaleX
+              py = cy + e.data.dyFromCenter * scaleY
+            }
+          } else {
+            const rect = frame.getBoundingClientRect()
+            const cx = rect.left + rect.width / 2
+            const cy = rect.top + rect.height / 2
+            const scaleX = rect.width / (e.data.visW || 1)
+            const scaleY = rect.height / (e.data.visH || 1)
+            px = cx + e.data.dxFromCenter * scaleX
+            py = cy + e.data.dyFromCenter * scaleY
+          }
+        } else if (e.data?.visualFrame && typeof e.data?.relX === 'number' && typeof e.data?.relY === 'number' && studentVisualFrameRef.current && visualFullscreenOpen) {
+          const rect = studentVisualFrameRef.current.getBoundingClientRect()
+          px = rect.left + e.data.relX * rect.width
+          py = rect.top + e.data.relY * rect.height
+        } else if (e.data?.visualFrame && typeof e.data?.dxFromCenter === 'number' && typeof e.data?.dyFromCenter === 'number' && typeof e.data?.frameW === 'number' && typeof e.data?.frameH === 'number' && studentVisualFrameRef.current && visualFullscreenOpen) {
+          const rect = studentVisualFrameRef.current.getBoundingClientRect()
+          const cx = rect.left + rect.width / 2
+          const cy = rect.top + rect.height / 2
+          const scaleX = rect.width / (e.data.frameW || 1)
+          const scaleY = rect.height / (e.data.frameH || 1)
+          px = cx + e.data.dxFromCenter * scaleX
+          py = cy + e.data.dyFromCenter * scaleY
+        } else if (typeof e.data?.xrPx === 'number' && typeof e.data?.yPx === 'number') {
+          const w = typeof window !== 'undefined' ? window.innerWidth : 1920
+          const h = typeof window !== 'undefined' ? window.innerHeight : 1080
+          px = Math.max(0, Math.min(w, w - e.data.xrPx))
+          py = Math.max(0, Math.min(h, e.data.yPx))
+        } else return
+        setVirtualMousePos({ x: px, y: py })
+        setMouseTrail((prev) => {
+          const next = [...prev, { x: px, y: py }]
+          return next.slice(-80)
+        })
+      }
+      else if (t === 'mouse-click' && presentationMode === 'slide-interaction') {
+        let px: number
+        let py: number
+        if (e.data?.visualFrame && e.data?.imageCenter && typeof e.data?.cellIndex === 'number' && typeof e.data?.dxFromCenter === 'number' && typeof e.data?.dyFromCenter === 'number' && typeof e.data?.visW === 'number' && typeof e.data?.visH === 'number' && studentVisualFrameRef.current && visualFullscreenOpen) {
+          const frame = studentVisualFrameRef.current
+          const children = Array.from(frame.children) as HTMLElement[]
+          const cell = children[e.data.cellIndex]
+          if (cell) {
+            const img = cell.querySelector('img')
+            if (img?.complete && img.naturalWidth > 0) {
+              const vis = getVisibleImageBounds(img)
+              const cx = vis.left + vis.width / 2
+              const cy = vis.top + vis.height / 2
+              const scaleX = vis.width / (e.data.visW || 1)
+              const scaleY = vis.height / (e.data.visH || 1)
+              px = cx + e.data.dxFromCenter * scaleX
+              py = cy + e.data.dyFromCenter * scaleY
+            } else {
+              const rect = cell.getBoundingClientRect()
+              const cx = rect.left + rect.width / 2
+              const cy = rect.top + rect.height / 2
+              const scaleX = rect.width / (e.data.visW || 1)
+              const scaleY = rect.height / (e.data.visH || 1)
+              px = cx + e.data.dxFromCenter * scaleX
+              py = cy + e.data.dyFromCenter * scaleY
+            }
+          } else {
+            const rect = frame.getBoundingClientRect()
+            const cx = rect.left + rect.width / 2
+            const cy = rect.top + rect.height / 2
+            const scaleX = rect.width / (e.data.visW || 1)
+            const scaleY = rect.height / (e.data.visH || 1)
+            px = cx + e.data.dxFromCenter * scaleX
+            py = cy + e.data.dyFromCenter * scaleY
+          }
+        } else if (e.data?.visualFrame && typeof e.data?.relX === 'number' && typeof e.data?.relY === 'number' && studentVisualFrameRef.current && visualFullscreenOpen) {
+          const rect = studentVisualFrameRef.current.getBoundingClientRect()
+          px = rect.left + e.data.relX * rect.width
+          py = rect.top + e.data.relY * rect.height
+        } else if (e.data?.visualFrame && typeof e.data?.dxFromCenter === 'number' && typeof e.data?.dyFromCenter === 'number' && typeof e.data?.frameW === 'number' && typeof e.data?.frameH === 'number' && studentVisualFrameRef.current && visualFullscreenOpen) {
+          const rect = studentVisualFrameRef.current.getBoundingClientRect()
+          const cx = rect.left + rect.width / 2
+          const cy = rect.top + rect.height / 2
+          const scaleX = rect.width / (e.data.frameW || 1)
+          const scaleY = rect.height / (e.data.frameH || 1)
+          px = cx + e.data.dxFromCenter * scaleX
+          py = cy + e.data.dyFromCenter * scaleY
+        } else if (typeof e.data?.xrPx === 'number' && typeof e.data?.yPx === 'number') {
+          const w = typeof window !== 'undefined' ? window.innerWidth : 1920
+          const h = typeof window !== 'undefined' ? window.innerHeight : 1080
+          px = Math.max(0, Math.min(w, w - e.data.xrPx))
+          py = Math.max(0, Math.min(h, e.data.yPx))
+        } else return
+        setMouseClicks((prev) => [...prev, { id: Date.now() + Math.floor(Math.random() * 1000), x: px, y: py }].slice(-8))
+      }
     }
     window.addEventListener('message', handler)
+    let channel: BroadcastChannel | null = null
+    if (typeof BroadcastChannel !== 'undefined') {
+      channel = new BroadcastChannel('tao-giao-trinh-sync')
+      channel.addEventListener('message', (event) => {
+        handler({ origin: window.location.origin, data: event.data } as MessageEvent)
+      })
+      channel.postMessage({ type: 'request-curriculum' })
+    }
     return () => window.removeEventListener('message', handler)
-  }, [onSlidesSaved])
+  }, [onSlidesSaved, openVisualFullscreen, closeVisualFullscreen, presentationMode, visualFullscreenOpen])
+
+  useEffect(() => {
+    if (typeof BroadcastChannel === 'undefined') return
+    const channel = new BroadcastChannel('tao-giao-trinh-sync')
+    channel.postMessage({ type: 'request-curriculum' })
+    return () => channel.close()
+  }, [onSlidesSaved, openVisualFullscreen, closeVisualFullscreen, presentationMode, visualFullscreenOpen])
+
+  useEffect(() => {
+    if (mouseClicks.length === 0) return
+    const id = window.setTimeout(() => {
+      setMouseClicks((prev) => prev.slice(1))
+    }, 450)
+    return () => window.clearTimeout(id)
+  }, [mouseClicks])
+
+  const target = typeof window !== 'undefined' ? (window.opener || (window !== window.top ? window.parent : null)) : null
+  useEffect(() => {
+    if (presentationMode !== 'slide-interaction' || !target) return
+    const onMove = (e: MouseEvent) => {
+      const now = Date.now()
+      if (now - mouseThrottleRef.current < 40) return
+      mouseThrottleRef.current = now
+      const x = e.clientX / (window.innerWidth || 1)
+      const y = e.clientY / (window.innerHeight || 1)
+      try {
+        ;(target as Window).postMessage({ type: 'mouse-pos', x, y }, window.location.origin)
+      } catch {
+        /* ignore */
+      }
+    }
+    window.addEventListener('mousemove', onMove)
+    return () => window.removeEventListener('mousemove', onMove)
+  }, [presentationMode, target])
 
   const formatTimer = (sec: number) => {
     const m = Math.floor(sec / 60)
@@ -512,63 +645,80 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     setTimerSeconds(0)
   }, [])
 
-  const INTERVAL_OPTIONS = [
-    { value: 3000, label: '3s' },
-    { value: 5000, label: '5s' },
-    { value: 7000, label: '7s' },
-    { value: 10000, label: '10s' },
-    { value: 15000, label: '15s' },
-  ] as const
-
   const baseSlidesForDisplay =
     slideMode === 'personal' && personalViewSubMode === 'original' && originalSlides && originalSlides.length > 0
       ? getBaseSlides(curriculumMarkdown, topic, originalSlides)
       : getBaseSlides(curriculumMarkdown, topic, aiSlides)
 
   useEffect(() => {
-    setSlides(baseSlidesForDisplay)
-    setCurrentIndex(0)
-  }, [curriculumMarkdown, topic, aiSlides, slideMode, personalViewSubMode, originalSlides])
+    const nextSlides = baseSlidesForDisplay
+    setSlides(nextSlides)
+    const idx = typeof initialSlideIndex === 'number' ? Math.max(0, Math.min(initialSlideIndex, nextSlides.length - 1)) : 0
+    setCurrentIndex(idx)
+  }, [curriculumMarkdown, topic, aiSlides, slideMode, personalViewSubMode, originalSlides, initialSlideIndex])
 
   const goNext = useCallback(() => {
     setAutoPlay(false)
     setTransitionDirection('next')
-    setCurrentIndex((i) => Math.min(i + 1, slides.length - 1))
-  }, [slides.length])
+    setCurrentIndex((i) => {
+      const next = Math.min(i + 1, slides.length - 1)
+      if (presentationMode === 'slide-interaction' && typeof window !== 'undefined' && window.opener) {
+        window.opener.postMessage({ type: 'slide-go', index: next }, window.location.origin)
+      }
+      return next
+    })
+  }, [slides.length, presentationMode])
 
   const goPrev = useCallback(() => {
     setAutoPlay(false)
     setTransitionDirection('prev')
-    setCurrentIndex((i) => Math.max(i - 1, 0))
-  }, [])
+    setCurrentIndex((i) => {
+      const next = Math.max(i - 1, 0)
+      if (presentationMode === 'slide-interaction' && typeof window !== 'undefined' && window.opener) {
+        window.opener.postMessage({ type: 'slide-go', index: next }, window.location.origin)
+      }
+      return next
+    })
+  }, [presentationMode])
 
   useEffect(() => {
     const handler = (e: MessageEvent) => {
       if (e.origin !== window.location.origin) return
-      if (e.data?.type === 'slide-prev') goPrev()
-      else if (e.data?.type === 'slide-next') goNext()
-      else if (e.data?.type === 'slide-go' && typeof e.data?.index === 'number') {
+      if (e.data?.type === 'slide-prev') {
+        setAutoPlay(false)
+        setTransitionDirection('prev')
+        setCurrentIndex((i) => Math.max(i - 1, 0))
+      } else if (e.data?.type === 'slide-next') {
+        setAutoPlay(false)
+        setTransitionDirection('next')
+        setCurrentIndex((i) => Math.min(i + 1, slides.length - 1))
+      } else if (e.data?.type === 'slide-go' && typeof e.data?.index === 'number') {
         const idx = Math.max(0, Math.min(e.data.index, slides.length - 1))
-        setCurrentIndex(idx)
-        setTransitionDirection(idx > currentIndex ? 'next' : 'prev')
+        setCurrentIndex((prev) => {
+          setTransitionDirection(idx > prev ? 'next' : 'prev')
+          return idx
+        })
       }
     }
     window.addEventListener('message', handler)
     return () => window.removeEventListener('message', handler)
-  }, [goPrev, goNext, slides.length, currentIndex])
+  }, [slides.length])
 
   type EmbedPlacement = 'end' | 'newBlock' | number
-  const saveSlidesToServer = useCallback(async (updatedSlides: SlideItem[]) => {
-    if (!curriculumId || updatedSlides.length === 0) return
-    const payload = updatedSlides.map((s) => ({ title: s.title, blocks: s.blocks ?? [], imageUrl: s.imageUrl, visualEmbed: s.visualEmbed, visualLayout: s.visualLayout, visualCells: s.visualCells, teacherNotes: s.teacherNotes }))
-    if (slideMode === 'personal' || slideMode === 'original') {
-      const r = await saveUserCustomizedSlides({ curriculumId, slides: payload })
-      if (r?.error) toast({ title: tr('Lỗi lưu', 'Save error'), description: r.error, variant: 'destructive' })
-      else { toast({ title: tr('Đã lưu', 'Saved', '已保存', '保存しました', '저장됨'), duration: 1500 }); onSlidesSaved?.() }
-    } else if (slideMode === 'shared' || !slideMode) {
-      const r = await saveSlidesToCurriculum({ curriculumId, topic: topic || 'Bài giảng', subjectId: subjectId ?? 'toan', gradeLevelId: gradeLevelId ?? 'lop-6', slides: payload })
-      if (r?.error) toast({ title: tr('Lỗi lưu', 'Save error'), description: r.error, variant: 'destructive' })
-      else { toast({ title: tr('Đã lưu', 'Saved', '已保存', '保存しました', '저장됨'), duration: 1500 }); onSlidesSaved?.() }
+  const persistSlidesRef = useRef<(s: SlideItem[]) => Promise<void>>(async () => {})
+  useEffect(() => {
+    persistSlidesRef.current = async (updatedSlides: SlideItem[]) => {
+      if (!curriculumId || updatedSlides.length === 0) return
+      const payload = updatedSlides.map((s) => ({ title: s.title, blocks: s.blocks ?? [], imageUrl: s.imageUrl, visualEmbed: s.visualEmbed, visualLayout: s.visualLayout, visualCells: s.visualCells, teacherNotes: s.teacherNotes }))
+      if (slideMode === 'personal' || slideMode === 'original') {
+        const r = await saveUserCustomizedSlides({ curriculumId, slides: payload })
+        if (r?.error) toast({ title: tr('Lỗi lưu', 'Save error'), description: r.error, variant: 'destructive' })
+        else { toast({ title: tr('Đã lưu', 'Saved', '已保存', '保存しました', '저장됨'), duration: 1500 }); onSlidesSaved?.() }
+      } else if (slideMode === 'shared' || !slideMode) {
+        const r = await saveSlidesToCurriculum({ curriculumId, topic: topic || 'Bài giảng', subjectId: subjectId ?? 'toan', gradeLevelId: gradeLevelId ?? 'lop-6', slides: payload })
+        if (r?.error) toast({ title: tr('Lỗi lưu', 'Save error'), description: r.error, variant: 'destructive' })
+        else { toast({ title: tr('Đã lưu', 'Saved', '已保存', '保存しました', '저장됨'), duration: 1500 }); onSlidesSaved?.() }
+      }
     }
   }, [curriculumId, slideMode, topic, subjectId, gradeLevelId, toast, tr, onSlidesSaved])
 
@@ -587,7 +737,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
             teacherNotes: a.teacherNotes || b.teacherNotes || '',
           }
           const next = [...prev.slice(0, idx), merged, ...prev.slice(idx + 2)]
-          queueMicrotask(() => { if (curriculumId) void saveSlidesToServer(next) })
+          queueMicrotask(() => { if (curriculumId) void persistSlidesRef.current(next) })
           return next
         })
         setCurrentIndex((i) => (i === idx + 1 ? idx : i > idx + 1 ? i - 1 : i))
@@ -631,7 +781,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         setSlides((prev) => {
           if (idx < 0 || idx >= prev.length) return prev
           const next = prev.map((s, i) => i === idx ? { ...s, blocks, content: '' } : s)
-          queueMicrotask(() => { if (curriculumId) void saveSlidesToServer(next) })
+          queueMicrotask(() => { if (curriculumId) void persistSlidesRef.current(next) })
           return next
         })
       }
@@ -641,20 +791,41 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         setSlides((prev) => {
           if (idx < 0 || idx >= prev.length) return prev
           const next = prev.map((s, i) => i === idx ? { ...s, title } : s)
-          queueMicrotask(() => { if (curriculumId) void saveSlidesToServer(next) })
+          queueMicrotask(() => { if (curriculumId) void persistSlidesRef.current(next) })
           return next
         })
       }
       else if (e.data?.type === 'save-slides-now') {
         setSlides((prev) => {
-          if (curriculumId && prev.length > 0) queueMicrotask(() => void saveSlidesToServer(prev))
+          if (curriculumId && prev.length > 0) queueMicrotask(() => void persistSlidesRef.current(prev))
           return prev
         })
       }
+      else if (e.data?.type === 'delete-slide' && typeof e.data?.index === 'number') {
+        const idx = e.data.index
+        setSlides((prev) => {
+          if (prev.length <= 1 || idx < 0 || idx >= prev.length) return prev
+          const next = prev.filter((_, i) => i !== idx)
+          queueMicrotask(() => { if (curriculumId) void persistSlidesRef.current(next) })
+          return next
+        })
+        setCurrentIndex((i) => (i === idx && i > 0 ? i - 1 : i > idx ? i - 1 : i))
+        toast({ title: tr('Đã xóa slide', 'Slide deleted', '已删除幻灯片', 'スライドを削除', '슬라이드 삭제됨'), duration: 1500 })
+      }
     }
     window.addEventListener('message', handler)
-    return () => window.removeEventListener('message', handler)
-  }, [curriculumId, saveSlidesToServer, toast, tr])
+    let channel: BroadcastChannel | null = null
+    if (typeof BroadcastChannel !== 'undefined') {
+      channel = new BroadcastChannel('tao-giao-trinh-sync')
+      channel.addEventListener('message', (event) => {
+        handler({ origin: window.location.origin, data: event.data } as MessageEvent)
+      })
+    }
+    return () => {
+      window.removeEventListener('message', handler)
+      channel?.close()
+    }
+  }, [curriculumId, toast, tr])
 
   useEffect(() => {
     const handler = (e: MessageEvent) => {
@@ -665,17 +836,17 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         setSlides((prev) => {
           if (idx < 0 || idx >= prev.length) return prev
           const next = prev.map((s, i) => i === idx ? { ...s, teacherNotes: notes } : s)
-          queueMicrotask(() => { if (curriculumId) void saveSlidesToServer(next) })
+          queueMicrotask(() => { if (curriculumId) void persistSlidesRef.current(next) })
           return next
         })
       }
     }
     window.addEventListener('message', handler)
     return () => window.removeEventListener('message', handler)
-  }, [curriculumId, saveSlidesToServer])
+  }, [curriculumId])
 
   const applyEmbedToSlide = useCallback((sl: SlideItem, marker: string, placement: EmbedPlacement) => {
-    const blocks = sl.blocks ?? parseContentToBlocks(sl.content)
+    const blocks = (Array.isArray(sl.blocks) && sl.blocks.length > 0) ? sl.blocks : parseContentToBlocks(sl.content ?? '')
     const newBlocks = blocks.length > 0 ? blocks.map((b) => ({ ...b })) : [{ header: tr('Biểu đồ', 'Graph', '图表', 'グラフ', '그래프'), content: '' }]
     if (placement === 'newBlock') {
       newBlocks.push({ header: tr('Biểu đồ', 'Graph', '图表', 'グラフ', '그래프'), content: marker })
@@ -701,8 +872,8 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     if (count > 1) {
       toast({ title: tr(`Đã chèn vào ${count} slide`, `Inserted into ${count} slides`, `已插入到${count}张幻灯片`, `${count}スライドに挿入`, `${count}개 슬라이드에 삽입`), duration: 1500 })
     }
-    if (curriculumId) void saveSlidesToServer(updatedSlides)
-  }, [currentIndex, slides, curriculumId, applyEmbedToSlide, tr, toast, saveSlidesToServer])
+    if (curriculumId) void persistSlidesRef.current(updatedSlides)
+  }, [currentIndex, slides, curriculumId, applyEmbedToSlide, tr, toast])
 
   const handleDeleteVisual = useCallback((alsoApplyToSlideIndices?: number[]) => {
     const indicesToUpdate = new Set([currentIndex, ...(alsoApplyToSlideIndices ?? [])])
@@ -719,8 +890,8 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     setSlides(updatedSlides)
     setEmbedDialogOpen(false)
     toast({ title: tr('Đã xóa visual', 'Visual deleted', '已删除视觉', 'ビジュアルを削除', '비주얼 삭제됨'), duration: 1500 })
-    if (curriculumId) void saveSlidesToServer(updatedSlides)
-  }, [currentIndex, slides, curriculumId, toast, tr, saveSlidesToServer])
+    if (curriculumId) void persistSlidesRef.current(updatedSlides)
+  }, [currentIndex, slides, curriculumId, toast, tr])
 
   const handleReplaceSlideImage = useCallback((markerOrUrl: string, alsoApplyToSlideIndices?: number[], layout: 1 | 2 | 4 = 1, cellIndex?: number) => {
     const isEmbed = markerOrUrl.trim().startsWith('[')
@@ -752,8 +923,8 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         : tr('Đã thay visual slide', 'Slide visual replaced', '已替换幻灯片视觉', 'スライドのビジュアルを差し替えました', '슬라이드 비주얼 교체됨'),
       duration: 1500,
     })
-    if (curriculumId) void saveSlidesToServer(updatedSlides)
-  }, [currentIndex, slides, curriculumId, toast, tr, saveSlidesToServer])
+    if (curriculumId) void persistSlidesRef.current(updatedSlides)
+  }, [currentIndex, slides, curriculumId, toast, tr])
 
   useEffect(() => {
     const handler = (e: MessageEvent) => {
@@ -815,15 +986,18 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     const id = window.setInterval(() => {
       setTransitionDirection('next')
       setCurrentIndex((i) => {
-        if (i >= slides.length - 1) return 0
-        return i + 1
+        const next = i >= slides.length - 1 ? 0 : i + 1
+        if (presentationMode === 'slide-interaction' && typeof window !== 'undefined' && window.opener) {
+          window.opener.postMessage({ type: 'slide-go', index: next }, window.location.origin)
+        }
+        return next
       })
     }, autoPlayIntervalMs)
     return () => window.clearInterval(id)
-  }, [autoPlay, slides.length, autoPlayIntervalMs])
+  }, [autoPlay, slides.length, autoPlayIntervalMs, presentationMode])
 
   const slide = slides[currentIndex]
-  const blocks = slide?.blocks ?? (slide ? parseContentToBlocks(slide.content) : [])
+  const blocks = (Array.isArray(slide?.blocks) && slide.blocks.length > 0) ? slide.blocks : (slide ? parseContentToBlocks(slide.content) : [])
   const hasBlocks = blocks.length > 0
 
   const { totalSegments, blockOffsets, blockLengths } = useMemo(() => {
@@ -867,102 +1041,92 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
 
   return (
     <div className="fixed inset-0 z-[100] bg-black flex flex-col">
-      {/* Header */}
-      <div className="flex items-center justify-between px-6 py-3 text-white/90 print:hidden">
-        <span className="text-sm font-medium">{currentIndex + 1} / {slides.length}</span>
-        <div className="flex items-center gap-2 flex-wrap">
-          {curriculumId && (
-            <>
-              <Button variant="ghost" size="sm" onClick={() => setEmbedDialogOpen(true)} className="text-white hover:bg-white/20 border border-white/30" title={tr('Chèn nội dung (YouTube, GeoGebra, ảnh, quiz...)', 'Insert content (YouTube, GeoGebra, image, quiz...)', '插入内容', 'コンテンツを挿入', '콘텐츠 삽입')}>
-                <BarChart2 className="h-4 w-4 mr-1" /> {tr('Chèn', 'Insert', '插入', '挿入', '삽입')}
-              </Button>
-              <Button variant="ghost" size="sm" onClick={openCurriculumWindow} className="text-white hover:bg-white/20 border border-amber-400/50" title={tr('Xem giáo trình và ghi chú (chỉ giáo viên)', 'View curriculum and notes (teachers only)', '查看课程和备注（仅教师）', 'カリキュラムとメモを見る（教師のみ）', '교육과정 및 메모 보기 (교사만)')}>
-                <FileText className="h-4 w-4 mr-1" /> {tr('Giáo trình + Ghi chú', 'Curriculum + Notes', '课程+备注', 'カリキュラム+メモ', '교육과정+메모')}
-              </Button>
-            </>
-          )}
-          <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setTeacherWritingMode((v) => !v)}
-              className={cn('text-white hover:bg-white/20 border', teacherWritingMode ? 'bg-white/20 border-white/50' : 'border-white/30')}
-              title={teacherWritingMode ? tr('Tắt hiệu ứng viết bảng', 'Turn off writing effect', '关闭书写效果', '書き込み効果をオフ', '쓰기 효과 끄기') : tr('Chữ xuất hiện từng ký tự như gõ máy', 'Characters appear one by one like typing', '文字逐字出现如打字', 'タイピングのように文字が表示', '타이핑처럼 글자 표시')}
-            >
-              <PenLine className="h-4 w-4 mr-1" />
-              {teacherWritingMode ? tr('Viết', 'Writing', '书写', '書き込み', '쓰기') : tr('Viết', 'Write', '书写', '書き込み', '쓰기')}
-            </Button>
-            {teacherWritingMode && (
-              <Select value={String(teacherWritingSpeedMs)} onValueChange={(v) => setTeacherWritingSpeedMs(Number(v))}>
-                <SelectTrigger className="w-[70px] h-9 text-white hover:bg-white/20 border-white/30 bg-transparent focus:ring-white/30 [&>span]:text-white" title={tr('Tốc độ gõ (ms/ký tự)', 'Typing speed (ms/char)', '打字速度', '入力速度', '타이핑 속도')}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="z-[110]">
-                  {[30, 50, 80, 120, 180, 250].map((ms) => (
-                    <SelectItem key={ms} value={String(ms)}>{ms} ms</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setAutoPlay((v) => !v)}
-            className="text-white hover:bg-white/20 border border-white/30"
-            title={autoPlay ? tr('Dừng tự chạy', 'Stop auto-play', '停止自动播放', '自動再生を停止', '자동 재생 중지') : tr('Tự chạy', 'Auto-play', '自动播放', '自動再生', '자동 재생')}
-          >
-            {autoPlay ? <Pause className="h-4 w-4 mr-1" /> : <Play className="h-4 w-4 mr-1" />}
-            {autoPlay ? tr('Dừng', 'Stop', '停止', '停止', '중지') : tr('Tự chạy', 'Auto', '自动', '自動', '자동')}
-          </Button>
-          <Select value={String(autoPlayIntervalMs)} onValueChange={(v) => setAutoPlayIntervalMs(Number(v))}>
-            <SelectTrigger className="w-[72px] h-9 text-white hover:bg-white/20 border-white/30 bg-transparent focus:ring-white/30 [&>span]:text-white" title={tr('Thời gian mỗi trang', 'Time per slide', '每页时间', '各スライドの時間', '슬라이드당 시간')}>
-              <Settings2 className="h-4 w-4 mr-1 shrink-0" />
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="z-[110]">
-              {INTERVAL_OPTIONS.map((opt) => (
-                <SelectItem key={opt.value} value={String(opt.value)}>
-                  {opt.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {/* Đồng hồ cát – nhắc học sinh hết giờ */}
-          <div className="flex items-center gap-1.5 border border-amber-400/50 rounded-lg px-2 py-1">
-            <Timer className="h-4 w-4 text-amber-400 shrink-0" />
-            {timerSeconds <= 0 ? (
-              [60, 180, 300, 600].map((sec) => (
-                <Button key={sec} variant="ghost" size="sm" onClick={() => startTimer(sec)} className="h-7 px-2 text-white hover:bg-amber-500/30 text-xs" title={tr('Bấm để bắt đầu', 'Click to start', '点击开始', 'クリックで開始', '클릭하여 시작')}>
-                  {sec / 60}{tr('ph', 'm', '分', '分', '분')}
-                </Button>
-              ))
-            ) : (
-              <>
-                <span className={cn('font-mono text-sm min-w-[3.5rem]', timerSeconds <= 30 && 'text-amber-300 font-bold')}>{formatTimer(timerSeconds)}</span>
-                <Button variant="ghost" size="icon" onClick={toggleTimer} className="h-7 w-7 text-white hover:bg-amber-500/30" title={timerRunning ? tr('Tạm dừng', 'Pause', '暂停', '一時停止', '일시정지') : tr('Tiếp tục', 'Resume', '继续', '再開', '재개')}>
-                  {timerRunning ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
-                </Button>
-                <Button variant="ghost" size="icon" onClick={resetTimer} className="h-7 w-7 text-white hover:bg-amber-500/30" title={tr('Đặt lại', 'Reset', '重置', 'リセット', '초기화')}>
-                  <RotateCcw className="h-3.5 w-3.5" />
-                </Button>
-              </>
-            )}
-          </div>
-          <Button variant="ghost" size="icon" onClick={goPrev} disabled={currentIndex === 0} className="text-white hover:bg-white/20" title={tr('Slide trước', 'Previous slide', '上一张', '前のスライド', '이전 슬라이드')}>
-            <ChevronLeft className="h-6 w-6" />
-          </Button>
-          <Button variant="ghost" size="icon" onClick={goNext} disabled={currentIndex === slides.length - 1} className="text-white hover:bg-white/20" title={tr('Slide sau', 'Next slide', '下一张', '次のスライド', '다음 슬라이드')}>
-            <ChevronRight className="h-6 w-6" />
-          </Button>
-          <Button variant="ghost" size="icon" onClick={() => window.print()} className="text-white hover:bg-white/20" title={tr('In', 'Print', '打印', '印刷', '인쇄')}>
-            <Printer className="h-5 w-5" />
-          </Button>
-          <Button variant="ghost" size="icon" onClick={onClose} className="text-white hover:bg-white/20" title={tr('Đóng', 'Close', '关闭', '閉じる', '닫기')}>
-            <X className="h-5 w-5" />
-          </Button>
-        </div>
+      <div
+        className={cn(
+          'print:hidden',
+          presentationMode === 'slide-interaction' && 'pointer-events-none border-b border-slate-700/80 bg-slate-900/80 backdrop-blur-sm'
+        )}
+      >
+        <PresentationControlBar
+          variant={presentationMode === 'slide-interaction' ? 'teacher' : 'student'}
+          tr={tr}
+          currentIndex={currentIndex}
+          totalSlides={slides.length}
+          teacherTimerSeconds={teacherTimerSeconds}
+          teacherTimerRunning={teacherTimerRunning}
+          teacherTimerInteractive={presentationMode === 'slide-interaction'}
+          onTeacherTimerStart={presentationMode === 'slide-interaction' ? (() => {}) : undefined}
+          onTeacherTimerStop={presentationMode === 'slide-interaction' ? (() => {}) : undefined}
+          onTeacherTimerReset={presentationMode === 'slide-interaction' ? (() => {}) : undefined}
+          curriculumId={curriculumId}
+          onInsertClick={() => setEmbedDialogOpen(true)}
+          writingMode={teacherWritingMode}
+          onWritingModeToggle={() => setTeacherWritingMode((v) => !v)}
+          writingSpeedMs={teacherWritingSpeedMs}
+          onWritingSpeedChange={setTeacherWritingSpeedMs}
+          autoPlay={autoPlay}
+          onAutoPlayToggle={() => setAutoPlay((v) => !v)}
+          autoPlayIntervalMs={autoPlayIntervalMs}
+          onAutoPlayIntervalChange={setAutoPlayIntervalMs}
+          sandTimerSeconds={timerSeconds}
+          sandTimerRunning={timerRunning}
+          onSandTimerStart={startTimer}
+          onSandTimerToggle={toggleTimer}
+          onSandTimerReset={resetTimer}
+          onPrev={goPrev}
+          onNext={goNext}
+          onPrint={presentationMode === 'slide-interaction' ? undefined : () => window.print()}
+          onClose={presentationMode === 'slide-interaction' ? undefined : onClose}
+          slideViewMode={undefined}
+          onSlideViewModeChange={undefined}
+          onOpenStudentView={undefined}
+          highlightedControl={null}
+          hideTeacherTimer
+          hideInsert
+          printHidden={false}
+        />
+        {presentationMode === 'slide-interaction' && (
+          // Hàng đệm để trùng trục Y với hàng thông tin riêng của giao diện giáo viên.
+          <div className="h-[42px] border-t border-slate-700/60 bg-slate-900/50" />
+        )}
       </div>
+
+      {/* Chuột ảo + đường di chuột – chế độ tương tác slide */}
+      {presentationMode === 'slide-interaction' && (
+        <>
+          {mouseTrail.length > 1 && (
+            <svg className="fixed inset-0 z-[118] pointer-events-none" style={{ width: '100%', height: '100%' }}>
+              <polyline
+                points={mouseTrail.map((p) => `${p.x},${p.y}`).join(' ')}
+                fill="none"
+                stroke="rgba(255,200,100,0.5)"
+                strokeWidth="3"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          )}
+          {virtualMousePos && (
+            <div
+              className="fixed z-[120] pointer-events-none transition-all duration-75"
+              style={{ left: virtualMousePos.x, top: virtualMousePos.y, transform: 'translate(-2px, -2px)' }}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="drop-shadow-lg">
+                <path d="M4 4l7 16 2.5-6 5.5-2.5L4 4z" fill="white" stroke="rgba(0,0,0,0.6)" strokeWidth="1.2" strokeLinejoin="round" />
+              </svg>
+            </div>
+          )}
+          {mouseClicks.map((p) => (
+            <div
+              key={p.id}
+              className="fixed z-[119] pointer-events-none"
+              style={{ left: p.x, top: p.y, transform: 'translate(-50%, -50%)' }}
+            >
+              <span className="block h-12 w-12 rounded-full border-2 border-amber-300/90 animate-ping" />
+            </div>
+          ))}
+        </>
+      )}
 
       <EmbedInsertDialog
         open={embedDialogOpen}
@@ -1055,8 +1219,10 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                 </button>
               </div>
             </div>
-            <div className={cn('flex-1 min-h-0 relative pt-14 cursor-pointer p-4', showSingleCell || layout === 1 ? 'flex flex-col' : gridClass)}>
+            <div className="flex-1 min-h-0 relative cursor-pointer px-4 pb-4 pt-14 flex flex-col">
+              <div ref={studentVisualFrameRef} className={cn('flex-1 min-h-0 overflow-hidden', showSingleCell || layout === 1 ? 'flex flex-col' : gridClass)}>
               {displayCells.map((cell, i) => renderCell(cell, i, `${currentIndex + 1}-${displayIndices[i] + 1}`))}
+              </div>
             </div>
           </div>
         )
@@ -1161,7 +1327,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         </div>
 
         {/* Phải: Nội dung chính – chữ to hơn */}
-        <div className="flex-1 flex flex-col justify-center p-8 md:p-12 overflow-y-auto bg-white">
+        <div className="flex-1 flex flex-col justify-start p-8 md:p-12 overflow-y-auto bg-white">
           <div className="mb-6 flex items-start gap-2 flex-wrap">
             <h2 className="text-2xl md:text-3xl font-bold text-slate-900 flex-1">
               {teacherWritingMode ? (
@@ -1175,7 +1341,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
               )}
             </h2>
             {extractQuizFromSlide(slide).length > 0 ? (
-              <Button variant="outline" size="sm" onClick={() => setQuizPopupOpen(true)} className="shrink-0 border-violet-400 text-violet-700 hover:bg-violet-50 print:hidden">
+              <Button variant="outline" size="sm" onClick={() => setQuizPopupOpen(true)} className="shrink-0 border-violet-400 text-violet-700 hover:bg-violet-50 print:hidden mt-2">
                 <ClipboardList className="h-4 w-4 mr-1.5" />
                 {tr('Xem câu hỏi trắc nghiệm', 'View quiz', '查看测验', 'クイズを見る', '퀴즈 보기')}
               </Button>

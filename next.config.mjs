@@ -41,7 +41,7 @@ const nextConfig = {
         return config;
     },
     async headers() {
-        return [
+        const headers = [
             {
                 source: '/(.*)',
                 headers: [
@@ -70,6 +70,18 @@ const nextConfig = {
                 ],
             },
         ];
+
+        // In dev, disable static asset caching to avoid stale client chunks/hot-update mismatch.
+        if (process.env.NODE_ENV === 'development') {
+            headers.push({
+                source: '/_next/static/:path*',
+                headers: [
+                    { key: 'Cache-Control', value: 'no-cache, no-store, must-revalidate' },
+                ],
+            });
+        }
+
+        return headers;
     },
 };
 

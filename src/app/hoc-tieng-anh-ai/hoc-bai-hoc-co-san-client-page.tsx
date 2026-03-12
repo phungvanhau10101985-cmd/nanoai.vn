@@ -4001,7 +4001,7 @@ export default function HocBaiHocCoSanClientPage() {
     const correctionNote = String(correctionNoteByMessageId[messageId] || '').trim()
     const mainSentence = String(mainSentenceByMessageId[messageId] || '').trim()
     const intentAnswer = String(intentAnswerByMessageId[messageId] || '').trim()
-    const segments = (
+    const segmentSeed = (
       learningMode === 'reflex'
         ? [{ key: `${messageId}__main`, text: String(mainSentence || text || '').trim() }]
         : [
@@ -4010,6 +4010,7 @@ export default function HocBaiHocCoSanClientPage() {
           { key: `${messageId}__intent_answer`, text: intentAnswer },
         ]
     )
+    const segments = (Array.isArray(segmentSeed) ? segmentSeed : [])
       .map((seg) => ({ key: seg.key, text: stripPhoneticForTts(String(seg.text || '').trim(), languageCode) }))
       .filter((seg) => Boolean(seg.text))
 
@@ -4576,7 +4577,7 @@ export default function HocBaiHocCoSanClientPage() {
     if (delayMs > 0) {
       await new Promise((r) => setTimeout(r, delayMs))
     }
-    const segments = (
+    const segmentSeed = (
       learningMode === 'reflex'
         ? [{ key: `${messageId}__main`, text: String(opts?.mainSentence || text || '').trim() }]
         : [
@@ -4585,6 +4586,7 @@ export default function HocBaiHocCoSanClientPage() {
           { key: `${messageId}__intent_answer`, text: String(opts?.intentAnswer || '').trim() },
         ]
     )
+    const segments = (Array.isArray(segmentSeed) ? segmentSeed : [])
       .map((seg) => ({ key: seg.key, text: stripPhoneticForTts(seg.text, languageCode) }))
       .filter((seg) => Boolean(seg.text))
 
