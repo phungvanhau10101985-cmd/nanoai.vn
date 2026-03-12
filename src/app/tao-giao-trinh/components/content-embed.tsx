@@ -111,10 +111,10 @@ export function ContentEmbed({ type, urlOrId, width = 560, height = 350, classNa
   if (type === 'geogebra' || type === 'desmos' || type === 'youtube' || type === 'phet' || type === 'maps' || type === 'code') {
     if (!src) return null
     return (
-      <div className={wrapperClass}>
+      <div className={wrapperClass} style={{ pointerEvents: 'auto' }}>
         <iframe
           src={src}
-          {...(fill ? { style: { width: '100%', height: '100%' } } : { width, height })}
+          {...(fill ? { style: { width: '100%', height: '100%', pointerEvents: 'auto' } } : { width, height })}
           className="w-full border-0"
           allowFullScreen
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"

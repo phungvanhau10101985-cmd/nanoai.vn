@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { ChevronLeft, ChevronRight, X, Printer, BarChart2, Play, Pause, Settings2, PenLine, Timer, RotateCcw, Presentation, Square, LayoutGrid } from 'lucide-react'
+import { ChevronLeft, ChevronRight, X, Printer, BarChart2, Play, Pause, Settings2, PenLine, Timer, RotateCcw, Presentation, Square, LayoutGrid, Monitor } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
@@ -78,6 +78,10 @@ export interface PresentationControlBarProps {
   slideViewMode?: 'single' | 'triple'
   onSlideViewModeChange?: (mode: 'single' | 'triple') => void
   onOpenStudentView?: () => void
+  /** Chia sẻ màn hình (tab) – học sinh xem stream có bản đồ + chuột thật */
+  onScreenShareStart?: () => void
+  onScreenShareStop?: () => void
+  isScreenSharing?: boolean
   /** Highlight control từ chuột ảo (mirror mode) */
   highlightedControl?: string | null
   /** Ẩn riêng từng control cho các biến thể đặc biệt */
@@ -122,6 +126,9 @@ export function PresentationControlBar({
   slideViewMode,
   onSlideViewModeChange,
   onOpenStudentView,
+  onScreenShareStart,
+  onScreenShareStop,
+  isScreenSharing = false,
   highlightedControl,
   hideTeacherTimer = false,
   hideInsert = false,
@@ -194,6 +201,21 @@ export function PresentationControlBar({
               <button data-control="xem-học-sinh" type="button" onClick={onOpenStudentView} className={cn('flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/25 border border-emerald-400/40 text-emerald-300 hover:bg-emerald-500/35 text-xs font-medium shrink-0 h-9', highlightClass('xem-học-sinh'))} title={tr('Xem fullscreen như học sinh', 'View as student', '全屏学生视图', '全画面生徒表示', '전체화면 학생 보기')}>
                 <Presentation className="h-4 w-4" />
                 {tr('Xem như học sinh', 'View as student', '学生视图', '生徒表示', '학생 보기')}
+              </button>
+            )}
+            {(onScreenShareStart || onScreenShareStop) && (
+              <button
+                data-control="chia-sẻ-màn-hình"
+                type="button"
+                onClick={isScreenSharing ? onScreenShareStop : onScreenShareStart}
+                className={cn(
+                  'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium shrink-0 h-9',
+                  isScreenSharing ? 'bg-amber-500/30 border border-amber-400/50 text-amber-200' : 'bg-slate-600/50 border border-slate-500/50 text-slate-200 hover:bg-slate-600/70'
+                )}
+                title={isScreenSharing ? tr('Dừng chia sẻ màn hình. Lưu ý: giữ tab này hiển thị, không chuyển sang tab khác.', 'Stop screen share. Note: keep this tab visible, do not switch tabs.', '停止共享。注意：保持此标签页可见，勿切换。', '共有停止。このタブを表示したままに。', '공유 중지. 이 탭을 보이게 유지하세요.') : tr('Chia sẻ màn hình – chọn tab giáo viên, giữ tab đó hiển thị', 'Share screen – select teacher tab, keep it visible', '共享屏幕 – 选择教师标签页并保持可见', '画面共有 – 教師タブを選択し表示を維持', '화면 공유 – 교사 탭 선택 후 표시 유지')}
+              >
+                <Monitor className="h-4 w-4" />
+                {isScreenSharing ? tr('Dừng chia sẻ', 'Stop share', '停止共享', '共有停止', '공유 중지') : tr('Chia sẻ màn hình', 'Share screen', '共享屏幕', '画面共有', '화면 공유')}
               </button>
             )}
           </>

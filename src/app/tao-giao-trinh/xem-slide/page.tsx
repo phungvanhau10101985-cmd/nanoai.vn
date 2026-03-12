@@ -42,6 +42,15 @@ export default function XemSlidePage() {
   }, [])
 
   useEffect(() => {
+    if (typeof window === 'undefined' || !window.opener) return
+    const req = document.documentElement.requestFullscreen ?? (document.documentElement as HTMLElement & { webkitRequestFullscreen?: () => Promise<void> }).webkitRequestFullscreen
+    if (req) {
+      const t = setTimeout(() => req.call(document.documentElement).catch(() => {}), 300)
+      return () => clearTimeout(t)
+    }
+  }, [])
+
+  useEffect(() => {
     const titles: Record<string, string> = {
       vi: 'Trình chiếu – Chỉ chia sẻ cửa sổ này cho học sinh',
       en: 'Presentation – Share this window only (student view)',

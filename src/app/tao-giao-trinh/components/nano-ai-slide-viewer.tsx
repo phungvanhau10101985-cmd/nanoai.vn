@@ -19,6 +19,7 @@ import { PresentationControlBar } from './presentation-control-bar'
 import { QuizPopupDialog, extractQuizFromSlide } from './quiz-popup-dialog'
 import { useToast } from '@/hooks/use-toast'
 import { saveSlidesToCurriculum, saveUserCustomizedSlides } from '../actions'
+import { useScreenShare } from '../hooks/use-screen-share'
 
 /** Phát tiếng chuông khi hết giờ (đồng hồ cát học sinh) */
 function playTimerEndBell() {
@@ -316,6 +317,33 @@ interface NanoAISlideViewerProps {
   initialSlideIndex?: number
 }
 
+function ScreenShareVideo({ stream }: { stream: MediaStream }) {
+  const videoRef = useRef<HTMLVideoElement>(null)
+  useEffect(() => {
+    const el = videoRef.current
+    if (!el || !stream) return
+    const tracks = stream.getVideoTracks()
+    if (tracks.length === 0) return
+    el.srcObject = stream
+    const play = () => el.play().catch(() => {})
+    el.onloadedmetadata = play
+    play()
+    return () => {
+      el.srcObject = null
+    }
+  }, [stream])
+  return (
+    <video
+      ref={videoRef}
+      autoPlay
+      playsInline
+      muted
+      className="absolute inset-0 w-full h-full"
+      style={{ objectFit: 'contain' }}
+    />
+  )
+}
+
 function getVisualCells(slide: SlideItem): { layout: 1 | 2 | 4; cells: VisualCell[] } {
   const layout = slide.visualLayout ?? 1
   const numCells = layout === 1 ? 1 : layout === 2 ? 2 : 4
@@ -330,8 +358,8 @@ function getVisualCells(slide: SlideItem): { layout: 1 | 2 | 4; cells: VisualCel
 }
 
 function getBaseSlides(curriculumMarkdown: string, topic: string, aiSlides: AISlideData[] | null | undefined): SlideItem[] {
-  const hasEmbeds = /\[(geogebra|desmos|youtube|phet|maps|image|audio|quiz|code|latex):/.test(curriculumMarkdown)
-  if (aiSlides && aiSlides.length > 0 && !hasEmbeds) {
+  /** Luôn dùng aiSlides khi có – đảm bảo visualEmbed/visualCells (bản đồ, GeoGebra...) hiển thị đúng ở giao diện học sinh */
+  if (aiSlides && aiSlides.length > 0) {
     return aiSlides.map((s) => {
       const base = s as SlideItem
       return { title: s.title, content: '', blocks: s.blocks, imageUrl: s.imageUrl, visualEmbed: s.visualEmbed, visualLayout: base.visualLayout, visualCells: base.visualCells, teacherNotes: (base as SlideItem).teacherNotes }
@@ -369,6 +397,11 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   const [mouseTrail, setMouseTrail] = useState<Array<{ x: number; y: number }>>([])
   const [mouseClicks, setMouseClicks] = useState<Array<{ id: number; x: number; y: number }>>([])
   const mouseThrottleRef = useRef(0)
+
+  const { receivedStream: screenShareStream, isReceiving: isScreenShareActive } = useScreenShare({
+    role: 'student',
+    openerWindow: typeof window !== 'undefined' ? window.opener : null,
+  })
 
   const openVisualFullscreen = useCallback((cellIndex?: number) => {
     setExpandedCellIndex(cellIndex ?? null)
@@ -770,6 +803,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
           const slide1: SlideItem = { ...s, blocks: firstBlocks }
           const slide2: SlideItem = { ...s, title: secondHeader, blocks: secondBlocks, teacherNotes: '', imageUrl: undefined, visualEmbed: undefined, visualLayout: undefined, visualCells: undefined }
           const next = [...prev.slice(0, idx), slide1, slide2, ...prev.slice(idx + 1)]
+          queueMicrotask(() => { if (curriculumId) void persistSlidesRef.current(next) })
           return next
         })
         setCurrentIndex((i) => (i > idx ? i + 1 : i))
@@ -1091,6 +1125,23 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         )}
       </div>
 
+      {/* Screen share – học sinh xem màn hình giáo viên (bản đồ + chuột thật) */}
+      {isScreenShareActive && screenShareStream && (
+        <div className="fixed inset-0 z-[125] bg-black flex flex-col">
+          <div className="h-12 shrink-0 flex items-center justify-center bg-black/80 border-b border-white/10">
+            <span className="text-white/90 text-sm font-medium">
+              {tr('Đang xem màn hình giáo viên', 'Viewing teacher screen', '正在查看教师屏幕', '教師の画面を表示中', '교사 화면 보는 중')}
+            </span>
+            <span className="ml-3 text-white/50 text-xs hidden sm:inline">
+              {tr('Tab giáo viên phải đang hiển thị', 'Teacher tab must be visible', '教师标签页须可见', '教師タブを表示中に', '교사 탭 표시 필요')}
+            </span>
+          </div>
+          <div className="flex-1 min-h-0 relative">
+            <ScreenShareVideo key={screenShareStream.id} stream={screenShareStream} />
+          </div>
+        </div>
+      )}
+
       {/* Chuột ảo + đường di chuột – chế độ tương tác slide */}
       {presentationMode === 'slide-interaction' && (
         <>
@@ -1133,7 +1184,6 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         onOpenChange={setEmbedDialogOpen}
         onInsert={(marker, placement, alsoTo) => handleInsertEmbed(marker, placement, alsoTo)}
         onReplaceSlideImage={handleReplaceSlideImage}
-        onDeleteVisual={handleDeleteVisual}
         tr={tr}
         highZIndex
         blocks={slide.blocks ?? parseContentToBlocks(slide.content)}
@@ -1164,7 +1214,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         const gridClass = !showSingleCell && layout === 2 ? 'grid grid-rows-2 gap-2' : !showSingleCell && layout === 4 ? 'grid grid-cols-2 grid-rows-2 gap-2' : ''
         const renderCell = (cell: { visualEmbed?: string; imageUrl?: string }, idx: number, label: string) => (
           <div key={idx} className="flex-1 min-h-0 relative rounded-xl overflow-hidden bg-black/30 border border-white/10" onClick={(e) => e.stopPropagation()}>
-            <span className="absolute top-2 left-2 z-10 px-2 py-1 rounded bg-black/60 text-white text-sm font-mono">{label}</span>
+            <span className="absolute top-2 left-2 z-10 px-2 py-1 rounded bg-black/60 text-white text-sm font-mono pointer-events-none">{label}</span>
             {cell.visualEmbed ? (
               (() => {
                 const embeds = parseContentEmbeds(cell.visualEmbed)
@@ -1183,7 +1233,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
           <div
             ref={fullscreenOverlayRef}
             className="fixed inset-0 z-[105] bg-black flex flex-col outline-none"
-            onClick={closeVisualFullscreen}
+            onClick={(e) => { if (e.target === e.currentTarget) closeVisualFullscreen() }}
             aria-label={tr('Đóng', 'Close', '关闭', '閉じる', '닫기')}
           >
             <div className="absolute top-0 left-0 right-0 h-14 flex items-center justify-between px-4 bg-black/70 z-20 shrink-0">
@@ -1219,7 +1269,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                 </button>
               </div>
             </div>
-            <div className="flex-1 min-h-0 relative cursor-pointer px-4 pb-4 pt-14 flex flex-col">
+            <div className="flex-1 min-h-0 relative px-4 pb-4 pt-14 flex flex-col" onClick={(e) => e.stopPropagation()}>
               <div ref={studentVisualFrameRef} className={cn('flex-1 min-h-0 overflow-hidden', showSingleCell || layout === 1 ? 'flex flex-col' : gridClass)}>
               {displayCells.map((cell, i) => renderCell(cell, i, `${currentIndex + 1}-${displayIndices[i] + 1}`))}
               </div>
@@ -1314,7 +1364,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                     <button
                       type="button"
                       onClick={() => openVisualFullscreen()}
-                      className="absolute top-4 right-4 opacity-60 hover:opacity-100 p-1.5 rounded-md bg-black/60 text-white hover:bg-black/80 shadow-lg print:hidden z-10"
+                      className="absolute top-4 right-10 opacity-60 hover:opacity-100 p-1.5 rounded-md bg-black/60 text-white hover:bg-black/80 shadow-lg print:hidden z-10"
                       title={tr('Mở rộng tất cả', 'Expand all', '展开全部', 'すべて展開', '모두 확장')}
                     >
                       <Maximize2 className="h-4 w-4" />

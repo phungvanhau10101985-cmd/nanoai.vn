@@ -61,7 +61,7 @@ export function PersonalHistorySheet({ open, onOpenChange, curriculumId, tr, onR
           <SheetTitle>{tr('Lịch sử bản riêng', 'Personal version history', '个人版本历史', '個人版の履歴', '개인 버전 기록')}</SheetTitle>
         </SheetHeader>
         <p className="mt-2 text-sm text-muted-foreground">
-          {tr('Các bản đã lưu trước khi reset. Khôi phục trong 5 ngày.', 'Versions saved before reset. Restore within 5 days.', '重置前保存的版本。5天内可恢复。', 'リセット前に保存した版。5日以内に復元可能。', '리셋 전 저장된 버전. 5일 이내 복원 가능.')}
+          {tr('Khôi phục bất cứ khi nào trong 7 ngày. Sau 7 ngày lịch sử thay đổi sẽ bị xóa.', 'Restore anytime within 7 days. After 7 days, change history is deleted.', '7天内可随时恢复。7天后变更历史将被删除。', '7日以内はいつでも復元可能。7日後は変更履歴を削除。', '7일 이내 언제든 복원 가능. 7일 후 변경 기록 삭제됨.')}
         </p>
         <div className="mt-6">
           {loading ? (

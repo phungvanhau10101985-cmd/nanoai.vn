@@ -13,7 +13,7 @@ import {
   DialogClose,
 } from '@/components/ui/dialog'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
-import { X, Trash2 } from 'lucide-react'
+import { X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -25,7 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { parseContentEmbeds, parseQuizData, type EmbedType } from './content-embed'
+import { parseQuizData, type EmbedType } from './content-embed'
 
 export type EmbedPlacement = 'end' | 'newBlock' | number
 
@@ -38,8 +38,6 @@ interface EmbedInsertDialogProps {
   onInsert: (marker: string, placement?: EmbedPlacement, alsoApplyToSlideIndices?: number[]) => void
   /** Thay nội dung visual slide – markerOrUrl, alsoApplyToSlideIndices, layout (1|2|4), cellIndex (0-based, -1=tất cả) */
   onReplaceSlideImage?: (markerOrUrl: string, alsoApplyToSlideIndices?: number[], layout?: 1 | 2 | 4, cellIndex?: number) => void
-  /** Xóa visual slide (khi mode replace) – alsoApplyToSlideIndices */
-  onDeleteVisual?: (alsoApplyToSlideIndices?: number[]) => void
   tr: (vi: string, en: string, zh: string, ja: string, ko: string) => string
   highZIndex?: boolean
   blocks?: Array<{ header: string; content?: string }>
@@ -49,6 +47,12 @@ interface EmbedInsertDialogProps {
   currentSlideIndex?: number
   /** Dữ liệu visual đang lưu (để hiển thị trước khi xóa) */
   currentVisual?: { layout: 1 | 2 | 4; cells: Array<{ visualEmbed?: string; imageUrl?: string }> }
+  /** Mở với mode replace visual (từ nút Thay) */
+  initialMode?: EmbedDialogMode
+  /** Thay embed trong block – khi set, mở dialog để thay thế embed này */
+  replaceEmbedContext?: { slideIndex: number; blockIndex: number; rawMarker: string; urlOrId: string; embedType: EmbedType } | null
+  /** Callback khi thay embed trong block */
+  onReplaceBlockEmbed?: (slideIndex: number, blockIndex: number, oldRawMarker: string, newMarker: string) => void
 }
 
 const EMBED_OPTIONS: Array<{ value: EmbedType; label: string }> = [
@@ -113,24 +117,7 @@ const DESCRIPTIONS: Record<EmbedType, string> = {
   latex: 'Công thức LaTeX',
 }
 
-function getCellLabel(cell: { visualEmbed?: string; imageUrl?: string }): string {
-  if (cell.visualEmbed) {
-    const embeds = parseContentEmbeds(cell.visualEmbed)
-    const first = embeds[0]
-    if (first) {
-      const short = first.urlOrId.length > 50 ? first.urlOrId.slice(0, 47) + '...' : first.urlOrId
-      return `${first.type}: ${short}`
-    }
-    return cell.visualEmbed.slice(0, 60) + (cell.visualEmbed.length > 60 ? '...' : '')
-  }
-  if (cell.imageUrl) {
-    const short = cell.imageUrl.length > 50 ? cell.imageUrl.slice(0, 47) + '...' : cell.imageUrl
-    return `image: ${short}`
-  }
-  return ''
-}
-
-export function EmbedInsertDialog({ open, onOpenChange, type: initialType, onInsert, onReplaceSlideImage, onDeleteVisual, tr, highZIndex, blocks = [], slides = [], currentSlideIndex = 0, currentVisual }: EmbedInsertDialogProps) {
+export function EmbedInsertDialog({ open, onOpenChange, type: initialType, onInsert, onReplaceSlideImage, tr, highZIndex, blocks = [], slides = [], currentSlideIndex = 0, currentVisual, initialMode, replaceEmbedContext, onReplaceBlockEmbed }: EmbedInsertDialogProps) {
   const [mode, setMode] = useState<EmbedDialogMode>('insert')
   const [embedType, setEmbedType] = useState<EmbedType>(initialType || 'youtube')
   const [value, setValue] = useState('')
@@ -147,8 +134,15 @@ export function EmbedInsertDialog({ open, onOpenChange, type: initialType, onIns
       setVisualLayout(1)
       setVisualCellIndex(-1)
       setVerifyResult(null)
+    } else {
+      if (initialMode === 'replaceImage' && onReplaceSlideImage) setMode('replaceImage')
+      if (replaceEmbedContext) {
+        setMode('insert')
+        setEmbedType(replaceEmbedContext.embedType)
+        setValue(replaceEmbedContext.urlOrId)
+      }
     }
-  }, [open])
+  }, [open, initialMode, onReplaceSlideImage, replaceEmbedContext])
 
   const slideContent = blocks.map((b) => `${b.header ?? ''}: ${b.content ?? ''}`).join('\n\n')
   const slideTitle = slides[currentSlideIndex]?.title ?? ''
@@ -201,6 +195,16 @@ export function EmbedInsertDialog({ open, onOpenChange, type: initialType, onIns
   }, [value, verifyResult])
 
   const handleInsert = () => {
+    if (replaceEmbedContext && onReplaceBlockEmbed) {
+      const v = value.trim()
+      const marker = v.startsWith('[') ? v : buildMarker(embedType, v)
+      if (marker && canInsert(embedType, v)) {
+        onReplaceBlockEmbed(replaceEmbedContext.slideIndex, replaceEmbedContext.blockIndex, replaceEmbedContext.rawMarker, marker)
+        setValue('')
+        onOpenChange(false)
+      }
+      return
+    }
     if (mode === 'replaceImage' && onReplaceSlideImage) {
       const v = value.trim()
       const marker = v.startsWith('[') ? v : buildMarker(embedType, v)
@@ -229,20 +233,22 @@ export function EmbedInsertDialog({ open, onOpenChange, type: initialType, onIns
   const quizAtLimit = embedType === 'quiz' && quizCount >= 1 && mode === 'insert'
   const canInsertContent = canInsert(embedType, value) && !quizAtLimit
   const canReplaceVisual = canInsert(embedType, value)
-  const canDo = mode === 'replaceImage' ? canReplaceVisual : canInsertContent
+  const canDo = replaceEmbedContext ? canReplaceVisual : (mode === 'replaceImage' ? canReplaceVisual : canInsertContent)
 
   const dialogContent = (
     <>
       <DialogHeader>
         <DialogTitle>{tr('Chèn / Thay ảnh', 'Insert / Replace image', '插入/替换图片', '挿入/画像差し替え', '삽입/이미지 교체')}</DialogTitle>
         <DialogDescription>
-          {mode === 'replaceImage'
+          {replaceEmbedContext
+            ? tr('Thay embed này bằng nội dung mới', 'Replace this embed with new content', '用新内容替换此嵌入', 'この埋め込みを新しい内容で差し替え', '이 임베드를 새 내용으로 교체')
+            : mode === 'replaceImage'
             ? tr('Thay nội dung visual slide (YouTube, ảnh, GeoGebra, LaTeX... bên trái)', 'Replace slide visual (YouTube, image, GeoGebra, LaTeX... left side)', '替换幻灯片视觉内容（左侧：YouTube、图片、GeoGebra、LaTeX等）', 'スライドのビジュアルを差し替え（左側：YouTube、画像、GeoGebra、LaTeX等）', '슬라이드 비주얼 교체 (왼쪽: YouTube, 이미지, GeoGebra, LaTeX 등)')
             : DESCRIPTIONS[embedType]}
         </DialogDescription>
       </DialogHeader>
       <div className="space-y-4 py-2">
-        {onReplaceSlideImage && (
+        {onReplaceSlideImage && !replaceEmbedContext && (
           <div className="flex gap-2 border-b pb-3">
             <Button variant={mode === 'insert' ? 'default' : 'outline'} size="sm" onClick={() => setMode('insert')}>
               {tr('Chèn vào slide', 'Insert into slide', '插入到幻灯片', 'スライドに挿入', '슬라이드에 삽입')}
@@ -252,24 +258,35 @@ export function EmbedInsertDialog({ open, onOpenChange, type: initialType, onIns
             </Button>
           </div>
         )}
-        {mode === 'replaceImage' ? (
+        {replaceEmbedContext ? (
           <>
-            {currentVisual && currentVisual.cells.some((c) => c.visualEmbed || c.imageUrl) && (
-              <div className="rounded-lg border bg-muted/40 p-3 space-y-2">
-                <Label className="text-muted-foreground">{tr('Đang lưu trong ô', 'Current content in cells', '当前格内内容', '現在のセル内容', '현재 셀 내용')}</Label>
-                <div className={cn('grid gap-2', currentVisual.layout === 2 ? 'grid-cols-1' : currentVisual.layout === 4 ? 'grid-cols-2' : 'grid-cols-1')}>
-                  {currentVisual.cells.map((cell, idx) => {
-                    const label = getCellLabel(cell)
-                    if (!label) return null
-                    return (
-                      <div key={idx} className="text-sm text-muted-foreground truncate rounded bg-background/60 px-2 py-1.5 border" title={label}>
-                        <span className="font-medium text-foreground/80">{idx + 1}.</span> {label}
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
+            <div>
+              <Label>{tr('Loại', 'Type', '类型', 'タイプ', '유형')}</Label>
+              <Select value={embedType} onValueChange={(v) => { setEmbedType(v as EmbedType); setValue('') }}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="z-[120]">
+                  {EMBED_OPTIONS.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="embed-value-replace-ctx">{tr('URL hoặc nội dung', 'URL or content', 'URL或内容', 'URLまたは内容', 'URL 또는 내용')}</Label>
+              <Input
+                id="embed-value-replace-ctx"
+                placeholder={PLACEHOLDERS[embedType]}
+                value={value}
+                onChange={(e) => { setValue(e.target.value); setVerifyResult(null) }}
+                onKeyDown={(e) => e.key === 'Enter' && handleInsert()}
+                className="mt-1"
+              />
+            </div>
+          </>
+        ) : mode === 'replaceImage' ? (
+          <>
             <div>
               <Label>{tr('Chia ô visual', 'Visual layout', '视觉分区', 'ビジュアル分割', '비주얼 레이아웃')}</Label>
               <div className="flex gap-2 mt-2">
@@ -516,15 +533,9 @@ export function EmbedInsertDialog({ open, onOpenChange, type: initialType, onIns
         </p>
       )}
       <DialogFooter className="flex-wrap gap-2">
-        {onDeleteVisual && mode === 'replaceImage' && (
-          <Button variant="destructive" onClick={() => { onDeleteVisual(alsoApplyTo.size > 0 ? Array.from(alsoApplyTo) : undefined); onOpenChange(false) }} className="mr-auto">
-            <Trash2 className="h-4 w-4 mr-1.5" />
-            {tr('Xóa visual', 'Delete visual', '删除视觉', 'ビジュアル削除', '비주얼 삭제')}
-          </Button>
-        )}
         <Button variant="outline" onClick={() => onOpenChange(false)}>{tr('Hủy', 'Cancel', '取消', 'キャンセル', '취소')}</Button>
         <Button onClick={handleInsert} disabled={!canDo}>
-          {mode === 'replaceImage' ? tr('Thay', 'Replace', '替换', '差し替え', '교체') : tr('Chèn', 'Insert', '插入', '挿入', '삽입')}
+          {replaceEmbedContext || mode === 'replaceImage' ? tr('Thay', 'Replace', '替换', '差し替え', '교체') : tr('Chèn', 'Insert', '插入', '挿入', '삽입')}
         </Button>
       </DialogFooter>
     </>

@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useEffect, useState, useCallback, useRef } from 'react'
-import { Timer, Play, Pause, RotateCcw, ChevronLeft, ChevronRight, LayoutGrid, Square, Sparkles, Edit3, Plus, Save, FileText, FileEdit, History, BarChart2, Maximize2, X, ClipboardList, Flag, Presentation, PenLine, Settings2, MoreVertical, Trash2 } from 'lucide-react'
+import { Timer, Play, Pause, RotateCcw, ChevronLeft, ChevronRight, LayoutGrid, Square, Sparkles, Edit3, Plus, Save, FileText, FileEdit, History, BarChart2, Maximize2, X, ClipboardList, Flag, Presentation, Settings2, MoreVertical, Trash2, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { canSplitBlockAtQuiz, splitContentWithEmbeds, parseQuizData, parseContentEmbeds, ContentEmbed } from '../components/content-embed'
 import { parseContentToBlocks } from '../lib/curriculum-to-slides'
@@ -12,7 +12,8 @@ import { SlideEditHistorySheet } from '../components/slide-edit-history-sheet'
 import { EmbedInsertDialog, type EmbedPlacement } from '../components/embed-insert-dialog'
 import { PresentationControlBar } from '../components/presentation-control-bar'
 import { QuizPopupDialog, extractQuizFromSlide } from '../components/quiz-popup-dialog'
-import { getSlideProposalsForCurriculum, resetPersonalToOriginal, saveSlidesToCurriculum, saveUserCustomizedSlides } from '../actions'
+import { getSlideProposalsForCurriculum, getSlidesByCurriculumId, resetPersonalToOriginal, saveSlidesToCurriculum, saveUserCustomizedSlides } from '../actions'
+import { useScreenShare } from '../hooks/use-screen-share'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -236,6 +237,8 @@ export default function CurriculumViewPage() {
   const [personalHistoryOpen, setPersonalHistoryOpen] = useState(false)
   const [sharedHistoryOpen, setSharedHistoryOpen] = useState(false)
   const [embedDialogOpen, setEmbedDialogOpen] = useState(false)
+  const [embedDialogInitialMode, setEmbedDialogInitialMode] = useState<'insert' | 'replaceImage'>('insert')
+  const [embedReplaceContext, setEmbedReplaceContext] = useState<{ slideIndex: number; blockIndex: number; rawMarker: string; urlOrId: string; embedType: string } | null>(null)
   const [leftPanelMode, setLeftPanelMode] = useState<'curriculum' | 'slide' | 'visual'>('curriculum')
   const [visualFullscreenOpen, setVisualFullscreenOpen] = useState(false)
   const [teacherExpandedCellIndex, setTeacherExpandedCellIndex] = useState<number | null>(null)
@@ -331,6 +334,14 @@ export default function CurriculumViewPage() {
       /* ignore */
     }
   }, [])
+
+  const { isSharing: isScreenSharing, error: screenShareError, startShare: startScreenShare, stopShare: stopScreenShare } = useScreenShare({
+    role: 'teacher',
+    sendToStudent: sendToStudentView,
+  })
+  useEffect(() => {
+    if (screenShareError) toast({ title: tr('Lỗi chia sẻ màn hình', 'Screen share error', '屏幕共享错误', '画面共有エラー', '화면 공유 오류'), description: screenShareError, variant: 'destructive' })
+  }, [screenShareError, toast, tr])
 
   const sendCurriculumDataToStudent = useCallback((slidesToSend: SlideItem[], currentIndexOverride?: number) => {
     const idx = typeof currentIndexOverride === 'number' ? currentIndexOverride : currentIndex
@@ -620,12 +631,12 @@ export default function CurriculumViewPage() {
       }, 100)
       return
     }
-    const width = typeof screen !== 'undefined' ? Math.min(screen.availWidth || 1920, 1920) : 1920
-    const height = typeof screen !== 'undefined' ? Math.min(screen.availHeight || 1080, 1080) : 1080
+    const sw = typeof screen !== 'undefined' ? screen.availWidth || 1920 : 1920
+    const sh = typeof screen !== 'undefined' ? screen.availHeight || 1080 : 1080
     const w = window.open(
       '/tao-giao-trinh/xem-slide?t=' + Date.now(),
       'xem-slide',
-      `width=${width},height=${height},scrollbars=no,left=0,top=0`
+      `width=${sw},height=${sh},left=0,top=0,scrollbars=no,resizable=yes`
     )
     studentViewWindowRef.current = w
     if (w) {
@@ -703,12 +714,13 @@ export default function CurriculumViewPage() {
       indicesToUpdate.has(i) ? applyEmbedToSlide(sl, marker, placement) : sl
     )
     setSlides(updatedSlides)
+    if (curriculumId) void persistSlidesRef.current(updatedSlides)
     if (window.opener) window.opener.postMessage({ type: 'insert-embed', marker, placement, alsoApplyToSlideIndices: alsoApplyToSlideIndices }, window.location.origin)
     sendToStudentView({ type: 'insert-embed', marker, placement, alsoApplyToSlideIndices: alsoApplyToSlideIndices })
     sendCurriculumDataToStudent(updatedSlides)
     const count = indicesToUpdate.size
     if (count > 1) toast({ title: tr(`Đã chèn vào ${count} slide`, `Inserted into ${count} slides`, `已插入到${count}张幻灯片`, `${count}スライドに挿入`, `${count}개 슬라이드에 삽입`), duration: 1500 })
-  }, [currentIndex, slides, applyEmbedToSlide, sendToStudentView, sendCurriculumDataToStudent, toast, tr])
+  }, [currentIndex, slides, curriculumId, applyEmbedToSlide, sendToStudentView, sendCurriculumDataToStudent, toast, tr])
 
   const handleReplaceSlideImage = useCallback((markerOrUrl: string, alsoApplyToSlideIndices?: number[], layout: 1 | 2 | 4 = 1, cellIndex?: number) => {
     const isEmbed = markerOrUrl.trim().startsWith('[')
@@ -733,12 +745,13 @@ export default function CurriculumViewPage() {
       }
     })
     setSlides(updatedSlides)
+    if (curriculumId) void persistSlidesRef.current(updatedSlides)
     if (window.opener) window.opener.postMessage({ type: 'replace-slide-image', markerOrUrl, alsoApplyToSlideIndices: alsoApplyToSlideIndices, layout, cellIndex }, window.location.origin)
     sendToStudentView({ type: 'replace-slide-image', markerOrUrl, alsoApplyToSlideIndices: alsoApplyToSlideIndices, layout, cellIndex })
     sendCurriculumDataToStudent(updatedSlides)
     const count = indicesToUpdate.size
     toast({ title: count > 1 ? tr(`Đã thay visual ${count} slide`, `Visual replaced on ${count} slides`, `已替换${count}张幻灯片视觉`, `${count}スライドのビジュアルを差し替え`, `${count}개 슬라이드 비주얼 교체됨`) : tr('Đã thay visual slide', 'Slide visual replaced', '已替换幻灯片视觉', 'スライドのビジュアルを差し替えました', '슬라이드 비주얼 교체됨'), duration: 1500 })
-  }, [currentIndex, slides, sendToStudentView, sendCurriculumDataToStudent, toast, tr])
+  }, [currentIndex, slides, curriculumId, sendToStudentView, sendCurriculumDataToStudent, toast, tr])
 
   const handleDeleteVisual = useCallback((alsoApplyToSlideIndices?: number[]) => {
     const indicesToUpdate = new Set([currentIndex, ...(alsoApplyToSlideIndices ?? [])])
@@ -748,11 +761,12 @@ export default function CurriculumViewPage() {
         : sl
     )
     setSlides(updatedSlides)
+    if (curriculumId) void persistSlidesRef.current(updatedSlides)
     if (window.opener) window.opener.postMessage({ type: 'delete-visual', alsoApplyToSlideIndices: alsoApplyToSlideIndices }, window.location.origin)
     sendToStudentView({ type: 'delete-visual', alsoApplyToSlideIndices: alsoApplyToSlideIndices })
     sendCurriculumDataToStudent(updatedSlides)
     toast({ title: tr('Đã xóa visual', 'Visual deleted', '已删除视觉', 'ビジュアルを削除', '비주얼 삭제됨'), duration: 1500 })
-  }, [currentIndex, slides, sendToStudentView, sendCurriculumDataToStudent, toast, tr])
+  }, [currentIndex, slides, curriculumId, sendToStudentView, sendCurriculumDataToStudent, toast, tr])
 
   const handleDeleteSlide = useCallback(() => {
     if (slides.length <= 1) return
@@ -876,15 +890,66 @@ export default function CurriculumViewPage() {
       if (window.opener) {
         window.opener.postMessage({ type: 'update-slide-blocks', slideIndex, blocks: newBlocks }, window.location.origin)
       }
-      setSlides((prev) => prev.map((sl, i) => (i === slideIndex ? { ...sl, blocks: newBlocks } : sl)))
+      const updated = slides.map((sl, i) => (i === slideIndex ? { ...sl, blocks: newBlocks } : sl))
+      setSlides(updated)
+      if (curriculumId) void persistSlidesRef.current(updated)
+      sendCurriculumDataToStudent(updated)
     } finally {
       setQuizGenLoading(null)
     }
-  }, [slides, topic])
+  }, [slides, topic, curriculumId, sendCurriculumDataToStudent])
 
   const sendUpdateSlideBlocks = useCallback((slideIndex: number, blocks: Array<{ header?: string; content?: string }>) => {
     if (window.opener) window.opener.postMessage({ type: 'update-slide-blocks', slideIndex, blocks }, window.location.origin)
   }, [])
+
+  const updateSlideBlocksAndPersist = useCallback((slideIndex: number, newBlocks: Array<{ header?: string; content?: string }>, contentOverride?: string) => {
+    const updated = slides.map((sl, i) =>
+      i === slideIndex ? { ...sl, blocks: newBlocks, ...(contentOverride !== undefined ? { content: contentOverride } : {}) } : sl
+    )
+    setSlides(updated)
+    if (curriculumId) void persistSlidesRef.current(updated)
+    sendUpdateSlideBlocks(slideIndex, newBlocks)
+    sendCurriculumDataToStudent(updated)
+  }, [slides, curriculumId, sendUpdateSlideBlocks, sendCurriculumDataToStudent])
+
+  const handleRemoveEmbed = useCallback((slideIndex: number, blockIndex: number, rawMarker: string) => {
+    const s = slides[slideIndex]
+    if (!s) return
+    const blks = s.blocks ?? (s.content ? parseContentToBlocks(s.content) : [])
+    const bl = blks[blockIndex]
+    const rawContent = bl?.content ?? (blockIndex === 0 && s.content ? s.content : '')
+    if (!rawContent?.includes(rawMarker)) return
+    const newContent = rawContent.replace(rawMarker, '')
+    const newBlocks = blks.length > 0
+      ? blks.map((b, j) => (j === blockIndex ? { ...b, content: newContent } : b))
+      : parseContentToBlocks(newContent)
+    const updated = slides.map((sl, i) => (i === slideIndex ? { ...sl, blocks: newBlocks, content: blks.length === 0 ? newContent : undefined } : sl))
+    setSlides(updated)
+    if (curriculumId) void persistSlidesRef.current(updated)
+    sendUpdateSlideBlocks(slideIndex, newBlocks)
+    sendCurriculumDataToStudent(updated)
+    toast({ title: tr('Đã xóa nội dung chèn', 'Embed removed', '已删除嵌入内容', '埋め込みを削除', '삽입 내용 삭제됨'), duration: 1500 })
+  }, [slides, curriculumId, sendUpdateSlideBlocks, sendCurriculumDataToStudent, toast, tr])
+
+  const handleReplaceEmbed = useCallback((slideIndex: number, blockIndex: number, oldRawMarker: string, newMarker: string) => {
+    const s = slides[slideIndex]
+    if (!s) return
+    const blks = s.blocks ?? (s.content ? parseContentToBlocks(s.content) : [])
+    const bl = blks[blockIndex]
+    const rawContent = bl?.content ?? (blockIndex === 0 && s.content ? s.content : '')
+    if (!rawContent?.includes(oldRawMarker)) return
+    const newContent = rawContent.replace(oldRawMarker, newMarker)
+    const newBlocks = blks.length > 0
+      ? blks.map((b, j) => (j === blockIndex ? { ...b, content: newContent } : b))
+      : parseContentToBlocks(newContent)
+    const updated = slides.map((sl, i) => (i === slideIndex ? { ...sl, blocks: newBlocks, content: blks.length === 0 ? newContent : undefined } : sl))
+    setSlides(updated)
+    if (curriculumId) void persistSlidesRef.current(updated)
+    sendUpdateSlideBlocks(slideIndex, newBlocks)
+    sendCurriculumDataToStudent(updated)
+    toast({ title: tr('Đã thay nội dung chèn', 'Embed replaced', '已替换嵌入内容', '埋め込みを差し替え', '삽입 내용 교체됨'), duration: 1500 })
+  }, [slides, curriculumId, sendUpdateSlideBlocks, sendCurriculumDataToStudent, toast, tr])
 
   const reportQuizWrong = useCallback(async (opts: {
     curriculumId: string
@@ -924,8 +989,7 @@ export default function CurriculumViewPage() {
           const newBlocks = blks.length > 0
             ? blks.map((b, j) => (j === opts.blockIndex ? { ...b, content: newContent } : b))
             : parseContentToBlocks(newContent)
-          setSlides((prev) => prev.map((sl, i) => (i === opts.slideIndex ? { ...sl, blocks: newBlocks, content: blks.length === 0 ? newContent : sl.content } : sl)))
-          sendUpdateSlideBlocks(opts.slideIndex, newBlocks)
+          updateSlideBlocksAndPersist(opts.slideIndex, newBlocks, blks.length === 0 ? newContent : undefined)
         }
         toast({ title: tr('Đã thay câu mới', 'Replaced with new question', '已替换为新题目', '新しい問題に置き換えました', '새 문제로 교체됨'), description: data.reasoning?.slice(0, 120), duration: 4000 })
       } else if (data.action === 'kept') {
@@ -936,7 +1000,7 @@ export default function CurriculumViewPage() {
     } finally {
       setQuizReportLoading(null)
     }
-  }, [slides, toast, tr, sendUpdateSlideBlocks])
+  }, [slides, toast, tr, updateSlideBlocksAndPersist])
 
   useEffect(() => {
     const syncLocale = () => setUiLocale(getWebLocaleFromCookie())
@@ -1056,8 +1120,13 @@ export default function CurriculumViewPage() {
   }, [currentIndex, slides])
 
   const handleBlur = useCallback(() => {
+    setSlides((prev) => {
+      const next = prev.map((s, i) => (i === currentIndex ? { ...s, teacherNotes: notesValue } : s))
+      if (curriculumId) void persistSlidesRef.current(next)
+      return next
+    })
     sendNotesToParent(notesValue)
-  }, [notesValue, sendNotesToParent])
+  }, [notesValue, currentIndex, curriculumId, sendNotesToParent])
 
   const refreshProposals = useCallback(() => {
     if (!curriculumId) return
@@ -1079,8 +1148,12 @@ export default function CurriculumViewPage() {
   }, [])
 
   const sendSaveNow = useCallback(() => {
-    if (window.opener) window.opener.postMessage({ type: 'save-slides-now' }, window.location.origin)
-  }, [])
+    if (window.opener) {
+      window.opener.postMessage({ type: 'save-slides-now' }, window.location.origin)
+    } else if (curriculumId && slides.length > 0) {
+      void persistSlidesRef.current(slides)
+    }
+  }, [curriculumId, slides])
 
   const sendRefreshPersonalAfterReset = useCallback(() => {
     if (window.opener) window.opener.postMessage({ type: 'refresh-personal-after-reset' }, window.location.origin)
@@ -1162,7 +1235,7 @@ export default function CurriculumViewPage() {
           onTeacherTimerReset={() => sendTeacherTimer('teacher-timer-reset')}
           teacherTimerInteractive
           curriculumId={curriculumId ?? undefined}
-          onInsertClick={() => setEmbedDialogOpen(true)}
+          onInsertClick={() => { setEmbedDialogInitialMode('insert'); setEmbedReplaceContext(null); setEmbedDialogOpen(true) }}
           writingMode={remoteTeacherWritingMode}
           onWritingModeToggle={() => { setRemoteTeacherWritingMode((v) => !v); sendToStudentView({ type: 'set-teacher-writing-mode', value: !remoteTeacherWritingMode }) }}
           writingSpeedMs={remoteTeacherWritingSpeedMs}
@@ -1179,6 +1252,9 @@ export default function CurriculumViewPage() {
           slideViewMode={slideViewMode}
           onSlideViewModeChange={(m) => setSlideViewMode(m)}
           onOpenStudentView={slides.length > 0 ? openStudentView : undefined}
+          onScreenShareStart={startScreenShare}
+          onScreenShareStop={stopScreenShare}
+          isScreenSharing={isScreenSharing}
           hideIndex
         />
       </div>
@@ -1318,8 +1394,12 @@ export default function CurriculumViewPage() {
                             </button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="z-[120]">
-                            <DropdownMenuItem onClick={() => handleDeleteVisual()} disabled={!hasAny} className="text-rose-600 focus:text-rose-600 dark:text-rose-400">
-                              <Trash2 className="h-4 w-4 mr-2" />
+                            <DropdownMenuItem onClick={() => { setEmbedDialogInitialMode('replaceImage'); setEmbedReplaceContext(null); setEmbedDialogOpen(true) }} className="cursor-pointer gap-3">
+                              <RefreshCw className="h-4 w-4 shrink-0" />
+                              {tr('Thay', 'Replace', '替换', '差し替え', '교체')}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleDeleteVisual()} disabled={!hasAny} className="text-rose-600 focus:text-rose-600 dark:text-rose-400 cursor-pointer gap-3">
+                              <Trash2 className="h-4 w-4 shrink-0" />
                               {tr('Xóa visual', 'Delete visual', '删除视觉', 'ビジュアル削除', '비주얼 삭제')}
                             </DropdownMenuItem>
                           </DropdownMenuContent>
@@ -1404,8 +1484,12 @@ export default function CurriculumViewPage() {
                             </button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="z-[120]">
-                            <DropdownMenuItem onClick={() => handleDeleteSlide()} disabled={slides.length <= 1} className="text-rose-600 focus:text-rose-600 dark:text-rose-400">
-                              <Trash2 className="h-4 w-4 mr-2" />
+                            <DropdownMenuItem onClick={() => { setEmbedDialogInitialMode('replaceImage'); setEmbedReplaceContext(null); setEmbedDialogOpen(true) }} className="cursor-pointer gap-3">
+                              <RefreshCw className="h-4 w-4 shrink-0" />
+                              {tr('Thay', 'Replace', '替换', '差し替え', '교체')}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleDeleteSlide()} disabled={slides.length <= 1} className="text-rose-600 focus:text-rose-600 dark:text-rose-400 cursor-pointer gap-3">
+                              <Trash2 className="h-4 w-4 shrink-0" />
                               {tr('Xóa slide', 'Delete slide', '删除幻灯片', 'スライド削除', '슬라이드 삭제')}
                             </DropdownMenuItem>
                           </DropdownMenuContent>
@@ -1572,7 +1656,7 @@ export default function CurriculumViewPage() {
                           {editingTitle === currentIndex ? (
                             <div className="flex-1 flex gap-2 items-center flex-wrap min-w-0">
                               <input value={editingTitleValue} onChange={(e) => setEditingTitleValue(e.target.value)} className="flex-1 min-w-[140px] rounded-lg bg-slate-700/80 px-3 py-2 text-amber-300 text-sm font-medium border border-slate-600 focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/30" placeholder={tr('Tiêu đề slide', 'Slide title', '幻灯片标题', 'スライドタイトル', '슬라이드 제목')} />
-                              <button type="button" onClick={() => { setSlides((prev) => prev.map((sl, j) => j === currentIndex ? { ...sl, title: editingTitleValue } : sl)); sendUpdateSlideTitle(currentIndex, editingTitleValue); setEditingTitle(null) }} className="text-xs font-medium text-emerald-400 hover:text-emerald-300 px-3 py-1.5 rounded-lg bg-emerald-500/20 border border-emerald-400/30">{tr('Lưu', 'Save', '保存', '保存', '저장')}</button>
+                              <button type="button" onClick={() => { setSlides((prev) => { const next = prev.map((sl, j) => j === currentIndex ? { ...sl, title: editingTitleValue } : sl); if (curriculumId) void persistSlidesRef.current(next); return next }); sendUpdateSlideTitle(currentIndex, editingTitleValue); setEditingTitle(null) }} className="text-xs font-medium text-emerald-400 hover:text-emerald-300 px-3 py-1.5 rounded-lg bg-emerald-500/20 border border-emerald-400/30">{tr('Lưu', 'Save', '保存', '保存', '저장')}</button>
                               <button type="button" onClick={() => setEditingTitle(null)} className="text-xs text-slate-400 hover:text-slate-300 px-2 py-1.5">{tr('Hủy', 'Cancel', '取消', 'キャンセル', '취소')}</button>
                             </div>
                           ) : (
@@ -1647,7 +1731,7 @@ export default function CurriculumViewPage() {
                                 {curriculumId && (
                                   <button
                                     type="button"
-                                    onClick={() => setEmbedDialogOpen(true)}
+                                    onClick={() => { setEmbedDialogInitialMode('insert'); setEmbedReplaceContext(null); setEmbedDialogOpen(true) }}
                                     className="text-xs text-slate-300 hover:text-amber-300 px-2.5 py-1 rounded-lg bg-slate-600/40 border border-slate-500/50 hover:bg-amber-500/15 hover:border-amber-400/40 flex items-center gap-1.5 transition-colors"
                                     title={tr('Chèn nội dung (YouTube, GeoGebra, ảnh, quiz...)', 'Insert content (YouTube, GeoGebra, image, quiz...)', '插入内容', 'コンテンツを挿入', '콘텐츠 삽입')}
                                   >
@@ -1675,8 +1759,7 @@ export default function CurriculumViewPage() {
                                       <input value={editingHeaderValue} onChange={(e) => setEditingHeaderValue(e.target.value)} className="flex-1 min-w-[120px] rounded-lg bg-slate-700/80 px-3 py-2 text-amber-300 text-sm border border-slate-600 focus:border-amber-500/50" placeholder={tr('Tiêu đề block', 'Block header', '块标题', 'ブロックタイトル', '블록 제목')} />
                                       <button type="button" onClick={() => {
                                         const newBlocks = blks.map((bl, j) => j === i ? { ...bl, header: editingHeaderValue } : bl)
-                                        setSlides((prev) => prev.map((sl, j) => j === currentIndex ? { ...sl, blocks: newBlocks } : sl))
-                                        sendUpdateSlideBlocks(currentIndex, newBlocks)
+                                        updateSlideBlocksAndPersist(currentIndex, newBlocks)
                                         setEditingHeader(null)
                                       }} className="text-xs font-medium text-emerald-400 px-3 py-1.5 rounded-lg bg-emerald-500/20">{tr('Lưu', 'Save', '保存', '保存', '저장')}</button>
                                       <button type="button" onClick={() => setEditingHeader(null)} className="text-xs text-slate-400 hover:text-slate-300 px-2 py-1.5">{tr('Hủy', 'Cancel', '取消', 'キャンセル', '취소')}</button>
@@ -1697,8 +1780,7 @@ export default function CurriculumViewPage() {
                                       <div className="flex gap-2">
                                         <button type="button" onClick={() => {
                                           const newBlocks = blks.map((bl, j) => j === i ? { ...bl, content: editingValue } : bl)
-                                          setSlides((prev) => prev.map((sl, j) => j === currentIndex ? { ...sl, blocks: newBlocks } : sl))
-                                          sendUpdateSlideBlocks(currentIndex, newBlocks)
+                                          updateSlideBlocksAndPersist(currentIndex, newBlocks)
                                           setEditingBlock(null)
                                         }} className="text-xs font-medium text-emerald-400 px-3 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30">{tr('Lưu', 'Save', '保存', '保存', '저장')}</button>
                                         <button type="button" onClick={() => setEditingBlock(null)} className="text-xs text-slate-400 hover:text-slate-300 px-2 py-1.5">{tr('Hủy', 'Cancel', '取消', 'キャンセル', '취소')}</button>
@@ -1728,9 +1810,29 @@ export default function CurriculumViewPage() {
                                             )
                                           }
                                           if (p.type === 'embed') {
+                                            const ep = p as { type: 'embed'; embedType: string; urlOrId: string; rawMarker: string }
                                             return (
-                                              <div key={j} className="rounded-lg overflow-hidden border border-slate-600/60">
-                                                <ContentEmbed type={p.embedType} urlOrId={p.urlOrId} width={280} height={160} tr={tr} />
+                                              <div key={j} className="rounded-lg overflow-hidden border border-slate-600/60 relative group">
+                                                <ContentEmbed type={ep.embedType} urlOrId={ep.urlOrId} width={280} height={160} tr={tr} />
+                                                {curriculumId && (showDirectEdit || showProposalUi) && (
+                                                  <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild>
+                                                      <button type="button" className="absolute top-1.5 right-1.5 p-1.5 rounded-md bg-slate-800/95 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-600/60 z-[100] shadow-lg">
+                                                        <MoreVertical className="h-3.5 w-3.5" />
+                                                      </button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent align="end" sideOffset={10} className="z-[120]">
+                                                      <DropdownMenuItem onSelect={() => { setEmbedReplaceContext({ slideIndex: currentIndex, blockIndex: i, rawMarker: ep.rawMarker, urlOrId: ep.urlOrId, embedType: ep.embedType }); setEmbedDialogInitialMode('insert'); setEmbedDialogOpen(true) }} className="cursor-pointer gap-3">
+                                                        <RefreshCw className="h-4 w-4 shrink-0" />
+                                                        {tr('Thay', 'Replace', '替换', '差し替え', '교체')}
+                                                      </DropdownMenuItem>
+                                                      <DropdownMenuItem onSelect={() => handleRemoveEmbed(currentIndex, i, ep.rawMarker)} className="text-rose-600 focus:text-rose-600 dark:text-rose-400 cursor-pointer gap-3">
+                                                        <Trash2 className="h-4 w-4 shrink-0" />
+                                                        {tr('Xóa', 'Delete', '删除', '削除', '삭제')}
+                                                      </DropdownMenuItem>
+                                                    </DropdownMenuContent>
+                                                  </DropdownMenu>
+                                                )}
                                               </div>
                                             )
                                           }
@@ -1791,8 +1893,7 @@ export default function CurriculumViewPage() {
                             {slideMode === 'personal' && personalViewSubMode === 'current' && curriculumId && (
                               <button type="button" onClick={() => {
                                 const newBlocks = [...blks, { header: tr('Nội dung', 'Content', '内容', '内容', '내용'), content: '' }]
-                                setSlides((prev) => prev.map((sl, i) => i === currentIndex ? { ...sl, blocks: newBlocks } : sl))
-                                sendUpdateSlideBlocks(currentIndex, newBlocks)
+                                updateSlideBlocksAndPersist(currentIndex, newBlocks)
                               }} className="w-full py-2 rounded-lg border-2 border-dashed border-emerald-400/40 text-emerald-300 hover:bg-emerald-500/15 hover:border-emerald-400/60 text-xs font-medium flex items-center justify-center gap-1.5 transition-colors">
                                 <Plus className="h-3.5 w-3.5" />
                                 {tr('Thêm ý', 'Add point', '添加要点', '追加', '의견 추가')}
@@ -1808,8 +1909,7 @@ export default function CurriculumViewPage() {
                                   <div className="flex gap-2">
                                     <button type="button" onClick={() => {
                                       const newBlocks = parseContentToBlocks(editingValue)
-                                      setSlides((prev) => prev.map((sl, j) => j === currentIndex ? { ...sl, blocks: newBlocks, content: '' } : sl))
-                                      sendUpdateSlideBlocks(currentIndex, newBlocks)
+                                      updateSlideBlocksAndPersist(currentIndex, newBlocks, '')
                                       setEditingBlock(null)
                                     }} className="text-xs text-emerald-400 px-2 py-1">{tr('Lưu', 'Save', '保存', '保存', '저장')}</button>
                                     <button type="button" onClick={() => setEditingBlock(null)} className="text-xs text-slate-400">{tr('Hủy', 'Cancel', '取消', 'キャンセル', '취소')}</button>
@@ -1839,9 +1939,29 @@ export default function CurriculumViewPage() {
                                         )
                                       }
                                       if (p.type === 'embed') {
+                                        const ep = p as { type: 'embed'; embedType: string; urlOrId: string; rawMarker: string }
                                         return (
-                                          <div key={j} className="rounded-lg overflow-hidden border border-slate-600/60">
-                                            <ContentEmbed type={p.embedType} urlOrId={p.urlOrId} width={280} height={160} tr={tr} />
+                                          <div key={j} className="rounded-lg overflow-hidden border border-slate-600/60 relative group">
+                                            <ContentEmbed type={ep.embedType} urlOrId={ep.urlOrId} width={280} height={160} tr={tr} />
+                                            {curriculumId && (slideMode === 'personal' && personalViewSubMode === 'current' || slideMode === 'shared' || slideMode === 'original' || slideMode === null) && (
+                                              <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                  <button type="button" className="absolute top-1.5 right-1.5 p-1.5 rounded-md bg-slate-800/95 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-600/60 z-[100] shadow-lg">
+                                                    <MoreVertical className="h-3.5 w-3.5" />
+                                                  </button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="end" sideOffset={10} className="z-[120]">
+                                                  <DropdownMenuItem onSelect={() => { setEmbedReplaceContext({ slideIndex: currentIndex, blockIndex: 0, rawMarker: ep.rawMarker, urlOrId: ep.urlOrId, embedType: ep.embedType }); setEmbedDialogInitialMode('insert'); setEmbedDialogOpen(true) }} className="cursor-pointer gap-3">
+                                                    <RefreshCw className="h-4 w-4 shrink-0" />
+                                                    {tr('Thay', 'Replace', '替换', '差し替え', '교체')}
+                                                  </DropdownMenuItem>
+                                                  <DropdownMenuItem onSelect={() => handleRemoveEmbed(currentIndex, 0, ep.rawMarker)} className="text-rose-600 focus:text-rose-600 dark:text-rose-400 cursor-pointer gap-3">
+                                                    <Trash2 className="h-4 w-4 shrink-0" />
+                                                    {tr('Xóa', 'Delete', '删除', '削除', '삭제')}
+                                                  </DropdownMenuItem>
+                                                </DropdownMenuContent>
+                                              </DropdownMenu>
+                                            )}
                                           </div>
                                         )
                                       }
@@ -1893,8 +2013,7 @@ export default function CurriculumViewPage() {
                             {slideMode === 'personal' && personalViewSubMode === 'current' && curriculumId && (
                               <button type="button" onClick={() => {
                                 const newBlocks = [...parseContentToBlocks(s.content ?? ''), { header: tr('Nội dung', 'Content', '内容', '内容', '내용'), content: '' }]
-                                setSlides((prev) => prev.map((sl, j) => j === currentIndex ? { ...sl, blocks: newBlocks, content: '' } : sl))
-                                sendUpdateSlideBlocks(currentIndex, newBlocks)
+                                updateSlideBlocksAndPersist(currentIndex, newBlocks, '')
                               }} className="w-full py-2 rounded-lg border-2 border-dashed border-emerald-400/40 text-emerald-300 hover:bg-emerald-500/15 text-xs font-medium flex items-center justify-center gap-1.5 transition-colors">
                                 <Plus className="h-3.5 w-3.5" />{tr('Thêm ý', 'Add point', '添加要点', '追加', '의견 추가')}
                               </button>
@@ -1999,7 +2118,7 @@ export default function CurriculumViewPage() {
                         {isCurrent && curriculumId && (
                           <button
                             type="button"
-                            onClick={() => setEmbedDialogOpen(true)}
+                            onClick={() => { setEmbedDialogInitialMode('insert'); setEmbedReplaceContext(null); setEmbedDialogOpen(true) }}
                             className="text-xs text-slate-400 hover:text-amber-300 px-1.5 py-0.5 rounded bg-slate-700/50 flex items-center gap-0.5"
                             title={tr('Chèn nội dung', 'Insert content', '插入内容', 'コンテンツを挿入', '콘텐츠 삽입')}
                           >
@@ -2047,8 +2166,7 @@ export default function CurriculumViewPage() {
                                   <div className="flex gap-1">
                                     <button type="button" onClick={() => {
                                       const newBlocks = blks.map((bl, j) => j === i ? { ...bl, content: editingValue } : bl)
-                                      setSlides((prev) => prev.map((sl, j) => j === idx ? { ...sl, blocks: newBlocks } : sl))
-                                      sendUpdateSlideBlocks(idx, newBlocks)
+                                      updateSlideBlocksAndPersist(idx, newBlocks)
                                       setEditingBlock(null)
                                     }} className="text-[10px] text-emerald-400">{tr('Lưu', 'Save', '保存', '保存', '저장')}</button>
                                     <button type="button" onClick={() => setEditingBlock(null)} className="text-[10px] text-slate-400">{tr('Hủy', 'Cancel', '取消', 'キャンセル', '취소')}</button>
@@ -2113,8 +2231,7 @@ export default function CurriculumViewPage() {
                       {blks.length > 0 && isCurrent && slideMode === 'personal' && personalViewSubMode === 'current' && curriculumId && (
                         <button type="button" onClick={() => {
                           const newBlocks = [...blks, { header: tr('Nội dung', 'Content', '内容', '内容', '내용'), content: '' }]
-                          setSlides((prev) => prev.map((sl, j) => j === idx ? { ...sl, blocks: newBlocks } : sl))
-                          sendUpdateSlideBlocks(idx, newBlocks)
+                          updateSlideBlocksAndPersist(idx, newBlocks)
                         }} className="w-full py-1.5 rounded border border-dashed border-emerald-400/40 text-emerald-300 hover:bg-emerald-500/15 text-[10px] font-medium flex items-center justify-center gap-1 transition-colors">
                           <Plus className="h-2.5 w-2.5" />{tr('Thêm ý', 'Add', '添加', '追加', '추가')}
                         </button>
@@ -2127,8 +2244,7 @@ export default function CurriculumViewPage() {
                               <div className="flex gap-1">
                                 <button type="button" onClick={() => {
                                   const newBlocks = parseContentToBlocks(editingValue)
-                                  setSlides((prev) => prev.map((sl, j) => j === idx ? { ...sl, blocks: newBlocks, content: '' } : sl))
-                                  sendUpdateSlideBlocks(idx, newBlocks)
+                                  updateSlideBlocksAndPersist(idx, newBlocks, '')
                                   setEditingBlock(null)
                                 }} className="text-[10px] text-emerald-400">{tr('Lưu', 'Save', '保存', '保存', '저장')}</button>
                                 <button type="button" onClick={() => setEditingBlock(null)} className="text-[10px] text-slate-400">{tr('Hủy', 'Cancel', '取消', 'キャンセル', '취소')}</button>
@@ -2193,8 +2309,7 @@ export default function CurriculumViewPage() {
                       {blks.length === 0 && s?.content && isCurrent && slideMode === 'personal' && personalViewSubMode === 'current' && curriculumId && (
                         <button type="button" onClick={() => {
                           const newBlocks = [...parseContentToBlocks(s.content ?? ''), { header: tr('Nội dung', 'Content', '内容', '内容', '내용'), content: '' }]
-                          setSlides((prev) => prev.map((sl, j) => j === idx ? { ...sl, blocks: newBlocks, content: '' } : sl))
-                          sendUpdateSlideBlocks(idx, newBlocks)
+                          updateSlideBlocksAndPersist(idx, newBlocks, '')
                         }} className="w-full py-1 rounded border border-dashed border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/10 text-[10px] flex items-center justify-center gap-0.5 mt-0.5">
                           <Plus className="h-3 w-3" />{tr('Thêm ý', 'Add point', '添加要点', '追加', '의견 추가')}
                         </button>
@@ -2247,11 +2362,17 @@ export default function CurriculumViewPage() {
         onOpenChange={setSharedHistoryOpen}
         curriculumId={curriculumId}
         tr={tr}
+        onRestored={async () => {
+          if (!curriculumId) return
+          const r = await getSlidesByCurriculumId(curriculumId)
+          if (r?.success && r.slides) setSlides(r.slides)
+          requestCurriculum()
+        }}
       />
       {curriculumId && slides.length > 0 && (
         <EmbedInsertDialog
           open={embedDialogOpen}
-          onOpenChange={setEmbedDialogOpen}
+          onOpenChange={(open) => { setEmbedDialogOpen(open); if (!open) setEmbedReplaceContext(null) }}
           onInsert={(marker, placement, alsoTo) => {
             handleInsertEmbed(marker, placement ?? 'end', alsoTo)
             setEmbedDialogOpen(false)
@@ -2260,12 +2381,15 @@ export default function CurriculumViewPage() {
             handleReplaceSlideImage(markerOrUrl, alsoTo, layout ?? 1, cellIndex)
             setEmbedDialogOpen(false)
           }}
-          onDeleteVisual={(alsoTo) => {
-            handleDeleteVisual(alsoTo)
+          onReplaceBlockEmbed={(slideIndex, blockIndex, oldRawMarker, newMarker) => {
+            handleReplaceEmbed(slideIndex, blockIndex, oldRawMarker, newMarker)
+            setEmbedReplaceContext(null)
             setEmbedDialogOpen(false)
           }}
           tr={tr}
           highZIndex
+          initialMode={embedDialogInitialMode}
+          replaceEmbedContext={embedReplaceContext}
           blocks={(() => {
             const s = slides[currentIndex]
             const blks = Array.isArray(s?.blocks) && s.blocks.length ? s.blocks : s?.content ? parseContentToBlocks(s.content) : []
@@ -2290,38 +2414,42 @@ export default function CurriculumViewPage() {
           >
             <div className="absolute top-0 left-0 right-0 h-14 flex items-center justify-between px-4 bg-black/70 z-20 shrink-0">
               <span className="text-white/80 text-sm">{currentIndex + 1}/{slides.length} {s.title}</span>
-              <button
-                type="button"
-                onClick={closeTeacherVisualFullscreen}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/20 hover:bg-white/30 text-white font-medium transition-colors"
-                title={tr('Đóng', 'Close', '关闭', '閉じる', '닫기')}
-              >
-                <X className="h-5 w-5" />
-                {tr('Đóng', 'Close', '关闭', '閉じる', '닫기')}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={closeTeacherVisualFullscreen}
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/20 hover:bg-white/30 text-white font-medium transition-colors"
+                  title={tr('Đóng', 'Close', '关闭', '閉じる', '닫기')}
+                >
+                  <X className="h-5 w-5" />
+                  {tr('Đóng', 'Close', '关闭', '閉じる', '닫기')}
+                </button>
+              </div>
             </div>
             <div className={cn('flex-1 min-h-0 relative px-4 pb-4 pt-14 flex flex-col', showSingleCell || layout === 1 ? 'gap-4' : '')}>
-              <div ref={teacherVisualFrameRef} className={cn('flex-1 min-h-0 overflow-hidden', showSingleCell || layout === 1 ? 'flex flex-col gap-4' : gridClass)}>
-              {displayCells.map((cell, i) => (
-                <div key={displayIndices[i] ?? i} className="flex-1 min-h-0 relative rounded-xl overflow-hidden bg-black/30 border border-white/10">
-                  {cell.visualEmbed ? (
-                    (() => {
-                      const embeds = parseContentEmbeds(cell.visualEmbed)
-                      const first = embeds[0]
-                      if (!first) return <div className="w-full h-full" />
-                      return (
-                        <div className="w-full h-full">
-                          <ContentEmbed type={first.type} urlOrId={first.urlOrId} tr={tr} hideQuiz fill className="!my-0 !rounded-xl !border-0" />
-                        </div>
-                      )
-                    })()
-                  ) : cell.imageUrl ? (
-                    <img src={cell.imageUrl} alt="" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
-                  ) : (
-                    <div className="w-full h-full bg-white/5" />
-                  )}
+              <div className="flex-1 min-h-0 relative flex flex-col">
+                <div ref={teacherVisualFrameRef} className={cn('flex-1 min-h-0 overflow-hidden min-w-0', showSingleCell || layout === 1 ? 'flex flex-col gap-4' : gridClass)}>
+                {displayCells.map((cell, i) => (
+                  <div key={displayIndices[i] ?? i} className="flex-1 min-h-0 relative rounded-xl overflow-hidden bg-black/30 border border-white/10">
+                    {cell.visualEmbed ? (
+                      (() => {
+                        const embeds = parseContentEmbeds(cell.visualEmbed)
+                        const first = embeds[0]
+                        if (!first) return <div className="w-full h-full" />
+                        return (
+                          <div className="w-full h-full">
+                            <ContentEmbed type={first.type} urlOrId={first.urlOrId} tr={tr} hideQuiz fill className="!my-0 !rounded-xl !border-0" />
+                          </div>
+                        )
+                      })()
+                    ) : cell.imageUrl ? (
+                      <img src={cell.imageUrl} alt="" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
+                    ) : (
+                      <div className="w-full h-full bg-white/5" />
+                    )}
+                  </div>
+                ))}
                 </div>
-              ))}
               </div>
             </div>
           </div>

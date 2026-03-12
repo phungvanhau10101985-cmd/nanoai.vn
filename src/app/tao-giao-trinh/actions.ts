@@ -1235,21 +1235,81 @@ export async function saveOriginalSlidesIfNotExists(opts: {
   return { success: true, saved: true }
 }
 
-/** Lịch sử chỉnh sửa bản chung */
+const SHARED_HISTORY_DAYS = 7
+
+/** Lịch sử chỉnh sửa bản chung – chỉ lấy trong 7 ngày, xóa bản cũ hơn */
 export async function getSlideEditHistory(curriculumId: string, limit = 20) {
   const supabase = createClient()
   const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
   if ('error' in authResult) return { error: authResult.error }
 
+  const cutoff = new Date()
+  cutoff.setDate(cutoff.getDate() - SHARED_HISTORY_DAYS)
+
   const { data, error } = await supabase
     .from('worksheet_slide_edit_history')
     .select('id, user_id, slides_json, created_at')
     .eq('curriculum_id', curriculumId)
+    .gte('created_at', cutoff.toISOString())
     .order('created_at', { ascending: false })
     .limit(limit)
 
   if (error) return { error: error.message }
+
+  void cleanSharedHistoryOlderThan(supabase, cutoff)
+
   return { success: true, items: data ?? [] }
+}
+
+async function cleanSharedHistoryOlderThan(supabase: ReturnType<typeof createClient>, cutoff: Date) {
+  await supabase
+    .from('worksheet_slide_edit_history')
+    .delete()
+    .lt('created_at', cutoff.toISOString())
+}
+
+/** Khôi phục bản chung từ lịch sử */
+export async function restoreSharedFromHistory(curriculumId: string, historyId: string) {
+  const supabase = createClient()
+  const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+  if ('error' in authResult) return { error: authResult.error }
+
+  const cutoff = new Date()
+  cutoff.setDate(cutoff.getDate() - SHARED_HISTORY_DAYS)
+
+  const { data, error } = await supabase
+    .from('worksheet_slide_edit_history')
+    .select('slides_json, created_at')
+    .eq('id', historyId)
+    .eq('curriculum_id', curriculumId)
+    .single()
+
+  if (error || !data) return { error: 'Không tìm thấy bản lưu.' }
+  if (new Date(data.created_at) < cutoff) return { error: 'Bản lưu đã hết hạn khôi phục (7 ngày).' }
+
+  const slides = data.slides_json as Array<{ title: string; blocks: Array<{ header: string; content: string }>; imageUrl?: string; visualEmbed?: string; visualLayout?: 1 | 2 | 4; visualCells?: Array<{ visualEmbed?: string; imageUrl?: string }>; teacherNotes?: string }>
+  if (!Array.isArray(slides) || slides.length === 0) return { error: 'Dữ liệu không hợp lệ.' }
+
+  const { error: upsertErr } = await supabase
+    .from('worksheet_slides')
+    .upsert(
+      {
+        curriculum_id: curriculumId,
+        user_id: null,
+        content_json: slides,
+      },
+      { onConflict: 'curriculum_id' }
+    )
+
+  if (upsertErr) return { error: upsertErr.message }
+
+  await supabase.from('worksheet_slide_edit_history').insert({
+    curriculum_id: curriculumId,
+    user_id: (await supabase.auth.getUser()).data.user?.id ?? null,
+    slides_json: slides,
+  })
+
+  return { success: true }
 }
 
 /** Lấy slide đã chỉnh sửa của giáo viên (thêm biểu đồ, sửa nội dung) – không đổi dữ liệu gốc */
@@ -1295,6 +1355,21 @@ export async function saveUserCustomizedSlides(opts: {
 
   if (error) return { error: error.message }
 
+  await supabase.from('user_customized_slides_history').insert({
+    user_id: user.id,
+    curriculum_id: opts.curriculumId,
+    slides_json: opts.slides,
+  })
+
+  const cutoff = new Date()
+  cutoff.setDate(cutoff.getDate() - PERSONAL_HISTORY_DAYS)
+  await supabase
+    .from('user_customized_slides_history')
+    .delete()
+    .eq('user_id', user.id)
+    .eq('curriculum_id', opts.curriculumId)
+    .lt('created_at', cutoff.toISOString())
+
   try {
     await syncQuizAcrossVersions(opts.curriculumId, opts.slides, {
       supabase,
@@ -1307,9 +1382,9 @@ export async function saveUserCustomizedSlides(opts: {
   return { success: true }
 }
 
-const PERSONAL_HISTORY_DAYS = 5
+const PERSONAL_HISTORY_DAYS = 7
 
-/** Lấy lịch sử bản riêng – các bản đã lưu trước khi reset (trong 5 ngày) */
+/** Lấy lịch sử bản riêng – các bản đã lưu (trong 7 ngày, sau đó xóa) */
 export async function getPersonalSlidesHistory(curriculumId: string) {
   const supabase = createClient()
   const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
@@ -1402,7 +1477,7 @@ export async function restorePersonalFromHistory(curriculumId: string, historyId
 
   const cutoff = new Date()
   cutoff.setDate(cutoff.getDate() - PERSONAL_HISTORY_DAYS)
-  if (new Date(data.created_at) < cutoff) return { error: 'Bản lưu đã hết hạn khôi phục (5 ngày).' }
+  if (new Date(data.created_at) < cutoff) return { error: 'Bản lưu đã hết hạn khôi phục (7 ngày).' }
 
   const { error: upsertErr } = await supabase
     .from('user_customized_slides')
