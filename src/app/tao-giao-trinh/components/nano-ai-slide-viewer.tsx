@@ -23,6 +23,7 @@ import { QuizPopupDialog, extractQuizFromSlide } from './quiz-popup-dialog'
 import { useToast } from '@/hooks/use-toast'
 import { saveSlidesToCurriculum, saveUserCustomizedSlides } from '../actions'
 import { useScreenShare } from '../hooks/use-screen-share'
+import { useScreenShareLive } from '../hooks/use-screen-share-live'
 
 /** Phát tiếng chuông khi hết giờ (đồng hồ cát học sinh) */
 function playTimerEndBell() {
@@ -390,6 +391,16 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   const [shareQrDataUrl, setShareQrDataUrl] = useState<string | null>(null)
   const [shareLoading, setShareLoading] = useState(false)
   const [screenShareOverlayVisible, setScreenShareOverlayVisible] = useState(true)
+  const [screenShareLiveDialogOpen, setScreenShareLiveDialogOpen] = useState(false)
+
+  const {
+    isSharing: isScreenShareLiveActive,
+    shareUrl: screenShareLiveUrl,
+    shareCode: screenShareLiveCode,
+    error: screenShareLiveError,
+    startShare: startScreenShareLive,
+    stopShare: stopScreenShareLive,
+  } = useScreenShareLive()
   const [visualFullscreenOpen, setVisualFullscreenOpen] = useState(false)
   const [expandedCellIndex, setExpandedCellIndex] = useState<number | null>(null)
   const fullscreenOverlayRef = useRef<HTMLDivElement>(null)
@@ -414,6 +425,18 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   useEffect(() => {
     if (isScreenShareActive) setScreenShareOverlayVisible(true)
   }, [isScreenShareActive])
+
+  useEffect(() => {
+    if (screenShareLiveError) {
+      toast({ title: tr('Lỗi chia sẻ màn hình', 'Screen share error', '错误', 'エラー', '오류'), description: screenShareLiveError, variant: 'destructive' })
+      setScreenShareLiveDialogOpen(false)
+    }
+  }, [screenShareLiveError, toast, tr])
+
+  const handleScreenShareLiveClick = useCallback(async () => {
+    setScreenShareLiveDialogOpen(true)
+    await startScreenShareLive()
+  }, [startScreenShareLive])
 
   const openVisualFullscreen = useCallback((cellIndex?: number) => {
     setExpandedCellIndex(cellIndex ?? null)
@@ -500,6 +523,23 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     navigator.clipboard.writeText(shareUrl)
     toast({ title: tr('Đã copy', 'Copied', '已复制', 'コピーしました', '복사됨'), description: tr('Link đã được sao chép.', 'Link copied.', '链接已复制。', 'リンクをコピーしました。', '링크가 복사되었습니다.'), duration: 2000 })
   }, [shareUrl, toast, tr])
+
+  const [screenShareLiveQrUrl, setScreenShareLiveQrUrl] = useState<string | null>(null)
+  useEffect(() => {
+    if (!screenShareLiveUrl) {
+      setScreenShareLiveQrUrl(null)
+      return
+    }
+    QRCode.toDataURL(screenShareLiveUrl, { width: 200, margin: 2 })
+      .then(setScreenShareLiveQrUrl)
+      .catch(() => setScreenShareLiveQrUrl(null))
+  }, [screenShareLiveUrl])
+
+  const copyScreenShareLiveLink = useCallback(() => {
+    if (!screenShareLiveUrl) return
+    navigator.clipboard.writeText(screenShareLiveUrl)
+    toast({ title: tr('Đã copy', 'Copied', '已复制', 'コピーしました', '복사됨'), description: tr('Link đã được sao chép.', 'Link copied.', '链接已复制。', 'リンクをコピーしました。', '링크가 복사되었습니다.'), duration: 2000 })
+  }, [screenShareLiveUrl, toast, tr])
 
   useEffect(() => {
     if (timerSeconds <= 0) setTimerRunning(false)
@@ -1182,8 +1222,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
           onClose={presentationMode === 'slide-interaction' ? undefined : onClose}
           onShareClick={handleShareClick}
           shareButtonClickableWhenParentDisabled={presentationMode === 'slide-interaction'}
-          isScreenShareReceiving={isScreenShareActive}
-          onScreenShareViewClick={() => setScreenShareOverlayVisible(true)}
+          onScreenShareLiveClick={handleScreenShareLiveClick}
           slideViewMode={undefined}
           onSlideViewModeChange={undefined}
           onOpenStudentView={undefined}
@@ -1310,6 +1349,50 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                     <Copy className="h-4 w-4" />
                   </Button>
                 </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+      <Dialog open={screenShareLiveDialogOpen} onOpenChange={(open) => { setScreenShareLiveDialogOpen(open); if (!open) stopScreenShareLive() }}>
+        <DialogContent className="sm:max-w-md z-[200]">
+          <DialogHeader>
+            <DialogTitle>{tr('Chia sẻ màn hình livestream', 'Share screen livestream', '共享屏幕直播', '画面共有ライブ', '화면 공유 라이브')}</DialogTitle>
+            <DialogDescription>
+              {isScreenShareLiveActive
+                ? tr('Chia sẻ link hoặc quét QR để người khác xem màn hình bạn trực tiếp.', 'Share link or scan QR for others to view your screen live.', '分享链接或扫码让他人实时观看您的屏幕。', 'リンク共有またはQRスキャンで他人があなたの画面をリアルタイム表示。', '링크 공유 또는 QR 스캔으로 다른 사람이 화면 실시간 보기.')
+                : tr('Đang bắt đầu... Chọn màn hình/tab để chia sẻ.', 'Starting... Select screen/tab to share.', '正在启动... 选择要共享的屏幕/标签页。', '開始中... 共有する画面/タブを選択。', '시작 중... 공유할 화면/탭 선택.')}
+            </DialogDescription>
+          </DialogHeader>
+          {!isScreenShareLiveActive && (
+            <div className="flex items-center justify-center py-8">
+              <div className="h-8 w-8 rounded-full border-2 border-amber-400 border-t-transparent animate-spin" />
+            </div>
+          )}
+          {isScreenShareLiveActive && screenShareLiveUrl && (
+            <div className="flex flex-col sm:flex-row gap-4 items-start">
+              {screenShareLiveQrUrl && (
+                <div className="flex-shrink-0 p-2 bg-white rounded-lg">
+                  <img src={screenShareLiveQrUrl} alt="QR" className="w-40 h-40" />
+                </div>
+              )}
+              <div className="flex-1 min-w-0 space-y-2">
+                <div className="flex items-center gap-2">
+                  <Link2 className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-medium">{tr('Link xem màn hình trực tiếp', 'View screen live link', '实时观看屏幕链接', '画面ライブ表示リンク', '화면 실시간 보기 링크')}</span>
+                </div>
+                <div className="flex gap-2">
+                  <Input readOnly value={screenShareLiveUrl} className="text-sm font-mono" />
+                  <Button variant="outline" size="icon" onClick={copyScreenShareLiveLink} title={tr('Copy link', 'Copy link', '复制链接', 'リンクをコピー', '링크 복사')}>
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {tr('Mã', 'Code', '码', 'コード', '코드')}: <strong>{screenShareLiveCode}</strong>
+                </p>
+                <Button variant="destructive" size="sm" onClick={() => { stopScreenShareLive(); setScreenShareLiveDialogOpen(false) }} className="mt-2">
+                  {tr('Dừng chia sẻ', 'Stop sharing', '停止共享', '共有停止', '공유 중지')}
+                </Button>
               </div>
             </div>
           )}

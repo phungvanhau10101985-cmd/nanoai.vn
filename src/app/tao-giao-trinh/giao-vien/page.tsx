@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { Timer, Play, Pause, RotateCcw, ChevronLeft, ChevronRight, LayoutGrid, Square, Sparkles, Edit3, Plus, Save, FileText, FileEdit, History, BarChart2, Maximize2, X, ClipboardList, Flag, Presentation, Settings2, MoreVertical, Trash2, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { canSplitBlockAtQuiz, splitContentWithEmbeds, parseQuizData, parseContentEmbeds, ContentEmbed } from '../components/content-embed'
+import { canSplitBlockAtQuiz, splitContentWithEmbeds, splitBlockContentAtQuizBoundary, parseQuizData, parseContentEmbeds, ContentEmbed, type EmbedType } from '../components/content-embed'
 import { parseContentToBlocks } from '../lib/curriculum-to-slides'
 import { SlideProposalDialog } from '../components/slide-proposal-dialog'
 import { SlideProposalVote } from '../components/slide-proposal-vote'
@@ -238,7 +238,7 @@ export default function CurriculumViewPage() {
   const [sharedHistoryOpen, setSharedHistoryOpen] = useState(false)
   const [embedDialogOpen, setEmbedDialogOpen] = useState(false)
   const [embedDialogInitialMode, setEmbedDialogInitialMode] = useState<'insert' | 'replaceImage'>('insert')
-  const [embedReplaceContext, setEmbedReplaceContext] = useState<{ slideIndex: number; blockIndex: number; rawMarker: string; urlOrId: string; embedType: string } | null>(null)
+  const [embedReplaceContext, setEmbedReplaceContext] = useState<{ slideIndex: number; blockIndex: number; rawMarker: string; urlOrId: string; embedType: EmbedType } | null>(null)
   const [leftPanelMode, setLeftPanelMode] = useState<'curriculum' | 'slide' | 'visual'>('curriculum')
   const [visualFullscreenOpen, setVisualFullscreenOpen] = useState(false)
   const [teacherExpandedCellIndex, setTeacherExpandedCellIndex] = useState<number | null>(null)
@@ -384,7 +384,15 @@ export default function CurriculumViewPage() {
   useEffect(() => {
     persistSlidesRef.current = async (updatedSlides: SlideItem[]) => {
       if (!curriculumId || updatedSlides.length === 0) return
-      const payload = updatedSlides.map((s) => ({ title: s.title, blocks: s.blocks ?? [], imageUrl: s.imageUrl, visualEmbed: s.visualEmbed, visualLayout: s.visualLayout, visualCells: s.visualCells, teacherNotes: s.teacherNotes }))
+      const payload = updatedSlides.map((s) => ({
+        title: s.title,
+        blocks: (s.blocks ?? []).map((b) => ({ header: b.header ?? 'Nội dung', content: b.content ?? '' })),
+        imageUrl: s.imageUrl,
+        visualEmbed: s.visualEmbed,
+        visualLayout: s.visualLayout,
+        visualCells: s.visualCells,
+        teacherNotes: s.teacherNotes,
+      }))
       if (slideMode === 'personal' || slideMode === 'original') {
         const r = await saveUserCustomizedSlides({ curriculumId, slides: payload })
         if (r?.error) toast({ title: tr('Lỗi lưu', 'Save error', '保存错误', '保存エラー', '저장 오류'), description: r.error, variant: 'destructive' })
@@ -413,7 +421,7 @@ export default function CurriculumViewPage() {
         hasOriginalSlides,
         slides: slides.map((s) => ({
           title: s.title,
-          blocks: s.blocks ?? [],
+          blocks: (s.blocks ?? []).map((b) => ({ header: b.header ?? 'Nội dung', content: b.content ?? '' })),
           teacherNotes: s.teacherNotes ?? '',
           imageUrl: s.imageUrl,
           visualEmbed: s.visualEmbed,
@@ -1355,14 +1363,14 @@ export default function CurriculumViewPage() {
                     <button type="button" onClick={() => setLeftPanelMode('slide')} className={['px-3 py-2 md:px-2.5 md:py-1 text-[11px] font-medium transition-colors min-h-[44px] md:min-h-0 flex items-center', leftPanelMode === 'slide' ? 'bg-amber-500/30 text-amber-300' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'].join(' ')}>
                       {tr('Slide', 'Slide', '幻灯片', 'スライド', '슬라이드')}
                     </button>
-                    <button type="button" onClick={() => setLeftPanelMode('visual')} className={['px-3 py-2 md:px-2.5 md:py-1 text-[11px] font-medium transition-colors min-h-[44px] md:min-h-0 flex items-center', leftPanelMode === 'visual' ? 'bg-amber-500/30 text-amber-300' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'].join(' ')}>
+                    <button type="button" onClick={() => setLeftPanelMode('visual')} className={['px-3 py-2 md:px-2.5 md:py-1 text-[11px] font-medium transition-colors min-h-[44px] md:min-h-0 flex items-center', (leftPanelMode as string) === 'visual' ? 'bg-amber-500/30 text-amber-300' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'].join(' ')}>
                       {tr('Visual', 'Visual', '视觉', 'ビジュアル', '비주얼')}
                     </button>
                   </div>
                 </div>
               </div>
             )}
-            <div className={cn('flex-1 overflow-y-scroll overflow-x-hidden overscroll-y-contain p-4 space-y-3 pr-2 scroll-smooth min-h-0 text-left', leftPanelMode === 'visual' && 'p-0 pr-0 space-y-0 overflow-hidden')}>
+            <div className={cn('flex-1 overflow-y-scroll overflow-x-hidden overscroll-y-contain p-4 space-y-3 pr-2 scroll-smooth min-h-0 text-left', (leftPanelMode as string) === 'visual' && 'p-0 pr-0 space-y-0 overflow-hidden')}>
               {leftPanelMode === 'visual' ? (
                 (() => {
                   const s = slides[currentIndex]
@@ -1811,7 +1819,7 @@ export default function CurriculumViewPage() {
                                             )
                                           }
                                           if (p.type === 'embed') {
-                                            const ep = p as { type: 'embed'; embedType: string; urlOrId: string; rawMarker: string }
+                                            const ep = p as { type: 'embed'; embedType: EmbedType; urlOrId: string; rawMarker: string }
                                             return (
                                               <div key={j} className="rounded-lg overflow-hidden border border-slate-600/60 relative group">
                                                 <ContentEmbed type={ep.embedType} urlOrId={ep.urlOrId} width={280} height={160} tr={tr} />
@@ -1842,7 +1850,7 @@ export default function CurriculumViewPage() {
                                       </div>
                                       <div className="mt-2 flex flex-wrap gap-1.5">
                                         {curriculumId && asArray(splitContentWithEmbeds(b.content ?? '')).some((p) => p.type === 'embed' && p.embedType === 'quiz') && (
-                                          asArray(splitContentWithEmbeds(b.content ?? '')).filter((p) => p.type === 'embed' && p.embedType === 'quiz').map((p, qIdx) => (
+                                          asArray(splitContentWithEmbeds(b.content ?? '')).filter((p): p is { type: 'embed'; embedType: 'quiz'; urlOrId: string; rawMarker: string } => p.type === 'embed' && p.embedType === 'quiz').map((p, qIdx) => (
                                             <button
                                               key={qIdx}
                                               type="button"
@@ -1940,7 +1948,7 @@ export default function CurriculumViewPage() {
                                         )
                                       }
                                       if (p.type === 'embed') {
-                                        const ep = p as { type: 'embed'; embedType: string; urlOrId: string; rawMarker: string }
+                                        const ep = p as { type: 'embed'; embedType: EmbedType; urlOrId: string; rawMarker: string }
                                         return (
                                           <div key={j} className="rounded-lg overflow-hidden border border-slate-600/60 relative group">
                                             <ContentEmbed type={ep.embedType} urlOrId={ep.urlOrId} width={280} height={160} tr={tr} />
@@ -1970,7 +1978,7 @@ export default function CurriculumViewPage() {
                                     })}
                                   </div>
                                   <div className="mt-2 flex flex-wrap gap-1.5">
-                                    {curriculumId && asArray(splitContentWithEmbeds(s.content ?? '')).filter((p) => p.type === 'embed' && p.embedType === 'quiz').map((p, qIdx) => (
+                                    {curriculumId && asArray(splitContentWithEmbeds(s.content ?? '')).filter((p): p is { type: 'embed'; embedType: 'quiz'; urlOrId: string; rawMarker: string } => p.type === 'embed' && p.embedType === 'quiz').map((p, qIdx) => (
                                       <button
                                         key={qIdx}
                                         type="button"
@@ -2199,7 +2207,7 @@ export default function CurriculumViewPage() {
                                     })}
                                   </div>
                                   <div className="mt-1 flex flex-wrap gap-1">
-                                    {curriculumId && asArray(splitContentWithEmbeds(b.content ?? '')).filter((p) => p.type === 'embed' && p.embedType === 'quiz').map((p, qIdx) => (
+                                    {curriculumId && asArray(splitContentWithEmbeds(b.content ?? '')).filter((p): p is { type: 'embed'; embedType: 'quiz'; urlOrId: string; rawMarker: string } => p.type === 'embed' && p.embedType === 'quiz').map((p, qIdx) => (
                                       <button key={qIdx} type="button" disabled={!!quizReportLoading} onClick={() => reportQuizWrong({ curriculumId, slideIndex: idx, blockIndex: i, quizMarker: p.rawMarker, slideTitle: s?.title ?? '', slideContent: (blks ?? []).map((bl) => (bl.header ? `### ${bl.header}\n\n` : '') + (bl.content ?? '')).join('\n\n') })} className="text-[10px] font-medium text-rose-300 hover:text-rose-200 px-1.5 py-0.5 rounded bg-rose-500/20 flex items-center gap-0.5 disabled:opacity-50">
                                         <Flag className="h-2.5 w-2.5" />{tr('Báo sai', 'Report wrong', '报告错误', '誤り報告', '오류 신고')}
                                       </button>
@@ -2276,7 +2284,7 @@ export default function CurriculumViewPage() {
                                   return null
                                 })}
                               </div>
-                              {isCurrent && curriculumId && asArray(splitContentWithEmbeds(s.content ?? '')).filter((p) => p.type === 'embed' && p.embedType === 'quiz').map((p, qIdx) => (
+                              {isCurrent && curriculumId && asArray(splitContentWithEmbeds(s.content ?? '')).filter((p): p is { type: 'embed'; embedType: 'quiz'; urlOrId: string; rawMarker: string } => p.type === 'embed' && p.embedType === 'quiz').map((p, qIdx) => (
                                 <button key={qIdx} type="button" disabled={!!quizReportLoading} onClick={() => reportQuizWrong({ curriculumId, slideIndex: idx, blockIndex: 0, quizMarker: p.rawMarker, slideTitle: s?.title ?? '', slideContent: s.content ?? '' })} className="text-[10px] text-rose-400 hover:text-rose-300 px-1.5 py-0.5 rounded bg-slate-700/50 flex items-center gap-0.5 border border-rose-500/50 mt-1 disabled:opacity-50">
                                   <Flag className="h-2.5 w-2.5" />{tr('Báo sai', 'Report wrong', '报告错误', '誤り報告', '오류 신고')}
                                 </button>

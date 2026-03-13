@@ -111,7 +111,7 @@ Chỉ trả về JSON, không markdown.`
     const normalized = raw
       .map((t) => normalizeTopicForSearch(String(t ?? '').trim()))
       .filter((n) => n.length >= 2)
-    return [...new Set(normalized)].slice(0, 10)
+    return Array.from(new Set(normalized)).slice(0, 10)
   } catch {
     return []
   }
@@ -704,12 +704,12 @@ export async function listCurricula(opts?: { subjectId?: string; gradeLevelId?: 
     (c) =>
       (c as { lesson_number?: number | null }).lesson_number != null &&
       !(c.topic ?? '').includes(': ')
-  ) as Array<{ id: string; topic: string; subject_id: string; grade_level_id: string; textbook_set_id?: string; textbook_volume?: string | null; lesson_number?: number | null }>[]
+  ) as Array<{ id: string; topic: string; subject_id: string; grade_level_id: string; textbook_set_id?: string; textbook_volume?: string | null; lesson_number?: number | null }>
   if (needEnrich.length > 0) {
-    const lessonOrders = [...new Set(needEnrich.map((c) => c.lesson_number!))]
-    const subjectIds = [...new Set(needEnrich.map((c) => c.subject_id))]
-    const gradeIds = [...new Set(needEnrich.map((c) => c.grade_level_id))]
-    const textbookIds = [...new Set(needEnrich.map((c) => c.textbook_set_id).filter(Boolean) as string[])]
+    const lessonOrders = Array.from(new Set(needEnrich.map((c) => c.lesson_number!)))
+    const subjectIds = Array.from(new Set(needEnrich.map((c) => c.subject_id)))
+    const gradeIds = Array.from(new Set(needEnrich.map((c) => c.grade_level_id)))
+    const textbookIds = Array.from(new Set(needEnrich.map((c) => c.textbook_set_id).filter(Boolean) as string[]))
     if (subjectIds.length && gradeIds.length && textbookIds.length) {
       const { data: lessons } = await supabase
         .from('worksheet_textbook_lessons')
@@ -801,10 +801,10 @@ export async function listOpenedCurriculaForExam(opts?: { subjectId?: string; gr
     (c) => (c as { lesson_number?: number | null }).lesson_number != null && !(c.topic ?? '').includes(': ')
   )
   if (needEnrich.length > 0) {
-    const lessonOrders = [...new Set(needEnrich.map((c) => (c as { lesson_number?: number }).lesson_number!))]
-    const subjectIds = [...new Set(needEnrich.map((c) => c.subject_id))]
-    const gradeIds = [...new Set(needEnrich.map((c) => c.grade_level_id))]
-    const textbookIds = [...new Set(needEnrich.map((c) => (c as { textbook_set_id?: string }).textbook_set_id).filter(Boolean) as string[])]
+    const lessonOrders = Array.from(new Set(needEnrich.map((c) => (c as { lesson_number?: number }).lesson_number!)))
+    const subjectIds = Array.from(new Set(needEnrich.map((c) => c.subject_id)))
+    const gradeIds = Array.from(new Set(needEnrich.map((c) => c.grade_level_id)))
+    const textbookIds = Array.from(new Set(needEnrich.map((c) => (c as { textbook_set_id?: string }).textbook_set_id).filter(Boolean) as string[]))
     if (subjectIds.length && gradeIds.length && textbookIds.length) {
       const { data: lessons } = await supabase
         .from('worksheet_textbook_lessons')
@@ -878,10 +878,10 @@ export async function listCurriculaForExam(opts?: { subjectId?: string; gradeLev
     (c) => c.lesson_number != null && !(c.topic ?? '').includes(': ')
   )
   if (needEnrich.length > 0) {
-    const lessonOrders = [...new Set(needEnrich.map((c) => c.lesson_number!))]
-    const subjectIds = [...new Set(needEnrich.map((c) => c.subject_id))]
-    const gradeIds = [...new Set(needEnrich.map((c) => c.grade_level_id))]
-    const textbookIds = [...new Set(needEnrich.map((c) => c.textbook_set_id).filter(Boolean) as string[])]
+    const lessonOrders = Array.from(new Set(needEnrich.map((c) => c.lesson_number!)))
+    const subjectIds = Array.from(new Set(needEnrich.map((c) => c.subject_id)))
+    const gradeIds = Array.from(new Set(needEnrich.map((c) => c.grade_level_id)))
+    const textbookIds = Array.from(new Set(needEnrich.map((c) => c.textbook_set_id).filter(Boolean) as string[]))
     if (subjectIds.length && gradeIds.length && textbookIds.length) {
       const { data: lessons } = await supabase
         .from('worksheet_textbook_lessons')
@@ -1052,12 +1052,15 @@ function applyQuizMarkersToSlide(slide: SlideItem, markers: string[]): SlideItem
   return { ...slide, blocks: newBlocks }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type SupabaseClientAny = any
+
 /** Đồng bộ quiz từ sourceSlides sang các bản còn lại (shared, original, personal) */
 async function syncQuizAcrossVersions(
   curriculumId: string,
   sourceSlides: SlideItem[],
   opts: {
-    supabase: ReturnType<typeof createClient>
+    supabase: SupabaseClientAny
     adminClient?: ReturnType<typeof createSupabaseClient>
     userId: string | null
     topic?: string
@@ -1066,7 +1069,7 @@ async function syncQuizAcrossVersions(
   }
 ) {
   const { supabase, adminClient, userId } = opts
-  const admin = adminClient ?? createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+  const admin: SupabaseClientAny = adminClient ?? createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
   const applyQuizToSlides = (targetSlides: SlideItem[] | null): SlideItem[] | null => {
     if (!targetSlides || targetSlides.length === 0) return targetSlides
@@ -1102,13 +1105,13 @@ async function syncQuizAcrossVersions(
           subject_id: opts.subjectId ?? (sharedRes.data as { subject_id?: string })?.subject_id ?? 'toan',
           grade_level_id: opts.gradeLevelId ?? (sharedRes.data as { grade_level_id?: string })?.grade_level_id ?? 'lop-6',
         })
-        .eq('curriculum_id', curriculumId)
+        .eq('curriculum_id', curriculumId) as Promise<unknown>
     )
   }
 
   const newOriginal = applyQuizToSlides(Array.isArray(originalSlides) ? originalSlides : null)
   if (newOriginal && newOriginal.length > 0) {
-    promises.push(admin.from('worksheet_slides_original').update({ content_json: newOriginal }).eq('curriculum_id', curriculumId))
+    promises.push(admin.from('worksheet_slides_original').update({ content_json: newOriginal }).eq('curriculum_id', curriculumId) as Promise<unknown>)
   }
 
   const newPersonal = applyQuizToSlides(Array.isArray(personalSlides) ? personalSlides : null)
@@ -1118,7 +1121,7 @@ async function syncQuizAcrossVersions(
         .from('user_customized_slides')
         .update({ slides_json: newPersonal, updated_at: new Date().toISOString() })
         .eq('user_id', userId)
-        .eq('curriculum_id', curriculumId)
+        .eq('curriculum_id', curriculumId) as Promise<unknown>
     )
   }
 
@@ -1588,22 +1591,27 @@ export async function voteOnSlideProposal(proposalId: string, vote: 'agree' | 'd
   return { success: true, applied: false }
 }
 
+type ProposalRow = { id: string; curriculum_id: string; slide_index: number; block_index: number; segment_type: string; original_text: string | null; proposed_text: string | null; proposed_header: string | null; agree_count: number | null; status: string }
+type SlidesRow = { content_json: unknown; topic: string | null; subject_id: string | null; grade_level_id: string | null }
+
 /** Áp dụng đề xuất khi có >= 5 người đồng ý – dùng service role để bypass RLS (voter không phải proposer) */
-async function applySlideProposalIfEligible(supabase: ReturnType<typeof createSupabaseClient>, proposalId: string) {
-  const { data: p } = await supabase
+async function applySlideProposalIfEligible(supabase: SupabaseClientAny, proposalId: string) {
+  const { data: pData } = await supabase
     .from('slide_edit_proposals')
     .select('id, curriculum_id, slide_index, block_index, segment_type, original_text, proposed_text, proposed_header, agree_count, status')
     .eq('id', proposalId)
     .single()
 
+  const p = pData as ProposalRow | null
   if (!p || p.status !== 'pending' || (p.agree_count ?? 0) < 5) return null
 
-  const { data: slidesRow } = await supabase
+  const { data: slidesData } = await supabase
     .from('worksheet_slides')
     .select('content_json, topic, subject_id, grade_level_id')
     .eq('curriculum_id', p.curriculum_id)
     .single()
 
+  const slidesRow = slidesData as SlidesRow | null
   if (!slidesRow) return null
 
   const slides = slidesRow.content_json as Array<{ title: string; blocks: Array<{ header: string; content: string }>; imageUrl?: string; visualEmbed?: string; visualLayout?: 1 | 2 | 4; visualCells?: Array<{ visualEmbed?: string; imageUrl?: string }> }>
@@ -1616,10 +1624,10 @@ async function applySlideProposalIfEligible(supabase: ReturnType<typeof createSu
   if (p.segment_type === 'edit') {
     const block = blocks[p.block_index]
     if (!block || !p.original_text || !block.content.includes(p.original_text)) return null
-    const newContent = block.content.replace(p.original_text, p.proposed_text)
+    const newContent = block.content.replace(p.original_text, p.proposed_text ?? '')
     blocks[p.block_index] = { ...block, content: newContent }
   } else {
-    const newBlock = { header: p.proposed_header ?? 'Nội dung bổ sung', content: p.proposed_text }
+    const newBlock = { header: p.proposed_header ?? 'Nội dung bổ sung', content: p.proposed_text ?? '' }
     blocks.splice(Math.min(p.block_index + 1, blocks.length), 0, newBlock)
   }
 
@@ -1631,9 +1639,9 @@ async function applySlideProposalIfEligible(supabase: ReturnType<typeof createSu
     .from('worksheet_slides')
     .update({
       content_json: newSlides,
-      topic: slidesRow.topic,
-      subject_id: slidesRow.subject_id,
-      grade_level_id: slidesRow.grade_level_id,
+      topic: slidesRow.topic ?? undefined,
+      subject_id: slidesRow.subject_id ?? undefined,
+      grade_level_id: slidesRow.grade_level_id ?? undefined,
     })
     .eq('curriculum_id', p.curriculum_id)
 
@@ -1652,9 +1660,9 @@ async function applySlideProposalIfEligible(supabase: ReturnType<typeof createSu
     await syncQuizAcrossVersions(p.curriculum_id, newSlides, {
       supabase,
       userId: null,
-      topic: slidesRow.topic,
-      subjectId: slidesRow.subject_id,
-      gradeLevelId: slidesRow.grade_level_id,
+      topic: slidesRow.topic ?? undefined,
+      subjectId: slidesRow.subject_id ?? undefined,
+      gradeLevelId: slidesRow.grade_level_id ?? undefined,
     })
   } catch (e) {
     console.warn('[applySlideProposalIfEligible] Quiz sync failed:', e)
@@ -1751,20 +1759,23 @@ export async function adminReviewSlideProposal(proposalId: string, action: 'appr
 }
 
 /** Áp dụng đề xuất (bỏ qua kiểm tra 5 phiếu – dùng khi admin duyệt) */
-async function applySlideProposalForce(supabase: ReturnType<typeof createSupabaseClient>, proposalId: string) {
-  const { data: p } = await supabase
+async function applySlideProposalForce(supabase: SupabaseClientAny, proposalId: string) {
+  const { data: pData } = await supabase
     .from('slide_edit_proposals')
     .select('id, curriculum_id, slide_index, block_index, segment_type, original_text, proposed_text, proposed_header, status')
     .eq('id', proposalId)
     .single()
 
+  const p = pData as (ProposalRow & { agree_count?: number }) | null
   if (!p || p.status !== 'pending') return null
 
-  const { data: slidesRow } = await supabase
+  const { data: slidesData } = await supabase
     .from('worksheet_slides')
     .select('content_json, topic, subject_id, grade_level_id')
     .eq('curriculum_id', p.curriculum_id)
     .single()
+
+  const slidesRow = slidesData as SlidesRow | null
 
   if (!slidesRow) return null
 
@@ -1778,10 +1789,10 @@ async function applySlideProposalForce(supabase: ReturnType<typeof createSupabas
   if (p.segment_type === 'edit') {
     const block = blocks[p.block_index]
     if (!block || !p.original_text || !block.content.includes(p.original_text)) return null
-    const newContent = block.content.replace(p.original_text, p.proposed_text)
+    const newContent = block.content.replace(p.original_text, p.proposed_text ?? '')
     blocks[p.block_index] = { ...block, content: newContent }
   } else {
-    const newBlock = { header: p.proposed_header ?? 'Nội dung bổ sung', content: p.proposed_text }
+    const newBlock = { header: p.proposed_header ?? 'Nội dung bổ sung', content: p.proposed_text ?? '' }
     blocks.splice(Math.min(p.block_index + 1, blocks.length), 0, newBlock)
   }
 
@@ -1793,9 +1804,9 @@ async function applySlideProposalForce(supabase: ReturnType<typeof createSupabas
     .from('worksheet_slides')
     .update({
       content_json: newSlides,
-      topic: slidesRow.topic,
-      subject_id: slidesRow.subject_id,
-      grade_level_id: slidesRow.grade_level_id,
+      topic: slidesRow.topic ?? undefined,
+      subject_id: slidesRow.subject_id ?? undefined,
+      grade_level_id: slidesRow.grade_level_id ?? undefined,
     })
     .eq('curriculum_id', p.curriculum_id)
 
@@ -1814,9 +1825,9 @@ async function applySlideProposalForce(supabase: ReturnType<typeof createSupabas
     await syncQuizAcrossVersions(p.curriculum_id, newSlides, {
       supabase,
       userId: null,
-      topic: slidesRow.topic,
-      subjectId: slidesRow.subject_id,
-      gradeLevelId: slidesRow.grade_level_id,
+      topic: slidesRow.topic ?? undefined,
+      subjectId: slidesRow.subject_id ?? undefined,
+      gradeLevelId: slidesRow.grade_level_id ?? undefined,
     })
   } catch (e) {
     console.warn('[applySlideProposalForce] Quiz sync failed:', e)

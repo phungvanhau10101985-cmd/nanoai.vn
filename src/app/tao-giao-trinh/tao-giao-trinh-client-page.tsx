@@ -59,7 +59,7 @@ export default function TaoGiaoTrinhClientPage() {
   const [worksheetQrDataUrl, setWorksheetQrDataUrl] = useState<string | null>(null)
   const [worksheetLoading, setWorksheetLoading] = useState(false)
   const [showBrowse, setShowBrowse] = useState(true)
-  const [curriculaList, setCurriculaList] = useState<Array<{ id: string; topic: string; subject_id: string; grade_level_id: string; textbook_set_id?: string; lesson_type_id?: string; num_lessons?: number; lesson_duration_minutes?: number; created_at: string }>>([])
+  const [curriculaList, setCurriculaList] = useState<Array<{ id: string; topic: string; subject_id: string; grade_level_id: string; textbook_set_id?: string; textbook_volume?: string | null; lesson_number?: number | null; lesson_type_id?: string; num_lessons?: number; lesson_duration_minutes?: number; created_at: string }>>([])
   const [curriculumWorksheets, setCurriculumWorksheets] = useState<Array<{ id: string; topic: string; subject_id: string; grade_level_id: string; content_markdown: string; created_at: string }>>([])
   const [browseLoading, setBrowseLoading] = useState(false)
   const [browseSubjectFilter, setBrowseSubjectFilter] = useState<string>('')
@@ -130,7 +130,7 @@ export default function TaoGiaoTrinhClientPage() {
       limit: 200,
     })
       .then((curRes) => {
-        if (curRes && 'items' in curRes) setCurriculaList(curRes.items)
+        if (curRes && 'items' in curRes) setCurriculaList(curRes.items ?? [])
         else setCurriculaList([])
       })
       .catch(() => setCurriculaList([]))
@@ -688,7 +688,7 @@ export default function TaoGiaoTrinhClientPage() {
       setShowBrowse(false)
       setAiSlides(null)
       const wsRes = await getWorksheetsByCurriculumId(id)
-      if (wsRes && 'items' in wsRes) setCurriculumWorksheets(wsRes.items)
+      if (wsRes && 'items' in wsRes) setCurriculumWorksheets((wsRes.items ?? []) as Array<{ id: string; topic: string; subject_id: string; grade_level_id: string; content_markdown: string; created_at: string }>)
       else setCurriculumWorksheets([])
       const slidesRes = await getSlidesByCurriculumId(id)
       if (slidesRes?.success && slidesRes.slides) setCurriculumSlides(slidesRes.slides)
@@ -761,7 +761,7 @@ export default function TaoGiaoTrinhClientPage() {
           setGoals(c.goals ?? '')
           setCurriculumMarkdown(c.content_markdown ?? '')
         }
-        if (wsRes && 'items' in wsRes) setCurriculumWorksheets(wsRes.items)
+        if (wsRes && 'items' in wsRes) setCurriculumWorksheets((wsRes.items ?? []) as Array<{ id: string; topic: string; subject_id: string; grade_level_id: string; content_markdown: string; created_at: string }>)
         else setCurriculumWorksheets([])
         if (slidesRes?.success && slidesRes.slides) setCurriculumSlides(slidesRes.slides)
         else setCurriculumSlides(null)
@@ -803,7 +803,7 @@ export default function TaoGiaoTrinhClientPage() {
       }
       if (curriculumId) {
         const wsRes = await getWorksheetsByCurriculumId(curriculumId)
-        if (wsRes && 'items' in wsRes) setCurriculumWorksheets(wsRes.items)
+        if (wsRes && 'items' in wsRes) setCurriculumWorksheets((wsRes.items ?? []) as Array<{ id: string; topic: string; subject_id: string; grade_level_id: string; content_markdown: string; created_at: string }>)
       }
       toast({
         title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'),
@@ -1168,7 +1168,7 @@ export default function TaoGiaoTrinhClientPage() {
               )}
               <Button
                 onClick={() => void handleSubmit()}
-                disabled={step === 'GENERATING' || checkLoading || curriculumExists === null || (curriculumExists === false && lessonImages.length === 0)}
+                disabled={(step as Step) === 'GENERATING' || checkLoading || curriculumExists === null || (curriculumExists === false && lessonImages.length === 0)}
                 className="w-full bg-violet-600 hover:bg-violet-700 text-white disabled:opacity-50"
               >
                 <Sparkles className="h-4 w-4 mr-2" />
