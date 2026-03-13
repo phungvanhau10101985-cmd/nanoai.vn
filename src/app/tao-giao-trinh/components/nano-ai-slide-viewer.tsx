@@ -1175,7 +1175,8 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
           onNext={goNext}
           onPrint={presentationMode === 'slide-interaction' ? undefined : () => window.print()}
           onClose={presentationMode === 'slide-interaction' ? undefined : onClose}
-          onShareClick={presentationMode === 'slide-interaction' ? undefined : handleShareClick}
+          onShareClick={handleShareClick}
+          shareButtonClickableWhenParentDisabled={presentationMode === 'slide-interaction'}
           slideViewMode={undefined}
           onSlideViewModeChange={undefined}
           onOpenStudentView={undefined}
