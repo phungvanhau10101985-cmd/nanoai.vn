@@ -34,12 +34,25 @@ export default function XemManHinhPage() {
   const [status, setStatus] = useState<'connecting' | 'connected' | 'error' | 'no-code'>('no-code')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [locale, setLocale] = useState<'vi' | 'en' | 'zh' | 'ja' | 'ko'>('vi')
+  const [orientationKey, setOrientationKey] = useState(0)
   const videoRef = useRef<HTMLVideoElement>(null)
   const channelRef = useRef<RealtimeChannel | null>(null)
   const pcRef = useRef<RTCPeerConnection | null>(null)
 
   useEffect(() => {
     setLocale(getWebLocale())
+  }, [])
+
+  useEffect(() => {
+    const onResize = () => setOrientationKey((k) => k + 1)
+    window.addEventListener('orientationchange', onResize)
+    window.addEventListener('resize', onResize)
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', onResize)
+    return () => {
+      window.removeEventListener('orientationchange', onResize)
+      window.removeEventListener('resize', onResize)
+      if (window.visualViewport) window.visualViewport.removeEventListener('resize', onResize)
+    }
   }, [])
 
   useEffect(() => {
@@ -163,19 +176,20 @@ export default function XemManHinhPage() {
   }
 
   return (
-    <div className="min-h-screen bg-black flex flex-col">
+    <div className="fixed inset-0 bg-black flex flex-col [min-height:100dvh] [height:100dvh]">
       <div className="h-12 shrink-0 flex items-center justify-center bg-black/80 border-b border-white/10">
         <span className="text-white/90 text-sm font-medium">
           {tr(locale, 'Đang xem màn hình trực tiếp', 'Viewing screen live', '正在实时观看屏幕', '画面をリアルタイム表示中', '화면 실시간 보는 중')}
         </span>
       </div>
-      <div className="flex-1 min-h-0 relative">
+      <div className="flex-1 min-h-0 relative overflow-hidden w-full">
         <video
           ref={videoRef}
           autoPlay
           playsInline
           muted
           className="absolute inset-0 w-full h-full object-contain"
+          style={{ touchAction: 'none' }}
         />
       </div>
     </div>
