@@ -267,7 +267,8 @@ export default function CurriculumViewPage() {
     window.addEventListener('resize', sync)
     return () => window.removeEventListener('resize', sync)
   }, [])
-  const clipLeft = viewportW < layoutWidth
+  const clipLeft = viewportW >= 768 && viewportW < layoutWidth
+  const isMobile = viewportW < 768
 
   const tr = (vi: string, en: string, zh: string, ja: string, ko: string) => {
     if (uiLocale === 'en') return en
@@ -1218,9 +1219,9 @@ export default function CurriculumViewPage() {
   }, [visualFullscreenOpen, closeTeacherVisualFullscreen])
 
   return (
-    <div className={cn('fixed inset-0 z-50 h-screen w-screen overflow-x-hidden overflow-y-auto bg-slate-950 text-white flex flex-col', clipLeft ? 'items-end' : 'items-stretch')}>
-      {/* Full màn: w-full fill hết không mất phải. Thu hẹp: layoutWidth cố định, ẩn trái giữ phải */}
-      <div className="flex-1 flex flex-col min-h-0 shrink-0" style={clipLeft ? { width: layoutWidth, minWidth: layoutWidth, maxWidth: layoutWidth } : { width: '100%', minWidth: '100%' }}>
+    <div className={cn('fixed inset-0 z-50 h-screen w-screen overflow-x-hidden overflow-y-auto bg-slate-950 text-white flex flex-col', !isMobile && clipLeft ? 'items-end' : 'items-stretch')}>
+      {/* Desktop: layoutWidth khi thu hẹp. Mobile: luôn full width */}
+      <div className="flex-1 flex flex-col min-h-0 shrink-0 w-full" style={!isMobile && clipLeft ? { width: layoutWidth, minWidth: layoutWidth, maxWidth: layoutWidth } : undefined}>
       {/* Thanh điều khiển đặt trên cùng để trùng tọa độ với màn học sinh */}
       <div className="shrink-0 border-b border-slate-700/80 bg-slate-900/80 backdrop-blur-sm">
         <PresentationControlBar
@@ -1260,11 +1261,11 @@ export default function CurriculumViewPage() {
       </div>
 
       <header className="shrink-0 border-b border-slate-700/80 bg-slate-900/80 backdrop-blur-sm flex flex-col">
-        {/* Hàng thông tin dành riêng cho giáo viên – không wrap, ẩn khi thu hẹp */}
-        <div className="px-5 py-2 flex items-center justify-end gap-3 flex-nowrap min-w-0 overflow-x-hidden">
-          <div className="flex items-center gap-3 flex-nowrap shrink-0">
-            <span className="text-sm font-medium tabular-nums shrink-0 text-slate-300">{currentIndex + 1} / {slideTitles.length || slides.length}</span>
-            <h1 className="text-base font-semibold text-amber-400/95 tracking-tight">{tr('Giáo trình + Ghi chú', 'Curriculum + Notes', '课程+备注', 'カリキュラム+メモ', '교육과정+메모')}</h1>
+        {/* Hàng thông tin – mobile: wrap, desktop: flex-nowrap */}
+        <div className="px-3 md:px-5 py-2 flex items-center justify-end gap-2 md:gap-3 flex-wrap md:flex-nowrap landscape:flex-nowrap min-w-0 overflow-x-hidden">
+          <div className="flex items-center gap-2 md:gap-3 flex-wrap md:flex-nowrap landscape:flex-nowrap shrink-0">
+            <span className="text-xs md:text-sm font-medium tabular-nums shrink-0 text-slate-300">{currentIndex + 1}/{slideTitles.length || slides.length}</span>
+            <h1 className="text-sm md:text-base font-semibold text-amber-400/95 tracking-tight">{tr('Giáo trình + Ghi chú', 'Curriculum + Notes', '课程+备注', 'カリキュラム+メモ', '교육과정+메모')}</h1>
             {(slideMode || slideMode === null) && slides.length > 0 && (
               <span className={['text-xs font-medium px-2.5 py-1 rounded-md', slideMode === 'personal' ? 'bg-violet-500/25 text-violet-200 border border-violet-400/40' : 'bg-amber-500/25 text-amber-200 border border-amber-400/40'].join(' ')}>
                 {slideMode === 'personal' ? tr('Bản riêng', 'Personal', '个人版', '個人版', '개인') : tr('Bản chung', 'Shared', '共享版', '共有版', '공유')}
@@ -1330,10 +1331,10 @@ export default function CurriculumViewPage() {
           </div>
         </div>
       ) : (
-        <div className="flex-1 flex min-h-0 overflow-hidden isolate shrink-0 w-full">
-          <div className={cn('shrink-0 flex flex-col overflow-hidden isolate bg-slate-900/20 border-r border-slate-700/60', leftPanelMode === 'visual' ? 'w-[45%]' : 'w-1/2')}>
+        <div className="flex-1 flex flex-col md:flex-row landscape:flex-row min-h-0 overflow-hidden isolate shrink-0 w-full">
+          <div className={cn('shrink-0 flex flex-col overflow-hidden isolate bg-slate-900/20 border-r border-slate-700/60 w-full md:w-1/2 landscape:w-1/2', leftPanelMode === 'visual' && 'md:w-[45%] landscape:w-[45%]')}>
             {leftPanelMode !== 'visual' && (
-              <div className="px-4 py-2.5 text-slate-400 text-xs font-medium uppercase tracking-wider border-b border-slate-700/60 shrink-0 flex items-center justify-between gap-2 flex-nowrap">
+              <div className="px-3 md:px-4 py-2 md:py-2.5 text-slate-400 text-xs font-medium uppercase tracking-wider border-b border-slate-700/60 shrink-0 flex items-center justify-between gap-2 flex-wrap md:flex-nowrap landscape:flex-nowrap">
                 <span>{leftPanelMode === 'curriculum' ? tr('Giáo trình', 'Curriculum', '课程', 'カリキュラム', '교육과정') : tr('Slide hiện tại', 'Current slide', '当前幻灯片', '表示中のスライド', '표시 중 슬라이드')}</span>
                 <div className="flex items-center gap-2">
                   {(leftPanelMode === 'slide') && extractQuizFromSlide(slides[currentIndex] ?? {}).length > 0 && (
@@ -1348,13 +1349,13 @@ export default function CurriculumViewPage() {
                     </button>
                   )}
                   <div className="flex rounded-lg border border-slate-600/80 overflow-hidden bg-slate-800/50">
-                    <button type="button" onClick={() => setLeftPanelMode('curriculum')} className={['px-2.5 py-1 text-[11px] font-medium transition-colors', leftPanelMode === 'curriculum' ? 'bg-amber-500/30 text-amber-300' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'].join(' ')}>
+                    <button type="button" onClick={() => setLeftPanelMode('curriculum')} className={['px-3 py-2 md:px-2.5 md:py-1 text-[11px] font-medium transition-colors min-h-[44px] md:min-h-0 flex items-center', leftPanelMode === 'curriculum' ? 'bg-amber-500/30 text-amber-300' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'].join(' ')}>
                       {tr('Giáo trình', 'Curriculum', '课程', 'カリキュラム', '교육과정')}
                     </button>
-                    <button type="button" onClick={() => setLeftPanelMode('slide')} className={['px-2.5 py-1 text-[11px] font-medium transition-colors', leftPanelMode === 'slide' ? 'bg-amber-500/30 text-amber-300' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'].join(' ')}>
+                    <button type="button" onClick={() => setLeftPanelMode('slide')} className={['px-3 py-2 md:px-2.5 md:py-1 text-[11px] font-medium transition-colors min-h-[44px] md:min-h-0 flex items-center', leftPanelMode === 'slide' ? 'bg-amber-500/30 text-amber-300' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'].join(' ')}>
                       {tr('Slide', 'Slide', '幻灯片', 'スライド', '슬라이드')}
                     </button>
-                    <button type="button" onClick={() => setLeftPanelMode('visual')} className={['px-2.5 py-1 text-[11px] font-medium transition-colors', leftPanelMode === 'visual' ? 'bg-amber-500/30 text-amber-300' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'].join(' ')}>
+                    <button type="button" onClick={() => setLeftPanelMode('visual')} className={['px-3 py-2 md:px-2.5 md:py-1 text-[11px] font-medium transition-colors min-h-[44px] md:min-h-0 flex items-center', leftPanelMode === 'visual' ? 'bg-amber-500/30 text-amber-300' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'].join(' ')}>
                       {tr('Visual', 'Visual', '视觉', 'ビジュアル', '비주얼')}
                     </button>
                   </div>
@@ -1634,7 +1635,7 @@ export default function CurriculumViewPage() {
           </div>
 
           {/* Phải: Slide */}
-          <div className={cn('shrink-0 flex flex-col overflow-hidden isolate', leftPanelMode === 'visual' ? 'w-[55%]' : 'w-1/2')}>
+          <div className={cn('shrink-0 flex flex-col overflow-hidden isolate w-full md:w-1/2 landscape:w-1/2', leftPanelMode === 'visual' && 'md:w-[55%] landscape:w-[55%]')}>
             <div className="px-4 py-2.5 text-slate-400 text-xs font-medium uppercase tracking-wider border-b border-slate-700/60 shrink-0 bg-slate-900/30">
               {slideViewMode === 'single' ? tr('Slide đang hiển thị', 'Current slide', '当前幻灯片', '表示中のスライド', '표시 중 슬라이드') : tr('3 slide: trước · hiện tại · sau', '3 slides: prev · current · next', '3张: 前·当前·后', '3枚: 前·現在·次', '3장: 이전·현재·다음')}
             </div>

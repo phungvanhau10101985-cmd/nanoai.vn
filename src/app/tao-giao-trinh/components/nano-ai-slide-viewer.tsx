@@ -1,8 +1,11 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { ChevronLeft, ChevronRight, X, Printer, ArrowRight, TrendingUp, CalendarCheck, Lightbulb, BookOpen, Target, BarChart2, Trash2, Play, Pause, Settings2, ClipboardList, Maximize2, PenLine, Timer, RotateCcw } from 'lucide-react'
+import { ChevronLeft, ChevronRight, X, Printer, ArrowRight, TrendingUp, CalendarCheck, Lightbulb, BookOpen, Target, BarChart2, Trash2, Play, Pause, Settings2, ClipboardList, Maximize2, PenLine, Timer, RotateCcw, Link2, Copy } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import QRCode from 'qrcode'
 import {
   Select,
   SelectContent,
@@ -382,6 +385,10 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   const [transitionDirection, setTransitionDirection] = useState<'next' | 'prev'>('next')
   const [personalViewSubMode, setPersonalViewSubMode] = useState<'current' | 'original'>('current')
   const [quizPopupOpen, setQuizPopupOpen] = useState(false)
+  const [shareDialogOpen, setShareDialogOpen] = useState(false)
+  const [shareUrl, setShareUrl] = useState<string | null>(null)
+  const [shareQrDataUrl, setShareQrDataUrl] = useState<string | null>(null)
+  const [shareLoading, setShareLoading] = useState(false)
   const [visualFullscreenOpen, setVisualFullscreenOpen] = useState(false)
   const [expandedCellIndex, setExpandedCellIndex] = useState<number | null>(null)
   const fullscreenOverlayRef = useRef<HTMLDivElement>(null)
@@ -431,6 +438,63 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       window.opener.postMessage({ type: 'visual-fullscreen-close' }, window.location.origin)
     }
   }, [presentationMode])
+
+  const handleShareClick = useCallback(async () => {
+    if (slides.length === 0) {
+      toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: tr('Chưa có slide để chia sẻ.', 'No slides to share.', '暂无幻灯片可分享。', '共有するスライドがありません。', '공유할 슬라이드가 없습니다.'), variant: 'destructive' })
+      return
+    }
+    setShareLoading(true)
+    setShareUrl(null)
+    setShareQrDataUrl(null)
+    setShareDialogOpen(true)
+    try {
+      const payload = {
+        content: curriculumMarkdown,
+        topic: topic || 'Bài giảng',
+        slides: slides.map((s) => ({
+          title: s.title,
+          blocks: s.blocks,
+          teacherNotes: s.teacherNotes,
+          imageUrl: s.imageUrl,
+          visualEmbed: s.visualEmbed,
+          visualLayout: s.visualLayout,
+          visualCells: s.visualCells,
+        })),
+        slideMode: slideMode ?? null,
+        curriculumId: curriculumId ?? null,
+      }
+      const res = await fetch('/api/tao-giao-trinh/share', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || data.error) {
+        toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: data?.error ?? tr('Không tạo được link chia sẻ.', 'Could not create share link.', '无法创建分享链接。', '共有リンクを作成できません。', '공유 링크를 만들 수 없습니다.'), variant: 'destructive' })
+        setShareDialogOpen(false)
+        return
+      }
+      const url = data.shareUrl
+      if (url) {
+        setShareUrl(url)
+        try {
+          const qr = await QRCode.toDataURL(url, { width: 200, margin: 2 })
+          setShareQrDataUrl(qr)
+        } catch {
+          /* ignore */
+        }
+        toast({ title: tr('Đã tạo link chia sẻ', 'Share link created', '已创建分享链接', '共有リンクを作成しました', '공유 링크 생성됨'), description: tr('Chia sẻ link hoặc quét QR để học sinh xem slide.', 'Share link or scan QR for students to view slides.', '分享链接或扫码让学生查看幻灯片。', 'リンク共有またはQRスキャンで生徒がスライドを表示。', '링크 공유 또는 QR 스캔으로 학생이 슬라이드 보기.'), duration: 3000 })
+      }
+    } catch (e) {
+      toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: e instanceof Error ? e.message : String(e), variant: 'destructive' })
+      setShareDialogOpen(false)
+    } finally {
+      setShareLoading(false)
+    }
+  }, [slides, curriculumMarkdown, topic, slideMode, curriculumId, toast, tr])
+
+  const copyShareLink = useCallback(() => {
+    if (!shareUrl) return
+    navigator.clipboard.writeText(shareUrl)
+    toast({ title: tr('Đã copy', 'Copied', '已复制', 'コピーしました', '복사됨'), description: tr('Link đã được sao chép.', 'Link copied.', '链接已复制。', 'リンクをコピーしました。', '링크가 복사되었습니다.'), duration: 2000 })
+  }, [shareUrl, toast, tr])
 
   useEffect(() => {
     if (timerSeconds <= 0) setTimerRunning(false)
@@ -745,11 +809,11 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       const payload = updatedSlides.map((s) => ({ title: s.title, blocks: s.blocks ?? [], imageUrl: s.imageUrl, visualEmbed: s.visualEmbed, visualLayout: s.visualLayout, visualCells: s.visualCells, teacherNotes: s.teacherNotes }))
       if (slideMode === 'personal' || slideMode === 'original') {
         const r = await saveUserCustomizedSlides({ curriculumId, slides: payload })
-        if (r?.error) toast({ title: tr('Lỗi lưu', 'Save error'), description: r.error, variant: 'destructive' })
+        if (r?.error) toast({ title: tr('Lỗi lưu', 'Save error', '保存错误', '保存エラー', '저장 오류'), description: r.error, variant: 'destructive' })
         else { toast({ title: tr('Đã lưu', 'Saved', '已保存', '保存しました', '저장됨'), duration: 1500 }); onSlidesSaved?.() }
       } else if (slideMode === 'shared' || !slideMode) {
         const r = await saveSlidesToCurriculum({ curriculumId, topic: topic || 'Bài giảng', subjectId: subjectId ?? 'toan', gradeLevelId: gradeLevelId ?? 'lop-6', slides: payload })
-        if (r?.error) toast({ title: tr('Lỗi lưu', 'Save error'), description: r.error, variant: 'destructive' })
+        if (r?.error) toast({ title: tr('Lỗi lưu', 'Save error', '保存错误', '保存エラー', '저장 오류'), description: r.error, variant: 'destructive' })
         else { toast({ title: tr('Đã lưu', 'Saved', '已保存', '保存しました', '저장됨'), duration: 1500 }); onSlidesSaved?.() }
       }
     }
@@ -1111,6 +1175,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
           onNext={goNext}
           onPrint={presentationMode === 'slide-interaction' ? undefined : () => window.print()}
           onClose={presentationMode === 'slide-interaction' ? undefined : onClose}
+          onShareClick={presentationMode === 'slide-interaction' ? undefined : handleShareClick}
           slideViewMode={undefined}
           onSlideViewModeChange={undefined}
           onOpenStudentView={undefined}
@@ -1191,6 +1256,46 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         currentSlideIndex={currentIndex}
         currentVisual={getVisualCells(slide)}
       />
+      <Dialog open={shareDialogOpen} onOpenChange={(open) => { setShareDialogOpen(open); if (!open) { setShareUrl(null); setShareQrDataUrl(null) } }}>
+        <DialogContent className="sm:max-w-md z-[200]">
+          <DialogHeader>
+            <DialogTitle>{tr('Chia sẻ slide', 'Share slides', '分享幻灯片', 'スライドを共有', '슬라이드 공유')}</DialogTitle>
+            <DialogDescription>
+              {shareLoading
+                ? tr('Đang tạo link...', 'Creating link...', '正在创建链接...', 'リンク作成中...', '링크 생성 중...')
+                : shareUrl
+                  ? tr('Chia sẻ link hoặc quét QR để học sinh xem slide như trên máy tính.', 'Share link or scan QR for students to view slides on their device.', '分享链接或扫码让学生查看幻灯片。', 'リンク共有またはQRスキャンで生徒がスライドを表示。', '링크 공유 또는 QR 스캔으로 학생이 슬라이드 보기.')
+                  : tr('Nhấn Chia sẻ để tạo link và mã QR.', 'Click Share to create link and QR code.', '点击分享创建链接和二维码。', '共有をクリックしてリンクとQRを作成。', '공유 클릭으로 링크와 QR 생성.')}
+            </DialogDescription>
+          </DialogHeader>
+          {shareLoading && (
+            <div className="flex items-center justify-center py-8">
+              <div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+            </div>
+          )}
+          {!shareLoading && shareUrl && (
+            <div className="flex flex-col sm:flex-row gap-4 items-start">
+              {shareQrDataUrl && (
+                <div className="flex-shrink-0 p-2 bg-white rounded-lg">
+                  <img src={shareQrDataUrl} alt="QR" className="w-40 h-40" />
+                </div>
+              )}
+              <div className="flex-1 min-w-0 space-y-2">
+                <div className="flex items-center gap-2">
+                  <Link2 className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-medium">{tr('Link xem slide', 'View slides link', '查看幻灯片链接', 'スライド表示リンク', '슬라이드 보기 링크')}</span>
+                </div>
+                <div className="flex gap-2">
+                  <Input readOnly value={shareUrl} className="text-sm font-mono" />
+                  <Button variant="outline" size="icon" onClick={copyShareLink} title={tr('Copy link', 'Copy link', '复制链接', 'リンクをコピー', '링크 복사')}>
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
       <QuizPopupDialog
         open={quizPopupOpen}
         onOpenChange={setQuizPopupOpen}
@@ -1279,24 +1384,24 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       })()}
       {/* Đồng hồ cát nổi – học sinh thấy khi giáo viên chia sẻ màn hình */}
       {timerSeconds > 0 && (
-        <div className={cn('fixed bottom-6 right-6 z-[102] flex items-center gap-2 px-4 py-2 rounded-xl bg-black/80 text-white shadow-xl border border-amber-400/50', timerRunning && timerSeconds <= 30 && 'animate-pulse')}>
+        <div className={cn('fixed bottom-4 right-4 md:bottom-6 md:right-6 z-[102] flex items-center gap-2 px-4 py-2 rounded-xl bg-black/80 text-white shadow-xl border border-amber-400/50 pb-[max(0.5rem,env(safe-area-inset-bottom))]', timerRunning && timerSeconds <= 30 && 'animate-pulse')}>
           <Timer className="h-5 w-5 text-amber-400 shrink-0" />
           <span className={cn('font-mono text-xl font-bold tabular-nums', timerSeconds <= 30 && 'text-amber-300')}>{formatTimer(timerSeconds)}</span>
         </div>
       )}
 
-      {/* Slide - Layout split: trái visual (nền xanh đậm), phải content (nền trắng) */}
-      <div className="flex-1 flex overflow-hidden print:hidden relative">
+      {/* Slide - Mobile portrait: stack. Mobile landscape + Desktop: trái visual, phải content */}
+      <div className="flex-1 flex flex-col md:flex-row landscape:flex-row overflow-hidden print:hidden relative">
         <div
           key={currentIndex}
           className={cn(
-            'absolute inset-0 flex animate-in fade-in duration-500 ease-out',
+            'absolute inset-0 flex flex-col md:flex-row landscape:flex-row animate-in fade-in duration-500 ease-out',
             transitionDirection === 'next' ? 'slide-in-from-right-8' : 'slide-in-from-left-8'
           )}
         >
-        {/* Trái: Ảnh/embed minh họa – có thể chia 1, 2 hoặc 4 ô */}
-        <div className="w-[45%] min-w-[300px] relative overflow-hidden" style={{ background: gradient }}>
-          <div className="absolute top-4 left-4 w-9 h-9 rounded-full bg-red-500 flex items-center justify-center text-white font-bold text-sm shadow-lg z-10">
+        {/* Visual: portrait full width trên; landscape + desktop 45% trái */}
+        <div className="w-full md:w-[45%] landscape:w-[45%] min-h-[35vh] md:min-h-0 landscape:min-h-0 md:min-w-[300px] landscape:min-w-[300px] relative overflow-hidden shrink-0" style={{ background: gradient }}>
+          <div className="absolute top-2 left-2 md:top-4 md:left-4 landscape:top-4 landscape:left-4 w-8 h-8 md:w-9 md:h-9 landscape:w-9 landscape:h-9 rounded-full bg-red-500 flex items-center justify-center text-white font-bold text-xs md:text-sm landscape:text-sm shadow-lg z-10">
             {currentIndex + 1}
           </div>
           {(() => {
@@ -1306,7 +1411,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
             const gridClass = layout === 2 ? 'grid grid-rows-2 gap-1' : layout === 4 ? 'grid grid-cols-2 grid-rows-2 gap-1' : ''
             return (
               <>
-                <div className={cn('absolute inset-0 pt-14 pb-4 px-4', layout === 1 ? 'flex flex-col' : gridClass)}>
+                <div className={cn('absolute inset-0 pt-12 md:pt-14 landscape:pt-14 pb-2 md:pb-4 landscape:pb-4 px-2 md:px-4 landscape:px-4', layout === 1 ? 'flex flex-col' : gridClass)}>
                   {layout === 1 ? (
                     <div className="flex-1 min-h-0 relative rounded-lg overflow-hidden bg-black/30 border border-white/10">
                       <span className="absolute top-1 left-1 z-10 px-1.5 py-0.5 rounded bg-black/60 text-white text-xs font-mono">
@@ -1360,26 +1465,24 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                   )}
                 </div>
                 {hasAnyContent && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => openVisualFullscreen()}
-                      className="absolute top-4 right-10 opacity-60 hover:opacity-100 p-1.5 rounded-md bg-black/60 text-white hover:bg-black/80 shadow-lg print:hidden z-10"
-                      title={tr('Mở rộng tất cả', 'Expand all', '展开全部', 'すべて展開', '모두 확장')}
-                    >
-                      <Maximize2 className="h-4 w-4" />
-                    </button>
-                  </>
+                  <button
+                    type="button"
+                    onClick={() => openVisualFullscreen()}
+                    className="absolute top-2 right-2 md:top-4 md:right-10 landscape:top-4 landscape:right-10 opacity-60 hover:opacity-100 p-2 md:p-1.5 landscape:p-1.5 rounded-md bg-black/60 text-white hover:bg-black/80 shadow-lg print:hidden z-10 min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0 landscape:min-w-0 landscape:min-h-0 flex items-center justify-center"
+                    title={tr('Mở rộng tất cả', 'Expand all', '展开全部', 'すべて展開', '모두 확장')}
+                  >
+                    <Maximize2 className="h-4 w-4" />
+                  </button>
                 )}
               </>
             )
           })()}
         </div>
 
-        {/* Phải: Nội dung chính – chữ to hơn */}
-        <div className="flex-1 flex flex-col justify-start p-8 md:p-12 overflow-y-auto bg-white">
-          <div className="mb-6 flex items-start gap-2 flex-wrap">
-            <h2 className="text-2xl md:text-3xl font-bold text-slate-900 flex-1">
+        {/* Content: mobile dưới visual, desktop bên phải */}
+        <div className="flex-1 flex flex-col justify-start p-4 md:p-8 lg:p-12 landscape:p-8 overflow-y-auto bg-white min-h-0">
+          <div className="mb-4 md:mb-6 landscape:mb-6 flex items-start gap-2 flex-wrap">
+            <h2 className="text-xl md:text-2xl lg:text-3xl landscape:text-2xl font-bold text-slate-900 flex-1">
               {teacherWritingMode ? (
                 <AnimatedCharReveal
                   text={slide.title}

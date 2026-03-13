@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { NanoAISlideViewer } from '../components/nano-ai-slide-viewer'
 import type { AISlideData } from '../lib/curriculum-to-slides'
 
@@ -25,16 +26,22 @@ function tr(locale: string, vi: string, en: string, zh: string, ja: string, ko: 
   return vi
 }
 
-/** Trang trình chiếu (giao diện học sinh) – nhận dữ liệu từ giao-vien qua postMessage */
+type SlideData = {
+  content: string
+  topic: string
+  currentIndex: number
+  curriculumId: string | null
+  slideMode: 'original' | 'shared' | 'personal' | null
+  slides: Array<{ title: string; blocks?: Array<{ header?: string; content?: string }>; teacherNotes?: string; imageUrl?: string; visualEmbed?: string; visualLayout?: 1 | 2 | 4; visualCells?: Array<{ visualEmbed?: string; imageUrl?: string }> }>
+}
+
+/** Trang trình chiếu (giao diện học sinh) – nhận dữ liệu từ giao-vien qua postMessage hoặc ?share=xxx */
 export default function XemSlidePage() {
-  const [data, setData] = useState<{
-    content: string
-    topic: string
-    currentIndex: number
-    curriculumId: string | null
-    slideMode: 'original' | 'shared' | 'personal' | null
-    slides: Array<{ title: string; blocks?: Array<{ header?: string; content?: string }>; teacherNotes?: string; imageUrl?: string; visualEmbed?: string; visualLayout?: 1 | 2 | 4; visualCells?: Array<{ visualEmbed?: string; imageUrl?: string }> }>
-  } | null>(null)
+  const searchParams = useSearchParams()
+  const shareCode = searchParams.get('share')
+  const [data, setData] = useState<SlideData | null>(null)
+  const [shareError, setShareError] = useState<string | null>(null)
+  const [shareLoading, setShareLoading] = useState(!!shareCode)
   const [locale, setLocale] = useState<'vi' | 'en' | 'zh' | 'ja' | 'ko'>('vi')
 
   useEffect(() => {
@@ -62,6 +69,34 @@ export default function XemSlidePage() {
   }, [locale])
 
   useEffect(() => {
+    if (shareCode) {
+      setShareLoading(true)
+      setShareError(null)
+      fetch(`/api/tao-giao-trinh/share/${encodeURIComponent(shareCode)}`)
+        .then((r) => r.json())
+        .then((res) => {
+          if (res.error) {
+            setShareError(res.error)
+            setData(null)
+          } else {
+            const sl = Array.isArray(res.slides) ? res.slides : []
+            setData({
+              content: res.content ?? '',
+              topic: res.topic ?? '',
+              currentIndex: 0,
+              curriculumId: res.curriculumId ?? null,
+              slideMode: res.slideMode === 'personal' || res.slideMode === 'shared' || res.slideMode === 'original' ? res.slideMode : null,
+              slides: sl,
+            })
+          }
+        })
+        .catch(() => {
+          setShareError(tr(locale, 'Lỗi tải dữ liệu', 'Failed to load', '加载失败', '読み込みエラー', '로드 실패'))
+          setData(null)
+        })
+        .finally(() => setShareLoading(false))
+      return
+    }
     const applyCurriculumData = (e: { data?: { type?: string; slides?: unknown; content?: string; topic?: string; currentIndex?: number; curriculumId?: string; slideMode?: string } }) => {
       if (e.data?.type !== 'curriculum-data') return
       const sl = Array.isArray(e.data.slides) ? e.data.slides : []
@@ -90,8 +125,24 @@ export default function XemSlidePage() {
       window.removeEventListener('message', handler)
       channel?.close()
     }
-  }, [])
+  }, [shareCode, locale])
 
+  if (shareLoading) {
+    return (
+      <div className="min-h-screen bg-slate-900 text-white flex items-center justify-center">
+        <p className="text-slate-400">
+          {tr(locale, 'Đang tải slide...', 'Loading slides...', '正在加载幻灯片...', 'スライドを読み込み中...', '슬라이드 로딩 중...')}
+        </p>
+      </div>
+    )
+  }
+  if (shareError) {
+    return (
+      <div className="min-h-screen bg-slate-900 text-white flex items-center justify-center">
+        <p className="text-rose-400">{shareError}</p>
+      </div>
+    )
+  }
   if (!data || data.slides.length === 0) {
     return (
       <div className="min-h-screen bg-slate-900 text-white flex items-center justify-center">
@@ -103,8 +154,11 @@ export default function XemSlidePage() {
   }
 
   const aiSlides: AISlideData[] = data.slides.map((s) => ({
-    title: s.title,
-    blocks: s.blocks ?? [],
+    title: s.title ?? '',
+    blocks: (s.blocks ?? []).map((b: { header?: string; content?: string }) => ({
+      header: b.header ?? '',
+      content: b.content ?? '',
+    })),
     imageUrl: s.imageUrl,
     visualEmbed: s.visualEmbed,
     visualLayout: s.visualLayout,

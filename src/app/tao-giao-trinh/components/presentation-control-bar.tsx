@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { ChevronLeft, ChevronRight, X, Printer, BarChart2, Play, Pause, Settings2, PenLine, Timer, RotateCcw, Presentation, Square, LayoutGrid, Monitor } from 'lucide-react'
+import { ChevronLeft, ChevronRight, X, Printer, BarChart2, Play, Pause, Settings2, PenLine, Timer, RotateCcw, Presentation, Square, LayoutGrid, Monitor, Share2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
@@ -9,9 +9,9 @@ import { cn } from '@/lib/utils'
 /** Các mốc thời gian đồng hồ cát (giây) – dùng hằng để tránh lỗi .map trong JSX */
 const SANDS_SECONDS = [60, 180, 300, 600] as const
 
-/** Layout chuẩn dùng chung – vị trí và kích thước nút giống hệt nhau giữa giao diện giáo viên và học sinh */
+/** Layout chuẩn – mobile: wrap, desktop: flex-nowrap. Desktop giữ nguyên. */
 const SHARED_LAYOUT = {
-  container: 'flex items-center justify-between px-6 py-3 gap-4',
+  container: 'flex items-center justify-between px-3 md:px-6 landscape:px-6 py-2 md:py-3 landscape:py-3 gap-2 md:gap-4 landscape:gap-4 flex-wrap md:flex-nowrap landscape:flex-nowrap',
   leftIndex: 'text-sm font-medium tabular-nums min-w-[3rem] shrink-0',
   rightGroup: 'flex items-center gap-2 flex-nowrap shrink-0',
   /** Đồng hồ giáo viên – khung cố định */
@@ -72,9 +72,10 @@ export interface PresentationControlBarProps {
   /** Navigation */
   onPrev: () => void
   onNext: () => void
-  /** Student: Print, Close. Teacher: 1/3 mode, Xem học sinh */
+  /** Student: Print, Close, Share (link + QR). Teacher: 1/3 mode, Xem học sinh */
   onPrint?: () => void
   onClose?: () => void
+  onShareClick?: () => void
   slideViewMode?: 'single' | 'triple'
   onSlideViewModeChange?: (mode: 'single' | 'triple') => void
   onOpenStudentView?: () => void
@@ -123,6 +124,7 @@ export function PresentationControlBar({
   onNext,
   onPrint,
   onClose,
+  onShareClick,
   slideViewMode,
   onSlideViewModeChange,
   onOpenStudentView,
@@ -326,9 +328,15 @@ export function PresentationControlBar({
           <ChevronRight className="h-5 w-5" />
         </button>
 
-        {/* 7. Student: Print, Close. Teacher: 1/3, Xem học sinh */}
+        {/* 7. Student: Share, Print, Close. Teacher: 1/3, Xem học sinh */}
         {isStudent && (
           <>
+            {onShareClick && (
+              <button data-control="share" type="button" onClick={onShareClick} className={cn('flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/25 border border-emerald-400/40 text-emerald-300 hover:bg-emerald-500/35 text-xs font-medium shrink-0 h-9', highlightClass('share'))} title={tr('Chia sẻ – link + QR để học sinh quét xem slide', 'Share – link + QR for students to view slides', '分享 – 链接和二维码供学生查看', '共有 – リンクとQRで生徒がスライドを表示', '공유 – 링크와 QR로 학생이 슬라이드 보기')}>
+                <Share2 className="h-4 w-4" />
+                {tr('Chia sẻ', 'Share', '分享', '共有', '공유')}
+              </button>
+            )}
             {onPrint && (
               <button data-control="print" type="button" onClick={onPrint} className={cn(SHARED_LAYOUT.btnIcon, theme.btnBase, highlightClass('print'))} title={tr('In', 'Print', '打印', '印刷', '인쇄')}>
                 <Printer className="h-5 w-5" />
