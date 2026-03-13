@@ -36,7 +36,7 @@ export default function XemManHinhPage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [locale, setLocale] = useState<'vi' | 'en' | 'zh' | 'ja' | 'ko'>('vi')
   const [isPortrait, setIsPortrait] = useState(false)
-  const [orientationKey, setOrientationKey] = useState(0)
+  const [dims, setDims] = useState({ w: 0, h: 0 })
   const videoRef = useRef<HTMLVideoElement>(null)
   const channelRef = useRef<RealtimeChannel | null>(null)
   const pcRef = useRef<RTCPeerConnection | null>(null)
@@ -47,19 +47,30 @@ export default function XemManHinhPage() {
 
   useEffect(() => {
     const mq = window.matchMedia('(orientation: portrait)')
-    const checkOrientation = () => {
-      const narrow = window.innerWidth < 768
-      setIsPortrait(narrow && mq.matches)
-      setOrientationKey((k) => k + 1)
+    const updateLayout = () => {
+      const w = window.innerWidth
+      const h = window.visualViewport?.height ?? window.innerHeight
+      setDims({ w, h })
+      setIsPortrait(w < 768 && mq.matches)
     }
-    checkOrientation()
-    mq.addEventListener('change', checkOrientation)
-    window.addEventListener('resize', checkOrientation)
-    if (window.visualViewport) window.visualViewport.addEventListener('resize', checkOrientation)
+    const onOrientationChange = () => {
+      updateLayout()
+      setTimeout(updateLayout, 150)
+    }
+    updateLayout()
+    mq.addEventListener('change', onOrientationChange)
+    window.addEventListener('resize', updateLayout)
+    window.addEventListener('orientationchange', onOrientationChange)
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', updateLayout)
+    }
     return () => {
-      mq.removeEventListener('change', checkOrientation)
-      window.removeEventListener('resize', checkOrientation)
-      if (window.visualViewport) window.visualViewport.removeEventListener('resize', checkOrientation)
+      mq.removeEventListener('change', onOrientationChange)
+      window.removeEventListener('resize', updateLayout)
+      window.removeEventListener('orientationchange', onOrientationChange)
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', updateLayout)
+      }
     }
   }, [])
 
@@ -184,7 +195,10 @@ export default function XemManHinhPage() {
   }
 
   return (
-    <div className="fixed inset-0 bg-black flex flex-col [min-height:100dvh] [height:100dvh]">
+    <div
+      className="fixed inset-0 z-[9999] bg-black flex flex-col overflow-hidden"
+      style={dims.w && dims.h ? { width: dims.w, height: dims.h } : undefined}
+    >
       {isPortrait && (
         <div className="shrink-0 flex items-center justify-center gap-2 py-2 px-3 bg-amber-500/20 border-b border-amber-400/30">
           <RotateCw className="h-4 w-4 text-amber-300 shrink-0" />
