@@ -262,6 +262,16 @@ export function PresentationControlBar({
           </button>
         )}
 
+        {/* 2b. Chia sẻ – link + QR (bên trái nút Viết) */}
+        {onShareClick && (
+          <span className={cn(shareButtonClickableWhenParentDisabled && 'pointer-events-auto')}>
+            <button data-control="share" type="button" onClick={onShareClick} className={cn('flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/25 border border-emerald-400/40 text-emerald-300 hover:bg-emerald-500/35 text-xs font-medium shrink-0 h-9', highlightClass('share'))} title={tr('Chia sẻ – link + QR để học sinh quét xem slide', 'Share – link + QR for students to view slides', '分享 – 链接和二维码供学生查看', '共有 – リンクとQRで生徒がスライドを表示', '공유 – 링크와 QR로 학생이 슬라이드 보기')}>
+              <Share2 className="h-4 w-4" />
+              {tr('Chia sẻ', 'Share', '分享', '共有', '공유')}
+            </button>
+          </span>
+        )}
+
         {/* 3. Viết + tốc độ */}
         <div className="flex items-center gap-1.5 shrink-0">
           <button data-control="viết" type="button" onClick={onWritingModeToggle} className={cn(SHARED_LAYOUT.btnWrite, writingMode ? theme.btnActive : theme.btnInactive, highlightClass('viết'))} title={tr('Hiệu ứng viết từng ký tự', 'Typing effect', '字符逐字显示', 'タイピング効果', '타이핑 효과')}>
@@ -331,17 +341,9 @@ export function PresentationControlBar({
           <ChevronRight className="h-5 w-5" />
         </button>
 
-        {/* 7. Student: Share, Print, Close. Share cũng hiện khi teacher variant (học sinh mở từ giáo viên) */}
-        {(isStudent || onShareClick) && (
+        {/* 7. Student: Print, Close (Share đã chuyển lên trước Viết) */}
+        {isStudent && (
           <>
-            {onShareClick && (
-              <span className={cn(shareButtonClickableWhenParentDisabled && 'pointer-events-auto')}>
-                <button data-control="share" type="button" onClick={onShareClick} className={cn('flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/25 border border-emerald-400/40 text-emerald-300 hover:bg-emerald-500/35 text-xs font-medium shrink-0 h-9', highlightClass('share'))} title={tr('Chia sẻ – link + QR để học sinh quét xem slide', 'Share – link + QR for students to view slides', '分享 – 链接和二维码供学生查看', '共有 – リンクとQRで生徒がスライドを表示', '공유 – 링크와 QR로 학생이 슬라이드 보기')}>
-                  <Share2 className="h-4 w-4" />
-                  {tr('Chia sẻ', 'Share', '分享', '共有', '공유')}
-                </button>
-              </span>
-            )}
             {onPrint && (
               <button data-control="print" type="button" onClick={onPrint} className={cn(SHARED_LAYOUT.btnIcon, theme.btnBase, highlightClass('print'))} title={tr('In', 'Print', '打印', '印刷', '인쇄')}>
                 <Printer className="h-5 w-5" />

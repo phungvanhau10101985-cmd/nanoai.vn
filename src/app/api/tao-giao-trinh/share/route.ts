@@ -6,6 +6,24 @@ function generateShareCode(): string {
   return randomBytes(6).toString('base64url').slice(0, 8)
 }
 
+/** Lấy base URL đúng tên miền server – tránh localhost khi chạy production */
+function getShareBaseUrl(req: NextRequest): string {
+  const host = req.headers.get('x-forwarded-host') ?? req.headers.get('host') ?? ''
+  const proto = req.headers.get('x-forwarded-proto') ?? (req.nextUrl.protocol.replace(':', ''))
+  const effectiveProto = proto === 'on' || proto === 'https' ? 'https' : proto
+  if (host && !host.includes('localhost') && !host.includes('127.0.0.1')) {
+    return `${effectiveProto}://${host}`.replace(/\/$/, '')
+  }
+  const envUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL
+  if (envUrl && !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')) {
+    return envUrl.replace(/\/$/, '')
+  }
+  if (process.env.NODE_ENV === 'production') {
+    return (envUrl || 'https://nanoai.vn').replace(/\/$/, '')
+  }
+  return req.nextUrl.origin
+}
+
 /** Tạo phiên chia sẻ slide – trả về share_code và share_url */
 export async function POST(req: NextRequest) {
   try {
@@ -35,7 +53,7 @@ export async function POST(req: NextRequest) {
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || (req.nextUrl.origin)
+    const baseUrl = getShareBaseUrl(req)
     const shareUrl = `${baseUrl}/tao-giao-trinh/xem-slide?share=${shareCode}`
     return NextResponse.json({ success: true, shareCode, shareUrl })
   } catch (e) {
