@@ -392,6 +392,8 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   const [shareLoading, setShareLoading] = useState(false)
   const [screenShareOverlayVisible, setScreenShareOverlayVisible] = useState(true)
   const [screenShareLiveDialogOpen, setScreenShareLiveDialogOpen] = useState(false)
+  const shareInProgressRef = useRef(false)
+  const screenShareLiveInProgressRef = useRef(false)
 
   const {
     isSharing: isScreenShareLiveActive,
@@ -434,8 +436,14 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   }, [screenShareLiveError, toast, tr])
 
   const handleScreenShareLiveClick = useCallback(async () => {
+    if (screenShareLiveInProgressRef.current || screenShareLiveDialogOpen) return
+    screenShareLiveInProgressRef.current = true
     setScreenShareLiveDialogOpen(true)
-    await startScreenShareLive()
+    try {
+      await startScreenShareLive()
+    } finally {
+      screenShareLiveInProgressRef.current = false
+    }
   }, [startScreenShareLive])
 
   const openVisualFullscreen = useCallback((cellIndex?: number) => {
@@ -468,10 +476,12 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   }, [presentationMode])
 
   const handleShareClick = useCallback(async () => {
+    if (shareInProgressRef.current || shareDialogOpen || shareLoading) return
     if (slides.length === 0) {
       toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: tr('Chưa có slide để chia sẻ.', 'No slides to share.', '暂无幻灯片可分享。', '共有するスライドがありません。', '공유할 슬라이드가 없습니다.'), variant: 'destructive' })
       return
     }
+    shareInProgressRef.current = true
     setShareLoading(true)
     setShareUrl(null)
     setShareQrDataUrl(null)
@@ -515,6 +525,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       setShareDialogOpen(false)
     } finally {
       setShareLoading(false)
+      shareInProgressRef.current = false
     }
   }, [slides, curriculumMarkdown, topic, slideMode, curriculumId, toast, tr])
 
@@ -1223,6 +1234,8 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
           onShareClick={handleShareClick}
           shareButtonClickableWhenParentDisabled={presentationMode === 'slide-interaction'}
           onScreenShareLiveClick={handleScreenShareLiveClick}
+          onScreenShareLiveStop={() => { stopScreenShareLive(); setScreenShareLiveDialogOpen(false) }}
+          isScreenShareLiveActive={isScreenShareLiveActive}
           slideViewMode={undefined}
           onSlideViewModeChange={undefined}
           onOpenStudentView={undefined}
@@ -1314,7 +1327,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         currentSlideIndex={currentIndex}
         currentVisual={getVisualCells(slide)}
       />
-      <Dialog open={shareDialogOpen} onOpenChange={(open) => { setShareDialogOpen(open); if (!open) { setShareUrl(null); setShareQrDataUrl(null) } }}>
+      <Dialog open={shareDialogOpen} onOpenChange={(open) => { setShareDialogOpen(open); if (!open) { setShareUrl(null); setShareQrDataUrl(null); shareInProgressRef.current = false } }}>
         <DialogContent className="sm:max-w-md z-[200]">
           <DialogHeader>
             <DialogTitle>{tr('Chia sẻ link slide', 'Share slide link', '分享幻灯片链接', 'スライドリンクを共有', '슬라이드 링크 공유')}</DialogTitle>
@@ -1354,7 +1367,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
           )}
         </DialogContent>
       </Dialog>
-      <Dialog open={screenShareLiveDialogOpen} onOpenChange={(open) => { setScreenShareLiveDialogOpen(open); if (!open) stopScreenShareLive() }}>
+      <Dialog open={screenShareLiveDialogOpen} onOpenChange={(open) => { setScreenShareLiveDialogOpen(open); if (!open) screenShareLiveInProgressRef.current = false }}>
         <DialogContent className="sm:max-w-md z-[200]">
           <DialogHeader>
             <DialogTitle>{tr('Chia sẻ màn hình livestream', 'Share screen livestream', '共享屏幕直播', '画面共有ライブ', '화면 공유 라이브')}</DialogTitle>

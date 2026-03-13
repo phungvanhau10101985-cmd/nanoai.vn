@@ -87,6 +87,9 @@ export interface PresentationControlBarProps {
   isScreenSharing?: boolean
   /** Học sinh: chia sẻ màn hình livestream – bấm ra link + QR cho người khác quét xem */
   onScreenShareLiveClick?: () => void
+  /** Học sinh: dừng chia sẻ màn hình livestream (nút thay thế khi đang chia sẻ) */
+  onScreenShareLiveStop?: () => void
+  isScreenShareLiveActive?: boolean
   /** Highlight control từ chuột ảo (mirror mode) */
   highlightedControl?: string | null
   /** Ẩn riêng từng control cho các biến thể đặc biệt */
@@ -137,6 +140,8 @@ export function PresentationControlBar({
   onScreenShareStop,
   isScreenSharing = false,
   onScreenShareLiveClick,
+  onScreenShareLiveStop,
+  isScreenShareLiveActive = false,
   highlightedControl,
   hideTeacherTimer = false,
   hideInsert = false,
@@ -265,18 +270,21 @@ export function PresentationControlBar({
           </button>
         )}
 
-        {/* 2b. Chia sẻ màn hình livestream – học sinh bấm ra link + QR cho người khác quét xem */}
-        {onScreenShareLiveClick && (
+        {/* 2b. Chia sẻ màn hình livestream – học sinh: Chia sẻ màn hình (chưa share) / Dừng chia sẻ (đang share) */}
+        {(onScreenShareLiveClick || onScreenShareLiveStop) && (
           <span className={cn(shareButtonClickableWhenParentDisabled && 'pointer-events-auto')}>
             <button
               data-control="chia-sẻ-màn-hình-live"
               type="button"
-              onClick={onScreenShareLiveClick}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/25 border border-amber-400/40 text-amber-300 hover:bg-amber-500/35 text-xs font-medium shrink-0 h-9"
-              title={tr('Chia sẻ màn hình livestream – link + QR cho người khác quét xem', 'Share screen livestream – link + QR for others to scan', '共享屏幕直播 – 链接和二维码供他人扫码', '画面共有ライブ – リンクとQRで他人がスキャン', '화면 공유 라이브 – 링크와 QR로 다른 사람이 스캔')}
+              onClick={isScreenShareLiveActive ? onScreenShareLiveStop : onScreenShareLiveClick}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium shrink-0 h-9',
+                isScreenShareLiveActive ? 'bg-rose-500/25 border border-rose-400/40 text-rose-300 hover:bg-rose-500/35' : 'bg-amber-500/25 border border-amber-400/40 text-amber-300 hover:bg-amber-500/35'
+              )}
+              title={isScreenShareLiveActive ? tr('Dừng chia sẻ màn hình livestream', 'Stop screen share livestream', '停止屏幕直播共享', '画面共有ライブを停止', '화면 공유 라이브 중지') : tr('Chia sẻ màn hình livestream – link + QR cho người khác quét xem', 'Share screen livestream – link + QR for others to scan', '共享屏幕直播 – 链接和二维码供他人扫码', '画面共有ライブ – リンクとQRで他人がスキャン', '화면 공유 라이브 – 링크와 QR로 다른 사람이 스캔')}
             >
               <Monitor className="h-4 w-4" />
-              {tr('Chia sẻ màn hình', 'Share screen', '共享屏幕', '画面共有', '화면 공유')}
+              {isScreenShareLiveActive ? tr('Dừng chia sẻ', 'Stop share', '停止共享', '共有停止', '공유 중지') : tr('Chia sẻ màn hình', 'Share screen', '共享屏幕', '画面共有', '화면 공유')}
             </button>
           </span>
         )}
