@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { RealtimeChannel } from '@supabase/supabase-js'
+import { RotateCw } from 'lucide-react'
 
 function getWebLocale(): 'vi' | 'en' | 'zh' | 'ja' | 'ko' {
   if (typeof document === 'undefined') return 'vi'
@@ -34,9 +35,25 @@ export default function XemManHinhPage() {
   const [status, setStatus] = useState<'connecting' | 'connected' | 'error' | 'no-code'>('no-code')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [locale, setLocale] = useState<'vi' | 'en' | 'zh' | 'ja' | 'ko'>('vi')
+  const [isPortrait, setIsPortrait] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
   const channelRef = useRef<RealtimeChannel | null>(null)
   const pcRef = useRef<RTCPeerConnection | null>(null)
+
+  useEffect(() => {
+    const checkOrientation = () => {
+      const mq = window.matchMedia('(orientation: portrait)')
+      const narrow = window.innerWidth < 768
+      setIsPortrait(narrow && mq.matches)
+    }
+    checkOrientation()
+    window.matchMedia('(orientation: portrait)').addEventListener('change', checkOrientation)
+    window.addEventListener('resize', checkOrientation)
+    return () => {
+      window.matchMedia('(orientation: portrait)').removeEventListener('change', checkOrientation)
+      window.removeEventListener('resize', checkOrientation)
+    }
+  }, [])
 
   useEffect(() => {
     setLocale(getWebLocale())
@@ -170,6 +187,17 @@ export default function XemManHinhPage() {
 
   return (
     <div className="min-h-screen bg-black flex flex-col">
+      {isPortrait && (
+        <div className="fixed inset-0 z-50 bg-black flex flex-col items-center justify-center gap-4 p-6">
+          <RotateCw className="h-16 w-16 text-white/60 animate-pulse" />
+          <p className="text-white/90 text-center text-base font-medium">
+            {tr(locale, 'Xoay ngang màn hình để xem tốt hơn', 'Rotate to landscape for better view', '横屏观看效果更好', '横向きにしてご覧ください', '가로 모드로 회전하세요')}
+          </p>
+          <p className="text-white/50 text-sm text-center">
+            {tr(locale, 'Màn hình sẽ tự hiển thị khi bạn xoay ngang', 'Screen will show when you rotate to landscape', '横屏后自动显示', '横向きにすると表示されます', '가로 모드로 회전하면 표시됩니다')}
+          </p>
+        </div>
+      )}
       <div className="h-12 shrink-0 flex items-center justify-center bg-black/80 border-b border-white/10">
         <span className="text-white/90 text-sm font-medium">
           {tr(locale, 'Đang xem màn hình trực tiếp', 'Viewing screen live', '正在实时观看屏幕', '画面をリアルタイム表示中', '화면 실시간 보는 중')}

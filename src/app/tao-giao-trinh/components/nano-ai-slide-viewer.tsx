@@ -438,13 +438,16 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   const handleScreenShareLiveClick = useCallback(async () => {
     if (screenShareLiveInProgressRef.current || screenShareLiveDialogOpen) return
     screenShareLiveInProgressRef.current = true
-    setScreenShareLiveDialogOpen(true)
     try {
       await startScreenShareLive()
     } finally {
       screenShareLiveInProgressRef.current = false
     }
   }, [startScreenShareLive])
+
+  useEffect(() => {
+    if (isScreenShareLiveActive && screenShareLiveUrl) setScreenShareLiveDialogOpen(true)
+  }, [isScreenShareLiveActive, screenShareLiveUrl])
 
   const openVisualFullscreen = useCallback((cellIndex?: number) => {
     setExpandedCellIndex(cellIndex ?? null)
