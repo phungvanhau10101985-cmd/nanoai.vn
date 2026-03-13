@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { RealtimeChannel } from '@supabase/supabase-js'
+import { RotateCw } from 'lucide-react'
 
 function getWebLocale(): 'vi' | 'en' | 'zh' | 'ja' | 'ko' {
   if (typeof document === 'undefined') return 'vi'
@@ -34,6 +35,7 @@ export default function XemManHinhPage() {
   const [status, setStatus] = useState<'connecting' | 'connected' | 'error' | 'no-code'>('no-code')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [locale, setLocale] = useState<'vi' | 'en' | 'zh' | 'ja' | 'ko'>('vi')
+  const [isPortrait, setIsPortrait] = useState(false)
   const [orientationKey, setOrientationKey] = useState(0)
   const videoRef = useRef<HTMLVideoElement>(null)
   const channelRef = useRef<RealtimeChannel | null>(null)
@@ -44,14 +46,20 @@ export default function XemManHinhPage() {
   }, [])
 
   useEffect(() => {
-    const onResize = () => setOrientationKey((k) => k + 1)
-    window.addEventListener('orientationchange', onResize)
-    window.addEventListener('resize', onResize)
-    if (window.visualViewport) window.visualViewport.addEventListener('resize', onResize)
+    const mq = window.matchMedia('(orientation: portrait)')
+    const checkOrientation = () => {
+      const narrow = window.innerWidth < 768
+      setIsPortrait(narrow && mq.matches)
+      setOrientationKey((k) => k + 1)
+    }
+    checkOrientation()
+    mq.addEventListener('change', checkOrientation)
+    window.addEventListener('resize', checkOrientation)
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', checkOrientation)
     return () => {
-      window.removeEventListener('orientationchange', onResize)
-      window.removeEventListener('resize', onResize)
-      if (window.visualViewport) window.visualViewport.removeEventListener('resize', onResize)
+      mq.removeEventListener('change', checkOrientation)
+      window.removeEventListener('resize', checkOrientation)
+      if (window.visualViewport) window.visualViewport.removeEventListener('resize', checkOrientation)
     }
   }, [])
 
@@ -177,6 +185,14 @@ export default function XemManHinhPage() {
 
   return (
     <div className="fixed inset-0 bg-black flex flex-col [min-height:100dvh] [height:100dvh]">
+      {isPortrait && (
+        <div className="shrink-0 flex items-center justify-center gap-2 py-2 px-3 bg-amber-500/20 border-b border-amber-400/30">
+          <RotateCw className="h-4 w-4 text-amber-300 shrink-0" />
+          <p className="text-amber-200 text-xs text-center">
+            {tr(locale, 'Xoay ngang màn hình để xem rộng hơn', 'Rotate to landscape for wider view', '横屏观看更宽', '横向きで広く表示', '가로 모드로 넓게 보기')}
+          </p>
+        </div>
+      )}
       <div className="h-12 shrink-0 flex items-center justify-center bg-black/80 border-b border-white/10">
         <span className="text-white/90 text-sm font-medium">
           {tr(locale, 'Đang xem màn hình trực tiếp', 'Viewing screen live', '正在实时观看屏幕', '画面をリアルタイム表示中', '화면 실시간 보는 중')}
