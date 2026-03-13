@@ -81,10 +81,13 @@ export interface PresentationControlBarProps {
   slideViewMode?: 'single' | 'triple'
   onSlideViewModeChange?: (mode: 'single' | 'triple') => void
   onOpenStudentView?: () => void
-  /** Chia sẻ màn hình (tab) – học sinh xem stream có bản đồ + chuột thật */
+  /** Chia sẻ màn hình (tab) – giáo viên share, học sinh xem livestream */
   onScreenShareStart?: () => void
   onScreenShareStop?: () => void
   isScreenSharing?: boolean
+  /** Học sinh: xem màn hình giáo viên trực tiếp (livestream). Khi true = đang có stream */
+  isScreenShareReceiving?: boolean
+  onScreenShareViewClick?: () => void
   /** Highlight control từ chuột ảo (mirror mode) */
   highlightedControl?: string | null
   /** Ẩn riêng từng control cho các biến thể đặc biệt */
@@ -134,6 +137,8 @@ export function PresentationControlBar({
   onScreenShareStart,
   onScreenShareStop,
   isScreenSharing = false,
+  isScreenShareReceiving = false,
+  onScreenShareViewClick,
   highlightedControl,
   hideTeacherTimer = false,
   hideInsert = false,
@@ -262,12 +267,37 @@ export function PresentationControlBar({
           </button>
         )}
 
-        {/* 2b. Chia sẻ – link + QR (bên trái nút Viết) */}
+        {/* 2b. Chia sẻ màn hình – xem livestream màn hình giáo viên (học sinh) */}
+        {onScreenShareViewClick && (
+          <span className={cn(shareButtonClickableWhenParentDisabled && 'pointer-events-auto')}>
+            <button
+              data-control="xem-màn-hình-trực-tiếp"
+              type="button"
+              onClick={onScreenShareViewClick}
+              disabled={!isScreenShareReceiving}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium shrink-0 h-9',
+                isScreenShareReceiving
+                  ? 'bg-amber-500/25 border border-amber-400/40 text-amber-300 hover:bg-amber-500/35'
+                  : 'bg-slate-600/50 border border-slate-500/50 text-slate-500 cursor-not-allowed'
+              )}
+              title={
+                isScreenShareReceiving
+                  ? tr('Xem màn hình giáo viên trực tiếp (livestream)', 'View teacher screen live (livestream)', '实时查看教师屏幕', '教師の画面をリアルタイム表示', '교사 화면 실시간 보기')
+                  : tr('Chờ giáo viên chia sẻ màn hình', 'Waiting for teacher to share screen', '等待教师共享屏幕', '教師の画面共有を待機中', '교사 화면 공유 대기 중')
+              }
+            >
+              <Monitor className="h-4 w-4" />
+              {isScreenShareReceiving ? tr('Xem màn hình trực tiếp', 'View live screen', '实时观看', 'ライブ表示', '실시간 보기') : tr('Chia sẻ màn hình', 'Share screen', '共享屏幕', '画面共有', '화면 공유')}
+            </button>
+          </span>
+        )}
+        {/* 2c. Chia sẻ link + QR (bên trái nút Viết) */}
         {onShareClick && (
           <span className={cn(shareButtonClickableWhenParentDisabled && 'pointer-events-auto')}>
-            <button data-control="share" type="button" onClick={onShareClick} className={cn('flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/25 border border-emerald-400/40 text-emerald-300 hover:bg-emerald-500/35 text-xs font-medium shrink-0 h-9', highlightClass('share'))} title={tr('Chia sẻ – link + QR để học sinh quét xem slide', 'Share – link + QR for students to view slides', '分享 – 链接和二维码供学生查看', '共有 – リンクとQRで生徒がスライドを表示', '공유 – 링크와 QR로 학생이 슬라이드 보기')}>
+            <button data-control="share" type="button" onClick={onShareClick} className={cn('flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/25 border border-emerald-400/40 text-emerald-300 hover:bg-emerald-500/35 text-xs font-medium shrink-0 h-9', highlightClass('share'))} title={tr('Chia sẻ link + QR để học sinh mở xem slide', 'Share link + QR for students to view slides', '分享链接和二维码供学生查看', '共有リンクとQRで生徒がスライドを表示', '공유 링크와 QR로 학생이 슬라이드 보기')}>
               <Share2 className="h-4 w-4" />
-              {tr('Chia sẻ', 'Share', '分享', '共有', '공유')}
+              {tr('Chia sẻ link', 'Share link', '分享链接', 'リンク共有', '링크 공유')}
             </button>
           </span>
         )}

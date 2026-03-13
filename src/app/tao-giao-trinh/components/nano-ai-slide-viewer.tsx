@@ -389,6 +389,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   const [shareUrl, setShareUrl] = useState<string | null>(null)
   const [shareQrDataUrl, setShareQrDataUrl] = useState<string | null>(null)
   const [shareLoading, setShareLoading] = useState(false)
+  const [screenShareOverlayVisible, setScreenShareOverlayVisible] = useState(true)
   const [visualFullscreenOpen, setVisualFullscreenOpen] = useState(false)
   const [expandedCellIndex, setExpandedCellIndex] = useState<number | null>(null)
   const fullscreenOverlayRef = useRef<HTMLDivElement>(null)
@@ -409,6 +410,10 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     role: 'student',
     openerWindow: typeof window !== 'undefined' ? window.opener : null,
   })
+
+  useEffect(() => {
+    if (isScreenShareActive) setScreenShareOverlayVisible(true)
+  }, [isScreenShareActive])
 
   const openVisualFullscreen = useCallback((cellIndex?: number) => {
     setExpandedCellIndex(cellIndex ?? null)
@@ -1177,6 +1182,8 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
           onClose={presentationMode === 'slide-interaction' ? undefined : onClose}
           onShareClick={handleShareClick}
           shareButtonClickableWhenParentDisabled={presentationMode === 'slide-interaction'}
+          isScreenShareReceiving={isScreenShareActive}
+          onScreenShareViewClick={() => setScreenShareOverlayVisible(true)}
           slideViewMode={undefined}
           onSlideViewModeChange={undefined}
           onOpenStudentView={undefined}
@@ -1191,16 +1198,27 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         )}
       </div>
 
-      {/* Screen share – học sinh xem màn hình giáo viên (bản đồ + chuột thật) */}
-      {isScreenShareActive && screenShareStream && (
+      {/* Screen share – học sinh xem màn hình giáo viên trực tiếp (livestream) */}
+      {isScreenShareActive && screenShareStream && screenShareOverlayVisible && (
         <div className="fixed inset-0 z-[125] bg-black flex flex-col">
-          <div className="h-12 shrink-0 flex items-center justify-center bg-black/80 border-b border-white/10">
-            <span className="text-white/90 text-sm font-medium">
-              {tr('Đang xem màn hình giáo viên', 'Viewing teacher screen', '正在查看教师屏幕', '教師の画面を表示中', '교사 화면 보는 중')}
-            </span>
-            <span className="ml-3 text-white/50 text-xs hidden sm:inline">
-              {tr('Tab giáo viên phải đang hiển thị', 'Teacher tab must be visible', '教师标签页须可见', '教師タブを表示中に', '교사 탭 표시 필요')}
-            </span>
+          <div className="h-12 shrink-0 flex items-center justify-between gap-4 px-4 bg-black/80 border-b border-white/10">
+            <div className="flex items-center gap-3 min-w-0">
+              <span className="text-white/90 text-sm font-medium shrink-0">
+                {tr('Đang xem màn hình giáo viên trực tiếp', 'Viewing teacher screen live', '正在实时查看教师屏幕', '教師の画面をリアルタイム表示中', '교사 화면 실시간 보는 중')}
+              </span>
+              <span className="text-white/50 text-xs hidden sm:inline truncate">
+                {tr('Tab giáo viên phải đang hiển thị', 'Teacher tab must be visible', '教师标签页须可见', '教師タブを表示中に', '교사 탭 표시 필요')}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setScreenShareOverlayVisible(false)}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-sm font-medium"
+              title={tr('Thu nhỏ – xem slide', 'Minimize – view slides', '最小化 – 查看幻灯片', '最小化 – スライド表示', '최소화 – 슬라이드 보기')}
+            >
+              <X className="h-4 w-4" />
+              {tr('Thu nhỏ', 'Minimize', '最小化', '最小化', '최소화')}
+            </button>
           </div>
           <div className="flex-1 min-h-0 relative">
             <ScreenShareVideo key={screenShareStream.id} stream={screenShareStream} />
@@ -1260,7 +1278,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       <Dialog open={shareDialogOpen} onOpenChange={(open) => { setShareDialogOpen(open); if (!open) { setShareUrl(null); setShareQrDataUrl(null) } }}>
         <DialogContent className="sm:max-w-md z-[200]">
           <DialogHeader>
-            <DialogTitle>{tr('Chia sẻ slide', 'Share slides', '分享幻灯片', 'スライドを共有', '슬라이드 공유')}</DialogTitle>
+            <DialogTitle>{tr('Chia sẻ link slide', 'Share slide link', '分享幻灯片链接', 'スライドリンクを共有', '슬라이드 링크 공유')}</DialogTitle>
             <DialogDescription>
               {shareLoading
                 ? tr('Đang tạo link...', 'Creating link...', '正在创建链接...', 'リンク作成中...', '링크 생성 중...')
