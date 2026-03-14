@@ -422,6 +422,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   const mouseThrottleRef = useRef(0)
   const processedSyncSeqRef = useRef<Set<number>>(new Set())
   const quizPopupScrollApplyingRef = useRef(false)
+  const closeVisualFullscreenRef = useRef<() => void>(() => {})
 
   const { receivedStream: screenShareStream, isReceiving: isScreenShareActive } = useScreenShare({
     role: 'student',
@@ -481,6 +482,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       window.opener.postMessage({ type: 'visual-fullscreen-close' }, window.location.origin)
     }
   }, [presentationMode])
+  closeVisualFullscreenRef.current = closeVisualFullscreen
 
   const handleShareClick = useCallback(async () => {
     if (shareInProgressRef.current || shareDialogOpen || shareLoading) return
@@ -642,7 +644,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         openVisualFullscreen(cellIndex)
       }
       else if (t === 'visual-fullscreen-close') {
-        closeVisualFullscreen()
+        closeVisualFullscreenRef.current()
       }
       else if (t === 'mouse-pos' && presentationMode === 'slide-interaction') {
         let px: number
@@ -695,10 +697,13 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
             px = cx + e.data.dxFromCenter * scaleX
             py = cy + e.data.dyFromCenter * scaleY
           }
-        } else if (e.data?.visualFrame && typeof e.data?.relX === 'number' && typeof e.data?.relY === 'number' && studentVisualFrameRef.current && visualFullscreenOpen) {
-          const rect = studentVisualFrameRef.current.getBoundingClientRect()
-          px = rect.left + e.data.relX * rect.width
-          py = rect.top + e.data.relY * rect.height
+        } else if (e.data?.visualFrame && typeof e.data?.relX === 'number' && typeof e.data?.relY === 'number' && visualFullscreenOpen) {
+          const overlayOrFrame = e.data?.overlayRel && fullscreenOverlayRef.current ? fullscreenOverlayRef.current : studentVisualFrameRef.current
+          const rect = overlayOrFrame ? overlayOrFrame.getBoundingClientRect() : null
+          if (rect) {
+            px = rect.left + e.data.relX * rect.width
+            py = rect.top + e.data.relY * rect.height
+          } else return
         } else if (e.data?.visualFrame && typeof e.data?.dxFromCenter === 'number' && typeof e.data?.dyFromCenter === 'number' && typeof e.data?.frameW === 'number' && typeof e.data?.frameH === 'number' && studentVisualFrameRef.current && visualFullscreenOpen) {
           const rect = studentVisualFrameRef.current.getBoundingClientRect()
           const cx = rect.left + rect.width / 2
@@ -770,10 +775,13 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
             px = cx + e.data.dxFromCenter * scaleX
             py = cy + e.data.dyFromCenter * scaleY
           }
-        } else if (e.data?.visualFrame && typeof e.data?.relX === 'number' && typeof e.data?.relY === 'number' && studentVisualFrameRef.current && visualFullscreenOpen) {
-          const rect = studentVisualFrameRef.current.getBoundingClientRect()
-          px = rect.left + e.data.relX * rect.width
-          py = rect.top + e.data.relY * rect.height
+        } else if (e.data?.visualFrame && typeof e.data?.relX === 'number' && typeof e.data?.relY === 'number' && visualFullscreenOpen) {
+          const overlayOrFrame = e.data?.overlayRel && fullscreenOverlayRef.current ? fullscreenOverlayRef.current : studentVisualFrameRef.current
+          const rect = overlayOrFrame ? overlayOrFrame.getBoundingClientRect() : null
+          if (rect) {
+            px = rect.left + e.data.relX * rect.width
+            py = rect.top + e.data.relY * rect.height
+          } else return
         } else if (e.data?.visualFrame && typeof e.data?.dxFromCenter === 'number' && typeof e.data?.dyFromCenter === 'number' && typeof e.data?.frameW === 'number' && typeof e.data?.frameH === 'number' && studentVisualFrameRef.current && visualFullscreenOpen) {
           const rect = studentVisualFrameRef.current.getBoundingClientRect()
           const cx = rect.left + rect.width / 2
@@ -812,10 +820,16 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     let channel: BroadcastChannel | null = null
     if (typeof BroadcastChannel !== 'undefined') {
       channel = new BroadcastChannel('tao-giao-trinh-sync')
-      channel.addEventListener('message', (event) => {
+      const channelHandler = (event: MessageEvent) => {
         handler({ origin: window.location.origin, data: event.data } as MessageEvent)
-      })
+      }
+      channel.addEventListener('message', channelHandler)
       channel.postMessage({ type: 'request-curriculum' })
+      return () => {
+        window.removeEventListener('message', handler)
+        channel?.removeEventListener('message', channelHandler)
+        channel?.close()
+      }
     }
     return () => window.removeEventListener('message', handler)
   }, [onSlidesSaved, openVisualFullscreen, closeVisualFullscreen, presentationMode, visualFullscreenOpen])

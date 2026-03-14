@@ -257,6 +257,7 @@ export default function CurriculumViewPage() {
   const sectionRefs = useRef<(HTMLDivElement | null)[]>([])
   const firstMatchRef = useRef<HTMLElement | null>(null)
   const teacherVisualFrameRef = useRef<HTMLDivElement | null>(null)
+  const teacherVisualOverlayRef = useRef<HTMLDivElement | null>(null)
   const [layoutWidth, setLayoutWidth] = useState(1280)
   const [viewportW, setViewportW] = useState(1280)
   useEffect(() => {
@@ -431,6 +432,7 @@ export default function CurriculumViewPage() {
       channel.postMessage({ type: 'set-auto-play', value: remoteAutoPlay })
       channel.postMessage({ type: 'set-auto-play-interval', ms: remoteAutoPlayIntervalMs })
       if (visualFullscreenOpen) channel.postMessage({ type: 'visual-fullscreen-open', cellIndex: undefined })
+      else channel.postMessage({ type: 'visual-fullscreen-close' })
       channel.postMessage({ type: 'quiz-popup-open', value: quizPopupOpen })
       if (quizPopupOpen) {
         const scrollEl = document.querySelector('[data-quiz-popup-scroll]') as HTMLElement | null
@@ -578,10 +580,11 @@ export default function CurriculumViewPage() {
           }
         }
         if (!sent) {
-          const rect = frame.getBoundingClientRect()
+          const overlay = teacherVisualOverlayRef.current
+          const rect = overlay ? overlay.getBoundingClientRect() : frame.getBoundingClientRect()
           const relX = rect.width > 0 ? (e.clientX - rect.left) / rect.width : 0.5
           const relY = rect.height > 0 ? (e.clientY - rect.top) / rect.height : 0.5
-          sendToStudentView({ type: 'mouse-pos', visualFrame: true, relX, relY })
+          sendToStudentView({ type: 'mouse-pos', visualFrame: true, overlayRel: !!overlay, relX, relY })
         }
       } else {
         sendToStudentView({
@@ -645,10 +648,11 @@ export default function CurriculumViewPage() {
           }
         }
         if (!sent) {
-          const rect = frame.getBoundingClientRect()
+          const overlay = teacherVisualOverlayRef.current
+          const rect = overlay ? overlay.getBoundingClientRect() : frame.getBoundingClientRect()
           const relX = rect.width > 0 ? (e.clientX - rect.left) / rect.width : 0.5
           const relY = rect.height > 0 ? (e.clientY - rect.top) / rect.height : 0.5
-          sendToStudentView({ type: 'mouse-click', visualFrame: true, relX, relY })
+          sendToStudentView({ type: 'mouse-click', visualFrame: true, overlayRel: !!overlay, relX, relY })
         }
       } else {
         sendToStudentView({
@@ -701,12 +705,14 @@ export default function CurriculumViewPage() {
         } catch { /* ignore */ }
       }
       setTimeout(send, 0)
-      setTimeout(() => {
+          setTimeout(() => {
         try {
           if (!existing.closed) {
             existing.postMessage({ type: 'presentation-mode', mode: 'slide-interaction' }, window.location.origin)
             if (visualFullscreenOpen) {
               existing.postMessage({ type: 'visual-fullscreen-open', cellIndex: undefined }, window.location.origin)
+            } else {
+              existing.postMessage({ type: 'visual-fullscreen-close' }, window.location.origin)
             }
             existing.postMessage({ type: 'teacher-timer-sync', seconds: teacherTimerSeconds, running: teacherTimerRunning }, window.location.origin)
             existing.postMessage({ type: 'set-teacher-writing-mode', value: remoteTeacherWritingMode }, window.location.origin)
@@ -772,6 +778,8 @@ export default function CurriculumViewPage() {
             w.postMessage({ type: 'presentation-mode', mode: 'slide-interaction' }, window.location.origin)
             if (visualFullscreenOpen) {
               w.postMessage({ type: 'visual-fullscreen-open', cellIndex: undefined }, window.location.origin)
+            } else {
+              w.postMessage({ type: 'visual-fullscreen-close' }, window.location.origin)
             }
             w.postMessage({ type: 'teacher-timer-sync', seconds: teacherTimerSeconds, running: teacherTimerRunning }, window.location.origin)
             w.postMessage({ type: 'set-teacher-writing-mode', value: remoteTeacherWritingMode }, window.location.origin)
@@ -2530,6 +2538,7 @@ export default function CurriculumViewPage() {
         const gridClass = !showSingleCell && layout === 2 ? 'grid grid-rows-2 gap-2' : !showSingleCell && layout === 4 ? 'grid grid-cols-2 grid-rows-2 gap-2' : ''
         return (
           <div
+            ref={teacherVisualOverlayRef}
             className="fixed inset-0 z-[105] bg-black flex flex-col"
             onClick={(e) => { if (e.target === e.currentTarget) closeTeacherVisualFullscreen() }}
           >
