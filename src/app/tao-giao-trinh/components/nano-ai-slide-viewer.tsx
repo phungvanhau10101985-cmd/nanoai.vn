@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import { ChevronLeft, ChevronRight, X, Printer, ArrowRight, TrendingUp, CalendarCheck, Lightbulb, BookOpen, Target, BarChart2, Trash2, Play, Pause, Settings2, ClipboardList, Maximize2, PenLine, Timer, RotateCcw, Link2, Copy } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
@@ -384,6 +385,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   const [teacherWritingMode, setTeacherWritingMode] = useState(false)
   const [teacherWritingSpeedMs, setTeacherWritingSpeedMs] = useState(80)
   const [transitionDirection, setTransitionDirection] = useState<'next' | 'prev'>('next')
+  const initialSlideSyncedRef = useRef(false)
   const [personalViewSubMode, setPersonalViewSubMode] = useState<'current' | 'original'>('current')
   const [quizPopupOpen, setQuizPopupOpen] = useState(false)
   const [shareDialogOpen, setShareDialogOpen] = useState(false)
@@ -418,6 +420,8 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   const [mouseTrail, setMouseTrail] = useState<Array<{ x: number; y: number }>>([])
   const [mouseClicks, setMouseClicks] = useState<Array<{ id: number; x: number; y: number }>>([])
   const mouseThrottleRef = useRef(0)
+  const processedSyncSeqRef = useRef<Set<number>>(new Set())
+  const quizPopupScrollApplyingRef = useRef(false)
 
   const { receivedStream: screenShareStream, isReceiving: isScreenShareActive } = useScreenShare({
     role: 'student',
@@ -583,6 +587,16 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   useEffect(() => {
     const handler = (e: MessageEvent) => {
       if (e.origin !== window.location.origin) return
+      // Deduplicate: sendToStudentView gửi cả postMessage + BroadcastChannel → student nhận 2 lần
+      const seq = e.data?.__syncSeq
+      if (typeof seq === 'number') {
+        if (processedSyncSeqRef.current.has(seq)) return
+        processedSyncSeqRef.current.add(seq)
+        if (processedSyncSeqRef.current.size > 100) {
+          const arr = Array.from(processedSyncSeqRef.current).sort((a, b) => a - b)
+          processedSyncSeqRef.current = new Set(arr.slice(-50))
+        }
+      }
       const t = e.data?.type
       if (t === 'teacher-timer-start') setTeacherTimerRunning(true)
       else if (t === 'teacher-timer-stop') setTeacherTimerRunning(false)
@@ -601,6 +615,16 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       else if (t === 'set-teacher-writing-speed' && typeof e.data?.ms === 'number') setTeacherWritingSpeedMs(e.data.ms)
       else if (t === 'set-auto-play' && typeof e.data?.value === 'boolean') setAutoPlay(e.data.value)
       else if (t === 'set-auto-play-interval' && typeof e.data?.ms === 'number') setAutoPlayIntervalMs(e.data.ms)
+      else if (t === 'quiz-popup-open' && typeof e.data?.value === 'boolean') setQuizPopupOpen(e.data.value)
+      else if (t === 'quiz-popup-scroll' && typeof e.data?.scrollTop === 'number') {
+        const scrollTop = e.data.scrollTop
+        const el = document.querySelector('[data-quiz-popup-scroll]') as HTMLElement | null
+        if (el && Math.abs(el.scrollTop - scrollTop) > 2) {
+          quizPopupScrollApplyingRef.current = true
+          el.scrollTop = scrollTop
+          setTimeout(() => { quizPopupScrollApplyingRef.current = false }, 80)
+        }
+      }
       else if (t === 'sand-timer-start' && typeof e.data?.seconds === 'number') {
         setTimerSeconds(e.data.seconds)
         setTimerRunning(true)
@@ -623,7 +647,23 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       else if (t === 'mouse-pos' && presentationMode === 'slide-interaction') {
         let px: number
         let py: number
-        if (e.data?.visualFrame && e.data?.imageCenter && typeof e.data?.cellIndex === 'number' && typeof e.data?.dxFromCenter === 'number' && typeof e.data?.dyFromCenter === 'number' && typeof e.data?.visW === 'number' && typeof e.data?.visH === 'number' && studentVisualFrameRef.current && visualFullscreenOpen) {
+        if (e.data?.quizPopup && typeof e.data?.relX === 'number' && typeof e.data?.relY === 'number') {
+          const el = document.querySelector('[data-quiz-popup]')
+          const rect = el ? (el as HTMLElement).getBoundingClientRect() : null
+          if (rect) {
+            px = rect.right - e.data.relX
+            py = rect.top + e.data.relY
+          } else {
+            const w = typeof window !== 'undefined' ? window.innerWidth : 1920
+            const h = typeof window !== 'undefined' ? window.innerHeight : 1080
+            const pw = w * 0.8
+            const ph = h * 0.85
+            const pr = (w + pw) / 2
+            const pt = (h - ph) / 2
+            px = pr - e.data.relX
+            py = pt + e.data.relY
+          }
+        } else if (e.data?.visualFrame && e.data?.imageCenter && typeof e.data?.cellIndex === 'number' && typeof e.data?.dxFromCenter === 'number' && typeof e.data?.dyFromCenter === 'number' && typeof e.data?.visW === 'number' && typeof e.data?.visH === 'number' && studentVisualFrameRef.current && visualFullscreenOpen) {
           const frame = studentVisualFrameRef.current
           const children = Array.from(frame.children) as HTMLElement[]
           const cell = children[e.data.cellIndex]
@@ -682,7 +722,23 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       else if (t === 'mouse-click' && presentationMode === 'slide-interaction') {
         let px: number
         let py: number
-        if (e.data?.visualFrame && e.data?.imageCenter && typeof e.data?.cellIndex === 'number' && typeof e.data?.dxFromCenter === 'number' && typeof e.data?.dyFromCenter === 'number' && typeof e.data?.visW === 'number' && typeof e.data?.visH === 'number' && studentVisualFrameRef.current && visualFullscreenOpen) {
+        if (e.data?.quizPopup && typeof e.data?.relX === 'number' && typeof e.data?.relY === 'number') {
+          const el = document.querySelector('[data-quiz-popup]')
+          const rect = el ? (el as HTMLElement).getBoundingClientRect() : null
+          if (rect) {
+            px = rect.right - e.data.relX
+            py = rect.top + e.data.relY
+          } else {
+            const w = typeof window !== 'undefined' ? window.innerWidth : 1920
+            const h = typeof window !== 'undefined' ? window.innerHeight : 1080
+            const pw = w * 0.8
+            const ph = h * 0.85
+            const pr = (w + pw) / 2
+            const pt = (h - ph) / 2
+            px = pr - e.data.relX
+            py = pt + e.data.relY
+          }
+        } else if (e.data?.visualFrame && e.data?.imageCenter && typeof e.data?.cellIndex === 'number' && typeof e.data?.dxFromCenter === 'number' && typeof e.data?.dyFromCenter === 'number' && typeof e.data?.visW === 'number' && typeof e.data?.visH === 'number' && studentVisualFrameRef.current && visualFullscreenOpen) {
           const frame = studentVisualFrameRef.current
           const children = Array.from(frame.children) as HTMLElement[]
           const cell = children[e.data.cellIndex]
@@ -733,6 +789,23 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
           py = Math.max(0, Math.min(h, e.data.yPx))
         } else return
         setMouseClicks((prev) => [...prev, { id: Date.now() + Math.floor(Math.random() * 1000), x: px, y: py }].slice(-8))
+        // Mô phỏng click DOM để chuột ảo (từ giáo viên) có thể điều khiển nút, popup, radio, label...
+        requestAnimationFrame(() => {
+          const el = document.elementFromPoint(px, py)
+          if (!el || el === document.body || el === document.documentElement) return
+          const clickable =
+            el.closest('button') ||
+            el.closest('a[href]') ||
+            el.closest('input[type="radio"], input[type="checkbox"]') ||
+            el.closest('label') ||
+            el.closest('[role="button"]') ||
+            (el.tagName === 'BUTTON' || el.tagName === 'A' || el.tagName === 'INPUT' || el.tagName === 'LABEL' ? el : null)
+          if (clickable && typeof (clickable as HTMLElement).click === 'function') {
+            const ctrl = (clickable as HTMLElement).closest('[data-control]')?.getAttribute('data-control')
+            if (ctrl === 'prev' || ctrl === 'next') return
+            ;(clickable as HTMLElement).click()
+          }
+        })
       }
     }
     window.addEventListener('message', handler)
@@ -765,10 +838,25 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   const target = typeof window !== 'undefined' ? (window.opener || (window !== window.top ? window.parent : null)) : null
   useEffect(() => {
     if (presentationMode !== 'slide-interaction' || !target) return
+    const getQuizPopupRect = () => {
+      const el = document.querySelector('[data-quiz-popup]')
+      return el ? (el as HTMLElement).getBoundingClientRect() : null
+    }
     const onMove = (e: MouseEvent) => {
       const now = Date.now()
       if (now - mouseThrottleRef.current < 40) return
       mouseThrottleRef.current = now
+      const rect = getQuizPopupRect()
+      if (rect && e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom) {
+        const relX = rect.right - e.clientX
+        const relY = e.clientY - rect.top
+        try {
+          ;(target as Window).postMessage({ type: 'mouse-pos', quizPopup: true, relX, relY, fromStudent: true }, window.location.origin)
+        } catch {
+          /* ignore */
+        }
+        return
+      }
       const x = e.clientX / (window.innerWidth || 1)
       const y = e.clientY / (window.innerHeight || 1)
       try {
@@ -777,9 +865,82 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         /* ignore */
       }
     }
+    const onClick = (e: MouseEvent) => {
+      const rect = getQuizPopupRect()
+      if (rect && e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom) {
+        const relX = rect.right - e.clientX
+        const relY = e.clientY - rect.top
+        try {
+          ;(target as Window).postMessage({ type: 'mouse-click', quizPopup: true, relX, relY, fromStudent: true }, window.location.origin)
+        } catch {
+          /* ignore */
+        }
+      }
+    }
     window.addEventListener('mousemove', onMove)
-    return () => window.removeEventListener('mousemove', onMove)
+    window.addEventListener('mousedown', onClick)
+    return () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mousedown', onClick)
+    }
   }, [presentationMode, target])
+
+  useEffect(() => {
+    if (presentationMode !== 'slide-interaction' || !target || !quizPopupOpen) return
+    let cancelled = false
+    let throttleId: ReturnType<typeof setTimeout> | null = null
+    let lastSent = 0
+    const THROTTLE_MS = 80
+    let scrollEl: HTMLElement | null = null
+    let attached = false
+    const sendScroll = () => {
+      if (!scrollEl || cancelled) return
+      if (quizPopupScrollApplyingRef.current) return
+      const now = Date.now()
+      if (now - lastSent < THROTTLE_MS) {
+        if (throttleId == null) {
+          throttleId = setTimeout(() => {
+            throttleId = null
+            lastSent = Date.now()
+            if (cancelled || !scrollEl || quizPopupScrollApplyingRef.current) return
+            try {
+              ;(target as Window).postMessage({ type: 'quiz-popup-scroll', scrollTop: scrollEl!.scrollTop, fromStudent: true }, window.location.origin)
+            } catch {
+              /* ignore */
+            }
+          }, THROTTLE_MS - (now - lastSent))
+        }
+        return
+      }
+      lastSent = now
+      try {
+        ;(target as Window).postMessage({ type: 'quiz-popup-scroll', scrollTop: scrollEl!.scrollTop, fromStudent: true }, window.location.origin)
+      } catch {
+        /* ignore */
+      }
+    }
+    const attach = () => {
+      if (cancelled || attached) return
+      const el = document.querySelector('[data-quiz-popup-scroll]') as HTMLElement | null
+      if (!el) return
+      scrollEl = el
+      attached = true
+      sendScroll()
+      el.addEventListener('scroll', sendScroll, { passive: true })
+    }
+    attach()
+    const t1 = setTimeout(attach, 50)
+    const t2 = setTimeout(attach, 150)
+    const t3 = setTimeout(attach, 400)
+    return () => {
+      cancelled = true
+      clearTimeout(t1)
+      clearTimeout(t2)
+      clearTimeout(t3)
+      if (throttleId != null) clearTimeout(throttleId)
+      if (scrollEl) scrollEl.removeEventListener('scroll', sendScroll)
+    }
+  }, [presentationMode, target, quizPopupOpen])
 
   const formatTimer = (sec: number) => {
     const m = Math.floor(sec / 60)
@@ -810,7 +971,13 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     const nextSlides = baseSlidesForDisplay
     setSlides(nextSlides)
     const idx = typeof initialSlideIndex === 'number' ? Math.max(0, Math.min(initialSlideIndex, nextSlides.length - 1)) : 0
-    setCurrentIndex(idx)
+    setCurrentIndex((prev) => {
+      if (!initialSlideSyncedRef.current && nextSlides.length > 0) {
+        initialSlideSyncedRef.current = true
+        return idx
+      }
+      return Math.min(prev, nextSlides.length - 1)
+    })
   }, [curriculumMarkdown, topic, aiSlides, slideMode, personalViewSubMode, originalSlides, initialSlideIndex])
 
   const goNext = useCallback(() => {
@@ -1138,23 +1305,12 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     setVisualFullscreenOpen(false)
   }, [currentIndex])
 
-  useEffect(() => {
-    if (!autoPlay || slides.length <= 1) return
-    const id = window.setInterval(() => {
-      setTransitionDirection('next')
-      setCurrentIndex((i) => {
-        const next = i >= slides.length - 1 ? 0 : i + 1
-        if (presentationMode === 'slide-interaction' && typeof window !== 'undefined' && window.opener) {
-          window.opener.postMessage({ type: 'slide-go', index: next }, window.location.origin)
-        }
-        return next
-      })
-    }, autoPlayIntervalMs)
-    return () => window.clearInterval(id)
-  }, [autoPlay, slides.length, autoPlayIntervalMs, presentationMode])
-
   const slide = slides[currentIndex]
-  const blocks = (Array.isArray(slide?.blocks) && slide.blocks.length > 0) ? slide.blocks : (slide ? parseContentToBlocks(slide.content) : [])
+  const rawBlocks = (Array.isArray(slide?.blocks) && slide.blocks.length > 0) ? slide.blocks : (slide ? parseContentToBlocks(slide.content ?? '') : [])
+  const blocks =
+    rawBlocks.length > 0 && rawBlocks.every((b) => !(b.content ?? '').trim()) && (slide?.content ?? '').trim()
+      ? parseContentToBlocks(slide!.content ?? '')
+      : rawBlocks
   const hasBlocks = blocks.length > 0
 
   const { totalSegments, blockOffsets, blockLengths } = useMemo(() => {
@@ -1173,6 +1329,28 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     const contentLen = getContentSegmentCount(slide.content ?? '')
     return { totalSegments: titleLen + contentLen, blockOffsets: [titleLen], blockLengths: [contentLen] }
   }, [slide, hasBlocks, blocks])
+
+  useEffect(() => {
+    if (!autoPlay || slides.length <= 1) return
+    const advance = () => {
+      setTransitionDirection('next')
+      setCurrentIndex((i) => {
+        const next = i >= slides.length - 1 ? 0 : i + 1
+        if (presentationMode === 'slide-interaction' && typeof window !== 'undefined' && window.opener) {
+          window.opener.postMessage({ type: 'slide-go', index: next }, window.location.origin)
+        }
+        return next
+      })
+    }
+    if (teacherWritingMode && totalSegments > 0) {
+      const typingDuration = totalSegments * teacherWritingSpeedMs
+      const delay = Math.max(typingDuration, autoPlayIntervalMs)
+      const id = window.setTimeout(advance, delay)
+      return () => window.clearTimeout(id)
+    }
+    const id = window.setInterval(advance, autoPlayIntervalMs)
+    return () => window.clearInterval(id)
+  }, [autoPlay, slides.length, autoPlayIntervalMs, presentationMode, teacherWritingMode, totalSegments, teacherWritingSpeedMs])
 
   useEffect(() => {
     if (!teacherWritingMode || totalSegments === 0) {
@@ -1201,7 +1379,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       <div
         className={cn(
           'print:hidden',
-          presentationMode === 'slide-interaction' && 'pointer-events-none border-b border-slate-700/80 bg-slate-900/80 backdrop-blur-sm'
+          presentationMode === 'slide-interaction' && 'border-b border-slate-700/80 bg-slate-900/80 backdrop-blur-sm'
         )}
       >
         <PresentationControlBar
@@ -1281,11 +1459,11 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         </div>
       )}
 
-      {/* Chuột ảo + đường di chuột – chế độ tương tác slide */}
-      {presentationMode === 'slide-interaction' && (
+      {/* Chuột ảo + đường di chuột – render qua portal để hiện trên popup (z-[200] > popup z-[110]) */}
+      {presentationMode === 'slide-interaction' && typeof document !== 'undefined' && createPortal(
         <>
           {mouseTrail.length > 1 && (
-            <svg className="fixed inset-0 z-[118] pointer-events-none" style={{ width: '100%', height: '100%' }}>
+            <svg className="fixed inset-0 z-[198] pointer-events-none" style={{ width: '100%', height: '100%' }}>
               <polyline
                 points={mouseTrail.map((p) => `${p.x},${p.y}`).join(' ')}
                 fill="none"
@@ -1298,7 +1476,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
           )}
           {virtualMousePos && (
             <div
-              className="fixed z-[120] pointer-events-none transition-all duration-75"
+              className="fixed z-[200] pointer-events-none transition-all duration-75"
               style={{ left: virtualMousePos.x, top: virtualMousePos.y, transform: 'translate(-2px, -2px)' }}
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="drop-shadow-lg">
@@ -1309,13 +1487,14 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
           {mouseClicks.map((p) => (
             <div
               key={p.id}
-              className="fixed z-[119] pointer-events-none"
+              className="fixed z-[199] pointer-events-none"
               style={{ left: p.x, top: p.y, transform: 'translate(-50%, -50%)' }}
             >
               <span className="block h-12 w-12 rounded-full border-2 border-amber-300/90 animate-ping" />
             </div>
           ))}
-        </>
+        </>,
+        document.body
       )}
 
       <EmbedInsertDialog
@@ -1512,10 +1691,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       <div className="flex-1 flex flex-col md:flex-row landscape:flex-row overflow-hidden print:hidden relative">
         <div
           key={currentIndex}
-          className={cn(
-            'absolute inset-0 flex flex-col md:flex-row landscape:flex-row animate-in fade-in duration-500 ease-out',
-            transitionDirection === 'next' ? 'slide-in-from-right-8' : 'slide-in-from-left-8'
-          )}
+          className="absolute inset-0 flex flex-col md:flex-row landscape:flex-row opacity-100 transition-opacity duration-200 ease-out"
         >
         {/* Visual: portrait full width trên; landscape + desktop 45% trái */}
         <div className="w-full md:w-[45%] landscape:w-[45%] min-h-[35vh] md:min-h-0 landscape:min-h-0 md:min-w-[300px] landscape:min-w-[300px] relative overflow-hidden shrink-0" style={{ background: gradient }}>
@@ -1612,7 +1788,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
               )}
             </h2>
             {extractQuizFromSlide(slide).length > 0 ? (
-              <Button variant="outline" size="sm" onClick={() => setQuizPopupOpen(true)} className="shrink-0 border-violet-400 text-violet-700 hover:bg-violet-50 print:hidden mt-2">
+              <Button variant="outline" size="sm" onClick={() => setQuizPopupOpen(true)} className="shrink-0 border-violet-400 text-violet-700 hover:bg-violet-50 print:hidden mt-7">
                 <ClipboardList className="h-4 w-4 mr-1.5" />
                 {tr('Xem câu hỏi trắc nghiệm', 'View quiz', '查看测验', 'クイズを見る', '퀴즈 보기')}
               </Button>

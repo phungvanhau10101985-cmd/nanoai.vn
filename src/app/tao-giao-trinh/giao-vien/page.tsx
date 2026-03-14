@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useEffect, useState, useCallback, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { Timer, Play, Pause, RotateCcw, ChevronLeft, ChevronRight, LayoutGrid, Square, Sparkles, Edit3, Plus, Save, FileText, FileEdit, History, BarChart2, Maximize2, X, ClipboardList, Flag, Presentation, Settings2, MoreVertical, Trash2, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { canSplitBlockAtQuiz, splitContentWithEmbeds, splitBlockContentAtQuizBoundary, parseQuizData, parseContentEmbeds, ContentEmbed, type EmbedType } from '../components/content-embed'
@@ -243,6 +244,7 @@ export default function CurriculumViewPage() {
   const [visualFullscreenOpen, setVisualFullscreenOpen] = useState(false)
   const [teacherExpandedCellIndex, setTeacherExpandedCellIndex] = useState<number | null>(null)
   const [quizPopupOpen, setQuizPopupOpen] = useState(false)
+  const [studentMousePos, setStudentMousePos] = useState<{ x: number; y: number } | null>(null)
   const prevSlideModeRef = useRef<string | null>(null)
   const studentViewWindowRef = useRef<Window | null>(null)
   const [remoteTeacherWritingMode, setRemoteTeacherWritingMode] = useState(false)
@@ -252,6 +254,7 @@ export default function CurriculumViewPage() {
   const pointerThrottleRef = useRef(0)
   const syncSeqRef = useRef(1)
   const syncChannelRef = useRef<BroadcastChannel | null>(null)
+  const quizPopupScrollApplyingRef = useRef(false)
   const sectionRefs = useRef<(HTMLDivElement | null)[]>([])
   const firstMatchRef = useRef<HTMLElement | null>(null)
   const teacherVisualFrameRef = useRef<HTMLDivElement | null>(null)
@@ -437,6 +440,11 @@ export default function CurriculumViewPage() {
       channel.postMessage({ type: 'set-auto-play', value: remoteAutoPlay })
       channel.postMessage({ type: 'set-auto-play-interval', ms: remoteAutoPlayIntervalMs })
       if (visualFullscreenOpen) channel.postMessage({ type: 'visual-fullscreen-open', cellIndex: undefined })
+      channel.postMessage({ type: 'quiz-popup-open', value: quizPopupOpen })
+      if (quizPopupOpen) {
+        const scrollEl = document.querySelector('[data-quiz-popup-scroll]') as HTMLElement | null
+        if (scrollEl) channel.postMessage({ type: 'quiz-popup-scroll', scrollTop: scrollEl.scrollTop })
+      }
     }
     channel.addEventListener('message', onMessage)
     return () => {
@@ -444,7 +452,7 @@ export default function CurriculumViewPage() {
       channel.close()
       if (syncChannelRef.current === channel) syncChannelRef.current = null
     }
-  }, [content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning, remoteTeacherWritingMode, remoteTeacherWritingSpeedMs, remoteAutoPlay, remoteAutoPlayIntervalMs, visualFullscreenOpen])
+  }, [content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning, remoteTeacherWritingMode, remoteTeacherWritingSpeedMs, remoteAutoPlay, remoteAutoPlayIntervalMs, visualFullscreenOpen, quizPopupOpen])
 
   const openTeacherVisualFullscreen = useCallback((cellIndex?: number) => {
     setTeacherExpandedCellIndex(typeof cellIndex === 'number' ? cellIndex : null)
@@ -459,12 +467,82 @@ export default function CurriculumViewPage() {
   }, [sendToStudentView])
 
   useEffect(() => {
+    sendToStudentView({ type: 'quiz-popup-open', value: quizPopupOpen })
+  }, [quizPopupOpen, sendToStudentView])
+
+  useEffect(() => {
+    if (!quizPopupOpen) setStudentMousePos(null)
+  }, [quizPopupOpen])
+
+  useEffect(() => {
+    if (!quizPopupOpen) return
+    let cancelled = false
+    let throttleId: ReturnType<typeof setTimeout> | null = null
+    let lastSent = 0
+    const THROTTLE_MS = 80
+    let scrollEl: HTMLElement | null = null
+    let attached = false
+    const sendScroll = () => {
+      if (!scrollEl || cancelled) return
+      if (quizPopupScrollApplyingRef.current) return
+      const now = Date.now()
+      if (now - lastSent < THROTTLE_MS) {
+        if (throttleId == null) {
+          throttleId = setTimeout(() => {
+            throttleId = null
+            lastSent = Date.now()
+            if (cancelled || !scrollEl || quizPopupScrollApplyingRef.current) return
+            sendToStudentView({ type: 'quiz-popup-scroll', scrollTop: scrollEl!.scrollTop })
+          }, THROTTLE_MS - (now - lastSent))
+        }
+        return
+      }
+      lastSent = now
+      sendToStudentView({ type: 'quiz-popup-scroll', scrollTop: scrollEl!.scrollTop })
+    }
+    const attach = () => {
+      if (cancelled || attached) return
+      const el = document.querySelector('[data-quiz-popup-scroll]') as HTMLElement | null
+      if (!el) return
+      scrollEl = el
+      attached = true
+      sendScroll()
+      el.addEventListener('scroll', sendScroll, { passive: true })
+    }
+    attach()
+    const t1 = setTimeout(attach, 50)
+    const t2 = setTimeout(attach, 150)
+    const t3 = setTimeout(attach, 400)
+    return () => {
+      cancelled = true
+      clearTimeout(t1)
+      clearTimeout(t2)
+      clearTimeout(t3)
+      if (throttleId != null) clearTimeout(throttleId)
+      if (scrollEl) scrollEl.removeEventListener('scroll', sendScroll)
+    }
+  }, [quizPopupOpen, sendToStudentView])
+
+  useEffect(() => {
+    const getQuizPopupRect = () => {
+      const el = document.querySelector('[data-quiz-popup]')
+      return el ? (el as HTMLElement).getBoundingClientRect() : null
+    }
     const sendPointerMove = (e: MouseEvent) => {
       const now = Date.now()
       if (now - pointerThrottleRef.current < 16) return
       pointerThrottleRef.current = now
       const w = window.innerWidth || 1
       const h = window.innerHeight || 1
+      if (quizPopupOpen) {
+        const rect = getQuizPopupRect()
+        if (rect && e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom) {
+          const relX = rect.right - e.clientX
+          const relY = e.clientY - rect.top
+          sendToStudentView({ type: 'mouse-pos', quizPopup: true, relX, relY })
+          return
+        }
+      }
       if (visualFullscreenOpen && teacherVisualFrameRef.current) {
         const frame = teacherVisualFrameRef.current
         const children = Array.from(frame.children) as HTMLElement[]
@@ -525,6 +603,15 @@ export default function CurriculumViewPage() {
     const sendPointerClick = (e: MouseEvent) => {
       const w = window.innerWidth || 1
       const h = window.innerHeight || 1
+      if (quizPopupOpen) {
+        const rect = getQuizPopupRect()
+        if (rect && e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom) {
+          const relX = rect.right - e.clientX
+          const relY = e.clientY - rect.top
+          sendToStudentView({ type: 'mouse-click', quizPopup: true, relX, relY })
+          return
+        }
+      }
       if (visualFullscreenOpen && teacherVisualFrameRef.current) {
         const frame = teacherVisualFrameRef.current
         const children = Array.from(frame.children) as HTMLElement[]
@@ -586,7 +673,7 @@ export default function CurriculumViewPage() {
       window.removeEventListener('mousemove', sendPointerMove)
       window.removeEventListener('mousedown', sendPointerClick)
     }
-  }, [sendToStudentView, visualFullscreenOpen])
+  }, [sendToStudentView, visualFullscreenOpen, quizPopupOpen])
 
   const openStudentView = useCallback(() => {
     const existing = studentViewWindowRef.current
@@ -635,6 +722,11 @@ export default function CurriculumViewPage() {
             existing.postMessage({ type: 'set-teacher-writing-speed', ms: remoteTeacherWritingSpeedMs }, window.location.origin)
             existing.postMessage({ type: 'set-auto-play', value: remoteAutoPlay }, window.location.origin)
             existing.postMessage({ type: 'set-auto-play-interval', ms: remoteAutoPlayIntervalMs }, window.location.origin)
+            existing.postMessage({ type: 'quiz-popup-open', value: quizPopupOpen }, window.location.origin)
+            if (quizPopupOpen) {
+              const scrollEl = document.querySelector('[data-quiz-popup-scroll]') as HTMLElement | null
+              if (scrollEl) existing.postMessage({ type: 'quiz-popup-scroll', scrollTop: scrollEl.scrollTop }, window.location.origin)
+            }
           }
         } catch { /* ignore */ }
       }, 100)
@@ -695,11 +787,16 @@ export default function CurriculumViewPage() {
             w.postMessage({ type: 'set-teacher-writing-speed', ms: remoteTeacherWritingSpeedMs }, window.location.origin)
             w.postMessage({ type: 'set-auto-play', value: remoteAutoPlay }, window.location.origin)
             w.postMessage({ type: 'set-auto-play-interval', ms: remoteAutoPlayIntervalMs }, window.location.origin)
+            w.postMessage({ type: 'quiz-popup-open', value: quizPopupOpen }, window.location.origin)
+            if (quizPopupOpen) {
+              const scrollEl = document.querySelector('[data-quiz-popup-scroll]') as HTMLElement | null
+              if (scrollEl) w.postMessage({ type: 'quiz-popup-scroll', scrollTop: scrollEl.scrollTop }, window.location.origin)
+            }
           }
         } catch { /* ignore */ }
       }, 1000)
     }
-  }, [content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning, remoteTeacherWritingMode, remoteTeacherWritingSpeedMs, remoteAutoPlay, remoteAutoPlayIntervalMs, visualFullscreenOpen])
+  }, [content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning, remoteTeacherWritingMode, remoteTeacherWritingSpeedMs, remoteAutoPlay, remoteAutoPlayIntervalMs, visualFullscreenOpen, quizPopupOpen])
 
   const applyEmbedToSlide = useCallback((sl: SlideItem, marker: string, placement: EmbedPlacement = 'end'): SlideItem => {
     const blocks = (Array.isArray(sl.blocks) && sl.blocks.length > 0) ? sl.blocks : parseContentToBlocks(sl.content ?? '')
@@ -1101,6 +1198,32 @@ export default function CurriculumViewPage() {
       if (e.data?.type === 'visual-fullscreen-close' && e.source === studentViewWindowRef.current) {
         setVisualFullscreenOpen(false)
       }
+      if (e.data?.type === 'slide-go' && typeof e.data?.index === 'number' && e.source === studentViewWindowRef.current) {
+        const idx = Math.max(0, Math.min(e.data.index, slides.length - 1))
+        setCurrentIndex(idx)
+      }
+      if (e.data?.type === 'quiz-popup-scroll' && e.data?.fromStudent && typeof e.data?.scrollTop === 'number' && e.source === studentViewWindowRef.current && quizPopupOpen) {
+        const scrollTop = e.data.scrollTop
+        const el = document.querySelector('[data-quiz-popup-scroll]') as HTMLElement | null
+        if (el && Math.abs(el.scrollTop - scrollTop) > 2) {
+          quizPopupScrollApplyingRef.current = true
+          el.scrollTop = scrollTop
+          setTimeout(() => { quizPopupScrollApplyingRef.current = false }, 80)
+        }
+      }
+      if (e.data?.type === 'mouse-pos' && e.data?.fromStudent && e.source === studentViewWindowRef.current) {
+        if (e.data?.quizPopup && typeof e.data?.relX === 'number' && typeof e.data?.relY === 'number') {
+          const el = document.querySelector('[data-quiz-popup]')
+          const rect = el ? (el as HTMLElement).getBoundingClientRect() : null
+          if (rect) {
+            setStudentMousePos({ x: rect.right - e.data.relX, y: rect.top + e.data.relY })
+          }
+        } else if (typeof e.data?.x === 'number' && typeof e.data?.y === 'number') {
+          const w = window.innerWidth || 1
+          const h = window.innerHeight || 1
+          setStudentMousePos({ x: e.data.x * w, y: e.data.y * h })
+        }
+      }
       if (e.data?.type === 'curriculum-data') {
         setContent(e.data.content ?? '')
         setTopic(e.data.topic ?? '')
@@ -1121,7 +1244,7 @@ export default function CurriculumViewPage() {
     }
     window.addEventListener('message', handler)
     return () => window.removeEventListener('message', handler)
-  }, [content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning])
+  }, [content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning, quizPopupOpen])
 
   useEffect(() => {
     setNotesValue(slides[currentIndex]?.teacherNotes ?? '')
@@ -1265,6 +1388,7 @@ export default function CurriculumViewPage() {
           onScreenShareStop={stopScreenShare}
           isScreenSharing={isScreenSharing}
           hideIndex
+          hideInsert
         />
       </div>
 
@@ -2475,6 +2599,19 @@ export default function CurriculumViewPage() {
           teacherMode
         />
       )}
+      {typeof document !== 'undefined' &&
+        studentMousePos &&
+        createPortal(
+          <div
+            className="fixed z-[115] pointer-events-none transition-all duration-75"
+            style={{ left: studentMousePos.x, top: studentMousePos.y, transform: 'translate(-2px, -2px)' }}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="drop-shadow-lg">
+              <path d="M4 4l7 16 2.5-6 5.5-2.5L4 4z" fill="rgba(34,197,94,0.9)" stroke="rgba(0,0,0,0.5)" strokeWidth="1.2" strokeLinejoin="round" />
+            </svg>
+          </div>,
+          document.body
+        )}
       <Toaster />
     </div>
   )

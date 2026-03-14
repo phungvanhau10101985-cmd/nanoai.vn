@@ -36,7 +36,6 @@ export default function XemManHinhPage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [locale, setLocale] = useState<'vi' | 'en' | 'zh' | 'ja' | 'ko'>('vi')
   const [isPortrait, setIsPortrait] = useState(false)
-  const [dims, setDims] = useState({ w: 0, h: 0 })
   const videoRef = useRef<HTMLVideoElement>(null)
   const channelRef = useRef<RealtimeChannel | null>(null)
   const pcRef = useRef<RTCPeerConnection | null>(null)
@@ -49,8 +48,6 @@ export default function XemManHinhPage() {
     const mq = window.matchMedia('(orientation: portrait)')
     const updateLayout = () => {
       const w = window.innerWidth
-      const h = window.visualViewport?.height ?? window.innerHeight
-      setDims({ w, h })
       setIsPortrait(w < 768 && mq.matches)
     }
     const onOrientationChange = () => {
@@ -197,7 +194,6 @@ export default function XemManHinhPage() {
   return (
     <div
       className="fixed inset-0 z-[9999] bg-black flex flex-col overflow-hidden"
-      style={dims.w && dims.h ? { width: dims.w, height: dims.h } : undefined}
     >
       {isPortrait && (
         <div className="shrink-0 flex items-center justify-center gap-2 py-2 px-3 bg-amber-500/20 border-b border-amber-400/30">

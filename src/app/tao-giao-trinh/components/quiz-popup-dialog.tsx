@@ -89,6 +89,7 @@ export function QuizPopupDialog({
       <DialogPortal>
         <DialogOverlay className={zClass} />
         <DialogPrimitive.Content
+          data-quiz-popup
           className={`fixed left-[50%] top-[50%] flex flex-col w-full max-w-2xl max-h-[85vh] translate-x-[-50%] translate-y-[-50%] border bg-background shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:rounded-lg overflow-hidden ${zClass}`}
         >
           <div className="shrink-0 flex items-start justify-between gap-4 p-6 pb-0 border-b bg-background">
@@ -102,7 +103,7 @@ export function QuizPopupDialog({
               <span className="sr-only">Close</span>
             </DialogClose>
           </div>
-          <div className="flex-1 overflow-y-auto min-h-0 p-6 pt-4">
+          <div data-quiz-popup-scroll className="flex-1 overflow-y-auto min-h-0 p-6 pt-4">
           <QuizErrorBoundary>
           <div className="space-y-6" key={slideContentKey}>
             {hasQuiz ? (
