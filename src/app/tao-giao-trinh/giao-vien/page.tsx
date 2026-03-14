@@ -14,7 +14,6 @@ import { EmbedInsertDialog, type EmbedPlacement } from '../components/embed-inse
 import { PresentationControlBar } from '../components/presentation-control-bar'
 import { QuizPopupDialog, extractQuizFromSlide } from '../components/quiz-popup-dialog'
 import { getSlideProposalsForCurriculum, getSlidesByCurriculumId, resetPersonalToOriginal, saveSlidesToCurriculum, saveUserCustomizedSlides } from '../actions'
-import { useScreenShare } from '../hooks/use-screen-share'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -338,14 +337,6 @@ export default function CurriculumViewPage() {
       /* ignore */
     }
   }, [])
-
-  const { isSharing: isScreenSharing, error: screenShareError, startShare: startScreenShare, stopShare: stopScreenShare } = useScreenShare({
-    role: 'teacher',
-    sendToStudent: sendToStudentView,
-  })
-  useEffect(() => {
-    if (screenShareError) toast({ title: tr('Lỗi chia sẻ màn hình', 'Screen share error', '屏幕共享错误', '画面共有エラー', '화면 공유 오류'), description: screenShareError, variant: 'destructive' })
-  }, [screenShareError, toast, tr])
 
   const sendCurriculumDataToStudent = useCallback((slidesToSend: SlideItem[], currentIndexOverride?: number) => {
     const idx = typeof currentIndexOverride === 'number' ? currentIndexOverride : currentIndex
@@ -1384,9 +1375,6 @@ export default function CurriculumViewPage() {
           slideViewMode={slideViewMode}
           onSlideViewModeChange={(m) => setSlideViewMode(m)}
           onOpenStudentView={slides.length > 0 ? openStudentView : undefined}
-          onScreenShareStart={startScreenShare}
-          onScreenShareStop={stopScreenShare}
-          isScreenSharing={isScreenSharing}
           hideIndex
           hideInsert
         />
