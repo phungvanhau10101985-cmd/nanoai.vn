@@ -40,6 +40,7 @@ export default function XemManHinhPage() {
   const channelRef = useRef<RealtimeChannel | null>(null)
   const pcRef = useRef<RTCPeerConnection | null>(null)
   const sessionIdRef = useRef<string | null>(null)
+  const reconnectIntervalRef = useRef<number | null>(null)
 
   useEffect(() => {
     setLocale(getWebLocale())
@@ -85,6 +86,15 @@ export default function XemManHinhPage() {
     const channelName = `screen-live-${shareCode.trim()}`
     const channel = supabase.channel(channelName)
     channelRef.current = channel
+    const sendRequestOffer = () => {
+      channel.send({ type: 'broadcast', event: 'request-offer', payload: { from: 'viewer' } })
+    }
+    const stopReconnectLoop = () => {
+      if (reconnectIntervalRef.current !== null) {
+        window.clearInterval(reconnectIntervalRef.current)
+        reconnectIntervalRef.current = null
+      }
+    }
 
     const createViewerPeer = (sessionId: string) => {
       pcRef.current?.close()
@@ -98,6 +108,7 @@ export default function XemManHinhPage() {
         if (e.streams[0]) {
           setStream(e.streams[0])
           setStatus('connected')
+          stopReconnectLoop()
         }
       }
 
@@ -132,12 +143,11 @@ export default function XemManHinhPage() {
             },
           })
           setErrorMsg(null)
+          stopReconnectLoop()
         } catch (err) {
           setErrorMsg(err instanceof Error ? err.message : String(err))
           setStatus('connecting')
-          setTimeout(() => {
-            channel.send({ type: 'broadcast', event: 'request-offer', payload: { from: 'viewer' } })
-          }, 300)
+          setTimeout(sendRequestOffer, 300)
         }
       })
       .on('broadcast', { event: 'ice' }, async ({ payload }) => {
@@ -157,14 +167,20 @@ export default function XemManHinhPage() {
       })
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
-          channel.send({ type: 'broadcast', event: 'request-offer', payload: { from: 'viewer' } })
+            sendRequestOffer()
+            stopReconnectLoop()
+            reconnectIntervalRef.current = window.setInterval(() => {
+              sendRequestOffer()
+            }, 1500)
         } else if (status === 'CHANNEL_ERROR') {
           setStatus('error')
           setErrorMsg(tr(locale, 'Không kết nối được. Kiểm tra mã chia sẻ.', 'Connection failed. Check share code.', '连接失败。请检查分享码。', '接続できません。共有コードを確認。', '연결 실패. 공유 코드 확인.'))
+            stopReconnectLoop()
         }
       })
 
     return () => {
+      stopReconnectLoop()
       channel.unsubscribe()
       channelRef.current = null
       sessionIdRef.current = null
