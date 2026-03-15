@@ -44,6 +44,8 @@ export function useScreenShareLive(): UseScreenShareLiveReturn {
   const streamRef = useRef<MediaStream | null>(null)
   const channelRef = useRef<RealtimeChannel | null>(null)
   const sessionIdRef = useRef<string | null>(null)
+  const answerAppliedRef = useRef(false)
+  const lastOfferSentAtRef = useRef(0)
 
   const stopShare = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop())
@@ -51,6 +53,8 @@ export function useScreenShareLive(): UseScreenShareLiveReturn {
     pcRef.current?.close()
     pcRef.current = null
     sessionIdRef.current = null
+    answerAppliedRef.current = false
+    lastOfferSentAtRef.current = 0
     channelRef.current?.unsubscribe()
     channelRef.current = null
     setShareCode(null)
@@ -87,6 +91,7 @@ export function useScreenShareLive(): UseScreenShareLiveReturn {
         const currentPc = pcRef.current
         const currentSessionId = sessionIdRef.current
         if (!currentChannel || !currentPc?.localDescription || !currentSessionId) return
+        lastOfferSentAtRef.current = Date.now()
         currentChannel.send({
           type: 'broadcast',
           event: 'offer',
@@ -103,6 +108,7 @@ export function useScreenShareLive(): UseScreenShareLiveReturn {
         if (!currentStream || !currentChannel) return
         const sessionId = crypto.randomUUID()
         sessionIdRef.current = sessionId
+        answerAppliedRef.current = false
         pcRef.current?.close()
         const pc = createPeerConnection(
           () => {},
@@ -124,7 +130,16 @@ export function useScreenShareLive(): UseScreenShareLiveReturn {
       channel
         .on('broadcast', { event: 'answer' }, ({ payload }) => {
           if (payload?.from === 'viewer' && payload?.sdp && payload?.sessionId === sessionIdRef.current) {
-            pcRef.current?.setRemoteDescription(new RTCSessionDescription(payload.sdp))
+            pcRef.current
+              ?.setRemoteDescription(new RTCSessionDescription(payload.sdp))
+              .then(() => {
+                answerAppliedRef.current = true
+              })
+              .catch(() => {
+                // Khi viewer vào lại, remoteDescription cũ có thể ở state không hợp lệ.
+                // Tạo offer mới để renegotiate sạch.
+                void createAndSendOffer()
+              })
           }
         })
         .on('broadcast', { event: 'ice' }, async ({ payload }) => {
@@ -133,6 +148,15 @@ export function useScreenShareLive(): UseScreenShareLiveReturn {
           }
         })
         .on('broadcast', { event: 'request-offer' }, () => {
+          if (answerAppliedRef.current) {
+            const elapsed = Date.now() - lastOfferSentAtRef.current
+            if (elapsed > 1200) {
+              void createAndSendOffer()
+            } else {
+              sendCurrentOffer()
+            }
+            return
+          }
           if (pcRef.current?.localDescription && sessionIdRef.current) {
             sendCurrentOffer()
             return
