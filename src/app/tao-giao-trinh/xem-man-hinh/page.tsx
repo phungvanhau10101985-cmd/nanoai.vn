@@ -39,6 +39,7 @@ export default function XemManHinhPage() {
   const videoRef = useRef<HTMLVideoElement>(null)
   const channelRef = useRef<RealtimeChannel | null>(null)
   const pcRef = useRef<RTCPeerConnection | null>(null)
+  const sessionIdRef = useRef<string | null>(null)
 
   useEffect(() => {
     setLocale(getWebLocale())
@@ -85,32 +86,39 @@ export default function XemManHinhPage() {
     const channel = supabase.channel(channelName)
     channelRef.current = channel
 
-    const pc = new RTCPeerConnection({
-      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
-    })
-    pcRef.current = pc
+    const createViewerPeer = (sessionId: string) => {
+      pcRef.current?.close()
+      const pc = new RTCPeerConnection({
+        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+      })
+      pcRef.current = pc
+      sessionIdRef.current = sessionId
 
-    pc.ontrack = (e) => {
-      if (e.streams[0]) {
-        setStream(e.streams[0])
-        setStatus('connected')
+      pc.ontrack = (e) => {
+        if (e.streams[0]) {
+          setStream(e.streams[0])
+          setStatus('connected')
+        }
       }
-    }
 
-    pc.onicecandidate = (e) => {
-      if (e.candidate) {
-        channel.send({
-          type: 'broadcast',
-          event: 'ice',
-          payload: { from: 'viewer', candidate: e.candidate.toJSON() },
-        })
+      pc.onicecandidate = (e) => {
+        if (e.candidate) {
+          channel.send({
+            type: 'broadcast',
+            event: 'ice',
+            payload: { from: 'viewer', sessionId, candidate: e.candidate.toJSON() },
+          })
+        }
       }
+      return pc
     }
 
     channel
       .on('broadcast', { event: 'offer' }, async ({ payload }) => {
-        if (payload?.from !== 'sharer' || !payload?.sdp) return
+        if (payload?.from !== 'sharer' || !payload?.sdp || !payload?.sessionId) return
         try {
+          const sessionId = String(payload.sessionId)
+          const pc = createViewerPeer(sessionId)
           await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp))
           const answer = await pc.createAnswer()
           await pc.setLocalDescription(answer)
@@ -119,16 +127,27 @@ export default function XemManHinhPage() {
             event: 'answer',
             payload: {
               from: 'viewer',
+              sessionId,
               sdp: pc.localDescription?.toJSON(),
             },
           })
+          setErrorMsg(null)
         } catch (err) {
           setErrorMsg(err instanceof Error ? err.message : String(err))
-          setStatus('error')
+          setStatus('connecting')
+          setTimeout(() => {
+            channel.send({ type: 'broadcast', event: 'request-offer', payload: { from: 'viewer' } })
+          }, 300)
         }
       })
       .on('broadcast', { event: 'ice' }, async ({ payload }) => {
-        if (payload?.from === 'sharer' && payload?.candidate && pcRef.current) {
+        if (
+          payload?.from === 'sharer'
+          && payload?.candidate
+          && payload?.sessionId
+          && payload.sessionId === sessionIdRef.current
+          && pcRef.current
+        ) {
           try {
             await pcRef.current.addIceCandidate(new RTCIceCandidate(payload.candidate))
           } catch {
@@ -148,7 +167,8 @@ export default function XemManHinhPage() {
     return () => {
       channel.unsubscribe()
       channelRef.current = null
-      pc.close()
+      sessionIdRef.current = null
+      pcRef.current?.close()
       pcRef.current = null
     }
   }, [shareCode, locale])

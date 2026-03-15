@@ -43,12 +43,14 @@ export function useScreenShareLive(): UseScreenShareLiveReturn {
   const pcRef = useRef<RTCPeerConnection | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const channelRef = useRef<RealtimeChannel | null>(null)
+  const sessionIdRef = useRef<string | null>(null)
 
   const stopShare = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop())
     streamRef.current = null
     pcRef.current?.close()
     pcRef.current = null
+    sessionIdRef.current = null
     channelRef.current?.unsubscribe()
     channelRef.current = null
     setShareCode(null)
@@ -80,51 +82,55 @@ export function useScreenShareLive(): UseScreenShareLiveReturn {
       const channelName = `screen-live-${code}`
       const channel = supabase.channel(channelName)
       channelRef.current = channel
-
-      const pc = createPeerConnection(
-        () => {},
-        (candidate) => {
-          channel.send({
-            type: 'broadcast',
-            event: 'ice',
-            payload: { from: 'sharer', candidate: candidate.toJSON() },
-          })
-        }
-      )
-      pcRef.current = pc
-
-      stream.getTracks().forEach((t) => pc.addTrack(t, stream))
-      const offer = await pc.createOffer()
-      await pc.setLocalDescription(offer)
-
-      const sendOffer = () => {
-        channel.send({
+      const createAndSendOffer = async () => {
+        const currentStream = streamRef.current
+        const currentChannel = channelRef.current
+        if (!currentStream || !currentChannel) return
+        const sessionId = crypto.randomUUID()
+        sessionIdRef.current = sessionId
+        pcRef.current?.close()
+        const pc = createPeerConnection(
+          () => {},
+          (candidate) => {
+            currentChannel.send({
+              type: 'broadcast',
+              event: 'ice',
+              payload: { from: 'sharer', sessionId, candidate: candidate.toJSON() },
+            })
+          }
+        )
+        pcRef.current = pc
+        currentStream.getTracks().forEach((t) => pc.addTrack(t, currentStream))
+        const offer = await pc.createOffer()
+        await pc.setLocalDescription(offer)
+        currentChannel.send({
           type: 'broadcast',
           event: 'offer',
           payload: {
             from: 'sharer',
-            sdp: pcRef.current?.localDescription?.toJSON(),
+            sessionId,
+            sdp: pc.localDescription?.toJSON(),
           },
         })
       }
 
       channel
         .on('broadcast', { event: 'answer' }, ({ payload }) => {
-          if (payload?.from === 'viewer' && payload?.sdp) {
+          if (payload?.from === 'viewer' && payload?.sdp && payload?.sessionId === sessionIdRef.current) {
             pcRef.current?.setRemoteDescription(new RTCSessionDescription(payload.sdp))
           }
         })
         .on('broadcast', { event: 'ice' }, async ({ payload }) => {
-          if (payload?.from === 'viewer' && payload?.candidate && pcRef.current) {
+          if (payload?.from === 'viewer' && payload?.candidate && payload?.sessionId === sessionIdRef.current && pcRef.current) {
             await pcRef.current.addIceCandidate(new RTCIceCandidate(payload.candidate))
           }
         })
         .on('broadcast', { event: 'request-offer' }, () => {
-          sendOffer()
+          void createAndSendOffer()
         })
         .subscribe((status) => {
           if (status === 'SUBSCRIBED') {
-            sendOffer()
+            void createAndSendOffer()
             setIsSharing(true)
           }
         })
