@@ -82,6 +82,21 @@ export function useScreenShareLive(): UseScreenShareLiveReturn {
       const channelName = `screen-live-${code}`
       const channel = supabase.channel(channelName)
       channelRef.current = channel
+      const sendCurrentOffer = () => {
+        const currentChannel = channelRef.current
+        const currentPc = pcRef.current
+        const currentSessionId = sessionIdRef.current
+        if (!currentChannel || !currentPc?.localDescription || !currentSessionId) return
+        currentChannel.send({
+          type: 'broadcast',
+          event: 'offer',
+          payload: {
+            from: 'sharer',
+            sessionId: currentSessionId,
+            sdp: currentPc.localDescription.toJSON(),
+          },
+        })
+      }
       const createAndSendOffer = async () => {
         const currentStream = streamRef.current
         const currentChannel = channelRef.current
@@ -103,15 +118,7 @@ export function useScreenShareLive(): UseScreenShareLiveReturn {
         currentStream.getTracks().forEach((t) => pc.addTrack(t, currentStream))
         const offer = await pc.createOffer()
         await pc.setLocalDescription(offer)
-        currentChannel.send({
-          type: 'broadcast',
-          event: 'offer',
-          payload: {
-            from: 'sharer',
-            sessionId,
-            sdp: pc.localDescription?.toJSON(),
-          },
-        })
+        sendCurrentOffer()
       }
 
       channel
@@ -126,6 +133,10 @@ export function useScreenShareLive(): UseScreenShareLiveReturn {
           }
         })
         .on('broadcast', { event: 'request-offer' }, () => {
+          if (pcRef.current?.localDescription && sessionIdRef.current) {
+            sendCurrentOffer()
+            return
+          }
           void createAndSendOffer()
         })
         .subscribe((status) => {
