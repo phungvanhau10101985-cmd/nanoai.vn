@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState, useCallback, useRef } from 'react'
+import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { Timer, Play, Pause, RotateCcw, ChevronLeft, ChevronRight, LayoutGrid, Square, Sparkles, Edit3, Plus, Save, FileText, FileEdit, History, BarChart2, Maximize2, X, ClipboardList, Flag, Presentation, Settings2, MoreVertical, Trash2, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -276,6 +276,12 @@ export default function CurriculumViewPage() {
   // Màn hình đủ rộng giữ 2 cột; chỉ khi rất hẹp mới ưu tiên cột phải.
   const clipLeft = viewportW < 900
   const isMobile = viewportW < 768
+  const currentVisualHasAny = useMemo(() => {
+    const s = slides[currentIndex]
+    if (!s) return false
+    const { cells } = getVisualCells(s)
+    return cells.some((c) => c.visualEmbed || c.imageUrl)
+  }, [slides, currentIndex])
 
   const tr = (vi: string, en: string, zh: string, ja: string, ko: string) => {
     if (uiLocale === 'en') return en
@@ -1002,66 +1008,69 @@ export default function CurriculumViewPage() {
   }, [currentIndex])
 
   const sendMergeSlides = useCallback((index: number) => {
-    setSlides((prev) => {
-      if (index < 0 || index >= prev.length - 1) return prev
-      const a = prev[index]
-      const b = prev[index + 1]
-      const merged: SlideItem = {
-        ...a,
-        blocks: [...(a.blocks ?? []), ...(b.blocks ?? [])],
-        teacherNotes: (a.teacherNotes || '') + (b.teacherNotes ? '\n\n' + b.teacherNotes : ''),
-      }
-      const next = [...prev.slice(0, index), merged, ...prev.slice(index + 2)]
-      if (curriculumId) void persistSlidesRef.current(next)
-      if (window.opener) window.opener.postMessage({ type: 'merge-slides', index }, window.location.origin)
-      try {
-        const w = studentViewWindowRef.current
-        if (w && !w.closed) w.postMessage({ type: 'merge-slides', index }, window.location.origin)
-      } catch { /* ignore */ }
-      return next
-    })
-    setCurrentIndex((i) => (i === index + 1 ? index : i > index + 1 ? i - 1 : i))
+    if (index < 0 || index >= slides.length - 1) return
+    const a = slides[index]
+    const b = slides[index + 1]
+    const merged: SlideItem = {
+      ...a,
+      blocks: [...(a.blocks ?? []), ...(b.blocks ?? [])],
+      teacherNotes: (a.teacherNotes || '') + (b.teacherNotes ? '\n\n' + b.teacherNotes : ''),
+    }
+    const next = [...slides.slice(0, index), merged, ...slides.slice(index + 2)]
+    const nextCurrentIndex = currentIndex === index + 1 ? index : currentIndex > index + 1 ? currentIndex - 1 : currentIndex
+
+    setSlides(next)
+    setCurrentIndex(nextCurrentIndex)
+    if (curriculumId) void persistSlidesRef.current(next)
+    if (window.opener) window.opener.postMessage({ type: 'merge-slides', index }, window.location.origin)
+    try {
+      const w = studentViewWindowRef.current
+      if (w && !w.closed) w.postMessage({ type: 'merge-slides', index }, window.location.origin)
+    } catch { /* ignore */ }
+    // Đồng bộ full state sau khi gộp để giao diện học sinh không bị lệch slide.
+    sendCurriculumDataToStudent(next, nextCurrentIndex)
     toast({ title: tr('Đã gộp 2 slide', 'Merged 2 slides', '已合并2张幻灯片', '2スライドを結合', '2개 슬라이드 병합'), duration: 1500 })
-  }, [curriculumId, toast, tr])
+  }, [slides, currentIndex, curriculumId, sendCurriculumDataToStudent, toast, tr])
 
   const sendSplitSlide = useCallback((index: number, splitAtBlock: number) => {
-    let nextIndex = index
-    setSlides((prev) => {
-      const s = prev[index]
-      const blks = Array.isArray(s?.blocks) ? s.blocks : (s?.content ? parseContentToBlocks(s.content) : [])
-      let firstBlocks: typeof blks
-      let secondBlocks: typeof blks
-      let secondHeader: string
-      if (splitAtBlock === -1 && blks.length === 1) {
-        const singleBlock = blks[0]
-        const content = singleBlock?.content ?? ''
-        const split = splitBlockContentAtQuizBoundary(content)
-        if (!split) return prev
-        firstBlocks = [{ header: singleBlock?.header ?? 'Nội dung', content: split.before }]
-        secondBlocks = [{ header: singleBlock?.header ?? s.title, content: split.after }]
-        secondHeader = singleBlock?.header ?? s.title
-      } else if (splitAtBlock >= 0 && splitAtBlock < blks.length - 1) {
-        firstBlocks = blks.slice(0, splitAtBlock + 1)
-        secondBlocks = blks.slice(splitAtBlock + 1)
-        secondHeader = secondBlocks[0]?.header ?? s.title
-      } else {
-        return prev
-      }
-      const slide1: SlideItem = { ...s, blocks: firstBlocks }
-      const slide2: SlideItem = { ...s, title: secondHeader, blocks: secondBlocks, teacherNotes: '', imageUrl: undefined, visualEmbed: undefined, visualLayout: undefined, visualCells: undefined }
-      const next = [...prev.slice(0, index), slide1, slide2, ...prev.slice(index + 1)]
-      if (curriculumId) void persistSlidesRef.current(next)
-      if (window.opener) window.opener.postMessage({ type: 'split-slide', index, splitAtBlock }, window.location.origin)
-      try {
-        const w = studentViewWindowRef.current
-        if (w && !w.closed) w.postMessage({ type: 'split-slide', index, splitAtBlock }, window.location.origin)
-      } catch { /* ignore */ }
-      return next
-    })
-    setCurrentIndex((i) => (i > index ? i + 1 : i))
+    const s = slides[index]
+    const blks = Array.isArray(s?.blocks) ? s.blocks : (s?.content ? parseContentToBlocks(s.content) : [])
+    let firstBlocks: typeof blks
+    let secondBlocks: typeof blks
+    let secondHeader: string
+    if (splitAtBlock === -1 && blks.length === 1) {
+      const singleBlock = blks[0]
+      const content = singleBlock?.content ?? ''
+      const split = splitBlockContentAtQuizBoundary(content)
+      if (!split) return
+      firstBlocks = [{ header: singleBlock?.header ?? 'Nội dung', content: split.before }]
+      secondBlocks = [{ header: singleBlock?.header ?? s.title, content: split.after }]
+      secondHeader = singleBlock?.header ?? s.title
+    } else if (splitAtBlock >= 0 && splitAtBlock < blks.length - 1) {
+      firstBlocks = blks.slice(0, splitAtBlock + 1)
+      secondBlocks = blks.slice(splitAtBlock + 1)
+      secondHeader = secondBlocks[0]?.header ?? s.title
+    } else {
+      return
+    }
+    const slide1: SlideItem = { ...s, blocks: firstBlocks }
+    const slide2: SlideItem = { ...s, title: secondHeader, blocks: secondBlocks, teacherNotes: '', imageUrl: undefined, visualEmbed: undefined, visualLayout: undefined, visualCells: undefined }
+    const next = [...slides.slice(0, index), slide1, slide2, ...slides.slice(index + 1)]
+    const nextCurrentIndex = currentIndex > index ? currentIndex + 1 : currentIndex
+
+    setSlides(next)
+    setCurrentIndex(nextCurrentIndex)
+    if (curriculumId) void persistSlidesRef.current(next)
+    if (window.opener) window.opener.postMessage({ type: 'split-slide', index, splitAtBlock }, window.location.origin)
+    try {
+      const w = studentViewWindowRef.current
+      if (w && !w.closed) w.postMessage({ type: 'split-slide', index, splitAtBlock }, window.location.origin)
+    } catch { /* ignore */ }
+    // Đồng bộ full state sau khi tách để giao diện học sinh cập nhật đúng danh sách slide.
+    sendCurriculumDataToStudent(next, nextCurrentIndex)
     setSplitAtBlock(null)
     toast({ title: tr('Đã tách slide', 'Split slide', '已拆分幻灯片', 'スライドを分割', '슬라이드 분할'), duration: 1500 })
-  }, [curriculumId, toast, tr])
+  }, [slides, currentIndex, curriculumId, sendCurriculumDataToStudent, toast, tr])
 
   /** splitAtBlock: -1 = tách tại ranh giới quiz (khi 1 block có quiz + nội dung sau) */
   const sendSplitAtQuiz = useCallback((index: number) => {
@@ -1608,76 +1617,72 @@ export default function CurriculumViewPage() {
       ) : (
         <div className={cn('flex-1 flex min-h-0 overflow-hidden isolate shrink-0 w-full', clipLeft ? 'flex-row flex-nowrap' : 'flex-col md:flex-row landscape:flex-row')}>
           <div className={cn('shrink-0 flex flex-col overflow-hidden isolate bg-slate-900/20 border-r border-slate-700/60 w-full md:w-1/2 landscape:w-1/2', leftPanelMode === 'visual' && 'md:w-[45%] landscape:w-[45%]', clipLeft && 'hidden')}>
-            {leftPanelMode !== 'visual' && (
-              <div className="h-12 px-3 md:px-4 text-slate-400 text-xs font-medium uppercase tracking-wider border-b border-slate-700/60 bg-slate-900/30 shrink-0 flex items-center justify-between gap-2 overflow-hidden">
-                <span>{tr('Giáo trình', 'Curriculum', '课程', 'カリキュラム', '교육과정')}</span>
-                <div className="flex items-center gap-2">
-                  {(leftPanelMode === 'curriculum') && extractQuizFromSlide(slides[currentIndex] ?? {}).length > 0 && (
+            <div className="h-12 px-3 md:px-4 text-slate-400 text-xs font-medium uppercase tracking-wider border-b border-slate-700/60 bg-slate-900/30 shrink-0 flex items-center justify-between gap-2 overflow-hidden">
+              <span>{tr('Giáo trình', 'Curriculum', '课程', 'カリキュラム', '교육과정')}</span>
+              <div className={cn('flex items-center gap-2', leftPanelMode === 'visual' ? 'mr-[1px]' : 'mr-[55px]')}>
+                {(leftPanelMode === 'curriculum') && extractQuizFromSlide(slides[currentIndex] ?? {}).length > 0 && (
+                  <button
+                    type="button"
+                    onClick={openQuizPopupFresh}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-violet-500/20 border border-violet-400/40 text-violet-300 hover:bg-violet-500/30 text-[11px] font-medium transition-colors"
+                    title={tr('Mở quiz: thời gian, đồng hồ cát, thống kê', 'Open quiz: duration, timer, stats', '打开测验：时间、沙漏、统计', 'クイズを開く：時間・砂時計・統計', '퀴즈 열기: 시간·모래시계·통계')}
+                  >
+                    <ClipboardList className="h-3.5 w-3.5" />
+                    {tr('Mở quiz', 'Open quiz', '打开测验', 'クイズを開く', '퀴즈 열기')}
+                  </button>
+                )}
+                <div className="flex rounded-lg border border-slate-600/80 overflow-hidden bg-slate-800/50">
+                  <button type="button" onClick={() => setLeftPanelMode('curriculum')} className={['px-3 py-1.5 text-[11px] font-medium transition-colors h-8 flex items-center', leftPanelMode === 'curriculum' ? 'bg-amber-500/30 text-amber-300' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'].join(' ')}>
+                    {tr('Giáo trình', 'Curriculum', '课程', 'カリキュラム', '교육과정')}
+                  </button>
+                  <button type="button" onClick={() => setLeftPanelMode('visual')} className={['px-3 py-1.5 text-[11px] font-medium transition-colors h-8 flex items-center', (leftPanelMode as string) === 'visual' ? 'bg-amber-500/30 text-amber-300' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'].join(' ')}>
+                    {tr('Visual', 'Visual', '视觉', 'ビジュアル', '비주얼')}
+                  </button>
+                  {currentVisualHasAny && (
                     <button
                       type="button"
-                      onClick={openQuizPopupFresh}
-                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-violet-500/20 border border-violet-400/40 text-violet-300 hover:bg-violet-500/30 text-[11px] font-medium transition-colors"
-                      title={tr('Mở quiz: thời gian, đồng hồ cát, thống kê', 'Open quiz: duration, timer, stats', '打开测验：时间、沙漏、统计', 'クイズを開く：時間・砂時計・統計', '퀴즈 열기: 시간·모래시계·통계')}
+                      onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); openTeacherVisualFullscreen() }}
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); openTeacherVisualFullscreen() }}
+                      className={cn(
+                        'py-1.5 text-[11px] text-slate-200 hover:bg-slate-700/50 border-l border-slate-600/70 h-8 flex items-center',
+                        leftPanelMode === 'curriculum' ? 'px-2.5' : 'px-3'
+                      )}
+                      title={tr('Mở rộng tất cả', 'Expand all', '展开全部', 'すべて展開', '모두 확장')}
                     >
-                      <ClipboardList className="h-3.5 w-3.5" />
-                      {tr('Mở quiz', 'Open quiz', '打开测验', 'クイズを開く', '퀴즈 열기')}
+                      <Maximize2 className="h-3.5 w-3.5" />
                     </button>
                   )}
-                  <div className="flex rounded-lg border border-slate-600/80 overflow-hidden bg-slate-800/50">
-                    <button type="button" onClick={() => setLeftPanelMode('curriculum')} className={['px-3 py-1.5 text-[11px] font-medium transition-colors h-8 flex items-center', leftPanelMode === 'curriculum' ? 'bg-amber-500/30 text-amber-300' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'].join(' ')}>
-                      {tr('Giáo trình', 'Curriculum', '课程', 'カリキュラム', '교육과정')}
-                    </button>
-                    <button type="button" onClick={() => setLeftPanelMode('visual')} className={['px-3 py-1.5 text-[11px] font-medium transition-colors h-8 flex items-center', (leftPanelMode as string) === 'visual' ? 'bg-amber-500/30 text-amber-300' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'].join(' ')}>
-                      {tr('Visual', 'Visual', '视觉', 'ビジュアル', '비주얼')}
-                    </button>
-                  </div>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button type="button" className="px-3 py-1.5 text-slate-300 hover:bg-slate-700/50 border-l border-slate-600/70 h-8 flex items-center" title={tr('Tùy chọn', 'Options', '选项', 'オプション', '옵션')}>
+                        <MoreVertical className="h-3.5 w-3.5" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="z-[120]">
+                      <DropdownMenuItem onClick={() => { setEmbedDialogInitialMode('replaceImage'); setEmbedReplaceContext(null); setEmbedDialogOpen(true) }} className="cursor-pointer gap-3">
+                        <RefreshCw className="h-4 w-4 shrink-0" />
+                        {tr('Thay', 'Replace', '替换', '差し替え', '교체')}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleDeleteVisual()} disabled={!currentVisualHasAny} className="text-rose-600 focus:text-rose-600 dark:text-rose-400 cursor-pointer gap-3">
+                        <Trash2 className="h-4 w-4 shrink-0" />
+                        {tr('Xóa visual', 'Delete visual', '删除视觉', 'ビジュアル削除', '비주얼 삭제')}
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </div>
-            )}
+            </div>
             <div className={cn('flex-1 overflow-y-scroll overflow-x-hidden overscroll-y-contain p-4 space-y-3 pr-2 scroll-smooth min-h-0 text-left', (leftPanelMode as string) === 'visual' && 'p-0 pr-0 space-y-0 overflow-hidden')}>
               {leftPanelMode === 'visual' ? (
                 (() => {
                   const s = slides[currentIndex]
                   if (!s) return <p className="text-slate-500 text-sm">{tr('Không có slide', 'No slide', '无幻灯片', 'スライドなし', '슬라이드 없음')}</p>
                   const { layout, cells } = getVisualCells(s)
-                  const hasAny = cells.some((c) => c.visualEmbed || c.imageUrl)
                   const slideNum = currentIndex + 1
                   const gradient = DARK_GRADIENTS[currentIndex % DARK_GRADIENTS.length]
                   const gridClass = layout === 2 ? 'grid grid-rows-2 gap-1' : layout === 4 ? 'grid grid-cols-2 grid-rows-2 gap-1' : ''
                   return (
                     <div className="h-full w-full relative overflow-hidden" style={{ background: gradient }}>
-                      <div className="absolute top-3 right-3 z-20 flex items-center rounded-lg border border-slate-600/80 overflow-hidden bg-slate-900/70">
-                        <button type="button" onClick={() => setLeftPanelMode('curriculum')} className="px-2 py-1 text-[10px] text-slate-300 hover:bg-slate-700/50">{tr('Giáo trình', 'Curriculum', '课程', 'カリキュラム', '교육과정')}</button>
-                        <button type="button" onClick={() => setLeftPanelMode('visual')} className="px-2 py-1 text-[10px] bg-amber-500/30 text-amber-300">{tr('Visual', 'Visual', '视觉', 'ビジュアル', '비주얼')}</button>
-                        {hasAny && (
-                          <button
-                            type="button"
-                            onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); openTeacherVisualFullscreen() }}
-                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); openTeacherVisualFullscreen() }}
-                            className="px-2 py-1 text-[10px] text-slate-200 hover:bg-slate-700/50 border-l border-slate-600/70"
-                            title={tr('Mở rộng tất cả', 'Expand all', '展开全部', 'すべて展開', '모두 확장')}
-                          >
-                            <Maximize2 className="h-3 w-3" />
-                          </button>
-                        )}
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <button type="button" className="px-2 py-1 text-slate-300 hover:bg-slate-700/50 border-l border-slate-600/70" title={tr('Tùy chọn', 'Options', '选项', 'オプション', '옵션')}>
-                              <MoreVertical className="h-3.5 w-3.5" />
-                            </button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="z-[120]">
-                            <DropdownMenuItem onClick={() => { setEmbedDialogInitialMode('replaceImage'); setEmbedReplaceContext(null); setEmbedDialogOpen(true) }} className="cursor-pointer gap-3">
-                              <RefreshCw className="h-4 w-4 shrink-0" />
-                              {tr('Thay', 'Replace', '替换', '差し替え', '교체')}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleDeleteVisual()} disabled={!hasAny} className="text-rose-600 focus:text-rose-600 dark:text-rose-400 cursor-pointer gap-3">
-                              <Trash2 className="h-4 w-4 shrink-0" />
-                              {tr('Xóa visual', 'Delete visual', '删除视觉', 'ビジュアル削除', '비주얼 삭제')}
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
                       <div className="absolute top-4 left-4 w-9 h-9 rounded-full bg-red-500 flex items-center justify-center text-white font-bold text-sm shadow-lg z-10">
                         {slideNum}
                       </div>
