@@ -78,6 +78,33 @@ export function useScreenShare(options: UseScreenShareOptions): UseScreenShareRe
     [openerWindow]
   )
 
+  const createTeacherOffer = useCallback(async (stream: MediaStream) => {
+    pcRef.current?.close()
+    const sessionId = crypto.randomUUID()
+    sessionIdRef.current = sessionId
+
+    const pc = createPeerConnection(
+      () => {},
+      (candidate) => {
+        postToChannel({ type: 'screen-share-ice', sessionId, candidate: candidate.toJSON() })
+        postToStudent({ type: 'screen-share-ice', sessionId, candidate: candidate.toJSON() })
+      }
+    )
+    pcRef.current = pc
+
+    stream.getTracks().forEach((t) => pc.addTrack(t, stream))
+    const offer = await pc.createOffer()
+    await pc.setLocalDescription(offer)
+
+    const payload = {
+      type: 'screen-share-offer',
+      sessionId,
+      sdp: pc.localDescription?.toJSON(),
+    }
+    postToChannel(payload)
+    postToStudent(payload)
+  }, [postToChannel, postToStudent])
+
   const stopShare = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop())
     streamRef.current = null
@@ -105,37 +132,14 @@ export function useScreenShare(options: UseScreenShareOptions): UseScreenShareRe
         stopShare()
         onStreamEnded?.()
       }
-
-      const sessionId = crypto.randomUUID()
-      sessionIdRef.current = sessionId
-
-      const pc = createPeerConnection(
-        () => {},
-        (candidate) => {
-          postToChannel({ type: 'screen-share-ice', sessionId, candidate: candidate.toJSON() })
-          postToStudent({ type: 'screen-share-ice', sessionId, candidate: candidate.toJSON() })
-        }
-      )
-      pcRef.current = pc
-
-      stream.getTracks().forEach((t) => pc.addTrack(t, stream))
-      const offer = await pc.createOffer()
-      await pc.setLocalDescription(offer)
-
-      const payload = {
-        type: 'screen-share-offer',
-        sessionId,
-        sdp: pc.localDescription?.toJSON(),
-      }
-      postToChannel(payload)
-      postToStudent(payload)
+      await createTeacherOffer(stream)
       setIsSharing(true)
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       setError(msg)
       stopShare()
     }
-  }, [role, stopShare, postToChannel, postToStudent, onStreamEnded])
+  }, [role, stopShare, createTeacherOffer, onStreamEnded])
 
   useEffect(() => {
     if (typeof BroadcastChannel === 'undefined') return
@@ -189,7 +193,11 @@ export function useScreenShare(options: UseScreenShareOptions): UseScreenShareRe
       }
 
       if (role === 'teacher') {
-        if (d.type === 'screen-share-answer' && d.sessionId === sessionIdRef.current && d.sdp) {
+        if (d.type === 'screen-share-request-offer') {
+          if (streamRef.current) {
+            await createTeacherOffer(streamRef.current)
+          }
+        } else if (d.type === 'screen-share-answer' && d.sessionId === sessionIdRef.current && d.sdp) {
           await pcRef.current?.setRemoteDescription(new RTCSessionDescription(d.sdp))
         } else if (d.type === 'screen-share-ice' && d.sessionId === sessionIdRef.current && d.candidate) {
           await pcRef.current?.addIceCandidate(new RTCIceCandidate(d.candidate))
@@ -203,7 +211,7 @@ export function useScreenShare(options: UseScreenShareOptions): UseScreenShareRe
       channel.close()
       channelRef.current = null
     }
-  }, [role, postToChannel, postToOpener, onStreamReceived, onStreamEnded])
+  }, [role, postToChannel, postToOpener, onStreamReceived, onStreamEnded, createTeacherOffer])
 
   useEffect(() => {
     const handleMessage = (e: MessageEvent) => {
@@ -259,7 +267,11 @@ export function useScreenShare(options: UseScreenShareOptions): UseScreenShareRe
       }
 
       if (role === 'teacher') {
-        if (d.type === 'screen-share-answer' && d.sessionId === sessionIdRef.current && d.sdp) {
+        if (d.type === 'screen-share-request-offer') {
+          if (streamRef.current) {
+            void createTeacherOffer(streamRef.current)
+          }
+        } else if (d.type === 'screen-share-answer' && d.sessionId === sessionIdRef.current && d.sdp) {
           pcRef.current?.setRemoteDescription(new RTCSessionDescription(d.sdp))
         } else if (d.type === 'screen-share-ice' && d.sessionId === sessionIdRef.current && d.candidate) {
           pcRef.current?.addIceCandidate(new RTCIceCandidate(d.candidate))
@@ -269,7 +281,32 @@ export function useScreenShare(options: UseScreenShareOptions): UseScreenShareRe
 
     window.addEventListener('message', handleMessage)
     return () => window.removeEventListener('message', handleMessage)
-  }, [role, postToChannel, onStreamReceived, onStreamEnded])
+  }, [role, postToChannel, onStreamReceived, onStreamEnded, createTeacherOffer])
+
+  const requestLatestOffer = useCallback(() => {
+    if (role !== 'student') return
+    const payload = { type: 'screen-share-request-offer' as const }
+    postToChannel(payload)
+    postToOpener(payload)
+  }, [role, postToChannel, postToOpener])
+
+  useEffect(() => {
+    if (role !== 'student') return
+    const t1 = window.setTimeout(requestLatestOffer, 50)
+    const t2 = window.setTimeout(requestLatestOffer, 450)
+    const onFocus = () => requestLatestOffer()
+    const onVisibility = () => {
+      if (!document.hidden) requestLatestOffer()
+    }
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => {
+      window.clearTimeout(t1)
+      window.clearTimeout(t2)
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
+  }, [role, requestLatestOffer])
 
   return {
     isSharing,
