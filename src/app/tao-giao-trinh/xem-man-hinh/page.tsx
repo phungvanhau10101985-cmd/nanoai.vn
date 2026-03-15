@@ -39,6 +39,10 @@ export default function XemManHinhPage() {
   const videoRef = useRef<HTMLVideoElement>(null)
   const channelRef = useRef<RealtimeChannel | null>(null)
   const pcRef = useRef<RTCPeerConnection | null>(null)
+  const sessionIdRef = useRef<string | null>(null)
+  const viewerIdRef = useRef<string>(crypto.randomUUID())
+  const requestOfferNowRef = useRef<() => void>(() => {})
+  const reconnectTimerRef = useRef<number | null>(null)
 
   useEffect(() => {
     setLocale(getWebLocale())
@@ -84,33 +88,51 @@ export default function XemManHinhPage() {
     const channelName = `screen-live-${shareCode.trim()}`
     const channel = supabase.channel(channelName)
     channelRef.current = channel
-
-    const pc = new RTCPeerConnection({
-      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
-    })
-    pcRef.current = pc
-
-    pc.ontrack = (e) => {
-      if (e.streams[0]) {
-        setStream(e.streams[0])
-        setStatus('connected')
+    const viewerId = viewerIdRef.current
+    const stopReconnectLoop = () => {
+      if (reconnectTimerRef.current !== null) {
+        window.clearInterval(reconnectTimerRef.current)
+        reconnectTimerRef.current = null
       }
     }
+    const requestOfferNow = () => {
+      channel.send({ type: 'broadcast', event: 'request-offer', payload: { from: 'viewer', viewerId } })
+    }
+    requestOfferNowRef.current = requestOfferNow
+    const createViewerPeer = (sessionId: string) => {
+      pcRef.current?.close()
+      const pc = new RTCPeerConnection({
+        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+      })
+      pcRef.current = pc
+      sessionIdRef.current = sessionId
 
-    pc.onicecandidate = (e) => {
-      if (e.candidate) {
-        channel.send({
-          type: 'broadcast',
-          event: 'ice',
-          payload: { from: 'viewer', candidate: e.candidate.toJSON() },
-        })
+      pc.ontrack = (e) => {
+        if (e.streams[0]) {
+          setStream(e.streams[0])
+          setStatus('connected')
+          stopReconnectLoop()
+        }
       }
+
+      pc.onicecandidate = (e) => {
+        if (e.candidate) {
+          channel.send({
+            type: 'broadcast',
+            event: 'ice',
+            payload: { from: 'viewer', viewerId, sessionId, candidate: e.candidate.toJSON() },
+          })
+        }
+      }
+      return pc
     }
 
     channel
       .on('broadcast', { event: 'offer' }, async ({ payload }) => {
-        if (payload?.from !== 'sharer' || !payload?.sdp) return
+        if (payload?.from !== 'sharer' || !payload?.sdp || payload?.viewerId !== viewerId || !payload?.sessionId) return
         try {
+          const sessionId = String(payload.sessionId)
+          const pc = createViewerPeer(sessionId)
           await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp))
           const answer = await pc.createAnswer()
           await pc.setLocalDescription(answer)
@@ -119,16 +141,27 @@ export default function XemManHinhPage() {
             event: 'answer',
             payload: {
               from: 'viewer',
+              viewerId,
+              sessionId,
               sdp: pc.localDescription?.toJSON(),
             },
           })
+          setErrorMsg(null)
+          setStatus('connecting')
         } catch (err) {
           setErrorMsg(err instanceof Error ? err.message : String(err))
-          setStatus('error')
+          setStatus('connecting')
         }
       })
       .on('broadcast', { event: 'ice' }, async ({ payload }) => {
-        if (payload?.from === 'sharer' && payload?.candidate && pcRef.current) {
+        if (
+          payload?.from === 'sharer'
+          && payload?.candidate
+          && payload?.viewerId === viewerId
+          && payload?.sessionId
+          && payload.sessionId === sessionIdRef.current
+          && pcRef.current
+        ) {
           try {
             await pcRef.current.addIceCandidate(new RTCIceCandidate(payload.candidate))
           } catch {
@@ -138,20 +171,42 @@ export default function XemManHinhPage() {
       })
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
-          channel.send({ type: 'broadcast', event: 'request-offer', payload: { from: 'viewer' } })
+          requestOfferNow()
+          stopReconnectLoop()
+          reconnectTimerRef.current = window.setInterval(() => {
+            requestOfferNow()
+          }, 1500)
         } else if (status === 'CHANNEL_ERROR') {
           setStatus('error')
           setErrorMsg(tr(locale, 'Không kết nối được. Kiểm tra mã chia sẻ.', 'Connection failed. Check share code.', '连接失败。请检查分享码。', '接続できません。共有コードを確認。', '연결 실패. 공유 코드 확인.'))
+          stopReconnectLoop()
         }
       })
 
     return () => {
+      stopReconnectLoop()
+      requestOfferNowRef.current = () => {}
       channel.unsubscribe()
       channelRef.current = null
-      pc.close()
+      sessionIdRef.current = null
+      pcRef.current?.close()
       pcRef.current = null
     }
   }, [shareCode, locale])
+
+  useEffect(() => {
+    if (status !== 'connecting') return
+    const onFocus = () => requestOfferNowRef.current()
+    const onVisible = () => {
+      if (!document.hidden) requestOfferNowRef.current()
+    }
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [status])
 
   useEffect(() => {
     const v = videoRef.current
@@ -186,6 +241,16 @@ export default function XemManHinhPage() {
           <p className="text-slate-400">
             {tr(locale, 'Đang kết nối... Chờ học sinh chia sẻ màn hình.', 'Connecting... Waiting for student to share screen.', '正在连接... 等待学生共享屏幕。', '接続中... 生徒の画面共有を待機中。', '연결 중... 학생 화면 공유 대기 중.')}
           </p>
+          <button
+            type="button"
+            onClick={() => requestOfferNowRef.current()}
+            className="px-3 py-1.5 rounded-lg border border-white/20 bg-white/10 hover:bg-white/20 text-sm"
+          >
+            {tr(locale, 'Kết nối lại', 'Reconnect', '重新连接', '再接続', '다시 연결')}
+          </button>
+          {errorMsg && (
+            <p className="text-amber-300 text-xs text-center max-w-md">{errorMsg}</p>
+          )}
         </div>
       </div>
     )

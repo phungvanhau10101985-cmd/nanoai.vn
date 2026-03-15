@@ -43,12 +43,16 @@ export function useScreenShareLive(): UseScreenShareLiveReturn {
   const pcRef = useRef<RTCPeerConnection | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const channelRef = useRef<RealtimeChannel | null>(null)
+  const sessionIdRef = useRef<string | null>(null)
+  const activeViewerIdRef = useRef<string | null>(null)
 
   const stopShare = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop())
     streamRef.current = null
     pcRef.current?.close()
     pcRef.current = null
+    sessionIdRef.current = null
+    activeViewerIdRef.current = null
     channelRef.current?.unsubscribe()
     channelRef.current = null
     setShareCode(null)
@@ -80,51 +84,85 @@ export function useScreenShareLive(): UseScreenShareLiveReturn {
       const channelName = `screen-live-${code}`
       const channel = supabase.channel(channelName)
       channelRef.current = channel
-
-      const pc = createPeerConnection(
-        () => {},
-        (candidate) => {
-          channel.send({
-            type: 'broadcast',
-            event: 'ice',
-            payload: { from: 'sharer', candidate: candidate.toJSON() },
-          })
-        }
-      )
-      pcRef.current = pc
-
-      stream.getTracks().forEach((t) => pc.addTrack(t, stream))
-      const offer = await pc.createOffer()
-      await pc.setLocalDescription(offer)
-
-      const sendOffer = () => {
+      const sendCurrentOffer = () => {
+        const currentPc = pcRef.current
+        const sessionId = sessionIdRef.current
+        const viewerId = activeViewerIdRef.current
+        if (!currentPc?.localDescription || !sessionId || !viewerId) return
         channel.send({
           type: 'broadcast',
           event: 'offer',
           payload: {
             from: 'sharer',
-            sdp: pcRef.current?.localDescription?.toJSON(),
+            viewerId,
+            sessionId,
+            sdp: currentPc.localDescription.toJSON(),
           },
         })
+      }
+      const createOfferForViewer = async (viewerId: string) => {
+        const currentStream = streamRef.current
+        if (!currentStream) return
+        activeViewerIdRef.current = viewerId
+        const sessionId = crypto.randomUUID()
+        sessionIdRef.current = sessionId
+        pcRef.current?.close()
+        const pc = createPeerConnection(
+          () => {},
+          (candidate) => {
+            channel.send({
+              type: 'broadcast',
+              event: 'ice',
+              payload: { from: 'sharer', viewerId, sessionId, candidate: candidate.toJSON() },
+            })
+          }
+        )
+        pcRef.current = pc
+        currentStream.getTracks().forEach((t) => pc.addTrack(t, currentStream))
+        const offer = await pc.createOffer()
+        await pc.setLocalDescription(offer)
+        sendCurrentOffer()
       }
 
       channel
         .on('broadcast', { event: 'answer' }, ({ payload }) => {
-          if (payload?.from === 'viewer' && payload?.sdp) {
+          if (
+            payload?.from === 'viewer'
+            && payload?.sdp
+            && payload?.sessionId
+            && payload?.viewerId
+            && payload.viewerId === activeViewerIdRef.current
+            && payload.sessionId === sessionIdRef.current
+          ) {
             pcRef.current?.setRemoteDescription(new RTCSessionDescription(payload.sdp))
           }
         })
         .on('broadcast', { event: 'ice' }, async ({ payload }) => {
-          if (payload?.from === 'viewer' && payload?.candidate && pcRef.current) {
+          if (
+            payload?.from === 'viewer'
+            && payload?.candidate
+            && payload?.sessionId
+            && payload?.viewerId
+            && payload.viewerId === activeViewerIdRef.current
+            && payload.sessionId === sessionIdRef.current
+            && pcRef.current
+          ) {
             await pcRef.current.addIceCandidate(new RTCIceCandidate(payload.candidate))
           }
         })
-        .on('broadcast', { event: 'request-offer' }, () => {
-          sendOffer()
+        .on('broadcast', { event: 'request-offer' }, ({ payload }) => {
+          const viewerId = typeof payload?.viewerId === 'string' ? payload.viewerId : null
+          if (!viewerId) return
+          // Viewer cũ yêu cầu lại: gửi lại offer hiện tại.
+          if (viewerId === activeViewerIdRef.current && pcRef.current?.localDescription) {
+            sendCurrentOffer()
+            return
+          }
+          // Viewer mới vào lại/đổi thiết bị: tạo phiên WebRTC mới sạch.
+          void createOfferForViewer(viewerId)
         })
         .subscribe((status) => {
           if (status === 'SUBSCRIBED') {
-            sendOffer()
             setIsSharing(true)
           }
         })
