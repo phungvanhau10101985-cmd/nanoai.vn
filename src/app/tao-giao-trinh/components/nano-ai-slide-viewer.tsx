@@ -1642,20 +1642,6 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
           </div>
         </div>
       )}
-      {isScreenShareActive && screenShareStream && !screenShareOverlayVisible && (
-        <button
-          type="button"
-          onClick={() => setScreenShareOverlayVisible(true)}
-          className="fixed bottom-4 right-4 z-[126] flex items-center gap-2 px-3 py-2 rounded-lg bg-black/80 hover:bg-black text-white border border-white/15 shadow-lg"
-          title={tr('Mở lại màn hình live của giáo viên', 'Reopen teacher live screen', '重新打开教师直播屏幕', '教師ライブ画面を再表示', '교사 라이브 화면 다시 열기')}
-        >
-          <Monitor className="h-4 w-4" />
-          <span className="text-sm font-medium">
-            {tr('Xem lại live', 'Reopen live', '重新观看直播', 'ライブ再表示', '라이브 다시 보기')}
-          </span>
-        </button>
-      )}
-
       {/* Chuột ảo + đường di chuột – render qua portal để hiện trên popup (z-[200] > popup z-[110]) */}
       {presentationMode === 'slide-interaction' && typeof document !== 'undefined' && createPortal(
         <>

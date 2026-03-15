@@ -1,35 +1,11 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 
 function generateShareCode(): string {
   return crypto.randomUUID().replace(/-/g, '').slice(0, 8)
-}
-
-function isLoopbackHost(hostname: string): boolean {
-  const h = hostname.trim().toLowerCase()
-  return h === 'localhost' || h === '127.0.0.1' || h === '::1'
-}
-
-function resolveShareBaseUrl(): string {
-  if (typeof window === 'undefined') return process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') || ''
-
-  const currentOrigin = `${window.location.protocol}//${window.location.host}`.replace(/\/$/, '')
-  const envUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') || ''
-  if (!envUrl) return currentOrigin
-
-  try {
-    const currentHost = window.location.hostname
-    const envHost = new URL(envUrl).hostname
-    // Nếu đang truy cập bằng localhost thì ưu tiên domain/IP public từ env.
-    if (isLoopbackHost(currentHost) && !isLoopbackHost(envHost)) return envUrl
-    // Nếu đang truy cập bằng domain/IP khả dụng thì dùng origin hiện tại (tránh env localhost sai).
-    return currentOrigin
-  } catch {
-    return currentOrigin
-  }
 }
 
 function createPeerConnection(
@@ -67,18 +43,12 @@ export function useScreenShareLive(): UseScreenShareLiveReturn {
   const pcRef = useRef<RTCPeerConnection | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const channelRef = useRef<RealtimeChannel | null>(null)
-  const sessionIdRef = useRef<string | null>(null)
-  const answerAppliedRef = useRef(false)
-  const lastOfferSentAtRef = useRef(0)
 
   const stopShare = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop())
     streamRef.current = null
     pcRef.current?.close()
     pcRef.current = null
-    sessionIdRef.current = null
-    answerAppliedRef.current = false
-    lastOfferSentAtRef.current = 0
     channelRef.current?.unsubscribe()
     channelRef.current = null
     setShareCode(null)
@@ -99,7 +69,10 @@ export function useScreenShareLive(): UseScreenShareLiveReturn {
       const code = generateShareCode()
       setShareCode(code)
 
-      const baseUrl = resolveShareBaseUrl()
+      const baseUrl =
+        typeof window !== 'undefined'
+          ? (process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') || `${window.location.protocol}//${window.location.host}`)
+          : ''
       const url = `${baseUrl}/tao-giao-trinh/xem-man-hinh?share=${code}`
       setShareUrl(url)
 
@@ -107,86 +80,51 @@ export function useScreenShareLive(): UseScreenShareLiveReturn {
       const channelName = `screen-live-${code}`
       const channel = supabase.channel(channelName)
       channelRef.current = channel
-      const sendCurrentOffer = () => {
-        const currentChannel = channelRef.current
-        const currentPc = pcRef.current
-        const currentSessionId = sessionIdRef.current
-        if (!currentChannel || !currentPc?.localDescription || !currentSessionId) return
-        lastOfferSentAtRef.current = Date.now()
-        currentChannel.send({
+
+      const pc = createPeerConnection(
+        () => {},
+        (candidate) => {
+          channel.send({
+            type: 'broadcast',
+            event: 'ice',
+            payload: { from: 'sharer', candidate: candidate.toJSON() },
+          })
+        }
+      )
+      pcRef.current = pc
+
+      stream.getTracks().forEach((t) => pc.addTrack(t, stream))
+      const offer = await pc.createOffer()
+      await pc.setLocalDescription(offer)
+
+      const sendOffer = () => {
+        channel.send({
           type: 'broadcast',
           event: 'offer',
           payload: {
             from: 'sharer',
-            sessionId: currentSessionId,
-            sdp: currentPc.localDescription.toJSON(),
+            sdp: pcRef.current?.localDescription?.toJSON(),
           },
         })
-      }
-      const createAndSendOffer = async () => {
-        const currentStream = streamRef.current
-        const currentChannel = channelRef.current
-        if (!currentStream || !currentChannel) return
-        const sessionId = crypto.randomUUID()
-        sessionIdRef.current = sessionId
-        answerAppliedRef.current = false
-        pcRef.current?.close()
-        const pc = createPeerConnection(
-          () => {},
-          (candidate) => {
-            currentChannel.send({
-              type: 'broadcast',
-              event: 'ice',
-              payload: { from: 'sharer', sessionId, candidate: candidate.toJSON() },
-            })
-          }
-        )
-        pcRef.current = pc
-        currentStream.getTracks().forEach((t) => pc.addTrack(t, currentStream))
-        const offer = await pc.createOffer()
-        await pc.setLocalDescription(offer)
-        sendCurrentOffer()
       }
 
       channel
         .on('broadcast', { event: 'answer' }, ({ payload }) => {
-          if (payload?.from === 'viewer' && payload?.sdp && payload?.sessionId === sessionIdRef.current) {
-            pcRef.current
-              ?.setRemoteDescription(new RTCSessionDescription(payload.sdp))
-              .then(() => {
-                answerAppliedRef.current = true
-              })
-              .catch(() => {
-                // Khi viewer vào lại, remoteDescription cũ có thể ở state không hợp lệ.
-                // Tạo offer mới để renegotiate sạch.
-                void createAndSendOffer()
-              })
+          if (payload?.from === 'viewer' && payload?.sdp) {
+            pcRef.current?.setRemoteDescription(new RTCSessionDescription(payload.sdp))
           }
         })
         .on('broadcast', { event: 'ice' }, async ({ payload }) => {
-          if (payload?.from === 'viewer' && payload?.candidate && payload?.sessionId === sessionIdRef.current && pcRef.current) {
+          if (payload?.from === 'viewer' && payload?.candidate && pcRef.current) {
             await pcRef.current.addIceCandidate(new RTCIceCandidate(payload.candidate))
           }
         })
         .on('broadcast', { event: 'request-offer' }, () => {
-          if (answerAppliedRef.current) {
-            const elapsed = Date.now() - lastOfferSentAtRef.current
-            if (elapsed > 1200) {
-              void createAndSendOffer()
-            } else {
-              sendCurrentOffer()
-            }
-            return
-          }
-          if (pcRef.current?.localDescription && sessionIdRef.current) {
-            sendCurrentOffer()
-            return
-          }
-          void createAndSendOffer()
+          sendOffer()
         })
         .subscribe((status) => {
           if (status === 'SUBSCRIBED') {
-            void createAndSendOffer()
+            sendOffer()
             setIsSharing(true)
           }
         })

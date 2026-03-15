@@ -39,8 +39,6 @@ export default function XemManHinhPage() {
   const videoRef = useRef<HTMLVideoElement>(null)
   const channelRef = useRef<RealtimeChannel | null>(null)
   const pcRef = useRef<RTCPeerConnection | null>(null)
-  const sessionIdRef = useRef<string | null>(null)
-  const reconnectIntervalRef = useRef<number | null>(null)
 
   useEffect(() => {
     setLocale(getWebLocale())
@@ -86,50 +84,33 @@ export default function XemManHinhPage() {
     const channelName = `screen-live-${shareCode.trim()}`
     const channel = supabase.channel(channelName)
     channelRef.current = channel
-    const sendRequestOffer = () => {
-      channel.send({ type: 'broadcast', event: 'request-offer', payload: { from: 'viewer' } })
-    }
-    const stopReconnectLoop = () => {
-      if (reconnectIntervalRef.current !== null) {
-        window.clearInterval(reconnectIntervalRef.current)
-        reconnectIntervalRef.current = null
+
+    const pc = new RTCPeerConnection({
+      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+    })
+    pcRef.current = pc
+
+    pc.ontrack = (e) => {
+      if (e.streams[0]) {
+        setStream(e.streams[0])
+        setStatus('connected')
       }
     }
 
-    const createViewerPeer = (sessionId: string) => {
-      pcRef.current?.close()
-      const pc = new RTCPeerConnection({
-        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
-      })
-      pcRef.current = pc
-      sessionIdRef.current = sessionId
-
-      pc.ontrack = (e) => {
-        if (e.streams[0]) {
-          setStream(e.streams[0])
-          setStatus('connected')
-          stopReconnectLoop()
-        }
+    pc.onicecandidate = (e) => {
+      if (e.candidate) {
+        channel.send({
+          type: 'broadcast',
+          event: 'ice',
+          payload: { from: 'viewer', candidate: e.candidate.toJSON() },
+        })
       }
-
-      pc.onicecandidate = (e) => {
-        if (e.candidate) {
-          channel.send({
-            type: 'broadcast',
-            event: 'ice',
-            payload: { from: 'viewer', sessionId, candidate: e.candidate.toJSON() },
-          })
-        }
-      }
-      return pc
     }
 
     channel
       .on('broadcast', { event: 'offer' }, async ({ payload }) => {
-        if (payload?.from !== 'sharer' || !payload?.sdp || !payload?.sessionId) return
+        if (payload?.from !== 'sharer' || !payload?.sdp) return
         try {
-          const sessionId = String(payload.sessionId)
-          const pc = createViewerPeer(sessionId)
           await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp))
           const answer = await pc.createAnswer()
           await pc.setLocalDescription(answer)
@@ -138,26 +119,16 @@ export default function XemManHinhPage() {
             event: 'answer',
             payload: {
               from: 'viewer',
-              sessionId,
               sdp: pc.localDescription?.toJSON(),
             },
           })
-          setErrorMsg(null)
-          stopReconnectLoop()
         } catch (err) {
           setErrorMsg(err instanceof Error ? err.message : String(err))
-          setStatus('connecting')
-          setTimeout(sendRequestOffer, 300)
+          setStatus('error')
         }
       })
       .on('broadcast', { event: 'ice' }, async ({ payload }) => {
-        if (
-          payload?.from === 'sharer'
-          && payload?.candidate
-          && payload?.sessionId
-          && payload.sessionId === sessionIdRef.current
-          && pcRef.current
-        ) {
+        if (payload?.from === 'sharer' && payload?.candidate && pcRef.current) {
           try {
             await pcRef.current.addIceCandidate(new RTCIceCandidate(payload.candidate))
           } catch {
@@ -167,24 +138,17 @@ export default function XemManHinhPage() {
       })
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
-            sendRequestOffer()
-            stopReconnectLoop()
-            reconnectIntervalRef.current = window.setInterval(() => {
-              sendRequestOffer()
-            }, 1500)
+          channel.send({ type: 'broadcast', event: 'request-offer', payload: { from: 'viewer' } })
         } else if (status === 'CHANNEL_ERROR') {
           setStatus('error')
           setErrorMsg(tr(locale, 'Không kết nối được. Kiểm tra mã chia sẻ.', 'Connection failed. Check share code.', '连接失败。请检查分享码。', '接続できません。共有コードを確認。', '연결 실패. 공유 코드 확인.'))
-            stopReconnectLoop()
         }
       })
 
     return () => {
-      stopReconnectLoop()
       channel.unsubscribe()
       channelRef.current = null
-      sessionIdRef.current = null
-      pcRef.current?.close()
+      pc.close()
       pcRef.current = null
     }
   }, [shareCode, locale])
