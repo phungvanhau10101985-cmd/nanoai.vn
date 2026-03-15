@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Timer } from 'lucide-react'
 import QRCode from 'qrcode'
 
@@ -19,7 +19,20 @@ export interface ContentEmbedProps {
   height?: number
   className?: string
   /** Khi có curriculumId, quiz hiển thị chế độ live: Bắt đầu, QR, kết quả */
-  liveQuizContext?: { curriculumId: string; slideIndex: number; blockIndex: number }
+  liveQuizContext?: {
+    curriculumId: string
+    slideIndex: number
+    blockIndex: number
+    initialSessionCode?: string | null
+    /** Thời gian đồng hồ cát (giây) – đồng bộ từ giáo viên */
+    initialQuizDurationSeconds?: number
+    /** Chế độ mở đáp án khi hết giờ – đồng bộ từ giáo viên */
+    initialAutoRevealOnTimerEnd?: boolean
+    onSessionCreated?: (slideIndex: number, blockIndex: number, sessionCode: string, quizDurationSeconds?: number) => void
+    onSettingsChange?: (slideIndex: number, blockIndex: number, settings: { quizDurationSeconds: number; autoRevealOnTimerEnd: boolean }) => void
+    /** Chỉ giáo viên mới được tạo phiên – học sinh chờ sync */
+    teacherMode?: boolean
+  }
   tr?: (vi: string, en: string, zh: string, ja: string, ko: string) => string
   /** Ẩn quiz inline – dùng khi hiển thị quiz trong popup riêng */
   hideQuiz?: boolean
@@ -80,7 +93,7 @@ function QuizContentWrapper({ urlOrId, liveQuizContext, tr }: { urlOrId: string;
     const parsed = parseQuizData(urlOrId)
     if (!parsed) return null
     const base = { ...parsed, correctIndex: Math.min(parsed.correctIndex, parsed.options.length - 1) }
-    return shuffleQuizOptions(base)
+    return shuffleQuizOptionsDeterministic(base, urlOrId)
   }, [urlOrId])
   if (!quizData) {
     const msg = typeof tr === 'function' ? tr('Câu hỏi chưa hiển thị được.', 'Quiz could not be displayed.', '题目无法显示。', 'クイズを表示できません。', '퀴즈를 표시할 수 없습니다.') : 'Câu hỏi chưa hiển thị được.'
@@ -98,6 +111,12 @@ function QuizContentWrapper({ urlOrId, liveQuizContext, tr }: { urlOrId: string;
         slideIndex={liveQuizContext.slideIndex}
         blockIndex={liveQuizContext.blockIndex}
         tr={tr}
+        initialSessionCode={liveQuizContext.initialSessionCode}
+        initialQuizDurationSeconds={liveQuizContext.initialQuizDurationSeconds}
+        initialAutoRevealOnTimerEnd={liveQuizContext.initialAutoRevealOnTimerEnd}
+        onSessionCreated={liveQuizContext.onSessionCreated}
+        onSettingsChange={liveQuizContext.onSettingsChange}
+        teacherMode={liveQuizContext.teacherMode}
       />
     )
   }
@@ -196,34 +215,126 @@ function LiveQuizEmbed({
   slideIndex,
   blockIndex,
   tr,
+  initialSessionCode,
+  initialQuizDurationSeconds,
+  initialAutoRevealOnTimerEnd,
+  onSessionCreated,
+  onSettingsChange,
+  teacherMode = true,
 }: {
   quizData: { question: string; options: string[]; correctIndex: number }
   curriculumId: string | null
   slideIndex: number
   blockIndex: number
   tr?: (vi: string, en: string, zh: string, ja: string, ko: string) => string
+  initialSessionCode?: string | null
+  initialQuizDurationSeconds?: number
+  initialAutoRevealOnTimerEnd?: boolean
+  onSessionCreated?: (slideIndex: number, blockIndex: number, sessionCode: string, quizDurationSeconds?: number) => void
+  onSettingsChange?: (slideIndex: number, blockIndex: number, settings: { quizDurationSeconds: number; autoRevealOnTimerEnd: boolean }) => void
+  teacherMode?: boolean
 }) {
   const t = (vi: string, en: string, zh: string, ja: string, ko: string) => (typeof tr === 'function' ? tr(vi, en, zh, ja, ko) : vi)
-  const [sessionCode, setSessionCode] = useState<string | null>(null)
+  const [sessionCode, setSessionCode] = useState<string | null>(initialSessionCode ?? null)
+  const [sessionQuizData, setSessionQuizData] = useState<{ question: string; options: string[]; correctIndex: number } | null>(null)
+  const [displayQuizData, setDisplayQuizData] = useState<{ question: string; options: string[]; correctIndex: number } | null>(null)
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
+  useEffect(() => {
+    if (initialSessionCode) {
+      setSessionCode(initialSessionCode)
+      setSessionQuizData(null)
+      setDisplayQuizData(null)
+      const url = typeof window !== 'undefined' ? `${window.location.origin}/quiz/${initialSessionCode}` : ''
+      QRCode.toDataURL(url, { width: 140, margin: 2 }).then(setQrDataUrl).catch(() => setQrDataUrl(null))
+      if (typeof initialQuizDurationSeconds === 'number' && initialQuizDurationSeconds > 0) {
+        setQuizTimerSeconds(initialQuizDurationSeconds)
+        setQuizTimerRunning(true)
+      }
+      fetch(`/api/slide-quiz/${initialSessionCode}`)
+        .then((r) => r.ok ? r.json() : null)
+        .then((d) => {
+          if (d?.options?.length) {
+            const qd = { question: d.question ?? '', options: d.options, correctIndex: d.correctIndex ?? 0 }
+            setSessionQuizData(qd)
+            setDisplayQuizData(qd)
+          }
+        })
+        .catch(() => {})
+    } else {
+      setSessionCode(null)
+      setSessionQuizData(null)
+      setDisplayQuizData(null)
+      setQrDataUrl(null)
+      setResults({})
+      setTotal(0)
+      setRevealed(false)
+    }
+  }, [initialSessionCode, initialQuizDurationSeconds])
+
+  useEffect(() => {
+    if (!sessionCode && quizData) {
+      const opts = quizData.options.slice()
+      const indices = opts.map((_, i) => i)
+      for (let i = indices.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1))
+        ;[indices[i], indices[j]] = [indices[j], indices[i]]
+      }
+      const shuffledOpts = indices.map((i) => opts[i])
+      const newCorrectIdx = indices.indexOf(quizData.correctIndex)
+      setDisplayQuizData({ question: quizData.question, options: shuffledOpts, correctIndex: newCorrectIdx })
+    }
+  }, [sessionCode, quizData])
+
   const [results, setResults] = useState<Record<number, number>>({})
   const [total, setTotal] = useState(0)
   const [revealed, setRevealed] = useState(false)
   const [loading, setLoading] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
-  const [quizDurationSeconds, setQuizDurationSeconds] = useState(60)
-  const [autoRevealOnTimerEnd, setAutoRevealOnTimerEnd] = useState(true)
+  const [quizDurationSeconds, setQuizDurationSeconds] = useState(initialQuizDurationSeconds ?? 60)
+  const [autoRevealOnTimerEnd, setAutoRevealOnTimerEnd] = useState(initialAutoRevealOnTimerEnd ?? true)
   const [quizTimerSeconds, setQuizTimerSeconds] = useState(0)
   const [quizTimerRunning, setQuizTimerRunning] = useState(false)
   const [quizTimerEnded, setQuizTimerEnded] = useState(false)
+  const lastSentSettingsRef = useRef<string>('')
 
   const formatTimer = (sec: number) => `${Math.floor(sec / 60)}:${(sec % 60).toString().padStart(2, '0')}`
+
+  useEffect(() => {
+    if (typeof initialQuizDurationSeconds === 'number' && initialQuizDurationSeconds > 0) {
+      setQuizDurationSeconds(initialQuizDurationSeconds)
+    }
+  }, [initialQuizDurationSeconds])
+
+  useEffect(() => {
+    if (typeof initialAutoRevealOnTimerEnd === 'boolean') {
+      setAutoRevealOnTimerEnd(initialAutoRevealOnTimerEnd)
+    }
+  }, [initialAutoRevealOnTimerEnd])
+
+  useEffect(() => {
+    if (!teacherMode) return
+    const nextKey = `${slideIndex}-${blockIndex}-${quizDurationSeconds}-${autoRevealOnTimerEnd ? 1 : 0}`
+    if (lastSentSettingsRef.current === nextKey) return
+    lastSentSettingsRef.current = nextKey
+    onSettingsChange?.(slideIndex, blockIndex, { quizDurationSeconds, autoRevealOnTimerEnd })
+  }, [teacherMode, onSettingsChange, slideIndex, blockIndex, quizDurationSeconds, autoRevealOnTimerEnd])
 
   const startSession = useCallback(async () => {
     if (!curriculumId) return
     setCreateError(null)
     setLoading(true)
     try {
+      const shuffledQuizData = displayQuizData ?? (() => {
+        const opts = quizData.options.slice()
+        const indices = opts.map((_, i) => i)
+        for (let i = indices.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1))
+          ;[indices[i], indices[j]] = [indices[j], indices[i]]
+        }
+        const shuffledOpts = indices.map((i) => opts[i])
+        const newCorrectIdx = indices.indexOf(quizData.correctIndex)
+        return { question: quizData.question, options: shuffledOpts, correctIndex: newCorrectIdx }
+      })()
       const res = await fetch('/api/slide-quiz/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -231,14 +342,17 @@ function LiveQuizEmbed({
           curriculumId,
           slideIndex,
           blockIndex,
-          quizData,
+          quizData: shuffledQuizData,
         }),
       })
       const data = await res.json()
       if (data.code) {
         setSessionCode(data.code)
+        setSessionQuizData(shuffledQuizData)
+        setDisplayQuizData(shuffledQuizData)
         setQuizTimerSeconds(quizDurationSeconds)
         setQuizTimerRunning(true)
+        onSessionCreated?.(slideIndex, blockIndex, data.code, quizDurationSeconds)
         const url = typeof window !== 'undefined' ? `${window.location.origin}/quiz/${data.code}` : ''
         QRCode.toDataURL(url, { width: 140, margin: 2 }).then(setQrDataUrl).catch(() => setQrDataUrl(null))
       } else {
@@ -247,7 +361,7 @@ function LiveQuizEmbed({
     } finally {
       setLoading(false)
     }
-  }, [curriculumId, slideIndex, blockIndex, quizData, quizDurationSeconds, t])
+  }, [curriculumId, slideIndex, blockIndex, quizData, displayQuizData, quizDurationSeconds, t, onSessionCreated])
 
   useEffect(() => {
     if (!quizTimerRunning || quizTimerSeconds <= 0 || revealed) return
@@ -300,6 +414,7 @@ function LiveQuizEmbed({
 
   const joinUrl = typeof window !== 'undefined' && sessionCode ? `${window.location.origin}/quiz/${sessionCode}` : ''
 
+  const canCreateSession = teacherMode && curriculumId
   return (
     <div className={WRAPPER_CLASS + ' p-4 bg-slate-50 dark:bg-slate-900/50'}>
       {!sessionCode ? (
@@ -312,7 +427,7 @@ function LiveQuizEmbed({
                 <button
                   key={opt.value}
                   type="button"
-                  onClick={() => setQuizDurationSeconds(opt.value)}
+                  onClick={() => { if (canCreateSession) setQuizDurationSeconds(opt.value) }}
                   className={`px-2.5 py-1.5 rounded text-xs font-medium ${quizDurationSeconds === opt.value ? 'bg-violet-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'}`}
                 >
                   {opt.label}
@@ -323,23 +438,29 @@ function LiveQuizEmbed({
           <div className="flex flex-wrap gap-4 items-center">
             <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('Khi hết giờ', 'When time ends', '时间到', '時間切れ', '시간 종료')}:</span>
             <label className="flex items-center gap-2 cursor-pointer">
-              <input type="radio" name={`quiz-reveal-${slideIndex}-${blockIndex}`} checked={autoRevealOnTimerEnd} onChange={() => setAutoRevealOnTimerEnd(true)} className="rounded-full" />
+              <input type="radio" name={`quiz-reveal-${slideIndex}-${blockIndex}`} checked={autoRevealOnTimerEnd} onChange={() => { if (canCreateSession) setAutoRevealOnTimerEnd(true) }} className="rounded-full" />
               <span className="text-sm">{t('Tự mở đáp án', 'Auto reveal', '自动显示', '自動表示', '자동 공개')}</span>
             </label>
             <label className="flex items-center gap-2 cursor-pointer">
-              <input type="radio" name={`quiz-reveal-${slideIndex}-${blockIndex}`} checked={!autoRevealOnTimerEnd} onChange={() => setAutoRevealOnTimerEnd(false)} className="rounded-full" />
+              <input type="radio" name={`quiz-reveal-${slideIndex}-${blockIndex}`} checked={!autoRevealOnTimerEnd} onChange={() => { if (canCreateSession) setAutoRevealOnTimerEnd(false) }} className="rounded-full" />
               <span className="text-sm">{t('Giáo viên mở', 'Teacher reveals', '教师显示', '教師が表示', '교사가 공개')}</span>
             </label>
           </div>
           <button
             type="button"
             onClick={startSession}
-            disabled={loading || !curriculumId}
-            className="px-4 py-2 rounded-lg bg-violet-600 text-white font-medium hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={loading || !curriculumId || !canCreateSession}
+            className="px-4 py-2 rounded-lg bg-violet-600 text-white font-medium hover:bg-violet-700 disabled:opacity-100 disabled:cursor-not-allowed"
           >
-            {loading ? t('Đang tạo...', 'Creating...', '创建中...', '作成中...', '생성 중...') : !curriculumId ? t('Lưu giáo trình để bắt đầu', 'Save curriculum to start', '保存课程以开始', '保存して開始', '저장 후 시작') : t('Bắt đầu – Học sinh làm bài', 'Start – Students answer', '开始 - 学生作答', '開始 - 生徒が回答', '시작 - 학생 답변')}
+            {loading
+              ? t('Đang tạo...', 'Creating...', '创建中...', '作成中...', '생성 중...')
+              : !canCreateSession
+                ? t('Bắt đầu – Học sinh làm bài', 'Start – Students answer', '开始 - 学生作答', '開始 - 生徒が回答', '시작 - 학생 답변')
+                : !curriculumId
+                  ? t('Lưu giáo trình để bắt đầu', 'Save curriculum to start', '保存课程以开始', '保存して開始', '저장 후 시작')
+                  : t('Bắt đầu – Học sinh làm bài', 'Start – Students answer', '开始 - 学生作答', '開始 - 生徒が回答', '시작 - 학생 답변')}
           </button>
-          {!curriculumId && (
+          {!curriculumId && canCreateSession && (
             <p className="text-sm text-amber-600 dark:text-amber-400">
               {t('Lưu giáo trình vào kho trước để bắt đầu phiên trắc nghiệm.', 'Save curriculum to library first to start quiz session.', '请先将课程保存到库以开始测验。', '先にカリキュラムを保存してください。', '먼저 교육과정을 저장하세요.')}
             </p>
@@ -350,14 +471,21 @@ function LiveQuizEmbed({
         </div>
       ) : null}
 
-      <p className="font-medium mb-3"><QuizMathText text={quizData.question} /></p>
+      {(() => {
+        const dataToShow = displayQuizData ?? quizData
+        return (
+          <>
+      <p className="font-medium mb-3"><QuizMathText text={dataToShow.question} /></p>
       <div className="space-y-2 mb-4">
-        {quizData.options.map((opt, i) => (
+        {dataToShow.options.map((opt, i) => (
           <div key={i} className="px-3 py-2 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
             {String.fromCharCode(65 + i)}. <QuizMathText text={opt} />
           </div>
         ))}
       </div>
+          </>
+        )
+      })()}
 
       {sessionCode ? (
         <div className="space-y-3 print:hidden mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
@@ -369,15 +497,23 @@ function LiveQuizEmbed({
               </div>
             )}
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('Mã', 'Code', '代码', 'コード', '코드')}: {sessionCode}</p>
+              <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                <span className="inline-flex items-center px-2 py-0.5 rounded-md ring-2 ring-red-500 bg-red-50 dark:bg-red-950/40 dark:ring-red-400">
+                  {t('Mã', 'Code', '代码', 'コード', '코드')}: <span className="font-bold text-red-600 dark:text-red-400">{sessionCode}</span>
+                </span>
+              </p>
               <p className="text-xs text-slate-500 mt-0.5 break-all">{joinUrl}</p>
               <p className="text-sm mt-2 font-medium">{t('Kết quả', 'Results', '结果', '結果', '결과')}: {total} {t('học sinh đã trả lời', 'students answered', '名学生已作答', '人が回答', '명 답변')}</p>
               <div className="flex flex-wrap gap-2 mt-1">
-                {quizData.options.map((_, i) => (
-                  <span key={i} className="text-xs px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-700">
-                    {String.fromCharCode(65 + i)}: {results[i] ?? 0}
-                  </span>
-                ))}
+                {(displayQuizData ?? quizData).options.map((opt, i) => {
+                  const sessionOpts = sessionQuizData ?? displayQuizData ?? quizData
+                  const origIdx = sessionOpts.options.indexOf(opt)
+                  return (
+                    <span key={i} className="text-xs px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-700">
+                      {String.fromCharCode(65 + i)}: {results[origIdx >= 0 ? origIdx : i] ?? 0}
+                    </span>
+                  )
+                })}
               </div>
             </div>
           </div>
@@ -407,10 +543,14 @@ function LiveQuizEmbed({
           {revealed && (
             <div className="space-y-3 pt-2 border-t border-slate-200 dark:border-slate-700">
               <p className="text-sm font-medium text-green-600 dark:text-green-400">
-                {t('Đáp án đúng', 'Correct answer', '正确答案', '正解', '정답')}: {String.fromCharCode(65 + quizData.correctIndex)}
+                {t('Đáp án đúng', 'Correct answer', '正确答案', '正解', '정답')}: {String.fromCharCode(65 + (displayQuizData ?? quizData).correctIndex)}
               </p>
               {total > 0 && (() => {
-                const correctCount = results[quizData.correctIndex] ?? 0
+                const data = displayQuizData ?? quizData
+                const sessionOpts = sessionQuizData ?? displayQuizData ?? quizData
+                const correctOpt = data.options[data.correctIndex]
+                const origCorrectIdx = sessionOpts.options.indexOf(correctOpt)
+                const correctCount = results[origCorrectIdx >= 0 ? origCorrectIdx : data.correctIndex] ?? 0
                 const wrongCount = total - correctCount
                 const correctPct = Math.round((correctCount / total) * 100)
                 const wrongPct = 100 - correctPct
@@ -528,13 +668,19 @@ function LatexEmbed({ formula }: { formula: string }) {
 import { parseQuizData } from '@/lib/parse-quiz-data'
 export { parseQuizData }
 
-/** Xáo trộn thứ tự đáp án để đáp án đúng không luôn ở A */
-function shuffleQuizOptions(data: { question: string; options: string[]; correctIndex: number }): { question: string; options: string[]; correctIndex: number } {
+/** Xáo trộn thứ tự đáp án – dùng seed để giáo viên và học sinh cùng thứ tự */
+function shuffleQuizOptionsDeterministic(data: { question: string; options: string[]; correctIndex: number }, seed: string): { question: string; options: string[]; correctIndex: number } {
   const opts = data.options.slice()
   const correctIdx = Math.max(0, Math.min(data.correctIndex, opts.length - 1))
+  let h = 0
+  for (let i = 0; i < seed.length; i++) h = ((h << 5) - h + seed.charCodeAt(i)) | 0
+  const seededRandom = (n: number) => {
+    h = (h * 1664525 + 1013904223) | 0
+    return (Math.abs(h) % n)
+  }
   const indices = opts.map((_, i) => i)
   for (let i = indices.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
+    const j = seededRandom(i + 1)
     ;[indices[i], indices[j]] = [indices[j], indices[i]]
   }
   const newOpts = indices.map((i) => opts[i])

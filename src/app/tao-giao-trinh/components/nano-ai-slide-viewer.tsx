@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { ChevronLeft, ChevronRight, X, Printer, ArrowRight, TrendingUp, CalendarCheck, Lightbulb, BookOpen, Target, BarChart2, Trash2, Play, Pause, Settings2, ClipboardList, Maximize2, PenLine, Timer, RotateCcw, Link2, Copy } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -386,8 +386,11 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   const [teacherWritingSpeedMs, setTeacherWritingSpeedMs] = useState(80)
   const [transitionDirection, setTransitionDirection] = useState<'next' | 'prev'>('next')
   const initialSlideSyncedRef = useRef(false)
+  const pendingSlideGoIndexRef = useRef<number | null>(null)
   const [personalViewSubMode, setPersonalViewSubMode] = useState<'current' | 'original'>('current')
   const [quizPopupOpen, setQuizPopupOpen] = useState(false)
+  const [quizSessionData, setQuizSessionData] = useState<Record<string, { sessionCode: string; quizDurationSeconds: number }>>({})
+  const [quizSessionSettings, setQuizSessionSettings] = useState<Record<string, { quizDurationSeconds: number; autoRevealOnTimerEnd: boolean }>>({})
   const [shareDialogOpen, setShareDialogOpen] = useState(false)
   const [shareUrl, setShareUrl] = useState<string | null>(null)
   const [shareQrDataUrl, setShareQrDataUrl] = useState<string | null>(null)
@@ -422,7 +425,9 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   const mouseThrottleRef = useRef(0)
   const processedSyncSeqRef = useRef<Set<number>>(new Set())
   const quizPopupScrollApplyingRef = useRef(false)
-  const closeVisualFullscreenRef = useRef<() => void>(() => {})
+  const closeVisualFullscreenRef = useRef<(opts?: { fromMessage?: boolean }) => void>(() => {})
+  const lastLocalVisualOpenRef = useRef<number>(0)
+  const visualFullscreenOpenedFromTeacherRef = useRef(false)
 
   const { receivedStream: screenShareStream, isReceiving: isScreenShareActive } = useScreenShare({
     role: 'student',
@@ -454,19 +459,42 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     if (isScreenShareLiveActive && screenShareLiveUrl) setScreenShareLiveDialogOpen(true)
   }, [isScreenShareLiveActive, screenShareLiveUrl])
 
-  const openVisualFullscreen = useCallback((cellIndex?: number) => {
+  const openVisualFullscreen = useCallback((cellIndex?: number, fromMessage?: boolean) => {
     setExpandedCellIndex(cellIndex ?? null)
     setVisualFullscreenOpen(true)
-    setTimeout(() => {
-      const el = fullscreenOverlayRef.current
-      if (el) {
-        const reqFs = el.requestFullscreen ?? (el as HTMLElement & { webkitRequestFullscreen?: () => Promise<void> }).webkitRequestFullscreen
-        reqFs?.()?.catch(() => {})
+    visualFullscreenOpenedFromTeacherRef.current = !!fromMessage
+    if (!fromMessage) {
+      lastLocalVisualOpenRef.current = Date.now()
+      if (typeof window !== 'undefined' && window.opener && !window.opener.closed) {
+        try {
+          window.opener.postMessage({ type: 'visual-fullscreen-open', fromStudent: true, cellIndex: typeof cellIndex === 'number' ? cellIndex : undefined }, window.location.origin)
+        } catch { /* ignore */ }
       }
-    }, 0)
+    }
   }, [])
 
-  const closeVisualFullscreen = useCallback(() => {
+  const tryRequestFullscreen = useCallback(() => {
+    const el = fullscreenOverlayRef.current
+    if (el) {
+      const reqFs = el.requestFullscreen ?? (el as HTMLElement & { webkitRequestFullscreen?: () => Promise<void> }).webkitRequestFullscreen
+      reqFs?.()?.catch(() => {})
+      return true
+    }
+    return false
+  }, [])
+
+  useLayoutEffect(() => {
+    if (!visualFullscreenOpen) return
+    if (tryRequestFullscreen()) return
+    const t1 = setTimeout(() => tryRequestFullscreen(), 50)
+    const t2 = setTimeout(() => tryRequestFullscreen(), 150)
+    const t3 = setTimeout(() => tryRequestFullscreen(), 300)
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3) }
+  }, [visualFullscreenOpen, tryRequestFullscreen])
+
+  const closeVisualFullscreen = useCallback((opts?: { fromMessage?: boolean }) => {
+    const fromMessage = !!opts?.fromMessage
+    const shouldReturnTeacher = visualFullscreenOpenedFromTeacherRef.current && !fromMessage
     try {
       const isFs = document.fullscreenElement ?? (document as Document & { webkitFullscreenElement?: Element }).webkitFullscreenElement
       if (isFs) {
@@ -478,10 +506,37 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     }
     setVisualFullscreenOpen(false)
     setExpandedCellIndex(null)
-    if (presentationMode === 'slide-interaction' && typeof window !== 'undefined' && window.opener) {
-      window.opener.postMessage({ type: 'visual-fullscreen-close' }, window.location.origin)
+    visualFullscreenOpenedFromTeacherRef.current = false
+    if (typeof window !== 'undefined' && window.opener && !window.opener.closed) {
+      const opener = window.opener as Window
+      const focusTeacherWindow = () => {
+        try { opener.postMessage({ type: 'teacher-focus-request' }, window.location.origin) } catch { /* ignore */ }
+        try { opener.focus() } catch { /* ignore */ }
+        try {
+          const openerName = (opener as Window & { name?: string }).name
+          if (openerName) {
+            const winRef = window.open('', openerName)
+            if (winRef) {
+              try { winRef.focus() } catch { /* ignore */ }
+            }
+          }
+        } catch {
+          /* ignore opener name errors */
+        }
+      }
+      try {
+        opener.postMessage(
+          { type: 'visual-fullscreen-close', fromStudent: true, returnTeacher: shouldReturnTeacher },
+          window.location.origin
+        )
+      } catch { /* ignore */ }
+      if (shouldReturnTeacher) {
+        focusTeacherWindow()
+        setTimeout(focusTeacherWindow, 90)
+        setTimeout(focusTeacherWindow, 280)
+      }
     }
-  }, [presentationMode])
+  }, [])
   closeVisualFullscreenRef.current = closeVisualFullscreen
 
   const handleShareClick = useCallback(async () => {
@@ -546,6 +601,12 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
 
   const [screenShareLiveQrUrl, setScreenShareLiveQrUrl] = useState<string | null>(null)
   useEffect(() => {
+    if (typeof window === 'undefined') return
+    // Keep a stable name so teacher can reliably refocus this window.
+    if (!window.name) window.name = 'xem-slide'
+  }, [])
+
+  useEffect(() => {
     if (!screenShareLiveUrl) {
       setScreenShareLiveQrUrl(null)
       return
@@ -560,6 +621,46 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     navigator.clipboard.writeText(screenShareLiveUrl)
     toast({ title: tr('Đã copy', 'Copied', '已复制', 'コピーしました', '복사됨'), description: tr('Link đã được sao chép.', 'Link copied.', '链接已复制。', 'リンクをコピーしました。', '링크가 복사되었습니다.'), duration: 2000 })
   }, [screenShareLiveUrl, toast, tr])
+
+  const openTeacherView = useCallback(() => {
+    if (typeof window === 'undefined') return
+    // Ưu tiên window name cố định để browser xử lý focus ổn định hơn.
+    try {
+      const namedRef = window.open('', 'nanoai-teacher-view')
+      if (namedRef) {
+        try {
+          namedRef.postMessage({ type: 'request-curriculum' }, window.location.origin)
+          namedRef.postMessage({ type: 'teacher-focus-request' }, window.location.origin)
+        } catch {
+          /* ignore postMessage errors */
+        }
+        try { namedRef.focus() } catch { /* ignore */ }
+        return
+      }
+    } catch {
+      /* ignore named window errors */
+    }
+    try {
+      const opener = window.opener as Window | null
+      if (opener && !opener.closed) {
+        try {
+          opener.postMessage({ type: 'request-curriculum' }, window.location.origin)
+          opener.postMessage({ type: 'teacher-focus-request' }, window.location.origin)
+        } catch {
+          /* ignore postMessage errors */
+        }
+        try { opener.focus() } catch { /* ignore focus errors */ }
+        return
+      }
+    } catch {
+      /* ignore opener access errors */
+    }
+    toast({
+      title: tr('Không tìm thấy cửa sổ giáo viên', 'Teacher window not found', '未找到教师窗口', '教師ウィンドウが見つかりません', '교사 창을 찾을 수 없습니다'),
+      description: tr('Vui lòng quay lại cửa sổ giáo viên đã mở giao diện học sinh này.', 'Please return to the teacher window that opened this student view.', '请返回最初打开此学生视图的教师窗口。', 'この生徒画面を開いた教師ウィンドウに戻ってください。', '이 학생 화면을 연 교사 창으로 돌아가 주세요.'),
+      variant: 'destructive',
+    })
+  }, [toast, tr])
 
   useEffect(() => {
     if (timerSeconds <= 0) setTimerRunning(false)
@@ -618,6 +719,34 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       else if (t === 'set-auto-play' && typeof e.data?.value === 'boolean') setAutoPlay(e.data.value)
       else if (t === 'set-auto-play-interval' && typeof e.data?.ms === 'number') setAutoPlayIntervalMs(e.data.ms)
       else if (t === 'quiz-popup-open' && typeof e.data?.value === 'boolean') setQuizPopupOpen(e.data.value)
+      else if (t === 'quiz-session-code' && typeof e.data?.slideIndex === 'number' && typeof e.data?.blockIndex === 'number' && typeof e.data?.sessionCode === 'string') {
+        const key = `${e.data.slideIndex}-${e.data.blockIndex}`
+        const quizDurationSeconds = typeof e.data?.quizDurationSeconds === 'number' ? e.data.quizDurationSeconds : 60
+        setQuizSessionData((prev) => ({ ...prev, [key]: { sessionCode: e.data.sessionCode, quizDurationSeconds } }))
+      }
+      else if (t === 'quiz-session-settings' && typeof e.data?.slideIndex === 'number' && typeof e.data?.blockIndex === 'number') {
+        const key = `${e.data.slideIndex}-${e.data.blockIndex}`
+        const quizDurationSeconds = typeof e.data?.quizDurationSeconds === 'number' ? e.data.quizDurationSeconds : 60
+        const autoRevealOnTimerEnd = typeof e.data?.autoRevealOnTimerEnd === 'boolean' ? e.data.autoRevealOnTimerEnd : true
+        setQuizSessionSettings((prev) => ({ ...prev, [key]: { quizDurationSeconds, autoRevealOnTimerEnd } }))
+      }
+      else if (t === 'quiz-session-reset-slide' && typeof e.data?.slideIndex === 'number') {
+        const prefix = `${e.data.slideIndex}-`
+        setQuizSessionData((prev) => {
+          const next = { ...prev }
+          for (const k of Object.keys(next)) {
+            if (k.startsWith(prefix)) delete next[k]
+          }
+          return next
+        })
+        setQuizSessionSettings((prev) => {
+          const next = { ...prev }
+          for (const k of Object.keys(next)) {
+            if (k.startsWith(prefix)) delete next[k]
+          }
+          return next
+        })
+      }
       else if (t === 'quiz-popup-scroll' && typeof e.data?.scrollTop === 'number') {
         const scrollTop = e.data.scrollTop
         const el = document.querySelector('[data-quiz-popup-scroll]') as HTMLElement | null
@@ -641,10 +770,12 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       }
       else if (t === 'visual-fullscreen-open') {
         const cellIndex = typeof e.data?.cellIndex === 'number' ? e.data.cellIndex : undefined
-        openVisualFullscreen(cellIndex)
+        openVisualFullscreen(cellIndex, true)
       }
       else if (t === 'visual-fullscreen-close') {
-        closeVisualFullscreenRef.current()
+        const sinceLocalOpen = Date.now() - lastLocalVisualOpenRef.current
+        if (sinceLocalOpen < 800) return
+        closeVisualFullscreenRef.current({ fromMessage: true })
       }
       else if (t === 'mouse-pos' && presentationMode === 'slide-interaction') {
         let px: number
@@ -956,6 +1087,25 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     }
   }, [presentationMode, target, quizPopupOpen])
 
+  useEffect(() => {
+    if (presentationMode !== 'slide-interaction' || !target) return
+    try {
+      ;(target as Window).postMessage({ type: 'quiz-popup-open', value: quizPopupOpen }, window.location.origin)
+      if (quizPopupOpen) {
+        const sendScroll = () => {
+          const el = document.querySelector('[data-quiz-popup-scroll]') as HTMLElement | null
+          if (el) (target as Window).postMessage({ type: 'quiz-popup-open', value: true, scrollTop: el.scrollTop }, window.location.origin)
+        }
+        sendScroll()
+        const t1 = setTimeout(sendScroll, 50)
+        const t2 = setTimeout(sendScroll, 150)
+        return () => { clearTimeout(t1); clearTimeout(t2) }
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [presentationMode, target, quizPopupOpen])
+
   const formatTimer = (sec: number) => {
     const m = Math.floor(sec / 60)
     const s = sec % 60
@@ -1030,6 +1180,10 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         setTransitionDirection('next')
         setCurrentIndex((i) => Math.min(i + 1, slides.length - 1))
       } else if (e.data?.type === 'slide-go' && typeof e.data?.index === 'number') {
+        if (slides.length <= 0) {
+          pendingSlideGoIndexRef.current = e.data.index
+          return
+        }
         const idx = Math.max(0, Math.min(e.data.index, slides.length - 1))
         setCurrentIndex((prev) => {
           setTransitionDirection(idx > prev ? 'next' : 'prev')
@@ -1039,6 +1193,17 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     }
     window.addEventListener('message', handler)
     return () => window.removeEventListener('message', handler)
+  }, [slides.length])
+
+  useEffect(() => {
+    const pending = pendingSlideGoIndexRef.current
+    if (pending == null || slides.length <= 0) return
+    const idx = Math.max(0, Math.min(pending, slides.length - 1))
+    setCurrentIndex((prev) => {
+      setTransitionDirection(idx > prev ? 'next' : 'prev')
+      return idx
+    })
+    pendingSlideGoIndexRef.current = null
   }, [slides.length])
 
   type EmbedPlacement = 'end' | 'newBlock' | number
@@ -1389,56 +1554,61 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   const gradient = DARK_GRADIENTS[currentIndex % DARK_GRADIENTS.length]
 
   return (
-    <div className="fixed inset-0 z-[100] bg-black flex flex-col">
+    <div className="fixed inset-0 z-[100] bg-black flex flex-col overflow-hidden">
       <div
         className={cn(
-          'print:hidden',
-          presentationMode === 'slide-interaction' && 'border-b border-slate-700/80 bg-slate-900/80 backdrop-blur-sm'
+          'print:hidden overflow-hidden [direction:rtl] box-border pr-3 md:pr-0',
+          presentationMode === 'slide-interaction' && 'border-b border-slate-700/80 bg-slate-900/80 backdrop-blur-sm',
+          presentationMode === 'slide-interaction' && 'pointer-events-auto'
         )}
       >
-        <PresentationControlBar
-          variant={presentationMode === 'slide-interaction' ? 'teacher' : 'student'}
-          tr={tr}
-          currentIndex={currentIndex}
-          totalSlides={slides.length}
-          teacherTimerSeconds={teacherTimerSeconds}
-          teacherTimerRunning={teacherTimerRunning}
-          teacherTimerInteractive={presentationMode === 'slide-interaction'}
-          onTeacherTimerStart={presentationMode === 'slide-interaction' ? (() => {}) : undefined}
-          onTeacherTimerStop={presentationMode === 'slide-interaction' ? (() => {}) : undefined}
-          onTeacherTimerReset={presentationMode === 'slide-interaction' ? (() => {}) : undefined}
-          curriculumId={curriculumId}
-          onInsertClick={() => setEmbedDialogOpen(true)}
-          writingMode={teacherWritingMode}
-          onWritingModeToggle={() => setTeacherWritingMode((v) => !v)}
-          writingSpeedMs={teacherWritingSpeedMs}
-          onWritingSpeedChange={setTeacherWritingSpeedMs}
-          autoPlay={autoPlay}
-          onAutoPlayToggle={() => setAutoPlay((v) => !v)}
-          autoPlayIntervalMs={autoPlayIntervalMs}
-          onAutoPlayIntervalChange={setAutoPlayIntervalMs}
-          sandTimerSeconds={timerSeconds}
-          sandTimerRunning={timerRunning}
-          onSandTimerStart={startTimer}
-          onSandTimerToggle={toggleTimer}
-          onSandTimerReset={resetTimer}
-          onPrev={goPrev}
-          onNext={goNext}
-          onPrint={presentationMode === 'slide-interaction' ? undefined : () => window.print()}
-          onClose={presentationMode === 'slide-interaction' ? undefined : onClose}
-          onShareClick={handleShareClick}
-          shareButtonClickableWhenParentDisabled={presentationMode === 'slide-interaction'}
-          onScreenShareLiveClick={handleScreenShareLiveClick}
-          onScreenShareLiveStop={() => { stopScreenShareLive(); setScreenShareLiveDialogOpen(false) }}
-          isScreenShareLiveActive={isScreenShareLiveActive}
-          slideViewMode={undefined}
-          onSlideViewModeChange={undefined}
-          onOpenStudentView={undefined}
-          highlightedControl={null}
-          hideTeacherTimer
-          hideInsert
-          printHidden={false}
-        />
+        <div className="[direction:ltr] w-max">
+          <PresentationControlBar
+            variant={presentationMode === 'slide-interaction' ? 'teacher' : 'student'}
+            tr={tr}
+            currentIndex={currentIndex}
+            totalSlides={slides.length}
+            teacherTimerSeconds={teacherTimerSeconds}
+            teacherTimerRunning={teacherTimerRunning}
+            teacherTimerInteractive={presentationMode === 'slide-interaction'}
+            onTeacherTimerStart={presentationMode === 'slide-interaction' ? (() => {}) : undefined}
+            onTeacherTimerStop={presentationMode === 'slide-interaction' ? (() => {}) : undefined}
+            onTeacherTimerReset={presentationMode === 'slide-interaction' ? (() => {}) : undefined}
+            curriculumId={curriculumId}
+            onInsertClick={() => setEmbedDialogOpen(true)}
+            writingMode={teacherWritingMode}
+            onWritingModeToggle={() => setTeacherWritingMode((v) => !v)}
+            writingSpeedMs={teacherWritingSpeedMs}
+            onWritingSpeedChange={setTeacherWritingSpeedMs}
+            autoPlay={autoPlay}
+            onAutoPlayToggle={() => setAutoPlay((v) => !v)}
+            autoPlayIntervalMs={autoPlayIntervalMs}
+            onAutoPlayIntervalChange={setAutoPlayIntervalMs}
+            sandTimerSeconds={timerSeconds}
+            sandTimerRunning={timerRunning}
+            onSandTimerStart={startTimer}
+            onSandTimerToggle={toggleTimer}
+            onSandTimerReset={resetTimer}
+            onPrev={goPrev}
+            onNext={goNext}
+            onPrint={presentationMode === 'slide-interaction' ? undefined : () => window.print()}
+            onClose={presentationMode === 'slide-interaction' ? undefined : onClose}
+            onShareClick={handleShareClick}
+            onOpenTeacherView={openTeacherView}
+            shareButtonClickableWhenParentDisabled={presentationMode === 'slide-interaction'}
+            onScreenShareLiveClick={handleScreenShareLiveClick}
+            onScreenShareLiveStop={() => { stopScreenShareLive(); setScreenShareLiveDialogOpen(false) }}
+            isScreenShareLiveActive={isScreenShareLiveActive}
+            slideViewMode={undefined}
+            onSlideViewModeChange={undefined}
+            onOpenStudentView={undefined}
+            highlightedControl={null}
+            hideTeacherTimer
+            hideInsert
+            hideIndex={presentationMode === 'slide-interaction'}
+            printHidden={false}
+          />
+        </div>
         {presentationMode === 'slide-interaction' && (
           // Hàng đệm để trùng trục Y với hàng thông tin riêng của giao diện giáo viên.
           <div className="h-[42px] border-t border-slate-700/60 bg-slate-900/50" />
@@ -1618,6 +1788,12 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         onGenerateQuiz={undefined}
         onReplaceBrokenQuiz={undefined}
         quizGenLoading={false}
+        quizSessionCodes={Object.fromEntries(Object.entries(quizSessionData).map(([k, v]) => [k, v.sessionCode]))}
+        quizSessionTimers={{
+          ...Object.fromEntries(Object.entries(quizSessionSettings).map(([k, v]) => [k, v.quizDurationSeconds])),
+          ...Object.fromEntries(Object.entries(quizSessionData).map(([k, v]) => [k, v.quizDurationSeconds])),
+        }}
+        quizSessionAutoReveal={Object.fromEntries(Object.entries(quizSessionSettings).map(([k, v]) => [k, v.autoRevealOnTimerEnd]))}
       />
       {/* Fullscreen overlay cho visual slide – phần làm việc to hết khung hình */}
       {visualFullscreenOpen && (() => {
@@ -1702,7 +1878,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       )}
 
       {/* Slide - Mobile portrait: stack. Mobile landscape + Desktop: trái visual, phải content */}
-      <div className="flex-1 flex flex-col md:flex-row landscape:flex-row overflow-hidden print:hidden relative">
+      <div className={cn('flex-1 flex flex-col md:flex-row landscape:flex-row overflow-hidden print:hidden relative', presentationMode === 'slide-interaction' && 'pointer-events-auto')}>
         <div
           key={currentIndex}
           className="absolute inset-0 flex flex-col md:flex-row landscape:flex-row opacity-100 transition-opacity duration-200 ease-out"
@@ -1748,6 +1924,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                           {(cell.visualEmbed || cell.imageUrl) && (
                             <button
                               type="button"
+                              onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); openVisualFullscreen(idx) }}
                               onClick={(e) => { e.stopPropagation(); openVisualFullscreen(idx) }}
                               className="absolute top-1 right-1 z-10 opacity-50 group-hover:opacity-100 p-1 rounded bg-black/60 text-white hover:bg-black/80 transition-opacity"
                               title={tr('Mở rộng ô này', 'Expand this cell', '展开此格', 'このセルを展開', '이 셀 확장')}
@@ -1775,6 +1952,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                 {hasAnyContent && (
                   <button
                     type="button"
+                    onMouseDown={(e) => { e.preventDefault(); openVisualFullscreen() }}
                     onClick={() => openVisualFullscreen()}
                     className="absolute top-2 right-2 md:top-4 md:right-10 landscape:top-4 landscape:right-10 opacity-60 hover:opacity-100 p-2 md:p-1.5 landscape:p-1.5 rounded-md bg-black/60 text-white hover:bg-black/80 shadow-lg print:hidden z-10 min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0 landscape:min-w-0 landscape:min-h-0 flex items-center justify-center"
                     title={tr('Mở rộng tất cả', 'Expand all', '展开全部', 'すべて展開', '모두 확장')}

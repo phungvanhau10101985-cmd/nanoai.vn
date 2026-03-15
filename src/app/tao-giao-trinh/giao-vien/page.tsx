@@ -240,12 +240,18 @@ export default function CurriculumViewPage() {
   const [embedDialogInitialMode, setEmbedDialogInitialMode] = useState<'insert' | 'replaceImage'>('insert')
   const [embedReplaceContext, setEmbedReplaceContext] = useState<{ slideIndex: number; blockIndex: number; rawMarker: string; urlOrId: string; embedType: EmbedType } | null>(null)
   const [leftPanelMode, setLeftPanelMode] = useState<'curriculum' | 'slide' | 'visual'>('curriculum')
+  useEffect(() => {
+    if (leftPanelMode === 'slide') setLeftPanelMode('curriculum')
+  }, [leftPanelMode])
   const [visualFullscreenOpen, setVisualFullscreenOpen] = useState(false)
   const [teacherExpandedCellIndex, setTeacherExpandedCellIndex] = useState<number | null>(null)
   const [quizPopupOpen, setQuizPopupOpen] = useState(false)
+  const [quizSessionData, setQuizSessionData] = useState<Record<string, { sessionCode: string; quizDurationSeconds: number }>>({})
+  const [quizSessionSettings, setQuizSessionSettings] = useState<Record<string, { quizDurationSeconds: number; autoRevealOnTimerEnd: boolean }>>({})
   const [studentMousePos, setStudentMousePos] = useState<{ x: number; y: number } | null>(null)
   const prevSlideModeRef = useRef<string | null>(null)
   const studentViewWindowRef = useRef<Window | null>(null)
+  const [studentViewOpened, setStudentViewOpened] = useState(false)
   const [remoteTeacherWritingMode, setRemoteTeacherWritingMode] = useState(false)
   const [remoteTeacherWritingSpeedMs, setRemoteTeacherWritingSpeedMs] = useState(80)
   const [remoteAutoPlay, setRemoteAutoPlay] = useState(false)
@@ -258,19 +264,17 @@ export default function CurriculumViewPage() {
   const firstMatchRef = useRef<HTMLElement | null>(null)
   const teacherVisualFrameRef = useRef<HTMLDivElement | null>(null)
   const teacherVisualOverlayRef = useRef<HTMLDivElement | null>(null)
-  const [layoutWidth, setLayoutWidth] = useState(1280)
   const [viewportW, setViewportW] = useState(1280)
   useEffect(() => {
     const sync = () => {
-      const w = window.innerWidth
-      setViewportW(w)
-      setLayoutWidth((prev) => Math.max(prev, Math.max(1280, w)))
+      setViewportW(window.innerWidth)
     }
     sync()
     window.addEventListener('resize', sync)
     return () => window.removeEventListener('resize', sync)
   }, [])
-  const clipLeft = viewportW >= 768 && viewportW < layoutWidth
+  // Màn hình đủ rộng giữ 2 cột; chỉ khi rất hẹp mới ưu tiên cột phải.
+  const clipLeft = viewportW < 900
   const isMobile = viewportW < 768
 
   const tr = (vi: string, en: string, zh: string, ja: string, ko: string) => {
@@ -286,6 +290,24 @@ export default function CurriculumViewPage() {
     const s = sec % 60
     return `${m}:${s.toString().padStart(2, '0')}`
   }
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.name = 'nanoai-teacher-view'
+    }
+  }, [])
+
+  useEffect(() => {
+    const syncStudentWindowState = () => {
+      const w = studentViewWindowRef.current
+      const alive = !!(w && !w.closed)
+      if (!alive) studentViewWindowRef.current = null
+      setStudentViewOpened(alive)
+    }
+    syncStudentWindowState()
+    const id = window.setInterval(syncStudentWindowState, 800)
+    return () => window.clearInterval(id)
+  }, [])
 
   const requestCurriculum = useCallback(() => {
     if (window.opener) window.opener.postMessage({ type: 'request-curriculum' }, window.location.origin)
@@ -438,6 +460,14 @@ export default function CurriculumViewPage() {
         const scrollEl = document.querySelector('[data-quiz-popup-scroll]') as HTMLElement | null
         if (scrollEl) channel.postMessage({ type: 'quiz-popup-scroll', scrollTop: scrollEl.scrollTop })
       }
+      Object.entries(quizSessionData).forEach(([key, data]) => {
+        const [si, bi] = key.split('-').map(Number)
+        if (!isNaN(si) && !isNaN(bi)) channel.postMessage({ type: 'quiz-session-code', slideIndex: si, blockIndex: bi, sessionCode: data.sessionCode, quizDurationSeconds: data.quizDurationSeconds })
+      })
+      Object.entries(quizSessionSettings).forEach(([key, settings]) => {
+        const [si, bi] = key.split('-').map(Number)
+        if (!isNaN(si) && !isNaN(bi)) channel.postMessage({ type: 'quiz-session-settings', slideIndex: si, blockIndex: bi, quizDurationSeconds: settings.quizDurationSeconds, autoRevealOnTimerEnd: settings.autoRevealOnTimerEnd })
+      })
     }
     channel.addEventListener('message', onMessage)
     return () => {
@@ -445,13 +475,82 @@ export default function CurriculumViewPage() {
       channel.close()
       if (syncChannelRef.current === channel) syncChannelRef.current = null
     }
-  }, [content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning, remoteTeacherWritingMode, remoteTeacherWritingSpeedMs, remoteAutoPlay, remoteAutoPlayIntervalMs, visualFullscreenOpen, quizPopupOpen])
+  }, [content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning, remoteTeacherWritingMode, remoteTeacherWritingSpeedMs, remoteAutoPlay, remoteAutoPlayIntervalMs, visualFullscreenOpen, quizPopupOpen, quizSessionData, quizSessionSettings])
 
   const openTeacherVisualFullscreen = useCallback((cellIndex?: number) => {
     setTeacherExpandedCellIndex(typeof cellIndex === 'number' ? cellIndex : null)
     setVisualFullscreenOpen(true)
-    sendToStudentView({ type: 'visual-fullscreen-open', cellIndex: typeof cellIndex === 'number' ? cellIndex : undefined })
-  }, [sendToStudentView])
+    const url = '/tao-giao-trinh/xem-slide'
+    const sw = typeof screen !== 'undefined' ? screen.availWidth || 1920 : 1920
+    const sh = typeof screen !== 'undefined' ? screen.availHeight || 1080 : 1080
+    const features = `width=${sw},height=${sh},left=0,top=0,scrollbars=no,resizable=yes`
+    let targetWin: Window | null = studentViewWindowRef.current
+    if (!targetWin || targetWin.closed) targetWin = window.open('', 'xem-slide')
+    if (targetWin && !targetWin.closed) {
+      try {
+        if (targetWin.location.pathname === url) targetWin.focus()
+        else targetWin.location.href = url
+      } catch {
+        targetWin = window.open(url, 'xem-slide', features)
+      }
+    } else {
+      targetWin = window.open(url, 'xem-slide', features)
+    }
+    if (targetWin) {
+      studentViewWindowRef.current = targetWin
+      try { targetWin.focus() } catch { /* ignore */ }
+      const focusRetry = () => { try { targetWin?.focus() } catch { /* ignore */ } }
+      setTimeout(focusRetry, 50)
+      setTimeout(focusRetry, 150)
+    }
+    const pushVisualOpen = () => {
+      if (!targetWin || targetWin.closed) return
+      try {
+        targetWin.postMessage(
+          {
+            type: 'curriculum-data',
+            content,
+            topic,
+            currentIndex,
+            curriculumId: curriculumId ?? null,
+            slideMode: slideMode ?? null,
+            personalViewSubMode,
+            hasOriginalSlides,
+            slides: slides.map((s) => ({
+              title: s.title,
+              blocks: s.blocks ?? [],
+              teacherNotes: s.teacherNotes ?? '',
+              imageUrl: s.imageUrl,
+              visualEmbed: s.visualEmbed,
+              visualLayout: s.visualLayout,
+              visualCells: s.visualCells,
+            })),
+            teacherTimerSeconds,
+            teacherTimerRunning,
+          },
+          window.location.origin
+        )
+        targetWin.postMessage({ type: 'presentation-mode', mode: 'slide-interaction' }, window.location.origin)
+        targetWin.postMessage({ type: 'visual-fullscreen-open', cellIndex: typeof cellIndex === 'number' ? cellIndex : undefined }, window.location.origin)
+      } catch {
+        /* ignore */
+      }
+    }
+    pushVisualOpen()
+    setTimeout(pushVisualOpen, 150)
+    setTimeout(pushVisualOpen, 700)
+    const openMsg = { type: 'visual-fullscreen-open', cellIndex: typeof cellIndex === 'number' ? cellIndex : undefined } as const
+    sendToStudentView({ type: 'presentation-mode', mode: 'slide-interaction' })
+    sendToStudentView(openMsg)
+    setTimeout(() => {
+      sendToStudentView({ type: 'presentation-mode', mode: 'slide-interaction' })
+      sendToStudentView(openMsg)
+    }, 120)
+    setTimeout(() => {
+      sendToStudentView({ type: 'presentation-mode', mode: 'slide-interaction' })
+      sendToStudentView(openMsg)
+    }, 650)
+  }, [sendToStudentView, content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning])
 
   const closeTeacherVisualFullscreen = useCallback(() => {
     setVisualFullscreenOpen(false)
@@ -466,6 +565,25 @@ export default function CurriculumViewPage() {
   useEffect(() => {
     if (!quizPopupOpen) setStudentMousePos(null)
   }, [quizPopupOpen])
+
+  const openQuizPopupFresh = useCallback(() => {
+    setQuizSessionData((prev) => {
+      const next = { ...prev }
+      for (const k of Object.keys(next)) {
+        if (k.startsWith(`${currentIndex}-`)) delete next[k]
+      }
+      return next
+    })
+    setQuizSessionSettings((prev) => {
+      const next = { ...prev }
+      for (const k of Object.keys(next)) {
+        if (k.startsWith(`${currentIndex}-`)) delete next[k]
+      }
+      return next
+    })
+    sendToStudentView({ type: 'quiz-session-reset-slide', slideIndex: currentIndex })
+    setQuizPopupOpen(true)
+  }, [currentIndex, sendToStudentView])
 
   useEffect(() => {
     if (!quizPopupOpen) return
@@ -595,6 +713,7 @@ export default function CurriculumViewPage() {
       }
     }
     const sendPointerClick = (e: MouseEvent) => {
+      if ((e.target as HTMLElement)?.closest('[data-control="xem-học-sinh"]')) return
       const w = window.innerWidth || 1
       const h = window.innerHeight || 1
       if (quizPopupOpen) {
@@ -671,131 +790,122 @@ export default function CurriculumViewPage() {
   }, [sendToStudentView, visualFullscreenOpen, quizPopupOpen])
 
   const openStudentView = useCallback(() => {
-    const existing = studentViewWindowRef.current
-    if (existing && !existing.closed) {
-      existing.focus()
-      const send = () => {
-        try {
-          if (!existing.closed) {
-            existing.postMessage(
-              {
-                type: 'curriculum-data',
-                content,
-                topic,
-                currentIndex,
-                curriculumId: curriculumId ?? null,
-                slideMode: slideMode ?? null,
-                personalViewSubMode,
-                hasOriginalSlides,
-                slides: slides.map((s) => ({
-                  title: s.title,
-                  blocks: s.blocks ?? [],
-                  teacherNotes: s.teacherNotes ?? '',
-                  imageUrl: s.imageUrl,
-                  visualEmbed: s.visualEmbed,
-                  visualLayout: s.visualLayout,
-                  visualCells: s.visualCells,
-                })),
-                teacherTimerSeconds,
-                teacherTimerRunning,
-              },
-              window.location.origin
-            )
-          }
-        } catch { /* ignore */ }
-      }
-      setTimeout(send, 0)
-          setTimeout(() => {
-        try {
-          if (!existing.closed) {
-            existing.postMessage({ type: 'presentation-mode', mode: 'slide-interaction' }, window.location.origin)
-            if (visualFullscreenOpen) {
-              existing.postMessage({ type: 'visual-fullscreen-open', cellIndex: undefined }, window.location.origin)
-            } else {
-              existing.postMessage({ type: 'visual-fullscreen-close' }, window.location.origin)
-            }
-            existing.postMessage({ type: 'teacher-timer-sync', seconds: teacherTimerSeconds, running: teacherTimerRunning }, window.location.origin)
-            existing.postMessage({ type: 'set-teacher-writing-mode', value: remoteTeacherWritingMode }, window.location.origin)
-            existing.postMessage({ type: 'set-teacher-writing-speed', ms: remoteTeacherWritingSpeedMs }, window.location.origin)
-            existing.postMessage({ type: 'set-auto-play', value: remoteAutoPlay }, window.location.origin)
-            existing.postMessage({ type: 'set-auto-play-interval', ms: remoteAutoPlayIntervalMs }, window.location.origin)
-            existing.postMessage({ type: 'quiz-popup-open', value: quizPopupOpen }, window.location.origin)
-            if (quizPopupOpen) {
-              const scrollEl = document.querySelector('[data-quiz-popup-scroll]') as HTMLElement | null
-              if (scrollEl) existing.postMessage({ type: 'quiz-popup-scroll', scrollTop: scrollEl.scrollTop }, window.location.origin)
-            }
-          }
-        } catch { /* ignore */ }
-      }, 100)
-      return
-    }
+    if (typeof window === 'undefined') return
     const sw = typeof screen !== 'undefined' ? screen.availWidth || 1920 : 1920
     const sh = typeof screen !== 'undefined' ? screen.availHeight || 1080 : 1080
-    const w = window.open(
-      '/tao-giao-trinh/xem-slide?t=' + Date.now(),
-      'xem-slide',
-      `width=${sw},height=${sh},left=0,top=0,scrollbars=no,resizable=yes`
-    )
-    studentViewWindowRef.current = w
-    if (w) {
-      const send = () => {
-        try {
-          if (!w.closed) {
-            w.postMessage(
-              {
-                type: 'curriculum-data',
-                content,
-                topic,
-                currentIndex,
-                curriculumId: curriculumId ?? null,
-                slideMode: slideMode ?? null,
-                personalViewSubMode,
-                hasOriginalSlides,
-                slides: slides.map((s) => ({
-                  title: s.title,
-                  blocks: s.blocks ?? [],
-                  teacherNotes: s.teacherNotes ?? '',
-                  imageUrl: s.imageUrl,
-                  visualEmbed: s.visualEmbed,
-                  visualLayout: s.visualLayout,
-                  visualCells: s.visualCells,
-                })),
-                teacherTimerSeconds,
-                teacherTimerRunning,
-              },
-              window.location.origin
-            )
-          }
-        } catch {
-          /* ignore */
-        }
-      }
-      setTimeout(send, 200)
-      setTimeout(send, 700)
-      setTimeout(() => {
-        try {
-          if (!w.closed) {
-            w.postMessage({ type: 'presentation-mode', mode: 'slide-interaction' }, window.location.origin)
-            if (visualFullscreenOpen) {
-              w.postMessage({ type: 'visual-fullscreen-open', cellIndex: undefined }, window.location.origin)
-            } else {
-              w.postMessage({ type: 'visual-fullscreen-close' }, window.location.origin)
-            }
-            w.postMessage({ type: 'teacher-timer-sync', seconds: teacherTimerSeconds, running: teacherTimerRunning }, window.location.origin)
-            w.postMessage({ type: 'set-teacher-writing-mode', value: remoteTeacherWritingMode }, window.location.origin)
-            w.postMessage({ type: 'set-teacher-writing-speed', ms: remoteTeacherWritingSpeedMs }, window.location.origin)
-            w.postMessage({ type: 'set-auto-play', value: remoteAutoPlay }, window.location.origin)
-            w.postMessage({ type: 'set-auto-play-interval', ms: remoteAutoPlayIntervalMs }, window.location.origin)
-            w.postMessage({ type: 'quiz-popup-open', value: quizPopupOpen }, window.location.origin)
-            if (quizPopupOpen) {
-              const scrollEl = document.querySelector('[data-quiz-popup-scroll]') as HTMLElement | null
-              if (scrollEl) w.postMessage({ type: 'quiz-popup-scroll', scrollTop: scrollEl.scrollTop }, window.location.origin)
-            }
-          }
-        } catch { /* ignore */ }
-      }, 1000)
+    const features = `width=${sw},height=${sh},left=0,top=0,scrollbars=no,resizable=yes`
+    const url = '/tao-giao-trinh/xem-slide'
+    let targetWin: Window | null = null
+    try {
+      targetWin = window.open('', 'xem-slide')
+    } catch {
+      targetWin = null
     }
-  }, [content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning, remoteTeacherWritingMode, remoteTeacherWritingSpeedMs, remoteAutoPlay, remoteAutoPlayIntervalMs, visualFullscreenOpen, quizPopupOpen])
+    if (!targetWin || targetWin.closed) {
+      targetWin = window.open(url, 'xem-slide', features)
+    }
+    if (!targetWin) {
+      setStudentViewOpened(false)
+      toast({
+        title: tr('Không mở được giao diện học sinh', 'Cannot open student view', '无法打开学生界面', '生徒画面を開けません', '학생 화면을 열 수 없습니다'),
+        description: tr('Trình duyệt đã chặn popup hoặc quyền focus cửa sổ.', 'Popup or window-focus permission was blocked by browser.', '浏览器阻止了弹窗或窗口聚焦权限。', 'ブラウザがポップアップまたはフォーカス権限をブロックしました。', '브라우저가 팝업 또는 창 포커스 권한을 차단했습니다.'),
+        variant: 'destructive',
+      })
+      return
+    }
+    studentViewWindowRef.current = targetWin
+    setStudentViewOpened(true)
+
+    // Cùng phương thức với chiều Học sinh -> Giáo viên:
+    // dùng named window trước, nếu sai URL thì điều hướng một lần.
+    try {
+      const path = targetWin.location.pathname || ''
+      const isTargetPath = path === url || path.endsWith('/tao-giao-trinh/xem-slide')
+      if (!isTargetPath) targetWin.location.href = url
+    } catch {
+      /* ignore access errors */
+    }
+
+    try {
+      targetWin.focus()
+    } catch {
+      toast({
+        title: tr('Đã mở nhưng chưa focus được', 'Opened but cannot focus yet', '已打开但暂时无法聚焦', '開けましたがフォーカスできません', '열었지만 아직 포커스할 수 없습니다'),
+        description: tr('Bạn có thể chọn cửa sổ học sinh trên taskbar để chuyển ngay.', 'Use taskbar to bring student window to front immediately.', '请在任务栏选择学生窗口以立即切换。', 'タスクバーから生徒ウィンドウを選択してください。', '작업 표시줄에서 학생 창을 선택해 바로 전환하세요.'),
+      })
+    }
+
+    const sendState = () => {
+      try {
+        if (targetWin.closed) return
+        targetWin.postMessage(
+          {
+            type: 'curriculum-data',
+            content,
+            topic,
+            currentIndex,
+            curriculumId: curriculumId ?? null,
+            slideMode: slideMode ?? null,
+            personalViewSubMode,
+            hasOriginalSlides,
+            slides: slides.map((s) => ({
+              title: s.title,
+              blocks: s.blocks ?? [],
+              teacherNotes: s.teacherNotes ?? '',
+              imageUrl: s.imageUrl,
+              visualEmbed: s.visualEmbed,
+              visualLayout: s.visualLayout,
+              visualCells: s.visualCells,
+            })),
+            teacherTimerSeconds,
+            teacherTimerRunning,
+          },
+          window.location.origin
+        )
+        targetWin.postMessage({ type: 'presentation-mode', mode: 'slide-interaction' }, window.location.origin)
+        targetWin.postMessage({ type: 'slide-go', index: currentIndex }, window.location.origin)
+        if (visualFullscreenOpen) {
+          targetWin.postMessage({ type: 'visual-fullscreen-open', cellIndex: undefined }, window.location.origin)
+        } else {
+          targetWin.postMessage({ type: 'visual-fullscreen-close' }, window.location.origin)
+        }
+        targetWin.postMessage({ type: 'teacher-timer-sync', seconds: teacherTimerSeconds, running: teacherTimerRunning }, window.location.origin)
+      } catch {
+        /* ignore postMessage errors */
+      }
+    }
+    sendState()
+    setTimeout(sendState, 300)
+  }, [content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning, remoteTeacherWritingMode, remoteTeacherWritingSpeedMs, remoteAutoPlay, remoteAutoPlayIntervalMs, visualFullscreenOpen, quizPopupOpen, quizSessionData, quizSessionSettings, toast, tr])
+
+  const viewOpenedStudentView = useCallback(() => {
+    if (typeof window === 'undefined') return
+    let targetWin: Window | null = null
+    try {
+      targetWin = window.open('', 'xem-slide')
+    } catch {
+      targetWin = studentViewWindowRef.current
+    }
+    if (!targetWin || targetWin.closed) {
+      studentViewWindowRef.current = null
+      setStudentViewOpened(false)
+      toast({
+        title: tr('Chưa có giao diện học sinh đang mở', 'Student view is not open yet', '学生界面尚未打开', '生徒画面はまだ開いていません', '학생 화면이 아직 열려 있지 않습니다'),
+        description: tr('Hãy bấm "Mở giao diện học sinh" để mở lần đầu.', 'Click "Open student interface" for the first launch.', '请点击“打开学生界面”进行首次打开。', '初回は「生徒画面を開く」を押してください。', '처음에는 "학생 인터페이스 열기"를 눌러 주세요.'),
+      })
+      return
+    }
+    studentViewWindowRef.current = targetWin
+    setStudentViewOpened(true)
+    try {
+      targetWin.focus()
+    } catch {
+      toast({
+        title: tr('Đã tìm thấy cửa sổ học sinh', 'Student window found', '已找到学生窗口', '生徒ウィンドウを検出しました', '학생 창을 찾았습니다'),
+        description: tr('Trình duyệt chưa cho phép focus ngay. Bạn có thể chọn cửa sổ trên taskbar.', 'Browser did not allow immediate focus. You can select it from taskbar.', '浏览器暂未允许立即聚焦。可在任务栏选择该窗口。', 'ブラウザが即時フォーカスを許可しませんでした。タスクバーから選択できます。', '브라우저가 즉시 포커스를 허용하지 않았습니다. 작업 표시줄에서 선택하세요.'),
+      })
+    }
+  }, [toast, tr])
 
   const applyEmbedToSlide = useCallback((sl: SlideItem, marker: string, placement: EmbedPlacement = 'end'): SlideItem => {
     const blocks = (Array.isArray(sl.blocks) && sl.blocks.length > 0) ? sl.blocks : parseContentToBlocks(sl.content ?? '')
@@ -1194,12 +1304,45 @@ export default function CurriculumViewPage() {
           /* ignore */
         }
       }
-      if (e.data?.type === 'visual-fullscreen-close' && e.source === studentViewWindowRef.current) {
+      if (e.data?.type === 'teacher-focus-request') {
+        try {
+          window.focus()
+        } catch {
+          /* ignore */
+        }
+      }
+      if (e.data?.type === 'visual-fullscreen-open' && e.data?.fromStudent && e.source === studentViewWindowRef.current) {
+        setVisualFullscreenOpen(true)
+        setTeacherExpandedCellIndex(typeof e.data?.cellIndex === 'number' ? e.data.cellIndex : null)
+      }
+      if (e.data?.type === 'visual-fullscreen-close') {
         setVisualFullscreenOpen(false)
+        if (e.data?.returnTeacher) {
+          try {
+            window.focus()
+          } catch {
+            /* ignore */
+          }
+        }
       }
       if (e.data?.type === 'slide-go' && typeof e.data?.index === 'number' && e.source === studentViewWindowRef.current) {
         const idx = Math.max(0, Math.min(e.data.index, slides.length - 1))
         setCurrentIndex(idx)
+      }
+      if (e.data?.type === 'quiz-popup-open' && typeof e.data?.value === 'boolean' && e.source === studentViewWindowRef.current) {
+        if (e.data.value) {
+          openQuizPopupFresh()
+        } else {
+          setQuizPopupOpen(false)
+        }
+        if (e.data.value && typeof e.data?.scrollTop === 'number') {
+          const el = document.querySelector('[data-quiz-popup-scroll]') as HTMLElement | null
+          if (el) {
+            quizPopupScrollApplyingRef.current = true
+            el.scrollTop = e.data.scrollTop
+            setTimeout(() => { quizPopupScrollApplyingRef.current = false }, 80)
+          }
+        }
       }
       if (e.data?.type === 'quiz-popup-scroll' && e.data?.fromStudent && typeof e.data?.scrollTop === 'number' && e.source === studentViewWindowRef.current && quizPopupOpen) {
         const scrollTop = e.data.scrollTop
@@ -1243,7 +1386,7 @@ export default function CurriculumViewPage() {
     }
     window.addEventListener('message', handler)
     return () => window.removeEventListener('message', handler)
-  }, [content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning, quizPopupOpen])
+  }, [content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning, quizPopupOpen, openQuizPopupFresh])
 
   useEffect(() => {
     setNotesValue(slides[currentIndex]?.teacherNotes ?? '')
@@ -1349,10 +1492,13 @@ export default function CurriculumViewPage() {
   }, [visualFullscreenOpen, closeTeacherVisualFullscreen])
 
   return (
-    <div className={cn('fixed inset-0 z-50 h-screen w-screen overflow-x-hidden overflow-y-auto bg-slate-950 text-white flex flex-col', !isMobile && clipLeft ? 'items-end' : 'items-stretch')}>
-      {/* Desktop: layoutWidth khi thu hẹp. Mobile: luôn full width */}
-      <div className="flex-1 flex flex-col min-h-0 shrink-0 w-full" style={!isMobile && clipLeft ? { width: layoutWidth, minWidth: layoutWidth, maxWidth: layoutWidth } : undefined}>
-      {/* Thanh điều khiển đặt trên cùng để trùng tọa độ với màn học sinh */}
+    <div className="fixed inset-0 z-50 h-screen w-screen overflow-x-hidden overflow-y-auto bg-slate-950 text-white flex flex-col items-stretch">
+      {/* Khi thu hẹp: ẩn cột trái, giữ cột slide bên phải full width */}
+      <div
+        className="flex-1 flex flex-col min-h-0 shrink-0 w-full"
+        style={clipLeft ? { width: '100%', minWidth: 0 } : undefined}
+      >
+      {/* Thanh điều khiển đặt trên cùng */}
       <div className="shrink-0 border-b border-slate-700/80 bg-slate-900/80 backdrop-blur-sm">
         <PresentationControlBar
           variant="teacher"
@@ -1385,6 +1531,7 @@ export default function CurriculumViewPage() {
           onOpenStudentView={slides.length > 0 ? openStudentView : undefined}
           hideIndex
           hideInsert
+          hideTeacherLeftButtons
         />
       </div>
 
@@ -1459,16 +1606,16 @@ export default function CurriculumViewPage() {
           </div>
         </div>
       ) : (
-        <div className="flex-1 flex flex-col md:flex-row landscape:flex-row min-h-0 overflow-hidden isolate shrink-0 w-full">
-          <div className={cn('shrink-0 flex flex-col overflow-hidden isolate bg-slate-900/20 border-r border-slate-700/60 w-full md:w-1/2 landscape:w-1/2', leftPanelMode === 'visual' && 'md:w-[45%] landscape:w-[45%]')}>
+        <div className={cn('flex-1 flex min-h-0 overflow-hidden isolate shrink-0 w-full', clipLeft ? 'flex-row flex-nowrap' : 'flex-col md:flex-row landscape:flex-row')}>
+          <div className={cn('shrink-0 flex flex-col overflow-hidden isolate bg-slate-900/20 border-r border-slate-700/60 w-full md:w-1/2 landscape:w-1/2', leftPanelMode === 'visual' && 'md:w-[45%] landscape:w-[45%]', clipLeft && 'hidden')}>
             {leftPanelMode !== 'visual' && (
-              <div className="px-3 md:px-4 py-2 md:py-2.5 text-slate-400 text-xs font-medium uppercase tracking-wider border-b border-slate-700/60 shrink-0 flex items-center justify-between gap-2 flex-wrap md:flex-nowrap landscape:flex-nowrap">
-                <span>{leftPanelMode === 'curriculum' ? tr('Giáo trình', 'Curriculum', '课程', 'カリキュラム', '교육과정') : tr('Slide hiện tại', 'Current slide', '当前幻灯片', '表示中のスライド', '표시 중 슬라이드')}</span>
+              <div className="h-12 px-3 md:px-4 text-slate-400 text-xs font-medium uppercase tracking-wider border-b border-slate-700/60 bg-slate-900/30 shrink-0 flex items-center justify-between gap-2 overflow-hidden">
+                <span>{tr('Giáo trình', 'Curriculum', '课程', 'カリキュラム', '교육과정')}</span>
                 <div className="flex items-center gap-2">
-                  {(leftPanelMode === 'slide') && extractQuizFromSlide(slides[currentIndex] ?? {}).length > 0 && (
+                  {(leftPanelMode === 'curriculum') && extractQuizFromSlide(slides[currentIndex] ?? {}).length > 0 && (
                     <button
                       type="button"
-                      onClick={() => setQuizPopupOpen(true)}
+                      onClick={openQuizPopupFresh}
                       className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-violet-500/20 border border-violet-400/40 text-violet-300 hover:bg-violet-500/30 text-[11px] font-medium transition-colors"
                       title={tr('Mở quiz: thời gian, đồng hồ cát, thống kê', 'Open quiz: duration, timer, stats', '打开测验：时间、沙漏、统计', 'クイズを開く：時間・砂時計・統計', '퀴즈 열기: 시간·모래시계·통계')}
                     >
@@ -1477,13 +1624,10 @@ export default function CurriculumViewPage() {
                     </button>
                   )}
                   <div className="flex rounded-lg border border-slate-600/80 overflow-hidden bg-slate-800/50">
-                    <button type="button" onClick={() => setLeftPanelMode('curriculum')} className={['px-3 py-2 md:px-2.5 md:py-1 text-[11px] font-medium transition-colors min-h-[44px] md:min-h-0 flex items-center', leftPanelMode === 'curriculum' ? 'bg-amber-500/30 text-amber-300' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'].join(' ')}>
+                    <button type="button" onClick={() => setLeftPanelMode('curriculum')} className={['px-3 py-1.5 text-[11px] font-medium transition-colors h-8 flex items-center', leftPanelMode === 'curriculum' ? 'bg-amber-500/30 text-amber-300' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'].join(' ')}>
                       {tr('Giáo trình', 'Curriculum', '课程', 'カリキュラム', '교육과정')}
                     </button>
-                    <button type="button" onClick={() => setLeftPanelMode('slide')} className={['px-3 py-2 md:px-2.5 md:py-1 text-[11px] font-medium transition-colors min-h-[44px] md:min-h-0 flex items-center', leftPanelMode === 'slide' ? 'bg-amber-500/30 text-amber-300' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'].join(' ')}>
-                      {tr('Slide', 'Slide', '幻灯片', 'スライド', '슬라이드')}
-                    </button>
-                    <button type="button" onClick={() => setLeftPanelMode('visual')} className={['px-3 py-2 md:px-2.5 md:py-1 text-[11px] font-medium transition-colors min-h-[44px] md:min-h-0 flex items-center', (leftPanelMode as string) === 'visual' ? 'bg-amber-500/30 text-amber-300' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'].join(' ')}>
+                    <button type="button" onClick={() => setLeftPanelMode('visual')} className={['px-3 py-1.5 text-[11px] font-medium transition-colors h-8 flex items-center', (leftPanelMode as string) === 'visual' ? 'bg-amber-500/30 text-amber-300' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'].join(' ')}>
                       {tr('Visual', 'Visual', '视觉', 'ビジュアル', '비주얼')}
                     </button>
                   </div>
@@ -1504,12 +1648,12 @@ export default function CurriculumViewPage() {
                     <div className="h-full w-full relative overflow-hidden" style={{ background: gradient }}>
                       <div className="absolute top-3 right-3 z-20 flex items-center rounded-lg border border-slate-600/80 overflow-hidden bg-slate-900/70">
                         <button type="button" onClick={() => setLeftPanelMode('curriculum')} className="px-2 py-1 text-[10px] text-slate-300 hover:bg-slate-700/50">{tr('Giáo trình', 'Curriculum', '课程', 'カリキュラム', '교육과정')}</button>
-                        <button type="button" onClick={() => setLeftPanelMode('slide')} className="px-2 py-1 text-[10px] text-slate-300 hover:bg-slate-700/50">{tr('Slide', 'Slide', '幻灯片', 'スライド', '슬라이드')}</button>
                         <button type="button" onClick={() => setLeftPanelMode('visual')} className="px-2 py-1 text-[10px] bg-amber-500/30 text-amber-300">{tr('Visual', 'Visual', '视觉', 'ビジュアル', '비주얼')}</button>
                         {hasAny && (
                           <button
                             type="button"
-                            onClick={() => openTeacherVisualFullscreen()}
+                            onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); openTeacherVisualFullscreen() }}
+                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); openTeacherVisualFullscreen() }}
                             className="px-2 py-1 text-[10px] text-slate-200 hover:bg-slate-700/50 border-l border-slate-600/70"
                             title={tr('Mở rộng tất cả', 'Expand all', '展开全部', 'すべて展開', '모두 확장')}
                           >
@@ -1566,7 +1710,8 @@ export default function CurriculumViewPage() {
                                 {(cell.visualEmbed || cell.imageUrl) && (
                                   <button
                                     type="button"
-                                    onClick={(e) => { e.stopPropagation(); openTeacherVisualFullscreen(idx) }}
+                                    onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); openTeacherVisualFullscreen(idx) }}
+                                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); openTeacherVisualFullscreen(idx) }}
                                     className="absolute top-1 right-1 z-10 opacity-50 group-hover:opacity-100 p-1 rounded bg-black/60 text-white hover:bg-black/80 transition-opacity"
                                     title={tr('Mở rộng ô này', 'Expand this cell', '展开此格', 'このセルを展開', '이 셀 확장')}
                                   >
@@ -1590,130 +1735,6 @@ export default function CurriculumViewPage() {
                           </>
                         )}
                       </div>
-                    </div>
-                  )
-                })()
-              ) : leftPanelMode === 'slide' ? (
-                (() => {
-                  const s = slides[currentIndex]
-                  const blks = !s ? [] : (Array.isArray(s.blocks) && s.blocks.length ? s.blocks : s.content ? parseContentToBlocks(s.content ?? '') : [])
-                  const isQuizHeader = (h: string) => /câu hỏi|quiz|trắc nghiệm|测验|クイズ|퀴즈/i.test(h ?? '')
-                  return (
-                    <div className="space-y-4">
-                      {/* Tiêu đề slide – ý chính nổi bật */}
-                      <div className="pb-3 border-b border-slate-600/60 flex items-start justify-between gap-2">
-                        <div>
-                          <span className="inline-block px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 text-xs font-medium mb-1.5">{currentIndex + 1}/{slides.length}</span>
-                          <h2 className="text-base font-semibold text-white leading-snug">{s?.title ?? ''}</h2>
-                        </div>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <button type="button" className="p-1.5 rounded-md text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 shrink-0" title={tr('Tùy chọn', 'Options', '选项', 'オプション', '옵션')}>
-                              <MoreVertical className="h-4 w-4" />
-                            </button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="z-[120]">
-                            <DropdownMenuItem onClick={() => { setEmbedDialogInitialMode('replaceImage'); setEmbedReplaceContext(null); setEmbedDialogOpen(true) }} className="cursor-pointer gap-3">
-                              <RefreshCw className="h-4 w-4 shrink-0" />
-                              {tr('Thay', 'Replace', '替换', '差し替え', '교체')}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleDeleteSlide()} disabled={slides.length <= 1} className="text-rose-600 focus:text-rose-600 dark:text-rose-400 cursor-pointer gap-3">
-                              <Trash2 className="h-4 w-4 shrink-0" />
-                              {tr('Xóa slide', 'Delete slide', '删除幻灯片', 'スライド削除', '슬라이드 삭제')}
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                      {blks.length > 0 ? (
-                        <div className="space-y-4">
-                          {blks.map((b, i) => {
-                            const parts = splitContentWithEmbeds(b.content ?? '')
-                            const accent = isQuizHeader(b.header ?? '') ? 'violet' : 'amber'
-                            return (
-                              <div key={i} className={`rounded-lg overflow-hidden border border-slate-600/60 bg-slate-800/50 flex min-w-0`}>
-                                <div className={`w-1 shrink-0 ${accent === 'violet' ? 'bg-violet-500/60' : 'bg-amber-500/60'}`} />
-                                <div className="flex-1 min-w-0 p-3 pl-4">
-                                  {b.header && (
-                                    <span className={`inline-block text-[10px] font-medium uppercase tracking-wider px-1.5 py-0.5 rounded mb-2 ${accent === 'violet' ? 'bg-violet-500/20 text-violet-300/90' : 'bg-amber-500/20 text-amber-300/90'}`}>
-                                      {b.header}
-                                    </span>
-                                  )}
-                                  <div className="text-slate-100 text-[13px] leading-relaxed whitespace-pre-wrap break-words min-w-0 text-left space-y-2">
-                                    {parts.map((p, j) => {
-                                      if (p.type === 'text') return p.value ? <span key={j} className="block">{p.value}</span> : null
-                                      if (p.type === 'embed' && p.embedType === 'quiz') {
-                                        const q = parseQuizData(p.urlOrId)
-                                        if (!q) return null
-                                        return (
-                                          <div key={j} className="rounded-lg bg-violet-500/10 border border-violet-400/20 p-3 mt-2">
-                                            <p className="text-slate-100 text-[13px] font-medium mb-2">{q.question}</p>
-                                            <div className="space-y-1.5">
-                                              {q.options.map((opt, k) => (
-                                                <div key={k} className={['text-[13px] pl-2.5 py-1 rounded border-l-2', k === q.correctIndex ? 'border-emerald-400 text-emerald-300 bg-emerald-500/10' : 'border-slate-600 text-slate-300'].join(' ')}>
-                                                  {String.fromCharCode(65 + k)}. {opt}
-                                                  {k === q.correctIndex && <span className="ml-1.5 text-emerald-400/90 text-[11px]">({tr('Đáp án đúng', 'Correct', '正确', '正解', '정답')})</span>}
-                                                </div>
-                                              ))}
-                                            </div>
-                                          </div>
-                                        )
-                                      }
-                                      if (p.type === 'embed') {
-                                        return (
-                                          <div key={j} className="mt-2 rounded-lg overflow-hidden border border-slate-600/60">
-                                            <ContentEmbed type={p.embedType} urlOrId={p.urlOrId} width={280} height={160} tr={tr} />
-                                          </div>
-                                        )
-                                      }
-                                      return null
-                                    })}
-                                  </div>
-                                </div>
-                              </div>
-                            )
-                          })}
-                        </div>
-                      ) : s?.content ? (
-                        (() => {
-                          const parts = splitContentWithEmbeds(s.content)
-                          return (
-                            <div className="rounded-lg bg-slate-800/50 border border-slate-600/60 p-4">
-                              <div className="text-slate-100 text-[13px] leading-relaxed whitespace-pre-wrap break-words min-w-0 text-left space-y-2">
-                                {parts.map((p, j) => {
-                                  if (p.type === 'text') return p.value ? <span key={j} className="block">{p.value}</span> : null
-                                  if (p.type === 'embed' && p.embedType === 'quiz') {
-                                    const q = parseQuizData(p.urlOrId)
-                                    if (!q) return null
-                                    return (
-                                      <div key={j} className="rounded-lg bg-violet-500/10 border border-violet-400/20 p-3 mt-2">
-                                        <p className="text-slate-100 text-[13px] font-medium mb-2">{q.question}</p>
-                                        <div className="space-y-1.5">
-                                          {q.options.map((opt, k) => (
-                                            <div key={k} className={['text-[13px] pl-2.5 py-1 rounded border-l-2', k === q.correctIndex ? 'border-emerald-400 text-emerald-300 bg-emerald-500/10' : 'border-slate-600 text-slate-300'].join(' ')}>
-                                              {String.fromCharCode(65 + k)}. {opt}
-                                              {k === q.correctIndex && <span className="ml-1.5 text-emerald-400/90 text-[11px]">({tr('Đáp án đúng', 'Correct', '正确', '正解', '정답')})</span>}
-                                            </div>
-                                          ))}
-                                        </div>
-                                      </div>
-                                    )
-                                  }
-                                  if (p.type === 'embed') {
-                                    return (
-                                      <div key={j} className="mt-2 rounded-lg overflow-hidden border border-slate-600/60">
-                                        <ContentEmbed type={p.embedType} urlOrId={p.urlOrId} width={280} height={160} tr={tr} />
-                                      </div>
-                                    )
-                                  }
-                                  return null
-                                })}
-                              </div>
-                            </div>
-                          )
-                        })()
-                      ) : (
-                        <p className="text-slate-500 text-sm">{tr('Không có nội dung', 'No content', '无内容', 'コンテンツなし', '내용 없음')}</p>
-                      )}
                     </div>
                   )
                 })()
@@ -1762,10 +1783,35 @@ export default function CurriculumViewPage() {
             </div>
           </div>
 
-          {/* Phải: Slide */}
-          <div className={cn('shrink-0 flex flex-col overflow-hidden isolate w-full md:w-1/2 landscape:w-1/2', leftPanelMode === 'visual' && 'md:w-[55%] landscape:w-[55%]')}>
-            <div className="px-4 py-2.5 text-slate-400 text-xs font-medium uppercase tracking-wider border-b border-slate-700/60 shrink-0 bg-slate-900/30">
-              {slideViewMode === 'single' ? tr('Slide đang hiển thị', 'Current slide', '当前幻灯片', '表示中のスライド', '표시 중 슬라이드') : tr('3 slide: trước · hiện tại · sau', '3 slides: prev · current · next', '3张: 前·当前·后', '3枚: 前·現在·次', '3장: 이전·현재·다음')}
+          {/* Phải: Slide – khi clipLeft chiếm full width */}
+          <div className={cn('flex flex-col overflow-hidden isolate w-full', clipLeft ? 'flex-1 min-w-0' : 'shrink-0 md:w-1/2 landscape:w-1/2', leftPanelMode === 'visual' && !clipLeft && 'md:w-[55%] landscape:w-[55%]')}>
+            <div className="h-12 px-3 md:px-4 text-slate-400 text-xs font-medium uppercase tracking-wider border-b border-slate-700/60 shrink-0 bg-slate-900/30 flex items-center justify-between gap-2 overflow-hidden">
+              <span>{slideViewMode === 'single' ? tr('Slide đang hiển thị', 'Current slide', '当前幻灯片', '表示中のスライド', '표시 중 슬라이드') : tr('3 slide: trước · hiện tại · sau', '3 slides: prev · current · next', '3张: 前·当前·后', '3枚: 前·現在·次', '3장: 이전·현재·다음')}</span>
+              <div data-control="slide-mode-xem-hoc-sinh" className="flex rounded-lg border border-slate-600/80 overflow-hidden bg-slate-800/50 shrink-0">
+                <button type="button" onClick={() => setSlideViewMode('single')} className={cn('px-2.5 py-1.5 text-xs font-medium transition-colors', slideViewMode === 'single' ? 'bg-amber-500/30 text-amber-300' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50')} title="1 slide"><Square className="h-3.5 w-3.5 inline mr-1" />1</button>
+                <button type="button" onClick={() => setSlideViewMode('triple')} className={cn('px-2.5 py-1.5 text-xs font-medium transition-colors', slideViewMode === 'triple' ? 'bg-amber-500/30 text-amber-300' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50')} title="3 slide"><LayoutGrid className="h-3.5 w-3.5 inline mr-1" />3</button>
+                <button
+                  data-control="xem-học-sinh"
+                  type="button"
+                  onMouseDown={(e) => {
+                    if (slides.length <= 0) return
+                    e.preventDefault()
+                    if (studentViewOpened) viewOpenedStudentView()
+                    else openStudentView()
+                  }}
+                  onClick={(e) => e.preventDefault()}
+                  disabled={slides.length === 0}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/25 border-l border-slate-600/70 text-emerald-300 hover:bg-emerald-500/35 disabled:opacity-50 disabled:cursor-not-allowed text-xs font-medium shrink-0 h-9"
+                  title={studentViewOpened
+                    ? tr('Xem lại cửa sổ học sinh đã mở', 'View opened student window', '查看已打开的学生窗口', '開いている生徒ウィンドウを表示', '열려 있는 학생 창 보기')
+                    : tr('Mở giao diện học sinh', 'Open student interface', '打开学生界面', '生徒画面を開く', '학생 인터페이스 열기')}
+                >
+                  <Presentation className="h-4 w-4" />
+                  {studentViewOpened
+                    ? tr('Xem giao diện học sinh', 'View student interface', '查看学生界面', '生徒画面を見る', '학생 인터페이스 보기')
+                    : tr('Mở giao diện học sinh', 'Open student interface', '打开学生界面', '生徒画面を開く', '학생 인터페이스 열기')}
+                </button>
+              </div>
             </div>
             {slideViewMode === 'single' ? (
               <div className="flex-1 flex items-start justify-start min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain p-3">
@@ -1848,7 +1894,7 @@ export default function CurriculumViewPage() {
                                   ) : (
                                     <button
                                       type="button"
-                                      onClick={() => setQuizPopupOpen(true)}
+                                      onClick={openQuizPopupFresh}
                                       className="text-xs text-violet-400 hover:text-violet-300 px-2.5 py-1 rounded-lg bg-violet-500/15 border border-violet-400/30 flex items-center gap-1.5 transition-colors"
                                       title={tr('Xem câu hỏi trắc nghiệm', 'View quiz', '查看测验', 'クイズを見る', '퀴즈 보기')}
                                     >
@@ -2235,7 +2281,7 @@ export default function CurriculumViewPage() {
                           ) : (
                             <button
                               type="button"
-                              onClick={() => setQuizPopupOpen(true)}
+                              onClick={openQuizPopupFresh}
                               className="text-xs text-violet-400 hover:text-violet-300 px-1.5 py-0.5 rounded bg-slate-700/50 flex items-center gap-1"
                               title={tr('Xem câu hỏi trắc nghiệm', 'View quiz', '查看测验', 'クイズを見る', '퀴즈 보기')}
                             >
@@ -2588,12 +2634,55 @@ export default function CurriculumViewPage() {
       {slides[currentIndex] && (
         <QuizPopupDialog
           open={quizPopupOpen}
-          onOpenChange={setQuizPopupOpen}
+          onOpenChange={(open) => {
+            setQuizPopupOpen(open)
+            setQuizSessionData((prev) => {
+              const next = { ...prev }
+              for (const k of Object.keys(next)) {
+                if (k.startsWith(`${currentIndex}-`)) delete next[k]
+              }
+              return next
+            })
+            setQuizSessionSettings((prev) => {
+              const next = { ...prev }
+              for (const k of Object.keys(next)) {
+                if (k.startsWith(`${currentIndex}-`)) delete next[k]
+              }
+              return next
+            })
+            sendToStudentView({ type: 'quiz-session-reset-slide', slideIndex: currentIndex })
+          }}
           slide={slides[currentIndex]}
           slideIndex={currentIndex}
           curriculumId={curriculumId ?? undefined}
           tr={tr}
           teacherMode
+          quizSessionCodes={Object.fromEntries(Object.entries(quizSessionData).map(([k, v]) => [k, v.sessionCode]))}
+          quizSessionTimers={{
+            ...Object.fromEntries(Object.entries(quizSessionSettings).map(([k, v]) => [k, v.quizDurationSeconds])),
+            ...Object.fromEntries(Object.entries(quizSessionData).map(([k, v]) => [k, v.quizDurationSeconds])),
+          }}
+          quizSessionAutoReveal={Object.fromEntries(Object.entries(quizSessionSettings).map(([k, v]) => [k, v.autoRevealOnTimerEnd]))}
+          onQuizSettingsChange={(si, bi, settings) => {
+            const key = `${si}-${bi}`
+            let changed = false
+            setQuizSessionSettings((prev) => {
+              const cur = prev[key]
+              if (cur && cur.quizDurationSeconds === settings.quizDurationSeconds && cur.autoRevealOnTimerEnd === settings.autoRevealOnTimerEnd) {
+                return prev
+              }
+              changed = true
+              return { ...prev, [key]: settings }
+            })
+            if (!changed) return
+            sendToStudentView({ type: 'quiz-session-settings', slideIndex: si, blockIndex: bi, quizDurationSeconds: settings.quizDurationSeconds, autoRevealOnTimerEnd: settings.autoRevealOnTimerEnd })
+          }}
+          onQuizSessionCreated={(si, bi, code, quizDurationSeconds) => {
+            const key = `${si}-${bi}`
+            const data = { sessionCode: code, quizDurationSeconds: quizDurationSeconds ?? 60 }
+            setQuizSessionData((prev) => ({ ...prev, [key]: data }))
+            sendToStudentView({ type: 'quiz-session-code', slideIndex: si, blockIndex: bi, sessionCode: code, quizDurationSeconds: data.quizDurationSeconds })
+          }}
         />
       )}
       {typeof document !== 'undefined' &&
@@ -2613,3 +2702,4 @@ export default function CurriculumViewPage() {
     </div>
   )
 }
+

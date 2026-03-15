@@ -44,6 +44,16 @@ interface QuizPopupDialogProps {
   onGenerateQuiz?: () => Promise<void>
   onReplaceBrokenQuiz?: (rawMarker: string) => Promise<void>
   quizGenLoading?: boolean
+  /** Mã phiên quiz đã tạo – đồng bộ từ giáo viên sang học sinh */
+  quizSessionCodes?: Record<string, string>
+  /** Thời gian đồng hồ cát (giây) – đồng bộ từ giáo viên sang học sinh */
+  quizSessionTimers?: Record<string, number>
+  /** Chế độ mở đáp án khi hết giờ – đồng bộ từ giáo viên sang học sinh */
+  quizSessionAutoReveal?: Record<string, boolean>
+  /** Callback khi giáo viên tạo phiên quiz */
+  onQuizSessionCreated?: (slideIndex: number, blockIndex: number, sessionCode: string, quizDurationSeconds?: number) => void
+  /** Callback khi giáo viên đổi cài đặt quiz trước khi bắt đầu */
+  onQuizSettingsChange?: (slideIndex: number, blockIndex: number, settings: { quizDurationSeconds: number; autoRevealOnTimerEnd: boolean }) => void
 }
 
 export function QuizPopupDialog({
@@ -57,6 +67,11 @@ export function QuizPopupDialog({
   onGenerateQuiz,
   onReplaceBrokenQuiz,
   quizGenLoading = false,
+  quizSessionCodes = {},
+  quizSessionTimers = {},
+  quizSessionAutoReveal = {},
+  onQuizSessionCreated,
+  onQuizSettingsChange,
 }: QuizPopupDialogProps) {
   const quizzes = extractQuizFromSlide(slide)
   const hasQuiz = quizzes.length > 0
@@ -137,7 +152,17 @@ export function QuizPopupDialog({
                       urlOrId={q.urlOrId}
                       width={560}
                       height={200}
-                      liveQuizContext={{ curriculumId: curriculumId ?? '', slideIndex, blockIndex: i }}
+                      liveQuizContext={{
+                        curriculumId: curriculumId ?? '',
+                        slideIndex,
+                        blockIndex: i,
+                        initialSessionCode: quizSessionCodes[`${slideIndex}-${i}`] ?? null,
+                        initialQuizDurationSeconds: quizSessionTimers[`${slideIndex}-${i}`],
+                        initialAutoRevealOnTimerEnd: quizSessionAutoReveal[`${slideIndex}-${i}`],
+                        onSessionCreated: onQuizSessionCreated,
+                        onSettingsChange: onQuizSettingsChange,
+                        teacherMode,
+                      }}
                       tr={tr}
                     />
                   </div>

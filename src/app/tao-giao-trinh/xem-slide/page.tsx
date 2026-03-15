@@ -101,16 +101,16 @@ export default function XemSlidePage() {
       if (e.data?.type !== 'curriculum-data') return
       const sl = Array.isArray(e.data.slides) ? e.data.slides : []
       setData((prev) => {
+        const incomingIndexRaw = typeof e.data?.currentIndex === 'number' ? e.data.currentIndex : 0
+        const maxIndex = Math.max(0, sl.length - 1)
+        const incomingIndex = Math.max(0, Math.min(incomingIndexRaw, maxIndex))
         const next = {
           content: e.data!.content ?? '',
           topic: e.data!.topic ?? '',
-          currentIndex: e.data!.currentIndex ?? 0,
+          currentIndex: incomingIndex,
           curriculumId: typeof e.data!.curriculumId === 'string' ? e.data!.curriculumId : null,
           slideMode: e.data!.slideMode === 'personal' || e.data!.slideMode === 'shared' || e.data!.slideMode === 'original' ? e.data!.slideMode : null,
           slides: sl,
-        }
-        if (prev && prev.slides.length > 0) {
-          next.currentIndex = prev.currentIndex
         }
         return next
       })

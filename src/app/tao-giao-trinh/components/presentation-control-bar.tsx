@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { ChevronLeft, ChevronRight, X, Printer, BarChart2, Play, Pause, Settings2, PenLine, Timer, RotateCcw, Presentation, Square, LayoutGrid, Monitor, Share2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, X, Printer, BarChart2, Play, Pause, Settings2, PenLine, Timer, RotateCcw, Presentation, Square, LayoutGrid, Monitor } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
@@ -17,13 +17,13 @@ const SHARED_LAYOUT = {
   /** Đồng hồ giáo viên – khung cố định */
   teacherTimer: 'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg shrink-0',
   /** Nút Chèn – kích thước cố định */
-  btnInsert: 'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium shrink-0 h-9',
+  btnInsert: 'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium whitespace-nowrap shrink-0 h-9',
   /** Nút Viết */
-  btnWrite: 'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium shrink-0 h-9',
+  btnWrite: 'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium whitespace-nowrap shrink-0 h-9',
   /** Select tốc độ gõ */
   selectSpeed: 'w-[70px] h-9 shrink-0',
   /** Nút Tự chạy */
-  btnAutoPlay: 'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium shrink-0 h-9',
+  btnAutoPlay: 'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium whitespace-nowrap shrink-0 h-9',
   /** Select interval */
   selectInterval: 'w-[72px] h-9 shrink-0',
   /** Khung đồng hồ cát */
@@ -76,6 +76,8 @@ export interface PresentationControlBarProps {
   onPrint?: () => void
   onClose?: () => void
   onShareClick?: () => void
+  /** Nút mở nhanh giao diện giáo viên (ở cửa sổ học sinh) */
+  onOpenTeacherView?: () => void
   /** Khi true: nút Chia sẻ vẫn click được dù parent có pointer-events-none (chế độ slide-interaction) */
   shareButtonClickableWhenParentDisabled?: boolean
   slideViewMode?: 'single' | 'triple'
@@ -97,6 +99,8 @@ export interface PresentationControlBarProps {
   hideInsert?: boolean
   /** Ẩn số slide (dùng khi hiển thị ở header) */
   hideIndex?: boolean
+  /** Ẩn 3 nút: 1/3 slide + Xem như học sinh (chuyển xuống hàng 3) */
+  hideTeacherLeftButtons?: boolean
   /** Ẩn toàn bộ (print) */
   printHidden?: boolean
 }
@@ -132,6 +136,7 @@ export function PresentationControlBar({
   onPrint,
   onClose,
   onShareClick,
+  onOpenTeacherView,
   shareButtonClickableWhenParentDisabled = false,
   slideViewMode,
   onSlideViewModeChange,
@@ -146,6 +151,7 @@ export function PresentationControlBar({
   hideTeacherTimer = false,
   hideInsert = false,
   hideIndex = false,
+  hideTeacherLeftButtons = false,
   printHidden = false,
 }: PresentationControlBarProps) {
   const isStudent = variant === 'student'
@@ -189,31 +195,69 @@ export function PresentationControlBar({
   const highlightClass = (control: string) =>
     highlightedControl === control ? 'ring-2 ring-amber-300/90 ring-offset-1 ring-offset-black/40' : ''
   const isRealTeacherBar = isTeacher && teacherTimerInteractive
+  // Student view: prioritize keeping right controls visible on narrow widths.
+  const prioritizeRightControls = hideIndex || isStudent
 
   if (printHidden) return null
 
   return (
-    <div className={cn(SHARED_LAYOUT.container, theme.text)}>
-      {!hideIndex && (
+    <div
+      className={cn(
+        SHARED_LAYOUT.container,
+        theme.text,
+        // Keep right controls visible by pinning content to the right.
+        prioritizeRightControls && 'justify-end flex-nowrap overflow-x-hidden',
+        // Giao diện học sinh slide-interaction: toàn bộ control bar (visua, cài đặt...) phải click được.
+        shareButtonClickableWhenParentDisabled && 'pointer-events-auto'
+      )}
+    >
+      {!hideIndex && !isStudent && (
         <span className={cn(SHARED_LAYOUT.leftIndex, theme.index)}>
           {currentIndex + 1} / {totalSlides}
         </span>
       )}
-      {hideIndex && <span className="shrink-0" />}
-      <div className={SHARED_LAYOUT.rightGroup}>
+      <div className={cn(SHARED_LAYOUT.rightGroup, prioritizeRightControls && 'ml-auto w-max justify-end')}>
+        {onOpenTeacherView && (
+          <span className={cn(shareButtonClickableWhenParentDisabled && 'pointer-events-auto')}>
+            <button
+              data-control="giao-dien-giao-vien"
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault()
+                onOpenTeacherView()
+              }}
+              onClick={(e) => e.preventDefault()}
+              className={cn('flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium whitespace-nowrap shrink-0 h-9', theme.btnInactive, highlightClass('giao-dien-giao-vien'))}
+              title={tr('Mở nhanh giao diện giáo viên', 'Open teacher interface', '打开教师界面', '教師画面を開く', '교사 화면 열기')}
+            >
+              <Monitor className="h-4 w-4" />
+              {tr('Giao diện giáo viên', 'Teacher interface', '教师界面', '教師インターフェース', '교사 인터페이스')}
+            </button>
+          </span>
+        )}
         {/* Cụm riêng của giáo viên đặt sát bên trái */}
         {isRealTeacherBar && (
           <>
-            {onSlideViewModeChange && (
+            {onSlideViewModeChange && !hideTeacherLeftButtons && (
               <div data-control="slide-mode" className={cn('flex rounded-lg border border-slate-600/80 overflow-hidden bg-slate-800/50 shrink-0', highlightClass('slide-mode'))}>
                 <button type="button" onClick={() => onSlideViewModeChange('single')} className={cn('px-2.5 py-1.5 text-xs font-medium transition-colors', slideViewMode === 'single' ? 'bg-amber-500/30 text-amber-300' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50')} title="1 slide"><Square className="h-3.5 w-3.5 inline mr-1" />1</button>
                 <button type="button" onClick={() => onSlideViewModeChange('triple')} className={cn('px-2.5 py-1.5 text-xs font-medium transition-colors', slideViewMode === 'triple' ? 'bg-amber-500/30 text-amber-300' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50')} title="3 slide"><LayoutGrid className="h-3.5 w-3.5 inline mr-1" />3</button>
               </div>
             )}
-            {onOpenStudentView && (
-              <button data-control="xem-học-sinh" type="button" onClick={onOpenStudentView} className={cn('flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/25 border border-emerald-400/40 text-emerald-300 hover:bg-emerald-500/35 text-xs font-medium shrink-0 h-9', highlightClass('xem-học-sinh'))} title={tr('Xem fullscreen như học sinh', 'View as student', '全屏学生视图', '全画面生徒表示', '전체화면 학생 보기')}>
+            {onOpenStudentView && !hideTeacherLeftButtons && (
+              <button
+                data-control="xem-học-sinh"
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault()
+                  onOpenStudentView()
+                }}
+                onClick={(e) => e.preventDefault()}
+                className={cn('flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/25 border border-emerald-400/40 text-emerald-300 hover:bg-emerald-500/35 text-xs font-medium shrink-0 h-9', highlightClass('xem-học-sinh'))}
+                title={tr('Xem fullscreen như học sinh', 'View as student', '全屏学生视图', '全画面生徒表示', '전체화면 학생 보기')}
+              >
                 <Presentation className="h-4 w-4" />
-                {tr('Xem như học sinh', 'View as student', '学生视图', '生徒表示', '학생 보기')}
+                {tr('Giao diện học sinh', 'Student interface', '学生界面', '生徒インターフェース', '학생 인터페이스')}
               </button>
             )}
             {(onScreenShareStart || onScreenShareStop) && (
@@ -222,7 +266,7 @@ export function PresentationControlBar({
                 type="button"
                 onClick={isScreenSharing ? onScreenShareStop : onScreenShareStart}
                 className={cn(
-                  'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium shrink-0 h-9',
+                  'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap shrink-0 h-9',
                   isScreenSharing ? 'bg-amber-500/30 border border-amber-400/50 text-amber-200' : 'bg-slate-600/50 border border-slate-500/50 text-slate-200 hover:bg-slate-600/70'
                 )}
                 title={isScreenSharing ? tr('Dừng chia sẻ màn hình. Lưu ý: giữ tab này hiển thị, không chuyển sang tab khác.', 'Stop screen share. Note: keep this tab visible, do not switch tabs.', '停止共享。注意：保持此标签页可见，勿切换。', '共有停止。このタブを表示したままに。', '공유 중지. 이 탭을 보이게 유지하세요.') : tr('Chia sẻ màn hình – chọn tab giáo viên, giữ tab đó hiển thị', 'Share screen – select teacher tab, keep it visible', '共享屏幕 – 选择教师标签页并保持可见', '画面共有 – 教師タブを選択し表示を維持', '화면 공유 – 교사 탭 선택 후 표시 유지')}
@@ -234,36 +278,36 @@ export function PresentationControlBar({
           </>
         )}
 
-        {/* 1. Đồng hồ giáo viên – khung cố định */}
-        <div
-          data-control={hideTeacherTimer ? undefined : 'teacher-timer'}
-          className={cn(SHARED_LAYOUT.teacherTimer, theme.teacherTimerBg, !hideTeacherTimer && highlightClass('teacher-timer'), hideTeacherTimer && 'invisible pointer-events-none')}
-          title={tr('Bấm giờ giảng dạy', 'Teaching timer', '教学计时', '授業タイマー', '수업 타이머')}
-          aria-hidden={hideTeacherTimer}
-        >
-            <Timer className={cn('h-4 w-4 shrink-0', theme.teacherTimerText)} />
-            <span className={cn('font-mono font-semibold min-w-[2.5rem]', theme.teacherTimerText)}>{formatTimer(teacherTimerSeconds)}</span>
-            {teacherTimerInteractive && (
-              <>
-                <button type="button" onClick={teacherTimerRunning ? onTeacherTimerStop : onTeacherTimerStart} className={cn('p-1 rounded-md', theme.sandTimerBg, theme.teacherTimerText)} title={teacherTimerRunning ? tr('Tạm dừng', 'Pause', '暂停', '一時停止', '일시정지') : tr('Bắt đầu', 'Start', '开始', '開始', '시작')}>
-                  {teacherTimerRunning ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
-                </button>
-                <button type="button" onClick={onTeacherTimerReset} className={cn('p-1 rounded-md', theme.sandTimerBg, theme.teacherTimerText)} title={tr('Đặt lại', 'Reset', '重置', 'リセット', '초기화')}>
-                  <RotateCcw className="h-3.5 w-3.5" />
-                </button>
-              </>
-            )}
-        </div>
+        {/* 1. Đồng hồ giáo viên – student ẩn hẳn để không tạo khoảng trống */}
+        {!hideTeacherTimer && (
+          <div
+            data-control="teacher-timer"
+            className={cn(SHARED_LAYOUT.teacherTimer, theme.teacherTimerBg, highlightClass('teacher-timer'))}
+            title={tr('Bấm giờ giảng dạy', 'Teaching timer', '教学计时', '授業タイマー', '수업 타이머')}
+          >
+              <Timer className={cn('h-4 w-4 shrink-0', theme.teacherTimerText)} />
+              <span className={cn('font-mono font-semibold min-w-[2.5rem]', theme.teacherTimerText)}>{formatTimer(teacherTimerSeconds)}</span>
+              {teacherTimerInteractive && (
+                <>
+                  <button type="button" onClick={teacherTimerRunning ? onTeacherTimerStop : onTeacherTimerStart} className={cn('p-1 rounded-md', theme.sandTimerBg, theme.teacherTimerText)} title={teacherTimerRunning ? tr('Tạm dừng', 'Pause', '暂停', '一時停止', '일시정지') : tr('Bắt đầu', 'Start', '开始', '開始', '시작')}>
+                    {teacherTimerRunning ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+                  </button>
+                  <button type="button" onClick={onTeacherTimerReset} className={cn('p-1 rounded-md', theme.sandTimerBg, theme.teacherTimerText)} title={tr('Đặt lại', 'Reset', '重置', 'リセット', '초기화')}>
+                    <RotateCcw className="h-3.5 w-3.5" />
+                  </button>
+                </>
+              )}
+          </div>
+        )}
 
-        {/* 2. Chèn – chỉ giáo viên, học sinh ẩn */}
-        {isTeacher && curriculumId && onInsertClick && (
+        {/* 2. Chèn – chỉ giáo viên, học sinh ẩn. Khi hideInsert: không render để tránh khoảng trống */}
+        {isTeacher && curriculumId && onInsertClick && !hideInsert && (
           <button
-            data-control={hideInsert ? undefined : 'chèn'}
+            data-control="chèn"
             type="button"
-            onClick={hideInsert ? undefined : onInsertClick}
-            className={cn(SHARED_LAYOUT.btnInsert, theme.btnInactive, !hideInsert && highlightClass('chèn'), hideInsert && 'invisible pointer-events-none')}
+            onClick={onInsertClick}
+            className={cn(SHARED_LAYOUT.btnInsert, theme.btnInactive, highlightClass('chèn'))}
             title={tr('Chèn nội dung (YouTube, GeoGebra, ảnh, quiz...)', 'Insert content', '插入内容', 'コンテンツを挿入', '콘텐츠 삽입')}
-            aria-hidden={hideInsert}
           >
             <BarChart2 className="h-4 w-4" />
             {tr('Chèn', 'Insert', '插入', '挿入', '삽입')}
@@ -278,7 +322,7 @@ export function PresentationControlBar({
               type="button"
               onClick={isScreenShareLiveActive ? onScreenShareLiveStop : onScreenShareLiveClick}
               className={cn(
-                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium shrink-0 h-9',
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap shrink-0 h-9',
                 isScreenShareLiveActive ? 'bg-rose-500/25 border border-rose-400/40 text-rose-300 hover:bg-rose-500/35' : 'bg-amber-500/25 border border-amber-400/40 text-amber-300 hover:bg-amber-500/35'
               )}
               title={isScreenShareLiveActive ? tr('Dừng chia sẻ màn hình livestream', 'Stop screen share livestream', '停止屏幕直播共享', '画面共有ライブを停止', '화면 공유 라이브 중지') : tr('Chia sẻ màn hình livestream – link + QR cho người khác quét xem', 'Share screen livestream – link + QR for others to scan', '共享屏幕直播 – 链接和二维码供他人扫码', '画面共有ライブ – リンクとQRで他人がスキャン', '화면 공유 라이브 – 링크와 QR로 다른 사람이 스캔')}
@@ -288,16 +332,6 @@ export function PresentationControlBar({
             </button>
           </span>
         )}
-        {/* 2c. Chia sẻ link + QR (bên trái nút Viết) */}
-        {onShareClick && (
-          <span className={cn(shareButtonClickableWhenParentDisabled && 'pointer-events-auto')}>
-            <button data-control="share" type="button" onClick={onShareClick} className={cn('flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/25 border border-emerald-400/40 text-emerald-300 hover:bg-emerald-500/35 text-xs font-medium shrink-0 h-9', highlightClass('share'))} title={tr('Chia sẻ link + QR để học sinh mở xem slide', 'Share link + QR for students to view slides', '分享链接和二维码供学生查看', '共有リンクとQRで生徒がスライドを表示', '공유 링크와 QR로 학생이 슬라이드 보기')}>
-              <Share2 className="h-4 w-4" />
-              {tr('Chia sẻ link', 'Share link', '分享链接', 'リンク共有', '링크 공유')}
-            </button>
-          </span>
-        )}
-
         {/* 3. Viết + tốc độ */}
         <div className="flex items-center gap-1.5 shrink-0">
           <button data-control="viết" type="button" onClick={onWritingModeToggle} className={cn(SHARED_LAYOUT.btnWrite, writingMode ? theme.btnActive : theme.btnInactive, highlightClass('viết'))} title={tr('Hiệu ứng viết từng ký tự', 'Typing effect', '字符逐字显示', 'タイピング効果', '타이핑 효과')}>
