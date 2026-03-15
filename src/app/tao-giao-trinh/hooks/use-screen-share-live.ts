@@ -8,6 +8,30 @@ function generateShareCode(): string {
   return crypto.randomUUID().replace(/-/g, '').slice(0, 8)
 }
 
+function isLoopbackHost(hostname: string): boolean {
+  const h = hostname.trim().toLowerCase()
+  return h === 'localhost' || h === '127.0.0.1' || h === '::1'
+}
+
+function resolveShareBaseUrl(): string {
+  if (typeof window === 'undefined') return process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') || ''
+
+  const currentOrigin = `${window.location.protocol}//${window.location.host}`.replace(/\/$/, '')
+  const envUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') || ''
+  if (!envUrl) return currentOrigin
+
+  try {
+    const currentHost = window.location.hostname
+    const envHost = new URL(envUrl).hostname
+    // Nếu đang truy cập bằng localhost thì ưu tiên domain/IP public từ env.
+    if (isLoopbackHost(currentHost) && !isLoopbackHost(envHost)) return envUrl
+    // Nếu đang truy cập bằng domain/IP khả dụng thì dùng origin hiện tại (tránh env localhost sai).
+    return currentOrigin
+  } catch {
+    return currentOrigin
+  }
+}
+
 function createPeerConnection(
   onTrack: (stream: MediaStream) => void,
   onIceCandidate: (candidate: RTCIceCandidate) => void
@@ -75,10 +99,7 @@ export function useScreenShareLive(): UseScreenShareLiveReturn {
       const code = generateShareCode()
       setShareCode(code)
 
-      const baseUrl =
-        typeof window !== 'undefined'
-          ? (process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') || `${window.location.protocol}//${window.location.host}`)
-          : ''
+      const baseUrl = resolveShareBaseUrl()
       const url = `${baseUrl}/tao-giao-trinh/xem-man-hinh?share=${code}`
       setShareUrl(url)
 
