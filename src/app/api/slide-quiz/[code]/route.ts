@@ -48,13 +48,19 @@ export async function GET(
   }
 
   const quiz = data.quiz_data as { question: string; options: string[]; correctIndex: number }
+  const opts = quiz?.options ?? []
+  // Nếu option có chứa "(Đáp án đúng)" thì ưu tiên dùng index đó – tránh lỗi correctIndex sai trong DB
+  const idxByMarker = opts.findIndex((o) => /\(Đáp án đúng\)/i.test(String(o ?? '')))
+  let correctIndex = quiz?.correctIndex ?? 0
+  if (idxByMarker >= 0) correctIndex = idxByMarker
+
   const payload: { sessionId: string; code: string; question: string; options: string[]; status: string; correctIndex?: number } = {
     sessionId: data.id,
     code: data.code,
     question: quiz?.question ?? '',
-    options: quiz?.options ?? [],
+    options: opts,
     status: data.status,
   }
-  if (data.status === 'revealed') payload.correctIndex = quiz?.correctIndex ?? 0
+  if (data.status === 'revealed') payload.correctIndex = Math.min(correctIndex, opts.length - 1)
   return NextResponse.json(payload)
 }

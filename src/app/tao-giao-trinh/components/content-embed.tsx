@@ -254,7 +254,10 @@ function LiveQuizEmbed({
         .then((r) => r.ok ? r.json() : null)
         .then((d) => {
           if (d?.options?.length) {
-            const qd = { question: d.question ?? '', options: d.options, correctIndex: d.correctIndex ?? 0 }
+            let correctIdx = d.correctIndex ?? 0
+            const idxByMarker = d.options.findIndex((o: string) => /\(Đáp án đúng\)/i.test(String(o ?? '')))
+            if (idxByMarker >= 0) correctIdx = idxByMarker
+            const qd = { question: d.question ?? '', options: d.options, correctIndex: correctIdx }
             setSessionQuizData(qd)
             setDisplayQuizData(qd)
           }
@@ -381,12 +384,27 @@ function LiveQuizEmbed({
 
   const revealAnswer = useCallback(async () => {
     if (!sessionCode) return
-    await fetch(`/api/slide-quiz/${sessionCode}`, {
+    const res = await fetch(`/api/slide-quiz/${sessionCode}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'revealed' }),
     })
-    setRevealed(true)
+    if (res.ok) {
+      setRevealed(true)
+      // Refetch để lấy correctIndex từ DB (API chỉ trả về correctIndex khi status=revealed)
+      fetch(`/api/slide-quiz/${sessionCode}`)
+        .then((r) => r.ok ? r.json() : null)
+        .then((d) => {
+          if (d?.options?.length && typeof d.correctIndex === 'number') {
+            let correctIdx = d.correctIndex
+            const idxByMarker = d.options.findIndex((o: string) => /\(Đáp án đúng\)/i.test(String(o ?? '')))
+            if (idxByMarker >= 0) correctIdx = idxByMarker
+            setSessionQuizData((prev) => (prev ? { ...prev, correctIndex: correctIdx } : prev))
+            setDisplayQuizData((prev) => (prev ? { ...prev, correctIndex: correctIdx } : prev))
+          }
+        })
+        .catch(() => {})
+    }
   }, [sessionCode])
 
   useEffect(() => {
