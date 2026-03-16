@@ -12,7 +12,12 @@ import { getDictionary, type Dictionary } from '@/lib/i18n/dictionaries'
 
 const LocaleSwitcher = dynamic(
   () => import('@/components/layout/locale-switcher').then((m) => m.LocaleSwitcher),
-  { ssr: false }
+  {
+    ssr: false,
+    loading: () => (
+      <div className="hidden md:flex items-center gap-1 rounded-md border p-1 h-9 w-[180px] animate-pulse bg-muted/50" aria-hidden />
+    ),
+  }
 )
 
 export async function Header() {

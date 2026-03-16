@@ -101,6 +101,18 @@ export function MobileNav({ isAdmin, t }: MobileNavProps) {
                       <ChevronRight className="h-4 w-4 text-muted-foreground ml-auto" />
                     </Link>
                   </SheetClose>
+                  <SheetClose asChild>
+                    <Link
+                      href="/admin/curriculum-edit-reviews"
+                      className="flex items-center gap-3 min-h-[48px] px-4 py-3 text-sm font-medium text-foreground hover:bg-muted/50 transition-colors touch-manipulation"
+                    >
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-background">
+                        <BarChart3 className="h-4 w-4" />
+                      </span>
+                      <span>Duyệt giáo trình</span>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground ml-auto" />
+                    </Link>
+                  </SheetClose>
                 </div>
               </div>
             )}

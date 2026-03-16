@@ -35,7 +35,12 @@ export const GRADE_LEVELS = [
   { id: 'lop-10', labelVi: 'Lớp 10', labelEn: 'Grade 10' },
   { id: 'lop-11', labelVi: 'Lớp 11', labelEn: 'Grade 11' },
   { id: 'lop-12', labelVi: 'Lớp 12', labelEn: 'Grade 12' },
+  { id: 'hoc-nghe', labelVi: 'Học nghề', labelEn: 'Vocational' },
+  { id: 'trung-cap', labelVi: 'Trung cấp', labelEn: 'Intermediate' },
+  { id: 'cao-dang', labelVi: 'Cao đẳng', labelEn: 'College' },
   { id: 'dai-hoc', labelVi: 'Đại học', labelEn: 'University' },
+  { id: 'cao-hoc', labelVi: 'Cao học', labelEn: "Master's" },
+  { id: 'tien-si', labelVi: 'Tiến sĩ', labelEn: 'Doctorate' },
   { id: 'khac', labelVi: 'Khác', labelEn: 'Other' },
 ] as const
 
@@ -44,14 +49,16 @@ export const GRADE_LEVEL_GROUPS = [
   { labelVi: 'Tiểu học (1–5)', labelEn: 'Primary (1–5)', ids: ['lop-1', 'lop-2', 'lop-3', 'lop-4', 'lop-5'] },
   { labelVi: 'THCS (6–9)', labelEn: 'Middle School (6–9)', ids: ['lop-6', 'lop-7', 'lop-8', 'lop-9'] },
   { labelVi: 'THPT (10–12)', labelEn: 'High School (10–12)', ids: ['lop-10', 'lop-11', 'lop-12'] },
-  { labelVi: 'Khác', labelEn: 'Other', ids: ['dai-hoc', 'khac'] },
+  { labelVi: 'Sau THPT', labelEn: 'Post-secondary', ids: ['hoc-nghe', 'trung-cap', 'cao-dang', 'dai-hoc', 'cao-hoc', 'tien-si'] },
+  { labelVi: 'Khác', labelEn: 'Other', ids: ['khac'] },
 ] as const
 
-/** Bộ sách giáo khoa GDPT 2018 (VN) */
+/** Bộ sách giáo khoa GDPT 2018 (VN) + Khác (sách NXB khác, nước ngoài, v.v.) */
 export const TEXTBOOK_SETS = [
   { id: 'ket-noi-tri-thuc', labelVi: 'Kết nối tri thức với cuộc sống', labelEn: 'Kết nối tri thức' },
   { id: 'canh-dieu', labelVi: 'Cánh diều', labelEn: 'Cánh diều' },
   { id: 'chan-troi-sang-tao', labelVi: 'Chân trời sáng tạo', labelEn: 'Chân trời sáng tạo' },
+  { id: 'khac', labelVi: 'Khác / Sách khác NXB', labelEn: 'Other / Other publisher' },
 ] as const
 
 /** Loại bài học – mỗi loại có cấu trúc giáo án khác nhau */

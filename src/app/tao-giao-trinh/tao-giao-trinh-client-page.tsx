@@ -17,6 +17,8 @@ import { SlideVersionDialog, type SlideVersionChoice } from './components/slide-
 import type { AISlideData } from './lib/curriculum-to-slides'
 import { SUBJECTS, GRADE_LEVELS, GRADE_LEVEL_GROUPS, TEXTBOOK_SETS } from './lib/curriculum-subjects'
 import { createCurriculum, createWorksheet, saveCurriculum, saveTextbookLessonFromImage, listCurricula, getCurriculumById, getWorksheetById, getWorksheetsByCurriculumId, deleteCurriculum, saveSlidesToCurriculum, getSlidesByCurriculumId, getOriginalSlides, getUserCustomizedSlides, saveOriginalSlidesIfNotExists, checkCurriculumExists, recordCurriculumOpen } from './actions'
+import { extractEditRegions } from './lib/curriculum-region-extract'
+import { highlightMatchInCurriculum } from './components/curriculum-edit-sheet'
 
 type UiLocale = 'vi' | 'en' | 'zh' | 'ja' | 'ko'
 
@@ -78,6 +80,7 @@ export default function TaoGiaoTrinhClientPage() {
   const [checkLoading, setCheckLoading] = useState(false)
   const [lessonImages, setLessonImages] = useState<File[]>([])
   const lessonImageInputRef = useRef<HTMLInputElement>(null)
+  const [createMode, setCreateMode] = useState<'textbook' | 'topic'>('textbook')
   const { toast } = useToast()
   const curriculumResultRef = useRef<HTMLDivElement>(null)
 
@@ -92,13 +95,12 @@ export default function TaoGiaoTrinhClientPage() {
         year: 'numeric',
         hour: '2-digit',
         minute: '2-digit',
+        timeZone: 'UTC',
       })
     } catch {
       return ''
     }
   }
-
-  const displayTopic = topic.trim() || `Bài ${lessonNumber}`
 
   const tr = (vi: string, en: string, zh: string, ja: string, ko: string) => {
     if (uiLocale === 'en') return en
@@ -107,6 +109,8 @@ export default function TaoGiaoTrinhClientPage() {
     if (uiLocale === 'ko') return ko
     return vi
   }
+
+  const displayTopic = topic.trim() || (lessonNumber ? `Bài ${lessonNumber}` : tr('Chủ đề', 'Topic', '主题', '主題', '주제'))
 
   useEffect(() => {
     const syncLocale = () => setUiLocale(getWebLocaleFromCookie())
@@ -138,6 +142,12 @@ export default function TaoGiaoTrinhClientPage() {
   }, [showBrowse, browseSubjectFilter, browseGradeFilter])
 
   useEffect(() => {
+    if (createMode === 'topic') {
+      setCurriculumExists(null)
+      setExistingCurriculumId(null)
+      setExistingCurriculumTopic(null)
+      return
+    }
     const num = parseInt(lessonNumber, 10)
     if (!num || num < 1 || num > 999) {
       setCurriculumExists(null)
@@ -151,9 +161,11 @@ export default function TaoGiaoTrinhClientPage() {
       subjectId,
       gradeLevelId,
       textbookSetId,
+      textbookVolume: textbookVolume.trim() || undefined,
       lessonNumber: num,
       numLessons,
       lessonDurationMinutes,
+      lessonTypeId,
     })
       .then((res) => {
         if (cancelled) return
@@ -180,12 +192,7 @@ export default function TaoGiaoTrinhClientPage() {
     return () => {
       cancelled = true
     }
-  }, [subjectId, gradeLevelId, textbookSetId, lessonNumber, numLessons, lessonDurationMinutes])
-
-  const handleLoadExistingCurriculum = async () => {
-    if (!existingCurriculumId) return
-    await handleLoadCurriculum(existingCurriculumId)
-  }
+  }, [createMode, subjectId, gradeLevelId, textbookSetId, textbookVolume, lessonNumber, numLessons, lessonDurationMinutes, lessonTypeId])
 
   const handleSubmitFromImage = async () => {
     const num = parseInt(lessonNumber, 10)
@@ -224,9 +231,9 @@ export default function TaoGiaoTrinhClientPage() {
       saveFd.append('subjectId', subjectId)
       saveFd.append('gradeLevelId', gradeLevelId)
       saveFd.append('textbookSetId', textbookSetId)
-      saveFd.append('textbookVolume', '')
+      saveFd.append('textbookVolume', textbookVolume.trim())
       saveFd.append('lessonNumber', finalLessonNum)
-      saveFd.append('lessonTypeId', 'hinh-thanh-kien-thuc')
+      saveFd.append('lessonTypeId', lessonTypeId)
       saveFd.append('numLessons', String(numLessons))
       saveFd.append('lessonDurationMinutes', String(lessonDurationMinutes))
       saveFd.append('goals', goals)
@@ -273,6 +280,63 @@ export default function TaoGiaoTrinhClientPage() {
   }
 
   const handleSubmit = async () => {
+    if (createMode === 'topic') {
+      if (!topic.trim() || topic.trim().length < 2) {
+        toast({
+          title: tr('Thiếu thông tin', 'Missing information', '缺少信息', '情報不足', '정보 누락'),
+          description: tr('Vui lòng nhập chủ đề (ít nhất 2 ký tự).', 'Please enter topic (at least 2 characters).', '请输入主题（至少2个字符）。', '主題を入力してください（2文字以上）。', '주제를 입력해 주세요 (최소 2자).'),
+          variant: 'destructive',
+        })
+        return
+      }
+      setStep('GENERATING')
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
+      const formData = new FormData()
+      formData.append('createMode', 'topic')
+      formData.append('subjectId', subjectId)
+      formData.append('gradeLevelId', gradeLevelId)
+      formData.append('textbookSetId', 'khac')
+      formData.append('textbookVolume', '')
+      formData.append('topic', topic.trim())
+      formData.append('lessonTypeId', lessonTypeId)
+      formData.append('numLessons', String(numLessons))
+      formData.append('lessonDurationMinutes', String(lessonDurationMinutes))
+      formData.append('goals', goals.trim())
+      const result = await createCurriculum(formData)
+      if (result.error) {
+        setStep('INPUT')
+        toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: result.error, variant: 'destructive', duration: 5000 })
+        return
+      }
+      if (result.success && result.curriculumMarkdown) {
+        setCurriculumMarkdown(result.curriculumMarkdown)
+        setCurriculumId(result.curriculumId ?? null)
+        setStep('RESULT')
+        toast({ title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'), description: tr('Giáo trình đã được tạo.', 'Curriculum created.', '课程已创建并保存。', 'カリキュラムを作成しました。', '교육과정 생성됨.'), duration: 3000 })
+        if (result.curriculumId) {
+          void (async () => {
+            try {
+              const res = await fetch('/api/curriculum-analyze-slides', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ curriculumMarkdown: result.curriculumMarkdown, topic: topic.trim() }),
+              })
+              const data = await res.json().catch(() => ({}))
+              if (res.ok && Array.isArray(data?.slides) && data.slides.length > 0) {
+                const slides = data.slides as AISlideData[]
+                setCurriculumSlides(slides)
+                await saveSlidesToCurriculum({ curriculumId: result.curriculumId!, topic: topic.trim(), subjectId, gradeLevelId, slides })
+                await saveOriginalSlidesIfNotExists({ curriculumId: result.curriculumId!, slides })
+              }
+            } catch (e) {
+              console.warn('[auto-slides] Lỗi:', e)
+            }
+          })()
+        }
+      }
+      return
+    }
+
     const num = parseInt(lessonNumber, 10)
     if (!num || num < 1 || num > 999) {
       toast({
@@ -282,11 +346,7 @@ export default function TaoGiaoTrinhClientPage() {
       })
       return
     }
-    if (curriculumExists && existingCurriculumId) {
-      await handleLoadExistingCurriculum()
-      return
-    }
-    if (curriculumExists === false) {
+    if (createMode === 'textbook') {
       if (lessonImages.length === 0) {
         toast({
           title: tr('Cần gửi ảnh bài học', 'Upload lesson image required', '需要上传课程图片', '授業画像のアップロードが必要', '수업 이미지 업로드 필요'),
@@ -297,84 +357,6 @@ export default function TaoGiaoTrinhClientPage() {
       }
       await handleSubmitFromImage()
       return
-    }
-    setStep('GENERATING')
-    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
-    const formData = new FormData()
-    formData.append('subjectId', subjectId)
-    formData.append('gradeLevelId', gradeLevelId)
-    formData.append('textbookSetId', textbookSetId)
-    formData.append('textbookVolume', textbookVolume.trim())
-    formData.append('lessonNumber', lessonNumber.trim())
-    formData.append('lessonTypeId', lessonTypeId)
-    formData.append('topic', displayTopic)
-    formData.append('numLessons', String(numLessons))
-    formData.append('lessonDurationMinutes', String(lessonDurationMinutes))
-    formData.append('goals', goals.trim())
-    const result = await createCurriculum(formData)
-    if (result.error) {
-      setStep('INPUT')
-      toast({
-        title: tr('Tạo giáo trình thất bại', 'Create curriculum failed', '创建课程失败', 'カリキュラム作成に失敗', '교육과정 생성 실패'),
-        description: result.error,
-        variant: 'destructive',
-        duration: 5000,
-      })
-    } else if (result.success && result.curriculumMarkdown) {
-      setCurriculumMarkdown(result.curriculumMarkdown)
-      const newCurriculumId = result.curriculumId ?? null
-      setCurriculumId(newCurriculumId)
-      setStep('RESULT')
-      if (result.matched) {
-        toast({
-          title: tr('Đã tìm thấy giáo trình tương ứng', 'Matching curriculum found', '找到匹配课程', '一致するカリキュラムを発見', '일치하는 교육과정 발견'),
-          description: tr('Sử dụng bản có sẵn trong kho.', 'Using existing curriculum from library.', '使用库中现有课程。', 'ライブラリの既存を使用。', '라이브러리 기존 사용.'),
-          duration: 3000,
-        })
-      } else if (result.saveFailed) {
-        toast({
-          title: tr('Giáo trình đã tạo', 'Curriculum created', '课程已创建', 'カリキュラム作成', '교육과정 생성'),
-          description: tr('Chưa lưu vào kho. Bấm "Lưu vào kho" để lưu.', 'Not saved to library. Click "Save to library" to save.', '未保存到库。点击"保存到库"保存。', 'ライブラリに未保存。「保存」をクリック。', '라이브러리에 미저장. "저장" 클릭.'),
-          variant: 'default',
-          duration: 5000,
-        })
-      } else {
-        toast({
-          title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'),
-          description: tr('Giáo trình đã được tạo và lưu.', 'Curriculum created and saved.', '课程已创建并保存。', 'カリキュラムを作成・保存しました。', '교육과정 생성 및 저장됨.'),
-          duration: 3000,
-        })
-      }
-      // Tự động tạo slide và lưu DB – giáo viên sau mở sẵn, không cần gọi AI
-      if (newCurriculumId && !result.matched) {
-        void (async () => {
-          try {
-            const res = await fetch('/api/curriculum-analyze-slides', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                curriculumMarkdown: result.curriculumMarkdown,
-                topic: displayTopic,
-              }),
-            })
-            const data = await res.json().catch(() => ({}))
-            if (res.ok && Array.isArray(data?.slides) && data.slides.length > 0) {
-              const slides = data.slides as AISlideData[]
-              setCurriculumSlides(slides)
-              await saveSlidesToCurriculum({
-                curriculumId: newCurriculumId,
-                topic: displayTopic,
-                subjectId,
-                gradeLevelId,
-                slides,
-              })
-              await saveOriginalSlidesIfNotExists({ curriculumId: newCurriculumId, slides })
-            }
-          } catch (e) {
-            console.warn('[auto-slides] Lỗi:', e)
-          }
-        })()
-      }
     }
   }
 
@@ -621,6 +603,17 @@ export default function TaoGiaoTrinhClientPage() {
     setStep('INPUT')
     setCurriculumMarkdown('')
     setCurriculumId(null)
+    setCurriculumEditMode(false)
+    setEditOriginalText('')
+    setEditEditedText('')
+    setEditMatchStatus('idle')
+    setEditMatchCount(0)
+    setEditCompareResult(null)
+    setEditCompareErrors([])
+    setRegionPreview(null)
+    setRegionCharCount(null)
+    setRegionCompareResult(null)
+    setRegionCheckErrors([])
     setWorksheetMarkdown('')
     setWorksheetId(null)
     setWorksheetQrDataUrl(null)
@@ -628,36 +621,474 @@ export default function TaoGiaoTrinhClientPage() {
     setCurriculumSlides(null)
     setAiSlides(null)
     setLessonImages([])
+    setPastedContent('')
     if (lessonImageInputRef.current) lessonImageInputRef.current.value = ''
   }
 
   const [saveCurriculumLoading, setSaveCurriculumLoading] = useState(false)
+  const [escalateLoading, setEscalateLoading] = useState(false)
+  const [curriculumEditMode, setCurriculumEditMode] = useState(false)
+  const [regionCheckLoading, setRegionCheckLoading] = useState(false)
+  const [regionCheckErrors, setRegionCheckErrors] = useState<string[]>([])
+  const [regionPreview, setRegionPreview] = useState<{ original: string; edited: string } | null>(null)
+  const [regionCharCount, setRegionCharCount] = useState<number | null>(null)
+  const [regionCompareResult, setRegionCompareResult] = useState<{
+    correctVersion: string
+    originalReason: string | null
+    editedReason: string | null
+    explanation: string
+    bothAgree?: boolean
+    model1Version?: string
+    model2Version?: string
+  } | null>(null)
+  const [editOriginalText, setEditOriginalText] = useState('')
+  const [editEditedText, setEditEditedText] = useState('')
+  const [editMatchStatus, setEditMatchStatus] = useState<'idle' | 'found' | 'not_found' | 'multiple'>('idle')
+  const [editMatchCount, setEditMatchCount] = useState(0)
+  const editMatchIndexRef = useRef<number>(-1)
+  const [editCompareLoading, setEditCompareLoading] = useState(false)
+  const [editCompareResult, setEditCompareResult] = useState<{ correctVersion: string; originalReason: string | null; editedReason: string | null; explanation: string; bothAgree: boolean; reasonSaved: string | null; reasonNotSaved: string | null; model1Version?: string; model2Version?: string } | null>(null)
+  const [editCompareErrors, setEditCompareErrors] = useState<string[]>([])
+  const editCompareTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
+  const prevContentRef = useRef<string>('')
+  const regionCheckTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const autoSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   const handleSaveCurriculum = async () => {
     if (!curriculumMarkdown.trim()) return
     setSaveCurriculumLoading(true)
+    try {
+      const formData = new FormData()
+      formData.append('curriculumMarkdown', curriculumMarkdown)
+      formData.append('topic', displayTopic)
+      if (curriculumId) formData.append('curriculumId', curriculumId)
+      formData.append('subjectId', subjectId)
+      formData.append('gradeLevelId', gradeLevelId)
+      formData.append('textbookSetId', textbookSetId)
+      formData.append('textbookVolume', textbookVolume.trim())
+      formData.append('lessonNumber', createMode === 'topic' ? '' : lessonNumber.trim())
+      formData.append('lessonTypeId', lessonTypeId)
+      formData.append('numLessons', String(numLessons))
+      formData.append('lessonDurationMinutes', String(lessonDurationMinutes))
+      formData.append('goals', goals)
+      const result = await saveCurriculum(formData)
+      if (result.error) {
+        toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: result.error, variant: 'destructive' })
+      } else if (result.success && result.curriculumId) {
+        const newId = result.curriculumId
+        setCurriculumId(newId)
+        setCurriculumEditMode(false)
+        if (curriculumSlides && curriculumSlides.length > 0 && !curriculumId) {
+          saveSlidesToCurriculum({ curriculumId: newId, topic: displayTopic, subjectId, gradeLevelId, slides: curriculumSlides }).catch(() => {})
+        }
+        toast({ title: curriculumId ? tr('Đã cập nhật', 'Updated', '已更新', '更新しました', '업데이트됨') : tr('Đã lưu vào kho', 'Saved to library', '已保存到库', 'ライブラリに保存', '라이브러리에 저장됨'), duration: 2000 })
+      }
+    } finally {
+      setSaveCurriculumLoading(false)
+    }
+  }
+
+  const runRegionCheck = useCallback(
+    async (prevContent: string, newContent: string, cursorPos: number) => {
+      const regions = extractEditRegions(prevContent, newContent, cursorPos)
+      if (!regions) {
+        setRegionCheckLoading(false)
+        return
+      }
+      setRegionPreview({ original: regions.originalRegion, edited: regions.editedRegion })
+      setRegionCharCount(regions.charCount)
+      setRegionCompareResult(null)
+      setRegionCheckLoading(true)
+      setRegionCheckErrors([])
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 120000)
+      try {
+        const res = await fetch('/api/curriculum-edit-check', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            originalRegion: regions.originalRegion,
+            editedRegion: regions.editedRegion,
+          }),
+          signal: controller.signal,
+        })
+        clearTimeout(timeoutId)
+        const data = await res.json().catch(() => ({}))
+        const rc = data.regionCompare
+        if (rc) {
+          const bothAgree = !!data.bothAgree
+          setRegionCompareResult({
+            correctVersion: rc.correctVersion || 'edited',
+            originalReason: rc.originalReason || null,
+            editedReason: rc.editedReason || null,
+            explanation: rc.explanation || '',
+            bothAgree,
+          })
+          setRegionCheckErrors(Array.isArray(data.errors) ? data.errors : [])
+          const useOriginal = rc.correctVersion === 'original'
+          if (useOriginal) {
+            const corrected = newContent.slice(0, regions.editedStart) + regions.originalRegion + newContent.slice(regions.editedEnd)
+            setCurriculumMarkdown(corrected)
+            prevContentRef.current = corrected
+            setAutoSaveStatus('saving')
+            const s = autoSaveStateRef.current
+            const topicVal = s.topic.trim() || (s.lessonNumber ? `Bài ${s.lessonNumber}` : '')
+            if (topicVal) {
+              const formData = new FormData()
+              formData.append('curriculumMarkdown', corrected)
+              formData.append('topic', topicVal)
+              if (s.curriculumId) formData.append('curriculumId', s.curriculumId)
+              formData.append('subjectId', s.subjectId)
+              formData.append('gradeLevelId', s.gradeLevelId)
+              formData.append('textbookSetId', s.textbookSetId)
+              formData.append('textbookVolume', s.textbookVolume)
+              formData.append('lessonNumber', s.createMode === 'topic' ? '' : s.lessonNumber)
+              formData.append('lessonTypeId', s.lessonTypeId)
+              formData.append('numLessons', String(s.numLessons))
+              formData.append('lessonDurationMinutes', String(s.lessonDurationMinutes))
+              formData.append('goals', s.goals)
+              const result = await saveCurriculum(formData)
+              if (result.success && result.curriculumId) {
+                setCurriculumId(result.curriculumId)
+                if (!s.curriculumId) setCurriculumEditMode(true)
+                if (autoSaveTimeoutRef.current) {
+                  clearTimeout(autoSaveTimeoutRef.current)
+                  autoSaveTimeoutRef.current = null
+                }
+                toast({
+                  title: tr('Đã sửa và lưu', 'Corrected and saved', '已修正并保存', '修正して保存', '수정 후 저장'),
+                  description: rc.explanation || tr('AI đã so sánh và lưu bản đúng.', 'AI compared and saved the correct version.', 'AI已比较并保存正确版本。', 'AIが比較して正しい版を保存。', 'AI가 비교 후 올바른 버전 저장.'),
+                  duration: 4000,
+                })
+              }
+            }
+            setAutoSaveStatus('idle')
+          }
+        } else if (data.ok) {
+          setRegionCheckErrors([])
+        } else {
+          setRegionCheckErrors(Array.isArray(data.errors) ? data.errors : [])
+        }
+      } catch (err) {
+        setRegionCheckErrors([])
+        if (err instanceof Error && err.name === 'AbortError') {
+          toast({
+            title: tr('Hết thời gian kiểm tra', 'Check timed out', '检查超时', 'タイムアウト', '타임아웃'),
+            description: tr('AI phản hồi chậm. Thử sửa lại hoặc bấm Lưu.', 'AI response slow. Try editing again or click Save.', 'AI响应慢。请重试或点击保存。', 'AI応答が遅い。再試行または保存をクリック。', 'AI 응답 지연. 다시 시도하거나 저장 클릭.'),
+            variant: 'destructive',
+          })
+        }
+      } finally {
+        clearTimeout(timeoutId)
+        setRegionCheckLoading(false)
+        setRegionCharCount(null)
+      }
+    },
+    [tr, toast]
+  )
+
+  const autoSaveStateRef = useRef({
+    curriculumMarkdown: '',
+    topic: '',
+    lessonNumber: '',
+    displayTopic: '',
+    curriculumId: null as string | null,
+    subjectId: '',
+    gradeLevelId: '',
+    textbookSetId: '',
+    textbookVolume: '',
+    createMode: 'topic' as 'textbook' | 'topic',
+    lessonTypeId: '',
+    numLessons: 3,
+    lessonDurationMinutes: 45,
+    goals: '',
+  })
+  useEffect(() => {
+    autoSaveStateRef.current = {
+      curriculumMarkdown,
+      topic,
+      lessonNumber,
+      displayTopic,
+      curriculumId,
+      subjectId,
+      gradeLevelId,
+      textbookSetId,
+      textbookVolume,
+      createMode,
+      lessonTypeId,
+      numLessons,
+      lessonDurationMinutes,
+      goals,
+    }
+  })
+
+  const performAutoSave = useCallback(async () => {
+    const s = autoSaveStateRef.current
+    if (!s.curriculumMarkdown.trim() || s.curriculumMarkdown.length < 30) return
+    const topicVal = s.topic.trim() || (s.lessonNumber ? `Bài ${s.lessonNumber}` : '')
+    if (!topicVal) return
+
+    setAutoSaveStatus('saving')
     const formData = new FormData()
-    formData.append('curriculumMarkdown', curriculumMarkdown)
-    formData.append('topic', displayTopic)
-    formData.append('subjectId', subjectId)
-    formData.append('gradeLevelId', gradeLevelId)
-    formData.append('textbookSetId', textbookSetId)
-    formData.append('textbookVolume', textbookVolume.trim())
-    formData.append('lessonNumber', lessonNumber.trim())
-    formData.append('lessonTypeId', lessonTypeId)
-    formData.append('numLessons', String(numLessons))
-    formData.append('lessonDurationMinutes', String(lessonDurationMinutes))
-    formData.append('goals', goals)
+    formData.append('curriculumMarkdown', s.curriculumMarkdown)
+    formData.append('topic', topicVal)
+    if (s.curriculumId) formData.append('curriculumId', s.curriculumId)
+    formData.append('subjectId', s.subjectId)
+    formData.append('gradeLevelId', s.gradeLevelId)
+    formData.append('textbookSetId', s.textbookSetId)
+    formData.append('textbookVolume', s.textbookVolume)
+    formData.append('lessonNumber', s.createMode === 'topic' ? '' : s.lessonNumber)
+    formData.append('lessonTypeId', s.lessonTypeId)
+    formData.append('numLessons', String(s.numLessons))
+    formData.append('lessonDurationMinutes', String(s.lessonDurationMinutes))
+    formData.append('goals', s.goals)
+
     const result = await saveCurriculum(formData)
-    setSaveCurriculumLoading(false)
     if (result.error) {
+      setAutoSaveStatus('idle')
       toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: result.error, variant: 'destructive' })
     } else if (result.success && result.curriculumId) {
-      const newId = result.curriculumId
-      setCurriculumId(newId)
-      if (curriculumSlides && curriculumSlides.length > 0) {
-        saveSlidesToCurriculum({ curriculumId: newId, topic: displayTopic, subjectId, gradeLevelId, slides: curriculumSlides }).catch(() => {})
+      setCurriculumId(result.curriculumId)
+      if (!s.curriculumId) setCurriculumEditMode(true)
+      setAutoSaveStatus('saved')
+      toast({ title: tr('Đã lưu tự động', 'Auto-saved', '已自动保存', '自動保存しました', '자동 저장됨'), duration: 1500 })
+      setTimeout(() => setAutoSaveStatus('idle'), 2000)
+    } else {
+      setAutoSaveStatus('idle')
+    }
+  }, [tr, toast])
+
+  const handleCurriculumChange = useCallback(
+    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      const newVal = e.target.value
+      const cursorPos = e.target.selectionStart ?? newVal.length
+      const prev = prevContentRef.current
+      setCurriculumMarkdown(newVal)
+      prevContentRef.current = newVal
+
+      if (regionCheckTimeoutRef.current) {
+        clearTimeout(regionCheckTimeoutRef.current)
+        setRegionCheckLoading(false)
       }
-      toast({ title: tr('Đã lưu vào kho', 'Saved to library', '已保存到库', 'ライブラリに保存', '라이브러리에 저장됨'), duration: 2000 })
+      const canEdit = curriculumEditMode || !curriculumId
+      if (!canEdit || newVal.length < 15) return
+
+      setRegionCheckLoading(true)
+      const prevSnapshot = prev
+      regionCheckTimeoutRef.current = setTimeout(() => {
+        regionCheckTimeoutRef.current = null
+        runRegionCheck(prevSnapshot, curriculumTextareaRef.current?.value ?? newVal, curriculumTextareaRef.current?.selectionStart ?? cursorPos)
+      }, 350)
+
+      if (autoSaveTimeoutRef.current) clearTimeout(autoSaveTimeoutRef.current)
+      if (newVal.length >= 30 && step === 'RESULT') {
+        autoSaveTimeoutRef.current = setTimeout(() => {
+          autoSaveTimeoutRef.current = null
+          void performAutoSave()
+        }, 1000)
+      }
+    },
+    [curriculumEditMode, curriculumId, runRegionCheck, step, performAutoSave]
+  )
+
+  useEffect(() => {
+    prevContentRef.current = curriculumMarkdown
+    return () => {
+      if (regionCheckTimeoutRef.current) clearTimeout(regionCheckTimeoutRef.current)
+      if (autoSaveTimeoutRef.current) clearTimeout(autoSaveTimeoutRef.current)
+      if (editCompareTimeoutRef.current) clearTimeout(editCompareTimeoutRef.current)
+    }
+  }, [curriculumMarkdown])
+
+  useEffect(() => {
+    const t = editOriginalText.trim()
+    if (!t || t.length < 3 || !curriculumMarkdown) {
+      setEditMatchStatus('idle')
+      setEditMatchCount(0)
+      editMatchIndexRef.current = -1
+      return
+    }
+    let pos = 0
+    const indices: number[] = []
+    while ((pos = curriculumMarkdown.indexOf(t, pos)) >= 0) {
+      indices.push(pos)
+      pos += 1
+    }
+    if (indices.length === 0) {
+      setEditMatchStatus('not_found')
+      setEditMatchCount(0)
+      editMatchIndexRef.current = -1
+    } else if (indices.length === 1) {
+      setEditMatchStatus('found')
+      setEditMatchCount(1)
+      editMatchIndexRef.current = indices[0]
+    } else {
+      setEditMatchStatus('multiple')
+      setEditMatchCount(indices.length)
+      editMatchIndexRef.current = -1
+    }
+  }, [editOriginalText, curriculumMarkdown])
+
+  const handleApplyEditFromSheet = useCallback(
+    (originalText: string, editedText: string) => {
+      const orig = originalText.trim()
+      if (!orig || !curriculumMarkdown.includes(orig)) return
+      const idx = curriculumMarkdown.indexOf(orig)
+      if (idx < 0) return
+      const newContent = curriculumMarkdown.slice(0, idx) + editedText.trim() + curriculumMarkdown.slice(idx + orig.length)
+      setCurriculumMarkdown(newContent)
+      prevContentRef.current = newContent
+      setAutoSaveStatus('saving')
+      const formData = new FormData()
+      formData.append('curriculumMarkdown', newContent)
+      formData.append('topic', displayTopic)
+      if (curriculumId) formData.append('curriculumId', curriculumId)
+      formData.append('subjectId', subjectId)
+      formData.append('gradeLevelId', gradeLevelId)
+      formData.append('textbookSetId', textbookSetId)
+      formData.append('textbookVolume', textbookVolume.trim())
+      formData.append('lessonNumber', createMode === 'topic' ? '' : lessonNumber.trim())
+      formData.append('lessonTypeId', lessonTypeId)
+      formData.append('numLessons', String(numLessons))
+      formData.append('lessonDurationMinutes', String(lessonDurationMinutes))
+      formData.append('goals', goals)
+      saveCurriculum(formData).then((result) => {
+        if (result.success && result.curriculumId) {
+          setCurriculumId(result.curriculumId)
+          setAutoSaveStatus('saved')
+          setTimeout(() => setAutoSaveStatus('idle'), 2000)
+        } else {
+          setAutoSaveStatus('idle')
+        }
+      })
+    },
+    [curriculumMarkdown, displayTopic, curriculumId, subjectId, gradeLevelId, textbookSetId, textbookVolume, createMode, lessonNumber, lessonTypeId, numLessons, lessonDurationMinutes, goals]
+  )
+
+  const runEditCompare = useCallback(async () => {
+    const orig = editOriginalText.trim()
+    const edited = editEditedText.trim()
+    if (!orig || orig.length < 5) {
+      toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: tr('Dữ liệu cần sửa quá ngắn.', 'Data to edit is too short.', '要编辑的数据太短。', '編集するデータが短すぎます。', '편집할 데이터가 너무 짧습니다.'), variant: 'destructive' })
+      return
+    }
+    if (editMatchStatus === 'multiple') {
+      toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: tr('Tìm thấy nhiều đoạn trùng. Gõ thêm nội dung để đoạn cần sửa là duy nhất.', 'Multiple matches found. Add more content so the segment to edit is unique.', '找到多个相同段落。请添加更多内容使要编辑的段落唯一。', '複数一致。編集する段落が一意になるよう内容を追加してください。', '여러 개 일치. 편집할 단락이 고유하도록 내용을 추가하세요.'), variant: 'destructive' })
+      return
+    }
+    if (editMatchStatus !== 'found') {
+      toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: tr('Không tìm thấy dữ liệu cần sửa trong giáo trình.', 'Data to edit not found in curriculum.', '在课程中未找到要编辑的数据。', '教材内に編集するデータが見つかりません。', '교육과정에서 편집할 데이터를 찾을 수 없습니다.'), variant: 'destructive' })
+      return
+    }
+    if (!edited) {
+      toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: tr('Nhập nội dung sẽ sửa thành.', 'Enter the replacement content.', '请输入替换内容。', '置換後の内容を入力してください。', '대체할 내용을 입력하세요.'), variant: 'destructive' })
+      return
+    }
+    setEditCompareLoading(true)
+    setEditCompareResult(null)
+    setEditCompareErrors([])
+    const idx = editMatchIndexRef.current >= 0 ? editMatchIndexRef.current : curriculumMarkdown.indexOf(orig)
+    const CONTEXT_CHARS = 250
+    const start = Math.max(0, idx - CONTEXT_CHARS)
+    const end = Math.min(curriculumMarkdown.length, idx + orig.length + CONTEXT_CHARS)
+    const originalRegion = curriculumMarkdown.slice(start, end)
+    const editedRegion = curriculumMarkdown.slice(start, idx) + edited + curriculumMarkdown.slice(idx + orig.length, end)
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 120000)
+    try {
+      const res = await fetch('/api/curriculum-edit-check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ originalRegion, editedRegion }),
+        signal: controller.signal,
+      })
+      clearTimeout(timeoutId)
+      const data = await res.json().catch(() => ({}))
+      const rc = data.regionCompare
+      const reasonSaved = typeof data.reasonSaved === 'string' ? data.reasonSaved : null
+      const reasonNotSaved = typeof data.reasonNotSaved === 'string' ? data.reasonNotSaved : null
+      if (rc) {
+        setEditCompareResult({
+          correctVersion: rc.correctVersion || 'edited',
+          originalReason: rc.originalReason || null,
+          editedReason: rc.editedReason || null,
+          explanation: rc.explanation || '',
+          bothAgree: !!data.bothAgree,
+          reasonSaved,
+          reasonNotSaved,
+          model1Version: data.model1Version,
+          model2Version: data.model2Version,
+        })
+        setEditCompareErrors(Array.isArray(data.errors) ? data.errors : [])
+        if (data.ok && rc.correctVersion === 'edited') {
+          handleApplyEditFromSheet(orig, edited)
+          setEditOriginalText('')
+          setEditEditedText('')
+          setEditMatchStatus('idle')
+          setEditMatchCount(0)
+          toast({
+            title: tr('Đã lưu', 'Saved', '已保存', '保存しました', '저장됨'),
+            description: reasonSaved || rc.explanation || tr('Lý do đã lưu: 2 AI (Gemini Pro + DeepSeek) đồng ý bản sửa đúng.', 'Reason saved: 2 AIs agree the edit is correct.', '已保存原因：2个AI同意修改正确。', '保存理由：2つのAIが編集が正しいと同意。', '저장 이유: 2개 AI가 편집이 맞다고 동의.'),
+            duration: 3000,
+          })
+        } else if (data.bothAgree && rc.correctVersion === 'original') {
+          toast({
+            title: tr('Chưa lưu – Giữ bản gốc', 'Not saved – Keep original', '未保存–保留原文', '保存せず–元のまま', '저장 안 함–원본 유지'),
+            description: (reasonNotSaved || rc.explanation || tr('Lý do chưa lưu được: 2 AI đồng ý bản gốc đúng.', 'Reason not saved: 2 AIs agree the original is correct.', '未保存原因：2个AI同意原文正确。', '保存しない理由：2つのAIが元が正しいと同意。', '저장 안 함 이유: 2개 AI가 원본이 맞다고 동의.')) + ' ' + tr('Sửa lại và thử tiếp.', 'Edit and try again.', '请修改后重试。', '編集して再試行してください。', '수정 후 다시 시도하세요.'),
+            variant: 'destructive',
+            duration: 5000,
+          })
+        }
+      }
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        toast({ title: tr('Hết thời gian', 'Timeout', '超时', 'タイムアウト', '타임아웃'), description: tr('AI phản hồi chậm. Thử lại.', 'AI response slow. Try again.', 'AI响应慢。请重试。', 'AI応答が遅い。再試行。', 'AI 응답 지연. 다시 시도.'), variant: 'destructive' })
+      }
+    } finally {
+      clearTimeout(timeoutId)
+      setEditCompareLoading(false)
+    }
+  }, [editOriginalText, editEditedText, editMatchStatus, curriculumMarkdown, handleApplyEditFromSheet, tr, toast])
+
+
+  const handleEscalateToAdmin = async (errorsToSend?: string[]) => {
+    const errs = errorsToSend ?? regionCheckErrors
+    if (!curriculumMarkdown.trim()) return
+    setEscalateLoading(true)
+    try {
+      const res = await fetch('/api/curriculum-edit-escalate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          curriculumId,
+          topic: displayTopic,
+          subjectId,
+          gradeLevelId,
+          textbookSetId,
+          textbookVolume: textbookVolume.trim(),
+          lessonNumber: createMode === 'topic' ? '' : lessonNumber.trim(),
+          lessonTypeId,
+          numLessons,
+          lessonDurationMinutes,
+          goals,
+          contentMarkdown: curriculumMarkdown,
+          aiErrors: errs,
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok && data.success) {
+        setCurriculumEditMode(true)
+        toast({
+          title: tr('Đã gửi admin', 'Sent to admin', '已发送给管理员', '管理者に送信しました', '관리자에게 전송됨'),
+          description: tr('Admin sẽ xem xét và phản hồi. Bạn có thể tiếp tục sửa.', 'Admin will review and respond. You can continue editing.', '管理员将审核并回复。您可以继续编辑。', '管理者が確認して返答します。編集を続けられます。', '관리자가 검토 후 답변합니다. 편집을 계속할 수 있습니다.'),
+          duration: 4000,
+        })
+      } else {
+        toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: data?.error || 'Gửi thất bại.', variant: 'destructive' })
+      }
+    } finally {
+      setEscalateLoading(false)
     }
   }
 
@@ -674,13 +1105,25 @@ export default function TaoGiaoTrinhClientPage() {
       setTextbookSetId(c.textbook_set_id ?? 'ket-noi-tri-thuc')
       setTextbookVolume(c.textbook_volume ?? '')
       setTopic(c.topic ?? '')
-      setLessonNumber(c.lesson_number != null ? String(c.lesson_number) : '1')
+      setLessonNumber(c.lesson_number != null ? String(c.lesson_number) : '')
+      setCreateMode(c.lesson_number != null ? 'textbook' : 'topic')
       setLessonTypeId(c.lesson_type_id ?? 'hinh-thanh-kien-thuc')
       setNumLessons(c.num_lessons ?? 3)
       setLessonDurationMinutes(c.lesson_duration_minutes ?? 45)
       setGoals(c.goals ?? '')
       setCurriculumMarkdown(c.content_markdown ?? '')
       setCurriculumId(c.id ?? null)
+      setCurriculumEditMode(true)
+      setEditOriginalText('')
+      setEditEditedText('')
+      setEditMatchStatus('idle')
+      setEditMatchCount(0)
+      setEditCompareResult(null)
+      setEditCompareErrors([])
+      setRegionPreview(null)
+      setRegionCharCount(null)
+      setRegionCompareResult(null)
+      setRegionCheckErrors([])
       setWorksheetMarkdown('')
       setWorksheetId(null)
       setWorksheetQrDataUrl(null)
@@ -739,6 +1182,7 @@ export default function TaoGiaoTrinhClientPage() {
       setWorksheetMarkdown(w.content_markdown ?? '')
       setWorksheetId(w.id)
       setCurriculumId(curriculumIdFromWs ?? null)
+      setCurriculumEditMode(false)
       const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
       QRCode.toDataURL(`${baseUrl}/phieu-bai-tap/${w.id}`, { width: 180, margin: 2 }).then(setWorksheetQrDataUrl).catch(() => setWorksheetQrDataUrl(null))
       setStep('RESULT')
@@ -1011,10 +1455,65 @@ export default function TaoGiaoTrinhClientPage() {
                 {tr('Thông tin giáo trình', 'Curriculum info', '课程信息', 'カリキュラム情報', '교육과정 정보')}
               </CardTitle>
               <CardDescription>
-                {tr('Chọn môn, lớp, sách, bài số (1–100). AI tạo giáo trình Markdown.', 'Select subject, grade, textbook, lesson number (1–100). AI generates Markdown curriculum.', '选择科目、年级、教材、课号（1–100）。AI 生成 Markdown 课程。', '科目・学年・教科書・課番号（1–100）を選択。AIがMarkdownカリキュラムを生成。', '과목·학년·교과서·차시(1–100) 선택. AI가 Markdown 교육과정 생성.')}
+                {tr('Chọn môn, lớp. Tạo theo SGK (gửi ảnh sách) hoặc theo chủ đề. AI tạo giáo trình Markdown.', 'Select subject, grade. Create by textbook (upload book images) or by topic. AI generates Markdown curriculum.', '选择科目、年级。按教材（上传教材图片）或主题创建。AI 生成 Markdown 课程。', '科目・学年を選択。教科書（画像アップロード）・主題で作成。AIがMarkdownカリキュラムを生成。', '과목·학년 선택. 교과서(이미지 업로드)·주제로 생성. AI가 Markdown 교육과정 생성.')}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-muted-foreground">{tr('Cách tạo', 'Create mode', '创建方式', '作成方法', '생성 방식')}</label>
+                <div className="flex flex-wrap gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="createMode"
+                      checked={createMode === 'textbook'}
+                      onChange={() => {
+                        setCreateMode('textbook')
+                        if (textbookSetId === 'khac') setTextbookSetId('ket-noi-tri-thuc')
+                      }}
+                      className="rounded-full border-input"
+                    />
+                    <span className="text-sm">{tr('Theo SGK (bài số)', 'By textbook (lesson #)', '按教材（课号）', '教科書（課番号）', '교과서(차시)')}</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="createMode"
+                      checked={createMode === 'topic'}
+                      onChange={() => {
+                        setCreateMode('topic')
+                        setTextbookSetId('khac')
+                        setLessonImages([])
+                      }}
+                      className="rounded-full border-input"
+                    />
+                    <span className="text-sm">{tr('Theo chủ đề', 'By topic', '按主题', '主題で', '주제로')}</span>
+                  </label>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {createMode === 'textbook'
+                    ? tr('Chọn bộ sách, nhập bài số. Gửi ảnh trang sách (bắt buộc) – AI lấy sơ đồ, hình minh họa từ ảnh.', 'Select textbook set, enter lesson #. Upload page image (required) – AI extracts diagrams, figures from images.', '选择教材、输入课号。上传教材页面（必填）– AI 从图片提取图表、示意图。', '教科書・課番号を入力。ページ画像をアップロード（必須）– AIが画像から図表を抽出。', '교과서·차시 입력. 페이지 이미지 업로드 (필수) – AI가 이미지에서 도표·그림 추출.')
+                    : tr('Chỉ cần nhập chủ đề. Không cần bài số hay ảnh. Có thể gửi ảnh để AI bám sát hơn.', 'Just enter topic. No lesson # or image required. Optional: upload image for better accuracy.', '只需输入主题。无需课号或图片。可选：上传图片提高准确性。', '主題のみ入力。課番号・画像不要。任意：画像で精度向上。', '주제만 입력. 차시·이미지 불필요. 선택: 이미지로 정확도 향상.')}
+                </p>
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-muted-foreground">
+                  {createMode === 'topic'
+                    ? <>{tr('Chủ đề', 'Topic', '主题', '主題', '주제')} <span className="text-red-500">*</span></>
+                    : tr('Tên bài (tùy chọn)', 'Lesson title (optional)', '课名（可选）', '授業名（任意）', '차시 제목 (선택)')}
+                </label>
+                <Input
+                  type="text"
+                  placeholder={
+                    createMode === 'topic'
+                      ? tr('Ví dụ: Nguyên hàm, Tích phân, Phương trình bậc hai...', 'e.g. Antiderivative, Integral, Quadratic equation...', '例如：原函数、积分、一元二次方程...', '例：原始関数、積分、二次方程式...', '예: 부정적분, 적분, 이차방정식...')
+                      : tr('Để trống dùng tên từ mục lục SGK', 'Leave empty to use title from textbook index', '留空使用教材目录中的标题', '空欄で教科書目次から', '비우면 교과서 목차 사용')
+                  }
+                  value={topic}
+                  onChange={(e) => setTopic(e.target.value)}
+                  className="bg-white/80"
+                />
+              </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-xs font-medium text-muted-foreground">{tr('Môn học', 'Subject', '科目', '科目', '과목')}</label>
@@ -1048,34 +1547,38 @@ export default function TaoGiaoTrinhClientPage() {
                   </select>
                 </div>
               </div>
-              <div className="space-y-2">
-                <label className="text-xs font-medium text-muted-foreground">{tr('Bộ sách giáo khoa', 'Textbook set', '教材', '教科書', '교과서')}</label>
-                <select
-                  value={textbookSetId}
-                  onChange={(e) => setTextbookSetId(e.target.value)}
-                  className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
-                >
-                  {TEXTBOOK_SETS.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {uiLocale === 'en' ? t.labelEn : t.labelVi}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs font-medium text-muted-foreground">
-                  {tr('Bài số', 'Lesson number', '课号', '課番号', '차시 번호')} <span className="text-red-500">*</span>
-                </label>
-                <Input
-                  type="number"
-                  min={1}
-                  max={999}
-                  placeholder={tr('Nhập số bài (ví dụ: 1, 2, 3...)', 'Enter lesson number (e.g. 1, 2, 3...)', '输入课号（如：1、2、3...）', '課番号を入力（例：1、2、3...）', '차시 번호 입력 (예: 1, 2, 3...)')}
-                  value={lessonNumber}
-                  onChange={(e) => setLessonNumber(e.target.value)}
-                  className="w-24 h-9 bg-white/80"
-                />
-              </div>
+              {createMode === 'textbook' && (
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-muted-foreground">{tr('Bộ sách giáo khoa', 'Textbook set', '教材', '教科書', '교과서')}</label>
+                  <select
+                    value={textbookSetId}
+                    onChange={(e) => setTextbookSetId(e.target.value)}
+                    className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
+                  >
+                    {TEXTBOOK_SETS.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {uiLocale === 'en' ? t.labelEn : t.labelVi}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              {createMode === 'textbook' && (
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-muted-foreground">
+                    {tr('Bài số', 'Lesson number', '课号', '課番号', '차시 번호')} <span className="text-red-500">*</span>
+                  </label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={999}
+                    placeholder={tr('Nhập số bài (ví dụ: 1, 2, 3...)', 'Enter lesson number (e.g. 1, 2, 3...)', '输入课号（如：1、2、3...）', '課番号を入力（例：1、2、3...）', '차시 번호 입력 (예: 1, 2, 3...)')}
+                    value={lessonNumber}
+                    onChange={(e) => setLessonNumber(e.target.value)}
+                    className="w-24 h-9 bg-white/80"
+                  />
+                </div>
+              )}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-xs font-medium text-muted-foreground">{tr('Số tiết (1–10)', 'Lessons (1–10)', '课时 (1–10)', '時限 (1–10)', '차시 (1–10)')}</label>
@@ -1112,7 +1615,7 @@ export default function TaoGiaoTrinhClientPage() {
                   className="bg-white/80 min-h-[80px] resize-y"
                 />
               </div>
-              {curriculumExists === true && existingCurriculumTopic && (
+              {curriculumExists === true && existingCurriculumTopic && createMode === 'textbook' && (
                 <div className="space-y-2 rounded-lg border border-emerald-300 dark:border-emerald-700 p-4 bg-emerald-50/50 dark:bg-emerald-950/20">
                   <p className="text-sm font-medium text-emerald-800 dark:text-emerald-200">
                     {tr('Bài học có sẵn:', 'Lesson available:', '已有课程：', 'レッスンあり：', '수업 있음:')}
@@ -1121,61 +1624,67 @@ export default function TaoGiaoTrinhClientPage() {
                     {existingCurriculumTopic}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {tr('Chọn nút bên dưới để xem giáo trình.', 'Click the button below to view curriculum.', '点击下方按钮查看课程。', '下のボタンをクリックしてカリキュラムを表示。', '아래 버튼을 클릭하여 교육과정 보기.')}
+                    {tr('Gửi ảnh trang sách rồi bấm nút bên dưới để tạo giáo trình.', 'Upload page image then click the button below to create curriculum.', '上传教材页面后点击下方按钮创建课程。', 'ページ画像をアップロードして下のボタンをクリック。', '페이지 이미지 업로드 후 아래 버튼 클릭하여 교육과정 생성.')}
                   </p>
                 </div>
               )}
-              {curriculumExists === false && (
-                <div className="space-y-2 rounded-lg border border-dashed border-violet-300 dark:border-violet-700 p-4 bg-violet-50/50 dark:bg-violet-950/20">
-                  <label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-                    <ImageIcon className="h-4 w-4" />
-                    {tr('Gửi ảnh bài học', 'Upload lesson image', '上传课程图片', '授業画像をアップロード', '수업 이미지 업로드')}
-                  </label>
-                  <p className="text-xs text-muted-foreground">
-                    {tr('Chưa có giáo trình trong kho. Chụp/gửi ảnh trang sách (tối đa 10 ảnh).', 'No curriculum in library. Upload photo(s) of the textbook page(s) (max 10).', '库中无课程。请上传教材页面照片（最多10张）。', 'ライブラリにありません。教科書のページ写真をアップロード（最大10枚）。', '라이브러리에 없습니다. 교과서 페이지 사진 업로드 (최대 10개).')}
-                  </p>
-                  <input
-                    ref={lessonImageInputRef}
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    className="hidden"
-                    onChange={(e) => {
+              {createMode === 'textbook' && (
+              <div className="space-y-2 rounded-lg border border-dashed border-violet-300 dark:border-violet-700 p-4 bg-violet-50/50 dark:bg-violet-950/20">
+                <label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                  <ImageIcon className="h-4 w-4" />
+                  {tr('Gửi ảnh bài học', 'Upload lesson image', '上传课程图片', '授業画像をアップロード', '수업 이미지 업로드')}
+                  <span className="text-red-500 font-medium">*</span>
+                </label>
+                <p className="text-xs text-muted-foreground">
+                  {tr('Chụp/gửi ảnh trang sách (tối đa 10 ảnh) – bắt buộc. AI lấy sơ đồ, hình minh họa từ ảnh.', 'Upload photo(s) of the textbook page(s) (max 10) – required. AI extracts diagrams, figures from images.', '上传教材页面照片（最多10张）– 必填。AI 从图片提取图表、示意图。', '教科書のページ写真をアップロード（最大10枚）– 必須。AIが画像から図表を抽出。', '교과서 페이지 사진 업로드 (최대 10개) – 필수. AI가 이미지에서 도표·그림 추출.')}
+                </p>
+                <input
+                  ref={lessonImageInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => {
                     const list = Array.from(e.target.files ?? [])
                     setLessonImages(list.slice(0, 10))
                   }}
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => lessonImageInputRef.current?.click()}
-                    className="border-violet-400 text-violet-700 hover:bg-violet-100 dark:border-violet-600 dark:text-violet-300"
-                  >
-                    <Upload className="h-4 w-4 mr-2" />
-                    {lessonImages.length > 0
-                      ? `${tr('Đã chọn', 'Selected', '已选', '選択済み', '선택됨')} ${lessonImages.length} ${tr('ảnh', 'image(s)', '张图片', '枚の画像', '개 이미지')}`
-                      : tr('Chọn ảnh, có thể nhiều', 'Choose image(s)', '选择图片（可多选）', '画像を選択（複数可）', '이미지 선택 여러 개')}
-                  </Button>
-                  {lessonImages.length > 1 && (
-                    <ul className="text-xs text-muted-foreground mt-2 space-y-0.5 max-h-24 overflow-y-auto">
-                      {lessonImages.map((f, i) => (
-                        <li key={i} className="truncate">• {f.name}</li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => lessonImageInputRef.current?.click()}
+                  className="border-violet-400 text-violet-700 hover:bg-violet-100 dark:border-violet-600 dark:text-violet-300"
+                >
+                  <Upload className="h-4 w-4 mr-2" />
+                  {lessonImages.length > 0
+                    ? `${tr('Đã chọn', 'Selected', '已选', '選択済み', '선택됨')} ${lessonImages.length} ${tr('ảnh', 'image(s)', '张图片', '枚の画像', '개 이미지')}`
+                    : tr('Chọn ảnh, có thể nhiều', 'Choose image(s)', '选择图片（可多选）', '画像を選択（複数可）', '이미지 선택 여러 개')}
+                </Button>
+                {lessonImages.length > 1 && (
+                  <ul className="text-xs text-muted-foreground mt-2 space-y-0.5 max-h-24 overflow-y-auto">
+                    {lessonImages.map((f, i) => (
+                      <li key={i} className="truncate">• {f.name}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
               )}
               <Button
                 onClick={() => void handleSubmit()}
-                disabled={(step as Step) === 'GENERATING' || checkLoading || curriculumExists === null || (curriculumExists === false && lessonImages.length === 0)}
+                disabled={
+                  (step as Step) === 'GENERATING' ||
+                  (createMode === 'topic'
+                    ? !topic.trim() || topic.trim().length < 2
+                    : checkLoading || curriculumExists === null || lessonImages.length === 0)
+                }
                 className="w-full bg-violet-600 hover:bg-violet-700 text-white disabled:opacity-50"
               >
                 <Sparkles className="h-4 w-4 mr-2" />
-                {checkLoading
-                  ? tr('Đang kiểm tra...', 'Checking...', '正在检查...', '確認中...', '확인 중...')
-                  : curriculumExists
-                    ? tr('Xem giáo trình', 'View curriculum', '查看课程', 'カリキュラムを見る', '교육과정 보기')
+                {createMode === 'topic'
+                  ? tr('Tạo giáo trình', 'Create curriculum', '创建课程', 'カリキュラムを作成', '교육과정 생성')
+                  : checkLoading
+                    ? tr('Đang kiểm tra...', 'Checking...', '正在检查...', '確認中...', '확인 중...')
                     : tr('Tạo giáo trình', 'Create curriculum', '创建课程', 'カリキュラムを作成', '교육과정 생성')}
               </Button>
             </CardContent>
@@ -1196,8 +1705,20 @@ export default function TaoGiaoTrinhClientPage() {
           <>
             {curriculumMarkdown && (
             <Card className="border shadow-sm overflow-hidden">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-base">{tr('Giáo trình đã tạo', 'Generated curriculum', '已创建课程', '作成したカリキュラム', '생성된 교육과정')}</CardTitle>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-base flex items-center gap-2">
+                  {tr('Giáo trình đã tạo', 'Generated curriculum', '已创建课程', '作成したカリキュラム', '생성된 교육과정')}
+                  {autoSaveStatus === 'saving' && (
+                    <span className="text-xs font-normal text-muted-foreground animate-pulse">
+                      {tr('Đang lưu...', 'Saving...', '保存中...', '保存中...', '저장 중...')}
+                    </span>
+                  )}
+                  {autoSaveStatus === 'saved' && (
+                    <span className="text-xs font-normal text-emerald-600 dark:text-emerald-400">
+                      {tr('Đã lưu', 'Saved', '已保存', '保存済み', '저장됨')}
+                    </span>
+                  )}
+                </CardTitle>
                 <div className="flex flex-wrap gap-2">
                   <Button variant="outline" size="sm" onClick={handleCopy}>
                     <Copy className="h-3.5 w-3.5 mr-1" /> {tr('Sao chép', 'Copy', '复制', 'コピー', '복사')}
@@ -1205,9 +1726,19 @@ export default function TaoGiaoTrinhClientPage() {
                   <Button variant="outline" size="sm" onClick={handleDownload}>
                     <FileDown className="h-3.5 w-3.5 mr-1" /> {tr('Tải .md', 'Download .md', '下载 .md', '.md をダウンロード', '.md 다운로드')}
                   </Button>
-                  {!curriculumId && (
+                  {(!curriculumId || curriculumEditMode) && (
                     <Button variant="outline" size="sm" onClick={() => void handleSaveCurriculum()} disabled={saveCurriculumLoading} className="border-emerald-400 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-600 dark:text-emerald-300">
-                      {saveCurriculumLoading ? tr('Đang lưu...', 'Saving...', '保存中...', '保存中...', '저장 중...') : tr('Lưu vào kho', 'Save to library', '保存到库', 'ライブラリに保存', '라이브러리에 저장')}
+                      {saveCurriculumLoading ? tr('Đang lưu...', 'Saving...', '保存中...', '保存中...', '저장 중...') : curriculumId ? tr('Lưu thay đổi', 'Save changes', '保存更改', '変更を保存', '변경 저장') : tr('Lưu vào kho', 'Save to library', '保存到库', 'ライブラリに保存', '라이브러리에 저장')}
+                    </Button>
+                  )}
+                  {curriculumId && !curriculumEditMode && (
+                    <Button variant="outline" size="sm" onClick={() => { setCurriculumEditMode(true); setEditOriginalText(''); setEditEditedText(''); setEditMatchStatus('idle'); setEditMatchCount(0); setEditCompareResult(null); setEditCompareErrors([]); setRegionPreview(null); setRegionCharCount(null); setRegionCompareResult(null); setRegionCheckErrors([]) }} className="border-amber-400 text-amber-700 hover:bg-amber-50 dark:border-amber-600 dark:text-amber-300">
+                      {tr('Sửa giáo trình', 'Edit curriculum', '编辑课程', '教材を編集', '교육과정 편집')}
+                    </Button>
+                  )}
+                  {curriculumEditMode && (
+                    <Button variant="ghost" size="sm" onClick={() => { setCurriculumEditMode(false); setEditOriginalText(''); setEditEditedText(''); setEditMatchStatus('idle'); setEditMatchCount(0); setEditCompareResult(null); setEditCompareErrors([]) }}>
+                      {tr('Hủy', 'Cancel', '取消', 'キャンセル', '취소')}
                     </Button>
                   )}
                   <Button variant="outline" size="sm" onClick={() => void handleOpenSlides()} disabled={slideAnalysisLoading} className="border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-600 dark:text-amber-300 dark:hover:bg-amber-950/30">
@@ -1232,18 +1763,203 @@ export default function TaoGiaoTrinhClientPage() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="rounded-lg border bg-slate-50 dark:bg-slate-900/50 p-4 overflow-auto max-h-[60vh]">
-                  <textarea
-                    ref={curriculumTextareaRef}
-                    value={curriculumMarkdown}
-                    onChange={(e) => setCurriculumMarkdown(e.target.value)}
-                    readOnly={!!curriculumId}
-                    className={`w-full min-h-[200px] text-sm font-sans leading-relaxed prose prose-slate dark:prose-invert max-w-none bg-transparent border-0 resize-y focus:outline-none focus:ring-0 ${curriculumId ? 'cursor-not-allowed opacity-95' : ''}`}
-                    placeholder={tr('Nội dung giáo trình...', 'Curriculum content...', '课程内容...', 'カリキュラム内容...', '교육과정 내용...')}
-                    spellCheck={false}
-                    title={curriculumId ? tr('Giáo trình đã lưu, không cho sửa.', 'Curriculum saved, editing disabled.', '课程已保存，不可编辑。', '保存済み、編集不可。', '저장됨, 편집 불가.') : undefined}
-                  />
+                {curriculumId && curriculumEditMode && (
+                  <div className="mb-3 space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs font-medium block mb-1 text-amber-700 dark:text-amber-300">
+                          {tr('Dữ liệu cần sửa', 'Data to edit', '要编辑的数据', '編集するデータ', '편집할 데이터')}
+                        </label>
+                        <Textarea
+                          value={editOriginalText}
+                          onChange={(e) => {
+                            setEditOriginalText(e.target.value)
+                            setEditEditedText('')
+                            setEditCompareResult(null)
+                            setEditCompareErrors([])
+                          }}
+                          placeholder={tr('Gõ đoạn ngắn để tìm...', 'Type short segment to find...', '输入短段落查找...', '短い段落を入力...', '짧은 단락 입력...')}
+                          className="min-h-[60px] text-sm border border-amber-400/80 dark:border-amber-500/80 rounded-md px-2.5 py-2 bg-amber-50/40 dark:bg-amber-950/20"
+                          spellCheck={false}
+                        />
+                        {editMatchStatus === 'found' && (
+                          <p className="mt-0.5 text-xs text-emerald-600 dark:text-emerald-400">✓ {tr('Đã tìm thấy 1 đoạn (bôi màu)', 'Found 1 segment (highlighted)', '已找到1段（高亮）', '1箇所見つかりました', '1개 찾음 (강조)')}</p>
+                        )}
+                        {editMatchStatus === 'multiple' && (
+                          <p className="mt-0.5 text-xs text-amber-600 dark:text-amber-400">⚠ {editMatchCount} {tr('đoạn trùng', 'matches', '个相同', '箇所一致', '개 일치')}</p>
+                        )}
+                        {editMatchStatus === 'not_found' && editOriginalText.trim().length >= 3 && (
+                          <p className="mt-0.5 text-xs text-destructive">✗ {tr('Không tìm thấy', 'Not found', '未找到', '見つかりません', '찾을 수 없음')}</p>
+                        )}
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium block mb-1 text-emerald-700 dark:text-emerald-300">
+                          {tr('Dữ liệu sẽ sửa thành', 'Data to replace with', '将替换为', '置換後', '다음으로 수정')}
+                        </label>
+                        <Textarea
+                          value={editEditedText}
+                          onChange={(e) => {
+                            setEditEditedText(e.target.value)
+                            setEditCompareResult(null)
+                            setEditCompareErrors([])
+                          }}
+                          placeholder={tr('Gõ nội dung mới...', 'Type new content...', '输入新内容...', '新しい内容を入力...', '새 내용 입력...')}
+                          className="min-h-[60px] text-sm border border-emerald-400/80 dark:border-emerald-500/80 rounded-md px-2.5 py-2 bg-emerald-50/40 dark:bg-emerald-950/20"
+                          spellCheck={false}
+                          disabled={editMatchStatus !== 'found' || editMatchCount !== 1}
+                        />
+                        {(editMatchStatus !== 'found' || editMatchCount !== 1) && (
+                          <p className="mt-0.5 text-xs text-muted-foreground">{tr('Tìm thấy 1 đoạn trước', 'Find 1 segment first', '先找到1段', '1箇所見つけてから', '1개 찾은 후')}</p>
+                        )}
+                      </div>
+                    </div>
+                    {editCompareLoading && (
+                      <p className="text-xs text-amber-600 dark:text-amber-400 animate-pulse">{tr('Đang hỏi 2 AI...', 'Asking 2 AIs...', '正在请2个AI...', '2つのAIに依頼中...', '2개 AI 요청 중...')}</p>
+                    )}
+                    {editCompareResult && editCompareResult.bothAgree === true && (
+                      <div className={`rounded-md border p-2 text-xs ${editCompareResult.correctVersion === 'edited' ? 'border-emerald-400/80 bg-emerald-50/60 dark:bg-emerald-950/20' : 'border-amber-400/80 bg-amber-50/60 dark:bg-amber-950/20'}`}>
+                        <span className={`font-medium ${editCompareResult.correctVersion === 'edited' ? 'text-emerald-700 dark:text-emerald-300' : 'text-amber-700 dark:text-amber-300'}`}>
+                          {editCompareResult.correctVersion === 'edited' ? tr('Đã lưu', 'Saved', '已保存', '保存しました', '저장됨') : tr('Chưa lưu – Giữ bản gốc', 'Not saved – Keep original', '未保存–保留原文', '保存せず–元のまま', '저장 안 함–원본 유지')}
+                        </span>
+                        <span className={`ml-1 ${editCompareResult.correctVersion === 'edited' ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
+                          {editCompareResult.correctVersion === 'edited' ? (editCompareResult.reasonSaved || editCompareResult.explanation || '') : (editCompareResult.reasonNotSaved || editCompareResult.explanation || '')}
+                        </span>
+                      </div>
+                    )}
+                    {editCompareResult && editCompareResult.bothAgree === false && (
+                      <div className="rounded-md border border-amber-400/80 p-2 bg-amber-50/60 dark:bg-amber-950/20">
+                        <p className="text-xs font-medium text-amber-700 dark:text-amber-300 mb-1">
+                          {tr('Mỗi AI ý kiến khác – cần admin', 'Each AI different – admin needed', '各AI意见不同–需管理员', '各AI異なる–管理者必要', '각 AI 다름–관리자 필요')}
+                        </p>
+                        {(editCompareResult.model1Version || editCompareResult.model2Version) && (
+                          <p className="text-[11px] text-amber-600 dark:text-amber-400 mb-1">Gemini: {editCompareResult.model1Version || '–'} · DeepSeek: {editCompareResult.model2Version || '–'}</p>
+                        )}
+                        {editCompareErrors.length > 0 && (
+                          <ul className="text-xs text-amber-700 dark:text-amber-300 list-disc list-inside mb-2 space-y-0.5">
+                            {editCompareErrors.map((err, i) => (
+                              <li key={i}>{err}</li>
+                            ))}
+                          </ul>
+                        )}
+                        <Button variant="outline" size="sm" onClick={() => void handleEscalateToAdmin(editCompareErrors)} disabled={escalateLoading} className="h-7 text-xs border-amber-500/80">
+                          {escalateLoading ? tr('Đang gửi...', 'Sending...', '发送中...', '送信中...', '전송 중...') : tr('Gửi admin xem xét', 'Send to admin', '发送给管理员', '管理者に送信', '관리자 검토 요청')}
+                        </Button>
+                      </div>
+                    )}
+                    <Button
+                      onClick={() => void runEditCompare()}
+                      disabled={editCompareLoading || editMatchStatus !== 'found' || editMatchCount !== 1 || !editEditedText.trim()}
+                      className="w-full h-9 text-sm bg-amber-600 hover:bg-amber-700"
+                    >
+                      {editCompareLoading ? tr('Đang kiểm tra...', 'Checking...', '正在检查...', '確認中...', '확인 중...') : tr('Áp dụng sửa', 'Apply edit', '应用修改', '編集を適用', '편집 적용')}
+                    </Button>
+                  </div>
+                )}
+                <div className="rounded-md border bg-slate-50 dark:bg-slate-900/50 p-3 overflow-auto max-h-[50vh]">
+                  {curriculumId && curriculumEditMode ? (
+                    <pre className="w-full min-h-[120px] text-sm font-sans leading-relaxed whitespace-pre-wrap break-words bg-transparent">
+                      {(() => {
+                        const { parts } = highlightMatchInCurriculum(curriculumMarkdown, editOriginalText)
+                        return parts.map((p, i) =>
+                          p.highlight ? (
+                            <mark key={i} className="bg-amber-300/70 dark:bg-amber-500/50 rounded px-0.5">
+                              {p.text}
+                            </mark>
+                          ) : (
+                            <span key={i}>{p.text}</span>
+                          )
+                        )
+                      })()}
+                    </pre>
+                  ) : (
+                    <textarea
+                      ref={curriculumTextareaRef}
+                      value={curriculumMarkdown}
+                      onChange={handleCurriculumChange}
+                      readOnly={!!curriculumId && !curriculumEditMode}
+                      className={`w-full min-h-[120px] text-sm font-sans leading-relaxed prose prose-slate dark:prose-invert max-w-none bg-transparent border-0 resize-y focus:outline-none focus:ring-0 ${curriculumId && !curriculumEditMode ? 'cursor-not-allowed opacity-95' : ''}`}
+                      placeholder={tr('Nội dung giáo trình...', 'Curriculum content...', '课程内容...', 'カリキュラム内容...', '교육과정 내용...')}
+                      spellCheck={false}
+                      title={curriculumId && !curriculumEditMode ? tr('Bấm "Sửa giáo trình" để chỉnh sửa.', 'Click "Edit curriculum" to edit.', '点击"编辑课程"进行编辑。', '「教材を編集」をクリックして編集。', '"교육과정 편집" 클릭하여 편집.') : undefined}
+                    />
+                  )}
                 </div>
+                {!curriculumEditMode && (regionPreview || regionCheckLoading || regionCompareResult) && (
+                  <div className="mt-2 rounded-md border border-amber-300/80 dark:border-amber-600/80 bg-amber-50/50 dark:bg-amber-950/20 p-2">
+                    <p className="text-xs font-medium text-amber-800 dark:text-amber-200 mb-1">
+                      {regionCheckLoading
+                        ? regionCharCount != null
+                          ? tr(`Đang gửi ~${regionCharCount} ký tự quanh vị trí con trỏ...`, `Sending ~${regionCharCount} chars around cursor...`, `正在发送光标位置~${regionCharCount}字符...`, `カーソル位置~${regionCharCount}文字を送信中...`, `커서 위치 ~${regionCharCount}자 전송 중...`)
+                          : tr('Đang kiểm tra đoạn vừa sửa...', 'Checking edited region...', '正在检查编辑区域...', '編集箇所を確認中...', '편집 영역 확인 중...')
+                        : tr('Kết quả so sánh AI:', 'AI comparison result:', 'AI比较结果：', 'AI比較結果：', 'AI 비교 결과:')}
+                    </p>
+                    {regionCompareResult && (
+                      <div className="space-y-2 text-sm mb-2">
+                        {regionCompareResult.originalReason && (
+                          <p className="text-amber-700 dark:text-amber-300">
+                            <span className="font-medium">{tr('Bản gốc sai:', 'Original wrong:', '原文错误：', '元が誤り：', '원본 오류:')}</span> {regionCompareResult.originalReason}
+                          </p>
+                        )}
+                        {regionCompareResult.editedReason && (
+                          <p className="text-amber-700 dark:text-amber-300">
+                            <span className="font-medium">{tr('Bản sửa sai:', 'Edited wrong:', '修改错误：', '編集が誤り：', '수정 오류:')}</span> {regionCompareResult.editedReason}
+                          </p>
+                        )}
+                        {regionCompareResult.explanation && (
+                          <p className="text-emerald-700 dark:text-emerald-300 font-medium">
+                            {regionCompareResult.explanation}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                    {regionPreview && (
+                      <div className="grid gap-2 text-xs">
+                        {regionPreview.original && (
+                          <div>
+                            <span className="text-muted-foreground">{tr('Gốc:', 'Original:', '原文：', '元：', '원본:')}</span>
+                            <pre className="mt-0.5 rounded bg-white/80 dark:bg-black/20 p-2 max-h-20 overflow-y-auto whitespace-pre-wrap break-words">
+                              {regionPreview.original.slice(0, 200)}
+                              {regionPreview.original.length > 200 ? '...' : ''}
+                            </pre>
+                          </div>
+                        )}
+                        <div>
+                          <span className="text-muted-foreground">{tr('Mới sửa:', 'Edited:', '修改后：', '編集後：', '수정:')}</span>
+                          <pre className="mt-0.5 rounded bg-amber-100/80 dark:bg-amber-900/30 p-2 max-h-20 overflow-y-auto whitespace-pre-wrap break-words">
+                            {regionPreview.edited.slice(0, 200)}
+                            {regionPreview.edited.length > 200 ? '...' : ''}
+                          </pre>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {!curriculumEditMode && regionCheckErrors.length > 0 && regionCompareResult?.bothAgree === false && (
+                  <div className="mt-2 rounded-md border border-amber-400/80 p-2 bg-amber-50/80 dark:bg-amber-950/30">
+                    <p className="text-sm font-medium text-amber-800 dark:text-amber-200 mb-2">
+                      {tr('Mỗi AI đưa ra ý kiến khác nhau – cần admin xem xét', 'Each AI gave different opinion – admin review needed', '每个AI意见不同–需管理员审核', '各AIが異なる意見–管理者確認必要', '각 AI가 다른 의견–관리자 검토 필요')}
+                    </p>
+                    {(regionCompareResult.model1Version || regionCompareResult.model2Version) && (
+                      <p className="text-xs text-amber-600 dark:text-amber-400 mb-2">
+                        Gemini: {regionCompareResult.model1Version === 'original' ? tr('bản gốc', 'original', '原文', '元', '원본') : regionCompareResult.model1Version === 'edited' ? tr('bản sửa', 'edited', '修改', '編集', '수정') : regionCompareResult.model1Version || '–'} · DeepSeek: {regionCompareResult.model2Version === 'original' ? tr('bản gốc', 'original', '原文', '元', '원본') : regionCompareResult.model2Version === 'edited' ? tr('bản sửa', 'edited', '修改', '編集', '수정') : regionCompareResult.model2Version || '–'}
+                      </p>
+                    )}
+                    <ul className="text-sm text-amber-700 dark:text-amber-300 list-disc list-inside space-y-1 mb-3">
+                      {regionCheckErrors.map((err, i) => (
+                        <li key={i}>{err}</li>
+                      ))}
+                    </ul>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void handleEscalateToAdmin(regionCheckErrors)}
+                      disabled={escalateLoading}
+                      className="border-amber-500 text-amber-700 hover:bg-amber-100 dark:border-amber-400 dark:text-amber-300 dark:hover:bg-amber-900/50"
+                    >
+                      {escalateLoading ? tr('Đang gửi...', 'Sending...', '发送中...', '送信中...', '전송 중...') : tr('Gửi admin xem xét', 'Send to admin for review', '发送给管理员审核', '管理者に送信して確認', '관리자에게 검토 요청')}
+                    </Button>
+                  </div>
+                )}
               </CardContent>
               {curriculumWorksheets.length > 0 && (
                 <CardContent className="pt-0 border-t">

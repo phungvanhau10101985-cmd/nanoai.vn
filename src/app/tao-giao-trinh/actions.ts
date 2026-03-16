@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { normalizeTopicForSearch, topicsMatch } from './lib/topic-normalize'
+import { normalizeCurriculumInput } from './lib/curriculum-input-normalize'
 import { getUserForAction } from '@/lib/auth'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_FLASH_NO_THINKING, GEMINI_25_PRO } from '@/lib/gemini-config'
@@ -117,25 +118,36 @@ Chỉ trả về JSON, không markdown.`
   }
 }
 
-/** Tạo giáo trình bằng AI cho mọi môn học. */
+/** Tạo giáo trình bằng AI cho mọi môn học. Hỗ trợ 2 mode: textbook (gửi ảnh sách), topic.
+ * Chuẩn hóa đầu vào trước khi tra DB / tạo. */
 export async function createCurriculum(formData: FormData) {
   if (!formData || typeof formData.get !== 'function') {
     return { error: 'Dữ liệu không hợp lệ. Vui lòng thử lại.' }
   }
-  const subjectId = (formData.get('subjectId') as string)?.trim() || 'toan'
-  const gradeLevelId = (formData.get('gradeLevelId') as string)?.trim() || 'lop-6'
-  const textbookSetId = (formData.get('textbookSetId') as string)?.trim() || 'ket-noi-tri-thuc'
-  const textbookVolume = (formData.get('textbookVolume') as string)?.trim() || ''
-  const lessonNumberRaw = (formData.get('lessonNumber') as string)?.trim() || ''
-  const lessonNumber = lessonNumberRaw ? parseInt(lessonNumberRaw, 10) : null
-  const lessonTypeId = (formData.get('lessonTypeId') as string)?.trim() || 'hinh-thanh-kien-thuc'
+  const createMode = ((formData.get('createMode') as string)?.trim() || 'textbook') as 'textbook' | 'topic'
   const topic = (formData.get('topic') as string)?.trim() || ''
-  const numLessons = parseInt(String(formData.get('numLessons') || '3'), 10) || 3
-  const lessonDurationMinutes = parseInt(String(formData.get('lessonDurationMinutes') || '45'), 10) || 45
   const goals = (formData.get('goals') as string)?.trim() || ''
 
-  const lessonNum = lessonNumber != null && lessonNumber >= 1 && lessonNumber <= 999 ? lessonNumber : null
-  if (!lessonNum) {
+  const n = normalizeCurriculumInput({
+    subjectId: formData.get('subjectId') as string,
+    gradeLevelId: formData.get('gradeLevelId') as string,
+    textbookSetId: formData.get('textbookSetId') as string,
+    textbookVolume: formData.get('textbookVolume') as string,
+    lessonNumber: formData.get('lessonNumber') as string,
+    numLessons: formData.get('numLessons') as string,
+    lessonDurationMinutes: formData.get('lessonDurationMinutes') as string,
+    lessonTypeId: formData.get('lessonTypeId') as string,
+  })
+
+  const { subjectId, gradeLevelId, textbookSetId, textbookVolume: vol, lessonNumber: lessonNum, numLessons: numTiet, lessonDurationMinutes: thoiLuong, lessonTypeId } = n
+
+  const isTopicMode = createMode === 'topic'
+
+  if (isTopicMode) {
+    if (!topic || topic.length < 2) {
+      return { error: 'Vui lòng nhập chủ đề (ít nhất 2 ký tự).' }
+    }
+  } else if (!lessonNum) {
     return { error: 'Vui lòng nhập bài số (1–999).' }
   }
 
@@ -149,11 +161,8 @@ export async function createCurriculum(formData: FormData) {
   if ('error' in result) return { error: result.error }
   const { user } = result
 
-  const vol = textbookVolume === '1' || textbookVolume === '2' ? textbookVolume : null
-  const numTiet = Math.min(10, Math.max(1, numLessons))
-  const thoiLuong = Math.min(120, Math.max(15, lessonDurationMinutes))
-
   const loadLessonTitleFromDb = async () => {
+    if (!lessonNum) return null
     let qLesson = supabase
       .from('worksheet_textbook_lessons')
       .select('title')
@@ -171,35 +180,73 @@ export async function createCurriculum(formData: FormData) {
     return lessonRow?.title ?? null
   }
 
-  // Kiểm tra DB: khớp môn + lớp + bộ sách + tập + loại bài + bài số + số tiết + thời gian mỗi tiết
-  const { data: existing } = await supabase
-    .from('worksheet_curricula')
-    .select('id, content_markdown, textbook_volume, lesson_number')
-    .eq('subject_id', subjectId)
-    .eq('grade_level_id', gradeLevelId)
-    .eq('textbook_set_id', textbookSetId)
-    .eq('lesson_type_id', lessonTypeId)
-    .eq('num_lessons', numTiet)
-    .eq('lesson_duration_minutes', thoiLuong)
-    .limit(100)
+  let match: { id: string; content_markdown: string } | null = null
+  if (!isTopicMode && lessonNum) {
+    // Kiểm tra DB: khớp môn + lớp + bộ sách + tập + loại bài + bài số + số tiết + thời gian mỗi tiết
+    const { data: existing } = await supabase
+      .from('worksheet_curricula')
+      .select('id, content_markdown, textbook_volume, lesson_number')
+      .eq('subject_id', subjectId)
+      .eq('grade_level_id', gradeLevelId)
+      .eq('textbook_set_id', textbookSetId)
+      .eq('lesson_type_id', lessonTypeId)
+      .eq('num_lessons', numTiet)
+      .eq('lesson_duration_minutes', thoiLuong)
+      .limit(100)
 
-  const match = existing?.find((r) => {
-    const rVol = (r as { textbook_volume?: string | null }).textbook_volume
-    const rNum = (r as { lesson_number?: number | null }).lesson_number
-    const volMatch = (vol ?? '') === (rVol ?? '')
-    const numMatch = lessonNum === (rNum ?? 0)
-    return volMatch && numMatch
-  })
+    match = existing?.find((r) => {
+      const rVol = (r as { textbook_volume?: string | null }).textbook_volume
+      const rNum = (r as { lesson_number?: number | null }).lesson_number
+      const volMatch = (vol ?? '') === (rVol ?? '')
+      const numMatch = lessonNum === (rNum ?? 0)
+      return volMatch && numMatch
+    }) ?? null
+  }
+
   if (match) {
     return { success: true, curriculumMarkdown: match.content_markdown ?? '', curriculumId: match.id, matched: true }
   }
 
-  // Tra cứu tên bài từ mục lục SGK trong DB (không dùng AI tạo mục lục).
-  const lessonTitle: string | null = await loadLessonTitleFromDb()
+  // Tra cứu tên bài từ mục lục SGK trong DB (chỉ mode textbook)
+  const lessonTitle: string | null = isTopicMode ? null : await loadLessonTitleFromDb()
 
   const curriculumMenDeNote = ''
 
-  const prompt = `Hãy soạn giáo trình cho Bài ${lessonNum}, môn ${subjectName}, ${gradeLabel}, bộ sách ${textbookName}.
+  const prompt = isTopicMode
+    ? `Hãy soạn giáo trình cho chủ đề "${topic}", môn ${subjectName}, ${/^lop-\d+$/.test(gradeLevelId) ? gradeLabel : 'cấp ' + gradeLabel}.
+${textbookSetId === 'khac' ? `- Sách/nguồn: Không bám sát SGK cụ thể – tạo giáo trình theo chủ đề, phù hợp chương trình giáo dục Việt Nam.` : `- Bộ sách tham khảo: ${textbookName} (nếu có nội dung liên quan).`}
+
+LOẠI BÀI HỌC: ${lessonTypeName}
+
+Thông số:
+- Thời lượng: ${numTiet} tiết x ${thoiLuong} phút.
+- Đối tượng: Học sinh Việt Nam theo chương trình GDPT 2018.
+${goals ? `- Mục tiêu bổ sung: ${goals}` : ''}
+
+CẤU TRÚC BẮT BUỘC (theo Công văn 5512/BGDĐT):
+Mỗi tiết gồm 4 hoạt động chính, phân bổ thời gian rõ ràng:
+1. Khởi động – kích thích hứng thú, kết nối kiến thức cũ.
+2. Hình thành kiến thức – nội dung mới, lý thuyết (hoặc quy trình thí nghiệm nếu là bài thực hành).
+3. Luyện tập – vận dụng, bài tập, thực hành.
+4. Vận dụng – mở rộng, liên hệ thực tế, đánh giá.
+
+FORMAT BẮT BUỘC:
+- Tiêu đề chính: ## GIÁO TRÌNH: <TÊN CHỦ ĐỀ VIẾT HOA>
+- Mỗi tiết: ### Tiết X: <tiêu đề tiết> (tổng ${thoiLuong} phút)
+- Mỗi hoạt động: **1. Khởi động (X phút)**, **2. Hình thành kiến thức (X phút)**, **3. Luyện tập (X phút)**, **4. Vận dụng (X phút)** – tổng 4 hoạt động = ${thoiLuong} phút.
+- Trong mỗi hoạt động, tách thành CÁC PHẦN – mỗi phần ghi rõ thời lượng: **Phần 1 (X phút):**, **Phần 2 (X phút):**, ...
+
+YÊU CẦU CHI TIẾT:
+- CÔNG THỨC – CHO HỌC SINH ĐỌC ĐƯỢC: BẮT BUỘC dùng Unicode, KHÔNG dùng LaTeX $...$. Ví dụ: ∈, ℝ, ∫, π, ², √, ∞, ↗, ↘, ⇒, ½, y=x², f'(x), (0;+∞). Phân số: 1/2 hoặc ½. Căn: √(x+1).
+- ĐỘ CHI TIẾT: Mỗi hoạt động chia thành các phần (Phần 1, Phần 2, ...), mỗi phần gọn một ý – ví dụ một ví dụ, một bài tập – không gộp nhiều ý vào một đoạn dài. Mỗi phần phải ghi cụ thể thời lượng (phút).
+
+Yêu cầu:
+- Chuẩn Bộ GD&ĐT: Công văn 5512, GDPT 2018.
+- Trả về Markdown, dùng ## ### ** - cho cấu trúc.
+- Ngôn ngữ: Tiếng Việt.
+- Chỉ trả về nội dung Markdown, không có lời giải thích thêm.
+- QUAN TRỌNG: Kết quả cho học sinh đọc trực tiếp – dùng Unicode, không LaTeX.`
+    : `Hãy soạn giáo trình cho Bài ${lessonNum}, môn ${subjectName}, ${gradeLabel}, bộ sách ${textbookName}.
 
 LOẠI BÀI HỌC: ${lessonTypeName}
 
@@ -254,16 +301,18 @@ Yêu cầu:
 
     const lessonTopics = await extractLessonTopicsFromContent(text, genAI)
 
+    const topicFinal = isTopicMode ? topic : (topic.trim() ? topic : (lessonTitle ?? `Bài ${lessonNum}`))
+
     const { data: row, error: insertErr } = await supabase
       .from('worksheet_curricula')
       .insert({
         user_id: user?.id ?? null,
-        topic: lessonTitle ?? `Bài ${lessonNum}`,
+        topic: topicFinal,
         subject_id: subjectId,
         grade_level_id: gradeLevelId,
-        textbook_set_id: textbookSetId,
-        textbook_volume: vol,
-        lesson_number: lessonNum,
+        textbook_set_id: isTopicMode ? 'khac' : textbookSetId,
+        textbook_volume: isTopicMode ? null : vol,
+        lesson_number: isTopicMode ? null : lessonNum,
         lesson_type_id: lessonTypeId,
         num_lessons: numTiet,
         lesson_duration_minutes: thoiLuong,
@@ -435,27 +484,36 @@ Chỉ trả về nội dung phiếu bài tập, không có lời giải thích t
   }
 }
 
-/** Lưu giáo trình vào kho (khi tạo mới lỗi insert hoặc chưa lưu) */
+/** Lưu giáo trình vào kho (tạo mới hoặc cập nhật khi có curriculumId).
+ * Chuẩn hóa đầu vào trước khi lưu. */
 export async function saveCurriculum(formData: FormData) {
   if (!formData || typeof formData.get !== 'function') {
     return { error: 'Dữ liệu không hợp lệ.' }
   }
   const curriculumMarkdown = (formData.get('curriculumMarkdown') as string)?.trim() || ''
   const topic = (formData.get('topic') as string)?.trim() || ''
-  const subjectId = (formData.get('subjectId') as string)?.trim() || 'toan'
-  const gradeLevelId = (formData.get('gradeLevelId') as string)?.trim() || 'lop-6'
-  const textbookSetId = (formData.get('textbookSetId') as string)?.trim() || 'ket-noi-tri-thuc'
-  const textbookVolume = (formData.get('textbookVolume') as string)?.trim() || ''
-  const lessonNumberRaw = (formData.get('lessonNumber') as string)?.trim() || ''
-  const lessonNumber = lessonNumberRaw ? parseInt(lessonNumberRaw, 10) : null
-  const lessonTypeId = (formData.get('lessonTypeId') as string)?.trim() || 'hinh-thanh-kien-thuc'
-  const numLessons = parseInt(String(formData.get('numLessons') || '3'), 10) || 3
-  const lessonDurationMinutes = parseInt(String(formData.get('lessonDurationMinutes') || '45'), 10) || 45
   const goals = (formData.get('goals') as string)?.trim() || ''
+  const curriculumId = (formData.get('curriculumId') as string)?.trim() || null
 
-  const lessonNum = lessonNumber != null && lessonNumber >= 1 && lessonNumber <= 999 ? lessonNumber : null
-  if (!curriculumMarkdown || !lessonNum) {
-    return { error: 'Thiếu nội dung giáo trình hoặc bài số.' }
+  const n = normalizeCurriculumInput({
+    subjectId: formData.get('subjectId') as string,
+    gradeLevelId: formData.get('gradeLevelId') as string,
+    textbookSetId: formData.get('textbookSetId') as string,
+    textbookVolume: formData.get('textbookVolume') as string,
+    lessonNumber: formData.get('lessonNumber') as string,
+    numLessons: formData.get('numLessons') as string,
+    lessonDurationMinutes: formData.get('lessonDurationMinutes') as string,
+    lessonTypeId: formData.get('lessonTypeId') as string,
+  })
+
+  const { subjectId, gradeLevelId, textbookSetId, textbookVolume: vol, lessonNumber: lessonNum, numLessons: numTiet, lessonDurationMinutes: thoiLuong, lessonTypeId } = n
+
+  if (!curriculumMarkdown) {
+    return { error: 'Thiếu nội dung giáo trình.' }
+  }
+  // Cho phép lưu theo chủ đề (topic) khi không có bài số – dùng topic làm tiêu đề
+  if (!lessonNum && !topic) {
+    return { error: 'Thiếu bài số hoặc chủ đề.' }
   }
 
   const supabase = createClient()
@@ -463,18 +521,42 @@ export async function saveCurriculum(formData: FormData) {
   if ('error' in authResult) return { error: authResult.error }
   const { user } = authResult
 
-  const numTiet = Math.min(10, Math.max(1, numLessons))
-  const thoiLuong = Math.min(120, Math.max(15, lessonDurationMinutes))
-  const vol = textbookVolume === '1' || textbookVolume === '2' ? textbookVolume : null
-
   const topicFinal = topic || `Bài ${lessonNum}`
 
+  // Chỉ trích lesson_topics khi TẠO MỚI (không có curriculumId) – tránh gọi AI mỗi lần "Lưu thay đổi"
   let lessonTopics: string[] | null = null
   const apiKey = process.env.GOOGLE_API_KEY?.trim()
-  if (apiKey && curriculumMarkdown.length >= 100) {
+  if (!curriculumId && apiKey && curriculumMarkdown.length >= 100) {
     const genAI = new GoogleGenerativeAI(apiKey)
     const extracted = await extractLessonTopicsFromContent(curriculumMarkdown, genAI)
     lessonTopics = extracted.length >= 5 ? extracted : null
+  }
+
+  if (curriculumId) {
+    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user?.id ?? '').single()
+    const isAdmin = profile?.role === 'admin'
+    const { data: curr } = await supabase.from('worksheet_curricula').select('user_id').eq('id', curriculumId).single()
+    const isOwner = curr?.user_id === user?.id
+    if (!isOwner && !isAdmin) return { error: 'Bạn không có quyền sửa giáo trình này.' }
+    const { error: updErr } = await supabase
+      .from('worksheet_curricula')
+      .update({
+        topic: topicFinal,
+        subject_id: subjectId,
+        grade_level_id: gradeLevelId,
+        textbook_set_id: lessonNum ? textbookSetId : 'khac',
+        textbook_volume: lessonNum ? vol : null,
+        lesson_number: lessonNum,
+        lesson_type_id: lessonTypeId,
+        num_lessons: numTiet,
+        lesson_duration_minutes: thoiLuong,
+        goals: goals || null,
+        content_markdown: curriculumMarkdown,
+        ...(lessonTopics ? { lesson_topics: lessonTopics } : {}),
+      })
+      .eq('id', curriculumId)
+    if (updErr) return { error: `Cập nhật thất bại: ${updErr.message}` }
+    return { success: true, curriculumId }
   }
 
   const { data: row, error } = await supabase
@@ -484,8 +566,8 @@ export async function saveCurriculum(formData: FormData) {
       topic: topicFinal,
       subject_id: subjectId,
       grade_level_id: gradeLevelId,
-      textbook_set_id: textbookSetId,
-      textbook_volume: vol,
+      textbook_set_id: lessonNum ? textbookSetId : 'khac',
+      textbook_volume: lessonNum ? vol : null,
       lesson_number: lessonNum,
       lesson_type_id: lessonTypeId,
       num_lessons: numTiet,
@@ -543,35 +625,54 @@ export async function saveTextbookLessonFromImage(opts: {
   return { success: true }
 }
 
-/** Kiểm tra DB đã có giáo trình khớp (môn + lớp + bộ sách + bài số + số tiết + thời gian) chưa */
+/** Kiểm tra DB đã có giáo trình khớp (môn + lớp + bộ sách + tập + loại bài + bài số + số tiết + thời gian) chưa.
+ * Chuẩn hóa đầu vào trước khi tra để khớp với DB. */
 export async function checkCurriculumExists(opts: {
   subjectId: string
   gradeLevelId: string
   textbookSetId: string
+  textbookVolume?: string
   lessonNumber: number
   numLessons: number
   lessonDurationMinutes: number
+  lessonTypeId?: string
 }) {
   const supabase = createClient()
   const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
   if ('error' in authResult) return { error: authResult.error }
 
-  const numTiet = Math.min(10, Math.max(1, opts.numLessons))
-  const thoiLuong = Math.min(120, Math.max(15, opts.lessonDurationMinutes))
+  const n = normalizeCurriculumInput({
+    subjectId: opts.subjectId,
+    gradeLevelId: opts.gradeLevelId,
+    textbookSetId: opts.textbookSetId,
+    textbookVolume: opts.textbookVolume,
+    lessonNumber: opts.lessonNumber,
+    numLessons: opts.numLessons,
+    lessonDurationMinutes: opts.lessonDurationMinutes,
+    lessonTypeId: opts.lessonTypeId,
+  })
 
-  const { data } = await supabase
+  if (!n.lessonNumber) return { exists: false }
+
+  let q = supabase
     .from('worksheet_curricula')
     .select('id, content_markdown, topic')
-    .eq('subject_id', opts.subjectId)
-    .eq('grade_level_id', opts.gradeLevelId)
-    .eq('textbook_set_id', opts.textbookSetId)
-    .eq('lesson_type_id', 'hinh-thanh-kien-thuc')
-    .eq('num_lessons', numTiet)
-    .eq('lesson_duration_minutes', thoiLuong)
-    .eq('lesson_number', opts.lessonNumber)
-    .is('textbook_volume', null)
+    .eq('subject_id', n.subjectId)
+    .eq('grade_level_id', n.gradeLevelId)
+    .eq('textbook_set_id', n.textbookSetId)
+    .eq('lesson_type_id', n.lessonTypeId)
+    .eq('num_lessons', n.numLessons)
+    .eq('lesson_duration_minutes', n.lessonDurationMinutes)
+    .eq('lesson_number', n.lessonNumber)
     .limit(1)
 
+  if (n.textbookVolume === '1' || n.textbookVolume === '2') {
+    q = q.eq('textbook_volume', n.textbookVolume)
+  } else {
+    q = q.is('textbook_volume', null)
+  }
+
+  const { data } = await q
   const row = data?.[0]
   if (row) {
     return { exists: true, curriculumId: row.id, curriculumMarkdown: row.content_markdown, topic: row.topic }
@@ -1834,4 +1935,115 @@ async function applySlideProposalForce(supabase: SupabaseClientAny, proposalId: 
   }
 
   return true
+}
+
+/** Admin: danh sách giáo trình giáo viên gửi khi 2 AI báo sai */
+export async function listCurriculumEditReviewsForAdmin(opts?: { status?: string; limit?: number }) {
+  const supabase = createClient()
+  const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+  if ('error' in authResult) return { error: authResult.error }
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user?.id) return { error: 'Vui lòng đăng nhập.' }
+
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  if (profile?.role !== 'admin') return { error: 'Bạn cần quyền admin.' }
+
+  let q = supabase
+    .from('curriculum_edit_reviews')
+    .select('id, user_id, curriculum_id, topic, subject_id, grade_level_id, textbook_set_id, textbook_volume, lesson_number, lesson_type_id, num_lessons, lesson_duration_minutes, goals, content_markdown, ai_errors, status, created_at, admin_note')
+    .order('created_at', { ascending: false })
+    .limit(opts?.limit ?? 50)
+
+  if (opts?.status) q = q.eq('status', opts.status)
+
+  const { data, error } = await q
+  if (error) return { error: error.message }
+  return { success: true, items: data ?? [] }
+}
+
+/** Admin: duyệt hoặc từ chối giáo trình gửi lên */
+export async function adminReviewCurriculumEdit(reviewId: string, action: 'approve' | 'reject', adminNote?: string) {
+  const supabase = createClient()
+  const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+  if ('error' in authResult) return { error: authResult.error }
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user?.id) return { error: 'Vui lòng đăng nhập.' }
+
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  if (profile?.role !== 'admin') return { error: 'Bạn cần quyền admin.' }
+
+  const { data: row } = await supabase
+    .from('curriculum_edit_reviews')
+    .select('*')
+    .eq('id', reviewId)
+    .single()
+
+  if (!row) return { error: 'Không tìm thấy.' }
+  const status = (row as { status?: string }).status
+  if (status !== 'pending') return { error: 'Đã xử lý rồi.' }
+
+  const r = row as {
+    curriculum_id?: string | null
+    user_id?: string | null
+    topic: string
+    subject_id: string
+    grade_level_id: string
+    textbook_set_id: string
+    textbook_volume?: string | null
+    lesson_number?: number | null
+    lesson_type_id: string
+    num_lessons: number
+    lesson_duration_minutes: number
+    goals?: string | null
+    content_markdown: string
+  }
+
+  if (action === 'approve') {
+    const adminClient = createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+    const vol = r.textbook_volume === '1' || r.textbook_volume === '2' ? r.textbook_volume : null
+    if (r.curriculum_id) {
+      const { error: updErr } = await adminClient
+        .from('worksheet_curricula')
+        .update({
+          content_markdown: r.content_markdown,
+          topic: r.topic,
+        })
+        .eq('id', r.curriculum_id)
+      if (updErr) return { error: updErr.message }
+    } else {
+      const { error: insErr } = await adminClient
+        .from('worksheet_curricula')
+        .insert({
+          user_id: r.user_id ?? null,
+          topic: r.topic,
+          subject_id: r.subject_id,
+          grade_level_id: r.grade_level_id,
+          textbook_set_id: r.textbook_set_id,
+          textbook_volume: vol,
+          lesson_number: r.lesson_number,
+          lesson_type_id: r.lesson_type_id,
+          num_lessons: r.num_lessons,
+          lesson_duration_minutes: r.lesson_duration_minutes,
+          goals: r.goals || null,
+          content_markdown: r.content_markdown,
+        })
+      if (insErr) return { error: insErr.message }
+    }
+  }
+
+  const dbStatus = action === 'approve' ? 'approved' : 'rejected'
+  const { error: updErr } = await supabase
+    .from('curriculum_edit_reviews')
+    .update({
+      status: dbStatus,
+      reviewed_at: new Date().toISOString(),
+      reviewed_by: user.id,
+      admin_note: adminNote || null,
+    })
+    .eq('id', reviewId)
+
+  if (updErr) return { error: updErr.message }
+  return { success: true }
 }

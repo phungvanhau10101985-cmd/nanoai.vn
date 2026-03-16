@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Users, BarChart3, BookOpen, FileEdit, Flag, Download } from 'lucide-react'
+import { Users, BarChart3, BookOpen, FileEdit, Flag, Download, ClipboardCheck } from 'lucide-react'
 import { getCurrentWebLocale } from '@/lib/i18n/server'
 
 type AdminLink = {
@@ -83,6 +83,24 @@ const ADMIN_LINKS: AdminLink[] = [
       ko: '교사 제출 슬라이드 편집 제안 목록. 5명 찬성 시 자동 적용.',
     },
     icon: FileEdit,
+  },
+  {
+    href: '/admin/curriculum-edit-reviews',
+    title: {
+      vi: 'Duyệt giáo trình gửi admin',
+      en: 'Curriculum edit reviews',
+      zh: '教材编辑审核',
+      ja: '教材編集の審査',
+      ko: '교육과정 편집 검토',
+    },
+    description: {
+      vi: 'Giáo viên gửi khi 2 AI báo sai nhưng vẫn muốn lưu. Admin duyệt/từ chối.',
+      en: 'Teachers submit when 2 AIs flag errors. Admin approves or rejects.',
+      zh: '教师在2个AI报错时提交。管理员批准或拒绝。',
+      ja: '2つのAIがエラーと判断した場合に教師が送信。管理者が承認または却下。',
+      ko: '2개 AI가 오류로 표시할 때 교사가 제출. 관리자가 승인 또는 거부.',
+    },
+    icon: ClipboardCheck,
   },
   {
     href: '/admin/quiz-reports',
