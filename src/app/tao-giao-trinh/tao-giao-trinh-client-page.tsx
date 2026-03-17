@@ -81,6 +81,30 @@ function splitWorksheetSections(markdown: string): { quiz: string; essay: string
   return { quiz, essay }
 }
 
+function stripWorksheetAnswerSections(markdown: string): string {
+  const text = (markdown ?? '').trim()
+  if (!text) return ''
+  const lines = text.split('\n')
+  const out: string[] = []
+  let skippingAnswerSection = false
+  for (const line of lines) {
+    const normalized = line.toLowerCase()
+    const isHeading = /^#{1,6}\s+/.test(line)
+    if (isHeading) {
+      const isAnswerHeading = /(đáp án|lời giải|answer|solution)/i.test(normalized)
+      if (isAnswerHeading) {
+        skippingAnswerSection = true
+        continue
+      }
+      skippingAnswerSection = false
+    }
+    if (skippingAnswerSection) continue
+    if (/^\s*\*{0,2}\s*đáp án trắc nghiệm\s*:/i.test(normalized)) continue
+    out.push(line)
+  }
+  return out.join('\n').trim()
+}
+
 type Step = 'INPUT' | 'GENERATING' | 'RESULT'
 export default function TaoGiaoTrinhClientPage() {
   const [uiLocale, setUiLocale] = useState<UiLocale>('vi')
@@ -99,6 +123,8 @@ export default function TaoGiaoTrinhClientPage() {
   const [curriculumMarkdown, setCurriculumMarkdown] = useState('')
   const [curriculumId, setCurriculumId] = useState<string | null>(null)
   const [worksheetMarkdown, setWorksheetMarkdown] = useState('')
+  const worksheetStudentMarkdown = useMemo(() => stripWorksheetAnswerSections(worksheetMarkdown), [worksheetMarkdown])
+  const worksheetParts = useMemo(() => splitWorksheetSections(worksheetStudentMarkdown), [worksheetStudentMarkdown])
   const [worksheetId, setWorksheetId] = useState<string | null>(null)
   const [worksheetQrDataUrl, setWorksheetQrDataUrl] = useState<string | null>(null)
   const [worksheetLoading, setWorksheetLoading] = useState(false)
@@ -1367,7 +1393,7 @@ export default function TaoGiaoTrinhClientPage() {
     }
     let pos = 0
     const indices: number[] = []
-    while ((pos = worksheetMarkdown.indexOf(t, pos)) >= 0) {
+    while ((pos = worksheetStudentMarkdown.indexOf(t, pos)) >= 0) {
       indices.push(pos)
       pos += 1
     }
@@ -1384,7 +1410,7 @@ export default function TaoGiaoTrinhClientPage() {
       setWorksheetEditMatchCount(indices.length)
       worksheetEditMatchIndexRef.current = -1
     }
-  }, [worksheetEditOriginalText, worksheetMarkdown])
+  }, [worksheetEditOriginalText, worksheetStudentMarkdown])
 
   useEffect(() => {
     if (worksheetEditMatchStatus !== 'found') return
@@ -1393,7 +1419,7 @@ export default function TaoGiaoTrinhClientPage() {
     requestAnimationFrame(() => {
       el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' })
     })
-  }, [worksheetEditMatchStatus, worksheetEditOriginalText, worksheetMarkdown])
+  }, [worksheetEditMatchStatus, worksheetEditOriginalText, worksheetStudentMarkdown])
 
   const handleApplyWorksheetEdit = useCallback(async () => {
     const orig = worksheetEditOriginalText.trim()
@@ -1419,13 +1445,13 @@ export default function TaoGiaoTrinhClientPage() {
       return
     }
 
-    const idx = worksheetEditMatchIndexRef.current >= 0 ? worksheetEditMatchIndexRef.current : worksheetMarkdown.indexOf(orig)
+    const idx = worksheetEditMatchIndexRef.current >= 0 ? worksheetEditMatchIndexRef.current : worksheetStudentMarkdown.indexOf(orig)
     if (idx < 0) return
     const CONTEXT_CHARS = 250
     const start = Math.max(0, idx - CONTEXT_CHARS)
-    const end = Math.min(worksheetMarkdown.length, idx + orig.length + CONTEXT_CHARS)
-    const originalRegion = worksheetMarkdown.slice(start, end)
-    const editedRegion = worksheetMarkdown.slice(start, idx) + edited + worksheetMarkdown.slice(idx + orig.length, end)
+    const end = Math.min(worksheetStudentMarkdown.length, idx + orig.length + CONTEXT_CHARS)
+    const originalRegion = worksheetStudentMarkdown.slice(start, end)
+    const editedRegion = worksheetStudentMarkdown.slice(start, idx) + edited + worksheetStudentMarkdown.slice(idx + orig.length, end)
 
     setWorksheetEditSaving(true)
     try {
@@ -1446,7 +1472,7 @@ export default function TaoGiaoTrinhClientPage() {
         return
       }
 
-      const newContent = worksheetMarkdown.slice(0, idx) + edited + worksheetMarkdown.slice(idx + orig.length)
+      const newContent = worksheetStudentMarkdown.slice(0, idx) + edited + worksheetStudentMarkdown.slice(idx + orig.length)
       const fd = new FormData()
       fd.append('worksheetId', worksheetId)
       fd.append('contentMarkdown', newContent)
@@ -1467,7 +1493,7 @@ export default function TaoGiaoTrinhClientPage() {
     } finally {
       setWorksheetEditSaving(false)
     }
-  }, [worksheetEditOriginalText, worksheetEditEditedText, worksheetEditMatchStatus, worksheetMarkdown, worksheetId, tr, toast])
+  }, [worksheetEditOriginalText, worksheetEditEditedText, worksheetEditMatchStatus, worksheetStudentMarkdown, worksheetId, tr, toast])
 
 
   const handleEscalateToAdmin = async (errorsToSend?: string[]) => {
@@ -1685,12 +1711,12 @@ export default function TaoGiaoTrinhClientPage() {
   }
 
   const handleCopyWorksheet = () => {
-    navigator.clipboard.writeText(worksheetMarkdown)
+    navigator.clipboard.writeText(worksheetStudentMarkdown)
     toast({ title: tr('Đã sao chép', 'Copied', '已复制', 'コピーしました', '복사됨'), duration: 2000 })
   }
 
   const handleDownloadWorksheet = () => {
-    const blob = new Blob([worksheetMarkdown], { type: 'text/markdown;charset=utf-8' })
+    const blob = new Blob([worksheetStudentMarkdown], { type: 'text/markdown;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
@@ -1702,7 +1728,7 @@ export default function TaoGiaoTrinhClientPage() {
 
   const handleExportPdf = () => {
     const name = `phieu-bai-tap-${displayTopic.slice(0, 25).replace(/\s+/g, '-')}.pdf`
-    exportWorksheetToPdf(worksheetMarkdown, name, null).then(() => {
+    exportWorksheetToPdf(worksheetStudentMarkdown, name, null).then(() => {
       toast({ title: tr('Đã tải PDF', 'PDF downloaded', '已下载PDF', 'PDFをダウンロード', 'PDF 다운로드됨'), duration: 2000 })
     }).catch(() => {
       toast({ title: tr('Xuất PDF thất bại', 'PDF export failed', 'PDF导出失败', 'PDFエクスポート失敗', 'PDF 내보내기 실패'), variant: 'destructive' })
@@ -1711,14 +1737,12 @@ export default function TaoGiaoTrinhClientPage() {
 
   const handleExportWord = () => {
     const name = `phieu-bai-tap-${displayTopic.slice(0, 25).replace(/\s+/g, '-')}.docx`
-    exportWorksheetToWord(worksheetMarkdown, name).then(() => {
+    exportWorksheetToWord(worksheetStudentMarkdown, name).then(() => {
       toast({ title: tr('Đã tải Word', 'Word downloaded', '已下载Word', 'Wordをダウンロード', 'Word 다운로드됨'), duration: 2000 })
     }).catch(() => {
       toast({ title: tr('Xuất Word thất bại', 'Word export failed', 'Word导出失败', 'Wordエクスポート失敗', 'Word 내보내기 실패'), variant: 'destructive' })
     })
   }
-
-  const worksheetParts = useMemo(() => splitWorksheetSections(worksheetMarkdown), [worksheetMarkdown])
 
   return (
     <>
@@ -2672,7 +2696,7 @@ export default function TaoGiaoTrinhClientPage() {
                       className="w-full min-h-[200px] text-sm font-sans leading-relaxed whitespace-pre-wrap break-words bg-transparent"
                     >
                       {(() => {
-                        const { parts } = highlightMatchInCurriculum(worksheetMarkdown, worksheetEditOriginalText)
+                        const { parts } = highlightMatchInCurriculum(worksheetStudentMarkdown, worksheetEditOriginalText)
                         const firstHighlightIndex = parts.findIndex((p) => p.highlight)
                         return parts.map((p, i) =>
                           p.highlight ? (
