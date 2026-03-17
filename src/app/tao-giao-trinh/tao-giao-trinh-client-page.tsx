@@ -122,6 +122,7 @@ export default function TaoGiaoTrinhClientPage() {
   const [similarTopicCurricula, setSimilarTopicCurricula] = useState<Array<{ id: string; topic: string; score: number }>>([])
   const [checkLoading, setCheckLoading] = useState(false)
   const [overwriteFromExistingLoading, setOverwriteFromExistingLoading] = useState(false)
+  const [lastOverwriteAt, setLastOverwriteAt] = useState<string | null>(null)
   const [lessonImages, setLessonImages] = useState<File[]>([])
   const lessonImageInputRef = useRef<HTMLInputElement>(null)
   const [createMode, setCreateMode] = useState<'textbook' | 'topic'>('textbook')
@@ -291,16 +292,26 @@ export default function TaoGiaoTrinhClientPage() {
           : typeof extractedNum === 'string'
             ? parseInt(extractedNum, 10)
             : NaN
-      const finalLessonNum = Number.isFinite(extractedNumParsed) && extractedNumParsed >= 1 && extractedNumParsed <= 999 ? String(extractedNumParsed) : lessonNumber
-      const finalTopic = t || extractedTitle || `Bài ${finalLessonNum}`
-      if (finalLessonNum !== lessonNumber) {
-        setLessonNumber(finalLessonNum)
+      const hasExtractedLessonNum = Number.isFinite(extractedNumParsed) && extractedNumParsed >= 1 && extractedNumParsed <= 999
+      const extractedLessonNum = hasExtractedLessonNum ? String(extractedNumParsed) : null
+      if (extractedLessonNum && extractedLessonNum !== lessonNumber.trim()) {
+        setStep('INPUT')
         toast({
-          title: tr('Đã cập nhật bài số theo ảnh', 'Lesson number updated from image', '已按图片更新课号', '画像から課番号を更新しました', '이미지 기준으로 차시 번호를 업데이트했습니다'),
-          description: tr(`Bạn nhập Bài ${lessonNumber}, ảnh cho thấy Bài ${finalLessonNum}. Hệ thống dùng Bài ${finalLessonNum}.`, `You entered lesson ${lessonNumber}, image indicates lesson ${finalLessonNum}. System uses lesson ${finalLessonNum}.`, `您输入的是第 ${lessonNumber} 课，图片显示第 ${finalLessonNum} 课。系统将使用第 ${finalLessonNum} 课。`, `入力は${lessonNumber}課、画像は${finalLessonNum}課でした。システムは${finalLessonNum}課を使用します。`, `입력한 차시는 ${lessonNumber}, 이미지에서는 ${finalLessonNum}차시로 확인되었습니다. 시스템은 ${finalLessonNum}차시를 사용합니다.`),
-          duration: 4500,
+          title: tr('Không khớp số bài', 'Lesson number mismatch', '课号不匹配', '課番号が不一致です', '차시 번호 불일치'),
+          description: tr(
+            `Ảnh là Bài ${extractedLessonNum} nhưng bạn nhập Bài ${lessonNumber}. Vui lòng sửa lại số bài đã nhập hoặc upload ảnh đúng với số bài đã nhập.`,
+            `Image shows lesson ${extractedLessonNum} but you entered lesson ${lessonNumber}. Please correct the entered lesson number or upload the correct image for your entered lesson number.`,
+            `图片显示第 ${extractedLessonNum} 课，但您输入的是第 ${lessonNumber} 课。请修改输入课号或上传与输入课号一致的图片。`,
+            `画像は${extractedLessonNum}課ですが、入力は${lessonNumber}課です。入力した課番号を修正するか、入力番号に合う画像をアップロードしてください。`,
+            `이미지는 ${extractedLessonNum}차시인데 입력은 ${lessonNumber}차시입니다. 입력한 차시 번호를 수정하거나 입력 번호와 일치하는 이미지를 업로드해 주세요.`
+          ),
+          variant: 'destructive',
+          duration: 6000,
         })
+        return
       }
+      const finalLessonNum = extractedLessonNum ?? lessonNumber
+      const finalTopic = t || extractedTitle || `Bài ${finalLessonNum}`
 
       let overwriteCurriculumId: string | null = null
       const checkByExtracted = await checkCurriculumExists({
@@ -323,8 +334,32 @@ export default function TaoGiaoTrinhClientPage() {
         checkByExtracted && 'exists' in checkByExtracted && checkByExtracted.exists
           ? (checkByExtracted.topic ?? null)
           : null
+      const existingMarkdownByExtracted =
+        checkByExtracted && 'exists' in checkByExtracted && checkByExtracted.exists
+          ? (checkByExtracted.curriculumMarkdown ?? '')
+          : ''
 
       if (forceOverwrite && existingIdByExtracted) {
+        const normalizeForCompare = (s: string) =>
+          String(s || '')
+            .toLowerCase()
+            .replace(/\s+/g, ' ')
+            .trim()
+        if (normalizeForCompare(existingMarkdownByExtracted) === normalizeForCompare(md)) {
+          const sameOk = confirm(
+            tr(
+              'Nội dung mới gần như trùng bản hiện tại. Bạn vẫn muốn ghi đè không?',
+              'New content is almost identical to current version. Do you still want to overwrite?',
+              '新内容与当前版本几乎一致。仍要覆盖吗？',
+              '新しい内容は現行版とほぼ同一です。上書きしますか？',
+              '새 내용이 현재 버전과 거의 동일합니다. 그래도 덮어쓸까요?'
+            )
+          )
+          if (!sameOk) {
+            setStep('INPUT')
+            return
+          }
+        }
         const ok = confirm(
           tr(
             'Tạo lại sẽ xóa worksheet/slide/lịch sử chỉnh sửa cũ của giáo trình này trước khi lưu bản mới. Tiếp tục?',
@@ -367,6 +402,7 @@ export default function TaoGiaoTrinhClientPage() {
       if (saveRes?.success && saveRes.curriculumId) {
         setCurriculumId(saveRes.curriculumId)
         setStep('RESULT')
+        if (overwriteCurriculumId) setLastOverwriteAt(new Date().toISOString())
         toast({
           title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'),
           description: overwriteCurriculumId
@@ -793,6 +829,7 @@ export default function TaoGiaoTrinhClientPage() {
     setCurriculumWorksheets([])
     setCurriculumSlides(null)
     setAiSlides(null)
+    setLastOverwriteAt(null)
     setSimilarTopicCurricula([])
     setBookIsbn('')
     setLessonImages([])
@@ -1977,6 +2014,11 @@ export default function TaoGiaoTrinhClientPage() {
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-base flex items-center gap-2">
                   {tr('Giáo trình đã tạo', 'Generated curriculum', '已创建课程', '作成したカリキュラム', '생성된 교육과정')}
+                  {lastOverwriteAt && (
+                    <span className="text-xs font-normal text-amber-700 dark:text-amber-300">
+                      {tr('Đã cập nhật từ ảnh', 'Updated from image', '已由图片更新', '画像から更新済み', '이미지로 업데이트됨')}
+                    </span>
+                  )}
                   {autoSaveStatus === 'saving' && (
                     <span className="text-xs font-normal text-muted-foreground animate-pulse">
                       {tr('Đang lưu...', 'Saving...', '保存中...', '保存中...', '저장 중...')}
