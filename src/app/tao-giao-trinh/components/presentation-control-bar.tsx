@@ -11,7 +11,7 @@ const SANDS_SECONDS = [60, 180, 300, 600] as const
 
 /** Layout chuẩn – mobile: wrap, desktop: flex-nowrap. Desktop giữ nguyên. */
 const SHARED_LAYOUT = {
-  container: 'flex items-center justify-between px-3 md:px-6 landscape:px-6 py-2 md:py-3 landscape:py-3 gap-2 md:gap-4 landscape:gap-4 flex-wrap md:flex-nowrap landscape:flex-nowrap',
+  container: 'flex items-center justify-between pl-3 md:pl-6 landscape:pl-6 pr-6 md:pr-6 landscape:pr-6 py-2 md:py-3 landscape:py-3 gap-2 md:gap-4 landscape:gap-4 flex-wrap md:flex-nowrap landscape:flex-nowrap',
   leftIndex: 'text-sm font-medium tabular-nums min-w-[3rem] shrink-0',
   rightGroup: 'flex items-center gap-2 flex-nowrap shrink-0',
   /** Đồng hồ giáo viên – khung cố định */

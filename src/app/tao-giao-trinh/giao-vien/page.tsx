@@ -234,6 +234,7 @@ export default function CurriculumViewPage() {
   const [editingTitleValue, setEditingTitleValue] = useState('')
   const [uiLocale, setUiLocale] = useState<UiLocale>('vi')
   const [resetLoading, setResetLoading] = useState(false)
+  const [saveAsPersonalLoading, setSaveAsPersonalLoading] = useState(false)
   const [personalHistoryOpen, setPersonalHistoryOpen] = useState(false)
   const [sharedHistoryOpen, setSharedHistoryOpen] = useState(false)
   const [embedDialogOpen, setEmbedDialogOpen] = useState(false)
@@ -265,6 +266,7 @@ export default function CurriculumViewPage() {
   const teacherVisualFrameRef = useRef<HTMLDivElement | null>(null)
   const teacherVisualOverlayRef = useRef<HTMLDivElement | null>(null)
   const [viewportW, setViewportW] = useState(1280)
+  const [stableLayoutWidth, setStableLayoutWidth] = useState(() => (typeof window !== 'undefined' ? window.innerWidth : 1280))
   useEffect(() => {
     const sync = () => {
       setViewportW(window.innerWidth)
@@ -273,8 +275,11 @@ export default function CurriculumViewPage() {
     window.addEventListener('resize', sync)
     return () => window.removeEventListener('resize', sync)
   }, [])
-  // Màn hình đủ rộng giữ 2 cột; chỉ khi rất hẹp mới ưu tiên cột phải.
-  const clipLeft = viewportW < 900
+  useEffect(() => {
+    // Keep the widest seen width so shrinking only clips the left side.
+    setStableLayoutWidth((prev) => (viewportW > prev ? viewportW : prev))
+  }, [viewportW])
+  // Giao diện giáo viên neo về bên phải: khi thu nhỏ chỉ ẩn dần phần bên trái.
   const isMobile = viewportW < 768
   const currentVisualHasAny = useMemo(() => {
     const s = slides[currentIndex]
@@ -1460,6 +1465,31 @@ export default function CurriculumViewPage() {
     }
   }, [curriculumId, sendRefreshPersonalAfterReset, sendPersonalViewSubMode, tr])
 
+  const handleSaveAsPersonal = useCallback(async () => {
+    if (!curriculumId || slides.length === 0) return
+    setSaveAsPersonalLoading(true)
+    try {
+      const payload = slides.map((s) => ({
+        title: s.title ?? '',
+        blocks: (s.blocks ?? []).map((b) => ({ header: b?.header ?? '', content: b?.content ?? '' })),
+        teacherNotes: s.teacherNotes ?? '',
+        imageUrl: s.imageUrl,
+        visualEmbed: s.visualEmbed,
+        visualLayout: s.visualLayout,
+        visualCells: s.visualCells,
+      }))
+      const r = await saveUserCustomizedSlides({ curriculumId, slides: payload })
+      if (r?.error) {
+        toast({ title: tr('Lỗi lưu', 'Save error', '保存错误', '保存エラー', '저장 오류'), description: r.error, variant: 'destructive' })
+      } else {
+        toast({ title: tr('Đã lưu làm bản dùng riêng', 'Saved as personal version', '已保存为个人版', '個人版として保存しました', '개인 버전으로 저장됨'), duration: 1500 })
+        sendRefreshPersonalAfterReset()
+      }
+    } finally {
+      setSaveAsPersonalLoading(false)
+    }
+  }, [curriculumId, slides, toast, tr, sendRefreshPersonalAfterReset])
+
   useEffect(() => {
     setEditingBlock(null)
     setEditingHeader(null)
@@ -1502,10 +1532,9 @@ export default function CurriculumViewPage() {
 
   return (
     <div className="fixed inset-0 z-50 h-screen w-screen overflow-x-hidden overflow-y-auto bg-slate-950 text-white flex flex-col items-stretch">
-      {/* Khi thu hẹp: ẩn cột trái, giữ cột slide bên phải full width */}
+      {/* Layout neo phải: thu nhỏ tới đâu chỉ bị cắt phần bên trái tới đó */}
       <div
         className="flex-1 flex flex-col min-h-0 shrink-0 w-full"
-        style={clipLeft ? { width: '100%', minWidth: 0 } : undefined}
       >
       {/* Thanh điều khiển đặt trên cùng */}
       <div className="shrink-0 border-b border-slate-700/80 bg-slate-900/80 backdrop-blur-sm">
@@ -1595,10 +1624,16 @@ export default function CurriculumViewPage() {
               </div>
             )}
             {slideMode === 'shared' && curriculumId && (
-              <button type="button" onClick={() => setSharedHistoryOpen(true)} className="text-xs font-medium px-2.5 py-1.5 rounded-lg bg-slate-600/40 text-slate-200 border border-slate-500/50 hover:bg-slate-600/60 flex items-center gap-1.5 transition-colors" title={tr('Lịch sử chỉnh sửa bản chung', 'Shared version edit history', '共享版本编辑历史', '共有版の編集履歴', '공유 버전 편집 기록')}>
-                <History className="h-3.5 w-3.5" />
-                {tr('Lịch sử', 'History', '历史', '履歴', '기록')}
-              </button>
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={() => void handleSaveAsPersonal()} disabled={saveAsPersonalLoading} className="text-xs font-medium px-2.5 py-1.5 rounded-lg bg-violet-500/25 text-violet-200 border border-violet-400/40 hover:bg-violet-500/35 flex items-center gap-1.5 transition-colors disabled:opacity-50" title={tr('Lưu bản chung làm bản dùng riêng', 'Save shared as personal version', '将共享版保存为个人版', '共有版を個人版として保存', '공유 버전을 개인 버전으로 저장')}>
+                  <Save className="h-3.5 w-3.5" />
+                  {saveAsPersonalLoading ? tr('Đang lưu...', 'Saving...', '保存中...', '保存中...', '저장 중...') : tr('Lưu làm bản dùng riêng', 'Save as personal', '保存为个人版', '個人版として保存', '개인 버전으로 저장')}
+                </button>
+                <button type="button" onClick={() => setSharedHistoryOpen(true)} className="text-xs font-medium px-2.5 py-1.5 rounded-lg bg-slate-600/40 text-slate-200 border border-slate-500/50 hover:bg-slate-600/60 flex items-center gap-1.5 transition-colors" title={tr('Lịch sử chỉnh sửa bản chung', 'Shared version edit history', '共享版本编辑历史', '共有版の編集履歴', '공유 버전 편집 기록')}>
+                  <History className="h-3.5 w-3.5" />
+                  {tr('Lịch sử', 'History', '历史', '履歴', '기록')}
+                </button>
+              </div>
             )}
             {topic && <span className="text-slate-400 text-sm truncate max-w-[180px]" title={topic}>{topic}</span>}
           </div>
@@ -1615,22 +1650,18 @@ export default function CurriculumViewPage() {
           </div>
         </div>
       ) : (
-        <div className={cn('flex-1 flex min-h-0 overflow-hidden isolate shrink-0 w-full', clipLeft ? 'flex-row flex-nowrap' : 'flex-col md:flex-row landscape:flex-row')}>
-          <div className={cn('shrink-0 flex flex-col overflow-hidden isolate bg-slate-900/20 border-r border-slate-700/60 w-full md:w-1/2 landscape:w-1/2', leftPanelMode === 'visual' && 'md:w-[45%] landscape:w-[45%]', clipLeft && 'hidden')}>
+        <div className="flex-1 flex min-h-0 overflow-hidden isolate shrink-0 w-full justify-end">
+          <div
+            className="shrink-0 flex min-h-0 h-full"
+            style={{
+              width: stableLayoutWidth,
+              minWidth: Math.max(stableLayoutWidth, leftPanelMode === 'visual' ? 1200 : 1280),
+            }}
+          >
+          <div className={cn('shrink-0 flex flex-col overflow-hidden isolate bg-slate-900/20 border-r border-slate-700/60', leftPanelMode === 'visual' ? 'w-[45%]' : 'w-1/2')}>
             <div className="h-12 px-3 md:px-4 text-slate-400 text-xs font-medium uppercase tracking-wider border-b border-slate-700/60 bg-slate-900/30 shrink-0 flex items-center justify-between gap-2 overflow-hidden">
               <span>{tr('Giáo trình', 'Curriculum', '课程', 'カリキュラム', '교육과정')}</span>
-              <div className={cn('flex items-center gap-2', leftPanelMode === 'visual' ? 'mr-[1px]' : 'mr-[55px]')}>
-                {(leftPanelMode === 'curriculum') && extractQuizFromSlide(slides[currentIndex] ?? {}).length > 0 && (
-                  <button
-                    type="button"
-                    onClick={openQuizPopupFresh}
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-violet-500/20 border border-violet-400/40 text-violet-300 hover:bg-violet-500/30 text-[11px] font-medium transition-colors"
-                    title={tr('Mở quiz: thời gian, đồng hồ cát, thống kê', 'Open quiz: duration, timer, stats', '打开测验：时间、沙漏、统计', 'クイズを開く：時間・砂時計・統計', '퀴즈 열기: 시간·모래시계·통계')}
-                  >
-                    <ClipboardList className="h-3.5 w-3.5" />
-                    {tr('Mở quiz', 'Open quiz', '打开测验', 'クイズを開く', '퀴즈 열기')}
-                  </button>
-                )}
+              <div className={cn('flex items-center gap-2 mr-[1px]', leftPanelMode === 'curriculum' && '-translate-x-[66px]', leftPanelMode === 'visual' && 'translate-x-[20px]')}>
                 <div className="flex rounded-lg border border-slate-600/80 overflow-hidden bg-slate-800/50">
                   <button type="button" onClick={() => setLeftPanelMode('curriculum')} className={['px-3 py-1.5 text-[11px] font-medium transition-colors h-8 flex items-center', leftPanelMode === 'curriculum' ? 'bg-amber-500/30 text-amber-300' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'].join(' ')}>
                     {tr('Giáo trình', 'Curriculum', '课程', 'カリキュラム', '교육과정')}
@@ -1788,8 +1819,8 @@ export default function CurriculumViewPage() {
             </div>
           </div>
 
-          {/* Phải: Slide – khi clipLeft chiếm full width */}
-          <div className={cn('flex flex-col overflow-hidden isolate w-full', clipLeft ? 'flex-1 min-w-0' : 'shrink-0 md:w-1/2 landscape:w-1/2', leftPanelMode === 'visual' && !clipLeft && 'md:w-[55%] landscape:w-[55%]')}>
+          {/* Phải: Slide – giữ nguyên chiều rộng, không co khi thu nhỏ */}
+          <div className={cn('shrink-0 flex flex-col overflow-hidden isolate', leftPanelMode === 'visual' ? 'w-[55%]' : 'w-1/2')}>
             <div className="h-12 px-3 md:px-4 text-slate-400 text-xs font-medium uppercase tracking-wider border-b border-slate-700/60 shrink-0 bg-slate-900/30 flex items-center justify-between gap-2 overflow-hidden">
               <span>{slideViewMode === 'single' ? tr('Slide đang hiển thị', 'Current slide', '当前幻灯片', '表示中のスライド', '표시 중 슬라이드') : tr('3 slide: trước · hiện tại · sau', '3 slides: prev · current · next', '3张: 前·当前·后', '3枚: 前·現在·次', '3장: 이전·현재·다음')}</span>
               <div data-control="slide-mode-xem-hoc-sinh" className="flex rounded-lg border border-slate-600/80 overflow-hidden bg-slate-800/50 shrink-0">
@@ -2513,6 +2544,7 @@ export default function CurriculumViewPage() {
               </div>
             )}
           </div>
+        </div>
         </div>
       )}
       </div>

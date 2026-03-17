@@ -419,6 +419,17 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const [slideVisibleCount, setSlideVisibleCount] = useState(0)
   const [presentationMode, setPresentationMode] = useState<'independent' | 'slide-interaction'>('independent')
+  const [viewportW, setViewportW] = useState(1280)
+  const [stableLayoutWidth, setStableLayoutWidth] = useState(() => (typeof window !== 'undefined' ? window.innerWidth : 1280))
+  useEffect(() => {
+    const onResize = () => setViewportW(typeof window !== 'undefined' ? window.innerWidth : 1280)
+    onResize()
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+  useEffect(() => {
+    setStableLayoutWidth((prev) => (viewportW > prev ? viewportW : prev))
+  }, [viewportW])
   const [virtualMousePos, setVirtualMousePos] = useState<{ x: number; y: number } | null>(null)
   const [mouseTrail, setMouseTrail] = useState<Array<{ x: number; y: number }>>([])
   const [mouseClicks, setMouseClicks] = useState<Array<{ id: number; x: number; y: number }>>([])
@@ -1876,14 +1887,18 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         </div>
       )}
 
-      {/* Slide - Mobile portrait: stack. Mobile landscape + Desktop: trái visual, phải content */}
-      <div className={cn('flex-1 flex flex-col md:flex-row landscape:flex-row overflow-hidden print:hidden relative', presentationMode === 'slide-interaction' && 'pointer-events-auto')}>
+      {/* Slide - Neo phải: thu nhỏ chỉ cắt bên trái, không co layout */}
+      <div className={cn('flex-1 flex overflow-hidden print:hidden relative justify-end', presentationMode === 'slide-interaction' && 'pointer-events-auto')}>
         <div
           key={currentIndex}
-          className="absolute inset-0 flex flex-col md:flex-row landscape:flex-row opacity-100 transition-opacity duration-200 ease-out"
+          className="absolute inset-0 flex opacity-100 transition-opacity duration-200 ease-out justify-end"
         >
-        {/* Visual: portrait full width trên; landscape + desktop 45% trái */}
-        <div className="w-full md:w-[45%] landscape:w-[45%] min-h-[35vh] md:min-h-0 landscape:min-h-0 md:min-w-[300px] landscape:min-w-[300px] relative overflow-hidden shrink-0" style={{ background: gradient }}>
+        <div
+          className="shrink-0 flex min-h-0 h-full flex-row flex-nowrap"
+          style={{ width: stableLayoutWidth, minWidth: Math.max(stableLayoutWidth, 1200) }}
+        >
+        {/* Visual: luôn giữ 45% chiều rộng, không co */}
+        <div className="w-[45%] min-h-0 relative overflow-hidden shrink-0" style={{ background: gradient }}>
           <div className="absolute top-2 left-2 md:top-4 md:left-4 landscape:top-4 landscape:left-4 w-8 h-8 md:w-9 md:h-9 landscape:w-9 landscape:h-9 rounded-full bg-red-500 flex items-center justify-center text-white font-bold text-xs md:text-sm landscape:text-sm shadow-lg z-10">
             {currentIndex + 1}
           </div>
@@ -1964,8 +1979,8 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
           })()}
         </div>
 
-        {/* Content: mobile dưới visual, desktop bên phải */}
-        <div className="flex-1 flex flex-col justify-start p-4 md:p-8 lg:p-12 landscape:p-8 overflow-y-auto bg-white min-h-0">
+        {/* Content: luôn giữ 55% chiều rộng, không co */}
+        <div className="w-[55%] flex flex-col justify-start p-4 md:p-8 lg:p-12 landscape:p-8 overflow-y-auto bg-white min-h-0 shrink-0">
           <div className="mb-4 md:mb-6 landscape:mb-6 flex items-start gap-2 flex-wrap">
             <h2 className="text-xl md:text-2xl lg:text-3xl landscape:text-2xl font-bold text-slate-900 flex-1">
               {teacherWritingMode ? (
@@ -1979,7 +1994,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
               )}
             </h2>
             {extractQuizFromSlide(slide).length > 0 ? (
-              <Button variant="outline" size="sm" onClick={() => setQuizPopupOpen(true)} className="shrink-0 border-violet-400 text-violet-700 hover:bg-violet-50 print:hidden mt-7">
+              <Button variant="outline" size="sm" onClick={() => setQuizPopupOpen(true)} className="shrink-0 border-violet-400 text-violet-700 hover:bg-violet-50 print:hidden mt-[31px]">
                 <ClipboardList className="h-4 w-4 mr-1.5" />
                 {tr('Xem câu hỏi trắc nghiệm', 'View quiz', '查看测验', 'クイズを見る', '퀴즈 보기')}
               </Button>
@@ -2027,6 +2042,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
             </div>
           ) : null}
           {/* Ghi chú chỉ sửa trong cửa sổ Giáo trình – không hiển thị trên slide cho học sinh */}
+        </div>
         </div>
         </div>
       </div>

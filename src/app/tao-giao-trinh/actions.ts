@@ -353,6 +353,21 @@ export async function createWorksheet(formData: FormData) {
   if ('error' in authResult) return { error: authResult.error }
   const { user } = authResult
 
+  // Nếu đã có phiếu gần nhất cho giáo trình này của chính user, trả về luôn để tái sử dụng.
+  if (curriculumId) {
+    const { data: existing } = await supabase
+      .from('worksheet_worksheets')
+      .select('id, content_markdown')
+      .eq('curriculum_id', curriculumId)
+      .eq('user_id', user?.id ?? '')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (existing?.content_markdown) {
+      return { success: true, worksheetMarkdown: existing.content_markdown, worksheetId: existing.id, fromCache: true }
+    }
+  }
+
   const subjectName = SUBJECT_NAMES[subjectId] || subjectId
   const gradeLabel = gradeLevelId.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
 
@@ -475,9 +490,9 @@ Chỉ trả về nội dung phiếu bài tập, không có lời giải thích t
       .single()
 
     if (insertErr) {
-      return { success: true, worksheetMarkdown: finalMarkdown, worksheetId: null }
+      return { error: `Lưu phiếu bài tập thất bại: ${insertErr.message}` }
     }
-    return { success: true, worksheetMarkdown: finalMarkdown, worksheetId: row?.id ?? null }
+    return { success: true, worksheetMarkdown: finalMarkdown, worksheetId: row?.id ?? null, fromCache: false }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     return { error: `Tạo phiếu bài tập thất bại: ${msg}` }
@@ -533,11 +548,6 @@ export async function saveCurriculum(formData: FormData) {
   }
 
   if (curriculumId) {
-    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user?.id ?? '').single()
-    const isAdmin = profile?.role === 'admin'
-    const { data: curr } = await supabase.from('worksheet_curricula').select('user_id').eq('id', curriculumId).single()
-    const isOwner = curr?.user_id === user?.id
-    if (!isOwner && !isAdmin) return { error: 'Bạn không có quyền sửa giáo trình này.' }
     const { error: updErr } = await supabase
       .from('worksheet_curricula')
       .update({

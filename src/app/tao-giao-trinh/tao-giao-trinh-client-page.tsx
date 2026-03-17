@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -38,6 +38,47 @@ function getWebLocaleFromCookie(): UiLocale {
     .toLowerCase()
   if (cookieValue === 'en' || cookieValue === 'zh' || cookieValue === 'ja' || cookieValue === 'ko') return cookieValue
   return 'vi'
+}
+
+function splitWorksheetSections(markdown: string): { quiz: string; essay: string } {
+  const text = (markdown ?? '').trim()
+  if (!text) return { quiz: '', essay: '' }
+
+  const lines = text.split('\n')
+  let mode: 'none' | 'quiz' | 'essay' = 'none'
+  const quizLines: string[] = []
+  const essayLines: string[] = []
+
+  for (const line of lines) {
+    const normalized = line.toLowerCase()
+    const isHeading = /^#{2,4}\s+/.test(line)
+    if (isHeading) {
+      if (
+        /(trắc nghiệm|quiz|multiple choice|nhận biết)/i.test(normalized) ||
+        /^#{2,4}\s*1[\).:\-]/.test(normalized)
+      ) {
+        mode = 'quiz'
+      } else if (
+        /(tự luận|thông hiểu|vận dụng|đáp án|lời giải|essay|short answer|solution|answer)/i.test(normalized) ||
+        /^#{2,4}\s*[2-9][\).:\-]/.test(normalized)
+      ) {
+        mode = 'essay'
+      }
+    }
+
+    if (mode === 'quiz') quizLines.push(line)
+    else if (mode === 'essay') essayLines.push(line)
+    else {
+      // Header/introduction before numbered sections: keep in essay to avoid losing content.
+      essayLines.push(line)
+    }
+  }
+
+  const quiz = quizLines.join('\n').trim()
+  const essay = essayLines.join('\n').trim()
+  if (!quiz && essay) return { quiz: '', essay }
+  if (!essay && quiz) return { quiz, essay: '' }
+  return { quiz, essay }
 }
 
 type Step = 'INPUT' | 'GENERATING' | 'RESULT'
@@ -433,9 +474,21 @@ export default function TaoGiaoTrinhClientPage() {
     [curriculumMarkdown, displayTopic, curriculumId, originalSlides, sharedSlides]
   )
 
+  const refreshPersonalSlides = useCallback(async () => {
+    if (!curriculumId) return
+    const res = await getUserCustomizedSlides(curriculumId)
+    if (res?.success && res.slides?.length) setPersonalSlides(res.slides)
+    else setPersonalSlides(null)
+  }, [curriculumId])
+
   useEffect(() => {
     const handler = (e: MessageEvent) => {
-      if (e.origin !== window.location.origin || e.data?.type !== 'request-curriculum') return
+      if (e.origin !== window.location.origin) return
+      if (e.data?.type === 'refresh-personal-after-reset') {
+        void refreshPersonalSlides()
+        return
+      }
+      if (e.data?.type !== 'request-curriculum') return
       const target = e.source as Window | null
       if (!target) return
       const slidesToUse = aiSlides ?? curriculumSlides ?? null
@@ -478,7 +531,7 @@ export default function TaoGiaoTrinhClientPage() {
     }
     window.addEventListener('message', handler)
     return () => window.removeEventListener('message', handler)
-  }, [curriculumMarkdown, displayTopic, curriculumId, aiSlides, curriculumSlides, slideVersionChoice, originalSlides, sharedSlides])
+  }, [curriculumMarkdown, displayTopic, curriculumId, aiSlides, curriculumSlides, slideVersionChoice, originalSlides, sharedSlides, refreshPersonalSlides])
 
   const handleOpenSlides = async () => {
     if (!curriculumMarkdown.trim()) return
@@ -1251,7 +1304,9 @@ export default function TaoGiaoTrinhClientPage() {
       }
       toast({
         title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'),
-        description: tr('Phiếu bài tập đã được tạo.', 'Worksheet has been created.', '练习已创建。', 'ワークシートを作成しました。', '워크시트가 생성되었습니다.'),
+        description: result.fromCache
+          ? tr('Đã lấy phiếu bài tập có sẵn từ kho dữ liệu.', 'Loaded existing worksheet from database.', '已从数据库加载现有练习。', '既存ワークシートをDBから読み込みました。', 'DB에서 기존 워크시트를 불러왔습니다.')
+          : tr('Phiếu bài tập đã được tạo và lưu vào kho dữ liệu.', 'Worksheet has been created and saved to database.', '练习已创建并保存到数据库。', 'ワークシートを作成しDBに保存しました。', '워크시트를 생성하고 DB에 저장했습니다.'),
         duration: 3000,
       })
     }
@@ -1290,6 +1345,8 @@ export default function TaoGiaoTrinhClientPage() {
       toast({ title: tr('Xuất Word thất bại', 'Word export failed', 'Word导出失败', 'Wordエクスポート失敗', 'Word 내보내기 실패'), variant: 'destructive' })
     })
   }
+
+  const worksheetParts = useMemo(() => splitWorksheetSections(worksheetMarkdown), [worksheetMarkdown])
 
   return (
     <>
@@ -1726,9 +1783,9 @@ export default function TaoGiaoTrinhClientPage() {
                   <Button variant="outline" size="sm" onClick={handleDownload}>
                     <FileDown className="h-3.5 w-3.5 mr-1" /> {tr('Tải .md', 'Download .md', '下载 .md', '.md をダウンロード', '.md 다운로드')}
                   </Button>
-                  {(!curriculumId || curriculumEditMode) && (
+                  {!curriculumId && (
                     <Button variant="outline" size="sm" onClick={() => void handleSaveCurriculum()} disabled={saveCurriculumLoading} className="border-emerald-400 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-600 dark:text-emerald-300">
-                      {saveCurriculumLoading ? tr('Đang lưu...', 'Saving...', '保存中...', '保存中...', '저장 중...') : curriculumId ? tr('Lưu thay đổi', 'Save changes', '保存更改', '変更を保存', '변경 저장') : tr('Lưu vào kho', 'Save to library', '保存到库', 'ライブラリに保存', '라이브러리에 저장')}
+                      {saveCurriculumLoading ? tr('Đang lưu...', 'Saving...', '保存中...', '保存中...', '저장 중...') : tr('Lưu vào kho', 'Save to library', '保存到库', 'ライブラリに保存', '라이브러리에 저장')}
                     </Button>
                   )}
                   {curriculumId && !curriculumEditMode && (
@@ -2050,7 +2107,36 @@ export default function TaoGiaoTrinhClientPage() {
                       </div>
                     </div>
                   )}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="rounded-lg border bg-violet-50/70 dark:bg-violet-950/25 p-3">
+                      <p className="text-xs font-semibold mb-2 text-violet-700 dark:text-violet-300">
+                        {tr('Phần trắc nghiệm', 'Quiz section', '选择题部分', 'クイズ部分', '퀴즈 섹션')}
+                      </p>
+                      <Textarea
+                        value={worksheetParts.quiz}
+                        readOnly
+                        className="w-full min-h-[180px] text-sm font-sans leading-relaxed bg-transparent border-0 resize-y focus:outline-none focus:ring-0"
+                        placeholder={tr('Chưa có phần trắc nghiệm', 'No quiz section', '暂无选择题部分', 'クイズ部分がありません', '퀴즈 섹션 없음')}
+                        spellCheck={false}
+                      />
+                    </div>
+                    <div className="rounded-lg border bg-emerald-50/70 dark:bg-emerald-950/20 p-3">
+                      <p className="text-xs font-semibold mb-2 text-emerald-700 dark:text-emerald-300">
+                        {tr('Phần tự luận', 'Essay section', '主观题部分', '記述式部分', '서술형 섹션')}
+                      </p>
+                      <Textarea
+                        value={worksheetParts.essay}
+                        readOnly
+                        className="w-full min-h-[180px] text-sm font-sans leading-relaxed bg-transparent border-0 resize-y focus:outline-none focus:ring-0"
+                        placeholder={tr('Chưa có phần tự luận', 'No essay section', '暂无主观题部分', '記述式部分がありません', '서술형 섹션 없음')}
+                        spellCheck={false}
+                      />
+                    </div>
+                  </div>
                   <div className="rounded-lg border bg-slate-50 dark:bg-slate-900/50 p-4 overflow-auto max-h-[60vh]">
+                    <p className="text-xs font-semibold mb-2 text-slate-600 dark:text-slate-300">
+                      {tr('Toàn bộ phiếu bài tập (có thể chỉnh sửa)', 'Full worksheet (editable)', '完整练习（可编辑）', 'ワークシート全体（編集可）', '전체 워크시트(편집 가능)')}
+                    </p>
                     <textarea
                       ref={worksheetTextareaRef}
                       value={worksheetMarkdown}
