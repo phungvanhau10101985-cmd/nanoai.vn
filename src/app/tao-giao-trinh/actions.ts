@@ -1317,6 +1317,28 @@ export async function getWorksheetById(id: string) {
   return { success: true, worksheet: data }
 }
 
+/** Cập nhật nội dung phiếu bài tập dùng chung – cho phép mọi user đã đăng nhập chỉnh sửa. */
+export async function saveWorksheetContent(formData: FormData) {
+  if (!formData || typeof formData.get !== 'function') {
+    return { error: 'Dữ liệu không hợp lệ.' }
+  }
+  const worksheetId = (formData.get('worksheetId') as string)?.trim() || ''
+  const contentMarkdown = (formData.get('contentMarkdown') as string)?.trim() || ''
+  if (!worksheetId) return { error: 'Thiếu worksheetId.' }
+  if (!contentMarkdown) return { error: 'Nội dung phiếu bài tập không được để trống.' }
+
+  const supabase = createClient()
+  const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập để lưu phiếu bài tập.')
+  if ('error' in authResult) return { error: authResult.error }
+
+  const { error } = await supabase
+    .from('worksheet_worksheets')
+    .update({ content_markdown: contentMarkdown })
+    .eq('id', worksheetId)
+  if (error) return { error: error.message }
+  return { success: true }
+}
+
 /** Lấy danh sách phiếu bài tập thuộc một giáo trình (kể cả khi match từ giáo viên khác) */
 export async function getWorksheetsByCurriculumId(curriculumId: string) {
   const supabase = createClient()
@@ -1373,6 +1395,121 @@ function applyQuizMarkersToSlide(slide: SlideItem, markers: string[]): SlideItem
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type SupabaseClientAny = any
+
+type RegionCompareLite = {
+  correctVersion: 'original' | 'edited' | 'both'
+  originalCorrect: boolean
+  editedCorrect: boolean
+  originalReason: string | null
+  editedReason: string | null
+  explanation: string
+}
+
+const SLIDE_REGION_PROMPT = `So sánh 2 phiên bản nội dung slide dạy học. Chỉ trả về JSON, không giải thích thêm.
+
+ĐOẠN GỐC:
+---
+{originalRegion}
+---
+
+ĐOẠN MỚI SỬA:
+---
+{editedRegion}
+---
+
+JSON:
+{"correctVersion":"original"|"edited"|"both","originalCorrect":bool,"editedCorrect":bool,"originalReason":"lý do nếu sai"|null,"editedReason":"lý do nếu sai"|null,"explanation":"tóm tắt 1 câu"}`
+
+function parseRegionCompareLite(text: string): RegionCompareLite | null {
+  try {
+    const parsed = JSON.parse(text.replace(/```json?\s*/g, '').trim())
+    const correctVersion =
+      parsed.correctVersion === 'original' || parsed.correctVersion === 'edited' || parsed.correctVersion === 'both'
+        ? parsed.correctVersion
+        : 'edited'
+    return {
+      correctVersion,
+      originalCorrect: !!parsed.originalCorrect,
+      editedCorrect: !!parsed.editedCorrect,
+      originalReason: typeof parsed.originalReason === 'string' ? parsed.originalReason : null,
+      editedReason: typeof parsed.editedReason === 'string' ? parsed.editedReason : null,
+      explanation: typeof parsed.explanation === 'string' ? parsed.explanation.trim() : '',
+    }
+  } catch {
+    return null
+  }
+}
+
+async function checkSlideRegionWithGemini(genAI: GoogleGenerativeAI, prompt: string): Promise<RegionCompareLite | null> {
+  try {
+    const model = genAI.getGenerativeModel(GEMINI_25_PRO as { model: 'gemini-2.5-pro' })
+    const result = await model.generateContent(prompt)
+    const text = result.response.text()?.trim() || ''
+    return parseRegionCompareLite(text)
+  } catch {
+    return null
+  }
+}
+
+async function checkSlideRegionWithDeepSeek(prompt: string): Promise<RegionCompareLite | null> {
+  try {
+    const apiKey = process.env.DEEPSEEK_API_KEY?.trim()
+    if (!apiKey) return null
+    const model = process.env.DEEPSEEK_VERIFY_MODEL?.trim() || 'deepseek-reasoner'
+    const res = await fetch('https://api.deepseek.com/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model,
+        temperature: 0,
+        messages: [
+          { role: 'system', content: 'Trả về đúng JSON theo yêu cầu, không markdown.' },
+          { role: 'user', content: prompt },
+        ],
+      }),
+    })
+    if (!res.ok) return null
+    const data = (await res.json().catch(() => ({}))) as { choices?: Array<{ message?: { content?: string } }> }
+    const text = String(data?.choices?.[0]?.message?.content ?? '').trim()
+    return parseRegionCompareLite(text)
+  } catch {
+    return null
+  }
+}
+
+async function verifySlideProposalByAI(params: {
+  originalRegion: string
+  editedRegion: string
+  slideTitle?: string
+  blockHeader?: string
+}): Promise<{ ok: boolean; reason: string }> {
+  const apiKey = process.env.GOOGLE_API_KEY?.trim()
+  if (!apiKey) return { ok: false, reason: 'Thiếu GOOGLE_API_KEY.' }
+
+  const original = params.originalRegion.slice(0, 1400)
+  const edited = params.editedRegion.slice(0, 1400)
+  const contextLine = `Ngữ cảnh slide: title="${params.slideTitle ?? ''}", block="${params.blockHeader ?? ''}".`
+  const prompt = `${contextLine}\n${SLIDE_REGION_PROMPT.replace('{originalRegion}', original).replace('{editedRegion}', edited)}`
+
+  const genAI = new GoogleGenerativeAI(apiKey)
+  const [r1, r2] = await Promise.all([
+    checkSlideRegionWithGemini(genAI, prompt),
+    checkSlideRegionWithDeepSeek(prompt),
+  ])
+
+  const regionResult = r1 ?? r2
+  if (!regionResult) return { ok: false, reason: 'AI không trả về kết quả kiểm tra.' }
+  const bothAgree = !r1 || !r2 || r1.correctVersion === r2.correctVersion
+  const canSave = bothAgree && regionResult.originalCorrect && regionResult.editedCorrect && regionResult.correctVersion === 'edited'
+  if (canSave) return { ok: true, reason: regionResult.explanation || '2 AI đồng ý bản sửa phù hợp.' }
+  return {
+    ok: false,
+    reason:
+      regionResult.explanation ||
+      regionResult.editedReason ||
+      (bothAgree ? 'AI chưa đồng ý bản sửa/bổ sung.' : '2 AI chưa đồng thuận về bản sửa/bổ sung.'),
+  }
+}
 
 /** Đồng bộ quiz từ sourceSlides sang các bản còn lại (shared, original, personal) */
 async function syncQuizAcrossVersions(
@@ -1832,6 +1969,10 @@ export async function createSlideEditProposal(opts: {
   if ('error' in authResult) return { error: authResult.error }
   const { user } = authResult
 
+  const verify = await verifySlideEditProposalDraft(opts)
+  if (verify && 'error' in verify) return { error: verify.error }
+  if (!verify?.ok) return { error: `AI chưa đồng ý đề xuất: ${verify?.reason || 'Không có lý do.'}` }
+
   const { data, error } = await supabase
     .from('slide_edit_proposals')
     .insert({
@@ -1850,6 +1991,150 @@ export async function createSlideEditProposal(opts: {
 
   if (error) return { error: error.message }
   return { success: true, proposalId: data?.id }
+}
+
+/** Kiểm tra draft đề xuất sửa/bổ sung slide bằng AI trước khi cho gửi proposal. */
+export async function verifySlideEditProposalDraft(opts: {
+  curriculumId: string
+  slideIndex: number
+  blockIndex: number
+  segmentType: 'edit' | 'add'
+  originalText?: string
+  proposedText: string
+  proposedHeader?: string
+}) {
+  const supabase = createClient()
+  const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập để kiểm tra đề xuất sửa.')
+  if ('error' in authResult) return { error: authResult.error }
+
+  const { data: slidesData, error: slidesErr } = await supabase
+    .from('worksheet_slides')
+    .select('content_json')
+    .eq('curriculum_id', opts.curriculumId)
+    .single()
+  if (slidesErr) return { error: slidesErr.message }
+  const slides = (slidesData?.content_json ?? null) as Array<{ title?: string; blocks?: Array<{ header?: string; content?: string }> }> | null
+  if (!Array.isArray(slides)) return { error: 'Không tìm thấy nội dung slide để kiểm tra AI.' }
+  const slide = slides[opts.slideIndex]
+  if (!slide) return { error: 'Slide không tồn tại.' }
+  const blocks = Array.isArray(slide.blocks) ? slide.blocks : []
+  const block = blocks[opts.blockIndex]
+  const blockContent = String(block?.content ?? '')
+  const blockHeader = String(block?.header ?? '')
+
+  if (opts.segmentType === 'edit') {
+    const orig = String(opts.originalText ?? '').trim()
+    if (!orig || !blockContent.includes(orig)) {
+      return { error: 'Đoạn cần sửa không tồn tại trong block hiện tại.' }
+    }
+    const replacement = String(opts.proposedText ?? '').trim()
+    const edited = blockContent.replace(orig, replacement)
+    const aiCheck = await verifySlideProposalByAI({
+      originalRegion: blockContent,
+      editedRegion: edited,
+      slideTitle: String(slide.title ?? ''),
+      blockHeader,
+    })
+    return aiCheck.ok
+      ? { ok: true, reason: aiCheck.reason }
+      : { ok: false, reason: `Đề xuất sửa chưa đạt: ${aiCheck.reason}` }
+  } else {
+    const addHeader = String(opts.proposedHeader ?? 'Nội dung bổ sung').trim()
+    const addText = String(opts.proposedText ?? '').trim()
+    if (!addText) return { error: 'Vui lòng nhập nội dung đề xuất.' }
+    const originalRegion = blockContent || '(block trống)'
+    const editedRegion = `${originalRegion}\n\n[BLOCK BỔ SUNG]\n${addHeader}\n${addText}`
+    const aiCheck = await verifySlideProposalByAI({
+      originalRegion,
+      editedRegion,
+      slideTitle: String(slide.title ?? ''),
+      blockHeader: addHeader,
+    })
+    return aiCheck.ok
+      ? { ok: true, reason: aiCheck.reason }
+      : { ok: false, reason: `Đề xuất bổ sung chưa đạt: ${aiCheck.reason}` }
+  }
+}
+
+/** AI đồng ý thì áp dụng sửa/bổ sung ngay vào slide dùng chung. */
+export async function applySlideEditDirect(opts: {
+  curriculumId: string
+  slideIndex: number
+  blockIndex: number
+  segmentType: 'edit' | 'add'
+  originalText?: string
+  proposedText: string
+  proposedHeader?: string
+}) {
+  const supabase = createClient()
+  const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập để áp dụng sửa slide.')
+  if ('error' in authResult) return { error: authResult.error }
+  const userId = authResult.user?.id ?? null
+
+  const verify = await verifySlideEditProposalDraft(opts)
+  if (verify && 'error' in verify) return { error: verify.error }
+  if (!verify?.ok) return { error: verify?.reason || 'AI chưa đồng ý đề xuất.' }
+
+  const admin = createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+  const { data: slidesData, error: slidesErr } = await admin
+    .from('worksheet_slides')
+    .select('content_json, topic, subject_id, grade_level_id')
+    .eq('curriculum_id', opts.curriculumId)
+    .single()
+  if (slidesErr) return { error: slidesErr.message }
+  const slidesRow = slidesData as SlidesRow | null
+  if (!slidesRow) return { error: 'Không tìm thấy slide dùng chung.' }
+
+  const slides = slidesRow.content_json as Array<{ title: string; blocks: Array<{ header: string; content: string }>; imageUrl?: string; visualEmbed?: string; visualLayout?: 1 | 2 | 4; visualCells?: Array<{ visualEmbed?: string; imageUrl?: string }> }>
+  if (!Array.isArray(slides)) return { error: 'Dữ liệu slide không hợp lệ.' }
+  const slide = slides[opts.slideIndex]
+  if (!slide) return { error: 'Slide không tồn tại.' }
+  const blocks = [...(slide.blocks ?? [])]
+
+  if (opts.segmentType === 'edit') {
+    const block = blocks[opts.blockIndex]
+    const orig = String(opts.originalText ?? '').trim()
+    if (!block || !orig || !block.content.includes(orig)) return { error: 'Không tìm thấy đoạn cần sửa trong block hiện tại.' }
+    blocks[opts.blockIndex] = { ...block, content: block.content.replace(orig, String(opts.proposedText ?? '').trim()) }
+  } else {
+    const addHeader = String(opts.proposedHeader ?? 'Nội dung bổ sung').trim() || 'Nội dung bổ sung'
+    const addText = String(opts.proposedText ?? '').trim()
+    if (!addText) return { error: 'Nội dung bổ sung không được để trống.' }
+    blocks.splice(Math.min(opts.blockIndex + 1, blocks.length), 0, { header: addHeader, content: addText })
+  }
+
+  const newSlides = slides.map((s, i) => (i === opts.slideIndex ? { ...s, blocks } : s))
+
+  const { error: updErr } = await admin
+    .from('worksheet_slides')
+    .update({
+      content_json: newSlides,
+      topic: slidesRow.topic ?? undefined,
+      subject_id: slidesRow.subject_id ?? undefined,
+      grade_level_id: slidesRow.grade_level_id ?? undefined,
+    })
+    .eq('curriculum_id', opts.curriculumId)
+  if (updErr) return { error: updErr.message }
+
+  await admin.from('worksheet_slide_edit_history').insert({
+    curriculum_id: opts.curriculumId,
+    user_id: userId,
+    slides_json: newSlides,
+  })
+
+  try {
+    await syncQuizAcrossVersions(opts.curriculumId, newSlides, {
+      supabase: admin,
+      userId,
+      topic: slidesRow.topic ?? undefined,
+      subjectId: slidesRow.subject_id ?? undefined,
+      gradeLevelId: slidesRow.grade_level_id ?? undefined,
+    })
+  } catch (e) {
+    console.warn('[applySlideEditDirect] Quiz sync failed:', e)
+  }
+
+  return { success: true, slides: newSlides }
 }
 
 /** Xóa đề xuất – chỉ người tạo, khi chưa có ai bình chọn */

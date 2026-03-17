@@ -16,7 +16,7 @@ import { curriculumToSlidesMarkdown, parseCurriculumToSlides, parseContentToBloc
 import { SlideVersionDialog, type SlideVersionChoice } from './components/slide-version-dialog'
 import type { AISlideData } from './lib/curriculum-to-slides'
 import { SUBJECTS, GRADE_LEVELS, GRADE_LEVEL_GROUPS, TEXTBOOK_SETS } from './lib/curriculum-subjects'
-import { createCurriculum, createWorksheet, saveCurriculum, saveTextbookLessonFromImage, listCurricula, getCurriculumById, getWorksheetById, getWorksheetsByCurriculumId, deleteCurriculum, saveSlidesToCurriculum, getSlidesByCurriculumId, getOriginalSlides, getUserCustomizedSlides, saveOriginalSlidesIfNotExists, checkCurriculumExists, recordCurriculumOpen, clearCurriculumDerivedData } from './actions'
+import { createCurriculum, createWorksheet, saveCurriculum, saveTextbookLessonFromImage, listCurricula, getCurriculumById, getWorksheetById, getWorksheetsByCurriculumId, deleteCurriculum, saveSlidesToCurriculum, getSlidesByCurriculumId, getOriginalSlides, getUserCustomizedSlides, saveOriginalSlidesIfNotExists, checkCurriculumExists, recordCurriculumOpen, clearCurriculumDerivedData, saveWorksheetContent } from './actions'
 import { extractEditRegions } from './lib/curriculum-region-extract'
 import { highlightMatchInCurriculum } from './components/curriculum-edit-sheet'
 
@@ -121,6 +121,7 @@ export default function TaoGiaoTrinhClientPage() {
   const [existingCurriculumTopic, setExistingCurriculumTopic] = useState<string | null>(null)
   const [similarTopicCurricula, setSimilarTopicCurricula] = useState<Array<{ id: string; topic: string; score: number }>>([])
   const [checkLoading, setCheckLoading] = useState(false)
+  const [openExistingLoading, setOpenExistingLoading] = useState(false)
   const [overwriteFromExistingLoading, setOverwriteFromExistingLoading] = useState(false)
   const [lastOverwriteAt, setLastOverwriteAt] = useState<string | null>(null)
   const [lessonImages, setLessonImages] = useState<File[]>([])
@@ -296,18 +297,16 @@ export default function TaoGiaoTrinhClientPage() {
       const extractedLessonNum = hasExtractedLessonNum ? String(extractedNumParsed) : null
       if (extractedLessonNum && extractedLessonNum !== lessonNumber.trim()) {
         setStep('INPUT')
-        toast({
-          title: tr('Không khớp số bài', 'Lesson number mismatch', '课号不匹配', '課番号が不一致です', '차시 번호 불일치'),
-          description: tr(
-            `Ảnh là Bài ${extractedLessonNum} nhưng bạn nhập Bài ${lessonNumber}. Vui lòng sửa lại số bài đã nhập hoặc upload ảnh đúng với số bài đã nhập.`,
-            `Image shows lesson ${extractedLessonNum} but you entered lesson ${lessonNumber}. Please correct the entered lesson number or upload the correct image for your entered lesson number.`,
-            `图片显示第 ${extractedLessonNum} 课，但您输入的是第 ${lessonNumber} 课。请修改输入课号或上传与输入课号一致的图片。`,
-            `画像は${extractedLessonNum}課ですが、入力は${lessonNumber}課です。入力した課番号を修正するか、入力番号に合う画像をアップロードしてください。`,
-            `이미지는 ${extractedLessonNum}차시인데 입력은 ${lessonNumber}차시입니다. 입력한 차시 번호를 수정하거나 입력 번호와 일치하는 이미지를 업로드해 주세요.`
-          ),
-          variant: 'destructive',
-          duration: 6000,
-        })
+        const mismatchMessage = tr(
+          `Ảnh là Bài ${extractedLessonNum} nhưng bạn nhập Bài ${lessonNumber}. Vui lòng sửa lại số bài đã nhập hoặc upload ảnh đúng với số bài đã nhập.`,
+          `Image shows lesson ${extractedLessonNum} but you entered lesson ${lessonNumber}. Please correct the entered lesson number or upload the correct image for your entered lesson number.`,
+          `图片显示第 ${extractedLessonNum} 课，但您输入的是第 ${lessonNumber} 课。请修改输入课号或上传与输入课号一致的图片。`,
+          `画像は${extractedLessonNum}課ですが、入力は${lessonNumber}課です。入力した課番号を修正するか、入力番号に合う画像をアップロードしてください。`,
+          `이미지는 ${extractedLessonNum}차시인데 입력은 ${lessonNumber}차시입니다. 입력한 차시 번호를 수정하거나 입력 번호와 일치하는 이미지를 업로드해 주세요.`
+        )
+        setLessonImages([])
+        if (lessonImageInputRef.current) lessonImageInputRef.current.value = ''
+        window.alert(mismatchMessage)
         return
       }
       const finalLessonNum = extractedLessonNum ?? lessonNumber
@@ -555,6 +554,77 @@ export default function TaoGiaoTrinhClientPage() {
     } finally {
       setOverwriteFromExistingLoading(false)
     }
+  }
+
+  const handleOpenExistingCurriculum = async () => {
+    setOpenExistingLoading(true)
+    try {
+      let targetId = existingCurriculumId
+      if (!targetId) {
+        const num = parseInt(lessonNumber, 10)
+        if (!num || num < 1 || num > 999) {
+          toast({
+            title: tr('Thiếu thông tin', 'Missing information', '缺少信息', '情報不足', '정보 누락'),
+            description: tr('Vui lòng nhập bài số hợp lệ để mở giáo trình có sẵn.', 'Please enter a valid lesson number to open existing curriculum.', '请输入有效课号后再打开已有课程。', '既存カリキュラムを開くには有効な課番号を入力してください。', '기존 교육과정을 열려면 올바른 차시 번호를 입력해 주세요.'),
+            variant: 'destructive',
+          })
+          return
+        }
+        const found = await checkCurriculumExists({
+          createMode: 'textbook',
+          subjectId,
+          gradeLevelId,
+          textbookSetId,
+          textbookVolume: textbookVolume.trim() || undefined,
+          bookIsbn: textbookSetId === 'khac' ? bookIsbn.trim() : undefined,
+          lessonNumber: num,
+          numLessons,
+          lessonDurationMinutes,
+          lessonTypeId,
+        })
+        if (found && 'exists' in found && found.exists && found.curriculumId) {
+          targetId = found.curriculumId
+          setExistingCurriculumId(found.curriculumId)
+          setExistingCurriculumTopic(found.topic ?? null)
+        }
+      }
+      if (!targetId) {
+        toast({
+          title: tr('Không tìm thấy', 'Not found', '未找到', '見つかりません', '찾을 수 없음'),
+          description: tr('Chưa tìm thấy giáo trình có sẵn phù hợp.', 'No matching existing curriculum found.', '未找到匹配的已有课程。', '一致する既存カリキュラムが見つかりません。', '일치하는 기존 교육과정을 찾지 못했습니다.'),
+          variant: 'destructive',
+        })
+        return
+      }
+      await handleLoadCurriculum(targetId)
+      requestAnimationFrame(() => {
+        curriculumResultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      })
+    } finally {
+      setOpenExistingLoading(false)
+    }
+  }
+
+  const handleRemoveLessonImage = (index: number) => {
+    setLessonImages((prev) => {
+      const next = prev.filter((_, i) => i !== index)
+      if (next.length <= 0 && lessonImageInputRef.current) lessonImageInputRef.current.value = ''
+      return next
+    })
+  }
+
+  const handleClearLessonImages = () => {
+    setLessonImages([])
+    if (lessonImageInputRef.current) lessonImageInputRef.current.value = ''
+  }
+
+  const resetWorksheetEditState = () => {
+    setWorksheetEditOriginalText('')
+    setWorksheetEditEditedText('')
+    setWorksheetEditMatchStatus('idle')
+    setWorksheetEditMatchCount(0)
+    worksheetEditMatchIndexRef.current = -1
+    setWorksheetEditSaving(false)
   }
 
   const handleCopy = () => {
@@ -825,6 +895,7 @@ export default function TaoGiaoTrinhClientPage() {
     setRegionCheckErrors([])
     setWorksheetMarkdown('')
     setWorksheetId(null)
+    resetWorksheetEditState()
     setWorksheetQrDataUrl(null)
     setCurriculumWorksheets([])
     setCurriculumSlides(null)
@@ -858,9 +929,17 @@ export default function TaoGiaoTrinhClientPage() {
   const [editMatchStatus, setEditMatchStatus] = useState<'idle' | 'found' | 'not_found' | 'multiple'>('idle')
   const [editMatchCount, setEditMatchCount] = useState(0)
   const editMatchIndexRef = useRef<number>(-1)
+  const curriculumMatchMarkRef = useRef<HTMLElement | null>(null)
   const [editCompareLoading, setEditCompareLoading] = useState(false)
   const [editCompareResult, setEditCompareResult] = useState<{ correctVersion: string; originalReason: string | null; editedReason: string | null; explanation: string; bothAgree: boolean; reasonSaved: string | null; reasonNotSaved: string | null; model1Version?: string; model2Version?: string } | null>(null)
   const [editCompareErrors, setEditCompareErrors] = useState<string[]>([])
+  const [worksheetEditOriginalText, setWorksheetEditOriginalText] = useState('')
+  const [worksheetEditEditedText, setWorksheetEditEditedText] = useState('')
+  const [worksheetEditMatchStatus, setWorksheetEditMatchStatus] = useState<'idle' | 'found' | 'not_found' | 'multiple'>('idle')
+  const [worksheetEditMatchCount, setWorksheetEditMatchCount] = useState(0)
+  const worksheetEditMatchIndexRef = useRef<number>(-1)
+  const worksheetMatchMarkRef = useRef<HTMLElement | null>(null)
+  const [worksheetEditSaving, setWorksheetEditSaving] = useState(false)
   const editCompareTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
   const prevContentRef = useRef<string>('')
@@ -1147,6 +1226,15 @@ export default function TaoGiaoTrinhClientPage() {
     }
   }, [editOriginalText, curriculumMarkdown])
 
+  useEffect(() => {
+    if (editMatchStatus !== 'found') return
+    const el = curriculumMatchMarkRef.current
+    if (!el) return
+    requestAnimationFrame(() => {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' })
+    })
+  }, [editMatchStatus, editOriginalText, curriculumMarkdown])
+
   const handleApplyEditFromSheet = useCallback(
     (originalText: string, editedText: string) => {
       const orig = originalText.trim()
@@ -1269,6 +1357,118 @@ export default function TaoGiaoTrinhClientPage() {
     }
   }, [editOriginalText, editEditedText, editMatchStatus, curriculumMarkdown, handleApplyEditFromSheet, tr, toast])
 
+  useEffect(() => {
+    const t = worksheetEditOriginalText.trim()
+    if (!t || t.length < 3 || !worksheetMarkdown) {
+      setWorksheetEditMatchStatus('idle')
+      setWorksheetEditMatchCount(0)
+      worksheetEditMatchIndexRef.current = -1
+      return
+    }
+    let pos = 0
+    const indices: number[] = []
+    while ((pos = worksheetMarkdown.indexOf(t, pos)) >= 0) {
+      indices.push(pos)
+      pos += 1
+    }
+    if (indices.length === 0) {
+      setWorksheetEditMatchStatus('not_found')
+      setWorksheetEditMatchCount(0)
+      worksheetEditMatchIndexRef.current = -1
+    } else if (indices.length === 1) {
+      setWorksheetEditMatchStatus('found')
+      setWorksheetEditMatchCount(1)
+      worksheetEditMatchIndexRef.current = indices[0]
+    } else {
+      setWorksheetEditMatchStatus('multiple')
+      setWorksheetEditMatchCount(indices.length)
+      worksheetEditMatchIndexRef.current = -1
+    }
+  }, [worksheetEditOriginalText, worksheetMarkdown])
+
+  useEffect(() => {
+    if (worksheetEditMatchStatus !== 'found') return
+    const el = worksheetMatchMarkRef.current
+    if (!el) return
+    requestAnimationFrame(() => {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' })
+    })
+  }, [worksheetEditMatchStatus, worksheetEditOriginalText, worksheetMarkdown])
+
+  const handleApplyWorksheetEdit = useCallback(async () => {
+    const orig = worksheetEditOriginalText.trim()
+    const edited = worksheetEditEditedText.trim()
+    if (!worksheetId) {
+      toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: tr('Phiếu bài tập chưa được lưu nên chưa thể sửa.', 'Worksheet is not saved yet, cannot edit now.', '练习尚未保存，暂无法编辑。', 'ワークシート未保存のため編集できません。', '워크시트가 아직 저장되지 않아 수정할 수 없습니다.'), variant: 'destructive' })
+      return
+    }
+    if (!orig || orig.length < 5) {
+      toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: tr('Dữ liệu cần sửa quá ngắn.', 'Data to edit is too short.', '要编辑的数据太短。', '編集するデータが短すぎます。', '편집할 데이터가 너무 짧습니다.'), variant: 'destructive' })
+      return
+    }
+    if (worksheetEditMatchStatus === 'multiple') {
+      toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: tr('Tìm thấy nhiều đoạn trùng. Gõ thêm nội dung để đoạn cần sửa là duy nhất.', 'Multiple matches found. Add more content so the segment to edit is unique.', '找到多个相同段落。请添加更多内容使要编辑的段落唯一。', '複数一致。編集する段落が一意になるよう内容を追加してください。', '여러 개 일치. 편집할 단락이 고유하도록 내용을 추가하세요.'), variant: 'destructive' })
+      return
+    }
+    if (worksheetEditMatchStatus !== 'found') {
+      toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: tr('Không tìm thấy dữ liệu cần sửa trong phiếu bài tập.', 'Data to edit not found in worksheet.', '在练习中未找到要编辑的数据。', 'ワークシート内に編集するデータが見つかりません。', '워크시트에서 편집할 데이터를 찾을 수 없습니다.'), variant: 'destructive' })
+      return
+    }
+    if (!edited) {
+      toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: tr('Nhập nội dung sẽ sửa thành.', 'Enter the replacement content.', '请输入替换内容。', '置換後の内容を入力してください。', '대체할 내용을 입력하세요.'), variant: 'destructive' })
+      return
+    }
+
+    const idx = worksheetEditMatchIndexRef.current >= 0 ? worksheetEditMatchIndexRef.current : worksheetMarkdown.indexOf(orig)
+    if (idx < 0) return
+    const CONTEXT_CHARS = 250
+    const start = Math.max(0, idx - CONTEXT_CHARS)
+    const end = Math.min(worksheetMarkdown.length, idx + orig.length + CONTEXT_CHARS)
+    const originalRegion = worksheetMarkdown.slice(start, end)
+    const editedRegion = worksheetMarkdown.slice(start, idx) + edited + worksheetMarkdown.slice(idx + orig.length, end)
+
+    setWorksheetEditSaving(true)
+    try {
+      const res = await fetch('/api/curriculum-edit-check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ originalRegion, editedRegion }),
+      })
+      const data = await res.json().catch(() => ({}))
+      const rc = data.regionCompare
+      const canSave = !!(data.ok && data.bothAgree && rc?.correctVersion === 'edited')
+      if (!canSave) {
+        toast({
+          title: tr('Chưa lưu', 'Not saved', '未保存', '未保存', '저장 안 됨'),
+          description: data.reasonNotSaved || rc?.explanation || tr('AI chưa đồng ý bản sửa. Vui lòng chỉnh lại.', 'AI did not approve this edit yet. Please adjust and retry.', 'AI尚未同意该修改，请调整后重试。', 'AIがこの編集を承認していません。修正して再試行してください。', 'AI가 아직 이 수정을 승인하지 않았습니다. 수정 후 다시 시도하세요.'),
+          variant: 'destructive',
+        })
+        return
+      }
+
+      const newContent = worksheetMarkdown.slice(0, idx) + edited + worksheetMarkdown.slice(idx + orig.length)
+      const fd = new FormData()
+      fd.append('worksheetId', worksheetId)
+      fd.append('contentMarkdown', newContent)
+      const saveRes = await saveWorksheetContent(fd)
+      if (saveRes?.error) {
+        toast({ title: tr('Lỗi lưu phiếu', 'Save worksheet failed', '保存练习失败', 'ワークシート保存失敗', '워크시트 저장 실패'), description: saveRes.error, variant: 'destructive' })
+        return
+      }
+      setWorksheetMarkdown(newContent)
+      setWorksheetEditOriginalText('')
+      setWorksheetEditEditedText('')
+      setWorksheetEditMatchStatus('idle')
+      setWorksheetEditMatchCount(0)
+      toast({
+        title: tr('Đã lưu', 'Saved', '已保存', '保存しました', '저장됨'),
+        description: data.reasonSaved || rc?.explanation || tr('AI đã kiểm tra và lưu bản sửa phiếu bài tập.', 'AI checked and saved worksheet edit.', 'AI已检查并保存练习修改。', 'AIが確認してワークシート編集を保存しました。', 'AI가 확인 후 워크시트 수정을 저장했습니다.'),
+      })
+    } finally {
+      setWorksheetEditSaving(false)
+    }
+  }, [worksheetEditOriginalText, worksheetEditEditedText, worksheetEditMatchStatus, worksheetMarkdown, worksheetId, tr, toast])
+
 
   const handleEscalateToAdmin = async (errorsToSend?: string[]) => {
     const errs = errorsToSend ?? regionCheckErrors
@@ -1345,6 +1545,7 @@ export default function TaoGiaoTrinhClientPage() {
       setRegionCheckErrors([])
       setWorksheetMarkdown('')
       setWorksheetId(null)
+      resetWorksheetEditState()
       setWorksheetQrDataUrl(null)
       setStep('RESULT')
       setShowBrowse(false)
@@ -1362,7 +1563,7 @@ export default function TaoGiaoTrinhClientPage() {
 
   const [deleteLoadingId, setDeleteLoadingId] = useState<string | null>(null)
   const curriculumTextareaRef = useRef<HTMLTextAreaElement>(null)
-  const worksheetTextareaRef = useRef<HTMLTextAreaElement>(null)
+  const worksheetTextareaRef = useRef<HTMLPreElement>(null)
 
   const handleDeleteCurriculum = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation()
@@ -1382,6 +1583,7 @@ export default function TaoGiaoTrinhClientPage() {
   const handleLoadWorksheetFromCurriculum = (w: { id: string; topic: string; content_markdown: string }) => {
     setWorksheetMarkdown(w.content_markdown)
     setWorksheetId(w.id)
+    resetWorksheetEditState()
     const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
     QRCode.toDataURL(`${baseUrl}/phieu-bai-tap/${w.id}`, { width: 180, margin: 2 }).then(setWorksheetQrDataUrl).catch(() => setWorksheetQrDataUrl(null))
   }
@@ -1400,6 +1602,7 @@ export default function TaoGiaoTrinhClientPage() {
       setGradeLevelId(normalizeGradeLevelId(w.grade_level_id ?? 'lop-6'))
       setWorksheetMarkdown(w.content_markdown ?? '')
       setWorksheetId(w.id)
+      resetWorksheetEditState()
       setCurriculumId(curriculumIdFromWs ?? null)
       setCurriculumEditMode(false)
       const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
@@ -1459,6 +1662,7 @@ export default function TaoGiaoTrinhClientPage() {
     } else if (result.success && result.worksheetMarkdown) {
       setWorksheetMarkdown(result.worksheetMarkdown)
       setWorksheetId(result.worksheetId ?? null)
+      resetWorksheetEditState()
       if (result.worksheetId) {
         const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
         const url = `${baseUrl}/phieu-bai-tap/${result.worksheetId}`
@@ -1936,10 +2140,30 @@ export default function TaoGiaoTrinhClientPage() {
                     ? `${tr('Đã chọn', 'Selected', '已选', '選択済み', '선택됨')} ${lessonImages.length} ${tr('ảnh', 'image(s)', '张图片', '枚の画像', '개 이미지')}`
                     : tr('Chọn ảnh, có thể nhiều', 'Choose image(s)', '选择图片（可多选）', '画像を選択（複数可）', '이미지 선택 여러 개')}
                 </Button>
-                {lessonImages.length > 1 && (
-                  <ul className="text-xs text-muted-foreground mt-2 space-y-0.5 max-h-24 overflow-y-auto">
+                {lessonImages.length > 0 && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleClearLessonImages}
+                    className="ml-2"
+                  >
+                    {tr('Xóa ảnh đã chọn', 'Clear selected images', '清除已选图片', '選択画像をクリア', '선택 이미지 지우기')}
+                  </Button>
+                )}
+                {lessonImages.length > 0 && (
+                  <ul className="text-xs text-muted-foreground mt-2 space-y-1 max-h-24 overflow-y-auto">
                     {lessonImages.map((f, i) => (
-                      <li key={i} className="truncate">• {f.name}</li>
+                      <li key={i} className="flex items-center justify-between gap-2">
+                        <span className="truncate">• {f.name}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveLessonImage(i)}
+                          className="shrink-0 text-red-600 hover:text-red-700"
+                        >
+                          {tr('Xóa', 'Remove', '删除', '削除', '삭제')}
+                        </button>
+                      </li>
                     ))}
                   </ul>
                 )}
@@ -1955,11 +2179,13 @@ export default function TaoGiaoTrinhClientPage() {
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={() => existingCurriculumId && void handleLoadCurriculum(existingCurriculumId)}
-                    disabled={!existingCurriculumId}
+                    onClick={() => void handleOpenExistingCurriculum()}
+                    disabled={openExistingLoading}
                     className="w-full border-violet-400 text-violet-700 hover:bg-violet-100 dark:border-violet-600 dark:text-violet-300"
                   >
-                    {tr('Mở giáo trình có sẵn', 'Open existing curriculum', '打开已有课程', '既存カリキュラムを開く', '기존 교육과정 열기')}
+                    {openExistingLoading
+                      ? tr('Đang mở...', 'Opening...', '正在打开...', '読み込み中...', '여는 중...')
+                      : tr('Mở giáo trình có sẵn', 'Open existing curriculum', '打开已有课程', '既存カリキュラムを開く', '기존 교육과정 열기')}
                   </Button>
                   <Button
                     type="button"
@@ -2171,9 +2397,14 @@ export default function TaoGiaoTrinhClientPage() {
                     <pre className="w-full min-h-[120px] text-sm font-sans leading-relaxed whitespace-pre-wrap break-words bg-transparent">
                       {(() => {
                         const { parts } = highlightMatchInCurriculum(curriculumMarkdown, editOriginalText)
+                        const firstHighlightIndex = parts.findIndex((p) => p.highlight)
                         return parts.map((p, i) =>
                           p.highlight ? (
-                            <mark key={i} className="bg-amber-300/70 dark:bg-amber-500/50 rounded px-0.5">
+                            <mark
+                              key={i}
+                              ref={i === firstHighlightIndex ? (el) => { curriculumMatchMarkRef.current = el } : undefined}
+                              className="bg-amber-300/70 dark:bg-amber-500/50 rounded px-0.5"
+                            >
                               {p.text}
                             </mark>
                           ) : (
@@ -2388,17 +2619,76 @@ export default function TaoGiaoTrinhClientPage() {
                     </div>
                   </div>
                   <div className="rounded-lg border bg-slate-50 dark:bg-slate-900/50 p-4 overflow-auto max-h-[60vh]">
-                    <p className="text-xs font-semibold mb-2 text-slate-600 dark:text-slate-300">
-                      {tr('Toàn bộ phiếu bài tập (có thể chỉnh sửa)', 'Full worksheet (editable)', '完整练习（可编辑）', 'ワークシート全体（編集可）', '전체 워크시트(편집 가능)')}
-                    </p>
-                    <textarea
+                    <div className="sticky top-0 z-20 -mx-1 px-1 pb-3 mb-3 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200/70 dark:border-slate-700/60">
+                      <p className="text-xs font-semibold mb-2 text-slate-600 dark:text-slate-300">
+                        {tr('Toàn bộ phiếu bài tập (sửa qua AI kiểm tra)', 'Full worksheet (edit via AI validation)', '完整练习（通过AI校验修改）', 'ワークシート全体（AI検証で編集）', '전체 워크시트(AI 검증으로 수정)')}
+                      </p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-medium text-amber-700 dark:text-amber-300">
+                            {tr('Dữ liệu cần sửa', 'Data to edit', '待修改内容', '修正対象データ', '수정 대상 데이터')}
+                          </label>
+                          <Textarea
+                            value={worksheetEditOriginalText}
+                            onChange={(e) => setWorksheetEditOriginalText(e.target.value)}
+                            placeholder={tr('Dán đoạn cần sửa (duy nhất trong phiếu)', 'Paste the exact segment to edit (unique in worksheet)', '粘贴要修改的唯一片段', '編集対象の一意なテキストを貼り付け', '워크시트에서 유일한 수정 대상 구문을 입력')}
+                            className="min-h-[92px] text-sm"
+                          />
+                          {worksheetEditMatchStatus === 'found' && (
+                            <p className="text-xs text-emerald-600">{tr('Tìm thấy 1 đoạn trùng khớp.', 'Found exactly 1 match.', '找到1处匹配。', '一致箇所を1件検出。', '정확히 1개 일치 항목을 찾았습니다.')}</p>
+                          )}
+                          {worksheetEditMatchStatus === 'multiple' && (
+                            <p className="text-xs text-amber-600">{tr(`Tìm thấy ${worksheetEditMatchCount} đoạn trùng. Hãy nhập dài hơn để duy nhất.`, `Found ${worksheetEditMatchCount} matches. Add more context to make it unique.`, `找到 ${worksheetEditMatchCount} 处匹配，请补充内容使其唯一。`, `${worksheetEditMatchCount}件一致。文脈を追加して一意にしてください。`, `${worksheetEditMatchCount}개가 일치합니다. 더 구체적으로 입력해 주세요.`)}</p>
+                          )}
+                          {worksheetEditMatchStatus === 'not_found' && (
+                            <p className="text-xs text-red-600">{tr('Không tìm thấy đoạn cần sửa trong phiếu.', 'Segment not found in worksheet.', '在练习中找不到该片段。', 'ワークシート内で該当箇所が見つかりません。', '워크시트에서 해당 구문을 찾지 못했습니다.')}</p>
+                          )}
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-medium text-teal-700 dark:text-teal-300">
+                            {tr('Dữ liệu sẽ sửa thành', 'Replacement content', '替换内容', '置換後データ', '대체할 내용')}
+                          </label>
+                          <Textarea
+                            value={worksheetEditEditedText}
+                            onChange={(e) => setWorksheetEditEditedText(e.target.value)}
+                            placeholder={tr('Nhập nội dung mới', 'Enter new content', '输入新内容', '新しい内容を入力', '새 내용을 입력')}
+                            className="min-h-[92px] text-sm"
+                          />
+                        </div>
+                      </div>
+                      <Button
+                        type="button"
+                        className="w-full bg-amber-600 hover:bg-amber-700 text-white"
+                        onClick={() => void handleApplyWorksheetEdit()}
+                        disabled={worksheetEditSaving || !worksheetId}
+                      >
+                        {worksheetEditSaving
+                          ? tr('AI đang kiểm tra...', 'AI checking...', 'AI正在检查...', 'AI確認中...', 'AI 확인 중...')
+                          : tr('Áp dụng sửa phiếu bài tập', 'Apply worksheet edit', '应用练习修改', 'ワークシート編集を適用', '워크시트 수정 적용')}
+                      </Button>
+                    </div>
+                    <pre
                       ref={worksheetTextareaRef}
-                      value={worksheetMarkdown}
-                      onChange={(e) => setWorksheetMarkdown(e.target.value)}
-                      className="w-full min-h-[200px] text-sm font-sans leading-relaxed prose prose-slate dark:prose-invert max-w-none bg-transparent border-0 resize-y focus:outline-none focus:ring-0"
-                      placeholder={tr('Nội dung phiếu bài tập...', 'Worksheet content...', '练习内容...', 'ワークシート内容...', '워크시트 내용...')}
-                      spellCheck={false}
-                    />
+                      className="w-full min-h-[200px] text-sm font-sans leading-relaxed whitespace-pre-wrap break-words bg-transparent"
+                    >
+                      {(() => {
+                        const { parts } = highlightMatchInCurriculum(worksheetMarkdown, worksheetEditOriginalText)
+                        const firstHighlightIndex = parts.findIndex((p) => p.highlight)
+                        return parts.map((p, i) =>
+                          p.highlight ? (
+                            <mark
+                              key={i}
+                              ref={i === firstHighlightIndex ? (el) => { worksheetMatchMarkRef.current = el } : undefined}
+                              className="bg-emerald-300/80 dark:bg-emerald-500/50 rounded px-0.5"
+                            >
+                              {p.text}
+                            </mark>
+                          ) : (
+                            <span key={i}>{p.text}</span>
+                          )
+                        )
+                      })()}
+                    </pre>
                   </div>
                 </CardContent>
               </Card>

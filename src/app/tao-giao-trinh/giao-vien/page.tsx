@@ -2559,7 +2559,12 @@ export default function CurriculumViewPage() {
           originalContent={proposalDialog.originalContent}
           blockHeader={proposalDialog.blockHeader}
           tr={tr}
-          onSuccess={refreshProposals}
+          onSuccess={async () => {
+            await refreshProposals()
+            const r = await getSlidesByCurriculumId(curriculumId)
+            if (r?.success && r.slides) setSlides(r.slides)
+            requestCurriculum()
+          }}
         />
       )}
       <PersonalHistorySheet
