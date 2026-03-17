@@ -41,6 +41,88 @@ const SUBJECT_NAMES: Record<string, string> = {
 
 const OPTION_LABELS = ['A', 'B', 'C', 'D']
 
+function normalizeBookIsbn(raw: string | undefined | null): string {
+  return String(raw || '').replace(/[^0-9Xx]/g, '').toUpperCase().trim()
+}
+
+function isValidBookIsbn(isbn: string): boolean {
+  // Accept ISBN-10 or ISBN-13 after normalization.
+  return /^[0-9]{9}[0-9X]$/.test(isbn) || /^[0-9]{13}$/.test(isbn)
+}
+
+function topicTokens(input: string): string[] {
+  const normalized = normalizeTopicForSearch(input)
+  if (!normalized) return []
+  return normalized
+    .split(/\s+/)
+    .map((t) => t.trim())
+    .filter((t) => t.length >= 2)
+}
+
+function tokenJaccard(a: string[], b: string[]): number {
+  const sa = new Set(a)
+  const sb = new Set(b)
+  if (sa.size === 0 || sb.size === 0) return 0
+  let inter = 0
+  for (const t of sa) if (sb.has(t)) inter += 1
+  const union = new Set([...sa, ...sb]).size
+  return union > 0 ? inter / union : 0
+}
+
+type TopicMatchCandidate = { id: string; topic: string; score: number }
+
+async function rerankTopicCandidatesByAI(
+  rawTopic: string,
+  candidates: Array<{ id: string; topic: string }>
+): Promise<Array<{ id: string; score: number }>> {
+  try {
+    if (!process.env.GOOGLE_API_KEY) return []
+    if (!rawTopic.trim() || candidates.length === 0) return []
+    const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY)
+    const model = genAI.getGenerativeModel({
+      ...GEMINI_25_FLASH_NO_THINKING,
+      generationConfig: { temperature: 0.1, responseMimeType: 'application/json' },
+    })
+    const compact = candidates.map((c) => ({ id: c.id, topic: c.topic }))
+    const prompt = `Bạn là bộ chấm độ tương đồng chủ đề giáo trình.
+Nhiệm vụ: chấm điểm mức "cùng chủ đề dạy học" giữa chủ đề giáo viên nhập và danh sách giáo trình.
+Cho phép khác từ vựng/cách diễn đạt nhưng cùng ý nghĩa chuyên môn.
+
+Chủ đề nhập:
+${rawTopic}
+
+Danh sách ứng viên JSON:
+${JSON.stringify(compact)}
+
+Trả về JSON đúng schema:
+{
+  "matches": [
+    { "id": "string", "score": 0.0-1.0 }
+  ]
+}
+
+Ràng buộc:
+- score >= 0.80: gần như cùng chủ đề
+- 0.60..0.79: tương đối gần
+- <0.60: không đủ gần
+- Chỉ trả về id có trong danh sách.`
+    const result = await model.generateContent(prompt)
+    const text = result.response.text()?.trim() || ''
+    if (!text) return []
+    const parsed = JSON.parse(text) as { matches?: Array<{ id?: string; score?: number }> }
+    const validIds = new Set(candidates.map((c) => c.id))
+    return (parsed.matches ?? [])
+      .map((m) => ({
+        id: String(m.id || '').trim(),
+        score: Math.max(0, Math.min(1, Number(m.score || 0))),
+      }))
+      .filter((m) => validIds.has(m.id))
+      .sort((a, b) => b.score - a.score)
+  } catch {
+    return []
+  }
+}
+
 /** Lấy câu hỏi có sẵn từ ngân hàng (VNHSGE, Bộ GD). Nếu lessonTopics có ≥1 phần tử thì lọc theo topic khớp. */
 async function getOfficialQuestions(
   supabase: ReturnType<typeof createClient>,
@@ -127,6 +209,8 @@ export async function createCurriculum(formData: FormData) {
   const createMode = ((formData.get('createMode') as string)?.trim() || 'textbook') as 'textbook' | 'topic'
   const topic = (formData.get('topic') as string)?.trim() || ''
   const goals = (formData.get('goals') as string)?.trim() || ''
+  const bookIsbnRaw = (formData.get('bookIsbn') as string)?.trim() || ''
+  const bookIsbn = normalizeBookIsbn(bookIsbnRaw)
 
   const n = normalizeCurriculumInput({
     subjectId: formData.get('subjectId') as string,
@@ -149,6 +233,10 @@ export async function createCurriculum(formData: FormData) {
     }
   } else if (!lessonNum) {
     return { error: 'Vui lòng nhập bài số (1–999).' }
+  }
+  if (!isTopicMode && textbookSetId === 'khac') {
+    if (!bookIsbn) return { error: 'Vui lòng nhập ISBN cho sách khác NXB.' }
+    if (!isValidBookIsbn(bookIsbn)) return { error: 'ISBN không hợp lệ (chấp nhận ISBN-10 hoặc ISBN-13).' }
   }
 
   const subjectName = SUBJECT_NAMES[subjectId] || subjectId
@@ -183,9 +271,9 @@ export async function createCurriculum(formData: FormData) {
   let match: { id: string; content_markdown: string } | null = null
   if (!isTopicMode && lessonNum) {
     // Kiểm tra DB: khớp môn + lớp + bộ sách + tập + loại bài + bài số + số tiết + thời gian mỗi tiết
-    const { data: existing } = await supabase
+    let qExisting = supabase
       .from('worksheet_curricula')
-      .select('id, content_markdown, textbook_volume, lesson_number')
+      .select('id, content_markdown, textbook_volume, lesson_number, textbook_isbn')
       .eq('subject_id', subjectId)
       .eq('grade_level_id', gradeLevelId)
       .eq('textbook_set_id', textbookSetId)
@@ -193,13 +281,20 @@ export async function createCurriculum(formData: FormData) {
       .eq('num_lessons', numTiet)
       .eq('lesson_duration_minutes', thoiLuong)
       .limit(100)
+    if (textbookSetId === 'khac' && bookIsbn) {
+      // For "other publisher", prioritize ISBN to avoid merging different books.
+      qExisting = qExisting.eq('textbook_isbn', bookIsbn)
+    }
+    const { data: existing } = await qExisting
 
     match = existing?.find((r) => {
       const rVol = (r as { textbook_volume?: string | null }).textbook_volume
       const rNum = (r as { lesson_number?: number | null }).lesson_number
+      const rIsbn = normalizeBookIsbn((r as { textbook_isbn?: string | null }).textbook_isbn)
       const volMatch = (vol ?? '') === (rVol ?? '')
       const numMatch = lessonNum === (rNum ?? 0)
-      return volMatch && numMatch
+      const isbnMatch = textbookSetId !== 'khac' || !bookIsbn || rIsbn === bookIsbn
+      return volMatch && numMatch && isbnMatch
     }) ?? null
   }
 
@@ -312,6 +407,7 @@ Yêu cầu:
         grade_level_id: gradeLevelId,
         textbook_set_id: isTopicMode ? 'khac' : textbookSetId,
         textbook_volume: isTopicMode ? null : vol,
+        textbook_isbn: isTopicMode ? null : (textbookSetId === 'khac' ? bookIsbn : null),
         lesson_number: isTopicMode ? null : lessonNum,
         lesson_type_id: lessonTypeId,
         num_lessons: numTiet,
@@ -509,6 +605,7 @@ export async function saveCurriculum(formData: FormData) {
   const topic = (formData.get('topic') as string)?.trim() || ''
   const goals = (formData.get('goals') as string)?.trim() || ''
   const curriculumId = (formData.get('curriculumId') as string)?.trim() || null
+  const bookIsbn = normalizeBookIsbn((formData.get('bookIsbn') as string)?.trim() || '')
 
   const n = normalizeCurriculumInput({
     subjectId: formData.get('subjectId') as string,
@@ -537,6 +634,10 @@ export async function saveCurriculum(formData: FormData) {
   const { user } = authResult
 
   const topicFinal = topic || `Bài ${lessonNum}`
+  if (textbookSetId === 'khac' && lessonNum) {
+    if (!bookIsbn) return { error: 'Vui lòng nhập ISBN cho sách khác NXB.' }
+    if (!isValidBookIsbn(bookIsbn)) return { error: 'ISBN không hợp lệ (chấp nhận ISBN-10 hoặc ISBN-13).' }
+  }
 
   // Chỉ trích lesson_topics khi TẠO MỚI (không có curriculumId) – tránh gọi AI mỗi lần "Lưu thay đổi"
   let lessonTopics: string[] | null = null
@@ -556,6 +657,7 @@ export async function saveCurriculum(formData: FormData) {
         grade_level_id: gradeLevelId,
         textbook_set_id: lessonNum ? textbookSetId : 'khac',
         textbook_volume: lessonNum ? vol : null,
+        textbook_isbn: lessonNum && textbookSetId === 'khac' ? bookIsbn : null,
         lesson_number: lessonNum,
         lesson_type_id: lessonTypeId,
         num_lessons: numTiet,
@@ -578,6 +680,7 @@ export async function saveCurriculum(formData: FormData) {
       grade_level_id: gradeLevelId,
       textbook_set_id: lessonNum ? textbookSetId : 'khac',
       textbook_volume: lessonNum ? vol : null,
+      textbook_isbn: lessonNum && textbookSetId === 'khac' ? bookIsbn : null,
       lesson_number: lessonNum,
       lesson_type_id: lessonTypeId,
       num_lessons: numTiet,
@@ -642,15 +745,19 @@ export async function checkCurriculumExists(opts: {
   gradeLevelId: string
   textbookSetId: string
   textbookVolume?: string
-  lessonNumber: number
+  bookIsbn?: string
+  lessonNumber?: number
   numLessons: number
   lessonDurationMinutes: number
   lessonTypeId?: string
+  createMode?: 'textbook' | 'topic'
+  topic?: string
 }) {
   const supabase = createClient()
   const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
   if ('error' in authResult) return { error: authResult.error }
 
+  const normalizedIsbn = normalizeBookIsbn(opts.bookIsbn)
   const n = normalizeCurriculumInput({
     subjectId: opts.subjectId,
     gradeLevelId: opts.gradeLevelId,
@@ -661,6 +768,73 @@ export async function checkCurriculumExists(opts: {
     lessonDurationMinutes: opts.lessonDurationMinutes,
     lessonTypeId: opts.lessonTypeId,
   })
+
+  const isTopicMode = opts.createMode === 'topic'
+  if (isTopicMode) {
+    const rawTopic = String(opts.topic || '').trim()
+    const normalizedInput = normalizeTopicForSearch(rawTopic)
+    if (!normalizedInput || normalizedInput.length < 2) return { exists: false, similarItems: [] as TopicMatchCandidate[] }
+
+    // Layer 1: fast candidate filtering by subject/grade and lexical similarity.
+    const { data: topicRows } = await supabase
+      .from('worksheet_curricula')
+      .select('id, topic, created_at')
+      .eq('subject_id', n.subjectId)
+      .eq('grade_level_id', n.gradeLevelId)
+      .is('lesson_number', null)
+      .order('created_at', { ascending: false })
+      .limit(80)
+
+    const inputTokens = topicTokens(rawTopic)
+    const lexicalCandidates: TopicMatchCandidate[] = (topicRows ?? [])
+      .map((r) => {
+        const candidateTopic = String((r as { topic?: string | null }).topic || '').trim()
+        const tks = topicTokens(candidateTopic)
+        const exactLike = topicsMatch(rawTopic, candidateTopic) ? 1 : 0
+        const jacc = tokenJaccard(inputTokens, tks)
+        const lenPenalty = Math.abs(inputTokens.length - tks.length) > 6 ? 0.1 : 0
+        const score = Math.max(0, Math.min(1, exactLike * 0.65 + jacc * 0.5 - lenPenalty))
+        return { id: (r as { id: string }).id, topic: candidateTopic, score }
+      })
+      .filter((x) => x.topic.length >= 2)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 8)
+
+    if (lexicalCandidates.length === 0) return { exists: false, similarItems: [] as TopicMatchCandidate[] }
+
+    // Layer 2: semantic rerank via AI.
+    const aiScores = await rerankTopicCandidatesByAI(
+      rawTopic,
+      lexicalCandidates.map((c) => ({ id: c.id, topic: c.topic }))
+    )
+    const aiMap = new Map(aiScores.map((x) => [x.id, x.score]))
+    const merged = lexicalCandidates
+      .map((c) => {
+        const ai = aiMap.get(c.id)
+        const score = ai == null ? c.score : Math.max(0, Math.min(1, c.score * 0.35 + ai * 0.65))
+        return { ...c, score }
+      })
+      .sort((a, b) => b.score - a.score)
+
+    const similarItems = merged.filter((x) => x.score >= 0.6).slice(0, 5)
+    const best = similarItems[0]
+    if (best && best.score >= 0.8) {
+      const { data: bestRow } = await supabase
+        .from('worksheet_curricula')
+        .select('id, content_markdown, topic')
+        .eq('id', best.id)
+        .limit(1)
+        .maybeSingle()
+      return {
+        exists: true,
+        curriculumId: best.id,
+        curriculumMarkdown: (bestRow as { content_markdown?: string | null } | null)?.content_markdown ?? null,
+        topic: best.topic,
+        similarItems,
+      }
+    }
+    return { exists: false, similarItems }
+  }
 
   if (!n.lessonNumber) return { exists: false }
 
@@ -675,6 +849,12 @@ export async function checkCurriculumExists(opts: {
     .eq('lesson_duration_minutes', n.lessonDurationMinutes)
     .eq('lesson_number', n.lessonNumber)
     .limit(1)
+
+  if (n.textbookSetId === 'khac') {
+    if (!normalizedIsbn) return { exists: false }
+    if (!isValidBookIsbn(normalizedIsbn)) return { exists: false }
+    q = q.eq('textbook_isbn', normalizedIsbn)
+  }
 
   if (n.textbookVolume === '1' || n.textbookVolume === '2') {
     q = q.eq('textbook_volume', n.textbookVolume)
@@ -1037,6 +1217,34 @@ export async function deleteCurriculum(id: string) {
     )
 
   if (error) return { error: error.message }
+  return { success: true }
+}
+
+/** Xóa dữ liệu phát sinh của giáo trình trước khi tạo lại (ghi đè): worksheet + slides + lịch sử chỉnh sửa. */
+export async function clearCurriculumDerivedData(curriculumId: string) {
+  const supabase = createClient()
+  const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+  if ('error' in authResult) return { error: authResult.error }
+
+  const admin = createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+
+  const tasks = [
+    admin.from('worksheet_worksheets').delete().eq('curriculum_id', curriculumId),
+    admin.from('worksheet_slide_edit_history').delete().eq('curriculum_id', curriculumId),
+    admin.from('user_customized_slides_history').delete().eq('curriculum_id', curriculumId),
+    admin.from('user_customized_slides').delete().eq('curriculum_id', curriculumId),
+    admin.from('worksheet_slides_original').delete().eq('curriculum_id', curriculumId),
+    admin.from('worksheet_slides').delete().eq('curriculum_id', curriculumId),
+  ] as const
+
+  for (const t of tasks) {
+    const { error } = await t
+    if (error) return { error: error.message }
+  }
+
   return { success: true }
 }
 

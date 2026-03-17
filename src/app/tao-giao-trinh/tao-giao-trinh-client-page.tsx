@@ -16,7 +16,7 @@ import { curriculumToSlidesMarkdown, parseCurriculumToSlides, parseContentToBloc
 import { SlideVersionDialog, type SlideVersionChoice } from './components/slide-version-dialog'
 import type { AISlideData } from './lib/curriculum-to-slides'
 import { SUBJECTS, GRADE_LEVELS, GRADE_LEVEL_GROUPS, TEXTBOOK_SETS } from './lib/curriculum-subjects'
-import { createCurriculum, createWorksheet, saveCurriculum, saveTextbookLessonFromImage, listCurricula, getCurriculumById, getWorksheetById, getWorksheetsByCurriculumId, deleteCurriculum, saveSlidesToCurriculum, getSlidesByCurriculumId, getOriginalSlides, getUserCustomizedSlides, saveOriginalSlidesIfNotExists, checkCurriculumExists, recordCurriculumOpen } from './actions'
+import { createCurriculum, createWorksheet, saveCurriculum, saveTextbookLessonFromImage, listCurricula, getCurriculumById, getWorksheetById, getWorksheetsByCurriculumId, deleteCurriculum, saveSlidesToCurriculum, getSlidesByCurriculumId, getOriginalSlides, getUserCustomizedSlides, saveOriginalSlidesIfNotExists, checkCurriculumExists, recordCurriculumOpen, clearCurriculumDerivedData } from './actions'
 import { extractEditRegions } from './lib/curriculum-region-extract'
 import { highlightMatchInCurriculum } from './components/curriculum-edit-sheet'
 
@@ -89,6 +89,7 @@ export default function TaoGiaoTrinhClientPage() {
   const [gradeLevelId, setGradeLevelId] = useState('lop-12')
   const [textbookSetId, setTextbookSetId] = useState('ket-noi-tri-thuc')
   const [textbookVolume, setTextbookVolume] = useState<string>('')
+  const [bookIsbn, setBookIsbn] = useState('')
   const [lessonNumber, setLessonNumber] = useState<string>('1')
   const [lessonTypeId, setLessonTypeId] = useState('hinh-thanh-kien-thuc')
   const [topic, setTopic] = useState('')
@@ -118,7 +119,9 @@ export default function TaoGiaoTrinhClientPage() {
   const [curriculumExists, setCurriculumExists] = useState<boolean | null>(null)
   const [existingCurriculumId, setExistingCurriculumId] = useState<string | null>(null)
   const [existingCurriculumTopic, setExistingCurriculumTopic] = useState<string | null>(null)
+  const [similarTopicCurricula, setSimilarTopicCurricula] = useState<Array<{ id: string; topic: string; score: number }>>([])
   const [checkLoading, setCheckLoading] = useState(false)
+  const [overwriteFromExistingLoading, setOverwriteFromExistingLoading] = useState(false)
   const [lessonImages, setLessonImages] = useState<File[]>([])
   const lessonImageInputRef = useRef<HTMLInputElement>(null)
   const [createMode, setCreateMode] = useState<'textbook' | 'topic'>('textbook')
@@ -183,27 +186,40 @@ export default function TaoGiaoTrinhClientPage() {
   }, [showBrowse, browseSubjectFilter, browseGradeFilter])
 
   useEffect(() => {
-    if (createMode === 'topic') {
+    if (createMode === 'topic' && (!topic.trim() || topic.trim().length < 2)) {
       setCurriculumExists(null)
       setExistingCurriculumId(null)
       setExistingCurriculumTopic(null)
+      setSimilarTopicCurricula([])
+      setCheckLoading(false)
       return
     }
     const num = parseInt(lessonNumber, 10)
-    if (!num || num < 1 || num > 999) {
+    if (createMode !== 'topic' && (!num || num < 1 || num > 999)) {
       setCurriculumExists(null)
       setExistingCurriculumId(null)
       setExistingCurriculumTopic(null)
+      setSimilarTopicCurricula([])
+      return
+    }
+    if (textbookSetId === 'khac' && !bookIsbn.trim()) {
+      setCurriculumExists(false)
+      setExistingCurriculumId(null)
+      setExistingCurriculumTopic(null)
+      setCheckLoading(false)
       return
     }
     let cancelled = false
     setCheckLoading(true)
     checkCurriculumExists({
+      createMode,
+      topic: createMode === 'topic' ? topic.trim() : undefined,
       subjectId,
       gradeLevelId,
       textbookSetId,
       textbookVolume: textbookVolume.trim() || undefined,
-      lessonNumber: num,
+      bookIsbn: textbookSetId === 'khac' ? bookIsbn.trim() : undefined,
+      lessonNumber: createMode === 'topic' ? undefined : num,
       numLessons,
       lessonDurationMinutes,
       lessonTypeId,
@@ -219,12 +235,18 @@ export default function TaoGiaoTrinhClientPage() {
           setExistingCurriculumId(null)
           setExistingCurriculumTopic(null)
         }
+        if (res && 'similarItems' in res && Array.isArray(res.similarItems)) {
+          setSimilarTopicCurricula(res.similarItems as Array<{ id: string; topic: string; score: number }>)
+        } else {
+          setSimilarTopicCurricula([])
+        }
       })
       .catch(() => {
         if (!cancelled) {
           setCurriculumExists(null)
           setExistingCurriculumId(null)
           setExistingCurriculumTopic(null)
+          setSimilarTopicCurricula([])
         }
       })
       .finally(() => {
@@ -233,9 +255,10 @@ export default function TaoGiaoTrinhClientPage() {
     return () => {
       cancelled = true
     }
-  }, [createMode, subjectId, gradeLevelId, textbookSetId, textbookVolume, lessonNumber, numLessons, lessonDurationMinutes, lessonTypeId])
+  }, [createMode, topic, subjectId, gradeLevelId, textbookSetId, textbookVolume, bookIsbn, lessonNumber, numLessons, lessonDurationMinutes, lessonTypeId])
 
-  const handleSubmitFromImage = async () => {
+  const handleSubmitFromImage = async (opts?: { forceOverwrite?: boolean }) => {
+    const forceOverwrite = !!opts?.forceOverwrite
     const num = parseInt(lessonNumber, 10)
     if (!num || num < 1 || num > 999 || lessonImages.length === 0) return
     setStep('GENERATING')
@@ -262,13 +285,74 @@ export default function TaoGiaoTrinhClientPage() {
         toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: tr('AI không trả về nội dung.', 'AI did not return content.', 'AI未返回内容。', 'AIがコンテンツを返しませんでした。', 'AI가 내용을 반환하지 않았습니다.'), variant: 'destructive' })
         return
       }
-      const finalLessonNum = typeof extractedNum === 'number' && extractedNum >= 1 && extractedNum <= 999 ? String(extractedNum) : lessonNumber
+      const extractedNumParsed =
+        typeof extractedNum === 'number'
+          ? extractedNum
+          : typeof extractedNum === 'string'
+            ? parseInt(extractedNum, 10)
+            : NaN
+      const finalLessonNum = Number.isFinite(extractedNumParsed) && extractedNumParsed >= 1 && extractedNumParsed <= 999 ? String(extractedNumParsed) : lessonNumber
       const finalTopic = t || extractedTitle || `Bài ${finalLessonNum}`
+      if (finalLessonNum !== lessonNumber) {
+        setLessonNumber(finalLessonNum)
+        toast({
+          title: tr('Đã cập nhật bài số theo ảnh', 'Lesson number updated from image', '已按图片更新课号', '画像から課番号を更新しました', '이미지 기준으로 차시 번호를 업데이트했습니다'),
+          description: tr(`Bạn nhập Bài ${lessonNumber}, ảnh cho thấy Bài ${finalLessonNum}. Hệ thống dùng Bài ${finalLessonNum}.`, `You entered lesson ${lessonNumber}, image indicates lesson ${finalLessonNum}. System uses lesson ${finalLessonNum}.`, `您输入的是第 ${lessonNumber} 课，图片显示第 ${finalLessonNum} 课。系统将使用第 ${finalLessonNum} 课。`, `入力は${lessonNumber}課、画像は${finalLessonNum}課でした。システムは${finalLessonNum}課を使用します。`, `입력한 차시는 ${lessonNumber}, 이미지에서는 ${finalLessonNum}차시로 확인되었습니다. 시스템은 ${finalLessonNum}차시를 사용합니다.`),
+          duration: 4500,
+        })
+      }
+
+      let overwriteCurriculumId: string | null = null
+      const checkByExtracted = await checkCurriculumExists({
+        createMode: 'textbook',
+        subjectId,
+        gradeLevelId,
+        textbookSetId,
+        textbookVolume: textbookVolume.trim() || undefined,
+        bookIsbn: textbookSetId === 'khac' ? bookIsbn.trim() : undefined,
+        lessonNumber: parseInt(finalLessonNum, 10),
+        numLessons,
+        lessonDurationMinutes,
+        lessonTypeId,
+      })
+      const existingIdByExtracted =
+        checkByExtracted && 'exists' in checkByExtracted && checkByExtracted.exists
+          ? (checkByExtracted.curriculumId ?? null)
+          : null
+      const existingTopicByExtracted =
+        checkByExtracted && 'exists' in checkByExtracted && checkByExtracted.exists
+          ? (checkByExtracted.topic ?? null)
+          : null
+
+      if (forceOverwrite && existingIdByExtracted) {
+        const ok = confirm(
+          tr(
+            'Tạo lại sẽ xóa worksheet/slide/lịch sử chỉnh sửa cũ của giáo trình này trước khi lưu bản mới. Tiếp tục?',
+            'Recreate will delete old worksheets/slides/edit history of this curriculum before saving new content. Continue?',
+            '重新创建会先删除该课程旧的练习/幻灯片/编辑历史，再保存新内容。继续吗？',
+            '再作成すると、このカリキュラムの旧ワークシート/スライド/編集履歴を削除してから新規保存します。続行しますか？',
+            '다시 만들기를 진행하면 기존 워크시트/슬라이드/편집 기록을 삭제한 뒤 새 내용으로 저장합니다. 계속할까요?'
+          )
+        )
+        if (!ok) {
+          setStep('INPUT')
+          return
+        }
+        const clearRes = await clearCurriculumDerivedData(existingIdByExtracted)
+        if (clearRes?.error) {
+          setStep('INPUT')
+          toast({ title: tr('Xóa dữ liệu cũ thất bại', 'Failed to clear old data', '清除旧数据失败', '旧データ削除に失敗', '기존 데이터 삭제 실패'), description: clearRes.error, variant: 'destructive' })
+          return
+        }
+        overwriteCurriculumId = existingIdByExtracted
+      }
+
       setCurriculumMarkdown(md)
       setTopic(finalTopic)
       const saveFd = new FormData()
       saveFd.append('curriculumMarkdown', md)
       saveFd.append('topic', finalTopic)
+      if (overwriteCurriculumId) saveFd.append('curriculumId', overwriteCurriculumId)
       saveFd.append('subjectId', subjectId)
       saveFd.append('gradeLevelId', gradeLevelId)
       saveFd.append('textbookSetId', textbookSetId)
@@ -278,11 +362,20 @@ export default function TaoGiaoTrinhClientPage() {
       saveFd.append('numLessons', String(numLessons))
       saveFd.append('lessonDurationMinutes', String(lessonDurationMinutes))
       saveFd.append('goals', goals)
+      saveFd.append('bookIsbn', textbookSetId === 'khac' ? bookIsbn.trim() : '')
       const saveRes = await saveCurriculum(saveFd)
       if (saveRes?.success && saveRes.curriculumId) {
         setCurriculumId(saveRes.curriculumId)
         setStep('RESULT')
-        toast({ title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'), description: tr('Giáo trình và giáo án đã tạo từ ảnh.', 'Curriculum and slides created from image.', '已从图片创建课程和教案。', '画像からカリキュラムとスライドを作成しました。', '이미지에서 교육과정과 슬라이드 생성됨.'), duration: 3000 })
+        toast({
+          title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'),
+          description: overwriteCurriculumId
+            ? tr('Đã tạo lại và ghi đè giáo trình cũ theo dữ liệu từ ảnh.', 'Recreated and overwritten existing curriculum using image data.', '已根据图片数据重建并覆盖旧课程。', '画像データに基づき既存カリキュラムを再作成・上書きしました。', '이미지 데이터를 기준으로 기존 교육과정을 다시 만들고 덮어썼습니다.')
+            : existingIdByExtracted
+              ? tr(`Đã tạo mới theo Bài ${finalLessonNum}. Nếu muốn dùng bản có sẵn "${existingTopicByExtracted ?? ''}" hãy bấm Mở giáo trình có sẵn.`, `Created a new curriculum for lesson ${finalLessonNum}. To use existing "${existingTopicByExtracted ?? ''}", open existing curriculum.`, `已按第 ${finalLessonNum} 课新建。若要使用已有课程“${existingTopicByExtracted ?? ''}”，请点击“打开已有课程”。`, `${finalLessonNum}課として新規作成しました。既存「${existingTopicByExtracted ?? ''}」を使う場合は既存を開いてください。`, `${finalLessonNum}차시 기준으로 새로 생성했습니다. 기존 "${existingTopicByExtracted ?? ''}"를 사용하려면 기존 교육과정을 여세요.`)
+              : tr('Giáo trình và giáo án đã tạo từ ảnh.', 'Curriculum and slides created from image.', '已从图片创建课程和教案。', '画像からカリキュラムとスライドを作成しました。', '이미지에서 교육과정과 슬라이드 생성됨.'),
+          duration: 3800,
+        })
         await saveTextbookLessonFromImage({ subjectId, gradeLevelId, textbookSetId, lessonNumber: parseInt(finalLessonNum, 10), lessonTitle: finalTopic })
         const slidesFromApi = Array.isArray(data?.slides) && data.slides.length > 0 ? (data.slides as AISlideData[]) : null
         if (slidesFromApi) {
@@ -343,6 +436,7 @@ export default function TaoGiaoTrinhClientPage() {
       formData.append('numLessons', String(numLessons))
       formData.append('lessonDurationMinutes', String(lessonDurationMinutes))
       formData.append('goals', goals.trim())
+      formData.append('bookIsbn', '')
       const result = await createCurriculum(formData)
       if (result.error) {
         setStep('INPUT')
@@ -388,6 +482,14 @@ export default function TaoGiaoTrinhClientPage() {
       return
     }
     if (createMode === 'textbook') {
+      if (textbookSetId === 'khac' && !bookIsbn.trim()) {
+        toast({
+          title: tr('Thiếu thông tin', 'Missing information', '缺少信息', '情報不足', '정보 누락'),
+          description: tr('Vui lòng nhập ISBN cho sách Khác / Sách khác NXB.', 'Please enter ISBN for Other publisher textbook.', '请选择“其他出版社”时请输入ISBN。', '「その他出版社」の場合はISBNを入力してください。', '기타 출판사 선택 시 ISBN을 입력해 주세요.'),
+          variant: 'destructive',
+        })
+        return
+      }
       if (lessonImages.length === 0) {
         toast({
           title: tr('Cần gửi ảnh bài học', 'Upload lesson image required', '需要上传课程图片', '授業画像のアップロードが必要', '수업 이미지 업로드 필요'),
@@ -398,6 +500,24 @@ export default function TaoGiaoTrinhClientPage() {
       }
       await handleSubmitFromImage()
       return
+    }
+  }
+
+  const handleOverwriteFromExisting = async () => {
+    if (!existingCurriculumId) return
+    if (lessonImages.length === 0) {
+      toast({
+        title: tr('Cần gửi ảnh bài học', 'Upload lesson image required', '需要上传课程图片', '授業画像のアップロードが必要', '수업 이미지 업로드 필요'),
+        description: tr('Vui lòng gửi ảnh trang sách rồi bấm Tạo lại giáo trình.', 'Please upload textbook page image(s) before recreating curriculum.', '请先上传教材页面图片，再重建课程。', '教科書ページ画像をアップロードしてから再作成してください。', '교과서 페이지 이미지를 업로드한 뒤 다시 만들기를 진행해 주세요.'),
+        variant: 'destructive',
+      })
+      return
+    }
+    setOverwriteFromExistingLoading(true)
+    try {
+      await handleSubmitFromImage({ forceOverwrite: true })
+    } finally {
+      setOverwriteFromExistingLoading(false)
     }
   }
 
@@ -673,6 +793,8 @@ export default function TaoGiaoTrinhClientPage() {
     setCurriculumWorksheets([])
     setCurriculumSlides(null)
     setAiSlides(null)
+    setSimilarTopicCurricula([])
+    setBookIsbn('')
     setLessonImages([])
     setPastedContent('')
     if (lessonImageInputRef.current) lessonImageInputRef.current.value = ''
@@ -725,6 +847,7 @@ export default function TaoGiaoTrinhClientPage() {
       formData.append('numLessons', String(numLessons))
       formData.append('lessonDurationMinutes', String(lessonDurationMinutes))
       formData.append('goals', goals)
+      formData.append('bookIsbn', textbookSetId === 'khac' ? bookIsbn.trim() : '')
       const result = await saveCurriculum(formData)
       if (result.error) {
         toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: result.error, variant: 'destructive' })
@@ -801,6 +924,7 @@ export default function TaoGiaoTrinhClientPage() {
               formData.append('numLessons', String(s.numLessons))
               formData.append('lessonDurationMinutes', String(s.lessonDurationMinutes))
               formData.append('goals', s.goals)
+              formData.append('bookIsbn', s.textbookSetId === 'khac' ? s.bookIsbn.trim() : '')
               const result = await saveCurriculum(formData)
               if (result.success && result.curriculumId) {
                 setCurriculumId(result.curriculumId)
@@ -851,6 +975,7 @@ export default function TaoGiaoTrinhClientPage() {
     gradeLevelId: '',
     textbookSetId: '',
     textbookVolume: '',
+    bookIsbn: '',
     createMode: 'topic' as 'textbook' | 'topic',
     lessonTypeId: '',
     numLessons: 3,
@@ -868,6 +993,7 @@ export default function TaoGiaoTrinhClientPage() {
       gradeLevelId,
       textbookSetId,
       textbookVolume,
+      bookIsbn,
       createMode,
       lessonTypeId,
       numLessons,
@@ -896,6 +1022,7 @@ export default function TaoGiaoTrinhClientPage() {
     formData.append('numLessons', String(s.numLessons))
     formData.append('lessonDurationMinutes', String(s.lessonDurationMinutes))
     formData.append('goals', s.goals)
+    formData.append('bookIsbn', s.textbookSetId === 'khac' ? s.bookIsbn.trim() : '')
 
     const result = await saveCurriculum(formData)
     if (result.error) {
@@ -1006,6 +1133,7 @@ export default function TaoGiaoTrinhClientPage() {
       formData.append('numLessons', String(numLessons))
       formData.append('lessonDurationMinutes', String(lessonDurationMinutes))
       formData.append('goals', goals)
+      formData.append('bookIsbn', textbookSetId === 'khac' ? bookIsbn.trim() : '')
       saveCurriculum(formData).then((result) => {
         if (result.success && result.curriculumId) {
           setCurriculumId(result.curriculumId)
@@ -1016,7 +1144,7 @@ export default function TaoGiaoTrinhClientPage() {
         }
       })
     },
-    [curriculumMarkdown, displayTopic, curriculumId, subjectId, gradeLevelId, textbookSetId, textbookVolume, createMode, lessonNumber, lessonTypeId, numLessons, lessonDurationMinutes, goals]
+    [curriculumMarkdown, displayTopic, curriculumId, subjectId, gradeLevelId, textbookSetId, textbookVolume, createMode, lessonNumber, lessonTypeId, numLessons, lessonDurationMinutes, goals, bookIsbn]
   )
 
   const runEditCompare = useCallback(async () => {
@@ -1152,11 +1280,12 @@ export default function TaoGiaoTrinhClientPage() {
       return
     }
     if (result.success && result.curriculum) {
-      const c = result.curriculum as { id?: string; topic?: string; subject_id?: string; grade_level_id?: string; textbook_set_id?: string; textbook_volume?: string | null; lesson_number?: number | null; lesson_type_id?: string; num_lessons?: number; lesson_duration_minutes?: number; goals?: string; content_markdown?: string }
+      const c = result.curriculum as { id?: string; topic?: string; subject_id?: string; grade_level_id?: string; textbook_set_id?: string; textbook_volume?: string | null; textbook_isbn?: string | null; lesson_number?: number | null; lesson_type_id?: string; num_lessons?: number; lesson_duration_minutes?: number; goals?: string; content_markdown?: string }
       setSubjectId(c.subject_id ?? 'toan')
       setGradeLevelId(normalizeGradeLevelId(c.grade_level_id ?? 'lop-12'))
       setTextbookSetId(c.textbook_set_id ?? 'ket-noi-tri-thuc')
       setTextbookVolume(c.textbook_volume ?? '')
+      setBookIsbn(c.textbook_isbn ?? '')
       setTopic(c.topic ?? '')
       setLessonNumber(c.lesson_number != null ? String(c.lesson_number) : '')
       setCreateMode(c.lesson_number != null ? 'textbook' : 'topic')
@@ -1247,9 +1376,10 @@ export default function TaoGiaoTrinhClientPage() {
           getSlidesByCurriculumId(curriculumIdFromWs),
         ])
         if (curRes?.success && curRes.curriculum) {
-          const c = curRes.curriculum as { textbook_set_id?: string; textbook_volume?: string | null; lesson_number?: number | null; lesson_type_id?: string; num_lessons?: number; lesson_duration_minutes?: number; goals?: string; content_markdown?: string; topic?: string }
+          const c = curRes.curriculum as { textbook_set_id?: string; textbook_volume?: string | null; textbook_isbn?: string | null; lesson_number?: number | null; lesson_type_id?: string; num_lessons?: number; lesson_duration_minutes?: number; goals?: string; content_markdown?: string; topic?: string }
           setTextbookSetId(c.textbook_set_id ?? 'ket-noi-tri-thuc')
           setTextbookVolume(c.textbook_volume ?? '')
+          setBookIsbn(c.textbook_isbn ?? '')
           setTopic(c.topic ?? '')
           setLessonNumber(c.lesson_number != null ? String(c.lesson_number) : '1')
           setLessonTypeId(c.lesson_type_id ?? 'hinh-thanh-kien-thuc')
@@ -1264,6 +1394,7 @@ export default function TaoGiaoTrinhClientPage() {
         else setCurriculumSlides(null)
       } else {
         setCurriculumMarkdown('')
+        setBookIsbn('')
         setCurriculumWorksheets([])
         setCurriculumSlides(null)
       }
@@ -1526,7 +1657,11 @@ export default function TaoGiaoTrinhClientPage() {
                       checked={createMode === 'textbook'}
                       onChange={() => {
                         setCreateMode('textbook')
-                        if (textbookSetId === 'khac') setTextbookSetId('ket-noi-tri-thuc')
+                        setSimilarTopicCurricula([])
+                        if (textbookSetId === 'khac') {
+                          setTextbookSetId('ket-noi-tri-thuc')
+                          setBookIsbn('')
+                        }
                       }}
                       className="rounded-full border-input"
                     />
@@ -1540,6 +1675,8 @@ export default function TaoGiaoTrinhClientPage() {
                       onChange={() => {
                         setCreateMode('topic')
                         setTextbookSetId('khac')
+                        setSimilarTopicCurricula([])
+                        setBookIsbn('')
                         setLessonImages([])
                       }}
                       className="rounded-full border-input"
@@ -1553,24 +1690,20 @@ export default function TaoGiaoTrinhClientPage() {
                     : tr('Chỉ cần nhập chủ đề. Không cần bài số hay ảnh. Có thể gửi ảnh để AI bám sát hơn.', 'Just enter topic. No lesson # or image required. Optional: upload image for better accuracy.', '只需输入主题。无需课号或图片。可选：上传图片提高准确性。', '主題のみ入力。課番号・画像不要。任意：画像で精度向上。', '주제만 입력. 차시·이미지 불필요. 선택: 이미지로 정확도 향상.')}
                 </p>
               </div>
-              <div className="space-y-2">
-                <label className="text-xs font-medium text-muted-foreground">
-                  {createMode === 'topic'
-                    ? <>{tr('Chủ đề', 'Topic', '主题', '主題', '주제')} <span className="text-red-500">*</span></>
-                    : tr('Tên bài (tùy chọn)', 'Lesson title (optional)', '课名（可选）', '授業名（任意）', '차시 제목 (선택)')}
-                </label>
-                <Input
-                  type="text"
-                  placeholder={
-                    createMode === 'topic'
-                      ? tr('Ví dụ: Nguyên hàm, Tích phân, Phương trình bậc hai...', 'e.g. Antiderivative, Integral, Quadratic equation...', '例如：原函数、积分、一元二次方程...', '例：原始関数、積分、二次方程式...', '예: 부정적분, 적분, 이차방정식...')
-                      : tr('Để trống dùng tên từ mục lục SGK', 'Leave empty to use title from textbook index', '留空使用教材目录中的标题', '空欄で教科書目次から', '비우면 교과서 목차 사용')
-                  }
-                  value={topic}
-                  onChange={(e) => setTopic(e.target.value)}
-                  className="bg-white/80"
-                />
-              </div>
+              {createMode === 'topic' && (
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-muted-foreground">
+                    {tr('Chủ đề', 'Topic', '主题', '主題', '주제')} <span className="text-red-500">*</span>
+                  </label>
+                  <Input
+                    type="text"
+                    placeholder={tr('Ví dụ: Nguyên hàm, Tích phân, Phương trình bậc hai...', 'e.g. Antiderivative, Integral, Quadratic equation...', '例如：原函数、积分、一元二次方程...', '例：原始関数、積分、二次方程式...', '예: 부정적분, 적분, 이차방정식...')}
+                    value={topic}
+                    onChange={(e) => setTopic(e.target.value)}
+                    className="bg-white/80"
+                  />
+                </div>
+              )}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-xs font-medium text-muted-foreground">{tr('Môn học', 'Subject', '科目', '科目', '과목')}</label>
@@ -1609,7 +1742,11 @@ export default function TaoGiaoTrinhClientPage() {
                   <label className="text-xs font-medium text-muted-foreground">{tr('Bộ sách giáo khoa', 'Textbook set', '教材', '教科書', '교과서')}</label>
                   <select
                     value={textbookSetId}
-                    onChange={(e) => setTextbookSetId(e.target.value)}
+                    onChange={(e) => {
+                      const next = e.target.value
+                      setTextbookSetId(next)
+                      if (next !== 'khac') setBookIsbn('')
+                    }}
                     className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
                   >
                     {TEXTBOOK_SETS.map((t) => (
@@ -1618,6 +1755,23 @@ export default function TaoGiaoTrinhClientPage() {
                       </option>
                     ))}
                   </select>
+                </div>
+              )}
+              {createMode === 'textbook' && textbookSetId === 'khac' && (
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-muted-foreground">
+                    {tr('ISBN sách', 'Book ISBN', '教材 ISBN', '教科書 ISBN', '교과서 ISBN')} <span className="text-red-500">*</span>
+                  </label>
+                  <Input
+                    type="text"
+                    placeholder={tr('Nhập ISBN-10 hoặc ISBN-13', 'Enter ISBN-10 or ISBN-13', '请输入 ISBN-10 或 ISBN-13', 'ISBN-10 または ISBN-13 を入力', 'ISBN-10 또는 ISBN-13 입력')}
+                    value={bookIsbn}
+                    onChange={(e) => setBookIsbn(e.target.value)}
+                    className="w-full h-9 bg-white/80"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {tr('Bắt buộc để đối chiếu đúng sách trong DB, tránh gộp nhầm sách khác nhau.', 'Required for accurate DB matching, to avoid mixing different books.', '用于准确匹配数据库教材，避免不同教材被误判为同一教材。', 'DBで正確に照合し、別教材の誤統合を防ぐため必須です。', 'DB 정확 매칭을 위해 필수이며, 다른 교재가 합쳐지는 것을 방지합니다.')}
+                  </p>
                 </div>
               )}
               {createMode === 'textbook' && (
@@ -1663,15 +1817,17 @@ export default function TaoGiaoTrinhClientPage() {
                   </select>
                 </div>
               </div>
-              <div className="space-y-2">
-                <label className="text-xs font-medium text-muted-foreground">{tr('Mục tiêu bổ sung (tùy chọn)', 'Additional goals (optional)', '补充目标（可选）', '追加目標（任意）', '추가 목표 (선택)')}</label>
-                <Textarea
-                  placeholder={tr('Mô tả mục tiêu, yêu cầu đặc biệt...', 'Describe goals, special requirements...', '描述目标、特殊要求...', '目標・特別な要件を記述...', '목표, 특별 요구사항 설명...')}
-                  value={goals}
-                  onChange={(e) => setGoals(e.target.value)}
-                  className="bg-white/80 min-h-[80px] resize-y"
-                />
-              </div>
+              {createMode === 'topic' && (
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-muted-foreground">{tr('Mục tiêu bổ sung (tùy chọn)', 'Additional goals (optional)', '补充目标（可选）', '追加目標（任意）', '추가 목표 (선택)')}</label>
+                  <Textarea
+                    placeholder={tr('Mô tả mục tiêu, yêu cầu đặc biệt...', 'Describe goals, special requirements...', '描述目标、特殊要求...', '目標・特別な要件を記述...', '목표, 특별 요구사항 설명...')}
+                    value={goals}
+                    onChange={(e) => setGoals(e.target.value)}
+                    className="bg-white/80 min-h-[80px] resize-y"
+                  />
+                </div>
+              )}
               {curriculumExists === true && existingCurriculumTopic && createMode === 'textbook' && (
                 <div className="space-y-2 rounded-lg border border-emerald-300 dark:border-emerald-700 p-4 bg-emerald-50/50 dark:bg-emerald-950/20">
                   <p className="text-sm font-medium text-emerald-800 dark:text-emerald-200">
@@ -1681,7 +1837,32 @@ export default function TaoGiaoTrinhClientPage() {
                     {existingCurriculumTopic}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {tr('Gửi ảnh trang sách rồi bấm nút bên dưới để tạo giáo trình.', 'Upload page image then click the button below to create curriculum.', '上传教材页面后点击下方按钮创建课程。', 'ページ画像をアップロードして下のボタンをクリック。', '페이지 이미지 업로드 후 아래 버튼 클릭하여 교육과정 생성.')}
+                    {tr('Nếu tên bài khớp, mở bản có sẵn. Nếu không khớp, gửi ảnh rồi bấm "Tạo lại giáo trình (ghi đè)".', 'If lesson title matches, open existing. If not, upload image and click "Recreate curriculum (overwrite)".', '若课名匹配，请打开已有课程；若不匹配，请上传图片后点击“重建课程（覆盖）”。', '題名が一致すれば既存を開き、不一致なら画像をアップロードして「再作成（上書き）」を押してください。', '제목이 맞으면 기존을 열고, 맞지 않으면 이미지 업로드 후 "다시 만들기(덮어쓰기)"를 누르세요.')}
+                  </p>
+                </div>
+              )}
+              {createMode === 'topic' && similarTopicCurricula.length > 0 && (
+                <div className="space-y-2 rounded-lg border border-amber-300 dark:border-amber-700 p-4 bg-amber-50/60 dark:bg-amber-950/20">
+                  <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                    {tr('Có giáo trình gần giống chủ đề này:', 'Similar curricula found for this topic:', '发现与该主题相近的课程：', 'この主題に近いカリキュラムがあります：', '이 주제와 유사한 교육과정이 있습니다:')}
+                  </p>
+                  <div className="space-y-1">
+                    {similarTopicCurricula.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => void handleLoadCurriculum(item.id)}
+                        className="w-full text-left text-sm rounded border border-amber-200 dark:border-amber-800 bg-white/80 dark:bg-slate-900/50 px-3 py-2 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors"
+                      >
+                        <div className="font-medium truncate">{item.topic}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {tr('Độ gần:', 'Similarity:', '相似度：', '類似度：', '유사도:')} {Math.round(item.score * 100)}%
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {tr('Bạn có thể mở giáo trình gần giống để dùng ngay, hoặc vẫn bấm "Tạo giáo trình" để tạo mới.', 'You can open a similar curriculum now, or still click "Create curriculum" to create a new one.', '您可以先打开相近课程，或继续点击“创建课程”新建。', '近いカリキュラムを開くか、そのまま「作成」を押して新規作成できます。', '유사 교육과정을 열거나, 그대로 "교육과정 생성"으로 새로 만들 수 있습니다.')}
                   </p>
                 </div>
               )}
@@ -1727,23 +1908,54 @@ export default function TaoGiaoTrinhClientPage() {
                 )}
               </div>
               )}
-              <Button
-                onClick={() => void handleSubmit()}
-                disabled={
-                  (step as Step) === 'GENERATING' ||
-                  (createMode === 'topic'
-                    ? !topic.trim() || topic.trim().length < 2
-                    : checkLoading || curriculumExists === null || lessonImages.length === 0)
-                }
-                className="w-full bg-violet-600 hover:bg-violet-700 text-white disabled:opacity-50"
-              >
-                <Sparkles className="h-4 w-4 mr-2" />
-                {createMode === 'topic'
-                  ? tr('Tạo giáo trình', 'Create curriculum', '创建课程', 'カリキュラムを作成', '교육과정 생성')
-                  : checkLoading
-                    ? tr('Đang kiểm tra...', 'Checking...', '正在检查...', '確認中...', '확인 중...')
-                    : tr('Tạo giáo trình', 'Create curriculum', '创建课程', 'カリキュラムを作成', '교육과정 생성')}
-              </Button>
+              {createMode === 'textbook' && curriculumExists === true && (
+                <p className="w-full text-sm text-red-600 dark:text-red-400">
+                  {tr('Nếu tên bài khớp, mở bản có sẵn. Nếu không khớp, gửi ảnh rồi bấm "Tạo lại giáo trình (ghi đè)".', 'If lesson title matches, open existing. If not, upload image then click "Recreate curriculum (overwrite)".', '若课名匹配，请打开已有课程；若不匹配，请上传图片后点击“重建课程（覆盖）”。', '題名が一致すれば既存を開き、不一致なら画像をアップロードして「再作成（上書き）」を押してください。', '제목이 맞으면 기존을 열고, 맞지 않으면 이미지를 업로드한 뒤 "다시 만들기(덮어쓰기)"를 누르세요.')}
+                </p>
+              )}
+              {createMode === 'textbook' && curriculumExists === true ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => existingCurriculumId && void handleLoadCurriculum(existingCurriculumId)}
+                    disabled={!existingCurriculumId}
+                    className="w-full border-violet-400 text-violet-700 hover:bg-violet-100 dark:border-violet-600 dark:text-violet-300"
+                  >
+                    {tr('Mở giáo trình có sẵn', 'Open existing curriculum', '打开已有课程', '既存カリキュラムを開く', '기존 교육과정 열기')}
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={() => void handleOverwriteFromExisting()}
+                    disabled={overwriteFromExistingLoading || (step as Step) === 'GENERATING' || lessonImages.length === 0}
+                    className="w-full bg-amber-600 hover:bg-amber-700 text-white disabled:opacity-50"
+                  >
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    {overwriteFromExistingLoading
+                      ? tr('Đang tạo lại...', 'Recreating...', '正在重建...', '再作成中...', '다시 만드는 중...')
+                      : tr('Tạo lại giáo trình (ghi đè)', 'Recreate curriculum (overwrite)', '重建课程（覆盖）', 'カリキュラム再作成（上書き）', '교육과정 다시 만들기(덮어쓰기)')}
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  onClick={() => void handleSubmit()}
+                  disabled={
+                    (step as Step) === 'GENERATING' ||
+                    overwriteFromExistingLoading ||
+                    (createMode === 'topic'
+                      ? !topic.trim() || topic.trim().length < 2
+                      : checkLoading || curriculumExists === null || lessonImages.length === 0 || (textbookSetId === 'khac' && !bookIsbn.trim()))
+                  }
+                  className="w-full bg-violet-600 hover:bg-violet-700 text-white disabled:opacity-50"
+                >
+                  <Sparkles className="h-4 w-4 mr-2" />
+                  {createMode === 'topic'
+                    ? tr('Tạo giáo trình', 'Create curriculum', '创建课程', 'カリキュラムを作成', '교육과정 생성')
+                    : checkLoading
+                      ? tr('Đang kiểm tra...', 'Checking...', '正在检查...', '確認中...', '확인 중...')
+                      : tr('Tạo giáo trình', 'Create curriculum', '创建课程', 'カリキュラムを作成', '교육과정 생성')}
+                </Button>
+              )}
             </CardContent>
           </Card>
         )}
