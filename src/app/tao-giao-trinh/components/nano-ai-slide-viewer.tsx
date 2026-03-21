@@ -1823,6 +1823,9 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     return { totalSegments: titleLen + contentLen, blockOffsets: [titleLen], blockLengths: [contentLen] }
   }, [slide, hasBlocks, blocks])
 
+  /** Độ dài tiêu đề theo “segment” gõ (ký tự); dùng để tách gõ tiêu đề vs chỉ gõ nội dung khi tắt Viết. */
+  const titleSegmentLen = slide?.title?.length ?? 0
+
   const { hasSegmentTypingWork, segmentTypingCompleted } = useMemo(() => {
     if (isTeacherView) return { hasSegmentTypingWork: false, segmentTypingCompleted: true }
     const useSegmentTyping = worksheetPresentation || !!curriculumId
@@ -1956,19 +1959,43 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     }
     const id = window.setInterval(() => {
       const timeReady = Date.now() - startedAt >= autoPlayIntervalMs
-      const teacherWritingReady = !teacherWritingMode || totalSegments <= 0 || slideVisibleCount >= totalSegments
+      const teacherWritingReady = totalSegments <= 0 || slideVisibleCount >= totalSegments
       const segmentTypingReady = !hasSegmentTypingWork || segmentTypingCompleted
       // Auto chuyển slide chỉ khi đủ 2 điều kiện:
       // (1) Hết thời gian chờ, (2) Đã gõ xong nội dung đang hiển thị.
       if (timeReady && teacherWritingReady && segmentTypingReady) advance()
     }, 120)
     return () => window.clearInterval(id)
-  }, [autoPlay, slides.length, autoPlayIntervalMs, presentationMode, teacherWritingMode, totalSegments, slideVisibleCount, hasSegmentTypingWork, segmentTypingCompleted])
+  }, [autoPlay, slides.length, autoPlayIntervalMs, presentationMode, totalSegments, slideVisibleCount, hasSegmentTypingWork, segmentTypingCompleted])
 
+  /**
+   * Tiến độ gõ chung (tiêu đề + nội dung theo segment/ký tự).
+   * - Bật Viết: từ 0 → hết (tiêu đề rồi nội dung).
+   * - Tắt Viết: tiêu đề coi như đã đủ; chỉ gõ phần nội dung (từ titleSegmentLen → totalSegments).
+   */
   useEffect(() => {
-    if (!teacherWritingMode || totalSegments === 0) {
-      setSlideVisibleCount(totalSegments)
+    if (totalSegments === 0) {
+      setSlideVisibleCount(0)
       return
+    }
+    if (!teacherWritingMode) {
+      const startCount = titleSegmentLen
+      if (startCount >= totalSegments) {
+        setSlideVisibleCount(totalSegments)
+        return
+      }
+      setSlideVisibleCount(startCount)
+      let start = performance.now()
+      let rafId: number
+      const tick = (now: number) => {
+        const elapsed = now - start
+        const progressed = Math.floor(elapsed / teacherWritingSpeedMs) + 1
+        const next = Math.min(startCount + progressed, totalSegments)
+        setSlideVisibleCount(next)
+        if (next < totalSegments) rafId = requestAnimationFrame(tick)
+      }
+      rafId = requestAnimationFrame(tick)
+      return () => cancelAnimationFrame(rafId)
     }
     setSlideVisibleCount(0)
     let start = performance.now()
@@ -1981,7 +2008,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     }
     rafId = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(rafId)
-  }, [currentIndex, teacherWritingMode, teacherWritingSpeedMs, totalSegments])
+  }, [currentIndex, teacherWritingMode, teacherWritingSpeedMs, totalSegments, titleSegmentLen])
 
   if (slides.length === 0) return null
 
@@ -2523,7 +2550,9 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                   !isTeacherView && !worksheetPresentation && studentCurriculumRightMode === 'markdown-all'
                 /** Chuỗi slide (HS): chỉ hiện các slide đã tới — không render slide phía sau (danh sách theo tiến độ). */
                 const mdAllSlidesToShow = mdAllStudentCurriculum ? slides.slice(0, currentIndex + 1) : slides
-                const writingChain = mdAllStudentCurriculum && teacherWritingMode
+                /** Slide hiện tại: gõ nội dung vẫn chạy khi tắt Viết (chỉ tiêu đề hiện ngay). */
+                const mdChainLiveTyping =
+                  mdAllStudentCurriculum && (teacherWritingMode || slideVisibleCount < totalSegments)
                 return mdAllSlidesToShow.map((s, si) => {
                 const rawBlks =
                   Array.isArray(s.blocks) && s.blocks.length > 0 ? s.blocks : s.content ? parseContentToBlocks(s.content ?? '') : []
@@ -2584,7 +2613,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                             titleLenGate === 0 ||
                             slideVisibleCount >= titleLenGate
                           let visibleForBlock: number | undefined
-                          let animateForBlock = teacherWritingMode
+                          let animateForBlock = slideVisibleCount < totalSegments
                           if (solutionSegmentBlock) {
                             animateForBlock = false
                             const typingOn = worksheetAnswerTypingEnabled?.[wsKey] !== false
@@ -2594,9 +2623,10 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                                 : 0
                               : undefined
                           } else {
-                            visibleForBlock = teacherWritingMode
-                              ? Math.max(0, Math.min(blockLengths[i] ?? 0, slideVisibleCount - (blockOffsets[i] ?? 0)))
-                              : undefined
+                            visibleForBlock = Math.max(
+                              0,
+                              Math.min(blockLengths[i] ?? 0, slideVisibleCount - (blockOffsets[i] ?? 0)),
+                            )
                           }
                           return (
                             <div key={i} className="border-t border-slate-200 pt-4 first:border-t-0 first:pt-0">
@@ -2642,12 +2672,11 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                           liveQuizContext={curriculumId ? { curriculumId, slideIndex: currentIndex, blockIndex: 0 } : undefined}
                           tr={tr}
                           hideQuiz
-                          animateReveal={teacherWritingMode}
-                          visibleCountInBlock={
-                            teacherWritingMode
-                              ? Math.max(0, Math.min(blockLengths[0] ?? 0, slideVisibleCount - (blockOffsets[0] ?? 0)))
-                              : undefined
-                          }
+                          animateReveal={slideVisibleCount < totalSegments}
+                          visibleCountInBlock={Math.max(
+                            0,
+                            Math.min(blockLengths[0] ?? 0, slideVisibleCount - (blockOffsets[0] ?? 0)),
+                          )}
                           wordDelayMs={teacherWritingSpeedMs}
                         />
                       </div>
@@ -2668,7 +2697,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                     <h3 className="mb-3 text-lg font-bold text-slate-900 md:text-xl">
                       <>
                         {si + 1}.{' '}
-                        {writingChain && isCurrent ? (
+                        {teacherWritingMode && mdAllStudentCurriculum && isCurrent ? (
                           <AnimatedCharReveal
                             text={s.title}
                             visibleCount={Math.min(slideVisibleCount, s.title.length)}
@@ -2679,7 +2708,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                         )}
                       </>
                     </h3>
-                    {writingChain && isCurrent ? renderCurrentSlideTypingBody() : renderFullSlideBody()}
+                    {mdChainLiveTyping && isCurrent ? renderCurrentSlideTypingBody() : renderFullSlideBody()}
                   </section>
                 )
               })
@@ -2729,7 +2758,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                       titleLenGate === 0 ||
                       slideVisibleCount >= titleLenGate
                     let visibleForBlock: number | undefined
-                    let animateForBlock = teacherWritingMode
+                    let animateForBlock = slideVisibleCount < totalSegments
                     if (solutionSegmentBlock) {
                       animateForBlock = false
                       const typingOn = (worksheetAnswerTypingEnabled?.[wsKey] !== false)
@@ -2739,9 +2768,10 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                           : 0
                         : undefined
                     } else {
-                      visibleForBlock = teacherWritingMode
-                        ? Math.max(0, Math.min(blockLengths[i] ?? 0, slideVisibleCount - (blockOffsets[i] ?? 0)))
-                        : undefined
+                      visibleForBlock = Math.max(
+                        0,
+                        Math.min(blockLengths[i] ?? 0, slideVisibleCount - (blockOffsets[i] ?? 0)),
+                      )
                     }
                     return (
                     <div key={i} className="flex rounded-lg overflow-hidden bg-white shadow-sm border border-slate-100">
@@ -2791,8 +2821,11 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                     liveQuizContext={curriculumId ? { curriculumId, slideIndex: currentIndex, blockIndex: 0 } : undefined}
                     tr={tr}
                     hideQuiz
-                    animateReveal={teacherWritingMode}
-                    visibleCountInBlock={teacherWritingMode ? Math.max(0, Math.min(blockLengths[0] ?? 0, slideVisibleCount - (blockOffsets[0] ?? 0))) : undefined}
+                    animateReveal={slideVisibleCount < totalSegments}
+                    visibleCountInBlock={Math.max(
+                      0,
+                      Math.min(blockLengths[0] ?? 0, slideVisibleCount - (blockOffsets[0] ?? 0)),
+                    )}
                     wordDelayMs={teacherWritingSpeedMs}
                   />
                 </div>

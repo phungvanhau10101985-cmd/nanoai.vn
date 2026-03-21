@@ -580,6 +580,9 @@ export default function CurriculumViewPage() {
   const [answerTypingSpeedMs, setAnswerTypingSpeedMs] = useState(55)
   /** Phiếu bài tập: số segment đã hiển thị cho học sinh (đồng bộ slide HS + màu trên GV). Key: "slideIndex-blockIndex" */
   const [answerRevealProgress, setAnswerRevealProgress] = useState<Record<string, number>>({})
+  /** Giá trị pause mới nhất — effect đổi slide đọc qua ref (không deps `answerTypingPaused` để tránh reset tiến độ khi bấm Tạm dừng). */
+  const answerTypingPausedRef = useRef<Record<string, boolean>>({})
+  answerTypingPausedRef.current = answerTypingPaused
 
   /** Block lời giải đang tới lượt gõ (cùng logic interval) — chỉ block này hiện bút khi `reveal === 0`. */
   const sequentialSolutionLeaderBlockIndex = useMemo(() => {
@@ -821,6 +824,10 @@ export default function CurriculumViewPage() {
   const [remoteTeacherWritingSpeedMs, setRemoteTeacherWritingSpeedMs] = useState(80)
   /** Mốc thời gian vào slide / bật Viết — dùng để trì hoãn gõ nội dung đến khi gõ xong tiêu đề (đồng bộ HS) */
   const slideContentRevealGateAtRef = useRef(0)
+  /** Slide index trước lần đổi `currentIndex` — kế thừa trạng thái tạm dừng gõ sang slide sau. */
+  const prevSlideIndexForTypingPauseRef = useRef<number | null>(null)
+  /** Đổi phiếu/giáo trình → không kế thừa pause từ tài liệu cũ. */
+  const lastTypingDocKeyRef = useRef<string>('')
   const [remoteAutoPlay, setRemoteAutoPlay] = useState(false)
   const [remoteAutoPlayIntervalMs, setRemoteAutoPlayIntervalMs] = useState(5000)
   const pointerThrottleRef = useRef(0)
@@ -1067,14 +1074,51 @@ export default function CurriculumViewPage() {
     sendCurriculumDataToStudent(slides, currentIndex)
   }, [answerVisibility, answerTypingEnabled, worksheetId, curriculumId, studentViewOpened, slides, currentIndex, sendCurriculumDataToStudent])
 
-  /** Đổi slide → reset tiến độ gõ (phiếu hoặc giáo trình có lời giải) */
+  /** Đổi slide → reset tiến độ gõ; giữ tạm dừng nếu slide vừa rời đang tạm dừng cả slide (đồng bộ nút Pause). */
   useEffect(() => {
     if (!worksheetId && !curriculumId) return
+
+    const docKey = `${worksheetId ?? ''}:${curriculumId ?? ''}`
+    if (lastTypingDocKeyRef.current !== docKey) {
+      lastTypingDocKeyRef.current = docKey
+      prevSlideIndexForTypingPauseRef.current = null
+    }
+
+    const prevIdx = prevSlideIndexForTypingPauseRef.current
+    if (prevIdx !== null && prevIdx === currentIndex) {
+      return
+    }
+
+    const sl = slides
+    const paused = answerTypingPausedRef.current
+    let carryPause = false
+    if (prevIdx != null && prevIdx >= 0 && prevIdx < sl.length) {
+      const prevSlide = sl[prevIdx]
+      const prevBlks = prevSlide?.blocks ?? []
+      const prevTypable = typableSolutionBlockIndices(prevBlks, answerRevealJumpOpts).map((bi) => `${prevIdx}-${bi}`)
+      if (prevTypable.length > 0) {
+        carryPause = prevTypable.every((k) => paused[k] === true)
+      }
+    }
+
     setAnswerRevealProgress({})
-    setAnswerTypingPaused({})
+    if (carryPause) {
+      const s = sl[currentIndex]
+      const blks = s?.blocks ?? []
+      const keys = typableSolutionBlockIndices(blks, answerRevealJumpOpts).map((bi) => `${currentIndex}-${bi}`)
+      const seed: Record<string, boolean> = {}
+      for (const k of keys) seed[k] = true
+      setAnswerTypingPaused(keys.length > 0 ? seed : {})
+    } else {
+      setAnswerTypingPaused({})
+    }
     setAnswerRevealJumpPopoverSlideIndex(null)
     answerRevealJumpAnchorRef.current = null
     pauseBeforeAnswerRevealPopoverRef.current = null
+
+    prevSlideIndexForTypingPauseRef.current = currentIndex
+    // Chỉ chạy khi đổi slide / đổi phiên: `slides` lấy từ closure render này (không liệt kê trong deps để tránh reset khi chỉ sửa nội dung).
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- slides chỉ cần đúng khi currentIndex/worksheetId/curriculumId đổi
   }, [currentIndex, worksheetId, curriculumId])
 
 
