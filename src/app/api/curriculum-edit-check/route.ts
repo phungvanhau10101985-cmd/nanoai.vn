@@ -1,11 +1,11 @@
 /**
- * Kiểm tra câu sửa của giáo viên bằng 2 AI: Gemini 2.5 Pro + DeepSeek Reasoner.
+ * Kiểm tra câu sửa của giáo viên bằng 2 lượt Gemini 2.5 Flash.
  * Chỉ chạy khi bấm Lưu/Áp dụng. Cả 2 đồng ý → lưu. Trả về lý do đã lưu / chưa lưu được.
  */
 
 import { NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
-import { GEMINI_25_PRO, GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
+import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
 
 const PROMPT_FULL = `Bạn là chuyên gia kiểm tra giáo trình giáo dục Việt Nam (Công văn 5512/BGDĐT).
 Kiểm tra nội dung giáo trình Markdown dưới đây. Tìm sai sót về:
@@ -18,6 +18,7 @@ Trả về ĐÚNG JSON (không thêm markdown, không giải thích):
 {"correct": false, "errors": ["Mô tả lỗi 1", "Mô tả lỗi 2", ...]} nếu có lỗi. Mỗi lỗi ghi rõ vị trí/vấn đề.`
 
 const PROMPT_REGION = `So sánh 2 đoạn giáo trình. Chỉ trả về JSON, không giải thích thêm.
+Ngữ cảnh: mỗi đoạn gồm tối đa 250 ký tự trước phần sửa + phần sửa. Nội dung sau phần sửa không có – đánh giá dựa trên ngữ cảnh trước.
 
 ĐOẠN GỐC:
 ---
@@ -32,13 +33,45 @@ const PROMPT_REGION = `So sánh 2 đoạn giáo trình. Chỉ trả về JSON, k
 JSON:
 {"correctVersion":"original"|"edited"|"both","originalCorrect":bool,"editedCorrect":bool,"originalReason":"lý do nếu sai"|null,"editedReason":"lý do nếu sai"|null,"explanation":"tóm tắt 1 câu"}`
 
-async function checkWithModel(
+async function checkWithGemini(
   genAI: GoogleGenerativeAI,
-  modelConfig: { model: string },
   content: string,
   prompt: string = PROMPT_FULL
 ): Promise<{ correct: boolean; errors: string[] }> {
-  const model = genAI.getGenerativeModel(modelConfig as { model: 'gemini-2.5-pro' | 'gemini-2.5-flash' })
+  const model = genAI.getGenerativeModel(GEMINI_25_FLASH_NO_THINKING as { model: 'gemini-2.5-flash' })
+  const truncated = content.slice(0, 28000)
+  const result = await model.generateContent(`${prompt}\n\n---\n\n${truncated}`)
+  const text = result.response.text()?.trim() || ''
+  try {
+    const parsed = JSON.parse(text.replace(/```json?\s*/g, '').trim())
+    const correct = !!parsed.correct
+    const errors = Array.isArray(parsed.errors) ? parsed.errors : []
+    return { correct, errors }
+  } catch {
+    return { correct: true, errors: [] }
+  }
+}
+
+async function checkWithDeepSeek(content: string, prompt: string = PROMPT_FULL): Promise<{ correct: boolean; errors: string[] } | null> {
+  const apiKey = process.env.GOOGLE_API_KEY?.trim()
+  if (!apiKey) return null
+  const genAI = new GoogleGenerativeAI(apiKey)
+  const model = genAI.getGenerativeModel(GEMINI_25_FLASH_NO_THINKING as { model: 'gemini-2.5-flash' })
+  const truncated = content.slice(0, 28000)
+  const result = await model.generateContent(`${prompt}\n\n---\n\n${truncated}`)
+  const text = result.response.text()?.trim() || ''
+  try {
+    const parsed = JSON.parse(text.replace(/```json?\s*/g, '').trim())
+    const correct = !!parsed.correct
+    const errors = Array.isArray(parsed.errors) ? parsed.errors : []
+    return { correct, errors }
+  } catch {
+    return null
+  }
+}
+
+async function checkWithGeminiFlash(genAI: GoogleGenerativeAI, content: string, prompt: string = PROMPT_FULL): Promise<{ correct: boolean; errors: string[] }> {
+  const model = genAI.getGenerativeModel(GEMINI_25_FLASH_NO_THINKING as { model: 'gemini-2.5-flash' })
   const truncated = content.slice(0, 28000)
   const result = await model.generateContent(`${prompt}\n\n---\n\n${truncated}`)
   const text = result.response.text()?.trim() || ''
@@ -65,31 +98,19 @@ async function checkRegionWithGemini(
   genAI: GoogleGenerativeAI,
   prompt: string
 ): Promise<RegionCompareResult | null> {
-  const model = genAI.getGenerativeModel(GEMINI_25_PRO as { model: 'gemini-2.5-pro' })
+  const model = genAI.getGenerativeModel(GEMINI_25_FLASH_NO_THINKING as { model: 'gemini-2.5-flash' })
   const result = await model.generateContent(prompt)
   const text = result.response.text()?.trim() || ''
   return parseRegionResult(text)
 }
 
 async function checkRegionWithDeepSeek(prompt: string): Promise<RegionCompareResult | null> {
-  const apiKey = process.env.DEEPSEEK_API_KEY?.trim()
+  const apiKey = process.env.GOOGLE_API_KEY?.trim()
   if (!apiKey) return null
-  const model = process.env.DEEPSEEK_VERIFY_MODEL?.trim() || 'deepseek-reasoner'
-  const res = await fetch('https://api.deepseek.com/chat/completions', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({
-      model,
-      temperature: 0,
-      messages: [
-        { role: 'system', content: 'Trả về đúng JSON theo yêu cầu, không markdown.' },
-        { role: 'user', content: prompt },
-      ],
-    }),
-  })
-  if (!res.ok) return null
-  const data = (await res.json().catch(() => ({}))) as { choices?: Array<{ message?: { content?: string } }> }
-  const text = String(data?.choices?.[0]?.message?.content ?? '').trim()
+  const genAI = new GoogleGenerativeAI(apiKey)
+  const model = genAI.getGenerativeModel(GEMINI_25_FLASH_NO_THINKING as { model: 'gemini-2.5-flash' })
+  const result = await model.generateContent(prompt)
+  const text = result.response.text()?.trim() || ''
   return parseRegionResult(text)
 }
 
@@ -139,11 +160,12 @@ export async function POST(req: Request) {
       ])
       const regionResult = r1 ?? r2
       if (!regionResult) {
-        return NextResponse.json({ error: 'AI không trả về kết quả so sánh. Kiểm tra DEEPSEEK_API_KEY.' }, { status: 500 })
+        return NextResponse.json({ error: 'AI không trả về kết quả so sánh. Kiểm tra GOOGLE_API_KEY.' }, { status: 500 })
       }
       // Chỉ bothAgree=false khi CẢ 2 model trả về VÀ đưa ra ý kiến khác nhau
       const bothAgree = !r1 || !r2 || r1.correctVersion === r2.correctVersion
-      const canSave = bothAgree && regionResult.originalCorrect && regionResult.editedCorrect && regionResult.correctVersion === 'edited'
+      // Cho phép lưu khi bản sửa đúng VÀ AI chọn bản sửa hoặc cả hai đều đúng (không cần originalCorrect – sửa đáp án sai thành đúng là hợp lệ)
+      const canSave = bothAgree && regionResult.editedCorrect && (regionResult.correctVersion === 'edited' || regionResult.correctVersion === 'both')
       const errors: string[] = []
       if (!regionResult.originalCorrect && regionResult.originalReason) errors.push(`Bản gốc sai: ${regionResult.originalReason}`)
       if (!regionResult.editedCorrect && regionResult.editedReason) errors.push(`Bản sửa sai: ${regionResult.editedReason}`)
@@ -166,18 +188,18 @@ export async function POST(req: Request) {
     }
 
     const genAI = new GoogleGenerativeAI(apiKey)
-    const [r1, r2] = await Promise.all([
-      checkWithModel(genAI, GEMINI_25_PRO, toCheck, prompt),
-      checkWithModel(genAI, GEMINI_25_FLASH_NO_THINKING, toCheck, prompt),
+    const [geminiResult, deepSeekResult] = await Promise.all([
+      checkWithGemini(genAI, toCheck, prompt),
+      checkWithDeepSeek(toCheck, prompt),
     ])
-
-    const bothCorrect = r1.correct && r2.correct
-    const allErrors = [...new Set([...r1.errors, ...r2.errors])]
+    const r2 = deepSeekResult ?? (await checkWithGeminiFlash(genAI, toCheck, prompt))
+    const bothCorrect = geminiResult.correct && r2.correct
+    const allErrors = [...new Set([...geminiResult.errors, ...r2.errors])]
 
     return NextResponse.json({
       ok: bothCorrect,
       errors: bothCorrect ? [] : allErrors,
-      model1: { correct: r1.correct },
+      model1: { correct: geminiResult.correct },
       model2: { correct: r2.correct },
     })
   } catch (e) {

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronLeft, ChevronRight, X, Printer, ArrowRight, TrendingUp, CalendarCheck, Lightbulb, BookOpen, Target, BarChart2, Trash2, Play, Pause, Settings2, ClipboardList, Maximize2, PenLine, Timer, RotateCcw, Link2, Copy } from 'lucide-react'
+import { ChevronLeft, ChevronRight, X, Printer, ArrowRight, TrendingUp, CalendarCheck, Lightbulb, BookOpen, Target, BarChart2, Trash2, Play, Pause, Settings2, ClipboardList, Maximize2, Timer, RotateCcw, Link2, Copy, ExternalLink, FileText, Square } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -17,7 +17,10 @@ import {
 import { cn } from '@/lib/utils'
 import { parseCurriculumToSlides, parseContentToBlocks, type AISlideData } from '../lib/curriculum-to-slides'
 import { latexToReadable } from '../lib/latex-to-readable'
-import { ContentEmbed, splitContentWithEmbeds, parseContentEmbeds, splitBlockContentAtQuizBoundary, type EmbedType } from './content-embed'
+import { ContentEmbed, splitContentWithEmbeds, parseContentEmbeds, splitBlockContentAtQuizBoundary } from './content-embed'
+import { AnimatedCharReveal } from './animated-char-reveal'
+import { CurriculumBlockContentWithEmbeds } from './curriculum-block-content-with-embeds'
+import { WorksheetBlockContentWithEmbeds } from './worksheet-block-content-with-embeds'
 import { EmbedInsertDialog } from './embed-insert-dialog'
 import { PresentationControlBar } from './presentation-control-bar'
 import { QuizPopupDialog, extractQuizFromSlide } from './quiz-popup-dialog'
@@ -25,6 +28,9 @@ import { useToast } from '@/hooks/use-toast'
 import { saveSlidesToCurriculum, saveUserCustomizedSlides } from '../actions'
 import { useScreenShare } from '../hooks/use-screen-share'
 import { useScreenShareLive } from '../hooks/use-screen-share-live'
+import { findFirstSequentialSolutionBlockIndex, worksheetAnswerSegmentCount } from '../lib/worksheet-answer-segments'
+import { createPresentationSyncId, getPresentationBroadcastChannelName, LEGACY_PRESENTATION_BROADCAST_CHANNEL } from '../lib/presentation-broadcast'
+import { getStudentSlideWindowConfig, isPathMatchingStudentSlideKind, studentSlideUrlWithSync, STUDENT_WINDOW_NAME_CURRICULUM, STUDENT_WINDOW_NAME_WORKSHEET } from '../lib/student-slide-window'
 
 /** Phát tiếng chuông khi hết giờ (đồng hồ cát học sinh) */
 function playTimerEndBell() {
@@ -102,185 +108,12 @@ function getContentSegmentCount(content: string): number {
   return n
 }
 
-/** Hiệu ứng gõ từng chữ – chế độ tự chạy (trigger) hoặc điều khiển (visibleCount). showCursor: hiện bút chạy theo vị trí đang gõ */
-function AnimatedCharReveal({
-  text,
-  trigger,
-  delayMs = 40,
-  visibleCount: controlledVisibleCount,
-  showCursor,
-}: {
-  text: string
-  trigger?: string | number
-  delayMs?: number
-  visibleCount?: number
-  showCursor?: boolean
-}) {
-  const segments = useMemo(() => {
-    const out: Array<{ type: 'char'; value: string } | { type: 'br' }> = []
-    for (const c of text) {
-      if (c === '\n') out.push({ type: 'br' })
-      else out.push({ type: 'char', value: c })
-    }
-    return out
-  }, [text])
-  const [internalCount, setInternalCount] = useState(0)
-
-  useEffect(() => {
-    if (controlledVisibleCount != null) return
-    setInternalCount(0)
-    if (segments.length === 0) return
-    let start = performance.now()
-    let rafId: number
-    const tick = (now: number) => {
-      const elapsed = now - start
-      const next = Math.min(Math.floor(elapsed / delayMs) + 1, segments.length)
-      setInternalCount(next)
-      if (next < segments.length) rafId = requestAnimationFrame(tick)
-    }
-    rafId = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(rafId)
-  }, [trigger, delayMs, segments.length, controlledVisibleCount])
-
-  const visibleCount = controlledVisibleCount ?? internalCount
-  const isTyping = visibleCount > 0 && visibleCount < segments.length
-
-  return (
-    <span>
-      {segments.slice(0, visibleCount).map((seg, i) =>
-        seg.type === 'br' ? (
-          <br key={i} />
-        ) : (
-          <span
-            key={i}
-            className="inline align-baseline animate-in fade-in duration-75"
-            style={{ animationTimingFunction: 'ease-out', animationFillMode: 'forwards' }}
-          >
-            {seg.value}
-          </span>
-        )
-      )}
-      {showCursor && isTyping && (
-        <span className="inline-flex align-baseline ml-1 animate-write" aria-hidden>
-          <PenLine className="h-4 w-4 text-violet-600 drop-shadow-sm" strokeWidth={2.5} />
-        </span>
-      )}
-    </span>
-  )
-}
-
-function BlockContentWithEmbeds({
-  content,
-  onRemoveEmbed,
-  removeTitle,
-  liveQuizContext,
-  tr,
-  hideQuiz,
-  animateReveal,
-  animateTrigger,
-  wordDelayMs,
-  visibleCountInBlock,
-}: {
-  content: string
-  onRemoveEmbed?: (rawMarker: string) => void
-  removeTitle?: string
-  liveQuizContext?: { curriculumId: string; slideIndex: number; blockIndex: number }
-  tr?: (vi: string, en: string, zh: string, ja: string, ko: string) => string
-  hideQuiz?: boolean
-  animateReveal?: boolean
-  animateTrigger?: string | number
-  wordDelayMs?: number
-  /** Số segment đã hiện trong block (chế độ tuần tự từ trên xuống) */
-  visibleCountInBlock?: number
-}) {
-  const parts = splitContentWithEmbeds(content)
-  let consumed = 0
-  return (
-    <div className="[&_ul]:list-disc [&_ul]:pl-5 [&_ul]:space-y-2 [&_p]:my-2 text-base md:text-lg leading-relaxed">
-      {parts.map((p, i) => {
-        if (p.type === 'text') {
-          const partLen = getTextSegmentCount(p.value)
-          const remaining = visibleCountInBlock != null ? visibleCountInBlock - consumed : partLen
-          const showCount = visibleCountInBlock != null ? Math.max(0, Math.min(partLen, remaining)) : partLen
-          consumed += partLen
-          if (animateReveal) {
-            if (visibleCountInBlock != null) {
-              const cursorHere = showCount > 0 && showCount < partLen
-              return (
-                <div key={i} className="[&_ul]:list-disc [&_ul]:pl-5 [&_ul]:space-y-1">
-                  <AnimatedCharReveal text={p.value} visibleCount={showCount} showCursor={cursorHere} />
-                </div>
-              )
-            }
-            if (animateTrigger != null) {
-              return (
-                <div key={i} className="[&_ul]:list-disc [&_ul]:pl-5 [&_ul]:space-y-1">
-                  <AnimatedCharReveal text={p.value} trigger={animateTrigger} delayMs={wordDelayMs} />
-                </div>
-              )
-            }
-          }
-          return <div key={i} dangerouslySetInnerHTML={{ __html: markdownToHtml(p.value) }} />
-        }
-        const ep = p as { type: 'embed'; embedType: string; urlOrId: string; rawMarker: string }
-        if (hideQuiz && ep.embedType === 'quiz') return null
-        const showEmbed = visibleCountInBlock == null || visibleCountInBlock > consumed
-        consumed += 1
-        if (!showEmbed) return null
-        return (
-          <div key={i} className="relative group">
-            <ContentEmbed type={ep.embedType as EmbedType} urlOrId={ep.urlOrId} width={560} height={350} liveQuizContext={liveQuizContext} tr={tr} hideQuiz={hideQuiz} />
-            {onRemoveEmbed && (
-              <button
-                type="button"
-                onClick={() => onRemoveEmbed(ep.rawMarker)}
-                className="absolute top-2 right-2 opacity-60 hover:opacity-100 group-hover:opacity-100 transition-opacity p-1.5 rounded-md bg-red-500/90 text-white hover:bg-red-600 shadow-lg print:hidden"
-                title={removeTitle ?? 'Xóa biểu đồ'}
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
-            )}
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
 function getIconForHeader(header: string): React.ReactNode {
   const key = header.toLowerCase().trim()
   for (const [k, icon] of Object.entries(ICON_MAP)) {
     if (key.includes(k) || k.includes(key)) return icon
   }
   return <BookOpen className="h-5 w-5" />
-}
-
-function markdownToHtml(text: string): string {
-  let html = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-  const lines = html.split(/\n/)
-  const out: string[] = []
-  let inList = false
-  for (const line of lines) {
-    const bullet = line.match(/^[\-\*]\s+(.+)$/) || line.match(/^\d+\.\s+(.+)$/)
-    if (bullet) {
-      if (!inList) {
-        out.push('<ul class="list-disc pl-5 space-y-1 text-sm">')
-        inList = true
-      }
-      out.push(`<li>${bullet[1]}</li>`)
-    } else {
-      if (inList) {
-        out.push('</ul>')
-        inList = false
-      }
-  if (line.trim()) {
-      out.push(`<p class="leading-relaxed">${line}</p>`)
-      }
-    }
-  }
-  if (inList) out.push('</ul>')
-  return out.join('') || ''
 }
 
 export type VisualCell = { visualEmbed?: string; imageUrl?: string }
@@ -297,6 +130,10 @@ type SlideItem = {
   visualCells?: VisualCell[]
   /** Ghi chú giáo viên – chỉ hiện trong cửa sổ Presenter, học sinh không thấy */
   teacherNotes?: string
+  visualInput1?: string
+  visualInput2?: string
+  visualInput3?: string
+  visualInput4?: string
 }
 
 export type SlideMode = 'original' | 'shared' | 'personal'
@@ -320,6 +157,18 @@ interface NanoAISlideViewerProps {
   sharedSlides?: AISlideData[] | null
   /** Slide hiện tại từ giáo viên (đồng bộ khi mở/refresh) */
   initialSlideIndex?: number
+  /** Chỉ giáo viên mới thấy các nút thao tác lưu/chỉnh visual */
+  isTeacherView?: boolean
+  /** Nút "Mở giao diện học sinh" – khi không truyền và curriculumId=null (phiếu bài tập), tự implement */
+  onOpenStudentView?: () => void
+  /** Phiếu bài tập (xem-slide): hiển thị đáp án theo segment đồng bộ từ giáo viên */
+  worksheetPresentation?: boolean
+  worksheetAnswerReveal?: Record<string, number>
+  worksheetAnswerTypingEnabled?: Record<string, boolean>
+  /** `?sync=` từ URL xem-slide — kênh BroadcastChannel khớp tab GV (học sinh). */
+  presentationBroadcastSyncId?: string | null
+  /** Đồng bộ từ `curriculum-data` (GV) — cột phải một slide / cả khóa */
+  syncedStudentCurriculumRightMode?: 'single-slide' | 'markdown-all' | null
 }
 
 function ScreenShareVideo({ stream }: { stream: MediaStream }) {
@@ -349,17 +198,244 @@ function ScreenShareVideo({ stream }: { stream: MediaStream }) {
   )
 }
 
+/** Trích visual cells từ nội dung slide (blocks, title, content) – dùng cho phiếu bài tập khi không có visualInputs/visualCells. */
+function getVisualCellsFromSlideContent(slide: SlideItem): { layout: 1 | 2 | 4; cells: VisualCell[] } | null {
+  const content = `${slide.title ?? ''}\n${slide.content ?? ''}\n${(slide.blocks ?? []).map((b) => `${b.header ?? ''}\n${b.content ?? ''}`).join('\n')}`
+  const embeds = parseContentEmbeds(content)
+  const mdImageRe = /!\[[^\]]*\]\((https?:\/\/[^\s)]+|data:image\/[^\s)]+)\)/gi
+  const mdImages: Array<{ url: string; index: number }> = []
+  let m: RegExpExecArray | null
+  mdImageRe.lastIndex = 0
+  while ((m = mdImageRe.exec(content)) !== null) {
+    mdImages.push({ url: m[1].trim(), index: m.index })
+  }
+  const items: Array<{ cell: VisualCell; index: number }> = []
+  for (const e of embeds) {
+    if (e.type === 'quiz' || e.type === 'code') continue
+    items.push({ cell: { visualEmbed: e.rawMarker }, index: e.index })
+  }
+  for (const { url, index } of mdImages) {
+    items.push({ cell: { visualEmbed: `[image:${url}]` }, index })
+  }
+  if (items.length === 0) return null
+  items.sort((a, b) => a.index - b.index)
+  const cells = items.map((x) => x.cell)
+  const layout: 1 | 2 | 4 = cells.length >= 3 ? 4 : cells.length === 2 ? 2 : 1
+  const numCells = layout === 1 ? 1 : layout === 2 ? 2 : 4
+  const result: VisualCell[] = [...cells.slice(0, numCells)]
+  while (result.length < numCells) result.push({})
+  return { layout, cells: result }
+}
+
 function getVisualCells(slide: SlideItem): { layout: 1 | 2 | 4; cells: VisualCell[] } {
   const layout = slide.visualLayout ?? 1
   const numCells = layout === 1 ? 1 : layout === 2 ? 2 : 4
-  if (slide.visualCells && slide.visualCells.length >= numCells) {
-    return { layout, cells: slide.visualCells.slice(0, numCells) }
+  // Ưu tiên visualCells từ payload (giáo viên gửi sang) – giao diện học sinh đồng bộ với giáo viên (tự động hoặc nhập thủ công)
+  if (slide.visualCells && slide.visualCells.length > 0) {
+    const cells = slide.visualCells.slice(0, numCells)
+    if (cells.some((c) => c.visualEmbed || c.imageUrl)) return { layout, cells }
   }
-  if (slide.visualEmbed || slide.imageUrl) {
-    const cell: VisualCell = slide.visualEmbed ? { visualEmbed: slide.visualEmbed } : { imageUrl: slide.imageUrl! }
-    return { layout: 1, cells: [cell] }
+  const fromInputs = getVisualCellsFromInputs(slide)
+  if (fromInputs) return fromInputs
+  const autoGeo = getAutoGeoGebraSuggestion(slide)
+  if (slide.visualEmbed) return { layout: 1, cells: [{ visualEmbed: slide.visualEmbed }] }
+  const fromContent = getVisualCellsFromSlideContent(slide)
+  if (fromContent) return fromContent
+  if (autoGeo) {
+    return { layout: 1, cells: [{ visualEmbed: autoGeo.marker }] }
   }
+  if (slide.imageUrl) return { layout: 1, cells: [{ imageUrl: slide.imageUrl }] }
   return { layout, cells: Array.from({ length: numCells }, () => ({})) }
+}
+
+function getSlideVisualInputs(slide: SlideItem): string[] {
+  return [slide.visualInput1, slide.visualInput2, slide.visualInput3, slide.visualInput4]
+    .map((v) => String(v ?? '').trim())
+    .filter(Boolean)
+}
+
+function buildVisualMarkerFromRawInput(rawInput: string, domainConstraint?: string | null): string | null {
+  const raw = String(rawInput || '').trim()
+  if (!raw) return null
+  const markerMatch = raw.match(/^\[(geogebra|desmos|youtube|phet|maps|image|audio|quiz|code|latex|plot):\s*([^\]]+)\]$/i)
+  if (markerMatch?.[1] && markerMatch?.[2]) return `[${markerMatch[1].toLowerCase()}:${markerMatch[2].trim()}]`
+  const mdImage = raw.match(/!\[[^\]]*\]\((https?:\/\/[^\s)]+|data:image\/[^\s)]+)\)/i)?.[1]
+  const url = mdImage || raw.match(/(https?:\/\/[^\s]+|data:image\/[^\s]+)/i)?.[1]
+  if (url) {
+    const u = url.trim()
+    if (/geogebra\.org/i.test(u)) return `[geogebra:${u}]`
+    if (/desmos\.com/i.test(u)) return `[desmos:${u}]`
+    if (/(youtube\.com|youtu\.be)/i.test(u)) return `[youtube:${u}]`
+    if (/phet\.colorado\.edu/i.test(u)) return `[phet:${u}]`
+    if (/\.(mp3|wav|ogg|m4a)(\?.*)?$/i.test(u)) return `[audio:${u}]`
+    if (/^data:image\//i.test(u) || /\.(png|jpe?g|gif|webp|svg|bmp|avif)(\?.*)?$/i.test(u)) return `[image:${u}]`
+    if (/(google\.[^/]+\/maps|goo\.gl\/maps)/i.test(u)) return `[maps:${u}]`
+    return `[maps:${u}]`
+  }
+  const items = extractMultiplePlotExpressions(raw)
+  if (items.length === 0) return null
+  if (items.length === 1) return `[geogebra:${buildGeoGebraUrl(items[0].expr, items[0].domain ?? domainConstraint)}]`
+  return `[geogebra:${buildGeoGebraUrlMultiple(items, domainConstraint)}]`
+}
+
+/** Tách nhiều hàm + điều kiện. Sau dấu phẩy, nếu không phải hàm số thì là điều kiện của hàm đứng trước. VD: "y=x^2, x>=0, y=2x, x>0" */
+function extractMultiplePlotExpressions(raw: string): Array<{ expr: string; domain: string | null }> {
+  const parts = String(raw || '').split(',').map((p) => p.trim()).filter(Boolean)
+  const result: Array<{ expr: string; domain: string | null }> = []
+  const domainRe = /^[xXtT]\s*(>=|<=|>|<|≥|≤)\s*-?\d+(?:[.,]\d+)?$/i
+  for (const part of parts) {
+    const compact = part.replace(/\s+/g, '').replace(/≥/g, '>=').replace(/≤/g, '<=')
+    if (domainRe.test(compact)) {
+      if (result.length > 0) result[result.length - 1].domain = compact
+      continue
+    }
+    const expr = normalizePlotExprCandidate(part)
+    if (expr) result.push({ expr, domain: null })
+  }
+  return result
+}
+
+function buildGeoGebraUrlMultiple(items: Array<{ expr: string; domain: string | null }>, fallbackDomain?: string | null): string {
+  const names = ['f', 'g', 'h', 'i', 'j', 'k']
+  const cmds = items.slice(0, names.length).map((item, i) => {
+    const normalized = item.expr.replace(/\s+/g, '').replace(/\|([^|]+)\|/g, 'abs($1)')
+    const domain = item.domain ?? (i === 0 ? fallbackDomain : null)
+    const rhs = domain ? `If(${domain},${normalized})` : normalized
+    return `${names[i]}(x)=${rhs}`
+  })
+  const command = cmds.join(';')
+  return `https://www.geogebra.org/calculator?command=${encodeURIComponent(command)}`
+}
+
+function getVisualCellsFromInputs(slide: SlideItem): { layout: 1 | 2 | 4; cells: VisualCell[] } | null {
+  const inputs = getSlideVisualInputs(slide)
+  if (inputs.length === 0) return null
+  // Ưu tiên miền xác định do giáo viên nhập trong 4 ô visual,
+  // không suy diễn từ nội dung mô tả để tránh lệch khi render.
+  const domainConstraint = parseDomainConstraintFromSource(inputs.join('\n'))
+  const parsedCells = inputs.map((raw) => {
+    const marker = buildVisualMarkerFromRawInput(raw, domainConstraint)
+    return marker ? ({ visualEmbed: marker } as VisualCell) : ({} as VisualCell)
+  })
+  const layout: 1 | 2 | 4 = inputs.length >= 3 ? 4 : inputs.length === 2 ? 2 : 1
+  const numCells = layout === 1 ? 1 : layout === 2 ? 2 : 4
+  const cells = [...parsedCells.slice(0, numCells)]
+  while (cells.length < numCells) cells.push({})
+  return { layout, cells }
+}
+
+function extractPlotExpressionFromSlide(slide: SlideItem): string | null {
+  const source = `${slide.title}\n${slide.content ?? ''}\n${(slide.blocks ?? []).map((b) => `${b.header}\n${b.content}`).join('\n')}\n${getSlideVisualInputs(slide).join('\n')}`
+  const patterns: RegExp[] = [
+    /y\s*=\s*f\s*\(\s*[xt]\s*\)\s*=\s*([^\n]{2,120})/i,
+    /y\s*=\s*([^\n]{2,120})/i,
+    /\b[a-zA-Z]\s*\(\s*[xt]\s*\)\s*=\s*([^\n]{2,120})/i,
+  ]
+  for (const re of patterns) {
+    const m = source.match(re)
+    if (!m?.[1]) continue
+    const normalized = normalizePlotExprCandidate(m[1])
+    if (normalized) return normalized
+  }
+  return null
+}
+
+function normalizePlotExprCandidate(raw: string): string | null {
+  const rawTrim = String(raw || '').trim()
+  // Chỉ parse khi input có dạng công thức/toán rõ ràng,
+  // tránh nhận nhầm cả câu mô tả tiếng Việt.
+  if (!/^(?:y\s*=|[a-zA-Z]\s*\(\s*[xt]\s*\)\s*=|[xXtT0-9(|+\-])/i.test(rawTrim)) return null
+
+  let s = String(raw || '')
+    .replace(/^\s*y\s*=\s*f\s*\(\s*[xt]\s*\)\s*=\s*/i, '')
+    .replace(/^\s*(?:y|[a-zA-Z]\s*\(\s*[xt]\s*\))\s*=\s*/i, '')
+    // Bỏ miền xác định gắn cuối biểu thức, ví dụ: (t >= 0), (x ≤ 2)
+    .replace(/\(\s*[xXtT]\s*(?:>=|<=|>|<|≥|≤)\s*[-+]?\d+(?:[.,]\d+)?\s*\)\s*$/u, '')
+    .replace(/\(\s*(hình|hinh|figure|fig)\b[^)]*\)/gi, '')
+    .replace(/\.\s*[A-Za-z\u00C0-\u024F].*$/u, '')
+    // Cắt phần mô tả tiếng Việt/Anh ở cuối (tránh "trên" -> t bị nhận thành biến)
+    .replace(/\s+[a-zA-Z\u00C0-\u024F][a-zA-Z0-9\u00C0-\u024F\s,;:.\-()]*$/u, '')
+    // Giữ số thập phân dạng Việt: 24,5 -> 24.5
+    .replace(/(\d)\s*,\s*(\d)/g, '$1.$2')
+    // Chỉ cắt mô tả theo dấu câu không ảnh hưởng số thập phân
+    .replace(/[;!?].*$/, '')
+    .replace(/[∣｜❘│┃¦]/g, '|')
+    .replace(/−/g, '-')
+    .replace(/[–—]/g, '-')
+    .replace(/×/g, '*')
+    .replace(/÷/g, '/')
+    .replace(/\s+/g, '')
+    .replace(/х/gi, 'x')
+  const superscriptMap: Record<string, string> = {
+    '⁰': '0',
+    '¹': '1',
+    '²': '2',
+    '³': '3',
+    '⁴': '4',
+    '⁵': '5',
+    '⁶': '6',
+    '⁷': '7',
+    '⁸': '8',
+    '⁹': '9',
+  }
+  for (const [k, v] of Object.entries(superscriptMap)) {
+    s = s.replace(new RegExp(k, 'g'), `^${v}`)
+  }
+  // Chỉ giữ đoạn biểu thức toán ở đầu câu; bỏ phần chú thích kiểu "(Hình 1.2) ..."
+  const leadingMath = s.match(/^[0-9xXtT+\-*/^().|√π]+/)?.[0] ?? ''
+  s = leadingMath
+  s = s.replace(/(?<![A-Za-z])[tT](?![A-Za-z])/g, 'x')
+  while (/[+\-*/^.(]$/.test(s)) s = s.slice(0, -1)
+  if (!/[xX]/.test(s)) return null
+  if (!/^[0-9xX+\-*/^().|√πa-zA-Z]+$/.test(s)) return null
+  return s
+}
+
+function parseDomainConstraintFromSource(rawSource: string): string | null {
+  const source = String(rawSource || '')
+    .replace(/≥/g, '>=')
+    .replace(/≤/g, '<=')
+    .replace(/[−–—]/g, '-')
+    .replace(/\s+/g, ' ')
+  const explicit = source.match(/(?:^|[\s,(])([xXtT])\s*(>=|<=|>|<)\s*(-?\d+(?:[.,]\d+)?)/)
+  if (explicit?.[1] && explicit[2] && explicit[3]) {
+    const v = explicit[1].toLowerCase() === 't' ? 'x' : explicit[1].toLowerCase()
+    const n = explicit[3].replace(',', '.')
+    return `${v}${explicit[2]}${n}`
+  }
+  const intervalLeftInfinite = source.match(/\(\s*-\s*∞\s*[;,]\s*([+-]?\d+(?:[.,]\d+)?)\s*\)/i)
+  if (intervalLeftInfinite?.[1]) return `x<${intervalLeftInfinite[1].replace(',', '.')}`
+  const intervalRightInfinite = source.match(/\(\s*([+-]?\d+(?:[.,]\d+)?)\s*[;,]\s*\+?\s*∞\s*\)/i)
+  if (intervalRightInfinite?.[1]) return `x>${intervalRightInfinite[1].replace(',', '.')}`
+  return null
+}
+
+function detectDomainConstraintFromSlide(slide: SlideItem): string | null {
+  const source = `${slide.title}\n${slide.content ?? ''}\n${(slide.blocks ?? []).map((b) => `${b.header}\n${b.content}`).join('\n')}\n${getSlideVisualInputs(slide).join('\n')}`
+  return parseDomainConstraintFromSource(source)
+}
+
+function buildGeoGebraUrl(expr: string, domainConstraint?: string | null): string {
+  const normalized = expr
+    .replace(/\s+/g, '')
+    // GeoGebra ổn định hơn với abs(x) so với ký pháp |x| từ SGK
+    .replace(/\|([^|]+)\|/g, 'abs($1)')
+  const rhs = domainConstraint ? `If(${domainConstraint},${normalized})` : normalized
+  return `https://www.geogebra.org/calculator?command=${encodeURIComponent(`f(x)=${rhs}`)}`
+}
+
+function getAutoGeoGebraSuggestion(slide: SlideItem): { expr: string; url: string; marker: string } | null {
+  const inputCells = getVisualCellsFromInputs(slide)
+  if (inputCells?.cells[0]?.visualEmbed) {
+    const marker = inputCells.cells[0].visualEmbed
+    const manualUrl = marker.match(/^\[geogebra:\s*([^\]]+)\]$/i)?.[1]?.trim() ?? ''
+    return { expr: '', url: manualUrl, marker }
+  }
+  const expr = extractPlotExpressionFromSlide(slide)
+  if (!expr) return null
+  const domain = detectDomainConstraintFromSlide(slide)
+  const url = buildGeoGebraUrl(expr, domain)
+  return { expr, url, marker: `[geogebra:${url}]` }
 }
 
 function getBaseSlides(curriculumMarkdown: string, topic: string, aiSlides: AISlideData[] | null | undefined): SlideItem[] {
@@ -367,7 +443,21 @@ function getBaseSlides(curriculumMarkdown: string, topic: string, aiSlides: AISl
   if (aiSlides && aiSlides.length > 0) {
     return aiSlides.map((s) => {
       const base = s as SlideItem
-      return { title: s.title, content: '', blocks: s.blocks, imageUrl: s.imageUrl, visualEmbed: s.visualEmbed, visualLayout: base.visualLayout, visualCells: base.visualCells, teacherNotes: (base as SlideItem).teacherNotes }
+      const hasVisualFromCells = base.visualCells?.some((c) => c.visualEmbed || c.imageUrl)
+      return {
+        title: s.title,
+        content: '',
+        blocks: s.blocks,
+        imageUrl: hasVisualFromCells ? undefined : s.imageUrl,
+        visualEmbed: s.visualEmbed,
+        visualLayout: base.visualLayout,
+        visualCells: base.visualCells,
+        teacherNotes: (base as SlideItem).teacherNotes,
+        visualInput1: base.visualInput1,
+        visualInput2: base.visualInput2,
+        visualInput3: base.visualInput3,
+        visualInput4: base.visualInput4,
+      }
     })
   }
   const readable = latexToReadable(curriculumMarkdown)
@@ -375,7 +465,7 @@ function getBaseSlides(curriculumMarkdown: string, topic: string, aiSlides: AISl
   return topic ? [{ title: topic, content: '' }, ...parsed] : parsed
 }
 
-export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides, curriculumId, subjectId, gradeLevelId, tr, onSlidesSaved, slideMode, originalSlides, personalSlides, sharedSlides, initialSlideIndex }: NanoAISlideViewerProps) {
+export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides, curriculumId, subjectId, gradeLevelId, tr, onSlidesSaved, slideMode, originalSlides, personalSlides, sharedSlides, initialSlideIndex, isTeacherView = true, onOpenStudentView: onOpenStudentViewProp, worksheetPresentation = false, worksheetAnswerReveal, worksheetAnswerTypingEnabled, presentationBroadcastSyncId = null, syncedStudentCurriculumRightMode = null }: NanoAISlideViewerProps) {
   const { toast } = useToast()
   const [slides, setSlides] = useState<SlideItem[]>([])
   const [currentIndex, setCurrentIndex] = useState(0)
@@ -393,6 +483,12 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   const [quizSessionSettings, setQuizSessionSettings] = useState<Record<string, { quizDurationSeconds: number; autoRevealOnTimerEnd: boolean }>>({})
   const [shareDialogOpen, setShareDialogOpen] = useState(false)
   const [shareUrl, setShareUrl] = useState<string | null>(null)
+  /** Tab tạo phiếu bài tập: kênh đồng bộ HS tách biệt với tab GV khác. */
+  const [worksheetTabSyncId] = useState(() => createPresentationSyncId())
+  const presentationBroadcastChannelName = useMemo(
+    () => getPresentationBroadcastChannelName(!isTeacherView ? presentationBroadcastSyncId ?? undefined : undefined),
+    [isTeacherView, presentationBroadcastSyncId]
+  )
   const [shareQrDataUrl, setShareQrDataUrl] = useState<string | null>(null)
   const [shareLoading, setShareLoading] = useState(false)
   const [screenShareOverlayVisible, setScreenShareOverlayVisible] = useState(true)
@@ -410,8 +506,26 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   } = useScreenShareLive()
   const [visualFullscreenOpen, setVisualFullscreenOpen] = useState(false)
   const [expandedCellIndex, setExpandedCellIndex] = useState<number | null>(null)
+  /** Học sinh + giáo trình (không phiếu): cột phải — một slide hoặc toàn bộ slide nối liền (markdown). */
+  const [studentCurriculumRightMode, setStudentCurriculumRightMode] = useState<'single-slide' | 'markdown-all'>('single-slide')
+  const notifyTeacherStudentCurriculumMode = useCallback((mode: 'single-slide' | 'markdown-all') => {
+    try {
+      window.opener?.postMessage({ type: 'student-curriculum-right-mode-changed', mode }, window.location.origin)
+    } catch {
+      /* ignore */
+    }
+  }, [])
+  useEffect(() => {
+    if (syncedStudentCurriculumRightMode !== 'markdown-all' && syncedStudentCurriculumRightMode !== 'single-slide') return
+    setStudentCurriculumRightMode(syncedStudentCurriculumRightMode)
+  }, [syncedStudentCurriculumRightMode])
   const fullscreenOverlayRef = useRef<HTMLDivElement>(null)
   const studentVisualFrameRef = useRef<HTMLDivElement | null>(null)
+  const studentMarkdownAllScrollRef = useRef<HTMLDivElement | null>(null)
+  /** Cột phải HS: khung thật sự có overflow-y-auto (cha của danh sách chuỗi slide). */
+  const studentMdRightColumnScrollRef = useRef<HTMLDivElement | null>(null)
+  /** Khoảng trống cuộn thêm dưới cùng chuỗi slide ≈ ½ chiều cao slide đang chọn. */
+  const [studentMdChainBottomSpacerPx, setStudentMdChainBottomSpacerPx] = useState(160)
   const [timerSeconds, setTimerSeconds] = useState(0)
   const [timerRunning, setTimerRunning] = useState(false)
   const [teacherTimerSeconds, setTeacherTimerSeconds] = useState(0)
@@ -550,6 +664,140 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   }, [])
   closeVisualFullscreenRef.current = closeVisualFullscreen
 
+  /** Phiếu bài tập: mở giao diện học sinh, sync qua postMessage + BroadcastChannel */
+  const studentViewWindowRef = useRef<Window | null>(null)
+  const syncChannelRef = useRef<BroadcastChannel | null>(null)
+  const syncSeqRef = useRef(0)
+  const isWorksheetTeacher = !curriculumId && isTeacherView
+
+  useEffect(() => {
+    if (!isWorksheetTeacher) return
+    syncChannelRef.current = typeof BroadcastChannel !== 'undefined'
+      ? new BroadcastChannel(getPresentationBroadcastChannelName(worksheetTabSyncId))
+      : null
+    return () => { syncChannelRef.current?.close(); syncChannelRef.current = null }
+  }, [isWorksheetTeacher, worksheetTabSyncId])
+
+  const toStudentSlidePayload = useCallback((s: SlideItem) => {
+    const normalized = getVisualCells(s)
+    return {
+      title: s.title,
+      blocks: s.blocks ?? [],
+      teacherNotes: s.teacherNotes ?? '',
+      imageUrl: s.imageUrl,
+      visualEmbed: s.visualEmbed,
+      visualLayout: normalized.layout,
+      visualCells: normalized.cells,
+      visualInput1: s.visualInput1,
+      visualInput2: s.visualInput2,
+      visualInput3: s.visualInput3,
+      visualInput4: s.visualInput4,
+    }
+  }, [])
+
+  const sendToStudentView = useCallback((msg: Record<string, unknown>) => {
+    const payload = { ...msg, __syncSeq: syncSeqRef.current++ }
+    try {
+      const w = studentViewWindowRef.current
+      if (w && !w.closed) w.postMessage(payload, window.location.origin)
+    } catch { /* ignore */ }
+    try { syncChannelRef.current?.postMessage(payload) } catch { /* ignore */ }
+  }, [])
+
+  const sendCurriculumDataToStudent = useCallback((slidesToSend: SlideItem[], currentIndexOverride?: number) => {
+    const idx = typeof currentIndexOverride === 'number' ? currentIndexOverride : currentIndex
+    const payload = {
+      type: 'curriculum-data',
+      content: curriculumMarkdown,
+      topic,
+      currentIndex: Math.max(0, Math.min(idx, slidesToSend.length - 1)),
+      curriculumId: null,
+      slideMode: null,
+      personalViewSubMode: 'current',
+      hasOriginalSlides: false,
+      slides: slidesToSend.map(toStudentSlidePayload),
+      teacherTimerSeconds,
+      teacherTimerRunning,
+    }
+    try {
+      const w = studentViewWindowRef.current
+      if (w && !w.closed) w.postMessage(payload, window.location.origin)
+    } catch { /* ignore */ }
+    try { syncChannelRef.current?.postMessage(payload) } catch { /* ignore */ }
+  }, [curriculumMarkdown, topic, currentIndex, teacherTimerSeconds, teacherTimerRunning, toStudentSlidePayload])
+
+  const openStudentView = useCallback(() => {
+    if (typeof window === 'undefined' || !isWorksheetTeacher || slides.length === 0) return
+    const sw = typeof screen !== 'undefined' ? screen.availWidth || 1920 : 1920
+    const sh = typeof screen !== 'undefined' ? screen.availHeight || 1080 : 1080
+    const features = `width=${sw},height=${sh},left=0,top=0,scrollbars=no,resizable=yes`
+    const { url: baseSlideUrl, windowName } = getStudentSlideWindowConfig(true)
+    const urlWithSync = studentSlideUrlWithSync(baseSlideUrl, worksheetTabSyncId)
+    let targetWin: Window | null = null
+    try { targetWin = window.open('', windowName) } catch { targetWin = null }
+    if (!targetWin || targetWin.closed) targetWin = window.open(urlWithSync, windowName, features)
+    if (!targetWin) {
+      toast({ title: tr('Không mở được giao diện học sinh', 'Cannot open student view', '无法打开学生界面', '生徒画面を開けません', '학생 화면을 열 수 없습니다'), description: tr('Trình duyệt đã chặn popup.', 'Popup was blocked.', '浏览器阻止了弹窗。', 'ポップアップがブロックされました。', '팝업이 차단되었습니다.'), variant: 'destructive' })
+      return
+    }
+    studentViewWindowRef.current = targetWin
+    try {
+      const path = targetWin.location?.pathname || ''
+      const syncOk = new URLSearchParams(targetWin.location.search || '').get('sync') === worksheetTabSyncId
+      if (!isPathMatchingStudentSlideKind(path, 'worksheet') || !syncOk) targetWin.location.href = urlWithSync
+    } catch { /* ignore */ }
+    try { targetWin.focus() } catch { /* ignore */ }
+    const sendState = () => {
+      try {
+        if (targetWin!.closed) return
+        sendCurriculumDataToStudent(slides)
+        targetWin!.postMessage({ type: 'presentation-mode', mode: 'slide-interaction' }, window.location.origin)
+        targetWin!.postMessage({ type: 'slide-go', index: currentIndex }, window.location.origin)
+        targetWin!.postMessage({ type: 'teacher-timer-sync', seconds: teacherTimerSeconds, running: teacherTimerRunning }, window.location.origin)
+      } catch { /* ignore */ }
+    }
+    sendState()
+    setTimeout(sendState, 300)
+  }, [isWorksheetTeacher, slides, currentIndex, teacherTimerSeconds, teacherTimerRunning, sendCurriculumDataToStudent, toast, tr, worksheetTabSyncId])
+
+  useEffect(() => {
+    if (!isWorksheetTeacher) return
+    const handler = (e: MessageEvent) => {
+      if (e.origin !== window.location.origin) return
+      if (e.data?.type === 'request-curriculum' && e.source && slides.length > 0) {
+        try {
+          const src = e.source as Window
+          src.postMessage({
+            type: 'curriculum-data',
+            content: curriculumMarkdown,
+            topic,
+            currentIndex,
+            curriculumId: null,
+            slideMode: null,
+            personalViewSubMode: 'current',
+            hasOriginalSlides: false,
+            slides: slides.map(toStudentSlidePayload),
+            teacherTimerSeconds,
+            teacherTimerRunning,
+          }, window.location.origin)
+          src.postMessage({ type: 'presentation-mode', mode: 'slide-interaction' }, window.location.origin)
+        } catch { /* ignore */ }
+      }
+    }
+    window.addEventListener('message', handler)
+    return () => window.removeEventListener('message', handler)
+  }, [isWorksheetTeacher, curriculumMarkdown, topic, currentIndex, slides, teacherTimerSeconds, teacherTimerRunning, toStudentSlidePayload])
+
+  useEffect(() => {
+    if (!isWorksheetTeacher) return
+    const w = studentViewWindowRef.current
+    if (!w || w.closed) return
+    sendCurriculumDataToStudent(slides)
+    sendToStudentView({ type: 'slide-go', index: currentIndex })
+  }, [isWorksheetTeacher, currentIndex, slides, sendCurriculumDataToStudent, sendToStudentView])
+
+  const effectiveOnOpenStudentView = onOpenStudentViewProp ?? (isWorksheetTeacher && slides.length > 0 ? openStudentView : undefined)
+
   const handleShareClick = useCallback(async () => {
     if (shareInProgressRef.current || shareDialogOpen || shareLoading) return
     if (slides.length === 0) {
@@ -573,6 +821,10 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
           visualEmbed: s.visualEmbed,
           visualLayout: s.visualLayout,
           visualCells: s.visualCells,
+          visualInput1: s.visualInput1,
+          visualInput2: s.visualInput2,
+          visualInput3: s.visualInput3,
+          visualInput4: s.visualInput4,
         })),
         slideMode: slideMode ?? null,
         curriculumId: curriculumId ?? null,
@@ -613,9 +865,11 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   const [screenShareLiveQrUrl, setScreenShareLiveQrUrl] = useState<string | null>(null)
   useEffect(() => {
     if (typeof window === 'undefined') return
-    // Keep a stable name so teacher can reliably refocus this window.
-    if (!window.name) window.name = 'xem-slide'
-  }, [])
+    if (!window.name) {
+      window.name =
+        !isTeacherView && worksheetPresentation ? STUDENT_WINDOW_NAME_WORKSHEET : STUDENT_WINDOW_NAME_CURRICULUM
+    }
+  }, [isTeacherView, worksheetPresentation])
 
   useEffect(() => {
     if (!screenShareLiveUrl) {
@@ -729,6 +983,12 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       else if (t === 'set-teacher-writing-speed' && typeof e.data?.ms === 'number') setTeacherWritingSpeedMs(e.data.ms)
       else if (t === 'set-auto-play' && typeof e.data?.value === 'boolean') setAutoPlay(e.data.value)
       else if (t === 'set-auto-play-interval' && typeof e.data?.ms === 'number') setAutoPlayIntervalMs(e.data.ms)
+      else if (
+        t === 'student-curriculum-right-mode' &&
+        (e.data?.mode === 'markdown-all' || e.data?.mode === 'single-slide')
+      ) {
+        if (!isTeacherView && !worksheetPresentation) setStudentCurriculumRightMode(e.data.mode)
+      }
       else if (t === 'quiz-popup-open' && typeof e.data?.value === 'boolean') setQuizPopupOpen(e.data.value)
       else if (t === 'quiz-session-code' && typeof e.data?.slideIndex === 'number' && typeof e.data?.blockIndex === 'number' && typeof e.data?.sessionCode === 'string') {
         const key = `${e.data.slideIndex}-${e.data.blockIndex}`
@@ -961,7 +1221,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     window.addEventListener('message', handler)
     let channel: BroadcastChannel | null = null
     if (typeof BroadcastChannel !== 'undefined') {
-      channel = new BroadcastChannel('tao-giao-trinh-sync')
+      channel = new BroadcastChannel(presentationBroadcastChannelName)
       const channelHandler = (event: MessageEvent) => {
         handler({ origin: window.location.origin, data: event.data } as MessageEvent)
       }
@@ -974,14 +1234,14 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       }
     }
     return () => window.removeEventListener('message', handler)
-  }, [onSlidesSaved, openVisualFullscreen, closeVisualFullscreen, presentationMode, visualFullscreenOpen])
+  }, [onSlidesSaved, openVisualFullscreen, closeVisualFullscreen, presentationMode, visualFullscreenOpen, presentationBroadcastChannelName, isTeacherView, worksheetPresentation])
 
   useEffect(() => {
     if (typeof BroadcastChannel === 'undefined') return
-    const channel = new BroadcastChannel('tao-giao-trinh-sync')
+    const channel = new BroadcastChannel(presentationBroadcastChannelName)
     channel.postMessage({ type: 'request-curriculum' })
     return () => channel.close()
-  }, [onSlidesSaved, openVisualFullscreen, closeVisualFullscreen, presentationMode, visualFullscreenOpen])
+  }, [onSlidesSaved, openVisualFullscreen, closeVisualFullscreen, presentationMode, visualFullscreenOpen, presentationBroadcastChannelName])
 
   useEffect(() => {
     if (mouseClicks.length === 0) return
@@ -1147,13 +1407,17 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     setSlides(nextSlides)
     const idx = typeof initialSlideIndex === 'number' ? Math.max(0, Math.min(initialSlideIndex, nextSlides.length - 1)) : 0
     setCurrentIndex((prev) => {
+      // Student window must always follow teacher's current slide.
+      if (!isTeacherView && nextSlides.length > 0) {
+        return idx
+      }
       if (!initialSlideSyncedRef.current && nextSlides.length > 0) {
         initialSlideSyncedRef.current = true
         return idx
       }
       return Math.min(prev, nextSlides.length - 1)
     })
-  }, [curriculumMarkdown, topic, aiSlides, slideMode, personalViewSubMode, originalSlides, initialSlideIndex])
+  }, [curriculumMarkdown, topic, aiSlides, slideMode, personalViewSubMode, originalSlides, initialSlideIndex, isTeacherView])
 
   const goNext = useCallback(() => {
     setAutoPlay(false)
@@ -1222,7 +1486,19 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   useEffect(() => {
     persistSlidesRef.current = async (updatedSlides: SlideItem[]) => {
       if (!curriculumId || updatedSlides.length === 0) return
-      const payload = updatedSlides.map((s) => ({ title: s.title, blocks: s.blocks ?? [], imageUrl: s.imageUrl, visualEmbed: s.visualEmbed, visualLayout: s.visualLayout, visualCells: s.visualCells, teacherNotes: s.teacherNotes }))
+      const payload = updatedSlides.map((s) => ({
+        title: s.title,
+        blocks: s.blocks ?? [],
+        imageUrl: s.imageUrl,
+        visualEmbed: s.visualEmbed,
+        visualLayout: s.visualLayout,
+        visualCells: s.visualCells,
+        visualInput1: s.visualInput1,
+        visualInput2: s.visualInput2,
+        visualInput3: s.visualInput3,
+        visualInput4: s.visualInput4,
+        teacherNotes: s.teacherNotes,
+      }))
       if (slideMode === 'personal' || slideMode === 'original') {
         const r = await saveUserCustomizedSlides({ curriculumId, slides: payload })
         if (r?.error) toast({ title: tr('Lỗi lưu', 'Save error', '保存错误', '保存エラー', '저장 오류'), description: r.error, variant: 'destructive' })
@@ -1246,7 +1522,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
           const b = prev[idx + 1]
           const merged: SlideItem = {
             ...a,
-            blocks: [...(a.blocks ?? []), ...(b.blocks ?? [])],
+            blocks: [...(a.blocks || []), ...(b.blocks || [])],
             teacherNotes: a.teacherNotes || b.teacherNotes || '',
           }
           const next = [...prev.slice(0, idx), merged, ...prev.slice(idx + 2)]
@@ -1280,8 +1556,20 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
           } else {
             return prev
           }
-          const slide1: SlideItem = { ...s, blocks: firstBlocks }
-          const slide2: SlideItem = { ...s, title: secondHeader, blocks: secondBlocks, teacherNotes: '', imageUrl: undefined, visualEmbed: undefined, visualLayout: undefined, visualCells: undefined }
+          const slide1: SlideItem = {
+            ...s,
+            blocks: firstBlocks,
+          }
+          const slide2: SlideItem = {
+            ...s,
+            title: secondHeader,
+            blocks: secondBlocks,
+            teacherNotes: '',
+            imageUrl: undefined,
+            visualEmbed: undefined,
+            visualLayout: undefined,
+            visualCells: undefined,
+          }
           const next = [...prev.slice(0, idx), slide1, slide2, ...prev.slice(idx + 1)]
           queueMicrotask(() => { if (curriculumId) void persistSlidesRef.current(next) })
           return next
@@ -1330,7 +1618,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     window.addEventListener('message', handler)
     let channel: BroadcastChannel | null = null
     if (typeof BroadcastChannel !== 'undefined') {
-      channel = new BroadcastChannel('tao-giao-trinh-sync')
+      channel = new BroadcastChannel(LEGACY_PRESENTATION_BROADCAST_CHANNEL)
       channel.addEventListener('message', (event) => {
         handler({ origin: window.location.origin, data: event.data } as MessageEvent)
       })
@@ -1502,6 +1790,21 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       ? parseContentToBlocks(slide!.content ?? '')
       : rawBlocks
   const hasBlocks = blocks.length > 0
+  const visualPaneMeta = slide ? getVisualCells(slide) : { layout: 1 as 1 | 2 | 4, cells: [] as VisualCell[] }
+  const visualLayout = visualPaneMeta.layout
+  const visualCells = visualPaneMeta.cells
+  const visualHasAnyContent = visualCells.some((c) => c.visualEmbed || c.imageUrl)
+  const visualGridClass = visualLayout === 2 ? 'grid grid-rows-2 gap-1' : visualLayout === 4 ? 'grid grid-cols-2 grid-rows-2 gap-1' : ''
+  const autoGeoSuggestion = useMemo(() => {
+    if (!slide) return null
+    return getAutoGeoGebraSuggestion(slide)
+  }, [slide])
+
+  const openAutoGeoGebra = useCallback(() => {
+    if (!autoGeoSuggestion) return
+    if (typeof window === 'undefined') return
+    window.open(autoGeoSuggestion.url, '_blank', 'noopener,noreferrer')
+  }, [autoGeoSuggestion])
 
   const { totalSegments, blockOffsets, blockLengths } = useMemo(() => {
     if (!slide) return { totalSegments: 0, blockOffsets: [] as number[], blockLengths: [] as number[] }
@@ -1520,9 +1823,128 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     return { totalSegments: titleLen + contentLen, blockOffsets: [titleLen], blockLengths: [contentLen] }
   }, [slide, hasBlocks, blocks])
 
+  const { hasSegmentTypingWork, segmentTypingCompleted } = useMemo(() => {
+    if (isTeacherView) return { hasSegmentTypingWork: false, segmentTypingCompleted: true }
+    const useSegmentTyping = worksheetPresentation || !!curriculumId
+    if (!useSegmentTyping || !hasBlocks) return { hasSegmentTypingWork: false, segmentTypingCompleted: true }
+    let hasWork = false
+    let allDone = true
+    blocks.forEach((b, i) => {
+      const bExt = b as { isAnswer?: boolean }
+      const shouldTypeThisBlock = worksheetPresentation ? Boolean(bExt.isAnswer) : true
+      if (!shouldTypeThisBlock) return
+      const key = `${currentIndex}-${i}`
+      const typingOn = worksheetAnswerTypingEnabled?.[key] !== false
+      if (!typingOn) return
+      hasWork = true
+      const total = worksheetAnswerSegmentCount(b.content ?? '')
+      const revealed = worksheetAnswerReveal?.[key] ?? 0
+      if (revealed < total) allDone = false
+    })
+    return { hasSegmentTypingWork: hasWork, segmentTypingCompleted: !hasWork || allDone }
+  }, [isTeacherView, worksheetPresentation, curriculumId, hasBlocks, blocks, currentIndex, worksheetAnswerTypingEnabled, worksheetAnswerReveal])
+
+  /** Chỉ block đang tới lượt gõ segment mới hiện bút ở `visibleSegmentCount === 0` (tránh nhiều bút trên slide ghép). */
+  const sequentialSolutionPenBlockIndex = useMemo(() => {
+    if (isTeacherView) return null
+    if (!hasBlocks || !slide) return null
+    if (!(worksheetPresentation || curriculumId)) return null
+    return findFirstSequentialSolutionBlockIndex(
+      blocks as Array<{ content?: string; isAnswer?: boolean }>,
+      currentIndex,
+      {
+        worksheetPresentation,
+        hasCurriculumSegmentTyping: !!curriculumId,
+        reveal: worksheetAnswerReveal,
+        typingEnabled: worksheetAnswerTypingEnabled,
+      }
+    )
+  }, [
+    isTeacherView,
+    hasBlocks,
+    slide,
+    worksheetPresentation,
+    curriculumId,
+    blocks,
+    currentIndex,
+    worksheetAnswerReveal,
+    worksheetAnswerTypingEnabled,
+  ])
+
+  /** Chế độ “Chuỗi slide” trên cột phải: cuộn để đỉnh slide đang chọn nằm phía trên khung (dễ nhìn từ xa). */
+  useEffect(() => {
+    if (isTeacherView || worksheetPresentation) return
+    if (studentCurriculumRightMode !== 'markdown-all') return
+    if (slides.length === 0) return
+    const id = `nano-student-md-slide-${currentIndex}`
+    const t = window.setTimeout(() => {
+      const el = document.getElementById(id) as HTMLElement | null
+      const container = studentMdRightColumnScrollRef.current
+      if (el && container) {
+        const cRect = container.getBoundingClientRect()
+        const eRect = el.getBoundingClientRect()
+        const elTopInContent = eRect.top - cRect.top + container.scrollTop
+        // Đặt mép trên thẻ slide ~18% chiều cao vùng cuộn dưới mép trên (cao hơn block:center)
+        const bias = Math.max(56, Math.round(container.clientHeight * 0.18))
+        // Cuộn thêm để đưa slide lên ~100px (dễ nhìn từ xa)
+        const extraScrollUpPx = 100
+        const maxScroll = Math.max(0, container.scrollHeight - container.clientHeight)
+        const nextTop = Math.min(
+          maxScroll,
+          Math.max(0, elTopInContent - bias + extraScrollUpPx),
+        )
+        container.scrollTo({ top: nextTop, behavior: 'smooth' })
+      } else {
+        el?.scrollIntoView({ behavior: 'smooth', block: 'start', inline: 'nearest' })
+      }
+    }, 100)
+    return () => window.clearTimeout(t)
+  }, [currentIndex, studentCurriculumRightMode, slides.length, isTeacherView, worksheetPresentation])
+
+  /** Chuỗi slide (HS): thêm vùng cuộn dưới cùng ~½ chiều cao slide hiện tại để slide không dính sát đáy khung. */
+  useLayoutEffect(() => {
+    if (isTeacherView || worksheetPresentation) return
+    if (studentCurriculumRightMode !== 'markdown-all') return
+    if (slides.length === 0) return
+
+    let ro: ResizeObserver | null = null
+    let cancelled = false
+
+    const bind = (el: HTMLElement) => {
+      ro?.disconnect()
+      ro = null
+      const update = () => {
+        if (cancelled || !el.isConnected) return
+        const h = el.getBoundingClientRect().height
+        setStudentMdChainBottomSpacerPx(Math.max(48, Math.round(h / 2)))
+      }
+      update()
+      ro = new ResizeObserver(update)
+      ro.observe(el)
+    }
+
+    const tryBind = () => {
+      const el = document.getElementById(`nano-student-md-slide-${currentIndex}`) as HTMLElement | null
+      if (el && !cancelled) bind(el)
+    }
+
+    tryBind()
+    const raf = requestAnimationFrame(tryBind)
+
+    return () => {
+      cancelled = true
+      cancelAnimationFrame(raf)
+      ro?.disconnect()
+    }
+  }, [currentIndex, studentCurriculumRightMode, slides.length, isTeacherView, worksheetPresentation])
+
   useEffect(() => {
     if (!autoPlay || slides.length <= 1) return
+    let advanced = false
+    const startedAt = Date.now()
     const advance = () => {
+      if (advanced) return
+      advanced = true
       setTransitionDirection('next')
       setCurrentIndex((i) => {
         const next = i >= slides.length - 1 ? 0 : i + 1
@@ -1532,15 +1954,16 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         return next
       })
     }
-    if (teacherWritingMode && totalSegments > 0) {
-      const typingDuration = totalSegments * teacherWritingSpeedMs
-      const delay = Math.max(typingDuration, autoPlayIntervalMs)
-      const id = window.setTimeout(advance, delay)
-      return () => window.clearTimeout(id)
-    }
-    const id = window.setInterval(advance, autoPlayIntervalMs)
+    const id = window.setInterval(() => {
+      const timeReady = Date.now() - startedAt >= autoPlayIntervalMs
+      const teacherWritingReady = !teacherWritingMode || totalSegments <= 0 || slideVisibleCount >= totalSegments
+      const segmentTypingReady = !hasSegmentTypingWork || segmentTypingCompleted
+      // Auto chuyển slide chỉ khi đủ 2 điều kiện:
+      // (1) Hết thời gian chờ, (2) Đã gõ xong nội dung đang hiển thị.
+      if (timeReady && teacherWritingReady && segmentTypingReady) advance()
+    }, 120)
     return () => window.clearInterval(id)
-  }, [autoPlay, slides.length, autoPlayIntervalMs, presentationMode, teacherWritingMode, totalSegments, teacherWritingSpeedMs])
+  }, [autoPlay, slides.length, autoPlayIntervalMs, presentationMode, teacherWritingMode, totalSegments, slideVisibleCount, hasSegmentTypingWork, segmentTypingCompleted])
 
   useEffect(() => {
     if (!teacherWritingMode || totalSegments === 0) {
@@ -1575,7 +1998,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       >
         <div className="[direction:ltr] w-max">
           <PresentationControlBar
-            variant={presentationMode === 'slide-interaction' ? 'teacher' : 'student'}
+            variant={isWorksheetTeacher || presentationMode === 'slide-interaction' ? 'teacher' : 'student'}
             tr={tr}
             currentIndex={currentIndex}
             totalSlides={slides.length}
@@ -1612,7 +2035,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
             isScreenShareLiveActive={isScreenShareLiveActive}
             slideViewMode={undefined}
             onSlideViewModeChange={undefined}
-            onOpenStudentView={undefined}
+            onOpenStudentView={effectiveOnOpenStudentView}
             highlightedControl={null}
             hideTeacherTimer
             hideInsert
@@ -1814,23 +2237,30 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         const displayCells = showSingleCell && cells[expandedCellIndex] ? [cells[expandedCellIndex]] : cells
         const displayIndices = showSingleCell && expandedCellIndex != null ? [expandedCellIndex] : cells.map((_, i) => i)
         const gridClass = !showSingleCell && layout === 2 ? 'grid grid-rows-2 gap-2' : !showSingleCell && layout === 4 ? 'grid grid-cols-2 grid-rows-2 gap-2' : ''
-        const renderCell = (cell: { visualEmbed?: string; imageUrl?: string }, idx: number, label: string) => (
-          <div key={idx} className="flex-1 min-h-0 relative rounded-xl overflow-hidden bg-black/30 border border-white/10" onClick={(e) => e.stopPropagation()}>
+        const renderCell = (cell: { visualEmbed?: string; imageUrl?: string }, idx: number, label: string) => {
+          const cellKey = `${currentIndex}-${displayIndices[idx] ?? idx}`
+          return (
+          <div key={cellKey} className="flex-1 min-h-0 relative rounded-xl overflow-hidden bg-black/30 border border-white/10" onClick={(e) => e.stopPropagation()}>
             <span className="absolute top-2 left-2 z-10 px-2 py-1 rounded bg-black/60 text-white text-sm font-mono pointer-events-none">{label}</span>
             {cell.visualEmbed ? (
               (() => {
                 const embeds = parseContentEmbeds(cell.visualEmbed)
                 const first = embeds[0]
                 if (!first) return <div className="w-full h-full" />
-                return <div className="w-full h-full"><ContentEmbed type={first.type} urlOrId={first.urlOrId} tr={tr} hideQuiz fill className="!my-0 !rounded-xl !border-0" /></div>
+                return (
+                  <div className="w-full h-full" key={`nano-fs-vis-${cellKey}-${first.type}-${first.urlOrId.slice(0, 80)}`}>
+                    <ContentEmbed type={first.type} urlOrId={first.urlOrId} tr={tr} hideQuiz fill className="!my-0 !rounded-xl !border-0" />
+                  </div>
+                )
               })()
             ) : cell.imageUrl ? (
-              <img src={cell.imageUrl} alt="" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
+              <img key={`nano-fs-img-${cellKey}`} src={cell.imageUrl} alt="" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
             ) : (
               <div className="w-full h-full bg-white/5" />
             )}
           </div>
-        )
+          )
+        }
         return (
           <div
             ref={fullscreenOverlayRef}
@@ -1890,7 +2320,11 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       {/* Slide - Neo phải: thu nhỏ chỉ cắt bên trái, không co layout */}
       <div className={cn('flex-1 flex overflow-hidden print:hidden relative justify-end', presentationMode === 'slide-interaction' && 'pointer-events-auto')}>
         <div
-          key={currentIndex}
+          key={
+            !isTeacherView && !worksheetPresentation && studentCurriculumRightMode === 'markdown-all'
+              ? 'student-curriculum-md-all'
+              : currentIndex
+          }
           className="absolute inset-0 flex opacity-100 transition-opacity duration-200 ease-out justify-end"
         >
         <div
@@ -1902,146 +2336,471 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
           <div className="absolute top-2 left-2 md:top-4 md:left-4 landscape:top-4 landscape:left-4 w-8 h-8 md:w-9 md:h-9 landscape:w-9 landscape:h-9 rounded-full bg-red-500 flex items-center justify-center text-white font-bold text-xs md:text-sm landscape:text-sm shadow-lg z-10">
             {currentIndex + 1}
           </div>
-          {(() => {
-            const { layout, cells } = getVisualCells(slide)
-            const slideNum = currentIndex + 1
-            const hasAnyContent = cells.some((c) => c.visualEmbed || c.imageUrl)
-            const gridClass = layout === 2 ? 'grid grid-rows-2 gap-1' : layout === 4 ? 'grid grid-cols-2 grid-rows-2 gap-1' : ''
-            return (
-              <>
-                <div className={cn('absolute inset-0 pt-12 md:pt-14 landscape:pt-14 pb-2 md:pb-4 landscape:pb-4 px-2 md:px-4 landscape:px-4', layout === 1 ? 'flex flex-col' : gridClass)}>
-                  {layout === 1 ? (
-                    <div className="flex-1 min-h-0 relative rounded-lg overflow-hidden bg-black/30 border border-white/10">
-                      <span className="absolute top-1 left-1 z-10 px-1.5 py-0.5 rounded bg-black/60 text-white text-xs font-mono">
-                        {slideNum}-1
-                      </span>
-                      {cells[0]?.visualEmbed ? (
-                        (() => {
-                          const embeds = parseContentEmbeds(cells[0].visualEmbed)
-                          const first = embeds[0]
-                          if (!first) return <div className="w-full h-full" />
-                          return <div className="w-full h-full"><ContentEmbed type={first.type} urlOrId={first.urlOrId} tr={tr} hideQuiz fill className="!my-0 !rounded-lg !border-0" /></div>
-                        })()
-                      ) : cells[0]?.imageUrl ? (
-                        <img src={cells[0].imageUrl} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center"><div className="w-8 h-8 rounded bg-white/5" /></div>
-                      )}
-                    </div>
-                  ) : (
-                    <>
-                      {cells.map((cell, idx) => (
-                        <div key={idx} className="relative rounded-lg overflow-hidden bg-black/30 border border-white/10 min-h-0 group">
-                          <span className="absolute top-1 left-1 z-10 px-1.5 py-0.5 rounded bg-black/60 text-white text-xs font-mono">
-                            {slideNum}-{idx + 1}
-                          </span>
-                          {(cell.visualEmbed || cell.imageUrl) && (
-                            <button
-                              type="button"
-                              onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); openVisualFullscreen(idx) }}
-                              onClick={(e) => { e.stopPropagation(); openVisualFullscreen(idx) }}
-                              className="absolute top-1 right-1 z-10 opacity-50 group-hover:opacity-100 p-1 rounded bg-black/60 text-white hover:bg-black/80 transition-opacity"
-                              title={tr('Mở rộng ô này', 'Expand this cell', '展开此格', 'このセルを展開', '이 셀 확장')}
-                            >
-                              <Maximize2 className="h-3 w-3" />
-                            </button>
-                          )}
-                          {cell.visualEmbed ? (
-                            (() => {
-                              const embeds = parseContentEmbeds(cell.visualEmbed)
-                              const first = embeds[0]
-                              if (!first) return <div className="w-full h-full" />
-                              return <div className="w-full h-full"><ContentEmbed type={first.type} urlOrId={first.urlOrId} tr={tr} hideQuiz fill className="!my-0 !rounded-lg !border-0" /></div>
-                            })()
-                          ) : cell.imageUrl ? (
-                            <img src={cell.imageUrl} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center"><div className="w-8 h-8 rounded bg-white/5" /></div>
-                          )}
+          {visualHasAnyContent && (
+            <button
+              type="button"
+              onMouseDown={(e) => { e.preventDefault(); openVisualFullscreen() }}
+              onClick={() => openVisualFullscreen()}
+              className="absolute top-2 right-2 z-20 flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md bg-black/60 p-2 text-white opacity-60 shadow-lg hover:bg-black/80 hover:opacity-100 md:top-4 md:right-10 md:min-h-0 md:min-w-0 md:p-1.5 landscape:top-4 landscape:right-10 landscape:min-h-0 landscape:min-w-0 landscape:p-1.5 print:hidden"
+              title={tr('Mở rộng tất cả', 'Expand all', '展开全部', 'すべて展開', '모두 확장')}
+            >
+              <Maximize2 className="h-4 w-4" />
+            </button>
+          )}
+          {isTeacherView && autoGeoSuggestion && (
+            <div className="absolute top-2 right-14 z-10 flex items-center gap-1.5 md:top-4 md:right-20 landscape:top-4 landscape:right-20">
+              <button
+                type="button"
+                onMouseDown={(e) => { e.preventDefault(); openAutoGeoGebra() }}
+                onClick={(e) => { e.stopPropagation(); openAutoGeoGebra() }}
+                className="flex items-center gap-1 rounded-md bg-black/60 px-2 py-1 text-[11px] text-white hover:bg-black/80 md:text-xs"
+                title={tr('Chỉnh trong GeoGebra', 'Edit in GeoGebra', '在GeoGebra中编辑', 'GeoGebraで編集', 'GeoGebra에서 편집')}
+              >
+                <ExternalLink className="h-3 w-3" />
+                {tr('GeoGebra', 'GeoGebra', 'GeoGebra', 'GeoGebra', 'GeoGebra')}
+              </button>
+            </div>
+          )}
+          <div
+            className={cn(
+              'absolute inset-0 px-2 pb-2 pt-12 md:px-4 md:pb-4 md:pt-14 landscape:px-4 landscape:pb-4 landscape:pt-14',
+              visualLayout === 1 ? 'flex flex-col' : visualGridClass
+            )}
+          >
+              {visualLayout === 1 ? (
+                <div key={`nano-vis-pane-${currentIndex}`} className="relative flex-1 min-h-0 overflow-hidden rounded-lg border border-white/10 bg-black/30">
+                  <span className="absolute left-1 top-1 z-10 rounded bg-black/60 px-1.5 py-0.5 font-mono text-xs text-white">
+                    {currentIndex + 1}-1
+                  </span>
+                  {visualCells[0]?.visualEmbed ? (
+                    (() => {
+                      const embeds = parseContentEmbeds(visualCells[0].visualEmbed)
+                      const first = embeds[0]
+                      if (!first) return <div className="h-full w-full" />
+                      return (
+                        <div className="h-full w-full" key={`nano-vis-${currentIndex}-0-${first.type}-${first.urlOrId.slice(0, 80)}`}>
+                          <ContentEmbed type={first.type} urlOrId={first.urlOrId} tr={tr} hideQuiz fill className="!my-0 !rounded-lg !border-0" />
                         </div>
-                      ))}
-                    </>
+                      )
+                    })()
+                  ) : visualCells[0]?.imageUrl ? (
+                    <img
+                      key={`nano-vis-img-${currentIndex}-0`}
+                      src={visualCells[0].imageUrl}
+                      alt=""
+                      className="h-full w-full object-cover"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center">
+                      <div className="h-8 w-8 rounded bg-white/5" />
+                    </div>
                   )}
                 </div>
-                {hasAnyContent && (
-                  <button
-                    type="button"
-                    onMouseDown={(e) => { e.preventDefault(); openVisualFullscreen() }}
-                    onClick={() => openVisualFullscreen()}
-                    className="absolute top-2 right-2 md:top-4 md:right-10 landscape:top-4 landscape:right-10 opacity-60 hover:opacity-100 p-2 md:p-1.5 landscape:p-1.5 rounded-md bg-black/60 text-white hover:bg-black/80 shadow-lg print:hidden z-10 min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0 landscape:min-w-0 landscape:min-h-0 flex items-center justify-center"
-                    title={tr('Mở rộng tất cả', 'Expand all', '展开全部', 'すべて展開', '모두 확장')}
-                  >
-                    <Maximize2 className="h-4 w-4" />
-                  </button>
-                )}
-              </>
-            )
-          })()}
+              ) : (
+                <>
+                  {visualCells.map((cell, idx) => (
+                    <div key={`${currentIndex}-${idx}`} className="group relative min-h-0 overflow-hidden rounded-lg border border-white/10 bg-black/30">
+                      <span className="absolute left-1 top-1 z-10 rounded bg-black/60 px-1.5 py-0.5 font-mono text-xs text-white">
+                        {currentIndex + 1}-{idx + 1}
+                      </span>
+                      {(cell.visualEmbed || cell.imageUrl) && (
+                        <button
+                          type="button"
+                          onMouseDown={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            openVisualFullscreen(idx)
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            openVisualFullscreen(idx)
+                          }}
+                          className="absolute right-1 top-1 z-10 rounded bg-black/60 p-1 text-white opacity-50 transition-opacity hover:bg-black/80 group-hover:opacity-100"
+                          title={tr('Mở rộng ô này', 'Expand this cell', '展开此格', 'このセルを展開', '이 셀 확장')}
+                        >
+                          <Maximize2 className="h-3 w-3" />
+                        </button>
+                      )}
+                      {cell.visualEmbed ? (
+                        (() => {
+                          const embeds = parseContentEmbeds(cell.visualEmbed)
+                          const first = embeds[0]
+                          if (!first) return <div className="h-full w-full" />
+                          return (
+                            <div className="h-full w-full" key={`nano-vis-${currentIndex}-${idx}-${first.type}-${first.urlOrId.slice(0, 80)}`}>
+                              <ContentEmbed type={first.type} urlOrId={first.urlOrId} tr={tr} hideQuiz fill className="!my-0 !rounded-lg !border-0" />
+                            </div>
+                          )
+                        })()
+                      ) : cell.imageUrl ? (
+                        <img
+                          key={`nano-vis-img-${currentIndex}-${idx}`}
+                          src={cell.imageUrl}
+                          alt=""
+                          className="h-full w-full object-cover"
+                          referrerPolicy="no-referrer"
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center">
+                          <div className="h-8 w-8 rounded bg-white/5" />
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
         </div>
 
-        {/* Content: luôn giữ 55% chiều rộng, không co */}
-        <div className="w-[55%] flex flex-col justify-start p-4 md:p-8 lg:p-12 landscape:p-8 overflow-y-auto bg-white min-h-0 shrink-0">
-          <div className="mb-4 md:mb-6 landscape:mb-6 flex items-start gap-2 flex-wrap">
-            <h2 className="text-xl md:text-2xl lg:text-3xl landscape:text-2xl font-bold text-slate-900 flex-1">
-              {teacherWritingMode ? (
-                <AnimatedCharReveal
-                  text={slide.title}
-                  visibleCount={Math.min(slideVisibleCount, slide.title.length)}
-                  showCursor={slideVisibleCount > 0 && slideVisibleCount < slide.title.length}
-                />
-              ) : (
-                slide.title
-              )}
-            </h2>
-            {extractQuizFromSlide(slide).length > 0 ? (
-              <Button variant="outline" size="sm" onClick={() => setQuizPopupOpen(true)} className="shrink-0 border-violet-400 text-violet-700 hover:bg-violet-50 print:hidden mt-[31px]">
-                <ClipboardList className="h-4 w-4 mr-1.5" />
-                {tr('Xem câu hỏi trắc nghiệm', 'View quiz', '查看测验', 'クイズを見る', '퀴즈 보기')}
-              </Button>
-            ) : null}
-          </div>
-          {hasBlocks ? (
-            <div className="space-y-4">
-              {blocks.map((b, i) => (
-                <div key={i} className="flex rounded-lg overflow-hidden bg-white shadow-sm border border-slate-100">
-                  <div className="w-24 min-w-[96px] bg-violet-100 flex flex-col items-center justify-center p-3">
-                    <div className="text-violet-600">
-                      {getIconForHeader(b.header)}
+        {/* Content: luôn giữ 55% — thanh chế độ HS nằm sát dưới header (cùng băng với vùng pt-12/pt-14 bên visual) */}
+        <div className="flex min-h-0 w-[55%] shrink-0 flex-col bg-white">
+          {!isTeacherView && !worksheetPresentation && slides.length > 0 && (
+            <div
+              className="flex h-12 shrink-0 items-center border-b border-slate-200 bg-white px-3 shadow-sm print:hidden md:h-14 md:px-6 lg:px-8 landscape:px-6"
+              data-control="student-curriculum-mode"
+            >
+              <div className="ml-[50px] flex shrink-0 items-center gap-2 md:gap-2.5">
+              <button
+                type="button"
+                data-control="student-curriculum-all"
+                onClick={() => {
+                  setStudentCurriculumRightMode('markdown-all')
+                  notifyTeacherStudentCurriculumMode('markdown-all')
+                }}
+                className={cn(
+                  'flex h-8 shrink-0 items-center gap-1 rounded-lg border px-2.5 text-xs font-medium transition-colors md:h-9 md:px-3 md:text-sm',
+                  studentCurriculumRightMode === 'markdown-all'
+                    ? 'border-emerald-500 bg-emerald-50 text-emerald-800 ring-1 ring-emerald-400/50'
+                    : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100'
+                )}
+                title={tr(
+                  'Nhiều slide nối liền (markdown), cuộn theo slide đang chiếu',
+                  'Connected slides (markdown), scrolls with the active slide',
+                  '多张幻灯片连贯显示（Markdown），随当前页滚动',
+                  'スライドを連続表示（Markdown）、表示中のスライドに追従',
+                  '슬라이드 연속 보기(Markdown), 현재 슬라이드에 맞춰 스크롤'
+                )}
+              >
+                <FileText className="h-3.5 w-3.5 shrink-0 md:h-4 md:w-4" />
+                {tr('Chuỗi slide', 'Slide sequence', '连续幻灯片', 'スライド連続', '슬라이드 연속')}
+              </button>
+              <button
+                type="button"
+                data-control="student-curriculum-single"
+                onClick={() => {
+                  setStudentCurriculumRightMode('single-slide')
+                  notifyTeacherStudentCurriculumMode('single-slide')
+                }}
+                className={cn(
+                  'flex h-8 shrink-0 items-center gap-1 rounded-lg border px-2.5 text-xs font-medium transition-colors md:h-9 md:px-3 md:text-sm',
+                  studentCurriculumRightMode === 'single-slide'
+                    ? 'border-amber-400 bg-amber-50 text-amber-900 ring-1 ring-amber-400/50'
+                    : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100'
+                )}
+                title={tr(
+                  'Chỉ xem một slide tại một thời điểm',
+                  'Show one slide at a time',
+                  '一次只查看一张幻灯片',
+                  '一度に1枚のスライドのみ表示',
+                  '한 번에 슬라이드 한 장만 표시'
+                )}
+              >
+                <Square className="h-3.5 w-3.5 shrink-0 md:h-4 md:w-4" />
+                {tr('Slide đơn', 'Single slide', '单张幻灯片', '1枚のスライド', '슬라이드 한 장')}
+              </button>
+              </div>
+            </div>
+          )}
+          <div
+            ref={studentMdRightColumnScrollRef}
+            className="min-h-0 flex-1 overflow-y-auto p-4 md:p-8 lg:p-12 landscape:p-8"
+          >
+          {!isTeacherView && !worksheetPresentation && studentCurriculumRightMode === 'markdown-all' && slides.length > 0 ? (
+            <div ref={studentMarkdownAllScrollRef} className="space-y-6 pb-6 text-left">
+              {(() => {
+                const mdAllStudentCurriculum =
+                  !isTeacherView && !worksheetPresentation && studentCurriculumRightMode === 'markdown-all'
+                /** Chuỗi slide (HS): chỉ hiện các slide đã tới — không render slide phía sau (danh sách theo tiến độ). */
+                const mdAllSlidesToShow = mdAllStudentCurriculum ? slides.slice(0, currentIndex + 1) : slides
+                const writingChain = mdAllStudentCurriculum && teacherWritingMode
+                return mdAllSlidesToShow.map((s, si) => {
+                const rawBlks =
+                  Array.isArray(s.blocks) && s.blocks.length > 0 ? s.blocks : s.content ? parseContentToBlocks(s.content ?? '') : []
+                const blksForSlide =
+                  rawBlks.length > 0 && rawBlks.every((b) => !(b.content ?? '').trim()) && (s.content ?? '').trim()
+                    ? parseContentToBlocks(s.content ?? '')
+                    : rawBlks
+                const isCurrent = si === currentIndex
+
+                const renderFullSlideBody = () =>
+                  blksForSlide.length > 0 ? (
+                    <div className="space-y-4">
+                      {blksForSlide.map((b, bi) => {
+                        const bExt = b as { studentAnswerHidden?: boolean }
+                        if (!isTeacherView && bExt.studentAnswerHidden) return null
+                        return (
+                          <div key={bi} className="border-t border-slate-200 pt-4 first:border-t-0 first:pt-0">
+                            {b.header ? (
+                              <div className="mb-2 text-xs font-bold text-violet-800">{b.header}</div>
+                            ) : null}
+                            <div className="text-slate-800">
+                              <CurriculumBlockContentWithEmbeds
+                                content={b.content ?? ''}
+                                liveQuizContext={curriculumId ? { curriculumId, slideIndex: si, blockIndex: bi } : undefined}
+                                tr={tr}
+                                hideQuiz
+                              />
+                            </div>
+                          </div>
+                        )
+                      })}
                     </div>
-                    <div className="mt-2 w-full flex flex-col items-center gap-0.5">
-                      <span className="text-xs font-bold text-violet-700 text-center leading-tight">
-                        {b.header}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex-1 p-5 text-slate-800">
-                    <BlockContentWithEmbeds
-                      content={b.content}
-                      liveQuizContext={curriculumId ? { curriculumId, slideIndex: currentIndex, blockIndex: i } : undefined}
+                  ) : (s.content ?? '').trim() ? (
+                    <CurriculumBlockContentWithEmbeds
+                      content={s.content ?? ''}
+                      liveQuizContext={curriculumId ? { curriculumId, slideIndex: si, blockIndex: 0 } : undefined}
                       tr={tr}
                       hideQuiz
-                      animateReveal={teacherWritingMode}
-                      visibleCountInBlock={teacherWritingMode ? Math.max(0, Math.min(blockLengths[i] ?? 0, slideVisibleCount - (blockOffsets[i] ?? 0))) : undefined}
-                      wordDelayMs={teacherWritingSpeedMs}
                     />
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : slide.content ? (
-            <div className="text-slate-700 text-base md:text-lg leading-relaxed [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:space-y-2">
-              <BlockContentWithEmbeds
-                content={slide.content}
-                liveQuizContext={curriculumId ? { curriculumId, slideIndex: currentIndex, blockIndex: 0 } : undefined}
-                tr={tr}
-                hideQuiz
-                animateReveal={teacherWritingMode}
-                visibleCountInBlock={teacherWritingMode ? Math.max(0, Math.min(blockLengths[0] ?? 0, slideVisibleCount - (blockOffsets[0] ?? 0))) : undefined}
-                wordDelayMs={teacherWritingSpeedMs}
+                  ) : null
+
+                const renderCurrentSlideTypingBody = () => {
+                  if (!slide) return null
+                  if (hasBlocks) {
+                    return (
+                      <div className="space-y-4">
+                        {blocks.map((b, i) => {
+                          const bExt = b as { isAnswer?: boolean; studentAnswerHidden?: boolean }
+                          if (!isTeacherView && bExt.studentAnswerHidden) return null
+                          const wsKey = `${currentIndex}-${i}`
+                          const solutionSegmentBlock =
+                            !isTeacherView &&
+                            (worksheetPresentation ? Boolean(bExt.isAnswer) : !!curriculumId)
+                          const titleLenGate = slide.title?.length ?? 0
+                          const studentTitleTypingDone =
+                            isTeacherView ||
+                            !teacherWritingMode ||
+                            titleLenGate === 0 ||
+                            slideVisibleCount >= titleLenGate
+                          let visibleForBlock: number | undefined
+                          let animateForBlock = teacherWritingMode
+                          if (solutionSegmentBlock) {
+                            animateForBlock = false
+                            const typingOn = worksheetAnswerTypingEnabled?.[wsKey] !== false
+                            visibleForBlock = typingOn
+                              ? studentTitleTypingDone
+                                ? (worksheetAnswerReveal?.[wsKey] ?? 0)
+                                : 0
+                              : undefined
+                          } else {
+                            visibleForBlock = teacherWritingMode
+                              ? Math.max(0, Math.min(blockLengths[i] ?? 0, slideVisibleCount - (blockOffsets[i] ?? 0)))
+                              : undefined
+                          }
+                          return (
+                            <div key={i} className="border-t border-slate-200 pt-4 first:border-t-0 first:pt-0">
+                              {b.header ? (
+                                <div className="mb-2 text-xs font-bold text-violet-800">{b.header}</div>
+                              ) : null}
+                              <div className="text-slate-800">
+                                {solutionSegmentBlock ? (
+                                  <WorksheetBlockContentWithEmbeds
+                                    content={b.content}
+                                    liveQuizContext={curriculumId ? { curriculumId, slideIndex: currentIndex, blockIndex: i } : undefined}
+                                    tr={tr}
+                                    hideQuiz
+                                    visibleSegmentCount={visibleForBlock}
+                                    suppressTypingPenAtZero={teacherWritingMode && !studentTitleTypingDone}
+                                    allowTypingPenAtRevealStart={
+                                      sequentialSolutionPenBlockIndex != null && sequentialSolutionPenBlockIndex === i
+                                    }
+                                  />
+                                ) : (
+                                  <CurriculumBlockContentWithEmbeds
+                                    content={b.content}
+                                    liveQuizContext={curriculumId ? { curriculumId, slideIndex: currentIndex, blockIndex: i } : undefined}
+                                    tr={tr}
+                                    hideQuiz
+                                    animateReveal={animateForBlock}
+                                    visibleCountInBlock={visibleForBlock}
+                                    wordDelayMs={teacherWritingSpeedMs}
+                                  />
+                                )}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )
+                  }
+                  if ((slide.content ?? '').trim()) {
+                    return (
+                      <div className="text-slate-800">
+                        <CurriculumBlockContentWithEmbeds
+                          content={slide.content ?? ''}
+                          liveQuizContext={curriculumId ? { curriculumId, slideIndex: currentIndex, blockIndex: 0 } : undefined}
+                          tr={tr}
+                          hideQuiz
+                          animateReveal={teacherWritingMode}
+                          visibleCountInBlock={
+                            teacherWritingMode
+                              ? Math.max(0, Math.min(blockLengths[0] ?? 0, slideVisibleCount - (blockOffsets[0] ?? 0)))
+                              : undefined
+                          }
+                          wordDelayMs={teacherWritingSpeedMs}
+                        />
+                      </div>
+                    )
+                  }
+                  return null
+                }
+
+                return (
+                  <section
+                    key={si}
+                    id={`nano-student-md-slide-${si}`}
+                    className={cn(
+                      'scroll-mt-6 scroll-mb-8 rounded-xl border border-slate-200 bg-slate-50/90 p-4 shadow-sm md:p-5 md:scroll-mt-10 md:scroll-mb-12',
+                      si === currentIndex && 'ring-2 ring-amber-400'
+                    )}
+                  >
+                    <h3 className="mb-3 text-lg font-bold text-slate-900 md:text-xl">
+                      <>
+                        {si + 1}.{' '}
+                        {writingChain && isCurrent ? (
+                          <AnimatedCharReveal
+                            text={s.title}
+                            visibleCount={Math.min(slideVisibleCount, s.title.length)}
+                            showCursor={slideVisibleCount > 0 && slideVisibleCount < s.title.length}
+                          />
+                        ) : (
+                          s.title
+                        )}
+                      </>
+                    </h3>
+                    {writingChain && isCurrent ? renderCurrentSlideTypingBody() : renderFullSlideBody()}
+                  </section>
+                )
+              })
+              })()}
+              <div
+                aria-hidden
+                className="pointer-events-none shrink-0"
+                style={{ height: studentMdChainBottomSpacerPx }}
               />
             </div>
-          ) : null}
+          ) : (
+            <>
+              <div className="mb-4 flex flex-wrap items-start gap-2 md:mb-6 landscape:mb-6">
+                <h2 className="flex-1 text-xl font-bold text-slate-900 md:text-2xl lg:text-3xl landscape:text-2xl">
+                  {teacherWritingMode ? (
+                    <AnimatedCharReveal
+                      text={slide.title}
+                      visibleCount={Math.min(slideVisibleCount, slide.title.length)}
+                      showCursor={slideVisibleCount > 0 && slideVisibleCount < slide.title.length}
+                    />
+                  ) : (
+                    slide.title
+                  )}
+                </h2>
+                {extractQuizFromSlide(slide).length > 0 ? (
+                  <Button variant="outline" size="sm" onClick={() => setQuizPopupOpen(true)} className="mt-[31px] shrink-0 border-violet-400 text-violet-700 hover:bg-violet-50 print:hidden">
+                    <ClipboardList className="mr-1.5 h-4 w-4" />
+                    {tr('Xem câu hỏi trắc nghiệm', 'View quiz', '查看测验', 'クイズを見る', '퀴즈 보기')}
+                  </Button>
+                ) : null}
+              </div>
+              {hasBlocks ? (
+                <div className="space-y-4">
+                  {blocks.map((b, i) => {
+                    const bExt = b as { isAnswer?: boolean; studentAnswerHidden?: boolean }
+                    if (!isTeacherView && bExt.studentAnswerHidden) return null
+                    const wsKey = `${currentIndex}-${i}`
+                    const solutionSegmentBlock =
+                      !isTeacherView &&
+                      (worksheetPresentation
+                        ? Boolean(bExt.isAnswer)
+                        : !!curriculumId)
+                    const titleLenGate = slide.title?.length ?? 0
+                    const studentTitleTypingDone =
+                      isTeacherView ||
+                      !teacherWritingMode ||
+                      titleLenGate === 0 ||
+                      slideVisibleCount >= titleLenGate
+                    let visibleForBlock: number | undefined
+                    let animateForBlock = teacherWritingMode
+                    if (solutionSegmentBlock) {
+                      animateForBlock = false
+                      const typingOn = (worksheetAnswerTypingEnabled?.[wsKey] !== false)
+                      visibleForBlock = typingOn
+                        ? studentTitleTypingDone
+                          ? (worksheetAnswerReveal?.[wsKey] ?? 0)
+                          : 0
+                        : undefined
+                    } else {
+                      visibleForBlock = teacherWritingMode
+                        ? Math.max(0, Math.min(blockLengths[i] ?? 0, slideVisibleCount - (blockOffsets[i] ?? 0)))
+                        : undefined
+                    }
+                    return (
+                    <div key={i} className="flex rounded-lg overflow-hidden bg-white shadow-sm border border-slate-100">
+                      <div className="w-24 min-w-[96px] bg-violet-100 flex flex-col items-center justify-center p-3">
+                        <div className="text-violet-600">
+                          {getIconForHeader(b.header)}
+                        </div>
+                        <div className="mt-2 w-full flex flex-col items-center gap-0.5">
+                          <span className="text-xs font-bold text-violet-700 text-center leading-tight">
+                            {b.header}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex-1 p-5 text-slate-800">
+                        {solutionSegmentBlock ? (
+                          <WorksheetBlockContentWithEmbeds
+                            content={b.content}
+                            liveQuizContext={curriculumId ? { curriculumId, slideIndex: currentIndex, blockIndex: i } : undefined}
+                            tr={tr}
+                            hideQuiz
+                            visibleSegmentCount={visibleForBlock}
+                            suppressTypingPenAtZero={teacherWritingMode && !studentTitleTypingDone}
+                            allowTypingPenAtRevealStart={
+                              sequentialSolutionPenBlockIndex != null && sequentialSolutionPenBlockIndex === i
+                            }
+                          />
+                        ) : (
+                          <CurriculumBlockContentWithEmbeds
+                            content={b.content}
+                            liveQuizContext={curriculumId ? { curriculumId, slideIndex: currentIndex, blockIndex: i } : undefined}
+                            tr={tr}
+                            hideQuiz
+                            animateReveal={animateForBlock}
+                            visibleCountInBlock={visibleForBlock}
+                            wordDelayMs={teacherWritingSpeedMs}
+                          />
+                        )}
+                      </div>
+                    </div>
+                    )
+                  })}
+                </div>
+              ) : slide.content ? (
+                <div className="text-slate-700 text-base md:text-lg leading-relaxed [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:space-y-2">
+                  <CurriculumBlockContentWithEmbeds
+                    content={slide.content}
+                    liveQuizContext={curriculumId ? { curriculumId, slideIndex: currentIndex, blockIndex: 0 } : undefined}
+                    tr={tr}
+                    hideQuiz
+                    animateReveal={teacherWritingMode}
+                    visibleCountInBlock={teacherWritingMode ? Math.max(0, Math.min(blockLengths[0] ?? 0, slideVisibleCount - (blockOffsets[0] ?? 0))) : undefined}
+                    wordDelayMs={teacherWritingSpeedMs}
+                  />
+                </div>
+              ) : null}
+            </>
+          )}
           {/* Ghi chú chỉ sửa trong cửa sổ Giáo trình – không hiển thị trên slide cho học sinh */}
+          </div>
         </div>
         </div>
         </div>
@@ -2113,7 +2872,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                         </div>
                         <div className="flex-1 p-4 text-base text-slate-800">
                           <div className="[&_ul]:list-disc [&_ul]:pl-4 [&_ul]:space-y-1 [&_ul]:text-base">
-                            <BlockContentWithEmbeds content={b.content} tr={tr} />
+                            <CurriculumBlockContentWithEmbeds content={b.content} tr={tr} />
                           </div>
                         </div>
                       </div>
@@ -2121,7 +2880,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                   </div>
                 ) : s.content ? (
                   <div className="text-slate-700 text-base [&_ul]:list-disc [&_ul]:pl-5">
-                    <BlockContentWithEmbeds content={s.content} tr={tr} />
+                    <CurriculumBlockContentWithEmbeds content={s.content} tr={tr} />
                   </div>
                 ) : null}
               </div>

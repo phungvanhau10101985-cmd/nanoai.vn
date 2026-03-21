@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
-import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
+import { GEMINI_25_PRO } from '@/lib/gemini-config'
 import { generateSlidesFromCurriculum } from '@/lib/slides-from-curriculum'
 
 const SUBJECT_NAMES: Record<string, string> = {
@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
 
     const genAI = new GoogleGenerativeAI(apiKey)
     const model = genAI.getGenerativeModel({
-      ...GEMINI_25_FLASH_NO_THINKING,
+      ...GEMINI_25_PRO,
       generationConfig: { temperature: 0.3 },
     })
 
@@ -162,13 +162,14 @@ Yêu cầu:
       .trim()
 
     const { slides } = await generateSlidesFromCurriculum(curriculumBody, extractedTitle, { fetchImages: true })
+    const slidesPrepared = (slides as Array<{ title: string; blocks: Array<{ header: string; content: string }>; imageUrl?: string; visualEmbed?: string }>)
 
     return NextResponse.json({
       curriculumMarkdown: curriculumBody,
       topic: extractedTitle,
       lessonNumber: extractedLessonNumber,
       lessonTitle: extractedTitle,
-      slides: slides.length > 0 ? slides : undefined,
+      slides: slidesPrepared.length > 0 ? slidesPrepared : undefined,
     })
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)

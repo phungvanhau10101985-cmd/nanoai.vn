@@ -48,6 +48,7 @@ export type ToolKey =
   | 'ai_language_learning'
   | 'create_curriculum'
   | 'create_exam'
+  | 'classes'
   | 'try_on_1'
   | 'try_on_2'
   | 'try_on_3'
@@ -99,6 +100,85 @@ export type Dictionary = {
   }
   navGroup: Record<NavGroupKey, string>
   tool: Record<ToolKey, string>
+  classes: {
+    title: string
+    myClasses: string
+    createClass: string
+    joinClass: string
+    className: string
+    joinCode: string
+    copyCode: string
+    copied: string
+    students: string
+    worksheets: string
+    noStudents: string
+    noClasses: string
+    enterCode: string
+    join: string
+    alreadyJoined: string
+    invalidCode: string
+    created: string
+    backToList: string
+    assignWorksheet: string
+    noWorksheets: string
+    doWorksheet: string
+    submit: string
+    submitSuccess: string
+    viewResult: string
+    quizScore: string
+    sampleAnswer: string
+    submissions: string
+    submittedAt: string
+    noSubmissions: string
+    presentWorksheet: string
+  }
+  /** Trang công khai /phieu-bai-tap/[id] — lời giải & đáp án */
+  worksheetSolutionPage: {
+    metaTitlePrefix: string
+    metaTitleFallback: string
+    metaDescription: string
+    eyebrow: string
+    qrHint: string
+    cardTitle: string
+    backHome: string
+    updatedLabel: string
+    /** Nhãn nhỏ cạnh số thứ tự trong khối câu hỏi (WorksheetView) */
+    questionBadge: string
+  }
+  adminWorksheetVerify: {
+    pageTitle: string
+    pageDescription: string
+    /** Giải thích: báo cáo gồm cả verify ngầm + quét lô */
+    reportScopeNote: string
+    newScan: string
+    nextBatch: string
+    refresh: string
+    noReports: string
+    worksheetsPlanned: string
+    worksheetsProcessed: string
+    qsMarked: string
+    qsPatched: string
+    qsSkipped: string
+    status: string
+    details: string
+    batchSize: string
+    running: string
+    completed: string
+    failed: string
+    cancelled: string
+    openRow: string
+    nonePending: string
+    cronDoc: string
+    toastStarted: string
+    toastStepOk: string
+    toastDone: string
+    toastErr: string
+    worksheetId: string
+    errors: string
+    durationMs: string
+    stopPoll: string
+    reportUpdatedAt: string
+  }
 }
 
 const VI_DICTIONARY: Dictionary = {
@@ -190,12 +270,92 @@ const VI_DICTIONARY: Dictionary = {
     ai_language_learning: 'Học ngoại ngữ AI',
     create_curriculum: 'Tạo giáo trình',
     create_exam: 'Tạo đề trắc nghiệm',
+    classes: 'Lớp học',
     try_on_1: 'Thử đồ 1 người',
     try_on_2: 'Thử đồ 2 người',
     try_on_3: 'Thử đồ 3 người',
     try_on_4: 'Thử đồ 4 người',
     try_on_5: 'Thử đồ 5 người',
     admin: 'Quản trị',
+  },
+  classes: {
+    title: 'Lớp học',
+    myClasses: 'Lớp của tôi',
+    createClass: 'Tạo lớp',
+    joinClass: 'Tham gia lớp',
+    className: 'Tên lớp',
+    joinCode: 'Mã tham gia',
+    copyCode: 'Sao chép mã',
+    copied: 'Đã sao chép',
+    students: 'Học sinh',
+    worksheets: 'Phiếu bài tập',
+    noClasses: 'Chưa có lớp nào',
+    enterCode: 'Nhập mã tham gia',
+    join: 'Tham gia',
+    alreadyJoined: 'Bạn đã trong lớp này',
+    invalidCode: 'Mã không hợp lệ',
+    created: 'Đã tạo',
+    backToList: 'Về danh sách',
+    assignWorksheet: 'Gán phiếu',
+    noWorksheets: 'Chưa có phiếu nào',
+    noStudents: 'Chưa có học sinh',
+    doWorksheet: 'Làm bài',
+    submit: 'Nộp bài',
+    submitSuccess: 'Đã nộp bài',
+    viewResult: 'Xem kết quả',
+    quizScore: 'Điểm trắc nghiệm',
+    sampleAnswer: 'Đáp án mẫu',
+    submissions: 'Bài nộp',
+    submittedAt: 'Nộp lúc',
+    noSubmissions: 'Chưa có bài nộp',
+    presentWorksheet: 'Trình chiếu phiếu bài tập',
+  },
+  worksheetSolutionPage: {
+    metaTitlePrefix: 'Lời giải',
+    metaTitleFallback: 'Phiếu bài tập — Lời giải',
+    metaDescription:
+      'Xem đáp án và lời giải chi tiết phiếu bài tập. Quét mã QR trên phiếu để mở trang này.',
+    eyebrow: 'Phiếu bài tập',
+    qrHint: 'Quét mã QR trên phiếu để mở trang này trên điện thoại hoặc máy tính.',
+    cardTitle: 'Nội dung lời giải',
+    backHome: 'Về trang chủ',
+    updatedLabel: 'Cập nhật',
+    questionBadge: 'Câu hỏi',
+  },
+  adminWorksheetVerify: {
+    pageTitle: 'Báo cáo verify phiếu bài tập',
+    pageDescription:
+      'Trang này chủ yếu để đọc lại báo cáo các lượt verify tự động (cron): số phiếu trong hàng đợi, đã xử lý, số lần đóng verified và sửa nội dung. Bấm một dòng để xem chi tiết từng phiếu. Khi cần, có thể bấm "Bắt đầu quét mới" để chạy thủ công từng lô trên máy chủ.',
+    reportScopeNote:
+      'Mỗi lần verify ngầm sau khi tạo/sửa phiếu (Tạo giáo trình) cũng được ghi vào danh sách này khi máy chủ có SUPABASE_SERVICE_ROLE_KEY. Trước đây chỉ có quét lô/cron mới tạo dòng — nếu bạn đã verify nhưng không thấy báo cáo, hãy cấu hình service role và chạy verify lại một lần.',
+    newScan: 'Bắt đầu quét mới',
+    nextBatch: 'Xử lý lô tiếp theo',
+    refresh: 'Làm mới',
+    noReports: 'Chưa có báo cáo.',
+    worksheetsPlanned: 'Phiếu trong hàng đợi',
+    worksheetsProcessed: 'Phiếu đã xử lý',
+    qsMarked: 'Lần đóng verified',
+    qsPatched: 'Lần sửa nội dung',
+    qsSkipped: 'Câu bỏ qua (thiếu dữ liệu)',
+    status: 'Trạng thái',
+    details: 'Chi tiết',
+    batchSize: 'Phiếu mỗi bước',
+    running: 'Đang chạy',
+    completed: 'Hoàn tất',
+    failed: 'Thất bại',
+    cancelled: 'Đã hủy',
+    openRow: 'Xem chi tiết phiếu',
+    nonePending: 'Không có phiếu nào cần verify.',
+    cronDoc: 'Tự động: GET /api/cron/worksheet-verify-batch với Authorization: Bearer ADMIN_WORKSHEET_VERIFY_CRON_SECRET',
+    toastStarted: 'Đã tạo báo cáo',
+    toastStepOk: 'Đã xử lý một lô',
+    toastDone: 'Đã hoàn tất lượt quét',
+    toastErr: 'Lỗi',
+    worksheetId: 'ID phiếu',
+    errors: 'Lỗi',
+    durationMs: 'Thời gian (ms)',
+    stopPoll: 'Dừng sau bước hiện tại',
+    reportUpdatedAt: 'Cập nhật báo cáo',
   },
 }
 
@@ -289,12 +449,92 @@ const EN_DICTIONARY: Dictionary = {
     ai_language_learning: 'AI Language Learning',
     create_curriculum: 'Create curriculum',
     create_exam: 'Create exam',
+    classes: 'Classes',
     try_on_1: 'Try-on 1 Person',
     try_on_2: 'Try-on 2 People',
     try_on_3: 'Try-on 3 People',
     try_on_4: 'Try-on 4 People',
     try_on_5: 'Try-on 5 People',
     admin: 'Admin',
+  },
+  classes: {
+    title: 'Classes',
+    myClasses: 'My classes',
+    createClass: 'Create class',
+    joinClass: 'Join class',
+    className: 'Class name',
+    joinCode: 'Join code',
+    copyCode: 'Copy code',
+    copied: 'Copied',
+    students: 'Students',
+    worksheets: 'Worksheets',
+    noClasses: 'No classes yet',
+    enterCode: 'Enter join code',
+    join: 'Join',
+    alreadyJoined: 'You are already in this class',
+    invalidCode: 'Invalid code',
+    created: 'Created',
+    backToList: 'Back to list',
+    assignWorksheet: 'Assign worksheet',
+    noWorksheets: 'No worksheets yet',
+    noStudents: 'No students yet',
+    doWorksheet: 'Do worksheet',
+    submit: 'Submit',
+    submitSuccess: 'Submitted',
+    viewResult: 'View result',
+    quizScore: 'Quiz score',
+    sampleAnswer: 'Sample answer',
+    submissions: 'Submissions',
+    submittedAt: 'Submitted at',
+    noSubmissions: 'No submissions yet',
+    presentWorksheet: 'Present worksheet',
+  },
+  worksheetSolutionPage: {
+    metaTitlePrefix: 'Solutions',
+    metaTitleFallback: 'Worksheet — Solutions',
+    metaDescription:
+      'View answers and detailed solutions. Scan the QR code on the worksheet to open this page.',
+    eyebrow: 'Worksheet',
+    qrHint: 'Scan the QR code on the worksheet to open this page on your phone or computer.',
+    cardTitle: 'Solutions',
+    backHome: 'Back to home',
+    updatedLabel: 'Updated',
+    questionBadge: 'Question',
+  },
+  adminWorksheetVerify: {
+    pageTitle: 'Worksheet verify reports',
+    pageDescription:
+      'Mainly for reviewing reports from automated verify runs (cron): queued/processed worksheets, verify marks, and content fixes. Expand a row for per-worksheet details. Use “Start new scan” to run an on-demand batch on the server when needed.',
+    reportScopeNote:
+      'Each background verify (after creating/editing a worksheet in the curriculum builder) is also logged here when the server has SUPABASE_SERVICE_ROLE_KEY. Previously only batch/cron runs created rows—if you verified but saw no report, set the service role key and run verify once more.',
+    newScan: 'Start new scan',
+    nextBatch: 'Process next batch',
+    refresh: 'Refresh',
+    noReports: 'No reports yet.',
+    worksheetsPlanned: 'Worksheets queued',
+    worksheetsProcessed: 'Worksheets processed',
+    qsMarked: 'Verify marks applied',
+    qsPatched: 'Content fixes applied',
+    qsSkipped: 'Questions skipped (invalid)',
+    status: 'Status',
+    details: 'Details',
+    batchSize: 'Worksheets per step',
+    running: 'Running',
+    completed: 'Completed',
+    failed: 'Failed',
+    cancelled: 'Cancelled',
+    openRow: 'Open worksheet',
+    nonePending: 'No worksheets need verification.',
+    cronDoc: 'Automation: GET /api/cron/worksheet-verify-batch with Authorization: Bearer ADMIN_WORKSHEET_VERIFY_CRON_SECRET',
+    toastStarted: 'Report created',
+    toastStepOk: 'Batch processed',
+    toastDone: 'Scan finished',
+    toastErr: 'Error',
+    worksheetId: 'Worksheet ID',
+    errors: 'Errors',
+    durationMs: 'Duration (ms)',
+    stopPoll: 'Stop after current step',
+    reportUpdatedAt: 'Report updated',
   },
 }
 
@@ -388,12 +628,91 @@ const ZH_DICTIONARY: Dictionary = {
     ai_language_learning: 'AI 语言学习',
     create_curriculum: '创建课程',
     create_exam: '创建试题',
+    classes: '班级',
     try_on_1: '1 人试衣',
     try_on_2: '2 人试衣',
     try_on_3: '3 人试衣',
     try_on_4: '4 人试衣',
     try_on_5: '5 人试衣',
     admin: '管理',
+  },
+  classes: {
+    title: '班级',
+    myClasses: '我的班级',
+    createClass: '创建班级',
+    joinClass: '加入班级',
+    className: '班级名称',
+    joinCode: '加入码',
+    copyCode: '复制码',
+    copied: '已复制',
+    students: '学生',
+    worksheets: '作业单',
+    noClasses: '暂无班级',
+    enterCode: '输入加入码',
+    join: '加入',
+    alreadyJoined: '您已在此班级',
+    invalidCode: '无效码',
+    created: '已创建',
+    backToList: '返回列表',
+    assignWorksheet: '分配作业单',
+    noWorksheets: '暂无作业单',
+    noStudents: '暂无学生',
+    doWorksheet: '做作业',
+    submit: '提交',
+    submitSuccess: '已提交',
+    viewResult: '查看结果',
+    quizScore: '测验分数',
+    sampleAnswer: '参考答案',
+    submissions: '提交记录',
+    submittedAt: '提交时间',
+    noSubmissions: '暂无提交',
+    presentWorksheet: '演示作业单',
+  },
+  worksheetSolutionPage: {
+    metaTitlePrefix: '解答',
+    metaTitleFallback: '练习单 — 解答',
+    metaDescription: '查看练习单的答案与详细解答。扫描练习上的二维码打开本页。',
+    eyebrow: '练习单',
+    qrHint: '扫描练习上的二维码，在手机或电脑上打开本页。',
+    cardTitle: '解答内容',
+    backHome: '返回首页',
+    updatedLabel: '更新于',
+    questionBadge: '题目',
+  },
+  adminWorksheetVerify: {
+    pageTitle: '作业单核验报告',
+    pageDescription:
+      '主要用于查看自动核验（cron）各次运行的报告：排队/已处理作业单数、核验标记与内容修正次数；展开行可看每张作业单明细。需要时也可点此「开始新扫描」在服务器上手动分批执行。',
+    reportScopeNote:
+      '在课程创建流程中每次后台核验也会写入此列表（需服务器配置 SUPABASE_SERVICE_ROLE_KEY）。若之前只有批量/cron 才会出现记录，请配置该密钥后重新触发一次核验。',
+    newScan: '开始新扫描',
+    nextBatch: '处理下一批',
+    refresh: '刷新',
+    noReports: '暂无报告。',
+    worksheetsPlanned: '排队作业单数',
+    worksheetsProcessed: '已处理作业单',
+    qsMarked: '核验标记次数',
+    qsPatched: '内容修正次数',
+    qsSkipped: '跳过题目（数据不全）',
+    status: '状态',
+    details: '详情',
+    batchSize: '每步作业单数',
+    running: '进行中',
+    completed: '已完成',
+    failed: '失败',
+    cancelled: '已取消',
+    openRow: '打开作业单',
+    nonePending: '没有需要核验的作业单。',
+    cronDoc: '自动化：GET /api/cron/worksheet-verify-batch，请求头 Authorization: Bearer ADMIN_WORKSHEET_VERIFY_CRON_SECRET',
+    toastStarted: '已创建报告',
+    toastStepOk: '已处理一批',
+    toastDone: '扫描完成',
+    toastErr: '错误',
+    worksheetId: '作业单 ID',
+    errors: '错误',
+    durationMs: '耗时（毫秒）',
+    stopPoll: '当前步完成后停止',
+    reportUpdatedAt: '报告更新时间',
   },
 }
 
@@ -486,12 +805,93 @@ const JA_DICTIONARY: Dictionary = {
     realtime_music_control: 'リアルタイム音楽制御',
     ai_language_learning: 'AI 語学学習',
     create_curriculum: 'カリキュラム作成',
+    create_exam: '試験作成',
+    classes: 'クラス',
     try_on_1: '1人試着',
     try_on_2: '2人試着',
     try_on_3: '3人試着',
     try_on_4: '4人試着',
     try_on_5: '5人試着',
     admin: '管理',
+  },
+  classes: {
+    title: 'クラス',
+    myClasses: 'マイクラス',
+    createClass: 'クラス作成',
+    joinClass: 'クラス参加',
+    className: 'クラス名',
+    joinCode: '参加コード',
+    copyCode: 'コードをコピー',
+    copied: 'コピーしました',
+    students: '生徒',
+    worksheets: 'ワークシート',
+    noClasses: 'クラスがありません',
+    enterCode: '参加コードを入力',
+    join: '参加',
+    alreadyJoined: '既にこのクラスに参加しています',
+    invalidCode: '無効なコード',
+    created: '作成済み',
+    backToList: '一覧に戻る',
+    assignWorksheet: 'ワークシートを割り当て',
+    noWorksheets: 'ワークシートがありません',
+    noStudents: '生徒がいません',
+    doWorksheet: '問題を解く',
+    submit: '提出',
+    submitSuccess: '提出済み',
+    viewResult: '結果を見る',
+    quizScore: 'クイズ得点',
+    sampleAnswer: '模範解答',
+    submissions: '提出一覧',
+    submittedAt: '提出日時',
+    noSubmissions: '提出なし',
+    presentWorksheet: 'ワークシートをプレゼン',
+  },
+  worksheetSolutionPage: {
+    metaTitlePrefix: '解答',
+    metaTitleFallback: 'ワークシート — 解答',
+    metaDescription:
+      'ワークシートの正答と詳しい解答を表示。用紙のQRコードを読み取ってこのページを開けます。',
+    eyebrow: 'ワークシート',
+    qrHint: '用紙のQRコードを読み取ると、スマホやPCでこのページを開けます。',
+    cardTitle: '解答の内容',
+    backHome: 'ホームへ',
+    updatedLabel: '更新',
+    questionBadge: '設問',
+  },
+  adminWorksheetVerify: {
+    pageTitle: 'ワークシート検証レポート',
+    pageDescription:
+      '未検証の設問があるワークシートを走査し、AI（Gemini Flash）で検証してバッチごとに集計します。手動ステップまたは cron（.env.example 参照）で実行できます。',
+    reportScopeNote:
+      'カリキュラム作成後のバックグラウンド検証も、サーバーに SUPABASE_SERVICE_ROLE_KEY がある場合はここに記録されます。以前はバッチ/cron のみでした。記録が無い場合はキーを設定し、検証を再実行してください。',
+    newScan: '新しいスキャンを開始',
+    nextBatch: '次のバッチを処理',
+    refresh: '更新',
+    noReports: 'レポートがありません。',
+    worksheetsPlanned: 'キュー内ワークシート',
+    worksheetsProcessed: '処理済みワークシート',
+    qsMarked: '検証マーク適用',
+    qsPatched: '内容修正',
+    qsSkipped: 'スキップした設問（データ不備）',
+    status: '状態',
+    details: '詳細',
+    batchSize: '1ステップあたりの枚数',
+    running: '実行中',
+    completed: '完了',
+    failed: '失敗',
+    cancelled: 'キャンセル',
+    openRow: 'ワークシートを開く',
+    nonePending: '検証が必要なワークシートはありません。',
+    cronDoc: '自動化: GET /api/cron/worksheet-verify-batch、Authorization: Bearer ADMIN_WORKSHEET_VERIFY_CRON_SECRET',
+    toastStarted: 'レポートを作成しました',
+    toastStepOk: 'バッチを処理しました',
+    toastDone: 'スキャンが完了しました',
+    toastErr: 'エラー',
+    worksheetId: 'ワークシート ID',
+    errors: 'エラー',
+    durationMs: '所要時間（ms）',
+    stopPoll: '現在のステップの後に停止',
+    reportUpdatedAt: 'レポート更新',
   },
 }
 
@@ -585,12 +985,91 @@ const KO_DICTIONARY: Dictionary = {
     ai_language_learning: 'AI 외국어 학습',
     create_curriculum: '교육과정 생성',
     create_exam: '시험 생성',
+    classes: '수업',
     try_on_1: '1인 피팅',
     try_on_2: '2인 피팅',
     try_on_3: '3인 피팅',
     try_on_4: '4인 피팅',
     try_on_5: '5인 피팅',
     admin: '관리',
+  },
+  classes: {
+    title: '수업',
+    myClasses: '내 수업',
+    createClass: '수업 만들기',
+    joinClass: '수업 참가',
+    className: '수업 이름',
+    joinCode: '참가 코드',
+    copyCode: '코드 복사',
+    copied: '복사됨',
+    students: '학생',
+    worksheets: '워크시트',
+    noClasses: '수업이 없습니다',
+    enterCode: '참가 코드 입력',
+    join: '참가',
+    alreadyJoined: '이미 이 수업에 참가했습니다',
+    invalidCode: '잘못된 코드',
+    created: '생성됨',
+    backToList: '목록으로',
+    assignWorksheet: '워크시트 할당',
+    noWorksheets: '워크시트가 없습니다',
+    noStudents: '학생이 없습니다',
+    doWorksheet: '문제 풀기',
+    submit: '제출',
+    submitSuccess: '제출됨',
+    viewResult: '결과 보기',
+    quizScore: '퀴즈 점수',
+    sampleAnswer: '모범 답안',
+    submissions: '제출 목록',
+    submittedAt: '제출 시각',
+    noSubmissions: '제출 없음',
+    presentWorksheet: '워크시트 발표',
+  },
+  worksheetSolutionPage: {
+    metaTitlePrefix: '해설',
+    metaTitleFallback: '워크시트 — 해설',
+    metaDescription: '워크시트의 정답과 상세 해설을 봅니다. 워크시트의 QR 코드를 스캔해 이 페이지를 엽니다.',
+    eyebrow: '워크시트',
+    qrHint: '워크시트의 QR 코드를 스캔하면 휴대폰이나 PC에서 이 페이지를 열 수 있습니다.',
+    cardTitle: '해설 내용',
+    backHome: '홈으로',
+    updatedLabel: '업데이트',
+    questionBadge: '문항',
+  },
+  adminWorksheetVerify: {
+    pageTitle: '워크시트 검증 보고서',
+    pageDescription:
+      '주로 자동 검증(cron) 실행 결과 보고서를 다시 보는 페이지입니다. 대기/처리 워크시트 수, 검증 표시·내용 수정 횟수를 보여 주며 행을 펼치면 워크시트별 상세를 볼 수 있습니다. 필요 시 «새 스캔 시작»으로 서버에서 수동 배치 실행도 가능합니다.',
+    reportScopeNote:
+      '교육과정 생성 후 백그라운드 검증도 서버에 SUPABASE_SERVICE_ROLE_KEY가 있으면 여기에 기록됩니다. 이전에는 배치/cron만 기록되었습니다. 보고서가 없으면 키를 설정한 뒤 검증을 한 번 더 실행하세요.',
+    newScan: '새 스캔 시작',
+    nextBatch: '다음 배치 처리',
+    refresh: '새로고침',
+    noReports: '보고서가 없습니다.',
+    worksheetsPlanned: '대기 중인 워크시트',
+    worksheetsProcessed: '처리된 워크시트',
+    qsMarked: '검증 표시 적용',
+    qsPatched: '내용 수정',
+    qsSkipped: '건너뛴 문항(데이터 부족)',
+    status: '상태',
+    details: '세부',
+    batchSize: '단계당 워크시트 수',
+    running: '진행 중',
+    completed: '완료',
+    failed: '실패',
+    cancelled: '취소됨',
+    openRow: '워크시트 열기',
+    nonePending: '검증이 필요한 워크시트가 없습니다.',
+    cronDoc: '자동화: GET /api/cron/worksheet-verify-batch, Authorization: Bearer ADMIN_WORKSHEET_VERIFY_CRON_SECRET',
+    toastStarted: '보고서가 생성되었습니다',
+    toastStepOk: '배치를 처리했습니다',
+    toastDone: '스캔이 완료되었습니다',
+    toastErr: '오류',
+    worksheetId: '워크시트 ID',
+    errors: '오류',
+    durationMs: '소요 시간(ms)',
+    stopPoll: '현재 단계 후 중지',
+    reportUpdatedAt: '보고서 갱신',
   },
 }
 

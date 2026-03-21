@@ -13,6 +13,7 @@ import {
   Stamp,
   BookOpen,
   FileQuestion,
+  Users,
 } from 'lucide-react'
 import { TryOnIcon } from '@/components/icons/try-on-icon'
 import { ImageRestorationIcon } from '@/components/icons/image-restoration-icon'
@@ -75,6 +76,7 @@ export const AI_TOOLS = [
   { href: '/hoc-tieng-anh-ai', labelKey: 'ai_language_learning' as ToolKey, icon: Languages },
   { href: '/tao-giao-trinh', labelKey: 'create_curriculum' as ToolKey, icon: BookOpen },
   { href: '/tao-de-trac-nghiem', labelKey: 'create_exam' as ToolKey, icon: FileQuestion },
+  { href: '/lop', labelKey: 'classes' as ToolKey, icon: Users },
 ] as const
 
 export const NAV_GROUPS = [
@@ -150,6 +152,7 @@ export const NAV_GROUPS = [
       { href: '/hoc-tieng-anh-ai', labelKey: 'ai_language_learning' as ToolKey, icon: Languages },
       { href: '/tao-giao-trinh', labelKey: 'create_curriculum' as ToolKey, icon: BookOpen },
       { href: '/tao-de-trac-nghiem', labelKey: 'create_exam' as ToolKey, icon: FileQuestion },
+      { href: '/lop', labelKey: 'classes' as ToolKey, icon: Users },
     ],
   },
 ] as const

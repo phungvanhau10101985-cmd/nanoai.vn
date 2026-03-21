@@ -7,20 +7,34 @@ import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
-import { Sparkles, Copy, FileDown, RefreshCw, FileSpreadsheet, QrCode, FolderOpen, BookOpen, FileText, Presentation, Trash2, Upload, ImageIcon, FileQuestion } from 'lucide-react'
+import { Sparkles, Copy, FileDown, RefreshCw, FileSpreadsheet, FolderOpen, BookOpen, FileText, Presentation, Trash2, Upload, ImageIcon, FileQuestion, Pencil, ListChecks, X, ChevronDown } from 'lucide-react'
 import Link from 'next/link'
-import QRCode from 'qrcode'
 import { exportWorksheetToPdf, exportWorksheetToWord } from './lib/worksheet-export'
 import { latexToReadable } from './lib/latex-to-readable'
 import { curriculumToSlidesMarkdown, parseCurriculumToSlides, parseContentToBlocks } from './lib/curriculum-to-slides'
 import { SlideVersionDialog, type SlideVersionChoice } from './components/slide-version-dialog'
+import { CurriculumExerciseListDialog } from './components/curriculum-exercise-list-dialog'
 import type { AISlideData } from './lib/curriculum-to-slides'
 import { SUBJECTS, GRADE_LEVELS, GRADE_LEVEL_GROUPS, TEXTBOOK_SETS } from './lib/curriculum-subjects'
-import { createCurriculum, createWorksheet, saveCurriculum, saveTextbookLessonFromImage, listCurricula, getCurriculumById, getWorksheetById, getWorksheetsByCurriculumId, deleteCurriculum, saveSlidesToCurriculum, getSlidesByCurriculumId, getOriginalSlides, getUserCustomizedSlides, saveOriginalSlidesIfNotExists, checkCurriculumExists, recordCurriculumOpen, clearCurriculumDerivedData, saveWorksheetContent } from './actions'
+import { createCurriculum, createWorksheetFromQuestions, saveCurriculum, saveTextbookLessonFromImage, listCurricula, getCurriculumById, getWorksheetById, getWorksheetsByCurriculumId, deleteCurriculum, saveSlidesToCurriculum, getSlidesByCurriculumId, getOriginalSlides, getUserCustomizedSlides, saveOriginalSlidesIfNotExists, checkCurriculumExists, recordCurriculumOpen, clearCurriculumDerivedData, saveWorksheetContent } from './actions'
 import { extractEditRegions } from './lib/curriculum-region-extract'
 import { highlightMatchInCurriculum } from './components/curriculum-edit-sheet'
+import { parseWorksheetIntoBlocks, replaceBlockInMarkdown, type WorksheetQuestionBlock } from './lib/worksheet-parse-questions'
+import { mergeContentWithQuestions } from './lib/merge-worksheet-content'
+import { toEditableBlockContent } from './lib/worksheet-editable-block-content'
+import { WorksheetEditSectionPopup } from './components/worksheet-edit-section-popup'
+import { getEssayProblem, getEssaySolution, normalizeSolutionToStr } from './lib/worksheet-content-json'
+import { AIProgressLoader } from '@/components/ai-progress-loader'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 
 type UiLocale = 'vi' | 'en' | 'zh' | 'ja' | 'ko'
+
+const WS_ACTIVE_JOB_KEY = 'worksheet_active_job'
 
 function normalizeGradeLevelId(id: string): string {
   const map: Record<string, string> = { 'tieu-hoc': 'lop-1', thcs: 'lop-6', thpt: 'lop-12' }
@@ -54,7 +68,7 @@ function splitWorksheetSections(markdown: string): { quiz: string; essay: string
     const isHeading = /^#{2,4}\s+/.test(line)
     if (isHeading) {
       if (
-        /(trắc nghiệm|quiz|multiple choice|nhận biết)/i.test(normalized) ||
+        /(trắc nghiệm|quiz|multiple choice)/i.test(normalized) ||
         /^#{2,4}\s*1[\).:\-]/.test(normalized)
       ) {
         mode = 'quiz'
@@ -74,8 +88,21 @@ function splitWorksheetSections(markdown: string): { quiz: string; essay: string
     }
   }
 
-  const quiz = quizLines.join('\n').trim()
-  const essay = essayLines.join('\n').trim()
+  let quiz = quizLines.join('\n').trim()
+  let essay = essayLines.join('\n').trim()
+
+  // Fallback: nội dung cũ không có tiêu đề ## Phần trắc nghiệm – tách theo "### Bài"
+  if (!quiz && essay && /###\s*Bài\s+\d/i.test(essay)) {
+    const idx = essay.search(/###\s*Bài\s+\d/i)
+    const before = essay.slice(0, idx).trim()
+    const after = essay.slice(idx).trim()
+    // Phần trước "### Bài" có dạng trắc nghiệm (1. 2. ... **Đáp án:** A/B/C/D)?
+    if (/^\d+\.\s+/m.test(before) && /\*\*Đáp án\*\*:\s*[ABCD]/i.test(before)) {
+      quiz = before
+      essay = after
+    }
+  }
+
   if (!quiz && essay) return { quiz: '', essay }
   if (!essay && quiz) return { quiz, essay: '' }
   return { quiz, essay }
@@ -123,11 +150,13 @@ export default function TaoGiaoTrinhClientPage() {
   const [curriculumMarkdown, setCurriculumMarkdown] = useState('')
   const [curriculumId, setCurriculumId] = useState<string | null>(null)
   const [worksheetMarkdown, setWorksheetMarkdown] = useState('')
-  const worksheetStudentMarkdown = useMemo(() => stripWorksheetAnswerSections(worksheetMarkdown), [worksheetMarkdown])
+  const worksheetStudentMarkdown = useMemo(
+    () => latexToReadable(stripWorksheetAnswerSections(worksheetMarkdown)),
+    [worksheetMarkdown]
+  )
   const worksheetParts = useMemo(() => splitWorksheetSections(worksheetStudentMarkdown), [worksheetStudentMarkdown])
   const [worksheetId, setWorksheetId] = useState<string | null>(null)
-  const [worksheetQrDataUrl, setWorksheetQrDataUrl] = useState<string | null>(null)
-  const [worksheetLoading, setWorksheetLoading] = useState(false)
+  const [worksheetVerifyPollUntil, setWorksheetVerifyPollUntil] = useState(0)
   const [showBrowse, setShowBrowse] = useState(true)
   const [curriculaList, setCurriculaList] = useState<Array<{ id: string; topic: string; subject_id: string; grade_level_id: string; textbook_set_id?: string; textbook_volume?: string | null; lesson_number?: number | null; lesson_type_id?: string; num_lessons?: number; lesson_duration_minutes?: number; created_at: string }>>([])
   const [curriculumWorksheets, setCurriculumWorksheets] = useState<Array<{ id: string; topic: string; subject_id: string; grade_level_id: string; content_markdown: string; created_at: string }>>([])
@@ -138,6 +167,7 @@ export default function TaoGiaoTrinhClientPage() {
   const [curriculumSlides, setCurriculumSlides] = useState<AISlideData[] | null>(null)
   const [slideAnalysisLoading, setSlideAnalysisLoading] = useState(false)
   const [showSlideVersionDialog, setShowSlideVersionDialog] = useState(false)
+  const [exerciseListOpen, setExerciseListOpen] = useState(false)
   const [slideVersionChoice, setSlideVersionChoice] = useState<SlideVersionChoice | null>(null)
   const [sharedSlides, setSharedSlides] = useState<AISlideData[] | null>(null)
   const [originalSlides, setOriginalSlides] = useState<AISlideData[] | null>(null)
@@ -153,8 +183,28 @@ export default function TaoGiaoTrinhClientPage() {
   const [lessonImages, setLessonImages] = useState<File[]>([])
   const lessonImageInputRef = useRef<HTMLInputElement>(null)
   const [createMode, setCreateMode] = useState<'textbook' | 'topic'>('textbook')
+  const [featureSection, setFeatureSection] = useState<'create' | 'library' | 'exam'>('create')
+  const [wsStepByStepQuizCount, setWsStepByStepQuizCount] = useState(5)
+  const [wsStepByStepEssayCount, setWsStepByStepEssayCount] = useState(5)
+  const [wsStepByStepQuizDiff, setWsStepByStepQuizDiff] = useState<'easy' | 'medium' | 'hard'>('medium')
+  const [wsStepByStepEssayBloom, setWsStepByStepEssayBloom] = useState<'nhan-biet' | 'thong-hieu' | 'van-dung-thap' | 'van-dung-cao' | 'thuc-te'>('thong-hieu')
+  const [wsStepByStepQuestionIds, setWsStepByStepQuestionIds] = useState<string[]>([])
+  const [wsStepByStepLoading, setWsStepByStepLoading] = useState(false)
+  const [wsStepByStepStatus, setWsStepByStepStatus] = useState<string>('')
+  const [wsStepByStepExpanded, setWsStepByStepExpanded] = useState(false) // Đóng mặc định; mở khi bấm "Tạo từng câu"
+  const [wsStepByStepCounts, setWsStepByStepCounts] = useState<{ quiz: Record<string, number>; essay: Record<string, number> } | null>(null)
+  const [wsStepByStepSessionCounts, setWsStepByStepSessionCounts] = useState<{ quiz: Record<string, number>; essay: Record<string, number> }>({ quiz: {}, essay: {} })
+  /** Mặc định mở khối tạo phiếu từ ảnh SGK khi đã có giáo trình (vẫn chỉ render khi có curriculumMarkdown). */
+  const [sgkExpanded, setSgkExpanded] = useState(true)
+  const [sgkLoading, setSgkLoading] = useState(false)
+  const [sgkImages, setSgkImages] = useState<File[]>([])
+  const sgkSubmitLockRef = useRef(false)
+  const wsStepByStepSubmitLockRef = useRef(false)
+  const sgkInputRef = useRef<HTMLInputElement>(null)
   const { toast } = useToast()
   const curriculumResultRef = useRef<HTMLDivElement>(null)
+  const worksheetSectionRef = useRef<HTMLDivElement>(null)
+  const curriculumWorksheetsSectionRef = useRef<HTMLDivElement>(null)
 
   const formatCreatedAt = (iso: string) => {
     try {
@@ -196,6 +246,69 @@ export default function TaoGiaoTrinhClientPage() {
       curriculumResultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }
   }, [step])
+
+  // Poll refetch worksheet sau khi verify-background chạy – để hiện tag [Đã verify]
+  useEffect(() => {
+    if (!worksheetId || worksheetVerifyPollUntil <= Date.now()) return
+    const deadline = worksheetVerifyPollUntil
+    let intervalId: ReturnType<typeof setInterval> | null = null
+    const doFetch = async () => {
+      if (Date.now() >= deadline) {
+        setWorksheetVerifyPollUntil(0)
+        if (intervalId) clearInterval(intervalId)
+        return
+      }
+      try {
+        const res = await fetch(`/api/worksheet/${encodeURIComponent(worksheetId)}`)
+        const data = await res.json().catch(() => ({}))
+        if (data?.content_markdown) {
+          setWorksheetMarkdown(data.content_markdown)
+          setCurriculumWorksheets((prev) =>
+            prev.some((w) => w.id === worksheetId)
+              ? prev.map((w) => (w.id === worksheetId ? { ...w, content_markdown: data.content_markdown } : w))
+              : prev
+          )
+        }
+      } catch {}
+    }
+    const timeoutId = setTimeout(() => {
+      void doFetch()
+      intervalId = setInterval(doFetch, 5000)
+    }, 2000)
+    return () => {
+      clearTimeout(timeoutId)
+      if (intervalId) clearInterval(intervalId)
+    }
+  }, [worksheetId, worksheetVerifyPollUntil])
+
+  useEffect(() => {
+    if (!wsStepByStepExpanded || !curriculumId) {
+      setWsStepByStepCounts(null)
+      return
+    }
+    fetch(`/api/worksheet-question-counts?curriculumId=${encodeURIComponent(curriculumId)}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.quiz && data.essay) setWsStepByStepCounts({ quiz: data.quiz, essay: data.essay })
+        else setWsStepByStepCounts(null)
+      })
+      .catch(() => setWsStepByStepCounts(null))
+  }, [wsStepByStepExpanded, curriculumId])
+
+  useEffect(() => {
+    const quizTotal: Record<string, number> = { easy: 0, medium: 0, hard: 0 }
+    const essayTotal: Record<string, number> = { 'nhan-biet': 0, 'thong-hieu': 0, 'van-dung-thap': 0, 'van-dung-cao': 0, 'thuc-te': 0 }
+    for (const d of ['easy', 'medium', 'hard']) quizTotal[d] = (wsStepByStepCounts?.quiz?.[d] ?? 0) + (wsStepByStepSessionCounts.quiz?.[d] ?? 0)
+    for (const d of ['nhan-biet', 'thong-hieu', 'van-dung-thap', 'van-dung-cao', 'thuc-te']) essayTotal[d] = (wsStepByStepCounts?.essay?.[d] ?? 0) + (wsStepByStepSessionCounts.essay?.[d] ?? 0)
+    const quizAvailable = (['easy', 'medium', 'hard'] as const).filter((d) => quizTotal[d] < 10)
+    const essayAvailable = (['nhan-biet', 'thong-hieu', 'van-dung-thap', 'van-dung-cao', 'thuc-te'] as const).filter((d) => essayTotal[d] < 6)
+    if (quizAvailable.length > 0 && !quizAvailable.includes(wsStepByStepQuizDiff)) setWsStepByStepQuizDiff(quizAvailable[0])
+    if (essayAvailable.length > 0 && !essayAvailable.includes(wsStepByStepEssayBloom)) setWsStepByStepEssayBloom(essayAvailable[0])
+    const quizMax = Math.min(20, 10 - (quizTotal[wsStepByStepQuizDiff] ?? 0))
+    const essayMax = Math.min(10, 6 - (essayTotal[wsStepByStepEssayBloom] ?? 0))
+    if (wsStepByStepQuizCount > quizMax && quizMax >= 0) setWsStepByStepQuizCount(quizMax)
+    if (wsStepByStepEssayCount > essayMax && essayMax >= 0) setWsStepByStepEssayCount(essayMax)
+  }, [wsStepByStepCounts, wsStepByStepSessionCounts, wsStepByStepQuizDiff, wsStepByStepEssayBloom])
 
   useEffect(() => {
     if (!showBrowse) return
@@ -645,12 +758,10 @@ export default function TaoGiaoTrinhClientPage() {
   }
 
   const resetWorksheetEditState = () => {
-    setWorksheetEditOriginalText('')
-    setWorksheetEditEditedText('')
-    setWorksheetEditMatchStatus('idle')
-    setWorksheetEditMatchCount(0)
-    worksheetEditMatchIndexRef.current = -1
+    setWorksheetEditBlockIndex(null)
+    setWorksheetEditBlockContent('')
     setWorksheetEditSaving(false)
+    setWorksheetEditCheckResult(null)
   }
 
   const handleCopy = () => {
@@ -676,11 +787,15 @@ export default function TaoGiaoTrinhClientPage() {
           ? slidesToUse.map((s) => ({
               title: s.title,
               blocks: s.blocks ?? [],
-              teacherNotes: '',
+              teacherNotes: (s as { teacherNotes?: string }).teacherNotes ?? '',
               imageUrl: s.imageUrl,
               visualEmbed: s.visualEmbed,
               visualLayout: s.visualLayout,
               visualCells: s.visualCells,
+              visualInput1: (s as { visualInput1?: string }).visualInput1,
+              visualInput2: (s as { visualInput2?: string }).visualInput2,
+              visualInput3: (s as { visualInput3?: string }).visualInput3,
+              visualInput4: (s as { visualInput4?: string }).visualInput4,
             }))
           : parseCurriculumToSlides(curriculumMarkdown).map((s) => ({
               title: s.title,
@@ -734,7 +849,7 @@ export default function TaoGiaoTrinhClientPage() {
   }, [curriculumId])
 
   useEffect(() => {
-    const handler = (e: MessageEvent) => {
+    const handler = async (e: MessageEvent) => {
       if (e.origin !== window.location.origin) return
       if (e.data?.type === 'refresh-personal-after-reset') {
         void refreshPersonalSlides()
@@ -743,17 +858,28 @@ export default function TaoGiaoTrinhClientPage() {
       if (e.data?.type !== 'request-curriculum') return
       const target = e.source as Window | null
       if (!target) return
-      const slidesToUse = aiSlides ?? curriculumSlides ?? null
+      let slidesToUse = aiSlides ?? curriculumSlides ?? null
+      if (curriculumId && slideVersionChoice === 'personal') {
+        const res = await getUserCustomizedSlides(curriculumId)
+        if (res?.success && res.slides?.length) {
+          setPersonalSlides(res.slides)
+          slidesToUse = res.slides
+        }
+      }
       const slides =
         slidesToUse && slidesToUse.length > 0
           ? slidesToUse.map((s) => ({
               title: s.title,
               blocks: s.blocks ?? [],
-              teacherNotes: '',
+              teacherNotes: (s as { teacherNotes?: string }).teacherNotes ?? '',
               imageUrl: s.imageUrl,
               visualEmbed: s.visualEmbed,
               visualLayout: s.visualLayout,
               visualCells: s.visualCells,
+              visualInput1: (s as { visualInput1?: string }).visualInput1,
+              visualInput2: (s as { visualInput2?: string }).visualInput2,
+              visualInput3: (s as { visualInput3?: string }).visualInput3,
+              visualInput4: (s as { visualInput4?: string }).visualInput4,
             }))
           : parseCurriculumToSlides(curriculumMarkdown).map((s) => ({
               title: s.title,
@@ -922,15 +1048,14 @@ export default function TaoGiaoTrinhClientPage() {
     setWorksheetMarkdown('')
     setWorksheetId(null)
     resetWorksheetEditState()
-    setWorksheetQrDataUrl(null)
     setCurriculumWorksheets([])
     setCurriculumSlides(null)
     setAiSlides(null)
+    setFeatureSection('create')
     setLastOverwriteAt(null)
     setSimilarTopicCurricula([])
     setBookIsbn('')
     setLessonImages([])
-    setPastedContent('')
     if (lessonImageInputRef.current) lessonImageInputRef.current.value = ''
   }
 
@@ -959,13 +1084,20 @@ export default function TaoGiaoTrinhClientPage() {
   const [editCompareLoading, setEditCompareLoading] = useState(false)
   const [editCompareResult, setEditCompareResult] = useState<{ correctVersion: string; originalReason: string | null; editedReason: string | null; explanation: string; bothAgree: boolean; reasonSaved: string | null; reasonNotSaved: string | null; model1Version?: string; model2Version?: string } | null>(null)
   const [editCompareErrors, setEditCompareErrors] = useState<string[]>([])
-  const [worksheetEditOriginalText, setWorksheetEditOriginalText] = useState('')
-  const [worksheetEditEditedText, setWorksheetEditEditedText] = useState('')
-  const [worksheetEditMatchStatus, setWorksheetEditMatchStatus] = useState<'idle' | 'found' | 'not_found' | 'multiple'>('idle')
-  const [worksheetEditMatchCount, setWorksheetEditMatchCount] = useState(0)
-  const worksheetEditMatchIndexRef = useRef<number>(-1)
-  const worksheetMatchMarkRef = useRef<HTMLElement | null>(null)
+  const [worksheetEditBlockIndex, setWorksheetEditBlockIndex] = useState<number | null>(null)
+  const [worksheetEditBlockContent, setWorksheetEditBlockContent] = useState('')
+  const [worksheetEditImages, setWorksheetEditImages] = useState<File[]>([])
   const [worksheetEditSaving, setWorksheetEditSaving] = useState(false)
+  const [worksheetEditCheckLoading, setWorksheetEditCheckLoading] = useState(false)
+  const [worksheetEditCheckResult, setWorksheetEditCheckResult] = useState<{
+    issues: Array<{ field: string; location: string; issue: string; suggested: string }>
+    correctedContent: string | null
+  } | null>(null)
+  const [worksheetEditFilter, setWorksheetEditFilter] = useState<'quiz' | 'essay' | null>(null)
+  const worksheetEditBlocks = useMemo(
+    () => parseWorksheetIntoBlocks(worksheetMarkdown),
+    [worksheetMarkdown]
+  )
   const editCompareTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
   const prevContentRef = useRef<string>('')
@@ -1323,9 +1455,8 @@ export default function TaoGiaoTrinhClientPage() {
     const idx = editMatchIndexRef.current >= 0 ? editMatchIndexRef.current : curriculumMarkdown.indexOf(orig)
     const CONTEXT_CHARS = 250
     const start = Math.max(0, idx - CONTEXT_CHARS)
-    const end = Math.min(curriculumMarkdown.length, idx + orig.length + CONTEXT_CHARS)
-    const originalRegion = curriculumMarkdown.slice(start, end)
-    const editedRegion = curriculumMarkdown.slice(start, idx) + edited + curriculumMarkdown.slice(idx + orig.length, end)
+    const originalRegion = curriculumMarkdown.slice(start, idx + orig.length)
+    const editedRegion = curriculumMarkdown.slice(start, idx) + edited
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 120000)
     try {
@@ -1361,7 +1492,7 @@ export default function TaoGiaoTrinhClientPage() {
           setEditMatchCount(0)
           toast({
             title: tr('Đã lưu', 'Saved', '已保存', '保存しました', '저장됨'),
-            description: reasonSaved || rc.explanation || tr('Lý do đã lưu: 2 AI (Gemini Pro + DeepSeek) đồng ý bản sửa đúng.', 'Reason saved: 2 AIs agree the edit is correct.', '已保存原因：2个AI同意修改正确。', '保存理由：2つのAIが編集が正しいと同意。', '저장 이유: 2개 AI가 편집이 맞다고 동의.'),
+            description: reasonSaved || rc.explanation || tr('Lý do đã lưu: 2 AI (Gemini Pro + Gemini Flash) đồng ý bản sửa đúng.', 'Reason saved: 2 AIs agree the edit is correct.', '已保存原因：2个AI同意修改正确。', '保存理由：2つのAIが編集が正しいと同意。', '저장 이유: 2개 AI가 편집이 맞다고 동의.'),
             duration: 3000,
           })
         } else if (data.bothAgree && rc.correctVersion === 'original') {
@@ -1383,118 +1514,172 @@ export default function TaoGiaoTrinhClientPage() {
     }
   }, [editOriginalText, editEditedText, editMatchStatus, curriculumMarkdown, handleApplyEditFromSheet, tr, toast])
 
-  useEffect(() => {
-    const t = worksheetEditOriginalText.trim()
-    if (!t || t.length < 3 || !worksheetMarkdown) {
-      setWorksheetEditMatchStatus('idle')
-      setWorksheetEditMatchCount(0)
-      worksheetEditMatchIndexRef.current = -1
-      return
-    }
-    let pos = 0
-    const indices: number[] = []
-    while ((pos = worksheetStudentMarkdown.indexOf(t, pos)) >= 0) {
-      indices.push(pos)
-      pos += 1
-    }
-    if (indices.length === 0) {
-      setWorksheetEditMatchStatus('not_found')
-      setWorksheetEditMatchCount(0)
-      worksheetEditMatchIndexRef.current = -1
-    } else if (indices.length === 1) {
-      setWorksheetEditMatchStatus('found')
-      setWorksheetEditMatchCount(1)
-      worksheetEditMatchIndexRef.current = indices[0]
-    } else {
-      setWorksheetEditMatchStatus('multiple')
-      setWorksheetEditMatchCount(indices.length)
-      worksheetEditMatchIndexRef.current = -1
-    }
-  }, [worksheetEditOriginalText, worksheetStudentMarkdown])
-
-  useEffect(() => {
-    if (worksheetEditMatchStatus !== 'found') return
-    const el = worksheetMatchMarkRef.current
-    if (!el) return
-    requestAnimationFrame(() => {
-      el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' })
-    })
-  }, [worksheetEditMatchStatus, worksheetEditOriginalText, worksheetStudentMarkdown])
-
-  const handleApplyWorksheetEdit = useCallback(async () => {
-    const orig = worksheetEditOriginalText.trim()
-    const edited = worksheetEditEditedText.trim()
+  const handleSaveWorksheetBlockEdit = useCallback(async (opts?: { skipAiCheck?: boolean; contentOverride?: string }) => {
+    const blockIdx = worksheetEditBlockIndex
+    if (blockIdx == null || blockIdx < 0 || blockIdx >= worksheetEditBlocks.length) return
+    const block = worksheetEditBlocks[blockIdx]
+    const edited = opts?.contentOverride ?? worksheetEditBlockContent
     if (!worksheetId) {
       toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: tr('Phiếu bài tập chưa được lưu nên chưa thể sửa.', 'Worksheet is not saved yet, cannot edit now.', '练习尚未保存，暂无法编辑。', 'ワークシート未保存のため編集できません。', '워크시트가 아직 저장되지 않아 수정할 수 없습니다.'), variant: 'destructive' })
       return
     }
-    if (!orig || orig.length < 5) {
-      toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: tr('Dữ liệu cần sửa quá ngắn.', 'Data to edit is too short.', '要编辑的数据太短。', '編集するデータが短すぎます。', '편집할 데이터가 너무 짧습니다.'), variant: 'destructive' })
+    if (!edited || edited.trim().length < 3) {
+      toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: tr('Nội dung câu quá ngắn.', 'Question content is too short.', '题目内容太短。', '問題の内容が短すぎます。', '문제 내용이 너무 짧습니다.'), variant: 'destructive' })
       return
     }
-    if (worksheetEditMatchStatus === 'multiple') {
-      toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: tr('Tìm thấy nhiều đoạn trùng. Gõ thêm nội dung để đoạn cần sửa là duy nhất.', 'Multiple matches found. Add more content so the segment to edit is unique.', '找到多个相同段落。请添加更多内容使要编辑的段落唯一。', '複数一致。編集する段落が一意になるよう内容を追加してください。', '여러 개 일치. 편집할 단락이 고유하도록 내용을 추가하세요.'), variant: 'destructive' })
+    const originalContent = worksheetMarkdown.slice(block.startOffset, block.endOffset)
+    if (originalContent === edited) {
+      setWorksheetEditBlockIndex(null)
+      setWorksheetEditBlockContent('')
       return
     }
-    if (worksheetEditMatchStatus !== 'found') {
-      toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: tr('Không tìm thấy dữ liệu cần sửa trong phiếu bài tập.', 'Data to edit not found in worksheet.', '在练习中未找到要编辑的数据。', 'ワークシート内に編集するデータが見つかりません。', '워크시트에서 편집할 데이터를 찾을 수 없습니다.'), variant: 'destructive' })
-      return
-    }
-    if (!edited) {
-      toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: tr('Nhập nội dung sẽ sửa thành.', 'Enter the replacement content.', '请输入替换内容。', '置換後の内容を入力してください。', '대체할 내용을 입력하세요.'), variant: 'destructive' })
-      return
-    }
-
-    const idx = worksheetEditMatchIndexRef.current >= 0 ? worksheetEditMatchIndexRef.current : worksheetStudentMarkdown.indexOf(orig)
-    if (idx < 0) return
-    const CONTEXT_CHARS = 250
-    const start = Math.max(0, idx - CONTEXT_CHARS)
-    const end = Math.min(worksheetStudentMarkdown.length, idx + orig.length + CONTEXT_CHARS)
-    const originalRegion = worksheetStudentMarkdown.slice(start, end)
-    const editedRegion = worksheetStudentMarkdown.slice(start, idx) + edited + worksheetStudentMarkdown.slice(idx + orig.length, end)
+    const skipAiCheck = opts?.skipAiCheck === true
 
     setWorksheetEditSaving(true)
     try {
-      const res = await fetch('/api/curriculum-edit-check', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ originalRegion, editedRegion }),
-      })
-      const data = await res.json().catch(() => ({}))
-      const rc = data.regionCompare
-      const canSave = !!(data.ok && data.bothAgree && rc?.correctVersion === 'edited')
-      if (!canSave) {
-        toast({
-          title: tr('Chưa lưu', 'Not saved', '未保存', '未保存', '저장 안 됨'),
-          description: data.reasonNotSaved || rc?.explanation || tr('AI chưa đồng ý bản sửa. Vui lòng chỉnh lại.', 'AI did not approve this edit yet. Please adjust and retry.', 'AI尚未同意该修改，请调整后重试。', 'AIがこの編集を承認していません。修正して再試行してください。', 'AI가 아직 이 수정을 승인하지 않았습니다. 수정 후 다시 시도하세요.'),
-          variant: 'destructive',
+      if (!skipAiCheck) {
+        if (worksheetEditImages.length > 0) {
+          const blockType = block?.type ?? 'quiz'
+          const fdCheck = new FormData()
+          fdCheck.append('content', edited)
+          fdCheck.append('blockType', blockType)
+          fdCheck.append('curriculum', curriculumMarkdown.slice(0, 4000))
+          worksheetEditImages.forEach((f) => fdCheck.append('images', f))
+          const checkRes = await fetch('/api/worksheet-edit-check', { method: 'POST', body: fdCheck })
+          const checkData = await checkRes.json().catch(() => ({}))
+          if (checkData.error) {
+            toast({ title: tr('Lỗi kiểm tra', 'Check failed', '检查失败', 'チェック失敗', '검사 실패'), description: checkData.error, variant: 'destructive' })
+            return
+          }
+          setWorksheetEditCheckResult({ issues: checkData.issues ?? [], correctedContent: checkData.correctedContent ?? null })
+          if (Array.isArray(checkData.issues) && checkData.issues.length > 0) {
+            toast({
+              title: tr('Chưa lưu', 'Not saved', '未保存', '未保存', '저장 안 됨'),
+              description: tr('Có lỗi theo ảnh đính kèm. Vui lòng sửa rồi lưu lại.', 'There are issues based on attached images. Please fix and save again.', '根据附图检测到问题，请修改后再保存。', '添付画像ベースで問題が見つかりました。修正して再保存してください。', '첨부 이미지 기준 오류가 있습니다. 수정 후 다시 저장하세요.'),
+              variant: 'destructive',
+            })
+            return
+          }
+        } else {
+        const CONTEXT_CHARS = 250
+        const contextStart = Math.max(0, block.startOffset - CONTEXT_CHARS)
+        const originalRegion = worksheetMarkdown.slice(contextStart, block.endOffset)
+        const editedRegion = worksheetMarkdown.slice(contextStart, block.startOffset) + edited
+
+        const res = await fetch('/api/curriculum-edit-check', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ originalRegion, editedRegion }),
         })
-        return
+        const data = await res.json().catch(() => ({}))
+        const rc = data.regionCompare
+        const canSave = !!(data.ok && data.bothAgree && rc?.correctVersion === 'edited')
+        if (!canSave) {
+          let restored = toEditableBlockContent(originalContent, block.type)
+          if (worksheetId) {
+            try {
+              const res = await fetch(`/api/worksheet/${encodeURIComponent(worksheetId)}`)
+              const data = await res.json().catch(() => ({}))
+              const list = Array.isArray(data?.questions) ? data.questions as Array<{ type?: string; content_json?: unknown }> : []
+              const sameTypeIdx = worksheetEditBlocks.slice(0, blockIdx + 1).filter((b) => b.type === block.type).length - 1
+              const row = list.filter((q) => q?.type === block.type)[sameTypeIdx]
+              if (row && block.type === 'essay') {
+                const heading = (restored.match(/^([^\n]*Bài\s+\d+[^\n]*)/i)?.[1] ?? '').trim()
+                const problem = latexToReadable(getEssayProblem(row.content_json) || '')
+                const solution = normalizeSolutionToStr(getEssaySolution(row.content_json)) || '(Chưa có lời giải)'
+                restored = [heading, problem, '**Lời giải:**', solution].filter(Boolean).join('\n\n')
+              }
+            } catch {
+              /* fallback dùng markdown hiện tại */
+            }
+          }
+          setWorksheetEditBlockContent(restored)
+          setWorksheetEditCheckResult(null)
+          toast({
+            title: tr('Chưa lưu', 'Not saved', '未保存', '未保存', '저장 안 됨'),
+            description: (data.reasonNotSaved || rc?.explanation || tr('AI chưa đồng ý bản sửa.', 'AI did not approve this edit.', 'AI尚未同意该修改。', 'AIがこの編集を承認していません。', 'AI가 이 수정을 승인하지 않았습니다.')) + ' ' + tr('Đã hoàn nguyên nội dung gốc.', 'Reverted to original content.', '已恢复原内容。', '元の内容に戻しました。', '원본 내용으로 복원했습니다.'),
+            variant: 'destructive',
+          })
+          return
+        }
+        }
       }
 
-      const newContent = worksheetStudentMarkdown.slice(0, idx) + edited + worksheetStudentMarkdown.slice(idx + orig.length)
+      const newMarkdown = replaceBlockInMarkdown(worksheetMarkdown, block, edited)
       const fd = new FormData()
       fd.append('worksheetId', worksheetId)
-      fd.append('contentMarkdown', newContent)
+      fd.append('contentMarkdown', newMarkdown)
       const saveRes = await saveWorksheetContent(fd)
       if (saveRes?.error) {
         toast({ title: tr('Lỗi lưu phiếu', 'Save worksheet failed', '保存练习失败', 'ワークシート保存失敗', '워크시트 저장 실패'), description: saveRes.error, variant: 'destructive' })
         return
       }
-      setWorksheetMarkdown(newContent)
-      setWorksheetEditOriginalText('')
-      setWorksheetEditEditedText('')
-      setWorksheetEditMatchStatus('idle')
-      setWorksheetEditMatchCount(0)
+      setWorksheetMarkdown(newMarkdown)
+      setCurriculumWorksheets((prev) =>
+        prev.map((w) => (w.id === worksheetId ? { ...w, content_markdown: newMarkdown } : w))
+      )
+      setWorksheetEditBlockIndex(null)
+      setWorksheetEditBlockContent('')
+      setWorksheetEditImages([])
+      setWorksheetEditCheckResult(null)
       toast({
         title: tr('Đã lưu', 'Saved', '已保存', '保存しました', '저장됨'),
-        description: data.reasonSaved || rc?.explanation || tr('AI đã kiểm tra và lưu bản sửa phiếu bài tập.', 'AI checked and saved worksheet edit.', 'AI已检查并保存练习修改。', 'AIが確認してワークシート編集を保存しました。', 'AI가 확인 후 워크시트 수정을 저장했습니다.'),
+        description: skipAiCheck
+          ? tr('Đã áp dụng sửa và lưu.', 'Applied fixes and saved.', '已应用修改并保存。', '修正を適用して保存しました。', '수정 적용 후 저장했습니다.')
+          : tr('AI đã kiểm tra và lưu câu đã sửa.', 'AI checked and saved the edited question.', 'AI已检查并保存修改的题目。', 'AIが確認して修正した問題を保存しました。', 'AI가 확인 후 수정한 문제를 저장했습니다.'),
       })
     } finally {
       setWorksheetEditSaving(false)
     }
-  }, [worksheetEditOriginalText, worksheetEditEditedText, worksheetEditMatchStatus, worksheetStudentMarkdown, worksheetId, tr, toast])
+  }, [worksheetEditBlockIndex, worksheetEditBlockContent, worksheetEditBlocks, worksheetEditImages, worksheetMarkdown, worksheetId, curriculumMarkdown, tr, toast])
 
+  const handleCheckWorksheetBlock = useCallback(async () => {
+    const content = worksheetEditBlockContent.trim()
+    if (!content || content.length < 5) {
+      toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: tr('Nội dung câu quá ngắn.', 'Content too short.', '内容太短。', '内容が短すぎます。', '내용이 너무 짧습니다.'), variant: 'destructive' })
+      return
+    }
+    const blockIdx = worksheetEditBlockIndex
+    const block = blockIdx != null ? worksheetEditBlocks[blockIdx] : null
+    const blockType = block?.type ?? 'quiz'
+    setWorksheetEditCheckLoading(true)
+    setWorksheetEditCheckResult(null)
+    try {
+      let res: Response
+      if (worksheetEditImages.length > 0) {
+        const fd = new FormData()
+        fd.append('content', content)
+        fd.append('blockType', blockType)
+        fd.append('curriculum', curriculumMarkdown.slice(0, 4000))
+        worksheetEditImages.forEach((f) => fd.append('images', f))
+        res = await fetch('/api/worksheet-edit-check', { method: 'POST', body: fd })
+      } else {
+        res = await fetch('/api/worksheet-edit-check', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            content,
+            blockType,
+            curriculum: curriculumMarkdown.slice(0, 4000),
+          }),
+        })
+      }
+      const data = await res.json().catch(() => ({}))
+      if (data.error) {
+        toast({ title: tr('Lỗi kiểm tra', 'Check failed', '检查失败', 'チェック失敗', '검사 실패'), description: data.error, variant: 'destructive' })
+        return
+      }
+      setWorksheetEditCheckResult({
+        issues: data.issues ?? [],
+        correctedContent: data.correctedContent ?? null,
+      })
+      if (!data.issues?.length) {
+        toast({ title: tr('Không có lỗi', 'No issues', '无问题', '問題なし', '문제 없음'), description: tr('Câu đã đúng, có thể lưu.', 'Question is correct, you can save.', '题目正确，可以保存。', '問題は正しいです。保存できます。', '문제가 맞습니다. 저장하세요.'), duration: 2000 })
+      }
+    } finally {
+      setWorksheetEditCheckLoading(false)
+    }
+  }, [worksheetEditBlockIndex, worksheetEditBlockContent, worksheetEditBlocks, worksheetEditImages, curriculumMarkdown, tr, toast])
 
   const handleEscalateToAdmin = async (errorsToSend?: string[]) => {
     const errs = errorsToSend ?? regionCheckErrors
@@ -1558,7 +1743,7 @@ export default function TaoGiaoTrinhClientPage() {
       setGoals(c.goals ?? '')
       setCurriculumMarkdown(c.content_markdown ?? '')
       setCurriculumId(c.id ?? null)
-      setCurriculumEditMode(true)
+      setCurriculumEditMode(false) // Đóng mặc định; mở khi bấm "Sửa giáo trình"
       setEditOriginalText('')
       setEditEditedText('')
       setEditMatchStatus('idle')
@@ -1572,9 +1757,9 @@ export default function TaoGiaoTrinhClientPage() {
       setWorksheetMarkdown('')
       setWorksheetId(null)
       resetWorksheetEditState()
-      setWorksheetQrDataUrl(null)
       setStep('RESULT')
       setShowBrowse(false)
+      setFeatureSection('create')
       setAiSlides(null)
       const wsRes = await getWorksheetsByCurriculumId(id)
       if (wsRes && 'items' in wsRes) setCurriculumWorksheets((wsRes.items ?? []) as Array<{ id: string; topic: string; subject_id: string; grade_level_id: string; content_markdown: string; created_at: string }>)
@@ -1584,6 +1769,9 @@ export default function TaoGiaoTrinhClientPage() {
       else setCurriculumSlides(null)
       void recordCurriculumOpen(id)
       toast({ title: tr('Đã tải giáo trình', 'Curriculum loaded', '已加载课程', 'カリキュラムを読み込み', '교육과정 로드됨'), duration: 2000 })
+      setTimeout(() => {
+        curriculumResultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }, 150)
     }
   }
 
@@ -1606,13 +1794,41 @@ export default function TaoGiaoTrinhClientPage() {
     }
   }
 
-  const handleLoadWorksheetFromCurriculum = (w: { id: string; topic: string; content_markdown: string }) => {
-    setWorksheetMarkdown(w.content_markdown)
+  const handleLoadWorksheetFromCurriculum = async (w: { id: string; topic: string; content_markdown: string }) => {
+    // Gọi API để lấy content đã merge lời giải từ worksheet_questions (không cần auth)
+    let content = w.content_markdown
+    try {
+      const res = await fetch(`/api/worksheet/${encodeURIComponent(w.id)}`)
+      const data = await res.json().catch(() => ({}))
+      if (!data?.error && data?.content_markdown) {
+        content = data.content_markdown
+        // Merge thêm trên client nếu API trả về questions – đảm bảo lời giải hiển thị trong popup sửa
+        const questions = Array.isArray(data.questions) ? data.questions : []
+        if (questions.length) content = mergeContentWithQuestions(content, questions)
+      }
+    } catch {
+      const result = await getWorksheetById(w.id)
+      if (result.success && result.worksheet) {
+        content = (result.worksheet as { content_markdown?: string }).content_markdown ?? content
+      }
+    }
+    setWorksheetMarkdown(content)
     setWorksheetId(w.id)
     resetWorksheetEditState()
-    const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
-    QRCode.toDataURL(`${baseUrl}/phieu-bai-tap/${w.id}`, { width: 180, margin: 2 }).then(setWorksheetQrDataUrl).catch(() => setWorksheetQrDataUrl(null))
   }
+
+  const scrollToWorksheetSection = useCallback(() => {
+    if (!worksheetMarkdown && curriculumWorksheets.length > 0) {
+      handleLoadWorksheetFromCurriculum(curriculumWorksheets[0])
+      setTimeout(() => {
+        worksheetSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }, 150)
+    } else if (worksheetSectionRef.current) {
+      worksheetSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    } else if (curriculumWorksheetsSectionRef.current) {
+      curriculumWorksheetsSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }, [worksheetMarkdown, curriculumWorksheets])
 
   const handleLoadWorksheet = async (id: string) => {
     const result = await getWorksheetById(id)
@@ -1631,10 +1847,9 @@ export default function TaoGiaoTrinhClientPage() {
       resetWorksheetEditState()
       setCurriculumId(curriculumIdFromWs ?? null)
       setCurriculumEditMode(false)
-      const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
-      QRCode.toDataURL(`${baseUrl}/phieu-bai-tap/${w.id}`, { width: 180, margin: 2 }).then(setWorksheetQrDataUrl).catch(() => setWorksheetQrDataUrl(null))
       setStep('RESULT')
       setShowBrowse(false)
+      setFeatureSection('create')
       if (curriculumIdFromWs) {
         const [curRes, wsRes, slidesRes] = await Promise.all([
           getCurriculumById(curriculumIdFromWs),
@@ -1668,45 +1883,385 @@ export default function TaoGiaoTrinhClientPage() {
     }
   }
 
-  const handleCreateWorksheet = async () => {
-    setWorksheetLoading(true)
-    const formData = new FormData()
-    formData.append('curriculumMarkdown', curriculumMarkdown)
-    if (curriculumId) formData.append('curriculumId', curriculumId)
-    formData.append('topic', displayTopic)
-    formData.append('subjectId', subjectId)
-    formData.append('gradeLevelId', gradeLevelId)
-    const result = await createWorksheet(formData)
-    setWorksheetLoading(false)
-    if (result.error) {
+  const pollJobStatus = useCallback(
+    async (jobId: string): Promise<{ status: string; result?: Record<string, unknown>; error?: string }> => {
+      const res = await fetch(`/api/worksheet-job-status?jobId=${encodeURIComponent(jobId)}`)
+      const data = await res.json().catch(() => ({}))
+      return { status: data.status ?? 'pending', result: data.result, error: data.error }
+    },
+    []
+  )
+
+  const triggerWorksheetVerify = useCallback(
+    async (targetWorksheetId: string, markdown: string) => {
+      // Verify có thể chạy khá lâu khi phiếu có nhiều câu; poll lâu hơn để UI kịp phản ánh trạng thái [Đã verify].
+      setWorksheetVerifyPollUntil(Date.now() + 10 * 60 * 1000)
+      try {
+        const res = await fetch('/api/worksheet-verify-background', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ worksheetId: targetWorksheetId, curriculumMarkdown: markdown }),
+        })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok || data?.error) {
+          toast({
+            title: tr('Verify thất bại', 'Verify failed', '校验失败', '検証失敗', '검증 실패'),
+            description: data?.error || tr('Không thể chạy verify nền.', 'Could not start background verify.', '无法启动后台校验。', 'バックグラウンド検証を開始できません。', '백그라운드 검증을 시작할 수 없습니다.'),
+            variant: 'destructive',
+          })
+          return
+        }
+        if (data?.skipped) {
+          toast({
+            title: tr('Verify bị bỏ qua', 'Verify skipped', '校验已跳过', '検証をスキップ', '검증 건너뜀'),
+            description: data?.reason || tr('Thiếu cấu hình verify.', 'Missing verify configuration.', '缺少校验配置。', '検証設定が不足しています。', '검증 설정이 누락되었습니다.'),
+            variant: 'destructive',
+          })
+          return
+        }
+        // Refetch ngay: API đã đồng bộ tag [Đã verify] từ DB, không cần chờ poll 15s
+        try {
+          const r = await fetch(`/api/worksheet/${encodeURIComponent(targetWorksheetId)}`)
+          const d = await r.json().catch(() => ({}))
+          if (d?.content_markdown) {
+            setWorksheetMarkdown(d.content_markdown)
+            setCurriculumWorksheets((prev) =>
+              prev.some((w) => w.id === targetWorksheetId)
+                ? prev.map((w) => (w.id === targetWorksheetId ? { ...w, content_markdown: d.content_markdown } : w))
+                : prev
+            )
+          }
+        } catch {
+          /* poll effect vẫn tiếp tục */
+        }
+      } catch {
+        toast({
+          title: tr('Verify thất bại', 'Verify failed', '校验失败', '検証失敗', '검증 실패'),
+          description: tr('Lỗi mạng khi gọi verify nền.', 'Network error while calling background verify.', '调用后台校验时网络错误。', 'バックグラウンド検証呼び出し時にネットワークエラー。', '백그라운드 검증 호출 중 네트워크 오류.'),
+          variant: 'destructive',
+        })
+      }
+    },
+    [toast, tr]
+  )
+
+  const startSolveSgkEssaysJob = useCallback(
+    async (targetWorksheetId: string, markdown: string, silent = false) => {
+      const res = await fetch('/api/worksheet-solve-sgk-essays', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ worksheetId: targetWorksheetId, curriculumMarkdown: markdown }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || data?.error) {
+        toast({
+          title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'),
+          description: data?.error || tr('Không thể tạo job giải tự luận SGK.', 'Could not create SGK essay solving job.', '无法创建 SGK 主观题解题任务。', 'SGK記述式解答ジョブを作成できません。', 'SGK 서술형 풀이 작업을 생성할 수 없습니다.'),
+          variant: 'destructive',
+        })
+        return
+      }
+      const solveJobId = data?.jobId as string | undefined
+      if (!solveJobId) return
+
+      try {
+        localStorage.setItem(WS_ACTIVE_JOB_KEY, JSON.stringify({ jobId: solveJobId, type: 'solve_sgk_essays', curriculumId, curriculumMarkdown: markdown }))
+      } catch {}
+
+      if (!silent) {
+        toast({
+          title: tr('Đang giải tự luận SGK', 'Solving SGK essays', '正在解 SGK 主观题', 'SGK記述式を解答中', 'SGK 서술형 풀이 중'),
+          description: tr('Hệ thống đang chạy nền từng bài tự luận.', 'Background solving is running for each essay.', '系统正在后台逐题解答主观题。', '記述式をバックグラウンドで順次解答中。', '서술형 문제를 백그라운드에서 순차 풀이 중입니다.'),
+          duration: 4000,
+        })
+      }
+
+      while (true) {
+        const st = await pollJobStatus(solveJobId)
+        if (st.status === 'completed' && st.result) {
+          try { localStorage.removeItem(WS_ACTIVE_JOB_KEY) } catch {}
+          const r = st.result as { worksheetId?: string; worksheetMarkdown?: string; solvedCount?: number; totalEssayCount?: number; pendingCount?: number }
+          if (r.worksheetMarkdown) setWorksheetMarkdown(r.worksheetMarkdown)
+          if (r.worksheetId) {
+            setWorksheetId(r.worksheetId)
+            void triggerWorksheetVerify(r.worksheetId, markdown)
+          }
+          if (curriculumId) {
+            const wsRes = await getWorksheetsByCurriculumId(curriculumId)
+            if (wsRes && 'items' in wsRes) setCurriculumWorksheets((wsRes.items ?? []) as Array<{ id: string; topic: string; subject_id: string; grade_level_id: string; content_markdown: string; created_at: string }>)
+          }
+          toast({
+            title: tr('Đã giải xong tự luận SGK', 'SGK essay solving completed', 'SGK 主观题解答完成', 'SGK記述式の解答完了', 'SGK 서술형 풀이 완료'),
+            description: `${tr('Đã giải', 'Solved', '已解答', '解答済み', '풀이 완료')} ${r.solvedCount ?? 0}/${r.totalEssayCount ?? 0} (${tr('còn chờ', 'pending', '待处理', '保留', '대기')}: ${r.pendingCount ?? 0})`,
+            duration: 3500,
+          })
+          break
+        }
+        if (st.status === 'failed') {
+          try { localStorage.removeItem(WS_ACTIVE_JOB_KEY) } catch {}
+          toast({
+            title: tr('Giải tự luận thất bại', 'Essay solving failed', '主观题解答失败', '記述式解答失敗', '서술형 풀이 실패'),
+            description: st.error || tr('Xử lý thất bại', 'Processing failed', '处理失败', '処理失敗', '처리 실패'),
+            variant: 'destructive',
+          })
+          break
+        }
+        await new Promise((r) => setTimeout(r, 4000))
+      }
+    },
+    [curriculumId, pollJobStatus, toast, tr, triggerWorksheetVerify]
+  )
+
+  const resumeJobRanRef = useRef(false)
+  // Khôi phục job khi user quay lại trang (đã đóng trước đó)
+  useEffect(() => {
+    if (typeof window === 'undefined' || resumeJobRanRef.current) return
+    try {
+      const raw = localStorage.getItem(WS_ACTIVE_JOB_KEY)
+      if (!raw) return
+      resumeJobRanRef.current = true
+      const stored = JSON.parse(raw) as { jobId?: string; type?: string; curriculumId?: string; curriculumMarkdown?: string }
+      const jobId = stored?.jobId
+      if (!jobId || typeof jobId !== 'string') return
+      const jobType = stored?.type ?? 'parse_sgk_extract'
+      const storedCurriculumId = stored?.curriculumId ?? null
+      const storedCurriculumMarkdown = stored?.curriculumMarkdown ?? ''
+      const doResume = async () => {
+        if (jobType === 'parse_sgk_extract') setSgkLoading(true)
+        else if (jobType === 'step_by_step_quiz' || jobType === 'step_by_step_essay') setWsStepByStepLoading(true)
+        while (true) {
+          const st = await pollJobStatus(jobId)
+          if (st.status === 'completed' && st.result) {
+            localStorage.removeItem(WS_ACTIVE_JOB_KEY)
+            const r = st.result as { worksheetId?: string; worksheetMarkdown?: string; addedCount?: number; questionIds?: string[]; solvedCount?: number; totalEssayCount?: number; pendingCount?: number }
+            setWorksheetMarkdown(r.worksheetMarkdown ?? worksheetMarkdown)
+            setWorksheetId(r.worksheetId ?? worksheetId)
+            setWsStepByStepQuestionIds(r.questionIds ?? [])
+            resetWorksheetEditState()
+            if (r.worksheetId) {
+              if (jobType === 'solve_sgk_essays') void triggerWorksheetVerify(r.worksheetId, storedCurriculumMarkdown)
+              if (jobType === 'parse_sgk_extract') void startSolveSgkEssaysJob(r.worksheetId, storedCurriculumMarkdown, true)
+            }
+            if (storedCurriculumId) {
+              const wsRes = await getWorksheetsByCurriculumId(storedCurriculumId)
+              if (wsRes && 'items' in wsRes) setCurriculumWorksheets((wsRes.items ?? []) as Array<{ id: string; topic: string; subject_id: string; grade_level_id: string; content_markdown: string; created_at: string }>)
+            }
+            setWsStepByStepExpanded(true)
+            toast({
+              title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'),
+              description: jobType === 'parse_sgk_extract'
+                ? tr('Đã thêm', 'Added', '已添加', '追加しました', '추가됨') + ` ${r.addedCount ?? 0} ${tr('câu vào phiếu', 'questions to worksheet', '道题到练习', '問を追加', '문항 추가됨')}`
+                : jobType === 'solve_sgk_essays'
+                  ? `${tr('Đã giải', 'Solved', '已解答', '解答済み', '풀이 완료')} ${r.solvedCount ?? 0}/${r.totalEssayCount ?? 0}`
+                : tr('Phiếu bài tập đã tạo và lưu.', 'Worksheet created and saved.', '练习已创建并保存。', '作成して保存しました。', '생성 후 저장했습니다.'),
+              duration: 3000,
+            })
+            scrollToWorksheetSection()
+            break
+          }
+          if (st.status === 'failed') {
+            localStorage.removeItem(WS_ACTIVE_JOB_KEY)
+            toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: st.error || tr('Xử lý thất bại', 'Processing failed', '处理失败', '処理失敗', '처리 실패'), variant: 'destructive' })
+            break
+          }
+          await new Promise((r) => setTimeout(r, 3000))
+        }
+        setSgkLoading(false)
+        setWsStepByStepLoading(false)
+      }
+      void doResume()
+    } catch {
+      localStorage.removeItem(WS_ACTIVE_JOB_KEY)
+    }
+  }, [pollJobStatus, startSolveSgkEssaysJob, triggerWorksheetVerify, tr, worksheetId, worksheetMarkdown])
+
+  const handleParseSgk = async () => {
+    if (sgkSubmitLockRef.current) return
+    if (sgkImages.length === 0) {
+      toast({ title: tr('Chọn ảnh', 'Select images', '选择图片', '画像を選択', '이미지 선택'), description: tr('Vui lòng chọn ảnh bài tập SGK.', 'Please select SGK exercise images.', '请选择教材练习图片。', 'SGKの練習画像を選択してください。', 'SGK 연습 이미지를 선택하세요.'), variant: 'destructive' })
+      return
+    }
+    if (!curriculumMarkdown.trim()) {
+      toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: tr('Vui lòng tạo giáo trình trước.', 'Please create curriculum first.', '请先创建课程。', '先にカリキュラムを作成してください。', '먼저 교육과정을 만드세요.'), variant: 'destructive' })
+      return
+    }
+    sgkSubmitLockRef.current = true
+    setSgkLoading(true)
+    const fd = new FormData()
+    sgkImages.forEach((f) => fd.append('images', f))
+    fd.append('topic', displayTopic)
+    fd.append('subjectId', subjectId)
+    fd.append('gradeLevelId', gradeLevelId)
+    fd.append('curriculumMarkdown', curriculumMarkdown)
+    if (curriculumId) fd.append('curriculumId', curriculumId)
+    if (worksheetId) fd.append('worksheetId', worksheetId)
+    try {
+      const res = await fetch('/api/worksheet-extract-sgk', { method: 'POST', body: fd })
+      const data = await res.json().catch(() => ({}))
+      if (data.error) {
+        toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: data.error, variant: 'destructive' })
+        return
+      }
+      const jobId = data.jobId
+      if (!jobId) {
+        toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: 'Không nhận được jobId', variant: 'destructive' })
+        return
+      }
+      try {
+        localStorage.setItem(WS_ACTIVE_JOB_KEY, JSON.stringify({ jobId, type: 'parse_sgk_extract', curriculumId, curriculumMarkdown }))
+      } catch {}
       toast({
-        title: tr('Tạo phiếu bài tập thất bại', 'Create worksheet failed', '创建练习失败', 'ワークシート作成に失敗', '워크시트 생성 실패'),
-        description: result.error,
-        variant: 'destructive',
+        title: tr('Đang xử lý nền', 'Processing in background', '后台处理中', 'バックグラウンド処理中', '백그라운드 처리 중'),
+        description: tr('Bạn có thể đóng trang. Quay lại để xem kết quả.', 'You can close the page. Return to see results.', '可关闭页面，稍后查看结果。', 'ページを閉じても大丈夫。後で結果を確認。', '페이지를 닫아도 됩니다. 나중에 결과 확인.'),
         duration: 5000,
       })
-    } else if (result.success && result.worksheetMarkdown) {
-      setWorksheetMarkdown(result.worksheetMarkdown)
-      setWorksheetId(result.worksheetId ?? null)
-      resetWorksheetEditState()
-      if (result.worksheetId) {
-        const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
-        const url = `${baseUrl}/phieu-bai-tap/${result.worksheetId}`
-        QRCode.toDataURL(url, { width: 180, margin: 2 }).then(setWorksheetQrDataUrl).catch(() => {})
-      } else {
-        setWorksheetQrDataUrl(null)
+      setSgkImages([])
+      if (sgkInputRef.current) sgkInputRef.current.value = ''
+      while (true) {
+        const st = await pollJobStatus(jobId)
+        if (st.status === 'completed' && st.result) {
+          const r = st.result as { worksheetId?: string; worksheetMarkdown?: string; addedCount?: number }
+          try { localStorage.removeItem(WS_ACTIVE_JOB_KEY) } catch {}
+          setWorksheetMarkdown(r.worksheetMarkdown ?? worksheetMarkdown)
+          setWorksheetId(r.worksheetId ?? worksheetId)
+          resetWorksheetEditState()
+          if (r.worksheetId) {
+            void startSolveSgkEssaysJob(r.worksheetId, curriculumMarkdown)
+          }
+          if (curriculumId) {
+            const wsRes = await getWorksheetsByCurriculumId(curriculumId)
+            if (wsRes && 'items' in wsRes) setCurriculumWorksheets((wsRes.items ?? []) as Array<{ id: string; topic: string; subject_id: string; grade_level_id: string; content_markdown: string; created_at: string }>)
+          }
+          toast({
+            title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'),
+            description: tr('Đã tách', 'Extracted', '已提取', '抽出済み', '추출 완료') + ` ${r.addedCount ?? 0} ${tr('câu vào phiếu', 'questions to worksheet', '道题到练习', '問を追加', '문항 추가됨')}`,
+            duration: 3000,
+          })
+          scrollToWorksheetSection()
+          break
+        }
+        if (st.status === 'failed') {
+          try { localStorage.removeItem(WS_ACTIVE_JOB_KEY) } catch {}
+          toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: st.error || tr('Xử lý thất bại', 'Processing failed', '处理失败', '処理失敗', '처리 실패'), variant: 'destructive' })
+          break
+        }
+        await new Promise((r) => setTimeout(r, 3000))
       }
-      if (curriculumId) {
-        const wsRes = await getWorksheetsByCurriculumId(curriculumId)
-        if (wsRes && 'items' in wsRes) setCurriculumWorksheets((wsRes.items ?? []) as Array<{ id: string; topic: string; subject_id: string; grade_level_id: string; content_markdown: string; created_at: string }>)
-      }
+    } finally {
+      sgkSubmitLockRef.current = false
+      setSgkLoading(false)
+    }
+  }
+
+  const runCreateStepByStep = async (type: 'quiz' | 'essay') => {
+    if (wsStepByStepSubmitLockRef.current) return
+    if (!curriculumMarkdown.trim()) {
+      toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: tr('Vui lòng tạo giáo trình trước.', 'Please create curriculum first.', '请先创建课程。', '先にカリキュラムを作成してください。', '먼저 교육과정을 만드세요.'), variant: 'destructive' })
+      return
+    }
+    const quizCount = Math.max(0, Math.min(wsStepByStepQuizCount, 20))
+    const essayCount = Math.max(0, Math.min(wsStepByStepEssayCount, 10))
+    const count = type === 'quiz' ? quizCount : essayCount
+    const diff = type === 'quiz' ? wsStepByStepQuizDiff : wsStepByStepEssayBloom
+    if (count === 0) {
       toast({
-        title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'),
-        description: result.fromCache
-          ? tr('Đã lấy phiếu bài tập có sẵn từ kho dữ liệu.', 'Loaded existing worksheet from database.', '已从数据库加载现有练习。', '既存ワークシートをDBから読み込みました。', 'DB에서 기존 워크시트를 불러왔습니다.')
-          : tr('Phiếu bài tập đã được tạo và lưu vào kho dữ liệu.', 'Worksheet has been created and saved to database.', '练习已创建并保存到数据库。', 'ワークシートを作成しDBに保存しました。', '워크시트를 생성하고 DB에 저장했습니다.'),
-        duration: 3000,
+        title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'),
+        description: type === 'quiz'
+          ? tr('Nhập số câu trắc nghiệm ≥ 1.', 'Enter quiz count ≥ 1.', '输入选择题数≥1。', 'クイズ数を1以上。', '퀴즈 수 ≥ 1 입력.')
+          : tr('Nhập số bài tự luận ≥ 1.', 'Enter essay count ≥ 1.', '输入主观题数≥1。', '記述式数を1以上。', '서술형 수 ≥ 1 입력.'),
+        variant: 'destructive',
       })
+      return
+    }
+    wsStepByStepSubmitLockRef.current = true
+    setWsStepByStepLoading(true)
+    setWsStepByStepQuestionIds([])
+    let lessonTopics: string[] | undefined
+    if (curriculumId) {
+      const curRes = await getCurriculumById(curriculumId)
+      const c = curRes?.curriculum as { lesson_topics?: string[] } | undefined
+      lessonTopics = Array.isArray(c?.lesson_topics) && c.lesson_topics.length >= 1 ? c.lesson_topics : undefined
+    }
+    try {
+      const res = await fetch('/api/worksheet-submit-job', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: type === 'quiz' ? 'quiz' : 'essay',
+          count,
+          curriculumMarkdown,
+          topic: displayTopic,
+          subjectId,
+          gradeLevelId,
+          curriculumId,
+          lessonTopics,
+          difficulty: diff,
+          sessionQuizCountByDiff: { easy: wsStepByStepSessionCounts.quiz?.easy ?? 0, medium: wsStepByStepSessionCounts.quiz?.medium ?? 0, hard: wsStepByStepSessionCounts.quiz?.hard ?? 0 },
+          sessionEssayCountByBloom: { 'nhan-biet': wsStepByStepSessionCounts.essay?.['nhan-biet'] ?? 0, 'thong-hieu': wsStepByStepSessionCounts.essay?.['thong-hieu'] ?? 0, 'van-dung-thap': wsStepByStepSessionCounts.essay?.['van-dung-thap'] ?? 0, 'van-dung-cao': wsStepByStepSessionCounts.essay?.['van-dung-cao'] ?? 0, 'thuc-te': wsStepByStepSessionCounts.essay?.['thuc-te'] ?? 0 },
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (data.error) {
+        toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: data.error, variant: 'destructive' })
+        return
+      }
+      const jobId = data.jobId
+      if (!jobId) {
+        toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: 'Không nhận được jobId', variant: 'destructive' })
+        return
+      }
+      try {
+        localStorage.setItem(WS_ACTIVE_JOB_KEY, JSON.stringify({ jobId, type: type === 'quiz' ? 'step_by_step_quiz' : 'step_by_step_essay', curriculumId, curriculumMarkdown }))
+      } catch {}
+      toast({
+        title: tr('Đang xử lý nền', 'Processing in background', '后台处理中', 'バックグラウンド処理中', '백그라운드 처리 중'),
+        description: tr('Bạn có thể đóng trang. Quay lại để xem kết quả.', 'You can close the page. Return to see results.', '可关闭页面，稍后查看结果。', 'ページを閉じても大丈夫。後で結果を確認。', '페이지를 닫아도 됩니다. 나중에 결과 확인.'),
+        duration: 5000,
+      })
+      setWsStepByStepStatus(tr('Đang tạo câu hỏi...', 'Creating questions...', '创建题目中...', '問題作成中...', '문항 생성 중...'))
+      while (true) {
+        const st = await pollJobStatus(jobId)
+        if (st.status === 'completed' && st.result) {
+          try { localStorage.removeItem(WS_ACTIVE_JOB_KEY) } catch {}
+          const r = st.result as { worksheetId?: string; worksheetMarkdown?: string; questionIds?: string[] }
+          setWorksheetMarkdown(r.worksheetMarkdown ?? '')
+          setWorksheetId(r.worksheetId ?? null)
+          setWsStepByStepQuestionIds(r.questionIds ?? [])
+          resetWorksheetEditState()
+          if (r.worksheetId) {
+            void triggerWorksheetVerify(r.worksheetId, curriculumMarkdown)
+          }
+          if (curriculumId) {
+            const wsRes = await getWorksheetsByCurriculumId(curriculumId)
+            if (wsRes && 'items' in wsRes) setCurriculumWorksheets((wsRes.items ?? []) as Array<{ id: string; topic: string; subject_id: string; grade_level_id: string; content_markdown: string; created_at: string }>)
+          }
+          setWsStepByStepExpanded(true)
+          setWsStepByStepSessionCounts({ quiz: {}, essay: {} })
+          if (curriculumId) {
+            fetch(`/api/worksheet-question-counts?curriculumId=${encodeURIComponent(curriculumId)}`)
+              .then((r) => r.json())
+              .then((d) => { if (d.quiz && d.essay) setWsStepByStepCounts({ quiz: d.quiz, essay: d.essay }) })
+              .catch(() => {})
+          }
+          toast({
+            title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'),
+            description: tr('Phiếu bài tập đã tạo từng câu và lưu.', 'Worksheet created from individual questions and saved.', '练习已逐题创建并保存。', '1問ずつ作成して保存しました。', '문항별로 생성 후 저장했습니다.'),
+            duration: 3000,
+          })
+          scrollToWorksheetSection()
+          break
+        }
+        if (st.status === 'failed') {
+          try { localStorage.removeItem(WS_ACTIVE_JOB_KEY) } catch {}
+          toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: st.error || tr('Xử lý thất bại', 'Processing failed', '处理失败', '処理失敗', '처리 실패'), variant: 'destructive' })
+          break
+        }
+        await new Promise((r) => setTimeout(r, 3000))
+      }
+    } finally {
+      wsStepByStepSubmitLockRef.current = false
+      setWsStepByStepLoading(false)
+      setWsStepByStepStatus('')
     }
   }
 
@@ -1754,6 +2309,12 @@ export default function TaoGiaoTrinhClientPage() {
         onChoose={handleSlideVersionChoose}
         tr={tr}
       />
+      <CurriculumExerciseListDialog
+        open={exerciseListOpen}
+        onOpenChange={setExerciseListOpen}
+        curriculumId={curriculumId}
+        tr={tr}
+      />
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-foreground">
@@ -1769,15 +2330,37 @@ export default function TaoGiaoTrinhClientPage() {
             )}
           </p>
           <div className="flex flex-wrap justify-center gap-2 mt-3">
-            <Link href="/tao-bai-thi">
-              <Button variant="outline" size="sm" className="gap-1.5">
-                <FileQuestion className="h-4 w-4" />
-                {tr('Tạo bài thi', 'Create exam', '创建测验', 'テスト作成', '시험 생성')}
-              </Button>
-            </Link>
+            <Button
+              variant={featureSection === 'create' ? 'default' : 'outline'}
+              size="sm"
+              className="gap-1.5"
+              onClick={() => setFeatureSection('create')}
+            >
+              <Sparkles className="h-4 w-4" />
+              {tr('Tạo giáo trình', 'Create curriculum', '创建课程', 'カリキュラム作成', '교육과정 생성')}
+            </Button>
+            <Button
+              variant={featureSection === 'library' ? 'default' : 'outline'}
+              size="sm"
+              className="gap-1.5"
+              onClick={() => { setFeatureSection('library'); setShowBrowse(true) }}
+            >
+              <FolderOpen className="h-4 w-4" />
+              {tr('Giáo trình của tôi', 'My curricula', '我的课程', 'マイカリキュラム', '내 교육과정')}
+            </Button>
+            <Button
+              variant={featureSection === 'exam' ? 'default' : 'outline'}
+              size="sm"
+              className="gap-1.5"
+              onClick={() => setFeatureSection('exam')}
+            >
+              <FileQuestion className="h-4 w-4" />
+              {tr('Tạo bài thi', 'Create exam', '创建测验', 'テスト作成', '시험 생성')}
+            </Button>
           </div>
         </div>
 
+        {featureSection === 'library' && (
         <Card className="border shadow-sm border-slate-200/80 dark:border-slate-700/50">
           <CardHeader className="py-3">
             <div className="flex items-center justify-between">
@@ -1860,13 +2443,13 @@ export default function TaoGiaoTrinhClientPage() {
                       curriculaList.map((c) => (
                         <div
                           key={c.id}
-                          className="flex items-center gap-2 group"
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => void handleLoadCurriculum(c.id)}
+                          onKeyDown={(e) => e.key === 'Enter' && void handleLoadCurriculum(c.id)}
+                          className="flex items-center gap-2 group cursor-pointer rounded hover:bg-violet-100 dark:hover:bg-violet-900/30 transition-colors"
                         >
-                          <button
-                            type="button"
-                            onClick={() => void handleLoadCurriculum(c.id)}
-                            className="flex-1 min-w-0 text-left text-sm px-2 py-1.5 rounded hover:bg-violet-100 dark:hover:bg-violet-900/30 transition-colors"
-                          >
+                          <div className="flex-1 min-w-0 text-left text-sm px-2 py-1.5">
                             <span className="font-medium truncate block">{c.topic}</span>
                             <span className="text-xs text-muted-foreground block">
                               {c.subject_id} · {c.grade_level_id}
@@ -1874,13 +2457,16 @@ export default function TaoGiaoTrinhClientPage() {
                                 <span className="ml-1.5">· {formatCreatedAt(c.created_at)}</span>
                               )}
                             </span>
-                          </button>
+                          </div>
                           <Button
                             type="button"
                             variant="ghost"
                             size="icon"
                             className="h-7 w-7 shrink-0 opacity-60 hover:opacity-100 hover:bg-destructive/10 hover:text-destructive"
-                            onClick={(e) => void handleDeleteCurriculum(e, c.id)}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              void handleDeleteCurriculum(e, c.id)
+                            }}
                             disabled={deleteLoadingId === c.id}
                             title={tr('Xóa giáo trình', 'Delete curriculum', '删除课程', 'カリキュラムを削除', '교육과정 삭제')}
                           >
@@ -1899,8 +2485,9 @@ export default function TaoGiaoTrinhClientPage() {
             </CardContent>
           )}
         </Card>
+        )}
 
-        {step === 'INPUT' && (
+        {featureSection === 'create' && step === 'INPUT' && (
           <Card className="border shadow-sm bg-white/80 backdrop-blur border-violet-200/60">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
@@ -2247,14 +2834,39 @@ export default function TaoGiaoTrinhClientPage() {
           </Card>
         )}
 
+        {featureSection === 'create' && (
         <div ref={curriculumResultRef}>
         {step === 'GENERATING' && (
-          <Card className="border shadow-sm bg-white/80 backdrop-blur border-violet-200/60">
-            <CardContent className="flex flex-col items-center py-12">
-              <RefreshCw className="h-12 w-12 text-violet-500 animate-spin" />
-              <p className="text-sm text-muted-foreground mt-4">{tr('AI đang tạo giáo trình...', 'AI is creating curriculum...', 'AI 正在创建课程...', 'AIがカリキュラムを作成中...', 'AI가 교육과정 생성 중...')}</p>
-            </CardContent>
-          </Card>
+          <AIProgressLoader
+            title={tr('AI đang tạo giáo trình', 'AI is creating curriculum', 'AI 正在创建课程', 'AIがカリキュラムを作成中', 'AI가 교육과정 생성 중')}
+            description={tr('Hệ thống đang xử lý tự động. Kết quả sẽ xuất hiện ngay khi sẵn sàng.', 'The system is processing automatically. Result will appear when ready.', '系统正在自动处理。结果准备好后将立即显示。', 'システムが自動処理中です。準備ができ次第結果を表示します。', '시스템이 자동 처리 중입니다. 준비되면 결과가 표시됩니다.')}
+          />
+        )}
+
+        {(slideAnalysisLoading || wsStepByStepLoading || sgkLoading) && step === 'RESULT' && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+            <div className="w-full max-w-lg px-4">
+              {sgkLoading && (
+                <AIProgressLoader
+                  title={tr('Đang tách câu trắc nghiệm + tự luận từ ảnh SGK', 'Extracting quiz + essay from SGK images', '正在从教材图片提取选择题+主观题', 'SGK画像から選択式+記述式を抽出中', 'SGK 이미지에서 객관식+서술형 추출 중')}
+                  description={tr('AI đang đọc ảnh và tách từng câu. Vui lòng chờ.', 'AI is reading images and extracting each question. Please wait.', 'AI正在读取图片并逐题提取。请稍候。', 'AIが画像を読み1問ずつ抽出中です。お待ちください。', 'AI가 이미지를 읽고 문항별 추출 중입니다. 잠시만 기다려 주세요.')}
+                />
+              )}
+              {slideAnalysisLoading && !sgkLoading && (
+                <AIProgressLoader
+                  title={tr('Đang tạo nội dung giảng', 'Generating teaching content', '正在生成教学内容', '授業内容を生成中', '수업 내용 생성 중')}
+                  description={tr('AI đang phân tích giáo trình và tạo slide. Vui lòng chờ.', 'AI is analyzing curriculum and creating slides. Please wait.', 'AI正在分析课程并创建幻灯片。请稍候。', 'AIがカリキュラムを分析しスライドを作成中です。お待ちください。', 'AI가 교육과정을 분석하고 슬라이드를 생성 중입니다. 잠시만 기다려 주세요.')}
+                />
+              )}
+              {wsStepByStepLoading && !slideAnalysisLoading && !sgkLoading && (
+                <AIProgressLoader
+                  title={tr('Đang tạo phiếu từng câu', 'Creating worksheet per question', '逐题创建练习', '1問ずつ作成中', '문항별 생성 중')}
+                  description={tr('AI đang tạo và kiểm tra từng câu. Vui lòng chờ.', 'AI is creating and verifying each question. Please wait.', 'AI正在逐题创建并验证。请稍候。', 'AIが1問ずつ作成・検証中です。お待ちください。', 'AI가 문항별로 생성 및 검증 중입니다. 잠시만 기다려 주세요.')}
+                  customStatus={wsStepByStepStatus || undefined}
+                />
+              )}
+            </div>
+          </div>
         )}
 
         {step === 'RESULT' && (curriculumMarkdown || worksheetMarkdown) && (
@@ -2304,26 +2916,225 @@ export default function TaoGiaoTrinhClientPage() {
                   )}
                   <Button variant="outline" size="sm" onClick={() => void handleOpenSlides()} disabled={slideAnalysisLoading} className="border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-600 dark:text-amber-300 dark:hover:bg-amber-950/30">
                     <Presentation className="h-3.5 w-3.5 mr-1" />
-                    {slideAnalysisLoading ? tr('Đang tạo nội dung giảng...', 'Generating teaching content...', '正在生成教学内容...', '授業内容を生成中...', '수업 내용 생성 중...') : tr('Xem slide (NanoAI)', 'View slides (NanoAI)', '查看幻灯片 (NanoAI)', 'スライド表示 (NanoAI)', '슬라이드 보기 (NanoAI)')}
+                    {slideAnalysisLoading ? tr('Đang tạo nội dung giảng...', 'Generating teaching content...', '正在生成教学内容...', '授業内容を生成中...', '수업 내용 생성 중...') : tr('Xem slide giáo trình', 'View curriculum slides', '查看课程幻灯片', '授業スライドを表示', '교과 슬라이드 보기')}
+                  </Button>
+                  {(worksheetMarkdown || curriculumWorksheets.length > 0) && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="border-emerald-400 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-600 dark:text-emerald-300 dark:hover:bg-emerald-950/30 gap-1"
+                        >
+                          <ListChecks className="h-3.5 w-3.5 shrink-0" />
+                          {tr('Xem danh sách bài tập', 'View exercise list', '查看习题列表', '演習一覧', '문제 목록 보기')}
+                          <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-60" aria-hidden />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" className="z-[1000] max-w-[min(100vw-2rem,22rem)]">
+                        <DropdownMenuItem
+                          className="cursor-pointer whitespace-normal"
+                          onClick={() => {
+                            const targetWorksheetId = worksheetId ?? curriculumWorksheets[0]?.id
+                            if (!targetWorksheetId) {
+                              toast({
+                                title: tr('Chưa có phiếu bài tập đã lưu', 'No saved worksheet yet', '尚无已保存的练习', '保存済みワークシートがありません', '저장된 워크시트 없음'),
+                                description: tr(
+                                  'Lưu phiếu bài tập (vào kho giáo trình) để mở trang xem đầy đủ như /phieu-bai-tap.',
+                                  'Save the worksheet to your curriculum to open the full view page like /phieu-bai-tap.',
+                                  '请将练习保存到课程，以打开与 /phieu-bai-tap 相同的完整页面。',
+                                  'カリキュラムにワークシートを保存すると、/phieu-bai-tap と同じ全体表示ページを開けます。',
+                                  '워크시트를 교육과정에 저장하면 /phieu-bai-tap 과 같은 전체 보기 페이지를 열 수 있습니다.',
+                                ),
+                                duration: 6000,
+                              })
+                              return
+                            }
+                            window.open(`${window.location.origin}/phieu-bai-tap/${targetWorksheetId}`, '_blank', 'noopener,noreferrer')
+                          }}
+                        >
+                          {tr(
+                            'Xem và tạo slide tất cả bài tập',
+                            'View and create slides for all exercises',
+                            '查看并为所有习题创建幻灯片',
+                            'すべての演習を表示してスライドを作成',
+                            '모든 문제 보고 슬라이드 만들기',
+                          )}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          className="cursor-pointer whitespace-normal"
+                          onClick={() => {
+                            if (!curriculumId) {
+                              toast({
+                                title: tr('Cần lưu giáo trình', 'Save curriculum first', '请先保存课程', '先に保存', '교육과정 저장 필요'),
+                                description: tr(
+                                  'Lưu giáo trình vào kho để xem danh sách câu hỏi và tạo slide chữa bài.',
+                                  'Save to the library to load questions and build review slides.',
+                                  '保存到库后可查看题目并生成讲评幻灯片。',
+                                  'ライブラリに保存すると設問一覧と解説スライド作成ができます。',
+                                  '라이브러리에 저장하면 문항 목록과 해설 슬라이드를 만들 수 있습니다.',
+                                ),
+                                duration: 5000,
+                              })
+                              return
+                            }
+                            setExerciseListOpen(true)
+                          }}
+                        >
+                          {tr(
+                            'Xem và chọn những bài tập để tạo slide',
+                            'View list and pick exercises to create slides',
+                            '查看列表并选择要生成幻灯片的习题',
+                            '一覧を表示しスライド用の演習を選択',
+                            '목록 보기 및 슬라이드에 쓸 문제 선택',
+                          )}
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setSgkExpanded(!sgkExpanded)}
+                    disabled={sgkLoading || wsStepByStepLoading}
+                    className="border-amber-400 text-amber-700 hover:bg-amber-50 dark:border-amber-600 dark:text-amber-300"
+                  >
+                    <BookOpen className="h-3.5 w-3.5 mr-1" />
+                    {tr('Tạo phiếu bài tập từ ảnh SGK', 'Create worksheet from SGK images', '从教材图片创建练习', 'SGK画像からワークシート作成', 'SGK 이미지로 워크시트 생성')}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setWsStepByStepExpanded(!wsStepByStepExpanded)}
+                    disabled={wsStepByStepLoading || sgkLoading}
+                    className="border-violet-400 text-violet-700 hover:bg-violet-50 dark:border-violet-600 dark:text-violet-300"
+                  >
+                    <FileQuestion className="h-3.5 w-3.5 mr-1" />
+                    {tr('Tạo từng câu', 'Create per question', '逐题创建', '1問ずつ作成', '문항별 생성')}
                   </Button>
                   <Button
                     variant="default"
                     size="sm"
-                    onClick={() => void handleCreateWorksheet()}
-                    disabled={worksheetLoading}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                    onClick={handleReset}
+                    className="bg-amber-600 hover:bg-amber-700 text-white font-medium shadow-md"
                   >
-                    <FileSpreadsheet className="h-3.5 w-3.5 mr-1" />
-                    {worksheetLoading
-                      ? tr('Đang tạo...', 'Creating...', '创建中...', '作成中...', '생성 중...')
-                      : tr('Tạo Phiếu bài tập đi kèm', 'Create worksheet', '创建练习', 'ワークシート作成', '워크시트 생성')}
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={handleReset}>
-                    {tr('Tạo mới', 'Create new', '新建', '新規作成', '새로 만들기')}
+                    {tr('Tạo giáo trình mới', 'Create new curriculum', '创建新课程', '新規カリキュラム作成', '새 교육과정 만들기')}
                   </Button>
                 </div>
               </CardHeader>
               <CardContent>
+                {sgkExpanded && curriculumMarkdown && (
+                  <div className="mb-4 p-4 rounded-lg border-2 border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20">
+                    <h4 className="text-sm font-semibold text-amber-800 dark:text-amber-200 mb-2 flex items-center gap-2">
+                      <BookOpen className="h-4 w-4" />
+                      {tr('Tạo phiếu bài tập từ ảnh SGK', 'Create worksheet from SGK images', '从教材图片创建练习', 'SGK画像からワークシート作成', 'SGK 이미지로 워크시트 생성')}
+                    </h4>
+                    <p className="text-xs text-amber-700/90 dark:text-amber-300/90 mb-3">
+                      {tr('Chọn ảnh trang bài tập SGK. AI tách câu trắc nghiệm + tự luận (có đáp án), thêm vào phiếu. Không giới hạn số câu.', 'Select SGK exercise page images. AI extracts quiz + essay questions (with answers), adds to worksheet. No limit.', '选择教材练习页图片。AI 提取选择题+主观题（含答案），添加到练习。无限制。', 'SGKの練習ページ画像を選択。AIが選択式+記述式（解答付き）を抽出して追加。制限なし。', 'SGK 연습 페이지 이미지 선택. AI가 객관식+서술형(정답 포함) 추출·추가. 제한 없음.')}
+                    </p>
+                    <div className="flex flex-wrap gap-2 items-center">
+                      <input
+                        ref={sgkInputRef}
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        className="hidden"
+                        onChange={(e) => {
+                          const files = Array.from(e.target.files ?? [])
+                          setSgkImages((prev) => [...prev, ...files].slice(0, 10))
+                        }}
+                      />
+                      <Button variant="outline" size="sm" onClick={() => sgkInputRef.current?.click()} disabled={sgkLoading} className="border-amber-500">
+                        <Upload className="h-3.5 w-3.5 mr-1" />
+                        {tr('Chọn ảnh', 'Select images', '选择图片', '画像を選択', '이미지 선택')}
+                      </Button>
+                      {sgkImages.length > 0 && (
+                        <span className="text-xs text-amber-700 dark:text-amber-300">
+                          {sgkImages.length} {tr('ảnh', 'images', '张图片', '枚', '개')}
+                          <button type="button" onClick={() => { setSgkImages([]); sgkInputRef.current && (sgkInputRef.current.value = '') }} className="ml-1 text-amber-600 hover:underline">
+                            {tr('Xóa', 'Clear', '清除', 'クリア', '지우기')}
+                          </button>
+                        </span>
+                      )}
+                      <Button size="sm" onClick={() => void handleParseSgk()} disabled={sgkLoading || sgkImages.length === 0} className="bg-amber-600 hover:bg-amber-700">
+                        {sgkLoading ? tr('Đang tách...', 'Extracting...', '提取中...', '抽出中...', '추출 중...') : tr('Tách và thêm vào phiếu', 'Extract and add to worksheet', '提取并添加到练习', '抽出して追加', '추출 후 추가')}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                {wsStepByStepExpanded && curriculumMarkdown && (() => {
+                  const QUIZ_LIMIT = 10
+                  const ESSAY_LIMIT = 6
+                  const quizTotal: Record<string, number> = { easy: 0, medium: 0, hard: 0 }
+                  const essayTotal: Record<string, number> = { 'nhan-biet': 0, 'thong-hieu': 0, 'van-dung-thap': 0, 'van-dung-cao': 0, 'thuc-te': 0 }
+                  for (const d of ['easy', 'medium', 'hard']) {
+                    quizTotal[d] = (wsStepByStepCounts?.quiz?.[d] ?? 0) + (wsStepByStepSessionCounts.quiz?.[d] ?? 0)
+                  }
+                  for (const d of ['nhan-biet', 'thong-hieu', 'van-dung-thap', 'van-dung-cao', 'thuc-te']) {
+                    essayTotal[d] = (wsStepByStepCounts?.essay?.[d] ?? 0) + (wsStepByStepSessionCounts.essay?.[d] ?? 0)
+                  }
+                  const quizAvailable = (['easy', 'medium', 'hard'] as const).filter((d) => quizTotal[d] < QUIZ_LIMIT)
+                  const essayAvailable = (['nhan-biet', 'thong-hieu', 'van-dung-thap', 'van-dung-cao', 'thuc-te'] as const).filter((d) => essayTotal[d] < ESSAY_LIMIT)
+                  const quizSlotsLeft = quizAvailable.includes(wsStepByStepQuizDiff) ? QUIZ_LIMIT - quizTotal[wsStepByStepQuizDiff] : 0
+                  const essaySlotsLeft = essayAvailable.includes(wsStepByStepEssayBloom) ? ESSAY_LIMIT - essayTotal[wsStepByStepEssayBloom] : 0
+                  const quizCountMax = Math.min(20, quizSlotsLeft)
+                  const essayCountMax = Math.min(10, essaySlotsLeft)
+                  const quizCountVal = Math.min(wsStepByStepQuizCount, quizCountMax)
+                  const essayCountVal = Math.min(wsStepByStepEssayCount, essayCountMax)
+                  const quizLabels: Record<string, string> = { easy: tr('Dễ', 'Easy', '简单', '易', '쉬움'), medium: tr('Trung bình', 'Medium', '中等', '中', '보통'), hard: tr('Khó', 'Hard', '困难', '難', '어려움') }
+                  const essayLabels: Record<string, string> = { 'nhan-biet': tr('Nhận biết', 'Recall', '识记', '知識', '인지'), 'thong-hieu': tr('Thông hiểu', 'Understand', '理解', '理解', '이해'), 'van-dung-thap': tr('Vận dụng thấp', 'Apply (low)', '应用（低）', '応用（低）', '적용(하)'), 'van-dung-cao': tr('Vận dụng cao', 'Apply (high)', '应用（高）', '応用（高）', '적용(상)'), 'thuc-te': tr('Thực tế', 'Real-world', '实际', '実践', '실전') }
+                  return (
+                  <div className="mb-4 space-y-3">
+                    <p className="text-xs text-violet-600/90 dark:text-violet-400/90">
+                      {tr('AI tạo từng câu, kiểm tra từng câu. Chất lượng cao hơn.', 'AI creates each question, verifies each. Higher quality.', 'AI逐题创建并逐题验证。质量更高。', 'AIが1問ずつ作成・検証。品質更高。', 'AI가 문항별 생성·검증. 품질 더 높음.')}
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="p-4 rounded-lg border-2 border-violet-200 dark:border-violet-800 bg-violet-50/50 dark:bg-violet-950/20">
+                        <h4 className="text-sm font-semibold text-violet-800 dark:text-violet-200 mb-2">
+                          {tr('Trắc nghiệm', 'Quiz', '选择题', 'クイズ', '퀴즈')}
+                        </h4>
+                        <div className="grid grid-cols-2 gap-2 mb-3">
+                          <div>
+                            <label className="text-xs font-medium block mb-1">{tr('Số câu', 'Count', '数量', '数', '수')}</label>
+                            <Input type="number" min={0} max={quizCountMax} value={quizCountVal} onChange={(e) => setWsStepByStepQuizCount(Math.min(Number(e.target.value) || 0, quizCountMax))} className="h-8" disabled={quizAvailable.length === 0} />
+                          </div>
+                          <div>
+                            <label className="text-xs font-medium block mb-1">{tr('Độ khó', 'Difficulty', '难度', '難易度', '난이도')}</label>
+                            <select value={quizAvailable.includes(wsStepByStepQuizDiff) ? wsStepByStepQuizDiff : (quizAvailable[0] ?? 'medium')} onChange={(e) => setWsStepByStepQuizDiff((quizAvailable.includes(e.target.value as 'easy'|'medium'|'hard') ? e.target.value : quizAvailable[0]) as 'easy'|'medium'|'hard')} className="h-8 w-full rounded-md border px-2 text-sm bg-background" disabled={quizAvailable.length === 0}>
+                              {quizAvailable.length === 0 ? <option>{tr('Đã đủ 10/10 mỗi loại', 'All types full (10/10)', '各类已满10/10', '各10/10で満了', '각 10/10 완료')}</option> : quizAvailable.map((d) => <option key={d} value={d}>{quizLabels[d]} ({quizTotal[d]}/{QUIZ_LIMIT})</option>)}
+                            </select>
+                          </div>
+                        </div>
+                        <Button variant="default" size="sm" onClick={() => void runCreateStepByStep('quiz')} disabled={wsStepByStepLoading || quizAvailable.length === 0 || quizCountVal === 0} className="bg-violet-600 hover:bg-violet-700">
+                          {wsStepByStepLoading ? tr('Đang tạo...', 'Creating...', '创建中...', '作成中...', '생성 중...') : quizAvailable.length === 0 ? tr('Đã đủ câu', 'All full', '已满', '満了', '완료') : tr('Tạo trắc nghiệm từng câu', 'Create quiz per question', '逐题创建选择题', '1問ずつクイズ作成', '문항별 퀴즈 생성')}
+                        </Button>
+                      </div>
+                      <div className="p-4 rounded-lg border-2 border-emerald-200 dark:border-emerald-800 bg-emerald-50/50 dark:bg-emerald-950/20">
+                        <h4 className="text-sm font-semibold text-emerald-800 dark:text-emerald-200 mb-2">
+                          {tr('Tự luận', 'Essay', '主观题', '記述式', '서술형')}
+                        </h4>
+                        <div className="grid grid-cols-2 gap-2 mb-3">
+                          <div>
+                            <label className="text-xs font-medium block mb-1">{tr('Số bài', 'Count', '数量', '数', '수')}</label>
+                            <Input type="number" min={0} max={essayCountMax} value={essayCountVal} onChange={(e) => setWsStepByStepEssayCount(Math.min(Number(e.target.value) || 0, essayCountMax))} className="h-8" disabled={essayAvailable.length === 0} />
+                          </div>
+                          <div>
+                            <label className="text-xs font-medium block mb-1">{tr('Dạng bài', 'Question type', '题型', '問題タイプ', '문항 유형')}</label>
+                            <select value={essayAvailable.includes(wsStepByStepEssayBloom) ? wsStepByStepEssayBloom : (essayAvailable[0] ?? 'thong-hieu')} onChange={(e) => setWsStepByStepEssayBloom((essayAvailable.includes(e.target.value as typeof wsStepByStepEssayBloom) ? e.target.value : essayAvailable[0]) as typeof wsStepByStepEssayBloom)} className="h-8 w-full rounded-md border px-2 text-sm bg-background" disabled={essayAvailable.length === 0}>
+                              {essayAvailable.length === 0 ? <option>{tr('Đã đủ 6/6 mỗi loại', 'All types full (6/6)', '各类已满6/6', '各6/6で満了', '각 6/6 완료')}</option> : essayAvailable.map((d) => <option key={d} value={d}>{essayLabels[d]} ({essayTotal[d]}/{ESSAY_LIMIT})</option>)}
+                            </select>
+                          </div>
+                        </div>
+                        <Button variant="default" size="sm" onClick={() => void runCreateStepByStep('essay')} disabled={wsStepByStepLoading || essayAvailable.length === 0 || essayCountVal === 0} className="bg-emerald-600 hover:bg-emerald-700">
+                          {wsStepByStepLoading ? tr('Đang tạo...', 'Creating...', '创建中...', '作成中...', '생성 중...') : essayAvailable.length === 0 ? tr('Đã đủ bài', 'All full', '已满', '満了', '완료') : tr('Tạo tự luận từng câu', 'Create essay per question', '逐题创建主观题', '1問ずつ記述式作成', '문항별 서술형 생성')}
+                        </Button>
+                      </div>
+                    </div>
+                    {wsStepByStepStatus && <p className="text-xs text-violet-600 dark:text-violet-400 animate-pulse">{wsStepByStepStatus}</p>}
+                  </div>
+                  )
+                })()}
                 {curriculumId && curriculumEditMode && (
                   <div className="mb-3 space-y-3">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -2393,7 +3204,7 @@ export default function TaoGiaoTrinhClientPage() {
                           {tr('Mỗi AI ý kiến khác – cần admin', 'Each AI different – admin needed', '各AI意见不同–需管理员', '各AI異なる–管理者必要', '각 AI 다름–관리자 필요')}
                         </p>
                         {(editCompareResult.model1Version || editCompareResult.model2Version) && (
-                          <p className="text-[11px] text-amber-600 dark:text-amber-400 mb-1">Gemini: {editCompareResult.model1Version || '–'} · DeepSeek: {editCompareResult.model2Version || '–'}</p>
+                          <p className="text-[11px] text-amber-600 dark:text-amber-400 mb-1">Gemini Pro: {editCompareResult.model1Version || '–'} · Gemini Flash: {editCompareResult.model2Version || '–'}</p>
                         )}
                         {editCompareErrors.length > 0 && (
                           <ul className="text-xs text-amber-700 dark:text-amber-300 list-disc list-inside mb-2 space-y-0.5">
@@ -2507,7 +3318,7 @@ export default function TaoGiaoTrinhClientPage() {
                     </p>
                     {(regionCompareResult.model1Version || regionCompareResult.model2Version) && (
                       <p className="text-xs text-amber-600 dark:text-amber-400 mb-2">
-                        Gemini: {regionCompareResult.model1Version === 'original' ? tr('bản gốc', 'original', '原文', '元', '원본') : regionCompareResult.model1Version === 'edited' ? tr('bản sửa', 'edited', '修改', '編集', '수정') : regionCompareResult.model1Version || '–'} · DeepSeek: {regionCompareResult.model2Version === 'original' ? tr('bản gốc', 'original', '原文', '元', '원본') : regionCompareResult.model2Version === 'edited' ? tr('bản sửa', 'edited', '修改', '編集', '수정') : regionCompareResult.model2Version || '–'}
+                        Gemini Pro: {regionCompareResult.model1Version === 'original' ? tr('bản gốc', 'original', '原文', '元', '원본') : regionCompareResult.model1Version === 'edited' ? tr('bản sửa', 'edited', '修改', '編集', '수정') : regionCompareResult.model1Version || '–'} · Gemini Flash: {regionCompareResult.model2Version === 'original' ? tr('bản gốc', 'original', '原文', '元', '원본') : regionCompareResult.model2Version === 'edited' ? tr('bản sửa', 'edited', '修改', '編集', '수정') : regionCompareResult.model2Version || '–'}
                       </p>
                     )}
                     <ul className="text-sm text-amber-700 dark:text-amber-300 list-disc list-inside space-y-1 mb-3">
@@ -2528,7 +3339,7 @@ export default function TaoGiaoTrinhClientPage() {
                 )}
               </CardContent>
               {curriculumWorksheets.length > 0 && (
-                <CardContent className="pt-0 border-t">
+                <CardContent ref={curriculumWorksheetsSectionRef} className="pt-0 border-t">
                   <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
                     <FileText className="h-3.5 w-3.5" />
                     {tr('Phiếu bài tập thuộc giáo trình', 'Worksheets in this curriculum', '本课程练习', 'このカリキュラムのワークシート', '이 교육과정의 워크시트')} ({curriculumWorksheets.length})
@@ -2553,22 +3364,12 @@ export default function TaoGiaoTrinhClientPage() {
             )}
 
             {worksheetMarkdown && (
-              <Card className="border shadow-sm overflow-hidden border-emerald-200/60">
-                <div className="bg-violet-100 dark:bg-violet-950/50 px-4 py-4 border-b-2 border-violet-300 dark:border-violet-700 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                  <p className="text-sm font-semibold text-violet-900 dark:text-violet-100">
-                    {tr('Phiếu bài tập đã sẵn sàng. Nhấn nút bên dưới để tải:', 'Worksheet ready. Click below to download:', '练习已就绪。点击下方下载：', 'ワークシート準備完了。下のボタンでダウンロード：', '워크시트 준비됨. 아래 버튼으로 다운로드:')}
+              <div ref={worksheetSectionRef}>
+              <Card className="border shadow-sm border-emerald-200/60">
+                <div className="bg-violet-100/80 dark:bg-violet-950/40 px-4 py-2.5 border-b border-violet-300/70 dark:border-violet-700/60">
+                  <p className="text-xs sm:text-sm font-medium text-violet-900 dark:text-violet-100">
+                    {tr('Phiếu bài tập đã sẵn sàng. Dùng nhóm nút ở góc phải để sao chép hoặc tải file.', 'Worksheet is ready. Use the action buttons on the right to copy or download files.', '练习已就绪。请使用右侧操作按钮复制或下载文件。', 'ワークシートの準備ができました。右側の操作ボタンからコピー/ダウンロードしてください。', '워크시트 준비 완료. 오른쪽 작업 버튼에서 복사/다운로드하세요.')}
                   </p>
-                  <div className="flex flex-wrap gap-2">
-                    <Button size="default" onClick={handleDownloadWorksheet} className="bg-white border-2 border-violet-500 text-violet-700 hover:bg-violet-50 dark:bg-violet-900/50 dark:border-violet-400 dark:text-violet-200 dark:hover:bg-violet-800/50">
-                      <FileDown className="h-4 w-4 mr-2" /> {tr('Tải .md', 'Download .md', '下载 .md', '.md をダウンロード', '.md 다운로드')}
-                    </Button>
-                    <Button size="default" onClick={handleExportPdf} className="bg-violet-600 hover:bg-violet-700 text-white border-2 border-violet-600">
-                      <FileDown className="h-4 w-4 mr-2" /> {tr('Tải PDF', 'Download PDF', '下载 PDF', 'PDF をダウンロード', 'PDF 다운로드')}
-                    </Button>
-                    <Button size="default" onClick={handleExportWord} className="bg-violet-600 hover:bg-violet-700 text-white border-2 border-violet-600">
-                      <FileDown className="h-4 w-4 mr-2" /> {tr('Tải Word', 'Download Word', '下载 Word', 'Word をダウンロード', 'Word 다운로드')}
-                    </Button>
-                  </div>
                 </div>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-base flex items-center gap-2">
@@ -2576,151 +3377,208 @@ export default function TaoGiaoTrinhClientPage() {
                     {tr('Phiếu bài tập', 'Worksheet', '练习', 'ワークシート', '워크시트')}
                   </CardTitle>
                   <div className="flex flex-wrap gap-2">
-                    <Button variant="outline" size="sm" onClick={handleCopyWorksheet}>
-                      <Copy className="h-3.5 w-3.5 mr-1" /> {tr('Sao chép', 'Copy', '复制', 'コピー', '복사')}
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={handleDownloadWorksheet}>
-                      <FileDown className="h-3.5 w-3.5 mr-1" /> .md
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={handleExportPdf}>
-                      <FileDown className="h-3.5 w-3.5 mr-1" /> PDF
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={handleExportWord}>
-                      <FileDown className="h-3.5 w-3.5 mr-1" /> Word
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={handleReset}>
-                      {tr('Tạo mới', 'Create new', '新建', '新規作成', '새로 만들기')}
+                    {worksheetId && (
+                      <Button asChild variant="outline" size="sm">
+                        <a href={`/phieu-bai-tap/${worksheetId}`} target="_blank" rel="noopener noreferrer">
+                          <FileText className="h-3.5 w-3.5 mr-1" />
+                          {tr('Mở trang phiếu bài tập', 'Open worksheet page', '打开练习页面', 'ワークシートページを開く', '워크시트 페이지 열기')}
+                        </a>
+                      </Button>
+                    )}
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={handleReset}
+                      className="bg-amber-600 hover:bg-amber-700 text-white font-medium shadow-md"
+                    >
+                      {tr('Tạo giáo trình mới', 'Create new curriculum', '创建新课程', '新規カリキュラム作成', '새 교육과정 만들기')}
                     </Button>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {worksheetQrDataUrl && worksheetId && (
-                    <div className="flex items-center gap-4 p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200/60">
-                      <img src={worksheetQrDataUrl} alt="QR" className="w-[120px] h-[120px] rounded border bg-white p-1" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-emerald-800 dark:text-emerald-200 flex items-center gap-1">
-                          <QrCode className="h-4 w-4" />
-                          {tr('Quét mã QR xem lời giải', 'Scan QR to view answers', '扫码查看答案', 'QRで解答を表示', 'QR로 정답 보기')}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {tr('In phiếu kèm QR, học sinh quét bằng điện thoại để xem đáp án chi tiết.', 'Print worksheet with QR, students scan with phone to view detailed answers.', '打印带QR的练习，学生用手机扫码查看详细答案。', 'QR付きで印刷、生徒がスマホでスキャンして解答を表示。', 'QR 포함 인쇄 후 학생이 휴대폰으로 스캔해 정답 확인.')}
-                        </p>
-                        <a
-                          href={`/phieu-bai-tap/${worksheetId}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs text-emerald-600 hover:underline mt-1 inline-block truncate max-w-full"
-                        >
-                          /phieu-bai-tap/{worksheetId.slice(0, 8)}...
-                        </a>
-                      </div>
-                    </div>
-                  )}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div className="rounded-lg border bg-violet-50/70 dark:bg-violet-950/25 p-3">
-                      <p className="text-xs font-semibold mb-2 text-violet-700 dark:text-violet-300">
-                        {tr('Phần trắc nghiệm', 'Quiz section', '选择题部分', 'クイズ部分', '퀴즈 섹션')}
-                      </p>
-                      <Textarea
-                        value={worksheetParts.quiz}
-                        readOnly
-                        className="w-full min-h-[180px] text-sm font-sans leading-relaxed bg-transparent border-0 resize-y focus:outline-none focus:ring-0"
-                        placeholder={tr('Chưa có phần trắc nghiệm', 'No quiz section', '暂无选择题部分', 'クイズ部分がありません', '퀴즈 섹션 없음')}
-                        spellCheck={false}
-                      />
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <p className="text-xs font-semibold text-violet-700 dark:text-violet-300">
+                          {tr('Phần trắc nghiệm', 'Quiz section', '选择题部分', 'クイズ部分', '퀴즈 섹션')}
+                        </p>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="shrink-0 h-7 text-xs border-violet-400/60 text-violet-700 dark:text-violet-300 hover:bg-violet-100 dark:hover:bg-violet-900/40"
+                          onClick={() => {
+                            setWorksheetEditFilter('quiz')
+                            setWorksheetEditBlockIndex(null)
+                            setWorksheetEditBlockContent('')
+                            setWorksheetEditCheckResult(null)
+                          }}
+                        >
+                          {tr('Sửa trắc nghiệm', 'Edit quiz', '编辑选择题', '選択式を編集', '퀴즈 수정')}
+                        </Button>
+                      </div>
+                      <div
+                        role="region"
+                        aria-label={tr('Phần trắc nghiệm', 'Quiz section', '选择题部分', 'クイズ部分', '퀴즈 섹션')}
+                        className={`w-full min-h-[180px] text-sm font-sans leading-relaxed whitespace-pre-wrap break-words px-2 py-2 rounded-md bg-background/40 dark:bg-background/10 border border-violet-200/50 dark:border-violet-800/40 ${
+                          worksheetParts.quiz.trim() ? 'text-foreground' : 'text-muted-foreground italic'
+                        }`}
+                      >
+                        {worksheetParts.quiz.trim()
+                          ? worksheetParts.quiz
+                          : tr('Chưa có phần trắc nghiệm', 'No quiz section', '暂无选择题部分', 'クイズ部分がありません', '퀴즈 섹션 없음')}
+                      </div>
                     </div>
                     <div className="rounded-lg border bg-emerald-50/70 dark:bg-emerald-950/20 p-3">
-                      <p className="text-xs font-semibold mb-2 text-emerald-700 dark:text-emerald-300">
-                        {tr('Phần tự luận', 'Essay section', '主观题部分', '記述式部分', '서술형 섹션')}
-                      </p>
-                      <Textarea
-                        value={worksheetParts.essay}
-                        readOnly
-                        className="w-full min-h-[180px] text-sm font-sans leading-relaxed bg-transparent border-0 resize-y focus:outline-none focus:ring-0"
-                        placeholder={tr('Chưa có phần tự luận', 'No essay section', '暂无主观题部分', '記述式部分がありません', '서술형 섹션 없음')}
-                        spellCheck={false}
-                      />
-                    </div>
-                  </div>
-                  <div className="rounded-lg border bg-slate-50 dark:bg-slate-900/50 p-4 overflow-auto max-h-[60vh]">
-                    <div className="sticky top-0 z-20 -mx-1 px-1 pb-3 mb-3 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200/70 dark:border-slate-700/60">
-                      <p className="text-xs font-semibold mb-2 text-slate-600 dark:text-slate-300">
-                        {tr('Toàn bộ phiếu bài tập (sửa qua AI kiểm tra)', 'Full worksheet (edit via AI validation)', '完整练习（通过AI校验修改）', 'ワークシート全体（AI検証で編集）', '전체 워크시트(AI 검증으로 수정)')}
-                      </p>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-medium text-amber-700 dark:text-amber-300">
-                            {tr('Dữ liệu cần sửa', 'Data to edit', '待修改内容', '修正対象データ', '수정 대상 데이터')}
-                          </label>
-                          <Textarea
-                            value={worksheetEditOriginalText}
-                            onChange={(e) => setWorksheetEditOriginalText(e.target.value)}
-                            placeholder={tr('Dán đoạn cần sửa (duy nhất trong phiếu)', 'Paste the exact segment to edit (unique in worksheet)', '粘贴要修改的唯一片段', '編集対象の一意なテキストを貼り付け', '워크시트에서 유일한 수정 대상 구문을 입력')}
-                            className="min-h-[92px] text-sm"
-                          />
-                          {worksheetEditMatchStatus === 'found' && (
-                            <p className="text-xs text-emerald-600">{tr('Tìm thấy 1 đoạn trùng khớp.', 'Found exactly 1 match.', '找到1处匹配。', '一致箇所を1件検出。', '정확히 1개 일치 항목을 찾았습니다.')}</p>
-                          )}
-                          {worksheetEditMatchStatus === 'multiple' && (
-                            <p className="text-xs text-amber-600">{tr(`Tìm thấy ${worksheetEditMatchCount} đoạn trùng. Hãy nhập dài hơn để duy nhất.`, `Found ${worksheetEditMatchCount} matches. Add more context to make it unique.`, `找到 ${worksheetEditMatchCount} 处匹配，请补充内容使其唯一。`, `${worksheetEditMatchCount}件一致。文脈を追加して一意にしてください。`, `${worksheetEditMatchCount}개가 일치합니다. 더 구체적으로 입력해 주세요.`)}</p>
-                          )}
-                          {worksheetEditMatchStatus === 'not_found' && (
-                            <p className="text-xs text-red-600">{tr('Không tìm thấy đoạn cần sửa trong phiếu.', 'Segment not found in worksheet.', '在练习中找不到该片段。', 'ワークシート内で該当箇所が見つかりません。', '워크시트에서 해당 구문을 찾지 못했습니다.')}</p>
-                          )}
-                        </div>
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-medium text-teal-700 dark:text-teal-300">
-                            {tr('Dữ liệu sẽ sửa thành', 'Replacement content', '替换内容', '置換後データ', '대체할 내용')}
-                          </label>
-                          <Textarea
-                            value={worksheetEditEditedText}
-                            onChange={(e) => setWorksheetEditEditedText(e.target.value)}
-                            placeholder={tr('Nhập nội dung mới', 'Enter new content', '输入新内容', '新しい内容を入力', '새 내용을 입력')}
-                            className="min-h-[92px] text-sm"
-                          />
-                        </div>
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+                          {tr('Phần tự luận', 'Essay section', '主观题部分', '記述式部分', '서술형 섹션')}
+                        </p>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="shrink-0 h-7 text-xs border-emerald-400/60 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/40"
+                          onClick={() => {
+                            setWorksheetEditFilter('essay')
+                            setWorksheetEditBlockIndex(null)
+                            setWorksheetEditBlockContent('')
+                            setWorksheetEditCheckResult(null)
+                          }}
+                        >
+                          {tr('Sửa tự luận', 'Edit essay', '编辑主观题', '記述式を編集', '서술형 수정')}
+                        </Button>
                       </div>
-                      <Button
-                        type="button"
-                        className="w-full bg-amber-600 hover:bg-amber-700 text-white"
-                        onClick={() => void handleApplyWorksheetEdit()}
-                        disabled={worksheetEditSaving || !worksheetId}
+                      <div
+                        role="region"
+                        aria-label={tr('Phần tự luận', 'Essay section', '主观题部分', '記述式部分', '서술형 섹션')}
+                        className={`w-full min-h-[180px] text-sm font-sans leading-relaxed whitespace-pre-wrap break-words px-2 py-2 rounded-md bg-background/40 dark:bg-background/10 border border-emerald-200/50 dark:border-emerald-800/40 ${
+                          worksheetParts.essay.trim() ? 'text-foreground' : 'text-muted-foreground italic'
+                        }`}
                       >
-                        {worksheetEditSaving
-                          ? tr('AI đang kiểm tra...', 'AI checking...', 'AI正在检查...', 'AI確認中...', 'AI 확인 중...')
-                          : tr('Áp dụng sửa phiếu bài tập', 'Apply worksheet edit', '应用练习修改', 'ワークシート編集を適用', '워크시트 수정 적용')}
-                      </Button>
+                        {worksheetParts.essay.trim()
+                          ? worksheetParts.essay
+                          : tr('Chưa có phần tự luận', 'No essay section', '暂无主观题部分', '記述式部分がありません', '서술형 섹션 없음')}
+                      </div>
                     </div>
-                    <pre
-                      ref={worksheetTextareaRef}
-                      className="w-full min-h-[200px] text-sm font-sans leading-relaxed whitespace-pre-wrap break-words bg-transparent"
-                    >
-                      {(() => {
-                        const { parts } = highlightMatchInCurriculum(worksheetStudentMarkdown, worksheetEditOriginalText)
-                        const firstHighlightIndex = parts.findIndex((p) => p.highlight)
-                        return parts.map((p, i) =>
-                          p.highlight ? (
-                            <mark
-                              key={i}
-                              ref={i === firstHighlightIndex ? (el) => { worksheetMatchMarkRef.current = el } : undefined}
-                              className="bg-emerald-300/80 dark:bg-emerald-500/50 rounded px-0.5"
-                            >
-                              {p.text}
-                            </mark>
-                          ) : (
-                            <span key={i}>{p.text}</span>
-                          )
-                        )
-                      })()}
-                    </pre>
                   </div>
+                  {/* Popup sửa phiếu – mở ngay khi bấm Sửa trắc nghiệm / Sửa tự luận */}
+                  {worksheetEditFilter && (
+                    <WorksheetEditSectionPopup
+                      open={true}
+                      onClose={() => {
+                        setWorksheetEditFilter(null)
+                        setWorksheetEditBlockIndex(null)
+                        setWorksheetEditBlockContent('')
+                        setWorksheetEditImages([])
+                        setWorksheetEditCheckResult(null)
+                      }}
+                      filter={worksheetEditFilter}
+                      blocks={worksheetEditBlocks}
+                      blockIndex={worksheetEditBlockIndex}
+                      blockContent={worksheetEditBlockContent}
+                      onBlockContentChange={setWorksheetEditBlockContent}
+                      onSelectBlock={async (idx) => {
+                        setWorksheetEditBlockIndex(idx)
+                        const block = worksheetEditBlocks[idx]
+                        let nextContent = toEditableBlockContent(
+                          block?.content ?? '',
+                          block?.type === 'essay' ? 'essay' : 'quiz'
+                        )
+                        // Luôn ưu tiên lấy từ DB để tránh popup bị ảnh hưởng bởi markdown render lỗi/lặp.
+                        if (worksheetId && block) {
+                          try {
+                            const res = await fetch(`/api/worksheet/${encodeURIComponent(worksheetId)}`)
+                            const data = await res.json().catch(() => ({}))
+                            const list = Array.isArray(data?.questions) ? data.questions as Array<{ type?: string; content_json?: unknown }> : []
+                            const sameTypeIdx = worksheetEditBlocks.slice(0, idx + 1).filter((b) => b.type === block.type).length - 1
+                            const row = list.filter((q) => q?.type === block.type)[sameTypeIdx]
+                            if (row && block.type === 'essay') {
+                              const heading = (nextContent.match(/^([^\n]*Bài\s+\d+[^\n]*)/i)?.[1] ?? '').trim()
+                              const problem = latexToReadable(getEssayProblem(row.content_json) || '')
+                              const solution = normalizeSolutionToStr(getEssaySolution(row.content_json)) || '(Chưa có lời giải)'
+                              nextContent = [heading, problem, '**Lời giải:**', solution].filter(Boolean).join('\n\n')
+                            }
+                          } catch {
+                            /* fallback dùng markdown hiện tại */
+                          }
+                        }
+                        setWorksheetEditBlockContent(nextContent)
+                        setWorksheetEditImages([])
+                        setWorksheetEditCheckResult(null)
+                      }}
+                      onCancelEdit={() => {
+                        setWorksheetEditBlockIndex(null)
+                        setWorksheetEditBlockContent('')
+                        setWorksheetEditImages([])
+                        setWorksheetEditCheckResult(null)
+                      }}
+                      checkResult={worksheetEditCheckResult}
+                      onApplyFix={() => {
+                        const corrected = worksheetEditCheckResult?.correctedContent
+                        if (corrected) {
+                          setWorksheetEditBlockContent(corrected)
+                          setWorksheetEditCheckResult(null)
+                          void handleSaveWorksheetBlockEdit({ skipAiCheck: true, contentOverride: corrected })
+                        }
+                      }}
+                      onCheck={() => void handleCheckWorksheetBlock()}
+                      onSave={() => void handleSaveWorksheetBlockEdit()}
+                      editImages={worksheetEditImages}
+                      onPickImages={(files) => {
+                        const list = Array.from(files ?? []).filter((f) => f && f.size > 0)
+                        if (list.length === 0) return
+                        setWorksheetEditImages((prev) => [...prev, ...list].slice(0, 6))
+                      }}
+                      onRemoveImage={(idx) => setWorksheetEditImages((prev) => prev.filter((_, i) => i !== idx))}
+                      onClearImages={() => setWorksheetEditImages([])}
+                      checkLoading={worksheetEditCheckLoading}
+                      saving={worksheetEditSaving}
+                      saveDisabled={
+                        !worksheetId ||
+                        worksheetEditBlockContent.trim() ===
+                          (worksheetEditBlockIndex != null && worksheetEditBlocks[worksheetEditBlockIndex]
+                            ? toEditableBlockContent(
+                                worksheetEditBlocks[worksheetEditBlockIndex].content,
+                                worksheetEditBlocks[worksheetEditBlockIndex].type === 'essay' ? 'essay' : 'quiz'
+                              )
+                            : ''
+                          ).trim()
+                      }
+                      tr={tr}
+                    />
+                  )}
                 </CardContent>
               </Card>
+              </div>
             )}
 
           </>
         )}
         </div>
+        )}
+
+        {featureSection === 'exam' && (
+          <Card className="border shadow-sm bg-white/80 backdrop-blur border-violet-200/60">
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <FileQuestion className="h-4 w-4 text-violet-600" />
+                {tr('Tạo bài thi theo giáo trình', 'Create exam by curriculum', '按课程创建测验', 'カリキュラム別テスト作成', '교육과정 기반 시험 생성')}
+              </CardTitle>
+              <CardDescription>
+                {tr('Chỉ thay đổi giao diện điều hướng. Logic dữ liệu giữ nguyên như hiện tại.', 'Only navigation UI changed. Data logic stays unchanged.', '仅调整导航界面，数据逻辑保持不变。', 'ナビUIのみ変更し、データロジックは現状維持です。', '탐색 UI만 변경하고 데이터 로직은 유지합니다.')}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Link href="/tao-bai-thi">
+                <Button className="gap-2 bg-violet-600 hover:bg-violet-700 text-white">
+                  <FileQuestion className="h-4 w-4" />
+                  {tr('Mở trang Tạo bài thi', 'Open exam creator', '打开测验创建页面', 'テスト作成ページを開く', '시험 생성 페이지 열기')}
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </>
   )

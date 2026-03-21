@@ -3,7 +3,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
 
 /** Kiểm tra câu hỏi trắc nghiệm chèn thủ công – đối chiếu đáp án với nội dung slide.
- * Model: DeepSeek Reasoner (ưu tiên) hoặc Gemini 2.5 Flash (fallback).
+ * Model: Gemini 2.5 Flash.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -49,40 +49,9 @@ Trả về JSON: { "verified": true|false, "correctIndex": 0|1|2|3 }
 - correctIndex: chỉ cần khi verified=false, chỉ số (0-3) của đáp án đúng theo slide`
 
     const apiKey = process.env.GOOGLE_API_KEY?.trim()
-    const deepSeekKey = process.env.DEEPSEEK_API_KEY?.trim()
-    const DEEPSEEK_VERIFY_MODEL = process.env.DEEPSEEK_VERIFY_MODEL?.trim() || 'deepseek-reasoner'
-
     let result: { verified: boolean; correctIndex?: number } | null = null
 
-    if (deepSeekKey) {
-      try {
-        const dsRes = await fetch('https://api.deepseek.com/chat/completions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${deepSeekKey}` },
-          body: JSON.stringify({
-            model: DEEPSEEK_VERIFY_MODEL,
-            temperature: 0,
-            messages: [
-              { role: 'system', content: 'Trả về đúng JSON theo yêu cầu, không markdown.' },
-              { role: 'user', content: verifyPrompt },
-            ],
-          }),
-        })
-        if (dsRes.ok) {
-          const dsData = (await dsRes.json().catch(() => ({}))) as { choices?: Array<{ message?: { content?: string } }> }
-          const verifyText = String(dsData?.choices?.[0]?.message?.content ?? '').trim()
-          if (verifyText) {
-            const cleaned = verifyText.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim()
-            const v = JSON.parse(cleaned) as { verified?: boolean; correctIndex?: number }
-            result = { verified: v.verified === true, correctIndex: v.correctIndex }
-          }
-        }
-      } catch (e) {
-        console.warn('[slide-verify-quiz] DeepSeek lỗi, fallback Gemini:', e instanceof Error ? e.message : e)
-      }
-    }
-
-    if (!result && apiKey) {
+    if (apiKey) {
       const genAI = new GoogleGenerativeAI(apiKey)
       const verifyModel = genAI.getGenerativeModel({
         ...GEMINI_25_FLASH_NO_THINKING,

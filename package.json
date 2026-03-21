@@ -13,8 +13,11 @@
     "reset-db:language-coach": "node scripts/reset-language-coach-db.mjs",
     "import:official-questions": "node scripts/import-vnhsge-official-questions.mjs",
     "import:viet-doc-vqa": "node scripts/import-viet-doc-vqa.mjs",
-    "db:push": "supabase db push",
-    "normalize:official-questions": "node scripts/normalize-official-questions-topics.mjs"
+    "db:push": "npx supabase db push",
+    "db:delete-worksheet-exercises": "npx supabase db query -f scripts/delete-worksheet-exercises-for-recreate.sql --linked",
+    "normalize:official-questions": "node scripts/normalize-official-questions-topics.mjs",
+    "worker": "npx tsx scripts/worksheet-job-worker.ts",
+    "reverify:worksheets-once": "npx tsx scripts/run-reverify-all-once.ts"
   },
   "overrides": {
     "react": "^18.3.1",
@@ -76,10 +79,12 @@
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
+    "dotenv": "^17.3.1",
     "eslint": "^8",
     "eslint-config-next": "^14.2.35",
     "postcss": "^8",
     "tailwindcss": "^3.4.1",
+    "tsx": "^4.21.0",
     "typescript": "^5"
   }
 }

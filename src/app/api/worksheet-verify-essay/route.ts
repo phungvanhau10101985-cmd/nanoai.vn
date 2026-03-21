@@ -1,0 +1,25 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { verifyEssay } from '@/app/tao-giao-trinh/lib/worksheet-verify-essay'
+
+/** Kiểm tra bài tự luận: đề có khớp lời giải không, công thức đúng không. */
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json().catch(() => ({}))
+    const curriculumMarkdown = String(body?.curriculumMarkdown ?? '').trim()
+    const problem = String(body?.problem ?? '').trim()
+    const solution = String(body?.solution ?? '').trim()
+
+    if (!problem || !solution) {
+      return NextResponse.json({ error: 'Thiếu đề hoặc lời giải.', verified: false }, { status: 400 })
+    }
+
+    const result = await verifyEssay(curriculumMarkdown, problem, solution)
+    return NextResponse.json({
+      verified: result.verified,
+      reason: result.reason,
+    })
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    return NextResponse.json({ error: msg, verified: false }, { status: 500 })
+  }
+}

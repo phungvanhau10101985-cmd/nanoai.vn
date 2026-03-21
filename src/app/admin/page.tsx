@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Users, BarChart3, BookOpen, FileEdit, Flag, Download, ClipboardCheck } from 'lucide-react'
+import { Users, BarChart3, BookOpen, FileEdit, Flag, Download, ClipboardCheck, ShieldCheck } from 'lucide-react'
 import { getCurrentWebLocale } from '@/lib/i18n/server'
 
 type AdminLink = {
@@ -119,6 +119,24 @@ const ADMIN_LINKS: AdminLink[] = [
       ko: '교사가 문제 오류 신고. 3회 후 관리자 검토.',
     },
     icon: Flag,
+  },
+  {
+    href: '/admin/worksheet-verify-reports',
+    title: {
+      vi: 'Chất lượng verify phiếu bài tập',
+      en: 'Worksheet verify quality',
+      zh: '作业单核验质量',
+      ja: 'ワークシート検証品質',
+      ko: '워크시트 검증 품질',
+    },
+    description: {
+      vi: 'Quét DB, chạy verify câu chưa đóng dấu; báo cáo từng lượt cho admin.',
+      en: 'Scan DB and verify unverified questions; per-batch reports for admins.',
+      zh: '扫描数据库并核验未标记题目；按批向管理员报告。',
+      ja: 'DBを走査し未検証の設問を検証。管理者向けにバッチごとに報告。',
+      ko: 'DB를 검사해 미검증 문항 검증. 관리자에게 배치별 보고.',
+    },
+    icon: ShieldCheck,
   },
   {
     href: '/admin/export-data',

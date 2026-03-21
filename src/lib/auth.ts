@@ -1,7 +1,18 @@
 import type { User } from '@supabase/supabase-js'
-import { cookies } from 'next/headers'
+import { cookies, headers } from 'next/headers'
 
 const FORCE_REAL_LOGIN_COOKIE = 'force_real_login'
+
+/** Kiểm tra request có phải từ crawler tìm kiếm (Google, Bing...) – để render trang cho SEO thay vì redirect login */
+function isSearchEngineCrawler(): boolean {
+  try {
+    const h = headers()
+    const ua = (h.get('user-agent') || '').toLowerCase()
+    return /googlebot|bingbot|slurp|duckduckbot|baiduspider|yandexbot|facebookexternalhit|twitterbot|linkedinbot|embedly|pinterest|whatsapp|telegrambot/i.test(ua)
+  } catch {
+    return false
+  }
+}
 
 /** Kiểm tra xem có đang localhost không */
 function isLocalhostEnv(): boolean {
@@ -49,6 +60,8 @@ export async function getUserOrBypass(
   const { data: { user } } = await getUser()
   if (user) return user
   if (!isAuthRequired()) return getDevUser()
+  // SEO: crawler thấy trang (metadata, nội dung) thay vì redirect sang /auth/ (bị chặn robots)
+  if (isSearchEngineCrawler()) return getDevUser()
   return null
 }
 

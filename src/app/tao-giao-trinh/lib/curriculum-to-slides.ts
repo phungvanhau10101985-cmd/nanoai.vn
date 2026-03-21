@@ -96,6 +96,8 @@ export function curriculumToSlidesMarkdown(curriculumMarkdown: string, topic: st
 export interface ContentBlock {
   header: string
   content: string
+  /** Block đáp án – giáo viên có thể ẩn/hiện trên giao diện học sinh */
+  isAnswer?: boolean
 }
 
 /** Slide từ AI: đã có sẵn blocks, không cần parse */
@@ -110,6 +112,11 @@ export interface AISlideData {
   visualLayout?: 1 | 2 | 4
   /** Nội dung từng ô */
   visualCells?: Array<{ visualEmbed?: string; imageUrl?: string }>
+  /** 4 trường dữ liệu visual theo từng slide */
+  visualInput1?: string
+  visualInput2?: string
+  visualInput3?: string
+  visualInput4?: string
 }
 
 /** Parse nội dung slide thành các block (Định nghĩa, Quy tắc, Khởi động...) */

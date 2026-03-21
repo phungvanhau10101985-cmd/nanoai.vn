@@ -2,11 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_FLASH_NO_THINKING, GEMINI_25_PRO } from '@/lib/gemini-config'
 
-/** Model tạo quiz: luôn dùng Pro cho kiến thức giáo dục. */
+/** Model tạo / sửa quiz: Gemini 2.5 Pro. */
 const QUIZ_CREATE_MODEL = GEMINI_25_PRO
-
-/** Model retry khi DeepSeek báo sai: GPT (OpenAI). */
-const GPT_RETRY_MODEL = process.env.EDUCATIONAL_RETRY_MODEL?.trim() || process.env.OPENAI_FALLBACK_MODEL?.trim() || 'gpt-4o-mini'
 
 const QUIZ_SCHEMA = `{
   "quizzes": [
@@ -107,6 +104,73 @@ function parseAndShuffleQuizzes(rawText: string): Array<{ question: string; opti
   })
 }
 
+/** Lần 2: Gemini Pro với nhắc schema — khi lần 1 trả JSON không parse được. */
+async function generateQuizRetryParseWithGeminiPro(
+  genAI: GoogleGenerativeAI,
+  basePrompt: string
+): Promise<Array<{ question: string; options: string[]; correctIndex: number }> | null> {
+  const model = genAI.getGenerativeModel({
+    ...GEMINI_25_PRO,
+    generationConfig: { temperature: 0.15, responseMimeType: 'application/json' },
+  })
+  const result = await model.generateContent(
+    `${basePrompt}\n\n⚠️ BẮT BUỘC: chỉ một object JSON hợp lệ, đúng schema "quizzes" (mảng 1 phần tử). Không markdown, không text ngoài JSON.`
+  )
+  const raw = result.response.text()?.trim() || ''
+  return parseAndShuffleQuizzes(raw)
+}
+
+/**
+ * Verify (Flash) báo sai → Gemini 2.5 Pro sửa lại câu + 4 đáp án cho khớp slide.
+ * `suggestedCorrectIndex`: gợi ý từ bước verify (0–3), có thể undefined.
+ */
+async function fixQuizWithGeminiProForSlide(
+  genAI: GoogleGenerativeAI,
+  fullContent: string,
+  q: { question: string; options: string[]; correctIndex: number },
+  suggestedCorrectIndex: number | undefined,
+  lessonContext: LessonContext | undefined,
+  difficulty: Difficulty
+): Promise<Array<{ question: string; options: string[]; correctIndex: number }> | null> {
+  const diffHint = DIFFICULTY_PROMPT[difficulty] ?? DIFFICULTY_PROMPT.medium
+  const ctx =
+    lessonContext?.topic || (lessonContext?.allSlideTitles && lessonContext.allSlideTitles.length > 0)
+      ? `Ngữ cảnh bài: chủ đề "${lessonContext?.topic ?? ''}"; slide ${(lessonContext?.currentSlideIndex ?? 0) + 1}/${lessonContext?.totalSlides ?? 1}.\n`
+      : ''
+  const suggest =
+    suggestedCorrectIndex != null && suggestedCorrectIndex >= 0 && suggestedCorrectIndex <= 3
+      ? `Bước kiểm tra (Flash) cho rằng đáp án đúng theo slide là **${String.fromCharCode(65 + suggestedCorrectIndex)}** (index ${suggestedCorrectIndex}). ` +
+        `Hãy sửa CÂU HỎI và/hoặc các đáp án nếu cần để mọi thứ khớp 100% slide; correctIndex phải là 0–3.\n\n`
+      : 'Câu trắc nghiệm không khớp nội dung slide. Sửa lại toàn bộ (câu hỏi + 4 đáp án + chỉ số đúng) cho đúng slide.\n\n'
+
+  const prompt = `Bạn là giáo viên chuyên môn. ${ctx}${suggest}${diffHint}
+
+NỘI DUNG SLIDE (căn cứ duy nhất để sửa):
+---
+${fullContent.slice(0, 4000)}
+---
+
+CÂU HIỆN TẠI (bắt buộc sửa từ đây — không đổi sang chủ đề khác):
+Câu hỏi: ${q.question}
+A. ${q.options[0] ?? ''}
+B. ${q.options[1] ?? ''}
+C. ${q.options[2] ?? ''}
+D. ${q.options[3] ?? ''}
+Đáp án đang đánh dấu: ${String.fromCharCode(65 + q.correctIndex)} (index ${q.correctIndex})
+
+QUY TẮC: Unicode (π, ∫, x²…), không LaTeX $...$. 4 đáp án đủ, correctIndex 0–3.
+Trả về JSON đúng schema: ${QUIZ_SCHEMA}
+Chỉ 1 phần tử trong "quizzes".`
+
+  const model = genAI.getGenerativeModel({
+    ...GEMINI_25_PRO,
+    generationConfig: { temperature: 0, responseMimeType: 'application/json' },
+  })
+  const result = await model.generateContent(prompt)
+  const raw = result.response.text()?.trim() || ''
+  return parseAndShuffleQuizzes(raw)
+}
+
 /** AI tạo 1 câu trắc nghiệm cho một slide */
 export async function POST(req: NextRequest) {
   try {
@@ -155,26 +219,9 @@ export async function POST(req: NextRequest) {
     let rawText = result.response.text()?.trim() || ''
     let shuffled = parseAndShuffleQuizzes(rawText)
 
-    // Nếu Gemini không parse được, thử GPT retry
-    if (!shuffled && process.env.OPENAI_API_KEY?.trim()) {
-      const gptRes = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
-        body: JSON.stringify({
-          model: GPT_RETRY_MODEL,
-          temperature: 0.1,
-          response_format: { type: 'json_object' },
-          messages: [
-            { role: 'system', content: 'Trả về đúng JSON theo schema. Không markdown.' },
-            { role: 'user', content: prompt },
-          ],
-        }),
-      })
-      if (gptRes.ok) {
-        const gptData = (await gptRes.json().catch(() => ({}))) as { choices?: Array<{ message?: { content?: string } }> }
-        rawText = String(gptData?.choices?.[0]?.message?.content ?? '').trim()
-        shuffled = parseAndShuffleQuizzes(rawText)
-      }
+    // Lần 1 không parse được → Gemini Pro gọi lại (không dùng GPT)
+    if (!shuffled) {
+      shuffled = await generateQuizRetryParseWithGeminiPro(genAI, prompt)
     }
 
     if (!shuffled || shuffled.length === 0) {
@@ -183,11 +230,8 @@ export async function POST(req: NextRequest) {
 
     let shuffledFinal = shuffled
 
-    // Kiểm tra chéo: DeepSeek Reasoner verify (lỗi → fallback Gemini 2.5 Flash). Nếu sai → GPT tạo lại → verify lần 2
+    // Kiểm tra chéo: Gemini 2.5 Flash verify. Nếu sai → Gemini 2.5 Pro sửa câu → verify lần 2
     const shouldVerify = process.env.SLIDE_QUIZ_VERIFY !== 'false' && process.env.SLIDE_QUIZ_VERIFY !== '0'
-    const deepSeekKey = process.env.DEEPSEEK_API_KEY?.trim()
-
-    const DEEPSEEK_VERIFY_MODEL = process.env.DEEPSEEK_VERIFY_MODEL?.trim() || 'deepseek-reasoner'
 
     const runVerify = async (q: { question: string; options: string[]; correctIndex: number }): Promise<{ verified: boolean; correctIndex?: number } | null> => {
       const opts = q.options ?? []
@@ -214,34 +258,6 @@ Trả về JSON: { "verified": true|false, "correctIndex": 0|1|2|3 }
 - verified: true nếu đáp án hiện tại đúng, false nếu sai
 - correctIndex: chỉ cần khi verified=false, chỉ số (0-3) của đáp án đúng theo slide`
 
-      // Ưu tiên DeepSeek Reasoner; lỗi thì fallback Gemini 2.5 Flash
-      if (deepSeekKey) {
-        try {
-          const dsRes = await fetch('https://api.deepseek.com/chat/completions', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${deepSeekKey}` },
-            body: JSON.stringify({
-              model: DEEPSEEK_VERIFY_MODEL,
-              temperature: 0,
-              messages: [
-                { role: 'system', content: 'Trả về đúng JSON theo yêu cầu, không markdown.' },
-                { role: 'user', content: verifyPrompt },
-              ],
-            }),
-          })
-          if (dsRes.ok) {
-            const dsData = (await dsRes.json().catch(() => ({}))) as { choices?: Array<{ message?: { content?: string } }> }
-            const verifyText = String(dsData?.choices?.[0]?.message?.content ?? '').trim()
-            if (verifyText) {
-              const cleaned = verifyText.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim()
-              const v = JSON.parse(cleaned) as { verified?: boolean; correctIndex?: number }
-              return { verified: v.verified === true, correctIndex: v.correctIndex }
-            }
-          }
-        } catch (e) {
-          console.warn('[slide-generate-quiz] DeepSeek verify lỗi, fallback Gemini:', e instanceof Error ? e.message : e)
-        }
-      }
       if (apiKey) {
         const verifyModel = genAI.getGenerativeModel({
           ...GEMINI_25_FLASH_NO_THINKING,
@@ -262,44 +278,40 @@ Trả về JSON: { "verified": true|false, "correctIndex": 0|1|2|3 }
       const q = shuffledFinal[0]
       try {
         let verifyResult = await runVerify(q)
-        if (verifyResult && !verifyResult.verified && typeof verifyResult.correctIndex === 'number' && verifyResult.correctIndex >= 0 && verifyResult.correctIndex <= 3) {
-          // DeepSeek báo sai: dùng GPT tạo lại
-          const openAiKey = process.env.OPENAI_API_KEY?.trim()
-          if (openAiKey) {
-            const gptRes = await fetch('https://api.openai.com/v1/chat/completions', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${openAiKey}` },
-              body: JSON.stringify({
-                model: GPT_RETRY_MODEL,
-                temperature: 0.1,
-                response_format: { type: 'json_object' },
-                messages: [
-                  { role: 'system', content: 'Trả về đúng JSON theo schema. Không markdown.' },
-                  { role: 'user', content: prompt },
-                ],
-              }),
-            })
-            if (gptRes.ok) {
-              const gptData = (await gptRes.json().catch(() => ({}))) as { choices?: Array<{ message?: { content?: string } }> }
-              const gptText = String(gptData?.choices?.[0]?.message?.content ?? '').trim()
-              const retried = parseAndShuffleQuizzes(gptText)
-              if (retried && retried.length > 0) {
-                const q2 = retried[0]
-                verifyResult = await runVerify(q2)
-                if (verifyResult?.verified) {
-                  shuffledFinal = retried
-                } else if (verifyResult && !verifyResult.verified && typeof verifyResult.correctIndex === 'number' && verifyResult.correctIndex >= 0 && verifyResult.correctIndex <= 3) {
-                  shuffledFinal = [{ ...q2, correctIndex: verifyResult.correctIndex }]
-                }
-              }
+        if (verifyResult && !verifyResult.verified) {
+          const suggested =
+            typeof verifyResult.correctIndex === 'number' &&
+            verifyResult.correctIndex >= 0 &&
+            verifyResult.correctIndex <= 3
+              ? verifyResult.correctIndex
+              : undefined
+          const retried = await fixQuizWithGeminiProForSlide(
+            genAI,
+            fullContent,
+            q,
+            suggested,
+            lessonContext,
+            difficulty
+          )
+          if (retried && retried.length > 0) {
+            const q2 = retried[0]!
+            verifyResult = await runVerify(q2)
+            if (verifyResult?.verified) {
+              shuffledFinal = retried
+            } else if (
+              verifyResult &&
+              !verifyResult.verified &&
+              typeof verifyResult.correctIndex === 'number' &&
+              verifyResult.correctIndex >= 0 &&
+              verifyResult.correctIndex <= 3
+            ) {
+              shuffledFinal = [{ ...q2, correctIndex: verifyResult.correctIndex }]
             } else {
-              shuffledFinal = [{ ...q, correctIndex: verifyResult.correctIndex }]
+              shuffledFinal = retried
             }
-          } else {
-            shuffledFinal = [{ ...q, correctIndex: verifyResult.correctIndex }]
+          } else if (suggested !== undefined) {
+            shuffledFinal = [{ ...q, correctIndex: suggested }]
           }
-        } else if (verifyResult && !verifyResult.verified && typeof verifyResult.correctIndex === 'number' && verifyResult.correctIndex >= 0 && verifyResult.correctIndex <= 3) {
-          shuffledFinal = [{ ...q, correctIndex: verifyResult.correctIndex }]
         }
       } catch {
         // Nếu verify lỗi, giữ nguyên

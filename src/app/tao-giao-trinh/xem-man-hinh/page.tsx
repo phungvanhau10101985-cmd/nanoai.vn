@@ -80,9 +80,10 @@ export default function XemManHinhPage() {
     setStatus('connecting')
     setErrorMsg(null)
 
+    const viewerId = crypto.randomUUID()
     const supabase = createClient()
     const channelName = `screen-live-${shareCode.trim()}`
-    const channel = supabase.channel(channelName)
+    const channel = supabase.channel(channelName, { config: { private: false } })
     channelRef.current = channel
 
     const pc = new RTCPeerConnection({
@@ -102,14 +103,14 @@ export default function XemManHinhPage() {
         channel.send({
           type: 'broadcast',
           event: 'ice',
-          payload: { from: 'viewer', candidate: e.candidate.toJSON() },
+          payload: { from: 'viewer', viewerId, candidate: e.candidate.toJSON() },
         })
       }
     }
 
     channel
       .on('broadcast', { event: 'offer' }, async ({ payload }) => {
-        if (payload?.from !== 'sharer' || !payload?.sdp) return
+        if (payload?.from !== 'sharer' || !payload?.sdp || payload?.viewerId !== viewerId) return
         try {
           await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp))
           const answer = await pc.createAnswer()
@@ -119,6 +120,7 @@ export default function XemManHinhPage() {
             event: 'answer',
             payload: {
               from: 'viewer',
+              viewerId,
               sdp: pc.localDescription?.toJSON(),
             },
           })
@@ -128,17 +130,16 @@ export default function XemManHinhPage() {
         }
       })
       .on('broadcast', { event: 'ice' }, async ({ payload }) => {
-        if (payload?.from === 'sharer' && payload?.candidate && pcRef.current) {
-          try {
-            await pcRef.current.addIceCandidate(new RTCIceCandidate(payload.candidate))
-          } catch {
-            /* ignore */
-          }
+        if (payload?.from !== 'sharer' || !payload?.candidate || payload?.viewerId !== viewerId || !pcRef.current) return
+        try {
+          await pcRef.current.addIceCandidate(new RTCIceCandidate(payload.candidate))
+        } catch {
+          /* ignore */
         }
       })
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
-          channel.send({ type: 'broadcast', event: 'request-offer', payload: { from: 'viewer' } })
+          channel.send({ type: 'broadcast', event: 'request-offer', payload: { from: 'viewer', viewerId } })
         } else if (status === 'CHANNEL_ERROR') {
           setStatus('error')
           setErrorMsg(tr(locale, 'Không kết nối được. Kiểm tra mã chia sẻ.', 'Connection failed. Check share code.', '连接失败。请检查分享码。', '接続できません。共有コードを確認。', '연결 실패. 공유 코드 확인.'))

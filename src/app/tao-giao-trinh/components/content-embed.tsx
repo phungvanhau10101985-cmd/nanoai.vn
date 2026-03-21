@@ -10,7 +10,7 @@ import QRCode from 'qrcode'
 
 const WRAPPER_CLASS = 'my-4 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700'
 
-export type EmbedType = 'geogebra' | 'desmos' | 'youtube' | 'phet' | 'maps' | 'image' | 'audio' | 'quiz' | 'code' | 'latex'
+export type EmbedType = 'geogebra' | 'desmos' | 'youtube' | 'phet' | 'maps' | 'image' | 'audio' | 'quiz' | 'code' | 'latex' | 'plot'
 
 export interface ContentEmbedProps {
   type: EmbedType
@@ -46,10 +46,22 @@ function getEmbedSrc(type: EmbedType, urlOrId: string): string | null {
 
   if (type === 'geogebra') {
     if (raw.startsWith('http') && raw.includes('geogebra.org')) {
-      return raw.includes('?embed') ? raw : raw + (raw.includes('?') ? '&embed' : '?embed')
+      try {
+        const u = new URL(raw)
+        if (u.pathname.startsWith('/classic')) u.pathname = '/calculator'
+        u.searchParams.set('embed', 'true')
+        u.searchParams.set('showToolBar', 'false')
+        u.searchParams.set('showMenuBar', 'false')
+        u.searchParams.set('showAlgebraInput', 'false')
+        u.searchParams.set('showResetIcon', 'false')
+        return u.toString()
+      } catch {
+        return raw.includes('?embed') ? raw : raw + (raw.includes('?') ? '&embed' : '?embed')
+      }
     }
     const id = raw.match(/geogebra\.org\/(?:calculator|m)\/([a-zA-Z0-9]+)/)?.[1] ?? (raw.length < 25 ? raw : null)
-    return id ? `https://www.geogebra.org/calculator/${id}?embed` : `https://www.geogebra.org/calculator/${raw}?embed`
+    const base = id ? `https://www.geogebra.org/calculator/${id}` : `https://www.geogebra.org/calculator/${raw}`
+    return `${base}?embed=true&showToolBar=false&showMenuBar=false&showAlgebraInput=false&showResetIcon=false`
   }
 
   if (type === 'desmos') {
@@ -83,6 +95,10 @@ function getEmbedSrc(type: EmbedType, urlOrId: string): string | null {
     if (penMatch) return `https://codepen.io/${penMatch[1]}/embed/${penMatch[2]}`
     if (raw.includes('codepen.io') && raw.includes('/pen/')) return raw.includes('embed') ? raw : raw.replace('/pen/', '/embed/')
     return raw.startsWith('http') ? raw : null
+  }
+
+  if (type === 'plot') {
+    return raw
   }
 
   return null
@@ -135,6 +151,7 @@ export function ContentEmbed({ type, urlOrId, width = 560, height = 350, classNa
           src={src}
           {...(fill ? { style: { width: '100%', height: '100%', pointerEvents: 'auto' } } : { width, height })}
           className="w-full border-0"
+          sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-presentation"
           allowFullScreen
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
           title={type}
@@ -170,6 +187,10 @@ export function ContentEmbed({ type, urlOrId, width = 560, height = 350, classNa
 
   if (type === 'latex') {
     return <LatexEmbed formula={urlOrId} />
+  }
+
+  if (type === 'plot') {
+    return <PlotEmbed spec={urlOrId} />
   }
 
   return null
@@ -493,6 +514,11 @@ function LiveQuizEmbed({
         const dataToShow = displayQuizData ?? quizData
         return (
           <>
+      <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2">
+        <span className="inline-flex px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-800">
+          {t('Chưa verify', 'Not verified', '未验证', '未検証', '미검증')}
+        </span>
+      </p>
       <p className="font-medium mb-3"><QuizMathText text={dataToShow.question} /></p>
       <div className="space-y-2 mb-4">
         {dataToShow.options.map((opt, i) => (
@@ -719,6 +745,7 @@ const EMBED_REGEXES: Array<{ type: EmbedType; re: RegExp }> = [
   { type: 'quiz', re: /\[quiz:\s*(.+[\x1f|][0-3])\]/gi },
   { type: 'code', re: /\[code:\s*([^\]]+)\]/gi },
   { type: 'latex', re: /\[latex:\s*([^\]]+)\]/gi },
+  { type: 'plot', re: /\[plot:\s*([^\]]+)\]/gi },
 ]
 
 export function parseContentEmbeds(content: string): Array<{ type: EmbedType; urlOrId: string; index: number; rawMarker: string }> {
@@ -788,4 +815,130 @@ export function canSplitBlockAtQuiz(content: string): boolean {
 /** Backward compat: MathEmbed cho geogebra/desmos */
 export function MathEmbed(props: { type: 'geogebra' | 'desmos'; urlOrId: string; width?: number; height?: number; className?: string }) {
   return <ContentEmbed {...props} />
+}
+
+function PlotEmbed({ spec }: { spec: string }) {
+  const cfg = useMemo(() => parsePlotSpec(spec), [spec])
+  if (!cfg) return null
+
+  const width = 560
+  const height = 320
+  const pad = 28
+  const innerW = width - pad * 2
+  const innerH = height - pad * 2
+  const toX = (x: number) => pad + ((x - cfg.xMin) / (cfg.xMax - cfg.xMin)) * innerW
+  const toY = (y: number) => pad + (1 - (y - cfg.yMin) / (cfg.yMax - cfg.yMin)) * innerH
+
+  const points: Array<{ x: number; y: number }> = []
+  const n = 140
+  for (let i = 0; i <= n; i++) {
+    const x = cfg.xMin + (i / n) * (cfg.xMax - cfg.xMin)
+    const y = evalFn(cfg.expr, x)
+    if (Number.isFinite(y)) points.push({ x, y })
+  }
+
+  const path = points
+    .filter((p) => p.y >= cfg.yMin - 1e6 && p.y <= cfg.yMax + 1e6)
+    .map((p, idx) => `${idx === 0 ? 'M' : 'L'} ${toX(p.x).toFixed(2)} ${toY(p.y).toFixed(2)}`)
+    .join(' ')
+
+  const axisX = cfg.yMin <= 0 && cfg.yMax >= 0 ? toY(0) : toY(cfg.yMin)
+  const axisY = cfg.xMin <= 0 && cfg.xMax >= 0 ? toX(0) : toX(cfg.xMin)
+
+  return (
+    <div className={WRAPPER_CLASS + ' p-2 bg-white dark:bg-slate-900/50'}>
+      <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto">
+        <rect x={0} y={0} width={width} height={height} fill="transparent" />
+        <line x1={pad} y1={axisX} x2={width - pad} y2={axisX} stroke="#64748b" strokeWidth="1.2" />
+        <line x1={axisY} y1={pad} x2={axisY} y2={height - pad} stroke="#64748b" strokeWidth="1.2" />
+        {path ? <path d={path} fill="none" stroke="#f59e0b" strokeWidth="2.2" /> : null}
+        <text x={width - pad + 4} y={axisX + 4} fontSize="11" fill="#0f172a">x</text>
+        <text x={axisY - 8} y={pad - 6} fontSize="11" fill="#0f172a">y</text>
+        <text x={pad + 4} y={pad + 14} fontSize="11" fill="#0ea5e9">{cfg.label}</text>
+      </svg>
+    </div>
+  )
+}
+
+function parsePlotSpec(raw: string): { expr: string; label: string; xMin: number; xMax: number; yMin: number; yMax: number } | null {
+  const s = String(raw || '').trim()
+  if (!s) return null
+  const parts = s.split(';').map((p) => p.trim()).filter(Boolean)
+  const kv = new Map<string, string>()
+  for (const p of parts) {
+    const idx = p.indexOf('=')
+    if (idx <= 0) continue
+    kv.set(p.slice(0, idx).trim().toLowerCase(), p.slice(idx + 1).trim())
+  }
+  const exprRaw = kv.get('y') || kv.get('expr') || s
+  const expr = normalizeExpr(exprRaw)
+  if (!expr) return null
+  const xMin = Number(kv.get('xmin') ?? -4)
+  const xMax = Number(kv.get('xmax') ?? 4)
+  const yMin = Number(kv.get('ymin') ?? -4)
+  const yMax = Number(kv.get('ymax') ?? 8)
+  if (!Number.isFinite(xMin) || !Number.isFinite(xMax) || xMin >= xMax) return null
+  if (!Number.isFinite(yMin) || !Number.isFinite(yMax) || yMin >= yMax) return null
+  const label = `y=${exprRaw.replace(/\s+/g, '')}`
+  return { expr, label, xMin, xMax, yMin, yMax }
+}
+
+function normalizeExpr(input: string): string {
+  let out = String(input || '')
+    .replace(/^\s*[a-zA-Z]\s*\(\s*[xt]\s*\)\s*=\s*/i, '')
+    .replace(/^\s*y\s*=\s*/i, '')
+    .replace(/^\s*f\s*\(\s*[xt]\s*\)\s*=\s*/i, '')
+    .replace(/−/g, '-')
+    .replace(/×/g, '*')
+    .replace(/÷/g, '/')
+    .replace(/π/g, 'pi')
+    .replace(/\|([^|]+)\|/g, 'abs($1)')
+    .replace(/√\(([^)]+)\)/g, 'sqrt($1)')
+    .replace(/x²/g, 'x^2')
+    .replace(/x³/g, 'x^3')
+    .trim()
+  const superscriptMap: Record<string, string> = {
+    '⁰': '0',
+    '¹': '1',
+    '²': '2',
+    '³': '3',
+    '⁴': '4',
+    '⁵': '5',
+    '⁶': '6',
+    '⁷': '7',
+    '⁸': '8',
+    '⁹': '9',
+  }
+  for (const [k, v] of Object.entries(superscriptMap)) {
+    out = out.replace(new RegExp(k, 'g'), `^${v}`)
+  }
+  out = out.replace(/(?<![A-Za-z])[tT](?![A-Za-z])/g, 'x')
+  return out
+}
+
+function evalFn(expr: string, x: number): number {
+  const safe = expr
+    .replace(/(\d)([xX])/g, '$1*$2')
+    .replace(/([xX])(\d)/g, '$1*$2')
+    .replace(/([xX])\(/g, '$1*(')
+    .replace(/\)([xX])/g, ')*$1')
+    .replace(/\)\(/g, ')*(')
+    .replace(/\^/g, '**')
+    .replace(/\bpi\b/gi, 'Math.PI')
+    .replace(/\babs\s*\(/gi, 'Math.abs(')
+    .replace(/\bsqrt\s*\(/gi, 'Math.sqrt(')
+    .replace(/\bsin\s*\(/gi, 'Math.sin(')
+    .replace(/\bcos\s*\(/gi, 'Math.cos(')
+    .replace(/\btan\s*\(/gi, 'Math.tan(')
+    .replace(/\bexp\s*\(/gi, 'Math.exp(')
+    .replace(/\bln\s*\(/gi, 'Math.log(')
+    .replace(/\blog\s*\(/gi, 'Math.log10(')
+  if (!/^[0-9xX+\-*/().,\s*MathabsinqrtcoetplogPI]*$/.test(safe.replace(/\*\*/g, '*'))) return NaN
+  try {
+    const fn = new Function('x', `return (${safe});`) as (x: number) => number
+    const y = fn(x)
+    return Number.isFinite(y) ? y : NaN
+  } catch {
+    return NaN
+  }
 }

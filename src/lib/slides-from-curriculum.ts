@@ -14,6 +14,7 @@ export interface AISlideData {
   title: string
   blocks: SlideBlock[]
   imageUrl?: string
+  visualEmbed?: string
 }
 
 const MAX_CONTENT_PER_SLIDE = 220
@@ -25,7 +26,14 @@ const JSON_SCHEMA = `{
       "blocks": [
         { "header": "Nội dung", "content": "1 ý duy nhất, tối đa ${MAX_CONTENT_PER_SLIDE} ký tự. Không gộp nhiều ý vào 1 slide." }
       ],
-      "imageQuery": "math education school"
+      "imageQuery": "math education school",
+      "plotSpec": {
+        "expr": "x^2-3x+2",
+        "xMin": -4,
+        "xMax": 4,
+        "yMin": -6,
+        "yMax": 6
+      }
     }
   ]
 }`
@@ -38,9 +46,9 @@ function normalizeSlideText(text: string): string {
 }
 
 function splitLongSlides(
-  slides: Array<{ title: string; blocks: SlideBlock[]; imageQuery?: string }>
-): Array<{ title: string; blocks: SlideBlock[]; imageQuery?: string }> {
-  const result: Array<{ title: string; blocks: SlideBlock[]; imageQuery?: string }> = []
+  slides: Array<{ title: string; blocks: SlideBlock[]; imageQuery?: string; visualEmbed?: string }>
+): Array<{ title: string; blocks: SlideBlock[]; imageQuery?: string; visualEmbed?: string }> {
+  const result: Array<{ title: string; blocks: SlideBlock[]; imageQuery?: string; visualEmbed?: string }> = []
   for (const s of slides) {
     const text = (s.blocks?.[0]?.content ?? '').trim()
     if (text.length <= MAX_CONTENT_PER_SLIDE) {
@@ -80,6 +88,7 @@ function splitLongSlides(
         title: parts.length > 1 ? `${s.title} (${i + 1}/${parts.length})` : s.title,
         blocks: [{ header: s.blocks?.[0]?.header ?? 'Nội dung', content: parts[i] }],
         imageQuery: i === 0 ? s.imageQuery : s.imageQuery,
+        visualEmbed: i === 0 ? s.visualEmbed : undefined,
       })
     }
   }
@@ -131,6 +140,12 @@ const SYSTEM_PROMPT = `Bạn là chuyên gia thiết kế slide giảng dạy TH
 QUY TẮC BẮT BUỘC – TỪ KHÓA TÌM ẢNH:
 - Mỗi slide PHẢI có "imageQuery": chuỗi từ khóa TIẾNG ANH (2-4 từ) để tìm ảnh minh họa nội dung bài học.
 - Ví dụ: "math education", "function graph", "chemistry lab", "history ancient"...
+
+QUY TẮC BẮT BUỘC – ĐỒ THỊ/HÀM SỐ:
+- Nếu slide có hàm số hoặc nội dung yêu cầu quan sát đồ thị, PHẢI trả thêm "plotSpec".
+- "plotSpec.expr" luôn chuẩn hóa theo biến x (ví dụ t^3-9t^2+15t thì chuyển thành x^3-9x^2+15x).
+- "plotSpec" cần có đủ xMin, xMax, yMin, yMax để dựng đồ thị.
+- Nếu slide không có hàm số thì không cần "plotSpec".
 
 LƯU Ý: KHÔNG tạo câu hỏi trắc nghiệm. Giáo viên sẽ tạo và lưu sau (mỗi slide tối đa 1 câu).
 
@@ -188,7 +203,14 @@ ${JSON_SCHEMA}`
   const rawText = result.response.text()?.trim() || ''
   if (!rawText) return { slides: [], error: 'AI không trả về nội dung.' }
 
-  let parsed: { slides?: Array<{ title?: string; blocks?: SlideBlock[]; imageQuery?: string }> }
+  let parsed: {
+    slides?: Array<{
+      title?: string
+      blocks?: SlideBlock[]
+      imageQuery?: string
+      plotSpec?: { expr?: string; xMin?: number; xMax?: number; yMin?: number; yMax?: number }
+    }>
+  }
   try {
     const cleaned = rawText
       .replace(/^```(?:json)?\s*\n?/i, '')
@@ -211,11 +233,12 @@ ${JSON_SCHEMA}`
         title: String(s?.title ?? 'Slide'),
         blocks: [{ header: 'Nội dung', content }],
         imageQuery: typeof s?.imageQuery === 'string' ? s.imageQuery.trim() : undefined,
+        visualEmbed: undefined,
       }
     })
     .filter((s) => s.blocks[0].content.length > 0)
 
-  const afterSplit = splitLongSlides(toSplit)
+const afterSplit = splitLongSlides(toSplit)
   const slidesRaw = afterSplit.map((s) => ({
     title: String(s?.title ?? 'Slide'),
     blocks: Array.isArray(s?.blocks)
@@ -227,17 +250,20 @@ ${JSON_SCHEMA}`
     imageQuery: typeof (s as { imageQuery?: string })?.imageQuery === 'string'
       ? (s as { imageQuery: string }).imageQuery.trim()
       : undefined,
+    visualEmbed: typeof (s as { visualEmbed?: string })?.visualEmbed === 'string'
+      ? (s as { visualEmbed: string }).visualEmbed.trim()
+      : undefined,
   }))
 
   if (!fetchImages) {
     return {
-      slides: slidesRaw.map((s) => ({ title: s.title, blocks: s.blocks })),
+      slides: slidesRaw.map((s) => ({ title: s.title, blocks: s.blocks, visualEmbed: s.visualEmbed })),
     }
   }
 
   const pexelsKey = process.env.PEXELS_API_KEY?.trim()
   const slides: AISlideData[] = await Promise.all(
-    slidesRaw.map(async (s, i) => {
+    slidesRaw.map(async (s) => {
       let imageUrl: string | undefined
       if (s.imageQuery) {
         if (pexelsKey) {
@@ -265,7 +291,7 @@ ${JSON_SCHEMA}`
           imageUrl = `https://picsum.photos/seed/${encodeURIComponent(s.imageQuery)}/600/400`
         }
       }
-      return { title: s.title, blocks: s.blocks, imageUrl }
+      return { title: s.title, blocks: s.blocks, imageUrl, visualEmbed: s.visualEmbed }
     })
   )
 

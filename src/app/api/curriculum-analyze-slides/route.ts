@@ -49,6 +49,8 @@ export interface AISlideData {
   blocks: SlideBlock[]
   /** URL ảnh minh họa phù hợp nội dung slide (Unsplash, Pexels...) */
   imageUrl?: string
+  /** Marker visual để render trực tiếp (vd: [plot:...], [geogebra:...]) */
+  visualEmbed?: string
 }
 
 export interface AnalyzeSlidesResponse {
@@ -64,7 +66,14 @@ const JSON_SCHEMA = `{
       "blocks": [
         { "header": "Nội dung", "content": "1 ý duy nhất, tối đa ${MAX_CONTENT_PER_SLIDE} ký tự. Không gộp nhiều ý vào 1 slide." }
       ],
-      "imageQuery": "math education school"
+      "imageQuery": "math education school",
+      "plotSpec": {
+        "expr": "x^2-3x+2",
+        "xMin": -4,
+        "xMax": 4,
+        "yMin": -6,
+        "yMax": 6
+      }
     }
   ]
 }`
@@ -79,9 +88,9 @@ function normalizeSlideText(text: string): string {
 
 /** Tách slide có nội dung quá dài thành nhiều slide ngắn */
 function splitLongSlides(
-  slides: Array<{ title: string; blocks: SlideBlock[]; imageQuery?: string }>
-): Array<{ title: string; blocks: SlideBlock[]; imageQuery?: string }> {
-  const result: Array<{ title: string; blocks: SlideBlock[]; imageQuery?: string }> = []
+  slides: Array<{ title: string; blocks: SlideBlock[]; imageQuery?: string; visualEmbed?: string }>
+): Array<{ title: string; blocks: SlideBlock[]; imageQuery?: string; visualEmbed?: string }> {
+  const result: Array<{ title: string; blocks: SlideBlock[]; imageQuery?: string; visualEmbed?: string }> = []
   for (const s of slides) {
     const text = (s.blocks?.[0]?.content ?? '').trim()
     if (text.length <= MAX_CONTENT_PER_SLIDE) {
@@ -121,6 +130,7 @@ function splitLongSlides(
         title: parts.length > 1 ? `${s.title} (${i + 1}/${parts.length})` : s.title,
         blocks: [{ header: s.blocks?.[0]?.header ?? 'Nội dung', content: parts[i] }],
         imageQuery: i === 0 ? s.imageQuery : s.imageQuery,
+        visualEmbed: i === 0 ? s.visualEmbed : undefined,
       })
     }
   }
@@ -141,6 +151,12 @@ QUY TẮC BẮT BUỘC – TỪ KHÓA TÌM ẢNH:
 - Mỗi slide PHẢI có "imageQuery": chuỗi từ khóa TIẾNG ANH (2-4 từ) để tìm ảnh minh họa nội dung bài học.
 - Ví dụ: "math education", "function graph", "chemistry lab", "history ancient"...
 
+QUY TẮC BẮT BUỘC – ĐỒ THỊ/HÀM SỐ:
+- Nếu slide có hàm số hoặc nội dung yêu cầu quan sát đồ thị, PHẢI trả thêm "plotSpec".
+- "plotSpec.expr" luôn chuẩn hóa theo biến x (ví dụ t^3-9t^2+15t thì chuyển thành x^3-9x^2+15x).
+- "plotSpec" cần có đủ xMin, xMax, yMin, yMax để dựng đồ thị.
+- Nếu slide không có hàm số thì không cần "plotSpec".
+
 LƯU Ý: KHÔNG tạo câu hỏi trắc nghiệm. Giáo viên sẽ tạo và lưu sau (mỗi slide tối đa 1 câu).
 
 QUY TẮC KHÁC:
@@ -149,7 +165,6 @@ QUY TẮC KHÁC:
 3. Ngôn ngữ: Tiếng Việt, phù hợp học sinh.`
 
 export async function POST(req: NextRequest) {
-  const start = Date.now()
   try {
     const body = await req.json().catch((e) => {
       console.error('[curriculum-analyze-slides] JSON parse error:', e)
@@ -268,13 +283,27 @@ ${JSON_SCHEMA}`
       return NextResponse.json({ error: 'AI không trả về nội dung.' }, { status: 500 })
     }
 
-    let parsed: AnalyzeSlidesResponse
+    let parsed: {
+      slides?: Array<{
+        title?: string
+        blocks?: SlideBlock[]
+        imageQuery?: string
+        plotSpec?: { expr?: string; xMin?: number; xMax?: number; yMin?: number; yMax?: number }
+      }>
+    }
     try {
       const cleaned = rawText
         .replace(/^```(?:json)?\s*\n?/i, '')
         .replace(/\n?```\s*$/i, '')
         .trim()
-      parsed = JSON.parse(cleaned) as AnalyzeSlidesResponse
+      parsed = JSON.parse(cleaned) as {
+        slides?: Array<{
+          title?: string
+          blocks?: SlideBlock[]
+          imageQuery?: string
+          plotSpec?: { expr?: string; xMin?: number; xMax?: number; yMin?: number; yMax?: number }
+        }>
+      }
     } catch (parseErr) {
       console.error('[curriculum-analyze-slides] JSON parse lỗi:', parseErr)
       console.error('[curriculum-analyze-slides] rawText (500 ký tự đầu):', rawText.slice(0, 500))
@@ -294,6 +323,7 @@ ${JSON_SCHEMA}`
           title: String(s?.title ?? 'Slide'),
           blocks: [{ header: 'Nội dung', content }],
           imageQuery: typeof (s as { imageQuery?: string })?.imageQuery === 'string' ? (s as { imageQuery: string }).imageQuery.trim() : undefined,
+          visualEmbed: undefined,
         }
       })
       .filter((s) => s.blocks[0].content.length > 0)
@@ -313,6 +343,9 @@ ${JSON_SCHEMA}`
         blocks,
         imageQuery: typeof (s as { imageQuery?: string })?.imageQuery === 'string'
           ? (s as { imageQuery: string }).imageQuery.trim()
+          : undefined,
+        visualEmbed: typeof (s as { visualEmbed?: string })?.visualEmbed === 'string'
+          ? (s as { visualEmbed: string }).visualEmbed.trim()
           : undefined,
       }
     })
@@ -363,6 +396,7 @@ ${JSON_SCHEMA}`
           title: s.title,
           blocks: s.blocks,
           imageUrl,
+          visualEmbed: s.visualEmbed,
         }
       })
     )

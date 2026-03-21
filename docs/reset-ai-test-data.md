@@ -1,11 +1,19 @@
 # Reset dữ liệu AI test
 
-Script xóa toàn bộ dữ liệu do AI tạo ra để test lại từ đầu, **giữ nguyên** dữ liệu quan trọng.
+Script xóa dữ liệu do AI tạo ra để test lại, **giữ nguyên** dữ liệu quan trọng.
 
-## Cách chạy
+## Chọn script phù hợp
+
+| Mục đích | File | Chạy |
+|----------|------|------|
+| **Chỉ giáo trình + phiếu + slide** | `scripts/reset-curriculum-worksheet-data.sql` | Supabase Dashboard → SQL Editor |
+| **Toàn bộ AI** (exam, worksheet, language coach, music, try_on...) | `supabase/scripts/reset-ai-test-data.sql` | Supabase Dashboard → SQL Editor |
+| **Chỉ language coach** | `npm run reset-db:language-coach` | Node.js (cần .env.local) |
+
+## Cách chạy (SQL)
 
 1. Mở **Supabase Dashboard** → **SQL Editor**
-2. Mở file `supabase/scripts/reset-ai-test-data.sql`
+2. Mở file tương ứng
 3. Copy toàn bộ nội dung, paste vào SQL Editor, bấm **Run**
 
 ## Dữ liệu GIỮ LẠI (không bao giờ xóa)

@@ -103,13 +103,18 @@ export function CurriculumEditSheet({
     setCheckLoading(true)
     setCompareResult(null)
     setCompareErrors([])
+    const CONTEXT_CHARS = 250
+    const idx = matchIndex ?? curriculumMarkdown.indexOf(orig)
+    const start = idx >= 0 ? Math.max(0, idx - CONTEXT_CHARS) : 0
+    const originalRegion = idx >= 0 ? curriculumMarkdown.slice(start, idx + orig.length) : orig
+    const editedRegion = idx >= 0 ? curriculumMarkdown.slice(start, idx) + edited : edited
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 120000)
     try {
       const res = await fetch('/api/curriculum-edit-check', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ originalRegion: orig, editedRegion: edited }),
+        body: JSON.stringify({ originalRegion, editedRegion }),
         signal: controller.signal,
       })
       clearTimeout(timeoutId)

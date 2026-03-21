@@ -35,13 +35,19 @@ npm install
 echo "[5/6] Build app"
 NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=4096}" npm run build
 
-echo "[6/6] Restart PM2 process ${APP_NAME}"
+echo "[6/6] Restart PM2 processes"
 if pm2 describe "${APP_NAME}" >/dev/null 2>&1; then
   pm2 restart "${APP_NAME}"
 else
   pm2 start npm --name "${APP_NAME}" -- start
 fi
+# Worksheet background job worker
+if pm2 describe "worksheet-worker" >/dev/null 2>&1; then
+  pm2 restart worksheet-worker
+else
+  pm2 start "npm run worker" --name worksheet-worker
+fi
 pm2 save
 
 echo "Done. Current status:"
-pm2 status "${APP_NAME}" || true
+pm2 status

@@ -153,6 +153,7 @@ export function PresentationControlBar({
   hideIndex = false,
   hideTeacherLeftButtons = false,
   printHidden = false,
+  studentCurriculumToolbar,
 }: PresentationControlBarProps) {
   const isStudent = variant === 'student'
   const isTeacher = variant === 'teacher'

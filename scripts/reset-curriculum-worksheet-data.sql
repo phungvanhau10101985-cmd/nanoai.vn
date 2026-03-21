@@ -1,44 +1,41 @@
--- Reset dữ liệu giáo trình + phiếu bài tập để test lại từ đầu.
--- GIỮ NGUYÊN cấu trúc bảng và dữ liệu seed quan trọng (vd: worksheet_official_questions, worksheet_textbook_lessons).
+-- =============================================================================
+-- RESET DỮ LIỆU GIÁO TRÌNH / PHIẾU BÀI TẬP / SLIDE (AI tạo) – để test lại
+-- =============================================================================
 -- CHỈ dùng cho môi trường dev/test.
+--
+-- Cách chạy: Supabase Dashboard → SQL Editor → paste file này và Run
+-- Hoặc: supabase db execute -f scripts/reset-curriculum-worksheet-data.sql
+--
+-- LƯU Ý nếu deadlock: đóng tab SQL khác, tắt app (npm run dev), chạy lại.
+-- Dùng 1 lệnh TRUNCATE nhiều bảng – Postgres tự xử lý thứ tự, giảm deadlock.
+--
+-- GIỮ LẠI (không xóa):
+--   worksheet_official_questions, worksheet_textbook_lessons
+--   classes, class_members, credits, transactions, profiles
+-- =============================================================================
 
 begin;
 
-do $$
-declare
-  t text;
-begin
-  for t in
-    select unnest(ARRAY[
-    -- 1) Dữ liệu thao tác quanh phiếu bài tập
-    'public.worksheet_worksheets',
-
-    -- 2) Dữ liệu thao tác quanh slide dùng chung/cá nhân và đề xuất chỉnh sửa
-    'public.slide_edit_votes',
-    'public.slide_edit_proposals',
-    'public.worksheet_slide_edit_history',
-    'public.user_customized_slides_history',
-    'public.user_customized_slides',
-    'public.worksheet_slides_original',
-    'public.worksheet_slides',
-
-    -- 3) Dữ liệu theo dõi truy cập/ẩn giáo trình
-    'public.user_opened_curricula',
-    'public.user_hidden_curricula',
-
-    -- 4) Review/sự cố liên quan giáo trình
-    'public.curriculum_edit_reviews',
-    'public.quiz_question_reports',
-
-    -- 5) Cuối cùng xóa giáo trình
-    'public.worksheet_curricula'
-  ]::text[])
-  loop
-    if to_regclass(t) is not null then
-      execute format('truncate table %s restart identity cascade;', t);
-    end if;
-  end loop;
-end
-$$;
+truncate table
+  public.slide_edit_votes,
+  public.slide_edit_proposals,
+  public.slide_quiz_responses,
+  public.slide_quiz_sessions,
+  public.worksheet_submissions,
+  public.class_worksheets,
+  public.user_opened_curricula,
+  public.user_hidden_curricula,
+  public.curriculum_edit_reviews,
+  public.quiz_question_reports,
+  public.user_customized_slides_history,
+  public.user_customized_slides,
+  public.worksheet_slide_edit_history,
+  public.worksheet_slides_original,
+  public.worksheet_slides,
+  public.worksheet_questions,
+  public.worksheet_worksheets,
+  public.worksheet_curricula,
+  public.slide_share_sessions
+restart identity cascade;
 
 commit;

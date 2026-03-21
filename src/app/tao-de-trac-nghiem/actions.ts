@@ -3,7 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
 import { GoogleGenerativeAI } from '@google/generative-ai'
-import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
+import { GEMINI_25_PRO } from '@/lib/gemini-config'
 
 const SUBJECT_NAMES: Record<string, string> = {
   toan: 'Toán học',
@@ -102,6 +102,7 @@ ${questionTypeId === 'hon-hop' ? '- Kết hợp: ~60% trắc nghiệm A/B/C/D, ~
 - Trả về Markdown, dùng ## cho phần, ### cho mục.
 - Đánh số câu rõ ràng: **Câu 1.**, **Câu 2.**, ...
 - CHO HỌC SINH ĐỌC ĐƯỢC: BẮT BUỘC dùng Unicode cho công thức, KHÔNG LaTeX $...$. Ví dụ: ∈, ℝ, ∫, π, ², √, ∞, ⇒, ½, y=x², f'(x), (0;+∞). Phân số: 1/2. Căn: √(x+1). Ngôn ngữ: Tiếng Việt.
+- CẤM câu "nhìn hình", "đồ thị trong hình bên", "hình bên" – đề không có hình. Cho đủ thông tin bằng chữ (hàm số cụ thể, bảng biến thiên) hoặc đổi câu hỏi.
 - Cuối đề: phần **ĐÁP ÁN** liệt kê đáp án từng câu (1. A, 2. B, ...).
 - Nếu có câu trả lời ngắn: ghi đáp án cụ thể.
 - Nếu có câu Đúng/Sai: ghi Đ hoặc S.
@@ -142,7 +143,7 @@ Chỉ trả về nội dung đề thi + đáp án, không có lời giải thíc
       const apiKey = process.env.GOOGLE_API_KEY
       if (!apiKey) return { error: 'Thiếu GOOGLE_API_KEY.' }
       const genAI = new GoogleGenerativeAI(apiKey)
-      const model = genAI.getGenerativeModel(GEMINI_25_FLASH_NO_THINKING)
+      const model = genAI.getGenerativeModel(GEMINI_25_PRO)
       const genResult = await model.generateContent(prompt)
       text = genResult.response.text()?.trim() || ''
     }
