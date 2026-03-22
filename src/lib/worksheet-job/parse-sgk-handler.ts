@@ -133,6 +133,24 @@ export async function runParseSgk(
   let existingIds: string[] = []
   const existingTypes = new Map<string, string>()
   let existingWorksheetId: string | null = null
+  let resolvedTopic = (topic ?? '').trim()
+  let resolvedLessonTopics: string[] | null = null
+
+  if (curriculumId) {
+    const { data: curriculumRow } = await supabase
+      .from('worksheet_curricula')
+      .select('topic, lesson_topics')
+      .eq('id', curriculumId)
+      .single()
+    const cTopic = String((curriculumRow as { topic?: unknown } | null)?.topic ?? '').trim()
+    if (cTopic) resolvedTopic = cTopic
+    const rawLessonTopics = (curriculumRow as { lesson_topics?: unknown } | null)?.lesson_topics
+    if (Array.isArray(rawLessonTopics)) {
+      const normalized = rawLessonTopics.map((x) => String(x ?? '').trim()).filter(Boolean)
+      resolvedLessonTopics = normalized.length > 0 ? normalized : null
+    }
+    if (!resolvedLessonTopics && resolvedTopic) resolvedLessonTopics = [resolvedTopic]
+  }
 
   if (curriculumId || worksheetId) {
     const q = worksheetId
@@ -227,7 +245,8 @@ Chỉ trả về JSON, không markdown.`
         type: 'quiz',
         subject_id: subjectId,
         grade_level_id: gradeLevelId,
-        topic: topic || null,
+        topic: resolvedTopic || null,
+        lesson_topics: resolvedLessonTopics,
         difficulty: diff,
         content_json: { question: q.question, options, correctIndex, ...(exNum ? { exerciseNumber: exNum } : {}) },
         source: 'sgk',
@@ -245,7 +264,7 @@ Chỉ trả về JSON, không markdown.`
     if (isEmpty && apiKey && solveMissingEssaySolutions) {
       const generated = await generateEssaySolution(
         e.problem,
-        topic,
+        resolvedTopic,
         curriculumMarkdown,
         apiKey,
         essayNeedsImage(e.problem) ? imageParts : undefined
@@ -263,7 +282,8 @@ Chỉ trả về JSON, không markdown.`
         type: 'essay',
         subject_id: subjectId,
         grade_level_id: gradeLevelId,
-        topic: topic || null,
+        topic: resolvedTopic || null,
+        lesson_topics: resolvedLessonTopics,
         difficulty: diff,
         content_json: { problem: e.problem, solution, ...(exNum ? { exerciseNumber: exNum } : {}) },
         source: 'sgk',
@@ -298,7 +318,15 @@ Chỉ trả về JSON, không markdown.`
     finalMarkdown = questionsToMarkdown(ordered)
     const { data: ins } = await supabase
       .from('worksheet_worksheets')
-      .insert({ user_id: userId, curriculum_id: curriculumId, topic, subject_id: subjectId, grade_level_id: gradeLevelId, content_markdown: finalMarkdown, question_ids: finalIds })
+      .insert({
+        user_id: userId,
+        curriculum_id: curriculumId,
+        topic: resolvedTopic || topic,
+        subject_id: subjectId,
+        grade_level_id: gradeLevelId,
+        content_markdown: finalMarkdown,
+        question_ids: finalIds,
+      })
       .select('id')
       .single()
     targetWorksheetId = ins?.id ?? null

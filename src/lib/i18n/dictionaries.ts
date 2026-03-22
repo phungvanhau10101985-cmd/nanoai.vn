@@ -131,6 +131,15 @@ export type Dictionary = {
     submittedAt: string
     noSubmissions: string
     presentWorksheet: string
+    schoolLabel: string
+    gradeLevelLabel: string
+    renameClass: string
+    saveClassName: string
+    cancelAction: string
+    renameClassFailed: string
+    renameClassSuccess: string
+    examSubmissions: string
+    noExamSubmissions: string
   }
   /** Trang công khai /phieu-bai-tap/[id] — lời giải & đáp án */
   worksheetSolutionPage: {
@@ -309,6 +318,15 @@ const VI_DICTIONARY: Dictionary = {
     submittedAt: 'Nộp lúc',
     noSubmissions: 'Chưa có bài nộp',
     presentWorksheet: 'Trình chiếu phiếu bài tập',
+    schoolLabel: 'Trường',
+    gradeLevelLabel: 'Khối',
+    renameClass: 'Đổi tên lớp',
+    saveClassName: 'Lưu tên lớp',
+    cancelAction: 'Hủy',
+    renameClassFailed: 'Đổi tên lớp thất bại.',
+    renameClassSuccess: 'Đã đổi tên lớp.',
+    examSubmissions: 'Bài nộp từ đề thi',
+    noExamSubmissions: 'Chưa có bài nộp đề thi nào.',
   },
   worksheetSolutionPage: {
     metaTitlePrefix: 'Lời giải',
@@ -488,6 +506,15 @@ const EN_DICTIONARY: Dictionary = {
     submittedAt: 'Submitted at',
     noSubmissions: 'No submissions yet',
     presentWorksheet: 'Present worksheet',
+    schoolLabel: 'School',
+    gradeLevelLabel: 'Grade',
+    renameClass: 'Rename class',
+    saveClassName: 'Save class name',
+    cancelAction: 'Cancel',
+    renameClassFailed: 'Failed to rename class.',
+    renameClassSuccess: 'Class name updated.',
+    examSubmissions: 'Exam submissions',
+    noExamSubmissions: 'No exam submissions yet.',
   },
   worksheetSolutionPage: {
     metaTitlePrefix: 'Solutions',
@@ -667,6 +694,15 @@ const ZH_DICTIONARY: Dictionary = {
     submittedAt: '提交时间',
     noSubmissions: '暂无提交',
     presentWorksheet: '演示作业单',
+    schoolLabel: '学校',
+    gradeLevelLabel: '年级',
+    renameClass: '重命名班级',
+    saveClassName: '保存班级名称',
+    cancelAction: '取消',
+    renameClassFailed: '班级重命名失败。',
+    renameClassSuccess: '班级名称已更新。',
+    examSubmissions: '试题提交',
+    noExamSubmissions: '暂无试题提交。',
   },
   worksheetSolutionPage: {
     metaTitlePrefix: '解答',
@@ -845,6 +881,15 @@ const JA_DICTIONARY: Dictionary = {
     submittedAt: '提出日時',
     noSubmissions: '提出なし',
     presentWorksheet: 'ワークシートをプレゼン',
+    schoolLabel: '学校',
+    gradeLevelLabel: '学年',
+    renameClass: 'クラス名を変更',
+    saveClassName: 'クラス名を保存',
+    cancelAction: 'キャンセル',
+    renameClassFailed: 'クラス名の変更に失敗しました。',
+    renameClassSuccess: 'クラス名を更新しました。',
+    examSubmissions: '試験提出',
+    noExamSubmissions: '試験提出はまだありません。',
   },
   worksheetSolutionPage: {
     metaTitlePrefix: '解答',
@@ -1024,6 +1069,15 @@ const KO_DICTIONARY: Dictionary = {
     submittedAt: '제출 시각',
     noSubmissions: '제출 없음',
     presentWorksheet: '워크시트 발표',
+    schoolLabel: '학교',
+    gradeLevelLabel: '학년',
+    renameClass: '수업 이름 변경',
+    saveClassName: '수업 이름 저장',
+    cancelAction: '취소',
+    renameClassFailed: '수업 이름 변경에 실패했습니다.',
+    renameClassSuccess: '수업 이름이 업데이트되었습니다.',
+    examSubmissions: '시험 제출',
+    noExamSubmissions: '시험 제출이 없습니다.',
   },
   worksheetSolutionPage: {
     metaTitlePrefix: '해설',

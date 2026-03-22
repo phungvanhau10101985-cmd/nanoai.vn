@@ -6,12 +6,28 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
 import { parseExerciseIndex } from '@/lib/worksheet-exercise-sort'
+import { getEssayProblem, getEssaySolution } from '@/app/tao-giao-trinh/lib/worksheet-content-json'
 
 const MAX_IDS = 4000
 const CHUNK = 120
 
 /** Giới hạn an toàn (một câu cực dài / base64 lạ) — vẫn cho hiển thị gần như toàn bộ. */
 const PREVIEW_MAX_LEN = 120_000
+
+/** Loại bỏ tag cũ nằm trong text đề (vd: [Đã verify], [Trung bình], [Bài tập SGK]...). */
+function stripLegacyInlineTags(input: string): string {
+  let out = String(input ?? '')
+    .replace(/\*\*/g, '')
+    .trim()
+  for (let i = 0; i < 6; i++) {
+    const next = out
+      .replace(/^\s*\[(?:Đã verify|Chưa verify|Bài tập SGK|Dễ|Trung bình|Khó|Nhận biết|Thông hiểu|Vận dụng thấp|Vận dụng cao|Thực tế)\]\s*/i, '')
+      .trim()
+    if (next === out) break
+    out = next
+  }
+  return out
+}
 
 function previewFromRow(type: string, content_json: unknown): string {
   const normalize = (s: string) =>
@@ -24,7 +40,7 @@ function previewFromRow(type: string, content_json: unknown): string {
 
   if (type === 'quiz') {
     const c = content_json as { question?: string; options?: string[] }
-    const stem = String(c?.question ?? '').trim()
+    const stem = stripLegacyInlineTags(String(c?.question ?? '').trim())
     const opts = (c.options ?? []).slice(0, 4)
     if (opts.length === 0) return normalize(stem)
     const optLines = opts.map((o, i) => {
@@ -36,7 +52,39 @@ function previewFromRow(type: string, content_json: unknown): string {
     return normalize([stem, ...optLines].filter(Boolean).join('\n'))
   }
   const c = content_json as { problem?: string }
-  return normalize(String(c?.problem ?? ''))
+  return normalize(stripLegacyInlineTags(String(c?.problem ?? '')))
+}
+
+function detailFromRow(
+  type: string,
+  contentJson: unknown
+): { problem: string; solution: string } {
+  if (type === 'quiz') {
+    const c = contentJson as {
+      question?: unknown
+      options?: unknown
+      correctIndex?: unknown
+      explanation?: unknown
+      solution?: unknown
+      answer?: unknown
+    }
+    const question = stripLegacyInlineTags(String(c?.question ?? '').trim())
+    const options = Array.isArray(c?.options)
+      ? c.options.map((x) => String(x ?? '').replace(/^[A-D]\.\s*/i, '').trim()).filter(Boolean).slice(0, 4)
+      : []
+    const optionLines = options.map((o, idx) => `${String.fromCharCode(65 + idx)}. ${o}`)
+    const ciRaw = typeof c?.correctIndex === 'number' ? c.correctIndex : Number(c?.correctIndex)
+    const ci = Number.isFinite(ciRaw) ? Math.max(0, Math.min(3, Math.floor(ciRaw))) : 0
+    const answerLabel = options[ci] ? `${String.fromCharCode(65 + ci)}. ${options[ci]}` : String.fromCharCode(65 + ci)
+    const explain = String(c?.explanation ?? c?.solution ?? c?.answer ?? '').trim()
+    return {
+      problem: [question, ...optionLines].filter(Boolean).join('\n').trim(),
+      solution: explain ? `Đáp án đúng: ${answerLabel}\n\n${explain}` : `Đáp án đúng: ${answerLabel}`,
+    }
+  }
+  const problem = stripLegacyInlineTags(getEssayProblem(contentJson).trim())
+  const solution = getEssaySolution(contentJson).trim()
+  return { problem, solution }
 }
 
 function chunk<T>(arr: T[], size: number): T[][] {
@@ -151,6 +199,7 @@ export async function GET(req: NextRequest) {
       difficulty: string | null
       order: number
       created_at: string
+      verified_at: string | null
       content_json: unknown
     }
 
@@ -158,7 +207,7 @@ export async function GET(req: NextRequest) {
     for (const part of chunk(allIds, CHUNK)) {
       const { data, error } = await supabase
         .from('worksheet_questions')
-        .select('id, type, topic, subject_id, grade_level_id, source, difficulty, "order", created_at, content_json')
+        .select('id, type, topic, subject_id, grade_level_id, source, difficulty, "order", created_at, verified_at, content_json')
         .in('id', part)
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
       for (const row of data ?? []) {
@@ -175,6 +224,7 @@ export async function GET(req: NextRequest) {
           difficulty: (r.difficulty as string | null) ?? null,
           order: typeof r.order === 'number' ? r.order : Number(r.order) || 0,
           created_at: String(r.created_at ?? ''),
+          verified_at: (r.verified_at as string | null) ?? null,
           content_json: r.content_json,
         })
       }
@@ -220,6 +270,7 @@ export async function GET(req: NextRequest) {
     const page = ordered.slice(offset, offset + limit)
 
     const items = page.map((row) => ({
+      ...detailFromRow(row.type, row.content_json),
       id: row.id,
       type: row.type,
       topic: row.topic ?? '',
@@ -229,6 +280,7 @@ export async function GET(req: NextRequest) {
       difficulty: row.difficulty ?? '',
       order: row.order,
       created_at: row.created_at,
+      verified_at: row.verified_at ?? null,
       preview: previewFromRow(row.type, row.content_json),
     }))
 

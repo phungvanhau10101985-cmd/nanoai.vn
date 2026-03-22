@@ -3,7 +3,18 @@
 import Link from 'next/link'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
 
-type ClassItem = { id: string; name: string; join_code: string }
+type ClassItem = {
+  id: string
+  name: string
+  join_code: string
+  grade_level_id?: string | null
+  schools?: { name?: string | null } | Array<{ name?: string | null }> | null
+}
+
+function readSchoolName(item: ClassItem): string {
+  const raw = Array.isArray(item.schools) ? item.schools[0]?.name : item.schools?.name
+  return String(raw ?? '').trim()
+}
 
 export default function LopClientPage({
   myClasses,
@@ -52,6 +63,12 @@ export default function LopClientPage({
             <p className="text-sm text-muted-foreground mt-1">
               {t.joinCode}: {c.join_code}
             </p>
+            {(readSchoolName(c) || c.grade_level_id) && (
+              <p className="text-xs text-muted-foreground mt-1">
+                {readSchoolName(c) ? `${t.schoolLabel}: ${readSchoolName(c)}` : `${t.schoolLabel}: —`}
+                {c.grade_level_id ? ` • ${t.gradeLevelLabel}: ${c.grade_level_id}` : ''}
+              </p>
+            )}
           </Link>
         </li>
       ))}

@@ -10,12 +10,15 @@ export function AnimatedCharReveal({
   delayMs = 40,
   visibleCount: controlledVisibleCount,
   showCursor,
+  /** Với `visibleCount` cố định: hiện bút khi chưa gõ ký tự nào (leader đầu slide). */
+  penWhenEmpty,
 }: {
   text: string
   trigger?: string | number
   delayMs?: number
   visibleCount?: number
   showCursor?: boolean
+  penWhenEmpty?: boolean
 }) {
   const segments = useMemo(() => {
     const out: Array<{ type: 'char'; value: string } | { type: 'br' }> = []
@@ -45,6 +48,11 @@ export function AnimatedCharReveal({
 
   const visibleCount = controlledVisibleCount ?? internalCount
   const isTyping = visibleCount > 0 && visibleCount < segments.length
+  const showPen =
+    !!showCursor &&
+    segments.length > 0 &&
+    visibleCount < segments.length &&
+    (isTyping || (!!penWhenEmpty && controlledVisibleCount != null && visibleCount === 0))
 
   return (
     <span>
@@ -61,7 +69,7 @@ export function AnimatedCharReveal({
           </span>
         )
       )}
-      {showCursor && isTyping && (
+      {showPen && (
         <span className="inline-flex align-baseline ml-1 animate-write" aria-hidden>
           <PenLine className="h-4 w-4 text-violet-600 drop-shadow-sm" strokeWidth={2.5} />
         </span>

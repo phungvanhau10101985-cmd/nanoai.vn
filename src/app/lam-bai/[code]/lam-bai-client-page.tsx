@@ -1,13 +1,14 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { RefreshCw, CheckCircle, Clock, Share2, Play } from 'lucide-react'
 import { latexToReadable } from '@/app/tao-giao-trinh/lib/latex-to-readable'
 
-type Question = { id: string; index: number; question_text: string; options: string[] }
+type Question = { id: string; index: number; type?: 'quiz' | 'essay'; question_text: string; options: string[] }
 
 function playBell() {
   try {
@@ -32,7 +33,7 @@ export default function LamBaiClientPage({ code }: { code: string }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [exam, setExam] = useState<{ title: string; durationMinutes: number; questions: Question[] } | null>(null)
-  const [answers, setAnswers] = useState<Record<string, number>>({})
+  const [answers, setAnswers] = useState<Record<string, number | string>>({})
   const [studentName, setStudentName] = useState('')
   const [className, setClassName] = useState('')
   const [studentCard, setStudentCard] = useState('')
@@ -44,6 +45,8 @@ export default function LamBaiClientPage({ code }: { code: string }) {
   const [now, setNow] = useState(Date.now())
   const autoSubmittedRef = useRef(false)
   const bellPlayedRef = useRef(false)
+  const fiveMinuteWarnedRef = useRef(false)
+  const [fiveMinuteWarning, setFiveMinuteWarning] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -78,8 +81,8 @@ export default function LamBaiClientPage({ code }: { code: string }) {
     return () => clearInterval(t)
   }, [exam, result, examStarted])
 
-  const handleAnswer = (questionId: string, optionIndex: number) => {
-    setAnswers((prev) => ({ ...prev, [questionId]: optionIndex }))
+  const handleAnswer = (questionId: string, answer: number | string) => {
+    setAnswers((prev) => ({ ...prev, [questionId]: answer }))
   }
 
   const handleSubmit = useCallback(async () => {
@@ -119,11 +122,9 @@ export default function LamBaiClientPage({ code }: { code: string }) {
   const remainingMs = Math.max(0, totalMs - elapsedMs)
   const remainingMin = Math.floor(remainingMs / 60000)
   const remainingSec = Math.floor((remainingMs % 60000) / 1000)
-  const isLowTime = remainingMin < 2 && remainingMin * 60 + remainingSec <= 120
+  const isLowTime = remainingMs > 0 && remainingMs <= 5 * 60 * 1000
   const isTimeUp = remainingMs === 0
-  const gracePeriodMs = 60 * 1000
-  const timeUpElapsed = isTimeUp && startedAt ? now - (startedAt + totalMs) : 0
-  const shouldAutoSubmit = isTimeUp && timeUpElapsed >= gracePeriodMs
+  const shouldAutoSubmit = isTimeUp
 
   useEffect(() => {
     if (isTimeUp && !bellPlayedRef.current) {
@@ -133,11 +134,20 @@ export default function LamBaiClientPage({ code }: { code: string }) {
   }, [isTimeUp])
 
   useEffect(() => {
-    if (shouldAutoSubmit && exam && !submitting && !result && !autoSubmittedRef.current && studentCard.trim()) {
+    if (!examStarted || result || isTimeUp) return
+    if (remainingMs <= 5 * 60 * 1000 && !fiveMinuteWarnedRef.current) {
+      fiveMinuteWarnedRef.current = true
+      setFiveMinuteWarning(true)
+      playBell()
+    }
+  }, [remainingMs, examStarted, result, isTimeUp])
+
+  useEffect(() => {
+    if (shouldAutoSubmit && exam && !submitting && !result && !autoSubmittedRef.current) {
       autoSubmittedRef.current = true
       void handleSubmit()
     }
-  }, [shouldAutoSubmit, exam, submitting, result, studentCard, handleSubmit])
+  }, [shouldAutoSubmit, exam, submitting, result, handleSubmit])
 
   if (loading) {
     return (
@@ -241,21 +251,23 @@ export default function LamBaiClientPage({ code }: { code: string }) {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Số thẻ học sinh *</label>
+              <label className="text-sm font-medium">Số thẻ học sinh (không bắt buộc)</label>
               <Input
                 placeholder="Số thẻ học sinh"
                 value={studentCard}
                 onChange={(e) => setStudentCard(e.target.value)}
               />
-              <p className="text-xs text-muted-foreground">Bắt buộc – mỗi thí sinh chỉ được làm bài một lần.</p>
+              <p className="text-xs text-muted-foreground">Mỗi tài khoản chỉ được làm bài một lần.</p>
             </div>
             <Button
               onClick={() => {
-                if (!studentCard.trim()) return
                 setExamStarted(true)
                 setStartedAt(Date.now())
+                setFiveMinuteWarning(false)
+                fiveMinuteWarnedRef.current = false
+                autoSubmittedRef.current = false
+                bellPlayedRef.current = false
               }}
-              disabled={!studentCard.trim()}
               className="w-full"
             >
               <Play className="h-4 w-4 mr-2" />
@@ -268,8 +280,6 @@ export default function LamBaiClientPage({ code }: { code: string }) {
   }
 
   const canSelect = !isTimeUp
-  const graceRemaining = isTimeUp ? Math.max(0, gracePeriodMs - timeUpElapsed) : 0
-  const graceSec = Math.ceil(graceRemaining / 1000)
 
   return (
     <div className="min-h-screen bg-muted/30 pb-6">
@@ -282,20 +292,22 @@ export default function LamBaiClientPage({ code }: { code: string }) {
             }`}
           >
             <Clock className="h-5 w-5" />
-            {isTimeUp ? (
-              graceSec > 0 ? `Hết giờ! Gửi trong ${graceSec}s` : 'Đang gửi...'
-            ) : (
-              `${String(remainingMin).padStart(2, '0')}:${String(remainingSec).padStart(2, '0')}`
-            )}
+            {isTimeUp ? 'Hết giờ - đang nộp bài...' : `${String(remainingMin).padStart(2, '0')}:${String(remainingSec).padStart(2, '0')}`}
           </div>
         </div>
       </div>
       <div className="max-w-2xl mx-auto px-4 pt-6 space-y-4">
+        {fiveMinuteWarning && !isTimeUp && (
+          <Card className="border-amber-500/50 bg-amber-500/5">
+            <CardContent className="py-3 text-center">
+              <p className="font-medium text-amber-700 dark:text-amber-400">Còn 5 phút! Em rà soát đáp án trước khi hết giờ.</p>
+            </CardContent>
+          </Card>
+        )}
         {isTimeUp && (
           <Card className="border-amber-500/50 bg-amber-500/5">
             <CardContent className="py-3 text-center">
-              <p className="font-medium text-amber-700 dark:text-amber-400">Hết giờ! Không thể chọn đáp án nữa. Bấm Gửi bài để nộp.</p>
-              {graceSec > 0 && <p className="text-sm text-muted-foreground mt-1">Tự động gửi sau {graceSec} giây nếu không bấm.</p>}
+              <p className="font-medium text-amber-700 dark:text-amber-400">Đã hết giờ! Bài làm đang được tự động nộp.</p>
             </CardContent>
           </Card>
         )}
@@ -309,30 +321,43 @@ export default function LamBaiClientPage({ code }: { code: string }) {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="flex flex-col gap-2">
-                  {q.options.map((opt, i) => (
-                    <label
-                      key={i}
-                      htmlFor={`${q.id}-${i}`}
-                      className={`flex items-center gap-2 p-2 rounded-lg transition-colors ${
-                        !canSelect ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:bg-muted/50'
-                      } ${answers[q.id] === i ? 'bg-primary/10 border border-primary/30' : ''}`}
-                    >
-                      <input
-                        type="radio"
-                        id={`${q.id}-${i}`}
-                        name={q.id}
-                        checked={answers[q.id] === i}
-                        onChange={() => canSelect && handleAnswer(q.id, i)}
-                        disabled={!canSelect}
-                        className="h-4 w-4"
-                      />
-                      <span className={`flex-1 ${/[┌┐└┘│├┤┬┴┼─]/.test(latexToReadable(opt)) ? 'whitespace-pre-wrap block' : ''}`}>
-                        {String.fromCharCode(65 + i)}. {latexToReadable(opt)}
-                      </span>
-                    </label>
-                  ))}
-                </div>
+                {Array.isArray(q.options) && q.options.length > 0 ? (
+                  <div className="flex flex-col gap-2">
+                    {q.options.map((opt, i) => (
+                      <label
+                        key={i}
+                        htmlFor={`${q.id}-${i}`}
+                        className={`flex items-center gap-2 p-2 rounded-lg transition-colors ${
+                          !canSelect ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:bg-muted/50'
+                        } ${answers[q.id] === i ? 'bg-primary/10 border border-primary/30' : ''}`}
+                      >
+                        <input
+                          type="radio"
+                          id={`${q.id}-${i}`}
+                          name={q.id}
+                          checked={answers[q.id] === i}
+                          onChange={() => canSelect && handleAnswer(q.id, i)}
+                          disabled={!canSelect}
+                          className="h-4 w-4"
+                        />
+                        <span className={`flex-1 ${/[┌┐└┘│├┤┬┴┼─]/.test(latexToReadable(opt)) ? 'whitespace-pre-wrap block' : ''}`}>
+                          {String.fromCharCode(65 + i)}. {latexToReadable(opt)}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground">Câu tự luận - nhập câu trả lời ngắn gọn.</p>
+                    <Textarea
+                      value={typeof answers[q.id] === 'string' ? (answers[q.id] as string) : ''}
+                      onChange={(e) => canSelect && handleAnswer(q.id, e.target.value)}
+                      disabled={!canSelect}
+                      placeholder="Nhập câu trả lời..."
+                      className="min-h-24"
+                    />
+                  </div>
+                )}
               </CardContent>
             </Card>
           ))}

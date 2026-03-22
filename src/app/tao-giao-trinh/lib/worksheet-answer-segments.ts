@@ -89,6 +89,11 @@ export function sliceWorksheetAnswerPartsAfterSegments(parts: WorksheetAnswerPar
 /** Block tối thiểu (trên → dưới) còn segment chưa lộ — khớp interval GV + chỉ một bút “đang gõ”. */
 export type BlockLikeForSequentialReveal = { content?: string; isAnswer?: boolean }
 
+/** Key reveal segment cho tiêu đề slide (giáo trình) — gõ trước các block. */
+export function curriculumSlideTitleRevealKey(slideIndex: number): string {
+  return `${slideIndex}-title`
+}
+
 export function findFirstSequentialSolutionBlockIndex(
   blocks: BlockLikeForSequentialReveal[],
   slideIndex: number,
@@ -100,15 +105,35 @@ export function findFirstSequentialSolutionBlockIndex(
     typingPaused?: Record<string, boolean> | undefined
     /** Giống `answerVisibility` GV: `key === false` → bỏ qua block (ẩn trên màn HS). */
     answerVisibility?: Record<string, boolean> | undefined
+    /** Tiêu đề slide (chỉ giáo trình): thứ tự gõ trước block đầu. */
+    slideTitle?: string
   }
 ): number | null {
-  if (!blocks.length) return null
   const useSeg = params.worksheetPresentation || params.hasCurriculumSegmentTyping
   if (!useSeg) return null
 
+  if (params.hasCurriculumSegmentTyping && !params.worksheetPresentation) {
+    const st = params.slideTitle ?? ''
+    const titleTotal = worksheetAnswerSegmentCount(st)
+    if (titleTotal > 0) {
+      const tKey = curriculumSlideTitleRevealKey(slideIndex)
+      if (params.answerVisibility?.[tKey] !== false) {
+        if (params.typingPaused?.[tKey] === true) return null
+        if (params.typingEnabled?.[tKey] !== false) {
+          const cur = params.reveal?.[tKey] ?? 0
+          if (cur < titleTotal) return -1
+        }
+      }
+    }
+  }
+
+  if (!blocks.length) return null
+
   for (let bi = 0; bi < blocks.length; bi++) {
     const b = blocks[bi]
-    const should = params.worksheetPresentation ? Boolean(b.isAnswer) : params.hasCurriculumSegmentTyping
+    const should = params.worksheetPresentation
+      ? worksheetAnswerSegmentCount(b.content ?? '') > 0
+      : params.hasCurriculumSegmentTyping
     if (!should) continue
     const key = `${slideIndex}-${bi}`
     if (params.answerVisibility?.[key] === false) continue
@@ -133,8 +158,11 @@ export function typableSolutionBlockIndices(
 ): number[] {
   const out: number[] = []
   for (let bi = 0; bi < blocks.length; bi++) {
-    const should = opts.worksheetPresentation ? Boolean(blocks[bi].isAnswer) : opts.hasCurriculumSegmentTyping
-    if (should) out.push(bi)
+    if (opts.worksheetPresentation) {
+      if (worksheetAnswerSegmentCount(blocks[bi].content ?? '') > 0) out.push(bi)
+    } else if (opts.hasCurriculumSegmentTyping) {
+      out.push(bi)
+    }
   }
   return out
 }
@@ -142,9 +170,13 @@ export function typableSolutionBlockIndices(
 /** Tổng số segment (ký tự + embed) của mọi block gõ trên một slide. */
 export function slideSolutionSegmentsGlobalTotal(
   blocks: BlockLikeForSequentialReveal[],
-  opts: SlideSolutionSegmentOpts
+  opts: SlideSolutionSegmentOpts,
+  slideTitle?: string
 ): number {
   let sum = 0
+  if (opts.hasCurriculumSegmentTyping && !opts.worksheetPresentation && slideTitle) {
+    sum += worksheetAnswerSegmentCount(slideTitle)
+  }
   for (const bi of typableSolutionBlockIndices(blocks, opts)) {
     sum += worksheetAnswerSegmentCount(blocks[bi].content ?? '')
   }
@@ -159,9 +191,15 @@ export function globalRevealedSegmentsOnSlide(
   blocks: BlockLikeForSequentialReveal[],
   slideIndex: number,
   reveal: Record<string, number>,
-  opts: SlideSolutionSegmentOpts
+  opts: SlideSolutionSegmentOpts,
+  slideTitle?: string
 ): number {
   let sum = 0
+  if (opts.hasCurriculumSegmentTyping && !opts.worksheetPresentation && slideTitle) {
+    const tt = worksheetAnswerSegmentCount(slideTitle)
+    const r = reveal[curriculumSlideTitleRevealKey(slideIndex)] ?? 0
+    sum += Math.min(tt, Math.max(0, r))
+  }
   for (const bi of typableSolutionBlockIndices(blocks, opts)) {
     const total = worksheetAnswerSegmentCount(blocks[bi].content ?? '')
     const r = reveal[`${slideIndex}-${bi}`] ?? 0
@@ -178,10 +216,17 @@ export function distributeGlobalRevealAcrossSlide(
   globalN: number,
   blocks: BlockLikeForSequentialReveal[],
   slideIndex: number,
-  opts: SlideSolutionSegmentOpts
+  opts: SlideSolutionSegmentOpts,
+  slideTitle?: string
 ): Record<string, number> {
   let remaining = Math.max(0, Math.round(Number.isFinite(globalN) ? globalN : 0))
   const out: Record<string, number> = {}
+  if (opts.hasCurriculumSegmentTyping && !opts.worksheetPresentation && slideTitle) {
+    const tt = worksheetAnswerSegmentCount(slideTitle)
+    const give = Math.min(tt, remaining)
+    out[curriculumSlideTitleRevealKey(slideIndex)] = give
+    remaining -= give
+  }
   for (const bi of typableSolutionBlockIndices(blocks, opts)) {
     const total = worksheetAnswerSegmentCount(blocks[bi].content ?? '')
     const give = Math.min(total, remaining)

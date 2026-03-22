@@ -9,6 +9,7 @@ import { Chrome } from 'lucide-react'
 type LoginClientProps = {
   message?: string
   error?: string
+  nextPath?: string
 }
 
 const isNgrok = () => typeof window !== 'undefined' && window.location.hostname.includes('ngrok')
@@ -44,7 +45,8 @@ function useFormSubmitWithNgrok() {
   }
 }
 
-export default function LoginClient({ message, error }: LoginClientProps) {
+export default function LoginClient({ message, error, nextPath }: LoginClientProps) {
+  const safeNextPath = nextPath && nextPath.startsWith('/') && !nextPath.startsWith('//') ? nextPath : '/dashboard'
   const [uiLocale, setUiLocale] = useState<'vi' | 'en' | 'zh' | 'ja' | 'ko'>('vi')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const handleGoogleNgrok = useFormSubmitWithNgrok()
@@ -111,6 +113,7 @@ export default function LoginClient({ message, error }: LoginClientProps) {
               handleGoogleNgrok(e)
             }}
           >
+            <input type="hidden" name="next" value={safeNextPath} />
             <Button type="submit" disabled={isSubmitting} className="w-full h-11">
               <Chrome className="mr-2 h-4 w-4" />
               {isSubmitting

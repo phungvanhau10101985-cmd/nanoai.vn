@@ -1,8 +1,7 @@
 'use client'
 
 import React from 'react'
-import { ChevronLeft, ChevronRight, X, Printer, BarChart2, Play, Pause, Settings2, PenLine, Timer, RotateCcw, Presentation, Square, LayoutGrid, Monitor } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { ChevronLeft, ChevronRight, X, Printer, BarChart2, Play, Pause, Settings2, Timer, RotateCcw, Presentation, Square, LayoutGrid, Monitor, Link2 } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 
@@ -18,10 +17,6 @@ const SHARED_LAYOUT = {
   teacherTimer: 'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg shrink-0',
   /** Nút Chèn – kích thước cố định */
   btnInsert: 'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium whitespace-nowrap shrink-0 h-9',
-  /** Nút Viết */
-  btnWrite: 'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium whitespace-nowrap shrink-0 h-9',
-  /** Select tốc độ gõ */
-  selectSpeed: 'w-[70px] h-9 shrink-0',
   /** Nút Tự chạy */
   btnAutoPlay: 'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium whitespace-nowrap shrink-0 h-9',
   /** Select interval */
@@ -53,11 +48,6 @@ export interface PresentationControlBarProps {
   /** Chèn – chỉ hiện khi curriculumId */
   curriculumId?: string | null
   onInsertClick?: () => void
-  /** Viết */
-  writingMode: boolean
-  onWritingModeToggle: () => void
-  writingSpeedMs: number
-  onWritingSpeedChange: (ms: number) => void
   /** Tự chạy */
   autoPlay: boolean
   onAutoPlayToggle: () => void
@@ -118,10 +108,6 @@ export function PresentationControlBar({
   teacherTimerInteractive = false,
   curriculumId,
   onInsertClick,
-  writingMode,
-  onWritingModeToggle,
-  writingSpeedMs,
-  onWritingSpeedChange,
   autoPlay,
   onAutoPlayToggle,
   autoPlayIntervalMs,
@@ -153,7 +139,6 @@ export function PresentationControlBar({
   hideIndex = false,
   hideTeacherLeftButtons = false,
   printHidden = false,
-  studentCurriculumToolbar,
 }: PresentationControlBarProps) {
   const isStudent = variant === 'student'
   const isTeacher = variant === 'teacher'
@@ -333,27 +318,7 @@ export function PresentationControlBar({
             </button>
           </span>
         )}
-        {/* 3. Viết + tốc độ */}
-        <div className="flex items-center gap-1.5 shrink-0">
-          <button data-control="viết" type="button" onClick={onWritingModeToggle} className={cn(SHARED_LAYOUT.btnWrite, writingMode ? theme.btnActive : theme.btnInactive, highlightClass('viết'))} title={tr('Hiệu ứng viết từng ký tự', 'Typing effect', '字符逐字显示', 'タイピング効果', '타이핑 효과')}>
-            <PenLine className="h-4 w-4" />
-            {tr('Viết', 'Write', '书写', '書き込み', '쓰기')}
-          </button>
-          {writingMode && (
-            <Select value={String(writingSpeedMs)} onValueChange={(v) => onWritingSpeedChange(Number(v))}>
-              <SelectTrigger data-control="viết-speed" className={cn(SHARED_LAYOUT.selectSpeed, isStudent ? 'text-white hover:bg-white/20 border-white/30 bg-transparent [&>span]:text-white' : 'bg-slate-600/50 border-slate-500/50 text-slate-200', highlightClass('viết-speed'))} title={tr('Tốc độ gõ (ms/ký tự)', 'Typing speed (ms/char)', '打字速度', '入力速度', '타이핑 속도')}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="z-[110]">
-                {[30, 50, 80, 120, 180, 250].map((ms) => (
-                  <SelectItem key={ms} value={String(ms)}>{ms} ms</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-        </div>
-
-        {/* 4. Tự chạy + interval */}
+        {/* 3. Tự chạy + interval */}
         <div className="flex items-center gap-1.5">
           <button data-control="tự-chạy" type="button" onClick={onAutoPlayToggle} className={cn(SHARED_LAYOUT.btnAutoPlay, autoPlay ? theme.btnActive : theme.btnInactive, highlightClass('tự-chạy'))} title={tr('Tự chạy slide', 'Auto-play slides', '自动播放', '自動再生', '자동 재생')}>
             {autoPlay ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
@@ -372,7 +337,7 @@ export function PresentationControlBar({
           </Select>
         </div>
 
-        {/* 5. Đồng hồ cát – teacher: luôn nút start (gửi lệnh). student: countdown khi chạy */}
+        {/* 4. Đồng hồ cát – teacher: luôn nút start (gửi lệnh). student: countdown khi chạy */}
         <div data-control="đồng-hồ-cát" className={cn(SHARED_LAYOUT.sandTimer, theme.sandTimerBorder, highlightClass('đồng-hồ-cát'))}>
           <Timer className={cn('h-4 w-4 shrink-0', theme.sandTimerText)} />
           {(isTeacher || sandTimerSeconds <= 0) ? (
@@ -394,7 +359,7 @@ export function PresentationControlBar({
           )}
         </div>
 
-        {/* 6. Prev / Next */}
+        {/* 5. Prev / Next */}
         <button data-control="prev" type="button" onClick={onPrev} disabled={currentIndex === 0} className={cn(SHARED_LAYOUT.btnNav, theme.navBtn, 'disabled:opacity-35 disabled:cursor-not-allowed focus:outline-none focus-visible:outline-none', highlightClass('prev'))} title={tr('Slide trước', 'Prev slide', '上一张', '前へ', '이전')}>
           <ChevronLeft className="h-5 w-5" />
         </button>
@@ -402,9 +367,22 @@ export function PresentationControlBar({
           <ChevronRight className="h-5 w-5" />
         </button>
 
-        {/* 7. Student: Print, Close (Share đã chuyển lên trước Viết) */}
+        {/* 6. Student: Chia sẻ link, In, Đóng */}
         {isStudent && (
           <>
+            {onShareClick && (
+              <span className={cn(shareButtonClickableWhenParentDisabled && 'pointer-events-auto')}>
+                <button
+                  data-control="chia-sẻ-link"
+                  type="button"
+                  onClick={onShareClick}
+                  className={cn(SHARED_LAYOUT.btnIcon, theme.btnBase, highlightClass('chia-sẻ-link'))}
+                  title={tr('Chia sẻ link xem slide', 'Share link to view slides', '分享查看幻灯片链接', 'スライド共有リンク', '슬라이드 공유 링크')}
+                >
+                  <Link2 className="h-5 w-5" />
+                </button>
+              </span>
+            )}
             {onPrint && (
               <button data-control="print" type="button" onClick={onPrint} className={cn(SHARED_LAYOUT.btnIcon, theme.btnBase, highlightClass('print'))} title={tr('In', 'Print', '打印', '印刷', '인쇄')}>
                 <Printer className="h-5 w-5" />

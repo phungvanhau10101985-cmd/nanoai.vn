@@ -13,9 +13,9 @@ export const metadata: Metadata = buildMetadata({
 export default function LoginPage({
   searchParams,
 }: {
-  searchParams: { message: string; error: string }
+  searchParams: { message: string; error: string; next?: string }
 }) {
   return (
-    <LoginClient message={searchParams?.message} error={searchParams?.error} />
+    <LoginClient message={searchParams?.message} error={searchParams?.error} nextPath={searchParams?.next} />
   )
 }

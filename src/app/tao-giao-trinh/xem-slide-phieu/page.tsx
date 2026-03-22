@@ -1,8 +1,18 @@
 'use client'
 
-import { XemSlideStudentClient } from '../components/xem-slide-student-client'
+import { Suspense } from 'react'
+import dynamic from 'next/dynamic'
 
-/** Trình chiếu học sinh – phiếu bài tập (mở từ giao viên có `worksheetId`). Giáo trình: `/tao-giao-trinh/xem-slide`. */
+const XemSlideStudentWorksheetClient = dynamic(() => import('../components/xem-slide-student-worksheet-client'))
+
+/**
+ * Trình chiếu học sinh – phiếu bài tập (mở từ giao viên có `worksheetId`).
+ * Giáo trình: `/tao-giao-trinh/xem-slide`.
+ */
 export default function XemSlidePhieuPage() {
-  return <XemSlideStudentClient presentationKind="worksheet" />
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-slate-950" aria-hidden />}>
+      <XemSlideStudentWorksheetClient />
+    </Suspense>
+  )
 }

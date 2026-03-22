@@ -1787,48 +1787,12 @@ async function cleanSharedHistoryOlderThan(supabase: ReturnType<typeof createCli
     .lt('created_at', cutoff.toISOString())
 }
 
-/** Khôi phục bản chung từ lịch sử */
-export async function restoreSharedFromHistory(curriculumId: string, historyId: string) {
-  const supabase = createClient()
-  const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
-  if ('error' in authResult) return { error: authResult.error }
-
-  const cutoff = new Date()
-  cutoff.setDate(cutoff.getDate() - SHARED_HISTORY_DAYS)
-
-  const { data, error } = await supabase
-    .from('worksheet_slide_edit_history')
-    .select('slides_json, created_at')
-    .eq('id', historyId)
-    .eq('curriculum_id', curriculumId)
-    .single()
-
-  if (error || !data) return { error: 'Không tìm thấy bản lưu.' }
-  if (new Date(data.created_at) < cutoff) return { error: 'Bản lưu đã hết hạn khôi phục (7 ngày).' }
-
-  const slides = data.slides_json as Array<{ title: string; blocks: Array<{ header: string; content: string }>; imageUrl?: string; visualEmbed?: string; visualLayout?: 1 | 2 | 4; visualCells?: Array<{ visualEmbed?: string; imageUrl?: string }>; teacherNotes?: string }>
-  if (!Array.isArray(slides) || slides.length === 0) return { error: 'Dữ liệu không hợp lệ.' }
-
-  const { error: upsertErr } = await supabase
-    .from('worksheet_slides')
-    .upsert(
-      {
-        curriculum_id: curriculumId,
-        user_id: null,
-        content_json: slides,
-      },
-      { onConflict: 'curriculum_id' }
-    )
-
-  if (upsertErr) return { error: upsertErr.message }
-
-  await supabase.from('worksheet_slide_edit_history').insert({
-    curriculum_id: curriculumId,
-    user_id: (await supabase.auth.getUser()).data.user?.id ?? null,
-    slides_json: slides,
-  })
-
-  return { success: true }
+/** Khôi phục bản chung từ lịch sử — đã tắt (chỉ giữ khôi phục bản riêng). */
+export async function restoreSharedFromHistory(_curriculumId: string, _historyId: string) {
+  return {
+    error:
+      'Đã tắt khôi phục bản chung. Dùng bản riêng (Lưu bản riêng) và mục Lịch sử để khôi phục phiên bản cá nhân.',
+  }
 }
 
 /** Lấy slide đã chỉnh sửa của giáo viên (thêm biểu đồ, sửa nội dung) – không đổi dữ liệu gốc */

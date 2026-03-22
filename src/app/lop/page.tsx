@@ -20,7 +20,7 @@ export default async function LopPage() {
 
   const { data: myClasses } = await supabase
     .from('classes')
-    .select('id, name, join_code, created_at')
+    .select('id, name, join_code, created_at, grade_level_id, schools(name)')
     .eq('teacher_id', user.id)
     .order('created_at', { ascending: false })
 
@@ -28,7 +28,7 @@ export default async function LopPage() {
     .from('class_members')
     .select(`
       class_id,
-      classes (id, name, join_code)
+      classes (id, name, join_code, grade_level_id, schools(name))
     `)
     .eq('user_id', user.id)
 
@@ -63,9 +63,17 @@ export default async function LopPage() {
               .filter((m) => m.classes != null)
               .map((m) => {
                 const c = Array.isArray(m.classes) ? m.classes[0] : m.classes
-                return c ? { id: c.id, name: c.name, join_code: c.join_code } : null
+                return c
+                  ? {
+                    id: c.id,
+                    name: c.name,
+                    join_code: c.join_code,
+                    grade_level_id: c.grade_level_id ?? null,
+                    schools: c.schools ?? null,
+                  }
+                  : null
               })
-              .filter((x): x is { id: string; name: string; join_code: string } => x != null)
+              .filter((x): x is { id: string; name: string; join_code: string; grade_level_id?: string | null; schools?: { name?: string | null } | Array<{ name?: string | null }> | null } => x != null)
           }
         />
       </div>

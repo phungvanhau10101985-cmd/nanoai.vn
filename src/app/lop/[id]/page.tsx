@@ -34,13 +34,15 @@ export default async function LopDetailPage({ params }: { params: Promise<{ id: 
 
   const { data: cls, error } = await supabase
     .from('classes')
-    .select('id, name, join_code, teacher_id')
+    .select('id, name, join_code, teacher_id, grade_level_id, school_id, schools(name)')
     .eq('id', id)
     .single()
 
   if (error || !cls) notFound()
 
   const isTeacher = cls.teacher_id === user.id
+
+  const schoolName = String((Array.isArray(cls.schools) ? cls.schools[0]?.name : cls.schools?.name) ?? '').trim()
 
   const { data: members } = await supabase
     .from('class_members')
@@ -67,6 +69,7 @@ export default async function LopDetailPage({ params }: { params: Promise<{ id: 
         .eq('class_id', id)
 
   let initialSubmissions: Array<{ id: string; worksheetId: string; worksheetTopic: string; studentName: string; quizScore: number; quizTotal: number; submittedAt: string }> = []
+  let initialExamAttempts: Array<{ id: string; examTitle: string; studentName: string; score: number; maxScore: number; submittedAt: string }> = []
   if (isTeacher) {
     const { data: subs } = await supabase
       .from('worksheet_submissions')
@@ -90,6 +93,37 @@ export default async function LopDetailPage({ params }: { params: Promise<{ id: 
       quizTotal: s.quiz_total,
       submittedAt: s.submitted_at,
     }))
+
+    const { data: examSessions } = await supabase
+      .from('exam_sessions')
+      .select('id, title')
+      .eq('class_id', id)
+      .eq('teacher_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(200)
+    const sessionIds = (examSessions ?? []).map((x: { id: string }) => x.id)
+    if (sessionIds.length > 0) {
+      const { data: attempts } = await supabase
+        .from('exam_attempts')
+        .select('id, session_id, user_id, student_name, score, max_score, submitted_at')
+        .in('session_id', sessionIds)
+        .order('submitted_at', { ascending: false })
+        .limit(500)
+      const attemptUserIds = Array.from(new Set((attempts ?? []).map((a: { user_id: string | null }) => a.user_id).filter(Boolean) as string[]))
+      const { data: attemptProfiles } = attemptUserIds.length
+        ? await supabase.from('profiles').select('id, full_name').in('id', attemptUserIds)
+        : { data: [] }
+      const sessionTitleMap = Object.fromEntries((examSessions ?? []).map((x: { id: string; title: string | null }) => [x.id, x.title ?? 'Bài thi']))
+      const profileMap = Object.fromEntries((attemptProfiles ?? []).map((p: { id: string; full_name: string | null }) => [p.id, p.full_name ?? '—']))
+      initialExamAttempts = (attempts ?? []).map((a: { id: string; session_id: string; user_id: string | null; student_name: string | null; score: number; max_score: number; submitted_at: string }) => ({
+        id: a.id,
+        examTitle: sessionTitleMap[a.session_id] ?? 'Bài thi',
+        studentName: a.student_name || (a.user_id ? profileMap[a.user_id] ?? '—' : '—'),
+        score: Number(a.score ?? 0),
+        maxScore: Number(a.max_score ?? 0),
+        submittedAt: a.submitted_at,
+      }))
+    }
   }
 
   const { t } = await getServerDictionary()
@@ -102,7 +136,13 @@ export default async function LopDetailPage({ params }: { params: Promise<{ id: 
         </Link>
 
         <LopDetailClient
-          cls={cls}
+          cls={{
+            id: cls.id,
+            name: cls.name,
+            join_code: cls.join_code,
+            gradeLevelId: cls.grade_level_id ?? null,
+            schoolName,
+          }}
           isTeacher={isTeacher}
           members={(members ?? []).map((m) => {
             const p = Array.isArray(m.profiles) ? m.profiles[0] : m.profiles
@@ -116,6 +156,7 @@ export default async function LopDetailPage({ params }: { params: Promise<{ id: 
             })
             .filter((x): x is { id: string; topic: string } => x != null)}
           initialSubmissions={initialSubmissions}
+          initialExamAttempts={initialExamAttempts}
           t={t.classes}
         />
       </div>

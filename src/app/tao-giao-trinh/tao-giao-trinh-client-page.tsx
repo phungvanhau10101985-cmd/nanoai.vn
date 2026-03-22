@@ -9,6 +9,7 @@ import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
 import { Sparkles, Copy, FileDown, RefreshCw, FileSpreadsheet, FolderOpen, BookOpen, FileText, Presentation, Trash2, Upload, ImageIcon, FileQuestion, Pencil, ListChecks, X, ChevronDown } from 'lucide-react'
 import Link from 'next/link'
+import QRCode from 'qrcode'
 import { exportWorksheetToPdf, exportWorksheetToWord } from './lib/worksheet-export'
 import { latexToReadable } from './lib/latex-to-readable'
 import { curriculumToSlidesMarkdown, parseCurriculumToSlides, parseContentToBlocks } from './lib/curriculum-to-slides'
@@ -35,6 +36,7 @@ import {
 type UiLocale = 'vi' | 'en' | 'zh' | 'ja' | 'ko'
 
 const WS_ACTIVE_JOB_KEY = 'worksheet_active_job'
+const LAST_OPENED_CURRICULUM_KEY = 'tao_giao_trinh_last_opened_curriculum_id'
 
 function normalizeGradeLevelId(id: string): string {
   const map: Record<string, string> = { 'tieu-hoc': 'lop-1', thcs: 'lop-6', thpt: 'lop-12' }
@@ -198,13 +200,35 @@ export default function TaoGiaoTrinhClientPage() {
   const [sgkExpanded, setSgkExpanded] = useState(true)
   const [sgkLoading, setSgkLoading] = useState(false)
   const [sgkImages, setSgkImages] = useState<File[]>([])
+  const [examListLoading, setExamListLoading] = useState(false)
+  const [examDeletingCode, setExamDeletingCode] = useState<string | null>(null)
+  const [createdExamItems, setCreatedExamItems] = useState<Array<{
+    id: string
+    code: string
+    title: string
+    status: string
+    durationMinutes: number
+    totalQuestions: number
+    createdAt: string
+    examUrl: string
+  }>>([])
+  const [examPreview, setExamPreview] = useState<null | {
+    code: string
+    title: string
+    examUrl: string
+    qrDataUrl: string | null
+    loadingQr: boolean
+  }>(null)
   const sgkSubmitLockRef = useRef(false)
   const wsStepByStepSubmitLockRef = useRef(false)
   const sgkInputRef = useRef<HTMLInputElement>(null)
   const { toast } = useToast()
+  const pageHeaderRef = useRef<HTMLDivElement>(null)
   const curriculumResultRef = useRef<HTMLDivElement>(null)
   const worksheetSectionRef = useRef<HTMLDivElement>(null)
   const curriculumWorksheetsSectionRef = useRef<HTMLDivElement>(null)
+  const hasAutoRestoredCurriculumRef = useRef(false)
+  const skipNextResultScrollRef = useRef(false)
 
   const formatCreatedAt = (iso: string) => {
     try {
@@ -234,6 +258,90 @@ export default function TaoGiaoTrinhClientPage() {
 
   const displayTopic = topic.trim() || (lessonNumber ? `Bài ${lessonNumber}` : tr('Chủ đề', 'Topic', '主题', '主題', '주제'))
 
+  const loadCreatedExamItems = async () => {
+    setExamListLoading(true)
+    try {
+      const res = await fetch('/api/exam-session/mine', { cache: 'no-store' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setCreatedExamItems([])
+        return
+      }
+      setCreatedExamItems(Array.isArray(data?.items) ? data.items : [])
+    } catch {
+      setCreatedExamItems([])
+    } finally {
+      setExamListLoading(false)
+    }
+  }
+
+  const handleDeleteCreatedExam = async (code: string) => {
+    const ok = typeof window !== 'undefined'
+      ? window.confirm(
+          tr(
+            'Xóa bài thi này? Hành động này không thể hoàn tác.',
+            'Delete this exam? This action cannot be undone.',
+            '确定删除该测验吗？此操作不可撤销。',
+            'このテストを削除しますか？この操作は取り消せません。',
+            '이 시험을 삭제할까요? 이 작업은 되돌릴 수 없습니다.'
+          )
+        )
+      : true
+    if (!ok) return
+    setExamDeletingCode(code)
+    try {
+      const res = await fetch('/api/exam-session/mine', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        toast({
+          title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'),
+          description: String(data?.error ?? res.statusText),
+          variant: 'destructive',
+        })
+        return
+      }
+      toast({
+        title: tr('Đã xóa', 'Deleted', '已删除', '削除完了', '삭제됨'),
+        description: tr('Đã xóa bài thi.', 'Exam deleted.', '测验已删除。', 'テストを削除しました。', '시험을 삭제했습니다.'),
+      })
+      void loadCreatedExamItems()
+    } catch (e) {
+      toast({
+        title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'),
+        description: e instanceof Error ? e.message : String(e),
+        variant: 'destructive',
+      })
+    } finally {
+      setExamDeletingCode(null)
+    }
+  }
+
+  const handleOpenExamPreview = async (exam: { code: string; title: string; examUrl: string }) => {
+    setExamPreview({
+      code: exam.code,
+      title: exam.title,
+      examUrl: exam.examUrl,
+      qrDataUrl: null,
+      loadingQr: true,
+    })
+    try {
+      const qr = await QRCode.toDataURL(exam.examUrl, { width: 220, margin: 2 })
+      setExamPreview({
+        code: exam.code,
+        title: exam.title,
+        examUrl: exam.examUrl,
+        qrDataUrl: qr,
+        loadingQr: false,
+      })
+    } catch {
+      setExamPreview((prev) => (prev ? { ...prev, loadingQr: false } : prev))
+    }
+  }
+
   useEffect(() => {
     const syncLocale = () => setUiLocale(getWebLocaleFromCookie())
     syncLocale()
@@ -242,10 +350,42 @@ export default function TaoGiaoTrinhClientPage() {
   }, [])
 
   useEffect(() => {
+    if (featureSection !== 'exam') return
+    void loadCreatedExamItems()
+  }, [featureSection])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const previousRestoration = window.history.scrollRestoration
+    window.history.scrollRestoration = 'manual'
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+    const timeoutId = window.setTimeout(() => {
+      window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+    }, 0)
+    return () => {
+      window.clearTimeout(timeoutId)
+      window.history.scrollRestoration = previousRestoration
+    }
+  }, [])
+
+  useEffect(() => {
     if (step === 'GENERATING' || step === 'RESULT') {
-      curriculumResultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      if (skipNextResultScrollRef.current) {
+        skipNextResultScrollRef.current = false
+        return
+      }
+      pageHeaderRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }
   }, [step])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (curriculumId) {
+      localStorage.setItem(LAST_OPENED_CURRICULUM_KEY, curriculumId)
+      return
+    }
+    localStorage.removeItem(LAST_OPENED_CURRICULUM_KEY)
+  }, [curriculumId])
 
   // Poll refetch worksheet sau khi verify-background chạy – để hiện tag [Đã verify]
   useEffect(() => {
@@ -737,7 +877,7 @@ export default function TaoGiaoTrinhClientPage() {
       }
       await handleLoadCurriculum(targetId)
       requestAnimationFrame(() => {
-        curriculumResultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        pageHeaderRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
       })
     } finally {
       setOpenExistingLoading(false)
@@ -1057,6 +1197,9 @@ export default function TaoGiaoTrinhClientPage() {
     setBookIsbn('')
     setLessonImages([])
     if (lessonImageInputRef.current) lessonImageInputRef.current.value = ''
+    try {
+      localStorage.removeItem(LAST_OPENED_CURRICULUM_KEY)
+    } catch {}
   }
 
   const [saveCurriculumLoading, setSaveCurriculumLoading] = useState(false)
@@ -1721,7 +1864,7 @@ export default function TaoGiaoTrinhClientPage() {
     }
   }
 
-  const handleLoadCurriculum = async (id: string) => {
+  const handleLoadCurriculum = async (id: string, options?: { skipScroll?: boolean }) => {
     const result = await getCurriculumById(id)
     if (result.error) {
       toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: result.error, variant: 'destructive' })
@@ -1769,11 +1912,26 @@ export default function TaoGiaoTrinhClientPage() {
       else setCurriculumSlides(null)
       void recordCurriculumOpen(id)
       toast({ title: tr('Đã tải giáo trình', 'Curriculum loaded', '已加载课程', 'カリキュラムを読み込み', '교육과정 로드됨'), duration: 2000 })
-      setTimeout(() => {
-        curriculumResultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      }, 150)
+      if (!options?.skipScroll) {
+        setTimeout(() => {
+          pageHeaderRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        }, 150)
+      }
     }
   }
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (hasAutoRestoredCurriculumRef.current) return
+    if (curriculumId || curriculumMarkdown.trim()) return
+    hasAutoRestoredCurriculumRef.current = true
+    try {
+      const savedCurriculumId = localStorage.getItem(LAST_OPENED_CURRICULUM_KEY)?.trim()
+      if (!savedCurriculumId) return
+      skipNextResultScrollRef.current = true
+      void handleLoadCurriculum(savedCurriculumId, { skipScroll: true })
+    } catch {}
+  }, [curriculumId, curriculumMarkdown, handleLoadCurriculum])
 
   const [deleteLoadingId, setDeleteLoadingId] = useState<string | null>(null)
   const curriculumTextareaRef = useRef<HTMLTextAreaElement>(null)
@@ -2316,7 +2474,7 @@ export default function TaoGiaoTrinhClientPage() {
         tr={tr}
       />
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
-        <div className="text-center">
+        <div ref={pageHeaderRef} className="text-center">
           <h1 className="text-2xl font-bold text-foreground">
             {tr('Tạo giáo trình bằng AI', 'AI Curriculum Creator', 'AI 课程创建', 'AI カリキュラム作成', 'AI 교육과정 생성')}
           </h1>
@@ -3570,16 +3728,128 @@ export default function TaoGiaoTrinhClientPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Link href="/tao-bai-thi">
-                <Button className="gap-2 bg-violet-600 hover:bg-violet-700 text-white">
-                  <FileQuestion className="h-4 w-4" />
-                  {tr('Mở trang Tạo bài thi', 'Open exam creator', '打开测验创建页面', 'テスト作成ページを開く', '시험 생성 페이지 열기')}
-                </Button>
-              </Link>
+              <div className="space-y-4">
+                <Link href="/tao-bai-thi">
+                  <Button className="gap-2 bg-violet-600 hover:bg-violet-700 text-white">
+                    <FileQuestion className="h-4 w-4" />
+                    {tr('Mở trang Tạo bài thi', 'Open exam creator', '打开测验创建页面', 'テスト作成ページを開く', '시험 생성 페이지 열기')}
+                  </Button>
+                </Link>
+
+                <div className="rounded border p-3 space-y-2 bg-background">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-medium">
+                      {tr('Danh sách bài thi đã tạo', 'Created exams', '已创建测验', '作成済みテスト', '생성된 시험')}
+                    </p>
+                    <Button type="button" variant="outline" size="sm" onClick={() => void loadCreatedExamItems()} disabled={examListLoading}>
+                      {examListLoading ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                      {tr('Làm mới', 'Refresh', '刷新', '更新', '새로고침')}
+                    </Button>
+                  </div>
+                  {examListLoading ? (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                      {tr('Đang tải...', 'Loading...', '加载中...', '読み込み中...', '불러오는 중...')}
+                    </div>
+                  ) : createdExamItems.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      {tr('Chưa có bài thi nào.', 'No exams yet.', '暂无测验。', 'まだテストがありません。', '아직 시험이 없습니다.')}
+                    </p>
+                  ) : (
+                    <div className="space-y-2 max-h-64 overflow-y-auto">
+                      {createdExamItems.map((exam) => (
+                        <div key={exam.id} className="rounded border p-2 flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium truncate">{exam.title || tr('Bài thi', 'Exam', '测验', 'テスト', '시험')} - {exam.code}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {exam.totalQuestions} {tr('câu', 'questions', '题', '問', '문항')} - {exam.durationMinutes} {tr('phút', 'minutes', '分钟', '分', '분')}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => void handleOpenExamPreview({
+                                code: exam.code,
+                                title: exam.title || tr('Bài thi', 'Exam', '测验', 'テスト', '시험'),
+                                examUrl: exam.examUrl,
+                              })}
+                            >
+                              {tr('Mở', 'Open', '打开', '開く', '열기')}
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => void handleDeleteCreatedExam(exam.code)}
+                              disabled={examDeletingCode === exam.code}
+                              className="gap-1.5"
+                            >
+                              {examDeletingCode === exam.code ? (
+                                <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-3.5 w-3.5" />
+                              )}
+                              {tr('Xóa', 'Delete', '删除', '削除', '삭제')}
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
             </CardContent>
           </Card>
         )}
       </div>
+      {examPreview && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+          <div className="w-full max-w-md rounded-lg border bg-background shadow-xl">
+            <div className="px-4 py-3 border-b flex items-center justify-between">
+              <p className="text-sm font-semibold">
+                {tr('Quét mã QR làm bài', 'Scan QR to take exam', '扫码参加测验', 'QRをスキャンして受験', 'QR 스캔으로 시험 응시')}
+              </p>
+              <Button type="button" variant="ghost" size="sm" onClick={() => setExamPreview(null)}>
+                {tr('Đóng', 'Close', '关闭', '閉じる', '닫기')}
+              </Button>
+            </div>
+            <div className="p-4 space-y-3">
+              <p className="text-sm font-medium">{examPreview.title} - {examPreview.code}</p>
+              <div className="rounded border p-3 bg-muted/30 flex items-center justify-center min-h-[240px]">
+                {examPreview.loadingQr ? (
+                  <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+                ) : examPreview.qrDataUrl ? (
+                  <img src={examPreview.qrDataUrl} alt="QR exam" className="w-56 h-56" />
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    {tr('Không tạo được QR. Dùng link bên dưới.', 'Failed to generate QR. Use link below.', '二维码生成失败，请使用下方链接。', 'QR生成に失敗しました。下記リンクを使用してください。', 'QR 생성 실패. 아래 링크를 사용하세요.')}
+                  </p>
+                )}
+              </div>
+              <div className="space-y-2">
+                <Input readOnly value={examPreview.examUrl} className="text-xs font-mono" />
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => navigator.clipboard.writeText(examPreview.examUrl)}
+                  >
+                    {tr('Copy link', 'Copy link', '复制链接', 'リンクをコピー', '링크 복사')}
+                  </Button>
+                  <Button type="button" size="sm" asChild>
+                    <Link href={examPreview.examUrl} target="_blank">
+                      {tr('Mở trên máy này', 'Open on this device', '在本机打开', 'この端末で開く', '이 기기에서 열기')}
+                    </Link>
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }

@@ -89,8 +89,9 @@ export async function signup(formData: FormData) {
 }
 
 export async function signInWithGoogle(formData: FormData) {
-  void formData
   const supabase = createClient()
+  const nextRaw = String(formData.get('next') ?? '').trim()
+  const nextPath = nextRaw.startsWith('/') && !nextRaw.startsWith('//') ? nextRaw : '/dashboard'
 
   // Luôn dùng PRODUCTION_URL cho OAuth callback (tránh redirect về localhost)
   const baseUrl = getBaseUrl()
@@ -100,7 +101,7 @@ export async function signInWithGoogle(formData: FormData) {
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
-      redirectTo: `${oauthRedirect}/auth/callback`,
+      redirectTo: `${oauthRedirect}/auth/callback?next=${encodeURIComponent(nextPath)}`,
     },
   })
 

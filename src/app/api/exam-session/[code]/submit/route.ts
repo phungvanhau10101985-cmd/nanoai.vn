@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { createClient as createServerClient } from '@/lib/supabase/server'
 
 /** Nhận xét khích lệ theo % đúng – thang điểm 10 */
 function getFeedback(score: number, maxScore: number): { grade10: number; comment: string; shareHint: string } {
@@ -47,6 +48,13 @@ export async function POST(
   { params }: { params: Promise<{ code: string }> }
 ) {
   try {
+    const serverSupabase = createServerClient()
+    const { data: authData } = await serverSupabase.auth.getUser()
+    const user = authData.user
+    if (!user) {
+      return NextResponse.json({ error: 'Vui lòng đăng nhập để nộp bài thi.' }, { status: 401 })
+    }
+
     const { code } = await params
     if (!code || code.length < 4) {
       return NextResponse.json({ error: 'Mã bài thi không hợp lệ.' }, { status: 400 })
@@ -60,10 +68,6 @@ export async function POST(
       return NextResponse.json({ error: 'Thiếu đáp án.' }, { status: 400 })
     }
 
-    if (!studentCode) {
-      return NextResponse.json({ error: 'Vui lòng nhập Số thẻ học sinh. Mỗi thí sinh chỉ được làm bài một lần.' }, { status: 400 })
-    }
-
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -72,7 +76,7 @@ export async function POST(
 
     const { data: session, error: sessionErr } = await supabase
       .from('exam_sessions')
-      .select('id')
+      .select('id, class_id, school_id')
       .eq('code', code.toUpperCase())
       .eq('status', 'active')
       .single()
@@ -81,28 +85,41 @@ export async function POST(
       return NextResponse.json({ error: 'Không tìm thấy bài thi.' }, { status: 404 })
     }
 
+    if (session.class_id) {
+      await supabase.from('class_members').upsert(
+        { class_id: session.class_id, user_id: user.id },
+        { onConflict: 'class_id,user_id' }
+      )
+    }
+
     const { data: existing } = await supabase
       .from('exam_attempts')
       .select('id')
       .eq('session_id', session.id)
-      .eq('student_code', studentCode)
+      .eq('user_id', user.id)
       .limit(1)
 
     if (existing?.length) {
-      return NextResponse.json({ error: 'Bạn đã nộp bài thi này rồi. Mỗi thí sinh chỉ được làm một lần.' }, { status: 409 })
+      return NextResponse.json({ error: 'Bạn đã nộp bài thi này rồi. Mỗi tài khoản chỉ được làm một lần.' }, { status: 409 })
     }
 
     const { data: questions } = await supabase
       .from('exam_questions')
-      .select('id, correct_index')
+      .select('id, correct_index, options')
       .eq('session_id', session.id)
 
     const qMap = new Map((questions ?? []).map((q) => [q.id, q]))
     let score = 0
-    const maxScore = qMap.size
+    const scorableQuestionIds = new Set(
+      (questions ?? [])
+        .filter((q) => Array.isArray(q.options) && q.options.length >= 2 && typeof q.correct_index === 'number')
+        .map((q) => q.id)
+    )
+    const maxScore = scorableQuestionIds.size
     for (const [id, userAnswer] of Object.entries(answers)) {
       const q = qMap.get(id)
       if (!q) continue
+      if (!scorableQuestionIds.has(id)) continue
       const correctIdx = q.correct_index ?? 0
       const userIdx = typeof userAnswer === 'number' ? userAnswer : parseInt(String(userAnswer), 10)
       if (userIdx === correctIdx) score++
@@ -112,8 +129,11 @@ export async function POST(
 
     const { error: insertErr } = await supabase.from('exam_attempts').insert({
       session_id: session.id,
+      user_id: user.id,
+      class_id: session.class_id ?? null,
+      school_id: session.school_id ?? null,
       student_name: studentName || null,
-      student_code: studentCode,
+      student_code: studentCode || null,
       answers,
       score,
       max_score: maxScore,

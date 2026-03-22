@@ -28,7 +28,7 @@ import { useToast } from '@/hooks/use-toast'
 import { saveSlidesToCurriculum, saveUserCustomizedSlides } from '../actions'
 import { useScreenShare } from '../hooks/use-screen-share'
 import { useScreenShareLive } from '../hooks/use-screen-share-live'
-import { findFirstSequentialSolutionBlockIndex, worksheetAnswerSegmentCount } from '../lib/worksheet-answer-segments'
+import { curriculumSlideTitleRevealKey, findFirstSequentialSolutionBlockIndex, worksheetAnswerSegmentCount } from '../lib/worksheet-answer-segments'
 import { createPresentationSyncId, getPresentationBroadcastChannelName, LEGACY_PRESENTATION_BROADCAST_CHANNEL } from '../lib/presentation-broadcast'
 import { getStudentSlideWindowConfig, isPathMatchingStudentSlideKind, studentSlideUrlWithSync, STUDENT_WINDOW_NAME_CURRICULUM, STUDENT_WINDOW_NAME_WORKSHEET } from '../lib/student-slide-window'
 
@@ -93,21 +93,6 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   'nội dung': <BookOpen className="h-5 w-5" />,
 }
 
-function getTextSegmentCount(text: string): number {
-  return text.length
-}
-
-/** Đếm số segment (char + newline) trong content, embed = 1 segment */
-function getContentSegmentCount(content: string): number {
-  const parts = splitContentWithEmbeds(content)
-  let n = 0
-  for (const p of parts) {
-    if (p.type === 'text') n += getTextSegmentCount(p.value)
-    else n += 1
-  }
-  return n
-}
-
 function getIconForHeader(header: string): React.ReactNode {
   const key = header.toLowerCase().trim()
   for (const [k, icon] of Object.entries(ICON_MAP)) {
@@ -165,6 +150,8 @@ interface NanoAISlideViewerProps {
   worksheetPresentation?: boolean
   worksheetAnswerReveal?: Record<string, number>
   worksheetAnswerTypingEnabled?: Record<string, boolean>
+  /** Phiếu bài tập: bật/tắt gõ từng ký tự phần đề — câu hỏi (không phải lời giải). Mặc định true. */
+  worksheetStemTypingEnabled?: boolean
   /** `?sync=` từ URL xem-slide — kênh BroadcastChannel khớp tab GV (học sinh). */
   presentationBroadcastSyncId?: string | null
   /** Đồng bộ từ `curriculum-data` (GV) — cột phải một slide / cả khóa */
@@ -465,15 +452,13 @@ function getBaseSlides(curriculumMarkdown: string, topic: string, aiSlides: AISl
   return topic ? [{ title: topic, content: '' }, ...parsed] : parsed
 }
 
-export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides, curriculumId, subjectId, gradeLevelId, tr, onSlidesSaved, slideMode, originalSlides, personalSlides, sharedSlides, initialSlideIndex, isTeacherView = true, onOpenStudentView: onOpenStudentViewProp, worksheetPresentation = false, worksheetAnswerReveal, worksheetAnswerTypingEnabled, presentationBroadcastSyncId = null, syncedStudentCurriculumRightMode = null }: NanoAISlideViewerProps) {
+export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides, curriculumId, subjectId, gradeLevelId, tr, onSlidesSaved, slideMode, originalSlides, personalSlides, sharedSlides, initialSlideIndex, isTeacherView = true, onOpenStudentView: onOpenStudentViewProp, worksheetPresentation = false, worksheetAnswerReveal, worksheetAnswerTypingEnabled, worksheetStemTypingEnabled: _worksheetStemTypingEnabled, presentationBroadcastSyncId = null, syncedStudentCurriculumRightMode = null }: NanoAISlideViewerProps) {
   const { toast } = useToast()
   const [slides, setSlides] = useState<SlideItem[]>([])
   const [currentIndex, setCurrentIndex] = useState(0)
   const [embedDialogOpen, setEmbedDialogOpen] = useState(false)
   const [autoPlay, setAutoPlay] = useState(false)
   const [autoPlayIntervalMs, setAutoPlayIntervalMs] = useState(5000)
-  const [teacherWritingMode, setTeacherWritingMode] = useState(false)
-  const [teacherWritingSpeedMs, setTeacherWritingSpeedMs] = useState(80)
   const [transitionDirection, setTransitionDirection] = useState<'next' | 'prev'>('next')
   const initialSlideSyncedRef = useRef(false)
   const pendingSlideGoIndexRef = useRef<number | null>(null)
@@ -493,6 +478,8 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   const [shareLoading, setShareLoading] = useState(false)
   const [screenShareOverlayVisible, setScreenShareOverlayVisible] = useState(true)
   const [screenShareLiveDialogOpen, setScreenShareLiveDialogOpen] = useState(false)
+  /** Chuột ảo không tạo user gesture — mở dialog để HS bấm thật một lần rồi mới gọi getDisplayMedia. */
+  const [screenShareLiveGestureGateOpen, setScreenShareLiveGestureGateOpen] = useState(false)
   const shareInProgressRef = useRef(false)
   const screenShareLiveInProgressRef = useRef(false)
 
@@ -504,6 +491,10 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     startShare: startScreenShareLive,
     stopShare: stopScreenShareLive,
   } = useScreenShareLive()
+  const isScreenShareLiveActiveRef = useRef(isScreenShareLiveActive)
+  isScreenShareLiveActiveRef.current = isScreenShareLiveActive
+  const stopScreenShareLiveRef = useRef(stopScreenShareLive)
+  stopScreenShareLiveRef.current = stopScreenShareLive
   const [visualFullscreenOpen, setVisualFullscreenOpen] = useState(false)
   const [expandedCellIndex, setExpandedCellIndex] = useState<number | null>(null)
   /** Học sinh + giáo trình (không phiếu): cột phải — một slide hoặc toàn bộ slide nối liền (markdown). */
@@ -531,7 +522,6 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   const [teacherTimerSeconds, setTeacherTimerSeconds] = useState(0)
   const [teacherTimerRunning, setTeacherTimerRunning] = useState(false)
   const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const [slideVisibleCount, setSlideVisibleCount] = useState(0)
   const [presentationMode, setPresentationMode] = useState<'independent' | 'slide-interaction'>('independent')
   const [viewportW, setViewportW] = useState(1280)
   const [stableLayoutWidth, setStableLayoutWidth] = useState(() => (typeof window !== 'undefined' ? window.innerWidth : 1280))
@@ -578,7 +568,12 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     } finally {
       screenShareLiveInProgressRef.current = false
     }
-  }, [startScreenShareLive])
+  }, [startScreenShareLive, screenShareLiveDialogOpen])
+
+  const confirmScreenShareLiveAfterGestureGate = useCallback(() => {
+    setScreenShareLiveGestureGateOpen(false)
+    void handleScreenShareLiveClick()
+  }, [handleScreenShareLiveClick])
 
   useEffect(() => {
     if (isScreenShareLiveActive && screenShareLiveUrl) setScreenShareLiveDialogOpen(true)
@@ -979,8 +974,6 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       else if (t === 'refresh-personal-after-reset') {
         onSlidesSaved?.()
       }
-      else if (t === 'set-teacher-writing-mode' && typeof e.data?.value === 'boolean') setTeacherWritingMode(e.data.value)
-      else if (t === 'set-teacher-writing-speed' && typeof e.data?.ms === 'number') setTeacherWritingSpeedMs(e.data.ms)
       else if (t === 'set-auto-play' && typeof e.data?.value === 'boolean') setAutoPlay(e.data.value)
       else if (t === 'set-auto-play-interval' && typeof e.data?.ms === 'number') setAutoPlayIntervalMs(e.data.ms)
       else if (
@@ -1213,6 +1206,16 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
           if (clickable && typeof (clickable as HTMLElement).click === 'function') {
             const ctrl = (clickable as HTMLElement).closest('[data-control]')?.getAttribute('data-control')
             if (ctrl === 'prev' || ctrl === 'next') return
+            // getDisplayMedia chỉ chạy sau thao tác người dùng thật — .click() tổng hợp không đủ.
+            if (ctrl === 'chia-sẻ-màn-hình-live') {
+              if (isScreenShareLiveActiveRef.current) {
+                stopScreenShareLiveRef.current()
+                setScreenShareLiveDialogOpen(false)
+              } else {
+                setScreenShareLiveGestureGateOpen(true)
+              }
+              return
+            }
             ;(clickable as HTMLElement).click()
           }
         })
@@ -1806,35 +1809,29 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     window.open(autoGeoSuggestion.url, '_blank', 'noopener,noreferrer')
   }, [autoGeoSuggestion])
 
-  const { totalSegments, blockOffsets, blockLengths } = useMemo(() => {
-    if (!slide) return { totalSegments: 0, blockOffsets: [] as number[], blockLengths: [] as number[] }
-    const titleLen = slide.title.length
-    if (hasBlocks) {
-      const lens = blocks.map((b) => getContentSegmentCount(b.content))
-      const offsets: number[] = []
-      let acc = titleLen
-      for (const l of lens) {
-        offsets.push(acc)
-        acc += l
-      }
-      return { totalSegments: acc, blockOffsets: offsets, blockLengths: lens }
-    }
-    const contentLen = getContentSegmentCount(slide.content ?? '')
-    return { totalSegments: titleLen + contentLen, blockOffsets: [titleLen], blockLengths: [contentLen] }
-  }, [slide, hasBlocks, blocks])
-
-  /** Độ dài tiêu đề theo “segment” gõ (ký tự); dùng để tách gõ tiêu đề vs chỉ gõ nội dung khi tắt Viết. */
-  const titleSegmentLen = slide?.title?.length ?? 0
-
   const { hasSegmentTypingWork, segmentTypingCompleted } = useMemo(() => {
     if (isTeacherView) return { hasSegmentTypingWork: false, segmentTypingCompleted: true }
     const useSegmentTyping = worksheetPresentation || !!curriculumId
-    if (!useSegmentTyping || !hasBlocks) return { hasSegmentTypingWork: false, segmentTypingCompleted: true }
+    if (!useSegmentTyping || !slide) return { hasSegmentTypingWork: false, segmentTypingCompleted: true }
     let hasWork = false
     let allDone = true
+    if (!worksheetPresentation && curriculumId) {
+      const tk = curriculumSlideTitleRevealKey(currentIndex)
+      const tTotal = worksheetAnswerSegmentCount(slide.title ?? '')
+      if (tTotal > 0) {
+        const typingOn = worksheetAnswerTypingEnabled?.[tk] !== false
+        if (typingOn) {
+          hasWork = true
+          const rev = worksheetAnswerReveal?.[tk] ?? 0
+          if (rev < tTotal) allDone = false
+        }
+      }
+    }
+    if (!hasBlocks) return { hasSegmentTypingWork: hasWork, segmentTypingCompleted: !hasWork || allDone }
     blocks.forEach((b, i) => {
-      const bExt = b as { isAnswer?: boolean }
-      const shouldTypeThisBlock = worksheetPresentation ? Boolean(bExt.isAnswer) : true
+      const shouldTypeThisBlock = worksheetPresentation
+        ? worksheetAnswerSegmentCount(b.content ?? '') > 0
+        : true
       if (!shouldTypeThisBlock) return
       const key = `${currentIndex}-${i}`
       const typingOn = worksheetAnswerTypingEnabled?.[key] !== false
@@ -1845,13 +1842,16 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       if (revealed < total) allDone = false
     })
     return { hasSegmentTypingWork: hasWork, segmentTypingCompleted: !hasWork || allDone }
-  }, [isTeacherView, worksheetPresentation, curriculumId, hasBlocks, blocks, currentIndex, worksheetAnswerTypingEnabled, worksheetAnswerReveal])
+  }, [isTeacherView, worksheetPresentation, curriculumId, hasBlocks, blocks, currentIndex, worksheetAnswerTypingEnabled, worksheetAnswerReveal, slide])
 
-  /** Chỉ block đang tới lượt gõ segment mới hiện bút ở `visibleSegmentCount === 0` (tránh nhiều bút trên slide ghép). */
+  /** Chỉ block đang tới lượt gõ segment mới hiện bút ở reveal === 0 (tránh nhiều bút trên slide ghép). */
   const sequentialSolutionPenBlockIndex = useMemo(() => {
     if (isTeacherView) return null
-    if (!hasBlocks || !slide) return null
+    if (!slide) return null
     if (!(worksheetPresentation || curriculumId)) return null
+    const titleSegs =
+      !worksheetPresentation && curriculumId ? worksheetAnswerSegmentCount(slide.title ?? '') : 0
+    if (!hasBlocks && titleSegs === 0) return null
     return findFirstSequentialSolutionBlockIndex(
       blocks as Array<{ content?: string; isAnswer?: boolean }>,
       currentIndex,
@@ -1860,6 +1860,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         hasCurriculumSegmentTyping: !!curriculumId,
         reveal: worksheetAnswerReveal,
         typingEnabled: worksheetAnswerTypingEnabled,
+        slideTitle: slide.title ?? '',
       }
     )
   }, [
@@ -1959,56 +1960,11 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     }
     const id = window.setInterval(() => {
       const timeReady = Date.now() - startedAt >= autoPlayIntervalMs
-      const teacherWritingReady = totalSegments <= 0 || slideVisibleCount >= totalSegments
       const segmentTypingReady = !hasSegmentTypingWork || segmentTypingCompleted
-      // Auto chuyển slide chỉ khi đủ 2 điều kiện:
-      // (1) Hết thời gian chờ, (2) Đã gõ xong nội dung đang hiển thị.
-      if (timeReady && teacherWritingReady && segmentTypingReady) advance()
+      if (timeReady && segmentTypingReady) advance()
     }, 120)
     return () => window.clearInterval(id)
-  }, [autoPlay, slides.length, autoPlayIntervalMs, presentationMode, totalSegments, slideVisibleCount, hasSegmentTypingWork, segmentTypingCompleted])
-
-  /**
-   * Tiến độ gõ chung (tiêu đề + nội dung theo segment/ký tự).
-   * - Bật Viết: từ 0 → hết (tiêu đề rồi nội dung).
-   * - Tắt Viết: tiêu đề coi như đã đủ; chỉ gõ phần nội dung (từ titleSegmentLen → totalSegments).
-   */
-  useEffect(() => {
-    if (totalSegments === 0) {
-      setSlideVisibleCount(0)
-      return
-    }
-    if (!teacherWritingMode) {
-      const startCount = titleSegmentLen
-      if (startCount >= totalSegments) {
-        setSlideVisibleCount(totalSegments)
-        return
-      }
-      setSlideVisibleCount(startCount)
-      let start = performance.now()
-      let rafId: number
-      const tick = (now: number) => {
-        const elapsed = now - start
-        const progressed = Math.floor(elapsed / teacherWritingSpeedMs) + 1
-        const next = Math.min(startCount + progressed, totalSegments)
-        setSlideVisibleCount(next)
-        if (next < totalSegments) rafId = requestAnimationFrame(tick)
-      }
-      rafId = requestAnimationFrame(tick)
-      return () => cancelAnimationFrame(rafId)
-    }
-    setSlideVisibleCount(0)
-    let start = performance.now()
-    let rafId: number
-    const tick = (now: number) => {
-      const elapsed = now - start
-      const next = Math.min(Math.floor(elapsed / teacherWritingSpeedMs) + 1, totalSegments)
-      setSlideVisibleCount(next)
-      if (next < totalSegments) rafId = requestAnimationFrame(tick)
-    }
-    rafId = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(rafId)
-  }, [currentIndex, teacherWritingMode, teacherWritingSpeedMs, totalSegments, titleSegmentLen])
+  }, [autoPlay, slides.length, autoPlayIntervalMs, presentationMode, hasSegmentTypingWork, segmentTypingCompleted])
 
   if (slides.length === 0) return null
 
@@ -2037,10 +1993,6 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
             onTeacherTimerReset={presentationMode === 'slide-interaction' ? (() => {}) : undefined}
             curriculumId={curriculumId}
             onInsertClick={() => setEmbedDialogOpen(true)}
-            writingMode={teacherWritingMode}
-            onWritingModeToggle={() => setTeacherWritingMode((v) => !v)}
-            writingSpeedMs={teacherWritingSpeedMs}
-            onWritingSpeedChange={setTeacherWritingSpeedMs}
             autoPlay={autoPlay}
             onAutoPlayToggle={() => setAutoPlay((v) => !v)}
             autoPlayIntervalMs={autoPlayIntervalMs}
@@ -2191,6 +2143,38 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+      <Dialog open={screenShareLiveGestureGateOpen} onOpenChange={setScreenShareLiveGestureGateOpen}>
+        <DialogContent className="sm:max-w-md z-[210]">
+          <DialogHeader>
+            <DialogTitle>
+              {tr(
+                'Xác nhận chia sẻ màn hình',
+                'Confirm screen sharing',
+                '确认共享屏幕',
+                '画面共有の確認',
+                '화면 공유 확인'
+              )}
+            </DialogTitle>
+            <DialogDescription>
+              {tr(
+                'Giáo viên điều khiển từ xa đã bấm «Chia sẻ màn hình». Trình duyệt bắt buộc bạn bấm xác nhận một lần trên máy này để chọn cửa sổ/tab chia sẻ.',
+                'Your teacher started screen share remotely. The browser requires you to confirm once on this device to pick what to share.',
+                '教师已远程触发“共享屏幕”。浏览器要求您在本机点击一次以选择要共享的窗口/标签页。',
+                '教師がリモートで画面共有を開始しました。ブラウザの仕様上、この端末で一度確認して共有する画面を選んでください。',
+                '교사가 원격으로 화면 공유를 시작했습니다. 브라우저 정책상 이 기기에서 한 번 확인을 눌러 공유할 화면을 선택해야 합니다.'
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+            <Button type="button" variant="outline" onClick={() => setScreenShareLiveGestureGateOpen(false)}>
+              {tr('Hủy', 'Cancel', '取消', 'キャンセル', '취소')}
+            </Button>
+            <Button type="button" data-control="chia-sẻ-màn-hình-live-confirm" onClick={confirmScreenShareLiveAfterGestureGate}>
+              {tr('Chọn màn hình và chia sẻ', 'Choose screen and share', '选择屏幕并共享', '画面を選んで共有', '화면 선택 후 공유')}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
       <Dialog open={screenShareLiveDialogOpen} onOpenChange={(open) => { setScreenShareLiveDialogOpen(open); if (!open) screenShareLiveInProgressRef.current = false }}>
@@ -2550,9 +2534,9 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                   !isTeacherView && !worksheetPresentation && studentCurriculumRightMode === 'markdown-all'
                 /** Chuỗi slide (HS): chỉ hiện các slide đã tới — không render slide phía sau (danh sách theo tiến độ). */
                 const mdAllSlidesToShow = mdAllStudentCurriculum ? slides.slice(0, currentIndex + 1) : slides
-                /** Slide hiện tại: gõ nội dung vẫn chạy khi tắt Viết (chỉ tiêu đề hiện ngay). */
+                /** Slide hiện tại: chỉ khi còn gõ segment đáp án (đồng bộ GV). */
                 const mdChainLiveTyping =
-                  mdAllStudentCurriculum && (teacherWritingMode || slideVisibleCount < totalSegments)
+                  mdAllStudentCurriculum && isCurrent && hasSegmentTypingWork && !segmentTypingCompleted
                 return mdAllSlidesToShow.map((s, si) => {
                 const rawBlks =
                   Array.isArray(s.blocks) && s.blocks.length > 0 ? s.blocks : s.content ? parseContentToBlocks(s.content ?? '') : []
@@ -2605,28 +2589,15 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                           const wsKey = `${currentIndex}-${i}`
                           const solutionSegmentBlock =
                             !isTeacherView &&
-                            (worksheetPresentation ? Boolean(bExt.isAnswer) : !!curriculumId)
-                          const titleLenGate = slide.title?.length ?? 0
-                          const studentTitleTypingDone =
-                            isTeacherView ||
-                            !teacherWritingMode ||
-                            titleLenGate === 0 ||
-                            slideVisibleCount >= titleLenGate
+                            (worksheetPresentation
+                              ? worksheetAnswerSegmentCount(b.content ?? '') > 0
+                              : !!curriculumId)
                           let visibleForBlock: number | undefined
-                          let animateForBlock = slideVisibleCount < totalSegments
                           if (solutionSegmentBlock) {
-                            animateForBlock = false
                             const typingOn = worksheetAnswerTypingEnabled?.[wsKey] !== false
-                            visibleForBlock = typingOn
-                              ? studentTitleTypingDone
-                                ? (worksheetAnswerReveal?.[wsKey] ?? 0)
-                                : 0
-                              : undefined
+                            visibleForBlock = typingOn ? (worksheetAnswerReveal?.[wsKey] ?? 0) : undefined
                           } else {
-                            visibleForBlock = Math.max(
-                              0,
-                              Math.min(blockLengths[i] ?? 0, slideVisibleCount - (blockOffsets[i] ?? 0)),
-                            )
+                            visibleForBlock = undefined
                           }
                           return (
                             <div key={i} className="border-t border-slate-200 pt-4 first:border-t-0 first:pt-0">
@@ -2641,7 +2612,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                                     tr={tr}
                                     hideQuiz
                                     visibleSegmentCount={visibleForBlock}
-                                    suppressTypingPenAtZero={teacherWritingMode && !studentTitleTypingDone}
+                                    suppressTypingPenAtZero={false}
                                     allowTypingPenAtRevealStart={
                                       sequentialSolutionPenBlockIndex != null && sequentialSolutionPenBlockIndex === i
                                     }
@@ -2652,9 +2623,6 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                                     liveQuizContext={curriculumId ? { curriculumId, slideIndex: currentIndex, blockIndex: i } : undefined}
                                     tr={tr}
                                     hideQuiz
-                                    animateReveal={animateForBlock}
-                                    visibleCountInBlock={visibleForBlock}
-                                    wordDelayMs={teacherWritingSpeedMs}
                                   />
                                 )}
                               </div>
@@ -2672,12 +2640,6 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                           liveQuizContext={curriculumId ? { curriculumId, slideIndex: currentIndex, blockIndex: 0 } : undefined}
                           tr={tr}
                           hideQuiz
-                          animateReveal={slideVisibleCount < totalSegments}
-                          visibleCountInBlock={Math.max(
-                            0,
-                            Math.min(blockLengths[0] ?? 0, slideVisibleCount - (blockOffsets[0] ?? 0)),
-                          )}
-                          wordDelayMs={teacherWritingSpeedMs}
                         />
                       </div>
                     )
@@ -2695,18 +2657,21 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                     )}
                   >
                     <h3 className="mb-3 text-lg font-bold text-slate-900 md:text-xl">
-                      <>
-                        {si + 1}.{' '}
-                        {teacherWritingMode && mdAllStudentCurriculum && isCurrent ? (
-                          <AnimatedCharReveal
-                            text={s.title}
-                            visibleCount={Math.min(slideVisibleCount, s.title.length)}
-                            showCursor={slideVisibleCount > 0 && slideVisibleCount < s.title.length}
-                          />
-                        ) : (
-                          s.title
-                        )}
-                      </>
+                      {si + 1}.{' '}
+                      {mdChainLiveTyping &&
+                      isCurrent &&
+                      curriculumId &&
+                      worksheetAnswerSegmentCount(s.title ?? '') > 0 &&
+                      worksheetAnswerTypingEnabled?.[curriculumSlideTitleRevealKey(si)] !== false ? (
+                        <AnimatedCharReveal
+                          text={s.title}
+                          visibleCount={worksheetAnswerReveal?.[curriculumSlideTitleRevealKey(si)] ?? 0}
+                          showCursor={sequentialSolutionPenBlockIndex === -1}
+                          penWhenEmpty={sequentialSolutionPenBlockIndex === -1}
+                        />
+                      ) : (
+                        s.title
+                      )}
                     </h3>
                     {mdChainLiveTyping && isCurrent ? renderCurrentSlideTypingBody() : renderFullSlideBody()}
                   </section>
@@ -2723,18 +2688,32 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
             <>
               <div className="mb-4 flex flex-wrap items-start gap-2 md:mb-6 landscape:mb-6">
                 <h2 className="flex-1 text-xl font-bold text-slate-900 md:text-2xl lg:text-3xl landscape:text-2xl">
-                  {teacherWritingMode ? (
+                  {!isTeacherView &&
+                  !worksheetPresentation &&
+                  curriculumId &&
+                  hasBlocks &&
+                  worksheetAnswerSegmentCount(slide.title ?? '') > 0 &&
+                  worksheetAnswerTypingEnabled?.[curriculumSlideTitleRevealKey(currentIndex)] !== false ? (
                     <AnimatedCharReveal
                       text={slide.title}
-                      visibleCount={Math.min(slideVisibleCount, slide.title.length)}
-                      showCursor={slideVisibleCount > 0 && slideVisibleCount < slide.title.length}
+                      visibleCount={worksheetAnswerReveal?.[curriculumSlideTitleRevealKey(currentIndex)] ?? 0}
+                      showCursor={sequentialSolutionPenBlockIndex === -1}
+                      penWhenEmpty={sequentialSolutionPenBlockIndex === -1}
                     />
                   ) : (
                     slide.title
                   )}
                 </h2>
                 {extractQuizFromSlide(slide).length > 0 ? (
-                  <Button variant="outline" size="sm" onClick={() => setQuizPopupOpen(true)} className="mt-[31px] shrink-0 border-violet-400 text-violet-700 hover:bg-violet-50 print:hidden">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setQuizPopupOpen(true)}
+                    className={cn(
+                      'shrink-0 border-violet-400 text-violet-700 hover:bg-violet-50 print:hidden',
+                      !isTeacherView && !worksheetPresentation && !!curriculumId ? 'mt-[41px]' : 'mt-[31px]'
+                    )}
+                  >
                     <ClipboardList className="mr-1.5 h-4 w-4" />
                     {tr('Xem câu hỏi trắc nghiệm', 'View quiz', '查看测验', 'クイズを見る', '퀴즈 보기')}
                   </Button>
@@ -2746,32 +2725,17 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                     const bExt = b as { isAnswer?: boolean; studentAnswerHidden?: boolean }
                     if (!isTeacherView && bExt.studentAnswerHidden) return null
                     const wsKey = `${currentIndex}-${i}`
-                    const solutionSegmentBlock =
+                    const worksheetOrCurriculumSegmentBlock =
                       !isTeacherView &&
                       (worksheetPresentation
-                        ? Boolean(bExt.isAnswer)
+                        ? worksheetAnswerSegmentCount(b.content ?? '') > 0
                         : !!curriculumId)
-                    const titleLenGate = slide.title?.length ?? 0
-                    const studentTitleTypingDone =
-                      isTeacherView ||
-                      !teacherWritingMode ||
-                      titleLenGate === 0 ||
-                      slideVisibleCount >= titleLenGate
                     let visibleForBlock: number | undefined
-                    let animateForBlock = slideVisibleCount < totalSegments
-                    if (solutionSegmentBlock) {
-                      animateForBlock = false
-                      const typingOn = (worksheetAnswerTypingEnabled?.[wsKey] !== false)
-                      visibleForBlock = typingOn
-                        ? studentTitleTypingDone
-                          ? (worksheetAnswerReveal?.[wsKey] ?? 0)
-                          : 0
-                        : undefined
+                    if (worksheetOrCurriculumSegmentBlock) {
+                      const typingOn = worksheetAnswerTypingEnabled?.[wsKey] !== false
+                      visibleForBlock = typingOn ? (worksheetAnswerReveal?.[wsKey] ?? 0) : undefined
                     } else {
-                      visibleForBlock = Math.max(
-                        0,
-                        Math.min(blockLengths[i] ?? 0, slideVisibleCount - (blockOffsets[i] ?? 0)),
-                      )
+                      visibleForBlock = undefined
                     }
                     return (
                     <div key={i} className="flex rounded-lg overflow-hidden bg-white shadow-sm border border-slate-100">
@@ -2786,14 +2750,14 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                         </div>
                       </div>
                       <div className="flex-1 p-5 text-slate-800">
-                        {solutionSegmentBlock ? (
+                        {worksheetOrCurriculumSegmentBlock ? (
                           <WorksheetBlockContentWithEmbeds
                             content={b.content}
                             liveQuizContext={curriculumId ? { curriculumId, slideIndex: currentIndex, blockIndex: i } : undefined}
                             tr={tr}
                             hideQuiz
                             visibleSegmentCount={visibleForBlock}
-                            suppressTypingPenAtZero={teacherWritingMode && !studentTitleTypingDone}
+                            suppressTypingPenAtZero={false}
                             allowTypingPenAtRevealStart={
                               sequentialSolutionPenBlockIndex != null && sequentialSolutionPenBlockIndex === i
                             }
@@ -2804,9 +2768,6 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                             liveQuizContext={curriculumId ? { curriculumId, slideIndex: currentIndex, blockIndex: i } : undefined}
                             tr={tr}
                             hideQuiz
-                            animateReveal={animateForBlock}
-                            visibleCountInBlock={visibleForBlock}
-                            wordDelayMs={teacherWritingSpeedMs}
                           />
                         )}
                       </div>
@@ -2821,12 +2782,6 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                     liveQuizContext={curriculumId ? { curriculumId, slideIndex: currentIndex, blockIndex: 0 } : undefined}
                     tr={tr}
                     hideQuiz
-                    animateReveal={slideVisibleCount < totalSegments}
-                    visibleCountInBlock={Math.max(
-                      0,
-                      Math.min(blockLengths[0] ?? 0, slideVisibleCount - (blockOffsets[0] ?? 0)),
-                    )}
-                    wordDelayMs={teacherWritingSpeedMs}
                   />
                 </div>
               ) : null}
