@@ -34,7 +34,7 @@ export default async function GanPhieuPage({ params }: { params: Promise<{ id: s
     .eq('class_id', classId)
 
   const wsRes = await listWorksheets({ limit: 100 })
-  const allWorksheets = (wsRes && 'items' in wsRes ? wsRes.items : []).map(
+  const allWorksheets = (wsRes && 'items' in wsRes ? (wsRes.items ?? []) : []).map(
     (w: { id: string; topic: string }) => ({ id: w.id, topic: w.topic })
   )
 

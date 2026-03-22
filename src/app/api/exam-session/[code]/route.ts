@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { createClient as createServerClient } from '@/lib/supabase/server'
+import { shuffleArray, signExamLayoutToken } from '@/lib/exam-layout-token'
 
 /** Lấy thông tin phiên thi và câu hỏi theo mã (public – học sinh mở link). */
 export async function GET(
@@ -73,14 +74,50 @@ export async function GET(
       }
     }
 
-    const shuffled = [...questions].sort(() => Math.random() - 0.5)
-    const publicQuestions = shuffled.map((q, i) => ({
-      id: q.id,
-      index: i + 1,
-      type: String(q.source ?? '').includes('essay') ? 'essay' : 'quiz',
-      question_text: q.question_text,
-      options: Array.isArray(q.options) ? q.options : [],
-    }))
+    type QRow = (typeof questions)[number]
+    const isEssayRow = (q: QRow) =>
+      String(q.source ?? '').toLowerCase().includes('essay') ||
+      !Array.isArray(q.options) ||
+      (q.options as unknown[]).length < 2
+
+    const quizRows = (questions ?? []).filter((q) => !isEssayRow(q))
+    const essayRows = (questions ?? []).filter((q) => isEssayRow(q))
+    const orderedRows = [...shuffleArray(quizRows), ...shuffleArray(essayRows)]
+
+    const optionPerms: Record<string, number[]> = {}
+    const publicQuestions = orderedRows.map((q, i) => {
+      const rawOpts = Array.isArray(q.options) ? (q.options as string[]) : []
+      if (rawOpts.length >= 2) {
+        const n = rawOpts.length
+        const perm = shuffleArray([...Array.from({ length: n }, (_, k) => k)])
+        const displayOpts = perm.map((origIdx) => String(rawOpts[origIdx] ?? ''))
+        optionPerms[String(q.id)] = perm
+        return {
+          id: q.id,
+          index: i + 1,
+          type: 'quiz' as const,
+          question_text: q.question_text,
+          options: displayOpts,
+        }
+      }
+      return {
+        id: q.id,
+        index: i + 1,
+        type: 'essay' as const,
+        question_text: q.question_text,
+        options: [] as string[],
+      }
+    })
+
+    const durationMin = typeof session.duration_minutes === 'number' ? session.duration_minutes : 15
+    const layoutToken = await signExamLayoutToken(
+      {
+        sessionId: String(session.id),
+        userId: user.id,
+        optionPerms,
+      },
+      Math.max(86400, durationMin * 180 + 7200)
+    )
 
     return NextResponse.json({
       code: session.code,
@@ -90,6 +127,7 @@ export async function GET(
       schoolId: session.school_id ?? null,
       className,
       schoolName,
+      layoutToken,
       questions: publicQuestions,
     })
   } catch (e) {

@@ -114,7 +114,7 @@ export async function POST(request: NextRequest) {
     const ai = new GoogleGenerativeAI(apiKey)
     const model = ai.getGenerativeModel(GEMINI_25_FLASH_NO_THINKING)
     const result = await model.generateContent(buildPrompt(text, languageCode))
-    let raw = String(result.response.text?.() || '')
+    const raw = String(result.response.text?.() || '')
       .replace(/^```/g, '')
       .replace(/```$/g, '')
       .trim()

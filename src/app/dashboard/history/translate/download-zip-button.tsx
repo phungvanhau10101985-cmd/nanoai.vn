@@ -30,9 +30,9 @@ export function DownloadTranslateZipButton({ items, label = 'Tải zip' }: { ite
           name: `dich_${idx + 1}.png`,
         }))
       )
-      if (result.error) {
+      if ('error' in result) {
         toast({ title: 'Lỗi', description: result.error, variant: 'destructive' })
-      } else if (result.zipUrl) {
+      } else {
         window.open(result.zipUrl, '_blank')
         toast({ title: 'Đang tải file zip...', duration: 2000 })
       }

@@ -20,7 +20,7 @@ type Payload = {
   voiceStyle?: string
   locale?: string
   teacherGender?: 'male' | 'female'
-  forceEngine?: 'auto' | 'gemini-only'
+  forceEngine?: 'auto' | 'gemini-only' | 'openai-only'
   targetLanguage?: string
   nativeLanguage?: string
   /** Bỏ qua cache, tạo âm thanh mới (dùng khi user báo phát âm sai) */
@@ -219,7 +219,7 @@ export async function POST(request: NextRequest) {
     const targetLanguage = String(payload.targetLanguage || '').trim()
     const nativeLanguage = String(payload.nativeLanguage || '').trim()
     const requestedEngine =
-      payload.forceEngine === 'gemini-only'
+      payload.forceEngine === 'gemini-only' || payload.forceEngine === 'openai-only'
         ? payload.forceEngine
         : 'auto'
     const localeUi = tr(locale)

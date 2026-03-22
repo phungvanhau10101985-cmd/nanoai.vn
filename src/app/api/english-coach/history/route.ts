@@ -343,7 +343,7 @@ export async function GET(request: NextRequest) {
       }
 
       const lastTeacher = [...rows].reverse().find((r) => r.role === 'teacher')
-      let writingTaskTransliterations: Record<string, string> = {}
+      const writingTaskTransliterations: Record<string, string> = {}
       if (lastTeacher) {
         const wtj = String((lastTeacher as { writing_task_json?: string }).writing_task_json || '').trim()
         if (wtj) {

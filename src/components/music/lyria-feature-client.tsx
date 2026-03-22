@@ -169,7 +169,7 @@ interface LyriaSessionLike {
       temperature?: number
     }
   }): Promise<void>
-  play(): Promise<void>
+  play(): void | Promise<void>
   pause(): Promise<void>
   stop(): Promise<void>
   resetContext(): Promise<void>
@@ -700,7 +700,7 @@ export function LyriaFeatureClient({ mode, uiLocale: uiLocaleProp }: { mode: Mod
           },
         },
       })
-      sessionRef.current = session as LyriaSessionLike
+      sessionRef.current = session as unknown as LyriaSessionLike
       setIsConnected(true)
       setChunksReceived(0)
       setElapsedSeconds(0)
@@ -714,7 +714,7 @@ export function LyriaFeatureClient({ mode, uiLocale: uiLocaleProp }: { mode: Mod
       })
       await session.setMusicGenerationConfig({
         musicGenerationConfig: buildMusicGenerationConfig(),
-      })
+      } as never)
       toast({ title: tr('Đã kết nối Lyria', 'Lyria connected', 'Lyria 已连接', 'Lyria 接続完了', 'Lyria 연결됨'), description: tr('Sẵn sàng phát nhạc thời gian thực.', 'Ready to play realtime music.', '准备播放实时音乐。', 'リアルタイム音楽の再生準備完了。', '실시간 음악 재생 준비 완료.') })
     } catch (e) {
       const msg = e instanceof Error ? e.message : tr('Không thể kết nối Lyria.', 'Could not connect to Lyria.', '无法连接 Lyria。', 'Lyria に接続できません。', 'Lyria에 연결할 수 없습니다.')
@@ -732,7 +732,7 @@ export function LyriaFeatureClient({ mode, uiLocale: uiLocaleProp }: { mode: Mod
       await sessionRef.current.setWeightedPrompts({ weightedPrompts })
       await sessionRef.current.setMusicGenerationConfig({
         musicGenerationConfig: buildMusicGenerationConfig(),
-      })
+      } as never)
       await sessionRef.current.play()
       setIsPlaying(true)
     } catch (e) {
@@ -875,7 +875,7 @@ export function LyriaFeatureClient({ mode, uiLocale: uiLocaleProp }: { mode: Mod
     try {
       await sessionRef.current.setMusicGenerationConfig({
         musicGenerationConfig: buildMusicGenerationConfig(),
-      })
+      } as never)
       await sessionRef.current.resetContext()
       toast({ title: tr('Đã cập nhật bàn mix', 'Mix board updated', '混音台已更新', 'ミキサーボードを更新しました', '믹스 보드 업데이트됨'), description: tr('BPM và texture đã được làm mới.', 'BPM and texture have been refreshed.', 'BPM 和质感已刷新。', 'BPM とテクスチャを更新しました。', 'BPM과 텍스처가 새로고침되었습니다.') })
     } catch {

@@ -212,18 +212,24 @@ function parsePresetReplay(raw: string): PresetReplayState | null {
         const row = x as Record<string, unknown>
         const reply = String(row.reply || '').trim()
         if (!reply) return null
-        return {
-          reply,
-          expectedStudent: String(row.expectedStudent || row.expected_student || '').trim() || undefined,
-          correctionNote: String(row.correctionNote || '').trim() || undefined,
-          mainSentence: String(row.mainSentence || '').trim() || undefined,
-          intentAnswer: String(row.intentAnswer || '').trim() || undefined,
-          mustKnowText: String(row.mustKnowText || '').trim() || undefined,
-          tokensJson: String(row.tokensJson || (row as { tokens_json?: string }).tokens_json || '').trim() || undefined,
-          writingTaskJson: String(row.writingTaskJson || (row as { writing_task_json?: string }).writing_task_json || '').trim() || undefined,
-        } satisfies PresetReplayTurn
+        const turn: PresetReplayTurn = { reply }
+        const es = String(row.expectedStudent || row.expected_student || '').trim()
+        if (es) turn.expectedStudent = es
+        const cn = String(row.correctionNote || '').trim()
+        if (cn) turn.correctionNote = cn
+        const ms = String(row.mainSentence || '').trim()
+        if (ms) turn.mainSentence = ms
+        const ia = String(row.intentAnswer || '').trim()
+        if (ia) turn.intentAnswer = ia
+        const mk = String(row.mustKnowText || '').trim()
+        if (mk) turn.mustKnowText = mk
+        const tj = String(row.tokensJson || (row as { tokens_json?: string }).tokens_json || '').trim()
+        if (tj) turn.tokensJson = tj
+        const wj = String(row.writingTaskJson || (row as { writing_task_json?: string }).writing_task_json || '').trim()
+        if (wj) turn.writingTaskJson = wj
+        return turn
       })
-      .filter((x): x is PresetReplayTurn => Boolean(x))
+      .filter((x): x is PresetReplayTurn => x != null)
     if (turns.length === 0) return null
     const nextTurnIndexRaw = Number(preset.next_turn_index ?? preset.nextTurnIndex ?? 0)
     const nextTurnIndex = Number.isFinite(nextTurnIndexRaw) ? Math.max(0, Math.floor(nextTurnIndexRaw)) : 0
@@ -358,23 +364,6 @@ function buildReviewDrillRaw(
   }
 }
 
-function extractListeningKeywords(text: string): string[] {
-  const tokens = String(text || '')
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
-    .split(/\s+/)
-    .map((x) => x.trim())
-    .filter((x) => x.length >= 3)
-  const stop = new Set(['the', 'and', 'for', 'with', 'you', 'that', 'this', 'have', 'from', 'your', 'about', 'đây', 'câu', 'với', 'của', 'bạn'])
-  const out: string[] = []
-  for (const t of tokens) {
-    if (stop.has(t)) continue
-    if (!out.includes(t)) out.push(t)
-    if (out.length >= 6) break
-  }
-  return out
-}
-
 function extractListeningAllWords(text: string): string[] {
   const tokens = String(text || '')
     .toLowerCase()
@@ -404,114 +393,6 @@ function speakingDrillThresholdByLevel(learnerLevel: number): { minSimilarity: n
   if (learnerLevel === 2) return { minSimilarity: 0.86, minPronunciationScore: 60 }
   if (learnerLevel === 3) return { minSimilarity: 0.89, minPronunciationScore: 65 }
   return { minSimilarity: 0.92, minPronunciationScore: 70 }
-}
-
-function defaultListeningDistractorsByLanguageCode(code: string): string[] {
-  if (code === 'vi') return ['hôm', 'nay', 'mai', 'học', 'đi', 'nhà', 'ăn', 'uống']
-  if (code === 'zh') return ['今天', '明天', '现在', '谢谢', '喜欢', '学习', '朋友', '家']
-  if (code === 'ja') return ['きょう', 'あした', 'いま', 'ありがとう', 'すき', 'べんきょう', 'ともだち', 'いえ']
-  if (code === 'ko') return ['오늘', '내일', '지금', '고마워요', '좋아해요', '공부', '친구', '집']
-  if (code === 'th') return ['วันนี้', 'พรุ่งนี้', 'ตอนนี้', 'ขอบคุณ', 'ชอบ', 'เรียน', 'เพื่อน', 'บ้าน']
-  if (code === 'hi') return ['आज', 'कल', 'अभी', 'धन्यवाद', 'पसंद', 'पढ़ाई', 'दोस्त', 'घर']
-  return ['today', 'tomorrow', 'now', 'thanks', 'learn', 'friend', 'home', 'work']
-}
-
-function pickListeningCorrectKeywords(prompt: string, languageCode: string): string[] {
-  const all = extractListeningAllWords(prompt)
-  const allowSingleChar = ['zh', 'ja', 'ko', 'th', 'hi'].includes(String(languageCode || '').toLowerCase())
-  const minLen = allowSingleChar ? 1 : 2
-  const out: string[] = []
-  for (const token of all) {
-    const t = String(token || '').trim().toLowerCase()
-    if (!t || t.length < minLen) continue
-    if (out.includes(t)) continue
-    out.push(t)
-    if (out.length >= 3) break
-  }
-  return out
-}
-
-function buildListeningOptionPool(expectedKeywords: string[], candidateKeywords: string[], languageCode: string): string[] {
-  const correctSet = new Set(expectedKeywords.map((x) => normalizeLookup(x)).filter(Boolean))
-  if (correctSet.size < 3) return []
-  const correct = Array.from(correctSet).slice(0, 3)
-  const allowSingleChar = ['zh', 'ja', 'ko', 'th', 'hi'].includes(String(languageCode || '').toLowerCase())
-  const minLen = allowSingleChar ? 1 : 2
-  const wrong: string[] = []
-  for (const token of candidateKeywords) {
-    const t = String(token || '').trim().toLowerCase()
-    if (!t || t.length < minLen) continue
-    if (correctSet.has(t)) continue
-    if (wrong.includes(t)) continue
-    wrong.push(t)
-    if (wrong.length >= 8) break
-  }
-  if (wrong.length < 6) {
-    for (const token of defaultListeningDistractorsByLanguageCode(languageCode)) {
-      const t = String(token || '').trim().toLowerCase()
-      if (!t || correctSet.has(t) || wrong.includes(t)) continue
-      wrong.push(t)
-      if (wrong.length >= 8) break
-    }
-  }
-  if (wrong.length < 6) return []
-  return [...correct, ...wrong.slice(0, 8)]
-}
-
-async function loadListeningDistractorsFromDailyWords(
-  adminSupabase: ReturnType<typeof adminClient>,
-  userId: string,
-  sessionId: string,
-  targetLanguageCode: string,
-  expectedKeywords: string[]
-): Promise<string[]> {
-  const uid = String(userId || '').trim()
-  const sid = String(sessionId || '').trim()
-  if (!uid) return []
-  const expectedSet = new Set(expectedKeywords.map((x) => normalizeLookup(x)).filter(Boolean))
-  const minLen = ['zh', 'ja', 'ko', 'th', 'hi'].includes(String(targetLanguageCode || '').toLowerCase()) ? 1 : 2
-  const out: string[] = []
-
-  const collect = (rows: Array<{ word?: string }> | null | undefined) => {
-    for (const row of (rows || [])) {
-      const tokens = extractListeningAllWords(String(row.word || '').trim())
-      for (const token of tokens) {
-        const t = String(token || '').trim().toLowerCase()
-        if (!t || t.length < minLen) continue
-        if (expectedSet.has(t)) continue
-        if (out.includes(t)) continue
-        out.push(t)
-        if (out.length >= 24) return
-      }
-    }
-  }
-
-  try {
-    if (sid) {
-      const { data: sessionRows } = await adminSupabase
-        .from('language_coach_daily_words')
-        .select('word')
-        .eq('user_id', uid)
-        .eq('session_id', sid)
-        .order('updated_at', { ascending: false })
-        .limit(180)
-      collect((sessionRows || []) as Array<{ word?: string }>)
-    }
-
-    if (out.length < 4) {
-      const { data: userRows } = await adminSupabase
-        .from('language_coach_daily_words')
-        .select('word')
-        .eq('user_id', uid)
-        .order('updated_at', { ascending: false })
-        .limit(300)
-      collect((userRows || []) as Array<{ word?: string }>)
-    }
-
-    return out
-  } catch {
-    return out
-  }
 }
 
 function seededShuffle(words: string[], seedInput: string): string[] {

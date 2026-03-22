@@ -44,7 +44,7 @@ export const ImageUploadWithPreview = forwardRef<HTMLInputElement, ImageUploadWi
     },
     ref
   ) {
-    const internalRef = useRef<HTMLInputElement>(null)
+    const internalRef = useRef<HTMLInputElement | null>(null) as React.MutableRefObject<HTMLInputElement | null>
 
     const triggerInput = () => {
       internalRef.current?.click()

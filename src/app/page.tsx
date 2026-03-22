@@ -1,7 +1,7 @@
-import Link from 'next/link'
 import { Metadata } from 'next'
 import { buildMetadata } from '@/lib/seo'
 import { NAV_GROUPS } from '@/lib/nav-config'
+import { NavHubLinkTile } from '@/components/layout/nav-hub-link-tile'
 import { getServerDictionary } from '@/lib/i18n/server'
 
 export const metadata: Metadata = buildMetadata({
@@ -25,23 +25,9 @@ export default function Home() {
                   {t.navGroup[group.titleKey]}
                 </h2>
                 <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 sm:gap-3 lg:grid-cols-5">
-                  {group.links.map((item) => {
-                    const Icon = item.icon
-                    return (
-                      <Link
-                        key={item.href}
-                        href={item.href}
-                        className="group flex min-h-[132px] flex-col items-center justify-center gap-2 rounded-xl border border-border/70 bg-card/90 p-2 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-blue-200/80 hover:shadow-lg hover:shadow-blue-500/10 dark:hover:border-blue-800/50 dark:hover:bg-slate-900/70 sm:min-h-[160px] sm:p-3"
-                      >
-                        <div className="flex aspect-square w-full max-w-[92px] items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500/10 to-indigo-500/10 transition-all group-hover:from-blue-500/20 group-hover:to-indigo-500/20 sm:max-w-[110px]">
-                          <Icon className="h-[84%] w-[84%] text-blue-600 dark:text-blue-400" strokeWidth={2} />
-                        </div>
-                        <span className="mt-1 px-1 text-center text-[11px] font-medium leading-tight text-foreground transition-colors group-hover:text-blue-600 dark:group-hover:text-blue-400 sm:text-sm md:text-[15px]">
-                          {t.tool[item.labelKey]}
-                        </span>
-                      </Link>
-                    )
-                  })}
+                  {group.links.map((item) => (
+                    <NavHubLinkTile key={item.href} item={item} t={t} variant="surface" />
+                  ))}
                 </div>
               </div>
             ))}

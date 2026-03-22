@@ -323,7 +323,7 @@ export default function HoanDoiKhuonMatClientPage() {
                   </div>
                   <div className="pt-4 border-t space-y-2 flex flex-col items-center">
                     <DepositCreditButton variant="outline" size="sm" className="w-full max-w-[180px] border-fuchsia-200 text-fuchsia-700 hover:bg-fuchsia-50" />
-                    <Button onClick={() => checkCreditsAndProceed(cost, handleSubmit)} disabled={!hasRequiredFaces || !targetImage.file || step === 'GENERATING'} className="w-full max-w-[180px] h-9 shadow-md hover:shadow-lg transition-all text-sm bg-fuchsia-600 hover:bg-fuchsia-700 text-white">
+                    <Button onClick={() => checkCreditsAndProceed(cost, handleSubmit)} disabled={!hasRequiredFaces || !targetImage.file} className="w-full max-w-[180px] h-9 shadow-md hover:shadow-lg transition-all text-sm bg-fuchsia-600 hover:bg-fuchsia-700 text-white">
                       <Sparkles className="mr-2 h-4 w-4" /> {t.swapBtn} ({imageQuality === '2K' ? '2' : '4'} credit)
                     </Button>
                     <p className="text-[10px] text-center text-muted-foreground mt-2">* {t.time}</p>

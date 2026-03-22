@@ -346,7 +346,7 @@ export async function generateAiImage(formData: FormData) {
       throw new Error(`AI did not return a valid image. Full response: ${JSON.stringify(response)}`);
     }
 
-    const resultImageBase64 = imagePart.inlineData.data;
+    const resultImageBase64 = (imagePart as { inlineData: { data: string } }).inlineData.data;
     const resultImageBuffer = Buffer.from(resultImageBase64, 'base64');
     const resultImagePath = `results/${user.id}/try-on_${timestamp}.png`;
 

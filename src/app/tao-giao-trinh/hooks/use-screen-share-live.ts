@@ -77,7 +77,7 @@ export function useScreenShareLive(): UseScreenShareLiveReturn {
       const code = generateShareCode()
       setShareCode(code)
       const baseUrl = getShareBaseUrl()
-      const url = `${baseUrl}/tao-giao-trinh/xem-man-hinh?share=${code}`
+      const url = `${baseUrl}/giao-trinh/xem-man-hinh?share=${code}`
       setShareUrl(url)
 
       const supabase = createClient()

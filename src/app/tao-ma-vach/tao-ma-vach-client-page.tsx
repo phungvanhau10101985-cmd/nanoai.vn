@@ -418,7 +418,7 @@ export default function TaoMaVachClientPage() {
                 <span className="animate-pulse">{tr('Đang tạo...', 'Generating...', '生成中...', '生成中...', '생성 중...')}</span>
               ) : (
                 <>
-                  <Sparkles className="mr-2 h-4 w-4" /> {mode === 'vietqr' ? tr('Tạo VietQR', 'Generate VietQR', '生成 VietQR', 'VietQRを生成', 'VietQR 생성') : tr('Tạo mã vạch', 'Generate barcode', '生成条码', 'バーコードを生成', '바코드 생성')}
+                  <Sparkles className="mr-2 h-4 w-4" /> {tr('Tạo mã vạch', 'Generate barcode', '生成条码', 'バーコードを生成', '바코드 생성')}
                 </>
               )}
             </Button>

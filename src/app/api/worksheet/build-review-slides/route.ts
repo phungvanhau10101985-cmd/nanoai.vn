@@ -1,5 +1,5 @@
 /**
- * Tạo phiếu bài tập từ các câu đã chọn (giáo viên) → mở /tao-giao-trinh/giao-vien?worksheetId=…
+ * Tạo phiếu bài tập từ các câu đã chọn (giáo viên) → mở /giao-trinh/giao-vien?worksheetId=…
  * Thứ tự: hết trắc nghiệm rồi tự luận.
  */
 import { NextRequest, NextResponse } from 'next/server'
@@ -107,7 +107,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       worksheetId,
-      teacherPath: `/tao-giao-trinh/giao-vien?worksheetId=${encodeURIComponent(worksheetId)}`,
+      teacherPath: `/giao-trinh/giao-vien?worksheetId=${encodeURIComponent(worksheetId)}`,
     })
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)

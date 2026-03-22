@@ -9,6 +9,48 @@ import { RefreshCw, CheckCircle, Clock, Share2, Play } from 'lucide-react'
 import { latexToReadable } from '@/app/tao-giao-trinh/lib/latex-to-readable'
 
 type Question = { id: string; index: number; type?: 'quiz' | 'essay'; question_text: string; options: string[] }
+const STUDENT_PROFILE_STORAGE_KEY = 'exam-session:student-profile:v1'
+
+function normalizeName(input: string): string {
+  return String(input || '').replace(/\s+/g, ' ').trim()
+}
+
+function isValidDob(input: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input)) return false
+  const d = new Date(`${input}T00:00:00`)
+  if (Number.isNaN(d.getTime())) return false
+  return d.getUTCFullYear() >= 1900 && d <= new Date()
+}
+
+function formatDob(input: string): string {
+  if (!isValidDob(input)) return input
+  const [y, m, d] = input.split('-')
+  return `${d}/${m}/${y}`
+}
+
+function buildDob(day: string, month: string, year: string): string {
+  const d = Number(day)
+  const m = Number(month)
+  const y = Number(year)
+  if (!Number.isFinite(d) || !Number.isFinite(m) || !Number.isFinite(y)) return ''
+  const mm = String(m).padStart(2, '0')
+  const dd = String(d).padStart(2, '0')
+  return `${y}-${mm}-${dd}`
+}
+
+function splitDob(input: string): { day: string; month: string; year: string } {
+  if (!isValidDob(input)) return { day: '', month: '', year: '' }
+  const [year, month, day] = input.split('-')
+  return {
+    day: String(Number(day)),
+    month: String(Number(month)),
+    year,
+  }
+}
+
+function daysInMonth(year: number, month: number): number {
+  return new Date(year, month, 0).getDate()
+}
 
 function playBell() {
   try {
@@ -33,10 +75,16 @@ export default function LamBaiClientPage({ code }: { code: string }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [exam, setExam] = useState<{ title: string; durationMinutes: number; questions: Question[] } | null>(null)
+  /** JWT map đáp án hiển thị → chỉ số gốc — bắt buộc khi nộp bài */
+  const [layoutToken, setLayoutToken] = useState<string | null>(null)
   const [answers, setAnswers] = useState<Record<string, number | string>>({})
   const [studentName, setStudentName] = useState('')
-  const [className, setClassName] = useState('')
-  const [studentCard, setStudentCard] = useState('')
+  const [studentDob, setStudentDob] = useState('')
+  const [dobDay, setDobDay] = useState('')
+  const [dobMonth, setDobMonth] = useState('')
+  const [dobYear, setDobYear] = useState('')
+  const [useSavedProfile, setUseSavedProfile] = useState(false)
+  const [editingProfile, setEditingProfile] = useState(false)
   const [examStarted, setExamStarted] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [result, setResult] = useState<{ score: number; maxScore: number; grade10: number; comment: string; shareHint: string } | null>(null)
@@ -47,6 +95,39 @@ export default function LamBaiClientPage({ code }: { code: string }) {
   const bellPlayedRef = useRef(false)
   const fiveMinuteWarnedRef = useRef(false)
   const [fiveMinuteWarning, setFiveMinuteWarning] = useState(false)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      const raw = window.localStorage.getItem(STUDENT_PROFILE_STORAGE_KEY)
+      if (!raw) return
+      const parsed = JSON.parse(raw) as { name?: unknown; dob?: unknown }
+      const savedName = normalizeName(String(parsed?.name ?? ''))
+      const savedDob = String(parsed?.dob ?? '')
+      if (savedName && isValidDob(savedDob)) {
+        setStudentName(savedName)
+        setStudentDob(savedDob)
+        const parts = splitDob(savedDob)
+        setDobDay(parts.day)
+        setDobMonth(parts.month)
+        setDobYear(parts.year)
+        setUseSavedProfile(true)
+      }
+    } catch {
+      // ignore parse errors
+    }
+  }, [])
+
+  useEffect(() => {
+    const nextDob = buildDob(dobDay, dobMonth, dobYear)
+    setStudentDob(nextDob)
+  }, [dobDay, dobMonth, dobYear])
+
+  useEffect(() => {
+    if (!dobDay || !dobMonth || !dobYear) return
+    const max = daysInMonth(Number(dobYear), Number(dobMonth))
+    if (Number(dobDay) > max) setDobDay(String(max))
+  }, [dobDay, dobMonth, dobYear])
 
   useEffect(() => {
     let cancelled = false
@@ -60,6 +141,7 @@ export default function LamBaiClientPage({ code }: { code: string }) {
           setError(data.error)
           return
         }
+        setLayoutToken(typeof data.layoutToken === 'string' ? data.layoutToken : null)
         setExam({
           title: data.title || 'Bài thi',
           durationMinutes: data.durationMinutes || 15,
@@ -87,14 +169,19 @@ export default function LamBaiClientPage({ code }: { code: string }) {
 
   const handleSubmit = useCallback(async () => {
     if (!exam || submitting) return
+    if (!layoutToken?.trim()) {
+      setError('Thiếu phiên đề thi. Vui lòng tải lại trang.')
+      return
+    }
     setSubmitting(true)
     try {
       const res = await fetch(`/api/exam-session/${encodeURIComponent(code)}/submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          studentName: [studentName.trim(), className.trim()].filter(Boolean).join(' – ') || undefined,
-          studentCode: studentCard.trim() || undefined,
+          studentName: normalizeName(studentName),
+          studentDob,
+          layoutToken,
           answers,
         }),
       })
@@ -115,7 +202,7 @@ export default function LamBaiClientPage({ code }: { code: string }) {
     } finally {
       setSubmitting(false)
     }
-  }, [exam, code, studentName, className, studentCard, answers, submitting])
+  }, [exam, code, studentName, studentDob, answers, submitting, layoutToken])
 
   const elapsedMs = startedAt ? now - startedAt : 0
   const totalMs = exam ? exam.durationMinutes * 60 * 1000 : 0
@@ -223,6 +310,15 @@ export default function LamBaiClientPage({ code }: { code: string }) {
 
   if (!exam) return null
 
+  const currentYear = new Date().getFullYear()
+  const yearOptions = Array.from({ length: 100 }, (_, i) => String(currentYear - i))
+  const monthOptions = Array.from({ length: 12 }, (_, i) => String(i + 1))
+  const selectedYear = Number(dobYear || String(currentYear))
+  const selectedMonth = Number(dobMonth || '1')
+  const maxDay = daysInMonth(selectedYear, selectedMonth)
+  const dayOptions = Array.from({ length: maxDay }, (_, i) => String(i + 1))
+  const canStartExam = normalizeName(studentName).length >= 2 && isValidDob(studentDob)
+
   if (!examStarted) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4 bg-muted/30">
@@ -234,33 +330,80 @@ export default function LamBaiClientPage({ code }: { code: string }) {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Họ tên</label>
-              <Input
-                placeholder="Nguyễn Văn A"
-                value={studentName}
-                onChange={(e) => setStudentName(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Lớp</label>
-              <Input
-                placeholder="Ví dụ: 12A1"
-                value={className}
-                onChange={(e) => setClassName(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Số thẻ học sinh (không bắt buộc)</label>
-              <Input
-                placeholder="Số thẻ học sinh"
-                value={studentCard}
-                onChange={(e) => setStudentCard(e.target.value)}
-              />
-              <p className="text-xs text-muted-foreground">Mỗi tài khoản chỉ được làm bài một lần.</p>
-            </div>
+            {useSavedProfile && !editingProfile ? (
+              <div className="space-y-2 rounded border bg-muted/30 p-3">
+                <p className="text-sm">
+                  Học sinh: <strong>{studentName}</strong>
+                </p>
+                <p className="text-sm">
+                  Ngày sinh: <strong>{formatDob(studentDob)}</strong>
+                </p>
+                <Button type="button" variant="outline" size="sm" onClick={() => setEditingProfile(true)}>
+                  Nhập thông tin khác
+                </Button>
+              </div>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Họ tên *</label>
+                  <Input
+                    placeholder="Nguyễn Văn A"
+                    value={studentName}
+                    onChange={(e) => setStudentName(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Ngày tháng năm sinh *</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    <select
+                      value={dobDay}
+                      onChange={(e) => setDobDay(e.target.value)}
+                      className="w-full h-10 rounded-md border border-input bg-background px-3 py-1 text-sm"
+                    >
+                      <option value="">Ngày</option>
+                      {dayOptions.map((d) => (
+                        <option key={`d-${d}`} value={d}>{d}</option>
+                      ))}
+                    </select>
+                    <select
+                      value={dobMonth}
+                      onChange={(e) => setDobMonth(e.target.value)}
+                      className="w-full h-10 rounded-md border border-input bg-background px-3 py-1 text-sm"
+                    >
+                      <option value="">Tháng</option>
+                      {monthOptions.map((m) => (
+                        <option key={`m-${m}`} value={m}>{m}</option>
+                      ))}
+                    </select>
+                    <select
+                      value={dobYear}
+                      onChange={(e) => setDobYear(e.target.value)}
+                      className="w-full h-10 rounded-md border border-input bg-background px-3 py-1 text-sm"
+                    >
+                      <option value="">Năm</option>
+                      {yearOptions.map((y) => (
+                        <option key={`y-${y}`} value={y}>{y}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </>
+            )}
+            <p className="text-xs text-muted-foreground">Mỗi tài khoản chỉ được làm bài một lần.</p>
             <Button
               onClick={() => {
+                if (!canStartExam) return
+                const normalized = normalizeName(studentName)
+                if (typeof window !== 'undefined') {
+                  try {
+                    window.localStorage.setItem(STUDENT_PROFILE_STORAGE_KEY, JSON.stringify({ name: normalized, dob: studentDob }))
+                  } catch {
+                    // ignore storage errors
+                  }
+                }
+                setStudentName(normalized)
+                setUseSavedProfile(true)
+                setEditingProfile(false)
                 setExamStarted(true)
                 setStartedAt(Date.now())
                 setFiveMinuteWarning(false)
@@ -268,6 +411,7 @@ export default function LamBaiClientPage({ code }: { code: string }) {
                 autoSubmittedRef.current = false
                 bellPlayedRef.current = false
               }}
+              disabled={!canStartExam}
               className="w-full"
             >
               <Play className="h-4 w-4 mr-2" />

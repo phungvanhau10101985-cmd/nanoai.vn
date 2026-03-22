@@ -1,4 +1,5 @@
 'use client'
+/* eslint-disable @typescript-eslint/no-unused-vars -- nhiều state/helper dự phòng; dọn dần khi refactor */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
@@ -2876,14 +2877,14 @@ export default function HocBaiHocCoSanClientPage() {
   const getWritingTaskProgressStorageKey = useCallback((sid: string) => `nanoai_writing_task_progress:${sid}`, [])
 
   const redirectToMiniDrill = useCallback(() => {
-    if (reviewDrillStage === 'writing') {
+    if (String(reviewDrillStage) === 'writing') {
       writingTaskRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
       window.setTimeout(() => {
         writingInputRef.current?.focus()
       }, 180)
-    } else if (reviewDrillStage === 'speaking') {
+    } else if (String(reviewDrillStage) === 'speaking') {
       miniSpeakingBlockRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    } else if (reviewDrillStage === 'listening') {
+    } else if (String(reviewDrillStage) === 'listening') {
       miniListeningBlockRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
     }
   }, [reviewDrillStage])
@@ -3055,16 +3056,18 @@ export default function HocBaiHocCoSanClientPage() {
       if (!ok) return
       const normalizedItems = Array.isArray(data.items)
         ? data.items
-            .map((x) => ({
-              topicId: String(x.topicId || '').trim(),
-              topicLabel: String(x.topicLabel || '').trim(),
-              topicDifficulty:
-                x.topicDifficulty === 'advanced'
+            .map((x: unknown) => {
+              const row = x as { topicId?: unknown; topicLabel?: unknown; topicDifficulty?: unknown }
+              return {
+                topicId: String(row.topicId || '').trim(),
+                topicLabel: String(row.topicLabel || '').trim(),
+                topicDifficulty: (row.topicDifficulty === 'advanced'
                   ? 'advanced'
-                  : x.topicDifficulty === 'intermediate'
+                  : row.topicDifficulty === 'intermediate'
                     ? 'intermediate'
-                    : 'basic',
-            }))
+                    : 'basic') as TopicDifficulty,
+              }
+            })
             .filter((x) => x.topicId && x.topicLabel)
         : []
       const dedupById = normalizedItems.reduce<CustomTopicItem[]>((acc, item) => {
@@ -3255,10 +3258,11 @@ export default function HocBaiHocCoSanClientPage() {
       const { ok, data } = await getReviewDue(8)
       if (!ok) return
       const raw = Array.isArray(data.items) ? data.items : []
-      const normalized = raw.map((item) => {
+      const normalized = raw.map((itemUnknown) => {
+        const item = itemUnknown as Record<string, unknown>
         const meaning = String(item.meaning || '').trim()
         const pronunciation = String(item.pronunciation || '').trim()
-        const senses = sanitizeWordSenses((item as { senses?: unknown }).senses)
+        const senses = sanitizeWordSenses(item.senses)
         const exampleItems = sanitizeWordExampleItems(item.exampleItems)
         const exampleTarget = String(item.exampleTarget || '').trim()
         const exampleNative = String(item.exampleNative || '').trim()
@@ -3277,13 +3281,13 @@ export default function HocBaiHocCoSanClientPage() {
           exampleItems: exampleItems.length > 0 ? exampleItems : (senseExamples.length > 0 ? senseExamples : (exampleTarget && exampleNative ? [{ targetText: exampleTarget, nativeText: exampleNative }] : [])),
           exampleTarget,
           exampleNative,
-        }
+        } as unknown as ReviewItem
       })
       setReviewItems(normalized)
       normalized.forEach((item) => {
         if (!isCjkTargetLanguage(item.targetLanguage)) return
         const examples = item.exampleItems ?? (item.exampleTarget && item.exampleNative ? [{ targetText: item.exampleTarget, nativeText: item.exampleNative, targetPinyin: undefined }] : [])
-        examples.forEach((ex) => {
+        examples.forEach((ex: { targetText?: string; targetPinyin?: string; nativeText?: string }) => {
           const exampleText = String(ex.targetText || '').trim()
           const hasPinyin = String(ex.targetPinyin || '').trim()
           if (exampleText && !hasPinyin) void ensureWritingRomanization(exampleText, item.targetLanguage)
@@ -3762,7 +3766,7 @@ export default function HocBaiHocCoSanClientPage() {
           mime.includes('audio/aac') ||
           mime.includes('audio/flac')
         const blob = browserPlayable
-          ? new Blob([bytes], { type: cachePayload.mimeType || 'audio/wav' })
+          ? new Blob([bytes as BlobPart], { type: cachePayload.mimeType || 'audio/wav' })
           : pcm16MonoToWavBlob(bytes, 24000)
         const blobType = browserPlayable ? cachePayload.mimeType || 'audio/wav' : 'audio/wav'
         const url = URL.createObjectURL(blob)
@@ -3832,7 +3836,7 @@ export default function HocBaiHocCoSanClientPage() {
       mime.includes('audio/flac')
 
     const blob = browserPlayable
-      ? new Blob([bytes], { type: payload.mimeType || 'audio/wav' })
+      ? new Blob([bytes as BlobPart], { type: payload.mimeType || 'audio/wav' })
       : pcm16MonoToWavBlob(bytes, 24000)
     const blobType = browserPlayable ? payload.mimeType || 'audio/wav' : 'audio/wav'
 
@@ -3888,7 +3892,7 @@ export default function HocBaiHocCoSanClientPage() {
       mime.includes('audio/aac') ||
       mime.includes('audio/flac')
     const blob = browserPlayable
-      ? new Blob([bytes], { type: payload.mimeType || 'audio/wav' })
+      ? new Blob([bytes as BlobPart], { type: payload.mimeType || 'audio/wav' })
       : pcm16MonoToWavBlob(bytes, 24000)
     const blobType = browserPlayable ? payload.mimeType || 'audio/wav' : 'audio/wav'
     const url = URL.createObjectURL(blob)
@@ -5203,13 +5207,14 @@ export default function HocBaiHocCoSanClientPage() {
     const { ok, data } = await getPreviousLessonWords(50)
     if (!ok) throw new Error(data.error || localText('Không tải được từ buổi trước.', 'Failed to load previous words.'))
     const raw = Array.isArray(data.items) ? data.items : []
-    const normalized = raw.map((item) => {
+    const normalized = raw.map((itemUnknown) => {
+      const item = itemUnknown as Record<string, unknown>
       const meaning = String(item.meaning || '').trim()
       const pronunciation = String(item.pronunciation || '').trim()
       const exampleTarget = String(item.exampleTarget || '').trim()
       const exampleNative = String(item.exampleNative || '').trim()
-      const senses = sanitizeWordSenses((item as { senses?: unknown }).senses)
-      const exampleItems = sanitizeWordExampleItems((item as { exampleItems?: unknown }).exampleItems)
+      const senses = sanitizeWordSenses(item.senses)
+      const exampleItems = sanitizeWordExampleItems(item.exampleItems)
       const senseExamples = senses
         .map((s) => ({ targetText: String(s.exampleTarget || '').trim(), nativeText: String(s.exampleNative || '').trim() }))
         .filter((s) => s.targetText && s.nativeText)
@@ -5220,9 +5225,9 @@ export default function HocBaiHocCoSanClientPage() {
         exampleTarget,
         exampleNative,
         senses,
-        usageLevel: normalizeWordUsageLevel((item as { usageLevel?: unknown }).usageLevel),
-        importanceScore: normalizeWordImportanceScore((item as { importanceScore?: unknown }).importanceScore),
-        contextSensitive: normalizeWordContextSensitive((item as { contextSensitive?: unknown }).contextSensitive),
+        usageLevel: normalizeWordUsageLevel(item.usageLevel),
+        importanceScore: normalizeWordImportanceScore(item.importanceScore),
+        contextSensitive: normalizeWordContextSensitive(item.contextSensitive),
         pronunciationAudioUrl: String(item.pronunciationAudioUrl || '').trim(),
         meaningItems: [],
         exampleItems: exampleItems.length > 0 ? exampleItems : (
@@ -5233,7 +5238,7 @@ export default function HocBaiHocCoSanClientPage() {
             ? [{ targetText: exampleTarget, nativeText: exampleNative }]
             : []
         ),
-      }
+      } as unknown as TodayWordItem
     })
     const filtered = normalized.filter((item) => item.meaning.length > 0)
     const uniqueByWord = new Map<string, TodayWordItem>()
@@ -5275,13 +5280,14 @@ export default function HocBaiHocCoSanClientPage() {
       const { ok, data } = await getSessionWords(sid, 80, turnIdx)
       if (!ok) throw new Error(data.error || localText('Không tải được từ mới buổi học.', 'Failed to load lesson vocabulary.'))
       const normalizedItems = Array.isArray(data.items)
-        ? data.items.map((item) => {
+        ? data.items.map((itemUnknown) => {
+            const item = itemUnknown as Record<string, unknown>
             const meaning = String(item.meaning || '').trim()
             const pronunciation = String(item.pronunciation || '').trim()
             const exampleTarget = String(item.exampleTarget || '').trim()
             const exampleNative = String(item.exampleNative || '').trim()
-            const senses = sanitizeWordSenses((item as { senses?: unknown }).senses)
-            const exampleItems = sanitizeWordExampleItems((item as { exampleItems?: unknown }).exampleItems)
+            const senses = sanitizeWordSenses(item.senses)
+            const exampleItems = sanitizeWordExampleItems(item.exampleItems)
             const senseExamples = senses
               .map((s) => ({ targetText: String(s.exampleTarget || '').trim(), nativeText: String(s.exampleNative || '').trim() }))
               .filter((s) => s.targetText && s.nativeText)
@@ -5292,9 +5298,9 @@ export default function HocBaiHocCoSanClientPage() {
               exampleTarget,
               exampleNative,
               senses,
-              usageLevel: normalizeWordUsageLevel((item as { usageLevel?: unknown }).usageLevel),
-              importanceScore: normalizeWordImportanceScore((item as { importanceScore?: unknown }).importanceScore),
-              contextSensitive: normalizeWordContextSensitive((item as { contextSensitive?: unknown }).contextSensitive),
+              usageLevel: normalizeWordUsageLevel(item.usageLevel),
+              importanceScore: normalizeWordImportanceScore(item.importanceScore),
+              contextSensitive: normalizeWordContextSensitive(item.contextSensitive),
               pronunciationAudioUrl: String(item.pronunciationAudioUrl || '').trim(),
               meaningItems: [],
               exampleItems: exampleItems.length > 0 ? exampleItems : (
@@ -5305,7 +5311,7 @@ export default function HocBaiHocCoSanClientPage() {
                   ? [{ targetText: exampleTarget, nativeText: exampleNative }]
                   : []
               ),
-            }
+            } as unknown as TodayWordItem
           })
         : []
       setTodayWords(normalizedItems)
@@ -5313,7 +5319,7 @@ export default function HocBaiHocCoSanClientPage() {
       normalizedItems.forEach((item) => {
         if (!isCjkTargetLanguage(item.targetLanguage)) return
         const examples = item.exampleItems ?? (item.exampleTarget && item.exampleNative ? [{ targetText: item.exampleTarget, nativeText: item.exampleNative, targetPinyin: undefined }] : [])
-        examples.forEach((ex) => {
+        examples.forEach((ex: { targetText?: string; targetPinyin?: string; nativeText?: string }) => {
           const exampleText = String(ex.targetText || '').trim()
           const hasPinyin = String(ex.targetPinyin || '').trim()
           if (exampleText && !hasPinyin) void ensureWritingRomanization(exampleText, item.targetLanguage)
@@ -5804,7 +5810,8 @@ export default function HocBaiHocCoSanClientPage() {
                 limit: 4,
                 languageCode,
               })
-              const distractors = Array.isArray((data as { words?: string[] }).words) ? (data as { words?: string[] }).words : []
+              const wordsRaw = (data as { words?: string[] } | null | undefined)?.words
+              const distractors: string[] = Array.isArray(wordsRaw) ? wordsRaw : []
               const fallback = buildListeningFallbackCandidates(promptForListening, languageCode).filter(
                 (x) => String(x || '').trim().toLowerCase() !== correctWord && !tokenList.includes(String(x || '').trim().toLowerCase())
               )
@@ -5906,7 +5913,8 @@ export default function HocBaiHocCoSanClientPage() {
                 limit: 4,
                 languageCode,
               })
-              const distractors = Array.isArray((data as { words?: string[] }).words) ? (data as { words?: string[] }).words : []
+              const wordsRaw = (data as { words?: string[] } | null | undefined)?.words
+              const distractors: string[] = Array.isArray(wordsRaw) ? wordsRaw : []
               const fallback = buildListeningFallbackCandidates(promptForListening, languageCode).filter(
                 (x) => String(x || '').trim().toLowerCase() !== correctWord && !tokenList.includes(String(x || '').trim().toLowerCase())
               )
@@ -5932,7 +5940,9 @@ export default function HocBaiHocCoSanClientPage() {
         const teachers = TEACHERS_BY_LANGUAGE[metaLanguage]
         const normalize = (value: string) => String(value || '').trim().toLowerCase()
         const teacherLabelMeta = normalize(String(firstMeta?.teacherLabel || ''))
-        const teacherLocaleMeta = normalize(String(firstMeta?.teacherLocale || ''))
+        const teacherLocaleMeta = normalize(
+          String((firstMeta as { teacherLocale?: string } | undefined)?.teacherLocale || '')
+        )
         const inferGenderFromLabel = (label: string): Gender | null => {
           if (!label) return null
           if (/(^|\s)(thay|thầy|male|mr|nam|anh)(\s|$)/i.test(label)) return 'male'
@@ -6027,7 +6037,7 @@ export default function HocBaiHocCoSanClientPage() {
               {
                 topicId: sessionTopicId,
                 topicLabel: sessionTopicLabel,
-                topicDifficulty: 'basic',
+                topicDifficulty: 'basic' as TopicDifficulty,
               },
               ...prev,
             ].slice(0, 30)
@@ -6968,7 +6978,8 @@ export default function HocBaiHocCoSanClientPage() {
               limit: 4,
               languageCode,
             })
-            const distractors = Array.isArray((data as { words?: string[] }).words) ? (data as { words?: string[] }).words : []
+            const wordsRaw = (data as { words?: string[] } | null | undefined)?.words
+            const distractors: string[] = Array.isArray(wordsRaw) ? wordsRaw : []
             const fallback = buildListeningFallbackCandidates(promptForListening, languageCode).filter((x) => norm(x) !== norm(correctWord) && !tokenList.includes(norm(x)))
             const wrong = distractors.length >= 4 ? distractors.slice(0, 4) : [...distractors, ...fallback].slice(0, 4)
             const opts = shuffleListeningWords([correctWord, ...wrong])
@@ -7146,7 +7157,8 @@ export default function HocBaiHocCoSanClientPage() {
           limit: 4,
           languageCode,
         }).then(({ data }) => {
-          const distractors = Array.isArray((data as { words?: string[] }).words) ? (data as { words?: string[] }).words : []
+          const wordsRaw = (data as { words?: string[] } | null | undefined)?.words
+          const distractors: string[] = Array.isArray(wordsRaw) ? wordsRaw : []
           const fallback = buildListeningFallbackCandidates(prompt, languageCode).filter(
             (x) => String(x || '').trim().toLowerCase() !== nextCorrect && !tokenList.some((t) => String(t || '').trim().toLowerCase() === String(x || '').trim().toLowerCase())
           )
@@ -7164,7 +7176,8 @@ export default function HocBaiHocCoSanClientPage() {
           limit: 4,
           languageCode,
         }).then(({ data }) => {
-          const distractors = Array.isArray((data as { words?: string[] }).words) ? (data as { words?: string[] }).words : []
+          const wordsRaw = (data as { words?: string[] } | null | undefined)?.words
+          const distractors: string[] = Array.isArray(wordsRaw) ? wordsRaw : []
           const fallback = buildListeningFallbackCandidates(reviewListeningPrompt, languageCode).filter(
             (x) => String(x || '').trim().toLowerCase() !== currentCorrect && !reviewListeningExpectedKeywords.some((t) => String(t || '').trim().toLowerCase() === String(x || '').trim().toLowerCase())
           )
@@ -7176,7 +7189,7 @@ export default function HocBaiHocCoSanClientPage() {
   }
 
   const startDrillListenAndRecord = async () => {
-    if (learningMode === 'review' && reviewDrillStage === 'writing' && Boolean(writingTask) && !writingTask.completed) {
+    if (learningMode === 'review' && String(reviewDrillStage) === 'writing' && writingTask != null && !writingTask.completed) {
       redirectToMiniWriting()
       return
     }
@@ -7214,7 +7227,7 @@ export default function HocBaiHocCoSanClientPage() {
   }
 
   const startDrillSpeakingRecording = async () => {
-    if (learningMode === 'review' && reviewDrillStage === 'writing' && Boolean(writingTask) && !writingTask.completed) {
+    if (learningMode === 'review' && String(reviewDrillStage) === 'writing' && writingTask != null && !writingTask.completed) {
       redirectToMiniWriting()
       return
     }
@@ -7244,7 +7257,7 @@ export default function HocBaiHocCoSanClientPage() {
   }
 
   const playSpeakingDrillBlob = async () => {
-    if (learningMode === 'review' && reviewDrillStage === 'writing' && Boolean(writingTask) && !writingTask.completed) {
+    if (learningMode === 'review' && String(reviewDrillStage) === 'writing' && writingTask != null && !writingTask.completed) {
       redirectToMiniWriting()
       return
     }
@@ -7263,7 +7276,7 @@ export default function HocBaiHocCoSanClientPage() {
   }
 
   const submitSpeakingDrillCycle = async () => {
-    if (learningMode === 'review' && reviewDrillStage === 'writing' && Boolean(writingTask) && !writingTask.completed) {
+    if (learningMode === 'review' && String(reviewDrillStage) === 'writing' && writingTask != null && !writingTask.completed) {
       redirectToMiniWriting()
       return
     }
@@ -7573,7 +7586,7 @@ export default function HocBaiHocCoSanClientPage() {
       mode: learningMode === 'reflex' ? 'listen_speak' : mode,
       learningMode,
       teacherLabel: activeTeacher.label,
-      teacherLocale: activeTeacher.ttsLocale,
+      teacherLocale: activeTeacher.locale,
       languageCode,
     })
     if (!ok) throw new Error(data.error || localText('Không kiểm tra được bài học có sẵn.', 'Cannot check saved lesson match.'))
@@ -7631,7 +7644,7 @@ export default function HocBaiHocCoSanClientPage() {
         mode: learningMode === 'reflex' ? 'listen_speak' : mode,
         learningMode,
         teacherLabel: activeTeacher.label,
-        teacherLocale: activeTeacher.ttsLocale,
+        teacherLocale: activeTeacher.locale,
         languageCode,
       })
       if (!ok) {
@@ -7988,7 +8001,11 @@ export default function HocBaiHocCoSanClientPage() {
     setListening(false)
 
     const preferredMimeType = String(recordingMimeTypeRef.current || '').trim()
-    const chunkMimeType = String(mixedChunksRef.current[0]?.type || '').trim()
+    const firstChunk = mixedChunksRef.current[0]
+    const chunkMimeType =
+      firstChunk && typeof firstChunk !== 'string' && 'type' in firstChunk
+        ? String((firstChunk as Blob).type || '').trim()
+        : ''
     const finalMimeType = preferredMimeType || chunkMimeType || 'audio/webm'
     const blob = new Blob(mixedChunksRef.current, { type: finalMimeType })
     mixedChunksRef.current = []
@@ -9677,7 +9694,7 @@ export default function HocBaiHocCoSanClientPage() {
                         className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${
                           writingTask?.completed
                             ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
-                            : reviewDrillStage === 'writing'
+                            : String(reviewDrillStage) === 'writing'
                               ? 'border-amber-300 bg-amber-50 text-amber-700'
                               : 'border-slate-300 bg-white text-slate-600'
                         }`}
@@ -9685,23 +9702,23 @@ export default function HocBaiHocCoSanClientPage() {
                         {localText('1) Viết', '1) Writing')} -{' '}
                         {writingTask?.completed
                           ? localText('xong', 'done')
-                          : reviewDrillStage === 'writing'
+                          : String(reviewDrillStage) === 'writing'
                             ? localText('đang làm', 'in progress')
                             : localText('chờ', 'pending')}
                       </span>
                       <span
                         className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${
-                          reviewMiniPackCompleted || reviewDrillStage === 'listening'
+                          reviewMiniPackCompleted || String(reviewDrillStage) === 'listening'
                             ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
-                            : reviewDrillStage === 'speaking'
+                            : String(reviewDrillStage) === 'speaking'
                               ? 'border-amber-300 bg-amber-50 text-amber-700'
                               : 'border-slate-300 bg-white text-slate-600'
                         }`}
                       >
                         {localText('2) Nói', '2) Speaking')} -{' '}
-                        {reviewMiniPackCompleted || reviewDrillStage === 'listening'
+                        {reviewMiniPackCompleted || String(reviewDrillStage) === 'listening'
                           ? localText('xong', 'done')
-                          : reviewDrillStage === 'speaking'
+                          : String(reviewDrillStage) === 'speaking'
                             ? localText('đang làm', 'in progress')
                             : localText('chờ', 'pending')}
                       </span>
@@ -9709,7 +9726,7 @@ export default function HocBaiHocCoSanClientPage() {
                         className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${
                           reviewMiniPackCompleted
                             ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
-                            : reviewDrillStage === 'listening'
+                            : String(reviewDrillStage) === 'listening'
                               ? 'border-amber-300 bg-amber-50 text-amber-700'
                               : 'border-slate-300 bg-white text-slate-600'
                         }`}
@@ -9717,25 +9734,14 @@ export default function HocBaiHocCoSanClientPage() {
                         {localText('3) Nghe', '3) Listening')} -{' '}
                         {reviewMiniPackCompleted
                           ? localText('xong', 'done')
-                          : reviewDrillStage === 'listening'
+                          : String(reviewDrillStage) === 'listening'
                             ? localText('đang làm', 'in progress')
                             : localText('chờ', 'pending')}
                       </span>
                     </div>
                   </div>
                 ) : null}
-                {isMiniDrillBlocking &&
-                reviewDrillStage !== 'writing' &&
-                reviewDrillStage !== 'speaking' &&
-                reviewDrillStage !== 'listening' ? (
-                  <div className="rounded-md border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs text-indigo-700">
-                    {reviewDrillStage === 'writing'
-                      ? localText('Mini 1/3: Viết lại câu mục tiêu', 'Mini 1/3: Rewrite the target sentence')
-                      : reviewDrillStage === 'speaking'
-                        ? localText('Mini 2/3: Nói lại câu sửa để luyện phát âm', 'Mini 2/3: Repeat the corrected sentence')
-                        : localText('Mini 3/3: Chọn từ bạn nghe thấy', 'Mini 3/3: Pick words you heard')}
-                  </div>
-                ) : null}
+                {null}
                 {!isMiniDrillBlocking && isPresetPageSession && (isPresetFirstEntering ? firstPresetReadingDisplay : latestMainSentenceForLearner) ? (
                   <div className="rounded-md border border-emerald-200 bg-emerald-50/70 px-3 py-2 text-xs text-emerald-800">
                     {(() => {
@@ -10020,7 +10026,7 @@ export default function HocBaiHocCoSanClientPage() {
                   </p>
                 ) : null}
               </div>
-              {learningMode === 'review' && !isPresetFirstEntering && reviewDrillStage === 'writing' && writingTask && !writingTask.completed ? (
+              {learningMode === 'review' && !isPresetFirstEntering && String(reviewDrillStage) === 'writing' && writingTask && !writingTask.completed ? (
                 <div
                   ref={writingTaskRef}
                   className={`min-w-0 rounded-md border p-2.5 ${
@@ -10038,7 +10044,7 @@ export default function HocBaiHocCoSanClientPage() {
                           className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${
                             writingTask?.completed
                               ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
-                              : reviewDrillStage === 'writing'
+                              : String(reviewDrillStage) === 'writing'
                                 ? 'border-amber-300 bg-amber-50 text-amber-700'
                                 : 'border-slate-300 bg-white text-slate-600'
                           }`}
@@ -10046,23 +10052,23 @@ export default function HocBaiHocCoSanClientPage() {
                           {localText('1) Viết', '1) Writing')} -{' '}
                           {writingTask?.completed
                             ? localText('xong', 'done')
-                            : reviewDrillStage === 'writing'
+                            : String(reviewDrillStage) === 'writing'
                               ? localText('đang làm', 'in progress')
                               : localText('chờ', 'pending')}
                         </span>
                         <span
                           className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${
-                            reviewMiniPackCompleted || reviewDrillStage === 'listening'
+                            reviewMiniPackCompleted || String(reviewDrillStage) === 'listening'
                               ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
-                              : reviewDrillStage === 'speaking'
+                              : String(reviewDrillStage) === 'speaking'
                                 ? 'border-amber-300 bg-amber-50 text-amber-700'
                                 : 'border-slate-300 bg-white text-slate-600'
                           }`}
                         >
                           {localText('2) Nói', '2) Speaking')} -{' '}
-                          {reviewMiniPackCompleted || reviewDrillStage === 'listening'
+                          {reviewMiniPackCompleted || String(reviewDrillStage) === 'listening'
                             ? localText('xong', 'done')
-                            : reviewDrillStage === 'speaking'
+                            : String(reviewDrillStage) === 'speaking'
                               ? localText('đang làm', 'in progress')
                               : localText('chờ', 'pending')}
                         </span>
@@ -10070,7 +10076,7 @@ export default function HocBaiHocCoSanClientPage() {
                           className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${
                             reviewMiniPackCompleted
                               ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
-                              : reviewDrillStage === 'listening'
+                              : String(reviewDrillStage) === 'listening'
                                 ? 'border-amber-300 bg-amber-50 text-amber-700'
                                 : 'border-slate-300 bg-white text-slate-600'
                           }`}
@@ -10078,7 +10084,7 @@ export default function HocBaiHocCoSanClientPage() {
                           {localText('3) Nghe', '3) Listening')} -{' '}
                           {reviewMiniPackCompleted
                             ? localText('xong', 'done')
-                            : reviewDrillStage === 'listening'
+                            : String(reviewDrillStage) === 'listening'
                               ? localText('đang làm', 'in progress')
                               : localText('chờ', 'pending')}
                         </span>
@@ -10226,7 +10232,7 @@ export default function HocBaiHocCoSanClientPage() {
                   </div>
                 </div>
               ) : null}
-              {learningMode === 'review' && !isPresetFirstEntering && reviewDrillStage === 'speaking' ? (
+              {learningMode === 'review' && !isPresetFirstEntering && String(reviewDrillStage) === 'speaking' ? (
                 <div ref={miniSpeakingBlockRef} className="min-w-0 rounded-md border border-indigo-200 bg-indigo-50/60 p-2.5">
                   <div className="mb-2 space-y-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
                       <p className="font-semibold">
@@ -10237,7 +10243,7 @@ export default function HocBaiHocCoSanClientPage() {
                           className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${
                             writingTask?.completed
                               ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
-                              : reviewDrillStage === 'writing'
+                              : String(reviewDrillStage) === 'writing'
                                 ? 'border-amber-300 bg-amber-50 text-amber-700'
                                 : 'border-slate-300 bg-white text-slate-600'
                           }`}
@@ -10245,23 +10251,23 @@ export default function HocBaiHocCoSanClientPage() {
                           {localText('1) Viết', '1) Writing')} -{' '}
                           {writingTask?.completed
                             ? localText('xong', 'done')
-                            : reviewDrillStage === 'writing'
+                            : String(reviewDrillStage) === 'writing'
                               ? localText('đang làm', 'in progress')
                               : localText('chờ', 'pending')}
                         </span>
                         <span
                           className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${
-                            reviewMiniPackCompleted || reviewDrillStage === 'listening'
+                            reviewMiniPackCompleted || String(reviewDrillStage) === 'listening'
                               ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
-                              : reviewDrillStage === 'speaking'
+                              : String(reviewDrillStage) === 'speaking'
                                 ? 'border-amber-300 bg-amber-50 text-amber-700'
                                 : 'border-slate-300 bg-white text-slate-600'
                           }`}
                         >
                           {localText('2) Nói', '2) Speaking')} -{' '}
-                          {reviewMiniPackCompleted || reviewDrillStage === 'listening'
+                          {reviewMiniPackCompleted || String(reviewDrillStage) === 'listening'
                             ? localText('xong', 'done')
-                            : reviewDrillStage === 'speaking'
+                            : String(reviewDrillStage) === 'speaking'
                               ? localText('đang làm', 'in progress')
                               : localText('chờ', 'pending')}
                         </span>
@@ -10269,7 +10275,7 @@ export default function HocBaiHocCoSanClientPage() {
                           className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${
                             reviewMiniPackCompleted
                               ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
-                              : reviewDrillStage === 'listening'
+                              : String(reviewDrillStage) === 'listening'
                                 ? 'border-amber-300 bg-amber-50 text-amber-700'
                                 : 'border-slate-300 bg-white text-slate-600'
                           }`}
@@ -10277,7 +10283,7 @@ export default function HocBaiHocCoSanClientPage() {
                           {localText('3) Nghe', '3) Listening')} -{' '}
                           {reviewMiniPackCompleted
                             ? localText('xong', 'done')
-                            : reviewDrillStage === 'listening'
+                            : String(reviewDrillStage) === 'listening'
                               ? localText('đang làm', 'in progress')
                               : localText('chờ', 'pending')}
                         </span>
@@ -10365,7 +10371,7 @@ export default function HocBaiHocCoSanClientPage() {
                   </div>
                 </div>
               ) : null}
-              {learningMode === 'review' && !isPresetFirstEntering && reviewDrillStage === 'listening' && reviewListeningVisibleOptions.length > 0 && !reviewListeningPopupOpen ? (
+              {learningMode === 'review' && !isPresetFirstEntering && String(reviewDrillStage) === 'listening' && reviewListeningVisibleOptions.length > 0 && !reviewListeningPopupOpen ? (
                 <div ref={miniListeningBlockRef} className="min-w-0 rounded-md border border-emerald-200 bg-emerald-50/60 p-2.5">
                   <div className="mb-2 space-y-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
                       <p className="font-semibold">
@@ -10376,7 +10382,7 @@ export default function HocBaiHocCoSanClientPage() {
                           className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${
                             writingTask?.completed
                               ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
-                              : reviewDrillStage === 'writing'
+                              : String(reviewDrillStage) === 'writing'
                                 ? 'border-amber-300 bg-amber-50 text-amber-700'
                                 : 'border-slate-300 bg-white text-slate-600'
                           }`}
@@ -10384,23 +10390,23 @@ export default function HocBaiHocCoSanClientPage() {
                           {localText('1) Viết', '1) Writing')} -{' '}
                           {writingTask?.completed
                             ? localText('xong', 'done')
-                            : reviewDrillStage === 'writing'
+                            : String(reviewDrillStage) === 'writing'
                               ? localText('đang làm', 'in progress')
                               : localText('chờ', 'pending')}
                         </span>
                         <span
                           className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${
-                            reviewMiniPackCompleted || reviewDrillStage === 'listening'
+                            reviewMiniPackCompleted || String(reviewDrillStage) === 'listening'
                               ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
-                              : reviewDrillStage === 'speaking'
+                              : String(reviewDrillStage) === 'speaking'
                                 ? 'border-amber-300 bg-amber-50 text-amber-700'
                                 : 'border-slate-300 bg-white text-slate-600'
                           }`}
                         >
                           {localText('2) Nói', '2) Speaking')} -{' '}
-                          {reviewMiniPackCompleted || reviewDrillStage === 'listening'
+                          {reviewMiniPackCompleted || String(reviewDrillStage) === 'listening'
                             ? localText('xong', 'done')
-                            : reviewDrillStage === 'speaking'
+                            : String(reviewDrillStage) === 'speaking'
                               ? localText('đang làm', 'in progress')
                               : localText('chờ', 'pending')}
                         </span>
@@ -10408,7 +10414,7 @@ export default function HocBaiHocCoSanClientPage() {
                           className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${
                             reviewMiniPackCompleted
                               ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
-                              : reviewDrillStage === 'listening'
+                              : String(reviewDrillStage) === 'listening'
                                 ? 'border-amber-300 bg-amber-50 text-amber-700'
                                 : 'border-slate-300 bg-white text-slate-600'
                           }`}
@@ -10416,7 +10422,7 @@ export default function HocBaiHocCoSanClientPage() {
                           {localText('3) Nghe', '3) Listening')} -{' '}
                           {reviewMiniPackCompleted
                             ? localText('xong', 'done')
-                            : reviewDrillStage === 'listening'
+                            : String(reviewDrillStage) === 'listening'
                               ? localText('đang làm', 'in progress')
                               : localText('chờ', 'pending')}
                         </span>

@@ -47,10 +47,21 @@ export default function SoDoTrangWebPage() {
           <h2 className="text-xl font-semibold mb-3">{t.navGroup[group.titleKey]}</h2>
           <ul className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
             {group.links.map((link) => (
-              <li key={link.href}>
+              <li key={link.href} className="space-y-1">
                 <Link className="text-blue-600 hover:underline" href={link.href}>
                   {t.tool[link.labelKey]}
                 </Link>
+                {link.subLinks?.length ? (
+                  <ul className="ml-4 list-disc space-y-0.5 text-sm text-muted-foreground">
+                    {link.subLinks.map((sub) => (
+                      <li key={sub.href}>
+                        <Link className="text-blue-600 hover:underline" href={sub.href}>
+                          {t.tool[sub.labelKey]}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
               </li>
             ))}
           </ul>

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+import { createClient as createSupabaseClient, type SupabaseClient } from '@supabase/supabase-js'
+import type { Database } from '@/types/database.types'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { translateOneImage } from '@/lib/translate-document-image'
 import { applyPostCheckOcr } from '@/lib/translate-post-check'
@@ -36,7 +37,7 @@ async function handleProcessTranslate(request: NextRequest) {
   }
 
   let historyId: string | null = null
-  let adminSupabase: ReturnType<typeof import('@supabase/supabase-js').createClient> | null = null
+  let adminSupabase: SupabaseClient<Database> | null = null
 
   const safeUpdateFailed = async (errText: string) => {
     if (adminSupabase && historyId) {
@@ -60,7 +61,7 @@ async function handleProcessTranslate(request: NextRequest) {
     return NextResponse.json({ error: 'Server config missing' }, { status: 500 })
   }
 
-  adminSupabase = createSupabaseClient(supabaseUrl, serviceRoleKey, {
+  adminSupabase = createSupabaseClient<Database>(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   })
 
@@ -69,6 +70,11 @@ async function handleProcessTranslate(request: NextRequest) {
     user_id: string
     history_id: string
     retry_round?: number
+    source_lang?: string | null
+    source_lang_2?: string | null
+    target_lang?: string | null
+    image_quality?: string | null
+    cost?: number | null
     try_on_history: { original_image_url: string; result_image_url?: string | null }
   }
   let job: JobRow | null = null
@@ -90,8 +96,11 @@ async function handleProcessTranslate(request: NextRequest) {
       .eq('status', 'pending')
       .order('created_at', { ascending: true })
       .limit(1)
-    job = (jobs as JobRow[] | null)?.[0] ?? null
+    job = (jobs as unknown as JobRow[] | null)?.[0] ?? null
   } else {
+    if (!jobId) {
+      return NextResponse.json({ error: 'Missing jobId' }, { status: 400 })
+    }
     const { data: j, error: jobError } = await adminSupabase
       .from('translate_jobs')
       .select('*, try_on_history!inner(original_image_url, result_image_url)')
@@ -101,7 +110,7 @@ async function handleProcessTranslate(request: NextRequest) {
     if (jobError || !j) {
       return NextResponse.json({ error: 'Job not found or already processed' }, { status: 404 })
     }
-    job = j as JobRow
+    job = j as unknown as JobRow
   }
 
   if (!job) {
@@ -141,11 +150,11 @@ async function handleProcessTranslate(request: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 
-  const sourceLang = (job as { source_lang: string }).source_lang || 'en'
-  const sourceLang2 = (job as { source_lang_2?: string }).source_lang_2 || null
-  const targetLang = (job as { target_lang: string }).target_lang || 'vi'
-  const imageQuality = ((job as { image_quality: string }).image_quality || '2K') as '2K' | '4K'
-  const cost = Number((job as { cost: number }).cost) || TRANSLATE_COSTS[imageQuality]
+  const sourceLang = String(job.source_lang || 'en')
+  const sourceLang2 = job.source_lang_2 ?? null
+  const targetLang = String(job.target_lang || 'vi')
+  const imageQuality = (String(job.image_quality || '2K') as '2K' | '4K')
+  const cost = Number(job.cost) || TRANSLATE_COSTS[imageQuality]
 
   const apiKey = process.env.GOOGLE_API_KEY
   if (!apiKey) {

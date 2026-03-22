@@ -229,3 +229,47 @@ export function questionsToSlides(questions: Array<{ type: string; content_json:
     return { title, blocks: r.blocks }
   })
 }
+
+/** Dữ liệu từ GET `/api/exam-session/[code]/review` — build slide giống cấu trúc phiếu bài tập (Câu hỏi + Đáp án / Đề + Lời giải). */
+export type ExamReviewQuestionInput = {
+  index: number
+  questionText: string
+  options: string[]
+  source: string
+  correctIndex: number
+  correctLabel: string | null
+  correctOption: string
+}
+
+export function examReviewQuestionsToSlides(questions: ExamReviewQuestionInput[]): AISlideData[] {
+  return questions.map((q) => {
+    const opts = Array.isArray(q.options) ? q.options.map((x) => String(x ?? '').trim()).filter(Boolean) : []
+    const hasChoice = opts.length >= 2
+    const src = String(q.source ?? '').trim()
+    const sourceLine = src ? `\n\n(Nguồn: ${src})` : ''
+    if (hasChoice) {
+      const questionText = [String(q.questionText ?? '').trim(), ...opts.map((o, i) => `   ${String.fromCharCode(65 + i)}. ${o}`)]
+        .filter(Boolean)
+        .join('\n')
+        .trim()
+      const blocks: ContentBlock[] = [
+        { header: 'Câu hỏi', content: `${questionText}${sourceLine}`.trim() },
+        {
+          header: 'Đáp án',
+          content: q.correctLabel ? `${q.correctLabel}. ${q.correctOption}` : String(q.correctOption ?? ''),
+          isAnswer: true,
+        },
+      ]
+      return { title: `Câu ${q.index}`, blocks }
+    }
+    const blocks: ContentBlock[] = [
+      { header: 'Đề bài', content: `${String(q.questionText ?? '').trim()}${sourceLine}`.trim() },
+      {
+        header: 'Lời giải',
+        content: String(q.correctOption ?? '').trim() || '(Chưa có lời giải)',
+        isAnswer: true,
+      },
+    ]
+    return { title: `Câu ${q.index}`, blocks }
+  })
+}

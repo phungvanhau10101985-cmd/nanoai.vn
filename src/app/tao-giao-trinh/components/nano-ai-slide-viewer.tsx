@@ -2,22 +2,15 @@
 
 import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronLeft, ChevronRight, X, Printer, ArrowRight, TrendingUp, CalendarCheck, Lightbulb, BookOpen, Target, BarChart2, Trash2, Play, Pause, Settings2, ClipboardList, Maximize2, Timer, RotateCcw, Link2, Copy, ExternalLink, FileText, Square } from 'lucide-react'
+import { X, ArrowRight, TrendingUp, CalendarCheck, Lightbulb, BookOpen, Target, ClipboardList, Maximize2, Timer, Link2, Copy, ExternalLink, FileText, Square } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import QRCode from 'qrcode'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 import { parseCurriculumToSlides, parseContentToBlocks, type AISlideData } from '../lib/curriculum-to-slides'
 import { latexToReadable } from '../lib/latex-to-readable'
-import { ContentEmbed, splitContentWithEmbeds, parseContentEmbeds, splitBlockContentAtQuizBoundary } from './content-embed'
+import { ContentEmbed, parseContentEmbeds, splitBlockContentAtQuizBoundary } from './content-embed'
 import { AnimatedCharReveal } from './animated-char-reveal'
 import { CurriculumBlockContentWithEmbeds } from './curriculum-block-content-with-embeds'
 import { WorksheetBlockContentWithEmbeds } from './worksheet-block-content-with-embeds'
@@ -431,10 +424,11 @@ function getBaseSlides(curriculumMarkdown: string, topic: string, aiSlides: AISl
     return aiSlides.map((s) => {
       const base = s as SlideItem
       const hasVisualFromCells = base.visualCells?.some((c) => c.visualEmbed || c.imageUrl)
+      const safeBlocks = Array.isArray(s.blocks) ? s.blocks : []
       return {
         title: s.title,
         content: '',
-        blocks: s.blocks,
+        blocks: safeBlocks,
         imageUrl: hasVisualFromCells ? undefined : s.imageUrl,
         visualEmbed: s.visualEmbed,
         visualLayout: base.visualLayout,
@@ -452,14 +446,14 @@ function getBaseSlides(curriculumMarkdown: string, topic: string, aiSlides: AISl
   return topic ? [{ title: topic, content: '' }, ...parsed] : parsed
 }
 
-export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides, curriculumId, subjectId, gradeLevelId, tr, onSlidesSaved, slideMode, originalSlides, personalSlides, sharedSlides, initialSlideIndex, isTeacherView = true, onOpenStudentView: onOpenStudentViewProp, worksheetPresentation = false, worksheetAnswerReveal, worksheetAnswerTypingEnabled, worksheetStemTypingEnabled: _worksheetStemTypingEnabled, presentationBroadcastSyncId = null, syncedStudentCurriculumRightMode = null }: NanoAISlideViewerProps) {
+export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides, curriculumId, subjectId, gradeLevelId, tr, onSlidesSaved, slideMode, originalSlides, initialSlideIndex, isTeacherView = true, onOpenStudentView: onOpenStudentViewProp, worksheetPresentation = false, worksheetAnswerReveal, worksheetAnswerTypingEnabled, presentationBroadcastSyncId = null, syncedStudentCurriculumRightMode = null }: NanoAISlideViewerProps) {
   const { toast } = useToast()
   const [slides, setSlides] = useState<SlideItem[]>([])
   const [currentIndex, setCurrentIndex] = useState(0)
   const [embedDialogOpen, setEmbedDialogOpen] = useState(false)
   const [autoPlay, setAutoPlay] = useState(false)
   const [autoPlayIntervalMs, setAutoPlayIntervalMs] = useState(5000)
-  const [transitionDirection, setTransitionDirection] = useState<'next' | 'prev'>('next')
+  const [, setTransitionDirection] = useState<'next' | 'prev'>('next')
   const initialSlideSyncedRef = useRef(false)
   const pendingSlideGoIndexRef = useRef<number | null>(null)
   const [personalViewSubMode, setPersonalViewSubMode] = useState<'current' | 'original'>('current')
@@ -521,7 +515,6 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   const [timerRunning, setTimerRunning] = useState(false)
   const [teacherTimerSeconds, setTeacherTimerSeconds] = useState(0)
   const [teacherTimerRunning, setTeacherTimerRunning] = useState(false)
-  const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const [presentationMode, setPresentationMode] = useState<'independent' | 'slide-interaction'>('independent')
   const [viewportW, setViewportW] = useState(1280)
   const [stableLayoutWidth, setStableLayoutWidth] = useState(() => (typeof window !== 'undefined' ? window.innerWidth : 1280))
@@ -824,7 +817,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         slideMode: slideMode ?? null,
         curriculumId: curriculumId ?? null,
       }
-      const res = await fetch('/api/tao-giao-trinh/share', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+      const res = await fetch('/api/giao-trinh/share', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
       const data = await res.json().catch(() => ({}))
       if (!res.ok || data.error) {
         toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: data?.error ?? tr('Không tạo được link chia sẻ.', 'Could not create share link.', '无法创建分享链接。', '共有リンクを作成できません。', '공유 링크를 만들 수 없습니다.'), variant: 'destructive' })
@@ -2534,9 +2527,6 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                   !isTeacherView && !worksheetPresentation && studentCurriculumRightMode === 'markdown-all'
                 /** Chuỗi slide (HS): chỉ hiện các slide đã tới — không render slide phía sau (danh sách theo tiến độ). */
                 const mdAllSlidesToShow = mdAllStudentCurriculum ? slides.slice(0, currentIndex + 1) : slides
-                /** Slide hiện tại: chỉ khi còn gõ segment đáp án (đồng bộ GV). */
-                const mdChainLiveTyping =
-                  mdAllStudentCurriculum && isCurrent && hasSegmentTypingWork && !segmentTypingCompleted
                 return mdAllSlidesToShow.map((s, si) => {
                 const rawBlks =
                   Array.isArray(s.blocks) && s.blocks.length > 0 ? s.blocks : s.content ? parseContentToBlocks(s.content ?? '') : []
@@ -2545,6 +2535,9 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                     ? parseContentToBlocks(s.content ?? '')
                     : rawBlks
                 const isCurrent = si === currentIndex
+                /** Slide hiện tại: chỉ khi còn gõ segment đáp án (đồng bộ GV). */
+                const mdChainLiveTyping =
+                  mdAllStudentCurriculum && isCurrent && hasSegmentTypingWork && !segmentTypingCompleted
 
                 const renderFullSlideBody = () =>
                   blksForSlide.length > 0 ? (

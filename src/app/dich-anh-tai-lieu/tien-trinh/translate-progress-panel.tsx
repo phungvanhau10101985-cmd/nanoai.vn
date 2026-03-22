@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { getBatchProgress, cancelBatchTranslate, resumeBatchTranslate } from '../actions'
-import { FileText, CheckCircle2, Loader2, XCircle, Download, Image } from 'lucide-react'
+import { FileText, CheckCircle2, Loader2, XCircle, Download, Image as ImageIcon } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -272,7 +272,7 @@ export function TranslateProgressPanel({ batchId, embedded = false, onClose }: T
                   }
                 }}
               >
-                <Image className="mr-2 h-4 w-4" /> {originalZipLoading ? tr('Đang tạo...', 'Creating...', '生成中...', '作成中...', '생성 중...') : tr('Tải ảnh gốc', 'Download originals', '下载原图', '元画像をダウンロード', '원본 다운로드')}
+                <ImageIcon className="mr-2 h-4 w-4" aria-hidden /> {originalZipLoading ? tr('Đang tạo...', 'Creating...', '生成中...', '作成中...', '생성 중...') : tr('Tải ảnh gốc', 'Download originals', '下载原图', '元画像をダウンロード', '원본 다운로드')}
               </Button>
             </div>
           )}

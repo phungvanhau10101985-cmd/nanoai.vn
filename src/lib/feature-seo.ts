@@ -822,7 +822,7 @@ const FEATURE_SEO_DATA: Record<string, FeatureSeoData> = {
     key: 'tao-giao-trinh',
     pageTitle: 'Tạo giáo trình bằng AI cho mọi môn học',
     pageDescription: 'AI tạo giáo trình chi tiết cho giáo viên. Chọn môn Toán, Văn, Anh, Lý, Hóa, Sinh, Sử, Địa... cấp Tiểu học đến Đại học. Xuất Markdown.',
-    path: '/tao-giao-trinh',
+    path: '/giao-trinh',
     keywords: ['tạo giáo trình', 'giáo án AI', 'thiết kế bài giảng', 'giáo trình môn học', 'AI cho giáo viên'],
     serviceName: 'Tạo giáo trình bằng AI',
     serviceDescription: 'AI tạo giáo trình chi tiết cho mọi môn học, từ Tiểu học đến Đại học. Xuất Markdown, dễ chỉnh sửa.',

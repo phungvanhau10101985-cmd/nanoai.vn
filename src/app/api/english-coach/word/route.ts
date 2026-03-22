@@ -475,6 +475,9 @@ Trả về JSON hợp lệ, không markdown:
             targetText: parsed.exampleTarget || `I use "${word}" in a sentence.`,
             nativeText: parsed.exampleNative || msg(locale, `Ví dụ dùng từ "${word}" trong câu.`, `An example using "${word}" in a sentence.`),
           }],
+      usageLevel: 'medium',
+      importanceScore: 50,
+      contextSensitive: true,
     }
 
     await adminSupabase.from('language_coach_vocab_cache').upsert(

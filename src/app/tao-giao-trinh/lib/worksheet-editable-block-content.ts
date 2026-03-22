@@ -1,6 +1,6 @@
 import { latexToReadable } from './latex-to-readable'
 import { blockToContentJson } from './markdown-to-questions'
-import { getEssayProblem, getEssaySolution, normalizeSolutionToStr } from './worksheet-content-json'
+import { normalizeSolutionToStr } from './worksheet-content-json'
 
 export function normalizeEssayEditorContent(text: string): string {
   const parsed = blockToContentJson({

@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 import { Sparkles, History, Wallet } from 'lucide-react'
 import { ImagePreview } from '@/components/ui/image-preview'
-import { AI_TOOLS } from '@/lib/nav-config'
+import { NAV_GROUPS } from '@/lib/nav-config'
+import { NavHubLinkTile } from '@/components/layout/nav-hub-link-tile'
 import { getCurrentWebLocale, getServerDictionary } from '@/lib/i18n/server'
 
 export default async function DashboardPage() {
@@ -93,25 +94,21 @@ export default async function DashboardPage() {
         </Card>
       </div>
 
-      <div className="section-surface space-y-4">
+      <div className="section-surface space-y-6">
         <h3 className="text-lg sm:text-xl font-semibold">{ui.aiTools}</h3>
-        <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 sm:gap-3 lg:grid-cols-5">
-          {AI_TOOLS.map((tool) => {
-            const Icon = tool.icon
-            return (
-              <Link key={tool.href} href={tool.href}>
-                <Card className="tool-tile cursor-pointer">
-                  <CardContent className="flex min-h-[132px] flex-col items-center justify-center gap-2 p-2 text-center sm:min-h-[152px] sm:p-3">
-                    <div className="flex aspect-square w-full max-w-[92px] items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500/10 to-indigo-500/10 sm:max-w-[106px]">
-                      <Icon className="h-[82%] w-[82%] text-blue-600 dark:text-blue-400" />
-                    </div>
-                    <span className="mt-1 px-1 text-[11px] font-medium leading-tight sm:text-sm md:text-[15px]">{t.tool[tool.labelKey]}</span>
-                  </CardContent>
-                </Card>
-              </Link>
-            )
-          })}
-        </div>
+        {NAV_GROUPS.map((group) => (
+          <div key={group.titleKey} className="space-y-3">
+            <h4 className="flex items-center gap-2 text-sm font-semibold text-muted-foreground sm:text-base">
+              <span className="h-1 w-8 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500" />
+              {t.navGroup[group.titleKey]}
+            </h4>
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 sm:gap-3 lg:grid-cols-5">
+              {group.links.map((item) => (
+                <NavHubLinkTile key={item.href} item={item} t={t} variant="card" />
+              ))}
+            </div>
+          </div>
+        ))}
       </div>
       
       <div className="section-surface space-y-4">

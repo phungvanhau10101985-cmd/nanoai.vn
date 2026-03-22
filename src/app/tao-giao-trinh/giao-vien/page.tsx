@@ -9,15 +9,15 @@ const GiaoVienWorksheetPage = dynamic(() => import('./giao-vien-worksheet-page')
 
 function GiaoVienRouteInner() {
   const sp = useSearchParams()
-  if (sp.get('worksheetId')?.trim()) {
+  if (sp?.get('examCode')?.trim() || sp?.get('worksheetId')?.trim()) {
     return <GiaoVienWorksheetPage />
   }
   return <GiaoVienCurriculumPage />
 }
 
 /**
- * Cùng path `/tao-giao-trinh/giao-vien` nhưng **hai file component tách hẳn**:
- * - Có `worksheetId` → `giao-vien-worksheet-page.tsx` (phiếu)
+ * Cùng path `/giao-trinh/giao-vien` nhưng **hai file component tách hẳn**:
+ * - Có `worksheetId` hoặc `examCode` → `giao-vien-worksheet-page.tsx` (phiếu / chữa bài đề)
  * - Không có → `giao-vien-curriculum-page.tsx` (giáo trình `?t=`)
  */
 export default function GiaoVienPage() {

@@ -83,6 +83,21 @@ const nextConfig = {
 
         return headers;
     },
+    /** URL công khai mới: /giao-trinh (thay /tao-giao-trinh). Giữ thư mục app tao-giao-trinh + redirect 301. */
+    async redirects() {
+        return [
+            { source: '/tao-giao-trinh', destination: '/giao-trinh', permanent: true },
+            { source: '/tao-giao-trinh/:path*', destination: '/giao-trinh/:path*', permanent: true },
+            { source: '/api/tao-giao-trinh/:path*', destination: '/api/giao-trinh/:path*', permanent: true },
+        ];
+    },
+    async rewrites() {
+        return [
+            { source: '/giao-trinh', destination: '/tao-giao-trinh' },
+            { source: '/giao-trinh/:path*', destination: '/tao-giao-trinh/:path*' },
+            { source: '/api/giao-trinh/:path*', destination: '/api/tao-giao-trinh/:path*' },
+        ];
+    },
 };
 
 const withPWA = withPWAInit({

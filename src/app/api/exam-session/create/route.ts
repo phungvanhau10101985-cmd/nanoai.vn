@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { getEssayProblem } from '@/app/tao-giao-trinh/lib/worksheet-content-json'
+import { shuffleArray } from '@/lib/exam-layout-token'
 
 const EXAM_TYPE_CONFIG: Record<string, { duration: number; minutesPerQuestion: number }> = {
   '15ph': { duration: 15, minutesPerQuestion: 1 },
@@ -127,7 +128,7 @@ export async function POST(req: NextRequest) {
         const t = c?.lesson_topics
         if (Array.isArray(t)) for (const x of t) if (typeof x === 'string' && x.trim()) topics.add(x.trim())
       }
-      lessonTopics = [...topics]
+      lessonTopics = Array.from(topics)
     }
     const title = String(body?.title ?? 'Bài thi').trim() || 'Bài thi'
     const difficulty = ['easy', 'medium', 'hard'].includes(String(body?.difficulty ?? '')) ? body.difficulty : undefined
@@ -188,6 +189,8 @@ export async function POST(req: NextRequest) {
       options: string[]
       correct_index: number | null
       source: string
+      /** Câu lấy từ worksheet_questions — để chữa bài đọc lời giải từ DB */
+      worksheet_question_id?: string | null
     }
     const pickedQuestions: NewExamQuestion[] = []
 
@@ -319,6 +322,7 @@ export async function POST(req: NextRequest) {
             correct_index: quiz.correctIndex,
             source: 'worksheet_quiz' as const,
             difficulty: diff,
+            worksheet_question_id: String(r.id),
           }
         }).filter(Boolean) as Array<{
           question_text: string
@@ -326,6 +330,7 @@ export async function POST(req: NextRequest) {
           correct_index: number
           source: 'worksheet_quiz'
           difficulty: string
+          worksheet_question_id: string
         }>
         const easyPool = sampleShuffle(pool.filter((x) => normalizeDifficulty(x.difficulty) === 'easy'))
         const mediumPool = sampleShuffle(pool.filter((x) => normalizeDifficulty(x.difficulty) === 'medium'))
@@ -493,13 +498,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Tạo phiên thi thất bại.' }, { status: 500 })
     }
 
-    const questionOrder = pickedQuestions.map((_, i) => i)
-    for (let i = questionOrder.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [questionOrder[i], questionOrder[j]] = [questionOrder[j], questionOrder[i]]
-    }
-
-    const orderedQuestions = questionOrder.map((i) => pickedQuestions[i])
+    /** Trắc nghiệm luôn trên, tự luận dưới — chỉ xáo thứ tự trong từng nhóm */
+    const quizzes = pickedQuestions.filter((q) => Array.isArray(q.options) && q.options.length >= 2)
+    const essays = pickedQuestions.filter((q) => !Array.isArray(q.options) || q.options.length < 2)
+    const orderedQuestions = [...shuffleArray(quizzes), ...shuffleArray(essays)]
     const inserts = orderedQuestions.map((q, idx) => ({
       session_id: session.id,
       question_text: q.question_text,
@@ -507,6 +509,7 @@ export async function POST(req: NextRequest) {
       correct_index: typeof q.correct_index === 'number' ? q.correct_index : 0,
       order: idx,
       source: q.source,
+      worksheet_question_id: q.worksheet_question_id ?? null,
     }))
 
     const { error: questionsErr } = await adminSupabase.from('exam_questions').insert(inserts)

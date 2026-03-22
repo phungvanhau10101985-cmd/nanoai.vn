@@ -12,7 +12,7 @@ type Payload = {
   learnerLevel?: 0 | 1 | 2 | 3 | 4
 }
 
-function tr(input: string): string {
+function tr(input: string): 'vi' | 'en' {
   const value = String(input || '').toLowerCase()
   return value.includes('vietnamese') ? 'vi' : 'en'
 }

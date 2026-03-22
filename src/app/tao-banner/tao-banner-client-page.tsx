@@ -83,7 +83,7 @@ export default function TaoBannerClientPage() {
   const handleAddImages = (e: ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (!files?.length) return
-    const newImages: { file: File; preview: string; removeBackground: boolean }[] = []
+    const newImages: { file: File; preview: string; removeBackground: boolean; caption: string }[] = []
     for (let i = 0; i < files.length && images.length + newImages.length < MAX_PRODUCT_IMAGES; i++) {
       const file = files[i]
       if (file.type.startsWith('image/')) {

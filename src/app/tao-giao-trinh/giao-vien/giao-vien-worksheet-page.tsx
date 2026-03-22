@@ -1,13 +1,13 @@
 'use client'
 
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useParams } from 'next/navigation'
 import { createPortal } from 'react-dom'
-import { Timer, RotateCcw, ChevronLeft, ChevronRight, LayoutGrid, Square, Sparkles, Edit3, Plus, Save, FileText, FileEdit, History, Maximize2, X, ClipboardList, Flag, Presentation, Settings2, MoreVertical, Trash2, Eye, EyeOff, Keyboard, KeyboardOff, Pause, Play, Target } from 'lucide-react'
+import { RotateCcw, LayoutGrid, Square, Sparkles, Edit3, Plus, Save, FileText, FileEdit, History, Maximize2, X, ClipboardList, Flag, Presentation, MoreVertical, Trash2, Eye, EyeOff, Keyboard, KeyboardOff, Pause, Play, Target } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { canSplitBlockAtQuiz, splitContentWithEmbeds, splitBlockContentAtQuizBoundary, parseQuizData, parseContentEmbeds, ContentEmbed, type EmbedType } from '../components/content-embed'
 import { parseContentToBlocks } from '../lib/curriculum-to-slides'
-import { parseWorksheetToSlides, questionsToSlides } from '@/lib/worksheet-to-slides'
+import { parseWorksheetToSlides, questionsToSlides, examReviewQuestionsToSlides, type ExamReviewQuestionInput } from '@/lib/worksheet-to-slides'
 import { latexToReadable } from '../lib/latex-to-readable'
 import { SlideProposalDialog } from '../components/slide-proposal-dialog'
 import { SlideProposalVote } from '../components/slide-proposal-vote'
@@ -26,7 +26,7 @@ import {
 } from '@/app/tao-giao-trinh/lib/worksheet-answer-segments'
 import { createPresentationSyncId, getPresentationBroadcastChannelName } from '../lib/presentation-broadcast'
 import { getStudentSlideWindowConfig, isPathMatchingStudentSlideKind, studentSlideUrlWithSync } from '../lib/student-slide-window'
-import { QuizPopupDialog, extractQuizFromSlide } from '../components/quiz-popup-dialog'
+import { QuizPopupDialog } from '../components/quiz-popup-dialog'
 import { getSlideProposalsForCurriculum, getSlidesByCurriculumId, resetPersonalToOriginal, saveSlidesToCurriculum, saveUserCustomizedSlides, saveWorksheetContent } from '../actions'
 import { parseWorksheetIntoBlocks, replaceBlockInMarkdown } from '../lib/worksheet-parse-questions'
 import { resolveWorksheetEditBlockGlobalIndex } from '../lib/worksheet-slide-to-block-index'
@@ -36,7 +36,6 @@ import { getEssayProblem, getEssaySolution, normalizeSolutionToStr } from '../li
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 
 type VisualCell = { visualEmbed?: string; imageUrl?: string }
@@ -490,7 +489,13 @@ function getSectionIndexForSlide(sections: string[], slides: SlideItem[], curren
 /** Trình chiếu giáo viên — chỉ phiếu bài tập (`?worksheetId=`). Tách file khỏi giáo trình (`giao-vien-curriculum-page.tsx`). */
 export default function GiaoVienWorksheetPage() {
   const searchParams = useSearchParams()
-  const worksheetId = searchParams.get('worksheetId')
+  const params = useParams<{ code?: string }>()
+  const worksheetId = searchParams?.get('worksheetId')
+  const examCodeRaw = (searchParams?.get('examCode') || (typeof params?.code === 'string' ? params.code : '') || '').trim()
+  const examCode = examCodeRaw.toUpperCase()
+  /** Cùng UI trình chiếu / HS như phiếu bài tập — gồm cả chữa bài đề thi (`examCode` hoặc `/giao-vien/de-thi/[code]`). */
+  const isWorksheetSlideMode = Boolean(worksheetId?.trim()) || Boolean(examCode)
+  const [examLoadError, setExamLoadError] = useState<string | null>(null)
   /** Một tab GV = một kênh BroadcastChannel riêng — tránh hai cửa sổ HS nhận lẫn dữ liệu. */
   const [presentationSyncId] = useState(() => createPresentationSyncId())
   const [content, setContent] = useState('')
@@ -563,7 +568,7 @@ export default function GiaoVienWorksheetPage() {
   const [answerTypingSegmentsPerBlock, setAnswerTypingSegmentsPerBlock] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
-    if (!worksheetId?.trim()) return
+    if (!worksheetId?.trim() && !examCode) return
     setAnswerTypingSegmentsPerBlock((prev) => {
       const next = { ...prev }
       let changed = false
@@ -589,10 +594,10 @@ export default function GiaoVienWorksheetPage() {
       }
       return changed ? next : prev
     })
-  }, [slides, worksheetId])
+  }, [slides, worksheetId, examCode])
 
   const answerTypingEnabled = useMemo(() => {
-    if (!worksheetId?.trim()) return {} as Record<string, boolean>
+    if (!worksheetId?.trim() && !examCode) return {} as Record<string, boolean>
     const m: Record<string, boolean> = {}
     slides.forEach((s, si) => {
       const blks = s.blocks ?? []
@@ -606,7 +611,7 @@ export default function GiaoVienWorksheetPage() {
       })
     })
     return m
-  }, [slides, worksheetId, answerTypingSegmentsPerBlock, worksheetTypingEffectsGloballyEnabled])
+  }, [slides, worksheetId, examCode, answerTypingSegmentsPerBlock, worksheetTypingEffectsGloballyEnabled])
 
   /** Tốc độ gõ segment nội dung (ms) — khác tốc độ "Viết" tiêu đề trên thanh */
   const [answerTypingSpeedMs, setAnswerTypingSpeedMs] = useState(55)
@@ -618,12 +623,12 @@ export default function GiaoVienWorksheetPage() {
 
   /** Block lời giải đang tới lượt gõ (cùng logic interval) — chỉ block này hiện bút khi `reveal === 0`. */
   const sequentialSolutionLeaderBlockIndex = useMemo(() => {
-    if (!(worksheetId || curriculumId)) return null
+    if (!((worksheetId || examCode || curriculumId))) return null
     const slide = slides[currentIndex]
     const blks = slide?.blocks
     if (!blks?.length) return null
     return findFirstSequentialSolutionBlockIndex(blks, currentIndex, {
-      worksheetPresentation: !!worksheetId,
+      worksheetPresentation: isWorksheetSlideMode,
       hasCurriculumSegmentTyping: !!curriculumId,
       reveal: answerRevealProgress,
       typingEnabled: answerTypingEnabled,
@@ -632,6 +637,8 @@ export default function GiaoVienWorksheetPage() {
     })
   }, [
     worksheetId,
+    examCode,
+    isWorksheetSlideMode,
     curriculumId,
     slides,
     currentIndex,
@@ -648,10 +655,10 @@ export default function GiaoVienWorksheetPage() {
 
   const answerRevealJumpOpts = useMemo(
     () => ({
-      worksheetPresentation: !!worksheetId,
+      worksheetPresentation: isWorksheetSlideMode,
       hasCurriculumSegmentTyping: !!curriculumId,
     }),
-    [worksheetId, curriculumId]
+    [isWorksheetSlideMode, curriculumId]
   )
 
   const answerRevealJumpSlideSegmentTotal = useMemo(() => {
@@ -721,7 +728,7 @@ export default function GiaoVienWorksheetPage() {
     blks: Array<{ header?: string; content?: string; isAnswer?: boolean }>,
     density: 'comfortable' | 'compact'
   ): React.ReactNode {
-    if (!worksheetId?.trim()) return null
+    if (!worksheetId?.trim() && !examCode) return null
     if (slideIndex < 0 || slideIndex >= slides.length) return null
 
     const compact = density === 'compact'
@@ -744,7 +751,7 @@ export default function GiaoVienWorksheetPage() {
       typableKeys.length > 0 && typableKeys.some((k) => answerTypingEnabled[k] !== false)
     const slidePaused = typableKeys.length > 0 && typableKeys.every((k) => answerTypingPaused[k] === true)
     const allAnswersHidden =
-      !!worksheetId && typableKeys.length > 0 && typableKeys.every((k) => answerVisibility[k] === false)
+      isWorksheetSlideMode && typableKeys.length > 0 && typableKeys.every((k) => answerVisibility[k] === false)
     const progressDisabled = allAnswersHidden
 
     return (
@@ -907,7 +914,6 @@ export default function GiaoVienWorksheetPage() {
     setStableLayoutWidth((prev) => (viewportW > prev ? viewportW : prev))
   }, [viewportW])
   // Giao diện giáo viên neo về bên phải: khi thu nhỏ chỉ ẩn dần phần bên trái.
-  const isMobile = viewportW < 768
   const currentVisualHasAny = useMemo(() => {
     const s = slides[currentIndex]
     if (!s) return false
@@ -923,12 +929,6 @@ export default function GiaoVienWorksheetPage() {
     return vi
   }
 
-  const formatTimer = (sec: number) => {
-    const m = Math.floor(sec / 60)
-    const s = sec % 60
-    return `${m}:${s.toString().padStart(2, '0')}`
-  }
-
   useEffect(() => {
     if (typeof window !== 'undefined') {
       window.name = 'nanoai-teacher-view'
@@ -939,10 +939,12 @@ export default function GiaoVienWorksheetPage() {
     if (typeof document === 'undefined') return
     if (worksheetId && topic) {
       document.title = `${topic} – ${tr('Phiếu bài tập', 'Worksheet', '练习', 'ワークシート', '워크시트')}`
+    } else if (examCode && topic) {
+      document.title = `${topic} – ${tr('Chữa bài đề thi', 'Exam review', '试卷讲评', '試験解説', '시험 해설')}`
     } else if (topic) {
       document.title = `${topic} – ${tr('Giáo trình', 'Curriculum', '课程', 'カリキュラム', '교육과정')}`
     }
-  }, [worksheetId, topic, uiLocale])
+  }, [worksheetId, examCode, topic, uiLocale])
 
   /** Phiếu bài tập: khi có worksheetId trong URL, fetch và load slides */
   useEffect(() => {
@@ -1000,6 +1002,75 @@ export default function GiaoVienWorksheetPage() {
       .catch(() => { setWorksheetLoading(false) })
     return () => { cancelled = true }
   }, [worksheetId])
+
+  /** Chữa bài đề thi — cùng pipeline slide như phiếu bài tập (parse → blocks có isAnswer). */
+  useEffect(() => {
+    if (worksheetId?.trim()) return
+    if (!examCode) {
+      setExamLoadError(null)
+      return
+    }
+    setWorksheetLoading(true)
+    setExamLoadError(null)
+    let cancelled = false
+    fetch(`/api/exam-session/${encodeURIComponent(examCode)}/review`, { cache: 'no-store' })
+      .then((r) => r.json())
+      .then((data: { error?: string; title?: string; questions?: ExamReviewQuestionInput[] }) => {
+        if (cancelled) return
+        setWorksheetLoading(false)
+        if (data.error) {
+          setExamLoadError(String(data.error))
+          return
+        }
+        const questions = Array.isArray(data.questions) ? data.questions : []
+        const title = String(data.title ?? '').trim() || `${tr('Đề thi', 'Exam', '试卷', '試験', '시험')} ${examCode}`
+        const aiSlides = examReviewQuestionsToSlides(questions)
+        const markdown = questions
+          .map((q) => {
+            const opts = Array.isArray(q.options) ? q.options : []
+            const head = [`## Câu ${q.index}`, String(q.questionText ?? '').trim()]
+            const optLines = opts.map((o, i) => `${String.fromCharCode(65 + i)}. ${o}`)
+            return [...head, ...optLines].filter(Boolean).join('\n')
+          })
+          .join('\n\n')
+        const readable = latexToReadable(markdown)
+        const sl = aiSlides.map((s) => ({
+          title: s.title,
+          blocks: s.blocks ?? [],
+          teacherNotes: '',
+          content: s.blocks?.map((b) => `${b.header ? `### ${b.header}\n` : ''}${b.content}`).join('\n\n') ?? '',
+        }))
+        setContent(readable)
+        setTopic(title)
+        setSlideTitles(sl.map((s) => s.title))
+        setSlides(sl)
+        slidesRef.current = sl
+        setCurrentIndex(0)
+        const initVis: Record<string, boolean> = {}
+        sl.forEach((s, si) => {
+          (s.blocks ?? []).forEach((b, bi) => {
+            if ((b as { isAnswer?: boolean }).isAnswer) initVis[`${si}-${bi}`] = true
+          })
+        })
+        setAnswerVisibility(initVis)
+        setAnswerRevealProgress({})
+        setAnswerTypingPaused({})
+        setWorksheetQuestionTypes(questions.map(() => 'exam'))
+        setCurriculumId(null)
+        setSlideMode('original')
+        setHasOriginalSlides(true)
+        hasHydratedFromCurriculumRef.current = true
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setWorksheetLoading(false)
+          setExamLoadError(tr('Không tải được đề thi.', 'Could not load exam.', '无法加载试卷。', '試験を読み込めません。', '시험을 불러올 수 없습니다.'))
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [worksheetId, examCode, uiLocale])
 
   useEffect(() => {
     const syncStudentWindowState = () => {
@@ -1065,7 +1136,7 @@ export default function GiaoVienWorksheetPage() {
       }
       return { ...b, studentAnswerHidden: false as const }
     }
-    const filteredBlocks = worksheetId
+    const filteredBlocks = isWorksheetSlideMode
       ? blocks.map((b, bi) => {
           return filterSolutionForStudent(b, bi)
         })
@@ -1083,7 +1154,7 @@ export default function GiaoVienWorksheetPage() {
       visualInput3: s.visualInput3,
       visualInput4: s.visualInput4,
     }
-  }, [worksheetId, curriculumId, answerVisibility])
+  }, [isWorksheetSlideMode, answerVisibility])
 
   const sendCurriculumDataToStudent = useCallback((slidesToSend: SlideItem[], currentIndexOverride?: number) => {
     const idx = typeof currentIndexOverride === 'number' ? currentIndexOverride : currentIndex
@@ -1099,11 +1170,11 @@ export default function GiaoVienWorksheetPage() {
       slides: slidesToSend.map((s, i) => toStudentSlidePayload(s, i)),
       teacherTimerSeconds,
       teacherTimerRunning,
-      worksheetId: !!worksheetId,
-      worksheetAnswerReveal: worksheetId || curriculumId ? answerRevealProgress : undefined,
-      worksheetAnswerTypingEnabled: worksheetId || curriculumId ? answerTypingEnabled : undefined,
-      worksheetStemTypingEnabled: worksheetId ? worksheetTypingEffectsGloballyEnabled : undefined,
-      ...(!worksheetId ? { studentCurriculumRightMode: studentCurriculumRemoteMode } : {}),
+      worksheetId: isWorksheetSlideMode,
+      worksheetAnswerReveal: (worksheetId || examCode || curriculumId) ? answerRevealProgress : undefined,
+      worksheetAnswerTypingEnabled: (worksheetId || examCode || curriculumId) ? answerTypingEnabled : undefined,
+      worksheetStemTypingEnabled: (worksheetId || examCode) ? worksheetTypingEffectsGloballyEnabled : undefined,
+      ...(!(worksheetId || examCode) ? { studentCurriculumRightMode: studentCurriculumRemoteMode } : {}),
     }
     try {
       const w = studentViewWindowRef.current
@@ -1116,19 +1187,19 @@ export default function GiaoVienWorksheetPage() {
     } catch {
       /* ignore */
     }
-  }, [content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, teacherTimerSeconds, teacherTimerRunning, toStudentSlidePayload, worksheetId, answerRevealProgress, answerTypingEnabled, worksheetTypingEffectsGloballyEnabled, studentCurriculumRemoteMode])
+  }, [content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, teacherTimerSeconds, teacherTimerRunning, toStudentSlidePayload, worksheetId, examCode, isWorksheetSlideMode, answerRevealProgress, answerTypingEnabled, worksheetTypingEffectsGloballyEnabled, studentCurriculumRemoteMode])
 
   /** Phiếu / giáo trình (đã lưu): khi ẩn/hiện đáp án hoặc bật/tắt chế độ gõ, gửi lại dữ liệu sang học sinh */
   useEffect(() => {
-    if (!(worksheetId || curriculumId) || !studentViewOpened) return
+    if (!((worksheetId || examCode || curriculumId)) || !studentViewOpened) return
     sendCurriculumDataToStudent(slides, currentIndex)
-  }, [answerVisibility, answerTypingEnabled, worksheetTypingEffectsGloballyEnabled, worksheetId, curriculumId, studentViewOpened, slides, currentIndex, sendCurriculumDataToStudent])
+  }, [answerVisibility, answerTypingEnabled, worksheetTypingEffectsGloballyEnabled, worksheetId, examCode, curriculumId, studentViewOpened, slides, currentIndex, sendCurriculumDataToStudent])
 
   /** Đổi slide → reset tiến độ gõ; giữ tạm dừng nếu slide vừa rời đang tạm dừng cả slide (đồng bộ nút Pause). */
   useEffect(() => {
-    if (!worksheetId && !curriculumId) return
+    if (!(worksheetId || examCode) && !curriculumId) return
 
-    const docKey = `${worksheetId ?? ''}:${curriculumId ?? ''}`
+    const docKey = `${worksheetId ?? ''}:${examCode ?? ''}:${curriculumId ?? ''}`
     if (lastTypingDocKeyRef.current !== docKey) {
       lastTypingDocKeyRef.current = docKey
       prevSlideIndexForTypingPauseRef.current = null
@@ -1169,12 +1240,12 @@ export default function GiaoVienWorksheetPage() {
     prevSlideIndexForTypingPauseRef.current = currentIndex
     // Chỉ chạy khi đổi slide / đổi phiên: `slides` lấy từ closure render này (không liệt kê trong deps để tránh reset khi chỉ sửa nội dung).
     // eslint-disable-next-line react-hooks/exhaustive-deps -- slides chỉ cần đúng khi currentIndex/worksheetId/curriculumId đổi
-  }, [currentIndex, worksheetId, curriculumId])
+  }, [currentIndex, worksheetId, examCode, curriculumId])
 
 
   /** Tăng segment hiển thị cho HS (GV màn hình đồng bộ tiến độ gõ) */
   useEffect(() => {
-    if (!worksheetId && !curriculumId) return
+    if (!(worksheetId || examCode) && !curriculumId) return
     const ms = Math.max(15, answerTypingSpeedMs)
     const id = window.setInterval(() => {
       setAnswerRevealProgress((prev) => {
@@ -1187,7 +1258,7 @@ export default function GiaoVienWorksheetPage() {
         let targetBi = -1
         for (let bi = 0; bi < slide.blocks.length; bi++) {
           const b = slide.blocks[bi]
-          const shouldTypeBySegments = worksheetId
+          const shouldTypeBySegments = worksheetId || examCode
             ? worksheetAnswerSegmentCount(b.content ?? '') > 0
             : !!curriculumId
           if (!shouldTypeBySegments) continue
@@ -1211,13 +1282,13 @@ export default function GiaoVienWorksheetPage() {
       })
     }, ms)
     return () => window.clearInterval(id)
-  }, [worksheetId, curriculumId, answerTypingSpeedMs, currentIndex, slides, answerVisibility, answerTypingEnabled, answerTypingPaused])
+  }, [worksheetId, examCode, curriculumId, answerTypingSpeedMs, currentIndex, slides, answerVisibility, answerTypingEnabled, answerTypingPaused])
 
   /** Đẩy tiến độ gõ segment sang cửa sổ học sinh */
   useEffect(() => {
-    if (!(worksheetId || curriculumId) || !studentViewOpened) return
+    if (!((worksheetId || examCode || curriculumId)) || !studentViewOpened) return
     sendToStudentView({ type: 'worksheet-answer-reveal', worksheetAnswerReveal: answerRevealProgress })
-  }, [answerRevealProgress, worksheetId, curriculumId, studentViewOpened, sendToStudentView])
+  }, [answerRevealProgress, worksheetId, examCode, curriculumId, studentViewOpened, sendToStudentView])
 
   /** Đồng bộ định kỳ sang học sinh khi cửa sổ mở – đảm bảo visual (đồ thị từ ô nhập) luôn cập nhật */
   useEffect(() => {
@@ -1402,11 +1473,11 @@ export default function GiaoVienWorksheetPage() {
         slides: slides.map((s, i) => toStudentSlidePayload(s, i)),
         teacherTimerSeconds,
         teacherTimerRunning,
-        worksheetId: !!worksheetId,
-        worksheetAnswerReveal: worksheetId || curriculumId ? answerRevealProgress : undefined,
-        worksheetAnswerTypingEnabled: worksheetId || curriculumId ? answerTypingEnabled : undefined,
-        worksheetStemTypingEnabled: worksheetId ? worksheetTypingEffectsGloballyEnabled : undefined,
-        ...(!worksheetId ? { studentCurriculumRightMode: studentCurriculumRemoteMode } : {}),
+        worksheetId: isWorksheetSlideMode,
+        worksheetAnswerReveal: (worksheetId || examCode || curriculumId) ? answerRevealProgress : undefined,
+        worksheetAnswerTypingEnabled: (worksheetId || examCode || curriculumId) ? answerTypingEnabled : undefined,
+        worksheetStemTypingEnabled: (worksheetId || examCode) ? worksheetTypingEffectsGloballyEnabled : undefined,
+        ...(!(worksheetId || examCode) ? { studentCurriculumRightMode: studentCurriculumRemoteMode } : {}),
       })
       channel.postMessage({ type: 'presentation-mode', mode: 'slide-interaction' })
       channel.postMessage({ type: 'set-auto-play', value: remoteAutoPlay })
@@ -1433,14 +1504,14 @@ export default function GiaoVienWorksheetPage() {
       channel.close()
       if (syncChannelRef.current === channel) syncChannelRef.current = null
     }
-  }, [presentationSyncId, content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning, remoteAutoPlay, remoteAutoPlayIntervalMs, visualFullscreenOpen, quizPopupOpen, quizSessionData, quizSessionSettings, toStudentSlidePayload, worksheetId, answerRevealProgress, answerTypingEnabled, worksheetTypingEffectsGloballyEnabled, studentCurriculumRemoteMode])
+  }, [presentationSyncId, content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning, remoteAutoPlay, remoteAutoPlayIntervalMs, visualFullscreenOpen, quizPopupOpen, quizSessionData, quizSessionSettings, toStudentSlidePayload, worksheetId, examCode, isWorksheetSlideMode, answerRevealProgress, answerTypingEnabled, worksheetTypingEffectsGloballyEnabled, studentCurriculumRemoteMode])
 
   const openTeacherVisualFullscreen = useCallback((cellIndex?: number) => {
     setTeacherExpandedCellIndex(typeof cellIndex === 'number' ? cellIndex : null)
     setVisualFullscreenOpen(true)
-    const { url: baseSlideUrl, windowName } = getStudentSlideWindowConfig(!!worksheetId)
+    const { url: baseSlideUrl, windowName } = getStudentSlideWindowConfig(isWorksheetSlideMode)
     const urlWithSync = studentSlideUrlWithSync(baseSlideUrl, presentationSyncId)
-    const kind = worksheetId ? 'worksheet' : 'curriculum'
+    const kind = isWorksheetSlideMode ? 'worksheet' : 'curriculum'
     const sw = typeof screen !== 'undefined' ? screen.availWidth || 1920 : 1920
     const sh = typeof screen !== 'undefined' ? screen.availHeight || 1080 : 1080
     const features = `width=${sw},height=${sh},left=0,top=0,scrollbars=no,resizable=yes`
@@ -1481,11 +1552,11 @@ export default function GiaoVienWorksheetPage() {
             slides: slides.map(toStudentSlidePayload),
             teacherTimerSeconds,
             teacherTimerRunning,
-            worksheetId: !!worksheetId,
-            worksheetAnswerReveal: worksheetId || curriculumId ? answerRevealProgress : undefined,
-            worksheetAnswerTypingEnabled: worksheetId || curriculumId ? answerTypingEnabled : undefined,
-            worksheetStemTypingEnabled: worksheetId ? worksheetTypingEffectsGloballyEnabled : undefined,
-            ...(!worksheetId ? { studentCurriculumRightMode: studentCurriculumRemoteMode } : {}),
+            worksheetId: isWorksheetSlideMode,
+            worksheetAnswerReveal: (worksheetId || examCode || curriculumId) ? answerRevealProgress : undefined,
+            worksheetAnswerTypingEnabled: (worksheetId || examCode || curriculumId) ? answerTypingEnabled : undefined,
+            worksheetStemTypingEnabled: (worksheetId || examCode) ? worksheetTypingEffectsGloballyEnabled : undefined,
+            ...(!(worksheetId || examCode) ? { studentCurriculumRightMode: studentCurriculumRemoteMode } : {}),
           },
           window.location.origin
         )
@@ -1509,7 +1580,7 @@ export default function GiaoVienWorksheetPage() {
       sendToStudentView({ type: 'presentation-mode', mode: 'slide-interaction' })
       sendToStudentView(openMsg)
     }, 650)
-  }, [sendToStudentView, content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning, worksheetId, answerRevealProgress, answerTypingEnabled, worksheetTypingEffectsGloballyEnabled, toStudentSlidePayload, presentationSyncId, studentCurriculumRemoteMode])
+  }, [sendToStudentView, content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning, worksheetId, examCode, isWorksheetSlideMode, answerRevealProgress, answerTypingEnabled, worksheetTypingEffectsGloballyEnabled, toStudentSlidePayload, presentationSyncId, studentCurriculumRemoteMode])
 
   const closeTeacherVisualFullscreen = useCallback(() => {
     setVisualFullscreenOpen(false)
@@ -1753,9 +1824,9 @@ export default function GiaoVienWorksheetPage() {
     const sw = typeof screen !== 'undefined' ? screen.availWidth || 1920 : 1920
     const sh = typeof screen !== 'undefined' ? screen.availHeight || 1080 : 1080
     const features = `width=${sw},height=${sh},left=0,top=0,scrollbars=no,resizable=yes`
-    const { url: baseSlideUrl, windowName } = getStudentSlideWindowConfig(!!worksheetId)
+    const { url: baseSlideUrl, windowName } = getStudentSlideWindowConfig(isWorksheetSlideMode)
     const urlWithSync = studentSlideUrlWithSync(baseSlideUrl, presentationSyncId)
-    const kind = worksheetId ? 'worksheet' : 'curriculum'
+    const kind = isWorksheetSlideMode ? 'worksheet' : 'curriculum'
     let targetWin: Window | null = null
     try {
       targetWin = window.open('', windowName)
@@ -1812,11 +1883,11 @@ export default function GiaoVienWorksheetPage() {
             slides: slides.map(toStudentSlidePayload),
             teacherTimerSeconds,
             teacherTimerRunning,
-            worksheetId: !!worksheetId,
-            worksheetAnswerReveal: worksheetId || curriculumId ? answerRevealProgress : undefined,
-            worksheetAnswerTypingEnabled: worksheetId || curriculumId ? answerTypingEnabled : undefined,
-            worksheetStemTypingEnabled: worksheetId ? worksheetTypingEffectsGloballyEnabled : undefined,
-            ...(!worksheetId ? { studentCurriculumRightMode: studentCurriculumRemoteMode } : {}),
+            worksheetId: isWorksheetSlideMode,
+            worksheetAnswerReveal: (worksheetId || examCode || curriculumId) ? answerRevealProgress : undefined,
+            worksheetAnswerTypingEnabled: (worksheetId || examCode || curriculumId) ? answerTypingEnabled : undefined,
+            worksheetStemTypingEnabled: (worksheetId || examCode) ? worksheetTypingEffectsGloballyEnabled : undefined,
+            ...(!(worksheetId || examCode) ? { studentCurriculumRightMode: studentCurriculumRemoteMode } : {}),
           },
           window.location.origin
         )
@@ -1834,11 +1905,11 @@ export default function GiaoVienWorksheetPage() {
     }
     sendState()
     setTimeout(sendState, 300)
-  }, [content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning, remoteAutoPlay, remoteAutoPlayIntervalMs, visualFullscreenOpen, quizPopupOpen, quizSessionData, quizSessionSettings, toast, tr, worksheetId, answerRevealProgress, answerTypingEnabled, worksheetTypingEffectsGloballyEnabled, toStudentSlidePayload, presentationSyncId, studentCurriculumRemoteMode])
+  }, [content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning, remoteAutoPlay, remoteAutoPlayIntervalMs, visualFullscreenOpen, quizPopupOpen, quizSessionData, quizSessionSettings, toast, tr, worksheetId, examCode, isWorksheetSlideMode, answerRevealProgress, answerTypingEnabled, worksheetTypingEffectsGloballyEnabled, toStudentSlidePayload, presentationSyncId, studentCurriculumRemoteMode])
 
   const viewOpenedStudentView = useCallback(() => {
     if (typeof window === 'undefined') return
-    const { windowName } = getStudentSlideWindowConfig(!!worksheetId)
+    const { windowName } = getStudentSlideWindowConfig(isWorksheetSlideMode)
     let targetWin: Window | null = null
     try {
       targetWin = window.open('', windowName)
@@ -1864,7 +1935,7 @@ export default function GiaoVienWorksheetPage() {
         description: tr('Trình duyệt chưa cho phép focus ngay. Bạn có thể chọn cửa sổ trên taskbar.', 'Browser did not allow immediate focus. You can select it from taskbar.', '浏览器暂未允许立即聚焦。可在任务栏选择该窗口。', 'ブラウザが即時フォーカスを許可しませんでした。タスクバーから選択できます。', '브라우저가 즉시 포커스를 허용하지 않았습니다. 작업 표시줄에서 선택하세요.'),
       })
     }
-  }, [toast, tr, worksheetId])
+  }, [toast, tr, isWorksheetSlideMode])
 
   const updateCurrentSlideVisualInput = useCallback((key: 'visualInput1' | 'visualInput2' | 'visualInput3' | 'visualInput4', value: string) => {
     visualManualEditedRef.current[currentIndex] = true
@@ -1918,20 +1989,6 @@ export default function GiaoVienWorksheetPage() {
     setVisualInputsDirty(false)
     void persistSlidesRef.current(slidesRef.current)
   }, [curriculumId])
-
-  const handleDeleteSlide = useCallback(() => {
-    if (slides.length <= 1) return
-    const idx = currentIndex
-    const next = slides.filter((_, i) => i !== idx)
-    const newIdx = idx >= 1 ? idx - 1 : 0
-    setSlides(next)
-    setCurrentIndex(newIdx)
-    if (curriculumId) void persistSlidesRef.current(next)
-    if (window.opener) window.opener.postMessage({ type: 'delete-slide', index: idx }, window.location.origin)
-    sendToStudentView({ type: 'delete-slide', index: idx })
-    sendCurriculumDataToStudent(next, newIdx)
-    toast({ title: tr('Đã xóa slide', 'Slide deleted', '已删除幻灯片', 'スライドを削除', '슬라이드 삭제됨'), duration: 1500 })
-  }, [currentIndex, slides, curriculumId, sendToStudentView, sendCurriculumDataToStudent, toast, tr])
 
   const sendNotesToParent = useCallback((value: string) => {
     if (window.opener) window.opener.postMessage({ type: 'update-notes', slideIndex: currentIndex, teacherNotes: value }, window.location.origin)
@@ -2096,25 +2153,6 @@ export default function GiaoVienWorksheetPage() {
     sendUpdateSlideBlocks(slideIndex, newBlocks)
     sendCurriculumDataToStudent(updated)
     toast({ title: tr('Đã xóa nội dung chèn', 'Embed removed', '已删除嵌入内容', '埋め込みを削除', '삽입 내용 삭제됨'), duration: 1500 })
-  }, [slides, curriculumId, sendUpdateSlideBlocks, sendCurriculumDataToStudent, toast, tr])
-
-  const handleReplaceEmbed = useCallback((slideIndex: number, blockIndex: number, oldRawMarker: string, newMarker: string) => {
-    const s = slides[slideIndex]
-    if (!s) return
-    const blks = s.blocks ?? (s.content ? parseContentToBlocks(s.content) : [])
-    const bl = blks[blockIndex]
-    const rawContent = bl?.content ?? (blockIndex === 0 && s.content ? s.content : '')
-    if (!rawContent?.includes(oldRawMarker)) return
-    const newContent = rawContent.replace(oldRawMarker, newMarker)
-    const newBlocks = blks.length > 0
-      ? blks.map((b, j) => (j === blockIndex ? { ...b, content: newContent } : b))
-      : parseContentToBlocks(newContent)
-    const updated = slides.map((sl, i) => (i === slideIndex ? { ...sl, blocks: newBlocks, content: blks.length === 0 ? newContent : undefined } : sl))
-    setSlides(updated)
-    if (curriculumId) void persistSlidesRef.current(updated)
-    sendUpdateSlideBlocks(slideIndex, newBlocks)
-    sendCurriculumDataToStudent(updated)
-    toast({ title: tr('Đã thay nội dung chèn', 'Embed replaced', '已替换嵌入内容', '埋め込みを差し替え', '삽입 내용 교체됨'), duration: 1500 })
   }, [slides, curriculumId, sendUpdateSlideBlocks, sendCurriculumDataToStudent, toast, tr])
 
   const gvWorksheetEditBlocks = useMemo(
@@ -2581,11 +2619,11 @@ export default function GiaoVienWorksheetPage() {
               slides: slides.map(toStudentSlidePayload),
               teacherTimerSeconds,
               teacherTimerRunning,
-              worksheetId: !!worksheetId,
-              worksheetAnswerReveal: worksheetId || curriculumId ? answerRevealProgress : undefined,
-              worksheetAnswerTypingEnabled: worksheetId || curriculumId ? answerTypingEnabled : undefined,
-              worksheetStemTypingEnabled: worksheetId ? worksheetTypingEffectsGloballyEnabled : undefined,
-              ...(!worksheetId ? { studentCurriculumRightMode: studentCurriculumRemoteMode } : {}),
+              worksheetId: isWorksheetSlideMode,
+              worksheetAnswerReveal: (worksheetId || examCode || curriculumId) ? answerRevealProgress : undefined,
+              worksheetAnswerTypingEnabled: (worksheetId || examCode || curriculumId) ? answerTypingEnabled : undefined,
+              worksheetStemTypingEnabled: (worksheetId || examCode) ? worksheetTypingEffectsGloballyEnabled : undefined,
+              ...(!(worksheetId || examCode) ? { studentCurriculumRightMode: studentCurriculumRemoteMode } : {}),
             },
             window.location.origin
           )
@@ -2698,7 +2736,7 @@ export default function GiaoVienWorksheetPage() {
     }
     window.addEventListener('message', handler)
     return () => window.removeEventListener('message', handler)
-  }, [content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning, quizPopupOpen, openQuizPopupFresh, worksheetId, answerRevealProgress, answerTypingEnabled, worksheetTypingEffectsGloballyEnabled, toStudentSlidePayload, studentCurriculumRemoteMode])
+  }, [content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning, quizPopupOpen, openQuizPopupFresh, worksheetId, examCode, isWorksheetSlideMode, answerRevealProgress, answerTypingEnabled, worksheetTypingEffectsGloballyEnabled, toStudentSlidePayload, studentCurriculumRemoteMode])
 
   useEffect(() => {
     slidesRef.current = slides
@@ -2880,14 +2918,18 @@ export default function GiaoVienWorksheetPage() {
           <div className="flex items-center gap-2 md:gap-3 flex-wrap md:flex-nowrap landscape:flex-nowrap shrink-0">
             <span className="text-xs md:text-sm font-medium tabular-nums shrink-0 text-slate-300">{currentIndex + 1}/{slideTitles.length || slides.length}</span>
             <h1 className="text-sm md:text-base font-semibold text-amber-400/95 tracking-tight">
-              {worksheetId ? tr('Phiếu bài tập + Ghi chú', 'Worksheet + Notes', '练习+备注', 'ワークシート+メモ', '워크시트+메모') : tr('Giáo trình + Ghi chú', 'Curriculum + Notes', '课程+备注', 'カリキュラム+メモ', '교육과정+메모')}
+              {worksheetId
+                ? tr('Phiếu bài tập + Ghi chú', 'Worksheet + Notes', '练习+备注', 'ワークシート+メモ', '워크시트+메모')
+                : examCode
+                  ? tr('Chữa bài đề thi + Ghi chú', 'Exam review + Notes', '试卷讲评+备注', '試験解説+メモ', '시험 해설+메모')
+                  : tr('Giáo trình + Ghi chú', 'Curriculum + Notes', '课程+备注', 'カリキュラム+メモ', '교육과정+메모')}
             </h1>
             {(slideMode || slideMode === null) && slides.length > 0 && (
               <span className={['text-xs font-medium px-2.5 py-1 rounded-md', slideMode === 'personal' ? 'bg-violet-500/25 text-violet-200 border border-violet-400/40' : 'bg-amber-500/25 text-amber-200 border border-amber-400/40'].join(' ')}>
                 {slideMode === 'personal' ? tr('Bản riêng', 'Personal', '个人版', '個人版', '개인') : tr('Bản chung', 'Shared', '共享版', '共有版', '공유')}
               </span>
             )}
-            {!curriculumId && !worksheetId && slides.length > 0 && (
+            {!curriculumId && !worksheetId && !examCode && slides.length > 0 && (
               <span className="text-xs px-2 py-0.5 rounded bg-slate-600/40 text-amber-200/90" title={tr('Lưu giáo trình vào kho để sửa và đề xuất', 'Save curriculum to edit and propose', '保存课程以编辑和建议', '保存して編集・提案', '저장 후 편집·제안')}>
                 {tr('Lưu giáo trình vào kho', 'Save to library', '保存到库', '保存して利用', '저장 후 사용')}
               </span>
@@ -2895,6 +2937,11 @@ export default function GiaoVienWorksheetPage() {
             {worksheetId && slides.length > 0 && (
               <span className="text-xs px-2 py-0.5 rounded bg-slate-600/40 text-amber-200/90" title={tr('Phiếu bài tập', 'Worksheet', '练习', 'ワークシート', '워크시트')}>
                 {tr('Phiếu bài tập', 'Worksheet', '练习', 'ワークシート', '워크시트')}
+              </span>
+            )}
+            {examCode && !worksheetId && slides.length > 0 && (
+              <span className="text-xs px-2 py-0.5 rounded bg-slate-600/40 text-amber-200/90" title={tr('Chữa bài đề thi', 'Exam review', '试卷讲评', '試験解説', '시험 해설')}>
+                {tr('Chữa bài đề thi', 'Exam review', '试卷讲评', '試験解説', '시험 해설')}
               </span>
             )}
             {slideMode === 'personal' && (
@@ -2952,9 +2999,15 @@ export default function GiaoVienWorksheetPage() {
         <div className="flex-1 flex items-center justify-center p-8 bg-slate-900/30">
           <div className="text-center space-y-6 max-w-sm">
             {worksheetLoading ? (
-              <p className="text-slate-400 text-sm">{tr('Đang tải phiếu bài tập...', 'Loading worksheet...', '正在加载练习...', 'ワークシートを読み込み中...', '워크시트 로딩 중...')}</p>
+              <p className="text-slate-400 text-sm">
+                {examCode && !worksheetId
+                  ? tr('Đang tải đề thi...', 'Loading exam...', '正在加载试卷...', '試験を読み込み中...', '시험 로딩 중...')
+                  : tr('Đang tải phiếu bài tập...', 'Loading worksheet...', '正在加载练习...', 'ワークシートを読み込み中...', '워크시트 로딩 중...')}
+              </p>
             ) : worksheetId ? (
               <p className="text-slate-400 text-sm">{tr('Không tải được phiếu bài tập.', 'Could not load worksheet.', '无法加载练习。', 'ワークシートを読み込めません。', '워크시트를 불러올 수 없습니다.')}</p>
+            ) : examCode ? (
+              <p className="text-slate-400 text-sm">{examLoadError ?? tr('Không tải được đề thi.', 'Could not load exam.', '无法加载试卷。', '試験を読み込めません。', '시험을 불러올 수 없습니다.')}</p>
             ) : (
               <>
                 <p className="text-slate-400 text-sm leading-relaxed">{tr('Mở giáo trình từ trang Tạo giáo trình (bấm "Xem slide" hoặc "Xem giáo trình").', 'Open curriculum from Create curriculum page (click "View slides" or "View curriculum").', '从创建课程页面打开课程（点击"查看幻灯片"或"查看课程"）。', '作成ページからカリキュラムを開く（「スライド表示」または「カリキュラムを見る」をクリック）。', '교육과정 생성 페이지에서 열기 ("슬라이드 보기" 또는 "교육과정 보기" 클릭).')}</p>
@@ -2976,11 +3029,21 @@ export default function GiaoVienWorksheetPage() {
           >
           <div className={cn('shrink-0 flex flex-col overflow-hidden isolate bg-slate-900/20 border-r border-slate-700/60', leftPanelMode === 'visual' ? 'w-[45%]' : 'w-1/2')}>
             <div className="h-12 px-3 md:px-4 text-slate-400 text-xs font-medium uppercase tracking-wider border-b border-slate-700/60 bg-slate-900/30 shrink-0 flex items-center justify-between gap-2 overflow-hidden">
-              <span>{worksheetId ? tr('Phiếu bài tập', 'Worksheet', '练习', 'ワークシート', '워크시트') : tr('Giáo trình', 'Curriculum', '课程', 'カリキュラム', '교육과정')}</span>
+              <span>
+                {worksheetId
+                  ? tr('Phiếu bài tập', 'Worksheet', '练习', 'ワークシート', '워크시트')
+                  : examCode
+                    ? tr('Chữa bài đề thi', 'Exam review', '试卷讲评', '試験解説', '시험 해설')
+                    : tr('Giáo trình', 'Curriculum', '课程', 'カリキュラム', '교육과정')}
+              </span>
               <div className={cn('flex items-center gap-2 mr-[1px]', leftPanelMode === 'curriculum' && '-translate-x-[66px]', leftPanelMode === 'visual' && 'translate-x-[20px]')}>
                 <div className="flex rounded-lg border border-slate-600/80 overflow-hidden bg-slate-800/50">
                   <button type="button" onClick={() => setLeftPanelMode('curriculum')} className={['px-3 py-1.5 text-[11px] font-medium transition-colors h-8 flex items-center', leftPanelMode === 'curriculum' ? 'bg-amber-500/30 text-amber-300' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'].join(' ')}>
-                    {worksheetId ? tr('Phiếu bài tập', 'Worksheet', '练习', 'ワークシート', '워크시트') : tr('Giáo trình', 'Curriculum', '课程', 'カリキュラム', '교육과정')}
+                    {worksheetId
+                      ? tr('Phiếu bài tập', 'Worksheet', '练习', 'ワークシート', '워크시트')
+                      : examCode
+                        ? tr('Chữa bài đề thi', 'Exam review', '试卷讲评', '試験解説', '시험 해설')
+                        : tr('Giáo trình', 'Curriculum', '课程', 'カリキュラム', '교육과정')}
                   </button>
                   <button type="button" onClick={() => setLeftPanelMode('visual')} className={['px-3 py-1.5 text-[11px] font-medium transition-colors h-8 flex items-center', (leftPanelMode as string) === 'visual' ? 'bg-amber-500/30 text-amber-300' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'].join(' ')}>
                     {tr('Visual', 'Visual', '视觉', 'ビジュアル', '비주얼')}
@@ -3125,7 +3188,7 @@ export default function GiaoVienWorksheetPage() {
           <div className={cn('shrink-0 flex flex-col overflow-hidden isolate', leftPanelMode === 'visual' ? 'w-[55%]' : 'w-1/2')}>
             <div className="flex h-12 shrink-0 items-center justify-between gap-2 overflow-hidden border-b border-slate-700/60 bg-slate-900/30 px-3 text-xs font-medium uppercase tracking-wider text-slate-400 md:h-14 md:px-4">
               <div className="flex min-w-0 flex-1 items-center gap-2 md:gap-3">
-                {!worksheetId && slides.length > 0 ? (
+                {!worksheetId && !examCode && slides.length > 0 ? (
                   <div className="flex shrink-0 items-center gap-1 md:gap-1.5" data-control="gv-remote-student-curriculum-mode">
                     <button
                       type="button"
@@ -3212,7 +3275,7 @@ export default function GiaoVienWorksheetPage() {
                 {(() => {
                   const s = slides[currentIndex]
                   const blks = !s ? [] : (Array.isArray(s.blocks) && s.blocks.length ? s.blocks : s.content ? parseContentToBlocks(s.content ?? '') : [])
-                  const showDirectEdit = curriculumId && slideMode === 'personal' && personalViewSubMode === 'current'
+                  const showDirectEdit = Boolean(curriculumId && slideMode === 'personal' && personalViewSubMode === 'current')
                   return (
                     <div className="w-full flex flex-col gap-2 items-stretch text-left">
                       {slideMode === 'personal' && personalViewSubMode === 'current' && !curriculumId && (
@@ -3318,13 +3381,13 @@ export default function GiaoVienWorksheetPage() {
                               const isEditing = editingBlock?.slideIndex === currentIndex && editingBlock?.blockIndex === i
                               const isEditingHeader = editingHeader?.slideIndex === currentIndex && editingHeader?.blockIndex === i
                               const isBảnChung = slideMode === 'shared' || slideMode === 'original' || slideMode === null
-                              const showProposalUi = (curriculumId || worksheetId) && isBảnChung
-                              const showDirectEdit = curriculumId && slideMode === 'personal' && personalViewSubMode === 'current'
+                              const showProposalUi = Boolean((curriculumId || worksheetId) && isBảnChung)
+                              const showDirectEdit = Boolean(curriculumId && slideMode === 'personal' && personalViewSubMode === 'current')
                               const showSolutionTypingToolbar =
-                                (!!worksheetId && !!(b as { isAnswer?: boolean }).isAnswer) ||
-                                (!worksheetId && !!curriculumId)
+                                (isWorksheetSlideMode && !!(b as { isAnswer?: boolean }).isAnswer) ||
+                                (!isWorksheetSlideMode && !!curriculumId)
                               const useWorksheetStemOrAnswerTypedBody =
-                                !!worksheetId && worksheetAnswerSegmentCount(b.content ?? '') > 0
+                                isWorksheetSlideMode && worksheetAnswerSegmentCount(b.content ?? '') > 0
                               return (
                                 <div key={i} className="rounded-lg bg-slate-800/60 p-2.5 border border-slate-600/60 hover:border-slate-500/50 transition-colors">
                                     {isEditingHeader ? (
@@ -3338,10 +3401,10 @@ export default function GiaoVienWorksheetPage() {
                                       <button type="button" onClick={() => setEditingHeader(null)} className="text-xs text-slate-400 hover:text-slate-300 px-2 py-1.5">{tr('Hủy', 'Cancel', '取消', 'キャンセル', '취소')}</button>
                                     </div>
                                   ) : (
-                                    (b.header || (b as { isAnswer?: boolean }).isAnswer || (!!curriculumId && !worksheetId)) && (
+                                    (b.header || (b as { isAnswer?: boolean }).isAnswer || (!!curriculumId && !worksheetId && !examCode)) && (
                                       <div className="flex flex-wrap items-center gap-1.5 mb-2">
                                         <div className="text-amber-300/95 font-bold text-xs">{b.header || tr('Đáp án', 'Answer', '答案', '解答', '정답')}</div>
-                                        {worksheetId && showSolutionTypingToolbar && (
+                                        {isWorksheetSlideMode && showSolutionTypingToolbar && (
                                           <button
                                             type="button"
                                             onClick={() => {
@@ -3355,7 +3418,7 @@ export default function GiaoVienWorksheetPage() {
                                             {answerVisibility[`${currentIndex}-${i}`] !== false ? tr('Ẩn', 'Hide', '隐藏', '非表示', '숨김') : tr('Hiện', 'Show', '显示', '表示', '표시')}
                                           </button>
                                         )}
-                                        {showSolutionTypingToolbar && worksheetId && (
+                                        {showSolutionTypingToolbar && isWorksheetSlideMode && (
                                           <button
                                             type="button"
                                             onClick={() => {
@@ -3433,7 +3496,7 @@ export default function GiaoVienWorksheetPage() {
                                               : undefined
                                           }
                                           tr={tr}
-                                          worksheetId={!!worksheetId}
+                                          worksheetId={isWorksheetSlideMode}
                                           curriculumId={curriculumId}
                                           slideIndex={currentIndex}
                                           blockIndex={i}
@@ -3458,7 +3521,7 @@ export default function GiaoVienWorksheetPage() {
                                             }
                                           }}
                                           reportQuizWrong={reportQuizWrong}
-                                          worksheetBlocksProposalDisabled={!!worksheetId}
+                                          worksheetBlocksProposalDisabled={isWorksheetSlideMode}
                                           showWorksheetMarkdownEdit={!!worksheetId}
                                           onEditWorksheetMarkdown={() => void openWorksheetBlockEditorFromSlide(currentIndex)}
                                         />
@@ -3470,7 +3533,7 @@ export default function GiaoVienWorksheetPage() {
                                               if (p.type === 'embed' && p.embedType === 'quiz') {
                                                 const q = parseQuizData(p.urlOrId)
                                                 if (!q) return null
-                                                const hideAns = !!worksheetId
+                                                const hideAns = isWorksheetSlideMode
                                                 return (
                                                   <div key={j} className="rounded-lg bg-violet-500/15 border border-violet-400/30 p-2.5">
                                                     <div className="text-violet-200 font-medium text-xs mb-1.5">{tr('Câu hỏi trắc nghiệm', 'Quiz question', '测验题', 'クイズ', '퀴즈')}</div>
@@ -3518,8 +3581,8 @@ export default function GiaoVienWorksheetPage() {
                                                 <button
                                                   key={qIdx}
                                                   type="button"
-                                                  disabled={!!quizReportLoading || !!worksheetId}
-                                                  title={worksheetId ? tr('Chỉ cho giáo trình đã lưu', 'Only for saved curriculum', '仅限已保存课程', '保存済みカリキュラムのみ', '저장된 교육과정만') : undefined}
+                                                  disabled={!!quizReportLoading || !!worksheetId || !!examCode}
+                                                  title={(worksheetId || examCode) ? tr('Chỉ cho giáo trình đã lưu', 'Only for saved curriculum', '仅限已保存课程', '保存済みカリキュラムのみ', '저장된 교육과정만') : undefined}
                                                   onClick={() => curriculumId && reportQuizWrong({
                                                     curriculumId,
                                                     slideIndex: currentIndex,
@@ -3609,7 +3672,7 @@ export default function GiaoVienWorksheetPage() {
                                       if (p.type === 'embed' && p.embedType === 'quiz') {
                                         const q = parseQuizData(p.urlOrId)
                                         if (!q) return null
-                                        const hideAns = !!worksheetId
+                                        const hideAns = isWorksheetSlideMode
                                         return (
                                           <div key={j} className="rounded-lg bg-violet-500/15 border border-violet-400/30 p-2.5">
                                             <div className="text-violet-200 font-medium text-xs mb-1.5">{tr('Câu hỏi trắc nghiệm', 'Quiz question', '测验题', 'クイズ', '퀴즈')}</div>
@@ -3656,8 +3719,8 @@ export default function GiaoVienWorksheetPage() {
                                       <button
                                         key={qIdx}
                                         type="button"
-                                        disabled={!!quizReportLoading || !!worksheetId}
-                                        title={worksheetId ? tr('Chỉ cho giáo trình đã lưu', 'Only for saved curriculum', '仅限已保存课程', '保存済みカリキュラムのみ', '저장된 교육과정만') : undefined}
+                                        disabled={!!quizReportLoading || !!worksheetId || !!examCode}
+                                        title={(worksheetId || examCode) ? tr('Chỉ cho giáo trình đã lưu', 'Only for saved curriculum', '仅限已保存课程', '保存済みカリキュラムのみ', '저장된 교육과정만') : undefined}
                                         onClick={() => curriculumId && reportQuizWrong({
                                           curriculumId,
                                           slideIndex: currentIndex,
@@ -3887,23 +3950,23 @@ export default function GiaoVienWorksheetPage() {
                           const blockProposals = isCurrent && curriculumId ? proposals.filter((p) => p.slide_index === idx && p.block_index === i) : []
                           const isEditing = isCurrent && editingBlock?.slideIndex === idx && editingBlock?.blockIndex === i
                         const isBảnChung = slideMode === 'shared' || slideMode === 'original' || slideMode === null
-                        const showProposalUi = isCurrent && (curriculumId || worksheetId) && isBảnChung
-                        const showDirectEdit = isCurrent && curriculumId && slideMode === 'personal' && personalViewSubMode === 'current'
+                        const showProposalUi = Boolean(isCurrent && (curriculumId || worksheetId) && isBảnChung)
+                        const showDirectEdit = Boolean(isCurrent && curriculumId && slideMode === 'personal' && personalViewSubMode === 'current')
                         const showSolutionTypingToolbar =
-                          (!!worksheetId && !!(b as { isAnswer?: boolean }).isAnswer) ||
-                          (!worksheetId && !!curriculumId)
+                          (isWorksheetSlideMode && !!(b as { isAnswer?: boolean }).isAnswer) ||
+                          (!isWorksheetSlideMode && !!curriculumId)
                           return (
                             <div key={i} className="rounded-lg bg-slate-800/50 p-2 border border-slate-600/50">
-                              {(b.header || (b as { isAnswer?: boolean }).isAnswer || (!!curriculumId && !worksheetId)) && (
+                              {(b.header || (b as { isAnswer?: boolean }).isAnswer || (!!curriculumId && !worksheetId && !examCode)) && (
                                 <div className="flex flex-wrap items-center gap-1 mb-0.5">
                                   <span className="text-amber-300/90 font-bold text-xs">{b.header || tr('Đáp án', 'Answer', '答案', '解答', '정답')}</span>
-                                  {worksheetId && showSolutionTypingToolbar && (
+                                  {isWorksheetSlideMode && showSolutionTypingToolbar && (
                                     <button type="button" onClick={() => setAnswerVisibility((prev) => ({ ...prev, [`${idx}-${i}`]: !(prev[`${idx}-${i}`] !== false) }))} className="text-[10px] px-1.5 py-0.5 rounded bg-slate-600/50 hover:bg-slate-600/70 text-slate-300 flex items-center gap-0.5" title={answerVisibility[`${idx}-${i}`] !== false ? tr('Ẩn đáp án trên màn hình học sinh và tạm dừng hiệu ứng gõ lời giải', 'Hide answer on student view and pause typing', '在学生界面隐藏答案并暂停打字', '生徒画面で解答を非表示・タイピング一時停止', '학생 화면에서 정답 숨기기 및 타이핑 일시정지') : tr('Hiện đáp án trên màn hình học sinh và tiếp tục gõ lời giải', 'Show answer on student view and resume typing', '在学生界面显示答案并继续打字', '生徒画面で解答を表示・タイピング再開', '학생 화면에서 정답 표시 및 타이핑 재개')}>
                                       {answerVisibility[`${idx}-${i}`] !== false ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
                                       {answerVisibility[`${idx}-${i}`] !== false ? tr('Ẩn', 'Hide', '隐藏', '非表示', '숨김') : tr('Hiện', 'Show', '显示', '表示', '표시')}
                                     </button>
                                   )}
-                                  {showSolutionTypingToolbar && worksheetId && (
+                                  {showSolutionTypingToolbar && isWorksheetSlideMode && (
                                     <button
                                       type="button"
                                       onClick={() => {
@@ -3977,7 +4040,7 @@ export default function GiaoVienWorksheetPage() {
                                   </div>
                                   <div className="mt-1 flex flex-wrap gap-1">
                                     {(curriculumId || worksheetId) && asArray(splitContentWithEmbeds(b.content ?? '')).filter((p): p is { type: 'embed'; embedType: 'quiz'; urlOrId: string; rawMarker: string } => p.type === 'embed' && p.embedType === 'quiz').map((p, qIdx) => (
-                                      <button key={qIdx} type="button" disabled={!!quizReportLoading || !!worksheetId} title={worksheetId ? tr('Chỉ cho giáo trình đã lưu', 'Only for saved curriculum', '仅限已保存课程', '保存済みカリキュラムのみ', '저장된 교육과정만') : undefined} onClick={() => curriculumId && reportQuizWrong({ curriculumId, slideIndex: idx, blockIndex: i, quizMarker: p.rawMarker, slideTitle: s?.title ?? '', slideContent: (blks ?? []).map((bl) => (bl.header ? `### ${bl.header}\n\n` : '') + (bl.content ?? '')).join('\n\n') })} className={cn('text-[10px] font-medium px-1.5 py-0.5 rounded flex items-center gap-0.5', curriculumId ? 'text-rose-300 hover:text-rose-200 bg-rose-500/20 disabled:opacity-50' : 'text-rose-400/60 bg-rose-500/10 cursor-not-allowed opacity-60')}>
+                                      <button key={qIdx} type="button" disabled={!!quizReportLoading || !!worksheetId || !!examCode} title={(worksheetId || examCode) ? tr('Chỉ cho giáo trình đã lưu', 'Only for saved curriculum', '仅限已保存课程', '保存済みカリキュラムのみ', '저장된 교육과정만') : undefined} onClick={() => curriculumId && reportQuizWrong({ curriculumId, slideIndex: idx, blockIndex: i, quizMarker: p.rawMarker, slideTitle: s?.title ?? '', slideContent: (blks ?? []).map((bl) => (bl.header ? `### ${bl.header}\n\n` : '') + (bl.content ?? '')).join('\n\n') })} className={cn('text-[10px] font-medium px-1.5 py-0.5 rounded flex items-center gap-0.5', curriculumId ? 'text-rose-300 hover:text-rose-200 bg-rose-500/20 disabled:opacity-50' : 'text-rose-400/60 bg-rose-500/10 cursor-not-allowed opacity-60')}>
                                         <Flag className="h-2.5 w-2.5" />{tr('Báo sai', 'Report wrong', '报告错误', '誤り報告', '오류 신고')}
                                       </button>
                                     ))}
@@ -4065,7 +4128,7 @@ export default function GiaoVienWorksheetPage() {
                                 })}
                               </div>
                               {isCurrent && (curriculumId || worksheetId) && asArray(splitContentWithEmbeds(s.content ?? '')).filter((p): p is { type: 'embed'; embedType: 'quiz'; urlOrId: string; rawMarker: string } => p.type === 'embed' && p.embedType === 'quiz').map((p, qIdx) => (
-                                <button key={qIdx} type="button" disabled={!!quizReportLoading || !!worksheetId} title={worksheetId ? tr('Chỉ cho giáo trình đã lưu', 'Only for saved curriculum', '仅限已保存课程', '保存済みカリキュラムのみ', '저장된 교육과정만') : undefined} onClick={() => curriculumId && reportQuizWrong({ curriculumId, slideIndex: idx, blockIndex: 0, quizMarker: p.rawMarker, slideTitle: s?.title ?? '', slideContent: s.content ?? '' })} className={cn('text-[10px] px-1.5 py-0.5 rounded flex items-center gap-0.5 border border-rose-500/50 mt-1', curriculumId ? 'text-rose-400 hover:text-rose-300 bg-slate-700/50 disabled:opacity-50' : 'text-rose-400/60 bg-slate-700/30 cursor-not-allowed opacity-60')}>
+                                <button key={qIdx} type="button" disabled={!!quizReportLoading || !!worksheetId || !!examCode} title={(worksheetId || examCode) ? tr('Chỉ cho giáo trình đã lưu', 'Only for saved curriculum', '仅限已保存课程', '保存済みカリキュラムのみ', '저장된 교육과정만') : undefined} onClick={() => curriculumId && reportQuizWrong({ curriculumId, slideIndex: idx, blockIndex: 0, quizMarker: p.rawMarker, slideTitle: s?.title ?? '', slideContent: s.content ?? '' })} className={cn('text-[10px] px-1.5 py-0.5 rounded flex items-center gap-0.5 border border-rose-500/50 mt-1', curriculumId ? 'text-rose-400 hover:text-rose-300 bg-slate-700/50 disabled:opacity-50' : 'text-rose-400/60 bg-slate-700/30 cursor-not-allowed opacity-60')}>
                                   <Flag className="h-2.5 w-2.5" />{tr('Báo sai', 'Report wrong', '报告错误', '誤り報告', '오류 신고')}
                                 </button>
                               ))}
@@ -4088,7 +4151,7 @@ export default function GiaoVienWorksheetPage() {
                                   </button>
                                 </div>
                               )}
-                              {isCurrent && (slideMode === 'shared' || slideMode === 'original' || slideMode === null) && curriculumId && !worksheetId && (
+                              {isCurrent && (slideMode === 'shared' || slideMode === 'original' || slideMode === null) && curriculumId && !worksheetId && !examCode && (
                                 <div className="mt-1.5 flex flex-wrap gap-1">
                                   <button type="button" onClick={() => setProposalDialog({ open: true, slideIndex: idx, blockIndex: 0, type: 'edit', originalContent: s.content })} className="text-[10px] px-1.5 py-0.5 rounded flex items-center gap-0.5 text-amber-400 hover:text-amber-300 bg-slate-700/50 border border-amber-500/50">
                                     <Edit3 className="h-2.5 w-2.5" />{tr('Đề xuất sửa', 'Propose edit', '建议编辑', '編集提案', '편집 제안')}

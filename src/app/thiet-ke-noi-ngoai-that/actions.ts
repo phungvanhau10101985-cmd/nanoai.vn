@@ -39,8 +39,12 @@ Bước 6 - Nếu là interior: bắt buộc có layoutGuidance ngắn gọn đ�
 Định dạng JSON:
 {"type":"interior"|"exterior-facade"|"exterior-landscape","roomType":"...","lighting":"...","dominantColor":"...","fengShuiSuggestion":"...","layoutGuidance":"...","objects":[{"item":"...","color":"...","material":"...","status":"...","position":"...","structural":true|false}]}`
 
+export type ApplyInteriorChangesResult =
+  | { error: string }
+  | { success: true; resultUrl: string; resultUrls: string[] }
+
 /** Áp dụng thay đổi: xóa món chọn, thay đổi món chọn theo phong cách. 1,5–3 credits. */
-export async function applyInteriorChanges(formData: FormData) {
+export async function applyInteriorChanges(formData: FormData): Promise<ApplyInteriorChangesResult> {
   if (!formData || typeof formData.get !== 'function') return { error: 'Dữ liệu không hợp lệ.' }
   const imageInput = formData.get('image') as File | string
   const imageQuality = (formData.get('imageQuality') as '2K' | '4K') || '2K'
@@ -271,7 +275,7 @@ export async function applyInteriorChanges(formData: FormData) {
       imageConfig: { imageSize: imageQuality },
     },
   })
-  const contentParts: Array<{ text?: string } | { inlineData: { data: string; mimeType: string } }> = [basePrompt]
+  const contentParts: Array<{ text?: string } | { inlineData: { data: string; mimeType: string } }> = [{ text: basePrompt }]
   if (isRotationOnly && hasRotationReference) {
     contentParts.push({ inlineData: { data: imageBuffer.toString('base64'), mimeType } })
     const refBuffer = Buffer.from(await rotationReferenceImage.arrayBuffer())
@@ -293,8 +297,8 @@ export async function applyInteriorChanges(formData: FormData) {
   const resultUrls: string[] = []
   try {
     for (let i = 0; i < actualVariantCount; i++) {
-      const result = await model.generateContent(contentParts, { safetySettings })
-      const response = result.response
+      const genResult = await model.generateContent(contentParts as never, { safetySettings } as never)
+      const response = genResult.response
       trackFromUsageMetadata(response.usageMetadata, 'gemini-3-pro-image-preview', 'thiet-ke-noi-ngoai-that', user.id, imageQuality)
       const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
       if (!imagePartRes || !('inlineData' in imagePartRes)) {
@@ -304,7 +308,7 @@ export async function applyInteriorChanges(formData: FormData) {
         }
         break
       }
-      const resultBuffer = Buffer.from(imagePartRes.inlineData.data, 'base64')
+      const resultBuffer = Buffer.from((imagePartRes as { inlineData: { data: string } }).inlineData.data, 'base64')
       const resultPath = `results/${user.id}/interior_${Date.now()}_${i}.png`
       await adminSupabase.storage.from('try-on-images').upload(resultPath, resultBuffer, { contentType: 'image/png', upsert: true })
       const { data: urlData } = adminSupabase.storage.from('try-on-images').getPublicUrl(resultPath)
@@ -384,7 +388,7 @@ export async function analyzeInterior(formData: FormData) {
   ]
 
   try {
-    const result = await model.generateContent([ANALYZE_PROMPT, imagePart], { safetySettings })
+    const result = await model.generateContent([ANALYZE_PROMPT, imagePart] as never, { safetySettings } as never)
     trackFromUsageMetadata(result.response.usageMetadata, 'gemini-3-flash-preview', 'thiet-ke-noi-ngoai-that-analyze', user.id)
     const text = result.response.text?.() || ''
     const jsonMatch = text.match(/\{[\s\S]*\}/)
@@ -461,7 +465,7 @@ export async function processInteriorImage(formData: FormData) {
   ]
 
   try {
-    const result = await model.generateContent([prompt, imagePart], { safetySettings })
+    const result = await model.generateContent([prompt, imagePart] as never, { safetySettings } as never)
     const response = result.response
     trackFromUsageMetadata(response.usageMetadata, 'gemini-3-pro-image-preview', 'thiet-ke-noi-ngoai-that-process', user.id, imageQuality)
     const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
@@ -469,7 +473,7 @@ export async function processInteriorImage(formData: FormData) {
       await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
       return { error: 'AI không trả về ảnh hợp lệ.' }
     }
-    const resultBuffer = Buffer.from(imagePartRes.inlineData.data, 'base64')
+    const resultBuffer = Buffer.from((imagePartRes as { inlineData: { data: string } }).inlineData.data, 'base64')
     const resultPath = `results/${user.id}/interior_${Date.now()}.png`
     await adminSupabase.storage.from('try-on-images').upload(resultPath, resultBuffer, { contentType: 'image/png', upsert: true })
     const { data: urlData } = adminSupabase.storage.from('try-on-images').getPublicUrl(resultPath)

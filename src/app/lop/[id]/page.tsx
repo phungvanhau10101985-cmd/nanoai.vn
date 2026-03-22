@@ -5,6 +5,7 @@ import { buildMetadata } from '@/lib/seo'
 import { getServerDictionary } from '@/lib/i18n/server'
 import Link from 'next/link'
 import LopDetailClient from './lop-detail-client'
+import { SUBJECTS } from '@/app/tao-giao-trinh/lib/curriculum-subjects'
 
 export async function generateMetadata({
   params,
@@ -42,7 +43,24 @@ export default async function LopDetailPage({ params }: { params: Promise<{ id: 
 
   const isTeacher = cls.teacher_id === user.id
 
-  const schoolName = String((Array.isArray(cls.schools) ? cls.schools[0]?.name : cls.schools?.name) ?? '').trim()
+  type SchoolRel = { name?: string | null } | null | undefined
+  const schoolsRel = cls.schools as SchoolRel | SchoolRel[]
+  const schoolName = String((Array.isArray(schoolsRel) ? schoolsRel[0]?.name : schoolsRel?.name) ?? '').trim()
+  const subjectLabelMap = new Map<string, string>(SUBJECTS.map((s) => [s.id, s.labelVi]))
+  const { data: classExamSubjects } = await supabase
+    .from('exam_sessions')
+    .select('subject_id')
+    .eq('class_id', id)
+    .not('subject_id', 'is', null)
+    .limit(300)
+  const subjectNames = Array.from(
+    new Set(
+      (classExamSubjects ?? [])
+        .map((x: { subject_id?: string | null }) => String(x.subject_id ?? '').trim())
+        .filter(Boolean)
+        .map((sid) => subjectLabelMap.get(sid) ?? sid)
+    )
+  )
 
   const { data: members } = await supabase
     .from('class_members')
@@ -52,24 +70,14 @@ export default async function LopDetailPage({ params }: { params: Promise<{ id: 
     `)
     .eq('class_id', id)
 
-  const { data: worksheets } = isTeacher
-    ? await supabase
-        .from('class_worksheets')
-        .select(`
-          worksheet_id,
-          worksheet_worksheets (id, topic)
-        `)
-        .eq('class_id', id)
-    : await supabase
-        .from('class_worksheets')
-        .select(`
-          worksheet_id,
-          worksheet_worksheets (id, topic)
-        `)
-        .eq('class_id', id)
+  const baseMembers = (members ?? []).map((m) => {
+    const p = Array.isArray(m.profiles) ? m.profiles[0] : m.profiles
+    return { userId: m.user_id, name: p?.full_name ?? '—' }
+  })
 
+  let mergedMembers = baseMembers
   let initialSubmissions: Array<{ id: string; worksheetId: string; worksheetTopic: string; studentName: string; quizScore: number; quizTotal: number; submittedAt: string }> = []
-  let initialExamAttempts: Array<{ id: string; examTitle: string; studentName: string; score: number; maxScore: number; submittedAt: string }> = []
+  let initialExamAttempts: Array<{ id: string; sessionId: string; examCode: string; examTitle: string; studentName: string; score: number; maxScore: number; submittedAt: string }> = []
   if (isTeacher) {
     const { data: subs } = await supabase
       .from('worksheet_submissions')
@@ -96,7 +104,7 @@ export default async function LopDetailPage({ params }: { params: Promise<{ id: 
 
     const { data: examSessions } = await supabase
       .from('exam_sessions')
-      .select('id, title')
+      .select('id, code, title')
       .eq('class_id', id)
       .eq('teacher_id', user.id)
       .order('created_at', { ascending: false })
@@ -113,16 +121,46 @@ export default async function LopDetailPage({ params }: { params: Promise<{ id: 
       const { data: attemptProfiles } = attemptUserIds.length
         ? await supabase.from('profiles').select('id, full_name').in('id', attemptUserIds)
         : { data: [] }
-      const sessionTitleMap = Object.fromEntries((examSessions ?? []).map((x: { id: string; title: string | null }) => [x.id, x.title ?? 'Bài thi']))
+      const sessionMetaMap = Object.fromEntries(
+        (examSessions ?? []).map((x: { id: string; code: string | null; title: string | null }) => [
+          x.id,
+          { code: x.code ?? '', title: x.title ?? 'Bài thi' },
+        ])
+      )
       const profileMap = Object.fromEntries((attemptProfiles ?? []).map((p: { id: string; full_name: string | null }) => [p.id, p.full_name ?? '—']))
       initialExamAttempts = (attempts ?? []).map((a: { id: string; session_id: string; user_id: string | null; student_name: string | null; score: number; max_score: number; submitted_at: string }) => ({
         id: a.id,
-        examTitle: sessionTitleMap[a.session_id] ?? 'Bài thi',
+        sessionId: a.session_id,
+        examCode: sessionMetaMap[a.session_id]?.code ?? '',
+        examTitle: sessionMetaMap[a.session_id]?.title ?? 'Bài thi',
         studentName: a.student_name || (a.user_id ? profileMap[a.user_id] ?? '—' : '—'),
         score: Number(a.score ?? 0),
         maxScore: Number(a.max_score ?? 0),
         submittedAt: a.submitted_at,
       }))
+
+      /** Học sinh đã nộp đề thi nhưng có thể chưa có trong class_members — hiển thị luôn trong danh sách lớp */
+      const seenIds = new Set(baseMembers.map((m) => m.userId))
+      const extras: Array<{ userId: string; name: string }> = []
+      for (const a of attempts ?? []) {
+        const uid = a.user_id ? String(a.user_id) : ''
+        if (uid) {
+          if (seenIds.has(uid)) continue
+          seenIds.add(uid)
+          const nm = String(a.student_name ?? '').trim()
+          extras.push({ userId: uid, name: nm || profileMap[uid] || '—' })
+        } else {
+          const nm = String(a.student_name ?? '').trim()
+          if (!nm) continue
+          const synthetic = `exam-attempt:${a.id}`
+          if (seenIds.has(synthetic)) continue
+          seenIds.add(synthetic)
+          extras.push({ userId: synthetic, name: nm })
+        }
+      }
+      if (extras.length > 0) {
+        mergedMembers = [...baseMembers, ...extras]
+      }
     }
   }
 
@@ -142,19 +180,10 @@ export default async function LopDetailPage({ params }: { params: Promise<{ id: 
             join_code: cls.join_code,
             gradeLevelId: cls.grade_level_id ?? null,
             schoolName,
+            subjectNames,
           }}
           isTeacher={isTeacher}
-          members={(members ?? []).map((m) => {
-            const p = Array.isArray(m.profiles) ? m.profiles[0] : m.profiles
-            return { userId: m.user_id, name: p?.full_name ?? '—' }
-          })}
-          worksheets={(worksheets ?? [])
-            .filter((w) => w.worksheet_worksheets != null)
-            .map((w) => {
-              const ws = Array.isArray(w.worksheet_worksheets) ? w.worksheet_worksheets[0] : w.worksheet_worksheets
-              return ws ? { id: ws.id, topic: ws.topic } : null
-            })
-            .filter((x): x is { id: string; topic: string } => x != null)}
+          members={mergedMembers}
           initialSubmissions={initialSubmissions}
           initialExamAttempts={initialExamAttempts}
           t={t.classes}

@@ -22,7 +22,7 @@ export async function generateBarcode(
         width: Math.min(Math.max(size, 128), 1024),
         margin: 2,
         color: { dark: '#000000', light: '#ffffff' },
-      })
+      } as Parameters<typeof QRCode.toDataURL>[1])
       return { dataUrl }
     }
 
@@ -41,8 +41,8 @@ export async function generateBarcode(
       scale: Math.min(Math.max(Math.round(size / 128), 2), 8),
       padding: 10,
       includetext: true,
-    })
-    const base64 = png.toString('base64')
+    } as Parameters<typeof bwipjs.toBuffer>[0])
+    const base64 = Buffer.from(png).toString('base64')
     return { dataUrl: `data:image/png;base64,${base64}` }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)

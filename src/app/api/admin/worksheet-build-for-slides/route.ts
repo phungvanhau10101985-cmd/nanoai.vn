@@ -42,7 +42,7 @@ function orderQuizThenEssay(
 
 /**
  * POST body: { questionIds: string[], topic?: string }
- * Tạo phiếu bài tập từ các câu đã chọn → mở /tao-giao-trinh/giao-vien?worksheetId=… để trình chiếu chữa bài.
+ * Tạo phiếu bài tập từ các câu đã chọn → mở /giao-trinh/giao-vien?worksheetId=… để trình chiếu chữa bài.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -116,7 +116,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       worksheetId,
-      teacherPath: `/tao-giao-trinh/giao-vien?worksheetId=${encodeURIComponent(worksheetId)}`,
+      teacherPath: `/giao-trinh/giao-vien?worksheetId=${encodeURIComponent(worksheetId)}`,
     })
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)

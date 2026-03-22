@@ -216,7 +216,7 @@ export async function POST(req: NextRequest) {
       generationConfig: { temperature: 0.1, responseMimeType: 'application/json' },
     })
     const result = await model.generateContent(prompt)
-    let rawText = result.response.text()?.trim() || ''
+    const rawText = result.response.text()?.trim() || ''
     let shuffled = parseAndShuffleQuizzes(rawText)
 
     // Lần 1 không parse được → Gemini Pro gọi lại (không dùng GPT)

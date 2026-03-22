@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
     const baseUrl = getShareBaseUrl(req)
-    const shareUrl = `${baseUrl}/tao-giao-trinh/xem-slide?share=${shareCode}`
+    const shareUrl = `${baseUrl}/giao-trinh/xem-slide?share=${shareCode}`
     return NextResponse.json({ success: true, shareCode, shareUrl })
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 })

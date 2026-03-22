@@ -265,7 +265,7 @@ export default function ThietKeNoiNgoaiThatClientPage() {
     const formData = new FormData()
     formData.append('image', img)
     const result = await analyzeInterior(formData)
-    if (result.error) {
+    if ('error' in result) {
       setStep('UPLOAD')
       toast({ title: tr('Phân tích thất bại', 'Analysis failed', '分析失败', '分析に失敗しました', '분석 실패'), description: result.error, variant: 'destructive', duration: 5000 })
     } else if (result.success && result.analysis) {
@@ -501,7 +501,7 @@ export default function ThietKeNoiNgoaiThatClientPage() {
     if (effectiveLayout) formData.append('layoutGuidance', effectiveLayout)
     if (referenceImage?.file) formData.append('referenceImage', referenceImage.file)
     const result = await applyInteriorChanges(formData)
-    if (result.error) {
+    if ('error' in result) {
       setStep('FULL_REDESIGN')
       toast({ title: tr('Xử lý thất bại', 'Processing failed', '处理失败', '処理に失敗しました', '처리 실패'), description: result.error, variant: 'destructive', duration: 5000 })
     } else if (result.success && result.resultUrl) {
@@ -577,7 +577,7 @@ export default function ThietKeNoiNgoaiThatClientPage() {
     if (effectiveLayout) formData.append('layoutGuidance', effectiveLayout)
     if (referenceImage?.file) formData.append('referenceImage', referenceImage.file)
     const result = await applyInteriorChanges(formData)
-    if (result.error) {
+    if ('error' in result) {
       setStep('EDITING')
       setUndoStack((prev) => prev.slice(0, -1))
       toast({ title: tr('Xử lý thất bại', 'Processing failed', '处理失败', '処理に失敗しました', '처리 실패'), description: result.error, variant: 'destructive', duration: 5000 })
@@ -635,7 +635,7 @@ export default function ThietKeNoiNgoaiThatClientPage() {
     if (effectiveLayout) formData.append('layoutGuidance', effectiveLayout)
     if (rotationReferenceImage?.file) formData.append('rotationReferenceImage', rotationReferenceImage.file)
     const result = await applyInteriorChanges(formData)
-    if (result.error) {
+    if ('error' in result) {
       setStep('EDITING')
       setUndoStack((prev) => prev.slice(0, -1))
       toast({ title: tr('Quay thất bại', 'Rotation failed', '旋转失败', '回転に失敗しました', '회전 실패'), description: result.error, variant: 'destructive', duration: 5000 })
@@ -693,7 +693,7 @@ export default function ThietKeNoiNgoaiThatClientPage() {
     const effectiveLayout = getEffectiveLayoutGuidance()
     if (effectiveLayout) formData.append('layoutGuidance', effectiveLayout)
     const result = await applyInteriorChanges(formData)
-    if (result.error) {
+    if ('error' in result) {
       setStep('EDITING')
       setUndoStack((prev) => prev.slice(0, -1))
       toast({ title: tr('Mở rộng thất bại', 'Expand failed', '扩展失败', '拡張に失敗しました', '확장 실패'), description: result.error, variant: 'destructive', duration: 5000 })
@@ -749,7 +749,7 @@ export default function ThietKeNoiNgoaiThatClientPage() {
     const formData = new FormData()
     formData.append('image', file)
     const result = await analyzeInterior(formData)
-    if (result.error) {
+    if ('error' in result) {
       setStep(fallbackStep)
       toast({ title: tr('Phân tích thất bại', 'Analysis failed', '分析失败', '分析に失敗しました', '분석 실패'), description: result.error, variant: 'destructive', duration: 5000 })
     } else if (result.success && result.analysis) {

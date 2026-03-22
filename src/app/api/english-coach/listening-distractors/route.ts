@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
 
 function adminClient() {
@@ -30,8 +31,10 @@ const DEFAULT_BY_LANG: Record<string, string[]> = {
 
 export async function GET(request: NextRequest) {
   try {
-    const { userId } = await getUserForAction()
-    if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const supabase = createClient()
+    const auth = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+    if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
+    const { user } = auth
 
     const { searchParams } = new URL(request.url)
     const sessionId = searchParams.get('sessionId')?.trim()
@@ -66,7 +69,7 @@ export async function GET(request: NextRequest) {
       let query = adminSupabase
         .from('language_coach_daily_words')
         .select('word')
-        .eq('user_id', userId)
+        .eq('user_id', user.id)
         .eq('session_id', sessionId)
         .order('updated_at', { ascending: false })
         .limit(120)
@@ -81,7 +84,7 @@ export async function GET(request: NextRequest) {
       const { data: userRows } = await adminSupabase
         .from('language_coach_daily_words')
         .select('word')
-        .eq('user_id', userId)
+        .eq('user_id', user.id)
         .order('updated_at', { ascending: false })
         .limit(200)
       collect((userRows || []) as Array<{ word?: string }>)

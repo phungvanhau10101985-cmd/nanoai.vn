@@ -4,7 +4,7 @@ import { getUserOrBypass } from '@/lib/auth'
 import { buildMetadata } from '@/lib/seo'
 import { getServerDictionary } from '@/lib/i18n/server'
 import Link from 'next/link'
-import LopClientPage from './lop-client-page'
+import LopClientPage, { type ClassItem } from './lop-client-page'
 
 export const metadata = buildMetadata({
   title: 'Lớp học',
@@ -58,23 +58,22 @@ export default async function LopPage() {
         <LopClientPage
           t={t.classes}
           myClasses={myClasses ?? []}
-          memberClasses={
-            (memberClasses ?? [])
-              .filter((m) => m.classes != null)
-              .map((m) => {
-                const c = Array.isArray(m.classes) ? m.classes[0] : m.classes
-                return c
-                  ? {
-                    id: c.id,
-                    name: c.name,
-                    join_code: c.join_code,
-                    grade_level_id: c.grade_level_id ?? null,
-                    schools: c.schools ?? null,
-                  }
-                  : null
+          memberClasses={(() => {
+            const out: ClassItem[] = []
+            for (const m of memberClasses ?? []) {
+              const raw = m.classes
+              const c = raw == null ? null : Array.isArray(raw) ? raw[0] : raw
+              if (!c) continue
+              out.push({
+                id: c.id,
+                name: c.name,
+                join_code: c.join_code,
+                grade_level_id: c.grade_level_id ?? null,
+                schools: c.schools ?? null,
               })
-              .filter((x): x is { id: string; name: string; join_code: string; grade_level_id?: string | null; schools?: { name?: string | null } | Array<{ name?: string | null }> | null } => x != null)
-          }
+            }
+            return out
+          })()}
         />
       </div>
     </div>

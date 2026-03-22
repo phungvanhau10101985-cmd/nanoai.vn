@@ -63,6 +63,7 @@ export type PreLessonWordItem = {
   contextSensitive?: boolean
   senses?: WordSense[]
   exampleTarget?: string
+  exampleNative?: string
   meaningItems?: MeaningItem[]
   exampleItems?: ExampleItem[]
 }

@@ -128,7 +128,7 @@ export async function restoreImage(formData: FormData) {
       await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
       return { error: 'AI không trả về ảnh hợp lệ.' }
     }
-    const resultBuffer = Buffer.from(imagePartRes.inlineData.data, 'base64')
+    const resultBuffer = Buffer.from((imagePartRes as { inlineData: { data: string } }).inlineData.data, 'base64')
     const resultPath = `results/${user.id}/restore_${Date.now()}.png`
     await adminSupabase.storage.from('try-on-images').upload(resultPath, resultBuffer, { contentType: 'image/png', upsert: true })
     const { data: urlData } = adminSupabase.storage.from('try-on-images').getPublicUrl(resultPath)

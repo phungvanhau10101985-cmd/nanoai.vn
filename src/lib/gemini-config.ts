@@ -6,11 +6,8 @@ export const GEMINI_25_FLASH_NO_THINKING = {
   model: 'gemini-2.5-flash' as const,
 }
 
-/** Gemini 2.5 Flash với responseModalities TEXT (dùng khi cần output text thuần). */
-export const GEMINI_25_FLASH_TEXT_NO_THINKING = {
-  model: 'gemini-2.5-flash' as const,
-  generationConfig: { responseModalities: ['TEXT'] as const },
-}
+/** Alias cùng cấu hình text; SDK @google/generative-ai không khai báo responseModalities trong GenerationConfig. */
+export const GEMINI_25_FLASH_TEXT_NO_THINKING = GEMINI_25_FLASH_NO_THINKING
 
 /** Gemini 2.5 Pro – model mạnh hơn cho tác vụ cần độ chính xác cao (ví dụ: tạo câu trắc nghiệm). */
 export const GEMINI_25_PRO = {

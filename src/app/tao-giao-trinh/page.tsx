@@ -21,11 +21,7 @@ export default async function TaoGiaoTrinhPage() {
   const user = await getUserOrBypass(() => supabase.auth.getUser())
   if (!user) redirect('/auth/login')
 
-  const jsonLd = buildJsonLdService(
-    seo.serviceName,
-    seo.serviceDescription,
-    `${SITE_URL}/tao-giao-trinh`
-  )
+  const jsonLd = buildJsonLdService(seo.serviceName, seo.serviceDescription, `${SITE_URL}${seo.path}`)
   const faqJsonLd = buildFeatureFaqJsonLd(seo)
 
   return (

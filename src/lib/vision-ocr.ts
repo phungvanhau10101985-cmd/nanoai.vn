@@ -68,7 +68,7 @@ interface BlockWithParagraphs {
   paragraphs?: Array<{
     words?: Array<{
       symbols?: Array<{ text?: string }>
-      text?: unknown
+      text?: { text?: string }
       boundingBox?: BoundingPoly
       bounding_box?: BoundingPoly
     }>
@@ -149,7 +149,7 @@ export async function documentOcrWithScale(imageBuffer: Buffer): Promise<Documen
   const results: TextWithBbox[] = []
   for (const page of full.pages) {
     for (const block of page.blocks ?? []) {
-      results.push(...extractFromBlock(block, imgW, imgH))
+      results.push(...extractFromBlock(block as BlockWithParagraphs, imgW, imgH))
     }
   }
   return { results, scale }

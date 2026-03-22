@@ -114,12 +114,12 @@ export async function createStickerLabel(formData: FormData) {
     return { error: 'AI không trả về ảnh hợp lệ. Vui lòng thử lại.' }
   }
 
-  let resultBuffer = Buffer.from(imagePartRes.inlineData.data, 'base64')
+  let resultBuffer = Buffer.from((imagePartRes as { inlineData: { data: string } }).inlineData.data, 'base64')
 
   // Tách nền bằng rembg (fallback ảnh gốc nếu lỗi)
   const stripBg = process.env.STICKER_STRIP_BACKGROUND !== 'false'
   if (stripBg) {
-    resultBuffer = await stripBackground(resultBuffer)
+    resultBuffer = Buffer.from(await stripBackground(resultBuffer))
   }
 
   try {

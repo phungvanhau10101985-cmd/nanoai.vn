@@ -146,8 +146,8 @@ export async function POST(req: Request) {
 
     const isRegionMode = editedRegion.length >= 10 && (originalRegion.length >= 5 || originalRegion === '')
 
-    let prompt = PROMPT_FULL
-    let toCheck = content
+    const prompt = PROMPT_FULL
+    const toCheck = content
 
     if (isRegionMode) {
       const orig = (originalRegion.trim() || '(đoạn mới thêm)').slice(0, REGION_MAX_CHARS)

@@ -697,8 +697,8 @@ export default function TaoNhanGioiThieuSanPhamClientPage() {
           const val = String(map['labelIcons']).trim()
           if (val) {
             const ids = val.split(/[,;|]/).map((s) => s.trim().toLowerCase()).filter(Boolean)
-            const valid = LABEL_ICONS.map((i) => i.id)
-            setSelectedLabelIcons(ids.filter((id) => valid.includes(id)))
+            const validIds = new Set<string>(LABEL_ICONS.map((i) => i.id))
+            setSelectedLabelIcons(ids.filter((id) => validIds.has(id)))
           }
         }
         toast({ title: tr('Đã import Excel', 'Excel imported', '已导入 Excel', 'Excelをインポートしました', 'Excel 가져옴'), duration: 2000 })

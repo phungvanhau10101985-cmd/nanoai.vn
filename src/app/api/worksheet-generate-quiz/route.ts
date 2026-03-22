@@ -125,7 +125,7 @@ export async function POST(req: NextRequest) {
       generationConfig: { temperature: 0.2, responseMimeType: 'application/json' },
     })
     const result = await model.generateContent(prompt)
-    let raw = result.response.text()?.trim() || ''
+    const raw = result.response.text()?.trim() || ''
     let quizzes = parseQuizzes(raw)
 
     if (!quizzes?.length && process.env.OPENAI_API_KEY) {

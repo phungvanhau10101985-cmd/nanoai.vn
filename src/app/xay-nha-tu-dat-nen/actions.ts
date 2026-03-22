@@ -43,6 +43,10 @@ export interface HouseInfo {
   mainDoors: string
   /** Có ảnh gợi ý đính kèm */
   hasReferenceImage: boolean
+  /** Alias khi import / dữ liệu cũ (mặt tiền) */
+  houseFacadeWidth?: string
+  /** Alias khi import / dữ liệu cũ (chiều sâu đất) */
+  landDepthM?: string
 }
 
 export interface FloorPlanInput {
@@ -308,7 +312,7 @@ export async function step1Build3D(formData: FormData) {
   const imgPart = imgRes.response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
   if (!imgPart || !('inlineData' in imgPart)) return { error: 'AI không tạo được ảnh.' }
 
-  const buf = Buffer.from(imgPart.inlineData.data, 'base64')
+  const buf = Buffer.from((imgPart as { inlineData: { data: string } }).inlineData.data, 'base64')
   const path = `results/${user.id}/house3d_${Date.now()}.png`
   await adminSupabase.storage.from('try-on-images').upload(path, buf, { contentType: 'image/png', upsert: true })
   const { data: urlData } = adminSupabase.storage.from('try-on-images').getPublicUrl(path)
@@ -440,7 +444,7 @@ export async function stepFloorPlan(sourceProjectId: string, floorNum: number, f
   const imgPart = resultImg.response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
   if (!imgPart || !('inlineData' in imgPart)) return { error: 'AI không tạo được bản vẽ chia phòng.' }
 
-  const buf = Buffer.from(imgPart.inlineData.data, 'base64')
+  const buf = Buffer.from((imgPart as { inlineData: { data: string } }).inlineData.data, 'base64')
   const path = `results/${user.id}/floorplan_${floorNum}_${Date.now()}.png`
   await adminSupabase.storage.from('try-on-images').upload(path, buf, { contentType: 'image/png', upsert: true })
   const { data: urlData } = adminSupabase.storage.from('try-on-images').getPublicUrl(path)
@@ -534,7 +538,7 @@ export async function stepStructural(sourceProjectId: string, floorNum: number, 
   const imgPart = resultImg.response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
   if (!imgPart || !('inlineData' in imgPart)) return { error: 'AI không tạo được bản vẽ kết cấu.' }
 
-  const buf = Buffer.from(imgPart.inlineData.data, 'base64')
+  const buf = Buffer.from((imgPart as { inlineData: { data: string } }).inlineData.data, 'base64')
   const path = `results/${user.id}/structural_${floorNum}_${Date.now()}.png`
   await adminSupabase.storage.from('try-on-images').upload(path, buf, { contentType: 'image/png', upsert: true })
   const { data: urlData } = adminSupabase.storage.from('try-on-images').getPublicUrl(path)

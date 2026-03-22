@@ -34,6 +34,7 @@ export interface Database {
           avatar_url?: string | null
           website?: string | null
         }
+        Relationships: []
       }
       credits: {
         Row: {
@@ -51,6 +52,7 @@ export interface Database {
           balance?: number
           updated_at?: string
         }
+        Relationships: []
       }
       transactions: {
         Row: {
@@ -80,6 +82,7 @@ export interface Database {
           description?: string | null
           created_at?: string
         }
+        Relationships: []
       }
       try_on_history: {
         Row: {
@@ -90,6 +93,8 @@ export interface Database {
           result_image_url: string | null
           status: 'processing' | 'completed' | 'failed'
           created_at: string
+          batch_id?: string | null
+          error_message?: string | null
         }
         Insert: {
           id?: string
@@ -99,6 +104,8 @@ export interface Database {
           result_image_url?: string | null
           status?: 'processing' | 'completed' | 'failed'
           created_at?: string
+          batch_id?: string | null
+          error_message?: string | null
         }
         Update: {
           id?: string
@@ -108,8 +115,61 @@ export interface Database {
           result_image_url?: string | null
           status?: 'processing' | 'completed' | 'failed'
           created_at?: string
+          batch_id?: string | null
+          error_message?: string | null
         }
+        Relationships: []
+      }
+      translate_jobs: {
+        Row: {
+          id: string
+          user_id: string
+          history_id: string
+          retry_round: number | null
+          source_lang: string | null
+          source_lang_2: string | null
+          target_lang: string | null
+          image_quality: string | null
+          cost: number | null
+          status: string
+          processing_started_at: string | null
+          created_at: string
+          error_message: string | null
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          history_id: string
+          retry_round?: number | null
+          source_lang?: string | null
+          source_lang_2?: string | null
+          target_lang?: string | null
+          image_quality?: string | null
+          cost?: number | null
+          status?: string
+          processing_started_at?: string | null
+          created_at?: string
+          error_message?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          history_id?: string
+          retry_round?: number | null
+          source_lang?: string | null
+          source_lang_2?: string | null
+          target_lang?: string | null
+          image_quality?: string | null
+          cost?: number | null
+          status?: string
+          processing_started_at?: string | null
+          created_at?: string
+          error_message?: string | null
+        }
+        Relationships: []
       }
     }
+    Views: Record<string, { Row: Record<string, unknown>; Relationships: [] }>
+    Functions: Record<string, { Args: Record<string, never>; Returns: unknown }>
   }
 }

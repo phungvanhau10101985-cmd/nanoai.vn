@@ -45,7 +45,7 @@ function SliderContent({
 
   return (
     <div
-      ref={containerRef}
+      ref={containerRef as React.LegacyRef<HTMLDivElement>}
       className={cn('relative overflow-hidden select-none bg-black', isFullscreen ? 'w-full h-full' : 'aspect-video')}
       style={{ touchAction: 'pan-y' }}
       onMouseDown={(e) => {

@@ -50,11 +50,6 @@ export async function createPrintReadyPdf(
   const trimRight = trimLeft + widthMm
   const trimTop = trimBottom + heightMm
 
-  const trimLeftPt = trimLeft * MM_TO_PT
-  const trimBottomPt = trimBottom * MM_TO_PT
-  const trimRightPt = trimRight * MM_TO_PT
-  const trimTopPt = trimTop * MM_TO_PT
-
   const imgWpx = MM_TO_PX(contentW)
   const imgHpx = MM_TO_PX(contentH)
   const pngBuffer = await sharp(imageBuffer)

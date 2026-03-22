@@ -32,13 +32,13 @@ function getWebLocaleFromCookie(): UiLocale {
 }
 
 const LOGO_ASPECT_RATIOS = [
-  { value: '1:1', label: '1:1 Vuông' },
-  { value: '4:3', label: '4:3 Ngang' },
-  { value: '3:4', label: '3:4 Dọc' },
-  { value: '16:9', label: '16:9 Ngang rộng' },
-  { value: '9:16', label: '9:16 Dọc rộng' },
-  { value: '3:2', label: '3:2 Ngang' },
-  { value: '2:3', label: '2:3 Dọc' },
+  { value: '1:1', labels: ['1:1 Vuông', '1:1 Square', '1:1 方形', '1:1 正方形', '1:1 정사각형'] as const },
+  { value: '4:3', labels: ['4:3 Ngang', '4:3 Landscape', '4:3 横版', '4:3 横', '4:3 가로'] as const },
+  { value: '3:4', labels: ['3:4 Dọc', '3:4 Portrait', '3:4 竖版', '3:4 縦', '3:4 세로'] as const },
+  { value: '16:9', labels: ['16:9 Ngang rộng', '16:9 Wide', '16:9 宽屏', '16:9 ワイド', '16:9 와이드'] as const },
+  { value: '9:16', labels: ['9:16 Dọc rộng', '9:16 Tall', '9:16 竖屏', '9:16 縦長', '9:16 세로형'] as const },
+  { value: '3:2', labels: ['3:2 Ngang', '3:2 Landscape', '3:2 横', '3:2 横', '3:2 가로'] as const },
+  { value: '2:3', labels: ['2:3 Dọc', '2:3 Portrait', '2:3 竖', '2:3 縦', '2:3 세로'] as const },
 ] as const
 
 export default function ThietKeLogoClientPage() {
@@ -187,7 +187,7 @@ export default function ThietKeLogoClientPage() {
                             aspectRatio === r.value ? 'border-amber-500 bg-amber-50 text-amber-800' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'
                           }`}
                         >
-                          {tr(...r.labels)}
+                          {tr(r.labels[0], r.labels[1], r.labels[2], r.labels[3], r.labels[4])}
                         </button>
                       ))}
                     </div>

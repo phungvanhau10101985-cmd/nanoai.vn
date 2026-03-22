@@ -42,7 +42,7 @@ export async function createBanner(formData: FormData) {
   if (images.length === 0) return { error: 'Vui lòng tải lên ít nhất 1 ảnh sản phẩm.' }
 
   const logo = formData.get('logo') as File | null
-  const hasLogo = logo?.size > 0
+  const hasLogo = (logo?.size ?? 0) > 0
 
   let prompt = PROMPT_BASE
   const tachNenIndices = removeBgList.map((v, idx) => (v ? idx + 1 : 0)).filter((v) => v > 0)
@@ -131,7 +131,7 @@ export async function createBanner(formData: FormData) {
   if (logoPart) contentParts.push(logoPart)
 
   try {
-    const result = await model.generateContent(contentParts, { safetySettings })
+    const result = await model.generateContent(contentParts as never, { safetySettings } as never)
     const response = result.response
     trackFromUsageMetadata(response.usageMetadata, 'gemini-3-pro-image-preview', 'tao-banner', user.id, imageQuality)
     const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
@@ -139,7 +139,7 @@ export async function createBanner(formData: FormData) {
       await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
       return { error: 'AI không trả về ảnh hợp lệ.' }
     }
-    const resultBuffer = Buffer.from(imagePartRes.inlineData.data, 'base64')
+    const resultBuffer = Buffer.from((imagePartRes as { inlineData: { data: string } }).inlineData.data, 'base64')
     const resultPath = `results/${user.id}/banner_${Date.now()}.png`
     await adminSupabase.storage.from('try-on-images').upload(resultPath, resultBuffer, { contentType: 'image/png', upsert: true })
     const { data: urlData } = adminSupabase.storage.from('try-on-images').getPublicUrl(resultPath)

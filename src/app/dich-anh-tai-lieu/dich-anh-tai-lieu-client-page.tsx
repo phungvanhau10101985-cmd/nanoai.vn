@@ -390,7 +390,7 @@ export default function DichAnhTaiLieuClientPage() {
       fd.append('targetLang', targetLang)
       fd.append('imageQuality', imageQuality)
       const r = await startTranslatePdfBatch(fd)
-      if (r.error) {
+      if ('error' in r) {
         setStep('UPLOAD')
         toast({ title: tr(uiLocale, 'Khởi tạo thất bại', 'Init failed', '初始化失败', '初期化に失敗しました', '초기화 실패'), description: r.error, variant: 'destructive', duration: 5000 })
         return
@@ -414,7 +414,7 @@ export default function DichAnhTaiLieuClientPage() {
       fd.append('imageQuality', imageQuality)
       fd.append('mode', 'excel')
       const r = await startTranslateBatch(fd)
-      if (r.error) {
+      if ('error' in r) {
         setStep('UPLOAD')
         toast({ title: tr(uiLocale, 'Khởi tạo thất bại', 'Init failed', '初始化失败', '初期化に失敗しました', '초기화 실패'), description: r.error, variant: 'destructive', duration: 5000 })
         return
@@ -438,7 +438,7 @@ export default function DichAnhTaiLieuClientPage() {
       fd.append('imageQuality', imageQuality)
       fd.append('mode', 'batch')
       const r = await startTranslateBatch(fd)
-      if (r.error) {
+      if ('error' in r) {
         setStep('UPLOAD')
         toast({ title: tr(uiLocale, 'Khởi tạo thất bại', 'Init failed', '初始化失败', '初期化に失敗しました', '초기화 실패'), description: r.error, variant: 'destructive', duration: 5000 })
         return

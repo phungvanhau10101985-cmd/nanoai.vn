@@ -18,6 +18,17 @@ function generateJoinCode(): string {
   return code
 }
 
+/** Supabase nested `schools(...)` select is untyped on admin client — avoid `never` from generic client. */
+function joinedSchoolName(schools: unknown): string {
+  if (schools == null) return ''
+  if (Array.isArray(schools)) {
+    const row = schools[0] as { name?: string | null } | undefined
+    return String(row?.name ?? '')
+  }
+  const row = schools as { name?: string | null }
+  return String(row.name ?? '')
+}
+
 export async function GET() {
   const supabase = createClient()
   const auth = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
@@ -43,7 +54,7 @@ export async function GET() {
   const defaultSchool = setting
     ? {
       id: String(setting.school_id ?? ''),
-      name: String((Array.isArray(setting.schools) ? setting.schools[0]?.name : setting.schools?.name) ?? ''),
+      name: joinedSchoolName(setting.schools),
     }
     : null
 
@@ -53,7 +64,7 @@ export async function GET() {
       name: String(c.name ?? ''),
       joinCode: String(c.join_code ?? ''),
       schoolId: c.school_id ? String(c.school_id) : '',
-      schoolName: String((Array.isArray(c.schools) ? c.schools[0]?.name : c.schools?.name) ?? ''),
+      schoolName: joinedSchoolName(c.schools),
       gradeLevelId: c.grade_level_id ? String(c.grade_level_id) : '',
       createdAt: String(c.created_at ?? ''),
     })),
@@ -112,7 +123,7 @@ export async function POST(req: NextRequest) {
       name: String(created.name ?? ''),
       joinCode: String(created.join_code ?? ''),
       schoolId: created.school_id ? String(created.school_id) : '',
-      schoolName: String((Array.isArray(created.schools) ? created.schools[0]?.name : created.schools?.name) ?? ''),
+      schoolName: joinedSchoolName(created.schools),
       gradeLevelId: created.grade_level_id ? String(created.grade_level_id) : '',
       createdAt: String(created.created_at ?? ''),
     },

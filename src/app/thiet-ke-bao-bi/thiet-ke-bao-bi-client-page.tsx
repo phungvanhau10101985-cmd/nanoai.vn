@@ -14,8 +14,7 @@ import { DownloadImageButton } from '@/components/download-image-button'
 import { ImagePreview } from '@/components/ui/image-preview'
 import { ImageProcessingLoader } from '@/components/image-processing-loader'
 import { createBoxSurfaceImageWithAI, createBoxMockupFromFaces, createBagSurfaceImageWithAI, createBagMockupFromFlat, generateBoxDielinePdf, type PackagingDesignType } from './actions'
-import { BAG_TYPE_OPTIONS, type BagType } from './bag-types'
-import { getBoxFaceDimensions } from '@/lib/box-face-dimensions'
+import { type BagType } from './bag-types'
 import { getDimensionsFromSizeKey, getSizeKeyLabel, FACE_SIZE_KEYS, type FaceSizeKey } from './lib/box-face-sizes'
 import { useRouter } from 'next/navigation'
 
@@ -478,7 +477,7 @@ export default function ThietKeBaoBiClientPage() {
       const raw = localStorage.getItem(DRAFT_KEY)
       if (!raw) return
       const draft = JSON.parse(raw) as DraftState & { face1Url?: string; face2Url?: string; face3Url?: string }
-      let loadedFaces: CreatedFace[] = draft.faces?.length ? draft.faces : []
+      const loadedFaces: CreatedFace[] = draft.faces?.length ? draft.faces : []
       if (loadedFaces.length === 0 && (draft.face1Url || draft.face2Url || draft.face3Url)) {
         if (draft.face1Url) loadedFaces.push({ id: `f-1`, sizeKey: 'LxW', url: draft.face1Url })
         if (draft.face2Url) loadedFaces.push({ id: `f-2`, sizeKey: 'LxH', url: draft.face2Url })
@@ -724,7 +723,7 @@ export default function ThietKeBaoBiClientPage() {
     if (referenceImage.file) formData.append('referenceImageFile', referenceImage.file)
     productImages.forEach((p) => formData.append('productImage', p.file))
     const result = await createBagSurfaceImageWithAI(formData)
-    if (result.error) {
+    if ('error' in result) {
       setStep('INPUT')
       toast({
         title: tr('Tạo ảnh phẳng thất bại', 'Create flat design failed', '创建平面图失败', '平面デザイン作成に失敗', '평면 디자인 생성 실패'),
@@ -748,7 +747,7 @@ export default function ThietKeBaoBiClientPage() {
   }
 
   const handleOpenRemoveBg = () => {
-    const items = faces.map((f, i) => ({
+    const items = faces.map((f) => ({
       url: f.url,
       label: designType === 'bag' ? `W×H (${bagWidth}×${bagHeight} mm)` : getSizeKeyLabel(f.sizeKey, boxLength, boxWidth, boxHeight),
     }))
@@ -931,7 +930,7 @@ export default function ThietKeBaoBiClientPage() {
     if (packagingExpiryDate.trim()) formData.append('packagingExpiryDate', packagingExpiryDate.trim())
     formData.append('includeBoxDims', includeBoxDims ? '1' : '0')
     const result = await createBoxSurfaceImageWithAI(formData)
-    if (result.error) {
+    if ('error' in result) {
       setStep('FACE_INPUT')
       toast({
         title: tr('Tạo ảnh phẳng thất bại', 'Create flat design failed', '创建平面图失败', '平面デザイン作成に失敗', '평면 디자인 생성 실패'),
@@ -1012,7 +1011,7 @@ export default function ThietKeBaoBiClientPage() {
             aspectRatio,
             imageQuality,
           })
-    if (result.error) {
+    if ('error' in result) {
       setStep('MOCKUP_INPUT')
       toast({
         title: tr('In lên hộp 3D thất bại', 'Print onto 3D box failed', '印到3D盒子失败', '3D箱への印刷に失敗', '3D 상자 인쇄 실패'),

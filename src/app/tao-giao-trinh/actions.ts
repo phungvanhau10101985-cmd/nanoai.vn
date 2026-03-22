@@ -153,24 +153,6 @@ async function getOfficialQuestions(
   return shuffled
 }
 
-/** Format câu hỏi có sẵn thành Markdown cho phiếu bài tập. */
-function formatOfficialQuestionsAsMarkdown(questions: Array<{ question_text: string; options: string[]; correct_index: number }>) {
-  const lines: string[] = ['### 1. Mức 1 – Nhận biết (Trắc nghiệm)', '']
-  questions.forEach((q, i) => {
-    const opts = Array.isArray(q.options) ? q.options : []
-    const idx = Math.min(q.correct_index, opts.length - 1)
-    const label = OPTION_LABELS[idx] ?? String(idx + 1)
-    lines.push(`${i + 1}. ${q.question_text}`)
-    opts.forEach((opt, j) => {
-      lines.push(`   ${OPTION_LABELS[j] ?? String(j + 1)}. ${opt}`)
-    })
-    lines.push('')
-    lines.push(`**Đáp án:** ${label}`)
-    lines.push('')
-  })
-  return lines.join('\n')
-}
-
 /** Format câu hỏi ngân hàng để chèn vào giáo trình (trong phần Luyện tập). */
 function formatOfficialQuestionsForCurriculum(questions: Array<{ question_text: string; options: string[]; correct_index: number }>) {
   const lines: string[] = ['**Câu hỏi trắc nghiệm (ngân hàng Bộ GD):**', '']
@@ -803,12 +785,13 @@ export async function refreshTextbookLessonsByAI(opts: {
 }
 
 /** Không dùng AI tạo mục lục nữa. Mục lục chỉ lấy từ DB (đã seed hoặc import thủ công). */
-export async function fetchTextbookLessonsByAI(_opts: {
+export async function fetchTextbookLessonsByAI(opts: {
   subjectId: string
   gradeLevelId: string
   textbookSetId: string
   textbookVolume?: string
 }) {
+  void opts
   return { error: 'Mục lục không được tạo bằng AI. Vui lòng dùng dữ liệu có sẵn trong DB hoặc import từ nguồn chính thức.' }
 }
 
@@ -956,7 +939,7 @@ export async function listOpenedCurriculaForExam(opts?: { subjectId?: string; gr
     .eq('user_id', user.id)
   if (hidden) hiddenIds.push(...hidden.map((r) => r.curriculum_id))
 
-  let q = supabase
+  const q = supabase
     .from('user_opened_curricula')
     .select('curriculum_id, opened_at')
     .eq('user_id', user.id)
@@ -979,7 +962,6 @@ export async function listOpenedCurriculaForExam(opts?: { subjectId?: string; gr
   const { data: curricula, error: currErr } = await qCurr
   if (currErr || !curricula?.length) return { success: true, items: [] }
 
-  const openedMap = new Map(openedRows.map((r) => [r.curriculum_id, r.opened_at]))
   const needEnrich = curricula.filter(
     (c) => (c as { lesson_number?: number | null }).lesson_number != null && !(c.topic ?? '').includes(': ')
   )
@@ -1408,7 +1390,8 @@ export async function getWorksheetsByCurriculumId(curriculumId: string) {
         qids.length > 0
           ? await worksheetDisplayMarkdownFromDb(supabase, row.content_markdown ?? '', qids)
           : (row.content_markdown ?? '')
-      const { question_ids: _q, ...rest } = row as typeof row & { question_ids?: string[] | null }
+      const { question_ids: _questionIdsOmit, ...rest } = row as typeof row & { question_ids?: string[] | null }
+      void _questionIdsOmit
       return { ...rest, content_markdown: md }
     })
   )
@@ -1788,7 +1771,9 @@ async function cleanSharedHistoryOlderThan(supabase: ReturnType<typeof createCli
 }
 
 /** Khôi phục bản chung từ lịch sử — đã tắt (chỉ giữ khôi phục bản riêng). */
-export async function restoreSharedFromHistory(_curriculumId: string, _historyId: string) {
+export async function restoreSharedFromHistory(curriculumId: string, historyId: string) {
+  void curriculumId
+  void historyId
   return {
     error:
       'Đã tắt khôi phục bản chung. Dùng bản riêng (Lưu bản riêng) và mục Lịch sử để khôi phục phiên bản cá nhân.',

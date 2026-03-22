@@ -53,7 +53,7 @@ export default function GanPhieuClient({
         <p className="text-sm text-muted-foreground">{t.noWorksheets}</p>
         <p className="text-sm text-muted-foreground mt-2">
           Tạo phiếu bài tập tại{' '}
-          <a href="/tao-giao-trinh" className="text-primary hover:underline">
+          <a href="/giao-trinh" className="text-primary hover:underline">
             Tạo giáo trình
           </a>
         </p>

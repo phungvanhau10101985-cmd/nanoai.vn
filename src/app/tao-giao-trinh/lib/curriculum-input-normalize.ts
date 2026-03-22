@@ -5,10 +5,10 @@
 
 import { SUBJECTS, GRADE_LEVELS, TEXTBOOK_SETS, LESSON_TYPES } from './curriculum-subjects'
 
-const VALID_SUBJECT_IDS = new Set(SUBJECTS.map((s) => s.id))
-const VALID_GRADE_IDS = new Set(GRADE_LEVELS.map((g) => g.id))
-const VALID_TEXTBOOK_IDS = new Set(TEXTBOOK_SETS.map((t) => t.id))
-const VALID_LESSON_TYPE_IDS = new Set(LESSON_TYPES.map((l) => l.id))
+const VALID_SUBJECT_IDS = new Set(SUBJECTS.map((s) => s.id)) as ReadonlySet<string>
+const VALID_GRADE_IDS = new Set(GRADE_LEVELS.map((g) => g.id)) as ReadonlySet<string>
+const VALID_TEXTBOOK_IDS = new Set(TEXTBOOK_SETS.map((t) => t.id)) as ReadonlySet<string>
+const VALID_LESSON_TYPE_IDS = new Set(LESSON_TYPES.map((l) => l.id)) as ReadonlySet<string>
 
 export interface NormalizedCurriculumInput {
   subjectId: string
@@ -27,8 +27,8 @@ export interface RawCurriculumInput {
   textbookSetId?: string
   textbookVolume?: string
   lessonNumber?: string | number
-  numLessons?: number
-  lessonDurationMinutes?: number
+  numLessons?: string | number
+  lessonDurationMinutes?: string | number
   lessonTypeId?: string
 }
 

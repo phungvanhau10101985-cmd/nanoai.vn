@@ -7,7 +7,6 @@ import { createPrintReadyPdf } from '@/lib/print-ready-pdf'
 import { createBoxDielinePdf } from './lib/box-dieline-pdf'
 import { revalidatePath } from 'next/cache'
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
-import { normalizeToEnglish } from '@/lib/ai-normalize'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { getAspectRatioFromDimensions } from '@/lib/aspect-ratio-from-dimensions'
 import { GEMINI_ASPECT_RATIOS } from '@/lib/label-size-presets'
@@ -15,6 +14,10 @@ import { BAG_TYPE_OPTIONS, type BagType } from './bag-types'
 
 const PACKAGING_COSTS = { '2K': 1.5, '4K': 3 } as const
 const VALID_ASPECT_RATIOS = GEMINI_ASPECT_RATIOS
+type PackagingAspectRatio = (typeof VALID_ASPECT_RATIOS)[number]
+function isPackagingAspectRatio(s: string): s is PackagingAspectRatio {
+  return (VALID_ASPECT_RATIOS as readonly string[]).includes(s)
+}
 const toTenths = (value: number) => Math.round(value * 10)
 const fromTenths = (value: number) => value / 10
 const formatCredits = (value: number) => value.toLocaleString('vi-VN', { maximumFractionDigits: 1 })
@@ -181,7 +184,7 @@ export async function createPackagingDesignWithAI(formData: FormData): Promise<
   if (!brandName && !productName && !hasProductImage) {
     return { error: 'Vui lòng nhập tên thương hiệu, tên sản phẩm hoặc tải ảnh sản phẩm.' }
   }
-  if (!VALID_ASPECT_RATIOS.includes(aspectRatio)) {
+  if (!isPackagingAspectRatio(aspectRatio)) {
     return { error: 'Tỷ lệ khung hình không hợp lệ.' }
   }
 
@@ -339,7 +342,7 @@ export async function createPackagingDesignWithAI(formData: FormData): Promise<
   ]
 
   try {
-    const genResult = await model.generateContent(contentParts, { safetySettings })
+    const genResult = await model.generateContent(contentParts as never, { safetySettings } as never)
     const response = genResult.response
     trackFromUsageMetadata(response.usageMetadata, 'gemini-3-pro-image-preview', 'thiet-ke-bao-bi', user.id, imageQuality)
     const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
@@ -347,7 +350,7 @@ export async function createPackagingDesignWithAI(formData: FormData): Promise<
       await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
       return { error: 'AI không trả về ảnh. Vui lòng thử lại (đôi khi AI tạm thời không tạo được ảnh).' }
     }
-    const resultBuffer = Buffer.from(imagePartRes.inlineData.data, 'base64')
+    const resultBuffer = Buffer.from((imagePartRes as { inlineData: { data: string } }).inlineData.data, 'base64')
     const resultPath = `results/${user.id}/packaging_${designType}_${Date.now()}.png`
     await adminSupabase.storage.from('try-on-images').upload(resultPath, resultBuffer, { contentType: 'image/png', upsert: true })
     const { data: urlData } = adminSupabase.storage.from('try-on-images').getPublicUrl(resultPath)
@@ -380,7 +383,7 @@ export async function createBoxSurfaceImageWithAI(formData: FormData): Promise<
   | { error: string }
 > {
   const faceIndex = Math.max(1, Math.min(3, Number(formData.get('faceIndex')) || 1))
-  let referenceImageUrl = (formData.get('referenceImageUrl') as string)?.trim() || ''
+  const referenceImageUrl = (formData.get('referenceImageUrl') as string)?.trim() || ''
   const referenceImageFile = formData.get('referenceImageFile') as File | null
   const surfaceLength = Math.max(20, Math.min(800, Number(formData.get('surfaceLength')) || 200))
   const surfaceWidth = Math.max(20, Math.min(800, Number(formData.get('surfaceWidth')) || 150))
@@ -462,7 +465,7 @@ export async function createBoxSurfaceImageWithAI(formData: FormData): Promise<
     try {
       const buf = await referenceImageFile.arrayBuffer()
       referenceBase64 = Buffer.from(buf).toString('base64')
-    } catch (e) {
+    } catch {
       await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
       return { error: 'Không thể đọc ảnh tham khảo.' }
     }
@@ -472,7 +475,7 @@ export async function createBoxSurfaceImageWithAI(formData: FormData): Promise<
       if (!res.ok) throw new Error('Fetch failed')
       const buf = await res.arrayBuffer()
       referenceBase64 = Buffer.from(buf).toString('base64')
-    } catch (e) {
+    } catch {
       await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
       return { error: 'Không thể tải ảnh tham khảo.' }
     }
@@ -673,7 +676,7 @@ ${backgroundRule} ${borderHint} ${textOrientationHint} ${stylePrompt} ${textInst
         imageConfig: { imageSize: imageQuality, aspectRatio },
       },
       safetySettings,
-    })
+    } as never)
     const response = genResult.response
     trackFromUsageMetadata(response.usageMetadata, 'gemini-3-pro-image-preview', 'thiet-ke-bao-bi-surface', user.id, imageQuality)
     const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
@@ -681,7 +684,7 @@ ${backgroundRule} ${borderHint} ${textOrientationHint} ${stylePrompt} ${textInst
       await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
       return { error: 'AI không trả về ảnh. Vui lòng thử lại (đôi khi AI tạm thời không tạo được ảnh).' }
     }
-    const resultBuffer = Buffer.from(imagePartRes.inlineData.data, 'base64')
+    const resultBuffer = Buffer.from((imagePartRes as { inlineData: { data: string } }).inlineData.data, 'base64')
     const resultPath = `results/${user.id}/box_surface_${Date.now()}.png`
     await adminSupabase.storage.from('try-on-images').upload(resultPath, resultBuffer, { contentType: 'image/png', upsert: true })
     const { data: urlData } = adminSupabase.storage.from('try-on-images').getPublicUrl(resultPath)
@@ -876,7 +879,7 @@ export async function createBagSurfaceImageWithAI(formData: FormData): Promise<
     try {
       const buf = await referenceImageFile.arrayBuffer()
       referenceBase64 = Buffer.from(buf).toString('base64')
-    } catch (e) {
+    } catch {
       return { error: 'Không thể đọc ảnh tham khảo.' }
     }
   }
@@ -943,7 +946,7 @@ ${backgroundRule} ${borderHint} ${textOrientationHint} ${stylePrompt} ${textInst
         imageConfig: { imageSize: imageQuality, aspectRatio },
       },
       safetySettings,
-    })
+    } as never)
     const response = genResult.response
     trackFromUsageMetadata(response.usageMetadata, 'gemini-3-pro-image-preview', 'thiet-ke-bao-bi-bag-surface', user.id, imageQuality)
     const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
@@ -951,7 +954,7 @@ ${backgroundRule} ${borderHint} ${textOrientationHint} ${stylePrompt} ${textInst
       await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
       return { error: 'AI không trả về ảnh. Vui lòng thử lại (đôi khi AI tạm thời không tạo được ảnh).' }
     }
-    const resultBuffer = Buffer.from(imagePartRes.inlineData.data, 'base64')
+    const resultBuffer = Buffer.from((imagePartRes as { inlineData: { data: string } }).inlineData.data, 'base64')
     const resultPath = `results/${user.id}/bag_surface_${Date.now()}.png`
     await adminSupabase.storage.from('try-on-images').upload(resultPath, resultBuffer, { contentType: 'image/png', upsert: true })
     const { data: urlData } = adminSupabase.storage.from('try-on-images').getPublicUrl(resultPath)
@@ -993,7 +996,7 @@ export async function createBoxMockupFrom3Faces(formData: FormData): Promise<
   const imageQuality = (formData.get('imageQuality') as '2K' | '4K') || '2K'
 
   if (!face1Url || !face2Url || !face3Url) return { error: 'Thiếu đủ 3 ảnh bề mặt.' }
-  if (!VALID_ASPECT_RATIOS.includes(aspectRatio)) return { error: 'Tỷ lệ khung hình không hợp lệ.' }
+  if (!isPackagingAspectRatio(aspectRatio)) return { error: 'Tỷ lệ khung hình không hợp lệ.' }
 
   const supabase = createClient()
   const result = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập để tạo mockup 3D.')
@@ -1036,7 +1039,7 @@ export async function createBoxMockupFrom3Faces(formData: FormData): Promise<
       fetchBase64(face2Url),
       fetchBase64(face3Url),
     ])
-  } catch (e) {
+  } catch {
     await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
     return { error: 'Không thể tải ảnh bề mặt.' }
   }
@@ -1075,7 +1078,7 @@ Result: a 3D box where top, front, and side all show the respective designs. Pro
   ]
 
   try {
-    const genResult = await model.generateContent(contentParts, { safetySettings })
+    const genResult = await model.generateContent(contentParts as never, { safetySettings } as never)
     const response = genResult.response
     trackFromUsageMetadata(response.usageMetadata, 'gemini-3-pro-image-preview', 'thiet-ke-bao-bi-mockup', user.id, imageQuality)
     const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
@@ -1083,7 +1086,7 @@ Result: a 3D box where top, front, and side all show the respective designs. Pro
       await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
       return { error: 'AI không trả về ảnh. Vui lòng thử lại (đôi khi AI tạm thời không tạo được ảnh).' }
     }
-    const resultBuffer = Buffer.from(imagePartRes.inlineData.data, 'base64')
+    const resultBuffer = Buffer.from((imagePartRes as { inlineData: { data: string } }).inlineData.data, 'base64')
     const resultPath = `results/${user.id}/box_mockup_${Date.now()}.png`
     await adminSupabase.storage.from('try-on-images').upload(resultPath, resultBuffer, { contentType: 'image/png', upsert: true })
     const { data: urlData } = adminSupabase.storage.from('try-on-images').getPublicUrl(resultPath)
@@ -1126,7 +1129,7 @@ export async function createBoxMockupFromFaces(params: {
 }): Promise<{ success: true; resultUrl: string } | { error: string }> {
   const { faces, boxLength, boxWidth, boxHeight, aspectRatio, imageQuality } = params
   if (!faces?.length || faces.length > 6) return { error: 'Cần 1–6 ảnh bề mặt.' }
-  if (!VALID_ASPECT_RATIOS.includes(aspectRatio)) return { error: 'Tỷ lệ khung hình không hợp lệ.' }
+  if (!isPackagingAspectRatio(aspectRatio)) return { error: 'Tỷ lệ khung hình không hợp lệ.' }
 
   const supabase = createClient()
   const result = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập để tạo mockup 3D.')
@@ -1183,7 +1186,7 @@ export async function createBoxMockupFromFaces(params: {
   let imagesBase64: string[]
   try {
     imagesBase64 = await Promise.all(orderedFaces.map((f) => fetchBase64(f.url)))
-  } catch (e) {
+  } catch {
     await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
     return { error: 'Không thể tải ảnh bề mặt.' }
   }
@@ -1220,7 +1223,7 @@ Result: a 3D box where the specified faces show the respective designs. Professi
   ]
 
   try {
-    const genResult = await model.generateContent(contentParts, { safetySettings })
+    const genResult = await model.generateContent(contentParts as never, { safetySettings } as never)
     const response = genResult.response
     trackFromUsageMetadata(response.usageMetadata, 'gemini-3-pro-image-preview', 'thiet-ke-bao-bi-mockup', user.id, imageQuality)
     const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
@@ -1228,7 +1231,7 @@ Result: a 3D box where the specified faces show the respective designs. Professi
       await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
       return { error: 'AI không trả về ảnh. Vui lòng thử lại (đôi khi AI tạm thời không tạo được ảnh).' }
     }
-    const resultBuffer = Buffer.from(imagePartRes.inlineData.data, 'base64')
+    const resultBuffer = Buffer.from((imagePartRes as { inlineData: { data: string } }).inlineData.data, 'base64')
     const resultPath = `results/${user.id}/box_mockup_${Date.now()}.png`
     await adminSupabase.storage.from('try-on-images').upload(resultPath, resultBuffer, { contentType: 'image/png', upsert: true })
     const { data: urlData } = adminSupabase.storage.from('try-on-images').getPublicUrl(resultPath)
@@ -1267,7 +1270,7 @@ export async function createBagMockupFromFlat(params: {
 }): Promise<{ success: true; resultUrl: string } | { error: string }> {
   const { flatImageUrl, bagWidth, bagHeight, bagGusset, bagType, aspectRatio, imageQuality } = params
   if (!flatImageUrl?.trim()) return { error: 'Thiếu ảnh phẳng túi.' }
-  if (!VALID_ASPECT_RATIOS.includes(aspectRatio)) return { error: 'Tỷ lệ khung hình không hợp lệ.' }
+  if (!isPackagingAspectRatio(aspectRatio)) return { error: 'Tỷ lệ khung hình không hợp lệ.' }
 
   const supabase = createClient()
   const result = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập để tạo mockup 3D túi.')
@@ -1300,7 +1303,7 @@ export async function createBagMockupFromFlat(params: {
     if (!res.ok) throw new Error('Fetch failed')
     const buf = await res.arrayBuffer()
     flatBase64 = Buffer.from(buf).toString('base64')
-  } catch (e) {
+  } catch {
     await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
     return { error: 'Không thể tải ảnh phẳng túi.' }
   }
@@ -1332,7 +1335,7 @@ Result: a 3D bag/pouch mockup where the front face shows the provided design. Pr
   ]
 
   try {
-    const genResult = await model.generateContent(contentParts, { safetySettings })
+    const genResult = await model.generateContent(contentParts as never, { safetySettings } as never)
     const response = genResult.response
     trackFromUsageMetadata(response.usageMetadata, 'gemini-3-pro-image-preview', 'thiet-ke-bao-bi-bag-mockup', user.id, imageQuality)
     const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
@@ -1340,7 +1343,7 @@ Result: a 3D bag/pouch mockup where the front face shows the provided design. Pr
       await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
       return { error: 'AI không trả về ảnh. Vui lòng thử lại (đôi khi AI tạm thời không tạo được ảnh).' }
     }
-    const resultBuffer = Buffer.from(imagePartRes.inlineData.data, 'base64')
+    const resultBuffer = Buffer.from((imagePartRes as { inlineData: { data: string } }).inlineData.data, 'base64')
     const resultPath = `results/${user.id}/bag_mockup_${Date.now()}.png`
     await adminSupabase.storage.from('try-on-images').upload(resultPath, resultBuffer, { contentType: 'image/png', upsert: true })
     const { data: urlData } = adminSupabase.storage.from('try-on-images').getPublicUrl(resultPath)

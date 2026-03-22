@@ -918,6 +918,7 @@ export async function POST(request: NextRequest) {
           sourceStudentText: t.sourceStudentText,
           standardizedStudentText: t.standardizedStudentText,
           teacherReplyText: t.teacherReplyText,
+          sourceStudentAudioUrl: t.sourceStudentAudioUrl,
           teacherAudioUrl: t.teacherAudioUrl,
           teacherMainSentence: t.teacherMainSentence,
           teacherCorrectionNote: t.teacherCorrectionNote,
@@ -1058,9 +1059,13 @@ export async function POST(request: NextRequest) {
         turns.map((t, idx) => ({
           turn_index: idx,
           source_student_text: t.sourceStudentText,
+          source_student_audio_url: t.sourceStudentAudioUrl,
           standardized_student_text: t.standardizedStudentText,
           teacher_reply_text: t.teacherReplyText,
           teacher_audio_url: t.teacherAudioUrl,
+          teacher_main_sentence: t.teacherMainSentence,
+          teacher_correction_note: t.teacherCorrectionNote,
+          teacher_intent_answer: t.teacherIntentAnswer,
           replay_payload_json: t.replayPayloadJson,
         }))
       )

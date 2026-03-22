@@ -53,19 +53,39 @@ export function MobileNav({ isAdmin, t }: MobileNavProps) {
                 <div className="flex flex-col gap-0.5 rounded-xl overflow-hidden bg-muted/30">
                   {group.links.map((item) => {
                     const Icon = item.icon
+                    const subs = item.subLinks
                     return (
-                      <SheetClose asChild key={item.href}>
-                        <Link
-                          href={item.href}
-                          className="flex items-center gap-3 min-h-[48px] px-4 py-3 text-sm font-medium transition-colors touch-manipulation active:bg-muted/60 text-foreground hover:bg-muted/50"
-                        >
-                          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-background">
-                            <Icon className="h-5 w-5" />
-                          </span>
-                          <span className="flex-1">{t.tool[item.labelKey]}</span>
-                          <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-                        </Link>
-                      </SheetClose>
+                      <div key={item.href} className="flex flex-col">
+                        <SheetClose asChild>
+                          <Link
+                            href={item.href}
+                            className="flex items-center gap-3 min-h-[48px] px-4 py-3 text-sm font-medium transition-colors touch-manipulation active:bg-muted/60 text-foreground hover:bg-muted/50"
+                          >
+                            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-background">
+                              <Icon className="h-5 w-5" />
+                            </span>
+                            <span className="flex-1">{t.tool[item.labelKey]}</span>
+                            <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                          </Link>
+                        </SheetClose>
+                        {subs?.map((sub) => {
+                          const SubIcon = sub.icon
+                          return (
+                            <SheetClose asChild key={sub.href}>
+                              <Link
+                                href={sub.href}
+                                className="flex items-center gap-3 min-h-[48px] pl-6 pr-4 py-2.5 text-sm font-medium transition-colors touch-manipulation active:bg-muted/60 text-foreground hover:bg-muted/50 border-t border-border/40 bg-blue-500/[0.04] dark:bg-blue-400/[0.06]"
+                              >
+                                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-background">
+                                  <SubIcon className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                                </span>
+                                <span className="flex-1">{t.tool[sub.labelKey]}</span>
+                                <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                              </Link>
+                            </SheetClose>
+                          )
+                        })}
+                      </div>
                     )
                   })}
                 </div>

@@ -140,6 +140,10 @@ export default function TaoBaiThiClientPage() {
   const createdExamListRef = useRef<HTMLDivElement | null>(null)
 
   const tr = useCallback((vi: string, en: string) => (uiLocale === 'en' ? en : vi), [uiLocale])
+  const buildExamReviewUrl = useCallback(
+    (examCode: string) => `/giao-trinh/giao-vien/de-thi/${encodeURIComponent(examCode)}?t=${Date.now()}`,
+    []
+  )
   const curriculaStorageKey = useMemo(
     () => `tao-bai-thi:selected-curricula:${subjectId}:${gradeLevelId}`,
     [subjectId, gradeLevelId]
@@ -347,7 +351,7 @@ export default function TaoBaiThiClientPage() {
     setBrowseLoading(true)
     listCurriculaForExam({ subjectId, gradeLevelId, limit: 300 })
       .then((allRes) => {
-        if (allRes && 'items' in allRes) setCurriculaList(allRes.items)
+        if (allRes && 'items' in allRes) setCurriculaList(allRes.items ?? [])
         else setCurriculaList([])
       })
       .catch(() => {
@@ -903,6 +907,12 @@ export default function TaoBaiThiClientPage() {
                     </p>
                   )}
                   <div className="flex flex-wrap gap-2 pt-2">
+                    <Button variant="secondary" size="sm" asChild className="gap-1.5">
+                      <Link href={buildExamReviewUrl(result.code)} target="_blank">
+                        <BookOpen className="h-4 w-4" />
+                        {tr('Chữa bài (slide)', 'Review slides')}
+                      </Link>
+                    </Button>
                     <Button
                       variant="outline"
                       size="sm"
@@ -1191,7 +1201,7 @@ export default function TaoBaiThiClientPage() {
                 ) : curriculaList.length === 0 ? (
                   <p className="text-xs text-muted-foreground py-2">
                     {tr('Chưa có giáo trình cho môn/lớp này. ', 'No curricula for this subject/grade. ')}
-                    <Link href="/tao-giao-trinh" className="text-primary hover:underline">
+                    <Link href="/giao-trinh" className="text-primary hover:underline">
                       {tr('Tạo giáo trình', 'Create curriculum')}
                     </Link>
                     {tr(' trước.', ' first.')}
@@ -1627,6 +1637,16 @@ export default function TaoBaiThiClientPage() {
                     <div className="flex items-center gap-2 shrink-0">
                       <Button
                         type="button"
+                        variant="secondary"
+                        size="sm"
+                        asChild
+                      >
+                        <Link href={buildExamReviewUrl(exam.code)} target="_blank">
+                          {tr('Chữa bài', 'Review')}
+                        </Link>
+                      </Button>
+                      <Button
+                        type="button"
                         variant="outline"
                         size="sm"
                         onClick={() => void openExamPreview({
@@ -1697,6 +1717,11 @@ export default function TaoBaiThiClientPage() {
                   <Button type="button" size="sm" asChild>
                     <Link href={examPreview.examUrl} target="_blank">
                       {tr('Mở trên máy này', 'Open on this device')}
+                    </Link>
+                  </Button>
+                  <Button type="button" size="sm" variant="secondary" asChild>
+                    <Link href={buildExamReviewUrl(examPreview.code)} target="_blank">
+                      {tr('Chữa bài', 'Review')}
                     </Link>
                   </Button>
                 </div>

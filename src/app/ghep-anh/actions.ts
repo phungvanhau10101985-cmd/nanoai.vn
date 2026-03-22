@@ -72,7 +72,7 @@ export async function mergeImages(formData: FormData) {
       responseModalities: ['TEXT', 'IMAGE'],
       imageConfig: { imageSize: imageQuality },
     },
-  })
+  } as Parameters<GoogleGenerativeAI['getGenerativeModel']>[0])
   const imageParts = await Promise.all([
     { text: prompt },
     ...images.map(async (img) => ({
@@ -87,7 +87,7 @@ export async function mergeImages(formData: FormData) {
   ]
 
   try {
-    const result = await model.generateContent(imageParts, { safetySettings })
+    const result = await model.generateContent(imageParts, { safetySettings } as never)
     const response = result.response
     trackFromUsageMetadata(response.usageMetadata, 'gemini-3-pro-image-preview', 'ghep-anh', user.id, imageQuality)
     const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
@@ -95,7 +95,12 @@ export async function mergeImages(formData: FormData) {
       await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
       return { error: 'AI không trả về ảnh hợp lệ.' }
     }
-    const resultBuffer = Buffer.from(imagePartRes.inlineData.data, 'base64')
+    const inlineData = imagePartRes.inlineData
+    if (!inlineData?.data) {
+      await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+      return { error: 'AI không trả về ảnh hợp lệ.' }
+    }
+    const resultBuffer = Buffer.from(inlineData.data, 'base64')
     const resultPath = `results/${user.id}/merge_${Date.now()}.png`
     await adminSupabase.storage.from('try-on-images').upload(resultPath, resultBuffer, { contentType: 'image/png', upsert: true })
     const { data: urlData } = adminSupabase.storage.from('try-on-images').getPublicUrl(resultPath)

@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
     const buf = await fetchImageWith1688Bypass(url)
     const ext = url.match(/\.(jpe?g|png|gif|webp)/i)?.[1]?.toLowerCase() || 'png'
     const contentType = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : `image/${ext}`
-    return new NextResponse(buf, {
+    return new NextResponse(new Uint8Array(buf), {
       headers: {
         'Content-Type': contentType,
         'Cache-Control': 'private, max-age=3600',

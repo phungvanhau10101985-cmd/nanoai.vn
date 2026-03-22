@@ -7,20 +7,19 @@ import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
-import { Sparkles, Copy, FileDown, RefreshCw, FileSpreadsheet, FolderOpen, BookOpen, FileText, Presentation, Trash2, Upload, ImageIcon, FileQuestion, Pencil, ListChecks, X, ChevronDown } from 'lucide-react'
+import { Sparkles, Copy, FileDown, RefreshCw, FileSpreadsheet, FolderOpen, BookOpen, FileText, Presentation, Trash2, Upload, ImageIcon, FileQuestion, ListChecks, ChevronDown, Users } from 'lucide-react'
 import Link from 'next/link'
 import QRCode from 'qrcode'
-import { exportWorksheetToPdf, exportWorksheetToWord } from './lib/worksheet-export'
 import { latexToReadable } from './lib/latex-to-readable'
-import { curriculumToSlidesMarkdown, parseCurriculumToSlides, parseContentToBlocks } from './lib/curriculum-to-slides'
+import { parseCurriculumToSlides, parseContentToBlocks } from './lib/curriculum-to-slides'
 import { SlideVersionDialog, type SlideVersionChoice } from './components/slide-version-dialog'
 import { CurriculumExerciseListDialog } from './components/curriculum-exercise-list-dialog'
 import type { AISlideData } from './lib/curriculum-to-slides'
 import { SUBJECTS, GRADE_LEVELS, GRADE_LEVEL_GROUPS, TEXTBOOK_SETS } from './lib/curriculum-subjects'
-import { createCurriculum, createWorksheetFromQuestions, saveCurriculum, saveTextbookLessonFromImage, listCurricula, getCurriculumById, getWorksheetById, getWorksheetsByCurriculumId, deleteCurriculum, saveSlidesToCurriculum, getSlidesByCurriculumId, getOriginalSlides, getUserCustomizedSlides, saveOriginalSlidesIfNotExists, checkCurriculumExists, recordCurriculumOpen, clearCurriculumDerivedData, saveWorksheetContent } from './actions'
+import { createCurriculum, saveCurriculum, saveTextbookLessonFromImage, listCurricula, getCurriculumById, getWorksheetById, getWorksheetsByCurriculumId, deleteCurriculum, saveSlidesToCurriculum, getSlidesByCurriculumId, getOriginalSlides, getUserCustomizedSlides, saveOriginalSlidesIfNotExists, checkCurriculumExists, recordCurriculumOpen, clearCurriculumDerivedData, saveWorksheetContent } from './actions'
 import { extractEditRegions } from './lib/curriculum-region-extract'
 import { highlightMatchInCurriculum } from './components/curriculum-edit-sheet'
-import { parseWorksheetIntoBlocks, replaceBlockInMarkdown, type WorksheetQuestionBlock } from './lib/worksheet-parse-questions'
+import { parseWorksheetIntoBlocks, replaceBlockInMarkdown } from './lib/worksheet-parse-questions'
 import { mergeContentWithQuestions } from './lib/merge-worksheet-content'
 import { toEditableBlockContent } from './lib/worksheet-editable-block-content'
 import { WorksheetEditSectionPopup } from './components/worksheet-edit-section-popup'
@@ -190,7 +189,7 @@ export default function TaoGiaoTrinhClientPage() {
   const [wsStepByStepEssayCount, setWsStepByStepEssayCount] = useState(5)
   const [wsStepByStepQuizDiff, setWsStepByStepQuizDiff] = useState<'easy' | 'medium' | 'hard'>('medium')
   const [wsStepByStepEssayBloom, setWsStepByStepEssayBloom] = useState<'nhan-biet' | 'thong-hieu' | 'van-dung-thap' | 'van-dung-cao' | 'thuc-te'>('thong-hieu')
-  const [wsStepByStepQuestionIds, setWsStepByStepQuestionIds] = useState<string[]>([])
+  const [, setWsStepByStepQuestionIds] = useState<string[]>([])
   const [wsStepByStepLoading, setWsStepByStepLoading] = useState(false)
   const [wsStepByStepStatus, setWsStepByStepStatus] = useState<string>('')
   const [wsStepByStepExpanded, setWsStepByStepExpanded] = useState(false) // Đóng mặc định; mở khi bấm "Tạo từng câu"
@@ -945,7 +944,7 @@ export default function TaoGiaoTrinhClientPage() {
       const sw = typeof screen !== 'undefined' ? screen.width : 1920
       const sh = typeof screen !== 'undefined' ? screen.height : 1080
       const w = window.open(
-        '/tao-giao-trinh/giao-vien?t=' + Date.now(),
+        '/giao-trinh/giao-vien?t=' + Date.now(),
         'giao-vien-' + Date.now(),
         `width=${sw},height=${sh},scrollbars=yes,left=0,top=0`
       )
@@ -1156,18 +1155,6 @@ export default function TaoGiaoTrinhClientPage() {
           : personalSlides ?? []
     setAiSlides(slides)
     openGiaoVienWindow(slides.length > 0 ? slides : null, choice)
-  }
-
-  const handleDownloadSlides = () => {
-    const slidesMd = curriculumToSlidesMarkdown(curriculumMarkdown, displayTopic)
-    const blob = new Blob([slidesMd], { type: 'text/markdown;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `slide-bai-giang-${displayTopic.slice(0, 25).replace(/\s+/g, '-')}.md`
-    a.click()
-    URL.revokeObjectURL(url)
-    toast({ title: tr('Đã tải slide', 'Slides downloaded', '已下载幻灯片', 'スライドをダウンロード', '슬라이드 다운로드됨'), duration: 2000 })
   }
 
   const handleReset = () => {
@@ -1935,7 +1922,6 @@ export default function TaoGiaoTrinhClientPage() {
 
   const [deleteLoadingId, setDeleteLoadingId] = useState<string | null>(null)
   const curriculumTextareaRef = useRef<HTMLTextAreaElement>(null)
-  const worksheetTextareaRef = useRef<HTMLPreElement>(null)
 
   const handleDeleteCurriculum = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation()
@@ -1987,59 +1973,6 @@ export default function TaoGiaoTrinhClientPage() {
       curriculumWorksheetsSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }
   }, [worksheetMarkdown, curriculumWorksheets])
-
-  const handleLoadWorksheet = async (id: string) => {
-    const result = await getWorksheetById(id)
-    if (result.error) {
-      toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: result.error, variant: 'destructive' })
-      return
-    }
-    if (result.success && result.worksheet) {
-      const w = result.worksheet as { id: string; topic: string; subject_id: string; grade_level_id: string; content_markdown: string; curriculum_id?: string }
-      const curriculumIdFromWs = w.curriculum_id
-      setTopic(w.topic ?? '')
-      setSubjectId(w.subject_id ?? 'toan')
-      setGradeLevelId(normalizeGradeLevelId(w.grade_level_id ?? 'lop-6'))
-      setWorksheetMarkdown(w.content_markdown ?? '')
-      setWorksheetId(w.id)
-      resetWorksheetEditState()
-      setCurriculumId(curriculumIdFromWs ?? null)
-      setCurriculumEditMode(false)
-      setStep('RESULT')
-      setShowBrowse(false)
-      setFeatureSection('create')
-      if (curriculumIdFromWs) {
-        const [curRes, wsRes, slidesRes] = await Promise.all([
-          getCurriculumById(curriculumIdFromWs),
-          getWorksheetsByCurriculumId(curriculumIdFromWs),
-          getSlidesByCurriculumId(curriculumIdFromWs),
-        ])
-        if (curRes?.success && curRes.curriculum) {
-          const c = curRes.curriculum as { textbook_set_id?: string; textbook_volume?: string | null; textbook_isbn?: string | null; lesson_number?: number | null; lesson_type_id?: string; num_lessons?: number; lesson_duration_minutes?: number; goals?: string; content_markdown?: string; topic?: string }
-          setTextbookSetId(c.textbook_set_id ?? 'ket-noi-tri-thuc')
-          setTextbookVolume(c.textbook_volume ?? '')
-          setBookIsbn(c.textbook_isbn ?? '')
-          setTopic(c.topic ?? '')
-          setLessonNumber(c.lesson_number != null ? String(c.lesson_number) : '1')
-          setLessonTypeId(c.lesson_type_id ?? 'hinh-thanh-kien-thuc')
-          setNumLessons(c.num_lessons ?? 3)
-          setLessonDurationMinutes(c.lesson_duration_minutes ?? 45)
-          setGoals(c.goals ?? '')
-          setCurriculumMarkdown(c.content_markdown ?? '')
-        }
-        if (wsRes && 'items' in wsRes) setCurriculumWorksheets((wsRes.items ?? []) as Array<{ id: string; topic: string; subject_id: string; grade_level_id: string; content_markdown: string; created_at: string }>)
-        else setCurriculumWorksheets([])
-        if (slidesRes?.success && slidesRes.slides) setCurriculumSlides(slidesRes.slides)
-        else setCurriculumSlides(null)
-      } else {
-        setCurriculumMarkdown('')
-        setBookIsbn('')
-        setCurriculumWorksheets([])
-        setCurriculumSlides(null)
-      }
-      toast({ title: tr('Đã tải phiếu bài tập', 'Worksheet loaded', '已加载练习', 'ワークシートを読み込み', '워크시트 로드됨'), duration: 2000 })
-    }
-  }
 
   const pollJobStatus = useCallback(
     async (jobId: string): Promise<{ status: string; result?: Record<string, unknown>; error?: string }> => {
@@ -2423,39 +2356,6 @@ export default function TaoGiaoTrinhClientPage() {
     }
   }
 
-  const handleCopyWorksheet = () => {
-    navigator.clipboard.writeText(worksheetStudentMarkdown)
-    toast({ title: tr('Đã sao chép', 'Copied', '已复制', 'コピーしました', '복사됨'), duration: 2000 })
-  }
-
-  const handleDownloadWorksheet = () => {
-    const blob = new Blob([worksheetStudentMarkdown], { type: 'text/markdown;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `phieu-bai-tap-${displayTopic.slice(0, 25).replace(/\s+/g, '-')}.md`
-    a.click()
-    URL.revokeObjectURL(url)
-    toast({ title: tr('Đã tải xuống', 'Downloaded', '已下载', 'ダウンロードしました', '다운로드됨'), duration: 2000 })
-  }
-
-  const handleExportPdf = () => {
-    const name = `phieu-bai-tap-${displayTopic.slice(0, 25).replace(/\s+/g, '-')}.pdf`
-    exportWorksheetToPdf(worksheetStudentMarkdown, name, null).then(() => {
-      toast({ title: tr('Đã tải PDF', 'PDF downloaded', '已下载PDF', 'PDFをダウンロード', 'PDF 다운로드됨'), duration: 2000 })
-    }).catch(() => {
-      toast({ title: tr('Xuất PDF thất bại', 'PDF export failed', 'PDF导出失败', 'PDFエクスポート失敗', 'PDF 내보내기 실패'), variant: 'destructive' })
-    })
-  }
-
-  const handleExportWord = () => {
-    const name = `phieu-bai-tap-${displayTopic.slice(0, 25).replace(/\s+/g, '-')}.docx`
-    exportWorksheetToWord(worksheetStudentMarkdown, name).then(() => {
-      toast({ title: tr('Đã tải Word', 'Word downloaded', '已下载Word', 'Wordをダウンロード', 'Word 다운로드됨'), duration: 2000 })
-    }).catch(() => {
-      toast({ title: tr('Xuất Word thất bại', 'Word export failed', 'Word导出失败', 'Wordエクスポート失敗', 'Word 내보내기 실패'), variant: 'destructive' })
-    })
-  }
 
   return (
     <>
@@ -2505,6 +2405,12 @@ export default function TaoGiaoTrinhClientPage() {
             >
               <FolderOpen className="h-4 w-4" />
               {tr('Giáo trình của tôi', 'My curricula', '我的课程', 'マイカリキュラム', '내 교육과정')}
+            </Button>
+            <Button variant="outline" size="sm" className="gap-1.5" asChild>
+              <Link href="/lop">
+                <Users className="h-4 w-4" />
+                {tr('Lớp học', 'Classes', '班级管理', 'クラス', '학급')}
+              </Link>
             </Button>
             <Button
               variant={featureSection === 'exam' ? 'default' : 'outline'}
@@ -3210,7 +3116,14 @@ export default function TaoGiaoTrinhClientPage() {
                       {sgkImages.length > 0 && (
                         <span className="text-xs text-amber-700 dark:text-amber-300">
                           {sgkImages.length} {tr('ảnh', 'images', '张图片', '枚', '개')}
-                          <button type="button" onClick={() => { setSgkImages([]); sgkInputRef.current && (sgkInputRef.current.value = '') }} className="ml-1 text-amber-600 hover:underline">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSgkImages([])
+                              if (sgkInputRef.current) sgkInputRef.current.value = ''
+                            }}
+                            className="ml-1 text-amber-600 hover:underline"
+                          >
                             {tr('Xóa', 'Clear', '清除', 'クリア', '지우기')}
                           </button>
                         </span>

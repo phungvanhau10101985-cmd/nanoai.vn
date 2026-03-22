@@ -65,7 +65,7 @@ export function useCurriculumStudentSlideSync(locale: 'vi' | 'en' | 'zh' | 'ja' 
     if (shareCode) {
       setShareLoading(true)
       setShareError(null)
-      fetch(`/api/tao-giao-trinh/share/${encodeURIComponent(shareCode)}`)
+      fetch(`/api/giao-trinh/share/${encodeURIComponent(shareCode)}`)
         .then((r) => r.json())
         .then((res) => {
           if (res.error) {

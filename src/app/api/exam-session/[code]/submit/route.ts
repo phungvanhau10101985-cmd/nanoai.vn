@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { createClient as createServerClient } from '@/lib/supabase/server'
+import { verifyExamLayoutToken } from '@/lib/exam-layout-token'
 
 /** Nhận xét khích lệ theo % đúng – thang điểm 10 */
 function getFeedback(score: number, maxScore: number): { grade10: number; comment: string; shareHint: string } {
@@ -42,6 +43,13 @@ function getFeedback(score: number, maxScore: number): { grade10: number; commen
   }
 }
 
+function isValidDob(input: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input)) return false
+  const d = new Date(`${input}T00:00:00`)
+  if (Number.isNaN(d.getTime())) return false
+  return d.getUTCFullYear() >= 1900 && d <= new Date()
+}
+
 /** Nộp bài – lưu exam_attempts, chấm thang 10, mỗi người chỉ làm một lần. */
 export async function POST(
   req: NextRequest,
@@ -62,8 +70,15 @@ export async function POST(
 
     const body = await req.json().catch(() => ({}))
     const studentName = String(body?.studentName ?? '').trim()
-    const studentCode = String(body?.studentCode ?? '').trim()
+    const studentDob = String(body?.studentDob ?? '').trim()
+    const layoutToken = String(body?.layoutToken ?? '').trim()
     const answers = body?.answers
+    if (!studentName) {
+      return NextResponse.json({ error: 'Vui lòng nhập họ tên học sinh.' }, { status: 400 })
+    }
+    if (!isValidDob(studentDob)) {
+      return NextResponse.json({ error: 'Vui lòng chọn ngày sinh hợp lệ.' }, { status: 400 })
+    }
     if (!answers || typeof answers !== 'object') {
       return NextResponse.json({ error: 'Thiếu đáp án.' }, { status: 400 })
     }
@@ -83,6 +98,17 @@ export async function POST(
 
     if (sessionErr || !session) {
       return NextResponse.json({ error: 'Không tìm thấy bài thi.' }, { status: 404 })
+    }
+
+    const layout = await verifyExamLayoutToken(layoutToken)
+    if (!layout || layout.sessionId !== String(session.id) || layout.userId !== user.id) {
+      return NextResponse.json(
+        {
+          error:
+            'Phiên làm bài không hợp lệ hoặc đã hết hạn. Vui lòng tải lại trang đề thi rồi làm bài.',
+        },
+        { status: 400 }
+      )
     }
 
     if (session.class_id) {
@@ -108,21 +134,56 @@ export async function POST(
       .select('id, correct_index, options')
       .eq('session_id', session.id)
 
-    const qMap = new Map((questions ?? []).map((q) => [q.id, q]))
+    const qMap = new Map((questions ?? []).map((q) => [String(q.id), q]))
     let score = 0
     const scorableQuestionIds = new Set(
       (questions ?? [])
-        .filter((q) => Array.isArray(q.options) && q.options.length >= 2 && typeof q.correct_index === 'number')
-        .map((q) => q.id)
+        .filter((q) => {
+          const opts = Array.isArray(q.options) ? q.options : []
+          if (opts.length < 2) return false
+          const ci = typeof q.correct_index === 'number' ? q.correct_index : Number(q.correct_index)
+          return Number.isFinite(ci)
+        })
+        .map((q) => String(q.id))
     )
+
+    for (const qid of Array.from(scorableQuestionIds)) {
+      const row = qMap.get(qid)
+      const opts = row && Array.isArray(row.options) ? row.options : []
+      const perm = layout.optionPerms[qid]
+      if (!perm || !Array.isArray(perm) || perm.length !== opts.length) {
+        return NextResponse.json(
+          {
+            error:
+              'Dữ liệu đề thi không khớp (layoutToken). Vui lòng tải lại trang và làm lại từ đầu.',
+          },
+          { status: 400 }
+        )
+      }
+    }
+
     const maxScore = scorableQuestionIds.size
     for (const [id, userAnswer] of Object.entries(answers)) {
-      const q = qMap.get(id)
+      const qid = String(id)
+      const q = qMap.get(qid)
       if (!q) continue
-      if (!scorableQuestionIds.has(id)) continue
-      const correctIdx = q.correct_index ?? 0
-      const userIdx = typeof userAnswer === 'number' ? userAnswer : parseInt(String(userAnswer), 10)
-      if (userIdx === correctIdx) score++
+      if (!scorableQuestionIds.has(qid)) continue
+      const dbOpts = Array.isArray(q.options) ? q.options : []
+      const nOpt = dbOpts.length
+      const ciRaw = typeof q.correct_index === 'number' ? q.correct_index : Number(q.correct_index ?? 0)
+      const safeCorrect =
+        nOpt >= 2 && Number.isFinite(ciRaw)
+          ? Math.max(0, Math.min(nOpt - 1, Math.floor(ciRaw)))
+          : 0
+      const displayIdx = typeof userAnswer === 'number' ? userAnswer : parseInt(String(userAnswer), 10)
+      if (!Number.isFinite(displayIdx)) continue
+      const perm = layout.optionPerms[qid]
+      let userOriginal = displayIdx
+      if (perm && Array.isArray(perm) && perm.length === dbOpts.length && dbOpts.length >= 2) {
+        if (displayIdx < 0 || displayIdx >= perm.length) continue
+        userOriginal = perm[displayIdx]!
+      }
+      if (userOriginal === safeCorrect) score++
     }
 
     const feedback = getFeedback(score, maxScore)
@@ -133,7 +194,7 @@ export async function POST(
       class_id: session.class_id ?? null,
       school_id: session.school_id ?? null,
       student_name: studentName || null,
-      student_code: studentCode || null,
+      student_code: studentDob || null,
       answers,
       score,
       max_score: maxScore,

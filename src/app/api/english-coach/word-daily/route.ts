@@ -107,17 +107,6 @@ function preferIncomingOrExistingContextSensitive(incoming: unknown, existing?: 
   return normalizeContextSensitive(existing)
 }
 
-function sanitizeMeaningItems(input: unknown): Array<{ text: string; pinyin?: string }> {
-  if (!Array.isArray(input)) return []
-  return input
-    .map((row) => ({
-      text: String((row as { text?: unknown })?.text || '').trim(),
-      pinyin: String((row as { pinyin?: unknown })?.pinyin || '').trim(),
-    }))
-    .filter((row) => row.text)
-    .slice(0, 8)
-}
-
 function sanitizeSenseItems(input: unknown): Array<{ gloss: string; exampleTarget: string; exampleNative: string }> {
   if (!Array.isArray(input)) return []
   return input
@@ -158,18 +147,6 @@ function parseJsonArrayText(input: string | null | undefined): unknown[] {
   }
 }
 
-function mergeMeaningItems(
-  incoming: Array<{ text: string; pinyin?: string }>,
-  existingJson: string | null | undefined,
-  fallbackMeaning: string
-): Array<{ text: string; pinyin?: string }> {
-  if (incoming.length > 0) return incoming
-  const existing = sanitizeMeaningItems(parseJsonArrayText(existingJson))
-  if (existing.length > 0) return existing
-  const fallback = String(fallbackMeaning || '').trim()
-  return fallback ? [{ text: fallback }] : []
-}
-
 function mergeExampleItems(
   incoming: Array<{ targetText: string; targetPinyin?: string; nativeText: string }>,
   existingJson: string | null | undefined,
@@ -203,12 +180,12 @@ function exampleItemsNeedFix(items: Array<{ targetText?: string }>, targetLang: 
   return false
 }
 
-function isTargetCjk(targetLang: string | null): boolean {
+function isTargetCjk(targetLang: string | null | undefined): boolean {
   const n = String(targetLang || '').toLowerCase()
   return /chinese|zh|mandarin|japanese|ja|korean|ko/.test(n)
 }
 
-function isNativeCjk(nativeLang: string | null): boolean {
+function isNativeCjk(nativeLang: string | null | undefined): boolean {
   const n = String(nativeLang || '').toLowerCase()
   return /chinese|zh|mandarin|japanese|ja|korean|ko/.test(n)
 }
@@ -686,7 +663,6 @@ export async function POST(request: NextRequest) {
     const importanceScore = preferIncomingOrExistingScore(payload.importanceScore, null)
     const contextSensitive = preferIncomingOrExistingContextSensitive(payload.contextSensitive, null)
     const incomingSenses = sanitizeSenseItems(payload.senses)
-    const incomingMeaningItems = sanitizeMeaningItems(payload.meaningItems)
     const incomingExampleItems = sanitizeExampleItems(payload.exampleItems)
 
     if (!word || !sessionId) {
@@ -780,11 +756,6 @@ export async function POST(request: NextRequest) {
 
     const mergedReviewMeaning = preferIncomingOrExisting(mergedMeaning || '', existingReviewRow?.meaning)
     const mergedReviewPronunciation = preferIncomingOrExisting(mergedPronunciation || '', existingReviewRow?.pronunciation)
-    const mergedReviewMeaningItems = mergeMeaningItems(
-      incomingMeaningItems.length > 0 ? incomingMeaningItems : [],
-      existingReviewRow?.meaning_items_json,
-      mergedReviewMeaning || ''
-    )
     const mergedReviewSenses =
       mergedSenses.length > 0
         ? mergedSenses
@@ -872,6 +843,8 @@ export async function POST(request: NextRequest) {
         usage_level?: 'high' | 'medium' | 'low' | null
         importance_score?: number | null
         is_context_sensitive?: boolean | null
+        meaning_items_json?: string | null
+        example_items_json?: string | null
         source_model: string
         last_used_at: string
         updated_at: string

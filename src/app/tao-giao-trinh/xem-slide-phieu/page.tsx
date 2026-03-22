@@ -7,7 +7,7 @@ const XemSlideStudentWorksheetClient = dynamic(() => import('../components/xem-s
 
 /**
  * Trình chiếu học sinh – phiếu bài tập (mở từ giao viên có `worksheetId`).
- * Giáo trình: `/tao-giao-trinh/xem-slide`.
+ * Giáo trình: `/giao-trinh/xem-slide`.
  */
 export default function XemSlidePhieuPage() {
   return (

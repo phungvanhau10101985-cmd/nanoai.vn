@@ -7,6 +7,7 @@ export type NavGroupKey =
   | 'three_d_special'
   | 'translation'
   | 'music_ai'
+  | 'curriculum'
   | 'learning_ai'
   | 'system'
 
@@ -128,11 +129,15 @@ export type Dictionary = {
     quizScore: string
     sampleAnswer: string
     submissions: string
+    worksheetSubmissionsSection: string
+    noWorksheetSubmissions: string
+    worksheetSubmissionsSeeExamBelow: string
     submittedAt: string
     noSubmissions: string
     presentWorksheet: string
     schoolLabel: string
     gradeLevelLabel: string
+    subjectLabel: string
     renameClass: string
     saveClassName: string
     cancelAction: string
@@ -140,6 +145,16 @@ export type Dictionary = {
     renameClassSuccess: string
     examSubmissions: string
     noExamSubmissions: string
+    showStudentsAction: string
+    hideStudentsAction: string
+    examReviewAction: string
+    examAttemptCount: string
+    lowScoreWarningPrefix: string
+    lowScoreWarningSuffix: string
+    correctLabel: string
+    wrongLabel: string
+    scoreLabel: string
+    questionSuffix: string
   }
   /** Trang công khai /phieu-bai-tap/[id] — lời giải & đáp án */
   worksheetSolutionPage: {
@@ -239,6 +254,7 @@ const VI_DICTIONARY: Dictionary = {
     three_d_special: '3D & Chuyên dụng',
     translation: 'Dịch thuật',
     music_ai: 'Âm nhạc AI',
+    curriculum: 'Giáo trình',
     learning_ai: 'Học tập AI',
     system: 'Hệ thống',
   },
@@ -259,6 +275,7 @@ const VI_DICTIONARY: Dictionary = {
     design_flat_bag: 'Thiết kế túi đựng (mặt phẳng)',
     cylinder_wrap_mockup: 'Mockup nhãn chai / lon',
     create_seal_warranty_label: 'Tạo tem niêm phong, bảo hành',
+    design_stamp: 'Thiết kế con dấu',
     meme_maker: 'Chế ảnh',
     remove_object: 'Xóa vật thể',
     remove_bg_png: 'Xóa nền PNG',
@@ -315,11 +332,15 @@ const VI_DICTIONARY: Dictionary = {
     quizScore: 'Điểm trắc nghiệm',
     sampleAnswer: 'Đáp án mẫu',
     submissions: 'Bài nộp',
+    worksheetSubmissionsSection: 'Bài nộp phiếu bài tập',
+    noWorksheetSubmissions: 'Chưa có bài nộp phiếu bài tập nào.',
+    worksheetSubmissionsSeeExamBelow: 'Bài làm từ đề thi nằm ở mục "Bài nộp từ đề thi" phía dưới.',
     submittedAt: 'Nộp lúc',
     noSubmissions: 'Chưa có bài nộp',
     presentWorksheet: 'Trình chiếu phiếu bài tập',
     schoolLabel: 'Trường',
     gradeLevelLabel: 'Khối',
+    subjectLabel: 'Môn',
     renameClass: 'Đổi tên lớp',
     saveClassName: 'Lưu tên lớp',
     cancelAction: 'Hủy',
@@ -327,6 +348,16 @@ const VI_DICTIONARY: Dictionary = {
     renameClassSuccess: 'Đã đổi tên lớp.',
     examSubmissions: 'Bài nộp từ đề thi',
     noExamSubmissions: 'Chưa có bài nộp đề thi nào.',
+    showStudentsAction: 'Xem học sinh làm bài',
+    hideStudentsAction: 'Ẩn danh sách',
+    examReviewAction: 'Chữa bài',
+    examAttemptCount: 'bài nộp',
+    lowScoreWarningPrefix: 'Có',
+    lowScoreWarningSuffix: 'học sinh điểm thấp (< 5/10). Giáo viên nên để ý và hỗ trợ thêm.',
+    correctLabel: 'Đúng',
+    wrongLabel: 'Sai',
+    scoreLabel: 'Điểm',
+    questionSuffix: 'câu',
   },
   worksheetSolutionPage: {
     metaTitlePrefix: 'Lời giải',
@@ -425,6 +456,7 @@ const EN_DICTIONARY: Dictionary = {
     three_d_special: '3D & Specialized',
     translation: 'Translation',
     music_ai: 'AI Music',
+    curriculum: 'Curriculum',
     learning_ai: 'AI Learning',
     system: 'System',
   },
@@ -503,11 +535,15 @@ const EN_DICTIONARY: Dictionary = {
     quizScore: 'Quiz score',
     sampleAnswer: 'Sample answer',
     submissions: 'Submissions',
+    worksheetSubmissionsSection: 'Worksheet submissions',
+    noWorksheetSubmissions: 'No worksheet submissions yet.',
+    worksheetSubmissionsSeeExamBelow: 'Exam attempts are listed under "Exam submissions" below.',
     submittedAt: 'Submitted at',
     noSubmissions: 'No submissions yet',
     presentWorksheet: 'Present worksheet',
     schoolLabel: 'School',
     gradeLevelLabel: 'Grade',
+    subjectLabel: 'Subject',
     renameClass: 'Rename class',
     saveClassName: 'Save class name',
     cancelAction: 'Cancel',
@@ -515,6 +551,16 @@ const EN_DICTIONARY: Dictionary = {
     renameClassSuccess: 'Class name updated.',
     examSubmissions: 'Exam submissions',
     noExamSubmissions: 'No exam submissions yet.',
+    showStudentsAction: 'Show students',
+    hideStudentsAction: 'Hide list',
+    examReviewAction: 'Review',
+    examAttemptCount: 'submissions',
+    lowScoreWarningPrefix: 'There are',
+    lowScoreWarningSuffix: 'students with low scores (< 5/10). Please provide extra support.',
+    correctLabel: 'Correct',
+    wrongLabel: 'Wrong',
+    scoreLabel: 'Score',
+    questionSuffix: 'questions',
   },
   worksheetSolutionPage: {
     metaTitlePrefix: 'Solutions',
@@ -613,6 +659,7 @@ const ZH_DICTIONARY: Dictionary = {
     three_d_special: '3D 与专业工具',
     translation: '翻译',
     music_ai: 'AI 音乐',
+    curriculum: '课程',
     learning_ai: 'AI 学习',
     system: '系统',
   },
@@ -691,11 +738,15 @@ const ZH_DICTIONARY: Dictionary = {
     quizScore: '测验分数',
     sampleAnswer: '参考答案',
     submissions: '提交记录',
+    worksheetSubmissionsSection: '练习单提交',
+    noWorksheetSubmissions: '暂无练习单提交。',
+    worksheetSubmissionsSeeExamBelow: '试卷作答请查看下方的「试题提交」。',
     submittedAt: '提交时间',
     noSubmissions: '暂无提交',
     presentWorksheet: '演示作业单',
     schoolLabel: '学校',
     gradeLevelLabel: '年级',
+    subjectLabel: '科目',
     renameClass: '重命名班级',
     saveClassName: '保存班级名称',
     cancelAction: '取消',
@@ -703,6 +754,16 @@ const ZH_DICTIONARY: Dictionary = {
     renameClassSuccess: '班级名称已更新。',
     examSubmissions: '试题提交',
     noExamSubmissions: '暂无试题提交。',
+    showStudentsAction: '查看作答学生',
+    hideStudentsAction: '收起列表',
+    examReviewAction: '讲评',
+    examAttemptCount: '份提交',
+    lowScoreWarningPrefix: '有',
+    lowScoreWarningSuffix: '名学生分数较低（< 5/10），建议教师重点关注并辅导。',
+    correctLabel: '正确',
+    wrongLabel: '错误',
+    scoreLabel: '得分',
+    questionSuffix: '题',
   },
   worksheetSolutionPage: {
     metaTitlePrefix: '解答',
@@ -800,6 +861,7 @@ const JA_DICTIONARY: Dictionary = {
     three_d_special: '3D・専門ツール',
     translation: '翻訳',
     music_ai: 'AI 音楽',
+    curriculum: 'カリキュラム',
     learning_ai: 'AI 学習',
     system: 'システム',
   },
@@ -878,11 +940,15 @@ const JA_DICTIONARY: Dictionary = {
     quizScore: 'クイズ得点',
     sampleAnswer: '模範解答',
     submissions: '提出一覧',
+    worksheetSubmissionsSection: 'ワークシート提出',
+    noWorksheetSubmissions: 'ワークシートの提出はまだありません。',
+    worksheetSubmissionsSeeExamBelow: '試験の答案は下の「試験提出」に表示されます。',
     submittedAt: '提出日時',
     noSubmissions: '提出なし',
     presentWorksheet: 'ワークシートをプレゼン',
     schoolLabel: '学校',
     gradeLevelLabel: '学年',
+    subjectLabel: '教科',
     renameClass: 'クラス名を変更',
     saveClassName: 'クラス名を保存',
     cancelAction: 'キャンセル',
@@ -890,6 +956,16 @@ const JA_DICTIONARY: Dictionary = {
     renameClassSuccess: 'クラス名を更新しました。',
     examSubmissions: '試験提出',
     noExamSubmissions: '試験提出はまだありません。',
+    showStudentsAction: '受験した生徒を表示',
+    hideStudentsAction: 'リストを隠す',
+    examReviewAction: '解説',
+    examAttemptCount: '件の提出',
+    lowScoreWarningPrefix: '低得点（< 5/10）の生徒が',
+    lowScoreWarningSuffix: '人います。重点的なフォローをおすすめします。',
+    correctLabel: '正解',
+    wrongLabel: '不正解',
+    scoreLabel: '点数',
+    questionSuffix: '問',
   },
   worksheetSolutionPage: {
     metaTitlePrefix: '解答',
@@ -988,6 +1064,7 @@ const KO_DICTIONARY: Dictionary = {
     three_d_special: '3D·전문 도구',
     translation: '번역',
     music_ai: 'AI 음악',
+    curriculum: '교육과정',
     learning_ai: 'AI 학습',
     system: '시스템',
   },
@@ -1066,11 +1143,15 @@ const KO_DICTIONARY: Dictionary = {
     quizScore: '퀴즈 점수',
     sampleAnswer: '모범 답안',
     submissions: '제출 목록',
+    worksheetSubmissionsSection: '워크시트 제출',
+    noWorksheetSubmissions: '워크시트 제출이 없습니다.',
+    worksheetSubmissionsSeeExamBelow: '시험 응시 내역은 아래「시험 제출」에서 확인하세요.',
     submittedAt: '제출 시각',
     noSubmissions: '제출 없음',
     presentWorksheet: '워크시트 발표',
     schoolLabel: '학교',
     gradeLevelLabel: '학년',
+    subjectLabel: '과목',
     renameClass: '수업 이름 변경',
     saveClassName: '수업 이름 저장',
     cancelAction: '취소',
@@ -1078,6 +1159,16 @@ const KO_DICTIONARY: Dictionary = {
     renameClassSuccess: '수업 이름이 업데이트되었습니다.',
     examSubmissions: '시험 제출',
     noExamSubmissions: '시험 제출이 없습니다.',
+    showStudentsAction: '응시 학생 보기',
+    hideStudentsAction: '목록 숨기기',
+    examReviewAction: '해설',
+    examAttemptCount: '개 제출',
+    lowScoreWarningPrefix: '낮은 점수(< 5/10) 학생이',
+    lowScoreWarningSuffix: '명 있습니다. 추가 지도에 유의해주세요.',
+    correctLabel: '정답',
+    wrongLabel: '오답',
+    scoreLabel: '점수',
+    questionSuffix: '문항',
   },
   worksheetSolutionPage: {
     metaTitlePrefix: '해설',

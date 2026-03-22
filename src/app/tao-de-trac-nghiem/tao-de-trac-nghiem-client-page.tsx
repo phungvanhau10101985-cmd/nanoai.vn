@@ -258,7 +258,7 @@ export default function TaoDeTracNghiemClientPage() {
                   <option value="deepseek">{tr('DeepSeek V3', 'DeepSeek V3', 'DeepSeek V3', 'DeepSeek V3', 'DeepSeek V3')}</option>
                 </select>
               </div>
-              <Button onClick={() => void handleSubmit()} disabled={step === 'GENERATING'} className="w-full bg-violet-600 hover:bg-violet-700 text-white">
+              <Button onClick={() => void handleSubmit()} disabled={false} className="w-full bg-violet-600 hover:bg-violet-700 text-white">
                 <Sparkles className="h-4 w-4 mr-2" />
                 {tr('Tạo đề thi', 'Create exam', '创建考试', '試験を作成', '시험 생성')}
               </Button>

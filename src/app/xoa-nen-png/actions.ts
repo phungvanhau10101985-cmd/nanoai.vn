@@ -85,7 +85,7 @@ export async function removeBackgroundToTransparentPng(formData: FormData) {
       return { error: 'AI không trả về ảnh mask hợp lệ.' }
     }
 
-    const maskBuffer = Buffer.from(maskPart.inlineData.data, 'base64')
+    const maskBuffer = Buffer.from((maskPart as { inlineData: { data: string } }).inlineData.data, 'base64')
     const transparentPngBuffer = await buildTransparentPngFromMask(inputBuffer, maskBuffer)
 
     const resultPath = `results/${user.id}/remove_bg_${Date.now()}.png`

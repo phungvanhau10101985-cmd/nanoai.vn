@@ -178,7 +178,7 @@ export async function faceSwap(formData: FormData) {
       responseModalities: ['TEXT', 'IMAGE'],
       imageConfig: { imageSize: imageQuality, aspectRatio },
     },
-  })
+  } as Parameters<GoogleGenerativeAI['getGenerativeModel']>[0])
   const safetySettings = [
     { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
     { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
@@ -250,9 +250,9 @@ ${NO_TEXT}`
         return { error: 'Ảnh đích không nhận đủ 2 khuôn mặt (trái/phải). Vui lòng chọn ảnh có 2 người rõ mặt.' }
       }
 
-      let targetWithoutFaces = targetBuffer
-      targetWithoutFaces = await removeFaceRegionLocal(targetWithoutFaces, targetFaces[0])
-      targetWithoutFaces = await removeFaceRegionLocal(targetWithoutFaces, targetFaces[1])
+      let targetWithoutFaces: Buffer = targetBuffer
+      targetWithoutFaces = (await removeFaceRegionLocal(targetWithoutFaces, targetFaces[0])) as Buffer
+      targetWithoutFaces = (await removeFaceRegionLocal(targetWithoutFaces, targetFaces[1])) as Buffer
       console.log('[FaceSwap] Đã xóa mặt local cho 2 người theo bbox Vision')
 
       const resizedLeftFace = await resizeSourceFaceToTargetSize(croppedLeftFace, targetFaces[0])
@@ -280,7 +280,7 @@ ${NO_TEXT}`
       )
     }
 
-    const genResult = await model.generateContent(contentParts, { safetySettings })
+    const genResult = await model.generateContent(contentParts as never, { safetySettings } as never)
     const response = genResult.response
     logGeminiResponse('single_call_vision_local', genResult)
     trackFromUsageMetadata(response.usageMetadata, 'gemini-3-pro-image-preview', 'hoan-doi-khuon-mat', user.id, imageQuality)
@@ -294,7 +294,12 @@ ${NO_TEXT}`
       }
       return { error: `AI không trả về ảnh hợp lệ (${reason}). Thử ảnh khác.` }
     }
-    const resultBuffer = Buffer.from(imagePartRes.inlineData.data, 'base64')
+    const swapInline = imagePartRes.inlineData
+    if (!swapInline?.data) {
+      await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+      return { error: 'AI không trả về ảnh hợp lệ (thiếu dữ liệu ảnh).' }
+    }
+    const resultBuffer = Buffer.from(swapInline.data, 'base64')
 
     const resultPath = `results/${user.id}/faceswap_${Date.now()}.png`
     await adminSupabase.storage.from('try-on-images').upload(resultPath, resultBuffer, { contentType: 'image/png', upsert: true })

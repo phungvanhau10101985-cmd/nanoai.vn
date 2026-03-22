@@ -428,7 +428,16 @@ export async function POST(request: NextRequest) {
       if (transcript.length === 0) return NextResponse.json({ found: false })
       const teacherRows = parseTeacherRowsFromTranscript(JSON.stringify(transcript), mode)
       if (teacherRows.length === 0) return NextResponse.json({ found: false })
-      firstTeacher = teacherRows[0]
+      {
+        const row = teacherRows[0]
+        firstTeacher = {
+          teacherLabel: row.teacherLabel ?? undefined,
+          teacherLocale: row.teacherLocale ?? undefined,
+          languageCode: row.languageCode ?? undefined,
+          targetLanguage: row.targetLanguage ?? undefined,
+          mode: row.mode,
+        }
+      }
       presetTurns = buildPresetTurnsFromTranscript(transcript, resolvedLearnerProfile)
     }
 

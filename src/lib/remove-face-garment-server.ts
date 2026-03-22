@@ -188,8 +188,8 @@ export async function removeFaceFromGarmentImages(images: File[]): Promise<File[
   console.log('[Vision] Config:', hasVisionConfig() ? 'Service account OK' : 'chua cau hinh')
   console.log('[Vision] ===== Bat dau xu ly', images.length, 'anh san pham (batch) =====')
 
-  let buffers = await Promise.all(images.map((f) => f.arrayBuffer().then((ab) => Buffer.from(ab))))
-  buffers = await Promise.all(buffers.map((buf) => ensureVisionCompatibleBuffer(buf)))
+  let buffers: Buffer[] = await Promise.all(images.map((f) => f.arrayBuffer().then((ab) => Buffer.from(ab))))
+  buffers = await Promise.all(buffers.map((buf) => ensureVisionCompatibleBuffer(buf).then((b) => Buffer.from(b))))
 
   for (let i = 0; i < images.length; i++) {
     console.log('[Vision] Anh', i + 1, '/', images.length, '|', images[i].name, '|', buffers[i].length, 'bytes')
@@ -201,7 +201,7 @@ export async function removeFaceFromGarmentImages(images: File[]): Promise<File[
   for (let i = 0; i < images.length; i++) {
     const processed = await processImageWithFaces(buffers[i], facesPerImage[i], i)
     const name = images[i].name.replace(/\.[^.]+$/i, '.png')
-    results.push(new File([processed], name, { type: 'image/png' }))
+    results.push(new File([new Uint8Array(processed)], name, { type: 'image/png' }))
   }
 
   console.log('[Vision] ===== Xong xu ly', results.length, 'anh =====')

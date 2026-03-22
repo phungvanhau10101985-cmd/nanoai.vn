@@ -138,7 +138,6 @@ export default function MockupCylinderWrapClientPage() {
         const pos = imagePositionRef.current
         const iw = img.naturalWidth
         const ih = img.naturalHeight
-        const scale = pos?.scale && pos.scale > 0 ? pos.scale : Math.max(cylW / iw, bodyH / ih)
         const imgStartX = pos?.scale ? pos.panX / pos.scale : 0
         const srcY = pos?.scale ? pos.panY / pos.scale : 0
         const srcH = pos?.frameH ? pos.frameH / pos.scale : ih

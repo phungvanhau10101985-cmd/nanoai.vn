@@ -8,10 +8,8 @@ import { worksheetDisplayMarkdownFromDb } from '@/app/tao-giao-trinh/lib/merge-w
 
 export async function generateMetadata({
   params,
-  searchParams,
 }: {
   params: Promise<{ id: string }>
-  searchParams: Promise<{ classId?: string }>
 }): Promise<ReturnType<typeof import('@/lib/seo').buildMetadata>> {
   const { id } = await params
   const supabase = createClient()

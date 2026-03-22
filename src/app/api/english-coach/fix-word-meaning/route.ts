@@ -12,12 +12,12 @@ function hasCjk(s: string): boolean {
   return /[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff\uac00-\ud7af]/.test(s)
 }
 
-function isTargetCjk(targetLang: string | null): boolean {
+function isTargetCjk(targetLang: string | null | undefined): boolean {
   const n = String(targetLang || '').toLowerCase()
   return /chinese|zh|mandarin|japanese|ja|korean|ko/.test(n)
 }
 
-function isNativeCjk(nativeLang: string | null): boolean {
+function isNativeCjk(nativeLang: string | null | undefined): boolean {
   const n = String(nativeLang || '').toLowerCase()
   return /chinese|zh|mandarin|japanese|ja|korean|ko/.test(n)
 }

@@ -350,7 +350,7 @@ export default function TryOnClientPage({ gender: initialGender, initialMode = '
                   </CardContent>
                 </Card>
 
-                <div className={cn('sm:col-span-1', step === 'GENERATING' ? 'opacity-50 pointer-events-none' : '')}>
+                <div className="sm:col-span-1">
                   <Tabs value={tryOnMode} onValueChange={(value) => {
                     const newMode = value as TryOnMode
                     const prevMode = tryOnMode

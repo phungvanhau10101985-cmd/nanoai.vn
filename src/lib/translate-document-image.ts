@@ -114,7 +114,7 @@ export async function translateOneImage(
     return { buffer: Buffer.alloc(0), error: 'AI không trả về ảnh hợp lệ.' }
   }
 
-  const resultBuffer = Buffer.from(imagePartRes.inlineData.data, 'base64')
+  const resultBuffer = Buffer.from((imagePartRes as { inlineData: { data: string } }).inlineData.data, 'base64')
   console.log(`${prefix} [Dịch ảnh] Nhận ảnh:`, Math.round(resultBuffer.length / 1024), 'KB | heap:', Math.round(process.memoryUsage().heapUsed / 1024 / 1024), 'MB')
 
   let words: WordWithBbox[] = []

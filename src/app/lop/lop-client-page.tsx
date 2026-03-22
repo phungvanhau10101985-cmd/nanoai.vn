@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
 
-type ClassItem = {
+export type ClassItem = {
   id: string
   name: string
   join_code: string

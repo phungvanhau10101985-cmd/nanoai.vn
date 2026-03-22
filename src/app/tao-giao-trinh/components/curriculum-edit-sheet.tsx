@@ -6,8 +6,6 @@ import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
 
-type UiLocale = 'vi' | 'en' | 'zh' | 'ja' | 'ko'
-
 type CurriculumEditSheetProps = {
   open: boolean
   onOpenChange: (open: boolean) => void

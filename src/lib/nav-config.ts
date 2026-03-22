@@ -1,6 +1,7 @@
 /**
  * Cấu hình điều hướng - đồng bộ giữa Header, MobileNav, Dashboard
  */
+import type { ComponentType } from 'react'
 import {
   Music2,
   SlidersHorizontal,
@@ -41,6 +42,27 @@ import { DichAnhTaiLieuIcon } from '@/components/icons/dich-anh-tai-lieu-icon'
 import { XoaNenPngIcon } from '@/components/icons/xoa-nen-png-icon'
 import type { NavGroupKey, ToolKey } from '@/lib/i18n/dictionaries'
 
+export type NavIcon = ComponentType<{ className?: string }>
+
+/** Mục con bên trong một ô lớn (vd: Lớp học nằm trong Tạo giáo trình). */
+export type NavGroupSubLink = {
+  href: string
+  labelKey: ToolKey
+  icon: NavIcon
+}
+
+export type NavGroupLinkItem = {
+  href: string
+  labelKey: ToolKey
+  icon: NavIcon
+  subLinks?: readonly NavGroupSubLink[]
+}
+
+export type NavGroupConfig = {
+  titleKey: NavGroupKey
+  links: readonly NavGroupLinkItem[]
+}
+
 export const AI_TOOLS = [
   { href: '/thu-do-online', labelKey: 'try_on' as ToolKey, icon: TryOnIcon },
   { href: '/phuc-dung-anh', labelKey: 'restore_image' as ToolKey, icon: ImageRestorationIcon },
@@ -74,12 +96,11 @@ export const AI_TOOLS = [
   { href: '/nhac-theo-cam-xuc-anh', labelKey: 'music_from_image_mood' as ToolKey, icon: ImagePlus },
   { href: '/dieu-khien-nhac-realtime', labelKey: 'realtime_music_control' as ToolKey, icon: Radio },
   { href: '/hoc-tieng-anh-ai', labelKey: 'ai_language_learning' as ToolKey, icon: Languages },
-  { href: '/tao-giao-trinh', labelKey: 'create_curriculum' as ToolKey, icon: BookOpen },
+  { href: '/giao-trinh', labelKey: 'create_curriculum' as ToolKey, icon: BookOpen },
   { href: '/tao-de-trac-nghiem', labelKey: 'create_exam' as ToolKey, icon: FileQuestion },
-  { href: '/lop', labelKey: 'classes' as ToolKey, icon: Users },
 ] as const
 
-export const NAV_GROUPS = [
+export const NAV_GROUPS: readonly NavGroupConfig[] = [
   {
     titleKey: 'try_on' as NavGroupKey,
     links: [
@@ -147,12 +168,19 @@ export const NAV_GROUPS = [
     ],
   },
   {
-    titleKey: 'learning_ai' as NavGroupKey,
+    titleKey: 'curriculum' as NavGroupKey,
     links: [
-      { href: '/hoc-tieng-anh-ai', labelKey: 'ai_language_learning' as ToolKey, icon: Languages },
-      { href: '/tao-giao-trinh', labelKey: 'create_curriculum' as ToolKey, icon: BookOpen },
+      {
+        href: '/giao-trinh',
+        labelKey: 'create_curriculum' as ToolKey,
+        icon: BookOpen,
+        subLinks: [{ href: '/lop', labelKey: 'classes' as ToolKey, icon: Users }],
+      },
       { href: '/tao-de-trac-nghiem', labelKey: 'create_exam' as ToolKey, icon: FileQuestion },
-      { href: '/lop', labelKey: 'classes' as ToolKey, icon: Users },
     ],
   },
-] as const
+  {
+    titleKey: 'learning_ai' as NavGroupKey,
+    links: [{ href: '/hoc-tieng-anh-ai', labelKey: 'ai_language_learning' as ToolKey, icon: Languages }],
+  },
+]

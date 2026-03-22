@@ -5,66 +5,7 @@ export const maxDuration = 120
 import { getUserForAction } from '@/lib/auth'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import * as XLSX from 'xlsx'
-
-/** Danh sách bảng public (theo migrations) */
-export const PUBLIC_TABLES = [
-  'profiles',
-  'credits',
-  'transactions',
-  'try_on_history',
-  'api_usage_log',
-  'translate_jobs',
-  'house_build_projects',
-  'music_generations',
-  'worksheet_curricula',
-  'worksheet_worksheets',
-  'worksheet_slides',
-  'worksheet_slides_original',
-  'worksheet_slide_edit_history',
-  'worksheet_official_questions',
-  'worksheet_textbook_lessons',
-  'exam_sessions',
-  'exam_questions',
-  'exam_attempts',
-  'slide_quiz_sessions',
-  'slide_quiz_responses',
-  'slide_edit_proposals',
-  'slide_edit_votes',
-  'user_customized_slides',
-  'user_customized_slides_history',
-  'quiz_question_reports',
-  'user_opened_curricula',
-  'user_hidden_curricula',
-  'notifications',
-  'language_coach_learning_goals',
-  'language_coach_progress_daily',
-  'language_coach_review_queue',
-  'language_coach_credit_events',
-  'language_coach_ended_sessions',
-  'language_coach_hidden_sessions',
-  'language_coach_completed_lessons',
-  'language_coach_messages',
-  'language_coach_session_memories',
-  'language_coach_tokenizations',
-  'language_coach_turn_diagnostics',
-  'language_coach_assessments',
-  'language_coach_daily_words',
-  'language_coach_custom_topics',
-  'language_coach_topic_curricula',
-  'language_coach_preset_turns',
-  'language_coach_meaning_fix_failed',
-  'language_coach_phrase_cache',
-  'language_coach_vocab_cache',
-  'language_coach_tts_cache',
-  'language_coach_transliteration_cache',
-  'language_coach_dialogue_replay_cache',
-  'language_coach_opening_translation_cache',
-  'language_coach_cache_daily_stats',
-  'language_coach_live_lessons',
-  'language_coach_live_lesson_turns',
-  'language_coach_live_lesson_purchases',
-  'language_coach_live_lesson_starts',
-] as const
+import { PUBLIC_TABLES, type PublicTableName } from './public-tables'
 
 const EXCEL_MAX_CELL = 32767
 
@@ -125,7 +66,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json().catch(() => ({}))
-    const tables = Array.isArray(body.tables) ? (body.tables as string[]).filter((t) => PUBLIC_TABLES.includes(t as (typeof PUBLIC_TABLES)[number])) : []
+    const tables = Array.isArray(body.tables) ? (body.tables as string[]).filter((t) => PUBLIC_TABLES.includes(t as PublicTableName)) : []
     const format = String(body.format || 'json').toLowerCase() === 'xlsx' ? 'xlsx' : 'json'
 
     if (tables.length === 0) {

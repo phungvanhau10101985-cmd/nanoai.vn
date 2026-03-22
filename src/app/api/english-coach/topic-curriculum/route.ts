@@ -23,7 +23,7 @@ type Curriculum = {
   openingQuestion: string
 }
 
-function tr(input: string): string {
+function tr(input: string): 'vi' | 'en' {
   const value = String(input || '').toLowerCase()
   return value.includes('vietnamese') ? 'vi' : 'en'
 }

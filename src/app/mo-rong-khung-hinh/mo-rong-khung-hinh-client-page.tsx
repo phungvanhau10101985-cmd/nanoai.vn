@@ -37,13 +37,23 @@ const setImageFromFile = (file: File, setImage: (v: { file: File; preview: strin
   return true
 }
 
+/** value + 5-locale labels for `tr` */
 const ASPECT_RATIOS = [
-  { value: '16:9', label: '16:9 (Banner ngang)' },
-  { value: '3:2', label: '3:2' },
-  { value: '4:3', label: '4:3' },
-  { value: '1:1', label: '1:1 (Vuông)' },
-  { value: '3:4', label: '3:4 (Dọc)' },
-]
+  {
+    value: '16:9',
+    labels: ['16:9 (Banner ngang)', '16:9 (Landscape banner)', '16:9（横版横幅）', '16:9（横長バナー）', '16:9 (가로 배너)'] as const,
+  },
+  { value: '3:2', labels: ['3:2', '3:2', '3:2', '3:2', '3:2'] as const },
+  { value: '4:3', labels: ['4:3', '4:3', '4:3', '4:3', '4:3'] as const },
+  {
+    value: '1:1',
+    labels: ['1:1 (Vuông)', '1:1 (Square)', '1:1（方形）', '1:1（正方形）', '1:1 (정사각형)'] as const,
+  },
+  {
+    value: '3:4',
+    labels: ['3:4 (Dọc)', '3:4 (Portrait)', '3:4（竖版）', '3:4（縦）', '3:4 (세로)'] as const,
+  },
+] as const
 
 export default function MoRongKhungHinhClientPage() {
   const [uiLocale, setUiLocale] = useState<UiLocale>('vi')
@@ -225,7 +235,7 @@ export default function MoRongKhungHinhClientPage() {
                     <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{tr('Tỷ lệ khung hình', 'Frame ratio', '画幅比例', '画幅比率', '화면 비율')}</h4>
                     <select value={aspectRatio} onChange={(e) => setAspectRatio(e.target.value)} className="w-full h-10 rounded-md border border-gray-200 bg-white px-3 text-xs">
                       {ASPECT_RATIOS.map((r) => (
-                        <option key={r.value} value={r.value}>{tr(...r.labels)}</option>
+                        <option key={r.value} value={r.value}>{tr(r.labels[0], r.labels[1], r.labels[2], r.labels[3], r.labels[4])}</option>
                       ))}
                     </select>
                   </div>

@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createPortal } from 'react-dom'
-import { Timer, RotateCcw, ChevronLeft, ChevronRight, LayoutGrid, Square, Sparkles, Edit3, Plus, Save, FileText, FileEdit, History, Maximize2, X, ClipboardList, Flag, Presentation, Settings2, MoreVertical, Trash2, Eye, EyeOff, Keyboard, KeyboardOff, Pause, Play, Target } from 'lucide-react'
+import { RotateCcw, LayoutGrid, Square, Sparkles, Edit3, Plus, Save, FileText, FileEdit, History, Maximize2, X, ClipboardList, Flag, Presentation, MoreVertical, Trash2, Eye, EyeOff, Keyboard, KeyboardOff, Pause, Play, Target } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { canSplitBlockAtQuiz, splitContentWithEmbeds, splitBlockContentAtQuizBoundary, parseQuizData, parseContentEmbeds, ContentEmbed, type EmbedType } from '../components/content-embed'
 import { parseContentToBlocks } from '../lib/curriculum-to-slides'
@@ -28,7 +28,7 @@ import {
 } from '@/app/tao-giao-trinh/lib/worksheet-answer-segments'
 import { createPresentationSyncId, getPresentationBroadcastChannelName } from '../lib/presentation-broadcast'
 import { getStudentSlideWindowConfig, isPathMatchingStudentSlideKind, studentSlideUrlWithSync } from '../lib/student-slide-window'
-import { QuizPopupDialog, extractQuizFromSlide } from '../components/quiz-popup-dialog'
+import { QuizPopupDialog } from '../components/quiz-popup-dialog'
 import { getSlideProposalsForCurriculum, getSlidesByCurriculumId, resetPersonalToOriginal, saveSlidesToCurriculum, saveUserCustomizedSlides, saveWorksheetContent } from '../actions'
 import { parseWorksheetIntoBlocks, replaceBlockInMarkdown } from '../lib/worksheet-parse-questions'
 import { resolveWorksheetEditBlockGlobalIndex } from '../lib/worksheet-slide-to-block-index'
@@ -38,7 +38,6 @@ import { getEssayProblem, getEssaySolution, normalizeSolutionToStr } from '../li
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 
 type VisualCell = { visualEmbed?: string; imageUrl?: string }
@@ -492,7 +491,7 @@ function getSectionIndexForSlide(sections: string[], slides: SlideItem[], curren
 /** Giáo trình — mở từ Tạo giáo trình (`?t=`). Phiếu bài tập: `giao-vien-worksheet-page.tsx`. */
 export default function CurriculumViewPage() {
   const searchParams = useSearchParams()
-  const worksheetId = searchParams.get('worksheetId')
+  const worksheetId = searchParams?.get('worksheetId')
   /** Một tab GV = một kênh BroadcastChannel riêng — tránh hai cửa sổ HS nhận lẫn dữ liệu. */
   const [presentationSyncId] = useState(() => createPresentationSyncId())
   const [content, setContent] = useState('')
@@ -879,7 +878,6 @@ export default function CurriculumViewPage() {
     setStableLayoutWidth((prev) => (viewportW > prev ? viewportW : prev))
   }, [viewportW])
   // Giao diện giáo viên neo về bên phải: khi thu nhỏ chỉ ẩn dần phần bên trái.
-  const isMobile = viewportW < 768
   const currentVisualHasAny = useMemo(() => {
     const s = slides[currentIndex]
     if (!s) return false
@@ -893,12 +891,6 @@ export default function CurriculumViewPage() {
     if (uiLocale === 'ja') return ja
     if (uiLocale === 'ko') return ko
     return vi
-  }
-
-  const formatTimer = (sec: number) => {
-    const m = Math.floor(sec / 60)
-    const s = sec % 60
-    return `${m}:${s.toString().padStart(2, '0')}`
   }
 
   useEffect(() => {
@@ -1912,20 +1904,6 @@ export default function CurriculumViewPage() {
     void persistSlidesRef.current(slidesRef.current)
   }, [curriculumId])
 
-  const handleDeleteSlide = useCallback(() => {
-    if (slides.length <= 1) return
-    const idx = currentIndex
-    const next = slides.filter((_, i) => i !== idx)
-    const newIdx = idx >= 1 ? idx - 1 : 0
-    setSlides(next)
-    setCurrentIndex(newIdx)
-    if (curriculumId) void persistSlidesRef.current(next)
-    if (window.opener) window.opener.postMessage({ type: 'delete-slide', index: idx }, window.location.origin)
-    sendToStudentView({ type: 'delete-slide', index: idx })
-    sendCurriculumDataToStudent(next, newIdx)
-    toast({ title: tr('Đã xóa slide', 'Slide deleted', '已删除幻灯片', 'スライドを削除', '슬라이드 삭제됨'), duration: 1500 })
-  }, [currentIndex, slides, curriculumId, sendToStudentView, sendCurriculumDataToStudent, toast, tr])
-
   const sendNotesToParent = useCallback((value: string) => {
     if (window.opener) window.opener.postMessage({ type: 'update-notes', slideIndex: currentIndex, teacherNotes: value }, window.location.origin)
   }, [currentIndex])
@@ -2089,25 +2067,6 @@ export default function CurriculumViewPage() {
     sendUpdateSlideBlocks(slideIndex, newBlocks)
     sendCurriculumDataToStudent(updated)
     toast({ title: tr('Đã xóa nội dung chèn', 'Embed removed', '已删除嵌入内容', '埋め込みを削除', '삽입 내용 삭제됨'), duration: 1500 })
-  }, [slides, curriculumId, sendUpdateSlideBlocks, sendCurriculumDataToStudent, toast, tr])
-
-  const handleReplaceEmbed = useCallback((slideIndex: number, blockIndex: number, oldRawMarker: string, newMarker: string) => {
-    const s = slides[slideIndex]
-    if (!s) return
-    const blks = s.blocks ?? (s.content ? parseContentToBlocks(s.content) : [])
-    const bl = blks[blockIndex]
-    const rawContent = bl?.content ?? (blockIndex === 0 && s.content ? s.content : '')
-    if (!rawContent?.includes(oldRawMarker)) return
-    const newContent = rawContent.replace(oldRawMarker, newMarker)
-    const newBlocks = blks.length > 0
-      ? blks.map((b, j) => (j === blockIndex ? { ...b, content: newContent } : b))
-      : parseContentToBlocks(newContent)
-    const updated = slides.map((sl, i) => (i === slideIndex ? { ...sl, blocks: newBlocks, content: blks.length === 0 ? newContent : undefined } : sl))
-    setSlides(updated)
-    if (curriculumId) void persistSlidesRef.current(updated)
-    sendUpdateSlideBlocks(slideIndex, newBlocks)
-    sendCurriculumDataToStudent(updated)
-    toast({ title: tr('Đã thay nội dung chèn', 'Embed replaced', '已替换嵌入内容', '埋め込みを差し替え', '삽입 내용 교체됨'), duration: 1500 })
   }, [slides, curriculumId, sendUpdateSlideBlocks, sendCurriculumDataToStudent, toast, tr])
 
   const gvWorksheetEditBlocks = useMemo(
@@ -3204,7 +3163,7 @@ export default function CurriculumViewPage() {
                 {(() => {
                   const s = slides[currentIndex]
                   const blks = !s ? [] : (Array.isArray(s.blocks) && s.blocks.length ? s.blocks : s.content ? parseContentToBlocks(s.content ?? '') : [])
-                  const showDirectEdit = curriculumId && slideMode === 'personal' && personalViewSubMode === 'current'
+                  const showDirectEdit = Boolean(curriculumId && slideMode === 'personal' && personalViewSubMode === 'current')
                   return (
                     <div className="w-full flex flex-col gap-2 items-stretch text-left">
                       {slideMode === 'personal' && personalViewSubMode === 'current' && !curriculumId && (
@@ -3331,8 +3290,8 @@ export default function CurriculumViewPage() {
                               const isEditing = editingBlock?.slideIndex === currentIndex && editingBlock?.blockIndex === i
                               const isEditingHeader = editingHeader?.slideIndex === currentIndex && editingHeader?.blockIndex === i
                               const isBảnChung = slideMode === 'shared' || slideMode === 'original' || slideMode === null
-                              const showProposalUi = (curriculumId || worksheetId) && isBảnChung
-                              const showDirectEdit = curriculumId && slideMode === 'personal' && personalViewSubMode === 'current'
+                              const showProposalUi = Boolean((curriculumId || worksheetId) && isBảnChung)
+                              const showDirectEdit = Boolean(curriculumId && slideMode === 'personal' && personalViewSubMode === 'current')
                               const showSolutionTypingToolbar =
                                 (!!worksheetId && !!(b as { isAnswer?: boolean }).isAnswer) ||
                                 (!worksheetId && !!curriculumId)
@@ -3874,8 +3833,8 @@ export default function CurriculumViewPage() {
                           const blockProposals = isCurrent && curriculumId ? proposals.filter((p) => p.slide_index === idx && p.block_index === i) : []
                           const isEditing = isCurrent && editingBlock?.slideIndex === idx && editingBlock?.blockIndex === i
                         const isBảnChung = slideMode === 'shared' || slideMode === 'original' || slideMode === null
-                        const showProposalUi = isCurrent && (curriculumId || worksheetId) && isBảnChung
-                        const showDirectEdit = isCurrent && curriculumId && slideMode === 'personal' && personalViewSubMode === 'current'
+                        const showProposalUi = Boolean(isCurrent && (curriculumId || worksheetId) && isBảnChung)
+                        const showDirectEdit = Boolean(isCurrent && curriculumId && slideMode === 'personal' && personalViewSubMode === 'current')
                         const showSolutionTypingToolbar =
                           (!!worksheetId && !!(b as { isAnswer?: boolean }).isAnswer) ||
                           (!worksheetId && !!curriculumId)
@@ -4123,12 +4082,6 @@ export default function CurriculumViewPage() {
         onOpenChange={setSharedHistoryOpen}
         curriculumId={curriculumId}
         tr={tr}
-        onRestored={async () => {
-          if (!curriculumId) return
-          const r = await getSlidesByCurriculumId(curriculumId)
-          if (r?.success && r.slides) setSlides(r.slides)
-          requestCurriculum()
-        }}
       />
       {visualFullscreenOpen && leftPanelMode === 'visual' && slides[currentIndex] && (() => {
         const s = slides[currentIndex]

@@ -8,7 +8,8 @@ import archiver from 'archiver'
 import * as XLSX from 'xlsx'
 import { createClient } from '@/lib/supabase/server'
 import { getUserForAction, getUserOrBypass } from '@/lib/auth'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+import { createClient as createSupabaseClient, type SupabaseClient } from '@supabase/supabase-js'
+import type { Database } from '@/types/database.types'
 import { revalidatePath } from 'next/cache'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { translateOneImage } from '@/lib/translate-document-image'
@@ -247,7 +248,7 @@ const PDF_EXTRACT_STORAGE_PREFIX = 'temp_pdf_extract'
 
 /** Lấy ảnh đã tách từ storage (nếu có) – tránh tách lại lần 2 */
 async function getPdfPagesFromStorage(
-  adminSupabase: ReturnType<typeof createSupabaseClient>,
+  adminSupabase: SupabaseClient<Database>,
   userId: string,
   hash: string,
   pageCount: number

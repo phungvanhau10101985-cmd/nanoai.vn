@@ -7,7 +7,7 @@ import { getWebLocale, tr, useOpenerFullscreenOnMount } from './xem-slide-studen
 import { useCurriculumStudentSlideSync } from './xem-slide-student-curriculum-sync'
 
 /**
- * Trình chiếu học sinh — **giáo trình** (`/tao-giao-trinh/xem-slide`).
+ * Trình chiếu học sinh — **giáo trình** (`/giao-trinh/xem-slide`).
  * Luồng phiếu: file `xem-slide-student-worksheet-client.tsx` + hook `useWorksheetStudentSlideSync`.
  */
 export default function XemSlideStudentCurriculumClient() {

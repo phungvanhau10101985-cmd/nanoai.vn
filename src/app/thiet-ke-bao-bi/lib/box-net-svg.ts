@@ -179,10 +179,6 @@ export function generateTuckTopNetSvg(d: BoxDimensions): string {
     else paths.push(p)
   }
 
-  const drawCutLine = (x1: number, y1: number, x2: number, y2: number) => {
-    paths.push(`M ${x1} ${y1} L ${x2} ${y2}`)
-  }
-
   // Row 1: Back (L x H)
   drawRect(L, H)
   x += L

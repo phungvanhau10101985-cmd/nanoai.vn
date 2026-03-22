@@ -7,7 +7,7 @@ const XemSlideStudentCurriculumClient = dynamic(() => import('../components/xem-
 
 /**
  * Trình chiếu học sinh – giáo trình & link chia sẻ (?share=).
- * Phiếu bài tập: `/tao-giao-trinh/xem-slide-phieu` (file client riêng).
+ * Phiếu bài tập: `/giao-trinh/xem-slide-phieu` (file client riêng).
  */
 export default function XemSlidePage() {
   return (

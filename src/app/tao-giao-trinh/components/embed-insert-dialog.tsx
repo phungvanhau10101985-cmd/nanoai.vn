@@ -66,6 +66,7 @@ const EMBED_OPTIONS: Array<{ value: EmbedType; label: string }> = [
   { value: 'quiz', label: 'Trắc nghiệm' },
   { value: 'code', label: 'CodePen' },
   { value: 'latex', label: 'LaTeX' },
+  { value: 'plot', label: 'Biểu đồ / plot' },
 ]
 
 function buildMarker(type: EmbedType, value: string): string {
@@ -88,6 +89,7 @@ function canInsert(type: EmbedType, value: string): boolean {
   if (type === 'quiz') return v.split('|').length >= 3
   if (type === 'code') return v.includes('codepen.io') && v.startsWith('http')
   if (type === 'latex') return v.length > 0
+  if (type === 'plot') return v.length > 0
   return false
 }
 
@@ -102,6 +104,7 @@ const PLACEHOLDERS: Record<EmbedType, string> = {
   quiz: 'Câu hỏi?|Đáp án A|Đáp án B|Đáp án C|0',
   code: 'https://codepen.io/user/pen/xxxxx',
   latex: 'x^2 + y^2 = r^2',
+  plot: 'https://example.com/plot-data.csv',
 }
 
 const DESCRIPTIONS: Record<EmbedType, string> = {
@@ -115,9 +118,10 @@ const DESCRIPTIONS: Record<EmbedType, string> = {
   quiz: 'Câu hỏi|A|B|C|0 (0=đáp án A)',
   code: 'Dán link CodePen',
   latex: 'Công thức LaTeX',
+  plot: 'Dữ liệu / URL biểu đồ',
 }
 
-export function EmbedInsertDialog({ open, onOpenChange, type: initialType, onInsert, onReplaceSlideImage, tr, highZIndex, blocks = [], slides = [], currentSlideIndex = 0, currentVisual, initialMode, replaceEmbedContext, onReplaceBlockEmbed }: EmbedInsertDialogProps) {
+export function EmbedInsertDialog({ open, onOpenChange, type: initialType, onInsert, onReplaceSlideImage, tr, highZIndex, blocks = [], slides = [], currentSlideIndex = 0, initialMode, replaceEmbedContext, onReplaceBlockEmbed }: EmbedInsertDialogProps) {
   const [mode, setMode] = useState<EmbedDialogMode>('insert')
   const [embedType, setEmbedType] = useState<EmbedType>(initialType || 'youtube')
   const [value, setValue] = useState('')

@@ -50,7 +50,7 @@ export async function getVisionAccessToken(): Promise<string> {
     throw new Error('Vision: private_key không đúng format PEM')
   }
 
-  let key: jose.KeyLike
+  let key: Awaited<ReturnType<typeof jose.importPKCS8>>
   try {
     key = await jose.importPKCS8(privateKey, 'RS256')
   } catch (e) {

@@ -2,11 +2,11 @@ import { PRESENTATION_SYNC_QUERY_KEY } from './presentation-broadcast'
 
 /**
  * Hai route trình chiếu học sinh tách biệt:
- * - Giáo trình (chia sẻ link / mở từ GV có curriculumId…): `/tao-giao-trinh/xem-slide`
- * - Phiếu bài tập (worksheetId trên giao-vien): `/tao-giao-trinh/xem-slide-phieu`
+ * - Giáo trình (chia sẻ link / mở từ GV có curriculumId…): `/giao-trinh/xem-slide`
+ * - Phiếu bài tập (worksheetId trên giao-vien): `/giao-trinh/xem-slide-phieu`
  */
-export const STUDENT_SLIDE_CURRICULUM_PATH = '/tao-giao-trinh/xem-slide' as const
-export const STUDENT_SLIDE_WORKSHEET_PATH = '/tao-giao-trinh/xem-slide-phieu' as const
+export const STUDENT_SLIDE_CURRICULUM_PATH = '/giao-trinh/xem-slide' as const
+export const STUDENT_SLIDE_WORKSHEET_PATH = '/giao-trinh/xem-slide-phieu' as const
 
 export const STUDENT_WINDOW_NAME_CURRICULUM = 'xem-slide' as const
 export const STUDENT_WINDOW_NAME_WORKSHEET = 'xem-slide-phieu' as const

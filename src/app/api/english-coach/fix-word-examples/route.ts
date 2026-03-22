@@ -174,7 +174,8 @@ export async function POST() {
         const items = JSON.parse(row.example_items_json || '[]') as Array<{ targetText?: string }>
         if (!exampleItemsNeedFix(items, row.target_language)) continue
         const k = `${row.word}::${row.target_language || ''}::${row.native_language || ''}`
-        let newItems = byWord.get(k)?.newItems
+        let newItems: Array<{ targetText: string; targetPinyin: string; nativeText: string }> | null | undefined =
+          byWord.get(k)?.newItems
         if (!newItems) {
           newItems = await fetchWordExamplesFromAI(
             row.word,

@@ -409,25 +409,25 @@ function Step1Form({
   checkCreditsAndProceed: (cost: number, fn: () => Promise<void>) => void
   cost: number
 }) {
-  const houseLength = houseInfo?.houseLength ?? (houseInfo as Record<string, unknown>)?.houseFacadeWidth ?? ''
-  const houseDepth = houseInfo?.houseDepth ?? (houseInfo as Record<string, unknown>)?.landDepthM ?? ''
+  const houseLength = houseInfo?.houseLength ?? houseInfo?.houseFacadeWidth ?? ''
+  const houseDepth = houseInfo?.houseDepth ?? houseInfo?.landDepthM ?? ''
   const [houseLengthVal, setHouseLengthVal] = useState(houseLength || '')
   const [houseDepthVal, setHouseDepthVal] = useState(houseDepth || '')
   const [designStyle, setDesignStyle] = useState(houseInfo?.designStyle || 'hiện đại')
   const [floors, setFloors] = useState(houseInfo?.floors || '1')
   const [hasBalcony, setHasBalcony] = useState(houseInfo?.hasBalcony ?? false)
-  const [mainDoors, setMainDoors] = useState(houseInfo?.mainDoors ?? (houseInfo as Record<string, unknown>)?.mainDoors ?? '1')
+  const [mainDoors, setMainDoors] = useState(houseInfo?.mainDoors ?? '1')
   const [hasReferenceImage, setHasReferenceImage] = useState(houseInfo?.hasReferenceImage ?? false)
   const [referenceFile, setReferenceFile] = useState<File | null>(null)
 
   const buildFormData = () => {
     const fd = new FormData()
-    fd.append('houseLength', houseLengthVal)
-    fd.append('houseDepth', houseDepthVal)
-    fd.append('designStyle', designStyle)
-    fd.append('floors', floors)
+    fd.append('houseLength', String(houseLengthVal))
+    fd.append('houseDepth', String(houseDepthVal))
+    fd.append('designStyle', String(designStyle))
+    fd.append('floors', String(floors))
     fd.append('hasBalcony', String(hasBalcony))
-    fd.append('mainDoors', mainDoors)
+    fd.append('mainDoors', String(mainDoors))
     fd.append('hasReferenceImage', String(hasReferenceImage))
     if (hasReferenceImage && referenceFile) fd.append('referenceImage', referenceFile)
     return fd

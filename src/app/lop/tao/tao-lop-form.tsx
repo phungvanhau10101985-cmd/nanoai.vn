@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/hooks/use-toast'
@@ -13,7 +12,6 @@ export default function TaoLopForm({ t }: { t: Dictionary['classes'] }) {
   const [name, setName] = useState('')
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<{ classId: string; joinCode: string } | null>(null)
-  const router = useRouter()
   const { toast } = useToast()
 
   async function handleSubmit(e: React.FormEvent) {

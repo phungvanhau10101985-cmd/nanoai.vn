@@ -684,7 +684,9 @@ export function LiveLessonsMarketplace() {
                 {selectedLesson.turnsCount} turns • Price {selectedLesson.priceCredits} • {selectedLesson.locked ? 'Locked' : 'Unlocked'}
               </p>
               {selectedLesson.locked ? (
-                <p className="mt-2 text-xs text-amber-700">Bai nay dang khoa. Bam "Mua" de mo khoa.</p>
+                <p className="mt-2 text-xs text-amber-700">
+                  Bai nay dang khoa. Bam {'"'}Mua{'"'} de mo khoa.
+                </p>
               ) : selectedTurn ? (
                 <div className="mt-3 space-y-2">
                   <p className="text-xs text-slate-500">Turn {selectedTurn.turnIndex + 1}</p>
