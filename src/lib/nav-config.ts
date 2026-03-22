@@ -14,7 +14,6 @@ import {
   Stamp,
   BookOpen,
   FileQuestion,
-  Users,
 } from 'lucide-react'
 import { TryOnIcon } from '@/components/icons/try-on-icon'
 import { ImageRestorationIcon } from '@/components/icons/image-restoration-icon'
@@ -174,7 +173,6 @@ export const NAV_GROUPS: readonly NavGroupConfig[] = [
         href: '/giao-trinh',
         labelKey: 'create_curriculum' as ToolKey,
         icon: BookOpen,
-        subLinks: [{ href: '/lop', labelKey: 'classes' as ToolKey, icon: Users }],
       },
       { href: '/tao-de-trac-nghiem', labelKey: 'create_exam' as ToolKey, icon: FileQuestion },
     ],

@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Users, BarChart3, BookOpen, FileEdit, Flag, Download, ClipboardCheck, ShieldCheck } from 'lucide-react'
+import { Users, BarChart3, BookOpen, FileEdit, Flag, Download, ClipboardCheck, ShieldCheck, Landmark } from 'lucide-react'
 import { getCurrentWebLocale } from '@/lib/i18n/server'
 
 type AdminLink = {
@@ -12,6 +12,24 @@ type AdminLink = {
 }
 
 const ADMIN_LINKS: AdminLink[] = [
+  {
+    href: '/admin/payment-config',
+    title: {
+      vi: 'Cấu hình nạp tiền',
+      en: 'Top-up payment settings',
+      zh: '充值收款设置',
+      ja: '入金・支払い設定',
+      ko: '충전 결제 설정',
+    },
+    description: {
+      vi: 'Số tài khoản ngân hàng, mã NH, QR SePay — dùng khi người dùng nạp Credits.',
+      en: 'Bank account, bank code, SePay QR — used when users top up credits.',
+      zh: '银行账户、银行代码、SePay 二维码 — 用户充值积分时使用。',
+      ja: '銀行口座・銀行コード・SePay QR — クレジットチャージ時に使用。',
+      ko: '은행 계좌, 은행 코드, SePay QR — 크레딧 충전 시 사용.',
+    },
+    icon: Landmark,
+  },
   {
     href: '/admin/users',
     title: {
