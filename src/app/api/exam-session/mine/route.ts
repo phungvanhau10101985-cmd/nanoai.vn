@@ -16,11 +16,35 @@ type SessionRow = {
   schools?: { name?: string | null } | Array<{ name?: string | null }> | null
 }
 
-function buildExamUrl(origin: string, code: string): string {
-  const safeOrigin = String(origin || '').trim()
-  if (safeOrigin.startsWith('http')) return `${safeOrigin}/lam-bai/${code}`
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.VERCEL_URL || 'https://nanoai.vn'
-  return `${baseUrl.startsWith('http') ? baseUrl : `https://${baseUrl}`}/lam-bai/${code}`
+function resolveBaseUrl(req: NextRequest): string {
+  const forwardedHostRaw = String(req.headers.get('x-forwarded-host') || '').trim()
+  const forwardedHost = forwardedHostRaw.split(',')[0]?.trim() || ''
+  const forwardedProtoRaw = String(req.headers.get('x-forwarded-proto') || '').trim()
+  const forwardedProto = (forwardedProtoRaw.split(',')[0]?.trim() || 'https').toLowerCase()
+  if (forwardedHost) {
+    const isLocal = forwardedHost.includes('localhost') || forwardedHost.includes('127.0.0.1')
+    return `${isLocal ? 'http' : forwardedProto}://${forwardedHost}`
+  }
+
+  const host = String(req.headers.get('host') || '').trim()
+  if (host) {
+    const proto = host.includes('localhost') || host.includes('127.0.0.1') ? 'http' : 'https'
+    return `${proto}://${host}`
+  }
+
+  const requestOrigin = String(req.nextUrl.origin || '').trim()
+  const envBase = String(process.env.NEXT_PUBLIC_SITE_URL || process.env.VERCEL_URL || '').trim()
+  if (
+    requestOrigin.startsWith('http')
+    && !requestOrigin.includes('localhost')
+    && !requestOrigin.includes('127.0.0.1')
+  ) return requestOrigin
+  if (envBase) return envBase.startsWith('http') ? envBase : `https://${envBase}`
+  return requestOrigin.startsWith('http') ? requestOrigin : 'https://nanoai.vn'
+}
+
+function buildExamUrl(baseUrl: string, code: string): string {
+  return `${baseUrl}/lam-bai/${code}`
 }
 
 function getAdminClient() {
@@ -39,6 +63,7 @@ export async function GET(req: NextRequest) {
     const { user } = authResult
 
     const admin = getAdminClient()
+    const baseUrl = resolveBaseUrl(req)
     const { data, error } = await admin
       .from('exam_sessions')
       .select('id, code, title, duration_minutes, status, created_at, class_id, school_id, classes(name), schools(name)')
@@ -72,7 +97,7 @@ export async function GET(req: NextRequest) {
       durationMinutes: s.duration_minutes,
       totalQuestions: questionCounts.get(s.id) ?? 0,
       createdAt: s.created_at,
-      examUrl: buildExamUrl(req.nextUrl.origin, s.code),
+      examUrl: buildExamUrl(baseUrl, s.code),
       classId: s.class_id,
       schoolId: s.school_id,
       className: String((Array.isArray(s.classes) ? s.classes[0]?.name : s.classes?.name) ?? ''),
