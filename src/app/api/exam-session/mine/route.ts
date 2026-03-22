@@ -17,29 +17,42 @@ type SessionRow = {
 }
 
 function resolveBaseUrl(req: NextRequest): string {
+  const envBaseRaw = String(
+    process.env.NEXT_PUBLIC_SITE_URL
+    || process.env.APP_URL
+    || process.env.VERCEL_PROJECT_PRODUCTION_URL
+    || process.env.VERCEL_URL
+    || ''
+  ).trim()
+  const envBase = envBaseRaw
+    ? (envBaseRaw.startsWith('http') ? envBaseRaw : `https://${envBaseRaw}`)
+    : ''
+  const envIsLocal = envBase.includes('localhost') || envBase.includes('127.0.0.1')
+
   const forwardedHostRaw = String(req.headers.get('x-forwarded-host') || '').trim()
   const forwardedHost = forwardedHostRaw.split(',')[0]?.trim() || ''
   const forwardedProtoRaw = String(req.headers.get('x-forwarded-proto') || '').trim()
   const forwardedProto = (forwardedProtoRaw.split(',')[0]?.trim() || 'https').toLowerCase()
   if (forwardedHost) {
     const isLocal = forwardedHost.includes('localhost') || forwardedHost.includes('127.0.0.1')
+    if (isLocal && envBase && !envIsLocal) return envBase
     return `${isLocal ? 'http' : forwardedProto}://${forwardedHost}`
   }
 
   const host = String(req.headers.get('host') || '').trim()
   if (host) {
     const proto = host.includes('localhost') || host.includes('127.0.0.1') ? 'http' : 'https'
+    if ((host.includes('localhost') || host.includes('127.0.0.1')) && envBase && !envIsLocal) return envBase
     return `${proto}://${host}`
   }
 
   const requestOrigin = String(req.nextUrl.origin || '').trim()
-  const envBase = String(process.env.NEXT_PUBLIC_SITE_URL || process.env.VERCEL_URL || '').trim()
   if (
     requestOrigin.startsWith('http')
     && !requestOrigin.includes('localhost')
     && !requestOrigin.includes('127.0.0.1')
   ) return requestOrigin
-  if (envBase) return envBase.startsWith('http') ? envBase : `https://${envBase}`
+  if (envBase) return envBase
   return requestOrigin.startsWith('http') ? requestOrigin : 'https://nanoai.vn'
 }
 
