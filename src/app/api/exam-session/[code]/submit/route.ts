@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import { verifyExamLayoutToken } from '@/lib/exam-layout-token'
+import { CLASS_ENROLLMENT_ERROR_VI, hasCompleteClassEnrollment } from '@/lib/lop/require-class-enrollment'
+import { isValidStudentDobIso } from '@/lib/student-dob'
 
 /** Nhận xét khích lệ theo % đúng – thang điểm 10 */
 function getFeedback(score: number, maxScore: number): { grade10: number; comment: string; shareHint: string } {
@@ -43,13 +45,6 @@ function getFeedback(score: number, maxScore: number): { grade10: number; commen
   }
 }
 
-function isValidDob(input: string): boolean {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(input)) return false
-  const d = new Date(`${input}T00:00:00`)
-  if (Number.isNaN(d.getTime())) return false
-  return d.getUTCFullYear() >= 1900 && d <= new Date()
-}
-
 /** Nộp bài – lưu exam_attempts, chấm thang 10, mỗi người chỉ làm một lần. */
 export async function POST(
   req: NextRequest,
@@ -76,7 +71,7 @@ export async function POST(
     if (!studentName) {
       return NextResponse.json({ error: 'Vui lòng nhập họ tên học sinh.' }, { status: 400 })
     }
-    if (!isValidDob(studentDob)) {
+    if (!isValidStudentDobIso(studentDob)) {
       return NextResponse.json({ error: 'Vui lòng chọn ngày sinh hợp lệ.' }, { status: 400 })
     }
     if (!answers || typeof answers !== 'object') {
@@ -112,10 +107,10 @@ export async function POST(
     }
 
     if (session.class_id) {
-      await supabase.from('class_members').upsert(
-        { class_id: session.class_id, user_id: user.id },
-        { onConflict: 'class_id,user_id' }
-      )
+      const ok = await hasCompleteClassEnrollment(supabase, String(session.class_id), user.id)
+      if (!ok) {
+        return NextResponse.json({ error: CLASS_ENROLLMENT_ERROR_VI }, { status: 403 })
+      }
     }
 
     const { data: existing } = await supabase

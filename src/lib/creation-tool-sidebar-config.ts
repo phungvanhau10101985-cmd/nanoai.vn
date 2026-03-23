@@ -33,6 +33,11 @@ const CURRICULUM_RELATED: Record<string, CreationRelatedItem[]> = {
     { href: '/tao-bai-thi', labelKey: 'online_exam' },
     { href: '/tao-de-trac-nghiem', labelKey: 'create_exam' },
   ],
+  '/lop': [
+    { href: '/giao-trinh', labelKey: 'create_curriculum' },
+    { href: '/tao-bai-thi', labelKey: 'online_exam' },
+    { href: '/tao-de-trac-nghiem', labelKey: 'create_exam' },
+  ],
 }
 
 /** Menu liên quan cho trang gán phiếu (URL động). */
@@ -71,6 +76,14 @@ function siblingsFromNav(path: string): CreationRelatedItem[] {
 export function getCreationRelatedLinks(currentHref: string): CreationRelatedItem[] {
   const path = normalizePath(currentHref)
   if (CURRICULUM_RELATED[path]) return CURRICULUM_RELATED[path]
+  /** Chi tiết lớp /lop/[id] — cùng menu liên quan với /lop */
+  if (
+    path.startsWith('/lop/') &&
+    path !== '/lop/tao' &&
+    path !== '/lop/tham-gia'
+  ) {
+    return CURRICULUM_RELATED['/lop'] ?? []
+  }
   const fromNav = siblingsFromNav(path)
   return fromNav
 }

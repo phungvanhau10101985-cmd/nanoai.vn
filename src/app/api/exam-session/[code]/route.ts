@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import { shuffleArray, signExamLayoutToken } from '@/lib/exam-layout-token'
+import { getClassMemberExamIdentity } from '@/lib/lop/require-class-enrollment'
+
+const NO_STORE_HEADERS = {
+  'Cache-Control': 'no-store, max-age=0, must-revalidate',
+}
 
 /** Lấy thông tin phiên thi và câu hỏi theo mã (public – học sinh mở link). */
 export async function GET(
@@ -13,12 +18,18 @@ export async function GET(
     const { data: authData } = await serverSupabase.auth.getUser()
     const user = authData.user
     if (!user) {
-      return NextResponse.json({ error: 'Vui lòng đăng nhập để làm bài thi.' }, { status: 401 })
+      return NextResponse.json(
+        { error: 'Vui lòng đăng nhập để làm bài thi.' },
+        { status: 401, headers: NO_STORE_HEADERS }
+      )
     }
 
     const { code } = await params
     if (!code || code.length < 4) {
-      return NextResponse.json({ error: 'Mã bài thi không hợp lệ.' }, { status: 400 })
+      return NextResponse.json(
+        { error: 'Mã bài thi không hợp lệ.' },
+        { status: 400, headers: NO_STORE_HEADERS }
+      )
     }
 
     const supabase = createClient(
@@ -34,23 +45,9 @@ export async function GET(
       .single()
 
     if (sessionErr || !session || session.status !== 'active') {
-      return NextResponse.json({ error: 'Không tìm thấy bài thi hoặc bài thi đã đóng.' }, { status: 404 })
-    }
-
-    const { data: questions, error: questionsErr } = await supabase
-      .from('exam_questions')
-      .select('id, question_text, options, correct_index, source, order')
-      .eq('session_id', session.id)
-      .order('order', { ascending: true })
-
-    if (questionsErr || !questions?.length) {
-      return NextResponse.json({ error: 'Bài thi chưa có câu hỏi.' }, { status: 404 })
-    }
-
-    if (session.class_id) {
-      await supabase.from('class_members').upsert(
-        { class_id: session.class_id, user_id: user.id },
-        { onConflict: 'class_id,user_id' }
+      return NextResponse.json(
+        { error: 'Không tìm thấy bài thi hoặc bài thi đã đóng.' },
+        { status: 404, headers: NO_STORE_HEADERS }
       )
     }
 
@@ -72,6 +69,41 @@ export async function GET(
           .maybeSingle()
         schoolName = school?.name ?? null
       }
+    }
+
+    let classExamIdentity: { displayName: string; birthDate: string } | null = null
+    if (session.class_id) {
+      classExamIdentity = await getClassMemberExamIdentity(
+        supabase,
+        String(session.class_id),
+        user.id
+      )
+      if (!classExamIdentity) {
+        return NextResponse.json(
+          {
+            needsEnrollment: true,
+            title: session.title ?? 'Bài thi',
+            durationMinutes:
+              typeof session.duration_minutes === 'number' ? session.duration_minutes : 15,
+            className,
+            schoolName,
+          },
+          { headers: NO_STORE_HEADERS }
+        )
+      }
+    }
+
+    const { data: questions, error: questionsErr } = await supabase
+      .from('exam_questions')
+      .select('id, question_text, options, correct_index, source, order')
+      .eq('session_id', session.id)
+      .order('order', { ascending: true })
+
+    if (questionsErr || !questions?.length) {
+      return NextResponse.json(
+        { error: 'Bài thi chưa có câu hỏi.' },
+        { status: 404, headers: NO_STORE_HEADERS }
+      )
     }
 
     type QRow = (typeof questions)[number]
@@ -119,20 +151,27 @@ export async function GET(
       Math.max(86400, durationMin * 180 + 7200)
     )
 
-    return NextResponse.json({
-      code: session.code,
-      title: session.title,
-      durationMinutes: session.duration_minutes,
-      classId: session.class_id ?? null,
-      schoolId: session.school_id ?? null,
-      className,
-      schoolName,
-      layoutToken,
-      questions: publicQuestions,
-    })
+    return NextResponse.json(
+      {
+        code: session.code,
+        title: session.title,
+        durationMinutes: session.duration_minutes,
+        classId: session.class_id ?? null,
+        schoolId: session.school_id ?? null,
+        className,
+        schoolName,
+        classExamIdentity,
+        layoutToken,
+        questions: publicQuestions,
+      },
+      { headers: NO_STORE_HEADERS }
+    )
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     console.error('[exam-session] GET error:', msg)
-    return NextResponse.json({ error: `Lỗi: ${msg}` }, { status: 500 })
+    return NextResponse.json(
+      { error: `Lỗi: ${msg}` },
+      { status: 500, headers: NO_STORE_HEADERS }
+    )
   }
 }

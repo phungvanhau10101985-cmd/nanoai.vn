@@ -20,11 +20,12 @@ export async function DELETE(
   if (fetchErr || !cls) {
     return NextResponse.json({ error: 'Không tìm thấy lớp.' }, { status: 404 })
   }
+  /** Chỉ người tạo lớp (cột teacher_id) được xóa — không phải học sinh hay tài khoản khác. */
   if (cls.teacher_id !== auth.user.id) {
-    return NextResponse.json({ error: 'Bạn không có quyền xóa lớp này.' }, { status: 403 })
+    return NextResponse.json({ error: 'Chỉ người tạo lớp mới có quyền xóa lớp này.' }, { status: 403 })
   }
 
-  const { error: delErr } = await supabase.from('classes').delete().eq('id', id)
+  const { error: delErr } = await supabase.from('classes').delete().eq('id', id).eq('teacher_id', auth.user.id)
   if (delErr) {
     return NextResponse.json({ error: delErr.message || 'Không xóa được lớp.' }, { status: 500 })
   }

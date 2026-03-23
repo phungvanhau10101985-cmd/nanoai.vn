@@ -284,6 +284,7 @@ export async function POST(req: NextRequest) {
           options: quiz.options,
           correct_index: quiz.correctIndex,
           source: 'worksheet_quiz',
+          worksheet_question_id: String(qid),
         })
         perQuestionMinutes.push(
           quizMinutesForDifficulty(diff, {
@@ -438,6 +439,7 @@ export async function POST(req: NextRequest) {
           options: [],
           correct_index: null,
           source: 'worksheet_essay',
+          worksheet_question_id: String(qid),
         })
         perQuestionMinutes.push(essayMinutesById[qid] ?? 2)
       }

@@ -3,7 +3,7 @@ import { redirect, notFound } from 'next/navigation'
 import { getUserOrBypass } from '@/lib/auth'
 import { buildMetadata } from '@/lib/seo'
 import { getServerDictionary } from '@/lib/i18n/server'
-import Link from 'next/link'
+import { CreationToolPageShell } from '@/components/layout/creation-tool-page-shell'
 import LopDetailClient from './lop-detail-client'
 import { SUBJECTS } from '@/app/tao-giao-trinh/lib/curriculum-subjects'
 
@@ -41,7 +41,11 @@ export default async function LopDetailPage({ params }: { params: Promise<{ id: 
 
   if (error || !cls) notFound()
 
+  /** Giáo viên chủ lớp = người tạo lớp (teacher_id). Học sinh tham gia bằng mã không có quyền này. */
   const isTeacher = cls.teacher_id === user.id
+
+  /** HS đã có bản ghi class_members (tham gia đúng quy trình) — được tự rời lớp */
+  let canLeaveClass = false
 
   type SchoolRel = { name?: string | null } | null | undefined
   const schoolsRel = cls.schools as SchoolRel | SchoolRel[]
@@ -62,22 +66,33 @@ export default async function LopDetailPage({ params }: { params: Promise<{ id: 
     )
   )
 
-  const { data: members } = await supabase
+  /** Tên & ngày sinh lưu trên class_members khi HS tham gia (không lấy tên Google làm tên hiển thị lớp). */
+  const { data: memberRows } = await supabase
     .from('class_members')
-    .select(`
-      user_id,
-      profiles (full_name)
-    `)
+    .select('user_id, member_display_name, birth_date')
     .eq('class_id', id)
+  const baseMembers = (memberRows ?? []).map(
+    (m: { user_id: string; member_display_name: string | null; birth_date: string | null }) => {
+      const kind = m.user_id === cls.teacher_id ? ('teacher_member' as const) : ('student' as const)
+      const display = String(m.member_display_name ?? '').trim()
+      return {
+        userId: m.user_id,
+        name: display || '—',
+        birthDate: m.birth_date,
+        kind,
+        removable: isTeacher && kind === 'student' && m.user_id !== cls.teacher_id,
+      }
+    }
+  )
 
-  const baseMembers = (members ?? []).map((m) => {
-    const p = Array.isArray(m.profiles) ? m.profiles[0] : m.profiles
-    return { userId: m.user_id, name: p?.full_name ?? '—' }
-  })
+  if (!isTeacher) {
+    canLeaveClass = (memberRows ?? []).some((m: { user_id: string }) => m.user_id === user.id)
+  }
 
   let mergedMembers = baseMembers
   let initialSubmissions: Array<{ id: string; worksheetId: string; worksheetTopic: string; studentName: string; quizScore: number; quizTotal: number; submittedAt: string }> = []
   let initialExamAttempts: Array<{ id: string; sessionId: string; examCode: string; examTitle: string; studentName: string; score: number; maxScore: number; submittedAt: string }> = []
+  let initialExamSessions: Array<{ id: string; code: string; title: string }> = []
   if (isTeacher) {
     const { data: subs } = await supabase
       .from('worksheet_submissions')
@@ -109,6 +124,11 @@ export default async function LopDetailPage({ params }: { params: Promise<{ id: 
       .eq('teacher_id', user.id)
       .order('created_at', { ascending: false })
       .limit(200)
+    initialExamSessions = (examSessions ?? []).map((x: { id: string; code: string | null; title: string | null }) => ({
+      id: x.id,
+      code: String(x.code ?? '').trim(),
+      title: String(x.title ?? '').trim() || 'Bài thi',
+    }))
     const sessionIds = (examSessions ?? []).map((x: { id: string }) => x.id)
     if (sessionIds.length > 0) {
       const { data: attempts } = await supabase
@@ -141,21 +161,33 @@ export default async function LopDetailPage({ params }: { params: Promise<{ id: 
 
       /** Học sinh đã nộp đề thi nhưng có thể chưa có trong class_members — hiển thị luôn trong danh sách lớp */
       const seenIds = new Set(baseMembers.map((m) => m.userId))
-      const extras: Array<{ userId: string; name: string }> = []
+      const extras: Array<{
+        userId: string
+        name: string
+        birthDate: string | null
+        kind: 'student'
+        removable: boolean
+      }> = []
       for (const a of attempts ?? []) {
         const uid = a.user_id ? String(a.user_id) : ''
         if (uid) {
           if (seenIds.has(uid)) continue
           seenIds.add(uid)
           const nm = String(a.student_name ?? '').trim()
-          extras.push({ userId: uid, name: nm || profileMap[uid] || '—' })
+          extras.push({
+            userId: uid,
+            name: nm || profileMap[uid] || '—',
+            birthDate: null,
+            kind: 'student',
+            removable: false,
+          })
         } else {
           const nm = String(a.student_name ?? '').trim()
           if (!nm) continue
           const synthetic = `exam-attempt:${a.id}`
           if (seenIds.has(synthetic)) continue
           seenIds.add(synthetic)
-          extras.push({ userId: synthetic, name: nm })
+          extras.push({ userId: synthetic, name: nm, birthDate: null, kind: 'student', removable: false })
         }
       }
       if (extras.length > 0) {
@@ -168,27 +200,27 @@ export default async function LopDetailPage({ params }: { params: Promise<{ id: 
 
   return (
     <div className="app-shell min-h-screen">
-      <div className="mx-auto max-w-2xl px-4 py-8 lg:max-w-3xl lg:px-6 lg:py-10">
-        <Link href="/lop" className="text-sm text-muted-foreground hover:text-foreground mb-4 inline-block">
-          ← {t.classes.backToList}
-        </Link>
-
-        <LopDetailClient
-          cls={{
-            id: cls.id,
-            name: cls.name,
-            join_code: cls.join_code,
-            gradeLevelId: cls.grade_level_id ?? null,
-            schoolName,
-            subjectNames,
-          }}
-          isTeacher={isTeacher}
-          members={mergedMembers}
-          initialSubmissions={initialSubmissions}
-          initialExamAttempts={initialExamAttempts}
-          t={t.classes}
-        />
-      </div>
+      <CreationToolPageShell backHref="/lop" currentHref={`/lop/${id}`}>
+        <div className="mx-auto w-full max-w-2xl pb-8 lg:max-w-3xl lg:pb-10">
+          <LopDetailClient
+            cls={{
+              id: cls.id,
+              name: cls.name,
+              join_code: cls.join_code,
+              gradeLevelId: cls.grade_level_id ?? null,
+              schoolName,
+              subjectNames,
+            }}
+            isTeacher={isTeacher}
+            canLeaveClass={canLeaveClass}
+            members={mergedMembers}
+            initialSubmissions={initialSubmissions}
+            initialExamAttempts={initialExamAttempts}
+            initialExamSessions={initialExamSessions}
+            t={t.classes}
+          />
+        </div>
+      </CreationToolPageShell>
     </div>
   )
 }

@@ -128,6 +128,8 @@ export type Dictionary = {
     invalidCode: string
     created: string
     backToList: string
+    /** Chỉ mobile: mở /tao-bai-thi (cùng trang tạo bài thi trực tuyến) */
+    mobileCreateExam: string
     assignWorksheet: string
     noWorksheets: string
     doWorksheet: string
@@ -153,9 +155,38 @@ export type Dictionary = {
     renameClassSuccess: string
     examSubmissions: string
     noExamSubmissions: string
+    /** Lớp chưa gắn phiên đề thi nào */
+    noExamsForClass: string
+    /** Đã có đề nhưng chưa ai nộp trong phiên đó */
+    examSessionNoAttemptsYet: string
+    /** Mở / sao chép URL học sinh làm bài (lam-bai/[code]) */
+    examStudentDoLinkOpen: string
+    examStudentDoLinkCopy: string
+    examStudentDoLinkCopied: string
+    /** Hộp thoại QR + link — GV chia sẻ cho HS, không mở trang lam-bai */
+    examStudentShareDialogTitle: string
+    examStudentShareDialogDescription: string
+    examStudentShareUrlLabel: string
+    /** Trang lam-bai: đã có hồ sơ lớp — chỉ cần bấm bắt đầu */
+    examIdentityFromClassHint: string
+    examChangeIdentityManual: string
+    examManualIdentityIntro: string
+    examStartTestButton: string
+    examOneAttemptNote: string
     showStudentsAction: string
     hideStudentsAction: string
     examReviewAction: string
+    /** Xóa phiên đề thi gắn lớp (GV) */
+    examDeleteAction: string
+    examDeleteConfirmTitle: string
+    examDeleteConfirmDescription: string
+    examDeleteConfirmAction: string
+    examDeleteSuccess: string
+    examDeleteFailed: string
+    examDeleting: string
+    examDeleteConfirmTypeHint: string
+    /** Cụm người dùng phải gõ (hiển thị + so khớp, không phân biệt hoa/thường) */
+    examDeleteConfirmPhrase: string
     examAttemptCount: string
     lowScoreWarningPrefix: string
     lowScoreWarningSuffix: string
@@ -170,6 +201,47 @@ export type Dictionary = {
     deleteClassFailed: string
     deleteClassSuccess: string
     deleteClassDeleting: string
+    deleteClassConfirmTypeHint: string
+    /** Cụm xác nhận xóa lớp — phải gõ đúng (không phân biệt hoa/thường) */
+    deleteClassConfirmPhrase: string
+    memberRoleStudent: string
+    memberRoleTeacher: string
+    createClassSchoolRequired: string
+    createClassSchoolPlaceholder: string
+    createClassSchoolHint: string
+    createClassSchoolSearching: string
+    createClassSchoolAddNew: string
+    createClassSchoolSelected: string
+    createClassSchoolNotFound: string
+    createClassSchoolTryOther: string
+    joinStudentDisplayName: string
+    joinStudentBirthDate: string
+    joinDobDayPlaceholder: string
+    joinDobMonthPlaceholder: string
+    joinDobYearPlaceholder: string
+    joinNameRequired: string
+    joinBirthRequired: string
+    joinNameTooShort: string
+    memberBirthDateLabel: string
+    removeStudentFromClass: string
+    removeStudentConfirmTitle: string
+    removeStudentConfirmDescription: string
+    removeStudentConfirmAction: string
+    removeStudentFailed: string
+    removeStudentSuccess: string
+    removeStudentRemoving: string
+    leaveClass: string
+    leaveClassConfirmTitle: string
+    leaveClassConfirmDescription: string
+    leaveClassConfirmAction: string
+    leaveClassFailed: string
+    leaveClassSuccess: string
+    leaveClassLeaving: string
+    /** Màn tham gia lớp ngay trên trang làm bài thi (đề gắn lớp) */
+    examEnrollGateTitle: string
+    examEnrollGateDescription: string
+    examEnrollSubmitButton: string
+    examEnrollSubmitting: string
   }
   /** Trang công khai /phieu-bai-tap/[id] — lời giải & đáp án */
   worksheetSolutionPage: {
@@ -346,6 +418,7 @@ const VI_DICTIONARY: Dictionary = {
     invalidCode: 'Mã không hợp lệ',
     created: 'Đã tạo',
     backToList: 'Về danh sách',
+    mobileCreateExam: 'Tạo bài thi',
     assignWorksheet: 'Gán phiếu',
     noWorksheets: 'Chưa có phiếu nào',
     noStudents: 'Chưa có học sinh',
@@ -372,9 +445,35 @@ const VI_DICTIONARY: Dictionary = {
     renameClassSuccess: 'Đã đổi tên lớp.',
     examSubmissions: 'Bài nộp từ đề thi',
     noExamSubmissions: 'Chưa có bài nộp đề thi nào.',
+    noExamsForClass: 'Lớp này chưa có đề thi nào.',
+    examSessionNoAttemptsYet: 'Chưa có học sinh nộp bài thi này.',
+    examStudentDoLinkOpen: 'QR & link cho học sinh',
+    examStudentDoLinkCopy: 'Sao chép link làm bài',
+    examStudentDoLinkCopied: 'Đã sao chép link làm bài cho học sinh.',
+    examStudentShareDialogTitle: 'Chia sẻ bài thi cho học sinh',
+    examStudentShareDialogDescription:
+      'Học sinh quét mã QR hoặc mở link bên dưới. Trang đó dành cho học sinh làm bài — thầy/cô không cần điền tên hay làm bài tại đây.',
+    examStudentShareUrlLabel: 'Link làm bài',
+    examIdentityFromClassHint:
+      'Hồ sơ trong lớp đã có họ tên và ngày sinh. Bấm Bắt đầu khi sẵn sàng làm bài; đồng hồ chỉ chạy sau khi bấm.',
+    examChangeIdentityManual: 'Nhập họ tên và ngày sinh khác',
+    examManualIdentityIntro:
+      'Nhập thông tin và bấm Bắt đầu để làm bài. Đồng hồ chỉ chạy sau khi bấm Bắt đầu.',
+    examStartTestButton: 'Bắt đầu bài kiểm tra',
+    examOneAttemptNote: 'Mỗi tài khoản chỉ được làm bài một lần.',
     showStudentsAction: 'Xem học sinh làm bài',
     hideStudentsAction: 'Ẩn danh sách',
     examReviewAction: 'Chữa bài',
+    examDeleteAction: 'Xóa bài thi',
+    examDeleteConfirmTitle: 'Xóa bài thi này?',
+    examDeleteConfirmDescription:
+      'Toàn bộ bài làm và dữ liệu phiên thi sẽ bị xóa vĩnh viễn. Học sinh không còn mở được link làm bài.',
+    examDeleteConfirmAction: 'Xóa bài thi',
+    examDeleteSuccess: 'Đã xóa bài thi.',
+    examDeleteFailed: 'Không xóa được bài thi.',
+    examDeleting: 'Đang xóa…',
+    examDeleteConfirmTypeHint: 'Nhập chính xác cụm sau để xác nhận (không phân biệt chữ hoa/thường):',
+    examDeleteConfirmPhrase: 'XÓA BÀI THI',
     examAttemptCount: 'bài nộp',
     lowScoreWarningPrefix: 'Có',
     lowScoreWarningSuffix: 'học sinh điểm thấp (< 5/10). Giáo viên nên để ý và hỗ trợ thêm.',
@@ -390,6 +489,48 @@ const VI_DICTIONARY: Dictionary = {
     deleteClassFailed: 'Không xóa được lớp.',
     deleteClassSuccess: 'Đã xóa lớp.',
     deleteClassDeleting: 'Đang xóa…',
+    deleteClassConfirmTypeHint: 'Nhập chính xác cụm sau để xác nhận (không phân biệt chữ hoa/thường):',
+    deleteClassConfirmPhrase: 'XÓA LỚP',
+    memberRoleStudent: 'Học sinh',
+    memberRoleTeacher: 'Giáo viên',
+    createClassSchoolRequired: 'Vui lòng chọn trường trước khi tạo lớp.',
+    createClassSchoolPlaceholder: 'Gõ tên trường để tìm…',
+    createClassSchoolHint: 'Lớp phải gắn với một trường. Chọn trường có sẵn hoặc thêm trường mới.',
+    createClassSchoolSearching: 'Đang tìm trường…',
+    createClassSchoolAddNew: 'Thêm trường này',
+    createClassSchoolSelected: 'Trường đã chọn',
+    createClassSchoolNotFound: 'Không tìm thấy trường đã chọn.',
+    createClassSchoolTryOther: 'Chưa có trường trùng khớp. Đổi từ khóa hoặc dùng nút thêm trường (khi hiện).',
+    joinStudentDisplayName: 'Họ và tên học sinh',
+    joinStudentBirthDate: 'Ngày sinh',
+    joinDobDayPlaceholder: 'Ngày',
+    joinDobMonthPlaceholder: 'Tháng',
+    joinDobYearPlaceholder: 'Năm',
+    joinNameRequired: 'Vui lòng nhập họ và tên.',
+    joinBirthRequired: 'Vui lòng chọn ngày sinh.',
+    joinNameTooShort: 'Họ tên quá ngắn (ít nhất 2 ký tự).',
+    memberBirthDateLabel: 'Sinh',
+    removeStudentFromClass: 'Xóa khỏi lớp',
+    removeStudentConfirmTitle: 'Xóa học sinh khỏi lớp?',
+    removeStudentConfirmDescription:
+      'Học sinh sẽ không còn trong danh sách lớp. Có thể tham gia lại bằng mã nếu cần.',
+    removeStudentConfirmAction: 'Xóa khỏi lớp',
+    removeStudentFailed: 'Không xóa được học sinh.',
+    removeStudentSuccess: 'Đã xóa học sinh khỏi lớp.',
+    removeStudentRemoving: 'Đang xóa…',
+    leaveClass: 'Rời lớp',
+    leaveClassConfirmTitle: 'Rời lớp này?',
+    leaveClassConfirmDescription:
+      'Bạn sẽ không còn trong danh sách lớp. Có thể tham gia lại bằng mã lớp nếu cần.',
+    leaveClassConfirmAction: 'Rời lớp',
+    leaveClassFailed: 'Không rời lớp được.',
+    leaveClassSuccess: 'Bạn đã rời lớp.',
+    leaveClassLeaving: 'Đang rời lớp…',
+    examEnrollGateTitle: 'Tham gia lớp để làm bài thi',
+    examEnrollGateDescription:
+      'Đề thi này gắn với một lớp. Nhập họ tên và ngày sinh đúng như trong sổ lớp (không dùng tên mặc định tài khoản Google). Sau đó em có thể bắt đầu làm bài.',
+    examEnrollSubmitButton: 'Tham gia lớp và làm bài thi',
+    examEnrollSubmitting: 'Đang tham gia…',
   },
   worksheetSolutionPage: {
     metaTitlePrefix: 'Lời giải',
@@ -566,6 +707,7 @@ const EN_DICTIONARY: Dictionary = {
     invalidCode: 'Invalid code',
     created: 'Created',
     backToList: 'Back to list',
+    mobileCreateExam: 'Create exam',
     assignWorksheet: 'Assign worksheet',
     noWorksheets: 'No worksheets yet',
     noStudents: 'No students yet',
@@ -592,9 +734,35 @@ const EN_DICTIONARY: Dictionary = {
     renameClassSuccess: 'Class name updated.',
     examSubmissions: 'Exam submissions',
     noExamSubmissions: 'No exam submissions yet.',
+    noExamsForClass: 'No exams are linked to this class yet.',
+    examSessionNoAttemptsYet: 'No students have submitted this exam yet.',
+    examStudentDoLinkOpen: 'QR & link for students',
+    examStudentDoLinkCopy: 'Copy exam link',
+    examStudentDoLinkCopied: 'Exam link for students copied.',
+    examStudentShareDialogTitle: 'Share exam with students',
+    examStudentShareDialogDescription:
+      'Students scan the QR code or open the link below. That page is for students to take the exam—you do not need to enter your name or complete it there.',
+    examStudentShareUrlLabel: 'Exam link',
+    examIdentityFromClassHint:
+      'Your class profile already has your name and date of birth. Press Start when you are ready; the timer begins only after you start.',
+    examChangeIdentityManual: 'Enter a different name and date of birth',
+    examManualIdentityIntro:
+      'Enter your details and press Start to begin. The timer starts only after you press Start.',
+    examStartTestButton: 'Start test',
+    examOneAttemptNote: 'Each account can submit this test only once.',
     showStudentsAction: 'Show students',
     hideStudentsAction: 'Hide list',
     examReviewAction: 'Review',
+    examDeleteAction: 'Delete exam',
+    examDeleteConfirmTitle: 'Delete this exam?',
+    examDeleteConfirmDescription:
+      'All submissions and this exam session will be permanently removed. Students will no longer be able to open the exam link.',
+    examDeleteConfirmAction: 'Delete exam',
+    examDeleteSuccess: 'Exam deleted.',
+    examDeleteFailed: 'Could not delete the exam.',
+    examDeleting: 'Deleting…',
+    examDeleteConfirmTypeHint: 'Type the phrase below to confirm (not case-sensitive):',
+    examDeleteConfirmPhrase: 'DELETE EXAM',
     examAttemptCount: 'submissions',
     lowScoreWarningPrefix: 'There are',
     lowScoreWarningSuffix: 'students with low scores (< 5/10). Please provide extra support.',
@@ -610,6 +778,48 @@ const EN_DICTIONARY: Dictionary = {
     deleteClassFailed: 'Could not delete the class.',
     deleteClassSuccess: 'Class deleted.',
     deleteClassDeleting: 'Deleting…',
+    deleteClassConfirmTypeHint: 'Type the phrase below to confirm (not case-sensitive):',
+    deleteClassConfirmPhrase: 'DELETE CLASS',
+    memberRoleStudent: 'Student',
+    memberRoleTeacher: 'Teacher',
+    createClassSchoolRequired: 'Please select a school before creating a class.',
+    createClassSchoolPlaceholder: 'Type a school name to search…',
+    createClassSchoolHint: 'Each class must belong to a school. Pick an existing school or add a new one.',
+    createClassSchoolSearching: 'Searching schools…',
+    createClassSchoolAddNew: 'Add this school',
+    createClassSchoolSelected: 'Selected school',
+    createClassSchoolNotFound: 'Selected school was not found.',
+    createClassSchoolTryOther: 'No matching school yet. Try different keywords or use “Add this school” when it appears.',
+    joinStudentDisplayName: 'Student full name',
+    joinStudentBirthDate: 'Date of birth',
+    joinDobDayPlaceholder: 'Day',
+    joinDobMonthPlaceholder: 'Month',
+    joinDobYearPlaceholder: 'Year',
+    joinNameRequired: 'Please enter full name.',
+    joinBirthRequired: 'Please select date of birth.',
+    joinNameTooShort: 'Name is too short (at least 2 characters).',
+    memberBirthDateLabel: 'Born',
+    removeStudentFromClass: 'Remove from class',
+    removeStudentConfirmTitle: 'Remove this student from the class?',
+    removeStudentConfirmDescription:
+      'They will no longer be on the class list. They can join again with the class code if needed.',
+    removeStudentConfirmAction: 'Remove from class',
+    removeStudentFailed: 'Could not remove the student.',
+    removeStudentSuccess: 'Student removed from class.',
+    removeStudentRemoving: 'Removing…',
+    leaveClass: 'Leave class',
+    leaveClassConfirmTitle: 'Leave this class?',
+    leaveClassConfirmDescription:
+      'You will be removed from the class list. You can join again with the class code if needed.',
+    leaveClassConfirmAction: 'Leave class',
+    leaveClassFailed: 'Could not leave the class.',
+    leaveClassSuccess: 'You have left the class.',
+    leaveClassLeaving: 'Leaving…',
+    examEnrollGateTitle: 'Join the class to take this test',
+    examEnrollGateDescription:
+      'This test is linked to a class. Enter your full name and date of birth as in the class register (not your account’s default name). You can start the test afterward.',
+    examEnrollSubmitButton: 'Join class and take the test',
+    examEnrollSubmitting: 'Joining…',
   },
   worksheetSolutionPage: {
     metaTitlePrefix: 'Solutions',
@@ -786,6 +996,7 @@ const ZH_DICTIONARY: Dictionary = {
     invalidCode: '无效码',
     created: '已创建',
     backToList: '返回列表',
+    mobileCreateExam: '创建考试',
     assignWorksheet: '分配作业单',
     noWorksheets: '暂无作业单',
     noStudents: '暂无学生',
@@ -812,9 +1023,33 @@ const ZH_DICTIONARY: Dictionary = {
     renameClassSuccess: '班级名称已更新。',
     examSubmissions: '试题提交',
     noExamSubmissions: '暂无试题提交。',
+    noExamsForClass: '本班级尚未关联任何测验。',
+    examSessionNoAttemptsYet: '还没有学生提交本场测验。',
+    examStudentDoLinkOpen: '学生用二维码与链接',
+    examStudentDoLinkCopy: '复制答题链接',
+    examStudentDoLinkCopied: '已复制学生答题链接。',
+    examStudentShareDialogTitle: '向学生分享考试',
+    examStudentShareDialogDescription:
+      '学生可扫描二维码或打开下方链接。该页面供学生答题，教师无需在此填写姓名或作答。',
+    examStudentShareUrlLabel: '答题链接',
+    examIdentityFromClassHint:
+      '班级档案中已有您的姓名与出生日期。准备好后点击开始；计时仅在点击开始后启动。',
+    examChangeIdentityManual: '改用其他姓名与出生日期',
+    examManualIdentityIntro: '请填写信息并点击开始答题；计时仅在点击开始后启动。',
+    examStartTestButton: '开始测验',
+    examOneAttemptNote: '每个账号只能提交一次。',
     showStudentsAction: '查看作答学生',
     hideStudentsAction: '收起列表',
     examReviewAction: '讲评',
+    examDeleteAction: '删除考试',
+    examDeleteConfirmTitle: '删除这场考试？',
+    examDeleteConfirmDescription: '所有作答记录与考试数据将被永久删除，学生将无法再打开答题链接。',
+    examDeleteConfirmAction: '删除考试',
+    examDeleteSuccess: '已删除考试。',
+    examDeleteFailed: '无法删除考试。',
+    examDeleting: '正在删除…',
+    examDeleteConfirmTypeHint: '请输入以下文字以确认（需完全一致）：',
+    examDeleteConfirmPhrase: '删除考试',
     examAttemptCount: '份提交',
     lowScoreWarningPrefix: '有',
     lowScoreWarningSuffix: '名学生分数较低（< 5/10），建议教师重点关注并辅导。',
@@ -830,6 +1065,46 @@ const ZH_DICTIONARY: Dictionary = {
     deleteClassFailed: '无法删除班级。',
     deleteClassSuccess: '班级已删除。',
     deleteClassDeleting: '正在删除…',
+    deleteClassConfirmTypeHint: '请输入以下文字以确认（需完全一致）：',
+    deleteClassConfirmPhrase: '删除班级',
+    memberRoleStudent: '学生',
+    memberRoleTeacher: '教师',
+    createClassSchoolRequired: '创建班级前请先选择学校。',
+    createClassSchoolPlaceholder: '输入学校名称搜索…',
+    createClassSchoolHint: '每个班级必须归属一所学校。请选择已有学校或新增学校。',
+    createClassSchoolSearching: '正在搜索学校…',
+    createClassSchoolAddNew: '添加此学校',
+    createClassSchoolSelected: '已选学校',
+    createClassSchoolNotFound: '未找到所选学校。',
+    createClassSchoolTryOther: '暂无匹配学校。可更换关键词，或在出现按钮时添加新学校。',
+    joinStudentDisplayName: '学生姓名',
+    joinStudentBirthDate: '出生日期',
+    joinDobDayPlaceholder: '日',
+    joinDobMonthPlaceholder: '月',
+    joinDobYearPlaceholder: '年',
+    joinNameRequired: '请填写姓名。',
+    joinBirthRequired: '请选择出生日期。',
+    joinNameTooShort: '姓名过短（至少 2 个字符）。',
+    memberBirthDateLabel: '出生',
+    removeStudentFromClass: '移出班级',
+    removeStudentConfirmTitle: '将该学生移出班级？',
+    removeStudentConfirmDescription: '学生将从班级名单中移除，需要时可凭班级码再次加入。',
+    removeStudentConfirmAction: '确认移出',
+    removeStudentFailed: '无法移出学生。',
+    removeStudentSuccess: '已将学生移出班级。',
+    removeStudentRemoving: '正在移除…',
+    leaveClass: '退出班级',
+    leaveClassConfirmTitle: '确定退出此班级？',
+    leaveClassConfirmDescription: '您将从班级名单中移除。需要时可凭班级码再次加入。',
+    leaveClassConfirmAction: '退出班级',
+    leaveClassFailed: '无法退出班级。',
+    leaveClassSuccess: '已退出班级。',
+    leaveClassLeaving: '正在退出…',
+    examEnrollGateTitle: '加入班级后才能参加测验',
+    examEnrollGateDescription:
+      '本测验关联班级。请按班级名册填写姓名与出生日期（勿使用账号默认显示名）。填写后即可开始答题。',
+    examEnrollSubmitButton: '加入班级并开始测验',
+    examEnrollSubmitting: '正在加入…',
   },
   worksheetSolutionPage: {
     metaTitlePrefix: '解答',
@@ -1005,6 +1280,7 @@ const JA_DICTIONARY: Dictionary = {
     invalidCode: '無効なコード',
     created: '作成済み',
     backToList: '一覧に戻る',
+    mobileCreateExam: '試験を作成',
     assignWorksheet: 'ワークシートを割り当て',
     noWorksheets: 'ワークシートがありません',
     noStudents: '生徒がいません',
@@ -1031,9 +1307,34 @@ const JA_DICTIONARY: Dictionary = {
     renameClassSuccess: 'クラス名を更新しました。',
     examSubmissions: '試験提出',
     noExamSubmissions: '試験提出はまだありません。',
+    noExamsForClass: 'このクラスにはまだテストがありません。',
+    examSessionNoAttemptsYet: 'このテストの提出はまだありません。',
+    examStudentDoLinkOpen: 'QRと受験リンク',
+    examStudentDoLinkCopy: '受験リンクをコピー',
+    examStudentDoLinkCopied: '受験用リンクをコピーしました。',
+    examStudentShareDialogTitle: '受験生に試験を共有',
+    examStudentShareDialogDescription:
+      '受験生はQRコードを読み取るか、下のリンクを開いてください。そのページは受験用です。教員が名前を入力したり解答する必要はありません。',
+    examStudentShareUrlLabel: '受験リンク',
+    examIdentityFromClassHint:
+      'クラス名簿に氏名・生年月日が登録済みです。準備ができたら開始を押してください。タイマーは開始後に動きます。',
+    examChangeIdentityManual: '別の氏名・生年月日を入力',
+    examManualIdentityIntro: '情報を入力して開始を押してください。タイマーは開始後に動きます。',
+    examStartTestButton: 'テストを開始',
+    examOneAttemptNote: 'アカウントごとに1回だけ受験できます。',
     showStudentsAction: '受験した生徒を表示',
     hideStudentsAction: 'リストを隠す',
     examReviewAction: '解説',
+    examDeleteAction: '試験を削除',
+    examDeleteConfirmTitle: 'この試験を削除しますか？',
+    examDeleteConfirmDescription:
+      'すべての解答と試験データが完全に削除されます。受験生はリンクから開けなくなります。',
+    examDeleteConfirmAction: '試験を削除',
+    examDeleteSuccess: '試験を削除しました。',
+    examDeleteFailed: '試験を削除できませんでした。',
+    examDeleting: '削除中…',
+    examDeleteConfirmTypeHint: '確認のため、次の文を正確に入力してください。',
+    examDeleteConfirmPhrase: '試験を削除',
     examAttemptCount: '件の提出',
     lowScoreWarningPrefix: '低得点（< 5/10）の生徒が',
     lowScoreWarningSuffix: '人います。重点的なフォローをおすすめします。',
@@ -1049,6 +1350,46 @@ const JA_DICTIONARY: Dictionary = {
     deleteClassFailed: 'クラスを削除できませんでした。',
     deleteClassSuccess: 'クラスを削除しました。',
     deleteClassDeleting: '削除中…',
+    deleteClassConfirmTypeHint: '確認のため、次の文を正確に入力してください。',
+    deleteClassConfirmPhrase: 'クラスを削除',
+    memberRoleStudent: '生徒',
+    memberRoleTeacher: '教師',
+    createClassSchoolRequired: 'クラスを作成する前に学校を選んでください。',
+    createClassSchoolPlaceholder: '学校名を入力して検索…',
+    createClassSchoolHint: 'クラスは必ず学校に紐づきます。一覧から選ぶか、新規追加してください。',
+    createClassSchoolSearching: '学校を検索中…',
+    createClassSchoolAddNew: 'この学校を追加',
+    createClassSchoolSelected: '選択中の学校',
+    createClassSchoolNotFound: '選択した学校が見つかりません。',
+    createClassSchoolTryOther: '一致する学校がありません。別のキーワードを試すか、表示されたら学校を追加してください。',
+    joinStudentDisplayName: '生徒の氏名',
+    joinStudentBirthDate: '生年月日',
+    joinDobDayPlaceholder: '日',
+    joinDobMonthPlaceholder: '月',
+    joinDobYearPlaceholder: '年',
+    joinNameRequired: '氏名を入力してください。',
+    joinBirthRequired: '生年月日を選んでください。',
+    joinNameTooShort: '氏名が短すぎます（2文字以上）。',
+    memberBirthDateLabel: '生年月日',
+    removeStudentFromClass: 'クラスから外す',
+    removeStudentConfirmTitle: 'この生徒をクラスから外しますか？',
+    removeStudentConfirmDescription: '名簿から削除されます。必要なら参加コードで再参加できます。',
+    removeStudentConfirmAction: 'クラスから外す',
+    removeStudentFailed: '削除できませんでした。',
+    removeStudentSuccess: 'クラスから外しました。',
+    removeStudentRemoving: '削除中…',
+    leaveClass: 'クラスを抜ける',
+    leaveClassConfirmTitle: 'このクラスを抜けますか？',
+    leaveClassConfirmDescription: '名簿から外れます。必要なら参加コードで再参加できます。',
+    leaveClassConfirmAction: 'クラスを抜ける',
+    leaveClassFailed: 'クラスを抜けられませんでした。',
+    leaveClassSuccess: 'クラスを抜けました。',
+    leaveClassLeaving: '処理中…',
+    examEnrollGateTitle: 'テストを受けるにはクラスに参加',
+    examEnrollGateDescription:
+      'このテストはクラスに紐づいています。名簿と同じ氏名・生年月日を入力してください（アカウントの表示名は使わないでください）。その後、テストを開始できます。',
+    examEnrollSubmitButton: 'クラスに参加してテストを受ける',
+    examEnrollSubmitting: '参加処理中…',
   },
   worksheetSolutionPage: {
     metaTitlePrefix: '解答',
@@ -1225,6 +1566,7 @@ const KO_DICTIONARY: Dictionary = {
     invalidCode: '잘못된 코드',
     created: '생성됨',
     backToList: '목록으로',
+    mobileCreateExam: '시험 만들기',
     assignWorksheet: '워크시트 할당',
     noWorksheets: '워크시트가 없습니다',
     noStudents: '학생이 없습니다',
@@ -1251,9 +1593,34 @@ const KO_DICTIONARY: Dictionary = {
     renameClassSuccess: '수업 이름이 업데이트되었습니다.',
     examSubmissions: '시험 제출',
     noExamSubmissions: '시험 제출이 없습니다.',
+    noExamsForClass: '이 수업에 연결된 시험이 아직 없습니다.',
+    examSessionNoAttemptsYet: '이 시험을 제출한 학생이 아직 없습니다.',
+    examStudentDoLinkOpen: '학생용 QR·링크',
+    examStudentDoLinkCopy: '시험 링크 복사',
+    examStudentDoLinkCopied: '학생용 시험 링크를 복사했습니다.',
+    examStudentShareDialogTitle: '학생에게 시험 공유',
+    examStudentShareDialogDescription:
+      '학생이 QR 코드를 스캔하거나 아래 링크를 열면 됩니다. 해당 페이지는 학생용 시험 화면이며, 선생님께서 이름을 입력하거나 풀 필요는 없습니다.',
+    examStudentShareUrlLabel: '시험 링크',
+    examIdentityFromClassHint:
+      '수업 명단에 이름과 생년월일이 이미 있습니다. 준비되면 시작을 누르세요. 타이머는 시작 후에만 작동합니다.',
+    examChangeIdentityManual: '다른 이름·생년월일 입력',
+    examManualIdentityIntro: '정보를 입력하고 시작을 누르세요. 타이머는 시작 후에만 작동합니다.',
+    examStartTestButton: '시험 시작',
+    examOneAttemptNote: '계정당 한 번만 응시할 수 있습니다.',
     showStudentsAction: '응시 학생 보기',
     hideStudentsAction: '목록 숨기기',
     examReviewAction: '해설',
+    examDeleteAction: '시험 삭제',
+    examDeleteConfirmTitle: '이 시험을 삭제할까요?',
+    examDeleteConfirmDescription:
+      '모든 제출과 시험 데이터가 영구 삭제됩니다. 학생은 더 이상 시험 링크를 열 수 없습니다.',
+    examDeleteConfirmAction: '시험 삭제',
+    examDeleteSuccess: '시험을 삭제했습니다.',
+    examDeleteFailed: '시험을 삭제할 수 없습니다.',
+    examDeleting: '삭제 중…',
+    examDeleteConfirmTypeHint: '확인을 위해 아래 문구를 정확히 입력하세요.',
+    examDeleteConfirmPhrase: '시험 삭제',
     examAttemptCount: '개 제출',
     lowScoreWarningPrefix: '낮은 점수(< 5/10) 학생이',
     lowScoreWarningSuffix: '명 있습니다. 추가 지도에 유의해주세요.',
@@ -1269,6 +1636,46 @@ const KO_DICTIONARY: Dictionary = {
     deleteClassFailed: '수업을 삭제할 수 없습니다.',
     deleteClassSuccess: '수업이 삭제되었습니다.',
     deleteClassDeleting: '삭제 중…',
+    deleteClassConfirmTypeHint: '확인을 위해 아래 문구를 정확히 입력하세요.',
+    deleteClassConfirmPhrase: '수업 삭제',
+    memberRoleStudent: '학생',
+    memberRoleTeacher: '교사',
+    createClassSchoolRequired: '수업을 만들기 전에 학교를 선택하세요.',
+    createClassSchoolPlaceholder: '학교 이름을 입력해 검색…',
+    createClassSchoolHint: '모든 수업은 학교에 연결되어야 합니다. 목록에서 고르거나 새 학교를 추가하세요.',
+    createClassSchoolSearching: '학교 검색 중…',
+    createClassSchoolAddNew: '이 학교 추가',
+    createClassSchoolSelected: '선택한 학교',
+    createClassSchoolNotFound: '선택한 학교를 찾을 수 없습니다.',
+    createClassSchoolTryOther: '일치하는 학교가 없습니다. 다른 검색어를 쓰거나 버튼이 보이면 새 학교를 추가하세요.',
+    joinStudentDisplayName: '학생 이름',
+    joinStudentBirthDate: '생년월일',
+    joinDobDayPlaceholder: '일',
+    joinDobMonthPlaceholder: '월',
+    joinDobYearPlaceholder: '년',
+    joinNameRequired: '이름을 입력하세요.',
+    joinBirthRequired: '생년월일을 선택하세요.',
+    joinNameTooShort: '이름이 너무 짧습니다(2자 이상).',
+    memberBirthDateLabel: '생일',
+    removeStudentFromClass: '수업에서 제거',
+    removeStudentConfirmTitle: '이 학생을 수업에서 제거할까요?',
+    removeStudentConfirmDescription: '명단에서 사라집니다. 필요하면 참가 코드로 다시 들어올 수 있습니다.',
+    removeStudentConfirmAction: '수업에서 제거',
+    removeStudentFailed: '제거하지 못했습니다.',
+    removeStudentSuccess: '수업에서 제거했습니다.',
+    removeStudentRemoving: '제거 중…',
+    leaveClass: '수업 나가기',
+    leaveClassConfirmTitle: '이 수업에서 나갈까요?',
+    leaveClassConfirmDescription: '명단에서 빠집니다. 필요하면 참가 코드로 다시 들어올 수 있습니다.',
+    leaveClassConfirmAction: '나가기',
+    leaveClassFailed: '수업을 나가지 못했습니다.',
+    leaveClassSuccess: '수업에서 나갔습니다.',
+    leaveClassLeaving: '나가는 중…',
+    examEnrollGateTitle: '수업에 참가해야 시험을 볼 수 있습니다',
+    examEnrollGateDescription:
+      '이 시험은 수업과 연결되어 있습니다. 명단과 동일한 이름과 생년월일을 입력하세요(계정 기본 표시 이름 사용 금지). 이후 시험을 시작할 수 있습니다.',
+    examEnrollSubmitButton: '수업 참가 후 시험 보기',
+    examEnrollSubmitting: '참가 중…',
   },
   worksheetSolutionPage: {
     metaTitlePrefix: '해설',
