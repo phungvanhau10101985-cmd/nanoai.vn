@@ -7,6 +7,7 @@ import { HeaderUserMenu } from './header-user-menu'
 import { LocaleSwitcher } from './locale-switcher'
 import { LayoutGrid } from 'lucide-react'
 import { NotificationBell } from './notification-bell'
+import { LoginNavButton } from './login-nav-button'
 import { getServerDictionary, getCurrentWebLocale } from '@/lib/i18n/server'
 import { getDictionary, type Dictionary } from '@/lib/i18n/dictionaries'
 
@@ -73,11 +74,7 @@ export async function Header() {
                 <HeaderUserMenu user={user} credits={credits} isAdmin={isAdmin} t={clientDictionary} />
               </>
             ) : (
-              <Link href="/auth/login">
-                <Button variant="secondary" size="sm" className="rounded-xl px-3">
-                  {t.app.login}
-                </Button>
-              </Link>
+              <LoginNavButton label={t.app.login} className="rounded-xl px-3" />
             )}
           </div>
         </div>

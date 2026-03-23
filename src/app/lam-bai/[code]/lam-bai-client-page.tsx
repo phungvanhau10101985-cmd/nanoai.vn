@@ -17,6 +17,14 @@ import type { Dictionary } from '@/lib/i18n/dictionaries'
 type Question = { id: string; index: number; type?: 'quiz' | 'essay'; question_text: string; options: string[] }
 const STUDENT_PROFILE_STORAGE_KEY = 'exam-session:student-profile:v1'
 
+function fillExamTemplate(template: string, vars: Record<string, string | number>) {
+  let out = template
+  for (const [key, val] of Object.entries(vars)) {
+    out = out.split(`{${key}}`).join(String(val))
+  }
+  return out
+}
+
 function normalizeName(input: string): string {
   return String(input || '').replace(/\s+/g, ' ').trim()
 }
@@ -72,6 +80,8 @@ export default function LamBaiClientPage({
   const [examStarted, setExamStarted] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [result, setResult] = useState<{ score: number; maxScore: number; grade10: number; comment: string; shareHint: string } | null>(null)
+  /** Kết quả tải từ server (đã nộp trước đó, ví dụ thiết bị khác) — hiển thị thông báo kèm kết quả */
+  const [priorSubmissionResult, setPriorSubmissionResult] = useState(false)
   const [startedAt, setStartedAt] = useState<number | null>(null)
   const [shared, setShared] = useState(false)
   const [now, setNow] = useState(Date.now())
@@ -80,6 +90,7 @@ export default function LamBaiClientPage({
   const fiveMinuteWarnedRef = useRef(false)
   /** Sau khi tham gia lớp từ cổng đề thi — tải lại đề xong thì vào làm bài luôn (không chờ bấm Bắt đầu). */
   const autoStartExamAfterEnrollRef = useRef(false)
+  const submitResultRef = useRef<HTMLDivElement>(null)
   const [fiveMinuteWarning, setFiveMinuteWarning] = useState(false)
   /** Đề gắn lớp + đã có member_display_name & birth_date — không bắt nhập lại form trước khi bấm Bắt đầu */
   const [identityFromClassRoster, setIdentityFromClassRoster] = useState(false)
@@ -115,6 +126,7 @@ export default function LamBaiClientPage({
     let cancelled = false
     setLoading(true)
     setError(null)
+    setPriorSubmissionResult(false)
     const sessionUrl = `/api/exam-session/${encodeURIComponent(code)}?_=${Date.now()}`
     fetch(sessionUrl, { cache: 'no-store', headers: { Pragma: 'no-cache' } })
       .then(async (r) => {
@@ -130,6 +142,28 @@ export default function LamBaiClientPage({
           setExam(null)
           setLayoutToken(null)
           setError(typeof data?.error === 'string' ? data.error : 'Không tải được đề thi.')
+          return
+        }
+        if (data.alreadySubmitted === true) {
+          autoStartExamAfterEnrollRef.current = false
+          setIdentityFromClassRoster(false)
+          setEnrollmentGate(null)
+          setLayoutToken(null)
+          const title = typeof data.title === 'string' ? data.title : 'Bài thi'
+          const durationMinutes =
+            typeof data.durationMinutes === 'number' && Number.isFinite(data.durationMinutes)
+              ? data.durationMinutes
+              : 15
+          setExam({ title, durationMinutes, questions: [] })
+          setResult({
+            score: typeof data.score === 'number' ? data.score : 0,
+            maxScore: typeof data.maxScore === 'number' ? data.maxScore : 0,
+            grade10: typeof data.grade10 === 'number' ? data.grade10 : 0,
+            comment: typeof data.comment === 'string' ? data.comment : '',
+            shareHint: typeof data.shareHint === 'string' ? data.shareHint : '',
+          })
+          setPriorSubmissionResult(true)
+          setExamStarted(false)
           return
         }
         if (data.needsEnrollment) {
@@ -185,6 +219,7 @@ export default function LamBaiClientPage({
         const questions = Array.isArray(data.questions) ? data.questions : []
         setEnrollmentGate(null)
         setLayoutToken(layoutTok)
+        setPriorSubmissionResult(false)
         setExam({
           title: data.title || 'Bài thi',
           durationMinutes: data.durationMinutes || 15,
@@ -254,6 +289,7 @@ export default function LamBaiClientPage({
         setError(data?.error ?? 'Nộp bài thất bại.')
         return
       }
+      setPriorSubmissionResult(false)
       setResult({
         score: data.score ?? 0,
         maxScore: data.maxScore ?? 0,
@@ -326,6 +362,15 @@ export default function LamBaiClientPage({
       void handleSubmit()
     }
   }, [shouldAutoSubmit, exam, submitting, result, handleSubmit])
+
+  /** Sau khi nộp bài, đưa viewport tới vùng kết quả (trang đề dài có thể đang scroll xuống dưới). */
+  useEffect(() => {
+    if (!result) return
+    const id = window.requestAnimationFrame(() => {
+      submitResultRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+    })
+    return () => window.cancelAnimationFrame(id)
+  }, [result])
 
   if (loading) {
     return (
@@ -467,11 +512,18 @@ export default function LamBaiClientPage({
 
   if (result) {
     const pct = result.maxScore > 0 ? Math.round((result.score / result.maxScore) * 100) : 0
-    const shareText = `${exam?.title ?? 'Bài thi'}: Điểm ${result.grade10}/10 (${result.score}/${result.maxScore} đúng - ${pct}%)`
+    const shareTitle = exam?.title ?? t.examSubmittedTitle
+    const shareText = fillExamTemplate(t.examShareResultLine, {
+      title: shareTitle,
+      grade: result.grade10,
+      score: result.score,
+      max: result.maxScore,
+      pct,
+    })
     const handleShare = () => {
       if (navigator.share) {
         navigator.share({
-          title: exam?.title ?? 'Kết quả bài thi',
+          title: shareTitle,
           text: shareText,
           url: window.location.href,
         }).then(() => { setShared(true); setTimeout(() => setShared(false), 2000) }).catch(() => {})
@@ -483,26 +535,41 @@ export default function LamBaiClientPage({
       }
     }
     return (
-      <div className="min-h-screen flex items-center justify-center p-4">
+      <div
+        ref={submitResultRef}
+        className="min-h-screen flex items-center justify-center p-4"
+        id="exam-submit-result"
+        role="status"
+        aria-live="polite"
+      >
         <Card className="max-w-md w-full border-emerald-200 dark:border-emerald-800">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
               <CheckCircle className="h-6 w-6" />
-              Đã nộp bài
+              {t.examSubmittedTitle}
             </CardTitle>
+            {priorSubmissionResult ? (
+              <CardDescription className="text-sm leading-relaxed pt-1">
+                {t.examSubmittedSavedEarlier}
+              </CardDescription>
+            ) : null}
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-3xl font-bold">
-              Điểm {result.grade10}/10
+              {fillExamTemplate(t.examScoreOutOf10, { grade: result.grade10 })}
             </p>
             <p className="text-sm text-muted-foreground">
-              {result.score}/{result.maxScore} câu đúng ({pct}%)
+              {fillExamTemplate(t.examCorrectRatioLine, {
+                score: result.score,
+                max: result.maxScore,
+                pct,
+              })}
             </p>
             <p className="text-sm leading-relaxed">{result.comment}</p>
             {result.shareHint && (
               <Button variant="outline" size="sm" onClick={handleShare} className="w-full" disabled={shared}>
                 <Share2 className="h-4 w-4 mr-2" />
-                {shared ? 'Đã chia sẻ!' : result.shareHint}
+                {shared ? t.examShareDone : result.shareHint}
               </Button>
             )}
           </CardContent>

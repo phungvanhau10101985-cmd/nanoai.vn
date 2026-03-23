@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect, notFound } from 'next/navigation'
+import { redirectToLogin } from '@/lib/auth/login-redirect'
 import { getUserOrBypass } from '@/lib/auth'
 import { buildMetadata } from '@/lib/seo'
 import { getServerDictionary } from '@/lib/i18n/server'
@@ -19,7 +20,7 @@ export default async function GanPhieuPage({ params }: { params: Promise<{ id: s
   const { id: classId } = await params
   const supabase = createClient()
   const user = await getUserOrBypass(() => supabase.auth.getUser())
-  if (!user) redirect('/auth/login')
+  if (!user) redirectToLogin()
 
   const { data: cls } = await supabase
     .from('classes')

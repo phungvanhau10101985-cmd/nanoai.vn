@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { createClient as createServerClient } from '@/lib/supabase/server'
+import { getExamAttemptFeedback } from '@/lib/exam-feedback'
 import { shuffleArray, signExamLayoutToken } from '@/lib/exam-layout-token'
 import { getClassMemberExamIdentity } from '@/lib/lop/require-class-enrollment'
 
@@ -48,6 +49,33 @@ export async function GET(
       return NextResponse.json(
         { error: 'Không tìm thấy bài thi hoặc bài thi đã đóng.' },
         { status: 404, headers: NO_STORE_HEADERS }
+      )
+    }
+
+    const { data: priorAttempt, error: priorErr } = await supabase
+      .from('exam_attempts')
+      .select('score, max_score')
+      .eq('session_id', session.id)
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    if (!priorErr && priorAttempt) {
+      const sc = typeof priorAttempt.score === 'number' ? priorAttempt.score : 0
+      const mx = typeof priorAttempt.max_score === 'number' ? priorAttempt.max_score : 0
+      const feedback = getExamAttemptFeedback(sc, mx)
+      const durationMin = typeof session.duration_minutes === 'number' ? session.duration_minutes : 15
+      return NextResponse.json(
+        {
+          alreadySubmitted: true,
+          title: session.title ?? 'Bài thi',
+          durationMinutes: durationMin,
+          score: sc,
+          maxScore: mx,
+          grade10: feedback.grade10,
+          comment: feedback.comment,
+          shareHint: feedback.shareHint,
+        },
+        { headers: NO_STORE_HEADERS }
       )
     }
 

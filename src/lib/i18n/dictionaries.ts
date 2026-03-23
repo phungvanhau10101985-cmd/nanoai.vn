@@ -173,6 +173,16 @@ export type Dictionary = {
     examManualIdentityIntro: string
     examStartTestButton: string
     examOneAttemptNote: string
+    /** Trang lam-bai: đã nộp trước (máy khác / phiên khác) — hiển thị kết quả đã lưu */
+    examSubmittedTitle: string
+    examSubmittedSavedEarlier: string
+    /** Placeholder {grade} */
+    examScoreOutOf10: string
+    /** Placeholders {score}, {max}, {pct} */
+    examCorrectRatioLine: string
+    /** Placeholders {title}, {grade}, {score}, {max}, {pct} — chia sẻ kết quả */
+    examShareResultLine: string
+    examShareDone: string
     showStudentsAction: string
     hideStudentsAction: string
     examReviewAction: string
@@ -461,6 +471,12 @@ const VI_DICTIONARY: Dictionary = {
       'Nhập thông tin và bấm Bắt đầu để làm bài. Đồng hồ chỉ chạy sau khi bấm Bắt đầu.',
     examStartTestButton: 'Bắt đầu bài kiểm tra',
     examOneAttemptNote: 'Mỗi tài khoản chỉ được làm bài một lần.',
+    examSubmittedTitle: 'Đã nộp bài',
+    examSubmittedSavedEarlier: 'Bạn đã nộp bài thi này. Dưới đây là kết quả đã lưu.',
+    examScoreOutOf10: 'Điểm {grade}/10',
+    examCorrectRatioLine: '{score}/{max} câu đúng ({pct}%)',
+    examShareResultLine: '{title}: Điểm {grade}/10 ({score}/{max} đúng - {pct}%)',
+    examShareDone: 'Đã chia sẻ!',
     showStudentsAction: 'Xem học sinh làm bài',
     hideStudentsAction: 'Ẩn danh sách',
     examReviewAction: 'Chữa bài',
@@ -750,6 +766,12 @@ const EN_DICTIONARY: Dictionary = {
       'Enter your details and press Start to begin. The timer starts only after you press Start.',
     examStartTestButton: 'Start test',
     examOneAttemptNote: 'Each account can submit this test only once.',
+    examSubmittedTitle: 'Submitted',
+    examSubmittedSavedEarlier: 'You already submitted this test. Your saved result is below.',
+    examScoreOutOf10: 'Score: {grade}/10',
+    examCorrectRatioLine: '{score}/{max} correct ({pct}%)',
+    examShareResultLine: '{title}: Score {grade}/10 ({score}/{max} correct — {pct}%)',
+    examShareDone: 'Shared!',
     showStudentsAction: 'Show students',
     hideStudentsAction: 'Hide list',
     examReviewAction: 'Review',
@@ -1038,6 +1060,12 @@ const ZH_DICTIONARY: Dictionary = {
     examManualIdentityIntro: '请填写信息并点击开始答题；计时仅在点击开始后启动。',
     examStartTestButton: '开始测验',
     examOneAttemptNote: '每个账号只能提交一次。',
+    examSubmittedTitle: '已提交',
+    examSubmittedSavedEarlier: '您已提交过本场测验。以下是已保存的成绩。',
+    examScoreOutOf10: '得分 {grade}/10',
+    examCorrectRatioLine: '{score}/{max} 题正确（{pct}%）',
+    examShareResultLine: '{title}：得分 {grade}/10（{score}/{max} 正确 — {pct}%）',
+    examShareDone: '已分享！',
     showStudentsAction: '查看作答学生',
     hideStudentsAction: '收起列表',
     examReviewAction: '讲评',
@@ -1322,6 +1350,12 @@ const JA_DICTIONARY: Dictionary = {
     examManualIdentityIntro: '情報を入力して開始を押してください。タイマーは開始後に動きます。',
     examStartTestButton: 'テストを開始',
     examOneAttemptNote: 'アカウントごとに1回だけ受験できます。',
+    examSubmittedTitle: '提出済み',
+    examSubmittedSavedEarlier: 'このテストはすでに提出済みです。保存された結果は以下のとおりです。',
+    examScoreOutOf10: '得点 {grade}/10',
+    examCorrectRatioLine: '{score}/{max} 問正解（{pct}%）',
+    examShareResultLine: '{title}：得点 {grade}/10（{score}/{max} 正解 — {pct}%）',
+    examShareDone: '共有しました！',
     showStudentsAction: '受験した生徒を表示',
     hideStudentsAction: 'リストを隠す',
     examReviewAction: '解説',
@@ -1608,6 +1642,12 @@ const KO_DICTIONARY: Dictionary = {
     examManualIdentityIntro: '정보를 입력하고 시작을 누르세요. 타이머는 시작 후에만 작동합니다.',
     examStartTestButton: '시험 시작',
     examOneAttemptNote: '계정당 한 번만 응시할 수 있습니다.',
+    examSubmittedTitle: '제출 완료',
+    examSubmittedSavedEarlier: '이미 이 시험을 제출했습니다. 아래는 저장된 결과입니다.',
+    examScoreOutOf10: '점수 {grade}/10',
+    examCorrectRatioLine: '{score}/{max}문제 정답 ({pct}%)',
+    examShareResultLine: '{title}: 점수 {grade}/10 ({score}/{max} 정답 — {pct}%)',
+    examShareDone: '공유했습니다!',
     showStudentsAction: '응시 학생 보기',
     hideStudentsAction: '목록 숨기기',
     examReviewAction: '해설',

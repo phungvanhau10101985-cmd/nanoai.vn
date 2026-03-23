@@ -1,11 +1,16 @@
 import { createClient } from '@/lib/supabase/middleware'
-import { type NextRequest } from 'next/server'
+import { NextRequest } from 'next/server'
 import { DEFAULT_WEB_LOCALE, LOCALE_COOKIE_NAME, normalizeWebLocale } from '@/lib/i18n/config'
 
 const FORCE_REAL_LOGIN_COOKIE = 'force_real_login'
 
 export async function middleware(request: NextRequest) {
-  const { supabase, response } = createClient(request)
+  const pathForLogin = request.nextUrl.pathname + (request.nextUrl.search || '')
+  const forwarded = new Headers(request.headers)
+  forwarded.set('x-nanoai-login-next', pathForLogin)
+  const requestWithLoginNext = new NextRequest(request.url, { headers: forwarded })
+
+  const { supabase, response } = createClient(requestWithLoginNext)
   const cookieLocale = normalizeWebLocale(request.cookies.get(LOCALE_COOKIE_NAME)?.value)
 
   const { data: { user } } = await supabase.auth.getUser() // Validate with Auth server (getSession reads from storage, insecure)

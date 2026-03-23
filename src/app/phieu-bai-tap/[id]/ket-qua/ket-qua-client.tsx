@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, useLayoutEffect } from 'react'
 import Link from 'next/link'
 import { parseWorksheetMarkdown } from '@/lib/parse-worksheet-markdown'
 import { latexToReadable } from '@/app/tao-giao-trinh/lib/latex-to-readable'
@@ -50,9 +50,12 @@ export default function KetQuaClient({
   const parsed = useMemo(() => parseWorksheetMarkdown(worksheet.content_markdown), [worksheet.content_markdown])
   const quizAnswers = submission.answers_json?.quiz ?? {}
   const essayAnswers = submission.answers_json?.essay ?? {}
+  useLayoutEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+  }, [])
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-8">
+    <div className="max-w-3xl mx-auto px-4 py-8" id="worksheet-result-top">
       <header className="mb-6">
         <h1 className="text-xl font-bold text-foreground">{worksheet.topic}</h1>
         <p className="text-sm text-muted-foreground mt-1">

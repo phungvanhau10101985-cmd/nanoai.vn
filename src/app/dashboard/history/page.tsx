@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import { redirectToLogin } from '@/lib/auth/login-redirect'
 import { getUserOrBypass } from '@/lib/auth'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -21,7 +22,7 @@ export default async function HistoryPage() {
   const supabase = createClient()
 
   const user = await getUserOrBypass(() => supabase.auth.getUser())
-  if (!user) redirect('/auth/login')
+  if (!user) redirectToLogin()
 
   const { data: history, error } = await supabase
     .from('try_on_history')

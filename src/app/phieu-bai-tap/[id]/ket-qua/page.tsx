@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect, notFound } from 'next/navigation'
+import { redirectToLogin } from '@/lib/auth/login-redirect'
 import { getUserOrBypass } from '@/lib/auth'
 import { buildMetadata } from '@/lib/seo'
 import { getServerDictionary } from '@/lib/i18n/server'
@@ -37,7 +38,7 @@ export default async function KetQuaPage({
   const { classId } = await searchParams
   const supabase = createClient()
   const user = await getUserOrBypass(() => supabase.auth.getUser())
-  if (!user) redirect('/auth/login')
+  if (!user) redirectToLogin()
 
   if (!classId) notFound()
 

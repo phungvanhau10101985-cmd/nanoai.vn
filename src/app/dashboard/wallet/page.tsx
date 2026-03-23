@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import { redirectToLogin } from '@/lib/auth/login-redirect'
 import { getUserOrBypass } from '@/lib/auth'
 import WalletClientPage from './wallet-client-page'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -13,7 +14,7 @@ export default async function WalletPage() {
     locale === 'en' ? en : locale === 'zh' ? zh : locale === 'ja' ? ja : locale === 'ko' ? ko : vi
   const supabase = createClient()
   const user = await getUserOrBypass(() => supabase.auth.getUser())
-  if (!user) redirect('/auth/login')
+  if (!user) redirectToLogin()
 
   const { data: transactions } = await supabase
     .from('transactions')

@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import { redirectToLogin } from '@/lib/auth/login-redirect'
 import { getUserOrBypass } from '@/lib/auth'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -39,7 +40,7 @@ export default async function DashboardPage() {
   }
   const supabase = createClient()
   const user = await getUserOrBypass(() => supabase.auth.getUser())
-  if (!user) redirect('/auth/login')
+  if (!user) redirectToLogin()
 
   const { data: credits } = await supabase
     .from('credits')

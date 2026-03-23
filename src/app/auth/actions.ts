@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
+import { sanitizeLoginNext } from '@/lib/auth/sanitize-login-next'
 
 const PRODUCTION_URL = 'https://nanoai.vn'
 
@@ -38,11 +39,18 @@ function getBaseUrl(): string {
   return envUrl ?? 'http://localhost:3000'
 }
 
+function nextQueryFromForm(formData: FormData): string {
+  const raw = String(formData.get('next') ?? '').trim()
+  if (!raw) return ''
+  return `&next=${encodeURIComponent(sanitizeLoginNext(raw))}`
+}
+
 export async function login(formData: FormData) {
   if (!formData || typeof formData.get !== 'function') {
     redirect('/auth/login?error=Invalid request')
   }
   const supabase = createClient()
+  const nq = nextQueryFromForm(formData)
 
   const email = formData.get('email') as string
   const password = formData.get('password') as string
@@ -53,11 +61,11 @@ export async function login(formData: FormData) {
   })
 
   if (error) {
-    redirect('/auth/login?error=Could not authenticate user')
+    redirect(`/auth/login?error=Could not authenticate user${nq}`)
   }
 
   revalidatePath('/', 'layout')
-  redirect('/dashboard')
+  redirect(sanitizeLoginNext(String(formData.get('next') ?? '')))
 }
 
 export async function signup(formData: FormData) {
@@ -65,6 +73,7 @@ export async function signup(formData: FormData) {
     redirect('/auth/login?error=Invalid request')
   }
   const supabase = createClient()
+  const nq = nextQueryFromForm(formData)
 
   const email = formData.get('email') as string
   const password = formData.get('password') as string
@@ -81,17 +90,16 @@ export async function signup(formData: FormData) {
   })
 
   if (error) {
-    redirect('/auth/login?error=Could not create user')
+    redirect(`/auth/login?error=Could not create user${nq}`)
   }
 
   revalidatePath('/', 'layout')
-  redirect('/dashboard')
+  redirect(sanitizeLoginNext(String(formData.get('next') ?? '')))
 }
 
 export async function signInWithGoogle(formData: FormData) {
   const supabase = createClient()
-  const nextRaw = String(formData.get('next') ?? '').trim()
-  const nextPath = nextRaw.startsWith('/') && !nextRaw.startsWith('//') ? nextRaw : '/dashboard'
+  const nextPath = sanitizeLoginNext(String(formData.get('next') ?? ''))
 
   // Luôn dùng PRODUCTION_URL cho OAuth callback (tránh redirect về localhost)
   const baseUrl = getBaseUrl()
@@ -106,7 +114,8 @@ export async function signInWithGoogle(formData: FormData) {
   })
 
   if (error) {
-    redirect('/auth/login?error=Could not authenticate with Google')
+    const nq = nextQueryFromForm(formData)
+    redirect(`/auth/login?error=Could not authenticate with Google${nq}`)
   }
 
   if (data.url) {

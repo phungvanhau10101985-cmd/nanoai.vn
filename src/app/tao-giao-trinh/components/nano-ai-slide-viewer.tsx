@@ -1974,7 +1974,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
           presentationMode === 'slide-interaction' && 'pointer-events-auto'
         )}
       >
-        <div className="[direction:ltr] w-max">
+        <div className="[direction:ltr] w-full md:w-max">
           <PresentationControlBar
             variant={isWorksheetTeacher || presentationMode === 'slide-interaction' ? 'teacher' : 'student'}
             tr={tr}
@@ -2481,10 +2481,10 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         >
           {!isTeacherView && !worksheetPresentation && slides.length > 0 && (
             <div
-              className="flex h-12 shrink-0 items-center border-b border-slate-200 bg-white px-3 shadow-sm print:hidden md:h-14 md:px-6 lg:px-8 landscape:px-6"
+              className="flex h-12 shrink-0 items-center overflow-x-auto border-b border-slate-200 bg-white px-3 shadow-sm print:hidden md:h-14 md:px-6 lg:px-8 landscape:px-6"
               data-control="student-curriculum-mode"
             >
-              <div className="ml-2 flex min-w-0 flex-1 flex-wrap items-center gap-2 sm:flex-nowrap md:ml-[50px] md:flex-none md:gap-2.5">
+              <div className="ml-0 flex min-w-0 flex-1 items-center gap-2 whitespace-nowrap md:ml-[50px] md:flex-none md:gap-2.5 md:whitespace-normal">
               <button
                 type="button"
                 data-control="student-curriculum-all"

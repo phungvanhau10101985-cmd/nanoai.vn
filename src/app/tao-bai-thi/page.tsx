@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import { redirectToLogin } from '@/lib/auth/login-redirect'
 import { getUserOrBypass } from '@/lib/auth'
 import TaoBaiThiClientPage from './tao-bai-thi-client-page'
 import { buildMetadata, buildJsonLdService, SITE_URL } from '@/lib/seo'
@@ -20,7 +21,7 @@ export const metadata = buildMetadata({
 export default async function TaoBaiThiPage() {
   const supabase = createClient()
   const user = await getUserOrBypass(() => supabase.auth.getUser())
-  if (!user) redirect('/auth/login')
+  if (!user) redirectToLogin()
 
   const jsonLd = buildJsonLdService(
     seo.serviceName,

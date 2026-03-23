@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import { redirectToLogin } from '@/lib/auth/login-redirect'
 import { getUserOrBypass } from '@/lib/auth'
 import TaoBannerClientPage from './tao-banner-client-page'
 import { Metadata } from 'next'
@@ -21,7 +22,7 @@ export const metadata: Metadata = buildMetadata({
 export default async function TaoBannerPage() {
   const supabase = createClient()
   const user = await getUserOrBypass(() => supabase.auth.getUser())
-  if (!user) redirect('/auth/login')
+  if (!user) redirectToLogin()
 
   const jsonLd = buildJsonLdService(
     seo.serviceName,

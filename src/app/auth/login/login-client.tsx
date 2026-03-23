@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { signInWithGoogle } from '../actions'
+import { sanitizeLoginNext } from '@/lib/auth/sanitize-login-next'
 import { Chrome } from 'lucide-react'
 
 type LoginClientProps = {
@@ -46,7 +47,7 @@ function useFormSubmitWithNgrok() {
 }
 
 export default function LoginClient({ message, error, nextPath }: LoginClientProps) {
-  const safeNextPath = nextPath && nextPath.startsWith('/') && !nextPath.startsWith('//') ? nextPath : '/dashboard'
+  const safeNextPath = sanitizeLoginNext(nextPath)
   const [uiLocale, setUiLocale] = useState<'vi' | 'en' | 'zh' | 'ja' | 'ko'>('vi')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const handleGoogleNgrok = useFormSubmitWithNgrok()

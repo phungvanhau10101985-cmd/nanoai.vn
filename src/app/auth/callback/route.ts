@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { FORCE_REAL_LOGIN_COOKIE } from '@/lib/auth'
+import { sanitizeLoginNext } from '@/lib/auth/sanitize-login-next'
 
 export async function GET(request: Request) {
   const url = new URL(request.url)
@@ -17,8 +18,7 @@ export async function GET(request: Request) {
       ? `${forwardedProto}://${forwardedHost}`.replace(/\/$/, '')
       : (envOrigin || url.origin)
   const code = searchParams.get('code')
-  // if "next" is in param, use it as the redirect URL
-  const next = searchParams.get('next') ?? '/'
+  const next = sanitizeLoginNext(searchParams.get('next'))
 
   if (code) {
     const supabase = createClient()

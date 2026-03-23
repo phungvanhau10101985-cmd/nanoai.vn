@@ -8,7 +8,8 @@ import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/sonner'
 import { Upload, Shirt, Sparkles, Download, RefreshCw, User, Loader2, Zap } from 'lucide-react'
 import Image from 'next/image'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
+import { sanitizeLoginNext } from '@/lib/auth/sanitize-login-next'
 import { cn } from '@/lib/utils'
 
 type Step = 'UPLOAD' | 'GENERATING' | 'RESULT'
@@ -29,6 +30,7 @@ export default function HomeTryOn() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const { toast } = useToast()
   const router = useRouter()
+  const pathname = usePathname()
   const tr = (vi: string, en: string, zh: string, ja: string, ko: string) => {
     if (uiLocale === 'en') return en
     if (uiLocale === 'zh') return zh
@@ -95,7 +97,8 @@ export default function HomeTryOn() {
       if (result.error) {
         if (result.error === 'Authentication required.') {
            toast({ title: tr('Yêu cầu đăng nhập', 'Login required', '需要登录', 'ログインが必要です', '로그인이 필요합니다'), description: tr('Vui lòng đăng nhập để sử dụng tính năng này.', 'Please sign in to use this feature.', '请登录后使用此功能。', 'この機能を使うにはログインしてください。', '이 기능을 사용하려면 로그인해 주세요.'), variant: 'default' })
-           router.push('/auth/login')
+           const next = sanitizeLoginNext(pathname || '/')
+           router.push(`/auth/login?next=${encodeURIComponent(next)}`)
         } else {
            toast({ title: tr('Thất bại', 'Failed', '失败', '失敗', '실패'), description: result.error, variant: 'destructive' })
            setStep('UPLOAD')

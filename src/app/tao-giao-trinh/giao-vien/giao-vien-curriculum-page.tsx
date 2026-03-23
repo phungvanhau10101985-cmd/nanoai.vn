@@ -2829,8 +2829,8 @@ export default function CurriculumViewPage() {
 
       <header className="shrink-0 border-b border-slate-700/80 bg-slate-900/80 backdrop-blur-sm flex flex-col">
         {/* Hàng thông tin – mobile: wrap, desktop: flex-nowrap */}
-        <div className="px-3 md:px-5 py-2 flex items-center justify-end gap-2 md:gap-3 flex-wrap md:flex-nowrap landscape:flex-nowrap min-w-0 overflow-x-hidden">
-          <div className="flex items-center gap-2 md:gap-3 flex-wrap md:flex-nowrap landscape:flex-nowrap shrink-0">
+        <div className="px-3 md:px-5 py-2 flex items-center justify-end gap-2 md:gap-3 flex-wrap md:flex-nowrap landscape:flex-nowrap min-w-0 overflow-x-auto">
+          <div className="flex items-center gap-2 md:gap-3 flex-wrap md:flex-nowrap landscape:flex-nowrap shrink-0 min-w-max">
             <span className="text-xs md:text-sm font-medium tabular-nums shrink-0 text-slate-300">{currentIndex + 1}/{slideTitles.length || slides.length}</span>
             <h1 className="text-sm md:text-base font-semibold text-amber-400/95 tracking-tight">
               {worksheetId ? tr('Phiếu bài tập + Ghi chú', 'Worksheet + Notes', '练习+备注', 'ワークシート+メモ', '워크시트+메모') : tr('Giáo trình + Ghi chú', 'Curriculum + Notes', '课程+备注', 'カリキュラム+メモ', '교육과정+메모')}
@@ -2943,11 +2943,11 @@ export default function CurriculumViewPage() {
               !narrowTeacherLayout && (leftPanelMode === 'visual' ? 'w-[45%]' : 'w-1/2')
             )}
           >
-            <div className="h-12 px-3 md:px-4 text-slate-400 text-xs font-medium uppercase tracking-wider border-b border-slate-700/60 bg-slate-900/30 shrink-0 flex items-center justify-between gap-2 overflow-hidden">
+            <div className="h-12 px-3 md:px-4 text-slate-400 text-xs font-medium uppercase tracking-wider border-b border-slate-700/60 bg-slate-900/30 shrink-0 flex items-center justify-between gap-2 overflow-x-auto overflow-y-hidden">
               <span>{worksheetId ? tr('Phiếu bài tập', 'Worksheet', '练习', 'ワークシート', '워크시트') : tr('Giáo trình', 'Curriculum', '课程', 'カリキュラム', '교육과정')}</span>
               <div
                 className={cn(
-                  'flex items-center gap-2 mr-[1px]',
+                  'flex items-center gap-2 mr-[1px] shrink-0',
                   !narrowTeacherLayout && leftPanelMode === 'curriculum' && '-translate-x-[66px]',
                   !narrowTeacherLayout && leftPanelMode === 'visual' && 'translate-x-[20px]'
                 )}
