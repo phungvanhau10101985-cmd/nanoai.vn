@@ -70,7 +70,7 @@ export function HeaderUserMenu({ user, credits, isAdmin, t }: HeaderUserMenuProp
             className="relative h-10 w-10 sm:h-8 sm:w-8 rounded-full cursor-pointer min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0"
             aria-label={t.menu.accountMenu}
           >
-            <Avatar className="h-8 w-8">
+            <Avatar className="pointer-events-none h-8 w-8">
               <AvatarImage src={user.user_metadata?.avatar_url} alt={user.email} />
               <AvatarFallback>{user.email?.charAt(0).toUpperCase()}</AvatarFallback>
             </Avatar>

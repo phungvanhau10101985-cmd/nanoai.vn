@@ -212,7 +212,7 @@ export default function CheAnhClientPage() {
   return (
     <>
       <Toaster />
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
+      <div className="tool-page-container">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-foreground">{tr('Chế ảnh', 'Meme Image Editor', '表情包图片编辑', 'ミーム画像編集', '밈 이미지 편집')}</h1>
           <p className="text-muted-foreground mt-1">{tr('Chọn ảnh (tối đa 13), mô tả ý tưởng. AI biến tấu ảnh theo yêu cầu. 1,5–3 credits/ảnh.', 'Select images (max 13), describe idea. AI transforms images per request. 1.5–3 credits/image.', '选择图片（最多 13 张），描述想法。AI 按要求变换图片。1.5–3 积分/张。', '画像を選択（最大13枚）、アイデアを記述。AIが要望に応じて変形。1.5〜3クレジット/枚。', '이미지 선택 (최대 13장), 아이디어 설명. AI가 요청대로 변형. 1.5–3 크레딧/장.')}</p>

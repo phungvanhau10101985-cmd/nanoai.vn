@@ -168,7 +168,7 @@ export default async function LopDetailPage({ params }: { params: Promise<{ id: 
 
   return (
     <div className="app-shell min-h-screen">
-      <div className="max-w-2xl mx-auto px-4 py-8">
+      <div className="mx-auto max-w-2xl px-4 py-8 lg:max-w-3xl lg:px-6 lg:py-10">
         <Link href="/lop" className="text-sm text-muted-foreground hover:text-foreground mb-4 inline-block">
           ← {t.classes.backToList}
         </Link>

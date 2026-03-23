@@ -1,10 +1,20 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
-import { Copy } from 'lucide-react'
+import { Copy, Trash2 } from 'lucide-react'
 import Link from 'next/link'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
 
@@ -35,6 +45,9 @@ export default function LopDetailClient({
   const [editingClassName, setEditingClassName] = useState(false)
   const [renamingClass, setRenamingClass] = useState(false)
   const [expandedExamSessionId, setExpandedExamSessionId] = useState<string | null>(null)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [deletingClass, setDeletingClass] = useState(false)
+  const router = useRouter()
   const { toast } = useToast()
   const sortedExamAttempts = useMemo(
     () =>
@@ -165,9 +178,21 @@ export default function LopDetailClient({
                 </Button>
               </>
             ) : (
-              <Button variant="outline" size="sm" onClick={() => setEditingClassName(true)}>
-                {t.renameClass}
-              </Button>
+              <>
+                <Button variant="outline" size="sm" onClick={() => setEditingClassName(true)}>
+                  {t.renameClass}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  onClick={() => setDeleteDialogOpen(true)}
+                >
+                  <Trash2 className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+                  {t.deleteClass}
+                </Button>
+              </>
             )}
           </div>
         )}
@@ -338,6 +363,42 @@ export default function LopDetailClient({
           )}
         </section>
       )}
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t.deleteClassConfirmTitle}</AlertDialogTitle>
+            <AlertDialogDescription>{t.deleteClassConfirmDescription}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingClass}>{t.cancelAction}</AlertDialogCancel>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={deletingClass}
+              onClick={async () => {
+                setDeletingClass(true)
+                const res = await fetch(`/api/lop/${cls.id}`, { method: 'DELETE' })
+                const data = await res.json().catch(() => ({}))
+                setDeletingClass(false)
+                if (!res.ok) {
+                  toast({
+                    variant: 'destructive',
+                    description: typeof data?.error === 'string' ? data.error : t.deleteClassFailed,
+                  })
+                  return
+                }
+                setDeleteDialogOpen(false)
+                toast({ description: t.deleteClassSuccess })
+                router.push('/lop')
+                router.refresh()
+              }}
+            >
+              {deletingClass ? t.deleteClassDeleting : t.deleteClassConfirmAction}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   )
 }

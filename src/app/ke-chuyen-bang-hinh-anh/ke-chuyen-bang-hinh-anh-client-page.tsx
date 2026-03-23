@@ -103,7 +103,7 @@ export default function KeChuyenBangHinhAnhClientPage() {
   return (
     <>
       <Toaster />
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
+      <div className="tool-page-container">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-foreground">{tr('Kể chuyện bằng hình ảnh', 'Story with images', '图像讲故事', '画像でストーリー', '이미지로 이야기')}</h1>
           <p className="text-muted-foreground mt-1">{tr('Đưa ý tưởng. AI viết câu chuyện dẫn dắt đúng chuẩn khoa học (không bịa) rồi tạo ảnh minh họa, chữ tiếng Việt. 3–6 credits/ảnh.', 'Submit an idea. AI writes a science-based story and creates illustrated images. 3–6 credits/image.', '提交想法。AI 撰写科学故事并生成插图。每张 3–6 积分。', 'アイデアを入力。AIが科学的なストーリーを書き、イラスト画像を作成。3–6クレジット/枚。', '아이디어를 입력하세요. AI가 과학적 스토리를 작성하고 일러스트 이미지를 생성합니다. 3–6 크레딧/장.')}</p>

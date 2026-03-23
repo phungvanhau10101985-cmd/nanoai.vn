@@ -34,6 +34,7 @@ export default function ThamGiaForm({ t }: { t: Dictionary['classes'] }) {
   return (
     <>
       <Toaster />
+      <p className="text-sm text-muted-foreground mb-4 leading-relaxed">{t.joinClassRoleHint}</p>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label htmlFor="code" className="block text-sm font-medium text-foreground mb-2">

@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 import { getUserOrBypass } from '@/lib/auth'
 import { buildMetadata } from '@/lib/seo'
 import { getServerDictionary } from '@/lib/i18n/server'
-import Link from 'next/link'
+import { CreationToolPageShell } from '@/components/layout/creation-tool-page-shell'
 import TaoLopForm from './tao-lop-form'
 
 export const metadata = buildMetadata({
@@ -22,13 +22,12 @@ export default async function TaoLopPage() {
 
   return (
     <div className="app-shell min-h-screen">
-      <div className="max-w-md mx-auto px-4 py-8">
-        <Link href="/lop" className="text-sm text-muted-foreground hover:text-foreground mb-4 inline-block">
-          ← {t.classes.backToList}
-        </Link>
-        <h1 className="text-xl font-bold text-foreground mb-6">{t.classes.createClass}</h1>
-        <TaoLopForm t={t.classes} />
-      </div>
+      <CreationToolPageShell backHref="/lop" currentHref="/lop/tao">
+        <div className="mx-auto max-w-md px-4 py-8">
+          <h1 className="text-xl font-bold text-foreground mb-6">{t.classes.createClass}</h1>
+          <TaoLopForm t={t.classes} />
+        </div>
+      </CreationToolPageShell>
     </div>
   )
 }

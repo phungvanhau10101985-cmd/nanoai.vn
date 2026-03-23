@@ -72,10 +72,12 @@ export default async function TranslateHistoryPage() {
   const batches = groupByBatch(history ?? [])
 
   return (
-    <div className="app-shell space-y-6 md:space-y-8">
+    <div className="app-shell space-y-6 md:space-y-8 lg:space-y-8 xl:space-y-10">
       <Toaster />
-      <div className="section-surface flex items-center justify-between flex-wrap gap-2">
-        <h1 className="text-3xl font-bold tracking-tight">{tr('Lịch sử dịch ảnh', 'Translation history', '翻译记录', '翻訳履歴', '번역 기록')}</h1>
+      <div className="section-surface flex flex-wrap items-center justify-between gap-2">
+        <h1 className="text-3xl font-bold tracking-tight lg:text-[2rem] xl:text-4xl">
+          {tr('Lịch sử dịch ảnh', 'Translation history', '翻译记录', '翻訳履歴', '번역 기록')}
+        </h1>
         <div className="flex items-center gap-3 flex-wrap">
           <p className="text-muted-foreground">
             {history?.length || 0} {tr('kết quả', 'results', '条结果', '件', '개 결과')} • {batches.length} {tr('gói', 'batches', '批次', 'バッチ', '묶음')}

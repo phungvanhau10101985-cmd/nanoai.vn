@@ -55,9 +55,9 @@ export default async function DashboardPage() {
     .limit(5)
 
   return (
-    <div className="app-shell space-y-6 md:space-y-8">
+    <div className="app-shell space-y-6 md:space-y-8 lg:space-y-8 xl:space-y-10">
       <div className="section-surface flex items-center justify-between">
-        <h2 className="text-xl sm:text-3xl font-bold tracking-tight">{ui.title}</h2>
+        <h2 className="text-xl font-bold tracking-tight sm:text-3xl lg:text-[1.75rem] xl:text-4xl">{ui.title}</h2>
       </div>
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
         <Card className="tool-tile">
@@ -94,15 +94,15 @@ export default async function DashboardPage() {
         </Card>
       </div>
 
-      <div className="section-surface space-y-6">
-        <h3 className="text-lg sm:text-xl font-semibold">{ui.aiTools}</h3>
+      <div className="section-surface space-y-6 lg:space-y-7">
+        <h3 className="text-lg font-semibold sm:text-xl lg:text-[1.35rem]">{ui.aiTools}</h3>
         {NAV_GROUPS.map((group) => (
-          <div key={group.titleKey} className="space-y-3">
-            <h4 className="flex items-center gap-2 text-sm font-semibold text-muted-foreground sm:text-base">
-              <span className="h-1 w-8 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500" />
+          <div key={group.titleKey} className="space-y-3 lg:space-y-4">
+            <h4 className="flex items-center gap-2 text-sm font-semibold text-muted-foreground sm:text-base lg:gap-2.5 lg:text-[15px]">
+              <span className="h-1 w-8 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 lg:w-10" />
               {t.navGroup[group.titleKey]}
             </h4>
-            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 sm:gap-3 lg:grid-cols-5">
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 sm:gap-3 lg:grid-cols-5 lg:gap-4">
               {group.links.map((item) => (
                 <NavHubLinkTile key={item.href} item={item} t={t} variant="card" />
               ))}

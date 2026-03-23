@@ -115,7 +115,7 @@ export default function ThietKeLogoClientPage() {
   return (
     <>
       <Toaster />
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
+      <div className="tool-page-container">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-foreground">{tr('Thiết kế logo thương hiệu', 'Brand Logo Design', '品牌 Logo 设计', 'ブランドロゴデザイン', '브랜드 로고 디자인')}</h1>
           <p className="text-muted-foreground mt-1">{tr('Mô tả thương hiệu, tải ảnh tham khảo. AI tạo logo chuyên nghiệp. 1,5-3 credits/ảnh.', 'Describe your brand, upload references, and let AI create professional logos. 1.5-3 credits/image.', '描述品牌并上传参考图，AI 生成专业 Logo。1.5-3 credits/张。', 'ブランド説明と参考画像でAIがロゴを生成。1.5-3 credits/枚。', '브랜드 설명과 참고 이미지로 AI가 로고를 생성합니다. 1.5-3 credits/장.')}</p>

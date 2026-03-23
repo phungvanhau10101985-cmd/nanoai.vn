@@ -12,8 +12,8 @@ export function NavHubLinkTile({ item, t, variant }: { item: NavGroupLinkItem; t
   if (subLinks?.length) {
     if (variant === 'card') {
       return (
-        <Card className="tool-tile h-full border-border/70 shadow-sm">
-          <CardContent className="flex h-full flex-col gap-0 p-2 sm:p-3">
+        <Card className="tool-tile h-full border-border/70 shadow-sm lg:shadow-md">
+          <CardContent className="flex h-full flex-col gap-0 p-2 sm:p-3 lg:p-3.5">
             <Link
               href={item.href}
               className="group flex min-h-[100px] flex-col items-center justify-center gap-2 rounded-lg p-1 text-center transition-colors hover:bg-muted/40 sm:min-h-[112px]"
@@ -86,8 +86,8 @@ export function NavHubLinkTile({ item, t, variant }: { item: NavGroupLinkItem; t
   if (variant === 'card') {
     return (
       <Link href={item.href}>
-        <Card className="tool-tile cursor-pointer">
-          <CardContent className="flex min-h-[132px] flex-col items-center justify-center gap-2 p-2 text-center sm:min-h-[152px] sm:p-3">
+        <Card className="tool-tile cursor-pointer lg:shadow-md">
+          <CardContent className="flex min-h-[132px] flex-col items-center justify-center gap-2 p-2 text-center sm:min-h-[152px] sm:p-3 lg:min-h-[160px] lg:p-3.5">
             <div className="flex aspect-square w-full max-w-[92px] items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500/10 to-indigo-500/10 sm:max-w-[106px]">
               <Icon className="h-[82%] w-[82%] text-blue-600 dark:text-blue-400" />
             </div>

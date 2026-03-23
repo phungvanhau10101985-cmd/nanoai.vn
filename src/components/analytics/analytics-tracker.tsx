@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
-import { usePathname, useSearchParams } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 
 declare global {
   interface Window {
@@ -16,6 +16,7 @@ const FEATURE_ROUTES = [
   '/lam-dep-anh',
   '/ghep-anh',
   '/tao-banner',
+  '/tao-anh-tu-chu',
   '/tao-anh-the',
   '/thiet-ke-logo',
   '/ke-chuyen-bang-hinh-anh',
@@ -47,15 +48,15 @@ function track(eventName: string, params: Record<string, unknown> = {}) {
 
 export function AnalyticsTracker() {
   const pathname = usePathname()
-  const searchParams = useSearchParams()
 
+  // Không dùng useSearchParams — Next có thể chèn <input> trong shell SSR và gây lỗi hydrate với Suspense.
   useEffect(() => {
-    const pagePath = `${pathname}${searchParams?.toString() ? `?${searchParams.toString()}` : ''}`
+    const pagePath = `${pathname}${window.location.search}`
     track('page_view', {
       page_path: pagePath,
       page_title: document.title,
     })
-  }, [pathname, searchParams])
+  }, [pathname])
 
   useEffect(() => {
     const onClick = (evt: MouseEvent) => {

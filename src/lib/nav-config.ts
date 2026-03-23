@@ -14,6 +14,7 @@ import {
   Stamp,
   BookOpen,
   FileQuestion,
+  Wand2,
 } from 'lucide-react'
 import { TryOnIcon } from '@/components/icons/try-on-icon'
 import { ImageRestorationIcon } from '@/components/icons/image-restoration-icon'
@@ -69,6 +70,7 @@ export const AI_TOOLS = [
   { href: '/lam-dep-anh', labelKey: 'beautify_image' as ToolKey, icon: LamDepAnhIcon },
   { href: '/ghep-anh', labelKey: 'merge_image' as ToolKey, icon: GhepAnhIcon },
   { href: '/tao-banner', labelKey: 'create_banner' as ToolKey, icon: TaoBannerIcon },
+  { href: '/tao-anh-tu-chu', labelKey: 'text_to_image' as ToolKey, icon: Wand2 },
   { href: '/tao-anh-the', labelKey: 'create_id_photo' as ToolKey, icon: TaoAnhTheIcon },
   { href: '/thiet-ke-logo', labelKey: 'design_logo' as ToolKey, icon: ThietKeLogoIcon },
   { href: '/ke-chuyen-bang-hinh-anh', labelKey: 'story_with_images' as ToolKey, icon: KeChuyenBangHinhAnhIcon },
@@ -128,6 +130,7 @@ export const NAV_GROUPS: readonly NavGroupConfig[] = [
     titleKey: 'design_creative' as NavGroupKey,
     links: [
       { href: '/tao-banner', labelKey: 'create_banner' as ToolKey, icon: TaoBannerIcon },
+      { href: '/tao-anh-tu-chu', labelKey: 'text_to_image' as ToolKey, icon: Wand2 },
       { href: '/tao-anh-the', labelKey: 'create_id_photo' as ToolKey, icon: TaoAnhTheIcon },
       { href: '/thiet-ke-logo', labelKey: 'design_logo' as ToolKey, icon: ThietKeLogoIcon },
       { href: '/ke-chuyen-bang-hinh-anh', labelKey: 'story_with_images' as ToolKey, icon: KeChuyenBangHinhAnhIcon },

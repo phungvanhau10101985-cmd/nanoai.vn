@@ -18,6 +18,7 @@ export type ToolKey =
   | 'beautify_image'
   | 'merge_image'
   | 'create_banner'
+  | 'text_to_image'
   | 'create_id_photo'
   | 'design_logo'
   | 'story_with_images'
@@ -49,6 +50,7 @@ export type ToolKey =
   | 'ai_language_learning'
   | 'create_curriculum'
   | 'create_exam'
+  | 'online_exam'
   | 'classes'
   | 'try_on_1'
   | 'try_on_2'
@@ -101,11 +103,17 @@ export type Dictionary = {
   }
   navGroup: Record<NavGroupKey, string>
   tool: Record<ToolKey, string>
+  creationSidebar: {
+    back: string
+    relatedTitle: string
+    popularTitle: string
+  }
   classes: {
     title: string
     myClasses: string
     createClass: string
     joinClass: string
+    joinClassRoleHint: string
     className: string
     joinCode: string
     copyCode: string
@@ -155,6 +163,13 @@ export type Dictionary = {
     wrongLabel: string
     scoreLabel: string
     questionSuffix: string
+    deleteClass: string
+    deleteClassConfirmTitle: string
+    deleteClassConfirmDescription: string
+    deleteClassConfirmAction: string
+    deleteClassFailed: string
+    deleteClassSuccess: string
+    deleteClassDeleting: string
   }
   /** Trang công khai /phieu-bai-tap/[id] — lời giải & đáp án */
   worksheetSolutionPage: {
@@ -265,6 +280,7 @@ const VI_DICTIONARY: Dictionary = {
     beautify_image: 'Làm đẹp ảnh',
     merge_image: 'Ghép ảnh',
     create_banner: 'Tạo banner',
+    text_to_image: 'Tạo ảnh bằng chữ',
     create_id_photo: 'Tạo ảnh thẻ',
     design_logo: 'Thiết kế logo',
     story_with_images: 'Kể chuyện bằng ảnh',
@@ -296,6 +312,7 @@ const VI_DICTIONARY: Dictionary = {
     ai_language_learning: 'Học ngoại ngữ AI',
     create_curriculum: 'Tạo giáo trình',
     create_exam: 'Tạo đề trắc nghiệm',
+    online_exam: 'Tạo bài thi trực tuyến',
     classes: 'Lớp học',
     try_on_1: 'Thử đồ 1 người',
     try_on_2: 'Thử đồ 2 người',
@@ -304,11 +321,18 @@ const VI_DICTIONARY: Dictionary = {
     try_on_5: 'Thử đồ 5 người',
     admin: 'Quản trị',
   },
+  creationSidebar: {
+    back: 'Quay lại',
+    relatedTitle: 'Liên quan',
+    popularTitle: 'Nhiều người dùng',
+  },
   classes: {
     title: 'Lớp học',
     myClasses: 'Lớp của tôi',
     createClass: 'Tạo lớp',
     joinClass: 'Tham gia lớp',
+    joinClassRoleHint:
+      'Tham gia bằng mã lớp: bạn là học sinh/thành viên. Mở link hoặc mã làm bài thi cũng chỉ đăng ký bạn là học sinh. Thầy/cô là người đã tạo lớp và người đã tạo bài thi — không đổi được qua mã hay link tham gia.',
     className: 'Tên lớp',
     joinCode: 'Mã tham gia',
     copyCode: 'Sao chép mã',
@@ -358,6 +382,14 @@ const VI_DICTIONARY: Dictionary = {
     wrongLabel: 'Sai',
     scoreLabel: 'Điểm',
     questionSuffix: 'câu',
+    deleteClass: 'Xóa lớp',
+    deleteClassConfirmTitle: 'Xóa lớp này?',
+    deleteClassConfirmDescription:
+      'Không thể hoàn tác. Thành viên, phiếu đã gán và bài nộp của lớp sẽ bị xóa. Phiếu bài tập gốc trong giáo trình vẫn được giữ.',
+    deleteClassConfirmAction: 'Xóa vĩnh viễn',
+    deleteClassFailed: 'Không xóa được lớp.',
+    deleteClassSuccess: 'Đã xóa lớp.',
+    deleteClassDeleting: 'Đang xóa…',
   },
   worksheetSolutionPage: {
     metaTitlePrefix: 'Lời giải',
@@ -468,6 +500,7 @@ const EN_DICTIONARY: Dictionary = {
     beautify_image: 'Beautify Image',
     merge_image: 'Merge Images',
     create_banner: 'Create Banner',
+    text_to_image: 'Text-to-image',
     create_id_photo: 'Create ID Photo',
     design_logo: 'Design Logo',
     story_with_images: 'Story with Images',
@@ -499,6 +532,7 @@ const EN_DICTIONARY: Dictionary = {
     ai_language_learning: 'AI Language Learning',
     create_curriculum: 'Create curriculum',
     create_exam: 'Create exam',
+    online_exam: 'Online exam (live session)',
     classes: 'Classes',
     try_on_1: 'Try-on 1 Person',
     try_on_2: 'Try-on 2 People',
@@ -507,11 +541,18 @@ const EN_DICTIONARY: Dictionary = {
     try_on_5: 'Try-on 5 People',
     admin: 'Admin',
   },
+  creationSidebar: {
+    back: 'Back',
+    relatedTitle: 'Related',
+    popularTitle: 'Popular tools',
+  },
   classes: {
     title: 'Classes',
     myClasses: 'My classes',
     createClass: 'Create class',
     joinClass: 'Join class',
+    joinClassRoleHint:
+      'Class code: you join as a student/member. Opening an exam link or code also only registers you as a student. Teachers are whoever created the class and whoever created the exam — codes and links never grant teacher access.',
     className: 'Class name',
     joinCode: 'Join code',
     copyCode: 'Copy code',
@@ -561,6 +602,14 @@ const EN_DICTIONARY: Dictionary = {
     wrongLabel: 'Wrong',
     scoreLabel: 'Score',
     questionSuffix: 'questions',
+    deleteClass: 'Delete class',
+    deleteClassConfirmTitle: 'Delete this class?',
+    deleteClassConfirmDescription:
+      'This cannot be undone. Members, assigned worksheets, and submissions for this class will be removed. Original worksheets in your curriculum stay.',
+    deleteClassConfirmAction: 'Delete permanently',
+    deleteClassFailed: 'Could not delete the class.',
+    deleteClassSuccess: 'Class deleted.',
+    deleteClassDeleting: 'Deleting…',
   },
   worksheetSolutionPage: {
     metaTitlePrefix: 'Solutions',
@@ -671,6 +720,7 @@ const ZH_DICTIONARY: Dictionary = {
     beautify_image: '图片美化',
     merge_image: '图片合成',
     create_banner: '生成横幅',
+    text_to_image: '文生图',
     create_id_photo: '制作证件照',
     design_logo: '设计 Logo',
     story_with_images: '图像故事',
@@ -702,6 +752,7 @@ const ZH_DICTIONARY: Dictionary = {
     ai_language_learning: 'AI 语言学习',
     create_curriculum: '创建课程',
     create_exam: '创建试题',
+    online_exam: '在线考试（课堂）',
     classes: '班级',
     try_on_1: '1 人试衣',
     try_on_2: '2 人试衣',
@@ -710,11 +761,18 @@ const ZH_DICTIONARY: Dictionary = {
     try_on_5: '5 人试衣',
     admin: '管理',
   },
+  creationSidebar: {
+    back: '返回',
+    relatedTitle: '相关',
+    popularTitle: '常用工具',
+  },
   classes: {
     title: '班级',
     myClasses: '我的班级',
     createClass: '创建班级',
     joinClass: '加入班级',
+    joinClassRoleHint:
+      '班级加入码：以学生/成员身份加入。打开考试链接或考试码也同样只登记为学生。教师为创建班级和创建考试的人；任何加入码或链接都不会赋予教师权限。',
     className: '班级名称',
     joinCode: '加入码',
     copyCode: '复制码',
@@ -764,6 +822,14 @@ const ZH_DICTIONARY: Dictionary = {
     wrongLabel: '错误',
     scoreLabel: '得分',
     questionSuffix: '题',
+    deleteClass: '删除班级',
+    deleteClassConfirmTitle: '确定删除此班级？',
+    deleteClassConfirmDescription:
+      '此操作无法撤销。该班级的成员、已分配练习单与提交记录将被删除。课程中的原始练习单仍会保留。',
+    deleteClassConfirmAction: '永久删除',
+    deleteClassFailed: '无法删除班级。',
+    deleteClassSuccess: '班级已删除。',
+    deleteClassDeleting: '正在删除…',
   },
   worksheetSolutionPage: {
     metaTitlePrefix: '解答',
@@ -873,6 +939,7 @@ const JA_DICTIONARY: Dictionary = {
     beautify_image: '画像補正',
     merge_image: '画像合成',
     create_banner: 'バナー作成',
+    text_to_image: 'テキストから画像',
     create_id_photo: '証明写真作成',
     design_logo: 'ロゴ作成',
     story_with_images: '画像でストーリー作成',
@@ -904,6 +971,7 @@ const JA_DICTIONARY: Dictionary = {
     ai_language_learning: 'AI 語学学習',
     create_curriculum: 'カリキュラム作成',
     create_exam: '試験作成',
+    online_exam: 'オンライン試験（授業）',
     classes: 'クラス',
     try_on_1: '1人試着',
     try_on_2: '2人試着',
@@ -912,11 +980,18 @@ const JA_DICTIONARY: Dictionary = {
     try_on_5: '5人試着',
     admin: '管理',
   },
+  creationSidebar: {
+    back: '戻る',
+    relatedTitle: '関連',
+    popularTitle: 'よく使うツール',
+  },
   classes: {
     title: 'クラス',
     myClasses: 'マイクラス',
     createClass: 'クラス作成',
     joinClass: 'クラス参加',
+    joinClassRoleHint:
+      'クラス参加コードでは学生・メンバーとして追加されます。試験のリンクやコードを開いても学生としての登録のみです。教師はクラスと試験を作成した人であり、参加コードやリンクでは教師権限になりません。',
     className: 'クラス名',
     joinCode: '参加コード',
     copyCode: 'コードをコピー',
@@ -966,6 +1041,14 @@ const JA_DICTIONARY: Dictionary = {
     wrongLabel: '不正解',
     scoreLabel: '点数',
     questionSuffix: '問',
+    deleteClass: 'クラスを削除',
+    deleteClassConfirmTitle: 'このクラスを削除しますか？',
+    deleteClassConfirmDescription:
+      '取り消せません。メンバー、割り当て済みワークシート、提出データが削除されます。カリキュラム上の元のワークシートは残ります。',
+    deleteClassConfirmAction: '完全に削除',
+    deleteClassFailed: 'クラスを削除できませんでした。',
+    deleteClassSuccess: 'クラスを削除しました。',
+    deleteClassDeleting: '削除中…',
   },
   worksheetSolutionPage: {
     metaTitlePrefix: '解答',
@@ -1076,6 +1159,7 @@ const KO_DICTIONARY: Dictionary = {
     beautify_image: '이미지 보정',
     merge_image: '이미지 합성',
     create_banner: '배너 생성',
+    text_to_image: '텍스트로 이미지',
     create_id_photo: '증명사진 생성',
     design_logo: '로고 디자인',
     story_with_images: '이미지 스토리 만들기',
@@ -1107,6 +1191,7 @@ const KO_DICTIONARY: Dictionary = {
     ai_language_learning: 'AI 외국어 학습',
     create_curriculum: '교육과정 생성',
     create_exam: '시험 생성',
+    online_exam: '온라인 시험(수업)',
     classes: '수업',
     try_on_1: '1인 피팅',
     try_on_2: '2인 피팅',
@@ -1115,11 +1200,18 @@ const KO_DICTIONARY: Dictionary = {
     try_on_5: '5인 피팅',
     admin: '관리',
   },
+  creationSidebar: {
+    back: '돌아가기',
+    relatedTitle: '관련',
+    popularTitle: '자주 쓰는 도구',
+  },
   classes: {
     title: '수업',
     myClasses: '내 수업',
     createClass: '수업 만들기',
     joinClass: '수업 참가',
+    joinClassRoleHint:
+      '수업 참가 코드로 들어가면 학생(구성원)으로 등록됩니다. 시험 링크나 시험 코드로 들어가도 학생으로만 등록됩니다. 교사는 수업과 시험을 만든 계정이며, 참가 코드나 링크로는 교사 권한이 되지 않습니다.',
     className: '수업 이름',
     joinCode: '참가 코드',
     copyCode: '코드 복사',
@@ -1169,6 +1261,14 @@ const KO_DICTIONARY: Dictionary = {
     wrongLabel: '오답',
     scoreLabel: '점수',
     questionSuffix: '문항',
+    deleteClass: '수업 삭제',
+    deleteClassConfirmTitle: '이 수업을 삭제할까요?',
+    deleteClassConfirmDescription:
+      '되돌릴 수 없습니다. 구성원, 할당된 워크시트, 제출 기록이 삭제됩니다. 교육과정의 원본 워크시트는 유지됩니다.',
+    deleteClassConfirmAction: '영구 삭제',
+    deleteClassFailed: '수업을 삭제할 수 없습니다.',
+    deleteClassSuccess: '수업이 삭제되었습니다.',
+    deleteClassDeleting: '삭제 중…',
   },
   worksheetSolutionPage: {
     metaTitlePrefix: '해설',

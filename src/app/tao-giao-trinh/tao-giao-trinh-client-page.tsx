@@ -2373,12 +2373,12 @@ export default function TaoGiaoTrinhClientPage() {
         curriculumId={curriculumId}
         tr={tr}
       />
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
+      <div className="max-w-4xl mx-auto px-3 sm:px-6 lg:px-8 py-5 sm:py-8 space-y-5 md:space-y-6">
         <div ref={pageHeaderRef} className="text-center">
-          <h1 className="text-2xl font-bold text-foreground">
+          <h1 className="text-xl font-bold text-foreground md:text-2xl">
             {tr('Tạo giáo trình bằng AI', 'AI Curriculum Creator', 'AI 课程创建', 'AI カリキュラム作成', 'AI 교육과정 생성')}
           </h1>
-          <p className="text-muted-foreground mt-1">
+          <p className="text-muted-foreground mt-1 text-sm md:text-base px-1">
             {tr(
               'Chọn môn học, cấp độ, nhập chủ đề. AI tạo giáo trình chi tiết cho giáo viên.',
               'Select subject, grade level, enter topic. AI creates detailed curriculum for teachers.',
@@ -2387,7 +2387,7 @@ export default function TaoGiaoTrinhClientPage() {
               '과목, 학년 선택, 주제 입력. AI가 교사를 위한 상세 교육과정 생성.'
             )}
           </p>
-          <div className="flex flex-wrap justify-center gap-2 mt-3">
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-center max-sm:[&_button]:min-h-10 max-sm:[&_a]:min-h-10 max-sm:[&_button]:w-full max-sm:[&_a]:w-full">
             <Button
               variant={featureSection === 'create' ? 'default' : 'outline'}
               size="sm"

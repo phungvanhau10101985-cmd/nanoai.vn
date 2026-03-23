@@ -118,7 +118,7 @@ export default function GhepAnhClientPage() {
   return (
     <>
       <Toaster />
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
+      <div className="tool-page-container">
         <div className="text-center">
           <h1 className="text-xl sm:text-2xl font-bold text-foreground">{tr('Ghép ảnh', 'Merge Images', '图片合成', '画像合成', '이미지 합성')}</h1>
           <p className="text-sm sm:text-base text-muted-foreground mt-1">{tr('Ghép 2-6 ảnh thành một. 1,5-3 credits/ảnh.', 'Merge 2-6 images into one. 1.5-3 credits/image.', '将 2-6 张图片合成为一张。1.5-3 credits/张。', '2-6枚の画像を1枚に合成。1.5-3 credits/枚。', '2-6장의 이미지를 1장으로 합성합니다. 1.5-3 credits/장.')}</p>

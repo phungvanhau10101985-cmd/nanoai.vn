@@ -5,7 +5,7 @@ export function Footer() {
 
   return (
     <footer className="mt-10 border-t border-border/70 bg-background/75">
-      <div className="mx-auto grid w-full max-w-7xl gap-6 px-3 py-6 sm:grid-cols-3 sm:px-6 lg:px-8">
+      <div className="mx-auto grid w-full max-w-7xl gap-6 px-3 py-6 sm:grid-cols-3 sm:px-6 lg:gap-8 lg:px-8 lg:py-8 xl:px-10 xl:py-10">
         <section>
           <h2 className="text-sm font-semibold">{t.footer.platformTitle}</h2>
           <p className="mt-2 text-sm text-muted-foreground">{t.footer.platformDescription}</p>

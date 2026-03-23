@@ -274,7 +274,6 @@ export function LiveLessonsMarketplace() {
     selectedSessionId,
     lessonTitle,
     lessonPrice,
-    filterTopicId,
     effectiveTopicId,
     effectiveTopicLabel,
     filterTargetLanguage,

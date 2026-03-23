@@ -6,6 +6,7 @@ import { buildMetadata, buildJsonLdService, SITE_URL } from '@/lib/seo'
 import { JsonLd } from '@/components/seo-json-ld'
 import { getFeatureSeo, buildFeatureFaqJsonLd } from '@/lib/feature-seo'
 import { FeatureSeoSection } from '@/components/feature-seo-section'
+import { CreationToolPageShell } from '@/components/layout/creation-tool-page-shell'
 
 const seo = getFeatureSeo('tao-de-trac-nghiem')
 
@@ -32,7 +33,9 @@ export default async function TaoDeTracNghiemPage() {
     <div className="app-shell">
       <JsonLd data={jsonLd} />
       <JsonLd data={faqJsonLd} />
-      <TaoDeTracNghiemClientPage />
+      <CreationToolPageShell currentHref={seo.path}>
+        <TaoDeTracNghiemClientPage />
+      </CreationToolPageShell>
       <FeatureSeoSection seo={seo} />
     </div>
   )

@@ -178,7 +178,7 @@ export default function TaoMoHinh3DTuAnhClientPage() {
   return (
     <>
       <Toaster />
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
+      <div className="tool-page-container">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-foreground flex items-center justify-center gap-2">
             <Box className="h-8 w-8 text-amber-600" /> {tr('Tạo mô hình 3D từ ảnh', 'Create 3D model from image', '从图片创建 3D 模型', '画像から3Dモデルを作成', '이미지에서 3D 모델 만들기')}

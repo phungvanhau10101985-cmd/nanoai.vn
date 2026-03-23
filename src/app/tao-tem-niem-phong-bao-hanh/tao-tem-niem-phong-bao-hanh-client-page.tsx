@@ -124,7 +124,7 @@ export default function TaoTemNiemPhongBaoHanhClientPage() {
   return (
     <>
       <Toaster />
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
+      <div className="tool-page-container">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-foreground">
             {tr('Tạo tem nhãn - Tem niêm phong, bảo hành', 'Create seal label - Security & warranty', '创建封条/保修标签', 'シールラベル作成 - 封印・保証', '씰 라벨 만들기 - 봉인·보증')}

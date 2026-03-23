@@ -863,7 +863,7 @@ export default function CurriculumViewPage() {
   const firstMatchRef = useRef<HTMLElement | null>(null)
   const teacherVisualFrameRef = useRef<HTMLDivElement | null>(null)
   const teacherVisualOverlayRef = useRef<HTMLDivElement | null>(null)
-  const [viewportW, setViewportW] = useState(1280)
+  const [viewportW, setViewportW] = useState(() => (typeof window !== 'undefined' ? window.innerWidth : 1280))
   const [stableLayoutWidth, setStableLayoutWidth] = useState(() => (typeof window !== 'undefined' ? window.innerWidth : 1280))
   useEffect(() => {
     const sync = () => {
@@ -877,6 +877,8 @@ export default function CurriculumViewPage() {
     // Keep the widest seen width so shrinking only clips the left side.
     setStableLayoutWidth((prev) => (viewportW > prev ? viewportW : prev))
   }, [viewportW])
+  /** Dưới 768px: hai cột xếp dọc full width; từ md: giữ layout neo phải + minWidth như cũ */
+  const narrowTeacherLayout = viewportW < 768
   // Giao diện giáo viên neo về bên phải: khi thu nhỏ chỉ ẩn dần phần bên trái.
   const currentVisualHasAny = useMemo(() => {
     const s = slides[currentIndex]
@@ -885,13 +887,13 @@ export default function CurriculumViewPage() {
     return cells.some((c) => c.visualEmbed || c.imageUrl)
   }, [slides, currentIndex])
 
-  const tr = (vi: string, en: string, zh: string, ja: string, ko: string) => {
+  const tr = useCallback((vi: string, en: string, zh: string, ja: string, ko: string) => {
     if (uiLocale === 'en') return en
     if (uiLocale === 'zh') return zh
     if (uiLocale === 'ja') return ja
     if (uiLocale === 'ko') return ko
     return vi
-  }
+  }, [uiLocale])
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -906,7 +908,7 @@ export default function CurriculumViewPage() {
     } else if (topic) {
       document.title = `${topic} – ${tr('Giáo trình', 'Curriculum', '课程', 'カリキュラム', '교육과정')}`
     }
-  }, [worksheetId, topic, uiLocale])
+  }, [worksheetId, topic, tr])
 
   /** Phiếu bài tập: khi có worksheetId trong URL, fetch và load slides */
   useEffect(() => {
@@ -1047,7 +1049,7 @@ export default function CurriculumViewPage() {
       visualInput3: s.visualInput3,
       visualInput4: s.visualInput4,
     }
-  }, [worksheetId, curriculumId, answerVisibility])
+  }, [worksheetId, answerVisibility])
 
   const sendCurriculumDataToStudent = useCallback((slidesToSend: SlideItem[], currentIndexOverride?: number) => {
     const idx = typeof currentIndexOverride === 'number' ? currentIndexOverride : currentIndex
@@ -1819,7 +1821,7 @@ export default function CurriculumViewPage() {
     }
     sendState()
     setTimeout(sendState, 300)
-  }, [content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning, remoteAutoPlay, remoteAutoPlayIntervalMs, visualFullscreenOpen, quizPopupOpen, quizSessionData, quizSessionSettings, toast, tr, worksheetId, answerRevealProgress, answerTypingEnabled, toStudentSlidePayload, presentationSyncId, studentCurriculumRemoteMode])
+  }, [content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning, visualFullscreenOpen, toast, tr, worksheetId, answerRevealProgress, answerTypingEnabled, toStudentSlidePayload, presentationSyncId, studentCurriculumRemoteMode])
 
   const viewOpenedStudentView = useCallback(() => {
     if (typeof window === 'undefined') return
@@ -2649,7 +2651,7 @@ export default function CurriculumViewPage() {
     }
     window.addEventListener('message', handler)
     return () => window.removeEventListener('message', handler)
-  }, [content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning, quizPopupOpen, openQuizPopupFresh, worksheetId, answerRevealProgress, answerTypingEnabled, toStudentSlidePayload, studentCurriculumRemoteMode])
+  }, [content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning, quizPopupOpen, openQuizPopupFresh, worksheetId, answerRevealProgress, answerTypingEnabled, toStudentSlidePayload, studentCurriculumRemoteMode, commitCurrentSlideDraft])
 
   useEffect(() => {
     slidesRef.current = slides
@@ -2894,14 +2896,14 @@ export default function CurriculumViewPage() {
                 </button>
               </div>
             )}
-            {topic && <span className="text-slate-400 text-sm truncate max-w-[180px]" title={topic}>{topic}</span>}
+            {topic && <span className="text-slate-400 text-sm truncate max-w-[min(100vw-6rem,240px)] md:max-w-[180px]" title={topic}>{topic}</span>}
           </div>
         </div>
       </header>
 
       {!content ? (
-        <div className="flex-1 flex items-center justify-center p-8 bg-slate-900/30">
-          <div className="text-center space-y-6 max-w-sm">
+        <div className="flex-1 flex items-center justify-center p-4 md:p-8 bg-slate-900/30">
+          <div className="text-center space-y-4 md:space-y-6 max-w-sm px-2">
             {worksheetLoading ? (
               <p className="text-slate-400 text-sm">{tr('Đang tải phiếu bài tập...', 'Loading worksheet...', '正在加载练习...', 'ワークシートを読み込み中...', '워크시트 로딩 중...')}</p>
             ) : worksheetId ? (
@@ -2917,18 +2919,39 @@ export default function CurriculumViewPage() {
           </div>
         </div>
       ) : (
-        <div className="flex-1 flex min-h-0 overflow-hidden isolate shrink-0 w-full justify-end">
+        <div
+          className={cn(
+            'flex-1 flex min-h-0 isolate shrink-0 w-full',
+            narrowTeacherLayout ? 'flex-col justify-start overflow-y-auto overflow-x-hidden' : 'flex-row justify-end overflow-hidden'
+          )}
+        >
           <div
-            className="shrink-0 flex min-h-0 h-full"
-            style={{
-              width: stableLayoutWidth,
-              minWidth: Math.max(stableLayoutWidth, leftPanelMode === 'visual' ? 1200 : 1280),
-            }}
+            className={cn('shrink-0 flex min-h-0', narrowTeacherLayout ? 'w-full flex-1 min-h-0 flex flex-col' : 'h-full')}
+            style={
+              narrowTeacherLayout
+                ? undefined
+                : {
+                    width: stableLayoutWidth,
+                    minWidth: Math.max(stableLayoutWidth, leftPanelMode === 'visual' ? 1200 : 1280),
+                  }
+            }
           >
-          <div className={cn('shrink-0 flex flex-col overflow-hidden isolate bg-slate-900/20 border-r border-slate-700/60', leftPanelMode === 'visual' ? 'w-[45%]' : 'w-1/2')}>
+          <div
+            className={cn(
+              'shrink-0 flex flex-col overflow-hidden isolate bg-slate-900/20 border-slate-700/60',
+              narrowTeacherLayout ? 'w-full max-h-[min(48vh,380px)] border-b border-r-0 flex-shrink-0' : 'border-r',
+              !narrowTeacherLayout && (leftPanelMode === 'visual' ? 'w-[45%]' : 'w-1/2')
+            )}
+          >
             <div className="h-12 px-3 md:px-4 text-slate-400 text-xs font-medium uppercase tracking-wider border-b border-slate-700/60 bg-slate-900/30 shrink-0 flex items-center justify-between gap-2 overflow-hidden">
               <span>{worksheetId ? tr('Phiếu bài tập', 'Worksheet', '练习', 'ワークシート', '워크시트') : tr('Giáo trình', 'Curriculum', '课程', 'カリキュラム', '교육과정')}</span>
-              <div className={cn('flex items-center gap-2 mr-[1px]', leftPanelMode === 'curriculum' && '-translate-x-[66px]', leftPanelMode === 'visual' && 'translate-x-[20px]')}>
+              <div
+                className={cn(
+                  'flex items-center gap-2 mr-[1px]',
+                  !narrowTeacherLayout && leftPanelMode === 'curriculum' && '-translate-x-[66px]',
+                  !narrowTeacherLayout && leftPanelMode === 'visual' && 'translate-x-[20px]'
+                )}
+              >
                 <div className="flex rounded-lg border border-slate-600/80 overflow-hidden bg-slate-800/50">
                   <button type="button" onClick={() => setLeftPanelMode('curriculum')} className={['px-3 py-1.5 text-[11px] font-medium transition-colors h-8 flex items-center', leftPanelMode === 'curriculum' ? 'bg-amber-500/30 text-amber-300' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'].join(' ')}>
                     {worksheetId ? tr('Phiếu bài tập', 'Worksheet', '练习', 'ワークシート', '워크시트') : tr('Giáo trình', 'Curriculum', '课程', 'カリキュラム', '교육과정')}
@@ -2984,6 +3007,7 @@ export default function CurriculumViewPage() {
                                 return <div className="w-full h-full"><ContentEmbed type={first.type} urlOrId={first.urlOrId} tr={tr} hideQuiz fill className="!my-0 !rounded-lg !border-0" /></div>
                               })()
                             ) : cells[0]?.imageUrl ? (
+                              // eslint-disable-next-line @next/next/no-img-element -- slide visual imageUrl is dynamic/remote
                               <img src={cells[0].imageUrl} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center"><div className="w-8 h-8 rounded bg-white/5" /></div>
@@ -3015,6 +3039,7 @@ export default function CurriculumViewPage() {
                                     return <div className="w-full h-full"><ContentEmbed type={first.type} urlOrId={first.urlOrId} tr={tr} hideQuiz fill className="!my-0 !rounded-lg !border-0" /></div>
                                   })()
                                 ) : cell.imageUrl ? (
+                                  // eslint-disable-next-line @next/next/no-img-element -- slide visual imageUrl is dynamic/remote
                                   <img src={cell.imageUrl} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                                 ) : (
                                   <div className="w-full h-full flex items-center justify-center"><div className="w-8 h-8 rounded bg-white/5" /></div>
@@ -3072,8 +3097,13 @@ export default function CurriculumViewPage() {
             </div>
           </div>
 
-          {/* Phải: Slide – giữ nguyên chiều rộng, không co khi thu nhỏ */}
-          <div className={cn('shrink-0 flex flex-col overflow-hidden isolate', leftPanelMode === 'visual' ? 'w-[55%]' : 'w-1/2')}>
+          {/* Phải: Slide – desktop giữ tỷ lệ; mobile: full width phía dưới */}
+          <div
+            className={cn(
+              'shrink-0 flex flex-col overflow-hidden isolate',
+              narrowTeacherLayout ? 'w-full flex-1 min-h-[min(52vh,480px)]' : leftPanelMode === 'visual' ? 'w-[55%]' : 'w-1/2'
+            )}
+          >
             <div className="flex h-12 shrink-0 items-center justify-between gap-2 overflow-hidden border-b border-slate-700/60 bg-slate-900/30 px-3 text-xs font-medium uppercase tracking-wider text-slate-400 md:h-14 md:px-4">
               <div className="flex min-w-0 flex-1 items-center gap-2 md:gap-3">
                 {!worksheetId && slides.length > 0 ? (
@@ -3159,7 +3189,7 @@ export default function CurriculumViewPage() {
               </div>
             </div>
             {slideViewMode === 'single' ? (
-              <div className="flex-1 flex items-start justify-start min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain p-3">
+              <div className="flex-1 flex items-start justify-start min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain p-2 md:p-3">
                 {(() => {
                   const s = slides[currentIndex]
                   const blks = !s ? [] : (Array.isArray(s.blocks) && s.blocks.length ? s.blocks : s.content ? parseContentToBlocks(s.content ?? '') : [])
@@ -4127,6 +4157,7 @@ export default function CurriculumViewPage() {
                         )
                       })()
                     ) : cell.imageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element -- slide visual imageUrl is dynamic/remote
                       <img src={cell.imageUrl} alt="" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
                     ) : (
                       <div className="w-full h-full bg-white/5" />

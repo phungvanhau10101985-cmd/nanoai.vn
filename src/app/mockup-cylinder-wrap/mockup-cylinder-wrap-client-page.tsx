@@ -354,7 +354,7 @@ export default function MockupCylinderWrapClientPage() {
   return (
     <>
       <Toaster />
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
+      <div className="tool-page-container">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-foreground">
             {tr('Mockup nhãn chai / lon (cylinder wrap)', 'Bottle / can label mockup (cylinder wrap)', '瓶子/罐子标签样机（圆柱包装）', 'ボトル・缶ラベルモックアップ（シリンダーラップ）', '병/캔 라벨 목업 (실린더 랩)')}

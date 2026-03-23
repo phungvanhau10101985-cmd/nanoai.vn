@@ -2921,7 +2921,7 @@ export default function HocBaiHocCoSanClientPage() {
         }, 700)
       }
     },
-    [openedHistorySessionId, sessionId]
+    [sessionId]
   )
 
   useEffect(() => {

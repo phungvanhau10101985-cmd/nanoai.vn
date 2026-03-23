@@ -200,7 +200,7 @@ export default function ThietKeConDauClientPage() {
   return (
     <>
       <Toaster />
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
+      <div className="tool-page-container">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-foreground">
             {tr('Thiết kế con dấu bằng AI', 'AI Stamp Design', 'AI 印章设计', 'AI スタンプデザイン', 'AI 스탬프 디자인')}

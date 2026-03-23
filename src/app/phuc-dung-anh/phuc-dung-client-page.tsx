@@ -199,7 +199,7 @@ export default function PhucDungClientPage() {
   return (
     <>
       <Toaster />
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
+      <div className="tool-page-container">
         <div className="text-center">
           <h1 className="text-xl sm:text-2xl font-bold text-foreground">{tr('Phục dựng ảnh', 'Restore Image', '照片修复', '写真修復', '사진 복원')}</h1>
           <p className="text-sm sm:text-base text-muted-foreground mt-1">{tr('Sửa ảnh cũ, mờ, hư hỏng và tăng chất lượng với AI. 4-8 credits/ảnh.', 'Fix old, blurry, and damaged photos with AI. 4-8 credits/image.', '使用 AI 修复老旧、模糊、破损照片并提升画质。4-8 credits/张。', '古い・ぼやけた・破損した写真を AI で修復し高画質化します。4-8 credits/枚。', '오래되거나 흐리고 손상된 사진을 AI로 복원하고 품질을 높입니다. 4-8 credits/장.')}</p>

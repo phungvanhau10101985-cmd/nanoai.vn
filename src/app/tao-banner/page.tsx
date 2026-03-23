@@ -7,6 +7,7 @@ import { buildMetadata, buildJsonLdService, SITE_URL } from '@/lib/seo'
 import { JsonLd } from '@/components/seo-json-ld'
 import { getFeatureSeo, buildFeatureFaqJsonLd } from '@/lib/feature-seo'
 import { FeatureSeoSection } from '@/components/feature-seo-section'
+import { CreationToolPageShell } from '@/components/layout/creation-tool-page-shell'
 
 const seo = getFeatureSeo('tao-banner')
 
@@ -33,7 +34,9 @@ export default async function TaoBannerPage() {
     <div className="app-shell">
       <JsonLd data={jsonLd} />
       <JsonLd data={faqJsonLd} />
-      <TaoBannerClientPage />
+      <CreationToolPageShell currentHref={seo.path}>
+        <TaoBannerClientPage />
+      </CreationToolPageShell>
       <FeatureSeoSection seo={seo} />
     </div>
   )

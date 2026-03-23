@@ -36,19 +36,19 @@ export default async function LopPage() {
 
   return (
     <div className="app-shell min-h-screen">
-      <div className="max-w-2xl mx-auto px-4 py-8">
-        <header className="flex items-center justify-between mb-6">
-          <h1 className="text-xl font-bold text-foreground">{t.classes.myClasses}</h1>
-          <div className="flex gap-2">
+      <div className="mx-auto max-w-2xl px-4 py-8 lg:max-w-3xl lg:px-6 lg:py-10">
+        <header className="mb-6 flex items-center justify-between lg:mb-8">
+          <h1 className="text-xl font-bold text-foreground lg:text-2xl lg:tracking-tight">{t.classes.myClasses}</h1>
+          <div className="flex gap-2 lg:gap-3">
             <Link
               href="/lop/tham-gia"
-              className="px-4 py-2 rounded-lg border border-input bg-background hover:bg-accent text-sm font-medium"
+              className="rounded-lg border border-input bg-background px-4 py-2 text-sm font-medium hover:bg-accent lg:rounded-xl lg:px-5 lg:py-2.5 lg:shadow-sm lg:transition-shadow lg:hover:shadow-md"
             >
               {t.classes.joinClass}
             </Link>
             <Link
               href="/lop/tao"
-              className="px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 text-sm font-medium"
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 lg:rounded-xl lg:px-5 lg:py-2.5 lg:shadow-md lg:transition-shadow lg:hover:shadow-lg"
             >
               {t.classes.createClass}
             </Link>

@@ -157,7 +157,7 @@ export default function ThayNenSanPhamClientPage() {
   return (
     <>
       <Toaster />
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
+      <div className="tool-page-container">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-foreground flex items-center justify-center gap-2">
             <Package className="h-8 w-8 text-amber-600" /> {tr('Thay nền sản phẩm', 'Replace Product Background', '商品换背景', '商品背景差し替え', '상품 배경 변경')}

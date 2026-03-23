@@ -177,7 +177,7 @@ export default function TaoAnh3DClientPage() {
   return (
     <>
       <Toaster />
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
+      <div className="tool-page-container">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-foreground flex items-center justify-center gap-2">
             <Box className="h-8 w-8 text-cyan-600" /> {tr('Tạo ảnh 3D (Mockup sản phẩm)', 'Create 3D image (Product mockup)', '创建 3D 图片（产品模型）', '3D画像を作成（商品モックアップ）', '3D 이미지 만들기 (제품 목업)')}

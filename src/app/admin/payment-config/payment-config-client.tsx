@@ -70,13 +70,13 @@ export function PaymentConfigClient({ initialLocale }: { initialLocale: WebLocal
 
   const { toast } = useToast()
 
-  const tr = (vi: string, en: string, zh: string, ja: string, ko: string) => {
+  const tr = useCallback((vi: string, en: string, zh: string, ja: string, ko: string) => {
     if (uiLocale === 'en') return en
     if (uiLocale === 'zh') return zh
     if (uiLocale === 'ja') return ja
     if (uiLocale === 'ko') return ko
     return vi
-  }
+  }, [uiLocale])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -91,7 +91,7 @@ export function PaymentConfigClient({ initialLocale }: { initialLocale: WebLocal
       return
     }
     setRows(res.data)
-  }, [toast, uiLocale])
+  }, [toast, tr])
 
   useEffect(() => {
     load()

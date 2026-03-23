@@ -125,6 +125,29 @@ const FEATURE_SEO_DATA: Record<string, FeatureSeoData> = {
       { question: 'Có thể tạo nhiều mẫu liên tiếp không?', answer: 'Có, đây là cách phổ biến để test hiệu quả quảng cáo.' },
     ],
   },
+  'tao-anh-tu-chu': {
+    key: 'tao-anh-tu-chu',
+    pageTitle: 'Tạo ảnh bằng chữ (text-to-image) online',
+    pageDescription:
+      'Tạo ảnh từ mô tả chữ bằng AI. Tùy chọn ảnh tham khảo để gợi ý phong cách, màu sắc hoặc bố cục. Xuất 2K/4K, nhiều tỷ lệ khung.',
+    path: '/tao-anh-tu-chu',
+    keywords: ['tạo ảnh bằng chữ', 'text to image', 'ai tạo ảnh', 'ảnh tham khảo', 'prompt ảnh'],
+    serviceName: 'Tạo ảnh từ mô tả chữ',
+    serviceDescription: 'Mô tả bằng ngôn ngữ tự nhiên; có thể đính kèm một ảnh tham khảo để AI bám sát phong cách mong muốn.',
+    h2: 'Tạo ảnh nhanh từ ý tưởng chữ và ảnh gợi ý',
+    overview:
+      'Nhiều nhu cầu thiết kế bắt đầu từ một đoạn mô tả hoặc một hình mẫu tham khảo. Công cụ giúp bạn kết hợp hai nguồn này: chữ là hướng dẫn chính, ảnh tham khảo hỗ trợ về palette, ánh sáng hoặc bố cục khi bạn cần.',
+    benefits: ['Không cần phần mềm chỉnh sửa phức tạp', 'Linh hoạt tỷ lệ khung cho social và in ấn', 'Tùy chọn 2K/4K theo nhu cầu'],
+    useCases: ['Minh họa ý tưởng cho bài đăng', 'Concept art nhanh cho sản phẩm', 'Biến thể theo moodboard có sẵn'],
+    tips: ['Mô tả càng cụ thể (chủ thể, phong cách, ánh sáng) càng ổn định', 'Ảnh tham khảo nên rõ chủ đề khi muốn bám phong cách', 'Thử 2K trước khi tăng 4K để tiết kiệm credits'],
+    faqs: [
+      { question: 'Có bắt buộc phải có ảnh tham khảo không?', answer: 'Không. Bạn chỉ cần mô tả chữ; ảnh tham khảo là tùy chọn.' },
+      { question: 'Ảnh tham khảo có bị copy nguyên không?', answer: 'AI dùng ảnh làm gợi ý; nội dung chính vẫn theo mô tả chữ của bạn.' },
+      { question: 'Mất bao lâu để có ảnh?', answer: 'Thường từ vài giây đến khoảng một phút.' },
+      { question: 'Chi phí credits thế nào?', answer: '2K: 1,5 credit; 4K: 3 credit mỗi lần tạo.' },
+      { question: 'Có thể dùng cho thương mại không?', answer: 'Bạn cần tuân thủ điều khoản nền tảng và quy định pháp luật về nội dung và bản quyền.' },
+    ],
+  },
   'tao-anh-the': {
     key: 'tao-anh-the',
     pageTitle: 'Tạo ảnh thẻ online chuẩn kích thước',

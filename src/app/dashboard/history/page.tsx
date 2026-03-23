@@ -37,10 +37,12 @@ export default async function HistoryPage() {
   }
 
   return (
-    <div className="app-shell space-y-6 md:space-y-8">
+    <div className="app-shell space-y-6 md:space-y-8 lg:space-y-8 xl:space-y-10">
       <Toaster />
-      <div className="section-surface flex items-center justify-between flex-wrap gap-2">
-        <h1 className="text-3xl font-bold tracking-tight">{tr('Ảnh đã xử lý', 'Processed images', '已处理图片', '処理済み画像', '처리된 이미지')}</h1>
+      <div className="section-surface flex flex-wrap items-center justify-between gap-2">
+        <h1 className="text-3xl font-bold tracking-tight lg:text-[2rem] xl:text-4xl">
+          {tr('Ảnh đã xử lý', 'Processed images', '已处理图片', '処理済み画像', '처리된 이미지')}
+        </h1>
         <div className="flex items-center gap-4">
           <p className="text-muted-foreground">
             {history?.length || 0} {tr('kết quả', 'results', '条结果', '件', '개 결과')}

@@ -713,7 +713,7 @@ export default function TaoNhanGioiThieuSanPhamClientPage() {
   return (
     <>
       <Toaster />
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
+      <div className="tool-page-container">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="text-center sm:text-left">
             <h1 className="text-2xl font-bold text-foreground">{tr('Tạo nhãn giới thiệu sản phẩm', 'Create product intro label', '创建产品介绍标签', '商品紹介ラベルを作成', '제품 소개 라벨 만들기')}</h1>

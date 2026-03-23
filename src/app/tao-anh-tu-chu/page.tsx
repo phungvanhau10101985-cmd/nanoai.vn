@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { getUserOrBypass } from '@/lib/auth'
-import CheAnhClientPage from './che-anh-client-page'
+import TaoAnhTuChuClientPage from './tao-anh-tu-chu-client-page'
 import { Metadata } from 'next'
 import { buildMetadata, buildJsonLdService, SITE_URL } from '@/lib/seo'
 import { JsonLd } from '@/components/seo-json-ld'
@@ -9,7 +9,7 @@ import { getFeatureSeo, buildFeatureFaqJsonLd } from '@/lib/feature-seo'
 import { FeatureSeoSection } from '@/components/feature-seo-section'
 import { CreationToolPageShell } from '@/components/layout/creation-tool-page-shell'
 
-const seo = getFeatureSeo('che-anh')
+const seo = getFeatureSeo('tao-anh-tu-chu')
 
 export const metadata: Metadata = buildMetadata({
   title: seo.pageTitle,
@@ -18,7 +18,7 @@ export const metadata: Metadata = buildMetadata({
   keywords: seo.keywords,
 })
 
-export default async function CheAnhPage() {
+export default async function TaoAnhTuChuPage() {
   const supabase = createClient()
   const user = await getUserOrBypass(() => supabase.auth.getUser())
   if (!user) redirect('/auth/login')
@@ -26,7 +26,7 @@ export default async function CheAnhPage() {
   const jsonLd = buildJsonLdService(
     seo.serviceName,
     seo.serviceDescription,
-    `${SITE_URL}/che-anh`
+    `${SITE_URL}/tao-anh-tu-chu`
   )
   const faqJsonLd = buildFeatureFaqJsonLd(seo)
 
@@ -35,7 +35,7 @@ export default async function CheAnhPage() {
       <JsonLd data={jsonLd} />
       <JsonLd data={faqJsonLd} />
       <CreationToolPageShell currentHref={seo.path}>
-        <CheAnhClientPage />
+        <TaoAnhTuChuClientPage />
       </CreationToolPageShell>
       <FeatureSeoSection seo={seo} />
     </div>

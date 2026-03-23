@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -32,7 +32,7 @@ export function SlideProposalsClient() {
   const [statusFilter, setStatusFilter] = useState<string>('')
   const [actioning, setActioning] = useState<string | null>(null)
 
-  const fetchData = () => {
+  const fetchData = useCallback(() => {
     setLoading(true)
     listSlideProposalsForAdmin({ status: statusFilter || undefined, limit: 100 })
       .then((res) => {
@@ -45,11 +45,11 @@ export function SlideProposalsClient() {
         }
       })
       .finally(() => setLoading(false))
-  }
+  }, [statusFilter, toast])
 
   useEffect(() => {
     fetchData()
-  }, [statusFilter])
+  }, [fetchData])
 
   const handleReview = async (id: string, action: 'approve' | 'reject') => {
     setActioning(id)

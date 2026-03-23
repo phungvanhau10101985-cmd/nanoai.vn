@@ -2,6 +2,7 @@ import { buildMetadata } from '@/lib/seo'
 import { getFeatureSeo, buildFeatureFaqJsonLd } from '@/lib/feature-seo'
 import { JsonLd } from '@/components/seo-json-ld'
 import { FeatureSeoSection } from '@/components/feature-seo-section'
+import { CreationToolPageShell } from '@/components/layout/creation-tool-page-shell'
 import { buildJsonLdService, SITE_URL } from '@/lib/seo'
 import ThietKeConDauClientPage from './thiet-ke-con-dau-client-page'
 
@@ -26,7 +27,9 @@ export default function ThietKeConDauPage() {
     <div className="app-shell">
       <JsonLd data={jsonLd} />
       <JsonLd data={faqJsonLd} />
-      <ThietKeConDauClientPage />
+      <CreationToolPageShell currentHref={seo.path}>
+        <ThietKeConDauClientPage />
+      </CreationToolPageShell>
       <FeatureSeoSection seo={seo} />
     </div>
   )

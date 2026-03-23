@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -44,14 +44,14 @@ export default function DepositClient() {
   const [activePayment, setActivePayment] = useState<Payment | null>(null)
   const [loading, setLoading] = useState(false)
   const [userCredits, setUserCredits] = useState<number>(0)
-  const supabase = createClient()
-  const tr = (vi: string, en: string, zh: string, ja: string, ko: string) => {
+  const supabase = useMemo(() => createClient(), [])
+  const tr = useCallback((vi: string, en: string, zh: string, ja: string, ko: string) => {
     if (uiLocale === 'en') return en
     if (uiLocale === 'zh') return zh
     if (uiLocale === 'ja') return ja
     if (uiLocale === 'ko') return ko
     return vi
-  }
+  }, [uiLocale])
 
   const generateTransferContent = () => {
     // SePay content format: "SEVQR " + PREFIX + integer suffix.
@@ -92,32 +92,7 @@ export default function DepositClient() {
     }
   }
 
-  useEffect(() => {
-    const syncLocale = () => {
-      const cookieValue = document.cookie
-        .split(';')
-        .map((x) => x.trim())
-        .find((x) => x.startsWith('nanoai_locale='))
-        ?.split('=')[1]
-        ?.trim()
-        .toLowerCase()
-      if (cookieValue === 'en' || cookieValue === 'zh' || cookieValue === 'ja' || cookieValue === 'ko') setUiLocale(cookieValue)
-      else setUiLocale('vi')
-    }
-    syncLocale()
-    const timer = window.setInterval(syncLocale, 1000)
-    window.addEventListener('focus', syncLocale)
-    document.addEventListener('visibilitychange', syncLocale)
-    fetchPaymentConfigs()
-    fetchUserCredits()
-    return () => {
-      window.removeEventListener('focus', syncLocale)
-      document.removeEventListener('visibilitychange', syncLocale)
-      window.clearInterval(timer)
-    }
-  }, [])
-
-  const fetchPaymentConfigs = async () => {
+  const fetchPaymentConfigs = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('payment_configs')
@@ -139,9 +114,9 @@ export default function DepositClient() {
         variant: 'destructive'
       })
     }
-  }
+  }, [supabase, tr])
 
-  const fetchUserCredits = async () => {
+  const fetchUserCredits = useCallback(async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
@@ -157,7 +132,32 @@ export default function DepositClient() {
     } catch (error) {
       console.error('Error fetching user credits:', error)
     }
-  }
+  }, [supabase])
+
+  useEffect(() => {
+    const syncLocale = () => {
+      const cookieValue = document.cookie
+        .split(';')
+        .map((x) => x.trim())
+        .find((x) => x.startsWith('nanoai_locale='))
+        ?.split('=')[1]
+        ?.trim()
+        .toLowerCase()
+      if (cookieValue === 'en' || cookieValue === 'zh' || cookieValue === 'ja' || cookieValue === 'ko') setUiLocale(cookieValue)
+      else setUiLocale('vi')
+    }
+    syncLocale()
+    const timer = window.setInterval(syncLocale, 1000)
+    window.addEventListener('focus', syncLocale)
+    document.addEventListener('visibilitychange', syncLocale)
+    void fetchPaymentConfigs()
+    void fetchUserCredits()
+    return () => {
+      window.removeEventListener('focus', syncLocale)
+      document.removeEventListener('visibilitychange', syncLocale)
+      window.clearInterval(timer)
+    }
+  }, [fetchPaymentConfigs, fetchUserCredits])
 
   const handleCreatePayment = async () => {
     if (!selectedBank) {
@@ -537,6 +537,7 @@ export default function DepositClient() {
                     {/* QR Code */}
                     <div className="flex justify-center">
                       <div className="border-2 border-gray-200 rounded-lg p-4 bg-white">
+                        {/* eslint-disable-next-line @next/next/no-img-element -- SePay QR URL is dynamic */}
                         <img
                           src={activePayment.qr_url}
                           alt="QR Code"

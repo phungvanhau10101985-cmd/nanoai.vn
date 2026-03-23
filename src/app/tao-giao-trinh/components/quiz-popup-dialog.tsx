@@ -105,11 +105,11 @@ export function QuizPopupDialog({
         <DialogOverlay className={zClass} />
         <DialogPrimitive.Content
           data-quiz-popup
-          className={`fixed left-[50%] top-[50%] flex flex-col w-full max-w-2xl max-h-[85vh] translate-x-[-50%] translate-y-[-50%] border bg-background shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:rounded-lg overflow-hidden ${zClass}`}
+          className={`fixed left-[50%] top-[50%] flex flex-col w-[calc(100vw-1.25rem)] max-w-2xl max-h-[min(88dvh,85vh)] translate-x-[-50%] translate-y-[-50%] border bg-background shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:w-full sm:rounded-lg overflow-hidden ${zClass}`}
         >
-          <div className="shrink-0 flex items-start justify-between gap-4 p-6 pb-0 border-b bg-background">
+          <div className="shrink-0 flex items-start justify-between gap-3 border-b bg-background p-4 pb-0 sm:gap-4 sm:p-6">
             <DialogHeader className="p-0 space-y-0">
-              <DialogTitle className="pr-8 text-base">
+              <DialogTitle className="pr-6 text-sm sm:pr-8 sm:text-base">
                 {tr('Câu hỏi trắc nghiệm', 'Quiz questions', '测验题', 'クイズ', '퀴즈')} – {slide.title}
               </DialogTitle>
             </DialogHeader>
@@ -118,7 +118,7 @@ export function QuizPopupDialog({
               <span className="sr-only">Close</span>
             </DialogClose>
           </div>
-          <div data-quiz-popup-scroll className="flex-1 overflow-y-auto min-h-0 p-6 pt-4">
+          <div data-quiz-popup-scroll className="flex-1 overflow-y-auto min-h-0 p-4 pt-3 sm:p-6 sm:pt-4">
           <QuizErrorBoundary>
           <div className="space-y-6" key={slideContentKey}>
             {hasQuiz ? (

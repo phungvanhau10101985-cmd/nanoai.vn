@@ -2953,7 +2953,7 @@ export default function HocTiengAnhAiClientPage() {
         }, 700)
       }
     },
-    [openedHistorySessionId, sessionId]
+    [sessionId]
   )
 
   useEffect(() => {

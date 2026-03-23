@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -47,13 +47,13 @@ export function TranslateProgressPanel({ batchId, embedded = false, onClose }: T
   const router = useRouter()
   const { toast } = useToast()
   const [uiLocale, setUiLocale] = useState<UiLocale>('vi')
-  const tr = (vi: string, en: string, zh: string, ja: string, ko: string) => {
+  const tr = useCallback((vi: string, en: string, zh: string, ja: string, ko: string) => {
     if (uiLocale === 'en') return en
     if (uiLocale === 'zh') return zh
     if (uiLocale === 'ja') return ja
     if (uiLocale === 'ko') return ko
     return vi
-  }
+  }, [uiLocale])
 
   const [data, setData] = useState<{
     done: number
@@ -91,7 +91,7 @@ export function TranslateProgressPanel({ batchId, embedded = false, onClose }: T
     document.body.removeChild(a)
   }
 
-  const fetchProgress = async () => {
+  const fetchProgress = useCallback(async () => {
     try {
       const res = await getBatchProgress(batchId)
       if ('error' in res) {
@@ -104,7 +104,7 @@ export function TranslateProgressPanel({ batchId, embedded = false, onClose }: T
       const msg = e instanceof Error ? e.message : tr('Lỗi tải tiến trình', 'Failed to load progress', '加载进度失败', '進捗の読み込みに失敗しました', '진행 상태 로드 실패')
       setError(msg.includes('fetch') || msg.includes('Failed') ? tr('Không kết nối được tới server.', 'Cannot connect to server.', '无法连接到服务器。', 'サーバーに接続できません。', '서버에 연결할 수 없습니다.') : msg)
     }
-  }
+  }, [batchId, tr])
 
   useEffect(() => {
     const syncLocale = () => setUiLocale(getWebLocaleFromCookie())
@@ -120,15 +120,15 @@ export function TranslateProgressPanel({ batchId, embedded = false, onClose }: T
     }
     setCachedUrls(null)
     resumeBatchTranslate(batchId)
-    fetchProgress()
-    const interval = setInterval(fetchProgress, POLL_INTERVAL_MS)
+    void fetchProgress()
+    const interval = setInterval(() => { void fetchProgress() }, POLL_INTERVAL_MS)
     return () => {
       clearInterval(interval)
       window.removeEventListener('focus', syncLocale)
       document.removeEventListener('visibilitychange', syncLocale)
       window.clearInterval(timer)
     }
-  }, [batchId])
+  }, [batchId, fetchProgress])
 
   useEffect(() => {
     if (!batchId) return

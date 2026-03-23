@@ -47,6 +47,7 @@ export function AnswerTypingPositionPopover({
   }, [open])
 
   const anchorBox = useMemo(() => {
+    void layoutTick
     if (!open) return null
     const el = anchorRef.current
     if (!el) return null

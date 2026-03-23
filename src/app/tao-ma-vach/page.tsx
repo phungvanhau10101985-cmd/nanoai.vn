@@ -2,6 +2,7 @@ import { buildMetadata } from '@/lib/seo'
 import { getFeatureSeo, buildFeatureFaqJsonLd } from '@/lib/feature-seo'
 import { JsonLd } from '@/components/seo-json-ld'
 import { FeatureSeoSection } from '@/components/feature-seo-section'
+import { CreationToolPageShell } from '@/components/layout/creation-tool-page-shell'
 import { buildJsonLdService, SITE_URL } from '@/lib/seo'
 import TaoMaVachClientPage from './tao-ma-vach-client-page'
 
@@ -26,7 +27,9 @@ export default function TaoMaVachPage() {
     <div className="app-shell">
       <JsonLd data={jsonLd} />
       <JsonLd data={faqJsonLd} />
-      <TaoMaVachClientPage />
+      <CreationToolPageShell currentHref={seo.path}>
+        <TaoMaVachClientPage />
+      </CreationToolPageShell>
       <FeatureSeoSection seo={seo} />
     </div>
   )

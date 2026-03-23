@@ -2,6 +2,7 @@ import { buildMetadata } from '@/lib/seo'
 import { getFeatureSeo, buildFeatureFaqJsonLd } from '@/lib/feature-seo'
 import { JsonLd } from '@/components/seo-json-ld'
 import { FeatureSeoSection } from '@/components/feature-seo-section'
+import { CreationToolPageShell } from '@/components/layout/creation-tool-page-shell'
 import { buildJsonLdService, SITE_URL } from '@/lib/seo'
 import TaoTemNiemPhongBaoHanhClientPage from './tao-tem-niem-phong-bao-hanh-client-page'
 
@@ -26,7 +27,9 @@ export default function TaoTemNiemPhongBaoHanhPage() {
     <div className="app-shell">
       <JsonLd data={jsonLd} />
       <JsonLd data={faqJsonLd} />
-      <TaoTemNiemPhongBaoHanhClientPage />
+      <CreationToolPageShell currentHref={seo.path}>
+        <TaoTemNiemPhongBaoHanhClientPage />
+      </CreationToolPageShell>
       <FeatureSeoSection seo={seo} />
     </div>
   )

@@ -177,7 +177,7 @@ export default function MoRongKhungHinhClientPage() {
   return (
     <>
       <Toaster />
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
+      <div className="tool-page-container">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-foreground flex items-center justify-center gap-2">
             <Expand className="h-8 w-8 text-indigo-600" /> {tr('Mở rộng khung hình', 'Outpaint Image', '扩展画幅', '画像拡張', '화면 확장')}

@@ -7,6 +7,7 @@ import "./globals.css";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
 import { DepositCreditProvider } from "@/components/deposit-credit-context";
+import { AnalyticsTracker } from "@/components/analytics/analytics-tracker";
 import { buildMetadata, buildJsonLdWebApplication, buildJsonLdOrganization, SITE_URL, SITE_NAME } from "@/lib/seo";
 import { JsonLd } from "@/components/seo-json-ld";
 import { getCurrentWebLocale, getServerDictionary } from '@/lib/i18n/server'
@@ -17,10 +18,6 @@ const MobileBottomBar = dynamic(
 );
 const InstallPrompt = dynamic(
   () => import("@/components/pwa/install-prompt").then((m) => m.InstallPrompt),
-  { ssr: false }
-);
-const AnalyticsTracker = dynamic(
-  () => import("@/components/analytics/analytics-tracker").then((m) => m.AnalyticsTracker),
   { ssr: false }
 );
 const GA_MEASUREMENT_ID = "G-1KZ2PKX887";
@@ -118,9 +115,7 @@ export default function RootLayout({
             gtag('config', '${GA_MEASUREMENT_ID}');
           `}
         </Script>
-        <Suspense fallback={null}>
-          <AnalyticsTracker />
-        </Suspense>
+        <AnalyticsTracker />
         <JsonLd data={webAppLd} />
         <JsonLd data={orgLd} />
         <DepositCreditProvider>

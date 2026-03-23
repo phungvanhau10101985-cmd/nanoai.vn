@@ -516,7 +516,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   const [teacherTimerSeconds, setTeacherTimerSeconds] = useState(0)
   const [teacherTimerRunning, setTeacherTimerRunning] = useState(false)
   const [presentationMode, setPresentationMode] = useState<'independent' | 'slide-interaction'>('independent')
-  const [viewportW, setViewportW] = useState(1280)
+  const [viewportW, setViewportW] = useState(() => (typeof window !== 'undefined' ? window.innerWidth : 1280))
   const [stableLayoutWidth, setStableLayoutWidth] = useState(() => (typeof window !== 'undefined' ? window.innerWidth : 1280))
   useEffect(() => {
     const onResize = () => setViewportW(typeof window !== 'undefined' ? window.innerWidth : 1280)
@@ -527,6 +527,8 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   useEffect(() => {
     setStableLayoutWidth((prev) => (viewportW > prev ? viewportW : prev))
   }, [viewportW])
+  /** Dưới 768px: visual + nội dung xếp dọc full width; từ md: giữ neo phải + minWidth như desktop */
+  const narrowSlideLayout = viewportW < 768
   const [virtualMousePos, setVirtualMousePos] = useState<{ x: number; y: number } | null>(null)
   const [mouseTrail, setMouseTrail] = useState<Array<{ x: number; y: number }>>([])
   const [mouseClicks, setMouseClicks] = useState<Array<{ id: number; x: number; y: number }>>([])
@@ -2332,11 +2334,24 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
           className="absolute inset-0 flex opacity-100 transition-opacity duration-200 ease-out justify-end"
         >
         <div
-          className="shrink-0 flex min-h-0 h-full flex-row flex-nowrap"
-          style={{ width: stableLayoutWidth, minWidth: Math.max(stableLayoutWidth, 1200) }}
+          className={cn(
+            'shrink-0 flex min-h-0 h-full flex-nowrap',
+            narrowSlideLayout ? 'w-full flex-col' : 'flex-row',
+          )}
+          style={
+            narrowSlideLayout
+              ? undefined
+              : { width: stableLayoutWidth, minWidth: Math.max(stableLayoutWidth, 1200) }
+          }
         >
-        {/* Visual: luôn giữ 45% chiều rộng, không co */}
-        <div className="w-[45%] min-h-0 relative overflow-hidden shrink-0" style={{ background: gradient }}>
+        {/* Visual: desktop 45%; mobile full width + max-height */}
+        <div
+          className={cn(
+            'min-h-0 relative overflow-hidden shrink-0',
+            narrowSlideLayout ? 'w-full max-h-[min(40vh,360px)] flex-shrink-0 border-b border-slate-200' : 'w-[45%]',
+          )}
+          style={{ background: gradient }}
+        >
           <div className="absolute top-2 left-2 md:top-4 md:left-4 landscape:top-4 landscape:left-4 w-8 h-8 md:w-9 md:h-9 landscape:w-9 landscape:h-9 rounded-full bg-red-500 flex items-center justify-center text-white font-bold text-xs md:text-sm landscape:text-sm shadow-lg z-10">
             {currentIndex + 1}
           </div>
@@ -2457,14 +2472,19 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
             </div>
         </div>
 
-        {/* Content: luôn giữ 55% — thanh chế độ HS nằm sát dưới header (cùng băng với vùng pt-12/pt-14 bên visual) */}
-        <div className="flex min-h-0 w-[55%] shrink-0 flex-col bg-white">
+        {/* Content: desktop 55%; mobile full width bên dưới visual */}
+        <div
+          className={cn(
+            'flex min-h-0 shrink-0 flex-col bg-white',
+            narrowSlideLayout ? 'w-full flex-1 min-h-[min(60vh,520px)]' : 'w-[55%]',
+          )}
+        >
           {!isTeacherView && !worksheetPresentation && slides.length > 0 && (
             <div
               className="flex h-12 shrink-0 items-center border-b border-slate-200 bg-white px-3 shadow-sm print:hidden md:h-14 md:px-6 lg:px-8 landscape:px-6"
               data-control="student-curriculum-mode"
             >
-              <div className="ml-[50px] flex shrink-0 items-center gap-2 md:gap-2.5">
+              <div className="ml-2 flex min-w-0 flex-1 flex-wrap items-center gap-2 sm:flex-nowrap md:ml-[50px] md:flex-none md:gap-2.5">
               <button
                 type="button"
                 data-control="student-curriculum-all"
@@ -2518,7 +2538,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
           )}
           <div
             ref={studentMdRightColumnScrollRef}
-            className="min-h-0 flex-1 overflow-y-auto p-4 md:p-8 lg:p-12 landscape:p-8"
+            className="min-h-0 flex-1 overflow-y-auto p-3 pb-6 md:p-8 lg:p-12 landscape:p-8"
           >
           {!isTeacherView && !worksheetPresentation && studentCurriculumRightMode === 'markdown-all' && slides.length > 0 ? (
             <div ref={studentMarkdownAllScrollRef} className="space-y-6 pb-6 text-left">

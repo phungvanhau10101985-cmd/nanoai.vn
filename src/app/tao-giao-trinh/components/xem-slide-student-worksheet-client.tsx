@@ -33,8 +33,8 @@ export default function XemSlideStudentWorksheetClient() {
 
   if (!data || data.slides.length === 0) {
     return (
-      <div className="min-h-screen bg-slate-900 text-white flex items-center justify-center">
-        <p className="text-slate-400">
+      <div className="min-h-screen bg-slate-900 text-white flex items-center justify-center px-4 py-8">
+        <p className="text-slate-400 text-center text-sm sm:text-base max-w-md">
           {tr(
             locale,
             'Đang chờ dữ liệu phiếu bài tập từ giáo viên...',

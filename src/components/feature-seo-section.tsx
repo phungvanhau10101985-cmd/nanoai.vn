@@ -19,6 +19,7 @@ export function FeatureSeoSection({ seo }: FeatureSeoSectionProps) {
     { href: '/tao-anh-the', label: tr('Tạo ảnh thẻ', 'Create ID photo', '制作证件照', '証明写真作成', '증명사진 만들기') },
     { href: '/thu-do-online/1-nguoi', label: tr('Thử đồ 1 người', 'Try-on (1 person)', '单人试衣', '1人試着', '1인 가상피팅') },
     { href: '/tao-banner', label: tr('Tạo banner', 'Create banner', '创建横幅', 'バナー作成', '배너 만들기') },
+    { href: '/tao-anh-tu-chu', label: tr('Tạo ảnh bằng chữ', 'Text-to-image', '文生图', 'テキストから画像', '텍스트로 이미지') },
     { href: '/phuc-dung-anh', label: tr('Phục dựng ảnh', 'Restore photo', '修复照片', '写真復元', '사진 복원') },
     { href: '/dich-anh-tai-lieu', label: tr('Dịch ảnh tài liệu', 'Translate document image', '文档图片翻译', '文書画像翻訳', '문서 이미지 번역') },
   ].filter((item) => item.href !== seo.path).slice(0, 6)
@@ -45,8 +46,11 @@ export function FeatureSeoSection({ seo }: FeatureSeoSectionProps) {
   return (
     <>
       <JsonLd data={breadcrumbJsonLd} />
-      <nav aria-label={tr('Breadcrumb', 'Breadcrumb', '面包屑', 'パンくず', '브레드크럼')} className="mx-auto mt-8 max-w-4xl text-xs text-muted-foreground">
-        <ol className="flex flex-wrap items-center gap-2">
+      <nav
+        aria-label={tr('Breadcrumb', 'Breadcrumb', '面包屑', 'パンくず', '브레드크럼')}
+        className="mx-auto mt-8 max-w-4xl text-xs text-muted-foreground lg:mt-12 lg:max-w-5xl lg:text-[13px]"
+      >
+        <ol className="flex flex-wrap items-center gap-2 lg:gap-2.5">
           <li>
             <Link href="/" className="hover:text-foreground transition-colors">
               {tr('Trang chủ', 'Home', '首页', 'ホーム', '홈')}
@@ -57,9 +61,9 @@ export function FeatureSeoSection({ seo }: FeatureSeoSectionProps) {
         </ol>
       </nav>
 
-      <section className="mx-auto mt-10 max-w-4xl rounded-xl border bg-white/80 p-5 sm:p-7">
-        <h2 className="text-xl sm:text-2xl font-bold text-foreground">{seo.h2}</h2>
-        <div className="mt-4 space-y-4 text-sm leading-7 text-muted-foreground">
+      <section className="mx-auto mt-10 max-w-4xl rounded-xl border border-border/80 bg-white/80 p-5 sm:p-7 lg:mt-12 lg:max-w-5xl lg:rounded-2xl lg:border-border/60 lg:bg-card/75 lg:p-8 lg:shadow-md lg:backdrop-blur-sm dark:lg:bg-card/50">
+        <h2 className="text-xl font-bold text-foreground sm:text-2xl lg:text-[1.65rem] lg:tracking-tight">{seo.h2}</h2>
+        <div className="mt-4 space-y-4 text-sm leading-7 text-muted-foreground lg:mt-5 lg:space-y-5 lg:text-[15px] lg:leading-8">
           <p>{seo.overview}</p>
           <p>
             {tr('Công cụ trên NanoAI.vn được tối ưu để giúp bạn xử lý nhanh, giao diện dễ dùng và kết quả có thể áp dụng ngay vào công việc thực tế. Dù bạn là chủ shop, marketer, freelancer hay người dùng cá nhân, bạn đều có thể rút ngắn thời gian thao tác mà vẫn giữ chất lượng hình ảnh ổn định.', 'Tools on NanoAI.vn are optimized for speed, easy UI, and practical output. Whether you are a shop owner, marketer, freelancer, or personal user, you can reduce workflow time while maintaining stable image quality.', 'NanoAI.vn 的工具经过优化，可实现快速处理、易用界面和可直接落地的结果。无论你是店主、营销人员、自由职业者还是个人用户，都能缩短操作时间并保持稳定图像质量。', 'NanoAI.vnのツールは高速処理・使いやすいUI・実務で使える出力に最適化されています。ショップ運営者、マーケター、フリーランサー、個人ユーザーのいずれでも、画質を保ちながら作業時間を短縮できます。', 'NanoAI.vn 도구는 빠른 처리, 쉬운 UI, 실무 활용 결과에 최적화되어 있습니다. 쇼핑몰 운영자, 마케터, 프리랜서, 개인 사용자 모두 이미지 품질을 유지하면서 작업 시간을 줄일 수 있습니다.')}
@@ -82,26 +86,33 @@ export function FeatureSeoSection({ seo }: FeatureSeoSectionProps) {
         </div>
       </section>
 
-      <section className="mx-auto mt-6 max-w-4xl rounded-xl border bg-white/80 p-5 sm:p-7">
-        <h2 className="text-xl sm:text-2xl font-bold text-foreground">{tr('Câu hỏi thường gặp', 'Frequently asked questions', '常见问题', 'よくある質問', '자주 묻는 질문')}</h2>
-        <div className="mt-4 space-y-3">
+      <section className="mx-auto mt-6 max-w-4xl rounded-xl border border-border/80 bg-white/80 p-5 sm:p-7 lg:mt-8 lg:max-w-5xl lg:rounded-2xl lg:border-border/60 lg:bg-card/75 lg:p-8 lg:shadow-md lg:backdrop-blur-sm dark:lg:bg-card/50">
+        <h2 className="text-xl font-bold text-foreground sm:text-2xl lg:text-[1.65rem] lg:tracking-tight">
+          {tr('Câu hỏi thường gặp', 'Frequently asked questions', '常见问题', 'よくある質問', '자주 묻는 질문')}
+        </h2>
+        <div className="mt-4 space-y-3 lg:mt-5 lg:space-y-3.5">
           {seo.faqs.map((item) => (
-            <details key={item.question} className="rounded-lg border bg-white p-4">
-              <summary className="cursor-pointer text-sm font-semibold text-foreground">{item.question}</summary>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">{item.answer}</p>
+            <details
+              key={item.question}
+              className="rounded-lg border border-border/80 bg-white p-4 lg:rounded-xl lg:border-border/60 lg:p-5 lg:shadow-sm dark:bg-background/90 dark:lg:bg-background/80"
+            >
+              <summary className="cursor-pointer text-sm font-semibold text-foreground lg:text-[15px]">{item.question}</summary>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground lg:mt-3 lg:text-[15px] lg:leading-7">{item.answer}</p>
             </details>
           ))}
         </div>
       </section>
 
-      <section className="mx-auto mt-6 max-w-4xl rounded-xl border bg-white/80 p-5 sm:p-7">
-        <h2 className="text-xl sm:text-2xl font-bold text-foreground">{tr('Công cụ liên quan', 'Related tools', '相关工具', '関連ツール', '관련 도구')}</h2>
-        <div className="mt-4 grid gap-2 sm:grid-cols-2">
+      <section className="mx-auto mt-6 max-w-4xl rounded-xl border border-border/80 bg-white/80 p-5 sm:p-7 lg:mt-8 lg:max-w-5xl lg:rounded-2xl lg:border-border/60 lg:bg-card/75 lg:p-8 lg:shadow-md lg:backdrop-blur-sm dark:lg:bg-card/50">
+        <h2 className="text-xl font-bold text-foreground sm:text-2xl lg:text-[1.65rem] lg:tracking-tight">
+          {tr('Công cụ liên quan', 'Related tools', '相关工具', '関連ツール', '관련 도구')}
+        </h2>
+        <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:mt-5 lg:grid-cols-3 lg:gap-3">
           {relatedTools.map((tool) => (
             <Link
               key={tool.href}
               href={tool.href}
-              className="rounded-lg border bg-white px-4 py-3 text-sm text-foreground hover:border-sky-300 hover:text-sky-700 transition-colors"
+              className="rounded-lg border border-border/80 bg-white px-4 py-3 text-sm text-foreground transition-colors hover:border-sky-300 hover:text-sky-700 lg:rounded-xl lg:px-5 lg:py-3.5 lg:shadow-sm lg:transition-shadow lg:hover:border-sky-400/80 lg:hover:shadow-md dark:bg-background/90 dark:lg:bg-background/80"
             >
               {tool.label}
             </Link>

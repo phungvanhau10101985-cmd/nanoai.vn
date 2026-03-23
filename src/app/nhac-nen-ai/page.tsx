@@ -3,6 +3,7 @@ import dynamic from 'next/dynamic'
 import { buildMetadata, buildJsonLdService, SITE_URL } from '@/lib/seo'
 import { JsonLd } from '@/components/seo-json-ld'
 import { FeatureSeoSection } from '@/components/feature-seo-section'
+import { CreationToolPageShell } from '@/components/layout/creation-tool-page-shell'
 import { buildFeatureFaqJsonLd, getFeatureSeo } from '@/lib/feature-seo'
 
 const NhacNenAiClientPage = dynamic(() => import('./nhac-nen-ai-client-page'), { ssr: false })
@@ -24,7 +25,9 @@ export default function NhacNenAiPage() {
     <div className="app-shell">
       <JsonLd data={jsonLd} />
       <JsonLd data={faqJsonLd} />
-      <NhacNenAiClientPage />
+      <CreationToolPageShell currentHref={seo.path}>
+        <NhacNenAiClientPage />
+      </CreationToolPageShell>
       <FeatureSeoSection seo={seo} />
     </div>
   )

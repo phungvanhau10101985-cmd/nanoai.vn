@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
@@ -32,7 +32,7 @@ export function QuizReportsClient() {
   const [loading, setLoading] = useState(true)
   const [actioning, setActioning] = useState<string | null>(null)
 
-  const fetchData = () => {
+  const fetchData = useCallback(() => {
     setLoading(true)
     fetch('/api/admin/quiz-reports')
       .then((res) => res.json())
@@ -48,11 +48,11 @@ export function QuizReportsClient() {
         toast({ title: 'Lỗi', description: e?.message ?? 'Không tải được.', variant: 'destructive' })
       })
       .finally(() => setLoading(false))
-  }
+  }, [toast])
 
   useEffect(() => {
     fetchData()
-  }, [])
+  }, [fetchData])
 
   const handleApprove = async (id: string, approved: boolean) => {
     setActioning(id)

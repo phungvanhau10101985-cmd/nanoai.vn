@@ -141,7 +141,7 @@ export default function TaoBannerClientPage() {
   return (
     <>
       <Toaster />
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
+      <div className="tool-page-container">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-foreground">{tr('Tạo banner quảng cáo', 'Create ad banner', '创建广告横幅', '広告バナーを作成', '광고 배너 만들기')}</h1>
           <p className="text-muted-foreground mt-1">{tr('Tải ảnh sản phẩm kinh doanh (tối đa 13 ảnh). AI tạo banner chuyên nghiệp. 1,5–3 credits/ảnh.', 'Upload product images (max 13). AI creates professional banners. 1.5–3 credits/image.', '上传产品图片（最多 13 张）。AI 创建专业横幅。 1.5–3 积分/张。', '商品画像をアップロード（最大13枚）。AIがプロのバナーを作成。1.5〜3クレジット/枚。', '제품 이미지 업로드 (최대 13장). AI가 전문 배너를 생성합니다. 1.5–3 크레딧/장.')}</p>

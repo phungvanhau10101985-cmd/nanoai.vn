@@ -102,7 +102,7 @@ export default function TaoNhanGianClientPage() {
   return (
     <>
       <Toaster />
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
+      <div className="tool-page-container">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-foreground">{tr('Tạo nhãn gián nền trong suốt', 'Create Transparent Sticker Label', '创建透明贴纸标签', '透明ステッカーラベル作成', '투명 스티커 라벨 만들기')}</h1>
           <p className="text-muted-foreground mt-1">{tr('Đưa ý tưởng nhãn gián. AI mở rộng chi tiết rồi tạo ảnh PNG nền trong suốt, phù hợp in sticker. 2–4 credits/ảnh.', 'Describe sticker idea. AI expands details and creates transparent PNG, suitable for printing. 2–4 credits/image.', '描述贴纸想法。AI 扩展细节并创建透明 PNG，适合打印。2–4 积分/张。', 'ステッカーアイデアを記述。AIが詳細を拡張し透明PNGを作成、印刷に適しています。2〜4クレジット/枚。', '스티커 아이디어를 설명하세요. AI가 세부사항을 확장하고 인쇄에 적합한 투명 PNG를 생성합니다. 2–4 크레딧/장.')}</p>

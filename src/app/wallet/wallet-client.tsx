@@ -122,24 +122,24 @@ export default function WalletClient() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <div className="flex-1 flex items-center justify-center p-4 sm:p-6 lg:p-8">
-        <div className="w-full max-w-6xl mx-auto">
-          <div className="mb-10 text-center">
-            <h1 className="text-xl sm:text-3xl font-bold flex items-center justify-center gap-2">
+    <div className="flex min-h-screen flex-col">
+      <div className="flex flex-1 items-center justify-center p-4 sm:p-6 lg:p-8 xl:p-10">
+        <div className="mx-auto w-full max-w-6xl xl:max-w-7xl">
+          <div className="mb-10 text-center lg:mb-12">
+            <h1 className="flex items-center justify-center gap-2 text-xl font-bold sm:text-3xl lg:gap-3 lg:text-4xl">
               <Wallet className="h-8 w-8" />
               {tr('Ví của tôi', 'My wallet', '我的钱包', 'マイウォレット', '내 지갑')}
             </h1>
-            <p className="text-muted-foreground mt-2">
+            <p className="mt-2 text-muted-foreground lg:mt-3 lg:text-[15px]">
               {tr('Quản lý số dư credits và lịch sử giao dịch', 'Manage credit balance and transaction history', '管理积分余额与交易记录', 'クレジット残高と取引履歴を管理', '크레딧 잔액과 거래 내역 관리')}
             </p>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-7">
+          <div className="grid grid-cols-1 gap-7 lg:grid-cols-3 xl:gap-8">
         {/* Left column - Balance and quick actions */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="space-y-6 lg:col-span-2 lg:space-y-7">
           {/* Balance card */}
-          <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+          <Card className="border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50 lg:shadow-md lg:shadow-blue-500/5">
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
                 <span className="flex items-center gap-2">
@@ -193,7 +193,7 @@ export default function WalletClient() {
           </Card>
 
           {/* Recent transactions */}
-          <Card>
+          <Card className="lg:border-border/70 lg:shadow-md">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <History className="h-5 w-5" />
@@ -222,7 +222,7 @@ export default function WalletClient() {
                   {recentPayments.map((payment) => (
                     <div
                       key={payment.id}
-                      className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+                      className="flex items-center justify-between rounded-lg border p-4 transition-colors hover:bg-gray-50 lg:rounded-xl lg:border-border/60 lg:p-5 lg:shadow-sm lg:hover:bg-muted/40"
                     >
                       <div className="flex items-center gap-4">
                         <div className="rounded-full bg-blue-100 p-2">
@@ -260,9 +260,9 @@ export default function WalletClient() {
         </div>
 
         {/* Right column - Stats and info */}
-        <div className="space-y-6">
+        <div className="space-y-6 lg:space-y-7">
           {/* Usage stats */}
-          <Card>
+          <Card className="lg:border-border/70 lg:shadow-md">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <TrendingUp className="h-5 w-5" />
@@ -292,7 +292,7 @@ export default function WalletClient() {
           </Card>
 
           {/* Quick actions */}
-          <Card>
+          <Card className="lg:border-border/70 lg:shadow-md">
             <CardHeader>
               <CardTitle className="text-sm">{tr('Thao tác nhanh', 'Quick actions', '快捷操作', 'クイック操作', '빠른 작업')}</CardTitle>
             </CardHeader>
@@ -318,7 +318,7 @@ export default function WalletClient() {
           </Card>
 
           {/* Help card */}
-          <Card>
+          <Card className="lg:border-border/70 lg:shadow-md">
             <CardHeader>
               <CardTitle className="text-sm">{tr('Cần hỗ trợ?', 'Need help?', '需要帮助？', 'サポートが必要ですか？', '도움이 필요하신가요?')}</CardTitle>
             </CardHeader>

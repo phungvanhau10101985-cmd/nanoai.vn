@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -27,40 +27,16 @@ export default function TransactionsClient() {
   const [payments, setPayments] = useState<Payment[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<string>('all')
-  const supabase = createClient()
-  const tr = (vi: string, en: string, zh: string, ja: string, ko: string) => {
+  const supabase = useMemo(() => createClient(), [])
+  const tr = useCallback((vi: string, en: string, zh: string, ja: string, ko: string) => {
     if (uiLocale === 'en') return en
     if (uiLocale === 'zh') return zh
     if (uiLocale === 'ja') return ja
     if (uiLocale === 'ko') return ko
     return vi
-  }
+  }, [uiLocale])
 
-  useEffect(() => {
-    const syncLocale = () => {
-      const cookieValue = document.cookie
-        .split(';')
-        .map((x) => x.trim())
-        .find((x) => x.startsWith('nanoai_locale='))
-        ?.split('=')[1]
-        ?.trim()
-        .toLowerCase()
-      if (cookieValue === 'en' || cookieValue === 'zh' || cookieValue === 'ja' || cookieValue === 'ko') setUiLocale(cookieValue)
-      else setUiLocale('vi')
-    }
-    syncLocale()
-    const timer = window.setInterval(syncLocale, 1000)
-    window.addEventListener('focus', syncLocale)
-    document.addEventListener('visibilitychange', syncLocale)
-    fetchPayments()
-    return () => {
-      window.removeEventListener('focus', syncLocale)
-      document.removeEventListener('visibilitychange', syncLocale)
-      window.clearInterval(timer)
-    }
-  }, [filter])
-
-  const fetchPayments = async () => {
+  const fetchPayments = useCallback(async () => {
     setLoading(true)
     try {
       const { data: { user } } = await supabase.auth.getUser()
@@ -91,7 +67,31 @@ export default function TransactionsClient() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [filter, supabase, tr])
+
+  useEffect(() => {
+    const syncLocale = () => {
+      const cookieValue = document.cookie
+        .split(';')
+        .map((x) => x.trim())
+        .find((x) => x.startsWith('nanoai_locale='))
+        ?.split('=')[1]
+        ?.trim()
+        .toLowerCase()
+      if (cookieValue === 'en' || cookieValue === 'zh' || cookieValue === 'ja' || cookieValue === 'ko') setUiLocale(cookieValue)
+      else setUiLocale('vi')
+    }
+    syncLocale()
+    const timer = window.setInterval(syncLocale, 1000)
+    window.addEventListener('focus', syncLocale)
+    document.addEventListener('visibilitychange', syncLocale)
+    void fetchPayments()
+    return () => {
+      window.removeEventListener('focus', syncLocale)
+      document.removeEventListener('visibilitychange', syncLocale)
+      window.clearInterval(timer)
+    }
+  }, [fetchPayments])
 
   const getStatusBadge = (status: string) => {
     switch (status) {

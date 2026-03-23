@@ -161,7 +161,7 @@ export default function ThietKeTuiDungClientPage() {
   return (
     <>
       <Toaster />
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
+      <div className="tool-page-container">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-foreground">
             {tr('Thiết kế túi đựng (mặt phẳng)', 'Flat bag design', '平面袋设计', '平面袋デザイン', '평면 가방 설계')}

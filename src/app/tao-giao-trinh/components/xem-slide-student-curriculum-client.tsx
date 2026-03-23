@@ -33,8 +33,8 @@ export default function XemSlideStudentCurriculumClient() {
 
   if (shareLoading) {
     return (
-      <div className="min-h-screen bg-slate-900 text-white flex items-center justify-center">
-        <p className="text-slate-400">
+      <div className="min-h-screen bg-slate-900 text-white flex items-center justify-center px-4 py-8">
+        <p className="text-slate-400 text-center text-sm sm:text-base max-w-md">
           {tr(locale, 'Đang tải slide...', 'Loading slides...', '正在加载幻灯片...', 'スライドを読み込み中...', '슬라이드 로딩 중...')}
         </p>
       </div>
@@ -42,15 +42,15 @@ export default function XemSlideStudentCurriculumClient() {
   }
   if (shareError) {
     return (
-      <div className="min-h-screen bg-slate-900 text-white flex items-center justify-center">
-        <p className="text-rose-400">{shareError}</p>
+      <div className="min-h-screen bg-slate-900 text-white flex items-center justify-center px-4 py-8">
+        <p className="text-rose-400 text-center text-sm sm:text-base max-w-md">{shareError}</p>
       </div>
     )
   }
   if (!data || data.slides.length === 0) {
     return (
-      <div className="min-h-screen bg-slate-900 text-white flex items-center justify-center">
-        <p className="text-slate-400">
+      <div className="min-h-screen bg-slate-900 text-white flex items-center justify-center px-4 py-8">
+        <p className="text-slate-400 text-center text-sm sm:text-base max-w-md">
           {tr(
             locale,
             'Đang chờ dữ liệu từ giao diện giáo viên...',

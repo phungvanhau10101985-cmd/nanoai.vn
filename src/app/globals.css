@@ -137,13 +137,18 @@
     @apply rounded-2xl border border-border/70 bg-card/85 backdrop-blur-sm shadow-sm;
   }
   .app-shell {
-    @apply container mx-auto max-w-7xl px-3 py-5 sm:px-6 sm:py-7 lg:px-8 lg:py-8;
+    @apply container mx-auto max-w-7xl px-3 py-5 sm:px-6 sm:py-7 lg:px-8 lg:py-8 xl:px-10 xl:py-10;
   }
   .section-surface {
-    @apply rounded-2xl border border-border/70 bg-card/85 p-4 shadow-sm backdrop-blur-sm sm:p-5;
+    @apply rounded-2xl border border-border/70 bg-card/85 p-4 shadow-sm backdrop-blur-sm sm:p-5 lg:p-6 lg:border-border/60 lg:shadow-md;
   }
   .tool-tile {
     @apply h-full rounded-xl border border-border/70 bg-card/90 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-blue-200/80 hover:shadow-lg hover:shadow-blue-500/10 dark:hover:border-blue-800/50 dark:hover:bg-slate-900/70;
+  }
+  /** Khối nội dung chuẩn cho trang công cụ — mobile giữ nguyên, desktop rộng & thoáng hơn */
+  .tool-page-container {
+    @apply mx-auto w-full max-w-6xl space-y-6 px-4 py-6 sm:px-6 sm:py-8 lg:px-8;
+    @apply lg:space-y-7 lg:py-10 xl:max-w-7xl xl:space-y-8 xl:px-10;
   }
 }
 

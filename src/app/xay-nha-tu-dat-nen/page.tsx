@@ -7,6 +7,7 @@ import { buildMetadata, buildJsonLdService, SITE_URL } from '@/lib/seo'
 import { JsonLd } from '@/components/seo-json-ld'
 import { getFeatureSeo, buildFeatureFaqJsonLd } from '@/lib/feature-seo'
 import { FeatureSeoSection } from '@/components/feature-seo-section'
+import { CreationToolPageShell } from '@/components/layout/creation-tool-page-shell'
 
 const seo = getFeatureSeo('xay-nha-tu-dat-nen')
 
@@ -30,10 +31,14 @@ export default async function XayNhaTuDatNenPage() {
   const faqJsonLd = buildFeatureFaqJsonLd(seo)
 
   return (
-    <div className="container max-w-4xl mx-auto px-4 sm:px-6 py-6">
+    <div className="app-shell">
       <JsonLd data={jsonLd} />
       <JsonLd data={faqJsonLd} />
-      <XayNhaTuDatNenClientPage />
+      <CreationToolPageShell currentHref={seo.path}>
+        <div className="container mx-auto max-w-4xl px-4 py-6 sm:px-6">
+          <XayNhaTuDatNenClientPage />
+        </div>
+      </CreationToolPageShell>
       <FeatureSeoSection seo={seo} />
     </div>
   )

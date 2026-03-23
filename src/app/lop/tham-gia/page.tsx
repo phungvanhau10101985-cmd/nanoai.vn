@@ -22,11 +22,14 @@ export default async function ThamGiaPage() {
 
   return (
     <div className="app-shell min-h-screen">
-      <div className="max-w-md mx-auto px-4 py-8">
-        <Link href="/lop" className="text-sm text-muted-foreground hover:text-foreground mb-4 inline-block">
+      <div className="mx-auto max-w-md px-4 py-8 lg:max-w-lg lg:px-6 lg:py-10">
+        <Link
+          href="/lop"
+          className="mb-4 inline-block text-sm text-muted-foreground hover:text-foreground lg:mb-5 lg:text-[15px]"
+        >
           ← {t.classes.backToList}
         </Link>
-        <h1 className="text-xl font-bold text-foreground mb-6">{t.classes.joinClass}</h1>
+        <h1 className="mb-6 text-xl font-bold text-foreground lg:mb-7 lg:text-2xl lg:tracking-tight">{t.classes.joinClass}</h1>
         <ThamGiaForm t={t.classes} />
       </div>
     </div>
