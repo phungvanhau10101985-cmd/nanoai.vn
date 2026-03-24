@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useLayoutEffect } from 'react'
-import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { parseWorksheetMarkdown } from '@/lib/parse-worksheet-markdown'
 import { latexToReadable } from '@/app/tao-giao-trinh/lib/latex-to-readable'
 import WorksheetView from '../worksheet-view'
@@ -37,7 +37,7 @@ function markdownToHtml(md: string): string {
 export default function KetQuaClient({
   worksheet,
   submission,
-  classId,
+  classId: _classId,
   t,
   questionBadge,
 }: {
@@ -47,6 +47,7 @@ export default function KetQuaClient({
   t: Dictionary['classes']
   questionBadge: string
 }) {
+  const router = useRouter()
   const parsed = useMemo(() => parseWorksheetMarkdown(worksheet.content_markdown), [worksheet.content_markdown])
   const quizAnswers = submission.answers_json?.quiz ?? {}
   const essayAnswers = submission.answers_json?.essay ?? {}
@@ -115,9 +116,9 @@ export default function KetQuaClient({
       </div>
 
       <div className="mt-8">
-        <Link href={`/lop/${classId}`} className="text-sm text-primary hover:underline">
+        <button type="button" className="text-sm text-primary hover:underline" onClick={() => router.back()}>
           ← Về lớp
-        </Link>
+        </button>
       </div>
     </div>
   )

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -18,8 +18,61 @@ export default function ThamGiaForm({ t }: { t: Dictionary['classes'] }) {
   const [dobMonth, setDobMonth] = useState('')
   const [dobYear, setDobYear] = useState('')
   const [loading, setLoading] = useState(false)
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const [previewSummary, setPreviewSummary] = useState<string | null>(null)
+  const [previewError, setPreviewError] = useState(false)
   const router = useRouter()
   const { toast } = useToast()
+
+  useEffect(() => {
+    const raw = code.trim().toUpperCase()
+    if (raw.length < 4) {
+      setPreviewSummary(null)
+      setPreviewError(false)
+      setPreviewLoading(false)
+      return
+    }
+    let cancelled = false
+    setPreviewLoading(true)
+    setPreviewError(false)
+    const tmr = window.setTimeout(() => {
+      void fetch(`/api/lop/join-preview?code=${encodeURIComponent(raw)}`, { cache: 'no-store' })
+        .then(async (r) => {
+          const data = await r.json().catch(() => ({}))
+          if (cancelled) return
+          if (!r.ok || data?.error) {
+            setPreviewSummary(null)
+            setPreviewError(true)
+            return
+          }
+          if (!data?.found) {
+            setPreviewSummary(null)
+            setPreviewError(data?.reason === 'not_found')
+            return
+          }
+          const parts = [String(data.className ?? '').trim()].filter(Boolean)
+          const sub = String(data.subjectLabel ?? '').trim()
+          const te = String(data.teacherDisplayName ?? '').trim()
+          if (sub) parts.push(sub)
+          if (te) parts.push(te)
+          setPreviewSummary(parts.join(' — '))
+          setPreviewError(false)
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setPreviewSummary(null)
+            setPreviewError(true)
+          }
+        })
+        .finally(() => {
+          if (!cancelled) setPreviewLoading(false)
+        })
+    }, 400)
+    return () => {
+      cancelled = true
+      window.clearTimeout(tmr)
+    }
+  }, [code])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -71,6 +124,25 @@ export default function ThamGiaForm({ t }: { t: Dictionary['classes'] }) {
             disabled={loading}
             className="w-full font-mono tracking-wider"
           />
+          {code.trim().length >= 4 ? (
+            <div className="mt-2 rounded-lg border border-input bg-muted/30 px-3 py-2 text-sm" aria-live="polite">
+              {previewLoading ? (
+                <p className="text-muted-foreground">{t.joinClassPreviewLoading}</p>
+              ) : previewSummary ? (
+                <>
+                  <p className="font-medium text-foreground">{t.joinClassPreviewTitle}</p>
+                  <p className="mt-1 text-foreground">{previewSummary}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{t.joinClassPreviewCheckHint}</p>
+                </>
+              ) : previewError ? (
+                <p className="text-destructive">{t.joinClassPreviewNotFound}</p>
+              ) : (
+                <p className="text-muted-foreground">{t.joinClassPreviewNeedCode}</p>
+              )}
+            </div>
+          ) : (
+            <p className="mt-2 text-xs text-muted-foreground">{t.joinClassPreviewNeedCode}</p>
+          )}
         </div>
         <div>
           <label htmlFor="studentName" className="block text-sm font-medium text-foreground mb-2">

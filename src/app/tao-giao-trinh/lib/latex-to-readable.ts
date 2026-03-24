@@ -6,7 +6,7 @@
  * 1. Ký hiệu toán: \in→∈, \mathbb{R}→ℝ, \frac{1}{2}→(1)/(2)
  * 2. Chỉ số: x_1→x₁, x^2→x²
  * 3. Lỗi AI: } thay ), ≤ft (từ \left), \frac{1){2}
- * 4. Làm gọn: (1)/(2)→1/2, (√(3))/(2)→(√3)/2
+ * 4. Làm gọn an toàn: (1)/(2)→1/2, (√(3))/(2)→(√3)/2 — KHÔNG bỏ ngoặc phân số khi tử/mẫu có + hoặc -.
  */
 
 const SUBSCRIPT_MAP: Record<string, string> = {
@@ -22,6 +22,67 @@ const UNICODE_SUB_TO_ASCII: Record<string, string> = {
 
 function unicodeSubToAscii(s: string): string {
   return s.replace(/[₀₁₂₃₄₅₆₇₈₉]/g, (c) => UNICODE_SUB_TO_ASCII[c] ?? c)
+}
+
+/**
+ * Đọc một khối `{ ... }` cân bằng; `openIdx` trỏ tới dấu `{` mở.
+ */
+function readBalancedBraces(s: string, openIdx: number): { inner: string; after: number } | null {
+  if (openIdx < 0 || openIdx >= s.length || s[openIdx] !== '{') return null
+  let depth = 1
+  let i = openIdx + 1
+  while (i < s.length && depth > 0) {
+    const c = s[i]
+    if (c === '{') depth++
+    else if (c === '}') depth--
+    i++
+  }
+  if (depth !== 0) return null
+  return { inner: s.slice(openIdx + 1, i - 1), after: i }
+}
+
+/**
+ * \\dfrac → \\frac (cùng cú pháp ngoặc)
+ */
+function normalizeFracCommands(s: string): string {
+  return s.replace(/\\dfrac\s*\{/g, '\\frac{')
+}
+
+/**
+ * Mọi \\frac{num}{den} với ngoặc `{}` lồng nhau → (num)/(den); đệ quy trong num/den.
+ * Tránh lỗi regex [^}]* với x^{2} trong tử số.
+ */
+function expandFracBalanced(s: string): string {
+  const t = normalizeFracCommands(s)
+  if (!t.includes('\\frac{')) return t
+  let out = ''
+  let i = 0
+  while (i < t.length) {
+    const j = t.indexOf('\\frac{', i)
+    if (j === -1) {
+      out += t.slice(i)
+      break
+    }
+    out += t.slice(i, j)
+    const openNum = j + 5 // vị trí '{' ngay sau \frac
+    const numRead = readBalancedBraces(t, openNum)
+    if (!numRead || numRead.after >= t.length || t[numRead.after] !== '{') {
+      out += t[j]!
+      i = j + 1
+      continue
+    }
+    const denRead = readBalancedBraces(t, numRead.after)
+    if (!denRead) {
+      out += t[j]!
+      i = j + 1
+      continue
+    }
+    const numExpanded = expandFracBalanced(numRead.inner)
+    const denExpanded = expandFracBalanced(denRead.inner)
+    out += `(${numExpanded})/(${denExpanded})`
+    i = denRead.after
+  }
+  return out
 }
 
 const LATEX_MAP: [RegExp | string, string][] = [
@@ -42,7 +103,6 @@ const LATEX_MAP: [RegExp | string, string][] = [
   [/\$\\neq\$/g, '≠'],
   [/\$\\pm\$/g, '±'],
   [/\$\\sqrt\{([^}]+)\}\$/g, '√($1)'],
-  [/\$\\frac\{([^}]+)\}\{([^}]+)\}\$/g, '($1)/($2)'],
   [/\$\(-\\infty;\s*([^)]+)\)\$/g, '(-∞; $1)'],
   [/\$\(([^;]+);\s*\+\\infty\)\$/g, '($1; +∞)'],
   [/\$\(-\\infty;\s*\+\\infty\)\$/g, '(-∞; +∞)'],
@@ -118,7 +178,6 @@ function convertLatexInline(match: string): string {
     .replace(/\\cdot/g, '·')
     .replace(/\\times/g, '×')
     .replace(/\\sqrt\{([^}]*)\}/g, '√($1)')
-    .replace(/\\frac\{([^}]*)\}\{([^}]*)\}/g, '($1)/($2)')
     .replace(/\\,/g, ' ')
     .replace(/\\quad/g, '  ')
     .replace(/\\qquad/g, '    ')
@@ -226,7 +285,7 @@ function studentFriendlyFormat(text: string): string {
   return text
     .replace(/\(√\(([^)]*)\)\)\/\((\d+)\)/g, '(√$1)/$2') // (√(3))/(2) → (√3)/2
     .replace(/\((\d+)\)\/\((\d+)\)/g, '$1/$2') // (1)/(2) → 1/2
-    .replace(/\(([^)]+)\)\/\(([^)]+)\)/g, '$1/$2') // (4πa³)/(3) → 4πa³/3
+    // Không gộp (a)/(b) → a/b chung: sẽ làm sai thứ tự phép tính (vd (x²+x+4)/(x-3) → x²+x+4/x-3).
     .replace(/\}\s*=/g, ') =') // } = → ) = (lỗi AI dùng } thay )
 }
 
@@ -309,6 +368,8 @@ export function latexToReadable(text: string): string {
   out = out.replace(/\{log\}([₁₂₃₄₅₆₇₈₉₀])/g, (_, d) => `{log}${unicodeSubToAscii(d)}`)
   // Bước 0: Xử lý bảng biến thiên [bien_thien]...[/bien_thien]
   out = out.replace(/\[bien_thien\]\s*([\s\S]*?)\s*\[\/bien_thien\]/gi, (_, inner) => renderVariationTable(inner))
+  // Bước 0b: \frac với {...} lồng nhau (vd x^{2} trong tử) — trước mọi regex \frac [^}] đơn giản
+  out = expandFracBalanced(out)
   // Bước 1: Chuyển LaTeX ngoài $...$ (plain text)
   out = convertPlainLatex(out)
   out = convertSubscripts(out)

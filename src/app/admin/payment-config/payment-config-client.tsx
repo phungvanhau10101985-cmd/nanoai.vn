@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -52,6 +52,7 @@ function readUiLocaleFromCookie(): WebLocale {
 }
 
 export function PaymentConfigClient({ initialLocale }: { initialLocale: WebLocale }) {
+  const router = useRouter()
   const [uiLocale, setUiLocale] = useState<WebLocale>(initialLocale)
   const [rows, setRows] = useState<PaymentConfigRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -229,8 +230,8 @@ export function PaymentConfigClient({ initialLocale }: { initialLocale: WebLocal
             <Plus className="mr-2 h-4 w-4" />
             {tr('Thêm cấu hình', 'Add config', '添加配置', '設定を追加', '구성 추가')}
           </Button>
-          <Button type="button" variant="outline" asChild>
-            <Link href="/admin">{tr('Về admin', 'Back to admin', '返回管理', '管理へ戻る', '관리로')}</Link>
+          <Button type="button" variant="outline" onClick={() => router.back()}>
+            {tr('Về admin', 'Back to admin', '返回管理', '管理へ戻る', '관리로')}
           </Button>
         </div>
       </div>

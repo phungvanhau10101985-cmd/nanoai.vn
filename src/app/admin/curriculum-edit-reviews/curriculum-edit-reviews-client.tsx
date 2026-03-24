@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -11,7 +12,6 @@ import {
 } from '@/app/tao-giao-trinh/actions'
 import { useToast } from '@/hooks/use-toast'
 import { Check, X, RefreshCw } from 'lucide-react'
-import Link from 'next/link'
 
 type Review = {
   id: string
@@ -35,6 +35,7 @@ type Review = {
 }
 
 export function CurriculumEditReviewsClient() {
+  const router = useRouter()
   const { toast } = useToast()
   const [items, setItems] = useState<Review[]>([])
   const [loading, setLoading] = useState(true)
@@ -197,9 +198,9 @@ export function CurriculumEditReviewsClient() {
         </div>
       )}
 
-      <Link href="/admin">
-        <Button variant="outline">← Quay lại Admin</Button>
-      </Link>
+      <Button variant="outline" type="button" onClick={() => router.back()}>
+        ← Quay lại Admin
+      </Button>
     </div>
   )
 }

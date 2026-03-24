@@ -8,12 +8,23 @@ export type ClassItem = {
   name: string
   join_code: string
   grade_level_id?: string | null
+  subject_label?: string | null
+  teacher_display_name?: string | null
   schools?: { name?: string | null } | Array<{ name?: string | null }> | null
 }
 
 function readSchoolName(item: ClassItem): string {
   const raw = Array.isArray(item.schools) ? item.schools[0]?.name : item.schools?.name
   return String(raw ?? '').trim()
+}
+
+function studentClassContextLine(c: ClassItem): string {
+  const parts = [c.name.trim()].filter(Boolean)
+  const sub = String(c.subject_label ?? '').trim()
+  const te = String(c.teacher_display_name ?? '').trim()
+  if (sub) parts.push(sub)
+  if (te) parts.push(te)
+  return parts.join(' — ')
 }
 
 export default function LopClientPage({
@@ -52,10 +63,14 @@ export default function LopClientPage({
             href={`/lop/${c.id}`}
             className="block rounded-xl border border-input bg-card p-4 hover:bg-accent/50 transition-colors"
           >
-            <div className="flex items-center justify-between">
-              <span className="font-medium text-foreground">{c.name}</span>
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-medium text-foreground leading-snug">
+                {!c.isTeacher && (c.subject_label?.trim() || c.teacher_display_name?.trim())
+                  ? studentClassContextLine(c)
+                  : c.name}
+              </span>
               {c.isTeacher && (
-                <span className="text-xs px-2 py-0.5 rounded-full bg-primary/20 text-primary">
+                <span className="text-xs px-2 py-0.5 rounded-full bg-primary/20 text-primary shrink-0">
                   GV
                 </span>
               )}

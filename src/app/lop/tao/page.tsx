@@ -23,7 +23,7 @@ export default async function TaoLopPage() {
 
   return (
     <div className="app-shell min-h-screen">
-      <CreationToolPageShell backHref="/lop" currentHref="/lop/tao">
+      <CreationToolPageShell currentHref="/lop/tao">
         <div className="mx-auto max-w-md px-4 py-8">
           <h1 className="text-xl font-bold text-foreground mb-6">{t.classes.createClass}</h1>
           <TaoLopForm t={t.classes} />

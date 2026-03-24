@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 type UiLocale = 'vi' | 'en' | 'zh' | 'ja' | 'ko'
 
@@ -24,6 +25,7 @@ export default function TienTrinhError({
   error: Error & { digest?: string }
   reset: () => void
 }) {
+  const router = useRouter()
   const uiLocale = getWebLocaleFromCookie()
   const tr = (vi: string, en: string, zh: string, ja: string, ko: string) => {
     if (uiLocale === 'en') return en
@@ -42,7 +44,7 @@ export default function TienTrinhError({
       <p className="text-muted-foreground text-center">{error.message || tr('Có lỗi không mong muốn.', 'Unexpected error occurred.', '发生了意外错误。', '予期しないエラーが発生しました。', '예기치 않은 오류가 발생했습니다.')}</p>
       <div className="flex gap-2">
         <Button variant="outline" onClick={reset}>{tr('Thử lại', 'Retry', '重试', '再試行', '다시 시도')}</Button>
-        <Button onClick={() => window.location.href = '/dich-anh-tai-lieu'}>{tr('Về trang dịch ảnh', 'Back to translator', '返回翻译页', '翻訳ページへ戻る', '번역 페이지로 돌아가기')}</Button>
+        <Button onClick={() => router.back()}>{tr('Về trang dịch ảnh', 'Back to translator', '返回翻译页', '翻訳ページへ戻る', '번역 페이지로 돌아가기')}</Button>
       </div>
     </div>
   )

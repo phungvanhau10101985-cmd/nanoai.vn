@@ -21,6 +21,8 @@ export default function TaoLopForm({ t }: { t: Dictionary['classes'] }) {
   const [selectedSchoolId, setSelectedSchoolId] = useState('')
   const [selectedSchoolName, setSelectedSchoolName] = useState('')
   const [addingSchool, setAddingSchool] = useState(false)
+  const [subjectFacing, setSubjectFacing] = useState('')
+  const [teacherFacing, setTeacherFacing] = useState('')
   const { toast } = useToast()
 
   useEffect(() => {
@@ -35,6 +37,12 @@ export default function TaoLopForm({ t }: { t: Dictionary['classes'] }) {
           setSelectedSchoolName(String(ds.name ?? ''))
           setSchoolSearch(String(ds.name ?? ''))
         }
+        const dsl = String(ds?.defaultSubjectLabel ?? '').trim()
+        const dtn = String(ds?.teacherDisplayName ?? '').trim()
+        if (dsl)
+          setSubjectFacing((prev) => (prev.trim() ? prev : dsl))
+        if (dtn)
+          setTeacherFacing((prev) => (prev.trim() ? prev : dtn))
       })
       .catch(() => {})
     return () => {
@@ -127,6 +135,8 @@ export default function TaoLopForm({ t }: { t: Dictionary['classes'] }) {
     const formData = new FormData()
     formData.set('name', name.trim())
     formData.set('schoolId', selectedSchoolId)
+    formData.set('subjectLabel', subjectFacing.trim())
+    formData.set('teacherDisplayName', teacherFacing.trim())
     const res = await createClass(formData)
     setLoading(false)
     if (res.error) {
@@ -264,8 +274,37 @@ export default function TaoLopForm({ t }: { t: Dictionary['classes'] }) {
             name="name"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="VD: Toán 10A1"
+            placeholder="VD: 12A6"
             required
+            disabled={loading}
+            className="w-full"
+          />
+        </div>
+        <p className="text-xs text-muted-foreground -mt-2">{t.createClassFacingFieldsHint}</p>
+        <div>
+          <label htmlFor="facing-subject" className="block text-sm font-medium text-foreground mb-2">
+            {t.createClassFacingSubjectLabel}
+          </label>
+          <Input
+            id="facing-subject"
+            value={subjectFacing}
+            onChange={(e) => setSubjectFacing(e.target.value)}
+            placeholder={t.createClassFacingSubjectPlaceholder}
+            maxLength={120}
+            disabled={loading}
+            className="w-full"
+          />
+        </div>
+        <div>
+          <label htmlFor="facing-teacher" className="block text-sm font-medium text-foreground mb-2">
+            {t.createClassFacingTeacherLabel}
+          </label>
+          <Input
+            id="facing-teacher"
+            value={teacherFacing}
+            onChange={(e) => setTeacherFacing(e.target.value)}
+            placeholder={t.createClassFacingTeacherPlaceholder}
+            maxLength={120}
             disabled={loading}
             className="w-full"
           />

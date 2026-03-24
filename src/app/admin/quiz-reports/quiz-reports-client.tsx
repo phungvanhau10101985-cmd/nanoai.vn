@@ -1,12 +1,12 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
 import { Check, X, RefreshCw, Flag } from 'lucide-react'
-import Link from 'next/link'
 import { parseQuizData } from '@/lib/parse-quiz-data'
 
 type Report = {
@@ -27,6 +27,7 @@ type Report = {
 }
 
 export function QuizReportsClient() {
+  const router = useRouter()
   const { toast } = useToast()
   const [items, setItems] = useState<Report[]>([])
   const [loading, setLoading] = useState(true)
@@ -164,9 +165,9 @@ export function QuizReportsClient() {
         </div>
       )}
 
-      <Link href="/admin">
-        <Button variant="outline">← Quay lại Admin</Button>
-      </Link>
+      <Button variant="outline" type="button" onClick={() => router.back()}>
+        ← Quay lại Admin
+      </Button>
       <Toaster />
     </div>
   )

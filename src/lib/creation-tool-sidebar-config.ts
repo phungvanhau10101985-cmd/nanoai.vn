@@ -76,6 +76,14 @@ function siblingsFromNav(path: string): CreationRelatedItem[] {
 export function getCreationRelatedLinks(currentHref: string): CreationRelatedItem[] {
   const path = normalizePath(currentHref)
   if (CURRICULUM_RELATED[path]) return CURRICULUM_RELATED[path]
+  /** HS làm bài thi online — menu liên quan (lớp, giáo trình, tạo đề). */
+  if (path.startsWith('/lam-bai/')) {
+    return [
+      { href: '/lop', labelKey: 'classes' },
+      { href: '/giao-trinh', labelKey: 'create_curriculum' },
+      { href: '/tao-bai-thi', labelKey: 'online_exam' },
+    ]
+  }
   /** Chi tiết lớp /lop/[id] — cùng menu liên quan với /lop */
   if (
     path.startsWith('/lop/') &&

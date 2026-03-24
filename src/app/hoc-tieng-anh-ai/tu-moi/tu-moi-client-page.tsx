@@ -8,7 +8,6 @@ import { getAllWords, deleteWordById } from '../services/english-coach-api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Loader2, BookOpen, RefreshCw, ArrowLeft, Trash2 } from 'lucide-react'
-import Link from 'next/link'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
 
@@ -120,11 +119,9 @@ export default function TuMoiClientPage() {
       <Toaster />
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <Link href="/hoc-tieng-anh-ai">
-            <Button variant="ghost" size="icon">
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-          </Link>
+          <Button variant="ghost" size="icon" type="button" onClick={() => router.back()} aria-label={localText('Quay lại', 'Back')}>
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
           <div>
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight">
               {localText('Danh sách từ mới của tôi', 'My new words list')}

@@ -1,4 +1,7 @@
 -- Cho phép user cập nhật câu hỏi do chính mình tạo (lưu sửa phiếu, verified_at khi có policy phù hợp)
+-- Idempotent: DB đã có policy (tạo tay / migration trước) thì drop rồi tạo lại cùng định nghĩa.
+drop policy if exists "Users can update own worksheet questions" on public.worksheet_questions;
+
 create policy "Users can update own worksheet questions"
   on worksheet_questions for update
   using (user_id = auth.uid())

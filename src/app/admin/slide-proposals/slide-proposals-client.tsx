@@ -1,13 +1,13 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { listSlideProposalsForAdmin, adminReviewSlideProposal } from '@/app/tao-giao-trinh/actions'
 import { useToast } from '@/hooks/use-toast'
 import { Check, X, RefreshCw } from 'lucide-react'
-import Link from 'next/link'
 
 type Proposal = {
   id: string
@@ -26,6 +26,7 @@ type Proposal = {
 }
 
 export function SlideProposalsClient() {
+  const router = useRouter()
   const { toast } = useToast()
   const [items, setItems] = useState<Proposal[]>([])
   const [loading, setLoading] = useState(true)
@@ -151,9 +152,9 @@ export function SlideProposalsClient() {
         </div>
       )}
 
-      <Link href="/admin">
-        <Button variant="outline">← Quay lại Admin</Button>
-      </Link>
+      <Button variant="outline" type="button" onClick={() => router.back()}>
+        ← Quay lại Admin
+      </Button>
     </div>
   )
 }

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -31,6 +32,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { useSetCreationToolBackHandler } from '@/components/navigation/creation-tool-shell-back'
 
 type UiLocale = 'vi' | 'en' | 'zh' | 'ja' | 'ko'
 
@@ -222,6 +224,15 @@ export default function TaoGiaoTrinhClientPage() {
   const wsStepByStepSubmitLockRef = useRef(false)
   const sgkInputRef = useRef<HTMLInputElement>(null)
   const { toast } = useToast()
+  const router = useRouter()
+  const handleCreationToolShellBack = useCallback(() => {
+    if (featureSection !== 'create') {
+      setFeatureSection('create')
+      return
+    }
+    router.back()
+  }, [featureSection, router])
+  useSetCreationToolBackHandler(handleCreationToolShellBack)
   const pageHeaderRef = useRef<HTMLDivElement>(null)
   const curriculumResultRef = useRef<HTMLDivElement>(null)
   const worksheetSectionRef = useRef<HTMLDivElement>(null)

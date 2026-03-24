@@ -151,7 +151,7 @@ export function TranslateProgressPanel({ batchId, embedded = false, onClose }: T
               {tr('Thử lại', 'Retry', '重试', '再試行', '다시 시도')}
             </Button>
             {!embedded && (
-              <Button variant="outline" onClick={() => router.push('/dich-anh-tai-lieu')}>
+              <Button variant="outline" onClick={() => router.back()}>
                 {tr('Quay lại dịch ảnh', 'Back to translator', '返回翻译页', '翻訳ページへ戻る', '번역 페이지로 돌아가기')}
               </Button>
             )}

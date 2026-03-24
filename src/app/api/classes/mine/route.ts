@@ -39,13 +39,15 @@ export async function GET() {
   const [{ data: classes, error: classErr }, { data: setting }] = await Promise.all([
     admin
       .from('classes')
-      .select('id, name, join_code, school_id, grade_level_id, created_at, schools(name)')
+      .select(
+        'id, name, join_code, school_id, grade_level_id, subject_label, teacher_display_name, created_at, schools(name)'
+      )
       .eq('teacher_id', user.id)
       .order('created_at', { ascending: false })
       .limit(200),
     admin
       .from('teacher_school_settings')
-      .select('school_id, schools(name)')
+      .select('school_id, teacher_display_name, default_subject_label, schools(name)')
       .eq('teacher_id', user.id)
       .maybeSingle(),
   ])
@@ -55,6 +57,8 @@ export async function GET() {
     ? {
       id: String(setting.school_id ?? ''),
       name: joinedSchoolName(setting.schools),
+      teacherDisplayName: String((setting as { teacher_display_name?: string | null }).teacher_display_name ?? '').trim(),
+      defaultSubjectLabel: String((setting as { default_subject_label?: string | null }).default_subject_label ?? '').trim(),
     }
     : null
 
@@ -66,6 +70,8 @@ export async function GET() {
       schoolId: c.school_id ? String(c.school_id) : '',
       schoolName: joinedSchoolName(c.schools),
       gradeLevelId: c.grade_level_id ? String(c.grade_level_id) : '',
+      subjectLabel: String((c as { subject_label?: string | null }).subject_label ?? '').trim(),
+      teacherDisplayName: String((c as { teacher_display_name?: string | null }).teacher_display_name ?? '').trim(),
       createdAt: String(c.created_at ?? ''),
     })),
     defaultSchool,
@@ -82,6 +88,10 @@ export async function POST(req: NextRequest) {
   const name = String(body?.name ?? '').trim()
   const schoolId = String(body?.schoolId ?? '').trim()
   const gradeLevelId = String(body?.gradeLevelId ?? '').trim()
+  const subjectLabelRaw = String(body?.subjectLabel ?? '').replace(/\s+/g, ' ').trim()
+  const teacherDisplayNameRaw = String(body?.teacherDisplayName ?? '').replace(/\s+/g, ' ').trim()
+  const subjectLabel = subjectLabelRaw.length > 120 ? subjectLabelRaw.slice(0, 120) : subjectLabelRaw
+  const teacherDisplayName = teacherDisplayNameRaw.length > 120 ? teacherDisplayNameRaw.slice(0, 120) : teacherDisplayNameRaw
   if (!name) return NextResponse.json({ error: 'Vui lòng nhập tên lớp.' }, { status: 400 })
   if (!schoolId) return NextResponse.json({ error: 'Vui lòng chọn trường trước khi tạo lớp.' }, { status: 400 })
 
@@ -104,15 +114,28 @@ export async function POST(req: NextRequest) {
       join_code: joinCode,
       school_id: schoolId,
       grade_level_id: gradeLevelId || null,
+      subject_label: subjectLabel || null,
+      teacher_display_name: teacherDisplayName || null,
     })
-    .select('id, name, join_code, school_id, grade_level_id, created_at, schools(name)')
+    .select('id, name, join_code, school_id, grade_level_id, subject_label, teacher_display_name, created_at, schools(name)')
     .single()
   if (insertErr || !created) {
     return NextResponse.json({ error: insertErr?.message ?? 'Tạo lớp thất bại.' }, { status: 500 })
   }
 
+  const { data: prevSetting } = await admin
+    .from('teacher_school_settings')
+    .select('teacher_display_name, default_subject_label')
+    .eq('teacher_id', user.id)
+    .maybeSingle()
+
   await admin.from('teacher_school_settings').upsert(
-    { teacher_id: user.id, school_id: schoolId },
+    {
+      teacher_id: user.id,
+      school_id: schoolId,
+      teacher_display_name: teacherDisplayName || prevSetting?.teacher_display_name || null,
+      default_subject_label: subjectLabel || prevSetting?.default_subject_label || null,
+    },
     { onConflict: 'teacher_id' }
   )
 
@@ -125,6 +148,8 @@ export async function POST(req: NextRequest) {
       schoolId: created.school_id ? String(created.school_id) : '',
       schoolName: joinedSchoolName(created.schools),
       gradeLevelId: created.grade_level_id ? String(created.grade_level_id) : '',
+      subjectLabel: String((created as { subject_label?: string | null }).subject_label ?? '').trim(),
+      teacherDisplayName: String((created as { teacher_display_name?: string | null }).teacher_display_name ?? '').trim(),
       createdAt: String(created.created_at ?? ''),
     },
   })

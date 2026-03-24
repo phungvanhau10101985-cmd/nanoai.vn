@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
+import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -14,36 +14,139 @@ import { SUBJECTS, GRADE_LEVELS, GRADE_LEVEL_GROUPS } from '../tao-giao-trinh/li
 import { listCurriculaForExam } from '../tao-giao-trinh/actions'
 import { latexToReadable } from '../tao-giao-trinh/lib/latex-to-readable'
 import { exportWorksheetToPdf, exportWorksheetToWord } from '../tao-giao-trinh/lib/worksheet-export'
+import { getDictionary, type Dictionary } from '@/lib/i18n/dictionaries'
+import { DEFAULT_WEB_LOCALE, normalizeWebLocale, type WebLocale } from '@/lib/i18n/config'
 
-type UiLocale = 'vi' | 'en' | 'zh' | 'ja' | 'ko'
-
-function getWebLocaleFromCookie(): UiLocale {
-  if (typeof document === 'undefined') return 'vi'
+function getWebLocaleFromCookie(): WebLocale {
+  if (typeof document === 'undefined') return DEFAULT_WEB_LOCALE
   const cookieValue = document.cookie
     .split(';')
     .map((x) => x.trim())
     .find((x) => x.startsWith('nanoai_locale='))
     ?.split('=')[1]
     ?.trim()
-    .toLowerCase()
-  if (cookieValue === 'en' || cookieValue === 'zh' || cookieValue === 'ja' || cookieValue === 'ko') return cookieValue
-  return 'vi'
+  return normalizeWebLocale(cookieValue) ?? DEFAULT_WEB_LOCALE
 }
 
-const EXAM_TYPES = [
-  { id: '15ph', labelVi: '15 phút', labelEn: '15 min', duration: 15 },
-  { id: '1tiet', labelVi: '1 tiết (45 phút)', labelEn: '1 period (45 min)', duration: 45 },
-  { id: 'hocky', labelVi: 'Học kỳ (90 phút)', labelEn: 'Semester (90 min)', duration: 90 },
-  { id: 'totnghiep', labelVi: 'Tốt nghiệp (120 phút)', labelEn: 'Graduation (120 min)', duration: 120 },
-] as const
+const EXAM_TYPE_ORDER = ['15ph', '1tiet', 'hocky', 'totnghiep'] as const
+type ExamTypeId = (typeof EXAM_TYPE_ORDER)[number]
+const EXAM_TYPE_DURATION: Record<ExamTypeId, number> = {
+  '15ph': 15,
+  '1tiet': 45,
+  hocky: 90,
+  totnghiep: 120,
+}
+
+function examTypeButtonLabel(tx: Dictionary['createExamPage'], id: string): string {
+  if (id === '15ph') return tx.examType15
+  if (id === '1tiet') return tx.examType45
+  if (id === 'hocky') return tx.examType90
+  if (id === 'totnghiep') return tx.examType120
+  return tx.examType15
+}
+
+function fillExamTpl(template: string, vars: Record<string, string | number>): string {
+  let s = template
+  for (const [key, value] of Object.entries(vars)) {
+    s = s.split(`{${key}}`).join(String(value))
+  }
+  return s
+}
+
+const EXAM_FORM_DEFAULTS_KEY = 'nanoai_tao_bai_thi_form_defaults_v1'
+const EXAM_FORM_DEFAULTS_VERSION = 1
+
+type ExamFormDefaultsV1 = {
+  version: number
+  examType: string
+  subjectId: string
+  gradeLevelId: string
+  title: string
+  schoolSearch: string
+  selectedSchoolId: string
+  selectedSchoolName: string
+  selectedClassId: string
+  newClassSubject: string
+  newClassTeacher: string
+}
+
+function readExamFormDefaults(): Partial<ExamFormDefaultsV1> | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = window.localStorage.getItem(EXAM_FORM_DEFAULTS_KEY)
+    if (!raw) return null
+    const p = JSON.parse(raw) as ExamFormDefaultsV1
+    if (!p || p.version !== EXAM_FORM_DEFAULTS_VERSION) return null
+    return p
+  } catch {
+    return null
+  }
+}
+
+function writeExamFormDefaults(payload: ExamFormDefaultsV1) {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(EXAM_FORM_DEFAULTS_KEY, JSON.stringify(payload))
+  } catch {
+    // ignore quota / private mode
+  }
+}
+
+const SUBJECT_ID_SET: Set<string> = new Set(SUBJECTS.map((s) => s.id))
+const GRADE_LEVEL_ID_SET: Set<string> = new Set(GRADE_LEVELS.map((g) => g.id))
+const EXAM_TYPE_ID_SET = new Set<string>(EXAM_TYPE_ORDER)
+
+/** Tổng điểm (TN + TL) bắt buộc = 100 khi tạo phiên thi */
+const EXAM_FULL_SCORE = 100
+
+function roundExamPoints(n: number): number {
+  if (!Number.isFinite(n)) return 0
+  return Math.round(n * 100) / 100
+}
+
+/** Điểm tối đa gán được cho một câu tự luận nếu các câu khác giữ nguyên */
+function maxEssayPointsForQuestion(
+  questionId: string,
+  orderedEssayIds: string[],
+  essayPointsById: Record<string, number>,
+  totalQuizPoints: number
+): number {
+  const others = orderedEssayIds
+    .filter((x) => x !== questionId)
+    .reduce((s, oid) => s + roundExamPoints(Number(essayPointsById[oid] ?? 0)), 0)
+  return Math.max(0, roundExamPoints(EXAM_FULL_SCORE - totalQuizPoints - others))
+}
+
+/** Trần điểm/câu cho một mức TN khi các mức khác + tổng TL giữ nguyên */
+function maxQuizPointsPerQuestionForLevel(
+  level: 'easy' | 'medium' | 'hard',
+  counts: { easy: number; medium: number; hard: number },
+  points: { easy: number; medium: number; hard: number },
+  essayPointsTotal: number
+): number {
+  const otherQuiz =
+    (level === 'easy' ? 0 : counts.easy * roundExamPoints(points.easy))
+    + (level === 'medium' ? 0 : counts.medium * roundExamPoints(points.medium))
+    + (level === 'hard' ? 0 : counts.hard * roundExamPoints(points.hard))
+  const room = EXAM_FULL_SCORE - essayPointsTotal - otherQuiz
+  const c = counts[level]
+  if (c <= 0) return 50
+  const perQ = roundExamPoints(room / c)
+  return Math.max(0.25, Math.min(50, perQ))
+}
 
 export default function TaoBaiThiClientPage() {
-  const [uiLocale, setUiLocale] = useState<UiLocale>('vi')
+  const [uiLocale, setUiLocale] = useState<WebLocale>(DEFAULT_WEB_LOCALE)
   const [examType, setExamType] = useState<string>('15ph')
   const [subjectId, setSubjectId] = useState('toan')
   const [gradeLevelId, setGradeLevelId] = useState('lop-12')
   const [title, setTitle] = useState('')
   const [quizMinutesByDifficulty, setQuizMinutesByDifficulty] = useState<{ easy: number; medium: number; hard: number }>({
+    easy: 1,
+    medium: 1.5,
+    hard: 2,
+  })
+  const [quizPointsByDifficulty, setQuizPointsByDifficulty] = useState<{ easy: number; medium: number; hard: number }>({
     easy: 1,
     medium: 1.5,
     hard: 2,
@@ -56,6 +159,7 @@ export default function TaoBaiThiClientPage() {
   const [selectedQuizQuestionIds, setSelectedQuizQuestionIds] = useState<Set<string>>(new Set())
   const [selectedEssayQuestionIds, setSelectedEssayQuestionIds] = useState<Set<string>>(new Set())
   const [essayMinutesById, setEssayMinutesById] = useState<Record<string, number>>({})
+  const [essayPointsById, setEssayPointsById] = useState<Record<string, number>>({})
   const [essayQuestionSearch, setEssayQuestionSearch] = useState('')
   const [showEssayPicker, setShowEssayPicker] = useState(false)
   const [quickViewItem, setQuickViewItem] = useState<null | {
@@ -106,9 +210,14 @@ export default function TaoBaiThiClientPage() {
     schoolId: string
     schoolName: string
     gradeLevelId: string
+    subjectLabel: string
+    teacherDisplayName: string
   }>>([])
   const [selectedClassId, setSelectedClassId] = useState('')
   const [newClassName, setNewClassName] = useState('')
+  const [newClassSubject, setNewClassSubject] = useState('')
+  const [newClassTeacher, setNewClassTeacher] = useState('')
+  const [defaultsForNewClass, setDefaultsForNewClass] = useState({ subject: '', teacher: '' })
   const [showCreateClassModal, setShowCreateClassModal] = useState(false)
   const [schoolSearch, setSchoolSearch] = useState('')
   const [schoolDropdownOpen, setSchoolDropdownOpen] = useState(false)
@@ -138,8 +247,8 @@ export default function TaoBaiThiClientPage() {
   const { toast } = useToast()
   const createdExamResultRef = useRef<HTMLDivElement | null>(null)
   const createdExamListRef = useRef<HTMLDivElement | null>(null)
+  const examFormHydratedRef = useRef(false)
 
-  const tr = useCallback((vi: string, en: string) => (uiLocale === 'en' ? en : vi), [uiLocale])
   const buildExamReviewUrl = useCallback(
     (examCode: string) => `/giao-trinh/giao-vien/de-thi/${encodeURIComponent(examCode)}?t=${Date.now()}`,
     []
@@ -164,6 +273,9 @@ export default function TaoBaiThiClientPage() {
     return () => window.clearInterval(timer)
   }, [])
 
+  const dict = useMemo(() => getDictionary(uiLocale), [uiLocale])
+  const tx = dict.createExamPage
+
   const loadCreatedExams = async () => {
     setCreatedExamsLoading(true)
     try {
@@ -185,6 +297,58 @@ export default function TaoBaiThiClientPage() {
     void loadCreatedExams()
   }, [])
 
+  useLayoutEffect(() => {
+    const d = readExamFormDefaults()
+    if (!d) {
+      examFormHydratedRef.current = true
+      return
+    }
+    if (d.examType && EXAM_TYPE_ID_SET.has(d.examType)) setExamType(d.examType)
+    if (d.subjectId && SUBJECT_ID_SET.has(d.subjectId)) {
+      setSubjectId(d.subjectId as (typeof SUBJECTS)[number]['id'])
+    }
+    if (d.gradeLevelId && GRADE_LEVEL_ID_SET.has(d.gradeLevelId)) {
+      setGradeLevelId(d.gradeLevelId as (typeof GRADE_LEVELS)[number]['id'])
+    }
+    if (typeof d.title === 'string') setTitle(d.title)
+    if (typeof d.schoolSearch === 'string') setSchoolSearch(d.schoolSearch)
+    if (typeof d.selectedSchoolId === 'string') setSelectedSchoolId(d.selectedSchoolId)
+    if (typeof d.selectedSchoolName === 'string') setSelectedSchoolName(d.selectedSchoolName)
+    const cid = typeof d.selectedClassId === 'string' ? d.selectedClassId : ''
+    setSelectedClassId(cid)
+    if (typeof d.newClassSubject === 'string') setNewClassSubject(d.newClassSubject)
+    if (typeof d.newClassTeacher === 'string') setNewClassTeacher(d.newClassTeacher)
+    examFormHydratedRef.current = true
+  }, [])
+
+  useEffect(() => {
+    if (!examFormHydratedRef.current) return
+    writeExamFormDefaults({
+      version: EXAM_FORM_DEFAULTS_VERSION,
+      examType,
+      subjectId,
+      gradeLevelId,
+      title,
+      schoolSearch,
+      selectedSchoolId,
+      selectedSchoolName,
+      selectedClassId,
+      newClassSubject,
+      newClassTeacher,
+    })
+  }, [
+    examType,
+    subjectId,
+    gradeLevelId,
+    title,
+    schoolSearch,
+    selectedSchoolId,
+    selectedSchoolName,
+    selectedClassId,
+    newClassSubject,
+    newClassTeacher,
+  ])
+
   const loadTeacherClasses = useCallback(async () => {
     setClassesLoading(true)
     try {
@@ -194,9 +358,39 @@ export default function TaoBaiThiClientPage() {
         setTeacherClasses([])
         return
       }
-      const classes = Array.isArray(data?.items) ? data.items : []
+      const rawItems = Array.isArray(data?.items) ? data.items : []
+      const classes: Array<{
+        id: string
+        name: string
+        joinCode: string
+        schoolId: string
+        schoolName: string
+        gradeLevelId: string
+        subjectLabel: string
+        teacherDisplayName: string
+      }> = rawItems.map((c: Record<string, unknown>) => ({
+        id: String(c.id ?? ''),
+        name: String(c.name ?? ''),
+        joinCode: String(c.joinCode ?? ''),
+        schoolId: String(c.schoolId ?? ''),
+        schoolName: String(c.schoolName ?? ''),
+        gradeLevelId: String(c.gradeLevelId ?? ''),
+        subjectLabel: String(c.subjectLabel ?? '').trim(),
+        teacherDisplayName: String(c.teacherDisplayName ?? '').trim(),
+      }))
       setTeacherClasses(classes)
-      setSelectedClassId((prev) => (prev || classes.length === 0 ? prev : String(classes[0].id)))
+      setSelectedClassId((prev) => {
+        const p = String(prev ?? '').trim()
+        if (p && classes.some((row) => row.id === p)) return p
+        return classes.length ? String(classes[0].id) : ''
+      })
+      const ds = data?.defaultSchool
+      if (ds) {
+        setDefaultsForNewClass({
+          subject: String(ds.defaultSubjectLabel ?? '').trim(),
+          teacher: String(ds.teacherDisplayName ?? '').trim(),
+        })
+      }
     } catch {
       setTeacherClasses([])
     } finally {
@@ -244,8 +438,8 @@ export default function TaoBaiThiClientPage() {
     const needle = schoolSearch.trim()
     if (needle.length < 3) {
       toast({
-        title: tr('Thiếu dữ liệu', 'Missing input'),
-        description: tr('Vui lòng nhập tên trường dài hơn trước khi tìm AI.', 'Please enter a longer school name before AI search.'),
+        title: tx.missingInput,
+        description: tx.missingInputSchoolAi,
         variant: 'destructive',
       })
       return
@@ -260,8 +454,8 @@ export default function TaoBaiThiClientPage() {
       const data = await res.json().catch(() => ({}))
       if (!res.ok || !data?.schoolId) {
         toast({
-          title: tr('Lỗi', 'Error'),
-          description: data?.error ?? tr('Không thể tìm và chuẩn hóa trường bằng AI.', 'Unable to normalize school using AI.'),
+          title: tx.error,
+          description: data?.error ?? tx.schoolAiFailed,
           variant: 'destructive',
         })
         return
@@ -274,12 +468,12 @@ export default function TaoBaiThiClientPage() {
         return [{ id: schoolId, name: canonicalName }, ...dedup]
       })
       toast({
-        title: tr('Đã chuẩn hóa bằng AI', 'AI normalized'),
-        description: tr('Đã lưu vào DB. Giáo viên chọn trường trong danh sách bên dưới.', 'Saved to DB. Please select the school from the list below.'),
+        title: tx.schoolAiNormalized,
+        description: tx.schoolAiNormalizedDesc,
       })
     } catch (e) {
       toast({
-        title: tr('Lỗi', 'Error'),
+        title: tx.error,
         description: e instanceof Error ? e.message : String(e),
         variant: 'destructive',
       })
@@ -292,16 +486,16 @@ export default function TaoBaiThiClientPage() {
     const className = newClassName.trim()
     if (!selectedSchoolId) {
       toast({
-        title: tr('Thiếu trường', 'Missing school'),
-        description: tr('Vui lòng chọn trường trước khi tạo lớp.', 'Select a school before creating class.'),
+        title: tx.missingSchool,
+        description: tx.selectSchoolBeforeClass,
         variant: 'destructive',
       })
       return false
     }
     if (!className) {
       toast({
-        title: tr('Thiếu tên lớp', 'Missing class name'),
-        description: tr('Vui lòng nhập tên lớp.', 'Please enter class name.'),
+        title: tx.missingClassName,
+        description: tx.enterClassName,
         variant: 'destructive',
       })
       return false
@@ -315,29 +509,47 @@ export default function TaoBaiThiClientPage() {
           name: className,
           schoolId: selectedSchoolId,
           gradeLevelId,
+          subjectLabel: newClassSubject.trim(),
+          teacherDisplayName: newClassTeacher.trim(),
         }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok || !data?.item?.id) {
         toast({
-          title: tr('Lỗi', 'Error'),
-          description: data?.error ?? tr('Không thể tạo lớp.', 'Failed to create class.'),
+          title: tx.error,
+          description: data?.error ?? tx.createClassFailed,
           variant: 'destructive',
         })
         return false
       }
-      const item = data.item as { id: string; name: string; joinCode: string; schoolId: string; schoolName: string; gradeLevelId: string }
-      setTeacherClasses((prev) => [item, ...prev])
+      const item = data.item as {
+        id: string
+        name: string
+        joinCode: string
+        schoolId: string
+        schoolName: string
+        gradeLevelId: string
+        subjectLabel?: string
+        teacherDisplayName?: string
+      }
+      const normalized = {
+        ...item,
+        subjectLabel: String(item.subjectLabel ?? '').trim(),
+        teacherDisplayName: String(item.teacherDisplayName ?? '').trim(),
+      }
+      setTeacherClasses((prev) => [normalized, ...prev])
       setSelectedClassId(String(item.id))
       setNewClassName('')
+      setNewClassSubject('')
+      setNewClassTeacher('')
       toast({
-        title: tr('Đã tạo lớp', 'Class created'),
-        description: tr('Lớp mới đã sẵn sàng để gắn vào bài thi.', 'New class is ready for exam assignment.'),
+        title: tx.classCreated,
+        description: tx.classCreatedDesc,
       })
       return true
     } catch (e) {
       toast({
-        title: tr('Lỗi', 'Error'),
+        title: tx.error,
         description: e instanceof Error ? e.message : String(e),
         variant: 'destructive',
       })
@@ -488,20 +700,6 @@ export default function TaoBaiThiClientPage() {
       return next
     })
   }
-  const toggleEssayQuestion = (id: string) => {
-    setSelectedEssayQuestionIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-    setEssayMinutesById((prev) => {
-      const next = { ...prev }
-      if (id in next) delete next[id]
-      else next[id] = 10
-      return next
-    })
-  }
   const quizCatalog = useMemo(() => questionCatalog.filter((q) => q.type === 'quiz'), [questionCatalog])
   const essayCatalog = useMemo(() => questionCatalog.filter((q) => q.type === 'essay'), [questionCatalog])
 
@@ -513,6 +711,10 @@ export default function TaoBaiThiClientPage() {
     () => essayCatalog.filter((q) => selectedEssayQuestionIds.has(q.id)),
     [essayCatalog, selectedEssayQuestionIds]
   )
+  const orderedEssayQuestionIds = useMemo(
+    () => selectedEssayQuestions.map((q) => q.id),
+    [selectedEssayQuestions]
+  )
   const essaySummary = useMemo(() => {
     const normLevel = (raw: string) => {
       const x = String(raw || '').trim().toLowerCase()
@@ -520,11 +722,11 @@ export default function TaoBaiThiClientPage() {
       return 'thong-hieu'
     }
     const rows: Array<{ key: string; label: string; count: number; minutes: number }> = [
-      { key: 'nhan-biet', label: tr('Nhận biết', 'Recognition'), count: 0, minutes: 0 },
-      { key: 'thong-hieu', label: tr('Thông hiểu', 'Comprehension'), count: 0, minutes: 0 },
-      { key: 'van-dung-thap', label: tr('Vận dụng thấp', 'Low application'), count: 0, minutes: 0 },
-      { key: 'van-dung-cao', label: tr('Vận dụng cao', 'High application'), count: 0, minutes: 0 },
-      { key: 'thuc-te', label: tr('Thực tế', 'Practical'), count: 0, minutes: 0 },
+      { key: 'nhan-biet', label: tx.levelRecognition, count: 0, minutes: 0 },
+      { key: 'thong-hieu', label: tx.levelComprehension, count: 0, minutes: 0 },
+      { key: 'van-dung-thap', label: tx.levelLowApplication, count: 0, minutes: 0 },
+      { key: 'van-dung-cao', label: tx.levelHighApplication, count: 0, minutes: 0 },
+      { key: 'thuc-te', label: tx.levelPractical, count: 0, minutes: 0 },
     ]
     const byKey = new Map(rows.map((r) => [r.key, r]))
     for (const q of selectedEssayQuestions) {
@@ -537,27 +739,33 @@ export default function TaoBaiThiClientPage() {
       row.minutes += minutes
     }
     const filtered = rows.filter((r) => r.count > 0)
+    let totalPoints = 0
+    for (const q of selectedEssayQuestions) {
+      const pt = Number(essayPointsById[q.id] ?? 0)
+      totalPoints += Number.isFinite(pt) ? Math.max(0, Math.min(200, Math.round(pt * 100) / 100)) : 0
+    }
     return {
       rows: filtered,
       totalCount: filtered.reduce((sum, r) => sum + r.count, 0),
       totalMinutes: filtered.reduce((sum, r) => sum + r.minutes, 0),
+      totalPoints,
     }
-  }, [selectedEssayQuestions, essayMinutesById, tr])
+  }, [selectedEssayQuestions, essayMinutesById, essayPointsById, tx])
   const essayLevelLabel = (level: string) => {
     const x = String(level || '').trim().toLowerCase()
-    if (x === 'nhan-biet') return tr('Nhận biết', 'Recognition')
-    if (x === 'thong-hieu') return tr('Thông hiểu', 'Comprehension')
-    if (x === 'van-dung-thap') return tr('Vận dụng thấp', 'Low application')
-    if (x === 'van-dung-cao') return tr('Vận dụng cao', 'High application')
-    if (x === 'thuc-te') return tr('Thực tế', 'Practical')
-    return tr('Thông hiểu', 'Comprehension')
+    if (x === 'nhan-biet') return tx.levelRecognition
+    if (x === 'thong-hieu') return tx.levelComprehension
+    if (x === 'van-dung-thap') return tx.levelLowApplication
+    if (x === 'van-dung-cao') return tx.levelHighApplication
+    if (x === 'thuc-te') return tx.levelPractical
+    return tx.levelComprehension
   }
   const sourceLabel = (source: string) => {
     const x = String(source || '').trim().toLowerCase()
-    if (x === 'sgk') return tr('SGK', 'Textbook')
-    if (x === 'ai') return tr('AI tạo', 'AI-generated')
-    if (x === 'edited') return tr('Chỉnh sửa', 'Edited')
-    if (!x) return tr('Nguồn khác', 'Other source')
+    if (x === 'sgk') return tx.sourceTextbook
+    if (x === 'ai') return tx.sourceAi
+    if (x === 'edited') return tx.sourceEdited
+    if (!x) return tx.sourceOther
     return x
   }
   const totalQuizCount = quizCountByDifficulty.easy + quizCountByDifficulty.medium + quizCountByDifficulty.hard
@@ -568,22 +776,67 @@ export default function TaoBaiThiClientPage() {
       + (quizCountByDifficulty.hard * quizMinutesByDifficulty.hard),
     [quizCountByDifficulty, quizMinutesByDifficulty]
   )
+  const totalQuizPoints = useMemo(
+    () =>
+      quizCountByDifficulty.easy * quizPointsByDifficulty.easy
+      + quizCountByDifficulty.medium * quizPointsByDifficulty.medium
+      + quizCountByDifficulty.hard * quizPointsByDifficulty.hard,
+    [quizCountByDifficulty, quizPointsByDifficulty]
+  )
   const totalExamMinutes = totalQuizMinutes + essaySummary.totalMinutes
+  const totalExamPoints = totalQuizPoints + essaySummary.totalPoints
+  const totalExamPointsRounded = roundExamPoints(totalExamPoints)
+  const examPointsRemaining = roundExamPoints(EXAM_FULL_SCORE - totalExamPointsRounded)
+  const isExamPointsExact100 = Math.abs(totalExamPointsRounded - EXAM_FULL_SCORE) < 0.005
+
+  const toggleEssayQuestion = useCallback(
+    (id: string) => {
+      setSelectedEssayQuestionIds((prev) => {
+        const next = new Set(prev)
+        if (next.has(id)) next.delete(id)
+        else next.add(id)
+        return next
+      })
+      setEssayMinutesById((prev) => {
+        const next = { ...prev }
+        if (id in next) delete next[id]
+        else next[id] = 10
+        return next
+      })
+      setEssayPointsById((prev) => {
+        const next = { ...prev }
+        if (id in next) {
+          delete next[id]
+          return next
+        }
+        const qz =
+          quizCountByDifficulty.easy * quizPointsByDifficulty.easy
+          + quizCountByDifficulty.medium * quizPointsByDifficulty.medium
+          + quizCountByDifficulty.hard * quizPointsByDifficulty.hard
+        const others = Object.entries(prev).reduce(
+          (s, [, v]) => s + roundExamPoints(Number(v ?? 0)),
+          0
+        )
+        const room = Math.max(0, roundExamPoints(EXAM_FULL_SCORE - qz - others))
+        next[id] = room <= 0 ? 0 : Math.min(10, room)
+        return next
+      })
+    },
+    [quizCountByDifficulty, quizPointsByDifficulty]
+  )
+
   const selectedExamTypeDuration = useMemo(() => {
-    const item = EXAM_TYPES.find((x) => x.id === examType)
-    return item?.duration ?? 15
+    const id = examType as ExamTypeId
+    return EXAM_TYPE_DURATION[id] ?? EXAM_TYPE_DURATION['15ph']
   }, [examType])
   const isDurationExceeded = totalExamMinutes > selectedExamTypeDuration
-  const selectedExamTypeLabel = useMemo(() => {
-    const item = EXAM_TYPES.find((x) => x.id === examType)
-    if (!item) return uiLocale === 'en' ? '15 min' : '15 phút'
-    return uiLocale === 'en' ? item.labelEn : item.labelVi
-  }, [examType, uiLocale])
+  const selectedExamTypeLabel = useMemo(() => examTypeButtonLabel(tx, examType), [tx, examType])
   const classOptions = useMemo(
     () => teacherClasses.filter((c) => !selectedSchoolId || c.schoolId === selectedSchoolId),
     [teacherClasses, selectedSchoolId]
   )
   useEffect(() => {
+    if (classesLoading) return
     if (classOptions.length === 0) {
       setSelectedClassId('')
       return
@@ -591,7 +844,7 @@ export default function TaoBaiThiClientPage() {
     if (!classOptions.some((c) => c.id === selectedClassId)) {
       setSelectedClassId(classOptions[0].id)
     }
-  }, [classOptions, selectedClassId])
+  }, [classOptions, selectedClassId, classesLoading])
   const selectedQuizCountByDifficulty = useMemo(() => {
     let easy = 0
     let medium = 0
@@ -615,40 +868,48 @@ export default function TaoBaiThiClientPage() {
   const handleSubmit = async () => {
     if (!selectedSchoolId) {
       toast({
-        title: tr('Thiếu trường', 'Missing school'),
-        description: tr('Vui lòng chọn trường trước khi tạo bài thi.', 'Select school before creating exam.'),
+        title: tx.missingSchool,
+        description: tx.selectSchoolBeforeExam,
         variant: 'destructive',
       })
       return
     }
     if (!selectedClassId) {
       toast({
-        title: tr('Thiếu lớp', 'Missing class'),
-        description: tr('Vui lòng chọn lớp trước khi tạo bài thi.', 'Select class before creating exam.'),
+        title: tx.missingClass,
+        description: tx.selectClassBeforeExam,
         variant: 'destructive',
       })
       return
     }
     if (totalQuizCount <= 0) {
       toast({
-        title: tr('Thiếu số lượng câu', 'Invalid question count'),
-        description: tr('Hãy nhập số câu cho ít nhất 1 mức độ.', 'Set question count for at least one difficulty level.'),
+        title: tx.invalidQuestionCount,
+        description: tx.setQuestionCountHint,
         variant: 'destructive',
       })
       return
     }
     if (selectedQuizQuestionIds.size === 0) {
       toast({
-        title: tr('Chưa chọn câu hỏi', 'No questions selected'),
-        description: tr('Hãy chọn câu trắc nghiệm theo chỉ tiêu đã cài đặt.', 'Select quiz questions to match configured counts.'),
+        title: tx.noQuizSelected,
+        description: tx.selectQuizMatchCounts,
         variant: 'destructive',
       })
       return
     }
     if (remainingQuizCountByDifficulty.easy > 0 || remainingQuizCountByDifficulty.medium > 0 || remainingQuizCountByDifficulty.hard > 0) {
       toast({
-        title: tr('Chưa đủ số câu theo mức độ', 'Not enough questions by difficulty'),
-        description: tr('Giáo viên cần chọn đủ câu Dễ/Trung bình/Khó theo cài đặt.', 'Please select enough Easy/Medium/Hard questions as configured.'),
+        title: tx.notEnoughQuizByDifficulty,
+        description: tx.selectEnoughQuizByDifficulty,
+        variant: 'destructive',
+      })
+      return
+    }
+    if (!isExamPointsExact100) {
+      toast({
+        title: tx.totalMustBe100,
+        description: fillExamTpl(tx.totalMustBe100Desc, { total: String(totalExamPointsRounded) }),
         variant: 'destructive',
       })
       return
@@ -666,7 +927,7 @@ export default function TaoBaiThiClientPage() {
           gradeLevelId,
           classId: selectedClassId,
           schoolId: selectedSchoolId,
-          title: title.trim() || 'Bài thi',
+          title: title.trim() || tx.defaultExamTitle,
           curriculumIds: [...selectedCurriculumIds],
           quizCountEasy: quizCountByDifficulty.easy,
           quizCountMedium: quizCountByDifficulty.medium,
@@ -674,16 +935,20 @@ export default function TaoBaiThiClientPage() {
           quizMinutesEasy: quizMinutesByDifficulty.easy,
           quizMinutesMedium: quizMinutesByDifficulty.medium,
           quizMinutesHard: quizMinutesByDifficulty.hard,
+          quizPointsEasy: quizPointsByDifficulty.easy,
+          quizPointsMedium: quizPointsByDifficulty.medium,
+          quizPointsHard: quizPointsByDifficulty.hard,
           selectionMode: 'manual',
           quizQuestionCount: 0,
           selectedQuizQuestionIds: [...selectedQuizQuestionIds],
           selectedEssayQuestionIds: [...selectedEssayQuestionIds],
           essayMinutesById,
+          essayPointsById,
         }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
-        toast({ title: tr('Lỗi', 'Error'), description: data?.error ?? res.statusText, variant: 'destructive' })
+        toast({ title: tx.error, description: data?.error ?? res.statusText, variant: 'destructive' })
         return
       }
       if (data.success && data.code && data.examUrl) {
@@ -694,7 +959,7 @@ export default function TaoBaiThiClientPage() {
           examUrl: data.examUrl,
           totalQuestions: data.totalQuestions ?? 0,
           durationMinutes: data.durationMinutes ?? 15,
-          title: title.trim() || 'Bài thi',
+          title: title.trim() || tx.defaultExamTitle,
           className: String(data?.className ?? ''),
           schoolName: String(data?.schoolName ?? ''),
         })
@@ -709,10 +974,10 @@ export default function TaoBaiThiClientPage() {
           const target = createdExamResultRef.current ?? createdExamListRef.current
           target?.scrollIntoView({ behavior: 'smooth', block: 'start' })
         }, 80)
-        toast({ title: tr('Tạo thành công!', 'Created!'), description: tr('Đã tạo bài thi. Chia sẻ link hoặc QR cho học sinh.', 'Exam created. Share link or QR with students.'), duration: 3000 })
+        toast({ title: tx.examCreateSuccess, description: tx.examCreateSuccessDesc, duration: 3000 })
       }
     } catch (e) {
-      toast({ title: tr('Lỗi', 'Error'), description: e instanceof Error ? e.message : String(e), variant: 'destructive' })
+      toast({ title: tx.error, description: e instanceof Error ? e.message : String(e), variant: 'destructive' })
     } finally {
       setLoading(false)
     }
@@ -721,12 +986,12 @@ export default function TaoBaiThiClientPage() {
   const copyLink = () => {
     if (!result?.examUrl) return
     navigator.clipboard.writeText(result.examUrl)
-    toast({ title: tr('Đã copy', 'Copied'), description: tr('Link đã được sao chép.', 'Link copied.'), duration: 2000 })
+    toast({ title: tx.copied, description: tx.linkCopiedDesc, duration: 2000 })
   }
 
   const deleteCreatedExam = async (code: string) => {
     const ok = typeof window !== 'undefined'
-      ? window.confirm(tr('Xóa bài thi này? Hành động không thể hoàn tác.', 'Delete this exam? This action cannot be undone.'))
+      ? window.confirm(tx.deleteExamConfirm)
       : true
     if (!ok) return
     setDeletingCode(code)
@@ -738,17 +1003,17 @@ export default function TaoBaiThiClientPage() {
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
-        toast({ title: tr('Lỗi', 'Error'), description: data?.error ?? res.statusText, variant: 'destructive' })
+        toast({ title: tx.error, description: data?.error ?? res.statusText, variant: 'destructive' })
         return
       }
       if (result?.code === code) {
         setResult(null)
         setQrDataUrl(null)
       }
-      toast({ title: tr('Đã xóa', 'Deleted'), description: tr('Đã xóa bài thi.', 'Exam deleted.'), duration: 2000 })
+      toast({ title: tx.examDeleted, description: tx.examDeletedDesc, duration: 2000 })
       void loadCreatedExams()
     } catch (e) {
-      toast({ title: tr('Lỗi', 'Error'), description: e instanceof Error ? e.message : String(e), variant: 'destructive' })
+      toast({ title: tx.error, description: e instanceof Error ? e.message : String(e), variant: 'destructive' })
     } finally {
       setDeletingCode(null)
     }
@@ -810,7 +1075,7 @@ export default function TaoBaiThiClientPage() {
       const res = await fetch(`/api/exam-session/${encodeURIComponent(result.code)}`)
       const data = await res.json().catch(() => ({}))
       if (!res.ok || data.error) {
-        toast({ title: tr('Lỗi', 'Error'), description: data?.error ?? 'Không tải được đề thi.', variant: 'destructive' })
+        toast({ title: tx.error, description: data?.error ?? tx.loadExamFailed, variant: 'destructive' })
         return
       }
       const md = buildExamMarkdown({
@@ -820,9 +1085,9 @@ export default function TaoBaiThiClientPage() {
       })
       const filename = `bai-thi-${result.code}.pdf`
       await exportWorksheetToPdf(md, filename, null)
-      toast({ title: tr('Đã xuất PDF', 'PDF exported'), description: filename, duration: 2000 })
+      toast({ title: tx.pdfExported, description: filename, duration: 2000 })
     } catch (e) {
-      toast({ title: tr('Lỗi', 'Error'), description: e instanceof Error ? e.message : String(e), variant: 'destructive' })
+      toast({ title: tx.error, description: e instanceof Error ? e.message : String(e), variant: 'destructive' })
     } finally {
       setExportLoading(null)
     }
@@ -835,7 +1100,7 @@ export default function TaoBaiThiClientPage() {
       const res = await fetch(`/api/exam-session/${encodeURIComponent(result.code)}`)
       const data = await res.json().catch(() => ({}))
       if (!res.ok || data.error) {
-        toast({ title: tr('Lỗi', 'Error'), description: data?.error ?? 'Không tải được đề thi.', variant: 'destructive' })
+        toast({ title: tx.error, description: data?.error ?? tx.loadExamFailed, variant: 'destructive' })
         return
       }
       const md = buildExamMarkdown({
@@ -845,9 +1110,9 @@ export default function TaoBaiThiClientPage() {
       })
       const filename = `bai-thi-${result.code}.docx`
       await exportWorksheetToWord(md, filename)
-      toast({ title: tr('Đã xuất Word', 'Word exported'), description: filename, duration: 2000 })
+      toast({ title: tx.wordExported, description: filename, duration: 2000 })
     } catch (e) {
-      toast({ title: tr('Lỗi', 'Error'), description: e instanceof Error ? e.message : String(e), variant: 'destructive' })
+      toast({ title: tx.error, description: e instanceof Error ? e.message : String(e), variant: 'destructive' })
     } finally {
       setExportLoading(null)
     }
@@ -860,10 +1125,10 @@ export default function TaoBaiThiClientPage() {
         <div className="text-center">
           <h1 className="text-2xl font-bold text-foreground flex items-center justify-center gap-2">
             <FileQuestion className="h-7 w-7 text-violet-600" />
-            {tr('Tạo bài thi trực tuyến', 'Create online exam')}
+            {tx.pageTitle}
           </h1>
           <p className="text-muted-foreground mt-1">
-            {tr('15 phút, 1 tiết, học kỳ, tốt nghiệp. Chọn môn, lớp, bài. QR + link cho học sinh.', '15 min, 1 period, semester, graduation. Select subject, grade, lessons. QR + link for students.')}
+            {tx.pageSubtitle}
           </p>
         </div>
 
@@ -872,10 +1137,10 @@ export default function TaoBaiThiClientPage() {
           <Card className="border border-emerald-200 dark:border-emerald-800">
             <CardHeader>
               <CardTitle className="text-emerald-700 dark:text-emerald-400">
-                {tr('Bài thi đã tạo', 'Exam created')}
+                {tx.examCreatedBadge}
               </CardTitle>
               <CardDescription>
-                {result.totalQuestions} {tr('câu', 'questions')} · {result.durationMinutes} {tr('phút', 'minutes')}
+                {result.totalQuestions} {tx.questions} · {result.durationMinutes} {tx.minutes}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -888,29 +1153,29 @@ export default function TaoBaiThiClientPage() {
                 <div className="flex-1 min-w-0 space-y-2">
                   <div className="flex items-center gap-2">
                     <Link2 className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm font-medium">{tr('Link làm bài', 'Exam link')}</span>
+                    <span className="text-sm font-medium">{tx.examLink}</span>
                   </div>
                   <div className="flex gap-2">
                     <Input readOnly value={result.examUrl} className="text-sm font-mono" />
-                    <Button variant="outline" size="icon" onClick={copyLink} title={tr('Copy link', 'Copy link')}>
+                    <Button variant="outline" size="icon" onClick={copyLink} title={tx.copyLink}>
                       <Copy className="h-4 w-4" />
                     </Button>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    {tr('Mã bài thi', 'Exam code')}: <strong>{result.code}</strong>
+                    {tx.examCode}: <strong>{result.code}</strong>
                   </p>
                   {(result.className || result.schoolName) && (
                     <p className="text-xs text-muted-foreground">
-                      {result.className ? `${tr('Lớp', 'Class')}: ${result.className}` : ''}
+                      {result.className ? `${tx.classLabel}: ${result.className}` : ''}
                       {result.className && result.schoolName ? ' · ' : ''}
-                      {result.schoolName ? `${tr('Trường', 'School')}: ${result.schoolName}` : ''}
+                      {result.schoolName ? `${tx.schoolLabel}: ${result.schoolName}` : ''}
                     </p>
                   )}
                   <div className="flex flex-wrap gap-2 pt-2">
                     <Button variant="secondary" size="sm" asChild className="gap-1.5">
                       <Link href={buildExamReviewUrl(result.code)} target="_blank">
                         <BookOpen className="h-4 w-4" />
-                        {tr('Chữa bài (slide)', 'Review slides')}
+                        {tx.reviewSlides}
                       </Link>
                     </Button>
                     <Button
@@ -925,7 +1190,7 @@ export default function TaoBaiThiClientPage() {
                       ) : (
                         <FileDown className="h-4 w-4" />
                       )}
-                      {tr('Xuất PDF', 'Export PDF')}
+                      {tx.exportPdf}
                     </Button>
                     <Button
                       variant="outline"
@@ -939,7 +1204,7 @@ export default function TaoBaiThiClientPage() {
                       ) : (
                         <FileText className="h-4 w-4" />
                       )}
-                      {tr('Xuất Word', 'Export Word')}
+                      {tx.exportWord}
                     </Button>
                   </div>
                 </div>
@@ -949,7 +1214,7 @@ export default function TaoBaiThiClientPage() {
                 className="font-bold shadow-sm"
                 onClick={() => { clearCurriculaDraft(); setSelectedCurriculumIds(new Set()); setResult(null); setQrDataUrl(null) }}
               >
-                {tr('Tạo bài thi khác', 'Create another exam')}
+                {tx.createAnotherExam}
               </Button>
             </CardContent>
           </Card>
@@ -959,29 +1224,26 @@ export default function TaoBaiThiClientPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
                 <QrCode className="h-4 w-4 text-violet-600" />
-                {tr('Thông tin bài thi', 'Exam info')}
+                {tx.cardExamInfo}
               </CardTitle>
               <CardDescription>
-                {tr(
-                  'Chọn môn/lớp và cách lấy câu hỏi: ngẫu nhiên hoặc giáo viên tự chọn từ danh sách bài tập trong giáo trình.',
-                  'Select subject/grade and question method: random or teacher-picked from curriculum exercise lists.'
-                )}
+                {tx.examFormCardDescription}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <label className="text-xs font-medium text-muted-foreground">{tr('Tiêu đề (tùy chọn)', 'Title (optional)')}</label>
+                <label className="text-xs font-medium text-muted-foreground">{tx.titleOptional}</label>
                 <Input
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder={tr('Bài thi Toán 15 phút', 'Math 15-min exam')}
+                  placeholder={tx.titlePlaceholder}
                   className="text-sm"
                 />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label className="text-xs font-medium text-muted-foreground">{tr('Môn học', 'Subject')}</label>
+                  <label className="text-xs font-medium text-muted-foreground">{tx.subject}</label>
                   <select
                     value={subjectId}
                     onChange={(e) => setSubjectId(e.target.value)}
@@ -993,7 +1255,7 @@ export default function TaoBaiThiClientPage() {
                   </select>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-xs font-medium text-muted-foreground">{tr('Lớp', 'Grade')}</label>
+                  <label className="text-xs font-medium text-muted-foreground">{tx.gradeLevelLabel}</label>
                   <select
                     value={gradeLevelId}
                     onChange={(e) => setGradeLevelId(e.target.value)}
@@ -1012,9 +1274,10 @@ export default function TaoBaiThiClientPage() {
               </div>
 
               <div className="space-y-3 rounded border p-3 bg-muted/20">
-                <p className="text-sm font-semibold">{tr('Trường và lớp áp dụng', 'Target school and class')}</p>
+                <p className="text-sm font-semibold">{tx.targetSchoolAndClass}</p>
+                <p className="text-[11px] text-muted-foreground leading-snug">{tx.examFormRememberHint}</p>
                 <div className="space-y-2">
-                  <label className="text-xs font-medium text-muted-foreground">{tr('Trường', 'School')}</label>
+                  <label className="text-xs font-medium text-muted-foreground">{tx.schoolLabel}</label>
                   <div className="relative">
                     <Input
                       value={schoolSearch}
@@ -1024,7 +1287,7 @@ export default function TaoBaiThiClientPage() {
                       }}
                       onFocus={() => setSchoolDropdownOpen(true)}
                       onBlur={() => window.setTimeout(() => setSchoolDropdownOpen(false), 120)}
-                      placeholder={tr('Gõ tên trường', 'Type school name')}
+                      placeholder={tx.schoolPlaceholder}
                       className="text-sm pr-28"
                     />
                     {schoolSearch.trim().length >= 3 && (
@@ -1034,7 +1297,7 @@ export default function TaoBaiThiClientPage() {
                         onClick={() => void searchAndSaveSchoolByAi()}
                         className="absolute right-2 top-1/2 -translate-y-1/2 h-7 px-2 rounded border bg-background text-xs font-medium hover:bg-muted"
                       >
-                        {tr('Tìm kiếm', 'Search')}
+                        {tx.search}
                       </button>
                     )}
                     {schoolDropdownOpen && schoolSearch.trim().length >= 2 && (
@@ -1042,7 +1305,7 @@ export default function TaoBaiThiClientPage() {
                         {schoolSearchLoading ? (
                           <div className="flex items-center gap-2 px-2 py-1.5 text-xs text-muted-foreground">
                             <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                            {tr('Đang tìm trường...', 'Searching schools...')}
+                            {tx.searchingSchools}
                           </div>
                         ) : (
                           <>
@@ -1065,7 +1328,7 @@ export default function TaoBaiThiClientPage() {
                             ))}
                             {schoolSearchItems.length === 0 && schoolSearch.trim().length < 3 && (
                               <p className="text-xs text-muted-foreground px-2 py-1.5">
-                                {tr('Nhập ít nhất 3 ký tự để tìm trường.', 'Enter at least 3 characters to search school.')}
+                                {tx.schoolMinChars}
                               </p>
                             )}
                           </>
@@ -1075,13 +1338,13 @@ export default function TaoBaiThiClientPage() {
                   </div>
                   {selectedSchoolId && (
                     <p className="text-xs text-muted-foreground">
-                      {tr('Đang chọn', 'Selected')}: <strong>{selectedSchoolName || schoolSearch}</strong>
+                      {tx.selectedPrefix}: <strong>{selectedSchoolName || schoolSearch}</strong>
                     </p>
                   )}
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-xs font-medium text-muted-foreground">{tr('Lớp', 'Class')}</label>
+                  <label className="text-xs font-medium text-muted-foreground">{tx.classLabel}</label>
                   <div className="flex gap-2">
                     <select
                       value={selectedClassId}
@@ -1092,8 +1355,8 @@ export default function TaoBaiThiClientPage() {
                       {classOptions.length === 0 ? (
                         <option value="">
                           {classesLoading
-                            ? tr('Đang tải lớp...', 'Loading classes...')
-                            : tr('Chưa có lớp - bấm Tạo mới', 'No class yet - click Create new')}
+                            ? tx.loadingClasses
+                            : tx.noClassClickNew}
                         </option>
                       ) : (
                         classOptions.map((item) => (
@@ -1109,102 +1372,153 @@ export default function TaoBaiThiClientPage() {
                       onClick={() => {
                         if (!selectedSchoolId) {
                           toast({
-                            title: tr('Thiếu trường', 'Missing school'),
-                            description: tr('Vui lòng chọn trường trước khi tạo lớp mới.', 'Please select school first before creating a new class.'),
+                            title: tx.missingSchool,
+                            description: tx.selectSchoolBeforeNewClass,
                             variant: 'destructive',
                           })
                           return
                         }
+                        setNewClassSubject((s) => s.trim() || defaultsForNewClass.subject)
+                        setNewClassTeacher((s) => s.trim() || defaultsForNewClass.teacher)
                         setShowCreateClassModal(true)
                       }}
                     >
-                      {tr('Tạo mới', 'Create new')}
+                      {tx.createNew}
                     </Button>
                   </div>
                 </div>
               </div>
 
               <div className="space-y-2">
-                <label className="text-xs font-medium text-muted-foreground">{tr('Loại bài thi', 'Exam type')}</label>
+                <label className="text-xs font-medium text-muted-foreground">{tx.examType}</label>
                 <div className="flex flex-wrap gap-2">
-                  {EXAM_TYPES.map((t) => (
+                  {EXAM_TYPE_ORDER.map((id) => (
                     <button
-                      key={t.id}
+                      key={id}
                       type="button"
-                      onClick={() => setExamType(t.id)}
+                      onClick={() => setExamType(id)}
                       className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
-                        examType === t.id ? 'bg-violet-600 text-white' : 'bg-muted hover:bg-muted/80'
+                        examType === id ? 'bg-violet-600 text-white' : 'bg-muted hover:bg-muted/80'
                       }`}
                     >
-                      {uiLocale === 'en' ? t.labelEn : t.labelVi}
+                      {examTypeButtonLabel(tx, id)}
                     </button>
                   ))}
                 </div>
               </div>
 
               <div className="space-y-2 rounded border p-3">
-                <p className="text-sm font-semibold">{tr('Phần 1: Trắc nghiệm', 'Part 1: Quiz')}</p>
-                <div className="grid grid-cols-4 gap-2 text-xs font-medium text-muted-foreground">
-                  <p>{tr('Mức độ', 'Difficulty')}</p>
-                  <p>{tr('Số câu', 'Question count')}</p>
-                  <p>{tr('Phút/câu', 'Min/question')}</p>
-                  <p>{tr('Tổng phút', 'Total minutes')}</p>
+                <p className="text-sm font-semibold">{tx.part1Quiz}</p>
+                <div className="overflow-x-auto -mx-1 px-1">
+                  <div className="grid grid-cols-[minmax(5rem,1fr)_minmax(4rem,0.9fr)_minmax(4.5rem,0.9fr)_minmax(4.5rem,0.9fr)_minmax(4rem,0.8fr)] gap-2 text-xs font-medium text-muted-foreground min-w-[520px]">
+                    <p>{tx.colDifficulty}</p>
+                    <p>{tx.colCount}</p>
+                    <p>{tx.colMinPerQ}</p>
+                    <p>{tx.colPtsPerQ}</p>
+                    <p>{tx.colSumMin}</p>
+                  </div>
+                  {(['easy', 'medium', 'hard'] as const).map((level) => {
+                    const label = level === 'easy' ? tx.easyQuestions : level === 'hard' ? tx.hardQuestions : tx.mediumQuestions
+                    const count = quizCountByDifficulty[level]
+                    const minutes = quizMinutesByDifficulty[level]
+                    const pts = quizPointsByDifficulty[level]
+                    return (
+                      <div
+                        key={level}
+                        className="grid grid-cols-[minmax(5rem,1fr)_minmax(4rem,0.9fr)_minmax(4.5rem,0.9fr)_minmax(4.5rem,0.9fr)_minmax(4rem,0.8fr)] gap-2 items-center min-w-[520px]"
+                      >
+                        <p className="text-sm">{label}</p>
+                        <Input
+                          type="number"
+                          min={0}
+                          max={200}
+                          value={count}
+                          onChange={(e) => {
+                            const n = Math.max(0, Math.min(200, Math.floor(Number(e.target.value) || 0)))
+                            setQuizCountByDifficulty((prev) => ({ ...prev, [level]: n }))
+                          }}
+                        />
+                        <Input
+                          type="number"
+                          min={0.5}
+                          max={10}
+                          step={0.5}
+                          value={minutes}
+                          onChange={(e) => {
+                            const n = Number(e.target.value)
+                            const normalized = Number.isFinite(n) ? Math.max(0.5, Math.min(10, n)) : minutes
+                            setQuizMinutesByDifficulty((prev) => ({ ...prev, [level]: normalized }))
+                          }}
+                        />
+                        <Input
+                          type="number"
+                          min={0.25}
+                          max={50}
+                          step={0.25}
+                          value={pts}
+                          onChange={(e) => {
+                            const n = Number(e.target.value)
+                            let normalized = Number.isFinite(n) ? Math.max(0.25, Math.min(50, Math.round(n * 100) / 100)) : pts
+                            const cap = maxQuizPointsPerQuestionForLevel(
+                              level,
+                              quizCountByDifficulty,
+                              quizPointsByDifficulty,
+                              essaySummary.totalPoints
+                            )
+                            normalized = Math.min(normalized, cap)
+                            setQuizPointsByDifficulty((prev) => ({ ...prev, [level]: normalized }))
+                          }}
+                        />
+                        <p className="text-sm font-medium tabular-nums">{count * minutes}</p>
+                      </div>
+                    )
+                  })}
                 </div>
-                {(['easy', 'medium', 'hard'] as const).map((level) => {
-                  const label = level === 'easy' ? tr('Câu dễ', 'Easy') : level === 'hard' ? tr('Câu khó', 'Hard') : tr('Câu trung bình', 'Medium')
-                  const count = quizCountByDifficulty[level]
-                  const minutes = quizMinutesByDifficulty[level]
-                  return (
-                    <div key={level} className="grid grid-cols-4 gap-2 items-center">
-                      <p className="text-sm">{label}</p>
-                      <Input
-                        type="number"
-                        min={0}
-                        max={200}
-                        value={count}
-                        onChange={(e) => {
-                          const n = Math.max(0, Math.min(200, Math.floor(Number(e.target.value) || 0)))
-                          setQuizCountByDifficulty((prev) => ({ ...prev, [level]: n }))
-                        }}
-                      />
-                      <Input
-                        type="number"
-                        min={0.5}
-                        max={10}
-                        step={0.5}
-                        value={minutes}
-                        onChange={(e) => {
-                          const n = Number(e.target.value)
-                          const normalized = Number.isFinite(n) ? Math.max(0.5, Math.min(10, n)) : minutes
-                          setQuizMinutesByDifficulty((prev) => ({ ...prev, [level]: normalized }))
-                        }}
-                      />
-                      <p className="text-sm font-medium">{count * minutes}</p>
-                    </div>
-                  )
-                })}
-                <div className="rounded-md border border-input bg-muted/40 px-3 py-2 text-sm">
-                  {tr('Tổng phần trắc nghiệm', 'Quiz total')}: <strong>{totalQuizCount}</strong> {tr('câu', 'questions')} - <strong>{totalQuizMinutes}</strong> {tr('phút', 'minutes')}
+                <div className="rounded-md border border-input bg-muted/40 px-3 py-2 text-sm space-y-1">
+                  <p>
+                    {tx.quizPartTotal}: <strong>{totalQuizCount}</strong>{' '}
+                    {tx.questions} — <strong>{totalQuizMinutes}</strong> {tx.minutes} —{' '}
+                    <strong>{Math.round(totalQuizPoints * 100) / 100}</strong> {tx.points}
+                  </p>
+                  {essaySummary.totalCount > 0 ? (
+                    <p className="text-xs text-muted-foreground">
+                      {fillExamTpl(tx.quizRemainForEssay, { n: String(roundExamPoints(Math.max(0, EXAM_FULL_SCORE - totalQuizPoints))) })}
+                    </p>
+                  ) : totalQuizPoints - EXAM_FULL_SCORE > 0.005 ? null : (
+                    <p className="text-xs text-muted-foreground">
+                      {fillExamTpl(tx.quizTnOptionalEssayHint, {
+                        quizTotal: String(roundExamPoints(totalQuizPoints)),
+                        remainForEssay: String(
+                          roundExamPoints(Math.max(0, EXAM_FULL_SCORE - totalQuizPoints))
+                        ),
+                      })}
+                    </p>
+                  )}
+                  {totalQuizPoints - EXAM_FULL_SCORE > 0.005 && (
+                    <p className="text-xs text-amber-800">
+                      {fillExamTpl(tx.quizOver100, { n: String(roundExamPoints(totalQuizPoints)) })}
+                    </p>
+                  )}
                 </div>
               </div>
 
               <div className="space-y-2">
                 <label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
                   <BookOpen className="h-3.5 w-3.5" />
-                  {tr('Chọn giáo trình theo môn và lớp đã chọn', 'Select curricula for selected subject and grade')}
+                  {tx.selectCurricula}
                 </label>
                 {browseLoading ? (
                   <div className="flex items-center gap-2 py-2 text-muted-foreground text-sm">
                     <RefreshCw className="h-4 w-4 animate-spin" />
-                    {tr('Đang tải...', 'Loading...')}
+                    {tx.loading}
                   </div>
                 ) : curriculaList.length === 0 ? (
                   <p className="text-xs text-muted-foreground py-2">
-                    {tr('Chưa có giáo trình cho môn/lớp này. ', 'No curricula for this subject/grade. ')}
+                    {tx.noCurriculaForSubject}
                     <Link href="/giao-trinh" className="text-primary hover:underline">
-                      {tr('Tạo giáo trình', 'Create curriculum')}
+                      {tx.createCurriculum}
                     </Link>
-                    {tr(' trước.', ' first.')}
+                    {tx.first}
                   </p>
                 ) : (
                   <div className="max-h-56 overflow-y-auto space-y-2 rounded border p-2 bg-muted/30">
@@ -1222,28 +1536,28 @@ export default function TaoBaiThiClientPage() {
               <div className="space-y-2">
                 {selectedCurriculumIds.size === 0 ? (
                   <p className="text-xs text-muted-foreground">
-                    {tr('Hãy chọn giáo trình trước để tải danh sách câu trắc nghiệm.', 'Select curricula first to load quiz questions.')}
+                    {tx.selectCurriculaForQuizList}
                   </p>
                 ) : questionCatalogLoading ? (
                   <div className="flex items-center gap-2 py-2 text-muted-foreground text-sm">
                     <RefreshCw className="h-4 w-4 animate-spin" />
-                    {tr('Đang tải danh sách câu...', 'Loading questions...')}
+                    {tx.loadingQuestionList}
                   </div>
                 ) : (
                   <>
                     <div className="grid grid-cols-3 gap-2 text-xs">
                       <div className="rounded border px-2 py-1">
-                        {tr('Còn lại Dễ', 'Easy remaining')}: <strong>{remainingQuizCountByDifficulty.easy}</strong>
+                        {tx.remainingEasy}: <strong>{remainingQuizCountByDifficulty.easy}</strong>
                       </div>
                       <div className="rounded border px-2 py-1">
-                        {tr('Còn lại Trung bình', 'Medium remaining')}: <strong>{remainingQuizCountByDifficulty.medium}</strong>
+                        {tx.remainingMedium}: <strong>{remainingQuizCountByDifficulty.medium}</strong>
                       </div>
                       <div className="rounded border px-2 py-1">
-                        {tr('Còn lại Khó', 'Hard remaining')}: <strong>{remainingQuizCountByDifficulty.hard}</strong>
+                        {tx.remainingHard}: <strong>{remainingQuizCountByDifficulty.hard}</strong>
                       </div>
                     </div>
                     <Input
-                      placeholder={tr('Tìm câu trắc nghiệm...', 'Search quiz questions...')}
+                      placeholder={tx.searchQuizPlaceholder}
                       value={quizQuestionSearch}
                       onChange={(e) => setQuizQuestionSearch(e.target.value)}
                       className="text-sm h-8"
@@ -1283,21 +1597,21 @@ export default function TaoBaiThiClientPage() {
                                 />
                                 <div className="min-w-0 flex-1">
                                   <div className="flex flex-wrap gap-2 text-xs mb-1">
-                                    <span className="rounded px-1.5 py-0.5 bg-emerald-100 text-emerald-700">{tr('Trắc nghiệm', 'Quiz')}</span>
+                                    <span className="rounded px-1.5 py-0.5 bg-emerald-100 text-emerald-700">{tx.badgeQuiz}</span>
                                     <span className="rounded px-1.5 py-0.5 bg-sky-100 text-sky-700">
-                                      {diff === 'easy' ? tr('Dễ', 'Easy') : diff === 'hard' ? tr('Khó', 'Hard') : tr('Trung bình', 'Medium')}
+                                      {diff === 'easy' ? tx.easy : diff === 'hard' ? tx.hard : tx.medium}
                                     </span>
                                     <span className={`rounded px-1.5 py-0.5 ${q.verifiedAt ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
-                                      {q.verifiedAt ? tr('Đã verify', 'Verified') : tr('Chưa verify', 'Unverified')}
+                                      {q.verifiedAt ? tx.verified : tx.unverified}
                                     </span>
                                     {q.curriculumTopic ? (
                                       <span className="rounded px-1.5 py-0.5 bg-violet-100 text-violet-700">
-                                        {tr('Thuộc bài', 'Lesson')}: {q.curriculumTopic}
+                                        {tx.lessonTag}: {q.curriculumTopic}
                                       </span>
                                     ) : null}
                                     {checked ? (
                                       <span className="rounded px-1.5 py-0.5 bg-emerald-200 text-emerald-900">
-                                        {tr('Đã chọn', 'Selected')}
+                                        {tx.selectedBadge}
                                       </span>
                                     ) : null}
                                   </div>
@@ -1317,7 +1631,7 @@ export default function TaoBaiThiClientPage() {
                                   })}
                                 >
                                   <Eye className="h-3.5 w-3.5" />
-                                  {tr('Xem nhanh', 'Quick view')}
+                                  {tx.quickView}
                                 </Button>
                               </div>
                             </div>
@@ -1325,24 +1639,24 @@ export default function TaoBaiThiClientPage() {
                         })}
                       {quizCatalog.length === 0 && (
                         <p className="text-xs text-muted-foreground py-2">
-                          {tr('Không có câu trắc nghiệm trong giáo trình đã chọn.', 'No quiz questions found in selected curricula.')}
+                          {tx.noQuizInCurricula}
                         </p>
                       )}
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      {tr('Đã chọn trắc nghiệm', 'Selected quiz')}: {selectedQuizQuestionIds.size}/{totalQuizCount} {tr('câu', 'questions')}
+                      {tx.selectedQuiz}: {fillExamTpl(tx.selectedQuizCount, { selected: String(selectedQuizQuestionIds.size), total: String(totalQuizCount) })}
                     </p>
                   </>
                 )}
               </div>
 
               <div className="space-y-2 rounded border p-3">
-                <p className="text-sm font-semibold">{tr('Phần 2: Tự luận', 'Part 2: Essay')}</p>
+                <p className="text-sm font-semibold">{tx.part2Essay}</p>
                 <p className="text-xs text-muted-foreground">
-                  {tr(
-                    'Tự luận không có chế độ ngẫu nhiên. Chọn bài tự luận từ giáo trình đã chọn, rồi điền thời gian từng bài.',
-                    'Essay has no random mode. Select essay questions from chosen curricula, then set time per question.'
-                  )}
+                  {tx.essayIntroNoRandom}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {tx.essayIntro100scale}
                 </p>
                 <Button
                   type="button"
@@ -1350,25 +1664,25 @@ export default function TaoBaiThiClientPage() {
                   size="sm"
                   onClick={() => setShowEssayPicker((prev) => !prev)}
                 >
-                  {showEssayPicker ? tr('Ẩn chọn bài tự luận', 'Hide essay picker') : tr('Chọn bài tự luận', 'Select essay questions')}
+                  {showEssayPicker ? tx.hideEssayPicker : tx.showEssayPicker}
                 </Button>
 
                 {showEssayPicker && (
                   <>
                     {selectedCurriculumIds.size === 0 ? (
                       <p className="text-xs text-muted-foreground">
-                        {tr('Hãy chọn giáo trình ở trên trước khi chọn tự luận.', 'Select curricula above before choosing essay questions.')}
+                        {tx.selectCurriculaBeforeEssay}
                       </p>
                     ) : questionCatalogLoading ? (
                       <div className="flex items-center gap-2 py-2 text-muted-foreground text-sm">
                         <RefreshCw className="h-4 w-4 animate-spin" />
-                        {tr('Đang tải danh sách câu...', 'Loading questions...')}
+                        {tx.loadingQuestionList}
                       </div>
                     ) : (
                       <div className="space-y-3">
-                        <p className="text-xs font-medium text-muted-foreground">{tr('Danh sách bài tự luận', 'Essay question list')}</p>
+                        <p className="text-xs font-medium text-muted-foreground">{tx.essayQuestionList}</p>
                         <Input
-                          placeholder={tr('Tìm câu tự luận...', 'Search essay questions...')}
+                          placeholder={tx.searchEssayPlaceholder}
                           value={essayQuestionSearch}
                           onChange={(e) => setEssayQuestionSearch(e.target.value)}
                           className="text-sm h-8"
@@ -1401,10 +1715,10 @@ export default function TaoBaiThiClientPage() {
                                   <div className="min-w-0 flex-1">
                                     <div className="flex flex-wrap gap-1.5 mb-1">
                                       <span className="rounded px-1.5 py-0.5 text-[11px] bg-amber-100 text-amber-700">
-                                        {tr('Tự luận', 'Essay')}
+                                        {tx.badgeEssay}
                                       </span>
                                       <span className={`rounded px-1.5 py-0.5 text-[11px] ${q.verifiedAt ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
-                                        {q.verifiedAt ? tr('Đã verify', 'Verified') : tr('Chưa verify', 'Unverified')}
+                                        {q.verifiedAt ? tx.verified : tx.unverified}
                                       </span>
                                       <span className="rounded px-1.5 py-0.5 text-[11px] bg-violet-100 text-violet-700">
                                         {essayLevelLabel(q.difficulty)}
@@ -1424,7 +1738,7 @@ export default function TaoBaiThiClientPage() {
                                       ) : null}
                                       {checked ? (
                                         <span className="rounded px-1.5 py-0.5 text-[11px] bg-emerald-200 text-emerald-900">
-                                          {tr('Đã chọn', 'Selected')}
+                                          {tx.selectedBadge}
                                         </span>
                                       ) : null}
                                     </div>
@@ -1444,25 +1758,31 @@ export default function TaoBaiThiClientPage() {
                                   })}
                                   >
                                     <Eye className="h-3.5 w-3.5" />
-                                    {tr('Xem nhanh', 'Quick view')}
+                                    {tx.quickView}
                                   </Button>
                                 </div>
                               </div>
                             )})}
                           {essayCatalog.length === 0 && (
                             <p className="text-xs text-muted-foreground py-2">
-                              {tr('Không có bài tự luận trong giáo trình đã chọn.', 'No essay questions found in selected curricula.')}
+                              {tx.noEssayInPicker}
                             </p>
                           )}
                         </div>
 
                         <div className="space-y-2">
                           <p className="text-xs font-medium text-muted-foreground">
-                            {tr('Danh sách tự luận đã chọn (chọn ở trên sẽ tự nhảy xuống đây)', 'Selected essay questions (picked above will move here)')}
+                            {tx.selectedEssayListTitle}
                           </p>
                           <div className="max-h-72 overflow-y-auto space-y-2 rounded border p-2 bg-background/70">
                             {selectedEssayQuestions.map((q) => {
                               const value = Number(essayMinutesById[q.id] ?? 10)
+                              const maxEssayPts = maxEssayPointsForQuestion(
+                                q.id,
+                                orderedEssayQuestionIds,
+                                essayPointsById,
+                                totalQuizPoints
+                              )
                               return (
                                 <div key={`essay-minutes-${q.id}`} className="rounded border p-2 space-y-2">
                                   <div className="flex items-start gap-2">
@@ -1475,7 +1795,7 @@ export default function TaoBaiThiClientPage() {
                                     <div className="min-w-0 flex-1 space-y-2">
                                       <div className="flex flex-wrap gap-1.5">
                                         <span className={`rounded px-1.5 py-0.5 text-[11px] ${q.verifiedAt ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
-                                          {q.verifiedAt ? tr('Đã verify', 'Verified') : tr('Chưa verify', 'Unverified')}
+                                          {q.verifiedAt ? tx.verified : tx.unverified}
                                         </span>
                                         <span className="rounded px-1.5 py-0.5 text-[11px] bg-violet-100 text-violet-700">
                                           {essayLevelLabel(q.difficulty)}
@@ -1495,21 +1815,72 @@ export default function TaoBaiThiClientPage() {
                                         ) : null}
                                       </div>
                                       <p className="text-sm whitespace-pre-wrap">{q.preview}</p>
-                                      <div className="grid grid-cols-[1fr_120px] gap-2 items-center">
-                                        <p className="text-xs text-muted-foreground">{tr('Thời gian (phút)', 'Time (minutes)')}</p>
-                                        <Input
-                                          type="number"
-                                          min={1}
-                                          max={20}
-                                          step={1}
-                                          value={String(value)}
-                                          onChange={(e) => {
-                                            const n = Number(e.target.value)
-                                            const normalized = Number.isFinite(n) ? Math.max(1, Math.min(20, Math.floor(n))) : 10
-                                            setEssayMinutesById((prev) => ({ ...prev, [q.id]: normalized }))
-                                          }}
-                                          className="h-8 text-sm"
-                                        />
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                        <div className="grid grid-cols-[1fr_5rem] gap-2 items-center">
+                                          <p className="text-xs text-muted-foreground">{tx.timeMinutes}</p>
+                                          <Input
+                                            type="number"
+                                            min={1}
+                                            max={20}
+                                            step={1}
+                                            value={String(value)}
+                                            onChange={(e) => {
+                                              const n = Number(e.target.value)
+                                              const normalized = Number.isFinite(n) ? Math.max(1, Math.min(20, Math.floor(n))) : 10
+                                              setEssayMinutesById((prev) => ({ ...prev, [q.id]: normalized }))
+                                            }}
+                                            className="h-8 text-sm"
+                                          />
+                                        </div>
+                                        <div className="space-y-1">
+                                          <div className="grid grid-cols-[1fr_5rem] gap-2 items-center">
+                                            <p className="text-xs text-muted-foreground">{tx.maxPoints}</p>
+                                            <Input
+                                              type="number"
+                                              min={0}
+                                              max={maxEssayPts}
+                                              step={0.5}
+                                              value={String(essayPointsById[q.id] ?? 0)}
+                                              onChange={(e) => {
+                                                const n = Number(e.target.value)
+                                                setEssayPointsById((prev) => {
+                                                  const cap = maxEssayPointsForQuestion(
+                                                    q.id,
+                                                    orderedEssayQuestionIds,
+                                                    prev,
+                                                    totalQuizPoints
+                                                  )
+                                                  const normalized = Number.isFinite(n)
+                                                    ? Math.max(0, Math.min(cap, Math.round(n * 100) / 100))
+                                                    : 0
+                                                  return { ...prev, [q.id]: normalized }
+                                                })
+                                              }}
+                                              className="h-8 text-sm"
+                                            />
+                                          </div>
+                                          <div className="grid grid-cols-[1fr_5rem] gap-2 items-start">
+                                            <span className="min-w-0" aria-hidden />
+                                            <p
+                                              className={`text-[11px] leading-snug text-right tabular-nums ${
+                                                isExamPointsExact100
+                                                  ? 'text-green-700 dark:text-green-400 font-medium'
+                                                  : 'text-amber-800 dark:text-amber-200 font-medium'
+                                              }`}
+                                            >
+                                              {isExamPointsExact100
+                                                ? tx.equals100
+                                                : examPointsRemaining > 0.005
+                                                  ? fillExamTpl(tx.ptsShort, { n: String(examPointsRemaining) })
+                                                  : fillExamTpl(tx.ptsOver, {
+                                                      n: String(roundExamPoints(-examPointsRemaining)),
+                                                    })}
+                                            </p>
+                                          </div>
+                                        </div>
+                                        <p className="text-xs text-muted-foreground col-span-full sm:col-span-2">
+                                          {fillExamTpl(tx.essayMaxAllowedLine, { max: String(maxEssayPts) })}
+                                        </p>
                                       </div>
                                     </div>
                                   </div>
@@ -1518,7 +1889,7 @@ export default function TaoBaiThiClientPage() {
                             })}
                             {selectedEssayQuestions.length === 0 && (
                               <p className="text-xs text-muted-foreground py-2">
-                                {tr('Chưa chọn bài tự luận.', 'No essay questions selected yet.')}
+                                {tx.noEssaySelectedYet}
                               </p>
                             )}
                           </div>
@@ -1530,70 +1901,105 @@ export default function TaoBaiThiClientPage() {
               </div>
 
               <div className="space-y-2 rounded border p-3 bg-muted/20">
-                <p className="text-sm font-semibold">{tr('Tóm tắt trước khi tạo đề', 'Summary before creating exam')}</p>
+                <p className="text-sm font-semibold">{tx.summaryBeforeCreate}</p>
                 <div className="space-y-1 text-sm">
-                  <p className="font-medium">{tr('Phần trắc nghiệm', 'Quiz section')}</p>
+                  <p className="font-medium">{tx.quizSection}</p>
                   <p>
-                    {tr('Dễ', 'Easy')}: <strong>{quizCountByDifficulty.easy}</strong> {tr('câu', 'questions')} x <strong>{quizMinutesByDifficulty.easy}</strong> {tr('phút', 'min')} = <strong>{quizCountByDifficulty.easy * quizMinutesByDifficulty.easy}</strong> {tr('phút', 'min')}
+                    {fillExamTpl(tx.summaryQuizLine, { label: tx.easy, count: String(quizCountByDifficulty.easy), min: String(quizMinutesByDifficulty.easy), sum: String(quizCountByDifficulty.easy * quizMinutesByDifficulty.easy) })}
                   </p>
                   <p>
-                    {tr('Trung bình', 'Medium')}: <strong>{quizCountByDifficulty.medium}</strong> {tr('câu', 'questions')} x <strong>{quizMinutesByDifficulty.medium}</strong> {tr('phút', 'min')} = <strong>{quizCountByDifficulty.medium * quizMinutesByDifficulty.medium}</strong> {tr('phút', 'min')}
+                    {fillExamTpl(tx.summaryQuizLine, { label: tx.medium, count: String(quizCountByDifficulty.medium), min: String(quizMinutesByDifficulty.medium), sum: String(quizCountByDifficulty.medium * quizMinutesByDifficulty.medium) })}
                   </p>
                   <p>
-                    {tr('Khó', 'Hard')}: <strong>{quizCountByDifficulty.hard}</strong> {tr('câu', 'questions')} x <strong>{quizMinutesByDifficulty.hard}</strong> {tr('phút', 'min')} = <strong>{quizCountByDifficulty.hard * quizMinutesByDifficulty.hard}</strong> {tr('phút', 'min')}
+                    {fillExamTpl(tx.summaryQuizLine, { label: tx.hard, count: String(quizCountByDifficulty.hard), min: String(quizMinutesByDifficulty.hard), sum: String(quizCountByDifficulty.hard * quizMinutesByDifficulty.hard) })}
                   </p>
                   <p className="pt-1">
-                    {tr('Tổng trắc nghiệm', 'Quiz total')}: <strong>{totalQuizCount}</strong> {tr('câu', 'questions')} - <strong>{totalQuizMinutes}</strong> {tr('phút', 'minutes')}
+                    {tx.quizSubtotalLabel}: <strong>{totalQuizCount}</strong> {tx.questions} - <strong>{totalQuizMinutes}</strong> {tx.minutes}
                   </p>
                 </div>
                 <div className="space-y-1 text-sm pt-1">
-                  <p className="font-medium">{tr('Phần tự luận', 'Essay section')}</p>
+                  <p className="font-medium">{tx.essaySection}</p>
                   {essaySummary.rows.length > 0 ? (
                     essaySummary.rows.map((row) => (
                       <p key={`summary-${row.key}`}>
-                        {row.label}: <strong>{row.count}</strong> {tr('câu', 'questions')} - <strong>{row.minutes}</strong> {tr('phút', 'minutes')}
+                        {row.label}: <strong>{row.count}</strong> {tx.questions} - <strong>{row.minutes}</strong> {tx.minutes}
                       </p>
                     ))
                   ) : (
-                    <p className="text-muted-foreground">{tr('Chưa chọn bài tự luận.', 'No essay questions selected.')}</p>
+                    <p className="text-muted-foreground">{tx.noEssaySelectedSummary}</p>
                   )}
                   <p className="pt-1">
-                    {tr('Tổng tự luận', 'Essay total')}: <strong>{essaySummary.totalCount}</strong> {tr('câu', 'questions')} - <strong>{essaySummary.totalMinutes}</strong> {tr('phút', 'minutes')}
+                    {tx.essayTotalLabel}: <strong>{essaySummary.totalCount}</strong> {tx.questions} —{' '}
+                    <strong>{essaySummary.totalMinutes}</strong> {tx.minutes} — <strong>{Math.round(essaySummary.totalPoints * 100) / 100}</strong>{' '}
+                    {tx.points}
+                  </p>
+                </div>
+                <div
+                  className={`rounded-md border px-3 py-2 text-sm ${
+                    isExamPointsExact100
+                      ? 'border-green-300/80 bg-green-50/50 dark:bg-green-950/20'
+                      : 'border-amber-300 bg-amber-50/80 dark:bg-amber-950/25'
+                  }`}
+                >
+                  <p>
+                    {tx.targetLabel}: <strong>100</strong> {tx.pointsFullExam}
+                    {' · '}
+                    {tx.allocated}: <strong>{totalExamPointsRounded}</strong>
+                    {!isExamPointsExact100 ? (
+                      <>
+                        {' · '}
+                        {examPointsRemaining > 0.005 ? (
+                          <span className="text-amber-900 dark:text-amber-100">
+                            {fillExamTpl(tx.ptsShort, { n: String(examPointsRemaining) })}
+                          </span>
+                        ) : (
+                          <span className="text-amber-900 dark:text-amber-100">
+                            {fillExamTpl(tx.ptsOver, { n: String(roundExamPoints(-examPointsRemaining)) })}
+                          </span>
+                        )}
+                      </>
+                    ) : (
+                      <span className="text-green-800 dark:text-green-200"> — {tx.equals100}</span>
+                    )}
                   </p>
                 </div>
                 <div className="rounded-md border border-input bg-background px-3 py-2 text-sm">
-                  {tr('Tổng thời gian cần làm bài', 'Total exam duration needed')}: <strong>{totalExamMinutes}</strong> {tr('phút', 'minutes')}
+                  {tx.totalDurationNeeded}: <strong>{totalExamMinutes}</strong> {tx.minutes}
+                  {' · '}
+                  {tx.totalPointsExam}: <strong>{totalExamPointsRounded}</strong>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {tr('Loại bài thi đã chọn', 'Selected exam type')}: <strong>{selectedExamTypeLabel}</strong>
+                  {tx.selectedExamType}: <strong>{selectedExamTypeLabel}</strong>
                 </p>
                 <div className="rounded-md border border-input bg-background px-3 py-2 text-sm">
-                  {tr('Thời gian đề chuẩn', 'Official exam duration')}: <strong>{selectedExamTypeDuration}</strong> {tr('phút', 'minutes')}
+                  {tx.officialExamDuration}: <strong>{selectedExamTypeDuration}</strong> {tx.minutes}
                 </div>
                 {isDurationExceeded && (
                   <div className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">
-                    {tr(
-                      `Cảnh báo: Tổng thời gian dự tính (${totalExamMinutes} phút) đang lớn hơn thời gian loại bài thi đã chọn (${selectedExamTypeDuration} phút). Đề vẫn được tạo, nhưng học sinh chỉ làm trong ${selectedExamTypeDuration} phút.`,
-                      `Warning: Estimated total time (${totalExamMinutes} min) exceeds selected exam type duration (${selectedExamTypeDuration} min). The exam will still be created, but students only have ${selectedExamTypeDuration} minutes.`
-                    )}
+                    {fillExamTpl(tx.durationWarning, { total: String(totalExamMinutes), limit: String(selectedExamTypeDuration) })}
                   </div>
                 )}
               </div>
 
               <Button
                 onClick={handleSubmit}
-                disabled={loading}
+                disabled={loading || !isExamPointsExact100}
                 className="w-full"
               >
                 {loading ? (
                   <>
                     <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                    {tr('Đang tạo...', 'Creating...')}
+                    {tx.creating}
+                  </>
+                ) : !isExamPointsExact100 ? (
+                  <>
+                    <FileQuestion className="h-4 w-4 mr-2" />
+                    {tx.need100ToCreate}
                   </>
                 ) : (
                   <>
                     <FileQuestion className="h-4 w-4 mr-2" />
-                    {isDurationExceeded ? tr('Vẫn tạo bài thi', 'Create anyway') : tr('Tạo bài thi', 'Create exam')}
+                    {isDurationExceeded ? tx.createAnyway : tx.createExam}
                   </>
                 )}
               </Button>
@@ -1604,33 +2010,33 @@ export default function TaoBaiThiClientPage() {
         <div ref={createdExamListRef}>
         <Card className="border shadow-sm">
           <CardHeader>
-            <CardTitle className="text-base">{tr('Danh sách bài thi đã tạo', 'Created exams')}</CardTitle>
+            <CardTitle className="text-base">{tx.createdExamsList}</CardTitle>
             <CardDescription>
-              {tr('Giáo viên có thể mở link hoặc xóa bài thi đã tạo.', 'Teacher can open link or delete created exams.')}
+              {tx.createdExamsHint}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
             {createdExamsLoading ? (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <RefreshCw className="h-4 w-4 animate-spin" />
-                {tr('Đang tải danh sách...', 'Loading exam list...')}
+                {tx.loadingExamList}
               </div>
             ) : createdExams.length === 0 ? (
-              <p className="text-sm text-muted-foreground">{tr('Chưa có bài thi nào.', 'No exams yet.')}</p>
+              <p className="text-sm text-muted-foreground">{tx.noExamsYet}</p>
             ) : (
               <div className="space-y-2 max-h-72 overflow-y-auto">
                 {createdExams.map((exam) => (
                   <div key={exam.id} className="rounded border p-2 flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="text-sm font-medium truncate">{exam.title || tr('Bài thi', 'Exam')} - {exam.code}</p>
+                      <p className="text-sm font-medium truncate">{exam.title || tx.examTitle} - {exam.code}</p>
                       <p className="text-xs text-muted-foreground">
-                        {exam.totalQuestions} {tr('câu', 'questions')} - {exam.durationMinutes} {tr('phút', 'minutes')}
+                        {exam.totalQuestions} {tx.questions} - {exam.durationMinutes} {tx.minutes}
                       </p>
                       {(exam.className || exam.schoolName) && (
                         <p className="text-xs text-muted-foreground">
-                          {exam.className ? `${tr('Lớp', 'Class')}: ${exam.className}` : ''}
+                          {exam.className ? `${tx.classLabel}: ${exam.className}` : ''}
                           {exam.className && exam.schoolName ? ' · ' : ''}
-                          {exam.schoolName ? `${tr('Trường', 'School')}: ${exam.schoolName}` : ''}
+                          {exam.schoolName ? `${tx.schoolLabel}: ${exam.schoolName}` : ''}
                         </p>
                       )}
                     </div>
@@ -1642,7 +2048,7 @@ export default function TaoBaiThiClientPage() {
                         asChild
                       >
                         <Link href={buildExamReviewUrl(exam.code)} target="_blank">
-                          {tr('Chữa bài', 'Review')}
+                          {tx.review}
                         </Link>
                       </Button>
                       <Button
@@ -1651,11 +2057,11 @@ export default function TaoBaiThiClientPage() {
                         size="sm"
                         onClick={() => void openExamPreview({
                           code: exam.code,
-                          title: exam.title || tr('Bài thi', 'Exam'),
+                          title: exam.title || tx.examTitle,
                           examUrl: exam.examUrl,
                         })}
                       >
-                        {tr('Mở', 'Open')}
+                        {tx.open}
                       </Button>
                       <Button
                         type="button"
@@ -1670,7 +2076,7 @@ export default function TaoBaiThiClientPage() {
                         ) : (
                           <Trash2 className="h-3.5 w-3.5" />
                         )}
-                        {tr('Xóa', 'Delete')}
+                        {tx.delete}
                       </Button>
                     </div>
                   </div>
@@ -1685,9 +2091,9 @@ export default function TaoBaiThiClientPage() {
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
           <div className="w-full max-w-md rounded-lg border bg-background shadow-xl">
             <div className="px-4 py-3 border-b flex items-center justify-between">
-              <p className="text-sm font-semibold">{tr('Quét mã QR làm bài', 'Scan QR to take exam')}</p>
+              <p className="text-sm font-semibold">{tx.scanQrTitle}</p>
               <Button type="button" variant="ghost" size="sm" onClick={() => setExamPreview(null)}>
-                {tr('Đóng', 'Close')}
+                {tx.close}
               </Button>
             </div>
             <div className="p-4 space-y-3">
@@ -1699,7 +2105,7 @@ export default function TaoBaiThiClientPage() {
                   <Image src={examPreview.qrDataUrl} alt="QR exam" width={224} height={224} className="w-56 h-56" />
                 ) : (
                   <p className="text-xs text-muted-foreground">
-                    {tr('Không tạo được QR. Dùng link bên dưới.', 'Failed to generate QR. Use link below.')}
+                    {tx.qrFailedUseLink}
                   </p>
                 )}
               </div>
@@ -1712,16 +2118,16 @@ export default function TaoBaiThiClientPage() {
                     size="sm"
                     onClick={() => navigator.clipboard.writeText(examPreview.examUrl)}
                   >
-                    {tr('Copy link', 'Copy link')}
+                    {tx.copyLink}
                   </Button>
                   <Button type="button" size="sm" asChild>
                     <Link href={examPreview.examUrl} target="_blank">
-                      {tr('Mở trên máy này', 'Open on this device')}
+                      {tx.openOnThisDevice}
                     </Link>
                   </Button>
                   <Button type="button" size="sm" variant="secondary" asChild>
                     <Link href={buildExamReviewUrl(examPreview.code)} target="_blank">
-                      {tr('Chữa bài', 'Review')}
+                      {tx.review}
                     </Link>
                   </Button>
                 </div>
@@ -1734,26 +2140,52 @@ export default function TaoBaiThiClientPage() {
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
           <div className="w-full max-w-md rounded-lg border bg-background shadow-xl">
             <div className="px-4 py-3 border-b flex items-center justify-between">
-              <p className="text-sm font-semibold">{tr('Tạo lớp mới', 'Create new class')}</p>
+              <p className="text-sm font-semibold">{tx.createNewClass}</p>
               <Button type="button" variant="ghost" size="sm" onClick={() => setShowCreateClassModal(false)}>
-                {tr('Đóng', 'Close')}
+                {tx.close}
               </Button>
             </div>
             <div className="p-4 space-y-3">
               {!selectedSchoolId && (
                 <p className="text-xs text-muted-foreground">
-                  {tr('Vui lòng chọn trường ở trên trước khi tạo lớp mới.', 'Please select school above before creating class.')}
+                  {tx.selectSchoolAboveForClass}
                 </p>
               )}
               <Input
                 value={newClassName}
                 onChange={(e) => setNewClassName(e.target.value)}
-                placeholder={tr('Nhập tên lớp mới (VD: 12A6)', 'Enter new class name (e.g. 12A6)')}
+                placeholder={tx.newClassNamePlaceholder}
                 className="text-sm"
               />
+              <div className="grid gap-2 sm:grid-cols-2">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-medium text-muted-foreground">
+                    {tx.subjectForStudents}
+                  </label>
+                  <Input
+                    value={newClassSubject}
+                    onChange={(e) => setNewClassSubject(e.target.value)}
+                    placeholder={tx.subjectForStudentsPh}
+                    maxLength={120}
+                    className="h-8 text-sm"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[11px] font-medium text-muted-foreground">
+                    {tx.teacherForStudents}
+                  </label>
+                  <Input
+                    value={newClassTeacher}
+                    onChange={(e) => setNewClassTeacher(e.target.value)}
+                    placeholder={tx.teacherForStudentsPh}
+                    maxLength={120}
+                    className="h-8 text-sm"
+                  />
+                </div>
+              </div>
               <div className="flex justify-end gap-2">
                 <Button type="button" variant="outline" onClick={() => setShowCreateClassModal(false)}>
-                  {tr('Hủy', 'Cancel')}
+                  {tx.cancel}
                 </Button>
                 <Button
                   type="button"
@@ -1763,7 +2195,7 @@ export default function TaoBaiThiClientPage() {
                   }}
                   disabled={creatingClass || !newClassName.trim()}
                 >
-                  {creatingClass ? tr('Đang tạo...', 'Creating...') : tr('Tạo lớp mới', 'Create class')}
+                  {creatingClass ? tx.creating : tx.createClass}
                 </Button>
               </div>
             </div>
@@ -1775,23 +2207,23 @@ export default function TaoBaiThiClientPage() {
           <div className="w-full max-w-3xl max-h-[85vh] overflow-y-auto rounded-lg border bg-background shadow-xl">
             <div className="sticky top-0 bg-background/95 backdrop-blur border-b px-4 py-3 flex items-center justify-between gap-3">
               <p className="text-sm font-semibold">
-                {tr('Xem nhanh đề và lời giải', 'Quick view: problem and solution')}
+                {tx.quickViewTitle}
               </p>
               <Button type="button" variant="outline" size="sm" onClick={() => setQuickViewItem(null)}>
-                {tr('Đóng', 'Close')}
+                {tx.close}
               </Button>
             </div>
             <div className="p-4 space-y-4">
               <div className="space-y-2">
-                <p className="text-xs font-medium text-muted-foreground">{tr('Đề bài', 'Problem')}</p>
+                <p className="text-xs font-medium text-muted-foreground">{tx.problem}</p>
                 <div className="rounded border bg-muted/30 p-3 text-sm whitespace-pre-wrap">
-                  {quickViewItem.problem || quickViewItem.preview || tr('Không có nội dung đề bài.', 'No problem content.')}
+                  {quickViewItem.problem || quickViewItem.preview || tx.noProblem}
                 </div>
               </div>
               <div className="space-y-2">
-                <p className="text-xs font-medium text-muted-foreground">{tr('Lời giải', 'Solution')}</p>
+                <p className="text-xs font-medium text-muted-foreground">{tx.solution}</p>
                 <div className="rounded border bg-muted/30 p-3 text-sm whitespace-pre-wrap">
-                  {quickViewItem.solution || tr('Chưa có lời giải.', 'No solution available.')}
+                  {quickViewItem.solution || tx.noSolution}
                 </div>
               </div>
             </div>

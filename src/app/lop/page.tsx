@@ -22,7 +22,7 @@ export default async function LopPage() {
 
   const { data: myClasses } = await supabase
     .from('classes')
-    .select('id, name, join_code, created_at, grade_level_id, schools(name)')
+    .select('id, name, join_code, created_at, grade_level_id, subject_label, teacher_display_name, schools(name)')
     .eq('teacher_id', user.id)
     .order('created_at', { ascending: false })
 
@@ -30,7 +30,7 @@ export default async function LopPage() {
     .from('class_members')
     .select(`
       class_id,
-      classes (id, name, join_code, grade_level_id, schools(name))
+      classes (id, name, join_code, grade_level_id, subject_label, teacher_display_name, schools(name))
     `)
     .eq('user_id', user.id)
 
@@ -38,7 +38,7 @@ export default async function LopPage() {
 
   return (
     <div className="app-shell min-h-screen">
-      <CreationToolPageShell backHref="/dashboard" currentHref="/lop">
+      <CreationToolPageShell currentHref="/lop">
         <div className="mx-auto w-full max-w-2xl pb-8 lg:max-w-3xl lg:pb-10">
           <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between lg:mb-8">
             <h1 className="text-xl font-bold text-foreground lg:text-2xl lg:tracking-tight">{t.classes.myClasses}</h1>
@@ -83,6 +83,8 @@ export default async function LopPage() {
                   name: c.name,
                   join_code: c.join_code,
                   grade_level_id: c.grade_level_id ?? null,
+                  subject_label: (c as { subject_label?: string | null }).subject_label ?? null,
+                  teacher_display_name: (c as { teacher_display_name?: string | null }).teacher_display_name ?? null,
                   schools: c.schools ?? null,
                 })
               }

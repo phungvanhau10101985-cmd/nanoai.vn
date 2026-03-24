@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { createClient as createServerClient } from '@/lib/supabase/server'
-import { getExamAttemptFeedback } from '@/lib/exam-feedback'
+import { getExamAttemptFeedbackWithMeta, parseExamGradingMeta } from '@/lib/exam-feedback'
 import { shuffleArray, signExamLayoutToken } from '@/lib/exam-layout-token'
 import { getClassMemberExamIdentity } from '@/lib/lop/require-class-enrollment'
 
@@ -54,15 +54,16 @@ export async function GET(
 
     const { data: priorAttempt, error: priorErr } = await supabase
       .from('exam_attempts')
-      .select('score, max_score')
+      .select('score, max_score, grading_meta')
       .eq('session_id', session.id)
       .eq('user_id', user.id)
       .maybeSingle()
 
     if (!priorErr && priorAttempt) {
-      const sc = typeof priorAttempt.score === 'number' ? priorAttempt.score : 0
-      const mx = typeof priorAttempt.max_score === 'number' ? priorAttempt.max_score : 0
-      const feedback = getExamAttemptFeedback(sc, mx)
+      const sc = Number(priorAttempt.score ?? 0)
+      const mx = Number(priorAttempt.max_score ?? 0)
+      const meta = parseExamGradingMeta(priorAttempt.grading_meta)
+      const feedback = getExamAttemptFeedbackWithMeta(sc, mx, meta)
       const durationMin = typeof session.duration_minutes === 'number' ? session.duration_minutes : 15
       return NextResponse.json(
         {
@@ -72,8 +73,10 @@ export async function GET(
           score: sc,
           maxScore: mx,
           grade10: feedback.grade10,
+          scoreOn100: feedback.scoreOn100,
           comment: feedback.comment,
           shareHint: feedback.shareHint,
+          scoringBreakdown: meta ?? undefined,
         },
         { headers: NO_STORE_HEADERS }
       )

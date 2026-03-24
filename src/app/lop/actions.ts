@@ -15,6 +15,12 @@ function generateJoinCode(): string {
   return code
 }
 
+function normalizeFacingLabel(raw: string, maxLen: number): string {
+  const s = raw.replace(/\s+/g, ' ').trim()
+  if (!s) return ''
+  return s.length > maxLen ? s.slice(0, maxLen) : s
+}
+
 export async function createClass(formData: FormData) {
   const supabase = createClient()
   const result = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
@@ -29,6 +35,9 @@ export async function createClass(formData: FormData) {
 
   const { data: schoolRow } = await supabase.from('schools').select('id').eq('id', schoolId).maybeSingle()
   if (!schoolRow) return { error: 'Không tìm thấy trường đã chọn.' }
+
+  const subjectLabel = normalizeFacingLabel(formData.get('subjectLabel')?.toString() ?? '', 120)
+  const teacherDisplayName = normalizeFacingLabel(formData.get('teacherDisplayName')?.toString() ?? '', 120)
 
   let joinCode = generateJoinCode()
   let attempts = 0
@@ -45,19 +54,94 @@ export async function createClass(formData: FormData) {
 
   const { data, error } = await supabase
     .from('classes')
-    .insert({ teacher_id: user.id, name, join_code: joinCode, school_id: schoolId })
+    .insert({
+      teacher_id: user.id,
+      name,
+      join_code: joinCode,
+      school_id: schoolId,
+      subject_label: subjectLabel || null,
+      teacher_display_name: teacherDisplayName || null,
+    })
     .select('id')
     .single()
 
   if (error) return { error: error.message }
 
+  const { data: prevSetting } = await supabase
+    .from('teacher_school_settings')
+    .select('teacher_display_name, default_subject_label')
+    .eq('teacher_id', user.id)
+    .maybeSingle()
+
   await supabase.from('teacher_school_settings').upsert(
-    { teacher_id: user.id, school_id: schoolId },
+    {
+      teacher_id: user.id,
+      school_id: schoolId,
+      teacher_display_name: teacherDisplayName || prevSetting?.teacher_display_name || null,
+      default_subject_label: subjectLabel || prevSetting?.default_subject_label || null,
+    },
     { onConflict: 'teacher_id' }
   )
 
   revalidatePath('/lop')
   return { success: true, classId: data.id, joinCode }
+}
+
+export async function updateClassStudentFacingInfo(input: {
+  classId: string
+  subjectLabel: string
+  teacherDisplayName: string
+  saveAsDefaults?: boolean
+}) {
+  const supabase = createClient()
+  const result = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+  if ('error' in result) return { error: result.error }
+  const { user } = result
+
+  const cid = input.classId?.trim()
+  if (!cid) return { error: 'Thiếu thông tin.' }
+
+  const subjectLabel = normalizeFacingLabel(input.subjectLabel ?? '', 120)
+  const teacherDisplayName = normalizeFacingLabel(input.teacherDisplayName ?? '', 120)
+
+  const { data: cls } = await supabase
+    .from('classes')
+    .select('teacher_id, school_id')
+    .eq('id', cid)
+    .maybeSingle()
+  if (!cls || cls.teacher_id !== user.id) return { error: 'Bạn không có quyền.' }
+
+  const { error } = await supabase
+    .from('classes')
+    .update({
+      subject_label: subjectLabel || null,
+      teacher_display_name: teacherDisplayName || null,
+    })
+    .eq('id', cid)
+
+  if (error) return { error: error.message }
+
+  if (input.saveAsDefaults && cls.school_id) {
+    const { data: prevSetting } = await supabase
+      .from('teacher_school_settings')
+      .select('teacher_display_name, default_subject_label')
+      .eq('teacher_id', user.id)
+      .maybeSingle()
+    await supabase.from('teacher_school_settings').upsert(
+      {
+        teacher_id: user.id,
+        school_id: String(cls.school_id),
+        teacher_display_name: teacherDisplayName || prevSetting?.teacher_display_name || null,
+        default_subject_label: subjectLabel || prevSetting?.default_subject_label || null,
+      },
+      { onConflict: 'teacher_id' }
+    )
+  }
+
+  revalidatePath('/lop')
+  revalidatePath(`/lop/${cid}`)
+  revalidatePath('/tao-bai-thi')
+  return { success: true }
 }
 
 export async function joinClass(input: { joinCode: string; studentDisplayName: string; birthDate: string }) {
@@ -128,6 +212,49 @@ export async function removeClassMember(classId: string, memberUserId: string) {
   return { success: true }
 }
 
+/** GV đổi tên hiển thị học sinh trong lớp (`member_display_name`), không sửa profile OAuth. */
+export async function updateStudentDisplayNameInClass(
+  classId: string,
+  memberUserId: string,
+  displayName: string
+) {
+  const supabase = createClient()
+  const result = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+  if ('error' in result) return { error: result.error }
+  const { user } = result
+
+  const cid = classId?.trim()
+  const mid = memberUserId?.trim()
+  if (!cid || !mid) return { error: 'Thiếu thông tin.' }
+
+  const name = displayName?.replace(/\s+/g, ' ').trim() ?? ''
+  if (name.length < 2) return { error: 'Họ tên quá ngắn (ít nhất 2 ký tự).' }
+  if (name.length > 120) return { error: 'Họ tên quá dài.' }
+
+  const { data: cls } = await supabase.from('classes').select('teacher_id').eq('id', cid).maybeSingle()
+  if (!cls || cls.teacher_id !== user.id) return { error: 'Bạn không có quyền.' }
+  if (mid === cls.teacher_id) return { error: 'Không thể đổi tên chủ lớp tại đây.' }
+
+  const { data: mem } = await supabase
+    .from('class_members')
+    .select('user_id')
+    .eq('class_id', cid)
+    .eq('user_id', mid)
+    .maybeSingle()
+  if (!mem) return { error: 'Không tìm thấy học sinh trong lớp.' }
+
+  const { error } = await supabase
+    .from('class_members')
+    .update({ member_display_name: name })
+    .eq('class_id', cid)
+    .eq('user_id', mid)
+
+  if (error) return { error: error.message }
+  revalidatePath('/lop')
+  revalidatePath(`/lop/${cid}`)
+  return { success: true }
+}
+
 export async function leaveClass(classId: string) {
   const supabase = createClient()
   const result = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
@@ -149,11 +276,8 @@ export async function leaveClass(classId: string) {
     .maybeSingle()
   if (!row) return { error: 'Bạn không có trong lớp này.' }
 
-  const { error } = await supabase.from('class_members').delete().eq('class_id', cid).eq('user_id', user.id)
-  if (error) return { error: error.message }
-  revalidatePath('/lop')
-  revalidatePath(`/lop/${cid}`)
-  return { success: true }
+  /** Học sinh không được tự rời lớp; giáo viên xóa thành viên qua removeClassMember. */
+  return { error: 'LEAVE_CLASS_NOT_ALLOWED' }
 }
 
 export async function assignWorksheetToClass(classId: string, worksheetId: string) {

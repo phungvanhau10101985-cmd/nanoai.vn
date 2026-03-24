@@ -9,7 +9,6 @@ import { parseWorksheetMarkdown } from '@/lib/parse-worksheet-markdown'
 import { submitWorksheet } from './actions'
 import { latexToReadable } from '@/app/tao-giao-trinh/lib/latex-to-readable'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
-import Link from 'next/link'
 
 type Worksheet = { id: string; topic: string; content_markdown: string }
 
@@ -149,9 +148,13 @@ export default function LamBaiClient({
         <Button onClick={handleSubmit} disabled={submitting || submitted}>
           {submitting ? '...' : t.submit}
         </Button>
-        <Link href={`/lop/${classId}`} className="text-sm text-muted-foreground hover:text-foreground">
+        <button
+          type="button"
+          className="text-sm text-muted-foreground hover:text-foreground"
+          onClick={() => router.back()}
+        >
           ← Về lớp
-        </Link>
+        </button>
       </div>
     </div>
   )

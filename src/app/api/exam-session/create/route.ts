@@ -5,6 +5,13 @@ import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { getEssayProblem } from '@/app/tao-giao-trinh/lib/worksheet-content-json'
 import { shuffleArray } from '@/lib/exam-layout-token'
 
+/** Tổng điểm tối đa toàn đề (TN + TL) — khớp UI tạo đề */
+const EXAM_TARGET_TOTAL_POINTS = 100
+
+function roundExamTotalPoints(n: number): number {
+  return Math.round(n * 100) / 100
+}
+
 const EXAM_TYPE_CONFIG: Record<string, { duration: number; minutesPerQuestion: number }> = {
   '15ph': { duration: 15, minutesPerQuestion: 1 },
   '1tiet': { duration: 45, minutesPerQuestion: 1 },
@@ -54,6 +61,16 @@ function quizMinutesForDifficulty(
 function normalizeDifficulty(difficulty: string | null | undefined): 'easy' | 'medium' | 'hard' {
   if (difficulty === 'easy' || difficulty === 'hard') return difficulty
   return 'medium'
+}
+
+function clampQuizPointsPerQuestion(n: number, fallback: number): number {
+  if (!Number.isFinite(n)) return fallback
+  return Math.max(0.25, Math.min(50, Math.round(n * 100) / 100))
+}
+
+function clampEssayPointsMax(n: number, fallback: number): number {
+  if (!Number.isFinite(n)) return fallback
+  return Math.max(0, Math.min(200, Math.round(n * 100) / 100))
 }
 
 function resolveBaseUrl(req: NextRequest): string {
@@ -148,6 +165,15 @@ export async function POST(req: NextRequest) {
       if (!Number.isFinite(n)) continue
       essayMinutesById[String(qid)] = Math.max(0.5, Math.min(20, n))
     }
+    const rawEssayPointsById = (body?.essayPointsById && typeof body.essayPointsById === 'object')
+      ? (body.essayPointsById as Record<string, unknown>)
+      : {}
+    const essayPointsById: Record<string, number> = {}
+    for (const [qid, raw] of Object.entries(rawEssayPointsById)) {
+      const n = typeof raw === 'number' ? raw : Number(raw)
+      if (!Number.isFinite(n)) continue
+      essayPointsById[String(qid)] = clampEssayPointsMax(n, 10)
+    }
     const quizQuestionCountRaw = Number(body?.quizQuestionCount ?? 0)
     const quizQuestionCount = Number.isFinite(quizQuestionCountRaw) ? Math.max(0, Math.min(200, Math.floor(quizQuestionCountRaw))) : 0
     const quizCountEasyRaw = Number(body?.quizCountEasy ?? 0)
@@ -172,6 +198,25 @@ export async function POST(req: NextRequest) {
     const quizMinutesHard = typeof body?.quizMinutesHard === 'number' && body.quizMinutesHard >= 0.5 && body.quizMinutesHard <= 10
       ? body.quizMinutesHard
       : Math.max(quizMinutesMedium, config.minutesPerQuestion)
+
+    const quizPointsEasy = clampQuizPointsPerQuestion(
+      typeof body?.quizPointsEasy === 'number' ? body.quizPointsEasy : Number(body?.quizPointsEasy),
+      1
+    )
+    const quizPointsMedium = clampQuizPointsPerQuestion(
+      typeof body?.quizPointsMedium === 'number' ? body.quizPointsMedium : Number(body?.quizPointsMedium),
+      1.5
+    )
+    const quizPointsHard = clampQuizPointsPerQuestion(
+      typeof body?.quizPointsHard === 'number' ? body.quizPointsHard : Number(body?.quizPointsHard),
+      2
+    )
+    const pointsForQuizDifficulty = (diff: string | null | undefined) => {
+      const d = normalizeDifficulty(diff)
+      if (d === 'easy') return quizPointsEasy
+      if (d === 'hard') return quizPointsHard
+      return quizPointsMedium
+    }
     const autoTotalQuestions = Math.max(1, Math.floor(config.duration / quizMinutesMedium))
     const requestedQuizCountFromDiff = requestedQuizByDifficulty.easy + requestedQuizByDifficulty.medium + requestedQuizByDifficulty.hard
     const requestedQuizCount =
@@ -189,6 +234,8 @@ export async function POST(req: NextRequest) {
       options: string[]
       correct_index: number | null
       source: string
+      /** Điểm tối đa câu (TN: cộng khi đúng; TL: trần khi chấm) */
+      points: number
       /** Câu lấy từ worksheet_questions — để chữa bài đọc lời giải từ DB */
       worksheet_question_id?: string | null
     }
@@ -285,6 +332,7 @@ export async function POST(req: NextRequest) {
           correct_index: quiz.correctIndex,
           source: 'worksheet_quiz',
           worksheet_question_id: String(qid),
+          points: pointsForQuizDifficulty(String((row as { difficulty?: unknown }).difficulty ?? '')),
         })
         perQuestionMinutes.push(
           quizMinutesForDifficulty(diff, {
@@ -351,8 +399,15 @@ export async function POST(req: NextRequest) {
           ...mediumPool.slice(0, requestedQuizByDifficulty.medium),
           ...hardPool.slice(0, requestedQuizByDifficulty.hard),
         ]
-        pickedQuestions.push(...picked)
         for (const item of picked) {
+          pickedQuestions.push({
+            question_text: item.question_text,
+            options: item.options,
+            correct_index: item.correct_index,
+            source: item.source,
+            worksheet_question_id: item.worksheet_question_id,
+            points: pointsForQuizDifficulty(item.difficulty),
+          })
           perQuestionMinutes.push(
             quizMinutesForDifficulty(item.difficulty, {
               easy: quizMinutesEasy,
@@ -407,6 +462,7 @@ export async function POST(req: NextRequest) {
             options: qz.options,
             correct_index: Number.isFinite(qz.correct_index) ? Math.max(0, Math.min(3, Math.floor(qz.correct_index))) : 0,
             source: 'official',
+            points: pointsForQuizDifficulty(qz.difficulty),
           }))
         )
         for (const item of picked) {
@@ -440,6 +496,7 @@ export async function POST(req: NextRequest) {
           correct_index: null,
           source: 'worksheet_essay',
           worksheet_question_id: String(qid),
+          points: essayPointsById[qid] ?? 10,
         })
         perQuestionMinutes.push(essayMinutesById[qid] ?? 2)
       }
@@ -449,6 +506,29 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: 'Không có câu hỏi phù hợp trong ngân hàng. Vui lòng tạo câu hỏi trước (Tạo câu hỏi trên slide).' },
         { status: 400 }
+      )
+    }
+
+    const nQuiz = pickedQuestions.filter(
+      (q) => Array.isArray(q.options) && q.options.length >= 2
+    ).length
+    const nEssay = pickedQuestions.length - nQuiz
+    let quizPointsMax = 0
+    let essayPointsMax = 0
+    for (const q of pickedQuestions) {
+      const pts = Number.isFinite(q.points) && q.points >= 0 ? q.points : 1
+      const isTn = Array.isArray(q.options) && q.options.length >= 2
+      if (isTn) quizPointsMax += pts
+      else essayPointsMax += pts
+    }
+
+    const totalPickedPoints = roundExamTotalPoints(quizPointsMax + essayPointsMax)
+    if (Math.abs(totalPickedPoints - EXAM_TARGET_TOTAL_POINTS) > 0.01) {
+      return NextResponse.json(
+        {
+          error: `Tổng điểm trắc nghiệm + tự luận phải đúng 100 điểm (hiện: ${totalPickedPoints}).`,
+        },
+        { status: 400 },
       )
     }
 
@@ -484,11 +564,22 @@ export async function POST(req: NextRequest) {
           quizMinutesEasy,
           quizMinutesMedium,
           quizMinutesHard,
+          quizPointsEasy,
+          quizPointsMedium,
+          quizPointsHard,
           essayMinutesById,
+          essayPointsById,
           calculatedDurationMinutes,
           finalDurationMinutes,
           classId,
           schoolId: finalSchoolId,
+          scoring: {
+            quizPointsMax,
+            essayPointsMax,
+            quizCount: nQuiz,
+            essayCount: nEssay,
+            perQuestionWeights: true,
+          },
         },
         status: 'active',
       })
@@ -512,6 +603,7 @@ export async function POST(req: NextRequest) {
       order: idx,
       source: q.source,
       worksheet_question_id: q.worksheet_question_id ?? null,
+      points: Number.isFinite(q.points) && q.points >= 0 ? q.points : 1,
     }))
 
     const { error: questionsErr } = await adminSupabase.from('exam_questions').insert(inserts)
