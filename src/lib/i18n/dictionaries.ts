@@ -364,13 +364,6 @@ export type Dictionary = {
     removeStudentFailed: string
     removeStudentSuccess: string
     removeStudentRemoving: string
-    leaveClass: string
-    leaveClassConfirmTitle: string
-    leaveClassConfirmDescription: string
-    leaveClassConfirmAction: string
-    leaveClassFailed: string
-    leaveClassSuccess: string
-    leaveClassLeaving: string
     /** Màn tham gia lớp ngay trên trang làm bài thi (đề gắn lớp) */
     examEnrollGateTitle: string
     examEnrollGateDescription: string
@@ -395,6 +388,10 @@ export type Dictionary = {
     /** Thẻ hub: mô tả đề thi */
     classHubCardExamsDesc: string
     classHubCardStudentsDesc: string
+    /** Hub: mô tả đề thi / danh sách lớp khi người xem là học sinh */
+    classHubCardExamsDescStudent: string
+    classHubCardStudentsDescStudent: string
+    classHubCardRosterTitleStudent: string
     classHubCardGradebookDesc: string
     classHubCardWorksheetsDesc: string
     /** Danh sách đề thi (trang con) */
@@ -407,6 +404,8 @@ export type Dictionary = {
     classDetailSeoDescription: string
     /** Hub: mô tả thẻ gán phiếu bài tập */
     classHubCardAssignWorksheetDesc: string
+    /** Tóm tắt một dòng khi chưa có môn/GV hiển thị cho HS */
+    classPageStudentFacingNotSet: string
   }
   /** Trang công khai /phieu-bai-tap/[id] — lời giải & đáp án */
   worksheetSolutionPage: {
@@ -994,14 +993,6 @@ const VI_DICTIONARY: Dictionary = {
     removeStudentFailed: 'Không xóa được học sinh.',
     removeStudentSuccess: 'Đã xóa học sinh khỏi lớp.',
     removeStudentRemoving: 'Đang xóa…',
-    leaveClass: 'Rời lớp',
-    leaveClassConfirmTitle: 'Rời lớp này?',
-    leaveClassConfirmDescription:
-      'Bạn sẽ không còn trong danh sách lớp. Có thể tham gia lại bằng mã lớp nếu cần.',
-    leaveClassConfirmAction: 'Rời lớp',
-    leaveClassFailed: 'Không rời lớp được.',
-    leaveClassSuccess: 'Bạn đã rời lớp.',
-    leaveClassLeaving: 'Đang rời lớp…',
     examEnrollGateTitle: 'Tham gia lớp để làm bài thi',
     examEnrollGateDescription:
       'Đề thi này gắn với một lớp. Nhập họ tên và ngày sinh đúng như trong sổ lớp (không dùng tên mặc định tài khoản Google). Sau đó em có thể bắt đầu làm bài.',
@@ -1024,6 +1015,10 @@ const VI_DICTIONARY: Dictionary = {
     classPageBackToClass: 'Về trang lớp',
     classHubCardExamsDesc: 'Danh sách đề thi — mỗi đề một trang: QR, chấm tự luận, AI hàng loạt.',
     classHubCardStudentsDesc: 'Thành viên lớp, sửa tên HS, gỡ khỏi lớp.',
+    classHubCardExamsDescStudent:
+      'Các đề thi của lớp: làm bài và xem điểm, nhận xét sau khi giáo viên chấm.',
+    classHubCardStudentsDescStudent: 'Xem danh sách bạn cùng lớp và giáo viên.',
+    classHubCardRosterTitleStudent: 'Thành viên lớp',
     classHubCardGradebookDesc: 'Sổ điểm tổng hợp phiếu + đề thi, xuất Excel.',
     classHubCardWorksheetsDesc: 'Các phiếu bài tập đã nộp trong lớp.',
     classExamsIndexTitle: 'Đề thi trong lớp',
@@ -1031,6 +1026,7 @@ const VI_DICTIONARY: Dictionary = {
     classExamGoToSession: 'Mở trang chấm thi',
     classDetailSeoDescription: 'Trang lớp: đề thi, học sinh, sổ điểm và bài nộp phiếu.',
     classHubCardAssignWorksheetDesc: 'Gắn phiếu bài tập vào lớp để học sinh làm.',
+    classPageStudentFacingNotSet: 'Chưa thiết lập',
   },
   worksheetSolutionPage: {
     metaTitlePrefix: 'Lời giải',
@@ -1618,14 +1614,6 @@ const EN_DICTIONARY: Dictionary = {
     removeStudentFailed: 'Could not remove the student.',
     removeStudentSuccess: 'Student removed from class.',
     removeStudentRemoving: 'Removing…',
-    leaveClass: 'Leave class',
-    leaveClassConfirmTitle: 'Leave this class?',
-    leaveClassConfirmDescription:
-      'You will be removed from the class list. You can join again with the class code if needed.',
-    leaveClassConfirmAction: 'Leave class',
-    leaveClassFailed: 'Could not leave the class.',
-    leaveClassSuccess: 'You have left the class.',
-    leaveClassLeaving: 'Leaving…',
     examEnrollGateTitle: 'Join the class to take this test',
     examEnrollGateDescription:
       'This test is linked to a class. Enter your full name and date of birth as in the class register (not your account’s default name). You can start the test afterward.',
@@ -1648,6 +1636,10 @@ const EN_DICTIONARY: Dictionary = {
     classPageBackToClass: 'Back to class',
     classHubCardExamsDesc: 'Exam list — each exam has its own page: QR link, essay grading, batch AI.',
     classHubCardStudentsDesc: 'Class roster, edit student names, remove from class.',
+    classHubCardExamsDescStudent:
+      'Class tests: take exams and view scores and feedback after grading.',
+    classHubCardStudentsDescStudent: 'See classmates and teachers in this class.',
+    classHubCardRosterTitleStudent: 'Class members',
     classHubCardGradebookDesc: 'Combined gradebook and Excel export.',
     classHubCardWorksheetsDesc: 'Worksheet submissions for this class.',
     classExamsIndexTitle: 'Class exams',
@@ -1655,6 +1647,7 @@ const EN_DICTIONARY: Dictionary = {
     classExamGoToSession: 'Open grading page',
     classDetailSeoDescription: 'Class home: exams, roster, gradebook, and worksheet submissions.',
     classHubCardAssignWorksheetDesc: 'Assign worksheets to this class for students to complete.',
+    classPageStudentFacingNotSet: 'Not set',
   },
   worksheetSolutionPage: {
     metaTitlePrefix: 'Solutions',
@@ -2234,13 +2227,6 @@ const ZH_DICTIONARY: Dictionary = {
     removeStudentFailed: '无法移出学生。',
     removeStudentSuccess: '已将学生移出班级。',
     removeStudentRemoving: '正在移除…',
-    leaveClass: '退出班级',
-    leaveClassConfirmTitle: '确定退出此班级？',
-    leaveClassConfirmDescription: '您将从班级名单中移除。需要时可凭班级码再次加入。',
-    leaveClassConfirmAction: '退出班级',
-    leaveClassFailed: '无法退出班级。',
-    leaveClassSuccess: '已退出班级。',
-    leaveClassLeaving: '正在退出…',
     examEnrollGateTitle: '加入班级后才能参加测验',
     examEnrollGateDescription:
       '本测验关联班级。请按班级名册填写姓名与出生日期（勿使用账号默认显示名）。填写后即可开始答题。',
@@ -2263,6 +2249,9 @@ const ZH_DICTIONARY: Dictionary = {
     classPageBackToClass: '返回班级',
     classHubCardExamsDesc: '测验列表 — 每次测验单独页面：二维码、主观题批改、批量 AI。',
     classHubCardStudentsDesc: '班级成员、修改姓名、移出班级。',
+    classHubCardExamsDescStudent: '班级测验：作答并在老师批改后查看成绩与反馈。',
+    classHubCardStudentsDescStudent: '查看同班同学与老师。',
+    classHubCardRosterTitleStudent: '班级成员',
     classHubCardGradebookDesc: '成绩总表与导出 Excel。',
     classHubCardWorksheetsDesc: '本班已交练习单。',
     classExamsIndexTitle: '本班测验',
@@ -2270,6 +2259,7 @@ const ZH_DICTIONARY: Dictionary = {
     classExamGoToSession: '打开批改页面',
     classDetailSeoDescription: '班级主页：测验、成员、成绩表与练习单提交。',
     classHubCardAssignWorksheetDesc: '将练习单分配到本班供学生完成。',
+    classPageStudentFacingNotSet: '未设置',
   },
   worksheetSolutionPage: {
     metaTitlePrefix: '解答',
@@ -2848,13 +2838,6 @@ const JA_DICTIONARY: Dictionary = {
     removeStudentFailed: '削除できませんでした。',
     removeStudentSuccess: 'クラスから外しました。',
     removeStudentRemoving: '削除中…',
-    leaveClass: 'クラスを抜ける',
-    leaveClassConfirmTitle: 'このクラスを抜けますか？',
-    leaveClassConfirmDescription: '名簿から外れます。必要なら参加コードで再参加できます。',
-    leaveClassConfirmAction: 'クラスを抜ける',
-    leaveClassFailed: 'クラスを抜けられませんでした。',
-    leaveClassSuccess: 'クラスを抜けました。',
-    leaveClassLeaving: '処理中…',
     examEnrollGateTitle: 'テストを受けるにはクラスに参加',
     examEnrollGateDescription:
       'このテストはクラスに紐づいています。名簿と同じ氏名・生年月日を入力してください（アカウントの表示名は使わないでください）。その後、テストを開始できます。',
@@ -2877,6 +2860,10 @@ const JA_DICTIONARY: Dictionary = {
     classPageBackToClass: 'クラスに戻る',
     classHubCardExamsDesc: 'テスト一覧 — 各テストが専用ページ（QR、記述採点、一括AI）。',
     classHubCardStudentsDesc: 'メンバー、氏名の編集、クラスから削除。',
+    classHubCardExamsDescStudent:
+      'クラスのテストに受験し、先生が採点後に成績・コメントを確認できます。',
+    classHubCardStudentsDescStudent: 'クラスメイトと担任教員を確認できます。',
+    classHubCardRosterTitleStudent: 'クラスメンバー',
     classHubCardGradebookDesc: '成績一覧と Excel 出力。',
     classHubCardWorksheetsDesc: '提出済みワークシート。',
     classExamsIndexTitle: 'クラスのテスト',
@@ -2884,6 +2871,7 @@ const JA_DICTIONARY: Dictionary = {
     classExamGoToSession: '採点ページを開く',
     classDetailSeoDescription: 'クラスページ：テスト、メンバー、成績、ワークシート提出。',
     classHubCardAssignWorksheetDesc: 'ワークシートをクラスに割り当て、生徒が取り組めるようにします。',
+    classPageStudentFacingNotSet: '未設定',
   },
   worksheetSolutionPage: {
     metaTitlePrefix: '解答',
@@ -3468,13 +3456,6 @@ const KO_DICTIONARY: Dictionary = {
     removeStudentFailed: '제거하지 못했습니다.',
     removeStudentSuccess: '수업에서 제거했습니다.',
     removeStudentRemoving: '제거 중…',
-    leaveClass: '수업 나가기',
-    leaveClassConfirmTitle: '이 수업에서 나갈까요?',
-    leaveClassConfirmDescription: '명단에서 빠집니다. 필요하면 참가 코드로 다시 들어올 수 있습니다.',
-    leaveClassConfirmAction: '나가기',
-    leaveClassFailed: '수업을 나가지 못했습니다.',
-    leaveClassSuccess: '수업에서 나갔습니다.',
-    leaveClassLeaving: '나가는 중…',
     examEnrollGateTitle: '수업에 참가해야 시험을 볼 수 있습니다',
     examEnrollGateDescription:
       '이 시험은 수업과 연결되어 있습니다. 명단과 동일한 이름과 생년월일을 입력하세요(계정 기본 표시 이름 사용 금지). 이후 시험을 시작할 수 있습니다.',
@@ -3497,6 +3478,10 @@ const KO_DICTIONARY: Dictionary = {
     classPageBackToClass: '수업으로 돌아가기',
     classHubCardExamsDesc: '시험 목록 — 시험마다 별도 페이지(QR, 서술형 채점, 일괄 AI).',
     classHubCardStudentsDesc: '구성원, 이름 수정, 수업에서 제외.',
+    classHubCardExamsDescStudent:
+      '반 시험: 응시하고 선생님 채점 후 점수·피드백을 확인합니다.',
+    classHubCardStudentsDescStudent: '반 친구와 선생님을 확인합니다.',
+    classHubCardRosterTitleStudent: '반 구성원',
     classHubCardGradebookDesc: '성적표 및 Excel보내기.',
     classHubCardWorksheetsDesc: '제출된 워크시트.',
     classExamsIndexTitle: '수업 시험',
@@ -3504,6 +3489,7 @@ const KO_DICTIONARY: Dictionary = {
     classExamGoToSession: '채점 페이지 열기',
     classDetailSeoDescription: '수업 홈: 시험, 명단, 성적표, 워크시트 제출.',
     classHubCardAssignWorksheetDesc: '워크시트를 이 수업에 배정해 학생이 풀 수 있게 합니다.',
+    classPageStudentFacingNotSet: '설정 안 됨',
   },
   worksheetSolutionPage: {
     metaTitlePrefix: '해설',

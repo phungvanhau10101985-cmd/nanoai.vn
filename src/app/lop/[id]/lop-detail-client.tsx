@@ -27,6 +27,7 @@ import { Toaster } from '@/components/ui/toaster'
 import {
   ClipboardList,
   Copy,
+  ChevronDown,
   ChevronRight,
   FilePlus2,
   FileText,
@@ -706,190 +707,224 @@ export default function LopDetailClient({
   const pageHero =
     'overflow-hidden rounded-2xl border border-border/90 bg-gradient-to-br from-primary/[0.08] via-card to-muted/30 p-4 shadow-md ring-1 ring-black/[0.04] dark:from-primary/[0.12] dark:to-muted/20 dark:ring-white/[0.06] sm:p-5'
 
+  const studentFacingPreviewLine = useMemo(() => {
+    const subj = facingSubject.trim()
+    const teach = facingTeacher.trim()
+    if (!subj && !teach) return t.classPageStudentFacingNotSet
+    return [subj, teach].filter(Boolean).join(' — ')
+  }, [facingSubject, facingTeacher, t.classPageStudentFacingNotSet])
+
   return (
     <>
       <Toaster />
-      <header className="mb-8">
-        <div className={pageHero}>
-        <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">{className}</h1>
-        {isTeacher && (
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            {editingClassName ? (
-              <>
-                <input
-                  value={className}
-                  onChange={(e) => setClassName(e.target.value)}
-                  className="h-8 rounded-md border border-input bg-background px-2 text-sm"
-                />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={async () => {
-                    const newName = className.trim()
-                    if (!newName) return
-                    setRenamingClass(true)
-                    const res = await fetch(`/api/lop/${cls.id}/rename`, {
-                      method: 'PATCH',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ name: newName }),
-                    })
-                    const data = await res.json().catch(() => ({}))
-                    setRenamingClass(false)
-                    if (!res.ok) {
-                      toast({ variant: 'destructive', description: data?.error ?? t.renameClassFailed })
-                      return
-                    }
-                    setSavedClassName(newName)
-                    setEditingClassName(false)
-                    toast({ description: t.renameClassSuccess })
-                  }}
-                  disabled={renamingClass}
-                >
-                  {renamingClass ? '...' : t.saveClassName}
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setClassName(savedClassName)
-                    setEditingClassName(false)
-                  }}
-                >
-                  {t.cancelAction}
-                </Button>
-              </>
-            ) : (
-              <>
-                <Button variant="outline" size="sm" onClick={() => setEditingClassName(true)}>
-                  {t.renameClass}
-                </Button>
-                {/* Xóa lớp: chỉ khi isTeacher (= user trùng teacher_id trên server), đồng bộ DELETE /api/lop/[id] */}
+      <header className={cn(pageMode === 'hub' ? 'mb-5' : 'mb-8')}>
+        <div className={cn(pageHero, pageMode === 'hub' && 'p-3 sm:p-4')}>
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-x-4 sm:gap-y-2">
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+              <h1 className="text-lg font-bold tracking-tight text-foreground sm:text-xl">{className}</h1>
+              {isTeacher && (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {editingClassName ? (
+                    <>
+                      <input
+                        value={className}
+                        onChange={(e) => setClassName(e.target.value)}
+                        className="h-8 max-w-[12rem] rounded-md border border-input bg-background px-2 text-sm sm:max-w-xs"
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={async () => {
+                          const newName = className.trim()
+                          if (!newName) return
+                          setRenamingClass(true)
+                          const res = await fetch(`/api/lop/${cls.id}/rename`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ name: newName }),
+                          })
+                          const data = await res.json().catch(() => ({}))
+                          setRenamingClass(false)
+                          if (!res.ok) {
+                            toast({ variant: 'destructive', description: data?.error ?? t.renameClassFailed })
+                            return
+                          }
+                          setSavedClassName(newName)
+                          setEditingClassName(false)
+                          toast({ description: t.renameClassSuccess })
+                        }}
+                        disabled={renamingClass}
+                      >
+                        {renamingClass ? '...' : t.saveClassName}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setClassName(savedClassName)
+                          setEditingClassName(false)
+                        }}
+                      >
+                        {t.cancelAction}
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Button variant="outline" size="sm" className="h-8" onClick={() => setEditingClassName(true)}>
+                        {t.renameClass}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                        onClick={() => {
+                          setDeleteClassConfirmInput('')
+                          setDeleteDialogOpen(true)
+                        }}
+                      >
+                        <Trash2 className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+                        {t.deleteClass}
+                      </Button>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs text-muted-foreground">
+            {cls.schoolName ? (
+              <span className="rounded-md bg-muted/80 px-2 py-0.5 text-muted-foreground">
+                {t.schoolLabel}: <span className="text-foreground/90">{cls.schoolName}</span>
+              </span>
+            ) : null}
+            {cls.gradeLevelId ? (
+              <span className="rounded-md bg-muted/80 px-2 py-0.5 text-muted-foreground">
+                {t.gradeLevelLabel}: <span className="text-foreground/90">{cls.gradeLevelId}</span>
+              </span>
+            ) : null}
+            {subjectNames.length > 0 ? (
+              <span className="rounded-md bg-muted/80 px-2 py-0.5 text-muted-foreground">
+                {t.subjectLabel}: <span className="text-foreground/90">{subjectNames.join(', ')}</span>
+              </span>
+            ) : null}
+            {cls.schoolName || cls.gradeLevelId || subjectNames.length > 0 ? (
+              <span
+                className="hidden h-3.5 w-px shrink-0 bg-border/80 sm:inline-block sm:self-center"
+                aria-hidden
+              />
+            ) : null}
+            <span className="inline-flex items-center gap-1.5 rounded-md border border-border/60 bg-background/80 px-2 py-0.5 font-mono text-[11px] tabular-nums tracking-wide text-foreground sm:text-xs">
+              <span className="font-sans text-muted-foreground">
+                {t.joinCode}:
+              </span>
+              {cls.join_code}
+              <Button variant="ghost" size="icon" onClick={copyCode} className="h-6 w-6 shrink-0" aria-label={t.copyCode}>
+                <Copy className="h-3.5 w-3.5" />
+              </Button>
+            </span>
+          </div>
+
+          {!isTeacher && (cls.subjectLabel?.trim() || cls.teacherDisplayName?.trim()) ? (
+            <p className="mt-2 text-sm font-medium text-foreground leading-snug">
+              {[cls.name, String(cls.subjectLabel ?? '').trim(), String(cls.teacherDisplayName ?? '').trim()]
+                .filter(Boolean)
+                .join(' — ')}
+            </p>
+          ) : null}
+
+          {isTeacher ? (
+            <details className="mt-3 overflow-hidden rounded-xl border border-border/70 bg-background/40 shadow-sm dark:bg-background/25">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2.5 text-left text-sm outline-none transition-colors hover:bg-muted/30 focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
+                <span className="min-w-0 flex-1">
+                  <span className="font-medium text-foreground">{t.classPageStudentFacingTitle}</span>
+                  <span className="mt-0.5 block truncate text-xs font-normal text-muted-foreground">
+                    {studentFacingPreviewLine}
+                  </span>
+                </span>
+                <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+              </summary>
+              <div className="space-y-3 border-t border-border/60 px-3 py-3 sm:px-4">
+                <p className="text-xs text-muted-foreground leading-relaxed">{t.createClassFacingFieldsHint}</p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <label htmlFor="class-facing-subject" className="text-xs font-medium text-foreground">
+                      {t.createClassFacingSubjectLabel}
+                    </label>
+                    <Input
+                      id="class-facing-subject"
+                      value={facingSubject}
+                      onChange={(e) => setFacingSubject(e.target.value)}
+                      placeholder={t.createClassFacingSubjectPlaceholder}
+                      maxLength={120}
+                      className="h-9 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label htmlFor="class-facing-teacher" className="text-xs font-medium text-foreground">
+                      {t.createClassFacingTeacherLabel}
+                    </label>
+                    <Input
+                      id="class-facing-teacher"
+                      value={facingTeacher}
+                      onChange={(e) => setFacingTeacher(e.target.value)}
+                      placeholder={t.createClassFacingTeacherPlaceholder}
+                      maxLength={120}
+                      className="h-9 text-sm"
+                    />
+                  </div>
+                </div>
+                <label className="flex cursor-pointer items-start gap-2 text-xs text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 h-3.5 w-3.5 rounded border-input"
+                    checked={saveFacingDefaults}
+                    onChange={(e) => setSaveFacingDefaults(e.target.checked)}
+                  />
+                  <span>{t.updateClassFacingSaveAsDefaults}</span>
+                </label>
                 <Button
                   type="button"
-                  variant="outline"
                   size="sm"
-                  className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                  onClick={() => {
-                    setDeleteClassConfirmInput('')
-                    setDeleteDialogOpen(true)
+                  variant="secondary"
+                  disabled={savingFacing}
+                  className="touch-manipulation"
+                  onClick={async () => {
+                    setSavingFacing(true)
+                    const res = await updateClassStudentFacingInfo({
+                      classId: cls.id,
+                      subjectLabel: facingSubject,
+                      teacherDisplayName: facingTeacher,
+                      saveAsDefaults: saveFacingDefaults,
+                    })
+                    setSavingFacing(false)
+                    if ('error' in res && res.error) {
+                      toast({ variant: 'destructive', description: res.error })
+                      return
+                    }
+                    toast({ description: t.updateClassFacingSuccess })
+                    setSaveFacingDefaults(false)
+                    router.refresh()
                   }}
                 >
-                  <Trash2 className="mr-1.5 h-3.5 w-3.5" aria-hidden />
-                  {t.deleteClass}
+                  {savingFacing ? '…' : t.updateClassFacingSave}
                 </Button>
-              </>
-            )}
-          </div>
-        )}
-        <div className="mt-1 flex flex-wrap items-center gap-2">
-          {cls.schoolName && (
-            <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
-              {t.schoolLabel}: {cls.schoolName}
-            </span>
-          )}
-          {cls.gradeLevelId && (
-            <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
-              {t.gradeLevelLabel}: {cls.gradeLevelId}
-            </span>
-          )}
-          {subjectNames.length > 0 && (
-            <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
-              {t.subjectLabel}: {subjectNames.join(', ')}
-            </span>
-          )}
-        </div>
-        <div className="mt-2 flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">{t.joinCode}:</span>
-          <code className="px-2 py-1 rounded bg-muted font-mono text-sm tracking-wider">{cls.join_code}</code>
-          <Button variant="ghost" size="icon" onClick={copyCode} className="h-8 w-8">
-            <Copy className="h-4 w-4" />
-          </Button>
-        </div>
-        {!isTeacher && (cls.subjectLabel?.trim() || cls.teacherDisplayName?.trim()) ? (
-          <p className="mt-2 text-sm font-medium text-foreground leading-snug">
-            {[cls.name, String(cls.subjectLabel ?? '').trim(), String(cls.teacherDisplayName ?? '').trim()]
-              .filter(Boolean)
-              .join(' — ')}
-          </p>
-        ) : null}
-        {isTeacher ? (
-          <div className="mt-4 space-y-3 rounded-xl border border-primary/15 bg-background/60 p-3 shadow-inner dark:border-primary/25 dark:bg-background/40 sm:p-4">
-            <div className="border-l-4 border-primary/50 pl-3">
-              <p className="text-xs font-semibold text-foreground">{t.classPageStudentFacingTitle}</p>
-              <p className="mt-0.5 text-xs text-muted-foreground">{t.createClassFacingFieldsHint}</p>
-            </div>
-            <div className="grid gap-2 sm:grid-cols-2">
-              <div className="space-y-1">
-                <label htmlFor="class-facing-subject" className="text-xs font-medium text-foreground">
-                  {t.createClassFacingSubjectLabel}
-                </label>
-                <Input
-                  id="class-facing-subject"
-                  value={facingSubject}
-                  onChange={(e) => setFacingSubject(e.target.value)}
-                  placeholder={t.createClassFacingSubjectPlaceholder}
-                  maxLength={120}
-                  className="h-9 text-sm"
-                />
               </div>
-              <div className="space-y-1">
-                <label htmlFor="class-facing-teacher" className="text-xs font-medium text-foreground">
-                  {t.createClassFacingTeacherLabel}
-                </label>
-                <Input
-                  id="class-facing-teacher"
-                  value={facingTeacher}
-                  onChange={(e) => setFacingTeacher(e.target.value)}
-                  placeholder={t.createClassFacingTeacherPlaceholder}
-                  maxLength={120}
-                  className="h-9 text-sm"
-                />
-              </div>
+            </details>
+          ) : null}
+
+          {isTeacher ? (
+            <div className="mt-3 md:hidden">
+              <Button
+                variant="secondary"
+                className="h-auto w-full touch-manipulation py-2.5 text-sm font-semibold shadow-sm"
+                asChild
+              >
+                <Link href="/tao-bai-thi">{t.mobileCreateExam}</Link>
+              </Button>
             </div>
-            <label className="flex cursor-pointer items-start gap-2 text-xs text-muted-foreground">
-              <input
-                type="checkbox"
-                className="mt-0.5 h-3.5 w-3.5 rounded border-input"
-                checked={saveFacingDefaults}
-                onChange={(e) => setSaveFacingDefaults(e.target.checked)}
-              />
-              <span>{t.updateClassFacingSaveAsDefaults}</span>
-            </label>
-            <Button
-              type="button"
-              size="sm"
-              variant="secondary"
-              disabled={savingFacing}
-              className="touch-manipulation"
-              onClick={async () => {
-                setSavingFacing(true)
-                const res = await updateClassStudentFacingInfo({
-                  classId: cls.id,
-                  subjectLabel: facingSubject,
-                  teacherDisplayName: facingTeacher,
-                  saveAsDefaults: saveFacingDefaults,
-                })
-                setSavingFacing(false)
-                if ('error' in res && res.error) {
-                  toast({ variant: 'destructive', description: res.error })
-                  return
-                }
-                toast({ description: t.updateClassFacingSuccess })
-                setSaveFacingDefaults(false)
-                router.refresh()
-              }}
-            >
-              {savingFacing ? '…' : t.updateClassFacingSave}
-            </Button>
-          </div>
-        ) : null}
-        {isTeacher ? (
-          <div className="mt-4 md:hidden">
-            <Button variant="secondary" className="h-auto w-full touch-manipulation py-3 text-sm font-semibold shadow-sm" asChild>
-              <Link href="/tao-bai-thi">{t.mobileCreateExam}</Link>
-            </Button>
-          </div>
-        ) : null}
+          ) : null}
         </div>
       </header>
 
@@ -926,7 +961,9 @@ export default function LopDetailClient({
                 </div>
                 <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
               </div>
-              <p className="text-sm text-muted-foreground leading-snug">{t.classHubCardExamsDesc}</p>
+              <p className="text-sm text-muted-foreground leading-snug">
+                {isTeacher ? t.classHubCardExamsDesc : t.classHubCardExamsDescStudent}
+              </p>
             </Link>
             <Link
               href={`/lop/${cls.id}/hoc-sinh`}
@@ -938,11 +975,15 @@ export default function LopDetailClient({
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <Users className="h-5 w-5 shrink-0 text-primary" aria-hidden />
-                  <span className={pageSectionTitle}>{t.students}</span>
+                  <span className={pageSectionTitle}>
+                    {isTeacher ? t.students : t.classHubCardRosterTitleStudent}
+                  </span>
                 </div>
                 <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
               </div>
-              <p className="text-sm text-muted-foreground leading-snug">{t.classHubCardStudentsDesc}</p>
+              <p className="text-sm text-muted-foreground leading-snug">
+                {isTeacher ? t.classHubCardStudentsDesc : t.classHubCardStudentsDescStudent}
+              </p>
             </Link>
             {isTeacher ? (
               <>

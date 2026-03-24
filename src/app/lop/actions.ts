@@ -255,31 +255,6 @@ export async function updateStudentDisplayNameInClass(
   return { success: true }
 }
 
-export async function leaveClass(classId: string) {
-  const supabase = createClient()
-  const result = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
-  if ('error' in result) return { error: result.error }
-  const { user } = result
-
-  const cid = classId?.trim()
-  if (!cid) return { error: 'Thiếu thông tin.' }
-
-  const { data: cls } = await supabase.from('classes').select('teacher_id').eq('id', cid).maybeSingle()
-  if (!cls) return { error: 'Không tìm thấy lớp.' }
-  if (cls.teacher_id === user.id) return { error: 'Giáo viên chủ lớp không thể rời lớp bằng cách này.' }
-
-  const { data: row } = await supabase
-    .from('class_members')
-    .select('user_id')
-    .eq('class_id', cid)
-    .eq('user_id', user.id)
-    .maybeSingle()
-  if (!row) return { error: 'Bạn không có trong lớp này.' }
-
-  /** Học sinh không được tự rời lớp; giáo viên xóa thành viên qua removeClassMember. */
-  return { error: 'LEAVE_CLASS_NOT_ALLOWED' }
-}
-
 export async function assignWorksheetToClass(classId: string, worksheetId: string) {
   const supabase = createClient()
   const result = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
