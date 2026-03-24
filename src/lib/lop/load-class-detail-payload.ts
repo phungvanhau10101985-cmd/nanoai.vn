@@ -10,16 +10,6 @@ export type ClassMemberPayload = {
   removable: boolean
 }
 
-export type WorksheetSubmissionPayload = {
-  id: string
-  worksheetId: string
-  worksheetTopic: string
-  studentName: string
-  quizScore: number
-  quizTotal: number
-  submittedAt: string
-}
-
 export type ExamAttemptPayload = {
   id: string
   sessionId: string
@@ -31,6 +21,8 @@ export type ExamAttemptPayload = {
   maxScore: number
   submittedAt: string
   gradingMeta: ReturnType<typeof parseExamGradingMeta>
+  /** Phiên bài tập về nhà — HS không xem điểm công khai */
+  practiceHomework: boolean
 }
 
 export type ExamSessionPayload = {
@@ -39,6 +31,7 @@ export type ExamSessionPayload = {
   title: string
   createdAt: string | null
   status?: string
+  practiceHomework: boolean
 }
 
 export type ClassDetailPayload = {
@@ -55,7 +48,6 @@ export type ClassDetailPayload = {
   schoolName: string
   subjectNames: string[]
   members: ClassMemberPayload[]
-  initialSubmissions: WorksheetSubmissionPayload[]
   initialExamAttempts: ExamAttemptPayload[]
   initialExamSessions: ExamSessionPayload[]
 }
@@ -113,47 +105,30 @@ export async function loadClassDetailPayload(
   )
 
   let mergedMembers = baseMembers
-  let initialSubmissions: WorksheetSubmissionPayload[] = []
   let initialExamAttempts: ExamAttemptPayload[] = []
   let initialExamSessions: ExamSessionPayload[] = []
 
   if (isTeacher) {
-    const { data: subs } = await supabase
-      .from('worksheet_submissions')
-      .select('id, worksheet_id, user_id, quiz_score, quiz_total, submitted_at')
-      .eq('class_id', classId)
-      .order('submitted_at', { ascending: false })
-    const userIds = Array.from(new Set((subs ?? []).map((s: { user_id: string }) => s.user_id)))
-    const wsIds = Array.from(new Set((subs ?? []).map((s: { worksheet_id: string }) => s.worksheet_id)))
-    const [{ data: profs }, { data: wss }] = await Promise.all([
-      userIds.length ? supabase.from('profiles').select('id, full_name').in('id', userIds) : { data: [] },
-      wsIds.length ? supabase.from('worksheet_worksheets').select('id, topic').in('id', wsIds) : { data: [] },
-    ])
-    const profMap = Object.fromEntries((profs ?? []).map((p: { id: string; full_name: string | null }) => [p.id, p.full_name ?? '—']))
-    const wsMap = Object.fromEntries((wss ?? []).map((w: { id: string; topic: string }) => [w.id, w.topic]))
-    initialSubmissions = (subs ?? []).map((s: { id: string; worksheet_id: string; user_id: string; quiz_score: number; quiz_total: number; submitted_at: string }) => ({
-      id: s.id,
-      worksheetId: s.worksheet_id,
-      worksheetTopic: wsMap[s.worksheet_id] ?? '—',
-      studentName: profMap[s.user_id] ?? '—',
-      quizScore: s.quiz_score,
-      quizTotal: s.quiz_total,
-      submittedAt: s.submitted_at,
-    }))
-
     const { data: examSessions } = await supabase
       .from('exam_sessions')
-      .select('id, code, title, created_at')
+      .select('id, code, title, created_at, is_practice_homework')
       .eq('class_id', classId)
       .eq('teacher_id', userId)
       .order('created_at', { ascending: false })
       .limit(200)
     initialExamSessions = (examSessions ?? []).map(
-      (x: { id: string; code: string | null; title: string | null; created_at?: string | null }) => ({
+      (x: {
+        id: string
+        code: string | null
+        title: string | null
+        created_at?: string | null
+        is_practice_homework?: boolean | null
+      }) => ({
         id: x.id,
         code: String(x.code ?? '').trim(),
         title: String(x.title ?? '').trim() || 'Bài thi',
         createdAt: x.created_at != null ? String(x.created_at) : null,
+        practiceHomework: Boolean(x.is_practice_homework),
       })
     )
     const sessionIds = (examSessions ?? []).map((x: { id: string }) => x.id)
@@ -169,10 +144,21 @@ export async function loadClassDetailPayload(
         ? await supabase.from('profiles').select('id, full_name').in('id', attemptUserIds)
         : { data: [] }
       const sessionMetaMap = Object.fromEntries(
-        (examSessions ?? []).map((x: { id: string; code: string | null; title: string | null }) => [
-          x.id,
-          { code: x.code ?? '', title: x.title ?? 'Bài thi' },
-        ])
+        (examSessions ?? []).map(
+          (x: {
+            id: string
+            code: string | null
+            title: string | null
+            is_practice_homework?: boolean | null
+          }) => [
+            x.id,
+            {
+              code: x.code ?? '',
+              title: x.title ?? 'Bài thi',
+              practiceHomework: Boolean(x.is_practice_homework),
+            },
+          ]
+        )
       )
       const profileMap = Object.fromEntries((attemptProfiles ?? []).map((p: { id: string; full_name: string | null }) => [p.id, p.full_name ?? '—']))
       initialExamAttempts = (attempts ?? []).map(
@@ -196,6 +182,7 @@ export async function loadClassDetailPayload(
           maxScore: Number(a.max_score ?? 0),
           submittedAt: a.submitted_at,
           gradingMeta: parseExamGradingMeta(a.grading_meta),
+          practiceHomework: Boolean(sessionMetaMap[a.session_id]?.practiceHomework),
         })
       )
 
@@ -230,7 +217,7 @@ export async function loadClassDetailPayload(
   } else if (baseMembers.some((m) => m.userId === userId)) {
     const { data: sessionsForStudent } = await supabase
       .from('exam_sessions')
-      .select('id, code, title, created_at, status')
+      .select('id, code, title, created_at, status, is_practice_homework')
       .eq('class_id', classId)
       .order('created_at', { ascending: false })
       .limit(200)
@@ -241,12 +228,14 @@ export async function loadClassDetailPayload(
         title: string | null
         created_at?: string | null
         status?: string | null
+        is_practice_homework?: boolean | null
       }) => ({
         id: x.id,
         code: String(x.code ?? '').trim(),
         title: String(x.title ?? '').trim() || 'Bài thi',
         createdAt: x.created_at != null ? String(x.created_at) : null,
         status: x.status != null ? String(x.status) : 'active',
+        practiceHomework: Boolean(x.is_practice_homework),
       })
     )
     const sessionIds = (sessionsForStudent ?? []).map((x: { id: string }) => x.id)
@@ -257,10 +246,21 @@ export async function loadClassDetailPayload(
         .eq('user_id', userId)
         .in('session_id', sessionIds)
       const sessionMetaMap = Object.fromEntries(
-        (sessionsForStudent ?? []).map((x: { id: string; code: string | null; title: string | null }) => [
-          x.id,
-          { code: x.code ?? '', title: x.title ?? 'Bài thi' },
-        ])
+        (sessionsForStudent ?? []).map(
+          (x: {
+            id: string
+            code: string | null
+            title: string | null
+            is_practice_homework?: boolean | null
+          }) => [
+            x.id,
+            {
+              code: x.code ?? '',
+              title: x.title ?? 'Bài thi',
+              practiceHomework: Boolean(x.is_practice_homework),
+            },
+          ]
+        )
       )
       initialExamAttempts = (myAttempts ?? []).map(
         (a: {
@@ -283,6 +283,7 @@ export async function loadClassDetailPayload(
           maxScore: Number(a.max_score ?? 0),
           submittedAt: a.submitted_at,
           gradingMeta: parseExamGradingMeta(a.grading_meta),
+          practiceHomework: Boolean(sessionMetaMap[a.session_id]?.practiceHomework),
         })
       )
     }
@@ -302,7 +303,6 @@ export async function loadClassDetailPayload(
     schoolName,
     subjectNames,
     members: mergedMembers,
-    initialSubmissions,
     initialExamAttempts,
     initialExamSessions,
   }

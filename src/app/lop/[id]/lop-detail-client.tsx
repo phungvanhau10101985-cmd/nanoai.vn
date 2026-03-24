@@ -25,13 +25,13 @@ import { Label } from '@/components/ui/label'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
 import {
-  ClipboardList,
   Copy,
   ChevronDown,
   ChevronRight,
   FilePlus2,
   FileText,
   Images,
+  Link2,
   Loader2,
   Pencil,
   PenLine,
@@ -63,6 +63,7 @@ import {
 } from '../actions'
 import { ClassGradebookSection } from './class-gradebook-section'
 import { latexToReadable } from '@/app/tao-giao-trinh/lib/latex-to-readable'
+import { AttachExamToClassDialog } from '@/components/exam/attach-exam-to-class-dialog'
 
 function countClassExamSubmissionStats(
   attempts: ExamAttempt[],
@@ -166,7 +167,6 @@ type Member = {
   kind: 'student' | 'teacher_member'
   removable: boolean
 }
-type Submission = { id: string; worksheetId: string; worksheetTopic: string; studentName: string; quizScore: number; quizTotal: number; submittedAt: string }
 type ExamAttempt = {
   id: string
   sessionId: string
@@ -179,10 +179,25 @@ type ExamAttempt = {
   maxScore: number
   submittedAt: string
   gradingMeta?: ExamGradingMeta | null
+  /** Phiên bài tập về nhà — tách hiển thị với bài thi có điểm */
+  practiceHomework?: boolean
 }
-type ExamSessionRow = { id: string; code: string; title: string; createdAt?: string | null; status?: string }
+type ExamSessionRow = {
+  id: string
+  code: string
+  title: string
+  createdAt?: string | null
+  status?: string
+  practiceHomework?: boolean
+}
 
-type LopDetailPageMode = 'hub' | 'exams-index' | 'exam-session' | 'roster' | 'gradebook' | 'worksheets'
+type LopDetailPageMode =
+  | 'hub'
+  | 'exams-index'
+  | 'exam-session'
+  | 'roster'
+  | 'gradebook'
+  | 'student-worksheets'
 
 /** Bài có phần TL và GV chưa chấm (không có mốc essayGradedAt). */
 function attemptNeedsBulkAiEssayGrading(a: ExamAttempt): boolean {
@@ -197,11 +212,233 @@ function sessionHasEssaySection(attempts: ExamAttempt[]): boolean {
   return attempts.some((a) => (a.gradingMeta?.essayPointsMax ?? 0) > 0)
 }
 
+/** Một dòng phiên đề (thi hoặc bài tập về nhà) trong danh sách học sinh */
+function StudentClassExamOrHomeworkSessionRow({
+  session,
+  attempt,
+  t,
+  examStudentDoPath,
+}: {
+  session: ExamSessionRow
+  attempt: ExamAttempt | null
+  t: Dictionary['classes']
+  examStudentDoPath: (code: string) => string
+}) {
+  const isClosed = String(session.status ?? 'active').toLowerCase() !== 'active'
+  const canOpenLamBai = Boolean(session.code?.trim()) && (!isClosed || Boolean(attempt))
+  const isHw = Boolean(session.practiceHomework)
+  const fb =
+    attempt && !isHw
+      ? getExamAttemptFeedbackWithMeta(
+          Number(attempt.score),
+          Number(attempt.maxScore),
+          attempt.gradingMeta ?? null
+        )
+      : null
+  const timeStr = attempt ? new Date(attempt.submittedAt).toLocaleString() : ''
+  return (
+    <li className="px-4 py-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+      <div className="min-w-0 flex-1 space-y-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="font-medium text-sm leading-snug">{session.title}</p>
+          {isHw ? (
+            <span className="text-[11px] px-2 py-0.5 rounded-full bg-sky-100 text-sky-800 dark:bg-sky-950/60 dark:text-sky-200">
+              {t.classSessionBadgeHomework}
+            </span>
+          ) : null}
+          {isClosed ? (
+            <span className="text-[11px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
+              {t.studentClassExamBadgeClosed}
+            </span>
+          ) : null}
+        </div>
+        {attempt ? (
+          <>
+            <p className="text-xs font-medium text-emerald-700 dark:text-emerald-400">
+              {t.studentClassExamSubmitted}
+            </p>
+            {isHw ? (
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                {t.studentClassHomeworkSubmittedCaption}
+              </p>
+            ) : fb ? (
+              <p className="text-xs text-muted-foreground tabular-nums">
+                {fillExamTeacherSummaryTemplate(t.studentClassExamProgressScores, {
+                  score100: formatExamScaleShort(fb.scoreOn100),
+                  grade10: formatExamScaleShort(fb.grade10),
+                })}
+              </p>
+            ) : null}
+            {timeStr ? (
+              <p className="text-[11px] text-muted-foreground">
+                {fillExamTeacherSummaryTemplate(t.studentClassExamSubmittedAt, { time: timeStr })}
+              </p>
+            ) : null}
+          </>
+        ) : isClosed ? (
+          <p className="text-xs text-amber-800 dark:text-amber-200">{t.studentClassExamClosedMissed}</p>
+        ) : (
+          <p className="text-xs text-muted-foreground">{t.studentClassExamNotStarted}</p>
+        )}
+      </div>
+      <div className="shrink-0 flex flex-wrap gap-2 sm:pt-0.5">
+        {canOpenLamBai ? (
+          <Button type="button" size="sm" variant={attempt ? 'outline' : 'default'} asChild>
+            <Link href={examStudentDoPath(session.code)}>
+              {attempt ? t.studentClassExamCtaViewResult : t.studentClassExamCtaStart}
+            </Link>
+          </Button>
+        ) : null}
+      </div>
+    </li>
+  )
+}
+
+type TeacherClassExamGroup = {
+  sessionId: string
+  examCode: string
+  examTitle: string
+  attempts: ExamAttempt[]
+  practiceHomework: boolean
+}
+
+function TeacherClassExamGroupListItem({
+  g,
+  classId,
+  t,
+  enrolledStudentIds,
+  copyExamStudentLink,
+  setExamShare,
+  setDeleteExamTarget,
+  setAttachExamTarget,
+  setNotSubmittedSessionId,
+}: {
+  g: TeacherClassExamGroup
+  classId: string
+  t: Dictionary['classes']
+  enrolledStudentIds: Set<string>
+  copyExamStudentLink: (code: string) => void
+  setExamShare: (next: { code: string; title: string } | null) => void
+  setDeleteExamTarget: (next: { sessionId: string; code: string; title: string } | null) => void
+  setAttachExamTarget: (next: { sessionId: string; title: string } | null) => void
+  setNotSubmittedSessionId: (id: string | null) => void
+}) {
+  const roster = countClassExamSubmissionStats(g.attempts, enrolledStudentIds)
+  return (
+    <li className="px-4 py-3">
+      <div className="flex flex-col gap-2.5">
+        <p className="font-medium text-sm leading-snug">{g.examTitle}</p>
+        <div className="flex flex-wrap items-center gap-2">
+          {g.examCode ? (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="shrink-0"
+                onClick={() => setExamShare({ code: g.examCode, title: g.examTitle })}
+              >
+                <QrCode className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+                {t.examStudentDoLinkOpen}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="h-8 w-8 shrink-0"
+                aria-label={t.examStudentDoLinkCopy}
+                onClick={() => copyExamStudentLink(g.examCode)}
+              >
+                <Copy className="h-4 w-4" aria-hidden />
+              </Button>
+              <Button type="button" variant="secondary" size="sm" className="shrink-0" asChild>
+                <Link
+                  href={`/giao-trinh/giao-vien/de-thi/${encodeURIComponent(g.examCode)}?t=${Date.now()}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {t.examReviewAction}
+                </Link>
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="shrink-0 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                disabled={!g.examCode.trim()}
+                onClick={() =>
+                  setDeleteExamTarget({
+                    sessionId: g.sessionId,
+                    code: g.examCode,
+                    title: g.examTitle,
+                  })
+                }
+              >
+                <Trash2 className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+                {t.examDeleteAction}
+              </Button>
+            </>
+          ) : null}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="shrink-0 gap-1.5"
+            onClick={() => setAttachExamTarget({ sessionId: g.sessionId, title: g.examTitle })}
+          >
+            <Link2 className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            {t.examAttachToOtherClassButton}
+          </Button>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="button" variant="default" size="sm" className="shrink-0" asChild>
+            <Link href={`/lop/${classId}/bai-thi/${g.sessionId}`}>{t.classExamGoToSession}</Link>
+          </Button>
+        </div>
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+          <span className="inline-flex items-center rounded-md bg-muted/60 px-2 py-0.5 tabular-nums whitespace-nowrap text-muted-foreground">
+            {formatExamSessionRosterReport(t.examSessionRosterReport, roster.submitted, roster.notSubmitted)}
+          </span>
+          <span className="text-muted-foreground/45 select-none" aria-hidden>
+            ·
+          </span>
+          <span className="whitespace-nowrap tabular-nums">
+            {g.attempts.length} {t.examAttemptCount}
+          </span>
+          {g.examCode ? (
+            <>
+              <span className="text-muted-foreground/45 select-none" aria-hidden>
+                ·
+              </span>
+              <code className="rounded-md bg-muted/70 px-1.5 py-0.5 font-mono text-[11px] text-foreground/90">
+                {g.examCode}
+              </code>
+            </>
+          ) : null}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-7 shrink-0 gap-1 px-2 text-xs"
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              setNotSubmittedSessionId(g.sessionId)
+            }}
+          >
+            <UserRound className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            {t.examSessionShowNotSubmitted}
+          </Button>
+        </div>
+      </div>
+    </li>
+  )
+}
+
 export default function LopDetailClient({
   cls,
   isTeacher,
   members = [],
-  initialSubmissions = [],
   initialExamAttempts = [],
   initialExamSessions = [],
   pageMode = 'hub',
@@ -221,7 +458,6 @@ export default function LopDetailClient({
   }
   isTeacher: boolean
   members?: Member[]
-  initialSubmissions?: Submission[]
   initialExamAttempts?: ExamAttempt[]
   /** Phiên đề thi gắn lớp (luôn hiển thị, kể cả chưa có bài nộp) */
   initialExamSessions?: ExamSessionRow[]
@@ -237,7 +473,6 @@ export default function LopDetailClient({
   const [editMemberTarget, setEditMemberTarget] = useState<Member | null>(null)
   const [editMemberNameInput, setEditMemberNameInput] = useState('')
   const [savingMemberName, setSavingMemberName] = useState(false)
-  const [submissions, setSubmissions] = useState<Submission[]>(initialSubmissions ?? [])
   const [examAttempts, setExamAttempts] = useState<ExamAttempt[]>(initialExamAttempts ?? [])
   const [examSessionsList, setExamSessionsList] = useState<ExamSessionRow[]>(initialExamSessions ?? [])
   const [deleteExamTarget, setDeleteExamTarget] = useState<{
@@ -257,6 +492,7 @@ export default function LopDetailClient({
   /** GV: hộp thoại QR + link — không điều hướng sang /lam-bai */
   const [examShare, setExamShare] = useState<{ code: string; title: string } | null>(null)
   const [shareQrDataUrl, setShareQrDataUrl] = useState<string | null>(null)
+  const [attachExamTarget, setAttachExamTarget] = useState<{ sessionId: string; title: string } | null>(null)
   const [notSubmittedSessionId, setNotSubmittedSessionId] = useState<string | null>(null)
   const [facingSubject, setFacingSubject] = useState(() => String(cls.subjectLabel ?? '').trim())
   const [facingTeacher, setFacingTeacher] = useState(() => String(cls.teacherDisplayName ?? '').trim())
@@ -296,7 +532,10 @@ export default function LopDetailClient({
     [examAttempts]
   )
   const lowScoreCount = useMemo(
-    () => sortedExamAttempts.filter((s) => examAttemptSortGrade10(s) < 5).length,
+    () =>
+      sortedExamAttempts.filter(
+        (s) => !s.practiceHomework && examAttemptSortGrade10(s) < 5
+      ).length,
     [sortedExamAttempts]
   )
   /** Học sinh trong lớp (thành viên có tài khoản), không tính dòng ẩn danh exam-attempt:… */
@@ -324,6 +563,15 @@ export default function LopDetailClient({
       })
       .map((s) => ({ session: s, attempt: bySession.get(s.id) ?? null }))
   }, [isTeacher, examSessionsList, examAttempts])
+
+  const studentClassExamRowsExamsOnly = useMemo(
+    () => studentClassExamRows.filter(({ session }) => !session.practiceHomework),
+    [studentClassExamRows]
+  )
+  const studentClassHomeworkSessionRows = useMemo(
+    () => studentClassExamRows.filter(({ session }) => Boolean(session.practiceHomework)),
+    [studentClassExamRows]
+  )
 
   const examGroups = useMemo(() => {
     const attemptsBySession = new Map<string, ExamAttempt[]>()
@@ -354,6 +602,7 @@ export default function LopDetailClient({
         examCode: s.code,
         examTitle: s.title || 'Bài thi',
         attempts: attemptsBySession.get(s.id) ?? [],
+        practiceHomework: Boolean(s.practiceHomework),
       }))
       return groups.sort(
         (a, b) =>
@@ -366,11 +615,21 @@ export default function LopDetailClient({
       examCode: attempts[0]?.examCode ?? '',
       examTitle: attempts[0]?.examTitle ?? 'Bài thi',
       attempts,
+      practiceHomework: Boolean(attempts[0]?.practiceHomework),
     }))
     return fallback.sort(
       (a, b) => examSessionNewestFirst(b.sessionId, b.attempts) - examSessionNewestFirst(a.sessionId, a.attempts)
     )
   }, [examSessionsList, sortedExamAttempts])
+
+  const examGroupsGraded = useMemo(
+    () => examGroups.filter((g) => !g.practiceHomework),
+    [examGroups]
+  )
+  const examGroupsHomeworkOnly = useMemo(
+    () => examGroups.filter((g) => g.practiceHomework),
+    [examGroups]
+  )
 
   const notSubmittedDialogList = useMemo(() => {
     if (!notSubmittedSessionId) return []
@@ -451,20 +710,6 @@ export default function LopDetailClient({
       cancelled = true
     }
   }, [examShare])
-
-  useEffect(() => {
-    if (!isTeacher) return
-    const poll = () => {
-      fetch(`/api/lop/${cls.id}/submissions`)
-        .then((r) => r.json())
-        .then((data) => {
-          if (data.items) setSubmissions(data.items)
-        })
-        .catch(() => {})
-    }
-    const id = setInterval(poll, 8000)
-    return () => clearInterval(id)
-  }, [isTeacher, cls.id])
 
   function copyCode() {
     navigator.clipboard.writeText(cls.join_code)
@@ -915,13 +1160,20 @@ export default function LopDetailClient({
           ) : null}
 
           {isTeacher ? (
-            <div className="mt-3 md:hidden">
+            <div className="mt-3 grid gap-2 md:hidden sm:grid-cols-2">
               <Button
                 variant="secondary"
                 className="h-auto w-full touch-manipulation py-2.5 text-sm font-semibold shadow-sm"
                 asChild
               >
                 <Link href="/tao-bai-thi">{t.mobileCreateExam}</Link>
+              </Button>
+              <Button
+                variant="outline"
+                className="h-auto w-full touch-manipulation py-2.5 text-sm font-semibold shadow-sm"
+                asChild
+              >
+                <Link href="/tao-bai-tap-ve-nha">{t.mobileCreateHomework}</Link>
               </Button>
             </div>
           ) : null}
@@ -965,6 +1217,24 @@ export default function LopDetailClient({
                 {isTeacher ? t.classHubCardExamsDesc : t.classHubCardExamsDescStudent}
               </p>
             </Link>
+            {!isTeacher ? (
+              <Link
+                href={`/lop/${cls.id}/phieu-bai-tap`}
+                className={cn(
+                  pageSectionCard,
+                  'flex flex-col gap-2 p-4 transition-colors hover:bg-muted/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+                )}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <ScrollText className="h-5 w-5 shrink-0 text-sky-600 dark:text-sky-400" aria-hidden />
+                    <span className={pageSectionTitle}>{t.assignWorksheet}</span>
+                  </div>
+                  <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
+                </div>
+                <p className="text-sm text-muted-foreground leading-snug">{t.classHubCardStudentWorksheetsDesc}</p>
+              </Link>
+            ) : null}
             <Link
               href={`/lop/${cls.id}/hoc-sinh`}
               className={cn(
@@ -1019,22 +1289,6 @@ export default function LopDetailClient({
                   </div>
                   <p className="text-sm text-muted-foreground leading-snug">{t.classHubCardGradebookDesc}</p>
                 </Link>
-                <Link
-                  href={`/lop/${cls.id}/nop-phieu`}
-                  className={cn(
-                    pageSectionCard,
-                    'flex flex-col gap-2 p-4 transition-colors hover:bg-muted/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
-                  )}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <ClipboardList className="h-5 w-5 shrink-0 text-primary" aria-hidden />
-                      <span className={pageSectionTitle}>{t.worksheetSubmissionsSection}</span>
-                    </div>
-                    <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
-                  </div>
-                  <p className="text-sm text-muted-foreground leading-snug">{t.classHubCardWorksheetsDesc}</p>
-                </Link>
               </>
             ) : null}
           </div>
@@ -1055,122 +1309,53 @@ export default function LopDetailClient({
             <p className="text-sm text-muted-foreground">{t.noExamsForClass}</p>
           ) : (
             <>
-              {lowScoreCount > 0 && (
+              {lowScoreCount > 0 && examGroupsGraded.length > 0 ? (
                 <div className="rounded-lg border border-amber-300/80 bg-amber-50 px-3 py-2.5 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-950/50 dark:text-amber-100">
                   {t.lowScoreWarningPrefix} {lowScoreCount} {t.lowScoreWarningSuffix}
                 </div>
-              )}
-              <ul className="divide-y divide-border/80 overflow-hidden rounded-xl border border-border/70 bg-card shadow-sm">
-                {examGroups.map((g) => {
-                  const roster = countClassExamSubmissionStats(g.attempts, enrolledStudentIds)
-                  return (
-                    <li key={g.sessionId} className="px-4 py-3">
-                      <div className="flex flex-col gap-2.5">
-                        <p className="font-medium text-sm leading-snug">{g.examTitle}</p>
-                        {/* Hàng 1: QR, copy, chữa, xóa — không chèn với AI / ẩn danh sách */}
-                        <div className="flex flex-wrap items-center gap-2">
-                          {g.examCode ? (
-                            <>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                className="shrink-0"
-                                onClick={() =>
-                                  setExamShare({ code: g.examCode, title: g.examTitle })
-                                }
-                              >
-                                <QrCode className="mr-1.5 h-3.5 w-3.5" aria-hidden />
-                                {t.examStudentDoLinkOpen}
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="icon"
-                                className="h-8 w-8 shrink-0"
-                                aria-label={t.examStudentDoLinkCopy}
-                                onClick={() => copyExamStudentLink(g.examCode)}
-                              >
-                                <Copy className="h-4 w-4" aria-hidden />
-                              </Button>
-                              <Button type="button" variant="secondary" size="sm" className="shrink-0" asChild>
-                                <Link
-                                  href={`/giao-trinh/giao-vien/de-thi/${encodeURIComponent(g.examCode)}?t=${Date.now()}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                >
-                                  {t.examReviewAction}
-                                </Link>
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                className="shrink-0 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                                disabled={!g.examCode.trim()}
-                                onClick={() =>
-                                  setDeleteExamTarget({
-                                    sessionId: g.sessionId,
-                                    code: g.examCode,
-                                    title: g.examTitle,
-                                  })
-                                }
-                              >
-                                <Trash2 className="mr-1.5 h-3.5 w-3.5" aria-hidden />
-                                {t.examDeleteAction}
-                              </Button>
-                            </>
-                          ) : null}
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Button type="button" variant="default" size="sm" className="shrink-0" asChild>
-                            <Link href={`/lop/${cls.id}/bai-thi/${g.sessionId}`}>{t.classExamGoToSession}</Link>
-                          </Button>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-                          <span className="inline-flex items-center rounded-md bg-muted/60 px-2 py-0.5 tabular-nums whitespace-nowrap text-muted-foreground">
-                            {formatExamSessionRosterReport(
-                              t.examSessionRosterReport,
-                              roster.submitted,
-                              roster.notSubmitted
-                            )}
-                          </span>
-                          <span className="text-muted-foreground/45 select-none" aria-hidden>
-                            ·
-                          </span>
-                          <span className="whitespace-nowrap tabular-nums">
-                            {g.attempts.length} {t.examAttemptCount}
-                          </span>
-                          {g.examCode ? (
-                            <>
-                              <span className="text-muted-foreground/45 select-none" aria-hidden>
-                                ·
-                              </span>
-                              <code className="rounded-md bg-muted/70 px-1.5 py-0.5 font-mono text-[11px] text-foreground/90">
-                                {g.examCode}
-                              </code>
-                            </>
-                          ) : null}
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="h-7 shrink-0 gap-1 px-2 text-xs"
-                            onClick={(e) => {
-                              e.preventDefault()
-                              e.stopPropagation()
-                              setNotSubmittedSessionId(g.sessionId)
-                            }}
-                          >
-                            <UserRound className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                            {t.examSessionShowNotSubmitted}
-                          </Button>
-                        </div>
-                      </div>
-                    </li>
-                  )
-                })}
-              </ul>
+              ) : null}
+              {examGroupsGraded.length > 0 ? (
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold text-foreground">{t.classExamsSubsectionGraded}</p>
+                  <ul className="divide-y divide-border/80 overflow-hidden rounded-xl border border-border/70 bg-card shadow-sm">
+                    {examGroupsGraded.map((g) => (
+                      <TeacherClassExamGroupListItem
+                        key={g.sessionId}
+                        g={g}
+                        classId={cls.id}
+                        t={t}
+                        enrolledStudentIds={enrolledStudentIds}
+                        copyExamStudentLink={copyExamStudentLink}
+                        setExamShare={setExamShare}
+                        setDeleteExamTarget={setDeleteExamTarget}
+                        setAttachExamTarget={setAttachExamTarget}
+                        setNotSubmittedSessionId={setNotSubmittedSessionId}
+                      />
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+              {examGroupsHomeworkOnly.length > 0 ? (
+                <div className={cn('space-y-2', examGroupsGraded.length > 0 && 'mt-6')}>
+                  <p className="text-sm font-semibold text-foreground">{t.classExamsSubsectionPracticeHomework}</p>
+                  <ul className="divide-y divide-border/80 overflow-hidden rounded-xl border border-border/70 bg-card shadow-sm">
+                    {examGroupsHomeworkOnly.map((g) => (
+                      <TeacherClassExamGroupListItem
+                        key={g.sessionId}
+                        g={g}
+                        classId={cls.id}
+                        t={t}
+                        enrolledStudentIds={enrolledStudentIds}
+                        copyExamStudentLink={copyExamStudentLink}
+                        setExamShare={setExamShare}
+                        setDeleteExamTarget={setDeleteExamTarget}
+                        setAttachExamTarget={setAttachExamTarget}
+                        setNotSubmittedSessionId={setNotSubmittedSessionId}
+                      />
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
             </>
           )}
             </div>
@@ -1251,6 +1436,16 @@ export default function LopDetailClient({
                                 </Button>
                               </>
                             ) : null}
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="shrink-0 gap-1.5"
+                              onClick={() => setAttachExamTarget({ sessionId: g.sessionId, title: g.examTitle })}
+                            >
+                              <Link2 className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                              {t.examAttachToOtherClassButton}
+                            </Button>
                           </div>
                           <div className="flex flex-wrap items-center gap-2">
                             {sessionHasEssaySection(g.attempts) ? (
@@ -1437,69 +1632,51 @@ export default function LopDetailClient({
               </h2>
             </div>
             <div className="bg-muted/10 p-3 sm:p-4">
-          {studentClassExamRows.length === 0 ? (
+          {studentClassExamRowsExamsOnly.length === 0 ? (
             <p className="text-sm text-muted-foreground">{t.noExamsForClass}</p>
           ) : (
             <ul className="divide-y divide-border/80 overflow-hidden rounded-xl border border-border/70 bg-card shadow-sm">
-              {studentClassExamRows.map(({ session, attempt }) => {
-                const isClosed = String(session.status ?? 'active').toLowerCase() !== 'active'
-                const canOpenLamBai = Boolean(session.code?.trim()) && (!isClosed || Boolean(attempt))
-                const fb = attempt
-                  ? getExamAttemptFeedbackWithMeta(
-                      Number(attempt.score),
-                      Number(attempt.maxScore),
-                      attempt.gradingMeta ?? null
-                    )
-                  : null
-                const timeStr = attempt
-                  ? new Date(attempt.submittedAt).toLocaleString()
-                  : ''
-                return (
-                  <li key={session.id} className="px-4 py-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-                    <div className="min-w-0 flex-1 space-y-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-medium text-sm leading-snug">{session.title}</p>
-                        {isClosed ? (
-                          <span className="text-[11px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
-                            {t.studentClassExamBadgeClosed}
-                          </span>
-                        ) : null}
-                      </div>
-                      {attempt && fb ? (
-                        <>
-                          <p className="text-xs font-medium text-emerald-700 dark:text-emerald-400">
-                            {t.studentClassExamSubmitted}
-                          </p>
-                          <p className="text-xs text-muted-foreground tabular-nums">
-                            {fillExamTeacherSummaryTemplate(t.studentClassExamProgressScores, {
-                              score100: formatExamScaleShort(fb.scoreOn100),
-                              grade10: formatExamScaleShort(fb.grade10),
-                            })}
-                          </p>
-                          <p className="text-[11px] text-muted-foreground">
-                            {fillExamTeacherSummaryTemplate(t.studentClassExamSubmittedAt, { time: timeStr })}
-                          </p>
-                        </>
-                      ) : isClosed ? (
-                        <p className="text-xs text-amber-800 dark:text-amber-200">{t.studentClassExamClosedMissed}</p>
-                      ) : (
-                        <p className="text-xs text-muted-foreground">{t.studentClassExamNotStarted}</p>
-                      )}
-                    </div>
-                    <div className="shrink-0 flex flex-wrap gap-2 sm:pt-0.5">
-                      {canOpenLamBai ? (
-                        <Button type="button" size="sm" variant={attempt ? 'outline' : 'default'} asChild>
-                          <Link href={examStudentDoPath(session.code)}>
-                            {attempt ? t.studentClassExamCtaViewResult : t.studentClassExamCtaStart}
-                          </Link>
-                        </Button>
-                      ) : null}
-                    </div>
-                  </li>
-                )
-              })}
+              {studentClassExamRowsExamsOnly.map(({ session, attempt }) => (
+                <StudentClassExamOrHomeworkSessionRow
+                  key={session.id}
+                  session={session}
+                  attempt={attempt}
+                  t={t}
+                  examStudentDoPath={examStudentDoPath}
+                />
+              ))}
             </ul>
           )}
+            </div>
+          </div>
+        </section>
+      ) : null}
+
+      {!isTeacher && pageMode === 'student-worksheets' ? (
+        <section className="mb-8" aria-labelledby="student-class-homework-sessions-heading">
+          <div className={pageSectionCard}>
+            <div className={pageSectionHead}>
+              <ScrollText className="h-5 w-5 shrink-0 text-sky-600 dark:text-sky-400" aria-hidden />
+              <h2 id="student-class-homework-sessions-heading" className={pageSectionTitle}>
+                {t.assignWorksheet}
+              </h2>
+            </div>
+            <div className="bg-muted/10 p-3 sm:p-4">
+              {studentClassHomeworkSessionRows.length === 0 ? (
+                <p className="text-sm text-muted-foreground">{t.classStudentHomeworkSessionsEmpty}</p>
+              ) : (
+                <ul className="divide-y divide-border/80 overflow-hidden rounded-xl border border-border/70 bg-card shadow-sm">
+                  {studentClassHomeworkSessionRows.map(({ session, attempt }) => (
+                    <StudentClassExamOrHomeworkSessionRow
+                      key={session.id}
+                      session={session}
+                      attempt={attempt}
+                      t={t}
+                      examStudentDoPath={examStudentDoPath}
+                    />
+                  ))}
+                </ul>
+              )}
             </div>
           </div>
         </section>
@@ -1584,48 +1761,6 @@ export default function LopDetailClient({
       ) : null}
 
       {pageMode === 'gradebook' && isTeacher ? <ClassGradebookSection classId={cls.id} t={t} /> : null}
-
-      {pageMode === 'worksheets' && isTeacher ? (
-        <section className="mb-8" aria-labelledby="worksheet-submissions-heading">
-          <div className={pageSectionCard}>
-            <div className={pageSectionHead}>
-              <ClipboardList className="h-5 w-5 shrink-0 text-primary" aria-hidden />
-              <h2 id="worksheet-submissions-heading" className={pageSectionTitle}>
-                {t.worksheetSubmissionsSection}
-              </h2>
-            </div>
-            <div className="bg-muted/10 p-3 sm:p-4">
-          {submissions.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{t.noWorksheetSubmissions}</p>
-          ) : (
-          <ul className="divide-y divide-border/80 overflow-hidden rounded-xl border border-border/70 bg-card shadow-sm">
-            {submissions.map((s) => (
-              <li key={s.id} className="px-4 py-3 flex items-center justify-between">
-                <div>
-                  <span className="font-medium text-sm">{s.studentName}</span>
-                  <span className="text-muted-foreground text-sm ml-2">– {s.worksheetTopic}</span>
-                  <div className="mt-1 flex flex-wrap gap-1.5">
-                    <span className="text-[11px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
-                      {className}
-                    </span>
-                    {cls.schoolName && (
-                      <span className="text-[11px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
-                        {cls.schoolName}
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <div className="text-sm text-muted-foreground">
-                  {s.quizScore}/{s.quizTotal} • {new Date(s.submittedAt).toLocaleString('vi-VN')}
-                </div>
-              </li>
-            ))}
-          </ul>
-          )}
-            </div>
-          </div>
-        </section>
-      ) : null}
 
       <AlertDialog
         open={deleteExamTarget !== null}
@@ -1813,6 +1948,18 @@ export default function LopDetailClient({
           </div>
         </DialogContent>
       </Dialog>
+
+      <AttachExamToClassDialog
+        open={attachExamTarget !== null}
+        onOpenChange={(o) => {
+          if (!o) setAttachExamTarget(null)
+        }}
+        sourceSessionId={attachExamTarget?.sessionId ?? ''}
+        excludeClassId={cls.id}
+        examTitle={attachExamTarget?.title}
+        tc={t}
+        onSuccess={() => router.refresh()}
+      />
 
       <Dialog
         open={editMemberTarget !== null}

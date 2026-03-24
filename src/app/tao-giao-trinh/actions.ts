@@ -1163,7 +1163,7 @@ export async function listWorksheets(opts?: { subjectId?: string; gradeLevelId?:
 
   let q = supabase
     .from('worksheet_worksheets')
-    .select('id, topic, subject_id, grade_level_id, created_at')
+    .select('id, topic, subject_id, grade_level_id, created_at, question_ids')
     .order('created_at', { ascending: false })
     .limit(Math.min(100, opts?.limit ?? 50))
 

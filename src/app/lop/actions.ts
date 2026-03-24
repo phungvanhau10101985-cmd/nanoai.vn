@@ -141,6 +141,7 @@ export async function updateClassStudentFacingInfo(input: {
   revalidatePath('/lop')
   revalidatePath(`/lop/${cid}`)
   revalidatePath('/tao-bai-thi')
+  revalidatePath('/tao-bai-tap-ve-nha')
   return { success: true }
 }
 
@@ -274,6 +275,7 @@ export async function assignWorksheetToClass(classId: string, worksheetId: strin
   )
   if (error) return { error: error.message }
   revalidatePath(`/lop/${classId}`)
+  revalidatePath(`/lop/${classId}/phieu-bai-tap`)
   return { success: true }
 }
 
@@ -297,6 +299,7 @@ export async function removeWorksheetFromClass(classId: string, worksheetId: str
     .eq('worksheet_id', worksheetId)
   if (error) return { error: error.message }
   revalidatePath(`/lop/${classId}`)
+  revalidatePath(`/lop/${classId}/phieu-bai-tap`)
   return { success: true }
 }
 

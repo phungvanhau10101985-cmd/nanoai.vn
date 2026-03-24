@@ -902,6 +902,30 @@ const FEATURE_SEO_DATA: Record<string, FeatureSeoData> = {
       { question: 'Có chấm tự động không?', answer: 'Có, trắc nghiệm chấm tự động.' },
     ],
   },
+  'tao-bai-tap-ve-nha': {
+    key: 'tao-bai-tap-ve-nha',
+    pageTitle: 'Tạo bài tập về nhà trực tuyến – không chấm điểm hiển thị cho học sinh',
+    pageDescription:
+      'Tạo bài tập về nhà giống bài thi trực tuyến (môn, lớp, câu hỏi, QR/link) nhưng không bắt tổng 100 điểm; học sinh không xem điểm sau khi nộp.',
+    path: '/tao-bai-tap-ve-nha',
+    keywords: ['bài tập về nhà', 'homework online', 'bài tập trực tuyến', 'QR bài tập', 'giao bài tập'],
+    serviceName: 'Tạo bài tập về nhà trực tuyến',
+    serviceDescription:
+      'Giáo viên tạo phiên bài tập về nhà từ ngân hàng câu hỏi giáo trình, chọn lớp và chia sẻ QR/link; học sinh không xem điểm sau khi nộp. Trong trang lớp, mục «Bài tập về nhà» liệt kê các phiên đã gắn lớp.',
+    h2: 'Tạo bài tập về nhà trực tuyến',
+    overview:
+      'Luồng tạo giống bài thi: chọn thời lượng, môn, lớp, chọn câu trắc nghiệm và tự luận từ giáo trình. Khác biệt: không yêu cầu tổng điểm 100; sau khi nộp, giao diện học sinh không hiển thị thang điểm.',
+    benefits: ['Cùng QR/link và gán lớp như bài thi', 'Không ép phân bổ 100 điểm', 'Học sinh tập trung làm bài, không xem điểm ngay'],
+    useCases: ['Ôn tập về nhà', 'Bài luyện theo bài học', 'Giao bài kèm phiếu'],
+    tips: [
+      'Tạo câu hỏi trên slide trước để có đủ câu trong ngân hàng',
+      'Vào trang lớp → «Bài tập về nhà» để xem mọi phiên homework đã gắn lớp và copy link cho học sinh',
+    ],
+    faqs: [
+      { question: 'Khác bài thi ở đâu?', answer: 'Cùng công nghệ phiên làm bài, nhưng không bắt tổng 100 điểm khi tạo và học sinh không thấy điểm sau khi nộp.' },
+      { question: 'Xem bài tập đã gắn lớp ở đâu?', answer: 'Trong trang lớp, mục «Bài tập về nhà» (đường dẫn /lop/[mã-lớp]/gan-phieu).' },
+    ],
+  },
 }
 
 export function getFeatureSeo(key: string): FeatureSeoData {

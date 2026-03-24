@@ -34,7 +34,7 @@ export async function GET(
     const admin = getAdminClient()
     const { data: session, error: sessionErr } = await admin
       .from('exam_sessions')
-      .select('id, code, title, teacher_id')
+      .select('id, code, title, teacher_id, is_practice_homework')
       .eq('code', String(code || '').trim().toUpperCase())
       .single()
     if (sessionErr || !session) return NextResponse.json({ error: 'Không tìm thấy bài thi.' }, { status: 404 })
@@ -102,6 +102,7 @@ export async function GET(
     return NextResponse.json({
       code: session.code,
       title: session.title,
+      practiceHomework: Boolean((session as { is_practice_homework?: boolean }).is_practice_homework),
       questions: items,
     })
   } catch (e) {

@@ -1017,7 +1017,13 @@ export default function GiaoVienWorksheetPage() {
     let cancelled = false
     fetch(`/api/exam-session/${encodeURIComponent(examCode)}/review`, { cache: 'no-store' })
       .then((r) => r.json())
-      .then((data: { error?: string; title?: string; questions?: ExamReviewQuestionInput[] }) => {
+      .then(
+        (data: {
+          error?: string
+          title?: string
+          practiceHomework?: boolean
+          questions?: ExamReviewQuestionInput[]
+        }) => {
         if (cancelled) return
         setWorksheetLoading(false)
         if (data.error) {
@@ -1025,7 +1031,12 @@ export default function GiaoVienWorksheetPage() {
           return
         }
         const questions = Array.isArray(data.questions) ? data.questions : []
-        const title = String(data.title ?? '').trim() || `${tr('Đề thi', 'Exam', '试卷', '試験', '시험')} ${examCode}`
+        const isHw = data.practiceHomework === true
+        const title =
+          String(data.title ?? '').trim()
+          || (isHw
+            ? `${tr('Bài tập về nhà', 'Homework', '家庭作业', '宿題', '숙제')} ${examCode}`
+            : `${tr('Đề thi', 'Exam', '试卷', '試験', '시험')} ${examCode}`)
         const aiSlides = examReviewQuestionsToSlides(questions)
         const markdown = questions
           .map((q) => {

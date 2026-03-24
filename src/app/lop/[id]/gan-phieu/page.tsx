@@ -8,8 +8,7 @@ import { buildMetadata } from '@/lib/seo'
 import { getServerDictionary } from '@/lib/i18n/server'
 import { CreationToolPageShell } from '@/components/layout/creation-tool-page-shell'
 import { GAN_PHIEU_RELATED } from '@/lib/creation-tool-sidebar-config'
-import GanPhieuClient from './gan-phieu-client'
-import { listWorksheets } from '@/app/tao-giao-trinh/actions'
+import GanPhieuClient, { type ClassHomeworkSession } from './gan-phieu-client'
 
 export async function generateMetadata({
   params,
@@ -40,15 +39,31 @@ export default async function GanPhieuPage({ params }: { params: Promise<{ id: s
 
   if (!cls || cls.teacher_id !== user.id) notFound()
 
-  const { data: assigned } = await supabase
-    .from('class_worksheets')
-    .select('worksheet_id, worksheet_worksheets(id, topic)')
+  const { data: sessionRows } = await supabase
+    .from('exam_sessions')
+    .select('id, code, title, status, created_at, is_practice_homework')
     .eq('class_id', classId)
+    .eq('teacher_id', user.id)
+    .order('created_at', { ascending: false })
 
-  const wsRes = await listWorksheets({ limit: 100 })
-  const allWorksheets = (wsRes && 'items' in wsRes ? (wsRes.items ?? []) : []).map(
-    (w: { id: string; topic: string }) => ({ id: w.id, topic: w.topic })
-  )
+  const sessions: ClassHomeworkSession[] = (sessionRows ?? [])
+    .filter((row) => Boolean((row as { is_practice_homework?: boolean | null }).is_practice_homework))
+    .map((row) => {
+      const r = row as {
+        id: string
+        code: string
+        title: string | null
+        status: string | null
+        created_at: string
+      }
+      return {
+        id: r.id,
+        code: String(r.code ?? '').toUpperCase(),
+        title: String(r.title ?? '').trim(),
+        status: String(r.status ?? 'active'),
+        createdAt: r.created_at,
+      }
+    })
 
   const { t } = await getServerDictionary()
 
@@ -70,11 +85,9 @@ export default async function GanPhieuPage({ params }: { params: Promise<{ id: s
           <p className="text-sm text-muted-foreground mb-6">{cls.name}</p>
           <GanPhieuClient
             classId={classId}
-            assignedIds={(assigned ?? [])
-              .filter((a: { worksheet_worksheets: unknown }) => a.worksheet_worksheets)
-              .map((a: { worksheet_id: string }) => a.worksheet_id)}
-            worksheets={allWorksheets}
+            sessions={sessions}
             t={t.classes}
+            examUi={t.createExamPage}
           />
         </div>
       </CreationToolPageShell>

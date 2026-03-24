@@ -59,12 +59,18 @@ export default async function LopPage() {
           </header>
 
           {(myClasses?.length ?? 0) > 0 ? (
-            <div className="mb-6 md:hidden">
+            <div className="mb-6 grid gap-2 md:hidden sm:grid-cols-2">
               <Link
                 href="/tao-bai-thi"
                 className="flex w-full touch-manipulation items-center justify-center rounded-lg border border-input bg-secondary px-4 py-3 text-center text-sm font-semibold text-secondary-foreground shadow-sm transition-colors hover:bg-secondary/90 active:bg-secondary/80"
               >
                 {t.classes.mobileCreateExam}
+              </Link>
+              <Link
+                href="/tao-bai-tap-ve-nha"
+                className="flex w-full touch-manipulation items-center justify-center rounded-lg border border-input bg-background px-4 py-3 text-center text-sm font-semibold text-foreground shadow-sm transition-colors hover:bg-muted/60 active:bg-muted/80"
+              >
+                {t.classes.mobileCreateHomework}
               </Link>
             </div>
           ) : null}

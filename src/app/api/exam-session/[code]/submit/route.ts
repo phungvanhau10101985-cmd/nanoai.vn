@@ -91,7 +91,7 @@ export async function POST(
 
     const { data: session, error: sessionErr } = await supabase
       .from('exam_sessions')
-      .select('id, class_id, school_id')
+      .select('id, class_id, school_id, is_practice_homework')
       .eq('code', code.toUpperCase())
       .eq('status', 'active')
       .single()
@@ -99,6 +99,8 @@ export async function POST(
     if (sessionErr || !session) {
       return NextResponse.json({ error: 'Không tìm thấy bài thi.' }, { status: 404 })
     }
+
+    const practiceHomework = Boolean((session as { is_practice_homework?: boolean }).is_practice_homework)
 
     const layout = await verifyExamLayoutToken(layoutToken)
     if (!layout || layout.sessionId !== String(session.id) || layout.userId !== user.id) {
@@ -265,6 +267,7 @@ export async function POST(
 
     return NextResponse.json({
       success: true,
+      practiceHomework,
       score: finalScore,
       maxScore,
       grade10: feedback.grade10,

@@ -51,6 +51,7 @@ export type ToolKey =
   | 'create_curriculum'
   | 'create_exam'
   | 'online_exam'
+  | 'homework_online'
   | 'classes'
   | 'try_on_1'
   | 'try_on_2'
@@ -146,7 +147,23 @@ export type Dictionary = {
     backToList: string
     /** Chỉ mobile: mở /tao-bai-thi (cùng trang tạo bài thi trực tuyến) */
     mobileCreateExam: string
+    /** Chỉ mobile: mở /tao-bai-tap-ve-nha */
+    mobileCreateHomework: string
+    /** Hub + /lop/[id]/gan-phieu — tiêu đề thẻ: bài tập về nhà gắn lớp */
     assignWorksheet: string
+    /** /lop/[id]/gan-phieu — chưa có phiên homework nào gắn lớp */
+    classHomeworkListEmpty: string
+    /** Nút/link tới /tao-bai-tap-ve-nha */
+    classHomeworkListCreateCta: string
+    /** Mở /lam-bai/[code] cho học sinh */
+    classHomeworkOpenLamBai: string
+    /** /lop/.../gan-phieu — gắn phiên bài tập về nhà sang lớp khác */
+    classHomeworkAttachOtherClassButton: string
+    classHomeworkAttachPickTitle: string
+    classHomeworkAttachPickDescription: string
+    classHomeworkAttachSessionLabel: string
+    /** HS /lop/.../phieu-bai-tap — chưa có phiên bài tập về nhà (exam session) */
+    classStudentHomeworkSessionsEmpty: string
     noWorksheets: string
     doWorksheet: string
     submit: string
@@ -155,9 +172,6 @@ export type Dictionary = {
     quizScore: string
     sampleAnswer: string
     submissions: string
-    worksheetSubmissionsSection: string
-    noWorksheetSubmissions: string
-    worksheetSubmissionsSeeExamBelow: string
     submittedAt: string
     noSubmissions: string
     presentWorksheet: string
@@ -175,6 +189,25 @@ export type Dictionary = {
     noExamsForClass: string
     /** HS: tiêu đề danh sách đề thi trong lớp */
     studentClassExamsTitle: string
+    /** GV: nhóm phiên thi có chấm điểm (tách khỏi bài tập về nhà) */
+    classExamsSubsectionGraded: string
+    /** GV: nhóm bài tập về nhà (HS không xem điểm công khai) */
+    classExamsSubsectionPracticeHomework: string
+    /** HS: đã nộp bài tập về nhà — không hiển thị điểm trên danh sách lớp */
+    studentClassHomeworkSubmittedCaption: string
+    /** Nhãn nhỏ: phiên là bài tập về nhà */
+    classSessionBadgeHomework: string
+    /** SEO /lam-bai/[code]: hậu tố sau tên phiên (thi) */
+    lamBaiSeoTitleSuffixExam: string
+    lamBaiSeoTitleSuffixHomework: string
+    lamBaiSeoDescriptionExam: string
+    lamBaiSeoDescriptionHomework: string
+    /** Từ khóa meta, phân tách bằng dấu phẩy */
+    lamBaiSeoKeywordsExam: string
+    lamBaiSeoKeywordsHomework: string
+    lamBaiSeoFallbackTitle: string
+    lamBaiSeoFallbackDescription: string
+    lamBaiSeoFallbackKeywords: string
     /** HS: chưa nộp bài thi */
     studentClassExamNotStarted: string
     /** HS: đã nộp */
@@ -199,15 +232,72 @@ export type Dictionary = {
     examStudentShareDialogTitle: string
     examStudentShareDialogDescription: string
     examStudentShareUrlLabel: string
+    /** Gắn bản sao đề sang lớp khác (mã & QR mới) */
+    examAttachToOtherClassButton: string
+    examAttachPickClassTitle: string
+    examAttachPickClassDescription: string
+    examAttachSelectClassLabel: string
+    examAttachSelectClassPlaceholder: string
+    examAttachSubmit: string
+    examAttachLoadingClasses: string
+    examAttachWorking: string
+    examAttachNoClassesBody: string
+    examAttachNoOtherClassesBody: string
+    examAttachFailed: string
+    /** Placeholder {classLine} — tên lớp, có thể kèm trường */
+    examAttachSuccessSummary: string
+    examAttachClose: string
+    examAttachPickAnotherClass: string
+    /** Nhãn tên đề trong popup gắn lớp */
+    examAttachExamLabel: string
+    /** Mọi lớp của GV đều đã có phiên của đề này */
+    examAttachAllClassesAlreadyAttachedBody: string
+    /** Gợi ý dưới dropdown: tạo lớp tab mới rồi làm mới */
+    examAttachNeedDifferentClassHint: string
+    examAttachReloadClassList: string
+    /** Nút mở /lop/tao ở tab mới */
+    examAttachOpenCreateClassNewTab: string
+    /** API 409 / lớp đã có đề cùng lineage */
+    examAttachClassAlreadyHasExam: string
     /** Trang lam-bai: đã có hồ sơ lớp — chỉ cần bấm bắt đầu */
     examIdentityFromClassHint: string
     examChangeIdentityManual: string
     examManualIdentityIntro: string
     examStartTestButton: string
     examOneAttemptNote: string
+    /** Trang lam-bai — phiên bài tập về nhà */
+    examStartHomeworkButton: string
+    homeworkIdentityFromClassHint: string
+    homeworkManualIdentityIntro: string
+    homeworkEnrollGateTitle: string
+    homeworkEnrollGateDescription: string
+    homeworkEnrollSubmitButton: string
+    homeworkDefaultTitle: string
+    lamBaiLoadingNeutral: string
+    lamBaiFiveMinWarning: string
+    lamBaiTimerTimeUpAutoSubmittingExam: string
+    lamBaiTimerTimeUpAutoSubmittingHomework: string
+    /** Thanh đồng hồ gọn khi hết giờ */
+    lamBaiTimerStickySubmittingExam: string
+    lamBaiTimerStickySubmittingHomework: string
+    examSubmitSending: string
+    examSubmitButton: string
+    homeworkSubmitSending: string
+    homeworkSubmitButton: string
+    homeworkLoadFailed: string
+    /** Trang lam-bai — tiêu đề câu hỏi, placeholder {index} */
+    lamBaiQuestionLabel: string
     /** Trang lam-bai: đã nộp trước (máy khác / phiên khác) — hiển thị kết quả đã lưu */
     examSubmittedTitle: string
     examSubmittedSavedEarlier: string
+    /** Bài tập về nhà (không hiển thị điểm cho HS) */
+    homeworkSubmittedTitle: string
+    homeworkSubmittedSavedEarlier: string
+    homeworkSubmittedBody: string
+    /** {correct}, {total} */
+    homeworkMcCorrectOnlyLine: string
+    /** {title} */
+    homeworkShareLine: string
     /** Placeholder {grade} */
     examScoreOutOf10: string
     /** Quy theo tỷ lệ đạt/tối đa → thang 100 — placeholder {score100} */
@@ -393,7 +483,6 @@ export type Dictionary = {
     classHubCardStudentsDescStudent: string
     classHubCardRosterTitleStudent: string
     classHubCardGradebookDesc: string
-    classHubCardWorksheetsDesc: string
     /** Danh sách đề thi (trang con) */
     classExamsIndexTitle: string
     /** Chi tiết một phiên thi */
@@ -402,10 +491,25 @@ export type Dictionary = {
     classExamGoToSession: string
     /** SEO mô tả trang tổng /lop/[id] */
     classDetailSeoDescription: string
-    /** Hub: mô tả thẻ gán phiếu bài tập */
+    /** Hub: mô tả thẻ bài tập về nhà (gan-phieu) */
     classHubCardAssignWorksheetDesc: string
     /** Tóm tắt một dòng khi chưa có môn/GV hiển thị cho HS */
     classPageStudentFacingNotSet: string
+    /** Hub HS: mô tả thẻ bài tập về nhà (trang /lop/.../phieu-bai-tap) */
+    classHubCardStudentWorksheetsDesc: string
+    /** Trang lam-bai: không parse được TN/TL */
+    worksheetLamBaiNoInteractiveHint: string
+    /** Trang lam-bai: nút về danh sách phiếu trong lớp */
+    worksheetLamBaiBackToClassWorksheets: string
+    worksheetLamBaiMcqSectionTitle: string
+    worksheetLamBaiEssaySectionTitle: string
+    worksheetLamBaiEssayPlaceholder: string
+    /** Server / toast: chặn nộp khi không có câu hỏi tương tác */
+    worksheetSubmitNoInteractiveError: string
+    /** Trang gán phiếu: cảnh báo chưa có question_ids */
+    assignWorksheetNoQuestionBankHint: string
+    /** Trang gán phiếu: link mở phiếu trong công cụ soạn */
+    assignWorksheetOpenInCurriculumTool: string
   }
   /** Trang công khai /phieu-bai-tap/[id] — lời giải & đáp án */
   worksheetSolutionPage: {
@@ -599,6 +703,8 @@ export type Dictionary = {
     createExam: string
     createAnyway: string
     createdExamsList: string
+    /** Nút mở panel danh sách bài thi (trang tạo đề) */
+    openCreatedExamsListButton: string
     createdExamsHint: string
     loadingExamList: string
     noExamsYet: string
@@ -626,6 +732,35 @@ export type Dictionary = {
     sourceEdited: string
     sourceOther: string
     defaultExamTitle: string
+    /** Luồng /tao-bai-tap-ve-nha — cùng form tạo đề, không bắt tổng 100 điểm */
+    homeworkPageTitle: string
+    homeworkPageSubtitle: string
+    defaultHomeworkTitle: string
+    homeworkCreatedBadge: string
+    createHomework: string
+    createAnotherHomework: string
+    createdHomeworkListTitle: string
+    createdHomeworkHint: string
+    openCreatedHomeworkListButton: string
+    homeworkCreateSuccess: string
+    homeworkCreateSuccessDesc: string
+    homeworkEssayNo100Note: string
+    /** Tiêu đề thẻ form — luồng homework */
+    homeworkCardInfo: string
+    homeworkFormCardDescription: string
+    homeworkTitlePlaceholder: string
+    /** Gợi ý dưới bảng gán số câu TN (không hiện phút/điểm) */
+    homeworkQuizPartFooterHint: string
+    noHomeworkSessionsYet: string
+    /** {count} */
+    homeworkCreatedResultLine: string
+    /** {count} */
+    homeworkSummaryMc: string
+    /** {count} */
+    homeworkSummaryEssay: string
+    homeworkDeleteConfirm: string
+    homeworkDeleted: string
+    homeworkDeletedDesc: string
   }
   adminWorksheetVerify: {
     pageTitle: string
@@ -756,6 +891,7 @@ const VI_DICTIONARY: Dictionary = {
     create_curriculum: 'Tạo giáo trình',
     create_exam: 'Tạo đề trắc nghiệm',
     online_exam: 'Tạo bài thi trực tuyến',
+    homework_online: 'Tạo bài tập về nhà',
     classes: 'Lớp học',
     try_on_1: 'Thử đồ 1 người',
     try_on_2: 'Thử đồ 2 người',
@@ -806,7 +942,17 @@ const VI_DICTIONARY: Dictionary = {
     created: 'Đã tạo',
     backToList: 'Về danh sách',
     mobileCreateExam: 'Tạo bài thi',
-    assignWorksheet: 'Gán phiếu',
+    mobileCreateHomework: 'Tạo bài tập về nhà',
+    assignWorksheet: 'Bài tập về nhà',
+    classHomeworkListEmpty: 'Chưa có bài tập về nhà nào gắn lớp này.',
+    classHomeworkListCreateCta: 'Tạo bài tập về nhà',
+    classHomeworkOpenLamBai: 'Trang làm bài',
+    classHomeworkAttachOtherClassButton: 'Gắn bài tập vào lớp khác',
+    classHomeworkAttachPickTitle: 'Gắn bài tập về nhà vào lớp khác',
+    classHomeworkAttachPickDescription:
+      'Tạo phiên bài tập mới (mã và link riêng) với cùng nội dung, gắn vào lớp bạn chọn.',
+    classHomeworkAttachSessionLabel: 'Bài tập về nhà',
+    classStudentHomeworkSessionsEmpty: 'Chưa có bài tập về nhà nào từ giáo viên.',
     noWorksheets: 'Chưa có phiếu nào',
     noStudents: 'Chưa có học sinh',
     doWorksheet: 'Làm bài',
@@ -816,9 +962,6 @@ const VI_DICTIONARY: Dictionary = {
     quizScore: 'Điểm trắc nghiệm',
     sampleAnswer: 'Đáp án mẫu',
     submissions: 'Bài nộp',
-    worksheetSubmissionsSection: 'Bài nộp phiếu bài tập',
-    noWorksheetSubmissions: 'Chưa có bài nộp phiếu bài tập nào.',
-    worksheetSubmissionsSeeExamBelow: 'Bài làm từ đề thi nằm ở mục "Bài nộp từ đề thi" phía dưới.',
     submittedAt: 'Nộp lúc',
     noSubmissions: 'Chưa có bài nộp',
     presentWorksheet: 'Trình chiếu phiếu bài tập',
@@ -834,6 +977,23 @@ const VI_DICTIONARY: Dictionary = {
     noExamSubmissions: 'Chưa có bài nộp đề thi nào.',
     noExamsForClass: 'Lớp này chưa có đề thi nào.',
     studentClassExamsTitle: 'Bài thi trong lớp',
+    classExamsSubsectionGraded: 'Bài thi (có chấm điểm)',
+    classExamsSubsectionPracticeHomework: 'Bài tập về nhà (không hiển thị điểm cho học sinh)',
+    studentClassHomeworkSubmittedCaption:
+      'Đã nộp bài. Đây là bài tập về nhà — điểm không hiển thị tại đây.',
+    classSessionBadgeHomework: 'Bài tập về nhà',
+    lamBaiSeoTitleSuffixExam: 'Bài thi trực tuyến',
+    lamBaiSeoTitleSuffixHomework: 'Bài tập về nhà',
+    lamBaiSeoDescriptionExam:
+      'Làm bài thi trực tuyến theo mã phiên: trắc nghiệm và tự luận, có chấm điểm.',
+    lamBaiSeoDescriptionHomework:
+      'Làm bài tập về nhà trực tuyến theo mã phiên — ôn luyện, không hiển thị điểm như bài thi.',
+    lamBaiSeoKeywordsExam: 'bài thi, làm bài, trắc nghiệm, tự luận, NanoAI',
+    lamBaiSeoKeywordsHomework: 'bài tập về nhà, ôn tập, NanoAI',
+    lamBaiSeoFallbackTitle: 'Làm bài trực tuyến',
+    lamBaiSeoFallbackDescription:
+      'Đăng nhập để làm bài theo mã phiên hoặc liên kết giáo viên gửi.',
+    lamBaiSeoFallbackKeywords: 'làm bài, NanoAI',
     studentClassExamNotStarted: 'Chưa nộp bài',
     studentClassExamSubmitted: 'Đã nộp',
     studentClassExamProgressScores: 'Quy thang 100: {score100} · Thang 10: {grade10}',
@@ -850,6 +1010,31 @@ const VI_DICTIONARY: Dictionary = {
     examStudentShareDialogDescription:
       'Học sinh quét mã QR hoặc mở link bên dưới. Trang đó dành cho học sinh làm bài — thầy/cô không cần điền tên hay làm bài tại đây.',
     examStudentShareUrlLabel: 'Link làm bài',
+    examAttachToOtherClassButton: 'Gắn lớp khác',
+    examAttachPickClassTitle: 'Gắn bài thi vào lớp khác',
+    examAttachPickClassDescription:
+      'Hệ thống tạo một phiên thi mới (mã và link riêng) với cùng câu hỏi, gắn vào lớp bạn chọn.',
+    examAttachSelectClassLabel: 'Chọn lớp',
+    examAttachSelectClassPlaceholder: '— Chọn lớp —',
+    examAttachSubmit: 'Gắn vào lớp',
+    examAttachLoadingClasses: 'Đang tải danh sách lớp…',
+    examAttachWorking: 'Đang tạo phiên thi…',
+    examAttachNoClassesBody:
+      'Bạn chưa có lớp nào. Hãy tạo lớp trước, sau đó quay lại để gắn bài thi.',
+    examAttachNoOtherClassesBody:
+      'Bạn chưa có lớp nào khác ngoài lớp hiện tại. Tạo thêm lớp để gắn bản sao đề.',
+    examAttachFailed: 'Không gắn được bài thi. Thử lại sau.',
+    examAttachSuccessSummary: 'Phiên mới đã gắn vào: {classLine}.',
+    examAttachClose: 'Đóng',
+    examAttachPickAnotherClass: 'Gắn thêm lớp khác',
+    examAttachExamLabel: 'Bài thi',
+    examAttachAllClassesAlreadyAttachedBody:
+      'Mọi lớp của bạn đã có phiên của bài thi này (cùng bộ câu hỏi). Không còn lớp nào để gắn thêm.',
+    examAttachNeedDifferentClassHint:
+      'Không thấy lớp cần gắn? Tạo lớp mới ở tab khác, rồi bấm «Làm mới danh sách lớp» bên dưới.',
+    examAttachReloadClassList: 'Làm mới danh sách lớp',
+    examAttachOpenCreateClassNewTab: 'Tạo lớp mới (tab mới)',
+    examAttachClassAlreadyHasExam: 'Lớp này đã có bài thi này rồi.',
     examIdentityFromClassHint:
       'Hồ sơ trong lớp đã có họ tên và ngày sinh. Bấm Bắt đầu khi sẵn sàng làm bài; đồng hồ chỉ chạy sau khi bấm.',
     examChangeIdentityManual: 'Nhập họ tên và ngày sinh khác',
@@ -857,8 +1042,36 @@ const VI_DICTIONARY: Dictionary = {
       'Nhập thông tin và bấm Bắt đầu để làm bài. Đồng hồ chỉ chạy sau khi bấm Bắt đầu.',
     examStartTestButton: 'Bắt đầu bài kiểm tra',
     examOneAttemptNote: 'Mỗi tài khoản chỉ được làm bài một lần.',
+    examStartHomeworkButton: 'Bắt đầu làm bài tập',
+    homeworkIdentityFromClassHint:
+      'Hồ sơ trong lớp đã có họ tên và ngày sinh. Bấm Bắt đầu khi sẵn sàng làm bài tập về nhà; đồng hồ chỉ chạy sau khi bấm.',
+    homeworkManualIdentityIntro:
+      'Nhập thông tin và bấm Bắt đầu để làm bài tập về nhà. Đồng hồ chỉ chạy sau khi bấm Bắt đầu.',
+    homeworkEnrollGateTitle: 'Tham gia lớp để làm bài tập về nhà',
+    homeworkEnrollGateDescription:
+      'Bài tập về nhà này gắn với một lớp. Nhập họ tên và ngày sinh đúng như trong sổ lớp (không dùng tên mặc định tài khoản Google). Sau đó em có thể bắt đầu làm bài tập.',
+    homeworkEnrollSubmitButton: 'Tham gia lớp và làm bài tập',
+    homeworkDefaultTitle: 'Bài tập về nhà',
+    lamBaiLoadingNeutral: 'Đang tải…',
+    lamBaiFiveMinWarning: 'Còn 5 phút! Em rà soát đáp án trước khi hết giờ.',
+    lamBaiTimerTimeUpAutoSubmittingExam: 'Hết giờ! Bài làm đang được tự động nộp.',
+    lamBaiTimerTimeUpAutoSubmittingHomework: 'Hết giờ! Bài tập đang được gửi tự động.',
+    lamBaiTimerStickySubmittingExam: 'Hết giờ — đang nộp…',
+    lamBaiTimerStickySubmittingHomework: 'Hết giờ — đang gửi…',
+    examSubmitSending: 'Đang nộp bài…',
+    examSubmitButton: 'Nộp bài',
+    homeworkSubmitSending: 'Đang gửi bài tập…',
+    homeworkSubmitButton: 'Gửi bài tập',
+    homeworkLoadFailed: 'Không tải được bài tập về nhà.',
+    lamBaiQuestionLabel: 'Câu {index}.',
     examSubmittedTitle: 'Đã nộp bài',
     examSubmittedSavedEarlier: 'Bạn đã nộp bài thi này. Dưới đây là kết quả đã lưu.',
+    homeworkSubmittedTitle: 'Đã nộp bài tập về nhà',
+    homeworkSubmittedSavedEarlier: 'Bạn đã nộp bài tập này. Thông tin đã lưu bên dưới.',
+    homeworkSubmittedBody:
+      'Đây là bài luyện tập, không hiển thị điểm hay thang điểm cho học sinh. Giáo viên vẫn xem bài và nhận xét trong lớp.',
+    homeworkMcCorrectOnlyLine: 'Trắc nghiệm: {correct}/{total} câu đúng',
+    homeworkShareLine: 'Đã nộp: {title}',
     examScoreOutOf10: 'Điểm {grade}/10',
     examResultScale100Line: 'Quy thang 100: {score100}/100',
     examResultSummaryGrade10Line: 'Tổng kết thang 10: {grade}/10',
@@ -1020,13 +1233,26 @@ const VI_DICTIONARY: Dictionary = {
     classHubCardStudentsDescStudent: 'Xem danh sách bạn cùng lớp và giáo viên.',
     classHubCardRosterTitleStudent: 'Thành viên lớp',
     classHubCardGradebookDesc: 'Sổ điểm tổng hợp phiếu + đề thi, xuất Excel.',
-    classHubCardWorksheetsDesc: 'Các phiếu bài tập đã nộp trong lớp.',
     classExamsIndexTitle: 'Đề thi trong lớp',
     classExamSessionPageTitle: 'Chi tiết đề thi',
     classExamGoToSession: 'Mở trang chấm thi',
-    classDetailSeoDescription: 'Trang lớp: đề thi, học sinh, sổ điểm và bài nộp phiếu.',
-    classHubCardAssignWorksheetDesc: 'Gắn phiếu bài tập vào lớp để học sinh làm.',
+    classDetailSeoDescription: 'Trang lớp: đề thi, học sinh, sổ điểm.',
+    classHubCardAssignWorksheetDesc:
+      'Các phiên bài tập về nhà đã tạo và gắn lớp này. Học sinh làm qua link hoặc mã.',
     classPageStudentFacingNotSet: 'Chưa thiết lập',
+    classHubCardStudentWorksheetsDesc:
+      'Bài tập về nhà giáo viên giao: mở link hoặc mã phiên để làm bài (trang làm bài).',
+    worksheetLamBaiNoInteractiveHint:
+      'Phiếu chưa có phần trắc nghiệm hoặc tự luận làm được trên web (giáo viên cần gắn câu hỏi vào phiếu trong Tạo giáo trình). Bạn chưa thể nộp bài ở đây.',
+    worksheetLamBaiBackToClassWorksheets: 'Về danh sách phiếu lớp',
+    worksheetLamBaiMcqSectionTitle: 'Trắc nghiệm',
+    worksheetLamBaiEssaySectionTitle: 'Tự luận',
+    worksheetLamBaiEssayPlaceholder: 'Nhập câu trả lời…',
+    worksheetSubmitNoInteractiveError:
+      'Phiếu chưa có câu hỏi làm trực tuyến. Giáo viên cần gắn câu hỏi vào phiếu trước.',
+    assignWorksheetNoQuestionBankHint:
+      'Chưa gắn câu hỏi từ kho — học sinh không làm/nộp trên web được.',
+    assignWorksheetOpenInCurriculumTool: 'Mở trong Tạo giáo trình',
   },
   worksheetSolutionPage: {
     metaTitlePrefix: 'Lời giải',
@@ -1219,6 +1445,7 @@ const VI_DICTIONARY: Dictionary = {
     createExam: 'Tạo bài thi',
     createAnyway: 'Vẫn tạo bài thi',
     createdExamsList: 'Danh sách bài thi đã tạo',
+    openCreatedExamsListButton: 'Mở danh sách bài thi đã tạo',
     createdExamsHint: 'Giáo viên có thể mở link hoặc xóa bài thi đã tạo.',
     loadingExamList: 'Đang tải danh sách...',
     noExamsYet: 'Chưa có bài thi nào.',
@@ -1246,6 +1473,33 @@ const VI_DICTIONARY: Dictionary = {
     sourceEdited: 'Chỉnh sửa',
     sourceOther: 'Nguồn khác',
     defaultExamTitle: 'Bài thi',
+    homeworkPageTitle: 'Tạo bài tập về nhà',
+    homeworkPageSubtitle:
+      'Cùng bước như bài thi trực tuyến (môn, lớp, câu hỏi, QR/link) nhưng không bắt tổng 100 điểm; học sinh không thấy điểm sau khi nộp.',
+    defaultHomeworkTitle: 'Bài tập về nhà',
+    homeworkCreatedBadge: 'Đã tạo bài tập về nhà',
+    createHomework: 'Tạo bài tập về nhà',
+    createAnotherHomework: 'Tạo bài tập về nhà khác',
+    createdHomeworkListTitle: 'Bài tập về nhà đã tạo',
+    createdHomeworkHint: 'Mở link hoặc QR để học sinh làm bài; gán sang lớp khác giống bài thi.',
+    openCreatedHomeworkListButton: 'Xem danh sách bài tập về nhà',
+    homeworkCreateSuccess: 'Đã tạo bài tập về nhà',
+    homeworkCreateSuccessDesc: 'Chia sẻ link hoặc mã QR cho học sinh.',
+    homeworkEssayNo100Note:
+      'Chọn câu tự luận nếu cần. Học sinh không xem điểm sau khi nộp; không cần chỉnh phút hay điểm từng câu.',
+    homeworkCardInfo: 'Thông tin bài tập về nhà',
+    homeworkFormCardDescription:
+      'Chọn môn, lớp và câu hỏi từ giáo trình. Không cần cài đặt điểm hay thời gian thi — hệ thống lưu bài làm, học sinh không xem điểm.',
+    homeworkTitlePlaceholder: 'Bài tập Toán — ôn tập',
+    homeworkQuizPartFooterHint:
+      'Nhập số câu từng mức độ, rồi chọn đúng số câu trong danh sách bên dưới. Bài tập về nhà không cần chỉnh phút hay điểm ở đây.',
+    noHomeworkSessionsYet: 'Chưa có bài tập về nhà nào.',
+    homeworkCreatedResultLine: '{count} câu hỏi',
+    homeworkSummaryMc: 'Trắc nghiệm: {count} câu',
+    homeworkSummaryEssay: 'Tự luận: {count} câu',
+    homeworkDeleteConfirm: 'Xóa bài tập về nhà này? Hành động này không thể hoàn tác.',
+    homeworkDeleted: 'Đã xóa',
+    homeworkDeletedDesc: 'Đã xóa bài tập về nhà.',
   },
   adminWorksheetVerify: {
     pageTitle: 'Báo cáo verify phiếu bài tập',
@@ -1377,6 +1631,7 @@ const EN_DICTIONARY: Dictionary = {
     create_curriculum: 'Create curriculum',
     create_exam: 'Create exam',
     online_exam: 'Online exam (live session)',
+    homework_online: 'Create homework',
     classes: 'Classes',
     try_on_1: 'Try-on 1 Person',
     try_on_2: 'Try-on 2 People',
@@ -1427,7 +1682,17 @@ const EN_DICTIONARY: Dictionary = {
     created: 'Created',
     backToList: 'Back to list',
     mobileCreateExam: 'Create exam',
-    assignWorksheet: 'Assign worksheet',
+    mobileCreateHomework: 'Create homework',
+    assignWorksheet: 'Homework',
+    classHomeworkListEmpty: 'No homework sessions linked to this class yet.',
+    classHomeworkListCreateCta: 'Create homework',
+    classHomeworkOpenLamBai: 'Open student page',
+    classHomeworkAttachOtherClassButton: 'Attach homework to another class',
+    classHomeworkAttachPickTitle: 'Attach homework to another class',
+    classHomeworkAttachPickDescription:
+      'Creates a new homework session (new code and link) with the same content, linked to the class you pick.',
+    classHomeworkAttachSessionLabel: 'Homework',
+    classStudentHomeworkSessionsEmpty: 'No homework from your teacher yet.',
     noWorksheets: 'No worksheets yet',
     noStudents: 'No students yet',
     doWorksheet: 'Do worksheet',
@@ -1437,9 +1702,6 @@ const EN_DICTIONARY: Dictionary = {
     quizScore: 'Quiz score',
     sampleAnswer: 'Sample answer',
     submissions: 'Submissions',
-    worksheetSubmissionsSection: 'Worksheet submissions',
-    noWorksheetSubmissions: 'No worksheet submissions yet.',
-    worksheetSubmissionsSeeExamBelow: 'Exam attempts are listed under "Exam submissions" below.',
     submittedAt: 'Submitted at',
     noSubmissions: 'No submissions yet',
     presentWorksheet: 'Present worksheet',
@@ -1455,6 +1717,23 @@ const EN_DICTIONARY: Dictionary = {
     noExamSubmissions: 'No exam submissions yet.',
     noExamsForClass: 'No exams are linked to this class yet.',
     studentClassExamsTitle: 'Exams for this class',
+    classExamsSubsectionGraded: 'Exams (graded)',
+    classExamsSubsectionPracticeHomework: 'Homework (scores not shown to students)',
+    studentClassHomeworkSubmittedCaption:
+      'Submitted. This is homework — scores are not shown here.',
+    classSessionBadgeHomework: 'Homework',
+    lamBaiSeoTitleSuffixExam: 'Online exam',
+    lamBaiSeoTitleSuffixHomework: 'Homework',
+    lamBaiSeoDescriptionExam:
+      'Take an online exam with a session code: multiple choice and essay, with grading.',
+    lamBaiSeoDescriptionHomework:
+      'Complete online homework with a session code — practice; scores are not shown like a graded exam.',
+    lamBaiSeoKeywordsExam: 'exam, online test, quiz, essay, NanoAI',
+    lamBaiSeoKeywordsHomework: 'homework, practice, NanoAI',
+    lamBaiSeoFallbackTitle: 'Take assignment online',
+    lamBaiSeoFallbackDescription:
+      'Sign in to complete the assignment using your session code or teacher link.',
+    lamBaiSeoFallbackKeywords: 'exam, homework, NanoAI',
     studentClassExamNotStarted: 'Not submitted yet',
     studentClassExamSubmitted: 'Submitted',
     studentClassExamProgressScores: 'Scaled to 100: {score100} · Summary /10: {grade10}',
@@ -1471,6 +1750,31 @@ const EN_DICTIONARY: Dictionary = {
     examStudentShareDialogDescription:
       'Students scan the QR code or open the link below. That page is for students to take the exam—you do not need to enter your name or complete it there.',
     examStudentShareUrlLabel: 'Exam link',
+    examAttachToOtherClassButton: 'Attach to another class',
+    examAttachPickClassTitle: 'Attach exam to another class',
+    examAttachPickClassDescription:
+      'Creates a new exam session (new code and link) with the same questions, linked to the class you pick.',
+    examAttachSelectClassLabel: 'Class',
+    examAttachSelectClassPlaceholder: '— Select a class —',
+    examAttachSubmit: 'Attach to class',
+    examAttachLoadingClasses: 'Loading your classes…',
+    examAttachWorking: 'Creating exam session…',
+    examAttachNoClassesBody:
+      'You have no classes yet. Create a class first, then return here to attach the exam.',
+    examAttachNoOtherClassesBody:
+      'You have no other classes besides this one. Create another class to attach a copy of this exam.',
+    examAttachFailed: 'Could not attach the exam. Please try again.',
+    examAttachSuccessSummary: 'New session linked to: {classLine}.',
+    examAttachClose: 'Close',
+    examAttachPickAnotherClass: 'Attach to another class',
+    examAttachExamLabel: 'Exam',
+    examAttachAllClassesAlreadyAttachedBody:
+      'Every class you teach already has a session for this exam (same questions). There are no classes left to attach.',
+    examAttachNeedDifferentClassHint:
+      'Do not see the right class? Create a new class in another tab, then tap “Refresh class list” below.',
+    examAttachReloadClassList: 'Refresh class list',
+    examAttachOpenCreateClassNewTab: 'Create class (new tab)',
+    examAttachClassAlreadyHasExam: 'This class already has this exam.',
     examIdentityFromClassHint:
       'Your class profile already has your name and date of birth. Press Start when you are ready; the timer begins only after you start.',
     examChangeIdentityManual: 'Enter a different name and date of birth',
@@ -1478,8 +1782,36 @@ const EN_DICTIONARY: Dictionary = {
       'Enter your details and press Start to begin. The timer starts only after you press Start.',
     examStartTestButton: 'Start test',
     examOneAttemptNote: 'Each account can submit this test only once.',
+    examStartHomeworkButton: 'Start homework',
+    homeworkIdentityFromClassHint:
+      'Your class profile already has your name and date of birth. Press Start when you are ready; the timer begins only after you start.',
+    homeworkManualIdentityIntro:
+      'Enter your details and press Start to begin your homework. The timer starts only after you press Start.',
+    homeworkEnrollGateTitle: 'Join the class to do this homework',
+    homeworkEnrollGateDescription:
+      'This homework is linked to a class. Enter your name and date of birth exactly as in the class roster (not your Google account display name). Then you can start your homework.',
+    homeworkEnrollSubmitButton: 'Join class and start homework',
+    homeworkDefaultTitle: 'Homework',
+    lamBaiLoadingNeutral: 'Loading…',
+    lamBaiFiveMinWarning: '5 minutes left! Review your answers before time runs out.',
+    lamBaiTimerTimeUpAutoSubmittingExam: "Time's up! Your answers are being submitted automatically.",
+    lamBaiTimerTimeUpAutoSubmittingHomework: "Time's up! Your homework is being sent automatically.",
+    lamBaiTimerStickySubmittingExam: "Time's up — submitting…",
+    lamBaiTimerStickySubmittingHomework: "Time's up — sending…",
+    examSubmitSending: 'Submitting…',
+    examSubmitButton: 'Submit',
+    homeworkSubmitSending: 'Sending homework…',
+    homeworkSubmitButton: 'Send homework',
+    homeworkLoadFailed: 'Could not load this homework.',
+    lamBaiQuestionLabel: 'Question {index}.',
     examSubmittedTitle: 'Submitted',
     examSubmittedSavedEarlier: 'You already submitted this test. Your saved result is below.',
+    homeworkSubmittedTitle: 'Homework submitted',
+    homeworkSubmittedSavedEarlier: 'You already submitted this homework. Your saved info is below.',
+    homeworkSubmittedBody:
+      'This is practice homework: scores and grading scales are not shown to students. Teachers can still review work in class.',
+    homeworkMcCorrectOnlyLine: 'Multiple choice: {correct}/{total} correct',
+    homeworkShareLine: 'Submitted: {title}',
     examScoreOutOf10: 'Score: {grade}/10',
     examResultScale100Line: 'On 100-point scale: {score100}/100',
     examResultSummaryGrade10Line: 'Summary (/10): {grade}/10',
@@ -1641,13 +1973,26 @@ const EN_DICTIONARY: Dictionary = {
     classHubCardStudentsDescStudent: 'See classmates and teachers in this class.',
     classHubCardRosterTitleStudent: 'Class members',
     classHubCardGradebookDesc: 'Combined gradebook and Excel export.',
-    classHubCardWorksheetsDesc: 'Worksheet submissions for this class.',
     classExamsIndexTitle: 'Class exams',
     classExamSessionPageTitle: 'Exam details',
     classExamGoToSession: 'Open grading page',
-    classDetailSeoDescription: 'Class home: exams, roster, gradebook, and worksheet submissions.',
-    classHubCardAssignWorksheetDesc: 'Assign worksheets to this class for students to complete.',
+    classDetailSeoDescription: 'Class home: exams, roster, gradebook.',
+    classHubCardAssignWorksheetDesc:
+      'Homework sessions created for this class. Students use the link or code to complete them.',
     classPageStudentFacingNotSet: 'Not set',
+    classHubCardStudentWorksheetsDesc:
+      'Homework from your teacher: open the link or session code to complete it on the assignment page.',
+    worksheetLamBaiNoInteractiveHint:
+      'This worksheet has no supported multiple-choice or essay section for the web yet (your teacher needs to attach questions in the curriculum tool). You cannot submit here yet.',
+    worksheetLamBaiBackToClassWorksheets: 'Back to class worksheets',
+    worksheetLamBaiMcqSectionTitle: 'Multiple choice',
+    worksheetLamBaiEssaySectionTitle: 'Written response',
+    worksheetLamBaiEssayPlaceholder: 'Type your answer…',
+    worksheetSubmitNoInteractiveError:
+      'This worksheet has no online questions yet. The teacher needs to attach questions first.',
+    assignWorksheetNoQuestionBankHint:
+      'No questions attached from the bank — students cannot complete or submit on the web.',
+    assignWorksheetOpenInCurriculumTool: 'Open in curriculum tool',
   },
   worksheetSolutionPage: {
     metaTitlePrefix: 'Solutions',
@@ -1839,6 +2184,7 @@ const EN_DICTIONARY: Dictionary = {
     createExam: 'Create exam',
     createAnyway: 'Create anyway',
     createdExamsList: 'Created exams',
+    openCreatedExamsListButton: 'Open list of created exams',
     createdExamsHint: 'Teacher can open link or delete created exams.',
     loadingExamList: 'Loading exam list...',
     noExamsYet: 'No exams yet.',
@@ -1866,6 +2212,33 @@ const EN_DICTIONARY: Dictionary = {
     sourceEdited: 'Edited',
     sourceOther: 'Other source',
     defaultExamTitle: 'Exam',
+    homeworkPageTitle: 'Create homework',
+    homeworkPageSubtitle:
+      'Same steps as the online exam (subject, class, questions, QR/link) but no 100-point total requirement; students do not see scores after submit.',
+    defaultHomeworkTitle: 'Homework',
+    homeworkCreatedBadge: 'Homework created',
+    createHomework: 'Create homework',
+    createAnotherHomework: 'Create another homework',
+    createdHomeworkListTitle: 'Created homework',
+    createdHomeworkHint: 'Open the link or QR for students; attach to another class like an exam.',
+    openCreatedHomeworkListButton: 'View homework list',
+    homeworkCreateSuccess: 'Homework created',
+    homeworkCreateSuccessDesc: 'Share the link or QR code with students.',
+    homeworkEssayNo100Note:
+      'Add essay questions if needed. Students do not see a score after submit — no need to set minutes or points per question.',
+    homeworkCardInfo: 'Homework details',
+    homeworkFormCardDescription:
+      'Choose subject, class, and questions from your curricula. No exam timer or scoring setup — work is saved and students do not see scores.',
+    homeworkTitlePlaceholder: 'Algebra practice set',
+    homeworkQuizPartFooterHint:
+      'Enter counts per difficulty, then pick that many questions below. Homework does not require minutes or points here.',
+    noHomeworkSessionsYet: 'No homework sessions yet.',
+    homeworkCreatedResultLine: '{count} questions',
+    homeworkSummaryMc: 'Multiple choice: {count} questions',
+    homeworkSummaryEssay: 'Essay: {count} questions',
+    homeworkDeleteConfirm: 'Delete this homework? This action cannot be undone.',
+    homeworkDeleted: 'Deleted',
+    homeworkDeletedDesc: 'Homework deleted.',
   },
   adminWorksheetVerify: {
     pageTitle: 'Worksheet verify reports',
@@ -1997,6 +2370,7 @@ const ZH_DICTIONARY: Dictionary = {
     create_curriculum: '创建课程',
     create_exam: '创建试题',
     online_exam: '在线考试（课堂）',
+    homework_online: '创建家庭作业',
     classes: '班级',
     try_on_1: '1 人试衣',
     try_on_2: '2 人试衣',
@@ -2047,7 +2421,17 @@ const ZH_DICTIONARY: Dictionary = {
     created: '已创建',
     backToList: '返回列表',
     mobileCreateExam: '创建考试',
-    assignWorksheet: '分配作业单',
+    mobileCreateHomework: '创建家庭作业',
+    assignWorksheet: '家庭作业',
+    classHomeworkListEmpty: '本班级尚未关联任何家庭作业。',
+    classHomeworkListCreateCta: '创建家庭作业',
+    classHomeworkOpenLamBai: '学生做题页',
+    classHomeworkAttachOtherClassButton: '将家庭作业关联到其他班级',
+    classHomeworkAttachPickTitle: '将家庭作业关联到其他班级',
+    classHomeworkAttachPickDescription:
+      '将使用相同内容创建新的家庭作业场次（新代码与链接），并关联到您选择的班级。',
+    classHomeworkAttachSessionLabel: '家庭作业',
+    classStudentHomeworkSessionsEmpty: '老师尚未布置家庭作业。',
     noWorksheets: '暂无作业单',
     noStudents: '暂无学生',
     doWorksheet: '做作业',
@@ -2057,9 +2441,6 @@ const ZH_DICTIONARY: Dictionary = {
     quizScore: '测验分数',
     sampleAnswer: '参考答案',
     submissions: '提交记录',
-    worksheetSubmissionsSection: '练习单提交',
-    noWorksheetSubmissions: '暂无练习单提交。',
-    worksheetSubmissionsSeeExamBelow: '试卷作答请查看下方的「试题提交」。',
     submittedAt: '提交时间',
     noSubmissions: '暂无提交',
     presentWorksheet: '演示作业单',
@@ -2075,6 +2456,20 @@ const ZH_DICTIONARY: Dictionary = {
     noExamSubmissions: '暂无试题提交。',
     noExamsForClass: '本班级尚未关联任何测验。',
     studentClassExamsTitle: '本班测验',
+    classExamsSubsectionGraded: '测验（计分）',
+    classExamsSubsectionPracticeHomework: '家庭作业（学生端不显示分数）',
+    studentClassHomeworkSubmittedCaption: '已提交。此为家庭作业——此处不显示分数。',
+    classSessionBadgeHomework: '家庭作业',
+    lamBaiSeoTitleSuffixExam: '在线测验',
+    lamBaiSeoTitleSuffixHomework: '家庭作业',
+    lamBaiSeoDescriptionExam: '使用会话码在线完成测验：选择题与问答题，并计分。',
+    lamBaiSeoDescriptionHomework:
+      '使用会话码在线完成家庭作业——用于练习，不会像正式测验那样显示分数。',
+    lamBaiSeoKeywordsExam: '测验, 在线考试, 选择题, 问答题, NanoAI',
+    lamBaiSeoKeywordsHomework: '家庭作业, 练习, NanoAI',
+    lamBaiSeoFallbackTitle: '在线答题',
+    lamBaiSeoFallbackDescription: '登录后使用会话码或教师分享的链接完成答题。',
+    lamBaiSeoFallbackKeywords: '答题, NanoAI',
     studentClassExamNotStarted: '尚未提交',
     studentClassExamSubmitted: '已提交',
     studentClassExamProgressScores: '折合100分：{score100} · 总评/10：{grade10}',
@@ -2091,14 +2486,63 @@ const ZH_DICTIONARY: Dictionary = {
     examStudentShareDialogDescription:
       '学生可扫描二维码或打开下方链接。该页面供学生答题，教师无需在此填写姓名或作答。',
     examStudentShareUrlLabel: '答题链接',
+    examAttachToOtherClassButton: '关联到其他班级',
+    examAttachPickClassTitle: '将试卷关联到其他班级',
+    examAttachPickClassDescription:
+      '系统将新建一场考试（新的代码与链接），题目相同，并关联到您选择的班级。',
+    examAttachSelectClassLabel: '选择班级',
+    examAttachSelectClassPlaceholder: '— 请选择班级 —',
+    examAttachSubmit: '关联到班级',
+    examAttachLoadingClasses: '正在加载班级列表…',
+    examAttachWorking: '正在创建考试场次…',
+    examAttachNoClassesBody: '您还没有班级。请先创建班级，然后再回来关联试卷。',
+    examAttachNoOtherClassesBody: '除当前班级外您没有其他班级。请再创建一个班级以关联副本试卷。',
+    examAttachFailed: '无法关联试卷，请稍后重试。',
+    examAttachSuccessSummary: '新场次已关联至：{classLine}。',
+    examAttachClose: '关闭',
+    examAttachPickAnotherClass: '关联到其他班级',
+    examAttachExamLabel: '试卷',
+    examAttachAllClassesAlreadyAttachedBody:
+      '您的每个班级都已有本场考试的场次（相同题目），没有可再关联的班级。',
+    examAttachNeedDifferentClassHint:
+      '找不到要关联的班级？请在新标签页创建班级，然后点击下方「刷新班级列表」。',
+    examAttachReloadClassList: '刷新班级列表',
+    examAttachOpenCreateClassNewTab: '新建班级（新标签页）',
+    examAttachClassAlreadyHasExam: '该班级已有本场考试。',
     examIdentityFromClassHint:
       '班级档案中已有您的姓名与出生日期。准备好后点击开始；计时仅在点击开始后启动。',
     examChangeIdentityManual: '改用其他姓名与出生日期',
     examManualIdentityIntro: '请填写信息并点击开始答题；计时仅在点击开始后启动。',
     examStartTestButton: '开始测验',
     examOneAttemptNote: '每个账号只能提交一次。',
+    examStartHomeworkButton: '开始做作业',
+    homeworkIdentityFromClassHint:
+      '班级档案中已有姓名与出生日期。准备好后点击开始；计时仅在点击开始后启动。',
+    homeworkManualIdentityIntro: '填写信息并点击开始以完成家庭作业；计时仅在点击开始后启动。',
+    homeworkEnrollGateTitle: '加入班级后才能完成家庭作业',
+    homeworkEnrollGateDescription:
+      '此家庭作业已关联班级。请按班级名册填写姓名与出生日期（勿使用 Google 账号显示名）。随后即可开始作业。',
+    homeworkEnrollSubmitButton: '加入班级并开始作业',
+    homeworkDefaultTitle: '家庭作业',
+    lamBaiLoadingNeutral: '加载中…',
+    lamBaiFiveMinWarning: '还剩 5 分钟！请在结束前检查答案。',
+    lamBaiTimerTimeUpAutoSubmittingExam: '时间到！答卷正在自动提交。',
+    lamBaiTimerTimeUpAutoSubmittingHomework: '时间到！作业正在自动提交。',
+    lamBaiTimerStickySubmittingExam: '时间到 — 提交中…',
+    lamBaiTimerStickySubmittingHomework: '时间到 — 提交中…',
+    examSubmitSending: '正在提交…',
+    examSubmitButton: '提交答卷',
+    homeworkSubmitSending: '正在提交作业…',
+    homeworkSubmitButton: '提交作业',
+    homeworkLoadFailed: '无法加载家庭作业。',
+    lamBaiQuestionLabel: '第 {index} 题.',
     examSubmittedTitle: '已提交',
     examSubmittedSavedEarlier: '您已提交过本场测验。以下是已保存的成绩。',
+    homeworkSubmittedTitle: '家庭作业已提交',
+    homeworkSubmittedSavedEarlier: '您已提交过这份作业。以下是已保存的信息。',
+    homeworkSubmittedBody: '此为练习型作业，不向学生显示分数或评分量表。教师仍可在课堂中查看与点评。',
+    homeworkMcCorrectOnlyLine: '选择题：答对 {correct}/{total} 题',
+    homeworkShareLine: '已提交：{title}',
     examScoreOutOf10: '得分 {grade}/10',
     examResultScale100Line: '折合百分制：{score100}/100',
     examResultSummaryGrade10Line: '十分制总评：{grade}/10',
@@ -2253,13 +2697,23 @@ const ZH_DICTIONARY: Dictionary = {
     classHubCardStudentsDescStudent: '查看同班同学与老师。',
     classHubCardRosterTitleStudent: '班级成员',
     classHubCardGradebookDesc: '成绩总表与导出 Excel。',
-    classHubCardWorksheetsDesc: '本班已交练习单。',
     classExamsIndexTitle: '本班测验',
     classExamSessionPageTitle: '测验详情',
     classExamGoToSession: '打开批改页面',
-    classDetailSeoDescription: '班级主页：测验、成员、成绩表与练习单提交。',
-    classHubCardAssignWorksheetDesc: '将练习单分配到本班供学生完成。',
+    classDetailSeoDescription: '班级主页：测验、成员、成绩表。',
+    classHubCardAssignWorksheetDesc: '已为本班创建并关联的家庭作业；学生通过链接或代码作答。',
     classPageStudentFacingNotSet: '未设置',
+    classHubCardStudentWorksheetsDesc:
+      '老师布置的家庭作业：通过链接或会话码在答题页面完成。',
+    worksheetLamBaiNoInteractiveHint:
+      '本作业单暂无可在线完成的选择题或主观题（教师需先在课程工具中关联题目）。您暂时无法在此提交。',
+    worksheetLamBaiBackToClassWorksheets: '返回班级作业单列表',
+    worksheetLamBaiMcqSectionTitle: '选择题',
+    worksheetLamBaiEssaySectionTitle: '主观题',
+    worksheetLamBaiEssayPlaceholder: '请输入答案…',
+    worksheetSubmitNoInteractiveError: '本作业单尚无在线题目，教师需先关联题目。',
+    assignWorksheetNoQuestionBankHint: '尚未从题库关联题目 — 学生无法在线作答与提交。',
+    assignWorksheetOpenInCurriculumTool: '在课程工具中打开',
   },
   worksheetSolutionPage: {
     metaTitlePrefix: '解答',
@@ -2445,6 +2899,7 @@ const ZH_DICTIONARY: Dictionary = {
     createExam: '创建测验',
     createAnyway: '仍要创建',
     createdExamsList: '已创建的测验',
+    openCreatedExamsListButton: '打开已创建测验列表',
     createdExamsHint: '教师可打开链接或删除已创建的测验。',
     loadingExamList: '正在加载列表…',
     noExamsYet: '尚无测验。',
@@ -2472,6 +2927,33 @@ const ZH_DICTIONARY: Dictionary = {
     sourceEdited: '已编辑',
     sourceOther: '其他来源',
     defaultExamTitle: '测验',
+    homeworkPageTitle: '创建家庭作业',
+    homeworkPageSubtitle:
+      '与在线测验相同步骤（科目、班级、题目、二维码/链接），但不必凑满100分；学生提交后不显示成绩。',
+    defaultHomeworkTitle: '家庭作业',
+    homeworkCreatedBadge: '已创建家庭作业',
+    createHomework: '创建家庭作业',
+    createAnotherHomework: '再创建一份家庭作业',
+    createdHomeworkListTitle: '已创建的家庭作业',
+    createdHomeworkHint: '用链接或二维码让学生作答；可像测验一样挂到其他班级。',
+    openCreatedHomeworkListButton: '查看家庭作业列表',
+    homeworkCreateSuccess: '已创建家庭作业',
+    homeworkCreateSuccessDesc: '请将链接或二维码发给学生。',
+    homeworkEssayNo100Note:
+      '可按需选择问答题。学生提交后看不到分数；无需设置每题时间或分值。',
+    homeworkCardInfo: '家庭作业信息',
+    homeworkFormCardDescription:
+      '选择学科、班级与教纲中的题目。无需设置考试时长或分值 — 系统保存作答，学生不查看分数。',
+    homeworkTitlePlaceholder: '数学家庭作业 — 复习',
+    homeworkQuizPartFooterHint:
+      '填写各难度题目数量，再在下方勾选对应数量的题目。家庭作业无需在此设置分钟或分值。',
+    noHomeworkSessionsYet: '暂无家庭作业。',
+    homeworkCreatedResultLine: '{count} 道题',
+    homeworkSummaryMc: '选择题：{count} 道',
+    homeworkSummaryEssay: '问答题：{count} 道',
+    homeworkDeleteConfirm: '确定删除这份家庭作业吗？此操作不可撤销。',
+    homeworkDeleted: '已删除',
+    homeworkDeletedDesc: '已删除家庭作业。',
   },
   adminWorksheetVerify: {
     pageTitle: '作业单核验报告',
@@ -2603,6 +3085,7 @@ const JA_DICTIONARY: Dictionary = {
     create_curriculum: 'カリキュラム作成',
     create_exam: '試験作成',
     online_exam: 'オンライン試験（授業）',
+    homework_online: '宿題を作成',
     classes: 'クラス',
     try_on_1: '1人試着',
     try_on_2: '2人試着',
@@ -2653,7 +3136,17 @@ const JA_DICTIONARY: Dictionary = {
     created: '作成済み',
     backToList: '一覧に戻る',
     mobileCreateExam: '試験を作成',
-    assignWorksheet: 'ワークシートを割り当て',
+    mobileCreateHomework: '宿題を作成',
+    assignWorksheet: '宿題',
+    classHomeworkListEmpty: 'このクラスに紐づいた宿題はまだありません。',
+    classHomeworkListCreateCta: '宿題を作成',
+    classHomeworkOpenLamBai: '受験ページを開く',
+    classHomeworkAttachOtherClassButton: '宿題を他クラスに紐づけ',
+    classHomeworkAttachPickTitle: '宿題を他クラスに紐づける',
+    classHomeworkAttachPickDescription:
+      '同じ内容で新しい宿題セッション（コードとリンクは新規）を作成し、選んだクラスに紐づけます。',
+    classHomeworkAttachSessionLabel: '宿題',
+    classStudentHomeworkSessionsEmpty: '先生からの宿題はまだありません。',
     noWorksheets: 'ワークシートがありません',
     noStudents: '生徒がいません',
     doWorksheet: '問題を解く',
@@ -2663,9 +3156,6 @@ const JA_DICTIONARY: Dictionary = {
     quizScore: 'クイズ得点',
     sampleAnswer: '模範解答',
     submissions: '提出一覧',
-    worksheetSubmissionsSection: 'ワークシート提出',
-    noWorksheetSubmissions: 'ワークシートの提出はまだありません。',
-    worksheetSubmissionsSeeExamBelow: '試験の答案は下の「試験提出」に表示されます。',
     submittedAt: '提出日時',
     noSubmissions: '提出なし',
     presentWorksheet: 'ワークシートをプレゼン',
@@ -2681,6 +3171,23 @@ const JA_DICTIONARY: Dictionary = {
     noExamSubmissions: '試験提出はまだありません。',
     noExamsForClass: 'このクラスにはまだテストがありません。',
     studentClassExamsTitle: 'クラスのテスト',
+    classExamsSubsectionGraded: 'テスト（採点あり）',
+    classExamsSubsectionPracticeHomework: '宿題（生徒には点数を表示しません）',
+    studentClassHomeworkSubmittedCaption:
+      '提出済み。宿題のため、ここでは点数を表示しません。',
+    classSessionBadgeHomework: '宿題',
+    lamBaiSeoTitleSuffixExam: 'オンラインテスト',
+    lamBaiSeoTitleSuffixHomework: '宿題',
+    lamBaiSeoDescriptionExam:
+      'セッションコードでオンラインテストに回答します。選択式・記述式、採点あり。',
+    lamBaiSeoDescriptionHomework:
+      'セッションコードでオンライン宿題に取り組みます。練習用で、本試験のように点数は表示しません。',
+    lamBaiSeoKeywordsExam: 'テスト, オンライン試験, 選択問題, 記述, NanoAI',
+    lamBaiSeoKeywordsHomework: '宿題, 復習, NanoAI',
+    lamBaiSeoFallbackTitle: 'オンラインで解答',
+    lamBaiSeoFallbackDescription:
+      'ログインして、セッションコードまたは教師からのリンクから解答します。',
+    lamBaiSeoFallbackKeywords: '解答, NanoAI',
     studentClassExamNotStarted: '未提出',
     studentClassExamSubmitted: '提出済み',
     studentClassExamProgressScores: '100点換算: {score100} · 10点満点換算: {grade10}',
@@ -2697,14 +3204,67 @@ const JA_DICTIONARY: Dictionary = {
     examStudentShareDialogDescription:
       '受験生はQRコードを読み取るか、下のリンクを開いてください。そのページは受験用です。教員が名前を入力したり解答する必要はありません。',
     examStudentShareUrlLabel: '受験リンク',
+    examAttachToOtherClassButton: '他クラスに紐づけ',
+    examAttachPickClassTitle: 'テストを他クラスに紐づける',
+    examAttachPickClassDescription:
+      '同じ問題内容で新しい受験セッション（コードとリンクは新規）を作成し、選んだクラスに紐づけます。',
+    examAttachSelectClassLabel: 'クラスを選択',
+    examAttachSelectClassPlaceholder: '— クラスを選択 —',
+    examAttachSubmit: 'クラスに紐づける',
+    examAttachLoadingClasses: 'クラス一覧を読み込み中…',
+    examAttachWorking: '受験セッションを作成中…',
+    examAttachNoClassesBody:
+      'クラスがありません。先にクラスを作成してから、ここに戻ってテストを紐づけてください。',
+    examAttachNoOtherClassesBody:
+      'このクラス以外にクラスがありません。コピーを紐づけるには別のクラスを作成してください。',
+    examAttachFailed: 'テストを紐づけられませんでした。しばらくしてから再度お試しください。',
+    examAttachSuccessSummary: '新しいセッションを次に紐づけました：{classLine}。',
+    examAttachClose: '閉じる',
+    examAttachPickAnotherClass: '他クラスにも紐づける',
+    examAttachExamLabel: 'テスト',
+    examAttachAllClassesAlreadyAttachedBody:
+      '担当クラスにはすべてこのテストのセッション（同じ問題）があります。これ以上紐づけられるクラスはありません。',
+    examAttachNeedDifferentClassHint:
+      '目的のクラスがありませんか？新しいタブでクラスを作成し、下の「クラス一覧を更新」を押してください。',
+    examAttachReloadClassList: 'クラス一覧を更新',
+    examAttachOpenCreateClassNewTab: 'クラスを作成（新しいタブ）',
+    examAttachClassAlreadyHasExam: 'このクラスにはすでにこのテストがあります。',
     examIdentityFromClassHint:
       'クラス名簿に氏名・生年月日が登録済みです。準備ができたら開始を押してください。タイマーは開始後に動きます。',
     examChangeIdentityManual: '別の氏名・生年月日を入力',
     examManualIdentityIntro: '情報を入力して開始を押してください。タイマーは開始後に動きます。',
     examStartTestButton: 'テストを開始',
     examOneAttemptNote: 'アカウントごとに1回だけ受験できます。',
+    examStartHomeworkButton: '宿題を始める',
+    homeworkIdentityFromClassHint:
+      'クラスに登録した氏名・生年月日があります。準備ができたら開始を押してください。タイマーは開始後に動きます。',
+    homeworkManualIdentityIntro:
+      '情報を入力して開始を押すと宿題に取り組みます。タイマーは開始後に動きます。',
+    homeworkEnrollGateTitle: 'クラスに参加して宿題に取り組む',
+    homeworkEnrollGateDescription:
+      'この宿題はクラスに紐づいています。名簿と同じ氏名・生年月日を入力してください（Google の表示名は使わないでください）。その後、宿題を始められます。',
+    homeworkEnrollSubmitButton: 'クラスに参加して宿題を始める',
+    homeworkDefaultTitle: '宿題',
+    lamBaiLoadingNeutral: '読み込み中…',
+    lamBaiFiveMinWarning: '残り5分です。終了前に解答を確認してください。',
+    lamBaiTimerTimeUpAutoSubmittingExam: '時間切れです。解答を自動送信しています。',
+    lamBaiTimerTimeUpAutoSubmittingHomework: '時間切れです。宿題を自動送信しています。',
+    lamBaiTimerStickySubmittingExam: '時間切れ — 送信中…',
+    lamBaiTimerStickySubmittingHomework: '時間切れ — 送信中…',
+    examSubmitSending: '送信中…',
+    examSubmitButton: '提出する',
+    homeworkSubmitSending: '宿題を送信中…',
+    homeworkSubmitButton: '宿題を送る',
+    homeworkLoadFailed: '宿題を読み込めませんでした。',
+    lamBaiQuestionLabel: '問{index}.',
     examSubmittedTitle: '提出済み',
     examSubmittedSavedEarlier: 'このテストはすでに提出済みです。保存された結果は以下のとおりです。',
+    homeworkSubmittedTitle: '宿題を提出しました',
+    homeworkSubmittedSavedEarlier: 'この宿題はすでに提出済みです。保存された情報は以下のとおりです。',
+    homeworkSubmittedBody:
+      '練習用の宿題のため、生徒には点数や評価尺度を表示しません。教師は授業で内容を確認・講評できます。',
+    homeworkMcCorrectOnlyLine: '選択問題：{correct}/{total} 問正解',
+    homeworkShareLine: '提出済み：{title}',
     examScoreOutOf10: '得点 {grade}/10',
     examResultScale100Line: '100点満点換算：{score100}/100',
     examResultSummaryGrade10Line: '10点満点の総評：{grade}/10',
@@ -2865,13 +3425,26 @@ const JA_DICTIONARY: Dictionary = {
     classHubCardStudentsDescStudent: 'クラスメイトと担任教員を確認できます。',
     classHubCardRosterTitleStudent: 'クラスメンバー',
     classHubCardGradebookDesc: '成績一覧と Excel 出力。',
-    classHubCardWorksheetsDesc: '提出済みワークシート。',
     classExamsIndexTitle: 'クラスのテスト',
     classExamSessionPageTitle: 'テストの詳細',
     classExamGoToSession: '採点ページを開く',
-    classDetailSeoDescription: 'クラスページ：テスト、メンバー、成績、ワークシート提出。',
-    classHubCardAssignWorksheetDesc: 'ワークシートをクラスに割り当て、生徒が取り組めるようにします。',
+    classDetailSeoDescription: 'クラスページ：テスト、メンバー、成績。',
+    classHubCardAssignWorksheetDesc:
+      'このクラス向けに作成・紐づけた宿題の一覧です。生徒はリンクまたはコードから取り組みます。',
     classPageStudentFacingNotSet: '未設定',
+    classHubCardStudentWorksheetsDesc:
+      '先生からの宿題：リンクまたはセッションコードから解答ページで取り組みます。',
+    worksheetLamBaiNoInteractiveHint:
+      'このワークシートには、Web上で解答できる選択・記述形式の設問がありません（教師が教材ツールで設問を紐付ける必要があります）。ここでは提出できません。',
+    worksheetLamBaiBackToClassWorksheets: 'クラスのワークシート一覧へ',
+    worksheetLamBaiMcqSectionTitle: '選択問題',
+    worksheetLamBaiEssaySectionTitle: '記述問題',
+    worksheetLamBaiEssayPlaceholder: '回答を入力…',
+    worksheetSubmitNoInteractiveError:
+      'オンライン設問がありません。教師が先に設問を紐付けてください。',
+    assignWorksheetNoQuestionBankHint:
+      '問題バンクからの設問が未紐付けです。学生はWebで解答・提出できません。',
+    assignWorksheetOpenInCurriculumTool: '教材ツールで開く',
   },
   worksheetSolutionPage: {
     metaTitlePrefix: '解答',
@@ -3063,6 +3636,7 @@ const JA_DICTIONARY: Dictionary = {
     createExam: 'テストを作成',
     createAnyway: 'それでも作成',
     createdExamsList: '作成したテスト一覧',
+    openCreatedExamsListButton: '作成済みテスト一覧を開く',
     createdExamsHint: 'リンクを開いたりテストを削除したりできます。',
     loadingExamList: '一覧を読み込み中…',
     noExamsYet: 'テストはまだありません。',
@@ -3090,6 +3664,33 @@ const JA_DICTIONARY: Dictionary = {
     sourceEdited: '編集済',
     sourceOther: 'その他',
     defaultExamTitle: 'テスト',
+    homeworkPageTitle: '宿題を作成',
+    homeworkPageSubtitle:
+      'オンライン試験と同じ手順（科目・クラス・問題・QR/リンク）で、合計100点の配分は不要。提出後も生徒に点数は表示しません。',
+    defaultHomeworkTitle: '宿題',
+    homeworkCreatedBadge: '宿題を作成しました',
+    createHomework: '宿題を作成',
+    createAnotherHomework: '別の宿題を作成',
+    createdHomeworkListTitle: '作成した宿題',
+    createdHomeworkHint: 'リンクまたはQRで生徒に解答してもらえます。試験と同様に他クラスへも割り当て可能です。',
+    openCreatedHomeworkListButton: '宿題一覧を見る',
+    homeworkCreateSuccess: '宿題を作成しました',
+    homeworkCreateSuccessDesc: 'リンクまたはQRコードを生徒に共有してください。',
+    homeworkEssayNo100Note:
+      '必要に応じて記述問題を選びます。提出後も得点は見せません。1問あたりの時間や配点の設定は不要です。',
+    homeworkCardInfo: '宿題の情報',
+    homeworkFormCardDescription:
+      '教科・クラス・教師用カリキュラムから問題を選びます。試験時間や配点の設定は不要です。解答は保存され、生徒には得点を表示しません。',
+    homeworkTitlePlaceholder: '数学の宿題 — 復習',
+    homeworkQuizPartFooterHint:
+      '難易度ごとの問題数を入力し、下の一覧から同数を選びます。宿題ではここで分や配点を調整する必要はありません。',
+    noHomeworkSessionsYet: 'まだ宿題がありません。',
+    homeworkCreatedResultLine: '全{count}問',
+    homeworkSummaryMc: '選択問題：{count}問',
+    homeworkSummaryEssay: '記述：{count}問',
+    homeworkDeleteConfirm: 'この宿題を削除しますか？この操作は取り消せません。',
+    homeworkDeleted: '削除しました',
+    homeworkDeletedDesc: '宿題を削除しました。',
   },
   adminWorksheetVerify: {
     pageTitle: 'ワークシート検証レポート',
@@ -3221,6 +3822,7 @@ const KO_DICTIONARY: Dictionary = {
     create_curriculum: '교육과정 생성',
     create_exam: '시험 생성',
     online_exam: '온라인 시험(수업)',
+    homework_online: '숙제 만들기',
     classes: '수업',
     try_on_1: '1인 피팅',
     try_on_2: '2인 피팅',
@@ -3271,7 +3873,17 @@ const KO_DICTIONARY: Dictionary = {
     created: '생성됨',
     backToList: '목록으로',
     mobileCreateExam: '시험 만들기',
-    assignWorksheet: '워크시트 할당',
+    mobileCreateHomework: '숙제 만들기',
+    assignWorksheet: '숙제',
+    classHomeworkListEmpty: '이 수업에 연결된 숙제가 아직 없습니다.',
+    classHomeworkListCreateCta: '숙제 만들기',
+    classHomeworkOpenLamBai: '학생 풀이 페이지',
+    classHomeworkAttachOtherClassButton: '숙제를 다른 반에 연결',
+    classHomeworkAttachPickTitle: '숙제를 다른 반에 연결',
+    classHomeworkAttachPickDescription:
+      '동일한 내용으로 새 숙제 세션(새 코드·링크)을 만들어 선택한 반에 연결합니다.',
+    classHomeworkAttachSessionLabel: '숙제',
+    classStudentHomeworkSessionsEmpty: '선생님이 낸 숙제가 아직 없습니다.',
     noWorksheets: '워크시트가 없습니다',
     noStudents: '학생이 없습니다',
     doWorksheet: '문제 풀기',
@@ -3281,9 +3893,6 @@ const KO_DICTIONARY: Dictionary = {
     quizScore: '퀴즈 점수',
     sampleAnswer: '모범 답안',
     submissions: '제출 목록',
-    worksheetSubmissionsSection: '워크시트 제출',
-    noWorksheetSubmissions: '워크시트 제출이 없습니다.',
-    worksheetSubmissionsSeeExamBelow: '시험 응시 내역은 아래「시험 제출」에서 확인하세요.',
     submittedAt: '제출 시각',
     noSubmissions: '제출 없음',
     presentWorksheet: '워크시트 발표',
@@ -3299,6 +3908,23 @@ const KO_DICTIONARY: Dictionary = {
     noExamSubmissions: '시험 제출이 없습니다.',
     noExamsForClass: '이 수업에 연결된 시험이 아직 없습니다.',
     studentClassExamsTitle: '수업 시험',
+    classExamsSubsectionGraded: '시험(채점)',
+    classExamsSubsectionPracticeHomework: '숙제(학생에게 점수 미표시)',
+    studentClassHomeworkSubmittedCaption:
+      '제출했습니다. 숙제이므로 여기서는 점수를 보여주지 않습니다.',
+    classSessionBadgeHomework: '숙제',
+    lamBaiSeoTitleSuffixExam: '온라인 시험',
+    lamBaiSeoTitleSuffixHomework: '숙제',
+    lamBaiSeoDescriptionExam:
+      '세션 코드로 온라인 시험을 봅니다. 객관식·서술형, 채점이 있습니다.',
+    lamBaiSeoDescriptionHomework:
+      '세션 코드로 온라인 숙제를 합니다. 연습용이며 정식 시험처럼 점수를 보여주지 않습니다.',
+    lamBaiSeoKeywordsExam: '시험, 온라인 시험, 객관식, 서술형, NanoAI',
+    lamBaiSeoKeywordsHomework: '숙제, 복습, NanoAI',
+    lamBaiSeoFallbackTitle: '온라인으로 풀기',
+    lamBaiSeoFallbackDescription:
+      '로그인 후 세션 코드나 교사가 보낸 링크로 과제를 완료하세요.',
+    lamBaiSeoFallbackKeywords: '시험, 숙제, NanoAI',
     studentClassExamNotStarted: '미제출',
     studentClassExamSubmitted: '제출 완료',
     studentClassExamProgressScores: '100점 환산: {score100} · 10점 만점 환산: {grade10}',
@@ -3315,14 +3941,66 @@ const KO_DICTIONARY: Dictionary = {
     examStudentShareDialogDescription:
       '학생이 QR 코드를 스캔하거나 아래 링크를 열면 됩니다. 해당 페이지는 학생용 시험 화면이며, 선생님께서 이름을 입력하거나 풀 필요는 없습니다.',
     examStudentShareUrlLabel: '시험 링크',
+    examAttachToOtherClassButton: '다른 반에 연결',
+    examAttachPickClassTitle: '시험을 다른 반에 연결',
+    examAttachPickClassDescription:
+      '같은 문항으로 새 시험 세션(코드·링크는 새로)을 만들어 선택한 반에 연결합니다.',
+    examAttachSelectClassLabel: '반 선택',
+    examAttachSelectClassPlaceholder: '— 반을 선택하세요 —',
+    examAttachSubmit: '반에 연결',
+    examAttachLoadingClasses: '반 목록 불러오는 중…',
+    examAttachWorking: '시험 세션 만드는 중…',
+    examAttachNoClassesBody: '아직 만든 반이 없습니다. 먼저 반을 만든 뒤 다시 와서 시험을 연결하세요.',
+    examAttachNoOtherClassesBody:
+      '현재 반 외에 다른 반이 없습니다. 사본을 연결하려면 반을 하나 더 만드세요.',
+    examAttachFailed: '시험을 연결하지 못했습니다. 잠시 후 다시 시도하세요.',
+    examAttachSuccessSummary: '새 세션이 다음에 연결되었습니다: {classLine}.',
+    examAttachClose: '닫기',
+    examAttachPickAnotherClass: '다른 반에도 연결',
+    examAttachExamLabel: '시험',
+    examAttachAllClassesAlreadyAttachedBody:
+      '담당 반마다 이미 이 시험 세션(동일 문항)이 있습니다. 더 연결할 반이 없습니다.',
+    examAttachNeedDifferentClassHint:
+      '원하는 반이 없나요? 새 탭에서 반을 만든 뒤 아래 «반 목록 새로고침»을 누르세요.',
+    examAttachReloadClassList: '반 목록 새로고침',
+    examAttachOpenCreateClassNewTab: '새 반 만들기(새 탭)',
+    examAttachClassAlreadyHasExam: '이 반에는 이미 이 시험이 있습니다.',
     examIdentityFromClassHint:
       '수업 명단에 이름과 생년월일이 이미 있습니다. 준비되면 시작을 누르세요. 타이머는 시작 후에만 작동합니다.',
     examChangeIdentityManual: '다른 이름·생년월일 입력',
     examManualIdentityIntro: '정보를 입력하고 시작을 누르세요. 타이머는 시작 후에만 작동합니다.',
     examStartTestButton: '시험 시작',
     examOneAttemptNote: '계정당 한 번만 응시할 수 있습니다.',
+    examStartHomeworkButton: '숙제 시작',
+    homeworkIdentityFromClassHint:
+      '수업 프로필에 이름과 생년월이 있습니다. 준비되면 시작을 누르세요. 타이머는 시작 후에만 작동합니다.',
+    homeworkManualIdentityIntro:
+      '정보를 입력하고 시작을 누르면 숙제를 진행합니다. 타이머는 시작 후에만 작동합니다.',
+    homeworkEnrollGateTitle: '수업에 참가해 숙제하기',
+    homeworkEnrollGateDescription:
+      '이 숙제는 수업에 연결되어 있습니다. 명단과 동일한 이름·생년월일을 입력하세요(Google 표시 이름 사용 금지). 이후 숙제를 시작할 수 있습니다.',
+    homeworkEnrollSubmitButton: '수업 참가 후 숙제 시작',
+    homeworkDefaultTitle: '숙제',
+    lamBaiLoadingNeutral: '불러오는 중…',
+    lamBaiFiveMinWarning: '5분 남았습니다! 마감 전 답을 확인하세요.',
+    lamBaiTimerTimeUpAutoSubmittingExam: '시간이 끝났습니다. 답안을 자동 제출합니다.',
+    lamBaiTimerTimeUpAutoSubmittingHomework: '시간이 끝났습니다. 숙제를 자동 제출합니다.',
+    lamBaiTimerStickySubmittingExam: '시간 종료 — 제출 중…',
+    lamBaiTimerStickySubmittingHomework: '시간 종료 — 제출 중…',
+    examSubmitSending: '제출 중…',
+    examSubmitButton: '제출하기',
+    homeworkSubmitSending: '숙제 제출 중…',
+    homeworkSubmitButton: '숙제 제출',
+    homeworkLoadFailed: '숙제를 불러올 수 없습니다.',
+    lamBaiQuestionLabel: '{index}번.',
     examSubmittedTitle: '제출 완료',
     examSubmittedSavedEarlier: '이미 이 시험을 제출했습니다. 아래는 저장된 결과입니다.',
+    homeworkSubmittedTitle: '숙제 제출 완료',
+    homeworkSubmittedSavedEarlier: '이미 이 숙제를 제출했습니다. 아래는 저장된 정보입니다.',
+    homeworkSubmittedBody:
+      '연습용 숙제로, 학생에게는 점수나 채점 척도를 보여주지 않습니다. 교사는 수업에서 확인·피드백할 수 있습니다.',
+    homeworkMcCorrectOnlyLine: '객관식: {correct}/{total}문제 정답',
+    homeworkShareLine: '제출함: {title}',
     examScoreOutOf10: '점수 {grade}/10',
     examResultScale100Line: '100점 환산: {score100}/100',
     examResultSummaryGrade10Line: '10점 만점 총평: {grade}/10',
@@ -3483,13 +4161,25 @@ const KO_DICTIONARY: Dictionary = {
     classHubCardStudentsDescStudent: '반 친구와 선생님을 확인합니다.',
     classHubCardRosterTitleStudent: '반 구성원',
     classHubCardGradebookDesc: '성적표 및 Excel보내기.',
-    classHubCardWorksheetsDesc: '제출된 워크시트.',
     classExamsIndexTitle: '수업 시험',
     classExamSessionPageTitle: '시험 상세',
     classExamGoToSession: '채점 페이지 열기',
-    classDetailSeoDescription: '수업 홈: 시험, 명단, 성적표, 워크시트 제출.',
-    classHubCardAssignWorksheetDesc: '워크시트를 이 수업에 배정해 학생이 풀 수 있게 합니다.',
+    classDetailSeoDescription: '수업 홈: 시험, 명단, 성적표.',
+    classHubCardAssignWorksheetDesc:
+      '이 수업에 만들고 연결된 숙제입니다. 학생은 링크나 코드로 풉니다.',
     classPageStudentFacingNotSet: '설정 안 됨',
+    classHubCardStudentWorksheetsDesc:
+      '선생님이 낸 숙제: 링크나 세션 코드로 풀이 페이지에서 완료합니다.',
+    worksheetLamBaiNoInteractiveHint:
+      '이 워크시트에는 웹에서 풀 수 있는 객관식·서술형 문항이 없습니다(교사가 교재 도구에서 문항을 연결해야 합니다). 여기서는 제출할 수 없습니다.',
+    worksheetLamBaiBackToClassWorksheets: '반 워크시트 목록으로',
+    worksheetLamBaiMcqSectionTitle: '객관식',
+    worksheetLamBaiEssaySectionTitle: '서술형',
+    worksheetLamBaiEssayPlaceholder: '답을 입력하세요…',
+    worksheetSubmitNoInteractiveError: '온라인 문항이 없습니다. 교사가 먼저 문항을 연결해야 합니다.',
+    assignWorksheetNoQuestionBankHint:
+      '문항이 연결되지 않았습니다. 학생은 웹에서 풀고 제출할 수 없습니다.',
+    assignWorksheetOpenInCurriculumTool: '교재 도구에서 열기',
   },
   worksheetSolutionPage: {
     metaTitlePrefix: '해설',
@@ -3679,6 +4369,7 @@ const KO_DICTIONARY: Dictionary = {
     createExam: '시험 만들기',
     createAnyway: '그래도 만들기',
     createdExamsList: '만든 시험 목록',
+    openCreatedExamsListButton: '만든 시험 목록 열기',
     createdExamsHint: '링크를 열거나 만든 시험을 삭제할 수 있습니다.',
     loadingExamList: '목록 불러오는 중…',
     noExamsYet: '시험이 없습니다.',
@@ -3706,6 +4397,33 @@ const KO_DICTIONARY: Dictionary = {
     sourceEdited: '편집됨',
     sourceOther: '기타',
     defaultExamTitle: '시험',
+    homeworkPageTitle: '숙제 만들기',
+    homeworkPageSubtitle:
+      '온라인 시험과 같은 단계(과목·학급·문항·QR/링크)이며 총점 100점 맞출 필요 없음. 제출 후 학생에게는 점수를 표시하지 않습니다.',
+    defaultHomeworkTitle: '숙제',
+    homeworkCreatedBadge: '숙제가 만들어졌습니다',
+    createHomework: '숙제 만들기',
+    createAnotherHomework: '다른 숙제 만들기',
+    createdHomeworkListTitle: '만든 숙제',
+    createdHomeworkHint: '링크나 QR로 학생이 풀게 하세요. 시험처럼 다른 학급에도 붙일 수 있습니다.',
+    openCreatedHomeworkListButton: '숙제 목록 보기',
+    homeworkCreateSuccess: '숙제를 만들었습니다',
+    homeworkCreateSuccessDesc: '학생에게 링크나 QR 코드를 공유하세요.',
+    homeworkEssayNo100Note:
+      '필요하면 서술형 문항을 고릅니다. 제출 후 학생에게 점수가 보이지 않으며, 문항별 시간·배점을 맞출 필요가 없습니다.',
+    homeworkCardInfo: '숙제 정보',
+    homeworkFormCardDescription:
+      '과목·수업·교사용 교안에서 문항을 고릅니다. 시험 시간이나 배점 설정은 필요 없고, 답안은 저장되며 학생에게 점수가 표시되지 않습니다.',
+    homeworkTitlePlaceholder: '수학 숙제 — 복습',
+    homeworkQuizPartFooterHint:
+      '난이도별 문항 수를 입력한 뒤 아래 목록에서 같은 개수만큼 고릅니다. 숙제는 여기서 분·배점을 맞출 필요가 없습니다.',
+    noHomeworkSessionsYet: '아직 숙제가 없습니다.',
+    homeworkCreatedResultLine: '문항 {count}개',
+    homeworkSummaryMc: '객관식: {count}문항',
+    homeworkSummaryEssay: '서술형: {count}문항',
+    homeworkDeleteConfirm: '이 숙제를 삭제할까요? 이 작업은 되돌릴 수 없습니다.',
+    homeworkDeleted: '삭제됨',
+    homeworkDeletedDesc: '숙제가 삭제되었습니다.',
   },
   adminWorksheetVerify: {
     pageTitle: '워크시트 검증 보고서',

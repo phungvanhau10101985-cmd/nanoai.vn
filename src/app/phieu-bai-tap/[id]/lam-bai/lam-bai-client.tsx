@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
@@ -49,6 +50,8 @@ export default function LamBaiClient({
   const router = useRouter()
   const { toast } = useToast()
 
+  const canSubmit = parsed.quiz.length > 0 || parsed.essay.length > 0
+
   const quizScore = parsed.quiz.reduce((acc, q) => {
     const ans = quizAnswers[q.index]
     return acc + (typeof ans === 'number' && ans === q.correctIndex ? 1 : 0)
@@ -56,6 +59,7 @@ export default function LamBaiClient({
   const quizTotal = parsed.quiz.length
 
   async function handleSubmit() {
+    if (!canSubmit) return
     setSubmitting(true)
     const quizObj: Record<string, number> = {}
     for (const [k, v] of Object.entries(quizAnswers)) {
@@ -93,7 +97,7 @@ export default function LamBaiClient({
       <div className="space-y-8">
         {parsed.quiz.length > 0 && (
           <section>
-            <h2 className="text-lg font-semibold mb-4">Trắc nghiệm</h2>
+            <h2 className="text-lg font-semibold mb-4">{t.worksheetLamBaiMcqSectionTitle}</h2>
             <div className="space-y-4">
               {parsed.quiz.map((q) => (
                 <div key={q.index} className="rounded-lg border border-input p-4">
@@ -122,7 +126,7 @@ export default function LamBaiClient({
 
         {parsed.essay.length > 0 && (
           <section>
-            <h2 className="text-lg font-semibold mb-4">Tự luận</h2>
+            <h2 className="text-lg font-semibold mb-4">{t.worksheetLamBaiEssaySectionTitle}</h2>
             <div className="space-y-4">
               {parsed.essay.map((e) => (
                 <div key={e.index} className="rounded-lg border border-input p-4">
@@ -130,7 +134,7 @@ export default function LamBaiClient({
                   <textarea
                     value={essayAnswers[e.index] ?? ''}
                     onChange={(ev) => setEssayAnswers((prev) => ({ ...prev, [e.index]: ev.target.value }))}
-                    placeholder="Nhập câu trả lời..."
+                    placeholder={t.worksheetLamBaiEssayPlaceholder}
                     className="w-full min-h-[80px] rounded-md border border-input bg-background px-3 py-2 text-sm"
                   />
                 </div>
@@ -140,21 +144,19 @@ export default function LamBaiClient({
         )}
 
         {parsed.quiz.length === 0 && parsed.essay.length === 0 && (
-          <p className="text-muted-foreground">Phiếu này chưa có câu hỏi trắc nghiệm hoặc tự luận theo định dạng hỗ trợ.</p>
+          <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 px-4 py-3 text-sm text-foreground leading-relaxed">
+            {t.worksheetLamBaiNoInteractiveHint}
+          </div>
         )}
       </div>
 
-      <div className="mt-8 flex items-center gap-4">
-        <Button onClick={handleSubmit} disabled={submitting || submitted}>
+      <div className="mt-8 flex flex-wrap items-center gap-4">
+        <Button onClick={handleSubmit} disabled={!canSubmit || submitting || submitted}>
           {submitting ? '...' : t.submit}
         </Button>
-        <button
-          type="button"
-          className="text-sm text-muted-foreground hover:text-foreground"
-          onClick={() => router.back()}
-        >
-          ← Về lớp
-        </button>
+        <Button variant="ghost" size="sm" className="h-auto px-2 text-muted-foreground hover:text-foreground" asChild>
+          <Link href={`/lop/${classId}/phieu-bai-tap`}>{t.worksheetLamBaiBackToClassWorksheets}</Link>
+        </Button>
       </div>
     </div>
   )

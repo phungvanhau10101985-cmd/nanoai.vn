@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { createClient as createServerClient } from '@/lib/supabase/server'
+import { resolveWebLocaleFromAcceptLanguage } from '@/lib/i18n/config'
+import { resolveDefaultExamSessionTitle } from '@/lib/i18n/exam-session-default-titles'
 import { getExamAttemptFeedbackWithMeta, parseExamGradingMeta } from '@/lib/exam-feedback'
 import { shuffleArray, signExamLayoutToken } from '@/lib/exam-layout-token'
 import { getClassMemberExamIdentity } from '@/lib/lop/require-class-enrollment'
@@ -41,7 +43,7 @@ export async function GET(
 
     const { data: session, error: sessionErr } = await supabase
       .from('exam_sessions')
-      .select('id, code, title, exam_type, duration_minutes, status, class_id, school_id')
+      .select('id, code, title, exam_type, duration_minutes, status, class_id, school_id, is_practice_homework')
       .eq('code', code.toUpperCase())
       .single()
 
@@ -51,6 +53,12 @@ export async function GET(
         { status: 404, headers: NO_STORE_HEADERS }
       )
     }
+
+    const practiceHomework = Boolean((session as { is_practice_homework?: boolean }).is_practice_homework)
+    const reqLocale = resolveWebLocaleFromAcceptLanguage(_req.headers.get('accept-language'))
+    const sessionTitleFallback = resolveDefaultExamSessionTitle(reqLocale, practiceHomework)
+    const resolvedSessionTitle =
+      String(session.title ?? '').trim() || sessionTitleFallback
 
     const { data: priorAttempt, error: priorErr } = await supabase
       .from('exam_attempts')
@@ -68,7 +76,8 @@ export async function GET(
       return NextResponse.json(
         {
           alreadySubmitted: true,
-          title: session.title ?? 'Bài thi',
+          practiceHomework,
+          title: resolvedSessionTitle,
           durationMinutes: durationMin,
           score: sc,
           maxScore: mx,
@@ -113,7 +122,8 @@ export async function GET(
         return NextResponse.json(
           {
             needsEnrollment: true,
-            title: session.title ?? 'Bài thi',
+            practiceHomework,
+            title: resolvedSessionTitle,
             durationMinutes:
               typeof session.duration_minutes === 'number' ? session.duration_minutes : 15,
             className,
@@ -185,7 +195,7 @@ export async function GET(
     return NextResponse.json(
       {
         code: session.code,
-        title: session.title,
+        title: resolvedSessionTitle,
         durationMinutes: session.duration_minutes,
         classId: session.class_id ?? null,
         schoolId: session.school_id ?? null,
@@ -194,6 +204,7 @@ export async function GET(
         classExamIdentity,
         layoutToken,
         questions: publicQuestions,
+        practiceHomework,
       },
       { headers: NO_STORE_HEADERS }
     )

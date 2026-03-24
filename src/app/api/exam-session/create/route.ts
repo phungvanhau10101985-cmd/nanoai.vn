@@ -1,7 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
+import {
+  DEFAULT_WEB_LOCALE,
+  LOCALE_COOKIE_NAME,
+  normalizeWebLocale,
+  type WebLocale,
+} from '@/lib/i18n/config'
+import { resolveDefaultExamSessionTitle } from '@/lib/i18n/exam-session-default-titles'
 import { getEssayProblem } from '@/app/tao-giao-trinh/lib/worksheet-content-json'
 import { shuffleArray } from '@/lib/exam-layout-token'
 
@@ -147,7 +155,21 @@ export async function POST(req: NextRequest) {
       }
       lessonTopics = Array.from(topics)
     }
-    const title = String(body?.title ?? 'Bài thi').trim() || 'Bài thi'
+    const practiceHomework = body?.practiceHomework === true
+    let titleLocale: WebLocale = DEFAULT_WEB_LOCALE
+    const localeFromBody = normalizeWebLocale(
+      typeof body?.locale === 'string' ? body.locale : null
+    )
+    if (localeFromBody) titleLocale = localeFromBody
+    else {
+      const localeFromCookie = normalizeWebLocale(
+        cookies().get(LOCALE_COOKIE_NAME)?.value
+      )
+      if (localeFromCookie) titleLocale = localeFromCookie
+    }
+    const titleFromBody = String(body?.title ?? '').trim()
+    const title =
+      titleFromBody || resolveDefaultExamSessionTitle(titleLocale, practiceHomework)
     const difficulty = ['easy', 'medium', 'hard'].includes(String(body?.difficulty ?? '')) ? body.difficulty : undefined
     const selectionMode = body?.selectionMode === 'manual' ? 'manual' : 'random'
     const selectedQuizQuestionIds = Array.isArray(body?.selectedQuizQuestionIds)
@@ -509,6 +531,12 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    if (practiceHomework) {
+      for (const q of pickedQuestions) {
+        ;(q as { points?: number }).points = 1
+      }
+    }
+
     const nQuiz = pickedQuestions.filter(
       (q) => Array.isArray(q.options) && q.options.length >= 2
     ).length
@@ -523,7 +551,7 @@ export async function POST(req: NextRequest) {
     }
 
     const totalPickedPoints = roundExamTotalPoints(quizPointsMax + essayPointsMax)
-    if (Math.abs(totalPickedPoints - EXAM_TARGET_TOTAL_POINTS) > 0.01) {
+    if (!practiceHomework && Math.abs(totalPickedPoints - EXAM_TARGET_TOTAL_POINTS) > 0.01) {
       return NextResponse.json(
         {
           error: `Tổng điểm trắc nghiệm + tự luận phải đúng 100 điểm (hiện: ${totalPickedPoints}).`,
@@ -573,6 +601,7 @@ export async function POST(req: NextRequest) {
           finalDurationMinutes,
           classId,
           schoolId: finalSchoolId,
+          practiceHomework,
           scoring: {
             quizPointsMax,
             essayPointsMax,
@@ -582,6 +611,7 @@ export async function POST(req: NextRequest) {
           },
         },
         status: 'active',
+        is_practice_homework: practiceHomework,
       })
       .select('id')
       .single()
@@ -611,6 +641,14 @@ export async function POST(req: NextRequest) {
       console.error('[exam-session] Insert questions failed:', questionsErr.message)
       await adminSupabase.from('exam_sessions').delete().eq('id', session.id)
       return NextResponse.json({ error: 'Lưu câu hỏi thất bại.' }, { status: 500 })
+    }
+
+    const { error: lineageErr } = await adminSupabase
+      .from('exam_sessions')
+      .update({ exam_lineage_root_id: String(session.id) })
+      .eq('id', String(session.id))
+    if (lineageErr) {
+      console.error('[exam-session] Set exam_lineage_root_id failed:', lineageErr.message)
     }
 
     const examUrl = `${resolveBaseUrl(req)}/lam-bai/${code}`

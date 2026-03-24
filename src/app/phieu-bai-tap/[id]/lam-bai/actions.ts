@@ -3,6 +3,9 @@
 import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
+import { parseWorksheetMarkdown } from '@/lib/parse-worksheet-markdown'
+import { worksheetDisplayMarkdownFromDb } from '@/app/tao-giao-trinh/lib/merge-worksheet-content'
+import { getServerDictionary } from '@/lib/i18n/server'
 
 export async function submitWorksheet(
   worksheetId: string,
@@ -34,6 +37,25 @@ export async function submitWorksheet(
 
   if (!cw) return { error: 'Phiếu chưa được gán cho lớp.' }
 
+  const { data: wsRow } = await supabase
+    .from('worksheet_worksheets')
+    .select('content_markdown, question_ids')
+    .eq('id', worksheetId)
+    .single()
+
+  if (!wsRow) return { error: 'Không tìm thấy phiếu bài tập.' }
+
+  const qids = (wsRow.question_ids ?? []) as string[]
+  const displayMd =
+    qids.length > 0
+      ? await worksheetDisplayMarkdownFromDb(supabase, wsRow.content_markdown ?? '', qids)
+      : (wsRow.content_markdown ?? '')
+  const parsed = parseWorksheetMarkdown(displayMd)
+  if (parsed.quiz.length === 0 && parsed.essay.length === 0) {
+    const { t } = getServerDictionary()
+    return { error: t.classes.worksheetSubmitNoInteractiveError }
+  }
+
   const { error } = await supabase.from('worksheet_submissions').upsert(
     {
       worksheet_id: worksheetId,
@@ -48,6 +70,7 @@ export async function submitWorksheet(
 
   if (error) return { error: error.message }
   revalidatePath(`/lop/${classId}`)
+  revalidatePath(`/lop/${classId}/phieu-bai-tap`)
   revalidatePath(`/phieu-bai-tap/${worksheetId}/ket-qua`)
   return { success: true }
 }

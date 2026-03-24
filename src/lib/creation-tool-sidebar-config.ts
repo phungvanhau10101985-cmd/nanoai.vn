@@ -9,41 +9,54 @@ export type CreationRelatedItem = { href: string; labelKey: ToolKey }
 const CURRICULUM_RELATED: Record<string, CreationRelatedItem[]> = {
   '/tao-bai-thi': [
     { href: '/giao-trinh', labelKey: 'create_curriculum' },
+    { href: '/tao-bai-tap-ve-nha', labelKey: 'homework_online' },
+    { href: '/tao-de-trac-nghiem', labelKey: 'create_exam' },
+    { href: '/lop', labelKey: 'classes' },
+  ],
+  '/tao-bai-tap-ve-nha': [
+    { href: '/giao-trinh', labelKey: 'create_curriculum' },
+    { href: '/tao-bai-thi', labelKey: 'online_exam' },
     { href: '/tao-de-trac-nghiem', labelKey: 'create_exam' },
     { href: '/lop', labelKey: 'classes' },
   ],
   '/tao-giao-trinh': [
     { href: '/tao-bai-thi', labelKey: 'online_exam' },
+    { href: '/tao-bai-tap-ve-nha', labelKey: 'homework_online' },
     { href: '/tao-de-trac-nghiem', labelKey: 'create_exam' },
     { href: '/lop', labelKey: 'classes' },
   ],
   '/giao-trinh': [
     { href: '/tao-bai-thi', labelKey: 'online_exam' },
+    { href: '/tao-bai-tap-ve-nha', labelKey: 'homework_online' },
     { href: '/tao-de-trac-nghiem', labelKey: 'create_exam' },
     { href: '/lop', labelKey: 'classes' },
   ],
   '/tao-de-trac-nghiem': [
     { href: '/giao-trinh', labelKey: 'create_curriculum' },
     { href: '/tao-bai-thi', labelKey: 'online_exam' },
+    { href: '/tao-bai-tap-ve-nha', labelKey: 'homework_online' },
     { href: '/lop', labelKey: 'classes' },
   ],
   '/lop/tao': [
     { href: '/lop', labelKey: 'classes' },
     { href: '/giao-trinh', labelKey: 'create_curriculum' },
     { href: '/tao-bai-thi', labelKey: 'online_exam' },
+    { href: '/tao-bai-tap-ve-nha', labelKey: 'homework_online' },
     { href: '/tao-de-trac-nghiem', labelKey: 'create_exam' },
   ],
   '/lop': [
     { href: '/giao-trinh', labelKey: 'create_curriculum' },
     { href: '/tao-bai-thi', labelKey: 'online_exam' },
+    { href: '/tao-bai-tap-ve-nha', labelKey: 'homework_online' },
     { href: '/tao-de-trac-nghiem', labelKey: 'create_exam' },
   ],
 }
 
-/** Menu liên quan cho trang gán phiếu (URL động). */
+/** Menu liên quan cho trang bài tập về nhà theo lớp `/lop/[id]/gan-phieu`. */
 export const GAN_PHIEU_RELATED: CreationRelatedItem[] = [
   { href: '/giao-trinh', labelKey: 'create_curriculum' },
   { href: '/tao-bai-thi', labelKey: 'online_exam' },
+  { href: '/tao-bai-tap-ve-nha', labelKey: 'homework_online' },
   { href: '/tao-de-trac-nghiem', labelKey: 'create_exam' },
   { href: '/lop', labelKey: 'classes' },
 ]
@@ -82,6 +95,17 @@ export function getCreationRelatedLinks(currentHref: string): CreationRelatedIte
       { href: '/lop', labelKey: 'classes' },
       { href: '/giao-trinh', labelKey: 'create_curriculum' },
       { href: '/tao-bai-thi', labelKey: 'online_exam' },
+      { href: '/tao-bai-tap-ve-nha', labelKey: 'homework_online' },
+    ]
+  }
+  /** Trang xem phiếu / lời giải /phieu-bai-tap/[id] */
+  if (path.startsWith('/phieu-bai-tap/')) {
+    return [
+      { href: '/giao-trinh', labelKey: 'create_curriculum' },
+      { href: '/tao-bai-thi', labelKey: 'online_exam' },
+      { href: '/tao-bai-tap-ve-nha', labelKey: 'homework_online' },
+      { href: '/tao-de-trac-nghiem', labelKey: 'create_exam' },
+      { href: '/lop', labelKey: 'classes' },
     ]
   }
   /** Chi tiết lớp /lop/[id] — cùng menu liên quan với /lop */

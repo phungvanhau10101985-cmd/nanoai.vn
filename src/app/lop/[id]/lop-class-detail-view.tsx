@@ -3,7 +3,13 @@ import { getServerDictionary } from '@/lib/i18n/server'
 import type { ClassDetailPayload } from '@/lib/lop/load-class-detail-payload'
 import LopDetailClient from './lop-detail-client'
 
-export type LopDetailPageMode = 'hub' | 'exams-index' | 'exam-session' | 'roster' | 'gradebook' | 'worksheets'
+export type LopDetailPageMode =
+  | 'hub'
+  | 'exams-index'
+  | 'exam-session'
+  | 'roster'
+  | 'gradebook'
+  | 'student-worksheets'
 
 export function LopClassDetailView({
   payload,
@@ -17,8 +23,15 @@ export function LopClassDetailView({
   focusSessionId?: string
 }) {
   const { t } = getServerDictionary()
-  const { cls, isTeacher, members, initialSubmissions, initialExamAttempts, initialExamSessions, schoolName, subjectNames } =
-    payload
+  const {
+    cls,
+    isTeacher,
+    members,
+    initialExamAttempts,
+    initialExamSessions,
+    schoolName,
+    subjectNames,
+  } = payload
 
   return (
     <div className="app-shell min-h-screen">
@@ -37,7 +50,6 @@ export function LopClassDetailView({
             }}
             isTeacher={isTeacher}
             members={members}
-            initialSubmissions={initialSubmissions}
             initialExamAttempts={initialExamAttempts}
             initialExamSessions={initialExamSessions}
             pageMode={pageMode}

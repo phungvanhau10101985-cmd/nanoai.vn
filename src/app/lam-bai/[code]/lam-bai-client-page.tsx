@@ -133,11 +133,17 @@ export default function LamBaiClientPage({
     durationMinutes: number
     className: string | null
     schoolName: string | null
+    practiceHomework: boolean
   } | null>(null)
   const [reloadNonce, setReloadNonce] = useState(0)
   const [enrollSubmitting, setEnrollSubmitting] = useState(false)
   const { toast } = useToast()
-  const [exam, setExam] = useState<{ title: string; durationMinutes: number; questions: Question[] } | null>(null)
+  const [exam, setExam] = useState<{
+    title: string
+    durationMinutes: number
+    questions: Question[]
+    practiceHomework: boolean
+  } | null>(null)
   /** JWT map đáp án hiển thị → chỉ số gốc — bắt buộc khi nộp bài */
   const [layoutToken, setLayoutToken] = useState<string | null>(null)
   const [answers, setAnswers] = useState<Record<string, number | string>>({})
@@ -162,6 +168,7 @@ export default function LamBaiClientPage({
     comment: string
     shareHint: string
     scoringBreakdown: ExamScoringBreakdown | null
+    practiceHomework?: boolean
   } | null>(null)
   /** Kết quả tải từ server (đã nộp trước đó, ví dụ thiết bị khác) — hiển thị thông báo kèm kết quả */
   const [priorSubmissionResult, setPriorSubmissionResult] = useState(false)
@@ -177,6 +184,9 @@ export default function LamBaiClientPage({
   const [fiveMinuteWarning, setFiveMinuteWarning] = useState(false)
   /** Đề gắn lớp + đã có member_display_name & birth_date — không bắt nhập lại form trước khi bấm Bắt đầu */
   const [identityFromClassRoster, setIdentityFromClassRoster] = useState(false)
+  /** RSC truyền `t` object mới mỗi render — không dùng làm deps useEffect tải phiên (tránh loading nhấp nháy). */
+  const tRef = useRef(t)
+  tRef.current = t
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -218,13 +228,14 @@ export default function LamBaiClientPage({
       })
       .then(({ ok, data }) => {
         if (cancelled) return
+        const tc = tRef.current
         if (!ok) {
           autoStartExamAfterEnrollRef.current = false
           setIdentityFromClassRoster(false)
           setEnrollmentGate(null)
           setExam(null)
           setLayoutToken(null)
-          setError(typeof data?.error === 'string' ? data.error : t.examLoadFailed)
+          setError(typeof data?.error === 'string' ? data.error : tc.examLoadFailed)
           return
         }
         if (data.alreadySubmitted === true) {
@@ -232,12 +243,15 @@ export default function LamBaiClientPage({
           setIdentityFromClassRoster(false)
           setEnrollmentGate(null)
           setLayoutToken(null)
-          const title = typeof data.title === 'string' ? data.title : t.examDefaultTitle
+          const practiceHw = data.practiceHomework === true
+          const title =
+            (typeof data.title === 'string' && data.title.trim()) ||
+            (practiceHw ? tc.homeworkDefaultTitle : tc.examDefaultTitle)
           const durationMinutes =
             typeof data.durationMinutes === 'number' && Number.isFinite(data.durationMinutes)
               ? data.durationMinutes
               : 15
-          setExam({ title, durationMinutes, questions: [] })
+          setExam({ title, durationMinutes, questions: [], practiceHomework: practiceHw })
           const sc = typeof data.score === 'number' ? data.score : Number(data.score ?? 0)
           const mx = typeof data.maxScore === 'number' ? data.maxScore : Number(data.maxScore ?? 0)
           const scN = Number.isFinite(sc) ? sc : 0
@@ -250,6 +264,7 @@ export default function LamBaiClientPage({
             comment: typeof data.comment === 'string' ? data.comment : '',
             shareHint: typeof data.shareHint === 'string' ? data.shareHint : '',
             scoringBreakdown: parseScoringBreakdown(data.scoringBreakdown),
+            practiceHomework: practiceHw,
           })
           setPriorSubmissionResult(true)
           setExamStarted(false)
@@ -259,10 +274,13 @@ export default function LamBaiClientPage({
           autoStartExamAfterEnrollRef.current = false
           setIdentityFromClassRoster(false)
           setEnrollmentGate({
-            title: typeof data.title === 'string' ? data.title : t.examDefaultTitle,
+            title:
+              (typeof data.title === 'string' && data.title.trim()) ||
+              (data.practiceHomework === true ? tc.homeworkDefaultTitle : tc.examDefaultTitle),
             durationMinutes: typeof data.durationMinutes === 'number' ? data.durationMinutes : 15,
             className: typeof data.className === 'string' ? data.className : null,
             schoolName: typeof data.schoolName === 'string' ? data.schoolName : null,
+            practiceHomework: data.practiceHomework === true,
           })
           setExam(null)
           setLayoutToken(null)
@@ -306,13 +324,16 @@ export default function LamBaiClientPage({
         }
         const layoutTok = typeof data.layoutToken === 'string' ? data.layoutToken : null
         const questions = Array.isArray(data.questions) ? data.questions : []
+        const loadedIsHomework = data.practiceHomework === true
+        const defaultTitle = loadedIsHomework ? tc.homeworkDefaultTitle : tc.examDefaultTitle
         setEnrollmentGate(null)
         setLayoutToken(layoutTok)
         setPriorSubmissionResult(false)
         setExam({
-          title: data.title || t.examDefaultTitle,
+          title: (typeof data.title === 'string' && data.title.trim()) || defaultTitle,
           durationMinutes: data.durationMinutes || 15,
           questions,
+          practiceHomework: loadedIsHomework,
         })
         if (
           autoStartExamAfterEnrollRef.current &&
@@ -343,7 +364,7 @@ export default function LamBaiClientPage({
     return () => {
       cancelled = true
     }
-  }, [code, reloadNonce, t])
+  }, [code, reloadNonce])
 
   useEffect(() => {
     if (!exam || result || !examStarted) return
@@ -556,7 +577,7 @@ export default function LamBaiClientPage({
       <div className="w-full min-h-[min(70dvh,28rem)] flex items-center justify-center p-4">
         <div className="flex flex-col items-center gap-3 text-muted-foreground">
           <RefreshCw className="h-10 w-10 animate-spin" />
-          <p>Đang tải bài thi...</p>
+          <p>{t.lamBaiLoadingNeutral}</p>
         </div>
       </div>
     )
@@ -566,14 +587,15 @@ export default function LamBaiClientPage({
     const birthDate = buildDob(dobDay, dobMonth, dobYear)
     const canEnroll =
       normalizeName(studentName).length >= 2 && isValidStudentDobIso(birthDate)
+    const gateHw = enrollmentGate.practiceHomework
     return (
       <div className="min-h-screen flex items-center justify-center p-4 bg-muted/30">
         <Toaster />
         <Card className="max-w-md w-full border-primary/30 shadow-md">
           <CardHeader>
-            <CardTitle>{t.examEnrollGateTitle}</CardTitle>
+            <CardTitle>{gateHw ? t.homeworkEnrollGateTitle : t.examEnrollGateTitle}</CardTitle>
             <CardDescription className="space-y-3 pt-1 text-sm leading-relaxed">
-              <p>{t.examEnrollGateDescription}</p>
+              <p>{gateHw ? t.homeworkEnrollGateDescription : t.examEnrollGateDescription}</p>
               <p className="font-semibold text-foreground">{enrollmentGate.title}</p>
               <div className="flex flex-wrap gap-2">
                 {enrollmentGate.className ? (
@@ -666,7 +688,11 @@ export default function LamBaiClientPage({
                 setReloadNonce((n) => n + 1)
               }}
             >
-              {enrollSubmitting ? t.examEnrollSubmitting : t.examEnrollSubmitButton}
+              {enrollSubmitting
+                ? t.examEnrollSubmitting
+                : gateHw
+                  ? t.homeworkEnrollSubmitButton
+                  : t.examEnrollSubmitButton}
             </Button>
           </CardContent>
         </Card>
@@ -700,11 +726,13 @@ export default function LamBaiClientPage({
     const shareTitle = exam?.title ?? t.examSubmittedTitle
     const score100Str = formatExamScaleNumber(result.scoreOn100)
     const gradeStr = formatExamScaleNumber(result.grade10)
-    const shareText = fillExamTemplate(t.examShareResultScaleLine, {
-      title: shareTitle,
-      score100: score100Str,
-      grade: gradeStr,
-    })
+    const shareText = result.practiceHomework
+      ? fillExamTemplate(t.homeworkShareLine, { title: shareTitle })
+      : fillExamTemplate(t.examShareResultScaleLine, {
+          title: shareTitle,
+          score100: score100Str,
+          grade: gradeStr,
+        })
     const handleShare = () => {
       if (navigator.share) {
         navigator.share({
@@ -718,6 +746,64 @@ export default function LamBaiClientPage({
           setTimeout(() => setShared(false), 2000)
         })
       }
+    }
+    if (result.practiceHomework) {
+      return (
+        <div
+          ref={submitResultRef}
+          className="w-full min-h-[min(75dvh,36rem)] flex items-center justify-center p-4"
+          id="exam-submit-result"
+          role="status"
+          aria-live="polite"
+        >
+          <Card className="max-w-md w-full border-sky-200 dark:border-sky-800">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-sky-700 dark:text-sky-300">
+                <CheckCircle className="h-6 w-6" />
+                {t.homeworkSubmittedTitle}
+              </CardTitle>
+              {priorSubmissionResult ? (
+                <CardDescription className="text-sm leading-relaxed pt-1">
+                  {t.homeworkSubmittedSavedEarlier}
+                </CardDescription>
+              ) : null}
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground leading-relaxed">{t.homeworkSubmittedBody}</p>
+              {bd && bd.quizTotal > 0 ? (
+                <p className="text-sm">
+                  {fillExamTemplate(t.homeworkMcCorrectOnlyLine, {
+                    correct: String(bd.quizCorrect),
+                    total: String(bd.quizTotal),
+                  })}
+                </p>
+              ) : null}
+              {bd && bd.essayPointsMax > 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  {fillExamTemplate(t.examEssayPendingBreakdownLine, {
+                    essayMax: formatExamScaleNumber(bd.essayPointsMax),
+                  })}
+                </p>
+              ) : null}
+              {bd?.essayImageUrlsExpireAt ? (
+                <p className="text-sm text-amber-800 dark:text-amber-200">
+                  {fillExamTemplate(t.examEssayImageRetentionResult, {
+                    expiresAt: formatExamEssayImageExpireAtForUi(bd.essayImageUrlsExpireAt),
+                    days: String(EXAM_ESSAY_IMAGE_RETENTION_DAYS),
+                  })}
+                </p>
+              ) : null}
+              {result.comment ? (
+                <p className="text-sm leading-relaxed">{result.comment}</p>
+              ) : null}
+              <Button variant="outline" size="sm" onClick={handleShare} className="w-full" disabled={shared}>
+                <Share2 className="h-4 w-4 mr-2" />
+                {shared ? t.examShareDone : result.shareHint || t.examShareDone}
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      )
     }
     return (
       <div
@@ -820,23 +906,30 @@ export default function LamBaiClientPage({
   if (!exam) return null
 
   if (!examStarted) {
+    const isHw = exam.practiceHomework
     return (
       <div className="w-full min-h-[min(70dvh,28rem)] flex items-center justify-center p-4 bg-muted/30">
         <Card className="max-w-md w-full">
           <CardHeader>
             <CardTitle>{exam.title}</CardTitle>
             <CardDescription>
-              {showCompactClassStart ? t.examIdentityFromClassHint : t.examManualIdentityIntro}
+              {showCompactClassStart
+                ? isHw
+                  ? t.homeworkIdentityFromClassHint
+                  : t.examIdentityFromClassHint
+                : isHw
+                  ? t.homeworkManualIdentityIntro
+                  : t.examManualIdentityIntro}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {showCompactClassStart ? null : useSavedProfile && !editingProfile ? (
               <div className="space-y-2 rounded border bg-muted/30 p-3">
                 <p className="text-sm">
-                  Học sinh: <strong>{studentName}</strong>
+                  {t.memberRoleStudent}: <strong>{studentName}</strong>
                 </p>
                 <p className="text-sm">
-                  Ngày sinh: <strong>{formatDobDisplay(studentDob)}</strong>
+                  {t.joinStudentBirthDate}: <strong>{formatDobDisplay(studentDob)}</strong>
                 </p>
                 <Button
                   type="button"
@@ -853,15 +946,19 @@ export default function LamBaiClientPage({
             ) : (
               <>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Họ tên *</label>
+                  <label className="text-sm font-medium">
+                    {t.joinStudentDisplayName} <span className="text-destructive">*</span>
+                  </label>
                   <Input
-                    placeholder="Nguyễn Văn A"
+                    placeholder={t.joinStudentDisplayName}
                     value={studentName}
                     onChange={(e) => setStudentName(e.target.value)}
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Ngày tháng năm sinh *</label>
+                  <label className="text-sm font-medium">
+                    {t.joinStudentBirthDate} <span className="text-destructive">*</span>
+                  </label>
                   <StudentBirthDateSelects
                     idPrefix="exam-dob"
                     dobDay={dobDay}
@@ -870,7 +967,11 @@ export default function LamBaiClientPage({
                     onDayChange={setDobDay}
                     onMonthChange={setDobMonth}
                     onYearChange={setDobYear}
-                    labels={{ day: 'Ngày', month: 'Tháng', year: 'Năm' }}
+                    labels={{
+                      day: t.joinDobDayPlaceholder,
+                      month: t.joinDobMonthPlaceholder,
+                      year: t.joinDobYearPlaceholder,
+                    }}
                   />
                 </div>
               </>
@@ -878,7 +979,7 @@ export default function LamBaiClientPage({
             <p className="text-xs text-muted-foreground">{t.examOneAttemptNote}</p>
             <Button onClick={handleStartExam} disabled={!canStartExam} className="w-full">
               <Play className="h-4 w-4 mr-2" />
-              {t.examStartTestButton}
+              {isHw ? t.examStartHomeworkButton : t.examStartTestButton}
             </Button>
             {showCompactClassStart ? (
               <Button
@@ -901,6 +1002,7 @@ export default function LamBaiClientPage({
   }
 
   const canSelect = !isTimeUp
+  const isHw = exam.practiceHomework
 
   return (
     <div className="w-full min-h-[calc(100dvh-5.5rem)] bg-muted/30 pb-6">
@@ -913,7 +1015,11 @@ export default function LamBaiClientPage({
             }`}
           >
             <Clock className="h-5 w-5" />
-            {isTimeUp ? 'Hết giờ - đang nộp bài...' : `${String(remainingMin).padStart(2, '0')}:${String(remainingSec).padStart(2, '0')}`}
+            {isTimeUp
+              ? isHw
+                ? t.lamBaiTimerStickySubmittingHomework
+                : t.lamBaiTimerStickySubmittingExam
+              : `${String(remainingMin).padStart(2, '0')}:${String(remainingSec).padStart(2, '0')}`}
           </div>
         </div>
       </div>
@@ -921,14 +1027,16 @@ export default function LamBaiClientPage({
         {fiveMinuteWarning && !isTimeUp && (
           <Card className="border-amber-500/50 bg-amber-500/5">
             <CardContent className="py-3 text-center">
-              <p className="font-medium text-amber-700 dark:text-amber-400">Còn 5 phút! Em rà soát đáp án trước khi hết giờ.</p>
+              <p className="font-medium text-amber-700 dark:text-amber-400">{t.lamBaiFiveMinWarning}</p>
             </CardContent>
           </Card>
         )}
         {isTimeUp && (
           <Card className="border-amber-500/50 bg-amber-500/5">
             <CardContent className="py-3 text-center">
-              <p className="font-medium text-amber-700 dark:text-amber-400">Đã hết giờ! Bài làm đang được tự động nộp.</p>
+              <p className="font-medium text-amber-700 dark:text-amber-400">
+                {isHw ? t.lamBaiTimerTimeUpAutoSubmittingHomework : t.lamBaiTimerTimeUpAutoSubmittingExam}
+              </p>
             </CardContent>
           </Card>
         )}
@@ -938,7 +1046,8 @@ export default function LamBaiClientPage({
             <Card key={q.id}>
               <CardHeader className="pb-2">
                 <CardTitle className={`text-base ${/[┌┐└┘│├┤┬┴┼─]/.test(latexToReadable(q.question_text)) ? 'whitespace-pre-wrap font-sans' : ''}`}>
-                  Câu {q.index}. {latexToReadable(q.question_text)}
+                  {fillExamTemplate(t.lamBaiQuestionLabel, { index: String(q.index) })}{' '}
+                  {latexToReadable(q.question_text)}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -1084,10 +1193,12 @@ export default function LamBaiClientPage({
               {submitting ? (
                 <>
                   <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                  Đang nộp...
+                  {isHw ? t.homeworkSubmitSending : t.examSubmitSending}
                 </>
+              ) : isHw ? (
+                t.homeworkSubmitButton
               ) : (
-                'Gửi bài'
+                t.examSubmitButton
               )}
             </Button>
           </CardContent>

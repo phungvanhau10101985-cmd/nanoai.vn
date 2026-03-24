@@ -12,6 +12,7 @@ type SessionRow = {
   created_at: string
   class_id: string | null
   school_id: string | null
+  is_practice_homework?: boolean | null
   classes?: { name?: string | null } | Array<{ name?: string | null }> | null
   schools?: { name?: string | null } | Array<{ name?: string | null }> | null
 }
@@ -77,12 +78,17 @@ export async function GET(req: NextRequest) {
 
     const admin = getAdminClient()
     const baseUrl = resolveBaseUrl(req)
-    const { data, error } = await admin
+    const only = String(req.nextUrl.searchParams.get('only') ?? '').toLowerCase()
+    let sessionsQuery = admin
       .from('exam_sessions')
-      .select('id, code, title, duration_minutes, status, created_at, class_id, school_id, classes(name), schools(name)')
+      .select('id, code, title, duration_minutes, status, created_at, class_id, school_id, is_practice_homework, classes(name), schools(name)')
       .eq('teacher_id', user.id)
-      .order('created_at', { ascending: false })
-      .limit(100)
+    if (only === 'homework') {
+      sessionsQuery = sessionsQuery.eq('is_practice_homework', true)
+    } else if (only === 'exam') {
+      sessionsQuery = sessionsQuery.eq('is_practice_homework', false)
+    }
+    const { data, error } = await sessionsQuery.order('created_at', { ascending: false }).limit(100)
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     const sessions = (data ?? []) as SessionRow[]
@@ -115,6 +121,7 @@ export async function GET(req: NextRequest) {
       schoolId: s.school_id,
       className: String((Array.isArray(s.classes) ? s.classes[0]?.name : s.classes?.name) ?? ''),
       schoolName: String((Array.isArray(s.schools) ? s.schools[0]?.name : s.schools?.name) ?? ''),
+      practiceHomework: Boolean(s.is_practice_homework),
     }))
 
     return NextResponse.json({ items })

@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
-import { Sparkles, Copy, FileDown, RefreshCw, FileSpreadsheet, FolderOpen, BookOpen, FileText, Presentation, Trash2, Upload, ImageIcon, FileQuestion, ListChecks, ChevronDown, Users } from 'lucide-react'
+import { Sparkles, Copy, FileDown, RefreshCw, FileSpreadsheet, FolderOpen, BookOpen, FileText, Presentation, Trash2, Upload, ImageIcon, FileQuestion, ListChecks, ChevronDown, Users, NotebookPen } from 'lucide-react'
 import Link from 'next/link'
 import QRCode from 'qrcode'
 import { latexToReadable } from './lib/latex-to-readable'
@@ -186,7 +186,7 @@ export default function TaoGiaoTrinhClientPage() {
   const [lessonImages, setLessonImages] = useState<File[]>([])
   const lessonImageInputRef = useRef<HTMLInputElement>(null)
   const [createMode, setCreateMode] = useState<'textbook' | 'topic'>('textbook')
-  const [featureSection, setFeatureSection] = useState<'create' | 'library' | 'exam'>('create')
+  const [featureSection, setFeatureSection] = useState<'create' | 'library' | 'exam' | 'homework'>('create')
   const [wsStepByStepQuizCount, setWsStepByStepQuizCount] = useState(5)
   const [wsStepByStepEssayCount, setWsStepByStepEssayCount] = useState(5)
   const [wsStepByStepQuizDiff, setWsStepByStepQuizDiff] = useState<'easy' | 'medium' | 'hard'>('medium')
@@ -203,7 +203,19 @@ export default function TaoGiaoTrinhClientPage() {
   const [sgkImages, setSgkImages] = useState<File[]>([])
   const [examListLoading, setExamListLoading] = useState(false)
   const [examDeletingCode, setExamDeletingCode] = useState<string | null>(null)
+  const [homeworkListLoading, setHomeworkListLoading] = useState(false)
+  const [homeworkDeletingCode, setHomeworkDeletingCode] = useState<string | null>(null)
   const [createdExamItems, setCreatedExamItems] = useState<Array<{
+    id: string
+    code: string
+    title: string
+    status: string
+    durationMinutes: number
+    totalQuestions: number
+    createdAt: string
+    examUrl: string
+  }>>([])
+  const [createdHomeworkItems, setCreatedHomeworkItems] = useState<Array<{
     id: string
     code: string
     title: string
@@ -219,6 +231,7 @@ export default function TaoGiaoTrinhClientPage() {
     examUrl: string
     qrDataUrl: string | null
     loadingQr: boolean
+    forHomework?: boolean
   }>(null)
   const sgkSubmitLockRef = useRef(false)
   const wsStepByStepSubmitLockRef = useRef(false)
@@ -271,7 +284,7 @@ export default function TaoGiaoTrinhClientPage() {
   const loadCreatedExamItems = async () => {
     setExamListLoading(true)
     try {
-      const res = await fetch('/api/exam-session/mine', { cache: 'no-store' })
+      const res = await fetch('/api/exam-session/mine?only=exam', { cache: 'no-store' })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
         setCreatedExamItems([])
@@ -282,6 +295,23 @@ export default function TaoGiaoTrinhClientPage() {
       setCreatedExamItems([])
     } finally {
       setExamListLoading(false)
+    }
+  }
+
+  const loadCreatedHomeworkItems = async () => {
+    setHomeworkListLoading(true)
+    try {
+      const res = await fetch('/api/exam-session/mine?only=homework', { cache: 'no-store' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setCreatedHomeworkItems([])
+        return
+      }
+      setCreatedHomeworkItems(Array.isArray(data?.items) ? data.items : [])
+    } catch {
+      setCreatedHomeworkItems([])
+    } finally {
+      setHomeworkListLoading(false)
     }
   }
 
@@ -330,13 +360,17 @@ export default function TaoGiaoTrinhClientPage() {
     }
   }
 
-  const handleOpenExamPreview = async (exam: { code: string; title: string; examUrl: string }) => {
+  const handleOpenExamPreview = async (
+    exam: { code: string; title: string; examUrl: string },
+    forHomework?: boolean
+  ) => {
     setExamPreview({
       code: exam.code,
       title: exam.title,
       examUrl: exam.examUrl,
       qrDataUrl: null,
       loadingQr: true,
+      forHomework: Boolean(forHomework),
     })
     try {
       const qr = await QRCode.toDataURL(exam.examUrl, { width: 220, margin: 2 })
@@ -346,6 +380,7 @@ export default function TaoGiaoTrinhClientPage() {
         examUrl: exam.examUrl,
         qrDataUrl: qr,
         loadingQr: false,
+        forHomework: Boolean(forHomework),
       })
     } catch {
       setExamPreview((prev) => (prev ? { ...prev, loadingQr: false } : prev))
@@ -363,6 +398,56 @@ export default function TaoGiaoTrinhClientPage() {
     if (featureSection !== 'exam') return
     void loadCreatedExamItems()
   }, [featureSection])
+
+  useEffect(() => {
+    if (featureSection !== 'homework') return
+    void loadCreatedHomeworkItems()
+  }, [featureSection])
+
+  const handleDeleteCreatedHomework = async (code: string) => {
+    const ok = typeof window !== 'undefined'
+      ? window.confirm(
+          tr(
+            'Xóa bài tập về nhà này? Hành động này không thể hoàn tác.',
+            'Delete this homework? This action cannot be undone.',
+            '确定删除该家庭作业吗？此操作不可撤销。',
+            'この宿題を削除しますか？この操作は取り消せません。',
+            '이 숙제를 삭제할까요? 이 작업은 되돌릴 수 없습니다.'
+          )
+        )
+      : true
+    if (!ok) return
+    setHomeworkDeletingCode(code)
+    try {
+      const res = await fetch('/api/exam-session/mine', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        toast({
+          title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'),
+          description: String(data?.error ?? res.statusText),
+          variant: 'destructive',
+        })
+        return
+      }
+      toast({
+        title: tr('Đã xóa', 'Deleted', '已删除', '削除完了', '삭제됨'),
+        description: tr('Đã xóa bài tập về nhà.', 'Homework deleted.', '已删除家庭作业。', '宿題を削除しました。', '숙제를 삭제했습니다.'),
+      })
+      void loadCreatedHomeworkItems()
+    } catch (e) {
+      toast({
+        title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'),
+        description: e instanceof Error ? e.message : String(e),
+        variant: 'destructive',
+      })
+    } finally {
+      setHomeworkDeletingCode(null)
+    }
+  }
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -2432,6 +2517,15 @@ export default function TaoGiaoTrinhClientPage() {
               <FileQuestion className="h-4 w-4" />
               {tr('Tạo bài thi', 'Create exam', '创建测验', 'テスト作成', '시험 생성')}
             </Button>
+            <Button
+              variant={featureSection === 'homework' ? 'default' : 'outline'}
+              size="sm"
+              className="gap-1.5"
+              onClick={() => setFeatureSection('homework')}
+            >
+              <NotebookPen className="h-4 w-4" />
+              {tr('Tạo bài tập về nhà', 'Create homework', '创建家庭作业', '宿題を作成', '숙제 만들기')}
+            </Button>
           </div>
         </div>
 
@@ -3727,13 +3821,161 @@ export default function TaoGiaoTrinhClientPage() {
             </CardContent>
           </Card>
         )}
+
+        {featureSection === 'homework' && (
+          <Card className="border shadow-sm bg-white/80 backdrop-blur border-sky-200/60">
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <NotebookPen className="h-4 w-4 text-sky-600" />
+                {tr(
+                  'Tạo bài tập về nhà theo giáo trình',
+                  'Create homework by curriculum',
+                  '按课程创建家庭作业',
+                  'カリキュラムから宿題を作成',
+                  '교육과정 기반 숙제 만들기'
+                )}
+              </CardTitle>
+              <CardDescription>
+                {tr(
+                  'Giống bài thi trực tuyến nhưng không bắt tổng 100 điểm; học sinh không xem điểm sau khi nộp. Có thể gán vào lớp và phiếu như bài thi.',
+                  'Like the online exam but no 100-point total; students do not see scores after submit. Attach to classes and worksheets like exams.',
+                  '与在线测验相同，但不要求总分100分；学生提交后不显示成绩。可像测验一样关联班级与练习单。',
+                  'オンライン試験と同様ですが合計100点は不要。提出後も生徒に点数は表示しません。クラスやワークシートへの割当は試験と同様です。',
+                  '온라인 시험과 같으나 총 100점은 필요 없고 제출 후 학생에게 점수를 보여주지 않습니다. 학급·워크시트 연결은 시험과 같습니다.'
+                )}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <Link href="/tao-bai-tap-ve-nha">
+                  <Button className="gap-2 bg-sky-600 hover:bg-sky-700 text-white">
+                    <NotebookPen className="h-4 w-4" />
+                    {tr(
+                      'Mở trang Tạo bài tập về nhà',
+                      'Open homework creator',
+                      '打开家庭作业创建页',
+                      '宿題作成ページを開く',
+                      '숙제 만들기 페이지 열기'
+                    )}
+                  </Button>
+                </Link>
+
+                <div className="rounded border p-3 space-y-2 bg-background">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-medium">
+                      {tr(
+                        'Danh sách bài tập về nhà đã tạo',
+                        'Created homework',
+                        '已创建的家庭作业',
+                        '作成した宿題',
+                        '만든 숙제'
+                      )}
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void loadCreatedHomeworkItems()}
+                      disabled={homeworkListLoading}
+                    >
+                      {homeworkListLoading ? (
+                        <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-3.5 w-3.5" />
+                      )}
+                      {tr('Làm mới', 'Refresh', '刷新', '更新', '새로고침')}
+                    </Button>
+                  </div>
+                  {homeworkListLoading ? (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                      {tr('Đang tải...', 'Loading...', '加载中...', '読み込み中...', '불러오는 중...')}
+                    </div>
+                  ) : createdHomeworkItems.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      {tr(
+                        'Chưa có bài tập về nhà nào.',
+                        'No homework yet.',
+                        '暂无家庭作业。',
+                        'まだ宿題がありません。',
+                        '아직 숙제가 없습니다.'
+                      )}
+                    </p>
+                  ) : (
+                    <div className="space-y-2 max-h-64 overflow-y-auto">
+                      {createdHomeworkItems.map((row) => (
+                        <div key={row.id} className="rounded border p-2 flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium truncate">
+                              {row.title
+                                || tr('Bài tập về nhà', 'Homework', '家庭作业', '宿題', '숙제')}{' '}
+                              - {row.code}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {row.totalQuestions} {tr('câu', 'questions', '题', '問', '문항')} - {row.durationMinutes}{' '}
+                              {tr('phút', 'minutes', '分钟', '分', '분')}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                void handleOpenExamPreview(
+                                  {
+                                    code: row.code,
+                                    title:
+                                      row.title
+                                      || tr('Bài tập về nhà', 'Homework', '家庭作业', '宿題', '숙제'),
+                                    examUrl: row.examUrl,
+                                  },
+                                  true
+                                )
+                              }
+                            >
+                              {tr('Mở', 'Open', '打开', '開く', '열기')}
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => void handleDeleteCreatedHomework(row.code)}
+                              disabled={homeworkDeletingCode === row.code}
+                              className="gap-1.5"
+                            >
+                              {homeworkDeletingCode === row.code ? (
+                                <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-3.5 w-3.5" />
+                              )}
+                              {tr('Xóa', 'Delete', '删除', '削除', '삭제')}
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
       {examPreview && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
           <div className="w-full max-w-md rounded-lg border bg-background shadow-xl">
             <div className="px-4 py-3 border-b flex items-center justify-between">
               <p className="text-sm font-semibold">
-                {tr('Quét mã QR làm bài', 'Scan QR to take exam', '扫码参加测验', 'QRをスキャンして受験', 'QR 스캔으로 시험 응시')}
+                {examPreview.forHomework
+                  ? tr(
+                      'Quét mã QR làm bài tập',
+                      'Scan QR to do homework',
+                      '扫码完成家庭作业',
+                      'QRで宿題に取り組む',
+                      'QR로 숙제하기'
+                    )
+                  : tr('Quét mã QR làm bài', 'Scan QR to take exam', '扫码参加测验', 'QRをスキャンして受験', 'QR 스캔으로 시험 응시')}
               </p>
               <Button type="button" variant="ghost" size="sm" onClick={() => setExamPreview(null)}>
                 {tr('Đóng', 'Close', '关闭', '閉じる', '닫기')}
