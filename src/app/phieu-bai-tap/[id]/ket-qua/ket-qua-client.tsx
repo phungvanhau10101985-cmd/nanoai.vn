@@ -37,13 +37,11 @@ function markdownToHtml(md: string): string {
 export default function KetQuaClient({
   worksheet,
   submission,
-  classId: _classId,
   t,
   questionBadge,
 }: {
   worksheet: Worksheet
   submission: Submission
-  classId: string
   t: Dictionary['classes']
   questionBadge: string
 }) {

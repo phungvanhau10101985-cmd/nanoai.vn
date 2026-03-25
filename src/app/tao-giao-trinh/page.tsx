@@ -1,5 +1,4 @@
 import { createClient } from '@/lib/supabase/server'
-import { redirect } from 'next/navigation'
 import { redirectToLogin } from '@/lib/auth/login-redirect'
 import { getUserOrBypass } from '@/lib/auth'
 import TaoGiaoTrinhClientPage from './tao-giao-trinh-client-page'
@@ -8,6 +7,7 @@ import { JsonLd } from '@/components/seo-json-ld'
 import { getFeatureSeo, buildFeatureFaqJsonLd } from '@/lib/feature-seo'
 import { FeatureSeoSection } from '@/components/feature-seo-section'
 import { CreationToolPageShell } from '@/components/layout/creation-tool-page-shell'
+import { getServerDictionary } from '@/lib/i18n/server'
 
 const seo = getFeatureSeo('tao-giao-trinh')
 
@@ -25,13 +25,14 @@ export default async function TaoGiaoTrinhPage() {
 
   const jsonLd = buildJsonLdService(seo.serviceName, seo.serviceDescription, `${SITE_URL}${seo.path}`)
   const faqJsonLd = buildFeatureFaqJsonLd(seo)
+  const { locale } = getServerDictionary()
 
   return (
     <div className="app-shell">
       <JsonLd data={jsonLd} />
       <JsonLd data={faqJsonLd} />
       <CreationToolPageShell currentHref={seo.path}>
-        <TaoGiaoTrinhClientPage />
+        <TaoGiaoTrinhClientPage initialWebLocale={locale} />
       </CreationToolPageShell>
       <FeatureSeoSection seo={seo} />
     </div>

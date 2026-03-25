@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { redirect, notFound } from 'next/navigation'
+import { notFound } from 'next/navigation'
 import { redirectToLogin } from '@/lib/auth/login-redirect'
 import { getUserOrBypass } from '@/lib/auth'
 import { buildMetadata } from '@/lib/seo'
@@ -77,7 +77,6 @@ export default async function KetQuaPage({
           content_markdown: displayMarkdown,
         }}
         submission={submission}
-        classId={classId}
         t={t.classes}
         questionBadge={t.worksheetSolutionPage.questionBadge}
       />

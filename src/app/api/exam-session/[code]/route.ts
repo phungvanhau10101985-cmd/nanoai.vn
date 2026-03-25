@@ -4,14 +4,26 @@ import { createClient as createServerClient } from '@/lib/supabase/server'
 import { resolveWebLocaleFromAcceptLanguage } from '@/lib/i18n/config'
 import { resolveDefaultExamSessionTitle } from '@/lib/i18n/exam-session-default-titles'
 import { getExamAttemptFeedbackWithMeta, parseExamGradingMeta } from '@/lib/exam-feedback'
-import { shuffleArray, signExamLayoutToken } from '@/lib/exam-layout-token'
+import { signExamLayoutToken } from '@/lib/exam-layout-token'
 import { getClassMemberExamIdentity } from '@/lib/lop/require-class-enrollment'
+import {
+  parseLayoutSnapshot,
+  rebuildPublicFromSnapshot,
+  type ExamQuestionRow,
+} from '@/lib/exam-session/student-exam-layout'
+import { buildActiveAttemptSessionJson } from '@/lib/exam-session/student-exam-session-payload'
+import {
+  tryFinalizeOverdueExamAttempt,
+  isServerDeadlinePassed,
+  resolveDeadlineEndMs,
+  fetchAlreadySubmittedPayloadForAttempt,
+} from '@/lib/exam-session/finalize-overdue-exam-attempt'
 
 const NO_STORE_HEADERS = {
   'Cache-Control': 'no-store, max-age=0, must-revalidate',
 }
 
-/** Lấy thông tin phiên thi và câu hỏi theo mã (public – học sinh mở link). */
+/** Lấy thông tin phiên thi theo mã. Câu hỏi chỉ trả khi đã có attempt đang làm (GET resume) hoặc sau POST begin-attempt. */
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ code: string }> }
@@ -62,15 +74,27 @@ export async function GET(
 
     const { data: priorAttempt, error: priorErr } = await supabase
       .from('exam_attempts')
-      .select('score, max_score, grading_meta')
+      .select(
+        'id, submitted_at, score, max_score, grading_meta, layout_snapshot, answers, essay_submission, student_name, student_code, started_at, deadline_at'
+      )
       .eq('session_id', session.id)
       .eq('user_id', user.id)
       .maybeSingle()
 
-    if (!priorErr && priorAttempt) {
-      const sc = Number(priorAttempt.score ?? 0)
-      const mx = Number(priorAttempt.max_score ?? 0)
-      const meta = parseExamGradingMeta(priorAttempt.grading_meta)
+    let attemptRow = !priorErr ? priorAttempt : null
+
+    if (attemptRow && attemptRow.submitted_at == null) {
+      const snap = parseLayoutSnapshot(attemptRow.layout_snapshot)
+      if (!snap) {
+        await supabase.from('exam_attempts').delete().eq('id', attemptRow.id)
+        attemptRow = null
+      }
+    }
+
+    if (attemptRow && attemptRow.submitted_at != null) {
+      const sc = Number(attemptRow.score ?? 0)
+      const mx = Number(attemptRow.max_score ?? 0)
+      const meta = parseExamGradingMeta(attemptRow.grading_meta)
       const feedback = getExamAttemptFeedbackWithMeta(sc, mx, meta)
       const durationMin = typeof session.duration_minutes === 'number' ? session.duration_minutes : 15
       return NextResponse.json(
@@ -86,6 +110,7 @@ export async function GET(
           comment: feedback.comment,
           shareHint: feedback.shareHint,
           scoringBreakdown: meta ?? undefined,
+          submittedDueToServerDeadline: meta?.submittedByServerDeadline === true,
         },
         { headers: NO_STORE_HEADERS }
       )
@@ -134,66 +159,127 @@ export async function GET(
       }
     }
 
-    const { data: questions, error: questionsErr } = await supabase
-      .from('exam_questions')
-      .select('id, question_text, options, correct_index, source, order')
-      .eq('session_id', session.id)
-      .order('order', { ascending: true })
+    const durationMin = typeof session.duration_minutes === 'number' ? session.duration_minutes : 15
+    const serverNowMs = Date.now()
 
-    if (questionsErr || !questions?.length) {
+    if (attemptRow && attemptRow.submitted_at == null) {
+      const snap = parseLayoutSnapshot(attemptRow.layout_snapshot)
+      if (snap) {
+        if (
+          isServerDeadlinePassed(
+            attemptRow.deadline_at,
+            attemptRow.started_at,
+            durationMin,
+            serverNowMs
+          )
+        ) {
+          const finalized = await tryFinalizeOverdueExamAttempt({
+            supabase,
+            sessionId: String(session.id),
+            sessionTitle: resolvedSessionTitle,
+            durationMinutes: durationMin,
+            practiceHomework,
+            attemptId: String(attemptRow.id),
+            layoutSnapshot: attemptRow.layout_snapshot,
+            answers: attemptRow.answers,
+            essaySubmission: attemptRow.essay_submission,
+            serverNowMs,
+          })
+          if (finalized) {
+            return NextResponse.json(
+              {
+                alreadySubmitted: true,
+                practiceHomework: finalized.practiceHomework,
+                title: finalized.title,
+                durationMinutes: finalized.durationMinutes,
+                score: finalized.score,
+                maxScore: finalized.maxScore,
+                grade10: finalized.grade10,
+                scoreOn100: finalized.scoreOn100,
+                comment: finalized.comment,
+                shareHint: finalized.shareHint,
+                scoringBreakdown: finalized.scoringBreakdown,
+                submittedDueToServerDeadline: true,
+              },
+              { headers: NO_STORE_HEADERS }
+            )
+          }
+          const reopened = await fetchAlreadySubmittedPayloadForAttempt(
+            supabase,
+            String(attemptRow.id),
+            practiceHomework,
+            resolvedSessionTitle,
+            durationMin
+          )
+          if (reopened) {
+            return NextResponse.json(reopened, { headers: NO_STORE_HEADERS })
+          }
+          return NextResponse.json(
+            {
+              error:
+                'Đã hết giờ làm bài nhưng hệ thống chưa ghi nhận xong. Vui lòng tải lại trang sau vài giây.',
+            },
+            { status: 503, headers: NO_STORE_HEADERS }
+          )
+        }
+
+        const { data: questions, error: questionsErr } = await supabase
+          .from('exam_questions')
+          .select('id, question_text, options, correct_index, source, order')
+          .eq('session_id', session.id)
+          .order('order', { ascending: true })
+
+        if (!questionsErr && questions?.length) {
+          const publicQuestions = rebuildPublicFromSnapshot(questions as ExamQuestionRow[], snap)
+          if (publicQuestions?.length) {
+            const endMs =
+              resolveDeadlineEndMs(
+                attemptRow.deadline_at,
+                attemptRow.started_at,
+                durationMin
+              ) ?? serverNowMs + durationMin * 60_000
+            const expJwt = Math.max(300, Math.floor((endMs - serverNowMs) / 1000) + 7200)
+            const layoutToken = await signExamLayoutToken(
+              { sessionId: String(session.id), userId: user.id, optionPerms: snap.optionPerms },
+              expJwt
+            )
+            return NextResponse.json(
+              buildActiveAttemptSessionJson({
+                session,
+                resolvedTitle: resolvedSessionTitle,
+                practiceHomework,
+                className,
+                schoolName,
+                classExamIdentity,
+                layoutToken,
+                publicQuestions,
+                attemptRow,
+                resumeInProgress: true,
+              }),
+              { headers: NO_STORE_HEADERS }
+            )
+          }
+        }
+      }
+    }
+
+    const { data: anyQuestion, error: anyQErr } = await supabase
+      .from('exam_questions')
+      .select('id')
+      .eq('session_id', session.id)
+      .limit(1)
+      .maybeSingle()
+
+    if (anyQErr || !anyQuestion) {
       return NextResponse.json(
         { error: 'Bài thi chưa có câu hỏi.' },
         { status: 404, headers: NO_STORE_HEADERS }
       )
     }
 
-    type QRow = (typeof questions)[number]
-    const isEssayRow = (q: QRow) =>
-      String(q.source ?? '').toLowerCase().includes('essay') ||
-      !Array.isArray(q.options) ||
-      (q.options as unknown[]).length < 2
-
-    const quizRows = (questions ?? []).filter((q) => !isEssayRow(q))
-    const essayRows = (questions ?? []).filter((q) => isEssayRow(q))
-    const orderedRows = [...shuffleArray(quizRows), ...shuffleArray(essayRows)]
-
-    const optionPerms: Record<string, number[]> = {}
-    const publicQuestions = orderedRows.map((q, i) => {
-      const rawOpts = Array.isArray(q.options) ? (q.options as string[]) : []
-      if (rawOpts.length >= 2) {
-        const n = rawOpts.length
-        const perm = shuffleArray([...Array.from({ length: n }, (_, k) => k)])
-        const displayOpts = perm.map((origIdx) => String(rawOpts[origIdx] ?? ''))
-        optionPerms[String(q.id)] = perm
-        return {
-          id: q.id,
-          index: i + 1,
-          type: 'quiz' as const,
-          question_text: q.question_text,
-          options: displayOpts,
-        }
-      }
-      return {
-        id: q.id,
-        index: i + 1,
-        type: 'essay' as const,
-        question_text: q.question_text,
-        options: [] as string[],
-      }
-    })
-
-    const durationMin = typeof session.duration_minutes === 'number' ? session.duration_minutes : 15
-    const layoutToken = await signExamLayoutToken(
-      {
-        sessionId: String(session.id),
-        userId: user.id,
-        optionPerms,
-      },
-      Math.max(86400, durationMin * 180 + 7200)
-    )
-
     return NextResponse.json(
       {
+        mustBegin: true,
         code: session.code,
         title: resolvedSessionTitle,
         durationMinutes: session.duration_minutes,
@@ -202,8 +288,6 @@ export async function GET(
         className,
         schoolName,
         classExamIdentity,
-        layoutToken,
-        questions: publicQuestions,
         practiceHomework,
       },
       { headers: NO_STORE_HEADERS }

@@ -2,55 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import { verifyExamLayoutToken } from '@/lib/exam-layout-token'
-import { getExamAttemptFeedbackWithMeta, type ExamGradingMeta } from '@/lib/exam-feedback'
+import { getExamAttemptFeedbackWithMeta } from '@/lib/exam-feedback'
 import { CLASS_ENROLLMENT_ERROR_VI, hasCompleteClassEnrollment } from '@/lib/lop/require-class-enrollment'
 import { isValidStudentDobIso } from '@/lib/student-dob'
-import {
-  EXAM_ESSAY_IMAGE_RETENTION_DAYS,
-  publicExamEssayImageUrlPrefix,
-} from '@/lib/exam-essay-config'
+import type { ExamLayoutSnapshotV1 } from '@/lib/exam-session/student-exam-layout'
+import { gradeExamFromStoredAnswers } from '@/lib/exam-session/grade-exam-from-sources'
+import { isServerDeadlinePassed } from '@/lib/exam-session/finalize-overdue-exam-attempt'
 
-const MAX_ESSAY_TEXT = 12000
-const MAX_IMAGES_PER_ESSAY = 10
-
-function normalizeEssaySubmission(
-  raw: unknown,
-  essayQuestionIds: Set<string>,
-  urlPrefix: string
-): Record<string, { text: string; imageUrls: string[] }> {
-  const out: Record<string, { text: string; imageUrls: string[] }> = {}
-  if (!raw || typeof raw !== 'object') return out
-  const o = raw as Record<string, unknown>
-  for (const qid of essayQuestionIds) {
-    const v = o[qid]
-    if (!v || typeof v !== 'object') continue
-    const rec = v as Record<string, unknown>
-    const text = String(rec.text ?? '').trim().slice(0, MAX_ESSAY_TEXT)
-    const urlsRaw = rec.imageUrls
-    const imageUrls: string[] = []
-    if (Array.isArray(urlsRaw)) {
-      for (const u of urlsRaw) {
-        const s = String(u ?? '').trim()
-        if (!s.startsWith(urlPrefix)) continue
-        if (imageUrls.length >= MAX_IMAGES_PER_ESSAY) break
-        if (!imageUrls.includes(s)) imageUrls.push(s)
-      }
-    }
-    out[qid] = { text, imageUrls }
-  }
-  return out
-}
-
-function essaySubmissionHasImageUrls(
-  sub: Record<string, { text: string; imageUrls: string[] }>
-): boolean {
-  for (const v of Object.values(sub)) {
-    if (v.imageUrls.length > 0) return true
-  }
-  return false
-}
-
-/** Nộp bài – điểm TN = tổng điểm các câu đúng (theo trọng số `points` từng câu); TL chưa chấm. Mỗi tài khoản một lần. */
+/** Nộp bài – điểm TN theo trọng số; TL chưa chấm. Một attempt / user; hết giờ server thì từ chối (tải lại để hệ thống nộp tự động). */
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ code: string }> }
@@ -91,7 +50,7 @@ export async function POST(
 
     const { data: session, error: sessionErr } = await supabase
       .from('exam_sessions')
-      .select('id, class_id, school_id, is_practice_homework')
+      .select('id, class_id, school_id, is_practice_homework, duration_minutes')
       .eq('code', code.toUpperCase())
       .eq('status', 'active')
       .single()
@@ -101,6 +60,8 @@ export async function POST(
     }
 
     const practiceHomework = Boolean((session as { is_practice_homework?: boolean }).is_practice_homework)
+    const durationMin =
+      typeof session.duration_minutes === 'number' ? session.duration_minutes : 15
 
     const layout = await verifyExamLayoutToken(layoutToken)
     if (!layout || layout.sessionId !== String(session.id) || layout.userId !== user.id) {
@@ -120,15 +81,44 @@ export async function POST(
       }
     }
 
-    const { data: existing } = await supabase
+    const { data: attemptRow } = await supabase
       .from('exam_attempts')
-      .select('id')
+      .select('id, submitted_at, deadline_at, started_at')
       .eq('session_id', session.id)
       .eq('user_id', user.id)
-      .limit(1)
+      .maybeSingle()
 
-    if (existing?.length) {
+    if (attemptRow?.submitted_at != null) {
       return NextResponse.json({ error: 'Bạn đã nộp bài thi này rồi. Mỗi tài khoản chỉ được làm một lần.' }, { status: 409 })
+    }
+
+    if (!attemptRow?.id) {
+      return NextResponse.json(
+        {
+          error:
+            'Chưa có phiên làm bài. Vui lòng tải lại trang và bấm Bắt đầu để làm bài.',
+        },
+        { status: 400 }
+      )
+    }
+
+    const serverNowMs = Date.now()
+    if (
+      isServerDeadlinePassed(
+        attemptRow.deadline_at,
+        attemptRow.started_at,
+        durationMin,
+        serverNowMs
+      )
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            'Đã hết thời gian làm bài trên hệ thống. Vui lòng tải lại trang để xem kết quả đã được ghi nhận.',
+          errorCode: 'exam_deadline_passed',
+        },
+        { status: 400 }
+      )
     }
 
     const { data: questions } = await supabase
@@ -136,145 +126,62 @@ export async function POST(
       .select('id, correct_index, options, points')
       .eq('session_id', session.id)
 
-    const readQuestionPoints = (row: { points?: unknown }): number => {
-      const raw = row.points
-      const p = typeof raw === 'number' ? raw : Number(raw)
-      if (!Number.isFinite(p) || p < 0) return 1
-      return Math.min(100, Math.round(p * 100) / 100)
+    const layoutSnap: ExamLayoutSnapshotV1 = {
+      v: 1,
+      questionOrder: [],
+      optionPerms: layout.optionPerms,
     }
 
-    const qMap = new Map((questions ?? []).map((q) => [String(q.id), q]))
-    let correctCount = 0
-    const scorableQuestionIds = new Set(
-      (questions ?? [])
-        .filter((q) => {
-          const opts = Array.isArray(q.options) ? q.options : []
-          if (opts.length < 2) return false
-          const ci = typeof q.correct_index === 'number' ? q.correct_index : Number(q.correct_index)
-          return Number.isFinite(ci)
-        })
-        .map((q) => String(q.id))
+    const graded = gradeExamFromStoredAnswers(
+      questions ?? [],
+      layoutSnap,
+      answers as Record<string, unknown>,
+      body?.essaySubmission
     )
-    const essayQuestionIds = new Set(
-      (questions ?? [])
-        .filter((q) => !scorableQuestionIds.has(String(q.id)))
-        .map((q) => String(q.id))
-    )
-
-    const urlPrefix = publicExamEssayImageUrlPrefix()
-    const essaySubmission = normalizeEssaySubmission(body?.essaySubmission, essayQuestionIds, urlPrefix)
-    for (const qid of essayQuestionIds) {
-      const textFromAnswer =
-        typeof (answers as Record<string, unknown>)[qid] === 'string'
-          ? String((answers as Record<string, unknown>)[qid]).trim().slice(0, MAX_ESSAY_TEXT)
-          : ''
-      if (!essaySubmission[qid]) essaySubmission[qid] = { text: '', imageUrls: [] }
-      if (!essaySubmission[qid].text && textFromAnswer) essaySubmission[qid].text = textFromAnswer
+    if ('error' in graded) {
+      return NextResponse.json({ error: graded.error }, { status: 400 })
     }
 
-    for (const qid of Array.from(scorableQuestionIds)) {
-      const row = qMap.get(qid)
-      const opts = row && Array.isArray(row.options) ? row.options : []
-      const perm = layout.optionPerms[qid]
-      if (!perm || !Array.isArray(perm) || perm.length !== opts.length) {
-        return NextResponse.json(
-          {
-            error:
-              'Dữ liệu đề thi không khớp (layoutToken). Vui lòng tải lại trang và làm lại từ đầu.',
-          },
-          { status: 400 }
-        )
-      }
-    }
+    const feedback = getExamAttemptFeedbackWithMeta(graded.finalScore, graded.maxScore, graded.gradingMeta)
 
-    let quizPointsMax = 0
-    let essayPointsMax = 0
-    for (const rawQ of questions ?? []) {
-      const qid = String(rawQ.id)
-      const w = readQuestionPoints(rawQ as { points?: unknown })
-      if (scorableQuestionIds.has(qid)) quizPointsMax += w
-      else essayPointsMax += w
-    }
-    quizPointsMax = Math.round(quizPointsMax * 100) / 100
-    essayPointsMax = Math.round(essayPointsMax * 100) / 100
+    const submittedIso = new Date().toISOString()
+    const { data: updatedRows, error: updateErr } = await supabase
+      .from('exam_attempts')
+      .update({
+        student_name: studentName || null,
+        student_code: studentDob || null,
+        answers,
+        essay_submission: graded.essaySubmission,
+        score: graded.finalScore,
+        max_score: graded.maxScore,
+        grading_meta: graded.gradingMeta,
+        submitted_at: submittedIso,
+      })
+      .eq('id', attemptRow.id)
+      .is('submitted_at', null)
+      .select('id')
 
-    let quizPointsEarned = 0
-    for (const qid of scorableQuestionIds) {
-      const q = qMap.get(qid)
-      if (!q) continue
-      const userAnswer = (answers as Record<string, unknown>)[qid]
-      const dbOpts = Array.isArray(q.options) ? q.options : []
-      const nOpt = dbOpts.length
-      const ciRaw = typeof q.correct_index === 'number' ? q.correct_index : Number(q.correct_index ?? 0)
-      const safeCorrect =
-        nOpt >= 2 && Number.isFinite(ciRaw)
-          ? Math.max(0, Math.min(nOpt - 1, Math.floor(ciRaw)))
-          : 0
-      const displayIdx = typeof userAnswer === 'number' ? userAnswer : parseInt(String(userAnswer), 10)
-      if (!Number.isFinite(displayIdx)) continue
-      const perm = layout.optionPerms[qid]
-      let userOriginal = displayIdx
-      if (perm && Array.isArray(perm) && perm.length === dbOpts.length && dbOpts.length >= 2) {
-        if (displayIdx < 0 || displayIdx >= perm.length) continue
-        userOriginal = perm[displayIdx]!
-      }
-      if (userOriginal === safeCorrect) {
-        correctCount++
-        quizPointsEarned += readQuestionPoints(q as { points?: unknown })
-      }
-    }
-
-    const maxScore = Math.round((quizPointsMax + essayPointsMax) * 100) / 100
-    const roundedEarned = Math.round(quizPointsEarned * 100) / 100
-    const finalScore = Math.min(maxScore, roundedEarned)
-    const gradingMeta: ExamGradingMeta = {
-      quizCorrect: correctCount,
-      quizTotal: scorableQuestionIds.size,
-      quizPoints: roundedEarned,
-      quizPointsMax,
-      essayPointsMax,
-      ...(essaySubmissionHasImageUrls(essaySubmission)
-        ? {
-            essayImageUrlsExpireAt: new Date(
-              Date.now() + EXAM_ESSAY_IMAGE_RETENTION_DAYS * 86400000
-            ).toISOString(),
-          }
-        : {}),
-    }
-
-    const feedback = getExamAttemptFeedbackWithMeta(finalScore, maxScore, gradingMeta)
-
-    const { error: insertErr } = await supabase.from('exam_attempts').insert({
-      session_id: session.id,
-      user_id: user.id,
-      class_id: session.class_id ?? null,
-      school_id: session.school_id ?? null,
-      student_name: studentName || null,
-      student_code: studentDob || null,
-      answers,
-      essay_submission: essaySubmission,
-      score: finalScore,
-      max_score: maxScore,
-      grading_meta: gradingMeta,
-      started_at: new Date().toISOString(),
-      submitted_at: new Date().toISOString(),
-    })
-
-    if (insertErr) {
-      console.error('[exam-submit] Insert failed:', insertErr.message)
+    if (updateErr) {
+      console.error('[exam-submit] Update failed:', updateErr.message)
       return NextResponse.json({ error: 'Lưu bài làm thất bại.' }, { status: 500 })
+    }
+    if (!updatedRows?.length) {
+      return NextResponse.json(
+        { error: 'Bạn đã nộp bài thi này rồi. Mỗi tài khoản chỉ được làm một lần.' },
+        { status: 409 }
+      )
     }
 
     return NextResponse.json({
       success: true,
       practiceHomework,
-      score: finalScore,
-      maxScore,
+      score: graded.finalScore,
+      maxScore: graded.maxScore,
       grade10: feedback.grade10,
       scoreOn100: feedback.scoreOn100,
       comment: feedback.comment,
       shareHint: feedback.shareHint,
-      scoringBreakdown: gradingMeta,
+      scoringBreakdown: graded.gradingMeta,
     })
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)

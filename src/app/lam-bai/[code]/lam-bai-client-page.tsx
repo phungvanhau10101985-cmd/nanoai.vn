@@ -17,6 +17,16 @@ import { computeExamScoresOn100And10 } from '@/lib/exam-feedback'
 import { compressEssayImageForUpload } from '@/lib/exam-essay-client-image'
 import { EXAM_ESSAY_IMAGE_RETENTION_DAYS, formatExamEssayImageExpireAtForUi } from '@/lib/exam-essay-config'
 import { cn } from '@/lib/utils'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 
 const EXAM_ESSAY_MAX_IMAGES = 10
 const ALLOWED_ESSAY_IMAGE_MIME = new Set(['image/jpeg', 'image/png', 'image/webp'])
@@ -60,6 +70,99 @@ function resolveGrade10FromApi(score: number, maxScore: number, raw: unknown): n
 
 function normalizeName(input: string): string {
   return String(input || '').replace(/\s+/g, ' ').trim()
+}
+
+/** API 500 begin-attempt: kèm errorCode / errorDetails để hỗ trợ chẩn đoán (migration DB, v.v.). */
+function formatExamBeginAttemptErrorMessage(payload: Record<string, unknown>, fallback: string): string {
+  const main = typeof payload.error === 'string' ? payload.error : fallback
+  const d = typeof payload.errorDetails === 'string' ? payload.errorDetails.trim() : ''
+  const c = typeof payload.errorCode === 'string' ? payload.errorCode.trim() : ''
+  const hint = typeof payload.migrationHint === 'string' ? payload.migrationHint.trim() : ''
+  const parts: string[] = []
+  if (c) parts.push(c)
+  if (d) parts.push(d)
+  if (hint) parts.push(hint)
+  if (parts.length === 0) return main
+  return `${main} — ${parts.join(' | ')}`
+}
+
+function parseActiveExamApiPayload(
+  data: Record<string, unknown>,
+  defaultTitleExam: string,
+  defaultTitleHw: string
+): {
+  layoutToken: string
+  questions: Question[]
+  title: string
+  durationMinutes: number
+  practiceHomework: boolean
+  answers: Record<string, number | string>
+  essayImageUrls: Record<string, string[]>
+  startedAtMs: number
+  resumeInProgress: boolean
+  /** Đồng bộ đồng hồ server: serverNow - clientNow lúc parse */
+  serverOffsetMs: number
+  /** Mốc hết giờ làm bài (UTC ms) */
+  deadlineAtMs: number
+} | null {
+  const layoutTok = typeof data.layoutToken === 'string' ? data.layoutToken.trim() : ''
+  const questions = (Array.isArray(data.questions) ? data.questions : []) as Question[]
+  if (!layoutTok || questions.length === 0) return null
+  const loadedIsHomework = data.practiceHomework === true
+  const title =
+    (typeof data.title === 'string' && data.title.trim()) ||
+    (loadedIsHomework ? defaultTitleHw : defaultTitleExam)
+  const durationMinutes =
+    typeof data.durationMinutes === 'number' && Number.isFinite(data.durationMinutes)
+      ? data.durationMinutes
+      : 15
+  const savedRaw = data.savedAnswers
+  const nextAnswers: Record<string, number | string> = {}
+  if (savedRaw && typeof savedRaw === 'object' && !Array.isArray(savedRaw)) {
+    for (const [k, v] of Object.entries(savedRaw as Record<string, unknown>)) {
+      if (typeof v === 'number' && Number.isFinite(v)) nextAnswers[k] = v
+      else if (typeof v === 'string') nextAnswers[k] = v
+      else if (v != null) nextAnswers[k] = String(v)
+    }
+  }
+  const essaySub = data.essaySubmission
+  const nextImages: Record<string, string[]> = {}
+  if (essaySub && typeof essaySub === 'object' && !Array.isArray(essaySub)) {
+    for (const [qid, rec] of Object.entries(essaySub as Record<string, unknown>)) {
+      if (!rec || typeof rec !== 'object') continue
+      const o = rec as Record<string, unknown>
+      if (typeof o.text === 'string' && o.text.trim()) nextAnswers[qid] = o.text.trim()
+      if (Array.isArray(o.imageUrls)) {
+        nextImages[qid] = o.imageUrls.filter((u): u is string => typeof u === 'string')
+      }
+    }
+  }
+  let startedAtMs = Date.now()
+  const iso = typeof data.examStartedAtIso === 'string' ? data.examStartedAtIso.trim() : ''
+  const parsed = Date.parse(iso)
+  if (Number.isFinite(parsed)) startedAtMs = parsed
+  const clientT = Date.now()
+  const serverNowIso = typeof data.serverNowIso === 'string' ? data.serverNowIso.trim() : ''
+  const serverNowParsed = serverNowIso ? Date.parse(serverNowIso) : clientT
+  const serverOffsetMs = Number.isFinite(serverNowParsed) ? serverNowParsed - clientT : 0
+  const deadlineIso = typeof data.deadlineAtIso === 'string' ? data.deadlineAtIso.trim() : ''
+  let deadlineAtMs = deadlineIso ? Date.parse(deadlineIso) : NaN
+  if (!Number.isFinite(deadlineAtMs)) {
+    deadlineAtMs = startedAtMs + durationMinutes * 60_000
+  }
+  return {
+    layoutToken: layoutTok,
+    questions,
+    title,
+    durationMinutes,
+    practiceHomework: loadedIsHomework,
+    answers: nextAnswers,
+    essayImageUrls: nextImages,
+    startedAtMs,
+    resumeInProgress: data.resumeInProgress === true,
+    serverOffsetMs,
+    deadlineAtMs,
+  }
 }
 
 type ExamScoringBreakdown = {
@@ -169,6 +272,7 @@ export default function LamBaiClientPage({
     shareHint: string
     scoringBreakdown: ExamScoringBreakdown | null
     practiceHomework?: boolean
+    submittedDueToServerDeadline?: boolean
   } | null>(null)
   /** Kết quả tải từ server (đã nộp trước đó, ví dụ thiết bị khác) — hiển thị thông báo kèm kết quả */
   const [priorSubmissionResult, setPriorSubmissionResult] = useState(false)
@@ -180,13 +284,64 @@ export default function LamBaiClientPage({
   const fiveMinuteWarnedRef = useRef(false)
   /** Sau khi tham gia lớp từ cổng đề thi — tải lại đề xong thì vào làm bài luôn (không chờ bấm Bắt đầu). */
   const autoStartExamAfterEnrollRef = useRef(false)
+  /** Họ tên + DOB vừa gửi khi join lớp — dùng cho POST begin ngay sau GET mustBegin (tránh state chưa kịp commit). */
+  const postEnrollAutoBeginIdentityRef = useRef<{ name: string; dob: string } | null>(null)
+  const [beginSubmitting, setBeginSubmitting] = useState(false)
+  const [showResumeNotice, setShowResumeNotice] = useState(false)
   const submitResultRef = useRef<HTMLDivElement>(null)
   const [fiveMinuteWarning, setFiveMinuteWarning] = useState(false)
+  /** HS bấm Quay lại / popstate — bắt xác nhận nộp bài */
+  const [exitSubmitDialogOpen, setExitSubmitDialogOpen] = useState(false)
+  const examHistoryTrapPushedRef = useRef(false)
+  /** Đếm ngược theo mốc `deadline_at` server */
+  const examDeadlineAtMsRef = useRef<number | null>(null)
+  const timeSyncOffsetMsRef = useRef(0)
   /** Đề gắn lớp + đã có member_display_name & birth_date — không bắt nhập lại form trước khi bấm Bắt đầu */
   const [identityFromClassRoster, setIdentityFromClassRoster] = useState(false)
   /** RSC truyền `t` object mới mỗi render — không dùng làm deps useEffect tải phiên (tránh loading nhấp nháy). */
   const tRef = useRef(t)
   tRef.current = t
+
+  const applyAlreadySubmittedPayload = useCallback(
+    (data: Record<string, unknown>, priorSavedEarlier: boolean) => {
+      const tc = tRef.current
+      autoStartExamAfterEnrollRef.current = false
+      postEnrollAutoBeginIdentityRef.current = null
+      setIdentityFromClassRoster(false)
+      setEnrollmentGate(null)
+      setLayoutToken(null)
+      setShowResumeNotice(false)
+      examDeadlineAtMsRef.current = null
+      timeSyncOffsetMsRef.current = 0
+      const practiceHw = data.practiceHomework === true
+      const title =
+        (typeof data.title === 'string' && data.title.trim()) ||
+        (practiceHw ? tc.homeworkDefaultTitle : tc.examDefaultTitle)
+      const durationMinutes =
+        typeof data.durationMinutes === 'number' && Number.isFinite(data.durationMinutes)
+          ? data.durationMinutes
+          : 15
+      setExam({ title, durationMinutes, questions: [], practiceHomework: practiceHw })
+      const sc = typeof data.score === 'number' ? data.score : Number(data.score ?? 0)
+      const mx = typeof data.maxScore === 'number' ? data.maxScore : Number(data.maxScore ?? 0)
+      const scN = Number.isFinite(sc) ? sc : 0
+      const mxN = Number.isFinite(mx) ? mx : 0
+      setResult({
+        score: scN,
+        maxScore: mxN,
+        grade10: resolveGrade10FromApi(scN, mxN, data.grade10),
+        scoreOn100: resolveScoreOn100FromApi(scN, mxN, data.scoreOn100),
+        comment: typeof data.comment === 'string' ? data.comment : '',
+        shareHint: typeof data.shareHint === 'string' ? data.shareHint : '',
+        scoringBreakdown: parseScoringBreakdown(data.scoringBreakdown),
+        practiceHomework: practiceHw,
+        submittedDueToServerDeadline: data.submittedDueToServerDeadline === true,
+      })
+      setPriorSubmissionResult(priorSavedEarlier)
+      setExamStarted(false)
+    },
+    []
+  )
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -220,13 +375,15 @@ export default function LamBaiClientPage({
     setLoading(true)
     setError(null)
     setPriorSubmissionResult(false)
+    examDeadlineAtMsRef.current = null
+    timeSyncOffsetMsRef.current = 0
     const sessionUrl = `/api/exam-session/${encodeURIComponent(code)}?_=${Date.now()}`
     fetch(sessionUrl, { cache: 'no-store', headers: { Pragma: 'no-cache' } })
       .then(async (r) => {
         const data = await r.json().catch(() => ({}))
         return { ok: r.ok, data }
       })
-      .then(({ ok, data }) => {
+      .then(async ({ ok, data }) => {
         if (cancelled) return
         const tc = tRef.current
         if (!ok) {
@@ -235,44 +392,19 @@ export default function LamBaiClientPage({
           setEnrollmentGate(null)
           setExam(null)
           setLayoutToken(null)
+          setShowResumeNotice(false)
           setError(typeof data?.error === 'string' ? data.error : tc.examLoadFailed)
           return
         }
         if (data.alreadySubmitted === true) {
-          autoStartExamAfterEnrollRef.current = false
-          setIdentityFromClassRoster(false)
-          setEnrollmentGate(null)
-          setLayoutToken(null)
-          const practiceHw = data.practiceHomework === true
-          const title =
-            (typeof data.title === 'string' && data.title.trim()) ||
-            (practiceHw ? tc.homeworkDefaultTitle : tc.examDefaultTitle)
-          const durationMinutes =
-            typeof data.durationMinutes === 'number' && Number.isFinite(data.durationMinutes)
-              ? data.durationMinutes
-              : 15
-          setExam({ title, durationMinutes, questions: [], practiceHomework: practiceHw })
-          const sc = typeof data.score === 'number' ? data.score : Number(data.score ?? 0)
-          const mx = typeof data.maxScore === 'number' ? data.maxScore : Number(data.maxScore ?? 0)
-          const scN = Number.isFinite(sc) ? sc : 0
-          const mxN = Number.isFinite(mx) ? mx : 0
-          setResult({
-            score: scN,
-            maxScore: mxN,
-            grade10: resolveGrade10FromApi(scN, mxN, data.grade10),
-            scoreOn100: resolveScoreOn100FromApi(scN, mxN, data.scoreOn100),
-            comment: typeof data.comment === 'string' ? data.comment : '',
-            shareHint: typeof data.shareHint === 'string' ? data.shareHint : '',
-            scoringBreakdown: parseScoringBreakdown(data.scoringBreakdown),
-            practiceHomework: practiceHw,
-          })
-          setPriorSubmissionResult(true)
-          setExamStarted(false)
+          applyAlreadySubmittedPayload(data as Record<string, unknown>, true)
           return
         }
         if (data.needsEnrollment) {
           autoStartExamAfterEnrollRef.current = false
+          postEnrollAutoBeginIdentityRef.current = null
           setIdentityFromClassRoster(false)
+          setShowResumeNotice(false)
           setEnrollmentGate({
             title:
               (typeof data.title === 'string' && data.title.trim()) ||
@@ -322,39 +454,126 @@ export default function LamBaiClientPage({
         if (!appliedClassIdentity) {
           setIdentityFromClassRoster(false)
         }
-        const layoutTok = typeof data.layoutToken === 'string' ? data.layoutToken : null
-        const questions = Array.isArray(data.questions) ? data.questions : []
-        const loadedIsHomework = data.practiceHomework === true
-        const defaultTitle = loadedIsHomework ? tc.homeworkDefaultTitle : tc.examDefaultTitle
-        setEnrollmentGate(null)
-        setLayoutToken(layoutTok)
-        setPriorSubmissionResult(false)
-        setExam({
-          title: (typeof data.title === 'string' && data.title.trim()) || defaultTitle,
-          durationMinutes: data.durationMinutes || 15,
-          questions,
-          practiceHomework: loadedIsHomework,
-        })
-        if (
-          autoStartExamAfterEnrollRef.current &&
-          questions.length > 0 &&
-          layoutTok?.trim()
-        ) {
+        const d = data as Record<string, unknown>
+        const defaultTitleExam = tc.examDefaultTitle
+        const defaultTitleHw = tc.homeworkDefaultTitle
+
+        if (d.mustBegin === true) {
+          const loadedIsHomework = d.practiceHomework === true
+          const defaultTitle = loadedIsHomework ? defaultTitleHw : defaultTitleExam
+          setEnrollmentGate(null)
+          setLayoutToken(null)
+          setPriorSubmissionResult(false)
+          setShowResumeNotice(false)
+          examDeadlineAtMsRef.current = null
+          timeSyncOffsetMsRef.current = 0
+          setExam({
+            title: (typeof d.title === 'string' && d.title.trim()) || defaultTitle,
+            durationMinutes: typeof d.durationMinutes === 'number' ? d.durationMinutes : 15,
+            questions: [],
+            practiceHomework: loadedIsHomework,
+          })
+          setAnswers({})
+          setEssayImageUrls({})
+          essayImageUrlsRef.current = {}
+          setExamStarted(false)
+
+          if (
+            autoStartExamAfterEnrollRef.current &&
+            postEnrollAutoBeginIdentityRef.current
+          ) {
+            autoStartExamAfterEnrollRef.current = false
+            const { name, dob } = postEnrollAutoBeginIdentityRef.current
+            postEnrollAutoBeginIdentityRef.current = null
+            const res = await fetch(
+              `/api/exam-session/${encodeURIComponent(code)}/begin-attempt`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  studentName: normalizeName(name),
+                  studentDob: dob,
+                }),
+              }
+            )
+            const d2 = (await res.json().catch(() => ({}))) as Record<string, unknown>
+            if (cancelled) return
+            if (!res.ok) {
+              setError(formatExamBeginAttemptErrorMessage(d2, tc.examBeginFailed))
+              return
+            }
+            if (d2.alreadySubmitted === true) {
+              applyAlreadySubmittedPayload(d2, false)
+              return
+            }
+            const parsed = parseActiveExamApiPayload(d2, defaultTitleExam, defaultTitleHw)
+            if (!parsed) {
+              setError(tc.examLoadFailed)
+              return
+            }
+            setLayoutToken(parsed.layoutToken)
+            setExam({
+              title: parsed.title,
+              durationMinutes: parsed.durationMinutes,
+              questions: parsed.questions,
+              practiceHomework: parsed.practiceHomework,
+            })
+            setAnswers(parsed.answers)
+            setEssayImageUrls(parsed.essayImageUrls)
+            essayImageUrlsRef.current = parsed.essayImageUrls
+            setShowResumeNotice(parsed.resumeInProgress)
+            examDeadlineAtMsRef.current = parsed.deadlineAtMs
+            timeSyncOffsetMsRef.current = parsed.serverOffsetMs
+            setExamStarted(true)
+            setStartedAt(parsed.startedAtMs)
+            setFiveMinuteWarning(false)
+            fiveMinuteWarnedRef.current = false
+            autoSubmittedRef.current = false
+            bellPlayedRef.current = false
+            return
+          }
           autoStartExamAfterEnrollRef.current = false
+          return
+        }
+
+        const active = parseActiveExamApiPayload(d, defaultTitleExam, defaultTitleHw)
+        if (active) {
+          setEnrollmentGate(null)
+          setLayoutToken(active.layoutToken)
+          setPriorSubmissionResult(false)
+          setExam({
+            title: active.title,
+            durationMinutes: active.durationMinutes,
+            questions: active.questions,
+            practiceHomework: active.practiceHomework,
+          })
+          setAnswers(active.answers)
+          setEssayImageUrls(active.essayImageUrls)
+          essayImageUrlsRef.current = active.essayImageUrls
+          setShowResumeNotice(active.resumeInProgress)
+          examDeadlineAtMsRef.current = active.deadlineAtMs
+          timeSyncOffsetMsRef.current = active.serverOffsetMs
           setExamStarted(true)
-          setStartedAt(Date.now())
+          setStartedAt(active.startedAtMs)
           setFiveMinuteWarning(false)
           fiveMinuteWarnedRef.current = false
           autoSubmittedRef.current = false
           bellPlayedRef.current = false
+          return
         }
+
+        autoStartExamAfterEnrollRef.current = false
+        setShowResumeNotice(false)
+        setError(tc.examLoadFailed)
       })
       .catch((e) => {
         if (!cancelled) {
           autoStartExamAfterEnrollRef.current = false
+          postEnrollAutoBeginIdentityRef.current = null
           setIdentityFromClassRoster(false)
           setEnrollmentGate(null)
           setExam(null)
+          setShowResumeNotice(false)
           setError(e instanceof Error ? e.message : String(e))
         }
       })
@@ -364,7 +583,41 @@ export default function LamBaiClientPage({
     return () => {
       cancelled = true
     }
-  }, [code, reloadNonce])
+  }, [code, reloadNonce, applyAlreadySubmittedPayload])
+
+  /** Chặn nút Back: bắt HS xác nhận nộp bài (hộp thoại). */
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (!examStarted || result || !exam) {
+      examHistoryTrapPushedRef.current = false
+      return
+    }
+    const trap = () => {
+      window.history.pushState({ lamBaiExamLock: true }, '', window.location.href)
+    }
+    if (!examHistoryTrapPushedRef.current) {
+      trap()
+      examHistoryTrapPushedRef.current = true
+    }
+    const onPopState = () => {
+      trap()
+      setExitSubmitDialogOpen(true)
+    }
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  }, [examStarted, result, exam])
+
+  /** Đóng tab / làm mới — trình duyệt hiện hộp thoại (không thể bắt buộc nộp bài 100% nếu HS vẫn chọn rời). */
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (!examStarted || result || !exam) return
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [examStarted, result, exam])
 
   useEffect(() => {
     if (!exam || result || !examStarted) return
@@ -375,6 +628,29 @@ export default function LamBaiClientPage({
   useEffect(() => {
     essayImageUrlsRef.current = essayImageUrls
   }, [essayImageUrls])
+
+  /** Lưu nháp đáp án lên server (khôi phục khi tải lại trang). */
+  useEffect(() => {
+    if (!examStarted || result || !layoutToken?.trim() || !exam?.questions.length) return
+    const essaySubmission: Record<string, { text: string; imageUrls: string[] }> = {}
+    for (const q of exam.questions) {
+      const isEssay = q.type === 'essay' || !q.options || q.options.length < 2
+      if (!isEssay) continue
+      const text = typeof answers[q.id] === 'string' ? String(answers[q.id] ?? '').trim() : ''
+      essaySubmission[q.id] = {
+        text,
+        imageUrls: essayImageUrls[q.id] ?? [],
+      }
+    }
+    const tid = window.setTimeout(() => {
+      void fetch(`/api/exam-session/${encodeURIComponent(code)}/draft`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ layoutToken, answers, essaySubmission }),
+      })
+    }, 2500)
+    return () => clearTimeout(tid)
+  }, [answers, essayImageUrls, examStarted, result, layoutToken, exam, code])
 
   const handleAnswer = (questionId: string, answer: number | string) => {
     setAnswers((prev) => ({ ...prev, [questionId]: answer }))
@@ -480,6 +756,12 @@ export default function LamBaiClientPage({
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
+        if (
+          (data as { errorCode?: string })?.errorCode === 'exam_deadline_passed'
+        ) {
+          setReloadNonce((n) => n + 1)
+          return
+        }
         setError(typeof data?.error === 'string' ? data.error : t.examSubmitFailed)
         return
       }
@@ -496,6 +778,8 @@ export default function LamBaiClientPage({
         comment: data.comment ?? '',
         shareHint: data.shareHint ?? '',
         scoringBreakdown: parseScoringBreakdown(data.scoringBreakdown),
+        practiceHomework: Boolean(exam.practiceHomework),
+        submittedDueToServerDeadline: false,
       })
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
@@ -504,7 +788,7 @@ export default function LamBaiClientPage({
     }
   }, [exam, code, studentName, studentDob, answers, essayImageUrls, submitting, layoutToken, t])
 
-  const handleStartExam = useCallback(() => {
+  const handleStartExam = useCallback(async () => {
     const normalized = normalizeName(studentName)
     if (normalized.length < 2 || !isValidStudentDobIso(studentDob)) return
     if (typeof window !== 'undefined') {
@@ -520,24 +804,97 @@ export default function LamBaiClientPage({
     setStudentName(normalized)
     setUseSavedProfile(true)
     setEditingProfile(false)
-    setExamStarted(true)
-    setStartedAt(Date.now())
-    setFiveMinuteWarning(false)
-    fiveMinuteWarnedRef.current = false
-    autoSubmittedRef.current = false
-    bellPlayedRef.current = false
-  }, [studentName, studentDob])
+    setError(null)
+    setBeginSubmitting(true)
+    try {
+      const res = await fetch(`/api/exam-session/${encodeURIComponent(code)}/begin-attempt`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          studentName: normalized,
+          studentDob,
+        }),
+      })
+      const payload = (await res.json().catch(() => ({}))) as Record<string, unknown>
+      if (!res.ok) {
+        setError(formatExamBeginAttemptErrorMessage(payload, tRef.current.examBeginFailed))
+        return
+      }
+      if (payload.alreadySubmitted === true) {
+        applyAlreadySubmittedPayload(payload, false)
+        return
+      }
+      const tc = tRef.current
+      const parsed = parseActiveExamApiPayload(
+        payload,
+        tc.examDefaultTitle,
+        tc.homeworkDefaultTitle
+      )
+      if (!parsed) {
+        setError(tc.examLoadFailed)
+        return
+      }
+      setLayoutToken(parsed.layoutToken)
+      setExam((prev) =>
+        prev
+          ? {
+              ...prev,
+              title: parsed.title,
+              durationMinutes: parsed.durationMinutes,
+              questions: parsed.questions,
+              practiceHomework: parsed.practiceHomework,
+            }
+          : {
+              title: parsed.title,
+              durationMinutes: parsed.durationMinutes,
+              questions: parsed.questions,
+              practiceHomework: parsed.practiceHomework,
+            }
+      )
+      setAnswers(parsed.answers)
+      setEssayImageUrls(parsed.essayImageUrls)
+      essayImageUrlsRef.current = parsed.essayImageUrls
+      setShowResumeNotice(parsed.resumeInProgress)
+      examDeadlineAtMsRef.current = parsed.deadlineAtMs
+      timeSyncOffsetMsRef.current = parsed.serverOffsetMs
+      setExamStarted(true)
+      setStartedAt(parsed.startedAtMs)
+      setFiveMinuteWarning(false)
+      fiveMinuteWarnedRef.current = false
+      autoSubmittedRef.current = false
+      bellPlayedRef.current = false
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBeginSubmitting(false)
+    }
+  }, [studentName, studentDob, code, applyAlreadySubmittedPayload])
 
   const canStartExam = normalizeName(studentName).length >= 2 && isValidStudentDobIso(studentDob)
   const showCompactClassStart = identityFromClassRoster && !editingProfile
 
-  const elapsedMs = startedAt ? now - startedAt : 0
-  const totalMs = exam ? exam.durationMinutes * 60 * 1000 : 0
-  const remainingMs = Math.max(0, totalMs - elapsedMs)
+  const effectiveServerNowMs = now + timeSyncOffsetMsRef.current
+  const deadlineMs = examDeadlineAtMsRef.current
+  const hasServerDeadline = deadlineMs != null && Number.isFinite(deadlineMs)
+  let remainingMs = 0
+  if (examStarted && !result && exam) {
+    if (hasServerDeadline) {
+      remainingMs = Math.max(0, deadlineMs! - effectiveServerNowMs)
+    } else if (startedAt != null) {
+      const totalMs = exam.durationMinutes * 60 * 1000
+      remainingMs = Math.max(0, totalMs - (now - startedAt))
+    } else {
+      /** Chưa có mốc bắt đầu — không coi là 00:00 để tránh nộp nhầm */
+      remainingMs = exam.durationMinutes * 60 * 1000
+    }
+  }
   const remainingMin = Math.floor(remainingMs / 60000)
   const remainingSec = Math.floor((remainingMs % 60000) / 1000)
   const isLowTime = remainingMs > 0 && remainingMs <= 5 * 60 * 1000
-  const isTimeUp = remainingMs === 0
+  const isTimeUp =
+    Boolean(examStarted && !result && exam) &&
+    remainingMs === 0 &&
+    (hasServerDeadline || startedAt != null)
   const shouldAutoSubmit = isTimeUp
 
   useEffect(() => {
@@ -684,6 +1041,7 @@ export default function LamBaiClientPage({
                 }
                 setUseSavedProfile(true)
                 setEditingProfile(false)
+                postEnrollAutoBeginIdentityRef.current = { name, dob: bd }
                 autoStartExamAfterEnrollRef.current = true
                 setReloadNonce((n) => n + 1)
               }}
@@ -762,7 +1120,11 @@ export default function LamBaiClientPage({
                 <CheckCircle className="h-6 w-6" />
                 {t.homeworkSubmittedTitle}
               </CardTitle>
-              {priorSubmissionResult ? (
+              {result.submittedDueToServerDeadline ? (
+                <CardDescription className="text-sm leading-relaxed pt-1">
+                  {t.examSubmittedDueToDeadlineHint}
+                </CardDescription>
+              ) : priorSubmissionResult ? (
                 <CardDescription className="text-sm leading-relaxed pt-1">
                   {t.homeworkSubmittedSavedEarlier}
                 </CardDescription>
@@ -819,7 +1181,11 @@ export default function LamBaiClientPage({
               <CheckCircle className="h-6 w-6" />
               {t.examSubmittedTitle}
             </CardTitle>
-            {priorSubmissionResult ? (
+            {result.submittedDueToServerDeadline ? (
+              <CardDescription className="text-sm leading-relaxed pt-1">
+                {t.examSubmittedDueToDeadlineHint}
+              </CardDescription>
+            ) : priorSubmissionResult ? (
               <CardDescription className="text-sm leading-relaxed pt-1">
                 {t.examSubmittedSavedEarlier}
               </CardDescription>
@@ -977,9 +1343,20 @@ export default function LamBaiClientPage({
               </>
             )}
             <p className="text-xs text-muted-foreground">{t.examOneAttemptNote}</p>
-            <Button onClick={handleStartExam} disabled={!canStartExam} className="w-full">
+            <p className="text-xs text-amber-800 dark:text-amber-200 leading-relaxed rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2">
+              {t.lamBaiExitBlockedBeforeStartHint}
+            </p>
+            <Button
+              onClick={() => void handleStartExam()}
+              disabled={!canStartExam || beginSubmitting}
+              className="w-full"
+            >
               <Play className="h-4 w-4 mr-2" />
-              {isHw ? t.examStartHomeworkButton : t.examStartTestButton}
+              {beginSubmitting
+                ? t.examBeginStarting
+                : isHw
+                  ? t.examStartHomeworkButton
+                  : t.examStartTestButton}
             </Button>
             {showCompactClassStart ? (
               <Button
@@ -1024,6 +1401,18 @@ export default function LamBaiClientPage({
         </div>
       </div>
       <div className="max-w-2xl mx-auto px-4 pt-6 space-y-4">
+        {showResumeNotice ? (
+          <Card className="border-sky-500/40 bg-sky-500/5">
+            <CardContent className="py-3 text-sm text-sky-950 dark:text-sky-100 leading-relaxed">
+              {t.lamBaiExamResumeNotice}
+            </CardContent>
+          </Card>
+        ) : null}
+        <Card className="border-amber-500/40 bg-amber-500/5">
+          <CardContent className="py-3 text-sm text-amber-950 dark:text-amber-100 leading-relaxed">
+            {t.lamBaiExitBlockedBanner}
+          </CardContent>
+        </Card>
         {fiveMinuteWarning && !isTimeUp && (
           <Card className="border-amber-500/50 bg-amber-500/5">
             <CardContent className="py-3 text-center">
@@ -1203,6 +1592,27 @@ export default function LamBaiClientPage({
             </Button>
           </CardContent>
         </Card>
+
+        <AlertDialog open={exitSubmitDialogOpen} onOpenChange={setExitSubmitDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{t.lamBaiExitBlockedDialogTitle}</AlertDialogTitle>
+              <AlertDialogDescription>{t.lamBaiExitBlockedDialogDescription}</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel type="button">{t.lamBaiExitBlockedStay}</AlertDialogCancel>
+              <AlertDialogAction
+                type="button"
+                disabled={submitting}
+                onClick={() => {
+                  void handleSubmit()
+                }}
+              >
+                {t.lamBaiExitBlockedSubmitNow}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </div>
   )

@@ -119,7 +119,7 @@ export async function createImageFromText(formData: FormData) {
 
   const promptEn = await normalizeToEnglish(rawPrompt)
   const styleBlock = `\n\n${STYLE_DIRECTIVES[imageStyle]}`
-  let instruction =
+  const instruction =
     PROMPT_TEXT_ONLY + (hasRef ? REFERENCE_HINT : '') + styleBlock + `\n\nUSER DESCRIPTION:\n${promptEn}`
 
   const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!)

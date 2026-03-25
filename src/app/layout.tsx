@@ -20,6 +20,18 @@ const InstallPrompt = dynamic(
   () => import("@/components/pwa/install-prompt").then((m) => m.InstallPrompt),
   { ssr: false }
 );
+const PushNotificationPrompt = dynamic(
+  () => import("@/components/pwa/push-notification-prompt").then((m) => m.PushNotificationPrompt),
+  { ssr: false }
+);
+const ReferralCapture = dynamic(
+  () => import("@/components/referral/referral-capture").then((m) => m.ReferralCapture),
+  { ssr: false }
+);
+const ReferralClaimRunner = dynamic(
+  () => import("@/components/referral/referral-claim-runner").then((m) => m.ReferralClaimRunner),
+  { ssr: false }
+);
 const GA_MEASUREMENT_ID = "G-1KZ2PKX887";
 
 export const viewport: Viewport = {
@@ -116,6 +128,8 @@ export default function RootLayout({
           `}
         </Script>
         <AnalyticsTracker />
+        <ReferralCapture />
+        <ReferralClaimRunner />
         <JsonLd data={webAppLd} />
         <JsonLd data={orgLd} />
         <DepositCreditProvider>
@@ -126,6 +140,7 @@ export default function RootLayout({
           <Footer />
           <MobileBottomBar />
           <InstallPrompt />
+          <PushNotificationPrompt />
         </DepositCreditProvider>
       </body>
     </html>

@@ -1269,16 +1269,16 @@ export default function ThietKeNoiNgoaiThatClientPage() {
                   </div>
                   <div className="flex gap-2 flex-wrap">
                     <Button type="button" variant="outline" size="sm" onClick={() => checkCreditsAndProceed(APPLY_COSTS[imageQuality], () => handleRotate('left'))} disabled={!getImageForApply() || !hasRotationReference} className="shrink-0">
-                      <ArrowLeft className="h-4 w-4 mr-1" /> {tr('Trái', 'Left', '左', '左', '왼쪽')}
+                      <ArrowLeft className="h-4 w-4 mr-1" /> {tr('Trái', 'Left', '左', '左', '왼쪽')} ({APPLY_COSTS[imageQuality]} credit)
                     </Button>
                     <Button type="button" variant="outline" size="sm" onClick={() => checkCreditsAndProceed(APPLY_COSTS[imageQuality], () => handleRotate('right'))} disabled={!getImageForApply() || !hasRotationReference} className="shrink-0">
-                      <ArrowRight className="h-4 w-4 mr-1" /> {tr('Phải', 'Right', '右', '右', '오른쪽')}
+                      <ArrowRight className="h-4 w-4 mr-1" /> {tr('Phải', 'Right', '右', '右', '오른쪽')} ({APPLY_COSTS[imageQuality]} credit)
                     </Button>
                     <Button type="button" variant="outline" size="sm" onClick={() => checkCreditsAndProceed(APPLY_COSTS[imageQuality], () => handleRotate('up'))} disabled={!getImageForApply() || !hasRotationReference} className="shrink-0">
-                      <ArrowUp className="h-4 w-4 mr-1" /> {tr('Lên', 'Up', '上', '上', '위')}
+                      <ArrowUp className="h-4 w-4 mr-1" /> {tr('Lên', 'Up', '上', '上', '위')} ({APPLY_COSTS[imageQuality]} credit)
                     </Button>
                     <Button type="button" variant="outline" size="sm" onClick={() => checkCreditsAndProceed(APPLY_COSTS[imageQuality], () => handleRotate('down'))} disabled={!getImageForApply() || !hasRotationReference} className="shrink-0">
-                      <ArrowDown className="h-4 w-4 mr-1" /> {tr('Xuống', 'Down', '下', '下', '아래')}
+                      <ArrowDown className="h-4 w-4 mr-1" /> {tr('Xuống', 'Down', '下', '下', '아래')} ({APPLY_COSTS[imageQuality]} credit)
                     </Button>
                   </div>
                 </div>

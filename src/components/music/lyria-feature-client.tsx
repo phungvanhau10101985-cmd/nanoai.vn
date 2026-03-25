@@ -557,6 +557,11 @@ export function LyriaFeatureClient({ mode, uiLocale: uiLocaleProp }: { mode: Mod
   const selectedDurationCredit =
     selectedDurationSeconds === 0 ? null : Math.ceil(selectedDurationSeconds / 10) * PRICING_PER_10S[mode]
 
+  const playButtonCostLabel =
+    selectedDurationCredit === null
+      ? `(${PRICING_PER_10S[mode]} ${tr('credit/10 giây', 'cr/10 sec', '积分/10秒', 'クレジット/10秒', '크레딧/10초')})`
+      : `(${selectedDurationCredit.toLocaleString('vi-VN', { maximumFractionDigits: 1 })} ${tr('credit', 'credit', '积分', 'クレジット', '크레딧')})`
+
   const chargeCredits = async () => {
     const res = await fetch('/api/music-charge', {
       method: 'POST',
@@ -1225,7 +1230,8 @@ export function LyriaFeatureClient({ mode, uiLocale: uiLocaleProp }: { mode: Mod
 
             <div className="flex flex-wrap gap-2">
               <Button type="button" onClick={handlePlay} disabled={isBusy}>
-                <Play className="mr-2 h-4 w-4" /> {isPlaying ? tr('Đang phát', 'Playing', '播放中', '再生中', '재생 중') : isConnected ? tr('Phát tiếp', 'Resume', '继续播放', '再開', '재개') : tr('Phát', 'Play', '播放', '再生', '재생')}
+                <Play className="mr-2 h-4 w-4" /> {isPlaying ? tr('Đang phát', 'Playing', '播放中', '再生中', '재생 중') : isConnected ? tr('Phát tiếp', 'Resume', '继续播放', '再開', '재개') : tr('Phát', 'Play', '播放', '再生', '재생')}{' '}
+                {playButtonCostLabel}
               </Button>
               <Button type="button" variant="outline" onClick={handlePause} disabled={!isConnected || !isPlaying}>
                 <Pause className="mr-2 h-4 w-4" /> {tr('Tạm dừng', 'Pause', '暂停', '一時停止', '일시정지')}

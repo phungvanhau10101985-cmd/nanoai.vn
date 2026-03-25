@@ -33,6 +33,11 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useSetCreationToolBackHandler } from '@/components/navigation/creation-tool-shell-back'
+import { formatSessionIsoDateTime } from '@/lib/datetime/format-session-iso-local'
+import { fillI18nTemplate } from '@/lib/i18n/fill-template'
+import { DEFAULT_WEB_LOCALE, type WebLocale } from '@/lib/i18n/config'
+import { getDictionary } from '@/lib/i18n/dictionaries'
+import { CURRICULUM_UI_CREDITS, formatCurriculumCredits } from './lib/curriculum-credit-costs'
 
 type UiLocale = 'vi' | 'en' | 'zh' | 'ja' | 'ko'
 
@@ -136,8 +141,10 @@ function stripWorksheetAnswerSections(markdown: string): string {
 }
 
 type Step = 'INPUT' | 'GENERATING' | 'RESULT'
-export default function TaoGiaoTrinhClientPage() {
-  const [uiLocale, setUiLocale] = useState<UiLocale>('vi')
+export default function TaoGiaoTrinhClientPage({
+  initialWebLocale = DEFAULT_WEB_LOCALE,
+}: { initialWebLocale?: WebLocale } = {}) {
+  const [uiLocale, setUiLocale] = useState<UiLocale>(initialWebLocale as UiLocale)
   const [step, setStep] = useState<Step>('INPUT')
   const [subjectId, setSubjectId] = useState('toan')
   const [gradeLevelId, setGradeLevelId] = useState('lop-12')
@@ -278,6 +285,14 @@ export default function TaoGiaoTrinhClientPage() {
     if (uiLocale === 'ko') return ko
     return vi
   }
+
+  const creditsWord = tr('credits', 'credits', '积分', 'クレジット', '크레딧')
+  const creditLabel = (n: number) => ` (${formatCurriculumCredits(n)} ${creditsWord})`
+
+  const examSessionCreatedAtTpl = useMemo(
+    () => getDictionary(uiLocale as WebLocale).classes.examSessionCreatedAt,
+    [uiLocale]
+  )
 
   const displayTopic = topic.trim() || (lessonNumber ? `Bài ${lessonNumber}` : tr('Chủ đề', 'Topic', '主题', '主題', '주제'))
 
@@ -2976,7 +2991,12 @@ export default function TaoGiaoTrinhClientPage() {
                     <Sparkles className="h-4 w-4 mr-2" />
                     {overwriteFromExistingLoading
                       ? tr('Đang tạo lại...', 'Recreating...', '正在重建...', '再作成中...', '다시 만드는 중...')
-                      : tr('Tạo lại giáo trình (ghi đè)', 'Recreate curriculum (overwrite)', '重建课程（覆盖）', 'カリキュラム再作成（上書き）', '교육과정 다시 만들기(덮어쓰기)')}
+                      : (
+                        <>
+                          {tr('Tạo lại giáo trình (ghi đè)', 'Recreate curriculum (overwrite)', '重建课程（覆盖）', 'カリキュラム再作成（上書き）', '교육과정 다시 만들기(덮어쓰기)')}
+                          {creditLabel(CURRICULUM_UI_CREDITS.createOrFromImage)}
+                        </>
+                      )}
                   </Button>
                 </div>
               ) : (
@@ -2992,11 +3012,19 @@ export default function TaoGiaoTrinhClientPage() {
                   className="w-full bg-violet-600 hover:bg-violet-700 text-white disabled:opacity-50"
                 >
                   <Sparkles className="h-4 w-4 mr-2" />
-                  {createMode === 'topic'
-                    ? tr('Tạo giáo trình', 'Create curriculum', '创建课程', 'カリキュラムを作成', '교육과정 생성')
-                    : checkLoading
-                      ? tr('Đang kiểm tra...', 'Checking...', '正在检查...', '確認中...', '확인 중...')
-                      : tr('Tạo giáo trình', 'Create curriculum', '创建课程', 'カリキュラムを作成', '교육과정 생성')}
+                  {createMode === 'topic' ? (
+                    <>
+                      {tr('Tạo giáo trình', 'Create curriculum', '创建课程', 'カリキュラムを作成', '교육과정 생성')}
+                      {creditLabel(CURRICULUM_UI_CREDITS.createOrFromImage)}
+                    </>
+                  ) : checkLoading ? (
+                    tr('Đang kiểm tra...', 'Checking...', '正在检查...', '確認中...', '확인 중...')
+                  ) : (
+                    <>
+                      {tr('Tạo giáo trình', 'Create curriculum', '创建课程', 'カリキュラムを作成', '교육과정 생성')}
+                      {creditLabel(CURRICULUM_UI_CREDITS.createOrFromImage)}
+                    </>
+                  )}
                 </Button>
               )}
             </CardContent>
@@ -3085,7 +3113,14 @@ export default function TaoGiaoTrinhClientPage() {
                   )}
                   <Button variant="outline" size="sm" onClick={() => void handleOpenSlides()} disabled={slideAnalysisLoading} className="border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-600 dark:text-amber-300 dark:hover:bg-amber-950/30">
                     <Presentation className="h-3.5 w-3.5 mr-1" />
-                    {slideAnalysisLoading ? tr('Đang tạo nội dung giảng...', 'Generating teaching content...', '正在生成教学内容...', '授業内容を生成中...', '수업 내용 생성 중...') : tr('Xem slide giáo trình', 'View curriculum slides', '查看课程幻灯片', '授業スライドを表示', '교과 슬라이드 보기')}
+                    {slideAnalysisLoading ? (
+                      tr('Đang tạo nội dung giảng...', 'Generating teaching content...', '正在生成教学内容...', '授業内容を生成中...', '수업 내용 생성 중...')
+                    ) : (
+                      <>
+                        {tr('Xem slide giáo trình', 'View curriculum slides', '查看课程幻灯片', '授業スライドを表示', '교과 슬라이드 보기')}
+                        {creditLabel(CURRICULUM_UI_CREDITS.analyzeSlides)}
+                      </>
+                    )}
                   </Button>
                   {(worksheetMarkdown || curriculumWorksheets.length > 0) && (
                     <DropdownMenu>
@@ -3234,7 +3269,14 @@ export default function TaoGiaoTrinhClientPage() {
                         </span>
                       )}
                       <Button size="sm" onClick={() => void handleParseSgk()} disabled={sgkLoading || sgkImages.length === 0} className="bg-amber-600 hover:bg-amber-700">
-                        {sgkLoading ? tr('Đang tách...', 'Extracting...', '提取中...', '抽出中...', '추출 중...') : tr('Tách và thêm vào phiếu', 'Extract and add to worksheet', '提取并添加到练习', '抽出して追加', '추출 후 추가')}
+                        {sgkLoading ? (
+                          tr('Đang tách...', 'Extracting...', '提取中...', '抽出中...', '추출 중...')
+                        ) : (
+                          <>
+                            {tr('Tách và thêm vào phiếu', 'Extract and add to worksheet', '提取并添加到练习', '抽出して追加', '추출 후 추가')}
+                            {creditLabel(CURRICULUM_UI_CREDITS.sgkExtractJob)}
+                          </>
+                        )}
                       </Button>
                     </div>
                   </div>
@@ -3283,7 +3325,16 @@ export default function TaoGiaoTrinhClientPage() {
                           </div>
                         </div>
                         <Button variant="default" size="sm" onClick={() => void runCreateStepByStep('quiz')} disabled={wsStepByStepLoading || quizAvailable.length === 0 || quizCountVal === 0} className="bg-violet-600 hover:bg-violet-700">
-                          {wsStepByStepLoading ? tr('Đang tạo...', 'Creating...', '创建中...', '作成中...', '생성 중...') : quizAvailable.length === 0 ? tr('Đã đủ câu', 'All full', '已满', '満了', '완료') : tr('Tạo trắc nghiệm từng câu', 'Create quiz per question', '逐题创建选择题', '1問ずつクイズ作成', '문항별 퀴즈 생성')}
+                          {wsStepByStepLoading ? (
+                            tr('Đang tạo...', 'Creating...', '创建中...', '作成中...', '생성 중...')
+                          ) : quizAvailable.length === 0 ? (
+                            tr('Đã đủ câu', 'All full', '已满', '満了', '완료')
+                          ) : (
+                            <>
+                              {tr('Tạo trắc nghiệm từng câu', 'Create quiz per question', '逐题创建选择题', '1問ずつクイズ作成', '문항별 퀴즈 생성')}
+                              {creditLabel(quizCountVal * CURRICULUM_UI_CREDITS.worksheetQuestion)}
+                            </>
+                          )}
                         </Button>
                       </div>
                       <div className="p-4 rounded-lg border-2 border-emerald-200 dark:border-emerald-800 bg-emerald-50/50 dark:bg-emerald-950/20">
@@ -3303,7 +3354,16 @@ export default function TaoGiaoTrinhClientPage() {
                           </div>
                         </div>
                         <Button variant="default" size="sm" onClick={() => void runCreateStepByStep('essay')} disabled={wsStepByStepLoading || essayAvailable.length === 0 || essayCountVal === 0} className="bg-emerald-600 hover:bg-emerald-700">
-                          {wsStepByStepLoading ? tr('Đang tạo...', 'Creating...', '创建中...', '作成中...', '생성 중...') : essayAvailable.length === 0 ? tr('Đã đủ bài', 'All full', '已满', '満了', '완료') : tr('Tạo tự luận từng câu', 'Create essay per question', '逐题创建主观题', '1問ずつ記述式作成', '문항별 서술형 생성')}
+                          {wsStepByStepLoading ? (
+                            tr('Đang tạo...', 'Creating...', '创建中...', '作成中...', '생성 중...')
+                          ) : essayAvailable.length === 0 ? (
+                            tr('Đã đủ bài', 'All full', '已满', '満了', '완료')
+                          ) : (
+                            <>
+                              {tr('Tạo tự luận từng câu', 'Create essay per question', '逐题创建主观题', '1問ずつ記述式作成', '문항별 서술형 생성')}
+                              {creditLabel(essayCountVal * CURRICULUM_UI_CREDITS.worksheetQuestion)}
+                            </>
+                          )}
                         </Button>
                       </div>
                     </div>
@@ -3399,7 +3459,14 @@ export default function TaoGiaoTrinhClientPage() {
                       disabled={editCompareLoading || editMatchStatus !== 'found' || editMatchCount !== 1 || !editEditedText.trim()}
                       className="w-full h-9 text-sm bg-amber-600 hover:bg-amber-700"
                     >
-                      {editCompareLoading ? tr('Đang kiểm tra...', 'Checking...', '正在检查...', '確認中...', '확인 중...') : tr('Áp dụng sửa', 'Apply edit', '应用修改', '編集を適用', '편집 적용')}
+                      {editCompareLoading ? (
+                        tr('Đang kiểm tra...', 'Checking...', '正在检查...', '確認中...', '확인 중...')
+                      ) : (
+                        <>
+                          {tr('Áp dụng sửa', 'Apply edit', '应用修改', '編集を適用', '편집 적용')}
+                          {creditLabel(CURRICULUM_UI_CREDITS.curriculumEditApply)}
+                        </>
+                      )}
                     </Button>
                   </div>
                 )}
@@ -3710,6 +3777,8 @@ export default function TaoGiaoTrinhClientPage() {
                       onClearImages={() => setWorksheetEditImages([])}
                       checkLoading={worksheetEditCheckLoading}
                       saving={worksheetEditSaving}
+                      checkCreditSuffix={creditLabel(CURRICULUM_UI_CREDITS.worksheetEditCheck)}
+                      saveCreditSuffix={creditLabel(CURRICULUM_UI_CREDITS.worksheetEditSave)}
                       saveDisabled={
                         !worksheetId ||
                         worksheetEditBlockContent.trim() ===
@@ -3782,6 +3851,15 @@ export default function TaoGiaoTrinhClientPage() {
                             <p className="text-xs text-muted-foreground">
                               {exam.totalQuestions} {tr('câu', 'questions', '题', '問', '문항')} - {exam.durationMinutes} {tr('phút', 'minutes', '分钟', '分', '분')}
                             </p>
+                            {(() => {
+                              const time = formatSessionIsoDateTime(exam.createdAt, uiLocale as WebLocale)
+                              if (!time) return null
+                              return (
+                                <p className="text-xs text-muted-foreground">
+                                  {fillI18nTemplate(examSessionCreatedAtTpl, { time })}
+                                </p>
+                              )
+                            })()}
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
                             <Button
@@ -3915,6 +3993,15 @@ export default function TaoGiaoTrinhClientPage() {
                               {row.totalQuestions} {tr('câu', 'questions', '题', '問', '문항')} - {row.durationMinutes}{' '}
                               {tr('phút', 'minutes', '分钟', '分', '분')}
                             </p>
+                            {(() => {
+                              const time = formatSessionIsoDateTime(row.createdAt, uiLocale as WebLocale)
+                              if (!time) return null
+                              return (
+                                <p className="text-xs text-muted-foreground">
+                                  {fillI18nTemplate(examSessionCreatedAtTpl, { time })}
+                                </p>
+                              )
+                            })()}
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
                             <Button

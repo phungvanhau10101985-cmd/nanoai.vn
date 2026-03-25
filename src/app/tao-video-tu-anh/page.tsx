@@ -1,5 +1,4 @@
 import { createClient } from '@/lib/supabase/server'
-import { redirect } from 'next/navigation'
 import { redirectToLogin } from '@/lib/auth/login-redirect'
 import { getUserOrBypass } from '@/lib/auth'
 import TaoVideoTuAnhClientPage from './tao-video-tu-anh-client-page'

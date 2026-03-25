@@ -37,7 +37,8 @@ export default async function GanPhieuPage({ params }: { params: Promise<{ id: s
     .eq('id', classId)
     .single()
 
-  if (!cls || cls.teacher_id !== user.id) notFound()
+  const isClassTeacher = Boolean(cls && cls.teacher_id === user.id)
+  if (!cls || !isClassTeacher) notFound()
 
   const { data: sessionRows } = await supabase
     .from('exam_sessions')
@@ -65,7 +66,7 @@ export default async function GanPhieuPage({ params }: { params: Promise<{ id: s
       }
     })
 
-  const { t } = await getServerDictionary()
+  const { locale, t } = getServerDictionary()
 
   return (
     <div className="app-shell min-h-screen">
@@ -86,8 +87,10 @@ export default async function GanPhieuPage({ params }: { params: Promise<{ id: s
           <GanPhieuClient
             classId={classId}
             sessions={sessions}
+            webLocale={locale}
             t={t.classes}
             examUi={t.createExamPage}
+            canDeleteHomework={isClassTeacher}
           />
         </div>
       </CreationToolPageShell>

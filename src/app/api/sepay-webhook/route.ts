@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createHmac, timingSafeEqual } from 'crypto'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+import { createUserNotificationWithEmail } from '@/lib/notifications/create-user-notification-server'
 
 type SePayBody = Record<string, string | number | boolean | null | undefined>
 
@@ -15,7 +16,7 @@ const createWebhookClient = () => {
   }
 
   return createSupabaseClient(supabaseUrl, serviceRoleKey, {
-    auth: { persistSession: false, autoRefreshToken: false }
+    auth: { persistSession: false, autoRefreshToken: false },
   })
 }
 
@@ -211,6 +212,7 @@ export async function POST(request: NextRequest) {
     const paymentId = pendingPayment.id
     const userId = pendingPayment.user_id
     const creditsToAdd = Math.floor(amountIn / CREDITS_PRICE_VND)
+    let newBalance: number
 
     const { data: currentCredits, error: creditsError } = await supabase
       .from('credits')
@@ -235,9 +237,10 @@ export async function POST(request: NextRequest) {
         console.error('Error creating credits:', createCreditsError)
         return NextResponse.json({ error: 'Failed to create credits' }, { status: 500 })
       }
+      newBalance = creditsToAdd
     } else {
       const currentBalance = Number(currentCredits.balance || 0)
-      const newBalance = currentBalance + creditsToAdd
+      newBalance = currentBalance + creditsToAdd
       const { error: updateCreditsError } = await supabase
         .from('credits')
         .update({ balance: newBalance })
@@ -269,6 +272,30 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(`Payment completed: User ${userId} received ${creditsToAdd} credits (${amountIn} VND)`)
+
+    const amountFmt = new Intl.NumberFormat('vi-VN', {
+      style: 'currency',
+      currency: 'VND',
+      maximumFractionDigits: 0,
+    }).format(amountIn)
+
+    try {
+      await createUserNotificationWithEmail(supabase, {
+        user_id: userId,
+        type: 'payment_credits_added',
+        title: 'Nạp credit thành công',
+        body: `Giao dịch đã được xác nhận. Bạn được cộng ${creditsToAdd} credit (số tiền ${amountFmt}). Số dư hiện tại khoảng ${Number.isInteger(newBalance) ? newBalance : newBalance.toFixed(1)} credit. Cảm ơn bạn đã sử dụng NanoAI.`,
+        meta: {
+          payment_id: paymentId,
+          amount_vnd: amountIn,
+          credits_added: creditsToAdd,
+          balance_after: newBalance,
+        },
+      })
+    } catch (notifyErr) {
+      const m = notifyErr instanceof Error ? notifyErr.message : String(notifyErr)
+      console.error('[sepay-webhook] notification/email:', m)
+    }
 
     return NextResponse.json({
       success: true,

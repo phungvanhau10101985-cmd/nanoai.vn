@@ -35,6 +35,10 @@ export function WorksheetEditSectionPopup({
   checkLoading,
   saving,
   saveDisabled,
+  /** Hiển thị sau nhãn "Kiểm tra" khi không loading, ví dụ ` (1 credits)` */
+  checkCreditSuffix,
+  /** Hiển thị sau nhãn "Lưu câu này" khi không saving */
+  saveCreditSuffix,
   tr,
 }: {
   open: boolean
@@ -57,6 +61,8 @@ export function WorksheetEditSectionPopup({
   checkLoading: boolean
   saving: boolean
   saveDisabled: boolean
+  checkCreditSuffix?: string
+  saveCreditSuffix?: string
   tr: WorksheetEditTr
 }) {
   const filteredBlocks = blocks.filter((b) => b.type === filter)
@@ -155,7 +161,14 @@ export function WorksheetEditSectionPopup({
                   onClick={onCheck}
                   disabled={checkLoading}
                 >
-                  {checkLoading ? tr('Đang kiểm tra...', 'Checking...', '检查中...', 'チェック中...', '검사 중...') : tr('Kiểm tra', 'Check', '检查', 'チェック', '검사')}
+                  {checkLoading ? (
+                    tr('Đang kiểm tra...', 'Checking...', '检查中...', 'チェック中...', '검사 중...')
+                  ) : (
+                    <>
+                      {tr('Kiểm tra', 'Check', '检查', 'チェック', '검사')}
+                      {checkCreditSuffix ?? ''}
+                    </>
+                  )}
                 </Button>
                 {checkResult?.correctedContent && (
                   <Button
@@ -174,7 +187,14 @@ export function WorksheetEditSectionPopup({
                   onClick={onSave}
                   disabled={saving || saveDisabled}
                 >
-                  {saving ? tr('AI đang kiểm tra...', 'AI checking...', 'AI正在检查...', 'AI確認中...', 'AI 확인 중...') : tr('Lưu câu này', 'Save this question', '保存此题', 'この問題を保存', '이 문제 저장')}
+                  {saving ? (
+                    tr('AI đang kiểm tra...', 'AI checking...', 'AI正在检查...', 'AI確認中...', 'AI 확인 중...')
+                  ) : (
+                    <>
+                      {tr('Lưu câu này', 'Save this question', '保存此题', 'この問題を保存', '이 문제 저장')}
+                      {saveCreditSuffix ?? ''}
+                    </>
+                  )}
                 </Button>
               </div>
               {editImages.length > 0 && (

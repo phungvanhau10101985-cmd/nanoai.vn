@@ -32,6 +32,7 @@ import { parseWorksheetIntoBlocks, replaceBlockInMarkdown } from '../lib/workshe
 import { resolveWorksheetEditBlockGlobalIndex } from '../lib/worksheet-slide-to-block-index'
 import { toEditableBlockContent } from '../lib/worksheet-editable-block-content'
 import { WorksheetEditSectionPopup } from '../components/worksheet-edit-section-popup'
+import { CURRICULUM_UI_CREDITS, formatCurriculumCredits } from '../lib/curriculum-credit-costs'
 import { getEssayProblem, getEssaySolution, normalizeSolutionToStr } from '../lib/worksheet-content-json'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
@@ -930,6 +931,19 @@ export default function GiaoVienWorksheetPage() {
     if (uiLocale === 'ko') return ko
     return vi
   }, [uiLocale])
+
+  const worksheetEditCheckCreditSuffix = useMemo(
+    () => ` (${formatCurriculumCredits(CURRICULUM_UI_CREDITS.worksheetEditCheck)} ${tr('credits', 'credits', '积分', 'クレジット', '크레딧')})`,
+    [tr]
+  )
+  const worksheetEditSaveCreditSuffix = useMemo(
+    () => ` (${formatCurriculumCredits(CURRICULUM_UI_CREDITS.worksheetEditSave)} ${tr('credits', 'credits', '积分', 'クレジット', '크레딧')})`,
+    [tr]
+  )
+  const slideQuizGenCreditSuffix = useMemo(
+    () => ` (${formatCurriculumCredits(CURRICULUM_UI_CREDITS.slideGenerateQuiz)} ${tr('credits', 'credits', '积分', 'クレジット', '크레딧')})`,
+    [tr]
+  )
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -3373,7 +3387,14 @@ export default function GiaoVienWorksheetPage() {
                                           title={tr('Tạo câu hỏi trắc nghiệm', 'Generate quiz', '生成测验', 'クイズ作成', '퀴즈 생성')}
                                         >
                                           <Sparkles className="h-3.5 w-3.5" />
-                                          {quizGenLoading === currentIndex ? tr('Đang tạo...', 'Creating...', '创建中...', '作成中...', '생성 중...') : tr('Tạo câu hỏi', 'Add quiz', '添加测验', 'クイズ追加', '퀴즈 추가')}
+                                          {quizGenLoading === currentIndex ? (
+                                            tr('Đang tạo...', 'Creating...', '创建中...', '作成中...', '생성 중...')
+                                          ) : (
+                                            <>
+                                              {tr('Tạo câu hỏi', 'Add quiz', '添加测验', 'クイズ追加', '퀴즈 추가')}
+                                              {slideQuizGenCreditSuffix}
+                                            </>
+                                          )}
                                         </button>
                                       </PopoverTrigger>
                                       <PopoverContent className="w-48 p-2" align="start">
@@ -3923,7 +3944,14 @@ export default function GiaoVienWorksheetPage() {
                                   title={tr('Tạo câu hỏi trắc nghiệm', 'Generate quiz', '生成测验', 'クイズ作成', '퀴즈 생성')}
                                 >
                                   <Sparkles className="h-3 w-3" />
-                                  {quizGenLoading === idx ? tr('Đang tạo...', 'Creating...', '创建中...', '作成中...', '생성 중...') : tr('Tạo câu hỏi', 'Add quiz', '添加测验', 'クイズ追加', '퀴즈 추가')}
+                                  {quizGenLoading === idx ? (
+                                    tr('Đang tạo...', 'Creating...', '创建中...', '作成中...', '생성 중...')
+                                  ) : (
+                                    <>
+                                      {tr('Tạo câu hỏi', 'Add quiz', '添加测验', 'クイズ追加', '퀴즈 추가')}
+                                      {slideQuizGenCreditSuffix}
+                                    </>
+                                  )}
                                 </button>
                               </PopoverTrigger>
                               <PopoverContent className="w-48 p-2" align="start">
@@ -4430,6 +4458,8 @@ export default function GiaoVienWorksheetPage() {
           onClearImages={() => setGvWorksheetEditImages([])}
           checkLoading={gvWorksheetEditCheckLoading}
           saving={gvWorksheetEditSaving}
+          checkCreditSuffix={worksheetEditCheckCreditSuffix}
+          saveCreditSuffix={worksheetEditSaveCreditSuffix}
           saveDisabled={
             !worksheetId?.trim() ||
             gvWorksheetEditBlockContent.trim() ===

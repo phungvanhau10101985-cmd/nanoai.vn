@@ -22,6 +22,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
+import { formatSessionIsoDateTime } from '@/lib/datetime/format-session-iso-local'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
 import {
@@ -47,6 +48,7 @@ import {
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
+import type { WebLocale } from '@/lib/i18n/config'
 import {
   getExamAttemptFeedbackWithMeta,
   parseExamGradingMeta,
@@ -218,11 +220,13 @@ function StudentClassExamOrHomeworkSessionRow({
   attempt,
   t,
   examStudentDoPath,
+  webLocale,
 }: {
   session: ExamSessionRow
   attempt: ExamAttempt | null
   t: Dictionary['classes']
   examStudentDoPath: (code: string) => string
+  webLocale: WebLocale
 }) {
   const isClosed = String(session.status ?? 'active').toLowerCase() !== 'active'
   const canOpenLamBai = Boolean(session.code?.trim()) && (!isClosed || Boolean(attempt))
@@ -235,7 +239,8 @@ function StudentClassExamOrHomeworkSessionRow({
           attempt.gradingMeta ?? null
         )
       : null
-  const timeStr = attempt ? new Date(attempt.submittedAt).toLocaleString() : ''
+  const timeStr = attempt ? formatSessionIsoDateTime(attempt.submittedAt, webLocale) : ''
+  const sessionCreatedDisplay = formatSessionIsoDateTime(session.createdAt, webLocale)
   return (
     <li className="px-4 py-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
       <div className="min-w-0 flex-1 space-y-1">
@@ -252,6 +257,11 @@ function StudentClassExamOrHomeworkSessionRow({
             </span>
           ) : null}
         </div>
+        {sessionCreatedDisplay ? (
+          <p className="text-xs text-muted-foreground">
+            {fillExamTeacherSummaryTemplate(t.examSessionCreatedAt, { time: sessionCreatedDisplay })}
+          </p>
+        ) : null}
         {attempt ? (
           <>
             <p className="text-xs font-medium text-emerald-700 dark:text-emerald-400">
@@ -300,12 +310,14 @@ type TeacherClassExamGroup = {
   examTitle: string
   attempts: ExamAttempt[]
   practiceHomework: boolean
+  createdAt: string | null
 }
 
 function TeacherClassExamGroupListItem({
   g,
   classId,
   t,
+  webLocale,
   enrolledStudentIds,
   copyExamStudentLink,
   setExamShare,
@@ -316,6 +328,7 @@ function TeacherClassExamGroupListItem({
   g: TeacherClassExamGroup
   classId: string
   t: Dictionary['classes']
+  webLocale: WebLocale
   enrolledStudentIds: Set<string>
   copyExamStudentLink: (code: string) => void
   setExamShare: (next: { code: string; title: string } | null) => void
@@ -324,10 +337,16 @@ function TeacherClassExamGroupListItem({
   setNotSubmittedSessionId: (id: string | null) => void
 }) {
   const roster = countClassExamSubmissionStats(g.attempts, enrolledStudentIds)
+  const createdAtDisplay = formatSessionIsoDateTime(g.createdAt, webLocale)
   return (
     <li className="px-4 py-3">
       <div className="flex flex-col gap-2.5">
         <p className="font-medium text-sm leading-snug">{g.examTitle}</p>
+        {createdAtDisplay ? (
+          <p className="text-xs text-muted-foreground">
+            {fillExamTeacherSummaryTemplate(t.examSessionCreatedAt, { time: createdAtDisplay })}
+          </p>
+        ) : null}
         <div className="flex flex-wrap items-center gap-2">
           {g.examCode ? (
             <>
@@ -444,6 +463,7 @@ export default function LopDetailClient({
   pageMode = 'hub',
   focusSessionId: focusSessionIdProp,
   showClassHomeLink = false,
+  webLocale,
   t,
 }: {
   cls: {
@@ -464,6 +484,7 @@ export default function LopDetailClient({
   pageMode?: LopDetailPageMode
   focusSessionId?: string
   showClassHomeLink?: boolean
+  webLocale: WebLocale
   t: Dictionary['classes']
 }) {
   const subjectNames = cls.subjectNames ?? []
@@ -603,6 +624,7 @@ export default function LopDetailClient({
         examTitle: s.title || 'Bài thi',
         attempts: attemptsBySession.get(s.id) ?? [],
         practiceHomework: Boolean(s.practiceHomework),
+        createdAt: s.createdAt ?? null,
       }))
       return groups.sort(
         (a, b) =>
@@ -616,6 +638,7 @@ export default function LopDetailClient({
       examTitle: attempts[0]?.examTitle ?? 'Bài thi',
       attempts,
       practiceHomework: Boolean(attempts[0]?.practiceHomework),
+      createdAt: null as string | null,
     }))
     return fallback.sort(
       (a, b) => examSessionNewestFirst(b.sessionId, b.attempts) - examSessionNewestFirst(a.sessionId, a.attempts)
@@ -624,10 +647,6 @@ export default function LopDetailClient({
 
   const examGroupsGraded = useMemo(
     () => examGroups.filter((g) => !g.practiceHomework),
-    [examGroups]
-  )
-  const examGroupsHomeworkOnly = useMemo(
-    () => examGroups.filter((g) => g.practiceHomework),
     [examGroups]
   )
 
@@ -967,6 +986,16 @@ export default function LopDetailClient({
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-x-4 sm:gap-y-2">
             <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
               <h1 className="text-lg font-bold tracking-tight text-foreground sm:text-xl">{className}</h1>
+              <span
+                className={cn(
+                  'inline-flex shrink-0 items-center rounded-md border px-2 py-0.5 text-xs font-medium',
+                  isTeacher
+                    ? 'border-sky-500/35 bg-sky-500/10 text-sky-900 dark:border-sky-400/30 dark:bg-sky-950/40 dark:text-sky-100'
+                    : 'border-emerald-500/35 bg-emerald-500/10 text-emerald-900 dark:border-emerald-400/30 dark:bg-emerald-950/40 dark:text-emerald-100'
+                )}
+              >
+                {isTeacher ? t.memberRoleTeacher : t.memberRoleStudent}
+              </span>
               {isTeacher && (
                 <div className="flex flex-wrap items-center gap-1.5">
                   {editingClassName ? (
@@ -1305,57 +1334,35 @@ export default function LopDetailClient({
               </h2>
             </div>
             <div className="space-y-3 bg-muted/10 p-3 sm:p-4">
-          {examGroups.length === 0 ? (
+          {examGroupsGraded.length === 0 ? (
             <p className="text-sm text-muted-foreground">{t.noExamsForClass}</p>
           ) : (
             <>
-              {lowScoreCount > 0 && examGroupsGraded.length > 0 ? (
+              {lowScoreCount > 0 ? (
                 <div className="rounded-lg border border-amber-300/80 bg-amber-50 px-3 py-2.5 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-950/50 dark:text-amber-100">
                   {t.lowScoreWarningPrefix} {lowScoreCount} {t.lowScoreWarningSuffix}
                 </div>
               ) : null}
-              {examGroupsGraded.length > 0 ? (
-                <div className="space-y-2">
-                  <p className="text-sm font-semibold text-foreground">{t.classExamsSubsectionGraded}</p>
-                  <ul className="divide-y divide-border/80 overflow-hidden rounded-xl border border-border/70 bg-card shadow-sm">
-                    {examGroupsGraded.map((g) => (
-                      <TeacherClassExamGroupListItem
-                        key={g.sessionId}
-                        g={g}
-                        classId={cls.id}
-                        t={t}
-                        enrolledStudentIds={enrolledStudentIds}
-                        copyExamStudentLink={copyExamStudentLink}
-                        setExamShare={setExamShare}
-                        setDeleteExamTarget={setDeleteExamTarget}
-                        setAttachExamTarget={setAttachExamTarget}
-                        setNotSubmittedSessionId={setNotSubmittedSessionId}
-                      />
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-              {examGroupsHomeworkOnly.length > 0 ? (
-                <div className={cn('space-y-2', examGroupsGraded.length > 0 && 'mt-6')}>
-                  <p className="text-sm font-semibold text-foreground">{t.classExamsSubsectionPracticeHomework}</p>
-                  <ul className="divide-y divide-border/80 overflow-hidden rounded-xl border border-border/70 bg-card shadow-sm">
-                    {examGroupsHomeworkOnly.map((g) => (
-                      <TeacherClassExamGroupListItem
-                        key={g.sessionId}
-                        g={g}
-                        classId={cls.id}
-                        t={t}
-                        enrolledStudentIds={enrolledStudentIds}
-                        copyExamStudentLink={copyExamStudentLink}
-                        setExamShare={setExamShare}
-                        setDeleteExamTarget={setDeleteExamTarget}
-                        setAttachExamTarget={setAttachExamTarget}
-                        setNotSubmittedSessionId={setNotSubmittedSessionId}
-                      />
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
+              <div className="space-y-2">
+                <p className="text-sm font-semibold text-foreground">{t.classExamsSubsectionGraded}</p>
+                <ul className="divide-y divide-border/80 overflow-hidden rounded-xl border border-border/70 bg-card shadow-sm">
+                  {examGroupsGraded.map((g) => (
+                    <TeacherClassExamGroupListItem
+                      key={g.sessionId}
+                      g={g}
+                      classId={cls.id}
+                      t={t}
+                      webLocale={webLocale}
+                      enrolledStudentIds={enrolledStudentIds}
+                      copyExamStudentLink={copyExamStudentLink}
+                      setExamShare={setExamShare}
+                      setDeleteExamTarget={setDeleteExamTarget}
+                      setAttachExamTarget={setAttachExamTarget}
+                      setNotSubmittedSessionId={setNotSubmittedSessionId}
+                    />
+                  ))}
+                </ul>
+              </div>
             </>
           )}
             </div>
@@ -1379,10 +1386,18 @@ export default function LopDetailClient({
                 <ul className="divide-y divide-border/80 overflow-hidden rounded-xl border border-border/70 bg-card shadow-sm">
                   {teacherExamSessionGroups.map((g) => {
                     const roster = countClassExamSubmissionStats(g.attempts, enrolledStudentIds)
+                    const sessionCreatedAtDisplay = formatSessionIsoDateTime(g.createdAt, webLocale)
                     return (
                       <li key={g.sessionId} className="px-4 py-3">
                         <div className="flex flex-col gap-2.5">
                           <p className="font-medium text-sm leading-snug">{g.examTitle}</p>
+                          {sessionCreatedAtDisplay ? (
+                            <p className="text-xs text-muted-foreground">
+                              {fillExamTeacherSummaryTemplate(t.examSessionCreatedAt, {
+                                time: sessionCreatedAtDisplay,
+                              })}
+                            </p>
+                          ) : null}
                           <div className="flex flex-wrap items-center gap-2">
                             {g.examCode ? (
                               <>
@@ -1570,7 +1585,7 @@ export default function LopDetailClient({
                                   <div className="min-w-0 text-sm leading-relaxed text-muted-foreground break-words">
                                     {(() => {
                                       const gm = s.gradingMeta
-                                      const time = new Date(s.submittedAt).toLocaleString('vi-VN')
+                                      const time = formatSessionIsoDateTime(s.submittedAt, webLocale)
                                       const score = Math.max(0, Number(s.score || 0))
                                       const max = Math.max(0, Number(s.maxScore || 0))
                                       if (gm && gm.quizTotal > 0 && gm.essayPointsMax > 0) {
@@ -1642,6 +1657,7 @@ export default function LopDetailClient({
                   session={session}
                   attempt={attempt}
                   t={t}
+                  webLocale={webLocale}
                   examStudentDoPath={examStudentDoPath}
                 />
               ))}
@@ -1672,6 +1688,7 @@ export default function LopDetailClient({
                       session={session}
                       attempt={attempt}
                       t={t}
+                      webLocale={webLocale}
                       examStudentDoPath={examStudentDoPath}
                     />
                   ))}

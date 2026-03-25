@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
+import { useCredits } from '@/hooks/use-credits'
 import { Toaster } from '@/components/ui/toaster'
 import { Box, ShoppingBag, Sparkles, Upload, X, ImageIcon, LayoutTemplate, FileText, FileEdit, Eye, ChevronLeft, ChevronRight, Trash2, FolderOpen, Plus, Eraser, FileSpreadsheet, FileDown } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -357,6 +358,7 @@ export default function ThietKeBaoBiClientPage() {
   const excelImportRef = useRef<HTMLInputElement>(null)
   const stepContentRef = useRef<HTMLDivElement>(null)
   const { toast } = useToast()
+  const { checkCreditsAndProceed } = useCredits()
   const cost = imageQuality === '2K' ? 1.5 : 3
 
   const tr = (vi: string, en: string, zh: string, ja: string, ko: string) => {
@@ -1591,7 +1593,7 @@ export default function ThietKeBaoBiClientPage() {
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
-                <Button onClick={handleMockupSubmit} className="flex-1 min-h-[44px]" size="lg">
+                <Button onClick={() => checkCreditsAndProceed(cost, () => void handleMockupSubmit())} className="flex-1 min-h-[44px]" size="lg">
                   <Sparkles className="h-4 w-4 mr-2" />
                   {designType === 'bag'
                     ? tr('In lên túi 3D', 'Print onto 3D bag', '印到3D袋子上', '3D袋に印刷', '3D 가방에 인쇄')
@@ -2400,12 +2402,12 @@ export default function ThietKeBaoBiClientPage() {
                 </div>
               </div>
 
-              <Button onClick={handleSubmit} className="w-full min-h-[44px] touch-manipulation" size="lg">
+              <Button onClick={() => checkCreditsAndProceed(cost, () => void handleSubmit())} className="w-full min-h-[44px] touch-manipulation" size="lg">
                 <Sparkles className="h-4 w-4 mr-2" />
                 {designType === 'box'
                   ? tr('Bắt đầu - Tạo ảnh phẳng 1', 'Start - Create flat design 1', '开始 - 创建平面图1', '開始 - 平面デザイン1を作成', '시작 - 평면 디자인 1 생성')
                   : tr('Bắt đầu - Tạo ảnh phẳng túi', 'Start - Create bag flat design', '开始 - 创建袋子平面图', '開始 - 袋の平面デザインを作成', '시작 - 가방 평면 디자인 생성')}{' '}
-                {designType === 'bag' && `(${formatCredits(cost)} ${tr('credits', 'credits', '积分', 'クレジット', '크레딧')})`}
+                ({formatCredits(cost)} {tr('credits', 'credits', '积分', 'クレジット', '크레딧')})
               </Button>
             </CardContent>
           </Card>
@@ -2844,7 +2846,7 @@ export default function ThietKeBaoBiClientPage() {
 
               <div className="flex flex-wrap gap-2">
                 <Button
-                  onClick={() => handleFaceSubmit()}
+                  onClick={() => checkCreditsAndProceed(cost, () => void handleFaceSubmit())}
                   className="flex-1 min-h-[44px] touch-manipulation"
                   size="lg"
                   disabled={!selectedFaceSize || faces.length >= 6}

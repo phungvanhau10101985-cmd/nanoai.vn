@@ -8,9 +8,12 @@ import {
   quizToMarker,
   type QuizData,
 } from '@/lib/quiz-ai'
+import { createUserNotificationWithEmail } from '@/lib/notifications/create-user-notification-server'
 
 function adminClient() {
-  return createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+  return createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  })
 }
 
 type SlideItem = {
@@ -66,13 +69,15 @@ export async function POST(
         })
         .eq('id', id)
 
-      await adminSupabase.from('notifications').insert({
+      const notifKept = {
         user_id: report.user_id,
         type: 'quiz_report_resolved',
-        title: 'Báo cáo câu hỏi sai đã được xử lý',
-        body: 'Admin đã duyệt giữ nguyên câu hỏi. Vui lòng xem lại slide.',
+        title: 'Báo cáo câu hỏi của bạn đã được xử lý',
+        body:
+          'Ban quản trị đã xem xét và giữ nguyên nội dung câu hỏi trên giáo trình. Cảm ơn bạn đã góp ý giúp NanoAI chính xác hơn. Mở ứng dụng và xem mục thông báo (chuông) để biết thêm ngữ cảnh.',
         meta: { curriculum_id: report.curriculum_id, slide_index: report.slide_index, action: 'kept' },
-      })
+      }
+      await createUserNotificationWithEmail(adminSupabase, notifKept)
 
       return NextResponse.json({ action: 'kept', message: 'Đã duyệt giữ nguyên câu hỏi.' })
     }
@@ -164,13 +169,15 @@ export async function POST(
       })
       .eq('id', id)
 
-    await adminSupabase.from('notifications').insert({
+    const notifReplaced = {
       user_id: report.user_id,
       type: 'quiz_report_resolved',
-      title: 'Báo cáo câu hỏi sai đã được xử lý',
-      body: 'Admin đã thay câu hỏi mới. Vui lòng xem lại slide.',
+      title: 'Báo cáo câu hỏi của bạn đã được xử lý',
+      body:
+        'Ban quản trị đã thay thế bằng câu hỏi mới phù hợp nội dung slide. Bạn có thể học lại trên giáo trình. Cảm ơn bạn đã báo cáo giúp cải thiện chất lượng.',
       meta: { curriculum_id: report.curriculum_id, slide_index: report.slide_index, action: 'replaced' },
-    })
+    }
+    await createUserNotificationWithEmail(adminSupabase, notifReplaced)
 
     return NextResponse.json({
       action: 'replaced',

@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { redirect, notFound } from 'next/navigation'
+import { notFound } from 'next/navigation'
 import { redirectToLogin } from '@/lib/auth/login-redirect'
 import { getUserOrBypass } from '@/lib/auth'
 import TryOnClientPage from '../try-on-client-page'

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
-import { LogOut, Wallet, Shield } from 'lucide-react'
+import { LogOut, Wallet, Shield, Gift } from 'lucide-react'
 import { DepositCreditButton } from '@/components/deposit-credit-button'
 import { DepositCreditMenuItem } from '@/components/deposit-credit-menu-item'
 import { createClient } from '@/lib/supabase/client'
@@ -86,7 +86,7 @@ export function HeaderUserMenu({ user, credits, isAdmin, t }: HeaderUserMenuProp
             </div>
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
-          <DropdownMenuItem asChild className="sm:hidden">
+          <DropdownMenuItem asChild className="sm:hidden cursor-default">
             <div className="flex items-center gap-2 text-sm font-medium">
               <Wallet className="h-4 w-4" />
               <span>{displayCredits} {t.menu.credits}</span>
@@ -107,6 +107,12 @@ export function HeaderUserMenu({ user, credits, isAdmin, t }: HeaderUserMenuProp
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
             <Link href="/wallet">{t.menu.wallet}</Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href="/invite" className="flex items-center gap-2">
+              <Gift className="h-4 w-4" />
+              {t.menu.inviteFriends}
+            </Link>
           </DropdownMenuItem>
           {isAdmin && (
             <DropdownMenuItem asChild>

@@ -22,7 +22,7 @@ export function LopClassDetailView({
   pageMode: LopDetailPageMode
   focusSessionId?: string
 }) {
-  const { t } = getServerDictionary()
+  const { locale, t } = getServerDictionary()
   const {
     cls,
     isTeacher,
@@ -55,6 +55,7 @@ export function LopClassDetailView({
             pageMode={pageMode}
             focusSessionId={focusSessionId}
             showClassHomeLink={pageMode !== 'hub'}
+            webLocale={locale}
             t={t.classes}
           />
         </div>

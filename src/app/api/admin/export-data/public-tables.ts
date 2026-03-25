@@ -28,6 +28,7 @@ export const PUBLIC_TABLES = [
   'user_opened_curricula',
   'user_hidden_curricula',
   'notifications',
+  'push_subscriptions',
   'language_coach_learning_goals',
   'language_coach_progress_daily',
   'language_coach_review_queue',

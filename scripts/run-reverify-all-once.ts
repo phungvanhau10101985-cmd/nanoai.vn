@@ -105,7 +105,7 @@ async function loadReverifyWorksheetRows(
     throw new Error(`RPC get_worksheet_ids_for_reverify: ${msg}`)
   }
   console.warn(
-    '[reverify] RPC chưa có trên DB — dùng liệt kê qua bảng (hoặc apply migration supabase/migrations/20260328120000_get_worksheet_ids_for_reverify.sql).'
+    '[reverify] RPC chưa có trên DB — dùng liệt kê qua bảng (hoặc apply migration supabase/migrations/20260328120100_get_worksheet_ids_for_reverify.sql).'
   )
   return loadReverifyRowsFallback(admin)
 }

@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
+import { cn } from '@/lib/utils'
 
 export type ClassItem = {
   id: string
@@ -64,16 +65,21 @@ export default function LopClientPage({
             className="block rounded-xl border border-input bg-card p-4 hover:bg-accent/50 transition-colors"
           >
             <div className="flex items-center justify-between gap-2">
-              <span className="font-medium text-foreground leading-snug">
+              <span className="font-medium text-foreground leading-snug min-w-0">
                 {!c.isTeacher && (c.subject_label?.trim() || c.teacher_display_name?.trim())
                   ? studentClassContextLine(c)
                   : c.name}
               </span>
-              {c.isTeacher && (
-                <span className="text-xs px-2 py-0.5 rounded-full bg-primary/20 text-primary shrink-0">
-                  GV
-                </span>
-              )}
+              <span
+                className={cn(
+                  'shrink-0 rounded-md border px-2 py-0.5 text-xs font-medium',
+                  c.isTeacher
+                    ? 'border-sky-500/35 bg-sky-500/10 text-sky-900 dark:border-sky-400/30 dark:bg-sky-950/40 dark:text-sky-100'
+                    : 'border-emerald-500/35 bg-emerald-500/10 text-emerald-900 dark:border-emerald-400/30 dark:bg-emerald-950/40 dark:text-emerald-100'
+                )}
+              >
+                {c.isTeacher ? t.memberRoleTeacher : t.memberRoleStudent}
+              </span>
             </div>
             <p className="text-sm text-muted-foreground mt-1">
               {t.joinCode}: {c.join_code}

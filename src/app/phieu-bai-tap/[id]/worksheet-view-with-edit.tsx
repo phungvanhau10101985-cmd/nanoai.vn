@@ -15,6 +15,7 @@ import {
   WorksheetEditSectionPopup,
   type WorksheetEditTr,
 } from '@/app/tao-giao-trinh/components/worksheet-edit-section-popup'
+import { CURRICULUM_UI_CREDITS, formatCurriculumCredits } from '@/app/tao-giao-trinh/lib/curriculum-credit-costs'
 import type { WebLocale } from '@/lib/i18n/config'
 
 function worksheetTrFromLocale(locale: WebLocale): WorksheetEditTr {
@@ -67,6 +68,14 @@ export default function WorksheetViewWithEdit({
   locale: WebLocale
 }) {
   const tr = useMemo(() => worksheetTrFromLocale(locale), [locale])
+  const worksheetEditCheckCreditSuffix = useMemo(
+    () => ` (${formatCurriculumCredits(CURRICULUM_UI_CREDITS.worksheetEditCheck)} ${tr('credits', 'credits', '积分', 'クレジット', '크레딧')})`,
+    [tr]
+  )
+  const worksheetEditSaveCreditSuffix = useMemo(
+    () => ` (${formatCurriculumCredits(CURRICULUM_UI_CREDITS.worksheetEditSave)} ${tr('credits', 'credits', '积分', 'クレジット', '크레딧')})`,
+    [tr]
+  )
   const { toast } = useToast()
   const router = useRouter()
   const [markdown, setMarkdown] = useState(initialMarkdown)
@@ -411,6 +420,8 @@ export default function WorksheetViewWithEdit({
           onClearImages={() => setWorksheetEditImages([])}
           checkLoading={worksheetEditCheckLoading}
           saving={worksheetEditSaving}
+          checkCreditSuffix={worksheetEditCheckCreditSuffix}
+          saveCreditSuffix={worksheetEditSaveCreditSuffix}
           saveDisabled={
             worksheetEditBlockContent.trim() ===
             (worksheetEditBlockIndex != null && worksheetEditBlocks[worksheetEditBlockIndex]

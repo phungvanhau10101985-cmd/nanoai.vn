@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import { verifyExamLayoutToken } from '@/lib/exam-layout-token'
 import { CLASS_ENROLLMENT_ERROR_VI, hasCompleteClassEnrollment } from '@/lib/lop/require-class-enrollment'
+import { isServerDeadlinePassed } from '@/lib/exam-session/finalize-overdue-exam-attempt'
 import { randomBytes } from 'crypto'
 import { EXAM_ESSAY_IMAGES_BUCKET } from '@/lib/exam-essay-config'
 
@@ -51,7 +52,7 @@ export async function POST(
 
     const { data: session, error: sessionErr } = await supabase
       .from('exam_sessions')
-      .select('id, class_id, school_id')
+      .select('id, class_id, school_id, duration_minutes')
       .eq('code', code.toUpperCase())
       .eq('status', 'active')
       .single()
@@ -68,14 +69,30 @@ export async function POST(
       )
     }
 
-    const { data: existing } = await supabase
+    const { data: attemptRow } = await supabase
       .from('exam_attempts')
-      .select('id')
+      .select('id, submitted_at, deadline_at, started_at')
       .eq('session_id', session.id)
       .eq('user_id', user.id)
-      .limit(1)
-    if (existing?.length) {
+      .maybeSingle()
+    if (attemptRow?.submitted_at != null) {
       return NextResponse.json({ error: 'Bạn đã nộp bài, không thể tải thêm ảnh.' }, { status: 409 })
+    }
+    const durationMin =
+      typeof session.duration_minutes === 'number' ? session.duration_minutes : 15
+    if (
+      attemptRow &&
+      isServerDeadlinePassed(
+        attemptRow.deadline_at,
+        attemptRow.started_at,
+        durationMin,
+        Date.now()
+      )
+    ) {
+      return NextResponse.json(
+        { error: 'Đã hết thời gian làm bài. Vui lòng tải lại trang.' },
+        { status: 400 }
+      )
     }
 
     if (session.class_id) {

@@ -86,9 +86,36 @@ export type Dictionary = {
     exitDevMode: string
     notifications: string
     noNotifications: string
+    inviteFriends: string
   }
   home: {
     title: string
+  }
+  referral: {
+    pageTitle: string
+    metaDescription: string
+    headline: string
+    description: string
+    yourLinkLabel: string
+    copyButton: string
+    copied: string
+    howItWorksTitle: string
+    step1: string
+    step2: string
+    step3: string
+    bonusNote: string
+    toastApplied: string
+    toastAppliedHint: string
+    inviteVisualYou: string
+    inviteVisualFriend: string
+    errorGeneric: string
+  }
+  push: {
+    bannerTitle: string
+    bannerHint: string
+    enable: string
+    later: string
+    enabledToast: string
   }
   footer: {
     platformTitle: string
@@ -280,6 +307,19 @@ export type Dictionary = {
     /** Thanh đồng hồ gọn khi hết giờ */
     lamBaiTimerStickySubmittingExam: string
     lamBaiTimerStickySubmittingHomework: string
+    /** Trang lam-bai đang làm — nhắc: chỉ thoát sau khi nộp; quay lại thì đồng hồ vẫn tính từ lúc bấm Bắt đầu */
+    lamBaiExitBlockedBanner: string
+    /** Trước khi bấm Bắt đầu — cảnh báo đóng/tải lại; có thể quay lại nhưng đồng hồ không dừng */
+    lamBaiExitBlockedBeforeStartHint: string
+    lamBaiExitBlockedDialogTitle: string
+    lamBaiExitBlockedDialogDescription: string
+    lamBaiExitBlockedSubmitNow: string
+    lamBaiExitBlockedStay: string
+    /** Sau khi tải lại trang — có phiên làm bài chưa nộp */
+    lamBaiExamResumeNotice: string
+    /** Nút Bắt đầu đang gọi API */
+    examBeginStarting: string
+    examBeginFailed: string
     examSubmitSending: string
     examSubmitButton: string
     homeworkSubmitSending: string
@@ -290,6 +330,8 @@ export type Dictionary = {
     /** Trang lam-bai: đã nộp trước (máy khác / phiên khác) — hiển thị kết quả đã lưu */
     examSubmittedTitle: string
     examSubmittedSavedEarlier: string
+    /** Kết quả sau khi hết giờ server (tự nộp) */
+    examSubmittedDueToDeadlineHint: string
     /** Bài tập về nhà (không hiển thị điểm cho HS) */
     homeworkSubmittedTitle: string
     homeworkSubmittedSavedEarlier: string
@@ -342,6 +384,8 @@ export type Dictionary = {
     examAttemptCount: string
     /** Placeholders {submitted}, {notSubmitted} — roster lớp; chuỗi ngắn gọn cho một dòng */
     examSessionRosterReport: string
+    /** Phiên đề / bài tập — {time} đã format (ngày giờ tạo) */
+    examSessionCreatedAt: string
     /** Nút mở danh sách HS trong lớp chưa nộp bài thi */
     examSessionShowNotSubmitted: string
     examSessionNotSubmittedTitle: string
@@ -824,9 +868,38 @@ const VI_DICTIONARY: Dictionary = {
     notifications: 'Thông báo',
     noNotifications: 'Chưa có thông báo',
     exitDevMode: 'Thoát chế độ dev',
+    inviteFriends: 'Mời bạn bè',
   },
   home: {
     title: 'NanoAI - Sáng tạo không giới hạn cùng AI',
+  },
+  referral: {
+    pageTitle: 'Mời bạn bè – nhận thưởng credit',
+    metaDescription: 'Chia sẻ NanoAI với bạn bè. Khi họ tham gia, cả hai cùng nhận 2 credit.',
+    headline: 'Giới thiệu NanoAI cho bạn bè',
+    description:
+      'Sao chép liên kết cá nhân của bạn. Khi người nhận lời mời đăng ký và tham gia, bạn và họ mỗi người nhận 2 credit (một lần cho mỗi tài khoản mới).',
+    yourLinkLabel: 'Liên kết giới thiệu của bạn',
+    copyButton: 'Sao chép liên kết',
+    copied: 'Đã sao chép',
+    howItWorksTitle: 'Cách hoạt động',
+    step1: 'Gửi liên kết có mã giới thiệu của bạn cho bạn bè.',
+    step2: 'Họ mở link và đăng ký / đăng nhập NanoAI trong vòng 30 ngày kể từ khi tạo tài khoản.',
+    step3: 'Hệ thống tự cộng 2 credit cho người được mời và 2 credit cho bạn (một lần duy nhất cho mỗi người mới).',
+    bonusNote: 'Ưu đãi áp dụng cho tài khoản mới đủ điều kiện; mỗi người chỉ nhận thưởng giới thiệu một lần.',
+    toastApplied: '+2 credit đã được cộng',
+    toastAppliedHint: 'Cảm ơn bạn đã tham gia qua lời mời. Số dư ví đã cập nhật.',
+    inviteVisualYou: 'Bạn',
+    inviteVisualFriend: 'Bạn bè mới',
+    errorGeneric: 'Không thể áp dụng giới thiệu lúc này. Thử lại sau nhé.',
+  },
+  push: {
+    bannerTitle: 'Nhận thông báo trên điện thoại',
+    bannerHint:
+      'Bạn đang dùng NanoAI như ứng dụng (PWA). Bật thông báo để biết tin mới (nạp tiền, thưởng, xử lý báo cáo…) ngay cả khi không mở app.',
+    enable: 'Bật thông báo',
+    later: 'Để sau',
+    enabledToast: 'Đã bật thông báo đẩy',
   },
   footer: {
     platformTitle: 'NanoAI Platform',
@@ -1041,7 +1114,8 @@ const VI_DICTIONARY: Dictionary = {
     examManualIdentityIntro:
       'Nhập thông tin và bấm Bắt đầu để làm bài. Đồng hồ chỉ chạy sau khi bấm Bắt đầu.',
     examStartTestButton: 'Bắt đầu bài kiểm tra',
-    examOneAttemptNote: 'Mỗi tài khoản chỉ được làm bài một lần.',
+    examOneAttemptNote:
+      'Mỗi tài khoản một lượt: sau khi bấm Bắt đầu hệ thống khóa phiên trên máy chủ — không xem lại đề mới; muốn thoát cần nộp bài.',
     examStartHomeworkButton: 'Bắt đầu làm bài tập',
     homeworkIdentityFromClassHint:
       'Hồ sơ trong lớp đã có họ tên và ngày sinh. Bấm Bắt đầu khi sẵn sàng làm bài tập về nhà; đồng hồ chỉ chạy sau khi bấm.',
@@ -1058,6 +1132,19 @@ const VI_DICTIONARY: Dictionary = {
     lamBaiTimerTimeUpAutoSubmittingHomework: 'Hết giờ! Bài tập đang được gửi tự động.',
     lamBaiTimerStickySubmittingExam: 'Hết giờ — đang nộp…',
     lamBaiTimerStickySubmittingHomework: 'Hết giờ — đang gửi…',
+    lamBaiExitBlockedBanner:
+      'Bạn đang làm bài: chỉ nên rời trang sau khi đã nộp bài. Đóng tab, làm mới hoặc bấm Quay lại sẽ bị chặn hoặc nhắc — hãy nộp bài để kết thúc phiên làm bài. Nếu tạm thoát rồi mở lại, đồng hồ vẫn tính từ lúc bấm Bắt đầu.',
+    lamBaiExitBlockedBeforeStartHint:
+      'Sau khi bấm Bắt đầu, chỉ nên rời trang sau khi nộp bài. Trình duyệt sẽ cảnh báo nếu bạn đóng tab, tải lại hoặc rời trang. Bạn vẫn có thể thoát rồi quay lại, nhưng đồng hồ vẫn tính từ lúc bấm Bắt đầu.',
+    lamBaiExitBlockedDialogTitle: 'Cần nộp bài để thoát',
+    lamBaiExitBlockedDialogDescription:
+      'Bạn đang trong phiên làm bài. Để thoát an toàn, hãy nộp bài. Bạn có thể bấm «Nộp bài ngay» bên dưới hoặc kéo xuống cuối trang để nộp.',
+    lamBaiExitBlockedSubmitNow: 'Nộp bài ngay',
+    lamBaiExitBlockedStay: 'Ở lại làm bài',
+    lamBaiExamResumeNotice:
+      'Bạn đang có phiên làm bài chưa nộp — đáp án đã lưu được khôi phục. Tiếp tục làm và nộp bài khi xong.',
+    examBeginStarting: 'Đang bắt đầu…',
+    examBeginFailed: 'Không bắt đầu được phiên làm bài. Vui lòng thử lại.',
     examSubmitSending: 'Đang nộp bài…',
     examSubmitButton: 'Nộp bài',
     homeworkSubmitSending: 'Đang gửi bài tập…',
@@ -1066,6 +1153,8 @@ const VI_DICTIONARY: Dictionary = {
     lamBaiQuestionLabel: 'Câu {index}.',
     examSubmittedTitle: 'Đã nộp bài',
     examSubmittedSavedEarlier: 'Bạn đã nộp bài thi này. Dưới đây là kết quả đã lưu.',
+    examSubmittedDueToDeadlineHint:
+      'Thời gian làm bài trên hệ thống đã hết — bài được nộp tự động theo đáp án đã lưu. Dưới đây là kết quả.',
     homeworkSubmittedTitle: 'Đã nộp bài tập về nhà',
     homeworkSubmittedSavedEarlier: 'Bạn đã nộp bài tập này. Thông tin đã lưu bên dưới.',
     homeworkSubmittedBody:
@@ -1102,6 +1191,7 @@ const VI_DICTIONARY: Dictionary = {
     examDeleteConfirmPhrase: 'XÓA BÀI THI',
     examAttemptCount: 'bài nộp',
     examSessionRosterReport: '{submitted} đã nộp · {notSubmitted} chưa nộp',
+    examSessionCreatedAt: 'Tạo lúc {time}',
     examSessionShowNotSubmitted: 'Ai chưa nộp?',
     examSessionNotSubmittedTitle: 'Học sinh chưa nộp bài',
     examSessionNotSubmittedAllSubmitted: 'Mọi học sinh trong lớp đã nộp bài thi này.',
@@ -1566,6 +1656,35 @@ const EN_DICTIONARY: Dictionary = {
     exitDevMode: 'Exit dev mode',
     notifications: 'Notifications',
     noNotifications: 'No notifications yet',
+    inviteFriends: 'Invite friends',
+  },
+  referral: {
+    pageTitle: 'Invite friends – earn credits',
+    metaDescription: 'Share NanoAI. When your friend joins, you both get 2 credits.',
+    headline: 'Invite friends to NanoAI',
+    description:
+      'Copy your personal link. When someone you invite signs up and joins, you and they each receive 2 credits (once per new account).',
+    yourLinkLabel: 'Your invite link',
+    copyButton: 'Copy link',
+    copied: 'Copied',
+    howItWorksTitle: 'How it works',
+    step1: 'Share your invite link with friends.',
+    step2: 'They open the link and sign up / sign in to NanoAI within 30 days of account creation.',
+    step3: 'We add 2 credits to the invitee and 2 credits to you (one time per new person).',
+    bonusNote: 'For eligible new accounts only; each person can receive the referral reward once.',
+    toastApplied: '+2 credits added',
+    toastAppliedHint: 'Thanks for joining through an invite. Your wallet balance is updated.',
+    inviteVisualYou: 'You',
+    inviteVisualFriend: 'Your friend',
+    errorGeneric: 'We could not apply the invite bonus right now. Please try again later.',
+  },
+  push: {
+    bannerTitle: 'Get phone notifications',
+    bannerHint:
+      'You are using NanoAI as an installed app (PWA). Turn on notifications for payments, rewards, and report updates even when the app is closed.',
+    enable: 'Turn on',
+    later: 'Not now',
+    enabledToast: 'Push notifications enabled',
   },
   footer: {
     platformTitle: 'NanoAI Platform',
@@ -1781,7 +1900,8 @@ const EN_DICTIONARY: Dictionary = {
     examManualIdentityIntro:
       'Enter your details and press Start to begin. The timer starts only after you press Start.',
     examStartTestButton: 'Start test',
-    examOneAttemptNote: 'Each account can submit this test only once.',
+    examOneAttemptNote:
+      'One attempt per account: after you start, the server locks your session—you cannot get a fresh shuffled copy; leaving requires submitting.',
     examStartHomeworkButton: 'Start homework',
     homeworkIdentityFromClassHint:
       'Your class profile already has your name and date of birth. Press Start when you are ready; the timer begins only after you start.',
@@ -1798,6 +1918,19 @@ const EN_DICTIONARY: Dictionary = {
     lamBaiTimerTimeUpAutoSubmittingHomework: "Time's up! Your homework is being sent automatically.",
     lamBaiTimerStickySubmittingExam: "Time's up — submitting…",
     lamBaiTimerStickySubmittingHomework: "Time's up — sending…",
+    lamBaiExitBlockedBanner:
+      'You are taking this assignment: you should only leave after submitting. Closing the tab, refreshing, or going back will be blocked or warned — submit to finish. If you leave and return, the timer keeps counting from when you pressed Start.',
+    lamBaiExitBlockedBeforeStartHint:
+      'After you press Start, you should only leave the page after submitting. Your browser will warn you if you close the tab, reload, or leave the page. You may leave and come back, but the timer keeps counting from when you started.',
+    lamBaiExitBlockedDialogTitle: 'Submit to leave',
+    lamBaiExitBlockedDialogDescription:
+      'You are in an active attempt. To leave safely, submit your answers. Use Submit now below or scroll down and press Submit.',
+    lamBaiExitBlockedSubmitNow: 'Submit now',
+    lamBaiExitBlockedStay: 'Stay and continue',
+    lamBaiExamResumeNotice:
+      'You have an unfinished attempt—saved answers were restored. Continue and submit when done.',
+    examBeginStarting: 'Starting…',
+    examBeginFailed: 'Could not start the session. Please try again.',
     examSubmitSending: 'Submitting…',
     examSubmitButton: 'Submit',
     homeworkSubmitSending: 'Sending homework…',
@@ -1806,6 +1939,8 @@ const EN_DICTIONARY: Dictionary = {
     lamBaiQuestionLabel: 'Question {index}.',
     examSubmittedTitle: 'Submitted',
     examSubmittedSavedEarlier: 'You already submitted this test. Your saved result is below.',
+    examSubmittedDueToDeadlineHint:
+      'The server time limit has ended — your attempt was submitted automatically using your saved answers. Your result is below.',
     homeworkSubmittedTitle: 'Homework submitted',
     homeworkSubmittedSavedEarlier: 'You already submitted this homework. Your saved info is below.',
     homeworkSubmittedBody:
@@ -1842,6 +1977,7 @@ const EN_DICTIONARY: Dictionary = {
     examDeleteConfirmPhrase: 'DELETE EXAM',
     examAttemptCount: 'submissions',
     examSessionRosterReport: '{submitted} submitted · {notSubmitted} not yet',
+    examSessionCreatedAt: 'Created {time}',
     examSessionShowNotSubmitted: 'Who has not submitted?',
     examSessionNotSubmittedTitle: 'Students who have not submitted',
     examSessionNotSubmittedAllSubmitted: 'Everyone on the class roster has submitted this exam.',
@@ -2317,6 +2453,34 @@ const ZH_DICTIONARY: Dictionary = {
     exitDevMode: '退出开发模式',
     notifications: '通知',
     noNotifications: '暂无通知',
+    inviteFriends: '邀请好友',
+  },
+  referral: {
+    pageTitle: '邀请好友 – 获得积分',
+    metaDescription: '分享 NanoAI。好友加入后，双方各得 2 积分。',
+    headline: '向好友推荐 NanoAI',
+    description: '复制您的专属链接。被邀请人注册并加入后，您与对方各获得 2 积分（每个新账号限一次）。',
+    yourLinkLabel: '您的邀请链接',
+    copyButton: '复制链接',
+    copied: '已复制',
+    howItWorksTitle: '如何运作',
+    step1: '将带有您推荐码的链接发给好友。',
+    step2: '对方打开链接，并在创建账号后 30 天内注册或登录 NanoAI。',
+    step3: '系统自动为被邀请人与您各加 2 积分（每位新人仅一次）。',
+    bonusNote: '仅适用于符合条件的新账号；每人仅限一次推荐奖励。',
+    toastApplied: '已添加 +2 积分',
+    toastAppliedHint: '感谢通过邀请加入，钱包余额已更新。',
+    inviteVisualYou: '您',
+    inviteVisualFriend: '好友',
+    errorGeneric: '暂时无法应用邀请奖励，请稍后再试。',
+  },
+  push: {
+    bannerTitle: '接收手机通知',
+    bannerHint:
+      '您正在以已安装应用（PWA）使用 NanoAI。开启通知后，即使未打开应用也能收到付款、奖励与处理结果等提醒。',
+    enable: '开启通知',
+    later: '稍后',
+    enabledToast: '已开启推送通知',
   },
   navGroup: {
     try_on: '试衣与穿搭',
@@ -2514,7 +2678,8 @@ const ZH_DICTIONARY: Dictionary = {
     examChangeIdentityManual: '改用其他姓名与出生日期',
     examManualIdentityIntro: '请填写信息并点击开始答题；计时仅在点击开始后启动。',
     examStartTestButton: '开始测验',
-    examOneAttemptNote: '每个账号只能提交一次。',
+    examOneAttemptNote:
+      '每账号一次机会：点击开始后服务器会锁定作答，无法重新打乱题目；离开页面需提交答卷。',
     examStartHomeworkButton: '开始做作业',
     homeworkIdentityFromClassHint:
       '班级档案中已有姓名与出生日期。准备好后点击开始；计时仅在点击开始后启动。',
@@ -2530,6 +2695,18 @@ const ZH_DICTIONARY: Dictionary = {
     lamBaiTimerTimeUpAutoSubmittingHomework: '时间到！作业正在自动提交。',
     lamBaiTimerStickySubmittingExam: '时间到 — 提交中…',
     lamBaiTimerStickySubmittingHomework: '时间到 — 提交中…',
+    lamBaiExitBlockedBanner:
+      '正在答题：建议仅在提交后离开页面。关闭标签、刷新或返回会被拦截或提示——请提交以结束本次答题。若暂时离开后再打开，计时仍从点击「开始」起算。',
+    lamBaiExitBlockedBeforeStartHint:
+      '点击「开始」后，请先提交再离开页面。关闭标签、刷新或离开页面时，浏览器会发出警告。你可以暂时离开后再回来，但计时从点击「开始」起持续进行。',
+    lamBaiExitBlockedDialogTitle: '需提交后才能离开',
+    lamBaiExitBlockedDialogDescription:
+      '你正在答题。要安全离开请先提交。可点击下方「立即提交」或滚动到页面底部提交。',
+    lamBaiExitBlockedSubmitNow: '立即提交',
+    lamBaiExitBlockedStay: '继续作答',
+    lamBaiExamResumeNotice: '您有未提交的作答，已恢复已保存的答案。请继续作答并在完成后提交。',
+    examBeginStarting: '正在开始…',
+    examBeginFailed: '无法开始作答，请重试。',
     examSubmitSending: '正在提交…',
     examSubmitButton: '提交答卷',
     homeworkSubmitSending: '正在提交作业…',
@@ -2538,6 +2715,8 @@ const ZH_DICTIONARY: Dictionary = {
     lamBaiQuestionLabel: '第 {index} 题.',
     examSubmittedTitle: '已提交',
     examSubmittedSavedEarlier: '您已提交过本场测验。以下是已保存的成绩。',
+    examSubmittedDueToDeadlineHint:
+      '系统作答时间已结束——已根据已保存的答案自动提交。以下为结果。',
     homeworkSubmittedTitle: '家庭作业已提交',
     homeworkSubmittedSavedEarlier: '您已提交过这份作业。以下是已保存的信息。',
     homeworkSubmittedBody: '此为练习型作业，不向学生显示分数或评分量表。教师仍可在课堂中查看与点评。',
@@ -2572,6 +2751,7 @@ const ZH_DICTIONARY: Dictionary = {
     examDeleteConfirmPhrase: '删除考试',
     examAttemptCount: '份提交',
     examSessionRosterReport: '已交 {submitted} · 未交 {notSubmitted}',
+    examSessionCreatedAt: '创建于 {time}',
     examSessionShowNotSubmitted: '谁未交？',
     examSessionNotSubmittedTitle: '尚未提交的学生',
     examSessionNotSubmittedAllSubmitted: '本班学生均已提交本场测验。',
@@ -3032,6 +3212,35 @@ const JA_DICTIONARY: Dictionary = {
     exitDevMode: '開発モードを終了',
     notifications: '通知',
     noNotifications: '通知はありません',
+    inviteFriends: '友達を招待',
+  },
+  referral: {
+    pageTitle: '友達招待 – クレジット獲得',
+    metaDescription: 'NanoAI を共有。友達が参加すると、お互いに 2 クレジット。',
+    headline: '友達に NanoAI を紹介',
+    description:
+      'あなた専用のリンクをコピー。招待した方が登録・参加すると、お互いに 2 クレジット（新規アカウントにつき 1 回）。',
+    yourLinkLabel: 'あなたの招待リンク',
+    copyButton: 'リンクをコピー',
+    copied: 'コピーしました',
+    howItWorksTitle: '仕組み',
+    step1: '紹介コード付きリンクを友達に送ります。',
+    step2: '相手がリンクを開き、アカウント作成から 30 日以内に NanoAI に登録／ログインします。',
+    step3: '被招待者とあなたにそれぞれ 2 クレジットが付与されます（新人 1 人につき 1 回）。',
+    bonusNote: '対象の新規アカウントに限ります。紹介報酬はお一人様 1 回までです。',
+    toastApplied: '+2 クレジットを付与しました',
+    toastAppliedHint: '招待経由でのご参加ありがとうございます。残高を更新しました。',
+    inviteVisualYou: 'あなた',
+    inviteVisualFriend: 'お友だち',
+    errorGeneric: 'いま紹介ボーナスを適用できません。しばらくしてからお試しください。',
+  },
+  push: {
+    bannerTitle: 'スマホで通知を受け取る',
+    bannerHint:
+      'NanoAI をアプリ（PWA）として利用中です。通知をオンにすると、アプリを閉じていても入金・特典・報告の処理などのお知らせを受け取れます。',
+    enable: '通知をオン',
+    later: 'あとで',
+    enabledToast: 'プッシュ通知を有効にしました',
   },
   navGroup: {
     try_on: '試着・コーデ',
@@ -3234,7 +3443,8 @@ const JA_DICTIONARY: Dictionary = {
     examChangeIdentityManual: '別の氏名・生年月日を入力',
     examManualIdentityIntro: '情報を入力して開始を押してください。タイマーは開始後に動きます。',
     examStartTestButton: 'テストを開始',
-    examOneAttemptNote: 'アカウントごとに1回だけ受験できます。',
+    examOneAttemptNote:
+      'アカウントごとに1回です。開始後はサーバー側でセッションが固定され、別の並びの問題は取得できません。退出するには提出が必要です。',
     examStartHomeworkButton: '宿題を始める',
     homeworkIdentityFromClassHint:
       'クラスに登録した氏名・生年月日があります。準備ができたら開始を押してください。タイマーは開始後に動きます。',
@@ -3251,6 +3461,19 @@ const JA_DICTIONARY: Dictionary = {
     lamBaiTimerTimeUpAutoSubmittingHomework: '時間切れです。宿題を自動送信しています。',
     lamBaiTimerStickySubmittingExam: '時間切れ — 送信中…',
     lamBaiTimerStickySubmittingHomework: '時間切れ — 送信中…',
+    lamBaiExitBlockedBanner:
+      '受験中です。提出後にページを離れるのが安全です。タブを閉じる・更新・戻るはブロックまたは警告されます。終了するには提出してください。一度離れて戻っても、タイマーは「開始」を押した時刻から進み続けます。',
+    lamBaiExitBlockedBeforeStartHint:
+      '「開始」を押した後は、提出してからページを離れるのがよいです。タブを閉じる・再読み込み・離脱しようとするとブラウザが警告します。一度離れて戻っても大丈夫ですが、タイマーは「開始」を押した時刻から進み続けます。',
+    lamBaiExitBlockedDialogTitle: '提出が必要です',
+    lamBaiExitBlockedDialogDescription:
+      '受験中です。安全に離れるには提出してください。「今すぐ提出」か、ページ下部の提出ボタンを使ってください。',
+    lamBaiExitBlockedSubmitNow: '今すぐ提出',
+    lamBaiExitBlockedStay: '続ける',
+    lamBaiExamResumeNotice:
+      '未提出の受験があります。保存された解答を復元しました。続けて最後に提出してください。',
+    examBeginStarting: '開始しています…',
+    examBeginFailed: '受験を開始できませんでした。もう一度お試しください。',
     examSubmitSending: '送信中…',
     examSubmitButton: '提出する',
     homeworkSubmitSending: '宿題を送信中…',
@@ -3259,6 +3482,8 @@ const JA_DICTIONARY: Dictionary = {
     lamBaiQuestionLabel: '問{index}.',
     examSubmittedTitle: '提出済み',
     examSubmittedSavedEarlier: 'このテストはすでに提出済みです。保存された結果は以下のとおりです。',
+    examSubmittedDueToDeadlineHint:
+      'サーバー上の制限時間が終了しました。保存された解答で自動提出されました。結果は以下です。',
     homeworkSubmittedTitle: '宿題を提出しました',
     homeworkSubmittedSavedEarlier: 'この宿題はすでに提出済みです。保存された情報は以下のとおりです。',
     homeworkSubmittedBody:
@@ -3295,6 +3520,7 @@ const JA_DICTIONARY: Dictionary = {
     examDeleteConfirmPhrase: '試験を削除',
     examAttemptCount: '件の提出',
     examSessionRosterReport: '提出済 {submitted} · 未提出 {notSubmitted}',
+    examSessionCreatedAt: '作成 {time}',
     examSessionShowNotSubmitted: '未提出の生徒',
     examSessionNotSubmittedTitle: '未提出の生徒',
     examSessionNotSubmittedAllSubmitted: 'クラス名簿の生徒は全員この試験を提出済みです。',
@@ -3769,6 +3995,35 @@ const KO_DICTIONARY: Dictionary = {
     exitDevMode: '개발 모드 종료',
     notifications: '알림',
     noNotifications: '알림 없음',
+    inviteFriends: '친구 초대',
+  },
+  referral: {
+    pageTitle: '친구 초대 – 크레딧 받기',
+    metaDescription: 'NanoAI를 공유하세요. 친구가 가입하면 서로 2 크레딧을 받습니다.',
+    headline: '친구에게 NanoAI 소개',
+    description:
+      '개인 초대 링크를 복사하세요. 초대받은 분이 가입하면 여러분과 상대 모두 2 크레딧(신규 계정당 1회).',
+    yourLinkLabel: '내 초대 링크',
+    copyButton: '링크 복사',
+    copied: '복사됨',
+    howItWorksTitle: '이용 방법',
+    step1: '초대 코드가 포함된 링크를 친구에게 보냅니다.',
+    step2: '상대가 링크를 열고 계정 생성 후 30일 이내에 NanoAI에 가입/로그인합니다.',
+    step3: '피초대자와 초대자에게 각각 2 크레딧이 지급됩니다(신규 1인당 1회).',
+    bonusNote: '조건을 충족하는 신규 계정에만 적용됩니다. 추천 보상은 계정당 1회입니다.',
+    toastApplied: '+2 크레딧이 추가되었습니다',
+    toastAppliedHint: '초대로 가입해 주셔서 감사합니다. 지갑 잔액이 반영되었습니다.',
+    inviteVisualYou: '나',
+    inviteVisualFriend: '초대받은 친구',
+    errorGeneric: '지금은 초대 보너스를 적용할 수 없습니다. 잠시 후 다시 시도해 주세요.',
+  },
+  push: {
+    bannerTitle: '휴대폰 알림 받기',
+    bannerHint:
+      'NanoAI를 설치된 앱(PWA)으로 사용 중입니다. 알림을 켜면 앱을 열지 않아도 결제·보상·처리 결과 등을 바로 받을 수 있습니다.',
+    enable: '알림 켜기',
+    later: '나중에',
+    enabledToast: '푸시 알림이 켜졌습니다',
   },
   navGroup: {
     try_on: '가상 피팅·스타일링',
@@ -3970,7 +4225,8 @@ const KO_DICTIONARY: Dictionary = {
     examChangeIdentityManual: '다른 이름·생년월일 입력',
     examManualIdentityIntro: '정보를 입력하고 시작을 누르세요. 타이머는 시작 후에만 작동합니다.',
     examStartTestButton: '시험 시작',
-    examOneAttemptNote: '계정당 한 번만 응시할 수 있습니다.',
+    examOneAttemptNote:
+      '계정당 한 번입니다. 시작 후 서버에서 세션이 고정되며 새로 섞인 문제를 받을 수 없습니다. 나가려면 제출해야 합니다.',
     examStartHomeworkButton: '숙제 시작',
     homeworkIdentityFromClassHint:
       '수업 프로필에 이름과 생년월이 있습니다. 준비되면 시작을 누르세요. 타이머는 시작 후에만 작동합니다.',
@@ -3987,6 +4243,19 @@ const KO_DICTIONARY: Dictionary = {
     lamBaiTimerTimeUpAutoSubmittingHomework: '시간이 끝났습니다. 숙제를 자동 제출합니다.',
     lamBaiTimerStickySubmittingExam: '시간 종료 — 제출 중…',
     lamBaiTimerStickySubmittingHomework: '시간 종료 — 제출 중…',
+    lamBaiExitBlockedBanner:
+      '시험 진행 중입니다. 제출한 뒤에만 페이지를 벗어나는 것이 좋습니다. 탭 닫기·새로고침·뒤로 가기는 차단되거나 경고됩니다. 제출로 종료하세요. 잠시 나갔다 돌아와도 타이머는 «시작»을 누른 시각부터 계속 흐릅니다.',
+    lamBaiExitBlockedBeforeStartHint:
+      '«시작»을 누른 뒤에는 제출한 다음 페이지를 떠나는 것이 좋습니다. 탭을 닫거나 새로고침·이탈을 시도하면 브라우저가 경고합니다. 나갔다 돌아와도 되지만, 타이머는 시작을 누른 시각부터 계속 흐릅니다.',
+    lamBaiExitBlockedDialogTitle: '제출해야 나갈 수 있음',
+    lamBaiExitBlockedDialogDescription:
+      '시험 진행 중입니다. 안전하게 나가려면 제출하세요. 아래 «지금 제출» 또는 페이지 하단 제출을 누르세요.',
+    lamBaiExitBlockedSubmitNow: '지금 제출',
+    lamBaiExitBlockedStay: '계속 풀기',
+    lamBaiExamResumeNotice:
+      '미제출 시험이 있습니다. 저장된 답안을 복구했습니다. 이어서 풀고 마치면 제출하세요.',
+    examBeginStarting: '시작하는 중…',
+    examBeginFailed: '시험을 시작할 수 없습니다. 다시 시도하세요.',
     examSubmitSending: '제출 중…',
     examSubmitButton: '제출하기',
     homeworkSubmitSending: '숙제 제출 중…',
@@ -3995,6 +4264,8 @@ const KO_DICTIONARY: Dictionary = {
     lamBaiQuestionLabel: '{index}번.',
     examSubmittedTitle: '제출 완료',
     examSubmittedSavedEarlier: '이미 이 시험을 제출했습니다. 아래는 저장된 결과입니다.',
+    examSubmittedDueToDeadlineHint:
+      '서버 제한 시간이 종료되어 저장된 답안으로 자동 제출되었습니다. 아래는 결과입니다.',
     homeworkSubmittedTitle: '숙제 제출 완료',
     homeworkSubmittedSavedEarlier: '이미 이 숙제를 제출했습니다. 아래는 저장된 정보입니다.',
     homeworkSubmittedBody:
@@ -4031,6 +4302,7 @@ const KO_DICTIONARY: Dictionary = {
     examDeleteConfirmPhrase: '시험 삭제',
     examAttemptCount: '개 제출',
     examSessionRosterReport: '제출 {submitted} · 미제출 {notSubmitted}',
+    examSessionCreatedAt: '생성 {time}',
     examSessionShowNotSubmitted: '미제출 학생',
     examSessionNotSubmittedTitle: '아직 제출하지 않은 학생',
     examSessionNotSubmittedAllSubmitted: '학급 명단의 모든 학생이 이 시험을 제출했습니다.',

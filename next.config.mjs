@@ -5,7 +5,7 @@ const nextConfig = {
     eslint: { ignoreDuringBuilds: true },
     allowedDevOrigins: ['*.ngrok-free.dev', '*.ngrok.io'],
     experimental: {
-        serverComponentsExternalPackages: ['xlsx', 'pdf-to-img', 'pdfjs-dist', 'node-poppler'],
+        serverComponentsExternalPackages: ['xlsx', 'pdf-to-img', 'pdfjs-dist', 'node-poppler', 'web-push'],
         serverActions: {
             bodySizeLimit: '10mb',
         },
@@ -105,6 +105,9 @@ const withPWA = withPWAInit({
     disable: process.env.NODE_ENV === 'development',
     register: true,
     skipWaiting: true,
+    workboxOptions: {
+        importScripts: ['/push-sw.js'],
+    },
     runtimeCaching: [
         {
             // Never cache navigation HTML in SW to avoid stale buildId references after deploy.

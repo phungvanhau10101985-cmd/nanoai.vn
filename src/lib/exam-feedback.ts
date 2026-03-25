@@ -31,6 +31,8 @@ export type ExamGradingMeta = {
   essayGradedAt?: string
   /** ISO: gợi ý thời điểm hết hạn lưu ảnh TL trên storage (chính sách lưu trữ) */
   essayImageUrlsExpireAt?: string
+  /** Hệ thống nộp/chấm khi hết giờ server (HS không bấm nộp) */
+  submittedByServerDeadline?: boolean
 }
 
 function feedbackFromQuizPct(pct: number, grade10: number): {
@@ -116,6 +118,9 @@ export function parseExamGradingMeta(raw: unknown): ExamGradingMeta | null {
   }
   if (typeof o.essayImageUrlsExpireAt === 'string' && o.essayImageUrlsExpireAt.trim()) {
     base.essayImageUrlsExpireAt = o.essayImageUrlsExpireAt.trim()
+  }
+  if (o.submittedByServerDeadline === true) {
+    base.submittedByServerDeadline = true
   }
   return base
 }

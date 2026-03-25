@@ -2,12 +2,16 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
+import type { WebLocale } from '@/lib/i18n/config'
+import { formatSessionIsoDateTime } from '@/lib/datetime/format-session-iso-local'
+import { fillI18nTemplate } from '@/lib/i18n/fill-template'
 import { AttachExamToClassDialog } from '@/components/exam/attach-exam-to-class-dialog'
-import { BookOpen, Copy, ExternalLink, Link2 } from 'lucide-react'
+import { BookOpen, Copy, ExternalLink, Link2, RefreshCw, Trash2 } from 'lucide-react'
 
 export type ClassHomeworkSession = {
   id: string
@@ -20,18 +24,25 @@ export type ClassHomeworkSession = {
 export default function GanPhieuClient({
   classId,
   sessions,
+  webLocale,
   t,
   examUi,
+  /** Chỉ chủ lớp — học sinh không được hiện nút xóa (server cũng phải chặn truy cập trang). */
+  canDeleteHomework,
 }: {
   classId: string
   sessions: ClassHomeworkSession[]
+  webLocale: WebLocale
   t: Dictionary['classes']
   examUi: Dictionary['createExamPage']
+  canDeleteHomework: boolean
 }) {
+  const router = useRouter()
   const { toast } = useToast()
   const [attachOpen, setAttachOpen] = useState(false)
   const [attachSessionId, setAttachSessionId] = useState<string | null>(null)
   const [attachSessionTitle, setAttachSessionTitle] = useState<string>('')
+  const [homeworkDeletingCode, setHomeworkDeletingCode] = useState<string | null>(null)
 
   const openAttachDialog = (session: ClassHomeworkSession) => {
     setAttachSessionId(session.id)
@@ -62,6 +73,42 @@ export default function GanPhieuClient({
       toast({ description: t.copied })
     } catch {
       toast({ variant: 'destructive', description: examUi.error })
+    }
+  }
+
+  const handleDeleteHomework = async (code: string) => {
+    const ok =
+      typeof window !== 'undefined' ? window.confirm(examUi.homeworkDeleteConfirm) : true
+    if (!ok) return
+    setHomeworkDeletingCode(code)
+    try {
+      const res = await fetch('/api/exam-session/mine', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        toast({
+          title: examUi.error,
+          description: String(data?.error ?? res.statusText),
+          variant: 'destructive',
+        })
+        return
+      }
+      toast({
+        title: examUi.homeworkDeleted,
+        description: examUi.homeworkDeletedDesc,
+      })
+      router.refresh()
+    } catch (e) {
+      toast({
+        title: examUi.error,
+        description: e instanceof Error ? e.message : String(e),
+        variant: 'destructive',
+      })
+    } finally {
+      setHomeworkDeletingCode(null)
     }
   }
 
@@ -102,6 +149,11 @@ export default function GanPhieuClient({
         {sessions.map((s) => {
           const closed = String(s.status).toLowerCase() === 'closed'
           const lamPath = `/lam-bai/${encodeURIComponent(s.code)}`
+          const createdLine = (() => {
+            const time = formatSessionIsoDateTime(s.createdAt, webLocale)
+            if (!time) return null
+            return fillI18nTemplate(t.examSessionCreatedAt, { time })
+          })()
           return (
             <li
               key={s.id}
@@ -118,6 +170,9 @@ export default function GanPhieuClient({
                       </span>
                     ) : null}
                   </p>
+                  {createdLine ? (
+                    <p className="text-xs text-muted-foreground mt-0.5">{createdLine}</p>
+                  ) : null}
                 </div>
               </div>
               <div className="flex flex-wrap gap-2 pt-1">
@@ -153,6 +208,23 @@ export default function GanPhieuClient({
                   <Link2 className="h-3.5 w-3.5" aria-hidden />
                   {t.classHomeworkAttachOtherClassButton}
                 </Button>
+                {canDeleteHomework ? (
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={() => void handleDeleteHomework(s.code)}
+                    disabled={homeworkDeletingCode === s.code}
+                  >
+                    {homeworkDeletingCode === s.code ? (
+                      <RefreshCw className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                    ) : (
+                      <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                    )}
+                    {examUi.delete}
+                  </Button>
+                ) : null}
               </div>
             </li>
           )

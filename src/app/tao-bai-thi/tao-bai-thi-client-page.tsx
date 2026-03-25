@@ -35,6 +35,7 @@ import { SUBJECTS, GRADE_LEVELS, GRADE_LEVEL_GROUPS } from '../tao-giao-trinh/li
 import { listCurriculaForExam } from '../tao-giao-trinh/actions'
 import { latexToReadable } from '../tao-giao-trinh/lib/latex-to-readable'
 import { exportWorksheetToPdf, exportWorksheetToWord } from '../tao-giao-trinh/lib/worksheet-export'
+import { formatSessionIsoDateTime } from '@/lib/datetime/format-session-iso-local'
 import { getDictionary, type Dictionary } from '@/lib/i18n/dictionaries'
 import { DEFAULT_WEB_LOCALE, normalizeWebLocale, type WebLocale } from '@/lib/i18n/config'
 import { AttachExamToClassDialog } from '@/components/exam/attach-exam-to-class-dialog'
@@ -176,6 +177,7 @@ function CreatedExamsListRows({
   exams,
   tx,
   tcClasses,
+  webLocale,
   buildExamReviewUrl,
   openExamPreview,
   deleteCreatedExam,
@@ -188,6 +190,7 @@ function CreatedExamsListRows({
   exams: CreatedExamRow[]
   tx: Dictionary['createExamPage']
   tcClasses: Dictionary['classes']
+  webLocale: WebLocale
   buildExamReviewUrl: (code: string) => string
   openExamPreview: (exam: { code: string; title: string; examUrl: string }) => void
   deleteCreatedExam: (code: string) => void
@@ -226,6 +229,15 @@ function CreatedExamsListRows({
                 ? fillExamTpl(tx.homeworkCreatedResultLine, { count: String(exam.totalQuestions) })
                 : `${exam.totalQuestions} ${tx.questions} - ${exam.durationMinutes} ${tx.minutes}`}
             </p>
+            {(() => {
+              const time = formatSessionIsoDateTime(exam.createdAt, webLocale)
+              if (!time) return null
+              return (
+                <p className="text-xs text-muted-foreground">
+                  {fillExamTpl(tcClasses.examSessionCreatedAt, { time })}
+                </p>
+              )
+            })()}
             {(exam.className || exam.schoolName) && (
               <p className="text-xs text-muted-foreground">
                 {exam.className ? `${tx.classLabel}: ${exam.className}` : ''}
@@ -288,10 +300,13 @@ function CreatedExamsListRows({
   )
 }
 
-export default function TaoBaiThiClientPage({ variant = 'exam' }: { variant?: 'exam' | 'homework' } = {}) {
+export default function TaoBaiThiClientPage({
+  variant = 'exam',
+  initialWebLocale = DEFAULT_WEB_LOCALE,
+}: { variant?: 'exam' | 'homework'; initialWebLocale?: WebLocale } = {}) {
   const isHomework = variant === 'homework'
   const formDefaultsKey = isHomework ? EXAM_FORM_DEFAULTS_KEY_HOMEWORK : EXAM_FORM_DEFAULTS_KEY_EXAM
-  const [uiLocale, setUiLocale] = useState<WebLocale>(DEFAULT_WEB_LOCALE)
+  const [uiLocale, setUiLocale] = useState<WebLocale>(initialWebLocale)
   /** Homework: không hiện “loại đề” — dùng 90 phút nội bộ làm giới hạn mềm trên lam-bai */
   const [examType, setExamType] = useState<string>(() => (variant === 'homework' ? 'hocky' : '15ph'))
   const [subjectId, setSubjectId] = useState('toan')
@@ -1430,6 +1445,7 @@ export default function TaoBaiThiClientPage({ variant = 'exam' }: { variant?: 'e
                       exams={createdExams}
                       tx={tx}
                       tcClasses={dict.classes}
+                      webLocale={uiLocale}
                       buildExamReviewUrl={buildExamReviewUrl}
                       openExamPreview={openExamPreview}
                       deleteCreatedExam={deleteCreatedExam}
@@ -2291,6 +2307,7 @@ export default function TaoBaiThiClientPage({ variant = 'exam' }: { variant?: 'e
               exams={createdExams}
               tx={tx}
               tcClasses={dict.classes}
+              webLocale={uiLocale}
               buildExamReviewUrl={buildExamReviewUrl}
               openExamPreview={openExamPreview}
               deleteCreatedExam={deleteCreatedExam}
