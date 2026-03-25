@@ -1,15 +1,24 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { usePathname } from 'next/navigation'
 import { getCredits } from '@/lib/credits'
 import { useToast } from '@/hooks/use-toast'
 import { trackEvent, setPendingGeneration, toFeatureFromRoute } from '@/lib/analytics-track'
+import { subscribeToUrlChanges } from '@/lib/client-history-navigation'
 
 export function useCredits() {
   const [credits, setCredits] = useState<number>(0)
+  const [pathname, setPathname] = useState('')
   const { toast } = useToast()
-  const pathname = usePathname()
+
+  useEffect(() => {
+    const sync = () => {
+      if (typeof window === 'undefined') return
+      setPathname(window.location.pathname || '')
+    }
+    sync()
+    return subscribeToUrlChanges(sync)
+  }, [])
 
   const fetchCredits = useCallback(async () => {
     const bal = await getCredits()
@@ -17,18 +26,21 @@ export function useCredits() {
   }, [])
 
   useEffect(() => {
-    fetchCredits()
-    const onUpdated = () => fetchCredits()
+    void fetchCredits()
+    const onUpdated = () => void fetchCredits()
     window.addEventListener('credits-updated', onUpdated)
     return () => window.removeEventListener('credits-updated', onUpdated)
   }, [fetchCredits])
 
   /** Kiểm tra đủ credits trước khi thực hiện. Nếu thiếu thì toast và return false. */
   function checkCreditsAndProceed(requiredCost: number, onSuccess: () => void | Promise<void>): boolean {
+    const route =
+      pathname ||
+      (typeof window !== 'undefined' ? window.location.pathname || '' : '')
     if (credits < requiredCost) {
       trackEvent('generate_failed', {
-        route: pathname,
-        feature: toFeatureFromRoute(pathname),
+        route,
+        feature: toFeatureFromRoute(route),
         reason: 'insufficient_credits',
         required_cost: requiredCost,
         available_credits: credits,
@@ -41,15 +53,15 @@ export function useCredits() {
       })
       return false
     }
-    const feature = toFeatureFromRoute(pathname)
+    const feature = toFeatureFromRoute(route)
     setPendingGeneration({
-      route: pathname,
+      route,
       feature,
       requiredCost,
       startedAt: Date.now(),
     })
     trackEvent('generate_start', {
-      route: pathname,
+      route,
       feature,
       required_cost: requiredCost,
       available_credits: credits,

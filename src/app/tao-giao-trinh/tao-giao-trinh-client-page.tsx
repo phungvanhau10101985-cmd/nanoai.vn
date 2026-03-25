@@ -310,6 +310,61 @@ export default function TaoGiaoTrinhClientPage({
   const creditsWord = tr('credits', 'credits', '积分', 'クレジット', '크레딧')
   const creditLabel = (n: number) => ` (${formatCurriculumCredits(n)} ${creditsWord})`
 
+  type CurriculumAnalyzeSlidesClientData = {
+    slides?: unknown
+    fromCache?: boolean
+    creditsCharged?: boolean
+    chargeError?: string
+    error?: string
+    balance?: number
+    required?: number
+  }
+
+  const toastAnalyzeSlidesInsufficientCredits = (data: CurriculumAnalyzeSlidesClientData) => {
+    const bal = typeof data.balance === 'number' ? data.balance : null
+    const req = typeof data.required === 'number' ? data.required : null
+    toast({
+      title: tr('Không đủ credit', 'Insufficient credits', '积分不足', 'クレジット不足', '크레딧 부족'),
+      description:
+        bal !== null && req !== null
+          ? tr(
+              `Cần ${formatCurriculumCredits(req)} credit để tạo slide bằng AI; số dư hiện tại ${formatCurriculumCredits(bal)}.`,
+              `You need ${formatCurriculumCredits(req)} credits to generate slides with AI; your balance is ${formatCurriculumCredits(bal)}.`,
+              `使用 AI 生成幻灯片需要 ${formatCurriculumCredits(req)} 积分；当前余额 ${formatCurriculumCredits(bal)}。`,
+              `AIでスライドを生成するには ${formatCurriculumCredits(req)} クレジットが必要です。現在の残高は ${formatCurriculumCredits(bal)} です。`,
+              `AI로 슬라이드를 만들려면 ${formatCurriculumCredits(req)} 크레딧이 필요합니다. 현재 잔액은 ${formatCurriculumCredits(bal)}입니다.`
+            )
+          : tr(
+              'Vui lòng nạp thêm credit để tạo slide bằng AI.',
+              'Please top up credits to generate slides with AI.',
+              '请充值积分以使用 AI 生成幻灯片。',
+              'AIでスライドを作るにはクレジットを追加してください。',
+              'AI로 슬라이드를 만들려면 크레딧을 충전해 주세요.'
+            ),
+      variant: 'destructive',
+    })
+  }
+
+  const applyAnalyzeSlidesCreditSideEffects = (data: CurriculumAnalyzeSlidesClientData) => {
+    if (data.creditsCharged && typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('credits-updated'))
+    }
+    if (data.chargeError) {
+      toast({
+        title: tr('Slide đã tạo', 'Slides created', '幻灯片已生成', 'スライドを作成しました', '슬라이드 생성됨'),
+        description: tr(
+          'Hệ thống có thể chưa cập nhật số dư — vui lòng kiểm tra mục credit hoặc làm mới trang.',
+          'Your balance may not have updated — refresh the page or check your credit balance.',
+          '余额可能尚未更新——请刷新页面或查看积分。',
+          '残高がまだ反映されていない場合があります。ページを更新するか残高を確認してください。',
+          '잔액이 아직 반영되지 않았을 수 있습니다. 페이지를 새로 고치거나 잔액을 확인해 주세요.'
+        ),
+        variant: 'default',
+        duration: 5000,
+      })
+    }
+  }
+
   const examSessionCreatedAtTpl = useMemo(
     () => getDictionary(uiLocale as WebLocale).classes.examSessionCreatedAt,
     [uiLocale]
@@ -824,14 +879,46 @@ export default function TaoGiaoTrinhClientPage({
               const slideRes = await fetch('/api/curriculum-analyze-slides', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ curriculumMarkdown: md, topic: finalTopic }),
+                body: JSON.stringify({
+                  curriculumMarkdown: md,
+                  topic: finalTopic,
+                  curriculumId: saveRes.curriculumId!,
+                }),
               })
-              const slideData = await slideRes.json().catch(() => ({}))
+              const slideData = (await slideRes.json().catch(() => ({}))) as CurriculumAnalyzeSlidesClientData
+              if (slideRes.status === 402) {
+                toastAnalyzeSlidesInsufficientCredits(slideData)
+                return
+              }
+              if (slideRes.status === 401 || slideRes.status === 503) {
+                toast({
+                  title:
+                    slideRes.status === 401
+                      ? tr('Cần đăng nhập', 'Sign in required', '需要登录', 'ログインが必要です', '로그인 필요')
+                      : tr('Máy chủ chưa sẵn sàng', 'Server not ready', '服务器未就绪', 'サーバー未準備', '서버 준비 안 됨'),
+                  description:
+                    slideData?.error ||
+                    (slideRes.status === 401
+                      ? tr(
+                          'Đăng nhập để tạo slide giáo trình bằng AI.',
+                          'Sign in to generate curriculum slides with AI.',
+                          '请登录后使用 AI 生成课程幻灯片。',
+                          'AIでカリキュラムスライドを作るにはログインしてください。',
+                          'AI로 교육과정 슬라이드를 만들려면 로그인해 주세요.'
+                        )
+                      : tr('Thử lại sau.', 'Try again later.', '请稍后重试。', '後でもう一度お試しください。', '잠시 후 다시 시도해 주세요.')),
+                  variant: 'destructive',
+                })
+                return
+              }
               if (slideRes.ok && Array.isArray(slideData?.slides) && slideData.slides.length > 0) {
                 const slides = slideData.slides as AISlideData[]
+                applyAnalyzeSlidesCreditSideEffects(slideData)
                 setCurriculumSlides(slides)
-                await saveSlidesToCurriculum({ curriculumId: saveRes.curriculumId!, topic: finalTopic, subjectId, gradeLevelId, slides })
-                await saveOriginalSlidesIfNotExists({ curriculumId: saveRes.curriculumId!, slides })
+                if (!slideData.fromCache) {
+                  await saveSlidesToCurriculum({ curriculumId: saveRes.curriculumId!, topic: finalTopic, subjectId, gradeLevelId, slides })
+                  await saveOriginalSlidesIfNotExists({ curriculumId: saveRes.curriculumId!, slides })
+                }
               }
             } catch (e) {
               console.warn('[auto-slides]', e)
@@ -890,14 +977,46 @@ export default function TaoGiaoTrinhClientPage({
               const res = await fetch('/api/curriculum-analyze-slides', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ curriculumMarkdown: result.curriculumMarkdown, topic: topic.trim() }),
+                body: JSON.stringify({
+                  curriculumMarkdown: result.curriculumMarkdown,
+                  topic: topic.trim(),
+                  curriculumId: result.curriculumId!,
+                }),
               })
-              const data = await res.json().catch(() => ({}))
+              const data = (await res.json().catch(() => ({}))) as CurriculumAnalyzeSlidesClientData
+              if (res.status === 402) {
+                toastAnalyzeSlidesInsufficientCredits(data)
+                return
+              }
+              if (res.status === 401 || res.status === 503) {
+                toast({
+                  title:
+                    res.status === 401
+                      ? tr('Cần đăng nhập', 'Sign in required', '需要登录', 'ログインが必要です', '로그인 필요')
+                      : tr('Máy chủ chưa sẵn sàng', 'Server not ready', '服务器未就绪', 'サーバー未準備', '서버 준비 안 됨'),
+                  description:
+                    data?.error ||
+                    (res.status === 401
+                      ? tr(
+                          'Đăng nhập để tạo slide giáo trình bằng AI.',
+                          'Sign in to generate curriculum slides with AI.',
+                          '请登录后使用 AI 生成课程幻灯片。',
+                          'AIでカリキュラムスライドを作るにはログインしてください。',
+                          'AI로 교육과정 슬라이드를 만들려면 로그인해 주세요.'
+                        )
+                      : tr('Thử lại sau.', 'Try again later.', '请稍后重试。', '後でもう一度お試しください。', '잠시 후 다시 시도해 주세요.')),
+                  variant: 'destructive',
+                })
+                return
+              }
               if (res.ok && Array.isArray(data?.slides) && data.slides.length > 0) {
                 const slides = data.slides as AISlideData[]
+                applyAnalyzeSlidesCreditSideEffects(data)
                 setCurriculumSlides(slides)
-                await saveSlidesToCurriculum({ curriculumId: result.curriculumId!, topic: topic.trim(), subjectId, gradeLevelId, slides })
-                await saveOriginalSlidesIfNotExists({ curriculumId: result.curriculumId!, slides })
+                if (!data.fromCache) {
+                  await saveSlidesToCurriculum({ curriculumId: result.curriculumId!, topic: topic.trim(), subjectId, gradeLevelId, slides })
+                  await saveOriginalSlidesIfNotExists({ curriculumId: result.curriculumId!, slides })
+                }
               }
             } catch (e) {
               console.warn('[auto-slides] Lỗi:', e)
@@ -1187,7 +1306,7 @@ export default function TaoGiaoTrinhClientPage({
       setSharedSlides(shared)
       setOriginalSlides(original)
       setPersonalSlides(personal)
-      if (shared || original) {
+      if (shared || original || personal) {
         setShowSlideVersionDialog(true)
         return
       }
@@ -1206,16 +1325,53 @@ export default function TaoGiaoTrinhClientPage({
         body: JSON.stringify({
           curriculumMarkdown,
           topic: displayTopic,
+          ...(curriculumId ? { curriculumId } : {}),
         }),
       })
-      const data = await res.json().catch(() => ({}))
+      const data = (await res.json().catch(() => ({}))) as CurriculumAnalyzeSlidesClientData
+      if (res.status === 402) {
+        toastAnalyzeSlidesInsufficientCredits(data)
+        setAiSlides(null)
+        setSlideVersionChoice(null)
+        openGiaoVienWindow(null, null)
+        return
+      }
+      if (res.status === 401) {
+        toast({
+          title: tr('Cần đăng nhập', 'Sign in required', '需要登录', 'ログインが必要です', '로그인 필요'),
+          description: tr(
+            'Đăng nhập để tạo slide giáo trình bằng AI.',
+            'Sign in to generate curriculum slides with AI.',
+            '请登录后使用 AI 生成课程幻灯片。',
+            'AIでカリキュラムスライドを作るにはログインしてください。',
+            'AI로 교육과정 슬라이드를 만들려면 로그인해 주세요.'
+          ),
+          variant: 'destructive',
+        })
+        setAiSlides(null)
+        setSlideVersionChoice(null)
+        openGiaoVienWindow(null, null)
+        return
+      }
+      if (res.status === 503) {
+        toast({
+          title: tr('Máy chủ chưa sẵn sàng', 'Server not ready', '服务器未就绪', 'サーバー未準備', '서버 준비 안 됨'),
+          description: data?.error || tr('Thử lại sau.', 'Try again later.', '请稍后重试。', '後でもう一度お試しください。', '잠시 후 다시 시도해 주세요.'),
+          variant: 'destructive',
+        })
+        setAiSlides(null)
+        setSlideVersionChoice(null)
+        openGiaoVienWindow(null, null)
+        return
+      }
       if (!res.ok) {
         console.error('[curriculum-analyze-slides] API lỗi:', res.status, data)
       }
       if (res.ok && Array.isArray(data?.slides) && data.slides.length > 0) {
         const slides = data.slides as AISlideData[]
+        applyAnalyzeSlidesCreditSideEffects(data)
         setCurriculumSlides(slides)
-        if (curriculumId) {
+        if (curriculumId && !data.fromCache) {
           const saveRes = await saveSlidesToCurriculum({
             curriculumId,
             topic: displayTopic,
@@ -1227,6 +1383,8 @@ export default function TaoGiaoTrinhClientPage({
             toast({ title: tr('Lưu slide thất bại', 'Save slides failed', '保存幻灯片失败', 'スライド保存失敗', '슬라이드 저장 실패'), description: saveRes.error, variant: 'destructive' })
           }
           await saveOriginalSlidesIfNotExists({ curriculumId, slides })
+        }
+        if (curriculumId) {
           const [sharedRes, originalRes, personalRes] = await Promise.all([
             getSlidesByCurriculumId(curriculumId),
             getOriginalSlides(curriculumId),
@@ -1270,13 +1428,19 @@ export default function TaoGiaoTrinhClientPage({
 
   const handleSlideVersionChoose = (choice: SlideVersionChoice) => {
     setSlideVersionChoice(choice)
+    const firstNonEmpty = (...candidates: (AISlideData[] | null | undefined)[]) => {
+      for (const c of candidates) {
+        if (c && c.length > 0) return c
+      }
+      return [] as AISlideData[]
+    }
     const slides =
       choice === 'original'
-        ? originalSlides ?? sharedSlides ?? []
+        ? firstNonEmpty(originalSlides, sharedSlides, personalSlides)
         : choice === 'shared'
-          ? sharedSlides ?? originalSlides ?? []
-          : personalSlides ?? []
-    setAiSlides(slides)
+          ? firstNonEmpty(sharedSlides, originalSlides, personalSlides)
+          : firstNonEmpty(personalSlides, sharedSlides, originalSlides)
+    setAiSlides(slides.length > 0 ? slides : null)
     openGiaoVienWindow(slides.length > 0 ? slides : null, choice)
   }
 
@@ -3125,14 +3289,9 @@ export default function TaoGiaoTrinhClientPage({
                   )}
                   <Button variant="outline" size="sm" onClick={() => void handleOpenSlides()} disabled={slideAnalysisLoading} className="border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-600 dark:text-amber-300 dark:hover:bg-amber-950/30">
                     <Presentation className="h-3.5 w-3.5 mr-1" />
-                    {slideAnalysisLoading ? (
-                      tr('Đang tạo nội dung giảng...', 'Generating teaching content...', '正在生成教学内容...', '授業内容を生成中...', '수업 내용 생성 중...')
-                    ) : (
-                      <>
-                        {tr('Xem slide giáo trình', 'View curriculum slides', '查看课程幻灯片', '授業スライドを表示', '교과 슬라이드 보기')}
-                        {creditLabel(CURRICULUM_UI_CREDITS.analyzeSlides)}
-                      </>
-                    )}
+                    {slideAnalysisLoading
+                      ? tr('Đang tạo nội dung giảng...', 'Generating teaching content...', '正在生成教学内容...', '授業内容を生成中...', '수업 내용 생성 중...')
+                      : tr('Xem slide giáo trình', 'View curriculum slides', '查看课程幻灯片', '授業スライドを表示', '교과 슬라이드 보기')}
                   </Button>
                   {(worksheetMarkdown || curriculumWorksheets.length > 0) && (
                     <DropdownMenu>

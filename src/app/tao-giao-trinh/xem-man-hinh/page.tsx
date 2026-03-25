@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { Suspense, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { RealtimeChannel } from '@supabase/supabase-js'
@@ -28,7 +28,7 @@ function tr(locale: string, vi: string, en: string, zh: string, ja: string, ko: 
 }
 
 /** Trang xem màn hình livestream – học sinh chia sẻ, người khác quét QR mở link xem trực tiếp */
-export default function XemManHinhPage() {
+function XemManHinhInner() {
   const searchParams = useSearchParams()
   const shareCode = searchParams.get('share')
   const [stream, setStream] = useState<MediaStream | null>(null)
@@ -220,5 +220,19 @@ export default function XemManHinhPage() {
         />
       </div>
     </div>
+  )
+}
+
+export default function XemManHinhPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-black text-white flex items-center justify-center p-4">
+          <div className="h-10 w-10 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+        </div>
+      }
+    >
+      <XemManHinhInner />
+    </Suspense>
   )
 }

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter, usePathname } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { sanitizeLoginNext } from '@/lib/auth/sanitize-login-next'
 import { createClient } from '@/lib/supabase/client'
 import { getAllWords, deleteWordById } from '../services/english-coach-api'
@@ -30,7 +30,6 @@ type WordItem = {
 
 export default function TuMoiClientPage() {
   const router = useRouter()
-  const pathname = usePathname()
   const { toast } = useToast()
   const [words, setWords] = useState<WordItem[]>([])
   const [busy, setBusy] = useState(true)
@@ -43,7 +42,8 @@ export default function TuMoiClientPage() {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
-        const next = sanitizeLoginNext(pathname || '/hoc-tieng-anh-ai/tu-moi')
+        const path = typeof window !== 'undefined' ? window.location.pathname || '' : ''
+        const next = sanitizeLoginNext(path || '/hoc-tieng-anh-ai/tu-moi')
         router.replace(`/auth/login?next=${encodeURIComponent(next)}`)
         return
       }

@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import type { User } from '@supabase/supabase-js'
 import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase/server'
 import { getUserOrBypass } from '@/lib/auth'
@@ -15,28 +16,34 @@ export async function Header() {
   const { t } = getServerDictionary()
   const locale = getCurrentWebLocale()
   const clientDictionary: Dictionary = getDictionary(locale)
-  const supabase = createClient()
-  const user = await getUserOrBypass(() => supabase.auth.getUser())
 
+  let user: User | null = null
   let credits = 0
   let isAdmin = false
 
-  if (user) {
-    const [creditRes, profileRes] = await Promise.all([
-      supabase
-      .from('credits')
-      .select('balance')
-      .eq('user_id', user.id)
-      .single(),
-      supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single(),
-    ])
+  try {
+    const supabase = createClient()
+    user = await getUserOrBypass(() => supabase.auth.getUser())
 
-    credits = creditRes.data?.balance || 0
-    isAdmin = profileRes.data?.role === 'admin'
+    if (user) {
+      const [creditRes, profileRes] = await Promise.all([
+        supabase
+          .from('credits')
+          .select('balance')
+          .eq('user_id', user.id)
+          .single(),
+        supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .single(),
+      ])
+
+      credits = creditRes.data?.balance || 0
+      isAdmin = profileRes.data?.role === 'admin'
+    }
+  } catch (err) {
+    console.error('[Header] SSR fetch failed, showing logged-out shell', err)
   }
 
   return (

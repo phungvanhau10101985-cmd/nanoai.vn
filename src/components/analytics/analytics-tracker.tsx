@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
-import { usePathname } from 'next/navigation'
+import { subscribeToUrlChanges } from '@/lib/client-history-navigation'
 
 declare global {
   interface Window {
@@ -46,17 +46,24 @@ function track(eventName: string, params: Record<string, unknown> = {}) {
   window.gtag('event', eventName, params)
 }
 
-export function AnalyticsTracker() {
-  const pathname = usePathname()
+function firePageView() {
+  if (typeof window === 'undefined') return
+  const pagePath = `${window.location.pathname}${window.location.search}`
+  track('page_view', {
+    page_path: pagePath,
+    page_title: document.title,
+  })
+}
 
-  // Không dùng useSearchParams — Next có thể chèn <input> trong shell SSR và gây lỗi hydrate với Suspense.
+/**
+ * Không dùng `usePathname` / Suspense — Next có thể chèn `<input>` và gây lỗi hydrate.
+ * Theo dõi đổi route qua popstate + hook history (App Router dùng pushState).
+ */
+export function AnalyticsTracker() {
   useEffect(() => {
-    const pagePath = `${pathname}${window.location.search}`
-    track('page_view', {
-      page_path: pagePath,
-      page_title: document.title,
-    })
-  }, [pathname])
+    firePageView()
+    return subscribeToUrlChanges(firePageView)
+  }, [])
 
   useEffect(() => {
     const onClick = (evt: MouseEvent) => {

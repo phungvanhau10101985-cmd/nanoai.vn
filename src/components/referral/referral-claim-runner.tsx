@@ -96,12 +96,7 @@ export function ReferralClaimRunner() {
         }
 
         if (json?.ok === true && json?.applied === true) {
-          window.dispatchEvent(new Event('credits-updated'))
-          toastRef.current({
-            title: t.toastApplied,
-            description: t.toastAppliedHint,
-            duration: 4500,
-          })
+          // Chỉ người mời nhận credit; người được mời không toast / không cộng thưởng giới thiệu.
           return
         }
         if (json?.ok === true && json?.applied === false && json?.reason === 'already_claimed') {

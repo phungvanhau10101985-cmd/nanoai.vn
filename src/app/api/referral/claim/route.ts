@@ -42,18 +42,11 @@ export async function POST(req: Request) {
             auth: { persistSession: false, autoRefreshToken: false },
           })
           await createUserNotificationWithEmail(admin, {
-            user_id: user.id,
-            type: 'referral_bonus_invitee',
-            title: 'Bạn đã nhận thưởng giới thiệu',
-            body: 'Tài khoản của bạn được cộng +2 credit vì tham gia NanoAI qua lời mời. Người mời cũng nhận phần thưởng tương ứng. Cảm ơn bạn đã đồng hành.',
-            meta: { bonus_each: 2 },
-          })
-          await createUserNotificationWithEmail(admin, {
             user_id: inviterId,
             type: 'referral_bonus_inviter',
             title: 'Bạn nhận thưởng giới thiệu',
             body: 'Có người đã tham gia NanoAI qua liên kết giới thiệu của bạn. Tài khoản của bạn được cộng +2 credit. Cảm ơn bạn đã chia sẻ NanoAI.',
-            meta: { bonus_each: 2, invitee_user_id: user.id },
+            meta: { bonus_inviter: 2, invitee_user_id: user.id },
           })
         }
       } catch (e) {

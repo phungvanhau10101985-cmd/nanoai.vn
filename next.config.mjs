@@ -2,7 +2,8 @@ import withPWAInit from '@ducanh2912/next-pwa';
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-    eslint: { ignoreDuringBuilds: true },
+    // Bật lint/typecheck khi build — `tsc` và `next lint` đã xanh; bắt lỗi sớm trên CI.
+    eslint: { ignoreDuringBuilds: false },
     allowedDevOrigins: ['*.ngrok-free.dev', '*.ngrok.io'],
     experimental: {
         serverComponentsExternalPackages: ['xlsx', 'pdf-to-img', 'pdfjs-dist', 'node-poppler', 'web-push'],
@@ -10,7 +11,7 @@ const nextConfig = {
             bodySizeLimit: '10mb',
         },
     },
-    typescript: { ignoreBuildErrors: true },
+    typescript: { ignoreBuildErrors: false },
     images: {
         remotePatterns: [
             {

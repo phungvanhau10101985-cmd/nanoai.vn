@@ -37,13 +37,13 @@ export function InviteClientPage({ inviteUrl, t }: { inviteUrl: string; t: Dicti
               <p className="text-lg font-semibold tabular-nums text-violet-700 dark:text-violet-200">+2</p>
             </div>
           </div>
-          <div className="flex min-w-[140px] flex-1 max-w-[200px] items-center gap-3 rounded-2xl border border-emerald-200/70 bg-emerald-50/80 px-4 py-3 text-left dark:border-emerald-800/50 dark:bg-emerald-950/25">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-background text-emerald-600 dark:text-emerald-300">
+          <div className="flex min-w-[140px] flex-1 max-w-[200px] items-center gap-3 rounded-2xl border border-border/80 bg-muted/40 px-4 py-3 text-left">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-background text-muted-foreground">
               <UserPlus className="h-5 w-5" aria-hidden />
             </span>
             <div className="min-w-0">
               <p className="text-xs text-muted-foreground">{t.inviteVisualFriend}</p>
-              <p className="text-lg font-semibold tabular-nums text-emerald-700 dark:text-emerald-200">+2</p>
+              <p className="text-sm font-medium leading-snug text-muted-foreground">{t.inviteeNoReferralCredit}</p>
             </div>
           </div>
         </div>

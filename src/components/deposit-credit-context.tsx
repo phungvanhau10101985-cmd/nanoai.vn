@@ -2,7 +2,6 @@
 
 import { createContext, useContext, useState } from 'react'
 import { DepositCreditPopup } from './deposit-credit-popup'
-import { usePathname } from 'next/navigation'
 
 type DepositCreditContextValue = {
   openPopup: () => void
@@ -12,16 +11,11 @@ const DepositCreditContext = createContext<DepositCreditContextValue | null>(nul
 
 export function DepositCreditProvider({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false)
-  const pathname = usePathname()
 
   return (
     <DepositCreditContext.Provider value={{ openPopup: () => setOpen(true) }}>
       {children}
-      <DepositCreditPopup
-        open={open}
-        onOpenChange={setOpen}
-        returnPath={pathname}
-      />
+      <DepositCreditPopup open={open} onOpenChange={setOpen} />
     </DepositCreditContext.Provider>
   )
 }

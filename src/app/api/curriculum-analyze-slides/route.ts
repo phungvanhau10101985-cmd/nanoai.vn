@@ -1,7 +1,17 @@
+import { randomUUID } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GoogleGenAI } from '@google/genai'
 import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
+import {
+  ANALYZE_SLIDES_CREDIT_COST,
+  CURRICULUM_AI_CHARGE_TYPES,
+  curriculumAiAdminClient,
+  isCurriculumAiCreditsDisabled,
+  readUserCreditBalance,
+  spendCurriculumAiCredits,
+} from '@/lib/curriculum-ai-credits'
+import { createClient } from '@/lib/supabase/server'
 
 /** Tìm ảnh qua Google Search grounding – fallback khi không có Pexels */
 const SEARCH_IMAGE_MODEL = 'gemini-2.0-flash'
@@ -55,6 +65,76 @@ export interface AISlideData {
 
 export interface AnalyzeSlidesResponse {
   slides: AISlideData[]
+  /** true khi lấy từ DB — client không cần lưu lại / không tốn AI */
+  fromCache?: boolean
+}
+
+/** Parse JSON slide từ worksheet_slides / worksheet_slides_original / user_customized_slides */
+function slidesFromStoredJson(raw: unknown): AISlideData[] | null {
+  if (!Array.isArray(raw) || raw.length === 0) return null
+  const out: AISlideData[] = []
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue
+    const o = item as Record<string, unknown>
+    const title = typeof o.title === 'string' ? o.title : 'Slide'
+    const blocks = Array.isArray(o.blocks)
+      ? (o.blocks as Array<{ header?: unknown; content?: unknown }>).map((b) => ({
+          header: typeof b?.header === 'string' ? b.header : 'Nội dung',
+          content: typeof b?.content === 'string' ? b.content : '',
+        }))
+      : [{ header: 'Nội dung', content: '' }]
+    if (!blocks.some((b) => b.content.trim())) continue
+    const slide: AISlideData = { title, blocks }
+    if (typeof o.imageUrl === 'string' && o.imageUrl.trim()) slide.imageUrl = o.imageUrl.trim()
+    if (typeof o.visualEmbed === 'string' && o.visualEmbed.trim()) slide.visualEmbed = o.visualEmbed.trim()
+    out.push(slide)
+  }
+  return out.length > 0 ? out : null
+}
+
+/**
+ * Đã có slide trong kho → không gọi AI, không trừ credit.
+ * Thứ tự: bản chung → bản gốc → bản riêng (user hiện tại).
+ */
+async function loadStoredSlidesForCurriculum(curriculumId: string): Promise<AISlideData[] | null> {
+  try {
+    const supabase = createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    const { data: sharedRow } = await supabase
+      .from('worksheet_slides')
+      .select('content_json')
+      .eq('curriculum_id', curriculumId)
+      .maybeSingle()
+    const fromShared = slidesFromStoredJson(sharedRow?.content_json)
+    if (fromShared?.length) return fromShared
+
+    const { data: origRow } = await supabase
+      .from('worksheet_slides_original')
+      .select('content_json')
+      .eq('curriculum_id', curriculumId)
+      .maybeSingle()
+    const fromOrig = slidesFromStoredJson(origRow?.content_json)
+    if (fromOrig?.length) return fromOrig
+
+    if (user?.id) {
+      const { data: persRow } = await supabase
+        .from('user_customized_slides')
+        .select('slides_json')
+        .eq('curriculum_id', curriculumId)
+        .eq('user_id', user.id)
+        .maybeSingle()
+      const fromPers = slidesFromStoredJson(persRow?.slides_json)
+      if (fromPers?.length) return fromPers
+    }
+
+    return null
+  } catch (e) {
+    console.warn('[curriculum-analyze-slides] loadStoredSlidesForCurriculum:', e)
+    return null
+  }
 }
 
 const MAX_CONTENT_PER_SLIDE = 220
@@ -172,9 +252,67 @@ export async function POST(req: NextRequest) {
     })
     const curriculumMarkdown = String(body?.curriculumMarkdown ?? body?.markdown ?? '').trim()
     const topic = String(body?.topic ?? '').trim()
+    const curriculumId =
+      typeof body?.curriculumId === 'string' && /^[0-9a-f-]{36}$/i.test(body.curriculumId.trim())
+        ? body.curriculumId.trim()
+        : ''
 
     if (!curriculumMarkdown) {
       return NextResponse.json({ error: 'Thiếu nội dung giáo trình.' }, { status: 400 })
+    }
+
+    if (curriculumId) {
+      const stored = await loadStoredSlidesForCurriculum(curriculumId)
+      if (stored?.length) {
+        console.log(
+          '[curriculum-analyze-slides] Trả slide từ DB (không gọi AI), curriculumId:',
+          curriculumId,
+          'slides:',
+          stored.length
+        )
+        return NextResponse.json({ slides: stored, fromCache: true, creditsCharged: false })
+      }
+    }
+
+    const chargeDisabled = isCurriculumAiCreditsDisabled()
+    const supabaseForAuth = createClient()
+    const {
+      data: { user: billingUser },
+    } = await supabaseForAuth.auth.getUser()
+    const billingUserId = billingUser?.id
+
+    if (!chargeDisabled && !billingUserId) {
+      return NextResponse.json(
+        { error: 'Vui lòng đăng nhập để tạo slide bằng AI.', code: 'UNAUTHORIZED' },
+        { status: 401 }
+      )
+    }
+
+    const admin = chargeDisabled ? null : curriculumAiAdminClient()
+    const analyzeCost = ANALYZE_SLIDES_CREDIT_COST
+
+    if (!chargeDisabled) {
+      if (!admin) {
+        return NextResponse.json(
+          {
+            error: 'Máy chủ thiếu cấu hình trừ credit (SUPABASE_SERVICE_ROLE_KEY).',
+            code: 'BILLING_CONFIG_MISSING',
+          },
+          { status: 503 }
+        )
+      }
+      const bal = await readUserCreditBalance(admin, billingUserId!)
+      if (bal < analyzeCost) {
+        return NextResponse.json(
+          {
+            error: 'insufficient_credits',
+            code: 'INSUFFICIENT_CREDITS',
+            balance: bal,
+            required: analyzeCost,
+          },
+          { status: 402 }
+        )
+      }
     }
 
     const useOpenAI =
@@ -403,7 +541,43 @@ ${JSON_SCHEMA}`
     const withImg = slides.filter((s) => s.imageUrl).length
     console.log('[curriculum-analyze-slides] Tìm ảnh xong:', withImg, '/', slides.length, 'có ảnh. Thời gian:', Date.now() - imgStart, 'ms')
 
-    return NextResponse.json({ slides })
+    let creditsCharged = false
+    let newBalance: number | undefined
+    let chargeError: string | undefined
+    if (!chargeDisabled && admin && billingUserId) {
+      try {
+        const eventKey = `curriculum_analyze_slides:${billingUserId}:${randomUUID()}`
+        const spend = await spendCurriculumAiCredits(admin, {
+          userId: billingUserId,
+          amount: analyzeCost,
+          chargeType: CURRICULUM_AI_CHARGE_TYPES.analyzeSlides,
+          eventKey,
+          metadata: {
+            curriculumId: curriculumId || null,
+            topic,
+            slideCount: slides.length,
+          },
+        })
+        if (spend.ok) {
+          creditsCharged = true
+          newBalance = spend.newBalance
+        } else {
+          chargeError = spend.error || 'charge_failed'
+          console.error('[curriculum-analyze-slides] Trừ credit thất bại (slide đã tạo):', chargeError)
+        }
+      } catch (chargeEx) {
+        chargeError = chargeEx instanceof Error ? chargeEx.message : String(chargeEx)
+        console.error('[curriculum-analyze-slides] Lỗi trừ credit:', chargeEx)
+      }
+    }
+
+    return NextResponse.json({
+      slides,
+      fromCache: false,
+      creditsCharged,
+      ...(typeof newBalance === 'number' ? { newBalance } : {}),
+      ...(chargeError ? { chargeError } : {}),
+    })
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     const stack = e instanceof Error ? e.stack : undefined

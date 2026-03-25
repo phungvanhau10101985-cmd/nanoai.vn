@@ -1,12 +1,14 @@
 "use client"
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { useDepositCredit } from './deposit-credit-context'
 import { DepositCreditPopup } from './deposit-credit-popup'
 import { PlusCircle } from 'lucide-react'
-import { usePathname } from 'next/navigation'
 import { trackEvent, toFeatureFromRoute } from '@/lib/analytics-track'
+import { getDictionary } from '@/lib/i18n/dictionaries'
+import { DEFAULT_WEB_LOCALE } from '@/lib/i18n/config'
+import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
 
 interface DepositCreditButtonProps {
   variant?: 'default' | 'outline' | 'secondary' | 'ghost' | 'link' | 'destructive'
@@ -15,17 +17,22 @@ interface DepositCreditButtonProps {
   onCreditsUpdated?: () => void
 }
 
+/** Không dùng `usePathname` — tránh Next chèn `<input>` / lỗi hydrate; route lấy lúc click. */
 export function DepositCreditButton({ variant = 'default', size = 'sm', className, onCreditsUpdated }: DepositCreditButtonProps) {
   const ctx = useDepositCredit()
   const [localOpen, setLocalOpen] = useState(false)
-  const pathname = usePathname()
-
+  const [topUpLabel, setTopUpLabel] = useState(() => getDictionary(DEFAULT_WEB_LOCALE).menu.topUpCredits)
   const openPopup = ctx?.openPopup ?? (() => setLocalOpen(true))
 
+  useEffect(() => {
+    setTopUpLabel(getDictionary(readWebLocaleFromDocumentCookie()).menu.topUpCredits)
+  }, [])
+
   const handleClick = () => {
+    const pathname = typeof window !== 'undefined' ? window.location.pathname || '' : ''
     trackEvent('topup_click', {
       route: pathname,
-      feature: toFeatureFromRoute(pathname),
+      feature: pathname ? toFeatureFromRoute(pathname) : 'unknown',
       source: 'deposit_credit_button',
     })
     if (onCreditsUpdated) {
@@ -36,21 +43,14 @@ export function DepositCreditButton({ variant = 'default', size = 'sm', classNam
 
   return (
     <>
-      <Button
-        variant={variant}
-        size={size}
-        className={className}
-        onClick={handleClick}
-        type="button"
-      >
+      <Button variant={variant} size={size} className={className} onClick={handleClick} type="button">
         <PlusCircle className="mr-2 h-4 w-4" />
-        Nạp credit
+        {topUpLabel}
       </Button>
       {!ctx && (
         <DepositCreditPopup
           open={localOpen}
           onOpenChange={setLocalOpen}
-          returnPath={pathname}
           onCreditsUpdated={onCreditsUpdated}
         />
       )}

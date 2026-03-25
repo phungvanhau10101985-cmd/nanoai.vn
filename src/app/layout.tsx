@@ -7,11 +7,14 @@ import "./globals.css";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
 import { DepositCreditProvider } from "@/components/deposit-credit-context";
-import { AnalyticsTracker } from "@/components/analytics/analytics-tracker";
 import { buildMetadata, buildJsonLdWebApplication, buildJsonLdOrganization, SITE_URL, SITE_NAME } from "@/lib/seo";
 import { JsonLd } from "@/components/seo-json-ld";
 import { getCurrentWebLocale, getServerDictionary } from '@/lib/i18n/server'
 
+const AnalyticsTracker = dynamic(
+  () => import("@/components/analytics/analytics-tracker").then((m) => m.AnalyticsTracker),
+  { ssr: false }
+);
 const MobileBottomBar = dynamic(
   () => import("@/components/layout/mobile-bottom-bar").then((m) => m.MobileBottomBar),
   { ssr: false }
@@ -132,11 +135,16 @@ export default function RootLayout({
         <ReferralClaimRunner />
         <JsonLd data={webAppLd} />
         <JsonLd data={orgLd} />
+        {/*
+          - Không bọc async Header trong Suspense: Next 14.2 + client con trong header đôi khi gây
+            "could not finish this Suspense boundary" khi hydrate.
+          - Bọc main/children: mọi trang con dùng useSearchParams (không tự Suspense) vẫn có boundary hợp lệ.
+        */}
+        <Header />
         <DepositCreditProvider>
-          <Suspense fallback={<header className="h-14 border-b bg-background" />}>
-            <Header />
+          <Suspense fallback={<div className="min-h-[30vh] w-full" aria-hidden />}>
+            <main className="pb-16 md:pb-0">{children}</main>
           </Suspense>
-          <main className="pb-16 md:pb-0">{children}</main>
           <Footer />
           <MobileBottomBar />
           <InstallPrompt />

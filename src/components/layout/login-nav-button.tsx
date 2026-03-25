@@ -1,45 +1,34 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname, useSearchParams } from 'next/navigation'
-import { Suspense } from 'react'
+import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { sanitizeLoginNext } from '@/lib/auth/sanitize-login-next'
+import { subscribeToUrlChanges } from '@/lib/client-history-navigation'
 
-function LoginNavButtonInner({
-  label,
-  className,
-}: {
-  label: string
-  className?: string
-}) {
-  const pathname = usePathname() || '/'
-  const searchParams = useSearchParams()
-  const q = searchParams.toString()
-  const raw = q ? `${pathname}?${q}` : pathname
-  const next = sanitizeLoginNext(raw)
+function buildLoginHref(): string {
+  if (typeof window === 'undefined') return '/auth/login'
+  const raw = `${window.location.pathname || '/'}${window.location.search || ''}`
+  return `/auth/login?next=${encodeURIComponent(sanitizeLoginNext(raw))}`
+}
+
+/**
+ * Không dùng `useSearchParams` / `usePathname` / Suspense — tránh Next chèn `<input>` và lỗi hydrate.
+ */
+export function LoginNavButton({ label, className }: { label: string; className?: string }) {
+  const [href, setHref] = useState('/auth/login')
+
+  useEffect(() => {
+    const sync = () => setHref(buildLoginHref())
+    sync()
+    return subscribeToUrlChanges(sync)
+  }, [])
+
   return (
-    <Link href={`/auth/login?next=${encodeURIComponent(next)}`}>
+    <Link href={href}>
       <Button variant="secondary" size="sm" className={className}>
         {label}
       </Button>
     </Link>
-  )
-}
-
-/** Nút đăng nhập header — gắn `next` = trang hiện tại để sau đăng nhập quay lại. */
-export function LoginNavButton({ label, className }: { label: string; className?: string }) {
-  return (
-    <Suspense
-      fallback={
-        <Link href="/auth/login">
-          <Button variant="secondary" size="sm" className={className}>
-            {label}
-          </Button>
-        </Link>
-      }
-    >
-      <LoginNavButtonInner label={label} className={className} />
-    </Suspense>
   )
 }

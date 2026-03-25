@@ -89,6 +89,8 @@ export type Dictionary = {
     inviteFriends: string
     /** Menu tài khoản → trang gói dịch vụ */
     viewPlan: string
+    /** Nút / mục menu nạp thêm credit */
+    topUpCredits: string
   }
   home: {
     title: string
@@ -106,10 +108,10 @@ export type Dictionary = {
     step2: string
     step3: string
     bonusNote: string
-    toastApplied: string
-    toastAppliedHint: string
     inviteVisualYou: string
     inviteVisualFriend: string
+    /** Người được mời không nhận credit giới thiệu — hiển thị thay cho +2 */
+    inviteeNoReferralCredit: string
     errorGeneric: string
   }
   /** Trang /account/plan — dùng thử + phí tháng giáo trình; English AI trả theo bài */
@@ -923,28 +925,30 @@ const VI_DICTIONARY: Dictionary = {
     exitDevMode: 'Thoát chế độ dev',
     inviteFriends: 'Mời bạn bè',
     viewPlan: 'Xem gói',
+    topUpCredits: 'Nạp credit',
   },
   home: {
     title: 'NanoAI - Sáng tạo không giới hạn cùng AI',
   },
   referral: {
     pageTitle: 'Mời bạn bè – nhận thưởng credit',
-    metaDescription: 'Chia sẻ NanoAI với bạn bè. Khi họ tham gia, cả hai cùng nhận 2 credit.',
+    metaDescription:
+      'Chia sẻ NanoAI với bạn bè. Khi có người đăng ký mới qua link của bạn, chỉ bạn nhận 2 credit giới thiệu.',
     headline: 'Giới thiệu NanoAI cho bạn bè',
     description:
-      'Sao chép liên kết cá nhân của bạn. Khi người nhận lời mời đăng ký và tham gia, bạn và họ mỗi người nhận 2 credit (một lần cho mỗi tài khoản mới).',
+      'Sao chép liên kết cá nhân của bạn. Khi có người đăng ký tài khoản mới và tham gia qua link đó (trong 30 ngày kể từ khi họ tạo tài khoản), bạn nhận 2 credit — mỗi người được mời chỉ tính một lần.',
     yourLinkLabel: 'Liên kết giới thiệu của bạn',
     copyButton: 'Sao chép liên kết',
     copied: 'Đã sao chép',
     howItWorksTitle: 'Cách hoạt động',
     step1: 'Gửi liên kết có mã giới thiệu của bạn cho bạn bè.',
     step2: 'Họ mở link và đăng ký / đăng nhập NanoAI trong vòng 30 ngày kể từ khi tạo tài khoản.',
-    step3: 'Hệ thống tự cộng 2 credit cho người được mời và 2 credit cho bạn (một lần duy nhất cho mỗi người mới).',
-    bonusNote: 'Ưu đãi áp dụng cho tài khoản mới đủ điều kiện; mỗi người chỉ nhận thưởng giới thiệu một lần.',
-    toastApplied: '+2 credit đã được cộng',
-    toastAppliedHint: 'Cảm ơn bạn đã tham gia qua lời mời. Số dư ví đã cập nhật.',
-    inviteVisualYou: 'Bạn',
-    inviteVisualFriend: 'Bạn bè mới',
+    step3: 'Hệ thống cộng 2 credit cho bạn (người mời). Người được mời không nhận credit từ chương trình giới thiệu này.',
+    bonusNote:
+      'Chỉ tài khoản mới đủ điều kiện mới kích hoạt thưởng cho người mời; mỗi người được mời chỉ được tính một lần.',
+    inviteVisualYou: 'Bạn (người mời)',
+    inviteVisualFriend: 'Người được mời',
+    inviteeNoReferralCredit: 'Không có thưởng credit giới thiệu',
     errorGeneric: 'Không thể áp dụng giới thiệu lúc này. Thử lại sau nhé.',
   },
   accountPlan: {
@@ -1753,25 +1757,26 @@ const EN_DICTIONARY: Dictionary = {
     noNotifications: 'No notifications yet',
     inviteFriends: 'Invite friends',
     viewPlan: 'View plan',
+    topUpCredits: 'Top up credits',
   },
   referral: {
     pageTitle: 'Invite friends – earn credits',
-    metaDescription: 'Share NanoAI. When your friend joins, you both get 2 credits.',
+    metaDescription:
+      'Share NanoAI. When someone signs up as a new user through your link, you receive 2 referral credits.',
     headline: 'Invite friends to NanoAI',
     description:
-      'Copy your personal link. When someone you invite signs up and joins, you and they each receive 2 credits (once per new account).',
+      'Copy your personal link. When a new user signs up and joins through that link (within 30 days of account creation), you get 2 credits — once per invited person.',
     yourLinkLabel: 'Your invite link',
     copyButton: 'Copy link',
     copied: 'Copied',
     howItWorksTitle: 'How it works',
     step1: 'Share your invite link with friends.',
     step2: 'They open the link and sign up / sign in to NanoAI within 30 days of account creation.',
-    step3: 'We add 2 credits to the invitee and 2 credits to you (one time per new person).',
-    bonusNote: 'For eligible new accounts only; each person can receive the referral reward once.',
-    toastApplied: '+2 credits added',
-    toastAppliedHint: 'Thanks for joining through an invite. Your wallet balance is updated.',
-    inviteVisualYou: 'You',
-    inviteVisualFriend: 'Your friend',
+    step3: 'We add 2 credits to you (the inviter). Invitees do not receive referral-program credits.',
+    bonusNote: 'Only eligible new accounts trigger the inviter reward; each invitee counts only once.',
+    inviteVisualYou: 'You (inviter)',
+    inviteVisualFriend: 'Invitee',
+    inviteeNoReferralCredit: 'No referral credits',
     errorGeneric: 'We could not apply the invite bonus right now. Please try again later.',
   },
   accountPlan: {
@@ -2592,24 +2597,25 @@ const ZH_DICTIONARY: Dictionary = {
     noNotifications: '暂无通知',
     inviteFriends: '邀请好友',
     viewPlan: '查看套餐',
+    topUpCredits: '充值积分',
   },
   referral: {
     pageTitle: '邀请好友 – 获得积分',
-    metaDescription: '分享 NanoAI。好友加入后，双方各得 2 积分。',
+    metaDescription: '分享 NanoAI。有新用户通过您的链接注册时，仅您获得 2 积分推荐奖励。',
     headline: '向好友推荐 NanoAI',
-    description: '复制您的专属链接。被邀请人注册并加入后，您与对方各获得 2 积分（每个新账号限一次）。',
+    description:
+      '复制您的专属链接。有新用户通过该链接注册并加入（自创建账号起 30 天内），您可获得 2 积分——每位被邀请人仅计一次。',
     yourLinkLabel: '您的邀请链接',
     copyButton: '复制链接',
     copied: '已复制',
     howItWorksTitle: '如何运作',
     step1: '将带有您推荐码的链接发给好友。',
     step2: '对方打开链接，并在创建账号后 30 天内注册或登录 NanoAI。',
-    step3: '系统自动为被邀请人与您各加 2 积分（每位新人仅一次）。',
-    bonusNote: '仅适用于符合条件的新账号；每人仅限一次推荐奖励。',
-    toastApplied: '已添加 +2 积分',
-    toastAppliedHint: '感谢通过邀请加入，钱包余额已更新。',
-    inviteVisualYou: '您',
-    inviteVisualFriend: '好友',
+    step3: '系统为邀请人（您）增加 2 积分。被邀请人不获得本推荐活动的积分。',
+    bonusNote: '仅符合条件的新账号可为邀请人触发奖励；每位被邀请人仅计一次。',
+    inviteVisualYou: '您（邀请人）',
+    inviteVisualFriend: '被邀请人',
+    inviteeNoReferralCredit: '无推荐积分',
     errorGeneric: '暂时无法应用邀请奖励，请稍后再试。',
   },
   accountPlan: {
@@ -3390,25 +3396,26 @@ const JA_DICTIONARY: Dictionary = {
     noNotifications: '通知はありません',
     inviteFriends: '友達を招待',
     viewPlan: 'プランを見る',
+    topUpCredits: 'クレジットをチャージ',
   },
   referral: {
     pageTitle: '友達招待 – クレジット獲得',
-    metaDescription: 'NanoAI を共有。友達が参加すると、お互いに 2 クレジット。',
+    metaDescription:
+      'NanoAI を共有。リンク経由で新規登録があると、紹介者であるあなたにのみ 2 クレジット。',
     headline: '友達に NanoAI を紹介',
     description:
-      'あなた専用のリンクをコピー。招待した方が登録・参加すると、お互いに 2 クレジット（新規アカウントにつき 1 回）。',
+      '専用リンクをコピー。新規ユーザーがそのリンクから登録・参加すると（アカウント作成から 30 日以内）、あなたに 2 クレジット。被招待者 1 人につき 1 回。',
     yourLinkLabel: 'あなたの招待リンク',
     copyButton: 'リンクをコピー',
     copied: 'コピーしました',
     howItWorksTitle: '仕組み',
     step1: '紹介コード付きリンクを友達に送ります。',
     step2: '相手がリンクを開き、アカウント作成から 30 日以内に NanoAI に登録／ログインします。',
-    step3: '被招待者とあなたにそれぞれ 2 クレジットが付与されます（新人 1 人につき 1 回）。',
-    bonusNote: '対象の新規アカウントに限ります。紹介報酬はお一人様 1 回までです。',
-    toastApplied: '+2 クレジットを付与しました',
-    toastAppliedHint: '招待経由でのご参加ありがとうございます。残高を更新しました。',
-    inviteVisualYou: 'あなた',
-    inviteVisualFriend: 'お友だち',
+    step3: '招待したあなたに 2 クレジットを付与します。被招待者には本紹介プログラムのクレジットはありません。',
+    bonusNote: '条件を満たす新規アカウントのみ紹介者への報酬の対象。被招待者は 1 人 1 回まで。',
+    inviteVisualYou: 'あなた（紹介者）',
+    inviteVisualFriend: '被招待者',
+    inviteeNoReferralCredit: '紹介クレジットなし',
     errorGeneric: 'いま紹介ボーナスを適用できません。しばらくしてからお試しください。',
   },
   accountPlan: {
@@ -4214,25 +4221,26 @@ const KO_DICTIONARY: Dictionary = {
     noNotifications: '알림 없음',
     inviteFriends: '친구 초대',
     viewPlan: '요금제 보기',
+    topUpCredits: '크레딧 충전',
   },
   referral: {
     pageTitle: '친구 초대 – 크레딧 받기',
-    metaDescription: 'NanoAI를 공유하세요. 친구가 가입하면 서로 2 크레딧을 받습니다.',
+    metaDescription:
+      'NanoAI를 공유하세요. 링크로 신규 가입이 있으면 초대한 분에게만 2 크레딧이 지급됩니다.',
     headline: '친구에게 NanoAI 소개',
     description:
-      '개인 초대 링크를 복사하세요. 초대받은 분이 가입하면 여러분과 상대 모두 2 크레딧(신규 계정당 1회).',
+      '개인 초대 링크를 복사하세요. 신규 사용자가 그 링크로 가입하면(계정 생성 후 30일 이내) 초대자인 여러분에게 2 크레딧. 피초대자 1인당 1회.',
     yourLinkLabel: '내 초대 링크',
     copyButton: '링크 복사',
     copied: '복사됨',
     howItWorksTitle: '이용 방법',
     step1: '초대 코드가 포함된 링크를 친구에게 보냅니다.',
     step2: '상대가 링크를 열고 계정 생성 후 30일 이내에 NanoAI에 가입/로그인합니다.',
-    step3: '피초대자와 초대자에게 각각 2 크레딧이 지급됩니다(신규 1인당 1회).',
-    bonusNote: '조건을 충족하는 신규 계정에만 적용됩니다. 추천 보상은 계정당 1회입니다.',
-    toastApplied: '+2 크레딧이 추가되었습니다',
-    toastAppliedHint: '초대로 가입해 주셔서 감사합니다. 지갑 잔액이 반영되었습니다.',
-    inviteVisualYou: '나',
-    inviteVisualFriend: '초대받은 친구',
+    step3: '초대자(나)에게 2 크레딧을 지급합니다. 피초대자는 본 추천 프로그램 크레딧을 받지 않습니다.',
+    bonusNote: '조건을 충족하는 신규 계정만 초대자 보상에 해당. 피초대자는 1인 1회만 집계.',
+    inviteVisualYou: '나(초대자)',
+    inviteVisualFriend: '피초대자',
+    inviteeNoReferralCredit: '추천 크레딧 없음',
     errorGeneric: '지금은 초대 보너스를 적용할 수 없습니다. 잠시 후 다시 시도해 주세요.',
   },
   accountPlan: {
