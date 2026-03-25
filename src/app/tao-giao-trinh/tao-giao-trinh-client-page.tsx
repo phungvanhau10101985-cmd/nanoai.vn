@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
-import { Sparkles, Copy, FileDown, RefreshCw, FileSpreadsheet, FolderOpen, BookOpen, FileText, Presentation, Trash2, Upload, ImageIcon, FileQuestion, ListChecks, ChevronDown, Users, NotebookPen } from 'lucide-react'
+import { Sparkles, Copy, FileDown, RefreshCw, FileSpreadsheet, FolderOpen, BookOpen, FileText, Presentation, Trash2, Upload, ImageIcon, FileQuestion, ListChecks, ChevronDown, Users, NotebookPen, Link2 } from 'lucide-react'
 import Link from 'next/link'
 import QRCode from 'qrcode'
 import { latexToReadable } from './lib/latex-to-readable'
@@ -38,6 +38,7 @@ import { fillI18nTemplate } from '@/lib/i18n/fill-template'
 import { DEFAULT_WEB_LOCALE, type WebLocale } from '@/lib/i18n/config'
 import { getDictionary } from '@/lib/i18n/dictionaries'
 import { CURRICULUM_UI_CREDITS, formatCurriculumCredits } from './lib/curriculum-credit-costs'
+import { AttachExamToClassDialog } from '@/components/exam/attach-exam-to-class-dialog'
 
 type UiLocale = 'vi' | 'en' | 'zh' | 'ja' | 'ko'
 
@@ -240,6 +241,8 @@ export default function TaoGiaoTrinhClientPage({
     loadingQr: boolean
     forHomework?: boolean
   }>(null)
+  /** Gắn bài thi đã tạo sang lớp khác — cùng dialog như /tao-bai-thi */
+  const [examAttachTarget, setExamAttachTarget] = useState<null | { id: string; title: string }>(null)
   const sgkSubmitLockRef = useRef(false)
   const wsStepByStepSubmitLockRef = useRef(false)
   const sgkInputRef = useRef<HTMLInputElement>(null)
@@ -293,6 +296,7 @@ export default function TaoGiaoTrinhClientPage({
     () => getDictionary(uiLocale as WebLocale).classes.examSessionCreatedAt,
     [uiLocale]
   )
+  const tcClasses = useMemo(() => getDictionary(uiLocale as WebLocale).classes, [uiLocale])
 
   const displayTopic = topic.trim() || (lessonNumber ? `Bài ${lessonNumber}` : tr('Chủ đề', 'Topic', '主题', '主題', '주제'))
 
@@ -3861,7 +3865,22 @@ export default function TaoGiaoTrinhClientPage({
                               )
                             })()}
                           </div>
-                          <div className="flex items-center gap-2 shrink-0">
+                          <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                setExamAttachTarget({
+                                  id: exam.id,
+                                  title: exam.title || tr('Bài thi', 'Exam', '测验', 'テスト', '시험'),
+                                })
+                              }
+                              className="gap-1.5"
+                            >
+                              <Link2 className="h-3.5 w-3.5" aria-hidden />
+                              {tcClasses.examAttachToOtherClassButton}
+                            </Button>
                             <Button
                               type="button"
                               variant="outline"
@@ -4049,6 +4068,16 @@ export default function TaoGiaoTrinhClientPage({
           </Card>
         )}
       </div>
+      <AttachExamToClassDialog
+        open={examAttachTarget !== null}
+        onOpenChange={(o) => {
+          if (!o) setExamAttachTarget(null)
+        }}
+        sourceSessionId={examAttachTarget?.id ?? ''}
+        examTitle={examAttachTarget?.title}
+        tc={tcClasses}
+        onSuccess={() => void loadCreatedExamItems()}
+      />
       {examPreview && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
           <div className="w-full max-w-md rounded-lg border bg-background shadow-xl">
