@@ -3,6 +3,11 @@
 import { useEffect, useState } from 'react'
 import { Bell, Loader2 } from 'lucide-react'
 import {
+  getPushVapidPublicKey,
+  requestPushPermissionAndSubscribe,
+  syncPushSubscriptionWithServer,
+} from '@/lib/pwa/push-subscribe-client'
+import {
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -30,6 +35,19 @@ export function NotificationBell({ t }: NotificationBellProps) {
   const [unreadCount, setUnreadCount] = useState(0)
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [pushSubscribed, setPushSubscribed] = useState<boolean | null>(null)
+  const [pushBusy, setPushBusy] = useState(false)
+  const [pushClientOk, setPushClientOk] = useState(false)
+
+  const vapidPublic = getPushVapidPublicKey()
+  const showPushFooter =
+    Boolean(vapidPublic) &&
+    pushClientOk &&
+    process.env.NODE_ENV !== 'development'
+
+  useEffect(() => {
+    setPushClientOk(typeof window !== 'undefined' && window.isSecureContext)
+  }, [])
 
   const fetchUnreadCount = () => {
     fetch('/api/notifications/unread-count')
@@ -56,6 +74,14 @@ export function NotificationBell({ t }: NotificationBellProps) {
   useEffect(() => {
     if (open) fetchNotifications()
   }, [open])
+
+  useEffect(() => {
+    if (!open || !showPushFooter) return
+    fetch('/api/push/status', { credentials: 'same-origin' })
+      .then((res) => res.json())
+      .then((data) => setPushSubscribed(Boolean(data?.subscribed)))
+      .catch(() => setPushSubscribed(false))
+  }, [open, showPushFooter])
 
   const markAsRead = async (id: string) => {
     await fetch(`/api/notifications/${id}/read`, { method: 'PATCH' })
@@ -128,6 +154,59 @@ export function NotificationBell({ t }: NotificationBellProps) {
             </div>
           )}
         </div>
+        {showPushFooter && (
+          <div className="border-t px-4 py-3 space-y-2 bg-muted/20">
+            {typeof Notification !== 'undefined' && Notification.permission === 'denied' ? (
+              <p className="text-[11px] text-muted-foreground leading-snug">{t.push.bellDeniedHint}</p>
+            ) : pushSubscribed ? (
+              <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">{t.push.bellSubscribedShort}</p>
+            ) : typeof Notification !== 'undefined' && Notification.permission === 'granted' ? (
+              <>
+                <p className="text-[11px] text-muted-foreground leading-snug">{t.push.bellSyncHint}</p>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className="w-full h-8 text-xs"
+                  disabled={pushBusy || !vapidPublic}
+                  onClick={() => {
+                    if (!vapidPublic) return
+                    setPushBusy(true)
+                    void syncPushSubscriptionWithServer(vapidPublic)
+                      .then((ok) => {
+                        if (ok) setPushSubscribed(true)
+                      })
+                      .finally(() => setPushBusy(false))
+                  }}
+                >
+                  {pushBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : t.push.bellEnableButton}
+                </Button>
+              </>
+            ) : (
+              <>
+                <p className="text-[11px] text-muted-foreground leading-snug">{t.push.bellEnableHint}</p>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className="w-full h-8 text-xs"
+                  disabled={pushBusy || typeof Notification === 'undefined'}
+                  onClick={() => {
+                    if (!vapidPublic) return
+                    setPushBusy(true)
+                    void requestPushPermissionAndSubscribe(vapidPublic)
+                      .then((ok) => {
+                        if (ok) setPushSubscribed(true)
+                      })
+                      .finally(() => setPushBusy(false))
+                  }}
+                >
+                  {pushBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : t.push.bellEnableButton}
+                </Button>
+              </>
+            )}
+          </div>
+        )}
       </PopoverContent>
     </Popover>
   )

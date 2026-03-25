@@ -1,11 +1,17 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { X } from 'lucide-react'
 import { getDictionary } from '@/lib/i18n/dictionaries'
 import { DEFAULT_WEB_LOCALE, type WebLocale } from '@/lib/i18n/config'
+import {
+  getPushVapidPublicKey,
+  requestPushPermissionAndSubscribe,
+  shouldOfferPushInstallUi,
+  syncPushSubscriptionWithServer,
+} from '@/lib/pwa/push-subscribe-client'
 
 const DISMISS_KEY = 'nanoai_push_prompt_dismiss'
 
@@ -24,30 +30,12 @@ function localeFromCookie(): WebLocale {
   return 'vi'
 }
 
-function urlBase64ToUint8Array(base64String: string): BufferSource {
-  const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
-  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
-  const rawData = window.atob(base64)
-  const outputArray = new Uint8Array(rawData.length)
-  for (let i = 0; i < rawData.length; ++i) {
-    outputArray[i] = rawData.charCodeAt(i)
-  }
-  return outputArray
-}
-
-function isStandalonePwa(): boolean {
-  if (typeof window === 'undefined') return false
-  if (window.matchMedia('(display-mode: standalone)').matches) return true
-  const nav = window.navigator as Navigator & { standalone?: boolean }
-  if (nav.standalone === true) return true
-  return document.referrer?.includes('android-app') ?? false
-}
-
 /**
- * Gợi ý bật Web Push khi đã cài PWA (Android). Cần NEXT_PUBLIC_VAPID_PUBLIC_KEY + bảng push_subscriptions.
+ * Gợi ý bật Web Push (Android / PWA). Cần NEXT_PUBLIC_VAPID_PUBLIC_KEY + migration push_subscriptions + bản build production (có SW).
  */
 export function PushNotificationPrompt() {
-  const vapidPublic = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+  const vapidPublic = getPushVapidPublicKey()
+  const mountedRef = useRef(true)
   const [visible, setVisible] = useState(false)
   const [busy, setBusy] = useState(false)
   const [justEnabled, setJustEnabled] = useState(false)
@@ -66,82 +54,65 @@ export function PushNotificationPrompt() {
     }
   }, [])
 
-  const syncSubscription = useCallback(async (): Promise<boolean> => {
-    if (!vapidPublic || typeof window === 'undefined' || !('Notification' in window)) return false
-    if (Notification.permission !== 'granted') return false
+  const runOfferCheck = useCallback(async (): Promise<void> => {
+    if (!mountedRef.current || !vapidPublic || typeof window === 'undefined') return
+    if (!('Notification' in window) || !('serviceWorker' in navigator)) return
+    if (process.env.NODE_ENV === 'development') return
+    if (!window.isSecureContext) return
+
+    const supabase = createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user || !mountedRef.current) return
+
     try {
-      const reg = await navigator.serviceWorker.ready
-      let sub = await reg.pushManager.getSubscription()
-      if (!sub) {
-        sub = await reg.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(vapidPublic),
-        })
+      await navigator.serviceWorker.ready
+      if (!mountedRef.current) return
+
+      if (Notification.permission === 'granted') {
+        void syncPushSubscriptionWithServer(vapidPublic)
+        return
       }
-      const json = sub.toJSON()
-      const res = await fetch('/api/push/subscribe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'same-origin',
-        body: JSON.stringify(json),
-      })
-      if (!res.ok) {
-        const errText = await res.text().catch(() => '')
-        console.warn('[push] subscribe failed', res.status, errText)
-        return false
-      }
-      return true
-    } catch (e) {
-      console.warn('[push] syncSubscription', e)
-      return false
+      if (Notification.permission === 'denied') return
+      if (localStorage.getItem(DISMISS_KEY) === '1') return
+      if (!shouldOfferPushInstallUi()) return
+
+      if (mountedRef.current) setVisible(true)
+    } catch {
+      /* ignore */
     }
   }, [vapidPublic])
 
   useEffect(() => {
-    if (!vapidPublic) return
-
-    let cancelled = false
-    const run = async () => {
-      if (typeof window === 'undefined') return
-      if (!('Notification' in window) || !('serviceWorker' in navigator)) return
-      if (process.env.NODE_ENV === 'development') return
-
-      const supabase = createClient()
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      if (!user || cancelled) return
-
-      try {
-        await navigator.serviceWorker.ready
-
-        if (Notification.permission === 'granted') {
-          void syncSubscription()
-          return
-        }
-        if (Notification.permission === 'denied') return
-        if (localStorage.getItem(DISMISS_KEY) === '1') return
-        if (!isStandalonePwa()) return
-
-        if (!cancelled) setVisible(true)
-      } catch {
-        /* ignore */
-      }
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
     }
+  }, [])
 
-    void run()
+  useEffect(() => {
+    if (!vapidPublic) return
+    let cancelled = false
+
+    const delays = [0, 2500, 8000]
+    const timers = delays.map((ms) =>
+      window.setTimeout(() => {
+        if (!cancelled) void runOfferCheck()
+      }, ms)
+    )
+
     return () => {
       cancelled = true
+      timers.forEach((id) => window.clearTimeout(id))
     }
-  }, [vapidPublic, syncSubscription])
+  }, [vapidPublic, runOfferCheck])
 
   const handleEnable = async () => {
     if (!vapidPublic) return
     setBusy(true)
     try {
-      const perm = await Notification.requestPermission()
-      if (perm !== 'granted') return
-      const synced = await syncSubscription()
+      const synced = await requestPushPermissionAndSubscribe(vapidPublic)
       if (!synced) return
       setJustEnabled(true)
       localStorage.removeItem(DISMISS_KEY)

@@ -116,6 +116,11 @@ export type Dictionary = {
     enable: string
     later: string
     enabledToast: string
+    bellEnableHint: string
+    bellEnableButton: string
+    bellSubscribedShort: string
+    bellDeniedHint: string
+    bellSyncHint: string
   }
   footer: {
     platformTitle: string
@@ -900,6 +905,11 @@ const VI_DICTIONARY: Dictionary = {
     enable: 'Bật thông báo',
     later: 'Để sau',
     enabledToast: 'Đã bật thông báo đẩy',
+    bellEnableHint: 'Thông báo trong app khác thông báo hệ thống. Bật đẩy để nhận tin khi không mở NanoAI.',
+    bellEnableButton: 'Bật thông báo đẩy',
+    bellSubscribedShort: 'Đã bật thông báo đẩy trên thiết bị này',
+    bellDeniedHint: 'Thông báo hệ thống đang tắt. Vào Cài đặt trình duyệt → NanoAI → Bật thông báo.',
+    bellSyncHint: 'Trình duyệt đã cho phép thông báo nhưng máy chủ chưa lưu thiết bị. Nhấn để đồng bộ.',
   },
   footer: {
     platformTitle: 'NanoAI Platform',
@@ -1685,6 +1695,11 @@ const EN_DICTIONARY: Dictionary = {
     enable: 'Turn on',
     later: 'Not now',
     enabledToast: 'Push notifications enabled',
+    bellEnableHint: 'In-app alerts are not the same as system notifications. Enable push to get updates when NanoAI is closed.',
+    bellEnableButton: 'Enable push notifications',
+    bellSubscribedShort: 'Push is on for this device',
+    bellDeniedHint: 'Notifications are blocked. Open browser settings → NanoAI → Allow notifications.',
+    bellSyncHint: 'Notifications are allowed but this device is not registered yet. Tap to sync.',
   },
   footer: {
     platformTitle: 'NanoAI Platform',
@@ -2481,6 +2496,11 @@ const ZH_DICTIONARY: Dictionary = {
     enable: '开启通知',
     later: '稍后',
     enabledToast: '已开启推送通知',
+    bellEnableHint: '应用内提醒与系统推送不同。开启推送后，即使未打开 NanoAI 也能收到通知。',
+    bellEnableButton: '开启推送通知',
+    bellSubscribedShort: '本设备已开启推送',
+    bellDeniedHint: '通知已被阻止。请在浏览器设置中为 NanoAI 开启通知。',
+    bellSyncHint: '已允许通知，但服务器尚未登记此设备。请点击同步。',
   },
   navGroup: {
     try_on: '试衣与穿搭',
@@ -3241,6 +3261,11 @@ const JA_DICTIONARY: Dictionary = {
     enable: '通知をオン',
     later: 'あとで',
     enabledToast: 'プッシュ通知を有効にしました',
+    bellEnableHint: 'アプリ内のお知らせとシステム通知は別です。NanoAIを閉じていても届くようにプッシュをオンにしてください。',
+    bellEnableButton: 'プッシュ通知をオン',
+    bellSubscribedShort: 'この端末ではプッシュ通知がオンです',
+    bellDeniedHint: '通知がブロックされています。ブラウザの設定で NanoAI の通知を許可してください。',
+    bellSyncHint: '通知は許可済みですが、この端末が未登録です。同期をタップしてください。',
   },
   navGroup: {
     try_on: '試着・コーデ',
@@ -4024,6 +4049,11 @@ const KO_DICTIONARY: Dictionary = {
     enable: '알림 켜기',
     later: '나중에',
     enabledToast: '푸시 알림이 켜졌습니다',
+    bellEnableHint: '앱 알림과 시스템 푸시는 다릅니다. NanoAI를 열지 않아도 받으려면 푸시를 켜세요.',
+    bellEnableButton: '푸시 알림 켜기',
+    bellSubscribedShort: '이 기기에서 푸시가 켜져 있습니다',
+    bellDeniedHint: '알림이 차단되었습니다. 브라우저 설정에서 NanoAI 알림을 허용하세요.',
+    bellSyncHint: '알림은 허용됐지만 서버에 이 기기가 없습니다. 동기화를 누르세요.',
   },
   navGroup: {
     try_on: '가상 피팅·스타일링',
