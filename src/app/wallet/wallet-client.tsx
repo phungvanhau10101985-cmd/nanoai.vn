@@ -10,6 +10,7 @@ import { toast } from '@/hooks/use-toast'
 import Link from 'next/link'
 import { formatNumber } from '@/lib/format'
 import { DepositCreditButton } from '@/components/deposit-credit-button'
+import { CREDIT_UNIT_PRICE_VND } from '@/lib/credit-unit-price'
 
 type Payment = {
   id: string
@@ -147,7 +148,7 @@ export default function WalletClient() {
                   {tr('Số dư credits', 'Credit balance', '积分余额', 'クレジット残高', '크레딧 잔액')}
                 </span>
                 <Badge variant="outline" className="text-blue-600 border-blue-300">
-                  1 credit = {formatNumber(6000)}₫
+                  1 credit = {formatNumber(CREDIT_UNIT_PRICE_VND)}₫
                 </Badge>
               </CardTitle>
               <CardDescription>
@@ -169,7 +170,8 @@ export default function WalletClient() {
                       credits
                     </div>
                     <div className="text-sm text-muted-foreground mt-2">
-                      {tr('Tương đương', 'Equivalent to', '约等于', '相当', '환산 금액')} {formatCurrency(userCredits * 6000)}
+                      {tr('Tương đương', 'Equivalent to', '约等于', '相当', '환산 금액')}{' '}
+                      {formatCurrency(userCredits * CREDIT_UNIT_PRICE_VND)}
                     </div>
                   </div>
 
@@ -358,7 +360,7 @@ export default function WalletClient() {
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">1 credit =</span>
-                  <span className="font-medium">{formatNumber(6000)}₫</span>
+                  <span className="font-medium">{formatNumber(CREDIT_UNIT_PRICE_VND)}₫</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">{tr('1 lần thử đồ =', '1 try-on =', '1次试衣 =', '1回の試着 =', '1회 피팅 =')}</span>

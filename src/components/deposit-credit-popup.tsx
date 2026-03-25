@@ -19,6 +19,7 @@ import { useRouter } from 'next/navigation'
 import { buildSePayQrImgUrl } from '@/lib/sepay-qr'
 import { isLocalhost, getDevUserId } from '@/lib/auth-client'
 import { trackEvent, toFeatureFromRoute } from '@/lib/analytics-track'
+import { CREDIT_UNIT_PRICE_VND } from '@/lib/credit-unit-price'
 
 type PaymentConfig = {
   id: string
@@ -40,7 +41,13 @@ type Payment = {
   bank_name?: string
 }
 
-const PRESET_AMOUNTS = [6000, 12000, 30000, 60000, 120000]
+const PRESET_AMOUNTS = [
+  CREDIT_UNIT_PRICE_VND,
+  CREDIT_UNIT_PRICE_VND * 2,
+  CREDIT_UNIT_PRICE_VND * 5,
+  CREDIT_UNIT_PRICE_VND * 10,
+  CREDIT_UNIT_PRICE_VND * 20,
+]
 
 function generateTransferContent() {
   const rawPrefix = (process.env.NEXT_PUBLIC_SEPAY_CONTENT_PREFIX || 'DH').toUpperCase()
@@ -61,7 +68,7 @@ interface DepositCreditPopupProps {
 export function DepositCreditPopup({ open, onOpenChange, returnPath, onCreditsUpdated }: DepositCreditPopupProps) {
   const router = useRouter()
   const [uiLocale, setUiLocale] = useState<'vi' | 'en' | 'zh' | 'ja' | 'ko'>('vi')
-  const [amount, setAmount] = useState(6000)
+  const [amount, setAmount] = useState(CREDIT_UNIT_PRICE_VND)
   const [configs, setConfigs] = useState<PaymentConfig[]>([])
   const [selectedConfigId, setSelectedConfigId] = useState<string>('')
   const [payment, setPayment] = useState<Payment | null>(null)
@@ -108,7 +115,7 @@ export function DepositCreditPopup({ open, onOpenChange, returnPath, onCreditsUp
         amount,
         des: content,
       })
-      const creditsToAdd = Math.floor(amount / 6000)
+      const creditsToAdd = Math.floor(amount / CREDIT_UNIT_PRICE_VND)
 
       const { data: pay, error } = await supabase
         .from('payments')
@@ -301,12 +308,12 @@ export function DepositCreditPopup({ open, onOpenChange, returnPath, onCreditsUp
               <Input
                 type="number"
                 value={amount}
-                onChange={(e) => setAmount(Number(e.target.value) || 6000)}
+                onChange={(e) => setAmount(Number(e.target.value) || CREDIT_UNIT_PRICE_VND)}
                 min={1000}
                 step={1000}
               />
               <p className="text-sm text-muted-foreground">
-                {tr('Sẽ nhận', 'You will receive', '将获得', '受け取る', '받게 되는')} <span className="font-semibold text-green-600">{Math.floor(amount / 6000)} credits</span>
+                {tr('Sẽ nhận', 'You will receive', '将获得', '受け取る', '받게 되는')} <span className="font-semibold text-green-600">{Math.floor(amount / CREDIT_UNIT_PRICE_VND)} credits</span>
               </p>
             </div>
 

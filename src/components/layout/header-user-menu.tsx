@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
-import { LogOut, Wallet, Shield, Gift } from 'lucide-react'
+import { LogOut, Wallet, Shield, Gift, Package } from 'lucide-react'
 import { DepositCreditButton } from '@/components/deposit-credit-button'
 import { DepositCreditMenuItem } from '@/components/deposit-credit-menu-item'
 import { createClient } from '@/lib/supabase/client'
@@ -107,6 +107,12 @@ export function HeaderUserMenu({ user, credits, isAdmin, t }: HeaderUserMenuProp
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
             <Link href="/wallet">{t.menu.wallet}</Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href="/account/plan" className="flex items-center gap-2">
+              <Package className="h-4 w-4" aria-hidden />
+              {t.menu.viewPlan}
+            </Link>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
             <Link href="/invite" className="flex items-center gap-2">

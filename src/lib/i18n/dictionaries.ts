@@ -87,6 +87,8 @@ export type Dictionary = {
     notifications: string
     noNotifications: string
     inviteFriends: string
+    /** Menu tài khoản → trang gói dịch vụ */
+    viewPlan: string
   }
   home: {
     title: string
@@ -109,6 +111,46 @@ export type Dictionary = {
     inviteVisualYou: string
     inviteVisualFriend: string
     errorGeneric: string
+  }
+  /** Trang /account/plan — dùng thử + phí tháng giáo trình; English AI trả theo bài */
+  accountPlan: {
+    pageTitle: string
+    metaDescription: string
+    headline: string
+    /** {period} kỳ YYYY-MM (VN) */
+    billingPeriod: string
+    trialSectionTitle: string
+    trialActiveLine: string
+    /** {days} */
+    trialTotalDaysNote: string
+    /** {days} */
+    trialDaysLeft: string
+    /** {datetime} */
+    trialEndsAtLine: string
+    trialNotActive: string
+    servicesSectionTitle: string
+    productEnglishCoach: string
+    /** Học tiếng Anh AI — không phí tháng, trừ credit theo buổi/bài */
+    englishCoachPayPerLesson: string
+    productCurriculum: string
+    statusViaTrial: string
+    /** Hiếm: API đồng bộ — đã access nhưng không khớp trial/charge */
+    statusAccessOn: string
+    /** {period} */
+    statusPaidMonth: string
+    /** {credits} {period} */
+    statusPendingPayment: string
+    /** {credits} */
+    noteSignupBonus: string
+    noteAiCredits: string
+    refresh: string
+    loading: string
+    errorLoad: string
+    errorConfig: string
+    /** {credits} {vnd} số tiền đã format theo locale */
+    monthlyCostLine: string
+    backDashboard: string
+    linkWallet: string
   }
   push: {
     bannerTitle: string
@@ -880,6 +922,7 @@ const VI_DICTIONARY: Dictionary = {
     noNotifications: 'Chưa có thông báo',
     exitDevMode: 'Thoát chế độ dev',
     inviteFriends: 'Mời bạn bè',
+    viewPlan: 'Xem gói',
   },
   home: {
     title: 'NanoAI - Sáng tạo không giới hạn cùng AI',
@@ -903,6 +946,39 @@ const VI_DICTIONARY: Dictionary = {
     inviteVisualYou: 'Bạn',
     inviteVisualFriend: 'Bạn bè mới',
     errorGeneric: 'Không thể áp dụng giới thiệu lúc này. Thử lại sau nhé.',
+  },
+  accountPlan: {
+    pageTitle: 'Gói dịch vụ',
+    metaDescription:
+      'Xem dùng thử 7 ngày và phí tháng giáo trình. Học tiếng Anh AI trả theo từng buổi; credit AI tính riêng.',
+    headline: 'Gói đang dùng',
+    billingPeriod: 'Kỳ phí tháng (lịch Việt Nam): {period}',
+    trialSectionTitle: 'Dùng thử miễn phí',
+    trialActiveLine:
+      'Bạn đang trong thời gian dùng thử — không trừ phí tháng giáo trình (mục bên dưới).',
+    trialTotalDaysNote: 'Thời lượng dùng thử: {days} ngày kể từ khi tạo tài khoản.',
+    trialDaysLeft: 'Còn lại khoảng {days} ngày.',
+    trialEndsAtLine: 'Hết hạn dùng thử (dự kiến): {datetime}',
+    trialNotActive:
+      'Bạn không còn trong 7 ngày dùng thử đầu tiên. Phí tháng giáo trình sẽ trừ bằng credit mỗi kỳ khi áp dụng.',
+    servicesSectionTitle: 'Giáo trình — phí tháng (credit)',
+    productEnglishCoach: 'Học tiếng Anh AI',
+    englishCoachPayPerLesson:
+      'Không có phí tháng. Mỗi buổi hoặc bài học trừ credit riêng khi bạn bắt đầu (mức cụ thể hiển thị trong phần học).',
+    productCurriculum: 'Giáo trình & tạo bài',
+    statusViaTrial: 'Đang dùng thử — chưa trừ phí tháng.',
+    statusAccessOn: 'Đang có quyền truy cập dịch vụ.',
+    statusPaidMonth: 'Đã trừ phí tháng cho kỳ {period}.',
+    statusPendingPayment: 'Chưa trừ phí tháng — cần {credits} credit cho kỳ {period}.',
+    noteSignupBonus: 'Khi đăng ký, tài khoản được tặng {credits} credit (dùng cho AI; tách với phí tháng).',
+    noteAiCredits: 'Credit AI vẫn bị trừ riêng mỗi lần bạn dùng tính năng tạo nội dung / học có tốn model.',
+    refresh: 'Làm mới',
+    loading: 'Đang tải…',
+    errorLoad: 'Không tải được thông tin gói. Thử làm mới trang.',
+    errorConfig: 'Máy chủ chưa cấu hình đầy đủ. Thử lại sau.',
+    monthlyCostLine: '{credits} credit / kỳ · ước tính ~{vnd}₫',
+    backDashboard: 'Về bảng điều khiển',
+    linkWallet: 'Mở ví để nạp credit',
   },
   push: {
     bannerTitle: 'Nhận thông báo trên điện thoại',
@@ -1676,6 +1752,7 @@ const EN_DICTIONARY: Dictionary = {
     notifications: 'Notifications',
     noNotifications: 'No notifications yet',
     inviteFriends: 'Invite friends',
+    viewPlan: 'View plan',
   },
   referral: {
     pageTitle: 'Invite friends – earn credits',
@@ -1696,6 +1773,39 @@ const EN_DICTIONARY: Dictionary = {
     inviteVisualYou: 'You',
     inviteVisualFriend: 'Your friend',
     errorGeneric: 'We could not apply the invite bonus right now. Please try again later.',
+  },
+  accountPlan: {
+    pageTitle: 'Your plan',
+    metaDescription:
+      'See your 7-day trial and monthly curriculum access. English AI is pay-per session or lesson; AI credits are separate.',
+    headline: 'Current plan',
+    billingPeriod: 'Monthly billing period (Vietnam calendar): {period}',
+    trialSectionTitle: 'Free trial',
+    trialActiveLine:
+      'You are in the free trial — no monthly curriculum fee is charged yet (see section below).',
+    trialTotalDaysNote: 'Trial length: {days} days from account creation.',
+    trialDaysLeft: 'About {days} day(s) left.',
+    trialEndsAtLine: 'Trial ends (estimated): {datetime}',
+    trialNotActive:
+      'You are past the first 7-day trial. Monthly curriculum access is charged in credits each billing period when it applies.',
+    servicesSectionTitle: 'Curriculum — monthly (credits)',
+    productEnglishCoach: 'English AI learning',
+    englishCoachPayPerLesson:
+      'No monthly subscription. Each session or lesson deducts credits when you start (amounts are shown in the learning area).',
+    productCurriculum: 'Curriculum & lesson tools',
+    statusViaTrial: 'Free trial — monthly fee not charged yet.',
+    statusAccessOn: 'You currently have access to this service.',
+    statusPaidMonth: 'Monthly fee charged for period {period}.',
+    statusPendingPayment: 'Not charged yet — {credits} credits needed for period {period}.',
+    noteSignupBonus: 'New accounts receive {credits} welcome credits (for AI use; separate from monthly access).',
+    noteAiCredits: 'AI credits are still deducted per use when features call the AI.',
+    refresh: 'Refresh',
+    loading: 'Loading…',
+    errorLoad: 'Could not load plan info. Try refreshing.',
+    errorConfig: 'Server is not fully configured. Please try again later.',
+    monthlyCostLine: '{credits} credits / period · about {vnd}₫',
+    backDashboard: 'Back to dashboard',
+    linkWallet: 'Open wallet to top up credits',
   },
   push: {
     bannerTitle: 'Get phone notifications',
@@ -2481,6 +2591,7 @@ const ZH_DICTIONARY: Dictionary = {
     notifications: '通知',
     noNotifications: '暂无通知',
     inviteFriends: '邀请好友',
+    viewPlan: '查看套餐',
   },
   referral: {
     pageTitle: '邀请好友 – 获得积分',
@@ -2500,6 +2611,36 @@ const ZH_DICTIONARY: Dictionary = {
     inviteVisualYou: '您',
     inviteVisualFriend: '好友',
     errorGeneric: '暂时无法应用邀请奖励，请稍后再试。',
+  },
+  accountPlan: {
+    pageTitle: '服务套餐',
+    metaDescription: '查看 7 天试用与课程按月访问。英语 AI 按次/按课扣积分；AI 积分另计。',
+    headline: '当前套餐',
+    billingPeriod: '按月计费周期（越南历）：{period}',
+    trialSectionTitle: '免费试用',
+    trialActiveLine: '您正在免费试用期内——暂不收取下方课程的月度访问费。',
+    trialTotalDaysNote: '试用时长：自注册起 {days} 天。',
+    trialDaysLeft: '大约还剩 {days} 天。',
+    trialEndsAtLine: '试用结束（预计）：{datetime}',
+    trialNotActive: '您已超过首 7 天试用。课程按月访问在适用时每个周期扣除相应积分。',
+    servicesSectionTitle: '课程 — 按月（积分）',
+    productEnglishCoach: '英语 AI 学习',
+    englishCoachPayPerLesson:
+      '无月费。每次学习或每节课在开始时会单独扣积分（具体金额在学习页面显示）。',
+    productCurriculum: '课程与出题工具',
+    statusViaTrial: '试用中——尚未扣月费。',
+    statusAccessOn: '当前可使用该服务。',
+    statusPaidMonth: '已为周期 {period} 扣除月费。',
+    statusPendingPayment: '尚未扣费——周期 {period} 需 {credits} 积分。',
+    noteSignupBonus: '注册赠送 {credits} 积分（用于 AI；与月费分开）。',
+    noteAiCredits: '使用会调用 AI 的功能时，仍会按次扣除 AI 积分。',
+    refresh: '刷新',
+    loading: '加载中…',
+    errorLoad: '无法加载套餐信息，请刷新重试。',
+    errorConfig: '服务器未完整配置，请稍后再试。',
+    monthlyCostLine: '每周期 {credits} 积分 · 约 {vnd}₫',
+    backDashboard: '返回控制台',
+    linkWallet: '打开钱包充值积分',
   },
   push: {
     bannerTitle: '接收手机通知',
@@ -3248,6 +3389,7 @@ const JA_DICTIONARY: Dictionary = {
     notifications: '通知',
     noNotifications: '通知はありません',
     inviteFriends: '友達を招待',
+    viewPlan: 'プランを見る',
   },
   referral: {
     pageTitle: '友達招待 – クレジット獲得',
@@ -3268,6 +3410,38 @@ const JA_DICTIONARY: Dictionary = {
     inviteVisualYou: 'あなた',
     inviteVisualFriend: 'お友だち',
     errorGeneric: 'いま紹介ボーナスを適用できません。しばらくしてからお試しください。',
+  },
+  accountPlan: {
+    pageTitle: 'ご利用プラン',
+    metaDescription:
+      '7 日間の無料トライアルと教材の月額アクセスを確認。英語 AI は回・レッスンごとに課金。AI クレジットは別途。',
+    headline: '現在のプラン',
+    billingPeriod: '月額の対象期間（ベトナム暦）：{period}',
+    trialSectionTitle: '無料トライアル',
+    trialActiveLine: 'トライアル中です。下記の教材の月額料はまだかかりません。',
+    trialTotalDaysNote: 'トライアル期間：登録から {days} 日間。',
+    trialDaysLeft: '残り約 {days} 日。',
+    trialEndsAtLine: 'トライアル終了（目安）：{datetime}',
+    trialNotActive:
+      '初回 7 日のトライアルは終了しています。教材の月額は該当する期ごとにクレジットで支払われます。',
+    servicesSectionTitle: '教材 — 月額（クレジット）',
+    productEnglishCoach: '英語 AI 学習',
+    englishCoachPayPerLesson:
+      '月額はありません。セッションやレッスン開始時に都度クレジットが減ります（金額は学習画面に表示）。',
+    productCurriculum: '教材・問題作成',
+    statusViaTrial: 'トライアル中 — 月額は未請求。',
+    statusAccessOn: '現在このサービスにアクセスできます。',
+    statusPaidMonth: '期間 {period} の月額を差し引き済み。',
+    statusPendingPayment: '未請求 — 期間 {period} に {credits} クレジットが必要です。',
+    noteSignupBonus: '登録時に {credits} クレジットを進呈（AI 用。月額とは別）。',
+    noteAiCredits: 'AI を使う機能では、都度 AI クレジットが減ります。',
+    refresh: '更新',
+    loading: '読み込み中…',
+    errorLoad: 'プラン情報を読み込めませんでした。更新してください。',
+    errorConfig: 'サーバー設定が不完全です。しばらくしてからお試しください。',
+    monthlyCostLine: '期間あたり {credits} クレジット · 目安 {vnd}₫',
+    backDashboard: 'ダッシュボードへ',
+    linkWallet: 'ウォレットでチャージ',
   },
   push: {
     bannerTitle: 'スマホで通知を受け取る',
@@ -4039,6 +4213,7 @@ const KO_DICTIONARY: Dictionary = {
     notifications: '알림',
     noNotifications: '알림 없음',
     inviteFriends: '친구 초대',
+    viewPlan: '요금제 보기',
   },
   referral: {
     pageTitle: '친구 초대 – 크레딧 받기',
@@ -4059,6 +4234,38 @@ const KO_DICTIONARY: Dictionary = {
     inviteVisualYou: '나',
     inviteVisualFriend: '초대받은 친구',
     errorGeneric: '지금은 초대 보너스를 적용할 수 없습니다. 잠시 후 다시 시도해 주세요.',
+  },
+  accountPlan: {
+    pageTitle: '이용 요금제',
+    metaDescription:
+      '7일 무료 체험과 교과·출제 월 이용료를 확인합니다. 영어 AI는 회·수업마다 별도 차감. AI 크레딧은 별도입니다.',
+    headline: '현재 요금제',
+    billingPeriod: '월 정산 기간(베트남 달력): {period}',
+    trialSectionTitle: '무료 체험',
+    trialActiveLine: '체험 기간 중입니다. 아래 교과·출제의 월 이용료는 아직 차감되지 않습니다.',
+    trialTotalDaysNote: '체험 기간: 가입 시점부터 {days}일.',
+    trialDaysLeft: '약 {days}일 남음.',
+    trialEndsAtLine: '체험 종료(예상): {datetime}',
+    trialNotActive:
+      '첫 7일 체험이 끝났습니다. 교과·출제 월 이용료는 해당 기간마다 크레딧으로 차감됩니다.',
+    servicesSectionTitle: '교과·출제 — 월(크레딧)',
+    productEnglishCoach: '영어 AI 학습',
+    englishCoachPayPerLesson:
+      '월 구독료는 없습니다. 세션이나 수업을 시작할 때마다 크레딧이 별도로 차감됩니다(금액은 학습 화면에 표시).',
+    productCurriculum: '교과서·문제 만들기',
+    statusViaTrial: '체험 중 — 월 이용료 미차감.',
+    statusAccessOn: '현재 이 서비스를 이용할 수 있습니다.',
+    statusPaidMonth: '기간 {period} 월 이용료 차감 완료.',
+    statusPendingPayment: '미차감 — 기간 {period}에 {credits} 크레딧 필요.',
+    noteSignupBonus: '가입 시 {credits} 크레딧 지급(AI용, 월 이용료와 별도).',
+    noteAiCredits: 'AI를 쓰는 기능은 사용할 때마다 AI 크레딧이 별도로 차감됩니다.',
+    refresh: '새로고침',
+    loading: '불러오는 중…',
+    errorLoad: '요금제 정보를 불러오지 못했습니다. 새로고침해 보세요.',
+    errorConfig: '서버 설정이 완전하지 않습니다. 잠시 후 다시 시도하세요.',
+    monthlyCostLine: '기간당 {credits} 크레딧 · 약 {vnd}₫',
+    backDashboard: '대시보드로',
+    linkWallet: '지갑에서 크레딧 충전',
   },
   push: {
     bannerTitle: '휴대폰 알림 받기',

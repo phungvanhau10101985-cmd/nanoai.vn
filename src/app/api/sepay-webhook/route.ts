@@ -2,10 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createHmac, timingSafeEqual } from 'crypto'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { createUserNotificationWithEmail } from '@/lib/notifications/create-user-notification-server'
+import { CREDIT_UNIT_PRICE_VND } from '@/lib/credit-unit-price'
 
 type SePayBody = Record<string, string | number | boolean | null | undefined>
-
-const CREDITS_PRICE_VND = 6000
 
 const createWebhookClient = () => {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -211,7 +210,7 @@ export async function POST(request: NextRequest) {
 
     const paymentId = pendingPayment.id
     const userId = pendingPayment.user_id
-    const creditsToAdd = Math.floor(amountIn / CREDITS_PRICE_VND)
+    const creditsToAdd = Math.floor(amountIn / CREDIT_UNIT_PRICE_VND)
     let newBalance: number
 
     const { data: currentCredits, error: creditsError } = await supabase

@@ -13,6 +13,7 @@ import { toast } from '@/hooks/use-toast'
 import { formatNumber } from '@/lib/format'
 import { buildSePayQrImgUrl } from '@/lib/sepay-qr'
 import { isLocalhost, getDevUserId } from '@/lib/auth-client'
+import { CREDIT_UNIT_PRICE_VND } from '@/lib/credit-unit-price'
 
 type PaymentConfig = {
   id: string
@@ -38,7 +39,7 @@ type Payment = {
 
 export default function DepositClient() {
   const [uiLocale, setUiLocale] = useState<'vi' | 'en' | 'zh' | 'ja' | 'ko'>('vi')
-  const [amount, setAmount] = useState<number>(6000)
+  const [amount, setAmount] = useState<number>(CREDIT_UNIT_PRICE_VND)
   const [selectedBank, setSelectedBank] = useState<string>('')
   const [paymentConfigs, setPaymentConfigs] = useState<PaymentConfig[]>([])
   const [activePayment, setActivePayment] = useState<Payment | null>(null)
@@ -191,8 +192,7 @@ export default function DepositClient() {
       const selectedConfig = paymentConfigs.find(config => config.id === selectedBank)
       if (!selectedConfig) throw new Error('Bank config not found')
 
-      // Tính số credits sẽ được cộng (6000 VND = 1 credit)
-      const creditsToAdd = Math.floor(amount / 6000)
+      const creditsToAdd = Math.floor(amount / CREDIT_UNIT_PRICE_VND)
 
       // Tạo nội dung chuyển khoản riêng cho từng giao dịch.
       const content = generateTransferContent()
@@ -313,7 +313,13 @@ export default function DepositClient() {
     }
   }
 
-  const presetAmounts = [6000, 12000, 30000, 60000, 120000]
+  const presetAmounts = [
+    CREDIT_UNIT_PRICE_VND,
+    CREDIT_UNIT_PRICE_VND * 2,
+    CREDIT_UNIT_PRICE_VND * 5,
+    CREDIT_UNIT_PRICE_VND * 10,
+    CREDIT_UNIT_PRICE_VND * 20,
+  ]
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -348,7 +354,7 @@ export default function DepositClient() {
                         <p className="text-2xl font-bold text-blue-700">{userCredits} credits</p>
                       </div>
                       <Badge variant="outline" className="text-blue-600 border-blue-300">
-                        1 credit = {formatNumber(6000)} VND
+                        1 credit = {formatNumber(CREDIT_UNIT_PRICE_VND)} VND
                       </Badge>
                     </div>
                   </div>
@@ -382,7 +388,7 @@ export default function DepositClient() {
                     </div>
                     <p className="text-sm text-muted-foreground">
                       {tr('Sẽ nhận được', 'You will receive', '将获得', '受け取れる', '받게 되는')} <span className="font-semibold text-green-600">
-                        {Math.floor(amount / 6000)} credits
+                        {Math.floor(amount / CREDIT_UNIT_PRICE_VND)} credits
                       </span>
                     </p>
                   </div>
