@@ -39,8 +39,24 @@ import { DEFAULT_WEB_LOCALE, type WebLocale } from '@/lib/i18n/config'
 import { getDictionary } from '@/lib/i18n/dictionaries'
 import { CURRICULUM_UI_CREDITS, formatCurriculumCredits } from './lib/curriculum-credit-costs'
 import { AttachExamToClassDialog } from '@/components/exam/attach-exam-to-class-dialog'
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { cn } from '@/lib/utils'
 
 type UiLocale = 'vi' | 'en' | 'zh' | 'ja' | 'ko'
+
+function matchesDestructiveConfirm(input: string, phrase: string): boolean {
+  const norm = (s: string) =>
+    s.normalize('NFC').trim().replace(/\s+/g, ' ').toLowerCase()
+  return norm(input) === norm(phrase)
+}
 
 const WS_ACTIVE_JOB_KEY = 'worksheet_active_job'
 const LAST_OPENED_CURRICULUM_KEY = 'tao_giao_trinh_last_opened_curriculum_id'
@@ -243,6 +259,8 @@ export default function TaoGiaoTrinhClientPage({
   }>(null)
   /** Gắn bài thi đã tạo sang lớp khác — cùng dialog như /tao-bai-thi */
   const [examAttachTarget, setExamAttachTarget] = useState<null | { id: string; title: string }>(null)
+  const [createdExamDeleteTarget, setCreatedExamDeleteTarget] = useState<null | { code: string; title: string }>(null)
+  const [createdExamDeleteConfirmInput, setCreatedExamDeleteConfirmInput] = useState('')
   const sgkSubmitLockRef = useRef(false)
   const wsStepByStepSubmitLockRef = useRef(false)
   const sgkInputRef = useRef<HTMLInputElement>(null)
@@ -334,19 +352,7 @@ export default function TaoGiaoTrinhClientPage({
     }
   }
 
-  const handleDeleteCreatedExam = async (code: string) => {
-    const ok = typeof window !== 'undefined'
-      ? window.confirm(
-          tr(
-            'Xóa bài thi này? Hành động này không thể hoàn tác.',
-            'Delete this exam? This action cannot be undone.',
-            '确定删除该测验吗？此操作不可撤销。',
-            'このテストを削除しますか？この操作は取り消せません。',
-            '이 시험을 삭제할까요? 이 작업은 되돌릴 수 없습니다.'
-          )
-        )
-      : true
-    if (!ok) return
+  const runDeleteCreatedExam = async (code: string) => {
     setExamDeletingCode(code)
     try {
       const res = await fetch('/api/exam-session/mine', {
@@ -367,6 +373,8 @@ export default function TaoGiaoTrinhClientPage({
         title: tr('Đã xóa', 'Deleted', '已删除', '削除完了', '삭제됨'),
         description: tr('Đã xóa bài thi.', 'Exam deleted.', '测验已删除。', 'テストを削除しました。', '시험을 삭제했습니다.'),
       })
+      setCreatedExamDeleteTarget(null)
+      setCreatedExamDeleteConfirmInput('')
       void loadCreatedExamItems()
     } catch (e) {
       toast({
@@ -3879,7 +3887,7 @@ export default function TaoGiaoTrinhClientPage({
                               className="gap-1.5"
                             >
                               <Link2 className="h-3.5 w-3.5" aria-hidden />
-                              {tcClasses.examAttachToOtherClassButton}
+                              {tcClasses.examAssignClassButton}
                             </Button>
                             <Button
                               type="button"
@@ -3897,7 +3905,13 @@ export default function TaoGiaoTrinhClientPage({
                               type="button"
                               variant="destructive"
                               size="sm"
-                              onClick={() => void handleDeleteCreatedExam(exam.code)}
+                              onClick={() => {
+                                setCreatedExamDeleteTarget({
+                                  code: exam.code,
+                                  title: exam.title || tr('Bài thi', 'Exam', '测验', 'テスト', '시험'),
+                                })
+                                setCreatedExamDeleteConfirmInput('')
+                              }}
                               disabled={examDeletingCode === exam.code}
                               className="gap-1.5"
                             >
@@ -4068,6 +4082,79 @@ export default function TaoGiaoTrinhClientPage({
           </Card>
         )}
       </div>
+      <AlertDialog
+        open={createdExamDeleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setCreatedExamDeleteTarget(null)
+            setCreatedExamDeleteConfirmInput('')
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{tcClasses.examDeleteConfirmTitle}</AlertDialogTitle>
+            {createdExamDeleteTarget ? (
+              <>
+                <p className="text-sm text-foreground">
+                  <span className="font-medium">{createdExamDeleteTarget.title}</span>
+                  {createdExamDeleteTarget.code.trim() ? (
+                    <>
+                      {' '}
+                      <span className="font-mono text-muted-foreground">
+                        ({createdExamDeleteTarget.code.trim()})
+                      </span>
+                    </>
+                  ) : null}
+                </p>
+                <AlertDialogDescription>{tcClasses.examDeleteConfirmDescription}</AlertDialogDescription>
+              </>
+            ) : null}
+          </AlertDialogHeader>
+          {createdExamDeleteTarget ? (
+            <div className="space-y-2 rounded-md border-2 border-border bg-muted/30 p-3">
+              <p className="text-sm text-muted-foreground">{tcClasses.examDeleteConfirmTypeHint}</p>
+              <p className="rounded-md border-2 border-muted-foreground/50 bg-background px-3 py-2 text-center font-mono text-sm font-semibold text-foreground shadow-sm">
+                {tcClasses.examDeleteConfirmPhrase}
+              </p>
+              <Input
+                value={createdExamDeleteConfirmInput}
+                onChange={(e) => setCreatedExamDeleteConfirmInput(e.target.value)}
+                autoComplete="off"
+                autoFocus
+                className={cn(
+                  'h-10 bg-background font-mono text-sm shadow-sm',
+                  'border-2 border-muted-foreground/55',
+                  'focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50'
+                )}
+                aria-label={tcClasses.examDeleteConfirmTypeHint}
+              />
+            </div>
+          ) : null}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={examDeletingCode === createdExamDeleteTarget?.code}>
+              {tcClasses.cancelAction}
+            </AlertDialogCancel>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={
+                !createdExamDeleteTarget?.code.trim() ||
+                examDeletingCode === createdExamDeleteTarget.code ||
+                !matchesDestructiveConfirm(createdExamDeleteConfirmInput, tcClasses.examDeleteConfirmPhrase)
+              }
+              onClick={() => {
+                if (!createdExamDeleteTarget?.code) return
+                void runDeleteCreatedExam(createdExamDeleteTarget.code)
+              }}
+            >
+              {examDeletingCode === createdExamDeleteTarget?.code
+                ? tcClasses.examDeleting
+                : tcClasses.examDeleteConfirmAction}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <AttachExamToClassDialog
         open={examAttachTarget !== null}
         onOpenChange={(o) => {

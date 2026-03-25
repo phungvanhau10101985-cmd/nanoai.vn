@@ -1226,26 +1226,43 @@ export default function LopDetailClient({
             {className}
           </h2>
           <div className="grid gap-3 sm:grid-cols-2">
-            <Link
-              href={`/lop/${cls.id}/bai-thi`}
-              className={cn(
-                pageSectionCard,
-                'flex flex-col gap-2 p-4 transition-colors hover:bg-muted/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
-              )}
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <ScrollText className="h-5 w-5 shrink-0 text-primary" aria-hidden />
-                  <span className={pageSectionTitle}>
-                    {isTeacher ? t.classExamsIndexTitle : t.studentClassExamsTitle}
-                  </span>
-                </div>
-                <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
+            {isTeacher ? (
+              <div className={cn(pageSectionCard, 'flex flex-col gap-3 p-4')}>
+                <Link
+                  href={`/lop/${cls.id}/bai-thi`}
+                  className="group flex flex-col gap-2 rounded-lg outline-none ring-offset-background transition-colors hover:bg-muted/20 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <ScrollText className="h-5 w-5 shrink-0 text-primary" aria-hidden />
+                      <span className={pageSectionTitle}>{t.classExamsIndexTitle}</span>
+                    </div>
+                    <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
+                  </div>
+                  <p className="text-sm text-muted-foreground leading-snug">{t.classHubCardExamsDesc}</p>
+                </Link>
+                <Button variant="secondary" size="sm" className="w-full touch-manipulation sm:w-auto" asChild>
+                  <Link href="/tao-bai-thi">{t.classHubCardCreateExamButton}</Link>
+                </Button>
               </div>
-              <p className="text-sm text-muted-foreground leading-snug">
-                {isTeacher ? t.classHubCardExamsDesc : t.classHubCardExamsDescStudent}
-              </p>
-            </Link>
+            ) : (
+              <Link
+                href={`/lop/${cls.id}/bai-thi`}
+                className={cn(
+                  pageSectionCard,
+                  'flex flex-col gap-2 p-4 transition-colors hover:bg-muted/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+                )}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <ScrollText className="h-5 w-5 shrink-0 text-primary" aria-hidden />
+                    <span className={pageSectionTitle}>{t.studentClassExamsTitle}</span>
+                  </div>
+                  <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
+                </div>
+                <p className="text-sm text-muted-foreground leading-snug">{t.classHubCardExamsDescStudent}</p>
+              </Link>
+            )}
             {!isTeacher ? (
               <Link
                 href={`/lop/${cls.id}/phieu-bai-tap`}
@@ -1286,22 +1303,24 @@ export default function LopDetailClient({
             </Link>
             {isTeacher ? (
               <>
-                <Link
-                  href={`/lop/${cls.id}/gan-phieu`}
-                  className={cn(
-                    pageSectionCard,
-                    'flex flex-col gap-2 p-4 transition-colors hover:bg-muted/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
-                  )}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <FilePlus2 className="h-5 w-5 shrink-0 text-violet-600 dark:text-violet-400" aria-hidden />
-                      <span className={pageSectionTitle}>{t.assignWorksheet}</span>
+                <div className={cn(pageSectionCard, 'flex flex-col gap-3 p-4')}>
+                  <Link
+                    href={`/lop/${cls.id}/gan-phieu`}
+                    className="group flex flex-col gap-2 rounded-lg outline-none ring-offset-background transition-colors hover:bg-muted/20 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <FilePlus2 className="h-5 w-5 shrink-0 text-violet-600 dark:text-violet-400" aria-hidden />
+                        <span className={pageSectionTitle}>{t.assignWorksheet}</span>
+                      </div>
+                      <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
                     </div>
-                    <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
-                  </div>
-                  <p className="text-sm text-muted-foreground leading-snug">{t.classHubCardAssignWorksheetDesc}</p>
-                </Link>
+                    <p className="text-sm text-muted-foreground leading-snug">{t.classHubCardAssignWorksheetDesc}</p>
+                  </Link>
+                  <Button variant="secondary" size="sm" className="w-full touch-manipulation sm:w-auto" asChild>
+                    <Link href="/tao-bai-tap-ve-nha">{t.classHubCardCreateHomeworkButton}</Link>
+                  </Button>
+                </div>
                 <Link
                   href={`/lop/${cls.id}/ket-qua`}
                   className={cn(

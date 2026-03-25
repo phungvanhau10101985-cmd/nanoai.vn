@@ -266,6 +266,8 @@ export type Dictionary = {
     examStudentShareUrlLabel: string
     /** Gắn bản sao đề sang lớp khác (mã & QR mới) */
     examAttachToOtherClassButton: string
+    /** Danh sách đề đã tạo (vd. tạo giáo trình): gán vào lớp — nhãn ngắn */
+    examAssignClassButton: string
     examAttachPickClassTitle: string
     examAttachPickClassDescription: string
     examAttachSelectClassLabel: string
@@ -546,6 +548,10 @@ export type Dictionary = {
     classPageStudentFacingNotSet: string
     /** Hub HS: mô tả thẻ bài tập về nhà (trang /lop/.../phieu-bai-tap) */
     classHubCardStudentWorksheetsDesc: string
+    /** Hub GV: nút trong thẻ đề thi → /tao-bai-thi */
+    classHubCardCreateExamButton: string
+    /** Hub GV: nút trong thẻ bài tập → /tao-bai-tap-ve-nha */
+    classHubCardCreateHomeworkButton: string
     /** Trang lam-bai: không parse được TN/TL */
     worksheetLamBaiNoInteractiveHint: string
     /** Trang lam-bai: nút về danh sách phiếu trong lớp */
@@ -1094,6 +1100,7 @@ const VI_DICTIONARY: Dictionary = {
       'Học sinh quét mã QR hoặc mở link bên dưới. Trang đó dành cho học sinh làm bài — thầy/cô không cần điền tên hay làm bài tại đây.',
     examStudentShareUrlLabel: 'Link làm bài',
     examAttachToOtherClassButton: 'Gắn lớp khác',
+    examAssignClassButton: 'Gán lớp',
     examAttachPickClassTitle: 'Gắn bài thi vào lớp khác',
     examAttachPickClassDescription:
       'Hệ thống tạo một phiên thi mới (mã và link riêng) với cùng câu hỏi, gắn vào lớp bạn chọn.',
@@ -1342,6 +1349,8 @@ const VI_DICTIONARY: Dictionary = {
     classPageStudentFacingNotSet: 'Chưa thiết lập',
     classHubCardStudentWorksheetsDesc:
       'Bài tập về nhà giáo viên giao: mở link hoặc mã phiên để làm bài (trang làm bài).',
+    classHubCardCreateExamButton: 'Tạo đề thi',
+    classHubCardCreateHomeworkButton: 'Tạo bài tập',
     worksheetLamBaiNoInteractiveHint:
       'Phiếu chưa có phần trắc nghiệm hoặc tự luận làm được trên web (giáo viên cần gắn câu hỏi vào phiếu trong Tạo giáo trình). Bạn chưa thể nộp bài ở đây.',
     worksheetLamBaiBackToClassWorksheets: 'Về danh sách phiếu lớp',
@@ -1885,6 +1894,7 @@ const EN_DICTIONARY: Dictionary = {
       'Students scan the QR code or open the link below. That page is for students to take the exam—you do not need to enter your name or complete it there.',
     examStudentShareUrlLabel: 'Exam link',
     examAttachToOtherClassButton: 'Attach to another class',
+    examAssignClassButton: 'Assign class',
     examAttachPickClassTitle: 'Attach exam to another class',
     examAttachPickClassDescription:
       'Creates a new exam session (new code and link) with the same questions, linked to the class you pick.',
@@ -2133,6 +2143,8 @@ const EN_DICTIONARY: Dictionary = {
     classPageStudentFacingNotSet: 'Not set',
     classHubCardStudentWorksheetsDesc:
       'Homework from your teacher: open the link or session code to complete it on the assignment page.',
+    classHubCardCreateExamButton: 'Create exam',
+    classHubCardCreateHomeworkButton: 'Create homework',
     worksheetLamBaiNoInteractiveHint:
       'This worksheet has no supported multiple-choice or essay section for the web yet (your teacher needs to attach questions in the curriculum tool). You cannot submit here yet.',
     worksheetLamBaiBackToClassWorksheets: 'Back to class worksheets',
@@ -2671,6 +2683,7 @@ const ZH_DICTIONARY: Dictionary = {
       '学生可扫描二维码或打开下方链接。该页面供学生答题，教师无需在此填写姓名或作答。',
     examStudentShareUrlLabel: '答题链接',
     examAttachToOtherClassButton: '关联到其他班级',
+    examAssignClassButton: '分配班级',
     examAttachPickClassTitle: '将试卷关联到其他班级',
     examAttachPickClassDescription:
       '系统将新建一场考试（新的代码与链接），题目相同，并关联到您选择的班级。',
@@ -2905,6 +2918,8 @@ const ZH_DICTIONARY: Dictionary = {
     classPageStudentFacingNotSet: '未设置',
     classHubCardStudentWorksheetsDesc:
       '老师布置的家庭作业：通过链接或会话码在答题页面完成。',
+    classHubCardCreateExamButton: '创建测验',
+    classHubCardCreateHomeworkButton: '创建作业',
     worksheetLamBaiNoInteractiveHint:
       '本作业单暂无可在线完成的选择题或主观题（教师需先在课程工具中关联题目）。您暂时无法在此提交。',
     worksheetLamBaiBackToClassWorksheets: '返回班级作业单列表',
@@ -3439,6 +3454,7 @@ const JA_DICTIONARY: Dictionary = {
       '受験生はQRコードを読み取るか、下のリンクを開いてください。そのページは受験用です。教員が名前を入力したり解答する必要はありません。',
     examStudentShareUrlLabel: '受験リンク',
     examAttachToOtherClassButton: '他クラスに紐づけ',
+    examAssignClassButton: 'クラスに割り当て',
     examAttachPickClassTitle: 'テストを他クラスに紐づける',
     examAttachPickClassDescription:
       '同じ問題内容で新しい受験セッション（コードとリンクは新規）を作成し、選んだクラスに紐づけます。',
@@ -3685,6 +3701,8 @@ const JA_DICTIONARY: Dictionary = {
     classPageStudentFacingNotSet: '未設定',
     classHubCardStudentWorksheetsDesc:
       '先生からの宿題：リンクまたはセッションコードから解答ページで取り組みます。',
+    classHubCardCreateExamButton: 'テストを作成',
+    classHubCardCreateHomeworkButton: '宿題を作成',
     worksheetLamBaiNoInteractiveHint:
       'このワークシートには、Web上で解答できる選択・記述形式の設問がありません（教師が教材ツールで設問を紐付ける必要があります）。ここでは提出できません。',
     worksheetLamBaiBackToClassWorksheets: 'クラスのワークシート一覧へ',
@@ -4227,6 +4245,7 @@ const KO_DICTIONARY: Dictionary = {
       '학생이 QR 코드를 스캔하거나 아래 링크를 열면 됩니다. 해당 페이지는 학생용 시험 화면이며, 선생님께서 이름을 입력하거나 풀 필요는 없습니다.',
     examStudentShareUrlLabel: '시험 링크',
     examAttachToOtherClassButton: '다른 반에 연결',
+    examAssignClassButton: '반에 배정',
     examAttachPickClassTitle: '시험을 다른 반에 연결',
     examAttachPickClassDescription:
       '같은 문항으로 새 시험 세션(코드·링크는 새로)을 만들어 선택한 반에 연결합니다.',
@@ -4472,6 +4491,8 @@ const KO_DICTIONARY: Dictionary = {
     classPageStudentFacingNotSet: '설정 안 됨',
     classHubCardStudentWorksheetsDesc:
       '선생님이 낸 숙제: 링크나 세션 코드로 풀이 페이지에서 완료합니다.',
+    classHubCardCreateExamButton: '시험 만들기',
+    classHubCardCreateHomeworkButton: '숙제 만들기',
     worksheetLamBaiNoInteractiveHint:
       '이 워크시트에는 웹에서 풀 수 있는 객관식·서술형 문항이 없습니다(교사가 교재 도구에서 문항을 연결해야 합니다). 여기서는 제출할 수 없습니다.',
     worksheetLamBaiBackToClassWorksheets: '반 워크시트 목록으로',
