@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
+import {
+  EnglishCoachApiFeature,
+  parseCoachUsageContextPayload,
+  trackEnglishCoachGeminiResult,
+} from '@/lib/english-coach-api-usage'
 import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
@@ -10,6 +15,7 @@ type Payload = {
   targetLanguage?: string
   nativeLanguage?: string
   learnerLevel?: 0 | 1 | 2 | 3 | 4
+  coachUsageContext?: 'live' | 'preset'
 }
 
 function tr(input: string): 'vi' | 'en' {
@@ -147,6 +153,7 @@ export async function POST(request: NextRequest) {
   try {
     const supabase = createClient()
     const payload = (await request.json()) as Payload
+    const coachCtx = parseCoachUsageContextPayload(payload.coachUsageContext)
     const locale = tr(payload.nativeLanguage || '')
     const auth = await getUserForAction(
       () => supabase.auth.getUser(),
@@ -207,6 +214,13 @@ Trả về đúng JSON:
 }`
 
     const result = await model.generateContent(prompt)
+    trackEnglishCoachGeminiResult(
+      result,
+      GEMINI_25_FLASH_NO_THINKING.model,
+      EnglishCoachApiFeature.topicNormalize,
+      user.id,
+      coachCtx
+    )
     const normalized = safeParse(result.response.text?.() || '')
     const fallbackLabel = normalizeLabel(rawTopic).slice(0, 120)
     const fallback: NormalizedTopic | null = looksMeaningfulTopic(fallbackLabel)

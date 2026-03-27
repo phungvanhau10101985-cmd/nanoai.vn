@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
+import {
+  EnglishCoachApiFeature,
+  parseCoachUsageContextPayload,
+  trackEnglishCoachGeminiResult,
+} from '@/lib/english-coach-api-usage'
 import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
@@ -10,6 +15,7 @@ type Payload = {
   targetLanguage?: string
   nativeLanguage?: string
   samples?: string[]
+  coachUsageContext?: 'live' | 'preset'
 }
 
 type AssessmentResult = {
@@ -101,6 +107,7 @@ function buildFallbackFromSamples(samples: string[]): AssessmentResult {
 export async function POST(request: NextRequest) {
   try {
     const payload = (await request.json()) as Payload
+    const coachCtx = parseCoachUsageContextPayload(payload.coachUsageContext)
     const assessmentType = payload.assessmentType === 'checkpoint' ? 'checkpoint' : 'baseline'
     const targetLanguage = String(payload.targetLanguage || 'English').trim()
     const nativeLanguage = String(payload.nativeLanguage || 'Vietnamese').trim()
@@ -145,6 +152,13 @@ Quy tắc:
   "summary": "2 câu ngắn: điểm mạnh + điểm cần cải thiện"
 }`
       const result = await model.generateContent(prompt)
+      trackEnglishCoachGeminiResult(
+        result,
+        GEMINI_25_FLASH_NO_THINKING.model,
+        EnglishCoachApiFeature.assessment,
+        user.id,
+        coachCtx
+      )
       assessed = safeParseAssessment(result.response.text?.() || '')
     }
 

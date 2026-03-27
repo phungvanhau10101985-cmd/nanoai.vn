@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
+import {
+  EnglishCoachApiFeature,
+  parseCoachUsageContextPayload,
+  trackEnglishCoachGeminiResult,
+} from '@/lib/english-coach-api-usage'
 
 type Payload = {
   targetLanguage?: string
   nativeLanguage?: string
   samples?: string[]
+  coachUsageContext?: 'live' | 'preset'
 }
 
 type PlacementResult = {
@@ -40,6 +46,7 @@ function safeParsePlacement(text: string): PlacementResult | null {
 export async function POST(request: NextRequest) {
   try {
     const payload = (await request.json()) as Payload
+    const coachCtx = parseCoachUsageContextPayload(payload.coachUsageContext)
     const targetLanguage = String(payload.targetLanguage || 'English').trim()
     const nativeLanguage = String(payload.nativeLanguage || 'Vietnamese').trim()
     const samples = Array.isArray(payload.samples)
@@ -82,6 +89,13 @@ Yêu cầu:
 }`
 
     const result = await model.generateContent(prompt)
+    trackEnglishCoachGeminiResult(
+      result,
+      GEMINI_25_FLASH_NO_THINKING.model,
+      EnglishCoachApiFeature.placementLevel,
+      null,
+      coachCtx
+    )
     const parsed = safeParsePlacement(result.response.text?.() || '')
     if (!parsed) {
       return NextResponse.json(

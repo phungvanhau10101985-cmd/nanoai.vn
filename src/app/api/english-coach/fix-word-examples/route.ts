@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
+import { EnglishCoachApiFeature, trackEnglishCoachGeminiResult } from '@/lib/english-coach-api-usage'
 
 function adminClient() {
   return createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
@@ -50,7 +51,8 @@ function sanitizeExampleItems(input: unknown): Array<{ targetText: string; targe
 async function fetchWordExamplesFromAI(
   word: string,
   targetLanguage: string,
-  nativeLanguage: string
+  nativeLanguage: string,
+  adminUserId: string | null
 ): Promise<Array<{ targetText: string; targetPinyin: string; nativeText: string }> | null> {
   const apiKey = process.env.GOOGLE_API_KEY
   if (!apiKey) return null
@@ -70,6 +72,13 @@ Trả về JSON:
 {"exampleItems":[{"targetText":"...","targetPinyin":"...","nativeText":"..."}]}`
 
   const result = await model.generateContent(prompt)
+  trackEnglishCoachGeminiResult(
+    result,
+    GEMINI_25_FLASH_NO_THINKING.model,
+    EnglishCoachApiFeature.fixWordExamples,
+    adminUserId,
+    'unsessioned'
+  )
   const text = (result.response.text() || '').trim()
   const jsonMatch = text.match(/\{[\s\S]*\}/)
   if (!jsonMatch) return null
@@ -87,6 +96,7 @@ export async function POST() {
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Vui lòng đăng nhập.' }, { status: 401 })
+    const adminUserId = user.id
 
     const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
     if (profile?.role !== 'admin') {
@@ -134,7 +144,7 @@ export async function POST() {
     let updatedReview = 0
     for (const [, entry] of byWord) {
       const { word, target, native, rows } = entry
-      const newItems = await fetchWordExamplesFromAI(word, target || 'Chinese', native || 'Vietnamese')
+      const newItems = await fetchWordExamplesFromAI(word, target || 'Chinese', native || 'Vietnamese', adminUserId)
       if (!newItems || newItems.length === 0) continue
       entry.newItems = newItems
       const newJson = JSON.stringify(newItems)
@@ -180,7 +190,8 @@ export async function POST() {
           newItems = await fetchWordExamplesFromAI(
             row.word,
             row.target_language || 'Chinese',
-            row.native_language || 'Vietnamese'
+            row.native_language || 'Vietnamese',
+            adminUserId
           )
         }
         if (newItems?.length) {

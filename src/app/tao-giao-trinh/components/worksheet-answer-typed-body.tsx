@@ -17,6 +17,7 @@ import {
   sliceWorksheetAnswerPartsAfterSegments,
   type WorksheetAnswerPart,
 } from '@/app/tao-giao-trinh/lib/worksheet-answer-segments'
+import { POINTER_PROSE_ROOT_ATTR, SLIDE_SYNC_MARKDOWN_CLASS } from './slide-sync-markdown-classes'
 
 export type WorksheetAnswerTypedBodyProps = {
   content: string
@@ -216,7 +217,12 @@ export function WorksheetAnswerTypedBody({
 
   return (
     <>
-      <div className="text-base md:text-lg whitespace-pre-wrap break-words leading-relaxed min-w-0 text-left space-y-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:space-y-2 [&_p]:my-2">
+      <div
+        {...{ [POINTER_PROSE_ROOT_ATTR]: '' }}
+        data-slide-index={slideIndex}
+        data-block-index={blockIndex}
+        className={SLIDE_SYNC_MARKDOWN_CLASS}
+      >
         {!showSplit ? (
           <div className="text-slate-200/95">{renderPartNodes(parts, 'all', { ...renderOpts })}</div>
         ) : (

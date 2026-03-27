@@ -5,13 +5,12 @@ import { PenLine } from 'lucide-react'
 import { ContentEmbed, splitContentWithEmbeds, type EmbedType } from './content-embed'
 import { slideMarkdownToHtml } from './slide-markdown-to-html'
 import { worksheetAnswerDisplaySegmentCount } from '../lib/worksheet-answer-segments'
+import { POINTER_PROSE_ROOT_ATTR, SLIDE_SYNC_MARKDOWN_CLASS } from './slide-sync-markdown-classes'
+import { cn } from '@/lib/utils'
 
 function getTextSegmentCount(text: string): number {
   return text.length
 }
-
-const WRAPPER_CLASS =
-  '[&_ul]:list-disc [&_ul]:pl-5 [&_ul]:space-y-2 [&_p]:my-2 text-base md:text-lg leading-relaxed'
 
 /** Giống lucide `PenLine` (stroke 2.5 ≈ 2 trong SVG 24px) — dùng HTML để bút nằm inline sau chữ, xuống dòng vẫn đúng. */
 const WORKSHEET_TYPING_PEN_HTML = `<span class="inline-flex shrink-0 items-baseline align-baseline ml-0.5 translate-y-px animate-write text-violet-600" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="drop-shadow-sm"><path d="M13 21h8"/><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/></svg></span>`
@@ -53,6 +52,9 @@ function penFollowsSegment(
 export type WorksheetBlockContentWithEmbedsProps = {
   content: string
   liveQuizContext?: { curriculumId: string; slideIndex: number; blockIndex: number }
+  /** Đồng bộ chuột theo block prose giữa GV/HS */
+  pointerSyncSlideIndex?: number
+  pointerSyncBlockIndex?: number
   tr?: (vi: string, en: string, zh: string, ja: string, ko: string) => string
   hideQuiz?: boolean
   /**
@@ -79,6 +81,8 @@ export type WorksheetBlockContentWithEmbedsProps = {
 export function WorksheetBlockContentWithEmbeds({
   content,
   liveQuizContext,
+  pointerSyncSlideIndex,
+  pointerSyncBlockIndex,
   tr,
   hideQuiz,
   visibleSegmentCount,
@@ -97,8 +101,17 @@ export function WorksheetBlockContentWithEmbeds({
     (visibleSegmentCount > 0 || (!suppressTypingPenAtZero && allowTypingPenAtRevealStart))
 
   let consumed = 0
+  const pointerAttrs =
+    pointerSyncSlideIndex != null && pointerSyncBlockIndex != null
+      ? ({
+          [POINTER_PROSE_ROOT_ATTR]: '',
+          'data-slide-index': pointerSyncSlideIndex,
+          'data-block-index': pointerSyncBlockIndex,
+        } as const)
+      : {}
+
   return (
-    <div className={WRAPPER_CLASS}>
+    <div {...pointerAttrs} className={cn(SLIDE_SYNC_MARKDOWN_CLASS, 'text-slate-800')}>
       {parts.map((p, i) => {
         if (p.type === 'text') {
           const partLen = getTextSegmentCount(p.value)

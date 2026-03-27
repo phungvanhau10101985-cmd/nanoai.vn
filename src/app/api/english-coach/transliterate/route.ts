@@ -3,10 +3,16 @@ import { createClient } from '@supabase/supabase-js'
 import { createHash } from 'crypto'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
+import {
+  EnglishCoachApiFeature,
+  parseCoachUsageContextPayload,
+  trackEnglishCoachGeminiResult,
+} from '@/lib/english-coach-api-usage'
 
 type Payload = {
   text?: string
   languageCode?: string
+  coachUsageContext?: 'live' | 'preset'
 }
 
 function adminClient() {
@@ -86,6 +92,7 @@ export async function POST(request: NextRequest) {
     }
 
     const payload = (await request.json()) as Payload
+    const coachCtx = parseCoachUsageContextPayload(payload.coachUsageContext)
     const text = String(payload.text || '').trim()
     const languageCode = normalizeCode(payload.languageCode || '')
 
@@ -114,6 +121,13 @@ export async function POST(request: NextRequest) {
     const ai = new GoogleGenerativeAI(apiKey)
     const model = ai.getGenerativeModel(GEMINI_25_FLASH_NO_THINKING)
     const result = await model.generateContent(buildPrompt(text, languageCode))
+    trackEnglishCoachGeminiResult(
+      result,
+      GEMINI_25_FLASH_NO_THINKING.model,
+      EnglishCoachApiFeature.transliterate,
+      null,
+      coachCtx
+    )
     const raw = String(result.response.text?.() || '')
       .replace(/^```/g, '')
       .replace(/```$/g, '')

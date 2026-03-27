@@ -7,9 +7,60 @@ import { normalizeCurriculumInput } from './lib/curriculum-input-normalize'
 import { getUserForAction } from '@/lib/auth'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_FLASH_NO_THINKING, GEMINI_25_PRO } from '@/lib/gemini-config'
+import { CurriculumApiFeature, trackCurriculumGeminiResult } from '@/lib/curriculum-api-usage'
 import { questionsToMarkdown } from './lib/questions-to-markdown'
 import { parseWorksheetIntoBlocks } from './lib/worksheet-parse-questions'
 import { blocksToContentJson } from './lib/markdown-to-questions'
+import type { SlideInfographic } from './lib/slide-infographic'
+import { parseStoredCurriculumSlidesJson, serializeStoredCurriculumSlidesJson } from './lib/curriculum-slides-json'
+import { CURRICULUM_UI_CREDITS } from './lib/curriculum-credit-costs'
+import { CURRICULUM_AI_CHARGE_TYPES, curriculumAiAdminClient, spendCurriculumAiCredits } from '@/lib/curriculum-ai-credits'
+
+type SupabaseServerClient = ReturnType<typeof createClient>
+
+/** Khi client không gửi curriculumInfographic (undefined), giữ bản đã lưu — tránh lưu slide làm mất infographic. */
+async function mergeInfographicForSharedSave(
+  supabase: SupabaseServerClient,
+  curriculumId: string,
+  incoming: SlideInfographic | undefined
+): Promise<SlideInfographic | undefined> {
+  if (incoming !== undefined) return incoming
+  const { data } = await supabase.from('worksheet_slides').select('content_json').eq('curriculum_id', curriculumId).maybeSingle()
+  if (!data?.content_json) return undefined
+  return parseStoredCurriculumSlidesJson(data.content_json).curriculumInfographic
+}
+
+async function mergeInfographicForPersonalSave(
+  supabase: SupabaseServerClient,
+  userId: string,
+  curriculumId: string,
+  incoming: SlideInfographic | undefined
+): Promise<SlideInfographic | undefined> {
+  if (incoming !== undefined) return incoming
+  const { data } = await supabase
+    .from('user_customized_slides')
+    .select('slides_json')
+    .eq('user_id', userId)
+    .eq('curriculum_id', curriculumId)
+    .maybeSingle()
+  if (!data?.slides_json) return undefined
+  return parseStoredCurriculumSlidesJson(data.slides_json).curriculumInfographic
+}
+
+/** Slide lưu DB (worksheet_slides / user_customized_slides) — giữ khớp client payload */
+type WorksheetSlideRow = {
+  title: string
+  blocks: Array<{ header: string; content: string }>
+  imageUrl?: string
+  visualEmbed?: string
+  visualLayout?: 1 | 2 | 4
+  visualCells?: Array<{ visualEmbed?: string; imageUrl?: string }>
+  visualInput1?: string
+  visualInput2?: string
+  visualInput3?: string
+  visualInput4?: string
+  teacherNotes?: string
+}
 
 const TEXTBOOK_NAMES: Record<string, string> = {
   'ket-noi-tri-thuc': 'Kết nối tri thức với cuộc sống',
@@ -76,7 +127,8 @@ type TopicMatchCandidate = { id: string; topic: string; score: number }
 
 async function rerankTopicCandidatesByAI(
   rawTopic: string,
-  candidates: Array<{ id: string; topic: string }>
+  candidates: Array<{ id: string; topic: string }>,
+  userId?: string | null
 ): Promise<Array<{ id: string; score: number }>> {
   try {
     if (!process.env.GOOGLE_API_KEY) return []
@@ -110,6 +162,7 @@ Ràng buộc:
 - <0.60: không đủ gần
 - Chỉ trả về id có trong danh sách.`
     const result = await model.generateContent(prompt)
+    trackCurriculumGeminiResult(result, GEMINI_25_FLASH_NO_THINKING.model, CurriculumApiFeature.topicRerank, userId ?? null)
     const text = result.response.text()?.trim() || ''
     if (!text) return []
     const parsed = JSON.parse(text) as { matches?: Array<{ id?: string; score?: number }> }
@@ -205,7 +258,8 @@ async function mergeOfficialQuestionsIntoCurriculum(
 /** AI trích tối đa 5 chủ đề từ nội dung giáo trình – dùng để khớp câu hỏi (khớp 1 trong 5 là ok). */
 async function extractLessonTopicsFromContent(
   content: string,
-  genAI: GoogleGenerativeAI
+  genAI: GoogleGenerativeAI,
+  userId?: string | null
 ): Promise<string[]> {
   try {
     const prompt = `Trích từ giáo trình dưới đây tối đa 5 chủ đề/kiến thức chính (mỗi topic 1-5 từ, tiếng Việt, cụ thể không chung chung).
@@ -223,6 +277,12 @@ Chỉ trả về JSON, không markdown.`
       generationConfig: { temperature: 0.1, responseMimeType: 'application/json' },
     })
     const result = await model.generateContent(prompt)
+    trackCurriculumGeminiResult(
+      result,
+      GEMINI_25_FLASH_NO_THINKING.model,
+      CurriculumApiFeature.lessonTopicsExtract,
+      userId ?? null
+    )
     const text = result.response.text()?.trim() || ''
     if (!text) return []
     const parsed = JSON.parse(text) as { topics?: string[] }
@@ -427,10 +487,11 @@ Yêu cầu:
     const genAI = new GoogleGenerativeAI(apiKey)
     const model = genAI.getGenerativeModel(GEMINI_25_PRO)
     const genResult = await model.generateContent(prompt)
+    trackCurriculumGeminiResult(genResult, GEMINI_25_PRO.model, CurriculumApiFeature.createFromForm, user.id)
     let text = genResult.response.text()?.trim() || ''
     if (!text) return { error: 'AI không trả về nội dung.' }
 
-    const lessonTopics = await extractLessonTopicsFromContent(text, genAI)
+    const lessonTopics = await extractLessonTopicsFromContent(text, genAI, user.id)
     if (lessonTopics.length >= 1) {
       text = await mergeOfficialQuestionsIntoCurriculum(text, supabase, subjectId, gradeLevelId, lessonTopics)
     }
@@ -518,7 +579,7 @@ export async function saveCurriculum(formData: FormData) {
   const apiKey = process.env.GOOGLE_API_KEY?.trim()
   if (!curriculumId && apiKey && curriculumMarkdown.length >= 100) {
     const genAI = new GoogleGenerativeAI(apiKey)
-    const extracted = await extractLessonTopicsFromContent(curriculumMarkdown, genAI)
+    const extracted = await extractLessonTopicsFromContent(curriculumMarkdown, genAI, user.id)
     lessonTopics = extracted.length >= 5 ? extracted : null
   }
 
@@ -679,7 +740,8 @@ export async function checkCurriculumExists(opts: {
     // Layer 2: semantic rerank via AI.
     const aiScores = await rerankTopicCandidatesByAI(
       rawTopic,
-      lexicalCandidates.map((c) => ({ id: c.id, topic: c.topic }))
+      lexicalCandidates.map((c) => ({ id: c.id, topic: c.topic })),
+      authResult.user.id
     )
     const aiMap = new Map(aiScores.map((x) => [x.id, x.score]))
     const merged = lexicalCandidates
@@ -1483,10 +1545,15 @@ function parseRegionCompareLite(text: string): RegionCompareLite | null {
   }
 }
 
-async function checkSlideRegionWithGemini(genAI: GoogleGenerativeAI, prompt: string): Promise<RegionCompareLite | null> {
+async function checkSlideRegionWithGemini(
+  genAI: GoogleGenerativeAI,
+  prompt: string,
+  userId?: string | null
+): Promise<RegionCompareLite | null> {
   try {
     const model = genAI.getGenerativeModel(GEMINI_25_PRO as { model: 'gemini-2.5-pro' })
     const result = await model.generateContent(prompt)
+    trackCurriculumGeminiResult(result, GEMINI_25_PRO.model, CurriculumApiFeature.slideProposalVerify, userId ?? null)
     const text = result.response.text()?.trim() || ''
     return parseRegionCompareLite(text)
   } catch {
@@ -1525,6 +1592,7 @@ async function verifySlideProposalByAI(params: {
   editedRegion: string
   slideTitle?: string
   blockHeader?: string
+  userId?: string | null
 }): Promise<{ ok: boolean; reason: string }> {
   const apiKey = process.env.GOOGLE_API_KEY?.trim()
   if (!apiKey) return { ok: false, reason: 'Thiếu GOOGLE_API_KEY.' }
@@ -1536,7 +1604,7 @@ async function verifySlideProposalByAI(params: {
 
   const genAI = new GoogleGenerativeAI(apiKey)
   const [r1, r2] = await Promise.all([
-    checkSlideRegionWithGemini(genAI, prompt),
+    checkSlideRegionWithGemini(genAI, prompt, params.userId ?? null),
     checkSlideRegionWithDeepSeek(prompt),
   ])
 
@@ -1587,19 +1655,20 @@ async function syncQuizAcrossVersions(
     userId ? supabase.from('user_customized_slides').select('slides_json').eq('user_id', userId).eq('curriculum_id', curriculumId).single() : { data: null },
   ])
 
-  const sharedSlides = sharedRes.data?.content_json as SlideItem[] | null
-  const originalSlides = originalRes.data?.content_json as SlideItem[] | null
-  const personalSlides = personalRes.data?.slides_json as SlideItem[] | null
+  const parsedShared = parseStoredCurriculumSlidesJson(sharedRes.data?.content_json)
+  const parsedOriginal = parseStoredCurriculumSlidesJson(originalRes.data?.content_json)
+  const parsedPersonal = parseStoredCurriculumSlidesJson(personalRes.data?.slides_json)
 
   const promises: Promise<unknown>[] = []
 
-  const newShared = applyQuizToSlides(Array.isArray(sharedSlides) ? sharedSlides : null)
+  const newShared = applyQuizToSlides(parsedShared.slides.length ? (parsedShared.slides as SlideItem[]) : null)
   if (newShared && newShared.length > 0) {
+    const contentJson = serializeStoredCurriculumSlidesJson(newShared, parsedShared.curriculumInfographic)
     promises.push(
       supabase
         .from('worksheet_slides')
         .update({
-          content_json: newShared,
+          content_json: contentJson,
           topic: opts.topic ?? (sharedRes.data as { topic?: string })?.topic,
           subject_id: opts.subjectId ?? (sharedRes.data as { subject_id?: string })?.subject_id ?? 'toan',
           grade_level_id: opts.gradeLevelId ?? (sharedRes.data as { grade_level_id?: string })?.grade_level_id ?? 'lop-6',
@@ -1608,17 +1677,19 @@ async function syncQuizAcrossVersions(
     )
   }
 
-  const newOriginal = applyQuizToSlides(Array.isArray(originalSlides) ? originalSlides : null)
+  const newOriginal = applyQuizToSlides(parsedOriginal.slides.length ? (parsedOriginal.slides as SlideItem[]) : null)
   if (newOriginal && newOriginal.length > 0) {
-    promises.push(admin.from('worksheet_slides_original').update({ content_json: newOriginal }).eq('curriculum_id', curriculumId) as Promise<unknown>)
+    const contentJson = serializeStoredCurriculumSlidesJson(newOriginal, parsedOriginal.curriculumInfographic)
+    promises.push(admin.from('worksheet_slides_original').update({ content_json: contentJson }).eq('curriculum_id', curriculumId) as Promise<unknown>)
   }
 
-  const newPersonal = applyQuizToSlides(Array.isArray(personalSlides) ? personalSlides : null)
+  const newPersonal = applyQuizToSlides(parsedPersonal.slides.length ? (parsedPersonal.slides as SlideItem[]) : null)
   if (newPersonal && newPersonal.length > 0 && userId) {
+    const slidesJson = serializeStoredCurriculumSlidesJson(newPersonal, parsedPersonal.curriculumInfographic)
     promises.push(
       supabase
         .from('user_customized_slides')
-        .update({ slides_json: newPersonal, updated_at: new Date().toISOString() })
+        .update({ slides_json: slidesJson, updated_at: new Date().toISOString() })
         .eq('user_id', userId)
         .eq('curriculum_id', curriculumId) as Promise<unknown>
     )
@@ -1633,12 +1704,16 @@ export async function saveSlidesToCurriculum(opts: {
   topic: string
   subjectId: string
   gradeLevelId: string
-  slides: Array<{ title: string; blocks: Array<{ header: string; content: string }>; imageUrl?: string; visualEmbed?: string; visualLayout?: 1 | 2 | 4; visualCells?: Array<{ visualEmbed?: string; imageUrl?: string }>; visualInput1?: string; visualInput2?: string; visualInput3?: string; visualInput4?: string; teacherNotes?: string }>
+  slides: WorksheetSlideRow[]
+  curriculumInfographic?: SlideInfographic
 }) {
   const supabase = createClient()
   const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập để lưu slide.')
   if ('error' in authResult) return { error: authResult.error }
   const { user } = authResult
+
+  const infographicToStore = await mergeInfographicForSharedSave(supabase, opts.curriculumId, opts.curriculumInfographic)
+  const contentJson = serializeStoredCurriculumSlidesJson(opts.slides, infographicToStore)
 
   const { error } = await supabase
     .from('worksheet_slides')
@@ -1649,7 +1724,7 @@ export async function saveSlidesToCurriculum(opts: {
         topic: opts.topic || null,
         subject_id: opts.subjectId || 'toan',
         grade_level_id: opts.gradeLevelId || 'lop-6',
-        content_json: opts.slides,
+        content_json: contentJson,
       },
       { onConflict: 'curriculum_id' }
     )
@@ -1659,7 +1734,7 @@ export async function saveSlidesToCurriculum(opts: {
   await supabase.from('worksheet_slide_edit_history').insert({
     curriculum_id: opts.curriculumId,
     user_id: user?.id ?? null,
-    slides_json: opts.slides,
+    slides_json: contentJson,
   })
 
   try {
@@ -1689,9 +1764,14 @@ export async function getSlidesByCurriculumId(curriculumId: string) {
     .eq('curriculum_id', curriculumId)
     .single()
 
-  if (error || !data) return { success: true, slides: null }
-  const slides = data.content_json as Array<{ title: string; blocks: Array<{ header: string; content: string }>; imageUrl?: string; visualEmbed?: string; visualLayout?: 1 | 2 | 4; visualCells?: Array<{ visualEmbed?: string; imageUrl?: string }> }>
-  return { success: true, slides: Array.isArray(slides) ? slides : null }
+  if (error || !data) return { success: true, slides: null, curriculumInfographic: undefined }
+  const parsed = parseStoredCurriculumSlidesJson(data.content_json)
+  const slides = parsed.slides as WorksheetSlideRow[]
+  return {
+    success: true,
+    slides: slides.length > 0 ? slides : null,
+    curriculumInfographic: parsed.curriculumInfographic,
+  }
 }
 
 /** Lấy bản gốc slide (AI tạo lần đầu, không bị ghi đè) */
@@ -1706,15 +1786,20 @@ export async function getOriginalSlides(curriculumId: string) {
     .eq('curriculum_id', curriculumId)
     .single()
 
-  if (error || !data) return { success: true, slides: null }
-  const slides = data.content_json as Array<{ title: string; blocks: Array<{ header: string; content: string }>; imageUrl?: string; visualEmbed?: string; visualLayout?: 1 | 2 | 4; visualCells?: Array<{ visualEmbed?: string; imageUrl?: string }> }>
-  return { success: true, slides: Array.isArray(slides) ? slides : null }
+  if (error || !data) return { success: true, slides: null, curriculumInfographic: undefined }
+  const parsed = parseStoredCurriculumSlidesJson(data.content_json)
+  const slides = parsed.slides as WorksheetSlideRow[]
+  return {
+    success: true,
+    slides: slides.length > 0 ? slides : null,
+    curriculumInfographic: parsed.curriculumInfographic,
+  }
 }
 
 /** Lưu bản gốc lần đầu (khi AI tạo) – chỉ gọi khi chưa có bản gốc */
 export async function saveOriginalSlidesIfNotExists(opts: {
   curriculumId: string
-  slides: Array<{ title: string; blocks: Array<{ header: string; content: string }>; imageUrl?: string; visualEmbed?: string; visualLayout?: 1 | 2 | 4; visualCells?: Array<{ visualEmbed?: string; imageUrl?: string }>; visualInput1?: string; visualInput2?: string; visualInput3?: string; visualInput4?: string; teacherNotes?: string }>
+  slides: WorksheetSlideRow[]
 }) {
   const supabase = createClient()
   const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
@@ -1730,7 +1815,7 @@ export async function saveOriginalSlidesIfNotExists(opts: {
 
   const { error } = await supabase.from('worksheet_slides_original').insert({
     curriculum_id: opts.curriculumId,
-    content_json: opts.slides,
+    content_json: serializeStoredCurriculumSlidesJson(opts.slides),
   })
 
   if (error) return { error: error.message }
@@ -1794,20 +1879,29 @@ export async function getUserCustomizedSlides(curriculumId: string) {
     .eq('curriculum_id', curriculumId)
     .single()
 
-  if (error || !data) return { success: true, slides: null }
-  const slides = data.slides_json as Array<{ title: string; blocks: Array<{ header: string; content: string }>; imageUrl?: string; visualEmbed?: string; visualLayout?: 1 | 2 | 4; visualCells?: Array<{ visualEmbed?: string; imageUrl?: string }> }>
-  return { success: true, slides: Array.isArray(slides) ? slides : null }
+  if (error || !data) return { success: true, slides: null, curriculumInfographic: undefined }
+  const parsed = parseStoredCurriculumSlidesJson(data.slides_json)
+  const slides = parsed.slides as WorksheetSlideRow[]
+  return {
+    success: true,
+    slides: slides.length > 0 ? slides : null,
+    curriculumInfographic: parsed.curriculumInfographic,
+  }
 }
 
 /** Lưu slide đã chỉnh sửa của giáo viên – chỉ ghi vào user_customized_slides, không đổi worksheet_slides */
 export async function saveUserCustomizedSlides(opts: {
   curriculumId: string
-  slides: Array<{ title: string; blocks: Array<{ header: string; content: string }>; imageUrl?: string; visualEmbed?: string; visualLayout?: 1 | 2 | 4; visualCells?: Array<{ visualEmbed?: string; imageUrl?: string }>; visualInput1?: string; visualInput2?: string; visualInput3?: string; visualInput4?: string; teacherNotes?: string }>
+  slides: WorksheetSlideRow[]
+  curriculumInfographic?: SlideInfographic
 }) {
   const supabase = createClient()
   const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập để lưu chỉnh sửa.')
   if ('error' in authResult) return { error: authResult.error }
   const { user } = authResult
+
+  const infographicToStore = await mergeInfographicForPersonalSave(supabase, user.id, opts.curriculumId, opts.curriculumInfographic)
+  const slidesJson = serializeStoredCurriculumSlidesJson(opts.slides, infographicToStore)
 
   const { error } = await supabase
     .from('user_customized_slides')
@@ -1815,7 +1909,7 @@ export async function saveUserCustomizedSlides(opts: {
       {
         user_id: user.id,
         curriculum_id: opts.curriculumId,
-        slides_json: opts.slides,
+        slides_json: slidesJson,
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'user_id,curriculum_id' }
@@ -1826,7 +1920,7 @@ export async function saveUserCustomizedSlides(opts: {
   await supabase.from('user_customized_slides_history').insert({
     user_id: user.id,
     curriculum_id: opts.curriculumId,
-    slides_json: opts.slides,
+    slides_json: slidesJson,
   })
 
   const cutoff = new Date()
@@ -1892,12 +1986,15 @@ export async function resetPersonalToOriginal(curriculumId: string) {
   const originalRes = await getOriginalSlides(curriculumId)
   if (originalRes?.error || !originalRes?.slides) return { error: 'Không có bản gốc.' }
 
-  if (current?.slides_json && Array.isArray(current.slides_json) && current.slides_json.length > 0) {
-    await supabase.from('user_customized_slides_history').insert({
-      user_id: user.id,
-      curriculum_id: curriculumId,
-      slides_json: current.slides_json,
-    })
+  if (current?.slides_json) {
+    const curParsed = parseStoredCurriculumSlidesJson(current.slides_json)
+    if (curParsed.slides.length > 0) {
+      await supabase.from('user_customized_slides_history').insert({
+        user_id: user.id,
+        curriculum_id: curriculumId,
+        slides_json: serializeStoredCurriculumSlidesJson(curParsed.slides as WorksheetSlideRow[], curParsed.curriculumInfographic),
+      })
+    }
   }
 
   const { error } = await supabase
@@ -1906,7 +2003,7 @@ export async function resetPersonalToOriginal(curriculumId: string) {
       {
         user_id: user.id,
         curriculum_id: curriculumId,
-        slides_json: originalRes.slides,
+        slides_json: serializeStoredCurriculumSlidesJson(originalRes.slides, originalRes.curriculumInfographic),
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'user_id,curriculum_id' }
@@ -2011,6 +2108,8 @@ export async function verifySlideEditProposalDraft(opts: {
   originalText?: string
   proposedText: string
   proposedHeader?: string
+  /** true: trừ credit cho lần kiểm tra AI (nút "Kiểm tra AI"). */
+  chargeCredits?: boolean
 }) {
   const supabase = createClient()
   const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập để kiểm tra đề xuất sửa.')
@@ -2022,14 +2121,44 @@ export async function verifySlideEditProposalDraft(opts: {
     .eq('curriculum_id', opts.curriculumId)
     .single()
   if (slidesErr) return { error: slidesErr.message }
-  const slides = (slidesData?.content_json ?? null) as Array<{ title?: string; blocks?: Array<{ header?: string; content?: string }> }> | null
-  if (!Array.isArray(slides)) return { error: 'Không tìm thấy nội dung slide để kiểm tra AI.' }
+  const parsed = parseStoredCurriculumSlidesJson(slidesData?.content_json)
+  const slides = parsed.slides as Array<{ title?: string; blocks?: Array<{ header?: string; content?: string }> }>
+  if (!slides.length) return { error: 'Không tìm thấy nội dung slide để kiểm tra AI.' }
   const slide = slides[opts.slideIndex]
   if (!slide) return { error: 'Slide không tồn tại.' }
   const blocks = Array.isArray(slide.blocks) ? slide.blocks : []
   const block = blocks[opts.blockIndex]
   const blockContent = String(block?.content ?? '')
   const blockHeader = String(block?.header ?? '')
+
+  if (opts.chargeCredits === true) {
+    const admin = curriculumAiAdminClient()
+    if (!admin) return { error: 'Thiếu cấu hình trừ credit (SUPABASE_SERVICE_ROLE_KEY).' }
+    const userId = authResult.user.id
+    const eventKey = [
+      'slide-proposal-verify',
+      userId,
+      opts.curriculumId,
+      String(opts.slideIndex),
+      String(opts.blockIndex),
+      opts.segmentType,
+      Date.now().toString(36),
+      Math.random().toString(36).slice(2, 8),
+    ].join(':')
+    const spend = await spendCurriculumAiCredits(admin, {
+      userId,
+      amount: CURRICULUM_UI_CREDITS.slideProposalAICheck,
+      chargeType: CURRICULUM_AI_CHARGE_TYPES.slideProposalVerify,
+      eventKey,
+      metadata: {
+        curriculumId: opts.curriculumId,
+        slideIndex: opts.slideIndex,
+        blockIndex: opts.blockIndex,
+        segmentType: opts.segmentType,
+      },
+    })
+    if (!spend.ok) return { error: spend.error || 'Không thể trừ credit cho lần kiểm tra AI.' }
+  }
 
   if (opts.segmentType === 'edit') {
     const orig = String(opts.originalText ?? '').trim()
@@ -2043,6 +2172,7 @@ export async function verifySlideEditProposalDraft(opts: {
       editedRegion: edited,
       slideTitle: String(slide.title ?? ''),
       blockHeader,
+      userId: authResult.user.id,
     })
     return aiCheck.ok
       ? { ok: true, reason: aiCheck.reason }
@@ -2058,6 +2188,7 @@ export async function verifySlideEditProposalDraft(opts: {
       editedRegion,
       slideTitle: String(slide.title ?? ''),
       blockHeader: addHeader,
+      userId: authResult.user.id,
     })
     return aiCheck.ok
       ? { ok: true, reason: aiCheck.reason }
@@ -2094,8 +2225,9 @@ export async function applySlideEditDirect(opts: {
   const slidesRow = slidesData as SlidesRow | null
   if (!slidesRow) return { error: 'Không tìm thấy slide dùng chung.' }
 
-  const slides = slidesRow.content_json as Array<{ title: string; blocks: Array<{ header: string; content: string }>; imageUrl?: string; visualEmbed?: string; visualLayout?: 1 | 2 | 4; visualCells?: Array<{ visualEmbed?: string; imageUrl?: string }> }>
-  if (!Array.isArray(slides)) return { error: 'Dữ liệu slide không hợp lệ.' }
+  const parsed = parseStoredCurriculumSlidesJson(slidesRow.content_json)
+  const slides = parsed.slides as Array<{ title: string; blocks: Array<{ header: string; content: string }>; imageUrl?: string; visualEmbed?: string; visualLayout?: 1 | 2 | 4; visualCells?: Array<{ visualEmbed?: string; imageUrl?: string }> }>
+  if (!slides.length) return { error: 'Dữ liệu slide không hợp lệ.' }
   const slide = slides[opts.slideIndex]
   if (!slide) return { error: 'Slide không tồn tại.' }
   const blocks = [...(slide.blocks ?? [])]
@@ -2113,11 +2245,12 @@ export async function applySlideEditDirect(opts: {
   }
 
   const newSlides = slides.map((s, i) => (i === opts.slideIndex ? { ...s, blocks } : s))
+  const contentJson = serializeStoredCurriculumSlidesJson(newSlides, parsed.curriculumInfographic)
 
   const { error: updErr } = await admin
     .from('worksheet_slides')
     .update({
-      content_json: newSlides,
+      content_json: contentJson,
       topic: slidesRow.topic ?? undefined,
       subject_id: slidesRow.subject_id ?? undefined,
       grade_level_id: slidesRow.grade_level_id ?? undefined,
@@ -2128,7 +2261,7 @@ export async function applySlideEditDirect(opts: {
   await admin.from('worksheet_slide_edit_history').insert({
     curriculum_id: opts.curriculumId,
     user_id: userId,
-    slides_json: newSlides,
+    slides_json: contentJson,
   })
 
   try {
@@ -2227,8 +2360,9 @@ async function applySlideProposalIfEligible(supabase: SupabaseClientAny, proposa
   const slidesRow = slidesData as SlidesRow | null
   if (!slidesRow) return null
 
-  const slides = slidesRow.content_json as Array<{ title: string; blocks: Array<{ header: string; content: string }>; imageUrl?: string; visualEmbed?: string; visualLayout?: 1 | 2 | 4; visualCells?: Array<{ visualEmbed?: string; imageUrl?: string }> }>
-  if (!Array.isArray(slides)) return null
+  const parsedProp = parseStoredCurriculumSlidesJson(slidesRow.content_json)
+  const slides = parsedProp.slides as Array<{ title: string; blocks: Array<{ header: string; content: string }>; imageUrl?: string; visualEmbed?: string; visualLayout?: 1 | 2 | 4; visualCells?: Array<{ visualEmbed?: string; imageUrl?: string }> }>
+  if (!slides.length) return null
 
   const slide = slides[p.slide_index]
   if (!slide) return null
@@ -2247,11 +2381,12 @@ async function applySlideProposalIfEligible(supabase: SupabaseClientAny, proposa
   const newSlides = slides.map((s, i) =>
     i === p.slide_index ? { ...s, blocks } : s
   )
+  const contentJsonProp = serializeStoredCurriculumSlidesJson(newSlides, parsedProp.curriculumInfographic)
 
   await supabase
     .from('worksheet_slides')
     .update({
-      content_json: newSlides,
+      content_json: contentJsonProp,
       topic: slidesRow.topic ?? undefined,
       subject_id: slidesRow.subject_id ?? undefined,
       grade_level_id: slidesRow.grade_level_id ?? undefined,
@@ -2261,7 +2396,7 @@ async function applySlideProposalIfEligible(supabase: SupabaseClientAny, proposa
   await supabase.from('worksheet_slide_edit_history').insert({
     curriculum_id: p.curriculum_id,
     user_id: null,
-    slides_json: newSlides,
+    slides_json: contentJsonProp,
   })
 
   await supabase
@@ -2392,8 +2527,9 @@ async function applySlideProposalForce(supabase: SupabaseClientAny, proposalId: 
 
   if (!slidesRow) return null
 
-  const slides = slidesRow.content_json as Array<{ title: string; blocks: Array<{ header: string; content: string }>; imageUrl?: string; visualEmbed?: string; visualLayout?: 1 | 2 | 4; visualCells?: Array<{ visualEmbed?: string; imageUrl?: string }> }>
-  if (!Array.isArray(slides)) return null
+  const parsedForce = parseStoredCurriculumSlidesJson(slidesRow.content_json)
+  const slides = parsedForce.slides as Array<{ title: string; blocks: Array<{ header: string; content: string }>; imageUrl?: string; visualEmbed?: string; visualLayout?: 1 | 2 | 4; visualCells?: Array<{ visualEmbed?: string; imageUrl?: string }> }>
+  if (!slides.length) return null
 
   const slide = slides[p.slide_index]
   if (!slide) return null
@@ -2412,11 +2548,12 @@ async function applySlideProposalForce(supabase: SupabaseClientAny, proposalId: 
   const newSlides = slides.map((s, i) =>
     i === p.slide_index ? { ...s, blocks } : s
   )
+  const contentJsonForce = serializeStoredCurriculumSlidesJson(newSlides, parsedForce.curriculumInfographic)
 
   await supabase
     .from('worksheet_slides')
     .update({
-      content_json: newSlides,
+      content_json: contentJsonForce,
       topic: slidesRow.topic ?? undefined,
       subject_id: slidesRow.subject_id ?? undefined,
       grade_level_id: slidesRow.grade_level_id ?? undefined,
@@ -2426,7 +2563,7 @@ async function applySlideProposalForce(supabase: SupabaseClientAny, proposalId: 
   await supabase.from('worksheet_slide_edit_history').insert({
     curriculum_id: p.curriculum_id,
     user_id: null,
-    slides_json: newSlides,
+    slides_json: contentJsonForce,
   })
 
   await supabase

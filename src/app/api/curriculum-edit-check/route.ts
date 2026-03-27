@@ -6,6 +6,7 @@
 import { NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
+import { CurriculumApiFeature, trackCurriculumGeminiResult } from '@/lib/curriculum-api-usage'
 
 const PROMPT_FULL = `Bạn là chuyên gia kiểm tra giáo trình giáo dục Việt Nam (Công văn 5512/BGDĐT).
 Kiểm tra nội dung giáo trình Markdown dưới đây. Tìm sai sót về:
@@ -41,6 +42,12 @@ async function checkWithGemini(
   const model = genAI.getGenerativeModel(GEMINI_25_FLASH_NO_THINKING as { model: 'gemini-2.5-flash' })
   const truncated = content.slice(0, 28000)
   const result = await model.generateContent(`${prompt}\n\n---\n\n${truncated}`)
+  trackCurriculumGeminiResult(
+    result,
+    GEMINI_25_FLASH_NO_THINKING.model,
+    CurriculumApiFeature.editCheckFull,
+    null
+  )
   const text = result.response.text()?.trim() || ''
   try {
     const parsed = JSON.parse(text.replace(/```json?\s*/g, '').trim())
@@ -59,6 +66,12 @@ async function checkWithDeepSeek(content: string, prompt: string = PROMPT_FULL):
   const model = genAI.getGenerativeModel(GEMINI_25_FLASH_NO_THINKING as { model: 'gemini-2.5-flash' })
   const truncated = content.slice(0, 28000)
   const result = await model.generateContent(`${prompt}\n\n---\n\n${truncated}`)
+  trackCurriculumGeminiResult(
+    result,
+    GEMINI_25_FLASH_NO_THINKING.model,
+    CurriculumApiFeature.editCheckFull,
+    null
+  )
   const text = result.response.text()?.trim() || ''
   try {
     const parsed = JSON.parse(text.replace(/```json?\s*/g, '').trim())
@@ -74,6 +87,12 @@ async function checkWithGeminiFlash(genAI: GoogleGenerativeAI, content: string, 
   const model = genAI.getGenerativeModel(GEMINI_25_FLASH_NO_THINKING as { model: 'gemini-2.5-flash' })
   const truncated = content.slice(0, 28000)
   const result = await model.generateContent(`${prompt}\n\n---\n\n${truncated}`)
+  trackCurriculumGeminiResult(
+    result,
+    GEMINI_25_FLASH_NO_THINKING.model,
+    CurriculumApiFeature.editCheckFull,
+    null
+  )
   const text = result.response.text()?.trim() || ''
   try {
     const parsed = JSON.parse(text.replace(/```json?\s*/g, '').trim())
@@ -100,6 +119,12 @@ async function checkRegionWithGemini(
 ): Promise<RegionCompareResult | null> {
   const model = genAI.getGenerativeModel(GEMINI_25_FLASH_NO_THINKING as { model: 'gemini-2.5-flash' })
   const result = await model.generateContent(prompt)
+  trackCurriculumGeminiResult(
+    result,
+    GEMINI_25_FLASH_NO_THINKING.model,
+    CurriculumApiFeature.editCheckRegion,
+    null
+  )
   const text = result.response.text()?.trim() || ''
   return parseRegionResult(text)
 }
@@ -110,6 +135,12 @@ async function checkRegionWithDeepSeek(prompt: string): Promise<RegionCompareRes
   const genAI = new GoogleGenerativeAI(apiKey)
   const model = genAI.getGenerativeModel(GEMINI_25_FLASH_NO_THINKING as { model: 'gemini-2.5-flash' })
   const result = await model.generateContent(prompt)
+  trackCurriculumGeminiResult(
+    result,
+    GEMINI_25_FLASH_NO_THINKING.model,
+    CurriculumApiFeature.editCheckRegion,
+    null
+  )
   const text = result.response.text()?.trim() || ''
   return parseRegionResult(text)
 }

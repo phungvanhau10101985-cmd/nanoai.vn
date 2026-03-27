@@ -3,6 +3,7 @@
  * Mỗi ## hoặc ### thành một slide.
  */
 import { latexToReadable } from './latex-to-readable'
+import type { SlideInfographic } from './slide-infographic'
 
 export interface Slide {
   title: string
@@ -117,6 +118,8 @@ export interface AISlideData {
   visualInput2?: string
   visualInput3?: string
   visualInput4?: string
+  /** Infographic (tóm tắt + Mermaid + ảnh) — optional, từ luồng GV */
+  infographic?: SlideInfographic
 }
 
 /** Parse nội dung slide thành các block (Định nghĩa, Quy tắc, Khởi động...) */

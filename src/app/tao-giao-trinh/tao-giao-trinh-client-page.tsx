@@ -16,6 +16,7 @@ import { parseCurriculumToSlides, parseContentToBlocks } from './lib/curriculum-
 import { SlideVersionDialog, type SlideVersionChoice } from './components/slide-version-dialog'
 import { CurriculumExerciseListDialog } from './components/curriculum-exercise-list-dialog'
 import type { AISlideData } from './lib/curriculum-to-slides'
+import type { SlideInfographic } from './lib/slide-infographic'
 import { SUBJECTS, GRADE_LEVELS, GRADE_LEVEL_GROUPS, TEXTBOOK_SETS } from './lib/curriculum-subjects'
 import { createCurriculum, saveCurriculum, saveTextbookLessonFromImage, listCurricula, getCurriculumById, getWorksheetById, getWorksheetsByCurriculumId, deleteCurriculum, saveSlidesToCurriculum, getSlidesByCurriculumId, getOriginalSlides, getUserCustomizedSlides, saveOriginalSlidesIfNotExists, checkCurriculumExists, recordCurriculumOpen, clearCurriculumDerivedData, saveWorksheetContent } from './actions'
 import { extractEditRegions } from './lib/curriculum-region-extract'
@@ -60,6 +61,8 @@ function matchesDestructiveConfirm(input: string, phrase: string): boolean {
 
 const WS_ACTIVE_JOB_KEY = 'worksheet_active_job'
 const LAST_OPENED_CURRICULUM_KEY = 'tao_giao_trinh_last_opened_curriculum_id'
+/** Ảnh trang sách gửi lên POST /api/curriculum-from-image — khớp MAX_IMAGES trong route. */
+const MAX_CURRICULUM_LESSON_IMAGES = 20
 
 function normalizeGradeLevelId(id: string): string {
   const map: Record<string, string> = { 'tieu-hoc': 'lop-1', thcs: 'lop-6', thpt: 'lop-12' }
@@ -199,6 +202,10 @@ export default function TaoGiaoTrinhClientPage({
   const [sharedSlides, setSharedSlides] = useState<AISlideData[] | null>(null)
   const [originalSlides, setOriginalSlides] = useState<AISlideData[] | null>(null)
   const [personalSlides, setPersonalSlides] = useState<AISlideData[] | null>(null)
+  /** Infographic (một ảnh / giáo trình) theo từng bản lưu — gửi kèm curriculum-data tới cửa sổ GV */
+  const [infographicShared, setInfographicShared] = useState<SlideInfographic | undefined>(undefined)
+  const [infographicOriginal, setInfographicOriginal] = useState<SlideInfographic | undefined>(undefined)
+  const [infographicPersonal, setInfographicPersonal] = useState<SlideInfographic | undefined>(undefined)
   const [curriculumExists, setCurriculumExists] = useState<boolean | null>(null)
   const [existingCurriculumId, setExistingCurriculumId] = useState<string | null>(null)
   const [existingCurriculumTopic, setExistingCurriculumTopic] = useState<string | null>(null)
@@ -340,6 +347,31 @@ export default function TaoGiaoTrinhClientPage({
               '请充值积分以使用 AI 生成幻灯片。',
               'AIでスライドを作るにはクレジットを追加してください。',
               'AI로 슬라이드를 만들려면 크레딧을 충전해 주세요.'
+            ),
+      variant: 'destructive',
+    })
+  }
+
+  const toastFromImageInsufficientCredits = (data: CurriculumAnalyzeSlidesClientData) => {
+    const bal = typeof data.balance === 'number' ? data.balance : null
+    const req = typeof data.required === 'number' ? data.required : null
+    toast({
+      title: tr('Không đủ credit', 'Insufficient credits', '积分不足', 'クレジット不足', '크레딧 부족'),
+      description:
+        bal !== null && req !== null
+          ? tr(
+              `Cần ${formatCurriculumCredits(req)} credit để tạo giáo trình từ ảnh (gồm slide khi có); số dư hiện tại ${formatCurriculumCredits(bal)}.`,
+              `You need ${formatCurriculumCredits(req)} credits to create curriculum from images (slides included when available); your balance is ${formatCurriculumCredits(bal)}.`,
+              `从图片创建课程（含幻灯片，如有）需要 ${formatCurriculumCredits(req)} 积分；当前余额 ${formatCurriculumCredits(bal)}。`,
+              `画像からカリキュラム作成（スライド含む・ある場合）に ${formatCurriculumCredits(req)} クレジットが必要です。残高は ${formatCurriculumCredits(bal)} です。`,
+              `이미지로 교육과정 생성(슬라이드 포함·있는 경우)에 ${formatCurriculumCredits(req)} 크레딧이 필요합니다. 잔액 ${formatCurriculumCredits(bal)}.`
+            )
+          : tr(
+              'Vui lòng nạp thêm credit để tạo giáo trình từ ảnh.',
+              'Please top up credits to create curriculum from images.',
+              '请充值积分以从图片创建课程。',
+              '画像からカリキュラムを作るにはクレジットを追加してください。',
+              '이미지로 교육과정을 만들려면 크레딧을 충전해 주세요.'
             ),
       variant: 'destructive',
     })
@@ -734,9 +766,14 @@ export default function TaoGiaoTrinhClientPage({
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
         setStep('INPUT')
+        if (res.status === 402) {
+          toastFromImageInsufficientCredits(data as CurriculumAnalyzeSlidesClientData)
+          return
+        }
         toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: data?.error || res.statusText, variant: 'destructive' })
         return
       }
+      applyAnalyzeSlidesCreditSideEffects(data as CurriculumAnalyzeSlidesClientData)
       const { curriculumMarkdown: md, topic: t, lessonNumber: extractedNum, lessonTitle: extractedTitle } = data
       if (!md) {
         setStep('INPUT')
@@ -1162,7 +1199,7 @@ export default function TaoGiaoTrinhClientPage({
   }
 
   const openGiaoVienWindow = useCallback(
-    (slidesToUse: AISlideData[] | null, mode: SlideVersionChoice | null = null) => {
+    (slidesToUse: AISlideData[] | null, mode: SlideVersionChoice | null = null, curriculumInfographicSend?: SlideInfographic | undefined) => {
       const slides =
         slidesToUse && slidesToUse.length > 0
           ? slidesToUse.map((s) => ({
@@ -1183,6 +1220,15 @@ export default function TaoGiaoTrinhClientPage({
               blocks: parseContentToBlocks(s.content ?? ''),
               teacherNotes: '',
             }))
+      const resolvedInfographic =
+        curriculumInfographicSend ??
+        (mode === 'personal'
+          ? infographicPersonal
+          : mode === 'original'
+            ? infographicOriginal
+            : mode === 'shared'
+              ? infographicShared
+              : infographicShared ?? infographicOriginal ?? infographicPersonal)
       const sw = typeof screen !== 'undefined' ? screen.width : 1920
       const sh = typeof screen !== 'undefined' ? screen.height : 1080
       const w = window.open(
@@ -1207,6 +1253,7 @@ export default function TaoGiaoTrinhClientPage({
                   slides,
                   teacherTimerSeconds: 0,
                   teacherTimerRunning: false,
+                  ...(resolvedInfographic ? { curriculumInfographic: resolvedInfographic } : {}),
                 },
                 window.location.origin
               )
@@ -1219,14 +1266,19 @@ export default function TaoGiaoTrinhClientPage({
         setTimeout(send, 700)
       }
     },
-    [curriculumMarkdown, displayTopic, curriculumId, originalSlides, sharedSlides]
+    [curriculumMarkdown, displayTopic, curriculumId, originalSlides, sharedSlides, infographicShared, infographicOriginal, infographicPersonal]
   )
 
   const refreshPersonalSlides = useCallback(async () => {
     if (!curriculumId) return
     const res = await getUserCustomizedSlides(curriculumId)
-    if (res?.success && res.slides?.length) setPersonalSlides(res.slides)
-    else setPersonalSlides(null)
+    if (res?.success && res.slides?.length) {
+      setPersonalSlides(res.slides)
+      setInfographicPersonal(res.curriculumInfographic)
+    } else {
+      setPersonalSlides(null)
+      setInfographicPersonal(undefined)
+    }
   }, [curriculumId])
 
   useEffect(() => {
@@ -1244,6 +1296,7 @@ export default function TaoGiaoTrinhClientPage({
         const res = await getUserCustomizedSlides(curriculumId)
         if (res?.success && res.slides?.length) {
           setPersonalSlides(res.slides)
+          setInfographicPersonal(res.curriculumInfographic)
           slidesToUse = res.slides
         }
       }
@@ -1267,6 +1320,14 @@ export default function TaoGiaoTrinhClientPage({
               blocks: parseContentToBlocks(s.content ?? ''),
               teacherNotes: '',
             }))
+      const requestInfographic =
+        slideVersionChoice === 'personal'
+          ? infographicPersonal
+          : slideVersionChoice === 'original'
+            ? infographicOriginal
+            : slideVersionChoice === 'shared'
+              ? infographicShared
+              : infographicShared ?? infographicOriginal ?? infographicPersonal
       try {
         target.postMessage(
           {
@@ -1281,6 +1342,7 @@ export default function TaoGiaoTrinhClientPage({
             slides,
             teacherTimerSeconds: 0,
             teacherTimerRunning: false,
+            ...(requestInfographic ? { curriculumInfographic: requestInfographic } : {}),
           },
           window.location.origin
         )
@@ -1290,7 +1352,7 @@ export default function TaoGiaoTrinhClientPage({
     }
     window.addEventListener('message', handler)
     return () => window.removeEventListener('message', handler)
-  }, [curriculumMarkdown, displayTopic, curriculumId, aiSlides, curriculumSlides, slideVersionChoice, originalSlides, sharedSlides, refreshPersonalSlides])
+  }, [curriculumMarkdown, displayTopic, curriculumId, aiSlides, curriculumSlides, slideVersionChoice, originalSlides, sharedSlides, refreshPersonalSlides, infographicShared, infographicOriginal, infographicPersonal])
 
   const handleOpenSlides = async () => {
     if (!curriculumMarkdown.trim()) return
@@ -1306,6 +1368,9 @@ export default function TaoGiaoTrinhClientPage({
       setSharedSlides(shared)
       setOriginalSlides(original)
       setPersonalSlides(personal)
+      setInfographicShared(sharedRes?.curriculumInfographic)
+      setInfographicOriginal(originalRes?.curriculumInfographic)
+      setInfographicPersonal(personalRes?.curriculumInfographic)
       if (shared || original || personal) {
         setShowSlideVersionDialog(true)
         return
@@ -1393,6 +1458,9 @@ export default function TaoGiaoTrinhClientPage({
           setSharedSlides(sharedRes?.success && sharedRes.slides?.length ? sharedRes.slides : null)
           setOriginalSlides(originalRes?.success && originalRes.slides?.length ? originalRes.slides : null)
           setPersonalSlides(personalRes?.success && personalRes.slides?.length ? personalRes.slides : null)
+          setInfographicShared(sharedRes?.curriculumInfographic)
+          setInfographicOriginal(originalRes?.curriculumInfographic)
+          setInfographicPersonal(personalRes?.curriculumInfographic)
           setShowSlideVersionDialog(true)
         } else {
           setAiSlides(slides)
@@ -1441,7 +1509,9 @@ export default function TaoGiaoTrinhClientPage({
           ? firstNonEmpty(sharedSlides, originalSlides, personalSlides)
           : firstNonEmpty(personalSlides, sharedSlides, originalSlides)
     setAiSlides(slides.length > 0 ? slides : null)
-    openGiaoVienWindow(slides.length > 0 ? slides : null, choice)
+    const infForChoice =
+      choice === 'personal' ? infographicPersonal : choice === 'original' ? infographicOriginal : infographicShared
+    openGiaoVienWindow(slides.length > 0 ? slides : null, choice, infForChoice)
   }
 
   const handleReset = () => {
@@ -1465,6 +1535,9 @@ export default function TaoGiaoTrinhClientPage({
     setCurriculumWorksheets([])
     setCurriculumSlides(null)
     setAiSlides(null)
+    setInfographicShared(undefined)
+    setInfographicOriginal(undefined)
+    setInfographicPersonal(undefined)
     setFeatureSection('create')
     setLastOverwriteAt(null)
     setSimilarTopicCurricula([])
@@ -2181,9 +2254,35 @@ export default function TaoGiaoTrinhClientPage({
       const wsRes = await getWorksheetsByCurriculumId(id)
       if (wsRes && 'items' in wsRes) setCurriculumWorksheets((wsRes.items ?? []) as Array<{ id: string; topic: string; subject_id: string; grade_level_id: string; content_markdown: string; created_at: string }>)
       else setCurriculumWorksheets([])
-      const slidesRes = await getSlidesByCurriculumId(id)
-      if (slidesRes?.success && slidesRes.slides) setCurriculumSlides(slidesRes.slides)
-      else setCurriculumSlides(null)
+      const [slidesRes, originalSlidesRes, personalSlidesRes] = await Promise.all([
+        getSlidesByCurriculumId(id),
+        getOriginalSlides(id),
+        getUserCustomizedSlides(id),
+      ])
+      if (slidesRes && 'error' in slidesRes && slidesRes.error) {
+        setCurriculumSlides(null)
+        setInfographicShared(undefined)
+      } else if (slidesRes?.success && slidesRes.slides) {
+        setCurriculumSlides(slidesRes.slides)
+        setInfographicShared(slidesRes.curriculumInfographic)
+      } else {
+        setCurriculumSlides(null)
+        setInfographicShared(undefined)
+      }
+      if (originalSlidesRes && 'error' in originalSlidesRes && originalSlidesRes.error) {
+        setInfographicOriginal(undefined)
+      } else if (originalSlidesRes?.success) {
+        setInfographicOriginal(originalSlidesRes.curriculumInfographic)
+      } else {
+        setInfographicOriginal(undefined)
+      }
+      if (personalSlidesRes && 'error' in personalSlidesRes && personalSlidesRes.error) {
+        setInfographicPersonal(undefined)
+      } else if (personalSlidesRes?.success) {
+        setInfographicPersonal(personalSlidesRes.curriculumInfographic)
+      } else {
+        setInfographicPersonal(undefined)
+      }
       void recordCurriculumOpen(id)
       toast({ title: tr('Đã tải giáo trình', 'Curriculum loaded', '已加载课程', 'カリキュラムを読み込み', '교육과정 로드됨'), duration: 2000 })
       if (!options?.skipScroll) {
@@ -3086,7 +3185,7 @@ export default function TaoGiaoTrinhClientPage({
                   <span className="text-red-500 font-medium">*</span>
                 </label>
                 <p className="text-xs text-muted-foreground">
-                  {tr('Chụp/gửi ảnh trang sách (tối đa 10 ảnh) – bắt buộc. AI lấy sơ đồ, hình minh họa từ ảnh.', 'Upload photo(s) of the textbook page(s) (max 10) – required. AI extracts diagrams, figures from images.', '上传教材页面照片（最多10张）– 必填。AI 从图片提取图表、示意图。', '教科書のページ写真をアップロード（最大10枚）– 必須。AIが画像から図表を抽出。', '교과서 페이지 사진 업로드 (최대 10개) – 필수. AI가 이미지에서 도표·그림 추출.')}
+                  {tr('Chụp/gửi ảnh trang sách (tối đa 20 ảnh) – bắt buộc. AI lấy sơ đồ, hình minh họa từ ảnh.', 'Upload photo(s) of the textbook page(s) (max 20) – required. AI extracts diagrams, figures from images.', '上传教材页面照片（最多20张）– 必填。AI 从图片提取图表、示意图。', '教科書のページ写真をアップロード（最大20枚）– 必須。AIが画像から図表を抽出。', '교과서 페이지 사진 업로드 (최대 20개) – 필수. AI가 이미지에서 도표·그림 추출.')}
                 </p>
                 <input
                   ref={lessonImageInputRef}
@@ -3096,7 +3195,7 @@ export default function TaoGiaoTrinhClientPage({
                   className="hidden"
                   onChange={(e) => {
                     const list = Array.from(e.target.files ?? [])
-                    setLessonImages(list.slice(0, 10))
+                    setLessonImages(list.slice(0, MAX_CURRICULUM_LESSON_IMAGES))
                   }}
                 />
                 <Button

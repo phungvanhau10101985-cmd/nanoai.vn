@@ -1,7 +1,19 @@
+import { randomUUID } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_PRO } from '@/lib/gemini-config'
 import { generateSlidesFromCurriculum } from '@/lib/slides-from-curriculum'
+import { createClient } from '@/lib/supabase/server'
+import { CurriculumApiFeature, trackCurriculumGeminiResult } from '@/lib/curriculum-api-usage'
+import {
+  CURRICULUM_AI_CHARGE_TYPES,
+  curriculumAiAdminClient,
+  curriculumMarkdownCreditHash,
+  FROM_IMAGE_CREDIT_COST,
+  isCurriculumAiCreditsDisabled,
+  readUserCreditBalance,
+  spendCurriculumAiCredits,
+} from '@/lib/curriculum-ai-credits'
 
 const SUBJECT_NAMES: Record<string, string> = {
   toan: 'Toán học',
@@ -28,8 +40,8 @@ const TEXTBOOK_NAMES: Record<string, string> = {
   khac: 'Không chỉ định',
 }
 
-/** Giới hạn số ảnh – Gemini API có giới hạn ~20MB/request; 10 ảnh an toàn cho mọi model */
-const MAX_IMAGES = 10
+/** Giới hạn số ảnh – Gemini có trần payload/request; 20 ảnh nếu mỗi file không quá lớn */
+const MAX_IMAGES = 20
 
 /** Tạo giáo trình từ ảnh trang sách giáo khoa – dùng Gemini vision */
 export async function POST(req: NextRequest) {
@@ -61,6 +73,47 @@ export async function POST(req: NextRequest) {
     const apiKey = process.env.GOOGLE_API_KEY
     if (!apiKey) {
       return NextResponse.json({ error: 'Thiếu GOOGLE_API_KEY.' }, { status: 500 })
+    }
+
+    const supabase = createClient()
+    const {
+      data: { user: visionUser },
+    } = await supabase.auth.getUser()
+    const trackUserId = visionUser?.id ?? null
+    const billingUserId = visionUser?.id
+
+    const chargeDisabled = isCurriculumAiCreditsDisabled()
+    const admin = chargeDisabled ? null : curriculumAiAdminClient()
+    const fromImageCost = FROM_IMAGE_CREDIT_COST
+
+    if (!chargeDisabled && !billingUserId) {
+      return NextResponse.json(
+        { error: 'Vui lòng đăng nhập để tạo giáo trình từ ảnh.', code: 'UNAUTHORIZED' },
+        { status: 401 }
+      )
+    }
+    if (!chargeDisabled) {
+      if (!admin) {
+        return NextResponse.json(
+          {
+            error: 'Máy chủ thiếu cấu hình trừ credit (SUPABASE_SERVICE_ROLE_KEY).',
+            code: 'BILLING_CONFIG_MISSING',
+          },
+          { status: 503 }
+        )
+      }
+      const bal = await readUserCreditBalance(admin, billingUserId!)
+      if (bal < fromImageCost) {
+        return NextResponse.json(
+          {
+            error: 'insufficient_credits',
+            code: 'INSUFFICIENT_CREDITS',
+            balance: bal,
+            required: fromImageCost,
+          },
+          { status: 402 }
+        )
+      }
     }
 
     const subjectName = SUBJECT_NAMES[subjectId] || subjectId
@@ -128,6 +181,7 @@ Yêu cầu:
 - QUAN TRỌNG: Kết quả cho học sinh đọc trực tiếp – dùng Unicode, không LaTeX.`
 
     const result = await model.generateContent([prompt, ...imageParts])
+    trackCurriculumGeminiResult(result, GEMINI_25_PRO.model, CurriculumApiFeature.fromImage, trackUserId)
     const text = result.response.text()?.trim() || ''
     const cleaned = text.replace(/^```(?:markdown|md)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim()
 
@@ -161,8 +215,44 @@ Yêu cầu:
       .replace(/^\s*\n+/, '')
       .trim()
 
-    const { slides } = await generateSlidesFromCurriculum(curriculumBody, extractedTitle, { fetchImages: true })
+    const { slides } = await generateSlidesFromCurriculum(curriculumBody, extractedTitle, {
+      fetchImages: true,
+      trackUserId,
+    })
     const slidesPrepared = (slides as Array<{ title: string; blocks: Array<{ header: string; content: string }>; imageUrl?: string; visualEmbed?: string }>)
+
+    const contentHash = curriculumMarkdownCreditHash(curriculumBody)
+    let creditsCharged = false
+    let newBalance: number | undefined
+    let chargeError: string | undefined
+    if (!chargeDisabled && admin && billingUserId) {
+      try {
+        const spend = await spendCurriculumAiCredits(admin, {
+          userId: billingUserId,
+          amount: fromImageCost,
+          chargeType: CURRICULUM_AI_CHARGE_TYPES.fromImage,
+          eventKey: `curriculum_from_image:${billingUserId}:${randomUUID()}`,
+          metadata: {
+            contentHash,
+            subjectId,
+            gradeLevelId,
+            textbookSetId,
+            lessonNumber: extractedLessonNumber,
+            slideCount: slidesPrepared.length,
+          },
+        })
+        if (spend.ok) {
+          creditsCharged = true
+          newBalance = spend.newBalance
+        } else {
+          chargeError = spend.error || 'charge_failed'
+          console.error('[curriculum-from-image] Trừ credit thất bại (đã tạo nội dung):', chargeError)
+        }
+      } catch (chargeEx) {
+        chargeError = chargeEx instanceof Error ? chargeEx.message : String(chargeEx)
+        console.error('[curriculum-from-image] Lỗi trừ credit:', chargeEx)
+      }
+    }
 
     return NextResponse.json({
       curriculumMarkdown: curriculumBody,
@@ -170,6 +260,9 @@ Yêu cầu:
       lessonNumber: extractedLessonNumber,
       lessonTitle: extractedTitle,
       slides: slidesPrepared.length > 0 ? slidesPrepared : undefined,
+      creditsCharged,
+      ...(typeof newBalance === 'number' ? { newBalance } : {}),
+      ...(chargeError ? { chargeError } : {}),
     })
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)

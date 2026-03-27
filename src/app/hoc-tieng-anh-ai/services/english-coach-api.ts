@@ -49,6 +49,7 @@ export function normalizeCustomTopic(payload: {
   targetLanguage: string
   nativeLanguage: string
   learnerLevel: number
+  coachUsageContext?: 'live' | 'preset'
 }) {
   return sendJson<{ topicId?: string; topicLabel?: string; topicDifficulty?: string; error?: string }>(
     '/api/english-coach/topic-normalize',
@@ -64,6 +65,7 @@ export function createTopicCurriculum(payload: {
   targetLanguage: string
   nativeLanguage: string
   learnerLevel: number
+  coachUsageContext?: 'live' | 'preset'
 }) {
   return sendJson<Record<string, unknown> & { error?: string }>('/api/english-coach/topic-curriculum', 'POST', payload)
 }
@@ -210,7 +212,11 @@ export function rescheduleReviewWords(payload: { words: Array<{ word: string; ta
   return sendJson<unknown>('/api/english-coach/review-reschedule', 'POST', payload)
 }
 
-export function transliterateText(payload: { text: string; languageCode: string }) {
+export function transliterateText(payload: {
+  text: string
+  languageCode: string
+  coachUsageContext?: 'live' | 'preset'
+}) {
   return sendJson<{ transliteration?: string }>('/api/english-coach/transliterate', 'POST', payload)
 }
 

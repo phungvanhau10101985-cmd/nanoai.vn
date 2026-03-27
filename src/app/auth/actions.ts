@@ -3,40 +3,52 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
-import { createClient } from '@/lib/supabase/server'
+import { createSupabaseMutableCookiesClient } from '@/lib/supabase/mutable-cookies-client'
 import { sanitizeLoginNext } from '@/lib/auth/sanitize-login-next'
 
 const PRODUCTION_URL = 'https://nanoai.vn'
 
 function getBaseUrl(): string {
-  // 1. Host từ request – ưu tiên cao nhất
+  // 1. Host từ request — luôn dùng đúng origin đang mở (kể cả localhost).
+  // Trước đây bỏ qua localhost rồi rơi xuống APP_URL=nanoai.vn → redirectTo OAuth sai domain,
+  // cookie PKCE ở localhost nhưng callback về production → không đăng nhập được trên dev.
   try {
     const h = headers()
     if (h) {
-      const host = h.get('host') ?? h.get('x-forwarded-host') ?? ''
-      const proto = h.get('x-forwarded-proto') ?? h.get('x-forwarded-ssl') ?? 'http'
-      if (host && !host.includes('localhost') && !host.includes('127.0.0.1')) {
-        return `${proto === 'on' || proto === 'https' ? 'https' : proto}://${host}`.replace(/\/$/, '')
+      const host = (h.get('host') ?? h.get('x-forwarded-host') ?? '').trim()
+      if (host) {
+        const xfProto = (h.get('x-forwarded-proto') ?? h.get('x-forwarded-ssl') ?? '')
+          .toLowerCase()
+        const isLocal = host.includes('localhost') || host.includes('127.0.0.1')
+        const scheme =
+          xfProto === 'https' || xfProto === 'on'
+            ? 'https'
+            : xfProto === 'http'
+              ? 'http'
+              : isLocal
+                ? 'http'
+                : 'https'
+        return `${scheme}://${host}`.replace(/\/$/, '')
       }
     }
   } catch {
     /* ignore */
   }
-  // 2. APP_URL (runtime)
+  // 2. APP_URL (runtime) — khi không đọc được Host (hiếm)
   const appUrl = process.env.APP_URL
-  if (appUrl && !appUrl.includes('localhost') && !appUrl.includes('127.0.0.1')) {
+  if (appUrl?.trim()) {
     return appUrl.replace(/\/$/, '')
   }
   // 3. NEXT_PUBLIC_BASE_URL
-  const envUrl = process.env.NEXT_PUBLIC_BASE_URL
-  if (envUrl && !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')) {
-    return envUrl
+  const envUrl = process.env.NEXT_PUBLIC_BASE_URL?.trim()
+  if (envUrl) {
+    return envUrl.replace(/\/$/, '')
   }
   // 4. Hardcode production
   if (process.env.NODE_ENV === 'production') {
     return PRODUCTION_URL
   }
-  return envUrl ?? 'http://localhost:3000'
+  return 'http://localhost:3000'
 }
 
 function nextQueryFromForm(formData: FormData): string {
@@ -49,7 +61,7 @@ export async function login(formData: FormData) {
   if (!formData || typeof formData.get !== 'function') {
     redirect('/auth/login?error=Invalid request')
   }
-  const supabase = createClient()
+  const supabase = createSupabaseMutableCookiesClient()
   const nq = nextQueryFromForm(formData)
 
   const email = formData.get('email') as string
@@ -72,7 +84,7 @@ export async function signup(formData: FormData) {
   if (!formData || typeof formData.get !== 'function') {
     redirect('/auth/login?error=Invalid request')
   }
-  const supabase = createClient()
+  const supabase = createSupabaseMutableCookiesClient()
   const nq = nextQueryFromForm(formData)
 
   const email = formData.get('email') as string
@@ -98,14 +110,18 @@ export async function signup(formData: FormData) {
 }
 
 export async function signInWithGoogle(formData: FormData) {
-  const supabase = createClient()
+  const supabase = createSupabaseMutableCookiesClient()
   const nextPath = sanitizeLoginNext(String(formData.get('next') ?? ''))
 
-  // Luôn dùng PRODUCTION_URL cho OAuth callback (tránh redirect về localhost)
-  const baseUrl = getBaseUrl()
-  const oauthRedirect = baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1')
-    ? baseUrl
-    : PRODUCTION_URL
+  // Callback phải cùng origin với trang đang đăng nhập (cookie PKCE/code-verifier theo domain).
+  // Ép PRODUCTION_URL khi không phải localhost từng làm lệch www / staging / preview → đổi mã lỗi, không có phiên.
+  let oauthRedirect = getBaseUrl().replace(/\/$/, '')
+  if (
+    process.env.NODE_ENV === 'production' &&
+    (oauthRedirect.includes('localhost') || oauthRedirect.includes('127.0.0.1'))
+  ) {
+    oauthRedirect = (process.env.APP_URL || PRODUCTION_URL).replace(/\/$/, '')
+  }
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {

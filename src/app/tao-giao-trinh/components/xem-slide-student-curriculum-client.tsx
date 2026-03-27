@@ -98,6 +98,8 @@ export default function XemSlideStudentCurriculumClient() {
       worksheetStemTypingEnabled
       presentationBroadcastSyncId={presentationBroadcastSyncId}
       syncedStudentCurriculumRightMode={data.studentCurriculumRightMode ?? null}
+      syncedStudentCurriculumLeftPane={data.teacherSlideLeftPane ?? null}
+      curriculumInfographic={data.curriculumInfographic ?? null}
     />
   )
 }

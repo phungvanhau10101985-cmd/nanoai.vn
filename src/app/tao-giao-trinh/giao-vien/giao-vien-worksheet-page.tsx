@@ -15,6 +15,7 @@ import { PersonalHistorySheet } from '../components/personal-history-sheet'
 import { SlideEditHistorySheet } from '../components/slide-edit-history-sheet'
 import { PresentationControlBar } from '../components/presentation-control-bar'
 import { WorksheetAnswerTypedBody } from '../components/worksheet-answer-typed-body'
+import { POINTER_PROSE_ROOT_ATTR, SLIDE_SYNC_MARKDOWN_CLASS } from '../components/slide-sync-markdown-classes'
 import { AnswerTypingPositionPopover } from '../components/answer-typing-position-popover'
 import {
   distributeGlobalRevealAcrossSlide,
@@ -899,6 +900,10 @@ export default function GiaoVienWorksheetPage() {
   const sectionRefs = useRef<(HTMLDivElement | null)[]>([])
   const firstMatchRef = useRef<HTMLElement | null>(null)
   const teacherVisualFrameRef = useRef<HTMLDivElement | null>(null)
+  /** Cột phải — vùng cuộn nội dung slide (chế độ 1 slide); map chuột ảo HS */
+  const teacherSlideContentPaneRef = useRef<HTMLDivElement | null>(null)
+  const teacherSlideContentLayoutRef = useRef<HTMLDivElement | null>(null)
+  const teacherSlidePointerSyncRef = useRef<HTMLDivElement | null>(null)
   const teacherVisualOverlayRef = useRef<HTMLDivElement | null>(null)
   const [viewportW, setViewportW] = useState(() => (typeof window !== 'undefined' ? window.innerWidth : 1280))
   const [stableLayoutWidth, setStableLayoutWidth] = useState(() => (typeof window !== 'undefined' ? window.innerWidth : 1280))
@@ -1762,6 +1767,72 @@ export default function GiaoVienWorksheetPage() {
           sendToStudentView({ type: 'mouse-pos', visualFrame: true, overlayRel: !!overlay, relX, relY })
         }
       } else {
+        if (teacherSlideContentPaneRef.current && slideViewMode === 'single') {
+          const scrollEl = teacherSlideContentPaneRef.current
+          const sr = scrollEl.getBoundingClientRect()
+          if (e.clientX >= sr.left && e.clientX <= sr.right && e.clientY >= sr.top && e.clientY <= sr.bottom) {
+            const syncEl = teacherSlidePointerSyncRef.current
+            if (syncEl) {
+              const pr = syncEl.getBoundingClientRect()
+              if (pr.width > 0 && pr.height > 0) {
+                const inside =
+                  e.clientX >= pr.left &&
+                  e.clientX <= pr.right &&
+                  e.clientY >= pr.top &&
+                  e.clientY <= pr.bottom
+                if (inside) {
+                  let targetRect = pr
+                  let pointerSlideIndex: number | undefined
+                  let pointerBlockIndex: number | undefined
+                  const proseRoot = (document.elementsFromPoint(e.clientX, e.clientY) as HTMLElement[])
+                    .map((el) => el.closest('[data-pointer-prose-root]') as HTMLElement | null)
+                    .find((el): el is HTMLElement => !!el && syncEl.contains(el))
+                  if (proseRoot) {
+                    const rr = proseRoot.getBoundingClientRect()
+                    if (rr.width > 0 && rr.height > 0) {
+                      targetRect = rr
+                      const slideRaw = proseRoot.getAttribute('data-slide-index')
+                      const blockRaw = proseRoot.getAttribute('data-block-index')
+                      const parsedSlide = slideRaw != null ? Number(slideRaw) : Number.NaN
+                      const parsedBlock = blockRaw != null ? Number(blockRaw) : Number.NaN
+                      if (Number.isFinite(parsedSlide)) pointerSlideIndex = parsedSlide
+                      if (Number.isFinite(parsedBlock)) pointerBlockIndex = parsedBlock
+                    }
+                  }
+                  const relX = (e.clientX - targetRect.left) / targetRect.width
+                  const relY = (e.clientY - targetRect.top) / targetRect.height
+                  sendToStudentView({
+                    type: 'mouse-pos',
+                    slideContentPane: true,
+                    slidePointerBody: true,
+                    pointerProseBlock: pointerSlideIndex != null && pointerBlockIndex != null,
+                    pointerSlideIndex,
+                    pointerBlockIndex,
+                    relX: Math.max(0, Math.min(1, relX)),
+                    relY: Math.max(0, Math.min(1, relY)),
+                  })
+                  return
+                }
+              }
+            }
+            const layoutEl = teacherSlideContentLayoutRef.current
+            if (layoutEl) {
+              const lr = layoutEl.getBoundingClientRect()
+              if (lr.width > 0 && lr.height > 0) {
+                const relX = (e.clientX - lr.left) / lr.width
+                const relY = (e.clientY - lr.top) / lr.height
+                sendToStudentView({
+                  type: 'mouse-pos',
+                  slideContentPane: true,
+                  slidePointerBody: false,
+                  relX: Math.max(0, Math.min(1, relX)),
+                  relY: Math.max(0, Math.min(1, relY)),
+                })
+                return
+              }
+            }
+          }
+        }
         sendToStudentView({
           type: 'mouse-pos',
           xrPx: Math.max(0, w - e.clientX),
@@ -1831,6 +1902,72 @@ export default function GiaoVienWorksheetPage() {
           sendToStudentView({ type: 'mouse-click', visualFrame: true, overlayRel: !!overlay, relX, relY })
         }
       } else {
+        if (teacherSlideContentPaneRef.current && slideViewMode === 'single') {
+          const scrollEl = teacherSlideContentPaneRef.current
+          const sr = scrollEl.getBoundingClientRect()
+          if (e.clientX >= sr.left && e.clientX <= sr.right && e.clientY >= sr.top && e.clientY <= sr.bottom) {
+            const syncEl = teacherSlidePointerSyncRef.current
+            if (syncEl) {
+              const pr = syncEl.getBoundingClientRect()
+              if (pr.width > 0 && pr.height > 0) {
+                const inside =
+                  e.clientX >= pr.left &&
+                  e.clientX <= pr.right &&
+                  e.clientY >= pr.top &&
+                  e.clientY <= pr.bottom
+                if (inside) {
+                  let targetRect = pr
+                  let pointerSlideIndex: number | undefined
+                  let pointerBlockIndex: number | undefined
+                  const proseRoot = (document.elementsFromPoint(e.clientX, e.clientY) as HTMLElement[])
+                    .map((el) => el.closest('[data-pointer-prose-root]') as HTMLElement | null)
+                    .find((el): el is HTMLElement => !!el && syncEl.contains(el))
+                  if (proseRoot) {
+                    const rr = proseRoot.getBoundingClientRect()
+                    if (rr.width > 0 && rr.height > 0) {
+                      targetRect = rr
+                      const slideRaw = proseRoot.getAttribute('data-slide-index')
+                      const blockRaw = proseRoot.getAttribute('data-block-index')
+                      const parsedSlide = slideRaw != null ? Number(slideRaw) : Number.NaN
+                      const parsedBlock = blockRaw != null ? Number(blockRaw) : Number.NaN
+                      if (Number.isFinite(parsedSlide)) pointerSlideIndex = parsedSlide
+                      if (Number.isFinite(parsedBlock)) pointerBlockIndex = parsedBlock
+                    }
+                  }
+                  const relX = (e.clientX - targetRect.left) / targetRect.width
+                  const relY = (e.clientY - targetRect.top) / targetRect.height
+                  sendToStudentView({
+                    type: 'mouse-click',
+                    slideContentPane: true,
+                    slidePointerBody: true,
+                    pointerProseBlock: pointerSlideIndex != null && pointerBlockIndex != null,
+                    pointerSlideIndex,
+                    pointerBlockIndex,
+                    relX: Math.max(0, Math.min(1, relX)),
+                    relY: Math.max(0, Math.min(1, relY)),
+                  })
+                  return
+                }
+              }
+            }
+            const layoutEl = teacherSlideContentLayoutRef.current
+            if (layoutEl) {
+              const lr = layoutEl.getBoundingClientRect()
+              if (lr.width > 0 && lr.height > 0) {
+                const relX = (e.clientX - lr.left) / lr.width
+                const relY = (e.clientY - lr.top) / lr.height
+                sendToStudentView({
+                  type: 'mouse-click',
+                  slideContentPane: true,
+                  slidePointerBody: false,
+                  relX: Math.max(0, Math.min(1, relX)),
+                  relY: Math.max(0, Math.min(1, relY)),
+                })
+                return
+              }
+            }
+          }
+        }
         sendToStudentView({
           type: 'mouse-click',
           xrPx: Math.max(0, w - e.clientX),
@@ -1844,7 +1981,22 @@ export default function GiaoVienWorksheetPage() {
       window.removeEventListener('mousemove', sendPointerMove)
       window.removeEventListener('mousedown', sendPointerClick)
     }
-  }, [sendToStudentView, visualFullscreenOpen, quizPopupOpen])
+  }, [sendToStudentView, visualFullscreenOpen, quizPopupOpen, slideViewMode])
+
+  useEffect(() => {
+    if (!studentViewOpened) return
+    if (slideViewMode !== 'single') return
+    const el = teacherSlidePointerSyncRef.current ?? teacherSlideContentLayoutRef.current
+    if (!el) return
+    const emit = () => {
+      const w = Math.round(el.getBoundingClientRect().width)
+      if (w > 0) sendToStudentView({ type: 'slide-content-layout', layoutW: w })
+    }
+    emit()
+    const ro = new ResizeObserver(() => emit())
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [studentViewOpened, slideViewMode, sendToStudentView, currentIndex])
 
   const openStudentView = useCallback(() => {
     if (typeof window === 'undefined') return
@@ -3326,7 +3478,7 @@ export default function GiaoVienWorksheetPage() {
               </div>
             </div>
             {slideViewMode === 'single' ? (
-              <div className="flex-1 flex items-start justify-start min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain p-2 md:p-3">
+              <div ref={teacherSlideContentPaneRef} className="flex-1 flex items-start justify-start min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain p-2 md:p-3">
                 {(() => {
                   const s = slides[currentIndex]
                   const blks = !s ? [] : (Array.isArray(s.blocks) && s.blocks.length ? s.blocks : s.content ? parseContentToBlocks(s.content ?? '') : [])
@@ -3339,6 +3491,7 @@ export default function GiaoVienWorksheetPage() {
                         </div>
                       )}
                       <div className="w-full rounded-xl bg-amber-500/10 ring-2 ring-amber-400/40 border border-amber-400/30 p-2.5 shadow-lg flex flex-col">
+                        <div ref={teacherSlideContentLayoutRef} className="w-full min-w-0 flex flex-col">
                         <div className="flex items-center justify-between gap-1.5 mb-2 flex-wrap shrink-0">
                           {editingTitle === currentIndex ? (
                             <div className="flex-1 flex gap-2 items-center flex-wrap min-w-0">
@@ -3435,6 +3588,7 @@ export default function GiaoVienWorksheetPage() {
                             </>
                           )}
                         </div>
+                        <div ref={teacherSlidePointerSyncRef} className="w-full min-w-0">
                         {blks.length > 0 ? (
                           <div className="space-y-2 min-h-0 overflow-y-auto">
                             {renderSlideLevelTypingToolbar(currentIndex, blks, 'comfortable')}
@@ -3589,7 +3743,12 @@ export default function GiaoVienWorksheetPage() {
                                         />
                                       ) : (
                                         <>
-                                          <div className="text-slate-200/95 text-base md:text-lg whitespace-pre-wrap break-words leading-relaxed min-w-0 text-left space-y-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:space-y-2 [&_p]:my-2">
+                                          <div
+                                            {...{ [POINTER_PROSE_ROOT_ATTR]: '' }}
+                                            data-slide-index={currentIndex}
+                                            data-block-index={i}
+                                            className={cn(SLIDE_SYNC_MARKDOWN_CLASS, 'text-slate-200/95')}
+                                          >
                                             {asArray(splitContentWithEmbeds(b.content ?? '')).map((p, j) => {
                                               if (p.type === 'text') return p.value ? <span key={j}>{p.value}</span> : null
                                               if (p.type === 'embed' && p.embedType === 'quiz') {
@@ -3728,7 +3887,12 @@ export default function GiaoVienWorksheetPage() {
                                 </div>
                               ) : (
                                 <>
-                                  <div className="text-slate-200 text-base md:text-lg whitespace-pre-wrap break-words leading-relaxed min-w-0 text-left space-y-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:space-y-2 [&_p]:my-2">
+                                  <div
+                                    {...{ [POINTER_PROSE_ROOT_ATTR]: '' }}
+                                    data-slide-index={currentIndex}
+                                    data-block-index={0}
+                                    className={cn(SLIDE_SYNC_MARKDOWN_CLASS, 'text-slate-200')}
+                                  >
                                     {asArray(splitContentWithEmbeds(s.content ?? '')).map((p, j) => {
                                       if (p.type === 'text') return p.value ? <span key={j}>{p.value}</span> : null
                                       if (p.type === 'embed' && p.embedType === 'quiz') {
@@ -3841,6 +4005,8 @@ export default function GiaoVienWorksheetPage() {
                         ) : (
                           <p className="text-slate-500 text-sm py-2">{tr('Không có nội dung', 'No content', '无内容', 'コンテンツなし', '내용 없음')}</p>
                         )}
+                        </div>
+                        </div>
                         {(curriculumId || worksheetId) && leftPanelMode === 'visual' && (
                           <div className="mt-2 rounded-lg border border-cyan-400/30 bg-cyan-500/10 p-2.5 space-y-2">
                             <div className="text-[11px] text-cyan-200/90">

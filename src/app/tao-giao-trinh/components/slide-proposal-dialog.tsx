@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { applySlideEditDirect, verifySlideEditProposalDraft } from '../actions'
+import { CURRICULUM_UI_CREDITS, formatCurriculumCredits } from '../lib/curriculum-credit-costs'
 
 interface SlideProposalDialogProps {
   open: boolean
@@ -97,6 +98,7 @@ export function SlideProposalDialog({
       originalText: segmentType === 'edit' ? toReplaceTrimmed : undefined,
       proposedText: replacementTrimmed,
       proposedHeader: segmentType === 'add' ? proposedHeader.trim() : undefined,
+      chargeCredits: true,
     })
     setChecking(false)
     if (res?.error) {
@@ -301,7 +303,9 @@ export function SlideProposalDialog({
               onClick={() => void handleCheckAI()}
               disabled={checking || loading || !canCheckAI}
             >
-              {checking ? tr('Đang kiểm tra AI...', 'Checking AI...', 'AI检查中...', 'AI確認中...', 'AI 확인 중...') : tr('Kiểm tra AI', 'Check AI', 'AI检查', 'AIチェック', 'AI 검사')}
+              {checking
+                ? tr('Đang kiểm tra AI...', 'Checking AI...', 'AI检查中...', 'AI確認中...', 'AI 확인 중...')
+                : `${tr('Kiểm tra AI', 'Check AI', 'AI检查', 'AIチェック', 'AI 검사')} (${formatCurriculumCredits(CURRICULUM_UI_CREDITS.slideProposalAICheck)} ${tr('credits', 'credits', '积分', 'クレジット', '크레딧')})`}
             </Button>
             <Button
               onClick={handleSubmit}

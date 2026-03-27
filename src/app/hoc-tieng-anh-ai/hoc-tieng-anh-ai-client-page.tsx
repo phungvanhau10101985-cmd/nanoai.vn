@@ -2261,6 +2261,7 @@ export default function HocTiengAnhAiClientPage() {
   const [presetReplayExpectedSentence, setPresetReplayExpectedSentence] = useState('')
   const [presetReplayNextTurnIndex, setPresetReplayNextTurnIndex] = useState(0)
   const isPresetPageSession = false
+  const englishCoachUsageContext = isCurrentPresetSession ? ('preset' as const) : ('live' as const)
   const [liveSessionExtraTurnUnlocks, setLiveSessionExtraTurnUnlocks] = useState(0)
   const [liveUnlockBusy, setLiveUnlockBusy] = useState(false)
   const [draft, setDraft] = useState('')
@@ -2510,7 +2511,11 @@ export default function HocTiengAnhAiClientPage() {
     const sourceText = String(text || '').trim()
     if (!sourceText) return ''
     try {
-      const { ok, data } = await transliterateText({ text: sourceText, languageCode: code })
+      const { ok, data } = await transliterateText({
+        text: sourceText,
+        languageCode: code,
+        coachUsageContext: englishCoachUsageContext,
+      })
       if (!ok) return ''
       return sanitizeRomanizedText(String(data.transliteration || '').trim())
     } catch {
@@ -3130,6 +3135,7 @@ export default function HocTiengAnhAiClientPage() {
         targetLanguage: activeTeacher.languageLabel,
         nativeLanguage: selectedNativeLanguage.apiLabel,
         learnerLevel,
+        coachUsageContext: englishCoachUsageContext,
       })
       if (!ok) throw new Error(data.error || localText('Không chuẩn hóa được chủ đề.', 'Failed to normalize topic.'))
       const normalized: CustomTopicItem = {
@@ -3194,6 +3200,7 @@ export default function HocTiengAnhAiClientPage() {
         targetLanguage: activeTeacher.languageLabel,
         nativeLanguage: selectedNativeLanguage.apiLabel,
         learnerLevel,
+        coachUsageContext: englishCoachUsageContext,
       })
       if (!ok) throw new Error(data.error || localText('Không tạo được giáo trình theo chủ đề.', 'Failed to generate topic curriculum.'))
       const nextCurriculum: TopicCurriculum = {
@@ -3424,6 +3431,7 @@ export default function HocTiengAnhAiClientPage() {
         targetLanguage: activeTeacher.languageLabel,
         nativeLanguage: selectedNativeLanguage.apiLabel,
         samples,
+        coachUsageContext: englishCoachUsageContext,
       })
       if (!ok) throw new Error(data.error || localText('Không chấm được level tự động.', 'Failed to run auto placement.'))
       const raw = Number(data.recommendedLevel)
@@ -3470,6 +3478,7 @@ export default function HocTiengAnhAiClientPage() {
         targetLanguage: activeTeacher.languageLabel,
         nativeLanguage: selectedNativeLanguage.apiLabel,
         samples,
+        coachUsageContext: englishCoachUsageContext,
       })
       if (!ok || !data.assessment) {
         throw new Error(data.error || localText('Không chạy được đánh giá CEFR.', 'Failed to run CEFR assessment.'))
@@ -4314,6 +4323,7 @@ export default function HocTiengAnhAiClientPage() {
         targetLanguageCode: languageCode,
         nativeLanguage: selectedNativeLanguage.apiLabel,
         topicLabel: selectedTopic.label,
+        coachUsageContext: englishCoachUsageContext,
       })
       if (!ok) throw new Error(data.error || localText('Không giải thích được câu trả lời.', 'Unable to explain this reply.'))
       const meaning = String(data.explanation || '').trim()
@@ -4374,6 +4384,7 @@ export default function HocTiengAnhAiClientPage() {
         nativeLanguage: selectedNativeLanguage.apiLabel,
         topicLabel: selectedTopic.label,
         explainType: 'idea2',
+        coachUsageContext: englishCoachUsageContext,
       })
       if (!ok) throw new Error(data.error || localText('Không giải thích được câu sửa.', 'Unable to explain corrected sentence.'))
       const meaning = String(data.explanation || '').trim()
@@ -4413,6 +4424,7 @@ export default function HocTiengAnhAiClientPage() {
         targetLanguageCode: languageCode,
         nativeLanguage: selectedNativeLanguage.apiLabel,
         topicLabel: selectedTopic.label,
+        coachUsageContext: englishCoachUsageContext,
       })
       if (!ok) throw new Error(data.error || localText('Không dịch được câu mở đầu.', 'Unable to translate opening line.'))
       const meaning = String(data.explanation || '').trim()
@@ -4459,6 +4471,7 @@ export default function HocTiengAnhAiClientPage() {
         targetLanguageCode: languageCode,
         nativeLanguage: selectedNativeLanguage.apiLabel,
         topicLabel: selectedTopic.label,
+        coachUsageContext: englishCoachUsageContext,
       })
       if (!ok) throw new Error(data.error || localText('Không dịch được.', 'Unable to translate.'))
       const meaning = String(data.explanation || '').trim()
@@ -4494,6 +4507,7 @@ export default function HocTiengAnhAiClientPage() {
         targetLanguageCode: languageCode,
         nativeLanguage: selectedNativeLanguage.apiLabel,
         topicLabel: selectedTopic.label,
+        coachUsageContext: englishCoachUsageContext,
       })
       if (!ok) throw new Error(data.error || localText('Không dịch được câu học viên.', 'Unable to translate student sentence.'))
       const meaning = String(data.explanation || '').trim()
@@ -4796,6 +4810,7 @@ export default function HocTiengAnhAiClientPage() {
         sentence,
         targetLanguage: activeTeacher.languageLabel,
         targetLanguageCode: languageCode,
+        coachUsageContext: isCurrentPresetSession ? 'preset' : 'live',
         ...(isUuidMessageId(messageId) ? { messageId } : {}),
       })
       const fromCache = Boolean((data as { cached?: boolean }).cached)
@@ -4927,6 +4942,7 @@ export default function HocTiengAnhAiClientPage() {
         contextSentence: buildWordContextSnippet(sentence, word),
         targetLanguage: activeTeacher.languageLabel,
         nativeLanguage: selectedNativeLanguage.apiLabel,
+        coachUsageContext: englishCoachUsageContext,
       })
       const payload = data as WordInsight & { error?: string }
       if (!ok) throw new Error(payload.error || localText('Không phân tích được từ này.', 'Failed to analyze this word.'))
@@ -8014,6 +8030,7 @@ export default function HocTiengAnhAiClientPage() {
       nativeLanguage: selectedNativeLanguage.apiLabel,
       nativeLanguageCode,
       speakingMode: speakingLanguageMode,
+      coachUsageContext: isCurrentPresetSession ? 'preset' : 'live',
     })
     const payload = data as {
       targetTranscript?: string

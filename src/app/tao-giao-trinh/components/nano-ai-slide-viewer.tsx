@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo } from 'react'
+import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo, type PointerEvent as ReactPointerEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { X, ArrowRight, TrendingUp, CalendarCheck, Lightbulb, BookOpen, Target, ClipboardList, Maximize2, Timer, Link2, Copy, ExternalLink, FileText, Square } from 'lucide-react'
+import { X, ArrowRight, TrendingUp, CalendarCheck, Lightbulb, BookOpen, Target, ClipboardList, Maximize2, Timer, Link2, Copy, ExternalLink, FileText, Square, BarChart3 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -22,6 +22,12 @@ import { saveSlidesToCurriculum, saveUserCustomizedSlides } from '../actions'
 import { useScreenShare } from '../hooks/use-screen-share'
 import { useScreenShareLive } from '../hooks/use-screen-share-live'
 import { curriculumSlideTitleRevealKey, findFirstSequentialSolutionBlockIndex, worksheetAnswerSegmentCount } from '../lib/worksheet-answer-segments'
+import type { SlideInfographic } from '../lib/slide-infographic'
+import {
+  applyInfographicToDefaultVisualCells,
+  skipInfographicDefaultSwapNano,
+  visualImageIsCurriculumInfographic,
+} from '../lib/default-visual-image'
 import { createPresentationSyncId, getPresentationBroadcastChannelName, LEGACY_PRESENTATION_BROADCAST_CHANNEL } from '../lib/presentation-broadcast'
 import { getStudentSlideWindowConfig, isPathMatchingStudentSlideKind, studentSlideUrlWithSync, STUDENT_WINDOW_NAME_CURRICULUM, STUDENT_WINDOW_NAME_WORKSHEET } from '../lib/student-slide-window'
 
@@ -75,6 +81,31 @@ function getVisibleImageBounds(img: HTMLImageElement): { left: number; top: numb
   return { left: rect.left + ox, top: rect.top + oy, width: dw, height: dh }
 }
 
+function clamp01(n: number): number {
+  if (n < 0) return 0
+  if (n > 1) return 1
+  return n
+}
+
+function densifyStrokePoints(last: InfographicDrawPoint, next: InfographicDrawPoint): InfographicDrawPoint[] {
+  const dx = next.u - last.u
+  const dy = next.v - last.v
+  const dist = Math.hypot(dx, dy)
+  // normalized 0..1 space; smaller step reduces visible broken segments
+  const step = 0.0015
+  const segments = Math.max(1, Math.ceil(dist / step))
+  if (segments <= 1) return [{ u: clamp01(next.u), v: clamp01(next.v) }]
+  const pts: InfographicDrawPoint[] = []
+  for (let i = 1; i <= segments; i += 1) {
+    const t = i / segments
+    pts.push({
+      u: clamp01(last.u + dx * t),
+      v: clamp01(last.v + dy * t),
+    })
+  }
+  return pts
+}
+
 const ICON_MAP: Record<string, React.ReactNode> = {
   'định nghĩa': <ArrowRight className="h-5 w-5" />,
   'quy tắc': <TrendingUp className="h-5 w-5" />,
@@ -114,6 +145,18 @@ type SlideItem = {
   visualInput4?: string
 }
 
+type InfographicDrawTool = 'pen' | 'eraser'
+type InfographicDrawPoint = { u: number; v: number }
+type InfographicDrawStroke = {
+  id: string
+  tool: InfographicDrawTool
+  color: string
+  sizeNorm: number
+  points: InfographicDrawPoint[]
+}
+
+const INFOGRAPHIC_DRAW_COLORS = ['#ef4444', '#22c55e', '#3b82f6', '#f59e0b', '#ffffff'] as const
+
 export type SlideMode = 'original' | 'shared' | 'personal'
 
 interface NanoAISlideViewerProps {
@@ -149,6 +192,10 @@ interface NanoAISlideViewerProps {
   presentationBroadcastSyncId?: string | null
   /** Đồng bộ từ `curriculum-data` (GV) — cột phải một slide / cả khóa */
   syncedStudentCurriculumRightMode?: 'single-slide' | 'markdown-all' | null
+  /** Đồng bộ từ `curriculum-data` (GV) — tab cột trái: Visual / Infographic (trong khung, không fullscreen) */
+  syncedStudentCurriculumLeftPane?: 'visual' | 'infographic' | null
+  /** Một infographic cho cả giáo trình (không gắn từng slide) */
+  curriculumInfographic?: SlideInfographic | null
 }
 
 function ScreenShareVideo({ stream }: { stream: MediaStream }) {
@@ -226,6 +273,21 @@ function getVisualCells(slide: SlideItem): { layout: 1 | 2 | 4; cells: VisualCel
   }
   if (slide.imageUrl) return { layout: 1, cells: [{ imageUrl: slide.imageUrl }] }
   return { layout, cells: Array.from({ length: numCells }, () => ({})) }
+}
+
+/** Hiển thị Visual: thay ảnh stock mặc định bằng infographic khi có — không đụng embed GV / biểu đồ. */
+function getVisualCellsForPresentation(
+  slide: SlideItem,
+  curriculumInfographic: SlideInfographic | null | undefined,
+): { layout: 1 | 2 | 4; cells: VisualCell[] } {
+  const raw = getVisualCells(slide)
+  const infUrl = curriculumInfographic?.imageUrl
+  if (!infUrl?.trim()) return raw
+  const skip = skipInfographicDefaultSwapNano(slide)
+  const swapped = applyInfographicToDefaultVisualCells(raw, infUrl, skip) as { layout: 1 | 2 | 4; cells: VisualCell[] }
+  const hasAnyVisual = swapped.cells.some((c) => String(c.visualEmbed ?? '').trim() || String(c.imageUrl ?? '').trim())
+  if (hasAnyVisual) return swapped
+  return { layout: 1, cells: [{ imageUrl: infUrl.trim() }] }
 }
 
 function getSlideVisualInputs(slide: SlideItem): string[] {
@@ -446,7 +508,7 @@ function getBaseSlides(curriculumMarkdown: string, topic: string, aiSlides: AISl
   return topic ? [{ title: topic, content: '' }, ...parsed] : parsed
 }
 
-export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides, curriculumId, subjectId, gradeLevelId, tr, onSlidesSaved, slideMode, originalSlides, initialSlideIndex, isTeacherView = true, onOpenStudentView: onOpenStudentViewProp, worksheetPresentation = false, worksheetAnswerReveal, worksheetAnswerTypingEnabled, presentationBroadcastSyncId = null, syncedStudentCurriculumRightMode = null }: NanoAISlideViewerProps) {
+export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides, curriculumId, subjectId, gradeLevelId, tr, onSlidesSaved, slideMode, originalSlides, initialSlideIndex, isTeacherView = true, onOpenStudentView: onOpenStudentViewProp, worksheetPresentation = false, worksheetAnswerReveal, worksheetAnswerTypingEnabled, presentationBroadcastSyncId = null, syncedStudentCurriculumRightMode = null, syncedStudentCurriculumLeftPane = null, curriculumInfographic: curriculumInfographicProp }: NanoAISlideViewerProps) {
   const { toast } = useToast()
   const [slides, setSlides] = useState<SlideItem[]>([])
   const [currentIndex, setCurrentIndex] = useState(0)
@@ -491,6 +553,18 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   stopScreenShareLiveRef.current = stopScreenShareLive
   const [visualFullscreenOpen, setVisualFullscreenOpen] = useState(false)
   const [expandedCellIndex, setExpandedCellIndex] = useState<number | null>(null)
+  const [curriculumInfographic, setCurriculumInfographic] = useState<SlideInfographic | undefined>(undefined)
+  const curriculumInfographicRef = useRef<SlideInfographic | undefined>(undefined)
+  curriculumInfographicRef.current = curriculumInfographic
+  useEffect(() => {
+    if (curriculumInfographicProp === undefined) return
+    setCurriculumInfographic(curriculumInfographicProp ?? undefined)
+  }, [curriculumInfographicProp])
+  /** Giáo trình (không phiếu): tab cột trái — Visual / Infographic trong khung (GV: presenterLeftTab; HS: studentCurriculumLeftPaneTab) */
+  const [presenterLeftTab, setPresenterLeftTab] = useState<'visual' | 'infographic'>('visual')
+  const [studentCurriculumLeftPaneTab, setStudentCurriculumLeftPaneTab] = useState<'visual' | 'infographic'>('visual')
+  const isStudentCurriculumSlide = !isTeacherView && !worksheetPresentation
+  const [infographicFullscreenOpen, setInfographicFullscreenOpen] = useState(false)
   /** Học sinh + giáo trình (không phiếu): cột phải — một slide hoặc toàn bộ slide nối liền (markdown). */
   const [studentCurriculumRightMode, setStudentCurriculumRightMode] = useState<'single-slide' | 'markdown-all'>('single-slide')
   const notifyTeacherStudentCurriculumMode = useCallback((mode: 'single-slide' | 'markdown-all') => {
@@ -500,15 +574,37 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       /* ignore */
     }
   }, [])
+  const notifyTeacherStudentCurriculumLeftPane = useCallback((pane: 'visual' | 'infographic') => {
+    try {
+      window.opener?.postMessage({ type: 'student-curriculum-left-pane-changed', pane }, window.location.origin)
+    } catch {
+      /* ignore */
+    }
+  }, [])
   useEffect(() => {
     if (syncedStudentCurriculumRightMode !== 'markdown-all' && syncedStudentCurriculumRightMode !== 'single-slide') return
     setStudentCurriculumRightMode(syncedStudentCurriculumRightMode)
   }, [syncedStudentCurriculumRightMode])
+  useEffect(() => {
+    if (syncedStudentCurriculumLeftPane !== 'infographic' && syncedStudentCurriculumLeftPane !== 'visual') return
+    setStudentCurriculumLeftPaneTab(syncedStudentCurriculumLeftPane)
+  }, [syncedStudentCurriculumLeftPane])
   const fullscreenOverlayRef = useRef<HTMLDivElement>(null)
+  const infographicFullscreenOverlayRef = useRef<HTMLDivElement | null>(null)
   const studentVisualFrameRef = useRef<HTMLDivElement | null>(null)
+  /** Cột Visual trong slide (chưa fullscreen): các ô con đồng bộ cellIndex với GV */
+  const studentEmbeddedVisualFrameRef = useRef<HTMLDivElement | null>(null)
   const studentMarkdownAllScrollRef = useRef<HTMLDivElement | null>(null)
   /** Cột phải HS: khung thật sự có overflow-y-auto (cha của danh sách chuỗi slide). */
   const studentMdRightColumnScrollRef = useRef<HTMLDivElement | null>(null)
+  /** Con của scroll: cùng chiều rộng nội dung với GV → xuống dòng khớp; map chuột theo toàn khối nội dung. */
+  const studentSlideContentLayoutRef = useRef<HTMLDivElement | null>(null)
+  /** Phần thân slide sau tiêu đề — map chuột ảo theo `slidePointerBody` từ GV. */
+  const studentSlidePointerSyncRef = useRef<HTMLDivElement | null>(null)
+  /** Chiều rộng cột nội dung GV (px) — ép khối HS để wrap giống GV. */
+  const [syncedTeacherSlideLayoutW, setSyncedTeacherSlideLayoutW] = useState<number | null>(null)
+  /** clientWidth của vùng cuộn cột phải HS (để min(width, khả dụng)). */
+  const [studentMdScrollClientW, setStudentMdScrollClientW] = useState(0)
   /** Khoảng trống cuộn thêm dưới cùng chuỗi slide ≈ ½ chiều cao slide đang chọn. */
   const [studentMdChainBottomSpacerPx, setStudentMdChainBottomSpacerPx] = useState(160)
   const [timerSeconds, setTimerSeconds] = useState(0)
@@ -529,15 +625,48 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   }, [viewportW])
   /** Dưới 768px: visual + nội dung xếp dọc full width; từ md: giữ neo phải + minWidth như desktop */
   const narrowSlideLayout = viewportW < 768
+
+  useEffect(() => {
+    if (isTeacherView) return
+    const el = studentMdRightColumnScrollRef.current
+    if (!el) return
+    const upd = () => setStudentMdScrollClientW(el.clientWidth)
+    upd()
+    const ro = new ResizeObserver(upd)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [isTeacherView, narrowSlideLayout, presentationMode, slides.length, currentIndex])
+
   const [virtualMousePos, setVirtualMousePos] = useState<{ x: number; y: number } | null>(null)
   const [mouseTrail, setMouseTrail] = useState<Array<{ x: number; y: number }>>([])
   const [mouseClicks, setMouseClicks] = useState<Array<{ id: number; x: number; y: number }>>([])
+  /** Nét vẽ infographic theo phiên mở (không lưu DB), key theo slideIndex */
+  const [infographicDrawStrokesBySlide, setInfographicDrawStrokesBySlide] = useState<Record<number, InfographicDrawStroke[]>>({})
+  const [infographicDrawTool, setInfographicDrawTool] = useState<InfographicDrawTool>('pen')
+  const [infographicDrawBrushPx, setInfographicDrawBrushPx] = useState(4)
+  const [infographicDrawColor, setInfographicDrawColor] = useState<string>(INFOGRAPHIC_DRAW_COLORS[0])
+  const infographicPaneStageRef = useRef<HTMLDivElement | null>(null)
+  const infographicPaneImageRef = useRef<HTMLImageElement | null>(null)
+  const infographicPaneCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const infographicFullscreenStageRef = useRef<HTMLDivElement | null>(null)
+  const infographicFullscreenImageRef = useRef<HTMLImageElement | null>(null)
+  const infographicFullscreenCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const infographicDrawingRef = useRef<{
+    target: 'pane' | 'fullscreen'
+    strokeId: string
+    slideIndex: number
+    pointerId: number
+    removeListeners?: () => void
+  } | null>(null)
   const mouseThrottleRef = useRef(0)
   const processedSyncSeqRef = useRef<Set<number>>(new Set())
   const quizPopupScrollApplyingRef = useRef(false)
   const closeVisualFullscreenRef = useRef<(opts?: { fromMessage?: boolean }) => void>(() => {})
   const lastLocalVisualOpenRef = useRef<number>(0)
   const visualFullscreenOpenedFromTeacherRef = useRef(false)
+  const closeInfographicFullscreenRef = useRef<(opts?: { fromMessage?: boolean }) => void>(() => {})
+  const lastLocalInfographicOpenRef = useRef<number>(0)
+  const infographicFullscreenOpenedFromTeacherRef = useRef(false)
 
   const { receivedStream: screenShareStream, isReceiving: isScreenShareActive } = useScreenShare({
     role: 'student',
@@ -575,6 +704,15 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   }, [isScreenShareLiveActive, screenShareLiveUrl])
 
   const openVisualFullscreen = useCallback((cellIndex?: number, fromMessage?: boolean) => {
+    setInfographicFullscreenOpen(false)
+    infographicFullscreenOpenedFromTeacherRef.current = false
+    if (!fromMessage) {
+      if (typeof window !== 'undefined' && window.opener && !window.opener.closed) {
+        try {
+          window.opener.postMessage({ type: 'infographic-fullscreen-close', fromStudent: true }, window.location.origin)
+        } catch { /* ignore */ }
+      }
+    }
     setExpandedCellIndex(cellIndex ?? null)
     setVisualFullscreenOpen(true)
     visualFullscreenOpenedFromTeacherRef.current = !!fromMessage
@@ -587,6 +725,90 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       }
     }
   }, [])
+
+  const openInfographicFullscreen = useCallback((fromMessage?: boolean) => {
+    if (!curriculumInfographic) {
+      if (isStudentCurriculumSlide) {
+        toast({
+          title: tr(
+            'Chưa có infographic',
+            'No infographic yet',
+            '尚无信息图',
+            'インフォグラフィックがありません',
+            '인포그래픽 없음'
+          ),
+          variant: 'destructive',
+        })
+      }
+      return
+    }
+    setVisualFullscreenOpen(false)
+    setExpandedCellIndex(null)
+    visualFullscreenOpenedFromTeacherRef.current = false
+    if (!fromMessage) {
+      if (typeof window !== 'undefined' && window.opener && !window.opener.closed) {
+        try {
+          window.opener.postMessage({ type: 'visual-fullscreen-close', fromStudent: true }, window.location.origin)
+        } catch { /* ignore */ }
+      }
+    }
+    setInfographicFullscreenOpen(true)
+    infographicFullscreenOpenedFromTeacherRef.current = !!fromMessage
+    if (!fromMessage) {
+      lastLocalInfographicOpenRef.current = Date.now()
+      if (typeof window !== 'undefined' && window.opener && !window.opener.closed) {
+        try {
+          window.opener.postMessage({ type: 'infographic-fullscreen-open', fromStudent: true }, window.location.origin)
+        } catch { /* ignore */ }
+      }
+    }
+  }, [curriculumInfographic, isStudentCurriculumSlide, toast, tr])
+
+  const closeInfographicFullscreen = useCallback((opts?: { fromMessage?: boolean }) => {
+    const fromMessage = !!opts?.fromMessage
+    const shouldReturnTeacher = infographicFullscreenOpenedFromTeacherRef.current && !fromMessage
+    try {
+      const isFs = document.fullscreenElement ?? (document as Document & { webkitFullscreenElement?: Element }).webkitFullscreenElement
+      if (isFs) {
+        const exitFs = document.exitFullscreen ?? (document as Document & { webkitExitFullscreen?: () => Promise<void> }).webkitExitFullscreen
+        exitFs?.()?.catch(() => {})
+      }
+    } catch {
+      /* ignore */
+    }
+    setInfographicFullscreenOpen(false)
+    infographicFullscreenOpenedFromTeacherRef.current = false
+    if (typeof window !== 'undefined' && window.opener && !window.opener.closed) {
+      const opener = window.opener as Window
+      const focusTeacherWindow = () => {
+        try { opener.postMessage({ type: 'teacher-focus-request' }, window.location.origin) } catch { /* ignore */ }
+        try { opener.focus() } catch { /* ignore */ }
+        try {
+          const openerName = (opener as Window & { name?: string }).name
+          if (openerName) {
+            const winRef = window.open('', openerName)
+            if (winRef) {
+              try { winRef.focus() } catch { /* ignore */ }
+            }
+          }
+        } catch {
+          /* ignore opener name errors */
+        }
+      }
+      try {
+        opener.postMessage(
+          { type: 'infographic-fullscreen-close', fromStudent: true, returnTeacher: shouldReturnTeacher },
+          window.location.origin
+        )
+      } catch { /* ignore */ }
+      if (shouldReturnTeacher) {
+        focusTeacherWindow()
+        setTimeout(focusTeacherWindow, 90)
+        setTimeout(focusTeacherWindow, 280)
+      }
+    }
+  }, [])
+  closeInfographicFullscreenRef.current = closeInfographicFullscreen
 
   const tryRequestFullscreen = useCallback(() => {
     const el = fullscreenOverlayRef.current
@@ -606,6 +828,25 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     const t3 = setTimeout(() => tryRequestFullscreen(), 300)
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3) }
   }, [visualFullscreenOpen, tryRequestFullscreen])
+
+  const tryRequestInfographicFullscreen = useCallback(() => {
+    const el = infographicFullscreenOverlayRef.current
+    if (el) {
+      const reqFs = el.requestFullscreen ?? (el as HTMLElement & { webkitRequestFullscreen?: () => Promise<void> }).webkitRequestFullscreen
+      reqFs?.()?.catch(() => {})
+      return true
+    }
+    return false
+  }, [])
+
+  useLayoutEffect(() => {
+    if (!infographicFullscreenOpen) return
+    if (tryRequestInfographicFullscreen()) return
+    const t1 = setTimeout(() => tryRequestInfographicFullscreen(), 50)
+    const t2 = setTimeout(() => tryRequestInfographicFullscreen(), 150)
+    const t3 = setTimeout(() => tryRequestInfographicFullscreen(), 300)
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3) }
+  }, [infographicFullscreenOpen, tryRequestInfographicFullscreen])
 
   const closeVisualFullscreen = useCallback((opts?: { fromMessage?: boolean }) => {
     const fromMessage = !!opts?.fromMessage
@@ -661,12 +902,12 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   const isWorksheetTeacher = !curriculumId && isTeacherView
 
   useEffect(() => {
-    if (!isWorksheetTeacher) return
+    if (!isTeacherView) return
     syncChannelRef.current = typeof BroadcastChannel !== 'undefined'
-      ? new BroadcastChannel(getPresentationBroadcastChannelName(worksheetTabSyncId))
+      ? new BroadcastChannel(presentationBroadcastChannelName)
       : null
     return () => { syncChannelRef.current?.close(); syncChannelRef.current = null }
-  }, [isWorksheetTeacher, worksheetTabSyncId])
+  }, [isTeacherView, presentationBroadcastChannelName])
 
   const toStudentSlidePayload = useCallback((s: SlideItem) => {
     const normalized = getVisualCells(s)
@@ -694,6 +935,348 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     try { syncChannelRef.current?.postMessage(payload) } catch { /* ignore */ }
   }, [])
 
+  const sendInfographicDrawMessage = useCallback((msg: Record<string, unknown>) => {
+    if (isTeacherView) {
+      sendToStudentView(msg)
+      return
+    }
+    const payload = {
+      ...msg,
+      fromStudent: true,
+      __syncSeq: Date.now() * 1000 + (syncSeqRef.current++ % 1000),
+    }
+    try {
+      const opener = window.opener as Window | null
+      if (opener && !opener.closed) opener.postMessage(payload, window.location.origin)
+    } catch {
+      /* ignore */
+    }
+    try {
+      if (typeof BroadcastChannel !== 'undefined') {
+        const channel = new BroadcastChannel(presentationBroadcastChannelName)
+        channel.postMessage(payload)
+        channel.close()
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [isTeacherView, sendToStudentView, presentationBroadcastChannelName])
+
+  const upsertInfographicStroke = useCallback((slideIndex: number, stroke: InfographicDrawStroke) => {
+    setInfographicDrawStrokesBySlide((prev) => {
+      const list = prev[slideIndex] ?? []
+      const idx = list.findIndex((s) => s.id === stroke.id)
+      const nextList = idx >= 0 ? list.map((s, i) => (i === idx ? stroke : s)) : [...list, stroke]
+      return { ...prev, [slideIndex]: nextList }
+    })
+  }, [])
+
+  const appendInfographicStrokePoint = useCallback((slideIndex: number, strokeId: string, point: InfographicDrawPoint) => {
+    setInfographicDrawStrokesBySlide((prev) => {
+      const list = prev[slideIndex] ?? []
+      const idx = list.findIndex((s) => s.id === strokeId)
+      if (idx < 0) return prev
+      const target = list[idx]
+      const last = target.points[target.points.length - 1]
+      const appended = last ? densifyStrokePoints(last, point) : [{ u: clamp01(point.u), v: clamp01(point.v) }]
+      const nextStroke: InfographicDrawStroke = { ...target, points: [...target.points, ...appended] }
+      const nextList = list.map((s, i) => (i === idx ? nextStroke : s))
+      return { ...prev, [slideIndex]: nextList }
+    })
+  }, [])
+
+  const appendInfographicStrokePoints = useCallback((slideIndex: number, strokeId: string, points: InfographicDrawPoint[]) => {
+    if (!points || points.length === 0) return
+    setInfographicDrawStrokesBySlide((prev) => {
+      const list = prev[slideIndex] ?? []
+      const idx = list.findIndex((s) => s.id === strokeId)
+      if (idx < 0) return prev
+      const target = list[idx]
+      const appended: InfographicDrawPoint[] = []
+      let last = target.points[target.points.length - 1]
+      for (const pt of points) {
+        const normalized = { u: clamp01(pt.u), v: clamp01(pt.v) }
+        const dense = last ? densifyStrokePoints(last, normalized) : [normalized]
+        appended.push(...dense)
+        last = dense[dense.length - 1] ?? normalized
+      }
+      if (appended.length === 0) return prev
+      const nextStroke: InfographicDrawStroke = { ...target, points: [...target.points, ...appended] }
+      const nextList = list.map((s, i) => (i === idx ? nextStroke : s))
+      return { ...prev, [slideIndex]: nextList }
+    })
+  }, [])
+
+  const clearInfographicStrokes = useCallback((slideIndex: number) => {
+    setInfographicDrawStrokesBySlide((prev) => ({ ...prev, [slideIndex]: [] }))
+  }, [])
+
+  const undoInfographicStroke = useCallback((slideIndex: number) => {
+    setInfographicDrawStrokesBySlide((prev) => {
+      const list = prev[slideIndex] ?? []
+      if (list.length <= 0) return prev
+      return { ...prev, [slideIndex]: list.slice(0, -1) }
+    })
+  }, [])
+
+  const getInfographicStage = useCallback((target: 'pane' | 'fullscreen') => {
+    let container = target === 'pane' ? infographicPaneStageRef.current : infographicFullscreenStageRef.current
+    let img = target === 'pane' ? infographicPaneImageRef.current : infographicFullscreenImageRef.current
+    let canvas = target === 'pane' ? infographicPaneCanvasRef.current : infographicFullscreenCanvasRef.current
+    if (target === 'pane' && (!container || !img || !canvas)) {
+      const fallbackStage = document.querySelector('[data-infographic-draw-pane-stage]') as HTMLDivElement | null
+      const fallbackImg = fallbackStage?.querySelector('img') as HTMLImageElement | null
+      const fallbackCanvas = fallbackStage?.querySelector('[data-infographic-draw-pane-canvas]') as HTMLCanvasElement | null
+      if (fallbackStage && fallbackImg && fallbackCanvas) {
+        container = fallbackStage
+        img = fallbackImg
+        canvas = fallbackCanvas
+        infographicPaneStageRef.current = fallbackStage
+        infographicPaneImageRef.current = fallbackImg
+        infographicPaneCanvasRef.current = fallbackCanvas
+      }
+    }
+    if (!container || !img || !canvas || !img.complete || img.naturalWidth <= 0) return null
+    const vis = getVisibleImageBounds(img)
+    if (vis.width <= 0 || vis.height <= 0) return null
+    return { container, img, canvas, vis }
+  }, [])
+
+  const resolveInfographicPointerPoint = useCallback((target: 'pane' | 'fullscreen', clientX: number, clientY: number) => {
+    const stage = getInfographicStage(target)
+    if (!stage) return null
+    if (
+      clientX < stage.vis.left ||
+      clientX > stage.vis.left + stage.vis.width ||
+      clientY < stage.vis.top ||
+      clientY > stage.vis.top + stage.vis.height
+    ) {
+      return null
+    }
+    const u = clamp01((clientX - stage.vis.left) / stage.vis.width)
+    const v = clamp01((clientY - stage.vis.top) / stage.vis.height)
+    return { u, v, stage }
+  }, [getInfographicStage])
+
+  const renderInfographicCanvas = useCallback((target: 'pane' | 'fullscreen') => {
+    const stage = getInfographicStage(target)
+    if (!stage) return
+    const { canvas, container, vis } = stage
+    const strokes = infographicDrawStrokesBySlide[currentIndex] ?? []
+    const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1
+    const cr = container.getBoundingClientRect()
+    const left = vis.left - cr.left
+    const top = vis.top - cr.top
+    canvas.style.left = `${left}px`
+    canvas.style.top = `${top}px`
+    canvas.style.width = `${vis.width}px`
+    canvas.style.height = `${vis.height}px`
+    const pxW = Math.max(1, Math.round(vis.width * dpr))
+    const pxH = Math.max(1, Math.round(vis.height * dpr))
+    if (canvas.width !== pxW) canvas.width = pxW
+    if (canvas.height !== pxH) canvas.height = pxH
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    ctx.save()
+    ctx.scale(dpr, dpr)
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+    for (const s of strokes) {
+      if (!s.points || s.points.length < 1) continue
+      ctx.globalCompositeOperation = s.tool === 'eraser' ? 'destination-out' : 'source-over'
+      ctx.strokeStyle = s.color
+      ctx.lineWidth = Math.max(1.5, s.sizeNorm * vis.width)
+      ctx.beginPath()
+      const p0 = s.points[0]
+      const x0 = p0.u * vis.width
+      const y0 = p0.v * vis.height
+      ctx.moveTo(x0, y0)
+      if (s.points.length === 1) {
+        ctx.arc(x0, y0, Math.max(0.8, ctx.lineWidth * 0.5), 0, Math.PI * 2)
+        ctx.fillStyle = s.tool === 'eraser' ? '#000' : s.color
+        ctx.fill()
+      } else if (s.points.length === 2) {
+        const p1 = s.points[1]
+        ctx.lineTo(p1.u * vis.width, p1.v * vis.height)
+      } else {
+        for (let i = 1; i < s.points.length - 1; i += 1) {
+          const p = s.points[i]
+          const pn = s.points[i + 1]
+          const xc = ((p.u + pn.u) * vis.width) / 2
+          const yc = ((p.v + pn.v) * vis.height) / 2
+          ctx.quadraticCurveTo(p.u * vis.width, p.v * vis.height, xc, yc)
+        }
+        const last = s.points[s.points.length - 1]
+        const prev = s.points[s.points.length - 2]
+        ctx.quadraticCurveTo(prev.u * vis.width, prev.v * vis.height, last.u * vis.width, last.v * vis.height)
+      }
+      ctx.stroke()
+    }
+    ctx.restore()
+  }, [currentIndex, getInfographicStage, infographicDrawStrokesBySlide])
+
+  const startInfographicDrawing = useCallback((target: 'pane' | 'fullscreen', e: ReactPointerEvent<HTMLDivElement>) => {
+    if (!curriculumInfographic) return
+    e.preventDefault()
+    infographicDrawingRef.current?.removeListeners?.()
+    const resolved = resolveInfographicPointerPoint(target, e.clientX, e.clientY)
+    if (!resolved) return
+    const { u, v, stage } = resolved
+    const strokeId = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+    const sizeNorm = Math.max(0.0015, infographicDrawBrushPx / Math.max(stage.vis.width, 1))
+    const stroke: InfographicDrawStroke = {
+      id: strokeId,
+      tool: infographicDrawTool,
+      color: infographicDrawColor,
+      sizeNorm,
+      points: [{ u, v }],
+    }
+    upsertInfographicStroke(currentIndex, stroke)
+    sendInfographicDrawMessage({ type: 'infographic-draw-start', slideIndex: currentIndex, stroke })
+    const toPoints = (ev: PointerEvent, d: { target: 'pane' | 'fullscreen' }): InfographicDrawPoint[] => {
+      const samples = typeof ev.getCoalescedEvents === 'function' ? ev.getCoalescedEvents() : [ev]
+      const points: InfographicDrawPoint[] = []
+      for (const sample of samples) {
+        const r = resolveInfographicPointerPoint(d.target, sample.clientX, sample.clientY)
+        if (!r) continue
+        points.push({ u: r.u, v: r.v })
+      }
+      if (points.length === 0) {
+        const r = resolveInfographicPointerPoint(d.target, ev.clientX, ev.clientY)
+        if (r) points.push({ u: r.u, v: r.v })
+      }
+      return points
+    }
+    const queuedPoints: InfographicDrawPoint[] = []
+    let rafId: number | null = null
+    const flushQueuedPoints = () => {
+      if (queuedPoints.length === 0) return
+      const batch = queuedPoints.splice(0, queuedPoints.length)
+      appendInfographicStrokePoints(currentIndex, strokeId, batch)
+      sendInfographicDrawMessage({ type: 'infographic-draw-points', slideIndex: currentIndex, strokeId, points: batch })
+    }
+    const enqueuePoints = (points: InfographicDrawPoint[]) => {
+      if (points.length === 0) return
+      queuedPoints.push(...points)
+      if (rafId != null) return
+      rafId = window.requestAnimationFrame(() => {
+        rafId = null
+        flushQueuedPoints()
+      })
+    }
+    const onMove = (ev: PointerEvent) => {
+      const d = infographicDrawingRef.current
+      if (!d || d.pointerId !== ev.pointerId) return
+      const points = toPoints(ev, d)
+      enqueuePoints(points)
+    }
+    const onEnd = (ev: PointerEvent) => {
+      const d = infographicDrawingRef.current
+      if (!d || d.pointerId !== ev.pointerId) return
+      const points = toPoints(ev, d)
+      enqueuePoints(points)
+      if (rafId != null) {
+        window.cancelAnimationFrame(rafId)
+        rafId = null
+      }
+      flushQueuedPoints()
+      d.removeListeners?.()
+      infographicDrawingRef.current = null
+    }
+    const removeListeners = () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerrawupdate' as unknown as keyof WindowEventMap, onMove as unknown as EventListener)
+      window.removeEventListener('pointerup', onEnd)
+      window.removeEventListener('pointercancel', onEnd)
+      if (rafId != null) {
+        window.cancelAnimationFrame(rafId)
+        rafId = null
+      }
+    }
+    const hasPointerRawUpdate = typeof (window as unknown as { onpointerrawupdate?: unknown }).onpointerrawupdate !== 'undefined'
+    if (hasPointerRawUpdate) {
+      window.addEventListener('pointerrawupdate' as unknown as keyof WindowEventMap, onMove as unknown as EventListener, { passive: true })
+    } else {
+      window.addEventListener('pointermove', onMove, { passive: true })
+    }
+    window.addEventListener('pointerup', onEnd)
+    window.addEventListener('pointercancel', onEnd)
+    infographicDrawingRef.current = { target, strokeId, slideIndex: currentIndex, pointerId: e.pointerId, removeListeners }
+  }, [curriculumInfographic, resolveInfographicPointerPoint, infographicDrawBrushPx, infographicDrawTool, infographicDrawColor, upsertInfographicStroke, currentIndex, sendInfographicDrawMessage, appendInfographicStrokePoints])
+
+  useEffect(() => {
+    const infographicKeyboardActive =
+      isTeacherView &&
+      !worksheetPresentation &&
+      !!curriculumInfographic &&
+      (infographicFullscreenOpen || presenterLeftTab === 'infographic')
+    if (!infographicKeyboardActive) return
+    const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null
+      if (target) {
+        const tag = (target.tagName || '').toLowerCase()
+        if (tag === 'input' || tag === 'textarea' || target.isContentEditable) return
+      }
+      const key = (e.key || '').toLowerCase()
+      if ((e.ctrlKey || e.metaKey) && key === 'z') {
+        e.preventDefault()
+        undoInfographicStroke(currentIndex)
+        sendInfographicDrawMessage({ type: 'infographic-draw-undo', slideIndex: currentIndex })
+        return
+      }
+      if (key === 'b') {
+        e.preventDefault()
+        setInfographicDrawTool('pen')
+        return
+      }
+      if (key === 'e') {
+        e.preventDefault()
+        setInfographicDrawTool('eraser')
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [isTeacherView, worksheetPresentation, curriculumInfographic, infographicFullscreenOpen, presenterLeftTab, undoInfographicStroke, currentIndex, sendInfographicDrawMessage])
+
+  useLayoutEffect(() => {
+    renderInfographicCanvas('pane')
+    renderInfographicCanvas('fullscreen')
+  }, [renderInfographicCanvas, currentIndex, infographicFullscreenOpen, presenterLeftTab, studentCurriculumLeftPaneTab, isTeacherView])
+
+  useEffect(() => {
+    const paneStage = infographicPaneStageRef.current
+    const paneImg = infographicPaneImageRef.current
+    const fsStage = infographicFullscreenStageRef.current
+    const fsImg = infographicFullscreenImageRef.current
+    const listeners: Array<() => void> = []
+    const ros: ResizeObserver[] = []
+    const bind = (target: 'pane' | 'fullscreen', stage: HTMLDivElement | null, img: HTMLImageElement | null) => {
+      if (!stage || !img) return
+      const redraw = () => renderInfographicCanvas(target)
+      const onLoad = () => redraw()
+      img.addEventListener('load', onLoad)
+      listeners.push(() => img.removeEventListener('load', onLoad))
+      const ro = new ResizeObserver(redraw)
+      ro.observe(stage)
+      ro.observe(img)
+      ros.push(ro)
+    }
+    bind('pane', paneStage, paneImg)
+    bind('fullscreen', fsStage, fsImg)
+    const onWindowResize = () => {
+      renderInfographicCanvas('pane')
+      renderInfographicCanvas('fullscreen')
+    }
+    window.addEventListener('resize', onWindowResize)
+    return () => {
+      for (const off of listeners) off()
+      for (const ro of ros) ro.disconnect()
+      window.removeEventListener('resize', onWindowResize)
+    }
+  }, [renderInfographicCanvas, currentIndex, infographicFullscreenOpen, presenterLeftTab, studentCurriculumLeftPaneTab, isTeacherView, curriculumInfographic?.imageUrl])
+
   const sendCurriculumDataToStudent = useCallback((slidesToSend: SlideItem[], currentIndexOverride?: number) => {
     const idx = typeof currentIndexOverride === 'number' ? currentIndexOverride : currentIndex
     const payload = {
@@ -708,13 +1291,15 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       slides: slidesToSend.map(toStudentSlidePayload),
       teacherTimerSeconds,
       teacherTimerRunning,
+      infographicDrawStrokesBySlide,
+      ...(curriculumId && curriculumInfographic ? { curriculumInfographic } : {}),
     }
     try {
       const w = studentViewWindowRef.current
       if (w && !w.closed) w.postMessage(payload, window.location.origin)
     } catch { /* ignore */ }
     try { syncChannelRef.current?.postMessage(payload) } catch { /* ignore */ }
-  }, [curriculumMarkdown, topic, currentIndex, teacherTimerSeconds, teacherTimerRunning, toStudentSlidePayload])
+  }, [curriculumMarkdown, topic, currentIndex, teacherTimerSeconds, teacherTimerRunning, toStudentSlidePayload, curriculumId, curriculumInfographic, infographicDrawStrokesBySlide])
 
   const openStudentView = useCallback(() => {
     if (typeof window === 'undefined' || !isWorksheetTeacher || slides.length === 0) return
@@ -769,6 +1354,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
             slides: slides.map(toStudentSlidePayload),
             teacherTimerSeconds,
             teacherTimerRunning,
+            infographicDrawStrokesBySlide,
           }, window.location.origin)
           src.postMessage({ type: 'presentation-mode', mode: 'slide-interaction' }, window.location.origin)
         } catch { /* ignore */ }
@@ -776,7 +1362,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     }
     window.addEventListener('message', handler)
     return () => window.removeEventListener('message', handler)
-  }, [isWorksheetTeacher, curriculumMarkdown, topic, currentIndex, slides, teacherTimerSeconds, teacherTimerRunning, toStudentSlidePayload])
+  }, [isWorksheetTeacher, curriculumMarkdown, topic, currentIndex, slides, teacherTimerSeconds, teacherTimerRunning, toStudentSlidePayload, infographicDrawStrokesBySlide])
 
   useEffect(() => {
     if (!isWorksheetTeacher) return
@@ -956,7 +1542,43 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         }
       }
       const t = e.data?.type
-      if (t === 'teacher-timer-start') setTeacherTimerRunning(true)
+      if (t === 'curriculum-data' && e.data?.infographicDrawStrokesBySlide && !isTeacherView) {
+        const incoming = e.data.infographicDrawStrokesBySlide as Record<string, InfographicDrawStroke[]>
+        const normalized: Record<number, InfographicDrawStroke[]> = {}
+        for (const [k, list] of Object.entries(incoming ?? {})) {
+          const idx = Number(k)
+          if (!Number.isFinite(idx) || !Array.isArray(list)) continue
+          normalized[idx] = list
+            .filter((s) => s && typeof s.id === 'string' && Array.isArray(s.points))
+            .map((s) => ({
+              id: s.id,
+              tool: s.tool === 'eraser' ? 'eraser' : 'pen',
+              color: typeof s.color === 'string' ? s.color : '#ef4444',
+              sizeNorm: typeof s.sizeNorm === 'number' ? Math.max(0.001, s.sizeNorm) : 0.004,
+              points: s.points.map((p) => ({ u: clamp01(Number(p.u) || 0), v: clamp01(Number(p.v) || 0) })),
+            }))
+        }
+        setInfographicDrawStrokesBySlide(normalized)
+      }
+      else if (t === 'infographic-draw-sync' && e.data?.strokesBySlide && !isTeacherView) {
+        const incoming = e.data.strokesBySlide as Record<string, InfographicDrawStroke[]>
+        const normalized: Record<number, InfographicDrawStroke[]> = {}
+        for (const [k, list] of Object.entries(incoming ?? {})) {
+          const idx = Number(k)
+          if (!Number.isFinite(idx) || !Array.isArray(list)) continue
+          normalized[idx] = list
+            .filter((s) => s && typeof s.id === 'string' && Array.isArray(s.points))
+            .map((s) => ({
+              id: s.id,
+              tool: s.tool === 'eraser' ? 'eraser' : 'pen',
+              color: typeof s.color === 'string' ? s.color : '#ef4444',
+              sizeNorm: typeof s.sizeNorm === 'number' ? Math.max(0.001, s.sizeNorm) : 0.004,
+              points: s.points.map((p) => ({ u: clamp01(Number(p.u) || 0), v: clamp01(Number(p.v) || 0) })),
+            }))
+        }
+        setInfographicDrawStrokesBySlide(normalized)
+      }
+      else if (t === 'teacher-timer-start') setTeacherTimerRunning(true)
       else if (t === 'teacher-timer-stop') setTeacherTimerRunning(false)
       else if (t === 'teacher-timer-reset') { setTeacherTimerRunning(false); setTeacherTimerSeconds(0) }
       else if (t === 'teacher-timer-sync' && typeof e.data?.seconds === 'number') {
@@ -976,6 +1598,12 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         (e.data?.mode === 'markdown-all' || e.data?.mode === 'single-slide')
       ) {
         if (!isTeacherView && !worksheetPresentation) setStudentCurriculumRightMode(e.data.mode)
+      }
+      else if (t === 'student-curriculum-left-pane' && (e.data?.pane === 'infographic' || e.data?.pane === 'visual')) {
+        if (!isTeacherView && !worksheetPresentation) {
+          setStudentCurriculumLeftPaneTab(e.data.pane)
+          closeInfographicFullscreenRef.current({ fromMessage: true })
+        }
       }
       else if (t === 'quiz-popup-open' && typeof e.data?.value === 'boolean') setQuizPopupOpen(e.data.value)
       else if (t === 'quiz-session-code' && typeof e.data?.slideIndex === 'number' && typeof e.data?.blockIndex === 'number' && typeof e.data?.sessionCode === 'string') {
@@ -1015,6 +1643,53 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
           setTimeout(() => { quizPopupScrollApplyingRef.current = false }, 80)
         }
       }
+      else if (t === 'slide-content-layout' && typeof e.data?.layoutW === 'number' && e.data.layoutW > 0) {
+        if (!isTeacherView) {
+          const lw = Math.round(e.data.layoutW)
+          setSyncedTeacherSlideLayoutW((prev) => (prev != null && Math.abs(prev - lw) < 2 ? prev : lw))
+        }
+      }
+      else if (t === 'infographic-draw-start' && typeof e.data?.slideIndex === 'number' && e.data?.stroke) {
+        const stroke = e.data.stroke as InfographicDrawStroke
+        if (stroke && typeof stroke.id === 'string' && Array.isArray(stroke.points)) {
+          upsertInfographicStroke(e.data.slideIndex, {
+            id: stroke.id,
+            tool: stroke.tool === 'eraser' ? 'eraser' : 'pen',
+            color: typeof stroke.color === 'string' ? stroke.color : '#ef4444',
+            sizeNorm: typeof stroke.sizeNorm === 'number' ? Math.max(0.001, stroke.sizeNorm) : 0.004,
+            points: stroke.points.map((p) => ({ u: clamp01(Number(p.u) || 0), v: clamp01(Number(p.v) || 0) })),
+          })
+        }
+      }
+      else if (
+        t === 'infographic-draw-point' &&
+        typeof e.data?.slideIndex === 'number' &&
+        typeof e.data?.strokeId === 'string' &&
+        e.data?.point
+      ) {
+        appendInfographicStrokePoint(e.data.slideIndex, e.data.strokeId, {
+          u: clamp01(Number(e.data.point.u) || 0),
+          v: clamp01(Number(e.data.point.v) || 0),
+        })
+      }
+      else if (
+        t === 'infographic-draw-points' &&
+        typeof e.data?.slideIndex === 'number' &&
+        typeof e.data?.strokeId === 'string' &&
+        Array.isArray(e.data?.points)
+      ) {
+        const points = (e.data.points as Array<{ u?: number; v?: number }>).map((p) => ({
+          u: clamp01(Number(p?.u) || 0),
+          v: clamp01(Number(p?.v) || 0),
+        }))
+        appendInfographicStrokePoints(e.data.slideIndex, e.data.strokeId, points)
+      }
+      else if (t === 'infographic-draw-clear' && typeof e.data?.slideIndex === 'number') {
+        clearInfographicStrokes(e.data.slideIndex)
+      }
+      else if (t === 'infographic-draw-undo' && typeof e.data?.slideIndex === 'number') {
+        undoInfographicStroke(e.data.slideIndex)
+      }
       else if (t === 'sand-timer-start' && typeof e.data?.seconds === 'number') {
         setTimerSeconds(e.data.seconds)
         setTimerRunning(true)
@@ -1025,6 +1700,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
           setVirtualMousePos(null)
           setMouseTrail([])
           setMouseClicks([])
+          setSyncedTeacherSlideLayoutW(null)
         }
       }
       else if (t === 'visual-fullscreen-open') {
@@ -1035,6 +1711,14 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         const sinceLocalOpen = Date.now() - lastLocalVisualOpenRef.current
         if (sinceLocalOpen < 800) return
         closeVisualFullscreenRef.current({ fromMessage: true })
+      }
+      else if (t === 'infographic-fullscreen-open') {
+        openInfographicFullscreen(true)
+      }
+      else if (t === 'infographic-fullscreen-close') {
+        const sinceLocalOpen = Date.now() - lastLocalInfographicOpenRef.current
+        if (sinceLocalOpen < 800) return
+        closeInfographicFullscreenRef.current({ fromMessage: true })
       }
       else if (t === 'mouse-pos' && presentationMode === 'slide-interaction') {
         let px: number
@@ -1055,8 +1739,83 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
             px = pr - e.data.relX
             py = pt + e.data.relY
           }
-        } else if (e.data?.visualFrame && e.data?.imageCenter && typeof e.data?.cellIndex === 'number' && typeof e.data?.dxFromCenter === 'number' && typeof e.data?.dyFromCenter === 'number' && typeof e.data?.visW === 'number' && typeof e.data?.visH === 'number' && studentVisualFrameRef.current && visualFullscreenOpen) {
-          const frame = studentVisualFrameRef.current
+        } else if (
+          e.data?.slideContentPane &&
+          typeof e.data?.relX === 'number' &&
+          typeof e.data?.relY === 'number'
+        ) {
+          const preferProseBlock =
+            e.data.pointerProseBlock === true &&
+            typeof e.data.pointerSlideIndex === 'number' &&
+            typeof e.data.pointerBlockIndex === 'number'
+          const preferBody = e.data.slidePointerBody === true
+          let lr: DOMRect | undefined
+          if (preferProseBlock) {
+            const layoutRoot = studentSlideContentLayoutRef.current
+            const proseEl = layoutRoot?.querySelector(
+              `[data-pointer-prose-root][data-slide-index="${e.data.pointerSlideIndex}"][data-block-index="${e.data.pointerBlockIndex}"]`
+            ) as HTMLElement | null
+            const rr = proseEl?.getBoundingClientRect()
+            if (rr && rr.width > 0 && rr.height > 0) lr = rr
+          }
+          if (!lr && preferBody) {
+            const bodyEl = studentSlidePointerSyncRef.current
+            const br = bodyEl?.getBoundingClientRect()
+            if (br && br.width > 0 && br.height > 0) lr = br
+          }
+          if (!lr) {
+            const layoutEl = studentSlideContentLayoutRef.current
+            const gr = layoutEl?.getBoundingClientRect()
+            if (gr && gr.width > 0 && gr.height > 0) lr = gr
+          }
+          if (lr) {
+            px = lr.left + e.data.relX * lr.width
+            py = lr.top + e.data.relY * lr.height
+          } else {
+            const pane = studentMdRightColumnScrollRef.current
+            const rect = pane ? pane.getBoundingClientRect() : null
+            if (rect && rect.width > 0 && rect.height > 0) {
+              px = rect.left + e.data.relX * rect.width
+              py = rect.top + e.data.relY * rect.height
+            } else return
+          }
+        } else if (
+          e.data?.visualFrame &&
+          e.data?.imageCenter &&
+          e.data?.cellIndex === -1 &&
+          typeof e.data?.dxFromCenter === 'number' &&
+          typeof e.data?.dyFromCenter === 'number' &&
+          typeof e.data?.visW === 'number' &&
+          typeof e.data?.visH === 'number'
+        ) {
+          let img: HTMLImageElement | null = null
+          if (infographicFullscreenOpen && infographicFullscreenOverlayRef.current) {
+            img = infographicFullscreenOverlayRef.current.querySelector('img')
+          }
+          if (!img) {
+            img = document.querySelector('[data-student-curriculum-infographic-pane-img]') as HTMLImageElement | null
+          }
+          if (img?.complete && img.naturalWidth > 0) {
+            const vis = getVisibleImageBounds(img)
+            const cx = vis.left + vis.width / 2
+            const cy = vis.top + vis.height / 2
+            const scaleX = vis.width / (e.data.visW || 1)
+            const scaleY = vis.height / (e.data.visH || 1)
+            px = cx + e.data.dxFromCenter * scaleX
+            py = cy + e.data.dyFromCenter * scaleY
+          } else return
+        } else if (
+          e.data?.visualFrame &&
+          e.data?.imageCenter &&
+          typeof e.data?.cellIndex === 'number' &&
+          e.data.cellIndex >= 0 &&
+          typeof e.data?.dxFromCenter === 'number' &&
+          typeof e.data?.dyFromCenter === 'number' &&
+          typeof e.data?.visW === 'number' &&
+          typeof e.data?.visH === 'number'
+        ) {
+          const frame = visualFullscreenOpen ? studentVisualFrameRef.current : studentEmbeddedVisualFrameRef.current
+          if (!frame) return
           const children = Array.from(frame.children) as HTMLElement[]
           const cell = children[e.data.cellIndex]
           if (cell) {
@@ -1087,15 +1846,27 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
             px = cx + e.data.dxFromCenter * scaleX
             py = cy + e.data.dyFromCenter * scaleY
           }
-        } else if (e.data?.visualFrame && typeof e.data?.relX === 'number' && typeof e.data?.relY === 'number' && visualFullscreenOpen) {
-          const overlayOrFrame = e.data?.overlayRel && fullscreenOverlayRef.current ? fullscreenOverlayRef.current : studentVisualFrameRef.current
+        } else if (e.data?.visualFrame && typeof e.data?.relX === 'number' && typeof e.data?.relY === 'number') {
+          const overlayOrFrame = visualFullscreenOpen
+            ? e.data?.overlayRel && fullscreenOverlayRef.current
+              ? fullscreenOverlayRef.current
+              : studentVisualFrameRef.current
+            : studentEmbeddedVisualFrameRef.current
           const rect = overlayOrFrame ? overlayOrFrame.getBoundingClientRect() : null
           if (rect) {
             px = rect.left + e.data.relX * rect.width
             py = rect.top + e.data.relY * rect.height
           } else return
-        } else if (e.data?.visualFrame && typeof e.data?.dxFromCenter === 'number' && typeof e.data?.dyFromCenter === 'number' && typeof e.data?.frameW === 'number' && typeof e.data?.frameH === 'number' && studentVisualFrameRef.current && visualFullscreenOpen) {
-          const rect = studentVisualFrameRef.current.getBoundingClientRect()
+        } else if (
+          e.data?.visualFrame &&
+          typeof e.data?.dxFromCenter === 'number' &&
+          typeof e.data?.dyFromCenter === 'number' &&
+          typeof e.data?.frameW === 'number' &&
+          typeof e.data?.frameH === 'number'
+        ) {
+          const frame = visualFullscreenOpen ? studentVisualFrameRef.current : studentEmbeddedVisualFrameRef.current
+          if (!frame) return
+          const rect = frame.getBoundingClientRect()
           const cx = rect.left + rect.width / 2
           const cy = rect.top + rect.height / 2
           const scaleX = rect.width / (e.data.frameW || 1)
@@ -1133,8 +1904,83 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
             px = pr - e.data.relX
             py = pt + e.data.relY
           }
-        } else if (e.data?.visualFrame && e.data?.imageCenter && typeof e.data?.cellIndex === 'number' && typeof e.data?.dxFromCenter === 'number' && typeof e.data?.dyFromCenter === 'number' && typeof e.data?.visW === 'number' && typeof e.data?.visH === 'number' && studentVisualFrameRef.current && visualFullscreenOpen) {
-          const frame = studentVisualFrameRef.current
+        } else if (
+          e.data?.slideContentPane &&
+          typeof e.data?.relX === 'number' &&
+          typeof e.data?.relY === 'number'
+        ) {
+          const preferProseBlock =
+            e.data.pointerProseBlock === true &&
+            typeof e.data.pointerSlideIndex === 'number' &&
+            typeof e.data.pointerBlockIndex === 'number'
+          const preferBody = e.data.slidePointerBody === true
+          let lr: DOMRect | undefined
+          if (preferProseBlock) {
+            const layoutRoot = studentSlideContentLayoutRef.current
+            const proseEl = layoutRoot?.querySelector(
+              `[data-pointer-prose-root][data-slide-index="${e.data.pointerSlideIndex}"][data-block-index="${e.data.pointerBlockIndex}"]`
+            ) as HTMLElement | null
+            const rr = proseEl?.getBoundingClientRect()
+            if (rr && rr.width > 0 && rr.height > 0) lr = rr
+          }
+          if (!lr && preferBody) {
+            const bodyEl = studentSlidePointerSyncRef.current
+            const br = bodyEl?.getBoundingClientRect()
+            if (br && br.width > 0 && br.height > 0) lr = br
+          }
+          if (!lr) {
+            const layoutEl = studentSlideContentLayoutRef.current
+            const gr = layoutEl?.getBoundingClientRect()
+            if (gr && gr.width > 0 && gr.height > 0) lr = gr
+          }
+          if (lr) {
+            px = lr.left + e.data.relX * lr.width
+            py = lr.top + e.data.relY * lr.height
+          } else {
+            const pane = studentMdRightColumnScrollRef.current
+            const rect = pane ? pane.getBoundingClientRect() : null
+            if (rect && rect.width > 0 && rect.height > 0) {
+              px = rect.left + e.data.relX * rect.width
+              py = rect.top + e.data.relY * rect.height
+            } else return
+          }
+        } else if (
+          e.data?.visualFrame &&
+          e.data?.imageCenter &&
+          e.data?.cellIndex === -1 &&
+          typeof e.data?.dxFromCenter === 'number' &&
+          typeof e.data?.dyFromCenter === 'number' &&
+          typeof e.data?.visW === 'number' &&
+          typeof e.data?.visH === 'number'
+        ) {
+          let img: HTMLImageElement | null = null
+          if (infographicFullscreenOpen && infographicFullscreenOverlayRef.current) {
+            img = infographicFullscreenOverlayRef.current.querySelector('img')
+          }
+          if (!img) {
+            img = document.querySelector('[data-student-curriculum-infographic-pane-img]') as HTMLImageElement | null
+          }
+          if (img?.complete && img.naturalWidth > 0) {
+            const vis = getVisibleImageBounds(img)
+            const cx = vis.left + vis.width / 2
+            const cy = vis.top + vis.height / 2
+            const scaleX = vis.width / (e.data.visW || 1)
+            const scaleY = vis.height / (e.data.visH || 1)
+            px = cx + e.data.dxFromCenter * scaleX
+            py = cy + e.data.dyFromCenter * scaleY
+          } else return
+        } else if (
+          e.data?.visualFrame &&
+          e.data?.imageCenter &&
+          typeof e.data?.cellIndex === 'number' &&
+          e.data.cellIndex >= 0 &&
+          typeof e.data?.dxFromCenter === 'number' &&
+          typeof e.data?.dyFromCenter === 'number' &&
+          typeof e.data?.visW === 'number' &&
+          typeof e.data?.visH === 'number'
+        ) {
+          const frame = visualFullscreenOpen ? studentVisualFrameRef.current : studentEmbeddedVisualFrameRef.current
+          if (!frame) return
           const children = Array.from(frame.children) as HTMLElement[]
           const cell = children[e.data.cellIndex]
           if (cell) {
@@ -1165,15 +2011,27 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
             px = cx + e.data.dxFromCenter * scaleX
             py = cy + e.data.dyFromCenter * scaleY
           }
-        } else if (e.data?.visualFrame && typeof e.data?.relX === 'number' && typeof e.data?.relY === 'number' && visualFullscreenOpen) {
-          const overlayOrFrame = e.data?.overlayRel && fullscreenOverlayRef.current ? fullscreenOverlayRef.current : studentVisualFrameRef.current
+        } else if (e.data?.visualFrame && typeof e.data?.relX === 'number' && typeof e.data?.relY === 'number') {
+          const overlayOrFrame = visualFullscreenOpen
+            ? e.data?.overlayRel && fullscreenOverlayRef.current
+              ? fullscreenOverlayRef.current
+              : studentVisualFrameRef.current
+            : studentEmbeddedVisualFrameRef.current
           const rect = overlayOrFrame ? overlayOrFrame.getBoundingClientRect() : null
           if (rect) {
             px = rect.left + e.data.relX * rect.width
             py = rect.top + e.data.relY * rect.height
           } else return
-        } else if (e.data?.visualFrame && typeof e.data?.dxFromCenter === 'number' && typeof e.data?.dyFromCenter === 'number' && typeof e.data?.frameW === 'number' && typeof e.data?.frameH === 'number' && studentVisualFrameRef.current && visualFullscreenOpen) {
-          const rect = studentVisualFrameRef.current.getBoundingClientRect()
+        } else if (
+          e.data?.visualFrame &&
+          typeof e.data?.dxFromCenter === 'number' &&
+          typeof e.data?.dyFromCenter === 'number' &&
+          typeof e.data?.frameW === 'number' &&
+          typeof e.data?.frameH === 'number'
+        ) {
+          const frame = visualFullscreenOpen ? studentVisualFrameRef.current : studentEmbeddedVisualFrameRef.current
+          if (!frame) return
+          const rect = frame.getBoundingClientRect()
           const cx = rect.left + rect.width / 2
           const cy = rect.top + rect.height / 2
           const scaleX = rect.width / (e.data.frameW || 1)
@@ -1232,14 +2090,14 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       }
     }
     return () => window.removeEventListener('message', handler)
-  }, [onSlidesSaved, openVisualFullscreen, closeVisualFullscreen, presentationMode, visualFullscreenOpen, presentationBroadcastChannelName, isTeacherView, worksheetPresentation])
+  }, [onSlidesSaved, openVisualFullscreen, closeVisualFullscreen, openInfographicFullscreen, closeInfographicFullscreen, presentationMode, visualFullscreenOpen, infographicFullscreenOpen, presentationBroadcastChannelName, isTeacherView, worksheetPresentation, upsertInfographicStroke, appendInfographicStrokePoint, appendInfographicStrokePoints, clearInfographicStrokes, undoInfographicStroke])
 
   useEffect(() => {
     if (typeof BroadcastChannel === 'undefined') return
     const channel = new BroadcastChannel(presentationBroadcastChannelName)
     channel.postMessage({ type: 'request-curriculum' })
     return () => channel.close()
-  }, [onSlidesSaved, openVisualFullscreen, closeVisualFullscreen, presentationMode, visualFullscreenOpen, presentationBroadcastChannelName])
+  }, [onSlidesSaved, openVisualFullscreen, closeVisualFullscreen, openInfographicFullscreen, closeInfographicFullscreen, presentationMode, visualFullscreenOpen, infographicFullscreenOpen, presentationBroadcastChannelName])
 
   useEffect(() => {
     if (mouseClicks.length === 0) return
@@ -1479,6 +2337,10 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     pendingSlideGoIndexRef.current = null
   }, [slides.length])
 
+  useEffect(() => {
+    setPresenterLeftTab('visual')
+  }, [currentIndex])
+
   type EmbedPlacement = 'end' | 'newBlock' | number
   const persistSlidesRef = useRef<(s: SlideItem[]) => Promise<void>>(async () => {})
   useEffect(() => {
@@ -1497,12 +2359,13 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         visualInput4: s.visualInput4,
         teacherNotes: s.teacherNotes,
       }))
+      const inf = curriculumInfographicRef.current
       if (slideMode === 'personal' || slideMode === 'original') {
-        const r = await saveUserCustomizedSlides({ curriculumId, slides: payload })
+        const r = await saveUserCustomizedSlides({ curriculumId, slides: payload, curriculumInfographic: inf })
         if (r?.error) toast({ title: tr('Lỗi lưu', 'Save error', '保存错误', '保存エラー', '저장 오류'), description: r.error, variant: 'destructive' })
         else { toast({ title: tr('Đã lưu', 'Saved', '已保存', '保存しました', '저장됨'), duration: 1500 }); onSlidesSaved?.() }
       } else if (slideMode === 'shared' || !slideMode) {
-        const r = await saveSlidesToCurriculum({ curriculumId, topic: topic || 'Bài giảng', subjectId: subjectId ?? 'toan', gradeLevelId: gradeLevelId ?? 'lop-6', slides: payload })
+        const r = await saveSlidesToCurriculum({ curriculumId, topic: topic || 'Bài giảng', subjectId: subjectId ?? 'toan', gradeLevelId: gradeLevelId ?? 'lop-6', slides: payload, curriculumInfographic: inf })
         if (r?.error) toast({ title: tr('Lỗi lưu', 'Save error', '保存错误', '保存エラー', '저장 오류'), description: r.error, variant: 'destructive' })
         else { toast({ title: tr('Đã lưu', 'Saved', '已保存', '保存しました', '저장됨'), duration: 1500 }); onSlidesSaved?.() }
       }
@@ -1778,8 +2641,41 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   }, [visualFullscreenOpen])
 
   useEffect(() => {
+    if (!infographicFullscreenOpen) return
+    const onFullscreenChange = () => {
+      if (!document.fullscreenElement && !(document as Document & { webkitFullscreenElement?: Element }).webkitFullscreenElement) {
+        setInfographicFullscreenOpen(false)
+      }
+    }
+    document.addEventListener('fullscreenchange', onFullscreenChange)
+    document.addEventListener('webkitfullscreenchange', onFullscreenChange)
+    return () => {
+      document.removeEventListener('fullscreenchange', onFullscreenChange)
+      document.removeEventListener('webkitfullscreenchange', onFullscreenChange)
+      try {
+        const isFs = document.fullscreenElement ?? (document as Document & { webkitFullscreenElement?: Element }).webkitFullscreenElement
+        if (isFs) {
+          const exitFs = document.exitFullscreen ?? (document as Document & { webkitExitFullscreen?: () => Promise<void> }).webkitExitFullscreen
+          exitFs?.()?.catch(() => {})
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+  }, [infographicFullscreenOpen])
+
+  useEffect(() => {
     setVisualFullscreenOpen(false)
+    setInfographicFullscreenOpen(false)
   }, [currentIndex])
+
+  /** Không tự mở fullscreen khi chuyển tab Infographic (tránh mở lại sau khi đã đóng rồi bấm Visual). Chỉ đóng overlay khi rời tab Infographic. */
+  useEffect(() => {
+    if (!isTeacherView || worksheetPresentation) return
+    if (presenterLeftTab !== 'infographic' && infographicFullscreenOpen) {
+      closeInfographicFullscreen()
+    }
+  }, [isTeacherView, worksheetPresentation, presenterLeftTab, infographicFullscreenOpen, closeInfographicFullscreen])
 
   const slide = slides[currentIndex]
   const rawBlocks = (Array.isArray(slide?.blocks) && slide.blocks.length > 0) ? slide.blocks : (slide ? parseContentToBlocks(slide.content ?? '') : [])
@@ -1788,11 +2684,16 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       ? parseContentToBlocks(slide!.content ?? '')
       : rawBlocks
   const hasBlocks = blocks.length > 0
-  const visualPaneMeta = slide ? getVisualCells(slide) : { layout: 1 as 1 | 2 | 4, cells: [] as VisualCell[] }
+  const visualPaneMeta = slide ? getVisualCellsForPresentation(slide, curriculumInfographic) : { layout: 1 as 1 | 2 | 4, cells: [] as VisualCell[] }
   const visualLayout = visualPaneMeta.layout
   const visualCells = visualPaneMeta.cells
   const visualHasAnyContent = visualCells.some((c) => c.visualEmbed || c.imageUrl)
   const visualGridClass = visualLayout === 2 ? 'grid grid-rows-2 gap-1' : visualLayout === 4 ? 'grid grid-cols-2 grid-rows-2 gap-1' : ''
+  /** Ô trái: infographic trong khung (không fullscreen) — GV theo tab; HS theo tab đồng bộ / bấm Infographic|Visual */
+  const showInfographicInMainPane =
+    !worksheetPresentation &&
+    ((isTeacherView && presenterLeftTab === 'infographic') ||
+      (isStudentCurriculumSlide && studentCurriculumLeftPaneTab === 'infographic'))
   const autoGeoSuggestion = useMemo(() => {
     if (!slide) return null
     return getAutoGeoGebraSuggestion(slide)
@@ -2236,7 +3137,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       />
       {/* Fullscreen overlay cho visual slide – phần làm việc to hết khung hình */}
       {visualFullscreenOpen && (() => {
-        const { layout, cells } = getVisualCells(slide)
+        const { layout, cells } = getVisualCellsForPresentation(slide, curriculumInfographic)
         const hasAny = cells.some((c) => c.visualEmbed || c.imageUrl)
         if (!hasAny) return null
         const showSingleCell = expandedCellIndex != null && layout > 1
@@ -2315,6 +3216,136 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
           </div>
         )
       })()}
+      {infographicFullscreenOpen && curriculumInfographic && (
+        <div
+          ref={infographicFullscreenOverlayRef}
+          className="fixed inset-0 z-[106] bg-black flex flex-col outline-none"
+          onClick={(e) => { if (e.target === e.currentTarget) closeInfographicFullscreen() }}
+          aria-label={tr('Đóng', 'Close', '关闭', '閉じる', '닫기')}
+        >
+          <div className="absolute top-0 left-0 right-0 h-14 flex items-center justify-between px-4 bg-black/70 z-20 shrink-0">
+            <span className="text-white/80 text-sm">
+              {tr('Infographic — nhấn Esc hoặc click vùng tối để thoát', 'Infographic — press Esc or click dark area to exit', '信息图 — 按Esc或点击暗区退出', 'インフォグラフィック — Escまたは暗い部分をクリックで終了', '인포그래픽 — Esc 또는 어두운 영역 클릭으로 종료')}
+            </span>
+            {timerSeconds > 0 && (
+              <div className={cn('flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-500/20 border border-amber-400/50', timerRunning && timerSeconds <= 30 && 'animate-pulse')}>
+                <Timer className="h-4 w-4 text-amber-400" />
+                <span className={cn('font-mono font-bold', timerSeconds <= 30 && 'text-amber-300')}>{formatTimer(timerSeconds)}</span>
+              </div>
+            )}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); closeInfographicFullscreen() }}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/20 hover:bg-white/30 text-white font-medium transition-colors"
+                title={tr('Đóng', 'Close', '关闭', '閉じる', '닫기')}
+              >
+                <X className="h-5 w-5" />
+                {tr('Đóng', 'Close', '关闭', '閉じる', '닫기')}
+              </button>
+            </div>
+          </div>
+          <div className="flex-1 min-h-0 relative px-4 pb-4 pt-14 flex flex-col items-center justify-center" onClick={(e) => e.stopPropagation()}>
+            <div
+              ref={infographicFullscreenStageRef}
+              className="relative h-full w-full touch-none"
+              onPointerDown={(e) => startInfographicDrawing('fullscreen', e)}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element -- remote curriculum infographic */}
+              <img
+                ref={infographicFullscreenImageRef}
+                src={curriculumInfographic.imageUrl}
+                alt=""
+                draggable={false}
+                onDragStart={(ev) => ev.preventDefault()}
+                className="max-h-full w-full select-none object-contain"
+                referrerPolicy="no-referrer"
+              />
+              <canvas
+                ref={infographicFullscreenCanvasRef}
+                className="absolute pointer-events-none"
+                aria-hidden
+              />
+              <div
+                className="absolute bottom-3 left-1/2 z-30 flex -translate-x-1/2 flex-wrap items-center justify-center gap-1.5 rounded-lg border border-white/25 bg-black/70 p-1.5 text-white shadow-xl"
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => e.stopPropagation()}
+              >
+                  <button
+                    type="button"
+                    onClick={() => setInfographicDrawTool('pen')}
+                    className={cn('rounded px-2 py-1 text-xs transition-colors', infographicDrawTool === 'pen' ? 'bg-white/30' : 'hover:bg-white/15')}
+                  >
+                    {tr('Vẽ', 'Draw', '画笔', '描画', '그리기')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setInfographicDrawTool('eraser')}
+                    className={cn('rounded px-2 py-1 text-xs transition-colors', infographicDrawTool === 'eraser' ? 'bg-white/30' : 'hover:bg-white/15')}
+                  >
+                    {tr('Tẩy', 'Erase', '橡皮', '消しゴム', '지우기')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setInfographicDrawBrushPx(3)}
+                    className={cn('rounded px-2 py-1 text-xs transition-colors', infographicDrawBrushPx === 3 ? 'bg-white/30' : 'hover:bg-white/15')}
+                  >
+                    {tr('Nhỏ', 'S', '细', '細', '얇게')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setInfographicDrawBrushPx(5)}
+                    className={cn('rounded px-2 py-1 text-xs transition-colors', infographicDrawBrushPx === 5 ? 'bg-white/30' : 'hover:bg-white/15')}
+                  >
+                    {tr('Vừa', 'M', '中', '中', '중간')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setInfographicDrawBrushPx(7)}
+                    className={cn('rounded px-2 py-1 text-xs transition-colors', infographicDrawBrushPx === 7 ? 'bg-white/30' : 'hover:bg-white/15')}
+                  >
+                    {tr('To', 'L', '粗', '太', '굵게')}
+                  </button>
+                  <div className="flex items-center gap-1 px-1">
+                    {INFOGRAPHIC_DRAW_COLORS.map((color) => (
+                      <button
+                        key={`fs-b-${color}`}
+                        type="button"
+                        onClick={() => setInfographicDrawColor(color)}
+                        className={cn(
+                          'h-4 w-4 rounded-full border transition-transform',
+                          infographicDrawColor === color ? 'scale-110 border-white' : 'border-white/40 hover:scale-105'
+                        )}
+                        style={{ backgroundColor: color }}
+                        title={tr('Màu nét vẽ', 'Stroke color', '画笔颜色', '描画色', '펜 색상')}
+                      />
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      undoInfographicStroke(currentIndex)
+                      sendInfographicDrawMessage({ type: 'infographic-draw-undo', slideIndex: currentIndex })
+                    }}
+                    className="rounded px-2 py-1 text-xs transition-colors hover:bg-white/15"
+                  >
+                    {tr('Undo', 'Undo', '撤销', '元に戻す', '실행 취소')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      clearInfographicStrokes(currentIndex)
+                      sendInfographicDrawMessage({ type: 'infographic-draw-clear', slideIndex: currentIndex })
+                    }}
+                    className="rounded px-2 py-1 text-xs transition-colors hover:bg-white/15"
+                  >
+                    {tr('Xóa nét', 'Clear', '清除', 'クリア', '지우기')}
+                  </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Đồng hồ cát nổi – học sinh thấy khi giáo viên chia sẻ màn hình */}
       {timerSeconds > 0 && (
         <div className={cn('fixed bottom-4 right-4 md:bottom-6 md:right-6 z-[102] flex items-center gap-2 px-4 py-2 rounded-xl bg-black/80 text-white shadow-xl border border-amber-400/50 pb-[max(0.5rem,env(safe-area-inset-bottom))]', timerRunning && timerSeconds <= 30 && 'animate-pulse')}>
@@ -2344,48 +3375,383 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
               : { width: stableLayoutWidth, minWidth: Math.max(stableLayoutWidth, 1200) }
           }
         >
-        {/* Visual: desktop 45%; mobile full width + max-height */}
+        {/* Visual: GV desktop 45%; HS desktop 50% (chia đôi cân với cột nội dung); mobile full width + max-height */}
         <div
           className={cn(
             'min-h-0 relative overflow-hidden shrink-0',
-            narrowSlideLayout ? 'w-full max-h-[min(40vh,360px)] flex-shrink-0 border-b border-slate-200' : 'w-[45%]',
+            narrowSlideLayout
+              ? 'w-full max-h-[min(40vh,360px)] flex-shrink-0 border-b border-slate-200'
+              : isTeacherView
+                ? 'w-[45%]'
+                : 'w-1/2',
           )}
           style={{ background: gradient }}
         >
           <div className="absolute top-2 left-2 md:top-4 md:left-4 landscape:top-4 landscape:left-4 w-8 h-8 md:w-9 md:h-9 landscape:w-9 landscape:h-9 rounded-full bg-red-500 flex items-center justify-center text-white font-bold text-xs md:text-sm landscape:text-sm shadow-lg z-10">
             {currentIndex + 1}
           </div>
-          {visualHasAnyContent && (
-            <button
-              type="button"
-              onMouseDown={(e) => { e.preventDefault(); openVisualFullscreen() }}
-              onClick={() => openVisualFullscreen()}
-              className="absolute top-2 right-2 z-20 flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md bg-black/60 p-2 text-white opacity-60 shadow-lg hover:bg-black/80 hover:opacity-100 md:top-4 md:right-10 md:min-h-0 md:min-w-0 md:p-1.5 landscape:top-4 landscape:right-10 landscape:min-h-0 landscape:min-w-0 landscape:p-1.5 print:hidden"
-              title={tr('Mở rộng tất cả', 'Expand all', '展开全部', 'すべて展開', '모두 확장')}
-            >
-              <Maximize2 className="h-4 w-4" />
-            </button>
-          )}
-          {isTeacherView && autoGeoSuggestion && (
-            <div className="absolute top-2 right-14 z-10 flex items-center gap-1.5 md:top-4 md:right-20 landscape:top-4 landscape:right-20">
+          <div
+            className={cn(
+              'absolute top-2 right-2 z-20 flex max-w-[calc(100%-3.5rem)] flex-wrap items-center justify-end gap-1 md:top-4 md:right-4 md:max-w-[calc(100%-4.5rem)] landscape:top-4 landscape:right-4 print:hidden',
+              /** HS giáo trình: lệch cụm nút so với mép phải (tương đương -40px so với căn phải gốc) */
+              isStudentCurriculumSlide && '-translate-x-[40px]'
+            )}
+          >
+            {isTeacherView && autoGeoSuggestion && (
               <button
                 type="button"
                 onMouseDown={(e) => { e.preventDefault(); openAutoGeoGebra() }}
                 onClick={(e) => { e.stopPropagation(); openAutoGeoGebra() }}
-                className="flex items-center gap-1 rounded-md bg-black/60 px-2 py-1 text-[11px] text-white hover:bg-black/80 md:text-xs"
+                className="flex shrink-0 items-center gap-1 rounded-md bg-black/60 px-2 py-1.5 text-[10px] text-white hover:bg-black/80 md:py-1 md:text-xs"
                 title={tr('Chỉnh trong GeoGebra', 'Edit in GeoGebra', '在GeoGebra中编辑', 'GeoGebraで編集', 'GeoGebra에서 편집')}
               >
-                <ExternalLink className="h-3 w-3" />
+                <ExternalLink className="h-3 w-3 shrink-0" />
                 {tr('GeoGebra', 'GeoGebra', 'GeoGebra', 'GeoGebra', 'GeoGebra')}
               </button>
-            </div>
-          )}
+            )}
+            {!worksheetPresentation && (
+              <div className="flex shrink-0 overflow-hidden rounded-md border border-white/25 bg-black/55 text-[10px] font-medium text-white shadow-md md:text-[11px]">
+                {isStudentCurriculumSlide ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!curriculumInfographic) {
+                          toast({
+                            title: tr(
+                              'Chưa có infographic',
+                              'No infographic yet',
+                              '尚无信息图',
+                              'インフォグラフィックがありません',
+                              '인포그래픽 없음'
+                            ),
+                            variant: 'destructive',
+                          })
+                          return
+                        }
+                        setStudentCurriculumLeftPaneTab('infographic')
+                        closeInfographicFullscreen()
+                        notifyTeacherStudentCurriculumLeftPane('infographic')
+                      }}
+                      className={cn(
+                        'flex shrink-0 items-center gap-0.5 px-2 py-1.5 transition-colors md:px-2.5',
+                        studentCurriculumLeftPaneTab === 'infographic'
+                          ? 'bg-white/25 text-white'
+                          : 'text-white/75 hover:bg-white/10'
+                      )}
+                      title={tr(
+                        'Ô Infographic trong khung (bấm mở rộng để toàn màn hình)',
+                        'Infographic in panel (use expand for fullscreen)',
+                        '框架内信息图（全屏请点展开）',
+                        '枠内インフォ（全画面は拡大ボタン）',
+                        '패널 내 인포(전체 화면은 확장)'
+                      )}
+                    >
+                      <BarChart3 className="h-3 w-3 shrink-0 opacity-90" aria-hidden />
+                      {tr('Infographic', 'Infographic', '信息图', 'インフォグラフィック', '인포그래픽')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setStudentCurriculumLeftPaneTab('visual')
+                        closeInfographicFullscreen()
+                        notifyTeacherStudentCurriculumLeftPane('visual')
+                      }}
+                      className={cn(
+                        'shrink-0 border-l border-white/20 px-2 py-1.5 transition-colors md:px-2.5',
+                        studentCurriculumLeftPaneTab === 'visual'
+                          ? 'bg-white/25 text-white'
+                          : 'text-white/75 hover:bg-white/10'
+                      )}
+                      title={tr('Ô Visual (mặc định)', 'Visual panel (default)', '视觉区（默认）', 'ビジュアル領域（既定）', '비주얼 패널(기본)')}
+                    >
+                      {tr('Visual', 'Visual', '视觉', 'ビジュアル', '비주얼')}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setPresenterLeftTab('infographic')}
+                      className={cn(
+                        'flex shrink-0 items-center gap-0.5 px-2 py-1.5 transition-colors md:px-2.5',
+                        presenterLeftTab === 'infographic' ? 'bg-white/25 text-white' : 'text-white/75 hover:bg-white/10'
+                      )}
+                    >
+                      <BarChart3 className="h-3 w-3 shrink-0 opacity-90" aria-hidden />
+                      {tr('Infographic', 'Infographic', '信息图', 'インフォグラフィック', '인포그래픽')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPresenterLeftTab('visual')}
+                      className={cn(
+                        'shrink-0 border-l border-white/20 px-2 py-1.5 transition-colors md:px-2.5',
+                        presenterLeftTab === 'visual' ? 'bg-white/25 text-white' : 'text-white/75 hover:bg-white/10'
+                      )}
+                    >
+                      {tr('Visual', 'Visual', '视觉', 'ビジュアル', '비주얼')}
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+            {isTeacherView && !worksheetPresentation && presenterLeftTab === 'infographic' && curriculumInfographic && (
+              <>
+                <div className="flex shrink-0 overflow-hidden rounded-md border border-white/25 bg-black/55 text-[10px] font-medium text-white shadow-md md:text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() => setInfographicDrawTool('pen')}
+                    className={cn(
+                      'px-2 py-1.5 transition-colors md:px-2.5',
+                      infographicDrawTool === 'pen' ? 'bg-white/25 text-white' : 'text-white/75 hover:bg-white/10'
+                    )}
+                  >
+                    {tr('Vẽ', 'Draw', '画笔', '描画', '그리기')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setInfographicDrawTool('eraser')}
+                    className={cn(
+                      'border-l border-white/20 px-2 py-1.5 transition-colors md:px-2.5',
+                      infographicDrawTool === 'eraser' ? 'bg-white/25 text-white' : 'text-white/75 hover:bg-white/10'
+                    )}
+                  >
+                    {tr('Tẩy', 'Erase', '橡皮', '消しゴム', '지우기')}
+                  </button>
+                </div>
+                <div className="flex shrink-0 overflow-hidden rounded-md border border-white/25 bg-black/55 text-[10px] font-medium text-white shadow-md md:text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() => setInfographicDrawBrushPx(3)}
+                    className={cn(
+                      'px-2 py-1.5 transition-colors md:px-2.5',
+                      infographicDrawBrushPx === 3 ? 'bg-white/25 text-white' : 'text-white/75 hover:bg-white/10'
+                    )}
+                    title={tr('Bút nhỏ', 'Small brush', '细笔', '細いブラシ', '얇은 브러시')}
+                  >
+                    {tr('Nhỏ', 'S', '细', '細', '얇게')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setInfographicDrawBrushPx(5)}
+                    className={cn(
+                      'border-l border-white/20 px-2 py-1.5 transition-colors md:px-2.5',
+                      infographicDrawBrushPx === 5 ? 'bg-white/25 text-white' : 'text-white/75 hover:bg-white/10'
+                    )}
+                    title={tr('Bút vừa', 'Medium brush', '中笔', '中ブラシ', '중간 브러시')}
+                  >
+                    {tr('Vừa', 'M', '中', '中', '중간')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setInfographicDrawBrushPx(7)}
+                    className={cn(
+                      'border-l border-white/20 px-2 py-1.5 transition-colors md:px-2.5',
+                      infographicDrawBrushPx === 7 ? 'bg-white/25 text-white' : 'text-white/75 hover:bg-white/10'
+                    )}
+                    title={tr('Bút to', 'Large brush', '粗笔', '太いブラシ', '굵은 브러시')}
+                  >
+                    {tr('To', 'L', '粗', '太', '굵게')}
+                  </button>
+                </div>
+                <div className="flex shrink-0 items-center gap-1 rounded-md border border-white/25 bg-black/55 px-1.5 py-1 text-white shadow-md">
+                  {INFOGRAPHIC_DRAW_COLORS.map((color) => (
+                    <button
+                      key={`top-${color}`}
+                      type="button"
+                      onClick={() => setInfographicDrawColor(color)}
+                      className={cn(
+                        'h-4 w-4 rounded-full border transition-transform',
+                        infographicDrawColor === color ? 'scale-110 border-white' : 'border-white/40 hover:scale-105'
+                      )}
+                      style={{ backgroundColor: color }}
+                      title={tr('Màu nét vẽ', 'Stroke color', '画笔颜色', '描画色', '펜 색상')}
+                    />
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    undoInfographicStroke(currentIndex)
+                    sendInfographicDrawMessage({ type: 'infographic-draw-undo', slideIndex: currentIndex })
+                  }}
+                  className="flex min-h-[40px] shrink-0 items-center justify-center rounded-md bg-black/60 px-3 py-1.5 text-[10px] font-medium text-white opacity-80 shadow-lg hover:bg-black/80 hover:opacity-100 md:min-h-0 md:text-[11px]"
+                >
+                  {tr('Undo', 'Undo', '撤销', '元に戻す', '실행 취소')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    clearInfographicStrokes(currentIndex)
+                    sendInfographicDrawMessage({ type: 'infographic-draw-clear', slideIndex: currentIndex })
+                  }}
+                  className="flex min-h-[40px] shrink-0 items-center justify-center rounded-md bg-black/60 px-3 py-1.5 text-[10px] font-medium text-white opacity-80 shadow-lg hover:bg-black/80 hover:opacity-100 md:min-h-0 md:text-[11px]"
+                >
+                  {tr('Xóa nét', 'Clear', '清除', 'クリア', '지우기')}
+                </button>
+              </>
+            )}
+            {visualHasAnyContent &&
+              ((isStudentCurriculumSlide && studentCurriculumLeftPaneTab === 'visual') || (!isStudentCurriculumSlide && presenterLeftTab === 'visual')) && (
+              <button
+                type="button"
+                onMouseDown={(e) => { e.preventDefault(); openVisualFullscreen() }}
+                onClick={() => openVisualFullscreen()}
+                className="flex min-h-[40px] min-w-[40px] shrink-0 items-center justify-center rounded-md bg-black/60 p-2 text-white opacity-80 shadow-lg hover:bg-black/80 hover:opacity-100 md:min-h-0 md:min-w-0 md:p-1.5 landscape:min-h-0 landscape:min-w-0 landscape:p-1.5"
+                title={tr('Mở rộng tất cả', 'Expand all', '展开全部', 'すべて展開', '모두 확장')}
+              >
+                <Maximize2 className="h-4 w-4" />
+              </button>
+            )}
+            {isStudentCurriculumSlide && studentCurriculumLeftPaneTab === 'infographic' && curriculumInfographic && (
+              <button
+                type="button"
+                onMouseDown={(e) => { e.preventDefault(); openInfographicFullscreen() }}
+                onClick={() => openInfographicFullscreen()}
+                className="flex min-h-[40px] min-w-[40px] shrink-0 items-center justify-center rounded-md bg-black/60 p-2 text-white opacity-80 shadow-lg hover:bg-black/80 hover:opacity-100 md:min-h-0 md:min-w-0 md:p-1.5 landscape:min-h-0 landscape:min-w-0 landscape:p-1.5"
+                title={tr('Infographic toàn màn hình', 'Infographic fullscreen', '信息图全屏', 'インフォグラフィック全画面', '인포그래픽 전체 화면')}
+              >
+                <Maximize2 className="h-4 w-4" />
+              </button>
+            )}
+            {isTeacherView && !worksheetPresentation && presenterLeftTab === 'infographic' && curriculumInfographic && (
+              <button
+                type="button"
+                onMouseDown={(e) => { e.preventDefault(); openInfographicFullscreen() }}
+                onClick={() => openInfographicFullscreen()}
+                className="flex min-h-[40px] min-w-[40px] shrink-0 items-center justify-center rounded-md bg-black/60 p-2 text-white opacity-80 shadow-lg hover:bg-black/80 hover:opacity-100 md:min-h-0 md:min-w-0 md:p-1.5 landscape:min-h-0 landscape:min-w-0 landscape:p-1.5"
+                title={tr('Infographic toàn màn hình', 'Infographic fullscreen', '信息图全屏', 'インフォグラフィック全画面', '인포그래픽 전체 화면')}
+              >
+                <Maximize2 className="h-4 w-4" />
+              </button>
+            )}
+          </div>
           <div
             className={cn(
-              'absolute inset-0 px-2 pb-2 pt-12 md:px-4 md:pb-4 md:pt-14 landscape:px-4 landscape:pb-4 landscape:pt-14',
-              visualLayout === 1 ? 'flex flex-col' : visualGridClass
+              'absolute inset-0 px-2 pb-2 md:px-4 md:pb-4 landscape:px-4 landscape:pb-4',
+              'pt-12 md:pt-14 landscape:pt-14',
+              showInfographicInMainPane ? 'flex flex-col' : visualLayout === 1 ? 'flex flex-col' : visualGridClass
             )}
           >
+            {showInfographicInMainPane ? (
+              <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overflow-x-hidden rounded-lg border border-white/10 bg-black/25 p-2 text-left">
+                {curriculumInfographic ? (
+                  <div
+                    ref={infographicPaneStageRef}
+                    data-infographic-draw-pane-stage
+                    className={cn('relative flex min-h-0 flex-1 items-center justify-center touch-none')}
+                    onPointerDown={(e) => startInfographicDrawing('pane', e)}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element -- remote curriculum infographic */}
+                    <img
+                      ref={infographicPaneImageRef}
+                      data-student-curriculum-infographic-pane-img
+                      src={curriculumInfographic.imageUrl}
+                      alt=""
+                      draggable={false}
+                      onDragStart={(ev) => ev.preventDefault()}
+                      className="max-h-full min-h-0 w-full select-none rounded-md border border-white/10 bg-black/20 object-contain"
+                      referrerPolicy="no-referrer"
+                    />
+                    <canvas
+                      ref={infographicPaneCanvasRef}
+                      data-infographic-draw-pane-canvas
+                      className="absolute pointer-events-none"
+                      aria-hidden
+                    />
+                    {((isTeacherView && presenterLeftTab === 'infographic') || (isStudentCurriculumSlide && studentCurriculumLeftPaneTab === 'infographic')) && (
+                      <div
+                        className="absolute bottom-2 left-1/2 z-20 flex -translate-x-1/2 flex-wrap items-center justify-center gap-1 rounded-lg border border-white/25 bg-black/70 p-1 text-white shadow-lg"
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => setInfographicDrawTool('pen')}
+                          className={cn('rounded px-2 py-1 text-[11px] transition-colors', infographicDrawTool === 'pen' ? 'bg-white/30' : 'hover:bg-white/15')}
+                        >
+                          {tr('Vẽ', 'Draw', '画笔', '描画', '그리기')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setInfographicDrawTool('eraser')}
+                          className={cn('rounded px-2 py-1 text-[11px] transition-colors', infographicDrawTool === 'eraser' ? 'bg-white/30' : 'hover:bg-white/15')}
+                        >
+                          {tr('Tẩy', 'Erase', '橡皮', '消しゴム', '지우기')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setInfographicDrawBrushPx(3)}
+                          className={cn('rounded px-2 py-1 text-[11px] transition-colors', infographicDrawBrushPx === 3 ? 'bg-white/30' : 'hover:bg-white/15')}
+                        >
+                          {tr('S', 'S', '细', '細', '얇게')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setInfographicDrawBrushPx(5)}
+                          className={cn('rounded px-2 py-1 text-[11px] transition-colors', infographicDrawBrushPx === 5 ? 'bg-white/30' : 'hover:bg-white/15')}
+                        >
+                          {tr('M', 'M', '中', '中', '중간')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setInfographicDrawBrushPx(7)}
+                          className={cn('rounded px-2 py-1 text-[11px] transition-colors', infographicDrawBrushPx === 7 ? 'bg-white/30' : 'hover:bg-white/15')}
+                        >
+                          {tr('L', 'L', '粗', '太', '굵게')}
+                        </button>
+                        <div className="flex items-center gap-1 px-1">
+                          {INFOGRAPHIC_DRAW_COLORS.map((color) => (
+                            <button
+                              key={`pane-${color}`}
+                              type="button"
+                              onClick={() => setInfographicDrawColor(color)}
+                              className={cn(
+                                'h-3.5 w-3.5 rounded-full border transition-transform',
+                                infographicDrawColor === color ? 'scale-110 border-white' : 'border-white/40 hover:scale-105'
+                              )}
+                              style={{ backgroundColor: color }}
+                              title={tr('Màu nét vẽ', 'Stroke color', '画笔颜色', '描画色', '펜 색상')}
+                            />
+                          ))}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            undoInfographicStroke(currentIndex)
+                            sendInfographicDrawMessage({ type: 'infographic-draw-undo', slideIndex: currentIndex })
+                          }}
+                          className="rounded px-2 py-1 text-[11px] transition-colors hover:bg-white/15"
+                        >
+                          {tr('Undo', 'Undo', '撤销', '元に戻す', '실행 취소')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            clearInfographicStrokes(currentIndex)
+                            sendInfographicDrawMessage({ type: 'infographic-draw-clear', slideIndex: currentIndex })
+                          }}
+                          className="rounded px-2 py-1 text-[11px] transition-colors hover:bg-white/15"
+                        >
+                          {tr('Clear', 'Clear', '清除', 'クリア', '지우기')}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex flex-1 items-center justify-center p-4 text-center text-sm text-white/60">
+                    {tr(
+                      'Chưa có infographic cho giáo trình này.',
+                      'No curriculum infographic yet.',
+                      '本课程尚无信息图。',
+                      'このカリキュラムにはまだインフォグラフィックがありません。',
+                      '이 교육과정에는 아직 인포그래픽이 없습니다.'
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div ref={studentEmbeddedVisualFrameRef} className="contents">
               {visualLayout === 1 ? (
                 <div key={`nano-vis-pane-${currentIndex}`} className="relative flex-1 min-h-0 overflow-hidden rounded-lg border border-white/10 bg-black/30">
                   <span className="absolute left-1 top-1 z-10 rounded bg-black/60 px-1.5 py-0.5 font-mono text-xs text-white">
@@ -2403,13 +3769,60 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                       )
                     })()
                   ) : visualCells[0]?.imageUrl ? (
-                    <img
-                      key={`nano-vis-img-${currentIndex}-0`}
-                      src={visualCells[0].imageUrl}
-                      alt=""
-                      className="h-full w-full object-cover"
-                      referrerPolicy="no-referrer"
-                    />
+                    visualImageIsCurriculumInfographic(visualCells[0].imageUrl, curriculumInfographic) ? (
+                      <div
+                        data-infographic-draw-pane-stage
+                        className="relative flex h-full w-full min-h-0 items-center justify-center p-1 touch-none"
+                        onPointerDown={(e) => {
+                          const stage = e.currentTarget as HTMLDivElement
+                          const img = stage.querySelector('img') as HTMLImageElement | null
+                          const canvas = stage.querySelector('canvas') as HTMLCanvasElement | null
+                          if (img && canvas) {
+                            infographicPaneStageRef.current = stage
+                            infographicPaneImageRef.current = img
+                            infographicPaneCanvasRef.current = canvas
+                          }
+                          startInfographicDrawing('pane', e)
+                        }}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element -- curriculum infographic in Visual pane */}
+                        <img
+                          key={`nano-vis-img-${currentIndex}-0`}
+                          data-student-curriculum-infographic-pane-img
+                          src={visualCells[0].imageUrl}
+                          alt=""
+                          draggable={false}
+                          onDragStart={(ev) => ev.preventDefault()}
+                          className="max-h-full min-h-0 w-full select-none rounded-md border border-white/10 bg-black/20 object-contain"
+                          referrerPolicy="no-referrer"
+                        />
+                        <canvas data-infographic-draw-pane-canvas className="pointer-events-none absolute" aria-hidden />
+                        <div
+                          className="absolute bottom-1.5 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1 rounded bg-black/65 px-1 py-1 text-white"
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <button type="button" onClick={() => setInfographicDrawTool('pen')} className={cn('rounded px-2 py-1 text-[11px]', infographicDrawTool === 'pen' ? 'bg-white/30' : 'hover:bg-white/15')}>{tr('Vẽ', 'Draw', '画笔', '描画', '그리기')}</button>
+                          <button type="button" onClick={() => setInfographicDrawTool('eraser')} className={cn('rounded px-2 py-1 text-[11px]', infographicDrawTool === 'eraser' ? 'bg-white/30' : 'hover:bg-white/15')}>{tr('Tẩy', 'Erase', '橡皮', '消しゴム', '지우기')}</button>
+                          <button type="button" onClick={() => setInfographicDrawBrushPx(3)} className={cn('rounded px-2 py-1 text-[11px]', infographicDrawBrushPx === 3 ? 'bg-white/30' : 'hover:bg-white/15')}>{tr('S', 'S', '细', '細', '얇게')}</button>
+                          <button type="button" onClick={() => setInfographicDrawBrushPx(5)} className={cn('rounded px-2 py-1 text-[11px]', infographicDrawBrushPx === 5 ? 'bg-white/30' : 'hover:bg-white/15')}>{tr('M', 'M', '中', '中', '중간')}</button>
+                          <button type="button" onClick={() => setInfographicDrawBrushPx(7)} className={cn('rounded px-2 py-1 text-[11px]', infographicDrawBrushPx === 7 ? 'bg-white/30' : 'hover:bg-white/15')}>{tr('L', 'L', '粗', '太', '굵게')}</button>
+                          {INFOGRAPHIC_DRAW_COLORS.map((color) => (
+                            <button key={`vis1-${color}`} type="button" onClick={() => setInfographicDrawColor(color)} className={cn('h-3.5 w-3.5 rounded-full border', infographicDrawColor === color ? 'border-white' : 'border-white/40')} style={{ backgroundColor: color }} />
+                          ))}
+                          <button type="button" onClick={() => { undoInfographicStroke(currentIndex); sendInfographicDrawMessage({ type: 'infographic-draw-undo', slideIndex: currentIndex }) }} className="rounded px-2 py-1 text-[11px] hover:bg-white/15">{tr('Undo', 'Undo', '撤销', '元に戻す', '실행 취소')}</button>
+                          <button type="button" onClick={() => { clearInfographicStrokes(currentIndex); sendInfographicDrawMessage({ type: 'infographic-draw-clear', slideIndex: currentIndex }) }} className="rounded px-2 py-1 text-[11px] hover:bg-white/15">{tr('Clear', 'Clear', '清除', 'クリア', '지우기')}</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <img
+                        key={`nano-vis-img-${currentIndex}-0`}
+                        src={visualCells[0].imageUrl}
+                        alt=""
+                        className="h-full w-full object-cover"
+                        referrerPolicy="no-referrer"
+                      />
+                    )
                   ) : (
                     <div className="flex h-full w-full items-center justify-center">
                       <div className="h-8 w-8 rounded bg-white/5" />
@@ -2453,13 +3866,60 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                           )
                         })()
                       ) : cell.imageUrl ? (
-                        <img
-                          key={`nano-vis-img-${currentIndex}-${idx}`}
-                          src={cell.imageUrl}
-                          alt=""
-                          className="h-full w-full object-cover"
-                          referrerPolicy="no-referrer"
-                        />
+                        visualImageIsCurriculumInfographic(cell.imageUrl, curriculumInfographic) ? (
+                          <div
+                            data-infographic-draw-pane-stage
+                            className="relative flex h-full w-full min-h-0 items-center justify-center p-0.5 touch-none"
+                            onPointerDown={(e) => {
+                              const stage = e.currentTarget as HTMLDivElement
+                              const img = stage.querySelector('img') as HTMLImageElement | null
+                              const canvas = stage.querySelector('canvas') as HTMLCanvasElement | null
+                              if (img && canvas) {
+                                infographicPaneStageRef.current = stage
+                                infographicPaneImageRef.current = img
+                                infographicPaneCanvasRef.current = canvas
+                              }
+                              startInfographicDrawing('pane', e)
+                            }}
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element -- curriculum infographic in Visual pane */}
+                            <img
+                              key={`nano-vis-img-${currentIndex}-${idx}`}
+                              data-student-curriculum-infographic-pane-img
+                              src={cell.imageUrl}
+                              alt=""
+                              draggable={false}
+                              onDragStart={(ev) => ev.preventDefault()}
+                              className="max-h-full min-h-0 w-full select-none rounded-md border border-white/10 bg-black/20 object-contain"
+                              referrerPolicy="no-referrer"
+                            />
+                            <canvas data-infographic-draw-pane-canvas className="pointer-events-none absolute" aria-hidden />
+                            <div
+                              className="absolute bottom-1 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1 rounded bg-black/65 px-1 py-1 text-white"
+                              onPointerDown={(e) => e.stopPropagation()}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <button type="button" onClick={() => setInfographicDrawTool('pen')} className={cn('rounded px-2 py-1 text-[11px]', infographicDrawTool === 'pen' ? 'bg-white/30' : 'hover:bg-white/15')}>{tr('Vẽ', 'Draw', '画笔', '描画', '그리기')}</button>
+                              <button type="button" onClick={() => setInfographicDrawTool('eraser')} className={cn('rounded px-2 py-1 text-[11px]', infographicDrawTool === 'eraser' ? 'bg-white/30' : 'hover:bg-white/15')}>{tr('Tẩy', 'Erase', '橡皮', '消しゴム', '지우기')}</button>
+                              <button type="button" onClick={() => setInfographicDrawBrushPx(3)} className={cn('rounded px-2 py-1 text-[11px]', infographicDrawBrushPx === 3 ? 'bg-white/30' : 'hover:bg-white/15')}>{tr('S', 'S', '细', '細', '얇게')}</button>
+                              <button type="button" onClick={() => setInfographicDrawBrushPx(5)} className={cn('rounded px-2 py-1 text-[11px]', infographicDrawBrushPx === 5 ? 'bg-white/30' : 'hover:bg-white/15')}>{tr('M', 'M', '中', '中', '중간')}</button>
+                              <button type="button" onClick={() => setInfographicDrawBrushPx(7)} className={cn('rounded px-2 py-1 text-[11px]', infographicDrawBrushPx === 7 ? 'bg-white/30' : 'hover:bg-white/15')}>{tr('L', 'L', '粗', '太', '굵게')}</button>
+                              {INFOGRAPHIC_DRAW_COLORS.map((color) => (
+                                <button key={`vism-${idx}-${color}`} type="button" onClick={() => setInfographicDrawColor(color)} className={cn('h-3.5 w-3.5 rounded-full border', infographicDrawColor === color ? 'border-white' : 'border-white/40')} style={{ backgroundColor: color }} />
+                              ))}
+                              <button type="button" onClick={() => { undoInfographicStroke(currentIndex); sendInfographicDrawMessage({ type: 'infographic-draw-undo', slideIndex: currentIndex }) }} className="rounded px-2 py-1 text-[11px] hover:bg-white/15">{tr('Undo', 'Undo', '撤销', '元に戻す', '실행 취소')}</button>
+                              <button type="button" onClick={() => { clearInfographicStrokes(currentIndex); sendInfographicDrawMessage({ type: 'infographic-draw-clear', slideIndex: currentIndex }) }} className="rounded px-2 py-1 text-[11px] hover:bg-white/15">{tr('Clear', 'Clear', '清除', 'クリア', '지우기')}</button>
+                            </div>
+                          </div>
+                        ) : (
+                          <img
+                            key={`nano-vis-img-${currentIndex}-${idx}`}
+                            src={cell.imageUrl}
+                            alt=""
+                            className="h-full w-full object-cover"
+                            referrerPolicy="no-referrer"
+                          />
+                        )
                       ) : (
                         <div className="flex h-full w-full items-center justify-center">
                           <div className="h-8 w-8 rounded bg-white/5" />
@@ -2469,14 +3929,20 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                   ))}
                 </>
               )}
+              </div>
+            )}
             </div>
         </div>
 
-        {/* Content: desktop 55%; mobile full width bên dưới visual */}
+        {/* Content: GV desktop 55%; HS desktop 50%; mobile full width bên dưới visual */}
         <div
           className={cn(
             'flex min-h-0 shrink-0 flex-col bg-white',
-            narrowSlideLayout ? 'w-full flex-1 min-h-[min(60vh,520px)]' : 'w-[55%]',
+            narrowSlideLayout
+              ? 'w-full flex-1 min-h-[min(60vh,520px)]'
+              : isTeacherView
+                ? 'w-[55%]'
+                : 'w-1/2',
           )}
         >
           {!isTeacherView && !worksheetPresentation && slides.length > 0 && (
@@ -2484,7 +3950,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
               className="flex h-12 shrink-0 items-center overflow-x-auto border-b border-slate-200 bg-white px-3 shadow-sm print:hidden md:h-14 md:px-6 lg:px-8 landscape:px-6"
               data-control="student-curriculum-mode"
             >
-              <div className="ml-0 flex min-w-0 flex-1 items-center gap-2 whitespace-nowrap md:ml-[50px] md:flex-none md:gap-2.5 md:whitespace-normal">
+              <div className="-ml-[12px] flex min-w-0 flex-1 items-center gap-2 whitespace-nowrap md:flex-none md:gap-2.5 md:whitespace-normal">
               <button
                 type="button"
                 data-control="student-curriculum-all"
@@ -2539,6 +4005,24 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
           <div
             ref={studentMdRightColumnScrollRef}
             className="min-h-0 flex-1 overflow-y-auto p-3 pb-6 md:p-8 lg:p-12 landscape:p-8"
+          >
+          <div
+            ref={studentSlideContentLayoutRef}
+            className={cn(
+              'min-w-0',
+              presentationMode === 'slide-interaction' && !isTeacherView && syncedTeacherSlideLayoutW != null && 'mx-auto',
+            )}
+            style={
+              presentationMode === 'slide-interaction' &&
+              !isTeacherView &&
+              syncedTeacherSlideLayoutW != null &&
+              studentMdScrollClientW > 0
+                ? {
+                    width: Math.min(syncedTeacherSlideLayoutW, studentMdScrollClientW),
+                    maxWidth: '100%',
+                  }
+                : undefined
+            }
           >
           {!isTeacherView && !worksheetPresentation && studentCurriculumRightMode === 'markdown-all' && slides.length > 0 ? (
             <div ref={studentMarkdownAllScrollRef} className="space-y-6 pb-6 text-left">
@@ -2724,7 +4208,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                     onClick={() => setQuizPopupOpen(true)}
                     className={cn(
                       'shrink-0 border-violet-400 text-violet-700 hover:bg-violet-50 print:hidden',
-                      !isTeacherView && !worksheetPresentation && !!curriculumId ? 'mt-[41px]' : 'mt-[31px]'
+                      !isTeacherView && !worksheetPresentation && !!curriculumId ? 'mt-[19.5px]' : 'mt-[9.5px]'
                     )}
                   >
                     <ClipboardList className="mr-1.5 h-4 w-4" />
@@ -2732,6 +4216,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                   </Button>
                 ) : null}
               </div>
+              <div ref={studentSlidePointerSyncRef} className="w-full min-w-0">
               {hasBlocks ? (
                 <div className="space-y-4">
                   {blocks.map((b, i) => {
@@ -2750,57 +4235,79 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                     } else {
                       visibleForBlock = undefined
                     }
-                    return (
-                    <div key={i} className="flex rounded-lg overflow-hidden bg-white shadow-sm border border-slate-100">
-                      <div className="w-24 min-w-[96px] bg-violet-100 flex flex-col items-center justify-center p-3">
-                        <div className="text-violet-600">
-                          {getIconForHeader(b.header)}
-                        </div>
-                        <div className="mt-2 w-full flex flex-col items-center gap-0.5">
-                          <span className="text-xs font-bold text-violet-700 text-center leading-tight">
-                            {b.header}
+                    /** HS giáo trình (không phiếu): header + icon trên cùng — text full width, khớp thụt lề với GV */
+                    const stackCurriculumBlockChrome =
+                      !isTeacherView && !!curriculumId && !worksheetPresentation
+                    const blockBody = worksheetOrCurriculumSegmentBlock ? (
+                      <WorksheetBlockContentWithEmbeds
+                        content={b.content}
+                        liveQuizContext={curriculumId ? { curriculumId, slideIndex: currentIndex, blockIndex: i } : undefined}
+                        pointerSyncSlideIndex={currentIndex}
+                        pointerSyncBlockIndex={i}
+                        tr={tr}
+                        hideQuiz
+                        visibleSegmentCount={visibleForBlock}
+                        suppressTypingPenAtZero={false}
+                        allowTypingPenAtRevealStart={
+                          sequentialSolutionPenBlockIndex != null && sequentialSolutionPenBlockIndex === i
+                        }
+                      />
+                    ) : (
+                      <CurriculumBlockContentWithEmbeds
+                        content={b.content}
+                        liveQuizContext={curriculumId ? { curriculumId, slideIndex: currentIndex, blockIndex: i } : undefined}
+                        pointerSyncSlideIndex={currentIndex}
+                        pointerSyncBlockIndex={i}
+                        tr={tr}
+                        hideQuiz
+                      />
+                    )
+                    return stackCurriculumBlockChrome ? (
+                      <div key={i} className="rounded-lg overflow-hidden bg-white shadow-sm border border-slate-100">
+                        <div className="flex items-center gap-2 border-b border-violet-100 bg-violet-50/90 px-4 py-2.5">
+                          <div className="text-violet-600 shrink-0">{getIconForHeader(b.header ?? '')}</div>
+                          <span className="text-xs font-bold text-violet-700">
+                            {(b.header ?? '').trim()
+                              ? b.header
+                              : tr('Nội dung', 'Content', '内容', '内容', '내용')}
                           </span>
                         </div>
+                        <div className="p-2.5 text-slate-800">{blockBody}</div>
                       </div>
-                      <div className="flex-1 p-5 text-slate-800">
-                        {worksheetOrCurriculumSegmentBlock ? (
-                          <WorksheetBlockContentWithEmbeds
-                            content={b.content}
-                            liveQuizContext={curriculumId ? { curriculumId, slideIndex: currentIndex, blockIndex: i } : undefined}
-                            tr={tr}
-                            hideQuiz
-                            visibleSegmentCount={visibleForBlock}
-                            suppressTypingPenAtZero={false}
-                            allowTypingPenAtRevealStart={
-                              sequentialSolutionPenBlockIndex != null && sequentialSolutionPenBlockIndex === i
-                            }
-                          />
-                        ) : (
-                          <CurriculumBlockContentWithEmbeds
-                            content={b.content}
-                            liveQuizContext={curriculumId ? { curriculumId, slideIndex: currentIndex, blockIndex: i } : undefined}
-                            tr={tr}
-                            hideQuiz
-                          />
-                        )}
+                    ) : (
+                      <div key={i} className="flex rounded-lg overflow-hidden bg-white shadow-sm border border-slate-100">
+                        <div className="w-24 min-w-[96px] bg-violet-100 flex flex-col items-center justify-center p-3">
+                          <div className="text-violet-600">
+                            {getIconForHeader(b.header)}
+                          </div>
+                          <div className="mt-2 w-full flex flex-col items-center gap-0.5">
+                            <span className="text-xs font-bold text-violet-700 text-center leading-tight">
+                              {b.header}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex-1 p-2.5 text-slate-800">{blockBody}</div>
                       </div>
-                    </div>
                     )
                   })}
                 </div>
               ) : slide.content ? (
-                <div className="text-slate-700 text-base md:text-lg leading-relaxed [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:space-y-2">
+                <div className="text-slate-700">
                   <CurriculumBlockContentWithEmbeds
                     content={slide.content}
                     liveQuizContext={curriculumId ? { curriculumId, slideIndex: currentIndex, blockIndex: 0 } : undefined}
+                    pointerSyncSlideIndex={currentIndex}
+                    pointerSyncBlockIndex={0}
                     tr={tr}
                     hideQuiz
                   />
                 </div>
               ) : null}
+              </div>
             </>
           )}
           {/* Ghi chú chỉ sửa trong cửa sổ Giáo trình – không hiển thị trên slide cho học sinh */}
+          </div>
           </div>
         </div>
         </div>
@@ -2823,7 +4330,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                   {i + 1}
                 </div>
                 {(() => {
-                  const { layout, cells } = getVisualCells(s)
+                  const { layout, cells } = getVisualCellsForPresentation(s, curriculumInfographic)
                   const gridClass = layout === 2 ? 'grid grid-rows-2 gap-1' : layout === 4 ? 'grid grid-cols-2 grid-rows-2 gap-1' : ''
                   const hasAny = cells.some((c) => c.visualEmbed || c.imageUrl)
                   if (!hasAny) {
@@ -2852,7 +4359,17 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                               )
                             })()
                           ) : cell.imageUrl ? (
-                            <img src={cell.imageUrl} alt="" className="w-full h-full min-h-[40px] object-cover" />
+                            visualImageIsCurriculumInfographic(cell.imageUrl, curriculumInfographic) ? (
+                              <div className="flex h-full w-full min-h-[40px] items-center justify-center bg-black/20 p-0.5">
+                                <img
+                                  src={cell.imageUrl}
+                                  alt=""
+                                  className="max-h-full min-h-0 w-full rounded border border-white/10 object-contain"
+                                />
+                              </div>
+                            ) : (
+                              <img src={cell.imageUrl} alt="" className="w-full h-full min-h-[40px] object-cover" />
+                            )
                           ) : (
                             <div className="w-full h-full min-h-[40px] bg-white/5" />
                           )}

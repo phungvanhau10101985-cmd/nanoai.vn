@@ -4,19 +4,21 @@ import { Trash2 } from 'lucide-react'
 import { ContentEmbed, splitContentWithEmbeds, type EmbedType } from './content-embed'
 import { AnimatedCharReveal } from './animated-char-reveal'
 import { slideMarkdownToHtml } from './slide-markdown-to-html'
+import { POINTER_PROSE_ROOT_ATTR, SLIDE_SYNC_MARKDOWN_CLASS } from './slide-sync-markdown-classes'
+import { cn } from '@/lib/utils'
 
 function getTextSegmentCount(text: string): number {
   return text.length
 }
-
-const WRAPPER_CLASS =
-  '[&_ul]:list-disc [&_ul]:pl-5 [&_ul]:space-y-2 [&_p]:my-2 text-base md:text-lg leading-relaxed'
 
 export type CurriculumBlockContentWithEmbedsProps = {
   content: string
   onRemoveEmbed?: (rawMarker: string) => void
   removeTitle?: string
   liveQuizContext?: { curriculumId: string; slideIndex: number; blockIndex: number }
+  /** Đồng bộ chuột / wrap: cùng data-* với GV */
+  pointerSyncSlideIndex?: number
+  pointerSyncBlockIndex?: number
   tr?: (vi: string, en: string, zh: string, ja: string, ko: string) => string
   hideQuiz?: boolean
   animateReveal?: boolean
@@ -41,11 +43,21 @@ export function CurriculumBlockContentWithEmbeds({
   animateTrigger,
   wordDelayMs,
   visibleCountInBlock,
+  pointerSyncSlideIndex,
+  pointerSyncBlockIndex,
 }: CurriculumBlockContentWithEmbedsProps) {
   const parts = splitContentWithEmbeds(content)
   let consumed = 0
+  const pointerAttrs =
+    pointerSyncSlideIndex != null && pointerSyncBlockIndex != null
+      ? ({
+          [POINTER_PROSE_ROOT_ATTR]: '',
+          'data-slide-index': pointerSyncSlideIndex,
+          'data-block-index': pointerSyncBlockIndex,
+        } as const)
+      : {}
   return (
-    <div className={WRAPPER_CLASS}>
+    <div {...pointerAttrs} className={cn(SLIDE_SYNC_MARKDOWN_CLASS, 'text-slate-800')}>
       {parts.map((p, i) => {
         if (p.type === 'text') {
           const partLen = getTextSegmentCount(p.value)

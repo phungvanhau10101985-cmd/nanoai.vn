@@ -729,7 +729,7 @@ export default function DichAnhTaiLieuClientPage() {
                         onClick={() => { setBatchMode('excel'); setBatchImages([]); setPdfFile(null) }}
                         className={`px-3 py-2 rounded-md border text-xs font-medium transition-colors ${batchMode === 'excel' ? 'border-slate-600 bg-slate-600 text-white' : 'border-slate-500 bg-slate-400 text-slate-900 hover:bg-slate-500'}`}
                       >
-                        {tr(uiLocale, 'File Excel (link cột A)', 'Excel file (links in column A)', 'Excel 文件（A 列链接）', 'Excelファイル（A列リンク）', 'Excel 파일 (A열 링크)')}
+                        {tr(uiLocale, 'File Excel (link ảnh cột A)', 'Excel file (image links in column A)', 'Excel 文件（A 列图片链接）', 'Excelファイル（A列画像リンク）', 'Excel 파일 (A열 이미지 링크)')}
                       </button>
                       <button
                         type="button"

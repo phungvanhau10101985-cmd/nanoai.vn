@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createSupabaseMutableCookiesClient } from '@/lib/supabase/mutable-cookies-client'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { FORCE_REAL_LOGIN_COOKIE } from '@/lib/auth'
@@ -20,8 +20,9 @@ export async function GET(request: Request) {
   const code = searchParams.get('code')
   const next = sanitizeLoginNext(searchParams.get('next'))
 
+  const supabase = createSupabaseMutableCookiesClient()
+
   if (code) {
-    const supabase = createClient()
     const { error } = await supabase.auth.exchangeCodeForSession(code)
     if (!error) {
       const cookieStore = cookies()
@@ -43,8 +44,27 @@ export async function GET(request: Request) {
 
       return response
     }
+
+    // Mã OAuth/magic link thường chỉ dùng 1 lần: lần gọi thứ 2 (prefetch email, double-click, tab trùng)
+    // sẽ lỗi dù phiên đã được thiết lập ở lần 1 — đừng đẩy user sang trang lỗi nếu đã đăng nhập.
+    if (error) {
+      console.warn('[auth/callback] exchangeCodeForSession failed:', error.message)
+    }
+    const {
+      data: { user: recoveredUser },
+    } = await supabase.auth.getUser()
+    if (recoveredUser) {
+      return NextResponse.redirect(`${origin}${next}`)
+    }
+  } else {
+    // Không có ?code= nhưng đã có phiên (ví dụ mở lại URL callback cũ)
+    const {
+      data: { user: existingUser },
+    } = await supabase.auth.getUser()
+    if (existingUser) {
+      return NextResponse.redirect(`${origin}${next}`)
+    }
   }
 
-  // return the user to an error page with instructions
   return NextResponse.redirect(`${origin}/auth/auth-code-error`)
 }

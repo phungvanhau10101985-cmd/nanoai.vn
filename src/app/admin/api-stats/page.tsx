@@ -1,4 +1,4 @@
-import { Suspense } from 'react'
+import Link from 'next/link'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -6,41 +6,15 @@ import { Badge } from '@/components/ui/badge'
 import { ApiStatsDateFilter } from './api-stats-date-filter'
 import { LogsTableWithDetail } from './logs-table-with-detail'
 import { getCurrentWebLocale } from '@/lib/i18n/server'
-
-/** Chi phí API - theo bảng giá Google Gemini 3 Pro Image 2025
- * Token output: 1K=1120, 2K=1120, 4K=2000. Giá ảnh: $120/1M tokens */
-const IMAGE_TOKENS = { '1K': 1120, '2K': 1120, '4K': 2000 } as const
-const API_COST_PER_1M: Record<string, { input: number; output: number; outputImage?: number }> = {
-  'gemini-3-pro-image-preview': { input: 2, output: 12, outputImage: 120 },
-  'gemini-3-flash-preview': { input: 0.5, output: 3 },
-  'gemini-3-pro-preview': { input: 2, output: 12 },
-  'gemini-2.5-pro': { input: 1.25, output: 10 },
-  'gemini-2.5-flash': { input: 0.3, output: 2.5 },
-  'gemini-2.5-flash-preview-09-2025': { input: 0.3, output: 2.5 },
-  'gemini-2.5-flash-lite': { input: 0.1, output: 0.4 },
-  'gemini-2.5-flash-image': { input: 0.3, output: 30 }, // 1290 tok/image = $0.039
-  'gemini-2.0-flash': { input: 0.1, output: 0.4 },
-  'gemini-2.0-flash-lite': { input: 0.075, output: 0.3 },
-}
-const USD_TO_VND = 25_000
-
-function calcCostVnd(
-  promptTokens: number,
-  outputTokens: number,
-  model: string,
-  imageSize?: string | null
-): number {
-  const rates = API_COST_PER_1M[model] ?? API_COST_PER_1M['gemini-3-flash-preview']
-  const isImage = imageSize === '1K' || imageSize === '2K' || imageSize === '4K'
-  const outputRate = rates.outputImage && isImage ? rates.outputImage : rates.output
-  // Dùng token cố định theo bảng Google khi có image_size (chính xác hơn)
-  const effectiveOutputTokens =
-    isImage && rates.outputImage && imageSize && imageSize in IMAGE_TOKENS
-      ? IMAGE_TOKENS[imageSize as keyof typeof IMAGE_TOKENS]
-      : outputTokens
-  const usd = (promptTokens / 1_000_000) * rates.input + (effectiveOutputTokens / 1_000_000) * outputRate
-  return Math.round(usd * USD_TO_VND)
-}
+import { isEnglishCoachApiUsageFeature } from '@/lib/english-coach-api-usage'
+import { CREDIT_UNIT_PRICE_VND } from '@/lib/credit-unit-price'
+import { calcCostVnd, USD_TO_VND } from './api-cost'
+import { buildEnglishCoachFeatureLabelsForLogs, ENGLISH_COACH_API_STATS_FEATURE_LABELS } from './english-coach-feature-labels'
+import { CURRICULUM_API_STATS_FEATURE_LABELS } from './curriculum-feature-labels'
+import {
+  aggregateEnglishCoachApiCostByLessonKind,
+  aggregateLanguageCoachCredits,
+} from './language-coach-financials'
 
 const FEATURE_LABELS: Record<string, string> = {
   'thu-do-online': 'Thử đồ ảo',
@@ -70,6 +44,8 @@ const FEATURE_LABELS: Record<string, string> = {
   'tao-video-tu-anh': 'Tạo video từ ảnh',
   'ai-normalize': 'Chuẩn hóa văn bản (AI)',
   'dich-anh-tai-lieu': 'Dịch ảnh tài liệu',
+  ...ENGLISH_COACH_API_STATS_FEATURE_LABELS,
+  ...CURRICULUM_API_STATS_FEATURE_LABELS,
 }
 
 function toYMD(d: Date) {
@@ -125,13 +101,20 @@ export default async function AdminApiStatsPage({
       })
       .reduce((s, p) => s + (p.amount || 0), 0) ?? 0
 
-  const { data: logs, error } = await adminSupabase
-    .from('api_usage_log')
-    .select('id, model, feature, prompt_token_count, candidates_token_count, total_token_count, image_size, created_at')
-    .gte('created_at', fromDate + 'T00:00:00')
-    .lte('created_at', toDate + 'T23:59:59.999')
-    .order('created_at', { ascending: false })
-    .limit(5000)
+  const [{ data: logs, error }, { data: languageCoachCreditEvents }] = await Promise.all([
+    adminSupabase
+      .from('api_usage_log')
+      .select('id, model, feature, prompt_token_count, candidates_token_count, total_token_count, image_size, created_at')
+      .gte('created_at', fromDate + 'T00:00:00')
+      .lte('created_at', toDate + 'T23:59:59.999')
+      .order('created_at', { ascending: false })
+      .limit(5000),
+    adminSupabase
+      .from('language_coach_credit_events')
+      .select('charge_type, amount')
+      .gte('created_at', fromDate + 'T00:00:00')
+      .lte('created_at', toDate + 'T23:59:59.999'),
+  ])
 
   if (error) {
     return (
@@ -147,6 +130,13 @@ export default async function AdminApiStatsPage({
   }
 
   const logsList = logs || []
+  const coachLogsInRange = logsList.filter((l) => isEnglishCoachApiUsageFeature(l.feature))
+  const languageCoachCreditAgg = aggregateLanguageCoachCredits(languageCoachCreditEvents || [])
+  const coachApiByKind = aggregateEnglishCoachApiCostByLessonKind(coachLogsInRange)
+  const featureLabelsMerged = {
+    ...FEATURE_LABELS,
+    ...buildEnglishCoachFeatureLabelsForLogs(coachLogsInRange.map((l) => l.feature)),
+  }
 
   const byModel = logsList.reduce(
     (acc, log) => {
@@ -242,6 +232,26 @@ export default async function AdminApiStatsPage({
       <div>
         <h2 className="text-3xl font-bold tracking-tight">{tr('Thống kê sử dụng API Google (Gemini)', 'Google API usage statistics (Gemini)', 'Google API 使用统计（Gemini）', 'Google API利用統計（Gemini）', 'Google API 사용 통계 (Gemini)')}</h2>
         <p className="text-muted-foreground mt-1">{tr('Tối đa 5000 bản ghi • Tỷ giá 1 USD = 25.000₫', 'Up to 5000 records • Exchange rate: 1 USD = 25,000₫', '最多5000条记录 • 汇率：1 USD = 25,000₫', '最大5000件 • 為替レート: 1 USD = 25,000₫', '최대 5000건 • 환율: 1 USD = 25,000₫')}</p>
+        <p className="text-sm mt-2 flex flex-wrap gap-x-4 gap-y-1">
+          <Link href="/admin/api-stats/english-coach" className="text-primary underline underline-offset-2 hover:text-primary/80">
+            {tr(
+              'Báo cáo riêng: Học ngoại ngữ AI (english-coach)',
+              'Separate report: Language coach AI (english-coach)',
+              '单独报表：外语学习 AI（english-coach）',
+              '別レポート：語学学習AI（english-coach）',
+              '별도 보고서: 외국어 학습 AI (english-coach)'
+            )}
+          </Link>
+          <Link href="/admin/api-stats/curriculum" className="text-primary underline underline-offset-2 hover:text-primary/80">
+            {tr(
+              'Báo cáo chi tiết: Tạo giáo trình (curriculum-)',
+              'Detailed report: Curriculum builder (curriculum-)',
+              '详细报表：创建课程（curriculum-）',
+              '詳細レポート：授業作成（curriculum-）',
+              '상세 보고서: 교안 만들기 (curriculum-)'
+            )}
+          </Link>
+        </p>
         <p className="text-xs text-muted-foreground mt-0.5">
           {tr(
             'Giá theo bảng Google 2025: pro-image $2/$120 input/output, flash $0.5/$3, 2.5-flash $0.3/$2.5, 2.0-flash $0.1/$0.4',
@@ -253,9 +263,7 @@ export default async function AdminApiStatsPage({
         </p>
       </div>
 
-      <Suspense fallback={<Card className="border-slate-200"><CardContent className="py-4">{tr('Đang tải bộ lọc...', 'Loading filters...', '正在加载筛选器...', 'フィルターを読み込み中...', '필터 불러오는 중...')}</CardContent></Card>}>
-        <ApiStatsDateFilter key={`${fromDate}-${toDate}`} defaultFrom={fromDate} defaultTo={toDate} />
-      </Suspense>
+      <ApiStatsDateFilter key={`${fromDate}-${toDate}`} defaultFrom={fromDate} defaultTo={toDate} />
 
       <Card className="border-emerald-200 bg-emerald-50/30">
         <CardHeader>
@@ -286,6 +294,88 @@ export default async function AdminApiStatsPage({
               <p className="text-xs text-muted-foreground">{tr('Thu − Chi', 'Revenue − Cost', '收入 − 支出', '収入 − コスト', '매출 − 비용')}</p>
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card className="border-indigo-200 bg-indigo-50/20">
+        <CardHeader>
+          <CardTitle>
+            {tr(
+              'Học ngoại ngữ AI — Credit đã thu & chi phí API Gemini',
+              'Language coach — credits collected & Gemini API cost',
+              '外语学习 AI — 已收积分与 Gemini API',
+              '語学コーチ — クレジット収入とGemini API',
+              '외국어 코치 — 크레딧·Gemini API'
+            )}
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">{rangeLabel}</p>
+          <p className="text-xs text-muted-foreground">
+            {tr(
+              'Quy đổi credit → VND theo',
+              'Credit → VND using',
+              '积分换算 VND：',
+              'クレジット→VND:',
+              '크레딧→VND:'
+            )}{' '}
+            1 credit = {CREDIT_UNIT_PRICE_VND.toLocaleString('vi-VN')}₫.{' '}
+            {tr(
+              'Chi phí API “buổi live” chỉ gồm bản ghi feature english-coach-live-*; “bài có sẵn” là english-coach-preset-*.',
+              '“Live” API cost counts only english-coach-live-* features; “preset” counts english-coach-preset-*.',
+              '“直播”API 仅计 english-coach-live-*；“现成课”计 english-coach-preset-*。',
+              'ライブAPIは english-coach-live-* のみ。プリセットは english-coach-preset-*。',
+              '라이브 API는 english-coach-live-*만. 프리셋은 english-coach-preset-*.'
+            )}
+          </p>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">
+                {tr('Thu credit — buổi live', 'Credits — live', '积分—直播', 'クレジット—ライブ', '크레딧—라이브')}
+              </p>
+              <p className="text-xl font-bold text-emerald-800">{formatVnd(languageCoachCreditAgg.liveCreditsVnd)}</p>
+              <p className="text-xs text-muted-foreground">
+                {languageCoachCreditAgg.liveCredits.toFixed(2)} credits • {formatNum(languageCoachCreditAgg.liveStartCount)}+{formatNum(languageCoachCreditAgg.liveUnlockCount)}{' '}
+                {tr('lần mở', 'charges', '次', '回', '건')}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">
+                {tr('Thu credit — bài có sẵn', 'Credits — preset', '积分—现成课', 'クレジット—プリセット', '크레딧—프리셋')}
+              </p>
+              <p className="text-xl font-bold text-violet-900">{formatVnd(languageCoachCreditAgg.presetCreditsVnd)}</p>
+              <p className="text-xs text-muted-foreground">
+                {languageCoachCreditAgg.presetCredits.toFixed(2)} credits • {formatNum(languageCoachCreditAgg.presetStartCount)}{' '}
+                {tr('lần mở', 'starts', '次', '回', '건')}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">
+                {tr('Chi API Gemini — buổi live', 'Gemini cost — live', 'Gemini—直播', 'Gemini—ライブ', 'Gemini—라이브')}
+              </p>
+              <p className="text-xl font-bold text-amber-700">{formatVnd(coachApiByKind.liveVnd)}</p>
+              <p className="text-xs text-muted-foreground">~{coachApiByKind.liveUsd.toFixed(4)} USD</p>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">
+                {tr('Chi API — bài có sẵn', 'API cost — preset', 'API—现成课', 'API—プリセット', 'API—프리셋')}
+              </p>
+              <p className="text-xl font-bold text-slate-700">{formatVnd(coachApiByKind.presetVnd)}</p>
+              <p className="text-xs text-muted-foreground">~{coachApiByKind.presetUsd.toFixed(4)} USD</p>
+            </div>
+          </div>
+          {coachApiByKind.legacyVnd > 0 ? (
+            <p className="text-xs text-amber-800 mt-3 border-t pt-3">
+              {tr(
+                'Chi API english-coach chưa gắn nhãn live/preset (log cũ):',
+                'Unlabeled english-coach API (legacy logs):',
+                '未标注的 english-coach API（旧日志）：',
+                '未分類の english-coach API（旧ログ）:',
+                '미분류 english-coach API(구 로그):'
+              )}{' '}
+              {formatVnd(coachApiByKind.legacyVnd)} (~{coachApiByKind.legacyUsd.toFixed(4)} USD)
+            </p>
+          ) : null}
         </CardContent>
       </Card>
 
@@ -397,7 +487,7 @@ export default async function AdminApiStatsPage({
                   .map(([feature, stats]) => (
                     <TableRow key={feature}>
                       <TableCell>
-                        <span className="font-medium">{FEATURE_LABELS[feature] || feature}</span>
+                        <span className="font-medium">{featureLabelsMerged[feature] || feature}</span>
                         <br />
                         <span className="text-xs text-muted-foreground">{feature}</span>
                       </TableCell>
@@ -483,7 +573,7 @@ export default async function AdminApiStatsPage({
                   (log as { image_size?: string | null }).image_size
                 ),
               }))}
-              featureLabels={FEATURE_LABELS}
+              featureLabels={featureLabelsMerged}
             />
           ) : (
             <p className="py-8 text-center text-muted-foreground">{tr('Chưa có dữ liệu thống kê.', 'No statistics data yet.', '暂无统计数据。', '統計データがありません。', '통계 데이터가 없습니다.')}</p>

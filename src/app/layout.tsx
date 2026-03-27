@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
-import { Suspense } from "react";
 import dynamic from "next/dynamic";
 import Script from "next/script";
 import "./globals.css";
@@ -136,15 +135,13 @@ export default function RootLayout({
         <JsonLd data={webAppLd} />
         <JsonLd data={orgLd} />
         {/*
-          - Không bọc async Header trong Suspense: Next 14.2 + client con trong header đôi khi gây
-            "could not finish this Suspense boundary" khi hydrate.
-          - Bọc main/children: mọi trang con dùng useSearchParams (không tự Suspense) vẫn có boundary hợp lệ.
+          - Không bọc Header/main trong Suspense: Next 14.2 + Server Component dùng cookies() trong children
+            gây "could not finish this Suspense boundary" trên trang chủ và nhiều route.
+          - Trang nào cần boundary cho useSearchParams hãy bọc cục bộ trong chính trang đó.
         */}
         <Header />
         <DepositCreditProvider>
-          <Suspense fallback={<div className="min-h-[30vh] w-full" aria-hidden />}>
-            <main className="pb-16 md:pb-0">{children}</main>
-          </Suspense>
+          <main className="pb-16 md:pb-0">{children}</main>
           <Footer />
           <MobileBottomBar />
           <InstallPrompt />

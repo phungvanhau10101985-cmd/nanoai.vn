@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
+import {
+  EnglishCoachApiFeature,
+  trackEnglishCoachGeminiResult,
+  type EnglishCoachUsageContext,
+} from '@/lib/english-coach-api-usage'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
@@ -1213,8 +1218,14 @@ function extractLatestTeacherQuestion(history: ChatMessage[], targetLanguageCode
 }
 
 async function generatePinyinForSentence(
-  model: { generateContent: (input: string) => Promise<{ response: { text?: () => string | undefined } }> },
-  sentence: string
+  model: {
+    generateContent: (input: string) => Promise<{
+      response: { text?: () => string | undefined; usageMetadata?: import('@google/generative-ai').UsageMetadata }
+    }>
+  },
+  sentence: string,
+  userId?: string | null,
+  coachCtx: EnglishCoachUsageContext = 'unsessioned'
 ): Promise<string> {
   const source = String(sentence || '').trim()
   if (!source) return ''
@@ -1222,6 +1233,13 @@ async function generatePinyinForSentence(
 Chỉ trả về đúng 1 dòng pinyin, không thêm giải thích:
 ${source}`
   const result = await model.generateContent(prompt)
+  trackEnglishCoachGeminiResult(
+    result,
+    GEMINI_25_FLASH_NO_THINKING.model,
+    EnglishCoachApiFeature.chatPinyin,
+    userId ?? null,
+    coachCtx
+  )
   return String(result.response.text?.() || '').replace(/^```|```$/g, '').trim()
 }
 
@@ -1670,6 +1688,8 @@ export async function POST(request: NextRequest) {
       }
     }
     const isPresetSession = Boolean(presetReplay && presetReplay.turns.length > 0)
+    const coachUsageContext: EnglishCoachUsageContext =
+      !sessionId ? 'unsessioned' : isPresetSession ? 'preset' : 'live'
     if (userId && sessionId && !isFromDrill && !isPresetSession) {
       const sessionUuid = asUuidOrEmpty(sessionId)
       if (!sessionUuid) {
@@ -2359,6 +2379,13 @@ Yêu cầu:
 Câu cần giải thích (${targetLanguage}):
 ${latestQuestion}`
         const meaningRes = await repeatModel.generateContent(meaningPrompt)
+        trackEnglishCoachGeminiResult(
+          meaningRes,
+          GEMINI_25_FLASH_NO_THINKING.model,
+          EnglishCoachApiFeature.chatRepeatMeaning,
+          userId || null,
+          coachUsageContext
+        )
         const meaningText = String(meaningRes.response.text?.() || '').replace(/^```|```$/g, '').trim()
         if (meaningText) nativeMeaning = meaningText
       } catch {
@@ -2419,6 +2446,13 @@ ${studentText}`
 
       try {
         const reflexResult = await model.generateContent(reflexPrompt)
+        trackEnglishCoachGeminiResult(
+          reflexResult,
+          GEMINI_25_FLASH_NO_THINKING.model,
+          EnglishCoachApiFeature.chatReflex,
+          userId || null,
+          coachUsageContext
+        )
         const reflexText = reflexResult.response.text()?.trim() || ''
         const reflexParsed = (() => {
           try {
@@ -2441,7 +2475,9 @@ ${studentText}`
             if (targetLanguageCode === 'zh') {
               pinyin = await generatePinyinForSentence(
                 { generateContent: (input: string) => model.generateContent(input) },
-                reply
+                reply,
+                userId || null,
+                coachUsageContext
               )
             } else {
               const romanizePrompts: Record<string, string> = {
@@ -2453,6 +2489,13 @@ ${studentText}`
               const prompt = romanizePrompts[targetLanguageCode] || ''
               if (prompt) {
                 const res = await model.generateContent(prompt)
+                trackEnglishCoachGeminiResult(
+                  res,
+                  GEMINI_25_FLASH_NO_THINKING.model,
+                  EnglishCoachApiFeature.chatReflexTransliterate,
+                  userId || null,
+                  coachUsageContext
+                )
                 pinyin = String(res.response.text?.() || '').replace(/^```|```$/g, '').trim()
               }
             }
@@ -2528,7 +2571,9 @@ ${studentText}`
             const pinyinModel = genAIForPinyin.getGenerativeModel(GEMINI_25_FLASH_NO_THINKING)
             cachedPinyin = await generatePinyinForSentence(
               { generateContent: (input: string) => pinyinModel.generateContent(input) },
-              String(phraseCached.target_sentence || '').trim()
+              String(phraseCached.target_sentence || '').trim(),
+              userId || null,
+              coachUsageContext
             )
           } catch {
             // keep without pinyin if helper fails
@@ -2781,6 +2826,13 @@ ${studentText}`
 
       try {
         const analysisResult = await model.generateContent(mixedAnalysisPrompt)
+        trackEnglishCoachGeminiResult(
+          analysisResult,
+          GEMINI_25_FLASH_NO_THINKING.model,
+          EnglishCoachApiFeature.chatMixedAnalysis,
+          userId || null,
+          coachUsageContext
+        )
         const parsed = toMixedAnalyzeResult(safeJsonObject(analysisResult.response.text()?.trim() || ''))
 
         const merged = (parsed?.mappedPairs || []).slice(0, 12)
@@ -2847,6 +2899,13 @@ ${studentText}`
     })
 
     const result = await model.generateContent([systemPrompt, userPrompt])
+    trackEnglishCoachGeminiResult(
+      result,
+      GEMINI_25_FLASH_NO_THINKING.model,
+      EnglishCoachApiFeature.chatMain,
+      userId || null,
+      coachUsageContext
+    )
     const text = result.response.text()?.trim() || ''
     let parsed = safeJsonParse(text)
 
@@ -2866,6 +2925,13 @@ Nội dung cần chuyển:
 ${text}`
       try {
         const repaired = await model.generateContent(repairPrompt)
+        trackEnglishCoachGeminiResult(
+          repaired,
+          GEMINI_25_FLASH_NO_THINKING.model,
+          EnglishCoachApiFeature.chatRepairJson,
+          userId || null,
+          coachUsageContext
+        )
         const repairedText = repaired.response.text()?.trim() || ''
         parsed = safeJsonParse(repairedText)
       } catch {
@@ -2896,6 +2962,13 @@ Ràng buộc bắt buộc:
 - intentAnswer gồm 2 câu: (1) trả lời câu/câu hỏi của học sinh (nếu có hỏi phải đáp), (2) câu hỏi mới mở rộng hội thoại.`
       try {
         const strictRetry = await model.generateContent(strictRetryPrompt)
+        trackEnglishCoachGeminiResult(
+          strictRetry,
+          GEMINI_25_FLASH_NO_THINKING.model,
+          EnglishCoachApiFeature.chatStrictRetry,
+          userId || null,
+          coachUsageContext
+        )
         parsed = safeJsonParse(strictRetry.response.text()?.trim() || '')
       } catch {
         // keep parsed null and return explicit error below
@@ -2992,6 +3065,13 @@ Trả về JSON hợp lệ:
 Nội dung cần sửa:
 ${parsed.reply}`
           const repaired = await model.generateContent(repairPrompt)
+          trackEnglishCoachGeminiResult(
+            repaired,
+            GEMINI_25_FLASH_NO_THINKING.model,
+            EnglishCoachApiFeature.chatRepairScript,
+            userId || null,
+            coachUsageContext
+          )
           const repairedParsed = safeJsonParse(repaired.response.text()?.trim() || '')
           if (repairedParsed?.reply) parsed.reply = repairedParsed.reply
         } catch {
@@ -3008,7 +3088,7 @@ ${parsed.reply}`
         const sentenceForPinyin = targetSentence || (parsed.reply.match(/[\u4E00-\u9FFF][^\n。！？!?]*[。！？!?]?/u)?.[0] || '')
         if (sentenceForPinyin) {
           try {
-            const pinyin = await generatePinyinForSentence(model, sentenceForPinyin)
+            const pinyin = await generatePinyinForSentence(model, sentenceForPinyin, userId || null, coachUsageContext)
             if (pinyin) {
               parsed.reply = `${parsed.reply}\nPinyin: ${pinyin}`
             }
@@ -3038,6 +3118,13 @@ Trả về JSON hợp lệ, không markdown:
   "nativeMeaning": "dịch ngắn bằng ${nativeLanguage}"
 }`
           const forced = await model.generateContent(forcePrompt)
+          trackEnglishCoachGeminiResult(
+            forced,
+            GEMINI_25_FLASH_NO_THINKING.model,
+            EnglishCoachApiFeature.chatForceHowToSay,
+            userId || null,
+            coachUsageContext
+          )
           const obj = safeJsonObject(forced.response.text()?.trim() || '')
           const targetSentence = String(obj?.targetSentence || '').trim()
           const nativeMeaning = String(obj?.nativeMeaning || '').trim()
@@ -3060,7 +3147,7 @@ Trả về JSON hợp lệ, không markdown:
         let pinyin = extractPhrasePinyin(parsed.reply)
         if (targetLanguageCode === 'zh' && !pinyin) {
           try {
-            pinyin = await generatePinyinForSentence(model, targetSentence)
+            pinyin = await generatePinyinForSentence(model, targetSentence, userId || null, coachUsageContext)
             if (pinyin) parsed.reply = `${parsed.reply}\nPinyin: ${pinyin}`
           } catch {
             // ignore pinyin enrichment failure
@@ -3123,7 +3210,7 @@ Trả về JSON hợp lệ, không markdown:
           pinyinForSentence = replyPinyin
         } else {
           try {
-            pinyinForSentence = await generatePinyinForSentence(model, sentence)
+            pinyinForSentence = await generatePinyinForSentence(model, sentence, userId || null, coachUsageContext)
           } catch {
             pinyinForSentence = ''
           }
@@ -3168,6 +3255,13 @@ Trả về JSON hợp lệ:
 Nội dung:
 ${intentAnswer || parsed.reply}`
         const repaired = await model.generateContent(repairIntentPrompt)
+        trackEnglishCoachGeminiResult(
+          repaired,
+          GEMINI_25_FLASH_NO_THINKING.model,
+          EnglishCoachApiFeature.chatRepairIntent,
+          userId || null,
+          coachUsageContext
+        )
         const repairedObj = safeJsonObject(repaired.response.text()?.trim() || '')
         const repairedIntent = String(repairedObj?.intentAnswer || '').trim()
         if (repairedIntent) intentAnswer = repairedIntent
@@ -3267,6 +3361,13 @@ ${JSON.stringify(parsed.corrections || [])}
 intentAnswer:
 ${intentAnswer}`
         const repairedMain = await model.generateContent(repairMainSentencePrompt)
+        trackEnglishCoachGeminiResult(
+          repairedMain,
+          GEMINI_25_FLASH_NO_THINKING.model,
+          EnglishCoachApiFeature.chatRepairMainSentence,
+          userId || null,
+          coachUsageContext
+        )
         const repairedObj = safeJsonObject(repairedMain.response.text()?.trim() || '')
         const repairedSentence = String(repairedObj?.mainSentence || '').trim()
         if (repairedSentence && isLikelyTargetLanguageSentence(repairedSentence, 'en', null)) {
@@ -3287,6 +3388,13 @@ Nếu không đủ ý, hãy viết lại câu "${studentText}" bằng tiếng "$
 {"status":"rewrite","complete_sentence":"..."}
 Không phân tích gì thêm.`
       const gateResult = await model.generateContent(mainSentenceGatePrompt)
+      trackEnglishCoachGeminiResult(
+        gateResult,
+        GEMINI_25_FLASH_NO_THINKING.model,
+        EnglishCoachApiFeature.chatMainSentenceGate,
+        userId || null,
+        coachUsageContext
+      )
       const gateObj = safeJsonObject(gateResult.response.text()?.trim() || '')
       const gateStatus = String(gateObj?.status || '').trim().toLowerCase()
       if (gateStatus !== 'ok') {

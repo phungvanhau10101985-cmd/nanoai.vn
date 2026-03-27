@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_PRO } from '@/lib/gemini-config'
+import { createClient } from '@/lib/supabase/server'
+import { CurriculumApiFeature, trackCurriculumGeminiResult } from '@/lib/curriculum-api-usage'
 
 const SUBJECT_NAMES: Record<string, string> = {
   toan: 'Toán học',
@@ -49,6 +51,12 @@ export async function POST(req: NextRequest) {
     if (!apiKey) {
       return NextResponse.json({ error: 'Thiếu GOOGLE_API_KEY.' }, { status: 500 })
     }
+
+    const supabase = createClient()
+    const {
+      data: { user: pasteUser },
+    } = await supabase.auth.getUser()
+    const trackUserId = pasteUser?.id ?? null
 
     const subjectName = SUBJECT_NAMES[subjectId] || subjectId
     const gradeLabel = gradeLevelId.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
@@ -137,9 +145,11 @@ Yêu cầu:
         })
       )
       const result = await model.generateContent([prompt, ...imageParts])
+      trackCurriculumGeminiResult(result, GEMINI_25_PRO.model, CurriculumApiFeature.fromPaste, trackUserId)
       text = result.response.text()?.trim() || ''
     } else {
       const result = await model.generateContent(prompt)
+      trackCurriculumGeminiResult(result, GEMINI_25_PRO.model, CurriculumApiFeature.fromPaste, trackUserId)
       text = result.response.text()?.trim() || ''
     }
 

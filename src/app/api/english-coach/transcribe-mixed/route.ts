@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
+import {
+  EnglishCoachApiFeature,
+  trackEnglishCoachGeminiResult,
+  type EnglishCoachUsageContext,
+} from '@/lib/english-coach-api-usage'
 
 type Payload = {
   audioBase64?: string
@@ -10,6 +15,8 @@ type Payload = {
   nativeLanguage?: string
   nativeLanguageCode?: string
   speakingMode?: 'auto' | 'target' | 'native' | 'mixed'
+  /** Client gửi để tách log admin: buổi live vs bài có sẵn */
+  coachUsageContext?: 'live' | 'preset'
 }
 
 type TranscribeResult = {
@@ -109,6 +116,8 @@ function safeParse(text: string): TranscribeResult | null {
 export async function POST(request: NextRequest) {
   try {
     const payload = (await request.json()) as Payload
+    const coachCtx: EnglishCoachUsageContext =
+      payload.coachUsageContext === 'preset' ? 'preset' : payload.coachUsageContext === 'live' ? 'live' : 'unsessioned'
     const audioBase64 = String(payload.audioBase64 || '').trim()
     const mimeType = String(payload.mimeType || 'audio/webm').trim()
     const targetLanguage = String(payload.targetLanguage || 'English').trim()
@@ -197,6 +206,13 @@ Trả về JSON hợp lệ:
         },
       },
     ])
+    trackEnglishCoachGeminiResult(
+      result,
+      GEMINI_25_FLASH_NO_THINKING.model,
+      EnglishCoachApiFeature.transcribeMixed,
+      null,
+      coachCtx
+    )
     const text = result.response.text()?.trim() || ''
     const parsed = safeParse(text)
     if (!parsed) {

@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
+import {
+  EnglishCoachApiFeature,
+  parseCoachUsageContextPayload,
+  trackEnglishCoachGeminiResult,
+} from '@/lib/english-coach-api-usage'
 
 function adminClient() {
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
@@ -28,6 +33,7 @@ type Payload = {
   nativeLanguage?: string
   topicLabel?: string
   explainType?: 'idea2' | 'idea3'
+  coachUsageContext?: 'live' | 'preset'
 }
 
 function normalizeShortMeaning(text: string): string {
@@ -81,6 +87,7 @@ export async function POST(request: NextRequest) {
     }
 
     const payload = (await request.json()) as Payload
+    const coachCtx = parseCoachUsageContextPayload(payload.coachUsageContext)
     const studentText = String(payload.studentText || '').trim()
     const intentAnswer = String(payload.intentAnswer || '').trim()
     const correctedSentence = String(payload.correctedSentence || '').trim()
@@ -141,6 +148,13 @@ Trả về JSON hợp lệ, không markdown:
     const ai = new GoogleGenerativeAI(apiKey)
     const model = ai.getGenerativeModel(GEMINI_25_FLASH_NO_THINKING)
     const result = await model.generateContent(prompt)
+    trackEnglishCoachGeminiResult(
+      result,
+      GEMINI_25_FLASH_NO_THINKING.model,
+      EnglishCoachApiFeature.intentExplain,
+      null,
+      coachCtx
+    )
     const text = result.response.text()?.trim() || ''
     const parsed = safeParse(text)
 

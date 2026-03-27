@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
+import {
+  EnglishCoachApiFeature,
+  parseCoachUsageContextPayload,
+  trackEnglishCoachGeminiResult,
+} from '@/lib/english-coach-api-usage'
 
 type Payload = {
   learnerText?: string
@@ -11,6 +16,7 @@ type Payload = {
   nativeLanguage?: string
   learnerLevel?: 0 | 1 | 2 | 3 | 4
   taskType?: 'copy' | 'guided_rewrite' | 'rewrite' | 'context_response' | 'advanced_response'
+  coachUsageContext?: 'live' | 'preset'
 }
 
 type EvalResult = {
@@ -50,6 +56,7 @@ function safeParse(text: string): EvalResult | null {
 export async function POST(request: NextRequest) {
   try {
     const payload = (await request.json()) as Payload
+    const coachCtx = parseCoachUsageContextPayload(payload.coachUsageContext)
     const learnerText = String(payload.learnerText || '').trim()
     const referenceSentence = String(payload.referenceSentence || '').trim()
     const teacherText = String(payload.teacherText || '').trim()
@@ -124,6 +131,13 @@ Trả về JSON hợp lệ:
 }`
 
     const result = await model.generateContent(prompt)
+    trackEnglishCoachGeminiResult(
+      result,
+      GEMINI_25_FLASH_NO_THINKING.model,
+      EnglishCoachApiFeature.writingEval,
+      null,
+      coachCtx
+    )
     const parsed = safeParse(result.response.text?.() || '')
     if (!parsed) {
       return NextResponse.json({

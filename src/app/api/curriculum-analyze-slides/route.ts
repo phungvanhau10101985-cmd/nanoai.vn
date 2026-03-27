@@ -7,11 +7,14 @@ import {
   ANALYZE_SLIDES_CREDIT_COST,
   CURRICULUM_AI_CHARGE_TYPES,
   curriculumAiAdminClient,
+  hasRecentFromImageChargeForMarkdown,
   isCurriculumAiCreditsDisabled,
   readUserCreditBalance,
   spendCurriculumAiCredits,
 } from '@/lib/curriculum-ai-credits'
 import { createClient } from '@/lib/supabase/server'
+import { parseStoredCurriculumSlidesJson } from '@/app/tao-giao-trinh/lib/curriculum-slides-json'
+import { CurriculumApiFeature, trackCurriculumGeminiResult } from '@/lib/curriculum-api-usage'
 
 /** Tìm ảnh qua Google Search grounding – fallback khi không có Pexels */
 const SEARCH_IMAGE_MODEL = 'gemini-2.0-flash'
@@ -71,9 +74,10 @@ export interface AnalyzeSlidesResponse {
 
 /** Parse JSON slide từ worksheet_slides / worksheet_slides_original / user_customized_slides */
 function slidesFromStoredJson(raw: unknown): AISlideData[] | null {
-  if (!Array.isArray(raw) || raw.length === 0) return null
+  const { slides } = parseStoredCurriculumSlidesJson(raw)
+  if (!slides.length) return null
   const out: AISlideData[] = []
-  for (const item of raw) {
+  for (const item of slides) {
     if (!item || typeof item !== 'object') continue
     const o = item as Record<string, unknown>
     const title = typeof o.title === 'string' ? o.title : 'Slide'
@@ -291,7 +295,16 @@ export async function POST(req: NextRequest) {
     const admin = chargeDisabled ? null : curriculumAiAdminClient()
     const analyzeCost = ANALYZE_SLIDES_CREDIT_COST
 
-    if (!chargeDisabled) {
+    let analyzeCreditsWaivedForFromImage = false
+    if (!chargeDisabled && admin && billingUserId) {
+      analyzeCreditsWaivedForFromImage = await hasRecentFromImageChargeForMarkdown(
+        admin,
+        billingUserId,
+        curriculumMarkdown
+      )
+    }
+
+    if (!chargeDisabled && !analyzeCreditsWaivedForFromImage) {
       if (!admin) {
         return NextResponse.json(
           {
@@ -413,6 +426,12 @@ ${JSON_SCHEMA}`
       console.log('[curriculum-analyze-slides] Gọi AI model=' + GEMINI_25_FLASH_NO_THINKING.model + ' (tạo slide)')
       const geminiStart = Date.now()
       const result = await model.generateContent(fullPrompt)
+      trackCurriculumGeminiResult(
+        result,
+        GEMINI_25_FLASH_NO_THINKING.model,
+        CurriculumApiFeature.analyzeSlidesGemini,
+        billingUserId ?? null
+      )
       console.log('[curriculum-analyze-slides] AI model=' + GEMINI_25_FLASH_NO_THINKING.model + ' xong sau', Date.now() - geminiStart, 'ms')
       rawText = result.response.text()?.trim() || ''
     }
@@ -544,7 +563,7 @@ ${JSON_SCHEMA}`
     let creditsCharged = false
     let newBalance: number | undefined
     let chargeError: string | undefined
-    if (!chargeDisabled && admin && billingUserId) {
+    if (!chargeDisabled && admin && billingUserId && !analyzeCreditsWaivedForFromImage) {
       try {
         const eventKey = `curriculum_analyze_slides:${billingUserId}:${randomUUID()}`
         const spend = await spendCurriculumAiCredits(admin, {
@@ -575,6 +594,7 @@ ${JSON_SCHEMA}`
       slides,
       fromCache: false,
       creditsCharged,
+      ...(analyzeCreditsWaivedForFromImage ? { creditsWaivedForFromImageBundle: true } : {}),
       ...(typeof newBalance === 'number' ? { newBalance } : {}),
       ...(chargeError ? { chargeError } : {}),
     })

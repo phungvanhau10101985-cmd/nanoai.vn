@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
+import {
+  EnglishCoachApiFeature,
+  parseCoachUsageContextPayload,
+  trackEnglishCoachGeminiResult,
+} from '@/lib/english-coach-api-usage'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 
 type Payload = {
@@ -10,6 +15,7 @@ type Payload = {
   targetLanguage?: string
   nativeLanguage?: string
   learnerLevel?: 0 | 1 | 2 | 3 | 4
+  coachUsageContext?: 'live' | 'preset'
 }
 
 type Curriculum = {
@@ -68,6 +74,7 @@ function safeParse(text: string): Curriculum | null {
 export async function POST(request: NextRequest) {
   try {
     const payload = (await request.json()) as Payload
+    const coachCtx = parseCoachUsageContextPayload(payload.coachUsageContext)
     const locale = tr(payload.nativeLanguage || '')
     const topicId = String(payload.topicId || 'solo-teacher').trim()
     const topicLabel = String(payload.topicLabel || 'Solo hội thoại với thầy/cô').trim()
@@ -169,6 +176,13 @@ Trả về JSON:
   "openingQuestion":"..."
 }`
     const result = await model.generateContent(prompt)
+    trackEnglishCoachGeminiResult(
+      result,
+      GEMINI_25_FLASH_NO_THINKING.model,
+      EnglishCoachApiFeature.topicCurriculum,
+      null,
+      coachCtx
+    )
     const parsed = safeParse(result.response.text()?.trim() || '')
     if (!parsed) {
       return NextResponse.json({ error: msg(locale, 'Không tạo được giáo trình chủ đề.', 'Failed to generate topic curriculum.') }, { status: 502 })

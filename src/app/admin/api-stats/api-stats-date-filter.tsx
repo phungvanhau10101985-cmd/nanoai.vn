@@ -1,6 +1,6 @@
 'use client'
 
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -15,13 +15,15 @@ function toYMD(d: Date) {
 export function ApiStatsDateFilter({
   defaultFrom,
   defaultTo,
+  basePath = '/admin/api-stats',
 }: {
   defaultFrom: string
   defaultTo: string
+  /** Trang admin áp dụng query `from`/`to` (mặc định thống kê tổng). */
+  basePath?: string
 }) {
   const [uiLocale, setUiLocale] = useState<'vi' | 'en' | 'zh' | 'ja' | 'ko'>('vi')
   const router = useRouter()
-  const searchParams = useSearchParams()
   const tr = (vi: string, en: string, zh: string, ja: string, ko: string) => {
     if (uiLocale === 'en') return en
     if (uiLocale === 'zh') return zh
@@ -55,12 +57,12 @@ export function ApiStatsDateFilter({
 
   const applyRange = useCallback(
     (from: string, to: string) => {
-      const params = new URLSearchParams(searchParams.toString())
+      const params = new URLSearchParams()
       params.set('from', from)
       params.set('to', to)
-      router.push(`/admin/api-stats?${params.toString()}`)
+      router.push(`${basePath}?${params.toString()}`)
     },
-    [router, searchParams]
+    [router, basePath]
   )
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {

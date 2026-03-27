@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
+import {
+  EnglishCoachApiFeature,
+  trackEnglishCoachGeminiResult,
+  type EnglishCoachUsageContext,
+} from '@/lib/english-coach-api-usage'
 import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
@@ -10,6 +15,7 @@ type TokenizePayload = {
   targetLanguage?: string
   targetLanguageCode?: string
   messageId?: string
+  coachUsageContext?: 'live' | 'preset'
 }
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -143,6 +149,8 @@ export async function POST(request: NextRequest) {
     }
 
     const payload = (await request.json()) as TokenizePayload
+    const coachCtx: EnglishCoachUsageContext =
+      payload.coachUsageContext === 'preset' ? 'preset' : payload.coachUsageContext === 'live' ? 'live' : 'unsessioned'
     const rawSentence = String(payload.sentence || '').trim()
     const targetLanguage = String(payload.targetLanguage || 'English').trim()
     const targetLanguageCode = resolveTargetLanguageCode(
@@ -398,6 +406,7 @@ ${sentence}`
     const genAI = new GoogleGenerativeAI(apiKey)
     const model = genAI.getGenerativeModel(GEMINI_25_FLASH_NO_THINKING)
     const result = await model.generateContent(prompt)
+    trackEnglishCoachGeminiResult(result, GEMINI_25_FLASH_NO_THINKING.model, EnglishCoachApiFeature.tokenize, user.id, coachCtx)
     const text = result.response.text()?.trim() || ''
     const cleaned = text.replace(/^```json\s*/i, '').replace(/^```/i, '').replace(/```$/i, '').trim()
 

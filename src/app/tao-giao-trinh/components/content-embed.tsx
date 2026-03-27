@@ -105,6 +105,10 @@ function getEmbedSrc(type: EmbedType, urlOrId: string): string | null {
 }
 
 function QuizContentWrapper({ urlOrId, liveQuizContext, tr }: { urlOrId: string; liveQuizContext?: ContentEmbedProps['liveQuizContext']; tr?: ContentEmbedProps['tr'] }) {
+  const quizVerified = useMemo(() => {
+    // Marker mới do AI tạo/rewrite dùng delimiter \x1f và đã qua bước verify trong backend.
+    return String(urlOrId ?? '').includes('\x1f')
+  }, [urlOrId])
   const quizData = useMemo(() => {
     const parsed = parseQuizData(urlOrId)
     if (!parsed) return null
@@ -123,6 +127,7 @@ function QuizContentWrapper({ urlOrId, liveQuizContext, tr }: { urlOrId: string;
     return (
       <LiveQuizEmbed
         quizData={quizData}
+        quizVerified={quizVerified}
         curriculumId={liveQuizContext.curriculumId || null}
         slideIndex={liveQuizContext.slideIndex}
         blockIndex={liveQuizContext.blockIndex}
@@ -136,7 +141,7 @@ function QuizContentWrapper({ urlOrId, liveQuizContext, tr }: { urlOrId: string;
       />
     )
   }
-  return <QuizEmbed question={quizData.question} options={quizData.options} correctIndex={quizData.correctIndex} />
+  return <QuizEmbed question={quizData.question} options={quizData.options} correctIndex={quizData.correctIndex} quizVerified={quizVerified} tr={tr} />
 }
 
 export function ContentEmbed({ type, urlOrId, width = 560, height = 350, className = '', liveQuizContext, tr, hideQuiz, fill }: ContentEmbedProps) {
@@ -232,6 +237,7 @@ const QUIZ_DURATION_OPTIONS = [
 
 function LiveQuizEmbed({
   quizData,
+  quizVerified,
   curriculumId,
   slideIndex,
   blockIndex,
@@ -244,6 +250,7 @@ function LiveQuizEmbed({
   teacherMode = true,
 }: {
   quizData: { question: string; options: string[]; correctIndex: number }
+  quizVerified: boolean
   curriculumId: string | null
   slideIndex: number
   blockIndex: number
@@ -515,8 +522,12 @@ function LiveQuizEmbed({
         return (
           <>
       <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2">
-        <span className="inline-flex px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-800">
-          {t('Chưa verify', 'Not verified', '未验证', '未検証', '미검증')}
+        <span className={quizVerified
+          ? 'inline-flex px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-800'
+          : 'inline-flex px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-800'}>
+          {quizVerified
+            ? t('Đã verify', 'Verified', '已验证', '検証済み', '검증됨')
+            : t('Chưa verify', 'Not verified', '未验证', '未検証', '미검증')}
         </span>
       </p>
       <p className="font-medium mb-3"><QuizMathText text={dataToShow.question} /></p>
@@ -658,12 +669,34 @@ export function QuizMathText({ text }: { text: string }) {
   return <span dangerouslySetInnerHTML={{ __html: html }} className="[&_.katex]:text-inherit" />
 }
 
-function QuizEmbed({ question, options, correctIndex }: { question: string; options: string[]; correctIndex: number }) {
+function QuizEmbed({
+  question,
+  options,
+  correctIndex,
+  quizVerified,
+  tr,
+}: {
+  question: string
+  options: string[]
+  correctIndex: number
+  quizVerified: boolean
+  tr?: ContentEmbedProps['tr']
+}) {
   const [selected, setSelected] = useState<number | null>(null)
   const [revealed, setRevealed] = useState(false)
   const isCorrect = selected === correctIndex
+  const t = (vi: string, en: string, zh: string, ja: string, ko: string) => (typeof tr === 'function' ? tr(vi, en, zh, ja, ko) : vi)
   return (
     <div className={WRAPPER_CLASS + ' p-4 bg-slate-50 dark:bg-slate-900/50'}>
+      <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2">
+        <span className={quizVerified
+          ? 'inline-flex px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-800'
+          : 'inline-flex px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-800'}>
+          {quizVerified
+            ? t('Đã verify', 'Verified', '已验证', '検証済み', '검증됨')
+            : t('Chưa verify', 'Not verified', '未验证', '未検証', '미검증')}
+        </span>
+      </p>
       <p className="font-medium mb-3"><QuizMathText text={question} /></p>
       <div className="space-y-2">
         {options.map((opt, i) => (

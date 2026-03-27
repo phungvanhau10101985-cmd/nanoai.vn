@@ -4,6 +4,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GoogleGenAI } from '@google/genai'
 import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
+import { CurriculumApiFeature, trackCurriculumGeminiResult } from '@/lib/curriculum-api-usage'
 
 export interface SlideBlock {
   header: string
@@ -156,6 +157,8 @@ QUY TẮC KHÁC:
 
 export interface GenerateSlidesOptions {
   fetchImages?: boolean
+  /** Ghi api_usage_log.user_id khi tạo slide từ markdown. */
+  trackUserId?: string | null
 }
 
 /** Tạo slide bài giảng từ nội dung giáo trình – dùng Gemini. */
@@ -164,7 +167,7 @@ export async function generateSlidesFromCurriculum(
   topic: string,
   opts: GenerateSlidesOptions = {}
 ): Promise<{ slides: AISlideData[]; error?: string }> {
-  const { fetchImages = true } = opts
+  const { fetchImages = true, trackUserId = null } = opts
   const googleApiKey = process.env.GOOGLE_API_KEY?.trim()
   if (!googleApiKey) {
     return { slides: [], error: 'Thiếu GOOGLE_API_KEY.' }
@@ -200,6 +203,7 @@ ${JSON_SCHEMA}`
   })
 
   const result = await model.generateContent(fullPrompt)
+  trackCurriculumGeminiResult(result, GEMINI_25_FLASH_NO_THINKING.model, CurriculumApiFeature.slidesFromMarkdown, trackUserId)
   const rawText = result.response.text()?.trim() || ''
   if (!rawText) return { slides: [], error: 'AI không trả về nội dung.' }
 

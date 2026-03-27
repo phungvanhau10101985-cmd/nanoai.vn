@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { getPresentationBroadcastChannelName, PRESENTATION_SYNC_QUERY_KEY } from '../lib/presentation-broadcast'
+import type { SlideInfographic } from '../lib/slide-infographic'
 import { tr } from './xem-slide-student-ui-locale'
 
 /** Slide payload trình chiếu học sinh — chỉ luồng giáo trình (không trộn model phiếu). */
@@ -24,11 +25,16 @@ export type CurriculumStudentViewData = {
     visualInput2?: string
     visualInput3?: string
     visualInput4?: string
+    infographic?: SlideInfographic
   }>
   /** Đồng bộ từ GV (wire: `worksheetAnswerReveal`) — hiển thị đáp án / gõ trên slide giáo trình */
   answerRevealProgress: Record<string, number>
   answerTypingEnabled: Record<string, boolean>
   studentCurriculumRightMode?: 'single-slide' | 'markdown-all'
+  /** Cột trái trình chiếu: Visual / Infographic trong khung (wire: `teacherSlideLeftPane` trên `curriculum-data`) */
+  teacherSlideLeftPane?: 'visual' | 'infographic'
+  /** Một infographic cho cả giáo trình (wire: `curriculum-data`) */
+  curriculumInfographic?: SlideInfographic
 }
 
 type WirePayload = {
@@ -42,6 +48,8 @@ type WirePayload = {
   worksheetAnswerReveal?: Record<string, number>
   worksheetAnswerTypingEnabled?: Record<string, boolean>
   studentCurriculumRightMode?: string
+  teacherSlideLeftPane?: string
+  curriculumInfographic?: unknown
 }
 
 /**
@@ -110,6 +118,23 @@ export function useCurriculumStudentSlideSync(locale: 'vi' | 'en' | 'zh' | 'ja' 
         const incomingIndexRaw = typeof e.currentIndex === 'number' ? e.currentIndex : 0
         const maxIndex = Math.max(0, sl.length - 1)
         const incomingIndex = Math.max(0, Math.min(incomingIndexRaw, maxIndex))
+        let nextCurriculumInfographic = prev?.curriculumInfographic
+        if (Object.prototype.hasOwnProperty.call(e, 'curriculumInfographic')) {
+          const ci = e.curriculumInfographic
+          if (ci && typeof ci === 'object' && typeof (ci as SlideInfographic).imageUrl === 'string') {
+            nextCurriculumInfographic = ci as SlideInfographic
+          } else {
+            nextCurriculumInfographic = undefined
+          }
+        } else if (prev == null && Array.isArray(sl)) {
+          for (const row of sl) {
+            const inf = (row as { infographic?: SlideInfographic }).infographic
+            if (inf && typeof inf.imageUrl === 'string') {
+              nextCurriculumInfographic = inf
+              break
+            }
+          }
+        }
         return {
           content: e.content ?? '',
           topic: e.topic ?? '',
@@ -123,6 +148,13 @@ export function useCurriculumStudentSlideSync(locale: 'vi' | 'en' | 'zh' | 'ja' 
           answerTypingEnabled:
             wte != null && typeof wte === 'object' ? { ...wte } : (prev?.answerTypingEnabled ?? {}),
           studentCurriculumRightMode: studentCurriculumRightMode ?? prev?.studentCurriculumRightMode,
+          curriculumInfographic: nextCurriculumInfographic,
+          teacherSlideLeftPane: (() => {
+            if (!Object.prototype.hasOwnProperty.call(e, 'teacherSlideLeftPane')) return prev?.teacherSlideLeftPane
+            const tls = e.teacherSlideLeftPane
+            if (tls === 'infographic' || tls === 'visual') return tls
+            return undefined
+          })(),
         }
       })
     }
