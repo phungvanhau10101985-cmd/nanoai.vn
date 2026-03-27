@@ -12,9 +12,19 @@ import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 
 const IMAGE_COSTS = APPLY_COSTS
 const ANALYZE_COST = ANALYZE_CREDIT
+const INTERIOR_AI_TIMEOUT_MS = Number(process.env.INTERIOR_AI_TIMEOUT_MS || 90_000)
 const toTenths = (value: number) => Math.round(value * 10)
 const fromTenths = (value: number) => value / 10
 const formatCredits = (value: number) => value.toLocaleString('vi-VN', { maximumFractionDigits: 1 })
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutMessage: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error(timeoutMessage)), timeoutMs)
+    }),
+  ])
+}
 
 const ANALYZE_PROMPT = `Bạn là chuyên gia nội thất và kiến trúc. Hãy phân tích ảnh và trả về JSON thuần (không markdown). Mọi giá trị văn bản trong JSON PHẢI là tiếng Việt.
 
@@ -388,7 +398,12 @@ export async function analyzeInterior(formData: FormData) {
   ]
 
   try {
-    const result = await model.generateContent([ANALYZE_PROMPT, imagePart] as never, { safetySettings } as never)
+    console.info('[interior-analyze] started', { userId: user.id, timeoutMs: INTERIOR_AI_TIMEOUT_MS })
+    const result = await withTimeout(
+      model.generateContent([ANALYZE_PROMPT, imagePart] as never, { safetySettings } as never),
+      INTERIOR_AI_TIMEOUT_MS,
+      `AI timeout after ${Math.round(INTERIOR_AI_TIMEOUT_MS / 1000)}s`
+    )
     trackFromUsageMetadata(result.response.usageMetadata, 'gemini-3-flash-preview', 'thiet-ke-noi-ngoai-that-analyze', user.id)
     const text = result.response.text?.() || ''
     const jsonMatch = text.match(/\{[\s\S]*\}/)
@@ -400,9 +415,11 @@ export async function analyzeInterior(formData: FormData) {
     await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', user.id)
 
     revalidatePath('/thiet-ke-noi-ngoai-that')
+    console.info('[interior-analyze] completed', { userId: user.id })
     return { success: true, analysis: analysisJson }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
+    console.error('[interior-analyze] failed', { userId: user.id, error: msg })
     return { error: `Phân tích thất bại: ${msg}` }
   }
 }
