@@ -262,63 +262,89 @@ export default function ThietKeNoiNgoaiThatClientPage() {
       return
     }
     setStep('ANALYZING')
-    const formData = new FormData()
-    formData.append('image', img)
-    const result = await analyzeInterior(formData)
-    if ('error' in result) {
-      setStep('UPLOAD')
-      toast({ title: tr('Phân tích thất bại', 'Analysis failed', '分析失败', '分析に失敗しました', '분석 실패'), description: result.error, variant: 'destructive', duration: 5000 })
-    } else if (result.success && result.analysis) {
-      try {
-        const parsed = JSON.parse(result.analysis)
-        const objs = parsed?.objects || []
-        const type = (parsed?.type || 'interior').toLowerCase()
-        const dominant = (parsed?.dominantColor || '').trim()
-        setSpaceType(type === 'exterior-landscape' ? 'exterior-landscape' : type === 'exterior-facade' || type === 'exterior' ? 'exterior-facade' : 'interior')
-        setDetectedDominantColor(dominant)
-        setRoomType((parsed?.roomType || '').trim())
-        setLighting((parsed?.lighting || '').trim())
-        setFengShuiSuggestion((parsed?.fengShuiSuggestion || '').trim())
-        setLayoutGuidance((parsed?.layoutGuidance || '').trim())
-        const colorKey = Object.keys(MAIN_COLORS).find((k) => k.toLowerCase() === dominant.toLowerCase()) || 'trắng'
-        setSelectedMainColor(colorKey)
-        setSelectedArchTheme(type === 'exterior-facade' || type === 'exterior' ? 'việt nam' : '')
-        setFurnitureList(objs
-          .filter((o: { structural?: boolean }) => !o.structural)
-          .map((o: { item?: string; color?: string; material?: string; status?: string; position?: string }, i: number) => ({
-            id: `item-${i}-${Date.now()}`,
-            item: o.item || '—',
-            color: o.color,
-            material: o.material,
-            status: o.status,
-            position: o.position,
-            action: 'keep' as ItemAction,
-          })))
-        const structObjs = objs.filter((o: { structural?: boolean }) => o.structural) as { item?: string; position?: string }[]
-        const structToConfirm: StructuralItemToConfirm[] = []
-        structObjs.forEach((o: { item?: string; position?: string }, i: number) => {
-          const cat = getStructuralCategory(o.item || '')
-          if (cat) {
-            const opts = cat === 'door' ? DOOR_TYPE_OPTIONS : cat === 'window' ? WINDOW_TYPE_OPTIONS : WALL_TYPE_OPTIONS
-            const aiItem = o.item || '—'
-            const matchOpt = opts.find((opt) => opt.value.toLowerCase() === aiItem.toLowerCase())
-            structToConfirm.push({
-              id: `struct-${i}-${Date.now()}`,
-              item: aiItem,
-              position: o.position,
-              category: cat,
-              userCorrectedType: matchOpt ? matchOpt.value : getDefaultOption(aiItem, cat),
+    try {
+      const formData = new FormData()
+      formData.append('image', img)
+      const result = (await Promise.race([
+        analyzeInterior(formData),
+        new Promise<{ error: string }>((resolve) => {
+          setTimeout(() => {
+            resolve({
+              error: tr(
+                'Hết thời gian chờ phân tích (90 giây). Vui lòng thử lại.',
+                'Analysis timed out after 90 seconds. Please try again.',
+                '分析等待超时（90秒），请重试。',
+                '分析がタイムアウトしました（90秒）。再試行してください。',
+                '분석 대기 시간이 초과되었습니다(90초). 다시 시도해 주세요.'
+              ),
             })
-          }
-        })
-        setStructuralItemsToConfirm(structToConfirm)
-        setStep('EDITING')
-        const analyzedDesc = type === 'exterior-landscape' ? tr('Đã phân tích sân vườn.', 'Analyzed garden/landscape.', '已分析花园/景观。', '庭園・景観を分析しました。', '정원/조경을 분석했습니다.') : type === 'exterior-facade' || type === 'exterior' ? tr('Đã phân tích mặt tiền nhà.', 'Analyzed facade.', '已分析建筑立面。', '外観を分析しました。', '외관을 분석했습니다.') : tr('Đã phân tích nội thất.', 'Analyzed interior.', '已分析室内。', 'インテリアを分析しました。', '실내를 분석했습니다.')
-        toast({ title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'), description: analyzedDesc, duration: 3000 })
-      } catch {
+          }, 90_000)
+        }),
+      ])) as Awaited<ReturnType<typeof analyzeInterior>> | { error: string }
+      if ('error' in result) {
         setStep('UPLOAD')
-        toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: tr('Không parse được kết quả.', 'Could not parse result.', '无法解析结果。', '結果を解析できませんでした。', '결과를 파싱할 수 없습니다.'), variant: 'destructive' })
+        toast({ title: tr('Phân tích thất bại', 'Analysis failed', '分析失败', '分析に失敗しました', '분석 실패'), description: result.error, variant: 'destructive', duration: 5000 })
+      } else if (result.success && result.analysis) {
+        try {
+          const parsed = JSON.parse(result.analysis)
+          const objs = parsed?.objects || []
+          const type = (parsed?.type || 'interior').toLowerCase()
+          const dominant = (parsed?.dominantColor || '').trim()
+          setSpaceType(type === 'exterior-landscape' ? 'exterior-landscape' : type === 'exterior-facade' || type === 'exterior' ? 'exterior-facade' : 'interior')
+          setDetectedDominantColor(dominant)
+          setRoomType((parsed?.roomType || '').trim())
+          setLighting((parsed?.lighting || '').trim())
+          setFengShuiSuggestion((parsed?.fengShuiSuggestion || '').trim())
+          setLayoutGuidance((parsed?.layoutGuidance || '').trim())
+          const colorKey = Object.keys(MAIN_COLORS).find((k) => k.toLowerCase() === dominant.toLowerCase()) || 'trắng'
+          setSelectedMainColor(colorKey)
+          setSelectedArchTheme(type === 'exterior-facade' || type === 'exterior' ? 'việt nam' : '')
+          setFurnitureList(objs
+            .filter((o: { structural?: boolean }) => !o.structural)
+            .map((o: { item?: string; color?: string; material?: string; status?: string; position?: string }, i: number) => ({
+              id: `item-${i}-${Date.now()}`,
+              item: o.item || '—',
+              color: o.color,
+              material: o.material,
+              status: o.status,
+              position: o.position,
+              action: 'keep' as ItemAction,
+            })))
+          const structObjs = objs.filter((o: { structural?: boolean }) => o.structural) as { item?: string; position?: string }[]
+          const structToConfirm: StructuralItemToConfirm[] = []
+          structObjs.forEach((o: { item?: string; position?: string }, i: number) => {
+            const cat = getStructuralCategory(o.item || '')
+            if (cat) {
+              const opts = cat === 'door' ? DOOR_TYPE_OPTIONS : cat === 'window' ? WINDOW_TYPE_OPTIONS : WALL_TYPE_OPTIONS
+              const aiItem = o.item || '—'
+              const matchOpt = opts.find((opt) => opt.value.toLowerCase() === aiItem.toLowerCase())
+              structToConfirm.push({
+                id: `struct-${i}-${Date.now()}`,
+                item: aiItem,
+                position: o.position,
+                category: cat,
+                userCorrectedType: matchOpt ? matchOpt.value : getDefaultOption(aiItem, cat),
+              })
+            }
+          })
+          setStructuralItemsToConfirm(structToConfirm)
+          setStep('EDITING')
+          const analyzedDesc = type === 'exterior-landscape' ? tr('Đã phân tích sân vườn.', 'Analyzed garden/landscape.', '已分析花园/景观。', '庭園・景観を分析しました。', '정원/조경을 분석했습니다.') : type === 'exterior-facade' || type === 'exterior' ? tr('Đã phân tích mặt tiền nhà.', 'Analyzed facade.', '已分析建筑立面。', '外観を分析しました。', '외관을 분석했습니다.') : tr('Đã phân tích nội thất.', 'Analyzed interior.', '已分析室内。', 'インテリアを分析しました。', '실내를 분석했습니다.')
+          toast({ title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'), description: analyzedDesc, duration: 3000 })
+        } catch {
+          setStep('UPLOAD')
+          toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: tr('Không parse được kết quả.', 'Could not parse result.', '无法解析结果。', '結果を解析できませんでした。', '결과를 파싱할 수 없습니다.'), variant: 'destructive' })
+        }
       }
+    } catch (error) {
+      setStep('UPLOAD')
+      const msg = error instanceof Error ? error.message : String(error)
+      toast({
+        title: tr('Phân tích thất bại', 'Analysis failed', '分析失败', '分析に失敗しました', '분석 실패'),
+        description: msg || tr('Lỗi kết nối tới máy chủ.', 'Connection error to server.', '连接服务器失败。', 'サーバー接続エラー。', '서버 연결 오류입니다.'),
+        variant: 'destructive',
+        duration: 5000,
+      })
     }
   }
 
@@ -738,70 +764,96 @@ export default function ThietKeNoiNgoaiThatClientPage() {
 
   const handleReanalyzeWithUrl = async (url: string, fallbackStep: Step = 'EDITING') => {
     setStep('ANALYZING')
-    const res = await fetch(url)
-    if (!res.ok) {
-      setStep(fallbackStep)
-      toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: tr('Không tải được ảnh.', 'Could not load image.', '无法加载图片。', '画像を読み込めませんでした。', '이미지를 불러올 수 없습니다.'), variant: 'destructive' })
-      return
-    }
-    const blob = await res.blob()
-    const file = new File([blob], 'image.png', { type: blob.type || 'image/png' })
-    const formData = new FormData()
-    formData.append('image', file)
-    const result = await analyzeInterior(formData)
-    if ('error' in result) {
-      setStep(fallbackStep)
-      toast({ title: tr('Phân tích thất bại', 'Analysis failed', '分析失败', '分析に失敗しました', '분석 실패'), description: result.error, variant: 'destructive', duration: 5000 })
-    } else if (result.success && result.analysis) {
-      try {
-        const parsed = JSON.parse(result.analysis)
-        const objs = parsed?.objects || []
-        const type = (parsed?.type || 'interior').toLowerCase()
-        const dominant = (parsed?.dominantColor || '').trim()
-        setSpaceType(type === 'exterior-landscape' ? 'exterior-landscape' : type === 'exterior-facade' || type === 'exterior' ? 'exterior-facade' : 'interior')
-        setDetectedDominantColor(dominant)
-        setRoomType((parsed?.roomType || '').trim())
-        setLighting((parsed?.lighting || '').trim())
-        setFengShuiSuggestion((parsed?.fengShuiSuggestion || '').trim())
-        setLayoutGuidance((parsed?.layoutGuidance || '').trim())
-        const colorKey = Object.keys(MAIN_COLORS).find((k) => k.toLowerCase() === dominant.toLowerCase()) || 'trắng'
-        setSelectedMainColor(colorKey)
-        setSelectedArchTheme(type === 'exterior-facade' || type === 'exterior' ? 'việt nam' : '')
-        setFurnitureList(objs
-          .filter((o: { structural?: boolean }) => !o.structural)
-          .map((o: { item?: string; color?: string; material?: string; status?: string; position?: string }, i: number) => ({
-            id: `item-${i}-${Date.now()}`,
-            item: o.item || '—',
-            color: o.color,
-            material: o.material,
-            status: o.status,
-            position: o.position,
-            action: 'keep' as ItemAction,
-          })))
-        const structObjs = objs.filter((o: { structural?: boolean }) => o.structural) as { item?: string; position?: string }[]
-        const structToConfirm: StructuralItemToConfirm[] = []
-        structObjs.forEach((o: { item?: string; position?: string }, i: number) => {
-          const cat = getStructuralCategory(o.item || '')
-          if (cat) {
-            const opts = cat === 'door' ? DOOR_TYPE_OPTIONS : cat === 'window' ? WINDOW_TYPE_OPTIONS : WALL_TYPE_OPTIONS
-            const aiItem = o.item || '—'
-            const matchOpt = opts.find((opt) => opt.value.toLowerCase() === aiItem.toLowerCase())
-            structToConfirm.push({
-              id: `struct-${i}-${Date.now()}`,
-              item: aiItem,
-              position: o.position,
-              category: cat,
-              userCorrectedType: matchOpt ? matchOpt.value : getDefaultOption(aiItem, cat),
-            })
-          }
-        })
-        setStructuralItemsToConfirm(structToConfirm)
-        setStep('EDITING')
-        toast({ title: tr('Đã phân tích lại!', 'Re-analyzed!', '已重新分析！', '再分析しました！', '재분석 완료!'), duration: 2000 })
-      } catch {
+    try {
+      const res = await fetch(url)
+      if (!res.ok) {
         setStep(fallbackStep)
-        toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: tr('Không parse được kết quả.', 'Could not parse result.', '无法解析结果。', '結果を解析できませんでした。', '결과를 파싱할 수 없습니다.'), variant: 'destructive' })
+        toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: tr('Không tải được ảnh.', 'Could not load image.', '无法加载图片。', '画像を読み込めませんでした。', '이미지를 불러올 수 없습니다.'), variant: 'destructive' })
+        return
       }
+      const blob = await res.blob()
+      const file = new File([blob], 'image.png', { type: blob.type || 'image/png' })
+      const formData = new FormData()
+      formData.append('image', file)
+      const result = (await Promise.race([
+        analyzeInterior(formData),
+        new Promise<{ error: string }>((resolve) => {
+          setTimeout(() => {
+            resolve({
+              error: tr(
+                'Hết thời gian chờ phân tích (90 giây). Vui lòng thử lại.',
+                'Analysis timed out after 90 seconds. Please try again.',
+                '分析等待超时（90秒），请重试。',
+                '分析がタイムアウトしました（90秒）。再試行してください。',
+                '분석 대기 시간이 초과되었습니다(90초). 다시 시도해 주세요.'
+              ),
+            })
+          }, 90_000)
+        }),
+      ])) as Awaited<ReturnType<typeof analyzeInterior>> | { error: string }
+      if ('error' in result) {
+        setStep(fallbackStep)
+        toast({ title: tr('Phân tích thất bại', 'Analysis failed', '分析失败', '分析に失敗しました', '분석 실패'), description: result.error, variant: 'destructive', duration: 5000 })
+      } else if (result.success && result.analysis) {
+        try {
+          const parsed = JSON.parse(result.analysis)
+          const objs = parsed?.objects || []
+          const type = (parsed?.type || 'interior').toLowerCase()
+          const dominant = (parsed?.dominantColor || '').trim()
+          setSpaceType(type === 'exterior-landscape' ? 'exterior-landscape' : type === 'exterior-facade' || type === 'exterior' ? 'exterior-facade' : 'interior')
+          setDetectedDominantColor(dominant)
+          setRoomType((parsed?.roomType || '').trim())
+          setLighting((parsed?.lighting || '').trim())
+          setFengShuiSuggestion((parsed?.fengShuiSuggestion || '').trim())
+          setLayoutGuidance((parsed?.layoutGuidance || '').trim())
+          const colorKey = Object.keys(MAIN_COLORS).find((k) => k.toLowerCase() === dominant.toLowerCase()) || 'trắng'
+          setSelectedMainColor(colorKey)
+          setSelectedArchTheme(type === 'exterior-facade' || type === 'exterior' ? 'việt nam' : '')
+          setFurnitureList(objs
+            .filter((o: { structural?: boolean }) => !o.structural)
+            .map((o: { item?: string; color?: string; material?: string; status?: string; position?: string }, i: number) => ({
+              id: `item-${i}-${Date.now()}`,
+              item: o.item || '—',
+              color: o.color,
+              material: o.material,
+              status: o.status,
+              position: o.position,
+              action: 'keep' as ItemAction,
+            })))
+          const structObjs = objs.filter((o: { structural?: boolean }) => o.structural) as { item?: string; position?: string }[]
+          const structToConfirm: StructuralItemToConfirm[] = []
+          structObjs.forEach((o: { item?: string; position?: string }, i: number) => {
+            const cat = getStructuralCategory(o.item || '')
+            if (cat) {
+              const opts = cat === 'door' ? DOOR_TYPE_OPTIONS : cat === 'window' ? WINDOW_TYPE_OPTIONS : WALL_TYPE_OPTIONS
+              const aiItem = o.item || '—'
+              const matchOpt = opts.find((opt) => opt.value.toLowerCase() === aiItem.toLowerCase())
+              structToConfirm.push({
+                id: `struct-${i}-${Date.now()}`,
+                item: aiItem,
+                position: o.position,
+                category: cat,
+                userCorrectedType: matchOpt ? matchOpt.value : getDefaultOption(aiItem, cat),
+              })
+            }
+          })
+          setStructuralItemsToConfirm(structToConfirm)
+          setStep('EDITING')
+          toast({ title: tr('Đã phân tích lại!', 'Re-analyzed!', '已重新分析！', '再分析しました！', '재분석 완료!'), duration: 2000 })
+        } catch {
+          setStep(fallbackStep)
+          toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: tr('Không parse được kết quả.', 'Could not parse result.', '无法解析结果。', '結果を解析できませんでした。', '결과를 파싱할 수 없습니다.'), variant: 'destructive' })
+        }
+      }
+    } catch (error) {
+      setStep(fallbackStep)
+      const msg = error instanceof Error ? error.message : String(error)
+      toast({
+        title: tr('Phân tích thất bại', 'Analysis failed', '分析失败', '分析に失敗しました', '분석 실패'),
+        description: msg || tr('Lỗi kết nối tới máy chủ.', 'Connection error to server.', '连接服务器失败。', 'サーバー接続エラー。', '서버 연결 오류입니다.'),
+        variant: 'destructive',
+        duration: 5000,
+      })
     }
   }
 
