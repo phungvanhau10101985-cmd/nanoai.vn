@@ -398,7 +398,7 @@ export async function analyzeInterior(formData: FormData) {
 
   const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!)
   const model = genAI.getGenerativeModel({
-    model: 'gemini-3-flash-preview',
+    model: 'gemini-2.5-flash',
     generationConfig: { responseModalities: ['TEXT'] },
   })
   const buffer = Buffer.from(await image.arrayBuffer())
@@ -417,7 +417,7 @@ export async function analyzeInterior(formData: FormData) {
       INTERIOR_AI_TIMEOUT_MS,
       `AI timeout after ${Math.round(INTERIOR_AI_TIMEOUT_MS / 1000)}s`
     )
-    trackFromUsageMetadata(result.response.usageMetadata, 'gemini-3-flash-preview', 'thiet-ke-noi-ngoai-that-analyze', user.id)
+    trackFromUsageMetadata(result.response.usageMetadata, 'gemini-2.5-flash', 'thiet-ke-noi-ngoai-that-analyze', user.id)
     const text = result.response.text?.() || ''
     const jsonMatch = text.match(/\{[\s\S]*\}/)
     const analysisJson = jsonMatch ? jsonMatch[0] : text
