@@ -2364,9 +2364,29 @@ export default function TaoGiaoTrinhClientPage({
     async (jobId: string): Promise<{ status: string; result?: Record<string, unknown>; error?: string }> => {
       const res = await fetch(`/api/worksheet-job-status?jobId=${encodeURIComponent(jobId)}`)
       const data = await res.json().catch(() => ({}))
-      return { status: data.status ?? 'pending', result: data.result, error: data.error }
+      if (!res.ok) {
+        return {
+          status: 'failed',
+          error:
+            (typeof data?.error === 'string' && data.error.trim()) ||
+            `Không lấy được trạng thái job (HTTP ${res.status}).`,
+        }
+      }
+      if (typeof data?.status !== 'string' || !data.status.trim()) {
+        return {
+          status: 'failed',
+          error: tr(
+            'Phản hồi trạng thái job không hợp lệ.',
+            'Invalid job status response.',
+            '任务状态响应无效。',
+            'ジョブ状態レスポンスが無効です。',
+            '작업 상태 응답이 유효하지 않습니다.'
+          ),
+        }
+      }
+      return { status: data.status, result: data.result, error: data.error }
     },
-    []
+    [tr]
   )
 
   const triggerWorksheetVerify = useCallback(
