@@ -306,8 +306,19 @@ export async function applyInteriorChanges(formData: FormData): Promise<ApplyInt
 
   const resultUrls: string[] = []
   try {
+    console.info('[interior-apply] started', {
+      userId: user.id,
+      imageQuality,
+      actualVariantCount,
+      timeoutMs: INTERIOR_AI_TIMEOUT_MS,
+      mode: isFullRedesign ? 'full' : isRotationOnly ? 'rotation' : isExpandExteriorDown ? 'expand' : 'edit',
+    })
     for (let i = 0; i < actualVariantCount; i++) {
-      const genResult = await model.generateContent(contentParts as never, { safetySettings } as never)
+      const genResult = await withTimeout(
+        model.generateContent(contentParts as never, { safetySettings } as never),
+        INTERIOR_AI_TIMEOUT_MS,
+        `AI apply timeout after ${Math.round(INTERIOR_AI_TIMEOUT_MS / 1000)}s`
+      )
       const response = genResult.response
       trackFromUsageMetadata(response.usageMetadata, 'gemini-3-pro-image-preview', 'thiet-ke-noi-ngoai-that', user.id, imageQuality)
       const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
@@ -340,10 +351,12 @@ export async function applyInteriorChanges(formData: FormData): Promise<ApplyInt
 
     revalidatePath('/thiet-ke-noi-ngoai-that')
     revalidatePath('/dashboard/history')
+    console.info('[interior-apply] completed', { userId: user.id, generatedCount: resultUrls.length })
     return { success: true, resultUrl: resultUrls[0], resultUrls }
   } catch (e) {
     await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
     const msg = e instanceof Error ? e.message : String(e)
+    console.error('[interior-apply] failed', { userId: user.id, error: msg })
     if (/500|Internal Server Error|Internal error/i.test(msg)) return { error: 'Hệ thống quá tải. Thử lại sau.' }
     return { error: `Xử lý thất bại: ${msg}` }
   }
