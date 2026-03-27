@@ -12,7 +12,7 @@ import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 
 const IMAGE_COSTS = APPLY_COSTS
 const ANALYZE_COST = ANALYZE_CREDIT
-const INTERIOR_AI_TIMEOUT_MS = Number(process.env.INTERIOR_AI_TIMEOUT_MS || 90_000)
+const INTERIOR_AI_TIMEOUT_MS = Number(process.env.INTERIOR_AI_TIMEOUT_MS || 300_000)
 const toTenths = (value: number) => Math.round(value * 10)
 const fromTenths = (value: number) => value / 10
 const formatCredits = (value: number) => value.toLocaleString('vi-VN', { maximumFractionDigits: 1 })

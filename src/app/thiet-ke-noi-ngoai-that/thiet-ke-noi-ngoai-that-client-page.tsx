@@ -271,14 +271,14 @@ export default function ThietKeNoiNgoaiThatClientPage() {
           setTimeout(() => {
             resolve({
               error: tr(
-                'Hết thời gian chờ phân tích (90 giây). Vui lòng thử lại.',
-                'Analysis timed out after 90 seconds. Please try again.',
-                '分析等待超时（90秒），请重试。',
-                '分析がタイムアウトしました（90秒）。再試行してください。',
-                '분석 대기 시간이 초과되었습니다(90초). 다시 시도해 주세요.'
+                'Hết thời gian chờ phân tích (5 phút). Vui lòng thử lại.',
+                'Analysis timed out after 5 minutes. Please try again.',
+                '分析等待超时（5分钟），请重试。',
+                '分析がタイムアウトしました（5分）。再試行してください。',
+                '분석 대기 시간이 초과되었습니다(5분). 다시 시도해 주세요.'
               ),
             })
-          }, 90_000)
+          }, 300_000)
         }),
       ])) as Awaited<ReturnType<typeof analyzeInterior>> | { error: string }
       if ('error' in result) {
@@ -781,14 +781,14 @@ export default function ThietKeNoiNgoaiThatClientPage() {
           setTimeout(() => {
             resolve({
               error: tr(
-                'Hết thời gian chờ phân tích (90 giây). Vui lòng thử lại.',
-                'Analysis timed out after 90 seconds. Please try again.',
-                '分析等待超时（90秒），请重试。',
-                '分析がタイムアウトしました（90秒）。再試行してください。',
-                '분석 대기 시간이 초과되었습니다(90초). 다시 시도해 주세요.'
+                'Hết thời gian chờ phân tích (5 phút). Vui lòng thử lại.',
+                'Analysis timed out after 5 minutes. Please try again.',
+                '分析等待超时（5分钟），请重试。',
+                '分析がタイムアウトしました（5分）。再試行してください。',
+                '분석 대기 시간이 초과되었습니다(5분). 다시 시도해 주세요.'
               ),
             })
-          }, 90_000)
+          }, 300_000)
         }),
       ])) as Awaited<ReturnType<typeof analyzeInterior>> | { error: string }
       if ('error' in result) {

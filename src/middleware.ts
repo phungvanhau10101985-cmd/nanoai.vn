@@ -20,6 +20,17 @@ export async function middleware(request: NextRequest) {
   if (user) {
     response.cookies.set(FORCE_REAL_LOGIN_COOKIE, '', { path: '/', maxAge: 0 })
   }
+  // Prevent edge/browser caches from serving stale HTML/RSC after deploy.
+  response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0')
+  const existingVary = response.headers.get('Vary') || ''
+  const varyTokens = new Set(
+    existingVary
+      .split(',')
+      .map((x) => x.trim())
+      .filter(Boolean)
+  )
+  ;['RSC', 'Next-Router-State-Tree', 'Next-Router-Prefetch', 'Accept-Encoding'].forEach((token) => varyTokens.add(token))
+  response.headers.set('Vary', Array.from(varyTokens).join(', '))
 
   return response
 }
