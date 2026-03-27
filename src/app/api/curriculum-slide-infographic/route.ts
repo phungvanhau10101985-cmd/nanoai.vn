@@ -26,7 +26,7 @@ const IMAGE_INSTRUCTION_PREFIX = `Create ONE high-quality educational infographi
 function parseFlashJson(text: string): { summary: string; mermaid: string } {
   const trimmed = text.trim()
   const fence = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i)
-  let raw = (fence ? fence[1] : trimmed).trim()
+  const raw = (fence ? fence[1] : trimmed).trim()
   let parsed: { summary?: string; mermaid?: string }
   try {
     parsed = JSON.parse(raw) as { summary?: string; mermaid?: string }

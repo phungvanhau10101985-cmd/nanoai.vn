@@ -33,7 +33,8 @@ function stripInfographicFromSlideRow(item: unknown): unknown {
   if (!item || typeof item !== 'object') return item
   const o = item as Record<string, unknown>
   if (!('infographic' in o)) return item
-  const { infographic: _removed, ...rest } = o
+  const rest: Record<string, unknown> = { ...o }
+  delete rest.infographic
   return rest
 }
 
