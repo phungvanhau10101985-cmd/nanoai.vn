@@ -195,8 +195,13 @@ function paintInfographicStrokesOnStage(stage: HTMLElement, strokes: Infographic
   canvas.style.top = `${top}px`
   canvas.style.width = `${vis.width}px`
   canvas.style.height = `${vis.height}px`
-  const pxW = Math.max(1, Math.round(vis.width * dpr))
-  const pxH = Math.max(1, Math.round(vis.height * dpr))
+  const rawPixels = Math.max(1, vis.width * vis.height * dpr * dpr)
+  const pixelScale = rawPixels > INFOGRAPHIC_MAX_CANVAS_PIXELS
+    ? Math.sqrt(INFOGRAPHIC_MAX_CANVAS_PIXELS / rawPixels)
+    : 1
+  const renderScale = dpr * pixelScale
+  const pxW = Math.max(1, Math.round(vis.width * renderScale))
+  const pxH = Math.max(1, Math.round(vis.height * renderScale))
   if (canvas.width !== pxW) canvas.width = pxW
   if (canvas.height !== pxH) canvas.height = pxH
   const ctx = canvas.getContext('2d')
@@ -204,7 +209,7 @@ function paintInfographicStrokesOnStage(stage: HTMLElement, strokes: Infographic
   ctx.setTransform(1, 0, 0, 1, 0, 0)
   ctx.clearRect(0, 0, canvas.width, canvas.height)
   ctx.save()
-  ctx.scale(dpr, dpr)
+  ctx.scale(renderScale, renderScale)
   ctx.lineCap = 'round'
   ctx.lineJoin = 'round'
   for (const s of strokes) {
@@ -248,6 +253,7 @@ const INFOGRAPHIC_UNIFIED_STROKE_NORM = 0.004
 const INFOGRAPHIC_MAX_STROKES = 240
 const INFOGRAPHIC_MAX_POINTS_PER_STROKE = 2500
 const INFOGRAPHIC_MAX_TOTAL_POINTS = 90000
+const INFOGRAPHIC_MAX_CANVAS_PIXELS = 2_400_000
 
 function dedupeInfographicStrokesById(strokes: InfographicDrawStroke[]): InfographicDrawStroke[] {
   const byId = new Map<string, InfographicDrawStroke>()
