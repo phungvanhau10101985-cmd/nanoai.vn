@@ -1519,24 +1519,17 @@ export default function CurriculumViewPage() {
   }, [renderInfographicDrawCanvas, currentIndex, leftPanelMode, infographicFullscreenOpen, curriculumInfographic?.imageUrl])
 
   useEffect(() => {
-    const strokes = infographicDrawStrokesBySlide[CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY] ?? []
-    if (strokes.length <= 0) return
-    let cancelled = false
-    let rafId = 0
-    const startedAt = Date.now()
-    const tick = () => {
-      if (cancelled) return
-      const panePainted = !!renderInfographicDrawCanvas('pane')
-      const fsPainted = !!renderInfographicDrawCanvas('fullscreen')
-      const elapsed = Date.now() - startedAt
-      if ((panePainted || fsPainted) && elapsed > 250) return
-      if (elapsed > 12000) return
-      rafId = window.requestAnimationFrame(tick)
+    // Repaint nhẹ sau đổi slide/tab: đủ để bắt ảnh load chậm nhưng tránh tốn RAM/CPU.
+    const timers: Array<ReturnType<typeof setTimeout>> = []
+    const run = () => {
+      renderInfographicDrawCanvas('pane')
+      renderInfographicDrawCanvas('fullscreen')
     }
-    rafId = window.requestAnimationFrame(tick)
+    timers.push(setTimeout(run, 450))
+    timers.push(setTimeout(run, 900))
+    timers.push(setTimeout(run, 1500))
     return () => {
-      cancelled = true
-      if (rafId) window.cancelAnimationFrame(rafId)
+      for (const id of timers) clearTimeout(id)
     }
   }, [renderInfographicDrawCanvas, currentIndex, leftPanelMode, infographicFullscreenOpen, curriculumInfographic?.imageUrl, infographicDrawStrokesBySlide])
 

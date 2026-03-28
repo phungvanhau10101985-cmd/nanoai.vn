@@ -1318,35 +1318,6 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     curriculumInfographic?.imageUrl,
   ])
 
-  useEffect(() => {
-    const strokes = infographicDrawStrokesBySlide[CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY] ?? []
-    if (strokes.length <= 0) return
-    let cancelled = false
-    let rafId = 0
-    const startedAt = Date.now()
-    const tick = () => {
-      if (cancelled) return
-      const paintedCount = renderAllInfographicDrawCanvases() || 0
-      const elapsed = Date.now() - startedAt
-      if (paintedCount > 0 && elapsed > 250) return
-      if (elapsed > 12000) return
-      rafId = window.requestAnimationFrame(tick)
-    }
-    rafId = window.requestAnimationFrame(tick)
-    return () => {
-      cancelled = true
-      if (rafId) window.cancelAnimationFrame(rafId)
-    }
-  }, [
-    renderAllInfographicDrawCanvases,
-    currentIndex,
-    infographicFullscreenOpen,
-    visualFullscreenOpen,
-    presenterLeftTab,
-    studentCurriculumLeftPaneTab,
-    curriculumInfographic?.imageUrl,
-    infographicDrawStrokesBySlide,
-  ])
 
   useEffect(() => {
     // Khi đổi slide (đặc biệt từ biểu đồ -> infographic), DOM/ảnh có thể ổn định muộn hơn 1 frame.
@@ -1371,16 +1342,15 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   ])
 
   useEffect(() => {
-    // Một số case chuyển slide mount/layout ảnh chậm hơn dự kiến.
-    // Repaint theo dõi ngắn hạn để đảm bảo nét vẽ hiện ngay mà không cần tương tác.
-    let ticks = 0
-    const maxTicks = 80 // ~10s với chu kỳ 125ms (ảnh nặng tải chậm vẫn tự hiện nét)
-    const id = setInterval(() => {
-      ticks += 1
-      renderAllInfographicDrawCanvases()
-      if (ticks >= maxTicks) clearInterval(id)
-    }, 125)
-    return () => clearInterval(id)
+    // Repaint nhẹ sau đổi slide/tab để tránh phải click mới hiện nét nhưng không tạo tải cao.
+    const timers: Array<ReturnType<typeof setTimeout>> = []
+    const run = () => renderAllInfographicDrawCanvases()
+    timers.push(setTimeout(run, 450))
+    timers.push(setTimeout(run, 900))
+    timers.push(setTimeout(run, 1500))
+    return () => {
+      for (const id of timers) clearTimeout(id)
+    }
   }, [
     renderAllInfographicDrawCanvases,
     currentIndex,
