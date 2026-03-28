@@ -200,7 +200,7 @@ function paintInfographicStrokesOnStage(stage: HTMLElement, strokes: Infographic
   if (canvas.width !== pxW) canvas.width = pxW
   if (canvas.height !== pxH) canvas.height = pxH
   const ctx = canvas.getContext('2d')
-  if (!ctx) return
+  if (!ctx) return false
   ctx.setTransform(1, 0, 0, 1, 0, 0)
   ctx.clearRect(0, 0, canvas.width, canvas.height)
   ctx.save()
