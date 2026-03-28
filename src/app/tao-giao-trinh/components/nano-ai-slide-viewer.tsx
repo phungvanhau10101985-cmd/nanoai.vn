@@ -92,7 +92,7 @@ function densifyStrokePoints(last: InfographicDrawPoint, next: InfographicDrawPo
   const dy = next.v - last.v
   const dist = Math.hypot(dx, dy)
   // normalized 0..1 space; smaller step reduces visible broken segments
-  const step = 0.0015
+  const step = 0.003
   const segments = Math.max(1, Math.ceil(dist / step))
   if (segments <= 1) return [{ u: clamp01(next.u), v: clamp01(next.v) }]
   const pts: InfographicDrawPoint[] = []
@@ -245,6 +245,9 @@ function paintInfographicStrokesOnStage(stage: HTMLElement, strokes: Infographic
 
 const INFOGRAPHIC_DRAW_COLORS = ['#ef4444', '#22c55e', '#3b82f6', '#f59e0b', '#ffffff'] as const
 const INFOGRAPHIC_UNIFIED_STROKE_NORM = 0.004
+const INFOGRAPHIC_MAX_STROKES = 240
+const INFOGRAPHIC_MAX_POINTS_PER_STROKE = 2500
+const INFOGRAPHIC_MAX_TOTAL_POINTS = 90000
 
 function dedupeInfographicStrokesById(strokes: InfographicDrawStroke[]): InfographicDrawStroke[] {
   const byId = new Map<string, InfographicDrawStroke>()
@@ -252,6 +255,28 @@ function dedupeInfographicStrokesById(strokes: InfographicDrawStroke[]): Infogra
     if (s?.id) byId.set(s.id, s)
   }
   return Array.from(byId.values())
+}
+
+function trimInfographicStrokePoints(points: InfographicDrawPoint[]): InfographicDrawPoint[] {
+  if (points.length <= INFOGRAPHIC_MAX_POINTS_PER_STROKE) return points
+  return points.slice(points.length - INFOGRAPHIC_MAX_POINTS_PER_STROKE)
+}
+
+function clampInfographicStroke(stroke: InfographicDrawStroke): InfographicDrawStroke {
+  return { ...stroke, points: trimInfographicStrokePoints(stroke.points ?? []) }
+}
+
+function limitInfographicStrokeMemory(strokes: InfographicDrawStroke[]): InfographicDrawStroke[] {
+  if (!Array.isArray(strokes) || strokes.length <= 0) return []
+  const base = strokes.map(clampInfographicStroke)
+  let list = base.length > INFOGRAPHIC_MAX_STROKES ? base.slice(base.length - INFOGRAPHIC_MAX_STROKES) : base
+  let totalPoints = list.reduce((acc, s) => acc + (s.points?.length ?? 0), 0)
+  while (totalPoints > INFOGRAPHIC_MAX_TOTAL_POINTS && list.length > 1) {
+    const dropped = list[0]
+    totalPoints -= dropped.points?.length ?? 0
+    list = list.slice(1)
+  }
+  return list
 }
 
 /** Gộp mọi bucket nét (legacy theo slide) thành một lớp dùng chung infographic giáo trình. */
@@ -262,7 +287,7 @@ function foldInfographicStrokesToCurriculumKey(
   for (const list of Object.values(map)) {
     if (Array.isArray(list)) merged.push(...list)
   }
-  return { [CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY]: dedupeInfographicStrokesById(merged) }
+  return { [CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY]: limitInfographicStrokeMemory(dedupeInfographicStrokesById(merged)) }
 }
 
 export type SlideMode = 'original' | 'shared' | 'personal'
@@ -1074,7 +1099,8 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       const list = prev[slideIndex] ?? []
       const idx = list.findIndex((s) => s.id === stroke.id)
       const nextList = idx >= 0 ? list.map((s, i) => (i === idx ? stroke : s)) : [...list, stroke]
-      return { ...prev, [slideIndex]: nextList }
+      const limited = limitInfographicStrokeMemory(nextList)
+      return { ...prev, [slideIndex]: limited }
     })
   }, [])
 
@@ -1088,7 +1114,8 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       const appended = last ? densifyStrokePoints(last, point) : [{ u: clamp01(point.u), v: clamp01(point.v) }]
       const nextStroke: InfographicDrawStroke = { ...target, points: [...target.points, ...appended] }
       const nextList = list.map((s, i) => (i === idx ? nextStroke : s))
-      return { ...prev, [slideIndex]: nextList }
+      const limited = limitInfographicStrokeMemory(nextList)
+      return { ...prev, [slideIndex]: limited }
     })
   }, [])
 
@@ -1110,7 +1137,8 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       if (appended.length === 0) return prev
       const nextStroke: InfographicDrawStroke = { ...target, points: [...target.points, ...appended] }
       const nextList = list.map((s, i) => (i === idx ? nextStroke : s))
-      return { ...prev, [slideIndex]: nextList }
+      const limited = limitInfographicStrokeMemory(nextList)
+      return { ...prev, [slideIndex]: limited }
     })
   }, [])
 
@@ -1675,7 +1703,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
           if (!Number.isFinite(idx) || !Array.isArray(list)) continue
           normalized[idx] = list
             .filter((s) => s && typeof s.id === 'string' && Array.isArray(s.points))
-            .map((s) => ({
+            .map((s) => clampInfographicStroke({
               id: s.id,
               tool: s.tool === 'eraser' ? 'eraser' : 'pen',
               color: typeof s.color === 'string' ? s.color : '#ef4444',
@@ -1694,7 +1722,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
           if (!Number.isFinite(idx) || !Array.isArray(list)) continue
           normalized[idx] = list
             .filter((s) => s && typeof s.id === 'string' && Array.isArray(s.points))
-            .map((s) => ({
+            .map((s) => clampInfographicStroke({
               id: s.id,
               tool: s.tool === 'eraser' ? 'eraser' : 'pen',
               color: typeof s.color === 'string' ? s.color : '#ef4444',
