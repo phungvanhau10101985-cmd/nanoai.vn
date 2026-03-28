@@ -171,7 +171,14 @@ export function ContentEmbed({ type, urlOrId, width = 560, height = 350, classNa
     if (!src) return null
     return (
       <div className={wrapperClass}>
-        <img src={src} alt="" loading="lazy" decoding="async" className="w-full max-w-full h-auto" style={{ maxHeight: height }} />
+        <img
+          src={src}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          className={fill ? 'h-full w-full max-h-full object-contain' : 'h-auto w-full max-w-full object-contain'}
+          style={fill ? undefined : { maxHeight: height }}
+        />
       </div>
     )
   }
