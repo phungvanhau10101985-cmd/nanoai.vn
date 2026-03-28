@@ -147,22 +147,53 @@ function QuizContentWrapper({ urlOrId, liveQuizContext, tr }: { urlOrId: string;
 export function ContentEmbed({ type, urlOrId, width = 560, height = 350, className = '', liveQuizContext, tr, hideQuiz, fill }: ContentEmbedProps) {
   const src = getEmbedSrc(type, urlOrId)
   const wrapperClass = `${WRAPPER_CLASS} ${className} ${fill ? 'flex h-full w-full min-h-0 flex-col' : ''}`.trim()
+  const wrapperRef = useRef<HTMLDivElement | null>(null)
+  const isIframeEmbed = type === 'geogebra' || type === 'desmos' || type === 'youtube' || type === 'phet' || type === 'maps' || type === 'code'
+  const [iframeInViewport, setIframeInViewport] = useState(() => !isIframeEmbed)
 
-  if (type === 'geogebra' || type === 'desmos' || type === 'youtube' || type === 'phet' || type === 'maps' || type === 'code') {
+  useEffect(() => {
+    if (!isIframeEmbed) return
+    const node = wrapperRef.current
+    if (!node) return
+    if (typeof IntersectionObserver === 'undefined') {
+      setIframeInViewport(true)
+      return
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0]
+        if (!entry) return
+        setIframeInViewport(entry.isIntersecting)
+      },
+      { root: null, rootMargin: '450px 0px', threshold: 0.01 }
+    )
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [isIframeEmbed, src, fill])
+
+  if (isIframeEmbed) {
     if (!src) return null
     return (
-      <div className={wrapperClass} style={{ pointerEvents: 'auto' }}>
-        <iframe
-          src={src}
-          {...(fill
-            ? { className: 'min-h-0 w-full flex-1 border-0', style: { pointerEvents: 'auto' as const } }
-            : { width, height, className: 'w-full border-0' })}
-          loading="lazy"
-          sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-presentation"
-          allowFullScreen
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-          title={type}
-        />
+      <div ref={wrapperRef} className={wrapperClass} style={{ pointerEvents: 'auto' }}>
+        {iframeInViewport ? (
+          <iframe
+            src={src}
+            {...(fill
+              ? { className: 'min-h-0 w-full flex-1 border-0', style: { pointerEvents: 'auto' as const } }
+              : { width, height, className: 'w-full border-0' })}
+            loading="lazy"
+            sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-presentation"
+            allowFullScreen
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            title={type}
+          />
+        ) : (
+          <div
+            aria-hidden
+            className={fill ? 'min-h-0 w-full flex-1 bg-slate-100/60 dark:bg-slate-800/60' : 'w-full bg-slate-100/60 dark:bg-slate-800/60'}
+            style={fill ? undefined : { height }}
+          />
+        )}
       </div>
     )
   }
