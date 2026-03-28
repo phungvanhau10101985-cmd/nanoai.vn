@@ -1240,8 +1240,25 @@ export default function CurriculumViewPage() {
     let stage = target === 'pane' ? teacherEmbeddedInfographicStageRef.current : teacherInfographicOverlayStageRef.current
     let img = target === 'pane' ? teacherEmbeddedInfographicImgRef.current : teacherInfographicOverlayImgRef.current
     let canvas = target === 'pane' ? teacherEmbeddedInfographicCanvasRef.current : teacherInfographicOverlayCanvasRef.current
+    const pickBestStage = (selector: string) => {
+      const candidates = Array.from(document.querySelectorAll(selector)) as HTMLDivElement[]
+      let best: HTMLDivElement | null = null
+      let bestArea = 0
+      for (const st of candidates) {
+        const rect = st.getBoundingClientRect()
+        if (rect.width <= 40 || rect.height <= 40) continue
+        const style = window.getComputedStyle(st)
+        if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) === 0) continue
+        const area = rect.width * rect.height
+        if (area > bestArea) {
+          best = st
+          bestArea = area
+        }
+      }
+      return best
+    }
     if (target === 'pane' && (!stage || !img || !canvas)) {
-      const fallbackStage = document.querySelector('[data-teacher-infographic-draw-pane-stage]') as HTMLDivElement | null
+      const fallbackStage = pickBestStage('[data-teacher-infographic-draw-pane-stage]')
       const fallbackImg = fallbackStage?.querySelector('img') as HTMLImageElement | null
       const fallbackCanvas = fallbackStage?.querySelector('[data-teacher-infographic-draw-pane-canvas]') as HTMLCanvasElement | null
       if (fallbackStage && fallbackImg && fallbackCanvas) {
@@ -1251,6 +1268,37 @@ export default function CurriculumViewPage() {
         teacherEmbeddedInfographicStageRef.current = fallbackStage
         teacherEmbeddedInfographicImgRef.current = fallbackImg
         teacherEmbeddedInfographicCanvasRef.current = fallbackCanvas
+      }
+    }
+    if (target === 'fullscreen' && (!stage || !img || !canvas)) {
+      const fallbackStage = pickBestStage('[data-teacher-infographic-draw-fullscreen-stage]')
+      const fallbackImg = fallbackStage?.querySelector('img') as HTMLImageElement | null
+      const fallbackCanvas = fallbackStage?.querySelector('canvas') as HTMLCanvasElement | null
+      if (fallbackStage && fallbackImg && fallbackCanvas) {
+        stage = fallbackStage
+        img = fallbackImg
+        canvas = fallbackCanvas
+        teacherInfographicOverlayStageRef.current = fallbackStage
+        teacherInfographicOverlayImgRef.current = fallbackImg
+        teacherInfographicOverlayCanvasRef.current = fallbackCanvas
+      }
+    }
+    if (target === 'pane' && stage) {
+      const rect = stage.getBoundingClientRect()
+      const style = window.getComputedStyle(stage)
+      const stageLikelyHidden = rect.width <= 40 || rect.height <= 40 || style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) === 0
+      if (stageLikelyHidden) {
+        const fallbackStage = pickBestStage('[data-teacher-infographic-draw-pane-stage]')
+        const fallbackImg = fallbackStage?.querySelector('img') as HTMLImageElement | null
+        const fallbackCanvas = fallbackStage?.querySelector('[data-teacher-infographic-draw-pane-canvas]') as HTMLCanvasElement | null
+        if (fallbackStage && fallbackImg && fallbackCanvas) {
+          stage = fallbackStage
+          img = fallbackImg
+          canvas = fallbackCanvas
+          teacherEmbeddedInfographicStageRef.current = fallbackStage
+          teacherEmbeddedInfographicImgRef.current = fallbackImg
+          teacherEmbeddedInfographicCanvasRef.current = fallbackCanvas
+        }
       }
     }
     if (!stage || !img || !canvas || !img.complete || img.naturalWidth <= 0) return null
@@ -1278,62 +1326,81 @@ export default function CurriculumViewPage() {
   }, [getInfographicDrawStage])
 
   const renderInfographicDrawCanvas = useCallback((target: 'pane' | 'fullscreen') => {
-    const st = getInfographicDrawStage(target)
-    if (!st) return
-    const { stage, canvas, vis } = st
     const strokes = infographicDrawStrokesBySlide[CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY] ?? []
     const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1
-    const sr = stage.getBoundingClientRect()
-    const left = vis.left - sr.left
-    const top = vis.top - sr.top
-    canvas.style.left = `${left}px`
-    canvas.style.top = `${top}px`
-    canvas.style.width = `${vis.width}px`
-    canvas.style.height = `${vis.height}px`
-    const pxW = Math.max(1, Math.round(vis.width * dpr))
-    const pxH = Math.max(1, Math.round(vis.height * dpr))
-    if (canvas.width !== pxW) canvas.width = pxW
-    if (canvas.height !== pxH) canvas.height = pxH
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-    ctx.setTransform(1, 0, 0, 1, 0, 0)
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
-    ctx.save()
-    ctx.scale(dpr, dpr)
-    ctx.lineCap = 'round'
-    ctx.lineJoin = 'round'
-    for (const s of strokes) {
-      if (!s.points || s.points.length < 1) continue
-      ctx.globalCompositeOperation = s.tool === 'eraser' ? 'destination-out' : 'source-over'
-      ctx.strokeStyle = s.color
-      ctx.lineWidth = Math.max(1.5, s.sizeNorm * vis.width)
-      ctx.beginPath()
-      const p0 = s.points[0]
-      const x0 = p0.u * vis.width
-      const y0 = p0.v * vis.height
-      ctx.moveTo(x0, y0)
-      if (s.points.length === 1) {
-        ctx.arc(x0, y0, Math.max(0.8, ctx.lineWidth * 0.5), 0, Math.PI * 2)
-        ctx.fillStyle = s.tool === 'eraser' ? '#000' : s.color
-        ctx.fill()
-      } else if (s.points.length === 2) {
-        const p1 = s.points[1]
-        ctx.lineTo(p1.u * vis.width, p1.v * vis.height)
-      } else {
-        for (let i = 1; i < s.points.length - 1; i += 1) {
-          const p = s.points[i]
-          const pn = s.points[i + 1]
-          const xc = ((p.u + pn.u) * vis.width) / 2
-          const yc = ((p.v + pn.v) * vis.height) / 2
-          ctx.quadraticCurveTo(p.u * vis.width, p.v * vis.height, xc, yc)
+    const paintOnStage = (stage: HTMLDivElement, img: HTMLImageElement, canvas: HTMLCanvasElement) => {
+      if (!img.complete || img.naturalWidth <= 0) return false
+      const vis = getVisibleImageBounds(img)
+      if (vis.width <= 0 || vis.height <= 0) return false
+      const sr = stage.getBoundingClientRect()
+      const left = vis.left - sr.left
+      const top = vis.top - sr.top
+      canvas.style.left = `${left}px`
+      canvas.style.top = `${top}px`
+      canvas.style.width = `${vis.width}px`
+      canvas.style.height = `${vis.height}px`
+      const pxW = Math.max(1, Math.round(vis.width * dpr))
+      const pxH = Math.max(1, Math.round(vis.height * dpr))
+      if (canvas.width !== pxW) canvas.width = pxW
+      if (canvas.height !== pxH) canvas.height = pxH
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return false
+      ctx.setTransform(1, 0, 0, 1, 0, 0)
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      ctx.save()
+      ctx.scale(dpr, dpr)
+      ctx.lineCap = 'round'
+      ctx.lineJoin = 'round'
+      for (const s of strokes) {
+        if (!s.points || s.points.length < 1) continue
+        ctx.globalCompositeOperation = s.tool === 'eraser' ? 'destination-out' : 'source-over'
+        ctx.strokeStyle = s.color
+        ctx.lineWidth = Math.max(1.5, s.sizeNorm * vis.width)
+        ctx.beginPath()
+        const p0 = s.points[0]
+        const x0 = p0.u * vis.width
+        const y0 = p0.v * vis.height
+        ctx.moveTo(x0, y0)
+        if (s.points.length === 1) {
+          ctx.arc(x0, y0, Math.max(0.8, ctx.lineWidth * 0.5), 0, Math.PI * 2)
+          ctx.fillStyle = s.tool === 'eraser' ? '#000' : s.color
+          ctx.fill()
+        } else if (s.points.length === 2) {
+          const p1 = s.points[1]
+          ctx.lineTo(p1.u * vis.width, p1.v * vis.height)
+        } else {
+          for (let i = 1; i < s.points.length - 1; i += 1) {
+            const p = s.points[i]
+            const pn = s.points[i + 1]
+            const xc = ((p.u + pn.u) * vis.width) / 2
+            const yc = ((p.v + pn.v) * vis.height) / 2
+            ctx.quadraticCurveTo(p.u * vis.width, p.v * vis.height, xc, yc)
+          }
+          const last = s.points[s.points.length - 1]
+          const prev = s.points[s.points.length - 2]
+          ctx.quadraticCurveTo(prev.u * vis.width, prev.v * vis.height, last.u * vis.width, last.v * vis.height)
         }
-        const last = s.points[s.points.length - 1]
-        const prev = s.points[s.points.length - 2]
-        ctx.quadraticCurveTo(prev.u * vis.width, prev.v * vis.height, last.u * vis.width, last.v * vis.height)
+        ctx.stroke()
       }
-      ctx.stroke()
+      ctx.restore()
+      return true
     }
-    ctx.restore()
+
+    if (target === 'pane') {
+      const stages = Array.from(document.querySelectorAll('[data-teacher-infographic-draw-pane-stage]')) as HTMLDivElement[]
+      let paintedAny = false
+      for (const stage of stages) {
+        const img = stage.querySelector('img') as HTMLImageElement | null
+        const canvas = stage.querySelector('[data-teacher-infographic-draw-pane-canvas]') as HTMLCanvasElement | null
+        if (!img || !canvas) continue
+        if (paintOnStage(stage, img, canvas)) paintedAny = true
+      }
+      return paintedAny
+    }
+
+    const st = getInfographicDrawStage(target)
+    if (!st) return false
+    return paintOnStage(st.stage, st.img, st.canvas)
   }, [getInfographicDrawStage, infographicDrawStrokesBySlide])
 
   const startInfographicDrawing = useCallback((target: 'pane' | 'fullscreen', e: React.PointerEvent<HTMLDivElement>) => {
@@ -1450,6 +1517,28 @@ export default function CurriculumViewPage() {
       if (raf) window.cancelAnimationFrame(raf)
     }
   }, [renderInfographicDrawCanvas, currentIndex, leftPanelMode, infographicFullscreenOpen, curriculumInfographic?.imageUrl])
+
+  useEffect(() => {
+    const strokes = infographicDrawStrokesBySlide[CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY] ?? []
+    if (strokes.length <= 0) return
+    let cancelled = false
+    let rafId = 0
+    const startedAt = Date.now()
+    const tick = () => {
+      if (cancelled) return
+      const panePainted = !!renderInfographicDrawCanvas('pane')
+      const fsPainted = !!renderInfographicDrawCanvas('fullscreen')
+      const elapsed = Date.now() - startedAt
+      if ((panePainted || fsPainted) && elapsed > 250) return
+      if (elapsed > 12000) return
+      rafId = window.requestAnimationFrame(tick)
+    }
+    rafId = window.requestAnimationFrame(tick)
+    return () => {
+      cancelled = true
+      if (rafId) window.cancelAnimationFrame(rafId)
+    }
+  }, [renderInfographicDrawCanvas, currentIndex, leftPanelMode, infographicFullscreenOpen, curriculumInfographic?.imageUrl, infographicDrawStrokesBySlide])
 
   useEffect(() => {
     const binds: Array<() => void> = []
@@ -2258,7 +2347,7 @@ export default function CurriculumViewPage() {
     }
     const sendPointerMove = (e: MouseEvent) => {
       const now = Date.now()
-      if (now - pointerThrottleRef.current < 16) return
+      if (now - pointerThrottleRef.current < 8) return
       pointerThrottleRef.current = now
       const w = window.innerWidth || 1
       const h = window.innerHeight || 1
@@ -2268,6 +2357,35 @@ export default function CurriculumViewPage() {
           const relX = rect.right - e.clientX
           const relY = e.clientY - rect.top
           sendToStudentView({ type: 'mouse-pos', quizPopup: true, relX, relY })
+          return
+        }
+      }
+      if (!worksheetId && (leftPanelMode === 'visual' || leftPanelMode === 'infographic')) {
+        const elementsAtPoint = document.elementsFromPoint(e.clientX, e.clientY) as HTMLElement[]
+        const toolbar = elementsAtPoint
+          .map((el) => el.closest('[data-infographic-toolbar="teacher-pane"]') as HTMLElement | null)
+          .find((el): el is HTMLElement => !!el)
+        if (toolbar) {
+          const tr = toolbar.getBoundingClientRect()
+          const relX = tr.width > 0 ? Math.max(0, Math.min(1, (e.clientX - tr.left) / tr.width)) : 0.5
+          const relY = tr.height > 0 ? Math.max(0, Math.min(1, (e.clientY - tr.top) / tr.height)) : 0.5
+          const toolbarButtons = Array.from(toolbar.querySelectorAll('button')) as HTMLElement[]
+          const hoveredButton = elementsAtPoint
+            .map((el) => el.closest('button') as HTMLElement | null)
+            .find((el): el is HTMLElement => !!el && toolbar.contains(el))
+          const toolbarButtonIndex = hoveredButton ? toolbarButtons.indexOf(hoveredButton) : -1
+          const visibleToolbars = (Array.from(document.querySelectorAll('[data-infographic-toolbar="teacher-pane"]')) as HTMLElement[])
+            .filter((el) => {
+              const r = el.getBoundingClientRect()
+              return r.width > 8 && r.height > 8
+            })
+            .sort((a, b) => {
+              const ar = a.getBoundingClientRect()
+              const br = b.getBoundingClientRect()
+              return ar.top === br.top ? ar.left - br.left : ar.top - br.top
+            })
+          const toolbarIndex = Math.max(0, visibleToolbars.indexOf(toolbar))
+          sendToStudentView({ type: 'mouse-pos', infographicToolbar: true, relX, relY, toolbarIndex, toolbarButtonIndex })
           return
         }
       }
@@ -2317,8 +2435,10 @@ export default function CurriculumViewPage() {
         if (!sent) {
           const overlay = teacherVisualOverlayRef.current
           const rect = overlay ? overlay.getBoundingClientRect() : frame.getBoundingClientRect()
-          const relX = rect.width > 0 ? (e.clientX - rect.left) / rect.width : 0.5
-          const relY = rect.height > 0 ? (e.clientY - rect.top) / rect.height : 0.5
+          const relXRaw = rect.width > 0 ? (e.clientX - rect.left) / rect.width : 0.5
+          const relYRaw = rect.height > 0 ? (e.clientY - rect.top) / rect.height : 0.5
+          const relX = Math.max(0, Math.min(1, relXRaw))
+          const relY = Math.max(0, Math.min(1, relYRaw))
           sendToStudentView({ type: 'mouse-pos', visualFrame: true, overlayRel: !!overlay, relX, relY })
         }
         return
@@ -2326,18 +2446,20 @@ export default function CurriculumViewPage() {
       if (infographicFullscreenOpen && teacherInfographicOverlayRef.current) {
         const img = teacherInfographicOverlayRef.current.querySelector('img')
         if (img?.complete && img.naturalWidth > 0) {
-          const ir = img.getBoundingClientRect()
-          if (e.clientX >= ir.left && e.clientX <= ir.right && e.clientY >= ir.top && e.clientY <= ir.bottom) {
+          const overlayRect = teacherInfographicOverlayRef.current.getBoundingClientRect()
+          if (e.clientX >= overlayRect.left && e.clientX <= overlayRect.right && e.clientY >= overlayRect.top && e.clientY <= overlayRect.bottom) {
             const vis = getVisibleImageBounds(img)
             const cx = vis.left + vis.width / 2
             const cy = vis.top + vis.height / 2
+            const clampedX = Math.max(vis.left, Math.min(vis.left + vis.width, e.clientX))
+            const clampedY = Math.max(vis.top, Math.min(vis.top + vis.height, e.clientY))
             sendToStudentView({
               type: 'mouse-pos',
               visualFrame: true,
               imageCenter: true,
               cellIndex: -1,
-              dxFromCenter: e.clientX - cx,
-              dyFromCenter: e.clientY - cy,
+              dxFromCenter: clampedX - cx,
+              dyFromCenter: clampedY - cy,
               visW: vis.width,
               visH: vis.height,
             })
@@ -2390,28 +2512,57 @@ export default function CurriculumViewPage() {
           }
           if (!sent) {
             const rect = frame.getBoundingClientRect()
-            const relX = rect.width > 0 ? (e.clientX - rect.left) / rect.width : 0.5
-            const relY = rect.height > 0 ? (e.clientY - rect.top) / rect.height : 0.5
+            const relXRaw = rect.width > 0 ? (e.clientX - rect.left) / rect.width : 0.5
+            const relYRaw = rect.height > 0 ? (e.clientY - rect.top) / rect.height : 0.5
+            const relX = Math.max(0, Math.min(1, relXRaw))
+            const relY = Math.max(0, Math.min(1, relYRaw))
             sendToStudentView({ type: 'mouse-pos', visualFrame: true, overlayRel: false, relX, relY })
           }
+          return
+        }
+      }
+      if (!worksheetId && leftPanelMode === 'infographic') {
+        const toolbar = Array.from(document.querySelectorAll('[data-infographic-toolbar="teacher-pane"]'))
+          .find((el) => {
+            const r = (el as HTMLElement).getBoundingClientRect()
+            return e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom
+          }) as HTMLElement | undefined
+        if (toolbar) {
+          const tr = toolbar.getBoundingClientRect()
+          const relX = tr.width > 0 ? Math.max(0, Math.min(1, (e.clientX - tr.left) / tr.width)) : 0.5
+          const relY = tr.height > 0 ? Math.max(0, Math.min(1, (e.clientY - tr.top) / tr.height)) : 0.5
+          const visibleToolbars = (Array.from(document.querySelectorAll('[data-infographic-toolbar="teacher-pane"]')) as HTMLElement[])
+            .filter((el) => {
+              const r = el.getBoundingClientRect()
+              return r.width > 8 && r.height > 8
+            })
+            .sort((a, b) => {
+              const ar = a.getBoundingClientRect()
+              const br = b.getBoundingClientRect()
+              return ar.top === br.top ? ar.left - br.left : ar.top - br.top
+            })
+          const toolbarIndex = Math.max(0, visibleToolbars.indexOf(toolbar))
+          sendToStudentView({ type: 'mouse-pos', infographicToolbar: true, relX, relY, toolbarIndex })
           return
         }
       }
       if (!worksheetId && leftPanelMode === 'infographic' && teacherEmbeddedInfographicImgRef.current) {
         const img = teacherEmbeddedInfographicImgRef.current
         if (img.complete && img.naturalWidth > 0) {
-          const ir = img.getBoundingClientRect()
-          if (e.clientX >= ir.left && e.clientX <= ir.right && e.clientY >= ir.top && e.clientY <= ir.bottom) {
+          const stageRect = teacherEmbeddedInfographicStageRef.current?.getBoundingClientRect() ?? img.getBoundingClientRect()
+          if (e.clientX >= stageRect.left && e.clientX <= stageRect.right && e.clientY >= stageRect.top && e.clientY <= stageRect.bottom) {
             const vis = getVisibleImageBounds(img)
             const cx = vis.left + vis.width / 2
             const cy = vis.top + vis.height / 2
+            const clampedX = Math.max(vis.left, Math.min(vis.left + vis.width, e.clientX))
+            const clampedY = Math.max(vis.top, Math.min(vis.top + vis.height, e.clientY))
             sendToStudentView({
               type: 'mouse-pos',
               visualFrame: true,
               imageCenter: true,
               cellIndex: -1,
-              dxFromCenter: e.clientX - cx,
-              dyFromCenter: e.clientY - cy,
+              dxFromCenter: clampedX - cx,
+              dyFromCenter: clampedY - cy,
               visW: vis.width,
               visH: vis.height,
             })
@@ -2487,6 +2638,8 @@ export default function CurriculumViewPage() {
       }
       sendToStudentView({
         type: 'mouse-pos',
+        normX: Math.max(0, Math.min(1, e.clientX / w)),
+        normY: Math.max(0, Math.min(1, e.clientY / h)),
         xrPx: Math.max(0, w - e.clientX),
         yPx: Math.max(0, Math.min(h, e.clientY)),
       })
@@ -2501,6 +2654,35 @@ export default function CurriculumViewPage() {
           const relX = rect.right - e.clientX
           const relY = e.clientY - rect.top
           sendToStudentView({ type: 'mouse-click', quizPopup: true, relX, relY })
+          return
+        }
+      }
+      if (!worksheetId && (leftPanelMode === 'visual' || leftPanelMode === 'infographic')) {
+        const elementsAtPoint = document.elementsFromPoint(e.clientX, e.clientY) as HTMLElement[]
+        const toolbar = elementsAtPoint
+          .map((el) => el.closest('[data-infographic-toolbar="teacher-pane"]') as HTMLElement | null)
+          .find((el): el is HTMLElement => !!el)
+        if (toolbar) {
+          const tr = toolbar.getBoundingClientRect()
+          const relX = tr.width > 0 ? Math.max(0, Math.min(1, (e.clientX - tr.left) / tr.width)) : 0.5
+          const relY = tr.height > 0 ? Math.max(0, Math.min(1, (e.clientY - tr.top) / tr.height)) : 0.5
+          const toolbarButtons = Array.from(toolbar.querySelectorAll('button')) as HTMLElement[]
+          const hoveredButton = elementsAtPoint
+            .map((el) => el.closest('button') as HTMLElement | null)
+            .find((el): el is HTMLElement => !!el && toolbar.contains(el))
+          const toolbarButtonIndex = hoveredButton ? toolbarButtons.indexOf(hoveredButton) : -1
+          const visibleToolbars = (Array.from(document.querySelectorAll('[data-infographic-toolbar="teacher-pane"]')) as HTMLElement[])
+            .filter((el) => {
+              const r = el.getBoundingClientRect()
+              return r.width > 8 && r.height > 8
+            })
+            .sort((a, b) => {
+              const ar = a.getBoundingClientRect()
+              const br = b.getBoundingClientRect()
+              return ar.top === br.top ? ar.left - br.left : ar.top - br.top
+            })
+          const toolbarIndex = Math.max(0, visibleToolbars.indexOf(toolbar))
+          sendToStudentView({ type: 'mouse-click', infographicToolbar: true, relX, relY, toolbarIndex, toolbarButtonIndex })
           return
         }
       }
@@ -2548,8 +2730,10 @@ export default function CurriculumViewPage() {
         if (!sent) {
           const overlay = teacherVisualOverlayRef.current
           const rect = overlay ? overlay.getBoundingClientRect() : frame.getBoundingClientRect()
-          const relX = rect.width > 0 ? (e.clientX - rect.left) / rect.width : 0.5
-          const relY = rect.height > 0 ? (e.clientY - rect.top) / rect.height : 0.5
+          const relXRaw = rect.width > 0 ? (e.clientX - rect.left) / rect.width : 0.5
+          const relYRaw = rect.height > 0 ? (e.clientY - rect.top) / rect.height : 0.5
+          const relX = Math.max(0, Math.min(1, relXRaw))
+          const relY = Math.max(0, Math.min(1, relYRaw))
           sendToStudentView({ type: 'mouse-click', visualFrame: true, overlayRel: !!overlay, relX, relY })
         }
         return
@@ -2557,18 +2741,20 @@ export default function CurriculumViewPage() {
       if (infographicFullscreenOpen && teacherInfographicOverlayRef.current) {
         const img = teacherInfographicOverlayRef.current.querySelector('img')
         if (img?.complete && img.naturalWidth > 0) {
-          const ir = img.getBoundingClientRect()
-          if (e.clientX >= ir.left && e.clientX <= ir.right && e.clientY >= ir.top && e.clientY <= ir.bottom) {
+          const overlayRect = teacherInfographicOverlayRef.current.getBoundingClientRect()
+          if (e.clientX >= overlayRect.left && e.clientX <= overlayRect.right && e.clientY >= overlayRect.top && e.clientY <= overlayRect.bottom) {
             const vis = getVisibleImageBounds(img)
             const cx = vis.left + vis.width / 2
             const cy = vis.top + vis.height / 2
+            const clampedX = Math.max(vis.left, Math.min(vis.left + vis.width, e.clientX))
+            const clampedY = Math.max(vis.top, Math.min(vis.top + vis.height, e.clientY))
             sendToStudentView({
               type: 'mouse-click',
               visualFrame: true,
               imageCenter: true,
               cellIndex: -1,
-              dxFromCenter: e.clientX - cx,
-              dyFromCenter: e.clientY - cy,
+              dxFromCenter: clampedX - cx,
+              dyFromCenter: clampedY - cy,
               visW: vis.width,
               visH: vis.height,
             })
@@ -2621,28 +2807,57 @@ export default function CurriculumViewPage() {
           }
           if (!sent) {
             const rect = frame.getBoundingClientRect()
-            const relX = rect.width > 0 ? (e.clientX - rect.left) / rect.width : 0.5
-            const relY = rect.height > 0 ? (e.clientY - rect.top) / rect.height : 0.5
+            const relXRaw = rect.width > 0 ? (e.clientX - rect.left) / rect.width : 0.5
+            const relYRaw = rect.height > 0 ? (e.clientY - rect.top) / rect.height : 0.5
+            const relX = Math.max(0, Math.min(1, relXRaw))
+            const relY = Math.max(0, Math.min(1, relYRaw))
             sendToStudentView({ type: 'mouse-click', visualFrame: true, overlayRel: false, relX, relY })
           }
+          return
+        }
+      }
+      if (!worksheetId && leftPanelMode === 'infographic') {
+        const toolbar = Array.from(document.querySelectorAll('[data-infographic-toolbar="teacher-pane"]'))
+          .find((el) => {
+            const r = (el as HTMLElement).getBoundingClientRect()
+            return e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom
+          }) as HTMLElement | undefined
+        if (toolbar) {
+          const tr = toolbar.getBoundingClientRect()
+          const relX = tr.width > 0 ? Math.max(0, Math.min(1, (e.clientX - tr.left) / tr.width)) : 0.5
+          const relY = tr.height > 0 ? Math.max(0, Math.min(1, (e.clientY - tr.top) / tr.height)) : 0.5
+          const visibleToolbars = (Array.from(document.querySelectorAll('[data-infographic-toolbar="teacher-pane"]')) as HTMLElement[])
+            .filter((el) => {
+              const r = el.getBoundingClientRect()
+              return r.width > 8 && r.height > 8
+            })
+            .sort((a, b) => {
+              const ar = a.getBoundingClientRect()
+              const br = b.getBoundingClientRect()
+              return ar.top === br.top ? ar.left - br.left : ar.top - br.top
+            })
+          const toolbarIndex = Math.max(0, visibleToolbars.indexOf(toolbar))
+          sendToStudentView({ type: 'mouse-click', infographicToolbar: true, relX, relY, toolbarIndex })
           return
         }
       }
       if (!worksheetId && leftPanelMode === 'infographic' && teacherEmbeddedInfographicImgRef.current) {
         const img = teacherEmbeddedInfographicImgRef.current
         if (img.complete && img.naturalWidth > 0) {
-          const ir = img.getBoundingClientRect()
-          if (e.clientX >= ir.left && e.clientX <= ir.right && e.clientY >= ir.top && e.clientY <= ir.bottom) {
+          const stageRect = teacherEmbeddedInfographicStageRef.current?.getBoundingClientRect() ?? img.getBoundingClientRect()
+          if (e.clientX >= stageRect.left && e.clientX <= stageRect.right && e.clientY >= stageRect.top && e.clientY <= stageRect.bottom) {
             const vis = getVisibleImageBounds(img)
             const cx = vis.left + vis.width / 2
             const cy = vis.top + vis.height / 2
+            const clampedX = Math.max(vis.left, Math.min(vis.left + vis.width, e.clientX))
+            const clampedY = Math.max(vis.top, Math.min(vis.top + vis.height, e.clientY))
             sendToStudentView({
               type: 'mouse-click',
               visualFrame: true,
               imageCenter: true,
               cellIndex: -1,
-              dxFromCenter: e.clientX - cx,
-              dyFromCenter: e.clientY - cy,
+              dxFromCenter: clampedX - cx,
+              dyFromCenter: clampedY - cy,
               visW: vis.width,
               visH: vis.height,
             })
@@ -2718,6 +2933,8 @@ export default function CurriculumViewPage() {
       }
       sendToStudentView({
         type: 'mouse-click',
+        normX: Math.max(0, Math.min(1, e.clientX / w)),
+        normY: Math.max(0, Math.min(1, e.clientY / h)),
         xrPx: Math.max(0, w - e.clientX),
         yPx: Math.max(0, Math.min(h, e.clientY)),
       })
@@ -4114,7 +4331,7 @@ export default function CurriculumViewPage() {
                       onClick={() => setLeftPanelMode('infographic')}
                       className={[
                         'px-3 py-1.5 text-[11px] font-medium transition-colors h-8 flex items-center gap-1 border-l border-slate-600/70',
-                        leftPanelMode === 'infographic' ? 'bg-amber-500/30 text-amber-300' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50',
+                        leftPanelMode === 'infographic' ? 'bg-amber-400/10 text-amber-200' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50',
                       ].join(' ')}
                     >
                       <BarChart3 className="h-3.5 w-3.5 shrink-0" aria-hidden />
@@ -4210,10 +4427,20 @@ export default function CurriculumViewPage() {
                   const { layout, cells } = getVisualCellsForPresentation(s, curriculumInfographic)
                   const slideNum = currentIndex + 1
                   const gradient = DARK_GRADIENTS[currentIndex % DARK_GRADIENTS.length]
+                  const infographicStableBackground = 'linear-gradient(180deg, #0b1220 0%, #0f172a 100%)'
+                  const visualUsesCurriculumInfographic = cells.some((c) =>
+                    c.imageUrl && visualImageIsCurriculumInfographic(c.imageUrl, curriculumInfographic)
+                  )
+                  const visualUsesFourCellData = layout === 4 && cells.some((c) => c.visualEmbed || c.imageUrl)
                   const gridClass =
                     layout === 2 ? 'grid min-h-0 grid-rows-2 gap-1' : layout === 4 ? 'grid min-h-0 grid-cols-2 grid-rows-2 gap-1' : ''
                   return (
-                    <div className="h-full w-full relative overflow-hidden" style={{ background: gradient }}>
+                    <div
+                      className="h-full w-full relative overflow-hidden"
+                      style={{
+                        background: visualUsesCurriculumInfographic || visualUsesFourCellData ? infographicStableBackground : gradient,
+                      }}
+                    >
                       <div className="absolute top-4 left-4 w-9 h-9 rounded-full bg-red-500 flex items-center justify-center text-white font-bold text-sm shadow-lg z-10">
                         {slideNum}
                       </div>
@@ -4262,7 +4489,8 @@ export default function CurriculumViewPage() {
                                   />
                                   <canvas data-teacher-infographic-draw-pane-canvas className="pointer-events-none absolute" aria-hidden />
                                   <div
-                                    className="absolute bottom-1.5 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1 rounded bg-black/65 px-1 py-1 text-white"
+                                    data-infographic-toolbar="teacher-pane"
+                                    className="absolute bottom-2 left-1/2 z-20 flex w-[min(96%,680px)] -translate-x-1/2 flex-wrap items-center justify-center gap-1 rounded-xl border border-white/25 bg-black/70 px-2 py-1 text-white shadow-lg backdrop-blur-sm"
                                     onPointerDown={(e) => e.stopPropagation()}
                                     onClick={(e) => e.stopPropagation()}
                                   >
@@ -4346,7 +4574,8 @@ export default function CurriculumViewPage() {
                                       />
                                       <canvas data-teacher-infographic-draw-pane-canvas className="pointer-events-none absolute" aria-hidden />
                                       <div
-                                        className="absolute bottom-1 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1 rounded bg-black/65 px-1 py-1 text-white"
+                                        data-infographic-toolbar="teacher-pane"
+                                        className="absolute bottom-2 left-1/2 z-20 flex w-[min(96%,680px)] -translate-x-1/2 flex-wrap items-center justify-center gap-1 rounded-xl border border-white/25 bg-black/70 px-2 py-1 text-white shadow-lg backdrop-blur-sm"
                                         onPointerDown={(e) => e.stopPropagation()}
                                         onClick={(e) => e.stopPropagation()}
                                       >
@@ -4382,11 +4611,11 @@ export default function CurriculumViewPage() {
               ) : leftPanelMode === 'infographic' ? (
                 (() => {
                   if (slides.length === 0) return <p className="p-4 text-slate-500 text-sm">{tr('Không có slide', 'No slide', '无幻灯片', 'スライドなし', '슬라이드 없음')}</p>
-                  const gradient = DARK_GRADIENTS[currentIndex % DARK_GRADIENTS.length]
+                  const infographicStableBackground = 'linear-gradient(180deg, #0b1220 0%, #0f172a 100%)'
                   const inf = curriculumInfographic
                   const costLabel = formatCurriculumCredits(CURRICULUM_UI_CREDITS.slideInfographic2K)
                   return (
-                    <div className="h-full w-full overflow-y-auto overflow-x-hidden" style={{ background: gradient }}>
+                    <div className="h-full w-full overflow-y-auto overflow-x-hidden" style={{ background: infographicStableBackground }}>
                       <div className="p-4 space-y-3 text-left">
                         {!inf ? (
                           <div className="rounded-xl border border-white/10 bg-black/25 p-4 space-y-3">
@@ -4440,52 +4669,53 @@ export default function CurriculumViewPage() {
                                 referrerPolicy="no-referrer"
                               />
                               <canvas ref={teacherEmbeddedInfographicCanvasRef} data-teacher-infographic-draw-pane-canvas className="pointer-events-none absolute" aria-hidden />
-                              <div
-                                className="absolute bottom-2 left-1/2 z-20 flex -translate-x-1/2 flex-wrap items-center justify-center gap-1 rounded-lg border border-white/25 bg-black/70 p-1 text-white shadow-lg"
-                                onPointerDown={(e) => e.stopPropagation()}
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <button type="button" onClick={() => setInfographicDrawTool('pen')} className={cn('rounded px-2 py-1 text-[11px] transition-colors', infographicDrawTool === 'pen' ? 'bg-white/30' : 'hover:bg-white/15')}>{tr('Vẽ', 'Draw', '画笔', '描画', '그리기')}</button>
-                                <button type="button" onClick={() => setInfographicDrawTool('eraser')} className={cn('rounded px-2 py-1 text-[11px] transition-colors', infographicDrawTool === 'eraser' ? 'bg-white/30' : 'hover:bg-white/15')}>{tr('Tẩy', 'Erase', '橡皮', '消しゴム', '지우기')}</button>
-                                <button type="button" onClick={() => setInfographicDrawBrushPx(3)} className={cn('rounded px-2 py-1 text-[11px] transition-colors', infographicDrawBrushPx === 3 ? 'bg-white/30' : 'hover:bg-white/15')}>{tr('S', 'S', '细', '細', '얇게')}</button>
-                                <button type="button" onClick={() => setInfographicDrawBrushPx(5)} className={cn('rounded px-2 py-1 text-[11px] transition-colors', infographicDrawBrushPx === 5 ? 'bg-white/30' : 'hover:bg-white/15')}>{tr('M', 'M', '中', '中', '중간')}</button>
-                                <button type="button" onClick={() => setInfographicDrawBrushPx(7)} className={cn('rounded px-2 py-1 text-[11px] transition-colors', infographicDrawBrushPx === 7 ? 'bg-white/30' : 'hover:bg-white/15')}>{tr('L', 'L', '粗', '太', '굵게')}</button>
-                                <div className="flex items-center gap-1 px-1">
-                                  {INFOGRAPHIC_DRAW_COLORS.map((color) => (
-                                    <button
-                                      key={`t-pane-${color}`}
-                                      type="button"
-                                      onClick={() => setInfographicDrawColor(color)}
-                                      className={cn(
-                                        'h-3.5 w-3.5 rounded-full border transition-transform',
-                                        infographicDrawColor === color ? 'scale-110 border-white' : 'border-white/40 hover:scale-105'
-                                      )}
-                                      style={{ backgroundColor: color }}
-                                      title={tr('Màu nét vẽ', 'Stroke color', '画笔颜色', '描画色', '펜 색상')}
-                                    />
-                                  ))}
-                                </div>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    undoInfographicStroke(CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY)
-                                    sendToStudentView({ type: 'infographic-draw-undo', slideIndex: CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY })
-                                  }}
-                                  className="rounded px-2 py-1 text-[11px] transition-colors hover:bg-white/15"
-                                >
-                                  {tr('Undo', 'Undo', '撤销', '元に戻す', '실행 취소')}
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    clearInfographicStrokes(CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY)
-                                    sendToStudentView({ type: 'infographic-draw-clear', slideIndex: CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY })
-                                  }}
-                                  className="rounded px-2 py-1 text-[11px] transition-colors hover:bg-white/15"
-                                >
-                                  {tr('Clear', 'Clear', '清除', 'クリア', '지우기')}
-                                </button>
+                            </div>
+                            <div
+                              data-infographic-toolbar="teacher-pane"
+                              className="z-20 mt-2 flex max-w-full flex-wrap items-center justify-center gap-1 self-center rounded-xl border border-white/25 bg-black/70 px-2 py-1 text-white shadow-lg"
+                              onPointerDown={(e) => e.stopPropagation()}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <button type="button" onClick={() => setInfographicDrawTool('pen')} className={cn('rounded px-2 py-1 text-[11px] transition-colors', infographicDrawTool === 'pen' ? 'bg-white/30' : 'hover:bg-white/15')}>{tr('Vẽ', 'Draw', '画笔', '描画', '그리기')}</button>
+                              <button type="button" onClick={() => setInfographicDrawTool('eraser')} className={cn('rounded px-2 py-1 text-[11px] transition-colors', infographicDrawTool === 'eraser' ? 'bg-white/30' : 'hover:bg-white/15')}>{tr('Tẩy', 'Erase', '橡皮', '消しゴム', '지우기')}</button>
+                              <button type="button" onClick={() => setInfographicDrawBrushPx(3)} className={cn('rounded px-2 py-1 text-[11px] transition-colors', infographicDrawBrushPx === 3 ? 'bg-white/30' : 'hover:bg-white/15')}>{tr('S', 'S', '细', '細', '얇게')}</button>
+                              <button type="button" onClick={() => setInfographicDrawBrushPx(5)} className={cn('rounded px-2 py-1 text-[11px] transition-colors', infographicDrawBrushPx === 5 ? 'bg-white/30' : 'hover:bg-white/15')}>{tr('M', 'M', '中', '中', '중간')}</button>
+                              <button type="button" onClick={() => setInfographicDrawBrushPx(7)} className={cn('rounded px-2 py-1 text-[11px] transition-colors', infographicDrawBrushPx === 7 ? 'bg-white/30' : 'hover:bg-white/15')}>{tr('L', 'L', '粗', '太', '굵게')}</button>
+                              <div className="flex items-center gap-1 px-1">
+                                {INFOGRAPHIC_DRAW_COLORS.map((color) => (
+                                  <button
+                                    key={`t-pane-${color}`}
+                                    type="button"
+                                    onClick={() => setInfographicDrawColor(color)}
+                                    className={cn(
+                                      'h-3.5 w-3.5 rounded-full border transition-transform',
+                                      infographicDrawColor === color ? 'scale-110 border-white' : 'border-white/40 hover:scale-105'
+                                    )}
+                                    style={{ backgroundColor: color }}
+                                    title={tr('Màu nét vẽ', 'Stroke color', '画笔颜色', '描画色', '펜 색상')}
+                                  />
+                                ))}
                               </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  undoInfographicStroke(CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY)
+                                  sendToStudentView({ type: 'infographic-draw-undo', slideIndex: CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY })
+                                }}
+                                className="rounded px-2 py-1 text-[11px] transition-colors hover:bg-white/15"
+                              >
+                                {tr('Undo', 'Undo', '撤销', '元に戻す', '실행 취소')}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  clearInfographicStrokes(CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY)
+                                  sendToStudentView({ type: 'infographic-draw-clear', slideIndex: CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY })
+                                }}
+                                className="rounded px-2 py-1 text-[11px] transition-colors hover:bg-white/15"
+                              >
+                                {tr('Clear', 'Clear', '清除', 'クリア', '지우기')}
+                              </button>
                             </div>
                             <button
                               type="button"
@@ -5701,6 +5931,7 @@ export default function CurriculumViewPage() {
             >
               <div
                 ref={teacherInfographicOverlayStageRef}
+                data-teacher-infographic-draw-fullscreen-stage
                 className="relative flex min-h-0 w-full flex-1 touch-none items-center justify-center"
                 onPointerDown={(e) => startInfographicDrawing('fullscreen', e)}
                 onClick={(e) => e.stopPropagation()}

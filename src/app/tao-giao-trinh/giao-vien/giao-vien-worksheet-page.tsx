@@ -1707,7 +1707,7 @@ export default function GiaoVienWorksheetPage() {
     }
     const sendPointerMove = (e: MouseEvent) => {
       const now = Date.now()
-      if (now - pointerThrottleRef.current < 16) return
+      if (now - pointerThrottleRef.current < 8) return
       pointerThrottleRef.current = now
       const w = window.innerWidth || 1
       const h = window.innerHeight || 1
@@ -1766,8 +1766,10 @@ export default function GiaoVienWorksheetPage() {
         if (!sent) {
           const overlay = teacherVisualOverlayRef.current
           const rect = overlay ? overlay.getBoundingClientRect() : frame.getBoundingClientRect()
-          const relX = rect.width > 0 ? (e.clientX - rect.left) / rect.width : 0.5
-          const relY = rect.height > 0 ? (e.clientY - rect.top) / rect.height : 0.5
+          const relXRaw = rect.width > 0 ? (e.clientX - rect.left) / rect.width : 0.5
+          const relYRaw = rect.height > 0 ? (e.clientY - rect.top) / rect.height : 0.5
+          const relX = Math.max(0, Math.min(1, relXRaw))
+          const relY = Math.max(0, Math.min(1, relYRaw))
           sendToStudentView({ type: 'mouse-pos', visualFrame: true, overlayRel: !!overlay, relX, relY })
         }
       } else {
@@ -1839,6 +1841,8 @@ export default function GiaoVienWorksheetPage() {
         }
         sendToStudentView({
           type: 'mouse-pos',
+          normX: Math.max(0, Math.min(1, e.clientX / w)),
+          normY: Math.max(0, Math.min(1, e.clientY / h)),
           xrPx: Math.max(0, w - e.clientX),
           yPx: Math.max(0, Math.min(h, e.clientY)),
         })
@@ -1901,8 +1905,10 @@ export default function GiaoVienWorksheetPage() {
         if (!sent) {
           const overlay = teacherVisualOverlayRef.current
           const rect = overlay ? overlay.getBoundingClientRect() : frame.getBoundingClientRect()
-          const relX = rect.width > 0 ? (e.clientX - rect.left) / rect.width : 0.5
-          const relY = rect.height > 0 ? (e.clientY - rect.top) / rect.height : 0.5
+          const relXRaw = rect.width > 0 ? (e.clientX - rect.left) / rect.width : 0.5
+          const relYRaw = rect.height > 0 ? (e.clientY - rect.top) / rect.height : 0.5
+          const relX = Math.max(0, Math.min(1, relXRaw))
+          const relY = Math.max(0, Math.min(1, relYRaw))
           sendToStudentView({ type: 'mouse-click', visualFrame: true, overlayRel: !!overlay, relX, relY })
         }
       } else {
@@ -1974,6 +1980,8 @@ export default function GiaoVienWorksheetPage() {
         }
         sendToStudentView({
           type: 'mouse-click',
+          normX: Math.max(0, Math.min(1, e.clientX / w)),
+          normY: Math.max(0, Math.min(1, e.clientY / h)),
           xrPx: Math.max(0, w - e.clientX),
           yPx: Math.max(0, Math.min(h, e.clientY)),
         })
@@ -3286,10 +3294,15 @@ export default function GiaoVienWorksheetPage() {
                   const { layout, cells } = getVisualCells(s)
                   const slideNum = currentIndex + 1
                   const gradient = DARK_GRADIENTS[currentIndex % DARK_GRADIENTS.length]
+                  const infographicStableBackground = 'linear-gradient(180deg, #0b1220 0%, #0f172a 100%)'
+                  const visualUsesFourCellData = layout === 4 && cells.some((c) => c.visualEmbed || c.imageUrl)
                   const gridClass =
                     layout === 2 ? 'grid min-h-0 grid-rows-2 gap-1' : layout === 4 ? 'grid min-h-0 grid-cols-2 grid-rows-2 gap-1' : ''
                   return (
-                    <div className="h-full w-full relative overflow-hidden" style={{ background: gradient }}>
+                    <div
+                      className="h-full w-full relative overflow-hidden"
+                      style={{ background: visualUsesFourCellData ? infographicStableBackground : gradient }}
+                    >
                       <div className="absolute top-4 left-4 w-9 h-9 rounded-full bg-red-500 flex items-center justify-center text-white font-bold text-sm shadow-lg z-10">
                         {slideNum}
                       </div>
