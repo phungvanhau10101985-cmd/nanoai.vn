@@ -155,6 +155,33 @@ type InfographicDrawStroke = {
   points: InfographicDrawPoint[]
 }
 
+const STUDENT_SLIDE_CHUNK_SIZE = 5
+const STUDENT_CHUNK_RADIUS = 1
+
+function pruneStudentSlidesByChunk(slides: SlideItem[], currentIndex: number): SlideItem[] {
+  if (!Array.isArray(slides) || slides.length <= 0) return slides
+  const chunkSize = STUDENT_SLIDE_CHUNK_SIZE
+  const radius = STUDENT_CHUNK_RADIUS
+  const currentChunk = Math.floor(Math.max(0, currentIndex) / chunkSize)
+  const keepStart = Math.max(0, (currentChunk - radius) * chunkSize)
+  const keepEnd = Math.min(slides.length - 1, ((currentChunk + radius + 1) * chunkSize) - 1)
+
+  return slides.map((s, idx) => {
+    if (idx >= keepStart && idx <= keepEnd) return s
+    // Giữ text/title để UI không đổi, bỏ payload visual nặng ở slide xa.
+    return {
+      ...s,
+      imageUrl: undefined,
+      visualEmbed: undefined,
+      visualCells: undefined,
+      visualInput1: undefined,
+      visualInput2: undefined,
+      visualInput3: undefined,
+      visualInput4: undefined,
+    }
+  })
+}
+
 /** Chuẩn hóa điểm vẽ theo vùng ảnh object-contain trong một stage (mọi chỗ hiển thị infographic). */
 function resolveInfographicPointerPointForStage(
   stage: HTMLElement,
@@ -2608,8 +2635,9 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
 
   useEffect(() => {
     const nextSlides = baseSlidesForDisplay
-    setSlides(nextSlides)
     const idx = typeof initialSlideIndex === 'number' ? Math.max(0, Math.min(initialSlideIndex, nextSlides.length - 1)) : 0
+    const slidesForRuntime = !isTeacherView ? pruneStudentSlidesByChunk(nextSlides, idx) : nextSlides
+    setSlides(slidesForRuntime)
     setCurrentIndex((prev) => {
       // Student window must always follow teacher's current slide.
       if (!isTeacherView && nextSlides.length > 0) {
