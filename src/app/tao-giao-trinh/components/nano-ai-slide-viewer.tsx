@@ -712,6 +712,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   const [presenterLeftTab, setPresenterLeftTab] = useState<'visual' | 'infographic'>('visual')
   const [studentCurriculumLeftPaneTab, setStudentCurriculumLeftPaneTab] = useState<'visual' | 'infographic'>('visual')
   const isStudentCurriculumSlide = !isTeacherView && !worksheetPresentation
+  const deferSyncedStudentBootstrap = !isTeacherView && !!presentationBroadcastSyncId
   const [infographicFullscreenOpen, setInfographicFullscreenOpen] = useState(false)
   /** Học sinh + giáo trình (không phiếu): cột phải — một slide hoặc toàn bộ slide nối liền (markdown). */
   const [studentCurriculumRightMode, setStudentCurriculumRightMode] = useState<'single-slide' | 'markdown-all'>('single-slide')
@@ -2601,12 +2602,16 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     setTimerSeconds(0)
   }, [])
 
-  const baseSlidesForDisplay =
-    slideMode === 'personal' && personalViewSubMode === 'original' && originalSlides && originalSlides.length > 0
-      ? getBaseSlides(curriculumMarkdown, topic, originalSlides)
-      : getBaseSlides(curriculumMarkdown, topic, aiSlides)
+  const baseSlidesForDisplay = deferSyncedStudentBootstrap
+    ? []
+    : (
+      slideMode === 'personal' && personalViewSubMode === 'original' && originalSlides && originalSlides.length > 0
+        ? getBaseSlides(curriculumMarkdown, topic, originalSlides)
+        : getBaseSlides(curriculumMarkdown, topic, aiSlides)
+    )
 
   useEffect(() => {
+    if (deferSyncedStudentBootstrap) return
     const nextSlides = baseSlidesForDisplay
     setSlides(nextSlides)
     const idx = typeof initialSlideIndex === 'number' ? Math.max(0, Math.min(initialSlideIndex, nextSlides.length - 1)) : 0
@@ -2621,7 +2626,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       }
       return Math.min(prev, nextSlides.length - 1)
     })
-  }, [curriculumMarkdown, topic, aiSlides, slideMode, personalViewSubMode, originalSlides, initialSlideIndex, isTeacherView])
+  }, [curriculumMarkdown, topic, aiSlides, slideMode, personalViewSubMode, originalSlides, initialSlideIndex, isTeacherView, deferSyncedStudentBootstrap])
 
   const goNext = useCallback(() => {
     setAutoPlay(false)

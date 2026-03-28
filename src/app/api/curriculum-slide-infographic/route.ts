@@ -9,6 +9,8 @@ import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 
 const COST_2K = 1.5
 const MAX_SLIDE_TEXT = 28000
+const INFOGRAPHIC_TARGET_BYTES = 820 * 1024
+const INFOGRAPHIC_MAX_DIMENSION = 2048
 const toTenths = (value: number) => Math.round(value * 10)
 const fromTenths = (value: number) => value / 10
 const formatCredits = (value: number) => value.toLocaleString('vi-VN', { maximumFractionDigits: 1 })
@@ -41,6 +43,34 @@ function parseFlashJson(text: string): { summary: string; mermaid: string } {
   if (!summary || !mermaid) throw new Error('Thiếu summary hoặc mermaid trong phản hồi AI.')
   if (mermaid.length > 2000) throw new Error('Mermaid quá dài.')
   return { summary, mermaid }
+}
+
+async function compressInfographicForProjection(rawPng: Buffer): Promise<{ buffer: Buffer; ext: 'webp'; contentType: 'image/webp' }> {
+  const meta = await sharp(rawPng).metadata().catch(() => null)
+  const srcW = Math.max(1, Number(meta?.width || INFOGRAPHIC_MAX_DIMENSION))
+  const srcH = Math.max(1, Number(meta?.height || Math.round(INFOGRAPHIC_MAX_DIMENSION * 9 / 16)))
+  const resizeScales = [1, 0.92, 0.84, 0.76, 0.68]
+  const qualityLevels = [84, 78, 72, 66, 60, 54]
+
+  let best = await sharp(rawPng).webp({ quality: 84, effort: 6 }).toBuffer()
+
+  for (const scale of resizeScales) {
+    const targetW = Math.max(640, Math.min(INFOGRAPHIC_MAX_DIMENSION, Math.round(srcW * scale)))
+    const targetH = Math.max(360, Math.min(INFOGRAPHIC_MAX_DIMENSION, Math.round(srcH * scale)))
+    for (const q of qualityLevels) {
+      const out = await sharp(rawPng)
+        .rotate()
+        .resize({ width: targetW, height: targetH, fit: 'inside', withoutEnlargement: true })
+        .webp({ quality: q, effort: 6, smartSubsample: true })
+        .toBuffer()
+      if (out.length < best.length) best = out
+      if (out.length <= INFOGRAPHIC_TARGET_BYTES) {
+        return { buffer: out, ext: 'webp', contentType: 'image/webp' }
+      }
+    }
+  }
+
+  return { buffer: best, ext: 'webp', contentType: 'image/webp' }
 }
 
 export async function POST(req: NextRequest) {
@@ -196,18 +226,21 @@ ${FLASH_INSTRUCTION}`
       return NextResponse.json({ error: 'AI không trả về ảnh infographic hợp lệ.' }, { status: 502 })
     }
     const rawPng = Buffer.from((imagePart as { inlineData: { data: string } }).inlineData.data, 'base64')
-    /** PNG lossless: chỉ tối ưu nén zlib (compressionLevel), không giảm chất lượng pixel. */
     let resultBuffer = rawPng
+    let resultExt: 'png' | 'webp' = 'png'
+    let resultContentType: 'image/png' | 'image/webp' = 'image/png'
     try {
-      const optimized = await sharp(rawPng).png({ compressionLevel: 9 }).toBuffer()
-      resultBuffer = Buffer.from(optimized)
+      const optimized = await compressInfographicForProjection(rawPng)
+      resultBuffer = Buffer.from(optimized.buffer)
+      resultExt = optimized.ext
+      resultContentType = optimized.contentType
     } catch (e) {
-      console.warn('[curriculum-slide-infographic] sharp png optimize skipped:', e)
+      console.warn('[curriculum-slide-infographic] projection compress skipped, fallback png:', e)
       resultBuffer = rawPng
     }
-    const resultPath = `results/${user.id}/curriculum_infographic_${curriculumId}_${Date.now()}.png`
+    const resultPath = `results/${user.id}/curriculum_infographic_${curriculumId}_${Date.now()}.${resultExt}`
     const { error: uploadErr } = await adminSupabase.storage.from('try-on-images').upload(resultPath, resultBuffer, {
-      contentType: 'image/png',
+      contentType: resultContentType,
       upsert: true,
     })
     if (uploadErr) {
