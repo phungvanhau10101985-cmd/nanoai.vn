@@ -1357,6 +1357,12 @@ export default function CurriculumViewPage() {
   const renderInfographicDrawCanvas = useCallback((target: 'pane' | 'fullscreen') => {
     const strokes = infographicDrawStrokesBySlide[CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY] ?? []
     const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1
+    const clearCanvas = (canvas: HTMLCanvasElement) => {
+      if (canvas.width !== 1) canvas.width = 1
+      if (canvas.height !== 1) canvas.height = 1
+      canvas.style.width = '0px'
+      canvas.style.height = '0px'
+    }
     const paintOnStage = (stage: HTMLDivElement, img: HTMLImageElement, canvas: HTMLCanvasElement) => {
       if (!img.complete || img.naturalWidth <= 0) return false
       const vis = getVisibleImageBounds(img)
@@ -1428,6 +1434,18 @@ export default function CurriculumViewPage() {
         const img = stage.querySelector('img') as HTMLImageElement | null
         const canvas = stage.querySelector('[data-teacher-infographic-draw-pane-canvas]') as HTMLCanvasElement | null
         if (!img || !canvas) continue
+        const rect = stage.getBoundingClientRect()
+        const style = window.getComputedStyle(stage)
+        const isVisible =
+          rect.width > 40 &&
+          rect.height > 40 &&
+          style.display !== 'none' &&
+          style.visibility !== 'hidden' &&
+          Number(style.opacity || '1') > 0
+        if (!isVisible) {
+          clearCanvas(canvas)
+          continue
+        }
         if (paintOnStage(stage, img, canvas)) paintedAny = true
       }
       return paintedAny
@@ -1542,11 +1560,32 @@ export default function CurriculumViewPage() {
   }, [curriculumInfographic, resolveInfographicDrawPoint, infographicDrawBrushPx, infographicDrawTool, infographicDrawColor, upsertInfographicStroke, sendToStudentView, appendInfographicStrokePoints])
 
   useEffect(() => {
-    renderInfographicDrawCanvas('pane')
-    renderInfographicDrawCanvas('fullscreen')
+    const clearInactive = () => {
+      if (infographicFullscreenOpen) {
+        const paneCanvases = Array.from(document.querySelectorAll('[data-teacher-infographic-draw-pane-canvas]')) as HTMLCanvasElement[]
+        for (const c of paneCanvases) {
+          if (c.width !== 1) c.width = 1
+          if (c.height !== 1) c.height = 1
+          c.style.width = '0px'
+          c.style.height = '0px'
+        }
+      } else {
+        const c = teacherInfographicOverlayCanvasRef.current
+        if (c) {
+          if (c.width !== 1) c.width = 1
+          if (c.height !== 1) c.height = 1
+          c.style.width = '0px'
+          c.style.height = '0px'
+        }
+      }
+    }
+    if (infographicFullscreenOpen) renderInfographicDrawCanvas('fullscreen')
+    else renderInfographicDrawCanvas('pane')
+    clearInactive()
     const raf = typeof window !== 'undefined' ? window.requestAnimationFrame(() => {
-      renderInfographicDrawCanvas('pane')
-      renderInfographicDrawCanvas('fullscreen')
+      if (infographicFullscreenOpen) renderInfographicDrawCanvas('fullscreen')
+      else renderInfographicDrawCanvas('pane')
+      clearInactive()
     }) : 0
     return () => {
       if (raf) window.cancelAnimationFrame(raf)
@@ -1557,8 +1596,8 @@ export default function CurriculumViewPage() {
     // Repaint nhẹ sau đổi slide/tab: đủ để bắt ảnh load chậm nhưng tránh tốn RAM/CPU.
     const timers: Array<ReturnType<typeof setTimeout>> = []
     const run = () => {
-      renderInfographicDrawCanvas('pane')
-      renderInfographicDrawCanvas('fullscreen')
+      if (infographicFullscreenOpen) renderInfographicDrawCanvas('fullscreen')
+      else renderInfographicDrawCanvas('pane')
     }
     timers.push(setTimeout(run, 450))
     timers.push(setTimeout(run, 900))
@@ -1585,8 +1624,8 @@ export default function CurriculumViewPage() {
     bind('pane', teacherEmbeddedInfographicStageRef.current, teacherEmbeddedInfographicImgRef.current)
     bind('fullscreen', teacherInfographicOverlayStageRef.current, teacherInfographicOverlayImgRef.current)
     const onResize = () => {
-      renderInfographicDrawCanvas('pane')
-      renderInfographicDrawCanvas('fullscreen')
+      if (infographicFullscreenOpen) renderInfographicDrawCanvas('fullscreen')
+      else renderInfographicDrawCanvas('pane')
     }
     window.addEventListener('resize', onResize)
     onResize()

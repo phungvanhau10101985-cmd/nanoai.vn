@@ -248,6 +248,15 @@ function paintInfographicStrokesOnStage(stage: HTMLElement, strokes: Infographic
   return true
 }
 
+function clearInfographicCanvasOnStage(stage: HTMLElement) {
+  const canvas = stage.querySelector('[data-infographic-draw-pane-canvas]') as HTMLCanvasElement | null
+  if (!canvas) return
+  if (canvas.width !== 1) canvas.width = 1
+  if (canvas.height !== 1) canvas.height = 1
+  canvas.style.width = '0px'
+  canvas.style.height = '0px'
+}
+
 const INFOGRAPHIC_DRAW_COLORS = ['#ef4444', '#22c55e', '#3b82f6', '#f59e0b', '#ffffff'] as const
 const INFOGRAPHIC_UNIFIED_STROKE_NORM = 0.004
 const INFOGRAPHIC_MAX_STROKES = 240
@@ -1188,7 +1197,20 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     const strokes = infographicDrawStrokesBySlide[CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY] ?? []
     let paintedCount = 0
     document.querySelectorAll('[data-infographic-draw-pane-stage]').forEach((node) => {
-      if (paintInfographicStrokesOnStage(node as HTMLElement, strokes)) paintedCount += 1
+      const stage = node as HTMLElement
+      const rect = stage.getBoundingClientRect()
+      const style = window.getComputedStyle(stage)
+      const isVisible =
+        rect.width > 40 &&
+        rect.height > 40 &&
+        style.display !== 'none' &&
+        style.visibility !== 'hidden' &&
+        Number(style.opacity || '1') > 0
+      if (!isVisible) {
+        clearInfographicCanvasOnStage(stage)
+        return
+      }
+      if (paintInfographicStrokesOnStage(stage, strokes)) paintedCount += 1
     })
     return paintedCount
   }, [infographicDrawStrokesBySlide])
