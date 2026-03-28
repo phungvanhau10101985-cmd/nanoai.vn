@@ -22,7 +22,7 @@ import { saveSlidesToCurriculum, saveUserCustomizedSlides } from '../actions'
 import { useScreenShare } from '../hooks/use-screen-share'
 import { useScreenShareLive } from '../hooks/use-screen-share-live'
 import { curriculumSlideTitleRevealKey, findFirstSequentialSolutionBlockIndex, worksheetAnswerSegmentCount } from '../lib/worksheet-answer-segments'
-import type { SlideInfographic } from '../lib/slide-infographic'
+import { CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY, type SlideInfographic } from '../lib/slide-infographic'
 import {
   applyInfographicToDefaultVisualCells,
   skipInfographicDefaultSwapNano,
@@ -155,7 +155,112 @@ type InfographicDrawStroke = {
   points: InfographicDrawPoint[]
 }
 
+/** Chuẩn hóa điểm vẽ theo vùng ảnh object-contain trong một stage (mọi chỗ hiển thị infographic). */
+function resolveInfographicPointerPointForStage(
+  stage: HTMLElement,
+  clientX: number,
+  clientY: number,
+): { u: number; v: number; vis: { left: number; top: number; width: number; height: number } } | null {
+  const img = stage.querySelector('img') as HTMLImageElement | null
+  if (!img || !img.complete || img.naturalWidth <= 0) return null
+  const vis = getVisibleImageBounds(img)
+  if (vis.width <= 0 || vis.height <= 0) return null
+  if (
+    clientX < vis.left ||
+    clientX > vis.left + vis.width ||
+    clientY < vis.top ||
+    clientY > vis.top + vis.height
+  ) {
+    return null
+  }
+  const u = clamp01((clientX - vis.left) / vis.width)
+  const v = clamp01((clientY - vis.top) / vis.height)
+  return { u, v, vis }
+}
+
+/** Vẽ toàn bộ nét slide hiện tại lên một canvas trong stage — gọi cho mọi `[data-infographic-draw-pane-stage]`. */
+function paintInfographicStrokesOnStage(stage: HTMLElement, strokes: InfographicDrawStroke[]) {
+  const img = stage.querySelector('img') as HTMLImageElement | null
+  const canvas = stage.querySelector('[data-infographic-draw-pane-canvas]') as HTMLCanvasElement | null
+  if (!img || !canvas) return
+  if (!img.complete || img.naturalWidth <= 0) return
+  const vis = getVisibleImageBounds(img)
+  if (vis.width <= 0 || vis.height <= 0) return
+  const cr = stage.getBoundingClientRect()
+  if (cr.width < 2 || cr.height < 2) return
+  const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1
+  const left = vis.left - cr.left
+  const top = vis.top - cr.top
+  canvas.style.left = `${left}px`
+  canvas.style.top = `${top}px`
+  canvas.style.width = `${vis.width}px`
+  canvas.style.height = `${vis.height}px`
+  const pxW = Math.max(1, Math.round(vis.width * dpr))
+  const pxH = Math.max(1, Math.round(vis.height * dpr))
+  if (canvas.width !== pxW) canvas.width = pxW
+  if (canvas.height !== pxH) canvas.height = pxH
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
+  ctx.setTransform(1, 0, 0, 1, 0, 0)
+  ctx.clearRect(0, 0, canvas.width, canvas.height)
+  ctx.save()
+  ctx.scale(dpr, dpr)
+  ctx.lineCap = 'round'
+  ctx.lineJoin = 'round'
+  for (const s of strokes) {
+    if (!s.points || s.points.length < 1) continue
+    ctx.globalCompositeOperation = s.tool === 'eraser' ? 'destination-out' : 'source-over'
+    ctx.strokeStyle = s.color
+    ctx.lineWidth = Math.max(1.5, s.sizeNorm * vis.width)
+    ctx.beginPath()
+    const p0 = s.points[0]
+    const x0 = p0.u * vis.width
+    const y0 = p0.v * vis.height
+    ctx.moveTo(x0, y0)
+    if (s.points.length === 1) {
+      ctx.arc(x0, y0, Math.max(0.8, ctx.lineWidth * 0.5), 0, Math.PI * 2)
+      ctx.fillStyle = s.tool === 'eraser' ? '#000' : s.color
+      ctx.fill()
+    } else if (s.points.length === 2) {
+      const p1 = s.points[1]
+      ctx.lineTo(p1.u * vis.width, p1.v * vis.height)
+    } else {
+      for (let i = 1; i < s.points.length - 1; i += 1) {
+        const p = s.points[i]
+        const pn = s.points[i + 1]
+        const xc = ((p.u + pn.u) * vis.width) / 2
+        const yc = ((p.v + pn.v) * vis.height) / 2
+        ctx.quadraticCurveTo(p.u * vis.width, p.v * vis.height, xc, yc)
+      }
+      const last = s.points[s.points.length - 1]
+      const prev = s.points[s.points.length - 2]
+      ctx.quadraticCurveTo(prev.u * vis.width, prev.v * vis.height, last.u * vis.width, last.v * vis.height)
+    }
+    ctx.stroke()
+  }
+  ctx.restore()
+}
+
 const INFOGRAPHIC_DRAW_COLORS = ['#ef4444', '#22c55e', '#3b82f6', '#f59e0b', '#ffffff'] as const
+
+function dedupeInfographicStrokesById(strokes: InfographicDrawStroke[]): InfographicDrawStroke[] {
+  const byId = new Map<string, InfographicDrawStroke>()
+  for (const s of strokes) {
+    if (s?.id) byId.set(s.id, s)
+  }
+  return Array.from(byId.values())
+}
+
+/** Gộp mọi bucket nét (legacy theo slide) thành một lớp dùng chung infographic giáo trình. */
+function foldInfographicStrokesToCurriculumKey(
+  map: Record<number, InfographicDrawStroke[]>,
+): Record<number, InfographicDrawStroke[]> {
+  const merged: InfographicDrawStroke[] = []
+  for (const list of Object.values(map)) {
+    if (Array.isArray(list)) merged.push(...list)
+  }
+  return { [CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY]: dedupeInfographicStrokesById(merged) }
+}
 
 export type SlideMode = 'original' | 'shared' | 'personal'
 
@@ -594,6 +699,8 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   const studentVisualFrameRef = useRef<HTMLDivElement | null>(null)
   /** Cột Visual trong slide (chưa fullscreen): các ô con đồng bộ cellIndex với GV */
   const studentEmbeddedVisualFrameRef = useRef<HTMLDivElement | null>(null)
+  /** Khung bao Visual (có kích thước thật) để map chuột khi không rơi vào ô con. */
+  const studentEmbeddedVisualViewportRef = useRef<HTMLDivElement | null>(null)
   const studentMarkdownAllScrollRef = useRef<HTMLDivElement | null>(null)
   /** Cột phải HS: khung thật sự có overflow-y-auto (cha của danh sách chuỗi slide). */
   const studentMdRightColumnScrollRef = useRef<HTMLDivElement | null>(null)
@@ -652,13 +759,15 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   const infographicFullscreenImageRef = useRef<HTMLImageElement | null>(null)
   const infographicFullscreenCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const infographicDrawingRef = useRef<{
-    target: 'pane' | 'fullscreen'
+    stageEl: HTMLElement
     strokeId: string
     slideIndex: number
     pointerId: number
     removeListeners?: () => void
   } | null>(null)
   const mouseThrottleRef = useRef(0)
+  const lastMouseScopeRef = useRef<'quiz' | 'slide-content' | 'visual' | 'global' | null>(null)
+  const lastRenderedVirtualMouseRef = useRef<{ x: number; y: number } | null>(null)
   const processedSyncSeqRef = useRef<Set<number>>(new Set())
   const quizPopupScrollApplyingRef = useRef(false)
   const closeVisualFullscreenRef = useRef<(opts?: { fromMessage?: boolean }) => void>(() => {})
@@ -962,6 +1071,11 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     }
   }, [isTeacherView, sendToStudentView, presentationBroadcastChannelName])
 
+  useEffect(() => {
+    if (!curriculumInfographic) return
+    setInfographicDrawStrokesBySlide((prev) => foldInfographicStrokesToCurriculumKey(prev))
+  }, [curriculumInfographic?.imageUrl])
+
   const upsertInfographicStroke = useCallback((slideIndex: number, stroke: InfographicDrawStroke) => {
     setInfographicDrawStrokesBySlide((prev) => {
       const list = prev[slideIndex] ?? []
@@ -1008,7 +1122,12 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   }, [])
 
   const clearInfographicStrokes = useCallback((slideIndex: number) => {
-    setInfographicDrawStrokesBySlide((prev) => ({ ...prev, [slideIndex]: [] }))
+    setInfographicDrawStrokesBySlide((prev) => {
+      if (slideIndex === CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY) {
+        return { [CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY]: [] }
+      }
+      return { ...prev, [slideIndex]: [] }
+    })
   }, [])
 
   const undoInfographicStroke = useCallback((slideIndex: number) => {
@@ -1019,113 +1138,24 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     })
   }, [])
 
-  const getInfographicStage = useCallback((target: 'pane' | 'fullscreen') => {
-    let container = target === 'pane' ? infographicPaneStageRef.current : infographicFullscreenStageRef.current
-    let img = target === 'pane' ? infographicPaneImageRef.current : infographicFullscreenImageRef.current
-    let canvas = target === 'pane' ? infographicPaneCanvasRef.current : infographicFullscreenCanvasRef.current
-    if (target === 'pane' && (!container || !img || !canvas)) {
-      const fallbackStage = document.querySelector('[data-infographic-draw-pane-stage]') as HTMLDivElement | null
-      const fallbackImg = fallbackStage?.querySelector('img') as HTMLImageElement | null
-      const fallbackCanvas = fallbackStage?.querySelector('[data-infographic-draw-pane-canvas]') as HTMLCanvasElement | null
-      if (fallbackStage && fallbackImg && fallbackCanvas) {
-        container = fallbackStage
-        img = fallbackImg
-        canvas = fallbackCanvas
-        infographicPaneStageRef.current = fallbackStage
-        infographicPaneImageRef.current = fallbackImg
-        infographicPaneCanvasRef.current = fallbackCanvas
-      }
-    }
-    if (!container || !img || !canvas || !img.complete || img.naturalWidth <= 0) return null
-    const vis = getVisibleImageBounds(img)
-    if (vis.width <= 0 || vis.height <= 0) return null
-    return { container, img, canvas, vis }
-  }, [])
+  const renderAllInfographicDrawCanvases = useCallback(() => {
+    if (typeof document === 'undefined') return
+    const strokes = infographicDrawStrokesBySlide[CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY] ?? []
+    document.querySelectorAll('[data-infographic-draw-pane-stage]').forEach((node) => {
+      paintInfographicStrokesOnStage(node as HTMLElement, strokes)
+    })
+  }, [infographicDrawStrokesBySlide])
 
-  const resolveInfographicPointerPoint = useCallback((target: 'pane' | 'fullscreen', clientX: number, clientY: number) => {
-    const stage = getInfographicStage(target)
-    if (!stage) return null
-    if (
-      clientX < stage.vis.left ||
-      clientX > stage.vis.left + stage.vis.width ||
-      clientY < stage.vis.top ||
-      clientY > stage.vis.top + stage.vis.height
-    ) {
-      return null
-    }
-    const u = clamp01((clientX - stage.vis.left) / stage.vis.width)
-    const v = clamp01((clientY - stage.vis.top) / stage.vis.height)
-    return { u, v, stage }
-  }, [getInfographicStage])
-
-  const renderInfographicCanvas = useCallback((target: 'pane' | 'fullscreen') => {
-    const stage = getInfographicStage(target)
-    if (!stage) return
-    const { canvas, container, vis } = stage
-    const strokes = infographicDrawStrokesBySlide[currentIndex] ?? []
-    const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1
-    const cr = container.getBoundingClientRect()
-    const left = vis.left - cr.left
-    const top = vis.top - cr.top
-    canvas.style.left = `${left}px`
-    canvas.style.top = `${top}px`
-    canvas.style.width = `${vis.width}px`
-    canvas.style.height = `${vis.height}px`
-    const pxW = Math.max(1, Math.round(vis.width * dpr))
-    const pxH = Math.max(1, Math.round(vis.height * dpr))
-    if (canvas.width !== pxW) canvas.width = pxW
-    if (canvas.height !== pxH) canvas.height = pxH
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-    ctx.setTransform(1, 0, 0, 1, 0, 0)
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
-    ctx.save()
-    ctx.scale(dpr, dpr)
-    ctx.lineCap = 'round'
-    ctx.lineJoin = 'round'
-    for (const s of strokes) {
-      if (!s.points || s.points.length < 1) continue
-      ctx.globalCompositeOperation = s.tool === 'eraser' ? 'destination-out' : 'source-over'
-      ctx.strokeStyle = s.color
-      ctx.lineWidth = Math.max(1.5, s.sizeNorm * vis.width)
-      ctx.beginPath()
-      const p0 = s.points[0]
-      const x0 = p0.u * vis.width
-      const y0 = p0.v * vis.height
-      ctx.moveTo(x0, y0)
-      if (s.points.length === 1) {
-        ctx.arc(x0, y0, Math.max(0.8, ctx.lineWidth * 0.5), 0, Math.PI * 2)
-        ctx.fillStyle = s.tool === 'eraser' ? '#000' : s.color
-        ctx.fill()
-      } else if (s.points.length === 2) {
-        const p1 = s.points[1]
-        ctx.lineTo(p1.u * vis.width, p1.v * vis.height)
-      } else {
-        for (let i = 1; i < s.points.length - 1; i += 1) {
-          const p = s.points[i]
-          const pn = s.points[i + 1]
-          const xc = ((p.u + pn.u) * vis.width) / 2
-          const yc = ((p.v + pn.v) * vis.height) / 2
-          ctx.quadraticCurveTo(p.u * vis.width, p.v * vis.height, xc, yc)
-        }
-        const last = s.points[s.points.length - 1]
-        const prev = s.points[s.points.length - 2]
-        ctx.quadraticCurveTo(prev.u * vis.width, prev.v * vis.height, last.u * vis.width, last.v * vis.height)
-      }
-      ctx.stroke()
-    }
-    ctx.restore()
-  }, [currentIndex, getInfographicStage, infographicDrawStrokesBySlide])
-
-  const startInfographicDrawing = useCallback((target: 'pane' | 'fullscreen', e: ReactPointerEvent<HTMLDivElement>) => {
+  const startInfographicDrawing = useCallback((e: ReactPointerEvent<HTMLDivElement>) => {
     if (!curriculumInfographic) return
     e.preventDefault()
     infographicDrawingRef.current?.removeListeners?.()
-    const resolved = resolveInfographicPointerPoint(target, e.clientX, e.clientY)
+    const stage = e.currentTarget
+    const resolved = resolveInfographicPointerPointForStage(stage, e.clientX, e.clientY)
     if (!resolved) return
-    const { u, v, stage } = resolved
+    const { u, v, vis } = resolved
     const strokeId = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
-    const sizeNorm = Math.max(0.0015, infographicDrawBrushPx / Math.max(stage.vis.width, 1))
+    const sizeNorm = Math.max(0.0015, infographicDrawBrushPx / Math.max(vis.width, 1))
     const stroke: InfographicDrawStroke = {
       id: strokeId,
       tool: infographicDrawTool,
@@ -1133,18 +1163,22 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       sizeNorm,
       points: [{ u, v }],
     }
-    upsertInfographicStroke(currentIndex, stroke)
-    sendInfographicDrawMessage({ type: 'infographic-draw-start', slideIndex: currentIndex, stroke })
-    const toPoints = (ev: PointerEvent, d: { target: 'pane' | 'fullscreen' }): InfographicDrawPoint[] => {
+    upsertInfographicStroke(CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY, stroke)
+    sendInfographicDrawMessage({
+      type: 'infographic-draw-start',
+      slideIndex: CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY,
+      stroke,
+    })
+    const toPoints = (ev: PointerEvent, stageEl: HTMLElement): InfographicDrawPoint[] => {
       const samples = typeof ev.getCoalescedEvents === 'function' ? ev.getCoalescedEvents() : [ev]
       const points: InfographicDrawPoint[] = []
       for (const sample of samples) {
-        const r = resolveInfographicPointerPoint(d.target, sample.clientX, sample.clientY)
+        const r = resolveInfographicPointerPointForStage(stageEl, sample.clientX, sample.clientY)
         if (!r) continue
         points.push({ u: r.u, v: r.v })
       }
       if (points.length === 0) {
-        const r = resolveInfographicPointerPoint(d.target, ev.clientX, ev.clientY)
+        const r = resolveInfographicPointerPointForStage(stageEl, ev.clientX, ev.clientY)
         if (r) points.push({ u: r.u, v: r.v })
       }
       return points
@@ -1154,8 +1188,13 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     const flushQueuedPoints = () => {
       if (queuedPoints.length === 0) return
       const batch = queuedPoints.splice(0, queuedPoints.length)
-      appendInfographicStrokePoints(currentIndex, strokeId, batch)
-      sendInfographicDrawMessage({ type: 'infographic-draw-points', slideIndex: currentIndex, strokeId, points: batch })
+      appendInfographicStrokePoints(CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY, strokeId, batch)
+      sendInfographicDrawMessage({
+        type: 'infographic-draw-points',
+        slideIndex: CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY,
+        strokeId,
+        points: batch,
+      })
     }
     const enqueuePoints = (points: InfographicDrawPoint[]) => {
       if (points.length === 0) return
@@ -1169,13 +1208,13 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     const onMove = (ev: PointerEvent) => {
       const d = infographicDrawingRef.current
       if (!d || d.pointerId !== ev.pointerId) return
-      const points = toPoints(ev, d)
+      const points = toPoints(ev, d.stageEl)
       enqueuePoints(points)
     }
     const onEnd = (ev: PointerEvent) => {
       const d = infographicDrawingRef.current
       if (!d || d.pointerId !== ev.pointerId) return
-      const points = toPoints(ev, d)
+      const points = toPoints(ev, d.stageEl)
       enqueuePoints(points)
       if (rafId != null) {
         window.cancelAnimationFrame(rafId)
@@ -1203,79 +1242,66 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     }
     window.addEventListener('pointerup', onEnd)
     window.addEventListener('pointercancel', onEnd)
-    infographicDrawingRef.current = { target, strokeId, slideIndex: currentIndex, pointerId: e.pointerId, removeListeners }
-  }, [curriculumInfographic, resolveInfographicPointerPoint, infographicDrawBrushPx, infographicDrawTool, infographicDrawColor, upsertInfographicStroke, currentIndex, sendInfographicDrawMessage, appendInfographicStrokePoints])
-
-  useEffect(() => {
-    const infographicKeyboardActive =
-      isTeacherView &&
-      !worksheetPresentation &&
-      !!curriculumInfographic &&
-      (infographicFullscreenOpen || presenterLeftTab === 'infographic')
-    if (!infographicKeyboardActive) return
-    const onKeyDown = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement | null
-      if (target) {
-        const tag = (target.tagName || '').toLowerCase()
-        if (tag === 'input' || tag === 'textarea' || target.isContentEditable) return
-      }
-      const key = (e.key || '').toLowerCase()
-      if ((e.ctrlKey || e.metaKey) && key === 'z') {
-        e.preventDefault()
-        undoInfographicStroke(currentIndex)
-        sendInfographicDrawMessage({ type: 'infographic-draw-undo', slideIndex: currentIndex })
-        return
-      }
-      if (key === 'b') {
-        e.preventDefault()
-        setInfographicDrawTool('pen')
-        return
-      }
-      if (key === 'e') {
-        e.preventDefault()
-        setInfographicDrawTool('eraser')
-      }
+    infographicDrawingRef.current = {
+      stageEl: stage,
+      strokeId,
+      slideIndex: CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY,
+      pointerId: e.pointerId,
+      removeListeners,
     }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [isTeacherView, worksheetPresentation, curriculumInfographic, infographicFullscreenOpen, presenterLeftTab, undoInfographicStroke, currentIndex, sendInfographicDrawMessage])
+  }, [curriculumInfographic, infographicDrawBrushPx, infographicDrawTool, infographicDrawColor, upsertInfographicStroke, sendInfographicDrawMessage, appendInfographicStrokePoints])
 
   useLayoutEffect(() => {
-    renderInfographicCanvas('pane')
-    renderInfographicCanvas('fullscreen')
-  }, [renderInfographicCanvas, currentIndex, infographicFullscreenOpen, presenterLeftTab, studentCurriculumLeftPaneTab, isTeacherView])
+    renderAllInfographicDrawCanvases()
+    const raf = typeof window !== 'undefined' ? window.requestAnimationFrame(() => renderAllInfographicDrawCanvases()) : 0
+    return () => {
+      if (raf) window.cancelAnimationFrame(raf)
+    }
+  }, [
+    renderAllInfographicDrawCanvases,
+    currentIndex,
+    infographicFullscreenOpen,
+    visualFullscreenOpen,
+    presenterLeftTab,
+    studentCurriculumLeftPaneTab,
+    isTeacherView,
+  ])
 
   useEffect(() => {
-    const paneStage = infographicPaneStageRef.current
-    const paneImg = infographicPaneImageRef.current
-    const fsStage = infographicFullscreenStageRef.current
-    const fsImg = infographicFullscreenImageRef.current
+    const redraw = () => renderAllInfographicDrawCanvases()
+    const stages = typeof document !== 'undefined' ? (Array.from(document.querySelectorAll('[data-infographic-draw-pane-stage]')) as HTMLElement[]) : []
     const listeners: Array<() => void> = []
-    const ros: ResizeObserver[] = []
-    const bind = (target: 'pane' | 'fullscreen', stage: HTMLDivElement | null, img: HTMLImageElement | null) => {
-      if (!stage || !img) return
-      const redraw = () => renderInfographicCanvas(target)
-      const onLoad = () => redraw()
-      img.addEventListener('load', onLoad)
-      listeners.push(() => img.removeEventListener('load', onLoad))
-      const ro = new ResizeObserver(redraw)
+    const ro = new ResizeObserver(redraw)
+    for (const stage of stages) {
       ro.observe(stage)
-      ro.observe(img)
-      ros.push(ro)
+      const img = stage.querySelector('img')
+      if (img) {
+        const im = img as HTMLImageElement
+        im.addEventListener('load', redraw)
+        listeners.push(() => im.removeEventListener('load', redraw))
+        ro.observe(im)
+      }
     }
-    bind('pane', paneStage, paneImg)
-    bind('fullscreen', fsStage, fsImg)
-    const onWindowResize = () => {
-      renderInfographicCanvas('pane')
-      renderInfographicCanvas('fullscreen')
-    }
+    const onWindowResize = redraw
     window.addEventListener('resize', onWindowResize)
+    redraw()
+    const raf = typeof window !== 'undefined' ? window.requestAnimationFrame(redraw) : 0
     return () => {
       for (const off of listeners) off()
-      for (const ro of ros) ro.disconnect()
+      ro.disconnect()
       window.removeEventListener('resize', onWindowResize)
+      if (raf) window.cancelAnimationFrame(raf)
     }
-  }, [renderInfographicCanvas, currentIndex, infographicFullscreenOpen, presenterLeftTab, studentCurriculumLeftPaneTab, isTeacherView, curriculumInfographic?.imageUrl])
+  }, [
+    renderAllInfographicDrawCanvases,
+    currentIndex,
+    infographicFullscreenOpen,
+    visualFullscreenOpen,
+    presenterLeftTab,
+    studentCurriculumLeftPaneTab,
+    isTeacherView,
+    curriculumInfographic?.imageUrl,
+  ])
 
   const sendCurriculumDataToStudent = useCallback((slidesToSend: SlideItem[], currentIndexOverride?: number) => {
     const idx = typeof currentIndexOverride === 'number' ? currentIndexOverride : currentIndex
@@ -1542,8 +1568,12 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         }
       }
       const t = e.data?.type
-      if (t === 'curriculum-data' && e.data?.infographicDrawStrokesBySlide && !isTeacherView) {
-        const incoming = e.data.infographicDrawStrokesBySlide as Record<string, InfographicDrawStroke[]>
+      if (
+        t === 'curriculum-data' &&
+        !isTeacherView &&
+        Object.prototype.hasOwnProperty.call(e.data ?? {}, 'infographicDrawStrokesBySlide')
+      ) {
+        const incoming = e.data.infographicDrawStrokesBySlide as Record<string, InfographicDrawStroke[]> | undefined
         const normalized: Record<number, InfographicDrawStroke[]> = {}
         for (const [k, list] of Object.entries(incoming ?? {})) {
           const idx = Number(k)
@@ -1558,7 +1588,8 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
               points: s.points.map((p) => ({ u: clamp01(Number(p.u) || 0), v: clamp01(Number(p.v) || 0) })),
             }))
         }
-        setInfographicDrawStrokesBySlide(normalized)
+        // Gộp vào state cũ: payload đôi khi chỉ có {} hoặc thiếu slide khác — tránh xóa nét mọi slide.
+        setInfographicDrawStrokesBySlide((prev) => foldInfographicStrokesToCurriculumKey({ ...prev, ...normalized }))
       }
       else if (t === 'infographic-draw-sync' && e.data?.strokesBySlide && !isTeacherView) {
         const incoming = e.data.strokesBySlide as Record<string, InfographicDrawStroke[]>
@@ -1576,7 +1607,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
               points: s.points.map((p) => ({ u: clamp01(Number(p.u) || 0), v: clamp01(Number(p.v) || 0) })),
             }))
         }
-        setInfographicDrawStrokesBySlide(normalized)
+        setInfographicDrawStrokesBySlide((prev) => foldInfographicStrokesToCurriculumKey({ ...prev, ...normalized }))
       }
       else if (t === 'teacher-timer-start') setTeacherTimerRunning(true)
       else if (t === 'teacher-timer-stop') setTeacherTimerRunning(false)
@@ -1652,7 +1683,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       else if (t === 'infographic-draw-start' && typeof e.data?.slideIndex === 'number' && e.data?.stroke) {
         const stroke = e.data.stroke as InfographicDrawStroke
         if (stroke && typeof stroke.id === 'string' && Array.isArray(stroke.points)) {
-          upsertInfographicStroke(e.data.slideIndex, {
+          upsertInfographicStroke(CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY, {
             id: stroke.id,
             tool: stroke.tool === 'eraser' ? 'eraser' : 'pen',
             color: typeof stroke.color === 'string' ? stroke.color : '#ef4444',
@@ -1667,7 +1698,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         typeof e.data?.strokeId === 'string' &&
         e.data?.point
       ) {
-        appendInfographicStrokePoint(e.data.slideIndex, e.data.strokeId, {
+        appendInfographicStrokePoint(CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY, e.data.strokeId, {
           u: clamp01(Number(e.data.point.u) || 0),
           v: clamp01(Number(e.data.point.v) || 0),
         })
@@ -1682,13 +1713,13 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
           u: clamp01(Number(p?.u) || 0),
           v: clamp01(Number(p?.v) || 0),
         }))
-        appendInfographicStrokePoints(e.data.slideIndex, e.data.strokeId, points)
+        appendInfographicStrokePoints(CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY, e.data.strokeId, points)
       }
       else if (t === 'infographic-draw-clear' && typeof e.data?.slideIndex === 'number') {
-        clearInfographicStrokes(e.data.slideIndex)
+        clearInfographicStrokes(CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY)
       }
       else if (t === 'infographic-draw-undo' && typeof e.data?.slideIndex === 'number') {
-        undoInfographicStroke(e.data.slideIndex)
+        undoInfographicStroke(CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY)
       }
       else if (t === 'sand-timer-start' && typeof e.data?.seconds === 'number') {
         setTimerSeconds(e.data.seconds)
@@ -1702,6 +1733,8 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
           setMouseClicks([])
           setSyncedTeacherSlideLayoutW(null)
         }
+        lastMouseScopeRef.current = null
+        lastRenderedVirtualMouseRef.current = null
       }
       else if (t === 'visual-fullscreen-open') {
         const cellIndex = typeof e.data?.cellIndex === 'number' ? e.data.cellIndex : undefined
@@ -1721,6 +1754,14 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         closeInfographicFullscreenRef.current({ fromMessage: true })
       }
       else if (t === 'mouse-pos' && presentationMode === 'slide-interaction') {
+        const mouseScope: 'quiz' | 'slide-content' | 'visual' | 'global' =
+          e.data?.quizPopup
+            ? 'quiz'
+            : e.data?.slideContentPane
+              ? 'slide-content'
+              : e.data?.visualFrame
+                ? 'visual'
+                : 'global'
         let px: number
         let py: number
         if (e.data?.quizPopup && typeof e.data?.relX === 'number' && typeof e.data?.relY === 'number') {
@@ -1847,13 +1888,22 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
             py = cy + e.data.dyFromCenter * scaleY
           }
         } else if (e.data?.visualFrame && typeof e.data?.relX === 'number' && typeof e.data?.relY === 'number') {
-          const overlayOrFrame = visualFullscreenOpen
-            ? e.data?.overlayRel && fullscreenOverlayRef.current
-              ? fullscreenOverlayRef.current
-              : studentVisualFrameRef.current
-            : studentEmbeddedVisualFrameRef.current
-          const rect = overlayOrFrame ? overlayOrFrame.getBoundingClientRect() : null
-          if (rect) {
+          const rect = (() => {
+            if (visualFullscreenOpen) {
+              const overlayOrFrame = e.data?.overlayRel && fullscreenOverlayRef.current
+                ? fullscreenOverlayRef.current
+                : studentVisualFrameRef.current
+              const rr = overlayOrFrame?.getBoundingClientRect() ?? null
+              if (rr && rr.width > 0 && rr.height > 0) return rr
+              return null
+            }
+            const frameRect = studentEmbeddedVisualFrameRef.current?.getBoundingClientRect() ?? null
+            if (frameRect && frameRect.width > 0 && frameRect.height > 0) return frameRect
+            const viewportRect = studentEmbeddedVisualViewportRef.current?.getBoundingClientRect() ?? null
+            if (viewportRect && viewportRect.width > 0 && viewportRect.height > 0) return viewportRect
+            return null
+          })()
+          if (rect && rect.width > 0 && rect.height > 0) {
             px = rect.left + e.data.relX * rect.width
             py = rect.top + e.data.relY * rect.height
           } else return
@@ -1864,9 +1914,19 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
           typeof e.data?.frameW === 'number' &&
           typeof e.data?.frameH === 'number'
         ) {
-          const frame = visualFullscreenOpen ? studentVisualFrameRef.current : studentEmbeddedVisualFrameRef.current
-          if (!frame) return
-          const rect = frame.getBoundingClientRect()
+          const rect = (() => {
+            if (visualFullscreenOpen) {
+              const rr = studentVisualFrameRef.current?.getBoundingClientRect() ?? null
+              if (rr && rr.width > 0 && rr.height > 0) return rr
+              return null
+            }
+            const frameRect = studentEmbeddedVisualFrameRef.current?.getBoundingClientRect() ?? null
+            if (frameRect && frameRect.width > 0 && frameRect.height > 0) return frameRect
+            const viewportRect = studentEmbeddedVisualViewportRef.current?.getBoundingClientRect() ?? null
+            if (viewportRect && viewportRect.width > 0 && viewportRect.height > 0) return viewportRect
+            return null
+          })()
+          if (!rect) return
           const cx = rect.left + rect.width / 2
           const cy = rect.top + rect.height / 2
           const scaleX = rect.width / (e.data.frameW || 1)
@@ -1879,10 +1939,28 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
           px = Math.max(0, Math.min(w, w - e.data.xrPx))
           py = Math.max(0, Math.min(h, e.data.yPx))
         } else return
-        setVirtualMousePos({ x: px, y: py })
+        const vw = typeof window !== 'undefined' ? window.innerWidth : 1920
+        const vh = typeof window !== 'undefined' ? window.innerHeight : 1080
+        const clampedX = Math.max(0, Math.min(vw, px))
+        const clampedY = Math.max(0, Math.min(vh, py))
+        const previousScope = lastMouseScopeRef.current
+        lastMouseScopeRef.current = mouseScope
+        const rendered = lastRenderedVirtualMouseRef.current
+        const jumpPx = rendered ? Math.hypot(clampedX - rendered.x, clampedY - rendered.y) : 0
+        const shouldSnap = previousScope !== mouseScope || jumpPx > 420 || !rendered
+        const smoothingAlpha = mouseScope === 'global' ? 0.22 : 0.36
+        const nextPos = shouldSnap
+          ? { x: clampedX, y: clampedY }
+          : {
+              x: rendered.x + (clampedX - rendered.x) * smoothingAlpha,
+              y: rendered.y + (clampedY - rendered.y) * smoothingAlpha,
+            }
+        lastRenderedVirtualMouseRef.current = nextPos
+        setVirtualMousePos(nextPos)
         setMouseTrail((prev) => {
-          const next = [...prev, { x: px, y: py }]
-          return next.slice(-80)
+          if (shouldSnap) return [nextPos]
+          const next = [...prev, nextPos]
+          return next.slice(-48)
         })
       }
       else if (t === 'mouse-click' && presentationMode === 'slide-interaction') {
@@ -2012,13 +2090,22 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
             py = cy + e.data.dyFromCenter * scaleY
           }
         } else if (e.data?.visualFrame && typeof e.data?.relX === 'number' && typeof e.data?.relY === 'number') {
-          const overlayOrFrame = visualFullscreenOpen
-            ? e.data?.overlayRel && fullscreenOverlayRef.current
-              ? fullscreenOverlayRef.current
-              : studentVisualFrameRef.current
-            : studentEmbeddedVisualFrameRef.current
-          const rect = overlayOrFrame ? overlayOrFrame.getBoundingClientRect() : null
-          if (rect) {
+          const rect = (() => {
+            if (visualFullscreenOpen) {
+              const overlayOrFrame = e.data?.overlayRel && fullscreenOverlayRef.current
+                ? fullscreenOverlayRef.current
+                : studentVisualFrameRef.current
+              const rr = overlayOrFrame?.getBoundingClientRect() ?? null
+              if (rr && rr.width > 0 && rr.height > 0) return rr
+              return null
+            }
+            const frameRect = studentEmbeddedVisualFrameRef.current?.getBoundingClientRect() ?? null
+            if (frameRect && frameRect.width > 0 && frameRect.height > 0) return frameRect
+            const viewportRect = studentEmbeddedVisualViewportRef.current?.getBoundingClientRect() ?? null
+            if (viewportRect && viewportRect.width > 0 && viewportRect.height > 0) return viewportRect
+            return null
+          })()
+          if (rect && rect.width > 0 && rect.height > 0) {
             px = rect.left + e.data.relX * rect.width
             py = rect.top + e.data.relY * rect.height
           } else return
@@ -2029,9 +2116,19 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
           typeof e.data?.frameW === 'number' &&
           typeof e.data?.frameH === 'number'
         ) {
-          const frame = visualFullscreenOpen ? studentVisualFrameRef.current : studentEmbeddedVisualFrameRef.current
-          if (!frame) return
-          const rect = frame.getBoundingClientRect()
+          const rect = (() => {
+            if (visualFullscreenOpen) {
+              const rr = studentVisualFrameRef.current?.getBoundingClientRect() ?? null
+              if (rr && rr.width > 0 && rr.height > 0) return rr
+              return null
+            }
+            const frameRect = studentEmbeddedVisualFrameRef.current?.getBoundingClientRect() ?? null
+            if (frameRect && frameRect.width > 0 && frameRect.height > 0) return frameRect
+            const viewportRect = studentEmbeddedVisualViewportRef.current?.getBoundingClientRect() ?? null
+            if (viewportRect && viewportRect.width > 0 && viewportRect.height > 0) return viewportRect
+            return null
+          })()
+          if (!rect) return
           const cx = rect.left + rect.width / 2
           const cy = rect.top + rect.height / 2
           const scaleX = rect.width / (e.data.frameW || 1)
@@ -2044,7 +2141,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
           px = Math.max(0, Math.min(w, w - e.data.xrPx))
           py = Math.max(0, Math.min(h, e.data.yPx))
         } else return
-        setMouseClicks((prev) => [...prev, { id: Date.now() + Math.floor(Math.random() * 1000), x: px, y: py }].slice(-8))
+        setMouseClicks((prev) => [...prev, { id: Date.now() + Math.floor(Math.random() * 1000), x: px, y: py }].slice(-5))
         // Mô phỏng click DOM để chuột ảo (từ giáo viên) có thể điều khiển nút, popup, radio, label...
         requestAnimationFrame(() => {
           const el = document.elementFromPoint(px, py)
@@ -2093,11 +2190,11 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   }, [onSlidesSaved, openVisualFullscreen, closeVisualFullscreen, openInfographicFullscreen, closeInfographicFullscreen, presentationMode, visualFullscreenOpen, infographicFullscreenOpen, presentationBroadcastChannelName, isTeacherView, worksheetPresentation, upsertInfographicStroke, appendInfographicStrokePoint, appendInfographicStrokePoints, clearInfographicStrokes, undoInfographicStroke])
 
   useEffect(() => {
-    if (typeof BroadcastChannel === 'undefined') return
+    if (isTeacherView || typeof BroadcastChannel === 'undefined') return
     const channel = new BroadcastChannel(presentationBroadcastChannelName)
     channel.postMessage({ type: 'request-curriculum' })
     return () => channel.close()
-  }, [onSlidesSaved, openVisualFullscreen, closeVisualFullscreen, openInfographicFullscreen, closeInfographicFullscreen, presentationMode, visualFullscreenOpen, infographicFullscreenOpen, presentationBroadcastChannelName])
+  }, [isTeacherView, presentationBroadcastChannelName])
 
   useEffect(() => {
     if (mouseClicks.length === 0) return
@@ -2688,7 +2785,60 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   const visualLayout = visualPaneMeta.layout
   const visualCells = visualPaneMeta.cells
   const visualHasAnyContent = visualCells.some((c) => c.visualEmbed || c.imageUrl)
-  const visualGridClass = visualLayout === 2 ? 'grid grid-rows-2 gap-1' : visualLayout === 4 ? 'grid grid-cols-2 grid-rows-2 gap-1' : ''
+  const visualShowsCurriculumInfographic = useMemo(() => {
+    if (!curriculumInfographic?.imageUrl) return false
+    return visualCells.some((c) => c.imageUrl && visualImageIsCurriculumInfographic(c.imageUrl, curriculumInfographic))
+  }, [visualCells, curriculumInfographic])
+  const visualGridClass =
+    visualLayout === 2 ? 'grid min-h-0 grid-rows-2 gap-1' : visualLayout === 4 ? 'grid min-h-0 grid-cols-2 grid-rows-2 gap-1' : ''
+
+  useEffect(() => {
+    const infographicKeyboardActive =
+      isTeacherView &&
+      !worksheetPresentation &&
+      !!curriculumInfographic &&
+      (infographicFullscreenOpen ||
+        visualFullscreenOpen ||
+        presenterLeftTab === 'infographic' ||
+        (presenterLeftTab === 'visual' && visualShowsCurriculumInfographic))
+    if (!infographicKeyboardActive) return
+    const onKeyDown = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null
+      if (el) {
+        const tag = (el.tagName || '').toLowerCase()
+        if (tag === 'input' || tag === 'textarea' || el.isContentEditable) return
+      }
+      const key = (e.key || '').toLowerCase()
+      if ((e.ctrlKey || e.metaKey) && key === 'z') {
+        e.preventDefault()
+        undoInfographicStroke(CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY)
+        sendInfographicDrawMessage({ type: 'infographic-draw-undo', slideIndex: CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY })
+        return
+      }
+      if (key === 'b') {
+        e.preventDefault()
+        setInfographicDrawTool('pen')
+        return
+      }
+      if (key === 'e') {
+        e.preventDefault()
+        setInfographicDrawTool('eraser')
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [
+    isTeacherView,
+    worksheetPresentation,
+    curriculumInfographic,
+    infographicFullscreenOpen,
+    visualFullscreenOpen,
+    presenterLeftTab,
+    visualShowsCurriculumInfographic,
+    undoInfographicStroke,
+    sendInfographicDrawMessage,
+  ])
+
   /** Ô trái: infographic trong khung (không fullscreen) — GV theo tab; HS theo tab đồng bộ / bấm Infographic|Visual */
   const showInfographicInMainPane =
     !worksheetPresentation &&
@@ -3143,27 +3293,142 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         const showSingleCell = expandedCellIndex != null && layout > 1
         const displayCells = showSingleCell && cells[expandedCellIndex] ? [cells[expandedCellIndex]] : cells
         const displayIndices = showSingleCell && expandedCellIndex != null ? [expandedCellIndex] : cells.map((_, i) => i)
-        const gridClass = !showSingleCell && layout === 2 ? 'grid grid-rows-2 gap-2' : !showSingleCell && layout === 4 ? 'grid grid-cols-2 grid-rows-2 gap-2' : ''
+        const gridClass =
+          !showSingleCell && layout === 2
+            ? 'grid min-h-0 grid-rows-2 gap-2'
+            : !showSingleCell && layout === 4
+              ? 'grid min-h-0 grid-cols-2 grid-rows-2 gap-2'
+              : ''
         const renderCell = (cell: { visualEmbed?: string; imageUrl?: string }, idx: number, label: string) => {
           const cellKey = `${currentIndex}-${displayIndices[idx] ?? idx}`
+          const cellFillClass =
+            showSingleCell || layout === 1
+              ? 'min-h-0 w-full flex-1 basis-0'
+              : 'h-full min-h-0 min-w-0'
           return (
-          <div key={cellKey} className="flex-1 min-h-0 relative rounded-xl overflow-hidden bg-black/30 border border-white/10" onClick={(e) => e.stopPropagation()}>
+          <div
+            key={cellKey}
+            className={cn('relative flex min-h-0 flex-col overflow-hidden rounded-xl border border-white/10 bg-black/30', cellFillClass)}
+            onClick={(e) => e.stopPropagation()}
+          >
             <span className="absolute top-2 left-2 z-10 px-2 py-1 rounded bg-black/60 text-white text-sm font-mono pointer-events-none">{label}</span>
             {cell.visualEmbed ? (
               (() => {
                 const embeds = parseContentEmbeds(cell.visualEmbed)
                 const first = embeds[0]
-                if (!first) return <div className="w-full h-full" />
+                if (!first) return <div className="min-h-0 flex-1 basis-0" />
                 return (
-                  <div className="w-full h-full" key={`nano-fs-vis-${cellKey}-${first.type}-${first.urlOrId.slice(0, 80)}`}>
+                  <div className="flex min-h-0 flex-1 basis-0 flex-col" key={`nano-fs-vis-${cellKey}-${first.type}-${first.urlOrId.slice(0, 80)}`}>
                     <ContentEmbed type={first.type} urlOrId={first.urlOrId} tr={tr} hideQuiz fill className="!my-0 !rounded-xl !border-0" />
                   </div>
                 )
               })()
             ) : cell.imageUrl ? (
-              <img key={`nano-fs-img-${cellKey}`} src={cell.imageUrl} alt="" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
+              curriculumInfographic && visualImageIsCurriculumInfographic(cell.imageUrl, curriculumInfographic) ? (
+                <div
+                  data-infographic-draw-pane-stage
+                  className="relative flex min-h-0 w-full min-w-0 flex-1 basis-0 touch-none items-center justify-center"
+                  onPointerDown={(e) => startInfographicDrawing(e)}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element -- curriculum infographic in visual fullscreen */}
+                  <img
+                    key={`nano-fs-img-${cellKey}`}
+                    src={cell.imageUrl}
+                    alt=""
+                    draggable={false}
+                    onDragStart={(ev) => ev.preventDefault()}
+                    className="max-h-full max-w-full select-none object-contain"
+                    referrerPolicy="no-referrer"
+                  />
+                  <canvas
+                    data-infographic-draw-pane-canvas
+                    className="pointer-events-none absolute"
+                    aria-hidden
+                  />
+                  <div
+                    className="absolute bottom-3 left-1/2 z-30 flex -translate-x-1/2 flex-wrap items-center justify-center gap-1.5 rounded-lg border border-white/25 bg-black/70 p-1.5 text-white shadow-xl"
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setInfographicDrawTool('pen')}
+                      className={cn('rounded px-2 py-1 text-xs transition-colors', infographicDrawTool === 'pen' ? 'bg-white/30' : 'hover:bg-white/15')}
+                    >
+                      {tr('Vẽ', 'Draw', '画笔', '描画', '그리기')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setInfographicDrawTool('eraser')}
+                      className={cn('rounded px-2 py-1 text-xs transition-colors', infographicDrawTool === 'eraser' ? 'bg-white/30' : 'hover:bg-white/15')}
+                    >
+                      {tr('Tẩy', 'Erase', '橡皮', '消しゴム', '지우기')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setInfographicDrawBrushPx(3)}
+                      className={cn('rounded px-2 py-1 text-xs transition-colors', infographicDrawBrushPx === 3 ? 'bg-white/30' : 'hover:bg-white/15')}
+                    >
+                      {tr('Nhỏ', 'S', '细', '細', '얇게')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setInfographicDrawBrushPx(5)}
+                      className={cn('rounded px-2 py-1 text-xs transition-colors', infographicDrawBrushPx === 5 ? 'bg-white/30' : 'hover:bg-white/15')}
+                    >
+                      {tr('Vừa', 'M', '中', '中', '중간')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setInfographicDrawBrushPx(7)}
+                      className={cn('rounded px-2 py-1 text-xs transition-colors', infographicDrawBrushPx === 7 ? 'bg-white/30' : 'hover:bg-white/15')}
+                    >
+                      {tr('To', 'L', '粗', '太', '굵게')}
+                    </button>
+                    <div className="flex items-center gap-1 px-1">
+                      {INFOGRAPHIC_DRAW_COLORS.map((color) => (
+                        <button
+                          key={`vfs-${cellKey}-${color}`}
+                          type="button"
+                          onClick={() => setInfographicDrawColor(color)}
+                          className={cn(
+                            'h-4 w-4 rounded-full border transition-transform',
+                            infographicDrawColor === color ? 'scale-110 border-white' : 'border-white/40 hover:scale-105'
+                          )}
+                          style={{ backgroundColor: color }}
+                          title={tr('Màu nét vẽ', 'Stroke color', '画笔颜色', '描画色', '펜 색상')}
+                        />
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        undoInfographicStroke(CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY)
+                        sendInfographicDrawMessage({ type: 'infographic-draw-undo', slideIndex: CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY })
+                      }}
+                      className="rounded px-2 py-1 text-xs transition-colors hover:bg-white/15"
+                    >
+                      {tr('Undo', 'Undo', '撤销', '元に戻す', '실행 취소')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        clearInfographicStrokes(CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY)
+                        sendInfographicDrawMessage({ type: 'infographic-draw-clear', slideIndex: CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY })
+                      }}
+                      className="rounded px-2 py-1 text-xs transition-colors hover:bg-white/15"
+                    >
+                      {tr('Xóa nét', 'Clear', '清除', 'クリア', '지우기')}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex min-h-0 flex-1 basis-0 items-center justify-center">
+                  <img key={`nano-fs-img-${cellKey}`} src={cell.imageUrl} alt="" className="max-h-full max-w-full object-contain" referrerPolicy="no-referrer" />
+                </div>
+              )
             ) : (
-              <div className="w-full h-full bg-white/5" />
+              <div className="min-h-0 flex-1 basis-0 bg-white/5" />
             )}
           </div>
           )
@@ -3171,11 +3436,11 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         return (
           <div
             ref={fullscreenOverlayRef}
-            className="fixed inset-0 z-[105] bg-black flex flex-col outline-none"
-            onClick={(e) => { if (e.target === e.currentTarget) closeVisualFullscreen() }}
+            className="fixed inset-0 z-[105] flex min-h-0 flex-col bg-black outline-none"
             aria-label={tr('Đóng', 'Close', '关闭', '閉じる', '닫기')}
           >
-            <div className="absolute top-0 left-0 right-0 h-14 flex items-center justify-between px-4 bg-black/70 z-20 shrink-0">
+            {/* Header trong luồng flex (không absolute): flex-1 phía dưới luôn có chiều cao còn lại — ổn với F11/requestFullscreen */}
+            <div className="z-20 flex h-14 w-full shrink-0 items-center justify-between bg-black/70 px-4">
               <span className="text-white/80 text-sm">
                 {tr('Nhấn Esc hoặc click vùng tối để thoát', 'Press Esc or click dark area to exit', '按Esc或点击暗区退出', 'Escまたは暗い部分をクリックで終了', 'Esc 또는 어두운 영역 클릭으로 종료')}
               </span>
@@ -3208,8 +3473,20 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                 </button>
               </div>
             </div>
-            <div className="flex-1 min-h-0 relative px-4 pb-4 pt-14 flex flex-col" onClick={(e) => e.stopPropagation()}>
-              <div ref={studentVisualFrameRef} className={cn('flex-1 min-h-0 overflow-hidden', showSingleCell || layout === 1 ? 'flex flex-col' : gridClass)}>
+            <div
+              className="flex min-h-0 flex-1 flex-col px-4 pb-4"
+              onClick={(e) => {
+                if (e.target === e.currentTarget) closeVisualFullscreen()
+              }}
+            >
+              <div
+                ref={studentVisualFrameRef}
+                className={cn(
+                  'flex min-h-0 w-full flex-1 overflow-hidden',
+                  showSingleCell || layout === 1 ? 'flex-col' : gridClass
+                )}
+                onClick={(e) => e.stopPropagation()}
+              >
               {displayCells.map((cell, i) => renderCell(cell, i, `${currentIndex + 1}-${displayIndices[i] + 1}`))}
               </div>
             </div>
@@ -3219,11 +3496,10 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       {infographicFullscreenOpen && curriculumInfographic && (
         <div
           ref={infographicFullscreenOverlayRef}
-          className="fixed inset-0 z-[106] bg-black flex flex-col outline-none"
-          onClick={(e) => { if (e.target === e.currentTarget) closeInfographicFullscreen() }}
+          className="fixed inset-0 z-[106] flex min-h-0 flex-col bg-black outline-none"
           aria-label={tr('Đóng', 'Close', '关闭', '閉じる', '닫기')}
         >
-          <div className="absolute top-0 left-0 right-0 h-14 flex items-center justify-between px-4 bg-black/70 z-20 shrink-0">
+          <div className="z-20 flex h-14 w-full shrink-0 items-center justify-between bg-black/70 px-4">
             <span className="text-white/80 text-sm">
               {tr('Infographic — nhấn Esc hoặc click vùng tối để thoát', 'Infographic — press Esc or click dark area to exit', '信息图 — 按Esc或点击暗区退出', 'インフォグラフィック — Escまたは暗い部分をクリックで終了', '인포그래픽 — Esc 또는 어두운 영역 클릭으로 종료')}
             </span>
@@ -3245,11 +3521,18 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
               </button>
             </div>
           </div>
-          <div className="flex-1 min-h-0 relative px-4 pb-4 pt-14 flex flex-col items-center justify-center" onClick={(e) => e.stopPropagation()}>
+          <div
+            className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 pb-4"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) closeInfographicFullscreen()
+            }}
+          >
             <div
               ref={infographicFullscreenStageRef}
-              className="relative h-full w-full touch-none"
-              onPointerDown={(e) => startInfographicDrawing('fullscreen', e)}
+              data-infographic-draw-pane-stage
+              className="relative flex min-h-0 w-full flex-1 touch-none items-center justify-center"
+              onPointerDown={(e) => startInfographicDrawing(e)}
+              onClick={(e) => e.stopPropagation()}
             >
               {/* eslint-disable-next-line @next/next/no-img-element -- remote curriculum infographic */}
               <img
@@ -3258,11 +3541,12 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                 alt=""
                 draggable={false}
                 onDragStart={(ev) => ev.preventDefault()}
-                className="max-h-full w-full select-none object-contain"
+                className="max-h-full max-w-full select-none object-contain"
                 referrerPolicy="no-referrer"
               />
               <canvas
                 ref={infographicFullscreenCanvasRef}
+                data-infographic-draw-pane-canvas
                 className="absolute pointer-events-none"
                 aria-hidden
               />
@@ -3324,8 +3608,8 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                   <button
                     type="button"
                     onClick={() => {
-                      undoInfographicStroke(currentIndex)
-                      sendInfographicDrawMessage({ type: 'infographic-draw-undo', slideIndex: currentIndex })
+                      undoInfographicStroke(CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY)
+                      sendInfographicDrawMessage({ type: 'infographic-draw-undo', slideIndex: CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY })
                     }}
                     className="rounded px-2 py-1 text-xs transition-colors hover:bg-white/15"
                   >
@@ -3334,8 +3618,8 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                   <button
                     type="button"
                     onClick={() => {
-                      clearInfographicStrokes(currentIndex)
-                      sendInfographicDrawMessage({ type: 'infographic-draw-clear', slideIndex: currentIndex })
+                      clearInfographicStrokes(CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY)
+                      sendInfographicDrawMessage({ type: 'infographic-draw-clear', slideIndex: CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY })
                     }}
                     className="rounded px-2 py-1 text-xs transition-colors hover:bg-white/15"
                   >
@@ -3572,8 +3856,8 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                 <button
                   type="button"
                   onClick={() => {
-                    undoInfographicStroke(currentIndex)
-                    sendInfographicDrawMessage({ type: 'infographic-draw-undo', slideIndex: currentIndex })
+                    undoInfographicStroke(CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY)
+                    sendInfographicDrawMessage({ type: 'infographic-draw-undo', slideIndex: CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY })
                   }}
                   className="flex min-h-[40px] shrink-0 items-center justify-center rounded-md bg-black/60 px-3 py-1.5 text-[10px] font-medium text-white opacity-80 shadow-lg hover:bg-black/80 hover:opacity-100 md:min-h-0 md:text-[11px]"
                 >
@@ -3582,8 +3866,8 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                 <button
                   type="button"
                   onClick={() => {
-                    clearInfographicStrokes(currentIndex)
-                    sendInfographicDrawMessage({ type: 'infographic-draw-clear', slideIndex: currentIndex })
+                    clearInfographicStrokes(CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY)
+                    sendInfographicDrawMessage({ type: 'infographic-draw-clear', slideIndex: CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY })
                   }}
                   className="flex min-h-[40px] shrink-0 items-center justify-center rounded-md bg-black/60 px-3 py-1.5 text-[10px] font-medium text-white opacity-80 shadow-lg hover:bg-black/80 hover:opacity-100 md:min-h-0 md:text-[11px]"
                 >
@@ -3627,6 +3911,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
             )}
           </div>
           <div
+            ref={studentEmbeddedVisualViewportRef}
             className={cn(
               'absolute inset-0 px-2 pb-2 md:px-4 md:pb-4 landscape:px-4 landscape:pb-4',
               'pt-12 md:pt-14 landscape:pt-14',
@@ -3640,7 +3925,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                     ref={infographicPaneStageRef}
                     data-infographic-draw-pane-stage
                     className={cn('relative flex min-h-0 flex-1 items-center justify-center touch-none')}
-                    onPointerDown={(e) => startInfographicDrawing('pane', e)}
+                    onPointerDown={(e) => startInfographicDrawing(e)}
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element -- remote curriculum infographic */}
                     <img
@@ -3718,8 +4003,8 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                         <button
                           type="button"
                           onClick={() => {
-                            undoInfographicStroke(currentIndex)
-                            sendInfographicDrawMessage({ type: 'infographic-draw-undo', slideIndex: currentIndex })
+                            undoInfographicStroke(CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY)
+                            sendInfographicDrawMessage({ type: 'infographic-draw-undo', slideIndex: CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY })
                           }}
                           className="rounded px-2 py-1 text-[11px] transition-colors hover:bg-white/15"
                         >
@@ -3728,8 +4013,8 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                         <button
                           type="button"
                           onClick={() => {
-                            clearInfographicStrokes(currentIndex)
-                            sendInfographicDrawMessage({ type: 'infographic-draw-clear', slideIndex: currentIndex })
+                            clearInfographicStrokes(CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY)
+                            sendInfographicDrawMessage({ type: 'infographic-draw-clear', slideIndex: CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY })
                           }}
                           className="rounded px-2 py-1 text-[11px] transition-colors hover:bg-white/15"
                         >
@@ -3753,7 +4038,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
             ) : (
               <div ref={studentEmbeddedVisualFrameRef} className="contents">
               {visualLayout === 1 ? (
-                <div key={`nano-vis-pane-${currentIndex}`} className="relative flex-1 min-h-0 overflow-hidden rounded-lg border border-white/10 bg-black/30">
+                <div key={`nano-vis-pane-${currentIndex}`} className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-white/10 bg-black/30">
                   <span className="absolute left-1 top-1 z-10 rounded bg-black/60 px-1.5 py-0.5 font-mono text-xs text-white">
                     {currentIndex + 1}-1
                   </span>
@@ -3761,9 +4046,9 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                     (() => {
                       const embeds = parseContentEmbeds(visualCells[0].visualEmbed)
                       const first = embeds[0]
-                      if (!first) return <div className="h-full w-full" />
+                      if (!first) return <div className="min-h-0 flex-1" />
                       return (
-                        <div className="h-full w-full" key={`nano-vis-${currentIndex}-0-${first.type}-${first.urlOrId.slice(0, 80)}`}>
+                        <div className="flex min-h-0 flex-1 flex-col" key={`nano-vis-${currentIndex}-0-${first.type}-${first.urlOrId.slice(0, 80)}`}>
                           <ContentEmbed type={first.type} urlOrId={first.urlOrId} tr={tr} hideQuiz fill className="!my-0 !rounded-lg !border-0" />
                         </div>
                       )
@@ -3772,18 +4057,8 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                     visualImageIsCurriculumInfographic(visualCells[0].imageUrl, curriculumInfographic) ? (
                       <div
                         data-infographic-draw-pane-stage
-                        className="relative flex h-full w-full min-h-0 items-center justify-center p-1 touch-none"
-                        onPointerDown={(e) => {
-                          const stage = e.currentTarget as HTMLDivElement
-                          const img = stage.querySelector('img') as HTMLImageElement | null
-                          const canvas = stage.querySelector('canvas') as HTMLCanvasElement | null
-                          if (img && canvas) {
-                            infographicPaneStageRef.current = stage
-                            infographicPaneImageRef.current = img
-                            infographicPaneCanvasRef.current = canvas
-                          }
-                          startInfographicDrawing('pane', e)
-                        }}
+                        className="relative flex min-h-0 w-full flex-1 touch-none items-center justify-center p-1"
+                        onPointerDown={(e) => startInfographicDrawing(e)}
                       >
                         {/* eslint-disable-next-line @next/next/no-img-element -- curriculum infographic in Visual pane */}
                         <img
@@ -3793,7 +4068,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                           alt=""
                           draggable={false}
                           onDragStart={(ev) => ev.preventDefault()}
-                          className="max-h-full min-h-0 w-full select-none rounded-md border border-white/10 bg-black/20 object-contain"
+                          className="max-h-full max-w-full select-none rounded-md border border-white/10 bg-black/20 object-contain"
                           referrerPolicy="no-referrer"
                         />
                         <canvas data-infographic-draw-pane-canvas className="pointer-events-none absolute" aria-hidden />
@@ -3810,18 +4085,20 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                           {INFOGRAPHIC_DRAW_COLORS.map((color) => (
                             <button key={`vis1-${color}`} type="button" onClick={() => setInfographicDrawColor(color)} className={cn('h-3.5 w-3.5 rounded-full border', infographicDrawColor === color ? 'border-white' : 'border-white/40')} style={{ backgroundColor: color }} />
                           ))}
-                          <button type="button" onClick={() => { undoInfographicStroke(currentIndex); sendInfographicDrawMessage({ type: 'infographic-draw-undo', slideIndex: currentIndex }) }} className="rounded px-2 py-1 text-[11px] hover:bg-white/15">{tr('Undo', 'Undo', '撤销', '元に戻す', '실행 취소')}</button>
-                          <button type="button" onClick={() => { clearInfographicStrokes(currentIndex); sendInfographicDrawMessage({ type: 'infographic-draw-clear', slideIndex: currentIndex }) }} className="rounded px-2 py-1 text-[11px] hover:bg-white/15">{tr('Clear', 'Clear', '清除', 'クリア', '지우기')}</button>
+                          <button type="button" onClick={() => { undoInfographicStroke(CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY); sendInfographicDrawMessage({ type: 'infographic-draw-undo', slideIndex: CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY }) }} className="rounded px-2 py-1 text-[11px] hover:bg-white/15">{tr('Undo', 'Undo', '撤销', '元に戻す', '실행 취소')}</button>
+                          <button type="button" onClick={() => { clearInfographicStrokes(CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY); sendInfographicDrawMessage({ type: 'infographic-draw-clear', slideIndex: CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY }) }} className="rounded px-2 py-1 text-[11px] hover:bg-white/15">{tr('Clear', 'Clear', '清除', 'クリア', '지우기')}</button>
                         </div>
                       </div>
                     ) : (
-                      <img
-                        key={`nano-vis-img-${currentIndex}-0`}
-                        src={visualCells[0].imageUrl}
-                        alt=""
-                        className="h-full w-full object-cover"
-                        referrerPolicy="no-referrer"
-                      />
+                      <div className="flex h-full min-h-0 w-full items-center justify-center">
+                        <img
+                          key={`nano-vis-img-${currentIndex}-0`}
+                          src={visualCells[0].imageUrl}
+                          alt=""
+                          className="max-h-full max-w-full object-contain"
+                          referrerPolicy="no-referrer"
+                        />
+                      </div>
                     )
                   ) : (
                     <div className="flex h-full w-full items-center justify-center">
@@ -3832,7 +4109,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
               ) : (
                 <>
                   {visualCells.map((cell, idx) => (
-                    <div key={`${currentIndex}-${idx}`} className="group relative min-h-0 overflow-hidden rounded-lg border border-white/10 bg-black/30">
+                    <div key={`${currentIndex}-${idx}`} className="group relative flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-white/10 bg-black/30">
                       <span className="absolute left-1 top-1 z-10 rounded bg-black/60 px-1.5 py-0.5 font-mono text-xs text-white">
                         {currentIndex + 1}-{idx + 1}
                       </span>
@@ -3845,22 +4122,24 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                             openVisualFullscreen(idx)
                           }}
                           onClick={(e) => {
+                            e.preventDefault()
                             e.stopPropagation()
                             openVisualFullscreen(idx)
                           }}
-                          className="absolute right-1 top-1 z-10 rounded bg-black/60 p-1 text-white opacity-50 transition-opacity hover:bg-black/80 group-hover:opacity-100"
+                          className="absolute right-2 top-2 z-20 flex h-9 w-9 items-center justify-center rounded-md border border-white/40 bg-black/85 text-white shadow-md ring-1 ring-black/30 transition-colors hover:border-white/55 hover:bg-black"
                           title={tr('Mở rộng ô này', 'Expand this cell', '展开此格', 'このセルを展開', '이 셀 확장')}
+                          aria-label={tr('Mở rộng ô này', 'Expand this cell', '展开此格', 'このセルを展開', '이 셀 확장')}
                         >
-                          <Maximize2 className="h-3 w-3" />
+                          <Maximize2 className="h-4 w-4 shrink-0" aria-hidden />
                         </button>
                       )}
                       {cell.visualEmbed ? (
                         (() => {
                           const embeds = parseContentEmbeds(cell.visualEmbed)
                           const first = embeds[0]
-                          if (!first) return <div className="h-full w-full" />
+                          if (!first) return <div className="min-h-0 flex-1" />
                           return (
-                            <div className="h-full w-full" key={`nano-vis-${currentIndex}-${idx}-${first.type}-${first.urlOrId.slice(0, 80)}`}>
+                            <div className="flex min-h-0 flex-1 flex-col" key={`nano-vis-${currentIndex}-${idx}-${first.type}-${first.urlOrId.slice(0, 80)}`}>
                               <ContentEmbed type={first.type} urlOrId={first.urlOrId} tr={tr} hideQuiz fill className="!my-0 !rounded-lg !border-0" />
                             </div>
                           )
@@ -3869,18 +4148,8 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                         visualImageIsCurriculumInfographic(cell.imageUrl, curriculumInfographic) ? (
                           <div
                             data-infographic-draw-pane-stage
-                            className="relative flex h-full w-full min-h-0 items-center justify-center p-0.5 touch-none"
-                            onPointerDown={(e) => {
-                              const stage = e.currentTarget as HTMLDivElement
-                              const img = stage.querySelector('img') as HTMLImageElement | null
-                              const canvas = stage.querySelector('canvas') as HTMLCanvasElement | null
-                              if (img && canvas) {
-                                infographicPaneStageRef.current = stage
-                                infographicPaneImageRef.current = img
-                                infographicPaneCanvasRef.current = canvas
-                              }
-                              startInfographicDrawing('pane', e)
-                            }}
+                            className="relative flex min-h-0 w-full flex-1 touch-none items-center justify-center p-0.5"
+                            onPointerDown={(e) => startInfographicDrawing(e)}
                           >
                             {/* eslint-disable-next-line @next/next/no-img-element -- curriculum infographic in Visual pane */}
                             <img
@@ -3890,7 +4159,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                               alt=""
                               draggable={false}
                               onDragStart={(ev) => ev.preventDefault()}
-                              className="max-h-full min-h-0 w-full select-none rounded-md border border-white/10 bg-black/20 object-contain"
+                              className="max-h-full max-w-full select-none rounded-md border border-white/10 bg-black/20 object-contain"
                               referrerPolicy="no-referrer"
                             />
                             <canvas data-infographic-draw-pane-canvas className="pointer-events-none absolute" aria-hidden />
@@ -3907,18 +4176,20 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                               {INFOGRAPHIC_DRAW_COLORS.map((color) => (
                                 <button key={`vism-${idx}-${color}`} type="button" onClick={() => setInfographicDrawColor(color)} className={cn('h-3.5 w-3.5 rounded-full border', infographicDrawColor === color ? 'border-white' : 'border-white/40')} style={{ backgroundColor: color }} />
                               ))}
-                              <button type="button" onClick={() => { undoInfographicStroke(currentIndex); sendInfographicDrawMessage({ type: 'infographic-draw-undo', slideIndex: currentIndex }) }} className="rounded px-2 py-1 text-[11px] hover:bg-white/15">{tr('Undo', 'Undo', '撤销', '元に戻す', '실행 취소')}</button>
-                              <button type="button" onClick={() => { clearInfographicStrokes(currentIndex); sendInfographicDrawMessage({ type: 'infographic-draw-clear', slideIndex: currentIndex }) }} className="rounded px-2 py-1 text-[11px] hover:bg-white/15">{tr('Clear', 'Clear', '清除', 'クリア', '지우기')}</button>
+                              <button type="button" onClick={() => { undoInfographicStroke(CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY); sendInfographicDrawMessage({ type: 'infographic-draw-undo', slideIndex: CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY }) }} className="rounded px-2 py-1 text-[11px] hover:bg-white/15">{tr('Undo', 'Undo', '撤销', '元に戻す', '실행 취소')}</button>
+                              <button type="button" onClick={() => { clearInfographicStrokes(CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY); sendInfographicDrawMessage({ type: 'infographic-draw-clear', slideIndex: CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY }) }} className="rounded px-2 py-1 text-[11px] hover:bg-white/15">{tr('Clear', 'Clear', '清除', 'クリア', '지우기')}</button>
                             </div>
                           </div>
                         ) : (
-                          <img
-                            key={`nano-vis-img-${currentIndex}-${idx}`}
-                            src={cell.imageUrl}
-                            alt=""
-                            className="h-full w-full object-cover"
-                            referrerPolicy="no-referrer"
-                          />
+                          <div className="flex min-h-0 flex-1 items-center justify-center">
+                            <img
+                              key={`nano-vis-img-${currentIndex}-${idx}`}
+                              src={cell.imageUrl}
+                              alt=""
+                              className="max-h-full max-w-full object-contain"
+                              referrerPolicy="no-referrer"
+                            />
+                          </div>
                         )
                       ) : (
                         <div className="flex h-full w-full items-center justify-center">

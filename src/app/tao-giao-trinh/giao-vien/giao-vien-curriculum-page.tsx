@@ -36,7 +36,7 @@ import { resolveWorksheetEditBlockGlobalIndex } from '../lib/worksheet-slide-to-
 import { toEditableBlockContent } from '../lib/worksheet-editable-block-content'
 import { WorksheetEditSectionPopup } from '../components/worksheet-edit-section-popup'
 import { CURRICULUM_UI_CREDITS, formatCurriculumCredits } from '../lib/curriculum-credit-costs'
-import type { SlideInfographic } from '../lib/slide-infographic'
+import { CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY, type SlideInfographic } from '../lib/slide-infographic'
 import {
   applyInfographicToDefaultVisualCells,
   skipInfographicDefaultSwapCurriculumPage,
@@ -75,6 +75,24 @@ type InfographicDrawStroke = {
 }
 
 const INFOGRAPHIC_DRAW_COLORS = ['#ef4444', '#22c55e', '#3b82f6', '#f59e0b', '#ffffff'] as const
+
+function dedupeInfographicStrokesById(strokes: InfographicDrawStroke[]): InfographicDrawStroke[] {
+  const byId = new Map<string, InfographicDrawStroke>()
+  for (const s of strokes) {
+    if (s?.id) byId.set(s.id, s)
+  }
+  return Array.from(byId.values())
+}
+
+function foldInfographicStrokesToCurriculumKey(
+  map: Record<number, InfographicDrawStroke[]>,
+): Record<number, InfographicDrawStroke[]> {
+  const merged: InfographicDrawStroke[] = []
+  for (const list of Object.values(map)) {
+    if (Array.isArray(list)) merged.push(...list)
+  }
+  return { [CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY]: dedupeInfographicStrokesById(merged) }
+}
 
 const DARK_GRADIENTS = [
   'linear-gradient(160deg, #1e3a5f 0%, #0f172a 50%)',
@@ -984,6 +1002,10 @@ export default function CurriculumViewPage() {
     pointerId: number
     removeListeners?: () => void
   } | null>(null)
+  useEffect(() => {
+    if (!curriculumInfographic) return
+    setInfographicDrawStrokesBySlide((prev) => foldInfographicStrokesToCurriculumKey(prev))
+  }, [curriculumInfographic?.imageUrl])
   const [viewportW, setViewportW] = useState(() => (typeof window !== 'undefined' ? window.innerWidth : 1280))
   const [stableLayoutWidth, setStableLayoutWidth] = useState(() => (typeof window !== 'undefined' ? window.innerWidth : 1280))
   useEffect(() => {
@@ -1198,7 +1220,12 @@ export default function CurriculumViewPage() {
   }, [])
 
   const clearInfographicStrokes = useCallback((slideIndex: number) => {
-    setInfographicDrawStrokesBySlide((prev) => ({ ...prev, [slideIndex]: [] }))
+    setInfographicDrawStrokesBySlide((prev) => {
+      if (slideIndex === CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY) {
+        return { [CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY]: [] }
+      }
+      return { ...prev, [slideIndex]: [] }
+    })
   }, [])
 
   const undoInfographicStroke = useCallback((slideIndex: number) => {
@@ -1254,7 +1281,7 @@ export default function CurriculumViewPage() {
     const st = getInfographicDrawStage(target)
     if (!st) return
     const { stage, canvas, vis } = st
-    const strokes = infographicDrawStrokesBySlide[currentIndex] ?? []
+    const strokes = infographicDrawStrokesBySlide[CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY] ?? []
     const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1
     const sr = stage.getBoundingClientRect()
     const left = vis.left - sr.left
@@ -1307,7 +1334,7 @@ export default function CurriculumViewPage() {
       ctx.stroke()
     }
     ctx.restore()
-  }, [getInfographicDrawStage, infographicDrawStrokesBySlide, currentIndex])
+  }, [getInfographicDrawStage, infographicDrawStrokesBySlide])
 
   const startInfographicDrawing = useCallback((target: 'pane' | 'fullscreen', e: React.PointerEvent<HTMLDivElement>) => {
     if (!curriculumInfographic) return
@@ -1324,8 +1351,12 @@ export default function CurriculumViewPage() {
       sizeNorm,
       points: [{ u: point.u, v: point.v }],
     }
-    upsertInfographicStroke(currentIndex, stroke)
-    sendToStudentView({ type: 'infographic-draw-start', slideIndex: currentIndex, stroke })
+    upsertInfographicStroke(CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY, stroke)
+    sendToStudentView({
+      type: 'infographic-draw-start',
+      slideIndex: CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY,
+      stroke,
+    })
     const toPoints = (ev: PointerEvent, d: { target: 'pane' | 'fullscreen' }): InfographicDrawPoint[] => {
       const samples = typeof ev.getCoalescedEvents === 'function' ? ev.getCoalescedEvents() : [ev]
       const points: InfographicDrawPoint[] = []
@@ -1345,8 +1376,13 @@ export default function CurriculumViewPage() {
     const flushQueuedPoints = () => {
       if (queuedPoints.length === 0) return
       const batch = queuedPoints.splice(0, queuedPoints.length)
-      appendInfographicStrokePoints(currentIndex, strokeId, batch)
-      sendToStudentView({ type: 'infographic-draw-points', slideIndex: currentIndex, strokeId, points: batch })
+      appendInfographicStrokePoints(CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY, strokeId, batch)
+      sendToStudentView({
+        type: 'infographic-draw-points',
+        slideIndex: CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY,
+        strokeId,
+        points: batch,
+      })
     }
     const enqueuePoints = (points: InfographicDrawPoint[]) => {
       if (points.length === 0) return
@@ -1394,12 +1430,25 @@ export default function CurriculumViewPage() {
     }
     window.addEventListener('pointerup', onEnd)
     window.addEventListener('pointercancel', onEnd)
-    infographicDrawingRef.current = { target, strokeId, slideIndex: currentIndex, pointerId: e.pointerId, removeListeners }
-  }, [curriculumInfographic, resolveInfographicDrawPoint, infographicDrawBrushPx, infographicDrawTool, infographicDrawColor, upsertInfographicStroke, currentIndex, sendToStudentView, appendInfographicStrokePoints])
+    infographicDrawingRef.current = {
+      target,
+      strokeId,
+      slideIndex: CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY,
+      pointerId: e.pointerId,
+      removeListeners,
+    }
+  }, [curriculumInfographic, resolveInfographicDrawPoint, infographicDrawBrushPx, infographicDrawTool, infographicDrawColor, upsertInfographicStroke, sendToStudentView, appendInfographicStrokePoints])
 
   useEffect(() => {
     renderInfographicDrawCanvas('pane')
     renderInfographicDrawCanvas('fullscreen')
+    const raf = typeof window !== 'undefined' ? window.requestAnimationFrame(() => {
+      renderInfographicDrawCanvas('pane')
+      renderInfographicDrawCanvas('fullscreen')
+    }) : 0
+    return () => {
+      if (raf) window.cancelAnimationFrame(raf)
+    }
   }, [renderInfographicDrawCanvas, currentIndex, leftPanelMode, infographicFullscreenOpen, curriculumInfographic?.imageUrl])
 
   useEffect(() => {
@@ -1423,10 +1472,13 @@ export default function CurriculumViewPage() {
       renderInfographicDrawCanvas('fullscreen')
     }
     window.addEventListener('resize', onResize)
+    onResize()
+    const raf = typeof window !== 'undefined' ? window.requestAnimationFrame(onResize) : 0
     return () => {
       for (const off of binds) off()
       for (const ro of ros) ro.disconnect()
       window.removeEventListener('resize', onResize)
+      if (raf) window.cancelAnimationFrame(raf)
     }
   }, [renderInfographicDrawCanvas, currentIndex, leftPanelMode, infographicFullscreenOpen, curriculumInfographic?.imageUrl])
 
@@ -1909,7 +1961,11 @@ export default function CurriculumViewPage() {
       channel.postMessage({ type: 'presentation-mode', mode: 'slide-interaction' })
       channel.postMessage({ type: 'set-auto-play', value: remoteAutoPlay })
       channel.postMessage({ type: 'set-auto-play-interval', ms: remoteAutoPlayIntervalMs })
-      if (visualFullscreenOpen) channel.postMessage({ type: 'visual-fullscreen-open', cellIndex: undefined })
+      if (visualFullscreenOpen)
+        channel.postMessage({
+          type: 'visual-fullscreen-open',
+          cellIndex: typeof teacherExpandedCellIndex === 'number' ? teacherExpandedCellIndex : undefined,
+        })
       else channel.postMessage({ type: 'visual-fullscreen-close' })
       if (infographicFullscreenOpen) channel.postMessage({ type: 'infographic-fullscreen-open' })
       else channel.postMessage({ type: 'infographic-fullscreen-close' })
@@ -1933,7 +1989,7 @@ export default function CurriculumViewPage() {
       channel.close()
       if (syncChannelRef.current === channel) syncChannelRef.current = null
     }
-  }, [presentationSyncId, content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning, remoteAutoPlay, remoteAutoPlayIntervalMs, visualFullscreenOpen, infographicFullscreenOpen, quizPopupOpen, quizSessionData, quizSessionSettings, toStudentSlidePayload, worksheetId, answerRevealProgress, answerTypingEnabled, studentCurriculumRemoteMode, curriculumInfographic, leftPanelMode, infographicDrawStrokesBySlide])
+  }, [presentationSyncId, content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning, remoteAutoPlay, remoteAutoPlayIntervalMs, visualFullscreenOpen, teacherExpandedCellIndex, infographicFullscreenOpen, quizPopupOpen, quizSessionData, quizSessionSettings, toStudentSlidePayload, worksheetId, answerRevealProgress, answerTypingEnabled, studentCurriculumRemoteMode, curriculumInfographic, leftPanelMode, infographicDrawStrokesBySlide])
 
   const openTeacherVisualFullscreen = useCallback((cellIndex?: number) => {
     setInfographicFullscreenOpen(false)
@@ -2770,7 +2826,13 @@ export default function CurriculumViewPage() {
         targetWin.postMessage({ type: 'presentation-mode', mode: 'slide-interaction' }, window.location.origin)
         targetWin.postMessage({ type: 'slide-go', index: currentIndex }, window.location.origin)
         if (visualFullscreenOpen) {
-          targetWin.postMessage({ type: 'visual-fullscreen-open', cellIndex: undefined }, window.location.origin)
+          targetWin.postMessage(
+            {
+              type: 'visual-fullscreen-open',
+              cellIndex: typeof teacherExpandedCellIndex === 'number' ? teacherExpandedCellIndex : undefined,
+            },
+            window.location.origin
+          )
         } else {
           targetWin.postMessage({ type: 'visual-fullscreen-close' }, window.location.origin)
         }
@@ -2786,7 +2848,7 @@ export default function CurriculumViewPage() {
     }
     sendState()
     setTimeout(sendState, 300)
-  }, [content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning, visualFullscreenOpen, infographicFullscreenOpen, toast, tr, worksheetId, answerRevealProgress, answerTypingEnabled, toStudentSlidePayload, presentationSyncId, studentCurriculumRemoteMode, curriculumInfographic, leftPanelMode, infographicDrawStrokesBySlide])
+  }, [content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning, visualFullscreenOpen, teacherExpandedCellIndex, infographicFullscreenOpen, toast, tr, worksheetId, answerRevealProgress, answerTypingEnabled, toStudentSlidePayload, presentationSyncId, studentCurriculumRemoteMode, curriculumInfographic, leftPanelMode, infographicDrawStrokesBySlide])
 
   const viewOpenedStudentView = useCallback(() => {
     if (typeof window === 'undefined') return
@@ -3559,7 +3621,7 @@ export default function CurriculumViewPage() {
       if (e.data?.type === 'infographic-draw-start' && typeof e.data?.slideIndex === 'number' && e.data?.stroke && e.source === studentViewWindowRef.current) {
         const stroke = e.data.stroke as InfographicDrawStroke
         if (stroke && typeof stroke.id === 'string' && Array.isArray(stroke.points)) {
-          upsertInfographicStroke(e.data.slideIndex, {
+          upsertInfographicStroke(CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY, {
             id: stroke.id,
             tool: stroke.tool === 'eraser' ? 'eraser' : 'pen',
             color: typeof stroke.color === 'string' ? stroke.color : '#ef4444',
@@ -3575,7 +3637,7 @@ export default function CurriculumViewPage() {
         e.data?.point &&
         e.source === studentViewWindowRef.current
       ) {
-        appendInfographicStrokePoint(e.data.slideIndex, e.data.strokeId, {
+        appendInfographicStrokePoint(CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY, e.data.strokeId, {
           u: clamp01(Number(e.data.point.u) || 0),
           v: clamp01(Number(e.data.point.v) || 0),
         })
@@ -3591,13 +3653,13 @@ export default function CurriculumViewPage() {
           u: clamp01(Number(p?.u) || 0),
           v: clamp01(Number(p?.v) || 0),
         }))
-        appendInfographicStrokePoints(e.data.slideIndex, e.data.strokeId, points)
+        appendInfographicStrokePoints(CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY, e.data.strokeId, points)
       }
       if (e.data?.type === 'infographic-draw-clear' && typeof e.data?.slideIndex === 'number' && e.source === studentViewWindowRef.current) {
-        clearInfographicStrokes(e.data.slideIndex)
+        clearInfographicStrokes(CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY)
       }
       if (e.data?.type === 'infographic-draw-undo' && typeof e.data?.slideIndex === 'number' && e.source === studentViewWindowRef.current) {
-        undoInfographicStroke(e.data.slideIndex)
+        undoInfographicStroke(CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY)
       }
       if (e.data?.type === 'infographic-draw-sync' && e.data?.strokesBySlide && e.source === studentViewWindowRef.current) {
         const incoming = e.data.strokesBySlide as Record<string, InfographicDrawStroke[]>
@@ -3615,7 +3677,7 @@ export default function CurriculumViewPage() {
               points: s.points.map((p) => ({ u: clamp01(Number(p.u) || 0), v: clamp01(Number(p.v) || 0) })),
             }))
         }
-        setInfographicDrawStrokesBySlide(normalized)
+        setInfographicDrawStrokesBySlide((prev) => foldInfographicStrokesToCurriculumKey({ ...prev, ...normalized }))
       }
       if (e.data?.type === 'slide-go' && typeof e.data?.index === 'number' && e.source === studentViewWindowRef.current) {
         const idx = Math.max(0, Math.min(e.data.index, slides.length - 1))
@@ -3697,8 +3759,8 @@ export default function CurriculumViewPage() {
           if (ci && typeof ci === 'object' && typeof ci.imageUrl === 'string') setCurriculumInfographic(ci)
           else setCurriculumInfographic(undefined)
         }
-        if (e.data?.infographicDrawStrokesBySlide) {
-          const incoming = e.data.infographicDrawStrokesBySlide as Record<string, InfographicDrawStroke[]>
+        if (Object.prototype.hasOwnProperty.call(e.data ?? {}, 'infographicDrawStrokesBySlide')) {
+          const incoming = e.data.infographicDrawStrokesBySlide as Record<string, InfographicDrawStroke[]> | undefined
           const normalized: Record<number, InfographicDrawStroke[]> = {}
           for (const [k, list] of Object.entries(incoming ?? {})) {
             const idx = Number(k)
@@ -3713,7 +3775,7 @@ export default function CurriculumViewPage() {
                 points: s.points.map((p) => ({ u: clamp01(Number(p.u) || 0), v: clamp01(Number(p.v) || 0) })),
               }))
           }
-          setInfographicDrawStrokesBySlide(normalized)
+          setInfographicDrawStrokesBySlide((prev) => foldInfographicStrokesToCurriculumKey({ ...prev, ...normalized }))
         }
         if (shouldHydrateSlides) {
           setSlideTitles(sl.map((s: SlideItem) => s?.title ?? ''))
@@ -4148,15 +4210,16 @@ export default function CurriculumViewPage() {
                   const { layout, cells } = getVisualCellsForPresentation(s, curriculumInfographic)
                   const slideNum = currentIndex + 1
                   const gradient = DARK_GRADIENTS[currentIndex % DARK_GRADIENTS.length]
-                  const gridClass = layout === 2 ? 'grid grid-rows-2 gap-1' : layout === 4 ? 'grid grid-cols-2 grid-rows-2 gap-1' : ''
+                  const gridClass =
+                    layout === 2 ? 'grid min-h-0 grid-rows-2 gap-1' : layout === 4 ? 'grid min-h-0 grid-cols-2 grid-rows-2 gap-1' : ''
                   return (
                     <div className="h-full w-full relative overflow-hidden" style={{ background: gradient }}>
                       <div className="absolute top-4 left-4 w-9 h-9 rounded-full bg-red-500 flex items-center justify-center text-white font-bold text-sm shadow-lg z-10">
                         {slideNum}
                       </div>
-                      <div ref={teacherEmbeddedVisualFrameRef} className={cn('absolute inset-0 pt-14 pb-4 px-4', layout === 1 ? 'flex flex-col' : gridClass)}>
+                      <div ref={teacherEmbeddedVisualFrameRef} className={cn('absolute inset-0 min-h-0 pt-14 pb-4 px-4', layout === 1 ? 'flex flex-col' : gridClass)}>
                         {layout === 1 ? (
-                          <div className="flex-1 min-h-0 relative rounded-lg overflow-hidden bg-black/30 border border-white/10">
+                          <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-white/10 bg-black/30">
                             <span className="absolute top-1 left-1 z-10 px-1.5 py-0.5 rounded bg-black/60 text-white text-xs font-mono">
                               {slideNum}-1
                             </span>
@@ -4164,14 +4227,18 @@ export default function CurriculumViewPage() {
                               (() => {
                                 const embeds = parseContentEmbeds(cells[0].visualEmbed)
                                 const first = embeds[0]
-                                if (!first) return <div className="w-full h-full" />
-                                return <div className="w-full h-full"><ContentEmbed type={first.type} urlOrId={first.urlOrId} tr={tr} hideQuiz fill className="!my-0 !rounded-lg !border-0" /></div>
+                                if (!first) return <div className="min-h-0 flex-1" />
+                                return (
+                                  <div className="flex min-h-0 flex-1 flex-col">
+                                    <ContentEmbed type={first.type} urlOrId={first.urlOrId} tr={tr} hideQuiz fill className="!my-0 !rounded-lg !border-0" />
+                                  </div>
+                                )
                               })()
                             ) : cells[0]?.imageUrl ? (
                               visualImageIsCurriculumInfographic(cells[0].imageUrl, curriculumInfographic) ? (
                                 <div
                                   data-teacher-infographic-draw-pane-stage
-                                  className="relative flex h-full w-full min-h-0 items-center justify-center p-1 touch-none"
+                                  className="relative flex min-h-0 w-full flex-1 touch-none items-center justify-center p-1"
                                   onPointerDown={(e) => {
                                     const stage = e.currentTarget as HTMLDivElement
                                     const img = stage.querySelector('img') as HTMLImageElement | null
@@ -4190,7 +4257,7 @@ export default function CurriculumViewPage() {
                                     alt=""
                                     draggable={false}
                                     onDragStart={(ev) => ev.preventDefault()}
-                                    className="max-h-full min-h-0 w-full select-none rounded-md border border-white/10 bg-black/20 object-contain"
+                                    className="max-h-full max-w-full select-none rounded-md border border-white/10 bg-black/20 object-contain"
                                     referrerPolicy="no-referrer"
                                   />
                                   <canvas data-teacher-infographic-draw-pane-canvas className="pointer-events-none absolute" aria-hidden />
@@ -4207,13 +4274,15 @@ export default function CurriculumViewPage() {
                                     {INFOGRAPHIC_DRAW_COLORS.map((color) => (
                                       <button key={`gv-v1-${color}`} type="button" onClick={() => setInfographicDrawColor(color)} className={cn('h-3.5 w-3.5 rounded-full border', infographicDrawColor === color ? 'border-white' : 'border-white/40')} style={{ backgroundColor: color }} />
                                     ))}
-                                    <button type="button" onClick={() => { undoInfographicStroke(currentIndex); sendToStudentView({ type: 'infographic-draw-undo', slideIndex: currentIndex }) }} className="rounded px-2 py-1 text-[11px] hover:bg-white/15">{tr('Undo', 'Undo', '撤销', '元に戻す', '실행 취소')}</button>
-                                    <button type="button" onClick={() => { clearInfographicStrokes(currentIndex); sendToStudentView({ type: 'infographic-draw-clear', slideIndex: currentIndex }) }} className="rounded px-2 py-1 text-[11px] hover:bg-white/15">{tr('Clear', 'Clear', '清除', 'クリア', '지우기')}</button>
+                                    <button type="button" onClick={() => { undoInfographicStroke(CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY); sendToStudentView({ type: 'infographic-draw-undo', slideIndex: CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY }) }} className="rounded px-2 py-1 text-[11px] hover:bg-white/15">{tr('Undo', 'Undo', '撤销', '元に戻す', '실행 취소')}</button>
+                                    <button type="button" onClick={() => { clearInfographicStrokes(CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY); sendToStudentView({ type: 'infographic-draw-clear', slideIndex: CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY }) }} className="rounded px-2 py-1 text-[11px] hover:bg-white/15">{tr('Clear', 'Clear', '清除', 'クリア', '지우기')}</button>
                                   </div>
                                 </div>
                               ) : (
-                                // eslint-disable-next-line @next/next/no-img-element -- slide visual imageUrl is dynamic/remote
-                                <img src={cells[0].imageUrl} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                <div className="flex h-full min-h-0 w-full items-center justify-center">
+                                  {/* eslint-disable-next-line @next/next/no-img-element -- slide visual imageUrl is dynamic/remote */}
+                                  <img src={cells[0].imageUrl} alt="" className="max-h-full max-w-full object-contain" referrerPolicy="no-referrer" />
+                                </div>
                               )
                             ) : (
                               <div className="w-full h-full flex items-center justify-center"><div className="w-8 h-8 rounded bg-white/5" /></div>
@@ -4222,7 +4291,7 @@ export default function CurriculumViewPage() {
                         ) : (
                           <>
                             {cells.map((cell, idx) => (
-                              <div key={idx} className="relative rounded-lg overflow-hidden bg-black/30 border border-white/10 min-h-0 group">
+                              <div key={idx} className="group relative flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-white/10 bg-black/30">
                                 <span className="absolute top-1 left-1 z-10 px-1.5 py-0.5 rounded bg-black/60 text-white text-xs font-mono">
                                   {slideNum}-{idx + 1}
                                 </span>
@@ -4231,24 +4300,29 @@ export default function CurriculumViewPage() {
                                     type="button"
                                     onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); openTeacherVisualFullscreen(idx) }}
                                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); openTeacherVisualFullscreen(idx) }}
-                                    className="absolute top-1 right-1 z-10 opacity-50 group-hover:opacity-100 p-1 rounded bg-black/60 text-white hover:bg-black/80 transition-opacity"
+                                    className="absolute top-2 right-2 z-20 flex h-9 w-9 items-center justify-center rounded-md border border-white/40 bg-black/85 text-white shadow-md ring-1 ring-black/30 transition-colors hover:border-white/55 hover:bg-black"
                                     title={tr('Mở rộng ô này', 'Expand this cell', '展开此格', 'このセルを展開', '이 셀 확장')}
+                                    aria-label={tr('Mở rộng ô này', 'Expand this cell', '展开此格', 'このセルを展開', '이 셀 확장')}
                                   >
-                                    <Maximize2 className="h-3 w-3" />
+                                    <Maximize2 className="h-4 w-4 shrink-0" aria-hidden />
                                   </button>
                                 )}
                                 {cell.visualEmbed ? (
                                   (() => {
                                     const embeds = parseContentEmbeds(cell.visualEmbed)
                                     const first = embeds[0]
-                                    if (!first) return <div className="w-full h-full" />
-                                    return <div className="w-full h-full"><ContentEmbed type={first.type} urlOrId={first.urlOrId} tr={tr} hideQuiz fill className="!my-0 !rounded-lg !border-0" /></div>
+                                    if (!first) return <div className="min-h-0 flex-1" />
+                                    return (
+                                      <div className="flex min-h-0 flex-1 flex-col">
+                                        <ContentEmbed type={first.type} urlOrId={first.urlOrId} tr={tr} hideQuiz fill className="!my-0 !rounded-lg !border-0" />
+                                      </div>
+                                    )
                                   })()
                                 ) : cell.imageUrl ? (
                                   visualImageIsCurriculumInfographic(cell.imageUrl, curriculumInfographic) ? (
                                     <div
                                       data-teacher-infographic-draw-pane-stage
-                                      className="relative flex h-full w-full min-h-0 items-center justify-center p-0.5 touch-none"
+                                      className="relative flex min-h-0 w-full flex-1 touch-none items-center justify-center p-0.5"
                                       onPointerDown={(e) => {
                                         const stage = e.currentTarget as HTMLDivElement
                                         const img = stage.querySelector('img') as HTMLImageElement | null
@@ -4267,7 +4341,7 @@ export default function CurriculumViewPage() {
                                         alt=""
                                         draggable={false}
                                         onDragStart={(ev) => ev.preventDefault()}
-                                        className="max-h-full min-h-0 w-full select-none rounded-md border border-white/10 bg-black/20 object-contain"
+                                        className="max-h-full max-w-full select-none rounded-md border border-white/10 bg-black/20 object-contain"
                                         referrerPolicy="no-referrer"
                                       />
                                       <canvas data-teacher-infographic-draw-pane-canvas className="pointer-events-none absolute" aria-hidden />
@@ -4284,13 +4358,15 @@ export default function CurriculumViewPage() {
                                         {INFOGRAPHIC_DRAW_COLORS.map((color) => (
                                           <button key={`gv-vm-${idx}-${color}`} type="button" onClick={() => setInfographicDrawColor(color)} className={cn('h-3.5 w-3.5 rounded-full border', infographicDrawColor === color ? 'border-white' : 'border-white/40')} style={{ backgroundColor: color }} />
                                         ))}
-                                        <button type="button" onClick={() => { undoInfographicStroke(currentIndex); sendToStudentView({ type: 'infographic-draw-undo', slideIndex: currentIndex }) }} className="rounded px-2 py-1 text-[11px] hover:bg-white/15">{tr('Undo', 'Undo', '撤销', '元に戻す', '실행 취소')}</button>
-                                        <button type="button" onClick={() => { clearInfographicStrokes(currentIndex); sendToStudentView({ type: 'infographic-draw-clear', slideIndex: currentIndex }) }} className="rounded px-2 py-1 text-[11px] hover:bg-white/15">{tr('Clear', 'Clear', '清除', 'クリア', '지우기')}</button>
+                                        <button type="button" onClick={() => { undoInfographicStroke(CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY); sendToStudentView({ type: 'infographic-draw-undo', slideIndex: CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY }) }} className="rounded px-2 py-1 text-[11px] hover:bg-white/15">{tr('Undo', 'Undo', '撤销', '元に戻す', '실행 취소')}</button>
+                                        <button type="button" onClick={() => { clearInfographicStrokes(CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY); sendToStudentView({ type: 'infographic-draw-clear', slideIndex: CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY }) }} className="rounded px-2 py-1 text-[11px] hover:bg-white/15">{tr('Clear', 'Clear', '清除', 'クリア', '지우기')}</button>
                                       </div>
                                     </div>
                                   ) : (
-                                    // eslint-disable-next-line @next/next/no-img-element -- slide visual imageUrl is dynamic/remote
-                                    <img src={cell.imageUrl} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                    <div className="flex min-h-0 flex-1 items-center justify-center">
+                                      {/* eslint-disable-next-line @next/next/no-img-element -- slide visual imageUrl is dynamic/remote */}
+                                      <img src={cell.imageUrl} alt="" className="max-h-full max-w-full object-contain" referrerPolicy="no-referrer" />
+                                    </div>
                                   )
                                 ) : (
                                   <div className="w-full h-full flex items-center justify-center"><div className="w-8 h-8 rounded bg-white/5" /></div>
@@ -4392,8 +4468,8 @@ export default function CurriculumViewPage() {
                                 <button
                                   type="button"
                                   onClick={() => {
-                                    undoInfographicStroke(currentIndex)
-                                    sendToStudentView({ type: 'infographic-draw-undo', slideIndex: currentIndex })
+                                    undoInfographicStroke(CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY)
+                                    sendToStudentView({ type: 'infographic-draw-undo', slideIndex: CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY })
                                   }}
                                   className="rounded px-2 py-1 text-[11px] transition-colors hover:bg-white/15"
                                 >
@@ -4402,8 +4478,8 @@ export default function CurriculumViewPage() {
                                 <button
                                   type="button"
                                   onClick={() => {
-                                    clearInfographicStrokes(currentIndex)
-                                    sendToStudentView({ type: 'infographic-draw-clear', slideIndex: currentIndex })
+                                    clearInfographicStrokes(CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY)
+                                    sendToStudentView({ type: 'infographic-draw-clear', slideIndex: CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY })
                                   }}
                                   className="rounded px-2 py-1 text-[11px] transition-colors hover:bg-white/15"
                                 >
@@ -5528,14 +5604,15 @@ export default function CurriculumViewPage() {
         const showSingleCell = teacherExpandedCellIndex != null && layout > 1
         const displayCells = showSingleCell && cells[teacherExpandedCellIndex] ? [cells[teacherExpandedCellIndex]] : cells
         const displayIndices = showSingleCell && teacherExpandedCellIndex != null ? [teacherExpandedCellIndex] : cells.map((_, i) => i)
-        const gridClass = !showSingleCell && layout === 2 ? 'grid grid-rows-2 gap-2' : !showSingleCell && layout === 4 ? 'grid grid-cols-2 grid-rows-2 gap-2' : ''
+        const gridClass =
+          !showSingleCell && layout === 2
+            ? 'grid min-h-0 grid-rows-2 gap-2'
+            : !showSingleCell && layout === 4
+              ? 'grid min-h-0 grid-cols-2 grid-rows-2 gap-2'
+              : ''
         return (
-          <div
-            ref={teacherVisualOverlayRef}
-            className="fixed inset-0 z-[105] bg-black flex flex-col"
-            onClick={(e) => { if (e.target === e.currentTarget) closeTeacherVisualFullscreen() }}
-          >
-            <div className="absolute top-0 left-0 right-0 h-14 flex items-center justify-between px-4 bg-black/70 z-20 shrink-0">
+          <div ref={teacherVisualOverlayRef} className="fixed inset-0 z-[105] flex min-h-0 flex-col bg-black">
+            <div className="z-20 flex h-14 w-full shrink-0 items-center justify-between bg-black/70 px-4">
               <span className="text-white/80 text-sm">{currentIndex + 1}/{slides.length} {s.title}</span>
               <div className="flex items-center gap-2">
                 <button
@@ -5549,32 +5626,51 @@ export default function CurriculumViewPage() {
                 </button>
               </div>
             </div>
-            <div className={cn('flex-1 min-h-0 relative px-4 pb-4 pt-14 flex flex-col', showSingleCell || layout === 1 ? 'gap-4' : '')}>
-              <div className="flex-1 min-h-0 relative flex flex-col">
-                <div ref={teacherVisualFrameRef} className={cn('flex-1 min-h-0 overflow-hidden min-w-0', showSingleCell || layout === 1 ? 'flex flex-col gap-4' : gridClass)}>
-                {displayCells.map((cell, i) => (
-                  <div key={displayIndices[i] ?? i} className="flex-1 min-h-0 relative rounded-xl overflow-hidden bg-black/30 border border-white/10">
+            <div
+              className="flex min-h-0 flex-1 flex-col px-4 pb-4"
+              onClick={(e) => {
+                if (e.target === e.currentTarget) closeTeacherVisualFullscreen()
+              }}
+            >
+                <div
+                  ref={teacherVisualFrameRef}
+                  className={cn(
+                    'flex min-h-0 w-full flex-1 overflow-hidden min-w-0',
+                    showSingleCell || layout === 1 ? 'flex-col gap-4' : gridClass
+                  )}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                {displayCells.map((cell, i) => {
+                  const cellFillClass =
+                    showSingleCell || layout === 1 ? 'min-h-0 w-full flex-1 basis-0' : 'h-full min-h-0 min-w-0'
+                  return (
+                  <div
+                    key={displayIndices[i] ?? i}
+                    className={cn('relative flex min-h-0 flex-col overflow-hidden rounded-xl border border-white/10 bg-black/30', cellFillClass)}
+                  >
                     {cell.visualEmbed ? (
                       (() => {
                         const embeds = parseContentEmbeds(cell.visualEmbed)
                         const first = embeds[0]
-                        if (!first) return <div className="w-full h-full" />
+                        if (!first) return <div className="min-h-0 flex-1 basis-0" />
                         return (
-                          <div className="w-full h-full">
+                          <div className="flex min-h-0 flex-1 basis-0 flex-col">
                             <ContentEmbed type={first.type} urlOrId={first.urlOrId} tr={tr} hideQuiz fill className="!my-0 !rounded-xl !border-0" />
                           </div>
                         )
                       })()
                     ) : cell.imageUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element -- slide visual imageUrl is dynamic/remote
-                      <img src={cell.imageUrl} alt="" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
+                      <div className="flex min-h-0 flex-1 basis-0 items-center justify-center">
+                        {/* eslint-disable-next-line @next/next/no-img-element -- slide visual imageUrl is dynamic/remote */}
+                        <img src={cell.imageUrl} alt="" className="max-h-full max-w-full object-contain" referrerPolicy="no-referrer" />
+                      </div>
                     ) : (
-                      <div className="w-full h-full bg-white/5" />
+                      <div className="min-h-0 flex-1 basis-0 bg-white/5" />
                     )}
                   </div>
-                ))}
+                  )
+                })}
                 </div>
-              </div>
             </div>
           </div>
         )
@@ -5582,12 +5678,8 @@ export default function CurriculumViewPage() {
       {infographicFullscreenOpen && curriculumInfographic && (() => {
         const inf = curriculumInfographic
         return (
-          <div
-            ref={teacherInfographicOverlayRef}
-            className="fixed inset-0 z-[105] bg-black flex flex-col"
-            onClick={(e) => { if (e.target === e.currentTarget) closeTeacherInfographicFullscreen() }}
-          >
-            <div className="absolute top-0 left-0 right-0 h-14 flex items-center justify-between px-4 bg-black/70 z-20 shrink-0">
+          <div ref={teacherInfographicOverlayRef} className="fixed inset-0 z-[105] flex min-h-0 flex-col bg-black">
+            <div className="z-20 flex h-14 w-full shrink-0 items-center justify-between bg-black/70 px-4">
               <span className="text-white/80 text-sm">
                 {tr('Infographic giáo trình', 'Curriculum infographic', '课程信息图', 'カリキュラムインフォ', '교육과정 인포그래픽')}
               </span>
@@ -5601,14 +5693,20 @@ export default function CurriculumViewPage() {
                 {tr('Đóng', 'Close', '关闭', '閉じる', '닫기')}
               </button>
             </div>
-            <div className="flex-1 min-h-0 relative px-4 pb-4 pt-14 flex flex-col items-center justify-center" onClick={(e) => e.stopPropagation()}>
+            <div
+              className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 pb-4"
+              onClick={(e) => {
+                if (e.target === e.currentTarget) closeTeacherInfographicFullscreen()
+              }}
+            >
               <div
                 ref={teacherInfographicOverlayStageRef}
-                className="relative h-full w-full touch-none"
+                className="relative flex min-h-0 w-full flex-1 touch-none items-center justify-center"
                 onPointerDown={(e) => startInfographicDrawing('fullscreen', e)}
+                onClick={(e) => e.stopPropagation()}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element -- remote infographic URL */}
-                <img ref={teacherInfographicOverlayImgRef} src={inf.imageUrl} alt="" draggable={false} onDragStart={(ev) => ev.preventDefault()} className="max-h-full w-full select-none object-contain touch-none" referrerPolicy="no-referrer" />
+                <img ref={teacherInfographicOverlayImgRef} src={inf.imageUrl} alt="" draggable={false} onDragStart={(ev) => ev.preventDefault()} className="max-h-full max-w-full select-none object-contain touch-none" referrerPolicy="no-referrer" />
                 <canvas ref={teacherInfographicOverlayCanvasRef} className="pointer-events-none absolute" aria-hidden />
                 <div
                   className="absolute bottom-3 left-1/2 z-30 flex -translate-x-1/2 flex-wrap items-center justify-center gap-1.5 rounded-lg border border-white/25 bg-black/70 p-1.5 text-white shadow-xl"
@@ -5638,8 +5736,8 @@ export default function CurriculumViewPage() {
                   <button
                     type="button"
                     onClick={() => {
-                      undoInfographicStroke(currentIndex)
-                      sendToStudentView({ type: 'infographic-draw-undo', slideIndex: currentIndex })
+                      undoInfographicStroke(CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY)
+                      sendToStudentView({ type: 'infographic-draw-undo', slideIndex: CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY })
                     }}
                     className="rounded px-2 py-1 text-xs transition-colors hover:bg-white/15"
                   >
@@ -5648,8 +5746,8 @@ export default function CurriculumViewPage() {
                   <button
                     type="button"
                     onClick={() => {
-                      clearInfographicStrokes(currentIndex)
-                      sendToStudentView({ type: 'infographic-draw-clear', slideIndex: currentIndex })
+                      clearInfographicStrokes(CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY)
+                      sendToStudentView({ type: 'infographic-draw-clear', slideIndex: CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY })
                     }}
                     className="rounded px-2 py-1 text-xs transition-colors hover:bg-white/15"
                   >

@@ -146,7 +146,7 @@ function QuizContentWrapper({ urlOrId, liveQuizContext, tr }: { urlOrId: string;
 
 export function ContentEmbed({ type, urlOrId, width = 560, height = 350, className = '', liveQuizContext, tr, hideQuiz, fill }: ContentEmbedProps) {
   const src = getEmbedSrc(type, urlOrId)
-  const wrapperClass = `${WRAPPER_CLASS} ${className} ${fill ? 'w-full h-full min-h-0' : ''}`.trim()
+  const wrapperClass = `${WRAPPER_CLASS} ${className} ${fill ? 'flex h-full w-full min-h-0 flex-col' : ''}`.trim()
 
   if (type === 'geogebra' || type === 'desmos' || type === 'youtube' || type === 'phet' || type === 'maps' || type === 'code') {
     if (!src) return null
@@ -154,8 +154,10 @@ export function ContentEmbed({ type, urlOrId, width = 560, height = 350, classNa
       <div className={wrapperClass} style={{ pointerEvents: 'auto' }}>
         <iframe
           src={src}
-          {...(fill ? { style: { width: '100%', height: '100%', pointerEvents: 'auto' } } : { width, height })}
-          className="w-full border-0"
+          {...(fill
+            ? { className: 'min-h-0 w-full flex-1 border-0', style: { pointerEvents: 'auto' as const } }
+            : { width, height, className: 'w-full border-0' })}
+          loading="lazy"
           sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-presentation"
           allowFullScreen
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
@@ -169,7 +171,7 @@ export function ContentEmbed({ type, urlOrId, width = 560, height = 350, classNa
     if (!src) return null
     return (
       <div className={wrapperClass}>
-        <img src={src} alt="" className="w-full max-w-full h-auto" style={{ maxHeight: height }} />
+        <img src={src} alt="" loading="lazy" decoding="async" className="w-full max-w-full h-auto" style={{ maxHeight: height }} />
       </div>
     )
   }
@@ -219,6 +221,10 @@ function playQuizTimerEndBell() {
       gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5)
       osc.start(ctx.currentTime)
       osc.stop(ctx.currentTime + 0.5)
+      // Giải phóng audio context sau khi phát để tránh giữ tài nguyên không cần thiết.
+      window.setTimeout(() => {
+        void ctx.close().catch(() => {})
+      }, 700)
     }
     if (ctx.state === 'suspended') ctx.resume().then(play).catch(() => {})
     else play()

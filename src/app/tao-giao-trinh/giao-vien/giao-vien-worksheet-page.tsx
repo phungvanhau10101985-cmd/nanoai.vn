@@ -1514,7 +1514,11 @@ export default function GiaoVienWorksheetPage() {
       channel.postMessage({ type: 'presentation-mode', mode: 'slide-interaction' })
       channel.postMessage({ type: 'set-auto-play', value: remoteAutoPlay })
       channel.postMessage({ type: 'set-auto-play-interval', ms: remoteAutoPlayIntervalMs })
-      if (visualFullscreenOpen) channel.postMessage({ type: 'visual-fullscreen-open', cellIndex: undefined })
+      if (visualFullscreenOpen)
+        channel.postMessage({
+          type: 'visual-fullscreen-open',
+          cellIndex: typeof teacherExpandedCellIndex === 'number' ? teacherExpandedCellIndex : undefined,
+        })
       else channel.postMessage({ type: 'visual-fullscreen-close' })
       channel.postMessage({ type: 'quiz-popup-open', value: quizPopupOpen })
       if (quizPopupOpen) {
@@ -1536,7 +1540,7 @@ export default function GiaoVienWorksheetPage() {
       channel.close()
       if (syncChannelRef.current === channel) syncChannelRef.current = null
     }
-  }, [presentationSyncId, content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning, remoteAutoPlay, remoteAutoPlayIntervalMs, visualFullscreenOpen, quizPopupOpen, quizSessionData, quizSessionSettings, toStudentSlidePayload, worksheetId, examCode, isWorksheetSlideMode, answerRevealProgress, answerTypingEnabled, worksheetTypingEffectsGloballyEnabled, studentCurriculumRemoteMode])
+  }, [presentationSyncId, content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning, remoteAutoPlay, remoteAutoPlayIntervalMs, visualFullscreenOpen, teacherExpandedCellIndex, quizPopupOpen, quizSessionData, quizSessionSettings, toStudentSlidePayload, worksheetId, examCode, isWorksheetSlideMode, answerRevealProgress, answerTypingEnabled, worksheetTypingEffectsGloballyEnabled, studentCurriculumRemoteMode])
 
   const openTeacherVisualFullscreen = useCallback((cellIndex?: number) => {
     setTeacherExpandedCellIndex(typeof cellIndex === 'number' ? cellIndex : null)
@@ -2073,7 +2077,13 @@ export default function GiaoVienWorksheetPage() {
         targetWin.postMessage({ type: 'presentation-mode', mode: 'slide-interaction' }, window.location.origin)
         targetWin.postMessage({ type: 'slide-go', index: currentIndex }, window.location.origin)
         if (visualFullscreenOpen) {
-          targetWin.postMessage({ type: 'visual-fullscreen-open', cellIndex: undefined }, window.location.origin)
+          targetWin.postMessage(
+            {
+              type: 'visual-fullscreen-open',
+              cellIndex: typeof teacherExpandedCellIndex === 'number' ? teacherExpandedCellIndex : undefined,
+            },
+            window.location.origin
+          )
         } else {
           targetWin.postMessage({ type: 'visual-fullscreen-close' }, window.location.origin)
         }
@@ -2084,7 +2094,7 @@ export default function GiaoVienWorksheetPage() {
     }
     sendState()
     setTimeout(sendState, 300)
-  }, [content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning, visualFullscreenOpen, toast, tr, worksheetId, examCode, isWorksheetSlideMode, answerRevealProgress, answerTypingEnabled, worksheetTypingEffectsGloballyEnabled, toStudentSlidePayload, presentationSyncId, studentCurriculumRemoteMode])
+  }, [content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning, visualFullscreenOpen, teacherExpandedCellIndex, toast, tr, worksheetId, examCode, isWorksheetSlideMode, answerRevealProgress, answerTypingEnabled, worksheetTypingEffectsGloballyEnabled, toStudentSlidePayload, presentationSyncId, studentCurriculumRemoteMode])
 
   const viewOpenedStudentView = useCallback(() => {
     if (typeof window === 'undefined') return
@@ -3276,15 +3286,16 @@ export default function GiaoVienWorksheetPage() {
                   const { layout, cells } = getVisualCells(s)
                   const slideNum = currentIndex + 1
                   const gradient = DARK_GRADIENTS[currentIndex % DARK_GRADIENTS.length]
-                  const gridClass = layout === 2 ? 'grid grid-rows-2 gap-1' : layout === 4 ? 'grid grid-cols-2 grid-rows-2 gap-1' : ''
+                  const gridClass =
+                    layout === 2 ? 'grid min-h-0 grid-rows-2 gap-1' : layout === 4 ? 'grid min-h-0 grid-cols-2 grid-rows-2 gap-1' : ''
                   return (
                     <div className="h-full w-full relative overflow-hidden" style={{ background: gradient }}>
                       <div className="absolute top-4 left-4 w-9 h-9 rounded-full bg-red-500 flex items-center justify-center text-white font-bold text-sm shadow-lg z-10">
                         {slideNum}
                       </div>
-                      <div className={cn('absolute inset-0 pt-14 pb-4 px-4', layout === 1 ? 'flex flex-col' : gridClass)}>
+                      <div className={cn('absolute inset-0 min-h-0 pt-14 pb-4 px-4', layout === 1 ? 'flex flex-col' : gridClass)}>
                         {layout === 1 ? (
-                          <div className="flex-1 min-h-0 relative rounded-lg overflow-hidden bg-black/30 border border-white/10">
+                          <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-white/10 bg-black/30">
                             <span className="absolute top-1 left-1 z-10 px-1.5 py-0.5 rounded bg-black/60 text-white text-xs font-mono">
                               {slideNum}-1
                             </span>
@@ -3292,12 +3303,18 @@ export default function GiaoVienWorksheetPage() {
                               (() => {
                                 const embeds = parseContentEmbeds(cells[0].visualEmbed)
                                 const first = embeds[0]
-                                if (!first) return <div className="w-full h-full" />
-                                return <div className="w-full h-full"><ContentEmbed type={first.type} urlOrId={first.urlOrId} tr={tr} hideQuiz fill className="!my-0 !rounded-lg !border-0" /></div>
+                                if (!first) return <div className="min-h-0 flex-1" />
+                                return (
+                                  <div className="flex min-h-0 flex-1 flex-col">
+                                    <ContentEmbed type={first.type} urlOrId={first.urlOrId} tr={tr} hideQuiz fill className="!my-0 !rounded-lg !border-0" />
+                                  </div>
+                                )
                               })()
                             ) : cells[0]?.imageUrl ? (
-                              // eslint-disable-next-line @next/next/no-img-element -- slide visual imageUrl is dynamic/remote
-                              <img src={cells[0].imageUrl} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                              <div className="flex h-full min-h-0 w-full items-center justify-center">
+                                {/* eslint-disable-next-line @next/next/no-img-element -- slide visual imageUrl is dynamic/remote */}
+                                <img src={cells[0].imageUrl} alt="" className="max-h-full max-w-full object-contain" referrerPolicy="no-referrer" />
+                              </div>
                             ) : (
                               <div className="w-full h-full flex items-center justify-center"><div className="w-8 h-8 rounded bg-white/5" /></div>
                             )}
@@ -3305,7 +3322,7 @@ export default function GiaoVienWorksheetPage() {
                         ) : (
                           <>
                             {cells.map((cell, idx) => (
-                              <div key={idx} className="relative rounded-lg overflow-hidden bg-black/30 border border-white/10 min-h-0 group">
+                              <div key={idx} className="group relative flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-white/10 bg-black/30">
                                 <span className="absolute top-1 left-1 z-10 px-1.5 py-0.5 rounded bg-black/60 text-white text-xs font-mono">
                                   {slideNum}-{idx + 1}
                                 </span>
@@ -3314,22 +3331,29 @@ export default function GiaoVienWorksheetPage() {
                                     type="button"
                                     onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); openTeacherVisualFullscreen(idx) }}
                                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); openTeacherVisualFullscreen(idx) }}
-                                    className="absolute top-1 right-1 z-10 opacity-50 group-hover:opacity-100 p-1 rounded bg-black/60 text-white hover:bg-black/80 transition-opacity"
+                                    className="absolute top-2 right-2 z-20 flex h-9 w-9 items-center justify-center rounded-md border border-white/40 bg-black/85 text-white shadow-md ring-1 ring-black/30 transition-colors hover:border-white/55 hover:bg-black"
                                     title={tr('Mở rộng ô này', 'Expand this cell', '展开此格', 'このセルを展開', '이 셀 확장')}
+                                    aria-label={tr('Mở rộng ô này', 'Expand this cell', '展开此格', 'このセルを展開', '이 셀 확장')}
                                   >
-                                    <Maximize2 className="h-3 w-3" />
+                                    <Maximize2 className="h-4 w-4 shrink-0" aria-hidden />
                                   </button>
                                 )}
                                 {cell.visualEmbed ? (
                                   (() => {
                                     const embeds = parseContentEmbeds(cell.visualEmbed)
                                     const first = embeds[0]
-                                    if (!first) return <div className="w-full h-full" />
-                                    return <div className="w-full h-full"><ContentEmbed type={first.type} urlOrId={first.urlOrId} tr={tr} hideQuiz fill className="!my-0 !rounded-lg !border-0" /></div>
+                                    if (!first) return <div className="min-h-0 flex-1" />
+                                    return (
+                                      <div className="flex min-h-0 flex-1 flex-col">
+                                        <ContentEmbed type={first.type} urlOrId={first.urlOrId} tr={tr} hideQuiz fill className="!my-0 !rounded-lg !border-0" />
+                                      </div>
+                                    )
                                   })()
                                 ) : cell.imageUrl ? (
-                                  // eslint-disable-next-line @next/next/no-img-element -- slide visual imageUrl is dynamic/remote
-                                  <img src={cell.imageUrl} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                  <div className="flex min-h-0 flex-1 items-center justify-center">
+                                    {/* eslint-disable-next-line @next/next/no-img-element -- slide visual imageUrl is dynamic/remote */}
+                                    <img src={cell.imageUrl} alt="" className="max-h-full max-w-full object-contain" referrerPolicy="no-referrer" />
+                                  </div>
                                 ) : (
                                   <div className="w-full h-full flex items-center justify-center"><div className="w-8 h-8 rounded bg-white/5" /></div>
                                 )}
@@ -4474,14 +4498,15 @@ export default function GiaoVienWorksheetPage() {
         const showSingleCell = teacherExpandedCellIndex != null && layout > 1
         const displayCells = showSingleCell && cells[teacherExpandedCellIndex] ? [cells[teacherExpandedCellIndex]] : cells
         const displayIndices = showSingleCell && teacherExpandedCellIndex != null ? [teacherExpandedCellIndex] : cells.map((_, i) => i)
-        const gridClass = !showSingleCell && layout === 2 ? 'grid grid-rows-2 gap-2' : !showSingleCell && layout === 4 ? 'grid grid-cols-2 grid-rows-2 gap-2' : ''
+        const gridClass =
+          !showSingleCell && layout === 2
+            ? 'grid min-h-0 grid-rows-2 gap-2'
+            : !showSingleCell && layout === 4
+              ? 'grid min-h-0 grid-cols-2 grid-rows-2 gap-2'
+              : ''
         return (
-          <div
-            ref={teacherVisualOverlayRef}
-            className="fixed inset-0 z-[105] bg-black flex flex-col"
-            onClick={(e) => { if (e.target === e.currentTarget) closeTeacherVisualFullscreen() }}
-          >
-            <div className="absolute top-0 left-0 right-0 h-14 flex items-center justify-between px-4 bg-black/70 z-20 shrink-0">
+          <div ref={teacherVisualOverlayRef} className="fixed inset-0 z-[105] flex min-h-0 flex-col bg-black">
+            <div className="z-20 flex h-14 w-full shrink-0 items-center justify-between bg-black/70 px-4">
               <span className="text-white/80 text-sm">{currentIndex + 1}/{slides.length} {s.title}</span>
               <div className="flex items-center gap-2">
                 <button
@@ -4495,32 +4520,51 @@ export default function GiaoVienWorksheetPage() {
                 </button>
               </div>
             </div>
-            <div className={cn('flex-1 min-h-0 relative px-4 pb-4 pt-14 flex flex-col', showSingleCell || layout === 1 ? 'gap-4' : '')}>
-              <div className="flex-1 min-h-0 relative flex flex-col">
-                <div ref={teacherVisualFrameRef} className={cn('flex-1 min-h-0 overflow-hidden min-w-0', showSingleCell || layout === 1 ? 'flex flex-col gap-4' : gridClass)}>
-                {displayCells.map((cell, i) => (
-                  <div key={displayIndices[i] ?? i} className="flex-1 min-h-0 relative rounded-xl overflow-hidden bg-black/30 border border-white/10">
+            <div
+              className="flex min-h-0 flex-1 flex-col px-4 pb-4"
+              onClick={(e) => {
+                if (e.target === e.currentTarget) closeTeacherVisualFullscreen()
+              }}
+            >
+                <div
+                  ref={teacherVisualFrameRef}
+                  className={cn(
+                    'flex min-h-0 w-full flex-1 overflow-hidden min-w-0',
+                    showSingleCell || layout === 1 ? 'flex-col gap-4' : gridClass
+                  )}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                {displayCells.map((cell, i) => {
+                  const cellFillClass =
+                    showSingleCell || layout === 1 ? 'min-h-0 w-full flex-1 basis-0' : 'h-full min-h-0 min-w-0'
+                  return (
+                  <div
+                    key={displayIndices[i] ?? i}
+                    className={cn('relative flex min-h-0 flex-col overflow-hidden rounded-xl border border-white/10 bg-black/30', cellFillClass)}
+                  >
                     {cell.visualEmbed ? (
                       (() => {
                         const embeds = parseContentEmbeds(cell.visualEmbed)
                         const first = embeds[0]
-                        if (!first) return <div className="w-full h-full" />
+                        if (!first) return <div className="min-h-0 flex-1 basis-0" />
                         return (
-                          <div className="w-full h-full">
+                          <div className="flex min-h-0 flex-1 basis-0 flex-col">
                             <ContentEmbed type={first.type} urlOrId={first.urlOrId} tr={tr} hideQuiz fill className="!my-0 !rounded-xl !border-0" />
                           </div>
                         )
                       })()
                     ) : cell.imageUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element -- slide visual imageUrl is dynamic/remote
-                      <img src={cell.imageUrl} alt="" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
+                      <div className="flex min-h-0 flex-1 basis-0 items-center justify-center">
+                        {/* eslint-disable-next-line @next/next/no-img-element -- slide visual imageUrl is dynamic/remote */}
+                        <img src={cell.imageUrl} alt="" className="max-h-full max-w-full object-contain" referrerPolicy="no-referrer" />
+                      </div>
                     ) : (
-                      <div className="w-full h-full bg-white/5" />
+                      <div className="min-h-0 flex-1 basis-0 bg-white/5" />
                     )}
                   </div>
-                ))}
+                  )
+                })}
                 </div>
-              </div>
             </div>
           </div>
         )
