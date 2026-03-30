@@ -5,6 +5,7 @@ import {
   getCurriculumLessonMeta as getCurriculumLessonMetaCore,
   getCurriculumSlidesByLessonCached as getCurriculumSlidesByLessonCachedCore,
   getCurriculumSlidesByLesson as getCurriculumSlidesByLessonCore,
+  saveCurriculumLessonInfographic as saveCurriculumLessonInfographicCore,
 } from './actions'
 
 type CurriculumSlideModeForLesson = 'shared' | 'original' | 'personal'
@@ -37,4 +38,18 @@ export async function getCurriculumSlidesByLessonCachedAction(
   lessonNo: number
 ) {
   return getCurriculumSlidesByLessonCachedCore(curriculumId, mode, lessonNo)
+}
+
+export async function saveCurriculumLessonInfographicAction(
+  curriculumId: string,
+  mode: CurriculumSlideModeForLesson,
+  lessonNo: number,
+  infographic: {
+    summary: string
+    mermaid: string
+    imageUrl: string
+    generatedAt: string
+  }
+) {
+  return saveCurriculumLessonInfographicCore({ curriculumId, mode, lessonNo, infographic })
 }

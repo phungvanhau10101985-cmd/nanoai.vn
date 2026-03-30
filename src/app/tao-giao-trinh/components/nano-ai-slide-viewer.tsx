@@ -22,7 +22,7 @@ import { saveSlidesToCurriculum, saveUserCustomizedSlides } from '../actions'
 import { useScreenShare } from '../hooks/use-screen-share'
 import { useScreenShareLive } from '../hooks/use-screen-share-live'
 import { curriculumSlideTitleRevealKey, findFirstSequentialSolutionBlockIndex, worksheetAnswerSegmentCount } from '../lib/worksheet-answer-segments'
-import { CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY, type SlideInfographic } from '../lib/slide-infographic'
+import { getInfographicStrokeBucketKey, type SlideInfographic } from '../lib/slide-infographic'
 import {
   applyInfographicToDefaultVisualCells,
   skipInfographicDefaultSwapNano,
@@ -383,11 +383,13 @@ function limitInfographicStrokeMemory(strokes: InfographicDrawStroke[]): Infogra
 function foldInfographicStrokesToCurriculumKey(
   map: Record<number, InfographicDrawStroke[]>,
 ): Record<number, InfographicDrawStroke[]> {
-  const merged: InfographicDrawStroke[] = []
-  for (const list of Object.values(map)) {
-    if (Array.isArray(list)) merged.push(...list)
+  const normalized: Record<number, InfographicDrawStroke[]> = {}
+  for (const [k, list] of Object.entries(map)) {
+    const key = Number(k)
+    if (!Number.isFinite(key) || !Array.isArray(list)) continue
+    normalized[key] = limitInfographicStrokeMemory(dedupeInfographicStrokesById(list))
   }
-  return { [CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY]: limitInfographicStrokeMemory(dedupeInfographicStrokesById(merged)) }
+  return normalized
 }
 
 export type SlideMode = 'original' | 'shared' | 'personal'
@@ -795,6 +797,10 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   const [curriculumInfographic, setCurriculumInfographic] = useState<SlideInfographic | undefined>(undefined)
   const curriculumInfographicRef = useRef<SlideInfographic | undefined>(undefined)
   curriculumInfographicRef.current = curriculumInfographic
+  const activeInfographicStrokeKey = useMemo(
+    () => getInfographicStrokeBucketKey(curriculumInfographic?.imageUrl),
+    [curriculumInfographic?.imageUrl]
+  )
   useEffect(() => {
     if (curriculumInfographicProp === undefined) return
     setCurriculumInfographic(curriculumInfographicProp ?? undefined)
@@ -1253,9 +1259,6 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
 
   const clearInfographicStrokes = useCallback((slideIndex: number) => {
     setInfographicDrawStrokesBySlide((prev) => {
-      if (slideIndex === CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY) {
-        return { [CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY]: [] }
-      }
       return { ...prev, [slideIndex]: [] }
     })
   }, [])
@@ -1288,7 +1291,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
 
   const renderAllInfographicDrawCanvases = useCallback(() => {
     if (typeof document === 'undefined') return
-    const strokes = infographicDrawStrokesBySlide[CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY] ?? []
+    const strokes = infographicDrawStrokesBySlide[activeInfographicStrokeKey] ?? []
     let paintedCount = 0
     document.querySelectorAll('[data-infographic-draw-pane-stage]').forEach((node) => {
       const stage = node as HTMLElement
@@ -1307,11 +1310,11 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       if (paintInfographicStrokesOnStage(stage, strokes)) paintedCount += 1
     })
     return paintedCount
-  }, [infographicDrawStrokesBySlide])
+  }, [infographicDrawStrokesBySlide, activeInfographicStrokeKey])
 
   const startInfographicDrawing = useCallback((e: ReactPointerEvent<HTMLDivElement>) => {
     // Học sinh được vẽ bằng chuột thật ở mọi chế độ hiển thị (thu nhỏ/phóng to).
-    if (!curriculumInfographic) return
+    if (!curriculumInfographic?.imageUrl) return
     e.preventDefault()
     infographicDrawingRef.current?.removeListeners?.()
     const stage = e.currentTarget
@@ -1327,10 +1330,10 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       sizeNorm,
       points: [{ u, v }],
     }
-    upsertInfographicStroke(CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY, stroke)
+    upsertInfographicStroke(activeInfographicStrokeKey, stroke)
     sendInfographicDrawMessage({
       type: 'infographic-draw-start',
-      slideIndex: CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY,
+      slideIndex: activeInfographicStrokeKey,
       stroke,
     })
     const toPoints = (ev: PointerEvent, stageEl: HTMLElement): InfographicDrawPoint[] => {
@@ -1352,10 +1355,10 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     const flushQueuedPoints = () => {
       if (queuedPoints.length === 0) return
       const batch = queuedPoints.splice(0, queuedPoints.length)
-      appendInfographicStrokePoints(CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY, strokeId, batch)
+      appendInfographicStrokePoints(activeInfographicStrokeKey, strokeId, batch)
       sendInfographicDrawMessage({
         type: 'infographic-draw-points',
-        slideIndex: CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY,
+        slideIndex: activeInfographicStrokeKey,
         strokeId,
         points: batch,
       })
@@ -1409,11 +1412,11 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     infographicDrawingRef.current = {
       stageEl: stage,
       strokeId,
-      slideIndex: CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY,
+      slideIndex: activeInfographicStrokeKey,
       pointerId: e.pointerId,
       removeListeners,
     }
-  }, [curriculumInfographic, infographicDrawBrushPx, infographicDrawTool, infographicDrawColor, upsertInfographicStroke, sendInfographicDrawMessage, appendInfographicStrokePoints])
+  }, [curriculumInfographic?.imageUrl, activeInfographicStrokeKey, infographicDrawBrushPx, infographicDrawTool, infographicDrawColor, upsertInfographicStroke, sendInfographicDrawMessage, appendInfographicStrokePoints])
 
 
   useLayoutEffect(() => {
@@ -1932,7 +1935,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       else if (t === 'infographic-draw-start' && typeof e.data?.slideIndex === 'number' && e.data?.stroke) {
         const stroke = e.data.stroke as InfographicDrawStroke
         if (stroke && typeof stroke.id === 'string' && Array.isArray(stroke.points)) {
-          upsertInfographicStroke(CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY, {
+          upsertInfographicStroke(e.data.slideIndex, {
             id: stroke.id,
             tool: stroke.tool === 'eraser' ? 'eraser' : 'pen',
             color: typeof stroke.color === 'string' ? stroke.color : '#ef4444',
@@ -1948,7 +1951,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         typeof e.data?.strokeId === 'string' &&
         e.data?.point
       ) {
-        appendInfographicStrokePoint(CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY, e.data.strokeId, {
+        appendInfographicStrokePoint(e.data.slideIndex, e.data.strokeId, {
           u: clamp01(Number(e.data.point.u) || 0),
           v: clamp01(Number(e.data.point.v) || 0),
         })
@@ -1964,14 +1967,14 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
           u: clamp01(Number(p?.u) || 0),
           v: clamp01(Number(p?.v) || 0),
         }))
-        appendInfographicStrokePoints(CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY, e.data.strokeId, points)
+        appendInfographicStrokePoints(e.data.slideIndex, e.data.strokeId, points)
         syncVirtualCursorFromInfographicUv(points[points.length - 1])
       }
       else if (t === 'infographic-draw-clear' && typeof e.data?.slideIndex === 'number') {
-        clearInfographicStrokes(CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY)
+        clearInfographicStrokes(e.data.slideIndex)
       }
       else if (t === 'infographic-draw-undo' && typeof e.data?.slideIndex === 'number') {
-        undoInfographicStroke(CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY)
+        undoInfographicStroke(e.data.slideIndex)
       }
       else if (t === 'sand-timer-start' && typeof e.data?.seconds === 'number') {
         setTimerSeconds(e.data.seconds)
@@ -3187,8 +3190,8 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       const key = (e.key || '').toLowerCase()
       if ((e.ctrlKey || e.metaKey) && key === 'z') {
         e.preventDefault()
-        undoInfographicStroke(CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY)
-        sendInfographicDrawMessage({ type: 'infographic-draw-undo', slideIndex: CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY })
+        undoInfographicStroke(activeInfographicStrokeKey)
+        sendInfographicDrawMessage({ type: 'infographic-draw-undo', slideIndex: activeInfographicStrokeKey })
         return
       }
       if (key === 'b') {
@@ -3211,6 +3214,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     visualFullscreenOpen,
     presenterLeftTab,
     visualShowsCurriculumInfographic,
+    activeInfographicStrokeKey,
     undoInfographicStroke,
     sendInfographicDrawMessage,
   ])
@@ -3785,8 +3789,8 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                     <button
                       type="button"
                       onClick={() => {
-                        undoInfographicStroke(CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY)
-                        sendInfographicDrawMessage({ type: 'infographic-draw-undo', slideIndex: CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY })
+                        undoInfographicStroke(activeInfographicStrokeKey)
+                        sendInfographicDrawMessage({ type: 'infographic-draw-undo', slideIndex: activeInfographicStrokeKey })
                       }}
                       className="rounded px-2 py-1 text-xs transition-colors hover:bg-white/15"
                     >
@@ -3795,8 +3799,8 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                     <button
                       type="button"
                       onClick={() => {
-                        clearInfographicStrokes(CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY)
-                        sendInfographicDrawMessage({ type: 'infographic-draw-clear', slideIndex: CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY })
+                        clearInfographicStrokes(activeInfographicStrokeKey)
+                        sendInfographicDrawMessage({ type: 'infographic-draw-clear', slideIndex: activeInfographicStrokeKey })
                       }}
                       className="rounded px-2 py-1 text-xs transition-colors hover:bg-white/15"
                     >
@@ -3990,8 +3994,8 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                   <button
                     type="button"
                     onClick={() => {
-                      undoInfographicStroke(CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY)
-                      sendInfographicDrawMessage({ type: 'infographic-draw-undo', slideIndex: CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY })
+                      undoInfographicStroke(activeInfographicStrokeKey)
+                      sendInfographicDrawMessage({ type: 'infographic-draw-undo', slideIndex: activeInfographicStrokeKey })
                     }}
                     className="rounded px-2 py-1 text-xs transition-colors hover:bg-white/15"
                   >
@@ -4000,8 +4004,8 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                   <button
                     type="button"
                     onClick={() => {
-                      clearInfographicStrokes(CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY)
-                      sendInfographicDrawMessage({ type: 'infographic-draw-clear', slideIndex: CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY })
+                      clearInfographicStrokes(activeInfographicStrokeKey)
+                      sendInfographicDrawMessage({ type: 'infographic-draw-clear', slideIndex: activeInfographicStrokeKey })
                     }}
                     className="rounded px-2 py-1 text-xs transition-colors hover:bg-white/15"
                   >
@@ -4238,8 +4242,8 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                 <button
                   type="button"
                   onClick={() => {
-                    undoInfographicStroke(CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY)
-                    sendInfographicDrawMessage({ type: 'infographic-draw-undo', slideIndex: CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY })
+                    undoInfographicStroke(activeInfographicStrokeKey)
+                    sendInfographicDrawMessage({ type: 'infographic-draw-undo', slideIndex: activeInfographicStrokeKey })
                   }}
                   className="flex min-h-[40px] shrink-0 items-center justify-center rounded-md bg-black/60 px-3 py-1.5 text-[10px] font-medium text-white opacity-80 shadow-lg hover:bg-black/80 hover:opacity-100 md:min-h-0 md:text-[11px]"
                 >
@@ -4248,8 +4252,8 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                 <button
                   type="button"
                   onClick={() => {
-                    clearInfographicStrokes(CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY)
-                    sendInfographicDrawMessage({ type: 'infographic-draw-clear', slideIndex: CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY })
+                    clearInfographicStrokes(activeInfographicStrokeKey)
+                    sendInfographicDrawMessage({ type: 'infographic-draw-clear', slideIndex: activeInfographicStrokeKey })
                   }}
                   className="flex min-h-[40px] shrink-0 items-center justify-center rounded-md bg-black/60 px-3 py-1.5 text-[10px] font-medium text-white opacity-80 shadow-lg hover:bg-black/80 hover:opacity-100 md:min-h-0 md:text-[11px]"
                 >
@@ -4388,8 +4392,8 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                       <button
                         type="button"
                         onClick={() => {
-                          undoInfographicStroke(CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY)
-                          sendInfographicDrawMessage({ type: 'infographic-draw-undo', slideIndex: CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY })
+                          undoInfographicStroke(activeInfographicStrokeKey)
+                          sendInfographicDrawMessage({ type: 'infographic-draw-undo', slideIndex: activeInfographicStrokeKey })
                         }}
                         className="rounded px-2 py-1 text-[11px] transition-colors hover:bg-white/15"
                       >
@@ -4398,8 +4402,8 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                       <button
                         type="button"
                         onClick={() => {
-                          clearInfographicStrokes(CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY)
-                          sendInfographicDrawMessage({ type: 'infographic-draw-clear', slideIndex: CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY })
+                          clearInfographicStrokes(activeInfographicStrokeKey)
+                          sendInfographicDrawMessage({ type: 'infographic-draw-clear', slideIndex: activeInfographicStrokeKey })
                         }}
                         className="rounded px-2 py-1 text-[11px] transition-colors hover:bg-white/15"
                       >
@@ -4473,8 +4477,8 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                           {INFOGRAPHIC_DRAW_COLORS.map((color) => (
                             <button key={`vis1-${color}`} type="button" onClick={() => setInfographicDrawColor(color)} className={cn('h-3.5 w-3.5 rounded-full border', infographicDrawColor === color ? 'border-white' : 'border-white/40')} style={{ backgroundColor: color }} />
                           ))}
-                          <button type="button" onClick={() => { undoInfographicStroke(CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY); sendInfographicDrawMessage({ type: 'infographic-draw-undo', slideIndex: CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY }) }} className="rounded px-2 py-1 text-[11px] hover:bg-white/15">{tr('Undo', 'Undo', '撤销', '元に戻す', '실행 취소')}</button>
-                          <button type="button" onClick={() => { clearInfographicStrokes(CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY); sendInfographicDrawMessage({ type: 'infographic-draw-clear', slideIndex: CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY }) }} className="rounded px-2 py-1 text-[11px] hover:bg-white/15">{tr('Clear', 'Clear', '清除', 'クリア', '지우기')}</button>
+                          <button type="button" onClick={() => { undoInfographicStroke(activeInfographicStrokeKey); sendInfographicDrawMessage({ type: 'infographic-draw-undo', slideIndex: activeInfographicStrokeKey }) }} className="rounded px-2 py-1 text-[11px] hover:bg-white/15">{tr('Undo', 'Undo', '撤销', '元に戻す', '실행 취소')}</button>
+                          <button type="button" onClick={() => { clearInfographicStrokes(activeInfographicStrokeKey); sendInfographicDrawMessage({ type: 'infographic-draw-clear', slideIndex: activeInfographicStrokeKey }) }} className="rounded px-2 py-1 text-[11px] hover:bg-white/15">{tr('Clear', 'Clear', '清除', 'クリア', '지우기')}</button>
                         </div>
                       </div>
                     ) : (
@@ -4567,8 +4571,8 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                               {INFOGRAPHIC_DRAW_COLORS.map((color) => (
                                 <button key={`vism-${idx}-${color}`} type="button" onClick={() => setInfographicDrawColor(color)} className={cn('h-3.5 w-3.5 rounded-full border', infographicDrawColor === color ? 'border-white' : 'border-white/40')} style={{ backgroundColor: color }} />
                               ))}
-                              <button type="button" onClick={() => { undoInfographicStroke(CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY); sendInfographicDrawMessage({ type: 'infographic-draw-undo', slideIndex: CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY }) }} className="rounded px-2 py-1 text-[11px] hover:bg-white/15">{tr('Undo', 'Undo', '撤销', '元に戻す', '실행 취소')}</button>
-                              <button type="button" onClick={() => { clearInfographicStrokes(CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY); sendInfographicDrawMessage({ type: 'infographic-draw-clear', slideIndex: CURRICULUM_INFOGRAPHIC_STROKES_SLIDE_KEY }) }} className="rounded px-2 py-1 text-[11px] hover:bg-white/15">{tr('Clear', 'Clear', '清除', 'クリア', '지우기')}</button>
+                              <button type="button" onClick={() => { undoInfographicStroke(activeInfographicStrokeKey); sendInfographicDrawMessage({ type: 'infographic-draw-undo', slideIndex: activeInfographicStrokeKey }) }} className="rounded px-2 py-1 text-[11px] hover:bg-white/15">{tr('Undo', 'Undo', '撤销', '元に戻す', '실행 취소')}</button>
+                              <button type="button" onClick={() => { clearInfographicStrokes(activeInfographicStrokeKey); sendInfographicDrawMessage({ type: 'infographic-draw-clear', slideIndex: activeInfographicStrokeKey }) }} className="rounded px-2 py-1 text-[11px] hover:bg-white/15">{tr('Clear', 'Clear', '清除', 'クリア', '지우기')}</button>
                             </div>
                           </div>
                         ) : (

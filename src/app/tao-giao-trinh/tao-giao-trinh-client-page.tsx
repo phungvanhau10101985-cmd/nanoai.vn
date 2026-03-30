@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
-import { Sparkles, Copy, FileDown, RefreshCw, FileSpreadsheet, FolderOpen, BookOpen, FileText, Presentation, Trash2, Upload, ImageIcon, FileQuestion, ListChecks, ChevronDown, Users, NotebookPen, Link2 } from 'lucide-react'
+import { Sparkles, Copy, FileDown, RefreshCw, FileSpreadsheet, FolderOpen, BookOpen, FileText, Presentation, Trash2, Upload, Camera, ImageIcon, FileQuestion, ListChecks, ChevronDown, Users, NotebookPen, Link2 } from 'lucide-react'
 import Link from 'next/link'
 import QRCode from 'qrcode'
 import { latexToReadable } from './lib/latex-to-readable'
@@ -265,6 +265,7 @@ export default function TaoGiaoTrinhClientPage({
   } | null>(null)
   const activeOpenedSlidesRef = useRef<AISlideData[] | null>(null)
   const activeOpenedLessonMarkdownRef = useRef<string | null>(null)
+  const activeOpenedLessonInfographicRef = useRef<SlideInfographic | undefined>(undefined)
   const selectedLessonNoRef = useRef<number | null>(null)
   const openSlidesInFlightRef = useRef(false)
   const versionChooseArmedRef = useRef(false)
@@ -282,6 +283,7 @@ export default function TaoGiaoTrinhClientPage({
   const [lastOverwriteAt, setLastOverwriteAt] = useState<string | null>(null)
   const [lessonImages, setLessonImages] = useState<File[]>([])
   const lessonImageInputRef = useRef<HTMLInputElement>(null)
+  const lessonCameraInputRef = useRef<HTMLInputElement>(null)
   const [createMode, setCreateMode] = useState<'textbook' | 'topic'>('textbook')
   const [featureSection, setFeatureSection] = useState<'create' | 'library' | 'exam' | 'homework'>('create')
   const [wsStepByStepQuizCount, setWsStepByStepQuizCount] = useState(5)
@@ -1131,6 +1133,7 @@ export default function TaoGiaoTrinhClientPage({
   const handleClearLessonImages = () => {
     setLessonImages([])
     if (lessonImageInputRef.current) lessonImageInputRef.current.value = ''
+    if (lessonCameraInputRef.current) lessonCameraInputRef.current.value = ''
   }
 
   const resetWorksheetEditState = () => {
@@ -1161,7 +1164,8 @@ export default function TaoGiaoTrinhClientPage({
       slidesToUse: AISlideData[] | null,
       mode: SlideVersionChoice | null = null,
       curriculumInfographicSend?: SlideInfographic | undefined,
-      lessonMarkdownOverride?: string | null
+      lessonMarkdownOverride?: string | null,
+      lessonInfographicOverride?: SlideInfographic | undefined
     ) => {
       if (curriculumId && !versionChooseArmedRef.current) {
         console.warn('[lesson-open] blocked open before choosing version', { curriculumId, mode })
@@ -1202,6 +1206,7 @@ export default function TaoGiaoTrinhClientPage({
       activeOpenedLessonMarkdownRef.current = typeof lessonMarkdownOverride === 'string' && lessonMarkdownOverride.trim()
         ? lessonMarkdownOverride.trim()
         : curriculumMarkdown
+      activeOpenedLessonInfographicRef.current = lessonInfographicOverride
       const resolvedInfographic =
         curriculumInfographicSend ??
         (mode === 'personal'
@@ -1227,7 +1232,8 @@ export default function TaoGiaoTrinhClientPage({
                   type: 'curriculum-data',
                   content: activeOpenedLessonMarkdownRef.current ?? curriculumMarkdown,
                   fullCurriculumMarkdown: curriculumMarkdown,
-                    lessonNo: selectedLessonNoRef.current ?? null,
+                  lessonNo: selectedLessonNoRef.current ?? null,
+                  lessonInfographic: activeOpenedLessonInfographicRef.current ?? null,
                   topic: displayTopic,
                   currentIndex: 0,
                   curriculumId: curriculumId ?? null,
@@ -1456,6 +1462,7 @@ export default function TaoGiaoTrinhClientPage({
             content: contentForTeacher,
             fullCurriculumMarkdown: curriculumMarkdown,
             lessonNo: selectedLessonNoRef.current ?? null,
+            lessonInfographic: activeOpenedLessonInfographicRef.current ?? null,
             topic: displayTopic,
             currentIndex: 0,
             curriculumId: curriculumId ?? null,
@@ -1616,6 +1623,10 @@ export default function TaoGiaoTrinhClientPage({
             slideCount: res.slides.length,
           })
           const selectedSlides = res.slides as AISlideData[]
+          const lessonInfographic =
+            typeof (res as { lessonInfographic?: unknown }).lessonInfographic === 'object'
+              ? ((res as { lessonInfographic?: SlideInfographic }).lessonInfographic ?? undefined)
+              : undefined
           const lessonMarkdown = typeof (res as { lessonMarkdown?: unknown }).lessonMarkdown === 'string'
             ? String((res as { lessonMarkdown?: string }).lessonMarkdown || '')
             : ''
@@ -1639,7 +1650,7 @@ export default function TaoGiaoTrinhClientPage({
             })
           }
           setAiSlides(selectedSlides)
-          openGiaoVienWindow(selectedSlides, choice, infForChoice, lessonMarkdown || null)
+          openGiaoVienWindow(selectedSlides, choice, infForChoice, lessonMarkdown || null, lessonInfographic)
           scheduleLessonIdleTrim()
           return
         }
@@ -1673,6 +1684,7 @@ export default function TaoGiaoTrinhClientPage({
     versionChooseArmedRef.current = false
     activeOpenedSlidesRef.current = null
     activeOpenedLessonMarkdownRef.current = null
+    activeOpenedLessonInfographicRef.current = undefined
     selectedLessonNoRef.current = null
     setCurriculumEditMode(false)
     setEditOriginalText('')
@@ -3437,6 +3449,19 @@ export default function TaoGiaoTrinhClientPage({
                     setLessonImages(list.slice(0, MAX_CURRICULUM_LESSON_IMAGES))
                   }}
                 />
+                <input
+                  ref={lessonCameraInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="hidden"
+                  onChange={(e) => {
+                    const list = Array.from(e.target.files ?? [])
+                    if (list.length <= 0) return
+                    setLessonImages((prev) => [...prev, ...list].slice(0, MAX_CURRICULUM_LESSON_IMAGES))
+                    if (lessonCameraInputRef.current) lessonCameraInputRef.current.value = ''
+                  }}
+                />
                 <Button
                   type="button"
                   variant="outline"
@@ -3448,6 +3473,16 @@ export default function TaoGiaoTrinhClientPage({
                   {lessonImages.length > 0
                     ? `${tr('Đã chọn', 'Selected', '已选', '選択済み', '선택됨')} ${lessonImages.length} ${tr('ảnh', 'image(s)', '张图片', '枚の画像', '개 이미지')}`
                     : tr('Chọn ảnh, có thể nhiều', 'Choose image(s)', '选择图片（可多选）', '画像を選択（複数可）', '이미지 선택 여러 개')}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => lessonCameraInputRef.current?.click()}
+                  className="ml-2 border-emerald-400 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-600 dark:text-emerald-300"
+                >
+                  <Camera className="h-4 w-4 mr-2" />
+                  {tr('Chụp bằng camera', 'Capture with camera', '使用相机拍摄', 'カメラで撮影', '카메라로 촬영')}
                 </Button>
                 {lessonImages.length > 0 && (
                   <Button

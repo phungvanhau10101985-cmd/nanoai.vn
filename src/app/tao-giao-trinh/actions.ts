@@ -2158,11 +2158,24 @@ export async function saveSlidesToCurriculum(opts: {
 
   const safeLessonNo = Number.isFinite(Number(opts.lessonNo)) ? Math.max(1, Math.floor(Number(opts.lessonNo))) : null
   if (safeLessonNo) {
+    const existingLessonRow = await supabase
+      .from('worksheet_curriculum_lesson_slides')
+      .select('slides_json')
+      .eq('curriculum_id', opts.curriculumId)
+      .eq('mode', 'shared')
+      .eq('lesson_no', safeLessonNo)
+      .is('user_id', null)
+      .maybeSingle()
+    const existingLessonParsed = parseStoredCurriculumSlidesJson(existingLessonRow.data?.slides_json)
+    const lessonSlidesJson = serializeStoredCurriculumSlidesJson(
+      opts.slides,
+      existingLessonParsed.curriculumInfographic ?? infographicToStore
+    )
     const cacheSave = await saveLessonSlidesCacheRow(supabase, {
       curriculumId: opts.curriculumId,
       mode: 'shared',
       lessonNo: safeLessonNo,
-      slidesJson: contentJson,
+      slidesJson: lessonSlidesJson,
       userId: user.id,
     })
     if (cacheSave.error) return { error: cacheSave.error }
@@ -2505,6 +2518,7 @@ export async function getCurriculumSlidesByLesson(curriculumId: string, mode: Cu
       lessonMarkdown: buildLessonMarkdownForDisplay(lesson),
       lessonTitle: lesson.lesson_title ?? '',
       curriculumInfographic: loaded.curriculumInfographic,
+      lessonInfographic: cachedParsed.curriculumInfographic,
       generated: false,
       source: 'cache',
     }
@@ -2603,7 +2617,7 @@ async function loadLessonSlidesCacheByMode(
   curriculumId: string,
   mode: CurriculumSlideModeForLesson,
   lessonNo: number
-): Promise<{ slides: WorksheetSlideRow[]; curriculumInfographic?: SlideInfographic }> {
+): Promise<{ slides: WorksheetSlideRow[]; curriculumInfographic?: SlideInfographic; lessonInfographic?: SlideInfographic }> {
   const query = supabase
     .from('worksheet_curriculum_lesson_slides')
     .select('slides_json')
@@ -2615,7 +2629,11 @@ async function loadLessonSlidesCacheByMode(
     : await query.is('user_id', null).maybeSingle()
   const parsed = parseStoredCurriculumSlidesJson(row.data?.slides_json)
   const loaded = await loadSlidesPayloadByMode(supabase, userId, curriculumId, mode)
-  return { slides: parsed.slides as WorksheetSlideRow[], curriculumInfographic: loaded.curriculumInfographic }
+  return {
+    slides: parsed.slides as WorksheetSlideRow[],
+    curriculumInfographic: loaded.curriculumInfographic,
+    lessonInfographic: parsed.curriculumInfographic,
+  }
 }
 
 export async function ensureCurriculumLessonSlidesPrepared(curriculumId: string, lessonNo: number) {
@@ -2684,9 +2702,37 @@ export async function getCurriculumSlidesByLessonCached(curriculumId: string, mo
     lessonMarkdown: buildLessonMarkdownForDisplay(lesson),
     lessonTitle: lesson.lesson_title ?? '',
     curriculumInfographic: cache.curriculumInfographic,
+    lessonInfographic: cache.lessonInfographic,
     generated: false,
     source: 'cache',
   }
+}
+
+export async function saveCurriculumLessonInfographic(opts: {
+  curriculumId: string
+  mode: CurriculumSlideModeForLesson
+  lessonNo: number
+  infographic: SlideInfographic
+}) {
+  const supabase = createClient()
+  const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+  if ('error' in authResult) return { error: authResult.error }
+  const { user } = authResult
+  const safeLessonNo = Math.max(1, Math.floor(Number(opts.lessonNo) || 1))
+  const cache = await loadLessonSlidesCacheByMode(supabase, user.id, opts.curriculumId, opts.mode, safeLessonNo)
+  if (!Array.isArray(cache.slides) || cache.slides.length <= 0) {
+    return { error: 'Chưa có dữ liệu slide theo tiết để lưu infographic.' }
+  }
+  const slidesJson = serializeStoredCurriculumSlidesJson(cache.slides, opts.infographic)
+  const save = await saveLessonSlidesCacheRow(supabase, {
+    curriculumId: opts.curriculumId,
+    mode: opts.mode,
+    lessonNo: safeLessonNo,
+    slidesJson,
+    userId: user.id,
+  })
+  if (save.error) return { error: save.error }
+  return { success: true, lessonNo: safeLessonNo, lessonInfographic: opts.infographic }
 }
 
 /** Lưu slide đã chỉnh sửa của giáo viên – chỉ ghi vào user_customized_slides, không đổi worksheet_slides */
@@ -2737,11 +2783,25 @@ export async function saveUserCustomizedSlides(opts: {
   const safeLessonNo = Number.isFinite(Number(opts.lessonNo)) ? Math.max(1, Math.floor(Number(opts.lessonNo))) : null
   if (safeLessonNo) {
     const lessonMode: 'personal' | 'original' = opts.lessonMode === 'original' ? 'original' : 'personal'
+    const lessonCacheQuery = supabase
+      .from('worksheet_curriculum_lesson_slides')
+      .select('slides_json')
+      .eq('curriculum_id', opts.curriculumId)
+      .eq('mode', lessonMode)
+      .eq('lesson_no', safeLessonNo)
+    const existingLessonRow = lessonMode === 'personal'
+      ? await lessonCacheQuery.eq('user_id', user.id).maybeSingle()
+      : await lessonCacheQuery.is('user_id', null).maybeSingle()
+    const existingLessonParsed = parseStoredCurriculumSlidesJson(existingLessonRow.data?.slides_json)
+    const lessonSlidesJson = serializeStoredCurriculumSlidesJson(
+      opts.slides,
+      existingLessonParsed.curriculumInfographic ?? infographicToStore
+    )
     const cacheSave = await saveLessonSlidesCacheRow(supabase, {
       curriculumId: opts.curriculumId,
       mode: lessonMode,
       lessonNo: safeLessonNo,
-      slidesJson,
+      slidesJson: lessonSlidesJson,
       userId: user.id,
     })
     if (cacheSave.error) return { error: cacheSave.error }
