@@ -9,11 +9,12 @@ import { createClient as createSupabaseClient, type SupabaseClient } from '@supa
 import { CURRICULUM_UI_CREDITS } from '@/app/tao-giao-trinh/lib/curriculum-credit-costs'
 
 export const CURRICULUM_AI_CHARGE_TYPES = {
-  analyzeSlides: 'curriculum_analyze_slides',
   /** POST /api/curriculum-from-image — tạo giáo trình từ ảnh (+ slide trong cùng pipeline) */
   fromImage: 'curriculum_from_image',
   /** Server action verify đề xuất sửa/bổ sung slide (nút Kiểm tra AI). */
   slideProposalVerify: 'curriculum_slide_proposal_verify',
+  /** Server action tạo slide cho một tiết khi mở tiết. */
+  lessonSlideGenerate: 'curriculum_lesson_slide_generate',
 } as const
 
 /** Tắt trừ credit (local / debug): CURRICULUM_AI_CREDITS_DISABLED=1 */
@@ -74,43 +75,10 @@ export async function spendCurriculumAiCredits(
   }
 }
 
-export const ANALYZE_SLIDES_CREDIT_COST = CURRICULUM_UI_CREDITS.analyzeSlides
-
 export const FROM_IMAGE_CREDIT_COST = CURRICULUM_UI_CREDITS.createOrFromImage
+export const LESSON_SLIDE_GENERATE_CREDIT_COST = CURRICULUM_UI_CREDITS.lessonSlideGenerate
 
-/** Hash nội dung giáo trình — gắn metadata khi trừ from_image để miễn trừ analyze-slides bổ sung cùng bundle. */
+/** Hash nội dung giáo trình — dùng metadata thống nhất cho from-image charge event. */
 export function curriculumMarkdownCreditHash(markdown: string): string {
   return createHash('sha256').update(markdown.trim(), 'utf8').digest('hex')
-}
-
-/**
- * User vừa trừ credit `curriculum_from_image` cho đúng nội dung markdown trong cửa sổ thời gian
- * → client gọi analyze-slides bổ sung (slide rỗng sau from-image) không trừ thêm.
- */
-export async function hasRecentFromImageChargeForMarkdown(
-  admin: SupabaseClient,
-  userId: string,
-  markdown: string,
-  windowMinutes = 12
-): Promise<boolean> {
-  const hash = curriculumMarkdownCreditHash(markdown)
-  const since = new Date(Date.now() - windowMinutes * 60 * 1000).toISOString()
-  const { data: rows, error } = await admin
-    .from('language_coach_credit_events')
-    .select('metadata_json')
-    .eq('user_id', userId)
-    .eq('charge_type', CURRICULUM_AI_CHARGE_TYPES.fromImage)
-    .gte('created_at', since)
-    .order('created_at', { ascending: false })
-    .limit(40)
-  if (error || !rows?.length) return false
-  for (const r of rows) {
-    try {
-      const m = JSON.parse(String((r as { metadata_json?: string }).metadata_json || '{}')) as { contentHash?: string }
-      if (m.contentHash === hash) return true
-    } catch {
-      continue
-    }
-  }
-  return false
 }

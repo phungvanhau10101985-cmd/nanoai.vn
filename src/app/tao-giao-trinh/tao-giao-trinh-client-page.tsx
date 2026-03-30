@@ -12,13 +12,17 @@ import { Sparkles, Copy, FileDown, RefreshCw, FileSpreadsheet, FolderOpen, BookO
 import Link from 'next/link'
 import QRCode from 'qrcode'
 import { latexToReadable } from './lib/latex-to-readable'
-import { parseCurriculumToSlides, parseContentToBlocks } from './lib/curriculum-to-slides'
 import { SlideVersionDialog, type SlideVersionChoice } from './components/slide-version-dialog'
 import { CurriculumExerciseListDialog } from './components/curriculum-exercise-list-dialog'
 import type { AISlideData } from './lib/curriculum-to-slides'
 import type { SlideInfographic } from './lib/slide-infographic'
 import { SUBJECTS, GRADE_LEVELS, GRADE_LEVEL_GROUPS, TEXTBOOK_SETS } from './lib/curriculum-subjects'
-import { createCurriculum, saveCurriculum, saveTextbookLessonFromImage, listCurricula, getCurriculumById, getWorksheetById, getWorksheetsByCurriculumId, deleteCurriculum, saveSlidesToCurriculum, getSlidesByCurriculumId, getOriginalSlides, getUserCustomizedSlides, saveOriginalSlidesIfNotExists, checkCurriculumExists, recordCurriculumOpen, clearCurriculumDerivedData, saveWorksheetContent } from './actions'
+import { createCurriculum, saveCurriculum, saveTextbookLessonFromImage, listCurricula, getCurriculumById, getWorksheetById, getWorksheetsByCurriculumId, deleteCurriculum, saveSlidesToCurriculum, checkCurriculumExists, recordCurriculumOpen, clearCurriculumDerivedData, saveWorksheetContent } from './actions'
+import {
+  ensureCurriculumLessonSlidesPreparedAction,
+  getCurriculumLessonMetaAction,
+  getCurriculumSlidesByLessonCachedAction,
+} from './lesson-actions'
 import { extractEditRegions } from './lib/curriculum-region-extract'
 import { highlightMatchInCurriculum } from './components/curriculum-edit-sheet'
 import { parseWorksheetIntoBlocks, replaceBlockInMarkdown } from './lib/worksheet-parse-questions'
@@ -50,6 +54,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { cn } from '@/lib/utils'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import type { CurriculumLessonChunk } from './lib/curriculum-slides-json'
 
 type UiLocale = 'vi' | 'en' | 'zh' | 'ja' | 'ko'
 
@@ -63,6 +69,63 @@ const WS_ACTIVE_JOB_KEY = 'worksheet_active_job'
 const LAST_OPENED_CURRICULUM_KEY = 'tao_giao_trinh_last_opened_curriculum_id'
 /** Ảnh trang sách gửi lên POST /api/curriculum-from-image — khớp MAX_IMAGES trong route. */
 const MAX_CURRICULUM_LESSON_IMAGES = 20
+const LESSON_FALLBACK_SLIDE_SIZE = 10
+
+type CurriculumWorksheetListItem = {
+  id: string
+  topic: string
+  subject_id: string
+  grade_level_id: string
+  content_markdown: string
+  created_at: string
+}
+
+function compactWorksheetList(items: CurriculumWorksheetListItem[] | null | undefined): CurriculumWorksheetListItem[] {
+  if (!Array.isArray(items)) return []
+  // Danh sách chỉ dùng cho chọn phiếu; không giữ full markdown của từng phiếu để tránh phình bộ nhớ.
+  return items.map((w) => ({
+    id: w.id,
+    topic: w.topic,
+    subject_id: w.subject_id,
+    grade_level_id: w.grade_level_id,
+    content_markdown: '',
+    created_at: w.created_at,
+  }))
+}
+
+type LessonSlideGroup = {
+  id: string
+  lessonNo: number
+  indices: number[]
+}
+
+function lessonChunksToGroups(chunks: CurriculumLessonChunk[] | undefined | null): LessonSlideGroup[] {
+  if (!Array.isArray(chunks) || chunks.length === 0) return []
+  return chunks
+    .filter((c) => Number.isFinite(c.lessonNo) && Number.isFinite(c.startIndex) && Number.isFinite(c.endIndex))
+    .map((c) => {
+      const start = Math.max(0, Math.floor(c.startIndex))
+      const end = Math.max(start, Math.floor(c.endIndex))
+      const indices: number[] = []
+      for (let i = start; i <= end; i += 1) indices.push(i)
+      return { id: `lesson-${c.lessonNo}`, lessonNo: Math.floor(c.lessonNo), indices }
+    })
+}
+
+function buildFallbackGroupsByTotalSlides(totalSlides: number): LessonSlideGroup[] {
+  const safeTotal = Number.isFinite(totalSlides) ? Math.max(0, Math.floor(totalSlides)) : 0
+  if (safeTotal <= 0) return []
+  const out: LessonSlideGroup[] = []
+  let lessonNo = 1
+  for (let i = 0; i < safeTotal; i += LESSON_FALLBACK_SLIDE_SIZE) {
+    const end = Math.min(safeTotal, i + LESSON_FALLBACK_SLIDE_SIZE)
+    const indices: number[] = []
+    for (let j = i; j < end; j += 1) indices.push(j)
+    out.push({ id: `lesson-fallback-${lessonNo}`, lessonNo, indices })
+    lessonNo += 1
+  }
+  return out
+}
 
 function normalizeGradeLevelId(id: string): string {
   const map: Record<string, string> = { 'tieu-hoc': 'lop-1', thcs: 'lop-6', thpt: 'lop-12' }
@@ -189,7 +252,7 @@ export default function TaoGiaoTrinhClientPage({
   const [worksheetVerifyPollUntil, setWorksheetVerifyPollUntil] = useState(0)
   const [showBrowse, setShowBrowse] = useState(true)
   const [curriculaList, setCurriculaList] = useState<Array<{ id: string; topic: string; subject_id: string; grade_level_id: string; textbook_set_id?: string; textbook_volume?: string | null; lesson_number?: number | null; lesson_type_id?: string; num_lessons?: number; lesson_duration_minutes?: number; created_at: string }>>([])
-  const [curriculumWorksheets, setCurriculumWorksheets] = useState<Array<{ id: string; topic: string; subject_id: string; grade_level_id: string; content_markdown: string; created_at: string }>>([])
+  const [curriculumWorksheets, setCurriculumWorksheets] = useState<CurriculumWorksheetListItem[]>([])
   const [browseLoading, setBrowseLoading] = useState(false)
   const [browseSubjectFilter, setBrowseSubjectFilter] = useState<string>('')
   const [browseGradeFilter, setBrowseGradeFilter] = useState<string>('')
@@ -202,6 +265,25 @@ export default function TaoGiaoTrinhClientPage({
   const [sharedSlides, setSharedSlides] = useState<AISlideData[] | null>(null)
   const [originalSlides, setOriginalSlides] = useState<AISlideData[] | null>(null)
   const [personalSlides, setPersonalSlides] = useState<AISlideData[] | null>(null)
+  const [hasOriginalOrSharedVersion, setHasOriginalOrSharedVersion] = useState(false)
+  const [hasPersonalVersion, setHasPersonalVersion] = useState(false)
+  const [lessonMetaByMode, setLessonMetaByMode] = useState<Partial<Record<SlideVersionChoice, LessonSlideGroup[]>>>({})
+  const [lessonTotalSlidesByMode, setLessonTotalSlidesByMode] = useState<Partial<Record<SlideVersionChoice, number>>>({})
+  const [lessonSelectOpen, setLessonSelectOpen] = useState(false)
+  const [lessonGroups, setLessonGroups] = useState<LessonSlideGroup[]>([])
+  const [lessonPreparingGroupId, setLessonPreparingGroupId] = useState<string | null>(null)
+  const [lessonPreparingLessonNo, setLessonPreparingLessonNo] = useState<number | null>(null)
+  const pendingLessonOpenRef = useRef<{
+    slides: AISlideData[] | null
+    mode: SlideVersionChoice | null
+    infographic?: SlideInfographic
+    curriculumId?: string | null
+  } | null>(null)
+  const activeOpenedSlidesRef = useRef<AISlideData[] | null>(null)
+  const activeOpenedLessonMarkdownRef = useRef<string | null>(null)
+  const selectedLessonNoRef = useRef<number | null>(null)
+  const openSlidesInFlightRef = useRef(false)
+  const versionChooseArmedRef = useRef(false)
   /** Infographic (một ảnh / giáo trình) theo từng bản lưu — gửi kèm curriculum-data tới cửa sổ GV */
   const [infographicShared, setInfographicShared] = useState<SlideInfographic | undefined>(undefined)
   const [infographicOriginal, setInfographicOriginal] = useState<SlideInfographic | undefined>(undefined)
@@ -271,6 +353,8 @@ export default function TaoGiaoTrinhClientPage({
   const sgkSubmitLockRef = useRef(false)
   const wsStepByStepSubmitLockRef = useRef(false)
   const sgkInputRef = useRef<HTMLInputElement>(null)
+  const lessonTrimTimeoutRef = useRef<number | null>(null)
+  const lessonTrimIdleRef = useRef<number | null>(null)
   const { toast } = useToast()
   const router = useRouter()
   const handleCreationToolShellBack = useCallback(() => {
@@ -281,6 +365,16 @@ export default function TaoGiaoTrinhClientPage({
     router.back()
   }, [featureSection, router])
   useSetCreationToolBackHandler(handleCreationToolShellBack)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const host = window.location.hostname
+    const isLocalHost = host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0'
+    if (!isLocalHost) return
+    if (!('serviceWorker' in navigator)) return
+    void navigator.serviceWorker.getRegistrations()
+      .then((regs) => Promise.all(regs.map((r) => r.unregister())))
+      .catch(() => {})
+  }, [])
   const pageHeaderRef = useRef<HTMLDivElement>(null)
   const curriculumResultRef = useRef<HTMLDivElement>(null)
   const worksheetSectionRef = useRef<HTMLDivElement>(null)
@@ -614,7 +708,7 @@ export default function TaoGiaoTrinhClientPage({
           setWorksheetMarkdown(data.content_markdown)
           setCurriculumWorksheets((prev) =>
             prev.some((w) => w.id === worksheetId)
-              ? prev.map((w) => (w.id === worksheetId ? { ...w, content_markdown: data.content_markdown } : w))
+              ? prev.map((w) => (w.id === worksheetId ? { ...w, content_markdown: '' } : w))
               : prev
           )
         }
@@ -733,7 +827,8 @@ export default function TaoGiaoTrinhClientPage({
       })
       .catch(() => {
         if (!cancelled) {
-          setCurriculumExists(null)
+          // Không khóa nút tạo nếu check tồn tại lỗi mạng/tạm thời.
+          setCurriculumExists(false)
           setExistingCurriculumId(null)
           setExistingCurriculumTopic(null)
           setSimilarTopicCurricula([])
@@ -774,7 +869,13 @@ export default function TaoGiaoTrinhClientPage({
         return
       }
       applyAnalyzeSlidesCreditSideEffects(data as CurriculumAnalyzeSlidesClientData)
-      const { curriculumMarkdown: md, topic: t, lessonNumber: extractedNum, lessonTitle: extractedTitle } = data
+      const {
+        curriculumMarkdown: md,
+        lessonOutline,
+        topic: t,
+        lessonNumber: extractedNum,
+        lessonTitle: extractedTitle,
+      } = data
       if (!md) {
         setStep('INPUT')
         toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: tr('AI không trả về nội dung.', 'AI did not return content.', 'AI未返回内容。', 'AIがコンテンツを返しませんでした。', 'AI가 내용을 반환하지 않았습니다.'), variant: 'destructive' })
@@ -890,6 +991,9 @@ export default function TaoGiaoTrinhClientPage({
       saveFd.append('lessonDurationMinutes', String(lessonDurationMinutes))
       saveFd.append('goals', goals)
       saveFd.append('bookIsbn', textbookSetId === 'khac' ? bookIsbn.trim() : '')
+      if (Array.isArray(lessonOutline) && lessonOutline.length > 0) {
+        saveFd.append('lessonOutlineJson', JSON.stringify({ lessons: lessonOutline }))
+      }
       const saveRes = await saveCurriculum(saveFd)
       if (saveRes?.success && saveRes.curriculumId) {
         setCurriculumId(saveRes.curriculumId)
@@ -905,63 +1009,9 @@ export default function TaoGiaoTrinhClientPage({
           duration: 3800,
         })
         await saveTextbookLessonFromImage({ subjectId, gradeLevelId, textbookSetId, lessonNumber: parseInt(finalLessonNum, 10), lessonTitle: finalTopic })
-        const slidesFromApi = Array.isArray(data?.slides) && data.slides.length > 0 ? (data.slides as AISlideData[]) : null
-        if (slidesFromApi) {
-          setCurriculumSlides(slidesFromApi)
-          await saveSlidesToCurriculum({ curriculumId: saveRes.curriculumId!, topic: finalTopic, subjectId, gradeLevelId, slides: slidesFromApi })
-          await saveOriginalSlidesIfNotExists({ curriculumId: saveRes.curriculumId!, slides: slidesFromApi })
-        } else {
-          void (async () => {
-            try {
-              const slideRes = await fetch('/api/curriculum-analyze-slides', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  curriculumMarkdown: md,
-                  topic: finalTopic,
-                  curriculumId: saveRes.curriculumId!,
-                }),
-              })
-              const slideData = (await slideRes.json().catch(() => ({}))) as CurriculumAnalyzeSlidesClientData
-              if (slideRes.status === 402) {
-                toastAnalyzeSlidesInsufficientCredits(slideData)
-                return
-              }
-              if (slideRes.status === 401 || slideRes.status === 503) {
-                toast({
-                  title:
-                    slideRes.status === 401
-                      ? tr('Cần đăng nhập', 'Sign in required', '需要登录', 'ログインが必要です', '로그인 필요')
-                      : tr('Máy chủ chưa sẵn sàng', 'Server not ready', '服务器未就绪', 'サーバー未準備', '서버 준비 안 됨'),
-                  description:
-                    slideData?.error ||
-                    (slideRes.status === 401
-                      ? tr(
-                          'Đăng nhập để tạo slide giáo trình bằng AI.',
-                          'Sign in to generate curriculum slides with AI.',
-                          '请登录后使用 AI 生成课程幻灯片。',
-                          'AIでカリキュラムスライドを作るにはログインしてください。',
-                          'AI로 교육과정 슬라이드를 만들려면 로그인해 주세요.'
-                        )
-                      : tr('Thử lại sau.', 'Try again later.', '请稍后重试。', '後でもう一度お試しください。', '잠시 후 다시 시도해 주세요.')),
-                  variant: 'destructive',
-                })
-                return
-              }
-              if (slideRes.ok && Array.isArray(slideData?.slides) && slideData.slides.length > 0) {
-                const slides = slideData.slides as AISlideData[]
-                applyAnalyzeSlidesCreditSideEffects(slideData)
-                setCurriculumSlides(slides)
-                if (!slideData.fromCache) {
-                  await saveSlidesToCurriculum({ curriculumId: saveRes.curriculumId!, topic: finalTopic, subjectId, gradeLevelId, slides })
-                  await saveOriginalSlidesIfNotExists({ curriculumId: saveRes.curriculumId!, slides })
-                }
-              }
-            } catch (e) {
-              console.warn('[auto-slides]', e)
-            }
-          })()
-        }
+        // Không tạo slide ở bước tạo giáo trình.
+        // Slide sẽ được tạo theo từng tiết khi giáo viên chọn tiết để mở.
+        setCurriculumSlides(null)
       } else {
         setCurriculumId(null)
         setStep('RESULT')
@@ -1006,60 +1056,9 @@ export default function TaoGiaoTrinhClientPage({
       if (result.success && result.curriculumMarkdown) {
         setCurriculumMarkdown(result.curriculumMarkdown)
         setCurriculumId(result.curriculumId ?? null)
+        setCurriculumSlides(null)
         setStep('RESULT')
         toast({ title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'), description: tr('Giáo trình đã được tạo.', 'Curriculum created.', '课程已创建并保存。', 'カリキュラムを作成しました。', '교육과정 생성됨.'), duration: 3000 })
-        if (result.curriculumId) {
-          void (async () => {
-            try {
-              const res = await fetch('/api/curriculum-analyze-slides', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  curriculumMarkdown: result.curriculumMarkdown,
-                  topic: topic.trim(),
-                  curriculumId: result.curriculumId!,
-                }),
-              })
-              const data = (await res.json().catch(() => ({}))) as CurriculumAnalyzeSlidesClientData
-              if (res.status === 402) {
-                toastAnalyzeSlidesInsufficientCredits(data)
-                return
-              }
-              if (res.status === 401 || res.status === 503) {
-                toast({
-                  title:
-                    res.status === 401
-                      ? tr('Cần đăng nhập', 'Sign in required', '需要登录', 'ログインが必要です', '로그인 필요')
-                      : tr('Máy chủ chưa sẵn sàng', 'Server not ready', '服务器未就绪', 'サーバー未準備', '서버 준비 안 됨'),
-                  description:
-                    data?.error ||
-                    (res.status === 401
-                      ? tr(
-                          'Đăng nhập để tạo slide giáo trình bằng AI.',
-                          'Sign in to generate curriculum slides with AI.',
-                          '请登录后使用 AI 生成课程幻灯片。',
-                          'AIでカリキュラムスライドを作るにはログインしてください。',
-                          'AI로 교육과정 슬라이드를 만들려면 로그인해 주세요.'
-                        )
-                      : tr('Thử lại sau.', 'Try again later.', '请稍后重试。', '後でもう一度お試しください。', '잠시 후 다시 시도해 주세요.')),
-                  variant: 'destructive',
-                })
-                return
-              }
-              if (res.ok && Array.isArray(data?.slides) && data.slides.length > 0) {
-                const slides = data.slides as AISlideData[]
-                applyAnalyzeSlidesCreditSideEffects(data)
-                setCurriculumSlides(slides)
-                if (!data.fromCache) {
-                  await saveSlidesToCurriculum({ curriculumId: result.curriculumId!, topic: topic.trim(), subjectId, gradeLevelId, slides })
-                  await saveOriginalSlidesIfNotExists({ curriculumId: result.curriculumId!, slides })
-                }
-              }
-            } catch (e) {
-              console.warn('[auto-slides] Lỗi:', e)
-            }
-          })()
-        }
       }
       return
     }
@@ -1199,7 +1198,17 @@ export default function TaoGiaoTrinhClientPage({
   }
 
   const openGiaoVienWindow = useCallback(
-    (slidesToUse: AISlideData[] | null, mode: SlideVersionChoice | null = null, curriculumInfographicSend?: SlideInfographic | undefined) => {
+    (
+      slidesToUse: AISlideData[] | null,
+      mode: SlideVersionChoice | null = null,
+      curriculumInfographicSend?: SlideInfographic | undefined,
+      lessonMarkdownOverride?: string | null
+    ) => {
+      if (curriculumId && !versionChooseArmedRef.current) {
+        console.warn('[lesson-open] blocked open before choosing version', { curriculumId, mode })
+        setShowSlideVersionDialog(true)
+        return
+      }
       const slides =
         slidesToUse && slidesToUse.length > 0
           ? slidesToUse.map((s) => ({
@@ -1215,11 +1224,25 @@ export default function TaoGiaoTrinhClientPage({
               visualInput3: (s as { visualInput3?: string }).visualInput3,
               visualInput4: (s as { visualInput4?: string }).visualInput4,
             }))
-          : parseCurriculumToSlides(curriculumMarkdown).map((s) => ({
-              title: s.title,
-              blocks: parseContentToBlocks(s.content ?? ''),
-              teacherNotes: '',
-            }))
+          : []
+      if (!slides || slides.length <= 0) {
+        toast({
+          title: tr('Chưa có slide theo tiết', 'No lesson slides yet', '尚无课时幻灯片', '授業スライドがまだありません', '차시 슬라이드가 아직 없습니다'),
+          description: tr(
+            'Vui lòng chọn tiết để tạo/mở slide của riêng tiết đó.',
+            'Please choose a lesson to create/open slides for that lesson only.',
+            '请选择课时，仅生成/打开该课时幻灯片。',
+            '授業を選択して、その授業のスライドのみ作成/表示してください。',
+            '차시를 선택해 해당 차시 슬라이드만 생성/열어 주세요.'
+          ),
+          variant: 'destructive',
+        })
+        return
+      }
+      activeOpenedSlidesRef.current = slides
+      activeOpenedLessonMarkdownRef.current = typeof lessonMarkdownOverride === 'string' && lessonMarkdownOverride.trim()
+        ? lessonMarkdownOverride.trim()
+        : curriculumMarkdown
       const resolvedInfographic =
         curriculumInfographicSend ??
         (mode === 'personal'
@@ -1243,13 +1266,14 @@ export default function TaoGiaoTrinhClientPage({
               w.postMessage(
                 {
                   type: 'curriculum-data',
-                  content: curriculumMarkdown,
+                  content: activeOpenedLessonMarkdownRef.current ?? curriculumMarkdown,
+                  fullCurriculumMarkdown: curriculumMarkdown,
                   topic: displayTopic,
                   currentIndex: 0,
                   curriculumId: curriculumId ?? null,
                   slideMode: mode === 'personal' ? 'personal' : mode === 'shared' ? 'shared' : mode === 'original' ? 'original' : null,
                   personalViewSubMode: 'current',
-                  hasOriginalSlides: !!(originalSlides?.length || sharedSlides?.length),
+                  hasOriginalSlides: hasOriginalOrSharedVersion,
                   slides,
                   teacherTimerSeconds: 0,
                   teacherTimerRunning: false,
@@ -1266,19 +1290,164 @@ export default function TaoGiaoTrinhClientPage({
         setTimeout(send, 700)
       }
     },
-    [curriculumMarkdown, displayTopic, curriculumId, originalSlides, sharedSlides, infographicShared, infographicOriginal, infographicPersonal]
+    [curriculumMarkdown, displayTopic, curriculumId, hasOriginalOrSharedVersion, infographicShared, infographicOriginal, infographicPersonal, toast, tr]
   )
+
+  const clearSlideVersionCaches = useCallback(() => {
+    // Giải phóng các mảng version lớn khi không còn cần cho popup chọn phiên bản.
+    setSharedSlides(null)
+    setOriginalSlides(null)
+    setPersonalSlides(null)
+  }, [])
+
+  const clearLessonTransientCaches = useCallback((dropLessonMeta = false) => {
+    pendingLessonOpenRef.current = null
+    setLessonGroups([])
+    if (dropLessonMeta) {
+      setLessonMetaByMode({})
+      setLessonTotalSlidesByMode({})
+    }
+  }, [])
+
+  const cancelScheduledLessonTrim = useCallback(() => {
+    if (typeof window === 'undefined') return
+    if (lessonTrimTimeoutRef.current != null) {
+      window.clearTimeout(lessonTrimTimeoutRef.current)
+      lessonTrimTimeoutRef.current = null
+    }
+    if (lessonTrimIdleRef.current != null) {
+      const w = window as Window & { cancelIdleCallback?: (id: number) => void }
+      if (typeof w.cancelIdleCallback === 'function') {
+        w.cancelIdleCallback(lessonTrimIdleRef.current)
+      }
+      lessonTrimIdleRef.current = null
+    }
+  }, [])
+
+  const scheduleLessonIdleTrim = useCallback(() => {
+    if (typeof window === 'undefined') return
+    cancelScheduledLessonTrim()
+    lessonTrimTimeoutRef.current = window.setTimeout(() => {
+      lessonTrimTimeoutRef.current = null
+      const runTrim = () => {
+        clearLessonTransientCaches(true)
+        clearSlideVersionCaches()
+      }
+      const w = window as Window & { requestIdleCallback?: (cb: IdleRequestCallback) => number }
+      if (typeof w.requestIdleCallback === 'function') {
+        lessonTrimIdleRef.current = w.requestIdleCallback(() => {
+          lessonTrimIdleRef.current = null
+          runTrim()
+        })
+      } else {
+        runTrim()
+      }
+    }, 1200)
+  }, [cancelScheduledLessonTrim, clearLessonTransientCaches, clearSlideVersionCaches])
+
+  useEffect(() => {
+    return () => {
+      cancelScheduledLessonTrim()
+    }
+  }, [cancelScheduledLessonTrim])
+
+  const handleSlideVersionDialogOpenChange = useCallback((open: boolean) => {
+    setShowSlideVersionDialog(open)
+    if (!open) clearSlideVersionCaches()
+  }, [clearSlideVersionCaches])
+
+  const handleLessonSelectOpenChange = useCallback((open: boolean) => {
+    setLessonSelectOpen(open)
+    if (!open) {
+      setLessonPreparingGroupId(null)
+      setLessonPreparingLessonNo(null)
+      clearLessonTransientCaches(false)
+      clearSlideVersionCaches()
+    }
+  }, [clearLessonTransientCaches, clearSlideVersionCaches])
+
+  const handleLessonChoose = useCallback(async (groupId: string) => {
+    if (lessonPreparingGroupId) return
+    const pending = pendingLessonOpenRef.current
+    if (!pending) {
+      handleLessonSelectOpenChange(false)
+      return
+    }
+    const group = lessonGroups.find((g) => g.id === groupId)
+    if (!group || group.indices.length === 0) {
+      handleLessonSelectOpenChange(false)
+      return
+    }
+    setLessonPreparingGroupId(groupId)
+    setLessonPreparingLessonNo(group.lessonNo)
+    if (pending.curriculumId) {
+      setSlideAnalysisLoading(true)
+      try {
+        const ensurePrepared = await ensureCurriculumLessonSlidesPreparedAction(
+          pending.curriculumId,
+          group.lessonNo
+        )
+        if (!ensurePrepared || !('success' in ensurePrepared) || !ensurePrepared.success) {
+          toast({
+            title: tr('Không chuẩn bị được slide tiết đã chọn', 'Cannot prepare selected lesson slides', '无法准备所选课时幻灯片', '選択した授業スライドを準備できません', '선택한 차시 슬라이드를 준비할 수 없습니다'),
+            description: 'error' in (ensurePrepared ?? {}) ? String((ensurePrepared as { error?: unknown }).error ?? '') : undefined,
+            variant: 'destructive',
+          })
+          handleLessonSelectOpenChange(false)
+          return
+        }
+        setHasOriginalOrSharedVersion(true)
+        const sharedMeta = await getCurriculumLessonMetaAction(pending.curriculumId, 'shared')
+        const personalMeta = await getCurriculumLessonMetaAction(pending.curriculumId, 'personal')
+        if (sharedMeta?.success) setInfographicShared(sharedMeta.curriculumInfographic)
+        if (personalMeta?.success) setInfographicPersonal(personalMeta.curriculumInfographic)
+        selectedLessonNoRef.current = group.lessonNo
+        setLessonSelectOpen(false)
+        // Đóng popup chọn tiết trước, rồi mở popup chọn bản ở tick kế tiếp
+        // để tránh trường hợp Radix Dialog nuốt lần mở kế tiếp.
+        window.setTimeout(() => {
+          setShowSlideVersionDialog(true)
+        }, 0)
+        scheduleLessonIdleTrim()
+        return
+      } finally {
+        setSlideAnalysisLoading(false)
+        setLessonPreparingGroupId(null)
+        setLessonPreparingLessonNo(null)
+      }
+    }
+    if (!pending.slides || pending.slides.length === 0) {
+        handleLessonSelectOpenChange(false)
+      return
+    }
+    try {
+      const selectedSlides = group.indices
+        .map((idx) => pending.slides?.[idx] ?? null)
+        .filter((s): s is AISlideData => !!s)
+      setAiSlides(selectedSlides.length > 0 ? selectedSlides : null)
+      openGiaoVienWindow(selectedSlides, pending.mode, pending.infographic)
+      setLessonSelectOpen(false)
+      scheduleLessonIdleTrim()
+    } finally {
+      setLessonPreparingGroupId(null)
+      setLessonPreparingLessonNo(null)
+    }
+  }, [lessonGroups, openGiaoVienWindow, handleLessonSelectOpenChange, lessonPreparingGroupId, scheduleLessonIdleTrim, toast, tr])
 
   const refreshPersonalSlides = useCallback(async () => {
     if (!curriculumId) return
-    const res = await getUserCustomizedSlides(curriculumId)
-    if (res?.success && res.slides?.length) {
-      setPersonalSlides(res.slides)
+    const res = await getCurriculumLessonMetaAction(curriculumId, 'personal')
+    if (res?.success && ((res.totalSlides ?? 0) > 0 || (res.lessonCount ?? 0) > 0)) {
+      setHasPersonalVersion(true)
       setInfographicPersonal(res.curriculumInfographic)
-    } else {
-      setPersonalSlides(null)
-      setInfographicPersonal(undefined)
+      setLessonMetaByMode((prev) => ({ ...prev, personal: lessonChunksToGroups(res.lessons) }))
+      setLessonTotalSlidesByMode((prev) => ({ ...prev, personal: Math.max(0, Number(res.totalSlides) || 0) }))
+      return
     }
+    setHasPersonalVersion(false)
+    setInfographicPersonal(undefined)
+    setLessonMetaByMode((prev) => ({ ...prev, personal: [] }))
+    setLessonTotalSlidesByMode((prev) => ({ ...prev, personal: 0 }))
   }, [curriculumId])
 
   useEffect(() => {
@@ -1291,16 +1460,12 @@ export default function TaoGiaoTrinhClientPage({
       if (e.data?.type !== 'request-curriculum') return
       const target = e.source as Window | null
       if (!target) return
-      let slidesToUse = aiSlides ?? curriculumSlides ?? null
-      if (curriculumId && slideVersionChoice === 'personal') {
-        const res = await getUserCustomizedSlides(curriculumId)
-        if (res?.success && res.slides?.length) {
-          setPersonalSlides(res.slides)
-          setInfographicPersonal(res.curriculumInfographic)
-          slidesToUse = res.slides
-        }
-      }
+      let slidesToUse = aiSlides ?? activeOpenedSlidesRef.current ?? curriculumSlides ?? null
+      const contentForTeacher = activeOpenedLessonMarkdownRef.current ?? curriculumMarkdown
       const slides =
+        curriculumId && slideVersionChoice === null
+          ? []
+          :
         slidesToUse && slidesToUse.length > 0
           ? slidesToUse.map((s) => ({
               title: s.title,
@@ -1315,11 +1480,7 @@ export default function TaoGiaoTrinhClientPage({
               visualInput3: (s as { visualInput3?: string }).visualInput3,
               visualInput4: (s as { visualInput4?: string }).visualInput4,
             }))
-          : parseCurriculumToSlides(curriculumMarkdown).map((s) => ({
-              title: s.title,
-              blocks: parseContentToBlocks(s.content ?? ''),
-              teacherNotes: '',
-            }))
+          : []
       const requestInfographic =
         slideVersionChoice === 'personal'
           ? infographicPersonal
@@ -1332,13 +1493,14 @@ export default function TaoGiaoTrinhClientPage({
         target.postMessage(
           {
             type: 'curriculum-data',
-            content: curriculumMarkdown,
+            content: contentForTeacher,
+            fullCurriculumMarkdown: curriculumMarkdown,
             topic: displayTopic,
             currentIndex: 0,
             curriculumId: curriculumId ?? null,
             slideMode: slideVersionChoice ?? null,
             personalViewSubMode: 'current',
-            hasOriginalSlides: !!(originalSlides?.length || sharedSlides?.length),
+            hasOriginalSlides: hasOriginalOrSharedVersion,
             slides,
             teacherTimerSeconds: 0,
             teacherTimerRunning: false,
@@ -1352,172 +1514,205 @@ export default function TaoGiaoTrinhClientPage({
     }
     window.addEventListener('message', handler)
     return () => window.removeEventListener('message', handler)
-  }, [curriculumMarkdown, displayTopic, curriculumId, aiSlides, curriculumSlides, slideVersionChoice, originalSlides, sharedSlides, refreshPersonalSlides, infographicShared, infographicOriginal, infographicPersonal])
+  }, [curriculumMarkdown, displayTopic, curriculumId, aiSlides, curriculumSlides, slideVersionChoice, hasOriginalOrSharedVersion, refreshPersonalSlides, infographicShared, infographicOriginal, infographicPersonal])
 
   const handleOpenSlides = async () => {
     if (!curriculumMarkdown.trim()) return
-    if (curriculumId) {
-      const [sharedRes, originalRes, personalRes] = await Promise.all([
-        getSlidesByCurriculumId(curriculumId),
-        getOriginalSlides(curriculumId),
-        getUserCustomizedSlides(curriculumId),
-      ])
-      const shared = sharedRes?.success && sharedRes.slides?.length ? sharedRes.slides : null
-      const original = originalRes?.success && originalRes.slides?.length ? originalRes.slides : null
-      const personal = personalRes?.success && personalRes.slides?.length ? personalRes.slides : null
-      setSharedSlides(shared)
-      setOriginalSlides(original)
-      setPersonalSlides(personal)
-      setInfographicShared(sharedRes?.curriculumInfographic)
-      setInfographicOriginal(originalRes?.curriculumInfographic)
-      setInfographicPersonal(personalRes?.curriculumInfographic)
-      if (shared || original || personal) {
-        setShowSlideVersionDialog(true)
-        return
-      }
-    }
-    if (curriculumSlides && curriculumSlides.length > 0 && !curriculumId) {
-      setAiSlides(curriculumSlides)
-      setSlideVersionChoice(null)
-      openGiaoVienWindow(curriculumSlides, null)
-      return
-    }
+    if (openSlidesInFlightRef.current) return
+    openSlidesInFlightRef.current = true
+    activeOpenedLessonMarkdownRef.current = null
+    selectedLessonNoRef.current = null
+    versionChooseArmedRef.current = false
+    setSlideVersionChoice(null)
     setSlideAnalysisLoading(true)
     try {
-      const res = await fetch('/api/curriculum-analyze-slides', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          curriculumMarkdown,
-          topic: displayTopic,
-          ...(curriculumId ? { curriculumId } : {}),
-        }),
-      })
-      const data = (await res.json().catch(() => ({}))) as CurriculumAnalyzeSlidesClientData
-      if (res.status === 402) {
-        toastAnalyzeSlidesInsufficientCredits(data)
-        setAiSlides(null)
-        setSlideVersionChoice(null)
-        openGiaoVienWindow(null, null)
-        return
-      }
-      if (res.status === 401) {
+      if (curriculumId) {
+        const [sharedMeta, originalMeta, personalMeta] = await Promise.all([
+          getCurriculumLessonMetaAction(curriculumId, 'shared'),
+          getCurriculumLessonMetaAction(curriculumId, 'original'),
+          getCurriculumLessonMetaAction(curriculumId, 'personal'),
+        ])
+        const hasShared = !!(sharedMeta && 'success' in sharedMeta && sharedMeta.success && ((sharedMeta.totalSlides ?? 0) > 0 || (sharedMeta.lessonCount ?? 0) > 0))
+        const hasOriginal = !!(originalMeta && 'success' in originalMeta && originalMeta.success && ((originalMeta.totalSlides ?? 0) > 0 || (originalMeta.lessonCount ?? 0) > 0))
+        const hasPersonal = !!(personalMeta && 'success' in personalMeta && personalMeta.success && ((personalMeta.totalSlides ?? 0) > 0 || (personalMeta.lessonCount ?? 0) > 0))
+        setHasOriginalOrSharedVersion(hasShared || hasOriginal)
+        setHasPersonalVersion(hasPersonal)
+        setLessonMetaByMode({
+          shared: hasShared ? lessonChunksToGroups(sharedMeta.lessons) : [],
+          original: hasOriginal ? lessonChunksToGroups(originalMeta.lessons) : [],
+          personal: hasPersonal ? lessonChunksToGroups(personalMeta.lessons) : [],
+        })
+        setLessonTotalSlidesByMode({
+          shared: hasShared ? Math.max(0, Number(sharedMeta.totalSlides) || 0) : 0,
+          original: hasOriginal ? Math.max(0, Number(originalMeta.totalSlides) || 0) : 0,
+          personal: hasPersonal ? Math.max(0, Number(personalMeta.totalSlides) || 0) : 0,
+        })
+        setInfographicShared(hasShared ? sharedMeta.curriculumInfographic : undefined)
+        setInfographicOriginal(hasOriginal ? originalMeta.curriculumInfographic : undefined)
+        setInfographicPersonal(hasPersonal ? personalMeta.curriculumInfographic : undefined)
+        const sharedGroups = hasShared ? lessonChunksToGroups(sharedMeta.lessons) : []
+        const originalGroups = hasOriginal ? lessonChunksToGroups(originalMeta.lessons) : []
+        const personalGroups = hasPersonal ? lessonChunksToGroups(personalMeta.lessons) : []
+        const groups = sharedGroups.length > 0
+          ? sharedGroups
+          : originalGroups.length > 0
+            ? originalGroups
+            : personalGroups.length > 0
+              ? personalGroups
+              : []
+        if (groups.length > 0) {
+          pendingLessonOpenRef.current = {
+            slides: null,
+            mode: null,
+            curriculumId,
+          }
+          setLessonGroups(groups)
+          setLessonSelectOpen(true)
+          return
+        }
         toast({
-          title: tr('Cần đăng nhập', 'Sign in required', '需要登录', 'ログインが必要です', '로그인 필요'),
+          title: tr(
+            'Chưa có dữ liệu tiết để mở',
+            'Lesson data is not ready yet',
+            '尚未准备好课时数据',
+            '授業データがまだ準備できていません',
+            '차시 데이터가 아직 준비되지 않았습니다'
+          ),
           description: tr(
-            'Đăng nhập để tạo slide giáo trình bằng AI.',
-            'Sign in to generate curriculum slides with AI.',
-            '请登录后使用 AI 生成课程幻灯片。',
-            'AIでカリキュラムスライドを作るにはログインしてください。',
-            'AI로 교육과정 슬라이드를 만들려면 로그인해 주세요.'
+            'Vui lòng chạy backfill tiết hoặc lưu lại giáo trình để hệ thống tách JSON theo từng tiết.',
+            'Please run lesson backfill or save curriculum again to build per-lesson JSON.',
+            '请先执行课时回填，或重新保存课程以生成按课时 JSON。',
+            '先に授業バックフィルを実行するか、カリキュラムを再保存して授業ごとのJSONを作成してください。',
+            '차시 백필을 실행하거나 교육과정을 다시 저장해 차시별 JSON을 생성해 주세요.'
           ),
           variant: 'destructive',
         })
-        setAiSlides(null)
-        setSlideVersionChoice(null)
-        openGiaoVienWindow(null, null)
         return
       }
-      if (res.status === 503) {
-        toast({
-          title: tr('Máy chủ chưa sẵn sàng', 'Server not ready', '服务器未就绪', 'サーバー未準備', '서버 준비 안 됨'),
-          description: data?.error || tr('Thử lại sau.', 'Try again later.', '请稍后重试。', '後でもう一度お試しください。', '잠시 후 다시 시도해 주세요.'),
-          variant: 'destructive',
-        })
-        setAiSlides(null)
-        setSlideVersionChoice(null)
-        openGiaoVienWindow(null, null)
-        return
-      }
-      if (!res.ok) {
-        console.error('[curriculum-analyze-slides] API lỗi:', res.status, data)
-      }
-      if (res.ok && Array.isArray(data?.slides) && data.slides.length > 0) {
-        const slides = data.slides as AISlideData[]
-        applyAnalyzeSlidesCreditSideEffects(data)
-        setCurriculumSlides(slides)
-        if (curriculumId && !data.fromCache) {
-          const saveRes = await saveSlidesToCurriculum({
-            curriculumId,
-            topic: displayTopic,
-            subjectId,
-            gradeLevelId,
-            slides,
-          })
-          if (saveRes?.error) {
-            toast({ title: tr('Lưu slide thất bại', 'Save slides failed', '保存幻灯片失败', 'スライド保存失敗', '슬라이드 저장 실패'), description: saveRes.error, variant: 'destructive' })
-          }
-          await saveOriginalSlidesIfNotExists({ curriculumId, slides })
-        }
-        if (curriculumId) {
-          const [sharedRes, originalRes, personalRes] = await Promise.all([
-            getSlidesByCurriculumId(curriculumId),
-            getOriginalSlides(curriculumId),
-            getUserCustomizedSlides(curriculumId),
-          ])
-          setSharedSlides(sharedRes?.success && sharedRes.slides?.length ? sharedRes.slides : null)
-          setOriginalSlides(originalRes?.success && originalRes.slides?.length ? originalRes.slides : null)
-          setPersonalSlides(personalRes?.success && personalRes.slides?.length ? personalRes.slides : null)
-          setInfographicShared(sharedRes?.curriculumInfographic)
-          setInfographicOriginal(originalRes?.curriculumInfographic)
-          setInfographicPersonal(personalRes?.curriculumInfographic)
-          setShowSlideVersionDialog(true)
-        } else {
-          setAiSlides(slides)
-          setSlideVersionChoice(null)
-          openGiaoVienWindow(slides, null)
-        }
-      } else {
-        setAiSlides(null)
-        setSlideVersionChoice(null)
-        openGiaoVienWindow(null, null)
-        if (!res.ok) {
-          toast({
-            title: tr('Tạo nội dung giảng thất bại', 'Teaching content generation failed', '生成教学内容失败', '授業内容生成失敗', '수업 내용 생성 실패'),
-            description: data?.error || tr('Dùng slide parse từ Markdown.', 'Using Markdown parsing.', '使用Markdown解析。', 'Markdown解析を使用。', 'Markdown 파싱 사용.'),
-            variant: 'destructive',
-          })
-        }
-      }
-    } catch (err) {
-      console.error('[curriculum-analyze-slides] Fetch lỗi:', err)
-      setAiSlides(null)
-      setSlideVersionChoice(null)
-      openGiaoVienWindow(null, null)
       toast({
-        title: tr('Lỗi kết nối', 'Connection error', '连接错误', '接続エラー', '연결 오류'),
-        description: err instanceof Error ? err.message : tr('Dùng nội dung parse từ Markdown.', 'Using Markdown parsing.', '使用Markdown解析。', 'Markdown解析を使用。', 'Markdown 파싱 사용.'),
+        title: tr(
+          'Vui lòng lưu giáo trình trước',
+          'Please save curriculum first',
+          '请先保存课程',
+          '先にカリキュラムを保存してください',
+          '먼저 교육과정을 저장해 주세요'
+        ),
+        description: tr(
+          'Luồng hiện tại chỉ mở slide theo từng tiết từ dữ liệu DB đã lưu.',
+          'Current flow only opens slides by lesson from saved DB data.',
+          '当前流程仅支持从已保存的数据库按课时打开幻灯片。',
+          '現在のフローは保存済みDBデータから授業単位でのみスライドを開きます。',
+          '현재 플로우는 저장된 DB 데이터에서 차시 단위로만 슬라이드를 엽니다.'
+        ),
         variant: 'destructive',
       })
     } finally {
       setSlideAnalysisLoading(false)
+      openSlidesInFlightRef.current = false
     }
   }
 
   const handleSlideVersionChoose = (choice: SlideVersionChoice) => {
+    versionChooseArmedRef.current = true
     setSlideVersionChoice(choice)
-    const firstNonEmpty = (...candidates: (AISlideData[] | null | undefined)[]) => {
-      for (const c of candidates) {
-        if (c && c.length > 0) return c
+    if (curriculumId) {
+      const infForChoice =
+        choice === 'personal' ? infographicPersonal : choice === 'original' ? infographicOriginal : infographicShared
+      const selectedLessonNo = selectedLessonNoRef.current
+      if (!selectedLessonNo || selectedLessonNo <= 0) {
+        const groups = lessonMetaByMode.shared ?? lessonMetaByMode.original ?? lessonMetaByMode.personal ?? []
+        if (groups.length > 0) {
+          pendingLessonOpenRef.current = { slides: null, mode: null, curriculumId }
+          setLessonGroups(groups)
+          setLessonSelectOpen(true)
+          clearSlideVersionCaches()
+          return
+        }
+        toast({
+          title: tr('Chưa chọn tiết học', 'Lesson is not selected', '尚未选择课时', '授業が未選択です', '차시가 선택되지 않았습니다'),
+          description: tr(
+            'Vui lòng chọn tiết trước rồi mới chọn bản chung/bản riêng.',
+            'Please choose lesson first, then choose shared/personal version.',
+            '请先选择课时，再选择共享/个人版本。',
+            '先に授業を選択してから、共有/個人版を選択してください。',
+            '먼저 차시를 선택한 뒤 공유/개인 버전을 선택해 주세요.'
+          ),
+          variant: 'destructive',
+        })
+        clearSlideVersionCaches()
+        return
       }
-      return [] as AISlideData[]
+      void (async () => {
+        const res = await getCurriculumSlidesByLessonCachedAction(curriculumId, choice, selectedLessonNo)
+        if (res?.success && Array.isArray(res.slides) && res.slides.length > 0) {
+          const source = String((res as { source?: unknown }).source ?? '')
+          console.log('[lesson-open] slide-source', {
+            curriculumId,
+            lessonNo: selectedLessonNo,
+            mode: choice,
+            source,
+            generated: !!(res as { generated?: unknown }).generated,
+            slideCount: res.slides.length,
+          })
+          const selectedSlides = res.slides as AISlideData[]
+          const lessonMarkdown = typeof (res as { lessonMarkdown?: unknown }).lessonMarkdown === 'string'
+            ? String((res as { lessonMarkdown?: string }).lessonMarkdown || '')
+            : ''
+          if (source === 'fallback-empty' || source === 'fallback-error') {
+            toast({
+              title: tr(
+                'Đang dùng fallback tạm',
+                'Using fallback slides',
+                '正在使用回退幻灯片',
+                'フォールバックスライドを使用中',
+                '대체 슬라이드 사용 중'
+              ),
+              description: tr(
+                'AI chưa trả JSON slide hợp lệ cho tiết này, hệ thống tạm dựng slide từ markdown tiết.',
+                'AI did not return valid JSON slides for this lesson, so temporary slides were built from lesson markdown.',
+                'AI未返回该课时的有效JSON幻灯片，系统已临时从课时Markdown生成。',
+                'AIがこの授業の有効なJSONスライドを返せなかったため、授業Markdownから暫定スライドを生成しました。',
+                'AI가 해당 차시의 유효한 JSON 슬라이드를 반환하지 않아 차시 마크다운 기반 임시 슬라이드를 사용합니다.'
+              ),
+              variant: 'destructive',
+            })
+          }
+          setAiSlides(selectedSlides)
+          openGiaoVienWindow(selectedSlides, choice, infForChoice, lessonMarkdown || null)
+          scheduleLessonIdleTrim()
+          return
+        }
+        toast({
+          title: tr('Không mở được tiết đã chọn', 'Cannot open selected lesson', '无法打开所选课时', '選択した授業を開けません', '선택한 차시를 열 수 없습니다'),
+          variant: 'destructive',
+        })
+      })()
+      clearSlideVersionCaches()
+      return
     }
-    const slides =
-      choice === 'original'
-        ? firstNonEmpty(originalSlides, sharedSlides, personalSlides)
-        : choice === 'shared'
-          ? firstNonEmpty(sharedSlides, originalSlides, personalSlides)
-          : firstNonEmpty(personalSlides, sharedSlides, originalSlides)
-    setAiSlides(slides.length > 0 ? slides : null)
-    const infForChoice =
-      choice === 'personal' ? infographicPersonal : choice === 'original' ? infographicOriginal : infographicShared
-    openGiaoVienWindow(slides.length > 0 ? slides : null, choice, infForChoice)
+    toast({
+      title: tr('Vui lòng lưu giáo trình trước', 'Please save curriculum first', '请先保存课程', '先にカリキュラムを保存してください', '먼저 교육과정을 저장해 주세요'),
+      description: tr(
+        'Luồng hiện tại chỉ mở slide theo từng tiết từ dữ liệu DB đã lưu.',
+        'Current flow only opens slides by lesson from saved DB data.',
+        '当前流程仅支持从已保存的数据库按课时打开幻灯片。',
+        '現在のフローは保存済みDBデータから授業単位でのみスライドを開きます。',
+        '현재 플로우는 저장된 DB 데이터에서 차시 단위로만 슬라이드를 엽니다.'
+      ),
+      variant: 'destructive',
+    })
+    clearSlideVersionCaches()
   }
 
   const handleReset = () => {
+    cancelScheduledLessonTrim()
     setStep('INPUT')
     setCurriculumMarkdown('')
     setCurriculumId(null)
+    versionChooseArmedRef.current = false
+    activeOpenedSlidesRef.current = null
+    activeOpenedLessonMarkdownRef.current = null
+    selectedLessonNoRef.current = null
     setCurriculumEditMode(false)
     setEditOriginalText('')
     setEditEditedText('')
@@ -1535,6 +1730,14 @@ export default function TaoGiaoTrinhClientPage({
     setCurriculumWorksheets([])
     setCurriculumSlides(null)
     setAiSlides(null)
+    setSharedSlides(null)
+    setOriginalSlides(null)
+    setPersonalSlides(null)
+    setHasOriginalOrSharedVersion(false)
+    setHasPersonalVersion(false)
+    setLessonMetaByMode({})
+    setLessonTotalSlidesByMode({})
+    setLessonGroups([])
     setInfographicShared(undefined)
     setInfographicOriginal(undefined)
     setInfographicPersonal(undefined)
@@ -2106,7 +2309,7 @@ export default function TaoGiaoTrinhClientPage({
       }
       setWorksheetMarkdown(newMarkdown)
       setCurriculumWorksheets((prev) =>
-        prev.map((w) => (w.id === worksheetId ? { ...w, content_markdown: newMarkdown } : w))
+        prev.map((w) => (w.id === worksheetId ? { ...w, content_markdown: '' } : w))
       )
       setWorksheetEditBlockIndex(null)
       setWorksheetEditBlockContent('')
@@ -2252,37 +2455,28 @@ export default function TaoGiaoTrinhClientPage({
       setFeatureSection('create')
       setAiSlides(null)
       const wsRes = await getWorksheetsByCurriculumId(id)
-      if (wsRes && 'items' in wsRes) setCurriculumWorksheets((wsRes.items ?? []) as Array<{ id: string; topic: string; subject_id: string; grade_level_id: string; content_markdown: string; created_at: string }>)
+      if (wsRes && 'items' in wsRes) setCurriculumWorksheets(compactWorksheetList((wsRes.items ?? []) as CurriculumWorksheetListItem[]))
       else setCurriculumWorksheets([])
-      const [slidesRes, originalSlidesRes, personalSlidesRes] = await Promise.all([
-        getSlidesByCurriculumId(id),
-        getOriginalSlides(id),
-        getUserCustomizedSlides(id),
+      const [sharedMeta, originalMeta, personalMeta] = await Promise.all([
+        getCurriculumLessonMetaAction(id, 'shared'),
+        getCurriculumLessonMetaAction(id, 'original'),
+        getCurriculumLessonMetaAction(id, 'personal'),
       ])
-      if (slidesRes && 'error' in slidesRes && slidesRes.error) {
-        setCurriculumSlides(null)
-        setInfographicShared(undefined)
-      } else if (slidesRes?.success && slidesRes.slides) {
-        setCurriculumSlides(slidesRes.slides)
-        setInfographicShared(slidesRes.curriculumInfographic)
-      } else {
-        setCurriculumSlides(null)
-        setInfographicShared(undefined)
-      }
-      if (originalSlidesRes && 'error' in originalSlidesRes && originalSlidesRes.error) {
-        setInfographicOriginal(undefined)
-      } else if (originalSlidesRes?.success) {
-        setInfographicOriginal(originalSlidesRes.curriculumInfographic)
-      } else {
-        setInfographicOriginal(undefined)
-      }
-      if (personalSlidesRes && 'error' in personalSlidesRes && personalSlidesRes.error) {
-        setInfographicPersonal(undefined)
-      } else if (personalSlidesRes?.success) {
-        setInfographicPersonal(personalSlidesRes.curriculumInfographic)
-      } else {
-        setInfographicPersonal(undefined)
-      }
+      const hasShared = !!(sharedMeta && 'success' in sharedMeta && sharedMeta.success && ((sharedMeta.totalSlides ?? 0) > 0 || (sharedMeta.lessonCount ?? 0) > 0))
+      const hasOriginal = !!(originalMeta && 'success' in originalMeta && originalMeta.success && ((originalMeta.totalSlides ?? 0) > 0 || (originalMeta.lessonCount ?? 0) > 0))
+      const hasPersonal = !!(personalMeta && 'success' in personalMeta && personalMeta.success && ((personalMeta.totalSlides ?? 0) > 0 || (personalMeta.lessonCount ?? 0) > 0))
+      setHasOriginalOrSharedVersion(hasShared || hasOriginal)
+      setHasPersonalVersion(hasPersonal)
+      setLessonMetaByMode({
+        shared: hasShared ? lessonChunksToGroups(sharedMeta.lessons) : [],
+        original: hasOriginal ? lessonChunksToGroups(originalMeta.lessons) : [],
+        personal: hasPersonal ? lessonChunksToGroups(personalMeta.lessons) : [],
+      })
+      // Không giữ toàn bộ slide trong bộ nhớ ở bước mở giáo trình.
+      setCurriculumSlides(null)
+      setInfographicShared(hasShared ? sharedMeta.curriculumInfographic : undefined)
+      setInfographicOriginal(hasOriginal ? originalMeta.curriculumInfographic : undefined)
+      setInfographicPersonal(hasPersonal ? personalMeta.curriculumInfographic : undefined)
       void recordCurriculumOpen(id)
       toast({ title: tr('Đã tải giáo trình', 'Curriculum loaded', '已加载课程', 'カリキュラムを読み込み', '교육과정 로드됨'), duration: 2000 })
       if (!options?.skipScroll) {
@@ -2424,7 +2618,7 @@ export default function TaoGiaoTrinhClientPage({
             setWorksheetMarkdown(d.content_markdown)
             setCurriculumWorksheets((prev) =>
               prev.some((w) => w.id === targetWorksheetId)
-                ? prev.map((w) => (w.id === targetWorksheetId ? { ...w, content_markdown: d.content_markdown } : w))
+                ? prev.map((w) => (w.id === targetWorksheetId ? { ...w, content_markdown: '' } : w))
                 : prev
             )
           }
@@ -2485,7 +2679,7 @@ export default function TaoGiaoTrinhClientPage({
           }
           if (curriculumId) {
             const wsRes = await getWorksheetsByCurriculumId(curriculumId)
-            if (wsRes && 'items' in wsRes) setCurriculumWorksheets((wsRes.items ?? []) as Array<{ id: string; topic: string; subject_id: string; grade_level_id: string; content_markdown: string; created_at: string }>)
+            if (wsRes && 'items' in wsRes) setCurriculumWorksheets(compactWorksheetList((wsRes.items ?? []) as CurriculumWorksheetListItem[]))
           }
           toast({
             title: tr('Đã giải xong tự luận SGK', 'SGK essay solving completed', 'SGK 主观题解答完成', 'SGK記述式の解答完了', 'SGK 서술형 풀이 완료'),
@@ -2541,7 +2735,7 @@ export default function TaoGiaoTrinhClientPage({
             }
             if (storedCurriculumId) {
               const wsRes = await getWorksheetsByCurriculumId(storedCurriculumId)
-              if (wsRes && 'items' in wsRes) setCurriculumWorksheets((wsRes.items ?? []) as Array<{ id: string; topic: string; subject_id: string; grade_level_id: string; content_markdown: string; created_at: string }>)
+              if (wsRes && 'items' in wsRes) setCurriculumWorksheets(compactWorksheetList((wsRes.items ?? []) as CurriculumWorksheetListItem[]))
             }
             setWsStepByStepExpanded(true)
             toast({
@@ -2627,7 +2821,7 @@ export default function TaoGiaoTrinhClientPage({
           }
           if (curriculumId) {
             const wsRes = await getWorksheetsByCurriculumId(curriculumId)
-            if (wsRes && 'items' in wsRes) setCurriculumWorksheets((wsRes.items ?? []) as Array<{ id: string; topic: string; subject_id: string; grade_level_id: string; content_markdown: string; created_at: string }>)
+            if (wsRes && 'items' in wsRes) setCurriculumWorksheets(compactWorksheetList((wsRes.items ?? []) as CurriculumWorksheetListItem[]))
           }
           toast({
             title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'),
@@ -2730,7 +2924,7 @@ export default function TaoGiaoTrinhClientPage({
           }
           if (curriculumId) {
             const wsRes = await getWorksheetsByCurriculumId(curriculumId)
-            if (wsRes && 'items' in wsRes) setCurriculumWorksheets((wsRes.items ?? []) as Array<{ id: string; topic: string; subject_id: string; grade_level_id: string; content_markdown: string; created_at: string }>)
+            if (wsRes && 'items' in wsRes) setCurriculumWorksheets(compactWorksheetList((wsRes.items ?? []) as CurriculumWorksheetListItem[]))
           }
           setWsStepByStepExpanded(true)
           setWsStepByStepSessionCounts({ quiz: {}, essay: {} })
@@ -2768,11 +2962,75 @@ export default function TaoGiaoTrinhClientPage({
       <Toaster />
       <SlideVersionDialog
         open={showSlideVersionDialog}
-        onOpenChange={setShowSlideVersionDialog}
-        hasPersonal={!!personalSlides?.length}
+        onOpenChange={handleSlideVersionDialogOpenChange}
+        hasPersonal={hasPersonalVersion}
         onChoose={handleSlideVersionChoose}
         tr={tr}
       />
+      <Dialog open={lessonSelectOpen} onOpenChange={handleLessonSelectOpenChange}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{tr('Chọn tiết để mở', 'Choose lesson to open', '选择要打开的课时', '開く授業を選択', '열 과차시 선택')}</DialogTitle>
+          </DialogHeader>
+          {lessonPreparingGroupId && (
+            <div className="flex items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-700/80 dark:bg-amber-950/30 dark:text-amber-200">
+              <RefreshCw className="h-4 w-4 animate-spin" />
+              <span>
+                {tr(
+                  `Đang tải dữ liệu tiết ${lessonPreparingLessonNo ?? ''}. Vui lòng chờ...`,
+                  `Loading lesson ${lessonPreparingLessonNo ?? ''} data. Please wait...`,
+                  `正在加载第 ${lessonPreparingLessonNo ?? ''} 课时数据，请稍候...`,
+                  `${lessonPreparingLessonNo ?? ''}時のデータを読み込み中です。お待ちください...`,
+                  `${lessonPreparingLessonNo ?? ''}차시 데이터를 불러오는 중입니다. 잠시만 기다려 주세요...`,
+                )}
+              </span>
+            </div>
+          )}
+          <div className="max-h-[56vh] space-y-2 overflow-y-auto py-1">
+            {lessonGroups.map((group) => (
+              <Button
+                key={group.id}
+                type="button"
+                variant="outline"
+                className="h-auto w-full justify-start border-slate-400/80 bg-slate-100 text-slate-900 hover:bg-slate-200 hover:border-slate-500 focus-visible:ring-2 focus-visible:ring-slate-500 px-3 py-2 text-left dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700 dark:hover:border-slate-500"
+                onClick={() => handleLessonChoose(group.id)}
+                disabled={!!lessonPreparingGroupId}
+              >
+                <div className="flex w-full items-center justify-between gap-2">
+                  <span className="font-semibold">
+                    {tr(
+                      `Tiết ${group.lessonNo}`,
+                      `Lesson ${group.lessonNo}`,
+                      `第 ${group.lessonNo} 课时`,
+                      `第${group.lessonNo}時`,
+                      `${group.lessonNo}차시`,
+                    )}
+                  </span>
+                  <span className="text-xs text-slate-700 dark:text-slate-300">
+                    {tr(
+                      lessonPreparingGroupId === group.id
+                        ? 'Đang tải...'
+                        : `${group.indices.length} slide`,
+                      lessonPreparingGroupId === group.id
+                        ? 'Loading...'
+                        : `${group.indices.length} slides`,
+                      lessonPreparingGroupId === group.id
+                        ? '加载中...'
+                        : `${group.indices.length} 张幻灯片`,
+                      lessonPreparingGroupId === group.id
+                        ? '読み込み中...'
+                        : `${group.indices.length} 枚`,
+                      lessonPreparingGroupId === group.id
+                        ? '불러오는 중...'
+                        : `${group.indices.length} 슬라이드`,
+                    )}
+                  </span>
+                </div>
+              </Button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
       <CurriculumExerciseListDialog
         open={exerciseListOpen}
         onOpenChange={setExerciseListOpen}
@@ -3302,7 +3560,7 @@ export default function TaoGiaoTrinhClientPage({
                     overwriteFromExistingLoading ||
                     (createMode === 'topic'
                       ? !topic.trim() || topic.trim().length < 2
-                      : checkLoading || curriculumExists === null || lessonImages.length === 0 || (textbookSetId === 'khac' && !bookIsbn.trim()))
+                      : checkLoading || lessonImages.length === 0 || (textbookSetId === 'khac' && !bookIsbn.trim()))
                   }
                   className="w-full bg-violet-600 hover:bg-violet-700 text-white disabled:opacity-50"
                 >
@@ -3335,7 +3593,7 @@ export default function TaoGiaoTrinhClientPage({
           />
         )}
 
-        {(slideAnalysisLoading || wsStepByStepLoading || sgkLoading) && step === 'RESULT' && (
+        {(wsStepByStepLoading || sgkLoading) && step === 'RESULT' && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
             <div className="w-full max-w-lg px-4">
               {sgkLoading && (
@@ -3344,13 +3602,7 @@ export default function TaoGiaoTrinhClientPage({
                   description={tr('AI đang đọc ảnh và tách từng câu. Vui lòng chờ.', 'AI is reading images and extracting each question. Please wait.', 'AI正在读取图片并逐题提取。请稍候。', 'AIが画像を読み1問ずつ抽出中です。お待ちください。', 'AI가 이미지를 읽고 문항별 추출 중입니다. 잠시만 기다려 주세요.')}
                 />
               )}
-              {slideAnalysisLoading && !sgkLoading && (
-                <AIProgressLoader
-                  title={tr('Đang tạo nội dung giảng', 'Generating teaching content', '正在生成教学内容', '授業内容を生成中', '수업 내용 생성 중')}
-                  description={tr('AI đang phân tích giáo trình và tạo slide. Vui lòng chờ.', 'AI is analyzing curriculum and creating slides. Please wait.', 'AI正在分析课程并创建幻灯片。请稍候。', 'AIがカリキュラムを分析しスライドを作成中です。お待ちください。', 'AI가 교육과정을 분석하고 슬라이드를 생성 중입니다. 잠시만 기다려 주세요.')}
-                />
-              )}
-              {wsStepByStepLoading && !slideAnalysisLoading && !sgkLoading && (
+              {wsStepByStepLoading && !sgkLoading && (
                 <AIProgressLoader
                   title={tr('Đang tạo phiếu từng câu', 'Creating worksheet per question', '逐题创建练习', '1問ずつ作成中', '문항별 생성 중')}
                   description={tr('AI đang tạo và kiểm tra từng câu. Vui lòng chờ.', 'AI is creating and verifying each question. Please wait.', 'AI正在逐题创建并验证。请稍候。', 'AIが1問ずつ作成・検証中です。お待ちください。', 'AI가 문항별로 생성 및 검증 중입니다. 잠시만 기다려 주세요.')}
@@ -3409,7 +3661,7 @@ export default function TaoGiaoTrinhClientPage({
                   <Button variant="outline" size="sm" onClick={() => void handleOpenSlides()} disabled={slideAnalysisLoading} className="border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-600 dark:text-amber-300 dark:hover:bg-amber-950/30">
                     <Presentation className="h-3.5 w-3.5 mr-1" />
                     {slideAnalysisLoading
-                      ? tr('Đang tạo nội dung giảng...', 'Generating teaching content...', '正在生成教学内容...', '授業内容を生成中...', '수업 내용 생성 중...')
+                      ? tr('Đang tải dữ liệu chọn tiết/bản...', 'Loading lesson/version options...', '正在加载课时/版本选项...', '授業/版の選択肢を読み込み中...', '차시/버전 선택 항목 로딩 중...')
                       : tr('Xem slide giáo trình', 'View curriculum slides', '查看课程幻灯片', '授業スライドを表示', '교과 슬라이드 보기')}
                   </Button>
                   {(worksheetMarkdown || curriculumWorksheets.length > 0) && (

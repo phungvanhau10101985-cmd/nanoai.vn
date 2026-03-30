@@ -64,22 +64,8 @@ export default function XemSlideStudentCurriculumClient() {
     )
   }
 
-  const aiSlides: AISlideData[] = data.slides.map((s) => ({
-    title: s.title ?? '',
-    blocks: (s.blocks ?? []).map((b) => ({
-      ...(b as object),
-      header: (b as { header?: string }).header ?? '',
-      content: (b as { content?: string }).content ?? '',
-    })),
-    imageUrl: s.imageUrl,
-    visualEmbed: s.visualEmbed,
-    visualLayout: s.visualLayout,
-    visualCells: s.visualCells,
-    visualInput1: s.visualInput1,
-    visualInput2: s.visualInput2,
-    visualInput3: s.visualInput3,
-    visualInput4: s.visualInput4,
-  }))
+  // Dùng trực tiếp payload đã được compact ở hook sync, tránh clone toàn bộ slides.
+  const aiSlides = data.slides as AISlideData[]
 
   return (
     <NanoAISlideViewer

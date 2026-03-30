@@ -12,11 +12,73 @@ import { questionsToMarkdown } from './lib/questions-to-markdown'
 import { parseWorksheetIntoBlocks } from './lib/worksheet-parse-questions'
 import { blocksToContentJson } from './lib/markdown-to-questions'
 import type { SlideInfographic } from './lib/slide-infographic'
-import { parseStoredCurriculumSlidesJson, serializeStoredCurriculumSlidesJson } from './lib/curriculum-slides-json'
+import {
+  buildLessonChunksFromSlides,
+  parseStoredCurriculumSlidesJson,
+  serializeStoredCurriculumSlidesJson,
+  type CurriculumLessonChunk,
+} from './lib/curriculum-slides-json'
 import { CURRICULUM_UI_CREDITS } from './lib/curriculum-credit-costs'
-import { CURRICULUM_AI_CHARGE_TYPES, curriculumAiAdminClient, spendCurriculumAiCredits } from '@/lib/curriculum-ai-credits'
+import {
+  CURRICULUM_AI_CHARGE_TYPES,
+  LESSON_SLIDE_GENERATE_CREDIT_COST,
+  curriculumAiAdminClient,
+  readUserCreditBalance,
+  spendCurriculumAiCredits,
+} from '@/lib/curriculum-ai-credits'
 
 type SupabaseServerClient = ReturnType<typeof createClient>
+
+function normalizeLooseChar(ch: string): string {
+  if (/\s/u.test(ch)) return ' '
+  if (ch === '−' || ch === '–' || ch === '—') return '-'
+  if (ch === '≥') return '>='
+  if (ch === '≤') return '<='
+  if (ch === '→') return '->'
+  return ch
+}
+
+function buildLooseTextIndex(raw: string): { text: string; map: number[] } {
+  const src = String(raw ?? '')
+  const map: number[] = []
+  let out = ''
+  let prevSpace = false
+  for (let i = 0; i < src.length; i += 1) {
+    const normalized = normalizeLooseChar(src[i])
+    for (const c of normalized) {
+      const isSpace = c === ' '
+      if (isSpace) {
+        if (prevSpace) continue
+        prevSpace = true
+      } else {
+        prevSpace = false
+      }
+      out += c
+      map.push(i)
+    }
+  }
+  let start = 0
+  while (start < out.length && out[start] === ' ') start += 1
+  let end = out.length - 1
+  while (end >= start && out[end] === ' ') end -= 1
+  if (start > end) return { text: '', map: [] }
+  return { text: out.slice(start, end + 1), map: map.slice(start, end + 1) }
+}
+
+function findLooseRange(haystack: string, needle: string): { start: number; end: number } | null {
+  const n = String(needle ?? '').trim()
+  if (!n) return null
+  const hay = buildLooseTextIndex(haystack)
+  const nee = buildLooseTextIndex(n)
+  if (!hay.text || !nee.text) return null
+  const at = hay.text.indexOf(nee.text)
+  if (at < 0) return null
+  const endAt = at + nee.text.length - 1
+  if (at >= hay.map.length || endAt >= hay.map.length) return null
+  const start = hay.map[at]
+  const end = hay.map[endAt] + 1
+  return { start, end }
+}
 
 /** Khi client không gửi curriculumInfographic (undefined), giữ bản đã lưu — tránh lưu slide làm mất infographic. */
 async function mergeInfographicForSharedSave(
@@ -60,6 +122,338 @@ type WorksheetSlideRow = {
   visualInput3?: string
   visualInput4?: string
   teacherNotes?: string
+}
+
+type CurriculumLessonRow = {
+  lesson_no: number
+  lesson_title: string
+  lesson_markdown: string
+  lesson_json?: unknown
+}
+
+function normalizeLessonRows(rows: CurriculumLessonRow[] | null | undefined): CurriculumLessonRow[] {
+  if (!Array.isArray(rows) || rows.length === 0) return []
+  return rows
+    .filter((r) => Number.isFinite(Number(r.lesson_no)) && Number(r.lesson_no) > 0)
+    .map((r) => ({
+      lesson_no: Math.floor(Number(r.lesson_no)),
+      lesson_title: String(r.lesson_title ?? '').trim(),
+      lesson_markdown: String(r.lesson_markdown ?? '').trim(),
+      lesson_json: r.lesson_json,
+    }))
+    .filter((r) => r.lesson_markdown.length > 0)
+    .sort((a, b) => a.lesson_no - b.lesson_no)
+}
+
+function buildLessonMarkdownForDisplay(row: CurriculumLessonRow): string {
+  const raw = String(row.lesson_markdown ?? '').trim()
+  const title = String(row.lesson_title ?? '').trim()
+  const lessonNo = Math.max(1, Math.floor(Number(row.lesson_no) || 1))
+  if (!raw) return title ? `### Tiết ${lessonNo}: ${title}` : `### Tiết ${lessonNo}`
+  if (/^#{2,3}\s*ti[eế]t\b/im.test(raw)) return raw
+  const heading = title ? `### Tiết ${lessonNo}: ${title}` : `### Tiết ${lessonNo}`
+  return `${heading}\n\n${raw}`
+}
+
+type LessonOutlineAIItem = {
+  lessonNo: number
+  title: string
+  markdown: string
+}
+
+function parseLessonOutlineFromUnknown(raw: unknown, expectedLessonCount: number): LessonOutlineAIItem[] {
+  const parsed = raw as { lessons?: Array<{ lessonNo?: number; title?: string; markdown?: string }> }
+  const rows = (parsed.lessons ?? [])
+    .map((r) => ({
+      lessonNo: Math.floor(Number(r.lessonNo || 0)),
+      title: String(r.title || '').trim(),
+      markdown: String(r.markdown || '').trim(),
+    }))
+    .filter((r) => Number.isFinite(r.lessonNo) && r.lessonNo > 0 && r.markdown.length > 0)
+    .sort((a, b) => a.lessonNo - b.lessonNo)
+  const expected = Math.max(1, Math.floor(expectedLessonCount || 1))
+  if (expected > 1 && rows.length < expected) return []
+  return rows
+}
+
+function parseLessonOutlineFromJsonRaw(raw: string, expectedLessonCount: number): LessonOutlineAIItem[] {
+  try {
+    const cleaned = cleanAiJsonText(raw)
+    if (!cleaned) return []
+    return parseLessonOutlineFromUnknown(JSON.parse(cleaned), expectedLessonCount)
+  } catch {
+    return []
+  }
+}
+
+function composeCurriculumMarkdownFromLessonOutline(items: LessonOutlineAIItem[]): string {
+  if (!Array.isArray(items) || items.length === 0) return ''
+  const parts = items
+    .map((item, idx) => {
+      const lessonNo = Math.max(1, Math.floor(Number(item.lessonNo) || idx + 1))
+      const title = String(item.title || '').trim()
+      const raw = normalizeLessonMarkdownText(String(item.markdown || ''))
+      const heading = title ? `### Tiết ${lessonNo}: ${title}` : `### Tiết ${lessonNo}`
+      if (!raw) return heading
+      if (/^#{2,3}\s*ti[eế]t\b/im.test(raw)) return raw
+      return `${heading}\n\n${raw}`
+    })
+    .filter((x) => x.trim().length > 0)
+  return parts.join('\n\n')
+}
+
+async function buildLessonOutlineByAI(params: {
+  markdown: string
+  expectedLessonCount: number
+  userId?: string | null
+}): Promise<LessonOutlineAIItem[]> {
+  const apiKey = process.env.GOOGLE_API_KEY?.trim()
+  if (!apiKey) return []
+  const genAI = new GoogleGenerativeAI(apiKey)
+  const model = genAI.getGenerativeModel({
+    ...GEMINI_25_FLASH_NO_THINKING,
+    generationConfig: { temperature: 0.1, responseMimeType: 'application/json' },
+  })
+  const prompt = `Tách giáo trình sau thành JSON theo từng tiết.
+Mỗi phần tử lesson phải có:
+- lessonNo: số tiết (1..n)
+- title: tiêu đề ngắn
+- markdown: nội dung đầy đủ của riêng tiết đó (markdown)
+
+Yêu cầu:
+- Không bỏ sót nội dung.
+- Không trộn nội dung giữa các tiết.
+- Ưu tiên đúng theo heading "### Tiết X".
+- Số tiết kỳ vọng: ${Math.max(1, Math.floor(params.expectedLessonCount || 1))}
+- Chỉ trả về JSON hợp lệ theo dạng:
+{"lessons":[{"lessonNo":1,"title":"...","markdown":"..."}]}
+
+Nội dung:
+---
+${params.markdown.slice(0, 120000)}
+---`
+  try {
+    const result = await model.generateContent(prompt)
+    trackCurriculumGeminiResult(result, GEMINI_25_FLASH_NO_THINKING.model, CurriculumApiFeature.createFromForm, params.userId ?? null)
+    const text = result.response.text()?.trim() || ''
+    if (!text) return []
+    return parseLessonOutlineFromUnknown(JSON.parse(text), params.expectedLessonCount)
+  } catch {
+    return []
+  }
+}
+
+async function buildLessonOutlineDirectByAI(params: {
+  prompt: string
+  expectedLessonCount: number
+  userId?: string | null
+}): Promise<LessonOutlineAIItem[]> {
+  const apiKey = process.env.GOOGLE_API_KEY?.trim()
+  if (!apiKey) return []
+  const genAI = new GoogleGenerativeAI(apiKey)
+  const model = genAI.getGenerativeModel({
+    ...GEMINI_25_PRO,
+    generationConfig: { temperature: 0.2, responseMimeType: 'application/json' },
+  })
+  try {
+    const result = await model.generateContent(params.prompt)
+    trackCurriculumGeminiResult(result, GEMINI_25_PRO.model, CurriculumApiFeature.createFromForm, params.userId ?? null)
+    const text = cleanAiJsonText(result.response.text() || '')
+    if (!text) return []
+    return parseLessonOutlineFromUnknown(JSON.parse(text), params.expectedLessonCount)
+  } catch {
+    return []
+  }
+}
+
+async function upsertCurriculumLessonRows(
+  supabase: SupabaseServerClient,
+  curriculumId: string,
+  lessons: LessonOutlineAIItem[]
+): Promise<void> {
+  if (!curriculumId || lessons.length === 0) return
+  const payload = lessons.map((l) => ({
+    curriculum_id: curriculumId,
+    lesson_no: l.lessonNo,
+    lesson_title: l.title,
+    lesson_markdown: l.markdown,
+    lesson_json: { lessonNo: l.lessonNo, title: l.title },
+    updated_at: new Date().toISOString(),
+  }))
+  const { error: delErr } = await supabase.from('worksheet_curriculum_lessons').delete().eq('curriculum_id', curriculumId)
+  if (delErr) throw new Error(delErr.message)
+  const { error: insErr } = await supabase.from('worksheet_curriculum_lessons').insert(payload)
+  if (insErr) throw new Error(insErr.message)
+}
+
+const LESSON_SLIDE_MAX_CONTENT_PER_SLIDE = 320
+
+function cleanAiJsonText(raw: string): string {
+  return String(raw || '')
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/i, '')
+    .trim()
+}
+
+function normalizeLessonMarkdownText(text: string): string {
+  return String(text || '')
+    .replace(/\r/g, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
+function shouldDropTeacherPlanLine(line: string): boolean {
+  const raw = String(line || '').trim()
+  if (!raw) return false
+  if (/^t[aạ]ch\s*\/\s*g[oộ]p\s*slide\b/i.test(raw)) return true
+  if (/^t[aạ]o\s+c[aâ]u\s+h[oỏ]i\b/i.test(raw)) return true
+  if (/^(gv|gi[aá]o\s*vi[eê]n)\s*[:\-]/i.test(raw)) return true
+  if (/^(hs|h[oọ]c\s*sinh)\s*[:\-]/i.test(raw)) return true
+  if (/^(y[eê]u\s*c[aầ]u\s*hs|y[eê]u\s*c[aầ]u\s*h[oọ]c\s*sinh)\b/i.test(raw)) return true
+  if (/^h[đd]\s*\d+\b/i.test(raw)) return true
+  if (/^ho[aạ]t\s*[đd][oộ]ng\s*\d+\b/i.test(raw)) return true
+  if (/^(kh[oơ]i\s*đ[oộ]ng|h[iì]nh\s*th[aà]nh\s*ki[eế]n\s*th[uứ]c|luy[eệ]n\s*t[aậ]p|v[aậ]n\s*d[uụ]ng)\s*\(\s*\d+\s*ph[uú]t\s*\)/i.test(raw)) return true
+  if (/^\d+\.\s*(kh[oơ]i\s*đ[oộ]ng|h[iì]nh\s*th[aà]nh\s*ki[eế]n\s*th[uứ]c|luy[eệ]n\s*t[aậ]p|v[aậ]n\s*d[uụ]ng)\s*\(\s*\d+\s*ph[uú]t\s*\)/i.test(raw)) return true
+  if (/^h[đd]\d+\s*\(\s*sgk\s*trang\s*\d+/i.test(raw)) return true
+  return false
+}
+
+function sanitizeStudentFacingText(text: string): string {
+  const lines = String(text || '').replace(/\r/g, '').split('\n')
+  const kept = lines.filter((line) => !shouldDropTeacherPlanLine(line))
+  return kept.join('\n').replace(/\n{3,}/g, '\n\n').trim()
+}
+
+function buildLessonSlidesFallback(lessonTitle: string, lessonMarkdown: string): WorksheetSlideRow[] {
+  const normalized = sanitizeStudentFacingText(normalizeLessonMarkdownText(lessonMarkdown))
+  if (!normalized) return []
+  const paragraphs = normalized
+    .split(/\n{2,}/)
+    .map((p) => p.replace(/^[-*]\s+/gm, '').trim())
+    .filter((p) => p.length > 0)
+
+  const chunks: string[] = []
+  let buffer = ''
+  for (const para of paragraphs) {
+    if (!buffer) {
+      buffer = para
+      continue
+    }
+    if ((buffer + '\n\n' + para).length <= LESSON_SLIDE_MAX_CONTENT_PER_SLIDE) {
+      buffer += '\n\n' + para
+    } else {
+      chunks.push(buffer.slice(0, LESSON_SLIDE_MAX_CONTENT_PER_SLIDE))
+      buffer = para
+    }
+  }
+  if (buffer) chunks.push(buffer.slice(0, LESSON_SLIDE_MAX_CONTENT_PER_SLIDE))
+  const sliced = chunks.slice(0, 24)
+  const baseTitle = String(lessonTitle || 'Tiết học').trim() || 'Tiết học'
+  return sliced.map((content, idx) => ({
+    title: sliced.length > 1 ? `${baseTitle} - Slide ${idx + 1}` : baseTitle,
+    blocks: [{ header: 'Nội dung', content }],
+  }))
+}
+
+async function generateSlidesForLessonByAI(params: {
+  lessonTitle: string
+  lessonMarkdown: string
+  userId?: string | null
+}): Promise<{
+  slides: WorksheetSlideRow[]
+  source: 'ai-first-pass' | 'ai-retry-pass' | 'fallback-empty' | 'fallback-error' | 'no-api-key'
+}> {
+  const apiKey = process.env.GOOGLE_API_KEY?.trim()
+  if (!apiKey) return { slides: [], source: 'no-api-key' }
+  const genAI = new GoogleGenerativeAI(apiKey)
+  const model = genAI.getGenerativeModel({
+    ...GEMINI_25_FLASH_NO_THINKING,
+    generationConfig: { temperature: 0.2, responseMimeType: 'application/json' },
+  })
+  const estimatedSlides = Math.max(8, Math.min(28, Math.ceil(params.lessonMarkdown.length / 320)))
+  const prompt = `Tạo slide cho đúng MỘT TIẾT học từ markdown dưới đây.
+Trả JSON:
+{"slides":[{"title":"...","blocks":[{"header":"Nội dung","content":"..."}]}]}
+
+Yêu cầu:
+- Tạo khoảng ${estimatedSlides} slide.
+- Bám sát giáo trình tiết đã cho, không bỏ sót ý quan trọng.
+- Slide là để CHIẾU CHO HỌC SINH: diễn đạt dễ hiểu, dẫn dắt cuốn hút, tập trung kiến thức học sinh cần nắm.
+- Mỗi slide 1 ý chính nhưng phải diễn giải đủ ý học tập, không ghi quá cụt.
+- Ví dụ/bài mẫu trong giáo trình nếu có lời giải thì phải đưa đủ bước vào slide tương ứng.
+- Sắp xếp mạch nội dung theo đúng trình tự giáo trình (khởi động -> kiến thức -> luyện tập -> vận dụng nếu có).
+- Không đưa lên slide các nhãn/ghi chú kiểu giáo án cho giáo viên: "Hình thành kiến thức (20 phút)", "Hoạt động 1", "HĐ4 (SGK trang ...)", "Yêu cầu HS", "Tách/Gộp slide", "Tạo câu hỏi ... credits", "GV/HS: ...".
+- Mỗi block content tối đa ${LESSON_SLIDE_MAX_CONTENT_PER_SLIDE} ký tự.
+- Không dùng LaTeX $...$, dùng Unicode dễ đọc.
+- Chỉ trả JSON hợp lệ.
+
+Tiêu đề tiết: ${params.lessonTitle || 'Tiết học'}
+
+Nội dung tiết:
+---
+${params.lessonMarkdown.slice(0, 90000)}
+---`
+  const retryPrompt = `Trả về JSON hợp lệ duy nhất theo schema sau:
+{"slides":[{"title":"...","blocks":[{"header":"Nội dung","content":"..."}]}]}
+
+Ràng buộc:
+- Chỉ dùng dữ liệu của MỘT tiết bên dưới.
+- Không markdown code fence, không giải thích.
+- Không rút gọn quá mức; phải phản ánh đầy đủ nội dung giáo trình tiết.
+- Các ví dụ có lời giải phải giữ đủ bước lập luận chính.
+- Chỉ xuất nội dung phù hợp học sinh nhìn trên màn chiếu; loại bỏ toàn bộ nhãn điều phối tiết học cho giáo viên.
+- Mỗi block.content <= ${LESSON_SLIDE_MAX_CONTENT_PER_SLIDE} ký tự.
+
+Tiêu đề tiết: ${params.lessonTitle || 'Tiết học'}
+Nội dung tiết:
+---
+${params.lessonMarkdown.slice(0, 90000)}
+---`
+  const parseSlidesFromText = (raw: string): WorksheetSlideRow[] => {
+    const text = cleanAiJsonText(raw)
+    if (!text) return []
+    const parsed = JSON.parse(text) as { slides?: Array<{ title?: string; blocks?: Array<{ header?: string; content?: string }> }> }
+    return (parsed.slides ?? [])
+      .map((s) => {
+        const title = sanitizeStudentFacingText(String(s.title || 'Slide').trim()) || 'Slide'
+        const blocksRaw = Array.isArray(s.blocks) ? s.blocks : []
+        const blocks = blocksRaw
+          .map((b) => ({
+            header: sanitizeStudentFacingText(String(b?.header || 'Nội dung').trim()) || 'Nội dung',
+            content: sanitizeStudentFacingText(String(b?.content || '').trim()).slice(0, LESSON_SLIDE_MAX_CONTENT_PER_SLIDE),
+          }))
+          .filter((b) => b.content.length > 0)
+        if (blocks.length === 0) return null
+        return { title, blocks } as WorksheetSlideRow
+      })
+      .filter((s): s is WorksheetSlideRow => !!s)
+  }
+  try {
+    const result = await model.generateContent(prompt)
+    trackCurriculumGeminiResult(result, GEMINI_25_FLASH_NO_THINKING.model, CurriculumApiFeature.lessonSlidesGenerate, params.userId ?? null)
+    const firstPass = parseSlidesFromText(result.response.text() || '')
+    if (firstPass.length > 0) return { slides: firstPass, source: 'ai-first-pass' }
+    console.warn('[lesson-slides] empty-first-pass, retrying', {
+      lessonTitle: params.lessonTitle,
+      markdownLength: params.lessonMarkdown.length,
+    })
+    const retryResult = await model.generateContent(retryPrompt)
+    trackCurriculumGeminiResult(retryResult, GEMINI_25_FLASH_NO_THINKING.model, CurriculumApiFeature.lessonSlidesGenerate, params.userId ?? null)
+    const secondPass = parseSlidesFromText(retryResult.response.text() || '')
+    if (secondPass.length > 0) return { slides: secondPass, source: 'ai-retry-pass' }
+    const fallback = buildLessonSlidesFallback(params.lessonTitle, params.lessonMarkdown)
+    console.warn('[lesson-slides] ai-empty-use-fallback', {
+      lessonTitle: params.lessonTitle,
+      fallbackSlides: fallback.length,
+    })
+    return { slides: fallback, source: 'fallback-empty' }
+  } catch (err) {
+    console.warn('[lesson-slides] ai-generate-error-use-fallback', err)
+    return {
+      slides: buildLessonSlidesFallback(params.lessonTitle, params.lessonMarkdown),
+      source: 'fallback-error',
+    }
+  }
 }
 
 const TEXTBOOK_NAMES: Record<string, string> = {
@@ -401,102 +795,76 @@ export async function createCurriculum(formData: FormData) {
   // Tra cứu tên bài từ mục lục SGK trong DB (chỉ mode textbook)
   const lessonTitle: string | null = isTopicMode ? null : await loadLessonTitleFromDb()
 
-  const curriculumMenDeNote = ''
+  const directPrompt = isTopicMode
+    ? `Soạn giáo trình theo CHỦ ĐỀ và trả về JSON từng tiết trực tiếp.
+Môn: ${subjectName}
+Khối lớp: ${gradeLabel}
+Chủ đề: ${topic}
+Loại bài: ${lessonTypeName}
+Thời lượng: ${numTiet} tiết x ${thoiLuong} phút
+${goals ? `Mục tiêu bổ sung: ${goals}` : ''}
+${textbookSetId === 'khac' ? 'Không bám sát SGK cụ thể.' : `Bộ sách tham khảo: ${textbookName}`}
 
-  const prompt = isTopicMode
-    ? `Hãy soạn giáo trình cho chủ đề "${topic}", môn ${subjectName}, ${/^lop-\d+$/.test(gradeLevelId) ? gradeLabel : 'cấp ' + gradeLabel}.
-${textbookSetId === 'khac' ? `- Sách/nguồn: Không bám sát SGK cụ thể – tạo giáo trình theo chủ đề, phù hợp chương trình giáo dục Việt Nam.` : `- Bộ sách tham khảo: ${textbookName} (nếu có nội dung liên quan).`}
+Ràng buộc bắt buộc:
+- Mỗi tiết gồm 4 hoạt động: Khởi động, Hình thành kiến thức, Luyện tập, Vận dụng.
+- Dùng tiếng Việt, ký hiệu Unicode, không LaTeX.
+- Chia rõ thời lượng từng phần.
+- Không bỏ sót mạch nội dung.
+- Mỗi tiết phải đủ các thành phần chi tiết: mục tiêu cụ thể, kiến thức trọng tâm, ví dụ minh họa, câu hỏi gợi mở, bài tập luyện tập có đáp án/tiêu chí chấm ngắn.
+- Nếu nội dung gốc còn ngắn/sơ sài thì được phép bổ sung ý mở rộng hợp lý, nhưng phải bám chuẩn chương trình và đúng chủ đề lớp học.
+- Mỗi lesson.markdown cần đủ sâu để giáo viên có thể dạy trọn ${thoiLuong} phút, tránh ghi quá ngắn kiểu gạch đầu dòng sơ lược.
+- Ví dụ minh họa phải sát SGK tham khảo (nếu có), không dùng ví dụ quá xa ngữ cảnh bài học.
+- Nếu SGK có ví dụ mẫu kèm lời giải thì phải trình bày đầy đủ các bước lời giải (không tóm tắt), nêu kết luận rõ ràng.
 
-LOẠI BÀI HỌC: ${lessonTypeName}
+Chỉ trả JSON hợp lệ:
+{"lessons":[{"lessonNo":1,"title":"...","markdown":"..."}]}
+`
+    : `Soạn giáo trình theo BÀI SGK và trả về JSON từng tiết trực tiếp.
+Môn: ${subjectName}
+Khối lớp: ${gradeLabel}
+Bài: ${lessonNum}
+Bộ sách: ${textbookName}
+Loại bài: ${lessonTypeName}
+Thời lượng: ${numTiet} tiết x ${thoiLuong} phút
+${goals ? `Mục tiêu bổ sung: ${goals}` : ''}
 
-Thông số:
-- Thời lượng: ${numTiet} tiết x ${thoiLuong} phút.
-- Đối tượng: Học sinh Việt Nam theo chương trình GDPT 2018.
-${goals ? `- Mục tiêu bổ sung: ${goals}` : ''}
+Ràng buộc bắt buộc:
+- Bám sát nội dung SGK, chuẩn GDPT 2018 + Công văn 5512.
+- Mỗi tiết gồm 4 hoạt động: Khởi động, Hình thành kiến thức, Luyện tập, Vận dụng.
+- Dùng tiếng Việt, ký hiệu Unicode, không LaTeX.
+- Chia rõ thời lượng từng phần.
+- Không được viết sơ lược: phải triển khai chi tiết từng ý SGK (định nghĩa, tính chất, nhận xét, ví dụ, phản ví dụ nếu cần, lỗi sai thường gặp).
+- Mỗi tiết cần có hệ thống câu hỏi dẫn dắt + bài tập luyện tập theo mức độ (nhận biết/thông hiểu/vận dụng) và gợi ý đáp án ngắn.
+- Nếu SGK trình bày ngắn, có thể bổ sung ý để đầy đủ hơn (nêu "Mở rộng"), nhưng tuyệt đối không trái nội dung SGK.
+- lesson.markdown phải đủ độ sâu để dạy đủ ${thoiLuong} phút/tiết.
+- Ví dụ minh họa phải sát đúng ví dụ trong SGK (hoặc biến thể rất gần).
+- Nếu SGK có lời giải mẫu thì bắt buộc ghi đầy đủ các bước lời giải, lập luận và kết luận cuối; không được rút gọn thành 1-2 dòng.
 
-CẤU TRÚC BẮT BUỘC (theo Công văn 5512/BGDĐT):
-Mỗi tiết gồm 4 hoạt động chính, phân bổ thời gian rõ ràng:
-1. Khởi động – kích thích hứng thú, kết nối kiến thức cũ.
-2. Hình thành kiến thức – nội dung mới, lý thuyết (hoặc quy trình thí nghiệm nếu là bài thực hành).
-3. Luyện tập – vận dụng, bài tập, thực hành.
-4. Vận dụng – mở rộng, liên hệ thực tế, đánh giá.
-
-FORMAT BẮT BUỘC:
-- Tiêu đề chính: ## GIÁO TRÌNH: <TÊN CHỦ ĐỀ VIẾT HOA>
-- Mỗi tiết: ### Tiết X: <tiêu đề tiết> (tổng ${thoiLuong} phút)
-- Mỗi hoạt động: **1. Khởi động (X phút)**, **2. Hình thành kiến thức (X phút)**, **3. Luyện tập (X phút)**, **4. Vận dụng (X phút)** – tổng 4 hoạt động = ${thoiLuong} phút.
-- Trong mỗi hoạt động, tách thành CÁC PHẦN – mỗi phần ghi rõ thời lượng: **Phần 1 (X phút):**, **Phần 2 (X phút):**, ...
-
-YÊU CẦU CHI TIẾT:
-- CÔNG THỨC – CHO HỌC SINH ĐỌC ĐƯỢC: BẮT BUỘC dùng Unicode, KHÔNG dùng LaTeX $...$. Ví dụ: ∈, ℝ, ∫, π, ², √, ∞, ↗, ↘, ⇒, ½, y=x², f'(x), (0;+∞). Phân số: 1/2 hoặc ½. Căn: √(x+1).
-- ĐỘ CHI TIẾT: Mỗi hoạt động chia thành các phần (Phần 1, Phần 2, ...), mỗi phần gọn một ý – ví dụ một ví dụ, một bài tập – không gộp nhiều ý vào một đoạn dài. Mỗi phần phải ghi cụ thể thời lượng (phút).
-
-Yêu cầu:
-- Chuẩn Bộ GD&ĐT: Công văn 5512, GDPT 2018.
-- Trả về Markdown, dùng ## ### ** - cho cấu trúc.
-- Ngôn ngữ: Tiếng Việt.
-- Chỉ trả về nội dung Markdown, không có lời giải thích thêm.
-- QUAN TRỌNG: Kết quả cho học sinh đọc trực tiếp – dùng Unicode, không LaTeX.`
-    : `Hãy soạn giáo trình cho Bài ${lessonNum}, môn ${subjectName}, ${gradeLabel}, bộ sách ${textbookName}.
-
-LOẠI BÀI HỌC: ${lessonTypeName}
-
-Thông số:
-- Thời lượng: ${numTiet} tiết x ${thoiLuong} phút.
-- Đối tượng: Học sinh Việt Nam theo chương trình GDPT 2018.
-- Bộ sách: ${textbookName} – nội dung và thứ tự bài học phải khớp với bộ sách này.
-${goals ? `- Mục tiêu bổ sung: ${goals}` : ''}
-
-CẤU TRÚC BẮT BUỘC (theo Công văn 5512/BGDĐT):
-Mỗi tiết gồm 4 hoạt động chính, phân bổ thời gian rõ ràng:
-1. Khởi động – kích thích hứng thú, kết nối kiến thức cũ.
-2. Hình thành kiến thức – nội dung mới, lý thuyết (hoặc quy trình thí nghiệm nếu là bài thực hành).
-3. Luyện tập – vận dụng, bài tập, thực hành.
-4. Vận dụng – mở rộng, liên hệ thực tế, đánh giá.
-
-FORMAT BẮT BUỘC:
-- Tiêu đề chính: ## GIÁO TRÌNH: <TÊN BÀI VIẾT HOA>
-- Mỗi tiết: ### Tiết X: <tiêu đề tiết> (tổng ${thoiLuong} phút)
-- Mỗi hoạt động: **1. Khởi động (X phút)**, **2. Hình thành kiến thức (X phút)**, **3. Luyện tập (X phút)**, **4. Vận dụng (X phút)** – tổng 4 hoạt động = ${thoiLuong} phút.
-- Trong mỗi hoạt động, tách thành CÁC PHẦN – mỗi phần ghi rõ thời lượng: **Phần 1 (X phút):**, **Phần 2 (X phút):**, ... Tổng thời lượng các phần trong mỗi hoạt động phải bằng thời lượng hoạt động đó.
-- Ghi rõ tham chiếu SGK: trang X, Hình X, Ví dụ X, HĐX (Hoạt động), Luyện tập X, Vận dụng X, Bài tập X
-
-YÊU CẦU CHI TIẾT (chuẩn Bộ GD&ĐT):
-- HÌNH ẢNH: Mỗi Hình X phải mô tả nội dung (đồ thị, bảng, sơ đồ...) để người đọc hiểu.
-- CÔNG THỨC – CHO HỌC SINH ĐỌC ĐƯỢC: BẮT BUỘC dùng Unicode, KHÔNG dùng LaTeX $...$. Ví dụ: ∈, ℝ, ∫, π, ², √, ∞, ↗, ↘, ⇒, ½, y=x², f'(x), (0;+∞). Phân số: 1/2 hoặc ½. Căn: √(x+1). Bảng: dùng +∞, −∞, ‖ (tiệm cận).
-- BẢNG: Trích nội dung bảng quan trọng trong SGK, dùng ký hiệu Unicode.
-- ĐỘ CHI TIẾT: Mỗi hoạt động chia thành các phần (Phần 1, Phần 2, ...), mỗi phần gọn một ý – ví dụ một ví dụ, một bài tập – không gộp nhiều ý vào một đoạn dài. Mỗi phần phải ghi cụ thể thời lượng (phút), ví dụ: **Phần 1 (5 phút):** ...
-
-Lưu ý theo loại bài:
-- Bài hình thành kiến thức mới: tập trung lý thuyết + thí nghiệm minh họa.
-- Bài luyện tập/Ôn tập: tập trung phương pháp giải bài tập, hệ thống hóa.
-- Bài thực hành: tập trung quy trình thí nghiệm, an toàn, báo cáo.
-${curriculumMenDeNote}
-
-Yêu cầu:
-- Bám sát 100% nội dung sách giáo khoa – không thêm bớt, không sai lệch.
-- Chuẩn Bộ GD&ĐT: Công văn 5512, GDPT 2018.
-- Trả về Markdown, dùng ## ### ** - cho cấu trúc.
-- Ngôn ngữ: Tiếng Việt.
-- Chỉ trả về nội dung Markdown, không có lời giải thích thêm.
-- QUAN TRỌNG: Kết quả cho học sinh đọc trực tiếp – dùng Unicode, không LaTeX.`
+Chỉ trả JSON hợp lệ:
+{"lessons":[{"lessonNo":1,"title":"...","markdown":"..."}]}
+`
 
   try {
-    const apiKey = process.env.GOOGLE_API_KEY
-    if (!apiKey) return { error: 'Thiếu GOOGLE_API_KEY. Vui lòng cấu hình API.' }
-    const genAI = new GoogleGenerativeAI(apiKey)
-    const model = genAI.getGenerativeModel(GEMINI_25_PRO)
-    const genResult = await model.generateContent(prompt)
-    trackCurriculumGeminiResult(genResult, GEMINI_25_PRO.model, CurriculumApiFeature.createFromForm, user.id)
-    let text = genResult.response.text()?.trim() || ''
-    if (!text) return { error: 'AI không trả về nội dung.' }
-
-    const lessonTopics = await extractLessonTopicsFromContent(text, genAI, user.id)
-    if (lessonTopics.length >= 1) {
-      text = await mergeOfficialQuestionsIntoCurriculum(text, supabase, subjectId, gradeLevelId, lessonTopics)
+    const lessonOutline = await buildLessonOutlineDirectByAI({
+      prompt: directPrompt,
+      expectedLessonCount: numTiet,
+      userId: user.id,
+    })
+    if (lessonOutline.length <= 0) {
+      return { error: 'AI chưa trả về JSON theo từng tiết. Vui lòng bấm tạo lại.' }
     }
 
     const topicFinal = isTopicMode ? topic : (topic.trim() ? topic : (lessonTitle ?? `Bài ${lessonNum}`))
+    const markdownFromLessons = composeCurriculumMarkdownFromLessonOutline(lessonOutline)
+    if (!markdownFromLessons.trim()) {
+      return { error: 'Không thể tổng hợp content_markdown từ JSON theo từng tiết.' }
+    }
+    const apiKey = process.env.GOOGLE_API_KEY
+    let lessonTopics: string[] = []
+    if (apiKey) {
+      const genAI = new GoogleGenerativeAI(apiKey)
+      lessonTopics = await extractLessonTopicsFromContent(markdownFromLessons, genAI, user.id)
+    }
 
     const { data: row, error: insertErr } = await supabase
       .from('worksheet_curricula')
@@ -513,7 +881,7 @@ Yêu cầu:
         num_lessons: numTiet,
         lesson_duration_minutes: thoiLuong,
         goals: goals.trim() || null,
-        content_markdown: text,
+        content_markdown: markdownFromLessons,
         lesson_topics: lessonTopics.length >= 1 ? lessonTopics : null,
       })
       .select('id')
@@ -521,9 +889,11 @@ Yêu cầu:
 
     if (insertErr) {
       console.warn('[createCurriculum] Insert failed:', insertErr.message)
-      return { success: true, curriculumMarkdown: text, curriculumId: null, saveFailed: insertErr.message }
+      return { success: true, curriculumMarkdown: markdownFromLessons, curriculumId: null, saveFailed: insertErr.message }
     }
-    return { success: true, curriculumMarkdown: text, curriculumId: row?.id ?? null }
+    const curriculumId = row?.id ?? null
+    if (curriculumId) await upsertCurriculumLessonRows(supabase, curriculumId, lessonOutline)
+    return { success: true, curriculumMarkdown: markdownFromLessons, curriculumId }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     return { error: `Tạo giáo trình thất bại: ${msg}` }
@@ -537,6 +907,7 @@ export async function saveCurriculum(formData: FormData) {
     return { error: 'Dữ liệu không hợp lệ.' }
   }
   const curriculumMarkdown = (formData.get('curriculumMarkdown') as string)?.trim() || ''
+  const lessonOutlineJsonRaw = (formData.get('lessonOutlineJson') as string)?.trim() || ''
   const topic = (formData.get('topic') as string)?.trim() || ''
   const goals = (formData.get('goals') as string)?.trim() || ''
   const curriculumId = (formData.get('curriculumId') as string)?.trim() || null
@@ -584,6 +955,20 @@ export async function saveCurriculum(formData: FormData) {
   }
 
   if (curriculumId) {
+    const lessonOutline = lessonOutlineJsonRaw
+      ? parseLessonOutlineFromJsonRaw(lessonOutlineJsonRaw, numTiet)
+      : await buildLessonOutlineByAI({
+          markdown: curriculumMarkdown,
+          expectedLessonCount: numTiet,
+          userId: user.id,
+        })
+    if (lessonOutline.length <= 0) {
+      return { error: 'AI chưa tách được giáo trình JSON theo từng tiết. Vui lòng thử lưu lại.' }
+    }
+    const markdownFromLessons = composeCurriculumMarkdownFromLessonOutline(lessonOutline)
+    if (!markdownFromLessons.trim()) {
+      return { error: 'Không thể tổng hợp content_markdown từ JSON theo từng tiết.' }
+    }
     const { error: updErr } = await supabase
       .from('worksheet_curricula')
       .update({
@@ -598,12 +983,19 @@ export async function saveCurriculum(formData: FormData) {
         num_lessons: numTiet,
         lesson_duration_minutes: thoiLuong,
         goals: goals || null,
-        content_markdown: curriculumMarkdown,
+        content_markdown: markdownFromLessons,
         ...(lessonTopics ? { lesson_topics: lessonTopics } : {}),
       })
       .eq('id', curriculumId)
+      .select('id')
+      .single()
     if (updErr) return { error: `Cập nhật thất bại: ${updErr.message}` }
-    return { success: true, curriculumId }
+    await upsertCurriculumLessonRows(supabase, curriculumId, lessonOutline)
+    await supabase.from('worksheet_curriculum_lesson_slides').delete().eq('curriculum_id', curriculumId)
+    return {
+      success: true,
+      curriculumId,
+    }
   }
 
   const { data: row, error } = await supabase
@@ -628,7 +1020,31 @@ export async function saveCurriculum(formData: FormData) {
     .single()
 
   if (error) return { error: `Lưu thất bại: ${error.message}` }
-  return { success: true, curriculumId: row?.id ?? null }
+  const newCurriculumId = row?.id ?? null
+  if (newCurriculumId) {
+    const lessonOutline = lessonOutlineJsonRaw
+      ? parseLessonOutlineFromJsonRaw(lessonOutlineJsonRaw, numTiet)
+      : await buildLessonOutlineByAI({
+          markdown: curriculumMarkdown,
+          expectedLessonCount: numTiet,
+          userId: user.id,
+        })
+    if (lessonOutline.length <= 0) {
+      await supabase.from('worksheet_curricula').delete().eq('id', newCurriculumId)
+      return { error: 'AI chưa tách được giáo trình JSON theo từng tiết. Vui lòng thử lưu lại.' }
+    }
+    const markdownFromLessons = composeCurriculumMarkdownFromLessonOutline(lessonOutline)
+    if (!markdownFromLessons.trim()) {
+      await supabase.from('worksheet_curricula').delete().eq('id', newCurriculumId)
+      return { error: 'Không thể tổng hợp content_markdown từ JSON theo từng tiết.' }
+    }
+    await supabase
+      .from('worksheet_curricula')
+      .update({ content_markdown: markdownFromLessons })
+      .eq('id', newCurriculumId)
+    await upsertCurriculumLessonRows(supabase, newCurriculumId, lessonOutline)
+  }
+  return { success: true, curriculumId: newCurriculumId }
 }
 
 /** Lưu số bài + tên bài vào mục lục SGK khi tạo giáo trình từ ảnh – để giáo viên khác nhập đúng số bài là thấy nút Xem giáo trình */
@@ -1172,6 +1588,8 @@ export async function clearCurriculumDerivedData(curriculumId: string) {
     admin.from('worksheet_slide_edit_history').delete().eq('curriculum_id', curriculumId),
     admin.from('user_customized_slides_history').delete().eq('curriculum_id', curriculumId),
     admin.from('user_customized_slides').delete().eq('curriculum_id', curriculumId),
+    admin.from('worksheet_curriculum_lesson_slides').delete().eq('curriculum_id', curriculumId),
+    admin.from('worksheet_curriculum_lessons').delete().eq('curriculum_id', curriculumId),
     admin.from('worksheet_slides_original').delete().eq('curriculum_id', curriculumId),
     admin.from('worksheet_slides').delete().eq('curriculum_id', curriculumId),
   ] as const
@@ -1752,28 +2170,6 @@ export async function saveSlidesToCurriculum(opts: {
   return { success: true }
 }
 
-/** Lấy slide bản chung theo giáo trình */
-export async function getSlidesByCurriculumId(curriculumId: string) {
-  const supabase = createClient()
-  const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
-  if ('error' in authResult) return { error: authResult.error }
-
-  const { data, error } = await supabase
-    .from('worksheet_slides')
-    .select('content_json')
-    .eq('curriculum_id', curriculumId)
-    .single()
-
-  if (error || !data) return { success: true, slides: null, curriculumInfographic: undefined }
-  const parsed = parseStoredCurriculumSlidesJson(data.content_json)
-  const slides = parsed.slides as WorksheetSlideRow[]
-  return {
-    success: true,
-    slides: slides.length > 0 ? slides : null,
-    curriculumInfographic: parsed.curriculumInfographic,
-  }
-}
-
 /** Lấy bản gốc slide (AI tạo lần đầu, không bị ghi đè) */
 export async function getOriginalSlides(curriculumId: string) {
   const supabase = createClient()
@@ -1794,32 +2190,6 @@ export async function getOriginalSlides(curriculumId: string) {
     slides: slides.length > 0 ? slides : null,
     curriculumInfographic: parsed.curriculumInfographic,
   }
-}
-
-/** Lưu bản gốc lần đầu (khi AI tạo) – chỉ gọi khi chưa có bản gốc */
-export async function saveOriginalSlidesIfNotExists(opts: {
-  curriculumId: string
-  slides: WorksheetSlideRow[]
-}) {
-  const supabase = createClient()
-  const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
-  if ('error' in authResult) return { error: authResult.error }
-
-  const { data: existing } = await supabase
-    .from('worksheet_slides_original')
-    .select('id')
-    .eq('curriculum_id', opts.curriculumId)
-    .single()
-
-  if (existing) return { success: true, saved: false }
-
-  const { error } = await supabase.from('worksheet_slides_original').insert({
-    curriculum_id: opts.curriculumId,
-    content_json: serializeStoredCurriculumSlidesJson(opts.slides),
-  })
-
-  if (error) return { error: error.message }
-  return { success: true, saved: true }
 }
 
 const SHARED_HISTORY_DAYS = 7
@@ -1865,27 +2235,358 @@ export async function restoreSharedFromHistory(curriculumId: string, historyId: 
   }
 }
 
-/** Lấy slide đã chỉnh sửa của giáo viên (thêm biểu đồ, sửa nội dung) – không đổi dữ liệu gốc */
-export async function getUserCustomizedSlides(curriculumId: string) {
+type CurriculumSlideModeForLesson = 'shared' | 'original' | 'personal'
+
+async function loadSlidesPayloadByMode(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  curriculumId: string,
+  mode: CurriculumSlideModeForLesson
+): Promise<{ slides: WorksheetSlideRow[]; curriculumInfographic?: SlideInfographic; lessonChunks: CurriculumLessonChunk[] }> {
+  if (mode === 'shared') {
+    const { data } = await supabase
+      .from('worksheet_slides')
+      .select('content_json')
+      .eq('curriculum_id', curriculumId)
+      .single()
+    const parsed = parseStoredCurriculumSlidesJson(data?.content_json)
+    const slides = parsed.slides as WorksheetSlideRow[]
+    const lessonChunks = parsed.lessonChunks ?? buildLessonChunksFromSlides(slides)
+    return { slides, curriculumInfographic: parsed.curriculumInfographic, lessonChunks }
+  }
+  if (mode === 'original') {
+    const { data } = await supabase
+      .from('worksheet_slides_original')
+      .select('content_json')
+      .eq('curriculum_id', curriculumId)
+      .single()
+    const parsed = parseStoredCurriculumSlidesJson(data?.content_json)
+    const slides = parsed.slides as WorksheetSlideRow[]
+    const lessonChunks = parsed.lessonChunks ?? buildLessonChunksFromSlides(slides)
+    return { slides, curriculumInfographic: parsed.curriculumInfographic, lessonChunks }
+  }
+  const { data } = await supabase
+    .from('user_customized_slides')
+    .select('slides_json')
+    .eq('user_id', userId)
+    .eq('curriculum_id', curriculumId)
+    .single()
+  const parsed = parseStoredCurriculumSlidesJson(data?.slides_json)
+  const slides = parsed.slides as WorksheetSlideRow[]
+  const lessonChunks = parsed.lessonChunks ?? buildLessonChunksFromSlides(slides)
+  return { slides, curriculumInfographic: parsed.curriculumInfographic, lessonChunks }
+}
+
+async function loadCurriculumLessonRows(
+  supabase: ReturnType<typeof createClient>,
+  curriculumId: string
+): Promise<CurriculumLessonRow[]> {
+  const { data } = await supabase
+    .from('worksheet_curriculum_lessons')
+    .select('lesson_no, lesson_title, lesson_markdown, lesson_json')
+    .eq('curriculum_id', curriculumId)
+    .order('lesson_no', { ascending: true })
+  return normalizeLessonRows((data ?? []) as CurriculumLessonRow[])
+}
+
+async function loadExpectedLessonCount(
+  supabase: ReturnType<typeof createClient>,
+  curriculumId: string
+): Promise<number> {
+  const { data } = await supabase
+    .from('worksheet_curricula')
+    .select('num_lessons')
+    .eq('id', curriculumId)
+    .maybeSingle()
+  return Math.max(1, Number(data?.num_lessons ?? 1) || 1)
+}
+
+async function rebuildLessonRowsForCurriculum(
+  supabase: ReturnType<typeof createClient>,
+  curriculumId: string,
+  userId?: string | null
+): Promise<number> {
+  const { data } = await supabase
+    .from('worksheet_curricula')
+    .select('content_markdown, num_lessons')
+    .eq('id', curriculumId)
+    .maybeSingle()
+  const markdown = String(data?.content_markdown ?? '').trim()
+  if (!markdown) return 0
+  const expectedLessonCount = Math.max(1, Number(data?.num_lessons ?? 1) || 1)
+  const lessonOutline = await buildLessonOutlineByAI({
+    markdown,
+    expectedLessonCount,
+    userId: userId ?? null,
+  })
+  if (lessonOutline.length <= 0) return 0
+  await upsertCurriculumLessonRows(supabase, curriculumId, lessonOutline)
+  return lessonOutline.length
+}
+
+/** Lấy danh sách tiết đã được chia sẵn trong DB (theo mode). */
+export async function getCurriculumLessonMeta(curriculumId: string, mode: CurriculumSlideModeForLesson) {
   const supabase = createClient()
   const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
   if ('error' in authResult) return { error: authResult.error }
   const { user } = authResult
-
-  const { data, error } = await supabase
-    .from('user_customized_slides')
-    .select('slides_json')
-    .eq('user_id', user.id)
-    .eq('curriculum_id', curriculumId)
-    .single()
-
-  if (error || !data) return { success: true, slides: null, curriculumInfographic: undefined }
-  const parsed = parseStoredCurriculumSlidesJson(data.slides_json)
-  const slides = parsed.slides as WorksheetSlideRow[]
+  const lessonRows = await loadCurriculumLessonRows(supabase, curriculumId)
+  const loaded = await loadSlidesPayloadByMode(supabase, user.id, curriculumId, mode)
+  const lessonsFromRows: CurriculumLessonChunk[] = lessonRows.map((row, idx) => ({
+    lessonNo: row.lesson_no,
+    startIndex: idx,
+    endIndex: idx,
+    slideCount: 1,
+  }))
+  const lessons = lessonsFromRows.length > 0 ? lessonsFromRows : loaded.lessonChunks
   return {
     success: true,
-    slides: slides.length > 0 ? slides : null,
-    curriculumInfographic: parsed.curriculumInfographic,
+    lessons,
+    lessonCount: lessons.length,
+    totalSlides: loaded.slides.length,
+    curriculumInfographic: loaded.curriculumInfographic,
+  }
+}
+
+/** Chỉ lấy slide của một tiết để mở nhẹ dữ liệu. */
+export async function getCurriculumSlidesByLesson(curriculumId: string, mode: CurriculumSlideModeForLesson, lessonNo: number) {
+  const supabase = createClient()
+  const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+  if ('error' in authResult) return { error: authResult.error }
+  const { user } = authResult
+  const safeLessonNo = Math.max(1, Math.floor(Number(lessonNo) || 1))
+  console.log('[lesson-slides] request', { curriculumId, mode, lessonNo: safeLessonNo, userId: user.id })
+
+  let lessonRows = await loadCurriculumLessonRows(supabase, curriculumId)
+  const expectedLessons = await loadExpectedLessonCount(supabase, curriculumId)
+  if (expectedLessons > 1 && lessonRows.length <= 1) {
+    await rebuildLessonRowsForCurriculum(supabase, curriculumId, user.id)
+    lessonRows = await loadCurriculumLessonRows(supabase, curriculumId)
+  }
+  const lesson = lessonRows.find((row) => row.lesson_no === safeLessonNo) ?? null
+  if (!lesson?.lesson_markdown) {
+    return {
+      error:
+        'Không tìm thấy nội dung giáo trình của tiết đã chọn. Vui lòng lưu lại giáo trình để hệ thống tạo JSON theo từng tiết.',
+    }
+  }
+
+  const cacheQuery = supabase
+    .from('worksheet_curriculum_lesson_slides')
+    .select('slides_json')
+    .eq('curriculum_id', curriculumId)
+    .eq('mode', mode)
+    .eq('lesson_no', safeLessonNo)
+  const cacheRes = mode === 'personal'
+    ? await cacheQuery.eq('user_id', user.id).maybeSingle()
+    : await cacheQuery.is('user_id', null).maybeSingle()
+  const cachedParsed = parseStoredCurriculumSlidesJson(cacheRes.data?.slides_json)
+  const cachedSlides = cachedParsed.slides as WorksheetSlideRow[]
+  if (cachedSlides.length > 0) {
+    console.log('[lesson-slides] cache-hit', { curriculumId, mode, lessonNo: safeLessonNo, slideCount: cachedSlides.length })
+    const loaded = await loadSlidesPayloadByMode(supabase, user.id, curriculumId, mode)
+    return {
+      success: true,
+      slides: cachedSlides,
+      lessonNo: safeLessonNo,
+      lessonMarkdown: buildLessonMarkdownForDisplay(lesson),
+      lessonTitle: lesson.lesson_title ?? '',
+      curriculumInfographic: loaded.curriculumInfographic,
+      generated: false,
+      source: 'cache',
+    }
+  }
+
+  if (lesson.lesson_markdown) {
+    console.log('[lesson-slides] generate-start', {
+      curriculumId,
+      mode,
+      lessonNo: safeLessonNo,
+      markdownLength: lesson.lesson_markdown.length,
+    })
+    const generated = await generateSlidesForLessonByAI({
+      lessonTitle: lesson.lesson_title || `Tiết ${safeLessonNo}`,
+      lessonMarkdown: lesson.lesson_markdown,
+      userId: user.id,
+    })
+    if (generated.slides.length > 0) {
+      const admin = curriculumAiAdminClient()
+      if (!admin) {
+        return { error: 'Thiếu cấu hình trừ credit (SUPABASE_SERVICE_ROLE_KEY).' }
+      }
+      const balance = await readUserCreditBalance(admin, user.id)
+      if (balance < LESSON_SLIDE_GENERATE_CREDIT_COST) {
+        return {
+          error: 'insufficient_credits',
+          code: 'INSUFFICIENT_CREDITS',
+          balance,
+          required: LESSON_SLIDE_GENERATE_CREDIT_COST,
+        }
+      }
+      const eventKey = [
+        'curriculum-lesson-slide-generate',
+        user.id,
+        curriculumId,
+        mode,
+        String(safeLessonNo),
+        Date.now().toString(36),
+        Math.random().toString(36).slice(2, 8),
+      ].join(':')
+      const spend = await spendCurriculumAiCredits(admin, {
+        userId: user.id,
+        amount: LESSON_SLIDE_GENERATE_CREDIT_COST,
+        chargeType: CURRICULUM_AI_CHARGE_TYPES.lessonSlideGenerate,
+        eventKey,
+        metadata: {
+          curriculumId,
+          mode,
+          lessonNo: safeLessonNo,
+          slideCount: generated.slides.length,
+          source: generated.source,
+        },
+      })
+      if (!spend.ok) {
+        return { error: spend.error || 'Không thể trừ credit để tạo slide cho tiết.' }
+      }
+      const slidesJson = serializeStoredCurriculumSlidesJson(generated.slides)
+      const deleteQuery = supabase
+        .from('worksheet_curriculum_lesson_slides')
+        .delete()
+        .eq('curriculum_id', curriculumId)
+        .eq('mode', mode)
+        .eq('lesson_no', safeLessonNo)
+      if (mode === 'personal') {
+        await deleteQuery.eq('user_id', user.id)
+      } else {
+        await deleteQuery.is('user_id', null)
+      }
+      const { error: insertErr } = await supabase.from('worksheet_curriculum_lesson_slides').insert({
+        curriculum_id: curriculumId,
+        mode,
+        user_id: mode === 'personal' ? user.id : null,
+        lesson_no: safeLessonNo,
+        slides_json: slidesJson,
+        updated_at: new Date().toISOString(),
+      })
+      if (insertErr) return { error: insertErr.message }
+      console.log('[lesson-slides] generate-done', {
+        curriculumId,
+        mode,
+        lessonNo: safeLessonNo,
+        slideCount: generated.slides.length,
+        source: generated.source,
+      })
+      const loaded = await loadSlidesPayloadByMode(supabase, user.id, curriculumId, mode)
+      return {
+        success: true,
+        slides: generated.slides,
+        lessonNo: safeLessonNo,
+        lessonMarkdown: buildLessonMarkdownForDisplay(lesson),
+        lessonTitle: lesson.lesson_title ?? '',
+        curriculumInfographic: loaded.curriculumInfographic,
+        generated: true,
+        source: generated.source,
+      }
+    }
+  }
+
+  return {
+    error:
+      'Không thể tạo slide cho tiết đã chọn. Vui lòng thử lại để AI tạo slide theo tiết.',
+  }
+}
+
+async function loadLessonSlidesCacheByMode(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  curriculumId: string,
+  mode: CurriculumSlideModeForLesson,
+  lessonNo: number
+): Promise<{ slides: WorksheetSlideRow[]; curriculumInfographic?: SlideInfographic }> {
+  const query = supabase
+    .from('worksheet_curriculum_lesson_slides')
+    .select('slides_json')
+    .eq('curriculum_id', curriculumId)
+    .eq('mode', mode)
+    .eq('lesson_no', lessonNo)
+  const row = mode === 'personal'
+    ? await query.eq('user_id', userId).maybeSingle()
+    : await query.is('user_id', null).maybeSingle()
+  const parsed = parseStoredCurriculumSlidesJson(row.data?.slides_json)
+  const loaded = await loadSlidesPayloadByMode(supabase, userId, curriculumId, mode)
+  return { slides: parsed.slides as WorksheetSlideRow[], curriculumInfographic: loaded.curriculumInfographic }
+}
+
+export async function ensureCurriculumLessonSlidesPrepared(curriculumId: string, lessonNo: number) {
+  const supabase = createClient()
+  const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+  if ('error' in authResult) return { error: authResult.error }
+  const { user } = authResult
+  const safeLessonNo = Math.max(1, Math.floor(Number(lessonNo) || 1))
+
+  const originalRes = await getCurriculumSlidesByLesson(curriculumId, 'original', safeLessonNo)
+  if (!originalRes || !('success' in originalRes) || !originalRes.success || !Array.isArray(originalRes.slides) || originalRes.slides.length <= 0) {
+    const originalError = 'error' in (originalRes ?? {}) ? String((originalRes as { error?: unknown }).error ?? '').trim() : ''
+    return { error: originalError || 'Không thể chuẩn bị slide gốc của tiết đã chọn.' }
+  }
+  const originalSlides = originalRes.slides as WorksheetSlideRow[]
+
+  const sharedCache = await loadLessonSlidesCacheByMode(supabase, user.id, curriculumId, 'shared', safeLessonNo)
+  if (sharedCache.slides.length <= 0) {
+    const { error: insertSharedErr } = await supabase.from('worksheet_curriculum_lesson_slides').insert({
+      curriculum_id: curriculumId,
+      mode: 'shared',
+      user_id: null,
+      lesson_no: safeLessonNo,
+      slides_json: serializeStoredCurriculumSlidesJson(originalSlides),
+      updated_at: new Date().toISOString(),
+    })
+    if (insertSharedErr) return { error: insertSharedErr.message }
+  }
+
+  const personalCache = await loadLessonSlidesCacheByMode(supabase, user.id, curriculumId, 'personal', safeLessonNo)
+  if (personalCache.slides.length <= 0) {
+    const sharedReload = await loadLessonSlidesCacheByMode(supabase, user.id, curriculumId, 'shared', safeLessonNo)
+    const sourceSlides = sharedReload.slides.length > 0 ? sharedReload.slides : originalSlides
+    const { error: insertPersonalErr } = await supabase.from('worksheet_curriculum_lesson_slides').insert({
+      curriculum_id: curriculumId,
+      mode: 'personal',
+      user_id: user.id,
+      lesson_no: safeLessonNo,
+      slides_json: serializeStoredCurriculumSlidesJson(sourceSlides),
+      updated_at: new Date().toISOString(),
+    })
+    if (insertPersonalErr) return { error: insertPersonalErr.message }
+  }
+
+  return { success: true, lessonNo: safeLessonNo }
+}
+
+export async function getCurriculumSlidesByLessonCached(curriculumId: string, mode: CurriculumSlideModeForLesson, lessonNo: number) {
+  const supabase = createClient()
+  const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+  if ('error' in authResult) return { error: authResult.error }
+  const { user } = authResult
+  const safeLessonNo = Math.max(1, Math.floor(Number(lessonNo) || 1))
+
+  const lessonRows = await loadCurriculumLessonRows(supabase, curriculumId)
+  const lesson = lessonRows.find((row) => row.lesson_no === safeLessonNo) ?? null
+  if (!lesson?.lesson_markdown) {
+    return { error: 'Không tìm thấy dữ liệu tiết đã chọn.' }
+  }
+  const cache = await loadLessonSlidesCacheByMode(supabase, user.id, curriculumId, mode, safeLessonNo)
+  if (cache.slides.length <= 0) {
+    return { error: 'Bản đã chọn chưa có dữ liệu slide trong DB.' }
+  }
+  return {
+    success: true,
+    slides: cache.slides,
+    lessonNo: safeLessonNo,
+    lessonMarkdown: buildLessonMarkdownForDisplay(lesson),
+    lessonTitle: lesson.lesson_title ?? '',
+    curriculumInfographic: cache.curriculumInfographic,
+    generated: false,
+    source: 'cache',
   }
 }
 
@@ -2106,6 +2807,7 @@ export async function verifySlideEditProposalDraft(opts: {
   blockIndex: number
   segmentType: 'edit' | 'add'
   originalText?: string
+  originalBlockContent?: string
   proposedText: string
   proposedHeader?: string
   /** true: trừ credit cho lần kiểm tra AI (nút "Kiểm tra AI"). */
@@ -2162,13 +2864,20 @@ export async function verifySlideEditProposalDraft(opts: {
 
   if (opts.segmentType === 'edit') {
     const orig = String(opts.originalText ?? '').trim()
-    if (!orig || !blockContent.includes(orig)) {
+    const replacement = String(opts.proposedText ?? '').trim()
+    const exactAt = orig ? blockContent.indexOf(orig) : -1
+    const looseRange = exactAt >= 0 ? { start: exactAt, end: exactAt + orig.length } : findLooseRange(blockContent, orig)
+    const snapshot = String(opts.originalBlockContent ?? '')
+    const snapExactAt = orig && snapshot ? snapshot.indexOf(orig) : -1
+    const snapLooseRange = snapExactAt >= 0 ? { start: snapExactAt, end: snapExactAt + orig.length } : findLooseRange(snapshot, orig)
+    if (!orig || (!looseRange && !snapLooseRange)) {
       return { error: 'Đoạn cần sửa không tồn tại trong block hiện tại.' }
     }
-    const replacement = String(opts.proposedText ?? '').trim()
-    const edited = blockContent.replace(orig, replacement)
+    const base = looseRange ? blockContent : snapshot
+    const range = looseRange ?? snapLooseRange!
+    const edited = base.slice(0, range.start) + replacement + base.slice(range.end)
     const aiCheck = await verifySlideProposalByAI({
-      originalRegion: blockContent,
+      originalRegion: base,
       editedRegion: edited,
       slideTitle: String(slide.title ?? ''),
       blockHeader,
@@ -2203,6 +2912,7 @@ export async function applySlideEditDirect(opts: {
   blockIndex: number
   segmentType: 'edit' | 'add'
   originalText?: string
+  originalBlockContent?: string
   proposedText: string
   proposedHeader?: string
 }) {
@@ -2235,8 +2945,20 @@ export async function applySlideEditDirect(opts: {
   if (opts.segmentType === 'edit') {
     const block = blocks[opts.blockIndex]
     const orig = String(opts.originalText ?? '').trim()
-    if (!block || !orig || !block.content.includes(orig)) return { error: 'Không tìm thấy đoạn cần sửa trong block hiện tại.' }
-    blocks[opts.blockIndex] = { ...block, content: block.content.replace(orig, String(opts.proposedText ?? '').trim()) }
+    if (!block || !orig) return { error: 'Không tìm thấy đoạn cần sửa trong block hiện tại.' }
+    const content = String(block.content ?? '')
+    const exactAt = content.indexOf(orig)
+    const looseRange = exactAt >= 0 ? { start: exactAt, end: exactAt + orig.length } : findLooseRange(content, orig)
+    const snapshot = String(opts.originalBlockContent ?? '')
+    const snapExactAt = orig && snapshot ? snapshot.indexOf(orig) : -1
+    const snapLooseRange = snapExactAt >= 0 ? { start: snapExactAt, end: snapExactAt + orig.length } : findLooseRange(snapshot, orig)
+    if (!looseRange && !snapLooseRange) return { error: 'Không tìm thấy đoạn cần sửa trong block hiện tại.' }
+    const base = looseRange ? content : snapshot
+    const range = looseRange ?? snapLooseRange!
+    blocks[opts.blockIndex] = {
+      ...block,
+      content: base.slice(0, range.start) + String(opts.proposedText ?? '').trim() + base.slice(range.end),
+    }
   } else {
     const addHeader = String(opts.proposedHeader ?? 'Nội dung bổ sung').trim() || 'Nội dung bổ sung'
     const addText = String(opts.proposedText ?? '').trim()

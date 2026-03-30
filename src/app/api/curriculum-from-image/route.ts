@@ -2,7 +2,6 @@ import { randomUUID } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_PRO } from '@/lib/gemini-config'
-import { generateSlidesFromCurriculum } from '@/lib/slides-from-curriculum'
 import { createClient } from '@/lib/supabase/server'
 import { CurriculumApiFeature, trackCurriculumGeminiResult } from '@/lib/curriculum-api-usage'
 import {
@@ -42,6 +41,23 @@ const TEXTBOOK_NAMES: Record<string, string> = {
 
 /** Giới hạn số ảnh – Gemini có trần payload/request; 20 ảnh nếu mỗi file không quá lớn */
 const MAX_IMAGES = 20
+
+type LessonOutlineItem = { lessonNo: number; title: string; markdown: string }
+
+function composeCurriculumMarkdownFromLessons(lessons: LessonOutlineItem[]): string {
+  const parts = lessons
+    .map((item, idx) => {
+      const lessonNo = Math.max(1, Math.floor(Number(item.lessonNo) || idx + 1))
+      const title = String(item.title || '').trim()
+      const markdown = String(item.markdown || '').trim()
+      const heading = title ? `### Tiết ${lessonNo}: ${title}` : `### Tiết ${lessonNo}`
+      if (!markdown) return heading
+      if (/^#{2,3}\s*ti[eế]t\b/im.test(markdown)) return markdown
+      return `${heading}\n\n${markdown}`
+    })
+    .filter((x) => x.trim().length > 0)
+  return parts.join('\n\n')
+}
 
 /** Tạo giáo trình từ ảnh trang sách giáo khoa – dùng Gemini vision */
 export async function POST(req: NextRequest) {
@@ -137,89 +153,59 @@ export async function POST(req: NextRequest) {
 
     const imgLabel = files.length > 1 ? `${files.length} ảnh trang sách` : 'ảnh trang sách'
     const prompt = `Đây là ${imgLabel} giáo khoa ${subjectName} ${gradeLevelId}, bộ ${textbookName}.
+Hãy trả về JSON theo schema:
+{
+  "lessonNumber": <số bài trích từ ảnh>,
+  "lessonTitle": "<tên bài>",
+  "lessons": [
+    { "lessonNo": 1, "title": "...", "markdown": "..." }
+  ]
+}
 
-BƯỚC 1 – Trích thông tin từ ảnh (ưu tiên ảnh đầu):
-- Xác định SỐ BÀI (1, 2, 3...) và TÊN BÀI ghi trong trang sách.
-- Dòng đầu tiên trả về (bắt buộc): BÀI_SỐ: <số>
-Dòng thứ hai: BÀI_TÊN: <tên bài đầy đủ>
-Ví dụ:
-BÀI_SỐ: 2
-BÀI_TÊN: Tích phân
-
-BƯỚC 2 – Soạn giáo trình:
-Dựa trên nội dung trong ${files.length > 1 ? 'các ảnh (đọc theo thứ tự trang, tổng hợp đầy đủ)' : 'ảnh'}, soạn GIÁO TRÌNH chi tiết theo đúng Công văn 5512/BGDĐT và chương trình GDPT 2018 của Bộ Giáo dục và Đào tạo.
-
-Thông số:
-- Thời lượng: ${numLessons} tiết x ${lessonDurationMinutes} phút.
-- Đối tượng: Học sinh Việt Nam theo chương trình GDPT 2018.
-
-CẤU TRÚC BẮT BUỘC (theo Công văn 5512/BGDĐT – 4 hoạt động mỗi tiết):
-1. Khởi động – kích thích hứng thú, kết nối kiến thức cũ.
-2. Hình thành kiến thức – nội dung mới từ sách, lý thuyết.
-3. Luyện tập – vận dụng, bài tập.
-4. Vận dụng – mở rộng, liên hệ thực tế.
-
-FORMAT BẮT BUỘC:
-- Tiêu đề chính: ## GIÁO TRÌNH: <TÊN BÀI VIẾT HOA>
-- Mỗi tiết: ### Tiết X: <tiêu đề tiết> (tổng ${lessonDurationMinutes} phút)
-- Mỗi hoạt động: **1. Khởi động (X phút)**, **2. Hình thành kiến thức (X phút)**, **3. Luyện tập (X phút)**, **4. Vận dụng (X phút)** – tổng 4 hoạt động = ${lessonDurationMinutes} phút.
-- Trong mỗi hoạt động, tách thành CÁC PHẦN – mỗi phần ghi rõ thời lượng: **Phần 1 (X phút):**, **Phần 2 (X phút):**, ... Tổng thời lượng các phần trong mỗi hoạt động phải bằng thời lượng hoạt động đó.
-- Ghi rõ tham chiếu SGK: trang X, Hình X, Ví dụ X, HĐX (Hoạt động), Luyện tập X, Vận dụng X, Bài tập X
-
-YÊU CẦU CHI TIẾT (bắt buộc):
-- HÌNH ẢNH: Mỗi khi nhắc Hình X, phải mô tả nội dung (ví dụ: "Hình 1.2 – đồ thị hàm số y = x²", "Hình 1.4 – bảng biến thiên", "sơ đồ quy trình...") để người đọc hiểu mà không cần xem ảnh.
-- CÔNG THỨC – CHO HỌC SINH ĐỌC ĐƯỢC: BẮT BUỘC dùng Unicode, KHÔNG dùng LaTeX $...$. Ví dụ: ∈, ℝ, ∫, π, ², √, ∞, ↗, ↘, ⇒, ½, y=x², f'(x), (0;+∞). Phân số: 1/2. Căn: √(x+1). Bảng: +∞, −∞, ‖.
-- BẢNG: Trích nội dung bảng quan trọng (ít nhất các hàng/cột chính). Không bỏ qua bảng trong SGK.
-- ĐỘ CHI TIẾT: Mỗi hoạt động chia thành các phần (Phần 1, Phần 2, ...), mỗi phần gọn một ý – ví dụ một ví dụ, một bài tập – không gộp nhiều ý vào một đoạn dài. Mỗi phần phải ghi cụ thể thời lượng (phút). Ví dụ: **Phần 1 (5 phút):** Thực hiện HĐ1 (trang 2): Quan sát đồ thị Hình 1.2, nhận xét... **Phần 2 (3 phút):** Đặt vấn đề: Làm thế nào để...
-
-Yêu cầu:
-- Bám sát 100% nội dung sách giáo khoa trong ảnh – không thêm bớt, không sai lệch.
-- Chuẩn Bộ GD&ĐT: Công văn 5512, GDPT 2018.
-- Trả về Markdown, dùng ## ### ** - cho cấu trúc.
-- Ngôn ngữ: Tiếng Việt.
-- Chỉ trả về nội dung Markdown, không giải thích thêm.
-- QUAN TRỌNG: Kết quả cho học sinh đọc trực tiếp – dùng Unicode, không LaTeX.`
+Ràng buộc:
+- lessons phải có đúng ${numLessons} tiết (hoặc sát nhất có thể nếu dữ liệu ảnh thiếu).
+- Mỗi tiết gồm 4 hoạt động theo Công văn 5512: Khởi động, Hình thành kiến thức, Luyện tập, Vận dụng.
+- Mỗi hoạt động chia phần nhỏ, có thời lượng, tổng mỗi tiết = ${lessonDurationMinutes} phút.
+- Bám sát SGK trong ảnh, không thêm bớt sai nội dung.
+- Viết chi tiết theo ý SGK: nêu rõ kiến thức trọng tâm, ví dụ minh họa, câu hỏi dẫn dắt, bài tập luyện tập và gợi ý đáp án ngắn.
+- Nếu SGK trong ảnh ghi quá ngắn, được bổ sung ý hợp lý để bài dạy đầy đủ hơn (ghi rõ phần "Mở rộng"), nhưng không được mâu thuẫn SGK.
+- lesson.markdown phải đủ nội dung để dạy đủ ${lessonDurationMinutes} phút/tiết, tránh viết sơ sài.
+- Ví dụ minh họa phải sát SGK trong ảnh.
+- Nếu SGK có ví dụ/lời giải mẫu thì phải ghi đầy đủ các bước lời giải và kết luận, không tóm tắt.
+- Dùng tiếng Việt + Unicode, không LaTeX.
+- Chỉ trả JSON hợp lệ, không markdown/code fence.`
 
     const result = await model.generateContent([prompt, ...imageParts])
     trackCurriculumGeminiResult(result, GEMINI_25_PRO.model, CurriculumApiFeature.fromImage, trackUserId)
     const text = result.response.text()?.trim() || ''
-    const cleaned = text.replace(/^```(?:markdown|md)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim()
-
+    const cleaned = text.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim()
     if (!cleaned) {
       return NextResponse.json({ error: 'AI không trả về nội dung.' }, { status: 500 })
     }
-
-    let extractedLessonNumber = lessonNumber
-    let extractedTitle = `Bài ${lessonNumber}`
-
-    const numMatch = cleaned.match(/BÀI_SỐ:\s*(\d+)/i)
-    if (numMatch) {
-      extractedLessonNumber = parseInt(numMatch[1], 10) || lessonNumber
+    const parsed = JSON.parse(cleaned) as {
+      lessonNumber?: number
+      lessonTitle?: string
+      lessons?: Array<{ lessonNo?: number; title?: string; markdown?: string }>
     }
-    const titleMatch = cleaned.match(/BÀI_TÊN:\s*(.+?)(?:\n|$)/i)
-    if (titleMatch) {
-      const raw = titleMatch[1].trim()
-      if (raw) {
-        extractedTitle = /^bài\s*\d+/i.test(raw) ? raw : `Bài ${extractedLessonNumber}: ${raw}`
-      } else {
-        extractedTitle = `Bài ${extractedLessonNumber}`
-      }
-    } else {
-      const topicMatch = cleaned.match(/^#+\s*(.+?)(?:\n|$)/m)
-      extractedTitle = topicMatch ? topicMatch[1].trim() : `Bài ${extractedLessonNumber}`
+    const lessonOutline = (parsed.lessons ?? [])
+      .map((item, idx) => ({
+        lessonNo: Math.max(1, Math.floor(Number(item.lessonNo) || idx + 1)),
+        title: String(item.title || '').trim(),
+        markdown: String(item.markdown || '').trim(),
+      }))
+      .filter((item) => item.markdown.length > 0)
+    if (lessonOutline.length === 0) {
+      return NextResponse.json({ error: 'AI chưa trả về JSON tiết học hợp lệ.' }, { status: 500 })
     }
-
-    const curriculumBody = cleaned
-      .replace(/^BÀI_SỐ:\s*\d+\s*\n?/im, '')
-      .replace(/^BÀI_TÊN:\s*.+?\n?/im, '')
-      .replace(/^\s*\n+/, '')
-      .trim()
-
-    const { slides } = await generateSlidesFromCurriculum(curriculumBody, extractedTitle, {
-      fetchImages: true,
-      trackUserId,
-    })
-    const slidesPrepared = (slides as Array<{ title: string; blocks: Array<{ header: string; content: string }>; imageUrl?: string; visualEmbed?: string }>)
+    const extractedLessonNumber = Math.max(
+      1,
+      Math.floor(Number(parsed.lessonNumber) || lessonNumber)
+    )
+    const extractedTitle = String(parsed.lessonTitle || '').trim() || `Bài ${extractedLessonNumber}`
+    const curriculumBody = composeCurriculumMarkdownFromLessons(lessonOutline)
+    if (!curriculumBody.trim()) {
+      return NextResponse.json({ error: 'Không thể tổng hợp content_markdown từ JSON tiết học.' }, { status: 500 })
+    }
 
     const contentHash = curriculumMarkdownCreditHash(curriculumBody)
     let creditsCharged = false
@@ -238,7 +224,6 @@ Yêu cầu:
             gradeLevelId,
             textbookSetId,
             lessonNumber: extractedLessonNumber,
-            slideCount: slidesPrepared.length,
           },
         })
         if (spend.ok) {
@@ -256,10 +241,10 @@ Yêu cầu:
 
     return NextResponse.json({
       curriculumMarkdown: curriculumBody,
+      lessonOutline,
       topic: extractedTitle,
       lessonNumber: extractedLessonNumber,
       lessonTitle: extractedTitle,
-      slides: slidesPrepared.length > 0 ? slidesPrepared : undefined,
       creditsCharged,
       ...(typeof newBalance === 'number' ? { newBalance } : {}),
       ...(chargeError ? { chargeError } : {}),

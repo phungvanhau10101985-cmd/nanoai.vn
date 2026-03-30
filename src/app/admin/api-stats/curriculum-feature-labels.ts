@@ -5,7 +5,7 @@ export const CURRICULUM_API_STATS_FEATURE_LABELS: Record<string, string> = {
   [CurriculumApiFeature.fromImage]: 'Tạo giáo trình từ ảnh SGK (vision Pro)',
   [CurriculumApiFeature.slidesFromMarkdown]: 'Sinh slide từ markdown giáo trình (Flash)',
   [CurriculumApiFeature.fromPaste]: 'Tạo giáo trình từ nội dung dán (+ ảnh nếu có)',
-  [CurriculumApiFeature.analyzeSlidesGemini]: 'Phân tích giáo trình → slide (API analyze-slides, Gemini)',
+  [CurriculumApiFeature.lessonSlidesGenerate]: 'Sinh slide theo từng tiết (Gemini Flash)',
   [CurriculumApiFeature.editCheckFull]: 'Kiểm tra sửa giáo trình — toàn bài (2× Flash)',
   [CurriculumApiFeature.editCheckRegion]: 'Kiểm tra sửa giáo trình — vùng so sánh (2× Flash)',
   [CurriculumApiFeature.createFromForm]: 'Tạo giáo trình từ form (chủ đề / SGK, Pro)',

@@ -7,6 +7,7 @@
 
 | File | Mục đích |
 |------|----------|
+| `xoa-giao-trinh-va-slide.sql` | Xóa giáo trình + slide + dữ liệu theo tiết (giữ dữ liệu user/lớp/credits). |
 | `xoa-bai-tap-ai.sql` | Xóa câu hỏi + phiếu + job + … (**giữ** `worksheet_curricula`). |
 | `reset-full-giao-trinh-va-slide-ai.sql` | Xóa **cả** giáo trình + slide + phiếu + câu + job (reset lớn). |
 | `tao-ham-get-worksheet-ids-for-reverify.sql` | Tạo RPC `get_worksheet_ids_for_reverify` (tùy chọn). |

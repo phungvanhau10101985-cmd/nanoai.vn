@@ -191,11 +191,11 @@ export default async function AdminCurriculumApiStatsPage({
         </p>
         <p className="text-xs text-amber-800/90 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 mt-3">
           {tr(
-            'OpenAI (analyze-slides khi bật SLIDE_USE_OPENAI), tìm ảnh Google GenAI grounding, DeepSeek, và Pexels không ghi vào bảng này. Chỉ các lượt @google/generative-ai có usageMetadata mới được log.',
-            'OpenAI (analyze-slides when SLIDE_USE_OPENAI), Google GenAI grounding image search, DeepSeek, and Pexels are not logged here. Only @google/generative-ai calls with usageMetadata are recorded.',
-            '启用 SLIDE_USE_OPENAI 时的 OpenAI、Google GenAI 搜图、DeepSeek、Pexels 不在此表。仅记录带 usageMetadata 的 @google/generative-ai 调用。',
-            'SLIDE_USE_OPENAI 時の OpenAI、Google GenAI 画像検索、DeepSeek、Pexels は含まれません。usageMetadata 付き @google/generative-ai のみ。',
-            'SLIDE_USE_OPENAI 시 OpenAI, Google GenAI 이미지 검색, DeepSeek, Pexels는 미포함. usageMetadata 있는 @google/generative-ai만 기록.'
+            'Google GenAI grounding (tìm ảnh), DeepSeek và Pexels không ghi vào bảng này. Chỉ các lượt @google/generative-ai có usageMetadata mới được log.',
+            'Google GenAI grounding image search, DeepSeek, and Pexels are not logged here. Only @google/generative-ai calls with usageMetadata are recorded.',
+            'Google GenAI 搜图、DeepSeek、Pexels 不在此表。仅记录带 usageMetadata 的 @google/generative-ai 调用。',
+            'Google GenAI 画像検索、DeepSeek、Pexels は含まれません。usageMetadata 付き @google/generative-ai のみ記録されます。',
+            'Google GenAI 이미지 검색, DeepSeek, Pexels는 미포함. usageMetadata 있는 @google/generative-ai만 기록.'
           )}
         </p>
       </div>

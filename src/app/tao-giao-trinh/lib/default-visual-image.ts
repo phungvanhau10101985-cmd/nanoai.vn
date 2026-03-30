@@ -25,7 +25,7 @@ export function getSlideVisualInputs(slide: {
     .filter(Boolean)
 }
 
-/** Khớp host ảnh stock dùng trong `curriculum-analyze-slides` */
+/** Khớp host ảnh stock dùng cho pipeline slide AI */
 export function isDefaultStockVisualImageUrl(url: string): boolean {
   const raw = url.trim()
   if (!raw) return false

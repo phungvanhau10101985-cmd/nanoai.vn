@@ -28,7 +28,7 @@ import {
 import { createPresentationSyncId, getPresentationBroadcastChannelName } from '../lib/presentation-broadcast'
 import { getStudentSlideWindowConfig, isPathMatchingStudentSlideKind, studentSlideUrlWithSync } from '../lib/student-slide-window'
 import { QuizPopupDialog } from '../components/quiz-popup-dialog'
-import { getSlideProposalsForCurriculum, getSlidesByCurriculumId, resetPersonalToOriginal, saveSlidesToCurriculum, saveUserCustomizedSlides, saveWorksheetContent } from '../actions'
+import { getSlideProposalsForCurriculum, resetPersonalToOriginal, saveSlidesToCurriculum, saveUserCustomizedSlides, saveWorksheetContent } from '../actions'
 import { parseWorksheetIntoBlocks, replaceBlockInMarkdown } from '../lib/worksheet-parse-questions'
 import { resolveWorksheetEditBlockGlobalIndex } from '../lib/worksheet-slide-to-block-index'
 import { toEditableBlockContent } from '../lib/worksheet-editable-block-content'
@@ -161,18 +161,36 @@ function getVisualCellsFromInputs(slide: SlideItem): { layout: 1 | 2 | 4; cells:
 
 function extractPlotExpressionFromSlide(slide: SlideItem): string | null {
   const source = `${slide.title}\n${slide.content ?? ''}\n${(slide.blocks ?? []).map((b) => `${b.header ?? ''}\n${b.content ?? ''}`).join('\n')}\n${getSlideVisualInputs(slide).join('\n')}`
-  const patterns: RegExp[] = [
-    /y\s*=\s*f\s*\(\s*[xt]\s*\)\s*=\s*([^\n]{2,120})/i,
-    /y\s*=\s*([^\n]{2,120})/i,
-    /\b[a-zA-Z]\s*\(\s*[xt]\s*\)\s*=\s*([^\n]{2,120})/i,
-  ]
-  for (const re of patterns) {
-    const m = source.match(re)
-    if (!m?.[1]) continue
-    const normalized = normalizePlotExprCandidate(m[1])
-    if (normalized) return normalized
+  const candidates: string[] = []
+  const pushMatches = (re: RegExp) => {
+    re.lastIndex = 0
+    let m: RegExpExecArray | null
+    while ((m = re.exec(source)) !== null) {
+      const part = String(m?.[1] ?? '').trim()
+      if (part) candidates.push(part)
+      if (!re.global) break
+    }
   }
-  return null
+
+  // Ưu tiên dạng hàm đầy đủ như s(t)=..., f(x)=...
+  pushMatches(/\b[a-zA-Z]\s*\(\s*[xt]\s*\)\s*=\s*([^\n]{2,180})/gi)
+  pushMatches(/y\s*=\s*f\s*\(\s*[xt]\s*\)\s*=\s*([^\n]{2,180})/gi)
+  pushMatches(/y\s*=\s*([^\n]{2,180})/gi)
+
+  const scored = candidates
+    .map((raw) => normalizePlotExprCandidate(raw))
+    .filter((v): v is string => !!v)
+    .map((expr) => {
+      let score = Math.min(expr.length, 80)
+      if (/[+\-*/]/.test(expr)) score += 20
+      if (/\^/.test(expr)) score += 14
+      if (/\d/.test(expr)) score += 8
+      if (/\(/.test(expr)) score += 4
+      return { expr, score }
+    })
+    .sort((a, b) => b.score - a.score)
+
+  return scored[0]?.expr ?? null
 }
 
 function normalizePlotExprCandidate(raw: string): string | null {
@@ -189,8 +207,9 @@ function normalizePlotExprCandidate(raw: string): string | null {
     .replace(/\(\s*[xXtT]\s*(?:>=|<=|>|<|≥|≤)\s*[-+]?\d+(?:[.,]\d+)?\s*\)\s*$/u, '')
     .replace(/\(\s*(hình|hinh|figure|fig)\b[^)]*\)/gi, '')
     .replace(/\.\s*[A-Za-z\u00C0-\u024F].*$/u, '')
-    // Cắt phần mô tả tiếng Việt/Anh ở cuối (tránh "trên" -> t bị nhận thành biến)
-    .replace(/\s+[a-zA-Z\u00C0-\u024F][a-zA-Z0-9\u00C0-\u024F\s,;:.\-()]*$/u, '')
+    // Cắt phần mô tả tiếng Việt/Anh ở cuối (tránh "trên" -> t bị nhận thành biến),
+    // nhưng KHÔNG cắt các biểu thức ngắn kiểu "- x".
+    .replace(/\s+[a-zA-Z\u00C0-\u024F]{2,}[a-zA-Z0-9\u00C0-\u024F\s,;:.\-()]*$/u, '')
     // Giữ số thập phân dạng Việt: 24,5 -> 24.5
     .replace(/(\d)\s*,\s*(\d)/g, '$1.$2')
     // Chỉ cắt mô tả theo dấu câu không ảnh hưởng số thập phân
@@ -327,6 +346,48 @@ function getVisualCellsFromSlideContent(slide: SlideItem): { layout: 1 | 2 | 4; 
   const result: VisualCell[] = [...cells.slice(0, numCells)]
   while (result.length < numCells) result.push({})
   return { layout, cells: result }
+}
+
+function visualCellToInputMarker(cell: VisualCell | undefined): string {
+  const marker = String(cell?.visualEmbed ?? '').trim()
+  if (marker) return marker
+  const imageUrl = String(cell?.imageUrl ?? '').trim()
+  if (imageUrl) return `[image:${imageUrl}]`
+  return ''
+}
+
+function isVisualInputTemplateText(value: string): boolean {
+  const v = String(value || '').trim().toLowerCase()
+  if (!v) return true
+  if (/^(?:(?:ô|o|0|field)\s*)?[1-4]\s*:/.test(v)) {
+    return true
+  }
+  if (/^y\s*=\s*x(?:\^?2|²)?$/.test(v)) return true
+  if (/^y\s*=\s*f\(\s*x\s*\)$/.test(v)) return true
+  if (/^y\s*=\s*g\(\s*x\s*\)$/.test(v)) return true
+  if (/^x\s*(>=|>|<=|<)\s*0$/.test(v)) return true
+  return false
+}
+
+function hasMeaningfulVisualInputs(slide: SlideItem | undefined | null): boolean {
+  if (!slide) return false
+  return [slide.visualInput1, slide.visualInput2, slide.visualInput3, slide.visualInput4]
+    .some((v) => !isVisualInputTemplateText(String(v ?? '')))
+}
+
+function normalizeSlideVisualInputs(slide: SlideItem): SlideItem {
+  const sanitize = (v: unknown): string => {
+    const text = String(v ?? '').trim()
+    if (isVisualInputTemplateText(text)) return ''
+    return text
+  }
+  return {
+    ...slide,
+    visualInput1: sanitize(slide.visualInput1),
+    visualInput2: sanitize(slide.visualInput2),
+    visualInput3: sanitize(slide.visualInput3),
+    visualInput4: sanitize(slide.visualInput4),
+  }
 }
 
 function getVisualCells(slide: SlideItem): { layout: 1 | 2 | 4; cells: VisualCell[] } {
@@ -893,9 +954,10 @@ export default function GiaoVienWorksheetPage() {
   const syncChannelRef = useRef<BroadcastChannel | null>(null)
   const hasHydratedFromCurriculumRef = useRef(false)
   const slidesRef = useRef<SlideItem[]>([])
-  const visualAutoFillBlockedRef = useRef<Record<number, { visualInput1?: boolean; visualInput2?: boolean; visualInput3?: boolean }>>({})
+  const visualAutoFillBlockedRef = useRef<Record<number, { visualInput1?: boolean; visualInput2?: boolean; visualInput3?: boolean; visualInput4?: boolean }>>({})
   const visualAutoFillInitializedRef = useRef<Record<number, boolean>>({})
   const visualManualEditedRef = useRef<Record<number, boolean>>({})
+  const visualInputPersistTimeoutRef = useRef<number | null>(null)
   const quizPopupScrollApplyingRef = useRef(false)
   const sectionRefs = useRef<(HTMLDivElement | null)[]>([])
   const firstMatchRef = useRef<HTMLElement | null>(null)
@@ -1143,12 +1205,11 @@ export default function GiaoVienWorksheetPage() {
     const payload = { ...msg, __syncSeq: syncSeqRef.current++ }
     try {
       const w = studentViewWindowRef.current
-      if (w && !w.closed) w.postMessage(payload, window.location.origin)
-    } catch {
-      /* ignore */
-    }
-    try {
-      syncChannelRef.current?.postMessage(payload)
+      if (w && !w.closed) {
+        w.postMessage(payload, window.location.origin)
+      } else {
+        syncChannelRef.current?.postMessage(payload)
+      }
     } catch {
       /* ignore */
     }
@@ -2148,6 +2209,11 @@ export default function GiaoVienWorksheetPage() {
       sendCurriculumDataToStudent(next, currentIndex)
       return next
     })
+    // Đang gõ thì không lưu ngay; nếu có lần lưu chờ trước đó thì hủy.
+    if (visualInputPersistTimeoutRef.current != null) {
+      window.clearTimeout(visualInputPersistTimeoutRef.current)
+      visualInputPersistTimeoutRef.current = null
+    }
   }, [currentIndex, sendCurriculumDataToStudent])
 
   const handlePasteImageToVisualInput = useCallback(
@@ -2183,8 +2249,15 @@ export default function GiaoVienWorksheetPage() {
 
   const persistCurrentVisualInputs = useCallback(() => {
     if (!curriculumId) return
-    setVisualInputsDirty(false)
-    void persistSlidesRef.current(slidesRef.current)
+    if (visualInputPersistTimeoutRef.current != null) {
+      window.clearTimeout(visualInputPersistTimeoutRef.current)
+    }
+    // Rời ô xong chờ một chút rồi mới lưu để tránh nháy khi đang thao tác liên tiếp.
+    visualInputPersistTimeoutRef.current = window.setTimeout(() => {
+      visualInputPersistTimeoutRef.current = null
+      setVisualInputsDirty(false)
+      void persistSlidesRef.current(slidesRef.current)
+    }, 1800)
   }, [curriculumId])
 
   const sendNotesToParent = useCallback((value: string) => {
@@ -2714,15 +2787,25 @@ export default function GiaoVienWorksheetPage() {
   }, [curriculumId])
 
   useEffect(() => {
+    return () => {
+      if (visualInputPersistTimeoutRef.current != null) {
+        window.clearTimeout(visualInputPersistTimeoutRef.current)
+        visualInputPersistTimeoutRef.current = null
+      }
+    }
+  }, [])
+
+  useEffect(() => {
     if (leftPanelMode !== 'visual') return
-    if (visualAutoFillInitializedRef.current[currentIndex]) return
-    if (visualManualEditedRef.current[currentIndex]) return
+    const currentSlide = slides[currentIndex]
+    const hasMeaningful = hasMeaningfulVisualInputs(currentSlide)
+    if (visualAutoFillInitializedRef.current[currentIndex] && hasMeaningful) return
+    if (visualManualEditedRef.current[currentIndex] && hasMeaningful) return
     let didUpdate = false
     setSlides((prev) => {
       const s = prev[currentIndex]
       if (!s) return prev
-      const hasAnyVisualInput = [s.visualInput1, s.visualInput2, s.visualInput3, s.visualInput4]
-        .some((v) => String(v ?? '').trim().length > 0)
+      const hasAnyVisualInput = hasMeaningfulVisualInputs(s)
       if (hasAnyVisualInput) {
         visualAutoFillInitializedRef.current[currentIndex] = true
         return prev
@@ -2736,16 +2819,27 @@ export default function GiaoVienWorksheetPage() {
         visualInput4: '',
       }
       const expr = extractPlotExpressionFromSlide(sourceNoInputs)
-      if (!expr) return prev
+      const domain = detectDomainConstraintFromSlide(sourceNoInputs)
+      const preferredInputs: string[] = []
+      if (expr) preferredInputs.push(toUnicodeMathExpression(`y=${expr}`))
+      if (domain) preferredInputs.push(domain)
 
-      const current1 = String(s.visualInput1 ?? '').trim()
       const blocked = visualAutoFillBlockedRef.current[currentIndex] ?? {}
 
       let changed = false
-      const nextSlide: SlideItem = { ...s }
-      if (!current1 && !blocked.visualInput1) {
-        nextSlide.visualInput1 = toUnicodeMathExpression(`y=${expr}`)
-        changed = true
+      const nextSlide: SlideItem = {
+        ...s,
+        visualInput1: isVisualInputTemplateText(String(s.visualInput1 ?? '')) ? '' : s.visualInput1,
+        visualInput2: isVisualInputTemplateText(String(s.visualInput2 ?? '')) ? '' : s.visualInput2,
+        visualInput3: isVisualInputTemplateText(String(s.visualInput3 ?? '')) ? '' : s.visualInput3,
+        visualInput4: isVisualInputTemplateText(String(s.visualInput4 ?? '')) ? '' : s.visualInput4,
+      }
+      if (preferredInputs.length > 0) {
+        const currentVal = String(nextSlide.visualInput1 ?? '').trim()
+        if ((!currentVal || isVisualInputTemplateText(currentVal)) && !blocked.visualInput1) {
+          nextSlide.visualInput1 = preferredInputs.join(', ')
+          changed = true
+        }
       }
       if (!changed) return prev
 
@@ -2902,10 +2996,6 @@ export default function GiaoVienWorksheetPage() {
       if (e.data?.type === 'curriculum-data') {
         const incomingCurriculumId = typeof e.data.curriculumId === 'string' ? e.data.curriculumId : null
         const sl = Array.isArray(e.data.slides) ? e.data.slides : []
-        const shouldHydrateSlides =
-          !hasHydratedFromCurriculumRef.current ||
-          slides.length === 0 ||
-          (incomingCurriculumId && incomingCurriculumId !== curriculumId)
 
         setContent(e.data.content ?? '')
         setTopic(e.data.topic ?? '')
@@ -2913,20 +3003,27 @@ export default function GiaoVienWorksheetPage() {
         setCurriculumId(incomingCurriculumId)
         const mode = e.data.slideMode === 'personal' || e.data.slideMode === 'shared' || e.data.slideMode === 'original' ? e.data.slideMode : null
         setSlideMode(mode)
+        if (mode === null) {
+          setSlideTitles([])
+          setSlides([])
+          slidesRef.current = []
+          hasHydratedFromCurriculumRef.current = false
+          return
+        }
         if ((mode === 'personal' || mode === 'shared') && prevSlideModeRef.current !== mode) setSlideViewMode('single')
         prevSlideModeRef.current = mode
         setPersonalViewSubMode(e.data.personalViewSubMode === 'original' || e.data.personalViewSubMode === 'current' ? e.data.personalViewSubMode : 'current')
         setHasOriginalSlides(Boolean(e.data.hasOriginalSlides))
-        if (shouldHydrateSlides) {
-          setSlideTitles(sl.map((s: SlideItem) => s?.title ?? ''))
-          setSlides(sl)
-          slidesRef.current = sl
-          hasHydratedFromCurriculumRef.current = true
-          sl.forEach((s: SlideItem, i: number) => {
-            const hasAny = [s?.visualInput1, s?.visualInput2, s?.visualInput3, s?.visualInput4].some((v) => String(v ?? '').trim().length > 0)
-            if (hasAny) visualAutoFillInitializedRef.current[i] = true
-          })
-        }
+        const sanitizedSlides = sl.map((s: SlideItem) => normalizeSlideVisualInputs(s))
+        setSlideTitles(sanitizedSlides.map((s: SlideItem) => s?.title ?? ''))
+        setSlides(sanitizedSlides)
+        slidesRef.current = sanitizedSlides
+        hasHydratedFromCurriculumRef.current = true
+        sanitizedSlides.forEach((s: SlideItem, i: number) => {
+          const hasAny = [s?.visualInput1, s?.visualInput2, s?.visualInput3, s?.visualInput4]
+            .some((v) => !isVisualInputTemplateText(String(v ?? '')))
+          if (hasAny) visualAutoFillInitializedRef.current[i] = true
+        })
         setTeacherTimerSeconds(typeof e.data.teacherTimerSeconds === 'number' ? e.data.teacherTimerSeconds : 0)
         setTeacherTimerRunning(Boolean(e.data.teacherTimerRunning))
       }
@@ -2940,11 +3037,19 @@ export default function GiaoVienWorksheetPage() {
   }, [slides])
 
   useEffect(() => {
+    // Chuyển slide thì lưu ngay phần visual đang chỉnh (không chờ blur timeout).
+    if (curriculumId && visualInputsDirty) {
+      if (visualInputPersistTimeoutRef.current != null) {
+        window.clearTimeout(visualInputPersistTimeoutRef.current)
+        visualInputPersistTimeoutRef.current = null
+      }
+      void persistSlidesRef.current(slidesRef.current)
+    }
     setNotesValue(slides[currentIndex]?.teacherNotes ?? '')
     setNotesDirty(false)
     setVisualInputsDirty(false)
     setSplitAtBlock(null)
-  }, [currentIndex, slides])
+  }, [currentIndex, slides, curriculumId, visualInputsDirty])
 
   const handleBlur = useCallback(() => {
     setNotesDirty(false)
@@ -4061,7 +4166,7 @@ export default function GiaoVienWorksheetPage() {
                                 onChange={(e) => updateCurrentSlideVisualInput('visualInput1', e.target.value)}
                                 onPaste={(e) => handlePasteImageToVisualInput('visualInput1', e)}
                                 onBlur={persistCurrentVisualInputs}
-                                placeholder={tr('Ô 1: y=x^2 hoặc y=f(x), y=g(x) (nhiều đồ thị, phân tách bằng dấu phẩy)', 'Field 1: y=x^2 or y=f(x), y=g(x) (multiple graphs, comma-separated)', '字段1：y=x^2 或 y=f(x), y=g(x)（多图，逗号分隔）', '項目1: y=x^2 または y=f(x), y=g(x)（複数グラフ、カンマ区切り）', '칸1: y=x^2 또는 y=f(x), y=g(x) (여러 그래프, 쉼표 구분)')}
+                                placeholder={tr('Ô 1: link/dữ liệu cần chèn', 'Field 1: embed link/data', '字段1：要插入的链接/数据', '項目1: 埋め込みリンク/データ', '칸1: 삽입할 링크/데이터')}
                                 className="w-full rounded-md bg-slate-700/70 px-2.5 py-2 text-xs text-slate-100 border border-slate-600 focus:border-cyan-400/60"
                               />
                               <input
@@ -4069,7 +4174,7 @@ export default function GiaoVienWorksheetPage() {
                                 onChange={(e) => updateCurrentSlideVisualInput('visualInput2', e.target.value)}
                                 onPaste={(e) => handlePasteImageToVisualInput('visualInput2', e)}
                                 onBlur={persistCurrentVisualInputs}
-                                placeholder={tr('Ô 2: miền xác định, ví dụ x>=0', 'Field 2: domain, e.g. x>=0', '字段2：定义域，如 x>=0', '項目2: 定義域 例 x>=0', '칸2: 정의역 예시 x>=0')}
+                                placeholder={tr('Ô 2: link/dữ liệu cần chèn', 'Field 2: embed link/data', '字段2：要插入的链接/数据', '項目2: 埋め込みリンク/データ', '칸2: 삽입할 링크/데이터')}
                                 className="w-full rounded-md bg-slate-700/70 px-2.5 py-2 text-xs text-slate-100 border border-slate-600 focus:border-cyan-400/60"
                               />
                               <input
@@ -4077,7 +4182,7 @@ export default function GiaoVienWorksheetPage() {
                                 onChange={(e) => updateCurrentSlideVisualInput('visualInput3', e.target.value)}
                                 onPaste={(e) => handlePasteImageToVisualInput('visualInput3', e)}
                                 onBlur={persistCurrentVisualInputs}
-                                placeholder={tr('Ô 3: ghi chú hiển thị visual', 'Field 3: visual notes', '字段3：可视化备注', '項目3: ビジュアル注記', '칸3: 비주얼 메모')}
+                                placeholder={tr('Ô 3: link/dữ liệu cần chèn', 'Field 3: embed link/data', '字段3：要插入的链接/数据', '項目3: 埋め込みリンク/データ', '칸3: 삽입할 링크/데이터')}
                                 className="w-full rounded-md bg-slate-700/70 px-2.5 py-2 text-xs text-slate-100 border border-slate-600 focus:border-cyan-400/60"
                               />
                               <input
@@ -4085,7 +4190,7 @@ export default function GiaoVienWorksheetPage() {
                                 onChange={(e) => updateCurrentSlideVisualInput('visualInput4', e.target.value)}
                                 onPaste={(e) => handlePasteImageToVisualInput('visualInput4', e)}
                                 onBlur={persistCurrentVisualInputs}
-                                placeholder={tr('Ô 4: dữ liệu bổ sung khác', 'Field 4: other visual data', '字段4：其他可视化数据', '項目4: その他のデータ', '칸4: 기타 비주얼 데이터')}
+                                placeholder={tr('Ô 4: link/dữ liệu cần chèn', 'Field 4: embed link/data', '字段4：要插入的链接/数据', '項目4: 埋め込みリンク/データ', '칸4: 삽입할 링크/데이터')}
                                 className="w-full rounded-md bg-slate-700/70 px-2.5 py-2 text-xs text-slate-100 border border-slate-600 focus:border-cyan-400/60"
                               />
                             </div>
@@ -4486,8 +4591,6 @@ export default function GiaoVienWorksheetPage() {
           tr={tr}
           onSuccess={async () => {
             await refreshProposals()
-            const r = await getSlidesByCurriculumId(curriculumId)
-            if (r?.success && r.slides) setSlides(r.slides)
             requestCurriculum()
           }}
         />

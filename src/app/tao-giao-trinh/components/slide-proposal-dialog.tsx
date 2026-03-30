@@ -44,6 +44,20 @@ export function SlideProposalDialog({
   tr,
   onSuccess,
 }: SlideProposalDialogProps) {
+  const normalizeLoose = (raw: string) =>
+    String(raw ?? '')
+      .replace(/[−–—]/g, '-')
+      .replace(/≥/g, '>=')
+      .replace(/≤/g, '<=')
+      .replace(/→/g, '->')
+      .replace(/\s+/g, ' ')
+      .trim()
+  const containsLoose = (haystack: string, needle: string) => {
+    const h = normalizeLoose(haystack)
+    const n = normalizeLoose(needle)
+    if (!h || !n) return false
+    return h.includes(n)
+  }
   const [textToReplace, setTextToReplace] = useState('')
   const [replacementText, setReplacementText] = useState('')
   const [proposedHeader, setProposedHeader] = useState('')
@@ -77,7 +91,7 @@ export function SlideProposalDialog({
     segmentType === 'edit' &&
     toReplaceTrimmed.length > 0 &&
     replacementTrimmed.length > 0 &&
-    (originalContent?.includes(toReplaceTrimmed) ?? false)
+    containsLoose(originalContent ?? '', toReplaceTrimmed)
 
   const canCheckAI =
     segmentType === 'edit'
@@ -96,6 +110,7 @@ export function SlideProposalDialog({
       blockIndex,
       segmentType,
       originalText: segmentType === 'edit' ? toReplaceTrimmed : undefined,
+      originalBlockContent: originalContent ?? '',
       proposedText: replacementTrimmed,
       proposedHeader: segmentType === 'add' ? proposedHeader.trim() : undefined,
       chargeCredits: true,
@@ -132,7 +147,7 @@ export function SlideProposalDialog({
         setError(tr('Vui lòng nhập nội dung sẽ sửa thành', 'Please enter the replacement content', '请输入替换后的内容', '置き換え後の内容を入力', '교체할 내용을 입력하세요'))
         return
       }
-      if (!originalContent?.includes(toReplace)) {
+      if (!containsLoose(originalContent ?? '', toReplace)) {
         setError(tr('Đoạn cần sửa không có trong nội dung hiện tại', 'Text to replace not found in current content', '要替换的文本不在当前内容中', '置き換えるテキストが現在の内容にありません', '교체할 텍스트가 현재 내용에 없습니다'))
         return
       }
@@ -148,6 +163,7 @@ export function SlideProposalDialog({
         blockIndex,
         segmentType: 'edit',
         originalText: toReplace,
+        originalBlockContent: originalContent ?? '',
         proposedText: replacement,
       })
       setLoading(false)
@@ -177,6 +193,7 @@ export function SlideProposalDialog({
       slideIndex,
       blockIndex,
       segmentType: 'add',
+      originalBlockContent: originalContent ?? '',
       proposedText: text,
       proposedHeader: header || undefined,
     })
@@ -231,8 +248,8 @@ export function SlideProposalDialog({
                   <p className="text-xs text-muted-foreground mt-0.5">{tr('Nên copy từ ô trên rồi chỉ sửa phần cần thay', 'Copy from above then edit the part to replace', '建议从上方复制后只修改需替换部分', '上からコピーして置き換え部分のみ編集', '위에서 복사 후 교체할 부분만 수정')}</p>
                   {(() => {
                     const toReplace = textToReplace.trim()
-                    const isValid = toReplace.length > 0 && originalContent.includes(toReplace)
-                    const isInvalid = toReplace.length > 0 && !originalContent.includes(toReplace)
+                    const isValid = toReplace.length > 0 && containsLoose(originalContent, toReplace)
+                    const isInvalid = toReplace.length > 0 && !containsLoose(originalContent, toReplace)
                     return (
                       <div className="mt-1 space-y-1">
                         <Textarea

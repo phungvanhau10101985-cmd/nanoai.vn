@@ -155,21 +155,26 @@ type InfographicDrawStroke = {
   points: InfographicDrawPoint[]
 }
 
-const STUDENT_SLIDE_CHUNK_SIZE = 5
-const STUDENT_CHUNK_RADIUS = 1
+const STUDENT_SLIDE_CHUNK_SIZE = 2
+const STUDENT_CHUNK_RADIUS = 0
 
-function pruneStudentSlidesByChunk(slides: SlideItem[], currentIndex: number): SlideItem[] {
+function pruneStudentSlidesByChunk(
+  slides: SlideItem[],
+  currentIndex: number,
+  options?: { keepFullTextForAllSlides?: boolean },
+): SlideItem[] {
   if (!Array.isArray(slides) || slides.length <= 0) return slides
   const chunkSize = STUDENT_SLIDE_CHUNK_SIZE
   const radius = STUDENT_CHUNK_RADIUS
   const currentChunk = Math.floor(Math.max(0, currentIndex) / chunkSize)
   const keepStart = Math.max(0, (currentChunk - radius) * chunkSize)
   const keepEnd = Math.min(slides.length - 1, ((currentChunk + radius + 1) * chunkSize) - 1)
+  const keepFullTextForAllSlides = options?.keepFullTextForAllSlides === true
 
   return slides.map((s, idx) => {
     if (idx >= keepStart && idx <= keepEnd) return s
     // Giữ text/title để UI không đổi, bỏ payload visual nặng ở slide xa.
-    return {
+    const light: SlideItem = {
       ...s,
       imageUrl: undefined,
       visualEmbed: undefined,
@@ -179,6 +184,12 @@ function pruneStudentSlidesByChunk(slides: SlideItem[], currentIndex: number): S
       visualInput3: undefined,
       visualInput4: undefined,
     }
+    // Ở chế độ "một slide", có thể bỏ thêm text/blocks của slide xa để giảm heap rõ rệt.
+    if (!keepFullTextForAllSlides) {
+      light.blocks = undefined
+      light.content = ''
+    }
+    return light
   })
 }
 
@@ -655,7 +666,12 @@ function getAutoGeoGebraSuggestion(slide: SlideItem): { expr: string; url: strin
   return { expr, url, marker: `[geogebra:${url}]` }
 }
 
-function getBaseSlides(curriculumMarkdown: string, topic: string, aiSlides: AISlideData[] | null | undefined): SlideItem[] {
+function getBaseSlides(
+  curriculumMarkdown: string,
+  topic: string,
+  aiSlides: AISlideData[] | null | undefined,
+  opts?: { allowMarkdownFallback?: boolean }
+): SlideItem[] {
   /** Luôn dùng aiSlides khi có – đảm bảo visualEmbed/visualCells (bản đồ, GeoGebra...) hiển thị đúng ở giao diện học sinh */
   if (aiSlides && aiSlides.length > 0) {
     return aiSlides.map((s) => {
@@ -678,6 +694,7 @@ function getBaseSlides(curriculumMarkdown: string, topic: string, aiSlides: AISl
       }
     })
   }
+  if (opts?.allowMarkdownFallback === false) return []
   const readable = latexToReadable(curriculumMarkdown)
   const parsed = parseCurriculumToSlides(readable)
   return topic ? [{ title: topic, content: '' }, ...parsed] : parsed
@@ -1110,9 +1127,12 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     const payload = { ...msg, __syncSeq: syncSeqRef.current++ }
     try {
       const w = studentViewWindowRef.current
-      if (w && !w.closed) w.postMessage(payload, window.location.origin)
+      if (w && !w.closed) {
+        w.postMessage(payload, window.location.origin)
+      } else {
+        syncChannelRef.current?.postMessage(payload)
+      }
     } catch { /* ignore */ }
-    try { syncChannelRef.current?.postMessage(payload) } catch { /* ignore */ }
   }, [])
 
   const sendInfographicDrawMessage = useCallback((msg: Record<string, unknown>) => {
@@ -1446,27 +1466,31 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
 
   const sendCurriculumDataToStudent = useCallback((slidesToSend: SlideItem[], currentIndexOverride?: number) => {
     const idx = typeof currentIndexOverride === 'number' ? currentIndexOverride : currentIndex
+    // Chỉ gửi payload nặng cho chunk đang dùng; slide xa gửi bản nhẹ để giảm RAM/copy-cost.
+    const lightweightSlides = pruneStudentSlidesByChunk(slidesToSend, idx, { keepFullTextForAllSlides: true })
     const payload = {
       type: 'curriculum-data',
       content: curriculumMarkdown,
       topic,
-      currentIndex: Math.max(0, Math.min(idx, slidesToSend.length - 1)),
+      currentIndex: Math.max(0, Math.min(idx, lightweightSlides.length - 1)),
       curriculumId: null,
       slideMode: null,
       personalViewSubMode: 'current',
       hasOriginalSlides: false,
-      slides: slidesToSend.map(toStudentSlidePayload),
+      slides: lightweightSlides.map(toStudentSlidePayload),
       teacherTimerSeconds,
       teacherTimerRunning,
-      infographicDrawStrokesBySlide,
       ...(curriculumId && curriculumInfographic ? { curriculumInfographic } : {}),
     }
     try {
       const w = studentViewWindowRef.current
-      if (w && !w.closed) w.postMessage(payload, window.location.origin)
+      if (w && !w.closed) {
+        w.postMessage(payload, window.location.origin)
+      } else {
+        syncChannelRef.current?.postMessage(payload)
+      }
     } catch { /* ignore */ }
-    try { syncChannelRef.current?.postMessage(payload) } catch { /* ignore */ }
-  }, [curriculumMarkdown, topic, currentIndex, teacherTimerSeconds, teacherTimerRunning, toStudentSlidePayload, curriculumId, curriculumInfographic, infographicDrawStrokesBySlide])
+  }, [curriculumMarkdown, topic, currentIndex, teacherTimerSeconds, teacherTimerRunning, toStudentSlidePayload, curriculumId, curriculumInfographic])
 
   const openStudentView = useCallback(() => {
     if (typeof window === 'undefined' || !isWorksheetTeacher || slides.length === 0) return
@@ -1509,6 +1533,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       if (e.data?.type === 'request-curriculum' && e.source && slides.length > 0) {
         try {
           const src = e.source as Window
+          const lightweightSlides = pruneStudentSlidesByChunk(slides, currentIndex, { keepFullTextForAllSlides: true })
           src.postMessage({
             type: 'curriculum-data',
             content: curriculumMarkdown,
@@ -1518,10 +1543,9 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
             slideMode: null,
             personalViewSubMode: 'current',
             hasOriginalSlides: false,
-            slides: slides.map(toStudentSlidePayload),
+            slides: lightweightSlides.map(toStudentSlidePayload),
             teacherTimerSeconds,
             teacherTimerRunning,
-            infographicDrawStrokesBySlide,
           }, window.location.origin)
           src.postMessage({ type: 'presentation-mode', mode: 'slide-interaction' }, window.location.origin)
         } catch { /* ignore */ }
@@ -1529,7 +1553,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     }
     window.addEventListener('message', handler)
     return () => window.removeEventListener('message', handler)
-  }, [isWorksheetTeacher, curriculumMarkdown, topic, currentIndex, slides, teacherTimerSeconds, teacherTimerRunning, toStudentSlidePayload, infographicDrawStrokesBySlide])
+  }, [isWorksheetTeacher, curriculumMarkdown, topic, currentIndex, slides, teacherTimerSeconds, teacherTimerRunning, toStudentSlidePayload])
 
   useEffect(() => {
     if (!isWorksheetTeacher) return
@@ -2628,16 +2652,28 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     setTimerSeconds(0)
   }, [])
 
-  const baseSlidesForDisplay =
-    slideMode === 'personal' && personalViewSubMode === 'original' && originalSlides && originalSlides.length > 0
-      ? getBaseSlides(curriculumMarkdown, topic, originalSlides)
-      : getBaseSlides(curriculumMarkdown, topic, aiSlides)
+  const baseSlidesForDisplay = useMemo(
+    () => (
+      // Với giáo trình đã lưu, bắt buộc hiển thị theo aiSlides (theo tiết/phiên bản).
+      // Không fallback parse full markdown để tránh mở nhầm "toàn bài".
+      ((slideMode === null && curriculumId) || ((slideMode === 'personal' || slideMode === 'shared' || slideMode === 'original') && curriculumId))
+        ? (
+          slideMode === 'personal' && personalViewSubMode === 'original' && originalSlides && originalSlides.length > 0
+            ? getBaseSlides(curriculumMarkdown, topic, originalSlides, { allowMarkdownFallback: false })
+            : getBaseSlides(curriculumMarkdown, topic, aiSlides, { allowMarkdownFallback: false })
+        )
+        : (
+      slideMode === 'personal' && personalViewSubMode === 'original' && originalSlides && originalSlides.length > 0
+        ? getBaseSlides(curriculumMarkdown, topic, originalSlides, { allowMarkdownFallback: true })
+        : getBaseSlides(curriculumMarkdown, topic, aiSlides, { allowMarkdownFallback: true })
+        )
+    ),
+    [slideMode, personalViewSubMode, originalSlides, curriculumId, curriculumMarkdown, topic, aiSlides],
+  )
 
   useEffect(() => {
     const nextSlides = baseSlidesForDisplay
     const idx = typeof initialSlideIndex === 'number' ? Math.max(0, Math.min(initialSlideIndex, nextSlides.length - 1)) : 0
-    const slidesForRuntime = !isTeacherView ? pruneStudentSlidesByChunk(nextSlides, idx) : nextSlides
-    setSlides(slidesForRuntime)
     setCurrentIndex((prev) => {
       // Student window must always follow teacher's current slide.
       if (!isTeacherView && nextSlides.length > 0) {
@@ -2647,9 +2683,22 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         initialSlideSyncedRef.current = true
         return idx
       }
+      if (nextSlides.length <= 0) return 0
       return Math.min(prev, nextSlides.length - 1)
     })
-  }, [curriculumMarkdown, topic, aiSlides, slideMode, personalViewSubMode, originalSlides, initialSlideIndex, isTeacherView])
+  }, [baseSlidesForDisplay, initialSlideIndex, isTeacherView])
+
+  useEffect(() => {
+    const nextSlides = baseSlidesForDisplay
+    if (isTeacherView) {
+      setSlides(nextSlides)
+      return
+    }
+    const idx = Math.max(0, Math.min(currentIndex, Math.max(0, nextSlides.length - 1)))
+    setSlides(pruneStudentSlidesByChunk(nextSlides, idx, {
+      keepFullTextForAllSlides: studentCurriculumRightMode === 'markdown-all',
+    }))
+  }, [baseSlidesForDisplay, isTeacherView, currentIndex, studentCurriculumRightMode])
 
   const goNext = useCallback(() => {
     setAutoPlay(false)

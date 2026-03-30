@@ -8,7 +8,7 @@ export const CurriculumApiFeature = {
   fromImage: 'curriculum-from-image',
   slidesFromMarkdown: 'curriculum-slides-from-markdown',
   fromPaste: 'curriculum-from-paste',
-  analyzeSlidesGemini: 'curriculum-analyze-slides-gemini',
+  lessonSlidesGenerate: 'curriculum-lesson-slides-generate',
   editCheckFull: 'curriculum-edit-check-full',
   editCheckRegion: 'curriculum-edit-check-region',
   createFromForm: 'curriculum-create-from-form',

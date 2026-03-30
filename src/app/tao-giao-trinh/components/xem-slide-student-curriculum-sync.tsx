@@ -6,6 +6,9 @@ import { getPresentationBroadcastChannelName, PRESENTATION_SYNC_QUERY_KEY } from
 import type { SlideInfographic } from '../lib/slide-infographic'
 import { tr } from './xem-slide-student-ui-locale'
 
+const STUDENT_RUNTIME_CHUNK_SIZE = 2
+const STUDENT_RUNTIME_CHUNK_RADIUS = 0
+
 /** Slide payload trình chiếu học sinh — chỉ luồng giáo trình (không trộn model phiếu). */
 export type CurriculumStudentViewData = {
   content: string
@@ -52,6 +55,38 @@ type WirePayload = {
   curriculumInfographic?: unknown
 }
 
+function compactSlidesForStudentRuntime(
+  slides: CurriculumStudentViewData['slides'],
+  currentIndex: number,
+  keepFullTextForAllSlides: boolean,
+): CurriculumStudentViewData['slides'] {
+  if (!Array.isArray(slides) || slides.length <= 0) return []
+  const chunkSize = STUDENT_RUNTIME_CHUNK_SIZE
+  const radius = STUDENT_RUNTIME_CHUNK_RADIUS
+  const currentChunk = Math.floor(Math.max(0, currentIndex) / chunkSize)
+  const keepStart = Math.max(0, (currentChunk - radius) * chunkSize)
+  const keepEnd = Math.min(slides.length - 1, ((currentChunk + radius + 1) * chunkSize) - 1)
+
+  return slides.map((row, idx) => {
+    const s = (row ?? {}) as CurriculumStudentViewData['slides'][number]
+    if (idx >= keepStart && idx <= keepEnd) return s
+    return {
+      title: typeof s.title === 'string' ? s.title : '',
+      blocks: keepFullTextForAllSlides ? (Array.isArray(s.blocks) ? s.blocks : []) : undefined,
+      teacherNotes: '',
+      imageUrl: undefined,
+      visualEmbed: undefined,
+      visualLayout: undefined,
+      visualCells: undefined,
+      visualInput1: undefined,
+      visualInput2: undefined,
+      visualInput3: undefined,
+      visualInput4: undefined,
+      infographic: undefined,
+    }
+  })
+}
+
 /**
  * Đồng bộ giáo trình: `?share=`, postMessage/BroadcastChannel.
  * Không đọc/ghi field phiếu (`worksheetStemTypingEnabled`, cờ `worksheetId` trên wire).
@@ -81,8 +116,9 @@ export function useCurriculumStudentSlideSync(locale: 'vi' | 'en' | 'zh' | 'ja' 
             setData(null)
           } else {
             const sl = Array.isArray(res.slides) ? res.slides : []
+            const compactedSlides = compactSlidesForStudentRuntime(sl, 0, false)
             setData({
-              content: res.content ?? '',
+              content: compactedSlides.length > 0 ? '' : (res.content ?? ''),
               topic: res.topic ?? '',
               currentIndex: 0,
               curriculumId: res.curriculumId ?? null,
@@ -90,7 +126,7 @@ export function useCurriculumStudentSlideSync(locale: 'vi' | 'en' | 'zh' | 'ja' 
                 res.slideMode === 'personal' || res.slideMode === 'shared' || res.slideMode === 'original'
                   ? res.slideMode
                   : null,
-              slides: sl,
+              slides: compactedSlides,
               answerRevealProgress: {},
               answerTypingEnabled: {},
             })
@@ -118,6 +154,8 @@ export function useCurriculumStudentSlideSync(locale: 'vi' | 'en' | 'zh' | 'ja' 
         const incomingIndexRaw = typeof e.currentIndex === 'number' ? e.currentIndex : 0
         const maxIndex = Math.max(0, sl.length - 1)
         const incomingIndex = Math.max(0, Math.min(incomingIndexRaw, maxIndex))
+        const keepFullTextForAllSlides = (studentCurriculumRightMode ?? prev?.studentCurriculumRightMode) === 'markdown-all'
+        const compactedSlides = compactSlidesForStudentRuntime(sl, incomingIndex, keepFullTextForAllSlides)
         let nextCurriculumInfographic = prev?.curriculumInfographic
         if (Object.prototype.hasOwnProperty.call(e, 'curriculumInfographic')) {
           const ci = e.curriculumInfographic
@@ -136,13 +174,13 @@ export function useCurriculumStudentSlideSync(locale: 'vi' | 'en' | 'zh' | 'ja' 
           }
         }
         return {
-          content: e.content ?? '',
+          content: compactedSlides.length > 0 ? '' : (e.content ?? ''),
           topic: e.topic ?? '',
           currentIndex: incomingIndex,
           curriculumId: typeof e.curriculumId === 'string' ? e.curriculumId : null,
           slideMode:
             e.slideMode === 'personal' || e.slideMode === 'shared' || e.slideMode === 'original' ? e.slideMode : null,
-          slides: sl,
+          slides: compactedSlides,
           answerRevealProgress:
             wr != null && typeof wr === 'object' ? { ...wr } : (prev?.answerRevealProgress ?? {}),
           answerTypingEnabled:
