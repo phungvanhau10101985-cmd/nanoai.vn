@@ -503,7 +503,7 @@ function getVisualCells(slide: SlideItem): { layout: 1 | 2 | 4; cells: VisualCel
 function getVisualCellsForPresentation(
   slide: SlideItem,
   curriculumInfographic: SlideInfographic | undefined | null,
-  knownInfographicUrls?: string[],
+  knownInfographicUrls?: ReadonlyArray<string | undefined | null>,
 ): { layout: 1 | 2 | 4; cells: VisualCell[] } {
   const normalizeUrlForCompare = (raw: string): string => {
     const v = String(raw ?? '').trim()
@@ -1236,7 +1236,13 @@ export default function CurriculumViewPage() {
       curriculumInfographic?.imageUrl,
     ])
     return cells.some((c) => c.visualEmbed || c.imageUrl)
-  }, [slides, currentIndex, activeVisualInfographic])
+  }, [
+    slides,
+    currentIndex,
+    activeVisualInfographic,
+    lessonInfographic?.imageUrl,
+    curriculumInfographic?.imageUrl,
+  ])
 
   const tr = useCallback((vi: string, en: string, zh: string, ja: string, ko: string) => {
     if (uiLocale === 'en') return en
