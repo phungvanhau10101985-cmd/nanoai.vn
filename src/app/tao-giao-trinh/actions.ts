@@ -2124,6 +2124,7 @@ export async function saveSlidesToCurriculum(opts: {
   gradeLevelId: string
   slides: WorksheetSlideRow[]
   curriculumInfographic?: SlideInfographic
+  lessonNo?: number
 }) {
   const supabase = createClient()
   const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập để lưu slide.')
@@ -2154,6 +2155,25 @@ export async function saveSlidesToCurriculum(opts: {
     user_id: user?.id ?? null,
     slides_json: contentJson,
   })
+
+  const safeLessonNo = Number.isFinite(Number(opts.lessonNo)) ? Math.max(1, Math.floor(Number(opts.lessonNo))) : null
+  if (safeLessonNo) {
+    const cacheSave = await saveLessonSlidesCacheRow(supabase, {
+      curriculumId: opts.curriculumId,
+      mode: 'shared',
+      lessonNo: safeLessonNo,
+      slidesJson: contentJson,
+      userId: user.id,
+    })
+    if (cacheSave.error) return { error: cacheSave.error }
+    await syncLessonQuizAcrossModes(supabase, {
+      curriculumId: opts.curriculumId,
+      lessonNo: safeLessonNo,
+      sourceMode: 'shared',
+      sourceSlides: opts.slides as SlideItem[],
+      userId: user.id,
+    })
+  }
 
   try {
     await syncQuizAcrossVersions(opts.curriculumId, opts.slides, {
@@ -2236,6 +2256,99 @@ export async function restoreSharedFromHistory(curriculumId: string, historyId: 
 }
 
 type CurriculumSlideModeForLesson = 'shared' | 'original' | 'personal'
+
+async function saveLessonSlidesCacheRow(
+  supabase: ReturnType<typeof createClient>,
+  opts: {
+    curriculumId: string
+    mode: CurriculumSlideModeForLesson
+    lessonNo: number
+    slidesJson: string
+    userId: string
+  }
+): Promise<{ success?: true; error?: string }> {
+  const nowIso = new Date().toISOString()
+  const payload = { slides_json: opts.slidesJson, updated_at: nowIso }
+  const updateBase = supabase
+    .from('worksheet_curriculum_lesson_slides')
+    .update(payload)
+    .eq('curriculum_id', opts.curriculumId)
+    .eq('mode', opts.mode)
+    .eq('lesson_no', opts.lessonNo)
+  const updateRes = opts.mode === 'personal'
+    ? await updateBase.eq('user_id', opts.userId).select('id')
+    : await updateBase.is('user_id', null).select('id')
+  if (updateRes.error) return { error: updateRes.error.message }
+  if (Array.isArray(updateRes.data) && updateRes.data.length > 0) return { success: true }
+
+  const insertRes = await supabase.from('worksheet_curriculum_lesson_slides').insert({
+    curriculum_id: opts.curriculumId,
+    mode: opts.mode,
+    user_id: opts.mode === 'personal' ? opts.userId : null,
+    lesson_no: opts.lessonNo,
+    slides_json: opts.slidesJson,
+    updated_at: nowIso,
+  })
+  if (insertRes.error) return { error: insertRes.error.message }
+  return { success: true }
+}
+
+async function syncLessonQuizAcrossModes(
+  supabase: ReturnType<typeof createClient>,
+  opts: {
+    curriculumId: string
+    lessonNo: number
+    sourceMode: CurriculumSlideModeForLesson
+    sourceSlides: SlideItem[]
+    userId: string
+  }
+): Promise<void> {
+  const applyQuizToSlides = (targetSlides: SlideItem[] | null): SlideItem[] | null => {
+    if (!targetSlides || targetSlides.length === 0) return targetSlides
+    return targetSlides.map((s, i) => {
+      const sourceSlide = opts.sourceSlides[i]
+      if (!sourceSlide) return s
+      const markers = extractQuizMarkersFromSlide(sourceSlide)
+      if (markers.length === 0) return s
+      return applyQuizMarkersToSlide(s, markers)
+    })
+  }
+
+  const targets: CurriculumSlideModeForLesson[] = ['shared', 'original', 'personal']
+  for (const mode of targets) {
+    if (mode === opts.sourceMode) continue
+    const rowQuery = supabase
+      .from('worksheet_curriculum_lesson_slides')
+      .select('slides_json')
+      .eq('curriculum_id', opts.curriculumId)
+      .eq('mode', mode)
+      .eq('lesson_no', opts.lessonNo)
+    const row = mode === 'personal'
+      ? await rowQuery.eq('user_id', opts.userId).maybeSingle()
+      : await rowQuery.is('user_id', null).maybeSingle()
+    const parsed = parseStoredCurriculumSlidesJson(row.data?.slides_json)
+    const targetSlides = parsed.slides as SlideItem[]
+    if (!Array.isArray(targetSlides) || targetSlides.length === 0) continue
+    const updated = applyQuizToSlides(targetSlides)
+    if (!updated || updated.length === 0) continue
+    const updatedJson = serializeStoredCurriculumSlidesJson(updated, parsed.curriculumInfographic)
+    const save = await saveLessonSlidesCacheRow(supabase, {
+      curriculumId: opts.curriculumId,
+      mode,
+      lessonNo: opts.lessonNo,
+      slidesJson: updatedJson,
+      userId: opts.userId,
+    })
+    if (save.error) {
+      console.warn('[lesson-quiz-sync] failed', {
+        curriculumId: opts.curriculumId,
+        lessonNo: opts.lessonNo,
+        mode,
+        error: save.error,
+      })
+    }
+  }
+}
 
 async function loadSlidesPayloadByMode(
   supabase: ReturnType<typeof createClient>,
@@ -2449,26 +2562,14 @@ export async function getCurriculumSlidesByLesson(curriculumId: string, mode: Cu
         return { error: spend.error || 'Không thể trừ credit để tạo slide cho tiết.' }
       }
       const slidesJson = serializeStoredCurriculumSlidesJson(generated.slides)
-      const deleteQuery = supabase
-        .from('worksheet_curriculum_lesson_slides')
-        .delete()
-        .eq('curriculum_id', curriculumId)
-        .eq('mode', mode)
-        .eq('lesson_no', safeLessonNo)
-      if (mode === 'personal') {
-        await deleteQuery.eq('user_id', user.id)
-      } else {
-        await deleteQuery.is('user_id', null)
-      }
-      const { error: insertErr } = await supabase.from('worksheet_curriculum_lesson_slides').insert({
-        curriculum_id: curriculumId,
+      const cacheSave = await saveLessonSlidesCacheRow(supabase, {
+        curriculumId,
         mode,
-        user_id: mode === 'personal' ? user.id : null,
-        lesson_no: safeLessonNo,
-        slides_json: slidesJson,
-        updated_at: new Date().toISOString(),
+        lessonNo: safeLessonNo,
+        slidesJson,
+        userId: user.id,
       })
-      if (insertErr) return { error: insertErr.message }
+      if (cacheSave.error) return { error: cacheSave.error }
       console.log('[lesson-slides] generate-done', {
         curriculumId,
         mode,
@@ -2533,30 +2634,28 @@ export async function ensureCurriculumLessonSlidesPrepared(curriculumId: string,
 
   const sharedCache = await loadLessonSlidesCacheByMode(supabase, user.id, curriculumId, 'shared', safeLessonNo)
   if (sharedCache.slides.length <= 0) {
-    const { error: insertSharedErr } = await supabase.from('worksheet_curriculum_lesson_slides').insert({
-      curriculum_id: curriculumId,
+    const sharedSave = await saveLessonSlidesCacheRow(supabase, {
+      curriculumId,
       mode: 'shared',
-      user_id: null,
-      lesson_no: safeLessonNo,
-      slides_json: serializeStoredCurriculumSlidesJson(originalSlides),
-      updated_at: new Date().toISOString(),
+      lessonNo: safeLessonNo,
+      slidesJson: serializeStoredCurriculumSlidesJson(originalSlides),
+      userId: user.id,
     })
-    if (insertSharedErr) return { error: insertSharedErr.message }
+    if (sharedSave.error) return { error: sharedSave.error }
   }
 
   const personalCache = await loadLessonSlidesCacheByMode(supabase, user.id, curriculumId, 'personal', safeLessonNo)
   if (personalCache.slides.length <= 0) {
     const sharedReload = await loadLessonSlidesCacheByMode(supabase, user.id, curriculumId, 'shared', safeLessonNo)
     const sourceSlides = sharedReload.slides.length > 0 ? sharedReload.slides : originalSlides
-    const { error: insertPersonalErr } = await supabase.from('worksheet_curriculum_lesson_slides').insert({
-      curriculum_id: curriculumId,
+    const personalSave = await saveLessonSlidesCacheRow(supabase, {
+      curriculumId,
       mode: 'personal',
-      user_id: user.id,
-      lesson_no: safeLessonNo,
-      slides_json: serializeStoredCurriculumSlidesJson(sourceSlides),
-      updated_at: new Date().toISOString(),
+      lessonNo: safeLessonNo,
+      slidesJson: serializeStoredCurriculumSlidesJson(sourceSlides),
+      userId: user.id,
     })
-    if (insertPersonalErr) return { error: insertPersonalErr.message }
+    if (personalSave.error) return { error: personalSave.error }
   }
 
   return { success: true, lessonNo: safeLessonNo }
@@ -2595,6 +2694,8 @@ export async function saveUserCustomizedSlides(opts: {
   curriculumId: string
   slides: WorksheetSlideRow[]
   curriculumInfographic?: SlideInfographic
+  lessonNo?: number
+  lessonMode?: 'personal' | 'original'
 }) {
   const supabase = createClient()
   const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập để lưu chỉnh sửa.')
@@ -2632,6 +2733,26 @@ export async function saveUserCustomizedSlides(opts: {
     .eq('user_id', user.id)
     .eq('curriculum_id', opts.curriculumId)
     .lt('created_at', cutoff.toISOString())
+
+  const safeLessonNo = Number.isFinite(Number(opts.lessonNo)) ? Math.max(1, Math.floor(Number(opts.lessonNo))) : null
+  if (safeLessonNo) {
+    const lessonMode: 'personal' | 'original' = opts.lessonMode === 'original' ? 'original' : 'personal'
+    const cacheSave = await saveLessonSlidesCacheRow(supabase, {
+      curriculumId: opts.curriculumId,
+      mode: lessonMode,
+      lessonNo: safeLessonNo,
+      slidesJson,
+      userId: user.id,
+    })
+    if (cacheSave.error) return { error: cacheSave.error }
+    await syncLessonQuizAcrossModes(supabase, {
+      curriculumId: opts.curriculumId,
+      lessonNo: safeLessonNo,
+      sourceMode: lessonMode,
+      sourceSlides: opts.slides as SlideItem[],
+      userId: user.id,
+    })
+  }
 
   try {
     await syncQuizAcrossVersions(opts.curriculumId, opts.slides, {

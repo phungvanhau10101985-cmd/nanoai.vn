@@ -709,6 +709,7 @@ export default function CurriculumViewPage() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [proposalDialog, setProposalDialog] = useState<{ open: boolean; slideIndex: number; blockIndex: number; type: 'edit' | 'add'; originalContent?: string; blockHeader?: string } | null>(null)
   const [slideMode, setSlideMode] = useState<'original' | 'shared' | 'personal' | null>(null)
+  const [activeLessonNo, setActiveLessonNo] = useState<number | null>(null)
   const [personalViewSubMode, setPersonalViewSubMode] = useState<'current' | 'original'>('current')
   const [hasOriginalSlides, setHasOriginalSlides] = useState(false)
   const [editingBlock, setEditingBlock] = useState<{ slideIndex: number; blockIndex: number } | null>(null)
@@ -2089,18 +2090,32 @@ export default function CurriculumViewPage() {
           // Bỏ qua request cũ; luôn ưu tiên snapshot mới nhất.
           if (requestId !== lastRequestedSaveIdRef.current) return
           if (slideMode === 'personal' || slideMode === 'original') {
-            const r = await saveUserCustomizedSlides({ curriculumId, slides: payload, curriculumInfographic: inf })
+            const r = await saveUserCustomizedSlides({
+              curriculumId,
+              slides: payload,
+              curriculumInfographic: inf,
+              lessonNo: activeLessonNo ?? undefined,
+              lessonMode: slideMode === 'original' ? 'original' : 'personal',
+            })
             if (r?.error) toast({ title: tr('Lỗi lưu', 'Save error', '保存错误', '保存エラー', '저장 오류'), description: r.error, variant: 'destructive' })
             else { toast({ title: tr('Đã lưu', 'Saved', '已保存', '保存しました', '저장됨'), duration: 1500 }) }
           } else if (slideMode === 'shared' || !slideMode) {
-            const r = await saveSlidesToCurriculum({ curriculumId, topic: topic || 'Bài giảng', subjectId: 'toan', gradeLevelId: 'lop-6', slides: payload, curriculumInfographic: inf })
+            const r = await saveSlidesToCurriculum({
+              curriculumId,
+              topic: topic || 'Bài giảng',
+              subjectId: 'toan',
+              gradeLevelId: 'lop-6',
+              slides: payload,
+              curriculumInfographic: inf,
+              lessonNo: activeLessonNo ?? undefined,
+            })
             if (r?.error) toast({ title: tr('Lỗi lưu', 'Save error', '保存错误', '保存エラー', '저장 오류'), description: r.error, variant: 'destructive' })
             else { toast({ title: tr('Đã lưu', 'Saved', '已保存', '保存しました', '저장됨'), duration: 1500 }) }
           }
         })
       await saveQueueRef.current
     }
-  }, [curriculumId, slideMode, topic, toast, tr])
+  }, [curriculumId, slideMode, topic, toast, tr, activeLessonNo])
 
   const leftWidePanel = leftPanelMode === 'visual' || leftPanelMode === 'infographic'
 
@@ -4143,6 +4158,9 @@ export default function CurriculumViewPage() {
       }
       if (e.data?.type === 'curriculum-data') {
         const incomingCurriculumId = typeof e.data.curriculumId === 'string' ? e.data.curriculumId : null
+        const incomingLessonNo = Number.isFinite(Number(e.data.lessonNo))
+          ? Math.max(1, Math.floor(Number(e.data.lessonNo)))
+          : null
         const sl = Array.isArray(e.data.slides) ? e.data.slides : []
 
         setContent(e.data.content ?? '')
@@ -4154,6 +4172,7 @@ export default function CurriculumViewPage() {
         setTopic(e.data.topic ?? '')
         setCurrentIndex(e.data.currentIndex ?? 0)
         setCurriculumId(incomingCurriculumId)
+        setActiveLessonNo(incomingLessonNo)
         const mode = e.data.slideMode === 'personal' || e.data.slideMode === 'shared' || e.data.slideMode === 'original' ? e.data.slideMode : null
         setSlideMode(mode)
         if (mode === null) {
@@ -4308,7 +4327,13 @@ export default function CurriculumViewPage() {
         visualLayout: s.visualLayout,
         visualCells: s.visualCells,
       }))
-      const r = await saveUserCustomizedSlides({ curriculumId, slides: payload, curriculumInfographic: curriculumInfographicRef.current })
+      const r = await saveUserCustomizedSlides({
+        curriculumId,
+        slides: payload,
+        curriculumInfographic: curriculumInfographicRef.current,
+        lessonNo: activeLessonNo ?? undefined,
+        lessonMode: slideMode === 'original' ? 'original' : 'personal',
+      })
       if (r?.error) {
         toast({ title: tr('Lỗi lưu', 'Save error', '保存错误', '保存エラー', '저장 오류'), description: r.error, variant: 'destructive' })
       } else {
@@ -4318,7 +4343,7 @@ export default function CurriculumViewPage() {
     } finally {
       setSaveAsPersonalLoading(false)
     }
-  }, [curriculumId, slides, toast, tr, sendRefreshPersonalAfterReset])
+  }, [curriculumId, slides, toast, tr, sendRefreshPersonalAfterReset, activeLessonNo, slideMode])
 
   useEffect(() => {
     setEditingBlock(null)
