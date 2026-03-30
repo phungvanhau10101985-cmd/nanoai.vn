@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo, type PointerEvent as ReactPointerEvent } from 'react'
+import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { X, ArrowRight, TrendingUp, CalendarCheck, Lightbulb, BookOpen, Target, ClipboardList, Maximize2, Timer, Link2, Copy, ExternalLink, FileText, Square, BarChart3 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -79,6 +79,53 @@ function getVisibleImageBounds(img: HTMLImageElement): { left: number; top: numb
   const ox = (cw - dw) / 2
   const oy = (ch - dh) / 2
   return { left: rect.left + ox, top: rect.top + oy, width: dw, height: dh }
+}
+
+function LazyHeavyMount({
+  children,
+  minHeight = 140,
+}: {
+  children: ReactNode
+  minHeight?: number
+}) {
+  const hostRef = useRef<HTMLDivElement | null>(null)
+  const [isVisible, setIsVisible] = useState(false)
+
+  useEffect(() => {
+    const node = hostRef.current
+    if (!node) return
+    if (typeof IntersectionObserver === 'undefined') {
+      setIsVisible(true)
+      return
+    }
+    let cancelled = false
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (cancelled) return
+        setIsVisible(entries.some((entry) => entry.isIntersecting))
+      },
+      { root: null, rootMargin: '220px 0px', threshold: 0.01 }
+    )
+    observer.observe(node)
+    return () => {
+      cancelled = true
+      observer.disconnect()
+    }
+  }, [])
+
+  return (
+    <div ref={hostRef} className="w-full h-full">
+      {isVisible ? (
+        children
+      ) : (
+        <div
+          className="h-full w-full rounded-md border border-white/10 bg-slate-800/25"
+          style={{ minHeight }}
+          aria-hidden
+        />
+      )}
+    </div>
+  )
 }
 
 function clamp01(n: number): number {
@@ -3652,7 +3699,9 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                 if (!first) return <div className="min-h-0 flex-1 basis-0" />
                 return (
                   <div className="flex min-h-0 flex-1 basis-0 flex-col" key={`nano-fs-vis-${cellKey}-${first.type}-${first.urlOrId.slice(0, 80)}`}>
-                    <ContentEmbed type={first.type} urlOrId={first.urlOrId} tr={tr} hideQuiz fill className="!my-0 !rounded-xl !border-0" />
+                    <LazyHeavyMount minHeight={220}>
+                      <ContentEmbed type={first.type} urlOrId={first.urlOrId} tr={tr} hideQuiz fill className="!my-0 !rounded-xl !border-0" />
+                    </LazyHeavyMount>
                   </div>
                 )
               })()
@@ -4385,7 +4434,9 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                       if (!first) return <div className="min-h-0 flex-1" />
                       return (
                         <div className="flex min-h-0 flex-1 flex-col" key={`nano-vis-${currentIndex}-0-${first.type}-${first.urlOrId.slice(0, 80)}`}>
-                          <ContentEmbed type={first.type} urlOrId={first.urlOrId} tr={tr} hideQuiz fill className="!my-0 !rounded-lg !border-0" />
+                          <LazyHeavyMount minHeight={180}>
+                            <ContentEmbed type={first.type} urlOrId={first.urlOrId} tr={tr} hideQuiz fill className="!my-0 !rounded-lg !border-0" />
+                          </LazyHeavyMount>
                         </div>
                       )
                     })()
@@ -4477,7 +4528,9 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                           if (!first) return <div className="min-h-0 flex-1" />
                           return (
                             <div className="flex min-h-0 flex-1 flex-col" key={`nano-vis-${currentIndex}-${idx}-${first.type}-${first.urlOrId.slice(0, 80)}`}>
-                              <ContentEmbed type={first.type} urlOrId={first.urlOrId} tr={tr} hideQuiz fill className="!my-0 !rounded-lg !border-0" />
+                              <LazyHeavyMount minHeight={180}>
+                                <ContentEmbed type={first.type} urlOrId={first.urlOrId} tr={tr} hideQuiz fill className="!my-0 !rounded-lg !border-0" />
+                              </LazyHeavyMount>
                             </div>
                           )
                         })()
@@ -4963,7 +5016,9 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                               if (!first) return <div className="w-full h-full min-h-[40px] bg-white/5" />
                               return (
                                 <div className="w-full h-full min-h-[40px]">
-                                  <ContentEmbed type={first.type} urlOrId={first.urlOrId} width={120} height={90} tr={tr} hideQuiz />
+                                  <LazyHeavyMount minHeight={90}>
+                                    <ContentEmbed type={first.type} urlOrId={first.urlOrId} width={120} height={90} tr={tr} hideQuiz />
+                                  </LazyHeavyMount>
                                 </div>
                               )
                             })()

@@ -558,6 +558,58 @@ function getQuizCount(blocks: SlideItem['blocks']): number {
   return (Array.isArray(blocks) ? blocks : []).reduce((acc, b) => acc + (b.content?.match(/\[quiz:/g)?.length ?? 0), 0)
 }
 
+function LazyHeavyMount({
+  children,
+  minHeight = 140,
+}: {
+  children: React.ReactNode
+  minHeight?: number
+}) {
+  const hostRef = useRef<HTMLDivElement | null>(null)
+  const [isVisible, setIsVisible] = useState(false)
+
+  useEffect(() => {
+    const node = hostRef.current
+    if (!node) return
+    if (typeof IntersectionObserver === 'undefined') {
+      setIsVisible(true)
+      return
+    }
+    let cancelled = false
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (cancelled) return
+        const nextVisible = entries.some((entry) => entry.isIntersecting)
+        setIsVisible(nextVisible)
+      },
+      {
+        root: null,
+        rootMargin: '220px 0px',
+        threshold: 0.01,
+      }
+    )
+    observer.observe(node)
+    return () => {
+      cancelled = true
+      observer.disconnect()
+    }
+  }, [])
+
+  return (
+    <div ref={hostRef} className="w-full h-full">
+      {isVisible ? (
+        children
+      ) : (
+        <div
+          className="h-full w-full rounded-md border border-white/10 bg-slate-800/25"
+          style={{ minHeight }}
+          aria-hidden
+        />
+      )}
+    </div>
+  )
+}
+
 /** Tách giáo trình thành các section theo ## hoặc ### */
 function splitCurriculumSections(content: string): string[] {
   const parts = content.split(/\n(?=#{2,3}\s)/)
@@ -1054,6 +1106,7 @@ export default function CurriculumViewPage() {
   const visualAutoFillInitializedRef = useRef<Record<number, boolean>>({})
   const visualManualEditedRef = useRef<Record<number, boolean>>({})
   const visualInputPersistTimeoutRef = useRef<number | null>(null)
+  const lastStudentWirePayloadRef = useRef<string>('')
   const quizPopupScrollApplyingRef = useRef(false)
   const sectionRefs = useRef<(HTMLDivElement | null)[]>([])
   const firstMatchRef = useRef<HTMLElement | null>(null)
@@ -1697,6 +1750,7 @@ export default function CurriculumViewPage() {
 
   useEffect(() => {
     if (!studentViewOpened) return
+    lastStudentWirePayloadRef.current = ''
     const send = () => {
       sendToStudentView({ type: 'infographic-draw-sync', strokesBySlide: infographicDrawStrokesBySlide })
     }
@@ -1798,6 +1852,14 @@ export default function CurriculumViewPage() {
         : {}),
       ...(!worksheetId && wireInfographic ? { curriculumInfographic: wireInfographic } : {}),
     }
+    let payloadKey = ''
+    try {
+      payloadKey = JSON.stringify(payload)
+    } catch {
+      payloadKey = ''
+    }
+    if (payloadKey && lastStudentWirePayloadRef.current === payloadKey) return
+    if (payloadKey) lastStudentWirePayloadRef.current = payloadKey
     try {
       const w = studentViewWindowRef.current
       if (w && !w.closed) {
@@ -4688,7 +4750,9 @@ export default function CurriculumViewPage() {
                                 if (!first) return <div className="min-h-0 flex-1" />
                                 return (
                                   <div className="flex min-h-0 flex-1 flex-col">
-                                    <ContentEmbed type={first.type} urlOrId={first.urlOrId} tr={tr} hideQuiz fill className="!my-0 !rounded-lg !border-0" />
+                                    <LazyHeavyMount minHeight={180}>
+                                      <ContentEmbed type={first.type} urlOrId={first.urlOrId} tr={tr} hideQuiz fill className="!my-0 !rounded-lg !border-0" />
+                                    </LazyHeavyMount>
                                   </div>
                                 )
                               })()
@@ -4794,7 +4858,9 @@ export default function CurriculumViewPage() {
                                     if (!first) return <div className="min-h-0 flex-1" />
                                     return (
                                       <div className="flex min-h-0 flex-1 flex-col">
-                                        <ContentEmbed type={first.type} urlOrId={first.urlOrId} tr={tr} hideQuiz fill className="!my-0 !rounded-lg !border-0" />
+                                        <LazyHeavyMount minHeight={180}>
+                                          <ContentEmbed type={first.type} urlOrId={first.urlOrId} tr={tr} hideQuiz fill className="!my-0 !rounded-lg !border-0" />
+                                        </LazyHeavyMount>
                                       </div>
                                     )
                                   })()
@@ -5413,7 +5479,9 @@ export default function CurriculumViewPage() {
                                                 const ep = p as { type: 'embed'; embedType: EmbedType; urlOrId: string; rawMarker: string }
                                                 return (
                                                   <div key={j} className="rounded-lg overflow-hidden border border-slate-600/60 relative group">
-                                                    <ContentEmbed type={ep.embedType} urlOrId={ep.urlOrId} width={280} height={160} tr={tr} />
+                                                    <LazyHeavyMount minHeight={160}>
+                                                      <ContentEmbed type={ep.embedType} urlOrId={ep.urlOrId} width={280} height={160} tr={tr} />
+                                                    </LazyHeavyMount>
                                                     {curriculumId && (showDirectEdit || showProposalUi) && (
                                                       <DropdownMenu>
                                                         <DropdownMenuTrigger asChild>
@@ -5557,7 +5625,9 @@ export default function CurriculumViewPage() {
                                         const ep = p as { type: 'embed'; embedType: EmbedType; urlOrId: string; rawMarker: string }
                                         return (
                                           <div key={j} className="rounded-lg overflow-hidden border border-slate-600/60 relative group">
-                                            <ContentEmbed type={ep.embedType} urlOrId={ep.urlOrId} width={280} height={160} tr={tr} />
+                                            <LazyHeavyMount minHeight={160}>
+                                              <ContentEmbed type={ep.embedType} urlOrId={ep.urlOrId} width={280} height={160} tr={tr} />
+                                            </LazyHeavyMount>
                                             {curriculumId && (slideMode === 'personal' && personalViewSubMode === 'current' || slideMode === 'shared' || slideMode === 'original' || slideMode === null) && (
                                               <DropdownMenu>
                                                 <DropdownMenuTrigger asChild>
@@ -5891,9 +5961,18 @@ export default function CurriculumViewPage() {
                                         )
                                       }
                                       if (p.type === 'embed') {
+                                        if (!isCurrent) {
+                                          return (
+                                            <div key={j} className="rounded border border-slate-600/50 bg-slate-700/20 px-2 py-1 text-[10px] text-slate-300">
+                                              {tr('Nội dung nhúng', 'Embedded content', '嵌入内容', '埋め込みコンテンツ', '임베드 콘텐츠')}
+                                            </div>
+                                          )
+                                        }
                                         return (
                                           <div key={j} className="rounded overflow-hidden border border-slate-600/60">
-                                            <ContentEmbed type={p.embedType} urlOrId={p.urlOrId} width={200} height={120} tr={tr} />
+                                                    <LazyHeavyMount minHeight={120}>
+                                                      <ContentEmbed type={p.embedType} urlOrId={p.urlOrId} width={200} height={120} tr={tr} />
+                                                    </LazyHeavyMount>
                                           </div>
                                         )
                                       }
@@ -5980,9 +6059,18 @@ export default function CurriculumViewPage() {
                                     )
                                   }
                                   if (p.type === 'embed') {
+                                    if (!isCurrent) {
+                                      return (
+                                        <div key={j} className="rounded border border-slate-600/50 bg-slate-700/20 px-2 py-1 text-[10px] text-slate-300">
+                                          {tr('Nội dung nhúng', 'Embedded content', '嵌入内容', '埋め込みコンテンツ', '임베드 콘텐츠')}
+                                        </div>
+                                      )
+                                    }
                                     return (
                                       <div key={j} className="rounded overflow-hidden border border-slate-600/60">
-                                        <ContentEmbed type={p.embedType} urlOrId={p.urlOrId} width={200} height={120} tr={tr} />
+                                        <LazyHeavyMount minHeight={120}>
+                                          <ContentEmbed type={p.embedType} urlOrId={p.urlOrId} width={200} height={120} tr={tr} />
+                                        </LazyHeavyMount>
                                       </div>
                                     )
                                   }
@@ -6150,7 +6238,9 @@ export default function CurriculumViewPage() {
                         if (!first) return <div className="min-h-0 flex-1 basis-0" />
                         return (
                           <div className="flex min-h-0 flex-1 basis-0 flex-col">
-                            <ContentEmbed type={first.type} urlOrId={first.urlOrId} tr={tr} hideQuiz fill className="!my-0 !rounded-xl !border-0" />
+                            <LazyHeavyMount minHeight={220}>
+                              <ContentEmbed type={first.type} urlOrId={first.urlOrId} tr={tr} hideQuiz fill className="!my-0 !rounded-xl !border-0" />
+                            </LazyHeavyMount>
                           </div>
                         )
                       })()
