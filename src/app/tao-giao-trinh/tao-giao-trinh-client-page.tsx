@@ -69,7 +69,6 @@ const WS_ACTIVE_JOB_KEY = 'worksheet_active_job'
 const LAST_OPENED_CURRICULUM_KEY = 'tao_giao_trinh_last_opened_curriculum_id'
 /** Ảnh trang sách gửi lên POST /api/curriculum-from-image — khớp MAX_IMAGES trong route. */
 const MAX_CURRICULUM_LESSON_IMAGES = 20
-const LESSON_FALLBACK_SLIDE_SIZE = 10
 
 type CurriculumWorksheetListItem = {
   id: string
@@ -110,21 +109,6 @@ function lessonChunksToGroups(chunks: CurriculumLessonChunk[] | undefined | null
       for (let i = start; i <= end; i += 1) indices.push(i)
       return { id: `lesson-${c.lessonNo}`, lessonNo: Math.floor(c.lessonNo), indices }
     })
-}
-
-function buildFallbackGroupsByTotalSlides(totalSlides: number): LessonSlideGroup[] {
-  const safeTotal = Number.isFinite(totalSlides) ? Math.max(0, Math.floor(totalSlides)) : 0
-  if (safeTotal <= 0) return []
-  const out: LessonSlideGroup[] = []
-  let lessonNo = 1
-  for (let i = 0; i < safeTotal; i += LESSON_FALLBACK_SLIDE_SIZE) {
-    const end = Math.min(safeTotal, i + LESSON_FALLBACK_SLIDE_SIZE)
-    const indices: number[] = []
-    for (let j = i; j < end; j += 1) indices.push(j)
-    out.push({ id: `lesson-fallback-${lessonNo}`, lessonNo, indices })
-    lessonNo += 1
-  }
-  return out
 }
 
 function normalizeGradeLevelId(id: string): string {
@@ -262,13 +246,13 @@ export default function TaoGiaoTrinhClientPage({
   const [showSlideVersionDialog, setShowSlideVersionDialog] = useState(false)
   const [exerciseListOpen, setExerciseListOpen] = useState(false)
   const [slideVersionChoice, setSlideVersionChoice] = useState<SlideVersionChoice | null>(null)
-  const [sharedSlides, setSharedSlides] = useState<AISlideData[] | null>(null)
-  const [originalSlides, setOriginalSlides] = useState<AISlideData[] | null>(null)
-  const [personalSlides, setPersonalSlides] = useState<AISlideData[] | null>(null)
+  const [, setSharedSlides] = useState<AISlideData[] | null>(null)
+  const [, setOriginalSlides] = useState<AISlideData[] | null>(null)
+  const [, setPersonalSlides] = useState<AISlideData[] | null>(null)
   const [hasOriginalOrSharedVersion, setHasOriginalOrSharedVersion] = useState(false)
   const [hasPersonalVersion, setHasPersonalVersion] = useState(false)
   const [lessonMetaByMode, setLessonMetaByMode] = useState<Partial<Record<SlideVersionChoice, LessonSlideGroup[]>>>({})
-  const [lessonTotalSlidesByMode, setLessonTotalSlidesByMode] = useState<Partial<Record<SlideVersionChoice, number>>>({})
+  const [, setLessonTotalSlidesByMode] = useState<Partial<Record<SlideVersionChoice, number>>>({})
   const [lessonSelectOpen, setLessonSelectOpen] = useState(false)
   const [lessonGroups, setLessonGroups] = useState<LessonSlideGroup[]>([])
   const [lessonPreparingGroupId, setLessonPreparingGroupId] = useState<string | null>(null)
@@ -419,31 +403,6 @@ export default function TaoGiaoTrinhClientPage({
     error?: string
     balance?: number
     required?: number
-  }
-
-  const toastAnalyzeSlidesInsufficientCredits = (data: CurriculumAnalyzeSlidesClientData) => {
-    const bal = typeof data.balance === 'number' ? data.balance : null
-    const req = typeof data.required === 'number' ? data.required : null
-    toast({
-      title: tr('Không đủ credit', 'Insufficient credits', '积分不足', 'クレジット不足', '크레딧 부족'),
-      description:
-        bal !== null && req !== null
-          ? tr(
-              `Cần ${formatCurriculumCredits(req)} credit để tạo slide bằng AI; số dư hiện tại ${formatCurriculumCredits(bal)}.`,
-              `You need ${formatCurriculumCredits(req)} credits to generate slides with AI; your balance is ${formatCurriculumCredits(bal)}.`,
-              `使用 AI 生成幻灯片需要 ${formatCurriculumCredits(req)} 积分；当前余额 ${formatCurriculumCredits(bal)}。`,
-              `AIでスライドを生成するには ${formatCurriculumCredits(req)} クレジットが必要です。現在の残高は ${formatCurriculumCredits(bal)} です。`,
-              `AI로 슬라이드를 만들려면 ${formatCurriculumCredits(req)} 크레딧이 필요합니다. 현재 잔액은 ${formatCurriculumCredits(bal)}입니다.`
-            )
-          : tr(
-              'Vui lòng nạp thêm credit để tạo slide bằng AI.',
-              'Please top up credits to generate slides with AI.',
-              '请充值积分以使用 AI 生成幻灯片。',
-              'AIでスライドを作るにはクレジットを追加してください。',
-              'AI로 슬라이드를 만들려면 크레딧을 충전해 주세요.'
-            ),
-      variant: 'destructive',
-    })
   }
 
   const toastFromImageInsufficientCredits = (data: CurriculumAnalyzeSlidesClientData) => {
@@ -1460,7 +1419,7 @@ export default function TaoGiaoTrinhClientPage({
       if (e.data?.type !== 'request-curriculum') return
       const target = e.source as Window | null
       if (!target) return
-      let slidesToUse = aiSlides ?? activeOpenedSlidesRef.current ?? curriculumSlides ?? null
+      const slidesToUse = aiSlides ?? activeOpenedSlidesRef.current ?? curriculumSlides ?? null
       const contentForTeacher = activeOpenedLessonMarkdownRef.current ?? curriculumMarkdown
       const slides =
         curriculumId && slideVersionChoice === null

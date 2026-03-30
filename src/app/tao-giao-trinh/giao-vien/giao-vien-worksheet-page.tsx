@@ -348,14 +348,6 @@ function getVisualCellsFromSlideContent(slide: SlideItem): { layout: 1 | 2 | 4; 
   return { layout, cells: result }
 }
 
-function visualCellToInputMarker(cell: VisualCell | undefined): string {
-  const marker = String(cell?.visualEmbed ?? '').trim()
-  if (marker) return marker
-  const imageUrl = String(cell?.imageUrl ?? '').trim()
-  if (imageUrl) return `[image:${imageUrl}]`
-  return ''
-}
-
 function isVisualInputTemplateText(value: string): boolean {
   const v = String(value || '').trim().toLowerCase()
   if (!v) return true

@@ -620,7 +620,7 @@ function formatOfficialQuestionsForCurriculum(questions: Array<{ question_text: 
 }
 
 /** Ghép câu hỏi từ ngân hàng Bộ GD vào phần Luyện tập của mỗi Tiết trong giáo trình. */
-async function mergeOfficialQuestionsIntoCurriculum(
+export async function mergeOfficialQuestionsIntoCurriculum(
   text: string,
   supabase: ReturnType<typeof createClient>,
   subjectId: string,
