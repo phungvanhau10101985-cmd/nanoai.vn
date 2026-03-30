@@ -20,7 +20,8 @@
     "reverify:worksheets-once": "npx tsx scripts/run-reverify-all-once.ts",
     "email:test": "npx tsx scripts/send-test-email.ts",
     "backfill:curriculum-lessons": "npx tsx scripts/backfill-curriculum-slides-lessons.ts",
-    "backfill:curriculum-lesson-json": "npx tsx scripts/backfill-curriculum-lesson-json.ts"
+    "backfill:curriculum-lesson-json": "npx tsx scripts/backfill-curriculum-lesson-json.ts",
+    "normalize:curriculum-infographics": "npx tsx scripts/normalize-curriculum-infographics.ts"
   },
   "overrides": {
     "react": "^18.3.1",

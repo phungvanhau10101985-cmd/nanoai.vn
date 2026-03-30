@@ -1,7 +1,7 @@
 /**
  * `worksheet_slides.content_json` / `user_customized_slides.slides_json`:
  * - Legacy: mảng slide
- * - v2: { v: 2, slides, curriculumInfographic? } — một ảnh infographic cho cả giáo trình
+ * - v2: { v: 2, slides, curriculumInfographic? } — một ảnh infographic cho cả giáo trình (dùng chung mọi tiết; đọc ưu tiên worksheet_slides)
  * - v3: { v: 3, slides, curriculumInfographic?, lessonChunks? } — thêm metadata chia theo tiết
  */
 import type { SlideInfographic } from './slide-infographic'

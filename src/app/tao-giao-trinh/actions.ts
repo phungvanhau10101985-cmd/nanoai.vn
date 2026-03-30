@@ -2167,10 +2167,8 @@ export async function saveSlidesToCurriculum(opts: {
       .is('user_id', null)
       .maybeSingle()
     const existingLessonParsed = parseStoredCurriculumSlidesJson(existingLessonRow.data?.slides_json)
-    const lessonSlidesJson = serializeStoredCurriculumSlidesJson(
-      opts.slides,
-      existingLessonParsed.curriculumInfographic ?? infographicToStore
-    )
+    // Chỉ giữ infographic theo tiết trong cache tiết — không copy ảnh cả bài vào envelope tiết.
+    const lessonSlidesJson = serializeStoredCurriculumSlidesJson(opts.slides, existingLessonParsed.curriculumInfographic)
     const cacheSave = await saveLessonSlidesCacheRow(supabase, {
       curriculumId: opts.curriculumId,
       mode: 'shared',
@@ -2306,6 +2304,75 @@ async function saveLessonSlidesCacheRow(
   return { success: true }
 }
 
+/** Ảnh infographic theo tiết: một URL cho tiết đó, dùng chung giữa shared / personal / original (đọc theo thứ tự ưu tiên). */
+async function resolveMergedLessonInfographic(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  curriculumId: string,
+  lessonNo: number
+): Promise<SlideInfographic | undefined> {
+  const { data: rows } = await supabase
+    .from('worksheet_curriculum_lesson_slides')
+    .select('mode, user_id, slides_json')
+    .eq('curriculum_id', curriculumId)
+    .eq('lesson_no', lessonNo)
+
+  const list = rows ?? []
+  const infFromRow = (mode: CurriculumSlideModeForLesson, personalUser: boolean): SlideInfographic | undefined => {
+    const r = list.find((x) => x.mode === mode && (personalUser ? x.user_id === userId : x.user_id == null))
+    if (!r) return undefined
+    return parseStoredCurriculumSlidesJson(r.slides_json).curriculumInfographic
+  }
+  return infFromRow('shared', false) ?? infFromRow('personal', true) ?? infFromRow('original', false)
+}
+
+/** Sau khi lưu ảnh tiết vào một mode, ghi cùng ảnh vào các hàng cache tiết khác (giữ nguyên mảng slide từng hàng). */
+async function syncLessonInfographicAcrossLessonModes(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  curriculumId: string,
+  lessonNo: number,
+  infographic: SlideInfographic,
+  savedMode: CurriculumSlideModeForLesson
+): Promise<void> {
+  const targets: CurriculumSlideModeForLesson[] = ['shared', 'personal', 'original']
+  for (const mode of targets) {
+    if (mode === savedMode) continue
+    const row =
+      mode === 'personal'
+        ? await supabase
+            .from('worksheet_curriculum_lesson_slides')
+            .select('slides_json')
+            .eq('curriculum_id', curriculumId)
+            .eq('mode', 'personal')
+            .eq('lesson_no', lessonNo)
+            .eq('user_id', userId)
+            .maybeSingle()
+        : await supabase
+            .from('worksheet_curriculum_lesson_slides')
+            .select('slides_json')
+            .eq('curriculum_id', curriculumId)
+            .eq('mode', mode)
+            .eq('lesson_no', lessonNo)
+            .is('user_id', null)
+            .maybeSingle()
+    const parsed = parseStoredCurriculumSlidesJson(row.data?.slides_json)
+    const slides = parsed.slides as WorksheetSlideRow[]
+    if (!Array.isArray(slides) || slides.length === 0) continue
+    const slidesJson = serializeStoredCurriculumSlidesJson(slides, infographic)
+    const save = await saveLessonSlidesCacheRow(supabase, {
+      curriculumId,
+      mode,
+      lessonNo,
+      slidesJson,
+      userId,
+    })
+    if (save.error) {
+      console.warn('[lesson-infographic-sync] failed', { curriculumId, lessonNo, mode, error: save.error })
+    }
+  }
+}
+
 async function syncLessonQuizAcrossModes(
   supabase: ReturnType<typeof createClient>,
   opts: {
@@ -2381,26 +2448,29 @@ async function loadSlidesPayloadByMode(
     return { slides, curriculumInfographic: parsed.curriculumInfographic, lessonChunks }
   }
   if (mode === 'original') {
-    const { data } = await supabase
-      .from('worksheet_slides_original')
-      .select('content_json')
-      .eq('curriculum_id', curriculumId)
-      .single()
-    const parsed = parseStoredCurriculumSlidesJson(data?.content_json)
+    const [{ data: orig }, { data: ws }] = await Promise.all([
+      supabase.from('worksheet_slides_original').select('content_json').eq('curriculum_id', curriculumId).single(),
+      supabase.from('worksheet_slides').select('content_json').eq('curriculum_id', curriculumId).maybeSingle(),
+    ])
+    const parsed = parseStoredCurriculumSlidesJson(orig?.content_json)
+    const parsedWs = parseStoredCurriculumSlidesJson(ws?.content_json)
     const slides = parsed.slides as WorksheetSlideRow[]
     const lessonChunks = parsed.lessonChunks ?? buildLessonChunksFromSlides(slides)
-    return { slides, curriculumInfographic: parsed.curriculumInfographic, lessonChunks }
+    // Ảnh cả bài: một nguồn chung (ưu tiên bản chung đang dùng), không tách theo bản riêng.
+    const curriculumInfographic = parsedWs.curriculumInfographic ?? parsed.curriculumInfographic
+    return { slides, curriculumInfographic, lessonChunks }
   }
-  const { data } = await supabase
-    .from('user_customized_slides')
-    .select('slides_json')
-    .eq('user_id', userId)
-    .eq('curriculum_id', curriculumId)
-    .single()
-  const parsed = parseStoredCurriculumSlidesJson(data?.slides_json)
+  const [{ data: us }, { data: ws }] = await Promise.all([
+    supabase.from('user_customized_slides').select('slides_json').eq('user_id', userId).eq('curriculum_id', curriculumId).single(),
+    supabase.from('worksheet_slides').select('content_json').eq('curriculum_id', curriculumId).maybeSingle(),
+  ])
+  const parsed = parseStoredCurriculumSlidesJson(us?.slides_json)
+  const parsedWs = parseStoredCurriculumSlidesJson(ws?.content_json)
   const slides = parsed.slides as WorksheetSlideRow[]
   const lessonChunks = parsed.lessonChunks ?? buildLessonChunksFromSlides(slides)
-  return { slides, curriculumInfographic: parsed.curriculumInfographic, lessonChunks }
+  // Ảnh cả bài: chung cho mọi tiết và mọi bản — lấy từ worksheet_slides nếu có, fallback envelope bản riêng (lịch sử).
+  const curriculumInfographic = parsedWs.curriculumInfographic ?? parsed.curriculumInfographic
+  return { slides, curriculumInfographic, lessonChunks }
 }
 
 async function loadCurriculumLessonRows(
@@ -2497,28 +2567,17 @@ export async function getCurriculumSlidesByLesson(curriculumId: string, mode: Cu
     }
   }
 
-  const cacheQuery = supabase
-    .from('worksheet_curriculum_lesson_slides')
-    .select('slides_json')
-    .eq('curriculum_id', curriculumId)
-    .eq('mode', mode)
-    .eq('lesson_no', safeLessonNo)
-  const cacheRes = mode === 'personal'
-    ? await cacheQuery.eq('user_id', user.id).maybeSingle()
-    : await cacheQuery.is('user_id', null).maybeSingle()
-  const cachedParsed = parseStoredCurriculumSlidesJson(cacheRes.data?.slides_json)
-  const cachedSlides = cachedParsed.slides as WorksheetSlideRow[]
-  if (cachedSlides.length > 0) {
-    console.log('[lesson-slides] cache-hit', { curriculumId, mode, lessonNo: safeLessonNo, slideCount: cachedSlides.length })
-    const loaded = await loadSlidesPayloadByMode(supabase, user.id, curriculumId, mode)
+  const cache = await loadLessonSlidesCacheByMode(supabase, user.id, curriculumId, mode, safeLessonNo)
+  if (cache.slides.length > 0) {
+    console.log('[lesson-slides] cache-hit', { curriculumId, mode, lessonNo: safeLessonNo, slideCount: cache.slides.length })
     return {
       success: true,
-      slides: cachedSlides,
+      slides: cache.slides,
       lessonNo: safeLessonNo,
       lessonMarkdown: buildLessonMarkdownForDisplay(lesson),
       lessonTitle: lesson.lesson_title ?? '',
-      curriculumInfographic: loaded.curriculumInfographic,
-      lessonInfographic: cachedParsed.curriculumInfographic,
+      curriculumInfographic: cache.curriculumInfographic,
+      lessonInfographic: cache.lessonInfographic,
       generated: false,
       source: 'cache',
     }
@@ -2618,21 +2677,35 @@ async function loadLessonSlidesCacheByMode(
   mode: CurriculumSlideModeForLesson,
   lessonNo: number
 ): Promise<{ slides: WorksheetSlideRow[]; curriculumInfographic?: SlideInfographic; lessonInfographic?: SlideInfographic }> {
-  const query = supabase
-    .from('worksheet_curriculum_lesson_slides')
-    .select('slides_json')
-    .eq('curriculum_id', curriculumId)
-    .eq('mode', mode)
-    .eq('lesson_no', lessonNo)
-  const row = mode === 'personal'
-    ? await query.eq('user_id', userId).maybeSingle()
-    : await query.is('user_id', null).maybeSingle()
+  const rowPromise =
+    mode === 'personal'
+      ? supabase
+          .from('worksheet_curriculum_lesson_slides')
+          .select('slides_json')
+          .eq('curriculum_id', curriculumId)
+          .eq('mode', mode)
+          .eq('lesson_no', lessonNo)
+          .eq('user_id', userId)
+          .maybeSingle()
+      : supabase
+          .from('worksheet_curriculum_lesson_slides')
+          .select('slides_json')
+          .eq('curriculum_id', curriculumId)
+          .eq('mode', mode)
+          .eq('lesson_no', lessonNo)
+          .is('user_id', null)
+          .maybeSingle()
+
+  const [row, loaded, lessonInfographic] = await Promise.all([
+    rowPromise,
+    loadSlidesPayloadByMode(supabase, userId, curriculumId, mode),
+    resolveMergedLessonInfographic(supabase, userId, curriculumId, lessonNo),
+  ])
   const parsed = parseStoredCurriculumSlidesJson(row.data?.slides_json)
-  const loaded = await loadSlidesPayloadByMode(supabase, userId, curriculumId, mode)
   return {
     slides: parsed.slides as WorksheetSlideRow[],
     curriculumInfographic: loaded.curriculumInfographic,
-    lessonInfographic: parsed.curriculumInfographic,
+    lessonInfographic,
   }
 }
 
@@ -2666,11 +2739,20 @@ export async function ensureCurriculumLessonSlidesPrepared(curriculumId: string,
   if (personalCache.slides.length <= 0) {
     const sharedReload = await loadLessonSlidesCacheByMode(supabase, user.id, curriculumId, 'shared', safeLessonNo)
     const sourceSlides = sharedReload.slides.length > 0 ? sharedReload.slides : originalSlides
+    const { data: sharedOnly } = await supabase
+      .from('worksheet_curriculum_lesson_slides')
+      .select('slides_json')
+      .eq('curriculum_id', curriculumId)
+      .eq('mode', 'shared')
+      .eq('lesson_no', safeLessonNo)
+      .is('user_id', null)
+      .maybeSingle()
+    const lessonInfFromSharedEnvelope = parseStoredCurriculumSlidesJson(sharedOnly?.slides_json).curriculumInfographic
     const personalSave = await saveLessonSlidesCacheRow(supabase, {
       curriculumId,
       mode: 'personal',
       lessonNo: safeLessonNo,
-      slidesJson: serializeStoredCurriculumSlidesJson(sourceSlides),
+      slidesJson: serializeStoredCurriculumSlidesJson(sourceSlides, lessonInfFromSharedEnvelope),
       userId: user.id,
     })
     if (personalSave.error) return { error: personalSave.error }
@@ -2732,6 +2814,14 @@ export async function saveCurriculumLessonInfographic(opts: {
     userId: user.id,
   })
   if (save.error) return { error: save.error }
+  await syncLessonInfographicAcrossLessonModes(
+    supabase,
+    user.id,
+    opts.curriculumId,
+    safeLessonNo,
+    opts.infographic,
+    opts.mode
+  )
   return { success: true, lessonNo: safeLessonNo, lessonInfographic: opts.infographic }
 }
 
@@ -2793,10 +2883,8 @@ export async function saveUserCustomizedSlides(opts: {
       ? await lessonCacheQuery.eq('user_id', user.id).maybeSingle()
       : await lessonCacheQuery.is('user_id', null).maybeSingle()
     const existingLessonParsed = parseStoredCurriculumSlidesJson(existingLessonRow.data?.slides_json)
-    const lessonSlidesJson = serializeStoredCurriculumSlidesJson(
-      opts.slides,
-      existingLessonParsed.curriculumInfographic ?? infographicToStore
-    )
+    // Chỉ giữ infographic theo tiết trong cache tiết — không copy ảnh cả bài vào envelope tiết.
+    const lessonSlidesJson = serializeStoredCurriculumSlidesJson(opts.slides, existingLessonParsed.curriculumInfographic)
     const cacheSave = await saveLessonSlidesCacheRow(supabase, {
       curriculumId: opts.curriculumId,
       mode: lessonMode,

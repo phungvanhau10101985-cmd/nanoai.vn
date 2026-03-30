@@ -47,7 +47,7 @@ import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { saveCurriculumLessonInfographicAction } from '../lesson-actions'
+import { getCurriculumSlidesByLessonCachedAction, saveCurriculumLessonInfographicAction } from '../lesson-actions'
 
 type VisualCell = { visualEmbed?: string; imageUrl?: string }
 type SlideItem = {
@@ -503,14 +503,51 @@ function getVisualCells(slide: SlideItem): { layout: 1 | 2 | 4; cells: VisualCel
 function getVisualCellsForPresentation(
   slide: SlideItem,
   curriculumInfographic: SlideInfographic | undefined | null,
+  knownInfographicUrls?: string[],
 ): { layout: 1 | 2 | 4; cells: VisualCell[] } {
+  const normalizeUrlForCompare = (raw: string): string => {
+    const v = String(raw ?? '').trim()
+    if (!v) return ''
+    try {
+      const u = new URL(v)
+      return `${u.origin}${u.pathname}`.replace(/\/+$/, '').toLowerCase()
+    } catch {
+      return v.replace(/[?#].*$/, '').replace(/\/+$/, '').toLowerCase()
+    }
+  }
+  const urlMatchesAny = (candidate: string, list: string[]): boolean => {
+    const c = String(candidate ?? '').trim()
+    if (!c) return false
+    if (list.includes(c)) return true
+    const cNorm = normalizeUrlForCompare(c)
+    if (!cNorm) return false
+    return list.some((x) => normalizeUrlForCompare(x) === cNorm)
+  }
   const raw = getVisualCells(slide)
   const infUrl = curriculumInfographic?.imageUrl
   if (!infUrl?.trim()) return raw
-  const skip = skipInfographicDefaultSwapCurriculumPage(slide)
+  const known = Array.from(new Set((knownInfographicUrls ?? []).map((u) => String(u ?? '').trim()).filter(Boolean)))
+  const skip = known.length > 0 ? false : skipInfographicDefaultSwapCurriculumPage(slide)
   const swapped = applyInfographicToDefaultVisualCells(raw, infUrl, skip) as { layout: 1 | 2 | 4; cells: VisualCell[] }
-  const hasAnyVisual = swapped.cells.some((c) => String(c.visualEmbed ?? '').trim() || String(c.imageUrl ?? '').trim())
-  if (hasAnyVisual) return swapped
+  const normalized =
+    known.length > 0
+      ? swapped.cells.map((c) => {
+          const imageUrl = String(c.imageUrl ?? '').trim()
+          const embedRaw = String(c.visualEmbed ?? '').trim()
+          const m = embedRaw.match(/^\[image:\s*(.+)\]$/i)
+          const embedUrl = String(m?.[1] ?? '').trim()
+          const shouldRemapImageUrl = !!imageUrl && urlMatchesAny(imageUrl, known)
+          const shouldRemapEmbedImage = !!embedUrl && urlMatchesAny(embedUrl, known)
+          if (!shouldRemapImageUrl && !shouldRemapEmbedImage) return c
+          return {
+            ...c,
+            ...(shouldRemapImageUrl ? { imageUrl: infUrl.trim() } : {}),
+            ...(shouldRemapEmbedImage ? { visualEmbed: `[image:${infUrl.trim()}]` } : {}),
+          }
+        })
+      : swapped.cells
+  const hasAnyVisual = normalized.some((c) => String(c.visualEmbed ?? '').trim() || String(c.imageUrl ?? '').trim())
+  if (hasAnyVisual) return { layout: swapped.layout, cells: normalized }
   return { layout: 1, cells: [{ imageUrl: infUrl.trim() }] }
 }
 
@@ -1141,22 +1178,13 @@ export default function CurriculumViewPage() {
   const hasLessonInfographic = Boolean(String(lessonInfographic?.imageUrl ?? '').trim())
   const hasCurriculumInfographic = Boolean(String(curriculumInfographic?.imageUrl ?? '').trim())
   const activeVisualInfographic = useMemo(() => {
-    if (infographicSourceView === 'curriculum') {
-      return curriculumInfographic ?? lessonInfographic
-    }
-    return lessonInfographic ?? curriculumInfographic
+    if (infographicSourceView === 'curriculum') return curriculumInfographic
+    return lessonInfographic
   }, [infographicSourceView, lessonInfographic, curriculumInfographic])
-  const displayedInfographicKind = useMemo<'lesson' | 'curriculum'>(() => {
-    if (infographicSourceView === 'curriculum') {
-      if (hasCurriculumInfographic) return 'curriculum'
-      if (hasLessonInfographic) return 'lesson'
-      return 'curriculum'
-    }
-    if (hasLessonInfographic) return 'lesson'
-    if (hasCurriculumInfographic) return 'curriculum'
-    return 'lesson'
-  }, [infographicSourceView, hasCurriculumInfographic, hasLessonInfographic])
-  const displayedHasInfographic = displayedInfographicKind === 'lesson' ? hasLessonInfographic : hasCurriculumInfographic
+  const activeVisualInfographicRenderKey = useMemo(
+    () => `${infographicSourceView}:${String(activeVisualInfographic?.imageUrl ?? '')}`,
+    [infographicSourceView, activeVisualInfographic?.imageUrl]
+  )
   const activeInfographicStrokeKey = useMemo(
     () => getInfographicStrokeBucketKey(activeVisualInfographic?.imageUrl),
     [activeVisualInfographic?.imageUrl]
@@ -1203,7 +1231,10 @@ export default function CurriculumViewPage() {
   const currentVisualHasAny = useMemo(() => {
     const s = slides[currentIndex]
     if (!s) return false
-    const { cells } = getVisualCellsForPresentation(s, activeVisualInfographic)
+    const { cells } = getVisualCellsForPresentation(s, activeVisualInfographic, [
+      lessonInfographic?.imageUrl,
+      curriculumInfographic?.imageUrl,
+    ])
     return cells.some((c) => c.visualEmbed || c.imageUrl)
   }, [slides, currentIndex, activeVisualInfographic])
 
@@ -2383,13 +2414,74 @@ export default function CurriculumViewPage() {
     }
   }, [curriculumId, worksheetId, activeLessonNo, content, slides, topic, tr, toast, lessonInfographicCostLabel, slideMode, personalViewSubMode, sendCurriculumDataToStudent, currentIndex])
 
-  const triggerDisplayedInfographicGenerate = useCallback(() => {
-    if (displayedInfographicKind === 'curriculum') {
-      void generateCurriculumInfographic()
-      return
+  const infographicActionText = useCallback((kind: 'lesson' | 'curriculum', hasImage: boolean, cost: string) => {
+    if (kind === 'lesson') {
+      return tr(
+        `${hasImage ? 'Tạo lại' : 'Tạo'} infographic tiết này (${cost} credit)`,
+        `${hasImage ? 'Regenerate' : 'Create'} lesson infographic (${cost} credits)`,
+        `${hasImage ? '重新生成' : '创建'}本课时信息图（${cost} 积分）`,
+        `この授業の情報図を${hasImage ? '再生成' : '作成'}（${cost}クレジット）`,
+        `이 차시 인포그래픽 ${hasImage ? '다시 만들기' : '만들기'} (${cost} 크레딧)`
+      )
     }
+    return tr(
+      `${hasImage ? 'Tạo lại' : 'Tạo'} infographic cả bài (${cost} credit)`,
+      `${hasImage ? 'Regenerate' : 'Create'} curriculum infographic (${cost} credits)`,
+      `${hasImage ? '重新生成' : '创建'}全课信息图（${cost} 积分）`,
+      `全体情報図を${hasImage ? '再生成' : '作成'}（${cost}クレジット）`,
+      `전체 인포그래픽 ${hasImage ? '다시 만들기' : '만들기'} (${cost} 크레딧)`
+    )
+  }, [tr])
+  const confirmInfographicRegenerate = useCallback((kind: 'lesson' | 'curriculum'): boolean => {
+    const msg = kind === 'lesson'
+      ? tr(
+          'Ảnh infographic theo tiết đã tồn tại. Bạn có chắc muốn tạo lại không?',
+          'Lesson infographic already exists. Are you sure you want to regenerate it?',
+          '该课时信息图已存在。确定要重新生成吗？',
+          'この授業のインフォグラフィックは既に存在します。再生成しますか？',
+          '이 차시 인포그래픽이 이미 있습니다. 다시 생성하시겠습니까?'
+        )
+      : tr(
+          'Ảnh infographic cả bài đã tồn tại. Bạn có chắc muốn tạo lại không?',
+          'Curriculum infographic already exists. Are you sure you want to regenerate it?',
+          '整课信息图已存在。确定要重新生成吗？',
+          '全体インフォグラフィックは既に存在します。再生成しますか？',
+          '전체 인포그래픽이 이미 있습니다. 다시 생성하시겠습니까?'
+        )
+    if (typeof window === 'undefined') return true
+    return window.confirm(msg)
+  }, [tr])
+  const handleGenerateLessonInfographic = useCallback(() => {
+    if (hasLessonInfographic && !confirmInfographicRegenerate('lesson')) return
     void generateLessonInfographic()
-  }, [displayedInfographicKind, generateCurriculumInfographic, generateLessonInfographic])
+  }, [hasLessonInfographic, confirmInfographicRegenerate, generateLessonInfographic])
+  const handleGenerateCurriculumInfographic = useCallback(() => {
+    if (hasCurriculumInfographic && !confirmInfographicRegenerate('curriculum')) return
+    void generateCurriculumInfographic()
+  }, [hasCurriculumInfographic, confirmInfographicRegenerate, generateCurriculumInfographic])
+  const handleSwitchInfographicSource = useCallback((target: 'lesson' | 'curriculum') => {
+    setInfographicSourceView(target)
+    if (!curriculumId || !activeLessonNo || activeLessonNo <= 0) return
+    if (slideMode !== 'personal') return
+    void (async () => {
+      // Bản riêng: infographic "cả bài" nằm ở user_customized_slides (mode personal), không phải worksheet_slides (shared).
+      const cached = await getCurriculumSlidesByLessonCachedAction(curriculumId, 'personal', activeLessonNo)
+      if (!cached?.success) return
+      if (target === 'curriculum') {
+        const ci =
+          typeof (cached as { curriculumInfographic?: unknown }).curriculumInfographic === 'object'
+            ? ((cached as { curriculumInfographic?: SlideInfographic }).curriculumInfographic ?? undefined)
+            : undefined
+        if (ci?.imageUrl) setCurriculumInfographic(ci)
+      } else {
+        const lessonInf =
+          typeof (cached as { lessonInfographic?: unknown }).lessonInfographic === 'object'
+            ? ((cached as { lessonInfographic?: SlideInfographic }).lessonInfographic ?? undefined)
+            : undefined
+        if (lessonInf?.imageUrl) setLessonInfographic(lessonInf)
+      }
+    })()
+  }, [curriculumId, activeLessonNo, slideMode])
 
   useEffect(() => {
     if (typeof window === 'undefined' || typeof BroadcastChannel === 'undefined') return
@@ -4873,7 +4965,10 @@ export default function CurriculumViewPage() {
                 (() => {
                   const s = slides[currentIndex]
                   if (!s) return <p className="text-slate-500 text-sm">{tr('Không có slide', 'No slide', '无幻灯片', 'スライドなし', '슬라이드 없음')}</p>
-                  const { layout, cells } = getVisualCellsForPresentation(s, activeVisualInfographic)
+                  const { layout, cells } = getVisualCellsForPresentation(s, activeVisualInfographic, [
+                    lessonInfographic?.imageUrl,
+                    curriculumInfographic?.imageUrl,
+                  ])
                   const canGenerateVisualInfographic = !worksheetId && !curriculumInfographic && !!curriculumId
                   const visualInfographicCostLabel = formatCurriculumCredits(CURRICULUM_UI_CREDITS.slideInfographic2K)
                   const slideNum = currentIndex + 1
@@ -4887,6 +4982,7 @@ export default function CurriculumViewPage() {
                     layout === 2 ? 'grid min-h-0 grid-rows-2 gap-1' : layout === 4 ? 'grid min-h-0 grid-cols-2 grid-rows-2 gap-1' : ''
                   return (
                     <div
+                      key={activeVisualInfographicRenderKey}
                       className="h-full w-full relative overflow-hidden"
                       style={{
                         background: visualUsesCurriculumInfographic || visualUsesFourCellData ? infographicStableBackground : gradient,
@@ -4899,109 +4995,56 @@ export default function CurriculumViewPage() {
                         <div className="absolute right-4 top-2 z-10 flex items-center gap-2">
                           <button
                             type="button"
-                            onClick={triggerDisplayedInfographicGenerate}
-                            disabled={
-                              displayedInfographicKind === 'lesson'
-                                ? (lessonInfographicGenerating || !activeLessonNo || !curriculumId)
-                                : (infographicGenerating || !curriculumId)
-                            }
+                            onClick={handleGenerateLessonInfographic}
+                            disabled={lessonInfographicGenerating || !activeLessonNo || !curriculumId}
                             className="shrink-0 rounded-lg border border-cyan-300/60 bg-cyan-500/20 px-3 py-1.5 text-[11px] font-semibold tracking-normal text-cyan-100 hover:bg-cyan-500/30 disabled:cursor-not-allowed disabled:opacity-50"
-                            title={tr(
-                              displayedInfographicKind === 'lesson'
-                                ? (displayedHasInfographic
-                                  ? 'Tạo lại infographic theo tiết hiện tại'
-                                  : 'Tạo infographic theo tiết hiện tại')
-                                : (displayedHasInfographic
-                                  ? 'Tạo lại infographic cả bài'
-                                  : 'Tạo infographic cả bài'),
-                              displayedInfographicKind === 'lesson'
-                                ? (displayedHasInfographic
-                                  ? 'Regenerate infographic for current lesson'
-                                  : 'Create infographic for current lesson')
-                                : (displayedHasInfographic
-                                  ? 'Regenerate curriculum infographic'
-                                  : 'Create curriculum infographic'),
-                              displayedInfographicKind === 'lesson'
-                                ? (displayedHasInfographic ? '重新生成当前课时信息图' : '为当前课时创建信息图')
-                                : (displayedHasInfographic ? '重新生成全课信息图' : '创建全课信息图'),
-                              displayedInfographicKind === 'lesson'
-                                ? (displayedHasInfographic ? '現在の授業のインフォグラフィックを再生成' : '現在の授業のインフォグラフィックを作成')
-                                : (displayedHasInfographic ? '全体インフォグラフィックを再生成' : '全体インフォグラフィックを作成'),
-                              displayedInfographicKind === 'lesson'
-                                ? (displayedHasInfographic ? '현재 차시 인포그래픽 다시 만들기' : '현재 차시 인포그래픽 만들기')
-                                : (displayedHasInfographic ? '전체 인포그래픽 다시 만들기' : '전체 인포그래픽 만들기')
-                            )}
                           >
-                            {(displayedInfographicKind === 'lesson' ? lessonInfographicGenerating : infographicGenerating)
+                            {lessonInfographicGenerating
                               ? tr('Đang tạo...', 'Generating...', '生成中...', '生成中...', '생성 중...')
-                              : tr(
-                                  displayedInfographicKind === 'lesson'
-                                    ? (displayedHasInfographic
-                                      ? `Tạo lại infographic tiết này (${lessonInfographicCostLabel} credit)`
-                                      : `Tạo infographic tiết này (${lessonInfographicCostLabel} credit)`)
-                                    : (displayedHasInfographic
-                                      ? `Tạo lại infographic cả bài (${lessonInfographicCostLabel} credit)`
-                                      : `Tạo infographic cả bài (${lessonInfographicCostLabel} credit)`),
-                                  displayedInfographicKind === 'lesson'
-                                    ? (displayedHasInfographic
-                                      ? `Regenerate lesson infographic (${lessonInfographicCostLabel} credits)`
-                                      : `Create lesson infographic (${lessonInfographicCostLabel} credits)`)
-                                    : (displayedHasInfographic
-                                      ? `Regenerate curriculum infographic (${lessonInfographicCostLabel} credits)`
-                                      : `Create curriculum infographic (${lessonInfographicCostLabel} credits)`),
-                                  displayedInfographicKind === 'lesson'
-                                    ? (displayedHasInfographic
-                                      ? `重新生成本课时信息图（${lessonInfographicCostLabel} 积分）`
-                                      : `创建本课时信息图（${lessonInfographicCostLabel} 积分）`)
-                                    : (displayedHasInfographic
-                                      ? `重新生成全课信息图（${lessonInfographicCostLabel} 积分）`
-                                      : `创建全课信息图（${lessonInfographicCostLabel} 积分）`),
-                                  displayedInfographicKind === 'lesson'
-                                    ? (displayedHasInfographic
-                                      ? `この授業の情報図を再生成（${lessonInfographicCostLabel}クレジット）`
-                                      : `この授業の情報図を作成（${lessonInfographicCostLabel}クレジット）`)
-                                    : (displayedHasInfographic
-                                      ? `全体情報図を再生成（${lessonInfographicCostLabel}クレジット）`
-                                      : `全体情報図を作成（${lessonInfographicCostLabel}クレジット）`),
-                                  displayedInfographicKind === 'lesson'
-                                    ? (displayedHasInfographic
-                                      ? `이 차시 인포그래픽 다시 만들기 (${lessonInfographicCostLabel} 크레딧)`
-                                      : `이 차시 인포그래픽 만들기 (${lessonInfographicCostLabel} 크레딧)`)
-                                    : (displayedHasInfographic
-                                      ? `전체 인포그래픽 다시 만들기 (${lessonInfographicCostLabel} 크레딧)`
-                                      : `전체 인포그래픽 만들기 (${lessonInfographicCostLabel} 크레딧)`)
-                                )}
+                              : infographicActionText('lesson', hasLessonInfographic, lessonInfographicCostLabel)}
                           </button>
-                          {hasLessonInfographic && hasCurriculumInfographic && (
-                            <div className="flex shrink-0 overflow-hidden rounded-lg border border-slate-500/70 bg-slate-800/50">
-                              <button
-                                type="button"
-                                onClick={() => setInfographicSourceView('lesson')}
-                                className={cn(
-                                  'h-8 px-2.5 text-[11px] font-medium transition-colors',
-                                  infographicSourceView === 'lesson'
-                                    ? 'bg-amber-500/30 text-amber-200'
-                                    : 'text-slate-300 hover:bg-slate-700/50'
-                                )}
-                                title={tr('Hiển thị ảnh infographic theo tiết', 'Show lesson infographic image', '显示课时信息图', '授業インフォグラフィックを表示', '차시 인포그래픽 표시')}
-                              >
-                                {tr('Ảnh tiết', 'Lesson image', '课时图', '授業画像', '차시 이미지')}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setInfographicSourceView('curriculum')}
-                                className={cn(
-                                  'h-8 border-l border-slate-600/70 px-2.5 text-[11px] font-medium transition-colors',
-                                  infographicSourceView === 'curriculum'
-                                    ? 'bg-amber-500/30 text-amber-200'
-                                    : 'text-slate-300 hover:bg-slate-700/50'
-                                )}
-                                title={tr('Hiển thị ảnh infographic cả bài', 'Show curriculum infographic image', '显示全课信息图', '全体インフォグラフィックを表示', '전체 인포그래픽 표시')}
-                              >
-                                {tr('Ảnh cả bài', 'Curriculum image', '整课图', '全体画像', '전체 이미지')}
-                              </button>
-                            </div>
-                          )}
+                          <button
+                            type="button"
+                            onClick={handleGenerateCurriculumInfographic}
+                            disabled={infographicGenerating || !curriculumId}
+                            className="shrink-0 rounded-lg border border-amber-300/60 bg-amber-500/20 px-3 py-1.5 text-[11px] font-semibold tracking-normal text-amber-100 hover:bg-amber-500/30 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {infographicGenerating
+                              ? tr('Đang tạo...', 'Generating...', '生成中...', '生成中...', '생성 중...')
+                              : infographicActionText('curriculum', hasCurriculumInfographic, lessonInfographicCostLabel)}
+                          </button>
+                          <div className="flex shrink-0 overflow-hidden rounded-lg border border-slate-500/70 bg-slate-800/50">
+                            <button
+                              type="button"
+                                onClick={() => handleSwitchInfographicSource('lesson')}
+                              disabled={!hasLessonInfographic}
+                              className={cn(
+                                'h-8 px-2.5 text-[11px] font-medium transition-colors',
+                                infographicSourceView === 'lesson'
+                                  ? 'bg-amber-500/30 text-amber-200'
+                                  : 'text-slate-300 hover:bg-slate-700/50',
+                                !hasLessonInfographic && 'cursor-not-allowed opacity-50 hover:bg-transparent'
+                              )}
+                              title={tr('Hiển thị ảnh infographic theo tiết', 'Show lesson infographic image', '显示课时信息图', '授業インフォグラフィックを表示', '차시 인포그래픽 표시')}
+                            >
+                              {tr('Ảnh tiết', 'Lesson image', '课时图', '授業画像', '차시 이미지')}
+                            </button>
+                            <button
+                              type="button"
+                                onClick={() => handleSwitchInfographicSource('curriculum')}
+                              disabled={!hasCurriculumInfographic}
+                              className={cn(
+                                'h-8 border-l border-slate-600/70 px-2.5 text-[11px] font-medium transition-colors',
+                                infographicSourceView === 'curriculum'
+                                  ? 'bg-amber-500/30 text-amber-200'
+                                  : 'text-slate-300 hover:bg-slate-700/50',
+                                !hasCurriculumInfographic && 'cursor-not-allowed opacity-50 hover:bg-transparent'
+                              )}
+                              title={tr('Hiển thị ảnh infographic cả bài', 'Show curriculum infographic image', '显示全课信息图', '全体インフォグラフィックを表示', '전체 인포그래픽 표시')}
+                            >
+                              {tr('Ảnh cả bài', 'Curriculum image', '整课图', '全体画像', '전체 이미지')}
+                            </button>
+                          </div>
                         </div>
                       )}
                       <div ref={teacherEmbeddedVisualFrameRef} className={cn('absolute inset-0 min-h-0 pt-14 pb-4 px-4', layout === 1 ? 'flex flex-col' : gridClass)}>
@@ -5081,7 +5124,7 @@ export default function CurriculumViewPage() {
                                     <button
                                       type="button"
                                       disabled={lessonInfographicGenerating || !activeLessonNo}
-                                      onClick={() => void generateLessonInfographic()}
+                                      onClick={handleGenerateLessonInfographic}
                                       className="rounded-lg bg-cyan-500/90 px-3 py-2 text-xs font-medium text-slate-900 hover:bg-cyan-400 disabled:opacity-50 disabled:pointer-events-none"
                                     >
                                       {lessonInfographicGenerating
@@ -5097,7 +5140,7 @@ export default function CurriculumViewPage() {
                                     <button
                                       type="button"
                                       disabled={infographicGenerating}
-                                      onClick={() => void generateCurriculumInfographic()}
+                                      onClick={handleGenerateCurriculumInfographic}
                                       className="rounded-lg bg-amber-500/90 px-3 py-2 text-xs font-medium text-slate-900 hover:bg-amber-400 disabled:opacity-50 disabled:pointer-events-none"
                                     >
                                       {infographicGenerating
@@ -5207,7 +5250,7 @@ export default function CurriculumViewPage() {
                                         <button
                                           type="button"
                                           disabled={lessonInfographicGenerating || !activeLessonNo}
-                                          onClick={() => void generateLessonInfographic()}
+                                          onClick={handleGenerateLessonInfographic}
                                           className="rounded-md bg-cyan-500/90 px-2 py-1.5 text-[11px] font-medium text-slate-900 hover:bg-cyan-400 disabled:opacity-50 disabled:pointer-events-none"
                                         >
                                           {lessonInfographicGenerating
@@ -5217,7 +5260,7 @@ export default function CurriculumViewPage() {
                                         <button
                                           type="button"
                                           disabled={infographicGenerating}
-                                          onClick={() => void generateCurriculumInfographic()}
+                                          onClick={handleGenerateCurriculumInfographic}
                                           className="rounded-md bg-amber-500/90 px-2 py-1.5 text-[11px] font-medium text-slate-900 hover:bg-amber-400 disabled:opacity-50 disabled:pointer-events-none"
                                         >
                                           {infographicGenerating
@@ -5262,7 +5305,7 @@ export default function CurriculumViewPage() {
                               <button
                                 type="button"
                                 disabled={!curriculumId || lessonInfographicGenerating || !activeLessonNo}
-                                onClick={() => void generateLessonInfographic()}
+                                onClick={handleGenerateLessonInfographic}
                                 className="w-full sm:w-auto rounded-lg bg-cyan-500/90 px-4 py-2.5 text-sm font-medium text-slate-900 hover:bg-cyan-400 disabled:opacity-50 disabled:pointer-events-none"
                               >
                                 {lessonInfographicGenerating
@@ -5278,7 +5321,7 @@ export default function CurriculumViewPage() {
                               <button
                                 type="button"
                                 disabled={!curriculumId || infographicGenerating}
-                                onClick={() => void generateCurriculumInfographic()}
+                                onClick={handleGenerateCurriculumInfographic}
                                 className="w-full sm:w-auto rounded-lg bg-amber-500/90 px-4 py-2.5 text-sm font-medium text-slate-900 hover:bg-amber-400 disabled:opacity-50 disabled:pointer-events-none"
                               >
                                 {infographicGenerating
@@ -5301,6 +5344,7 @@ export default function CurriculumViewPage() {
                         ) : (
                           <>
                             <div
+                              key={activeVisualInfographicRenderKey}
                               ref={teacherEmbeddedInfographicStageRef}
                               data-teacher-infographic-draw-pane-stage
                               className="relative touch-none"
@@ -5365,22 +5409,28 @@ export default function CurriculumViewPage() {
                                 {tr('Clear', 'Clear', '清除', 'クリア', '지우기')}
                               </button>
                             </div>
-                            <button
-                              type="button"
-                              disabled={!curriculumId || (lessonInfographic ? lessonInfographicGenerating : infographicGenerating)}
-                              onClick={() => void (lessonInfographic ? generateLessonInfographic() : generateCurriculumInfographic())}
-                              className="rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-xs font-medium text-white hover:bg-white/15 disabled:opacity-50"
-                            >
-                              {(lessonInfographic ? lessonInfographicGenerating : infographicGenerating)
-                                ? tr('Đang tạo lại...', 'Regenerating...', '重新生成中...', '再生成中...', '다시 생성 중...')
-                                : tr(
-                                    lessonInfographic ? `Tạo lại ảnh tiết này (${costLabel} credits)` : `Tạo lại ảnh dùng chung (${costLabel} credits)`,
-                                    lessonInfographic ? `Regenerate this lesson image (${costLabel} credits)` : `Regenerate shared image (${costLabel} credits)`,
-                                    lessonInfographic ? `重新生成本课时图片（${costLabel} 积分）` : `重新生成共用图片（${costLabel} 积分）`,
-                                    lessonInfographic ? `この授業の画像を再生成（${costLabel}クレジット）` : `共通画像を再生成（${costLabel}クレジット）`,
-                                    lessonInfographic ? `이 차시 이미지 다시 만들기 (${costLabel} 크레딧)` : `공용 이미지 다시 만들기 (${costLabel} 크레딧)`
-                                  )}
-                            </button>
+                            <div className="flex flex-wrap justify-center gap-2">
+                              <button
+                                type="button"
+                                disabled={lessonInfographicGenerating || !activeLessonNo || !curriculumId}
+                                onClick={handleGenerateLessonInfographic}
+                                className="rounded-lg border border-cyan-300/60 bg-cyan-500/20 px-3 py-2 text-xs font-medium text-cyan-100 hover:bg-cyan-500/30 disabled:opacity-50"
+                              >
+                                {lessonInfographicGenerating
+                                  ? tr('Đang tạo...', 'Generating...', '生成中...', '生成中...', '생성 중...')
+                                  : infographicActionText('lesson', hasLessonInfographic, costLabel)}
+                              </button>
+                              <button
+                                type="button"
+                                disabled={infographicGenerating || !curriculumId}
+                                onClick={handleGenerateCurriculumInfographic}
+                                className="rounded-lg border border-amber-300/60 bg-amber-500/20 px-3 py-2 text-xs font-medium text-amber-100 hover:bg-amber-500/30 disabled:opacity-50"
+                              >
+                                {infographicGenerating
+                                  ? tr('Đang tạo...', 'Generating...', '生成中...', '生成中...', '생성 중...')
+                                  : infographicActionText('curriculum', hasCurriculumInfographic, costLabel)}
+                              </button>
+                            </div>
                           </>
                         )}
                       </div>
@@ -6498,7 +6548,10 @@ export default function CurriculumViewPage() {
       />
       {visualFullscreenOpen && leftPanelMode === 'visual' && slides[currentIndex] && (() => {
         const s = slides[currentIndex]
-        const { layout, cells } = getVisualCellsForPresentation(s, activeVisualInfographic)
+        const { layout, cells } = getVisualCellsForPresentation(s, activeVisualInfographic, [
+          lessonInfographic?.imageUrl,
+          curriculumInfographic?.imageUrl,
+        ])
         const showSingleCell = teacherExpandedCellIndex != null && layout > 1
         const displayCells = showSingleCell && cells[teacherExpandedCellIndex] ? [cells[teacherExpandedCellIndex]] : cells
         const displayIndices = showSingleCell && teacherExpandedCellIndex != null ? [teacherExpandedCellIndex] : cells.map((_, i) => i)
@@ -6600,6 +6653,7 @@ export default function CurriculumViewPage() {
               }}
             >
               <div
+                key={activeVisualInfographicRenderKey}
                 ref={teacherInfographicOverlayStageRef}
                 data-teacher-infographic-draw-fullscreen-stage
                 className="relative flex min-h-0 w-full flex-1 touch-none items-center justify-center"

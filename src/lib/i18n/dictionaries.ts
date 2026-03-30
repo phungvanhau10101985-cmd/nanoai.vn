@@ -49,6 +49,7 @@ export type ToolKey =
   | 'realtime_music_control'
   | 'ai_language_learning'
   | 'create_curriculum'
+  | 'my_curricula'
   | 'create_exam'
   | 'online_exam'
   | 'homework_online'
@@ -1058,6 +1059,7 @@ const VI_DICTIONARY: Dictionary = {
     realtime_music_control: 'Điều khiển nhạc realtime',
     ai_language_learning: 'Học ngoại ngữ AI',
     create_curriculum: 'Tạo giáo trình',
+    my_curricula: 'Giáo trình của tôi',
     create_exam: 'Tạo đề trắc nghiệm',
     online_exam: 'Tạo bài thi trực tuyến',
     homework_online: 'Tạo bài tập về nhà',
@@ -1887,6 +1889,7 @@ const EN_DICTIONARY: Dictionary = {
     realtime_music_control: 'Realtime Music Control',
     ai_language_learning: 'AI Language Learning',
     create_curriculum: 'Create curriculum',
+    my_curricula: 'My curricula',
     create_exam: 'Create exam',
     online_exam: 'Online exam (live session)',
     homework_online: 'Create homework',
@@ -2711,6 +2714,7 @@ const ZH_DICTIONARY: Dictionary = {
     realtime_music_control: '实时音乐控制',
     ai_language_learning: 'AI 语言学习',
     create_curriculum: '创建课程',
+    my_curricula: '我的课程',
     create_exam: '创建试题',
     online_exam: '在线考试（课堂）',
     homework_online: '创建家庭作业',
@@ -3513,6 +3517,7 @@ const JA_DICTIONARY: Dictionary = {
     realtime_music_control: 'リアルタイム音楽制御',
     ai_language_learning: 'AI 語学学習',
     create_curriculum: 'カリキュラム作成',
+    my_curricula: 'マイカリキュラム',
     create_exam: '試験作成',
     online_exam: 'オンライン試験（授業）',
     homework_online: '宿題を作成',
@@ -4338,6 +4343,7 @@ const KO_DICTIONARY: Dictionary = {
     realtime_music_control: '실시간 음악 제어',
     ai_language_learning: 'AI 외국어 학습',
     create_curriculum: '교육과정 생성',
+    my_curricula: '내 교육과정',
     create_exam: '시험 생성',
     online_exam: '온라인 시험(수업)',
     homework_online: '숙제 만들기',

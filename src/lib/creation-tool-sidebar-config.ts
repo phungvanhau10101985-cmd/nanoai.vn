@@ -20,6 +20,7 @@ const CURRICULUM_RELATED: Record<string, CreationRelatedItem[]> = {
     { href: '/lop', labelKey: 'classes' },
   ],
   '/tao-giao-trinh': [
+    { href: '/giao-trinh', labelKey: 'my_curricula' },
     { href: '/tao-bai-thi', labelKey: 'online_exam' },
     { href: '/tao-bai-tap-ve-nha', labelKey: 'homework_online' },
     { href: '/tao-de-trac-nghiem', labelKey: 'create_exam' },

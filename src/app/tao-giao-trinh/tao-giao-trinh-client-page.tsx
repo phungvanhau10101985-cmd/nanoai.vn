@@ -1210,11 +1210,11 @@ export default function TaoGiaoTrinhClientPage({
       const resolvedInfographic =
         curriculumInfographicSend ??
         (mode === 'personal'
-          ? infographicPersonal
+          ? (infographicPersonal ?? infographicShared ?? infographicOriginal)
           : mode === 'original'
-            ? infographicOriginal
+            ? (infographicOriginal ?? infographicShared ?? infographicPersonal)
             : mode === 'shared'
-              ? infographicShared
+              ? (infographicShared ?? infographicOriginal ?? infographicPersonal)
               : infographicShared ?? infographicOriginal ?? infographicPersonal)
       const sw = typeof screen !== 'undefined' ? screen.width : 1920
       const sh = typeof screen !== 'undefined' ? screen.height : 1080
@@ -1449,11 +1449,11 @@ export default function TaoGiaoTrinhClientPage({
           : []
       const requestInfographic =
         slideVersionChoice === 'personal'
-          ? infographicPersonal
+          ? (infographicPersonal ?? infographicShared ?? infographicOriginal)
           : slideVersionChoice === 'original'
-            ? infographicOriginal
+            ? (infographicOriginal ?? infographicShared ?? infographicPersonal)
             : slideVersionChoice === 'shared'
-              ? infographicShared
+              ? (infographicShared ?? infographicOriginal ?? infographicPersonal)
               : infographicShared ?? infographicOriginal ?? infographicPersonal
       try {
         target.postMessage(
@@ -1585,7 +1585,11 @@ export default function TaoGiaoTrinhClientPage({
     setSlideVersionChoice(choice)
     if (curriculumId) {
       const infForChoice =
-        choice === 'personal' ? infographicPersonal : choice === 'original' ? infographicOriginal : infographicShared
+        choice === 'personal'
+          ? (infographicPersonal ?? infographicShared ?? infographicOriginal)
+          : choice === 'original'
+            ? (infographicOriginal ?? infographicShared ?? infographicPersonal)
+            : (infographicShared ?? infographicOriginal ?? infographicPersonal)
       const selectedLessonNo = selectedLessonNoRef.current
       if (!selectedLessonNo || selectedLessonNo <= 0) {
         const groups = lessonMetaByMode.shared ?? lessonMetaByMode.original ?? lessonMetaByMode.personal ?? []
@@ -1623,6 +1627,10 @@ export default function TaoGiaoTrinhClientPage({
             slideCount: res.slides.length,
           })
           const selectedSlides = res.slides as AISlideData[]
+          const curriculumInfographicFromCache =
+            typeof (res as { curriculumInfographic?: unknown }).curriculumInfographic === 'object'
+              ? ((res as { curriculumInfographic?: SlideInfographic }).curriculumInfographic ?? undefined)
+              : undefined
           const lessonInfographic =
             typeof (res as { lessonInfographic?: unknown }).lessonInfographic === 'object'
               ? ((res as { lessonInfographic?: SlideInfographic }).lessonInfographic ?? undefined)
@@ -1650,7 +1658,13 @@ export default function TaoGiaoTrinhClientPage({
             })
           }
           setAiSlides(selectedSlides)
-          openGiaoVienWindow(selectedSlides, choice, infForChoice, lessonMarkdown || null, lessonInfographic)
+          openGiaoVienWindow(
+            selectedSlides,
+            choice,
+            curriculumInfographicFromCache ?? infForChoice,
+            lessonMarkdown || null,
+            lessonInfographic
+          )
           scheduleLessonIdleTrim()
           return
         }
