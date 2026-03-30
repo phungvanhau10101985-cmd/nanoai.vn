@@ -42,7 +42,87 @@ const TEXTBOOK_NAMES: Record<string, string> = {
 /** Giới hạn số ảnh – Gemini có trần payload/request; 20 ảnh nếu mỗi file không quá lớn */
 const MAX_IMAGES = 20
 
+/** Model OpenAI khi Gemini quá tải / 503 — ghi đè bằng CURRICULUM_FROM_IMAGE_OPENAI_MODEL */
+const CURRICULUM_FROM_IMAGE_OPENAI_MODEL =
+  process.env.CURRICULUM_FROM_IMAGE_OPENAI_MODEL?.trim() || 'gpt-5'
+
 type LessonOutlineItem = { lessonNo: number; title: string; markdown: string }
+
+type ImagePartForAi = { mimeType: string; base64: string }
+
+/** Lỗi Gemini tạm thời → được phép fallback OpenAI (tránh gọi GPT khi sai API key / payload 400 rõ ràng). */
+function isGeminiTransientForOpenAIFallback(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err)
+  if (/API key not valid|API_KEY_INVALID|invalid api key/i.test(msg)) return false
+  const m = msg.toLowerCase()
+  return (
+    /\b503\b/.test(msg) ||
+    /\b502\b/.test(msg) ||
+    /\b429\b/.test(msg) ||
+    m.includes('service unavailable') ||
+    m.includes('high demand') ||
+    m.includes('overloaded') ||
+    m.includes('resource_exhausted') ||
+    (m.includes('unavailable') && m.includes('model')) ||
+    m.includes('try again later') ||
+    m.includes('econnreset') ||
+    m.includes('fetch failed') ||
+    m.includes('too many requests') ||
+    m.includes('deadline exceeded') ||
+    m.includes('internal error')
+  )
+}
+
+async function generateCurriculumJsonTextWithOpenAI(prompt: string, images: ImagePartForAi[]): Promise<string> {
+  const openaiKey = process.env.OPENAI_API_KEY?.trim()
+  if (!openaiKey) throw new Error('Thiếu OPENAI_API_KEY cho fallback.')
+
+  const userContent: Array<
+    | { type: 'text'; text: string }
+    | { type: 'image_url'; image_url: { url: string } }
+  > = [
+    { type: 'text', text: prompt },
+    ...images.map(({ mimeType, base64 }) => ({
+      type: 'image_url' as const,
+      image_url: { url: `data:${mimeType};base64,${base64}` },
+    })),
+  ]
+
+  const modelId = CURRICULUM_FROM_IMAGE_OPENAI_MODEL
+  const body: Record<string, unknown> = {
+    model: modelId,
+    temperature: 0.3,
+    response_format: { type: 'json_object' },
+    messages: [{ role: 'user', content: userContent }],
+  }
+  const m = modelId.toLowerCase()
+  if (m.startsWith('gpt-5') || m.startsWith('o1') || m.startsWith('o3') || m.startsWith('o4')) {
+    body.max_completion_tokens = 16384
+  } else {
+    body.max_tokens = 16384
+  }
+
+  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${openaiKey}`,
+    },
+    body: JSON.stringify(body),
+  })
+
+  const rawText = await res.text()
+  if (!res.ok) {
+    throw new Error(`OpenAI ${res.status}: ${rawText.slice(0, 400)}`)
+  }
+  let data: { choices?: Array<{ message?: { content?: string | null } }> }
+  try {
+    data = JSON.parse(rawText) as typeof data
+  } catch {
+    throw new Error('OpenAI: phản hồi không phải JSON.')
+  }
+  return String(data?.choices?.[0]?.message?.content ?? '').trim()
+}
 
 function composeCurriculumMarkdownFromLessons(lessons: LessonOutlineItem[]): string {
   const parts = lessons
@@ -86,9 +166,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Vui lòng gửi ảnh trang sách.' }, { status: 400 })
     }
 
-    const apiKey = process.env.GOOGLE_API_KEY
-    if (!apiKey) {
-      return NextResponse.json({ error: 'Thiếu GOOGLE_API_KEY.' }, { status: 500 })
+    const apiKey = process.env.GOOGLE_API_KEY?.trim()
+    const openaiKeyConfigured = Boolean(process.env.OPENAI_API_KEY?.trim())
+    if (!apiKey && !openaiKeyConfigured) {
+      return NextResponse.json(
+        { error: 'Thiếu GOOGLE_API_KEY hoặc OPENAI_API_KEY (cần ít nhất một để gọi AI).' },
+        { status: 500 }
+      )
     }
 
     const supabase = createClient()
@@ -135,21 +219,17 @@ export async function POST(req: NextRequest) {
     const subjectName = SUBJECT_NAMES[subjectId] || subjectId
     const textbookName = TEXTBOOK_NAMES[textbookSetId] || TEXTBOOK_NAMES.khac
 
-    const genAI = new GoogleGenerativeAI(apiKey)
-    const model = genAI.getGenerativeModel({
-      ...GEMINI_25_PRO,
-      generationConfig: { temperature: 0.3 },
-    })
-
-    const imageParts = await Promise.all(
+    const imageBuffers: ImagePartForAi[] = await Promise.all(
       files.map(async (file) => {
         const buffer = Buffer.from(await file.arrayBuffer())
         const mimeType = file.type || 'image/png'
-        return {
-          inlineData: { data: buffer.toString('base64'), mimeType },
-        }
+        return { mimeType, base64: buffer.toString('base64') }
       })
     )
+
+    const imageParts = imageBuffers.map(({ mimeType, base64 }) => ({
+      inlineData: { data: base64, mimeType },
+    }))
 
     const imgLabel = files.length > 1 ? `${files.length} ảnh trang sách` : 'ảnh trang sách'
     const prompt = `Đây là ${imgLabel} giáo khoa ${subjectName} ${gradeLevelId}, bộ ${textbookName}.
@@ -175,9 +255,66 @@ Ràng buộc:
 - Dùng tiếng Việt + Unicode, không LaTeX.
 - Chỉ trả JSON hợp lệ, không markdown/code fence.`
 
-    const result = await model.generateContent([prompt, ...imageParts])
-    trackCurriculumGeminiResult(result, GEMINI_25_PRO.model, CurriculumApiFeature.fromImage, trackUserId)
-    const text = result.response.text()?.trim() || ''
+    let text = ''
+    let geminiError: unknown = null
+    if (apiKey) {
+      try {
+        const genAI = new GoogleGenerativeAI(apiKey)
+        const model = genAI.getGenerativeModel({
+          ...GEMINI_25_PRO,
+          generationConfig: { temperature: 0.3 },
+        })
+        const result = await model.generateContent([prompt, ...imageParts])
+        trackCurriculumGeminiResult(result, GEMINI_25_PRO.model, CurriculumApiFeature.fromImage, trackUserId)
+        text = result.response.text()?.trim() || ''
+      } catch (e) {
+        geminiError = e
+        const msg = e instanceof Error ? e.message : String(e)
+        console.warn('[curriculum-from-image] Gemini lỗi:', msg.slice(0, 500))
+      }
+    }
+
+    if (!text && openaiKeyConfigured) {
+      const allowFallback =
+        !apiKey || (geminiError != null && isGeminiTransientForOpenAIFallback(geminiError)) || (!text && geminiError == null)
+      if (allowFallback) {
+        try {
+          console.warn(
+            '[curriculum-from-image] Fallback OpenAI',
+            CURRICULUM_FROM_IMAGE_OPENAI_MODEL,
+            geminiError ? '(sau lỗi Gemini)' : '(không có GOOGLE_API_KEY hoặc Gemini trả rỗng)'
+          )
+          text = await generateCurriculumJsonTextWithOpenAI(prompt, imageBuffers)
+        } catch (openaiErr) {
+          const omsg = openaiErr instanceof Error ? openaiErr.message : String(openaiErr)
+          console.error('[curriculum-from-image] OpenAI fallback thất bại:', omsg.slice(0, 500))
+          if (geminiError) {
+            const gmsg = geminiError instanceof Error ? geminiError.message : String(geminiError)
+            return NextResponse.json(
+              {
+                error: `Gemini: ${gmsg.slice(0, 280)} | OpenAI: ${omsg.slice(0, 280)}`,
+              },
+              { status: 503 }
+            )
+          }
+          return NextResponse.json({ error: omsg }, { status: 503 })
+        }
+      } else if (geminiError) {
+        const gmsg = geminiError instanceof Error ? geminiError.message : String(geminiError)
+        return NextResponse.json({ error: gmsg }, { status: 500 })
+      }
+    } else if (!text && geminiError) {
+      const gmsg = geminiError instanceof Error ? geminiError.message : String(geminiError)
+      return NextResponse.json({ error: gmsg }, { status: 500 })
+    }
+
+    if (!text) {
+      return NextResponse.json(
+        { error: 'AI không trả về nội dung (Gemini và OpenAI đều không có kết quả).' },
+        { status: 500 }
+      )
+    }
+
     const cleaned = text.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim()
     if (!cleaned) {
       return NextResponse.json({ error: 'AI không trả về nội dung.' }, { status: 500 })
