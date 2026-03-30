@@ -2263,7 +2263,7 @@ async function saveLessonSlidesCacheRow(
     curriculumId: string
     mode: CurriculumSlideModeForLesson
     lessonNo: number
-    slidesJson: string
+    slidesJson: unknown
     userId: string
   }
 ): Promise<{ success?: true; error?: string }> {
