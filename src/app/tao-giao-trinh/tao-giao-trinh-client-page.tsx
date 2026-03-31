@@ -17,6 +17,8 @@ import { CurriculumExerciseListDialog } from './components/curriculum-exercise-l
 import type { AISlideData } from './lib/curriculum-to-slides'
 import type { SlideInfographic } from './lib/slide-infographic'
 import { SUBJECTS, GRADE_LEVELS, GRADE_LEVEL_GROUPS, TEXTBOOK_SETS } from './lib/curriculum-subjects'
+import { parseCurriculumLessonNumber, formatCurriculumLessonNoDisplay } from './lib/curriculum-input-normalize'
+import { isValidBookIsbn, normalizeBookIsbn } from './lib/book-isbn'
 import { createCurriculum, saveCurriculum, saveTextbookLessonFromImage, listCurricula, getCurriculumById, getWorksheetById, getWorksheetsByCurriculumId, deleteCurriculum, saveSlidesToCurriculum, checkCurriculumExists, recordCurriculumOpen, clearCurriculumDerivedData, saveWorksheetContent } from './actions'
 import {
   ensureCurriculumLessonSlidesPreparedAction,
@@ -235,7 +237,21 @@ export default function TaoGiaoTrinhClientPage({
   const [worksheetId, setWorksheetId] = useState<string | null>(null)
   const [worksheetVerifyPollUntil, setWorksheetVerifyPollUntil] = useState(0)
   const [showBrowse, setShowBrowse] = useState(true)
-  const [curriculaList, setCurriculaList] = useState<Array<{ id: string; topic: string; subject_id: string; grade_level_id: string; textbook_set_id?: string; textbook_volume?: string | null; lesson_number?: number | null; lesson_type_id?: string; num_lessons?: number; lesson_duration_minutes?: number; created_at: string }>>([])
+  const [curriculaList, setCurriculaList] = useState<
+    Array<{
+      id: string
+      topic: string
+      subject_id: string
+      grade_level_id: string
+      textbook_set_id?: string
+      textbook_volume?: string | null
+      lesson_number?: number | string | null
+      lesson_type_id?: string
+      num_lessons?: number
+      lesson_duration_minutes?: number
+      created_at: string
+    }>
+  >([])
   const [curriculumWorksheets, setCurriculumWorksheets] = useState<CurriculumWorksheetListItem[]>([])
   const [browseLoading, setBrowseLoading] = useState(false)
   const [browseSubjectFilter, setBrowseSubjectFilter] = useState<string>('')
@@ -284,6 +300,9 @@ export default function TaoGiaoTrinhClientPage({
   const [lessonImages, setLessonImages] = useState<File[]>([])
   const lessonImageInputRef = useRef<HTMLInputElement>(null)
   const lessonCameraInputRef = useRef<HTMLInputElement>(null)
+  const isbnImageInputRef = useRef<HTMLInputElement>(null)
+  const isbnCameraInputRef = useRef<HTMLInputElement>(null)
+  const [isbnScanLoading, setIsbnScanLoading] = useState(false)
   const [createMode, setCreateMode] = useState<'textbook' | 'topic'>('textbook')
   const [featureSection, setFeatureSection] = useState<'create' | 'library' | 'exam' | 'homework'>('create')
   const [wsStepByStepQuizCount, setWsStepByStepQuizCount] = useState(5)
@@ -739,15 +758,15 @@ export default function TaoGiaoTrinhClientPage({
       setCheckLoading(false)
       return
     }
-    const num = parseInt(lessonNumber, 10)
-    if (createMode !== 'topic' && (!num || num < 1 || num > 999)) {
+    const parsedLesson = parseCurriculumLessonNumber(lessonNumber)
+    if (createMode !== 'topic' && parsedLesson == null) {
       setCurriculumExists(null)
       setExistingCurriculumId(null)
       setExistingCurriculumTopic(null)
       setSimilarTopicCurricula([])
       return
     }
-    if (textbookSetId === 'khac' && !bookIsbn.trim()) {
+    if (textbookSetId === 'khac' && !isValidBookIsbn(bookIsbn)) {
       setCurriculumExists(false)
       setExistingCurriculumId(null)
       setExistingCurriculumTopic(null)
@@ -764,7 +783,7 @@ export default function TaoGiaoTrinhClientPage({
       textbookSetId,
       textbookVolume: textbookVolume.trim() || undefined,
       bookIsbn: textbookSetId === 'khac' ? bookIsbn.trim() : undefined,
-      lessonNumber: createMode === 'topic' ? undefined : num,
+      lessonNumber: createMode === 'topic' ? undefined : parsedLesson ?? undefined,
       numLessons,
       lessonDurationMinutes,
       lessonTypeId,
@@ -805,8 +824,22 @@ export default function TaoGiaoTrinhClientPage({
 
   const handleSubmitFromImage = async (opts?: { forceOverwrite?: boolean }) => {
     const forceOverwrite = !!opts?.forceOverwrite
-    const num = parseInt(lessonNumber, 10)
-    if (!num || num < 1 || num > 999 || lessonImages.length === 0) return
+    const parsedLesson = parseCurriculumLessonNumber(lessonNumber)
+    if (parsedLesson == null || lessonImages.length === 0) return
+    if (textbookSetId === 'khac' && !isValidBookIsbn(bookIsbn)) {
+      toast({
+        title: tr('Thiếu thông tin', 'Missing information', '缺少信息', '情報不足', '정보 누락'),
+        description: tr(
+          'Vui lòng gửi ảnh mã ISBN/barcode trên sách để hệ thống đọc tự động (Gemini).',
+          'Please upload a photo of the book ISBN/barcode so the system can read it automatically (Gemini).',
+          '请上传教材上的 ISBN/条码照片，由系统自动识别（Gemini）。',
+          '書籍のISBN/バーコードの写真をアップロードし、システムが自動読み取り（Gemini）してください。',
+          '교재의 ISBN/바코드 사진을 업로드하면 시스템이 자동 인식(Gemini)합니다.'
+        ),
+        variant: 'destructive',
+      })
+      return
+    }
     setStep('GENERATING')
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
     try {
@@ -842,29 +875,33 @@ export default function TaoGiaoTrinhClientPage({
         toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: tr('AI không trả về nội dung.', 'AI did not return content.', 'AI未返回内容。', 'AIがコンテンツを返しませんでした。', 'AI가 내용을 반환하지 않았습니다.'), variant: 'destructive' })
         return
       }
-      const extractedNumParsed =
-        typeof extractedNum === 'number'
-          ? extractedNum
-          : typeof extractedNum === 'string'
-            ? parseInt(extractedNum, 10)
-            : NaN
-      const hasExtractedLessonNum = Number.isFinite(extractedNumParsed) && extractedNumParsed >= 1 && extractedNumParsed <= 999
-      const extractedLessonNum = hasExtractedLessonNum ? String(extractedNumParsed) : null
-      if (extractedLessonNum && extractedLessonNum !== lessonNumber.trim()) {
+      const fromAi = parseCurriculumLessonNumber(
+        typeof extractedNum === 'number' || typeof extractedNum === 'string' ? extractedNum : String(extractedNum ?? '')
+      )
+      const entered = parseCurriculumLessonNumber(lessonNumber.trim())
+      const extractedLessonLabel = fromAi != null ? formatCurriculumLessonNoDisplay(fromAi) : null
+      const enteredLabel = entered != null ? formatCurriculumLessonNoDisplay(entered) : null
+      if (fromAi != null && entered != null && fromAi !== entered) {
         setStep('INPUT')
         const mismatchMessage = tr(
-          `Ảnh là Bài ${extractedLessonNum} nhưng bạn nhập Bài ${lessonNumber}. Vui lòng sửa lại số bài đã nhập hoặc upload ảnh đúng với số bài đã nhập.`,
-          `Image shows lesson ${extractedLessonNum} but you entered lesson ${lessonNumber}. Please correct the entered lesson number or upload the correct image for your entered lesson number.`,
-          `图片显示第 ${extractedLessonNum} 课，但您输入的是第 ${lessonNumber} 课。请修改输入课号或上传与输入课号一致的图片。`,
-          `画像は${extractedLessonNum}課ですが、入力は${lessonNumber}課です。入力した課番号を修正するか、入力番号に合う画像をアップロードしてください。`,
-          `이미지는 ${extractedLessonNum}차시인데 입력은 ${lessonNumber}차시입니다. 입력한 차시 번호를 수정하거나 입력 번호와 일치하는 이미지를 업로드해 주세요.`
+          `Ảnh là Bài ${extractedLessonLabel} nhưng bạn nhập Bài ${enteredLabel}. Vui lòng sửa lại số bài đã nhập hoặc upload ảnh đúng với số bài đã nhập.`,
+          `Image shows lesson ${extractedLessonLabel} but you entered lesson ${enteredLabel}. Please correct the entered lesson number or upload the correct image for your entered lesson number.`,
+          `图片显示第 ${extractedLessonLabel} 课，但您输入的是第 ${enteredLabel} 课。请修改输入课号或上传与输入课号一致的图片。`,
+          `画像は${extractedLessonLabel}課ですが、入力は${enteredLabel}課です。入力した課番号を修正するか、入力番号に合う画像をアップロードしてください。`,
+          `이미지는 ${extractedLessonLabel}차시인데 입력은 ${enteredLabel}차시입니다. 입력한 차시 번호를 수정하거나 입력 번호와 일치하는 이미지를 업로드해 주세요.`
         )
         setLessonImages([])
         if (lessonImageInputRef.current) lessonImageInputRef.current.value = ''
         window.alert(mismatchMessage)
         return
       }
-      const finalLessonNum = extractedLessonNum ?? lessonNumber
+      const finalNumeric = fromAi ?? entered ?? parsedLesson
+      if (finalNumeric == null) {
+        setStep('INPUT')
+        toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: tr('Số bài không hợp lệ.', 'Invalid lesson number.', '课号无效。', '課番号が無効です。', '차시 번호가 올바르지 않습니다.'), variant: 'destructive' })
+        return
+      }
+      const finalLessonNum = formatCurriculumLessonNoDisplay(finalNumeric)
       const finalTopic = t || extractedTitle || `Bài ${finalLessonNum}`
 
       let overwriteCurriculumId: string | null = null
@@ -875,7 +912,7 @@ export default function TaoGiaoTrinhClientPage({
         textbookSetId,
         textbookVolume: textbookVolume.trim() || undefined,
         bookIsbn: textbookSetId === 'khac' ? bookIsbn.trim() : undefined,
-        lessonNumber: parseInt(finalLessonNum, 10),
+        lessonNumber: finalNumeric,
         numLessons,
         lessonDurationMinutes,
         lessonTypeId,
@@ -969,7 +1006,7 @@ export default function TaoGiaoTrinhClientPage({
               : tr('Giáo trình và giáo án đã tạo từ ảnh.', 'Curriculum and slides created from image.', '已从图片创建课程和教案。', '画像からカリキュラムとスライドを作成しました。', '이미지에서 교육과정과 슬라이드 생성됨.'),
           duration: 3800,
         })
-        await saveTextbookLessonFromImage({ subjectId, gradeLevelId, textbookSetId, lessonNumber: parseInt(finalLessonNum, 10), lessonTitle: finalTopic })
+        await saveTextbookLessonFromImage({ subjectId, gradeLevelId, textbookSetId, lessonNumber: finalNumeric, lessonTitle: finalTopic })
         // Không tạo slide ở bước tạo giáo trình.
         // Slide sẽ được tạo theo từng tiết khi giáo viên chọn tiết để mở.
         setCurriculumSlides(null)
@@ -1024,20 +1061,32 @@ export default function TaoGiaoTrinhClientPage({
       return
     }
 
-    const num = parseInt(lessonNumber, 10)
-    if (!num || num < 1 || num > 999) {
+    const parsedSubmitLesson = parseCurriculumLessonNumber(lessonNumber)
+    if (parsedSubmitLesson == null) {
       toast({
         title: tr('Thiếu thông tin', 'Missing information', '缺少信息', '情報不足', '정보 누락'),
-        description: tr('Vui lòng nhập bài số (1–999).', 'Please enter lesson number (1–999).', '请输入课号（1–999）。', '課番号（1–999）を入力してください。', '차시 번호(1–999)를 입력해 주세요.'),
+        description: tr(
+          'Vui lòng nhập bài số (1–999; có thể 1.5, 2.5…).',
+          'Please enter lesson number (1–999; e.g. 1.5, 2.5).',
+          '请输入课号（1–999；可为 1.5、2.5 等）。',
+          '課番号を入力（1–999；1.5、2.5 など可）。',
+          '차시 번호 입력 (1–999; 1.5, 2.5 등 가능).'
+        ),
         variant: 'destructive',
       })
       return
     }
     if (createMode === 'textbook') {
-      if (textbookSetId === 'khac' && !bookIsbn.trim()) {
+      if (textbookSetId === 'khac' && !isValidBookIsbn(bookIsbn)) {
         toast({
           title: tr('Thiếu thông tin', 'Missing information', '缺少信息', '情報不足', '정보 누락'),
-          description: tr('Vui lòng nhập ISBN cho sách Khác / Sách khác NXB.', 'Please enter ISBN for Other publisher textbook.', '请选择“其他出版社”时请输入ISBN。', '「その他出版社」の場合はISBNを入力してください。', '기타 출판사 선택 시 ISBN을 입력해 주세요.'),
+          description: tr(
+            'Vui lòng gửi ảnh mã ISBN/barcode trên sách để hệ thống đọc tự động (Gemini).',
+            'Please upload a photo of the book ISBN/barcode so the system can read it automatically (Gemini).',
+            '请上传教材上的 ISBN/条码照片，由系统自动识别（Gemini）。',
+            '書籍のISBN/バーコードの写真をアップロードし、システムが自動読み取り（Gemini）してください。',
+            '교재의 ISBN/바코드 사진을 업로드하면 시스템이 자동 인식(Gemini)합니다.'
+          ),
           variant: 'destructive',
         })
         return
@@ -1078,8 +1127,8 @@ export default function TaoGiaoTrinhClientPage({
     try {
       let targetId = existingCurriculumId
       if (!targetId) {
-        const num = parseInt(lessonNumber, 10)
-        if (!num || num < 1 || num > 999) {
+        const openParsed = parseCurriculumLessonNumber(lessonNumber)
+        if (openParsed == null) {
           toast({
             title: tr('Thiếu thông tin', 'Missing information', '缺少信息', '情報不足', '정보 누락'),
             description: tr('Vui lòng nhập bài số hợp lệ để mở giáo trình có sẵn.', 'Please enter a valid lesson number to open existing curriculum.', '请输入有效课号后再打开已有课程。', '既存カリキュラムを開くには有効な課番号を入力してください。', '기존 교육과정을 열려면 올바른 차시 번호를 입력해 주세요.'),
@@ -1094,7 +1143,7 @@ export default function TaoGiaoTrinhClientPage({
           textbookSetId,
           textbookVolume: textbookVolume.trim() || undefined,
           bookIsbn: textbookSetId === 'khac' ? bookIsbn.trim() : undefined,
-          lessonNumber: num,
+          lessonNumber: openParsed,
           numLessons,
           lessonDurationMinutes,
           lessonTypeId,
@@ -1134,6 +1183,78 @@ export default function TaoGiaoTrinhClientPage({
     setLessonImages([])
     if (lessonImageInputRef.current) lessonImageInputRef.current.value = ''
     if (lessonCameraInputRef.current) lessonCameraInputRef.current.value = ''
+  }
+
+  const scanIsbnFromImageFile = async (file: File | null | undefined) => {
+    if (!file || file.size <= 0) return
+    const maxBytes = 8 * 1024 * 1024
+    if (file.size > maxBytes) {
+      toast({
+        title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'),
+        description: tr(
+          'Ảnh ISBN quá lớn (tối đa 8MB).',
+          'ISBN image too large (max 8MB).',
+          'ISBN 图片过大（最大 8MB）。',
+          'ISBN画像が大きすぎます（最大8MB）。',
+          'ISBN 이미지가 너무 큽니다(최대 8MB).'
+        ),
+        variant: 'destructive',
+      })
+      return
+    }
+    setIsbnScanLoading(true)
+    try {
+      const fd = new FormData()
+      fd.append('image', file)
+      const res = await fetch('/api/textbook-isbn-from-image', { method: 'POST', body: fd })
+      const data = (await res.json().catch(() => ({}))) as { error?: string; isbn?: string }
+      if (!res.ok) {
+        toast({
+          title: tr('Không đọc được ISBN', 'Could not read ISBN', '无法读取 ISBN', 'ISBNを読み取れません', 'ISBN을 읽을 수 없음'),
+          description:
+            data?.error ||
+            tr(
+              'Thử ảnh khác (mã vạch hoặc dòng ISBN rõ nét).',
+              'Try another photo (clear barcode or ISBN line).',
+              '请换一张清晰的条码或 ISBN 行照片。',
+              '別の写真を試してください（バーコードまたはISBN行がはっきり）。',
+              '다른 사진을 시도해 주세요(바코드 또는 ISBN 줄이 선명하게).'
+            ),
+          variant: 'destructive',
+        })
+        return
+      }
+      if (typeof data.isbn === 'string' && data.isbn && isValidBookIsbn(data.isbn)) {
+        setBookIsbn(data.isbn)
+        toast({
+          title: tr('Đã nhận diện ISBN', 'ISBN recognized', '已识别 ISBN', 'ISBNを認識しました', 'ISBN 인식됨'),
+          description: data.isbn,
+          duration: 2800,
+        })
+      } else {
+        toast({
+          title: tr('Không đọc được ISBN', 'Could not read ISBN', '无法读取 ISBN', 'ISBNを読み取れません', 'ISBN을 읽을 수 없음'),
+          description: tr(
+            'Thử ảnh khác (mã vạch hoặc dòng ISBN rõ nét).',
+            'Try another photo (clear barcode or ISBN line).',
+            '请换一张清晰的条码或 ISBN 行照片。',
+            '別の写真を試してください（バーコードまたはISBN行がはっきり）。',
+            '다른 사진을 시도해 주세요(바코드 또는 ISBN 줄이 선명하게).'
+          ),
+          variant: 'destructive',
+        })
+      }
+    } catch (e) {
+      toast({
+        title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'),
+        description: e instanceof Error ? e.message : String(e),
+        variant: 'destructive',
+      })
+    } finally {
+      setIsbnScanLoading(false)
+      if (isbnImageInputRef.current) isbnImageInputRef.current.value = ''
+      if (isbnCameraInputRef.current) isbnCameraInputRef.current.value = ''
+    }
   }
 
   const resetWorksheetEditState = () => {
@@ -2408,14 +2529,29 @@ export default function TaoGiaoTrinhClientPage({
       return
     }
     if (result.success && result.curriculum) {
-      const c = result.curriculum as { id?: string; topic?: string; subject_id?: string; grade_level_id?: string; textbook_set_id?: string; textbook_volume?: string | null; textbook_isbn?: string | null; lesson_number?: number | null; lesson_type_id?: string; num_lessons?: number; lesson_duration_minutes?: number; goals?: string; content_markdown?: string }
+      const c = result.curriculum as {
+        id?: string
+        topic?: string
+        subject_id?: string
+        grade_level_id?: string
+        textbook_set_id?: string
+        textbook_volume?: string | null
+        textbook_isbn?: string | null
+        lesson_number?: number | string | null
+        lesson_type_id?: string
+        num_lessons?: number
+        lesson_duration_minutes?: number
+        goals?: string
+        content_markdown?: string
+      }
       setSubjectId(c.subject_id ?? 'toan')
       setGradeLevelId(normalizeGradeLevelId(c.grade_level_id ?? 'lop-12'))
       setTextbookSetId(c.textbook_set_id ?? 'ket-noi-tri-thuc')
       setTextbookVolume(c.textbook_volume ?? '')
-      setBookIsbn(c.textbook_isbn ?? '')
+      setBookIsbn(normalizeBookIsbn(c.textbook_isbn ?? ''))
       setTopic(c.topic ?? '')
-      setLessonNumber(c.lesson_number != null ? String(c.lesson_number) : '')
+      const loadedLessonNo = parseCurriculumLessonNumber(c.lesson_number ?? '')
+      setLessonNumber(loadedLessonNo != null ? formatCurriculumLessonNoDisplay(loadedLessonNo) : '')
       setCreateMode(c.lesson_number != null ? 'textbook' : 'topic')
       setLessonTypeId(c.lesson_type_id ?? 'hinh-thanh-kien-thuc')
       setNumLessons(c.num_lessons ?? 3)
@@ -3164,7 +3300,10 @@ export default function TaoGiaoTrinhClientPage({
                           : tr('Chưa có giáo trình nào. Tạo mới bên dưới.', 'No curricula yet. Create new below.', '暂无课程。在下方新建。', 'カリキュラムがありません。下で新規作成。', '교육과정이 없습니다. 아래에서 새로 만들기.')}
                       </p>
                     ) : (
-                      curriculaList.map((c) => (
+                      curriculaList.map((c) => {
+                        const rowLessonNo = parseCurriculumLessonNumber(c.lesson_number ?? '')
+                        const rowLessonLabel = rowLessonNo != null ? formatCurriculumLessonNoDisplay(rowLessonNo) : null
+                        return (
                         <div
                           key={c.id}
                           role="button"
@@ -3177,6 +3316,19 @@ export default function TaoGiaoTrinhClientPage({
                             <span className="font-medium truncate block">{c.topic}</span>
                             <span className="text-xs text-muted-foreground block">
                               {c.subject_id} · {c.grade_level_id}
+                              {rowLessonNo != null && rowLessonNo > 0 && rowLessonLabel && (
+                                <span>
+                                  {' '}
+                                  ·{' '}
+                                  {tr(
+                                    `Bài ${rowLessonLabel}`,
+                                    `Lesson ${rowLessonLabel}`,
+                                    `第${rowLessonLabel}课`,
+                                    `第${rowLessonLabel}回`,
+                                    `${rowLessonLabel}차시`
+                                  )}
+                                </span>
+                              )}
                               {c.created_at && (
                                 <span className="ml-1.5">· {formatCreatedAt(c.created_at)}</span>
                               )}
@@ -3201,7 +3353,8 @@ export default function TaoGiaoTrinhClientPage({
                             )}
                           </Button>
                         </div>
-                      ))
+                        )
+                      })
                     )}
                   </div>
                 </div>
@@ -3321,7 +3474,7 @@ export default function TaoGiaoTrinhClientPage({
                     onChange={(e) => {
                       const next = e.target.value
                       setTextbookSetId(next)
-                      if (next !== 'khac') setBookIsbn('')
+                      setBookIsbn('')
                     }}
                     className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
                   >
@@ -3334,20 +3487,121 @@ export default function TaoGiaoTrinhClientPage({
                 </div>
               )}
               {createMode === 'textbook' && textbookSetId === 'khac' && (
-                <div className="space-y-2">
-                  <label className="text-xs font-medium text-muted-foreground">
-                    {tr('ISBN sách', 'Book ISBN', '教材 ISBN', '教科書 ISBN', '교과서 ISBN')} <span className="text-red-500">*</span>
+                <div className="space-y-2 rounded-lg border border-dashed border-amber-300 dark:border-amber-700 p-4 bg-amber-50/40 dark:bg-amber-950/20">
+                  <label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                    {tr(
+                      'Mã ISBN sách (ảnh mã vạch / số / QR) *',
+                      'Book ISBN (barcode / digits / QR photo) *',
+                      '教材 ISBN（条码/数字/二维码 照片）*',
+                      '書籍ISBN（バーコード・数字・QRの写真）*',
+                      '교재 ISBN(바코드·숫자·QR 사진) *'
+                    )}
                   </label>
-                  <Input
-                    type="text"
-                    placeholder={tr('Nhập ISBN-10 hoặc ISBN-13', 'Enter ISBN-10 or ISBN-13', '请输入 ISBN-10 或 ISBN-13', 'ISBN-10 または ISBN-13 を入力', 'ISBN-10 또는 ISBN-13 입력')}
-                    value={bookIsbn}
-                    onChange={(e) => setBookIsbn(e.target.value)}
-                    className="w-full h-9 bg-white/80"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    {tr('Bắt buộc để đối chiếu đúng sách trong DB, tránh gộp nhầm sách khác nhau.', 'Required for accurate DB matching, to avoid mixing different books.', '用于准确匹配数据库教材，避免不同教材被误判为同一教材。', 'DBで正確に照合し、別教材の誤統合を防ぐため必須です。', 'DB 정확 매칭을 위해 필수이며, 다른 교재가 합쳐지는 것을 방지합니다.')}
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    {tr(
+                      'ISBN là mã định danh sách (thường 10 hoặc 13 ký tự số), giúp hệ thống khớp đúng cuốn sách trong kho. Bạn không cần gõ tay: gửi một ảnh rõ, hệ thống dùng Gemini 2.5 Flash đọc tự động.',
+                      'ISBN identifies the book (usually 10 or 13 digits) so the library matches the correct title. You do not type it: send one clear photo and Gemini 2.5 Flash reads it.',
+                      'ISBN 是图书标识（通常为 10 或 13 位数字），用于在书库中准确匹配。无需手输：上传一张清晰照片，系统用 Gemini 2.5 Flash 自动识别。',
+                      'ISBNは書籍の識別子（多くは10桁または13桁）で、正しい書籍と照合します。手入力不要：鮮明な写真を1枚送ればGemini 2.5 Flashが読み取ります。',
+                      'ISBN은 도서 식별자(보통 10자리 또는 13자리 숫자)로 올바른 책과 매칭합니다. 직접 입력 불필요: 선명한 사진 1장을 올리면 Gemini 2.5 Flash가 읽습니다.'
+                    )}
                   </p>
+                  <p className="text-xs font-medium text-muted-foreground">
+                    {tr('Chụp một trong các vị trí sau (cận cảnh, đủ sáng):', 'Take a close, well-lit photo of one of:', '请任选以下一处（近拍、光线充足）：', '次のいずれかを近接・明るく撮影：', '다음 중 한 곳을 가깝고 밝게 촬영:')}
+                  </p>
+                  <ul className="text-xs text-muted-foreground list-disc pl-4 space-y-1 leading-relaxed">
+                    <li>
+                      {tr(
+                        'Mã vạch thẳng (vạch đen trắng) thường ở mặt sau sách hoặc gáy — đó là mã ISBN dạng vạch.',
+                        'The vertical barcode (black bars) on the back cover or spine encodes the ISBN.',
+                        '封底或书脊上的竖条黑白条码即 ISBN 条码。',
+                        '裏表紙や背の縦バーコード（黒い棒）にISBNが符号化されています。',
+                        '뒷표지나 책등의 세로 바코드(검은 막대)에 ISBN이 인코딩되어 있습니다.'
+                      )}
+                    </li>
+                    <li>
+                      {tr(
+                        'Dòng chữ “ISBN” kèm dãy số (có thể có dấu gạch) ở trang bìa sau hoặc trang bản quyền / colophon.',
+                        'The printed line starting with “ISBN” and digits (sometimes with hyphens) on the copyright/imprint page or back cover.',
+                        '封底或版权页上印有 “ISBN” 字样及数字（可有连字符）。',
+                        '裏表紙や奥付の「ISBN」と数字列（ハイフン付きのことも）。',
+                        '뒷표지나 판권면(저작권 페이지)의 "ISBN"과 숫자 줄(하이픈 포함 가능).'
+                      )}
+                    </li>
+                    <li>
+                      {tr(
+                        'Mã QR in trên bìa sách (trước hoặc sau) nếu NXB có in — chụp rõ khối QR để hệ thống đọc.',
+                        'A QR code printed on the cover (front or back) if the publisher added one — frame the QR clearly.',
+                        '出版社印在封面（前或后）的二维码 — 请完整拍清二维码区域。',
+                        '出版社が表・裏に印刷したQRコードがある場合は、QR全体がはっきり写るように。',
+                        '출판사가 앞·뒤 표지에 인쇄한 QR 코드가 있으면 QR 블록 전체가 선명하게 나오게 촬영.'
+                      )}
+                    </li>
+                  </ul>
+                  <input
+                    ref={isbnImageInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => void scanIsbnFromImageFile(e.target.files?.[0])}
+                  />
+                  <input
+                    ref={isbnCameraInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    className="hidden"
+                    onChange={(e) => void scanIsbnFromImageFile(e.target.files?.[0])}
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={isbnScanLoading}
+                      onClick={() => isbnImageInputRef.current?.click()}
+                      className="border-amber-400 text-amber-900 hover:bg-amber-100 dark:border-amber-600 dark:text-amber-100"
+                    >
+                      <Upload className="h-4 w-4 mr-2" />
+                      {isbnScanLoading
+                        ? tr('Đang đọc ISBN...', 'Reading ISBN...', '正在识别…', '読み取り中…', '인식 중…')
+                        : tr('Chọn ảnh mã sách', 'Choose ISBN photo', '选择 ISBN 照片', 'ISBN写真を選択', 'ISBN 사진 선택')}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={isbnScanLoading}
+                      onClick={() => isbnCameraInputRef.current?.click()}
+                      className="border-emerald-400 text-emerald-800 hover:bg-emerald-100 dark:border-emerald-600 dark:text-emerald-100"
+                    >
+                      <Camera className="h-4 w-4 mr-2" />
+                      {tr('Chụp mã sách', 'Capture ISBN', '拍摄 ISBN', 'ISBNを撮影', 'ISBN 촬영')}
+                    </Button>
+                    {bookIsbn ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={isbnScanLoading}
+                        onClick={() => setBookIsbn('')}
+                      >
+                        {tr('Xóa ISBN đã quét', 'Clear scanned ISBN', '清除已扫 ISBN', '読み取りISBNを消去', '스캔 ISBN 지우기')}
+                      </Button>
+                    ) : null}
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-muted-foreground">
+                      {tr('Mã ISBN (tự động)', 'ISBN (auto-filled)', 'ISBN（自动）', 'ISBN（自動）', 'ISBN(자동)')}
+                    </label>
+                    <Input
+                      type="text"
+                      readOnly
+                      value={bookIsbn}
+                      placeholder={tr('Chưa có — gửi ảnh mã sách ở trên', 'None yet — upload ISBN photo above', '尚无 — 请上传上方 ISBN 照片', '未読取 — 上でISBN写真を送信', '없음 — 위에서 ISBN 사진 업로드')}
+                      className="w-full h-9 bg-white/80 font-mono text-sm"
+                    />
+                  </div>
                 </div>
               )}
               {createMode === 'textbook' && (
@@ -3356,13 +3610,18 @@ export default function TaoGiaoTrinhClientPage({
                     {tr('Bài số', 'Lesson number', '课号', '課番号', '차시 번호')} <span className="text-red-500">*</span>
                   </label>
                   <Input
-                    type="number"
-                    min={1}
-                    max={999}
-                    placeholder={tr('Nhập số bài (ví dụ: 1, 2, 3...)', 'Enter lesson number (e.g. 1, 2, 3...)', '输入课号（如：1、2、3...）', '課番号を入力（例：1、2、3...）', '차시 번호 입력 (예: 1, 2, 3...)')}
+                    type="text"
+                    inputMode="decimal"
+                    placeholder={tr(
+                      'Nhập số bài (1, 2 hoặc 1.5, 2.5…)',
+                      'Lesson no. (1, 2 or 1.5, 2.5…)',
+                      '课号（1、2 或 1.5、2.5 等）',
+                      '課番号（1、2 または 1.5、2.5 など）',
+                      '차시 번호 (1, 2 또는 1.5, 2.5 등)'
+                    )}
                     value={lessonNumber}
                     onChange={(e) => setLessonNumber(e.target.value)}
-                    className="w-24 h-9 bg-white/80"
+                    className="w-28 h-9 bg-white/80"
                   />
                 </div>
               )}
@@ -3548,7 +3807,13 @@ export default function TaoGiaoTrinhClientPage({
                   <Button
                     type="button"
                     onClick={() => void handleOverwriteFromExisting()}
-                    disabled={overwriteFromExistingLoading || (step as Step) === 'GENERATING' || lessonImages.length === 0}
+                    disabled={
+                      overwriteFromExistingLoading ||
+                      (step as Step) === 'GENERATING' ||
+                      lessonImages.length === 0 ||
+                      isbnScanLoading ||
+                      (textbookSetId === 'khac' && !isValidBookIsbn(bookIsbn))
+                    }
                     className="w-full bg-amber-600 hover:bg-amber-700 text-white disabled:opacity-50"
                   >
                     <Sparkles className="h-4 w-4 mr-2" />
@@ -3570,7 +3835,10 @@ export default function TaoGiaoTrinhClientPage({
                     overwriteFromExistingLoading ||
                     (createMode === 'topic'
                       ? !topic.trim() || topic.trim().length < 2
-                      : checkLoading || lessonImages.length === 0 || (textbookSetId === 'khac' && !bookIsbn.trim()))
+                      : checkLoading ||
+                        lessonImages.length === 0 ||
+                        isbnScanLoading ||
+                        (textbookSetId === 'khac' && !isValidBookIsbn(bookIsbn)))
                   }
                   className="w-full bg-violet-600 hover:bg-violet-700 text-white disabled:opacity-50"
                 >

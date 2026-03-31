@@ -15,6 +15,7 @@ export const CurriculumApiFeature = {
   lessonTopicsExtract: 'curriculum-lesson-topics-extract',
   topicRerank: 'curriculum-topic-rerank',
   slideProposalVerify: 'curriculum-slide-proposal-verify',
+  isbnFromImage: 'curriculum-isbn-from-image',
 } as const
 
 export function isCurriculumApiUsageFeature(feature: string | null | undefined): boolean {

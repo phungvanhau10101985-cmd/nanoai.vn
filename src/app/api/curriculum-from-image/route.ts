@@ -13,6 +13,7 @@ import {
   readUserCreditBalance,
   spendCurriculumAiCredits,
 } from '@/lib/curriculum-ai-credits'
+import { formatCurriculumLessonNoDisplay, parseCurriculumLessonNumber } from '@/app/tao-giao-trinh/lib/curriculum-input-normalize'
 
 const SUBJECT_NAMES: Record<string, string> = {
   toan: 'Toán học',
@@ -158,7 +159,9 @@ export async function POST(req: NextRequest) {
     const subjectId = String(formData.get('subjectId') || 'toan').trim()
     const gradeLevelId = String(formData.get('gradeLevelId') || 'lop-12').trim()
     const textbookSetId = String(formData.get('textbookSetId') || 'ket-noi-tri-thuc').trim()
-    const lessonNumber = parseInt(String(formData.get('lessonNumber') || '1'), 10)
+    const formLessonRaw = formData.get('lessonNumber')
+    const lessonNumber =
+      parseCurriculumLessonNumber(formLessonRaw != null ? String(formLessonRaw) : '') ?? 1
     const numLessons = Math.min(10, Math.max(1, parseInt(String(formData.get('numLessons') || '3'), 10)))
     const lessonDurationMinutes = Math.min(120, Math.max(15, parseInt(String(formData.get('lessonDurationMinutes') || '45'), 10)))
 
@@ -235,7 +238,7 @@ export async function POST(req: NextRequest) {
     const prompt = `Đây là ${imgLabel} giáo khoa ${subjectName} ${gradeLevelId}, bộ ${textbookName}.
 Hãy trả về JSON theo schema:
 {
-  "lessonNumber": <số bài trích từ ảnh>,
+  "lessonNumber": <số bài trích từ ảnh; có thể số thập phân như 1.5, 2.5 nếu SGK ghi vậy>,
   "lessonTitle": "<tên bài>",
   "lessons": [
     { "lessonNo": 1, "title": "...", "markdown": "..." }
@@ -320,7 +323,7 @@ Ràng buộc:
       return NextResponse.json({ error: 'AI không trả về nội dung.' }, { status: 500 })
     }
     const parsed = JSON.parse(cleaned) as {
-      lessonNumber?: number
+      lessonNumber?: number | string
       lessonTitle?: string
       lessons?: Array<{ lessonNo?: number; title?: string; markdown?: string }>
     }
@@ -334,11 +337,11 @@ Ràng buộc:
     if (lessonOutline.length === 0) {
       return NextResponse.json({ error: 'AI chưa trả về JSON tiết học hợp lệ.' }, { status: 500 })
     }
-    const extractedLessonNumber = Math.max(
-      1,
-      Math.floor(Number(parsed.lessonNumber) || lessonNumber)
-    )
-    const extractedTitle = String(parsed.lessonTitle || '').trim() || `Bài ${extractedLessonNumber}`
+    const fromJson = parseCurriculumLessonNumber(parsed.lessonNumber)
+    const extractedLessonNumber = fromJson ?? lessonNumber
+    const extractedTitle =
+      String(parsed.lessonTitle || '').trim() ||
+      `Bài ${formatCurriculumLessonNoDisplay(extractedLessonNumber)}`
     const curriculumBody = composeCurriculumMarkdownFromLessons(lessonOutline)
     if (!curriculumBody.trim()) {
       return NextResponse.json({ error: 'Không thể tổng hợp content_markdown từ JSON tiết học.' }, { status: 500 })

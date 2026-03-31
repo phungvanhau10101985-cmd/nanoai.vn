@@ -5,6 +5,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
+import { parseCurriculumLessonNumber } from '@/app/tao-giao-trinh/lib/curriculum-input-normalize'
 
 export async function POST(req: Request) {
   try {
@@ -45,7 +46,7 @@ export async function POST(req: Request) {
         grade_level_id: gradeLevelId || 'lop-6',
         textbook_set_id: textbookSetId || 'ket-noi-tri-thuc',
         textbook_volume: textbookVolume || null,
-        lesson_number: lessonNumber ? parseInt(lessonNumber, 10) : null,
+        lesson_number: parseCurriculumLessonNumber(lessonNumber) ?? null,
         lesson_type_id: lessonTypeId || 'hinh-thanh-kien-thuc',
         num_lessons: Math.min(10, Math.max(1, parseInt(numLessons, 10) || 3)),
         lesson_duration_minutes: Math.min(120, Math.max(15, parseInt(lessonDurationMinutes, 10) || 45)),

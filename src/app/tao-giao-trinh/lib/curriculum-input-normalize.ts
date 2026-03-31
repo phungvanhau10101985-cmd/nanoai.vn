@@ -15,10 +15,32 @@ export interface NormalizedCurriculumInput {
   gradeLevelId: string
   textbookSetId: string
   textbookVolume: string | null
+  /** Số bài SGK: 1, 2 hoặc 1.5, 2.5 (lưu DB numeric) */
   lessonNumber: number | null
   numLessons: number
   lessonDurationMinutes: number
   lessonTypeId: string
+}
+
+/** Parse "1", "2", "1.5", "2,5" → số hợp lệ 1–999.99 (tối đa 2 chữ số thập phân). */
+export function parseCurriculumLessonNumber(raw: string | number | undefined | null): number | null {
+  if (raw === '' || raw === undefined || raw === null) return null
+  if (typeof raw === 'number') {
+    if (!Number.isFinite(raw) || raw < 1 || raw > 999.99) return null
+    return Math.round(raw * 100) / 100
+  }
+  const s = String(raw).trim().replace(',', '.')
+  if (!/^\d+(\.\d{1,2})?$/.test(s)) return null
+  const n = parseFloat(s)
+  if (!Number.isFinite(n) || n < 1 || n > 999.99) return null
+  return Math.round(n * 100) / 100
+}
+
+/** Hiển thị: 2 → "2", 1.5 → "1.5" */
+export function formatCurriculumLessonNoDisplay(n: number): string {
+  const r = Math.round(n * 100) / 100
+  if (Number.isInteger(r)) return String(r)
+  return r.toFixed(2).replace(/\.?0+$/, '')
 }
 
 export interface RawCurriculumInput {
@@ -51,13 +73,7 @@ export function normalizeCurriculumInput(raw: RawCurriculumInput): NormalizedCur
   const textbookVolume: string | null =
     textbookVolumeRaw === '1' || textbookVolumeRaw === '2' ? textbookVolumeRaw : null
 
-  const lessonNumberRaw = raw.lessonNumber
-  const parsed =
-    typeof lessonNumberRaw === 'number'
-      ? lessonNumberRaw
-      : parseInt(String(lessonNumberRaw ?? '').trim(), 10)
-  const lessonNumber: number | null =
-    !Number.isNaN(parsed) && parsed >= 1 && parsed <= 999 ? parsed : null
+  const lessonNumber = parseCurriculumLessonNumber(raw.lessonNumber)
 
   const numLessons = Math.min(10, Math.max(1, parseInt(String(raw.numLessons ?? 3), 10) || 3))
   const lessonDurationMinutes = Math.min(

@@ -3,7 +3,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { normalizeTopicForSearch, topicsMatch } from './lib/topic-normalize'
-import { normalizeCurriculumInput } from './lib/curriculum-input-normalize'
+import { normalizeCurriculumInput, parseCurriculumLessonNumber } from './lib/curriculum-input-normalize'
+import { isValidBookIsbn, normalizeBookIsbn } from './lib/book-isbn'
 import { getUserForAction } from '@/lib/auth'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_FLASH_NO_THINKING, GEMINI_25_PRO } from '@/lib/gemini-config'
@@ -489,15 +490,6 @@ const SUBJECT_NAMES: Record<string, string> = {
 
 const OPTION_LABELS = ['A', 'B', 'C', 'D']
 
-function normalizeBookIsbn(raw: string | undefined | null): string {
-  return String(raw || '').replace(/[^0-9Xx]/g, '').toUpperCase().trim()
-}
-
-function isValidBookIsbn(isbn: string): boolean {
-  // Accept ISBN-10 or ISBN-13 after normalization.
-  return /^[0-9]{9}[0-9X]$/.test(isbn) || /^[0-9]{13}$/.test(isbn)
-}
-
 function topicTokens(input: string): string[] {
   const normalized = normalizeTopicForSearch(input)
   if (!normalized) return []
@@ -722,7 +714,7 @@ export async function createCurriculum(formData: FormData) {
       return { error: 'Vui lòng nhập chủ đề (ít nhất 2 ký tự).' }
     }
   } else if (!lessonNum) {
-    return { error: 'Vui lòng nhập bài số (1–999).' }
+    return { error: 'Vui lòng nhập bài số (1–999; có thể 1.5, 2.5…).' }
   }
   if (!isTopicMode && textbookSetId === 'khac') {
     if (!bookIsbn) return { error: 'Vui lòng nhập ISBN cho sách khác NXB.' }
@@ -779,10 +771,11 @@ export async function createCurriculum(formData: FormData) {
 
     match = existing?.find((r) => {
       const rVol = (r as { textbook_volume?: string | null }).textbook_volume
-      const rNum = (r as { lesson_number?: number | null }).lesson_number
+      const rNum = (r as { lesson_number?: number | string | null }).lesson_number
+      const rNumParsed = parseCurriculumLessonNumber(rNum as string | number | null | undefined)
       const rIsbn = normalizeBookIsbn((r as { textbook_isbn?: string | null }).textbook_isbn)
       const volMatch = (vol ?? '') === (rVol ?? '')
-      const numMatch = lessonNum === (rNum ?? 0)
+      const numMatch = rNumParsed != null && lessonNum === rNumParsed
       const isbnMatch = textbookSetId !== 'khac' || !bookIsbn || rIsbn === bookIsbn
       return volMatch && numMatch && isbnMatch
     }) ?? null
@@ -1060,7 +1053,7 @@ export async function saveTextbookLessonFromImage(opts: {
   if ('error' in authResult) return { error: authResult.error }
 
   const { subjectId, gradeLevelId, textbookSetId, lessonNumber, lessonTitle } = opts
-  if (!lessonTitle?.trim() || lessonNumber < 1 || lessonNumber > 999) return { success: true }
+  if (!lessonTitle?.trim() || lessonNumber < 1 || lessonNumber > 999.99) return { success: true }
 
   const title = lessonTitle.trim()
   const titleNormalized = normalizeTopicForSearch(title) || title.toLowerCase().replace(/\s+/g, ' ').trim()
