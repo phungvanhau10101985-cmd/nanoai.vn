@@ -220,7 +220,7 @@ export async function translateDocumentImage(formData: FormData) {
       return { error: translateError || 'AI không trả về ảnh hợp lệ.' }
     }
 
-    const finalBuffer = await applyPostCheckOcr(resultBuffer, genAI, { sourceLang, targetLang })
+    const finalBuffer = await applyPostCheckOcr(resultBuffer, genAI, { sourceLang, targetLang, userId: user.id })
     const resultPath = `results/${user.id}/translate_${Date.now()}.png`
     await adminSupabase.storage.from('try-on-images').upload(resultPath, finalBuffer, { contentType: 'image/png', upsert: true })
     const { data: urlData } = adminSupabase.storage.from('try-on-images').getPublicUrl(resultPath)
@@ -386,6 +386,7 @@ export async function translatePdfDocument(
       sourceLang,
       targetLang,
       logPrefix: `[translatePdfDocument] trang ${i + 1}`,
+      userId: user.id,
     })
 
     const { data: latestCredit } = await adminSupabase.from('credits').select('balance').eq('user_id', user.id).single()
@@ -620,7 +621,7 @@ export async function translateOneImageFromBatch(
     return { error: translateError || 'AI không trả về ảnh.' }
   }
 
-  const finalBuffer = await applyPostCheckOcr(resultBuffer, genAI, { sourceLang, targetLang })
+  const finalBuffer = await applyPostCheckOcr(resultBuffer, genAI, { sourceLang, targetLang, userId: user.id })
   const resultPath = `results/${user.id}/translate_batch_${timestamp}.png`
   await adminSupabase.storage.from('try-on-images').upload(resultPath, finalBuffer, { contentType: 'image/png', upsert: true })
   const { data: urlData } = adminSupabase.storage.from('try-on-images').getPublicUrl(resultPath)
@@ -701,7 +702,7 @@ export async function translateOneImageFromUrl(
     return { error: translateError || 'AI không trả về ảnh.' }
   }
 
-  const finalBuffer = await applyPostCheckOcr(resultBuffer, genAI, { sourceLang, targetLang })
+  const finalBuffer = await applyPostCheckOcr(resultBuffer, genAI, { sourceLang, targetLang, userId: user.id })
   const resultPath = `results/${user.id}/translate_excel_${timestamp}.png`
   await adminSupabase.storage.from('try-on-images').upload(resultPath, finalBuffer, { contentType: 'image/png', upsert: true })
   const { data: urlData } = adminSupabase.storage.from('try-on-images').getPublicUrl(resultPath)
@@ -834,6 +835,7 @@ export async function translateDocumentImageBatch(
       sourceLang,
       targetLang,
       logPrefix: `[translateDocumentImageBatch] ảnh ${i + 1}`,
+      userId: user.id,
     })
     const resultPath = `results/${user.id}/translate_batch_${batchTimestamp}_${i}.png`
     await adminSupabase.storage.from('try-on-images').upload(resultPath, finalBuffer, { contentType: 'image/png', upsert: true })
@@ -1260,6 +1262,7 @@ export async function translateFromExcel(
       sourceLang,
       targetLang,
       logPrefix: `[translateFromExcel] ảnh ${i + 1}`,
+      userId: user.id,
     })
     const resultPath = `results/${user.id}/translate_excel_${batchTimestamp}_${i}.png`
     await adminSupabase.storage.from('try-on-images').upload(resultPath, finalBuffer, { contentType: 'image/png', upsert: true })

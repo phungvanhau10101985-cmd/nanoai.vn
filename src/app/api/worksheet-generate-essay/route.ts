@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_PRO } from '@/lib/gemini-config'
+import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { normalizeSolutionToStr } from '@/app/tao-giao-trinh/lib/worksheet-content-json'
 
 /** 5 mức độ Bloom cho tự luận – giống phiếu tạo một lần */
@@ -97,6 +98,12 @@ export async function POST(req: NextRequest) {
       generationConfig: { temperature: 0.2, responseMimeType: 'application/json' },
     })
     const result = await model.generateContent(prompt)
+    void trackFromUsageMetadata(
+      result.response.usageMetadata,
+      GEMINI_25_PRO.model,
+      'worksheet-generate-essay-gemini-pro',
+      userId ?? null
+    )
     const raw = result.response.text()?.trim() || ''
     let parsed: { problem?: string; solution?: string } | null = null
     try {

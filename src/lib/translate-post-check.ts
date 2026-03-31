@@ -6,6 +6,7 @@
 import type { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_FLASH_TEXT_NO_THINKING } from '@/lib/gemini-config'
 import { HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
+import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { documentOcrWithScale } from './vision-ocr'
 import { hasVisionConfig } from './vision-api'
 import { overlayTranslatedText } from './translate-overlay'
@@ -22,6 +23,8 @@ export interface PostCheckOptions {
   sourceLang2?: string | null
   targetLang: string
   logPrefix?: string
+  /** Ghi api_usage_log (hậu kiểm Flash) — nên truyền khi có user. */
+  userId?: string | null
 }
 
 /**
@@ -38,10 +41,13 @@ export async function applyPostCheckOcr(
     return resultBuffer
   }
 
-  const { sourceLang, sourceLang2, targetLang, logPrefix = '[post-check]' } = options
+  const { sourceLang, sourceLang2, targetLang, logPrefix = '[post-check]', userId = null } = options
 
   try {
-    const { results: ocrResults, scale } = await documentOcrWithScale(resultBuffer)
+    const { results: ocrResults, scale } = await documentOcrWithScale(resultBuffer, {
+      userId,
+      feature: 'dich-anh-tai-lieu-vision-ocr',
+    })
     const textList = ocrResults.map((r) => r.text).filter(Boolean).slice(0, 100)
     if (textList.length === 0) return resultBuffer
 
@@ -60,6 +66,13 @@ export async function applyPostCheckOcr(
     ]
 
     const verifyResult = await flashModel.generateContent([`${verifyPrompt}\n\nTexts:\n${textList.join('\n')}`], { safetySettings })
+    void trackFromUsageMetadata(
+      verifyResult.response.usageMetadata,
+      GEMINI_25_FLASH_TEXT_NO_THINKING.model,
+      'dich-anh-tai-lieu-postcheck-verify',
+      userId,
+      null
+    )
     const verifyText = verifyResult.response.text?.() || '{}'
     const jsonMatch = verifyText.match(/\{[\s\S]*\}/)
     const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : {}
@@ -81,6 +94,13 @@ export async function applyPostCheckOcr(
 
     const translatePrompt = `Translate these from ${sourceNames} to ${targetName}. Return JSON: {"translations":["t1","t2",...]} in SAME ORDER.`
     const transResult = await flashModel.generateContent([`${translatePrompt}\n\nTexts:\n${itemsWithBbox.map((r) => r.text).join('\n')}`], { safetySettings })
+    void trackFromUsageMetadata(
+      transResult.response.usageMetadata,
+      GEMINI_25_FLASH_TEXT_NO_THINKING.model,
+      'dich-anh-tai-lieu-postcheck-translate',
+      userId,
+      null
+    )
     const transText = (transResult.response.text?.() || '{}').trim()
     const transMatch = transText.match(/\{[\s\S]*"translations"[\s\S]*?\}/)
     let translations: string[] = []

@@ -4,6 +4,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_PRO } from '@/lib/gemini-config'
+import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { questionsToMarkdown } from '@/app/tao-giao-trinh/lib/questions-to-markdown'
 import { normalizeSolutionToStr } from '@/app/tao-giao-trinh/lib/worksheet-content-json'
 
@@ -112,6 +113,12 @@ Schema: ${QUIZ_SCHEMA}`
     generationConfig: { temperature: 0.2, responseMimeType: 'application/json' },
   })
   const result = await model.generateContent(prompt)
+  void trackFromUsageMetadata(
+    result.response.usageMetadata,
+    GEMINI_25_PRO.model,
+    'worksheet-step-quiz-gemini-pro',
+    userId
+  )
   const raw = result.response.text()?.trim() || ''
   let quizzes: Array<{ question: string; options: string[]; correctIndex: number }> | null = null
   try {
@@ -192,6 +199,12 @@ Schema: ${ESSAY_SCHEMA}`
     generationConfig: { temperature: 0.2, responseMimeType: 'application/json' },
   })
   const result = await model.generateContent(prompt)
+  void trackFromUsageMetadata(
+    result.response.usageMetadata,
+    GEMINI_25_PRO.model,
+    'worksheet-step-essay-gemini-pro',
+    userId
+  )
   const raw = result.response.text()?.trim() || ''
   let parsed: { problem?: string; solution?: string } | null = null
   try {

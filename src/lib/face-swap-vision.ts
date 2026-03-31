@@ -4,7 +4,13 @@
  */
 
 import sharp from 'sharp'
-import { visionAnnotate, hasVisionConfig } from './vision-api'
+import { visionAnnotate, hasVisionConfig, type VisionUsageLog } from './vision-api'
+
+const FACE_VISION_FEATURE = 'hoan-doi-khuon-mat-vision-face' as const
+
+function faceVisionUsage(userId?: string | null): VisionUsageLog {
+  return { userId: userId ?? null, feature: FACE_VISION_FEATURE }
+}
 
 const VISION_SUPPORTED = new Set(['jpeg', 'jpg', 'png', 'gif', 'bmp', 'webp'])
 
@@ -73,11 +79,14 @@ async function ensureVisionFormat(buffer: Buffer): Promise<Buffer> {
  * Định vị khuôn mặt trên ảnh đích bằng Vision API.
  * Trả về bbox mặt chính (lớn nhất) hoặc null nếu không có mặt / chưa cấu hình Vision.
  */
-export async function detectFaceInTargetImage(targetBuffer: Buffer): Promise<FaceBbox | null> {
+export async function detectFaceInTargetImage(
+  targetBuffer: Buffer,
+  userId?: string | null
+): Promise<FaceBbox | null> {
   if (!hasVisionConfig()) return null
 
   const buf = await ensureVisionFormat(targetBuffer)
-  const data = await visionAnnotate(buf, [{ type: 'FACE_DETECTION', maxResults: 5 }]) as VisionFaceResponse
+  const data = await visionAnnotate(buf, [{ type: 'FACE_DETECTION', maxResults: 5 }], faceVisionUsage(userId)) as VisionFaceResponse
   const faces = data.responses?.[0]?.faceAnnotations ?? []
   if (!faces.length) {
     console.log('[FaceSwap-Vision] Không phát hiện mặt trong ảnh đích')
@@ -133,12 +142,17 @@ export async function detectFaceInTargetImage(targetBuffer: Buffer): Promise<Fac
  */
 export async function detectFacesInTargetImage(
   targetBuffer: Buffer,
-  maxFaces = 2
+  maxFaces = 2,
+  userId?: string | null
 ): Promise<FaceBbox[]> {
   if (!hasVisionConfig()) return []
 
   const buf = await ensureVisionFormat(targetBuffer)
-  const data = await visionAnnotate(buf, [{ type: 'FACE_DETECTION', maxResults: Math.max(2, maxFaces + 2) }]) as VisionFaceResponse
+  const data = await visionAnnotate(
+    buf,
+    [{ type: 'FACE_DETECTION', maxResults: Math.max(2, maxFaces + 2) }],
+    faceVisionUsage(userId)
+  ) as VisionFaceResponse
   const faces = data.responses?.[0]?.faceAnnotations ?? []
   if (!faces.length) return []
 
@@ -170,11 +184,14 @@ export async function detectFacesInTargetImage(
  * Cắt lấy vùng mặt từ ảnh nguồn (ảnh cần ghép lên).
  * Trả về buffer ảnh chỉ chứa khuôn mặt, hoặc null nếu không phát hiện mặt.
  */
-export async function extractFaceFromSourceImage(sourceBuffer: Buffer): Promise<Buffer | null> {
+export async function extractFaceFromSourceImage(
+  sourceBuffer: Buffer,
+  userId?: string | null
+): Promise<Buffer | null> {
   if (!hasVisionConfig()) return null
 
   const buf = await ensureVisionFormat(sourceBuffer)
-  const data = await visionAnnotate(buf, [{ type: 'FACE_DETECTION', maxResults: 5 }]) as VisionFaceResponse
+  const data = await visionAnnotate(buf, [{ type: 'FACE_DETECTION', maxResults: 5 }], faceVisionUsage(userId)) as VisionFaceResponse
   const faces = data.responses?.[0]?.faceAnnotations ?? []
   if (!faces.length) {
     console.log('[FaceSwap-Vision] Không phát hiện mặt trong ảnh nguồn')

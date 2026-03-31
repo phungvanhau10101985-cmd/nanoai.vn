@@ -1,6 +1,15 @@
-/** Mỗi block 5 phút — đồng bộ client + server khi tính phí báo cáo cuộc họp. */
+/** Khối đầu 5 phút — đồng bộ client + server khi tính phí báo cáo cuộc họp. */
 export const MEETING_REPORT_BLOCK_SECONDS = 300
-export const MEETING_REPORT_CREDITS_PER_BLOCK = 0.5
+
+/** Thời lượng (giây) mỗi đoạn audio khi phiên âm theo lô (tránh timeout API). */
+export const MEETING_REPORT_TRANSCRIBE_CHUNK_SECONDS = MEETING_REPORT_BLOCK_SECONDS
+
+/**
+ * Trên ngưỡng này (hoặc nhiều file đoạn) → API phiên âm từng đoạn rồi tóm tắt text (không gửi một file quá dài một lần).
+ */
+export const MEETING_REPORT_CHUNKED_PIPELINE_THRESHOLD_SECONDS = MEETING_REPORT_BLOCK_SECONDS
+/** Sau 5 phút đầu: mỗi phút (phần vượt, làm tròn lên) thêm bấy nhiêu credit. */
+export const MEETING_REPORT_CREDITS_PER_MINUTE_AFTER_FIRST = 0.2
 export const MEETING_REPORT_MIN_CREDITS = 1
 export const MEETING_REPORT_MAX_DURATION_SECONDS = 2 * 60 * 60
 export const MEETING_REPORT_MAX_FILE_BYTES = 20 * 1024 * 1024
@@ -17,10 +26,18 @@ export function capMeetingDurationByFileSize(bytes: number, claimedSeconds: numb
   return capped
 }
 
+/**
+ * 5 phút đầu = 1 credit; phần sau tính theo phút: mỗi phút bắt đầu +0,2 credit
+ * (giây vượt quá 5 phút làm tròn lên theo phút).
+ */
 export function computeMeetingReportCredits(durationSeconds: number): number {
   const s = Math.max(0, Math.floor(durationSeconds))
   if (s <= 0) return MEETING_REPORT_MIN_CREDITS
-  const blocks = Math.ceil(s / MEETING_REPORT_BLOCK_SECONDS)
-  const raw = blocks * MEETING_REPORT_CREDITS_PER_BLOCK
-  return Math.max(MEETING_REPORT_MIN_CREDITS, Math.round(raw * 10) / 10)
+  if (s <= MEETING_REPORT_BLOCK_SECONDS) return MEETING_REPORT_MIN_CREDITS
+  const excessSeconds = s - MEETING_REPORT_BLOCK_SECONDS
+  const billedMinutesAfterFirst = Math.ceil(excessSeconds / 60)
+  const credits =
+    MEETING_REPORT_MIN_CREDITS +
+    MEETING_REPORT_CREDITS_PER_MINUTE_AFTER_FIRST * billedMinutesAfterFirst
+  return Math.round(credits * 10) / 10
 }

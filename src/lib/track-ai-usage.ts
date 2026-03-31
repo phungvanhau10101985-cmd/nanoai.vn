@@ -1,8 +1,13 @@
-'use server'
-
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import type { UsageMetadata } from '@google/generative-ai'
+
+/** Usage từ API chat/completions kiểu OpenAI (OpenAI, DeepSeek, …). */
+export type OpenAiStyleUsage = {
+  prompt_tokens?: number
+  completion_tokens?: number
+  total_tokens?: number
+}
 
 export interface ApiUsageLogParams {
   userId?: string | null
@@ -13,6 +18,35 @@ export interface ApiUsageLogParams {
   totalTokenCount: number
   /** Độ phân giải ảnh trả về: '2K' | '4K' | null (không trả ảnh) */
   imageSize?: '2K' | '4K' | null
+}
+
+/**
+ * Ghi log từ phản hồi chat/completions (OpenAI, DeepSeek, tương thích).
+ * Nếu thiếu `usage`, ước lượng từ độ dài ký tự (≈ 4 ký tự / token).
+ */
+export function trackOpenAiStyleCompletionUsage(params: {
+  userId?: string | null
+  model: string
+  feature: string
+  usage: OpenAiStyleUsage | undefined
+  fallbackPromptChars: number
+  fallbackOutputChars: number
+}): void {
+  const promptEst = Math.max(0, Math.ceil(params.fallbackPromptChars / 4))
+  const outEst = Math.max(0, Math.ceil(params.fallbackOutputChars / 4))
+  const u = params.usage
+  const promptTok = u?.prompt_tokens ?? promptEst
+  const outTok = u?.completion_tokens ?? (outEst > 0 ? outEst : 1)
+  const totalTok = u?.total_tokens ?? promptTok + outTok
+  if (totalTok <= 0) return
+  void trackApiUsage({
+    userId: params.userId,
+    model: params.model,
+    feature: params.feature,
+    promptTokenCount: promptTok,
+    candidatesTokenCount: outTok,
+    totalTokenCount: Math.max(1, totalTok),
+  })
 }
 
 /**

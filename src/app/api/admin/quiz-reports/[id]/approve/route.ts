@@ -89,12 +89,12 @@ export async function POST(
       return NextResponse.json({ error: 'Thiếu nội dung slide.' }, { status: 400 })
     }
 
-    const created = await createQuizWithGemini(fullContent)
+    const created = await createQuizWithGemini(fullContent, report.user_id)
     if (!created) {
       return NextResponse.json({ error: 'AI không tạo được câu mới.' }, { status: 500 })
     }
 
-    const verified = await verifyQuizWithAI(fullContent, created.quiz)
+    const verified = await verifyQuizWithAI(fullContent, created.quiz, report.user_id)
     const finalQuiz: QuizData =
       verified && !verified.verified && typeof verified.correctIndex === 'number' && verified.correctIndex >= 0 && verified.correctIndex <= 3
         ? { ...created.quiz, correctIndex: verified.correctIndex }

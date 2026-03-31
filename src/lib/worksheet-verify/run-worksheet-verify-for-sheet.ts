@@ -70,6 +70,7 @@ export async function runWorksheetVerifyForSheet(
   }
   const topic = (ws.topic as string) || 'Phiếu bài tập'
   const fullContent = topic ? `## ${topic}\n\n${curriculumMarkdown}` : curriculumMarkdown
+  const sheetUserId = (ws.user_id as string | undefined) ?? null
 
   const { data: qRows, error: qErr } = await supabase
     .from('worksheet_questions')
@@ -134,7 +135,7 @@ export async function runWorksheetVerifyForSheet(
       if (row.source === 'sgk' && sgkImageUrls.length > 0) {
         const imageParts = await getSgkImageParts()
         if (imageParts.length > 0) {
-          const visionFirst = await verifyQuizWithGeminiVision(fullContent, q, imageParts)
+          const visionFirst = await verifyQuizWithGeminiVision(fullContent, q, imageParts, sheetUserId)
           if (visionFirst?.verified) {
             skipTextVerifyPipeline = true
           } else if (
@@ -156,14 +157,14 @@ export async function runWorksheetVerifyForSheet(
       if (skipTextVerifyPipeline) {
         /* đã xử lý bằng vision */
       } else {
-      const deepSeekResult = await verifyQuizWithDeepSeek(fullContent, q)
+      const deepSeekResult = await verifyQuizWithDeepSeek(fullContent, q, sheetUserId)
       if (deepSeekResult && !deepSeekResult.verified) {
         let geminiResult: { verified: boolean; correctIndex?: number; question?: string; options?: string[] } | null = null
         if (deepSeekResult.needsImage && sgkImageUrls.length > 0 && row.source === 'sgk') {
           const imageParts = await getSgkImageParts()
-          if (imageParts.length > 0) geminiResult = await verifyQuizWithGeminiVision(fullContent, q, imageParts)
+          if (imageParts.length > 0) geminiResult = await verifyQuizWithGeminiVision(fullContent, q, imageParts, sheetUserId)
         }
-        if (!geminiResult) geminiResult = await verifyQuizWithGemini(fullContent, q)
+        if (!geminiResult) geminiResult = await verifyQuizWithGemini(fullContent, q, sheetUserId)
         const verifyResult = geminiResult ?? deepSeekResult
         if (verifyResult.question || verifyResult.options || typeof verifyResult.correctIndex === 'number') {
           if (verifyResult.question) finalQ = { ...finalQ, question: verifyResult.question }
@@ -173,7 +174,7 @@ export async function runWorksheetVerifyForSheet(
           }
           needsUpdate = true
         } else {
-          const fixed = await fixQuizWhenVerifyFailed(fullContent, q)
+          const fixed = await fixQuizWhenVerifyFailed(fullContent, q, sheetUserId)
           if (fixed) {
             finalQ = fixed
             needsUpdate = true
@@ -211,7 +212,7 @@ export async function runWorksheetVerifyForSheet(
       if (row.source === 'sgk' && sgkImageUrls.length > 0) {
         const imageParts = await getSgkImageParts()
         if (imageParts.length > 0) {
-          const visionFirst = await verifyEssayWithGeminiVision(fullContent, problem, solution, imageParts)
+          const visionFirst = await verifyEssayWithGeminiVision(fullContent, problem, solution, imageParts, sheetUserId)
           if (visionFirst?.verified) {
             skipTextVerifyPipeline = true
           } else if (visionFirst && !visionFirst.verified && (visionFirst.problem || visionFirst.solution)) {
@@ -224,21 +225,21 @@ export async function runWorksheetVerifyForSheet(
       }
 
       if (!skipTextVerifyPipeline) {
-      const deepSeekResult = await verifyEssayWithDeepSeek(fullContent, problem, solution)
+      const deepSeekResult = await verifyEssayWithDeepSeek(fullContent, problem, solution, sheetUserId)
       if (deepSeekResult && !deepSeekResult.verified) {
         let geminiResult: { verified: boolean; problem?: string; solution?: string } | null = null
         if (deepSeekResult.needsImage && sgkImageUrls.length > 0 && row.source === 'sgk') {
           const imageParts = await getSgkImageParts()
-          if (imageParts.length > 0) geminiResult = await verifyEssayWithGeminiVision(fullContent, problem, solution, imageParts)
+          if (imageParts.length > 0) geminiResult = await verifyEssayWithGeminiVision(fullContent, problem, solution, imageParts, sheetUserId)
         }
-        if (!geminiResult) geminiResult = await verifyEssayWithGemini(fullContent, problem, solution)
+        if (!geminiResult) geminiResult = await verifyEssayWithGemini(fullContent, problem, solution, sheetUserId)
         const verifyResult = geminiResult ?? deepSeekResult
         if (verifyResult.problem || verifyResult.solution) {
           if (verifyResult.problem) finalE = { ...finalE, problem: verifyResult.problem }
           if (verifyResult.solution) finalE = { ...finalE, solution: verifyResult.solution }
           needsUpdate = true
         } else {
-          const fixed = await fixEssayWhenVerifyFailed(fullContent, { problem, solution })
+          const fixed = await fixEssayWhenVerifyFailed(fullContent, { problem, solution }, sheetUserId)
           if (fixed) {
             finalE = fixed
             needsUpdate = true

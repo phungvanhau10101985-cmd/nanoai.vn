@@ -3,11 +3,7 @@
  */
 import type { ComponentType } from 'react'
 import {
-  Music2,
   Disc3,
-  SlidersHorizontal,
-  ImagePlus,
-  Radio,
   Languages,
   Box,
   Shield,
@@ -108,10 +104,6 @@ export const AI_TOOLS = [
   { href: '/tao-anh-chain-dung', labelKey: 'portrait_photo' as ToolKey, icon: TaoAnhChanDungIcon },
   { href: '/mo-rong-khung-hinh', labelKey: 'expand_frame' as ToolKey, icon: MoRongKhungHinhIcon },
   { href: '/hoan-doi-khuon-mat', labelKey: 'face_swap' as ToolKey, icon: HoanDoiKhuonMatIcon },
-  { href: '/nhac-nen-ai', labelKey: 'ai_music_background' as ToolKey, icon: Music2 },
-  { href: '/ai-dj', labelKey: 'ai_dj' as ToolKey, icon: SlidersHorizontal },
-  { href: '/nhac-theo-cam-xuc-anh', labelKey: 'music_from_image_mood' as ToolKey, icon: ImagePlus },
-  { href: '/dieu-khien-nhac-realtime', labelKey: 'realtime_music_control' as ToolKey, icon: Radio },
   { href: '/tao-bai-hat-lyria-3', labelKey: 'lyria3_instrumental_song' as ToolKey, icon: Disc3 },
 ] as const
 
@@ -204,12 +196,6 @@ export const NAV_GROUPS: readonly NavGroupConfig[] = [
   },
   {
     titleKey: 'music_ai' as NavGroupKey,
-    links: [
-      { href: '/nhac-nen-ai', labelKey: 'ai_music_background' as ToolKey, icon: Music2 },
-      { href: '/ai-dj', labelKey: 'ai_dj' as ToolKey, icon: SlidersHorizontal },
-      { href: '/nhac-theo-cam-xuc-anh', labelKey: 'music_from_image_mood' as ToolKey, icon: ImagePlus },
-      { href: '/dieu-khien-nhac-realtime', labelKey: 'realtime_music_control' as ToolKey, icon: Radio },
-      { href: '/tao-bai-hat-lyria-3', labelKey: 'lyria3_instrumental_song' as ToolKey, icon: Disc3 },
-    ],
+    links: [{ href: '/tao-bai-hat-lyria-3', labelKey: 'lyria3_instrumental_song' as ToolKey, icon: Disc3 }],
   },
 ]

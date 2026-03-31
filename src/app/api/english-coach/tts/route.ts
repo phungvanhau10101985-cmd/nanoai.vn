@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenAI } from '@google/genai'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { createHash } from 'crypto'
+import { trackApiUsage } from '@/lib/track-ai-usage'
 
 type VoiceName =
   | 'Kore'
@@ -95,6 +96,27 @@ function logTtsCacheStats(requestId: string) {
   const total = ttsCacheStats.hit + ttsCacheStats.miss
   const hitRate = total > 0 ? ((ttsCacheStats.hit / total) * 100).toFixed(1) : '0.0'
   console.info(`[TTS][${requestId}] cache-stats hit=${ttsCacheStats.hit} miss=${ttsCacheStats.miss} hitRate=${hitRate}%`)
+}
+
+/** Ước lượng token tương đương cho TTS (không có usage từ API). */
+function trackTtsGenerationUsage(params: {
+  model: string
+  feature: 'english-coach-tts-openai' | 'english-coach-tts-gemini'
+  instructionChars: number
+  spokenTextChars: number
+  audioBase64: string
+}): void {
+  const promptTok = Math.max(1, Math.ceil((params.instructionChars + params.spokenTextChars) / 4))
+  const audioBytes = Math.max(0, Math.floor((params.audioBase64.length * 3) / 4))
+  const outTok = Math.max(1, Math.ceil(audioBytes / 32))
+  void trackApiUsage({
+    userId: null,
+    model: params.model,
+    feature: params.feature,
+    promptTokenCount: promptTok,
+    candidatesTokenCount: outTok,
+    totalTokenCount: promptTok + outTok,
+  })
 }
 
 function extractAudioFromResponse(response: unknown): TtsExtracted {
@@ -304,12 +326,22 @@ ${speechInput.text}`
     if (requestedEngine !== 'gemini-only') {
       if (openAiApiKey) {
         try {
-          extracted = await generateOpenAiTts({
+          const openAiAudio = await generateOpenAiTts({
             apiKey: openAiApiKey,
             text: speechInput.text,
             requestedVoice: voiceName,
             instructions: strictReadPrompt,
           })
+          extracted = openAiAudio
+          if (openAiAudio) {
+            trackTtsGenerationUsage({
+              model: OPENAI_TTS_MODEL,
+              feature: 'english-coach-tts-openai',
+              instructionChars: strictReadPrompt.length,
+              spokenTextChars: speechInput.text.length,
+              audioBase64: openAiAudio.audioBase64,
+            })
+          }
           attemptLogs.push({ model: OPENAI_TTS_MODEL, voice: voiceName, ok: true })
           successMeta = { model: OPENAI_TTS_MODEL, voice: voiceName }
         } catch (e) {
@@ -352,6 +384,13 @@ ${speechInput.text}`
           const response = await makeRequest(attempt.model, attempt.contents, attempt.voice)
           extracted = extractAudioFromResponse(response)
           if (extracted) {
+            trackTtsGenerationUsage({
+              model: attempt.model,
+              feature: 'english-coach-tts-gemini',
+              instructionChars: attempt.contents.length,
+              spokenTextChars: speechInput.text.length,
+              audioBase64: extracted.audioBase64,
+            })
             attemptLogs.push({ model: attempt.model, voice: attempt.voice, ok: true })
             successMeta = { model: attempt.model, voice: attempt.voice }
             break

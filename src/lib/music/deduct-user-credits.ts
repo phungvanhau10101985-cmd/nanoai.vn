@@ -8,7 +8,7 @@ export type DeductCreditsResult =
   | { ok: false; error: string; code?: 'INSUFFICIENT_CREDITS' }
 
 /**
- * Trừ credits (một lần), dùng service role. Dùng cho music-charge và API tạo nhạc Lyria 3.
+ * Trừ credits (một lần), dùng service role. Dùng cho API tạo nhạc Lyria 3.
  */
 export async function deductUserCredits(userId: string, cost: number): Promise<DeductCreditsResult> {
   if (!Number.isFinite(cost) || cost <= 0) {

@@ -9,12 +9,13 @@ import sharp from 'sharp'
 import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
 import { normalizeToEnglish } from '@/lib/ai-normalize'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
+import { MAX_BOOK_PAGE_IMAGES } from './infographic-limits'
 
 const COST_2K = 1.5
 const MAX_CONTENT_TEXT = 28000
 const MAX_TEACHER_NOTES = 12000
 const MAX_TOPIC_LEN = 500
-const MAX_BOOK_FILES = 6
+const MAX_BOOK_FILES = MAX_BOOK_PAGE_IMAGES
 const MAX_FILE_BYTES = 8 * 1024 * 1024
 const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
 const INFOGRAPHIC_TARGET_BYTES = 820 * 1024

@@ -6,6 +6,7 @@
 import fs from 'fs'
 import path from 'path'
 import * as jose from 'jose'
+import { trackApiUsage } from '@/lib/track-ai-usage'
 
 const VISION_API_URL = 'https://vision.googleapis.com/v1/images:annotate'
 
@@ -87,10 +88,17 @@ export async function getVisionAccessToken(): Promise<string> {
   return cachedToken.token
 }
 
+/** Ghi `api_usage_log` sau khi annotate thành công (1 unit / request — Vision không trả token). */
+export type VisionUsageLog = {
+  userId?: string | null
+  feature: string
+}
+
 /** Gọi Vision API annotate – 1 ảnh, 1 hoặc nhiều feature. Chỉ OAuth2 (service account). */
 export async function visionAnnotate(
   imageBuffer: Buffer,
-  features: Array<{ type: string; maxResults?: number }>
+  features: Array<{ type: string; maxResults?: number }>,
+  usage?: VisionUsageLog | null
 ): Promise<unknown> {
   const token = await getVisionAccessToken()
   const res = await fetch(VISION_API_URL, {
@@ -118,5 +126,15 @@ export async function visionAnnotate(
   const data = (await res.json()) as { responses?: Array<{ error?: { message: string } }> }
   const r = data.responses?.[0]
   if (r?.error) throw new Error(`Vision API: ${r.error.message}`)
+  if (usage?.feature) {
+    void trackApiUsage({
+      userId: usage.userId ?? null,
+      model: 'google-cloud-vision',
+      feature: usage.feature,
+      promptTokenCount: 0,
+      candidatesTokenCount: 0,
+      totalTokenCount: 1,
+    })
+  }
   return data
 }

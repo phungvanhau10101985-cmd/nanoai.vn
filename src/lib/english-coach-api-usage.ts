@@ -12,6 +12,10 @@ export const EnglishCoachApiFeature = {
   chatReflexTransliterate: 'english-coach-chat-reflex-transliterate',
   chatMixedAnalysis: 'english-coach-chat-mixed-analysis',
   chatMain: 'english-coach-chat-main',
+  /** Fallback JSON khi Gemini strict thất bại — DeepSeek chat/completions. */
+  chatMainDeepSeek: 'english-coach-chat-main-deepseek',
+  /** Fallback JSON khi Gemini + DeepSeek thất bại — OpenAI chat/completions. */
+  chatMainOpenaiFallback: 'english-coach-chat-main-openai-fallback',
   chatRepairJson: 'english-coach-chat-repair-json',
   chatStrictRetry: 'english-coach-chat-strict-retry',
   chatRepairScript: 'english-coach-chat-repair-script',

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_FLASH_NO_THINKING, GEMINI_25_PRO } from '@/lib/gemini-config'
+import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
+import { createClient } from '@/lib/supabase/server'
 
 /** Model tạo / sửa quiz: Gemini 2.5 Pro. */
 const QUIZ_CREATE_MODEL = GEMINI_25_PRO
@@ -107,7 +109,8 @@ function parseAndShuffleQuizzes(rawText: string): Array<{ question: string; opti
 /** Lần 2: Gemini Pro với nhắc schema — khi lần 1 trả JSON không parse được. */
 async function generateQuizRetryParseWithGeminiPro(
   genAI: GoogleGenerativeAI,
-  basePrompt: string
+  basePrompt: string,
+  userId?: string | null
 ): Promise<Array<{ question: string; options: string[]; correctIndex: number }> | null> {
   const model = genAI.getGenerativeModel({
     ...GEMINI_25_PRO,
@@ -115,6 +118,12 @@ async function generateQuizRetryParseWithGeminiPro(
   })
   const result = await model.generateContent(
     `${basePrompt}\n\n⚠️ BẮT BUỘC: chỉ một object JSON hợp lệ, đúng schema "quizzes" (mảng 1 phần tử). Không markdown, không text ngoài JSON.`
+  )
+  void trackFromUsageMetadata(
+    result.response.usageMetadata,
+    QUIZ_CREATE_MODEL.model,
+    'slide-generate-quiz-gemini-pro-retry-parse',
+    userId ?? null
   )
   const raw = result.response.text()?.trim() || ''
   return parseAndShuffleQuizzes(raw)
@@ -130,7 +139,8 @@ async function fixQuizWithGeminiProForSlide(
   q: { question: string; options: string[]; correctIndex: number },
   suggestedCorrectIndex: number | undefined,
   lessonContext: LessonContext | undefined,
-  difficulty: Difficulty
+  difficulty: Difficulty,
+  userId?: string | null
 ): Promise<Array<{ question: string; options: string[]; correctIndex: number }> | null> {
   const diffHint = DIFFICULTY_PROMPT[difficulty] ?? DIFFICULTY_PROMPT.medium
   const ctx =
@@ -167,6 +177,12 @@ Chỉ 1 phần tử trong "quizzes".`
     generationConfig: { temperature: 0, responseMimeType: 'application/json' },
   })
   const result = await model.generateContent(prompt)
+  void trackFromUsageMetadata(
+    result.response.usageMetadata,
+    QUIZ_CREATE_MODEL.model,
+    'slide-generate-quiz-fix-gemini-pro',
+    userId ?? null
+  )
   const raw = result.response.text()?.trim() || ''
   return parseAndShuffleQuizzes(raw)
 }
@@ -174,6 +190,10 @@ Chỉ 1 phần tử trong "quizzes".`
 /** AI tạo 1 câu trắc nghiệm cho một slide */
 export async function POST(req: NextRequest) {
   try {
+    const supabase = createClient()
+    const { data: { user: authUser } } = await supabase.auth.getUser()
+    const userId = authUser?.id ?? null
+
     const body = await req.json().catch(() => ({}))
     const title = String(body?.title ?? '').trim()
     const content = String(body?.content ?? '').trim()
@@ -216,12 +236,18 @@ export async function POST(req: NextRequest) {
       generationConfig: { temperature: 0.1, responseMimeType: 'application/json' },
     })
     const result = await model.generateContent(prompt)
+    void trackFromUsageMetadata(
+      result.response.usageMetadata,
+      QUIZ_CREATE_MODEL.model,
+      'slide-generate-quiz-gemini-pro',
+      userId
+    )
     const rawText = result.response.text()?.trim() || ''
     let shuffled = parseAndShuffleQuizzes(rawText)
 
     // Lần 1 không parse được → Gemini Pro gọi lại (không dùng GPT)
     if (!shuffled) {
-      shuffled = await generateQuizRetryParseWithGeminiPro(genAI, prompt)
+      shuffled = await generateQuizRetryParseWithGeminiPro(genAI, prompt, userId)
     }
 
     if (!shuffled || shuffled.length === 0) {
@@ -264,6 +290,12 @@ Trả về JSON: { "verified": true|false, "correctIndex": 0|1|2|3 }
           generationConfig: { temperature: 0, responseMimeType: 'application/json' },
         })
         const verifyResult = await verifyModel.generateContent(verifyPrompt)
+        void trackFromUsageMetadata(
+          verifyResult.response.usageMetadata,
+          GEMINI_25_FLASH_NO_THINKING.model,
+          'slide-generate-quiz-verify-gemini-flash',
+          userId
+        )
         const verifyText = verifyResult.response.text()?.trim() || ''
         if (verifyText) {
           const cleaned = verifyText.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim()
@@ -291,7 +323,8 @@ Trả về JSON: { "verified": true|false, "correctIndex": 0|1|2|3 }
             q,
             suggested,
             lessonContext,
-            difficulty
+            difficulty,
+            userId
           )
           if (retried && retried.length > 0) {
             const q2 = retried[0]!

@@ -4,6 +4,7 @@ import { getUserForAction } from '@/lib/auth'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_FLASH_TEXT_NO_THINKING } from '@/lib/gemini-config'
+import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 
 function getAdminClient() {
   return createAdminClient(
@@ -57,7 +58,7 @@ function ensureSchoolPrefix(input: string): string {
   return `Trường ${cleaned}`.replace(/\s+/g, ' ').trim()
 }
 
-async function canonicalizeSchoolNameByAi(input: string): Promise<string | null> {
+async function canonicalizeSchoolNameByAi(input: string, userId?: string | null): Promise<string | null> {
   const apiKey = process.env.GOOGLE_API_KEY
   if (!apiKey) return null
   const genAI = new GoogleGenerativeAI(apiKey)
@@ -130,7 +131,7 @@ export async function GET(req: NextRequest) {
   let aiSuggestedName: string | null = null
   let aiMatchedExisting: { id: string; name: string } | null = null
   if (useAi && !existsExact && q.length >= 4) {
-    aiSuggestedName = await canonicalizeSchoolNameByAi(q)
+    aiSuggestedName = await canonicalizeSchoolNameByAi(q, auth.user?.id ?? null)
     if (aiSuggestedName) {
       const aiNorm = normalizeSchoolName(aiSuggestedName)
       const { data: exactByAi } = await admin
@@ -175,7 +176,7 @@ export async function POST(req: NextRequest) {
   }
 
   const admin = getAdminClient()
-  const canonicalName = ensureSchoolPrefix(useAi ? (await canonicalizeSchoolNameByAi(name)) || name : name)
+  const canonicalName = ensureSchoolPrefix(useAi ? (await canonicalizeSchoolNameByAi(name, user.id)) || name : name)
   const normalized = normalizeSchoolName(canonicalName)
   if (!normalized) return NextResponse.json({ error: 'Tên trường không hợp lệ.' }, { status: 400 })
 

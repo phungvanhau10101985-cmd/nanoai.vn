@@ -13,6 +13,7 @@ import {
   aggregateEnglishCoachApiCostByLessonKind,
   aggregateLanguageCoachCredits,
 } from '../language-coach-financials'
+import { fetchAllApiUsageLogsInRange, sortApiUsageLogsNewestFirst } from '../fetch-api-usage-logs-range'
 
 function toYMD(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -47,21 +48,19 @@ export default async function AdminEnglishCoachApiStatsPage({
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  const [{ data: logs, error }, { data: creditEvents }] = await Promise.all([
-    adminSupabase
-      .from('api_usage_log')
-      .select('id, model, feature, prompt_token_count, candidates_token_count, total_token_count, image_size, created_at')
-      .like('feature', 'english-coach-%')
-      .gte('created_at', fromDate + 'T00:00:00')
-      .lte('created_at', toDate + 'T23:59:59.999')
-      .order('created_at', { ascending: false })
-      .limit(5000),
+  const fromIso = fromDate + 'T00:00:00'
+  const toIso = toDate + 'T23:59:59.999'
+
+  const [logFetch, { data: creditEvents }] = await Promise.all([
+    fetchAllApiUsageLogsInRange(adminSupabase, fromIso, toIso, { featureLike: 'english-coach-%' }),
     adminSupabase
       .from('language_coach_credit_events')
       .select('charge_type, amount')
-      .gte('created_at', fromDate + 'T00:00:00')
-      .lte('created_at', toDate + 'T23:59:59.999'),
+      .gte('created_at', fromIso)
+      .lte('created_at', toIso),
   ])
+
+  const { data: logsRaw, error } = logFetch
 
   if (error) {
     return (
@@ -78,7 +77,7 @@ export default async function AdminEnglishCoachApiStatsPage({
     )
   }
 
-  const logsList = logs || []
+  const logsList = sortApiUsageLogsNewestFirst(logsRaw || [])
   const creditAgg = aggregateLanguageCoachCredits(creditEvents || [])
   const apiByKind = aggregateEnglishCoachApiCostByLessonKind(logsList)
   const coachFeatureLabels = buildEnglishCoachFeatureLabelsForLogs(logsList.map((l) => l.feature))
@@ -188,11 +187,11 @@ export default async function AdminEnglishCoachApiStatsPage({
         </h2>
         <p className="text-muted-foreground mt-1">
           {tr(
-            'Chỉ các bản ghi feature bắt đầu bằng english-coach- • Tối đa 5000 bản ghi • 1 USD = 25.000₫',
-            'Only rows where feature starts with english-coach- • Up to 5000 records • 1 USD = 25,000₫',
-            '仅 feature 以 english-coach- 开头的记录 • 最多5000条 • 1 USD = 25,000₫',
-            'feature が english-coach- で始まる行のみ • 最大5000件 • 1 USD = 25,000₫',
-            'feature가 english-coach-로 시작하는 행만 • 최대 5000건 • 1 USD = 25,000₫'
+            'Chỉ các bản ghi feature bắt đầu bằng english-coach- • Toàn bộ trong khoảng ngày • 1 USD = 25.000₫',
+            'Only rows where feature starts with english-coach- • Full date range • 1 USD = 25,000₫',
+            '仅 feature 以 english-coach- 开头 • 日期范围内全部 • 1 USD = 25,000₫',
+            'feature が english-coach- で始まる行 • 期間内の全件 • 1 USD = 25,000₫',
+            'feature가 english-coach-로 시작 • 기간 내 전체 • 1 USD = 25,000₫'
           )}
         </p>
         <p className="text-sm mt-2">

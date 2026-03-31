@@ -9,6 +9,8 @@ export const ENGLISH_COACH_API_STATS_FEATURE_LABELS: Record<string, string> = {
   [EnglishCoachApiFeature.chatReflexTransliterate]: 'Chat — romanize/pinyin (reflex)',
   [EnglishCoachApiFeature.chatMixedAnalysis]: 'Chat — phân tích mixed/auto',
   [EnglishCoachApiFeature.chatMain]: 'Chat — luồng chính (JSON giáo viên)',
+  [EnglishCoachApiFeature.chatMainDeepSeek]: 'Chat — fallback DeepSeek (JSON chính)',
+  [EnglishCoachApiFeature.chatMainOpenaiFallback]: 'Chat — fallback OpenAI (JSON chính)',
   [EnglishCoachApiFeature.chatRepairJson]: 'Chat — sửa JSON lỗi',
   [EnglishCoachApiFeature.chatStrictRetry]: 'Chat — retry JSON strict',
   [EnglishCoachApiFeature.chatRepairScript]: 'Chat — sửa script ngôn ngữ đích',
@@ -26,6 +28,8 @@ export const ENGLISH_COACH_API_STATS_FEATURE_LABELS: Record<string, string> = {
   [EnglishCoachApiFeature.assessment]: 'Đánh giá CEFR (assessment)',
   [EnglishCoachApiFeature.writingEval]: 'Chấm bài viết micro-writing',
   [EnglishCoachApiFeature.fixWordExamples]: 'Admin — sửa ví dụ từ (fix-word-examples)',
+  'english-coach-tts-openai': 'TTS — OpenAI (đọc câu)',
+  'english-coach-tts-gemini': 'TTS — Gemini (đọc câu)',
 }
 
 const ENGLISH_COACH_FEATURE_PREFIX = 'english-coach-'

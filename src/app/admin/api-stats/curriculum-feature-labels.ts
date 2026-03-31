@@ -12,6 +12,10 @@ export const CURRICULUM_API_STATS_FEATURE_LABELS: Record<string, string> = {
   [CurriculumApiFeature.lessonTopicsExtract]: 'Trích chủ đề bài học (lesson_topics, Flash)',
   [CurriculumApiFeature.topicRerank]: 'Xếp hạng lại chủ đề trùng (topic rerank, Flash)',
   [CurriculumApiFeature.slideProposalVerify]: 'Duyệt đề xuất sửa slide (Pro)',
+  [CurriculumApiFeature.isbnFromImage]: 'ISBN từ ảnh bìa (vision)',
+  'curriculum-slide-infographic': 'Infographic cho slide giáo trình',
+  'curriculum-slide-deepseek-verify': 'Duyệt sửa slide — DeepSeek (song song Pro)',
+  'curriculum-from-image-openai-fallback': 'Tạo giáo trình từ ảnh — fallback OpenAI',
 }
 
 export function buildCurriculumFeatureLabelsForLogs(features: Iterable<string>): Record<string, string> {

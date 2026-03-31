@@ -103,7 +103,7 @@ export function HeaderUserMenu({ user, credits, isAdmin, t }: HeaderUserMenuProp
             <Link href="/dashboard/history/translate">{t.menu.translateHistory}</Link>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
-            <Link href="/nhac-nen-ai#music-history">{t.menu.musicHistory}</Link>
+            <Link href="/tao-bai-hat-lyria-3#lyria3-saved-music">{t.menu.musicHistory}</Link>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
             <Link href="/wallet">{t.menu.wallet}</Link>

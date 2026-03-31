@@ -87,6 +87,14 @@ const nextConfig = {
     /** URL công khai mới: /giao-trinh (thay /tao-giao-trinh). Giữ thư mục app tao-giao-trinh + redirect 301. */
     async redirects() {
         return [
+            { source: '/nhac-nen-ai', destination: '/tao-bai-hat-lyria-3', permanent: true },
+            { source: '/nhac-nen-ai/:path*', destination: '/tao-bai-hat-lyria-3', permanent: true },
+            { source: '/ai-dj', destination: '/tao-bai-hat-lyria-3', permanent: true },
+            { source: '/ai-dj/:path*', destination: '/tao-bai-hat-lyria-3', permanent: true },
+            { source: '/nhac-theo-cam-xuc-anh', destination: '/tao-bai-hat-lyria-3', permanent: true },
+            { source: '/nhac-theo-cam-xuc-anh/:path*', destination: '/tao-bai-hat-lyria-3', permanent: true },
+            { source: '/dieu-khien-nhac-realtime', destination: '/tao-bai-hat-lyria-3', permanent: true },
+            { source: '/dieu-khien-nhac-realtime/:path*', destination: '/tao-bai-hat-lyria-3', permanent: true },
             { source: '/tao-de-trac-nghiem', destination: '/tao-bai-thi', permanent: true },
             { source: '/tao-giao-trinh', destination: '/giao-trinh', permanent: true },
             { source: '/tao-giao-trinh/:path*', destination: '/giao-trinh/:path*', permanent: true },

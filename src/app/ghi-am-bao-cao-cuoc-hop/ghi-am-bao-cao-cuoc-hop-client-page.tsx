@@ -1,7 +1,17 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -15,10 +25,16 @@ import { useCredits } from '@/hooks/use-credits'
 import {
   MEETING_REPORT_MAX_FILE_BYTES,
   MEETING_REPORT_MAX_DURATION_SECONDS,
+  MEETING_REPORT_TRANSCRIBE_CHUNK_SECONDS,
   capMeetingDurationByFileSize,
   computeMeetingReportCredits,
 } from '@/lib/meeting-report-pricing'
-import { MEETING_RECORDING_RETENTION_DAYS } from '@/lib/meeting-recording-config'
+import {
+  MEETING_RECORDING_RETENTION_DAYS,
+  MEETING_RECORDING_SILENCE_AUTO_STOP_MS,
+  MEETING_RECORDING_SILENCE_CHECK_MS,
+  MEETING_RECORDING_VOICE_RMS_THRESHOLD,
+} from '@/lib/meeting-recording-config'
 import { cn } from '@/lib/utils'
 import {
   Select,
@@ -76,22 +92,37 @@ export default function GhiAmBaoCaoCuocHopClientPage() {
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null)
   const [audioUrl, setAudioUrl] = useState<string | null>(null)
   const [reportMd, setReportMd] = useState('')
+  const [reportBriefMd, setReportBriefMd] = useState('')
   const [transcript, setTranscript] = useState('')
   const [busy, setBusy] = useState(false)
-  const [serverRecordingId, setServerRecordingId] = useState<string | null>(null)
+  const [serverRecordingIds, setServerRecordingIds] = useState<string[]>([])
   const [savingServer, setSavingServer] = useState(false)
   const [saveFailed, setSaveFailed] = useState(false)
   const [liveElapsedSec, setLiveElapsedSec] = useState(0)
+  const [stopConfirmOpen, setStopConfirmOpen] = useState(false)
+  /** Tổng byte các đoạn gốc — khớp server khi tính cap; blob gộp có thể khác tổng WebM. */
+  const [bytesForBillingCap, setBytesForBillingCap] = useState(0)
 
   const chunksRef = useRef<Blob[]>([])
   const recorderRef = useRef<MediaRecorder | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
-  const startedAtRef = useRef(0)
   const mimeRef = useRef('audio/webm')
+  const pendingSegmentRotationRef = useRef(false)
+  const recordingSegmentsRef = useRef<{ blob: Blob; durationSec: number }[]>([])
+  const segmentStartedAtRef = useRef(0)
+  const sessionStartedAtRef = useRef(0)
+  const lastSegmentsForRetryRef = useRef<{ blob: Blob; durationSec: number }[]>([])
+  const discardSessionRef = useRef(false)
+  const silenceMsRef = useRef(0)
+  const silenceMonitorIntervalRef = useRef<number | null>(null)
+  const audioContextRef = useRef<AudioContext | null>(null)
+  const stopRecordingRef = useRef<(() => void) | undefined>(undefined)
   const { toast } = useToast()
   const { credits, fetchCredits, checkCreditsAndProceed } = useCredits()
 
   const mr = useMemo(() => getDictionary(uiLocale).meetingRecorder, [uiLocale])
+  const mrRef = useRef(mr)
+  mrRef.current = mr
 
   useEffect(() => {
     meetingTitleRef.current = meetingTitle
@@ -115,12 +146,26 @@ export default function GhiAmBaoCaoCuocHopClientPage() {
     }
   }, [audioUrl])
 
+  const clearSilenceMonitor = useCallback(() => {
+    if (silenceMonitorIntervalRef.current != null) {
+      window.clearInterval(silenceMonitorIntervalRef.current)
+      silenceMonitorIntervalRef.current = null
+    }
+    const ctx = audioContextRef.current
+    audioContextRef.current = null
+    if (ctx && ctx.state !== 'closed') {
+      void ctx.close()
+    }
+    silenceMsRef.current = 0
+  }, [])
+
   const stopTracks = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop())
     streamRef.current = null
   }, [])
 
   const stopRecordingInternal = useCallback(() => {
+    clearSilenceMonitor()
     const rec = recorderRef.current
     if (rec && rec.state !== 'inactive') {
       try {
@@ -131,26 +176,34 @@ export default function GhiAmBaoCaoCuocHopClientPage() {
     }
     recorderRef.current = null
     stopTracks()
+    recordingSegmentsRef.current = []
+    pendingSegmentRotationRef.current = false
     setRecording(false)
-  }, [stopTracks])
+  }, [clearSilenceMonitor, stopTracks])
 
-  const saveRecordingToServer = useCallback(
-    async (blob: Blob, duration: number) => {
+  const saveAllSegmentsToServer = useCallback(
+    async (segments: { blob: Blob; durationSec: number }[]) => {
+      lastSegmentsForRetryRef.current = segments
       setSavingServer(true)
       setSaveFailed(false)
-      setServerRecordingId(null)
+      setServerRecordingIds([])
       try {
-        const fd = new FormData()
-        fd.append('audio', blob, 'meeting.webm')
-        fd.append('title', meetingTitleRef.current.trim())
-        fd.append('durationSeconds', String(duration))
-        fd.append('mimeType', blob.type || mimeRef.current)
-        const res = await fetch('/api/meeting-recording/save', { method: 'POST', body: fd })
-        const data = (await res.json().catch(() => ({}))) as { error?: string; id?: string }
-        if (!res.ok || !data.id) {
-          throw new Error(typeof data.error === 'string' ? data.error : 'save failed')
+        const ids: string[] = []
+        for (let i = 0; i < segments.length; i++) {
+          const seg = segments[i]!
+          const fd = new FormData()
+          fd.append('audio', seg.blob, `meeting-part-${i + 1}.webm`)
+          fd.append('title', meetingTitleRef.current.trim())
+          fd.append('durationSeconds', String(seg.durationSec))
+          fd.append('mimeType', seg.blob.type || mimeRef.current)
+          const res = await fetch('/api/meeting-recording/save', { method: 'POST', body: fd })
+          const data = (await res.json().catch(() => ({}))) as { error?: string; id?: string }
+          if (!res.ok || !data.id) {
+            throw new Error(typeof data.error === 'string' ? data.error : 'save failed')
+          }
+          ids.push(data.id)
         }
-        setServerRecordingId(data.id)
+        setServerRecordingIds(ids)
       } catch {
         setSaveFailed(true)
         toast({ title: mr.saveRecordingFailed, variant: 'destructive' })
@@ -159,6 +212,32 @@ export default function GhiAmBaoCaoCuocHopClientPage() {
       }
     },
     [mr.saveRecordingFailed, toast]
+  )
+
+  const finalizeRecordingSession = useCallback(
+    async (segments: { blob: Blob; durationSec: number }[]) => {
+      discardSessionRef.current = false
+      clearSilenceMonitor()
+      recorderRef.current = null
+      stopTracks()
+      setRecording(false)
+
+      const totalDur = Math.min(
+        MEETING_REPORT_MAX_DURATION_SECONDS,
+        segments.reduce((s, x) => s + x.durationSec, 0)
+      )
+      const merged = new Blob(
+        segments.map((x) => x.blob),
+        { type: mimeRef.current }
+      )
+      setBytesForBillingCap(segments.reduce((s, x) => s + x.blob.size, 0))
+      revokeAudioUrl()
+      setAudioBlob(merged)
+      setAudioUrl(URL.createObjectURL(merged))
+      setDurationSec(totalDur)
+      await saveAllSegmentsToServer(segments)
+    },
+    [clearSilenceMonitor, revokeAudioUrl, saveAllSegmentsToServer, stopTracks]
   )
 
   const startRecording = useCallback(async () => {
@@ -172,49 +251,134 @@ export default function GhiAmBaoCaoCuocHopClientPage() {
       // ignore
     }
 
+    clearSilenceMonitor()
+    discardSessionRef.current = false
     revokeAudioUrl()
     setAudioBlob(null)
-    setServerRecordingId(null)
+    setBytesForBillingCap(0)
+    setServerRecordingIds([])
     setSaveFailed(false)
     setReportMd('')
+    setReportBriefMd('')
     setTranscript('')
     setDurationSec(0)
     chunksRef.current = []
+    recordingSegmentsRef.current = []
+    pendingSegmentRotationRef.current = false
     mimeRef.current = pickRecorderMime()
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       streamRef.current = stream
+      sessionStartedAtRef.current = Date.now()
+
+      const onRecorderStop = () => {
+        if (discardSessionRef.current) {
+          discardSessionRef.current = false
+          chunksRef.current = []
+          recordingSegmentsRef.current = []
+          recorderRef.current = null
+          stopTracks()
+          setRecording(false)
+          return
+        }
+
+        const blob = new Blob(chunksRef.current, { type: mimeRef.current })
+        chunksRef.current = []
+        const segDur = Math.max(1, Math.floor((Date.now() - segmentStartedAtRef.current) / 1000))
+
+        if (pendingSegmentRotationRef.current) {
+          pendingSegmentRotationRef.current = false
+          recordingSegmentsRef.current.push({ blob, durationSec: segDur })
+          toast({ title: mrRef.current.segmentRotatedToast })
+          const s = streamRef.current
+          if (!s) {
+            setRecording(false)
+            return
+          }
+          const rec2 = new MediaRecorder(s, { mimeType: mimeRef.current })
+          recorderRef.current = rec2
+          rec2.ondataavailable = (e) => {
+            if (e.data.size > 0) chunksRef.current.push(e.data)
+          }
+          rec2.onstop = onRecorderStop
+          segmentStartedAtRef.current = Date.now()
+          rec2.start(250)
+          return
+        }
+
+        recordingSegmentsRef.current.push({ blob, durationSec: segDur })
+        const all = [...recordingSegmentsRef.current]
+        recordingSegmentsRef.current = []
+        void finalizeRecordingSession(all)
+      }
+
       const rec = new MediaRecorder(stream, { mimeType: mimeRef.current })
       recorderRef.current = rec
       rec.ondataavailable = (e) => {
         if (e.data.size > 0) chunksRef.current.push(e.data)
       }
-      rec.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: mimeRef.current })
-        setAudioBlob(blob)
-        setAudioUrl(URL.createObjectURL(blob))
-        const dur = (Date.now() - startedAtRef.current) / 1000
-        const clamped = Math.min(
-          MEETING_REPORT_MAX_DURATION_SECONDS,
-          Math.max(1, Math.floor(dur))
-        )
-        setDurationSec(clamped)
-        setRecording(false)
-        stopTracks()
-        void saveRecordingToServer(blob, clamped)
-      }
-      startedAtRef.current = Date.now()
+      rec.onstop = onRecorderStop
+      segmentStartedAtRef.current = Date.now()
       rec.start(250)
       setRecording(true)
+
+      silenceMsRef.current = 0
+      try {
+        const AC =
+          typeof window !== 'undefined' &&
+          (window.AudioContext ||
+            (
+              window as unknown as {
+                webkitAudioContext?: typeof AudioContext
+              }
+            ).webkitAudioContext)
+        if (AC) {
+          const audioCtx = new AC()
+          audioContextRef.current = audioCtx
+          await audioCtx.resume()
+          const source = audioCtx.createMediaStreamSource(stream)
+          const analyser = audioCtx.createAnalyser()
+          analyser.fftSize = 2048
+          analyser.smoothingTimeConstant = 0.88
+          source.connect(analyser)
+          const buf = new Uint8Array(analyser.frequencyBinCount)
+          silenceMonitorIntervalRef.current = window.setInterval(() => {
+            const recInst = recorderRef.current
+            if (!recInst || recInst.state !== 'recording') return
+            analyser.getByteTimeDomainData(buf)
+            let sum = 0
+            for (let i = 0; i < buf.length; i++) {
+              const x = (buf[i]! - 128) / 128
+              sum += x * x
+            }
+            const rms = Math.sqrt(sum / buf.length)
+            if (rms >= MEETING_RECORDING_VOICE_RMS_THRESHOLD) {
+              silenceMsRef.current = 0
+            } else {
+              silenceMsRef.current += MEETING_RECORDING_SILENCE_CHECK_MS
+              if (silenceMsRef.current >= MEETING_RECORDING_SILENCE_AUTO_STOP_MS) {
+                clearSilenceMonitor()
+                toast({ title: mrRef.current.autoStoppedBySilence })
+                stopRecordingRef.current?.()
+              }
+            }
+          }, MEETING_RECORDING_SILENCE_CHECK_MS)
+        }
+      } catch {
+        // Ghi âm vẫn chạy; chỉ không có tự dừng theo im lặng
+      }
     } catch {
       toast({ title: mr.micError, variant: 'destructive' })
+      clearSilenceMonitor()
       stopTracks()
       setRecording(false)
     }
-  }, [mr.micError, revokeAudioUrl, saveRecordingToServer, stopTracks, toast])
+  }, [clearSilenceMonitor, finalizeRecordingSession, mr.micError, revokeAudioUrl, stopTracks, toast])
 
   const stopRecording = useCallback(() => {
+    clearSilenceMonitor()
+    discardSessionRef.current = false
     const rec = recorderRef.current
     if (rec && rec.state !== 'inactive') {
       try {
@@ -225,10 +389,13 @@ export default function GhiAmBaoCaoCuocHopClientPage() {
     } else {
       stopRecordingInternal()
     }
-  }, [stopRecordingInternal])
+  }, [clearSilenceMonitor, stopRecordingInternal])
+
+  stopRecordingRef.current = stopRecording
 
   useEffect(() => {
     return () => {
+      discardSessionRef.current = true
       stopRecordingInternal()
       if (audioUrl) URL.revokeObjectURL(audioUrl)
     }
@@ -240,7 +407,7 @@ export default function GhiAmBaoCaoCuocHopClientPage() {
       return
     }
     const tick = () => {
-      const sec = Math.floor((Date.now() - startedAtRef.current) / 1000)
+      const sec = Math.floor((Date.now() - sessionStartedAtRef.current) / 1000)
       setLiveElapsedSec(Math.min(Math.max(0, sec), MEETING_REPORT_MAX_DURATION_SECONDS))
     }
     tick()
@@ -248,16 +415,39 @@ export default function GhiAmBaoCaoCuocHopClientPage() {
     return () => window.clearInterval(id)
   }, [recording])
 
+  useEffect(() => {
+    if (!recording) return
+    const id = window.setInterval(() => {
+      const recInst = recorderRef.current
+      if (!recInst || recInst.state !== 'recording') return
+      const totalMs = Date.now() - sessionStartedAtRef.current
+      if (totalMs >= MEETING_REPORT_MAX_DURATION_SECONDS * 1000) {
+        pendingSegmentRotationRef.current = false
+        stopRecordingRef.current?.()
+        return
+      }
+      if (Date.now() - segmentStartedAtRef.current < MEETING_REPORT_TRANSCRIBE_CHUNK_SECONDS * 1000) return
+      pendingSegmentRotationRef.current = true
+      try {
+        recInst.stop()
+      } catch {
+        pendingSegmentRotationRef.current = false
+      }
+    }, 1000)
+    return () => window.clearInterval(id)
+  }, [recording])
+
   const billedPreview = useMemo(() => {
     if (!audioBlob || durationSec < 1) return { dur: 0, cost: 0 }
-    const dur = capMeetingDurationByFileSize(audioBlob.size, durationSec)
+    const bytes = bytesForBillingCap > 0 ? bytesForBillingCap : audioBlob.size
+    const dur = capMeetingDurationByFileSize(bytes, durationSec)
     return { dur, cost: computeMeetingReportCredits(dur) }
-  }, [audioBlob, durationSec])
+  }, [audioBlob, bytesForBillingCap, durationSec])
 
   const canGenerateReport =
     Boolean(audioBlob && durationSec >= 1) &&
     !savingServer &&
-    (Boolean(serverRecordingId) || saveFailed)
+    (serverRecordingIds.length > 0 || saveFailed)
 
   const generateReport = useCallback(() => {
     if (!audioBlob || durationSec < 1) {
@@ -268,22 +458,27 @@ export default function GhiAmBaoCaoCuocHopClientPage() {
       toast({ title: mr.savingRecording, variant: 'destructive' })
       return
     }
-    if (!serverRecordingId && !saveFailed) {
+    if (serverRecordingIds.length === 0 && !saveFailed) {
       toast({ title: mr.needServerRecording, variant: 'destructive' })
       return
     }
-    if (audioBlob.size > MEETING_REPORT_MAX_FILE_BYTES) {
+    if (
+      serverRecordingIds.length === 0 &&
+      audioBlob.size > MEETING_REPORT_MAX_FILE_BYTES
+    ) {
       toast({ title: mr.fileTooLarge, variant: 'destructive' })
       return
     }
 
-    const cost = billedPreview.cost
-    checkCreditsAndProceed(cost, async () => {
+    const capBytes = bytesForBillingCap > 0 ? bytesForBillingCap : audioBlob.size
+    const billedDurationAtClick = capMeetingDurationByFileSize(capBytes, durationSec)
+    const costAtClick = computeMeetingReportCredits(billedDurationAtClick)
+    checkCreditsAndProceed(costAtClick, async () => {
       setBusy(true)
       try {
         const fd = new FormData()
-        if (serverRecordingId) {
-          fd.append('recordingId', serverRecordingId)
+        if (serverRecordingIds.length > 0) {
+          fd.append('recordingIds', JSON.stringify(serverRecordingIds))
         } else {
           fd.append('audio', audioBlob, 'meeting.webm')
           fd.append('durationSeconds', String(durationSec))
@@ -298,6 +493,7 @@ export default function GhiAmBaoCaoCuocHopClientPage() {
         const data = (await res.json().catch(() => ({}))) as {
           error?: string
           reportMarkdown?: string
+          reportBriefMarkdown?: string
           transcript?: string
         }
 
@@ -311,6 +507,7 @@ export default function GhiAmBaoCaoCuocHopClientPage() {
         }
 
         setReportMd(data.reportMarkdown || '')
+        setReportBriefMd(data.reportBriefMarkdown || '')
         setTranscript(data.transcript || '')
         window.dispatchEvent(new Event('credits-updated'))
         await fetchCredits()
@@ -320,10 +517,10 @@ export default function GhiAmBaoCaoCuocHopClientPage() {
     })
   }, [
     audioBlob,
-    billedPreview.cost,
     checkCreditsAndProceed,
     durationSec,
     meetingTitle,
+    bytesForBillingCap,
     mr.fileTooLarge,
     mr.genericError,
     mr.insufficientCredits,
@@ -332,7 +529,7 @@ export default function GhiAmBaoCaoCuocHopClientPage() {
     mr.savingRecording,
     reportLocale,
     saveFailed,
-    serverRecordingId,
+    serverRecordingIds,
     savingServer,
     toast,
     fetchCredits,
@@ -374,16 +571,20 @@ export default function GhiAmBaoCaoCuocHopClientPage() {
     setAudioBlob(null)
     setDurationSec(0)
     setReportMd('')
+    setReportBriefMd('')
     setTranscript('')
-    setServerRecordingId(null)
+    setServerRecordingIds([])
+    setBytesForBillingCap(0)
     setSaveFailed(false)
     setSavingServer(false)
     chunksRef.current = []
+    lastSegmentsForRetryRef.current = []
   }
 
   const retryServerSave = () => {
-    if (!audioBlob || durationSec < 1) return
-    void saveRecordingToServer(audioBlob, durationSec)
+    const segs = lastSegmentsForRetryRef.current
+    if (segs.length < 1) return
+    void saveAllSegmentsToServer(segs)
   }
 
   const sessionNoteText = mr.sessionNote.replace('{days}', String(MEETING_RECORDING_RETENTION_DAYS))
@@ -412,6 +613,8 @@ export default function GhiAmBaoCaoCuocHopClientPage() {
         <CardContent className="space-y-4">
           <ul className="list-inside list-disc space-y-1 text-sm text-muted-foreground">
             <li>{mr.freeRecordingNote}</li>
+            <li>{mr.segmentAutoSplitNote}</li>
+            <li>{mr.silenceAutoStopNote}</li>
             <li>{mr.chargeNote}</li>
             <li>{sessionNoteText}</li>
           </ul>
@@ -434,7 +637,12 @@ export default function GhiAmBaoCaoCuocHopClientPage() {
                 {mr.startRecording}
               </Button>
             ) : (
-              <Button type="button" variant="destructive" onClick={stopRecording} className="gap-2">
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={() => setStopConfirmOpen(true)}
+                className="gap-2"
+              >
                 <Square className="h-4 w-4" />
                 {mr.stopRecording}
               </Button>
@@ -540,47 +748,85 @@ export default function GhiAmBaoCaoCuocHopClientPage() {
         </CardContent>
       </Card>
 
-      {(reportMd || transcript) && (
+      {(reportMd || reportBriefMd || transcript) && (
         <Card>
           <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0">
             <CardTitle className="text-lg">{mr.reportHeading}</CardTitle>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="gap-1"
-                onClick={() => void copyText(reportMd)}
-                disabled={!reportMd}
-              >
-                <Copy className="h-3.5 w-3.5" />
-                {mr.copy}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="gap-1"
-                onClick={() =>
-                  downloadBlobText(
-                    reportMd,
-                    `${meetingTitle.trim().slice(0, 40) || 'meeting'}-report.md`
-                  )
-                }
-                disabled={!reportMd}
-              >
-                <Download className="h-3.5 w-3.5" />
-                {mr.downloadMd}
-              </Button>
-              <Button type="button" variant="secondary" size="sm" className="gap-1" onClick={createNewMeeting}>
-                <Plus className="h-3.5 w-3.5" aria-hidden />
-                {mr.createNewMeeting}
-              </Button>
-            </div>
+            <Button type="button" variant="secondary" size="sm" className="gap-1" onClick={createNewMeeting}>
+              <Plus className="h-3.5 w-3.5" aria-hidden />
+              {mr.createNewMeeting}
+            </Button>
           </CardHeader>
-          <CardContent className="space-y-6">
+          <CardContent className="space-y-8">
+            {reportBriefMd ? (
+              <div className="space-y-3 rounded-lg border border-primary/25 bg-primary/[0.06] p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="text-sm font-semibold text-primary">{mr.briefReportHeading}</h3>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="gap-1 bg-background/80"
+                      onClick={() => void copyText(reportBriefMd)}
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                      {mr.copy}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="gap-1 bg-background/80"
+                      onClick={() =>
+                        downloadBlobText(
+                          reportBriefMd,
+                          `${meetingTitle.trim().slice(0, 40) || 'meeting'}-brief.md`
+                        )
+                      }
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                      {mr.downloadBriefMd}
+                    </Button>
+                  </div>
+                </div>
+                <pre className="max-h-64 overflow-auto whitespace-pre-wrap text-sm leading-relaxed text-foreground">
+                  {reportBriefMd}
+                </pre>
+              </div>
+            ) : null}
             {reportMd ? (
-              <div className="space-y-2">
+              <div className="space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="text-sm font-semibold">{mr.fullReportHeading}</h3>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="gap-1"
+                      onClick={() => void copyText(reportMd)}
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                      {mr.copy}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="gap-1"
+                      onClick={() =>
+                        downloadBlobText(
+                          reportMd,
+                          `${meetingTitle.trim().slice(0, 40) || 'meeting'}-report.md`
+                        )
+                      }
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                      {mr.downloadMd}
+                    </Button>
+                  </div>
+                </div>
                 <pre className="max-h-[480px] overflow-auto whitespace-pre-wrap rounded-md bg-muted/50 p-4 text-sm leading-relaxed">
                   {reportMd}
                 </pre>
@@ -605,6 +851,28 @@ export default function GhiAmBaoCaoCuocHopClientPage() {
           </CardContent>
         </Card>
       )}
+
+      <AlertDialog open={stopConfirmOpen} onOpenChange={setStopConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{mr.stopRecordingConfirmTitle}</AlertDialogTitle>
+            <AlertDialogDescription>{mr.stopRecordingConfirmDescription}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel type="button">{mr.stopRecordingConfirmContinue}</AlertDialogCancel>
+            <AlertDialogAction
+              type="button"
+              className={cn(buttonVariants({ variant: 'destructive' }))}
+              onClick={() => {
+                setStopConfirmOpen(false)
+                stopRecording()
+              }}
+            >
+              {mr.stopRecordingConfirmOk}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Toaster />
     </div>

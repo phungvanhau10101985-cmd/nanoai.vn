@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
       const correctIndex = Math.max(0, Math.min(q.correctIndex ?? 0, 3))
       const quiz = { question: q.question, options: opts, correctIndex }
 
-      const verifyResult = await verifyQuizWithDeepSeek(fullContent, quiz)
+      const verifyResult = await verifyQuizWithDeepSeek(fullContent, quiz, userId ?? null)
       let finalQuiz = quiz
       if (verifyResult && !verifyResult.verified && (verifyResult.question || verifyResult.options || typeof verifyResult.correctIndex === 'number')) {
         if (verifyResult.question) finalQuiz = { ...finalQuiz, question: verifyResult.question }
@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
           finalQuiz = { ...finalQuiz, correctIndex: verifyResult.correctIndex }
         }
       } else if (verifyResult && !verifyResult.verified) {
-        const fixed = await fixQuizWhenVerifyFailed(fullContent, quiz)
+        const fixed = await fixQuizWhenVerifyFailed(fullContent, quiz, userId ?? null)
         if (fixed) finalQuiz = fixed
         else
           return NextResponse.json({
@@ -124,7 +124,7 @@ export async function POST(req: NextRequest) {
       if (verifyResult.problem) finalEssay = { ...finalEssay, problem: verifyResult.problem }
       if (verifyResult.solution) finalEssay = { ...finalEssay, solution: normalizeSolutionToStr(verifyResult.solution) || verifyResult.solution }
     } else if (verifyResult && !verifyResult.verified) {
-      const fixed = await fixEssayWhenVerifyFailed(fullContent, { problem, solution })
+      const fixed = await fixEssayWhenVerifyFailed(fullContent, { problem, solution }, userId ?? null)
       if (fixed) finalEssay = fixed
       else
         return NextResponse.json({

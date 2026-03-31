@@ -595,12 +595,6 @@ export default function TaoBaiHatLyria3ClientPage() {
             <Link href="#lyria3-saved-music" className="text-indigo-600 hover:underline">
               {tr('Bài đã lưu (Lyria 3)', 'Saved Lyria 3 tracks', '已保存的 Lyria 3', '保存済み Lyria 3', '저장된 Lyria 3')}
             </Link>
-            <span aria-hidden className="text-slate-300">
-              ·
-            </span>
-            <Link href="/nhac-nen-ai#music-history" className="text-indigo-600 hover:underline">
-              {tr('Lịch sử nhạc realtime', 'Realtime music history', '实时音乐历史', 'リアルタイム履歴', '실시간 음악 기록')}
-            </Link>
           </p>
         </div>
 

@@ -4,6 +4,7 @@
  */
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
+import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { normalizeSolutionToStr } from '@/app/tao-giao-trinh/lib/worksheet-content-json'
 
 const QUIZ_VERIFY_PROMPT = `Đối chiếu GIÁO TRÌNH với câu hỏi trắc nghiệm đã có. Nếu SAI – BẮT BUỘC trả về các trường đã sửa theo đúng tài liệu. Sai ở đâu sửa ở đó, KHÔNG tạo câu mới, KHÔNG lấy câu khác từ giáo trình – chỉ sửa đúng câu đã cho.
@@ -98,7 +99,8 @@ function parseEssayVerify(raw: string): { verified: boolean; needsImage?: boolea
 /** Verify câu trắc nghiệm bằng Gemini 2.5 Flash (giữ tên hàm cũ để tương thích). */
 export async function verifyQuizWithDeepSeek(
   curriculum: string,
-  q: { question: string; options: string[]; correctIndex: number }
+  q: { question: string; options: string[]; correctIndex: number },
+  userId?: string | null
 ): Promise<{ verified: boolean; needsImage?: boolean; correctIndex?: number; question?: string; options?: string[] } | null> {
   const apiKey = process.env.GOOGLE_API_KEY?.trim()
   if (!apiKey) return null
@@ -117,6 +119,12 @@ export async function verifyQuizWithDeepSeek(
     generationConfig: { temperature: 0, responseMimeType: 'application/json' },
   })
   const result = await model.generateContent(prompt)
+  void trackFromUsageMetadata(
+    result.response.usageMetadata,
+    GEMINI_25_FLASH_NO_THINKING.model,
+    'worksheet-verify-oneshot-quiz-flash',
+    userId ?? null
+  )
   const raw = result.response.text()?.trim() || ''
   return raw ? parseQuizVerify(raw) : null
 }
@@ -125,7 +133,8 @@ export async function verifyQuizWithDeepSeek(
 export async function verifyEssayWithDeepSeek(
   curriculum: string,
   problem: string,
-  solution: string
+  solution: string,
+  userId?: string | null
 ): Promise<{ verified: boolean; needsImage?: boolean; reason?: string; problem?: string; solution?: string } | null> {
   const apiKey = process.env.GOOGLE_API_KEY?.trim()
   if (!apiKey) return null
@@ -138,6 +147,12 @@ export async function verifyEssayWithDeepSeek(
     generationConfig: { temperature: 0, responseMimeType: 'application/json' },
   })
   const result = await model.generateContent(prompt)
+  void trackFromUsageMetadata(
+    result.response.usageMetadata,
+    GEMINI_25_FLASH_NO_THINKING.model,
+    'worksheet-verify-oneshot-essay-flash',
+    userId ?? null
+  )
   const raw = result.response.text()?.trim() || ''
   return raw ? parseEssayVerify(raw) : null
 }
@@ -145,7 +160,8 @@ export async function verifyEssayWithDeepSeek(
 /** Verify câu trắc nghiệm bằng Gemini 2.5 Flash – dùng để xác minh lại khi cần. */
 export async function verifyQuizWithGemini(
   curriculum: string,
-  q: { question: string; options: string[]; correctIndex: number }
+  q: { question: string; options: string[]; correctIndex: number },
+  userId?: string | null
 ): Promise<{ verified: boolean; correctIndex?: number; question?: string; options?: string[] } | null> {
   const apiKey = process.env.GOOGLE_API_KEY?.trim()
   if (!apiKey) return null
@@ -164,6 +180,12 @@ export async function verifyQuizWithGemini(
     generationConfig: { temperature: 0, responseMimeType: 'application/json' },
   })
   const result = await model.generateContent(prompt)
+  void trackFromUsageMetadata(
+    result.response.usageMetadata,
+    GEMINI_25_FLASH_NO_THINKING.model,
+    'worksheet-verify-oneshot-quiz-flash',
+    userId ?? null
+  )
   const raw = result.response.text()?.trim() || ''
   return raw ? parseQuizVerify(raw) : null
 }
@@ -172,7 +194,8 @@ export async function verifyQuizWithGemini(
 export async function verifyEssayWithGemini(
   curriculum: string,
   problem: string,
-  solution: string
+  solution: string,
+  userId?: string | null
 ): Promise<{ verified: boolean; problem?: string; solution?: string } | null> {
   const apiKey = process.env.GOOGLE_API_KEY?.trim()
   if (!apiKey) return null
@@ -185,6 +208,12 @@ export async function verifyEssayWithGemini(
     generationConfig: { temperature: 0, responseMimeType: 'application/json' },
   })
   const result = await model.generateContent(prompt)
+  void trackFromUsageMetadata(
+    result.response.usageMetadata,
+    GEMINI_25_FLASH_NO_THINKING.model,
+    'worksheet-verify-oneshot-essay-flash',
+    userId ?? null
+  )
   const raw = result.response.text()?.trim() || ''
   return raw ? parseEssayVerify(raw) : null
 }
@@ -193,7 +222,8 @@ export async function verifyEssayWithGemini(
 export async function verifyQuizWithGeminiVision(
   curriculum: string,
   q: { question: string; options: string[]; correctIndex: number },
-  imageParts: Array<{ inlineData: { data: string; mimeType: string } }>
+  imageParts: Array<{ inlineData: { data: string; mimeType: string } }>,
+  userId?: string | null
 ): Promise<{ verified: boolean; correctIndex?: number; question?: string; options?: string[] } | null> {
   const apiKey = process.env.GOOGLE_API_KEY?.trim()
   if (!apiKey || imageParts.length === 0) return null
@@ -225,6 +255,12 @@ Trả về JSON: {"verified":boolean,"correctIndex":0-3,"question":"...","option
     generationConfig: { temperature: 0, responseMimeType: 'application/json' },
   })
   const result = await model.generateContent([prompt, ...imageParts])
+  void trackFromUsageMetadata(
+    result.response.usageMetadata,
+    GEMINI_25_FLASH_NO_THINKING.model,
+    'worksheet-verify-oneshot-quiz-vision-flash',
+    userId ?? null
+  )
   const raw = result.response.text()?.trim() || ''
   return raw ? parseQuizVerify(raw) : null
 }
@@ -234,7 +270,8 @@ export async function verifyEssayWithGeminiVision(
   curriculum: string,
   problem: string,
   solution: string,
-  imageParts: Array<{ inlineData: { data: string; mimeType: string } }>
+  imageParts: Array<{ inlineData: { data: string; mimeType: string } }>,
+  userId?: string | null
 ): Promise<{ verified: boolean; problem?: string; solution?: string } | null> {
   const apiKey = process.env.GOOGLE_API_KEY?.trim()
   if (!apiKey || imageParts.length === 0) return null
@@ -269,6 +306,12 @@ Trả về JSON: {"verified":boolean,"problem":"...","solution":"..."}`
     generationConfig: { temperature: 0, responseMimeType: 'application/json' },
   })
   const result = await model.generateContent([prompt, ...imageParts])
+  void trackFromUsageMetadata(
+    result.response.usageMetadata,
+    GEMINI_25_FLASH_NO_THINKING.model,
+    'worksheet-verify-oneshot-essay-vision-flash',
+    userId ?? null
+  )
   const raw = result.response.text()?.trim() || ''
   return raw ? parseEssayVerify(raw) : null
 }

@@ -6,6 +6,8 @@
 import { NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
+import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
+import { createClient } from '@/lib/supabase/server'
 
 const PROMPT_QUIZ = `Bạn là chuyên gia kiểm tra phiếu bài tập toán. Phân tích câu trắc nghiệm dưới đây.
 
@@ -93,6 +95,10 @@ function parseResponse(text: string): { issues: Array<{ field: string; location:
 
 export async function POST(req: Request) {
   try {
+    const supabase = createClient()
+    const { data: { user: authUser } } = await supabase.auth.getUser()
+    const userId = authUser?.id ?? null
+
     const apiKey = process.env.GOOGLE_API_KEY?.trim()
     if (!apiKey) {
       return NextResponse.json({ error: 'Thiếu GOOGLE_API_KEY.' }, { status: 500 })
@@ -143,6 +149,12 @@ export async function POST(req: Request) {
     const genAI = new GoogleGenerativeAI(apiKey)
     const model = genAI.getGenerativeModel(GEMINI_25_FLASH_NO_THINKING as { model: 'gemini-2.5-flash' })
     const result = imageParts.length > 0 ? await model.generateContent([prompt, ...imageParts]) : await model.generateContent(prompt)
+    void trackFromUsageMetadata(
+      result.response.usageMetadata,
+      GEMINI_25_FLASH_NO_THINKING.model,
+      'worksheet-edit-check-gemini-flash',
+      userId
+    )
     const text = result.response.text()?.trim() ?? ''
     const parsed = parseResponse(text)
 

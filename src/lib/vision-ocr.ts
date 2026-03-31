@@ -5,7 +5,7 @@
  */
 
 import sharp from 'sharp'
-import { visionAnnotate } from './vision-api'
+import { visionAnnotate, type VisionUsageLog } from './vision-api'
 
 export interface TextWithBbox {
   text: string
@@ -100,12 +100,18 @@ export interface DocumentOcrResult {
  * Dùng DOCUMENT_TEXT_DETECTION (chính xác hơn TEXT_DETECTION cho tài liệu).
  * Tự resize nếu ảnh quá lớn (tránh vượt giới hạn Vision API).
  */
-export async function documentOcr(imageBuffer: Buffer): Promise<TextWithBbox[]> {
-  const out = await documentOcrWithScale(imageBuffer)
+export async function documentOcr(
+  imageBuffer: Buffer,
+  usage?: VisionUsageLog | null
+): Promise<TextWithBbox[]> {
+  const out = await documentOcrWithScale(imageBuffer, usage)
   return out.results
 }
 
-export async function documentOcrWithScale(imageBuffer: Buffer): Promise<DocumentOcrResult> {
+export async function documentOcrWithScale(
+  imageBuffer: Buffer,
+  usage?: VisionUsageLog | null
+): Promise<DocumentOcrResult> {
   try {
   let buf = imageBuffer
   const meta = await sharp(buf).metadata()
@@ -133,9 +139,7 @@ export async function documentOcrWithScale(imageBuffer: Buffer): Promise<Documen
     console.log('[documentOcr] Resize ảnh để OCR:', imgW, 'x', imgH, '| buf:', Math.round(buf.length / 1024), 'KB')
   }
 
-  const data = await visionAnnotate(buf, [
-    { type: 'DOCUMENT_TEXT_DETECTION', maxResults: 1 },
-  ]) as {
+  const data = await visionAnnotate(buf, [{ type: 'DOCUMENT_TEXT_DETECTION', maxResults: 1 }], usage ?? null) as {
     responses?: Array<{
       fullTextAnnotation?: {
         pages?: Array<{ blocks?: Array<{ paragraphs?: unknown[] }> }>

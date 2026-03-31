@@ -99,16 +99,16 @@ export async function POST(req: NextRequest) {
     const reportCount = existing ? (existing.report_count ?? 1) + 1 : 1
 
     if (reportCount === 1) {
-      const check = await checkQuizWrongWithGemini(fullContent, quizData)
+      const check = await checkQuizWrongWithGemini(fullContent, quizData, user!.id)
       if (!check) {
         return NextResponse.json({ error: 'Không thể kiểm tra (thiếu API key).' }, { status: 500 })
       }
       if (check.isWrong) {
-        const created = await createQuizWithGemini(fullContent)
+        const created = await createQuizWithGemini(fullContent, user!.id)
         if (!created) {
           return NextResponse.json({ error: 'AI không tạo được câu mới.' }, { status: 500 })
         }
-        const verified = await verifyQuizWithAI(fullContent, created.quiz)
+        const verified = await verifyQuizWithAI(fullContent, created.quiz, user!.id)
         const finalQuiz = verified && !verified.verified && typeof verified.correctIndex === 'number' && verified.correctIndex >= 0 && verified.correctIndex <= 3
           ? { ...created.quiz, correctIndex: verified.correctIndex }
           : created.quiz
@@ -157,16 +157,16 @@ export async function POST(req: NextRequest) {
     }
 
     if (reportCount === 2) {
-      const check = await checkQuizWrongWithGPT(fullContent, quizData)
+      const check = await checkQuizWrongWithGPT(fullContent, quizData, user!.id)
       if (!check) {
         return NextResponse.json({ error: 'Không thể kiểm tra (thiếu OPENAI_API_KEY).' }, { status: 500 })
       }
       if (check.isWrong) {
-        const created = await createQuizWithGPT(fullContent)
+        const created = await createQuizWithGPT(fullContent, user!.id)
         if (!created) {
           return NextResponse.json({ error: 'GPT không tạo được câu mới.' }, { status: 500 })
         }
-        const verified = await verifyQuizWithAI(fullContent, created.quiz)
+        const verified = await verifyQuizWithAI(fullContent, created.quiz, user!.id)
         const finalQuiz = verified && !verified.verified && typeof verified.correctIndex === 'number' && verified.correctIndex >= 0 && verified.correctIndex <= 3
           ? { ...created.quiz, correctIndex: verified.correctIndex }
           : created.quiz

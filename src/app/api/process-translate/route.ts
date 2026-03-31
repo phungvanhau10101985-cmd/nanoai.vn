@@ -220,6 +220,7 @@ async function handleProcessTranslate(request: NextRequest) {
     sourceLang2,
     targetLang,
     logPrefix: `[process-translate] job=${resolvedJobId}`,
+    userId,
   })
 
   const resultPath = `results/${userId}/translate_bg_${Date.now()}.png`

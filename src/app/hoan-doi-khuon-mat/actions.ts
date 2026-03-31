@@ -193,7 +193,7 @@ export async function faceSwap(formData: FormData) {
     if (swapMode === 'single') {
       if (!faceBuffer) throw new Error('Thiếu ảnh khuôn mặt nguồn.')
 
-      const croppedSourceFace = await extractFaceFromSourceImage(faceBuffer)
+      const croppedSourceFace = await extractFaceFromSourceImage(faceBuffer, user.id)
       if (!croppedSourceFace) {
         await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
         return { error: 'Vision OCR không phát hiện được khuôn mặt rõ trên ảnh nguồn. Vui lòng chọn ảnh có 1 mặt rõ hơn.' }
@@ -233,8 +233,8 @@ ${NO_TEXT}`
     } else {
       if (!faceBufferLeft || !faceBufferRight) throw new Error('Thiếu ảnh khuôn mặt trái/phải.')
 
-      const croppedLeftFace = await extractFaceFromSourceImage(faceBufferLeft)
-      const croppedRightFace = await extractFaceFromSourceImage(faceBufferRight)
+      const croppedLeftFace = await extractFaceFromSourceImage(faceBufferLeft, user.id)
+      const croppedRightFace = await extractFaceFromSourceImage(faceBufferRight, user.id)
       if (!croppedLeftFace) {
         await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
         return { error: 'Vision OCR không phát hiện mặt trong ảnh nguồn bên trái. Vui lòng chọn ảnh rõ mặt hơn.' }
@@ -244,7 +244,7 @@ ${NO_TEXT}`
         return { error: 'Vision OCR không phát hiện mặt trong ảnh nguồn bên phải. Vui lòng chọn ảnh rõ mặt hơn.' }
       }
 
-      const targetFaces = await detectFacesInTargetImage(targetBuffer, 2)
+      const targetFaces = await detectFacesInTargetImage(targetBuffer, 2, user.id)
       if (targetFaces.length < 2) {
         await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
         return { error: 'Ảnh đích không nhận đủ 2 khuôn mặt (trái/phải). Vui lòng chọn ảnh có 2 người rõ mặt.' }

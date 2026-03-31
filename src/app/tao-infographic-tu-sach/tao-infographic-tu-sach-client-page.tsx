@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { createInfographicFromBook } from './actions'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
-import { Upload, Sparkles, RefreshCw, X, ImagePlus } from 'lucide-react'
+import { Upload, Sparkles, RefreshCw, X, ImagePlus, Camera } from 'lucide-react'
 import { DepositCreditButton } from '@/components/deposit-credit-button'
 import { useCredits } from '@/hooks/use-credits'
 import { DownloadImageButton } from '@/components/download-image-button'
@@ -16,11 +16,12 @@ import { ImagePreview } from '@/components/ui/image-preview'
 import { ImageProcessingLoader } from '@/components/image-processing-loader'
 import { preloadImageUrl } from '@/lib/preload-image-url'
 import { cn } from '@/lib/utils'
+import { MAX_BOOK_PAGE_IMAGES } from './infographic-limits'
 
 type Step = 'UPLOAD' | 'GENERATING' | 'RESULT'
 type UiLocale = 'vi' | 'en' | 'zh' | 'ja' | 'ko'
 
-const MAX_BOOK_FILES = 6
+const MAX_BOOK_FILES = MAX_BOOK_PAGE_IMAGES
 const MAX_CONTENT_TEXT = 28000
 const MAX_EDGE_PX = 1400
 
@@ -90,6 +91,7 @@ export default function TaoInfographicTuSachClientPage() {
   const [resultUrl, setResultUrl] = useState<string | null>(null)
   const [resultSummary, setResultSummary] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const cameraInputRef = useRef<HTMLInputElement>(null)
   const { toast } = useToast()
   const { checkCreditsAndProceed } = useCredits()
   const cost = 1.5
@@ -275,6 +277,14 @@ export default function TaoInfographicTuSachClientPage() {
                   {tr('Ảnh trang sách / tài liệu (tuỳ chọn)', 'Textbook photos (optional)', '教材页照片（可选）', '教科書の写真（任意）', '교과서 사진(선택)')}
                 </h4>
                 <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleFiles} />
+                <input
+                  ref={cameraInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="hidden"
+                  onChange={handleFiles}
+                />
                 <div className="flex flex-wrap items-center gap-2">
                   <Button
                     type="button"
@@ -287,10 +297,30 @@ export default function TaoInfographicTuSachClientPage() {
                     <ImagePlus className="h-4 w-4" />
                     {tr('Thêm ảnh', 'Add images', '添加图片', '画像を追加', '이미지 추가')}
                   </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={bookSlots.length >= MAX_BOOK_FILES}
+                    onClick={() => cameraInputRef.current?.click()}
+                    className="gap-1.5"
+                  >
+                    <Camera className="h-4 w-4" />
+                    {tr('Chụp ảnh', 'Take photo', '拍照', 'カメラで撮影', '사진 촬영')}
+                  </Button>
                   <span className="text-xs text-muted-foreground">
                     {bookSlots.length}/{MAX_BOOK_FILES}
                   </span>
                 </div>
+                <p className="text-[11px] text-muted-foreground leading-snug">
+                  {tr(
+                    'Trên điện thoại, «Chụp ảnh» mở camera sau; trên máy tính có thể mở hộp chọn file.',
+                    'On phones, «Take photo» opens the rear camera; on desktop it may open the file picker.',
+                    '手机上「拍照」通常打开后置摄像头；电脑上可能打开文件选择。',
+                    'スマホでは「カメラで撮影」で背面カメラ。PCではファイル選択になる場合があります。',
+                    '휴대폰에서는 «사진 촬영»이 후면 카메라를 엽니다. PC에서는 파일 선택이 될 수 있습니다.'
+                  )}
+                </p>
                 {bookSlots.length > 0 ? (
                   <div className="flex flex-wrap gap-2">
                     {bookSlots.map((s) => (

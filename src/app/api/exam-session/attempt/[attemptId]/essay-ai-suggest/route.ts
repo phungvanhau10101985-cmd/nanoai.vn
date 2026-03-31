@@ -5,6 +5,7 @@ import { getUserForAction } from '@/lib/auth'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { parseExamGradingMeta } from '@/lib/exam-feedback'
 import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
+import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { isPublicExamEssayImageUrl } from '@/lib/exam-essay-config'
 import { getEssaySolution } from '@/app/tao-giao-trinh/lib/worksheet-content-json'
 
@@ -219,6 +220,13 @@ Trả về ĐÚNG một JSON, không markdown, không text ngoài JSON:
     const genAI = new GoogleGenerativeAI(apiKey)
     const model = genAI.getGenerativeModel(GEMINI_25_FLASH_NO_THINKING)
     const result = await model.generateContent(parts)
+    void trackFromUsageMetadata(
+      result.response.usageMetadata,
+      GEMINI_25_FLASH_NO_THINKING.model,
+      'exam-essay-ai-suggest',
+      user.id,
+      null
+    )
     const outText = result.response.text()
     const parsed = safeParseAi(outText)
     if (!parsed) {

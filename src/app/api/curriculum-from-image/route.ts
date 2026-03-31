@@ -4,6 +4,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_PRO } from '@/lib/gemini-config'
 import { createClient } from '@/lib/supabase/server'
 import { CurriculumApiFeature, trackCurriculumGeminiResult } from '@/lib/curriculum-api-usage'
+import { trackApiUsage } from '@/lib/track-ai-usage'
 import {
   CURRICULUM_AI_CHARGE_TYPES,
   curriculumAiAdminClient,
@@ -74,7 +75,11 @@ function isGeminiTransientForOpenAIFallback(err: unknown): boolean {
   )
 }
 
-async function generateCurriculumJsonTextWithOpenAI(prompt: string, images: ImagePartForAi[]): Promise<string> {
+async function generateCurriculumJsonTextWithOpenAI(
+  prompt: string,
+  images: ImagePartForAi[],
+  userId: string | null
+): Promise<string> {
   const openaiKey = process.env.OPENAI_API_KEY?.trim()
   if (!openaiKey) throw new Error('Thiếu OPENAI_API_KEY cho fallback.')
 
@@ -116,13 +121,34 @@ async function generateCurriculumJsonTextWithOpenAI(prompt: string, images: Imag
   if (!res.ok) {
     throw new Error(`OpenAI ${res.status}: ${rawText.slice(0, 400)}`)
   }
-  let data: { choices?: Array<{ message?: { content?: string | null } }> }
+  let data: {
+    choices?: Array<{ message?: { content?: string | null } }>
+    usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number }
+  }
   try {
     data = JSON.parse(rawText) as typeof data
   } catch {
     throw new Error('OpenAI: phản hồi không phải JSON.')
   }
-  return String(data?.choices?.[0]?.message?.content ?? '').trim()
+  const content = String(data?.choices?.[0]?.message?.content ?? '').trim()
+  const u = data.usage
+  const promptChars = prompt.length + images.reduce((s, im) => s + im.base64.length / 1.35, 0)
+  const promptEst = Math.ceil(promptChars / 4)
+  const outEst = Math.ceil(content.length / 4) || 1
+  const promptTok = u?.prompt_tokens ?? promptEst
+  const outTok = u?.completion_tokens ?? outEst
+  const totalTok = u?.total_tokens ?? promptTok + outTok
+  if (totalTok > 0) {
+    void trackApiUsage({
+      userId,
+      model: modelId,
+      feature: 'curriculum-from-image-openai-fallback',
+      promptTokenCount: promptTok,
+      candidatesTokenCount: outTok,
+      totalTokenCount: Math.max(1, totalTok),
+    })
+  }
+  return content
 }
 
 function composeCurriculumMarkdownFromLessons(lessons: LessonOutlineItem[]): string {
@@ -287,7 +313,7 @@ Ràng buộc:
             CURRICULUM_FROM_IMAGE_OPENAI_MODEL,
             geminiError ? '(sau lỗi Gemini)' : '(không có GOOGLE_API_KEY hoặc Gemini trả rỗng)'
           )
-          text = await generateCurriculumJsonTextWithOpenAI(prompt, imageBuffers)
+          text = await generateCurriculumJsonTextWithOpenAI(prompt, imageBuffers, trackUserId)
         } catch (openaiErr) {
           const omsg = openaiErr instanceof Error ? openaiErr.message : String(openaiErr)
           console.error('[curriculum-from-image] OpenAI fallback thất bại:', omsg.slice(0, 500))

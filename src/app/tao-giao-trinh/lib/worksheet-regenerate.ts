@@ -4,6 +4,7 @@
  */
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_FLASH_NO_THINKING, GEMINI_25_PRO } from '@/lib/gemini-config'
+import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { normalizeSolutionToStr } from './worksheet-content-json'
 
 
@@ -84,16 +85,24 @@ export type RegenerateModel = 'flash' | 'pro'
 export async function regenerateQuiz(
   curriculum: string,
   topic: string,
-  model: RegenerateModel
+  model: RegenerateModel,
+  userId?: string | null
 ): Promise<{ question: string; options: string[]; correctIndex: number } | null> {
   const apiKey = process.env.GOOGLE_API_KEY
   if (!apiKey) return null
   const genAI = new GoogleGenerativeAI(apiKey)
+  const geminiModel = model === 'pro' ? GEMINI_25_PRO : GEMINI_25_FLASH_NO_THINKING
   const m = genAI.getGenerativeModel({
-    ...(model === 'pro' ? GEMINI_25_PRO : GEMINI_25_FLASH_NO_THINKING),
+    ...geminiModel,
     generationConfig: { temperature: 0.2, responseMimeType: 'application/json' },
   })
   const result = await m.generateContent(buildQuizPrompt(curriculum, topic))
+  void trackFromUsageMetadata(
+    result.response.usageMetadata,
+    geminiModel.model,
+    model === 'pro' ? 'worksheet-regenerate-quiz-gemini-pro' : 'worksheet-regenerate-quiz-gemini-flash',
+    userId ?? null
+  )
   const raw = result.response.text()?.trim() || ''
   return parseQuiz(raw)
 }
@@ -102,7 +111,8 @@ export async function regenerateQuiz(
 export async function regenerateEssay(
   curriculum: string,
   topic: string,
-  model: RegenerateModel
+  model: RegenerateModel,
+  userId?: string | null
 ): Promise<{ problem: string; solution: string } | null> {
   const apiKey = process.env.GOOGLE_API_KEY
   if (!apiKey) return null
@@ -113,6 +123,12 @@ export async function regenerateEssay(
     generationConfig: { temperature: 0.2, responseMimeType: 'application/json' },
   })
   const result = await m.generateContent(buildEssayPrompt(curriculum, topic))
+  void trackFromUsageMetadata(
+    result.response.usageMetadata,
+    geminiModel.model,
+    model === 'pro' ? 'worksheet-regenerate-essay-gemini-pro' : 'worksheet-regenerate-essay-gemini-flash',
+    userId ?? null
+  )
   const raw = result.response.text()?.trim() || ''
   return parseEssay(raw)
 }
@@ -120,7 +136,8 @@ export async function regenerateEssay(
 /** Sửa câu trắc nghiệm khi verify sai nhưng không trả về fix. Gọi thêm 1 lần với prompt "sửa". */
 export async function fixQuizWhenVerifyFailed(
   curriculum: string,
-  q: { question: string; options: string[]; correctIndex: number }
+  q: { question: string; options: string[]; correctIndex: number },
+  userId?: string | null
 ): Promise<{ question: string; options: string[]; correctIndex: number } | null> {
   const apiKey = process.env.GOOGLE_API_KEY
   if (!apiKey) return null
@@ -147,6 +164,12 @@ Trả về JSON: {"question":"...","options":["A","B","C","D"],"correctIndex":0|
     generationConfig: { temperature: 0, responseMimeType: 'application/json' },
   })
   const result = await m.generateContent(prompt)
+  void trackFromUsageMetadata(
+    result.response.usageMetadata,
+    GEMINI_25_PRO.model,
+    'worksheet-regenerate-fix-quiz-gemini-pro',
+    userId ?? null
+  )
   const raw = result.response.text()?.trim() || ''
   try {
     const p = JSON.parse(raw.replace(/^```\w*\n?|```\s*$/g, '').trim()) as { question?: string; options?: string[]; correctIndex?: number }
@@ -162,7 +185,8 @@ Trả về JSON: {"question":"...","options":["A","B","C","D"],"correctIndex":0|
 /** Sửa bài tự luận khi verify sai nhưng không trả về fix. */
 export async function fixEssayWhenVerifyFailed(
   curriculum: string,
-  e: { problem: string; solution: string }
+  e: { problem: string; solution: string },
+  userId?: string | null
 ): Promise<{ problem: string; solution: string } | null> {
   const apiKey = process.env.GOOGLE_API_KEY
   if (!apiKey) return null
@@ -192,6 +216,12 @@ Trả về JSON: {"problem":"...","solution":"..."}`
     generationConfig: { temperature: 0, responseMimeType: 'application/json' },
   })
   const result = await m.generateContent(prompt)
+  void trackFromUsageMetadata(
+    result.response.usageMetadata,
+    GEMINI_25_PRO.model,
+    'worksheet-regenerate-fix-essay-gemini-pro',
+    userId ?? null
+  )
   const raw = result.response.text()?.trim() || ''
   return parseEssay(raw)
 }

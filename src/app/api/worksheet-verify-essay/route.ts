@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyEssay } from '@/app/tao-giao-trinh/lib/worksheet-verify-essay'
+import { createClient } from '@/lib/supabase/server'
 
 /** Kiểm tra bài tự luận: đề có khớp lời giải không, công thức đúng không. */
 export async function POST(req: NextRequest) {
   try {
+    const supabase = createClient()
+    const { data: { user: authUser } } = await supabase.auth.getUser()
+    const userId = authUser?.id ?? null
+
     const body = await req.json().catch(() => ({}))
     const curriculumMarkdown = String(body?.curriculumMarkdown ?? '').trim()
     const problem = String(body?.problem ?? '').trim()
@@ -13,7 +18,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Thiếu đề hoặc lời giải.', verified: false }, { status: 400 })
     }
 
-    const result = await verifyEssay(curriculumMarkdown, problem, solution)
+    const result = await verifyEssay(curriculumMarkdown, problem, solution, userId)
     return NextResponse.json({
       verified: result.verified,
       reason: result.reason,

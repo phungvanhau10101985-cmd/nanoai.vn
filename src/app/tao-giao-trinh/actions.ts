@@ -9,6 +9,7 @@ import { getUserForAction } from '@/lib/auth'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_FLASH_NO_THINKING, GEMINI_25_PRO } from '@/lib/gemini-config'
 import { CurriculumApiFeature, trackCurriculumGeminiResult } from '@/lib/curriculum-api-usage'
+import { trackApiUsage } from '@/lib/track-ai-usage'
 import { questionsToMarkdown } from './lib/questions-to-markdown'
 import { parseWorksheetIntoBlocks } from './lib/worksheet-parse-questions'
 import { blocksToContentJson } from './lib/markdown-to-questions'
@@ -1972,7 +1973,7 @@ async function checkSlideRegionWithGemini(
   }
 }
 
-async function checkSlideRegionWithDeepSeek(prompt: string): Promise<RegionCompareLite | null> {
+async function checkSlideRegionWithDeepSeek(prompt: string, userId?: string | null): Promise<RegionCompareLite | null> {
   try {
     const apiKey = process.env.DEEPSEEK_API_KEY?.trim()
     if (!apiKey) return null
@@ -1990,8 +1991,28 @@ async function checkSlideRegionWithDeepSeek(prompt: string): Promise<RegionCompa
       }),
     })
     if (!res.ok) return null
-    const data = (await res.json().catch(() => ({}))) as { choices?: Array<{ message?: { content?: string } }> }
+    const data = (await res.json().catch(() => ({}))) as {
+      choices?: Array<{ message?: { content?: string } }>
+      usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number }
+    }
     const text = String(data?.choices?.[0]?.message?.content ?? '').trim()
+    const u = data.usage
+    const sysLen = 48
+    const promptEst = Math.ceil((sysLen + prompt.length) / 4)
+    const outEst = Math.ceil(text.length / 4) || 1
+    const promptTok = u?.prompt_tokens ?? promptEst
+    const outTok = u?.completion_tokens ?? outEst
+    const totalTok = u?.total_tokens ?? promptTok + outTok
+    if (totalTok > 0) {
+      void trackApiUsage({
+        userId: userId ?? null,
+        model,
+        feature: 'curriculum-slide-deepseek-verify',
+        promptTokenCount: promptTok,
+        candidatesTokenCount: outTok,
+        totalTokenCount: Math.max(1, totalTok),
+      })
+    }
     return parseRegionCompareLite(text)
   } catch {
     return null
@@ -2016,7 +2037,7 @@ async function verifySlideProposalByAI(params: {
   const genAI = new GoogleGenerativeAI(apiKey)
   const [r1, r2] = await Promise.all([
     checkSlideRegionWithGemini(genAI, prompt, params.userId ?? null),
-    checkSlideRegionWithDeepSeek(prompt),
+    checkSlideRegionWithDeepSeek(prompt, params.userId ?? null),
   ])
 
   const regionResult = r1 ?? r2

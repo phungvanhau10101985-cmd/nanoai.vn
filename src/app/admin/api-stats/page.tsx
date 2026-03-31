@@ -9,44 +9,15 @@ import { getCurrentWebLocale } from '@/lib/i18n/server'
 import { isEnglishCoachApiUsageFeature } from '@/lib/english-coach-api-usage'
 import { CREDIT_UNIT_PRICE_VND } from '@/lib/credit-unit-price'
 import { calcCostVnd, USD_TO_VND } from './api-cost'
-import { buildEnglishCoachFeatureLabelsForLogs, ENGLISH_COACH_API_STATS_FEATURE_LABELS } from './english-coach-feature-labels'
-import { CURRICULUM_API_STATS_FEATURE_LABELS } from './curriculum-feature-labels'
+import { mergeApiFeatureLabelsForLogs } from './api-stats-labels'
 import {
   aggregateEnglishCoachApiCostByLessonKind,
   aggregateLanguageCoachCredits,
 } from './language-coach-financials'
-
-const FEATURE_LABELS: Record<string, string> = {
-  'thu-do-online': 'Thử đồ ảo',
-  'thiet-ke-noi-ngoai-that': 'Thiết kế nội/ngoại thất',
-  'xay-nha-tu-dat-nen': 'Nhà của bạn',
-  'xay-nha-tu-dat-nen-synth': 'Xây nhà – tổng hợp prompt',
-  'xay-nha-tu-dat-nen-structural': 'Xây nhà – bản vẽ kết cấu',
-  'xay-nha-tu-dat-nen-floorplan': 'Xây nhà – bản vẽ chia phòng',
-  'thiet-ke-noi-ngoai-that-analyze': 'Phân tích nội thất',
-  'thiet-ke-noi-ngoai-that-process': 'Xử lý nội thất (dọn/staging)',
-  'thiet-ke-logo': 'Thiết kế logo',
-  'tao-anh-the': 'Tạo ảnh thẻ',
-  'ghep-anh': 'Ghép ảnh',
-  'lam-net-anh': 'Làm nét ảnh',
-  'lam-dep-anh': 'Làm đẹp ảnh',
-  'tao-banner': 'Tạo banner',
-  'tao-nhan-gioi-thieu-san-pham': 'Tạo nhãn giới thiệu sản phẩm',
-  'phuc-dung-anh': 'Phục dựng ảnh',
-  'che-anh': 'Chế ảnh',
-  'xoa-vat-the': 'Xóa vật thể',
-  'thay-nen-san-pham': 'Thay nền sản phẩm',
-  'tao-anh-chain-dung': 'Ảnh chân dung',
-  'mo-rong-khung-hinh': 'Mở rộng khung hình',
-  'hoan-doi-khuon-mat': 'Hoán đổi khuôn mặt',
-  'tao-anh-3d': 'Ảnh 3D mockup',
-  'tao-mo-hinh-3d-tu-anh': 'Mô hình 3D từ ảnh',
-  'tao-video-tu-anh': 'Tạo video từ ảnh',
-  'ai-normalize': 'Chuẩn hóa văn bản (AI)',
-  'dich-anh-tai-lieu': 'Dịch ảnh tài liệu',
-  ...ENGLISH_COACH_API_STATS_FEATURE_LABELS,
-  ...CURRICULUM_API_STATS_FEATURE_LABELS,
-}
+import { fetchAllApiUsageLogsInRange, sortApiUsageLogsNewestFirst } from './fetch-api-usage-logs-range'
+import { ApiUsageCharts } from './api-usage-charts'
+import { buildApiUsageChartData } from './build-api-usage-chart-data'
+import { getApiUsageModelDisplayLabel } from './model-display-label'
 
 function toYMD(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -101,20 +72,19 @@ export default async function AdminApiStatsPage({
       })
       .reduce((s, p) => s + (p.amount || 0), 0) ?? 0
 
-  const [{ data: logs, error }, { data: languageCoachCreditEvents }] = await Promise.all([
-    adminSupabase
-      .from('api_usage_log')
-      .select('id, model, feature, prompt_token_count, candidates_token_count, total_token_count, image_size, created_at')
-      .gte('created_at', fromDate + 'T00:00:00')
-      .lte('created_at', toDate + 'T23:59:59.999')
-      .order('created_at', { ascending: false })
-      .limit(5000),
+  const fromIso = fromDate + 'T00:00:00'
+  const toIso = toDate + 'T23:59:59.999'
+
+  const [logFetch, { data: languageCoachCreditEvents }] = await Promise.all([
+    fetchAllApiUsageLogsInRange(adminSupabase, fromIso, toIso),
     adminSupabase
       .from('language_coach_credit_events')
       .select('charge_type, amount')
-      .gte('created_at', fromDate + 'T00:00:00')
-      .lte('created_at', toDate + 'T23:59:59.999'),
+      .gte('created_at', fromIso)
+      .lte('created_at', toIso),
   ])
+
+  const { data: logsRaw, error } = logFetch
 
   if (error) {
     return (
@@ -129,14 +99,11 @@ export default async function AdminApiStatsPage({
     )
   }
 
-  const logsList = logs || []
+  const logsList = sortApiUsageLogsNewestFirst(logsRaw || [])
   const coachLogsInRange = logsList.filter((l) => isEnglishCoachApiUsageFeature(l.feature))
   const languageCoachCreditAgg = aggregateLanguageCoachCredits(languageCoachCreditEvents || [])
   const coachApiByKind = aggregateEnglishCoachApiCostByLessonKind(coachLogsInRange)
-  const featureLabelsMerged = {
-    ...FEATURE_LABELS,
-    ...buildEnglishCoachFeatureLabelsForLogs(coachLogsInRange.map((l) => l.feature)),
-  }
+  const featureLabelsMerged = mergeApiFeatureLabelsForLogs(logsList.map((l) => l.feature))
 
   const byModel = logsList.reduce(
     (acc, log) => {
@@ -223,6 +190,81 @@ export default async function AdminApiStatsPage({
   const formatNum = (n: number) => n.toLocaleString('vi-VN')
   const formatVnd = (n: number) => `${n.toLocaleString('vi-VN')}₫`
 
+  const chartLocaleTag =
+    uiLocale === 'en'
+      ? 'en-US'
+      : uiLocale === 'zh'
+        ? 'zh-CN'
+        : uiLocale === 'ja'
+          ? 'ja-JP'
+          : uiLocale === 'ko'
+            ? 'ko-KR'
+            : 'vi-VN'
+
+  const chartPayload = buildApiUsageChartData(logsRaw || [], fromDate, toDate, chartLocaleTag)
+  const modelLabels: Record<string, string> = {}
+  for (const log of logsList) {
+    if (!modelLabels[log.model]) modelLabels[log.model] = getApiUsageModelDisplayLabel(log.model)
+  }
+
+  const chartCopy = {
+    sectionTitle: tr('Biểu đồ theo thời gian', 'Trend charts', '趋势图', '推移チャート', '추이 차트'),
+    subtitle: tr(
+      'Theo ngày trong khoảng đã chọn • Tối đa 8 model phổ biến nhất; còn lại gộp “Khác”.',
+      'By day in the selected range • Up to 8 most-used models; others grouped as “Other”.',
+      '按所选日期范围 • 最多 8 个最常用模型，其余归入“其他”。',
+      '選択した期間の日別 • 上位8モデル、その他は「その他」。',
+      '선택한 기간 일별 • 상위 8개 모델, 나머지는 “기타”.'
+    ),
+    requestsAndInputTitle: tr(
+      'Lượt gọi & token input theo ngày',
+      'Calls & input tokens per day',
+      '每日调用次数与输入 token',
+      '日別の呼び出し数と入力トークン',
+      '일별 호출 수·입력 토큰'
+    ),
+    tokenStackTitle: tr(
+      'Token input / output xếp chồng theo ngày',
+      'Stacked input / output tokens per day',
+      '每日输入/输出 token（堆叠）',
+      '日別の入出力トークン（積み上げ）',
+      '일별 입·출력 토큰(누적)'
+    ),
+    inputTokensByModelTitle: tr(
+      'Token input theo model (theo ngày)',
+      'Input tokens by model (daily)',
+      '按模型的每日输入 token',
+      'モデル別の入力トークン（日次）',
+      '모델별 입력 토큰(일별)'
+    ),
+    requestsByModelTitle: tr(
+      'Lượt gọi theo model (theo ngày)',
+      'Calls by model (daily)',
+      '按模型的每日调用次数',
+      'モデル別の呼び出し回数（日次）',
+      '모델별 호출 수(일별)'
+    ),
+    legendRequests: tr('Lượt gọi', 'Calls', '调用次数', '呼び出し', '호출'),
+    legendInputTokens: tr('Token input (ngày)', 'Input tokens (day)', '输入 token', '入力トークン', '입력 토큰'),
+    legendInputStack: tr('Token input', 'Input tokens', '输入 token', '入力トークン', '입력 토큰'),
+    legendOutputStack: tr('Token output', 'Output tokens', '输出 token', '出力トークン', '출력 토큰'),
+    legendOtherModels: tr('Khác (các model còn lại)', 'Other models', '其他模型', 'その他のモデル', '기타 모델'),
+    noDataMessage: tr(
+      'Chưa có bản ghi api_usage_log trong khoảng này — không vẽ biểu đồ.',
+      'No api_usage_log rows in this range — charts are hidden.',
+      '此期间没有 api_usage_log 记录，不显示图表。',
+      'この期間に api_usage_log がありません。',
+      '이 기간에 api_usage_log가 없습니다.'
+    ),
+    noteDataScope: tr(
+      'Dữ liệu lấy từ bảng api_usage_log (lượt gọi đã ghi nhận). Không có mã lỗi HTTP (404/500) trong bảng này — nếu cần theo dõi lỗi API cần nguồn log riêng.',
+      'Data comes from api_usage_log (recorded calls). This table does not include HTTP error codes (404/500) — use separate logging if you need API error breakdown.',
+      '数据来自 api_usage_log（已记录的调用）。此表不含 HTTP 错误码（404/500）—若需错误分析请另建日志。',
+      'データは api_usage_log（記録済み呼び出し）です。HTTPエラーコード(404/500)は含まれません。',
+      '데이터는 api_usage_log(기록된 호출)입니다. HTTP 오류 코드(404/500)는 없습니다.'
+    ),
+  }
+
   const rangeLabel = fromDate === toDate
     ? new Date(fromDate).toLocaleDateString('vi-VN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
     : `${new Date(fromDate).toLocaleDateString('vi-VN')} – ${new Date(toDate).toLocaleDateString('vi-VN')}`
@@ -231,7 +273,15 @@ export default async function AdminApiStatsPage({
     <div className="space-y-8">
       <div>
         <h2 className="text-3xl font-bold tracking-tight">{tr('Thống kê sử dụng API Google (Gemini)', 'Google API usage statistics (Gemini)', 'Google API 使用统计（Gemini）', 'Google API利用統計（Gemini）', 'Google API 사용 통계 (Gemini)')}</h2>
-        <p className="text-muted-foreground mt-1">{tr('Tối đa 5000 bản ghi • Tỷ giá 1 USD = 25.000₫', 'Up to 5000 records • Exchange rate: 1 USD = 25,000₫', '最多5000条记录 • 汇率：1 USD = 25,000₫', '最大5000件 • 為替レート: 1 USD = 25,000₫', '최대 5000건 • 환율: 1 USD = 25,000₫')}</p>
+        <p className="text-muted-foreground mt-1">
+          {tr(
+            'Toàn bộ bản ghi api_usage_log trong khoảng ngày • Tỷ giá 1 USD = 25.000₫',
+            'All api_usage_log rows in the date range • Exchange rate: 1 USD = 25,000₫',
+            '日期范围内全部 api_usage_log 记录 • 汇率：1 USD = 25,000₫',
+            '期間内の api_usage_log 全件 • 為替: 1 USD = 25,000₫',
+            '기간 내 api_usage_log 전체 • 환율: 1 USD = 25,000₫'
+          )}
+        </p>
         <p className="text-sm mt-2 flex flex-wrap gap-x-4 gap-y-1">
           <Link href="/admin/api-stats/english-coach" className="text-primary underline underline-offset-2 hover:text-primary/80">
             {tr(
@@ -249,6 +299,15 @@ export default async function AdminApiStatsPage({
               '详细报表：创建课程（curriculum-）',
               '詳細レポート：授業作成（curriculum-）',
               '상세 보고서: 교안 만들기 (curriculum-)'
+            )}
+          </Link>
+          <Link href="/admin/api-stats/breakdown" className="text-primary underline underline-offset-2 hover:text-primary/80">
+            {tr(
+              'Báo cáo phân cấp: nhóm → tính năng → model',
+              'Hierarchical report: group → feature → model',
+              '分层报表：分组 → 功能 → 模型',
+              '階層レポート：グループ→機能→モデル',
+              '계층 보고서: 그룹→기능→모델'
             )}
           </Link>
         </p>
@@ -390,7 +449,9 @@ export default async function AdminApiStatsPage({
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Input tokens</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              {tr('Token input', 'Input tokens', '输入 token', '入力トークン', '입력 토큰')}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold">{formatNum(totals.promptTokens)}</p>
@@ -398,7 +459,9 @@ export default async function AdminApiStatsPage({
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Output tokens</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              {tr('Token output', 'Output tokens', '输出 token', '出力トークン', '출력 토큰')}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold">{formatNum(totals.outputTokens)}</p>
@@ -414,6 +477,8 @@ export default async function AdminApiStatsPage({
         </Card>
       </div>
 
+      <ApiUsageCharts payload={chartPayload} modelLabels={modelLabels} copy={chartCopy} hasAnyLog={logsList.length > 0} />
+
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
           <CardHeader>
@@ -424,12 +489,12 @@ export default async function AdminApiStatsPage({
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Model</TableHead>
+                  <TableHead>{tr('Model', 'Model', '模型', 'モデル', '모델')}</TableHead>
                   <TableHead className="text-right">{tr('Lượt gọi', 'Calls', '调用次数', '呼び出し回数', '호출 수')}</TableHead>
                   <TableHead className="text-right">2K</TableHead>
                   <TableHead className="text-right">4K</TableHead>
-                  <TableHead className="text-right">Input</TableHead>
-                  <TableHead className="text-right">Output</TableHead>
+                  <TableHead className="text-right">{tr('Input', 'Input', '输入', '入力', '입력')}</TableHead>
+                  <TableHead className="text-right">{tr('Output', 'Output', '输出', '出力', '출력')}</TableHead>
                   <TableHead className="text-right">{tr('Tổng', 'Total', '总计', '合計', '합계')}</TableHead>
                   <TableHead className="text-right">{tr('Chi phí (₫)', 'Cost (₫)', '费用 (₫)', 'コスト (₫)', '비용 (₫)')}</TableHead>
                 </TableRow>
@@ -475,8 +540,8 @@ export default async function AdminApiStatsPage({
                   <TableHead className="text-right">{tr('Lượt gọi', 'Calls', '调用次数', '呼び出し回数', '호출 수')}</TableHead>
                   <TableHead className="text-right">2K</TableHead>
                   <TableHead className="text-right">4K</TableHead>
-                  <TableHead className="text-right">Input</TableHead>
-                  <TableHead className="text-right">Output</TableHead>
+                  <TableHead className="text-right">{tr('Input', 'Input', '输入', '入力', '입력')}</TableHead>
+                  <TableHead className="text-right">{tr('Output', 'Output', '输出', '出力', '출력')}</TableHead>
                   <TableHead className="text-right">{tr('Tổng', 'Total', '总计', '合計', '합계')}</TableHead>
                   <TableHead className="text-right">{tr('Chi phí (₫)', 'Cost (₫)', '费用 (₫)', 'コスト (₫)', '비용 (₫)')}</TableHead>
                 </TableRow>
@@ -521,8 +586,8 @@ export default async function AdminApiStatsPage({
               <TableRow>
                 <TableHead>{tr('Ảnh trả về', 'Returned image', '返回图片', '返却画像', '반환 이미지')}</TableHead>
                 <TableHead className="text-right">{tr('Lượt gọi', 'Calls', '调用次数', '呼び出し回数', '호출 수')}</TableHead>
-                <TableHead className="text-right">Input</TableHead>
-                <TableHead className="text-right">Output</TableHead>
+                <TableHead className="text-right">{tr('Input', 'Input', '输入', '入力', '입력')}</TableHead>
+                <TableHead className="text-right">{tr('Output', 'Output', '输出', '出力', '출력')}</TableHead>
                 <TableHead className="text-right">{tr('Tổng', 'Total', '总计', '合計', '합계')}</TableHead>
                 <TableHead className="text-right">{tr('Chi phí (₫)', 'Cost (₫)', '费用 (₫)', 'コスト (₫)', '비용 (₫)')}</TableHead>
               </TableRow>

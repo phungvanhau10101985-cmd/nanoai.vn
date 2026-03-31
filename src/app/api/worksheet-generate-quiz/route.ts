@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_PRO } from '@/lib/gemini-config'
+import { trackFromUsageMetadata, trackOpenAiStyleCompletionUsage } from '@/lib/track-ai-usage'
 
 const QUIZ_CREATE_MODEL = GEMINI_25_PRO
 const GPT_RETRY_MODEL = process.env.EDUCATIONAL_RETRY_MODEL?.trim() || 'gpt-4o'
@@ -125,10 +126,17 @@ export async function POST(req: NextRequest) {
       generationConfig: { temperature: 0.2, responseMimeType: 'application/json' },
     })
     const result = await model.generateContent(prompt)
+    void trackFromUsageMetadata(
+      result.response.usageMetadata,
+      QUIZ_CREATE_MODEL.model,
+      'worksheet-quiz-generate-gemini-pro',
+      userId ?? null
+    )
     const raw = result.response.text()?.trim() || ''
     let quizzes = parseQuizzes(raw)
 
     if (!quizzes?.length && process.env.OPENAI_API_KEY) {
+      const systemLine = 'Trả về đúng JSON.'
       const gpt = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
@@ -136,12 +144,24 @@ export async function POST(req: NextRequest) {
           model: GPT_RETRY_MODEL,
           temperature: 0.1,
           response_format: { type: 'json_object' },
-          messages: [{ role: 'system', content: 'Trả về đúng JSON.' }, { role: 'user', content: prompt }],
+          messages: [{ role: 'system', content: systemLine }, { role: 'user', content: prompt }],
         }),
       })
       if (gpt.ok) {
-        const g = (await gpt.json().catch(() => ({}))) as { choices?: Array<{ message?: { content?: string } }> }
-        quizzes = parseQuizzes(String(g?.choices?.[0]?.message?.content ?? ''))
+        const g = (await gpt.json().catch(() => ({}))) as {
+          choices?: Array<{ message?: { content?: string } }>
+          usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number }
+        }
+        const gptRaw = String(g?.choices?.[0]?.message?.content ?? '')
+        trackOpenAiStyleCompletionUsage({
+          userId: userId ?? null,
+          model: GPT_RETRY_MODEL,
+          feature: 'worksheet-quiz-generate-openai-retry',
+          usage: g.usage,
+          fallbackPromptChars: systemLine.length + prompt.length,
+          fallbackOutputChars: gptRaw.length,
+        })
+        quizzes = parseQuizzes(gptRaw)
       }
     }
 

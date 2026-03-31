@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 
+/** Các mode đã lưu trong DB (Lyria RealTime cũ + Lyria 3). */
 type Mode = 'background' | 'dj' | 'image' | 'realtime' | 'lyria3'
 
 const HISTORY_MODES: Mode[] = ['background', 'dj', 'image', 'realtime', 'lyria3']
@@ -55,57 +56,3 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 }
-
-export async function POST(request: NextRequest) {
-  try {
-    const payload = (await request.json()) as {
-      mode?: Mode
-      title?: string
-      style?: string
-      durationSeconds?: number
-      chargedCredits?: number
-      audioUrl?: string
-    }
-
-    const mode = String(payload?.mode || '') as Mode
-    const title = String(payload?.title || '').trim()
-    const style = String(payload?.style || '').trim()
-    const durationSeconds = Number(payload?.durationSeconds || 0)
-    const chargedCredits = Number(payload?.chargedCredits || 0)
-    const audioUrl = String(payload?.audioUrl || '').trim()
-
-    if (!['background', 'dj', 'image', 'realtime', 'lyria3'].includes(mode)) {
-      return NextResponse.json({ error: 'mode không hợp lệ.' }, { status: 400 })
-    }
-    if (!title || !style || !Number.isFinite(durationSeconds) || durationSeconds <= 0 || !Number.isFinite(chargedCredits) || chargedCredits < 0) {
-      return NextResponse.json({ error: 'Dữ liệu lịch sử không hợp lệ.' }, { status: 400 })
-    }
-
-    const supabase = createClient()
-    const auth = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập để lưu lịch sử tạo nhạc.')
-    if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
-    const { user } = auth
-
-    const adminSupabase = createSupabaseClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
-
-    const { error } = await adminSupabase.from('music_generations').insert({
-      user_id: user.id,
-      mode,
-      title: title.slice(0, 160),
-      style: style.slice(0, 120),
-      duration_seconds: Math.floor(durationSeconds),
-      charged_credits: Math.round(chargedCredits * 10) / 10,
-      audio_url: audioUrl || null,
-    })
-
-    if (error) return NextResponse.json({ error: error.message || 'Không lưu được lịch sử tạo nhạc.' }, { status: 500 })
-    return NextResponse.json({ ok: true })
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : 'Lỗi không xác định.'
-    return NextResponse.json({ error: msg }, { status: 500 })
-  }
-}
-

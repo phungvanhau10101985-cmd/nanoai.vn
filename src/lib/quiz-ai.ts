@@ -4,6 +4,7 @@
  */
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_FLASH_NO_THINKING, GEMINI_25_PRO } from '@/lib/gemini-config'
+import { trackFromUsageMetadata, trackOpenAiStyleCompletionUsage } from '@/lib/track-ai-usage'
 
 const QUIZ_SCHEMA = `{
   "quizzes": [
@@ -105,12 +106,14 @@ export function parseAndShuffleQuizzes(rawText: string): QuizData[] | null {
 
 export async function verifyQuizWithAI(
   fullContent: string,
-  q: QuizData
+  q: QuizData,
+  userId?: string | null
 ): Promise<{ verified: boolean; correctIndex?: number } | null> {
   const verifyPrompt = buildVerifyPrompt(fullContent, q)
   const apiKey = process.env.GOOGLE_API_KEY?.trim()
   const deepSeekKey = process.env.DEEPSEEK_API_KEY?.trim()
   const DEEPSEEK_VERIFY_MODEL = process.env.DEEPSEEK_VERIFY_MODEL?.trim() || 'deepseek-reasoner'
+  const systemLine = 'Trả về đúng JSON theo yêu cầu, không markdown.'
 
   if (deepSeekKey) {
     try {
@@ -121,14 +124,25 @@ export async function verifyQuizWithAI(
           model: DEEPSEEK_VERIFY_MODEL,
           temperature: 0,
           messages: [
-            { role: 'system', content: 'Trả về đúng JSON theo yêu cầu, không markdown.' },
+            { role: 'system', content: systemLine },
             { role: 'user', content: verifyPrompt },
           ],
         }),
       })
       if (dsRes.ok) {
-        const dsData = (await dsRes.json().catch(() => ({}))) as { choices?: Array<{ message?: { content?: string } }> }
+        const dsData = (await dsRes.json().catch(() => ({}))) as {
+          choices?: Array<{ message?: { content?: string } }>
+          usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number }
+        }
         const verifyText = String(dsData?.choices?.[0]?.message?.content ?? '').trim()
+        trackOpenAiStyleCompletionUsage({
+          userId: userId ?? null,
+          model: DEEPSEEK_VERIFY_MODEL,
+          feature: 'quiz-verify-deepseek',
+          usage: dsData.usage,
+          fallbackPromptChars: systemLine.length + verifyPrompt.length,
+          fallbackOutputChars: verifyText.length,
+        })
         if (verifyText) {
           const cleaned = verifyText.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim()
           const v = JSON.parse(cleaned) as { verified?: boolean; correctIndex?: number }
@@ -146,6 +160,12 @@ export async function verifyQuizWithAI(
       generationConfig: { temperature: 0, responseMimeType: 'application/json' },
     })
     const verifyResult = await verifyModel.generateContent(verifyPrompt)
+    void trackFromUsageMetadata(
+      verifyResult.response.usageMetadata,
+      GEMINI_25_FLASH_NO_THINKING.model,
+      'quiz-verify-gemini-flash',
+      userId ?? null
+    )
     const verifyText = verifyResult.response.text()?.trim() || ''
     if (verifyText) {
       const cleaned = verifyText.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim()
@@ -157,7 +177,10 @@ export async function verifyQuizWithAI(
 }
 
 /** Gemini 2.5 Pro tạo câu mới + DeepSeek verify */
-export async function createQuizWithGemini(fullContent: string): Promise<{ quiz: QuizData; marker: string } | null> {
+export async function createQuizWithGemini(
+  fullContent: string,
+  userId?: string | null
+): Promise<{ quiz: QuizData; marker: string } | null> {
   const apiKey = process.env.GOOGLE_API_KEY?.trim()
   if (!apiKey) return null
   const prompt = buildCreatePrompt(fullContent)
@@ -167,6 +190,12 @@ export async function createQuizWithGemini(fullContent: string): Promise<{ quiz:
     generationConfig: { temperature: 0.1, responseMimeType: 'application/json' },
   })
   const result = await model.generateContent(prompt)
+  void trackFromUsageMetadata(
+    result.response.usageMetadata,
+    GEMINI_25_PRO.model,
+    'quiz-create-gemini-pro',
+    userId ?? null
+  )
   const rawText = result.response.text()?.trim() || ''
   const shuffled = parseAndShuffleQuizzes(rawText)
   if (!shuffled || shuffled.length === 0) return null
@@ -174,11 +203,15 @@ export async function createQuizWithGemini(fullContent: string): Promise<{ quiz:
 }
 
 /** GPT tạo câu mới (model: gpt-4o hoặc QUIZ_REPORT_GPT_MODEL) */
-export async function createQuizWithGPT(fullContent: string): Promise<{ quiz: QuizData; marker: string } | null> {
+export async function createQuizWithGPT(
+  fullContent: string,
+  userId?: string | null
+): Promise<{ quiz: QuizData; marker: string } | null> {
   const openAiKey = process.env.OPENAI_API_KEY?.trim()
   const model = process.env.QUIZ_REPORT_GPT_MODEL?.trim() || 'gpt-4o'
   if (!openAiKey) return null
   const prompt = buildCreatePrompt(fullContent)
+  const systemLine = 'Trả về đúng JSON theo schema. Không markdown.'
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${openAiKey}` },
@@ -187,14 +220,25 @@ export async function createQuizWithGPT(fullContent: string): Promise<{ quiz: Qu
       temperature: 0.1,
       response_format: { type: 'json_object' },
       messages: [
-        { role: 'system', content: 'Trả về đúng JSON theo schema. Không markdown.' },
+        { role: 'system', content: systemLine },
         { role: 'user', content: prompt },
       ],
     }),
   })
   if (!res.ok) return null
-  const data = (await res.json().catch(() => ({}))) as { choices?: Array<{ message?: { content?: string } }> }
+  const data = (await res.json().catch(() => ({}))) as {
+    choices?: Array<{ message?: { content?: string } }>
+    usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number }
+  }
   const rawText = String(data?.choices?.[0]?.message?.content ?? '').trim()
+  trackOpenAiStyleCompletionUsage({
+    userId: userId ?? null,
+    model,
+    feature: 'quiz-create-gpt',
+    usage: data.usage,
+    fallbackPromptChars: systemLine.length + prompt.length,
+    fallbackOutputChars: rawText.length,
+  })
   const shuffled = parseAndShuffleQuizzes(rawText)
   if (!shuffled || shuffled.length === 0) return null
   return { quiz: shuffled[0], marker: quizToMarker(shuffled[0]) }
@@ -210,12 +254,14 @@ export function quizToMarker(q: QuizData): string {
 /** GPT kiểm tra: câu hỏi có sai không? (report lần 2) */
 export async function checkQuizWrongWithGPT(
   fullContent: string,
-  q: QuizData
+  q: QuizData,
+  userId?: string | null
 ): Promise<{ isWrong: boolean; reasoning: string } | null> {
   const openAiKey = process.env.OPENAI_API_KEY?.trim()
   const model = process.env.QUIZ_REPORT_GPT_MODEL?.trim() || 'gpt-4o'
   if (!openAiKey) return null
   const opts = q.options ?? []
+  const systemLine = 'Trả về đúng JSON theo yêu cầu, không markdown.'
   const prompt = `Bạn là giáo viên kiểm tra chất lượng. Giáo viên đã báo câu hỏi trắc nghiệm này SAI lần 2. Đối chiếu với nội dung slide.
 
 NỘI DUNG SLIDE:
@@ -247,14 +293,25 @@ Trả về JSON: { "isWrong": true|false, "reasoning": "Lập luận chi tiết 
       temperature: 0,
       response_format: { type: 'json_object' },
       messages: [
-        { role: 'system', content: 'Trả về đúng JSON theo yêu cầu, không markdown.' },
+        { role: 'system', content: systemLine },
         { role: 'user', content: prompt },
       ],
     }),
   })
   if (!res.ok) return null
-  const data = (await res.json().catch(() => ({}))) as { choices?: Array<{ message?: { content?: string } }> }
+  const data = (await res.json().catch(() => ({}))) as {
+    choices?: Array<{ message?: { content?: string } }>
+    usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number }
+  }
   const rawText = String(data?.choices?.[0]?.message?.content ?? '').trim()
+  trackOpenAiStyleCompletionUsage({
+    userId: userId ?? null,
+    model,
+    feature: 'quiz-check-wrong-gpt',
+    usage: data.usage,
+    fallbackPromptChars: systemLine.length + prompt.length,
+    fallbackOutputChars: rawText.length,
+  })
   if (!rawText) return null
   try {
     const cleaned = rawText.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim()
@@ -268,7 +325,8 @@ Trả về JSON: { "isWrong": true|false, "reasoning": "Lập luận chi tiết 
 /** Gemini 2.5 Pro kiểm tra: câu hỏi có sai không? Trả về lập luận + kết luận. */
 export async function checkQuizWrongWithGemini(
   fullContent: string,
-  q: QuizData
+  q: QuizData,
+  userId?: string | null
 ): Promise<{ isWrong: boolean; reasoning: string } | null> {
   const apiKey = process.env.GOOGLE_API_KEY?.trim()
   if (!apiKey) return null
@@ -302,6 +360,12 @@ Trả về JSON: { "isWrong": true|false, "reasoning": "Lập luận chi tiết 
     generationConfig: { temperature: 0, responseMimeType: 'application/json' },
   })
   const result = await model.generateContent(prompt)
+  void trackFromUsageMetadata(
+    result.response.usageMetadata,
+    GEMINI_25_PRO.model,
+    'quiz-check-wrong-gemini-pro',
+    userId ?? null
+  )
   const rawText = result.response.text()?.trim() || ''
   if (!rawText) return null
   try {

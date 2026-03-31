@@ -43,10 +43,6 @@ export type ToolKey =
   | 'expand_frame'
   | 'face_swap'
   | 'translate_document_image'
-  | 'ai_music_background'
-  | 'ai_dj'
-  | 'music_from_image_mood'
-  | 'realtime_music_control'
   | 'lyria3_instrumental_song'
   | 'meeting_recorder_report'
   | 'ai_language_learning'
@@ -192,6 +188,14 @@ export type Dictionary = {
     cardTitle: string
     cardDescription: string
     freeRecordingNote: string
+    /** Ghi âm tự dừng khi không có tiếng nói đủ lâu */
+    silenceAutoStopNote: string
+    /** Toast khi hệ thống tự dừng vì im lặng */
+    autoStoppedBySilence: string
+    /** Cứ ~5 phút tự ngắt đoạn và ghi tiếp trên client */
+    segmentAutoSplitNote: string
+    /** Toast khi vừa xoay đoạn 5 phút */
+    segmentRotatedToast: string
     chargeNote: string
     /** {days} — số ngày lưu trên máy chủ */
     sessionNote: string
@@ -203,6 +207,10 @@ export type Dictionary = {
     needServerRecording: string
     startRecording: string
     stopRecording: string
+    stopRecordingConfirmTitle: string
+    stopRecordingConfirmDescription: string
+    stopRecordingConfirmOk: string
+    stopRecordingConfirmContinue: string
     recording: string
     idleHint: string
     /** Đang ghi — {duration} mm:ss */
@@ -219,10 +227,13 @@ export type Dictionary = {
     needRecording: string
     processing: string
     reportHeading: string
+    briefReportHeading: string
+    fullReportHeading: string
     transcriptHeading: string
     copy: string
     copied: string
     downloadMd: string
+    downloadBriefMd: string
     micError: string
     fileTooLarge: string
     genericError: string
@@ -1095,10 +1106,6 @@ const VI_DICTIONARY: Dictionary = {
     expand_frame: 'Mở rộng khung hình',
     face_swap: 'Hoán đổi khuôn mặt',
     translate_document_image: 'Dịch ảnh tài liệu',
-    ai_music_background: 'Nhạc nền AI',
-    ai_dj: 'AI DJ',
-    music_from_image_mood: 'Nhạc theo cảm xúc ảnh',
-    realtime_music_control: 'Điều khiển nhạc realtime',
     lyria3_instrumental_song: 'Tạo bài nhạc Lyria 3 (có lời / không lời)',
     meeting_recorder_report: 'Ghi âm & báo cáo cuộc họp',
     ai_language_learning: 'Học ngoại ngữ AI',
@@ -1124,7 +1131,14 @@ const VI_DICTIONARY: Dictionary = {
     cardDescription:
       'Ghi âm trên trình duyệt không tính phí. Tên cuộc họp tự lưu trên thiết bị khi bạn bấm bắt đầu ghi. Chỉ khi tạo báo cáo AI hệ thống mới trừ credits theo độ dài ghi âm.',
     freeRecordingNote: 'Ghi âm và lưu tên cuộc họp: không trừ credits.',
-    chargeNote: 'Tạo báo cáo AI (biên bản + tóm tắt): trừ credits theo từng khối 5 phút.',
+    silenceAutoStopNote:
+      'Nếu không phát hiện tiếng nói trong 5 phút liên tục, ghi âm sẽ tự dừng và lưu bản ghi như khi bạn bấm dừng.',
+    autoStoppedBySilence: 'Đã tự dừng ghi âm: không phát hiện tiếng nói trong 5 phút.',
+    segmentAutoSplitNote:
+      'Cứ mỗi 5 phút hệ thống tự kết thúc đoạn hiện tại và bắt đầu đoạn mới (cùng micro), không cần cắt file trên máy chủ.',
+    segmentRotatedToast: 'Đã tự chuyển sang đoạn ghi mới (5 phút).',
+    chargeNote:
+      'Tạo báo cáo AI (biên bản + tóm tắt): 5 phút đầu 1 credit; từ phút thứ 6 trở đi mỗi phút thêm 0,2 credit (làm tròn lên phần vượt).',
     sessionNote:
       'Bản ghi được lưu trên máy chủ tối đa {days} ngày rồi tự xóa. Trong phiên này bạn vẫn nghe/tải file cục bộ; tên cuộc họp tự lưu trên thiết bị khi bạn bấm bắt đầu ghi.',
     meetingTitleLabel: 'Tên cuộc họp',
@@ -1135,6 +1149,11 @@ const VI_DICTIONARY: Dictionary = {
     needServerRecording: 'Cần lưu bản ghi lên máy chủ trước khi tạo báo cáo AI.',
     startRecording: 'Bắt đầu ghi',
     stopRecording: 'Dừng ghi',
+    stopRecordingConfirmTitle: 'Xác nhận dừng ghi âm',
+    stopRecordingConfirmDescription:
+      'Chỉ bấm xác nhận khi cuộc họp đã thực sự ngừng. Bản ghi sẽ được lưu; credits chỉ trừ khi bạn tạo báo cáo AI.',
+    stopRecordingConfirmOk: 'Xác nhận — cuộc họp đã ngừng',
+    stopRecordingConfirmContinue: 'Tiếp tục ghi',
     recording: 'Đang ghi…',
     idleHint: 'Cho phép truy cập micro khi trình duyệt hỏi.',
     recordingTimeLabel: 'Đang ghi: {duration}',
@@ -1145,14 +1164,18 @@ const VI_DICTIONARY: Dictionary = {
     generateReport: 'Tạo báo cáo AI',
     reportLanguageLabel: 'Ngôn ngữ báo cáo',
     estimatedCost: 'Ước tính: {credits} credits',
-    costExplain: 'Tối thiểu 1 credit; mỗi 5 phút (làm tròn lên) thêm 0,5 credit.',
+    costExplain:
+      '5 phút đầu: 1 credit; sau đó mỗi phút (làm tròn lên phần thời gian vượt quá 5 phút) thêm 0,2 credit — ví dụ 5:47 ≈ 1,2 credit.',
     needRecording: 'Hãy ghi âm ít nhất vài giây trước khi tạo báo cáo.',
     processing: 'Đang phân tích âm thanh…',
-    reportHeading: 'Báo cáo',
+    reportHeading: 'Báo cáo cuộc họp',
+    briefReportHeading: 'Báo cáo ngắn (ý chính)',
+    fullReportHeading: 'Báo cáo chi tiết',
     transcriptHeading: 'Phiên âm',
     copy: 'Sao chép',
     copied: 'Đã sao chép',
     downloadMd: 'Tải báo cáo (.md)',
+    downloadBriefMd: 'Tải bản ngắn (.md)',
     micError: 'Không bật được micro. Kiểm tra quyền trình duyệt.',
     fileTooLarge: 'File âm thanh quá lớn (giới hạn 20MB).',
     genericError: 'Có lỗi xảy ra. Thử lại sau.',
@@ -1965,10 +1988,6 @@ const EN_DICTIONARY: Dictionary = {
     expand_frame: 'Expand Frame',
     face_swap: 'Face Swap',
     translate_document_image: 'Translate Document Images',
-    ai_music_background: 'AI Background Music',
-    ai_dj: 'AI DJ',
-    music_from_image_mood: 'Music from Image Mood',
-    realtime_music_control: 'Realtime Music Control',
     lyria3_instrumental_song: 'Lyria 3 music (vocal or instrumental)',
     meeting_recorder_report: 'Meeting recording & AI report',
     ai_language_learning: 'AI Language Learning',
@@ -1994,7 +2013,14 @@ const EN_DICTIONARY: Dictionary = {
     cardDescription:
       'Recording in the browser costs no credits. The meeting title is saved on this device when you press start recording. Credits are charged only when you generate the AI report, based on recording length.',
     freeRecordingNote: 'Recording and saving the meeting name: no credits.',
-    chargeNote: 'AI report (minutes + summary): credits per 5-minute block.',
+    silenceAutoStopNote:
+      'If no speech is detected for 5 minutes straight, recording stops automatically and saves like a manual stop.',
+    autoStoppedBySilence: 'Recording stopped automatically: no speech detected for 5 minutes.',
+    segmentAutoSplitNote:
+      'Every 5 minutes the current segment ends and a new one starts automatically (same mic) — no server-side audio cutting.',
+    segmentRotatedToast: 'Started a new 5-minute recording segment.',
+    chargeNote:
+      'AI report (minutes + summary): first 5 minutes = 1 credit; then +0.2 credit per minute (overage rounded up).',
     sessionNote:
       'Recordings are stored on the server for up to {days} days, then removed automatically. In this session you can still play/download locally; the meeting title is saved on this device when you press start recording.',
     meetingTitleLabel: 'Meeting title',
@@ -2005,6 +2031,11 @@ const EN_DICTIONARY: Dictionary = {
     needServerRecording: 'The recording must be saved on the server before generating an AI report.',
     startRecording: 'Start recording',
     stopRecording: 'Stop',
+    stopRecordingConfirmTitle: 'Confirm stopping the recording',
+    stopRecordingConfirmDescription:
+      'Only confirm if the meeting has actually ended. The recording will be saved; credits are charged only when you generate the AI report.',
+    stopRecordingConfirmOk: 'Confirm — meeting ended',
+    stopRecordingConfirmContinue: 'Keep recording',
     recording: 'Recording…',
     idleHint: 'Allow microphone access when the browser asks.',
     recordingTimeLabel: 'Recording: {duration}',
@@ -2015,14 +2046,18 @@ const EN_DICTIONARY: Dictionary = {
     generateReport: 'Generate AI report',
     reportLanguageLabel: 'Report language',
     estimatedCost: 'Estimate: {credits} credits',
-    costExplain: 'Minimum 1 credit; each started 5 minutes adds 0.5 credit.',
+    costExplain:
+      'First 5 minutes: 1 credit; after that +0.2 credit per minute (overage beyond 5 minutes rounded up) — e.g. 5:47 ≈ 1.2 credits.',
     needRecording: 'Record at least a few seconds before generating a report.',
     processing: 'Analyzing audio…',
-    reportHeading: 'Report',
+    reportHeading: 'Meeting report',
+    briefReportHeading: 'Short summary (key points)',
+    fullReportHeading: 'Full report',
     transcriptHeading: 'Transcript',
     copy: 'Copy',
     copied: 'Copied',
-    downloadMd: 'Download report (.md)',
+    downloadMd: 'Download full report (.md)',
+    downloadBriefMd: 'Download short summary (.md)',
     micError: 'Could not access the microphone. Check browser permissions.',
     fileTooLarge: 'Audio file is too large (20MB limit).',
     genericError: 'Something went wrong. Please try again.',
@@ -2791,7 +2826,14 @@ const ZH_DICTIONARY: Dictionary = {
     cardDescription:
       '浏览器内录音不扣积分；开始录音时自动保存会议名称到本设备。仅当您生成 AI 纪要时，才按录音时长扣除积分。',
     freeRecordingNote: '录音与保存会议名：不扣积分。',
-    chargeNote: '生成 AI 纪要（纪要+摘要）：按每 5 分钟一档扣积分。',
+    silenceAutoStopNote:
+      '若连续 5 分钟未检测到说话声，录音将自动停止并保存，效果与手动停止相同。',
+    autoStoppedBySilence: '已自动停止录音：连续 5 分钟未检测到说话声。',
+    segmentAutoSplitNote:
+      '每满 5 分钟会自动结束当前片段并开始新片段（同一麦克风），无需在服务器上切割音频。',
+    segmentRotatedToast: '已开始新的 5 分钟录音片段。',
+    chargeNote:
+      '生成 AI 纪要（纪要+摘要）：前 5 分钟 1 积分；超出部分按分钟向上取整，每分钟 +0.2 积分。',
     sessionNote:
       '录音在服务器最多保存 {days} 天后自动删除。本页仍可本地播放/下载；点击开始录音时会自动把会议名称保存在本设备。',
     meetingTitleLabel: '会议名称',
@@ -2802,6 +2844,11 @@ const ZH_DICTIONARY: Dictionary = {
     needServerRecording: '需先将录音保存到服务器，再生成 AI 纪要。',
     startRecording: '开始录音',
     stopRecording: '停止',
+    stopRecordingConfirmTitle: '确认停止录音',
+    stopRecordingConfirmDescription:
+      '请仅在会议确实已结束时确认。录音将保存；仅在生成 AI 纪要时扣除积分。',
+    stopRecordingConfirmOk: '确认 — 会议已结束',
+    stopRecordingConfirmContinue: '继续录音',
     recording: '正在录音…',
     idleHint: '请在浏览器提示时允许使用麦克风。',
     recordingTimeLabel: '录音中：{duration}',
@@ -2812,14 +2859,18 @@ const ZH_DICTIONARY: Dictionary = {
     generateReport: '生成 AI 纪要',
     reportLanguageLabel: '纪要语言',
     estimatedCost: '预估：{credits} 积分',
-    costExplain: '至少 1 积分；每满 5 分钟（向上取整）加收 0.5 积分。',
+    costExplain:
+      '前 5 分钟：1 积分；超出 5 分钟的部分按分钟向上取整，每分钟 +0.2 积分 — 例：5:47 ≈ 1.2 积分。',
     needRecording: '请至少录制数秒后再生成纪要。',
     processing: '正在分析音频…',
-    reportHeading: '纪要',
+    reportHeading: '会议纪要',
+    briefReportHeading: '简要纪要（要点）',
+    fullReportHeading: '详细纪要',
     transcriptHeading: '转写',
     copy: '复制',
     copied: '已复制',
-    downloadMd: '下载纪要（.md）',
+    downloadMd: '下载详细纪要（.md）',
+    downloadBriefMd: '下载简要纪要（.md）',
     micError: '无法使用麦克风，请检查浏览器权限。',
     fileTooLarge: '音频文件过大（上限 20MB）。',
     genericError: '发生错误，请稍后重试。',
@@ -2869,10 +2920,6 @@ const ZH_DICTIONARY: Dictionary = {
     expand_frame: '扩展画幅',
     face_swap: '换脸',
     translate_document_image: '文档图片翻译',
-    ai_music_background: 'AI 背景音乐',
-    ai_dj: 'AI DJ',
-    music_from_image_mood: '按图片情绪生成音乐',
-    realtime_music_control: '实时音乐控制',
     lyria3_instrumental_song: 'Lyria 3 乐曲（人声或纯音乐）',
     meeting_recorder_report: '会议录音与 AI 纪要',
     ai_language_learning: 'AI 语言学习',
@@ -3673,10 +3720,6 @@ const JA_DICTIONARY: Dictionary = {
     expand_frame: 'フレーム拡張',
     face_swap: '顔交換',
     translate_document_image: '書類画像翻訳',
-    ai_music_background: 'AI BGM',
-    ai_dj: 'AI DJ',
-    music_from_image_mood: '画像の雰囲気から音楽生成',
-    realtime_music_control: 'リアルタイム音楽制御',
     lyria3_instrumental_song: 'Lyria 3 楽曲（ボーカル/インスト）',
     meeting_recorder_report: '会議録音とAI議事録',
     ai_language_learning: 'AI 語学学習',
@@ -3702,7 +3745,14 @@ const JA_DICTIONARY: Dictionary = {
     cardDescription:
       'ブラウザでの録音にクレジットはかかりません。録音開始時に会議名をこの端末へ自動保存します。AI 議事録を生成するときだけ、録音時間に応じてクレジットが減ります。',
     freeRecordingNote: '録音と会議名の保存：クレジット不要。',
-    chargeNote: 'AI 議事録（文字起こし＋要約）：5 分単位でクレジットを計算。',
+    silenceAutoStopNote:
+      '発話が 5 分間検出されない場合、録音は自動停止し、手動停止と同様に保存されます。',
+    autoStoppedBySilence: '録音を自動停止しました：5 分間発話を検出できませんでした。',
+    segmentAutoSplitNote:
+      '5 分ごとに現在のセグメントを終了し、同じマイクで新しいセグメントを自動開始します（サーバー側でのカットは不要）。',
+    segmentRotatedToast: '新しい 5 分セグメントの録音を開始しました。',
+    chargeNote:
+      'AI 議事録（文字起こし＋要約）：最初の 5 分は 1 クレジット。超過分は分単位（切り上げ）で 1 分あたり 0.2 クレジット。',
     sessionNote:
       '録音はサーバーに最大 {days} 日保存されたあと自動削除されます。この画面ではローカル再生・ダウンロード可能。録音開始時に会議名をこの端末へ自動保存します。',
     meetingTitleLabel: '会議名',
@@ -3713,6 +3763,11 @@ const JA_DICTIONARY: Dictionary = {
     needServerRecording: 'AI 議事録を出す前に、サーバーへ録音を保存する必要があります。',
     startRecording: '録音開始',
     stopRecording: '停止',
+    stopRecordingConfirmTitle: '録音停止の確認',
+    stopRecordingConfirmDescription:
+      '会議が実際に終了した場合のみ確認してください。録音は保存されます。クレジットは AI 議事録を生成するときのみ消費されます。',
+    stopRecordingConfirmOk: '確認 — 会議は終了した',
+    stopRecordingConfirmContinue: '録音を続ける',
     recording: '録音中…',
     idleHint: 'ブラウザの案内に従いマイクを許可してください。',
     recordingTimeLabel: '録音中：{duration}',
@@ -3723,14 +3778,18 @@ const JA_DICTIONARY: Dictionary = {
     generateReport: 'AI 議事録を生成',
     reportLanguageLabel: '議事録の言語',
     estimatedCost: '目安：{credits} クレジット',
-    costExplain: '最低 1 クレジット。5 分を切り上げた単位ごとに 0.5 クレジット追加。',
+    costExplain:
+      '最初の 5 分：1 クレジット。5 分超の分は切り上げ、1 分ごとに 0.2 クレジット追加 — 例：5:47 ≈ 1.2 クレジット。',
     needRecording: '議事録を出す前に、数秒以上録音してください。',
     processing: '音声を解析しています…',
-    reportHeading: '議事録',
+    reportHeading: '会議レポート',
+    briefReportHeading: '簡潔サマリー（要点）',
+    fullReportHeading: '詳細レポート',
     transcriptHeading: '文字起こし',
     copy: 'コピー',
     copied: 'コピーしました',
-    downloadMd: '議事録をダウンロード（.md）',
+    downloadMd: '詳細レポートをダウンロード（.md）',
+    downloadBriefMd: '簡潔サマリーをダウンロード（.md）',
     micError: 'マイクにアクセスできません。ブラウザの権限を確認してください。',
     fileTooLarge: '音声ファイルが大きすぎます（上限 20MB）。',
     genericError: 'エラーが発生しました。しばらくしてからお試しください。',
@@ -4539,10 +4598,6 @@ const KO_DICTIONARY: Dictionary = {
     expand_frame: '프레임 확장',
     face_swap: '얼굴 교체',
     translate_document_image: '문서 이미지 번역',
-    ai_music_background: 'AI 배경 음악',
-    ai_dj: 'AI DJ',
-    music_from_image_mood: '이미지 분위기 음악 생성',
-    realtime_music_control: '실시간 음악 제어',
     lyria3_instrumental_song: 'Lyria 3 곡 (보컬/인스트루멘탈)',
     meeting_recorder_report: '회의 녹음·AI 회의록',
     ai_language_learning: 'AI 외국어 학습',
@@ -4568,7 +4623,14 @@ const KO_DICTIONARY: Dictionary = {
     cardDescription:
       '브라우저에서 녹음할 때는 크레딧이 차감되지 않습니다. 녹음 시작 시 회의 제목이 이 기기에 자동 저장됩니다. AI 회의록을 만들 때만 녹음 길이에 따라 크레딧이 차감됩니다.',
     freeRecordingNote: '녹음 및 회의명 저장: 크레딧 없음.',
-    chargeNote: 'AI 회의록(전사+요약): 5분 단위로 크레딧 계산.',
+    silenceAutoStopNote:
+      '5분 동안 말소리가 감지되지 않으면 녹음이 자동으로 중지되며, 수동 중지와 같이 저장됩니다.',
+    autoStoppedBySilence: '녹음이 자동 중지되었습니다: 5분 동안 말소리가 없었습니다.',
+    segmentAutoSplitNote:
+      '5분마다 현재 구간을 마치고 같은 마이크로 새 구간을 자동 시작합니다. 서버에서 파일을 자를 필요가 없습니다.',
+    segmentRotatedToast: '새 5분 녹음 구간을 시작했습니다.',
+    chargeNote:
+      'AI 회의록(전사+요약): 처음 5분 1 크레딧; 초과분은 분 단위(올림)마다 0.2 크레딧 추가.',
     sessionNote:
       '녹음은 서버에 최대 {days}일 보관 후 자동 삭제됩니다. 이 세션에서는 로컬 재생·다운로드가 가능합니다. 녹음 시작 시 회의 제목이 이 기기에 자동 저장됩니다.',
     meetingTitleLabel: '회의 제목',
@@ -4579,6 +4641,11 @@ const KO_DICTIONARY: Dictionary = {
     needServerRecording: 'AI 회의록을 만들기 전에 서버에 녹음을 저장해야 합니다.',
     startRecording: '녹음 시작',
     stopRecording: '중지',
+    stopRecordingConfirmTitle: '녹음 중지 확인',
+    stopRecordingConfirmDescription:
+      '회의가 실제로 끝났을 때만 확인하세요. 녹음은 저장됩니다. 크레딧은 AI 회의록을 만들 때만 차감됩니다.',
+    stopRecordingConfirmOk: '확인 — 회의 종료됨',
+    stopRecordingConfirmContinue: '계속 녹음',
     recording: '녹음 중…',
     idleHint: '브라우저에서 물으면 마이크를 허용해 주세요.',
     recordingTimeLabel: '녹음 중: {duration}',
@@ -4589,14 +4656,18 @@ const KO_DICTIONARY: Dictionary = {
     generateReport: 'AI 회의록 만들기',
     reportLanguageLabel: '회의록 언어',
     estimatedCost: '예상: {credits} 크레딧',
-    costExplain: '최소 1 크레딧. 5분 단위(올림)마다 0.5 크레딧 추가.',
+    costExplain:
+      '첫 5분: 1 크레딧. 5분 초과분은 분 단위(올림)마다 0.2 크레딧 — 예: 5:47 ≈ 1.2 크레딧.',
     needRecording: '회의록을 만들기 전에 몇 초 이상 녹음하세요.',
     processing: '오디오 분석 중…',
-    reportHeading: '회의록',
+    reportHeading: '회의 보고',
+    briefReportHeading: '짧은 요약 (핵심)',
+    fullReportHeading: '상세 보고',
     transcriptHeading: '전사',
     copy: '복사',
     copied: '복사됨',
-    downloadMd: '회의록 받기(.md)',
+    downloadMd: '상세 보고 받기(.md)',
+    downloadBriefMd: '짧은 요약 받기(.md)',
     micError: '마이크를 사용할 수 없습니다. 브라우저 권한을 확인하세요.',
     fileTooLarge: '오디오 파일이 너무 큽니다(최대 20MB).',
     genericError: '오류가 발생했습니다. 잠시 후 다시 시도하세요.',

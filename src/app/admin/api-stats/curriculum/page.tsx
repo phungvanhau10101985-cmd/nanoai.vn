@@ -8,6 +8,7 @@ import { LogsTableWithDetail } from '../logs-table-with-detail'
 import { getCurrentWebLocale } from '@/lib/i18n/server'
 import { calcCostVnd, USD_TO_VND } from '../api-cost'
 import { buildCurriculumFeatureLabelsForLogs } from '../curriculum-feature-labels'
+import { fetchAllApiUsageLogsInRange, sortApiUsageLogsNewestFirst } from '../fetch-api-usage-logs-range'
 
 function toYMD(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -53,14 +54,11 @@ export default async function AdminCurriculumApiStatsPage({
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  const { data: logs, error } = await adminSupabase
-    .from('api_usage_log')
-    .select('id, model, feature, prompt_token_count, candidates_token_count, total_token_count, image_size, created_at')
-    .like('feature', 'curriculum-%')
-    .gte('created_at', fromDate + 'T00:00:00')
-    .lte('created_at', toDate + 'T23:59:59.999')
-    .order('created_at', { ascending: false })
-    .limit(5000)
+  const fromIso = fromDate + 'T00:00:00'
+  const toIso = toDate + 'T23:59:59.999'
+  const { data: logsRaw, error } = await fetchAllApiUsageLogsInRange(adminSupabase, fromIso, toIso, {
+    featureLike: 'curriculum-%',
+  })
 
   if (error) {
     return (
@@ -77,7 +75,7 @@ export default async function AdminCurriculumApiStatsPage({
     )
   }
 
-  const logsList = logs || []
+  const logsList = sortApiUsageLogsNewestFirst(logsRaw || [])
   const curriculumFeatureLabels = buildCurriculumFeatureLabelsForLogs(logsList.map((l) => l.feature))
 
   const byModel = logsList.reduce((acc, log) => {
@@ -177,11 +175,11 @@ export default async function AdminCurriculumApiStatsPage({
         </h2>
         <p className="text-muted-foreground mt-1">
           {tr(
-            'Chỉ bản ghi feature bắt đầu bằng curriculum- • Tối đa 5000 bản ghi • 1 USD = 25.000₫',
-            'Only rows where feature starts with curriculum- • Up to 5000 records • 1 USD = 25,000₫',
-            '仅 feature 以 curriculum- 开头的记录 • 最多5000条 • 1 USD = 25,000₫',
-            'feature が curriculum- で始まる行のみ • 最大5000件 • 1 USD = 25,000₫',
-            'feature가 curriculum-로 시작하는 행만 • 최대 5000건 • 1 USD = 25,000₫'
+            'Chỉ bản ghi feature bắt đầu bằng curriculum- • Toàn bộ trong khoảng ngày • 1 USD = 25.000₫',
+            'Only rows where feature starts with curriculum- • Full date range • 1 USD = 25,000₫',
+            '仅 feature 以 curriculum- 开头 • 日期范围内全部 • 1 USD = 25,000₫',
+            'feature が curriculum- で始まる行 • 期間内の全件 • 1 USD = 25,000₫',
+            'feature가 curriculum-로 시작 • 기간 내 전체 • 1 USD = 25,000₫'
           )}
         </p>
         <p className="text-sm mt-2">
@@ -191,11 +189,11 @@ export default async function AdminCurriculumApiStatsPage({
         </p>
         <p className="text-xs text-amber-800/90 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 mt-3">
           {tr(
-            'Google GenAI grounding (tìm ảnh), DeepSeek và Pexels không ghi vào bảng này. Chỉ các lượt @google/generative-ai có usageMetadata mới được log.',
-            'Google GenAI grounding image search, DeepSeek, and Pexels are not logged here. Only @google/generative-ai calls with usageMetadata are recorded.',
-            'Google GenAI 搜图、DeepSeek、Pexels 不在此表。仅记录带 usageMetadata 的 @google/generative-ai 调用。',
-            'Google GenAI 画像検索、DeepSeek、Pexels は含まれません。usageMetadata 付き @google/generative-ai のみ記録されます。',
-            'Google GenAI 이미지 검색, DeepSeek, Pexels는 미포함. usageMetadata 있는 @google/generative-ai만 기록.'
+            'Google GenAI grounding (tìm ảnh) và Pexels vẫn không ghi log. DeepSeek (duyệt sửa slide) và OpenAI fallback (tạo từ ảnh) đã ghi curriculum-slide-deepseek-verify / curriculum-from-image-openai-fallback.',
+            'Google GenAI grounding image search and Pexels are still not logged. DeepSeek (slide verify) and OpenAI fallback (from-image) log as curriculum-slide-deepseek-verify / curriculum-from-image-openai-fallback.',
+            'Google GenAI 搜图与 Pexels 仍无日志。DeepSeek（审片）与 OpenAI 兜底（从图创建）已记录对应 feature。',
+            'Google GenAI 画像検索・Pexels は未ログ。DeepSeek（スライド検証）・OpenAI フォールバックは feature 付きで記録。',
+            'Google GenAI 이미지 검색·Pexels는 미기록. DeepSeek(슬라이드 검증)·OpenAI 폴백은 feature로 기록.'
           )}
         </p>
       </div>

@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
+import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 
 const VERIFY_PROMPT = `Bạn là giáo viên kiểm tra chất lượng. Đối chiếu GIÁO TRÌNH với bài tự luận.
 
@@ -41,7 +42,12 @@ function parseVerifyResult(raw: string): { verified: boolean; reason?: string; p
   }
 }
 
-async function verifyWithGemini(curriculum: string, problem: string, solution: string): Promise<{ verified: boolean; reason?: string } | null> {
+async function verifyWithGemini(
+  curriculum: string,
+  problem: string,
+  solution: string,
+  userId?: string | null
+): Promise<{ verified: boolean; reason?: string } | null> {
   const apiKey = process.env.GOOGLE_API_KEY
   if (!apiKey) return null
   const prompt = VERIFY_PROMPT.replace('{curriculum}', curriculum.slice(0, 3000)).replace('{problem}', problem).replace('{solution}', solution)
@@ -51,6 +57,12 @@ async function verifyWithGemini(curriculum: string, problem: string, solution: s
     generationConfig: { temperature: 0, responseMimeType: 'application/json' },
   })
   const res = await model.generateContent(prompt)
+  void trackFromUsageMetadata(
+    res.response.usageMetadata,
+    GEMINI_25_FLASH_NO_THINKING.model,
+    'worksheet-verify-essay-api-flash',
+    userId ?? null
+  )
   const raw = res.response.text()?.trim() || ''
   return raw ? parseVerifyResult(raw) : null
 }
@@ -59,8 +71,9 @@ async function verifyWithGemini(curriculum: string, problem: string, solution: s
 export async function verifyEssay(
   curriculumMarkdown: string,
   problem: string,
-  solution: string
+  solution: string,
+  userId?: string | null
 ): Promise<{ verified: boolean; reason?: string; problem?: string; solution?: string }> {
-  const result = await verifyWithGemini(curriculumMarkdown, problem, solution)
+  const result = await verifyWithGemini(curriculumMarkdown, problem, solution, userId)
   return result ?? { verified: false }
 }

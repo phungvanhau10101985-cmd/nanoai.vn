@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { deductUserCredits, refundUserCredits } from '@/lib/music/deduct-user-credits'
+import { trackApiUsage } from '@/lib/track-ai-usage'
 
 export const maxDuration = 300
 
@@ -480,6 +481,14 @@ export async function POST(request: NextRequest) {
           { status: 502 }
         )
       }
+      void trackApiUsage({
+        userId: user.id,
+        model: modelId,
+        feature: 'music-lyria3-generate',
+        promptTokenCount: 0,
+        candidatesTokenCount: 0,
+        totalTokenCount: 1,
+      })
       audioBase64 = extracted.audioBase64
       mimeType = extracted.mimeType
       textParts = extracted.textParts

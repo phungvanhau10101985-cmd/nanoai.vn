@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_PRO } from '@/lib/gemini-config'
+import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { questionsToMarkdown } from '@/app/tao-giao-trinh/lib/questions-to-markdown'
 import { getEssayProblem, getEssaySolution, normalizeSolutionToStr } from '@/app/tao-giao-trinh/lib/worksheet-content-json'
 
@@ -24,6 +25,7 @@ async function generateEssaySolution(
   topic: string,
   curriculumMarkdown: string,
   apiKey: string,
+  userId: string,
   imageParts?: Array<{ inlineData: { data: string; mimeType: string } }>
 ): Promise<string> {
   const genAI = new GoogleGenerativeAI(apiKey)
@@ -47,6 +49,12 @@ Trả về JSON: {"solution":"Lời giải chi tiết từng bước (chuỗi v�
 
   const useVision = Array.isArray(imageParts) && imageParts.length > 0
   const result = useVision ? await model.generateContent([prompt, ...imageParts]) : await model.generateContent(prompt)
+  void trackFromUsageMetadata(
+    result.response.usageMetadata,
+    GEMINI_25_PRO.model,
+    'worksheet-solve-sgk-essay-solution-pro',
+    userId
+  )
   const raw = result.response.text()?.trim() || ''
   try {
     const cleaned = raw.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim()
@@ -141,6 +149,7 @@ export async function runSolveSgkEssays(
       topic,
       curriculumMarkdown,
       apiKey,
+      userId,
       essayNeedsImage(problem) ? imageParts : undefined
     )
     if (!generated) continue

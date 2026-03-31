@@ -3,9 +3,11 @@ import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
 import {
   EnglishCoachApiFeature,
+  buildEnglishCoachTrackedFeature,
   trackEnglishCoachGeminiResult,
   type EnglishCoachUsageContext,
 } from '@/lib/english-coach-api-usage'
+import { trackOpenAiStyleCompletionUsage, type OpenAiStyleUsage } from '@/lib/track-ai-usage'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
@@ -1310,12 +1312,23 @@ function hasCoreChatFields(input: {
   return Boolean(mainSentence && correctionNote && intentAnswer)
 }
 
+type ChatJsonProviderOutcome = {
+  parsed: ChatJsonPayload | null
+  tracking?: {
+    model: string
+    usage?: OpenAiStyleUsage
+    promptChars: number
+    outputChars: number
+  }
+}
+
 async function generateDeepSeekChatJson(params: {
   systemPrompt: string
   userPrompt: string
   apiKey: string
-}): Promise<ChatJsonPayload | null> {
+}): Promise<ChatJsonProviderOutcome> {
   const model = String(process.env.DEEPSEEK_MODEL || 'deepseek-chat').trim() || 'deepseek-chat'
+  const promptChars = params.systemPrompt.length + params.userPrompt.length
   const res = await fetch('https://api.deepseek.com/chat/completions', {
     method: 'POST',
     headers: {
@@ -1332,21 +1345,24 @@ async function generateDeepSeekChatJson(params: {
       response_format: { type: 'json_object' },
     }),
   })
-  if (!res.ok) return null
+  if (!res.ok) return { parsed: null }
   const data = (await res.json().catch(() => ({}))) as {
     choices?: Array<{ message?: { content?: string } }>
+    usage?: OpenAiStyleUsage
   }
   const text = String(data?.choices?.[0]?.message?.content || '').trim()
-  if (!text) return null
-  return safeJsonParse(text)
+  const tracking = { model, usage: data.usage, promptChars, outputChars: text.length }
+  if (!text) return { parsed: null, tracking }
+  return { parsed: safeJsonParse(text), tracking }
 }
 
 async function generateOpenAiFallbackChatJson(params: {
   systemPrompt: string
   userPrompt: string
   apiKey: string
-}): Promise<ChatJsonPayload | null> {
+}): Promise<ChatJsonProviderOutcome> {
   const model = String(process.env.OPENAI_FALLBACK_MODEL || 'gpt-5-mini').trim() || 'gpt-5-mini'
+  const promptChars = params.systemPrompt.length + params.userPrompt.length
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -1363,13 +1379,15 @@ async function generateOpenAiFallbackChatJson(params: {
       ],
     }),
   })
-  if (!res.ok) return null
+  if (!res.ok) return { parsed: null }
   const data = (await res.json().catch(() => ({}))) as {
     choices?: Array<{ message?: { content?: string } }>
+    usage?: OpenAiStyleUsage
   }
   const text = String(data?.choices?.[0]?.message?.content || '').trim()
-  if (!text) return null
-  return safeJsonParse(text)
+  const tracking = { model, usage: data.usage, promptChars, outputChars: text.length }
+  if (!text) return { parsed: null, tracking }
+  return { parsed: safeJsonParse(text), tracking }
 }
 
 function safeJsonObject(text: string): Record<string, unknown> | null {
@@ -2977,13 +2995,23 @@ Ràng buộc bắt buộc:
 
     if ((!parsed || !hasCoreChatFields(parsed)) && deepSeekApiKey) {
       try {
-        const deepSeekParsed = await generateDeepSeekChatJson({
+        const deepSeekOutcome = await generateDeepSeekChatJson({
           systemPrompt,
           userPrompt,
           apiKey: deepSeekApiKey,
         })
-        if (deepSeekParsed && hasCoreChatFields(deepSeekParsed)) {
-          parsed = deepSeekParsed
+        if (deepSeekOutcome.tracking) {
+          void trackOpenAiStyleCompletionUsage({
+            userId: userId || null,
+            model: deepSeekOutcome.tracking.model,
+            feature: buildEnglishCoachTrackedFeature(EnglishCoachApiFeature.chatMainDeepSeek, coachUsageContext),
+            usage: deepSeekOutcome.tracking.usage,
+            fallbackPromptChars: deepSeekOutcome.tracking.promptChars,
+            fallbackOutputChars: deepSeekOutcome.tracking.outputChars,
+          })
+        }
+        if (deepSeekOutcome.parsed && hasCoreChatFields(deepSeekOutcome.parsed)) {
+          parsed = deepSeekOutcome.parsed
         }
       } catch {
         // keep existing parsed/fallback path
@@ -2992,13 +3020,23 @@ Ràng buộc bắt buộc:
 
     if ((!parsed || !hasCoreChatFields(parsed)) && openAiApiKey) {
       try {
-        const openAiParsed = await generateOpenAiFallbackChatJson({
+        const openAiOutcome = await generateOpenAiFallbackChatJson({
           systemPrompt,
           userPrompt,
           apiKey: openAiApiKey,
         })
-        if (openAiParsed && hasCoreChatFields(openAiParsed)) {
-          parsed = openAiParsed
+        if (openAiOutcome.tracking) {
+          void trackOpenAiStyleCompletionUsage({
+            userId: userId || null,
+            model: openAiOutcome.tracking.model,
+            feature: buildEnglishCoachTrackedFeature(EnglishCoachApiFeature.chatMainOpenaiFallback, coachUsageContext),
+            usage: openAiOutcome.tracking.usage,
+            fallbackPromptChars: openAiOutcome.tracking.promptChars,
+            fallbackOutputChars: openAiOutcome.tracking.outputChars,
+          })
+        }
+        if (openAiOutcome.parsed && hasCoreChatFields(openAiOutcome.parsed)) {
+          parsed = openAiOutcome.parsed
         }
       } catch {
         // keep existing parsed/fallback path

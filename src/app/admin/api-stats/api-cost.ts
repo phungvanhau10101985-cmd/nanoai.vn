@@ -2,6 +2,13 @@
 export const IMAGE_TOKENS = { '1K': 1120, '2K': 1120, '4K': 2000 } as const
 
 export const API_COST_PER_1M: Record<string, { input: number; output: number; outputImage?: number }> = {
+  /** DeepSeek — bảng giá tham khảo (USD / 1M tokens), làm tròn. */
+  'deepseek-reasoner': { input: 0.55, output: 2.19 },
+  'deepseek-chat': { input: 0.14, output: 0.28 },
+  /** OpenAI — ước tính cho báo cáo admin khi model env khớp; khác model vẫn fallback flash-preview. */
+  'gpt-5': { input: 2.5, output: 10 },
+  'gpt-4o': { input: 2.5, output: 10 },
+  'gpt-4-turbo': { input: 10, output: 30 },
   'gemini-3-pro-image-preview': { input: 2, output: 12, outputImage: 120 },
   'gemini-3-flash-preview': { input: 0.5, output: 3 },
   'gemini-3-pro-preview': { input: 2, output: 12 },
