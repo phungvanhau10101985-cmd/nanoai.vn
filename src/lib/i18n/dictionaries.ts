@@ -2,13 +2,11 @@ import { DEFAULT_WEB_LOCALE, type WebLocale } from '@/lib/i18n/config'
 
 export type NavGroupKey =
   | 'try_on'
+  | 'education'
   | 'image_edit'
   | 'design_creative'
   | 'three_d_special'
-  | 'translation'
   | 'music_ai'
-  | 'curriculum'
-  | 'learning_ai'
   | 'system'
 
 export type ToolKey =
@@ -19,6 +17,8 @@ export type ToolKey =
   | 'merge_image'
   | 'create_banner'
   | 'text_to_image'
+  | 'infographic_from_book'
+  | 'sketch_to_image'
   | 'create_id_photo'
   | 'design_logo'
   | 'story_with_images'
@@ -47,10 +47,11 @@ export type ToolKey =
   | 'ai_dj'
   | 'music_from_image_mood'
   | 'realtime_music_control'
+  | 'lyria3_instrumental_song'
+  | 'meeting_recorder_report'
   | 'ai_language_learning'
   | 'create_curriculum'
   | 'my_curricula'
-  | 'create_exam'
   | 'online_exam'
   | 'homework_online'
   | 'classes'
@@ -185,6 +186,47 @@ export type Dictionary = {
     back: string
     relatedTitle: string
     popularTitle: string
+  }
+  /** /ghi-am-bao-cao-cuoc-hop — ghi âm miễn phí, trừ credit khi tạo báo cáo AI */
+  meetingRecorder: {
+    cardTitle: string
+    cardDescription: string
+    freeRecordingNote: string
+    chargeNote: string
+    /** {days} — số ngày lưu trên máy chủ */
+    sessionNote: string
+    meetingTitleLabel: string
+    meetingTitlePlaceholder: string
+    savingRecording: string
+    saveRecordingFailed: string
+    retrySaveRecording: string
+    needServerRecording: string
+    startRecording: string
+    stopRecording: string
+    recording: string
+    idleHint: string
+    /** Đang ghi — {duration} mm:ss */
+    recordingTimeLabel: string
+    durationLabel: string
+    createNewMeeting: string
+    /** Tooltip khi đang ghi — nút tạo cuộc họp mới bị tắt */
+    stopBeforeNewMeeting: string
+    downloadRecording: string
+    generateReport: string
+    reportLanguageLabel: string
+    estimatedCost: string
+    costExplain: string
+    needRecording: string
+    processing: string
+    reportHeading: string
+    transcriptHeading: string
+    copy: string
+    copied: string
+    downloadMd: string
+    micError: string
+    fileTooLarge: string
+    genericError: string
+    insufficientCredits: string
   }
   classes: {
     title: string
@@ -1012,13 +1054,11 @@ const VI_DICTIONARY: Dictionary = {
   },
   navGroup: {
     try_on: 'Thử đồ & Phối đồ',
+    education: 'Giáo dục & Đào tạo',
     image_edit: 'Chỉnh sửa ảnh',
     design_creative: 'Thiết kế & Sáng tạo',
     three_d_special: '3D & Chuyên dụng',
-    translation: 'Dịch thuật',
     music_ai: 'Âm nhạc AI',
-    curriculum: 'Giáo trình',
-    learning_ai: 'Học tập AI',
     system: 'Hệ thống',
   },
   tool: {
@@ -1029,6 +1069,8 @@ const VI_DICTIONARY: Dictionary = {
     merge_image: 'Ghép ảnh',
     create_banner: 'Tạo banner',
     text_to_image: 'Tạo ảnh bằng chữ',
+    infographic_from_book: 'Infographic từ sách',
+    sketch_to_image: 'Dựng ảnh từ phác thảo',
     create_id_photo: 'Tạo ảnh thẻ',
     design_logo: 'Thiết kế logo',
     story_with_images: 'Kể chuyện bằng ảnh',
@@ -1057,10 +1099,11 @@ const VI_DICTIONARY: Dictionary = {
     ai_dj: 'AI DJ',
     music_from_image_mood: 'Nhạc theo cảm xúc ảnh',
     realtime_music_control: 'Điều khiển nhạc realtime',
+    lyria3_instrumental_song: 'Tạo bài nhạc Lyria 3 (có lời / không lời)',
+    meeting_recorder_report: 'Ghi âm & báo cáo cuộc họp',
     ai_language_learning: 'Học ngoại ngữ AI',
     create_curriculum: 'Tạo giáo trình',
     my_curricula: 'Giáo trình của tôi',
-    create_exam: 'Tạo đề trắc nghiệm',
     online_exam: 'Tạo bài thi trực tuyến',
     homework_online: 'Tạo bài tập về nhà',
     classes: 'Lớp học',
@@ -1075,6 +1118,45 @@ const VI_DICTIONARY: Dictionary = {
     back: 'Quay lại',
     relatedTitle: 'Liên quan',
     popularTitle: 'Nhiều người dùng',
+  },
+  meetingRecorder: {
+    cardTitle: 'Ghi âm cuộc họp → báo cáo AI',
+    cardDescription:
+      'Ghi âm trên trình duyệt không tính phí. Tên cuộc họp tự lưu trên thiết bị khi bạn bấm bắt đầu ghi. Chỉ khi tạo báo cáo AI hệ thống mới trừ credits theo độ dài ghi âm.',
+    freeRecordingNote: 'Ghi âm và lưu tên cuộc họp: không trừ credits.',
+    chargeNote: 'Tạo báo cáo AI (biên bản + tóm tắt): trừ credits theo từng khối 5 phút.',
+    sessionNote:
+      'Bản ghi được lưu trên máy chủ tối đa {days} ngày rồi tự xóa. Trong phiên này bạn vẫn nghe/tải file cục bộ; tên cuộc họp tự lưu trên thiết bị khi bạn bấm bắt đầu ghi.',
+    meetingTitleLabel: 'Tên cuộc họp',
+    meetingTitlePlaceholder: 'Ví dụ: Họp dự án Q1',
+    savingRecording: 'Đang lưu bản ghi lên máy chủ…',
+    saveRecordingFailed: 'Không lưu được bản ghi. Kiểm tra mạng và thử lại.',
+    retrySaveRecording: 'Thử lưu lại bản ghi',
+    needServerRecording: 'Cần lưu bản ghi lên máy chủ trước khi tạo báo cáo AI.',
+    startRecording: 'Bắt đầu ghi',
+    stopRecording: 'Dừng ghi',
+    recording: 'Đang ghi…',
+    idleHint: 'Cho phép truy cập micro khi trình duyệt hỏi.',
+    recordingTimeLabel: 'Đang ghi: {duration}',
+    durationLabel: 'Thời lượng: {duration}',
+    createNewMeeting: 'Tạo cuộc họp mới',
+    stopBeforeNewMeeting: 'Dừng ghi âm trước khi tạo cuộc họp mới.',
+    downloadRecording: 'Tải file ghi âm',
+    generateReport: 'Tạo báo cáo AI',
+    reportLanguageLabel: 'Ngôn ngữ báo cáo',
+    estimatedCost: 'Ước tính: {credits} credits',
+    costExplain: 'Tối thiểu 1 credit; mỗi 5 phút (làm tròn lên) thêm 0,5 credit.',
+    needRecording: 'Hãy ghi âm ít nhất vài giây trước khi tạo báo cáo.',
+    processing: 'Đang phân tích âm thanh…',
+    reportHeading: 'Báo cáo',
+    transcriptHeading: 'Phiên âm',
+    copy: 'Sao chép',
+    copied: 'Đã sao chép',
+    downloadMd: 'Tải báo cáo (.md)',
+    micError: 'Không bật được micro. Kiểm tra quyền trình duyệt.',
+    fileTooLarge: 'File âm thanh quá lớn (giới hạn 20MB).',
+    genericError: 'Có lỗi xảy ra. Thử lại sau.',
+    insufficientCredits: 'Không đủ credits.',
   },
   classes: {
     title: 'Lớp học',
@@ -1841,13 +1923,11 @@ const EN_DICTIONARY: Dictionary = {
   },
   navGroup: {
     try_on: 'Try-on & Styling',
+    education: 'Education & Training',
     image_edit: 'Image Editing',
     design_creative: 'Design & Creative',
     three_d_special: '3D & Specialized',
-    translation: 'Translation',
     music_ai: 'AI Music',
-    curriculum: 'Curriculum',
-    learning_ai: 'AI Learning',
     system: 'System',
   },
   tool: {
@@ -1859,6 +1939,8 @@ const EN_DICTIONARY: Dictionary = {
     merge_image: 'Merge Images',
     create_banner: 'Create Banner',
     text_to_image: 'Text-to-image',
+    infographic_from_book: 'Infographic from book',
+    sketch_to_image: 'Sketch to image',
     create_id_photo: 'Create ID Photo',
     design_logo: 'Design Logo',
     story_with_images: 'Story with Images',
@@ -1887,10 +1969,11 @@ const EN_DICTIONARY: Dictionary = {
     ai_dj: 'AI DJ',
     music_from_image_mood: 'Music from Image Mood',
     realtime_music_control: 'Realtime Music Control',
+    lyria3_instrumental_song: 'Lyria 3 music (vocal or instrumental)',
+    meeting_recorder_report: 'Meeting recording & AI report',
     ai_language_learning: 'AI Language Learning',
     create_curriculum: 'Create curriculum',
     my_curricula: 'My curricula',
-    create_exam: 'Create exam',
     online_exam: 'Online exam (live session)',
     homework_online: 'Create homework',
     classes: 'Classes',
@@ -1905,6 +1988,45 @@ const EN_DICTIONARY: Dictionary = {
     back: 'Back',
     relatedTitle: 'Related',
     popularTitle: 'Popular tools',
+  },
+  meetingRecorder: {
+    cardTitle: 'Record a meeting → AI report',
+    cardDescription:
+      'Recording in the browser costs no credits. The meeting title is saved on this device when you press start recording. Credits are charged only when you generate the AI report, based on recording length.',
+    freeRecordingNote: 'Recording and saving the meeting name: no credits.',
+    chargeNote: 'AI report (minutes + summary): credits per 5-minute block.',
+    sessionNote:
+      'Recordings are stored on the server for up to {days} days, then removed automatically. In this session you can still play/download locally; the meeting title is saved on this device when you press start recording.',
+    meetingTitleLabel: 'Meeting title',
+    meetingTitlePlaceholder: 'e.g. Q1 project sync',
+    savingRecording: 'Saving recording to server…',
+    saveRecordingFailed: 'Could not save the recording. Check your network and try again.',
+    retrySaveRecording: 'Retry saving recording',
+    needServerRecording: 'The recording must be saved on the server before generating an AI report.',
+    startRecording: 'Start recording',
+    stopRecording: 'Stop',
+    recording: 'Recording…',
+    idleHint: 'Allow microphone access when the browser asks.',
+    recordingTimeLabel: 'Recording: {duration}',
+    durationLabel: 'Duration: {duration}',
+    createNewMeeting: 'Create new meeting',
+    stopBeforeNewMeeting: 'Stop recording before starting a new meeting.',
+    downloadRecording: 'Download recording',
+    generateReport: 'Generate AI report',
+    reportLanguageLabel: 'Report language',
+    estimatedCost: 'Estimate: {credits} credits',
+    costExplain: 'Minimum 1 credit; each started 5 minutes adds 0.5 credit.',
+    needRecording: 'Record at least a few seconds before generating a report.',
+    processing: 'Analyzing audio…',
+    reportHeading: 'Report',
+    transcriptHeading: 'Transcript',
+    copy: 'Copy',
+    copied: 'Copied',
+    downloadMd: 'Download report (.md)',
+    micError: 'Could not access the microphone. Check browser permissions.',
+    fileTooLarge: 'Audio file is too large (20MB limit).',
+    genericError: 'Something went wrong. Please try again.',
+    insufficientCredits: 'Not enough credits.',
   },
   classes: {
     title: 'Classes',
@@ -2664,15 +2786,52 @@ const ZH_DICTIONARY: Dictionary = {
     bellDeniedHint: '通知已被阻止。请在浏览器设置中为 NanoAI 开启通知。',
     bellSyncHint: '已允许通知，但服务器尚未登记此设备。请点击同步。',
   },
+  meetingRecorder: {
+    cardTitle: '会议录音 → AI 纪要',
+    cardDescription:
+      '浏览器内录音不扣积分；开始录音时自动保存会议名称到本设备。仅当您生成 AI 纪要时，才按录音时长扣除积分。',
+    freeRecordingNote: '录音与保存会议名：不扣积分。',
+    chargeNote: '生成 AI 纪要（纪要+摘要）：按每 5 分钟一档扣积分。',
+    sessionNote:
+      '录音在服务器最多保存 {days} 天后自动删除。本页仍可本地播放/下载；点击开始录音时会自动把会议名称保存在本设备。',
+    meetingTitleLabel: '会议名称',
+    meetingTitlePlaceholder: '例如：Q1 项目例会',
+    savingRecording: '正在保存录音到服务器…',
+    saveRecordingFailed: '保存失败，请检查网络后重试。',
+    retrySaveRecording: '重试保存录音',
+    needServerRecording: '需先将录音保存到服务器，再生成 AI 纪要。',
+    startRecording: '开始录音',
+    stopRecording: '停止',
+    recording: '正在录音…',
+    idleHint: '请在浏览器提示时允许使用麦克风。',
+    recordingTimeLabel: '录音中：{duration}',
+    durationLabel: '时长：{duration}',
+    createNewMeeting: '新建会议',
+    stopBeforeNewMeeting: '请先停止录音再新建会议。',
+    downloadRecording: '下载录音文件',
+    generateReport: '生成 AI 纪要',
+    reportLanguageLabel: '纪要语言',
+    estimatedCost: '预估：{credits} 积分',
+    costExplain: '至少 1 积分；每满 5 分钟（向上取整）加收 0.5 积分。',
+    needRecording: '请至少录制数秒后再生成纪要。',
+    processing: '正在分析音频…',
+    reportHeading: '纪要',
+    transcriptHeading: '转写',
+    copy: '复制',
+    copied: '已复制',
+    downloadMd: '下载纪要（.md）',
+    micError: '无法使用麦克风，请检查浏览器权限。',
+    fileTooLarge: '音频文件过大（上限 20MB）。',
+    genericError: '发生错误，请稍后重试。',
+    insufficientCredits: '积分不足。',
+  },
   navGroup: {
     try_on: '试衣与穿搭',
+    education: '教育与培训',
     image_edit: '图片编辑',
     design_creative: '设计与创意',
     three_d_special: '3D 与专业工具',
-    translation: '翻译',
     music_ai: 'AI 音乐',
-    curriculum: '课程',
-    learning_ai: 'AI 学习',
     system: '系统',
   },
   tool: {
@@ -2684,6 +2843,8 @@ const ZH_DICTIONARY: Dictionary = {
     merge_image: '图片合成',
     create_banner: '生成横幅',
     text_to_image: '文生图',
+    infographic_from_book: '书籍信息图',
+    sketch_to_image: '草图生成图像',
     create_id_photo: '制作证件照',
     design_logo: '设计 Logo',
     story_with_images: '图像故事',
@@ -2712,10 +2873,11 @@ const ZH_DICTIONARY: Dictionary = {
     ai_dj: 'AI DJ',
     music_from_image_mood: '按图片情绪生成音乐',
     realtime_music_control: '实时音乐控制',
+    lyria3_instrumental_song: 'Lyria 3 乐曲（人声或纯音乐）',
+    meeting_recorder_report: '会议录音与 AI 纪要',
     ai_language_learning: 'AI 语言学习',
     create_curriculum: '创建课程',
     my_curricula: '我的课程',
-    create_exam: '创建试题',
     online_exam: '在线考试（课堂）',
     homework_online: '创建家庭作业',
     classes: '班级',
@@ -3469,13 +3631,11 @@ const JA_DICTIONARY: Dictionary = {
   },
   navGroup: {
     try_on: '試着・コーデ',
+    education: '教育・研修',
     image_edit: '画像編集',
     design_creative: 'デザイン・クリエイティブ',
     three_d_special: '3D・専門ツール',
-    translation: '翻訳',
     music_ai: 'AI 音楽',
-    curriculum: 'カリキュラム',
-    learning_ai: 'AI 学習',
     system: 'システム',
   },
   tool: {
@@ -3487,6 +3647,8 @@ const JA_DICTIONARY: Dictionary = {
     merge_image: '画像合成',
     create_banner: 'バナー作成',
     text_to_image: 'テキストから画像',
+    infographic_from_book: '教科書インフォグラフィック',
+    sketch_to_image: 'スケッチから画像',
     create_id_photo: '証明写真作成',
     design_logo: 'ロゴ作成',
     story_with_images: '画像でストーリー作成',
@@ -3515,10 +3677,11 @@ const JA_DICTIONARY: Dictionary = {
     ai_dj: 'AI DJ',
     music_from_image_mood: '画像の雰囲気から音楽生成',
     realtime_music_control: 'リアルタイム音楽制御',
+    lyria3_instrumental_song: 'Lyria 3 楽曲（ボーカル/インスト）',
+    meeting_recorder_report: '会議録音とAI議事録',
     ai_language_learning: 'AI 語学学習',
     create_curriculum: 'カリキュラム作成',
     my_curricula: 'マイカリキュラム',
-    create_exam: '試験作成',
     online_exam: 'オンライン試験（授業）',
     homework_online: '宿題を作成',
     classes: 'クラス',
@@ -3533,6 +3696,45 @@ const JA_DICTIONARY: Dictionary = {
     back: '戻る',
     relatedTitle: '関連',
     popularTitle: 'よく使うツール',
+  },
+  meetingRecorder: {
+    cardTitle: '会議を録音 → AI 議事録',
+    cardDescription:
+      'ブラウザでの録音にクレジットはかかりません。録音開始時に会議名をこの端末へ自動保存します。AI 議事録を生成するときだけ、録音時間に応じてクレジットが減ります。',
+    freeRecordingNote: '録音と会議名の保存：クレジット不要。',
+    chargeNote: 'AI 議事録（文字起こし＋要約）：5 分単位でクレジットを計算。',
+    sessionNote:
+      '録音はサーバーに最大 {days} 日保存されたあと自動削除されます。この画面ではローカル再生・ダウンロード可能。録音開始時に会議名をこの端末へ自動保存します。',
+    meetingTitleLabel: '会議名',
+    meetingTitlePlaceholder: '例：Q1 プロジェクト定例',
+    savingRecording: 'サーバーに録音を保存しています…',
+    saveRecordingFailed: '保存に失敗しました。通信を確認して再試行してください。',
+    retrySaveRecording: '録音の保存を再試行',
+    needServerRecording: 'AI 議事録を出す前に、サーバーへ録音を保存する必要があります。',
+    startRecording: '録音開始',
+    stopRecording: '停止',
+    recording: '録音中…',
+    idleHint: 'ブラウザの案内に従いマイクを許可してください。',
+    recordingTimeLabel: '録音中：{duration}',
+    durationLabel: '時間：{duration}',
+    createNewMeeting: '新しい会議を作成',
+    stopBeforeNewMeeting: '録音を停止してから新しい会議を作成してください。',
+    downloadRecording: '録音をダウンロード',
+    generateReport: 'AI 議事録を生成',
+    reportLanguageLabel: '議事録の言語',
+    estimatedCost: '目安：{credits} クレジット',
+    costExplain: '最低 1 クレジット。5 分を切り上げた単位ごとに 0.5 クレジット追加。',
+    needRecording: '議事録を出す前に、数秒以上録音してください。',
+    processing: '音声を解析しています…',
+    reportHeading: '議事録',
+    transcriptHeading: '文字起こし',
+    copy: 'コピー',
+    copied: 'コピーしました',
+    downloadMd: '議事録をダウンロード（.md）',
+    micError: 'マイクにアクセスできません。ブラウザの権限を確認してください。',
+    fileTooLarge: '音声ファイルが大きすぎます（上限 20MB）。',
+    genericError: 'エラーが発生しました。しばらくしてからお試しください。',
+    insufficientCredits: 'クレジットが不足しています。',
   },
   classes: {
     title: 'クラス',
@@ -4295,13 +4497,11 @@ const KO_DICTIONARY: Dictionary = {
   },
   navGroup: {
     try_on: '가상 피팅·스타일링',
+    education: '교육·연수',
     image_edit: '이미지 편집',
     design_creative: '디자인·크리에이티브',
     three_d_special: '3D·전문 도구',
-    translation: '번역',
     music_ai: 'AI 음악',
-    curriculum: '교육과정',
-    learning_ai: 'AI 학습',
     system: '시스템',
   },
   tool: {
@@ -4313,6 +4513,8 @@ const KO_DICTIONARY: Dictionary = {
     merge_image: '이미지 합성',
     create_banner: '배너 생성',
     text_to_image: '텍스트로 이미지',
+    infographic_from_book: '교과서 인포그래픽',
+    sketch_to_image: '스케치로 이미지',
     create_id_photo: '증명사진 생성',
     design_logo: '로고 디자인',
     story_with_images: '이미지 스토리 만들기',
@@ -4341,10 +4543,11 @@ const KO_DICTIONARY: Dictionary = {
     ai_dj: 'AI DJ',
     music_from_image_mood: '이미지 분위기 음악 생성',
     realtime_music_control: '실시간 음악 제어',
+    lyria3_instrumental_song: 'Lyria 3 곡 (보컬/인스트루멘탈)',
+    meeting_recorder_report: '회의 녹음·AI 회의록',
     ai_language_learning: 'AI 외국어 학습',
     create_curriculum: '교육과정 생성',
     my_curricula: '내 교육과정',
-    create_exam: '시험 생성',
     online_exam: '온라인 시험(수업)',
     homework_online: '숙제 만들기',
     classes: '수업',
@@ -4359,6 +4562,45 @@ const KO_DICTIONARY: Dictionary = {
     back: '돌아가기',
     relatedTitle: '관련',
     popularTitle: '자주 쓰는 도구',
+  },
+  meetingRecorder: {
+    cardTitle: '회의 녹음 → AI 회의록',
+    cardDescription:
+      '브라우저에서 녹음할 때는 크레딧이 차감되지 않습니다. 녹음 시작 시 회의 제목이 이 기기에 자동 저장됩니다. AI 회의록을 만들 때만 녹음 길이에 따라 크레딧이 차감됩니다.',
+    freeRecordingNote: '녹음 및 회의명 저장: 크레딧 없음.',
+    chargeNote: 'AI 회의록(전사+요약): 5분 단위로 크레딧 계산.',
+    sessionNote:
+      '녹음은 서버에 최대 {days}일 보관 후 자동 삭제됩니다. 이 세션에서는 로컬 재생·다운로드가 가능합니다. 녹음 시작 시 회의 제목이 이 기기에 자동 저장됩니다.',
+    meetingTitleLabel: '회의 제목',
+    meetingTitlePlaceholder: '예: Q1 프로젝트 회의',
+    savingRecording: '서버에 녹음 저장 중…',
+    saveRecordingFailed: '저장하지 못했습니다. 네트워크를 확인하고 다시 시도하세요.',
+    retrySaveRecording: '녹음 저장 다시 시도',
+    needServerRecording: 'AI 회의록을 만들기 전에 서버에 녹음을 저장해야 합니다.',
+    startRecording: '녹음 시작',
+    stopRecording: '중지',
+    recording: '녹음 중…',
+    idleHint: '브라우저에서 물으면 마이크를 허용해 주세요.',
+    recordingTimeLabel: '녹음 중: {duration}',
+    durationLabel: '길이: {duration}',
+    createNewMeeting: '새 회의 만들기',
+    stopBeforeNewMeeting: '새 회의를 만들려면 먼저 녹음을 중지하세요.',
+    downloadRecording: '녹음 파일 받기',
+    generateReport: 'AI 회의록 만들기',
+    reportLanguageLabel: '회의록 언어',
+    estimatedCost: '예상: {credits} 크레딧',
+    costExplain: '최소 1 크레딧. 5분 단위(올림)마다 0.5 크레딧 추가.',
+    needRecording: '회의록을 만들기 전에 몇 초 이상 녹음하세요.',
+    processing: '오디오 분석 중…',
+    reportHeading: '회의록',
+    transcriptHeading: '전사',
+    copy: '복사',
+    copied: '복사됨',
+    downloadMd: '회의록 받기(.md)',
+    micError: '마이크를 사용할 수 없습니다. 브라우저 권한을 확인하세요.',
+    fileTooLarge: '오디오 파일이 너무 큽니다(최대 20MB).',
+    genericError: '오류가 발생했습니다. 잠시 후 다시 시도하세요.',
+    insufficientCredits: '크레딧이 부족합니다.',
   },
   classes: {
     title: '수업',

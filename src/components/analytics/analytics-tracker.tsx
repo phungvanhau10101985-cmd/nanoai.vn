@@ -17,6 +17,8 @@ const FEATURE_ROUTES = [
   '/ghep-anh',
   '/tao-banner',
   '/tao-anh-tu-chu',
+  '/du-anh-tu-phac-thao',
+  '/tao-infographic-tu-sach',
   '/tao-anh-the',
   '/thiet-ke-logo',
   '/ke-chuyen-bang-hinh-anh',

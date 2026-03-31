@@ -26,7 +26,6 @@ import { ImagePreview } from '@/components/ui/image-preview'
 import { Download, Music, Pause, Play, Square, WandSparkles, Upload } from 'lucide-react'
 
 type Mode = 'background' | 'dj' | 'image' | 'realtime'
-type VocalMode = 'instrumental' | 'vocal'
 type MusicLanguage = 'vi' | 'en' | 'ja' | 'ko' | 'zh'
 type MusicStyle =
   | 'lofi'
@@ -40,9 +39,6 @@ type MusicStyle =
   | 'cinematic'
   | 'techno'
   | 'ambient'
-type VoiceGender = 'female' | 'male' | 'neutral'
-type VoiceTone = 'soprano' | 'mezzo' | 'alto' | 'tenor' | 'baritone' | 'bass'
-type VoiceRegion = 'bac' | 'trung' | 'nam' | 'mix'
 type InstrumentKey =
   | 'piano'
   | 'guitar'
@@ -79,25 +75,6 @@ const MUSIC_STYLE_LABELS_VI: Record<MusicStyle, string> = {
   techno: 'Techno điện tử',
   ambient: 'Ambient thư giãn',
 }
-const VOICE_GENDER_LABELS_VI: Record<VoiceGender, string> = {
-  female: 'Giọng nữ',
-  male: 'Giọng nam',
-  neutral: 'Trung tính/phi giới tính',
-}
-const VOICE_TONE_LABELS_VI: Record<VoiceTone, string> = {
-  soprano: 'Soprano (nữ cao)',
-  mezzo: 'Mezzo-soprano (nữ trung)',
-  alto: 'Alto (nữ trầm)',
-  tenor: 'Tenor (nam cao)',
-  baritone: 'Baritone (nam trung)',
-  bass: 'Bass (nam trầm)',
-}
-const VOICE_REGION_LABELS_VI: Record<VoiceRegion, string> = {
-  bac: 'Giọng Bắc',
-  trung: 'Giọng Trung',
-  nam: 'Giọng Nam',
-  mix: 'Pha vùng (trung tính)',
-}
 const INSTRUMENT_LABELS_VI: Record<InstrumentKey, string> = {
   piano: 'Piano',
   guitar: 'Guitar',
@@ -127,27 +104,6 @@ const MUSIC_STYLE_LABELS: Record<UiLocale, Record<MusicStyle, string>> = {
   zh: { lofi: 'Lo-fi 放松', rock: '摇滚', pop: '流行', ballad: '民谣', edm: '电音', hiphop: '嘻哈', jazz: '爵士', acoustic: '原声', cinematic: '电影感', techno: '电子', ambient: '氛围' },
   ja: { lofi: 'Lo-fi chill', rock: 'ロック', pop: 'ポップ', ballad: 'バラード', edm: 'EDM', hiphop: 'ヒップホップ', jazz: 'ジャズ', acoustic: 'アコースティック', cinematic: 'シネマティック', techno: 'テクノ', ambient: 'アンビエント' },
   ko: { lofi: 'Lo-fi chill', rock: '락', pop: '팝', ballad: '발라드', edm: 'EDM', hiphop: '힙합', jazz: '재즈', acoustic: '어쿠스틱', cinematic: '시네마틱', techno: '테크노', ambient: '앰비언트' },
-}
-const VOICE_GENDER_LABELS: Record<UiLocale, Record<VoiceGender, string>> = {
-  vi: { female: 'Giọng nữ', male: 'Giọng nam', neutral: 'Trung tính/phi giới tính' },
-  en: { female: 'Female', male: 'Male', neutral: 'Neutral/androgynous' },
-  zh: { female: '女声', male: '男声', neutral: '中性' },
-  ja: { female: '女性', male: '男性', neutral: '中性' },
-  ko: { female: '여성', male: '남성', neutral: '중성' },
-}
-const VOICE_TONE_LABELS: Record<UiLocale, Record<VoiceTone, string>> = {
-  vi: { soprano: 'Soprano (nữ cao)', mezzo: 'Mezzo-soprano (nữ trung)', alto: 'Alto (nữ trầm)', tenor: 'Tenor (nam cao)', baritone: 'Baritone (nam trung)', bass: 'Bass (nam trầm)' },
-  en: { soprano: 'Soprano (high)', mezzo: 'Mezzo-soprano (mid)', alto: 'Alto (low)', tenor: 'Tenor (high)', baritone: 'Baritone (mid)', bass: 'Bass (low)' },
-  zh: { soprano: '女高音', mezzo: '次女高音', alto: '女低音', tenor: '男高音', baritone: '男中音', bass: '男低音' },
-  ja: { soprano: 'ソプラノ', mezzo: 'メゾソプラノ', alto: 'アルト', tenor: 'テノール', baritone: 'バリトン', bass: 'バス' },
-  ko: { soprano: '소프라노', mezzo: '메조소프라노', alto: '알토', tenor: '테너', baritone: '바리톤', bass: '베이스' },
-}
-const VOICE_REGION_LABELS: Record<UiLocale, Record<VoiceRegion, string>> = {
-  vi: { bac: 'Giọng Bắc', trung: 'Giọng Trung', nam: 'Giọng Nam', mix: 'Pha vùng (trung tính)' },
-  en: { bac: 'Northern', trung: 'Central', nam: 'Southern', mix: 'Mixed (neutral)' },
-  zh: { bac: '北腔', trung: '中腔', nam: '南腔', mix: '混合' },
-  ja: { bac: '北部', trung: '中部', nam: '南部', mix: '混合' },
-  ko: { bac: '북부', trung: '중부', nam: '남부', mix: '혼합' },
 }
 const INSTRUMENT_LABELS: Record<UiLocale, Record<InstrumentKey, string>> = {
   vi: { piano: 'Piano', guitar: 'Guitar', bass: 'Bass', drums: 'Trống', strings: 'Strings', synth: 'Synth', flute: 'Sáo', sax: 'Saxophone', trumpet: 'Trumpet', violin: 'Violin', cello: 'Cello', pad: 'Pad/Atmosphere' },
@@ -193,7 +149,7 @@ const DURATION_OPTIONS = [30, 60, 120, 300, 600] as const
 type MusicHistoryItem = {
   id: string
   title: string
-  mode: Mode
+  mode: Mode | 'lyria3'
   style: string
   durationSeconds: number
   chargedCredits: number
@@ -326,14 +282,8 @@ export function LyriaFeatureClient({ mode, uiLocale: uiLocaleProp }: { mode: Mod
   const [isBusy, setIsBusy] = useState(false)
   const [basePrompt, setBasePrompt] = useState(config.prompt)
   const [livePrompt, setLivePrompt] = useState('')
-  const [vocalMode, setVocalMode] = useState<VocalMode>('instrumental')
   const [musicLanguage, setMusicLanguage] = useState<MusicLanguage>('vi')
   const [musicStyle, setMusicStyle] = useState<MusicStyle>('lofi')
-  const [lyricHint, setLyricHint] = useState('')
-  const [voiceGender, setVoiceGender] = useState<VoiceGender>('female')
-  const [voiceTone, setVoiceTone] = useState<VoiceTone>('mezzo')
-  const [voiceRegion, setVoiceRegion] = useState<VoiceRegion>('bac')
-  const [voiceStyle, setVoiceStyle] = useState('')
   const [includeInstruments, setIncludeInstruments] = useState<InstrumentKey[]>([])
   const [excludeInstruments, setExcludeInstruments] = useState<InstrumentKey[]>([])
   const [bpm, setBpm] = useState(96)
@@ -418,23 +368,8 @@ export function LyriaFeatureClient({ mode, uiLocale: uiLocaleProp }: { mode: Mod
 
   const weightedPrompts = useMemo(() => {
     const stylePrompt = `Phong cách nhạc chính: ${MUSIC_STYLE_LABELS_VI[musicStyle]}`
-    const languagePrompt =
-      vocalMode === 'vocal'
-        ? `Ngôn ngữ lời hát ưu tiên: ${LANGUAGE_LABELS_VI[musicLanguage]}`
-        : `Ngôn ngữ mô tả mood: ${LANGUAGE_LABELS_VI[musicLanguage]}`
-    const vocalPrompt =
-      vocalMode === 'vocal'
-        ? [
-            `Giọng hát rõ, giai điệu dễ nhớ`,
-            `Giới tính giọng: ${VOICE_GENDER_LABELS_VI[voiceGender]}`,
-            `Tông giọng: ${VOICE_TONE_LABELS_VI[voiceTone]}`,
-            `Vùng giọng: ${VOICE_REGION_LABELS_VI[voiceRegion]}`,
-            lyricHint.trim() ? `Chủ đề lời: ${lyricHint.trim()}` : '',
-            voiceStyle.trim() ? `Phong cách hát: ${voiceStyle.trim()}` : '',
-          ]
-            .filter(Boolean)
-            .join(', ')
-        : 'Chỉ nhạc không lời, không dùng giọng hát'
+    const languagePrompt = `Ngôn ngữ mô tả mood: ${LANGUAGE_LABELS_VI[musicLanguage]}`
+    const vocalPrompt = 'Chỉ nhạc không lời, không dùng giọng hát'
     const includePrompt =
       includeInstruments.length > 0
         ? `Ưu tiên nhạc cụ: ${includeInstruments.map((k) => INSTRUMENT_LABELS_VI[k]).join(', ')}`
@@ -454,27 +389,14 @@ export function LyriaFeatureClient({ mode, uiLocale: uiLocaleProp }: { mode: Mod
     ].filter(Boolean)
     const weight = activePrompts.length > 0 ? 1 / activePrompts.length : 1
     return activePrompts.map((text) => ({ text, weight }))
-  }, [
-    basePrompt,
-    promptHistory,
-    vocalMode,
-    lyricHint,
-    musicLanguage,
-    musicStyle,
-    voiceGender,
-    voiceTone,
-    voiceRegion,
-    voiceStyle,
-    includeInstruments,
-    excludeInstruments,
-  ])
+  }, [basePrompt, promptHistory, musicLanguage, musicStyle, includeInstruments, excludeInstruments])
 
   const buildMusicGenerationConfig = () => ({
     bpm,
     density,
     brightness,
     guidance: 4,
-    musicGenerationMode: vocalMode === 'vocal' ? 'VOCALIZATION' : 'QUALITY',
+    musicGenerationMode: 'QUALITY',
     temperature: 1.0,
   })
 
@@ -850,10 +772,8 @@ export function LyriaFeatureClient({ mode, uiLocale: uiLocaleProp }: { mode: Mod
       const boostedPrompts = [
         { text: basePrompt, weight: 0.7 },
         { text: `Phong cách nhạc chính: ${MUSIC_STYLE_LABELS_VI[musicStyle]}`, weight: 0.9 },
-        {
-          text: vocalMode === 'vocal' ? `Ngôn ngữ lời hát ưu tiên: ${LANGUAGE_LABELS_VI[musicLanguage]}` : `Ngôn ngữ mô tả mood: ${LANGUAGE_LABELS_VI[musicLanguage]}`,
-          weight: 0.8,
-        },
+        { text: `Ngôn ngữ mô tả mood: ${LANGUAGE_LABELS_VI[musicLanguage]}`, weight: 0.8 },
+        { text: 'Chỉ nhạc không lời, không dùng giọng hát', weight: 1.0 },
         ...(includeInstruments.length > 0
           ? [{ text: `Ưu tiên nhạc cụ: ${includeInstruments.map((k) => INSTRUMENT_LABELS_VI[k]).join(', ')}`, weight: 1.3 }]
           : []),
@@ -959,7 +879,7 @@ export function LyriaFeatureClient({ mode, uiLocale: uiLocaleProp }: { mode: Mod
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">{tr('Ngôn ngữ nhạc/lời', 'Music/language', '音乐/语言', '音楽/言語', '음악/언어')}</label>
+              <label className="text-sm font-medium">{tr('Ngôn ngữ mô tả', 'Description language', '描述语言', '説明の言語', '설명 언어')}</label>
               <select
                 value={musicLanguage}
                 onChange={(e) => setMusicLanguage(e.target.value as MusicLanguage)}
@@ -971,90 +891,14 @@ export function LyriaFeatureClient({ mode, uiLocale: uiLocaleProp }: { mode: Mod
                   </option>
                 ))}
               </select>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">{tr('Kiểu nhạc', 'Music type', '音乐类型', '音楽タイプ', '음악 유형')}</label>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  variant={vocalMode === 'instrumental' ? 'default' : 'outline'}
-                  onClick={() => setVocalMode('instrumental')}
-                  className={vocalMode === 'instrumental' ? 'bg-slate-700 hover:bg-slate-800' : ''}
-                >
-                  {tr('Nhạc không lời', 'Instrumental', '纯音乐', 'インストゥルメンタル', '인스트루멘탈')}
-                </Button>
-                <Button
-                  type="button"
-                  variant={vocalMode === 'vocal' ? 'default' : 'outline'}
-                  onClick={() => setVocalMode('vocal')}
-                  className={vocalMode === 'vocal' ? 'bg-slate-700 hover:bg-slate-800' : ''}
-                >
-                  {tr('Nhạc có lời', 'Vocal', '有歌词', 'ボーカル', '보컬')}
-                </Button>
-              </div>
-              {vocalMode === 'vocal' && (
-                <div className="space-y-2 rounded-md border p-3">
-                  <div className="grid gap-2 sm:grid-cols-3">
-                    <div className="space-y-1">
-                      <label className="text-xs font-medium text-muted-foreground">{tr('Giới tính giọng', 'Voice gender', '嗓音性别', '声の性別', '목소리 성별')}</label>
-                      <select
-                        value={voiceGender}
-                        onChange={(e) => setVoiceGender(e.target.value as VoiceGender)}
-                        className="w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-sm"
-                      >
-                        {Object.entries(VOICE_GENDER_LABELS[uiLocale]).map(([code, label]) => (
-                          <option key={code} value={code}>
-                            {label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-xs font-medium text-muted-foreground">{tr('Tông giọng', 'Voice tone', '音调', '声のトーン', '목소리 톤')}</label>
-                      <select
-                        value={voiceTone}
-                        onChange={(e) => setVoiceTone(e.target.value as VoiceTone)}
-                        className="w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-sm"
-                      >
-                        {Object.entries(VOICE_TONE_LABELS[uiLocale]).map(([code, label]) => (
-                          <option key={code} value={code}>
-                            {label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-xs font-medium text-muted-foreground">{tr('Vùng giọng', 'Voice region', '嗓音区域', '声の地域', '목소리 지역')}</label>
-                      <select
-                        value={voiceRegion}
-                        onChange={(e) => setVoiceRegion(e.target.value as VoiceRegion)}
-                        className="w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-sm"
-                      >
-                        {Object.entries(VOICE_REGION_LABELS[uiLocale]).map(([code, label]) => (
-                          <option key={code} value={code}>
-                            {label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                  <Input
-                    value={lyricHint}
-                    onChange={(e) => setLyricHint(e.target.value)}
-                    placeholder={tr('Gợi ý nội dung lời (ví dụ: tình yêu, tuổi trẻ, động lực)', 'Lyric hint (e.g. love, youth, motivation)', '歌词提示（如：爱情、青春、动力）', '歌詞のヒント（例：愛、青春、モチベーション）', '가사 힌트 (예: 사랑, 청춘, 동기)')}
-                  />
-                  <Input
-                    value={voiceStyle}
-                    onChange={(e) => setVoiceStyle(e.target.value)}
-                    placeholder={tr('Phong cách hát (ví dụ: nhẹ nhàng, nội lực, bay bổng, da diết)', 'Singing style (e.g. soft, powerful, soaring, heartfelt)', '演唱风格（如：轻柔、有力、高亢、深情）', '歌唱スタイル（例：柔らか、力強い、高揚、切実）', '노래 스타일 (예: 부드럽게, 힘차게, 높이, 진심)')}
-                  />
-                </div>
-              )}
               <p className="text-xs text-muted-foreground">
-                {vocalMode === 'vocal'
-                  ? tr('Đang bật chế độ có lời: tạo nhạc có giọng hát.', 'Vocal mode on: music with vocals.', '已开启有歌词模式：带人声的音乐。', 'ボーカルモード: 歌声付きの音楽。', '보컬 모드: 보컬이 있는 음악.')
-                  : tr('Đang bật chế độ không lời: chỉ tạo nhạc nhạc cụ.', 'Instrumental mode on: only instrumental music.', '已开启纯音乐模式：仅乐器音乐。', 'インストモード: 楽器のみの音楽。', '인스트 모드: 악기만 있는 음악.')}
+                {tr(
+                  'Lyria RealTime trên trang này chỉ dùng nhạc không lời (instrumental).',
+                  'Lyria RealTime on this page is instrumental only.',
+                  '此页的 Lyria RealTime 仅生成纯音乐。',
+                  'このページの Lyria RealTime はインストのみです。',
+                  '이 페이지의 Lyria RealTime은 인스트루멘탈만 지원합니다.',
+                )}
               </p>
             </div>
 
@@ -1252,6 +1096,18 @@ export function LyriaFeatureClient({ mode, uiLocale: uiLocaleProp }: { mode: Mod
                 <p className="text-sm font-semibold text-slate-800">{tr('Lịch sử tạo nhạc', 'Music creation history', '音乐创作历史', '音楽作成履歴', '음악 생성 기록')}</p>
                 <p className="text-xs text-muted-foreground">{tr('Lưu theo tài khoản Supabase', 'Saved to Supabase account', '保存到 Supabase 账户', 'Supabaseアカウントに保存', 'Supabase 계정에 저장')}</p>
               </div>
+              <div
+                role="note"
+                className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-950"
+              >
+                {tr(
+                  'Lưu ý: file nhạc trên hệ thống thường chỉ giữ khoảng 30 ngày. Nên tải về máy sớm nếu bạn cần dùng lâu dài.',
+                  'Note: stored audio is usually kept for about 30 days. Download to your device if you need it longer.',
+                  '提示：系统保存的音频通常仅保留约 30 天，如需长期使用请及时下载到本地。',
+                  '注意：保存された音声は通常約30日で削除される場合があります。長期利用は早めにダウンロードしてください。',
+                  '안내: 저장된 음원은 보통 약 30일간 보관됩니다. 오래 쓰려면 미리 기기로 다운로드하세요.',
+                )}
+              </div>
               {musicHistory.length === 0 ? (
                 <p className="text-xs text-muted-foreground">{tr('Chưa có phiên tạo nhạc nào.', 'No music sessions yet.', '尚无音乐会话。', 'まだ音楽セッションがありません。', '아직 음악 세션이 없습니다.')}</p>
               ) : (
@@ -1277,7 +1133,7 @@ export function LyriaFeatureClient({ mode, uiLocale: uiLocaleProp }: { mode: Mod
                                 rel="noreferrer"
                                 className="inline-flex h-8 items-center justify-center rounded-md border border-indigo-200 bg-indigo-50 px-3 text-indigo-700"
                               >
-                                {tr('Tải WAV', 'Download WAV', '下载 WAV', 'WAVをダウンロード', 'WAV 다운로드')}
+                                {tr('Tải file nhạc', 'Download audio', '下载音频', 'オーディオをダウンロード', '오디오 다운로드')}
                               </a>
                             </>
                           ) : (
@@ -1325,7 +1181,7 @@ export function LyriaFeatureClient({ mode, uiLocale: uiLocaleProp }: { mode: Mod
                                   rel="noreferrer"
                                   className="text-indigo-600 hover:underline"
                                 >
-                                  {tr('Tải WAV', 'Download WAV', '下载 WAV', 'WAVをダウンロード', 'WAV 다운로드')}
+                                  {tr('Tải file nhạc', 'Download audio', '下载音频', 'オーディオをダウンロード', '오디오 다운로드')}
                                 </a>
                               ) : (
                                 <span className="text-muted-foreground">-</span>

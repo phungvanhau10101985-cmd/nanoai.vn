@@ -26,12 +26,17 @@ export default function sitemap(): MetadataRoute.Sitemap {
     },
   ]
 
-  const featurePages: MetadataRoute.Sitemap = getAllFeatureSeo().map((seo) => ({
-    url: `${baseUrl}${seo.path}`,
-    lastModified: now,
-    changeFrequency: 'weekly',
-    priority: 0.9,
-  }))
+  /** Trang ẩn khỏi menu — không đưa vào sitemap để giảm lộ URL công khai. */
+  const hiddenFeaturePaths = new Set(['/tao-video-tu-anh'])
+
+  const featurePages: MetadataRoute.Sitemap = getAllFeatureSeo()
+    .filter((seo) => !hiddenFeaturePaths.has(seo.path))
+    .map((seo) => ({
+      url: `${baseUrl}${seo.path}`,
+      lastModified: now,
+      changeFrequency: 'weekly',
+      priority: 0.9,
+    }))
 
   return [...staticPages, ...featurePages]
 }

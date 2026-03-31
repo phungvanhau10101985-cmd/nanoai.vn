@@ -1,32 +1,29 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirectToLogin } from '@/lib/auth/login-redirect'
 import { getUserOrBypass } from '@/lib/auth'
-import TaoDeTracNghiemClientPage from './tao-de-trac-nghiem-client-page'
+import TaoInfographicTuSachClientPage from './tao-infographic-tu-sach-client-page'
+import { Metadata } from 'next'
 import { buildMetadata, buildJsonLdService, SITE_URL } from '@/lib/seo'
 import { JsonLd } from '@/components/seo-json-ld'
 import { getFeatureSeo, buildFeatureFaqJsonLd } from '@/lib/feature-seo'
 import { FeatureSeoSection } from '@/components/feature-seo-section'
 import { CreationToolPageShell } from '@/components/layout/creation-tool-page-shell'
 
-const seo = getFeatureSeo('tao-de-trac-nghiem')
+const seo = getFeatureSeo('tao-infographic-tu-sach')
 
-export const metadata = buildMetadata({
+export const metadata: Metadata = buildMetadata({
   title: seo.pageTitle,
   description: seo.pageDescription,
   path: seo.path,
   keywords: seo.keywords,
 })
 
-export default async function TaoDeTracNghiemPage() {
+export default async function TaoInfographicTuSachPage() {
   const supabase = createClient()
   const user = await getUserOrBypass(() => supabase.auth.getUser())
   if (!user) redirectToLogin()
 
-  const jsonLd = buildJsonLdService(
-    seo.serviceName,
-    seo.serviceDescription,
-    `${SITE_URL}/tao-de-trac-nghiem`
-  )
+  const jsonLd = buildJsonLdService(seo.serviceName, seo.serviceDescription, `${SITE_URL}${seo.path}`)
   const faqJsonLd = buildFeatureFaqJsonLd(seo)
 
   return (
@@ -34,7 +31,7 @@ export default async function TaoDeTracNghiemPage() {
       <JsonLd data={jsonLd} />
       <JsonLd data={faqJsonLd} />
       <CreationToolPageShell currentHref={seo.path}>
-        <TaoDeTracNghiemClientPage />
+        <TaoInfographicTuSachClientPage />
       </CreationToolPageShell>
       <FeatureSeoSection seo={seo} />
     </div>

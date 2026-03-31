@@ -20,6 +20,8 @@ export function FeatureSeoSection({ seo }: FeatureSeoSectionProps) {
     { href: '/thu-do-online/1-nguoi', label: tr('Thử đồ 1 người', 'Try-on (1 person)', '单人试衣', '1人試着', '1인 가상피팅') },
     { href: '/tao-banner', label: tr('Tạo banner', 'Create banner', '创建横幅', 'バナー作成', '배너 만들기') },
     { href: '/tao-anh-tu-chu', label: tr('Tạo ảnh bằng chữ', 'Text-to-image', '文生图', 'テキストから画像', '텍스트로 이미지') },
+    { href: '/tao-infographic-tu-sach', label: tr('Infographic từ sách', 'Book infographic', '书籍信息图', '教科書インフォグラフィック', '교과서 인포그래픽') },
+    { href: '/du-anh-tu-phac-thao', label: tr('Dựng ảnh từ phác thảo', 'Sketch to image', '草图生成图', 'スケッチから画像', '스케치로 이미지') },
     { href: '/phuc-dung-anh', label: tr('Phục dựng ảnh', 'Restore photo', '修复照片', '写真復元', '사진 복원') },
     { href: '/dich-anh-tai-lieu', label: tr('Dịch ảnh tài liệu', 'Translate document image', '文档图片翻译', '文書画像翻訳', '문서 이미지 번역') },
   ].filter((item) => item.href !== seo.path).slice(0, 6)

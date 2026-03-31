@@ -148,6 +148,54 @@ const FEATURE_SEO_DATA: Record<string, FeatureSeoData> = {
       { question: 'Có thể dùng cho thương mại không?', answer: 'Bạn cần tuân thủ điều khoản nền tảng và quy định pháp luật về nội dung và bản quyền.' },
     ],
   },
+  'tao-infographic-tu-sach': {
+    key: 'tao-infographic-tu-sach',
+    pageTitle: 'Tạo infographic từ ảnh sách hoặc nội dung chữ',
+    pageDescription:
+      'Công cụ độc lập: tải ảnh trang sách và/hoặc dán nội dung chữ. AI Gemini 2.5 Flash đọc và tạo tóm tắt dạng sơ đồ tư duy, sau đó sinh một ảnh infographic 16:9 (2K) cho giảng dạy.',
+    path: '/tao-infographic-tu-sach',
+    keywords: ['infographic sách giáo khoa', 'sơ đồ tư duy ai', 'tóm tắt bài học infographic', 'mind map từ ảnh sách'],
+    serviceName: 'Infographic từ sách / nội dung',
+    serviceDescription:
+      'Kết hợp ảnh trang sách và văn bản: tóm tắt + sơ đồ Mermaid nội bộ, xuất một ảnh infographic trình chiếu.',
+    h2: 'Tạo nhanh infographic giảng dạy từ ảnh và chữ, không cần vào giáo trình',
+    overview:
+      'Giáo viên có thể chụp hoặc tải ảnh trang sách, dán thêm đoạn nội dung hoặc ghi chú trọng tâm. Hệ thống dùng Gemini 2.5 Flash để hiểu nội dung, rút ra các ý chính và mối liên hệ, rồi tạo một hình infographic 16:9 phù hợp chiếu lớp.',
+    benefits: ['Không gắn với một giáo trình cụ thể trong ứng dụng', 'Hỗ trợ cả ảnh và chữ, linh hoạt theo tài liệu bạn có', 'Một lần tạo: vừa có ảnh vừa xem được phần tóm tắt dạng gạch đầu dòng'],
+    useCases: ['Tóm tắt một bài trong sách giáo khoa để mở đầu tiết học', 'Chuyển đoạn lý thuyết dài thành sơ đồ trực quan', 'Chuẩn bị slide minh họa nhanh từ ảnh chụp bảng hoặc sách'],
+    tips: ['Ảnh nên rõ chữ; tránh quá tối hoặc mờ', 'Nếu chỉ có ảnh, thêm vài dòng ghi chú giúp AI bám đúng trọng tâm', 'Nội dung chữ khoảng 40 ký tự trở lên nếu không dùng ảnh'],
+    faqs: [
+      { question: 'Có cần tạo giáo trình trong app không?', answer: 'Không. Đây là trang công cụ riêng; bạn chỉ cần đăng nhập và có credits.' },
+      { question: 'Chi phí mỗi lần tạo?', answer: '1,5 credits mỗi lần (tương tự nhiều công cụ ảnh 2K khác).' },
+      { question: 'Chỉ dùng chữ không có ảnh được không?', answer: 'Được, nếu nội dung chữ đủ dài (khoảng 40 ký tự trở lên).' },
+      { question: 'Chỉ có ảnh sách không có chữ được không?', answer: 'Được, nếu bạn tải ít nhất một ảnh trang sách hoặc tài liệu.' },
+      { question: 'Ảnh có được lưu vào giáo trình không?', answer: 'Không tự động. Bạn tải ảnh kết quả về máy và dùng ở đâu tùy ý.' },
+    ],
+  },
+  'du-anh-tu-phac-thao': {
+    key: 'du-anh-tu-phac-thao',
+    pageTitle: 'Dựng ảnh từ phác thảo online — 2D, phối màu, 3D',
+    pageDescription:
+      'Tải ảnh phác thảo tay hoặc nét vẽ số; chọn kiểu ảnh 2D phẳng, ảnh phối màu hoàn chỉnh hoặc phong cách 3D. AI Gemini đọc bố cục phác thảo và sinh một ảnh hoàn chỉnh 2K/4K.',
+    path: '/du-anh-tu-phac-thao',
+    keywords: ['dựng ảnh từ phác thảo', 'sketch to image', 'phác thảo thành ảnh màu', 'ai vẽ từ sketch'],
+    serviceName: 'Dựng ảnh từ phác thảo',
+    serviceDescription:
+      'Một ảnh phác thảo đầu vào; ba chế độ: minh họa 2D phẳng, minh họa màu đầy đủ, hoặc hình ảnh kiểu render 3D.',
+    h2: 'Biến nét phác thảo thành ảnh dùng được cho slide, minh họa và mạng xã hội',
+    overview:
+      'Họa sĩ, giáo viên và creator thường có sẵn phác thảo nhanh trên giấy hoặc bảng vẽ. Công cụ giúp chuyển phác thảo đó thành ảnh hoàn chỉnh theo ba hướng: phẳng 2D rõ nét, tô màu và đổ bóng đầy đủ, hoặc cảm giác khối và ánh sáng kiểu 3D — phù hợp slide, bìa bài, concept và bài đăng.',
+    benefits: ['Ba kiểu ra ảnh trong một trang, không cần prompt dài', 'Giữ bố cục và chủ thể theo phác thảo', 'Tùy chọn 2K/4K và tỷ lệ khung phổ biến'],
+    useCases: ['Concept từ sketch buổi brainstorm', 'Minh họa bài giảng từ phác thảo bảng', 'Hoàn thiện nhân vật hoặc sản phẩm từ bản nháp'],
+    tips: ['Phác thảo nên có đường nét rõ chủ thể; tránh ảnh quá tối', 'Dùng ô ghi chú để nói màu chủ đề hoặc phong cách mong muốn', 'Thử 2K trước khi chọn 4K để tiết kiệm credits'],
+    faqs: [
+      { question: 'Có cần viết prompt dài không?', answer: 'Không bắt buộc. Ảnh phác thảo là chính; ô ghi chú chỉ bổ sung chi tiết.' },
+      { question: 'Ba kiểu khác nhau thế nào?', answer: '2D: hình phẳng, ít chiều sâu giả. Phối màu: màu và bóng đủ cho minh họa. 3D: khối, phối cảnh và sáng kiểu render.' },
+      { question: 'Chi phí credits?', answer: 'Giống tạo ảnh từ chữ: 1,5 credits (2K) hoặc 3 credits (4K) mỗi lần.' },
+      { question: 'Chỉ chấp nhận phác thảo tay?', answer: 'Không. Mọi ảnh nét vẽ, line-art hoặc draft số đều được nếu thấy rõ bố cục.' },
+      { question: 'Kết quả có giống hệt phác thảo không?', answer: 'AI bám bố cục và ý tưởng; chi tiết có thể được làm mịn hoặc hoàn thiện tự nhiên.' },
+    ],
+  },
   'tao-anh-the': {
     key: 'tao-anh-the',
     pageTitle: 'Tạo ảnh thẻ online chuẩn kích thước',
@@ -736,6 +784,60 @@ const FEATURE_SEO_DATA: Record<string, FeatureSeoData> = {
       { question: 'Có cần phần mềm âm nhạc chuyên dụng không?', answer: 'Không, dùng trực tiếp trên giao diện web là đủ.' },
     ],
   },
+  'ghi-am-bao-cao-cuoc-hop': {
+    key: 'ghi-am-bao-cao-cuoc-hop',
+    pageTitle: 'Ghi âm cuộc họp & báo cáo AI — biên bản, tóm tắt',
+    pageDescription:
+      'Ghi âm họp trên trình duyệt không tính phí. Lưu tên cuộc họp khi cần. Chỉ khi tạo báo cáo AI (phiên âm + biên bản) mới trừ credits theo độ dài ghi âm.',
+    path: '/ghi-am-bao-cao-cuoc-hop',
+    keywords: [
+      'ghi âm cuộc họp',
+      'biên bản họp ai',
+      'meeting minutes ai',
+      'transcript meeting',
+      'nanoai',
+    ],
+    serviceName: 'Ghi âm cuộc họp và báo cáo AI',
+    serviceDescription: 'Ghi âm micro, lưu tên cuộc họp; tạo phiên âm và biên bản có cấu trúc khi bạn yêu cầu.',
+    h2: 'Ghi âm miễn phí — trả credits khi tạo báo cáo AI',
+    overview:
+      'Công cụ phù hợp họp nhóm nhỏ, phỏng vấn nhanh hoặc ghi chú bằng giọng nói. Bạn kiểm soát thời điểm gửi âm thanh lên máy chủ: chỉ lúc bấm tạo báo cáo AI, hệ thống mới phân tích và trừ credits theo quy tắc độ dài.',
+    benefits: [
+      'Ghi âm và đặt tên cuộc họp không tính credits',
+      'Báo cáo gồm phiên âm và mục quyết định / việc cần làm',
+      'Có thể tải file ghi âm về máy',
+    ],
+    useCases: ['Biên bản họp nhóm', 'Ghi nhận quyết định sau call', 'Phỏng vấn — bản tóm tắt nhanh'],
+    tips: ['Nói rõ gần micro', 'Đặt tên cuộc họp trước khi tạo báo cáo để AI có ngữ cảnh', 'Tải file âm thanh nếu cần lưu lâu'],
+    faqs: [
+      { question: 'Ghi âm có tốn credits không?', answer: 'Không. Chỉ bước «Tạo báo cáo AI» mới trừ credits.' },
+      { question: 'Credits tính thế nào?', answer: 'Theo độ dài ghi âm: tối thiểu 1 credit; mỗi khối 5 phút (làm tròn lên) thêm 0,5 credit.' },
+      { question: 'Dữ liệu lưu ở đâu?', answer: 'Sau khi dừng ghi, bản âm thanh được lưu trên máy chủ tối đa 7 ngày rồi tự xóa; trong phiên trang bạn vẫn có thể nghe/tải bản cục bộ. Khi tạo báo cáo AI, hệ thống đọc file đã lưu để phân tích.' },
+      { question: 'Hỗ trợ ngôn ngữ nào?', answer: 'Phiên âm bám theo ngôn ngữ nói trên audio; văn bản báo cáo có thể chọn theo ngôn ngữ giao diện web.' },
+    ],
+  },
+  'tao-bai-hat-lyria-3': {
+    key: 'tao-bai-hat-lyria-3',
+    pageTitle: 'Tạo bài nhạc Lyria 3 (có lời / không lời) — Gemini API',
+    pageDescription:
+      'Tạo file nhạc MP3/WAV với Lyria 3: chọn thể loại (pop, rap, nhạc trẻ…), upload ảnh để bám mood, dán lời/nội dung; có hoặc không lời.',
+    path: '/tao-bai-hat-lyria-3',
+    keywords: ['lyria 3', 'tạo nhạc ai', 'nhạc tâm trạng ai', 'nhạc remix ai', 'trap pop rap', 'gemini music'],
+    serviceName: 'Tạo nhạc Lyria 3',
+    serviceDescription: 'Sinh nhạc từ prompt: instrumental hoặc có vocal, xuất file âm thanh.',
+    h2: 'Tạo file nhạc từ mô tả — Lyria 3',
+    overview:
+      'Khác với nhạc realtime, Lyria 3 tạo một đoạn hoặc bài nhạc hoàn chỉnh dưới dạng file. Bạn chọn chế độ không lời (nhạc nền) hoặc có lời; ngôn ngữ lời thường bám theo ngôn ngữ bạn viết trong mô tả.',
+    benefits: ['Có file tải về (MP3/WAV)', 'Thể loại có sẵn + ảnh tham chiếu', 'Ô lời/nội dung cho AI phối nhạc', 'Instrumental hoặc có vocal'],
+    useCases: ['Nhạc nền không lời', 'Bài hát demo có lời', 'Ambient podcast (instrumental)'],
+    tips: ['Không lời: nêu rõ thể loại và nhạc cụ', 'Có lời: viết mô tả bằng ngôn ngữ muốn có lời', 'Clip ~30s; Pro: gợi ý độ dài trong prompt'],
+    faqs: [
+      { question: 'Có tạo được nhạc có lời không?', answer: 'Có. Chọn «Có lời» trên giao diện; mô tả càng rõ chủ đề và ngôn ngữ lời càng tốt.' },
+      { question: 'Khác gì nhạc realtime?', answer: 'Realtime phát liên tục trên trình duyệt; Lyria 3 trả về một file nhạc mỗi lần tạo.' },
+      { question: 'Cần bao nhiêu credits?', answer: 'Clip và Pro có mức trừ khác nhau; xem trên giao diện trước khi tạo.' },
+      { question: 'Có chỉnh sửa lại bản đã tạo không?', answer: 'Lyria 3 là một lượt; hãy tạo lại với mô tả mới nếu cần.' },
+    ],
+  },
   'thu-do-online-1-nguoi': {
     key: 'thu-do-online-1-nguoi',
     pageTitle: 'Thử đồ online 1 người bằng AI',
@@ -860,27 +962,6 @@ const FEATURE_SEO_DATA: Record<string, FeatureSeoData> = {
       { question: 'Cấp độ nào?', answer: 'Tiểu học (1–5), THCS (6–9), THPT (10–12), Đại học.' },
       { question: 'Xuất file thế nào?', answer: 'Tải file .md (Markdown), có thể mở bằng Word, Google Docs hoặc editor.' },
       { question: 'Có phù hợp chương trình VN không?', answer: 'Có, prompt được thiết kế phù hợp chương trình giáo dục Việt Nam.' },
-    ],
-  },
-  'tao-de-trac-nghiem': {
-    key: 'tao-de-trac-nghiem',
-    pageTitle: 'Tạo đề trắc nghiệm theo format THPT 2025',
-    pageDescription: 'AI tạo đề thi bám sát cấu trúc THPT 2025. Trắc nghiệm, đúng/sai, trả lời ngắn. Ma trận nhận thức (Thang Bloom). Xuất PDF, Word.',
-    path: '/tao-de-trac-nghiem',
-    keywords: ['tạo đề thi', 'đề trắc nghiệm', 'format 2025', 'THPT', 'ma trận đề thi', 'AI ra đề'],
-    serviceName: 'Tạo đề trắc nghiệm theo format 2025',
-    serviceDescription: 'AI tạo đề thi bám sát cấu trúc Bộ Giáo dục. Môn Toán, Lý, Hóa, Sinh, Văn, Anh... Lớp 9, 12. Xuất PDF, Word.',
-    h2: 'Tạo đề trắc nghiệm theo format THPT 2025',
-    overview: 'Giáo viên cần ra đề thi theo cấu trúc mới của Bộ Giáo dục. Công cụ AI giúp tạo đề thi với ma trận nhận thức (Nhận biết, Thông hiểu, Vận dụng thấp, Vận dụng cao), hỗ trợ trắc nghiệm, đúng/sai, trả lời ngắn.',
-    benefits: ['Bám format THPT 2025', 'Ma trận nhận thức Thang Bloom', 'Trắc nghiệm, đúng/sai, trả lời ngắn', 'Xuất PDF, Word'],
-    useCases: ['Ôn thi lớp 9, lớp 12', 'Kiểm tra giữa kỳ, cuối kỳ', 'Luyện đề theo cấu trúc mới'],
-    tips: ['Nhập chủ đề cụ thể để đề bám sát nội dung', 'Chọn loại câu hỗn hợp nếu cần đa dạng', 'Xuất PDF để in phát cho học sinh'],
-    faqs: [
-      { question: 'Có mất phí không?', answer: 'Hiện tại miễn phí. Cần đăng nhập.' },
-      { question: 'Hỗ trợ môn nào?', answer: 'Toán, Ngữ văn, Tiếng Anh, Vật lý, Hóa học, Sinh học, Lịch sử, Địa lý, GDCD, Tin học và các môn khác.' },
-      { question: 'Format 2025 là gì?', answer: 'Cấu trúc đề thi mới của Bộ Giáo dục: ma trận nhận thức, trắc nghiệm, đúng/sai, trả lời ngắn.' },
-      { question: 'Có đáp án không?', answer: 'Có, đề thi luôn kèm phần đáp án ở cuối.' },
-      { question: 'Xuất file thế nào?', answer: 'Tải .md, PDF hoặc Word.' },
     ],
   },
   'tao-bai-thi': {

@@ -87,6 +87,7 @@ const nextConfig = {
     /** URL công khai mới: /giao-trinh (thay /tao-giao-trinh). Giữ thư mục app tao-giao-trinh + redirect 301. */
     async redirects() {
         return [
+            { source: '/tao-de-trac-nghiem', destination: '/tao-bai-thi', permanent: true },
             { source: '/tao-giao-trinh', destination: '/giao-trinh', permanent: true },
             { source: '/tao-giao-trinh/:path*', destination: '/giao-trinh/:path*', permanent: true },
             { source: '/api/tao-giao-trinh/:path*', destination: '/api/giao-trinh/:path*', permanent: true },

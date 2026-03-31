@@ -3,7 +3,13 @@ import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 
-type Mode = 'background' | 'dj' | 'image' | 'realtime'
+type Mode = 'background' | 'dj' | 'image' | 'realtime' | 'lyria3'
+
+const HISTORY_MODES: Mode[] = ['background', 'dj', 'image', 'realtime', 'lyria3']
+
+function isHistoryMode(v: string): v is Mode {
+  return (HISTORY_MODES as string[]).includes(v)
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -14,18 +20,23 @@ export async function GET(request: NextRequest) {
     const { user } = auth
     const limitRaw = Number(request.nextUrl.searchParams.get('limit') || 30)
     const limit = Number.isFinite(limitRaw) ? Math.min(100, Math.max(1, Math.floor(limitRaw))) : 30
+    const modeParam = String(request.nextUrl.searchParams.get('mode') || '').trim()
 
     const adminSupabase = createSupabaseClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
-    const { data, error } = await adminSupabase
+    let query = adminSupabase
       .from('music_generations')
       .select('id, mode, title, style, duration_seconds, charged_credits, audio_url, created_at')
       .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
-      .limit(limit)
+
+    if (modeParam && isHistoryMode(modeParam)) {
+      query = query.eq('mode', modeParam)
+    }
+
+    const { data, error } = await query.order('created_at', { ascending: false }).limit(limit)
 
     if (error) return NextResponse.json({ error: error.message || 'Không tải được lịch sử tạo nhạc.' }, { status: 500 })
     const items = (data ?? []).map((row) => ({
@@ -63,7 +74,7 @@ export async function POST(request: NextRequest) {
     const chargedCredits = Number(payload?.chargedCredits || 0)
     const audioUrl = String(payload?.audioUrl || '').trim()
 
-    if (!['background', 'dj', 'image', 'realtime'].includes(mode)) {
+    if (!['background', 'dj', 'image', 'realtime', 'lyria3'].includes(mode)) {
       return NextResponse.json({ error: 'mode không hợp lệ.' }, { status: 400 })
     }
     if (!title || !style || !Number.isFinite(durationSeconds) || durationSeconds <= 0 || !Number.isFinite(chargedCredits) || chargedCredits < 0) {
