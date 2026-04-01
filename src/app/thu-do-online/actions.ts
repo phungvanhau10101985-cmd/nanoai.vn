@@ -274,7 +274,7 @@ export async function generateAiImage(formData: FormData) {
   // Xóa mặt người mẫu khỏi ảnh sản phẩm (Vision API) trước khi gửi AI – lỗi thì báo ngay, không fallback
   let processedGarmentImages: File[];
   try {
-    processedGarmentImages = await removeFaceFromGarmentImages(allGarmentImages, user.id);
+    processedGarmentImages = await removeFaceFromGarmentImages(allGarmentImages);
   } catch (visionErr) {
     const msg = visionErr instanceof Error ? visionErr.message : String(visionErr);
     return { error: `Vision API lỗi: ${msg}` };

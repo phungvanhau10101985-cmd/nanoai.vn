@@ -4,7 +4,6 @@
 
 import sharp from 'sharp'
 import { getVisionAccessToken, hasVisionConfig } from './vision-api'
-import { trackApiUsage } from '@/lib/track-ai-usage'
 
 const VISION_API_URL = 'https://vision.googleapis.com/v1/images:annotate'
 const VISION_BATCH_LIMIT = 16
@@ -38,7 +37,7 @@ interface VisionResponse {
  * Trả về mảng faces tương ứng từng ảnh: responses[i] = faces của ảnh thứ i.
  * Chỉ service account (OAuth2).
  */
-async function detectFacesBatch(imageBuffers: Buffer[], userId?: string | null): Promise<FaceAnnotation[][]> {
+async function detectFacesBatch(imageBuffers: Buffer[]): Promise<FaceAnnotation[][]> {
   if (!hasVisionConfig()) {
     throw new Error('Chưa cấu hình Vision API. Thêm VISION_CREDENTIALS_PATH hoặc GOOGLE_APPLICATION_CREDENTIALS vào .env.local')
   }
@@ -96,11 +95,11 @@ async function detectFacesBatch(imageBuffers: Buffer[], userId?: string | null):
 }
 
 /** Gọi batch cho nhiều ảnh, tự chia chunk nếu > 16 ảnh (giới hạn Vision API). */
-async function detectFacesBatchAll(buffers: Buffer[], userId?: string | null): Promise<FaceAnnotation[][]> {
+async function detectFacesBatchAll(buffers: Buffer[]): Promise<FaceAnnotation[][]> {
   const results: FaceAnnotation[][] = []
   for (let i = 0; i < buffers.length; i += VISION_BATCH_LIMIT) {
     const chunk = buffers.slice(i, i + VISION_BATCH_LIMIT)
-    const chunkResults = await detectFacesBatch(chunk, userId)
+    const chunkResults = await detectFacesBatch(chunk)
     results.push(...chunkResults)
   }
   return results
@@ -185,7 +184,7 @@ async function processImageWithFaces(imageBuffer: Buffer, faces: FaceAnnotation[
  * Xử lý nhiều ảnh sản phẩm: gọi Vision API một lần (batch) → nhận diện mặt tất cả
  * → ảnh không có mặt giữ nguyên, ảnh có mặt cắt bỏ phần mặt → trả về ảnh đã xử lý.
  */
-export async function removeFaceFromGarmentImages(images: File[], userId?: string | null): Promise<File[]> {
+export async function removeFaceFromGarmentImages(images: File[]): Promise<File[]> {
   console.log('[Vision] Config:', hasVisionConfig() ? 'Service account OK' : 'chua cau hinh')
   console.log('[Vision] ===== Bat dau xu ly', images.length, 'anh san pham (batch) =====')
 
@@ -196,7 +195,7 @@ export async function removeFaceFromGarmentImages(images: File[], userId?: strin
     console.log('[Vision] Anh', i + 1, '/', images.length, '|', images[i].name, '|', buffers[i].length, 'bytes')
   }
 
-  const facesPerImage = await detectFacesBatchAll(buffers, userId)
+  const facesPerImage = await detectFacesBatchAll(buffers)
 
   const results: File[] = []
   for (let i = 0; i < images.length; i++) {

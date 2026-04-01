@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+import type { Database } from '@/types/database.types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
@@ -18,7 +19,7 @@ function toYMD(d: Date) {
 }
 
 async function sumMusicChargedCredits(
-  admin: ReturnType<typeof createSupabaseClient<any>>,
+  admin: ReturnType<typeof createSupabaseClient<Database>>,
   fromIso: string,
   toIso: string
 ): Promise<number> {

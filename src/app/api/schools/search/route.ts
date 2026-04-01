@@ -75,6 +75,13 @@ Yêu cầu:
 Input: ${input}`
   try {
     const result = await model.generateContent(prompt)
+    void trackFromUsageMetadata(
+      result.response.usageMetadata,
+      GEMINI_25_FLASH_TEXT_NO_THINKING.model,
+      'schools-search-canonicalize-gemini-flash',
+      userId ?? null,
+      null
+    )
     const raw = (result.response.text?.() || '').trim()
     const cleaned = raw
       .replace(/^```json\s*/i, '')

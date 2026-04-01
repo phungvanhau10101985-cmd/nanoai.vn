@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { Database } from '@/types/database.types'
 
 /** Mỗi lần range — tránh một response quá lớn; lặp cho đến hết khoảng ngày. */
 const PAGE_SIZE = 5000
@@ -24,7 +25,7 @@ export type FetchApiUsageLogsOptions = {
  * Thứ tự tăng dần theo `created_at`, `id` — dùng `sortApiUsageLogsNewestFirst` khi cần “mới nhất trước”.
  */
 export async function fetchAllApiUsageLogsInRange(
-  admin: SupabaseClient<any>,
+  admin: SupabaseClient<Database>,
   fromIso: string,
   toIso: string,
   options?: FetchApiUsageLogsOptions
