@@ -59,7 +59,15 @@ export function tryOnFeatureToToolKey(feature: string | null | undefined): ToolK
   }
 }
 
+/** Công cụ đã ẩn khỏi menu nhưng vẫn cần href từ trung tâm tác vụ / lịch sử. */
+const TOOL_KEY_HREF_OVERRIDES: Partial<Record<ToolKey, string>> = {
+  create_video_from_image: '/tao-video-tu-anh',
+  flow_music_veo_video: '/flow-nhac-video-veo',
+}
+
 export function toolKeyToHref(key: ToolKey): string {
+  const override = TOOL_KEY_HREF_OVERRIDES[key]
+  if (override) return override
   const hit = AI_TOOLS.find((t) => t.labelKey === key)
   return hit?.href ?? '/dashboard/history'
 }
