@@ -1,5 +1,5 @@
 import { spawn } from 'child_process'
-import { writeFile, unlink, mkdtemp, rm } from 'fs/promises'
+import { writeFile, mkdtemp, rm } from 'fs/promises'
 import { join } from 'path'
 import { tmpdir } from 'os'
 import ffmpegStatic from 'ffmpeg-static'
