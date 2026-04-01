@@ -26,11 +26,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     },
   ]
 
-  /** Trang ẩn khỏi menu — không đưa vào sitemap để giảm lộ URL công khai. */
-  const hiddenFeaturePaths = new Set(['/tao-video-tu-anh'])
-
   const featurePages: MetadataRoute.Sitemap = getAllFeatureSeo()
-    .filter((seo) => !hiddenFeaturePaths.has(seo.path))
     .map((seo) => ({
       url: `${baseUrl}${seo.path}`,
       lastModified: now,

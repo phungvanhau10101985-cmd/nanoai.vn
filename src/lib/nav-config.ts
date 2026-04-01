@@ -17,6 +17,8 @@ import {
   Users,
   PencilLine,
   Mic,
+  Video,
+  Clapperboard,
 } from 'lucide-react'
 import { TryOnIcon } from '@/components/icons/try-on-icon'
 import { ImageRestorationIcon } from '@/components/icons/image-restoration-icon'
@@ -85,6 +87,8 @@ export const AI_TOOLS = [
   { href: '/ghep-anh', labelKey: 'merge_image' as ToolKey, icon: GhepAnhIcon },
   { href: '/tao-banner', labelKey: 'create_banner' as ToolKey, icon: TaoBannerIcon },
   { href: '/tao-anh-tu-chu', labelKey: 'text_to_image' as ToolKey, icon: Wand2 },
+  { href: '/tao-video-tu-anh', labelKey: 'create_video_from_image' as ToolKey, icon: Video },
+  { href: '/flow-nhac-video-veo', labelKey: 'flow_music_veo_video' as ToolKey, icon: Clapperboard },
   { href: '/du-anh-tu-phac-thao', labelKey: 'sketch_to_image' as ToolKey, icon: PencilLine },
   { href: '/tao-anh-the', labelKey: 'create_id_photo' as ToolKey, icon: TaoAnhTheIcon },
   { href: '/thiet-ke-logo', labelKey: 'design_logo' as ToolKey, icon: ThietKeLogoIcon },
@@ -172,6 +176,8 @@ export const NAV_GROUPS: readonly NavGroupConfig[] = [
     links: [
       { href: '/tao-banner', labelKey: 'create_banner' as ToolKey, icon: TaoBannerIcon },
       { href: '/tao-anh-tu-chu', labelKey: 'text_to_image' as ToolKey, icon: Wand2 },
+      { href: '/tao-video-tu-anh', labelKey: 'create_video_from_image' as ToolKey, icon: Video },
+      { href: '/flow-nhac-video-veo', labelKey: 'flow_music_veo_video' as ToolKey, icon: Clapperboard },
       { href: '/du-anh-tu-phac-thao', labelKey: 'sketch_to_image' as ToolKey, icon: PencilLine },
       { href: '/tao-anh-the', labelKey: 'create_id_photo' as ToolKey, icon: TaoAnhTheIcon },
       { href: '/thiet-ke-logo', labelKey: 'design_logo' as ToolKey, icon: ThietKeLogoIcon },

@@ -1,5 +1,14 @@
 import type { MetadataRoute } from 'next'
 
+const shortcutIcon = [
+  {
+    src: '/icons/icon-192x192.png',
+    sizes: '192x192',
+    type: 'image/png' as const,
+    purpose: 'any' as const,
+  },
+]
+
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: 'NanoAI - Sáng tạo không giới hạn cùng AI',
@@ -9,13 +18,42 @@ export default function manifest(): MetadataRoute.Manifest {
     id: '/',
     scope: '/',
     display: 'standalone',
-    orientation: 'portrait',
+    /** Cho phép xoay ngang các công cụ cần landscape; vẫn mở fullscreen kiểu app. */
+    display_override: ['standalone', 'minimal-ui', 'browser'],
+    orientation: 'any',
     background_color: '#ffffff',
     theme_color: '#0a0a0a',
     categories: ['lifestyle', 'shopping', 'utilities'],
     lang: 'vi',
     dir: 'ltr',
     prefer_related_applications: false,
+    shortcuts: [
+      {
+        name: 'Thử đồ AI',
+        short_name: 'Thử đồ',
+        description: 'Phòng thử đồ ảo',
+        url: '/thu-do-online',
+        icons: shortcutIcon,
+      },
+      {
+        name: 'Tạo ảnh từ chữ',
+        short_name: 'Ảnh từ chữ',
+        url: '/tao-anh-tu-chu',
+        icons: shortcutIcon,
+      },
+      {
+        name: 'Học ngoại ngữ AI',
+        short_name: 'Ngoại ngữ',
+        url: '/hoc-tieng-anh-ai',
+        icons: shortcutIcon,
+      },
+      {
+        name: 'Giáo trình & lớp',
+        short_name: 'Giáo trình',
+        url: '/giao-trinh',
+        icons: shortcutIcon,
+      },
+    ],
     icons: [
       {
         src: '/icons/icon-192x192.png',

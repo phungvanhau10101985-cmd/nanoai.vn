@@ -37,6 +37,7 @@ export type ToolKey =
   | 'product_3d_sample'
   | 'model_3d_from_image'
   | 'create_video_from_image'
+  | 'flow_music_veo_video'
   | 'interior_exterior'
   | 'my_house'
   | 'portrait_photo'
@@ -89,6 +90,8 @@ export type Dictionary = {
     viewPlan: string
     /** Nút / mục menu nạp thêm credit */
     topUpCredits: string
+    /** Trung tâm tác vụ / hàng đợi */
+    tasksHub: string
   }
   home: {
     title: string
@@ -183,6 +186,35 @@ export type Dictionary = {
     relatedTitle: string
     popularTitle: string
   }
+  /** Trang /dashboard/tasks — tác vụ & hàng đợi thống nhất */
+  taskHub: {
+    pageTitle: string
+    pageDescription: string
+    sectionRunning: string
+    sectionRecent: string
+    emptyRunning: string
+    emptyRecent: string
+    openTool: string
+    batchSummary: string
+    itemsCount: string
+    worksheetSection: string
+    worksheetParseSgk: string
+    worksheetQuiz: string
+    worksheetEssay: string
+    worksheetUnknownType: string
+    statusProcessing: string
+    statusFailed: string
+    statusCompleted: string
+    statusCancelled: string
+    statusMixed: string
+    hintTranslateProgress: string
+    linkProcessedImages: string
+    linkTranslateHistory: string
+    /** Link tới /dich-anh-tai-lieu/tien-trinh */
+    linkTranslateProgress: string
+    /** Gợi ý dưới tiêu đề khi bật poll client */
+    autoRefreshNote: string
+  }
   /** /ghi-am-bao-cao-cuoc-hop — ghi âm miễn phí, trừ credit khi tạo báo cáo AI */
   meetingRecorder: {
     cardTitle: string
@@ -238,6 +270,117 @@ export type Dictionary = {
     fileTooLarge: string
     genericError: string
     insufficientCredits: string
+  }
+  /** /flow-nhac-video-veo — video âm nhạc: Gemini Flash lời → nhiều clip Veo 8s độc lập */
+  flowMusicVeo: {
+    pageTitle: string
+    metaDescription: string
+    headline: string
+    subtitle: string
+    stepLyricsTitle: string
+    stepLyricsBody: string
+    lyricsModeLabel: string
+    lyricsModeAllAtOnce: string
+    lyricsModeProgressive: string
+    lyricsProgressiveHelp: string
+    /** {k} */
+    openNextLyricsSegmentButton: string
+    segmentVideoSubBlockHint: string
+    progressiveStyleOnlyInStep1Note: string
+    progressiveExtendStyleLockedNote: string
+    lyricsGenreOnlyHelp: string
+    veoStyleFieldsIntro: string
+    progressiveVideoSectionTitle: string
+    /** {k}{n} */
+    generateNextSegmentButton: string
+    /** {k}{n} */
+    successLyricsOneSegment: string
+    incrementalPlanFrozenHelp: string
+    lyricsModeFrozenHint: string
+    progressiveNoNextSegment: string
+    hintLabel: string
+    hintPlaceholder: string
+    lyricsImageHelp: string
+    generateLyricsButton: string
+    generatingLyrics: string
+    lyricsNeedHintOrImage: string
+    successLyrics: string
+    /** {n} */
+    successLyricsBlocks: string
+    lyricsBlockCountLabel: string
+    lyricsBlockCountHelp: string
+    openingLyricsLabel: string
+    openingLyricsHelp: string
+    fillOpeningButton: string
+    assignOpeningToSegment1: string
+    styleBlockTitle: string
+    styleBlockBody: string
+    genreLabel: string
+    voiceGenderLabel: string
+    voiceTimbreLabel: string
+    voiceLangLabel: string
+    bpmLabel: string
+    structureLabel: string
+    densityLabel: string
+    videoBlockTitle: string
+    videoBlockBody: string
+    aspectLabel: string
+    aspect169: string
+    aspect916: string
+    framesLabel: string
+    framesHelpSingle: string
+    framesHelpMulti: string
+    visualExtraLabel: string
+    visualExtraPlaceholder: string
+    createClip8s: string
+    creatingClip: string
+    clip720Note: string
+    needImage: string
+    previewTitle: string
+    downloadMp4: string
+    /** {n} */
+    segmentIndexLabel: string
+    createSegment1VideoButton: string
+    /** Dưới video vừa tạo — mở đoạn lời + thông số rồi nối Veo */
+    addEightMoreVideoButton: string
+    addEightMoreVideoHelp: string
+    /** {k} */
+    extendSegmentVideoButton: string
+    /** {k} */
+    extendingVeoSegmentBusy: string
+    videoSequentialBlockIntro: string
+    videoImagesOnlyStep3Note: string
+    previewInStep4Note: string
+    videoForSegmentLockedNote: string
+    /** {k} */
+    successExtendSegment: string
+    /** {n} */
+    partialSegmentsFail: string
+    startOver: string
+    veoAudioNote: string
+    successClip: string
+    segmentCountLockedHelp: string
+    lyricsLockedNote: string
+    segmentsCountSyncedNote: string
+    /** {n}{seconds} */
+    videoAfterSegmentLabel: string
+    /** {n} */
+    downloadMp4Step: string
+    extendPerStepSectionTitle: string
+    extendPerStepSectionBody: string
+    /** {to} */
+    extendBridgeLabel: string
+    extendSegmentVisualLabel: string
+    cameraHintLabel: string
+    cameraHintPlaceholder: string
+    characterStoryLabel: string
+    characterStoryPlaceholder: string
+    standaloneFramesNote: string
+    mergeClipsSectionTitle: string
+    mergeClipsSectionHelp: string
+    mergeClipsButton: string
+    mergingClips: string
+    successMergedClip: string
   }
   classes: {
     title: string
@@ -980,6 +1123,7 @@ const VI_DICTIONARY: Dictionary = {
     inviteFriends: 'Mời bạn bè',
     viewPlan: 'Xem gói',
     topUpCredits: 'Nạp credit',
+    tasksHub: 'Tác vụ & hàng đợi',
   },
   home: {
     title: 'NanoAI - Sáng tạo không giới hạn cùng AI',
@@ -1099,7 +1243,8 @@ const VI_DICTIONARY: Dictionary = {
     replace_product_bg: 'Thay nền sản phẩm',
     product_3d_sample: 'Ảnh sản phẩm mẫu 3D',
     model_3d_from_image: 'Mô hình 3D từ ảnh',
-    create_video_from_image: 'Tạo video từ ảnh',
+    create_video_from_image: 'Tạo video AI (Veo)',
+    flow_music_veo_video: 'Video âm nhạc AI (Flash + Veo)',
     interior_exterior: 'Nội ngoại thất',
     my_house: 'Nhà của bạn',
     portrait_photo: 'Ảnh chân dung',
@@ -1125,6 +1270,35 @@ const VI_DICTIONARY: Dictionary = {
     back: 'Quay lại',
     relatedTitle: 'Liên quan',
     popularTitle: 'Nhiều người dùng',
+  },
+  taskHub: {
+    pageTitle: 'Tác vụ & hàng đợi',
+    pageDescription:
+      'Theo dõi xử lý đang chạy (ảnh, video, dịch hàng loạt, giáo trình) và mở nhanh từng công cụ.',
+    sectionRunning: 'Đang xử lý',
+    sectionRecent: 'Vừa hoàn tất hoặc lỗi (7 ngày)',
+    emptyRunning: 'Không có tác vụ đang chạy.',
+    emptyRecent: 'Chưa có tác vụ hoàn tất gần đây trong 7 ngày.',
+    openTool: 'Mở công cụ',
+    batchSummary: '{done}/{total} xong',
+    itemsCount: '{n} mục',
+    worksheetSection: 'Bài tập / giáo trình (chạy nền)',
+    worksheetParseSgk: 'Trích SGK',
+    worksheetQuiz: 'Tạo quiz theo bước',
+    worksheetEssay: 'Chấm / tạo bài luận',
+    worksheetUnknownType: 'Tác vụ worksheet',
+    statusProcessing: 'Đang chạy',
+    statusFailed: 'Lỗi',
+    statusCompleted: 'Xong',
+    statusCancelled: 'Đã hủy',
+    statusMixed: 'Một phần',
+    hintTranslateProgress:
+      'Lô dịch ảnh: mở trang công cụ để xem tiến độ chi tiết, tải ZIP và hủy lô.',
+    linkProcessedImages: 'Ảnh đã xử lý',
+    linkTranslateHistory: 'Lịch sử dịch ảnh',
+    linkTranslateProgress: 'Tiến trình dịch ảnh',
+    autoRefreshNote:
+      'Có tác vụ đang chạy: tự làm mới khoảng 8 giây một lần (tab đang mở). Hết hàng đợi: chỉ cập nhật khi bạn chuyển lại tab này.',
   },
   meetingRecorder: {
     cardTitle: 'Ghi âm cuộc họp → báo cáo AI',
@@ -1180,6 +1354,123 @@ const VI_DICTIONARY: Dictionary = {
     fileTooLarge: 'File âm thanh quá lớn (giới hạn 20MB).',
     genericError: 'Có lỗi xảy ra. Thử lại sau.',
     insufficientCredits: 'Không đủ credits.',
+  },
+  flowMusicVeo: {
+    pageTitle: 'Tạo video âm nhạc AI (lời Flash + Veo)',
+    metaDescription:
+      'Sinh lời theo từng đoạn (Flash + JSON), phong cách Lyria có lời, clip đầu từ ảnh rồi Veo kéo dài nối tiếp — mỗi bước một prompt kèm lời đoạn đó. Một file MP4 liền. Âm thanh do Veo sinh.',
+    headline: 'Video âm nhạc — lời (Flash) + hình & nhạc (Veo)',
+    subtitle:
+      'Bước 1: thể loại (Flash) + ảnh/gợi ý. Bước 4: các ô lời xếp liền; «Mở ô lời …» hoặc «Tạo video dài thêm ~8 giây» để thêm đoạn; sinh lời hoặc gõ tay — dưới mỗi đoạn là Veo (ảnh rồi nối video).',
+    stepLyricsTitle: 'Bước 1 — Thể loại nhạc & gợi ý (Flash sinh lời)',
+    stepLyricsBody:
+      'Chỉ thể loại + ảnh + gợi ý cho Flash (không chọn giọng/tempo ở đây). Bước 4: các ô lời hiện cùng lúc; thêm ô bằng «Mở ô lời …» hoặc «Tạo video dài thêm ~8 giây» (tối đa 20). «Sinh lời đoạn …» hoặc gõ tay.',
+    lyricsModeLabel: 'Cách sinh lời',
+    lyricsModeAllAtOnce: 'Một lần — đủ N đoạn',
+    lyricsModeProgressive: 'Từng đoạn — đến đâu sinh đến đó',
+    lyricsProgressiveHelp:
+      'Bước 1 — chọn thể loại → ảnh → gợi ý; xuống bước 4: các ô lời xếp liền từ trên xuống, bấm «Sinh lời đoạn …» tại ô đang cần. Giọng/tempo/cấu trúc chọn khi tạo video (Veo). «Mở ô lời đoạn …» thêm một hàng trống (tối đa 20). Mỗi lần sinh: {credits} credit — tách với nút video.',
+    openNextLyricsSegmentButton: 'Mở ô lời đoạn {k}',
+    segmentVideoSubBlockHint: 'Video Veo (luồng riêng, sau khi lời đã ổn):',
+    progressiveStyleOnlyInStep1Note:
+      'Bước 1 chỉ chọn thể loại nhạc cho Flash sinh lời; giọng, tempo, cấu trúc… chọn khi tạo video ở bước 4.',
+    progressiveExtendStyleLockedNote:
+      'Thể loại nhạc giữ như đã chọn khi sinh lời; chỉnh giọng/tempo/cấu trúc bên dưới cho từng bước Veo. Có thể thêm gợi ý hình / máy / nhân vật (tùy chọn).',
+    lyricsGenreOnlyHelp:
+      'Chỉ đưa vào prompt sinh lời (Flash). Giọng, tempo, cấu trúc… chọn khi tạo video (Veo), không gửi lúc sinh lời.',
+    veoStyleFieldsIntro:
+      'Giọng, ngôn ngữ hát, tempo và cấu trúc — gửi Veo cho clip này (không dùng khi sinh lời).',
+    progressiveVideoSectionTitle: 'Tạo video — đoạn {k}',
+    generateNextSegmentButton: 'Sinh lời đoạn {k} / {n}',
+    successLyricsOneSegment: 'Đã sinh đoạn {k}/{n}. Tiếp tục hoặc xuống bước sau khi đủ các đoạn.',
+    incrementalPlanFrozenHelp: 'Đã bắt đầu sinh từng đoạn — không đổi số đoạn. «Làm lại từ đầu» để đổi.',
+    lyricsModeFrozenHint: 'Đã có lời từ AI — không đổi luồng sinh. Dùng «Làm lại từ đầu».',
+    progressiveNoNextSegment: 'Đã đủ các ô đoạn — xuống bước 4 hoặc «Làm lại từ đầu».',
+    hintLabel: 'Gợi ý chủ đề / câu chuyện (tùy chọn nếu có ảnh)',
+    hintPlaceholder: 'VD: Bài pop tiếng Việt về mùa hè và biển, tâm trạng vui…',
+    lyricsImageHelp: 'Ảnh tham chiếu tâm trạng (tùy chọn) — Flash đọc ảnh để gợi ý lời.',
+    generateLyricsButton: 'Sinh lời (Flash)',
+    generatingLyrics: 'Đang sinh lời…',
+    lyricsNeedHintOrImage: 'Cần gợi ý ít nhất 4 ký tự hoặc một ảnh.',
+    successLyrics: 'Đã sinh lời — hãy kiểm tra và chỉnh sửa.',
+    successLyricsBlocks: 'Đã sinh {n} đoạn lời liên kết (JSON) — kiểm tra từng ô ở bước 4.',
+    lyricsBlockCountLabel: 'Số đoạn lời / clip 8s',
+    lyricsBlockCountHelp: 'Flash sinh đúng số đoạn này (JSON); nên trùng số ô lời ở bước 4 và số lần nối Veo.',
+    openingLyricsLabel: 'Đoạn lời cho clip 8 giây đầu',
+    openingLyricsHelp:
+      'Nhập đủ vài dòng trong ô đoạn 1 (khoảng ~8 giây hát). Prompt Veo gồm đoạn này và mô tả phong cách ở phần tạo video.',
+    fillOpeningButton: 'Lấy đoạn đầu từ toàn bộ lời',
+    assignOpeningToSegment1: 'Đã gán lời đoạn đầu vào ô đoạn 1.',
+    styleBlockTitle: 'Bước 2 — Phong cách âm nhạc (giống Lyria có lời)',
+    styleBlockBody:
+      'Các lựa chọn được đưa vào prompt Veo dạng mô tả tiếng Anh (thể loại, giọng, tempo, cấu trúc…). Không tạo file MP3 — Veo tự sinh âm thanh video.',
+    genreLabel: 'Thể loại',
+    voiceGenderLabel: 'Giọng (nam/nữ/…)',
+    voiceTimbreLabel: 'Timbre / màu giọng',
+    voiceLangLabel: 'Ngôn ngữ hát',
+    bpmLabel: 'Tempo (BPM)',
+    structureLabel: 'Cấu trúc bài',
+    densityLabel: 'Độ dày phối khí',
+    videoBlockTitle: 'Bước 3 — Ảnh & clip 8 giây (720p)',
+    videoBlockBody:
+      'Một ảnh: khung đầu image-to-video. Hai hoặc ba ảnh: chỉ dùng ảnh tham chiếu (API không kết hợp khung đầu + tham chiếu). Tối đa 3 file.',
+    aspectLabel: 'Tỷ lệ',
+    aspect169: '16:9',
+    aspect916: '9:16',
+    framesLabel: 'Ảnh (1–3)',
+    framesHelpSingle: 'Một file: ảnh khung đầu video.',
+    framesHelpMulti: 'Hai hoặc ba file: toàn bộ là ảnh tham chiếu (ASSET), không có khung đầu riêng.',
+    visualExtraLabel: 'Gợi ý hình ảnh thêm (tùy chọn)',
+    visualExtraPlaceholder: 'VD: Hoàng hôn, slow motion, góc máy gần mặt khi hát…',
+    createClip8s: 'Tạo clip 8s (720p)',
+    creatingClip: 'Đang tạo clip 8s (Veo)…',
+    clip720Note:
+      'Mỗi đoạn là một clip Veo ~8s độc lập (cùng bộ ảnh đoạn 1); sau đó ghép MP4 trên server. Mỗi clip ~8 credits; ghép không tốn credits.',
+    needImage: 'Cần ít nhất một ảnh.',
+    previewTitle: 'Ghi chú xem thử',
+    downloadMp4: 'Tải file MP4',
+    segmentIndexLabel: 'Đoạn {n}',
+    createSegment1VideoButton: 'Tạo clip đoạn 1 từ ảnh (~8s, 720p)',
+    addEightMoreVideoButton: 'Tạo video dài thêm ~8 giây',
+    addEightMoreVideoHelp:
+      'Mở ô lời đoạn tiếp theo: sinh lời hoặc gõ tay, rồi tạo clip ~8s độc lập cho đoạn đó (cùng ảnh đoạn 1). Cuối cùng có thể ghép các clip thành một MP4.',
+    extendSegmentVideoButton: 'Tạo clip đoạn {k} (~8s, độc lập)',
+    extendingVeoSegmentBusy: 'Đang tạo clip đoạn {k} (Veo) — có thể vài phút…',
+    videoSequentialBlockIntro: 'Video và nút bước kế hiển thị ngay bên dưới từng đoạn.',
+    videoImagesOnlyStep3Note:
+      'Ảnh và tỷ lệ chọn ở đoạn 1 được dùng lại cho mọi clip đoạn sau (mỗi clip sinh riêng, không extend).',
+    previewInStep4Note: 'Mỗi mốc video nằm ngay trong bước 4 (không gom chỗ khác).',
+    videoForSegmentLockedNote:
+      'Phần Veo của đoạn này mở sau khi bạn bấm «Tạo video dài thêm ~8 giây» và đã có clip đoạn trước.',
+    successExtendSegment: 'Đã tạo xong clip đoạn {k}. Xem video bên dưới.',
+    partialSegmentsFail: 'Dừng khi tạo đoạn {n} — các clip trước vẫn xem/tải/ghép được.',
+    startOver: 'Làm lại từ đầu',
+    veoAudioNote:
+      'Âm thanh trong file MP4 do Veo sinh theo prompt (lời + mô tả phong cách), không phải file nhạc tải lên.',
+    successClip: 'Đã tạo clip 8s.',
+    segmentCountLockedHelp:
+      'Đã mở thêm ô lời (hoặc sinh lời bằng AI) — không tự thu số đoạn. «Làm lại từ đầu» để đặt lại.',
+    lyricsLockedNote: 'Lời các đoạn đã khóa (đúng thứ tự gửi Veo).',
+    segmentsCountSyncedNote: 'Cùng số đoạn với bước 1: {n}.',
+    videoAfterSegmentLabel: 'Sau đoạn lời {n} (ước tính ~{seconds}s)',
+    downloadMp4Step: 'Tải MP4 — mốc {n}',
+    extendPerStepSectionTitle: 'Tùy chọn mỗi clip đoạn',
+    extendPerStepSectionBody:
+      'Phong cách nhạc (bước 2) áp dụng cho mọi clip; góc máy / nhân vật có thể chỉnh trước mỗi lần tạo clip.',
+    extendBridgeLabel: 'Clip ~8 giây độc lập cho đoạn {to} — cùng ảnh đoạn 1; ghép MP4 sau.',
+    extendSegmentVisualLabel: 'Gợi ý hình (lần nối này)',
+    cameraHintLabel: 'Góc máy / chuyển động camera',
+    cameraHintPlaceholder: 'VD: Pan chậm sang trái, góc rộng, handheld nhẹ…',
+    characterStoryLabel: 'Hành động nhân vật / diễn biến câu chuyện',
+    characterStoryPlaceholder: 'VD: Nhìn ra biển, giơ tay, quay lưng bước đi…',
+    standaloneFramesNote:
+      'Dùng lại đúng bộ ảnh đã chọn ở đoạn 1. Có thể chỉnh góc máy / nhân vật cho prompt clip này.',
+    mergeClipsSectionTitle: 'Ghép các clip đã tạo',
+    mergeClipsSectionHelp:
+      'Ghép theo thứ tự đoạn 1 → 2 → … thành một MP4. Không trừ credits; cần ffmpeg trên máy chủ.',
+    mergeClipsButton: 'Ghép thành một MP4',
+    mergingClips: 'Đang ghép video trên server…',
+    successMergedClip: 'Đã ghép xong. Xem bên dưới hoặc trong lịch sử.',
   },
   classes: {
     title: 'Lớp học',
@@ -1865,6 +2156,7 @@ const EN_DICTIONARY: Dictionary = {
     inviteFriends: 'Invite friends',
     viewPlan: 'View plan',
     topUpCredits: 'Top up credits',
+    tasksHub: 'Tasks & queue',
   },
   referral: {
     pageTitle: 'Invite friends – earn credits',
@@ -1981,7 +2273,8 @@ const EN_DICTIONARY: Dictionary = {
     replace_product_bg: 'Replace Product Background',
     product_3d_sample: '3D Product Sample',
     model_3d_from_image: '3D Model from Image',
-    create_video_from_image: 'Create Video from Image',
+    create_video_from_image: 'AI video (Veo)',
+    flow_music_veo_video: 'AI music video (Flash + Veo)',
     interior_exterior: 'Interior & Exterior',
     my_house: 'Your House',
     portrait_photo: 'Portrait Photo',
@@ -2007,6 +2300,34 @@ const EN_DICTIONARY: Dictionary = {
     back: 'Back',
     relatedTitle: 'Related',
     popularTitle: 'Popular tools',
+  },
+  taskHub: {
+    pageTitle: 'Tasks & queue',
+    pageDescription:
+      'Track in-progress work (images, video, batch translation, curriculum) and open each tool quickly.',
+    sectionRunning: 'In progress',
+    sectionRecent: 'Recently finished or failed (7 days)',
+    emptyRunning: 'Nothing is running right now.',
+    emptyRecent: 'No finished tasks in the last 7 days.',
+    openTool: 'Open tool',
+    batchSummary: '{done}/{total} done',
+    itemsCount: '{n} items',
+    worksheetSection: 'Homework / curriculum (background)',
+    worksheetParseSgk: 'Extract textbook',
+    worksheetQuiz: 'Step-by-step quiz',
+    worksheetEssay: 'Essay grading / generation',
+    worksheetUnknownType: 'Worksheet job',
+    statusProcessing: 'Running',
+    statusFailed: 'Failed',
+    statusCompleted: 'Done',
+    statusCancelled: 'Cancelled',
+    statusMixed: 'Partial',
+    hintTranslateProgress:
+      'Translation batches: open the tool page for detailed progress, ZIP download, and cancel.',
+    linkProcessedImages: 'Processed images',
+    linkTranslateHistory: 'Translation history',
+    linkTranslateProgress: 'Translation queue',
+    autoRefreshNote: 'This list refreshes about every 8 seconds while this tab is visible.',
   },
   meetingRecorder: {
     cardTitle: 'Record a meeting → AI report',
@@ -2062,6 +2383,122 @@ const EN_DICTIONARY: Dictionary = {
     fileTooLarge: 'Audio file is too large (20MB limit).',
     genericError: 'Something went wrong. Please try again.',
     insufficientCredits: 'Not enough credits.',
+  },
+  flowMusicVeo: {
+    pageTitle: 'AI music video (Flash lyrics + Veo)',
+    metaDescription:
+      'Per-block lyrics (Flash JSON), Lyria-style controls, first ~8s from images then Veo extend for each next block — one prompt with that block’s lyrics per step. One stitched MP4. Veo-generated audio.',
+    headline: 'Music video — lyrics (Flash) + picture & sound (Veo)',
+    subtitle:
+      'Step 1: genre (Flash) + image/hint. Step 4: lyric boxes listed in order; «Open lyrics …» or «Add ~8 more seconds» after a clip adds another row; generate or type — Veo under each segment (image first, then extend).',
+    stepLyricsTitle: 'Step 1 — Genre & hints (Flash lyrics)',
+    stepLyricsBody:
+      'Only genre + optional image + theme for Flash (not voice/tempo here). Step 4 shows all lyric rows at once; add a row with «Open lyrics …» or «Add ~8 more seconds of video» after a clip (up to 20). «Generate lyrics — segment …» or type in any box.',
+    lyricsModeLabel: 'Lyrics generation flow',
+    lyricsModeAllAtOnce: 'All at once — N blocks in one run',
+    lyricsModeProgressive: 'Step by step — generate the next block only',
+    lyricsProgressiveHelp:
+      'Step 1: pick style → image → hint; step 4 lists lyric boxes top to bottom — tap «Generate lyrics — segment …» on the row you need. Voice/tempo/structure are set when creating video (Veo). «Open lyrics …» adds an empty row (up to 20). {credits} credit per generation — separate from video buttons.',
+    openNextLyricsSegmentButton: 'Open lyrics box — segment {k}',
+    segmentVideoSubBlockHint: 'Veo video (separate flow once lyrics are ready):',
+    progressiveStyleOnlyInStep1Note:
+      'Genre / voice / tempo are only chosen here; the video section below does not repeat music picks.',
+    lyricsGenreOnlyHelp:
+      'Used only for the Flash lyrics prompt. Voice, tempo, structure, etc. are chosen in step 4 for Veo, not when generating lyrics.',
+    veoStyleFieldsIntro:
+      'Vocal style, language, tempo, structure — sent to Veo for this clip (not used for Flash lyrics).',
+    progressiveExtendStyleLockedNote:
+      'Music style stays as set when you generated segment 1 lyrics — only add optional visuals / camera / character notes.',
+    progressiveVideoSectionTitle: 'Create video — segment {k}',
+    generateNextSegmentButton: 'Generate lyrics — segment {k} / {n}',
+    successLyricsOneSegment: 'Segment {k}/{n} generated. Continue or move on when all blocks are ready.',
+    incrementalPlanFrozenHelp: 'Step-by-step generation started — block count is fixed. Use «Start over» to change.',
+    lyricsModeFrozenHint: 'Lyrics from AI are in progress — switch flows disabled. Use «Start over».',
+    progressiveNoNextSegment: 'All segment boxes are filled — go to step 4 or «Start over».',
+    hintLabel: 'Theme / story hint (optional if you add an image)',
+    hintPlaceholder: 'e.g. Vietnamese pop about summer and the beach, upbeat…',
+    lyricsImageHelp: 'Optional mood image — Flash uses it to inspire lyrics.',
+    generateLyricsButton: 'Generate lyrics (Flash)',
+    generatingLyrics: 'Generating lyrics…',
+    lyricsNeedHintOrImage: 'Add at least 4 characters of hint or one image.',
+    successLyrics: 'Lyrics generated — please review and edit.',
+    successLyricsBlocks: 'Generated {n} linked lyric blocks (JSON) — check each box in step 4.',
+    lyricsBlockCountLabel: 'Lyric blocks / 8s clips',
+    lyricsBlockCountHelp: 'Flash outputs this many segments (JSON); match the lyric boxes in step 4 and the Veo chain length.',
+    openingLyricsLabel: 'Lyrics for the first 8-second clip',
+    openingLyricsHelp:
+      'Enter enough lines in segment 1 (~8s of singing). The Veo prompt uses this block plus the music-style fields.',
+    fillOpeningButton: 'Fill opening from full lyrics',
+    assignOpeningToSegment1: 'Opening lyrics copied to segment 1.',
+    styleBlockTitle: 'Step 2 — Music style (like Lyria vocal mode)',
+    styleBlockBody:
+      'Choices are sent to Veo as an English description (genre, voice, tempo, structure). No MP3 file — Veo synthesizes audio for the video.',
+    genreLabel: 'Genre',
+    voiceGenderLabel: 'Vocal gender',
+    voiceTimbreLabel: 'Timbre',
+    voiceLangLabel: 'Singing language',
+    bpmLabel: 'Tempo (BPM)',
+    structureLabel: 'Song structure',
+    densityLabel: 'Arrangement density',
+    videoBlockTitle: 'Step 3 — Images & 8s clip (720p)',
+    videoBlockBody:
+      'One image: start frame for image-to-video. Two or three images: reference-only mode (no separate start frame). Max 3 files.',
+    aspectLabel: 'Aspect ratio',
+    aspect169: '16:9',
+    aspect916: '9:16',
+    framesLabel: 'Images (1–3)',
+    framesHelpSingle: 'One file: video start frame.',
+    framesHelpMulti: 'Two or three files: all are reference (ASSET) images.',
+    visualExtraLabel: 'Extra visual direction (optional)',
+    visualExtraPlaceholder: 'e.g. Golden hour, slow motion, close-up while singing…',
+    createClip8s: 'Create 8s clip (720p)',
+    creatingClip: 'Creating 8s clip (Veo)…',
+    clip720Note:
+      'Each block is its own ~8s Veo clip (same images as block 1), then clips are stitched on the server. ~8 credits per clip; merging costs no credits.',
+    needImage: 'At least one image is required.',
+    previewTitle: 'Preview note',
+    downloadMp4: 'Download MP4',
+    segmentIndexLabel: 'Segment {n}',
+    createSegment1VideoButton: 'Create block-1 clip from images (~8s, 720p)',
+    addEightMoreVideoButton: 'Add ~8 more seconds of video',
+    addEightMoreVideoHelp:
+      'Opens the next lyrics block — generate or type lyrics, then create a standalone ~8s clip for that block (same images as block 1). Stitch clips into one MP4 when ready.',
+    extendSegmentVideoButton: 'Create block {k} clip (~8s, standalone)',
+    extendingVeoSegmentBusy: 'Creating block {k} clip (Veo) — may take a few minutes…',
+    videoSequentialBlockIntro: 'Each step shows its video and the next action right below.',
+    videoImagesOnlyStep3Note:
+      'Images and aspect from block 1 are reused for every later block (each clip is generated separately, not extend).',
+    previewInStep4Note: 'Videos appear inside step 4 for each checkpoint.',
+    videoForSegmentLockedNote:
+      'Veo for this segment unlocks after you tap «Add ~8 more seconds of video» and the previous clip exists.',
+    successExtendSegment: 'Block {k} clip is ready. Watch the video below.',
+    partialSegmentsFail: 'Stopped while creating segment {n} — earlier clips can still be played, downloaded, or merged.',
+    startOver: 'Start over',
+    veoAudioNote: 'Audio in the MP4 is generated by Veo from the prompt (lyrics + style text), not an uploaded track.',
+    successClip: '8s clip created.',
+    segmentCountLockedHelp:
+      'Segment count is fixed after you open more lyric boxes or use AI lyrics. Use «Start over» to reset.',
+    lyricsLockedNote: 'Lyrics are locked to keep the Veo request order correct.',
+    segmentsCountSyncedNote: 'Same as step 1: {n} segments.',
+    videoAfterSegmentLabel: 'After lyric block {n} (about ~{seconds}s)',
+    downloadMp4Step: 'Download MP4 — checkpoint {n}',
+    extendPerStepSectionTitle: 'Options per clip',
+    extendPerStepSectionBody:
+      'Music style (step 2) applies to every clip; camera / character notes can be edited before each generate.',
+    extendBridgeLabel: 'Standalone ~8s clip for segment {to} — same images as block 1; stitch MP4 afterwards.',
+    extendSegmentVisualLabel: 'Visual notes (this extend)',
+    cameraHintLabel: 'Camera angle / movement',
+    cameraHintPlaceholder: 'e.g. Slow pan left, wide shot, light handheld…',
+    characterStoryLabel: 'Character actions / story beats',
+    characterStoryPlaceholder: 'e.g. Looks to the sea, raises hand, turns and walks away…',
+    standaloneFramesNote:
+      'Reuses the same images chosen for block 1. You can adjust camera / character notes for this clip’s prompt.',
+    mergeClipsSectionTitle: 'Merge created clips',
+    mergeClipsSectionHelp:
+      'Concatenate in order (block 1 → 2 → …) into one MP4. No credits charged; requires ffmpeg on the server.',
+    mergeClipsButton: 'Merge into one MP4',
+    mergingClips: 'Merging video on the server…',
+    successMergedClip: 'Merge complete. Watch below or find it in history.',
   },
   classes: {
     title: 'Classes',
@@ -2758,6 +3195,7 @@ const ZH_DICTIONARY: Dictionary = {
     inviteFriends: '邀请好友',
     viewPlan: '查看套餐',
     topUpCredits: '充值积分',
+    tasksHub: '任务与队列',
   },
   referral: {
     pageTitle: '邀请好友 – 获得积分',
@@ -2876,6 +3314,110 @@ const ZH_DICTIONARY: Dictionary = {
     genericError: '发生错误，请稍后重试。',
     insufficientCredits: '积分不足。',
   },
+  flowMusicVeo: {
+    pageTitle: 'AI 音乐视频（Flash 歌词 + Veo）',
+    metaDescription:
+      '分段歌词（Flash JSON）、Lyria 风格、首段由图生成约 8 秒，后续用 Veo 延长衔接——每步提示含该段歌词。一个连续 MP4。音频由 Veo 生成。',
+    headline: '音乐视频 — 歌词（Flash）+ 画面与声音（Veo）',
+    subtitle:
+      '第 1 步：曲风（Flash）+ 图/提示。第 4 步：歌词格自上而下排列；「打开歌词格…」或成片后「再延长约 8 秒」增加一行；生成或手打 — 下为 Veo（先图后接视频）。',
+    stepLyricsTitle: '第 1 步 — 曲风与提示（Flash 歌词）',
+    stepLyricsBody:
+      '此处仅曲风 + 图 + 主题给 Flash（人声/速度在 Veo）。第 4 步同时显示各歌词格；用「打开歌词格…」或「再延长约 8 秒视频」增加一行（最多 20）。逐格「生成歌词」或手打。',
+    lyricsModeLabel: '歌词生成方式',
+    lyricsModeAllAtOnce: '一次生成 — 共 N 段',
+    lyricsModeProgressive: '逐段生成 — 写到哪里生成到哪里',
+    lyricsProgressiveHelp:
+      '第 1 步：曲风 → 图 → 提示；第 4 步歌词格自上而下排列，在需要的格点「生成歌词」。人声/速度/结构在做 Veo 视频时选。「打开歌词格…」增加空行（最多 20）。每次 {credits} 积分 — 与视频按钮分开。',
+    openNextLyricsSegmentButton: '打开歌词格 — 第 {k} 段',
+    segmentVideoSubBlockHint: 'Veo 视频（另一条流程，歌词就绪后使用）：',
+    progressiveStyleOnlyInStep1Note: '曲风/人声/速度等仅在此选择；下方做视频不再选音乐项。',
+    lyricsGenreOnlyHelp:
+      '仅用于 Flash 写歌词。人声、速度、结构等在第四步做 Veo 视频时再选，写歌词时不发送。',
+    veoStyleFieldsIntro: '人声、语言、速度、曲式 — 发给本段 Veo（不写歌词时用）。',
+    progressiveExtendStyleLockedNote: '音乐风格与生成第 1 段歌词时一致 — 仅可补充画面/镜头/人物（可选）。',
+    progressiveVideoSectionTitle: '生成视频 — 第 {k} 段',
+    generateNextSegmentButton: '生成歌词 — 第 {k} / {n} 段',
+    successLyricsOneSegment: '已生成第 {k}/{n} 段。继续生成或待全部完成后再进行下一步。',
+    incrementalPlanFrozenHelp: '已开始逐段生成 — 段数不可改。请「从头开始」再调整。',
+    lyricsModeFrozenHint: '已有 AI 歌词进度 — 不可切换方式。请「从头开始」。',
+    progressiveNoNextSegment: '各段已填满 — 前往第 4 步或「从头开始」。',
+    hintLabel: '主题/故事提示（有图时可不写长文）',
+    hintPlaceholder: '例如：中文流行，关于夏天与海，轻快…',
+    lyricsImageHelp: '可选情绪参考图 — Flash 据图启发歌词。',
+    generateLyricsButton: '生成歌词（Flash）',
+    generatingLyrics: '正在生成歌词…',
+    lyricsNeedHintOrImage: '至少需要 4 字提示或一张图片。',
+    successLyrics: '已生成歌词 — 请检查并修改。',
+    successLyricsBlocks: '已生成 {n} 段连贯歌词（JSON）— 请在第 4 步核对每格。',
+    lyricsBlockCountLabel: '歌词段数 / 8 秒片段数',
+    lyricsBlockCountHelp: 'Flash 按此段数输出（JSON）；与第 4 步各格及 Veo 衔接次数一致。',
+    openingLyricsLabel: '首段 8 秒歌词',
+    openingLyricsHelp: '在第 1 格填写足够行数（约 8 秒演唱）。Veo 提示包含本段歌词与英文风格描述。',
+    fillOpeningButton: '从完整歌词填充开头',
+    assignOpeningToSegment1: '已将开头歌词填入第 1 段。',
+    styleBlockTitle: '第 2 步 — 音乐风格（同 Lyria 有人声）',
+    styleBlockBody: '选项会以英文描述发给 Veo（流派、人声、速度、结构等）。不生成 MP3 — 由 Veo 合成视频音轨。',
+    genreLabel: '流派',
+    voiceGenderLabel: '人声性别',
+    voiceTimbreLabel: '音色',
+    voiceLangLabel: '演唱语言',
+    bpmLabel: '速度（BPM）',
+    structureLabel: '曲式',
+    densityLabel: '编曲密度',
+    videoBlockTitle: '第 3 步 — 图片与 8 秒片段（720p）',
+    videoBlockBody: '一张图：图生视频首帧。两张或三张：仅参考图模式（无单独首帧）。最多 3 个文件。',
+    aspectLabel: '比例',
+    aspect169: '16:9',
+    aspect916: '9:16',
+    framesLabel: '图片（1–3）',
+    framesHelpSingle: '单文件：视频首帧。',
+    framesHelpMulti: '两或三文件：均为参考（ASSET）图。',
+    visualExtraLabel: '额外画面说明（可选）',
+    visualExtraPlaceholder: '例如：黄金时刻、慢动作、演唱时特写…',
+    createClip8s: '生成 8 秒片段（720p）',
+    creatingClip: '正在生成 8 秒片段（Veo）…',
+    clip720Note:
+      '每段为独立的约 8 秒 Veo 片段（复用第 1 段图片），最后在服务器拼接 MP4。每片段约 8 积分；拼接不扣积分。',
+    needImage: '至少需要一张图片。',
+    previewTitle: '预览说明',
+    downloadMp4: '下载 MP4',
+    segmentIndexLabel: '第 {n} 段',
+    createSegment1VideoButton: '用图片生成第 1 段（约 8 秒，720p）',
+    addEightMoreVideoButton: '再延长约 8 秒视频',
+    addEightMoreVideoHelp:
+      '打开下一段歌词：可生成或手打，再为该段单独生成约 8 秒片段（同第 1 段图片）。完成后可将多段拼成一个 MP4。',
+    extendSegmentVideoButton: '生成第 {k} 段片段（约 8 秒，独立）',
+    extendingVeoSegmentBusy: '正在生成第 {k} 段（Veo）— 可能需要数分钟…',
+    videoSequentialBlockIntro: '每步下方即该步视频与下一步操作。',
+    videoImagesOnlyStep3Note: '第 1 段的图片与比例会用于后续每段（每段单独生成，非延长）。',
+    previewInStep4Note: '各检查点视频显示在第 4 步内。',
+    videoForSegmentLockedNote: '点击「再延长约 8 秒视频」且上一段已有成片后，本段 Veo 才会显示。',
+    successExtendSegment: '第 {k} 段片段已生成。请在下方查看。',
+    partialSegmentsFail: '生成第 {n} 段时中断 — 之前的片段仍可播放/下载/拼接。',
+    startOver: '从头开始',
+    veoAudioNote: 'MP4 内音频由 Veo 根据提示（歌词 + 风格文字）生成，非上传音轨。',
+    successClip: '已生成 8 秒片段。',
+    segmentCountLockedHelp: '已增加歌词格或使用 AI 生成后段数固定。需重设请「从头开始」。',
+    lyricsLockedNote: '各段歌词已锁定，以保持发送 Veo 的顺序一致。',
+    segmentsCountSyncedNote: '与第 1 步相同：{n} 段。',
+    videoAfterSegmentLabel: '歌词第 {n} 段之后（约 {seconds} 秒）',
+    downloadMp4Step: '下载 MP4 — 检查点 {n}',
+    extendPerStepSectionTitle: '每段片段的选项',
+    extendPerStepSectionBody: '第 2 步音乐风格适用于所有片段；机位/人物可在每次生成前修改。',
+    extendBridgeLabel: '第 {to} 段独立约 8 秒片段 — 同第 1 段图片；之后可拼接 MP4。',
+    extendSegmentVisualLabel: '画面说明（本次延长）',
+    cameraHintLabel: '机位 / 镜头运动',
+    cameraHintPlaceholder: '例：缓慢左摇、广角、轻微手持…',
+    characterStoryLabel: '角色动作 / 情节',
+    characterStoryPlaceholder: '例：望向大海、举手、转身离开…',
+    standaloneFramesNote: '复用第 1 段所选图片；可为本片段提示调整机位/人物说明。',
+    mergeClipsSectionTitle: '拼接已生成的片段',
+    mergeClipsSectionHelp: '按第 1 → 2 → … 顺序合并为一个 MP4。不扣积分；服务器需安装 ffmpeg。',
+    mergeClipsButton: '合并为一个 MP4',
+    mergingClips: '正在服务器拼接视频…',
+    successMergedClip: '拼接完成。在下方查看或到历史记录中查看。',
+  },
   navGroup: {
     try_on: '试衣与穿搭',
     education: '教育与培训',
@@ -2913,7 +3455,8 @@ const ZH_DICTIONARY: Dictionary = {
     replace_product_bg: '替换商品背景',
     product_3d_sample: '3D 商品样图',
     model_3d_from_image: '从图片生成 3D 模型',
-    create_video_from_image: '从图片创建视频',
+    create_video_from_image: 'AI 视频（Veo）',
+    flow_music_veo_video: 'AI 音乐视频（Flash+Veo）',
     interior_exterior: '室内与室外',
     my_house: '我的房屋',
     portrait_photo: '人像照片',
@@ -2939,6 +3482,33 @@ const ZH_DICTIONARY: Dictionary = {
     back: '返回',
     relatedTitle: '相关',
     popularTitle: '常用工具',
+  },
+  taskHub: {
+    pageTitle: '任务与队列',
+    pageDescription: '查看进行中的处理（图片、视频、批量翻译、教材）并快速打开对应工具。',
+    sectionRunning: '进行中',
+    sectionRecent: '最近完成或失败（7 天）',
+    emptyRunning: '当前没有进行中的任务。',
+    emptyRecent: '近 7 天没有已完成的任务。',
+    openTool: '打开工具',
+    batchSummary: '{done}/{total} 已完成',
+    itemsCount: '{n} 项',
+    worksheetSection: '作业 / 教材（后台）',
+    worksheetParseSgk: '提取教材',
+    worksheetQuiz: '分步测验',
+    worksheetEssay: '作文批改 / 生成',
+    worksheetUnknownType: '工作表任务',
+    statusProcessing: '运行中',
+    statusFailed: '失败',
+    statusCompleted: '完成',
+    statusCancelled: '已取消',
+    statusMixed: '部分完成',
+    hintTranslateProgress: '图片翻译批次：在工具页查看详细进度、下载 ZIP 或取消批次。',
+    linkProcessedImages: '已处理图片',
+    linkTranslateHistory: '翻译记录',
+    linkTranslateProgress: '翻译进度',
+    autoRefreshNote:
+      '有任务进行中时：约每 8 秒自动刷新（标签页可见）。无进行中任务时：仅在您切回此标签页时更新。',
   },
   classes: {
     title: '班级',
@@ -3610,6 +4180,7 @@ const JA_DICTIONARY: Dictionary = {
     inviteFriends: '友達を招待',
     viewPlan: 'プランを見る',
     topUpCredits: 'クレジットをチャージ',
+    tasksHub: 'タスクとキュー',
   },
   referral: {
     pageTitle: '友達招待 – クレジット獲得',
@@ -3713,7 +4284,8 @@ const JA_DICTIONARY: Dictionary = {
     replace_product_bg: '商品背景置換',
     product_3d_sample: '3D 商品サンプル',
     model_3d_from_image: '画像から 3D モデル生成',
-    create_video_from_image: '画像から動画作成',
+    create_video_from_image: 'AI動画（Veo）',
+    flow_music_veo_video: 'AIミュージックビデオ（Flash+Veo）',
     interior_exterior: '内装・外装',
     my_house: 'あなたの家',
     portrait_photo: 'ポートレート写真',
@@ -3739,6 +4311,35 @@ const JA_DICTIONARY: Dictionary = {
     back: '戻る',
     relatedTitle: '関連',
     popularTitle: 'よく使うツール',
+  },
+  taskHub: {
+    pageTitle: 'タスクとキュー',
+    pageDescription:
+      '処理中の作業（画像・動画・一括翻訳・教材など）を一覧し、各ツールへすぐ移動できます。',
+    sectionRunning: '処理中',
+    sectionRecent: '直近の完了／失敗（7日）',
+    emptyRunning: '実行中のタスクはありません。',
+    emptyRecent: '過去7日に完了したタスクはありません。',
+    openTool: 'ツールを開く',
+    batchSummary: '{done}/{total} 完了',
+    itemsCount: '{n} 件',
+    worksheetSection: '宿題／教材（バックグラウンド）',
+    worksheetParseSgk: '教科書の抽出',
+    worksheetQuiz: 'ステップ式クイズ',
+    worksheetEssay: '作文の採点・生成',
+    worksheetUnknownType: 'ワークシートジョブ',
+    statusProcessing: '実行中',
+    statusFailed: '失敗',
+    statusCompleted: '完了',
+    statusCancelled: 'キャンセル',
+    statusMixed: '一部のみ',
+    hintTranslateProgress:
+      '画像翻訳の一括処理：ツールページで詳細な進捗・ZIP ダウンロード・キャンセルができます。',
+    linkProcessedImages: '処理済み画像',
+    linkTranslateHistory: '翻訳履歴',
+    linkTranslateProgress: '翻訳の進行状況',
+    autoRefreshNote:
+      '処理中のタスクがある間は約8秒ごとに自動更新（タブ表示中）。待ちなしのときは、このタブに戻ったときに更新されます。',
   },
   meetingRecorder: {
     cardTitle: '会議を録音 → AI 議事録',
@@ -3794,6 +4395,111 @@ const JA_DICTIONARY: Dictionary = {
     fileTooLarge: '音声ファイルが大きすぎます（上限 20MB）。',
     genericError: 'エラーが発生しました。しばらくしてからお試しください。',
     insufficientCredits: 'クレジットが不足しています。',
+  },
+  flowMusicVeo: {
+    pageTitle: 'AIミュージックビデオ（Flash歌詞 + Veo）',
+    metaDescription:
+      'ブロック別歌詞（Flash JSON）、Lyria風スタイル、最初は画像から約8秒、その後Veoで延長—各ステップにそのブロックの歌詞を含むプロンプト。1本のMP4。音声はVeo生成。',
+    headline: 'ミュージックビデオ — 歌詞（Flash）+ 映像と音（Veo）',
+    subtitle:
+      '1: ジャンル（Flash）＋画像/ヒント。4: 歌詞欄を上から並べて表示；「歌詞欄を開く…」またはクリップ後「さらに約8秒」で行を追加；枠ごと生成または手入力 — 下はVeo（画像→延長）。',
+    stepLyricsTitle: 'ステップ1 — ジャンルとヒント（Flash歌詞）',
+    stepLyricsBody:
+      'ここはジャンル＋画像＋テーマのみ（声/テンポはVeo側）。ステップ4は歌詞欄を一度に表示；「歌詞欄を開く…」または約8秒延長で行を追加（最大20）。「歌詞を生成」または手入力。',
+    lyricsModeLabel: '歌詞の生成方法',
+    lyricsModeAllAtOnce: '一括 — Nブロックを一度に',
+    lyricsModeProgressive: '段階的 — 次のブロックだけ',
+    lyricsProgressiveHelp:
+      'ステップ1：曲風→画像→ヒント；ステップ4は歌詞欄を上から並べ、必要な行で「歌詞を生成」。声/テンポ/構成はVeo動画作成時。「歌詞欄を開く…」で空行追加（最大20）。1回{credits}クレジット — 動画ボタンとは別。',
+    openNextLyricsSegmentButton: '歌詞欄を開く — ブロック {k}',
+    segmentVideoSubBlockHint: 'Veo動画（別フロー、歌詞が整ってから）：',
+    progressiveStyleOnlyInStep1Note: 'ジャンル/声/テンポ等はここでのみ選択。下の動画作成では音楽項目は出ません。',
+    lyricsGenreOnlyHelp:
+      'Flashの歌詞プロンプトにのみ使用。声・テンポ・構成などはステップ4のVeoで選び、歌詞生成時には送りません。',
+    veoStyleFieldsIntro: '声・歌唱言語・テンポ・構成 — このクリップのVeo向け（歌詞生成には使いません）。',
+    progressiveExtendStyleLockedNote: '曲風は1段目の歌詞生成時のまま — 映像・カメラ・動きの補足のみ任意で。',
+    progressiveVideoSectionTitle: '動画を作成 — ブロック {k}',
+    generateNextSegmentButton: '歌詞を生成 — ブロック {k} / {n}',
+    successLyricsOneSegment: 'ブロック {k}/{n} を生成しました。続けるか、揃ったら次へ。',
+    incrementalPlanFrozenHelp: '段階生成を開始済み — ブロック数は変更不可。「最初からやり直す」で変更。',
+    lyricsModeFrozenHint: 'AI歌詞の途中 — 方式の切替は不可。「最初からやり直す」。',
+    progressiveNoNextSegment: '各ブロックは埋まっています — ステップ4へ、または「最初からやり直す」。',
+    hintLabel: 'テーマ/ストーリー（画像がある場合は短くてよい）',
+    hintPlaceholder: '例: 日本語ポップ、夏と海、明るい雰囲気…',
+    lyricsImageHelp: '任意の雰囲気参考画像 — Flashが歌詞のヒントに使います。',
+    generateLyricsButton: '歌詞を生成（Flash）',
+    generatingLyrics: '歌詞生成中…',
+    lyricsNeedHintOrImage: '4文字以上のヒントか画像1枚が必要です。',
+    successLyrics: '歌詞を生成しました — 確認・編集してください。',
+    successLyricsBlocks: '{n}ブロックの連続した歌詞（JSON）を生成 — 第4ステップで各欄を確認。',
+    lyricsBlockCountLabel: '歌詞ブロック数 / 8秒クリップ',
+    lyricsBlockCountHelp: 'Flashはこの数でJSON出力。第4ステップの欄数とVeo延長回数に合わせる。',
+    openingLyricsLabel: '最初の8秒分の歌詞',
+    openingLyricsHelp: '1枠目に十分な行数（約8秒分）を書いてください。Veoには本ブロック＋英語のスタイル説明が送られます。',
+    fillOpeningButton: '全文から冒頭を入れる',
+    assignOpeningToSegment1: '冒頭の歌詞をクリップ1の欄に入れました。',
+    styleBlockTitle: 'ステップ2 — 音楽スタイル（Lyria有人声相当）',
+    styleBlockBody: '選択は英語の説明としてVeoに送られます（ジャンル、声、テンポ、構成）。MP3は作られずVeoが音声を合成。',
+    genreLabel: 'ジャンル',
+    voiceGenderLabel: '声の性',
+    voiceTimbreLabel: '音色',
+    voiceLangLabel: '歌唱言語',
+    bpmLabel: 'テンポ（BPM）',
+    structureLabel: '曲構成',
+    densityLabel: '編曲の密度',
+    videoBlockTitle: 'ステップ3 — 画像と8秒クリップ（720p）',
+    videoBlockBody: '1枚: 開始フレームのI2V。2〜3枚: 参照画像のみ（別開始フレームなし）。最大3ファイル。',
+    aspectLabel: 'アスペクト比',
+    aspect169: '16:9',
+    aspect916: '9:16',
+    framesLabel: '画像（1〜3）',
+    framesHelpSingle: '1ファイル: 動画の開始フレーム。',
+    framesHelpMulti: '2〜3ファイル: すべて参照（ASSET）画像。',
+    visualExtraLabel: '追加の映像指示（任意）',
+    visualExtraPlaceholder: '例: ゴールデンアワー、スローモーション、歌唱のクローズアップ…',
+    createClip8s: '8秒クリップ作成（720p）',
+    creatingClip: '8秒クリップ作成中（Veo）…',
+    clip720Note:
+      '各ブロックは約8秒の独立したVeoクリップ（ブロック1と同じ画像）。最後にサーバーでMP4を結合。クリップごと約8クレジット；結合は無料。',
+    needImage: '画像を1枚以上選んでください。',
+    previewTitle: 'プレビュー注記',
+    downloadMp4: 'MP4をダウンロード',
+    segmentIndexLabel: 'クリップ {n}',
+    createSegment1VideoButton: '画像から1ブロック目を作成（約8秒、720p）',
+    addEightMoreVideoButton: 'さらに約8秒つなげる',
+    addEightMoreVideoHelp:
+      '次の歌詞欄を開きます。生成または手入力後、そのブロック用に約8秒の独立クリップを作成（ブロック1と同じ画像）。最後に1本のMP4へ結合できます。',
+    extendSegmentVideoButton: 'ブロック{k}のクリップを作成（約8秒・独立）',
+    extendingVeoSegmentBusy: 'ブロック{k}のクリップ作成中（Veo）— 数分かかる場合があります…',
+    videoSequentialBlockIntro: '各ステップの動画と次のアクションはすぐ下に表示されます。',
+    videoImagesOnlyStep3Note:
+      'ブロック1の画像と比率が以降すべてに再利用（各クリップは個別生成、延長ではありません）。',
+    previewInStep4Note: '各チェックポイントの動画はステップ4内に表示されます。',
+    videoForSegmentLockedNote: '「さらに約8秒つなげる」を押し前のクリップがあると、この段のVeoが表示されます。',
+    successExtendSegment: 'ブロック{k}のクリップができました。下の動画をご確認ください。',
+    partialSegmentsFail: 'セグメント{n}の作成で停止 — それ以前のクリップは再生・DL・結合できます。',
+    startOver: '最初からやり直す',
+    veoAudioNote: 'MP4の音声はプロンプト（歌詞＋スタイル文）に基づきVeoが生成したものです。',
+    successClip: '8秒クリップを作成しました。',
+    segmentCountLockedHelp: '歌詞枠を増やした後やAI歌詞利用後は段数が固定。「最初からやり直す」で変更。',
+    lyricsLockedNote: '各段の歌詞はロック済み（Veo送信順を保つため）。',
+    segmentsCountSyncedNote: 'ステップ1と同じ：{n}段。',
+    videoAfterSegmentLabel: '歌詞ブロック{n}の後（目安 ~{seconds}秒）',
+    downloadMp4Step: 'MP4をダウンロード — チェックポイント{n}',
+    extendPerStepSectionTitle: '各クリップのオプション',
+    extendPerStepSectionBody: 'ステップ2の音楽スタイルは全クリップ共通。カメラ/キャラは各生成前に編集可能。',
+    extendBridgeLabel: '段{to}用の独立約8秒クリップ — ブロック1と同じ画像；後でMP4結合。',
+    extendSegmentVisualLabel: 'ビジュアル注記（この延長）',
+    cameraHintLabel: 'カメラアングル / 動き',
+    cameraHintPlaceholder: '例：ゆっくり左パン、ワイド、軽い手持ち…',
+    characterStoryLabel: 'キャラの動き / ストーリー',
+    characterStoryPlaceholder: '例：海を見る、手を上げる、背を向けて歩く…',
+    standaloneFramesNote: 'ブロック1で選んだ画像を再利用。このクリップのプロンプト用にカメラ/キャラを調整できます。',
+    mergeClipsSectionTitle: '作成済みクリップを結合',
+    mergeClipsSectionHelp: '1→2→…の順で1本のMP4に。クレジット不要；サーバーにffmpegが必要です。',
+    mergeClipsButton: '1本のMP4に結合',
+    mergingClips: 'サーバーで動画を結合中…',
+    successMergedClip: '結合完了。下で確認するか履歴から開けます。',
   },
   classes: {
     title: 'クラス',
@@ -4488,6 +5194,7 @@ const KO_DICTIONARY: Dictionary = {
     inviteFriends: '친구 초대',
     viewPlan: '요금제 보기',
     topUpCredits: '크레딧 충전',
+    tasksHub: '작업 및 대기열',
   },
   referral: {
     pageTitle: '친구 초대 – 크레딧 받기',
@@ -4591,7 +5298,8 @@ const KO_DICTIONARY: Dictionary = {
     replace_product_bg: '상품 배경 교체',
     product_3d_sample: '3D 상품 샘플',
     model_3d_from_image: '이미지로 3D 모델 생성',
-    create_video_from_image: '이미지에서 비디오 만들기',
+    create_video_from_image: 'AI 비디오 (Veo)',
+    flow_music_veo_video: 'AI 뮤직비디오 (Flash+Veo)',
     interior_exterior: '인테리어·익스테리어',
     my_house: '내 집',
     portrait_photo: '인물 사진',
@@ -4617,6 +5325,35 @@ const KO_DICTIONARY: Dictionary = {
     back: '돌아가기',
     relatedTitle: '관련',
     popularTitle: '자주 쓰는 도구',
+  },
+  taskHub: {
+    pageTitle: '작업 및 대기열',
+    pageDescription:
+      '진행 중인 작업(이미지·동영상·일괄 번역·교육과정 등)을 한곳에서 보고 각 도구로 바로 이동합니다.',
+    sectionRunning: '진행 중',
+    sectionRecent: '최근 완료 또는 실패(7일)',
+    emptyRunning: '진행 중인 작업이 없습니다.',
+    emptyRecent: '최근 7일 안에 완료된 작업이 없습니다.',
+    openTool: '도구 열기',
+    batchSummary: '{done}/{total} 완료',
+    itemsCount: '{n}개 항목',
+    worksheetSection: '숙제 / 교육과정(백그라운드)',
+    worksheetParseSgk: '교과서 추출',
+    worksheetQuiz: '단계별 퀴즈',
+    worksheetEssay: '논술 채점·생성',
+    worksheetUnknownType: '워크시트 작업',
+    statusProcessing: '실행 중',
+    statusFailed: '실패',
+    statusCompleted: '완료',
+    statusCancelled: '취소됨',
+    statusMixed: '일부만',
+    hintTranslateProgress:
+      '이미지 번역 일괄: 도구 페이지에서 상세 진행률, ZIP 다운로드, 일괄 취소를 할 수 있습니다.',
+    linkProcessedImages: '처리된 이미지',
+    linkTranslateHistory: '번역 기록',
+    linkTranslateProgress: '번역 진행 상황',
+    autoRefreshNote:
+      '진행 중 작업이 있을 때: 탭이 보이는 동안 약 8초마다 새로고침. 대기열이 비면 이 탭으로 돌아올 때만 갱신됩니다.',
   },
   meetingRecorder: {
     cardTitle: '회의 녹음 → AI 회의록',
@@ -4672,6 +5409,110 @@ const KO_DICTIONARY: Dictionary = {
     fileTooLarge: '오디오 파일이 너무 큽니다(최대 20MB).',
     genericError: '오류가 발생했습니다. 잠시 후 다시 시도하세요.',
     insufficientCredits: '크레딧이 부족합니다.',
+  },
+  flowMusicVeo: {
+    pageTitle: 'AI 뮤직비디오 (Flash 가사 + Veo)',
+    metaDescription:
+      '블록별 가사(Flash JSON), Lyria형 스타일, 첫 약 8초는 이미지로 생성 후 Veo로 연장—매 단계 프롬프트에 해당 블록 가사. 하나의 MP4. 오디오는 Veo 생성.',
+    headline: '뮤직비디오 — 가사(Flash) + 영상·소리(Veo)',
+    subtitle:
+      '1단계: 장르(Flash)+이미지/힌트. 4단계: 가사 칸을 위에서 아래로 한꺼번에 표시; «가사 칸 열기…» 또는 영상 후 «약 8초 더 이어 붙이기»로 행 추가; 칸마다 생성 또는 직접 입력 — 아래 Veo(이미지 후 연장).',
+    stepLyricsTitle: '1단계 — 장르·힌트 (Flash 가사)',
+    stepLyricsBody:
+      '여기서는 장르+이미지+주제만(보컬/템포는 Veo). 4단계는 모든 가사 칸을 동시에 표시; «가사 칸 열기…» 또는 «약 8초 더 이어 붙이기»로 행 추가(최대 20). «가사 생성» 또는 직접 입력.',
+    lyricsModeLabel: '가사 생성 방식',
+    lyricsModeAllAtOnce: '한 번에 — N블록',
+    lyricsModeProgressive: '단계별 — 다음 블록만',
+    lyricsProgressiveHelp:
+      '1단계: 스타일→이미지→힌트; 4단계는 가사 칸을 위에서 아래로 나열, 필요한 칸에서 «가사 생성». 보컬/템포/구성은 Veo 영상 단계에서. «가사 칸 열기…»로 빈 행 추가(최대 20). 회당 {credits} 크레딧 — 영상 버튼과 별개.',
+    openNextLyricsSegmentButton: '가사 칸 열기 — {k}블록',
+    segmentVideoSubBlockHint: 'Veo 영상(별도 흐름, 가사 준비 후):',
+    progressiveStyleOnlyInStep1Note: '장르/보컬/템포 등은 여기서만 선택. 아래 영상 단계에서는 음악 항목을 다시 고르지 않습니다.',
+    lyricsGenreOnlyHelp:
+      'Flash 가사 프롬프트에만 사용. 보컬·템포·구조 등은 4단계 Veo에서 선택하며 가사 생성 시에는 보내지 않습니다.',
+    veoStyleFieldsIntro: '보컬·언어·템포·구성 — 이 클립의 Veo용(가사 생성에는 미사용).',
+    progressiveExtendStyleLockedNote: '음악 스타일은 1블록 가사 생성 때와 동일 — 화면/카메라/캐릭터만 선택적으로 추가.',
+    progressiveVideoSectionTitle: '영상 만들기 — {k}블록',
+    generateNextSegmentButton: '가사 생성 — 블록 {k} / {n}',
+    successLyricsOneSegment: '{k}/{n}블록을 생성했습니다. 계속하거나 모두 채운 뒤 다음 단계로.',
+    incrementalPlanFrozenHelp: '단계별 생성 시작됨 — 블록 수 변경 불가. «처음부터»로 초기화.',
+    lyricsModeFrozenHint: 'AI 가사 진행 중 — 방식 전환 불가. «처음부터».',
+    progressiveNoNextSegment: '모든 칸이 채워졌습니다 — 4단계로 가거나 «처음부터».',
+    hintLabel: '주제/스토리 힌트(이미지가 있으면 짧게 가능)',
+    hintPlaceholder: '예: 한국어 팝, 여름과 바다, 밝은 분위기…',
+    lyricsImageHelp: '선택 참고 이미지 — Flash가 가사에 반영합니다.',
+    generateLyricsButton: '가사 생성 (Flash)',
+    generatingLyrics: '가사 생성 중…',
+    lyricsNeedHintOrImage: '힌트 4자 이상 또는 이미지 1장이 필요합니다.',
+    successLyrics: '가사가 생성되었습니다 — 확인·수정하세요.',
+    successLyricsBlocks: '연결된 {n}개 블록 가사(JSON) 생성 — 4단계에서 칸별 확인.',
+    lyricsBlockCountLabel: '가사 블록 수 / 8초 클립',
+    lyricsBlockCountHelp: 'Flash가 이 개수로 JSON 출력. 4단계 칸 수·Veo 연장 횟수와 맞출 것.',
+    openingLyricsLabel: '첫 8초 구간 가사',
+    openingLyricsHelp: '1번 칸에 충분한 줄(약 8초 분량)을 입력하세요. Veo에는 이 블록 + 영어 스타일 설명이 전달됩니다.',
+    fillOpeningButton: '전체에서 앞부분 채우기',
+    assignOpeningToSegment1: '앞부분 가사를 1번 칸에 넣었습니다.',
+    styleBlockTitle: '2단계 — 음악 스타일 (Lyria 보컬과 동일)',
+    styleBlockBody: '선택 항목은 영어 설명으로 Veo에 전달됩니다. MP3는 만들지 않고 Veo가 오디오를 합성합니다.',
+    genreLabel: '장르',
+    voiceGenderLabel: '보컬 성별',
+    voiceTimbreLabel: '음색',
+    voiceLangLabel: '노래 언어',
+    bpmLabel: '템포 (BPM)',
+    structureLabel: '곡 구조',
+    densityLabel: '편곡 밀도',
+    videoBlockTitle: '3단계 — 이미지와 8초 클립 (720p)',
+    videoBlockBody: '1장: 시작 프레임 I2V. 2~3장: 참조 전용(별도 시작 프레임 없음). 최대 3개 파일.',
+    aspectLabel: '비율',
+    aspect169: '16:9',
+    aspect916: '9:16',
+    framesLabel: '이미지 (1~3)',
+    framesHelpSingle: '1개: 영상 시작 프레임.',
+    framesHelpMulti: '2~3개: 모두 참조(ASSET) 이미지.',
+    visualExtraLabel: '추가 영상 지시 (선택)',
+    visualExtraPlaceholder: '예: 골든아워, 슬로모션, 노래할 때 클로즈업…',
+    createClip8s: '8초 클립 만들기 (720p)',
+    creatingClip: '8초 클립 생성 중(Veo)…',
+    clip720Note:
+      '각 블록은 약 8초짜리 독립 Veo 클립(1블록과 같은 이미지). 마지막에 서버에서 MP4로 합칩니다. 클립당 약 8 크레딧; 합치기는 무료.',
+    needImage: '이미지를 1장 이상 선택하세요.',
+    previewTitle: '미리보기 안내',
+    downloadMp4: 'MP4 다운로드',
+    segmentIndexLabel: '클립 {n}',
+    createSegment1VideoButton: '이미지로 1블록 클립 만들기(약 8초, 720p)',
+    addEightMoreVideoButton: '영상을 약 8초 더 이어 붙이기',
+    addEightMoreVideoHelp:
+      '다음 가사 칸을 엽니다. 생성하거나 직접 입력한 뒤 해당 블록용 약 8초 독립 클립을 만듭니다(1블록과 같은 이미지). 나중에 하나의 MP4로 합칠 수 있습니다.',
+    extendSegmentVideoButton: '{k}블록 클립 만들기(약 8초, 독립)',
+    extendingVeoSegmentBusy: '{k}블록 클립 생성 중(Veo) — 몇 분 걸릴 수 있습니다…',
+    videoSequentialBlockIntro: '각 단계의 영상과 다음 동작이 바로 아래에 표시됩니다.',
+    videoImagesOnlyStep3Note: '1블록의 이미지·비율이 이후 모든 클립에 재사용(각각 별도 생성, 연장 아님).',
+    previewInStep4Note: '각 체크포인트 영상은 4단계 안에 표시됩니다.',
+    videoForSegmentLockedNote: '«영상을 약 8초 더 이어 붙이기»를 누르고 이전 클립이 있으면 이 구간 Veo가 표시됩니다.',
+    successExtendSegment: '{k}블록 클립이 준비되었습니다. 아래 영상을 확인하세요.',
+    partialSegmentsFail: '구간 {n} 생성 중 중단 — 이전 클립은 재생·다운로드·합치기 가능.',
+    startOver: '처음부터',
+    veoAudioNote: 'MP4 오디오는 프롬프트(가사+스타일 문구)로 Veo가 생성한 것입니다.',
+    successClip: '8초 클립을 만들었습니다.',
+    segmentCountLockedHelp: '가사 칸을 늘린 뒤 또는 AI 가사 사용 후 구간 수가 고정됩니다. «처음부터»로 초기화.',
+    lyricsLockedNote: '구간별 가사가 잠겨 있어 Veo 전송 순서가 유지됩니다.',
+    segmentsCountSyncedNote: '1단계와 동일: {n}구간.',
+    videoAfterSegmentLabel: '가사 블록 {n} 이후 (약 {seconds}초)',
+    downloadMp4Step: 'MP4 다운로드 — 체크포인트 {n}',
+    extendPerStepSectionTitle: '클립마다 옵션',
+    extendPerStepSectionBody: '2단계 음악 스타일은 모든 클립에 적용. 카메라/캐릭터는 생성 전마다 수정 가능.',
+    extendBridgeLabel: '구간 {to}용 독립 약 8초 클립 — 1블록과 같은 이미지; 이후 MP4 합치기.',
+    extendSegmentVisualLabel: '화면 메모 (이번 연장)',
+    cameraHintLabel: '카메라 앵글 / 움직임',
+    cameraHintPlaceholder: '예: 천천히 왼쪽 팬, 와이드, 가벼운 핸드헬드…',
+    characterStoryLabel: '캐릭터 동작 / 스토리',
+    characterStoryPlaceholder: '예: 바다를 바라봄, 손을 듦, 돌아서 걸어감…',
+    standaloneFramesNote: '1블록에서 고른 이미지를 다시 사용합니다. 이 클립 프롬프트용으로 카메라/캐릭터를 조정할 수 있습니다.',
+    mergeClipsSectionTitle: '만든 클립 합치기',
+    mergeClipsSectionHelp: '1→2→… 순서로 하나의 MP4로 합칩니다. 크레딧 없음; 서버에 ffmpeg 필요.',
+    mergeClipsButton: '하나의 MP4로 합치기',
+    mergingClips: '서버에서 영상 합치는 중…',
+    successMergedClip: '합치기 완료. 아래에서 보거나 기록에서 열 수 있습니다.',
   },
   classes: {
     title: '수업',

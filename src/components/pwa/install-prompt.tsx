@@ -41,10 +41,13 @@ export function InstallPrompt() {
     setIsIOS(ios)
     setIsStandalone(standalone)
 
+    /** Chỉ gợi ý cài trên điện thoại (hẹp); iPad/iPhone vẫn hiện hướng dẫn Share → Thêm vào MH chính. */
+    const narrow = window.matchMedia('(max-width: 768px)').matches
+
     if (!standalone) {
       if (ios) {
         setShowPrompt(true)
-      } else {
+      } else if (narrow) {
         const handler = (e: Event) => {
           e.preventDefault()
           setDeferredPrompt(e as BeforeInstallPromptEvent)

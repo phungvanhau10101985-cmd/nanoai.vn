@@ -112,6 +112,8 @@ export function getCreationRelatedLinks(currentHref: string): CreationRelatedIte
 export const CREATION_SIDEBAR_POPULAR_LINKS: CreationRelatedItem[] = [
   { href: '/thu-do-online', labelKey: 'try_on' },
   { href: '/tao-anh-tu-chu', labelKey: 'text_to_image' },
+  { href: '/tao-video-tu-anh', labelKey: 'create_video_from_image' },
+  { href: '/flow-nhac-video-veo', labelKey: 'flow_music_veo_video' },
   { href: '/tao-infographic-tu-sach', labelKey: 'infographic_from_book' },
   { href: '/du-anh-tu-phac-thao', labelKey: 'sketch_to_image' },
   { href: '/xoa-nen-png', labelKey: 'remove_bg_png' },

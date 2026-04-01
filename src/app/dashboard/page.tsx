@@ -4,7 +4,7 @@ import { getUserOrBypass } from '@/lib/auth'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
-import { Sparkles, History, Wallet } from 'lucide-react'
+import { Sparkles, History, Wallet, ListTodo } from 'lucide-react'
 import { ImagePreview } from '@/components/ui/image-preview'
 import { NAV_GROUPS } from '@/lib/nav-config'
 import { NavHubLinkTile } from '@/components/layout/nav-hub-link-tile'
@@ -12,6 +12,7 @@ import { getCurrentWebLocale, getServerDictionary } from '@/lib/i18n/server'
 
 export default async function DashboardPage() {
   const { t } = getServerDictionary()
+  const tasksHubLabel = t.menu.tasksHub
   const locale = getCurrentWebLocale()
   const ui = {
     title: locale === 'vi' ? 'Bảng điều khiển' : locale === 'zh' ? '控制台' : locale === 'ja' ? 'ダッシュボード' : locale === 'ko' ? '대시보드' : 'Dashboard',
@@ -56,8 +57,14 @@ export default async function DashboardPage() {
 
   return (
     <div className="app-shell space-y-6 md:space-y-8 lg:space-y-8 xl:space-y-10">
-      <div className="section-surface flex items-center justify-between">
+      <div className="section-surface flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-xl font-bold tracking-tight sm:text-3xl lg:text-[1.75rem] xl:text-4xl">{ui.title}</h2>
+        <Button variant="outline" size="sm" asChild className="gap-2">
+          <Link href="/dashboard/tasks">
+            <ListTodo className="h-4 w-4" aria-hidden />
+            {tasksHubLabel}
+          </Link>
+        </Button>
       </div>
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
         <Card className="tool-tile">

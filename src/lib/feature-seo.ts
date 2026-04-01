@@ -681,14 +681,24 @@ const FEATURE_SEO_DATA: Record<string, FeatureSeoData> = {
   },
   'tao-video-tu-anh': {
     key: 'tao-video-tu-anh',
-    pageTitle: 'Tạo video từ ảnh bằng AI online',
-    pageDescription: 'Tạo video từ ảnh bằng AI nhanh để làm nội dung social, quảng cáo và truyền thông thương hiệu. Chuyển ảnh tĩnh thành video ngắn trực quan.',
+    pageTitle: 'Tạo video AI (Veo 3.1) — từ văn bản hoặc từ ảnh',
+    pageDescription:
+      'Tạo video ngắn có âm thanh bằng Google Veo 3.1: nhập mô tả văn bản (text-to-video) hoặc tải ảnh làm khung đầu (image-to-video). Chọn 720p, 1080p, 4K, tỷ lệ 16:9 / 9:16, thời lượng 4–8 giây theo quy tắc mô hình.',
     path: '/tao-video-tu-anh',
-    keywords: ['tạo video từ ảnh', 'image to video ai', 'video ai online', 'ảnh thành video'],
-    serviceName: 'Tạo video từ ảnh bằng AI',
-    serviceDescription: 'Chuyển ảnh tĩnh thành video ngắn để tăng hiệu quả truyền thông và quảng cáo.',
-    h2: 'Biến ảnh tĩnh thành video ngắn để tăng tương tác nhanh',
-    overview: 'Video ngắn luôn có khả năng thu hút tốt hơn ảnh tĩnh ở nhiều nền tảng. Tính năng này giúp bạn chuyển nhanh ảnh thành video để dùng cho social, quảng cáo và nội dung giới thiệu sản phẩm.',
+    keywords: [
+      'tạo video ai',
+      'veo 3.1',
+      'text to video',
+      'image to video',
+      'tạo video từ ảnh',
+      'video ai online',
+    ],
+    serviceName: 'Tạo video AI (Veo 3.1)',
+    serviceDescription:
+      'Hai chế độ: mô tả bằng chữ hoặc ảnh khung đầu; tùy chọn độ phân giải, tỷ lệ khung hình và độ dài clip trong giới hạn Veo.',
+    h2: 'Text-to-video và image-to-video trên một trang — tùy chọn định dạng đầu ra',
+    overview:
+      'NanoAI tích hợp Veo 3.1 preview: bạn chọn tạo từ prompt hoặc từ ảnh, sau đó tinh chỉnh tỷ lệ khung hình, độ phân giải và thời lượng (theo quy định của API). Video có âm thanh, phù hợp social và quảng cáo ngắn.',
     benefits: ['Tăng khả năng thu hút khi đăng bài', 'Tận dụng ảnh có sẵn để tạo video nhanh', 'Phù hợp team nội dung cần sản xuất liên tục'],
     useCases: ['Video sản phẩm cho TikTok/Reels', 'Video teaser cho chiến dịch mới', 'Video ngắn cho trang đích và fanpage'],
     tips: ['Chọn ảnh có chủ thể rõ để chuyển động đẹp', 'Giữ thông điệp ngắn, tập trung một ý chính', 'Tạo nhiều phiên bản để test hiệu quả hiển thị'],
@@ -698,6 +708,36 @@ const FEATURE_SEO_DATA: Record<string, FeatureSeoData> = {
       { question: 'Có cần biết dựng video không?', answer: 'Không, công cụ tối ưu cho thao tác nhanh của người không chuyên.' },
       { question: 'Có tạo nhiều phiên bản video được không?', answer: 'Có, bạn nên tạo nhiều biến thể để chọn bản hiệu quả nhất.' },
       { question: 'Bao lâu có kết quả?', answer: 'Thời gian xử lý phụ thuộc cấu hình và tải hệ thống, thường từ vài chục giây đến vài phút.' },
+    ],
+  },
+  'flow-nhac-video-veo': {
+    key: 'flow-nhac-video-veo',
+    pageTitle: 'Tạo video âm nhạc AI — lời Flash + Veo nối tiếp (~8s/đoạn)',
+    pageDescription:
+      'Gemini Flash sinh lời theo từng đoạn bạn chọn; clip đầu từ ảnh (~8s), các đoạn sau Veo extend nối tiếp — mỗi bước một prompt kèm lời đoạn đó. Một file MP4 liền (hoặc thử một clip đầu).',
+    path: '/flow-nhac-video-veo',
+    keywords: ['video âm nhạc ai', 'gemini flash', 'veo', 'veo extend', 'lyrics', 'image to video', 'nanoai'],
+    serviceName: 'Video âm nhạc AI (Flash + Veo)',
+    serviceDescription:
+      'Lời (Flash, JSON theo N đoạn) → phong cách kiểu Lyria có lời → Veo: tạo đầu từ ảnh rồi kéo dài nối tiếp; giải thích 1 ảnh khung đầu vs 2–3 ảnh tham chiếu.',
+    h2: 'MV ngắn: lời từng đoạn, một video nối Veo',
+    overview:
+      'Trang sinh lời nhanh theo số đoạn (Flash), chọn thể loại/giọng/tempo giống Lyria có lời (không xuất MP3), đưa ảnh vào Veo. Đoạn đầu ~8s từ ảnh; đoạn 2, 3… dùng Veo extend từ video vừa có, mỗi lần gửi prompt có lời khớp ô tương ứng — không gửi ảnh mới khi extend, chuyển động thường liền hơn so với nhiều clip độc lập. Có thể chỉ tạo một clip 8s để thử.',
+    benefits: ['Lời sinh theo block hoặc dán tay', 'Một chuỗi Veo extend cho một MP4 dài hơn', 'Style nhạc thống nhất qua prompt'],
+    useCases: ['Teaser MV', 'Nội dung social có hát', 'Demo nhanh trước khi dựng tay nếu cần'],
+    tips: [
+      'Mỗi ô ~8s lời; tạo clip đoạn 1 từ ảnh, dưới video bấm «Tạo video dài thêm ~8 giây» để mở ô tiếp theo rồi nối Veo',
+      'Một ảnh: khung đầu rõ; 2–3 ảnh: chế độ tham chiếu',
+      'Gợi ý hình (visual extra) cho clip đầu; từng lần extend chỉnh riêng trong ô nối tương ứng',
+    ],
+    faqs: [
+      { question: 'Có tạo file nhạc Lyria không?', answer: 'Không bắt buộc. Trang dùng Flash cho lời và Veo cho âm thanh trong video; muốn file MP3 riêng vẫn có thể dùng trang Lyria 3 sau đó.' },
+      {
+        question: 'Nối từng bước khác gì chỉ tạo một clip 8s?',
+        answer:
+          'Một clip: chỉ đoạn đầu từ ảnh. Nối tiếp: sau mỗi bước bạn bấm nối Veo — mỗi đoạn lời gọi extend từ video vừa có, ra MP4 dài hơn; credits = 1 lần tạo đầu + (N−1) lần extend.',
+      },
+      { question: 'Ba ảnh có làm khung đầu + 2 tham chiếu không?', answer: 'Không. Khi có 2–3 ảnh, API chỉ dùng chế độ tham chiếu, không kết hợp một ảnh khung đầu riêng.' },
     ],
   },
   'ghi-am-bao-cao-cuoc-hop': {

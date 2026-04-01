@@ -12,9 +12,11 @@ import { ImagePreview } from '@/components/ui/image-preview'
 import { DownloadImageButton } from '@/components/download-image-button'
 import { DeleteHistoryButton } from './delete-button'
 import Link from 'next/link'
-import { getCurrentWebLocale } from '@/lib/i18n/server'
+import { getCurrentWebLocale, getServerDictionary } from '@/lib/i18n/server'
+import { normalizeTryOnHistoryInputImageUrl } from '@/lib/try-on-history-placeholder'
 
 export default async function HistoryPage() {
+  const { t } = getServerDictionary()
   const locale = getCurrentWebLocale()
   const tr = (vi: string, en: string, zh: string, ja: string, ko: string) =>
     locale === 'en' ? en : locale === 'zh' ? zh : locale === 'ja' ? ja : locale === 'ko' ? ko : vi
@@ -43,10 +45,13 @@ export default async function HistoryPage() {
         <h1 className="text-3xl font-bold tracking-tight lg:text-[2rem] xl:text-4xl">
           {tr('Ảnh đã xử lý', 'Processed images', '已处理图片', '処理済み画像', '처리된 이미지')}
         </h1>
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-4">
           <p className="text-muted-foreground">
             {history?.length || 0} {tr('kết quả', 'results', '条结果', '件', '개 결과')}
           </p>
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/dashboard/tasks">{t.menu.tasksHub}</Link>
+          </Button>
           <Button variant="outline" size="sm" asChild>
             <Link href="/dashboard/history/translate">{tr('Lịch sử dịch ảnh', 'Translation history', '翻译记录', '翻訳履歴', '번역 기록')}</Link>
           </Button>
@@ -110,7 +115,7 @@ export default async function HistoryPage() {
                 <div className="grid grid-cols-2 gap-2">
                   <div className="relative aspect-[3/4] rounded-md overflow-hidden border bg-muted group">
                     <ImagePreview
-                      src={item.original_image_url}
+                      src={normalizeTryOnHistoryInputImageUrl(item.original_image_url)}
                       alt="Original"
                       className="w-full h-full"
                     />
@@ -125,7 +130,7 @@ export default async function HistoryPage() {
                   </div>
                   <div className="relative aspect-[3/4] rounded-md overflow-hidden border bg-muted group">
                     <ImagePreview
-                      src={item.garment_image_url}
+                      src={normalizeTryOnHistoryInputImageUrl(item.garment_image_url)}
                       alt="Garment"
                       className="w-full h-full"
                     />
