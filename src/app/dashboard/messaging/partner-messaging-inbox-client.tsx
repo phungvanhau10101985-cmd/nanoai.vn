@@ -61,7 +61,7 @@ function shortThreadDate(iso: string | null) {
 
 export function PartnerMessagingInboxClient({ initialPartners, t }: { initialPartners: PartnerRow[]; t: T }) {
   const { toast } = useToast()
-  const [partners, setPartners] = useState<PartnerRow[]>(initialPartners)
+  const partners = initialPartners
   const [selectedPartnerId, setSelectedPartnerId] = useState<string | null>(initialPartners[0]?.id ?? null)
   const [conversations, setConversations] = useState<ConvRow[]>([])
   const [selectedConvId, setSelectedConvId] = useState<string | null>(null)
