@@ -1,7 +1,18 @@
 import Link from 'next/link'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Users, BarChart3, BookOpen, FileEdit, Flag, Download, ClipboardCheck, ShieldCheck, Landmark } from 'lucide-react'
+import {
+  Users,
+  BarChart3,
+  BookOpen,
+  FileEdit,
+  Flag,
+  Download,
+  ClipboardCheck,
+  ShieldCheck,
+  Landmark,
+  MessageCircle,
+} from 'lucide-react'
 import { getCurrentWebLocale } from '@/lib/i18n/server'
 
 type AdminLink = {
@@ -29,6 +40,24 @@ const ADMIN_LINKS: AdminLink[] = [
       ko: '은행 계좌, 은행 코드, SePay QR — 크레딧 충전 시 사용.',
     },
     icon: Landmark,
+  },
+  {
+    href: '/admin/customer-care',
+    title: {
+      vi: 'Chăm sóc khách hàng',
+      en: 'Customer care inbox',
+      zh: '客户关怀收件箱',
+      ja: 'カスタマーケア受信箱',
+      ko: '고객 케어 수신함',
+    },
+    description: {
+      vi: 'Facebook Messenger, Zalo OA và chat nội bộ NanoAI trong một hộp thư.',
+      en: 'Facebook Messenger, Zalo OA, and in-app chat in one inbox.',
+      zh: 'Facebook Messenger、Zalo OA 与应用内聊天统一收件箱。',
+      ja: 'Facebook Messenger、Zalo OA、アプリ内チャットを一元管理。',
+      ko: 'Facebook Messenger, Zalo OA, 앱 내 채팅을 하나의 수신함에서.',
+    },
+    icon: MessageCircle,
   },
   {
     href: '/admin/users',

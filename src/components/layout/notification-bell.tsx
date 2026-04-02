@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Bell, Loader2 } from 'lucide-react'
 import {
   getPushVapidPublicKey,
@@ -15,6 +16,16 @@ import {
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
+import type { WebLocale } from '@/lib/i18n/config'
+import { formatWebRelativeTime } from '@/lib/i18n/format-relative-time'
+
+type NotificationMeta = {
+  curriculum_id?: string
+  slide_index?: number
+  action?: string
+  push_url?: string
+  [key: string]: unknown
+}
 
 type Notification = {
   id: string
@@ -23,14 +34,22 @@ type Notification = {
   body: string
   read_at: string | null
   created_at: string
-  meta?: { curriculum_id?: string; slide_index?: number; action?: string }
+  meta?: NotificationMeta | null
 }
 
 interface NotificationBellProps {
   t: Dictionary
+  locale: WebLocale
 }
 
-export function NotificationBell({ t }: NotificationBellProps) {
+function safePushPath(meta: NotificationMeta | null | undefined): string | null {
+  const u = meta?.push_url
+  if (typeof u !== 'string' || !u.startsWith('/') || u.startsWith('//')) return null
+  return u
+}
+
+export function NotificationBell({ t, locale }: NotificationBellProps) {
+  const router = useRouter()
   const [items, setItems] = useState<Notification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [open, setOpen] = useState(false)
@@ -89,17 +108,12 @@ export function NotificationBell({ t }: NotificationBellProps) {
     setUnreadCount((c) => Math.max(0, c - 1))
   }
 
-  const formatTime = (iso: string) => {
-    try {
-      const d = new Date(iso)
-      const now = new Date()
-      const diff = now.getTime() - d.getTime()
-      if (diff < 60000) return 'Vừa xong'
-      if (diff < 3600000) return `${Math.floor(diff / 60000)} phút trước`
-      if (diff < 86400000) return `${Math.floor(diff / 3600000)} giờ trước`
-      return d.toLocaleDateString('vi-VN')
-    } catch {
-      return iso
+  const onNotificationActivate = async (n: Notification) => {
+    await markAsRead(n.id)
+    const path = safePushPath(n.meta ?? undefined)
+    if (path) {
+      setOpen(false)
+      router.push(path)
     }
   }
 
@@ -138,17 +152,18 @@ export function NotificationBell({ t }: NotificationBellProps) {
                 <button
                   key={n.id}
                   type="button"
-                  onClick={() => {
-                    markAsRead(n.id)
-                  }}
+                  onClick={() => void onNotificationActivate(n)}
                   className={cn(
                     'w-full px-4 py-3 text-left hover:bg-muted/50 transition-colors',
-                    !n.read_at && 'bg-primary/5'
+                    !n.read_at && 'bg-primary/5',
+                    safePushPath(n.meta ?? undefined) && 'cursor-pointer'
                   )}
                 >
                   <p className="text-sm font-medium">{n.title}</p>
                   {n.body && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{n.body}</p>}
-                  <p className="text-[10px] text-muted-foreground mt-1">{formatTime(n.created_at)}</p>
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    {formatWebRelativeTime(n.created_at, locale)}
+                  </p>
                 </button>
               ))}
             </div>

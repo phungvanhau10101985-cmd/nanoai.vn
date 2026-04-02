@@ -46,7 +46,7 @@ export async function POST(req: Request) {
             type: 'referral_bonus_inviter',
             title: 'Bạn nhận thưởng giới thiệu',
             body: 'Có người đã tham gia NanoAI qua liên kết giới thiệu của bạn. Tài khoản của bạn được cộng +2 credit. Cảm ơn bạn đã chia sẻ NanoAI.',
-            meta: { bonus_inviter: 2, invitee_user_id: user.id },
+            meta: { push_url: '/wallet', bonus_inviter: 2, invitee_user_id: user.id },
           })
         }
       } catch (e) {

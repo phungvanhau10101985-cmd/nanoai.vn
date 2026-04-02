@@ -64,6 +64,16 @@ rsync -avz --exclude node_modules --exclude .next --exclude .env.local --exclude
 3. **Trên VPS:** `git pull` (hoặc code đã rsync) → `npm install` → `npm run build` → `pm2 restart thu-do-online`
 4. File `.env.local` trên VPS **không đổi** → production chạy bình thường
 
+### Cron nhắc ôn từ (Học ngoại ngữ AI)
+
+Trong `.env.local` trên VPS thêm `COACH_REVIEW_REMINDER_CRON_SECRET` (chuỗi ngẫu nhiên đủ dài). Trên server, lên lịch **1–2 lần/ngày** (crontab):
+
+```bash
+0 9,20 * * * curl -fsS -H "Authorization: Bearer YOUR_SECRET" "https://YOUR_DOMAIN/api/cron/coach-review-reminder" >/dev/null 2>&1
+```
+
+Thay `YOUR_SECRET` và `YOUR_DOMAIN` cho đúng.
+
 ---
 
 ## Bước 1: Lấy thông tin VPS từ Vietnix

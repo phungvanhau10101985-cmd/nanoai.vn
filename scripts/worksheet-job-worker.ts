@@ -13,6 +13,7 @@ import { createClient } from '@supabase/supabase-js'
 import { runParseSgk } from '../src/lib/worksheet-job/parse-sgk-handler'
 import { runSolveSgkEssays } from '../src/lib/worksheet-job/solve-sgk-essays-handler'
 import { runStepByStep } from '../src/lib/worksheet-job/step-by-step-handler'
+import { notifyWorksheetJobOutcome } from '../src/lib/notifications/notify-job-events'
 
 const POLL_INTERVAL_MS = 5000
 const JOB_TIMEOUT_MS = 30 * 60 * 1000 // 30 phút
@@ -88,6 +89,12 @@ async function processJob(supabase: ReturnType<typeof createClient>, job: { id: 
           updated_at: new Date().toISOString(),
         })
         .eq('id', id)
+      await notifyWorksheetJobOutcome(supabase, {
+        userId,
+        jobId: id,
+        jobType: type,
+        success: true,
+      })
     } else if (type === 'solve_sgk_essays') {
       const p = params as { worksheetId?: string; curriculumMarkdown?: string }
       const result = await runSolveSgkEssays(supabase, userId, {
@@ -103,6 +110,12 @@ async function processJob(supabase: ReturnType<typeof createClient>, job: { id: 
           updated_at: new Date().toISOString(),
         })
         .eq('id', id)
+      await notifyWorksheetJobOutcome(supabase, {
+        userId,
+        jobId: id,
+        jobType: type,
+        success: true,
+      })
     } else if (type === 'step_by_step_quiz' || type === 'step_by_step_essay') {
       const p = params as {
         curriculumMarkdown?: string
@@ -137,6 +150,12 @@ async function processJob(supabase: ReturnType<typeof createClient>, job: { id: 
           updated_at: new Date().toISOString(),
         })
         .eq('id', id)
+      await notifyWorksheetJobOutcome(supabase, {
+        userId,
+        jobId: id,
+        jobType: type,
+        success: true,
+      })
     } else {
       throw new Error(`Job type không hỗ trợ: ${type}`)
     }
@@ -151,20 +170,39 @@ async function processJob(supabase: ReturnType<typeof createClient>, job: { id: 
         updated_at: new Date().toISOString(),
       })
       .eq('id', id)
+    await notifyWorksheetJobOutcome(supabase, {
+      userId,
+      jobId: id,
+      jobType: type,
+      success: false,
+      errorMessage: msg,
+    })
   }
 }
 
 async function markStaleJobsFailed(supabase: ReturnType<typeof createClient>) {
   const cutoff = new Date(Date.now() - JOB_TIMEOUT_MS).toISOString()
-  await supabase
+  const timeoutMsg = 'Job timeout (quá 30 phút)'
+  const { data: staleRows } = await supabase
     .from('worksheet_jobs')
     .update({
       status: 'failed',
-      error_message: 'Job timeout (quá 30 phút)',
+      error_message: timeoutMsg,
       updated_at: new Date().toISOString(),
     })
     .eq('status', 'processing')
     .lt('processing_started_at', cutoff)
+    .select('id, user_id, type')
+
+  for (const r of staleRows ?? []) {
+    await notifyWorksheetJobOutcome(supabase, {
+      userId: r.user_id,
+      jobId: r.id,
+      jobType: r.type,
+      success: false,
+      errorMessage: timeoutMsg,
+    })
+  }
 }
 
 async function run() {

@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { getExamAttemptFeedbackWithMeta, parseExamGradingMeta, type ExamGradingMeta } from '@/lib/exam-feedback'
+import { notifyExamEssayGraded } from '@/lib/notifications/notify-job-events'
 
 function admin() {
   return createAdminClient(
@@ -36,7 +37,7 @@ export async function PATCH(
     const db = admin()
     const { data: att, error: aErr } = await db
       .from('exam_attempts')
-      .select('id, session_id, score, max_score, grading_meta')
+      .select('id, session_id, user_id, score, max_score, grading_meta')
       .eq('id', attemptId)
       .maybeSingle()
 
@@ -44,7 +45,7 @@ export async function PATCH(
 
     const { data: session, error: sErr } = await db
       .from('exam_sessions')
-      .select('teacher_id')
+      .select('teacher_id, code')
       .eq('id', att.session_id)
       .maybeSingle()
 
@@ -79,6 +80,20 @@ export async function PATCH(
     if (uErr) {
       console.error('[essay-grade]', uErr.message)
       return NextResponse.json({ error: 'Cập nhật điểm thất bại.' }, { status: 500 })
+    }
+
+    const studentId = att.user_id ? String(att.user_id) : ''
+    const sessionCode = session.code ? String(session.code) : ''
+    if (studentId && sessionCode) {
+      await notifyExamEssayGraded(db, {
+        studentUserId: studentId,
+        sessionCode,
+        attemptId,
+        essayPoints: awarded,
+        essayMax: meta.essayPointsMax,
+        totalScore: newScore,
+        maxScore: Number(att.max_score ?? 0),
+      })
     }
 
     const maxScore = Number(att.max_score ?? 0)

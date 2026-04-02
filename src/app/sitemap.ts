@@ -24,6 +24,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: 'weekly',
       priority: 0.9,
     },
+    {
+      url: `${baseUrl}/support-chat`,
+      lastModified: now,
+      changeFrequency: 'weekly',
+      priority: 0.65,
+    },
   ]
 
   const featurePages: MetadataRoute.Sitemap = getAllFeatureSeo()

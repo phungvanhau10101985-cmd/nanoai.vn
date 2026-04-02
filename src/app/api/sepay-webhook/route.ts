@@ -285,6 +285,7 @@ export async function POST(request: NextRequest) {
         title: 'Nạp credit thành công',
         body: `Giao dịch đã được xác nhận. Bạn được cộng ${creditsToAdd} credit (số tiền ${amountFmt}). Số dư hiện tại khoảng ${Number.isInteger(newBalance) ? newBalance : newBalance.toFixed(1)} credit. Cảm ơn bạn đã sử dụng NanoAI.`,
         meta: {
+          push_url: '/wallet',
           payment_id: paymentId,
           amount_vnd: amountIn,
           credits_added: creditsToAdd,

@@ -75,7 +75,12 @@ export async function POST(
         title: 'Báo cáo câu hỏi của bạn đã được xử lý',
         body:
           'Ban quản trị đã xem xét và giữ nguyên nội dung câu hỏi trên giáo trình. Cảm ơn bạn đã góp ý giúp NanoAI chính xác hơn. Mở ứng dụng và xem mục thông báo (chuông) để biết thêm ngữ cảnh.',
-        meta: { curriculum_id: report.curriculum_id, slide_index: report.slide_index, action: 'kept' },
+        meta: {
+          push_url: '/giao-trinh',
+          curriculum_id: report.curriculum_id,
+          slide_index: report.slide_index,
+          action: 'kept',
+        },
       }
       await createUserNotificationWithEmail(adminSupabase, notifKept)
 
@@ -175,7 +180,12 @@ export async function POST(
       title: 'Báo cáo câu hỏi của bạn đã được xử lý',
       body:
         'Ban quản trị đã thay thế bằng câu hỏi mới phù hợp nội dung slide. Bạn có thể học lại trên giáo trình. Cảm ơn bạn đã báo cáo giúp cải thiện chất lượng.',
-      meta: { curriculum_id: report.curriculum_id, slide_index: report.slide_index, action: 'replaced' },
+      meta: {
+        push_url: '/giao-trinh',
+        curriculum_id: report.curriculum_id,
+        slide_index: report.slide_index,
+        action: 'replaced',
+      },
     }
     await createUserNotificationWithEmail(adminSupabase, notifReplaced)
 

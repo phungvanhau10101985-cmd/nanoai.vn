@@ -5,6 +5,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai'
 import { translateOneImage } from '@/lib/translate-document-image'
 import { applyPostCheckOcr } from '@/lib/translate-post-check'
 import { fetchImageWith1688Bypass } from '@/lib/fetch-image-1688'
+import { notifyTranslateImageJobDone, notifyTranslateImageSuccessSmart } from '@/lib/notifications/notify-job-events'
 
 const TRANSLATE_COSTS = { '2K': 3, '4K': 6 } as const
 const toTenths = (value: number) => Math.round(value * 10)
@@ -130,6 +131,18 @@ async function handleProcessTranslate(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid job data' }, { status: 400 })
   }
 
+  const notifyTranslateFailed = async (errText: string) => {
+    await safeUpdateFailed(errText)
+    if (adminSupabase && historyId) {
+      await notifyTranslateImageJobDone(adminSupabase, {
+        userId,
+        historyId,
+        success: false,
+        errorMessage: errText,
+      })
+    }
+  }
+
   await adminSupabase.from('translate_jobs').update({ status: 'processing', processing_started_at: new Date().toISOString() }).eq('id', resolvedJobId)
 
   let imageBuffer: Buffer
@@ -141,7 +154,7 @@ async function handleProcessTranslate(request: NextRequest) {
     const msg = e instanceof Error ? e.message : String(e)
     const errText = `Không tải ảnh: ${msg}`
     await adminSupabase.from('translate_jobs').update({ status: 'failed', error_message: errText }).eq('id', resolvedJobId)
-    await adminSupabase.from('try_on_history').update({ status: 'failed', error_message: errText }).eq('id', historyId)
+    await notifyTranslateFailed(errText)
     if (batchId) {
       const h: Record<string, string> = {}
       if (secret) h['x-process-secret'] = secret
@@ -160,7 +173,7 @@ async function handleProcessTranslate(request: NextRequest) {
   if (!apiKey) {
     const errText = 'Thiếu GOOGLE_API_KEY trong cấu hình server'
     await adminSupabase.from('translate_jobs').update({ status: 'failed', error_message: errText }).eq('id', resolvedJobId)
-    await safeUpdateFailed(errText)
+    await notifyTranslateFailed(errText)
     if (batchId) {
       const h: Record<string, string> = {}
       if (secret) h['x-process-secret'] = secret
@@ -194,7 +207,7 @@ async function handleProcessTranslate(request: NextRequest) {
     console.error('[process-translate] translateOneImage CRASH:', msg)
     if (e instanceof Error) console.error('[process-translate] stack:', e.stack)
     await adminSupabase.from('translate_jobs').update({ status: 'failed', error_message: errText }).eq('id', resolvedJobId)
-    await safeUpdateFailed(errText)
+    await notifyTranslateFailed(errText)
     if (batchId) {
       const h: Record<string, string> = {}
       if (secret) h['x-process-secret'] = secret
@@ -206,7 +219,7 @@ async function handleProcessTranslate(request: NextRequest) {
   if (translateError || !resultBuffer.length) {
     const errText = translateError || 'AI không trả về ảnh'
     await adminSupabase.from('translate_jobs').update({ status: 'failed', error_message: errText }).eq('id', resolvedJobId)
-    await adminSupabase.from('try_on_history').update({ status: 'failed', error_message: errText }).eq('id', historyId)
+    await notifyTranslateFailed(errText)
     if (batchId) {
       const h: Record<string, string> = {}
       if (secret) h['x-process-secret'] = secret
@@ -234,7 +247,7 @@ async function handleProcessTranslate(request: NextRequest) {
   if (!creditData || toTenths(creditData.balance) < toTenths(cost)) {
     const errText = 'Không đủ credits'
     await adminSupabase.from('translate_jobs').update({ status: 'failed', error_message: errText }).eq('id', resolvedJobId)
-    await adminSupabase.from('try_on_history').update({ status: 'failed', error_message: errText }).eq('id', historyId)
+    await notifyTranslateFailed(errText)
     if (batchId) {
       const h: Record<string, string> = {}
       if (secret) h['x-process-secret'] = secret
@@ -250,6 +263,11 @@ async function handleProcessTranslate(request: NextRequest) {
     .update({ result_image_url: urlData.publicUrl, status: 'completed' })
     .eq('id', historyId)
   await adminSupabase.from('translate_jobs').update({ status: 'completed' }).eq('id', resolvedJobId)
+
+  await notifyTranslateImageSuccessSmart(adminSupabase, {
+    userId,
+    historyId,
+  })
 
   const triggerNext = () => {
     if (batchId) {

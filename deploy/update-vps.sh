@@ -11,6 +11,10 @@ set -euo pipefail
 #   DEPLOY_HEALTHCHECK_RETRIES=15  Số lần thử (mỗi lần cách 2s) chờ app lên
 #   DEPLOY_PM2_LOG_LINES=100  Số dòng log PM2 ghi ra file + màn hình (mặc định 100)
 #   DEPLOY_REBOOT_VPS=1  Sau khi deploy OK: reboot cả VPS (SSH sẽ ngắt; cần pm2 startup)
+#
+# Lưu ý (không tự chạy trong script này):
+# - Migration Supabase: messaging_partner_ai_* (xem supabase/migrations/)
+# - Partner AI cron: MESSAGING_PARTNER_AI_CRON_SECRET + crontab gọi GET/POST /api/cron/messaging-partner-ai
 
 APP_DIR="/var/www/Thu-do-online"
 APP_NAME="thu-do-online"

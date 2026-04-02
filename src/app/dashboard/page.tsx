@@ -4,7 +4,7 @@ import { getUserOrBypass } from '@/lib/auth'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
-import { Sparkles, History, Wallet, ListTodo } from 'lucide-react'
+import { Sparkles, History, Wallet, ListTodo, MessageSquare } from 'lucide-react'
 import { ImagePreview } from '@/components/ui/image-preview'
 import { NAV_GROUPS } from '@/lib/nav-config'
 import { NavHubLinkTile } from '@/components/layout/nav-hub-link-tile'
@@ -96,6 +96,18 @@ export default async function DashboardPage() {
             </p>
             <Button className="w-full mt-4" asChild>
               <Link href="/thu-do-online">{ui.tryOnNow}</Link>
+            </Button>
+          </CardContent>
+        </Card>
+        <Card className="tool-tile">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">{t.partnerMessaging.cardTitle}</CardTitle>
+            <MessageSquare className="h-4 w-4 text-muted-foreground" aria-hidden />
+          </CardHeader>
+          <CardContent>
+            <p className="text-xs text-muted-foreground min-h-[2.5rem]">{t.partnerMessaging.cardDescription}</p>
+            <Button variant="outline" className="w-full mt-4" asChild>
+              <Link href="/dashboard/messaging">{t.partnerMessaging.inboxTitle}</Link>
             </Button>
           </CardContent>
         </Card>

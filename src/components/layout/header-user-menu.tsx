@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
-import { LogOut, Wallet, Shield, Gift, Package, ListTodo } from 'lucide-react'
+import { LogOut, Wallet, Shield, Gift, Package, ListTodo, MessageCircle, MessageSquare, MessagesSquare } from 'lucide-react'
 import { DepositCreditButton } from '@/components/deposit-credit-button'
 import { DepositCreditMenuItem } from '@/components/deposit-credit-menu-item'
 import { createClient } from '@/lib/supabase/client'
@@ -100,6 +100,24 @@ export function HeaderUserMenu({ user, credits, isAdmin, t }: HeaderUserMenuProp
             <Link href="/dashboard/tasks" className="flex items-center gap-2">
               <ListTodo className="h-4 w-4" aria-hidden />
               {t.menu.tasksHub}
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href="/support-chat" className="flex items-center gap-2">
+              <MessageCircle className="h-4 w-4" aria-hidden />
+              {t.menu.supportChat}
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href="/messaging/my-chats" className="flex items-center gap-2">
+              <MessagesSquare className="h-4 w-4" aria-hidden />
+              {t.menu.myChats}
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href="/dashboard/messaging" className="flex items-center gap-2">
+              <MessageSquare className="h-4 w-4" aria-hidden />
+              {t.menu.partnerInbox}
             </Link>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>

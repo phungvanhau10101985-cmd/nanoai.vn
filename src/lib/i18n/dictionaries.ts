@@ -92,6 +92,12 @@ export type Dictionary = {
     topUpCredits: string
     /** Trung tâm tác vụ / hàng đợi */
     tasksHub: string
+    /** Menu → /support-chat */
+    supportChat: string
+    /** Menu → /dashboard/messaging (inbox khách của shop) */
+    partnerInbox: string
+    /** Menu → /messaging/my-chats (khách xem shop đã chat) */
+    myChats: string
   }
   home: {
     title: string
@@ -166,6 +172,215 @@ export type Dictionary = {
     bellSubscribedShort: string
     bellDeniedHint: string
     bellSyncHint: string
+  }
+  /** /support-chat — chat nội bộ, cùng hộp thư với FB/Zalo */
+  supportChat: {
+    pageTitle: string
+    metaDescription: string
+    /** Nhãn nhỏ phía trên tiêu đề (thương hiệu) */
+    brandBadge: string
+    headline: string
+    subline: string
+    loginRequired: string
+    /** Gợi ý dưới tiêu đề thẻ đăng nhập (khác pollNote) */
+    loginSupportingLine: string
+    loginLink: string
+    placeholder: string
+    send: string
+    emptyThread: string
+    loadError: string
+    sendError: string
+    pollNote: string
+    /** Gợi ý phím tắt ô nhập */
+    sendKeyboardHint: string
+  }
+  /** /admin/customer-care */
+  customerCareAdmin: {
+    pageTitle: string
+    pageDescription: string
+    inboxTitle: string
+    pickConversation: string
+    replyPlaceholder: string
+    send: string
+    refresh: string
+    channelFacebook: string
+    channelZalo: string
+    channelInternal: string
+    channelWidget: string
+    unknownUser: string
+    sendFailed: string
+    noMessages: string
+    sendKeyboardHint: string
+  }
+  /** /dashboard/messaging — đối tác B2B: inbox + FB/Zalo/widget */
+  partnerMessaging: {
+    pageTitle: string
+    pageDescription: string
+    cardTitle: string
+    cardDescription: string
+    createWorkspace: string
+    workspaceNameLabel: string
+    workspaceLabel: string
+    createButton: string
+    saveOk: string
+    channelsSection: string
+    fbPageId: string
+    fbPageToken: string
+    fbVerifyToken: string
+    saveFacebook: string
+    zaloSecret: string
+    zaloToken: string
+    saveZalo: string
+    embedSection: string
+    embedHint: string
+    embedHeadersHelp: string
+    /** Khác biệt embed ẩn danh vs chat có đăng nhập NanoAI */
+    embedAnonymousFootnote: string
+    inboxTitle: string
+    /** Ô tìm trong danh sách hội thoại (inbox shop) */
+    inboxSearchPlaceholder: string
+    /** Không có mục nào khớp ô tìm */
+    inboxNoSearchResults: string
+    /** Cột phải kiểu CRM */
+    inboxSideInfoTab: string
+    inboxSideOrderTab: string
+    inboxSideNoNotes: string
+    inboxSideNotePlaceholder: string
+    inboxSideOrderEmpty: string
+    inboxSideCreateOrder: string
+    pickConversation: string
+    replyPlaceholder: string
+    send: string
+    refresh: string
+    channelFacebook: string
+    channelZalo: string
+    channelWidget: string
+    unknownUser: string
+    noMessages: string
+    replyKeyboardHint: string
+    /** Shop gửi ảnh cho khách (dashboard inbox) */
+    partnerAttachPhoto: string
+    partnerTakePhoto: string
+    partnerRemoveAttachmentAria: string
+    partnerCaptionHint: string
+    partnerUploading: string
+    partnerImageTooLarge: string
+    partnerImageInvalidType: string
+    nanoaiHostedSection: string
+    nanoaiHostedHint: string
+    nanoaiHostedUrlLabel: string
+    nanoaiHostedIframeTitle: string
+    /** Thuộc tính title="" trong mã iframe (a11y) */
+    nanoaiHostedIframeTitleAttr: string
+    nanoaiHostedIframeHelp: string
+    copyIframeSnippetButton: string
+    iframeSnippetCopiedToast: string
+    addAnotherWorkspace: string
+    cancelAddWorkspace: string
+    fbLinkedLine: string
+    zaloLinkedLine: string
+    credentialsKeepHint: string
+    /** Bố cục trang: cột cấu hình */
+    setupColumnTitle: string
+    /** Bố cục trang: cột chat */
+    chatColumnTitle: string
+    /** Nút/link tới /dashboard/messaging/settings */
+    messagingSettingsLink: string
+    messagingSettingsPageTitle: string
+    messagingInboxDescription: string
+    noWorkspaceInboxCta: string
+    goToInbox: string
+  }
+  /** /dashboard/messaging — trợ lý AI tự động (FAQ + delay + DeepSeek) */
+  partnerMessagingAi: {
+    panelTitle: string
+    panelSubtitle: string
+    tabSettings: string
+    tabFaq: string
+    tabInventory: string
+    enableLabel: string
+    enableHint: string
+    delayLabel: string
+    delayHint: string
+    typingMinLabel: string
+    typingMaxLabel: string
+    typingHint: string
+    shopPolicyLabel: string
+    shopPolicyPlaceholder: string
+    toneLabel: string
+    tonePlaceholder: string
+    disclosureToggle: string
+    disclosureSuffixLabel: string
+    disclosureSuffixHint: string
+    saveSettings: string
+    loadError: string
+    faqKeywordsLabel: string
+    faqKeywordsHint: string
+    faqAnswerLabel: string
+    faqSortLabel: string
+    faqActiveLabel: string
+    inactiveBadge: string
+    addFaq: string
+    saveRow: string
+    deleteRow: string
+    cancelEdit: string
+    inventoryName: string
+    inventorySku: string
+    inventoryDesc: string
+    inventoryStock: string
+    inventoryPrice: string
+    inventorySort: string
+    inventoryActive: string
+    addInventory: string
+    edit: string
+    emptyFaq: string
+    emptyInventory: string
+    cronSetupHint: string
+    /** Trạng thái nút gạt AI */
+    toggleStatusOn: string
+    toggleStatusOff: string
+    aiEngineTitle: string
+    /** Placeholder {model} = DEEPSEEK_MODEL hoặc mặc định */
+    aiEngineDescription: string
+    disclosureSwitchOn: string
+    disclosureSwitchOff: string
+  }
+  /** /messaging/p/[slug] — khách chat với shop trên domain NanoAI */
+  partnerGuestChat: {
+    notFoundTitle: string
+    notFoundDescription: string
+    pageTitleSuffix: string
+    metaDescription: string
+    shopLabel: string
+    subline: string
+    placeholder: string
+    send: string
+    emptyThread: string
+    loadError: string
+    sendError: string
+    pollNote: string
+    guestAttachPhoto: string
+    guestTakePhoto: string
+    guestRemoveAttachment: string
+    guestUploading: string
+    guestImageTooLarge: string
+    guestImageInvalidType: string
+    guestCaptionHint: string
+    loginPromptTitle: string
+    loginPromptDescription: string
+    signInWithGoogle: string
+    linkMyShops: string
+    sendKeyboardHint: string
+  }
+  /** /messaging/my-chats — danh sách shop đã chat (tài khoản Google) */
+  messagingMyChats: {
+    pageTitle: string
+    pageDescription: string
+    emptyList: string
+    openChat: string
+    lastActivity: string
+    loadFailed: string
+    backHomeAria: string
   }
   footer: {
     platformTitle: string
@@ -1124,6 +1339,9 @@ const VI_DICTIONARY: Dictionary = {
     viewPlan: 'Xem gói',
     topUpCredits: 'Nạp credit',
     tasksHub: 'Tác vụ & hàng đợi',
+    supportChat: 'Chat hỗ trợ',
+    partnerInbox: 'Inbox khách (shop)',
+    myChats: 'Tin nhắn của tôi (shop)',
   },
   home: {
     title: 'NanoAI - Sáng tạo không giới hạn cùng AI',
@@ -1194,6 +1412,212 @@ const VI_DICTIONARY: Dictionary = {
     bellSubscribedShort: 'Đã bật thông báo đẩy trên thiết bị này',
     bellDeniedHint: 'Thông báo hệ thống đang tắt. Vào Cài đặt trình duyệt → NanoAI → Bật thông báo.',
     bellSyncHint: 'Trình duyệt đã cho phép thông báo nhưng máy chủ chưa lưu thiết bị. Nhấn để đồng bộ.',
+  },
+  supportChat: {
+    pageTitle: 'Chat hỗ trợ',
+    metaDescription:
+      'Nhắn tin với đội ngũ NanoAI; đồng bộ với Facebook Messenger và Zalo OA khi đã tích hợp webhook.',
+    brandBadge: 'NanoAI',
+    headline: 'Hỗ trợ qua chat',
+    subline:
+      'Tin nhắn từ trang này vào cùng hộp thư chăm sóc khách hàng với Facebook và Zalo (nếu đã cấu hình trên máy chủ).',
+    loginRequired: 'Đăng nhập để gửi tin nhắn tới đội ngũ hỗ trợ.',
+    loginSupportingLine: 'Dùng tài khoản NanoAI của bạn; sau khi đăng nhập bạn soạn tin ngay tại đây.',
+    loginLink: 'Đăng nhập',
+    placeholder: 'Nhập nội dung…',
+    send: 'Gửi',
+    emptyThread: 'Chưa có tin nhắn. Gửi câu hỏi đầu tiên bên dưới.',
+    loadError: 'Không tải được hội thoại.',
+    sendError: 'Không gửi được tin nhắn.',
+    pollNote: 'Phản hồi từ admin có thể hiện sau vài giây; bạn có thể tải lại trang.',
+    sendKeyboardHint: 'Enter để gửi · Shift+Enter xuống dòng',
+  },
+  customerCareAdmin: {
+    pageTitle: 'Chăm sóc khách hàng',
+    pageDescription:
+      'Chỉ hộp thư nền tảng NanoAI (support-chat và kênh Facebook/Zalo gắn nền tảng). Inbox từng shop: Bảng điều khiển → Nhắn tin. Khi bạn là khách của shop: Tin nhắn của tôi — không trộn vào đây.',
+    inboxTitle: 'Hội thoại (nền tảng)',
+    pickConversation: 'Chọn một hội thoại để xem tin nhắn.',
+    replyPlaceholder: 'Soạn phản hồi…',
+    send: 'Gửi',
+    refresh: 'Làm mới',
+    channelFacebook: 'Facebook',
+    channelZalo: 'Zalo',
+    channelInternal: 'NanoAI',
+    channelWidget: 'Web (embed)',
+    unknownUser: 'Khách',
+    sendFailed: 'Gửi thất bại',
+    noMessages: 'Chưa có tin nhắn.',
+    sendKeyboardHint: 'Enter để gửi · Shift+Enter xuống dòng',
+  },
+  partnerMessaging: {
+    pageTitle: 'Nhắn tin cho khách (đối tác)',
+    pageDescription:
+      'Một workspace cho shop của bạn: khách nhắn qua Facebook Page, Zalo OA, trang chat trên NanoAI hoặc API nhúng trên web — cùng một hộp thư.',
+    cardTitle: 'Inbox khách (đối tác)',
+    cardDescription: 'Facebook, Zalo, chat trên NanoAI và chat nhúng web — cùng một inbox.',
+    createWorkspace: 'Tạo workspace nhắn tin',
+    workspaceNameLabel: 'Tên shop / thương hiệu',
+    workspaceLabel: 'Workspace',
+    createButton: 'Tạo mới',
+    saveOk: 'Đã lưu.',
+    channelsSection: 'Kết nối kênh (Facebook & Zalo)',
+    fbPageId: 'Facebook Page ID',
+    fbPageToken: 'Page access token',
+    fbVerifyToken: 'Verify token (webhook GET)',
+    saveFacebook: 'Lưu Facebook',
+    zaloSecret: 'Webhook secret (header)',
+    zaloToken: 'OA access token',
+    saveZalo: 'Lưu Zalo',
+    embedSection: 'API chat ẩn danh trên web shop (tùy chọn)',
+    embedHint:
+      'Gọi API từ domain shop (CORS mở). Mỗi trình duyệt giữ UUID ổn định (localStorage) và gửi header X-Session-Id.',
+    embedHeadersHelp:
+      'Gửi header X-Embed-Key (khóa như trên) và X-Session-Id (UUID cố định trên trình duyệt khách).',
+    embedAnonymousFootnote:
+      'Luồng này không đăng nhập NanoAI: shop không biết danh tính thật và không đồng bộ với Google. Để khách dùng cùng đăng nhập như mở NanoAI trực tiếp (và có trang “Tin nhắn của tôi”), hãy gửi link chat NanoAI hoặc nhúng iframe ở mục trên.',
+    inboxTitle: 'Hội thoại khách',
+    inboxSearchPlaceholder: 'Tìm theo tên hoặc tin nhắn…',
+    inboxNoSearchResults: 'Không có hội thoại khớp.',
+    inboxSideInfoTab: 'Thông tin',
+    inboxSideOrderTab: 'Tạo đơn',
+    inboxSideNoNotes: 'Bạn chưa có ghi chú nào',
+    inboxSideNotePlaceholder: 'Nhập ghi chú (Enter để gửi)',
+    inboxSideOrderEmpty: 'Chưa có lịch sử đơn hàng',
+    inboxSideCreateOrder: 'Tạo đơn',
+    pickConversation: 'Chọn hội thoại.',
+    replyPlaceholder: 'Soạn tin trả khách…',
+    send: 'Gửi',
+    refresh: 'Làm mới',
+    channelFacebook: 'Facebook',
+    channelZalo: 'Zalo',
+    channelWidget: 'Web',
+    unknownUser: 'Khách',
+    noMessages: 'Chưa có tin.',
+    replyKeyboardHint: 'Enter để gửi · Shift+Enter xuống dòng',
+    partnerAttachPhoto: 'Ảnh từ máy',
+    partnerTakePhoto: 'Chụp ảnh',
+    partnerRemoveAttachmentAria: 'Bỏ ảnh đính kèm',
+    partnerCaptionHint: 'Có thể thêm chú thích dưới đây trước khi gửi.',
+    partnerUploading: 'Đang tải ảnh…',
+    partnerImageTooLarge: 'Ảnh quá lớn (tối đa ~3 MB).',
+    partnerImageInvalidType: 'Định dạng ảnh không được hỗ trợ.',
+    nanoaiHostedSection: 'Chat trên NanoAI — cùng đăng nhập như dùng NanoAI trực tiếp (khuyến nghị)',
+    nanoaiHostedHint:
+      'Khách bắt buộc đăng nhập Google trên NanoAI giống khi dùng nền tảng trực tiếp: một tài khoản, đồng bộ tin nhắn giữa thiết bị, xem danh sách shop tại /messaging/my-chats. Shop vẫn nhận hội thoại trong inbox như hiện tại.',
+    nanoaiHostedUrlLabel: 'Liên kết chat',
+    nanoaiHostedIframeTitle: 'Nhúng lên web shop (iframe)',
+    nanoaiHostedIframeTitleAttr: 'Chat NanoAI',
+    nanoaiHostedIframeHelp:
+      'Dán vào HTML trang của bạn. Khách chat và đăng nhập trong khung NanoAI (cookie first-party), không phụ thuộc API embed ẩn danh.',
+    copyIframeSnippetButton: 'Sao chép mã iframe',
+    iframeSnippetCopiedToast: 'Đã sao chép mã nhúng.',
+    addAnotherWorkspace: 'Tạo thêm workspace',
+    cancelAddWorkspace: 'Hủy',
+    fbLinkedLine: 'Facebook Page đã liên kết: {pageId}',
+    zaloLinkedLine: 'Zalo OA đã cấu hình webhook & token.',
+    credentialsKeepHint:
+      'Để trống ô token hoặc secret nếu không đổi — hệ thống giữ giá trị đã lưu.',
+    setupColumnTitle: 'Kết nối & trợ lý AI',
+    chatColumnTitle: 'Hội thoại khách',
+    messagingSettingsLink: 'Cài đặt kênh & AI',
+    messagingSettingsPageTitle: 'Cài đặt nhắn tin (shop)',
+    messagingInboxDescription:
+      'Danh sách khách bên trái; khi mở một hội thoại, ô soạn tin cố định dưới cùng màn hình.',
+    noWorkspaceInboxCta: 'Bạn chưa có workspace nhắn tin. Vào trang cài đặt để tạo shop và kết nối Facebook / Zalo / chat.',
+    goToInbox: 'Về hộp thư',
+  },
+  partnerMessagingAi: {
+    panelTitle: 'Trợ lý AI tự động',
+    panelSubtitle:
+      'Khớp FAQ trong DB thì trả lời nhanh (giả lập đang gõ). Không khớp: chờ bạn trả lời trong khoảng thời gian cấu hình; hết thời gian mà chưa trả lời thì AI dùng chính sách shop, giọng điệu và kho hàng để tư vấn.',
+    tabSettings: 'Cài đặt',
+    tabFaq: 'FAQ',
+    tabInventory: 'Kho / mẫu',
+    enableLabel: 'Bật trả lời tự động',
+    enableHint: 'Khi tắt, chỉ còn tin nhắn thủ công từ bạn.',
+    delayLabel: 'Chờ trước khi AI trả lời (giây)',
+    delayHint: 'Từ 15 đến 900 giây. Nếu bạn trả lời trước, AI sẽ không gửi.',
+    typingMinLabel: 'Độ trễ gõ tối thiểu (ms)',
+    typingMaxLabel: 'Độ trễ gõ tối đa (ms)',
+    typingHint: 'Dùng cho FAQ: ngẫu nhiên trong khoảng này trước khi gửi (0–30000).',
+    shopPolicyLabel: 'Chính sách & quy định shop',
+    shopPolicyPlaceholder:
+      'Ví dụ: đặt cọc 30%, không đổi hàng, đổi trong 7 ngày nếu lỗi sản xuất, freeship nội thành…',
+    toneLabel: 'Giọng điệu / hướng dẫn trả lời',
+    tonePlaceholder: 'Ví dụ: lịch sự, ngắn gọn, xưng em — anh/chị; không hứa chắc chắn nếu chưa rõ tồn kho.',
+    disclosureToggle: 'Thêm dòng công bố tin nhắn từ AI',
+    disclosureSuffixLabel: 'Nội dung công bố (cuối tin)',
+    disclosureSuffixHint: 'Hiển thị ở cuối mỗi tin AI gửi để khách biết đây là trợ lý tự động.',
+    saveSettings: 'Lưu cài đặt',
+    loadError: 'Không tải được cấu hình AI.',
+    faqKeywordsLabel: 'Từ khóa kích hoạt',
+    faqKeywordsHint: 'Phân tách bằng dấu phẩy hoặc xuống dòng.',
+    faqAnswerLabel: 'Câu trả lời',
+    faqSortLabel: 'Thứ tự',
+    faqActiveLabel: 'Đang dùng',
+    inactiveBadge: 'Tắt',
+    addFaq: 'Thêm FAQ',
+    saveRow: 'Lưu',
+    deleteRow: 'Xóa',
+    cancelEdit: 'Hủy',
+    inventoryName: 'Tên mẫu / sản phẩm',
+    inventorySku: 'Mã SKU (tuỳ chọn)',
+    inventoryDesc: 'Mô tả ngắn',
+    inventoryStock: 'Ghi chú tồn kho',
+    inventoryPrice: 'Gợi ý giá (text)',
+    inventorySort: 'Thứ tự',
+    inventoryActive: 'Đang dùng',
+    addInventory: 'Thêm dòng kho',
+    edit: 'Sửa',
+    emptyFaq: 'Chưa có FAQ. Thêm từ khóa và câu trả lời để trả lời nhanh.',
+    emptyInventory: 'Chưa có dữ liệu kho. Thêm mẫu để AI tư vấn đúng hàng bạn có.',
+    cronSetupHint:
+      'Production: cấu hình cron gọi GET hoặc POST /api/cron/messaging-partner-ai kèm Bearer MESSAGING_PARTNER_AI_CRON_SECRET (ví dụ mỗi phút) và DEEPSEEK_API_KEY. Không có cron thì job vẫn tạo nhưng AI không bao giờ gửi. Môi trường `next dev` tự chạy xử lý job sau thời gian chờ (không cần cron). Chạy `next start` local mà chưa có cron: thêm MESSAGING_PARTNER_AI_DEV_WAKE=1 vào .env.',
+    toggleStatusOn: 'Đang bật',
+    toggleStatusOff: 'Đang tắt',
+    aiEngineTitle: 'AI trả lời thông minh',
+    aiEngineDescription:
+      'Câu khớp FAQ dùng câu trả lời bạn đã lưu. Các câu khác — sau thời gian chờ — gọi API DeepSeek (model {model}).',
+    disclosureSwitchOn: 'Có ghi chú cuối tin',
+    disclosureSwitchOff: 'Không ghi chú',
+  },
+  partnerGuestChat: {
+    notFoundTitle: 'Không tìm thấy trang chat',
+    notFoundDescription: 'Liên kết không hợp lệ hoặc shop đã tắt tính năng.',
+    pageTitleSuffix: 'Chat trên NanoAI',
+    metaDescription: 'Nhắn tin với {shop} trên NanoAI — cùng hộp thư với Facebook, Zalo và web shop.',
+    shopLabel: 'Cửa hàng',
+    subline:
+      'Bạn đang chat trên NanoAI; cửa hàng trả lời trong trang quản lý của họ. Đăng nhập Google để đồng bộ tin nhắn trên mọi thiết bị.',
+    placeholder: 'Nhập tin nhắn…',
+    send: 'Gửi',
+    emptyThread: 'Chưa có tin nhắn. Gửi câu đầu tiên bên dưới.',
+    loadError: 'Không tải được tin nhắn.',
+    sendError: 'Không gửi được tin nhắn.',
+    pollNote: 'Phản hồi từ cửa hàng có thể hiện sau vài giây.',
+    guestAttachPhoto: 'Ảnh từ máy',
+    guestTakePhoto: 'Chụp ảnh',
+    guestRemoveAttachment: 'Bỏ ảnh',
+    guestUploading: 'Đang tải ảnh…',
+    guestImageTooLarge: 'Ảnh quá lớn (tối đa ~3 MB).',
+    guestImageInvalidType: 'Chỉ hỗ trợ JPG, PNG, WebP hoặc GIF.',
+    guestCaptionHint: 'Có thể thêm chú thích kèm ảnh (tuỳ chọn).',
+    loginPromptTitle: 'Đăng nhập để chat',
+    loginPromptDescription:
+      'Dùng tài khoản Google để nhắn tin với cửa hàng và xem lại hội thoại trên điện thoại hoặc máy tính khác.',
+    signInWithGoogle: 'Đăng nhập bằng Google',
+    linkMyShops: 'Tin nhắn của tôi',
+    sendKeyboardHint: 'Enter để gửi · Shift+Enter xuống dòng',
+  },
+  messagingMyChats: {
+    pageTitle: 'Tin nhắn của tôi',
+    pageDescription: 'Các cửa hàng bạn đã nhắn qua NanoAI.',
+    emptyList: 'Bạn chưa có hội thoại nào. Mở liên kết chat của cửa hàng để bắt đầu.',
+    openChat: 'Mở chat',
+    lastActivity: 'Hoạt động gần nhất',
+    loadFailed: 'Không tải được danh sách.',
+    backHomeAria: 'Về trang chủ',
   },
   footer: {
     platformTitle: 'NanoAI Platform',
@@ -2157,6 +2581,9 @@ const EN_DICTIONARY: Dictionary = {
     viewPlan: 'View plan',
     topUpCredits: 'Top up credits',
     tasksHub: 'Tasks & queue',
+    supportChat: 'Support chat',
+    partnerInbox: 'Customer inbox (shop)',
+    myChats: 'My messages (shops)',
   },
   referral: {
     pageTitle: 'Invite friends – earn credits',
@@ -2223,6 +2650,211 @@ const EN_DICTIONARY: Dictionary = {
     bellSubscribedShort: 'Push is on for this device',
     bellDeniedHint: 'Notifications are blocked. Open browser settings → NanoAI → Allow notifications.',
     bellSyncHint: 'Notifications are allowed but this device is not registered yet. Tap to sync.',
+  },
+  supportChat: {
+    pageTitle: 'Support chat',
+    metaDescription:
+      'Message the NanoAI team; syncs with Facebook Messenger and Zalo OA when webhooks are configured.',
+    brandBadge: 'NanoAI',
+    headline: 'Support chat',
+    subline:
+      'Messages from this page go to the same customer-care inbox as Facebook and Zalo (when integrated on the server).',
+    loginRequired: 'Sign in to send a message to our team.',
+    loginSupportingLine: 'Use your NanoAI account; after signing in you can write messages here.',
+    loginLink: 'Sign in',
+    placeholder: 'Type your message…',
+    send: 'Send',
+    emptyThread: 'No messages yet. Send your first question below.',
+    loadError: 'Could not load the conversation.',
+    sendError: 'Could not send the message.',
+    pollNote: 'Replies may appear after a few seconds; you can refresh the page.',
+    sendKeyboardHint: 'Enter to send · Shift+Enter for a new line',
+  },
+  customerCareAdmin: {
+    pageTitle: 'Customer care',
+    pageDescription:
+      'Platform inbox only: NanoAI support (/support-chat) and platform-linked Facebook/Zalo. Each shop’s inbox is under Dashboard → Messaging; your chats as a customer are under My messages — kept separate.',
+    inboxTitle: 'Conversations (platform)',
+    pickConversation: 'Select a conversation to view messages.',
+    replyPlaceholder: 'Write a reply…',
+    send: 'Send',
+    refresh: 'Refresh',
+    channelFacebook: 'Facebook',
+    channelZalo: 'Zalo',
+    channelInternal: 'NanoAI',
+    channelWidget: 'Web (embed)',
+    unknownUser: 'Customer',
+    sendFailed: 'Send failed',
+    noMessages: 'No messages yet.',
+    sendKeyboardHint: 'Enter to send · Shift+Enter for a new line',
+  },
+  partnerMessaging: {
+    pageTitle: 'Partner messaging inbox',
+    pageDescription:
+      'One workspace for your shop: Facebook Page, Zalo OA, NanoAI-hosted chat, or an embedded API on your site — same inbox.',
+    cardTitle: 'Customer inbox (partner)',
+    cardDescription: 'Facebook, Zalo, NanoAI web chat, and embedded chat — one inbox.',
+    createWorkspace: 'Create messaging workspace',
+    workspaceNameLabel: 'Shop / brand name',
+    workspaceLabel: 'Workspace',
+    createButton: 'Create',
+    saveOk: 'Saved.',
+    channelsSection: 'Channels (Facebook & Zalo)',
+    fbPageId: 'Facebook Page ID',
+    fbPageToken: 'Page access token',
+    fbVerifyToken: 'Verify token (webhook GET)',
+    saveFacebook: 'Save Facebook',
+    zaloSecret: 'Webhook secret (header)',
+    zaloToken: 'OA access token',
+    saveZalo: 'Save Zalo',
+    embedSection: 'Anonymous embed API on your site (optional)',
+    embedHint:
+      'Call the API from the shop domain (CORS enabled). Each browser keeps a stable UUID in localStorage and sends it as X-Session-Id.',
+    embedHeadersHelp:
+      'Send headers X-Embed-Key (key above) and X-Session-Id (stable UUID in the visitor browser).',
+    embedAnonymousFootnote:
+      'This path does not use NanoAI sign-in: the shop cannot see a real identity and it is not tied to Google. For the same login as opening NanoAI directly (and “My messages”), share the hosted link above or use the iframe snippet.',
+    inboxTitle: 'Customer threads',
+    inboxSearchPlaceholder: 'Search by name or message…',
+    inboxNoSearchResults: 'No conversations match.',
+    inboxSideInfoTab: 'Info',
+    inboxSideOrderTab: 'Create order',
+    inboxSideNoNotes: 'No notes yet',
+    inboxSideNotePlaceholder: 'Type a note (Enter to save)',
+    inboxSideOrderEmpty: 'No order history yet',
+    inboxSideCreateOrder: 'Create order',
+    pickConversation: 'Pick a conversation.',
+    replyPlaceholder: 'Write a reply…',
+    send: 'Send',
+    refresh: 'Refresh',
+    channelFacebook: 'Facebook',
+    channelZalo: 'Zalo',
+    channelWidget: 'Web',
+    unknownUser: 'Guest',
+    noMessages: 'No messages yet.',
+    replyKeyboardHint: 'Enter to send · Shift+Enter for a new line',
+    partnerAttachPhoto: 'Photo library',
+    partnerTakePhoto: 'Take photo',
+    partnerRemoveAttachmentAria: 'Remove attached image',
+    partnerCaptionHint: 'You can add a caption below before sending.',
+    partnerUploading: 'Uploading image…',
+    partnerImageTooLarge: 'Image is too large (max ~3 MB).',
+    partnerImageInvalidType: 'Unsupported image format.',
+    nanoaiHostedSection: 'Chat on NanoAI — same sign-in as using NanoAI directly (recommended)',
+    nanoaiHostedHint:
+      'Customers must sign in with Google on NanoAI, same as using the platform directly: one account, messages sync across devices, and they can open /messaging/my-chats. Threads still appear in your inbox as today.',
+    nanoaiHostedUrlLabel: 'Chat link',
+    nanoaiHostedIframeTitle: 'Embed on your website (iframe)',
+    nanoaiHostedIframeTitleAttr: 'NanoAI chat',
+    nanoaiHostedIframeHelp:
+      'Paste into your page HTML. Customers chat and sign in inside the NanoAI frame (first-party cookies), without the anonymous embed API.',
+    copyIframeSnippetButton: 'Copy iframe code',
+    iframeSnippetCopiedToast: 'Iframe code copied.',
+    addAnotherWorkspace: 'Add another workspace',
+    cancelAddWorkspace: 'Cancel',
+    fbLinkedLine: 'Facebook Page linked: {pageId}',
+    zaloLinkedLine: 'Zalo OA webhook & token are saved.',
+    credentialsKeepHint: 'Leave token or secret blank to keep the saved values.',
+    setupColumnTitle: 'Channels & AI assistant',
+    chatColumnTitle: 'Customer chat',
+    messagingSettingsLink: 'Channel & AI settings',
+    messagingSettingsPageTitle: 'Messaging setup (shop)',
+    messagingInboxDescription:
+      'Customer list on the left; when a thread is open, the composer stays fixed at the bottom of the screen.',
+    noWorkspaceInboxCta: 'You have no messaging workspace yet. Open settings to create a shop and connect Facebook / Zalo / chat.',
+    goToInbox: 'Back to inbox',
+  },
+  partnerMessagingAi: {
+    panelTitle: 'AI auto-replies',
+    panelSubtitle:
+      'If the message matches a saved FAQ, we reply quickly with a typing delay. Otherwise we wait for you for the configured time; if you do not reply, the AI answers using your shop policy, tone, and inventory context.',
+    tabSettings: 'Settings',
+    tabFaq: 'FAQ',
+    tabInventory: 'Inventory',
+    enableLabel: 'Enable auto-replies',
+    enableHint: 'When off, only manual replies from you are sent.',
+    delayLabel: 'Wait before AI replies (seconds)',
+    delayHint: '15–900 seconds. If you reply first, the AI will not send.',
+    typingMinLabel: 'Typing delay min (ms)',
+    typingMaxLabel: 'Typing delay max (ms)',
+    typingHint: 'Used for FAQ: random delay in this range before sending (0–30000).',
+    shopPolicyLabel: 'Shop policies & rules',
+    shopPolicyPlaceholder:
+      'e.g. 30% deposit, no exchanges, 7-day exchange for defects only, free city shipping…',
+    toneLabel: 'Tone / reply instructions',
+    tonePlaceholder: 'e.g. polite, concise; avoid promising stock you are unsure about.',
+    disclosureToggle: 'Append an AI disclosure line',
+    disclosureSuffixLabel: 'Disclosure text (end of message)',
+    disclosureSuffixHint: 'Shown at the end of each AI message so customers know it is automated.',
+    saveSettings: 'Save settings',
+    loadError: 'Could not load AI settings.',
+    faqKeywordsLabel: 'Trigger keywords',
+    faqKeywordsHint: 'Separate with commas or new lines.',
+    faqAnswerLabel: 'Answer',
+    faqSortLabel: 'Order',
+    faqActiveLabel: 'Active',
+    inactiveBadge: 'Off',
+    addFaq: 'Add FAQ',
+    saveRow: 'Save',
+    deleteRow: 'Delete',
+    cancelEdit: 'Cancel',
+    inventoryName: 'Product / sample name',
+    inventorySku: 'SKU (optional)',
+    inventoryDesc: 'Short description',
+    inventoryStock: 'Stock note',
+    inventoryPrice: 'Price hint (text)',
+    inventorySort: 'Order',
+    inventoryActive: 'Active',
+    addInventory: 'Add inventory row',
+    edit: 'Edit',
+    emptyFaq: 'No FAQs yet. Add keywords and answers for instant replies.',
+    emptyInventory: 'No inventory rows yet. Add items so the AI can advise accurately.',
+    cronSetupHint:
+      'Production: schedule GET or POST /api/cron/messaging-partner-ai with Authorization: Bearer MESSAGING_PARTNER_AI_CRON_SECRET (e.g. every minute) and set DEEPSEEK_API_KEY. Without cron, jobs stay pending and AI never sends. `next dev` auto-runs the processor after the delay (no cron). For `next start` locally without cron, set MESSAGING_PARTNER_AI_DEV_WAKE=1 in .env.',
+    toggleStatusOn: 'On',
+    toggleStatusOff: 'Off',
+    aiEngineTitle: 'Smart reply AI',
+    aiEngineDescription:
+      'FAQ matches use your saved answers. Other messages — after the wait — call the DeepSeek API (model {model}).',
+    disclosureSwitchOn: 'Append note',
+    disclosureSwitchOff: 'No note',
+  },
+  partnerGuestChat: {
+    notFoundTitle: 'Chat page not found',
+    notFoundDescription: 'Invalid link or the shop has disabled this feature.',
+    pageTitleSuffix: 'Chat on NanoAI',
+    metaDescription: 'Message {shop} on NanoAI — same inbox as Facebook, Zalo, and your web store.',
+    shopLabel: 'Shop',
+    subline:
+      'You are chatting on NanoAI; the shop replies from their dashboard. Sign in with Google to sync your messages across devices.',
+    placeholder: 'Type a message…',
+    send: 'Send',
+    emptyThread: 'No messages yet. Send the first one below.',
+    loadError: 'Could not load messages.',
+    sendError: 'Could not send the message.',
+    pollNote: 'Replies from the shop may take a few seconds to appear.',
+    guestAttachPhoto: 'Photo library',
+    guestTakePhoto: 'Take photo',
+    guestRemoveAttachment: 'Remove photo',
+    guestUploading: 'Uploading photo…',
+    guestImageTooLarge: 'Image is too large (max ~3 MB).',
+    guestImageInvalidType: 'Only JPG, PNG, WebP, or GIF is supported.',
+    guestCaptionHint: 'You can add an optional caption with the photo.',
+    loginPromptTitle: 'Sign in to chat',
+    loginPromptDescription:
+      'Use your Google account to message the shop and continue the conversation on any phone or computer.',
+    signInWithGoogle: 'Sign in with Google',
+    linkMyShops: 'My messages',
+    sendKeyboardHint: 'Enter to send · Shift+Enter for a new line',
+  },
+  messagingMyChats: {
+    pageTitle: 'My messages',
+    pageDescription: 'Shops you have messaged on NanoAI.',
+    emptyList: 'No conversations yet. Open a shop chat link to get started.',
+    openChat: 'Open chat',
+    lastActivity: 'Last activity',
+    loadFailed: 'Could not load the list.',
+    backHomeAria: 'Back to home',
   },
   footer: {
     platformTitle: 'NanoAI Platform',
@@ -3196,6 +3828,9 @@ const ZH_DICTIONARY: Dictionary = {
     viewPlan: '查看套餐',
     topUpCredits: '充值积分',
     tasksHub: '任务与队列',
+    supportChat: '在线客服',
+    partnerInbox: '客户收件箱（店铺）',
+    myChats: '我的消息（店铺）',
   },
   referral: {
     pageTitle: '邀请好友 – 获得积分',
@@ -3258,6 +3893,203 @@ const ZH_DICTIONARY: Dictionary = {
     bellSubscribedShort: '本设备已开启推送',
     bellDeniedHint: '通知已被阻止。请在浏览器设置中为 NanoAI 开启通知。',
     bellSyncHint: '已允许通知，但服务器尚未登记此设备。请点击同步。',
+  },
+  supportChat: {
+    pageTitle: '在线客服',
+    metaDescription: '向 NanoAI 团队发消息；配置 Webhook 后可与 Facebook Messenger、Zalo OA 同步。',
+    brandBadge: 'NanoAI',
+    headline: '在线客服聊天',
+    subline: '本页消息与客服收件箱统一，可与 Facebook、Zalo 集成（需在服务器配置）。',
+    loginRequired: '请登录后再联系支持团队。',
+    loginSupportingLine: '请使用您的 NanoAI 账户；登录后即可在此发送消息。',
+    loginLink: '登录',
+    placeholder: '输入内容…',
+    send: '发送',
+    emptyThread: '暂无消息。请在下方发送第一条。',
+    loadError: '无法加载会话。',
+    sendError: '发送失败。',
+    pollNote: '管理员回复可能延迟数秒；您也可以刷新页面。',
+    sendKeyboardHint: 'Enter 发送 · Shift+Enter 换行',
+  },
+  customerCareAdmin: {
+    pageTitle: '客户关怀',
+    pageDescription:
+      '仅显示 NanoAI 平台收件箱（站内支持聊天及绑定在平台的 Facebook/Zalo）。各店铺收件箱在「控制台 → 消息」；您作为买家与店铺的聊天在「我的消息」— 互不混用。',
+    inboxTitle: '会话（平台）',
+    pickConversation: '选择一个会话查看消息。',
+    replyPlaceholder: '撰写回复…',
+    send: '发送',
+    refresh: '刷新',
+    channelFacebook: 'Facebook',
+    channelZalo: 'Zalo',
+    channelInternal: 'NanoAI',
+    channelWidget: '网页嵌入',
+    unknownUser: '访客',
+    sendFailed: '发送失败',
+    noMessages: '暂无消息。',
+    sendKeyboardHint: 'Enter 发送 · Shift+Enter 换行',
+  },
+  partnerMessaging: {
+    pageTitle: '合作伙伴客户消息',
+    pageDescription:
+      '为店铺建立工作区：客户可通过 Facebook 主页、Zalo OA、NanoAI 网页聊天或网站 API 嵌入联系您，统一收件箱。',
+    cardTitle: '客户收件箱（合作伙伴）',
+    cardDescription: 'Facebook、Zalo、NanoAI 网页聊天与嵌入聊天，同一收件箱。',
+    createWorkspace: '创建消息工作区',
+    workspaceNameLabel: '店铺 / 品牌名称',
+    workspaceLabel: '工作区',
+    createButton: '创建',
+    saveOk: '已保存。',
+    channelsSection: '渠道（Facebook 与 Zalo）',
+    fbPageId: 'Facebook Page ID',
+    fbPageToken: '主页访问令牌',
+    fbVerifyToken: '验证令牌（Webhook GET）',
+    saveFacebook: '保存 Facebook',
+    zaloSecret: 'Webhook 密钥（请求头）',
+    zaloToken: 'OA 访问令牌',
+    saveZalo: '保存 Zalo',
+    embedSection: '店铺网站匿名嵌入 API（可选）',
+    embedHint: '从店铺域名调用 API（已启用 CORS）。每个浏览器在 localStorage 保存固定 UUID，并通过 X-Session-Id 发送。',
+    embedHeadersHelp: '请求头需包含 X-Embed-Key（上方密钥）和 X-Session-Id（访客浏览器中的固定 UUID）。',
+    embedAnonymousFootnote:
+      '此方式不使用 NanoAI 登录：店铺看不到真实身份，也无法与 Google 账号同步。若要与直接打开 NanoAI 相同的登录体验（含「我的消息」），请分享上方的 NanoAI 聊天链接或使用 iframe 代码。',
+    inboxTitle: '客户会话',
+    inboxSearchPlaceholder: '按姓名或消息搜索…',
+    inboxNoSearchResults: '没有匹配的会话。',
+    inboxSideInfoTab: '信息',
+    inboxSideOrderTab: '创建订单',
+    inboxSideNoNotes: '你还没有任何备注',
+    inboxSideNotePlaceholder: '输入备注（Enter 发送）',
+    inboxSideOrderEmpty: '暂无订单记录',
+    inboxSideCreateOrder: '创建订单',
+    pickConversation: '请选择会话。',
+    replyPlaceholder: '撰写回复…',
+    send: '发送',
+    refresh: '刷新',
+    channelFacebook: 'Facebook',
+    channelZalo: 'Zalo',
+    channelWidget: '网页',
+    unknownUser: '访客',
+    noMessages: '暂无消息。',
+    replyKeyboardHint: 'Enter 发送 · Shift+Enter 换行',
+    partnerAttachPhoto: '相册选图',
+    partnerTakePhoto: '拍照',
+    partnerRemoveAttachmentAria: '移除已选图片',
+    partnerCaptionHint: '可在下方添加说明文字后再发送。',
+    partnerUploading: '正在上传图片…',
+    partnerImageTooLarge: '图片过大（最大约 3 MB）。',
+    partnerImageInvalidType: '不支持的图片格式。',
+    nanoaiHostedSection: '在 NanoAI 上聊天 — 与直接使用 NanoAI 相同登录（推荐）',
+    nanoaiHostedHint:
+      '客户须在 NanoAI 上使用 Google 登录，与直接使用平台一致：同一账号、跨设备同步消息，并可在 /messaging/my-chats 查看店铺列表。会话仍会出现在您的收件箱中。',
+    nanoaiHostedUrlLabel: '聊天链接',
+    nanoaiHostedIframeTitle: '嵌入到店铺网站（iframe）',
+    nanoaiHostedIframeTitleAttr: 'NanoAI 聊天',
+    nanoaiHostedIframeHelp: '粘贴到页面 HTML。客户在 NanoAI 框架内聊天与登录（第一方 cookie），不依赖匿名嵌入 API。',
+    copyIframeSnippetButton: '复制 iframe 代码',
+    iframeSnippetCopiedToast: '已复制 iframe 代码。',
+    addAnotherWorkspace: '再创建一个工作区',
+    cancelAddWorkspace: '取消',
+    fbLinkedLine: '已关联 Facebook Page：{pageId}',
+    zaloLinkedLine: '已保存 Zalo OA webhook 与 token。',
+    credentialsKeepHint: '不修改时请留空 token 或 secret — 将保留已保存的值。',
+    setupColumnTitle: '渠道与 AI 助手',
+    chatColumnTitle: '客户会话',
+    messagingSettingsLink: '渠道与 AI 设置',
+    messagingSettingsPageTitle: '消息设置（店铺）',
+    messagingInboxDescription: '左侧为客户列表；打开会话后，输入框固定在屏幕底部。',
+    noWorkspaceInboxCta: '您还没有消息工作区。前往设置创建店铺并连接 Facebook / Zalo / 聊天。',
+    goToInbox: '返回收件箱',
+  },
+  partnerMessagingAi: {
+    panelTitle: 'AI 自动回复',
+    panelSubtitle:
+      '若消息匹配已保存的 FAQ，将较快回复并模拟输入延迟；否则在您设定的时间内等待人工回复，超时后由 AI 结合店铺政策、语气与库存信息作答。',
+    tabSettings: '设置',
+    tabFaq: '常见问题',
+    tabInventory: '库存 / 样品',
+    enableLabel: '启用自动回复',
+    enableHint: '关闭后仅发送您手动编写的消息。',
+    delayLabel: 'AI 回复前等待（秒）',
+    delayHint: '15–900 秒。若您先回复，AI 不会发送。',
+    typingMinLabel: '输入延迟下限（毫秒）',
+    typingMaxLabel: '输入延迟上限（毫秒）',
+    typingHint: '用于 FAQ：发送前在此范围内随机延迟（0–30000）。',
+    shopPolicyLabel: '店铺政策与规则',
+    shopPolicyPlaceholder: '例如：定金 30%、不换货、质量问题 7 天内可换、同城包邮等。',
+    toneLabel: '语气 / 回复指引',
+    tonePlaceholder: '例如：礼貌、简短；不确定库存时不要绝对承诺。',
+    disclosureToggle: '在末尾附加 AI 说明',
+    disclosureSuffixLabel: '说明文字（消息末尾）',
+    disclosureSuffixHint: '每条 AI 消息末尾显示，提示为自动回复。',
+    saveSettings: '保存设置',
+    loadError: '无法加载 AI 配置。',
+    faqKeywordsLabel: '触发关键词',
+    faqKeywordsHint: '用逗号或换行分隔。',
+    faqAnswerLabel: '回答内容',
+    faqSortLabel: '排序',
+    faqActiveLabel: '启用',
+    inactiveBadge: '已关闭',
+    addFaq: '添加 FAQ',
+    saveRow: '保存',
+    deleteRow: '删除',
+    cancelEdit: '取消',
+    inventoryName: '商品 / 样品名称',
+    inventorySku: 'SKU（可选）',
+    inventoryDesc: '简短描述',
+    inventoryStock: '库存备注',
+    inventoryPrice: '价格提示（文本）',
+    inventorySort: '排序',
+    inventoryActive: '启用',
+    addInventory: '添加库存行',
+    edit: '编辑',
+    emptyFaq: '暂无 FAQ。添加关键词与回答以实现快速回复。',
+    emptyInventory: '暂无库存数据。添加条目以便 AI 准确推荐。',
+    cronSetupHint:
+      '生产环境：配置定时任务 GET 或 POST /api/cron/messaging-partner-ai，请求头 Authorization: Bearer MESSAGING_PARTNER_AI_CRON_SECRET（建议每分钟），并设置 DEEPSEEK_API_KEY。无 cron 时任务会一直排队、AI 不会发出。`next dev` 会在等待时间后自动处理（无需 cron）。本地 `next start` 且无 cron 时，可在 .env 设置 MESSAGING_PARTNER_AI_DEV_WAKE=1。',
+    toggleStatusOn: '已开启',
+    toggleStatusOff: '已关闭',
+    aiEngineTitle: '智能回复 AI',
+    aiEngineDescription:
+      '匹配 FAQ 时使用您保存的回答；其他消息在等待结束后调用 DeepSeek API（模型 {model}）。',
+    disclosureSwitchOn: '附加文末说明',
+    disclosureSwitchOff: '不附加',
+  },
+  partnerGuestChat: {
+    notFoundTitle: '未找到聊天页面',
+    notFoundDescription: '链接无效或店铺已关闭此功能。',
+    pageTitleSuffix: 'NanoAI 聊天',
+    metaDescription: '在 NanoAI 上联系 {shop} — 与 Facebook、Zalo 和网店使用同一收件箱。',
+    shopLabel: '店铺',
+    subline:
+      '您正在 NanoAI 上与店铺聊天；店铺在其后台回复。请使用 Google 登录以在多台设备间同步消息。',
+    placeholder: '输入消息…',
+    send: '发送',
+    emptyThread: '暂无消息。请在下方发送第一条。',
+    loadError: '无法加载消息。',
+    sendError: '发送失败。',
+    pollNote: '店铺回复可能延迟数秒显示。',
+    guestAttachPhoto: '相册选图',
+    guestTakePhoto: '拍照',
+    guestRemoveAttachment: '移除图片',
+    guestUploading: '正在上传图片…',
+    guestImageTooLarge: '图片过大（最大约 3 MB）。',
+    guestImageInvalidType: '仅支持 JPG、PNG、WebP 或 GIF。',
+    guestCaptionHint: '可为图片添加说明（选填）。',
+    loginPromptTitle: '登录后开始聊天',
+    loginPromptDescription: '使用 Google 账号与店铺沟通，并在手机或电脑上继续对话。',
+    signInWithGoogle: '使用 Google 登录',
+    linkMyShops: '我的消息',
+    sendKeyboardHint: 'Enter 发送 · Shift+Enter 换行',
+  },
+  messagingMyChats: {
+    pageTitle: '我的消息',
+    pageDescription: '您在 NanoAI 上联系过的店铺。',
+    emptyList: '暂无会话。打开店铺的聊天链接即可开始。',
+    openChat: '打开聊天',
+    lastActivity: '最近活动',
+    loadFailed: '无法加载列表。',
+    backHomeAria: '返回首页',
   },
   meetingRecorder: {
     cardTitle: '会议录音 → AI 纪要',
@@ -4181,6 +5013,9 @@ const JA_DICTIONARY: Dictionary = {
     viewPlan: 'プランを見る',
     topUpCredits: 'クレジットをチャージ',
     tasksHub: 'タスクとキュー',
+    supportChat: 'サポートチャット',
+    partnerInbox: 'お客様受信箱（店舗）',
+    myChats: '自分のメッセージ（店舗）',
   },
   referral: {
     pageTitle: '友達招待 – クレジット獲得',
@@ -4246,6 +5081,211 @@ const JA_DICTIONARY: Dictionary = {
     bellSubscribedShort: 'この端末ではプッシュ通知がオンです',
     bellDeniedHint: '通知がブロックされています。ブラウザの設定で NanoAI の通知を許可してください。',
     bellSyncHint: '通知は許可済みですが、この端末が未登録です。同期をタップしてください。',
+  },
+  supportChat: {
+    pageTitle: 'サポートチャット',
+    metaDescription:
+      'NanoAI チームにメッセージ。Webhook を設定すると Facebook Messenger・Zalo OA と同期できます。',
+    brandBadge: 'NanoAI',
+    headline: 'チャットでサポート',
+    subline:
+      'このページのメッセージはカスタマーケアの受信箱に集約されます（サーバー側で Facebook / Zalo と連携した場合）。',
+    loginRequired: 'サポートに送るにはログインしてください。',
+    loginSupportingLine: 'NanoAI のアカウントでログインすると、この画面からメッセージを送れます。',
+    loginLink: 'ログイン',
+    placeholder: 'メッセージを入力…',
+    send: '送信',
+    emptyThread: 'まだメッセージがありません。下から最初の質問を送ってください。',
+    loadError: '会話を読み込めませんでした。',
+    sendError: '送信に失敗しました。',
+    pollNote: '管理者の返信は数秒遅れる場合があります。ページを更新しても構いません。',
+    sendKeyboardHint: 'Enter で送信 · Shift+Enter で改行',
+  },
+  customerCareAdmin: {
+    pageTitle: 'カスタマーケア',
+    pageDescription:
+      'NanoAI プラットフォーム向けの受信箱のみ（サポートチャットおよびプラットフォーム連携の Facebook/Zalo）。各ショップの受信箱は「ダッシュボード → メッセージ」、お客様としての店舗とのチャットは「マイメッセージ」— 混在しません。',
+    inboxTitle: '会話（プラットフォーム）',
+    pickConversation: '会話を選ぶとメッセージが表示されます。',
+    replyPlaceholder: '返信を入力…',
+    send: '送信',
+    refresh: '更新',
+    channelFacebook: 'Facebook',
+    channelZalo: 'Zalo',
+    channelInternal: 'NanoAI',
+    channelWidget: 'Web（埋め込み）',
+    unknownUser: 'ゲスト',
+    sendFailed: '送信失敗',
+    noMessages: 'メッセージはまだありません。',
+    sendKeyboardHint: 'Enter で送信 · Shift+Enter で改行',
+  },
+  partnerMessaging: {
+    pageTitle: 'パートナー向けメッセージ',
+    pageDescription:
+      'お店用のワークスペース：Facebook ページ、Zalo OA、NanoAI 上のチャット、またはサイト埋め込み API からのお客様を一つの受信箱で管理。',
+    cardTitle: 'お客様受信箱（パートナー）',
+    cardDescription: 'Facebook、Zalo、NanoAI のWebチャット、埋め込みチャットを同一受信箱で管理。',
+    createWorkspace: 'メッセージワークスペースを作成',
+    workspaceNameLabel: '店舗 / ブランド名',
+    workspaceLabel: 'ワークスペース',
+    createButton: '作成',
+    saveOk: '保存しました。',
+    channelsSection: 'チャネル（Facebook と Zalo）',
+    fbPageId: 'Facebook Page ID',
+    fbPageToken: 'ページアクセストークン',
+    fbVerifyToken: '検証トークン（Webhook GET）',
+    saveFacebook: 'Facebook を保存',
+    zaloSecret: 'Webhook シークレット（ヘッダー）',
+    zaloToken: 'OA アクセストークン',
+    saveZalo: 'Zalo を保存',
+    embedSection: '自サイト向け匿名埋め込み API（任意）',
+    embedHint:
+      'ショップのドメインから API を呼び出します（CORS 許可）。各ブラウザは localStorage の固定 UUID を X-Session-Id で送ります。',
+    embedHeadersHelp:
+      'ヘッダーに X-Embed-Key（上記のキー）と X-Session-Id（訪問者ブラウザの固定 UUID）を付与してください。',
+    embedAnonymousFootnote:
+      'NanoAI のログインは使いません。店舗側は本人を特定できず、Google アカウントとも連携しません。NanoAI を直接開くのと同じログイン（「自分のメッセージ」含む）にするには、上のリンクか iframe を利用してください。',
+    inboxTitle: 'お客様スレッド',
+    inboxSearchPlaceholder: '名前またはメッセージで検索…',
+    inboxNoSearchResults: '該当する会話がありません。',
+    inboxSideInfoTab: '情報',
+    inboxSideOrderTab: '注文作成',
+    inboxSideNoNotes: 'メモはまだありません',
+    inboxSideNotePlaceholder: 'メモを入力（Enter で保存）',
+    inboxSideOrderEmpty: '注文履歴はまだありません',
+    inboxSideCreateOrder: '注文を作成',
+    pickConversation: '会話を選択してください。',
+    replyPlaceholder: '返信を入力…',
+    send: '送信',
+    refresh: '更新',
+    channelFacebook: 'Facebook',
+    channelZalo: 'Zalo',
+    channelWidget: 'Web',
+    unknownUser: 'ゲスト',
+    noMessages: 'メッセージはまだありません。',
+    replyKeyboardHint: 'Enter で送信 · Shift+Enter で改行',
+    partnerAttachPhoto: 'ライブラリ',
+    partnerTakePhoto: 'カメラで撮影',
+    partnerRemoveAttachmentAria: '添付画像を削除',
+    partnerCaptionHint: '送信前に下にキャプションを追加できます。',
+    partnerUploading: '画像をアップロード中…',
+    partnerImageTooLarge: '画像が大きすぎます（最大約 3 MB）。',
+    partnerImageInvalidType: '対応していない画像形式です。',
+    nanoaiHostedSection: 'NanoAI 上でチャット — 直接利用と同じログイン（推奨）',
+    nanoaiHostedHint:
+      'お客様は NanoAI で Google ログインが必要で、プラットフォームを直接使う場合と同じです。同一アカウントで端末間同期し、/messaging/my-chats で店舗一覧を確認できます。スレッドは従来どおり受信箱に表示されます。',
+    nanoaiHostedUrlLabel: 'チャットリンク',
+    nanoaiHostedIframeTitle: '自サイトへの埋め込み（iframe）',
+    nanoaiHostedIframeTitleAttr: 'NanoAI チャット',
+    nanoaiHostedIframeHelp:
+      'HTML に貼り付けます。お客様は NanoAI の枠内でチャット・ログイン（ファーストパーティ Cookie）し、匿名 API には依存しません。',
+    copyIframeSnippetButton: 'iframe コードをコピー',
+    iframeSnippetCopiedToast: 'iframe コードをコピーしました。',
+    addAnotherWorkspace: 'ワークスペースを追加',
+    cancelAddWorkspace: 'キャンセル',
+    fbLinkedLine: 'Facebook Page を連携済み: {pageId}',
+    zaloLinkedLine: 'Zalo OA の webhook とトークンを保存済みです。',
+    credentialsKeepHint:
+      '変更しないトークンやシークレットは空欄のままにしてください。保存済みの値が使われます。',
+    setupColumnTitle: 'チャネルと AI アシスタント',
+    chatColumnTitle: 'お客様チャット',
+    messagingSettingsLink: 'チャネル・AI 設定',
+    messagingSettingsPageTitle: 'メッセージ設定（店舗）',
+    messagingInboxDescription: '左に顧客一覧。会話を開くと、入力欄は画面下に固定されます。',
+    noWorkspaceInboxCta: 'メッセージ用ワークスペースがありません。設定で店舗を作成し Facebook / Zalo / チャットを接続してください。',
+    goToInbox: '受信箱へ',
+  },
+  partnerMessagingAi: {
+    panelTitle: 'AI 自動返信',
+    panelSubtitle:
+      '保存した FAQ に一致すれば入力遅延付きで素早く返信します。一致しない場合は設定時間だけ人間の返信を待ち、間に合わなければ店舗ポリシー・トーン・在庫情報を踏まえて AI が回答します。',
+    tabSettings: '設定',
+    tabFaq: 'FAQ',
+    tabInventory: '在庫・サンプル',
+    enableLabel: '自動返信を有効にする',
+    enableHint: 'オフにすると、手動の返信のみ送信されます。',
+    delayLabel: 'AI が返信するまでの待ち時間（秒）',
+    delayHint: '15〜900 秒。先に返信した場合は AI は送りません。',
+    typingMinLabel: '入力遅延 最小（ms）',
+    typingMaxLabel: '入力遅延 最大（ms）',
+    typingHint: 'FAQ 用：送信前にこの範囲でランダム遅延（0〜30000）。',
+    shopPolicyLabel: '店舗ポリシー・ルール',
+    shopPolicyPlaceholder:
+      '例：手付け 30%、交換不可、不良品は 7 日以内交換、市内送料無料 など。',
+    toneLabel: 'トーン・返信の指示',
+    tonePlaceholder: '例：丁寧で簡潔に。在庫が不明なときは断定しない。',
+    disclosureToggle: 'AI である旨を文末に付ける',
+    disclosureSuffixLabel: '表示文（メッセージ末尾）',
+    disclosureSuffixHint: '各 AI メッセージの末尾に表示し、自動返信であることを示します。',
+    saveSettings: '設定を保存',
+    loadError: 'AI 設定を読み込めませんでした。',
+    faqKeywordsLabel: 'トリガー用キーワード',
+    faqKeywordsHint: 'カンマまたは改行で区切ります。',
+    faqAnswerLabel: '回答',
+    faqSortLabel: '並び順',
+    faqActiveLabel: '有効',
+    inactiveBadge: 'オフ',
+    addFaq: 'FAQ を追加',
+    saveRow: '保存',
+    deleteRow: '削除',
+    cancelEdit: 'キャンセル',
+    inventoryName: '商品・サンプル名',
+    inventorySku: 'SKU（任意）',
+    inventoryDesc: '短い説明',
+    inventoryStock: '在庫メモ',
+    inventoryPrice: '価格の目安（テキスト）',
+    inventorySort: '並び順',
+    inventoryActive: '有効',
+    addInventory: '在庫行を追加',
+    edit: '編集',
+    emptyFaq: 'FAQ がありません。キーワードと回答を追加すると即時返信に使われます。',
+    emptyInventory: '在庫データがありません。項目を追加すると AI が適切に案内できます。',
+    cronSetupHint:
+      '本番：GET または POST /api/cron/messaging-partner-ai を Authorization: Bearer MESSAGING_PARTNER_AI_CRON_SECRET で定期実行（例：毎分）し、DEEPSEEK_API_KEY を設定。cron がないとジョブは保留のまま AI は送りません。`next dev` は待機後に自動処理（cron 不要）。ローカルで `next start` かつ cron なしの場合は .env に MESSAGING_PARTNER_AI_DEV_WAKE=1。',
+    toggleStatusOn: 'オン',
+    toggleStatusOff: 'オフ',
+    aiEngineTitle: 'スマート返信 AI',
+    aiEngineDescription:
+      'FAQ に一致する場合は保存済みの回答を使用。それ以外は待機後に DeepSeek API（モデル {model}）を呼び出します。',
+    disclosureSwitchOn: '文末に注記',
+    disclosureSwitchOff: '注記なし',
+  },
+  partnerGuestChat: {
+    notFoundTitle: 'チャットページが見つかりません',
+    notFoundDescription: 'リンクが無効か、店舗が機能をオフにしています。',
+    pageTitleSuffix: 'NanoAI でチャット',
+    metaDescription: 'NanoAI で {shop} にメッセージ — Facebook、Zalo、店舗サイトと同じ受信箱です。',
+    shopLabel: '店舗',
+    subline:
+      'NanoAI 上で店舗とチャットしています。店舗は管理画面から返信します。Google でログインすると端末間で履歴が同期されます。',
+    placeholder: 'メッセージを入力…',
+    send: '送信',
+    emptyThread: 'まだメッセージがありません。下から最初のメッセージを送ってください。',
+    loadError: 'メッセージを読み込めませんでした。',
+    sendError: '送信に失敗しました。',
+    pollNote: '店舗からの返信が数秒遅れる場合があります。',
+    guestAttachPhoto: 'ライブラリ',
+    guestTakePhoto: 'カメラで撮影',
+    guestRemoveAttachment: '写真を削除',
+    guestUploading: 'アップロード中…',
+    guestImageTooLarge: '画像が大きすぎます（最大約 3 MB）。',
+    guestImageInvalidType: 'JPG / PNG / WebP / GIF のみ対応です。',
+    guestCaptionHint: '写真に説明を添えられます（任意）。',
+    loginPromptTitle: 'チャットするにはログイン',
+    loginPromptDescription:
+      'Google アカウントでログインすると、店舗へのメッセージをスマホや PC で続けられます。',
+    signInWithGoogle: 'Google でログイン',
+    linkMyShops: '自分のメッセージ',
+    sendKeyboardHint: 'Enter で送信 · Shift+Enter で改行',
+  },
+  messagingMyChats: {
+    pageTitle: '自分のメッセージ',
+    pageDescription: 'NanoAI でやり取りした店舗一覧です。',
+    emptyList: 'まだ会話がありません。店舗のチャットリンクを開いてください。',
+    openChat: 'チャットを開く',
+    lastActivity: '最終アクティビティ',
+    loadFailed: '一覧を読み込めませんでした。',
+    backHomeAria: 'ホームへ戻る',
   },
   navGroup: {
     try_on: '試着・コーデ',
@@ -5195,6 +6235,9 @@ const KO_DICTIONARY: Dictionary = {
     viewPlan: '요금제 보기',
     topUpCredits: '크레딧 충전',
     tasksHub: '작업 및 대기열',
+    supportChat: '고객 채팅',
+    partnerInbox: '고객 수신함(매장)',
+    myChats: '내 메시지(매장)',
   },
   referral: {
     pageTitle: '친구 초대 – 크레딧 받기',
@@ -5260,6 +6303,210 @@ const KO_DICTIONARY: Dictionary = {
     bellSubscribedShort: '이 기기에서 푸시가 켜져 있습니다',
     bellDeniedHint: '알림이 차단되었습니다. 브라우저 설정에서 NanoAI 알림을 허용하세요.',
     bellSyncHint: '알림은 허용됐지만 서버에 이 기기가 없습니다. 동기화를 누르세요.',
+  },
+  supportChat: {
+    pageTitle: '고객 지원 채팅',
+    metaDescription:
+      'NanoAI 팀에 메시지를 보냅니다. 웹훅을 설정하면 Facebook Messenger·Zalo OA와 동기화됩니다.',
+    brandBadge: 'NanoAI',
+    headline: '채팅으로 문의',
+    subline:
+      '이 페이지의 메시지는 고객 케어 수신함으로 모입니다(서버에서 Facebook/Zalo 연동 시).',
+    loginRequired: '지원팀에 문의하려면 로그인하세요.',
+    loginSupportingLine: 'NanoAI 계정으로 로그인한 뒤 이 페이지에서 메시지를 보낼 수 있습니다.',
+    loginLink: '로그인',
+    placeholder: '메시지 입력…',
+    send: '보내기',
+    emptyThread: '아직 메시지가 없습니다. 아래에서 첫 질문을 보내세요.',
+    loadError: '대화를 불러오지 못했습니다.',
+    sendError: '전송에 실패했습니다.',
+    pollNote: '관리자 답변이 몇 초 지연될 수 있습니다. 페이지를 새로고침해도 됩니다.',
+    sendKeyboardHint: 'Enter로 전송 · Shift+Enter로 줄 바꿈',
+  },
+  customerCareAdmin: {
+    pageTitle: '고객 케어',
+    pageDescription:
+      'NanoAI 플랫폼 수신함만 표시(지원 채팅 및 플랫폼 연동 Facebook/Zalo). 각 샵 수신함은 대시보드 → 메시지; 고객으로 샵과 채팅은 내 메시지 — 서로 섞이지 않습니다.',
+    inboxTitle: '대화(플랫폼)',
+    pickConversation: '대화를 선택하면 메시지가 표시됩니다.',
+    replyPlaceholder: '답장 작성…',
+    send: '보내기',
+    refresh: '새로고침',
+    channelFacebook: 'Facebook',
+    channelZalo: 'Zalo',
+    channelInternal: 'NanoAI',
+    channelWidget: '웹(임베드)',
+    unknownUser: '고객',
+    sendFailed: '전송 실패',
+    noMessages: '메시지가 없습니다.',
+    sendKeyboardHint: 'Enter로 전송 · Shift+Enter로 줄 바꿈',
+  },
+  partnerMessaging: {
+    pageTitle: '파트너 고객 메시지',
+    pageDescription:
+      '매장용 워크스페이스: Facebook 페이지, Zalo OA, NanoAI 웹 채팅 또는 사이트 API 임베드로 고객 문의를 한 수신함에서 관리합니다.',
+    cardTitle: '고객 수신함(파트너)',
+    cardDescription: 'Facebook, Zalo, NanoAI 웹 채팅, 임베드 채팅을 한 수신함에서.',
+    createWorkspace: '메시징 워크스페이스 만들기',
+    workspaceNameLabel: '매장 / 브랜드 이름',
+    workspaceLabel: '워크스페이스',
+    createButton: '만들기',
+    saveOk: '저장되었습니다.',
+    channelsSection: '채널(Facebook 및 Zalo)',
+    fbPageId: 'Facebook Page ID',
+    fbPageToken: '페이지 액세스 토큰',
+    fbVerifyToken: '검증 토큰(Webhook GET)',
+    saveFacebook: 'Facebook 저장',
+    zaloSecret: 'Webhook 시크릿(헤더)',
+    zaloToken: 'OA 액세스 토큰',
+    saveZalo: 'Zalo 저장',
+    embedSection: '자사 사이트 익명 임베드 API(선택)',
+    embedHint:
+      '매장 도메인에서 API를 호출합니다(CORS 허용). 브라우저마다 localStorage의 고정 UUID를 X-Session-Id로 보냅니다.',
+    embedHeadersHelp:
+      '헤더에 X-Embed-Key(위 키)와 X-Session-Id(방문자 브라우저의 고정 UUID)를 보내세요.',
+    embedAnonymousFootnote:
+      'NanoAI 로그인을 쓰지 않습니다. 매장은 실제 신원을 알 수 없고 Google 계정과도 연동되지 않습니다. NanoAI를 직접 열 때와 같은 로그인(「내 메시지」 포함)을 원하면 위 링크나 iframe을 사용하세요.',
+    inboxTitle: '고객 대화',
+    inboxSearchPlaceholder: '이름 또는 메시지로 검색…',
+    inboxNoSearchResults: '일치하는 대화가 없습니다.',
+    inboxSideInfoTab: '정보',
+    inboxSideOrderTab: '주문 생성',
+    inboxSideNoNotes: '메모가 아직 없습니다',
+    inboxSideNotePlaceholder: '메모 입력(Enter 저장)',
+    inboxSideOrderEmpty: '주문 내역이 없습니다',
+    inboxSideCreateOrder: '주문 생성',
+    pickConversation: '대화를 선택하세요.',
+    replyPlaceholder: '답장 작성…',
+    send: '보내기',
+    refresh: '새로고침',
+    channelFacebook: 'Facebook',
+    channelZalo: 'Zalo',
+    channelWidget: '웹',
+    unknownUser: '고객',
+    noMessages: '메시지가 없습니다.',
+    replyKeyboardHint: 'Enter로 전송 · Shift+Enter로 줄 바꿈',
+    partnerAttachPhoto: '사진 보관함',
+    partnerTakePhoto: '사진 촬영',
+    partnerRemoveAttachmentAria: '첨부 이미지 제거',
+    partnerCaptionHint: '보내기 전 아래에 설명을 추가할 수 있습니다.',
+    partnerUploading: '이미지 업로드 중…',
+    partnerImageTooLarge: '이미지가 너무 큽니다(최대 약 3 MB).',
+    partnerImageInvalidType: '지원하지 않는 이미지 형식입니다.',
+    nanoaiHostedSection: 'NanoAI에서 채팅 — 직접 이용과 동일한 로그인(권장)',
+    nanoaiHostedHint:
+      '고객은 NanoAI에서 Google 로그인이 필요하며, 플랫폼을 직접 쓸 때와 같습니다. 한 계정으로 기기 간 동기화되며 /messaging/my-chats에서 매장 목록을 볼 수 있습니다. 대화는 기존과 같이 수신함에 표시됩니다.',
+    nanoaiHostedUrlLabel: '채팅 링크',
+    nanoaiHostedIframeTitle: '자사 사이트에 넣기(iframe)',
+    nanoaiHostedIframeTitleAttr: 'NanoAI 채팅',
+    nanoaiHostedIframeHelp:
+      'HTML에 붙여 넣으세요. 고객은 NanoAI 프레임 안에서 채팅·로그인(퍼스트파티 쿠키)하며 익명 임베드 API에 의존하지 않습니다.',
+    copyIframeSnippetButton: 'iframe 코드 복사',
+    iframeSnippetCopiedToast: 'iframe 코드를 복사했습니다.',
+    addAnotherWorkspace: '워크스페이스 추가',
+    cancelAddWorkspace: '취소',
+    fbLinkedLine: 'Facebook Page 연결됨: {pageId}',
+    zaloLinkedLine: 'Zalo OA webhook 및 토큰이 저장되었습니다.',
+    credentialsKeepHint: '바꾸지 않을 토큰이나 시크릿은 비워 두면 저장된 값이 유지됩니다.',
+    setupColumnTitle: '채널 및 AI 어시스턴트',
+    chatColumnTitle: '고객 채팅',
+    messagingSettingsLink: '채널·AI 설정',
+    messagingSettingsPageTitle: '메시지 설정(매장)',
+    messagingInboxDescription: '왼쪽에 고객 목록. 대화를 열면 입력창이 화면 하단에 고정됩니다.',
+    noWorkspaceInboxCta: '메시징 워크스페이스가 없습니다. 설정에서 매장을 만들고 Facebook / Zalo / 채팅을 연결하세요.',
+    goToInbox: '받은편지함으로',
+  },
+  partnerMessagingAi: {
+    panelTitle: 'AI 자동 답장',
+    panelSubtitle:
+      '저장된 FAQ와 일치하면 입력 지연을 두고 빠르게 답합니다. 일치하지 않으면 설정한 시간 동안 직접 답장을 기다린 뒤, 시간이 지나면 매장 정책·톤·재고 정보를 바탕으로 AI가 답합니다.',
+    tabSettings: '설정',
+    tabFaq: 'FAQ',
+    tabInventory: '재고·샘플',
+    enableLabel: '자동 답장 사용',
+    enableHint: '끄면 직접 보낸 메시지만 전송됩니다.',
+    delayLabel: 'AI 답장 전 대기(초)',
+    delayHint: '15–900초. 먼저 답하면 AI는 보내지 않습니다.',
+    typingMinLabel: '입력 지연 최소(ms)',
+    typingMaxLabel: '입력 지연 최대(ms)',
+    typingHint: 'FAQ용: 전송 전 이 범위에서 무작위 지연(0–30000).',
+    shopPolicyLabel: '매장 정책·규정',
+    shopPolicyPlaceholder:
+      '예: 계약금 30%, 교환 불가, 불량 시 7일 이내 교환, 시내 무료배송 등.',
+    toneLabel: '말투·답장 지침',
+    tonePlaceholder: '예: 정중하고 간결하게. 재고가 불확실하면 단정 짓지 않기.',
+    disclosureToggle: '메시지 끝에 AI 안내 문구 추가',
+    disclosureSuffixLabel: '안내 문구(메시지 끝)',
+    disclosureSuffixHint: '각 AI 메시지 끝에 표시되어 자동 답장임을 알립니다.',
+    saveSettings: '설정 저장',
+    loadError: 'AI 설정을 불러오지 못했습니다.',
+    faqKeywordsLabel: '트리거 키워드',
+    faqKeywordsHint: '쉼표 또는 줄바꿈으로 구분.',
+    faqAnswerLabel: '답변',
+    faqSortLabel: '순서',
+    faqActiveLabel: '사용',
+    inactiveBadge: '끔',
+    addFaq: 'FAQ 추가',
+    saveRow: '저장',
+    deleteRow: '삭제',
+    cancelEdit: '취소',
+    inventoryName: '상품·샘플 이름',
+    inventorySku: 'SKU(선택)',
+    inventoryDesc: '짧은 설명',
+    inventoryStock: '재고 메모',
+    inventoryPrice: '가격 힌트(텍스트)',
+    inventorySort: '순서',
+    inventoryActive: '사용',
+    addInventory: '재고 행 추가',
+    edit: '편집',
+    emptyFaq: 'FAQ가 없습니다. 키워드와 답을 추가하면 즉시 답장에 사용됩니다.',
+    emptyInventory: '재고 데이터가 없습니다. 항목을 추가하면 AI가 정확히 안내합니다.',
+    cronSetupHint:
+      '운영: GET 또는 POST /api/cron/messaging-partner-ai를 Authorization: Bearer MESSAGING_PARTNER_AI_CRON_SECRET으로 주기 호출(예: 매분)하고 DEEPSEEK_API_KEY를 설정하세요. cron이 없으면 작업이 대기만 하고 AI가 보내지 않습니다. `next dev`는 대기 시간 후 자동 처리(cron 불필요). 로컬 `next start`에 cron이 없으면 .env에 MESSAGING_PARTNER_AI_DEV_WAKE=1.',
+    toggleStatusOn: '켜짐',
+    toggleStatusOff: '꺼짐',
+    aiEngineTitle: '스마트 답장 AI',
+    aiEngineDescription:
+      'FAQ와 일치하면 저장된 답변을 사용하고, 그 외는 대기 후 DeepSeek API(모델 {model})를 호출합니다.',
+    disclosureSwitchOn: '맺음말 추가',
+    disclosureSwitchOff: '맺음말 없음',
+  },
+  partnerGuestChat: {
+    notFoundTitle: '채팅 페이지를 찾을 수 없습니다',
+    notFoundDescription: '링크가 잘못되었거나 매장이 기능을 껐습니다.',
+    pageTitleSuffix: 'NanoAI 채팅',
+    metaDescription: 'NanoAI에서 {shop}에 메시지 — Facebook, Zalo, 웹 매장과 같은 수신함입니다.',
+    shopLabel: '매장',
+    subline:
+      'NanoAI에서 매장과 채팅합니다. 매장은 대시보드에서 답장합니다. Google로 로그인하면 기기 간에 메시지가 동기화됩니다.',
+    placeholder: '메시지 입력…',
+    send: '보내기',
+    emptyThread: '아직 메시지가 없습니다. 아래에서 첫 메시지를 보내세요.',
+    loadError: '메시지를 불러오지 못했습니다.',
+    sendError: '전송에 실패했습니다.',
+    pollNote: '매장 답변이 몇 초 지연될 수 있습니다.',
+    guestAttachPhoto: '사진 보관함',
+    guestTakePhoto: '카메라로 촬영',
+    guestRemoveAttachment: '사진 제거',
+    guestUploading: '사진 업로드 중…',
+    guestImageTooLarge: '이미지가 너무 큽니다(최대 약 3 MB).',
+    guestImageInvalidType: 'JPG, PNG, WebP, GIF만 지원합니다.',
+    guestCaptionHint: '사진에 설명을 덧붙일 수 있습니다(선택).',
+    loginPromptTitle: '채팅하려면 로그인',
+    loginPromptDescription:
+      'Google 계정으로 로그인하면 매장과의 대화를 휴대폰이나 PC에서 이어갈 수 있습니다.',
+    signInWithGoogle: 'Google로 로그인',
+    linkMyShops: '내 메시지',
+    sendKeyboardHint: 'Enter로 전송 · Shift+Enter로 줄 바꿈',
+  },
+  messagingMyChats: {
+    pageTitle: '내 메시지',
+    pageDescription: 'NanoAI에서 메시지를 주고받은 매장입니다.',
+    emptyList: '대화가 없습니다. 매장 채팅 링크를 열어 시작하세요.',
+    openChat: '채팅 열기',
+    lastActivity: '최근 활동',
+    loadFailed: '목록을 불러오지 못했습니다.',
+    backHomeAria: '홈으로',
   },
   navGroup: {
     try_on: '가상 피팅·스타일링',
