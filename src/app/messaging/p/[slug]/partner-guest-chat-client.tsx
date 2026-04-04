@@ -483,31 +483,24 @@ export function PartnerGuestChatClient({
 
   return (
     <div className="flex h-[100dvh] w-full flex-col overflow-hidden px-2 pb-0 pt-0 sm:mx-auto sm:max-w-lg sm:px-3">
-      <Card className="flex h-full min-h-0 flex-col overflow-hidden border-border shadow-md">
-        <div className="shrink-0 border-b border-border/70 bg-gradient-to-r from-violet-600/8 via-background to-cyan-600/8 px-2.5 py-1.5">
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0 flex-1 space-y-0.5">
-              <p className="m-0 truncate text-sm font-semibold leading-tight tracking-tight text-foreground">
-                {shopDisplayName}
-              </p>
-              <p className="m-0 line-clamp-2 text-[10px] leading-tight text-muted-foreground">{t.subline}</p>
-            </div>
-            {showMyChatsLink ? (
-              <Button variant="outline" size="sm" asChild className="h-7 shrink-0 gap-1 px-2 text-[11px]">
-                <Link href="/messaging/my-chats">
-                  <List className="h-3.5 w-3.5" aria-hidden />
-                  {t.linkMyShops}
-                </Link>
-              </Button>
-            ) : null}
-          </div>
-          <p className="m-0 mt-1 border-t border-border/30 pt-1 text-[10px] leading-tight text-muted-foreground">
-            {t.pollNote}
-          </p>
-        </div>
+      <Card className="relative flex h-full min-h-0 flex-col overflow-hidden border-border shadow-md">
+        <h1 className="sr-only">{shopDisplayName}</h1>
+        {showMyChatsLink ? (
+          <Button
+            variant="outline"
+            size="icon"
+            className="absolute right-2 top-2 z-10 h-8 w-8 rounded-full border-border/80 bg-background/95 shadow-sm backdrop-blur-sm"
+            asChild
+            title={t.linkMyShops}
+          >
+            <Link href="/messaging/my-chats" aria-label={t.linkMyShops}>
+              <List className="h-4 w-4" aria-hidden />
+            </Link>
+          </Button>
+        ) : null}
         <CardContent className="flex min-h-0 flex-1 flex-col p-0">
           <div
-            className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain bg-muted/20 px-3 py-2"
+            className={`flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain bg-muted/20 px-3 py-2 ${showMyChatsLink ? 'pt-11' : ''}`}
             role="log"
             aria-live="polite"
             aria-relevant="additions"
