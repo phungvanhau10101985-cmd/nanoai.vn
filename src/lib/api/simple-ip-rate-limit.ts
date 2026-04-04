@@ -18,7 +18,7 @@ function pruneIfStale(key: string, now: number) {
 export function isRateLimited(key: string, max: number, windowMs: number): boolean {
   const now = Date.now()
   pruneIfStale(key, now)
-  let b = buckets.get(key)
+  const b = buckets.get(key)
   if (!b || now >= b.resetAt) {
     buckets.set(key, { count: 1, resetAt: now + windowMs })
     return false
