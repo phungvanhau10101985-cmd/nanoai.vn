@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
+import { headers } from 'next/headers'
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
 import { getCurrentWebLocale, getServerDictionary } from '@/lib/i18n/server'
 import { buildMetadata } from '@/lib/seo'
@@ -63,8 +64,14 @@ export async function generateMetadata(props: { params: Promise<{ slug: string }
   })
 }
 
-export default async function PartnerGuestChatPage(props: { params: Promise<{ slug: string }> }) {
+export default async function PartnerGuestChatPage(props: {
+  params: Promise<{ slug: string }>
+  searchParams: Promise<{ embed?: string }>
+}) {
   const { slug } = await props.params
+  const search = await props.searchParams
+  const requestHeaders = headers()
+  const isIframeRequest = requestHeaders.get('sec-fetch-dest') === 'iframe'
   if (isReservedMessagingGuestSlug(slug)) notFound()
 
   const db = createServiceRoleClient()
@@ -81,7 +88,12 @@ export default async function PartnerGuestChatPage(props: { params: Promise<{ sl
   return (
     <>
       <Toaster />
-      <PartnerGuestChatClient slug={slug} shopDisplayName={partner.display_name} t={t.partnerGuestChat} />
+      <PartnerGuestChatClient
+        slug={slug}
+        shopDisplayName={partner.display_name}
+        t={t.partnerGuestChat}
+        isEmbedded={isIframeRequest || String(search.embed || '') === '1'}
+      />
     </>
   )
 }

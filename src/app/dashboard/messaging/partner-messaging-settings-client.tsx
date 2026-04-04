@@ -18,7 +18,8 @@ import {
   savePartnerZaloChannel,
 } from '@/app/dashboard/messaging/actions'
 import { PartnerAiSettingsPanel } from '@/app/dashboard/messaging/partner-ai-settings-panel'
-import { ArrowLeft, Copy, RefreshCw } from 'lucide-react'
+import { ArrowLeft, RefreshCw } from 'lucide-react'
+import type { WebLocale } from '@/lib/i18n/config'
 
 type ChannelSnap = {
   facebookPageId: string | null
@@ -33,13 +34,13 @@ type TAi = Dictionary['partnerMessagingAi']
 
 export function PartnerMessagingSettingsClient({
   initialPartners,
-  embedBaseUrl,
+  locale,
   t,
   tAi,
   partnerAiLlmModel,
 }: {
   initialPartners: PartnerRow[]
-  embedBaseUrl: string
+  locale: WebLocale
   t: T
   tAi: TAi
   partnerAiLlmModel: string
@@ -56,8 +57,6 @@ export function PartnerMessagingSettingsClient({
   const [pending, startTransition] = useTransition()
   const [channelSnap, setChannelSnap] = useState<ChannelSnap | null>(null)
   const [showAddWorkspace, setShowAddWorkspace] = useState(false)
-
-  const selectedPartner = partners.find((p) => p.id === selectedPartnerId)
 
   const loadChannelStatus = useCallback(() => {
     if (!selectedPartnerId) {
@@ -143,29 +142,6 @@ export function PartnerMessagingSettingsClient({
       }
       toast({ title: t.saveOk })
       loadChannelStatus()
-    })
-  }
-
-  const hostedChatUrl =
-    embedBaseUrl && selectedPartner?.slug
-      ? `${embedBaseUrl.replace(/\/$/, '')}/messaging/p/${encodeURIComponent(selectedPartner.slug)}`
-      : ''
-
-  const embedUrl =
-    embedBaseUrl && selectedPartner?.slug
-      ? `${embedBaseUrl.replace(/\/$/, '')}/api/messaging/embed/${selectedPartner.slug}`
-      : ''
-
-  const iframeTitleEscaped = t.nanoaiHostedIframeTitleAttr.replace(/"/g, '&quot;')
-  const iframeSnippet =
-    hostedChatUrl.length > 0
-      ? `<iframe src="${hostedChatUrl.replace(/"/g, '&quot;')}" title="${iframeTitleEscaped}" width="100%" height="560" style="border:0;border-radius:12px;max-width:100%" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>`
-      : ''
-
-  const copyIframeSnippet = () => {
-    if (!iframeSnippet) return
-    void navigator.clipboard.writeText(iframeSnippet).then(() => {
-      toast({ title: t.iframeSnippetCopiedToast })
     })
   }
 
@@ -328,60 +304,23 @@ export function PartnerMessagingSettingsClient({
             </CardContent>
           </Card>
 
-          {hostedChatUrl ? (
-            <Card className="border-border/60 border-violet-500/25 bg-muted/30 shadow-sm">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-semibold">{t.nanoaiHostedSection}</CardTitle>
-                <CardDescription className="text-xs leading-relaxed">{t.nanoaiHostedHint}</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <p className="mb-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                    {t.nanoaiHostedUrlLabel}
-                  </p>
-                  <code className="block break-all rounded-md border bg-background px-3 py-2 text-[11px] leading-relaxed">
-                    {hostedChatUrl}
-                  </code>
-                </div>
-                <div>
-                  <p className="mb-1.5 text-[10px] font-semibold text-foreground">{t.nanoaiHostedIframeTitle}</p>
-                  <p className="mb-2 text-[11px] leading-relaxed text-muted-foreground">{t.nanoaiHostedIframeHelp}</p>
-                  <code className="mb-2 block max-h-40 overflow-auto break-all whitespace-pre-wrap rounded-md border bg-background px-3 py-2 text-[10px] leading-relaxed">
-                    {iframeSnippet}
-                  </code>
-                  <Button type="button" variant="secondary" size="sm" className="gap-1.5" onClick={copyIframeSnippet}>
-                    <Copy className="h-3.5 w-3.5" aria-hidden />
-                    {t.copyIframeSnippetButton}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ) : null}
-
-          {embedUrl ? (
-            <Card className="border-border/60 bg-muted/30 shadow-sm">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-semibold">{t.embedSection}</CardTitle>
-                <CardDescription className="text-xs leading-relaxed">{t.embedHint}</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <code className="block break-all rounded-md border bg-background px-3 py-2 text-[11px] leading-relaxed">
-                  {embedUrl}
-                </code>
-                <p className="text-[11px] leading-relaxed text-muted-foreground">
-                  {t.embedHeadersHelp}{' '}
-                  <span className="font-mono text-[10px]">X-Embed-Key</span> = {selectedPartner?.embed_key}
-                </p>
-                <p className="rounded-md border border-amber-500/25 bg-amber-500/5 px-3 py-2 text-[11px] leading-relaxed text-foreground/90">
-                  {t.embedAnonymousFootnote}
-                </p>
-              </CardContent>
-            </Card>
-          ) : null}
+          <Card className="border-border/60 border-violet-500/20 bg-muted/20 shadow-sm">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold">{t.messagingSettingsApiHubCardTitle}</CardTitle>
+              <CardDescription className="text-xs leading-relaxed">{t.messagingSettingsApiHubCardBody}</CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-wrap gap-2">
+              <Button type="button" variant="default" size="sm" asChild>
+                <Link href="/dashboard/api-integration#partner-api-keys">{t.apiIntegrationGuideLink}</Link>
+              </Button>
+              <p className="w-full text-[11px] text-muted-foreground">{t.apiIntegrationGuideShort}</p>
+            </CardContent>
+          </Card>
 
           {selectedPartnerId ? (
             <PartnerAiSettingsPanel
               partnerId={selectedPartnerId}
+              locale={locale}
               t={tAi}
               saveOkMessage={t.saveOk}
               aiModelId={partnerAiLlmModel}

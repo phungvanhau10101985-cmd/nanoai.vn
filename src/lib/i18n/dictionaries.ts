@@ -96,6 +96,8 @@ export type Dictionary = {
     supportChat: string
     /** Menu → /dashboard/messaging (inbox khách của shop) */
     partnerInbox: string
+    /** Menu → /dashboard/api-integration (đối tác: khóa API, nhúng chat) */
+    partnerApiIntegration: string
     /** Menu → /messaging/my-chats (khách xem shop đã chat) */
     myChats: string
   }
@@ -273,8 +275,23 @@ export type Dictionary = {
     /** Thuộc tính title="" trong mã iframe (a11y) */
     nanoaiHostedIframeTitleAttr: string
     nanoaiHostedIframeHelp: string
+    copyHostedChatLinkButton: string
+    hostedChatLinkCopiedToast: string
     copyIframeSnippetButton: string
     iframeSnippetCopiedToast: string
+    integrationSectionTitle: string
+    integrationSectionHint: string
+    googleTagLabel: string
+    googleTagPlaceholder: string
+    facebookPixelLabel: string
+    facebookPixelPlaceholder: string
+    nanoaiEmbedCodeLabel: string
+    facebookChatEmbedCodeLabel: string
+    zaloChatEmbedCodeLabel: string
+    embedCodePlaceholder: string
+    copyNanoaiEmbedButton: string
+    copyFacebookChatEmbedButton: string
+    copyZaloChatEmbedButton: string
     addAnotherWorkspace: string
     cancelAddWorkspace: string
     fbLinkedLine: string
@@ -290,6 +307,12 @@ export type Dictionary = {
     messagingInboxDescription: string
     noWorkspaceInboxCta: string
     goToInbox: string
+    /** Link tới /dashboard/api-integration */
+    apiIntegrationGuideLink: string
+    apiIntegrationGuideShort: string
+    /** /dashboard/messaging/settings — thẻ dẫn sang trang tích hợp API (nhúng/keys không còn trên trang này) */
+    messagingSettingsApiHubCardTitle: string
+    messagingSettingsApiHubCardBody: string
   }
   /** /dashboard/messaging — trợ lý AI tự động (FAQ + delay + DeepSeek) */
   partnerMessagingAi: {
@@ -298,6 +321,17 @@ export type Dictionary = {
     tabSettings: string
     tabFaq: string
     tabInventory: string
+    /** Tab thống kê token API LLM */
+    tabUsage: string
+    /** {days} = số ngày lookback */
+    tokenUsageIntro: string
+    tokenUsageEmpty: string
+    tokenUsageColProvider: string
+    tokenUsageColModel: string
+    tokenUsageColCalls: string
+    tokenUsageColPrompt: string
+    tokenUsageColCompletion: string
+    tokenUsageColTotal: string
     enableLabel: string
     enableHint: string
     delayLabel: string
@@ -330,7 +364,32 @@ export type Dictionary = {
     inventoryStock: string
     inventoryPrice: string
     inventorySort: string
-    inventoryActive: string
+    inventoryImageUrl: string
+    inventoryImageUrlHint: string
+    inventoryProductUrl: string
+    inventoryProductUrlHint: string
+    inventoryOpenProductPage: string
+    inventoryConsultNote: string
+    inventoryConsultNoteHint: string
+    inventoryDescHint: string
+    inventoryStockHint: string
+    inventoryFieldsGuide: string
+    /** Nút/link tới /dashboard/api-integration — Open Catalog */
+    inventoryOpenApiLink: string
+    inventoryOpenApiHint: string
+    inventoryDownloadTemplate: string
+    inventoryExportExcel: string
+    inventoryImportExcel: string
+    inventoryImportReplaceWarning: string
+    /** {count} tổng dòng; {inserted} thêm mới; {updated} cập nhật */
+    inventoryImportSuccess: string
+    inventoryImportFailed: string
+    inventoryErrInvalidXlsx: string
+    inventoryErrEmptySheet: string
+    inventoryErrMissingName: string
+    inventoryErrNoRows: string
+    inventoryErrNoFile: string
+    inventoryErrFileTooLarge: string
     addInventory: string
     edit: string
     emptyFaq: string
@@ -344,6 +403,113 @@ export type Dictionary = {
     aiEngineDescription: string
     disclosureSwitchOn: string
     disclosureSwitchOff: string
+    /** FAQ mẫu: giới thiệu dưới tab FAQ */
+    faqPresetsIntro: string
+    faqPresetSaveHint: string
+    faqPresetAnswerRequired: string
+    faqCustomSectionTitle: string
+    faqCustomSectionIntro: string
+    faqCustomAddTitle: string
+    faqCustomQuestionLabel: string
+    faqCustomQuestionHint: string
+    faqCustomKeywordsRequired: string
+    faqPresetQuestions: {
+      stock: string
+      shipping: string
+      price: string
+      size_fit: string
+      payment: string
+      return_policy: string
+      order_track: string
+      warranty: string
+      authentic: string
+      promo: string
+    }
+    visionSearchTitle: string
+    visionSearchHint: string
+    visionSearchEnable: string
+    /** Chọn quốc gia shop → gợi ý vùng Vision */
+    visionShopCountryLabel: string
+    visionShopCountryHint: string
+    visionShopCountryCustom: string
+    visionShopCountryAdvancedHint: string
+    visionLocationLabel: string
+    visionCategoryLabel: string
+    visionBucketOverrideLabel: string
+    visionBucketOverrideHint: string
+    visionSyncButton: string
+    /** Gợi ý dưới nút đồng bộ: bật tính năng → tự đồng bộ nhiều lượt có giới hạn */
+    visionSyncAutoWhenEnableHint: string
+    visionSyncing: string
+    visionSyncOk: string
+    visionIndexReady: string
+    visionIndexNotReady: string
+    visionLastSynced: string
+    visionSyncErrorLabel: string
+    visionSyncToastImported: string
+    visionSyncToastRemoved: string
+    visionSyncToastMore: string
+    visionSyncToastIdle: string
+    /** Placeholder {n} = số lượt gọi API đồng bộ trong một chuỗi */
+    visionSyncChainedRounds: string
+    visionSyncChainedStoppedMaxRounds: string
+    visionSyncChainedStoppedTimeout: string
+    /** Chạm trần tuyệt đối số lượt — cần bấm đồng bộ hoặc kiểm tra lỗi */
+    visionSyncChainedAbortedSafety: string
+    /** Đồng bộ catalog Vision nền (cron VPS) */
+    visionBgSyncTitle: string
+    visionBgSyncHint: string
+    visionBgSyncButton: string
+    visionBgSyncUseResumeHint: string
+    visionBgSyncCancel: string
+    visionBgSyncDismiss: string
+    visionBgSyncStatusQueued: string
+    visionBgSyncStatusRunning: string
+    visionBgSyncStatusDone: string
+    visionBgSyncStatusError: string
+    visionBgSyncStatusIdle: string
+    visionBgSyncReportTitle: string
+    visionBgSyncFieldRounds: string
+    visionBgSyncFieldImported: string
+    visionBgSyncFieldRemoved: string
+    visionBgSyncFieldHasMore: string
+    visionBgSyncFieldLastScanned: string
+    visionBgSyncFieldStopped: string
+    visionBgSyncFieldMessage: string
+    visionBgSyncFieldServerError: string
+    visionBgSyncBoolYes: string
+    visionBgSyncBoolNo: string
+    visionBgSyncPollingNote: string
+    visionBgSyncEnqueueOk: string
+    visionBgSyncToastDone: string
+    visionBgSyncToastError: string
+    visionBgSyncAlreadyActive: string
+    visionBgSyncEnableVisionFirst: string
+    visionBgSyncSaveSettingsFirst: string
+    /** Map stoppedReason trong JSON báo cáo cron */
+    visionBgSyncStopCompleted: string
+    visionBgSyncStopError: string
+    visionBgSyncStopCronSlice: string
+    visionBgSyncStopBadCursor: string
+    visionBgSyncServerErrCursor: string
+    visionBgSyncMsgCompleted: string
+    visionBgSyncMsgInProgress: string
+    visionBgSyncMsgBadCursor: string
+    /** Xóa dòng kho → tự gỡ Vision (thay cho file danh sách gỡ) */
+    visionInventoryDeleteRemovesIndexNote: string
+    imageSearchApiTitle: string
+    imageSearchApiHint: string
+    imageSearchApiEnable: string
+    imageSearchApiKeyConfigured: string
+    imageSearchApiKeyMissing: string
+    imageSearchApiEndpointLabel: string
+    imageSearchApiBaseUrlNote: string
+    imageSearchApiDocHint: string
+    imageSearchApiGenerate: string
+    imageSearchApiGenerating: string
+    imageSearchApiKeyCreated: string
+    /** Link tới /dashboard/api-integration#partner-api-keys */
+    imageSearchApiManageKeysLink: string
   }
   /** /messaging/p/[slug] — khách chat với shop trên domain NanoAI */
   partnerGuestChat: {
@@ -371,6 +537,26 @@ export type Dictionary = {
     signInWithGoogle: string
     linkMyShops: string
     sendKeyboardHint: string
+    tryOnOpen: string
+    tryOnTitle: string
+    tryOnModelPhoto: string
+    tryOnGarmentPhoto: string
+    tryOnGenerate: string
+    tryOnGenerateWithCost: string
+    tryOnPreparing: string
+    tryOnNeedBoth: string
+    tryOnGarmentLimitReached: string
+    tryOnGarmentItemsLabel: string
+    tryOnFailed: string
+    tryOnReady: string
+    tryOnChargedToast: string
+    /** Hiển thị khi shop/AI đang chuẩn bị trả lời sau tin của khách */
+    shopTypingHint: string
+    visionMatchTitle: string
+    visionPickHint: string
+    visionPickBusy: string
+    visionPickError: string
+    visionProductLink: string
   }
   /** /messaging/my-chats — danh sách shop đã chat (tài khoản Google) */
   messagingMyChats: {
@@ -1341,6 +1527,7 @@ const VI_DICTIONARY: Dictionary = {
     tasksHub: 'Tác vụ & hàng đợi',
     supportChat: 'Chat hỗ trợ',
     partnerInbox: 'Inbox khách (shop)',
+    partnerApiIntegration: 'Tích hợp API (shop)',
     myChats: 'Tin nhắn của tôi (shop)',
   },
   home: {
@@ -1510,8 +1697,24 @@ const VI_DICTIONARY: Dictionary = {
     nanoaiHostedIframeTitleAttr: 'Chat NanoAI',
     nanoaiHostedIframeHelp:
       'Dán vào HTML trang của bạn. Khách chat và đăng nhập trong khung NanoAI (cookie first-party), không phụ thuộc API embed ẩn danh.',
+    copyHostedChatLinkButton: 'Sao chép liên kết chat',
+    hostedChatLinkCopiedToast: 'Đã sao chép liên kết chat.',
     copyIframeSnippetButton: 'Sao chép mã iframe',
     iframeSnippetCopiedToast: 'Đã sao chép mã nhúng.',
+    integrationSectionTitle: 'Thẻ theo dõi & mã nhúng',
+    integrationSectionHint:
+      'Thiết kế khu vực để dán Google tag, Facebook Pixel và mã nhúng chat. Bạn có thể sao chép nhanh mã nhúng NanoAI bên dưới.',
+    googleTagLabel: 'Google tag (GA4 / GTM)',
+    googleTagPlaceholder: 'Ví dụ: G-XXXXXXXXXX hoặc GTM-XXXXXXX',
+    facebookPixelLabel: 'Facebook Pixel / Meta Pixel',
+    facebookPixelPlaceholder: 'Ví dụ: 123456789012345',
+    nanoaiEmbedCodeLabel: 'Mã nhúng chat NanoAI',
+    facebookChatEmbedCodeLabel: 'Mã nhúng chat Facebook',
+    zaloChatEmbedCodeLabel: 'Mã nhúng chat Zalo',
+    embedCodePlaceholder: 'Dán đoạn script/iframe hoặc mã plugin vào đây…',
+    copyNanoaiEmbedButton: 'Sao chép mã chat NanoAI',
+    copyFacebookChatEmbedButton: 'Sao chép mã Facebook chat',
+    copyZaloChatEmbedButton: 'Sao chép mã Zalo chat',
     addAnotherWorkspace: 'Tạo thêm workspace',
     cancelAddWorkspace: 'Hủy',
     fbLinkedLine: 'Facebook Page đã liên kết: {pageId}',
@@ -1526,14 +1729,29 @@ const VI_DICTIONARY: Dictionary = {
       'Danh sách khách bên trái; khi mở một hội thoại, ô soạn tin cố định dưới cùng màn hình.',
     noWorkspaceInboxCta: 'Bạn chưa có workspace nhắn tin. Vào trang cài đặt để tạo shop và kết nối Facebook / Zalo / chat.',
     goToInbox: 'Về hộp thư',
+    apiIntegrationGuideLink: 'Hướng dẫn tích hợp API (khóa & endpoint)',
+    apiIntegrationGuideShort: 'Dành cho dev tích hợp web shop: nhúng chat, tìm ảnh sản phẩm, API thử đồ B2B.',
+    messagingSettingsApiHubCardTitle: 'Nhúng chat & API',
+    messagingSettingsApiHubCardBody:
+      'URL hosted, mã iframe, endpoint embed, khóa X-Embed-Key / Bearer và tài liệu cho developer đã chuyển sang trang «Tích hợp API» — không còn hiển thị trên trang cài đặt này.',
   },
   partnerMessagingAi: {
     panelTitle: 'Trợ lý AI tự động',
     panelSubtitle:
-      'Khớp FAQ trong DB thì trả lời nhanh (giả lập đang gõ). Không khớp: chờ bạn trả lời trong khoảng thời gian cấu hình; hết thời gian mà chưa trả lời thì AI dùng chính sách shop, giọng điệu và kho hàng để tư vấn.',
+      'Khớp FAQ (câu hỏi mẫu hoặc tuỳ chỉnh) thì trả lời nhanh (giả lập đang gõ). Không khớp: chờ bạn trả lời trong khoảng thời gian cấu hình; hết thời gian mà chưa trả lời thì AI dùng chính sách shop, giọng điệu và danh sách hàng có trong kho để tư vấn.',
     tabSettings: 'Cài đặt',
     tabFaq: 'FAQ',
-    tabInventory: 'Kho / mẫu',
+    tabInventory: 'Hàng trong kho',
+    tabUsage: 'Token API',
+    tokenUsageIntro:
+      'Tổng hợp trong {days} ngày gần nhất. Mỗi dòng là một model API đã gọi khi AI trả lời bằng LLM (sau thời gian chờ). Tin khớp FAQ không dùng LLM nên không có trong bảng này.',
+    tokenUsageEmpty: 'Chưa có lần gọi LLM nào trong khoảng thời gian này.',
+    tokenUsageColProvider: 'Nhà cung cấp',
+    tokenUsageColModel: 'Model',
+    tokenUsageColCalls: 'Số lần gọi',
+    tokenUsageColPrompt: 'Token đầu vào',
+    tokenUsageColCompletion: 'Token đầu ra',
+    tokenUsageColTotal: 'Tổng token',
     enableLabel: 'Bật trả lời tự động',
     enableHint: 'Khi tắt, chỉ còn tin nhắn thủ công từ bạn.',
     delayLabel: 'Chờ trước khi AI trả lời (giây)',
@@ -1561,17 +1779,47 @@ const VI_DICTIONARY: Dictionary = {
     saveRow: 'Lưu',
     deleteRow: 'Xóa',
     cancelEdit: 'Hủy',
-    inventoryName: 'Tên mẫu / sản phẩm',
+    inventoryName: 'Tên hàng / sản phẩm',
     inventorySku: 'Mã SKU (tuỳ chọn)',
-    inventoryDesc: 'Mô tả ngắn',
-    inventoryStock: 'Ghi chú tồn kho',
-    inventoryPrice: 'Gợi ý giá (text)',
+    inventoryDesc: 'Thông số / mô tả ngắn',
+    inventoryStock: 'Tồn kho / còn hàng',
+    inventoryPrice: 'Giá (ghi chú text)',
     inventorySort: 'Thứ tự',
-    inventoryActive: 'Đang dùng',
-    addInventory: 'Thêm dòng kho',
+    inventoryImageUrl: 'Ảnh sản phẩm (URL)',
+    inventoryImageUrlHint:
+      'Dán link ảnh công khai bắt đầu bằng https:// (ví dụ ảnh trên drive, CDN, website). Hệ thống đưa URL vào ngữ cảnh AI; AI có thể gửi lại link cho khách.',
+    inventoryProductUrl: 'Link trang sản phẩm (URL)',
+    inventoryProductUrlHint:
+      'Trang chi tiết trên website shop (https://…). Dùng trong kết quả tìm kiếm bằng ảnh và cột Excel “Link trang sản phẩm”.',
+    inventoryOpenProductPage: 'Mở trang sản phẩm',
+    inventoryConsultNote: 'Ghi chú khi tư vấn',
+    inventoryConsultNoteHint:
+      'Ví dụ: bảo hành 12 tháng, giao 2–3 ngày, đang giảm 10%, chỉ đổi nếu lỗi sản xuất, freeship đơn từ…',
+    inventoryDescHint: 'Size, màu, chất liệu, kích thước, set/bộ gồm gì…',
+    inventoryStockHint: 'Số lượng còn, hoặc “còn M/L”, “đặt thêm 5 ngày có hàng”…',
+    inventoryFieldsGuide:
+      'Gợi ý thêm (nhập vào mô tả hoặc ghi chú tư vấn): màu–size đang có; thời gian & phí giao; KM có thời hạn; đổi trả riêng từng mặt hàng; hướng dẫn bảo quản. Mọi dòng trong danh sách kho đều được đưa vào ngữ cảnh AI để tư vấn khách; muốn AI không nhắc tới một mặt hàng thì xóa dòng đó hoặc bỏ khỏi file nhập Excel.',
+    inventoryOpenApiLink: 'Hướng dẫn tích hợp API',
+    inventoryOpenApiHint:
+      'Backend website shop có thể đẩy kho vào NanoAI bằng JSON (chuẩn Open Catalog, tên trường gần Shopee). Cùng khóa Bearer với API tìm ảnh; không cần Vision.',
+    inventoryDownloadTemplate: 'Tải file Excel mẫu',
+    inventoryExportExcel: 'Xuất Excel',
+    inventoryImportExcel: 'Nhập Excel',
+    inventoryImportReplaceWarning:
+      'Nhập Excel: trùng Mã SKU (không phân biệt hoa thường) với kho thì cập nhật, chưa có thì thêm mới. Không có SKU thì khớp theo tên với hàng trong kho cũng không SKU (nhiều dòng trùng tên: ưu tiên cùng Thứ tự). Hàng đang có mà không nằm trong file vẫn giữ nguyên. Tiếp tục?',
+    inventoryImportSuccess: 'Đã xử lý {count} dòng: thêm {inserted}, cập nhật {updated}.',
+    inventoryImportFailed: 'Không nhập được từ Excel.',
+    inventoryErrInvalidXlsx: 'File không đúng định dạng Excel (.xlsx).',
+    inventoryErrEmptySheet: 'Trang tính trống.',
+    inventoryErrMissingName: 'Thiếu cột tên hàng (name / tên). Hãy dùng file mẫu.',
+    inventoryErrNoRows: 'Không có dòng dữ liệu hợp lệ (cần ít nhất một dòng có tên hàng).',
+    inventoryErrNoFile: 'Chưa chọn file.',
+    inventoryErrFileTooLarge: 'File quá lớn (tối đa ~2 MB).',
+    addInventory: 'Thêm mặt hàng',
     edit: 'Sửa',
-    emptyFaq: 'Chưa có FAQ. Thêm từ khóa và câu trả lời để trả lời nhanh.',
-    emptyInventory: 'Chưa có dữ liệu kho. Thêm mẫu để AI tư vấn đúng hàng bạn có.',
+    emptyFaq: 'Chọn câu hỏi mẫu bên dưới và chỉ cần nhập cách shop trả lời.',
+    emptyInventory:
+      'Chưa có mặt hàng nào. Thêm danh sách hàng có trong kho để AI chỉ tư vấn theo đúng hàng bạn khai báo.',
     cronSetupHint:
       'Production: cấu hình cron gọi GET hoặc POST /api/cron/messaging-partner-ai kèm Bearer MESSAGING_PARTNER_AI_CRON_SECRET (ví dụ mỗi phút) và DEEPSEEK_API_KEY. Không có cron thì job vẫn tạo nhưng AI không bao giờ gửi. Môi trường `next dev` tự chạy xử lý job sau thời gian chờ (không cần cron). Chạy `next start` local mà chưa có cron: thêm MESSAGING_PARTNER_AI_DEV_WAKE=1 vào .env.',
     toggleStatusOn: 'Đang bật',
@@ -1581,6 +1829,119 @@ const VI_DICTIONARY: Dictionary = {
       'Câu khớp FAQ dùng câu trả lời bạn đã lưu. Các câu khác — sau thời gian chờ — gọi API DeepSeek (model {model}).',
     disclosureSwitchOn: 'Có ghi chú cuối tin',
     disclosureSwitchOff: 'Không ghi chú',
+    faqPresetsIntro:
+      'Các câu hỏi thường gặp khi mua đã được soạn sẵn. Bạn chỉ cần điền nội dung trả lời và bật “Đang dùng”; hệ thống tự nhận tin nhắn của khách tương tự (nhiều ngôn ngữ).',
+    faqPresetSaveHint: 'Lưu từng mục sau khi chỉnh.',
+    faqPresetAnswerRequired: 'Bật “Đang dùng” thì cần nhập nội dung trả lời.',
+    faqCustomSectionTitle: 'Câu hỏi riêng của shop',
+    faqCustomSectionIntro:
+      'Thêm câu khách hay hỏi chỉ riêng cửa hàng bạn: ghi cách khách thường hỏi (để bạn nhớ), từ khóa để hệ thống nhận tin tương tự, và nội dung trả lời.',
+    faqCustomAddTitle: 'Thêm câu hỏi riêng',
+    faqCustomQuestionLabel: 'Cách khách hay hỏi (ghi nhớ cho bạn)',
+    faqCustomQuestionHint: 'Tuỳ chọn. Ví dụ: “Có may thêm túi không?” — không dùng để tự động khớp tin.',
+    faqCustomKeywordsRequired: 'Bật “Đang dùng” thì cần ít nhất một từ khóa (mỗi từ ≥ 2 ký tự), phân tách bằng dấu phẩy hoặc xuống dòng.',
+    faqPresetQuestions: {
+      stock: 'Còn hàng / hết hàng / còn size không?',
+      shipping: 'Giao hàng, phí ship, bao lâu nhận được?',
+      price: 'Giá bao nhiêu, có giảm giá không?',
+      size_fit: 'Chọn size, có vừa không, bảng size?',
+      payment: 'Thanh toán như thế nào (COD, chuyển khoản…)?',
+      return_policy: 'Đổi trả, hoàn tiền thế nào?',
+      order_track: 'Theo dõi đơn, mã vận đơn ở đâu?',
+      warranty: 'Bảo hành ra sao?',
+      authentic: 'Có phải hàng chính hãng không?',
+      promo: 'Khuyến mãi, mã giảm giá hiện có?',
+    },
+    visionSearchTitle: 'Gợi ý sản phẩm khi khách gửi ảnh',
+    visionSearchHint:
+      'Dùng Google Vision Product Search — mỗi shop một catalog riêng: khách chỉ được gợi ý từ kho của shop đó, không lẫn shop khác trên NanoAI. Cần GCP: Vision API, bucket GCS, service account Vision + Storage; GCS_VISION_CATALOG_BUCKET và credentials. Đồng bộ tích lũy: cập nhật dòng đổi ảnh/tên hoặc chưa index; có thể bấm nhiều lần. Xóa mặt hàng trong tab Hàng trong kho sẽ tự gỡ sản phẩm đó khỏi chỉ mục ảnh Google — không cần file danh sách gỡ.',
+    visionSearchEnable: 'Bật gợi ý theo ảnh',
+    visionShopCountryLabel: 'Quốc gia / khu vực shop (gợi ý Vision)',
+    visionShopCountryHint:
+      'Chọn nơi shop chủ yếu hoạt động — hệ thống gợi ý vùng Google Cloud Vision phù hợp; gần đúng khu vực dự án GCP của bạn thì đồng bộ và tải dữ liệu ảnh catalog thường nhanh, ổn định hơn. Có thể chỉnh vùng thủ công bên dưới nếu biết rõ. Nếu không chắc, tránh chọn bừa — dùng «Tự chọn vùng Vision (nâng cao)» rồi nhờ người quản lý GCP/server chọn đúng vùng.',
+    visionShopCountryCustom: 'Tự chọn vùng Vision (nâng cao)',
+    visionShopCountryAdvancedHint:
+      'Hãy chọn «Vùng Vision» và danh mục sản phẩm bên dưới cho đúng dự án GCP. Hiển thị khi không dùng preset quốc gia hoặc vùng đã lưu không khớp preset.',
+    visionLocationLabel: 'Vùng Vision (region)',
+    visionCategoryLabel: 'Danh mục sản phẩm (index)',
+    visionBucketOverrideLabel: 'Bucket GCS (tuỳ chọn)',
+    visionBucketOverrideHint: 'Để trống để dùng GCS_VISION_CATALOG_BUCKET trên server.',
+    visionSyncButton: 'Đồng bộ ảnh kho lên Google',
+    visionSyncAutoWhenEnableHint:
+      'Sau khi bật «Bật gợi ý theo ảnh» và lưu thành công, hệ thống tự đồng bộ liên tục (nhiều segment, resume) cho đến khi xong — thường không cần bấm thêm. Chỉ khi gặp lỗi hoặc trần an toàn tuyệt đối mới cần bấm «Đồng bộ ảnh kho lên Google».',
+    visionSyncing: 'Đang đồng bộ…',
+    visionSyncOk: 'Đã đồng bộ catalog ảnh.',
+    visionIndexReady: 'Index sẵn sàng',
+    visionIndexNotReady: 'Chưa đồng bộ hoặc lỗi index',
+    visionLastSynced: 'Đồng bộ lần cuối',
+    visionSyncErrorLabel: 'Lỗi gần nhất',
+    visionSyncToastImported: 'Đã đưa lên chỉ mục',
+    visionSyncToastRemoved: 'Đã gỡ (mất URL ảnh hợp lệ)',
+    visionSyncToastMore: 'Còn mặt hàng chưa xử lý — hãy bấm đồng bộ lần nữa.',
+    visionSyncToastIdle: 'Không có thay đổi cần đồng bộ.',
+    visionSyncChainedRounds: 'Đã gọi {n} lượt đồng bộ liên tiếp',
+    visionSyncChainedStoppedMaxRounds:
+      'Đã đạt giới hạn số lượt tự động — bấm đồng bộ để tiếp.',
+    visionSyncChainedStoppedTimeout:
+      'Đã dừng theo giới hạn thời gian (tránh treo trình duyệt) — bấm đồng bộ để tiếp.',
+    visionSyncChainedAbortedSafety:
+      'Đồng bộ tự động dừng do trần an toàn tuyệt đối — hãy bấm đồng bộ để tiếp hoặc kiểm tra lỗi.',
+    visionBgSyncTitle: 'Đồng bộ nền lên Google (VPS / cron)',
+    visionBgSyncHint:
+      'Xếp hàng job trên server: VPS gọi định kỳ GET hoặc POST /api/cron/vision-catalog-sync kèm Bearer VISION_CATALOG_SYNC_CRON_SECRET (xem .env.example). Có thể đóng tab; khi xong hoặc lỗi, mở lại trang này để xem báo cáo chi tiết.',
+    visionBgSyncButton: 'Bắt đầu đồng bộ nền',
+    visionBgSyncUseResumeHint:
+      'Nếu tab đang giữ cursor đồng bộ dở (đồng bộ trên trình duyệt trước đó), job nền sẽ tiếp từ cursor đó; nếu không có cursor, quét lại từ đầu.',
+    visionBgSyncCancel: 'Hủy job nền',
+    visionBgSyncDismiss: 'Đóng báo cáo',
+    visionBgSyncStatusQueued: 'Đang chờ cron',
+    visionBgSyncStatusRunning: 'Cron đang chạy',
+    visionBgSyncStatusDone: 'Hoàn tất',
+    visionBgSyncStatusError: 'Lỗi',
+    visionBgSyncStatusIdle: 'Không có job nền',
+    visionBgSyncReportTitle: 'Báo cáo đồng bộ nền',
+    visionBgSyncFieldRounds: 'Số lượt API',
+    visionBgSyncFieldImported: 'Đã đưa lên chỉ mục',
+    visionBgSyncFieldRemoved: 'Đã gỡ',
+    visionBgSyncFieldHasMore: 'Còn backlog',
+    visionBgSyncFieldLastScanned: 'Cursor (mặt hàng cuối)',
+    visionBgSyncFieldStopped: 'Lý do dừng',
+    visionBgSyncFieldMessage: 'Thông điệp',
+    visionBgSyncFieldServerError: 'Lỗi server',
+    visionBgSyncBoolYes: 'Có',
+    visionBgSyncBoolNo: 'Không',
+    visionBgSyncPollingNote:
+      'Đang chờ hoặc đang chạy nền: trang tự làm mới khoảng 8 giây (tab đang mở).',
+    visionBgSyncEnqueueOk: 'Đã xếp hàng đồng bộ nền. Cron VPS sẽ xử lý.',
+    visionBgSyncToastDone: 'Đồng bộ nền Vision đã hoàn tất.',
+    visionBgSyncToastError: 'Đồng bộ nền Vision gặp lỗi.',
+    visionBgSyncAlreadyActive: 'Job nền đang chờ hoặc đang chạy.',
+    visionBgSyncEnableVisionFirst: 'Hãy bật «Bật gợi ý theo ảnh» trước khi chạy đồng bộ nền.',
+    visionBgSyncSaveSettingsFirst: 'Hãy lưu cài đặt AI (Messaging) ít nhất một lần trước.',
+    visionBgSyncStopCompleted: 'Đã hoàn tất',
+    visionBgSyncStopError: 'Lỗi xử lý',
+    visionBgSyncStopCronSlice: 'Hết slice cron (lượt sau chạy tiếp)',
+    visionBgSyncStopBadCursor: 'Cursor không hợp lệ',
+    visionBgSyncServerErrCursor: 'Còn backlog nhưng thiếu id quét — đã dừng an toàn',
+    visionBgSyncMsgCompleted: 'Đã đồng bộ xong catalog.',
+    visionBgSyncMsgInProgress: 'Đang chạy — lượt cron sau sẽ tiếp tục.',
+    visionBgSyncMsgBadCursor: 'Đã dừng: dữ liệu cursor từ máy chủ không nhất quán.',
+    visionInventoryDeleteRemovesIndexNote:
+      'Xóa mặt hàng trong tab «Hàng trong kho» (nút xóa từng dòng) sẽ tự gỡ sản phẩm đó khỏi Google Vision — không cần tải file danh sách gỡ.',
+    imageSearchApiTitle: 'API tìm sản phẩm bằng ảnh (cho website shop)',
+    imageSearchApiHint:
+      'Website khách gửi ảnh (multipart, field image hoặc file) kèm header Authorization: Bearer cùng khóa API. Trả về sản phẩm gần giống trong catalog Vision đã đồng bộ. Nên gọi từ backend shop để không lộ khóa trong trình duyệt.',
+    imageSearchApiEnable: 'Bật API công khai',
+    imageSearchApiKeyConfigured: 'Đã có khóa API.',
+    imageSearchApiKeyMissing: 'Chưa có khóa — tạo và quản lý (che, xem, sao chép, xóa) tại trang Tích hợp API.',
+    imageSearchApiEndpointLabel: 'Đường dẫn (thêm domain NanoAI của bạn phía trước)',
+    imageSearchApiBaseUrlNote: 'Ví dụ: https://your-domain.com/api/messaging/partners/…/image-search',
+    imageSearchApiDocHint:
+      'POST, multipart: image (file). Tuỳ chọn: limit (1–25, mặc định 8). JSON: products[] gồm inventory_id, name, sku, image_url, product_url, score.',
+    imageSearchApiGenerate: 'Tạo / làm mới khóa API',
+    imageSearchApiGenerating: 'Đang tạo khóa…',
+    imageSearchApiKeyCreated: 'Đã tạo khóa (đã thử copy vào clipboard). Lưu ngay — không hiện lại.',
+    imageSearchApiManageKeysLink: 'Mở trang Tích hợp API — quản lý khóa',
   },
   partnerGuestChat: {
     notFoundTitle: 'Không tìm thấy trang chat',
@@ -1609,6 +1970,25 @@ const VI_DICTIONARY: Dictionary = {
     signInWithGoogle: 'Đăng nhập bằng Google',
     linkMyShops: 'Tin nhắn của tôi',
     sendKeyboardHint: 'Enter để gửi · Shift+Enter xuống dòng',
+    tryOnOpen: 'Thử đồ AI',
+    tryOnTitle: 'Thử đồ ngay trong chat',
+    tryOnModelPhoto: 'Ảnh người mẫu',
+    tryOnGarmentPhoto: 'Ảnh trang phục',
+    tryOnGenerate: 'Tạo ảnh thử đồ',
+    tryOnGenerateWithCost: 'Tạo ảnh thử đồ (-{credits} credits)',
+    tryOnPreparing: 'Đang tạo ảnh thử đồ…',
+    tryOnNeedBoth: 'Cần đủ ảnh người mẫu và ảnh trang phục.',
+    tryOnGarmentLimitReached: 'Bạn chỉ có thể chọn tối đa {max} món trang phục.',
+    tryOnGarmentItemsLabel: 'món',
+    tryOnFailed: 'Không tạo được ảnh thử đồ.',
+    tryOnReady: 'Đã tạo ảnh thử đồ. Bạn có thể gửi ngay trong chat.',
+    tryOnChargedToast: 'Đã trừ {cost} credits. Còn lại {remaining} credits.',
+    shopTypingHint: 'Cửa hàng đang soạn tin…',
+    visionMatchTitle: 'Có thể là một trong các mặt hàng sau — chọn để shop tư vấn tiếp:',
+    visionPickHint: 'Chọn đúng mặt hàng (hoặc đợi shop trả lời thủ công).',
+    visionPickBusy: 'Đang gửi…',
+    visionPickError: 'Không gửi được lựa chọn. Thử lại.',
+    visionProductLink: 'Trang sản phẩm',
   },
   messagingMyChats: {
     pageTitle: 'Tin nhắn của tôi',
@@ -2583,6 +2963,7 @@ const EN_DICTIONARY: Dictionary = {
     tasksHub: 'Tasks & queue',
     supportChat: 'Support chat',
     partnerInbox: 'Customer inbox (shop)',
+    partnerApiIntegration: 'Shop API integration',
     myChats: 'My messages (shops)',
   },
   referral: {
@@ -2748,8 +3129,24 @@ const EN_DICTIONARY: Dictionary = {
     nanoaiHostedIframeTitleAttr: 'NanoAI chat',
     nanoaiHostedIframeHelp:
       'Paste into your page HTML. Customers chat and sign in inside the NanoAI frame (first-party cookies), without the anonymous embed API.',
+    copyHostedChatLinkButton: 'Copy chat link',
+    hostedChatLinkCopiedToast: 'Chat link copied.',
     copyIframeSnippetButton: 'Copy iframe code',
     iframeSnippetCopiedToast: 'Iframe code copied.',
+    integrationSectionTitle: 'Tracking tags & embed codes',
+    integrationSectionHint:
+      'Designed area to paste Google tags, Facebook Pixel, and chat embed code. You can quickly copy the NanoAI chat embed code below.',
+    googleTagLabel: 'Google tag (GA4 / GTM)',
+    googleTagPlaceholder: 'Example: G-XXXXXXXXXX or GTM-XXXXXXX',
+    facebookPixelLabel: 'Facebook Pixel / Meta Pixel',
+    facebookPixelPlaceholder: 'Example: 123456789012345',
+    nanoaiEmbedCodeLabel: 'NanoAI chat embed code',
+    facebookChatEmbedCodeLabel: 'Facebook chat embed code',
+    zaloChatEmbedCodeLabel: 'Zalo chat embed code',
+    embedCodePlaceholder: 'Paste script/iframe or plugin code here…',
+    copyNanoaiEmbedButton: 'Copy NanoAI chat code',
+    copyFacebookChatEmbedButton: 'Copy Facebook chat code',
+    copyZaloChatEmbedButton: 'Copy Zalo chat code',
     addAnotherWorkspace: 'Add another workspace',
     cancelAddWorkspace: 'Cancel',
     fbLinkedLine: 'Facebook Page linked: {pageId}',
@@ -2763,14 +3160,29 @@ const EN_DICTIONARY: Dictionary = {
       'Customer list on the left; when a thread is open, the composer stays fixed at the bottom of the screen.',
     noWorkspaceInboxCta: 'You have no messaging workspace yet. Open settings to create a shop and connect Facebook / Zalo / chat.',
     goToInbox: 'Back to inbox',
+    apiIntegrationGuideLink: 'API integration guide (keys & endpoints)',
+    apiIntegrationGuideShort: 'For developers integrating your shop site: embed chat, image product search, B2B try-on API.',
+    messagingSettingsApiHubCardTitle: 'Embed chat & APIs',
+    messagingSettingsApiHubCardBody:
+      'Hosted URL, iframe snippet, embed endpoint, keys, and developer docs now live on the API integration page — they are no longer shown on this settings screen.',
   },
   partnerMessagingAi: {
     panelTitle: 'AI auto-replies',
     panelSubtitle:
-      'If the message matches a saved FAQ, we reply quickly with a typing delay. Otherwise we wait for you for the configured time; if you do not reply, the AI answers using your shop policy, tone, and inventory context.',
+      'If the message matches a saved FAQ (preset or custom), we reply quickly with a typing delay. Otherwise we wait for you for the configured time; if you do not reply, the AI answers using your shop policy, tone, and your in-stock item list.',
     tabSettings: 'Settings',
     tabFaq: 'FAQ',
-    tabInventory: 'Inventory',
+    tabInventory: 'In-stock items',
+    tabUsage: 'API tokens',
+    tokenUsageIntro:
+      'Totals for the last {days} days. Each row is an API model used when the AI replies via LLM (after the wait time). FAQ matches do not call the LLM, so they are not listed here.',
+    tokenUsageEmpty: 'No LLM calls in this period yet.',
+    tokenUsageColProvider: 'Provider',
+    tokenUsageColModel: 'Model',
+    tokenUsageColCalls: 'Calls',
+    tokenUsageColPrompt: 'Prompt tokens',
+    tokenUsageColCompletion: 'Completion tokens',
+    tokenUsageColTotal: 'Total tokens',
     enableLabel: 'Enable auto-replies',
     enableHint: 'When off, only manual replies from you are sent.',
     delayLabel: 'Wait before AI replies (seconds)',
@@ -2798,17 +3210,47 @@ const EN_DICTIONARY: Dictionary = {
     saveRow: 'Save',
     deleteRow: 'Delete',
     cancelEdit: 'Cancel',
-    inventoryName: 'Product / sample name',
+    inventoryName: 'Product name',
     inventorySku: 'SKU (optional)',
-    inventoryDesc: 'Short description',
-    inventoryStock: 'Stock note',
-    inventoryPrice: 'Price hint (text)',
+    inventoryDesc: 'Specs / short description',
+    inventoryStock: 'Stock / availability',
+    inventoryPrice: 'Price (text note)',
     inventorySort: 'Order',
-    inventoryActive: 'Active',
-    addInventory: 'Add inventory row',
+    inventoryImageUrl: 'Product image (URL)',
+    inventoryImageUrlHint:
+      'Paste a public image URL starting with https:// (e.g. from your CDN or store). It is passed to the AI as text; the AI may repeat the link for customers.',
+    inventoryProductUrl: 'Product page (URL)',
+    inventoryProductUrlHint:
+      'Product detail page on your shop website (https://…). Returned in image search results and in the Excel column “Link trang sản phẩm”.',
+    inventoryOpenProductPage: 'Open product page',
+    inventoryConsultNote: 'Notes for advising customers',
+    inventoryConsultNoteHint:
+      'e.g. 12-month warranty, ships in 2–3 days, 10% off promo, exchange only for defects, free shipping over…',
+    inventoryDescHint: 'Sizes, colors, material, dimensions, what is included in a set…',
+    inventoryStockHint: 'Qty left, or “M/L in stock”, “backorder ~5 days”…',
+    inventoryFieldsGuide:
+      'Also useful (use description or advisory note): available colors/sizes; delivery time & fees; promo end dates; per-item return rules; care instructions. Every row in this inventory list is sent to the AI for customer replies; remove a row (or omit it from an import) if you do not want the AI to mention that product.',
+    inventoryOpenApiLink: 'API integration guide',
+    inventoryOpenApiHint:
+      'Your shop backend can push inventory to NanoAI with JSON (Open Catalog schema, Shopee-like field names). Same Bearer key as image search; Vision is not required.',
+    inventoryDownloadTemplate: 'Download sample Excel',
+    inventoryExportExcel: 'Export Excel',
+    inventoryImportExcel: 'Import Excel',
+    inventoryImportReplaceWarning:
+      'Excel import: rows matching an existing SKU (case-insensitive) are updated; otherwise inserted. Without a SKU, rows match by name to existing rows that also have no SKU (if several match, sort order is used). Items already in stock that are not in the file stay unchanged. Continue?',
+    inventoryImportSuccess: 'Processed {count} row(s): {inserted} added, {updated} updated.',
+    inventoryImportFailed: 'Excel import failed.',
+    inventoryErrInvalidXlsx: 'Invalid Excel file (.xlsx).',
+    inventoryErrEmptySheet: 'The sheet is empty.',
+    inventoryErrMissingName: 'Missing product name column (name). Use the sample file.',
+    inventoryErrNoRows: 'No valid data rows (need at least one row with a product name).',
+    inventoryErrNoFile: 'No file selected.',
+    inventoryErrFileTooLarge: 'File is too large (max ~2 MB).',
+    addInventory: 'Add item',
     edit: 'Edit',
-    emptyFaq: 'No FAQs yet. Add keywords and answers for instant replies.',
-    emptyInventory: 'No inventory rows yet. Add items so the AI can advise accurately.',
+    emptyFaq: 'Pick a preset question below and enter how your shop replies.',
+    emptyInventory:
+      'No items yet. Add what you keep in stock so the AI only advises using that list.',
     cronSetupHint:
       'Production: schedule GET or POST /api/cron/messaging-partner-ai with Authorization: Bearer MESSAGING_PARTNER_AI_CRON_SECRET (e.g. every minute) and set DEEPSEEK_API_KEY. Without cron, jobs stay pending and AI never sends. `next dev` auto-runs the processor after the delay (no cron). For `next start` locally without cron, set MESSAGING_PARTNER_AI_DEV_WAKE=1 in .env.',
     toggleStatusOn: 'On',
@@ -2818,6 +3260,120 @@ const EN_DICTIONARY: Dictionary = {
       'FAQ matches use your saved answers. Other messages — after the wait — call the DeepSeek API (model {model}).',
     disclosureSwitchOn: 'Append note',
     disclosureSwitchOff: 'No note',
+    faqPresetsIntro:
+      'Common shopping questions are pre-written for you. Enter your reply and turn on “Active”; we detect similar customer messages in many languages.',
+    faqPresetSaveHint: 'Save each item after editing.',
+    faqPresetAnswerRequired: 'Turning on “Active” requires a reply.',
+    faqCustomSectionTitle: 'Your own customer questions',
+    faqCustomSectionIntro:
+      'Add questions specific to your shop: a short note for yourself, keywords so similar messages match, and the reply text.',
+    faqCustomAddTitle: 'Add a custom question',
+    faqCustomQuestionLabel: 'How customers usually ask (your note)',
+    faqCustomQuestionHint: 'Optional. Example: “Can you add a pocket?” — not used for automatic matching.',
+    faqCustomKeywordsRequired:
+      'When “Active” is on, add at least one keyword (each ≥ 2 characters), separated by commas or new lines.',
+    faqPresetQuestions: {
+      stock: 'In stock / out of stock / size available?',
+      shipping: 'Shipping, fees, how long to receive?',
+      price: 'How much, any discount?',
+      size_fit: 'Sizing, fit, size chart?',
+      payment: 'How to pay (COD, bank transfer, …)?',
+      return_policy: 'Returns and refunds?',
+      order_track: 'Track order, where is the tracking number?',
+      warranty: 'Warranty details?',
+      authentic: 'Is it genuine / authentic?',
+      promo: 'Promotions, coupon codes?',
+    },
+    visionSearchTitle: 'Product suggestions when customers send a photo',
+    visionSearchHint:
+      'Uses Google Vision Product Search — each shop has its own catalog: suggestions use only that shop’s inventory, not other NanoAI partners’ products. Requires GCP: Vision API, a GCS bucket, and a service account with Vision + Storage; set GCS_VISION_CATALOG_BUCKET and credentials. Sync is incremental (changed image/name or not yet indexed); click again if more remain. Deleting a row in the Inventory tab removes that product from the Google image index automatically — no purge list file.',
+    visionSearchEnable: 'Enable image-based suggestions',
+    visionShopCountryLabel: 'Shop country / region (Vision preset)',
+    visionShopCountryHint:
+      'Pick where your shop mainly operates — we suggest a matching Google Cloud Vision region. Staying close to your GCP project’s region usually makes catalog image sync and data transfer faster and more reliable. Override the region below if you know your setup. If unsure, don’t guess: use «Custom Vision region (advanced)» and ask whoever manages GCP, or set the correct region once confirmed.',
+    visionShopCountryCustom: 'Custom Vision region (advanced)',
+    visionShopCountryAdvancedHint:
+      'Choose the Vision region and product category below to match your GCP project. Shown when no country preset is used or the saved region does not match the preset.',
+    visionLocationLabel: 'Vision region',
+    visionCategoryLabel: 'Product category (index)',
+    visionBucketOverrideLabel: 'GCS bucket (optional)',
+    visionBucketOverrideHint: 'Leave blank to use the server’s GCS_VISION_CATALOG_BUCKET.',
+    visionSyncButton: 'Sync inventory images to Google',
+    visionSyncAutoWhenEnableHint:
+      'After you turn on image-based suggestions and save succeeds, the app keeps syncing automatically in segments (resume) until finished — you usually do not need to click again. Only if something errors or the absolute safety cap is hit, use «Sync inventory images».',
+    visionSyncing: 'Syncing…',
+    visionSyncOk: 'Image catalog synced.',
+    visionIndexReady: 'Index ready',
+    visionIndexNotReady: 'Not synced or index error',
+    visionLastSynced: 'Last synced',
+    visionSyncErrorLabel: 'Last error',
+    visionSyncToastImported: 'Indexed',
+    visionSyncToastRemoved: 'Removed (invalid/missing image URL)',
+    visionSyncToastMore: 'More items may remain — run sync again.',
+    visionSyncToastIdle: 'Nothing to sync right now.',
+    visionSyncChainedRounds: 'Ran {n} sync batches in a row',
+    visionSyncChainedStoppedMaxRounds: 'Automatic batch limit reached — click sync to continue.',
+    visionSyncChainedStoppedTimeout:
+      'Stopped after a time limit (keeps the tab responsive) — click sync to continue.',
+    visionSyncChainedAbortedSafety:
+      'Automatic sync stopped at the absolute safety limit — click sync to continue or check for errors.',
+    visionBgSyncTitle: 'Background sync to Google (VPS / cron)',
+    visionBgSyncHint:
+      'Queues a server job: your VPS calls GET or POST /api/cron/vision-catalog-sync on a schedule with Bearer VISION_CATALOG_SYNC_CRON_SECRET (see .env.example). You can close the tab; reopen this page for the full report when finished or on error.',
+    visionBgSyncButton: 'Start background sync',
+    visionBgSyncUseResumeHint:
+      'If this tab still holds a partial sync cursor (from an earlier browser sync), the background job resumes from it; otherwise it rescans from the start.',
+    visionBgSyncCancel: 'Cancel background job',
+    visionBgSyncDismiss: 'Dismiss report',
+    visionBgSyncStatusQueued: 'Queued for cron',
+    visionBgSyncStatusRunning: 'Cron running',
+    visionBgSyncStatusDone: 'Completed',
+    visionBgSyncStatusError: 'Error',
+    visionBgSyncStatusIdle: 'No background job',
+    visionBgSyncReportTitle: 'Background sync report',
+    visionBgSyncFieldRounds: 'API rounds',
+    visionBgSyncFieldImported: 'Indexed',
+    visionBgSyncFieldRemoved: 'Removed',
+    visionBgSyncFieldHasMore: 'Backlog remains',
+    visionBgSyncFieldLastScanned: 'Cursor (last item)',
+    visionBgSyncFieldStopped: 'Stop reason',
+    visionBgSyncFieldMessage: 'Message',
+    visionBgSyncFieldServerError: 'Server error',
+    visionBgSyncBoolYes: 'Yes',
+    visionBgSyncBoolNo: 'No',
+    visionBgSyncPollingNote:
+      'While queued or running in the background, this page refreshes about every 8 seconds (keep the tab open).',
+    visionBgSyncEnqueueOk: 'Background sync queued. Your VPS cron will pick it up.',
+    visionBgSyncToastDone: 'Vision background sync finished.',
+    visionBgSyncToastError: 'Vision background sync failed.',
+    visionBgSyncAlreadyActive: 'Background job is already queued or running.',
+    visionBgSyncEnableVisionFirst: 'Turn on image-based suggestions before starting background sync.',
+    visionBgSyncSaveSettingsFirst: 'Save Messaging AI settings at least once first.',
+    visionBgSyncStopCompleted: 'Completed',
+    visionBgSyncStopError: 'Processing error',
+    visionBgSyncStopCronSlice: 'Cron slice ended (will resume)',
+    visionBgSyncStopBadCursor: 'Invalid cursor',
+    visionBgSyncServerErrCursor: 'Backlog remains but scan cursor is missing — stopped safely',
+    visionBgSyncMsgCompleted: 'Catalog sync finished.',
+    visionBgSyncMsgInProgress: 'In progress — the next cron run will continue.',
+    visionBgSyncMsgBadCursor: 'Stopped: inconsistent cursor from server.',
+    visionInventoryDeleteRemovesIndexNote:
+      'Deleting a row in the Inventory tab removes that product from Google Vision automatically — no purge list upload.',
+    imageSearchApiTitle: 'Image product search API (for your shop website)',
+    imageSearchApiHint:
+      'Send a photo as multipart (field image or file) with Authorization: Bearer and your API key. Returns the closest matches from your synced Vision catalog. Prefer calling from your shop backend so the key is not exposed in the browser.',
+    imageSearchApiEnable: 'Enable public API',
+    imageSearchApiKeyConfigured: 'API key is set.',
+    imageSearchApiKeyMissing:
+      'No key yet — create and manage (mask, reveal, copy, delete) on the API integration page.',
+    imageSearchApiEndpointLabel: 'Path (prefix with your NanoAI site domain)',
+    imageSearchApiBaseUrlNote: 'Example: https://your-domain.com/api/messaging/partners/…/image-search',
+    imageSearchApiDocHint:
+      'POST multipart: image (file). Optional: limit (1–25, default 8). JSON: products[] with inventory_id, name, sku, image_url, product_url, score.',
+    imageSearchApiGenerate: 'Generate / rotate API key',
+    imageSearchApiGenerating: 'Generating key…',
+    imageSearchApiKeyCreated: 'Key created (copied to clipboard if allowed). Save it now — it will not be shown again.',
+    imageSearchApiManageKeysLink: 'Open API integration — manage keys',
   },
   partnerGuestChat: {
     notFoundTitle: 'Chat page not found',
@@ -2846,6 +3402,25 @@ const EN_DICTIONARY: Dictionary = {
     signInWithGoogle: 'Sign in with Google',
     linkMyShops: 'My messages',
     sendKeyboardHint: 'Enter to send · Shift+Enter for a new line',
+    tryOnOpen: 'AI try-on',
+    tryOnTitle: 'Try on directly in chat',
+    tryOnModelPhoto: 'Model photo',
+    tryOnGarmentPhoto: 'Garment photo',
+    tryOnGenerate: 'Generate try-on image',
+    tryOnGenerateWithCost: 'Generate try-on image (-{credits} credits)',
+    tryOnPreparing: 'Generating try-on image…',
+    tryOnNeedBoth: 'Both model and garment photos are required.',
+    tryOnGarmentLimitReached: 'You can select up to {max} garment items.',
+    tryOnGarmentItemsLabel: 'items',
+    tryOnFailed: 'Could not generate the try-on image.',
+    tryOnReady: 'Try-on image is ready. You can send it in chat.',
+    tryOnChargedToast: 'Charged {cost} credits. Remaining {remaining} credits.',
+    shopTypingHint: 'The shop is typing…',
+    visionMatchTitle: 'This might be one of these items — pick one so the shop can advise:',
+    visionPickHint: 'Choose the right product (or wait for a manual reply).',
+    visionPickBusy: 'Sending…',
+    visionPickError: 'Could not send your choice. Try again.',
+    visionProductLink: 'Product page',
   },
   messagingMyChats: {
     pageTitle: 'My messages',
@@ -3830,6 +4405,7 @@ const ZH_DICTIONARY: Dictionary = {
     tasksHub: '任务与队列',
     supportChat: '在线客服',
     partnerInbox: '客户收件箱（店铺）',
+    partnerApiIntegration: '店铺 API 集成',
     myChats: '我的消息（店铺）',
   },
   referral: {
@@ -3986,8 +4562,24 @@ const ZH_DICTIONARY: Dictionary = {
     nanoaiHostedIframeTitle: '嵌入到店铺网站（iframe）',
     nanoaiHostedIframeTitleAttr: 'NanoAI 聊天',
     nanoaiHostedIframeHelp: '粘贴到页面 HTML。客户在 NanoAI 框架内聊天与登录（第一方 cookie），不依赖匿名嵌入 API。',
+    copyHostedChatLinkButton: '复制聊天链接',
+    hostedChatLinkCopiedToast: '已复制聊天链接。',
     copyIframeSnippetButton: '复制 iframe 代码',
     iframeSnippetCopiedToast: '已复制 iframe 代码。',
+    integrationSectionTitle: '跟踪标签与嵌入代码',
+    integrationSectionHint:
+      '用于粘贴 Google 标签、Facebook Pixel 与聊天嵌入代码。你也可以在下方快速复制 NanoAI 聊天嵌入代码。',
+    googleTagLabel: 'Google 标签（GA4 / GTM）',
+    googleTagPlaceholder: '例如：G-XXXXXXXXXX 或 GTM-XXXXXXX',
+    facebookPixelLabel: 'Facebook Pixel / Meta Pixel',
+    facebookPixelPlaceholder: '例如：123456789012345',
+    nanoaiEmbedCodeLabel: 'NanoAI 聊天嵌入代码',
+    facebookChatEmbedCodeLabel: 'Facebook 聊天嵌入代码',
+    zaloChatEmbedCodeLabel: 'Zalo 聊天嵌入代码',
+    embedCodePlaceholder: '在此粘贴 script / iframe / 插件代码…',
+    copyNanoaiEmbedButton: '复制 NanoAI 聊天代码',
+    copyFacebookChatEmbedButton: '复制 Facebook 聊天代码',
+    copyZaloChatEmbedButton: '复制 Zalo 聊天代码',
     addAnotherWorkspace: '再创建一个工作区',
     cancelAddWorkspace: '取消',
     fbLinkedLine: '已关联 Facebook Page：{pageId}',
@@ -4000,14 +4592,29 @@ const ZH_DICTIONARY: Dictionary = {
     messagingInboxDescription: '左侧为客户列表；打开会话后，输入框固定在屏幕底部。',
     noWorkspaceInboxCta: '您还没有消息工作区。前往设置创建店铺并连接 Facebook / Zalo / 聊天。',
     goToInbox: '返回收件箱',
+    apiIntegrationGuideLink: 'API 集成说明（密钥与接口）',
+    apiIntegrationGuideShort: '供开发将店铺网站接入：嵌入聊天、以图搜商品、B2B 试衣 API。',
+    messagingSettingsApiHubCardTitle: '嵌入聊天与 API',
+    messagingSettingsApiHubCardBody:
+      '托管链接、iframe 代码、嵌入接口、密钥与开发者文档已移至「API 集成」页面 — 本设置页不再展示。',
   },
   partnerMessagingAi: {
     panelTitle: 'AI 自动回复',
     panelSubtitle:
-      '若消息匹配已保存的 FAQ，将较快回复并模拟输入延迟；否则在您设定的时间内等待人工回复，超时后由 AI 结合店铺政策、语气与库存信息作答。',
+      '若消息匹配已保存的 FAQ（模板或自定义），将较快回复并模拟输入延迟；否则在您设定的时间内等待人工回复，超时后由 AI 结合店铺政策、语气与库存商品列表作答。',
     tabSettings: '设置',
     tabFaq: '常见问题',
-    tabInventory: '库存 / 样品',
+    tabInventory: '库存商品',
+    tabUsage: 'API 用量',
+    tokenUsageIntro:
+      '最近 {days} 天的汇总。每一行表示在等待时间后通过 LLM 回复时使用的 API 模型。匹配 FAQ 不会调用 LLM，因此不会出现在此表中。',
+    tokenUsageEmpty: '此期间尚无 LLM 调用记录。',
+    tokenUsageColProvider: '提供商',
+    tokenUsageColModel: '模型',
+    tokenUsageColCalls: '调用次数',
+    tokenUsageColPrompt: '输入 token',
+    tokenUsageColCompletion: '输出 token',
+    tokenUsageColTotal: '总 token',
     enableLabel: '启用自动回复',
     enableHint: '关闭后仅发送您手动编写的消息。',
     delayLabel: 'AI 回复前等待（秒）',
@@ -4034,17 +4641,44 @@ const ZH_DICTIONARY: Dictionary = {
     saveRow: '保存',
     deleteRow: '删除',
     cancelEdit: '取消',
-    inventoryName: '商品 / 样品名称',
+    inventoryName: '商品名称',
     inventorySku: 'SKU（可选）',
-    inventoryDesc: '简短描述',
-    inventoryStock: '库存备注',
-    inventoryPrice: '价格提示（文本）',
+    inventoryDesc: '规格 / 简述',
+    inventoryStock: '库存 / 是否有货',
+    inventoryPrice: '价格（文字备注）',
     inventorySort: '排序',
-    inventoryActive: '启用',
-    addInventory: '添加库存行',
+    inventoryImageUrl: '商品图片（URL）',
+    inventoryImageUrlHint: '粘贴以 https:// 开头的公开图片链接。系统将其作为文本提供给 AI，AI 可转发给顾客。',
+    inventoryProductUrl: '商品页链接（URL）',
+    inventoryProductUrlHint:
+      '店铺网站上的商品详情页（https://…）。用于以图搜商品结果及 Excel 列“Link trang sản phẩm”。',
+    inventoryOpenProductPage: '打开商品页',
+    inventoryConsultNote: '咨询补充说明',
+    inventoryConsultNoteHint: '例如：保修 12 个月、2–3 天发货、限时折扣、仅质量问题退换、满额包邮等。',
+    inventoryDescHint: '尺码、颜色、材质、尺寸、套装包含内容等。',
+    inventoryStockHint: '剩余数量，或“M/L 有货”“预订约 5 天到货”等。',
+    inventoryFieldsGuide:
+      '建议在描述或咨询说明中补充：可选颜色/尺码；配送时效与运费；促销截止时间；单品退换规则；保养说明。列表中的每一行都会提供给 AI 用于回复顾客；若不希望 AI 提及某商品，请删除该行或从导入文件中去掉。',
+    inventoryOpenApiLink: 'API 集成说明',
+    inventoryOpenApiHint:
+      '店铺后端可用 JSON 将库存推送到 NanoAI（Open Catalog，字段命名接近 Shopee）。与以图搜商品共用 Bearer；无需 Vision。',
+    inventoryDownloadTemplate: '下载 Excel 模板',
+    inventoryExportExcel: '导出 Excel',
+    inventoryImportExcel: '导入 Excel',
+    inventoryImportReplaceWarning:
+      '导入 Excel：与现有 SKU（不区分大小写）匹配则更新，否则新增。无 SKU 时按名称与同样无 SKU 的库存行匹配（多条同名时参考排序）。未出现在文件中的现有商品将保留。是否继续？',
+    inventoryImportSuccess: '已处理 {count} 行：新增 {inserted}，更新 {updated}。',
+    inventoryImportFailed: 'Excel 导入失败。',
+    inventoryErrInvalidXlsx: '不是有效的 Excel 文件（.xlsx）。',
+    inventoryErrEmptySheet: '工作表为空。',
+    inventoryErrMissingName: '缺少商品名称列（name）。请使用模板文件。',
+    inventoryErrNoRows: '没有有效数据行（至少需一行填写商品名称）。',
+    inventoryErrNoFile: '未选择文件。',
+    inventoryErrFileTooLarge: '文件过大（最大约 2 MB）。',
+    addInventory: '添加商品',
     edit: '编辑',
-    emptyFaq: '暂无 FAQ。添加关键词与回答以实现快速回复。',
-    emptyInventory: '暂无库存数据。添加条目以便 AI 准确推荐。',
+    emptyFaq: '请从下方预设问题中选择，并填写店铺回复内容。',
+    emptyInventory: '暂无商品。请添加店内实际在售/有货列表，AI 将仅按该列表回答。',
     cronSetupHint:
       '生产环境：配置定时任务 GET 或 POST /api/cron/messaging-partner-ai，请求头 Authorization: Bearer MESSAGING_PARTNER_AI_CRON_SECRET（建议每分钟），并设置 DEEPSEEK_API_KEY。无 cron 时任务会一直排队、AI 不会发出。`next dev` 会在等待时间后自动处理（无需 cron）。本地 `next start` 且无 cron 时，可在 .env 设置 MESSAGING_PARTNER_AI_DEV_WAKE=1。',
     toggleStatusOn: '已开启',
@@ -4054,6 +4688,116 @@ const ZH_DICTIONARY: Dictionary = {
       '匹配 FAQ 时使用您保存的回答；其他消息在等待结束后调用 DeepSeek API（模型 {model}）。',
     disclosureSwitchOn: '附加文末说明',
     disclosureSwitchOff: '不附加',
+    faqPresetsIntro:
+      '常见购物问题已列好，您只需填写回复内容并开启“启用”；系统会自动识别顾客类似说法（支持多语言）。',
+    faqPresetSaveHint: '每项修改后请单独保存。',
+    faqPresetAnswerRequired: '开启“启用”时必须填写回复内容。',
+    faqCustomSectionTitle: '店铺自定义问题',
+    faqCustomSectionIntro:
+      '添加仅适用于您店铺的问题：写顾客常问的说法（便于您识别）、用于匹配的关键词、以及回复内容。',
+    faqCustomAddTitle: '添加自定义问题',
+    faqCustomQuestionLabel: '顾客常问的说法（备忘）',
+    faqCustomQuestionHint: '选填。例如：“能加口袋吗？”— 不用于自动匹配。',
+    faqCustomKeywordsRequired: '开启“启用”时至少填写一个关键词（每个不少于 2 个字符），可用逗号或换行分隔。',
+    faqPresetQuestions: {
+      stock: '有货吗 / 缺货吗 / 这个尺码还有吗？',
+      shipping: '发货、运费、多久能收到？',
+      price: '多少钱、有没有优惠？',
+      size_fit: '尺码怎么选、合身吗、有尺码表吗？',
+      payment: '怎么付款（货到付款、转账等）？',
+      return_policy: '退换货、退款规则？',
+      order_track: '查物流、运单号在哪？',
+      warranty: '保修怎么算？',
+      authentic: '是否正品？',
+      promo: '活动、优惠券有吗？',
+    },
+    visionSearchTitle: '顾客发图时推荐可能商品',
+    visionSearchHint:
+      '使用 Google Vision Product Search — 每个店铺独立目录：仅在该店库存内推荐，不包含 NanoAI 上其他店铺商品。需要 GCP：Vision API、GCS 存储桶、具备 Vision + Storage 权限的服务账号；配置 GCS_VISION_CATALOG_BUCKET 与凭据。同步为增量（图片/名称变更或未入库）；可多次点击。在「库存」中删除一行会自动从 Google 图片索引移除该商品 — 无需上传移除清单文件。',
+    visionSearchEnable: '启用按图推荐',
+    visionShopCountryLabel: '店铺国家/地区（Vision 预设）',
+    visionShopCountryHint:
+      '选择店铺主要面向的市场 — 我们会建议合适的 Google Cloud Vision 区域；与 GCP 项目区域一致时，图片目录同步与数据传输通常更快、更稳。熟悉 GCP 可在下方手动覆盖。若不确定，请勿随意选择 — 请用「自定义 Vision 区域（高级）」并咨询负责 GCP 的同事，确认后再填写正确区域。',
+    visionShopCountryCustom: '自定义 Vision 区域（高级）',
+    visionShopCountryAdvancedHint:
+      '请在下方选择与实际 GCP 项目一致的 Vision 区域与商品类别。未使用国家预设，或已保存区域与预设不一致时会显示此项。',
+    visionLocationLabel: 'Vision 区域',
+    visionCategoryLabel: '商品类别（索引）',
+    visionBucketOverrideLabel: 'GCS 存储桶（可选）',
+    visionBucketOverrideHint: '留空则使用服务器的 GCS_VISION_CATALOG_BUCKET。',
+    visionSyncButton: '同步库存图片到 Google',
+    visionSyncAutoWhenEnableHint:
+      '开启「按图推荐」且保存成功后，会自动分段连续同步（resume）直到完成，一般无需再点。仅出错或触及绝对安全上限时再点「同步库存图片」。',
+    visionSyncing: '正在同步…',
+    visionSyncOk: '图片目录已同步。',
+    visionIndexReady: '索引可用',
+    visionIndexNotReady: '未同步或索引出错',
+    visionLastSynced: '上次同步',
+    visionSyncErrorLabel: '最近错误',
+    visionSyncToastImported: '已写入索引',
+    visionSyncToastRemoved: '已移除（无有效图片 URL）',
+    visionSyncToastMore: '可能还有未处理项 — 请再次同步。',
+    visionSyncToastIdle: '当前没有需要同步的更改。',
+    visionSyncChainedRounds: '已连续同步 {n} 轮',
+    visionSyncChainedStoppedMaxRounds: '已达自动轮次上限 — 请点击同步继续。',
+    visionSyncChainedStoppedTimeout: '因时间上限已停止（避免页面卡住）— 请点击同步继续。',
+    visionSyncChainedAbortedSafety:
+      '自动同步因绝对安全上限已停止 — 请点击同步继续或检查错误。',
+    visionBgSyncTitle: '后台同步到 Google（VPS / 定时任务）',
+    visionBgSyncHint:
+      '在服务器排队：VPS 定时 GET 或 POST /api/cron/vision-catalog-sync，请求头 Bearer VISION_CATALOG_SYNC_CRON_SECRET（见 .env.example）。可关闭此页；完成或出错后再打开查看完整报告。',
+    visionBgSyncButton: '开始后台同步',
+    visionBgSyncUseResumeHint:
+      '若本页仍保留上次未完成的同步游标（浏览器同步），后台任务从该游标继续；否则从头扫描。',
+    visionBgSyncCancel: '取消后台任务',
+    visionBgSyncDismiss: '关闭报告',
+    visionBgSyncStatusQueued: '等待定时任务',
+    visionBgSyncStatusRunning: '定时任务运行中',
+    visionBgSyncStatusDone: '已完成',
+    visionBgSyncStatusError: '出错',
+    visionBgSyncStatusIdle: '无后台任务',
+    visionBgSyncReportTitle: '后台同步报告',
+    visionBgSyncFieldRounds: 'API 轮次',
+    visionBgSyncFieldImported: '已写入索引',
+    visionBgSyncFieldRemoved: '已移除',
+    visionBgSyncFieldHasMore: '仍有积压',
+    visionBgSyncFieldLastScanned: '游标（最后一项）',
+    visionBgSyncFieldStopped: '停止原因',
+    visionBgSyncFieldMessage: '消息',
+    visionBgSyncFieldServerError: '服务器错误',
+    visionBgSyncBoolYes: '是',
+    visionBgSyncBoolNo: '否',
+    visionBgSyncPollingNote: '排队或后台运行期间：页面约每 8 秒自动刷新（请保持标签页打开）。',
+    visionBgSyncEnqueueOk: '已加入后台同步队列，VPS 定时任务将处理。',
+    visionBgSyncToastDone: 'Vision 后台同步已完成。',
+    visionBgSyncToastError: 'Vision 后台同步失败。',
+    visionBgSyncAlreadyActive: '后台任务已在队列或运行中。',
+    visionBgSyncEnableVisionFirst: '请先启用「按图推荐」再开始后台同步。',
+    visionBgSyncSaveSettingsFirst: '请先在 Messaging 中保存一次 AI 设置。',
+    visionBgSyncStopCompleted: '已完成',
+    visionBgSyncStopError: '处理出错',
+    visionBgSyncStopCronSlice: '本次定时切片结束（将续跑）',
+    visionBgSyncStopBadCursor: '游标无效',
+    visionBgSyncServerErrCursor: '仍有积压但缺少扫描游标，已安全停止',
+    visionBgSyncMsgCompleted: '目录同步已完成。',
+    visionBgSyncMsgInProgress: '进行中 — 下次定时任务将继续。',
+    visionBgSyncMsgBadCursor: '已停止：服务器返回的游标不一致。',
+    visionInventoryDeleteRemovesIndexNote:
+      '在「库存」标签删除某一行后，系统会自动从 Google 图片索引移除该商品 — 无需上传移除清单。',
+    imageSearchApiTitle: '以图搜商品 API（供店铺网站调用）',
+    imageSearchApiHint:
+      '以 multipart 上传图片（字段 image 或 file），请求头 Authorization: Bearer 加 API 密钥。返回与已同步 Vision 目录最接近的商品。建议从店铺后端调用以免密钥暴露在浏览器。',
+    imageSearchApiEnable: '启用公开 API',
+    imageSearchApiKeyConfigured: '已设置 API 密钥。',
+    imageSearchApiKeyMissing: '尚未创建密钥 — 请在 API 集成页面创建并管理（掩码、显示、复制、删除）。',
+    imageSearchApiEndpointLabel: '路径（前面加您的 NanoAI 站点域名）',
+    imageSearchApiBaseUrlNote: '示例：https://your-domain.com/api/messaging/partners/…/image-search',
+    imageSearchApiDocHint:
+      'POST multipart：image（文件）。可选 limit（1–25，默认 8）。JSON：products[] 含 inventory_id、name、sku、image_url、product_url、score。',
+    imageSearchApiGenerate: '生成 / 轮换 API 密钥',
+    imageSearchApiGenerating: '正在生成密钥…',
+    imageSearchApiKeyCreated: '已生成密钥（若允许已尝试复制到剪贴板）。请立即保存 — 不会再次显示。',
+    imageSearchApiManageKeysLink: '打开 API 集成 — 管理密钥',
   },
   partnerGuestChat: {
     notFoundTitle: '未找到聊天页面',
@@ -4081,6 +4825,25 @@ const ZH_DICTIONARY: Dictionary = {
     signInWithGoogle: '使用 Google 登录',
     linkMyShops: '我的消息',
     sendKeyboardHint: 'Enter 发送 · Shift+Enter 换行',
+    tryOnOpen: 'AI 试穿',
+    tryOnTitle: '在聊天中直接试穿',
+    tryOnModelPhoto: '人物照片',
+    tryOnGarmentPhoto: '服装照片',
+    tryOnGenerate: '生成试穿图',
+    tryOnGenerateWithCost: '生成试穿图（-{credits} 积分）',
+    tryOnPreparing: '正在生成试穿图…',
+    tryOnNeedBoth: '请同时上传人物照片和服装照片。',
+    tryOnGarmentLimitReached: '最多可选择 {max} 件服装。',
+    tryOnGarmentItemsLabel: '件',
+    tryOnFailed: '试穿图生成失败。',
+    tryOnReady: '试穿图已生成，可直接在聊天中发送。',
+    tryOnChargedToast: '已扣除 {cost} 积分，剩余 {remaining} 积分。',
+    shopTypingHint: '店铺正在输入…',
+    visionMatchTitle: '可能是以下商品之一 — 请选择以便店铺继续咨询：',
+    visionPickHint: '请选择正确商品（或等待人工回复）。',
+    visionPickBusy: '发送中…',
+    visionPickError: '无法提交选择，请重试。',
+    visionProductLink: '商品页',
   },
   messagingMyChats: {
     pageTitle: '我的消息',
@@ -5015,6 +5778,7 @@ const JA_DICTIONARY: Dictionary = {
     tasksHub: 'タスクとキュー',
     supportChat: 'サポートチャット',
     partnerInbox: 'お客様受信箱（店舗）',
+    partnerApiIntegration: '店舗 API 連携',
     myChats: '自分のメッセージ（店舗）',
   },
   referral: {
@@ -5179,8 +5943,24 @@ const JA_DICTIONARY: Dictionary = {
     nanoaiHostedIframeTitleAttr: 'NanoAI チャット',
     nanoaiHostedIframeHelp:
       'HTML に貼り付けます。お客様は NanoAI の枠内でチャット・ログイン（ファーストパーティ Cookie）し、匿名 API には依存しません。',
+    copyHostedChatLinkButton: 'チャットリンクをコピー',
+    hostedChatLinkCopiedToast: 'チャットリンクをコピーしました。',
     copyIframeSnippetButton: 'iframe コードをコピー',
     iframeSnippetCopiedToast: 'iframe コードをコピーしました。',
+    integrationSectionTitle: '計測タグと埋め込みコード',
+    integrationSectionHint:
+      'Google タグ、Facebook Pixel、チャット埋め込みコードを貼り付けるためのエリアです。下で NanoAI チャットの埋め込みコードをすぐコピーできます。',
+    googleTagLabel: 'Google タグ（GA4 / GTM）',
+    googleTagPlaceholder: '例: G-XXXXXXXXXX または GTM-XXXXXXX',
+    facebookPixelLabel: 'Facebook Pixel / Meta Pixel',
+    facebookPixelPlaceholder: '例: 123456789012345',
+    nanoaiEmbedCodeLabel: 'NanoAI チャット埋め込みコード',
+    facebookChatEmbedCodeLabel: 'Facebook チャット埋め込みコード',
+    zaloChatEmbedCodeLabel: 'Zalo チャット埋め込みコード',
+    embedCodePlaceholder: 'script / iframe / プラグインコードをここに貼り付け…',
+    copyNanoaiEmbedButton: 'NanoAI チャットコードをコピー',
+    copyFacebookChatEmbedButton: 'Facebook チャットコードをコピー',
+    copyZaloChatEmbedButton: 'Zalo チャットコードをコピー',
     addAnotherWorkspace: 'ワークスペースを追加',
     cancelAddWorkspace: 'キャンセル',
     fbLinkedLine: 'Facebook Page を連携済み: {pageId}',
@@ -5194,14 +5974,29 @@ const JA_DICTIONARY: Dictionary = {
     messagingInboxDescription: '左に顧客一覧。会話を開くと、入力欄は画面下に固定されます。',
     noWorkspaceInboxCta: 'メッセージ用ワークスペースがありません。設定で店舗を作成し Facebook / Zalo / チャットを接続してください。',
     goToInbox: '受信箱へ',
+    apiIntegrationGuideLink: 'API 連携ガイド（キーとエンドポイント）',
+    apiIntegrationGuideShort: '店舗サイト連携向け：埋め込みチャット、画像検索、B2B 試着 API。',
+    messagingSettingsApiHubCardTitle: '埋め込みチャットと API',
+    messagingSettingsApiHubCardBody:
+      'ホスト URL、iframe スニペット、埋め込みエンドポイント、キー、開発者向けドキュメントは「API 連携」ページに移しました — 本設定画面には表示しません。',
   },
   partnerMessagingAi: {
     panelTitle: 'AI 自動返信',
     panelSubtitle:
-      '保存した FAQ に一致すれば入力遅延付きで素早く返信します。一致しない場合は設定時間だけ人間の返信を待ち、間に合わなければ店舗ポリシー・トーン・在庫情報を踏まえて AI が回答します。',
+      '保存した FAQ（テンプレートまたはカスタム）に一致すれば入力遅延付きで素早く返信します。一致しない場合は設定時間だけ人間の返信を待ち、間に合わなければ店舗ポリシー・トーン・在庫商品リストを踏まえて AI が回答します。',
     tabSettings: '設定',
     tabFaq: 'FAQ',
-    tabInventory: '在庫・サンプル',
+    tabInventory: '在庫商品',
+    tabUsage: 'API トークン',
+    tokenUsageIntro:
+      '直近 {days} 日間の集計です。各行は待機時間後に LLM で返信したときの API モデルです。FAQ に一致した場合は LLM を呼ばないためここに含まれません。',
+    tokenUsageEmpty: 'この期間に LLM 呼び出しはまだありません。',
+    tokenUsageColProvider: 'プロバイダー',
+    tokenUsageColModel: 'モデル',
+    tokenUsageColCalls: '呼び出し回数',
+    tokenUsageColPrompt: '入力トークン',
+    tokenUsageColCompletion: '出力トークン',
+    tokenUsageColTotal: '合計トークン',
     enableLabel: '自動返信を有効にする',
     enableHint: 'オフにすると、手動の返信のみ送信されます。',
     delayLabel: 'AI が返信するまでの待ち時間（秒）',
@@ -5229,17 +6024,47 @@ const JA_DICTIONARY: Dictionary = {
     saveRow: '保存',
     deleteRow: '削除',
     cancelEdit: 'キャンセル',
-    inventoryName: '商品・サンプル名',
+    inventoryName: '商品名',
     inventorySku: 'SKU（任意）',
-    inventoryDesc: '短い説明',
-    inventoryStock: '在庫メモ',
-    inventoryPrice: '価格の目安（テキスト）',
+    inventoryDesc: '仕様・短い説明',
+    inventoryStock: '在庫・在庫状況',
+    inventoryPrice: '価格（テキスト）',
     inventorySort: '並び順',
-    inventoryActive: '有効',
-    addInventory: '在庫行を追加',
+    inventoryImageUrl: '商品画像（URL）',
+    inventoryImageUrlHint:
+      'https:// で始まる公開画像 URL を貼り付け。AI にはテキストとして渡され、必要なら顧客にリンクを送れます。',
+    inventoryProductUrl: '商品ページ（URL）',
+    inventoryProductUrlHint:
+      '店舗サイト上の商品詳細ページ（https://…）。画像検索の結果と Excel の「Link trang sản phẩm」列に使われます。',
+    inventoryOpenProductPage: '商品ページを開く',
+    inventoryConsultNote: '接客メモ',
+    inventoryConsultNoteHint:
+      '例：保証12ヶ月、2–3日で発送、10%オフ、不良時のみ交換、○○円以上送料無料 など。',
+    inventoryDescHint: 'サイズ、色、素材、寸法、セット内容など。',
+    inventoryStockHint: '在庫数、「M/L 在庫あり」「取り寄せ約5日」など。',
+    inventoryFieldsGuide:
+      '説明または接客メモに：取り扱い色/サイズ、配送目安と送料、セール期限、商品ごとの返品条件、お手入れ方法 など。この一覧の行はすべて AI の顧客返信用コンテキストに含まれます。AI に言及させたくない商品は行を削除するか、インポート対象から外してください。',
+    inventoryOpenApiLink: 'API 連携ガイド',
+    inventoryOpenApiHint:
+      '店舗バックエンドから JSON で在庫を NanoAI に同期できます（Open Catalog、Shopee 風フィールド名）。画像検索と同じ Bearer。Vision は不要です。',
+    inventoryDownloadTemplate: 'Excelテンプレをダウンロード',
+    inventoryExportExcel: 'Excelに出力',
+    inventoryImportExcel: 'Excelから取込',
+    inventoryImportReplaceWarning:
+      'Excel取込：既存の SKU（大文字小文字無視）と一致すれば更新、なければ新規追加。SKU がない行は、SKU なしの既存行と商品名で照合（複数ある場合は並び順）。ファイルに無い既存商品はそのまま残ります。続行しますか？',
+    inventoryImportSuccess: '{count} 行を処理：新規 {inserted}、更新 {updated}。',
+    inventoryImportFailed: 'Excelの取込に失敗しました。',
+    inventoryErrInvalidXlsx: 'Excel（.xlsx）として読み取れません。',
+    inventoryErrEmptySheet: 'シートが空です。',
+    inventoryErrMissingName: '商品名列（name）がありません。テンプレを使ってください。',
+    inventoryErrNoRows: '有効なデータ行がありません（商品名の入った行が必要です）。',
+    inventoryErrNoFile: 'ファイルが選ばれていません。',
+    inventoryErrFileTooLarge: 'ファイルが大きすぎます（最大約2MB）。',
+    addInventory: '商品を追加',
     edit: '編集',
-    emptyFaq: 'FAQ がありません。キーワードと回答を追加すると即時返信に使われます。',
-    emptyInventory: '在庫データがありません。項目を追加すると AI が適切に案内できます。',
+    emptyFaq: '下のよくある質問から選び、店舗の返信文だけ入力してください。',
+    emptyInventory:
+      '在庫商品がありません。店舗が持っている在庫リストを登録すると、AI はそのリストだけを根拠に案内します。',
     cronSetupHint:
       '本番：GET または POST /api/cron/messaging-partner-ai を Authorization: Bearer MESSAGING_PARTNER_AI_CRON_SECRET で定期実行（例：毎分）し、DEEPSEEK_API_KEY を設定。cron がないとジョブは保留のまま AI は送りません。`next dev` は待機後に自動処理（cron 不要）。ローカルで `next start` かつ cron なしの場合は .env に MESSAGING_PARTNER_AI_DEV_WAKE=1。',
     toggleStatusOn: 'オン',
@@ -5249,6 +6074,120 @@ const JA_DICTIONARY: Dictionary = {
       'FAQ に一致する場合は保存済みの回答を使用。それ以外は待機後に DeepSeek API（モデル {model}）を呼び出します。',
     disclosureSwitchOn: '文末に注記',
     disclosureSwitchOff: '注記なし',
+    faqPresetsIntro:
+      '購入時によくある質問は用意済みです。返信内容を入力し「有効」にすると、お客様の似た表現を多言語で検出します。',
+    faqPresetSaveHint: '編集したら項目ごとに保存してください。',
+    faqPresetAnswerRequired: '「有効」にするには返信内容が必要です。',
+    faqCustomSectionTitle: '店舗独自の質問',
+    faqCustomSectionIntro:
+      'お店だけのよくある質問を追加：覚えやすい聞き方、一致判定用のキーワード、返信文を入力します。',
+    faqCustomAddTitle: '独自の質問を追加',
+    faqCustomQuestionLabel: 'お客様の聞き方（自分用メモ）',
+    faqCustomQuestionHint: '任意。例：「ポケット追加できますか？」— 自動一致には使いません。',
+    faqCustomKeywordsRequired:
+      '「有効」にする場合はキーワードを1つ以上（各2文字以上）、カンマまたは改行で区切ってください。',
+    faqPresetQuestions: {
+      stock: '在庫・サイズの有無は？',
+      shipping: '配送、送料、届くまでの日数は？',
+      price: '価格、割引は？',
+      size_fit: 'サイズ選び、フィット、サイズ表は？',
+      payment: '支払い方法（代引き、振込など）は？',
+      return_policy: '返品・返金は？',
+      order_track: '注文追跡、送り状番号は？',
+      warranty: '保証は？',
+      authentic: '正規品ですか？',
+      promo: 'キャンペーン、クーポンは？',
+    },
+    visionSearchTitle: '写真送信時の商品候補',
+    visionSearchHint:
+      'Google Vision Product Search — 店舗ごとに独立カタログ: その店の在庫のみ候補に含まれ、NanoAI 上の他店舗とは混ざりません。GCP で Vision API、GCS バケット、Vision + Storage のサービスアカウントが必要です。GCS_VISION_CATALOG_BUCKET と認証情報を設定。同期は増分（画像・名前の変更や未登録）で、残りがある場合は再度実行。「在庫」タブで行を削除すると Google の画像インデックスからも自動削除されます — リストファイルは不要です。',
+    visionSearchEnable: '写真からの候補を有効にする',
+    visionShopCountryLabel: '店舗の国・地域（Vision プリセット）',
+    visionShopCountryHint:
+      '主な販売地域を選ぶと、適した Google Cloud Vision リージョンを提案します。GCP プロジェクトのリージョンに近いと、カタログ画像の同期・転送が速く安定しやすくなります。構成が分かる場合は下で上書きしてください。不明なときは適当に選ばず、「Vision リージョンを手動指定（上級）」にして GCP 担当者に確認してから設定してください。',
+    visionShopCountryCustom: 'Vision リージョンを手動指定（上級）',
+    visionShopCountryAdvancedHint:
+      'GCP プロジェクトに合わせて下の Vision リージョンと商品カテゴリを選んでください。国プリセット未使用、または保存リージョンがプリセットと一致しない場合に表示されます。',
+    visionLocationLabel: 'Vision リージョン',
+    visionCategoryLabel: '商品カテゴリ（インデックス）',
+    visionBucketOverrideLabel: 'GCS バケット（任意）',
+    visionBucketOverrideHint: '空欄の場合はサーバーの GCS_VISION_CATALOG_BUCKET を使用します。',
+    visionSyncButton: '在庫画像を Google に同期',
+    visionSyncAutoWhenEnableHint:
+      '「写真からの候補」をオンに保存が成功すると、セグメントをまたいで自動的に同期が続き、完了まで通常は追加操作は不要です。エラーや絶対上限のときだけ「在庫画像を同期」を押してください。',
+    visionSyncing: '同期中…',
+    visionSyncOk: '画像カタログを同期しました。',
+    visionIndexReady: 'インデックス準備完了',
+    visionIndexNotReady: '未同期またはエラー',
+    visionLastSynced: '最終同期',
+    visionSyncErrorLabel: '直近のエラー',
+    visionSyncToastImported: 'インデックスに反映',
+    visionSyncToastRemoved: '削除（有効な画像 URL なし）',
+    visionSyncToastMore: '未処理が残っている可能性があります — 再度同期してください。',
+    visionSyncToastIdle: '同期する変更はありません。',
+    visionSyncChainedRounds: '連続 {n} 回同期しました',
+    visionSyncChainedStoppedMaxRounds: '自動同期の回数上限に達しました — 同期を押して続行してください。',
+    visionSyncChainedStoppedTimeout:
+      '時間上限のため停止しました（タブを固まらせないため）— 同期を押して続行してください。',
+    visionSyncChainedAbortedSafety:
+      '絶対安全上限のため自動同期を停止しました — 同期を押すかエラーを確認してください。',
+    visionBgSyncTitle: 'Google へのバックグラウンド同期（VPS / cron）',
+    visionBgSyncHint:
+      'サーバー側にジョブをキュー：VPS が定期的に GET または POST /api/cron/vision-catalog-sync を Bearer VISION_CATALOG_SYNC_CRON_SECRET で呼びます（.env.example 参照）。タブを閉じても構いません。完了・エラー後にこのページで詳細レポートを確認。',
+    visionBgSyncButton: 'バックグラウンド同期を開始',
+    visionBgSyncUseResumeHint:
+      'タブに未完了の同期カーソル（ブラウザ同期）があればそこから再開、なければ先頭からスキャンします。',
+    visionBgSyncCancel: 'バックグラウンドジョブをキャンセル',
+    visionBgSyncDismiss: 'レポートを閉じる',
+    visionBgSyncStatusQueued: 'cron 待ち',
+    visionBgSyncStatusRunning: 'cron 実行中',
+    visionBgSyncStatusDone: '完了',
+    visionBgSyncStatusError: 'エラー',
+    visionBgSyncStatusIdle: 'バックグラウンドジョブなし',
+    visionBgSyncReportTitle: 'バックグラウンド同期レポート',
+    visionBgSyncFieldRounds: 'API 回数',
+    visionBgSyncFieldImported: 'インデックス反映',
+    visionBgSyncFieldRemoved: '削除',
+    visionBgSyncFieldHasMore: '残件あり',
+    visionBgSyncFieldLastScanned: 'カーソル（最後の商品）',
+    visionBgSyncFieldStopped: '停止理由',
+    visionBgSyncFieldMessage: 'メッセージ',
+    visionBgSyncFieldServerError: 'サーバーエラー',
+    visionBgSyncBoolYes: 'はい',
+    visionBgSyncBoolNo: 'いいえ',
+    visionBgSyncPollingNote:
+      'キュー待ちまたはバックグラウンド実行中は、このページを約 8 秒ごとに自動更新します（タブを開いたままにしてください）。',
+    visionBgSyncEnqueueOk: 'バックグラウンド同期をキューに入れました。VPS の cron が処理します。',
+    visionBgSyncToastDone: 'Vision バックグラウンド同期が完了しました。',
+    visionBgSyncToastError: 'Vision バックグラウンド同期が失敗しました。',
+    visionBgSyncAlreadyActive: 'ジョブは既にキューまたは実行中です。',
+    visionBgSyncEnableVisionFirst: 'バックグラウンド同期の前に「写真からの候補」をオンにしてください。',
+    visionBgSyncSaveSettingsFirst: '先に Messaging の AI 設定を一度保存してください。',
+    visionBgSyncStopCompleted: '完了',
+    visionBgSyncStopError: 'エラー',
+    visionBgSyncStopCronSlice: 'cron の実行枠が終了（続行）',
+    visionBgSyncStopBadCursor: 'カーソルが無効',
+    visionBgSyncServerErrCursor: '残件があるのにスキャンカーソルがありません — 安全のため停止',
+    visionBgSyncMsgCompleted: 'カタログ同期が完了しました。',
+    visionBgSyncMsgInProgress: '処理中 — 次の cron が継続します。',
+    visionBgSyncMsgBadCursor: '停止: サーバーのカーソルが不整合です。',
+    visionInventoryDeleteRemovesIndexNote:
+      '「在庫」タブで行を削除すると、Google Vision の画像インデックスからも自動で削除されます — リストアップロードは不要です。',
+    imageSearchApiTitle: '画像で商品検索 API（店舗サイト向け）',
+    imageSearchApiHint:
+      'multipart で画像（フィールド image または file）を送り、Authorization: Bearer に API キーを付けます。同期済み Vision カタログに近い商品を返します。キーをブラウザに出さないよう店舗のバックエンドから呼び出すことを推奨します。',
+    imageSearchApiEnable: '公開 API を有効にする',
+    imageSearchApiKeyConfigured: 'API キーが設定されています。',
+    imageSearchApiKeyMissing:
+      'キー未作成 — API 連携ページで作成・管理（マスク、表示、コピー、削除）してください。',
+    imageSearchApiEndpointLabel: 'パス（前に NanoAI のドメインを付ける）',
+    imageSearchApiBaseUrlNote: '例: https://your-domain.com/api/messaging/partners/…/image-search',
+    imageSearchApiDocHint:
+      'POST multipart: image（ファイル）。任意 limit（1–25、既定 8）。JSON: products[]（inventory_id, name, sku, image_url, product_url, score）。',
+    imageSearchApiGenerate: 'API キーを生成 / 再発行',
+    imageSearchApiGenerating: 'キーを生成中…',
+    imageSearchApiKeyCreated: 'キーを発行しました（可能ならクリップボードにコピー済み）。再表示されないので今すぐ保存してください。',
+    imageSearchApiManageKeysLink: 'API 連携を開く — キー管理',
   },
   partnerGuestChat: {
     notFoundTitle: 'チャットページが見つかりません',
@@ -5277,6 +6216,25 @@ const JA_DICTIONARY: Dictionary = {
     signInWithGoogle: 'Google でログイン',
     linkMyShops: '自分のメッセージ',
     sendKeyboardHint: 'Enter で送信 · Shift+Enter で改行',
+    tryOnOpen: 'AI 試着',
+    tryOnTitle: 'チャット内で試着',
+    tryOnModelPhoto: '人物写真',
+    tryOnGarmentPhoto: '服の写真',
+    tryOnGenerate: '試着画像を作成',
+    tryOnGenerateWithCost: '試着画像を作成（-{credits} クレジット）',
+    tryOnPreparing: '試着画像を作成中…',
+    tryOnNeedBoth: '人物写真と服の写真の両方が必要です。',
+    tryOnGarmentLimitReached: '服は最大 {max} 点まで選択できます。',
+    tryOnGarmentItemsLabel: '点',
+    tryOnFailed: '試着画像を作成できませんでした。',
+    tryOnReady: '試着画像ができました。チャットで送信できます。',
+    tryOnChargedToast: '{cost} クレジットを消費しました。残り {remaining} クレジット。',
+    shopTypingHint: '店舗が入力中…',
+    visionMatchTitle: '次のいずれかの商品の可能性があります。選ぶと店舗が案内を続けます：',
+    visionPickHint: '正しい商品を選ぶか、手動の返信をお待ちください。',
+    visionPickBusy: '送信中…',
+    visionPickError: '選択を送信できませんでした。もう一度お試しください。',
+    visionProductLink: '商品ページ',
   },
   messagingMyChats: {
     pageTitle: '自分のメッセージ',
@@ -6237,6 +7195,7 @@ const KO_DICTIONARY: Dictionary = {
     tasksHub: '작업 및 대기열',
     supportChat: '고객 채팅',
     partnerInbox: '고객 수신함(매장)',
+    partnerApiIntegration: '매장 API 연동',
     myChats: '내 메시지(매장)',
   },
   referral: {
@@ -6401,8 +7360,24 @@ const KO_DICTIONARY: Dictionary = {
     nanoaiHostedIframeTitleAttr: 'NanoAI 채팅',
     nanoaiHostedIframeHelp:
       'HTML에 붙여 넣으세요. 고객은 NanoAI 프레임 안에서 채팅·로그인(퍼스트파티 쿠키)하며 익명 임베드 API에 의존하지 않습니다.',
+    copyHostedChatLinkButton: '채팅 링크 복사',
+    hostedChatLinkCopiedToast: '채팅 링크를 복사했습니다.',
     copyIframeSnippetButton: 'iframe 코드 복사',
     iframeSnippetCopiedToast: 'iframe 코드를 복사했습니다.',
+    integrationSectionTitle: '추적 태그 및 임베드 코드',
+    integrationSectionHint:
+      'Google 태그, Facebook Pixel, 채팅 임베드 코드를 붙여 넣는 영역입니다. 아래에서 NanoAI 채팅 임베드 코드를 빠르게 복사할 수 있습니다.',
+    googleTagLabel: 'Google 태그 (GA4 / GTM)',
+    googleTagPlaceholder: '예: G-XXXXXXXXXX 또는 GTM-XXXXXXX',
+    facebookPixelLabel: 'Facebook Pixel / Meta Pixel',
+    facebookPixelPlaceholder: '예: 123456789012345',
+    nanoaiEmbedCodeLabel: 'NanoAI 채팅 임베드 코드',
+    facebookChatEmbedCodeLabel: 'Facebook 채팅 임베드 코드',
+    zaloChatEmbedCodeLabel: 'Zalo 채팅 임베드 코드',
+    embedCodePlaceholder: 'script / iframe / 플러그인 코드를 여기에 붙여 넣으세요…',
+    copyNanoaiEmbedButton: 'NanoAI 채팅 코드 복사',
+    copyFacebookChatEmbedButton: 'Facebook 채팅 코드 복사',
+    copyZaloChatEmbedButton: 'Zalo 채팅 코드 복사',
     addAnotherWorkspace: '워크스페이스 추가',
     cancelAddWorkspace: '취소',
     fbLinkedLine: 'Facebook Page 연결됨: {pageId}',
@@ -6415,14 +7390,29 @@ const KO_DICTIONARY: Dictionary = {
     messagingInboxDescription: '왼쪽에 고객 목록. 대화를 열면 입력창이 화면 하단에 고정됩니다.',
     noWorkspaceInboxCta: '메시징 워크스페이스가 없습니다. 설정에서 매장을 만들고 Facebook / Zalo / 채팅을 연결하세요.',
     goToInbox: '받은편지함으로',
+    apiIntegrationGuideLink: 'API 연동 안내(키 및 엔드포인트)',
+    apiIntegrationGuideShort: '매장 사이트 연동용: 임베드 채팅, 이미지 상품 검색, B2B 피팅 API.',
+    messagingSettingsApiHubCardTitle: '임베드 채팅 및 API',
+    messagingSettingsApiHubCardBody:
+      '호스팅 URL, iframe 스니펫, 임베드 엔드포인트, 키, 개발자 문서는 「API 연동」 페이지로 옮겼습니다 — 이 설정 화면에는 더 이상 표시하지 않습니다.',
   },
   partnerMessagingAi: {
     panelTitle: 'AI 자동 답장',
     panelSubtitle:
-      '저장된 FAQ와 일치하면 입력 지연을 두고 빠르게 답합니다. 일치하지 않으면 설정한 시간 동안 직접 답장을 기다린 뒤, 시간이 지나면 매장 정책·톤·재고 정보를 바탕으로 AI가 답합니다.',
+      '저장된 FAQ(템플릿 또는 사용자 정의)와 일치하면 입력 지연을 두고 빠르게 답합니다. 일치하지 않으면 설정한 시간 동안 직접 답장을 기다린 뒤, 시간이 지나면 매장 정책·톤·재고 상품 목록을 바탕으로 AI가 답합니다.',
     tabSettings: '설정',
     tabFaq: 'FAQ',
-    tabInventory: '재고·샘플',
+    tabInventory: '재고 상품',
+    tabUsage: 'API 토큰',
+    tokenUsageIntro:
+      '최근 {days}일 요약입니다. 각 행은 대기 시간 후 LLM으로 답할 때 사용한 API 모델입니다. FAQ 일치 시에는 LLM을 호출하지 않아 여기에 표시되지 않습니다.',
+    tokenUsageEmpty: '이 기간에 LLM 호출이 없습니다.',
+    tokenUsageColProvider: '제공자',
+    tokenUsageColModel: '모델',
+    tokenUsageColCalls: '호출 수',
+    tokenUsageColPrompt: '입력 토큰',
+    tokenUsageColCompletion: '출력 토큰',
+    tokenUsageColTotal: '총 토큰',
     enableLabel: '자동 답장 사용',
     enableHint: '끄면 직접 보낸 메시지만 전송됩니다.',
     delayLabel: 'AI 답장 전 대기(초)',
@@ -6450,17 +7440,47 @@ const KO_DICTIONARY: Dictionary = {
     saveRow: '저장',
     deleteRow: '삭제',
     cancelEdit: '취소',
-    inventoryName: '상품·샘플 이름',
+    inventoryName: '상품명',
     inventorySku: 'SKU(선택)',
-    inventoryDesc: '짧은 설명',
-    inventoryStock: '재고 메모',
-    inventoryPrice: '가격 힌트(텍스트)',
+    inventoryDesc: '사양 / 짧은 설명',
+    inventoryStock: '재고 / 재고 여부',
+    inventoryPrice: '가격(텍스트)',
     inventorySort: '순서',
-    inventoryActive: '사용',
-    addInventory: '재고 행 추가',
+    inventoryImageUrl: '상품 이미지(URL)',
+    inventoryImageUrlHint:
+      'https:// 로 시작하는 공개 이미지 링크를 붙여 넣으세요. AI에는 텍스트로 전달되며 필요 시 고객에게 링크를 보낼 수 있습니다.',
+    inventoryProductUrl: '상품 페이지(URL)',
+    inventoryProductUrlHint:
+      '매장 웹사이트의 상품 상세 페이지(https://…). 이미지 검색 결과와 Excel 열 “Link trang sản phẩm”에 사용됩니다.',
+    inventoryOpenProductPage: '상품 페이지 열기',
+    inventoryConsultNote: '상담 시 추가 안내',
+    inventoryConsultNoteHint:
+      '예: 보증 12개월, 2–3일 배송, 10% 할인, 불량 시에만 교환, ○○원 이상 무료배송 등.',
+    inventoryDescHint: '사이즈, 색상, 소재, 치수, 세트 구성 등.',
+    inventoryStockHint: '남은 수량, 또는 “M/L 재고 있음”, “주문 후 약 5일” 등.',
+    inventoryFieldsGuide:
+      '설명 또는 상담 메모에: 판매 색상·사이즈, 배송 기간·배송비, 프로모션 종료일, 품목별 교환·환불, 관리 방법 등. 목록의 모든 행은 고객 답변용 AI 컨텍스트에 포함됩니다. AI가 언급하지 않게 하려면 해당 행을 삭제하거나 가져오기 파일에서 제외하세요.',
+    inventoryOpenApiLink: 'API 연동 안내',
+    inventoryOpenApiHint:
+      '매장 백엔드에서 JSON으로 재고를 NanoAI에 동기화할 수 있습니다(Open Catalog, Shopee 스타일 필드명). 이미지 검색과 동일 Bearer. Vision 불필요.',
+    inventoryDownloadTemplate: 'Excel 샘플 받기',
+    inventoryExportExcel: 'Excel보내기',
+    inventoryImportExcel: 'Excel 가져오기',
+    inventoryImportReplaceWarning:
+      'Excel 가져오기: 기존 SKU와 일치(대소문자 무시)하면 업데이트, 없으면 추가. SKU가 없으면 SKU 없는 기존 행과 상품명으로 매칭(여러 개면 정렬 순서 사용). 파일에 없는 기존 상품은 유지됩니다. 계속할까요?',
+    inventoryImportSuccess: '{count}행 처리: 추가 {inserted}, 업데이트 {updated}.',
+    inventoryImportFailed: 'Excel 가져오기에 실패했습니다.',
+    inventoryErrInvalidXlsx: '올바른 Excel(.xlsx) 파일이 아닙니다.',
+    inventoryErrEmptySheet: '시트가 비어 있습니다.',
+    inventoryErrMissingName: '상품명 열(name)이 없습니다. 샘플 파일을 사용하세요.',
+    inventoryErrNoRows: '유효한 데이터 행이 없습니다(상품명이 있는 행이 필요합니다).',
+    inventoryErrNoFile: '파일을 선택하지 않았습니다.',
+    inventoryErrFileTooLarge: '파일이 너무 큽니다(최대 약 2MB).',
+    addInventory: '상품 추가',
     edit: '편집',
-    emptyFaq: 'FAQ가 없습니다. 키워드와 답을 추가하면 즉시 답장에 사용됩니다.',
-    emptyInventory: '재고 데이터가 없습니다. 항목을 추가하면 AI가 정확히 안내합니다.',
+    emptyFaq: '아래에서 미리 준비된 질문을 고르고 매장 답변만 입력하세요.',
+    emptyInventory:
+      '등록된 상품이 없습니다. 매장에 있는 재고 목록을 추가하면 AI는 그 목록만 근거로 안내합니다.',
     cronSetupHint:
       '운영: GET 또는 POST /api/cron/messaging-partner-ai를 Authorization: Bearer MESSAGING_PARTNER_AI_CRON_SECRET으로 주기 호출(예: 매분)하고 DEEPSEEK_API_KEY를 설정하세요. cron이 없으면 작업이 대기만 하고 AI가 보내지 않습니다. `next dev`는 대기 시간 후 자동 처리(cron 불필요). 로컬 `next start`에 cron이 없으면 .env에 MESSAGING_PARTNER_AI_DEV_WAKE=1.',
     toggleStatusOn: '켜짐',
@@ -6470,6 +7490,120 @@ const KO_DICTIONARY: Dictionary = {
       'FAQ와 일치하면 저장된 답변을 사용하고, 그 외는 대기 후 DeepSeek API(모델 {model})를 호출합니다.',
     disclosureSwitchOn: '맺음말 추가',
     disclosureSwitchOff: '맺음말 없음',
+    faqPresetsIntro:
+      '구매 시 자주 묻는 질문이 미리 준비되어 있습니다. 답변만 입력하고 “사용”을 켜면, 고객의 비슷한 표현을 여러 언어로 감지합니다.',
+    faqPresetSaveHint: '수정한 항목마다 저장하세요.',
+    faqPresetAnswerRequired: '“사용”을 켜려면 답변 내용이 필요합니다.',
+    faqCustomSectionTitle: '매장만의 질문',
+    faqCustomSectionIntro:
+      '매장에만 해당하는 질문을 추가하세요: 기억용으로 고객이 묻는 방식, 매칭용 키워드, 답변 내용을 입력합니다.',
+    faqCustomAddTitle: '맞춤 질문 추가',
+    faqCustomQuestionLabel: '고객이 자주 묻는 말(메모용)',
+    faqCustomQuestionHint: '선택. 예: “주머니 추가 가능해요?” — 자동 매칭에는 사용되지 않습니다.',
+    faqCustomKeywordsRequired:
+      '“사용”을 켤 때 키워드를 하나 이상(각 2자 이상), 쉼표 또는 줄바꿈으로 구분해 입력하세요.',
+    faqPresetQuestions: {
+      stock: '재고 / 사이즈 있나요?',
+      shipping: '배송, 배송비, 며칠 걸리나요?',
+      price: '가격, 할인 있나요?',
+      size_fit: '사이즈 선택, 핏, 사이즈표?',
+      payment: '결제 방법(착불, 계좌이체 등)?',
+      return_policy: '교환·환불 규정?',
+      order_track: '배송 조회, 운송장 번호?',
+      warranty: '보증은?',
+      authentic: '정품인가요?',
+      promo: '프로모션, 쿠폰 코드?',
+    },
+    visionSearchTitle: '고객이 사진을 보낼 때 상품 추천',
+    visionSearchHint:
+      'Google Vision Product Search — 매장마다 별도 카탈로그: 해당 매장 재고만 추천에 사용되며 NanoAI의 다른 매장과 섞이지 않습니다. GCP: Vision API, GCS 버킷, Vision + Storage 서비스 계정; GCS_VISION_CATALOG_BUCKET과 자격 증명. 동기화는 누적(이미지·이름 변경 또는 미색인); 남으면 다시 실행. «재고» 탭에서 행을 삭제하면 Google 이미지 색인에서도 자동 제거됩니다 — 제거 목록 파일 불필요.',
+    visionSearchEnable: '사진 기반 추천 사용',
+    visionShopCountryLabel: '매장 국가/지역(Vision 프리셋)',
+    visionShopCountryHint:
+      '매장이 주로 운영되는 지역을 고르면 맞는 Google Cloud Vision 리전을 제안합니다. GCP 프로젝트 리전과 가까울수록 카탈로그 이미지 동기화·전송이 보통 더 빠르고 안정적입니다. 구성을 알면 아래에서 직접 바꿀 수 있습니다. 잘 모르겠으면 아무거나 고르지 말고 «Vision 리전 직접 선택(고급)»으로 두고 GCP 담당자에게 확인한 뒤 올바른 리전을 설정하세요.',
+    visionShopCountryCustom: 'Vision 리전 직접 선택(고급)',
+    visionShopCountryAdvancedHint:
+      'GCP 프로젝트에 맞게 아래 Vision 리전과 상품 카테고리를 선택하세요. 국가 프리셋을 쓰지 않거나 저장된 리전이 프리셋과 다를 때 표시됩니다.',
+    visionLocationLabel: 'Vision 리전',
+    visionCategoryLabel: '상품 카테고리(인덱스)',
+    visionBucketOverrideLabel: 'GCS 버킷(선택)',
+    visionBucketOverrideHint: '비우면 서버의 GCS_VISION_CATALOG_BUCKET을 사용합니다.',
+    visionSyncButton: '재고 이미지를 Google에 동기화',
+    visionSyncAutoWhenEnableHint:
+      '「사진 기반 추천」을 켜고 저장이 완료되면 세그먼트를 이어 자동 동기화가 끝날 때까지 진행되며 보통 추가 클릭이 필요 없습니다. 오류나 절대 안전 한도일 때만 «재고 이미지를 Google에 동기화»를 누르세요.',
+    visionSyncing: '동기화 중…',
+    visionSyncOk: '이미지 카탈로그를 동기화했습니다.',
+    visionIndexReady: '인덱스 준비됨',
+    visionIndexNotReady: '동기화 안 됨 또는 오류',
+    visionLastSynced: '마지막 동기화',
+    visionSyncErrorLabel: '최근 오류',
+    visionSyncToastImported: '색인에 반영됨',
+    visionSyncToastRemoved: '제거됨(유효한 이미지 URL 없음)',
+    visionSyncToastMore: '처리할 항목이 더 있을 수 있습니다 — 동기화를 다시 실행하세요.',
+    visionSyncToastIdle: '동기화할 변경이 없습니다.',
+    visionSyncChainedRounds: '연속 {n}회 동기화함',
+    visionSyncChainedStoppedMaxRounds: '자동 동기화 횟수 한도에 도달했습니다 — 동기화를 눌러 계속하세요.',
+    visionSyncChainedStoppedTimeout:
+      '시간 한도로 중단했습니다(탭 멈춤 방지) — 동기화를 눌러 계속하세요.',
+    visionSyncChainedAbortedSafety:
+      '절대 안전 한도로 자동 동기화가 중단되었습니다 — 동기화를 누르거나 오류를 확인하세요.',
+    visionBgSyncTitle: 'Google 백그라운드 동기화(VPS / cron)',
+    visionBgSyncHint:
+      '서버에 작업을 대기열에 넣습니다: VPS가 주기적으로 GET 또는 POST /api/cron/vision-catalog-sync를 Bearer VISION_CATALOG_SYNC_CRON_SECRET으로 호출합니다(.env.example 참고). 탭을 닫아도 됩니다. 완료·오류 후 이 페이지에서 상세 보고서를 확인하세요.',
+    visionBgSyncButton: '백그라운드 동기화 시작',
+    visionBgSyncUseResumeHint:
+      '탭에 이전 브라우저 동기화의 커서가 있으면 그 지점부터 이어가고, 없으면 처음부터 스캔합니다.',
+    visionBgSyncCancel: '백그라운드 작업 취소',
+    visionBgSyncDismiss: '보고서 닫기',
+    visionBgSyncStatusQueued: 'cron 대기',
+    visionBgSyncStatusRunning: 'cron 실행 중',
+    visionBgSyncStatusDone: '완료',
+    visionBgSyncStatusError: '오류',
+    visionBgSyncStatusIdle: '백그라운드 작업 없음',
+    visionBgSyncReportTitle: '백그라운드 동기화 보고서',
+    visionBgSyncFieldRounds: 'API 라운드',
+    visionBgSyncFieldImported: '색인 반영',
+    visionBgSyncFieldRemoved: '제거',
+    visionBgSyncFieldHasMore: '백로그 남음',
+    visionBgSyncFieldLastScanned: '커서(마지막 품목)',
+    visionBgSyncFieldStopped: '중지 사유',
+    visionBgSyncFieldMessage: '메시지',
+    visionBgSyncFieldServerError: '서버 오류',
+    visionBgSyncBoolYes: '예',
+    visionBgSyncBoolNo: '아니오',
+    visionBgSyncPollingNote:
+      '대기 또는 백그라운드 실행 중에는 이 페이지가 약 8초마다 자동으로 새로고침됩니다(탭을 열어 두세요).',
+    visionBgSyncEnqueueOk: '백그라운드 동기화가 대기열에 추가되었습니다. VPS cron이 처리합니다.',
+    visionBgSyncToastDone: 'Vision 백그라운드 동기화가 완료되었습니다.',
+    visionBgSyncToastError: 'Vision 백그라운드 동기화가 실패했습니다.',
+    visionBgSyncAlreadyActive: '작업이 이미 대기열에 있거나 실행 중입니다.',
+    visionBgSyncEnableVisionFirst: '백그라운드 동기화 전에 «사진 기반 추천»을 켜 주세요.',
+    visionBgSyncSaveSettingsFirst: '먼저 Messaging에서 AI 설정을 한 번 저장하세요.',
+    visionBgSyncStopCompleted: '완료',
+    visionBgSyncStopError: '오류',
+    visionBgSyncStopCronSlice: 'cron 구간 종료(이어서 실행)',
+    visionBgSyncStopBadCursor: '커서 무효',
+    visionBgSyncServerErrCursor: '백로그가 남았지만 스캔 커서가 없어 안전하게 중지',
+    visionBgSyncMsgCompleted: '카탈로그 동기화가 끝났습니다.',
+    visionBgSyncMsgInProgress: '진행 중 — 다음 cron이 이어갑니다.',
+    visionBgSyncMsgBadCursor: '중지: 서버 커서가 일치하지 않습니다.',
+    visionInventoryDeleteRemovesIndexNote:
+      '«재고» 탭에서 행을 삭제하면 Google Vision 이미지 색인에서도 자동으로 제거됩니다 — 제거용 목록 파일을 올릴 필요가 없습니다.',
+    imageSearchApiTitle: '이미지로 상품 검색 API(매장 웹사이트용)',
+    imageSearchApiHint:
+      'multipart로 이미지(필드 image 또는 file)를 보내고 Authorization: Bearer에 API 키를 넣습니다. 동기화된 Vision 카탈로그와 가장 비슷한 상품을 반환합니다. 키 노출을 피하려면 매장 백엔드에서 호출하는 것을 권장합니다.',
+    imageSearchApiEnable: '공개 API 사용',
+    imageSearchApiKeyConfigured: 'API 키가 설정되어 있습니다.',
+    imageSearchApiKeyMissing:
+      '키 없음 — API 연동 페이지에서 생성·관리(가리기, 보기, 복사, 삭제)하세요.',
+    imageSearchApiEndpointLabel: '경로(앞에 NanoAI 사이트 도메인 추가)',
+    imageSearchApiBaseUrlNote: '예: https://your-domain.com/api/messaging/partners/…/image-search',
+    imageSearchApiDocHint:
+      'POST multipart: image(파일). 선택 limit(1–25, 기본 8). JSON: products[](inventory_id, name, sku, image_url, product_url, score).',
+    imageSearchApiGenerate: 'API 키 생성 / 재발급',
+    imageSearchApiGenerating: '키 생성 중…',
+    imageSearchApiKeyCreated: '키가 생성되었습니다(가능하면 클립보드에 복사됨). 다시 표시되지 않으니 지금 저장하세요.',
+    imageSearchApiManageKeysLink: 'API 연동 열기 — 키 관리',
   },
   partnerGuestChat: {
     notFoundTitle: '채팅 페이지를 찾을 수 없습니다',
@@ -6498,6 +7632,25 @@ const KO_DICTIONARY: Dictionary = {
     signInWithGoogle: 'Google로 로그인',
     linkMyShops: '내 메시지',
     sendKeyboardHint: 'Enter로 전송 · Shift+Enter로 줄 바꿈',
+    tryOnOpen: 'AI 피팅',
+    tryOnTitle: '채팅에서 바로 가상 피팅',
+    tryOnModelPhoto: '인물 사진',
+    tryOnGarmentPhoto: '의류 사진',
+    tryOnGenerate: '피팅 이미지 생성',
+    tryOnGenerateWithCost: '피팅 이미지 생성 (-{credits} 크레딧)',
+    tryOnPreparing: '피팅 이미지를 생성하는 중…',
+    tryOnNeedBoth: '인물 사진과 의류 사진이 모두 필요합니다.',
+    tryOnGarmentLimitReached: '의류는 최대 {max}개까지 선택할 수 있습니다.',
+    tryOnGarmentItemsLabel: '개',
+    tryOnFailed: '피팅 이미지를 만들지 못했습니다.',
+    tryOnReady: '피팅 이미지가 준비되었습니다. 채팅에서 바로 보낼 수 있습니다.',
+    tryOnChargedToast: '{cost} 크레딧이 차감되었습니다. 잔액 {remaining} 크레딧.',
+    shopTypingHint: '매장이 입력 중…',
+    visionMatchTitle: '다음 중 하나일 수 있습니다. 선택하면 매장이 계속 안내합니다:',
+    visionPickHint: '맞는 상품을 고르거나 직접 답장을 기다려 주세요.',
+    visionPickBusy: '보내는 중…',
+    visionPickError: '선택을 보낼 수 없습니다. 다시 시도해 주세요.',
+    visionProductLink: '상품 페이지',
   },
   messagingMyChats: {
     pageTitle: '내 메시지',

@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import dynamic from "next/dynamic";
 import Script from "next/script";
+import { createClient as createAdminClient } from "@supabase/supabase-js";
+import { headers } from "next/headers";
 import "./globals.css";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
@@ -9,6 +11,7 @@ import { DepositCreditProvider } from "@/components/deposit-credit-context";
 import { buildMetadata, buildJsonLdWebApplication, buildJsonLdOrganization, SITE_URL, SITE_NAME } from "@/lib/seo";
 import { JsonLd } from "@/components/seo-json-ld";
 import { getCurrentWebLocale, getServerDictionary } from '@/lib/i18n/server'
+import { FloatingChatWidget } from '@/components/messaging/floating-chat-widget'
 
 const AnalyticsTracker = dynamic(
   () => import("@/components/analytics/analytics-tracker").then((m) => m.AnalyticsTracker),
@@ -35,6 +38,106 @@ const ReferralClaimRunner = dynamic(
   { ssr: false }
 );
 const GA_MEASUREMENT_ID = "G-1KZ2PKX887";
+const INTEGRATIONS_KEY = "admin_integrations_config";
+const INTEGRATIONS_TABLE = "admin_integrations_settings";
+
+type DomainVerificationTag = {
+  name?: string;
+  code?: string;
+};
+
+type AdminIntegrationsSettings = {
+  googleTagId?: string;
+  googleAnalyticsId?: string;
+  googleTagManagerId?: string;
+  webConsoleVerificationTag?: string;
+  domainVerificationTags?: DomainVerificationTag[];
+  nanoaiEmbedCode?: string;
+};
+
+type MetaTagPayload = {
+  name?: string;
+  property?: string;
+  content: string;
+};
+
+type IframeEmbedPayload = {
+  src: string;
+  title: string;
+  loading?: "lazy" | "eager";
+  referrerPolicy?: React.IframeHTMLAttributes<HTMLIFrameElement>["referrerPolicy"];
+};
+
+async function loadAdminIntegrationsSettings(): Promise<AdminIntegrationsSettings> {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) return {};
+
+  const admin = createAdminClient(url, key, { auth: { persistSession: false } });
+  const { data, error } = await admin
+    .from(INTEGRATIONS_TABLE)
+    .select("value_json")
+    .eq("key", INTEGRATIONS_KEY)
+    .maybeSingle();
+
+  if (error) return {};
+  return (data?.value_json ?? {}) as AdminIntegrationsSettings;
+}
+
+function parseMetaTag(raw: string): MetaTagPayload | null {
+  const source = raw.trim();
+  if (!source) return null;
+
+  const name = source.match(/name\s*=\s*["']([^"']+)["']/i)?.[1]?.trim();
+  const property = source.match(/property\s*=\s*["']([^"']+)["']/i)?.[1]?.trim();
+  const content = source.match(/content\s*=\s*["']([^"']+)["']/i)?.[1]?.trim();
+  if (!content || (!name && !property)) return null;
+
+  return { name, property, content };
+}
+
+function parseIframeEmbed(raw: string): IframeEmbedPayload | null {
+  const source = raw.trim();
+  if (!source) return null;
+  const src = source.match(/src\s*=\s*["']([^"']+)["']/i)?.[1]?.trim();
+  if (!src) return null;
+
+  const title = source.match(/title\s*=\s*["']([^"']+)["']/i)?.[1]?.trim() || "Chat widget";
+  const loadingRaw = source.match(/loading\s*=\s*["']([^"']+)["']/i)?.[1]?.trim().toLowerCase();
+  const referrerPolicy = source.match(/referrerpolicy\s*=\s*["']([^"']+)["']/i)?.[1]?.trim();
+
+  const loading = loadingRaw === "eager" ? "eager" : "lazy";
+  return {
+    src,
+    title,
+    loading,
+    referrerPolicy: referrerPolicy as React.IframeHTMLAttributes<HTMLIFrameElement>["referrerPolicy"],
+  };
+}
+
+function normalizeShopName(title: string): string {
+  const cleaned = title
+    .replace(/^chat\s+/i, '')
+    .replace(/\s+support\s+chat$/i, '')
+    .trim()
+  return cleaned || 'NanoAI'
+}
+
+function normalizeEmbedSrc(src: string, requestOrigin: string): string {
+  try {
+    const parsed = new URL(src);
+    const isLocalHost =
+      parsed.hostname === "localhost" ||
+      parsed.hostname === "127.0.0.1" ||
+      parsed.hostname === "::1";
+    if (isLocalHost && requestOrigin) {
+      return `${requestOrigin}${parsed.pathname}${parsed.search}${parsed.hash}`;
+    }
+    return src;
+  } catch {
+    return src;
+  }
+}
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -97,11 +200,26 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const headerStore = headers();
+  const forwardedProto = headerStore.get("x-forwarded-proto");
+  const forwardedHost = headerStore.get("x-forwarded-host");
+  const host = forwardedHost || headerStore.get("host") || "";
+  const protocol = forwardedProto || (process.env.NODE_ENV === "development" ? "http" : "https");
+  const requestOrigin = host ? `${protocol}://${host}` : "";
+  const currentPathWithQuery = headerStore.get("x-nanoai-login-next") || "";
+  const [currentPathname, currentQuery = ""] = currentPathWithQuery.split("?");
+  const currentSearch = new URLSearchParams(currentQuery);
+  const isIframeRequest = headerStore.get("sec-fetch-dest") === "iframe";
+  const isEmbedQuery = currentSearch.get("embed") === "1";
+  const isMessagingGuestPage = currentPathname.startsWith("/messaging/p/");
+  const useMinimalEmbedLayout = isMessagingGuestPage && (isIframeRequest || isEmbedQuery);
+
+  const settings = await loadAdminIntegrationsSettings();
   const locale = getCurrentWebLocale()
   const { t } = getServerDictionary()
   const webAppLd = buildJsonLdWebApplication(
@@ -110,25 +228,111 @@ export default function RootLayout({
     SITE_URL
   );
   const orgLd = buildJsonLdOrganization();
+  const legacyGoogleTag = String(settings.googleTagId || "").trim();
+  const gaMeasurementId = String(settings.googleAnalyticsId || "").trim()
+    || (legacyGoogleTag.startsWith("G-") ? legacyGoogleTag : "")
+    || GA_MEASUREMENT_ID;
+  const gtmContainerId = String(settings.googleTagManagerId || "").trim()
+    || (legacyGoogleTag.startsWith("GTM-") ? legacyGoogleTag : "");
+  const metaTagCandidates = [
+    String(settings.webConsoleVerificationTag || ""),
+    ...((Array.isArray(settings.domainVerificationTags) ? settings.domainVerificationTags : [])
+      .map((item) => String(item?.code || ""))),
+  ];
+  const metaTags = metaTagCandidates.map(parseMetaTag).filter((item): item is MetaTagPayload => Boolean(item));
+  const nanoaiChatEmbed = parseIframeEmbed(String(settings.nanoaiEmbedCode || ""));
+  const nanoaiChatSrc = nanoaiChatEmbed
+    ? normalizeEmbedSrc(nanoaiChatEmbed.src, requestOrigin)
+    : "";
+  const widgetText = {
+    openLabel:
+      locale === 'en'
+        ? 'Open chat'
+        : locale === 'zh'
+          ? '打开聊天'
+          : locale === 'ja'
+            ? 'チャットを開く'
+            : locale === 'ko'
+              ? '채팅 열기'
+              : 'Mở chat',
+    closeLabel:
+      locale === 'en'
+        ? 'Close'
+        : locale === 'zh'
+          ? '关闭'
+          : locale === 'ja'
+            ? '閉じる'
+            : locale === 'ko'
+              ? '닫기'
+              : 'Đóng',
+    openFullPageLabel:
+      locale === 'en'
+        ? 'Open full page'
+        : locale === 'zh'
+          ? '全页打开'
+          : locale === 'ja'
+            ? '全画面で開く'
+            : locale === 'ko'
+              ? '전체 페이지 열기'
+              : 'Mở toàn trang',
+  }
+  const shouldRenderGlobalChatWidget =
+    Boolean(nanoaiChatEmbed && nanoaiChatSrc) &&
+    !currentPathname.startsWith("/messaging/p/") &&
+    !currentPathname.startsWith("/support-chat");
 
   return (
     <html lang={locale} suppressHydrationWarning>
+      <head>
+        {metaTags.map((tag, index) =>
+          tag.name ? (
+            <meta key={`meta-name-${index}`} name={tag.name} content={tag.content} />
+          ) : (
+            <meta key={`meta-property-${index}`} property={tag.property} content={tag.content} />
+          )
+        )}
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen safe-area-pb`}
         suppressHydrationWarning
       >
-        <Script
-          src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`}
-          strategy="afterInteractive"
-        />
-        <Script id="google-analytics" strategy="afterInteractive">
-          {`
-            window.dataLayer = window.dataLayer || [];
-            function gtag(){dataLayer.push(arguments);}
-            gtag('js', new Date());
-            gtag('config', '${GA_MEASUREMENT_ID}');
-          `}
-        </Script>
+        {gtmContainerId ? (
+          <>
+            <Script id="google-tag-manager" strategy="afterInteractive">
+              {`
+                (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+                new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+                j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+                'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+                })(window,document,'script','dataLayer','${gtmContainerId}');
+              `}
+            </Script>
+            <noscript>
+              <iframe
+                src={`https://www.googletagmanager.com/ns.html?id=${gtmContainerId}`}
+                height="0"
+                width="0"
+                style={{ display: "none", visibility: "hidden" }}
+              />
+            </noscript>
+          </>
+        ) : null}
+        {gaMeasurementId ? (
+          <>
+            <Script
+              src={`https://www.googletagmanager.com/gtag/js?id=${gaMeasurementId}`}
+              strategy="afterInteractive"
+            />
+            <Script id="google-analytics" strategy="afterInteractive">
+              {`
+                window.dataLayer = window.dataLayer || [];
+                function gtag(){dataLayer.push(arguments);}
+                gtag('js', new Date());
+                gtag('config', '${gaMeasurementId}');
+              `}
+            </Script>
+          </>
+        ) : null}
         <AnalyticsTracker />
         <ReferralCapture />
         <ReferralClaimRunner />
@@ -139,14 +343,32 @@ export default function RootLayout({
             gây "could not finish this Suspense boundary" trên trang chủ và nhiều route.
           - Trang nào cần boundary cho useSearchParams hãy bọc cục bộ trong chính trang đó.
         */}
-        <Header />
-        <DepositCreditProvider>
-          <main className="pb-16 md:pb-0">{children}</main>
-          <Footer />
-          <MobileBottomBar />
-          <InstallPrompt />
-          <PushNotificationPrompt />
-        </DepositCreditProvider>
+        {useMinimalEmbedLayout ? (
+          <main>{children}</main>
+        ) : (
+          <>
+            <Header />
+            <DepositCreditProvider>
+              <main className="pb-16 md:pb-0">{children}</main>
+              <Footer />
+              <MobileBottomBar />
+              <InstallPrompt />
+              <PushNotificationPrompt />
+              {shouldRenderGlobalChatWidget ? (
+                <FloatingChatWidget
+                  chatUrl={nanoaiChatSrc}
+                  title={nanoaiChatEmbed?.title || 'Chat widget'}
+                  shopName={normalizeShopName(nanoaiChatEmbed?.title || '')}
+                  loading={nanoaiChatEmbed?.loading || 'lazy'}
+                  referrerPolicy={nanoaiChatEmbed?.referrerPolicy}
+                  openLabel={widgetText.openLabel}
+                  closeLabel={widgetText.closeLabel}
+                  openFullPageLabel={widgetText.openFullPageLabel}
+                />
+              ) : null}
+            </DepositCreditProvider>
+          </>
+        )}
       </body>
     </html>
   );

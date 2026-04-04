@@ -22,7 +22,7 @@ export function generateMetadata(): Metadata {
 }
 
 export default async function DashboardMessagingSettingsPage() {
-  const { t } = getServerDictionary()
+  const { locale, t } = getServerDictionary()
   const pm = t.partnerMessaging
   const pmAi = t.partnerMessagingAi
   const supabase = createClient()
@@ -34,9 +34,6 @@ export default async function DashboardMessagingSettingsPage() {
     .select('*')
     .eq('owner_user_id', user.id)
     .order('created_at', { ascending: false })
-
-  const embedBaseUrl =
-    process.env.NEXT_PUBLIC_BASE_URL?.trim() || process.env.NEXT_PUBLIC_APP_URL?.trim() || ''
 
   const partnerAiLlmModel = process.env.DEEPSEEK_MODEL?.trim() || 'deepseek-chat'
 
@@ -64,7 +61,7 @@ export default async function DashboardMessagingSettingsPage() {
       </div>
       <PartnerMessagingSettingsClient
         initialPartners={rows ?? []}
-        embedBaseUrl={embedBaseUrl}
+        locale={locale}
         t={pm}
         tAi={pmAi}
         partnerAiLlmModel={partnerAiLlmModel}

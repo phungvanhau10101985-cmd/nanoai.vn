@@ -12,6 +12,8 @@ import {
   ShieldCheck,
   Landmark,
   MessageCircle,
+  Code2,
+  KeyRound,
 } from 'lucide-react'
 import { getCurrentWebLocale } from '@/lib/i18n/server'
 
@@ -58,6 +60,42 @@ const ADMIN_LINKS: AdminLink[] = [
       ko: 'Facebook Messenger, Zalo OA, 앱 내 채팅을 하나의 수신함에서.',
     },
     icon: MessageCircle,
+  },
+  {
+    href: '/admin/api-keys',
+    title: {
+      vi: 'Khóa API — vận hành hệ thống',
+      en: 'API keys — platform operations',
+      zh: 'API 密钥 — 平台运维',
+      ja: 'API キー — プラットフォーム運用',
+      ko: 'API 키 — 플랫폼 운영',
+    },
+    description: {
+      vi: 'Cron, .env, webhook inbox NanoAI. Đối tác tích hợp web: Bảng điều khiển → Hướng dẫn tích hợp API.',
+      en: 'Cron, .env, NanoAI inbox webhooks. Shop developers: Dashboard → API integration guide.',
+      zh: 'Cron、.env、NanoAI 收件箱 Webhook。店铺开发：控制台 → API 集成说明。',
+      ja: 'cron、.env、NanoAI 受信箱 Webhook。店舗向けはダッシュボード → API 連携ガイド。',
+      ko: 'cron, .env, NanoAI 수신함 Webhook. 매장 개발: 대시보드 → API 연동 안내.',
+    },
+    icon: KeyRound,
+  },
+  {
+    href: '/admin/integrations',
+    title: {
+      vi: 'Thẻ & mã nhúng',
+      en: 'Tags & embed codes',
+      zh: '标签与嵌入代码',
+      ja: 'タグ・埋め込みコード',
+      ko: '태그·임베드 코드',
+    },
+    description: {
+      vi: 'Google tag, Meta Pixel và mã nhúng chat (NanoAI/Facebook/Zalo). Khóa API xem mục “Khóa API”.',
+      en: 'Google tags, Meta Pixel, and chat embed snippets (NanoAI/Facebook/Zalo). API keys: see “API keys & integration”.',
+      zh: 'Google 标签、Meta Pixel 与聊天嵌入代码。API 密钥见「API 密钥」页。',
+      ja: 'Google タグ、Meta Pixel、チャット埋め込み。API キーは「API キー」ページへ。',
+      ko: 'Google 태그, Meta Pixel, 채팅 임베드. API 키는 「API 키」 페이지.',
+    },
+    icon: Code2,
   },
   {
     href: '/admin/users',

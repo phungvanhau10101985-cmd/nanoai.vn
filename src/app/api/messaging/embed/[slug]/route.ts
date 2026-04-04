@@ -92,5 +92,11 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     const status = posted.error === 'Invalid message.' ? 400 : 500
     return cors(NextResponse.json({ error: posted.error }, { status }))
   }
-  return cors(NextResponse.json({ ok: true }))
+  return cors(
+    NextResponse.json({
+      ok: true,
+      shopTyping: posted.shopTyping,
+      visionPickRequired: posted.visionPickRequired ?? false,
+    })
+  )
 }

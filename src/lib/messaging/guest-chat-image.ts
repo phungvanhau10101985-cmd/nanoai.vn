@@ -171,3 +171,22 @@ export function inboundTextForPartnerAi(textBody: string, imagePublicUrl?: strin
   }
   return textBody
 }
+
+type VisionPickRaw = {
+  guest_media?: { kind?: string; url?: string }
+  vision_selected_inventory_id?: string
+  vision_selected_product_label?: string
+}
+
+/** FAQ + LLM: kèm URL ảnh và (nếu có) sản phẩm khách chọn sau Product Search. */
+export function latestInboundTextForPartnerAi(textBody: string, rawPayload: Json | null): string {
+  const pl = rawPayload as VisionPickRaw | null
+  const url = pl?.guest_media?.kind === 'image' ? pl.guest_media.url : undefined
+  let t = inboundTextForPartnerAi(textBody, url ?? null)
+  const sid = pl?.vision_selected_inventory_id?.trim()
+  const label = pl?.vision_selected_product_label?.trim()
+  if (sid && label) {
+    t += `\n[Customer confirmed product from image match: ${label} (inventory id: ${sid})]`
+  }
+  return t
+}

@@ -1,5 +1,11 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/database.types'
+import {
+  isPartnerFaqPresetKey,
+  presetKeywordBlob,
+  presetSortOrder,
+  type PartnerFaqPresetKey,
+} from '@/lib/messaging/partner-faq-presets'
 
 type Db = SupabaseClient<Database>
 
@@ -19,7 +25,27 @@ export function parseTriggerKeywords(raw: string): string[] {
   return out
 }
 
-/** Trả về FAQ đầu tiên khớp (theo sort_order). */
+function sortFaqRowsForMatching(rows: FaqRow[]): FaqRow[] {
+  const presetRank = (k: string | null): number => {
+    if (!k || !isPartnerFaqPresetKey(k)) return 10_000
+    return presetSortOrder(k as PartnerFaqPresetKey)
+  }
+  return [...rows].sort((a, b) => {
+    const ra = presetRank(a.preset_key)
+    const rb = presetRank(b.preset_key)
+    if (ra !== rb) return ra - rb
+    return (a.sort_order ?? 0) - (b.sort_order ?? 0)
+  })
+}
+
+function matchKeysForRow(row: FaqRow): string[] {
+  if (row.preset_key && isPartnerFaqPresetKey(row.preset_key)) {
+    return parseTriggerKeywords(presetKeywordBlob(row.preset_key))
+  }
+  return parseTriggerKeywords(row.trigger_keywords)
+}
+
+/** Trả về FAQ đầu tiên khớp (preset mẫu trước, rồi FAQ tuỳ chỉnh). */
 export async function findMatchingFaq(db: Db, partnerId: string, customerMessage: string): Promise<FaqRow | null> {
   const text = normalize(customerMessage)
   if (!text) return null
@@ -28,10 +54,10 @@ export async function findMatchingFaq(db: Db, partnerId: string, customerMessage
     .select('*')
     .eq('partner_id', partnerId)
     .eq('is_active', true)
-    .order('sort_order', { ascending: true })
   if (error || !data?.length) return null
-  for (const row of data) {
-    const keys = parseTriggerKeywords(row.trigger_keywords)
+  const rows = sortFaqRowsForMatching(data).filter((r) => r.answer?.trim())
+  for (const row of rows) {
+    const keys = matchKeysForRow(row)
     for (const k of keys) {
       if (k && text.includes(k)) return row
     }

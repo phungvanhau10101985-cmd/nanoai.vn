@@ -56,6 +56,9 @@ async function runInstantFaq(
   if (err.error) console.error('[partner-ai] instant FAQ deliver', err.error)
 }
 
+/** Gợi ý UI phía khách: hiện “đang trả lời” trong khoảng maxWaitMs (poll nhanh hơn). */
+export type PartnerInboundShopTypingHint = { show: false } | { show: true; maxWaitMs: number }
+
 /**
  * Sau mỗi tin inbound từ khách (FB/Zalo/widget/hosted): FAQ tức thì (nền) hoặc lên lịch job AI.
  * Luôn await đến khi job đã insert (hoặc bỏ qua) để serverless không cắt giữa chừng.
@@ -69,8 +72,8 @@ export async function handlePartnerInboundForAi(
     inboundBody: string
     channel: CustomerCareChannel
   }
-): Promise<void> {
-  if (input.channel === 'internal') return
+): Promise<PartnerInboundShopTypingHint> {
+  if (input.channel === 'internal') return { show: false }
 
   try {
     const { data: settings } = await db
@@ -79,7 +82,7 @@ export async function handlePartnerInboundForAi(
       .eq('partner_id', input.partnerId)
       .maybeSingle()
 
-    if (!settings?.enabled) return
+    if (!settings?.enabled) return { show: false }
 
     const faq = await findMatchingFaq(db, input.partnerId, input.inboundBody)
     if (faq) {
@@ -90,7 +93,8 @@ export async function handlePartnerInboundForAi(
         answer: faq.answer,
         faqId: faq.id,
       })
-      return
+      const hi = Math.max(settings.typing_pause_min_ms, settings.typing_pause_max_ms)
+      return { show: true, maxWaitMs: hi + 10_000 }
     }
 
     await cancelPendingAiJobsForConversation(input.conversationId)
@@ -105,7 +109,7 @@ export async function handlePartnerInboundForAi(
     })
     if (error) {
       console.error('[partner-ai] schedule job', error.message)
-      return
+      return { show: false }
     }
 
     /**
@@ -127,7 +131,11 @@ export async function handlePartnerInboundForAi(
         })()
       }, ms)
     }
+
+    /** Tin không khớp FAQ: chỉ báo “đang xử lý” ngắn (AI trả lời sau theo cron). */
+    return { show: true, maxWaitMs: 12_000 }
   } catch (e) {
     console.error('[partner-ai] inbound hook', e)
+    return { show: false }
   }
 }

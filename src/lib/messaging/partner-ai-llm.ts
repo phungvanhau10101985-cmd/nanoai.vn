@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/database.types'
+import { fetchInventoryRowsForPartnerAi } from '@/lib/messaging/partner-inventory-ai-search'
 
 type Db = SupabaseClient<Database>
 type SettingsRow = Database['public']['Tables']['messaging_partner_ai_settings']['Row']
@@ -7,14 +8,19 @@ type SettingsRow = Database['public']['Tables']['messaging_partner_ai_settings']
 function formatInventoryLines(
   rows: Database['public']['Tables']['messaging_partner_inventory']['Row'][]
 ): string {
-  if (!rows.length) return '(Chưa có mục kho nào.)'
+  if (!rows.length) return '(Chưa có mặt hàng nào trong danh sách kho.)'
   return rows
     .map((r, i) => {
-      const sku = r.sku?.trim() ? ` [SKU: ${r.sku.trim()}]` : ''
-      const stock = r.stock_note?.trim() ? ` | Tồn/kho: ${r.stock_note.trim()}` : ''
+      const sku = r.sku?.trim() ? ` [Mã/SKU: ${r.sku.trim()}]` : ''
+      const stock = r.stock_note?.trim() ? ` | Tồn kho: ${r.stock_note.trim()}` : ''
       const price = r.price_hint?.trim() ? ` | Giá: ${r.price_hint.trim()}` : ''
-      const desc = r.description?.trim() ? ` — ${r.description.trim()}` : ''
-      return `${i + 1}. ${r.name.trim()}${sku}${desc}${stock}${price}`
+      const desc = r.description?.trim() ? ` — Thông số/mô tả: ${r.description.trim()}` : ''
+      const img = r.image_url?.trim() ? ` | Ảnh (URL): ${r.image_url.trim()}` : ''
+      const pu = r.product_url?.trim()
+      const page =
+        pu && /^https?:\/\//i.test(pu) ? ` | Trang sản phẩm (URL): ${pu}` : ''
+      const extra = r.consult_note?.trim() ? ` | Ghi chú tư vấn: ${r.consult_note.trim()}` : ''
+      return `${i + 1}. ${r.name.trim()}${sku}${desc}${stock}${price}${img}${page}${extra}`
     })
     .join('\n')
 }
@@ -26,13 +32,7 @@ export async function buildPartnerAiContext(
   settings: SettingsRow,
   latestCustomerMessage: string
 ): Promise<{ system: string; user: string }> {
-  const { data: inv } = await db
-    .from('messaging_partner_inventory')
-    .select('*')
-    .eq('partner_id', partnerId)
-    .eq('is_active', true)
-    .order('sort_order', { ascending: true })
-    .limit(50)
+  const inv = await fetchInventoryRowsForPartnerAi(db, partnerId, latestCustomerMessage)
 
   const { data: msgs } = await db
     .from('customer_care_messages')
@@ -63,11 +63,12 @@ export async function buildPartnerAiContext(
 Giọng điệu: ${tone}
 Tuân thủ nghiêm các quy tắc / chính sách sau (không bịa điều không có trong dữ liệu):
 ${policy}
-Chỉ tư vấn sản phẩm/tồn kho dựa trên danh sách "Kho gợi ý" dưới đây. Nếu không có trong danh sách, nói rõ bạn không có thông tin và gợi ý khách liên hệ shop.
+Toàn bộ mặt hàng trong danh sách kho dưới đây đều dùng để tư vấn khách. Chỉ tư vấn sản phẩm/tồn kho dựa trên danh sách đó. Nếu không có trong danh sách, nói rõ bạn không có thông tin và gợi ý khách liên hệ shop.
+Nếu mục có dòng "Ảnh (URL)", bạn có thể gửi kèm link ảnh đó trong tin nhắn để khách xem (bạn chỉ thấy URL dạng chữ, không xem được pixel ảnh). Nếu có "Trang sản phẩm (URL)", có thể gửi link đó để khách mở trang chi tiết trên web shop.
 Không hứa giảm giá hay thay đổi chính sách ngoài nội dung đã cho. Trả lời súc tích, có thể dùng gạch đầu dòng.`
 
-  const user = `Danh sách kho gợi ý (có thể không đầy đủ):
-${formatInventoryLines(inv ?? [])}
+  const user = `Danh sách kho (do shop khai báo; có thể không đầy đủ so với toàn bộ hàng thực tế). Các dòng đầu là mặt hàng được ưu tiên theo mã/tên/từ khóa gần với tin nhắn khách (nếu có), sau đó là các mặt hàng còn lại theo thứ tự shop sắp xếp — tất cả đều có thể dùng để tư vấn:
+${formatInventoryLines(inv)}
 
 Lịch sử hội thoại gần đây:
 ${transcript}
@@ -80,7 +81,20 @@ Hãy soạn một tin nhắn trả lời duy nhất (plain text, không markdown
   return { system, user }
 }
 
-export async function deepseekPartnerChat(system: string, user: string): Promise<{ text?: string; error?: string }> {
+export type DeepseekPartnerChatUsage = {
+  prompt_tokens?: number
+  completion_tokens?: number
+  total_tokens?: number
+}
+
+export type DeepseekPartnerChatResult = {
+  text?: string
+  error?: string
+  model?: string
+  usage?: DeepseekPartnerChatUsage
+}
+
+export async function deepseekPartnerChat(system: string, user: string): Promise<DeepseekPartnerChatResult> {
   const key = process.env.DEEPSEEK_API_KEY?.trim()
   if (!key) return { error: 'DEEPSEEK_API_KEY not configured.' }
   const model = process.env.DEEPSEEK_MODEL?.trim() || 'deepseek-chat'
@@ -103,6 +117,7 @@ export async function deepseekPartnerChat(system: string, user: string): Promise
     })
     const json = (await res.json()) as {
       choices?: { message?: { content?: string } }[]
+      usage?: DeepseekPartnerChatUsage
       error?: { message?: string }
     }
     if (!res.ok) {
@@ -110,7 +125,7 @@ export async function deepseekPartnerChat(system: string, user: string): Promise
     }
     const text = json.choices?.[0]?.message?.content?.trim()
     if (!text) return { error: 'Empty model output' }
-    return { text }
+    return { text, model, usage: json.usage }
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'DeepSeek fetch failed' }
   }

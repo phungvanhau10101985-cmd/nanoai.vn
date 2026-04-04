@@ -1,0 +1,243 @@
+import * as XLSX from 'xlsx'
+import type { Database } from '@/types/database.types'
+
+export type InventoryRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
+
+/** Khóa nội bộ / tiêu đề tiếng Anh — vẫn nhận khi import (thứ tự cột file mẫu/export: SKU trước). */
+export const INVENTORY_EXCEL_HEADERS = [
+  'sku',
+  'sort_order',
+  'name',
+  'description',
+  'stock_note',
+  'price_hint',
+  'image_url',
+  'product_url',
+  'consult_note',
+  'is_active',
+] as const
+
+/** Dòng tiêu đề file mẫu & export (tiếng Việt); cột 1 = Mã SKU. */
+export const INVENTORY_EXCEL_HEADER_LABELS_VI = [
+  'Mã SKU',
+  'Thứ tự',
+  'Tên sản phẩm',
+  'Mô tả',
+  'Ghi chú tồn kho',
+  'Giá',
+  'Link ảnh',
+  'Link trang sản phẩm',
+  'Ghi chú tư vấn',
+] as const
+
+export type InventoryExcelInsert = {
+  sort_order: number
+  name: string
+  sku: string | null
+  description: string
+  stock_note: string
+  price_hint: string
+  image_url: string
+  product_url: string
+  consult_note: string
+  is_active: boolean
+}
+
+const SHEET_NAME = 'inventory'
+
+function normalizeHeaderKey(raw: string): string {
+  return raw
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, '_')
+}
+
+/** Cho phép tiêu đề cột tiếng Việt / không dấu. */
+const HEADER_ALIASES: Record<string, string> = {
+  sort_order: 'sort_order',
+  thu_tu: 'sort_order',
+  order: 'sort_order',
+  stt: 'sort_order',
+  name: 'name',
+  ten: 'name',
+  ten_hang: 'name',
+  ten_san_pham: 'name',
+  sku: 'sku',
+  ma: 'sku',
+  ma_sku: 'sku',
+  ma_san_pham: 'sku',
+  description: 'description',
+  mo_ta: 'description',
+  thong_so: 'description',
+  stock_note: 'stock_note',
+  ton_kho: 'stock_note',
+  con_hang: 'stock_note',
+  ghi_chu_ton_kho: 'stock_note',
+  price_hint: 'price_hint',
+  gia: 'price_hint',
+  image_url: 'image_url',
+  anh: 'image_url',
+  url_anh: 'image_url',
+  link_anh: 'image_url',
+  product_url: 'product_url',
+  link_san_pham: 'product_url',
+  link_trang_san_pham: 'product_url',
+  url_san_pham: 'product_url',
+  trang_san_pham: 'product_url',
+  consult_note: 'consult_note',
+  ghi_chu: 'consult_note',
+  ghi_chu_tu_van: 'consult_note',
+  is_active: 'is_active',
+  dang_dung: 'is_active',
+  active: 'is_active',
+}
+
+function resolveCanonicalKey(headerCell: string): string | null {
+  const n = normalizeHeaderKey(headerCell)
+  if ((INVENTORY_EXCEL_HEADERS as readonly string[]).includes(n)) return n
+  return HEADER_ALIASES[n] ?? null
+}
+
+export function validateInventoryImageUrl(raw: string): string {
+  const u = raw.trim()
+  if (!u || u.length > 2048) return ''
+  try {
+    const parsed = new URL(u)
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return ''
+    return u
+  } catch {
+    return ''
+  }
+}
+
+/** URL trang sản phẩm (HTTP/HTTPS), cùng quy tắc với link ảnh. */
+export function validateInventoryProductUrl(raw: string): string {
+  return validateInventoryImageUrl(raw)
+}
+
+function cellStr(val: unknown): string {
+  if (val == null) return ''
+  if (typeof val === 'number' && Number.isFinite(val)) return String(val)
+  return String(val).trim()
+}
+
+export function buildInventoryTemplateBuffer(): Buffer {
+  const header = [...INVENTORY_EXCEL_HEADER_LABELS_VI]
+  const example = [
+    'AT-001',
+    100,
+    'Ví dụ: Áo thun cotton',
+    'Size M–XL, màu đen/trắng',
+    'Còn đủ size',
+    '199000',
+    'https://',
+    'https://shop.example.com/san-pham/ao-thun',
+    'Bảo hành đổi size trong 7 ngày',
+  ]
+  const ws = XLSX.utils.aoa_to_sheet([header, example])
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, SHEET_NAME)
+  return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer
+}
+
+export function buildInventoryExportBuffer(rows: InventoryRow[]): Buffer {
+  const aoa: (string | number)[][] = [[...INVENTORY_EXCEL_HEADER_LABELS_VI]]
+  for (const r of rows) {
+    aoa.push([
+      r.sku ?? '',
+      r.sort_order,
+      r.name,
+      r.description ?? '',
+      r.stock_note ?? '',
+      r.price_hint ?? '',
+      r.image_url ?? '',
+      r.product_url ?? '',
+      r.consult_note ?? '',
+    ])
+  }
+  const ws = XLSX.utils.aoa_to_sheet(aoa)
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, SHEET_NAME)
+  return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer
+}
+
+const MAX_IMPORT_ROWS = 500
+
+export function parseInventoryWorkbook(buffer: Buffer): { ok: true; rows: InventoryExcelInsert[] } | { ok: false; error: string } {
+  let wb: XLSX.WorkBook
+  try {
+    wb = XLSX.read(buffer, { type: 'buffer' })
+  } catch {
+    return { ok: false, error: 'INVALID_XLSX' }
+  }
+  const sheetName = wb.SheetNames[0]
+  if (!sheetName) return { ok: false, error: 'EMPTY_WORKBOOK' }
+  const sheet = wb.Sheets[sheetName]
+  const matrix = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: '' }) as unknown[][]
+  if (!matrix.length) return { ok: false, error: 'EMPTY_SHEET' }
+
+  const headerRow = (matrix[0] ?? []).map((c) => cellStr(c))
+  const colIndex: Record<string, number> = {}
+  headerRow.forEach((h, i) => {
+    const key = resolveCanonicalKey(h)
+    if (key) colIndex[key] = i
+  })
+  if (colIndex.name === undefined) return { ok: false, error: 'MISSING_NAME_COLUMN' }
+
+  const out: InventoryExcelInsert[] = []
+  for (let r = 1; r < matrix.length; r++) {
+    const line = matrix[r] ?? []
+    const get = (k: string) => {
+      const idx = colIndex[k]
+      return idx === undefined ? '' : cellStr(line[idx])
+    }
+    const name = get('name').trim()
+    if (!name) continue
+
+    const sortRaw = get('sort_order')
+    let sort_order = parseInt(sortRaw, 10)
+    if (!Number.isFinite(sort_order)) sort_order = 100 + out.length
+
+    const sku = get('sku').trim() || null
+    const description = get('description')
+    const stock_note = get('stock_note')
+    const price_hint = get('price_hint')
+    const image_url = validateInventoryImageUrl(get('image_url'))
+    const product_url = validateInventoryProductUrl(get('product_url'))
+    const consult_note = get('consult_note').trim().slice(0, 2000)
+    out.push({
+      sort_order,
+      name: name.slice(0, 500),
+      sku: sku ? sku.slice(0, 120) : null,
+      description: description.slice(0, 4000),
+      stock_note: stock_note.slice(0, 2000),
+      price_hint: price_hint.slice(0, 500),
+      image_url,
+      product_url,
+      consult_note,
+      is_active: true,
+    })
+    if (out.length >= MAX_IMPORT_ROWS) break
+  }
+
+  if (out.length === 0) return { ok: false, error: 'NO_DATA_ROWS' }
+  return { ok: true, rows: out }
+}
+
+/** Khớp theo SKU (không phân biệt hoa thường, đã trim). Rỗng → null. */
+export function inventorySkuMatchKey(sku: string | null | undefined): string | null {
+  const t = (sku ?? '').trim()
+  return t ? t.toLowerCase() : null
+}
+
+/** Khớp theo tên khi không có SKU (bỏ dấu, gom khoảng trắng). */
+export function inventoryNameMatchKey(name: string): string {
+  return name
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+}

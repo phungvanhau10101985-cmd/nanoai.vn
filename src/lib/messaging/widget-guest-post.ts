@@ -11,6 +11,11 @@ import {
   mimeFromGuestImagePath,
   GUEST_CHAT_IMAGE_BUCKET,
 } from '@/lib/messaging/guest-chat-image'
+import {
+  buildInventoryMapByVisionProductId,
+  visionProductSearchFromImageBuffer,
+} from '@/lib/messaging/partner-vision-product-search'
+import { hasVisionConfig } from '@/lib/vision-api'
 
 type Db = SupabaseClient<Database>
 
@@ -31,7 +36,10 @@ export async function postWidgetGuestMessage(
     text?: string
     imageStoragePath?: string
   }
-): Promise<{ ok: true } | { error: string }> {
+): Promise<
+  | { ok: true; shopTyping?: { maxWaitMs: number }; visionPickRequired?: boolean }
+  | { error: string }
+> {
   const text = params.text?.trim() ?? ''
   const imagePath = params.imageStoragePath?.trim() ?? ''
   if ((!text && !imagePath) || text.length > 8000) {
@@ -78,15 +86,64 @@ export async function postWidgetGuestMessage(
   if ('error' in ins) return { error: ins.error ?? 'Insert failed.' }
 
   const newMessageId = 'messageId' in ins ? ins.messageId : null
-  if (newMessageId) {
-    await handlePartnerInboundForAi(db, {
+  let shopTyping: { maxWaitMs: number } | undefined
+  let visionPickRequired = false
+
+  if (newMessageId && imagePath && hasVisionConfig()) {
+    const { data: aiSet } = await db
+      .from('messaging_partner_ai_settings')
+      .select('*')
+      .eq('partner_id', params.partnerId)
+      .maybeSingle()
+    if (aiSet?.vision_product_search_enabled && aiSet.vision_index_ready) {
+      try {
+        const { data: blob, error: dlErr } = await db.storage.from(GUEST_CHAT_IMAGE_BUCKET).download(imagePath)
+        if (!dlErr && blob) {
+          const buf = Buffer.from(await blob.arrayBuffer())
+          const { data: invRows } = await db
+            .from('messaging_partner_inventory')
+            .select('*')
+            .eq('partner_id', params.partnerId)
+          const map = buildInventoryMapByVisionProductId(invRows ?? [])
+          const { candidates, error: se } = await visionProductSearchFromImageBuffer(
+            buf,
+            aiSet,
+            params.partnerId,
+            map,
+            { userId: params.linkedUserId ?? null }
+          )
+          const prev = (rawPayload && typeof rawPayload === 'object' ? rawPayload : {}) as Record<string, unknown>
+          const merged: Json = {
+            ...prev,
+            ...(candidates.length > 0
+              ? {
+                  vision_candidates: candidates,
+                  vision_pick_required: true,
+                  vision_search_error: undefined,
+                }
+              : {
+                  vision_search_error: se ?? undefined,
+                }),
+          } as Json
+          await db.from('customer_care_messages').update({ raw_payload: merged }).eq('id', newMessageId)
+          if (candidates.length > 0) visionPickRequired = true
+        }
+      } catch (e) {
+        console.error('[messaging] vision product search (guest)', e)
+      }
+    }
+  }
+
+  if (newMessageId && !visionPickRequired) {
+    const hint = await handlePartnerInboundForAi(db, {
       partnerId: params.partnerId,
       conversationId,
       messageId: newMessageId,
       inboundBody: inboundTextForPartnerAi(body, imagePublicUrl),
       channel: 'widget',
     })
+    if (hint.show) shopTyping = { maxWaitMs: hint.maxWaitMs }
   }
 
-  return { ok: true }
+  return { ok: true, shopTyping, visionPickRequired: visionPickRequired || undefined }
 }

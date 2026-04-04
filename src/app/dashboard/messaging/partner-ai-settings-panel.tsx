@@ -1,6 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
+import Link from 'next/link'
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
@@ -12,21 +13,161 @@ import { Switch } from '@/components/ui/switch'
 import { useToast } from '@/hooks/use-toast'
 import type { Database } from '@/types/database.types'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
-import type { PartnerAiSettingsPayload } from '@/app/dashboard/messaging/actions'
+import type {
+  PartnerAiSettingsClientRow,
+  PartnerAiSettingsPayload,
+  PartnerAiTokenUsageStatRow,
+} from '@/app/dashboard/messaging/actions'
 import {
+  cancelVisionCatalogBackgroundSync,
   deletePartnerFaq,
   deletePartnerInventoryItem,
+  dismissVisionCatalogBackgroundSyncReport,
+  enqueueVisionCatalogBackgroundSync,
   getPartnerAiBundle,
+  getPartnerAiTokenUsageStats,
   savePartnerAiSettings,
+  savePartnerFaqPreset,
   upsertPartnerFaq,
   upsertPartnerInventoryItem,
 } from '@/app/dashboard/messaging/actions'
-import { Bot, Sparkles } from 'lucide-react'
+import {
+  PARTNER_FAQ_CUSTOM_KEYWORDS_REQUIRED,
+  PARTNER_FAQ_PRESET_ANSWER_REQUIRED,
+  PARTNER_FAQ_PRESET_KEYS,
+  type PartnerFaqPresetKey,
+} from '@/lib/messaging/partner-faq-presets'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  VISION_BG_SYNC_REPORT_MESSAGE,
+  VISION_BG_SYNC_SERVER_ERROR_BAD_CURSOR,
+  VISION_LOCATIONS,
+  VISION_PRODUCT_CATEGORIES,
+  VISION_SYNC_CLIENT_CHAIN_ABSOLUTE_MAX_ROUNDS,
+  VISION_SYNC_CLIENT_CHAIN_MAX_MS,
+  VISION_SYNC_CLIENT_CHAIN_MAX_ROUNDS,
+  VISION_SYNC_CLIENT_CHAIN_PAUSE_MS,
+  VISION_SYNC_CLIENT_CHAIN_SEGMENT_BREAK_MS,
+  VISION_SYNC_CLIENT_FETCH_TIMEOUT_MS,
+} from '@/lib/messaging/partner-vision-constants'
+import { Bot, Download, FileSpreadsheet, ScanSearch, Sparkles, Upload } from 'lucide-react'
+import type { WebLocale } from '@/lib/i18n/config'
+import {
+  VISION_SHOP_COUNTRY_CODES_ORDERED,
+  getVisionLocationForShopCountry,
+  shopCountryMatchesVisionLocation,
+} from '@/lib/messaging/partner-vision-shop-country-presets'
+
+const VISION_SHOP_COUNTRY_SELECT_CUSTOM = '__custom__'
+
+function resolveVisionShopCountrySelectValue(country: string, location: string): string {
+  const c = country.trim().toUpperCase()
+  if (!c || !shopCountryMatchesVisionLocation(c, location)) return VISION_SHOP_COUNTRY_SELECT_CUSTOM
+  return c
+}
 
 type AiT = Dictionary['partnerMessagingAi']
-type SettingsRow = Database['public']['Tables']['messaging_partner_ai_settings']['Row']
+type SettingsRow = PartnerAiSettingsClientRow
 type FaqRow = Database['public']['Tables']['messaging_partner_faq']['Row']
 type InvRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
+
+const tokenFmt = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 })
+
+type VisionBgReportParsed = {
+  completed?: boolean
+  totalRounds?: number
+  totalImported?: number
+  totalRemoved?: number
+  hasMore?: boolean
+  lastScannedId?: string | null
+  stoppedReason?: string
+  message?: string
+  errorDetail?: string
+  cronSliceAt?: string
+}
+
+function parseVisionBgSyncReport(raw: string | null | undefined): VisionBgReportParsed | null {
+  if (!raw?.trim()) return null
+  try {
+    return JSON.parse(raw) as VisionBgReportParsed
+  } catch {
+    return null
+  }
+}
+
+function visionBgStatusLabel(t: AiT, status: string): string {
+  switch (status) {
+    case 'idle':
+      return t.visionBgSyncStatusIdle
+    case 'queued':
+      return t.visionBgSyncStatusQueued
+    case 'running':
+      return t.visionBgSyncStatusRunning
+    case 'done':
+      return t.visionBgSyncStatusDone
+    case 'error':
+      return t.visionBgSyncStatusError
+    default:
+      return status
+  }
+}
+
+function formatVisionBgStoppedReason(t: AiT, sr: string): string {
+  switch (sr) {
+    case 'completed':
+      return t.visionBgSyncStopCompleted
+    case 'error':
+      return t.visionBgSyncStopError
+    case 'cron_slice':
+      return t.visionBgSyncStopCronSlice
+    case 'bad_cursor':
+      return t.visionBgSyncStopBadCursor
+    default:
+      return sr
+  }
+}
+
+function formatVisionBgReportMessage(t: AiT, raw: string): string {
+  if (raw === VISION_BG_SYNC_REPORT_MESSAGE.completed) return t.visionBgSyncMsgCompleted
+  if (raw === VISION_BG_SYNC_REPORT_MESSAGE.inProgress) return t.visionBgSyncMsgInProgress
+  if (raw === VISION_BG_SYNC_REPORT_MESSAGE.badCursor) return t.visionBgSyncMsgBadCursor
+  return raw
+}
+
+function buildVisionBgDetailLines(
+  t: AiT,
+  rep: VisionBgReportParsed | null,
+  serverError: string
+): string[] {
+  const parts: string[] = []
+  const seTrim = serverError?.trim() ?? ''
+  if (rep) {
+    if (typeof rep.totalRounds === 'number') parts.push(`${t.visionBgSyncFieldRounds}: ${rep.totalRounds}`)
+    if (typeof rep.totalImported === 'number') parts.push(`${t.visionBgSyncFieldImported}: ${rep.totalImported}`)
+    if (typeof rep.totalRemoved === 'number') parts.push(`${t.visionBgSyncFieldRemoved}: ${rep.totalRemoved}`)
+    if (typeof rep.hasMore === 'boolean') {
+      parts.push(`${t.visionBgSyncFieldHasMore}: ${rep.hasMore ? t.visionBgSyncBoolYes : t.visionBgSyncBoolNo}`)
+    }
+    if (rep.lastScannedId != null && String(rep.lastScannedId).trim() !== '') {
+      parts.push(`${t.visionBgSyncFieldLastScanned}: ${rep.lastScannedId}`)
+    }
+    if (rep.stoppedReason) {
+      parts.push(`${t.visionBgSyncFieldStopped}: ${formatVisionBgStoppedReason(t, rep.stoppedReason)}`)
+    }
+    if (rep.message?.trim()) {
+      const msg = rep.message.trim()
+      parts.push(`${t.visionBgSyncFieldMessage}: ${formatVisionBgReportMessage(t, msg)}`)
+    }
+    const ed = rep.errorDetail?.trim()
+    if (ed && ed !== seTrim) parts.push(ed)
+  }
+  if (seTrim) {
+    const displayErr =
+      seTrim === VISION_BG_SYNC_SERVER_ERROR_BAD_CURSOR ? t.visionBgSyncServerErrCursor : seTrim
+    parts.push(`${t.visionBgSyncFieldServerError}: ${displayErr}`)
+  }
+  return parts
+}
 
 function defaultsFromSettings(s: SettingsRow | null) {
   return {
@@ -38,10 +179,38 @@ function defaultsFromSettings(s: SettingsRow | null) {
     tone_instructions: s?.tone_instructions ?? '',
     append_ai_disclosure: s?.append_ai_disclosure ?? true,
     disclosure_suffix: s?.disclosure_suffix ?? '',
+    vision_product_search_enabled: s?.vision_product_search_enabled ?? false,
+    vision_shop_country: (s?.vision_shop_country ?? '').trim().toUpperCase(),
+    vision_location: s?.vision_location ?? 'us-east1',
+    vision_product_category: s?.vision_product_category ?? 'general-v1',
+    vision_gcs_bucket: s?.vision_gcs_bucket ?? '',
+    vision_index_ready: s?.vision_index_ready ?? false,
+    vision_index_synced_at: s?.vision_index_synced_at ?? null,
+    vision_index_error: s?.vision_index_error ?? '',
+    image_search_api_enabled: s?.image_search_api_enabled ?? false,
+    image_search_api_key_configured: s?.image_search_api_key_configured ?? false,
+    vision_bg_sync_status: s?.vision_bg_sync_status ?? 'idle',
+    vision_bg_sync_resume_after_id: s?.vision_bg_sync_resume_after_id ?? null,
+    vision_bg_sync_rounds: s?.vision_bg_sync_rounds ?? 0,
+    vision_bg_sync_imported: s?.vision_bg_sync_imported ?? 0,
+    vision_bg_sync_removed: s?.vision_bg_sync_removed ?? 0,
+    vision_bg_sync_started_at: s?.vision_bg_sync_started_at ?? null,
+    vision_bg_sync_finished_at: s?.vision_bg_sync_finished_at ?? null,
+    vision_bg_sync_error: s?.vision_bg_sync_error ?? '',
+    vision_bg_sync_report: s?.vision_bg_sync_report ?? '',
   }
 }
 
 type FormState = ReturnType<typeof defaultsFromSettings>
+
+type VisionSyncResponse = {
+  ok?: boolean
+  error?: string
+  imported?: number
+  removed?: number
+  hasMore?: boolean
+  lastScannedId?: string | null
+}
 
 function formToPayload(f: FormState): PartnerAiSettingsPayload {
   return {
@@ -53,6 +222,12 @@ function formToPayload(f: FormState): PartnerAiSettingsPayload {
     tone_instructions: f.tone_instructions,
     append_ai_disclosure: f.append_ai_disclosure,
     disclosure_suffix: f.disclosure_suffix,
+    vision_product_search_enabled: f.vision_product_search_enabled,
+    vision_shop_country: f.vision_shop_country,
+    vision_location: f.vision_location,
+    vision_product_category: f.vision_product_category,
+    vision_gcs_bucket: f.vision_gcs_bucket,
+    image_search_api_enabled: f.image_search_api_enabled,
   }
 }
 
@@ -61,36 +236,65 @@ export function PartnerAiSettingsPanel({
   t,
   saveOkMessage,
   aiModelId,
+  locale,
 }: {
   partnerId: string
   t: AiT
   saveOkMessage: string
   /** Model id from server (DEEPSEEK_MODEL / default deepseek-chat) */
   aiModelId: string
+  locale: WebLocale
 }) {
   const { toast } = useToast()
   const [pending, startTransition] = useTransition()
   const [loadErr, setLoadErr] = useState<string | null>(null)
   const [faqs, setFaqs] = useState<FaqRow[]>([])
   const [inventory, setInventory] = useState<InvRow[]>([])
+  const [tokenUsageRows, setTokenUsageRows] = useState<PartnerAiTokenUsageStatRow[]>([])
+  const [tokenUsageLookbackDays, setTokenUsageLookbackDays] = useState(30)
   const [form, setForm] = useState<FormState>(() => defaultsFromSettings(null))
   const formRef = useRef<FormState>(form)
+  const [visionSyncing, setVisionSyncing] = useState(false)
+  const [visionSyncResumeAfterId, setVisionSyncResumeAfterId] = useState<string | null>(null)
+  const prevVisionBgStatusRef = useRef<string | null>(null)
+
+  const regionDisplayNames = useMemo(() => {
+    try {
+      return new Intl.DisplayNames([locale, 'en'], { type: 'region' })
+    } catch {
+      return new Intl.DisplayNames(['en'], { type: 'region' })
+    }
+  }, [locale])
+
+  const visionShopCountrySelectValue = resolveVisionShopCountrySelectValue(
+    form.vision_shop_country,
+    form.vision_location
+  )
 
   const load = useCallback(() => {
     setLoadErr(null)
     void (async () => {
-      const res = await getPartnerAiBundle(partnerId)
-      if ('error' in res && res.error) {
-        setLoadErr(res.error)
-        toast({ title: t.loadError, description: res.error, variant: 'destructive' })
+      const [bundleRes, usageRes] = await Promise.all([
+        getPartnerAiBundle(partnerId),
+        getPartnerAiTokenUsageStats(partnerId),
+      ])
+      if ('error' in usageRes) {
+        setTokenUsageRows([])
+      } else {
+        setTokenUsageRows(usageRes.rows)
+        setTokenUsageLookbackDays(usageRes.lookbackDays)
+      }
+      if ('error' in bundleRes && bundleRes.error) {
+        setLoadErr(bundleRes.error)
+        toast({ title: t.loadError, description: bundleRes.error, variant: 'destructive' })
         return
       }
-      if ('settings' in res) {
-        const next = defaultsFromSettings(res.settings)
+      if ('settings' in bundleRes) {
+        const next = defaultsFromSettings(bundleRes.settings ?? null)
         formRef.current = next
         setForm(next)
-        setFaqs(res.faqs ?? [])
-        setInventory(res.inventory ?? [])
+        setFaqs(bundleRes.faqs ?? [])
+        setInventory(bundleRes.inventory ?? [])
       }
     })()
   }, [partnerId, t.loadError, toast])
@@ -100,8 +304,44 @@ export function PartnerAiSettingsPanel({
   }, [load])
 
   useEffect(() => {
+    setVisionSyncResumeAfterId(null)
+    prevVisionBgStatusRef.current = null
+  }, [partnerId])
+
+  useEffect(() => {
     formRef.current = form
   }, [form])
+
+  const visionBgActive =
+    form.vision_bg_sync_status === 'queued' || form.vision_bg_sync_status === 'running'
+
+  useEffect(() => {
+    if (!visionBgActive) return
+    const id = window.setInterval(() => load(), 8000)
+    return () => window.clearInterval(id)
+  }, [visionBgActive, load])
+
+  useEffect(() => {
+    const cur = form.vision_bg_sync_status
+    const prev = prevVisionBgStatusRef.current
+    if (prev !== null && (prev === 'queued' || prev === 'running')) {
+      if (cur === 'done' || cur === 'error') {
+        const rep = parseVisionBgSyncReport(form.vision_bg_sync_report)
+        const lines = buildVisionBgDetailLines(t, rep, form.vision_bg_sync_error)
+        const description = lines.length > 0 ? lines.join('\n') : undefined
+        if (cur === 'done') {
+          toast({ title: t.visionBgSyncToastDone, ...(description ? { description } : {}) })
+        } else {
+          toast({
+            title: t.visionBgSyncToastError,
+            variant: 'destructive',
+            ...(description ? { description } : {}),
+          })
+        }
+      }
+    }
+    prevVisionBgStatusRef.current = cur
+  }, [form.vision_bg_sync_status, form.vision_bg_sync_report, form.vision_bg_sync_error, toast, t])
 
   const persistPartial = useCallback(
     (partial: Partial<FormState>) => {
@@ -121,6 +361,197 @@ export function PartnerAiSettingsPanel({
     [partnerId, saveOkMessage, toast, load]
   )
 
+  const performVisionCatalogSyncRound = useCallback(
+    async (resumeAfterId: string | null): Promise<VisionSyncResponse> => {
+      const body =
+        resumeAfterId != null && resumeAfterId !== '' ? { resumeAfterId } : {}
+      const signal =
+        typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function'
+          ? AbortSignal.timeout(VISION_SYNC_CLIENT_FETCH_TIMEOUT_MS)
+          : undefined
+      const res = await fetch(
+        `/api/messaging/partners/${encodeURIComponent(partnerId)}/vision-catalog-sync`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+          ...(signal ? { signal } : {}),
+        }
+      )
+      const data = (await res.json()) as VisionSyncResponse
+      if (!res.ok) throw new Error(data.error || 'Sync failed')
+      return data
+    },
+    [partnerId]
+  )
+
+  const runVisionCatalogSyncChained = useCallback(
+    async (startResumeAfterId: string | null) => {
+      const sleepMs = (ms: number) =>
+        new Promise<void>((resolve) => {
+          setTimeout(resolve, ms)
+        })
+
+      let resume: string | null = startResumeAfterId
+      let grandImported = 0
+      let grandRemoved = 0
+      let totalRounds = 0
+      let last: VisionSyncResponse = {}
+
+      outer: while (true) {
+        const segmentStarted = Date.now()
+        let segmentRounds = 0
+
+        inner: while (true) {
+          if (totalRounds >= VISION_SYNC_CLIENT_CHAIN_ABSOLUTE_MAX_ROUNDS) {
+            break outer
+          }
+          if (segmentRounds >= VISION_SYNC_CLIENT_CHAIN_MAX_ROUNDS) {
+            break inner
+          }
+          if (Date.now() - segmentStarted >= VISION_SYNC_CLIENT_CHAIN_MAX_MS) {
+            break inner
+          }
+
+          const data = await performVisionCatalogSyncRound(resume)
+          last = data
+          segmentRounds += 1
+          totalRounds += 1
+          grandImported += data.imported ?? 0
+          grandRemoved += data.removed ?? 0
+
+          if (!data.hasMore) {
+            break outer
+          }
+          const nextResume = data.lastScannedId?.trim() || null
+          if (!nextResume) {
+            break outer
+          }
+          resume = nextResume
+          await sleepMs(VISION_SYNC_CLIENT_CHAIN_PAUSE_MS)
+        }
+
+        if (!last.hasMore) {
+          break outer
+        }
+
+        if (totalRounds >= VISION_SYNC_CLIENT_CHAIN_ABSOLUTE_MAX_ROUNDS) {
+          break outer
+        }
+
+        await sleepMs(VISION_SYNC_CLIENT_CHAIN_SEGMENT_BREAK_MS)
+      }
+
+      const stillMore = Boolean(last.hasMore)
+      const missingCursor = stillMore && !last.lastScannedId?.trim()
+      const abortedSafety =
+        stillMore && totalRounds >= VISION_SYNC_CLIENT_CHAIN_ABSOLUTE_MAX_ROUNDS
+
+      if (stillMore && last.lastScannedId) {
+        setVisionSyncResumeAfterId(last.lastScannedId)
+      } else {
+        setVisionSyncResumeAfterId(null)
+      }
+
+      if (missingCursor) {
+        toast({
+          title: t.loadError,
+          description: t.visionSyncToastMore,
+          variant: 'destructive',
+        })
+      } else if (abortedSafety) {
+        toast({
+          title: t.visionSyncChainedAbortedSafety,
+          description: [
+            `${t.visionSyncToastImported}: ${grandImported}`,
+            `${t.visionSyncToastRemoved}: ${grandRemoved}`,
+            t.visionSyncChainedRounds.replace(/\{n\}/g, String(totalRounds)),
+          ].join(' · '),
+          variant: 'destructive',
+        })
+      } else if (!stillMore && grandImported === 0 && grandRemoved === 0) {
+        toast({ title: t.visionSyncToastIdle })
+      } else {
+        const descParts: string[] = []
+        if (grandImported > 0 || grandRemoved > 0) {
+          descParts.push(
+            `${t.visionSyncToastImported}: ${grandImported}`,
+            `${t.visionSyncToastRemoved}: ${grandRemoved}`
+          )
+        }
+        if (totalRounds > 1) {
+          descParts.push(t.visionSyncChainedRounds.replace(/\{n\}/g, String(totalRounds)))
+        }
+        const description = descParts.filter(Boolean).join(' · ')
+        toast({
+          title: t.visionSyncOk,
+          ...(description ? { description } : {}),
+        })
+      }
+    },
+    [
+      performVisionCatalogSyncRound,
+      toast,
+      t.visionSyncOk,
+      t.visionSyncToastIdle,
+      t.visionSyncToastImported,
+      t.visionSyncToastRemoved,
+      t.visionSyncToastMore,
+      t.visionSyncChainedRounds,
+      t.visionSyncChainedAbortedSafety,
+      t.loadError,
+    ]
+  )
+
+  const handleVisionProductSearchToggle = useCallback(
+    (checked: boolean) => {
+      if (!checked) {
+        setVisionSyncResumeAfterId(null)
+        persistPartial({ vision_product_search_enabled: false })
+        return
+      }
+      const prevEnabled = formRef.current.vision_product_search_enabled
+      const next = { ...formRef.current, vision_product_search_enabled: true }
+      formRef.current = next
+      setForm(next)
+      startTransition(async () => {
+        const res = await savePartnerAiSettings(partnerId, formToPayload(next))
+        if ('error' in res && res.error) {
+          toast({ title: res.error, variant: 'destructive' })
+          load()
+          return
+        }
+        toast({ title: saveOkMessage })
+        if (!prevEnabled) {
+          setVisionSyncing(true)
+          setVisionSyncResumeAfterId(null)
+          try {
+            await runVisionCatalogSyncChained(null)
+          } catch (e) {
+            toast({
+              title: e instanceof Error ? e.message : t.loadError,
+              variant: 'destructive',
+            })
+          } finally {
+            setVisionSyncing(false)
+            load()
+          }
+        } else {
+          load()
+        }
+      })
+    },
+    [
+      persistPartial,
+      partnerId,
+      saveOkMessage,
+      toast,
+      load,
+      runVisionCatalogSyncChained,
+      t.loadError,
+    ]
+  )
+
   const saveSettings = () => {
     startTransition(async () => {
       const res = await savePartnerAiSettings(partnerId, formToPayload(formRef.current))
@@ -132,6 +563,76 @@ export function PartnerAiSettingsPanel({
       load()
     })
   }
+
+  const runVisionSync = useCallback(() => {
+    setVisionSyncing(true)
+    void (async () => {
+      try {
+        await runVisionCatalogSyncChained(visionSyncResumeAfterId)
+        load()
+      } catch (e) {
+        toast({
+          title: e instanceof Error ? e.message : t.loadError,
+          variant: 'destructive',
+        })
+        load()
+      } finally {
+        setVisionSyncing(false)
+      }
+    })()
+  }, [runVisionCatalogSyncChained, visionSyncResumeAfterId, t.loadError, toast, load])
+
+  const handleEnqueueVisionBgSync = useCallback(() => {
+    startTransition(async () => {
+      const res = await enqueueVisionCatalogBackgroundSync(partnerId, visionSyncResumeAfterId)
+      if ('error' in res && res.error) {
+        const msg =
+          res.code === 'already_active'
+            ? t.visionBgSyncAlreadyActive
+            : res.code === 'enable_vision_first'
+              ? t.visionBgSyncEnableVisionFirst
+              : res.code === 'no_ai_row'
+                ? t.visionBgSyncSaveSettingsFirst
+                : res.error
+        toast({ title: msg, variant: 'destructive' })
+        return
+      }
+      toast({ title: t.visionBgSyncEnqueueOk })
+      load()
+    })
+  }, [partnerId, visionSyncResumeAfterId, t, toast, load])
+
+  const handleCancelVisionBgSync = useCallback(() => {
+    startTransition(async () => {
+      const res = await cancelVisionCatalogBackgroundSync(partnerId)
+      if ('error' in res && res.error) {
+        toast({ title: res.error, variant: 'destructive' })
+        return
+      }
+      load()
+    })
+  }, [partnerId, toast, load])
+
+  const handleDismissVisionBgReport = useCallback(() => {
+    startTransition(async () => {
+      const res = await dismissVisionCatalogBackgroundSyncReport(partnerId)
+      if ('error' in res && res.error) {
+        toast({ title: res.error, variant: 'destructive' })
+        return
+      }
+      load()
+    })
+  }, [partnerId, toast, load])
+
+  const visionBgReportLines = buildVisionBgDetailLines(
+    t,
+    parseVisionBgSyncReport(form.vision_bg_sync_report),
+    form.vision_bg_sync_error
+  )
+  const showVisionBgReportBlock =
+    form.vision_bg_sync_status === 'done' ||
+    form.vision_bg_sync_status === 'error' ||
+    visionBgReportLines.length > 0
 
   return (
     <Card className="overflow-hidden border-violet-200/60 bg-gradient-to-br from-violet-50/40 via-background to-background dark:border-violet-900/40 dark:from-violet-950/20 shadow-sm">
@@ -185,7 +686,7 @@ export function PartnerAiSettingsPanel({
       </CardHeader>
       <CardContent className="pt-4">
         <Tabs defaultValue="settings" className="w-full">
-          <TabsList className="mb-4 grid w-full max-w-lg grid-cols-3 h-10">
+          <TabsList className="mb-4 grid w-full max-w-3xl grid-cols-2 sm:grid-cols-4 h-auto min-h-10 gap-1 p-1">
             <TabsTrigger value="settings" className="text-xs sm:text-sm">
               {t.tabSettings}
             </TabsTrigger>
@@ -194,6 +695,9 @@ export function PartnerAiSettingsPanel({
             </TabsTrigger>
             <TabsTrigger value="inv" className="text-xs sm:text-sm">
               {t.tabInventory}
+            </TabsTrigger>
+            <TabsTrigger value="usage" className="text-xs sm:text-sm">
+              {t.tabUsage}
             </TabsTrigger>
           </TabsList>
 
@@ -267,6 +771,191 @@ export function PartnerAiSettingsPanel({
               />
             </div>
 
+            <div className="space-y-4 rounded-xl border border-border/70 bg-muted/15 p-4">
+              <div className="flex items-start gap-2">
+                <ScanSearch className="mt-0.5 h-5 w-5 shrink-0 text-violet-600" aria-hidden />
+                <div className="min-w-0 space-y-1">
+                  <p className="text-sm font-medium">{t.visionSearchTitle}</p>
+                  <p className="text-xs leading-relaxed text-muted-foreground">{t.visionSearchHint}</p>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed border-border/60 bg-background/60 px-3 py-2">
+                <div>
+                  <p className="text-sm font-medium">{t.visionSearchEnable}</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    {form.vision_index_ready ? t.visionIndexReady : t.visionIndexNotReady}
+                    {form.vision_index_synced_at
+                      ? ` · ${t.visionLastSynced}: ${new Date(form.vision_index_synced_at).toLocaleString()}`
+                      : ''}
+                  </p>
+                  {form.vision_index_error ? (
+                    <p className="text-[11px] text-destructive mt-1">
+                      {t.visionSyncErrorLabel}: {form.vision_index_error}
+                    </p>
+                  ) : null}
+                </div>
+                <Switch
+                  checked={form.vision_product_search_enabled}
+                  onCheckedChange={handleVisionProductSearchToggle}
+                  disabled={pending || visionSyncing}
+                  aria-label={t.visionSearchEnable}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>{t.visionShopCountryLabel}</Label>
+                <p className="text-xs leading-relaxed text-muted-foreground">{t.visionShopCountryHint}</p>
+                <Select
+                  value={visionShopCountrySelectValue}
+                  onValueChange={(v) => {
+                    if (v === VISION_SHOP_COUNTRY_SELECT_CUSTOM) {
+                      persistPartial({ vision_shop_country: '' })
+                      return
+                    }
+                    const loc = getVisionLocationForShopCountry(v)
+                    if (loc) persistPartial({ vision_shop_country: v, vision_location: loc })
+                  }}
+                  disabled={pending || visionSyncing}
+                >
+                  <SelectTrigger className="h-10 bg-background">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={VISION_SHOP_COUNTRY_SELECT_CUSTOM}>{t.visionShopCountryCustom}</SelectItem>
+                    {VISION_SHOP_COUNTRY_CODES_ORDERED.map((code) => (
+                      <SelectItem key={code} value={code}>
+                        {regionDisplayNames.of(code) ?? code}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {visionShopCountrySelectValue === VISION_SHOP_COUNTRY_SELECT_CUSTOM ? (
+                  <p className="text-[11px] leading-relaxed text-muted-foreground">{t.visionShopCountryAdvancedHint}</p>
+                ) : null}
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>{t.visionLocationLabel}</Label>
+                  <Select
+                    value={form.vision_location}
+                    onValueChange={(v) => persistPartial({ vision_location: v, vision_shop_country: '' })}
+                    disabled={pending || visionSyncing}
+                  >
+                    <SelectTrigger className="h-10 bg-background">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {VISION_LOCATIONS.map((loc) => (
+                        <SelectItem key={loc} value={loc}>
+                          {loc}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>{t.visionCategoryLabel}</Label>
+                  <Select
+                    value={form.vision_product_category}
+                    onValueChange={(v) => persistPartial({ vision_product_category: v })}
+                    disabled={pending}
+                  >
+                    <SelectTrigger className="h-10 bg-background">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {VISION_PRODUCT_CATEGORIES.map((cat) => (
+                        <SelectItem key={cat} value={cat}>
+                          {cat}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="vision-bucket">{t.visionBucketOverrideLabel}</Label>
+                <Input
+                  id="vision-bucket"
+                  value={form.vision_gcs_bucket}
+                  placeholder="my-vision-catalog-bucket"
+                  onChange={(e) => setForm((f) => ({ ...f, vision_gcs_bucket: e.target.value }))}
+                  onBlur={() => persistPartial({ vision_gcs_bucket: formRef.current.vision_gcs_bucket })}
+                  disabled={pending || visionSyncing}
+                />
+                <p className="text-xs text-muted-foreground">{t.visionBucketOverrideHint}</p>
+              </div>
+              <div className="space-y-1.5">
+                <Button type="button" variant="secondary" disabled={pending || visionSyncing} onClick={runVisionSync}>
+                  {visionSyncing ? t.visionSyncing : t.visionSyncButton}
+                </Button>
+                <p className="text-[11px] text-muted-foreground leading-relaxed max-w-xl">
+                  {t.visionSyncAutoWhenEnableHint}
+                </p>
+                <p className="text-[11px] text-muted-foreground leading-relaxed max-w-xl">
+                  {t.visionInventoryDeleteRemovesIndexNote}
+                </p>
+              </div>
+
+              <div className="space-y-3 rounded-lg border border-dashed border-violet-200/80 bg-violet-50/30 p-3 dark:border-violet-800/60 dark:bg-violet-950/20">
+                <div className="space-y-1">
+                  <p className="text-sm font-medium">{t.visionBgSyncTitle}</p>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed max-w-xl">{t.visionBgSyncHint}</p>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed max-w-xl">
+                    {t.visionBgSyncUseResumeHint}
+                  </p>
+                  {visionBgActive ? (
+                    <p className="text-[11px] text-muted-foreground leading-relaxed max-w-xl">
+                      {t.visionBgSyncPollingNote}
+                    </p>
+                  ) : null}
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant={visionBgActive ? 'default' : 'secondary'}>
+                    {visionBgStatusLabel(t, form.vision_bg_sync_status)}
+                  </Badge>
+                  {visionBgActive ? (
+                    <span className="text-xs text-muted-foreground">
+                      {t.visionBgSyncFieldRounds}: {form.vision_bg_sync_rounds} · {t.visionBgSyncFieldImported}:{' '}
+                      {form.vision_bg_sync_imported} · {t.visionBgSyncFieldRemoved}: {form.vision_bg_sync_removed}
+                    </span>
+                  ) : null}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    disabled={pending || visionSyncing || visionBgActive || !form.vision_product_search_enabled}
+                    onClick={handleEnqueueVisionBgSync}
+                  >
+                    {t.visionBgSyncButton}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={pending || !visionBgActive}
+                    onClick={handleCancelVisionBgSync}
+                  >
+                    {t.visionBgSyncCancel}
+                  </Button>
+                  {(form.vision_bg_sync_status === 'done' || form.vision_bg_sync_status === 'error') && (
+                    <Button type="button" variant="ghost" size="sm" disabled={pending} onClick={handleDismissVisionBgReport}>
+                      {t.visionBgSyncDismiss}
+                    </Button>
+                  )}
+                </div>
+                {showVisionBgReportBlock ? (
+                  <div className="rounded-md border bg-background/80 p-3 text-xs space-y-1.5">
+                    <p className="font-medium text-sm">{t.visionBgSyncReportTitle}</p>
+                    {visionBgReportLines.map((line, i) => (
+                      <p key={i} className="text-muted-foreground whitespace-pre-wrap break-words">
+                        {line}
+                      </p>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/30 p-3">
               <div className="min-w-0">
                 <Label className="text-sm font-medium">{t.disclosureToggle}</Label>
@@ -327,9 +1016,120 @@ export function PartnerAiSettingsPanel({
               toast={toast}
             />
           </TabsContent>
+
+          <TabsContent value="usage" className="mt-0 space-y-3">
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              {t.tokenUsageIntro.replace(/\{days\}/g, String(tokenUsageLookbackDays))}
+            </p>
+            {tokenUsageRows.length === 0 ? (
+              <p className="text-sm text-muted-foreground">{t.tokenUsageEmpty}</p>
+            ) : (
+              <div className="overflow-x-auto rounded-lg border">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b bg-muted/40 text-left">
+                      <th className="p-2 font-medium">{t.tokenUsageColProvider}</th>
+                      <th className="p-2 font-medium">{t.tokenUsageColModel}</th>
+                      <th className="p-2 font-medium tabular-nums">{t.tokenUsageColCalls}</th>
+                      <th className="p-2 font-medium tabular-nums">{t.tokenUsageColPrompt}</th>
+                      <th className="p-2 font-medium tabular-nums">{t.tokenUsageColCompletion}</th>
+                      <th className="p-2 font-medium tabular-nums">{t.tokenUsageColTotal}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tokenUsageRows.map((row) => (
+                      <tr key={`${row.provider}:${row.model}`} className="border-b border-border/60 last:border-0">
+                        <td className="p-2 capitalize">{row.provider}</td>
+                        <td className="p-2 font-mono text-[11px]">{row.model}</td>
+                        <td className="p-2 tabular-nums">{tokenFmt.format(row.call_count)}</td>
+                        <td className="p-2 tabular-nums">{tokenFmt.format(row.sum_prompt_tokens)}</td>
+                        <td className="p-2 tabular-nums">{tokenFmt.format(row.sum_completion_tokens)}</td>
+                        <td className="p-2 tabular-nums font-medium">{tokenFmt.format(row.sum_total_tokens)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </TabsContent>
         </Tabs>
       </CardContent>
     </Card>
+  )
+}
+
+function PresetFaqCard({
+  partnerId,
+  presetKey,
+  row,
+  t,
+  saveOkMessage,
+  pending,
+  startTransition,
+  toast,
+  onSaved,
+}: {
+  partnerId: string
+  presetKey: PartnerFaqPresetKey
+  row: FaqRow | undefined
+  t: AiT
+  saveOkMessage: string
+  pending: boolean
+  startTransition: (cb: () => Promise<void>) => void
+  toast: ReturnType<typeof useToast>['toast']
+  onSaved: () => void
+}) {
+  const [answer, setAnswer] = useState(row?.answer ?? '')
+  const [isActive, setIsActive] = useState(row?.is_active ?? false)
+
+  useEffect(() => {
+    setAnswer(row?.answer ?? '')
+    setIsActive(row?.is_active ?? false)
+  }, [row?.id, row?.answer, row?.is_active, partnerId, presetKey])
+
+  const save = () => {
+    startTransition(async () => {
+      const res = await savePartnerFaqPreset(partnerId, presetKey, { answer, is_active: isActive })
+      if ('error' in res && res.error) {
+        toast({
+          title:
+            res.error === PARTNER_FAQ_PRESET_ANSWER_REQUIRED ? t.faqPresetAnswerRequired : res.error,
+          variant: 'destructive',
+        })
+        return
+      }
+      toast({ title: saveOkMessage })
+      onSaved()
+    })
+  }
+
+  return (
+    <div className="rounded-lg border bg-card p-3 shadow-sm space-y-3">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <p className="text-sm font-medium leading-snug pr-2">{t.faqPresetQuestions[presetKey]}</p>
+        <label className="flex shrink-0 cursor-pointer items-center gap-2 text-xs">
+          <input
+            type="checkbox"
+            className="h-4 w-4 rounded border-input"
+            checked={isActive}
+            onChange={(e) => setIsActive(e.target.checked)}
+          />
+          {t.faqActiveLabel}
+        </label>
+      </div>
+      <div className="space-y-1.5">
+        <Label className="text-xs">{t.faqAnswerLabel}</Label>
+        <Textarea
+          rows={3}
+          value={answer}
+          onChange={(e) => setAnswer(e.target.value)}
+          className="min-h-[72px] resize-y"
+        />
+      </div>
+      <Button type="button" size="sm" onClick={save} disabled={pending}>
+        {t.saveRow}
+      </Button>
+    </div>
   )
 }
 
@@ -352,24 +1152,40 @@ function FaqEditor({
   startTransition: (cb: () => Promise<void>) => void
   toast: ReturnType<typeof useToast>['toast']
 }) {
+  const customFaqs = faqs.filter((r) => !r.preset_key)
   const [draft, setDraft] = useState({
     id: null as string | null,
+    custom_title: '',
     trigger_keywords: '',
     answer: '',
-    sort_order: 0,
+    sort_order: 100,
     is_active: true,
   })
 
+  const nextCustomSortOrder = useCallback(
+    () =>
+      customFaqs.length === 0 ? 100 : Math.max(100, ...customFaqs.map((r) => r.sort_order)) + 1,
+    [customFaqs]
+  )
+
   const resetDraft = () =>
-    setDraft({ id: null, trigger_keywords: '', answer: '', sort_order: faqs.length, is_active: true })
+    setDraft({
+      id: null,
+      custom_title: '',
+      trigger_keywords: '',
+      answer: '',
+      sort_order: nextCustomSortOrder(),
+      is_active: true,
+    })
 
   useEffect(() => {
-    if (!draft.id) setDraft((d) => ({ ...d, sort_order: faqs.length }))
-  }, [faqs.length, draft.id])
+    if (!draft.id) setDraft((d) => ({ ...d, sort_order: nextCustomSortOrder() }))
+  }, [draft.id, nextCustomSortOrder])
 
-  const editRow = (r: FaqRow) => {
+  const editCustomRow = (r: FaqRow) => {
     setDraft({
       id: r.id,
+      custom_title: r.custom_title ?? '',
       trigger_keywords: r.trigger_keywords,
       answer: r.answer,
       sort_order: r.sort_order,
@@ -377,17 +1193,24 @@ function FaqEditor({
     })
   }
 
-  const save = () => {
+  const saveCustom = () => {
     if (!draft.answer.trim()) return
     startTransition(async () => {
       const res = await upsertPartnerFaq(partnerId, draft.id, {
+        custom_title: draft.custom_title,
         trigger_keywords: draft.trigger_keywords,
         answer: draft.answer.trim(),
         sort_order: draft.sort_order,
         is_active: draft.is_active,
       })
       if ('error' in res && res.error) {
-        toast({ title: res.error, variant: 'destructive' })
+        toast({
+          title:
+            res.error === PARTNER_FAQ_CUSTOM_KEYWORDS_REQUIRED
+              ? t.faqCustomKeywordsRequired
+              : res.error,
+          variant: 'destructive',
+        })
         return
       }
       toast({ title: saveOkMessage })
@@ -396,7 +1219,7 @@ function FaqEditor({
     })
   }
 
-  const del = (id: string) => {
+  const delCustom = (id: string) => {
     startTransition(async () => {
       const res = await deletePartnerFaq(partnerId, id)
       if ('error' in res && res.error) {
@@ -411,91 +1234,172 @@ function FaqEditor({
 
   return (
     <div className="space-y-4">
-      {faqs.length === 0 ? <p className="text-sm text-muted-foreground">{t.emptyFaq}</p> : null}
-      <ul className="space-y-2 max-h-[40vh] overflow-y-auto pr-1">
-        {faqs.map((r) => (
-          <li
-            key={r.id}
-            className="rounded-lg border bg-card p-3 text-sm shadow-sm hover:border-violet-200/80 dark:hover:border-violet-800/80 transition-colors"
-          >
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <div className="min-w-0 space-y-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="outline" className="text-[10px] font-normal">
-                    #{r.sort_order}
-                  </Badge>
-                  {!r.is_active ? (
-                    <Badge variant="secondary" className="text-[10px]">
-                      {t.inactiveBadge}
-                    </Badge>
-                  ) : null}
-                </div>
-                <p className="text-xs font-medium text-muted-foreground line-clamp-2">{r.trigger_keywords || '—'}</p>
-                <p className="line-clamp-3 whitespace-pre-wrap">{r.answer}</p>
-              </div>
-              <div className="flex shrink-0 gap-1">
-                <Button type="button" variant="outline" size="sm" onClick={() => editRow(r)} disabled={pending}>
-                  {t.edit}
-                </Button>
-                <Button type="button" variant="ghost" size="sm" className="text-destructive" onClick={() => del(r.id)} disabled={pending}>
-                  {t.deleteRow}
-                </Button>
-              </div>
-            </div>
+      <p className="text-sm leading-relaxed text-muted-foreground">{t.faqPresetsIntro}</p>
+      <p className="text-[11px] text-muted-foreground">{t.faqPresetSaveHint}</p>
+
+      <ul className="max-h-[48vh] space-y-3 overflow-y-auto pr-1">
+        {PARTNER_FAQ_PRESET_KEYS.map((key) => (
+          <li key={key}>
+            <PresetFaqCard
+              partnerId={partnerId}
+              presetKey={key}
+              row={faqs.find((r) => r.preset_key === key)}
+              t={t}
+              saveOkMessage={saveOkMessage}
+              pending={pending}
+              startTransition={startTransition}
+              toast={toast}
+              onSaved={onChanged}
+            />
           </li>
         ))}
       </ul>
 
-      <div className="rounded-xl border border-dashed border-violet-300/60 bg-violet-50/30 dark:border-violet-800/50 dark:bg-violet-950/20 p-4 space-y-3">
-        <h4 className="text-sm font-semibold">{draft.id ? t.edit : t.addFaq}</h4>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-2 sm:col-span-2">
-            <Label>{t.faqKeywordsLabel}</Label>
-            <Textarea
-              rows={2}
-              value={draft.trigger_keywords}
-              onChange={(e) => setDraft((d) => ({ ...d, trigger_keywords: e.target.value }))}
-              placeholder={t.faqKeywordsHint}
-            />
-            <p className="text-[11px] text-muted-foreground">{t.faqKeywordsHint}</p>
-          </div>
-          <div className="space-y-2">
-            <Label>{t.faqSortLabel}</Label>
-            <Input
-              type="number"
-              value={draft.sort_order}
-              onChange={(e) => setDraft((d) => ({ ...d, sort_order: Number(e.target.value) || 0 }))}
-            />
-          </div>
-          <div className="flex items-end gap-2 pb-2">
-            <label className="flex items-center gap-2 text-sm cursor-pointer">
-              <input
-                type="checkbox"
-                className="h-4 w-4 rounded border-input"
-                checked={draft.is_active}
-                onChange={(e) => setDraft((d) => ({ ...d, is_active: e.target.checked }))}
+      <div className="space-y-3 border-t pt-4">
+        <h4 className="text-sm font-semibold">{t.faqCustomSectionTitle}</h4>
+        <p className="text-[11px] leading-relaxed text-muted-foreground">{t.faqCustomSectionIntro}</p>
+
+        {customFaqs.length > 0 ? (
+          <ul className="max-h-[28vh] space-y-2 overflow-y-auto pr-1">
+            {customFaqs.map((r) => (
+              <li
+                key={r.id}
+                className="rounded-lg border bg-muted/20 p-3 text-sm shadow-sm transition-colors hover:border-violet-200/80 dark:hover:border-violet-800/80"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="min-w-0 space-y-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant="outline" className="text-[10px] font-normal">
+                        #{r.sort_order}
+                      </Badge>
+                      {!r.is_active ? (
+                        <Badge variant="secondary" className="text-[10px]">
+                          {t.inactiveBadge}
+                        </Badge>
+                      ) : null}
+                    </div>
+                    {r.custom_title?.trim() ? (
+                      <p className="line-clamp-2 text-sm font-medium text-foreground">{r.custom_title.trim()}</p>
+                    ) : null}
+                    <p className="line-clamp-2 text-xs text-muted-foreground">
+                      {t.faqKeywordsLabel}: {r.trigger_keywords || '—'}
+                    </p>
+                    <p className="line-clamp-3 whitespace-pre-wrap">{r.answer}</p>
+                  </div>
+                  <div className="flex shrink-0 gap-1">
+                    <Button type="button" variant="outline" size="sm" onClick={() => editCustomRow(r)} disabled={pending}>
+                      {t.edit}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive"
+                      onClick={() => delCustom(r.id)}
+                      disabled={pending}
+                    >
+                      {t.deleteRow}
+                    </Button>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+
+        <div className="rounded-xl border border-dashed border-violet-300/60 bg-violet-50/30 p-4 space-y-3 dark:border-violet-800/50 dark:bg-violet-950/20">
+          <h4 className="text-sm font-semibold">{draft.id ? t.edit : t.faqCustomAddTitle}</h4>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-2 sm:col-span-2">
+              <Label>{t.faqCustomQuestionLabel}</Label>
+              <Input
+                value={draft.custom_title}
+                onChange={(e) => setDraft((d) => ({ ...d, custom_title: e.target.value }))}
               />
-              {t.faqActiveLabel}
-            </label>
+              <p className="text-[11px] text-muted-foreground">{t.faqCustomQuestionHint}</p>
+            </div>
+            <div className="space-y-2 sm:col-span-2">
+              <Label>{t.faqKeywordsLabel}</Label>
+              <Textarea
+                rows={2}
+                value={draft.trigger_keywords}
+                onChange={(e) => setDraft((d) => ({ ...d, trigger_keywords: e.target.value }))}
+                placeholder={t.faqKeywordsHint}
+              />
+              <p className="text-[11px] text-muted-foreground">{t.faqKeywordsHint}</p>
+            </div>
+            <div className="space-y-2">
+              <Label>{t.faqSortLabel}</Label>
+              <Input
+                type="number"
+                value={draft.sort_order}
+                onChange={(e) => setDraft((d) => ({ ...d, sort_order: Number(e.target.value) || 0 }))}
+              />
+            </div>
+            <div className="flex items-end gap-2 pb-2">
+              <label className="flex cursor-pointer items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-input"
+                  checked={draft.is_active}
+                  onChange={(e) => setDraft((d) => ({ ...d, is_active: e.target.checked }))}
+                />
+                {t.faqActiveLabel}
+              </label>
+            </div>
+            <div className="space-y-2 sm:col-span-2">
+              <Label>{t.faqAnswerLabel}</Label>
+              <Textarea
+                rows={4}
+                value={draft.answer}
+                onChange={(e) => setDraft((d) => ({ ...d, answer: e.target.value }))}
+              />
+            </div>
           </div>
-          <div className="space-y-2 sm:col-span-2">
-            <Label>{t.faqAnswerLabel}</Label>
-            <Textarea rows={4} value={draft.answer} onChange={(e) => setDraft((d) => ({ ...d, answer: e.target.value }))} />
-          </div>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" onClick={save} disabled={pending || !draft.answer.trim()}>
-            {t.saveRow}
-          </Button>
-          {draft.id ? (
-            <Button type="button" variant="ghost" size="sm" onClick={resetDraft} disabled={pending}>
-              {t.cancelEdit}
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" onClick={saveCustom} disabled={pending || !draft.answer.trim()}>
+              {t.saveRow}
             </Button>
-          ) : null}
+            {draft.id ? (
+              <Button type="button" variant="ghost" size="sm" onClick={resetDraft} disabled={pending}>
+                {t.cancelEdit}
+              </Button>
+            ) : null}
+          </div>
         </div>
       </div>
     </div>
   )
+}
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.rel = 'noopener'
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+function mapInventoryImportError(code: string | undefined, t: AiT): string {
+  switch (code) {
+    case 'INVALID_XLSX':
+      return t.inventoryErrInvalidXlsx
+    case 'EMPTY_WORKBOOK':
+    case 'EMPTY_SHEET':
+      return t.inventoryErrEmptySheet
+    case 'MISSING_NAME_COLUMN':
+      return t.inventoryErrMissingName
+    case 'NO_DATA_ROWS':
+      return t.inventoryErrNoRows
+    case 'NO_FILE':
+      return t.inventoryErrNoFile
+    case 'FILE_TOO_LARGE':
+      return t.inventoryErrFileTooLarge
+    default:
+      return code || t.inventoryImportFailed
+  }
 }
 
 function InventoryEditor({
@@ -517,6 +1421,9 @@ function InventoryEditor({
   startTransition: (cb: () => Promise<void>) => void
   toast: ReturnType<typeof useToast>['toast']
 }) {
+  const importInputRef = useRef<HTMLInputElement>(null)
+  const [excelBusy, setExcelBusy] = useState(false)
+
   const [draft, setDraft] = useState({
     id: null as string | null,
     name: '',
@@ -524,8 +1431,10 @@ function InventoryEditor({
     description: '',
     stock_note: '',
     price_hint: '',
+    image_url: '',
+    product_url: '',
+    consult_note: '',
     sort_order: 0,
-    is_active: true,
   })
 
   const resetDraft = () =>
@@ -536,8 +1445,10 @@ function InventoryEditor({
       description: '',
       stock_note: '',
       price_hint: '',
+      image_url: '',
+      product_url: '',
+      consult_note: '',
       sort_order: rows.length,
-      is_active: true,
     })
 
   useEffect(() => {
@@ -552,8 +1463,10 @@ function InventoryEditor({
       description: r.description,
       stock_note: r.stock_note,
       price_hint: r.price_hint,
+      image_url: r.image_url ?? '',
+      product_url: r.product_url ?? '',
+      consult_note: r.consult_note ?? '',
       sort_order: r.sort_order,
-      is_active: r.is_active,
     })
   }
 
@@ -566,8 +1479,10 @@ function InventoryEditor({
         description: draft.description,
         stock_note: draft.stock_note,
         price_hint: draft.price_hint,
+        image_url: draft.image_url,
+        product_url: draft.product_url,
+        consult_note: draft.consult_note,
         sort_order: draft.sort_order,
-        is_active: draft.is_active,
       })
       if ('error' in res && res.error) {
         toast({ title: res.error, variant: 'destructive' })
@@ -592,24 +1507,163 @@ function InventoryEditor({
     })
   }
 
+  const downloadTemplate = async () => {
+    setExcelBusy(true)
+    try {
+      const res = await fetch(`/api/messaging/partners/${encodeURIComponent(partnerId)}/inventory/template`, {
+        credentials: 'same-origin',
+      })
+      if (!res.ok) {
+        toast({ title: t.inventoryImportFailed, variant: 'destructive' })
+        return
+      }
+      const blob = await res.blob()
+      downloadBlob(blob, 'mau-danh-sach-kho-hang.xlsx')
+    } catch {
+      toast({ title: t.inventoryImportFailed, variant: 'destructive' })
+    } finally {
+      setExcelBusy(false)
+    }
+  }
+
+  const exportExcel = async () => {
+    setExcelBusy(true)
+    try {
+      const res = await fetch(`/api/messaging/partners/${encodeURIComponent(partnerId)}/inventory/export`, {
+        credentials: 'same-origin',
+      })
+      if (!res.ok) {
+        toast({ title: t.inventoryImportFailed, variant: 'destructive' })
+        return
+      }
+      const blob = await res.blob()
+      const dateStr = new Date().toISOString().slice(0, 10)
+      downloadBlob(blob, `kho-hang-export-${dateStr}.xlsx`)
+    } catch {
+      toast({ title: t.inventoryImportFailed, variant: 'destructive' })
+    } finally {
+      setExcelBusy(false)
+    }
+  }
+
+  const onPickImport = () => importInputRef.current?.click()
+
+  const onImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    if (!window.confirm(t.inventoryImportReplaceWarning)) return
+    setExcelBusy(true)
+    try {
+      const fd = new FormData()
+      fd.set('file', file)
+      const res = await fetch(`/api/messaging/partners/${encodeURIComponent(partnerId)}/inventory/import`, {
+        method: 'POST',
+        body: fd,
+        credentials: 'same-origin',
+      })
+      const data = (await res.json()) as {
+        ok?: boolean
+        count?: number
+        inserted?: number
+        updated?: number
+        error?: string
+      }
+      if (!res.ok) {
+        toast({
+          title: mapInventoryImportError(data.error, t),
+          variant: 'destructive',
+        })
+        return
+      }
+      toast({
+        title: t.inventoryImportSuccess
+          .replace('{count}', String(data.count ?? 0))
+          .replace('{inserted}', String(data.inserted ?? 0))
+          .replace('{updated}', String(data.updated ?? 0)),
+      })
+      resetDraft()
+      onChanged()
+    } catch {
+      toast({ title: t.inventoryImportFailed, variant: 'destructive' })
+    } finally {
+      setExcelBusy(false)
+    }
+  }
+
   return (
     <div className="space-y-4">
+      <div className="flex flex-wrap gap-2">
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          className="gap-1.5"
+          disabled={excelBusy || pending}
+          onClick={() => void downloadTemplate()}
+        >
+          <FileSpreadsheet className="h-3.5 w-3.5 shrink-0" aria-hidden />
+          {t.inventoryDownloadTemplate}
+        </Button>
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          className="gap-1.5"
+          disabled={excelBusy || pending}
+          onClick={() => void exportExcel()}
+        >
+          <Download className="h-3.5 w-3.5 shrink-0" aria-hidden />
+          {t.inventoryExportExcel}
+        </Button>
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          className="gap-1.5"
+          disabled={excelBusy || pending}
+          onClick={onPickImport}
+        >
+          <Upload className="h-3.5 w-3.5 shrink-0" aria-hidden />
+          {t.inventoryImportExcel}
+        </Button>
+        <input
+          ref={importInputRef}
+          type="file"
+          accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          className="hidden"
+          onChange={(ev) => void onImportFile(ev)}
+        />
+      </div>
+      <p className="text-[11px] leading-relaxed text-muted-foreground">
+        {t.inventoryOpenApiHint}{' '}
+        <Link
+          href="/dashboard/api-integration"
+          className="text-violet-600 underline underline-offset-2 dark:text-violet-400"
+        >
+          {t.inventoryOpenApiLink}
+        </Link>
+      </p>
       {rows.length === 0 ? <p className="text-sm text-muted-foreground">{t.emptyInventory}</p> : null}
       <ul className="space-y-2 max-h-[36vh] overflow-y-auto pr-1">
         {rows.map((r) => (
           <li key={r.id} className="rounded-lg border bg-card p-3 text-sm shadow-sm">
             <div className="flex flex-wrap items-start justify-between gap-2">
-              <div className="min-w-0">
+              <div className="flex min-w-0 gap-2">
+                {r.image_url?.trim() && /^https?:\/\//i.test(r.image_url.trim()) ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={r.image_url.trim()}
+                    alt=""
+                    className="h-14 w-14 shrink-0 rounded-md border object-cover"
+                  />
+                ) : null}
+                <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-medium">{r.name}</span>
                   {r.sku ? (
                     <Badge variant="outline" className="text-[10px] font-mono font-normal">
                       {r.sku}
-                    </Badge>
-                  ) : null}
-                  {!r.is_active ? (
-                    <Badge variant="secondary" className="text-[10px]">
-                      {t.inactiveBadge}
                     </Badge>
                   ) : null}
                 </div>
@@ -622,6 +1676,22 @@ function InventoryEditor({
                   ) : null}
                   {r.price_hint ? <span>{r.price_hint}</span> : null}
                 </p>
+                {r.product_url?.trim() && /^https?:\/\//i.test(r.product_url.trim()) ? (
+                  <p className="mt-1 text-[11px]">
+                    <a
+                      href={r.product_url.trim()}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-violet-600 underline underline-offset-2 dark:text-violet-400"
+                    >
+                      {t.inventoryOpenProductPage}
+                    </a>
+                  </p>
+                ) : null}
+                {r.consult_note?.trim() ? (
+                  <p className="mt-1 line-clamp-2 text-[11px] text-muted-foreground">{r.consult_note.trim()}</p>
+                ) : null}
+                </div>
               </div>
               <div className="flex shrink-0 gap-1">
                 <Button type="button" variant="outline" size="sm" onClick={() => editRow(r)} disabled={pending}>
@@ -638,6 +1708,7 @@ function InventoryEditor({
 
       <div className="rounded-xl border border-dashed border-violet-300/60 bg-violet-50/30 dark:border-violet-800/50 dark:bg-violet-950/20 p-4 space-y-3">
         <h4 className="text-sm font-semibold">{draft.id ? t.edit : t.addInventory}</h4>
+        <p className="text-[11px] leading-relaxed text-muted-foreground">{t.inventoryFieldsGuide}</p>
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-2">
             <Label>{t.inventoryName}</Label>
@@ -650,14 +1721,47 @@ function InventoryEditor({
           <div className="space-y-2 sm:col-span-2">
             <Label>{t.inventoryDesc}</Label>
             <Textarea rows={2} value={draft.description} onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))} />
+            <p className="text-[11px] text-muted-foreground">{t.inventoryDescHint}</p>
           </div>
           <div className="space-y-2">
             <Label>{t.inventoryStock}</Label>
             <Input value={draft.stock_note} onChange={(e) => setDraft((d) => ({ ...d, stock_note: e.target.value }))} />
+            <p className="text-[11px] text-muted-foreground">{t.inventoryStockHint}</p>
           </div>
           <div className="space-y-2">
             <Label>{t.inventoryPrice}</Label>
             <Input value={draft.price_hint} onChange={(e) => setDraft((d) => ({ ...d, price_hint: e.target.value }))} />
+          </div>
+          <div className="space-y-2 sm:col-span-2">
+            <Label>{t.inventoryImageUrl}</Label>
+            <Input
+              value={draft.image_url}
+              maxLength={2048}
+              onChange={(e) => setDraft((d) => ({ ...d, image_url: e.target.value }))}
+              placeholder="https://"
+              className="font-mono text-xs"
+            />
+            <p className="text-[11px] text-muted-foreground">{t.inventoryImageUrlHint}</p>
+          </div>
+          <div className="space-y-2 sm:col-span-2">
+            <Label>{t.inventoryProductUrl}</Label>
+            <Input
+              value={draft.product_url}
+              maxLength={2048}
+              onChange={(e) => setDraft((d) => ({ ...d, product_url: e.target.value }))}
+              placeholder="https://"
+              className="font-mono text-xs"
+            />
+            <p className="text-[11px] text-muted-foreground">{t.inventoryProductUrlHint}</p>
+          </div>
+          <div className="space-y-2 sm:col-span-2">
+            <Label>{t.inventoryConsultNote}</Label>
+            <Textarea
+              rows={2}
+              value={draft.consult_note}
+              onChange={(e) => setDraft((d) => ({ ...d, consult_note: e.target.value }))}
+            />
+            <p className="text-[11px] text-muted-foreground">{t.inventoryConsultNoteHint}</p>
           </div>
           <div className="space-y-2">
             <Label>{t.inventorySort}</Label>
@@ -666,17 +1770,6 @@ function InventoryEditor({
               value={draft.sort_order}
               onChange={(e) => setDraft((d) => ({ ...d, sort_order: Number(e.target.value) || 0 }))}
             />
-          </div>
-          <div className="flex items-end gap-2 pb-2">
-            <label className="flex items-center gap-2 text-sm cursor-pointer">
-              <input
-                type="checkbox"
-                className="h-4 w-4 rounded border-input"
-                checked={draft.is_active}
-                onChange={(e) => setDraft((d) => ({ ...d, is_active: e.target.checked }))}
-              />
-              {t.inventoryActive}
-            </label>
           </div>
         </div>
         <div className="flex flex-wrap gap-2">

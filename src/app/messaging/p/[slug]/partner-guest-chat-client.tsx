@@ -12,7 +12,7 @@ import type { Dictionary } from '@/lib/i18n/dictionaries'
 import type { Json } from '@/types/database.types'
 import { sanitizeLoginNext } from '@/lib/auth/sanitize-login-next'
 import { createClient } from '@/lib/supabase/client'
-import { Camera, ImagePlus, Loader2, List, Send, X } from 'lucide-react'
+import { Camera, ImagePlus, Loader2, List, Send, Sparkles, X } from 'lucide-react'
 
 type GuestMsg = {
   id: string
@@ -22,9 +22,64 @@ type GuestMsg = {
   raw_payload?: Json | null
 }
 
-type T = Dictionary['partnerGuestChat']
+type GuestVisionCandidate = {
+  inventoryId: string
+  name: string
+  sku: string | null
+  image_url: string
+  product_url?: string
+  score?: number
+}
 
-export function PartnerGuestChatClient({ slug, shopDisplayName, t }: { slug: string; shopDisplayName: string; t: T }) {
+function getVisionPickState(raw: Json | null | undefined): { required: boolean; candidates: GuestVisionCandidate[] } {
+  const o = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : null
+  if (!o || o.vision_pick_required !== true || !Array.isArray(o.vision_candidates)) {
+    return { required: false, candidates: [] }
+  }
+  const out: GuestVisionCandidate[] = []
+  for (const x of o.vision_candidates) {
+    if (!x || typeof x !== 'object') continue
+    const r = x as Record<string, unknown>
+    const inventoryId = typeof r.inventoryId === 'string' ? r.inventoryId : ''
+    const name = typeof r.name === 'string' ? r.name : ''
+    if (!inventoryId || !name) continue
+    const pu = typeof r.product_url === 'string' ? r.product_url.trim() : ''
+    out.push({
+      inventoryId,
+      name,
+      sku: typeof r.sku === 'string' ? r.sku : null,
+      image_url: typeof r.image_url === 'string' ? r.image_url : '',
+      ...(pu && /^https?:\/\//i.test(pu) ? { product_url: pu } : {}),
+      score: typeof r.score === 'number' ? r.score : undefined,
+    })
+  }
+  return { required: true, candidates: out }
+}
+
+type T = Dictionary['partnerGuestChat']
+const TRY_ON_COST_2K = 1
+const MAX_TRY_ON_GARMENTS = 4
+
+type SelectedImage = {
+  file: File
+  previewUrl: string
+}
+
+function formatCredits(value: number) {
+  return Number.isInteger(value) ? String(value) : value.toFixed(1)
+}
+
+export function PartnerGuestChatClient({
+  slug,
+  shopDisplayName,
+  t,
+  isEmbedded = false,
+}: {
+  slug: string
+  shopDisplayName: string
+  t: T
+  isEmbedded?: boolean
+}) {
   const { toast } = useToast()
   const pathname = usePathname()
   const [authReady, setAuthReady] = useState(false)
@@ -33,12 +88,24 @@ export function PartnerGuestChatClient({ slug, shopDisplayName, t }: { slug: str
   const [draft, setDraft] = useState('')
   const [loading, setLoading] = useState(false)
   const [sending, setSending] = useState(false)
+  /** Sau khi gửi tin: server báo AI/FAQ đang trả lời — poll nhanh và hiện “đang soạn tin”. */
+  const [shopTyping, setShopTyping] = useState<{ deadline: number; baselineOutbound: number } | null>(null)
   const [uploading, setUploading] = useState(false)
+  const [isTouchDevice, setIsTouchDevice] = useState(false)
+  const [tryOnOpen, setTryOnOpen] = useState(false)
+  const [tryOnBusy, setTryOnBusy] = useState(false)
+  const [tryOnUserFile, setTryOnUserFile] = useState<File | null>(null)
+  const [tryOnGarmentFiles, setTryOnGarmentFiles] = useState<SelectedImage[]>([])
+  const [tryOnUserPreviewUrl, setTryOnUserPreviewUrl] = useState<string | null>(null)
   const [imageStoragePath, setImageStoragePath] = useState<string | null>(null)
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null)
+  const [visionPickBusyId, setVisionPickBusyId] = useState<string | null>(null)
   const galleryInputRef = useRef<HTMLInputElement>(null)
   const cameraInputRef = useRef<HTMLInputElement>(null)
+  const tryOnUserInputRef = useRef<HTMLInputElement>(null)
+  const tryOnGarmentInputRef = useRef<HTMLInputElement>(null)
   const scrollAnchorRef = useRef<HTMLDivElement>(null)
+  const draftTextareaRef = useRef<HTMLTextAreaElement>(null)
 
   const loginHref = `/auth/login?next=${encodeURIComponent(sanitizeLoginNext(pathname || `/messaging/p/${slug}`))}`
 
@@ -68,7 +135,15 @@ export function PartnerGuestChatClient({ slug, shopDisplayName, t }: { slug: str
         toast({ title: data.error || t.loadError, variant: 'destructive' })
         return
       }
-      setMessages(Array.isArray(data.messages) ? data.messages : [])
+      const next = Array.isArray(data.messages) ? data.messages : []
+      setMessages(next)
+      setShopTyping((prev) => {
+        if (!prev) return null
+        const out = next.filter((m) => m.direction === 'outbound').length
+        if (out > prev.baselineOutbound) return null
+        if (Date.now() > prev.deadline) return null
+        return prev
+      })
     } catch {
       toast({ title: t.loadError, variant: 'destructive' })
     } finally {
@@ -86,11 +161,129 @@ export function PartnerGuestChatClient({ slug, shopDisplayName, t }: { slug: str
     return () => window.clearInterval(id)
   }, [userId, load])
 
+  useEffect(() => {
+    if (!shopTyping) return
+    const id = window.setInterval(() => void load(), 2500)
+    return () => window.clearInterval(id)
+  }, [shopTyping, load])
+
+  useEffect(() => {
+    if (!shopTyping) return
+    const ms = Math.max(0, shopTyping.deadline - Date.now())
+    const t = window.setTimeout(() => {
+      setShopTyping((s) => (s && Date.now() >= s.deadline ? null : s))
+    }, ms)
+    return () => window.clearTimeout(t)
+  }, [shopTyping?.deadline])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const mq = window.matchMedia('(pointer: coarse)')
+    const sync = () => {
+      setIsTouchDevice(Boolean(mq.matches || navigator.maxTouchPoints > 0))
+    }
+    sync()
+    mq.addEventListener('change', sync)
+    return () => mq.removeEventListener('change', sync)
+  }, [])
+
+  const autoResizeDraft = useCallback(() => {
+    const el = draftTextareaRef.current
+    if (!el) return
+    el.style.height = '0px'
+    const minHeight = isEmbedded ? 22 : 28
+    const maxHeight = isEmbedded ? 72 : 220
+    const next = Math.min(Math.max(el.scrollHeight, minHeight), maxHeight)
+    el.style.height = `${next}px`
+    el.style.overflowY = el.scrollHeight > maxHeight ? 'auto' : 'hidden'
+  }, [isEmbedded])
+
+  useEffect(() => {
+    autoResizeDraft()
+  }, [draft, autoResizeDraft])
+
+  useEffect(() => {
+    if (!tryOnUserFile) {
+      setTryOnUserPreviewUrl(null)
+      return
+    }
+    const url = URL.createObjectURL(tryOnUserFile)
+    setTryOnUserPreviewUrl(url)
+    return () => URL.revokeObjectURL(url)
+  }, [tryOnUserFile])
+
+  useEffect(() => {
+    return () => {
+      for (const item of tryOnGarmentFiles) {
+        URL.revokeObjectURL(item.previewUrl)
+      }
+    }
+  }, [tryOnGarmentFiles])
+
+  const addTryOnGarmentFile = (file: File | null) => {
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      toast({ title: t.guestImageInvalidType, variant: 'destructive' })
+      return
+    }
+    if (tryOnGarmentFiles.length >= MAX_TRY_ON_GARMENTS) {
+      toast({
+        title: t.tryOnGarmentLimitReached.replace('{max}', String(MAX_TRY_ON_GARMENTS)),
+        variant: 'destructive',
+      })
+      return
+    }
+    const previewUrl = URL.createObjectURL(file)
+    setTryOnGarmentFiles((prev) => [...prev, { file, previewUrl }])
+  }
+
+  const removeTryOnGarmentAt = (index: number) => {
+    setTryOnGarmentFiles((prev) => {
+      const target = prev[index]
+      if (target) URL.revokeObjectURL(target.previewUrl)
+      return prev.filter((_, i) => i !== index)
+    })
+  }
+
   const clearAttachment = () => {
     setImageStoragePath(null)
     setImagePreviewUrl(null)
     if (galleryInputRef.current) galleryInputRef.current.value = ''
     if (cameraInputRef.current) cameraInputRef.current.value = ''
+  }
+
+  const submitVisionPick = async (messageId: string, inventoryId: string) => {
+    if (!userId) return
+    setVisionPickBusyId(messageId)
+    const outboundBaseline = messages.filter((m) => m.direction === 'outbound').length
+    try {
+      const res = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}/vision-pick`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messageId, inventoryId }),
+      })
+      const data = (await res.json()) as { ok?: boolean; error?: string; shopTyping?: { maxWaitMs: number } }
+      if (res.status === 401) {
+        setUserId(null)
+        return
+      }
+      if (!res.ok) {
+        toast({ title: data.error || t.visionPickError, variant: 'destructive' })
+        return
+      }
+      await load()
+      if (data.shopTyping?.maxWaitMs && data.shopTyping.maxWaitMs > 0) {
+        setShopTyping({
+          deadline: Date.now() + data.shopTyping.maxWaitMs,
+          baselineOutbound: outboundBaseline,
+        })
+      }
+    } catch {
+      toast({ title: t.visionPickError, variant: 'destructive' })
+    } finally {
+      setVisionPickBusyId(null)
+    }
   }
 
   const uploadFile = async (file: File) => {
@@ -138,10 +331,78 @@ export function PartnerGuestChatClient({ slug, shopDisplayName, t }: { slug: str
     if (f) void uploadFile(f)
   }
 
+  const runTryOn = async () => {
+    if (!userId) return
+    if (!tryOnUserFile || tryOnGarmentFiles.length === 0) {
+      toast({ title: t.tryOnNeedBoth, variant: 'destructive' })
+      return
+    }
+    setTryOnBusy(true)
+    try {
+      const fd = new FormData()
+      fd.set('userImage', tryOnUserFile)
+      tryOnGarmentFiles.forEach((item, idx) => fd.set(`garmentImage${idx}`, item.file))
+      fd.set('garmentCount', String(tryOnGarmentFiles.length))
+      fd.set('imageQuality', '2K')
+
+      const res = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}/try-on`, {
+        method: 'POST',
+        body: fd,
+        credentials: 'same-origin',
+      })
+      const data = (await res.json()) as {
+        ok?: boolean
+        resultUrl?: string
+        error?: string
+        deductedCredits?: number
+        creditsRemaining?: number
+      }
+      if (res.status === 401) {
+        setUserId(null)
+        return
+      }
+      if (!res.ok || !data.resultUrl) {
+        toast({ title: data.error || t.tryOnFailed, variant: 'destructive' })
+        return
+      }
+
+      // Show generated result immediately while uploading to chat storage.
+      setImagePreviewUrl(data.resultUrl)
+
+      const imgRes = await fetch(data.resultUrl)
+      const blob = await imgRes.blob()
+      const file = new File([blob], `try-on-${Date.now()}.png`, { type: blob.type || 'image/png' })
+      await uploadFile(file)
+      // Keep panel visible, but clear source selections to avoid sending wrong images.
+      setTryOnUserFile(null)
+      setTryOnGarmentFiles((prev) => {
+        prev.forEach((item) => URL.revokeObjectURL(item.previewUrl))
+        return []
+      })
+      if (tryOnUserInputRef.current) tryOnUserInputRef.current.value = ''
+      if (tryOnGarmentInputRef.current) tryOnGarmentInputRef.current.value = ''
+      const remaining =
+        typeof data.creditsRemaining === 'number' ? formatCredits(Math.max(0, data.creditsRemaining)) : null
+      const deducted =
+        typeof data.deductedCredits === 'number' ? formatCredits(Math.max(0, data.deductedCredits)) : formatCredits(TRY_ON_COST_2K)
+      toast({
+        title: t.tryOnReady,
+        description: t.tryOnChargedToast
+          .replace('{cost}', deducted)
+          .replace('{remaining}', remaining ?? '—'),
+      })
+    } catch {
+      toast({ title: t.tryOnFailed, variant: 'destructive' })
+    } finally {
+      setTryOnBusy(false)
+    }
+  }
+
   const send = async () => {
     const text = draft.trim()
     if (!userId) return
     if (!text && !imageStoragePath) return
+    const outboundBaseline = messages.filter((m) => m.direction === 'outbound').length
     setSending(true)
     try {
       const res = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}`, {
@@ -153,7 +414,12 @@ export function PartnerGuestChatClient({ slug, shopDisplayName, t }: { slug: str
           imageStoragePath: imageStoragePath || undefined,
         }),
       })
-      const data = (await res.json()) as { ok?: boolean; error?: string }
+      const data = (await res.json()) as {
+        ok?: boolean
+        error?: string
+        shopTyping?: { maxWaitMs: number }
+        visionPickRequired?: boolean
+      }
       if (res.status === 401) {
         setUserId(null)
         return
@@ -168,6 +434,16 @@ export function PartnerGuestChatClient({ slug, shopDisplayName, t }: { slug: str
       setDraft('')
       clearAttachment()
       await load()
+      if (
+        data.shopTyping?.maxWaitMs &&
+        data.shopTyping.maxWaitMs > 0 &&
+        !data.visionPickRequired
+      ) {
+        setShopTyping({
+          deadline: Date.now() + data.shopTyping.maxWaitMs,
+          baselineOutbound: outboundBaseline,
+        })
+      }
     } catch {
       toast({ title: t.sendError, variant: 'destructive' })
     } finally {
@@ -176,6 +452,7 @@ export function PartnerGuestChatClient({ slug, shopDisplayName, t }: { slug: str
   }
 
   const canSend = Boolean(userId && (draft.trim() || imageStoragePath) && !uploading)
+  const showCameraButton = isTouchDevice
 
   if (!authReady) {
     return (
@@ -204,26 +481,31 @@ export function PartnerGuestChatClient({ slug, shopDisplayName, t }: { slug: str
   }
 
   return (
-    <div className="flex w-full flex-col gap-5 pb-8">
-      <div className="flex flex-wrap items-center justify-end gap-2">
-        <Button variant="outline" size="sm" asChild className="gap-1.5">
-          <Link href="/messaging/my-chats">
-            <List className="h-4 w-4" aria-hidden />
-            {t.linkMyShops}
-          </Link>
-        </Button>
-      </div>
+    <div className={`flex w-full flex-col ${isEmbedded ? 'h-[100dvh] gap-2 overflow-hidden pb-0' : 'gap-5 pb-8'}`}>
+      {!isEmbedded ? (
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Button variant="outline" size="sm" asChild className="gap-1.5">
+            <Link href="/messaging/my-chats">
+              <List className="h-4 w-4" aria-hidden />
+              {t.linkMyShops}
+            </Link>
+          </Button>
+        </div>
+      ) : null}
 
-      <Card className="overflow-hidden border-border/70 shadow-md">
-        <CardHeader className="space-y-1 border-b bg-gradient-to-r from-violet-600/10 via-background to-cyan-600/10 pb-4">
-          <CardDescription className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t.shopLabel}</CardDescription>
-          <CardTitle className="text-2xl font-bold tracking-tight text-foreground">{shopDisplayName}</CardTitle>
-          <p className="text-sm leading-relaxed text-muted-foreground">{t.subline}</p>
-          <p className="text-[11px] text-muted-foreground/90">{t.pollNote}</p>
-        </CardHeader>
-        <CardContent className="p-0">
+      <Card className={`overflow-hidden border-border shadow-md ${isEmbedded ? 'flex h-full min-h-0 flex-col' : ''}`}>
+        {!isEmbedded ? (
+          <CardHeader className="space-y-1 border-b bg-gradient-to-r from-violet-600/10 via-background to-cyan-600/10 pb-4">
+            <CardTitle className="text-2xl font-bold tracking-tight text-foreground">{shopDisplayName}</CardTitle>
+            <p className="text-sm leading-relaxed text-muted-foreground">{t.subline}</p>
+            <p className="text-[11px] text-muted-foreground/90">{t.pollNote}</p>
+          </CardHeader>
+        ) : null}
+        <CardContent className={`p-0 ${isEmbedded ? 'flex min-h-0 flex-1 flex-col' : ''}`}>
           <div
-            className="flex max-h-[min(52vh,480px)] min-h-[220px] flex-col gap-2 overflow-y-auto bg-muted/20 px-3 py-4"
+            className={`flex flex-col gap-2 overflow-y-auto bg-muted/20 px-3 ${
+              isEmbedded ? 'min-h-0 flex-1 py-3' : 'max-h-[min(52vh,480px)] min-h-[220px] py-4'
+            }`}
             role="log"
             aria-live="polite"
             aria-relevant="additions"
@@ -249,6 +531,56 @@ export function PartnerGuestChatClient({ slug, shopDisplayName, t }: { slug: str
                     <div className={isMe ? '[&_a]:text-white/90 [&_img]:border-white/25' : ''}>
                       <CustomerCareMessageBody row={{ body: m.body, raw_payload: m.raw_payload ?? null }} />
                     </div>
+                    {(() => {
+                      const vs = getVisionPickState(m.raw_payload)
+                      if (!isMe || !vs.required || vs.candidates.length === 0) return null
+                      return (
+                        <div className="mt-2 space-y-2 border-t border-white/20 pt-2">
+                          <p className="text-[11px] font-medium leading-snug text-white/95">{t.visionMatchTitle}</p>
+                          <p className="text-[10px] leading-snug text-white/80">{t.visionPickHint}</p>
+                          <div className="flex flex-col gap-1.5">
+                            {vs.candidates.map((c) => (
+                              <button
+                                key={c.inventoryId}
+                                type="button"
+                                disabled={visionPickBusyId === m.id}
+                                className="flex items-center gap-2 rounded-lg bg-white/10 px-2 py-1.5 text-left text-xs text-white hover:bg-white/20 disabled:opacity-50"
+                                onClick={() => void submitVisionPick(m.id, c.inventoryId)}
+                              >
+                                {c.image_url ? (
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img
+                                    src={c.image_url}
+                                    alt=""
+                                    className="h-9 w-9 shrink-0 rounded object-cover"
+                                  />
+                                ) : null}
+                                <span className="line-clamp-2 min-w-0 flex flex-col gap-0.5">
+                                  <span>
+                                    {c.name}
+                                    {c.sku ? ` · ${c.sku}` : ''}
+                                  </span>
+                                  {c.product_url ? (
+                                    <a
+                                      href={c.product_url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="font-normal text-white/90 underline underline-offset-2 hover:text-white"
+                                      onClick={(ev) => ev.stopPropagation()}
+                                    >
+                                      {t.visionProductLink}
+                                    </a>
+                                  ) : null}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                          {visionPickBusyId === m.id ? (
+                            <p className="text-[10px] text-white/80">{t.visionPickBusy}</p>
+                          ) : null}
+                        </div>
+                      )
+                    })()}
                     <div className={`mt-1.5 text-[10px] ${isMe ? 'text-white/75' : 'text-muted-foreground'}`}>
                       {new Date(m.created_at).toLocaleString()}
                     </div>
@@ -256,10 +588,24 @@ export function PartnerGuestChatClient({ slug, shopDisplayName, t }: { slug: str
                 )
               })
             )}
+            {shopTyping ? (
+              <div
+                className="mr-auto flex max-w-[92%] items-center gap-2 rounded-2xl rounded-bl-md border border-border/60 bg-card px-3.5 py-2.5 text-sm text-muted-foreground shadow-sm"
+                role="status"
+                aria-live="polite"
+              >
+                <span className="tabular-nums">{t.shopTypingHint}</span>
+                <span className="inline-flex gap-0.5" aria-hidden>
+                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/70 [animation-delay:0ms]" />
+                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/70 [animation-delay:150ms]" />
+                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/70 [animation-delay:300ms]" />
+                </span>
+              </div>
+            ) : null}
             <div ref={scrollAnchorRef} className="h-px w-full shrink-0" aria-hidden />
           </div>
 
-          <div className="space-y-3 border-t bg-background p-4">
+            <div className={`shrink-0 border-t border-border bg-background ${isEmbedded ? 'space-y-2 p-2' : 'space-y-3 p-4'}`}>
             <input
               ref={galleryInputRef}
               type="file"
@@ -276,72 +622,249 @@ export function PartnerGuestChatClient({ slug, shopDisplayName, t }: { slug: str
               onChange={onPickCamera}
             />
 
-            {imagePreviewUrl ? (
-              <div className="relative overflow-hidden rounded-xl border bg-muted/30 p-2">
-                <img src={imagePreviewUrl} alt="" className="mx-auto max-h-40 rounded-lg object-contain" />
+            <div className={`rounded-xl border-2 border-border bg-background ${isEmbedded ? 'space-y-1.5 p-1.5' : 'space-y-2 p-2.5'}`}>
+              <div className={`flex flex-wrap items-center gap-2 ${isEmbedded ? 'hidden' : ''}`}>
                 <Button
                   type="button"
                   variant="secondary"
-                  size="icon"
-                  className="absolute right-2 top-2 h-8 w-8 rounded-full shadow-md"
-                  onClick={clearAttachment}
-                  disabled={sending || uploading}
-                  aria-label={t.guestRemoveAttachment}
+                  size="sm"
+                  className={`gap-1.5 ${isEmbedded ? 'h-8 px-2.5 text-xs' : ''}`}
+                  disabled={uploading || sending || tryOnBusy}
+                  onClick={() => setTryOnOpen((v) => !v)}
                 >
-                  <X className="h-4 w-4" />
+                  {tryOnBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                  {t.tryOnOpen}
                 </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className={`gap-1.5 ${isEmbedded ? 'h-8 px-2.5 text-xs' : ''}`}
+                  disabled={uploading || sending}
+                  onClick={() => galleryInputRef.current?.click()}
+                >
+                  {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
+                  {t.guestAttachPhoto}
+                </Button>
+                {showCameraButton ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className={`gap-1.5 ${isEmbedded ? 'h-8 px-2.5 text-xs' : ''}`}
+                    disabled={uploading || sending}
+                    onClick={() => cameraInputRef.current?.click()}
+                  >
+                    <Camera className="h-4 w-4" />
+                    {t.guestTakePhoto}
+                  </Button>
+                ) : null}
+                {uploading ? <span className="text-xs text-muted-foreground">{t.guestUploading}</span> : null}
               </div>
-            ) : null}
 
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="gap-1.5"
-                disabled={uploading || sending}
-                onClick={() => galleryInputRef.current?.click()}
-              >
-                {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
-                {t.guestAttachPhoto}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="gap-1.5"
-                disabled={uploading || sending}
-                onClick={() => cameraInputRef.current?.click()}
-              >
-                <Camera className="h-4 w-4" />
-                {t.guestTakePhoto}
-              </Button>
-              {uploading ? <span className="text-xs text-muted-foreground">{t.guestUploading}</span> : null}
-            </div>
+              {imagePreviewUrl && !isEmbedded ? (
+                <div
+                  className={`relative overflow-hidden rounded-xl border bg-muted/30 ${
+                    isEmbedded ? 'flex items-center gap-2 p-1.5' : 'p-2'
+                  }`}
+                >
+                  <img
+                    src={imagePreviewUrl}
+                    alt=""
+                    className={isEmbedded ? 'h-12 w-12 rounded-md object-cover' : 'mx-auto max-h-40 rounded-lg object-contain'}
+                  />
+                  {isEmbedded ? <p className="line-clamp-1 text-xs text-muted-foreground">{t.tryOnReady}</p> : null}
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="icon"
+                    className={`${isEmbedded ? 'ml-auto h-7 w-7 rounded-md' : 'absolute right-2 top-2 h-8 w-8 rounded-full shadow-md'}`}
+                    onClick={clearAttachment}
+                    disabled={sending || uploading}
+                    aria-label={t.guestRemoveAttachment}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              ) : null}
 
-            {imageStoragePath ? <p className="text-[11px] text-muted-foreground">{t.guestCaptionHint}</p> : null}
+              {tryOnOpen ? (
+                <div className={`space-y-2 rounded-lg border border-border/70 bg-muted/20 ${isEmbedded ? 'p-2' : 'p-3'}`}>
+                  <div className="flex justify-end">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      onClick={() => setTryOnOpen(false)}
+                      aria-label={t.guestRemoveAttachment}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  {!isEmbedded ? <p className="text-xs font-medium text-foreground">{t.tryOnTitle}</p> : null}
+                  <input
+                    ref={tryOnUserInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className="hidden"
+                    onChange={(e) => setTryOnUserFile(e.target.files?.[0] ?? null)}
+                  />
+                  <input
+                    ref={tryOnGarmentInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className="hidden"
+                    onChange={(e) => {
+                      addTryOnGarmentFile(e.target.files?.[0] ?? null)
+                      if (tryOnGarmentInputRef.current) tryOnGarmentInputRef.current.value = ''
+                    }}
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <p className="text-[11px] font-medium text-foreground">{t.tryOnModelPhoto}</p>
+                      <button
+                        type="button"
+                        className="relative h-14 w-14 overflow-hidden rounded-md border border-border/80 bg-background/70 transition-colors hover:border-violet-400/70"
+                        disabled={tryOnBusy}
+                        onClick={() => tryOnUserInputRef.current?.click()}
+                      >
+                        {tryOnUserPreviewUrl ? (
+                          <img src={tryOnUserPreviewUrl} alt="" className="h-full w-full object-cover" />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+                            <ImagePlus className="h-4 w-4" />
+                          </div>
+                        )}
+                        {tryOnUserPreviewUrl ? (
+                          <span
+                            role="button"
+                            className="absolute right-0 top-0 rounded-bl bg-black/55 px-1 text-[10px] text-white"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setTryOnUserFile(null)
+                              if (tryOnUserInputRef.current) tryOnUserInputRef.current.value = ''
+                            }}
+                          >
+                            ×
+                          </span>
+                        ) : null}
+                      </button>
+                      <p className="line-clamp-1 text-[11px] text-muted-foreground">{tryOnUserFile?.name ?? '—'}</p>
+                    </div>
 
-            <div className="space-y-1.5">
-              <Textarea
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                placeholder={t.placeholder}
-                rows={3}
-                className="resize-none border-border/80 bg-background text-sm"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault()
-                    if (canSend && !sending) void send()
-                  }
-                }}
-              />
-              <p className="text-[11px] text-muted-foreground">{t.sendKeyboardHint}</p>
-            </div>
-            <div className="flex justify-end">
-              <Button type="button" className="min-w-[100px] gap-2" onClick={() => void send()} disabled={!canSend || sending}>
-                {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                {t.send}
-              </Button>
+                    <div className="space-y-1">
+                      <p className="text-[11px] font-medium text-foreground">
+                        {t.tryOnGarmentPhoto} ({tryOnGarmentFiles.length}/{MAX_TRY_ON_GARMENTS})
+                      </p>
+                      <div className="grid grid-cols-2 gap-1">
+                        {Array.from({ length: MAX_TRY_ON_GARMENTS }).map((_, idx) => {
+                          const item = tryOnGarmentFiles[idx]
+                          if (item) {
+                            return (
+                              <div key={`${item.file.name}-${idx}`} className="relative h-12 w-12 overflow-hidden rounded-md border bg-background/70">
+                                <img src={item.previewUrl} alt="" className="h-full w-full object-cover" />
+                                <button
+                                  type="button"
+                                  className="absolute right-0 top-0 rounded-bl bg-black/55 px-1 text-[10px] text-white"
+                                  onClick={() => removeTryOnGarmentAt(idx)}
+                                  aria-label={t.guestRemoveAttachment}
+                                >
+                                  ×
+                                </button>
+                              </div>
+                            )
+                          }
+                          if (idx === tryOnGarmentFiles.length) {
+                            return (
+                              <button
+                                key={`add-slot-${idx}`}
+                                type="button"
+                                className="flex h-12 w-12 items-center justify-center rounded-md border border-dashed border-border/80 bg-background/70 text-muted-foreground transition-colors hover:border-violet-400/70"
+                                disabled={tryOnBusy}
+                                onClick={() => tryOnGarmentInputRef.current?.click()}
+                              >
+                                <ImagePlus className="h-4 w-4" />
+                              </button>
+                            )
+                          }
+                          return <div key={`empty-slot-${idx}`} className="h-12 w-12 rounded-md border border-dashed border-border/70 bg-background/40" />
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="gap-1.5"
+                    disabled={tryOnBusy || !tryOnUserFile || tryOnGarmentFiles.length === 0}
+                    onClick={() => void runTryOn()}
+                  >
+                    {tryOnBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                    {tryOnBusy
+                      ? t.tryOnPreparing
+                      : t.tryOnGenerateWithCost.replace('{credits}', formatCredits(TRY_ON_COST_2K))}
+                  </Button>
+                </div>
+              ) : null}
+
+              {imageStoragePath ? <p className="text-[11px] text-muted-foreground">{t.guestCaptionHint}</p> : null}
+
+              <div className="relative">
+                <Textarea
+                  ref={draftTextareaRef}
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  onInput={autoResizeDraft}
+                  placeholder={t.placeholder}
+                  rows={1}
+                  className={`resize-none border-0 bg-transparent p-0 text-sm shadow-none focus-visible:ring-0 ${
+                    isEmbedded ? 'pb-8 pr-9 leading-tight' : 'pb-14 pr-28'
+                  }`}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault()
+                      if (canSend && !sending) void send()
+                    }
+                  }}
+                />
+                <Button
+                  type="button"
+                  className={`absolute right-0 top-0 ${isEmbedded ? 'h-7 w-7 min-w-0 px-0' : 'min-w-[96px] gap-1.5'}`}
+                  onClick={() => void send()}
+                  disabled={!canSend || sending}
+                >
+                  {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  {!isEmbedded ? t.send : null}
+                </Button>
+                {isEmbedded ? (
+                  <div className="absolute bottom-0 left-0 flex items-center gap-1">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      className="h-7 gap-1 px-2 text-xs"
+                      disabled={uploading || sending || tryOnBusy}
+                      onClick={() => setTryOnOpen((v) => !v)}
+                    >
+                      {tryOnBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                      {t.tryOnOpen}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 gap-1 px-2 text-xs"
+                      disabled={uploading || sending}
+                      onClick={() => galleryInputRef.current?.click()}
+                    >
+                      {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ImagePlus className="h-3.5 w-3.5" />}
+                      {t.guestAttachPhoto}
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
+              {!isEmbedded ? <p className="text-[11px] text-muted-foreground">{t.sendKeyboardHint}</p> : null}
             </div>
           </div>
         </CardContent>

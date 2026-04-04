@@ -1,8 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database, Json } from '@/types/database.types'
 import { findMatchingFaq } from '@/lib/messaging/partner-ai-faq'
+import { latestInboundTextForPartnerAi } from '@/lib/messaging/guest-chat-image'
 import { deliverAutomatedPartnerMessage } from '@/lib/messaging/partner-ai-deliver'
 import { buildPartnerAiContext, deepseekPartnerChat } from '@/lib/messaging/partner-ai-llm'
+import { insertPartnerAiTokenUsage } from '@/lib/messaging/partner-ai-token-usage'
 
 type Db = SupabaseClient<Database>
 
@@ -54,7 +56,7 @@ export async function runMessagingPartnerAiJobBatch(
     try {
       const { data: triggerMsg, error: tErr } = await db
         .from('customer_care_messages')
-        .select('id, body, created_at')
+        .select('id, body, created_at, raw_payload')
         .eq('id', job.trigger_message_id)
         .single()
 
@@ -68,6 +70,7 @@ export async function runMessagingPartnerAiJobBatch(
       }
 
       const triggerAt = triggerMsg.created_at
+      const inboundForAi = latestInboundTextForPartnerAi(triggerMsg.body, triggerMsg.raw_payload)
 
       const { data: humanOut } = await db
         .from('customer_care_messages')
@@ -126,7 +129,7 @@ export async function runMessagingPartnerAiJobBatch(
         continue
       }
 
-      const faq = await findMatchingFaq(db, job.partner_id, triggerMsg.body)
+      const faq = await findMatchingFaq(db, job.partner_id, inboundForAi)
       if (faq) {
         await sleep(typingDelayMs(settings))
         const rawFaq = { source: 'ai_faq', faq_id: faq.id } as unknown as Json
@@ -151,7 +154,7 @@ export async function runMessagingPartnerAiJobBatch(
         job.partner_id,
         job.conversation_id,
         settings,
-        triggerMsg.body
+        inboundForAi
       )
       const llm = await deepseekPartnerChat(system, user)
       if (llm.error || !llm.text) {
@@ -163,9 +166,20 @@ export async function runMessagingPartnerAiJobBatch(
         continue
       }
 
+      const model = llm.model?.trim() || process.env.DEEPSEEK_MODEL?.trim() || 'deepseek-chat'
+      await insertPartnerAiTokenUsage(db, {
+        partner_id: job.partner_id,
+        provider: 'deepseek',
+        model,
+        prompt_tokens: llm.usage?.prompt_tokens ?? null,
+        completion_tokens: llm.usage?.completion_tokens ?? null,
+        total_tokens: llm.usage?.total_tokens ?? null,
+        conversation_id: job.conversation_id,
+        ai_job_id: job.id,
+      })
+
       await sleep(typingDelayMs(settings))
-      const model = process.env.DEEPSEEK_MODEL?.trim() || 'deepseek-chat'
-      const rawLlm = { source: 'ai_llm', model } as unknown as Json
+      const rawLlm = { source: 'ai_llm', model, usage: llm.usage ?? null } as unknown as Json
       const d2 = await deliverAutomatedPartnerMessage(db, {
         conversation: conv,
         settings,

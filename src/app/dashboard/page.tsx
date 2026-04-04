@@ -106,9 +106,14 @@ export default async function DashboardPage() {
           </CardHeader>
           <CardContent>
             <p className="text-xs text-muted-foreground min-h-[2.5rem]">{t.partnerMessaging.cardDescription}</p>
-            <Button variant="outline" className="w-full mt-4" asChild>
-              <Link href="/dashboard/messaging">{t.partnerMessaging.inboxTitle}</Link>
-            </Button>
+            <div className="mt-4 flex flex-col gap-2">
+              <Button variant="outline" className="w-full" asChild>
+                <Link href="/dashboard/messaging">{t.partnerMessaging.inboxTitle}</Link>
+              </Button>
+              <Button variant="secondary" className="w-full" asChild>
+                <Link href="/dashboard/api-integration">{t.menu.partnerApiIntegration}</Link>
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
