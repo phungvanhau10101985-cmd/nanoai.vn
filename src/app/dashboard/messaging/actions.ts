@@ -899,7 +899,24 @@ export async function enqueueVisionCatalogBackgroundSync(
     return { code: 'already_active', error: 'Background sync is already queued or running.' }
   }
   const now = new Date().toISOString()
-  const resume = resumeAfterId?.trim() || null
+  let resume: string | null = resumeAfterId?.trim() || null
+  /**
+   * Cursor từ trình duyệt đôi khi trỏ sau dòng cuối kho (đồng bộ tay đã hết) — lượt nền đầu sẽ quét rỗng
+   * và báo xong với 0 import. Bỏ cursor để quét lại từ đầu (dòng bẩn vẫn được isVisionCatalogRowDirty xử lý).
+   */
+  if (resume) {
+    const { data: nextRow, error: nextErr } = await supabase
+      .from('messaging_partner_inventory')
+      .select('id')
+      .eq('partner_id', partnerId)
+      .gt('id', resume)
+      .order('id', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+    if (nextErr || !nextRow) {
+      resume = null
+    }
+  }
   const { error } = await supabase
     .from('messaging_partner_ai_settings')
     .update({

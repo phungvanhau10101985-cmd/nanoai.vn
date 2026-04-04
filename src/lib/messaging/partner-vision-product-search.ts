@@ -15,6 +15,7 @@ import {
   VISION_INCREMENTAL_MAX_SCAN_PAGES,
   VISION_INCREMENTAL_SCAN_PAGE,
   VISION_PRODUCT_CATEGORIES,
+  VISION_WAREHOUSE_ASSETS_IMPORT_POLL_MAX_MS,
   VISION_WAREHOUSE_CORPUS_UNSUPPORTED_TYPE_CODE,
   VISION_WAREHOUSE_REINDEX_PENDING_CODE,
   isVisionWarehouseCorpusUnsupportedTypeApiMessage,
@@ -42,6 +43,14 @@ type AiSettings = Database['public']['Tables']['messaging_partner_ai_settings'][
 type InvRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
 
 const CLOUD_PLATFORM_SCOPE = 'https://www.googleapis.com/auth/cloud-platform'
+
+/** CDN hay dùng `//host/...` — đồng bộ với validateInventoryImageUrl (Excel / form kho). */
+function normalizeCatalogImageUrl(raw: string): string {
+  const t = raw.trim()
+  if (!t) return ''
+  if (t.startsWith('//')) return `https:${t}`
+  return t
+}
 
 export type { VisionProductCategory }
 export { VISION_PRODUCT_CATEGORIES }
@@ -249,7 +258,7 @@ export async function runVisionCatalogSync(
     for (const row of page as InvRow[]) {
       scanCursor = row.id
       if (!isVisionCatalogRowDirty(row)) continue
-      const url = row.image_url?.trim() ?? ''
+      const url = normalizeCatalogImageUrl(row.image_url ?? '')
       const valid = !!(url && /^https?:\/\//i.test(url))
       if (!valid) {
         if (row.vision_catalog_checksum) toRemove.push(row)
@@ -337,7 +346,7 @@ export async function runVisionCatalogSync(
       const ok: { id: string; fp: string }[] = []
 
       for (const row of slice) {
-        const url = row.image_url?.trim() ?? ''
+        const url = normalizeCatalogImageUrl(row.image_url ?? '')
         const got = await fetchImageBytesFromUrl(url)
         if (!got) continue
         const ext = extFromContentType(got.contentType)
@@ -375,7 +384,10 @@ export async function runVisionCatalogSync(
         corpusId,
         assetsGcsUri: gcsUri(bucket, jsonlPath),
       })
-      await pollVisionAiOperation(importOp, { maxMs: 180_000, warehouseLocation: loc })
+      await pollVisionAiOperation(importOp, {
+        maxMs: VISION_WAREHOUSE_ASSETS_IMPORT_POLL_MAX_MS,
+        warehouseLocation: loc,
+      })
       warehouseTouched = true
 
       const now = new Date().toISOString()

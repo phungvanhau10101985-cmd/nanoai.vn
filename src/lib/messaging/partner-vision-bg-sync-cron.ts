@@ -24,7 +24,8 @@ export type VisionBgSyncReportPayload = {
   cronSliceAt?: string
 }
 
-const DEFAULT_MAX_WALL_MS = 270_000
+/** Phải ≥ thời gian poll một lần `assets:import` (xem VISION_WAREHOUSE_ASSETS_IMPORT_POLL_MAX_MS). */
+const DEFAULT_MAX_WALL_MS = 600_000
 const DEFAULT_MAX_PARTNERS = 2
 const DEFAULT_MAX_ROUNDS_PER_PARTNER = 35
 

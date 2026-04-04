@@ -4,7 +4,7 @@ import { processVisionCatalogBackgroundSyncJobs } from '@/lib/messaging/partner-
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
-export const maxDuration = 300
+export const maxDuration = 660
 
 /**
  * Cron VPS: đồng bộ Vision catalog nền (queued/running).

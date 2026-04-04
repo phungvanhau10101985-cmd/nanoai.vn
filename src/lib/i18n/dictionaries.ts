@@ -493,6 +493,20 @@ export type Dictionary = {
     visionBgSyncBoolYes: string
     visionBgSyncBoolNo: string
     visionBgSyncPollingNote: string
+    /** Tiến trình đăng chỉ mục Google (job queued/running) */
+    visionBgSyncProgressTitle: string
+    /** {imported} {total} */
+    visionBgSyncProgressRatio: string
+    visionBgSyncProgressHint: string
+    visionBgSyncProgressNoImageRows: string
+    /** Giải thích 0% khi queued — chưa có cron / chưa chạy lượt xử lý */
+    visionBgSyncQueuedExplain: string
+    /** POST trang cài đặt khi auto-refresh */
+    visionBgSyncPostRefreshExplain: string
+    visionBgSyncRunSliceButton: string
+    visionBgSyncRunSliceHint: string
+    /** {rounds} {partners} */
+    visionBgSyncRunSliceOk: string
     visionBgSyncEnqueueOk: string
     visionBgSyncToastDone: string
     visionBgSyncToastError: string
@@ -1938,6 +1952,19 @@ const VI_DICTIONARY: Dictionary = {
     visionBgSyncBoolNo: 'Không',
     visionBgSyncPollingNote:
       'Đang chờ hoặc đang chạy nền: trang tự làm mới khoảng 8 giây (tab đang mở).',
+    visionBgSyncProgressTitle: 'Tiến trình đăng sản phẩm lên Google',
+    visionBgSyncProgressRatio: 'Đã đưa lên chỉ mục: {imported} / ~{total} mặt hàng có ảnh trong kho',
+    visionBgSyncProgressHint:
+      'Mẫu số ~ là số dòng kho đang có link ảnh (ước lượng). Số từ API có thể khác nếu một lượt xử lý nhiều thao tác.',
+    visionBgSyncProgressNoImageRows: 'Kho chưa có mặt hàng nào có link ảnh — không ước lượng được tiến độ.',
+    visionBgSyncQueuedExplain:
+      '«Đang chờ cron» nghĩa là job đã xếp hàng trên database nhưng **chưa có lần xử lý nào** — số 0/500 là bình thường cho đến khi máy chủ gọi GET/POST `/api/cron/vision-catalog-sync` (Bearer secret) hoặc bạn bấm «Chạy một lượt trên server» bên dưới.',
+    visionBgSyncPostRefreshExplain:
+      'Các POST tới `/dashboard/messaging/settings` khoảng 8 giây/lần chỉ là **tải lại trạng thái** job (server action), không phải gọi Google Vision.',
+    visionBgSyncRunSliceButton: 'Chạy một lượt trên server',
+    visionBgSyncRunSliceHint:
+      'Tương đương một lần gọi cron (có thể vài phút). Production vẫn nên cấu hình crontab trên VPS.',
+    visionBgSyncRunSliceOk: 'Đã xử lý xong một lượt: {rounds} vòng API · {partners} shop trong hàng đợi được chạm tới.',
     visionBgSyncEnqueueOk: 'Đã xếp hàng đồng bộ nền. Cron VPS sẽ xử lý.',
     visionBgSyncToastDone: 'Đồng bộ nền Vision đã hoàn tất.',
     visionBgSyncToastError: 'Đồng bộ nền Vision gặp lỗi.',
@@ -3383,6 +3410,19 @@ const EN_DICTIONARY: Dictionary = {
     visionBgSyncBoolNo: 'No',
     visionBgSyncPollingNote:
       'While queued or running in the background, this page refreshes about every 8 seconds (keep the tab open).',
+    visionBgSyncProgressTitle: 'Progress uploading products to Google',
+    visionBgSyncProgressRatio: 'Indexed so far: {imported} / ~{total} in-stock rows with an image URL',
+    visionBgSyncProgressHint:
+      '~ denominator counts inventory rows that currently have an image link. API totals may differ slightly per batch.',
+    visionBgSyncProgressNoImageRows: 'No inventory rows have an image URL yet — progress cannot be estimated.',
+    visionBgSyncQueuedExplain:
+      '«Queued for cron» means the job is in the database but **no worker has run yet** — 0 / N is normal until the server calls GET/POST `/api/cron/vision-catalog-sync` (Bearer secret) or you tap «Run one server pass» below.',
+    visionBgSyncPostRefreshExplain:
+      'POSTs to `/dashboard/messaging/settings` about every 8s only **reload job status** (server actions), not Google Vision.',
+    visionBgSyncRunSliceButton: 'Run one server pass',
+    visionBgSyncRunSliceHint:
+      'Same as one cron tick (may take a few minutes). You should still set up crontab on the VPS for production.',
+    visionBgSyncRunSliceOk: 'Finished one pass: {rounds} API round(s) · {partners} partner job(s) touched.',
     visionBgSyncEnqueueOk: 'Background sync queued. Your VPS cron will pick it up.',
     visionBgSyncToastDone: 'Vision background sync finished.',
     visionBgSyncToastError: 'Vision background sync failed.',
@@ -4822,6 +4862,18 @@ const ZH_DICTIONARY: Dictionary = {
     visionBgSyncBoolYes: '是',
     visionBgSyncBoolNo: '否',
     visionBgSyncPollingNote: '排队或后台运行期间：页面约每 8 秒自动刷新（请保持标签页打开）。',
+    visionBgSyncProgressTitle: '商品上传到 Google 的进度',
+    visionBgSyncProgressRatio: '已写入索引：{imported} / ~{total} 条有图片链接的库存',
+    visionBgSyncProgressHint:
+      '~ 分母为当前库存中有图片链接的行数（估算）。每批 API 的实际计数可能略有不同。',
+    visionBgSyncProgressNoImageRows: '库存中还没有带图片链接的商品 — 无法估算进度。',
+    visionBgSyncQueuedExplain:
+      '«等待定时任务»表示任务已在数据库排队但**尚未执行** — 在服务器调用 `/api/cron/vision-catalog-sync`（Bearer）或点击下方「在服务器运行一轮」之前，0/N 是正常的。',
+    visionBgSyncPostRefreshExplain:
+      '约每 8 秒对 `/dashboard/messaging/settings` 的 POST 只是**刷新任务状态**（服务端动作），并非调用 Google Vision。',
+    visionBgSyncRunSliceButton: '在服务器运行一轮',
+    visionBgSyncRunSliceHint: '等同一次 cron（可能需数分钟）。生产环境仍建议在 VPS 配置定时任务。',
+    visionBgSyncRunSliceOk: '已完成一轮：{rounds} 次 API 轮次 · 触及 {partners} 个店铺的排队任务。',
     visionBgSyncEnqueueOk: '已加入后台同步队列，VPS 定时任务将处理。',
     visionBgSyncToastDone: 'Vision 后台同步已完成。',
     visionBgSyncToastError: 'Vision 后台同步失败。',
@@ -6225,6 +6277,18 @@ const JA_DICTIONARY: Dictionary = {
     visionBgSyncBoolNo: 'いいえ',
     visionBgSyncPollingNote:
       'キュー待ちまたはバックグラウンド実行中は、このページを約 8 秒ごとに自動更新します（タブを開いたままにしてください）。',
+    visionBgSyncProgressTitle: 'Google への商品反映の進捗',
+    visionBgSyncProgressRatio: 'インデックス反映: {imported} / ~{total} 件（画像 URL がある在庫行）',
+    visionBgSyncProgressHint:
+      '~ の分母は現在の在庫で画像リンクがある行数（目安）です。API の件数はバッチごとに多少ずれることがあります。',
+    visionBgSyncProgressNoImageRows: '画像 URL のある在庫行がまだありません — 進捗を見積もれません。',
+    visionBgSyncQueuedExplain:
+      '「cron 待ち」は DB にキューされただけで**まだ処理されていない**状態です。サーバーが `/api/cron/vision-catalog-sync`（Bearer）を呼ぶか、下の「サーバーで1回実行」まで 0/N は正常です。',
+    visionBgSyncPostRefreshExplain:
+      '約8秒ごとの `/dashboard/messaging/settings` への POST は**状態の再読込**（サーバーアクション）であり、Google Vision の呼び出しではありません。',
+    visionBgSyncRunSliceButton: 'サーバーで1回実行',
+    visionBgSyncRunSliceHint: 'cron 1 回分と同等（数分かかる場合あり）。本番では VPS の crontab 設定を推奨します。',
+    visionBgSyncRunSliceOk: '1 パス完了: API {rounds} 回 · キューに触れたパートナー {partners} 件。',
     visionBgSyncEnqueueOk: 'バックグラウンド同期をキューに入れました。VPS の cron が処理します。',
     visionBgSyncToastDone: 'Vision バックグラウンド同期が完了しました。',
     visionBgSyncToastError: 'Vision バックグラウンド同期が失敗しました。',
@@ -7655,6 +7719,18 @@ const KO_DICTIONARY: Dictionary = {
     visionBgSyncBoolNo: '아니오',
     visionBgSyncPollingNote:
       '대기 또는 백그라운드 실행 중에는 이 페이지가 약 8초마다 자동으로 새로고침됩니다(탭을 열어 두세요).',
+    visionBgSyncProgressTitle: 'Google에 상품 반영 진행 상황',
+    visionBgSyncProgressRatio: '색인 반영: {imported} / ~{total}개(이미지 URL이 있는 재고 행)',
+    visionBgSyncProgressHint:
+      '~ 분모는 현재 재고 중 이미지 링크가 있는 행 수(추정)입니다. 배치마다 API 집계가 약간 다를 수 있습니다.',
+    visionBgSyncProgressNoImageRows: '이미지 URL이 있는 재고 행이 없어 진행률을 추정할 수 없습니다.',
+    visionBgSyncQueuedExplain:
+      '«cron 대기»는 DB에만 대기 중이고 **아직 실행되지 않음**을 뜻합니다. 서버가 `/api/cron/vision-catalog-sync`(Bearer)를 호출하거나 아래 «서버에서 한 번 실행»을 누르기 전까지 0/N은 정상입니다.',
+    visionBgSyncPostRefreshExplain:
+      '약 8초마다 `/dashboard/messaging/settings`로 가는 POST는 **상태 새로고침**(서버 액션)일 뿐 Google Vision 호출이 아닙니다.',
+    visionBgSyncRunSliceButton: '서버에서 한 번 실행',
+    visionBgSyncRunSliceHint: 'cron 한 번과 동일(수 분 걸릴 수 있음). 운영 환경에서는 VPS crontab 설정을 권장합니다.',
+    visionBgSyncRunSliceOk: '한 번 처리 완료: API {rounds}라운드 · 대기 작업이 있는 파트너 {partners}곳.',
     visionBgSyncEnqueueOk: '백그라운드 동기화가 대기열에 추가되었습니다. VPS cron이 처리합니다.',
     visionBgSyncToastDone: 'Vision 백그라운드 동기화가 완료되었습니다.',
     visionBgSyncToastError: 'Vision 백그라운드 동기화가 실패했습니다.',

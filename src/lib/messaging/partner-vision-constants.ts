@@ -35,8 +35,16 @@ export function normalizeVisionProductSearchLocation(raw: string | null | undefi
  */
 export const VISION_CATALOG_SYNC_MAX_ITEMS = 400
 
-/** Số dòng tối đa mỗi lô import JSONL lên Warehouse trong một request. */
-export const VISION_INCREMENTAL_BATCH_SIZE = 200
+/**
+ * Số dòng tối đa mỗi lô import JSONL lên Warehouse trong một request.
+ * Lô quá lớn khiến thao tác `assets:import` trên Google chạy lâu, dễ vượt timeout poll.
+ */
+export const VISION_INCREMENTAL_BATCH_SIZE = 100
+
+/**
+ * Chờ operation Vision Warehouse `assets:import` (JSONL). Mặc định cũ 180s hay quá ngắn với lô ảnh lớn.
+ */
+export const VISION_WAREHOUSE_ASSETS_IMPORT_POLL_MAX_MS = 480_000
 
 /** Tối đa số lần import liên tiếp trong một POST (tránh timeout). */
 export const VISION_INCREMENTAL_MAX_IMPORTS_PER_REQUEST = 12

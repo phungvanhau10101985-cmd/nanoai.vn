@@ -54,7 +54,7 @@ import {
   isVisionProductSearchMaintenanceError,
   normalizeVisionProductSearchLocation,
 } from '@/lib/messaging/partner-vision-constants'
-import { Bot, Download, FileSpreadsheet, ScanSearch, Sparkles, Upload } from 'lucide-react'
+import { Bot, Download, FileSpreadsheet, Loader2, ScanSearch, Sparkles, Upload } from 'lucide-react'
 import type { WebLocale } from '@/lib/i18n/config'
 import {
   VISION_SHOP_COUNTRY_CODES_ORDERED,
@@ -281,6 +281,7 @@ export function PartnerAiSettingsPanel({
   const [form, setForm] = useState<FormState>(() => defaultsFromSettings(null))
   const formRef = useRef<FormState>(form)
   const [visionSyncing, setVisionSyncing] = useState(false)
+  const [visionBgRunSliceBusy, setVisionBgRunSliceBusy] = useState(false)
   const [visionSyncResumeAfterId, setVisionSyncResumeAfterId] = useState<string | null>(null)
   const prevVisionBgStatusRef = useRef<string | null>(null)
 
@@ -340,6 +341,12 @@ export function PartnerAiSettingsPanel({
 
   const visionBgActive =
     form.vision_bg_sync_status === 'queued' || form.vision_bg_sync_status === 'running'
+
+  /** Số dòng kho có link ảnh — dùng ước lượng tiến độ đăng chỉ mục Google. */
+  const visionBgImageRowTotal = useMemo(
+    () => inventory.filter((r) => (r.image_url ?? '').trim().length > 0).length,
+    [inventory]
+  )
 
   useEffect(() => {
     if (!visionBgActive) return
@@ -649,6 +656,40 @@ export function PartnerAiSettingsPanel({
       load()
     })
   }, [partnerId, toast, load])
+
+  const handleRunVisionBgSyncSlice = useCallback(async () => {
+    setVisionBgRunSliceBusy(true)
+    try {
+      const res = await fetch(
+        `/api/messaging/partners/${encodeURIComponent(partnerId)}/vision-bg-sync/run-once`,
+        { method: 'POST', credentials: 'same-origin' }
+      )
+      const data = (await res.json()) as {
+        ok?: boolean
+        error?: string
+        partnersTouched?: number
+        roundsExecuted?: number
+        errors?: string[]
+      }
+      if (!res.ok) {
+        toast({ title: data.error || t.visionBgSyncToastError, variant: 'destructive' })
+        return
+      }
+      const rounds = String(data.roundsExecuted ?? 0)
+      const partners = String(data.partnersTouched ?? 0)
+      toast({
+        title: t.visionBgSyncRunSliceOk.replace('{rounds}', rounds).replace('{partners}', partners),
+      })
+      if (data.errors?.length) {
+        toast({ title: data.errors.join('; '), variant: 'destructive' })
+      }
+      await load()
+    } catch {
+      toast({ title: t.visionBgSyncToastError, variant: 'destructive' })
+    } finally {
+      setVisionBgRunSliceBusy(false)
+    }
+  }, [partnerId, load, toast, t])
 
   const handleDismissVisionBgReport = useCallback(() => {
     startTransition(async () => {
@@ -967,6 +1008,16 @@ export function PartnerAiSettingsPanel({
                       {t.visionBgSyncPollingNote}
                     </p>
                   ) : null}
+                  {visionBgActive ? (
+                    <p className="text-[11px] text-muted-foreground leading-relaxed max-w-xl">
+                      {t.visionBgSyncPostRefreshExplain}
+                    </p>
+                  ) : null}
+                  {visionBgActive && form.vision_bg_sync_status === 'queued' ? (
+                    <p className="max-w-xl rounded-md border border-amber-200/90 bg-amber-50/90 p-2 text-[11px] leading-relaxed text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/35 dark:text-amber-100">
+                      {t.visionBgSyncQueuedExplain}
+                    </p>
+                  ) : null}
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant={visionBgActive ? 'default' : 'secondary'}>
@@ -979,6 +1030,47 @@ export function PartnerAiSettingsPanel({
                     </span>
                   ) : null}
                 </div>
+                {visionBgActive ? (
+                  <div className="rounded-md border border-violet-200/80 bg-background/90 p-3 dark:border-violet-900/50">
+                    <p className="mb-2 text-xs font-medium text-foreground">{t.visionBgSyncProgressTitle}</p>
+                    {visionBgImageRowTotal > 0 ? (
+                      <>
+                        <p className="mb-2 text-xs text-muted-foreground">
+                          {t.visionBgSyncProgressRatio
+                            .replace('{imported}', String(form.vision_bg_sync_imported))
+                            .replace('{total}', String(visionBgImageRowTotal))}
+                        </p>
+                        <div
+                          className="h-2.5 w-full overflow-hidden rounded-full bg-muted"
+                          role="progressbar"
+                          aria-valuemin={0}
+                          aria-valuemax={100}
+                          aria-valuenow={Math.min(
+                            100,
+                            Math.round((form.vision_bg_sync_imported / visionBgImageRowTotal) * 100)
+                          )}
+                        >
+                          <div
+                            className="h-full rounded-full bg-violet-600 transition-[width] duration-300 ease-out dark:bg-violet-500"
+                            style={{
+                              width: `${Math.min(
+                                100,
+                                Math.round((form.vision_bg_sync_imported / visionBgImageRowTotal) * 100)
+                              )}%`,
+                            }}
+                          />
+                        </div>
+                        <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">
+                          {t.visionBgSyncProgressHint}
+                        </p>
+                      </>
+                    ) : (
+                      <p className="text-[11px] leading-relaxed text-muted-foreground">
+                        {t.visionBgSyncProgressNoImageRows}
+                      </p>
+                    )}
+                  </div>
+                ) : null}
                 <div className="flex flex-wrap gap-2">
                   <Button
                     type="button"
@@ -996,12 +1088,31 @@ export function PartnerAiSettingsPanel({
                   >
                     {t.visionBgSyncCancel}
                   </Button>
+                  <Button
+                    type="button"
+                    variant="default"
+                    className="bg-violet-600 hover:bg-violet-700 dark:bg-violet-600 dark:hover:bg-violet-500"
+                    disabled={pending || !visionBgActive || visionBgRunSliceBusy}
+                    onClick={() => void handleRunVisionBgSyncSlice()}
+                  >
+                    {visionBgRunSliceBusy ? (
+                      <>
+                        <Loader2 className="mr-1.5 h-3.5 w-3.5 shrink-0 animate-spin" aria-hidden />
+                        {t.visionBgSyncRunSliceButton}
+                      </>
+                    ) : (
+                      t.visionBgSyncRunSliceButton
+                    )}
+                  </Button>
                   {(form.vision_bg_sync_status === 'done' || form.vision_bg_sync_status === 'error') && (
                     <Button type="button" variant="ghost" size="sm" disabled={pending} onClick={handleDismissVisionBgReport}>
                       {t.visionBgSyncDismiss}
                     </Button>
                   )}
                 </div>
+                {visionBgActive ? (
+                  <p className="text-[10px] leading-relaxed text-muted-foreground max-w-xl">{t.visionBgSyncRunSliceHint}</p>
+                ) : null}
                 {showVisionBgReportBlock ? (
                   <div className="rounded-md border bg-background/80 p-3 text-xs space-y-1.5">
                     <p className="font-medium text-sm">{t.visionBgSyncReportTitle}</p>
