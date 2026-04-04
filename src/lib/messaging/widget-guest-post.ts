@@ -104,7 +104,7 @@ export async function postWidgetGuestMessage(
             .from('messaging_partner_inventory')
             .select('*')
             .eq('partner_id', params.partnerId)
-          const map = buildInventoryMapByVisionProductId(invRows ?? [])
+          const map = buildInventoryMapByVisionProductId(invRows ?? [], params.partnerId)
           const { candidates, error: se } = await visionProductSearchFromImageBuffer(
             buf,
             aiSet,
@@ -123,6 +123,7 @@ export async function postWidgetGuestMessage(
                 }
               : {
                   vision_search_error: se ?? undefined,
+                  ...(se ? {} : { vision_catalog_no_hits: true }),
                 }),
           } as Json
           await db.from('customer_care_messages').update({ raw_payload: merged }).eq('id', newMessageId)

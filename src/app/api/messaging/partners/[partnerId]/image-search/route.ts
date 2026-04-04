@@ -190,7 +190,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ partnerId: str
     .select('*')
     .eq('partner_id', partnerId)
 
-  const map = buildInventoryMapByVisionProductId(invRows ?? [])
+  const map = buildInventoryMapByVisionProductId(invRows ?? [], partnerId)
   const { candidates, error: visionErr } = await visionProductSearchFromImageBuffer(
     buf,
     settings,

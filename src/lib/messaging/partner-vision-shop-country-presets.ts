@@ -1,11 +1,11 @@
 /**
- * Preset: quốc gia / vùng shop → vùng Google Cloud Vision Product Search.
+ * Preset: quốc gia / vùng shop → vùng Vertex AI Vision Image Warehouse.
  * @see partner-ai-settings-panel — chọn quốc gia gợi ý, lưu vision_shop_country + vision_location.
  */
 
-import { VISION_LOCATIONS } from '@/lib/messaging/partner-vision-constants'
+import type { VisionGcpLocation } from '@/lib/messaging/partner-vision-constants'
 
-export type VisionGcpLocation = (typeof VISION_LOCATIONS)[number]
+export type { VisionGcpLocation }
 
 /** Thứ tự hiển thị trong Select (VN trước, rồi theo nhóm). */
 export const VISION_SHOP_COUNTRY_CODES_ORDERED = [
@@ -39,31 +39,31 @@ export const VISION_SHOP_COUNTRY_CODES_ORDERED = [
 export type VisionShopCountryCode = (typeof VISION_SHOP_COUNTRY_CODES_ORDERED)[number]
 
 export const VISION_SHOP_COUNTRY_TO_LOCATION: Record<VisionShopCountryCode, VisionGcpLocation> = {
-  VN: 'asia-southeast1',
-  TH: 'asia-southeast1',
-  SG: 'asia-southeast1',
-  MY: 'asia-southeast1',
-  ID: 'asia-southeast1',
-  PH: 'asia-southeast1',
-  KH: 'asia-southeast1',
-  LA: 'asia-southeast1',
-  BN: 'asia-southeast1',
-  MM: 'asia-southeast1',
-  JP: 'asia-east1',
-  KR: 'asia-east1',
-  TW: 'asia-east1',
-  HK: 'asia-east1',
-  US: 'us-east1',
-  CA: 'us-east1',
-  GB: 'europe-west1',
-  DE: 'europe-west1',
-  FR: 'europe-west1',
-  ES: 'europe-west1',
-  IT: 'europe-west1',
-  NL: 'europe-west1',
-  AU: 'asia-southeast1',
-  NZ: 'asia-southeast1',
-  IN: 'asia-southeast1',
+  VN: 'us-central1',
+  TH: 'us-central1',
+  SG: 'us-central1',
+  MY: 'us-central1',
+  ID: 'us-central1',
+  PH: 'us-central1',
+  KH: 'us-central1',
+  LA: 'us-central1',
+  BN: 'us-central1',
+  MM: 'us-central1',
+  JP: 'us-central1',
+  KR: 'us-central1',
+  TW: 'us-central1',
+  HK: 'us-central1',
+  US: 'us-central1',
+  CA: 'us-central1',
+  GB: 'europe-west4',
+  DE: 'europe-west4',
+  FR: 'europe-west4',
+  ES: 'europe-west4',
+  IT: 'europe-west4',
+  NL: 'europe-west4',
+  AU: 'us-central1',
+  NZ: 'us-central1',
+  IN: 'us-central1',
 }
 
 export function isVisionShopCountryCode(code: string): boolean {

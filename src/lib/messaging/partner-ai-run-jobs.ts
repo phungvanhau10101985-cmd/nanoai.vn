@@ -4,6 +4,7 @@ import { findMatchingFaq } from '@/lib/messaging/partner-ai-faq'
 import { latestInboundTextForPartnerAi } from '@/lib/messaging/guest-chat-image'
 import { deliverAutomatedPartnerMessage } from '@/lib/messaging/partner-ai-deliver'
 import { buildPartnerAiContext, deepseekPartnerChat } from '@/lib/messaging/partner-ai-llm'
+import { parsePartnerAiLlmStructured } from '@/lib/messaging/partner-ai-product-cards'
 import { insertPartnerAiTokenUsage } from '@/lib/messaging/partner-ai-token-usage'
 
 type Db = SupabaseClient<Database>
@@ -154,7 +155,8 @@ export async function runMessagingPartnerAiJobBatch(
         job.partner_id,
         job.conversation_id,
         settings,
-        inboundForAi
+        inboundForAi,
+        triggerMsg.raw_payload
       )
       const llm = await deepseekPartnerChat(system, user)
       if (llm.error || !llm.text) {
@@ -179,11 +181,17 @@ export async function runMessagingPartnerAiJobBatch(
       })
 
       await sleep(typingDelayMs(settings))
-      const rawLlm = { source: 'ai_llm', model, usage: llm.usage ?? null } as unknown as Json
+      const parsed = parsePartnerAiLlmStructured(llm.text)
+      const rawLlm = {
+        source: 'ai_llm',
+        model,
+        usage: llm.usage ?? null,
+        ai_product_cards: parsed.products,
+      } as unknown as Json
       const d2 = await deliverAutomatedPartnerMessage(db, {
         conversation: conv,
         settings,
-        body: llm.text,
+        body: parsed.message,
         rawPayload: rawLlm,
       })
       if (d2.error) {

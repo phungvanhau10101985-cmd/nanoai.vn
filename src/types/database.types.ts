@@ -214,6 +214,33 @@ export interface Database {
         }
         Relationships: []
       }
+      vision_warehouse_runner: {
+        Row: {
+          id: number
+          pending_work: boolean
+          analyze_operation: string
+          index_operation: string
+          warehouse_location: string
+          updated_at: string
+        }
+        Insert: {
+          id?: number
+          pending_work?: boolean
+          analyze_operation?: string
+          index_operation?: string
+          warehouse_location?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: number
+          pending_work?: boolean
+          analyze_operation?: string
+          index_operation?: string
+          warehouse_location?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       messaging_partner_ai_settings: {
         Row: {
           partner_id: string

@@ -113,27 +113,30 @@ export async function handlePartnerInboundForAi(
     }
 
     /**
-     * Production: bắt buộc cron gọi /api/cron/messaging-partner-ai (serverless không giữ setTimeout sau response).
-     * `next dev` (NODE_ENV=development): process sống lâu — hẹn giờ chạy batch để không cần cron local.
-     * `next start` local hoặc staging: set MESSAGING_PARTNER_AI_DEV_WAKE=1 nếu chưa có cron.
+     * Production bình thường: cron gọi /api/cron/messaging-partner-ai. Serverless không giữ setTimeout sau response.
+     * Wake cục bộ (một process giữ event loop): next dev; hoặc MESSAGING_PARTNER_AI_DEV_WAKE / MESSAGING_PARTNER_AI_INLINE_WAKE.
+     * INLINE_WAKE: VPS một node chưa cấu hình cron — không dùng trên nhiều replica serverless (có thể trùng chạy).
      */
-    const devWake =
-      process.env.NODE_ENV === 'development' || process.env.MESSAGING_PARTNER_AI_DEV_WAKE === '1'
-    if (devWake) {
+    const scheduledWake =
+      process.env.NODE_ENV === 'development' ||
+      process.env.MESSAGING_PARTNER_AI_DEV_WAKE === '1' ||
+      process.env.MESSAGING_PARTNER_AI_INLINE_WAKE === '1'
+    if (scheduledWake) {
       const ms = Math.min(delaySec * 1000 + 2500, 900_000)
       setTimeout(() => {
         void (async () => {
           try {
             await runMessagingPartnerAiJobBatch(createServiceRoleClient(), 15)
           } catch (e) {
-            console.error('[partner-ai] dev wake batch', e)
+            console.error('[partner-ai] scheduled wake batch', e)
           }
         })()
       }, ms)
     }
 
-    /** Tin không khớp FAQ: chỉ báo “đang xử lý” ngắn (AI trả lời sau theo cron). */
-    return { show: true, maxWaitMs: 12_000 }
+    /** Poll nhanh trên khách: đủ dài để bao phủ thời gian chờ + LLM; trần để tránh treo poll vô hạn. */
+    const maxWaitMs = Math.min(Math.max(delaySec * 1000 + 35_000, 60_000), 6 * 60 * 1000)
+    return { show: true, maxWaitMs }
   } catch (e) {
     console.error('[partner-ai] inbound hook', e)
     return { show: false }

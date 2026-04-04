@@ -101,3 +101,29 @@ export function readGcpProjectIdFromEnvOrCredentials(): string {
     return ''
   }
 }
+
+let cachedProjectNumber: string | null = null
+
+/**
+ * Vision AI Warehouse dùng project **number** trong URL REST (khác project id).
+ * Ưu tiên GOOGLE_CLOUD_PROJECT_NUMBER; không có thì gọi Cloud Resource Manager.
+ */
+export async function readGcpProjectNumberFromEnvOrApi(): Promise<string> {
+  const fromEnv = process.env.GOOGLE_CLOUD_PROJECT_NUMBER?.trim()
+  if (fromEnv) return fromEnv
+  if (cachedProjectNumber) return cachedProjectNumber
+  const projectId = readGcpProjectIdFromEnvOrCredentials()
+  if (!projectId) return ''
+  const token = await getGoogleAccessToken(['https://www.googleapis.com/auth/cloud-platform'])
+  const res = await fetch(`https://cloudresourcemanager.googleapis.com/v1/projects/${encodeURIComponent(projectId)}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) {
+    const t = await res.text()
+    throw new Error(`GCP project number lookup failed (${res.status}): ${t.slice(0, 240)}`)
+  }
+  const data = (await res.json()) as { projectNumber?: string }
+  const n = String(data.projectNumber ?? '').trim()
+  if (n) cachedProjectNumber = n
+  return n
+}

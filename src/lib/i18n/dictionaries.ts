@@ -195,6 +195,8 @@ export type Dictionary = {
     pollNote: string
     /** Gợi ý phím tắt ô nhập */
     sendKeyboardHint: string
+    /** Thẻ sản phẩm AI: mở trang sản phẩm */
+    messageProductCardOpenProduct: string
   }
   /** /admin/customer-care */
   customerCareAdmin: {
@@ -213,6 +215,7 @@ export type Dictionary = {
     sendFailed: string
     noMessages: string
     sendKeyboardHint: string
+    messageProductCardOpenProduct: string
   }
   /** /dashboard/messaging — đối tác B2B: inbox + FB/Zalo/widget */
   partnerMessaging: {
@@ -260,6 +263,8 @@ export type Dictionary = {
     unknownUser: string
     noMessages: string
     replyKeyboardHint: string
+    /** Thẻ sản phẩm AI trong inbox / guest chat */
+    messageProductCardOpenProduct: string
     /** Shop gửi ảnh cho khách (dashboard inbox) */
     partnerAttachPhoto: string
     partnerTakePhoto: string
@@ -446,6 +451,10 @@ export type Dictionary = {
     visionIndexNotReady: string
     visionLastSynced: string
     visionSyncErrorLabel: string
+    visionWarehouseReindexPending: string
+    visionWarehouseCorpusUnsupportedType: string
+    visionProductSearchMaintenanceTitle: string
+    visionProductSearchMaintenanceDetail: string
     visionSyncToastImported: string
     visionSyncToastRemoved: string
     visionSyncToastMore: string
@@ -484,6 +493,7 @@ export type Dictionary = {
     visionBgSyncToastDone: string
     visionBgSyncToastError: string
     visionBgSyncAlreadyActive: string
+    visionBgSyncAlreadyActiveRefreshHint: string
     visionBgSyncEnableVisionFirst: string
     visionBgSyncSaveSettingsFirst: string
     /** Map stoppedReason trong JSON báo cáo cron */
@@ -1618,6 +1628,7 @@ const VI_DICTIONARY: Dictionary = {
     sendError: 'Không gửi được tin nhắn.',
     pollNote: 'Phản hồi từ admin có thể hiện sau vài giây; bạn có thể tải lại trang.',
     sendKeyboardHint: 'Enter để gửi · Shift+Enter xuống dòng',
+    messageProductCardOpenProduct: 'Xem sản phẩm',
   },
   customerCareAdmin: {
     pageTitle: 'Chăm sóc khách hàng',
@@ -1636,6 +1647,7 @@ const VI_DICTIONARY: Dictionary = {
     sendFailed: 'Gửi thất bại',
     noMessages: 'Chưa có tin nhắn.',
     sendKeyboardHint: 'Enter để gửi · Shift+Enter xuống dòng',
+    messageProductCardOpenProduct: 'Xem sản phẩm',
   },
   partnerMessaging: {
     pageTitle: 'Nhắn tin cho khách (đối tác)',
@@ -1681,7 +1693,8 @@ const VI_DICTIONARY: Dictionary = {
     channelWidget: 'Web',
     unknownUser: 'Khách',
     noMessages: 'Chưa có tin.',
-    replyKeyboardHint: 'Enter để gửi · Shift+Enter xuống dòng',
+    replyKeyboardHint: 'Enter gửi · Shift+Enter xuống dòng · Ctrl+V dán ảnh',
+    messageProductCardOpenProduct: 'Xem sản phẩm',
     partnerAttachPhoto: 'Ảnh từ máy',
     partnerTakePhoto: 'Chụp ảnh',
     partnerRemoveAttachmentAria: 'Bỏ ảnh đính kèm',
@@ -1854,7 +1867,7 @@ const VI_DICTIONARY: Dictionary = {
     },
     visionSearchTitle: 'Gợi ý sản phẩm khi khách gửi ảnh',
     visionSearchHint:
-      'Dùng Google Vision Product Search — mỗi shop một catalog riêng: khách chỉ được gợi ý từ kho của shop đó, không lẫn shop khác trên NanoAI. Cần GCP: Vision API, bucket GCS, service account Vision + Storage; GCS_VISION_CATALOG_BUCKET và credentials. Đồng bộ tích lũy: cập nhật dòng đổi ảnh/tên hoặc chưa index; có thể bấm nhiều lần. Xóa mặt hàng trong tab Hàng trong kho sẽ tự gỡ sản phẩm đó khỏi chỉ mục ảnh Google — không cần file danh sách gỡ.',
+      'Dùng Vertex AI Vision Image Warehouse: mỗi shop lọc theo partner_id trong cùng corpus/index. Cần GCP (vùng us-central1 hoặc europe-west4), bucket GCS, service account có Vision AI + Storage; đặt GCS_VISION_CATALOG_BUCKET, VISION_WAREHOUSE_CORPUS_ID, VISION_WAREHOUSE_INDEX_ID, VISION_WAREHOUSE_INDEX_ENDPOINT_ID, tùy chọn GOOGLE_CLOUD_PROJECT_NUMBER. Cron analyze/reindex dùng cùng vùng với shop (lưu trong vision_warehouse_runner khi đồng bộ hoặc gỡ asset). Sau khi import ảnh, bắt buộc chạy cron /api/cron/vision-warehouse-reindex (cùng secret vision catalog) để analyze corpus và rebuild index — tìm theo ảnh chỉ đầy đủ sau bước này. Đồng bộ tích lũy; xóa dòng kho sẽ gỡ asset tương ứng và cần cron lại.',
     visionSearchEnable: 'Bật gợi ý theo ảnh',
     visionShopCountryLabel: 'Quốc gia / khu vực shop (gợi ý Vision)',
     visionShopCountryHint:
@@ -1875,6 +1888,13 @@ const VI_DICTIONARY: Dictionary = {
     visionIndexNotReady: 'Chưa đồng bộ hoặc lỗi index',
     visionLastSynced: 'Đồng bộ lần cuối',
     visionSyncErrorLabel: 'Lỗi gần nhất',
+    visionWarehouseReindexPending:
+      'Đã cập nhật ảnh trên Vision Warehouse; chờ cron rebuild chỉ mục (gọi /api/cron/vision-warehouse-reindex). Tìm theo ảnh sẽ đầy đủ sau khi cron chạy xong.',
+    visionWarehouseCorpusUnsupportedType:
+      'Corpus trong VISION_WAREHOUSE_CORPUS_ID không phải Image Warehouse loại ảnh (IMAGE): Google từ chối import (CORPUS_UNSUPPORTED_TYPE). Hãy tạo corpus Image Warehouse mới với type IMAGE theo tài liệu Google, gắn index/endpoint phù hợp, cập nhật ID trong .env và cài đặt AI, rồi đồng bộ lại. Corpus video hoặc loại khác không dùng được luồng ảnh này.',
+    visionProductSearchMaintenanceTitle: 'Google Vision Product Search đang bảo trì / hạn chế',
+    visionProductSearchMaintenanceDetail:
+      'Google tạm không cho tạo hoặc cập nhật catalog qua Product Search cũ (lỗi phía Google). Tham khảo Image Warehouse: https://cloud.google.com/vision-ai/docs/image-warehouse-overview — Đơn xin dùng Product Search cũ: https://forms.gle/QPLzMdwSMCR2pPsq5 — NanoAI đã dùng Image Warehouse để đồng bộ ảnh kho; bạn chỉ thấy thông báo này khi phản hồi Google còn nhắc Product Search.',
     visionSyncToastImported: 'Đã đưa lên chỉ mục',
     visionSyncToastRemoved: 'Đã gỡ (mất URL ảnh hợp lệ)',
     visionSyncToastMore: 'Còn mặt hàng chưa xử lý — hãy bấm đồng bộ lần nữa.',
@@ -1916,6 +1936,8 @@ const VI_DICTIONARY: Dictionary = {
     visionBgSyncToastDone: 'Đồng bộ nền Vision đã hoàn tất.',
     visionBgSyncToastError: 'Đồng bộ nền Vision gặp lỗi.',
     visionBgSyncAlreadyActive: 'Job nền đang chờ hoặc đang chạy.',
+    visionBgSyncAlreadyActiveRefreshHint:
+      'Đã làm mới trạng thái từ máy chủ. Nếu vẫn «Đang chờ» lâu, kiểm tra cron đồng bộ Vision trên VPS hoặc bấm «Hủy job nền».',
     visionBgSyncEnableVisionFirst: 'Hãy bật «Bật gợi ý theo ảnh» trước khi chạy đồng bộ nền.',
     visionBgSyncSaveSettingsFirst: 'Hãy lưu cài đặt AI (Messaging) ít nhất một lần trước.',
     visionBgSyncStopCompleted: 'Đã hoàn tất',
@@ -1969,7 +1991,7 @@ const VI_DICTIONARY: Dictionary = {
       'Dùng tài khoản Google để nhắn tin với cửa hàng và xem lại hội thoại trên điện thoại hoặc máy tính khác.',
     signInWithGoogle: 'Đăng nhập bằng Google',
     linkMyShops: 'Tin nhắn của tôi',
-    sendKeyboardHint: 'Enter để gửi · Shift+Enter xuống dòng',
+    sendKeyboardHint: 'Enter gửi · Shift+Enter xuống dòng · Ctrl+V dán ảnh',
     tryOnOpen: 'Thử đồ AI',
     tryOnTitle: 'Thử đồ ngay trong chat',
     tryOnModelPhoto: 'Ảnh người mẫu',
@@ -3050,6 +3072,7 @@ const EN_DICTIONARY: Dictionary = {
     sendError: 'Could not send the message.',
     pollNote: 'Replies may appear after a few seconds; you can refresh the page.',
     sendKeyboardHint: 'Enter to send · Shift+Enter for a new line',
+    messageProductCardOpenProduct: 'View product',
   },
   customerCareAdmin: {
     pageTitle: 'Customer care',
@@ -3068,6 +3091,7 @@ const EN_DICTIONARY: Dictionary = {
     sendFailed: 'Send failed',
     noMessages: 'No messages yet.',
     sendKeyboardHint: 'Enter to send · Shift+Enter for a new line',
+    messageProductCardOpenProduct: 'View product',
   },
   partnerMessaging: {
     pageTitle: 'Partner messaging inbox',
@@ -3113,7 +3137,8 @@ const EN_DICTIONARY: Dictionary = {
     channelWidget: 'Web',
     unknownUser: 'Guest',
     noMessages: 'No messages yet.',
-    replyKeyboardHint: 'Enter to send · Shift+Enter for a new line',
+    replyKeyboardHint: 'Enter to send · Shift+Enter for a new line · Ctrl+V / Cmd+V to paste an image',
+    messageProductCardOpenProduct: 'View product',
     partnerAttachPhoto: 'Photo library',
     partnerTakePhoto: 'Take photo',
     partnerRemoveAttachmentAria: 'Remove attached image',
@@ -3286,7 +3311,7 @@ const EN_DICTIONARY: Dictionary = {
     },
     visionSearchTitle: 'Product suggestions when customers send a photo',
     visionSearchHint:
-      'Uses Google Vision Product Search — each shop has its own catalog: suggestions use only that shop’s inventory, not other NanoAI partners’ products. Requires GCP: Vision API, a GCS bucket, and a service account with Vision + Storage; set GCS_VISION_CATALOG_BUCKET and credentials. Sync is incremental (changed image/name or not yet indexed); click again if more remain. Deleting a row in the Inventory tab removes that product from the Google image index automatically — no purge list file.',
+      'Uses Vertex AI Vision Image Warehouse: each shop is filtered by partner_id in a shared corpus/index. Requires GCP (us-central1 or europe-west4), a GCS bucket, and a service account with Vision AI + Storage; set GCS_VISION_CATALOG_BUCKET, VISION_WAREHOUSE_CORPUS_ID, VISION_WAREHOUSE_INDEX_ID, VISION_WAREHOUSE_INDEX_ENDPOINT_ID, optionally GOOGLE_CLOUD_PROJECT_NUMBER. The reindex cron uses the shop GCP region (stored in vision_warehouse_runner when sync or asset removal marks pending). After images are imported, run cron /api/cron/vision-warehouse-reindex (same secret as vision catalog cron) to analyze the corpus and rebuild the index — image search is complete only after that. Sync is incremental; deleting an inventory row removes the matching asset and needs the cron again.',
     visionSearchEnable: 'Enable image-based suggestions',
     visionShopCountryLabel: 'Shop country / region (Vision preset)',
     visionShopCountryHint:
@@ -3307,6 +3332,13 @@ const EN_DICTIONARY: Dictionary = {
     visionIndexNotReady: 'Not synced or index error',
     visionLastSynced: 'Last synced',
     visionSyncErrorLabel: 'Last error',
+    visionWarehouseReindexPending:
+      'Vision Warehouse data was updated; waiting for the index rebuild cron (/api/cron/vision-warehouse-reindex). Image search will be complete after the cron finishes.',
+    visionWarehouseCorpusUnsupportedType:
+      'The corpus in VISION_WAREHOUSE_CORPUS_ID is not an Image Warehouse corpus of type IMAGE — Google rejects import (CORPUS_UNSUPPORTED_TYPE). Create a new Image Warehouse corpus with type IMAGE per Google Cloud docs, attach a matching index and endpoint, update the IDs in .env and AI settings, then sync again. Video or other corpus types cannot use this image import flow.',
+    visionProductSearchMaintenanceTitle: 'Google Vision Product Search is in maintenance / restricted',
+    visionProductSearchMaintenanceDetail:
+      'Google is temporarily blocking legacy Product Search catalog operations (Google-side). See Image Warehouse: https://cloud.google.com/vision-ai/docs/image-warehouse-overview — Legacy Product Search access request: https://forms.gle/QPLzMdwSMCR2pPsq5 — NanoAI catalog sync uses Image Warehouse; you only see this notice when a Google response still mentions Product Search.',
     visionSyncToastImported: 'Indexed',
     visionSyncToastRemoved: 'Removed (invalid/missing image URL)',
     visionSyncToastMore: 'More items may remain — run sync again.',
@@ -3347,6 +3379,8 @@ const EN_DICTIONARY: Dictionary = {
     visionBgSyncToastDone: 'Vision background sync finished.',
     visionBgSyncToastError: 'Vision background sync failed.',
     visionBgSyncAlreadyActive: 'Background job is already queued or running.',
+    visionBgSyncAlreadyActiveRefreshHint:
+      'Status refreshed from the server. If it stays queued for a long time, check the Vision sync cron on your VPS or tap «Cancel background job».',
     visionBgSyncEnableVisionFirst: 'Turn on image-based suggestions before starting background sync.',
     visionBgSyncSaveSettingsFirst: 'Save Messaging AI settings at least once first.',
     visionBgSyncStopCompleted: 'Completed',
@@ -3401,7 +3435,7 @@ const EN_DICTIONARY: Dictionary = {
       'Use your Google account to message the shop and continue the conversation on any phone or computer.',
     signInWithGoogle: 'Sign in with Google',
     linkMyShops: 'My messages',
-    sendKeyboardHint: 'Enter to send · Shift+Enter for a new line',
+    sendKeyboardHint: 'Enter to send · Shift+Enter for a new line · Ctrl+V / Cmd+V to paste an image',
     tryOnOpen: 'AI try-on',
     tryOnTitle: 'Try on directly in chat',
     tryOnModelPhoto: 'Model photo',
@@ -4486,6 +4520,7 @@ const ZH_DICTIONARY: Dictionary = {
     sendError: '发送失败。',
     pollNote: '管理员回复可能延迟数秒；您也可以刷新页面。',
     sendKeyboardHint: 'Enter 发送 · Shift+Enter 换行',
+    messageProductCardOpenProduct: '查看商品',
   },
   customerCareAdmin: {
     pageTitle: '客户关怀',
@@ -4504,6 +4539,7 @@ const ZH_DICTIONARY: Dictionary = {
     sendFailed: '发送失败',
     noMessages: '暂无消息。',
     sendKeyboardHint: 'Enter 发送 · Shift+Enter 换行',
+    messageProductCardOpenProduct: '查看商品',
   },
   partnerMessaging: {
     pageTitle: '合作伙伴客户消息',
@@ -4547,7 +4583,8 @@ const ZH_DICTIONARY: Dictionary = {
     channelWidget: '网页',
     unknownUser: '访客',
     noMessages: '暂无消息。',
-    replyKeyboardHint: 'Enter 发送 · Shift+Enter 换行',
+    replyKeyboardHint: 'Enter 发送 · Shift+Enter 换行 · Ctrl+V 粘贴图片',
+    messageProductCardOpenProduct: '查看商品',
     partnerAttachPhoto: '相册选图',
     partnerTakePhoto: '拍照',
     partnerRemoveAttachmentAria: '移除已选图片',
@@ -4713,7 +4750,7 @@ const ZH_DICTIONARY: Dictionary = {
     },
     visionSearchTitle: '顾客发图时推荐可能商品',
     visionSearchHint:
-      '使用 Google Vision Product Search — 每个店铺独立目录：仅在该店库存内推荐，不包含 NanoAI 上其他店铺商品。需要 GCP：Vision API、GCS 存储桶、具备 Vision + Storage 权限的服务账号；配置 GCS_VISION_CATALOG_BUCKET 与凭据。同步为增量（图片/名称变更或未入库）；可多次点击。在「库存」中删除一行会自动从 Google 图片索引移除该商品 — 无需上传移除清单文件。',
+      '使用 Vertex AI Vision 图像仓库：各店铺在同一 corpus/index 内按 partner_id 过滤。需 GCP（us-central1 或 europe-west4）、GCS 桶、具备 Vision AI + Storage 的服务账号；设置 GCS_VISION_CATALOG_BUCKET、VISION_WAREHOUSE_CORPUS_ID、VISION_WAREHOUSE_INDEX_ID、VISION_WAREHOUSE_INDEX_ENDPOINT_ID，可选 GOOGLE_CLOUD_PROJECT_NUMBER。定时分析/重建索引用与店铺相同的区域（同步或删除资产写入 pending 时保存在 vision_warehouse_runner）。导入图片后必须定时调用 /api/cron/vision-warehouse-reindex（与 vision catalog cron 相同 secret）以分析 corpus 并重建索引 — 之后按图搜索才完整。同步为增量；删除库存行会移除对应资产并需再次跑 cron。',
     visionSearchEnable: '启用按图推荐',
     visionShopCountryLabel: '店铺国家/地区（Vision 预设）',
     visionShopCountryHint:
@@ -4734,6 +4771,13 @@ const ZH_DICTIONARY: Dictionary = {
     visionIndexNotReady: '未同步或索引出错',
     visionLastSynced: '上次同步',
     visionSyncErrorLabel: '最近错误',
+    visionWarehouseReindexPending:
+      'Vision Warehouse 已更新图片；请等待定时任务重建索引（/api/cron/vision-warehouse-reindex）。完成后按图搜索才会完整。',
+    visionWarehouseCorpusUnsupportedType:
+      'VISION_WAREHOUSE_CORPUS_ID 中的 corpus 不是类型为 IMAGE 的图像仓库：Google 会拒绝导入（CORPUS_UNSUPPORTED_TYPE）。请按 Google Cloud 文档新建 type 为 IMAGE 的 Image Warehouse corpus，配置对应索引与端点，在 .env 与 AI 设置中更新 ID 后重新同步。视频或其他类型的 corpus 无法使用本图片导入流程。',
+    visionProductSearchMaintenanceTitle: 'Google Vision Product Search 维护或受限中',
+    visionProductSearchMaintenanceDetail:
+      'Google 暂时限制旧版 Product Search 目录操作（Google 侧）。Image Warehouse 说明: https://cloud.google.com/vision-ai/docs/image-warehouse-overview — 旧版 Product Search 申请: https://forms.gle/QPLzMdwSMCR2pPsq5 — NanoAI 已用 Image Warehouse 同步库存图；仅当 Google 响应仍提及 Product Search 时会显示本提示。',
     visionSyncToastImported: '已写入索引',
     visionSyncToastRemoved: '已移除（无有效图片 URL）',
     visionSyncToastMore: '可能还有未处理项 — 请再次同步。',
@@ -4772,6 +4816,8 @@ const ZH_DICTIONARY: Dictionary = {
     visionBgSyncToastDone: 'Vision 后台同步已完成。',
     visionBgSyncToastError: 'Vision 后台同步失败。',
     visionBgSyncAlreadyActive: '后台任务已在队列或运行中。',
+    visionBgSyncAlreadyActiveRefreshHint:
+      '已从服务器刷新状态。若长时间仍为「排队」，请检查 VPS 上的 Vision 同步定时任务，或点击「取消后台任务」。',
     visionBgSyncEnableVisionFirst: '请先启用「按图推荐」再开始后台同步。',
     visionBgSyncSaveSettingsFirst: '请先在 Messaging 中保存一次 AI 设置。',
     visionBgSyncStopCompleted: '已完成',
@@ -4824,7 +4870,7 @@ const ZH_DICTIONARY: Dictionary = {
     loginPromptDescription: '使用 Google 账号与店铺沟通，并在手机或电脑上继续对话。',
     signInWithGoogle: '使用 Google 登录',
     linkMyShops: '我的消息',
-    sendKeyboardHint: 'Enter 发送 · Shift+Enter 换行',
+    sendKeyboardHint: 'Enter 发送 · Shift+Enter 换行 · Ctrl+V 粘贴图片',
     tryOnOpen: 'AI 试穿',
     tryOnTitle: '在聊天中直接试穿',
     tryOnModelPhoto: '人物照片',
@@ -5864,6 +5910,7 @@ const JA_DICTIONARY: Dictionary = {
     sendError: '送信に失敗しました。',
     pollNote: '管理者の返信は数秒遅れる場合があります。ページを更新しても構いません。',
     sendKeyboardHint: 'Enter で送信 · Shift+Enter で改行',
+    messageProductCardOpenProduct: '商品ページを開く',
   },
   customerCareAdmin: {
     pageTitle: 'カスタマーケア',
@@ -5882,6 +5929,7 @@ const JA_DICTIONARY: Dictionary = {
     sendFailed: '送信失敗',
     noMessages: 'メッセージはまだありません。',
     sendKeyboardHint: 'Enter で送信 · Shift+Enter で改行',
+    messageProductCardOpenProduct: '商品ページを開く',
   },
   partnerMessaging: {
     pageTitle: 'パートナー向けメッセージ',
@@ -5927,7 +5975,8 @@ const JA_DICTIONARY: Dictionary = {
     channelWidget: 'Web',
     unknownUser: 'ゲスト',
     noMessages: 'メッセージはまだありません。',
-    replyKeyboardHint: 'Enter で送信 · Shift+Enter で改行',
+    replyKeyboardHint: 'Enter で送信 · Shift+Enter で改行 · Ctrl+V / Cmd+V で画像を貼り付け',
+    messageProductCardOpenProduct: '商品ページを開く',
     partnerAttachPhoto: 'ライブラリ',
     partnerTakePhoto: 'カメラで撮影',
     partnerRemoveAttachmentAria: '添付画像を削除',
@@ -6100,7 +6149,7 @@ const JA_DICTIONARY: Dictionary = {
     },
     visionSearchTitle: '写真送信時の商品候補',
     visionSearchHint:
-      'Google Vision Product Search — 店舗ごとに独立カタログ: その店の在庫のみ候補に含まれ、NanoAI 上の他店舗とは混ざりません。GCP で Vision API、GCS バケット、Vision + Storage のサービスアカウントが必要です。GCS_VISION_CATALOG_BUCKET と認証情報を設定。同期は増分（画像・名前の変更や未登録）で、残りがある場合は再度実行。「在庫」タブで行を削除すると Google の画像インデックスからも自動削除されます — リストファイルは不要です。',
+      'Vertex AI Vision Image Warehouse を使用：同一 corpus/index 内で partner_id により店舗を分離。GCP（us-central1 または europe-west4）、GCS バケット、Vision AI + Storage のサービスアカウントが必要。GCS_VISION_CATALOG_BUCKET、VISION_WAREHOUSE_CORPUS_ID、VISION_WAREHOUSE_INDEX_ID、VISION_WAREHOUSE_INDEX_ENDPOINT_ID、任意で GOOGLE_CLOUD_PROJECT_NUMBER を設定。再インデックス cron は店舗と同じ GCP リージョンを使います（同期またはアセット削除で pending になったとき vision_warehouse_runner に保存）。画像インポート後は /api/cron/vision-warehouse-reindex（vision catalog cron と同じ secret）で corpus 分析とインデックス再構築が必須 — その後に画像検索が完全になります。同期は増分；在庫行削除は対応アセット削除と再 cron が必要です。',
     visionSearchEnable: '写真からの候補を有効にする',
     visionShopCountryLabel: '店舗の国・地域（Vision プリセット）',
     visionShopCountryHint:
@@ -6121,6 +6170,13 @@ const JA_DICTIONARY: Dictionary = {
     visionIndexNotReady: '未同期またはエラー',
     visionLastSynced: '最終同期',
     visionSyncErrorLabel: '直近のエラー',
+    visionWarehouseReindexPending:
+      'Vision Warehouse の画像を更新済みです。インデックス再構築用の cron（/api/cron/vision-warehouse-reindex）の完了をお待ちください。画像検索は完了後に有効になります。',
+    visionWarehouseCorpusUnsupportedType:
+      'VISION_WAREHOUSE_CORPUS_ID の corpus は種別 IMAGE の Image Warehouse ではありません。Google がインポートを拒否します（CORPUS_UNSUPPORTED_TYPE）。Google Cloud の手順に従い type が IMAGE の Image Warehouse corpus を新規作成し、対応するインデックスとエンドポイントを設定し、.env と AI 設定の ID を更新してから再同期してください。動画など別種別の corpus では本フローは使えません。',
+    visionProductSearchMaintenanceTitle: 'Google Vision Product Search はメンテナンスまたは制限中です',
+    visionProductSearchMaintenanceDetail:
+      'Google 側で旧 Product Search のカタログ操作が一時的に制限される場合があります（店舗設定の問題ではありません）。Image Warehouse: https://cloud.google.com/vision-ai/docs/image-warehouse-overview — 旧 Product Search の申請: https://forms.gle/QPLzMdwSMcR2pPsq5 — NanoAI の在庫画像同期は Image Warehouse を使用します。本表示は Google の応答に Product Search が含まれる場合のみです。',
     visionSyncToastImported: 'インデックスに反映',
     visionSyncToastRemoved: '削除（有効な画像 URL なし）',
     visionSyncToastMore: '未処理が残っている可能性があります — 再度同期してください。',
@@ -6161,6 +6217,8 @@ const JA_DICTIONARY: Dictionary = {
     visionBgSyncToastDone: 'Vision バックグラウンド同期が完了しました。',
     visionBgSyncToastError: 'Vision バックグラウンド同期が失敗しました。',
     visionBgSyncAlreadyActive: 'ジョブは既にキューまたは実行中です。',
+    visionBgSyncAlreadyActiveRefreshHint:
+      'サーバーから状態を更新しました。長時間「待機」のままなら、VPS の Vision 同期 cron を確認するか「バックグラウンドジョブをキャンセル」を押してください。',
     visionBgSyncEnableVisionFirst: 'バックグラウンド同期の前に「写真からの候補」をオンにしてください。',
     visionBgSyncSaveSettingsFirst: '先に Messaging の AI 設定を一度保存してください。',
     visionBgSyncStopCompleted: '完了',
@@ -6215,7 +6273,7 @@ const JA_DICTIONARY: Dictionary = {
       'Google アカウントでログインすると、店舗へのメッセージをスマホや PC で続けられます。',
     signInWithGoogle: 'Google でログイン',
     linkMyShops: '自分のメッセージ',
-    sendKeyboardHint: 'Enter で送信 · Shift+Enter で改行',
+    sendKeyboardHint: 'Enter で送信 · Shift+Enter で改行 · Ctrl+V / Cmd+V で画像を貼り付け',
     tryOnOpen: 'AI 試着',
     tryOnTitle: 'チャット内で試着',
     tryOnModelPhoto: '人物写真',
@@ -7281,6 +7339,7 @@ const KO_DICTIONARY: Dictionary = {
     sendError: '전송에 실패했습니다.',
     pollNote: '관리자 답변이 몇 초 지연될 수 있습니다. 페이지를 새로고침해도 됩니다.',
     sendKeyboardHint: 'Enter로 전송 · Shift+Enter로 줄 바꿈',
+    messageProductCardOpenProduct: '상품 보기',
   },
   customerCareAdmin: {
     pageTitle: '고객 케어',
@@ -7299,6 +7358,7 @@ const KO_DICTIONARY: Dictionary = {
     sendFailed: '전송 실패',
     noMessages: '메시지가 없습니다.',
     sendKeyboardHint: 'Enter로 전송 · Shift+Enter로 줄 바꿈',
+    messageProductCardOpenProduct: '상품 보기',
   },
   partnerMessaging: {
     pageTitle: '파트너 고객 메시지',
@@ -7344,7 +7404,8 @@ const KO_DICTIONARY: Dictionary = {
     channelWidget: '웹',
     unknownUser: '고객',
     noMessages: '메시지가 없습니다.',
-    replyKeyboardHint: 'Enter로 전송 · Shift+Enter로 줄 바꿈',
+    replyKeyboardHint: 'Enter로 전송 · Shift+Enter로 줄 바꿈 · Ctrl+V / Cmd+V로 이미지 붙여넣기',
+    messageProductCardOpenProduct: '상품 보기',
     partnerAttachPhoto: '사진 보관함',
     partnerTakePhoto: '사진 촬영',
     partnerRemoveAttachmentAria: '첨부 이미지 제거',
@@ -7516,7 +7577,7 @@ const KO_DICTIONARY: Dictionary = {
     },
     visionSearchTitle: '고객이 사진을 보낼 때 상품 추천',
     visionSearchHint:
-      'Google Vision Product Search — 매장마다 별도 카탈로그: 해당 매장 재고만 추천에 사용되며 NanoAI의 다른 매장과 섞이지 않습니다. GCP: Vision API, GCS 버킷, Vision + Storage 서비스 계정; GCS_VISION_CATALOG_BUCKET과 자격 증명. 동기화는 누적(이미지·이름 변경 또는 미색인); 남으면 다시 실행. «재고» 탭에서 행을 삭제하면 Google 이미지 색인에서도 자동 제거됩니다 — 제거 목록 파일 불필요.',
+      'Vertex AI Vision Image Warehouse 사용: 동일 corpus/index에서 partner_id로 매장을 구분합니다. GCP(us-central1 또는 europe-west4), GCS 버킷, Vision AI + Storage 서비스 계정 필요. GCS_VISION_CATALOG_BUCKET, VISION_WAREHOUSE_CORPUS_ID, VISION_WAREHOUSE_INDEX_ID, VISION_WAREHOUSE_INDEX_ENDPOINT_ID, 선택 GOOGLE_CLOUD_PROJECT_NUMBER. 재인덱스 cron은 매장과 동일한 GCP 리전을 사용합니다(동기화 또는 에셋 제거로 pending 시 vision_warehouse_runner에 저장). 이미지 가져오기 후 /api/cron/vision-warehouse-reindex(vision catalog cron과 동일 secret)로 corpus 분석·인덱스 재빌드 필수 — 이후 이미지 검색이 완전해집니다. 동기화는 증분; 재고 행 삭제 시 해당 에셋 제거 후 cron 다시 필요.',
     visionSearchEnable: '사진 기반 추천 사용',
     visionShopCountryLabel: '매장 국가/지역(Vision 프리셋)',
     visionShopCountryHint:
@@ -7537,6 +7598,13 @@ const KO_DICTIONARY: Dictionary = {
     visionIndexNotReady: '동기화 안 됨 또는 오류',
     visionLastSynced: '마지막 동기화',
     visionSyncErrorLabel: '최근 오류',
+    visionWarehouseReindexPending:
+      'Vision Warehouse 이미지가 갱신되었습니다. 인덱스 재빌드 cron(/api/cron/vision-warehouse-reindex)이 끝날 때까지 기다려 주세요. 이미지 검색은 완료 후 정상입니다.',
+    visionWarehouseCorpusUnsupportedType:
+      'VISION_WAREHOUSE_CORPUS_ID의 corpus가 IMAGE 유형 Image Warehouse가 아닙니다. Google이 가져오기를 거부합니다(CORPUS_UNSUPPORTED_TYPE). Google Cloud 문서에 따라 type이 IMAGE인 Image Warehouse corpus를 새로 만들고, 일치하는 인덱스와 엔드포인트를 연결한 뒤 .env와 AI 설정의 ID를 갱신하고 다시 동기화하세요. 동영상 등 다른 유형 corpus는 이 이미지 가져오기 흐름을 사용할 수 없습니다.',
+    visionProductSearchMaintenanceTitle: 'Google Vision Product Search가 점검/제한 중입니다',
+    visionProductSearchMaintenanceDetail:
+      'Google이 구 Product Search 카탈로그 작업을 일시적으로 막을 수 있습니다(매장 설정 문제 아님). Image Warehouse: https://cloud.google.com/vision-ai/docs/image-warehouse-overview — 구 Product Search 신청: https://forms.gle/QPLzMdwSMCR2pPsq5 — NanoAI 재고 이미지 동기화는 Image Warehouse를 사용합니다. Google 응답에 Product Search가 언급될 때만 이 안내가 표시됩니다.',
     visionSyncToastImported: '색인에 반영됨',
     visionSyncToastRemoved: '제거됨(유효한 이미지 URL 없음)',
     visionSyncToastMore: '처리할 항목이 더 있을 수 있습니다 — 동기화를 다시 실행하세요.',
@@ -7577,6 +7645,8 @@ const KO_DICTIONARY: Dictionary = {
     visionBgSyncToastDone: 'Vision 백그라운드 동기화가 완료되었습니다.',
     visionBgSyncToastError: 'Vision 백그라운드 동기화가 실패했습니다.',
     visionBgSyncAlreadyActive: '작업이 이미 대기열에 있거나 실행 중입니다.',
+    visionBgSyncAlreadyActiveRefreshHint:
+      '서버에서 상태를 새로고침했습니다. 오래 «대기 중»이면 VPS의 Vision 동기화 cron을 확인하거나 «백그라운드 작업 취소»를 누르세요.',
     visionBgSyncEnableVisionFirst: '백그라운드 동기화 전에 «사진 기반 추천»을 켜 주세요.',
     visionBgSyncSaveSettingsFirst: '먼저 Messaging에서 AI 설정을 한 번 저장하세요.',
     visionBgSyncStopCompleted: '완료',
@@ -7631,7 +7701,7 @@ const KO_DICTIONARY: Dictionary = {
       'Google 계정으로 로그인하면 매장과의 대화를 휴대폰이나 PC에서 이어갈 수 있습니다.',
     signInWithGoogle: 'Google로 로그인',
     linkMyShops: '내 메시지',
-    sendKeyboardHint: 'Enter로 전송 · Shift+Enter로 줄 바꿈',
+    sendKeyboardHint: 'Enter로 전송 · Shift+Enter로 줄 바꿈 · Ctrl+V / Cmd+V로 이미지 붙여넣기',
     tryOnOpen: 'AI 피팅',
     tryOnTitle: '채팅에서 바로 가상 피팅',
     tryOnModelPhoto: '인물 사진',

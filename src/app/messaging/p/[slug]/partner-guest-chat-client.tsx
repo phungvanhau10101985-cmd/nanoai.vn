@@ -189,8 +189,8 @@ export function PartnerGuestChatClient({
     const el = draftTextareaRef.current
     if (!el) return
     el.style.height = '0px'
-    const minHeight = 22
-    const maxHeight = 72
+    const minHeight = 15
+    const maxHeight = 48
     const next = Math.min(Math.max(el.scrollHeight, minHeight), maxHeight)
     el.style.height = `${next}px`
     el.style.overflowY = el.scrollHeight > maxHeight ? 'auto' : 'hidden'
@@ -327,6 +327,31 @@ export function PartnerGuestChatClient({
   const onPickCamera = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]
     if (f) void uploadFile(f)
+  }
+
+  const onDraftPaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    if (!userId || uploading || sending || tryOnBusy) return
+    const cd = e.clipboardData
+    if (!cd) return
+    const attachFirstImage = (f: File | null) => {
+      if (!f?.type.startsWith('image/')) return false
+      e.preventDefault()
+      void uploadFile(f)
+      return true
+    }
+    const { files, items } = cd
+    if (files?.length) {
+      for (let i = 0; i < files.length; i++) {
+        if (attachFirstImage(files[i])) return
+      }
+    }
+    if (items?.length) {
+      for (let i = 0; i < items.length; i++) {
+        const it = items[i]
+        if (it.kind !== 'file' || !it.type.startsWith('image/')) continue
+        if (attachFirstImage(it.getAsFile())) return
+      }
+    }
   }
 
   const runTryOn = async () => {
@@ -508,7 +533,11 @@ export function PartnerGuestChatClient({
                     }`}
                   >
                     <div className={isMe ? '[&_a]:text-white/90 [&_img]:border-white/25' : ''}>
-                      <CustomerCareMessageBody row={{ body: m.body, raw_payload: m.raw_payload ?? null }} />
+                      <CustomerCareMessageBody
+                        row={{ body: m.body, raw_payload: m.raw_payload ?? null }}
+                        tone={isMe ? 'onViolet' : 'default'}
+                        labels={{ productCardOpenProduct: t.visionProductLink }}
+                      />
                     </div>
                     {(() => {
                       const vs = getVisionPickState(m.raw_payload)
@@ -745,71 +774,73 @@ export function PartnerGuestChatClient({
                 </div>
               ) : null}
 
-              <div className="relative">
-                <Textarea
-                  ref={draftTextareaRef}
-                  value={draft}
-                  onChange={(e) => setDraft(e.target.value)}
-                  onInput={autoResizeDraft}
-                  placeholder={t.placeholder}
-                  rows={1}
-                  className="resize-none border-0 bg-transparent p-0 pb-8 pr-9 text-sm leading-tight shadow-none focus-visible:ring-0"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault()
-                      if (canSend && !sending) void send()
-                    }
-                  }}
-                />
-                <Button
-                  type="button"
-                  className="absolute right-0 top-0 h-7 w-7 min-w-0 px-0"
-                  onClick={() => void send()}
-                  disabled={!canSend || sending}
-                  aria-label={t.send}
-                >
-                  {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                </Button>
-                <div className="absolute bottom-0 left-0 flex max-w-[calc(100%-2.5rem)] flex-wrap items-center gap-1">
+              <div className="space-y-1.5">
+                <div className="relative">
+                  <Textarea
+                    ref={draftTextareaRef}
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value)}
+                    onInput={autoResizeDraft}
+                    onPaste={onDraftPaste}
+                    placeholder={t.placeholder}
+                    rows={1}
+                    className="resize-none border-0 bg-transparent px-0 pb-8 pt-0.5 pr-10 text-sm leading-tight shadow-none focus-visible:ring-0"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault()
+                        if (canSend && !sending) void send()
+                      }
+                    }}
+                  />
                   <Button
                     type="button"
-                    variant="secondary"
-                    size="sm"
-                    className="h-7 gap-1 px-2 text-xs"
-                    disabled={uploading || sending || tryOnBusy}
-                    onClick={() => setTryOnOpen((v) => !v)}
+                    className="absolute right-0 top-0 h-7 w-7 min-w-0 px-0"
+                    onClick={() => void send()}
+                    disabled={!canSend || sending}
+                    aria-label={t.send}
                   >
-                    {tryOnBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-                    {t.tryOnOpen}
+                    {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                   </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-7 gap-1 px-2 text-xs"
-                    disabled={uploading || sending}
-                    onClick={() => galleryInputRef.current?.click()}
-                  >
-                    {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ImagePlus className="h-3.5 w-3.5" />}
-                    {t.guestAttachPhoto}
-                  </Button>
-                  {showCameraButton ? (
+                  <div className="absolute bottom-0 left-0 z-10 flex max-w-[calc(100%-2.5rem)] flex-wrap items-center gap-1">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      className="h-7 gap-1 px-2 text-xs"
+                      disabled={uploading || sending || tryOnBusy}
+                      onClick={() => setTryOnOpen((v) => !v)}
+                    >
+                      {tryOnBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                      {t.tryOnOpen}
+                    </Button>
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
                       className="h-7 gap-1 px-2 text-xs"
                       disabled={uploading || sending}
-                      onClick={() => cameraInputRef.current?.click()}
+                      onClick={() => galleryInputRef.current?.click()}
                     >
-                      <Camera className="h-3.5 w-3.5" />
-                      {t.guestTakePhoto}
+                      {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ImagePlus className="h-3.5 w-3.5" />}
+                      {t.guestAttachPhoto}
                     </Button>
-                  ) : null}
+                    {showCameraButton ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-7 gap-1 px-2 text-xs"
+                        disabled={uploading || sending}
+                        onClick={() => cameraInputRef.current?.click()}
+                      >
+                        <Camera className="h-3.5 w-3.5" />
+                        {t.guestTakePhoto}
+                      </Button>
+                    ) : null}
+                  </div>
                 </div>
-                {uploading ? (
-                  <p className="pt-1 text-[10px] text-muted-foreground">{t.guestUploading}</p>
-                ) : null}
+                {uploading ? <p className="text-[10px] text-muted-foreground">{t.guestUploading}</p> : null}
+                <p className="text-[10px] leading-tight text-muted-foreground">{t.sendKeyboardHint}</p>
               </div>
             </div>
           </div>

@@ -5,6 +5,7 @@ import {
   VISION_BG_SYNC_SERVER_ERROR_BAD_CURSOR,
 } from '@/lib/messaging/partner-vision-constants'
 import { runVisionCatalogSync } from '@/lib/messaging/partner-vision-product-search'
+import { kickVisionWarehouseReindexIfPending } from '@/lib/messaging/partner-vision-warehouse-runner'
 
 type Db = SupabaseClient<Database>
 type AiRow = Database['public']['Tables']['messaging_partner_ai_settings']['Row']
@@ -195,6 +196,11 @@ export async function processVisionCatalogBackgroundSyncJobs(
             }),
           })
           if (persistErr) errors.push(`${partnerId}: persist done: ${persistErr}`)
+          try {
+            await kickVisionWarehouseReindexIfPending(db, { errorScopePartnerId: partnerId })
+          } catch (e) {
+            console.error('[vision-bg-sync-cron] reindex kick', partnerId, e)
+          }
           break
         }
 

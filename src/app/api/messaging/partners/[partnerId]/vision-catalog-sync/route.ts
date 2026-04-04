@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
 import { requireMessagingPartnerOwner } from '@/lib/messaging/partner-inventory-route-auth'
 import { runVisionCatalogSync } from '@/lib/messaging/partner-vision-product-search'
+import { kickVisionWarehouseReindexIfPending } from '@/lib/messaging/partner-vision-warehouse-runner'
 import { revalidatePath } from 'next/cache'
 
 export const dynamic = 'force-dynamic'
@@ -39,6 +40,16 @@ export async function POST(req: Request, ctx: { params: Promise<{ partnerId: str
   if ('error' in r) {
     return NextResponse.json({ error: r.error }, { status: 400 })
   }
+  let reindexKick: Awaited<ReturnType<typeof kickVisionWarehouseReindexIfPending>> = { step: 'kick_exception' }
+  try {
+    reindexKick = await kickVisionWarehouseReindexIfPending(db, { errorScopePartnerId: partnerId })
+  } catch (e) {
+    console.error('[vision-catalog-sync] reindex kick', e)
+    reindexKick = {
+      step: 'kick_exception',
+      detail: e instanceof Error ? e.message : String(e),
+    }
+  }
   revalidatePath('/dashboard/messaging')
-  return NextResponse.json(r)
+  return NextResponse.json({ ...r, reindexKick })
 }

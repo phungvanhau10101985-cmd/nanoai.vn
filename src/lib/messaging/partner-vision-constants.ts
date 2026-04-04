@@ -1,5 +1,5 @@
 /**
- * Hằng số Vision Product Search — không import server/Node-only để dùng được từ Client Components.
+ * Hằng số Vision (Vertex AI Vision Warehouse) — không import server/Node-only để dùng được từ Client Components.
  */
 
 export const VISION_PRODUCT_CATEGORIES = [
@@ -12,7 +12,22 @@ export const VISION_PRODUCT_CATEGORIES = [
 
 export type VisionProductCategory = (typeof VISION_PRODUCT_CATEGORIES)[number]
 
-export const VISION_LOCATIONS = ['us-east1', 'europe-west1', 'asia-east1', 'asia-southeast1'] as const
+/**
+ * Vùng Image Warehouse (Vertex AI Vision): chỉ us-central1 và europe-west4.
+ * @see https://cloud.google.com/vision-ai/docs/warehouse-supported-regions
+ */
+export const VISION_LOCATIONS = ['us-central1', 'europe-west4'] as const
+
+export type VisionGcpLocation = (typeof VISION_LOCATIONS)[number]
+
+/** Chuẩn hóa location (legacy Product Search / GCP khác → Warehouse). */
+export function normalizeVisionProductSearchLocation(raw: string | null | undefined): VisionGcpLocation {
+  const t = (raw ?? '').trim() || 'us-central1'
+  if (t === 'europe-west4') return 'europe-west4'
+  if (t === 'us-central1') return 'us-central1'
+  if (t === 'europe-west1') return 'europe-west4'
+  return 'us-central1'
+}
 
 /**
  * Legacy export — từng dùng cho full-replace sync.
@@ -20,7 +35,7 @@ export const VISION_LOCATIONS = ['us-east1', 'europe-west1', 'asia-east1', 'asia
  */
 export const VISION_CATALOG_SYNC_MAX_ITEMS = 400
 
-/** Số dòng CSV (sản phẩm) mỗi lần gọi productSets:import trong một request HTTP. */
+/** Số dòng tối đa mỗi lô import JSONL lên Warehouse trong một request. */
 export const VISION_INCREMENTAL_BATCH_SIZE = 200
 
 /** Tối đa số lần import liên tiếp trong một POST (tránh timeout). */
@@ -79,3 +94,42 @@ export const VISION_BG_SYNC_REPORT_MESSAGE = {
 
 /** Khớp `vision_bg_sync_error` khi có backlog nhưng thiếu cursor (cron). */
 export const VISION_BG_SYNC_SERVER_ERROR_BAD_CURSOR = 'hasMore without lastScannedId' as const
+
+/**
+ * Giá trị lưu trong `vision_index_error` khi đã import/xóa trên Warehouse nhưng chờ cron
+ * analyze + rebuild index. UI map sang `partnerMessagingAi.visionWarehouseReindexPending`.
+ */
+export const VISION_WAREHOUSE_REINDEX_PENDING_CODE = 'VISION_WAREHOUSE_REINDEX_PENDING' as const
+
+/**
+ * Lưu trong `vision_index_error` khi Google trả CORPUS_UNSUPPORTED_TYPE — corpus không phải Image (IMAGE) Warehouse.
+ * UI map sang `partnerMessagingAi.visionWarehouseCorpusUnsupportedType`.
+ */
+export const VISION_WAREHOUSE_CORPUS_UNSUPPORTED_TYPE_CODE = 'VISION_WAREHOUSE_CORPUS_UNSUPPORTED_TYPE' as const
+
+/** Phản hồi API assets:import / analyze khi corpus sai loại (video, legacy, v.v.). */
+export function isVisionWarehouseCorpusUnsupportedTypeApiMessage(message: string): boolean {
+  const m = message ?? ''
+  if (!m) return false
+  return m.includes('CORPUS_UNSUPPORTED_TYPE') || /not supported in this corpus/i.test(m)
+}
+
+/**
+ * Chỉ bắt lỗi **legacy Vision Product Search** (Google bảo trì / hướng dẫn chuyển Warehouse).
+ * Không dùng chữ "vision warehouse" đơn độc — tránh nhầm với lỗi cron/Warehouse của app (vd. "Vision Warehouse cron: ...").
+ */
+export function isVisionProductSearchMaintenanceError(message: string): boolean {
+  const m = (message ?? '').toLowerCase()
+  if (!m) return false
+  if (!m.includes('product search')) return false
+  return (
+    m.includes('maintenance') ||
+    m.includes('restricted') ||
+    m.includes('deprecated') ||
+    m.includes('not available') ||
+    m.includes('no longer') ||
+    m.includes('please use vision warehouse') ||
+    m.includes('use vision warehouse instead') ||
+    m.includes('sunset')
+  )
+}

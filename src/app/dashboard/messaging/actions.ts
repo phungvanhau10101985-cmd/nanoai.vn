@@ -30,8 +30,8 @@ import {
   presetSortOrder,
 } from '@/lib/messaging/partner-faq-presets'
 import {
-  VISION_LOCATIONS,
   VISION_PRODUCT_CATEGORIES,
+  normalizeVisionProductSearchLocation,
   type VisionProductCategory,
 } from '@/lib/messaging/partner-vision-constants'
 import {
@@ -465,8 +465,8 @@ export async function savePartnerAiSettings(partnerId: string, payload: PartnerA
   const shopCountryRaw = payload.vision_shop_country?.trim().toUpperCase() ?? ''
   const vision_shop_country = isVisionShopCountryCode(shopCountryRaw) ? shopCountryRaw : null
 
-  const locRaw = payload.vision_location?.trim() || 'us-east1'
-  let vision_location = (VISION_LOCATIONS as readonly string[]).includes(locRaw) ? locRaw : 'us-east1'
+  const locRaw = payload.vision_location?.trim() || 'us-central1'
+  let vision_location = normalizeVisionProductSearchLocation(locRaw)
   if (vision_shop_country) {
     const mapped = getVisionLocationForShopCountry(vision_shop_country)
     if (mapped) vision_location = mapped

@@ -178,7 +178,7 @@ type VisionPickRaw = {
   vision_selected_product_label?: string
 }
 
-/** FAQ + LLM: kèm URL ảnh và (nếu có) sản phẩm khách chọn sau Product Search. */
+/** FAQ + LLM: kèm URL ảnh và (nếu có) sản phẩm khách chọn sau Vision Warehouse / tìm theo ảnh. */
 export function latestInboundTextForPartnerAi(textBody: string, rawPayload: Json | null): string {
   const pl = rawPayload as VisionPickRaw | null
   const url = pl?.guest_media?.kind === 'image' ? pl.guest_media.url : undefined

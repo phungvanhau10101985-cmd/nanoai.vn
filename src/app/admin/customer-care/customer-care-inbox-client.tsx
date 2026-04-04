@@ -115,7 +115,10 @@ export function CustomerCareInboxClient({ initialConversations, t }: { initialCo
                     {m.direction === 'outbound' ? (
                       <div className="whitespace-pre-wrap break-words">{m.body}</div>
                     ) : (
-                      <CustomerCareMessageBody row={m} />
+                      <CustomerCareMessageBody
+                        row={m}
+                        labels={{ productCardOpenProduct: t.messageProductCardOpenProduct }}
+                      />
                     )}
                     <div className="mt-1 text-[10px] opacity-70">
                       {new Date(m.created_at).toLocaleString()}

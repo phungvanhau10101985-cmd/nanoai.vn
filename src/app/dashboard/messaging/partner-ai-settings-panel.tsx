@@ -49,6 +49,10 @@ import {
   VISION_SYNC_CLIENT_CHAIN_PAUSE_MS,
   VISION_SYNC_CLIENT_CHAIN_SEGMENT_BREAK_MS,
   VISION_SYNC_CLIENT_FETCH_TIMEOUT_MS,
+  VISION_WAREHOUSE_CORPUS_UNSUPPORTED_TYPE_CODE,
+  VISION_WAREHOUSE_REINDEX_PENDING_CODE,
+  isVisionProductSearchMaintenanceError,
+  normalizeVisionProductSearchLocation,
 } from '@/lib/messaging/partner-vision-constants'
 import { Bot, Download, FileSpreadsheet, ScanSearch, Sparkles, Upload } from 'lucide-react'
 import type { WebLocale } from '@/lib/i18n/config'
@@ -68,6 +72,16 @@ function resolveVisionShopCountrySelectValue(country: string, location: string):
 
 type AiT = Dictionary['partnerMessagingAi']
 type SettingsRow = PartnerAiSettingsClientRow
+
+function visionSyncFailureUserMessage(raw: string, t: AiT): { title: string; description?: string } {
+  if (isVisionProductSearchMaintenanceError(raw)) {
+    return {
+      title: t.visionProductSearchMaintenanceTitle,
+      description: t.visionProductSearchMaintenanceDetail,
+    }
+  }
+  return { title: raw }
+}
 type FaqRow = Database['public']['Tables']['messaging_partner_faq']['Row']
 type InvRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
 
@@ -159,11 +173,19 @@ function buildVisionBgDetailLines(
       parts.push(`${t.visionBgSyncFieldMessage}: ${formatVisionBgReportMessage(t, msg)}`)
     }
     const ed = rep.errorDetail?.trim()
-    if (ed && ed !== seTrim) parts.push(ed)
+    if (ed && ed !== seTrim) {
+      parts.push(
+        ed === VISION_WAREHOUSE_CORPUS_UNSUPPORTED_TYPE_CODE ? t.visionWarehouseCorpusUnsupportedType : ed
+      )
+    }
   }
   if (seTrim) {
     const displayErr =
-      seTrim === VISION_BG_SYNC_SERVER_ERROR_BAD_CURSOR ? t.visionBgSyncServerErrCursor : seTrim
+      seTrim === VISION_BG_SYNC_SERVER_ERROR_BAD_CURSOR
+        ? t.visionBgSyncServerErrCursor
+        : seTrim === VISION_WAREHOUSE_CORPUS_UNSUPPORTED_TYPE_CODE
+          ? t.visionWarehouseCorpusUnsupportedType
+          : seTrim
     parts.push(`${t.visionBgSyncFieldServerError}: ${displayErr}`)
   }
   return parts
@@ -181,7 +203,7 @@ function defaultsFromSettings(s: SettingsRow | null) {
     disclosure_suffix: s?.disclosure_suffix ?? '',
     vision_product_search_enabled: s?.vision_product_search_enabled ?? false,
     vision_shop_country: (s?.vision_shop_country ?? '').trim().toUpperCase(),
-    vision_location: s?.vision_location ?? 'us-east1',
+    vision_location: normalizeVisionProductSearchLocation(s?.vision_location ?? undefined),
     vision_product_category: s?.vision_product_category ?? 'general-v1',
     vision_gcs_bucket: s?.vision_gcs_bucket ?? '',
     vision_index_ready: s?.vision_index_ready ?? false,
@@ -208,8 +230,12 @@ type VisionSyncResponse = {
   error?: string
   imported?: number
   removed?: number
+  importBatches?: number
+  inventoryScanExhausted?: boolean
   hasMore?: boolean
   lastScannedId?: string | null
+  /** Phản hồi từ kick analyze sau sync (API thêm trường này). */
+  reindexKick?: { step: string; detail?: string }
 }
 
 function formToPayload(f: FormState): PartnerAiSettingsPayload {
@@ -271,9 +297,9 @@ export function PartnerAiSettingsPanel({
     form.vision_location
   )
 
-  const load = useCallback(() => {
+  const load = useCallback((): Promise<void> => {
     setLoadErr(null)
-    void (async () => {
+    return (async () => {
       const [bundleRes, usageRes] = await Promise.all([
         getPartnerAiBundle(partnerId),
         getPartnerAiTokenUsageStats(partnerId),
@@ -528,8 +554,11 @@ export function PartnerAiSettingsPanel({
           try {
             await runVisionCatalogSyncChained(null)
           } catch (e) {
+            const raw = e instanceof Error ? e.message : t.loadError
+            const { title, description } = visionSyncFailureUserMessage(raw, t)
             toast({
-              title: e instanceof Error ? e.message : t.loadError,
+              title,
+              ...(description ? { description } : {}),
               variant: 'destructive',
             })
           } finally {
@@ -548,7 +577,7 @@ export function PartnerAiSettingsPanel({
       toast,
       load,
       runVisionCatalogSyncChained,
-      t.loadError,
+      t,
     ]
   )
 
@@ -571,8 +600,11 @@ export function PartnerAiSettingsPanel({
         await runVisionCatalogSyncChained(visionSyncResumeAfterId)
         load()
       } catch (e) {
+        const raw = e instanceof Error ? e.message : t.loadError
+        const { title, description } = visionSyncFailureUserMessage(raw, t)
         toast({
-          title: e instanceof Error ? e.message : t.loadError,
+          title,
+          ...(description ? { description } : {}),
           variant: 'destructive',
         })
         load()
@@ -580,7 +612,7 @@ export function PartnerAiSettingsPanel({
         setVisionSyncing(false)
       }
     })()
-  }, [runVisionCatalogSyncChained, visionSyncResumeAfterId, t.loadError, toast, load])
+  }, [runVisionCatalogSyncChained, visionSyncResumeAfterId, t, toast, load])
 
   const handleEnqueueVisionBgSync = useCallback(() => {
     startTransition(async () => {
@@ -594,6 +626,11 @@ export function PartnerAiSettingsPanel({
               : res.code === 'no_ai_row'
                 ? t.visionBgSyncSaveSettingsFirst
                 : res.error
+        if (res.code === 'already_active') {
+          toast({ title: msg, description: t.visionBgSyncAlreadyActiveRefreshHint })
+          await load()
+          return
+        }
         toast({ title: msg, variant: 'destructive' })
         return
       }
@@ -789,9 +826,26 @@ export function PartnerAiSettingsPanel({
                       : ''}
                   </p>
                   {form.vision_index_error ? (
-                    <p className="text-[11px] text-destructive mt-1">
-                      {t.visionSyncErrorLabel}: {form.vision_index_error}
-                    </p>
+                    form.vision_index_error === VISION_WAREHOUSE_REINDEX_PENDING_CODE ? (
+                      <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-1 leading-relaxed whitespace-pre-wrap break-words">
+                        {t.visionWarehouseReindexPending}
+                      </p>
+                    ) : form.vision_index_error === VISION_WAREHOUSE_CORPUS_UNSUPPORTED_TYPE_CODE ? (
+                      <p className="text-[11px] text-destructive mt-1 leading-relaxed whitespace-pre-wrap break-words">
+                        {t.visionWarehouseCorpusUnsupportedType}
+                      </p>
+                    ) : isVisionProductSearchMaintenanceError(form.vision_index_error) ? (
+                      <div className="text-[11px] text-destructive mt-1 space-y-1">
+                        <p className="font-medium">{t.visionProductSearchMaintenanceTitle}</p>
+                        <p className="leading-relaxed whitespace-pre-wrap break-words">
+                          {t.visionProductSearchMaintenanceDetail}
+                        </p>
+                      </div>
+                    ) : (
+                      <p className="text-[11px] text-destructive mt-1 whitespace-pre-wrap break-words">
+                        {t.visionSyncErrorLabel}: {form.vision_index_error}
+                      </p>
+                    )
                   ) : null}
                 </div>
                 <Switch
@@ -837,7 +891,12 @@ export function PartnerAiSettingsPanel({
                   <Label>{t.visionLocationLabel}</Label>
                   <Select
                     value={form.vision_location}
-                    onValueChange={(v) => persistPartial({ vision_location: v, vision_shop_country: '' })}
+                    onValueChange={(v) =>
+                      persistPartial({
+                        vision_location: normalizeVisionProductSearchLocation(v),
+                        vision_shop_country: '',
+                      })
+                    }
                     disabled={pending || visionSyncing}
                   >
                     <SelectTrigger className="h-10 bg-background">

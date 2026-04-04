@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Database } from '@/types/database.types'
+import type { Database, Json } from '@/types/database.types'
 import { fetchInventoryRowsForPartnerAi } from '@/lib/messaging/partner-inventory-ai-search'
 
 type Db = SupabaseClient<Database>
@@ -25,12 +25,18 @@ function formatInventoryLines(
     .join('\n')
 }
 
+function visionCatalogNoHitsFromTrigger(raw: Json | null | undefined): boolean {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return false
+  return (raw as { vision_catalog_no_hits?: unknown }).vision_catalog_no_hits === true
+}
+
 export async function buildPartnerAiContext(
   db: Db,
   partnerId: string,
   conversationId: string,
   settings: SettingsRow,
-  latestCustomerMessage: string
+  latestCustomerMessage: string,
+  triggerRawPayload?: Json | null
 ): Promise<{ system: string; user: string }> {
   const inv = await fetchInventoryRowsForPartnerAi(db, partnerId, latestCustomerMessage)
 
@@ -64,8 +70,9 @@ Giọng điệu: ${tone}
 Tuân thủ nghiêm các quy tắc / chính sách sau (không bịa điều không có trong dữ liệu):
 ${policy}
 Toàn bộ mặt hàng trong danh sách kho dưới đây đều dùng để tư vấn khách. Chỉ tư vấn sản phẩm/tồn kho dựa trên danh sách đó. Nếu không có trong danh sách, nói rõ bạn không có thông tin và gợi ý khách liên hệ shop.
-Nếu mục có dòng "Ảnh (URL)", bạn có thể gửi kèm link ảnh đó trong tin nhắn để khách xem (bạn chỉ thấy URL dạng chữ, không xem được pixel ảnh). Nếu có "Trang sản phẩm (URL)", có thể gửi link đó để khách mở trang chi tiết trên web shop.
-Không hứa giảm giá hay thay đổi chính sách ngoài nội dung đã cho. Trả lời súc tích, có thể dùng gạch đầu dòng.`
+Khi giới thiệu mặt hàng có "Ảnh (URL)" và/hoặc "Trang sản phẩm (URL)" trong kho, đưa ảnh và link trang vào mảng products trong JSON đầu ra (khách sẽ thấy thẻ sản phẩm có ảnh và giá). Không dán URL ảnh hay URL trang sản phẩm dạng chữ trong trường message nếu đã khai báo đủ trong products.
+Định dạng đầu ra: một đối tượng JSON đúng schema ở cuối prompt user — không bọc markdown, không giải thích ngoài JSON.
+Không hứa giảm giá hay thay đổi chính sách ngoài nội dung đã cho. Trả lời súc tích trong trường message, có thể dùng gạch đầu dòng.`
 
   const user = `Danh sách kho (do shop khai báo; có thể không đầy đủ so với toàn bộ hàng thực tế). Các dòng đầu là mặt hàng được ưu tiên theo mã/tên/từ khóa gần với tin nhắn khách (nếu có), sau đó là các mặt hàng còn lại theo thứ tự shop sắp xếp — tất cả đều có thể dùng để tư vấn:
 ${formatInventoryLines(inv)}
@@ -75,8 +82,24 @@ ${transcript}
 
 Tin nhắn mới nhất của khách:
 ${latestCustomerMessage}
+${
+  visionCatalogNoHitsFromTrigger(triggerRawPayload)
+    ? `
 
-Hãy soạn một tin nhắn trả lời duy nhất (plain text, không markdown phức tạp).`
+Tình huống bổ sung (bắt buộc xử lý đúng): Tin kích hoạt này kèm ảnh từ khách và shop đã bật tìm sản phẩm theo ảnh, nhưng hệ thống không tìm được mặt hàng tương ứng trong kho (không có ứng viên). Hãy soạn một tin trả lời ngắn, lịch sự:
+- Chào hỏi (có thể xưng hô phù hợp giọng shop).
+- Cảm ơn khách đã gửi ảnh.
+- Nói rõ shop hiện không có thông tin khớp với mẫu trong ảnh trong dữ liệu kho (không nói “lỗi kỹ thuật” trừ khi có lý do rõ).
+- Đề nghị khách mô tả thêm (tên sản phẩm, mã hàng/SKU) hoặc liên hệ trực tiếp shop để được hỗ trợ.
+- Không bịa tên hay giá sản phẩm; không hứa chắc còn hàng nếu không có trong danh sách kho.`
+    : ''
+}
+
+Trả lời BẮT BUỘC là một JSON hợp lệ duy nhất (không bọc markdown, không text ngoài JSON), đúng schema:
+{"message":"nội dung gửi khách (plain text, có thể xuống dòng; không nhét URL ảnh/trang sản phẩm nếu đã có trong products)","products":[]}
+products là mảng, tối đa 4 phần tử. Khi giới thiệu mặt hàng từ danh sách kho có ảnh hoặc trang sản phẩm, mỗi phần tử:
+{"name":"tên ngắn (có thể gồm mã/SKU)","image_url":"https://...","product_url":"https://...","price_hint":"199.000đ (tuỳ chọn, copy từ cột Giá trong kho nếu có)"}
+Chỉ dùng URL http(s) đúng như trong dữ liệu kho; không bịa link. image_url và product_url bắt buộc là chuỗi URL hợp lệ. Khi không giới thiệu hàng kèm ảnh/trang, để products là [].`
 
   return { system, user }
 }
@@ -111,7 +134,7 @@ export async function deepseekPartnerChat(system: string, user: string): Promise
           { role: 'system', content: system },
           { role: 'user', content: user },
         ],
-        max_tokens: 900,
+        max_tokens: 1100,
         temperature: 0.35,
       }),
     })

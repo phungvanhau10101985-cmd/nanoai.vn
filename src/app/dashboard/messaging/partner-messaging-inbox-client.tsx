@@ -207,6 +207,31 @@ export function PartnerMessagingInboxClient({ initialPartners, t }: { initialPar
     if (f) void uploadPartnerImage(f)
   }
 
+  const onReplyPaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    if (!selectedPartnerId || uploading || pending) return
+    const cd = e.clipboardData
+    if (!cd) return
+    const attachFirstImage = (f: File | null) => {
+      if (!f?.type.startsWith('image/')) return false
+      e.preventDefault()
+      void uploadPartnerImage(f)
+      return true
+    }
+    const { files, items } = cd
+    if (files?.length) {
+      for (let i = 0; i < files.length; i++) {
+        if (attachFirstImage(files[i])) return
+      }
+    }
+    if (items?.length) {
+      for (let i = 0; i < items.length; i++) {
+        const it = items[i]
+        if (it.kind !== 'file' || !it.type.startsWith('image/')) continue
+        if (attachFirstImage(it.getAsFile())) return
+      }
+    }
+  }
+
   const canSend = Boolean(selectedPartnerId && selectedConvId && (draft.trim() || imageStoragePath) && !uploading)
 
   const send = () => {
@@ -424,12 +449,19 @@ export function PartnerMessagingInboxClient({ initialPartners, t }: { initialPar
                       <div className={m.direction === 'outbound' ? '[&_img]:max-w-full [&_img]:rounded-md [&_img]:ring-1 [&_img]:ring-white/25' : '[&_img]:max-w-full [&_img]:rounded-md'}>
                         {m.direction === 'outbound' ? (
                           m.raw_payload ? (
-                            <CustomerCareMessageBody row={m} tone="onViolet" />
+                            <CustomerCareMessageBody
+                              row={m}
+                              tone="onViolet"
+                              labels={{ productCardOpenProduct: t.messageProductCardOpenProduct }}
+                            />
                           ) : (
                             <div className="whitespace-pre-wrap break-words">{m.body}</div>
                           )
                         ) : (
-                          <CustomerCareMessageBody row={m} />
+                          <CustomerCareMessageBody
+                            row={m}
+                            labels={{ productCardOpenProduct: t.messageProductCardOpenProduct }}
+                          />
                         )}
                       </div>
                       <div
@@ -533,6 +565,7 @@ export function PartnerMessagingInboxClient({ initialPartners, t }: { initialPar
                     <Textarea
                       value={draft}
                       onChange={(e) => setDraft(e.target.value)}
+                      onPaste={onReplyPaste}
                       placeholder={t.replyPlaceholder}
                       rows={2}
                       className="min-h-[2.625rem] resize-none rounded-none border-0 bg-transparent py-1.5 pl-2 pr-[5.75rem] pb-8 text-xs leading-snug text-foreground shadow-none placeholder:text-muted-foreground/80 focus-visible:ring-0 focus-visible:ring-offset-0 sm:min-h-[2.875rem] sm:text-[13px]"
