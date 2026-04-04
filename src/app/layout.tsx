@@ -29,6 +29,10 @@ const PushNotificationPrompt = dynamic(
   () => import("@/components/pwa/push-notification-prompt").then((m) => m.PushNotificationPrompt),
   { ssr: false }
 );
+const SwUpdateReload = dynamic(
+  () => import("@/components/pwa/sw-update-reload").then((m) => m.SwUpdateReload),
+  { ssr: false }
+);
 const ReferralCapture = dynamic(
   () => import("@/components/referral/referral-capture").then((m) => m.ReferralCapture),
   { ssr: false }
@@ -212,12 +216,10 @@ export default async function RootLayout({
   const protocol = forwardedProto || (process.env.NODE_ENV === "development" ? "http" : "https");
   const requestOrigin = host ? `${protocol}://${host}` : "";
   const currentPathWithQuery = headerStore.get("x-nanoai-login-next") || "";
-  const [currentPathname, currentQuery = ""] = currentPathWithQuery.split("?");
-  const currentSearch = new URLSearchParams(currentQuery);
-  const isIframeRequest = headerStore.get("sec-fetch-dest") === "iframe";
-  const isEmbedQuery = currentSearch.get("embed") === "1";
+  const [currentPathname = ""] = currentPathWithQuery.split("?");
   const isMessagingGuestPage = currentPathname.startsWith("/messaging/p/");
-  const useMinimalEmbedLayout = isMessagingGuestPage && (isIframeRequest || isEmbedQuery);
+  /** Trang chat khách: luôn layout tối giản (giống nhúng iframe) — tránh Header/thanh dưới + cuộn kép trên server. */
+  const useMinimalEmbedLayout = isMessagingGuestPage;
 
   const settings = await loadAdminIntegrationsSettings();
   const locale = getCurrentWebLocale()
@@ -354,6 +356,7 @@ export default async function RootLayout({
               <MobileBottomBar />
               <InstallPrompt />
               <PushNotificationPrompt />
+              <SwUpdateReload />
               {shouldRenderGlobalChatWidget ? (
                 <FloatingChatWidget
                   chatUrl={nanoaiChatSrc}

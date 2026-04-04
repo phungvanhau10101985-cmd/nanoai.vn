@@ -64,12 +64,8 @@ export async function generateMetadata(props: { params: Promise<{ slug: string }
   })
 }
 
-export default async function PartnerGuestChatPage(props: {
-  params: Promise<{ slug: string }>
-  searchParams: Promise<{ embed?: string }>
-}) {
+export default async function PartnerGuestChatPage(props: { params: Promise<{ slug: string }> }) {
   const { slug } = await props.params
-  const search = await props.searchParams
   const requestHeaders = headers()
   const isIframeRequest = requestHeaders.get('sec-fetch-dest') === 'iframe'
   if (isReservedMessagingGuestSlug(slug)) notFound()
@@ -92,7 +88,7 @@ export default async function PartnerGuestChatPage(props: {
         slug={slug}
         shopDisplayName={partner.display_name}
         t={t.partnerGuestChat}
-        isEmbedded={isIframeRequest || String(search.embed || '') === '1'}
+        showMyChatsLink={!isIframeRequest}
       />
     </>
   )

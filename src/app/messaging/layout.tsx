@@ -10,10 +10,9 @@ import { listWidgetChatsForLinkedUser } from '@/lib/messaging/list-widget-chats-
 export default async function MessagingLayout({ children }: { children: ReactNode }) {
   const headerStore = headers()
   const pathWithQuery = headerStore.get('x-nanoai-login-next') || ''
-  const [pathname, query = ''] = pathWithQuery.split('?')
-  const search = new URLSearchParams(query)
-  const isIframeRequest = headerStore.get('sec-fetch-dest') === 'iframe'
-  const isEmbeddedGuestChat = pathname.startsWith('/messaging/p/') && (isIframeRequest || search.get('embed') === '1')
+  const [pathname = ''] = pathWithQuery.split('?')
+  /** Khớp root layout: mọi /messaging/p/* = shell chat toàn màn, không sidebar «Tin nhắn». */
+  const isEmbeddedGuestChat = pathname.startsWith('/messaging/p/')
 
   if (isEmbeddedGuestChat) {
     return <div className="h-[100dvh] overflow-hidden bg-background">{children}</div>

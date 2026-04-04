@@ -73,12 +73,13 @@ export function PartnerGuestChatClient({
   slug,
   shopDisplayName,
   t,
-  isEmbedded = false,
+  showMyChatsLink = false,
 }: {
   slug: string
   shopDisplayName: string
   t: T
-  isEmbedded?: boolean
+  /** Mở tab thường (không iframe widget): hiện link tới danh sách tin nhắn. */
+  showMyChatsLink?: boolean
 }) {
   const { toast } = useToast()
   const pathname = usePathname()
@@ -191,12 +192,12 @@ export function PartnerGuestChatClient({
     const el = draftTextareaRef.current
     if (!el) return
     el.style.height = '0px'
-    const minHeight = isEmbedded ? 22 : 28
-    const maxHeight = isEmbedded ? 72 : 220
+    const minHeight = 22
+    const maxHeight = 72
     const next = Math.min(Math.max(el.scrollHeight, minHeight), maxHeight)
     el.style.height = `${next}px`
     el.style.overflowY = el.scrollHeight > maxHeight ? 'auto' : 'hidden'
-  }, [isEmbedded])
+  }, [])
 
   useEffect(() => {
     autoResizeDraft()
@@ -481,31 +482,28 @@ export function PartnerGuestChatClient({
   }
 
   return (
-    <div className={`flex w-full flex-col ${isEmbedded ? 'h-[100dvh] gap-2 overflow-hidden pb-0' : 'gap-5 pb-8'}`}>
-      {!isEmbedded ? (
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          <Button variant="outline" size="sm" asChild className="gap-1.5">
-            <Link href="/messaging/my-chats">
-              <List className="h-4 w-4" aria-hidden />
-              {t.linkMyShops}
-            </Link>
-          </Button>
+    <div className="flex h-[100dvh] w-full flex-col gap-2 overflow-hidden px-2 pb-0 pt-2 sm:mx-auto sm:max-w-lg sm:px-3">
+      <Card className="flex h-full min-h-0 flex-col overflow-hidden border-border shadow-md">
+        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/70 bg-gradient-to-r from-violet-600/8 via-background to-cyan-600/8 px-3 py-2.5">
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-base font-semibold tracking-tight text-foreground">{shopDisplayName}</p>
+            <p className="line-clamp-2 text-[11px] leading-snug text-muted-foreground">{t.subline}</p>
+          </div>
+          {showMyChatsLink ? (
+            <Button variant="outline" size="sm" asChild className="h-8 shrink-0 gap-1 px-2 text-xs">
+              <Link href="/messaging/my-chats">
+                <List className="h-3.5 w-3.5" aria-hidden />
+                {t.linkMyShops}
+              </Link>
+            </Button>
+          ) : null}
         </div>
-      ) : null}
-
-      <Card className={`overflow-hidden border-border shadow-md ${isEmbedded ? 'flex h-full min-h-0 flex-col' : ''}`}>
-        {!isEmbedded ? (
-          <CardHeader className="space-y-1 border-b bg-gradient-to-r from-violet-600/10 via-background to-cyan-600/10 pb-4">
-            <CardTitle className="text-2xl font-bold tracking-tight text-foreground">{shopDisplayName}</CardTitle>
-            <p className="text-sm leading-relaxed text-muted-foreground">{t.subline}</p>
-            <p className="text-[11px] text-muted-foreground/90">{t.pollNote}</p>
-          </CardHeader>
-        ) : null}
-        <CardContent className={`p-0 ${isEmbedded ? 'flex min-h-0 flex-1 flex-col' : ''}`}>
+        <p className="shrink-0 border-b border-border/40 bg-muted/15 px-3 py-1 text-[10px] leading-snug text-muted-foreground">
+          {t.pollNote}
+        </p>
+        <CardContent className="flex min-h-0 flex-1 flex-col p-0">
           <div
-            className={`flex flex-col gap-2 overflow-y-auto bg-muted/20 px-3 ${
-              isEmbedded ? 'min-h-0 flex-1 py-3' : 'max-h-[min(52vh,480px)] min-h-[220px] py-4'
-            }`}
+            className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain bg-muted/20 px-3 py-3"
             role="log"
             aria-live="polite"
             aria-relevant="additions"
@@ -605,7 +603,7 @@ export function PartnerGuestChatClient({
             <div ref={scrollAnchorRef} className="h-px w-full shrink-0" aria-hidden />
           </div>
 
-            <div className={`shrink-0 border-t border-border bg-background ${isEmbedded ? 'space-y-2 p-2' : 'space-y-3 p-4'}`}>
+            <div className="shrink-0 space-y-2 border-t border-border bg-background p-2">
             <input
               ref={galleryInputRef}
               type="file"
@@ -622,63 +620,20 @@ export function PartnerGuestChatClient({
               onChange={onPickCamera}
             />
 
-            <div className={`rounded-xl border-2 border-border bg-background ${isEmbedded ? 'space-y-1.5 p-1.5' : 'space-y-2 p-2.5'}`}>
-              <div className={`flex flex-wrap items-center gap-2 ${isEmbedded ? 'hidden' : ''}`}>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  className={`gap-1.5 ${isEmbedded ? 'h-8 px-2.5 text-xs' : ''}`}
-                  disabled={uploading || sending || tryOnBusy}
-                  onClick={() => setTryOnOpen((v) => !v)}
-                >
-                  {tryOnBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                  {t.tryOnOpen}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className={`gap-1.5 ${isEmbedded ? 'h-8 px-2.5 text-xs' : ''}`}
-                  disabled={uploading || sending}
-                  onClick={() => galleryInputRef.current?.click()}
-                >
-                  {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
-                  {t.guestAttachPhoto}
-                </Button>
-                {showCameraButton ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className={`gap-1.5 ${isEmbedded ? 'h-8 px-2.5 text-xs' : ''}`}
-                    disabled={uploading || sending}
-                    onClick={() => cameraInputRef.current?.click()}
-                  >
-                    <Camera className="h-4 w-4" />
-                    {t.guestTakePhoto}
-                  </Button>
-                ) : null}
-                {uploading ? <span className="text-xs text-muted-foreground">{t.guestUploading}</span> : null}
-              </div>
-
-              {imagePreviewUrl && !isEmbedded ? (
-                <div
-                  className={`relative overflow-hidden rounded-xl border bg-muted/30 ${
-                    isEmbedded ? 'flex items-center gap-2 p-1.5' : 'p-2'
-                  }`}
-                >
+            <div className="space-y-1.5 rounded-xl border-2 border-border bg-background p-1.5">
+              {imagePreviewUrl ? (
+                <div className="flex items-center gap-2 overflow-hidden rounded-xl border bg-muted/30 p-1.5">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={imagePreviewUrl}
                     alt=""
-                    className={isEmbedded ? 'h-12 w-12 rounded-md object-cover' : 'mx-auto max-h-40 rounded-lg object-contain'}
+                    className="h-12 w-12 shrink-0 rounded-md object-cover"
                   />
-                  {isEmbedded ? <p className="line-clamp-1 text-xs text-muted-foreground">{t.tryOnReady}</p> : null}
                   <Button
                     type="button"
                     variant="secondary"
                     size="icon"
-                    className={`${isEmbedded ? 'ml-auto h-7 w-7 rounded-md' : 'absolute right-2 top-2 h-8 w-8 rounded-full shadow-md'}`}
+                    className="ml-auto h-7 w-7 shrink-0 rounded-md"
                     onClick={clearAttachment}
                     disabled={sending || uploading}
                     aria-label={t.guestRemoveAttachment}
@@ -687,22 +642,23 @@ export function PartnerGuestChatClient({
                   </Button>
                 </div>
               ) : null}
+              {imageStoragePath ? <p className="text-[11px] text-muted-foreground">{t.guestCaptionHint}</p> : null}
 
               {tryOnOpen ? (
-                <div className={`space-y-2 rounded-lg border border-border/70 bg-muted/20 ${isEmbedded ? 'p-2' : 'p-3'}`}>
-                  <div className="flex justify-end">
+                <div className="space-y-2 rounded-lg border border-border/70 bg-muted/20 p-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-xs font-medium text-foreground">{t.tryOnTitle}</p>
                     <Button
                       type="button"
                       variant="ghost"
                       size="icon"
-                      className="h-6 w-6"
+                      className="h-6 w-6 shrink-0"
                       onClick={() => setTryOnOpen(false)}
                       aria-label={t.guestRemoveAttachment}
                     >
                       <X className="h-4 w-4" />
                     </Button>
                   </div>
-                  {!isEmbedded ? <p className="text-xs font-medium text-foreground">{t.tryOnTitle}</p> : null}
                   <input
                     ref={tryOnUserInputRef}
                     type="file"
@@ -808,8 +764,6 @@ export function PartnerGuestChatClient({
                 </div>
               ) : null}
 
-              {imageStoragePath ? <p className="text-[11px] text-muted-foreground">{t.guestCaptionHint}</p> : null}
-
               <div className="relative">
                 <Textarea
                   ref={draftTextareaRef}
@@ -818,9 +772,7 @@ export function PartnerGuestChatClient({
                   onInput={autoResizeDraft}
                   placeholder={t.placeholder}
                   rows={1}
-                  className={`resize-none border-0 bg-transparent p-0 text-sm shadow-none focus-visible:ring-0 ${
-                    isEmbedded ? 'pb-8 pr-9 leading-tight' : 'pb-14 pr-28'
-                  }`}
+                  className="resize-none border-0 bg-transparent p-0 pb-8 pr-9 text-sm leading-tight shadow-none focus-visible:ring-0"
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault()
@@ -830,41 +782,54 @@ export function PartnerGuestChatClient({
                 />
                 <Button
                   type="button"
-                  className={`absolute right-0 top-0 ${isEmbedded ? 'h-7 w-7 min-w-0 px-0' : 'min-w-[96px] gap-1.5'}`}
+                  className="absolute right-0 top-0 h-7 w-7 min-w-0 px-0"
                   onClick={() => void send()}
                   disabled={!canSend || sending}
+                  aria-label={t.send}
                 >
                   {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                  {!isEmbedded ? t.send : null}
                 </Button>
-                {isEmbedded ? (
-                  <div className="absolute bottom-0 left-0 flex items-center gap-1">
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      className="h-7 gap-1 px-2 text-xs"
-                      disabled={uploading || sending || tryOnBusy}
-                      onClick={() => setTryOnOpen((v) => !v)}
-                    >
-                      {tryOnBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-                      {t.tryOnOpen}
-                    </Button>
+                <div className="absolute bottom-0 left-0 flex max-w-[calc(100%-2.5rem)] flex-wrap items-center gap-1">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    className="h-7 gap-1 px-2 text-xs"
+                    disabled={uploading || sending || tryOnBusy}
+                    onClick={() => setTryOnOpen((v) => !v)}
+                  >
+                    {tryOnBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                    {t.tryOnOpen}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 gap-1 px-2 text-xs"
+                    disabled={uploading || sending}
+                    onClick={() => galleryInputRef.current?.click()}
+                  >
+                    {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ImagePlus className="h-3.5 w-3.5" />}
+                    {t.guestAttachPhoto}
+                  </Button>
+                  {showCameraButton ? (
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
                       className="h-7 gap-1 px-2 text-xs"
                       disabled={uploading || sending}
-                      onClick={() => galleryInputRef.current?.click()}
+                      onClick={() => cameraInputRef.current?.click()}
                     >
-                      {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ImagePlus className="h-3.5 w-3.5" />}
-                      {t.guestAttachPhoto}
+                      <Camera className="h-3.5 w-3.5" />
+                      {t.guestTakePhoto}
                     </Button>
-                  </div>
+                  ) : null}
+                </div>
+                {uploading ? (
+                  <p className="pt-1 text-[10px] text-muted-foreground">{t.guestUploading}</p>
                 ) : null}
               </div>
-              {!isEmbedded ? <p className="text-[11px] text-muted-foreground">{t.sendKeyboardHint}</p> : null}
             </div>
           </div>
         </CardContent>

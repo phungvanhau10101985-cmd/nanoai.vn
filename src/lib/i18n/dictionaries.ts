@@ -1806,7 +1806,7 @@ const VI_DICTIONARY: Dictionary = {
     inventoryExportExcel: 'Xuất Excel',
     inventoryImportExcel: 'Nhập Excel',
     inventoryImportReplaceWarning:
-      'Nhập Excel: trùng Mã SKU (không phân biệt hoa thường) với kho thì cập nhật, chưa có thì thêm mới. Không có SKU thì khớp theo tên với hàng trong kho cũng không SKU (nhiều dòng trùng tên: ưu tiên cùng Thứ tự). Hàng đang có mà không nằm trong file vẫn giữ nguyên. Tiếp tục?',
+      'Nhập Excel: trùng Mã SKU (không phân biệt hoa thường) với kho thì cập nhật, chưa có thì thêm mới. Không có SKU thì khớp theo tên với hàng trong kho cũng không SKU (nhiều dòng trùng tên: ưu tiên dòng đầu trùng trong kho). Thứ tự hiển thị gán theo thứ tự dòng trong file nếu file không có cột Thứ tự. Hàng đang có mà không nằm trong file vẫn giữ nguyên. Tiếp tục?',
     inventoryImportSuccess: 'Đã xử lý {count} dòng: thêm {inserted}, cập nhật {updated}.',
     inventoryImportFailed: 'Không nhập được từ Excel.',
     inventoryErrInvalidXlsx: 'File không đúng định dạng Excel (.xlsx).',
@@ -3237,7 +3237,7 @@ const EN_DICTIONARY: Dictionary = {
     inventoryExportExcel: 'Export Excel',
     inventoryImportExcel: 'Import Excel',
     inventoryImportReplaceWarning:
-      'Excel import: rows matching an existing SKU (case-insensitive) are updated; otherwise inserted. Without a SKU, rows match by name to existing rows that also have no SKU (if several match, sort order is used). Items already in stock that are not in the file stay unchanged. Continue?',
+      'Excel import: rows matching an existing SKU (case-insensitive) are updated; otherwise inserted. Without a SKU, rows match by name to existing rows that also have no SKU (if several match, the first matching row is used). Display order follows row order in the file unless a Sort order column is present. Items already in stock that are not in the file stay unchanged. Continue?',
     inventoryImportSuccess: 'Processed {count} row(s): {inserted} added, {updated} updated.',
     inventoryImportFailed: 'Excel import failed.',
     inventoryErrInvalidXlsx: 'Invalid Excel file (.xlsx).',
@@ -4666,7 +4666,7 @@ const ZH_DICTIONARY: Dictionary = {
     inventoryExportExcel: '导出 Excel',
     inventoryImportExcel: '导入 Excel',
     inventoryImportReplaceWarning:
-      '导入 Excel：与现有 SKU（不区分大小写）匹配则更新，否则新增。无 SKU 时按名称与同样无 SKU 的库存行匹配（多条同名时参考排序）。未出现在文件中的现有商品将保留。是否继续？',
+      '导入 Excel：与现有 SKU（不区分大小写）匹配则更新，否则新增。无 SKU 时按名称与同样无 SKU 的库存行匹配（多条同名时取库存中第一条匹配）。若无“排序”列，显示顺序按文件中的行顺序。未出现在文件中的现有商品将保留。是否继续？',
     inventoryImportSuccess: '已处理 {count} 行：新增 {inserted}，更新 {updated}。',
     inventoryImportFailed: 'Excel 导入失败。',
     inventoryErrInvalidXlsx: '不是有效的 Excel 文件（.xlsx）。',
@@ -6051,7 +6051,7 @@ const JA_DICTIONARY: Dictionary = {
     inventoryExportExcel: 'Excelに出力',
     inventoryImportExcel: 'Excelから取込',
     inventoryImportReplaceWarning:
-      'Excel取込：既存の SKU（大文字小文字無視）と一致すれば更新、なければ新規追加。SKU がない行は、SKU なしの既存行と商品名で照合（複数ある場合は並び順）。ファイルに無い既存商品はそのまま残ります。続行しますか？',
+      'Excel取込：既存の SKU（大文字小文字無視）と一致すれば更新、なければ新規追加。SKU がない行は、SKU なしの既存行と商品名で照合（複数ある場合は在庫の先頭一致を使用）。「並び順」列がなければ表示順はファイルの行順です。ファイルに無い既存商品はそのまま残ります。続行しますか？',
     inventoryImportSuccess: '{count} 行を処理：新規 {inserted}、更新 {updated}。',
     inventoryImportFailed: 'Excelの取込に失敗しました。',
     inventoryErrInvalidXlsx: 'Excel（.xlsx）として読み取れません。',
@@ -7467,7 +7467,7 @@ const KO_DICTIONARY: Dictionary = {
     inventoryExportExcel: 'Excel보내기',
     inventoryImportExcel: 'Excel 가져오기',
     inventoryImportReplaceWarning:
-      'Excel 가져오기: 기존 SKU와 일치(대소문자 무시)하면 업데이트, 없으면 추가. SKU가 없으면 SKU 없는 기존 행과 상품명으로 매칭(여러 개면 정렬 순서 사용). 파일에 없는 기존 상품은 유지됩니다. 계속할까요?',
+      'Excel 가져오기: 기존 SKU와 일치(대소문자 무시)하면 업데이트, 없으면 추가. SKU가 없으면 SKU 없는 기존 행과 상품명으로 매칭(여러 개면 재고에서 먼저 맞는 행). «정렬» 열이 없으면 표시 순서는 파일 행 순서입니다. 파일에 없는 기존 상품은 유지됩니다. 계속할까요?',
     inventoryImportSuccess: '{count}행 처리: 추가 {inserted}, 업데이트 {updated}.',
     inventoryImportFailed: 'Excel 가져오기에 실패했습니다.',
     inventoryErrInvalidXlsx: '올바른 Excel(.xlsx) 파일이 아닙니다.',

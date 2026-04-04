@@ -115,6 +115,8 @@ const withPWA = withPWAInit({
     disable: process.env.NODE_ENV === 'development',
     register: true,
     skipWaiting: true,
+    /** Tránh precache `/` — mỗi build mới vẫn có thể phục vụ shell HTML cũ từ precache. */
+    cacheStartUrl: false,
     workboxOptions: {
         importScripts: ['/push-sw.js'],
     },

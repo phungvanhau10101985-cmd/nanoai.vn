@@ -4,9 +4,9 @@ import type { Database } from '@/types/database.types'
 export type InventoryRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
 
 /** Khóa nội bộ / tiêu đề tiếng Anh — vẫn nhận khi import (thứ tự cột file mẫu/export: SKU trước). */
+/** Tiêu đề cột chuẩn (ASCII) — dùng khi import có header tiếng Anh. Không gồm sort_order (gán tự động khi import). */
 export const INVENTORY_EXCEL_HEADERS = [
   'sku',
-  'sort_order',
   'name',
   'description',
   'stock_note',
@@ -17,10 +17,9 @@ export const INVENTORY_EXCEL_HEADERS = [
   'is_active',
 ] as const
 
-/** Dòng tiêu đề file mẫu & export (tiếng Việt); cột 1 = Mã SKU. */
+/** Dòng tiêu đề file mẫu & export (tiếng Việt); cột 1 = Mã SKU. Không có cột Thứ tự — thứ tự gán theo dòng khi nhập. */
 export const INVENTORY_EXCEL_HEADER_LABELS_VI = [
   'Mã SKU',
-  'Thứ tự',
   'Tên sản phẩm',
   'Mô tả',
   'Ghi chú tồn kho',
@@ -147,7 +146,6 @@ export function buildInventoryExportBuffer(rows: InventoryRow[]): Buffer {
   for (const r of rows) {
     aoa.push([
       r.sku ?? '',
-      r.sort_order,
       r.name,
       r.description ?? '',
       r.stock_note ?? '',
@@ -196,9 +194,14 @@ export function parseInventoryWorkbook(buffer: Buffer): { ok: true; rows: Invent
     const name = get('name').trim()
     if (!name) continue
 
-    const sortRaw = get('sort_order')
-    let sort_order = parseInt(sortRaw, 10)
-    if (!Number.isFinite(sort_order)) sort_order = 100 + out.length
+    let sort_order: number
+    if (colIndex.sort_order !== undefined) {
+      const sortRaw = get('sort_order')
+      const parsed = parseInt(sortRaw, 10)
+      sort_order = Number.isFinite(parsed) ? parsed : 100 + out.length
+    } else {
+      sort_order = 100 + out.length
+    }
 
     const sku = get('sku').trim() || null
     const description = get('description')
