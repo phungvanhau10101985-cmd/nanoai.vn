@@ -79,13 +79,13 @@ export function FloatingChatWidget({
           </Button>
         </div>
       </div>
-      <div className="h-[calc(100%-49px)] p-1.5">
+      <div className="h-[calc(100%-49px)] overflow-hidden rounded-b-xl">
         <iframe
           src={chatUrl}
           title={title}
           loading={loading}
           referrerPolicy={referrerPolicy}
-          className="h-full w-full rounded-lg border-0"
+          className="h-full w-full border-0"
         />
       </div>
     </div>
