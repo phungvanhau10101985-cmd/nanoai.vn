@@ -71,6 +71,8 @@ export async function handlePartnerInboundForAi(
     messageId: string
     inboundBody: string
     channel: CustomerCareChannel
+    /** Giới hạn reply_delay (giây) — ví dụ khi Vision không có ứng viên, AI chạy sớm hơn. */
+    capReplyDelaySeconds?: number
   }
 ): Promise<PartnerInboundShopTypingHint> {
   if (input.channel === 'internal') return { show: false }
@@ -98,7 +100,11 @@ export async function handlePartnerInboundForAi(
     }
 
     await cancelPendingAiJobsForConversation(input.conversationId)
-    const delaySec = Math.max(15, Math.min(900, settings.reply_delay_seconds ?? 60))
+    const configuredDelay = Math.max(15, Math.min(900, settings.reply_delay_seconds ?? 60))
+    const visionFastFallback = input.capReplyDelaySeconds !== undefined
+    const delaySec = visionFastFallback
+      ? Math.min(configuredDelay, Math.max(0, input.capReplyDelaySeconds ?? 0))
+      : configuredDelay
     const runAt = new Date(Date.now() + delaySec * 1000).toISOString()
     const { error } = await db.from('messaging_partner_ai_jobs').insert({
       partner_id: input.partnerId,
@@ -110,6 +116,17 @@ export async function handlePartnerInboundForAi(
     if (error) {
       console.error('[partner-ai] schedule job', error.message)
       return { show: false }
+    }
+
+    /**
+     * Luôn thử xử lý job đã đến hạn ngay trong request này. Nếu chỉ dựa cron / INLINE_WAKE mà server
+     * không cấu hình, khách sẽ không bao giờ nhận tin. Job có run_at trong tương lai không bị pick
+     * (một vòng query rẻ); job delay 0 (fallback Vision) hoặc run_at đã qua sẽ chạy LLM tại đây.
+     */
+    try {
+      await runMessagingPartnerAiJobBatch(db, 15)
+    } catch (e) {
+      console.error('[partner-ai] eager batch after schedule', e)
     }
 
     /**
@@ -134,8 +151,12 @@ export async function handlePartnerInboundForAi(
       }, ms)
     }
 
-    /** Poll nhanh trên khách: đủ dài để bao phủ thời gian chờ + LLM; trần để tránh treo poll vô hạn. */
-    const maxWaitMs = Math.min(Math.max(delaySec * 1000 + 35_000, 60_000), 6 * 60 * 1000)
+    /**
+     * Poll phía khách: với fallback Vision (delay ~0) không giữ sàn 60s — vẫn đủ chỗ cho LLM.
+     */
+    const maxWaitMs = visionFastFallback
+      ? Math.min(Math.max(delaySec * 1000 + 52_000, 72_000), 4 * 60 * 1000)
+      : Math.min(Math.max(delaySec * 1000 + 35_000, 60_000), 6 * 60 * 1000)
     return { show: true, maxWaitMs }
   } catch (e) {
     console.error('[partner-ai] inbound hook', e)

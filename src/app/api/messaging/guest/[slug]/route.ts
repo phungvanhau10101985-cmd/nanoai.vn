@@ -6,7 +6,8 @@ import { isReservedMessagingGuestSlug } from '@/lib/messaging/reserved-guest-slu
 import { postWidgetGuestMessage } from '@/lib/messaging/widget-guest-post'
 
 export const dynamic = 'force-dynamic'
-export const maxDuration = 60
+/** LLM + typing delay có thể kéo dài khi job AI chạy ngay sau POST (không chờ cron). */
+export const maxDuration = 120
 
 async function resolvePartner(slug: string) {
   if (isReservedMessagingGuestSlug(slug)) {

@@ -4,7 +4,7 @@ import { postWidgetGuestMessage } from '@/lib/messaging/widget-guest-post'
 import { isValidMessagingGuestSessionId } from '@/lib/messaging/guest-session-id'
 
 export const dynamic = 'force-dynamic'
-export const maxDuration = 60
+export const maxDuration = 120
 
 function cors(res: NextResponse) {
   res.headers.set('Access-Control-Allow-Origin', '*')

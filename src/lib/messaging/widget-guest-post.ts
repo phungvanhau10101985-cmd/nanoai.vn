@@ -11,10 +11,15 @@ import {
   mimeFromGuestImagePath,
   GUEST_CHAT_IMAGE_BUCKET,
 } from '@/lib/messaging/guest-chat-image'
+import type { VisionSearchCandidate } from '@/lib/messaging/partner-vision-product-search'
 import {
   buildInventoryMapByVisionProductId,
   visionProductSearchFromImageBuffer,
 } from '@/lib/messaging/partner-vision-product-search'
+import {
+  VISION_MISS_AI_REPLY_DELAY_CAP_SECONDS,
+  VISION_SEARCH_REQUEST_TIMEOUT_MS,
+} from '@/lib/messaging/partner-vision-constants'
 import { hasVisionConfig } from '@/lib/vision-api'
 
 type Db = SupabaseClient<Database>
@@ -88,6 +93,8 @@ export async function postWidgetGuestMessage(
   const newMessageId = 'messageId' in ins ? ins.messageId : null
   let shopTyping: { maxWaitMs: number } | undefined
   let visionPickRequired = false
+  /** Chỉ set khi đã chạy Vision và không có ứng viên — hẹn AI sớm hơn. */
+  let capReplyDelaySeconds: number | undefined
 
   if (newMessageId && imagePath && hasVisionConfig()) {
     const { data: aiSet } = await db
@@ -105,13 +112,22 @@ export async function postWidgetGuestMessage(
             .select('*')
             .eq('partner_id', params.partnerId)
           const map = buildInventoryMapByVisionProductId(invRows ?? [], params.partnerId)
-          const { candidates, error: se } = await visionProductSearchFromImageBuffer(
+          const visionPromise = visionProductSearchFromImageBuffer(
             buf,
             aiSet,
             params.partnerId,
             map,
             { userId: params.linkedUserId ?? null }
           )
+          type VisionRace = { candidates: VisionSearchCandidate[]; error?: string }
+          const timeoutPromise = new Promise<VisionRace>((resolve) =>
+            setTimeout(
+              () => resolve({ candidates: [], error: 'VISION_SEARCH_TIMEOUT' }),
+              VISION_SEARCH_REQUEST_TIMEOUT_MS
+            )
+          )
+          const { candidates, error: se } = await Promise.race([visionPromise, timeoutPromise])
+          const publicSe = se === 'VISION_SEARCH_TIMEOUT' ? undefined : se
           const prev = (rawPayload && typeof rawPayload === 'object' ? rawPayload : {}) as Record<string, unknown>
           const merged: Json = {
             ...prev,
@@ -122,12 +138,13 @@ export async function postWidgetGuestMessage(
                   vision_search_error: undefined,
                 }
               : {
-                  vision_search_error: se ?? undefined,
-                  ...(se ? {} : { vision_catalog_no_hits: true }),
+                  vision_search_error: publicSe ?? undefined,
+                  ...(publicSe ? {} : { vision_catalog_no_hits: true }),
                 }),
           } as Json
           await db.from('customer_care_messages').update({ raw_payload: merged }).eq('id', newMessageId)
           if (candidates.length > 0) visionPickRequired = true
+          else capReplyDelaySeconds = VISION_MISS_AI_REPLY_DELAY_CAP_SECONDS
         }
       } catch (e) {
         console.error('[messaging] vision product search (guest)', e)
@@ -142,6 +159,7 @@ export async function postWidgetGuestMessage(
       messageId: newMessageId,
       inboundBody: inboundTextForPartnerAi(body, imagePublicUrl),
       channel: 'widget',
+      ...(capReplyDelaySeconds !== undefined ? { capReplyDelaySeconds } : {}),
     })
     if (hint.show) shopTyping = { maxWaitMs: hint.maxWaitMs }
   }

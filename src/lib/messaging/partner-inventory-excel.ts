@@ -100,8 +100,10 @@ function resolveCanonicalKey(headerCell: string): string | null {
 }
 
 export function validateInventoryImageUrl(raw: string): string {
-  const u = raw.trim()
+  let u = raw.trim()
   if (!u || u.length > 2048) return ''
+  /** CDN (vd. Taobao/1688) hay dùng //domain/path — chuẩn hoá thành https để parse & lưu ổn định. */
+  if (u.startsWith('//')) u = `https:${u}`
   try {
     const parsed = new URL(u)
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return ''
@@ -124,14 +126,14 @@ function cellStr(val: unknown): string {
 
 export function buildInventoryTemplateBuffer(): Buffer {
   const header = [...INVENTORY_EXCEL_HEADER_LABELS_VI]
+  /** Mỗi ô khớp đúng một cột tiêu đề (8 cột); không chèn thêm cột ẩn (vd. số 100) kẻo lệch cả file. */
   const example = [
     'AT-001',
-    100,
     'Ví dụ: Áo thun cotton',
     'Size M–XL, màu đen/trắng',
     'Còn đủ size',
     '199000',
-    'https://',
+    'https://cdn.example.com/images/ao-thun-mau.jpg',
     'https://shop.example.com/san-pham/ao-thun',
     'Bảo hành đổi size trong 7 ngày',
   ]

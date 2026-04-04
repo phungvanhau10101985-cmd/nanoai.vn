@@ -1441,6 +1441,35 @@ function downloadBlob(blob: Blob, filename: string) {
   URL.revokeObjectURL(url)
 }
 
+/** POST multipart với tiến trình upload (fetch không hỗ trợ upload progress). */
+function postInventoryExcelImport(
+  url: string,
+  formData: FormData,
+  onProgress: (info: { percent: number | null }) => void
+): Promise<{ ok: boolean; status: number; text: string }> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    xhr.open('POST', url)
+    xhr.withCredentials = true
+    xhr.upload.onprogress = (ev) => {
+      if (ev.lengthComputable && ev.total > 0) {
+        onProgress({ percent: Math.min(100, Math.round((100 * ev.loaded) / ev.total)) })
+      } else {
+        onProgress({ percent: null })
+      }
+    }
+    xhr.onload = () => {
+      resolve({
+        ok: xhr.status >= 200 && xhr.status < 300,
+        status: xhr.status,
+        text: xhr.responseText ?? '',
+      })
+    }
+    xhr.onerror = () => reject(new Error('network'))
+    xhr.send(formData)
+  })
+}
+
 function mapInventoryImportError(code: string | undefined, t: AiT): string {
   switch (code) {
     case 'INVALID_XLSX':
@@ -1482,6 +1511,8 @@ function InventoryEditor({
 }) {
   const importInputRef = useRef<HTMLInputElement>(null)
   const [excelBusy, setExcelBusy] = useState(false)
+  /** Chỉ khi nhập Excel: % hoặc null = không xác định (thanh pulse) */
+  const [excelImportProgress, setExcelImportProgress] = useState<{ percent: number | null } | null>(null)
 
   const [draft, setDraft] = useState({
     id: null as string | null,
@@ -1613,22 +1644,26 @@ function InventoryEditor({
     if (!file) return
     if (!window.confirm(t.inventoryImportReplaceWarning)) return
     setExcelBusy(true)
+    setExcelImportProgress({ percent: 0 })
     try {
       const fd = new FormData()
       fd.set('file', file)
-      const res = await fetch(`/api/messaging/partners/${encodeURIComponent(partnerId)}/inventory/import`, {
-        method: 'POST',
-        body: fd,
-        credentials: 'same-origin',
-      })
-      const data = (await res.json()) as {
+      const url = `/api/messaging/partners/${encodeURIComponent(partnerId)}/inventory/import`
+      const { ok, text } = await postInventoryExcelImport(url, fd, setExcelImportProgress)
+      setExcelImportProgress({ percent: 100 })
+      let data: {
         ok?: boolean
         count?: number
         inserted?: number
         updated?: number
         error?: string
+      } = {}
+      try {
+        data = JSON.parse(text) as typeof data
+      } catch {
+        data = {}
       }
-      if (!res.ok) {
+      if (!ok) {
         toast({
           title: mapInventoryImportError(data.error, t),
           variant: 'destructive',
@@ -1647,6 +1682,7 @@ function InventoryEditor({
       toast({ title: t.inventoryImportFailed, variant: 'destructive' })
     } finally {
       setExcelBusy(false)
+      setExcelImportProgress(null)
     }
   }
 
@@ -1672,7 +1708,7 @@ function InventoryEditor({
           disabled={excelBusy || pending}
           onClick={() => void exportExcel()}
         >
-          <Download className="h-3.5 w-3.5 shrink-0" aria-hidden />
+          <Upload className="h-3.5 w-3.5 shrink-0" aria-hidden />
           {t.inventoryExportExcel}
         </Button>
         <Button
@@ -1683,7 +1719,7 @@ function InventoryEditor({
           disabled={excelBusy || pending}
           onClick={onPickImport}
         >
-          <Upload className="h-3.5 w-3.5 shrink-0" aria-hidden />
+          <Download className="h-3.5 w-3.5 shrink-0" aria-hidden />
           {t.inventoryImportExcel}
         </Button>
         <input
@@ -1694,6 +1730,35 @@ function InventoryEditor({
           onChange={(ev) => void onImportFile(ev)}
         />
       </div>
+      {excelImportProgress ? (
+        <div
+          className="rounded-lg border border-border/80 bg-muted/30 px-3 py-2.5"
+          role="status"
+          aria-live="polite"
+          aria-busy="true"
+        >
+          <div className="mb-2 flex items-center justify-between gap-2 text-xs text-muted-foreground">
+            <span>
+              {excelImportProgress.percent === null
+                ? t.inventoryExcelImportSending
+                : t.inventoryExcelImportUploading}
+            </span>
+            {excelImportProgress.percent != null ? (
+              <span className="tabular-nums font-medium text-foreground">{excelImportProgress.percent}%</span>
+            ) : null}
+          </div>
+          <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+            {excelImportProgress.percent != null ? (
+              <div
+                className="h-full rounded-full bg-primary transition-[width] duration-200 ease-out"
+                style={{ width: `${excelImportProgress.percent}%` }}
+              />
+            ) : (
+              <div className="h-full w-full animate-pulse rounded-full bg-primary/70" />
+            )}
+          </div>
+        </div>
+      ) : null}
       <p className="text-[11px] leading-relaxed text-muted-foreground">
         {t.inventoryOpenApiHint}{' '}
         <Link
@@ -1709,14 +1774,21 @@ function InventoryEditor({
           <li key={r.id} className="rounded-lg border bg-card p-3 text-sm shadow-sm">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div className="flex min-w-0 gap-2">
-                {r.image_url?.trim() && /^https?:\/\//i.test(r.image_url.trim()) ? (
+                {(() => {
+                  const iu = r.image_url?.trim() ?? ''
+                  const show =
+                    iu &&
+                    (/^https?:\/\//i.test(iu) || iu.startsWith('//'))
+                  const src = iu.startsWith('//') ? `https:${iu}` : iu
+                  return show ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
-                    src={r.image_url.trim()}
+                    src={src}
                     alt=""
                     className="h-14 w-14 shrink-0 rounded-md border object-cover"
                   />
-                ) : null}
+                  ) : null
+                })()}
                 <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-medium">{r.name}</span>

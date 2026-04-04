@@ -22,6 +22,7 @@ import {
   mimeFromGuestImagePath,
   partnerMediaPayloadToJson,
 } from '@/lib/messaging/guest-chat-image'
+import { validateInventoryImageUrl } from '@/lib/messaging/partner-inventory-excel'
 import { parseTriggerKeywords } from '@/lib/messaging/partner-ai-faq'
 import {
   isPartnerFaqPresetKey,
@@ -767,18 +768,6 @@ export async function deletePartnerFaq(partnerId: string, faqId: string) {
   return { ok: true as const }
 }
 
-function normalizePartnerInventoryImageUrl(raw: string): string {
-  const u = raw.trim()
-  if (!u || u.length > 2048) return ''
-  try {
-    const parsed = new URL(u)
-    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return ''
-    return u
-  } catch {
-    return ''
-  }
-}
-
 export async function upsertPartnerInventoryItem(
   partnerId: string,
   itemId: string | null,
@@ -801,8 +790,8 @@ export async function upsertPartnerInventoryItem(
   if ('error' in gate) return { error: gate.error }
   const now = new Date().toISOString()
   const sku = fields.sku.trim() || null
-  const imageUrl = normalizePartnerInventoryImageUrl(fields.image_url ?? '')
-  const productUrl = normalizePartnerInventoryImageUrl(fields.product_url ?? '')
+  const imageUrl = validateInventoryImageUrl(fields.image_url ?? '')
+  const productUrl = validateInventoryImageUrl(fields.product_url ?? '')
   const consult = (fields.consult_note ?? '').trim().slice(0, 2000)
   if (itemId) {
     const { error } = await supabase

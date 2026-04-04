@@ -133,3 +133,12 @@ export function isVisionProductSearchMaintenanceError(message: string): boolean 
     m.includes('sunset')
   )
 }
+
+/** Timeout một lần gọi Vision search trong request widget (tránh treo HTTP). */
+export const VISION_SEARCH_REQUEST_TIMEOUT_MS = 12_000
+
+/**
+ * Khi Vision không có ứng viên: hẹn job AI ngay (0s) — fallback giống tin chỉ chữ,
+ * không chờ reply_delay shop. Cron/INLINE_WAKE vẫn quyết định thời điểm chạy thực tế.
+ */
+export const VISION_MISS_AI_REPLY_DELAY_CAP_SECONDS = 0
