@@ -444,6 +444,16 @@ export type PartnerVisionCatalogStats = {
   noHttpsImageUrl: number
 }
 
+export type PartnerVisionSyncHealth = {
+  lockBusy: boolean
+  lockBusyAt: string | null
+  lockAgeSec: number | null
+  pendingCount: number
+  checksumDoneCount: number
+  syncableCount: number
+  lastProgressAt: string | null
+}
+
 function buildPartnerVisionCatalogStats(
   rows: Database['public']['Tables']['messaging_partner_inventory']['Row'][]
 ): PartnerVisionCatalogStats {
@@ -480,6 +490,44 @@ function buildPartnerVisionCatalogStats(
   }
 }
 
+function buildPartnerVisionSyncHealth(
+  rows: Database['public']['Tables']['messaging_partner_inventory']['Row'][],
+  runner: {
+    assets_import_busy?: boolean | null
+    assets_import_busy_at?: string | null
+  } | null
+): PartnerVisionSyncHealth {
+  let syncable = 0
+  let done = 0
+  let lastProgressAt: string | null = null
+
+  for (const row of rows) {
+    if (row.vision_catalog_excluded) continue
+    if (!isVisionCatalogImageUrlSyncable(row.image_url)) continue
+    syncable += 1
+    if (row.vision_catalog_checksum) {
+      done += 1
+      const at = row.vision_catalog_synced_at ?? null
+      if (at && (!lastProgressAt || at > lastProgressAt)) lastProgressAt = at
+    }
+  }
+
+  const lockBusy = Boolean(runner?.assets_import_busy)
+  const lockBusyAt = runner?.assets_import_busy_at ?? null
+  const lockAgeSec =
+    lockBusy && lockBusyAt ? Math.max(0, Math.floor((Date.now() - Date.parse(lockBusyAt)) / 1000)) : null
+
+  return {
+    lockBusy,
+    lockBusyAt,
+    lockAgeSec: Number.isFinite(lockAgeSec ?? NaN) ? lockAgeSec : null,
+    pendingCount: Math.max(0, syncable - done),
+    checksumDoneCount: done,
+    syncableCount: syncable,
+    lastProgressAt,
+  }
+}
+
 export async function getPartnerAiBundle(partnerId: string) {
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
@@ -501,12 +549,18 @@ export async function getPartnerAiBundle(partnerId: string) {
     .select('*')
     .eq('partner_id', partnerId)
     .order('sort_order', { ascending: true })
+  const { data: runner } = await supabase
+    .from('vision_warehouse_runner')
+    .select('assets_import_busy, assets_import_busy_at')
+    .eq('id', 1)
+    .maybeSingle()
   const inv = inventory ?? []
   return {
     settings: toPartnerAiSettingsClient(settings ?? null),
     faqs: faqs ?? [],
     inventory: inv,
     visionCatalogStats: buildPartnerVisionCatalogStats(inv),
+    visionSyncHealth: buildPartnerVisionSyncHealth(inv, runner ?? null),
   }
 }
 

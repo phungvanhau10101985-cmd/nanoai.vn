@@ -534,6 +534,18 @@ export type Dictionary = {
     visionBgSyncMsgCompleted: string
     visionBgSyncMsgInProgress: string
     visionBgSyncMsgBadCursor: string
+    visionHealthPanelTitle: string
+    visionHealthStatusHealthy: string
+    visionHealthStatusWarning: string
+    visionHealthStatusStuck: string
+    visionHealthStatusIdle: string
+    visionHealthPendingCount: string
+    visionHealthChecksumDone: string
+    visionHealthLockAge: string
+    visionHealthLockBusy: string
+    visionHealthLockFree: string
+    visionHealthLastProgress: string
+    visionHealthLastProgressNone: string
     /** Xóa dòng kho → tự gỡ Vision (thay cho file danh sách gỡ) */
     visionInventoryDeleteRemovesIndexNote: string
     imageSearchApiTitle: string
@@ -2004,6 +2016,18 @@ const VI_DICTIONARY: Dictionary = {
     visionBgSyncMsgCompleted: 'Đã đồng bộ xong catalog.',
     visionBgSyncMsgInProgress: 'Đang chạy — lượt cron sau sẽ tiếp tục.',
     visionBgSyncMsgBadCursor: 'Đã dừng: dữ liệu cursor từ máy chủ không nhất quán.',
+    visionHealthPanelTitle: 'Health đồng bộ Vision',
+    visionHealthStatusHealthy: 'Xanh',
+    visionHealthStatusWarning: 'Vàng',
+    visionHealthStatusStuck: 'Đỏ (kẹt)',
+    visionHealthStatusIdle: 'Chưa có dữ liệu',
+    visionHealthPendingCount: 'Pending cần xử lý: {n}',
+    visionHealthChecksumDone: 'Checksum done: {done}/{total}',
+    visionHealthLockAge: 'Tuổi lock',
+    visionHealthLockBusy: 'Đang bị giữ ({sec}s)',
+    visionHealthLockFree: 'Đang rảnh',
+    visionHealthLastProgress: 'Tiến triển gần nhất',
+    visionHealthLastProgressNone: 'Chưa có',
     visionInventoryDeleteRemovesIndexNote:
       'Xóa mặt hàng trong tab «Hàng trong kho» (nút xóa từng dòng) sẽ tự gỡ sản phẩm đó khỏi Google Vision — không cần tải file danh sách gỡ.',
     imageSearchApiTitle: 'API tìm sản phẩm bằng ảnh (cho website shop)',
@@ -3474,6 +3498,18 @@ const EN_DICTIONARY: Dictionary = {
     visionBgSyncMsgCompleted: 'Catalog sync finished.',
     visionBgSyncMsgInProgress: 'In progress — the next cron run will continue.',
     visionBgSyncMsgBadCursor: 'Stopped: inconsistent cursor from server.',
+    visionHealthPanelTitle: 'Vision sync health',
+    visionHealthStatusHealthy: 'Green',
+    visionHealthStatusWarning: 'Yellow',
+    visionHealthStatusStuck: 'Red (stuck)',
+    visionHealthStatusIdle: 'No data yet',
+    visionHealthPendingCount: 'Pending items: {n}',
+    visionHealthChecksumDone: 'Checksum done: {done}/{total}',
+    visionHealthLockAge: 'Lock age',
+    visionHealthLockBusy: 'Busy ({sec}s)',
+    visionHealthLockFree: 'Free',
+    visionHealthLastProgress: 'Last progress',
+    visionHealthLastProgressNone: 'None',
     visionInventoryDeleteRemovesIndexNote:
       'Deleting a row in the Inventory tab removes that product from Google Vision automatically — no purge list upload.',
     imageSearchApiTitle: 'Image product search API (for your shop website)',
@@ -4936,6 +4972,18 @@ const ZH_DICTIONARY: Dictionary = {
     visionBgSyncMsgCompleted: '目录同步已完成。',
     visionBgSyncMsgInProgress: '进行中 — 下次定时任务将继续。',
     visionBgSyncMsgBadCursor: '已停止：服务器返回的游标不一致。',
+    visionHealthPanelTitle: 'Vision 同步健康状态',
+    visionHealthStatusHealthy: '绿色',
+    visionHealthStatusWarning: '黄色',
+    visionHealthStatusStuck: '红色（卡住）',
+    visionHealthStatusIdle: '暂无数据',
+    visionHealthPendingCount: '待处理数量：{n}',
+    visionHealthChecksumDone: '校验和完成：{done}/{total}',
+    visionHealthLockAge: '锁持续时间',
+    visionHealthLockBusy: '占用中（{sec}秒）',
+    visionHealthLockFree: '空闲',
+    visionHealthLastProgress: '最近进展',
+    visionHealthLastProgressNone: '暂无',
     visionInventoryDeleteRemovesIndexNote:
       '在「库存」标签删除某一行后，系统会自动从 Google 图片索引移除该商品 — 无需上传移除清单。',
     imageSearchApiTitle: '以图搜商品 API（供店铺网站调用）',
@@ -6363,6 +6411,18 @@ const JA_DICTIONARY: Dictionary = {
     visionBgSyncMsgCompleted: 'カタログ同期が完了しました。',
     visionBgSyncMsgInProgress: '処理中 — 次の cron が継続します。',
     visionBgSyncMsgBadCursor: '停止: サーバーのカーソルが不整合です。',
+    visionHealthPanelTitle: 'Vision 同期ヘルス',
+    visionHealthStatusHealthy: '緑',
+    visionHealthStatusWarning: '黄',
+    visionHealthStatusStuck: '赤（スタック）',
+    visionHealthStatusIdle: 'データなし',
+    visionHealthPendingCount: '未処理件数: {n}',
+    visionHealthChecksumDone: 'チェックサム完了: {done}/{total}',
+    visionHealthLockAge: 'ロック経過',
+    visionHealthLockBusy: '使用中（{sec}秒）',
+    visionHealthLockFree: '空き',
+    visionHealthLastProgress: '最終進捗',
+    visionHealthLastProgressNone: 'なし',
     visionInventoryDeleteRemovesIndexNote:
       '「在庫」タブで行を削除すると、Google Vision の画像インデックスからも自動で削除されます — リストアップロードは不要です。',
     imageSearchApiTitle: '画像で商品検索 API（店舗サイト向け）',
@@ -7817,6 +7877,18 @@ const KO_DICTIONARY: Dictionary = {
     visionBgSyncMsgCompleted: '카탈로그 동기화가 끝났습니다.',
     visionBgSyncMsgInProgress: '진행 중 — 다음 cron이 이어갑니다.',
     visionBgSyncMsgBadCursor: '중지: 서버 커서가 일치하지 않습니다.',
+    visionHealthPanelTitle: 'Vision 동기화 상태',
+    visionHealthStatusHealthy: '초록',
+    visionHealthStatusWarning: '노랑',
+    visionHealthStatusStuck: '빨강(멈춤)',
+    visionHealthStatusIdle: '데이터 없음',
+    visionHealthPendingCount: '대기 항목: {n}',
+    visionHealthChecksumDone: '체크섬 완료: {done}/{total}',
+    visionHealthLockAge: '락 경과',
+    visionHealthLockBusy: '점유 중({sec}초)',
+    visionHealthLockFree: '유휴',
+    visionHealthLastProgress: '최근 진행',
+    visionHealthLastProgressNone: '없음',
     visionInventoryDeleteRemovesIndexNote:
       '«재고» 탭에서 행을 삭제하면 Google Vision 이미지 색인에서도 자동으로 제거됩니다 — 제거용 목록 파일을 올릴 필요가 없습니다.',
     imageSearchApiTitle: '이미지로 상품 검색 API(매장 웹사이트용)',

@@ -18,6 +18,7 @@ import type {
   PartnerAiSettingsPayload,
   PartnerAiTokenUsageStatRow,
   PartnerVisionCatalogStats,
+  PartnerVisionSyncHealth,
 } from '@/app/dashboard/messaging/actions'
 import {
   cancelVisionCatalogBackgroundSync,
@@ -279,6 +280,7 @@ export function PartnerAiSettingsPanel({
   const [faqs, setFaqs] = useState<FaqRow[]>([])
   const [inventory, setInventory] = useState<InvRow[]>([])
   const [visionCatalogStats, setVisionCatalogStats] = useState<PartnerVisionCatalogStats | null>(null)
+  const [visionSyncHealth, setVisionSyncHealth] = useState<PartnerVisionSyncHealth | null>(null)
   const [tokenUsageRows, setTokenUsageRows] = useState<PartnerAiTokenUsageStatRow[]>([])
   const [tokenUsageLookbackDays, setTokenUsageLookbackDays] = useState(30)
   const [form, setForm] = useState<FormState>(() => defaultsFromSettings(null))
@@ -316,6 +318,7 @@ export function PartnerAiSettingsPanel({
       }
       if ('error' in bundleRes && bundleRes.error) {
         setVisionCatalogStats(null)
+        setVisionSyncHealth(null)
         setLoadErr(bundleRes.error)
         toast({ title: t.loadError, description: bundleRes.error, variant: 'destructive' })
         return
@@ -327,6 +330,7 @@ export function PartnerAiSettingsPanel({
         setFaqs(bundleRes.faqs ?? [])
         setInventory(bundleRes.inventory ?? [])
         setVisionCatalogStats(bundleRes.visionCatalogStats ?? null)
+        setVisionSyncHealth(bundleRes.visionSyncHealth ?? null)
       }
     })()
   }, [partnerId, t.loadError, toast])
@@ -347,6 +351,13 @@ export function PartnerAiSettingsPanel({
   const visionBgActive =
     form.vision_bg_sync_status === 'queued' || form.vision_bg_sync_status === 'running'
   const visionOpsLocked = pending || visionSyncing || visionBgRunSliceBusy || visionBgActive
+  const visionHealthLevel: 'idle' | 'healthy' | 'warning' | 'stuck' = useMemo(() => {
+    if (!visionSyncHealth) return 'idle'
+    if (visionSyncHealth.lockBusy && (visionSyncHealth.lockAgeSec ?? 0) >= 600) return 'stuck'
+    if (visionSyncHealth.pendingCount <= 0 && !visionSyncHealth.lockBusy) return 'healthy'
+    if (visionSyncHealth.pendingCount > 0 || visionSyncHealth.lockBusy || visionBgActive) return 'warning'
+    return 'idle'
+  }, [visionSyncHealth, visionBgActive])
 
   /** Số dòng kho có URL ảnh https — khớp điều kiện đồng bộ Google (ước lượng tiến độ). */
   const visionBgImageRowTotal = useMemo(
@@ -1049,6 +1060,53 @@ export function PartnerAiSettingsPanel({
               </div>
 
               <div className="space-y-3 rounded-lg border border-dashed border-violet-200/80 bg-violet-50/30 p-3 dark:border-violet-800/60 dark:bg-violet-950/20">
+                {visionSyncHealth ? (
+                  <div
+                    className={`rounded-md border px-3 py-2 text-xs leading-relaxed ${
+                      visionHealthLevel === 'healthy'
+                        ? 'border-emerald-300/80 bg-emerald-50/70 text-emerald-950 dark:border-emerald-800/60 dark:bg-emerald-950/25 dark:text-emerald-100'
+                        : visionHealthLevel === 'stuck'
+                          ? 'border-rose-300/80 bg-rose-50/70 text-rose-950 dark:border-rose-800/60 dark:bg-rose-950/25 dark:text-rose-100'
+                          : visionHealthLevel === 'warning'
+                            ? 'border-amber-300/80 bg-amber-50/70 text-amber-950 dark:border-amber-800/60 dark:bg-amber-950/25 dark:text-amber-100'
+                            : 'border-border/70 bg-background/70 text-foreground'
+                    }`}
+                  >
+                    <div className="mb-1 flex flex-wrap items-center gap-2">
+                      <span className="font-semibold">{t.visionHealthPanelTitle}</span>
+                      <Badge variant="outline" className="text-[10px] font-medium">
+                        {visionHealthLevel === 'healthy'
+                          ? t.visionHealthStatusHealthy
+                          : visionHealthLevel === 'stuck'
+                            ? t.visionHealthStatusStuck
+                            : visionHealthLevel === 'warning'
+                              ? t.visionHealthStatusWarning
+                              : t.visionHealthStatusIdle}
+                      </Badge>
+                    </div>
+                    <p>
+                      {t.visionHealthPendingCount.replace('{n}', String(visionSyncHealth.pendingCount))} ·{' '}
+                      {t.visionHealthChecksumDone
+                        .replace('{done}', String(visionSyncHealth.checksumDoneCount))
+                        .replace('{total}', String(visionSyncHealth.syncableCount))}
+                    </p>
+                    <p>
+                      {t.visionHealthLockAge}:{' '}
+                      {visionSyncHealth.lockBusy
+                        ? t.visionHealthLockBusy.replace(
+                            '{sec}',
+                            String(Math.max(0, visionSyncHealth.lockAgeSec ?? 0))
+                          )
+                        : t.visionHealthLockFree}
+                    </p>
+                    <p>
+                      {t.visionHealthLastProgress}:{' '}
+                      {visionSyncHealth.lastProgressAt
+                        ? new Date(visionSyncHealth.lastProgressAt).toLocaleString()
+                        : t.visionHealthLastProgressNone}
+                    </p>
+                  </div>
+                ) : null}
                 <div className="space-y-1">
                   <p className="text-sm font-medium">{t.visionBgSyncTitle}</p>
                   <p className="text-[11px] text-muted-foreground leading-relaxed max-w-xl">{t.visionBgSyncHint}</p>
