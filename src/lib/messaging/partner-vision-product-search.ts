@@ -55,6 +55,8 @@ type InvRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
 const CLOUD_PLATFORM_SCOPE = 'https://www.googleapis.com/auth/cloud-platform'
 const IMPORT_LOCK_STALE_SECONDS = 180
 const IMPORT_LOCK_HEARTBEAT_INTERVAL_MS = 20_000
+const IMPORT_POLL_MAX_WHILE_LOCK_MS = 120_000
+const IMPORT_POLL_MAX_SINGLE_ROW_MS = 60_000
 
 export type { VisionProductCategory }
 export { VISION_PRODUCT_CATEGORIES }
@@ -76,6 +78,14 @@ export type GuestMessageVisionPayload = {
   vision_catalog_no_hits?: boolean
   vision_selected_inventory_id?: string
   vision_selected_product_label?: string
+}
+
+function isRetryableVisionImportError(msg: string): boolean {
+  return (
+    /Vision AI operation timeout/i.test(msg) ||
+    /assets:import/i.test(msg) ||
+    /RESOURCE_EXHAUSTED|Too many ImportAssets|429/i.test(msg)
+  )
 }
 
 function gcsUri(bucket: string, object: string): string {
@@ -243,7 +253,10 @@ export async function runVisionCatalogSync(
   const batchSize = resolveVisionIncrementalBatchSize()
   const maxImportsThisRun = resolveVisionIncrementalMaxImportsPerRequest()
   const maxDirtyPerRequest = resolveVisionIncrementalMaxDirtyPerRequest()
-  const importPollMaxMs = resolveVisionWarehouseAssetsImportPollMaxMs()
+  const importPollMaxMs = Math.min(
+    resolveVisionWarehouseAssetsImportPollMaxMs(),
+    IMPORT_POLL_MAX_WHILE_LOCK_MS
+  )
   const postImportCooldownMs = resolveVisionWarehousePostImportCooldownMs()
 
   let scanCursor: string | null = resume
@@ -354,7 +367,7 @@ export async function runVisionCatalogSync(
 
     for (const slice of slicesToRun) {
       const jsonlLines: string[] = []
-      const ok: { id: string; fp: string }[] = []
+      const ok: { id: string; fp: string; jsonl: string }[] = []
 
       for (const row of slice) {
         const url = normalizeVisionCatalogImageUrl(row.image_url)
@@ -366,16 +379,15 @@ export async function runVisionCatalogSync(
         await uploadBytesToGcs(bucket, objectPath, got.buf, got.contentType)
         const gs = gcsUri(bucket, objectPath)
         const title = row.name?.trim() || assetId
-        jsonlLines.push(
-          visionWarehouseJsonlLine({
-            gcsUri: gs,
-            assetId,
-            partnerId,
-            inventoryId: row.id,
-            title,
-          })
-        )
-        ok.push({ id: row.id, fp: catalogFingerprintForVisionRow(row) })
+        const jsonl = visionWarehouseJsonlLine({
+          gcsUri: gs,
+          assetId,
+          partnerId,
+          inventoryId: row.id,
+          title,
+        })
+        jsonlLines.push(jsonl)
+        ok.push({ id: row.id, fp: catalogFingerprintForVisionRow(row), jsonl })
       }
 
       if (jsonlLines.length === 0) continue
@@ -391,6 +403,7 @@ export async function runVisionCatalogSync(
 
       let importLock: Awaited<ReturnType<typeof acquireVisionWarehouseImportLock>> | null = null
       let heartbeatTimer: ReturnType<typeof setInterval> | null = null
+      const syncedRows: Array<{ id: string; fp: string }> = []
       try {
         importLock = await acquireVisionWarehouseImportLock(db, {
           maxWaitMs: 6_000,
@@ -407,14 +420,44 @@ export async function runVisionCatalogSync(
           corpusId,
           assetsGcsUri: gcsUri(bucket, jsonlPath),
         })
-        await pollVisionAiOperation(importOp, {
-          maxMs: importPollMaxMs,
-          warehouseLocation: loc,
-          onPending: async () => {
-            if (!importLock) return
-            await heartbeatVisionWarehouseImportLock(db, importLock)
-          },
-        })
+        try {
+          await pollVisionAiOperation(importOp, {
+            maxMs: importPollMaxMs,
+            warehouseLocation: loc,
+            onPending: async () => {
+              if (!importLock) return
+              await heartbeatVisionWarehouseImportLock(db, importLock)
+            },
+          })
+          for (const r of ok) syncedRows.push({ id: r.id, fp: r.fp })
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e)
+          if (ok.length <= 1 || !isRetryableVisionImportError(msg)) throw e
+          // Fallback: tách từng dòng để không kẹt mãi ở một batch lỗi.
+          for (const r of ok) {
+            const singlePath = `${prefix}/single-${Date.now()}-${r.id}.jsonl`
+            await uploadBytesToGcs(bucket, singlePath, Buffer.from(r.jsonl, 'utf8'), 'application/x-ndjson')
+            try {
+              const singleOp = await importVisionWarehouseAssetsJsonl({
+                projectNumber,
+                location: loc,
+                corpusId,
+                assetsGcsUri: gcsUri(bucket, singlePath),
+              })
+              await pollVisionAiOperation(singleOp, {
+                maxMs: Math.min(importPollMaxMs, IMPORT_POLL_MAX_SINGLE_ROW_MS),
+                warehouseLocation: loc,
+                onPending: async () => {
+                  if (!importLock) return
+                  await heartbeatVisionWarehouseImportLock(db, importLock)
+                },
+              })
+              syncedRows.push({ id: r.id, fp: r.fp })
+            } catch {
+              // Giữ pending cho lượt sau; không chặn cả batch.
+            }
+          }
+        }
       }
       finally {
         if (heartbeatTimer) clearInterval(heartbeatTimer)
@@ -425,7 +468,7 @@ export async function runVisionCatalogSync(
 
       warehouseTouched = true
       const now = new Date().toISOString()
-      for (const { id, fp } of ok) {
+      for (const { id, fp } of syncedRows) {
         const { error: upErr } = await db
           .from('messaging_partner_inventory')
           .update({

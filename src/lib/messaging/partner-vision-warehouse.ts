@@ -187,9 +187,13 @@ export async function importVisionWarehouseAssetsJsonl(params: {
   assetsGcsUri: string
 }): Promise<string> {
   const url = `${warehouseManagementApiBase(params.location)}/projects/${encodeURIComponent(params.projectNumber)}/locations/${encodeURIComponent(params.location)}/corpora/${encodeURIComponent(params.corpusId)}/assets:import`
-  /** Google: tối đa 1 ImportAssets / corpus; 429 khi slot còn bận — chờ lâu hơn, thử nhiều lần hơn. */
-  const maxAttempts = 12
-  const requestTimeoutMs = 90_000
+  /**
+   * Google chỉ cho 1 ImportAssets / corpus.
+   * Không retry/backoff quá lâu trong cùng request vì sẽ giữ lock nội bộ rất lâu và làm mọi worker khác "đứng chờ".
+   * Trả lỗi nhanh để cron lượt sau thử lại.
+   */
+  const maxAttempts = 2
+  const requestTimeoutMs = 45_000
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const token = await visionAiToken()
     const ctrl = new AbortController()
@@ -211,7 +215,7 @@ export async function importVisionWarehouseAssetsJsonl(params: {
         if (attempt >= maxAttempts) {
           throw new Error(`Vision Warehouse assets:import request timeout (${requestTimeoutMs}ms)`)
         }
-        const backoffMs = Math.min(240_000, 15_000 * 2 ** (attempt - 1))
+        const backoffMs = 4_000
         await new Promise((r) => setTimeout(r, backoffMs))
         continue
       }
@@ -224,7 +228,7 @@ export async function importVisionWarehouseAssetsJsonl(params: {
       if (attempt >= maxAttempts) {
         throw new Error(`Vision Warehouse assets:import (${res.status}): ${t.slice(0, 600)}`)
       }
-      const backoffMs = Math.min(240_000, 15_000 * 2 ** (attempt - 1))
+      const backoffMs = 4_000
       await new Promise((r) => setTimeout(r, backoffMs))
       continue
     }
