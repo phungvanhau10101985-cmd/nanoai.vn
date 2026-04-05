@@ -83,6 +83,7 @@ export function PartnerGuestChatClient({
   const [authReady, setAuthReady] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
   const [messages, setMessages] = useState<GuestMsg[]>([])
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false)
   const [draft, setDraft] = useState('')
   const [loading, setLoading] = useState(false)
   const [sending, setSending] = useState(false)
@@ -136,6 +137,7 @@ export function PartnerGuestChatClient({
       }
       const next = Array.isArray(data.messages) ? data.messages : []
       setMessages(next)
+      setHasLoadedOnce(true)
       setShopTyping((prev) => {
         if (!prev) return null
         const out = next.filter((m) => m.direction === 'outbound').length
@@ -526,7 +528,7 @@ export function PartnerGuestChatClient({
             aria-live="polite"
             aria-relevant="additions"
           >
-            {loading && messages.length === 0 ? (
+            {loading && !hasLoadedOnce ? (
               <div className="flex flex-1 items-center justify-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
               </div>

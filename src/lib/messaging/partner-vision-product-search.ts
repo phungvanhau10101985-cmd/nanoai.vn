@@ -451,6 +451,13 @@ export async function runVisionCatalogSync(
     if (isVisionWarehouseCorpusUnsupportedTypeApiMessage(msg)) {
       return markFail(VISION_WAREHOUSE_CORPUS_UNSUPPORTED_TYPE_CODE)
     }
+    /** Khóa import đang bận (worker khác đang giữ hoặc vừa treo): để cron thử lại, không markFail cứng. */
+    if (
+      /Vision Warehouse: corpus đang bị giữ bởi lượt import khác/i.test(msg) ||
+      /Vision import lock/i.test(msg)
+    ) {
+      return { error: msg }
+    }
     /** Timeout poll `assets:import` — không markFail (tránh vision_index_error đỏ); cron/ client có thể thử lại sau. */
     if (/Vision AI operation timeout/i.test(msg)) {
       return { error: msg }
