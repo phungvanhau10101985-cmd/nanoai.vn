@@ -50,14 +50,6 @@ type InvRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
 
 const CLOUD_PLATFORM_SCOPE = 'https://www.googleapis.com/auth/cloud-platform'
 
-/** CDN hay dùng `//host/...` — đồng bộ với validateInventoryImageUrl (Excel / form kho). */
-function normalizeCatalogImageUrl(raw: string): string {
-  const t = raw.trim()
-  if (!t) return ''
-  if (t.startsWith('//')) return `https:${t}`
-  return t
-}
-
 export type { VisionProductCategory }
 export { VISION_PRODUCT_CATEGORIES }
 
