@@ -1,6 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database, Json } from '@/types/database.types'
-import { fetchInventoryRowsForPartnerAi } from '@/lib/messaging/partner-inventory-ai-search'
+import {
+  fetchInventoryRowsByExplicitSku,
+  fetchInventoryRowsForPartnerAi,
+} from '@/lib/messaging/partner-inventory-ai-search'
 
 type Db = SupabaseClient<Database>
 type SettingsRow = Database['public']['Tables']['messaging_partner_ai_settings']['Row']
@@ -38,6 +41,7 @@ export async function buildPartnerAiContext(
   latestCustomerMessage: string,
   triggerRawPayload?: Json | null
 ): Promise<{ system: string; user: string }> {
+  const explicitSkuRows = await fetchInventoryRowsByExplicitSku(db, partnerId, latestCustomerMessage)
   const inv = await fetchInventoryRowsForPartnerAi(db, partnerId, latestCustomerMessage)
 
   const { data: msgs } = await db
@@ -74,8 +78,14 @@ Khi giới thiệu mặt hàng có "Ảnh (URL)" và/hoặc "Trang sản phẩm 
 Định dạng đầu ra: một đối tượng JSON đúng schema ở cuối prompt user — không bọc markdown, không giải thích ngoài JSON.
 Không hứa giảm giá hay thay đổi chính sách ngoài nội dung đã cho. Trả lời súc tích trong trường message, có thể dùng gạch đầu dòng.`
 
+  const explicitSkuBlock = explicitSkuRows.length
+    ? `\n\nCác mặt hàng khớp chính xác mã/SKU khách vừa nhắn (ưu tiên kiểm tra nhóm này trước):
+${formatInventoryLines(explicitSkuRows)}`
+    : ''
+
   const user = `Danh sách kho (do shop khai báo; có thể không đầy đủ so với toàn bộ hàng thực tế). Các dòng đầu là mặt hàng được ưu tiên theo mã/tên/từ khóa gần với tin nhắn khách (nếu có), sau đó là các mặt hàng còn lại theo thứ tự shop sắp xếp — tất cả đều có thể dùng để tư vấn:
 ${formatInventoryLines(inv)}
+${explicitSkuBlock}
 
 Lịch sử hội thoại gần đây:
 ${transcript}

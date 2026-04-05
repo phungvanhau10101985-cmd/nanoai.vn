@@ -103,6 +103,7 @@ export function PartnerGuestChatClient({
   const tryOnUserInputRef = useRef<HTMLInputElement>(null)
   const tryOnGarmentInputRef = useRef<HTMLInputElement>(null)
   const scrollAnchorRef = useRef<HTMLDivElement>(null)
+  const didInitialAutoScrollRef = useRef(false)
   const draftTextareaRef = useRef<HTMLTextAreaElement>(null)
 
   const loginHref = `/auth/login?next=${encodeURIComponent(sanitizeLoginNext(pathname || `/messaging/p/${slug}`))}`
@@ -152,6 +153,10 @@ export function PartnerGuestChatClient({
   useEffect(() => {
     if (userId) void load()
   }, [userId, load])
+
+  useEffect(() => {
+    didInitialAutoScrollRef.current = false
+  }, [slug, userId])
 
   useEffect(() => {
     if (!userId) return
@@ -217,6 +222,17 @@ export function PartnerGuestChatClient({
       }
     }
   }, [tryOnGarmentFiles])
+
+  useEffect(() => {
+    const anchor = scrollAnchorRef.current
+    if (!anchor) return
+    if (!messages.length && !shopTyping) return
+    anchor.scrollIntoView({
+      block: 'end',
+      behavior: didInitialAutoScrollRef.current ? 'smooth' : 'auto',
+    })
+    didInitialAutoScrollRef.current = true
+  }, [messages.length, shopTyping?.deadline])
 
   const addTryOnGarmentFile = (file: File | null) => {
     if (!file) return

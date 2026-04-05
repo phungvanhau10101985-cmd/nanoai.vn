@@ -145,14 +145,17 @@ export async function handlePartnerInboundForAi(
     }
 
     /**
-     * Production bình thường: cron gọi /api/cron/messaging-partner-ai. Serverless không giữ setTimeout sau response.
-     * Wake cục bộ (một process giữ event loop): next dev; hoặc MESSAGING_PARTNER_AI_DEV_WAKE / MESSAGING_PARTNER_AI_INLINE_WAKE.
-     * INLINE_WAKE: VPS một node chưa cấu hình cron — không dùng trên nhiều replica serverless (có thể trùng chạy).
+     * Luôn thử "wake" cục bộ sau delay (trừ khi tắt tường minh bằng INLINE_WAKE=0):
+     * - VPS/PM2 không có cron vẫn xử lý được job delay > 0.
+     * - Có cron vẫn an toàn vì runner lock theo trạng thái pending->processing (không gửi trùng).
+     * - Serverless có thể không giữ timer sau response; khi đó cron vẫn là đường chính.
      */
     const scheduledWake =
-      process.env.NODE_ENV === 'development' ||
-      process.env.MESSAGING_PARTNER_AI_DEV_WAKE === '1' ||
-      process.env.MESSAGING_PARTNER_AI_INLINE_WAKE === '1'
+      process.env.MESSAGING_PARTNER_AI_INLINE_WAKE !== '0' &&
+      (process.env.NODE_ENV === 'development' ||
+        process.env.MESSAGING_PARTNER_AI_DEV_WAKE === '1' ||
+        process.env.MESSAGING_PARTNER_AI_INLINE_WAKE === '1' ||
+        process.env.NODE_ENV === 'production')
     if (scheduledWake) {
       const ms = Math.min(delaySec * 1000 + 2500, 900_000)
       setTimeout(() => {

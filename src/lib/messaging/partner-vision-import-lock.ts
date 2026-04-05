@@ -8,7 +8,7 @@ type Db = SupabaseClient<Database>
 
 const DEFAULT_STALE_SECONDS = 45 * 60
 const ACQUIRE_POLL_MS = 4000
-const DEFAULT_MAX_WAIT_MS = 32 * 60 * 1000
+const DEFAULT_MAX_WAIT_MS = 90_000
 
 export async function acquireVisionWarehouseImportLock(
   db: Db,

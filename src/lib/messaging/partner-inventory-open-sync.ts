@@ -7,9 +7,12 @@
 
 import type { InventoryExcelInsert } from '@/lib/messaging/partner-inventory-excel'
 import {
+  inventoryNameMatchKey,
+  inventorySkuMatchKey,
   validateInventoryImageUrl,
   validateInventoryProductUrl,
 } from '@/lib/messaging/partner-inventory-excel'
+import type { Database } from '@/types/database.types'
 
 export const MAX_OPEN_CATALOG_ITEMS_PER_REQUEST = 500
 
@@ -204,4 +207,65 @@ export function parseOpenCatalogBody(json: unknown): OpenCatalogParseResult {
   }
 
   return { ok: true, request_id, rows }
+}
+
+type InventoryRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
+
+/**
+ * Full reconcile cho Open Catalog:
+ * - Payload backend shop là "nguồn sự thật".
+ * - Hàng có trong DB nhưng không còn trong payload => thêm dòng removeFromInventory=true để xóa.
+ */
+export function buildOpenCatalogReconcileRows(
+  incomingRows: InventoryExcelInsert[],
+  existingRows: InventoryRow[]
+): InventoryExcelInsert[] {
+  const out: InventoryExcelInsert[] = [...incomingRows]
+
+  const incomingSkuKeys = new Set<string>()
+  const incomingNameNoSkuKeys = new Set<string>()
+  for (const row of incomingRows) {
+    const sk = inventorySkuMatchKey(row.sku)
+    if (sk) incomingSkuKeys.add(sk)
+    else incomingNameNoSkuKeys.add(inventoryNameMatchKey(row.name))
+  }
+
+  for (const row of existingRows) {
+    const sk = inventorySkuMatchKey(row.sku)
+    if (sk) {
+      if (incomingSkuKeys.has(sk)) continue
+      out.push({
+        sort_order: row.sort_order,
+        name: row.name,
+        sku: row.sku,
+        description: row.description ?? '',
+        stock_note: row.stock_note ?? '',
+        price_hint: row.price_hint ?? '',
+        image_url: row.image_url ?? '',
+        product_url: row.product_url ?? '',
+        consult_note: row.consult_note ?? '',
+        is_active: row.is_active,
+        removeFromInventory: true,
+      })
+      continue
+    }
+
+    const nk = inventoryNameMatchKey(row.name)
+    if (incomingNameNoSkuKeys.has(nk)) continue
+    out.push({
+      sort_order: row.sort_order,
+      name: row.name,
+      sku: row.sku,
+      description: row.description ?? '',
+      stock_note: row.stock_note ?? '',
+      price_hint: row.price_hint ?? '',
+      image_url: row.image_url ?? '',
+      product_url: row.product_url ?? '',
+      consult_note: row.consult_note ?? '',
+      is_active: row.is_active,
+      removeFromInventory: true,
+    })
+  }
+
+  return out
 }

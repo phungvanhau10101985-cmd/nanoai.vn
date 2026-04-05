@@ -10,6 +10,35 @@ import { tryDeleteVisionProductForInventoryItem } from '@/lib/messaging/partner-
 type Db = SupabaseClient<Database>
 type InventoryRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
 
+type InventoryUpsertBase = {
+  name: string
+  sku: string | null
+  description: string
+  stock_note: string
+  price_hint: string
+  image_url: string
+  product_url: string
+  consult_note: string
+  sort_order: number
+  is_active: boolean
+  updated_at: string
+}
+
+function sameInventoryData(row: InventoryRow, base: InventoryUpsertBase): boolean {
+  return (
+    row.name === base.name &&
+    row.sku === base.sku &&
+    row.description === base.description &&
+    row.stock_note === base.stock_note &&
+    row.price_hint === base.price_hint &&
+    row.image_url === base.image_url &&
+    row.product_url === base.product_url &&
+    row.consult_note === base.consult_note &&
+    row.sort_order === base.sort_order &&
+    row.is_active === base.is_active
+  )
+}
+
 function indexExistingBySku(rows: InventoryRow[]) {
   const m = new Map<string, InventoryRow[]>()
   for (const r of rows) {
@@ -57,6 +86,7 @@ export async function upsertPartnerInventoryBatch(
   if (exErr) return { ok: false, error: exErr.message }
 
   const existingRows = existing ?? []
+  const existingById = new Map(existingRows.map((r) => [r.id, r]))
   const bySku = indexExistingBySku(existingRows)
   const byNameNoSku = indexExistingNoSkuByName(existingRows)
 
@@ -127,7 +157,7 @@ export async function upsertPartnerInventoryBatch(
       continue
     }
 
-    const base = {
+    const base: InventoryUpsertBase = {
       name: r.name,
       sku: r.sku,
       description: r.description,
@@ -142,6 +172,13 @@ export async function upsertPartnerInventoryBatch(
     }
 
     if (targetId) {
+      const current = existingById.get(targetId)
+      if (current && sameInventoryData(current, base)) {
+        // Dòng không đổi dữ liệu => không update DB, tránh trigger đồng bộ Vision không cần thiết.
+        if (skuKey) skuResolvedId.set(skuKey, targetId)
+        else nameNoSkuResolvedId.set(inventoryNameMatchKey(r.name), targetId)
+        continue
+      }
       const { error: upErr } = await db
         .from('messaging_partner_inventory')
         .update(base)
@@ -149,6 +186,12 @@ export async function upsertPartnerInventoryBatch(
         .eq('partner_id', partnerId)
       if (upErr) return { ok: false, error: upErr.message }
       updated += 1
+      if (current) {
+        existingById.set(targetId, {
+          ...current,
+          ...base,
+        })
+      }
       if (skuKey) skuResolvedId.set(skuKey, targetId)
       else nameNoSkuResolvedId.set(inventoryNameMatchKey(r.name), targetId)
     } else {

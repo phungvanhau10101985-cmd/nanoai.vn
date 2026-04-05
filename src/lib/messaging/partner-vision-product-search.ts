@@ -94,7 +94,8 @@ async function uploadBytesToGcs(bucket: string, objectName: string, body: Buffer
 }
 
 async function fetchImageBytesFromUrl(url: string): Promise<{ buf: Buffer; contentType: string } | null> {
-  return fetchRemoteImageForCatalog(url, { timeoutMs: 25_000 })
+  // Ảnh nguồn chậm thường làm nghẽn cả lượt sync; timeout ngắn để bỏ qua ảnh lỗi và tiếp tục backlog.
+  return fetchRemoteImageForCatalog(url, { timeoutMs: 12_000 })
 }
 
 function extFromContentType(ct: string): string {
@@ -346,7 +347,7 @@ export async function runVisionCatalogSync(
     const slicesToRun = importSlices.slice(0, maxImportsThisRun)
 
     if (toImport.length > 0) {
-      await acquireVisionWarehouseImportLock(db)
+      await acquireVisionWarehouseImportLock(db, { maxWaitMs: 20_000 })
     }
     try {
       for (const slice of slicesToRun) {

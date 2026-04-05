@@ -39,8 +39,8 @@ export const VISION_CATALOG_SYNC_MAX_ITEMS = 400
  * Số dòng tối đa mỗi lô import JSONL lên Warehouse trong một request.
  * Lô quá lớn khiến thao tác `assets:import` trên Google chạy lâu, dễ vượt timeout poll.
  */
-/** Lô nhỏ hơn → `assets:import` thường hoàn tất trước khi hết poll (tránh timeout 10–15 phút). */
-export const VISION_INCREMENTAL_BATCH_SIZE = 20
+/** Lô nhỏ hơn nữa để tránh request dài quá khi phải tải ảnh tuần tự trước khi import. */
+export const VISION_INCREMENTAL_BATCH_SIZE = 10
 
 /**
  * Chờ operation Vision Warehouse `assets:import` (JSONL). Có thể tăng bằng env `VISION_WAREHOUSE_ASSETS_IMPORT_POLL_MAX_MS`.

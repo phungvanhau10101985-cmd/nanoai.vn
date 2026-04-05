@@ -159,8 +159,12 @@ export async function processVisionCatalogBackgroundSyncJobs(
             (/429/.test(msg) && /ImportAssets|RESOURCE_EXHAUSTED/i.test(msg))
           /** Poll hết giờ nhưng operation có thể vẫn chạy phía Google — không đánh dấu error; lượt sau thử lại (hoặc tăng VISION_WAREHOUSE_ASSETS_IMPORT_POLL_MAX_MS / giảm batch). */
           const transientImportPollTimeout = /Vision AI operation timeout/i.test(msg)
+          /** Khóa import đang bận (cron/tab khác) — giữ running để cron sau nhặt tiếp. */
+          const transientImportLockBusy =
+            /Vision Warehouse: corpus đang bị giữ bởi lượt import khác/i.test(msg) ||
+            /Vision import lock/i.test(msg)
 
-          if (transientImport429 || transientImportPollTimeout) {
+          if (transientImport429 || transientImportPollTimeout || transientImportLockBusy) {
             const persistErr = await persistJob(db, partnerId, {
               vision_bg_sync_status: 'running',
               vision_bg_sync_resume_after_id: resume,
