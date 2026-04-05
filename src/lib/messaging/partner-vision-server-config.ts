@@ -13,7 +13,8 @@ export function resolveVisionWarehouseAssetsImportPollMaxMs(): number {
   if (!raw) return VISION_WAREHOUSE_ASSETS_IMPORT_POLL_MAX_MS
   const n = Number.parseInt(raw, 10)
   if (!Number.isFinite(n)) return VISION_WAREHOUSE_ASSETS_IMPORT_POLL_MAX_MS
-  return Math.min(1_200_000, Math.max(60_000, n))
+  /** Self-hosted có thể tăng (catalog lớn / Google chậm); Vercel cần maxDuration route đủ lớn. */
+  return Math.min(2_400_000, Math.max(60_000, n))
 }
 
 export function resolveVisionIncrementalBatchSize(): number {

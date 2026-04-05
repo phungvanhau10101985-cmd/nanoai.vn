@@ -39,12 +39,14 @@ export const VISION_CATALOG_SYNC_MAX_ITEMS = 400
  * Số dòng tối đa mỗi lô import JSONL lên Warehouse trong một request.
  * Lô quá lớn khiến thao tác `assets:import` trên Google chạy lâu, dễ vượt timeout poll.
  */
-export const VISION_INCREMENTAL_BATCH_SIZE = 50
+/** Lô nhỏ hơn → `assets:import` thường hoàn tất trước khi hết poll (tránh timeout 10–15 phút). */
+export const VISION_INCREMENTAL_BATCH_SIZE = 20
 
 /**
  * Chờ operation Vision Warehouse `assets:import` (JSONL). Có thể tăng bằng env `VISION_WAREHOUSE_ASSETS_IMPORT_POLL_MAX_MS`.
  */
-export const VISION_WAREHOUSE_ASSETS_IMPORT_POLL_MAX_MS = 600_000
+/** Poll operation Google sau `assets:import`. 10 phút dễ không đủ với lô ~50 ảnh; 15 phút + lô 20 ổn định hơn. */
+export const VISION_WAREHOUSE_ASSETS_IMPORT_POLL_MAX_MS = 900_000
 
 /**
  * Nghỉ sau mỗi lô `assets:import` thành công (trước lô tiếp theo hoặc trước khi nhả khóa DB),
@@ -59,7 +61,7 @@ export const VISION_WAREHOUSE_POST_IMPORT_COOLDOWN_MS = 5_000
  */
 export const VISION_INCREMENTAL_MAX_IMPORTS_PER_REQUEST = 1
 
-/** Khi quét kho theo id, tối đa bao nhiêu dòng “bẩn” (import + xóa) xử lý mỗi POST. */
+/** Khi quét kho theo id, tối đa bao nhiêu dòng “bẩn” (import + xóa) mỗi POST (= batch × số import/request). */
 export const VISION_INCREMENTAL_MAX_DIRTY_PER_REQUEST =
   VISION_INCREMENTAL_BATCH_SIZE * VISION_INCREMENTAL_MAX_IMPORTS_PER_REQUEST
 
@@ -98,7 +100,8 @@ export const VISION_SYNC_CLIENT_CHAIN_PAUSE_MS = 800
 /**
  * Timeout một lượt fetch client (ms). Route server `maxDuration` 300s; thêm dư để tránh cắt sớm / treo vô hạn.
  */
-export const VISION_SYNC_CLIENT_FETCH_TIMEOUT_MS = 330_000
+/** Phải ≥ thời gian một lượt server (tải ảnh + GCS + poll import); tránh client Abort trong lúc server vẫn poll. */
+export const VISION_SYNC_CLIENT_FETCH_TIMEOUT_MS = 1_200_000
 
 /**
  * Chuỗi lưu trong `vision_bg_sync_report` (JSON) từ cron nền — Client map sang i18n qua `partnerMessagingAi`.

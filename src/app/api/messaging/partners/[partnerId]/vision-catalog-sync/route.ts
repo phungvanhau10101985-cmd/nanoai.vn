@@ -7,7 +7,7 @@ import { revalidatePath } from 'next/cache'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
-export const maxDuration = 900
+export const maxDuration = 1200
 
 export async function POST(req: Request, ctx: { params: Promise<{ partnerId: string }> }) {
   const { partnerId } = await ctx.params

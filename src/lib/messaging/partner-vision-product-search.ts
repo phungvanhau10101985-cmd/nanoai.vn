@@ -450,6 +450,10 @@ export async function runVisionCatalogSync(
     if (isVisionWarehouseCorpusUnsupportedTypeApiMessage(msg)) {
       return markFail(VISION_WAREHOUSE_CORPUS_UNSUPPORTED_TYPE_CODE)
     }
+    /** Timeout poll `assets:import` — không markFail (tránh vision_index_error đỏ); cron/ client có thể thử lại sau. */
+    if (/Vision AI operation timeout/i.test(msg)) {
+      return { error: msg }
+    }
     return markFail(msg)
   }
 }

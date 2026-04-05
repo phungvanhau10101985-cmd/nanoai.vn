@@ -7,7 +7,7 @@ import { defaultVisionCatalogBgSyncMaxWallMs } from '@/lib/messaging/partner-vis
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
-export const maxDuration = 900
+export const maxDuration = 1200
 
 /**
  * Chủ shop: chạy một lượt xử lý giống cron `/api/cron/vision-catalog-sync` (không cần Bearer secret).
