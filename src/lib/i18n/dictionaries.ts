@@ -1797,7 +1797,8 @@ const VI_DICTIONARY: Dictionary = {
     enableLabel: 'Bật trả lời tự động',
     enableHint: 'Khi tắt, chỉ còn tin nhắn thủ công từ bạn.',
     delayLabel: 'Chờ trước khi AI trả lời (giây)',
-    delayHint: 'Từ 15 đến 900 giây. Nếu bạn trả lời trước, AI sẽ không gửi.',
+    delayHint:
+      '5–30 giây (tối đa 30 giây — sau tin khách; phù hợp bán hàng). Mặc định 20. Sau bước này còn độ trễ «đang gõ» (ms) rồi mới gửi tin. Nếu bạn trả lời trước, AI sẽ không gửi.',
     typingMinLabel: 'Độ trễ gõ tối thiểu (ms)',
     typingMaxLabel: 'Độ trễ gõ tối đa (ms)',
     typingHint: 'Dùng cho FAQ: ngẫu nhiên trong khoảng này trước khi gửi (0–30000).',
@@ -1950,7 +1951,7 @@ const VI_DICTIONARY: Dictionary = {
       'Đồng bộ tự động dừng do trần an toàn tuyệt đối — hãy bấm đồng bộ để tiếp hoặc kiểm tra lỗi.',
     visionBgSyncTitle: 'Đồng bộ nền lên Google (VPS / cron)',
     visionBgSyncHint:
-      'Xếp hàng job trên server: VPS gọi định kỳ GET hoặc POST /api/cron/vision-catalog-sync kèm Bearer VISION_CATALOG_SYNC_CRON_SECRET (xem .env.example). Có thể đóng tab; khi xong hoặc lỗi, mở lại trang này để xem báo cáo chi tiết.',
+      'Xếp hàng job trên server: VPS gọi định kỳ GET hoặc POST /api/cron/vision-catalog-sync kèm Bearer VISION_CATALOG_SYNC_CRON_SECRET (xem .env.example). Có thể đóng tab; khi xong hoặc lỗi, mở lại trang này để xem báo cáo chi tiết. Tuỳ chọn: crontab 1 lần/ngày gọi GET/POST /api/cron/vision-bg-sync-enqueue (cùng Bearer hoặc VISION_BG_SYNC_ENQUEUE_CRON_SECRET) để tự xếp hàng lại đồng bộ nền cho mọi shop đã bật gợi ý theo ảnh — không thay thế cron catalog-sync.',
     visionBgSyncButton: 'Bắt đầu đồng bộ nền',
     visionBgSyncUseResumeHint:
       'Nếu tab đang giữ cursor đồng bộ dở (đồng bộ trên trình duyệt trước đó), job nền sẽ tiếp từ cursor đó; nếu không có cursor, quét lại từ đầu.',
@@ -3266,7 +3267,8 @@ const EN_DICTIONARY: Dictionary = {
     enableLabel: 'Enable auto-replies',
     enableHint: 'When off, only manual replies from you are sent.',
     delayLabel: 'Wait before AI replies (seconds)',
-    delayHint: '15–900 seconds. If you reply first, the AI will not send.',
+    delayHint:
+      '5–30 seconds (max 30s after a customer message; suited to sales chat). Default 20. A short “typing” delay (ms) is applied before the message is sent. If you reply first, the AI will not send.',
     typingMinLabel: 'Typing delay min (ms)',
     typingMaxLabel: 'Typing delay max (ms)',
     typingHint: 'Used for FAQ: random delay in this range before sending (0–30000).',
@@ -3419,7 +3421,7 @@ const EN_DICTIONARY: Dictionary = {
       'Automatic sync stopped at the absolute safety limit — click sync to continue or check for errors.',
     visionBgSyncTitle: 'Background sync to Google (VPS / cron)',
     visionBgSyncHint:
-      'Queues a server job: your VPS calls GET or POST /api/cron/vision-catalog-sync on a schedule with Bearer VISION_CATALOG_SYNC_CRON_SECRET (see .env.example). You can close the tab; reopen this page for the full report when finished or on error.',
+      'Queues a server job: your VPS calls GET or POST /api/cron/vision-catalog-sync on a schedule with Bearer VISION_CATALOG_SYNC_CRON_SECRET (see .env.example). You can close the tab; reopen this page for the full report when finished or on error. Optional: once a day, call GET/POST /api/cron/vision-bg-sync-enqueue (same Bearer, or VISION_BG_SYNC_ENQUEUE_CRON_SECRET) to auto-queue background sync for every shop with image suggestions enabled — this does not replace the catalog-sync cron.',
     visionBgSyncButton: 'Start background sync',
     visionBgSyncUseResumeHint:
       'If this tab still holds a partial sync cursor (from an earlier browser sync), the background job resumes from it; otherwise it rescans from the start.',
@@ -4736,7 +4738,8 @@ const ZH_DICTIONARY: Dictionary = {
     enableLabel: '启用自动回复',
     enableHint: '关闭后仅发送您手动编写的消息。',
     delayLabel: 'AI 回复前等待（秒）',
-    delayHint: '15–900 秒。若您先回复，AI 不会发送。',
+    delayHint:
+      '5–30 秒（顾客发消息后最多等 30 秒再进入回复流程，适合售前）。默认 20。之后还有「正在输入」延迟（毫秒）才发出。若您先回复，AI 不会发送。',
     typingMinLabel: '输入延迟下限（毫秒）',
     typingMaxLabel: '输入延迟上限（毫秒）',
     typingHint: '用于 FAQ：发送前在此范围内随机延迟（0–30000）。',
@@ -4882,7 +4885,7 @@ const ZH_DICTIONARY: Dictionary = {
       '自动同步因绝对安全上限已停止 — 请点击同步继续或检查错误。',
     visionBgSyncTitle: '后台同步到 Google（VPS / 定时任务）',
     visionBgSyncHint:
-      '在服务器排队：VPS 定时 GET 或 POST /api/cron/vision-catalog-sync，请求头 Bearer VISION_CATALOG_SYNC_CRON_SECRET（见 .env.example）。可关闭此页；完成或出错后再打开查看完整报告。',
+      '在服务器排队：VPS 定时 GET 或 POST /api/cron/vision-catalog-sync，请求头 Bearer VISION_CATALOG_SYNC_CRON_SECRET（见 .env.example）。可关闭此页；完成或出错后再打开查看完整报告。可选：每天一次调用 GET/POST /api/cron/vision-bg-sync-enqueue（同一 Bearer，或单独设置 VISION_BG_SYNC_ENQUEUE_CRON_SECRET）可为所有已开启「按图推荐」的店铺自动重新排队后台同步——不能替代 catalog-sync 定时任务。',
     visionBgSyncButton: '开始后台同步',
     visionBgSyncUseResumeHint:
       '若本页仍保留上次未完成的同步游标（浏览器同步），后台任务从该游标继续；否则从头扫描。',
@@ -6154,7 +6157,8 @@ const JA_DICTIONARY: Dictionary = {
     enableLabel: '自動返信を有効にする',
     enableHint: 'オフにすると、手動の返信のみ送信されます。',
     delayLabel: 'AI が返信するまでの待ち時間（秒）',
-    delayHint: '15〜900 秒。先に返信した場合は AI は送りません。',
+    delayHint:
+      '5〜30 秒（顧客メッセージ後、最大 30 秒まで待ってから返信処理。接客向け）。既定 20。その後「入力中」遅延（ms）を経て送信。先に返信した場合は AI は送りません。',
     typingMinLabel: '入力遅延 最小（ms）',
     typingMaxLabel: '入力遅延 最大（ms）',
     typingHint: 'FAQ 用：送信前にこの範囲でランダム遅延（0〜30000）。',
@@ -6307,7 +6311,7 @@ const JA_DICTIONARY: Dictionary = {
       '絶対安全上限のため自動同期を停止しました — 同期を押すかエラーを確認してください。',
     visionBgSyncTitle: 'Google へのバックグラウンド同期（VPS / cron）',
     visionBgSyncHint:
-      'サーバー側にジョブをキュー：VPS が定期的に GET または POST /api/cron/vision-catalog-sync を Bearer VISION_CATALOG_SYNC_CRON_SECRET で呼びます（.env.example 参照）。タブを閉じても構いません。完了・エラー後にこのページで詳細レポートを確認。',
+      'サーバー側にジョブをキュー：VPS が定期的に GET または POST /api/cron/vision-catalog-sync を Bearer VISION_CATALOG_SYNC_CRON_SECRET で呼びます（.env.example 参照）。タブを閉じても構いません。完了・エラー後にこのページで詳細レポートを確認。任意：1 日 1 回 GET/POST /api/cron/vision-bg-sync-enqueue（同じ Bearer、または VISION_BG_SYNC_ENQUEUE_CRON_SECRET）で画像提案オン店舗のバックグラウンド同期を自動キュー — catalog-sync の定期呼び出しの代わりにはなりません。',
     visionBgSyncButton: 'バックグラウンド同期を開始',
     visionBgSyncUseResumeHint:
       'タブに未完了の同期カーソル（ブラウザ同期）があればそこから再開、なければ先頭からスキャンします。',
@@ -7607,7 +7611,8 @@ const KO_DICTIONARY: Dictionary = {
     enableLabel: '자동 답장 사용',
     enableHint: '끄면 직접 보낸 메시지만 전송됩니다.',
     delayLabel: 'AI 답장 전 대기(초)',
-    delayHint: '15–900초. 먼저 답하면 AI는 보내지 않습니다.',
+    delayHint:
+      '5–30초(고객 메시지 후 최대 30초까지 대기 후 답장 시작, 판매 채팅용). 기본 20. 이후 «입력 중» 지연(ms) 뒤 전송. 먼저 답하면 AI는 보내지 않습니다.',
     typingMinLabel: '입력 지연 최소(ms)',
     typingMaxLabel: '입력 지연 최대(ms)',
     typingHint: 'FAQ용: 전송 전 이 범위에서 무작위 지연(0–30000).',
@@ -7760,7 +7765,7 @@ const KO_DICTIONARY: Dictionary = {
       '절대 안전 한도로 자동 동기화가 중단되었습니다 — 동기화를 누르거나 오류를 확인하세요.',
     visionBgSyncTitle: 'Google 백그라운드 동기화(VPS / cron)',
     visionBgSyncHint:
-      '서버에 작업을 대기열에 넣습니다: VPS가 주기적으로 GET 또는 POST /api/cron/vision-catalog-sync를 Bearer VISION_CATALOG_SYNC_CRON_SECRET으로 호출합니다(.env.example 참고). 탭을 닫아도 됩니다. 완료·오류 후 이 페이지에서 상세 보고서를 확인하세요.',
+      '서버에 작업을 대기열에 넣습니다: VPS가 주기적으로 GET 또는 POST /api/cron/vision-catalog-sync를 Bearer VISION_CATALOG_SYNC_CRON_SECRET으로 호출합니다(.env.example 참고). 탭을 닫아도 됩니다. 완료·오류 후 이 페이지에서 상세 보고서를 확인하세요. 선택: 하루 1회 GET/POST /api/cron/vision-bg-sync-enqueue(동일 Bearer 또는 VISION_BG_SYNC_ENQUEUE_CRON_SECRET)로 이미지 추천이 켜진 모든 매장의 백그라운드 동기화를 자동 대기열에 넣습니다 — catalog-sync 주기 호출을 대체하지 않습니다.',
     visionBgSyncButton: '백그라운드 동기화 시작',
     visionBgSyncUseResumeHint:
       '탭에 이전 브라우저 동기화의 커서가 있으면 그 지점부터 이어가고, 없으면 처음부터 스캔합니다.',

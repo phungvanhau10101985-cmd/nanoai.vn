@@ -37,6 +37,7 @@ Sau khi clone repo lần đầu: **bắt buộc** có `.env.local` thì `npm run
 | Google Vision / Warehouse | `VISION_CREDENTIALS_PATH`, `GOOGLE_CLOUD_PROJECT_ID`, `GCS_VISION_CATALOG_BUCKET`, `VISION_WAREHOUSE_*` | Nếu test Messaging + ảnh | ✓ cho shop có Vision |
 | **Cron — AI inbox** | `MESSAGING_PARTNER_AI_CRON_SECRET` | Tuỳ (test cron local) | **Bắt buộc** nếu dùng crontab gọi `/api/cron/messaging-partner-ai` |
 | **Cron — Vision catalog** | `VISION_CATALOG_SYNC_CRON_SECRET` | Tuỳ | **Bắt buộc** nếu cron `/api/cron/vision-catalog-sync` |
+| **Cron — Vision enqueue nền** | `VISION_BG_SYNC_ENQUEUE_CRON_SECRET` | Tuỳ | Tuỳ; **không set** thì `/api/cron/vision-bg-sync-enqueue` dùng chung `VISION_CATALOG_SYNC_CRON_SECRET` (xếp hàng job 1 lần/ngày hoặc theo lịch) |
 | **Cron — Vision reindex** | `VISION_WAREHOUSE_REINDEX_CRON_SECRET` | Tuỳ | Tuỳ; **không set** thì route dùng chung `VISION_CATALOG_SYNC_CRON_SECRET` |
 | Wake không cron | `MESSAGING_PARTNER_AI_DEV_WAKE`, `MESSAGING_PARTNER_AI_INLINE_WAKE` | `DEV_WAKE=1` cho `next start` local | Chỉ 1 node; không thay cron production |
 | Vision tinh chỉnh | `VISION_INCREMENTAL_BATCH_SIZE`, `VISION_INCREMENTAL_MAX_IMPORTS_PER_REQUEST`, `VISION_WAREHOUSE_POST_IMPORT_COOLDOWN_MS`, `VISION_WAREHOUSE_ASSETS_IMPORT_POLL_MAX_MS` | Tuỳ | Giảm 429 ImportAssets (mặc định 1 import/lượt + cooldown); tăng poll khi timeout |
@@ -54,11 +55,14 @@ Tạo secret dài (≥ 32 ký tự hex), ví dụ:
 |------|---------------------|
 | `MESSAGING_PARTNER_AI_CRON_SECRET` | `GET/POST /api/cron/messaging-partner-ai` — Header: `Authorization: Bearer <secret>` |
 | `VISION_CATALOG_SYNC_CRON_SECRET` | `GET/POST /api/cron/vision-catalog-sync` — đồng bộ ảnh kho lên Vision Warehouse (nền) |
+| `VISION_BG_SYNC_ENQUEUE_CRON_SECRET` | `GET/POST /api/cron/vision-bg-sync-enqueue` — xếp hàng job nền (vd. 1×/ngày); **optional**, fallback secret catalog |
 | `VISION_WAREHOUSE_REINDEX_CRON_SECRET` | `GET/POST /api/cron/vision-warehouse-reindex` — analyze corpus + rebuild index; **optional** nếu dùng chung secret catalog |
 
 **Trên VPS:** sau khi thêm vào `.env.local`, chạy `pm2 restart <app>` để Next đọc env.
 
 **Crontab:** Bearer trong `curl` phải **trùng** giá trị trong `.env.local`. Có thể dùng script đọc `.env.local` (xem `DEPLOY_VPS.md` / hướng dẫn `nanoai-cron-install.sh`).
+
+**Vision nền — bộ đôi khuyến nghị:** (1) `*/3 * * * *` gọi `/api/cron/vision-catalog-sync` để **chạy** job; (2) **một lần mỗi ngày** (vd. `15 3 * * *`) gọi `/api/cron/vision-bg-sync-enqueue` để **xếp hàng lại** (sau khi job cũ đã `done`/`error`). Hai URL khác nhau, có thể cùng secret `VISION_CATALOG_SYNC_CRON_SECRET`.
 
 ---
 

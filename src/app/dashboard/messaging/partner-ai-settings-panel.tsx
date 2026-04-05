@@ -196,7 +196,7 @@ function buildVisionBgDetailLines(
 function defaultsFromSettings(s: SettingsRow | null) {
   return {
     enabled: s?.enabled ?? false,
-    reply_delay_seconds: s?.reply_delay_seconds ?? 60,
+    reply_delay_seconds: s?.reply_delay_seconds ?? 20,
     typing_pause_min_ms: s?.typing_pause_min_ms ?? 1200,
     typing_pause_max_ms: s?.typing_pause_max_ms ?? 3800,
     shop_policy: s?.shop_policy ?? '',
@@ -794,11 +794,11 @@ export function PartnerAiSettingsPanel({
                 <Input
                   id="ai-delay"
                   type="number"
-                  min={15}
-                  max={900}
+                  min={5}
+                  max={30}
                   value={form.reply_delay_seconds}
                   onChange={(e) =>
-                    setForm((f) => ({ ...f, reply_delay_seconds: Number(e.target.value) || 60 }))
+                    setForm((f) => ({ ...f, reply_delay_seconds: Number(e.target.value) || 20 }))
                   }
                 />
                 <p className="text-xs text-muted-foreground">{t.delayHint}</p>

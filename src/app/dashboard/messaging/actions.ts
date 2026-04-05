@@ -11,6 +11,7 @@ import { sendFacebookMessengerImageUrl, sendFacebookMessengerText } from '@/lib/
 import { sendZaloOaText } from '@/lib/customer-care/zalo-oa'
 import { insertMessage } from '@/lib/customer-care/conversation-service'
 import { getFacebookSendToken, getZaloSendToken, upsertFacebookMessengerChannel, upsertZaloOaChannel } from '@/lib/messaging/partner-channels-db'
+import { enqueueVisionCatalogBackgroundSyncJob } from '@/lib/messaging/partner-vision-bg-sync-enqueue'
 import {
   catalogFingerprintForVisionRow,
   tryDeleteVisionProductForInventoryItem,
@@ -515,7 +516,7 @@ export async function savePartnerAiSettings(partnerId: string, payload: PartnerA
   const { user, supabase } = auth
   const gate = await assertPartnerOwner(supabase, user.id, partnerId)
   if ('error' in gate) return { error: gate.error }
-  const delay = Math.min(900, Math.max(15, Math.floor(Number(payload.reply_delay_seconds) || 60)))
+  const delay = Math.min(30, Math.max(5, Math.floor(Number(payload.reply_delay_seconds) || 20)))
   const tmin = Math.min(30000, Math.max(0, Math.floor(Number(payload.typing_pause_min_ms) || 1200)))
   const tmax = Math.min(30000, Math.max(0, Math.floor(Number(payload.typing_pause_max_ms) || 3800)))
   const shopCountryRaw = payload.vision_shop_country?.trim().toUpperCase() ?? ''
@@ -932,62 +933,22 @@ export async function enqueueVisionCatalogBackgroundSync(
   const { user, supabase } = auth
   const gate = await assertPartnerOwner(supabase, user.id, partnerId)
   if ('error' in gate) return { error: gate.error ?? 'Forbidden.' }
-  const { data: row, error: selErr } = await supabase
-    .from('messaging_partner_ai_settings')
-    .select('vision_product_search_enabled, vision_bg_sync_status')
-    .eq('partner_id', partnerId)
-    .maybeSingle()
-  if (selErr) return { error: selErr.message }
-  if (!row) {
-    return {
-      code: 'no_ai_row',
-      error: 'Save AI settings once before starting background sync.',
+  const r = await enqueueVisionCatalogBackgroundSyncJob(supabase, partnerId, resumeAfterId)
+  if (!r.ok) {
+    if (r.code === 'no_ai_row') {
+      return { code: 'no_ai_row', error: 'Save AI settings once before starting background sync.' }
     }
-  }
-  if (!row.vision_product_search_enabled) {
-    return {
-      code: 'enable_vision_first',
-      error: 'Enable image-based suggestions before background catalog sync.',
+    if (r.code === 'vision_disabled') {
+      return {
+        code: 'enable_vision_first',
+        error: 'Enable image-based suggestions before starting background catalog sync.',
+      }
     }
-  }
-  if (row.vision_bg_sync_status === 'queued' || row.vision_bg_sync_status === 'running') {
-    return { code: 'already_active', error: 'Background sync is already queued or running.' }
-  }
-  const now = new Date().toISOString()
-  let resume: string | null = resumeAfterId?.trim() || null
-  /**
-   * Cursor từ trình duyệt đôi khi trỏ sau dòng cuối kho (đồng bộ tay đã hết) — lượt nền đầu sẽ quét rỗng
-   * và báo xong với 0 import. Bỏ cursor để quét lại từ đầu (dòng bẩn vẫn được isVisionCatalogRowDirty xử lý).
-   */
-  if (resume) {
-    const { data: nextRow, error: nextErr } = await supabase
-      .from('messaging_partner_inventory')
-      .select('id')
-      .eq('partner_id', partnerId)
-      .gt('id', resume)
-      .order('id', { ascending: true })
-      .limit(1)
-      .maybeSingle()
-    if (nextErr || !nextRow) {
-      resume = null
+    if (r.code === 'already_active') {
+      return { code: 'already_active', error: r.error }
     }
+    return { error: r.error }
   }
-  const { error } = await supabase
-    .from('messaging_partner_ai_settings')
-    .update({
-      vision_bg_sync_status: 'queued',
-      vision_bg_sync_resume_after_id: resume,
-      vision_bg_sync_rounds: 0,
-      vision_bg_sync_imported: 0,
-      vision_bg_sync_removed: 0,
-      vision_bg_sync_started_at: null,
-      vision_bg_sync_finished_at: null,
-      vision_bg_sync_error: '',
-      vision_bg_sync_report: '',
-      updated_at: now,
-    })
-    .eq('partner_id', partnerId)
-  if (error) return { error: error.message }
   revalidateMessagingDashboard()
   return { ok: true as const }
 }

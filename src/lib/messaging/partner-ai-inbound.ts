@@ -100,7 +100,8 @@ export async function handlePartnerInboundForAi(
     }
 
     await cancelPendingAiJobsForConversation(input.conversationId)
-    const configuredDelay = Math.max(15, Math.min(900, settings.reply_delay_seconds ?? 60))
+    /** Chat bán hàng: chậm nhất ~30s trước khi bắt đầu luồng trả lời (sau đó còn độ trễ gõ). */
+    const configuredDelay = Math.max(5, Math.min(30, settings.reply_delay_seconds ?? 20))
     const visionFastFallback = input.capReplyDelaySeconds !== undefined
     const delaySec = visionFastFallback
       ? Math.min(configuredDelay, Math.max(0, input.capReplyDelaySeconds ?? 0))
