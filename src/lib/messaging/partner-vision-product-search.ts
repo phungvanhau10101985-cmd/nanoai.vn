@@ -487,11 +487,11 @@ export async function runVisionCatalogSync(
     }
 
     if (toImport.length > 0 && imported === 0 && toRemove.length === 0) {
-      return markFail('Could not download any product images for rows pending sync.')
+      return { error: 'Vision image fetch: no downloadable rows in current slice.' }
     }
 
     if (toImport.length > 0 && imported === 0 && removed > 0) {
-      return markFail('Could not download any product images for rows pending sync.')
+      return { error: 'Vision image fetch: no downloadable rows in current slice.' }
     }
 
     if (warehouseTouched) {

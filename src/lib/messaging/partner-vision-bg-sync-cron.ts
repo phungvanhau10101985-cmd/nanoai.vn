@@ -242,8 +242,15 @@ export async function processVisionCatalogBackgroundSyncJobs(
           const transientImportLockBusy =
             /Vision Warehouse: corpus đang bị giữ bởi lượt import khác/i.test(msg) ||
             /Vision import lock/i.test(msg)
+          /** Một lát quét không tải được ảnh nào (timeout/CDN tạm thời) — giữ running để lượt sau thử lại. */
+          const transientNoDownloadableRows = /Vision image fetch: no downloadable rows/i.test(msg)
 
-          if (transientImport429 || transientImportPollTimeout || transientImportLockBusy) {
+          if (
+            transientImport429 ||
+            transientImportPollTimeout ||
+            transientImportLockBusy ||
+            transientNoDownloadableRows
+          ) {
             const persistErr = await persistJob(db, partnerId, {
               vision_bg_sync_status: 'running',
               vision_bg_sync_resume_after_id: resume,
