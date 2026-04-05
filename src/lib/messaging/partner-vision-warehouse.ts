@@ -189,13 +189,36 @@ export async function importVisionWarehouseAssetsJsonl(params: {
   const url = `${warehouseManagementApiBase(params.location)}/projects/${encodeURIComponent(params.projectNumber)}/locations/${encodeURIComponent(params.location)}/corpora/${encodeURIComponent(params.corpusId)}/assets:import`
   /** Google: tối đa 1 ImportAssets / corpus; 429 khi slot còn bận — chờ lâu hơn, thử nhiều lần hơn. */
   const maxAttempts = 12
+  const requestTimeoutMs = 90_000
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const token = await visionAiToken()
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ assetsGcsUri: params.assetsGcsUri }),
-    })
+    const ctrl = new AbortController()
+    const timer = setTimeout(() => ctrl.abort(), requestTimeoutMs)
+    let res: Response
+    try {
+      res = await fetch(url, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ assetsGcsUri: params.assetsGcsUri }),
+        signal: ctrl.signal,
+      })
+    } catch (e) {
+      clearTimeout(timer)
+      const timeoutLike =
+        (e instanceof Error && /aborted|timeout/i.test(e.message)) ||
+        String(e).toLowerCase().includes('aborted')
+      if (timeoutLike) {
+        if (attempt >= maxAttempts) {
+          throw new Error(`Vision Warehouse assets:import request timeout (${requestTimeoutMs}ms)`)
+        }
+        const backoffMs = Math.min(240_000, 15_000 * 2 ** (attempt - 1))
+        await new Promise((r) => setTimeout(r, backoffMs))
+        continue
+      }
+      throw e
+    } finally {
+      clearTimeout(timer)
+    }
     if (res.status === 429) {
       const t = await res.text()
       if (attempt >= maxAttempts) {

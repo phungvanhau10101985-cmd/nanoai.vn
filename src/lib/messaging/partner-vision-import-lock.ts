@@ -60,5 +60,23 @@ export async function releaseVisionWarehouseImportLock(
   const owner = lock?.ownerId?.trim() || ''
   if (!owner) return
   const { error } = await db.rpc('vision_warehouse_release_import_lock', { p_owner: owner })
-  if (error) console.error('[vision-import-lock] release', error.message)
+  if (!error) return
+
+  console.error('[vision-import-lock] release', error.message)
+  // Fallback an toàn: nếu RPC lỗi nhưng owner khớp thì tự nhả lock bằng update trực tiếp.
+  const now = new Date().toISOString()
+  const { error: upErr } = await db
+    .from('vision_warehouse_runner')
+    .update({
+      assets_import_busy: false,
+      assets_import_busy_at: null,
+      assets_import_owner: null,
+      assets_import_heartbeat_at: null,
+      updated_at: now,
+    })
+    .eq('id', 1)
+    .eq('assets_import_owner', owner)
+  if (upErr) {
+    console.error('[vision-import-lock] release fallback', upErr.message)
+  }
 }

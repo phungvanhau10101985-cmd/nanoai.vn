@@ -53,6 +53,8 @@ type AiSettings = Database['public']['Tables']['messaging_partner_ai_settings'][
 type InvRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
 
 const CLOUD_PLATFORM_SCOPE = 'https://www.googleapis.com/auth/cloud-platform'
+const IMPORT_LOCK_STALE_SECONDS = 180
+const IMPORT_LOCK_HEARTBEAT_INTERVAL_MS = 20_000
 
 export type { VisionProductCategory }
 export { VISION_PRODUCT_CATEGORIES }
@@ -388,29 +390,34 @@ export async function runVisionCatalogSync(
       await uploadBytesToGcs(bucket, jsonlPath, Buffer.from(jsonlLines.join(''), 'utf8'), 'application/x-ndjson')
 
       let importLock: Awaited<ReturnType<typeof acquireVisionWarehouseImportLock>> | null = null
+      let heartbeatTimer: ReturnType<typeof setInterval> | null = null
       try {
-        importLock = await acquireVisionWarehouseImportLock(db, { maxWaitMs: 6_000 })
+        importLock = await acquireVisionWarehouseImportLock(db, {
+          maxWaitMs: 6_000,
+          staleSeconds: IMPORT_LOCK_STALE_SECONDS,
+        })
+        heartbeatTimer = setInterval(() => {
+          if (!importLock) return
+          void heartbeatVisionWarehouseImportLock(db, importLock)
+        }, IMPORT_LOCK_HEARTBEAT_INTERVAL_MS)
+        void heartbeatVisionWarehouseImportLock(db, importLock)
         const importOp = await importVisionWarehouseAssetsJsonl({
           projectNumber,
           location: loc,
           corpusId,
           assetsGcsUri: gcsUri(bucket, jsonlPath),
         })
-        const heartbeatIntervalMs = 25_000
-        let lastHeartbeatAt = 0
         await pollVisionAiOperation(importOp, {
           maxMs: importPollMaxMs,
           warehouseLocation: loc,
           onPending: async () => {
-            const now = Date.now()
-            if (now - lastHeartbeatAt < heartbeatIntervalMs) return
-            lastHeartbeatAt = now
             if (!importLock) return
             await heartbeatVisionWarehouseImportLock(db, importLock)
           },
         })
       }
       finally {
+        if (heartbeatTimer) clearInterval(heartbeatTimer)
         if (importLock) {
           await releaseVisionWarehouseImportLock(db, importLock)
         }

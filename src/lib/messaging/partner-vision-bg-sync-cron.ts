@@ -28,7 +28,7 @@ export type VisionBgSyncReportPayload = {
 const DEFAULT_MAX_PARTNERS = 2
 const DEFAULT_MAX_ROUNDS_PER_PARTNER = 35
 /** Quá ngưỡng này mà lock còn giữ => coi là treo và tự nhả. */
-const AUTO_UNLOCK_IMPORT_LOCK_AFTER_SECONDS = 10 * 60
+const AUTO_UNLOCK_IMPORT_LOCK_AFTER_SECONDS = 3 * 60
 
 function reportJson(r: VisionBgSyncReportPayload): string {
   return JSON.stringify(r)
