@@ -30,6 +30,7 @@ import {
   getPartnerAiTokenUsageStats,
   savePartnerAiSettings,
   savePartnerFaqPreset,
+  unlockVisionWarehouseImportLock,
   upsertPartnerFaq,
   upsertPartnerInventoryItem,
 } from '@/app/dashboard/messaging/actions'
@@ -1105,6 +1106,29 @@ export function PartnerAiSettingsPanel({
                         ? new Date(visionSyncHealth.lastProgressAt).toLocaleString()
                         : t.visionHealthLastProgressNone}
                     </p>
+                    {visionHealthLevel === 'stuck' ? (
+                      <div className="mt-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={pending || visionSyncing || visionBgRunSliceBusy}
+                          onClick={() => {
+                            startTransition(async () => {
+                              const res = await unlockVisionWarehouseImportLock(partnerId)
+                              if ('error' in res && res.error) {
+                                toast({ title: res.error, variant: 'destructive' })
+                                return
+                              }
+                              toast({ title: t.visionHealthUnlockOk })
+                              await load()
+                            })
+                          }}
+                        >
+                          {t.visionHealthUnlockButton}
+                        </Button>
+                      </div>
+                    ) : null}
                   </div>
                 ) : null}
                 <div className="space-y-1">

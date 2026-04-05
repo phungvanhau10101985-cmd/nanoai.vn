@@ -27,6 +27,8 @@ export type VisionBgSyncReportPayload = {
 
 const DEFAULT_MAX_PARTNERS = 2
 const DEFAULT_MAX_ROUNDS_PER_PARTNER = 35
+/** Quá ngưỡng này mà lock còn giữ => coi là treo và tự nhả. */
+const AUTO_UNLOCK_IMPORT_LOCK_AFTER_SECONDS = 10 * 60
 
 function reportJson(r: VisionBgSyncReportPayload): string {
   return JSON.stringify(r)
@@ -62,6 +64,56 @@ async function persistJob(
 }
 
 /**
+ * Tự cứu lock import bị treo quá lâu (worker chết/timeout giữa chừng).
+ * Không cần thao tác tay SQL khi `assets_import_busy` bị giữ quá ngưỡng.
+ */
+async function autoUnlockStaleVisionImportLock(
+  db: Db,
+  staleSeconds = AUTO_UNLOCK_IMPORT_LOCK_AFTER_SECONDS
+): Promise<void> {
+  const cutoffIso = new Date(Date.now() - staleSeconds * 1000).toISOString()
+  const now = new Date().toISOString()
+
+  // Case 1: busy=true nhưng busy_at cũ hơn ngưỡng.
+  const { data: staleRow, error: staleErr } = await db
+    .from('vision_warehouse_runner')
+    .update({
+      assets_import_busy: false,
+      assets_import_busy_at: null,
+      updated_at: now,
+    })
+    .eq('id', 1)
+    .eq('assets_import_busy', true)
+    .lt('assets_import_busy_at', cutoffIso)
+    .select('id')
+    .maybeSingle()
+  if (staleErr) {
+    console.error('[vision-bg-sync-cron] auto-unlock stale lock', staleErr.message)
+  } else if (staleRow) {
+    console.warn('[vision-bg-sync-cron] auto-unlocked stale import lock', { staleSeconds })
+  }
+
+  // Case 2: busy=true nhưng thiếu timestamp (state không nhất quán) => cũng nhả.
+  const { data: nullTsRow, error: nullTsErr } = await db
+    .from('vision_warehouse_runner')
+    .update({
+      assets_import_busy: false,
+      assets_import_busy_at: null,
+      updated_at: now,
+    })
+    .eq('id', 1)
+    .eq('assets_import_busy', true)
+    .is('assets_import_busy_at', null)
+    .select('id')
+    .maybeSingle()
+  if (nullTsErr) {
+    console.error('[vision-bg-sync-cron] auto-unlock null-ts lock', nullTsErr.message)
+  } else if (nullTsRow) {
+    console.warn('[vision-bg-sync-cron] auto-unlocked inconsistent import lock')
+  }
+}
+
+/**
  * Cron VPS: xử lý job đồng bộ Vision đang queued/running.
  * Mỗi lần gọi chạy tối đa vài partner × vài chục lượt trong giới hạn thời gian (tránh vượt maxDuration).
  */
@@ -75,6 +127,8 @@ export async function processVisionCatalogBackgroundSyncJobs(
     onlyPartnerId?: string
   }
 ): Promise<{ partnersTouched: number; roundsExecuted: number; errors: string[] }> {
+  await autoUnlockStaleVisionImportLock(db)
+
   const maxWallMs = opts?.maxWallMs ?? defaultVisionCatalogBgSyncMaxWallMs()
   const maxPartners = opts?.maxPartners ?? DEFAULT_MAX_PARTNERS
   const maxRoundsPerPartner = opts?.maxRoundsPerPartner ?? DEFAULT_MAX_ROUNDS_PER_PARTNER

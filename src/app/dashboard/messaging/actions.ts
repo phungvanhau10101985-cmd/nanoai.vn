@@ -1030,3 +1030,27 @@ export async function cancelVisionCatalogBackgroundSync(partnerId: string) {
 export async function dismissVisionCatalogBackgroundSyncReport(partnerId: string) {
   return cancelVisionCatalogBackgroundSync(partnerId)
 }
+
+/** Mở khóa import Vision Warehouse khi lock bị treo quá lâu. */
+export async function unlockVisionWarehouseImportLock(partnerId: string) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const { user, supabase } = auth
+  const gate = await assertPartnerOwner(supabase, user.id, partnerId)
+  if ('error' in gate) return { error: gate.error }
+
+  const svc = createServiceRoleClient()
+  const now = new Date().toISOString()
+  const { error } = await svc
+    .from('vision_warehouse_runner')
+    .update({
+      assets_import_busy: false,
+      assets_import_busy_at: null,
+      updated_at: now,
+    })
+    .eq('id', 1)
+  if (error) return { error: error.message }
+
+  revalidateMessagingDashboard()
+  return { ok: true as const }
+}
