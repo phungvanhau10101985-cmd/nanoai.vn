@@ -346,6 +346,7 @@ export function PartnerAiSettingsPanel({
 
   const visionBgActive =
     form.vision_bg_sync_status === 'queued' || form.vision_bg_sync_status === 'running'
+  const visionOpsLocked = pending || visionSyncing || visionBgRunSliceBusy || visionBgActive
 
   /** Số dòng kho có URL ảnh https — khớp điều kiện đồng bộ Google (ước lượng tiến độ). */
   const visionBgImageRowTotal = useMemo(
@@ -606,6 +607,7 @@ export function PartnerAiSettingsPanel({
   }
 
   const runVisionSync = useCallback(() => {
+    if (pending || visionSyncing || visionBgRunSliceBusy || visionBgActive) return
     setVisionSyncing(true)
     void (async () => {
       try {
@@ -624,9 +626,10 @@ export function PartnerAiSettingsPanel({
         setVisionSyncing(false)
       }
     })()
-  }, [runVisionCatalogSyncChained, visionSyncResumeAfterId, t, toast, load])
+  }, [runVisionCatalogSyncChained, visionSyncResumeAfterId, t, toast, load, pending, visionSyncing, visionBgRunSliceBusy, visionBgActive])
 
   const handleEnqueueVisionBgSync = useCallback(() => {
+    if (pending || visionSyncing || visionBgRunSliceBusy || visionBgActive) return
     startTransition(async () => {
       const res = await enqueueVisionCatalogBackgroundSync(partnerId, visionSyncResumeAfterId)
       if ('error' in res && res.error) {
@@ -649,9 +652,10 @@ export function PartnerAiSettingsPanel({
       toast({ title: t.visionBgSyncEnqueueOk })
       load()
     })
-  }, [partnerId, visionSyncResumeAfterId, t, toast, load])
+  }, [partnerId, visionSyncResumeAfterId, t, toast, load, pending, visionSyncing, visionBgRunSliceBusy, visionBgActive])
 
   const handleCancelVisionBgSync = useCallback(() => {
+    if (pending || visionSyncing || visionBgRunSliceBusy) return
     startTransition(async () => {
       const res = await cancelVisionCatalogBackgroundSync(partnerId)
       if ('error' in res && res.error) {
@@ -660,9 +664,10 @@ export function PartnerAiSettingsPanel({
       }
       load()
     })
-  }, [partnerId, toast, load])
+  }, [partnerId, toast, load, pending, visionSyncing, visionBgRunSliceBusy])
 
   const handleRunVisionBgSyncSlice = useCallback(async () => {
+    if (pending || visionSyncing || visionBgRunSliceBusy || !visionBgActive) return
     setVisionBgRunSliceBusy(true)
     try {
       const res = await fetch(
@@ -694,7 +699,7 @@ export function PartnerAiSettingsPanel({
     } finally {
       setVisionBgRunSliceBusy(false)
     }
-  }, [partnerId, load, toast, t])
+  }, [partnerId, load, toast, t, pending, visionSyncing, visionBgRunSliceBusy, visionBgActive])
 
   const handleDismissVisionBgReport = useCallback(() => {
     startTransition(async () => {
@@ -1032,7 +1037,7 @@ export function PartnerAiSettingsPanel({
                 <p className="text-xs text-muted-foreground">{t.visionBucketOverrideHint}</p>
               </div>
               <div className="space-y-1.5">
-                <Button type="button" variant="secondary" disabled={pending || visionSyncing} onClick={runVisionSync}>
+                <Button type="button" variant="secondary" disabled={visionOpsLocked} onClick={runVisionSync}>
                   {visionSyncing ? t.visionSyncing : t.visionSyncButton}
                 </Button>
                 <p className="text-[11px] text-muted-foreground leading-relaxed max-w-xl">
@@ -1122,7 +1127,7 @@ export function PartnerAiSettingsPanel({
                   <Button
                     type="button"
                     variant="secondary"
-                    disabled={pending || visionSyncing || visionBgActive || !form.vision_product_search_enabled}
+                    disabled={visionOpsLocked || !form.vision_product_search_enabled}
                     onClick={handleEnqueueVisionBgSync}
                   >
                     {t.visionBgSyncButton}
@@ -1130,7 +1135,7 @@ export function PartnerAiSettingsPanel({
                   <Button
                     type="button"
                     variant="outline"
-                    disabled={pending || !visionBgActive}
+                    disabled={pending || visionSyncing || visionBgRunSliceBusy || !visionBgActive}
                     onClick={handleCancelVisionBgSync}
                   >
                     {t.visionBgSyncCancel}
@@ -1139,7 +1144,7 @@ export function PartnerAiSettingsPanel({
                     type="button"
                     variant="default"
                     className="bg-violet-600 hover:bg-violet-700 dark:bg-violet-600 dark:hover:bg-violet-500"
-                    disabled={pending || !visionBgActive || visionBgRunSliceBusy}
+                    disabled={pending || visionSyncing || !visionBgActive || visionBgRunSliceBusy}
                     onClick={() => void handleRunVisionBgSyncSlice()}
                   >
                     {visionBgRunSliceBusy ? (
