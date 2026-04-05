@@ -8,6 +8,7 @@ import { defaultVisionCatalogBgSyncMaxWallMs } from '@/lib/messaging/partner-vis
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 export const maxDuration = 1200
+const RUN_ONCE_WALL_MS = 40_000
 
 /**
  * Chủ shop: chạy một lượt xử lý giống cron `/api/cron/vision-catalog-sync` (không cần Bearer secret).
@@ -37,7 +38,7 @@ export async function POST(_req: Request, ctx: { params: Promise<{ partnerId: st
     const stats = await processVisionCatalogBackgroundSyncJobs(db, {
       onlyPartnerId: partnerId,
       maxPartners: 1,
-      maxWallMs: defaultVisionCatalogBgSyncMaxWallMs(),
+      maxWallMs: Math.min(defaultVisionCatalogBgSyncMaxWallMs(), RUN_ONCE_WALL_MS),
     })
     revalidatePath('/dashboard/messaging')
     return NextResponse.json({ ok: true, ...stats })

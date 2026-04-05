@@ -347,7 +347,7 @@ export async function runVisionCatalogSync(
     const slicesToRun = importSlices.slice(0, maxImportsThisRun)
 
     if (toImport.length > 0) {
-      await acquireVisionWarehouseImportLock(db, { maxWaitMs: 20_000 })
+      await acquireVisionWarehouseImportLock(db, { maxWaitMs: 6_000 })
     }
     try {
       for (const slice of slicesToRun) {
