@@ -3,10 +3,11 @@ import { revalidatePath } from 'next/cache'
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
 import { requireMessagingPartnerOwner } from '@/lib/messaging/partner-inventory-route-auth'
 import { processVisionCatalogBackgroundSyncJobs } from '@/lib/messaging/partner-vision-bg-sync-cron'
+import { defaultVisionCatalogBgSyncMaxWallMs } from '@/lib/messaging/partner-vision-server-config'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
-export const maxDuration = 660
+export const maxDuration = 900
 
 /**
  * Chủ shop: chạy một lượt xử lý giống cron `/api/cron/vision-catalog-sync` (không cần Bearer secret).
@@ -33,7 +34,11 @@ export async function POST(_req: Request, ctx: { params: Promise<{ partnerId: st
   }
 
   try {
-    const stats = await processVisionCatalogBackgroundSyncJobs(db)
+    const stats = await processVisionCatalogBackgroundSyncJobs(db, {
+      onlyPartnerId: partnerId,
+      maxPartners: 1,
+      maxWallMs: defaultVisionCatalogBgSyncMaxWallMs(),
+    })
     revalidatePath('/dashboard/messaging')
     return NextResponse.json({ ok: true, ...stats })
   } catch (e) {

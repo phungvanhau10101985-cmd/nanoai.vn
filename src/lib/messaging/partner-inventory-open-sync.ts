@@ -153,6 +153,7 @@ export function openCatalogItemToInsert(obj: unknown): InventoryExcelInsert | nu
     product_url,
     consult_note,
     is_active,
+    removeFromInventory: false,
   }
 }
 

@@ -39,15 +39,25 @@ export const VISION_CATALOG_SYNC_MAX_ITEMS = 400
  * Số dòng tối đa mỗi lô import JSONL lên Warehouse trong một request.
  * Lô quá lớn khiến thao tác `assets:import` trên Google chạy lâu, dễ vượt timeout poll.
  */
-export const VISION_INCREMENTAL_BATCH_SIZE = 100
+export const VISION_INCREMENTAL_BATCH_SIZE = 50
 
 /**
- * Chờ operation Vision Warehouse `assets:import` (JSONL). Mặc định cũ 180s hay quá ngắn với lô ảnh lớn.
+ * Chờ operation Vision Warehouse `assets:import` (JSONL). Có thể tăng bằng env `VISION_WAREHOUSE_ASSETS_IMPORT_POLL_MAX_MS`.
  */
-export const VISION_WAREHOUSE_ASSETS_IMPORT_POLL_MAX_MS = 480_000
+export const VISION_WAREHOUSE_ASSETS_IMPORT_POLL_MAX_MS = 600_000
 
-/** Tối đa số lần import liên tiếp trong một POST (tránh timeout). */
-export const VISION_INCREMENTAL_MAX_IMPORTS_PER_REQUEST = 12
+/**
+ * Nghỉ sau mỗi lô `assets:import` thành công (trước lô tiếp theo hoặc trước khi nhả khóa DB),
+ * giúp Google giải phóng slot “1 op / corpus”. Có thể chỉnh bằng env.
+ */
+export const VISION_WAREHOUSE_POST_IMPORT_COOLDOWN_MS = 5_000
+
+/**
+ * Tối đa số lần gọi `assets:import` liên tiếp trong một lượt `runVisionCatalogSync`.
+ * Google chỉ cho **1** ImportAssets đồng thời / corpus — sau khi poll xong, slot có thể chưa giải phóng ngay;
+ * chạy nhiều lần liên tiếp trong cùng request dễ 429. Mặc định 1; có thể tăng bằng env (server-config).
+ */
+export const VISION_INCREMENTAL_MAX_IMPORTS_PER_REQUEST = 1
 
 /** Khi quét kho theo id, tối đa bao nhiêu dòng “bẩn” (import + xóa) xử lý mỗi POST. */
 export const VISION_INCREMENTAL_MAX_DIRTY_PER_REQUEST =
@@ -150,3 +160,20 @@ export const VISION_SEARCH_REQUEST_TIMEOUT_MS = 12_000
  * không chờ reply_delay shop. Cron/INLINE_WAKE vẫn quyết định thời điểm chạy thực tế.
  */
 export const VISION_MISS_AI_REPLY_DELAY_CAP_SECONDS = 0
+
+/**
+ * CDN thường dùng URL protocol-relative `//host/...` — coi như https cho Vision sync & fingerprint.
+ * Dùng chung server + client (thống kê UI).
+ */
+export function normalizeVisionCatalogImageUrl(raw: string | null | undefined): string {
+  const t = (raw ?? '').trim()
+  if (!t) return ''
+  if (t.startsWith('//')) return `https:${t}`
+  return t
+}
+
+/** Ảnh có thể đưa lên Vision (sau chuẩn hoá có tiền tố http/https). */
+export function isVisionCatalogImageUrlSyncable(raw: string | null | undefined): boolean {
+  const n = normalizeVisionCatalogImageUrl(raw)
+  return !!(n && /^https?:\/\//i.test(n))
+}

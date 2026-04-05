@@ -222,6 +222,8 @@ export interface Database {
           index_operation: string
           warehouse_location: string
           updated_at: string
+          assets_import_busy: boolean
+          assets_import_busy_at: string | null
         }
         Insert: {
           id?: number
@@ -230,6 +232,8 @@ export interface Database {
           index_operation?: string
           warehouse_location?: string
           updated_at?: string
+          assets_import_busy?: boolean
+          assets_import_busy_at?: string | null
         }
         Update: {
           id?: number
@@ -238,6 +242,8 @@ export interface Database {
           index_operation?: string
           warehouse_location?: string
           updated_at?: string
+          assets_import_busy?: boolean
+          assets_import_busy_at?: string | null
         }
         Relationships: []
       }
@@ -665,6 +671,14 @@ export interface Database {
           sum_completion_tokens: number
           sum_total_tokens: number
         }[]
+      }
+      vision_warehouse_try_acquire_import_lock: {
+        Args: { p_stale_seconds?: number }
+        Returns: boolean
+      }
+      vision_warehouse_release_import_lock: {
+        Args: Record<string, never>
+        Returns: null
       }
     }
   }

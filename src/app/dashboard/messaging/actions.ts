@@ -11,7 +11,10 @@ import { sendFacebookMessengerImageUrl, sendFacebookMessengerText } from '@/lib/
 import { sendZaloOaText } from '@/lib/customer-care/zalo-oa'
 import { insertMessage } from '@/lib/customer-care/conversation-service'
 import { getFacebookSendToken, getZaloSendToken, upsertFacebookMessengerChannel, upsertZaloOaChannel } from '@/lib/messaging/partner-channels-db'
-import { tryDeleteVisionProductForInventoryItem } from '@/lib/messaging/partner-vision-product-search'
+import {
+  catalogFingerprintForVisionRow,
+  tryDeleteVisionProductForInventoryItem,
+} from '@/lib/messaging/partner-vision-product-search'
 import { cancelPendingAiJobsForConversation } from '@/lib/messaging/partner-ai-inbound'
 import type { Json } from '@/types/database.types'
 import {
@@ -32,6 +35,7 @@ import {
 } from '@/lib/messaging/partner-faq-presets'
 import {
   VISION_PRODUCT_CATEGORIES,
+  isVisionCatalogImageUrlSyncable,
   normalizeVisionProductSearchLocation,
   type VisionProductCategory,
 } from '@/lib/messaging/partner-vision-constants'
@@ -426,6 +430,55 @@ export async function getPartnerAiTokenUsageStats(partnerId: string) {
   }
 }
 
+export type PartnerVisionCatalogStats = {
+  totalInInventory: number
+  /** Có URL ảnh https, không bị loại trừ Vision */
+  withHttpsImageUrl: number
+  /** Checksum khớp ảnh+tên hiện tại — luồng đồng bộ sẽ bỏ qua */
+  syncedUpToDate: number
+  /** Cần xử lý: chưa đẩy, hoặc đổi ảnh/tên, hoặc mất URL nhưng còn checksum (gỡ) */
+  pendingSync: number
+  visionCatalogExcluded: number
+  /** Không loại trừ nhưng không có URL https */
+  noHttpsImageUrl: number
+}
+
+function buildPartnerVisionCatalogStats(
+  rows: Database['public']['Tables']['messaging_partner_inventory']['Row'][]
+): PartnerVisionCatalogStats {
+  let withHttpsImageUrl = 0
+  let syncedUpToDate = 0
+  let pendingSync = 0
+  let visionCatalogExcluded = 0
+  let noHttpsImageUrl = 0
+
+  for (const row of rows) {
+    if (row.vision_catalog_excluded) {
+      visionCatalogExcluded += 1
+      continue
+    }
+    const valid = isVisionCatalogImageUrlSyncable(row.image_url)
+    if (!valid) {
+      noHttpsImageUrl += 1
+      if (row.vision_catalog_checksum) pendingSync += 1
+      continue
+    }
+    withHttpsImageUrl += 1
+    const fp = catalogFingerprintForVisionRow(row)
+    if (row.vision_catalog_checksum === fp) syncedUpToDate += 1
+    else pendingSync += 1
+  }
+
+  return {
+    totalInInventory: rows.length,
+    withHttpsImageUrl,
+    syncedUpToDate,
+    pendingSync,
+    visionCatalogExcluded,
+    noHttpsImageUrl,
+  }
+}
+
 export async function getPartnerAiBundle(partnerId: string) {
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
@@ -447,10 +500,12 @@ export async function getPartnerAiBundle(partnerId: string) {
     .select('*')
     .eq('partner_id', partnerId)
     .order('sort_order', { ascending: true })
+  const inv = inventory ?? []
   return {
     settings: toPartnerAiSettingsClient(settings ?? null),
     faqs: faqs ?? [],
-    inventory: inventory ?? [],
+    inventory: inv,
+    visionCatalogStats: buildPartnerVisionCatalogStats(inv),
   }
 }
 

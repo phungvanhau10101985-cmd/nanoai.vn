@@ -194,5 +194,6 @@ export async function POST(req: Request, ctx: { params: Promise<{ partnerId: str
     count: parsed.rows.length,
     inserted: batch.inserted,
     updated: batch.updated,
+    deleted: batch.deleted,
   }, 200)
 }

@@ -17,6 +17,7 @@ import type {
   PartnerAiSettingsClientRow,
   PartnerAiSettingsPayload,
   PartnerAiTokenUsageStatRow,
+  PartnerVisionCatalogStats,
 } from '@/app/dashboard/messaging/actions'
 import {
   cancelVisionCatalogBackgroundSync,
@@ -51,6 +52,7 @@ import {
   VISION_SYNC_CLIENT_FETCH_TIMEOUT_MS,
   VISION_WAREHOUSE_CORPUS_UNSUPPORTED_TYPE_CODE,
   VISION_WAREHOUSE_REINDEX_PENDING_CODE,
+  isVisionCatalogImageUrlSyncable,
   isVisionProductSearchMaintenanceError,
   normalizeVisionProductSearchLocation,
 } from '@/lib/messaging/partner-vision-constants'
@@ -276,6 +278,7 @@ export function PartnerAiSettingsPanel({
   const [loadErr, setLoadErr] = useState<string | null>(null)
   const [faqs, setFaqs] = useState<FaqRow[]>([])
   const [inventory, setInventory] = useState<InvRow[]>([])
+  const [visionCatalogStats, setVisionCatalogStats] = useState<PartnerVisionCatalogStats | null>(null)
   const [tokenUsageRows, setTokenUsageRows] = useState<PartnerAiTokenUsageStatRow[]>([])
   const [tokenUsageLookbackDays, setTokenUsageLookbackDays] = useState(30)
   const [form, setForm] = useState<FormState>(() => defaultsFromSettings(null))
@@ -312,6 +315,7 @@ export function PartnerAiSettingsPanel({
         setTokenUsageLookbackDays(usageRes.lookbackDays)
       }
       if ('error' in bundleRes && bundleRes.error) {
+        setVisionCatalogStats(null)
         setLoadErr(bundleRes.error)
         toast({ title: t.loadError, description: bundleRes.error, variant: 'destructive' })
         return
@@ -322,6 +326,7 @@ export function PartnerAiSettingsPanel({
         setForm(next)
         setFaqs(bundleRes.faqs ?? [])
         setInventory(bundleRes.inventory ?? [])
+        setVisionCatalogStats(bundleRes.visionCatalogStats ?? null)
       }
     })()
   }, [partnerId, t.loadError, toast])
@@ -342,9 +347,9 @@ export function PartnerAiSettingsPanel({
   const visionBgActive =
     form.vision_bg_sync_status === 'queued' || form.vision_bg_sync_status === 'running'
 
-  /** Số dòng kho có link ảnh — dùng ước lượng tiến độ đăng chỉ mục Google. */
+  /** Số dòng kho có URL ảnh https — khớp điều kiện đồng bộ Google (ước lượng tiến độ). */
   const visionBgImageRowTotal = useMemo(
-    () => inventory.filter((r) => (r.image_url ?? '').trim().length > 0).length,
+    () => inventory.filter((r) => isVisionCatalogImageUrlSyncable(r.image_url)).length,
     [inventory]
   )
 
@@ -771,8 +776,11 @@ export function PartnerAiSettingsPanel({
             <TabsTrigger value="faq" className="text-xs sm:text-sm">
               {t.tabFaq}
             </TabsTrigger>
-            <TabsTrigger value="inv" className="text-xs sm:text-sm">
+            <TabsTrigger value="inv" className="text-xs sm:text-sm gap-1.5">
               {t.tabInventory}
+              <Badge variant="secondary" className="h-5 min-w-5 px-1.5 font-mono text-[10px] tabular-nums">
+                {inventory.length}
+              </Badge>
             </TabsTrigger>
             <TabsTrigger value="usage" className="text-xs sm:text-sm">
               {t.tabUsage}
@@ -855,6 +863,45 @@ export function PartnerAiSettingsPanel({
                 <div className="min-w-0 space-y-1">
                   <p className="text-sm font-medium">{t.visionSearchTitle}</p>
                   <p className="text-xs leading-relaxed text-muted-foreground">{t.visionSearchHint}</p>
+                  <p className="text-[11px] leading-relaxed text-muted-foreground border-l-2 border-violet-300/80 pl-2 dark:border-violet-700">
+                    {t.visionWarehouseInventorySummary
+                      .replace('{total}', String(inventory.length))
+                      .replace('{withImage}', String(visionBgImageRowTotal))}
+                  </p>
+                  {visionCatalogStats ? (
+                    <div className="mt-2 space-y-1.5 rounded-md border border-violet-200/70 bg-violet-50/40 p-2.5 dark:border-violet-900/50 dark:bg-violet-950/25">
+                      <p className="text-[11px] font-medium text-foreground">{t.visionCatalogSyncStatsTitle}</p>
+                      <ul className="list-disc space-y-0.5 pl-4 text-[11px] leading-relaxed text-muted-foreground">
+                        <li>
+                          {t.visionCatalogSyncStatsLineSynced.replace(
+                            '{n}',
+                            String(visionCatalogStats.syncedUpToDate)
+                          )}
+                        </li>
+                        <li>
+                          {t.visionCatalogSyncStatsLinePending.replace(
+                            '{n}',
+                            String(visionCatalogStats.pendingSync)
+                          )}
+                        </li>
+                        <li>
+                          {t.visionCatalogSyncStatsLineNoHttps.replace(
+                            '{n}',
+                            String(visionCatalogStats.noHttpsImageUrl)
+                          )}
+                        </li>
+                        <li>
+                          {t.visionCatalogSyncStatsLineExcluded.replace(
+                            '{n}',
+                            String(visionCatalogStats.visionCatalogExcluded)
+                          )}
+                        </li>
+                      </ul>
+                      <p className="text-[10px] leading-relaxed text-muted-foreground pt-0.5">
+                        {t.visionCatalogSyncStatsExplain}
+                      </p>
+                    </div>
+                  ) : null}
                 </div>
               </div>
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed border-border/60 bg-background/60 px-3 py-2">
@@ -1175,6 +1222,11 @@ export function PartnerAiSettingsPanel({
           </TabsContent>
 
           <TabsContent value="inv" className="mt-0 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/60 bg-muted/25 px-3 py-2.5">
+              <p className="text-sm font-medium tabular-nums">
+                {t.inventoryProductCountSummary.replace('{count}', String(inventory.length))}
+              </p>
+            </div>
             <InventoryEditor
               partnerId={partnerId}
               t={t}
@@ -1767,6 +1819,7 @@ function InventoryEditor({
         count?: number
         inserted?: number
         updated?: number
+        deleted?: number
         error?: string
       } = {}
       try {
@@ -1785,7 +1838,8 @@ function InventoryEditor({
         title: t.inventoryImportSuccess
           .replace('{count}', String(data.count ?? 0))
           .replace('{inserted}', String(data.inserted ?? 0))
-          .replace('{updated}', String(data.updated ?? 0)),
+          .replace('{updated}', String(data.updated ?? 0))
+          .replace('{deleted}', String(data.deleted ?? 0)),
       })
       resetDraft()
       onChanged()

@@ -5,6 +5,7 @@ import {
   inventoryNameMatchKey,
   inventorySkuMatchKey,
 } from '@/lib/messaging/partner-inventory-excel'
+import { tryDeleteVisionProductForInventoryItem } from '@/lib/messaging/partner-vision-product-search'
 
 type Db = SupabaseClient<Database>
 type InventoryRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
@@ -41,7 +42,9 @@ export async function upsertPartnerInventoryBatch(
   db: Db,
   partnerId: string,
   rows: InventoryExcelInsert[]
-): Promise<{ ok: true; inserted: number; updated: number } | { ok: false; error: string }> {
+): Promise<
+  { ok: true; inserted: number; updated: number; deleted: number } | { ok: false; error: string }
+> {
   const now = new Date().toISOString()
 
   const { data: existing, error: exErr } = await db
@@ -62,6 +65,23 @@ export async function upsertPartnerInventoryBatch(
 
   let inserted = 0
   let updated = 0
+  let deleted = 0
+
+  const dropFromSkuIndex = (skuKey: string, invId: string) => {
+    const arr = bySku.get(skuKey)
+    if (!arr) return
+    const i = arr.findIndex((x) => x.id === invId)
+    if (i >= 0) arr.splice(i, 1)
+    if (arr.length === 0) bySku.delete(skuKey)
+  }
+
+  const dropFromNameNoSkuIndex = (nk: string, invId: string) => {
+    const arr = byNameNoSku.get(nk)
+    if (!arr) return
+    const i = arr.findIndex((x) => x.id === invId)
+    if (i >= 0) arr.splice(i, 1)
+    if (arr.length === 0) byNameNoSku.delete(nk)
+  }
 
   for (const r of rows) {
     const skuKey = inventorySkuMatchKey(r.sku)
@@ -84,6 +104,27 @@ export async function upsertPartnerInventoryBatch(
           targetId = (list.find((x) => x.sort_order === r.sort_order) ?? list[0]).id
         }
       }
+    }
+
+    if (r.removeFromInventory) {
+      if (!targetId) continue
+      await tryDeleteVisionProductForInventoryItem(db, partnerId, targetId)
+      const { error: delErr } = await db
+        .from('messaging_partner_inventory')
+        .delete()
+        .eq('id', targetId)
+        .eq('partner_id', partnerId)
+      if (delErr) return { ok: false, error: delErr.message }
+      deleted += 1
+      if (skuKey) {
+        skuResolvedId.delete(skuKey)
+        dropFromSkuIndex(skuKey, targetId)
+      } else {
+        const nk = inventoryNameMatchKey(r.name)
+        nameNoSkuResolvedId.delete(nk)
+        dropFromNameNoSkuIndex(nk, targetId)
+      }
+      continue
     }
 
     const base = {
@@ -129,5 +170,5 @@ export async function upsertPartnerInventoryBatch(
     }
   }
 
-  return { ok: true, inserted, updated }
+  return { ok: true, inserted, updated, deleted }
 }

@@ -66,8 +66,9 @@ npm install
 
 #### b. Set Up Environment Variables
 
-1.  Rename the `.env.example` file to `.env.local`.
-2.  Open `.env.local` and fill in the values you copied from your Supabase dashboard:
+1.  Copy `.env.example` to `.env.local` (e.g. `cp .env.example .env.local`).
+2.  For a **full checklist** (Supabase, AI, cron secrets, Vision Warehouse, VPS vs local), see **`docs/ENV_LOCAL_REFERENCE.md`**.
+3.  Open `.env.local` and fill in the values you copied from your Supabase dashboard (and other services):
 
     ```env
     # Supabase Configuration

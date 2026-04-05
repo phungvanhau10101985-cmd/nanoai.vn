@@ -64,6 +64,10 @@ rsync -avz --exclude node_modules --exclude .next --exclude .env.local --exclude
 3. **Trên VPS:** `git pull` (hoặc code đã rsync) → `npm install` → `npm run build` → `pm2 restart thu-do-online`
 4. File `.env.local` trên VPS **không đổi** → production chạy bình thường
 
+### Biến môi trường & `.env.local` (đầy đủ, cron, Vision)
+
+Xem **`docs/ENV_LOCAL_REFERENCE.md`** — checklist cho dev/Cursor: biến nào bắt buộc trên VPS, secret cron (`MESSAGING_PARTNER_AI_CRON_SECRET`, `VISION_CATALOG_SYNC_CRON_SECRET`, …), và quy tắc không ghi đè `.env.local` khi deploy.
+
 ### Cron nhắc ôn từ (Học ngoại ngữ AI)
 
 Trong `.env.local` trên VPS thêm `COACH_REVIEW_REMINDER_CRON_SECRET` (chuỗi ngẫu nhiên đủ dài). Trên server, lên lịch **1–2 lần/ngày** (crontab):

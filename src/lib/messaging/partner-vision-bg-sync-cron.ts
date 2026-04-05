@@ -4,6 +4,7 @@ import {
   VISION_BG_SYNC_REPORT_MESSAGE,
   VISION_BG_SYNC_SERVER_ERROR_BAD_CURSOR,
 } from '@/lib/messaging/partner-vision-constants'
+import { defaultVisionCatalogBgSyncMaxWallMs } from '@/lib/messaging/partner-vision-server-config'
 import { runVisionCatalogSync } from '@/lib/messaging/partner-vision-product-search'
 import { kickVisionWarehouseReindexIfPending } from '@/lib/messaging/partner-vision-warehouse-runner'
 
@@ -24,8 +25,6 @@ export type VisionBgSyncReportPayload = {
   cronSliceAt?: string
 }
 
-/** Phải ≥ thời gian poll một lần `assets:import` (xem VISION_WAREHOUSE_ASSETS_IMPORT_POLL_MAX_MS). */
-const DEFAULT_MAX_WALL_MS = 600_000
 const DEFAULT_MAX_PARTNERS = 2
 const DEFAULT_MAX_ROUNDS_PER_PARTNER = 35
 
@@ -72,17 +71,23 @@ export async function processVisionCatalogBackgroundSyncJobs(
     maxWallMs?: number
     maxPartners?: number
     maxRoundsPerPartner?: number
+    /** Chỉ xử lý shop này (dùng cho POST run-once theo partner). */
+    onlyPartnerId?: string
   }
 ): Promise<{ partnersTouched: number; roundsExecuted: number; errors: string[] }> {
-  const maxWallMs = opts?.maxWallMs ?? DEFAULT_MAX_WALL_MS
+  const maxWallMs = opts?.maxWallMs ?? defaultVisionCatalogBgSyncMaxWallMs()
   const maxPartners = opts?.maxPartners ?? DEFAULT_MAX_PARTNERS
   const maxRoundsPerPartner = opts?.maxRoundsPerPartner ?? DEFAULT_MAX_ROUNDS_PER_PARTNER
 
-  const { data: jobs, error: qErr } = await db
+  let jobQuery = db
     .from('messaging_partner_ai_settings')
     .select('partner_id')
     .eq('vision_product_search_enabled', true)
     .in('vision_bg_sync_status', ['queued', 'running'])
+  const only = opts?.onlyPartnerId?.trim()
+  if (only) jobQuery = jobQuery.eq('partner_id', only)
+
+  const { data: jobs, error: qErr } = await jobQuery
     .order('vision_bg_sync_started_at', { ascending: true, nullsFirst: true })
     .limit(maxPartners)
 
@@ -148,6 +153,35 @@ export async function processVisionCatalogBackgroundSyncJobs(
 
         if ('error' in syncResult) {
           const msg = syncResult.error
+          /** Google chỉ 1 ImportAssets / corpus — 429 tạm thời: giữ job running, cron sau thử lại. */
+          const transientImport429 =
+            /Too many ImportAssets/i.test(msg) ||
+            (/429/.test(msg) && /ImportAssets|RESOURCE_EXHAUSTED/i.test(msg))
+
+          if (transientImport429) {
+            const persistErr = await persistJob(db, partnerId, {
+              vision_bg_sync_status: 'running',
+              vision_bg_sync_resume_after_id: resume,
+              vision_bg_sync_rounds: roundsTotal,
+              vision_bg_sync_imported: impTotal,
+              vision_bg_sync_removed: remTotal,
+              vision_bg_sync_error: '',
+              vision_bg_sync_report: reportJson({
+                completed: false,
+                totalRounds: roundsTotal,
+                totalImported: impTotal,
+                totalRemoved: remTotal,
+                hasMore: true,
+                lastScannedId: resume,
+                stoppedReason: 'cron_slice',
+                message: VISION_BG_SYNC_REPORT_MESSAGE.inProgress,
+                errorDetail: msg.slice(0, 800),
+              }),
+            })
+            if (persistErr) errors.push(`${partnerId}: persist import-429: ${persistErr}`)
+            break
+          }
+
           const persistErr = await persistJob(db, partnerId, {
             vision_bg_sync_status: 'error',
             vision_bg_sync_finished_at: new Date().toISOString(),

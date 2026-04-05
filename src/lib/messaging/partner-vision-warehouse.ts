@@ -180,20 +180,34 @@ export async function importVisionWarehouseAssetsJsonl(params: {
   corpusId: string
   assetsGcsUri: string
 }): Promise<string> {
-  const token = await visionAiToken()
   const url = `${warehouseManagementApiBase(params.location)}/projects/${encodeURIComponent(params.projectNumber)}/locations/${encodeURIComponent(params.location)}/corpora/${encodeURIComponent(params.corpusId)}/assets:import`
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ assetsGcsUri: params.assetsGcsUri }),
-  })
-  if (!res.ok) {
-    const t = await res.text()
-    throw new Error(`Vision Warehouse assets:import (${res.status}): ${t.slice(0, 600)}`)
+  /** Google: tối đa 1 ImportAssets / corpus; 429 khi slot còn bận — chờ lâu hơn, thử nhiều lần hơn. */
+  const maxAttempts = 12
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const token = await visionAiToken()
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ assetsGcsUri: params.assetsGcsUri }),
+    })
+    if (res.status === 429) {
+      const t = await res.text()
+      if (attempt >= maxAttempts) {
+        throw new Error(`Vision Warehouse assets:import (${res.status}): ${t.slice(0, 600)}`)
+      }
+      const backoffMs = Math.min(240_000, 15_000 * 2 ** (attempt - 1))
+      await new Promise((r) => setTimeout(r, backoffMs))
+      continue
+    }
+    if (!res.ok) {
+      const t = await res.text()
+      throw new Error(`Vision Warehouse assets:import (${res.status}): ${t.slice(0, 600)}`)
+    }
+    const data = (await res.json()) as { name?: string }
+    if (!data.name) throw new Error('Vision Warehouse import: missing operation name')
+    return data.name
   }
-  const data = (await res.json()) as { name?: string }
-  if (!data.name) throw new Error('Vision Warehouse import: missing operation name')
-  return data.name
+  throw new Error('Vision Warehouse assets:import: retry exhausted')
 }
 
 export async function analyzeVisionWarehouseCorpus(

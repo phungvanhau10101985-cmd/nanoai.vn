@@ -27,6 +27,8 @@ export const INVENTORY_EXCEL_HEADER_LABELS_VI = [
   'Link ảnh',
   'Link trang sản phẩm',
   'Ghi chú tư vấn',
+  /** Thêm/cập nhật = 1; xóa khỏi kho = 0 (khớp SKU hoặc tên). Tiêu đề dài giúp đọc file không cần mở hướng dẫn. */
+  'Trạng thái thêm là 1 xóa 0',
 ] as const
 
 export type InventoryExcelInsert = {
@@ -40,6 +42,8 @@ export type InventoryExcelInsert = {
   product_url: string
   consult_note: string
   is_active: boolean
+  /** true: xóa dòng kho khớp SKU/tên (không thêm mới). */
+  removeFromInventory: boolean
 }
 
 const SHEET_NAME = 'inventory'
@@ -91,6 +95,11 @@ const HEADER_ALIASES: Record<string, string> = {
   is_active: 'is_active',
   dang_dung: 'is_active',
   active: 'is_active',
+  trang_thai: 'is_active',
+  trangthai: 'is_active',
+  /** Tiêu đề cột đầy đủ trên file mẫu / export */
+  trang_thai_them_la_1_xoa_0: 'is_active',
+  status: 'is_active',
 }
 
 function resolveCanonicalKey(headerCell: string): string | null {
@@ -118,15 +127,31 @@ export function validateInventoryProductUrl(raw: string): string {
   return validateInventoryImageUrl(raw)
 }
 
+/**
+ * Cột Trạng thái / is_active: 1 = giữ & cập nhật như hiện tại; 0 = xóa khỏi kho.
+ * Thiếu cột hoặc ô trống → coi như 1.
+ */
+export function parseInventoryExcelListingMode(raw: string): 'upsert' | 'delete' {
+  const s = raw.trim().toLowerCase()
+  if (!s) return 'upsert'
+  if (s === '0' || s === 'false' || s === 'no' || s === 'off') return 'delete'
+  if (s === 'xóa' || s === 'xoa' || s === 'delete' || s === 'removed') return 'delete'
+  if (s === 'true' || s === 'yes' || s === 'on' || s === 'active' || s === '1') return 'upsert'
+  const n = Number.parseInt(s, 10)
+  if (n === 0) return 'delete'
+  return 'upsert'
+}
+
 function cellStr(val: unknown): string {
   if (val == null) return ''
+  if (typeof val === 'boolean') return val ? '1' : '0'
   if (typeof val === 'number' && Number.isFinite(val)) return String(val)
   return String(val).trim()
 }
 
 export function buildInventoryTemplateBuffer(): Buffer {
   const header = [...INVENTORY_EXCEL_HEADER_LABELS_VI]
-  /** Mỗi ô khớp đúng một cột tiêu đề (8 cột); không chèn thêm cột ẩn (vd. số 100) kẻo lệch cả file. */
+  /** Mỗi ô khớp đúng một cột tiêu đề (9 cột); không chèn thêm cột ẩn (vd. số 100) kẻo lệch cả file. */
   const example = [
     'AT-001',
     'Ví dụ: Áo thun cotton',
@@ -136,6 +161,7 @@ export function buildInventoryTemplateBuffer(): Buffer {
     'https://cdn.example.com/images/ao-thun-mau.jpg',
     'https://shop.example.com/san-pham/ao-thun',
     'Bảo hành đổi size trong 7 ngày',
+    '1',
   ]
   const ws = XLSX.utils.aoa_to_sheet([header, example])
   const wb = XLSX.utils.book_new()
@@ -155,6 +181,7 @@ export function buildInventoryExportBuffer(rows: InventoryRow[]): Buffer {
       r.image_url ?? '',
       r.product_url ?? '',
       r.consult_note ?? '',
+      r.is_active === false ? 0 : 1,
     ])
   }
   const ws = XLSX.utils.aoa_to_sheet(aoa)
@@ -193,7 +220,41 @@ export function parseInventoryWorkbook(buffer: Buffer): { ok: true; rows: Invent
       const idx = colIndex[k]
       return idx === undefined ? '' : cellStr(line[idx])
     }
-    const name = get('name').trim()
+
+    const statusRaw = colIndex.is_active !== undefined ? get('is_active') : ''
+    const mode = parseInventoryExcelListingMode(statusRaw)
+    const sku = get('sku').trim() || null
+    const nameRaw = get('name').trim()
+
+    if (mode === 'delete') {
+      if (!nameRaw && !sku) continue
+      let sort_order: number
+      if (colIndex.sort_order !== undefined) {
+        const sortRaw = get('sort_order')
+        const parsed = parseInt(sortRaw, 10)
+        sort_order = Number.isFinite(parsed) ? parsed : 100 + out.length
+      } else {
+        sort_order = 100 + out.length
+      }
+      const displayName = (nameRaw || sku || '—').slice(0, 500)
+      out.push({
+        sort_order,
+        name: displayName,
+        sku: sku ? sku.slice(0, 120) : null,
+        description: '',
+        stock_note: '',
+        price_hint: '',
+        image_url: '',
+        product_url: '',
+        consult_note: '',
+        is_active: true,
+        removeFromInventory: true,
+      })
+      if (out.length >= MAX_IMPORT_ROWS) break
+      continue
+    }
+
+    const name = nameRaw
     if (!name) continue
 
     let sort_order: number
@@ -205,7 +266,6 @@ export function parseInventoryWorkbook(buffer: Buffer): { ok: true; rows: Invent
       sort_order = 100 + out.length
     }
 
-    const sku = get('sku').trim() || null
     const description = get('description')
     const stock_note = get('stock_note')
     const price_hint = get('price_hint')
@@ -223,6 +283,7 @@ export function parseInventoryWorkbook(buffer: Buffer): { ok: true; rows: Invent
       product_url,
       consult_note,
       is_active: true,
+      removeFromInventory: false,
     })
     if (out.length >= MAX_IMPORT_ROWS) break
   }

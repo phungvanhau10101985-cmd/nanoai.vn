@@ -386,7 +386,7 @@ export type Dictionary = {
     inventoryExportExcel: string
     inventoryImportExcel: string
     inventoryImportReplaceWarning: string
-    /** {count} tổng dòng; {inserted} thêm mới; {updated} cập nhật */
+    /** {count} tổng dòng; {inserted} thêm mới; {updated} cập nhật; {deleted} đã xóa */
     inventoryImportSuccess: string
     inventoryImportFailed: string
     /** Tiến trình nhập Excel: đang gửi file (có thể kèm % trên UI) */
@@ -403,6 +403,8 @@ export type Dictionary = {
     edit: string
     emptyFaq: string
     emptyInventory: string
+    /** {count} = số dòng kho */
+    inventoryProductCountSummary: string
     cronSetupHint: string
     /** Trạng thái nút gạt AI */
     toggleStatusOn: string
@@ -446,6 +448,15 @@ export type Dictionary = {
     visionCategoryLabel: string
     visionBucketOverrideLabel: string
     visionBucketOverrideHint: string
+    /** {total} mặt hàng kho; {withImage} dòng URL ảnh https */
+    visionWarehouseInventorySummary: string
+    visionCatalogSyncStatsTitle: string
+    /** {n} = số dòng */
+    visionCatalogSyncStatsLineSynced: string
+    visionCatalogSyncStatsLinePending: string
+    visionCatalogSyncStatsLineNoHttps: string
+    visionCatalogSyncStatsLineExcluded: string
+    visionCatalogSyncStatsExplain: string
     visionSyncButton: string
     /** Gợi ý dưới nút đồng bộ: bật tính năng → tự đồng bộ nhiều lượt có giới hạn */
     visionSyncAutoWhenEnableHint: string
@@ -1829,7 +1840,7 @@ const VI_DICTIONARY: Dictionary = {
     inventoryDescHint: 'Size, màu, chất liệu, kích thước, set/bộ gồm gì…',
     inventoryStockHint: 'Số lượng còn, hoặc “còn M/L”, “đặt thêm 5 ngày có hàng”…',
     inventoryFieldsGuide:
-      'Gợi ý thêm (nhập vào mô tả hoặc ghi chú tư vấn): màu–size đang có; thời gian & phí giao; KM có thời hạn; đổi trả riêng từng mặt hàng; hướng dẫn bảo quản. Mọi dòng trong danh sách kho đều được đưa vào ngữ cảnh AI để tư vấn khách; muốn AI không nhắc tới một mặt hàng thì xóa dòng đó hoặc bỏ khỏi file nhập Excel.',
+      'Gợi ý thêm (nhập vào mô tả hoặc ghi chú tư vấn): màu–size đang có; thời gian & phí giao; KM có thời hạn; đổi trả riêng từng mặt hàng; hướng dẫn bảo quản. Mọi dòng trong danh sách kho đều được đưa vào ngữ cảnh AI để tư vấn khách; muốn AI không nhắc tới một mặt hàng thì xóa dòng đó hoặc bỏ khỏi file nhập Excel. File mẫu có cột «Trạng thái»: 1 = thêm/cập nhật, 0 = xóa mặt hàng khỏi kho (khớp Mã SKU hoặc tên).',
     inventoryOpenApiLink: 'Hướng dẫn tích hợp API',
     inventoryOpenApiHint:
       'Backend website shop có thể đẩy kho vào NanoAI bằng JSON (chuẩn Open Catalog, tên trường gần Shopee). Cùng khóa Bearer với API tìm ảnh; không cần Vision.',
@@ -1837,15 +1848,16 @@ const VI_DICTIONARY: Dictionary = {
     inventoryExportExcel: 'Xuất Excel',
     inventoryImportExcel: 'Nhập Excel',
     inventoryImportReplaceWarning:
-      'Nhập Excel: trùng Mã SKU (không phân biệt hoa thường) với kho thì cập nhật, chưa có thì thêm mới. Không có SKU thì khớp theo tên với hàng trong kho cũng không SKU (nhiều dòng trùng tên: ưu tiên dòng đầu trùng trong kho). Thứ tự hiển thị gán theo thứ tự dòng trong file nếu file không có cột Thứ tự. Hàng đang có mà không nằm trong file vẫn giữ nguyên. Tiếp tục?',
-    inventoryImportSuccess: 'Đã xử lý {count} dòng: thêm {inserted}, cập nhật {updated}.',
+      'Nhập Excel: trùng Mã SKU (không phân biệt hoa thường) với kho thì cập nhật, chưa có thì thêm mới. Không có SKU thì khớp theo tên với hàng trong kho cũng không SKU (nhiều dòng trùng tên: ưu tiên dòng đầu trùng trong kho). Cột «Trạng thái» (hoặc is_active): 1 = thêm/cập nhật; 0 = xóa mặt hàng đó khỏi kho (cần Mã SKU hoặc tên để khớp). Thứ tự hiển thị gán theo thứ tự dòng trong file nếu file không có cột Thứ tự. Hàng đang có mà không nằm trong file vẫn giữ nguyên. Tiếp tục?',
+    inventoryImportSuccess: 'Đã xử lý {count} dòng: thêm {inserted}, cập nhật {updated}, xóa {deleted}.',
     inventoryImportFailed: 'Không nhập được từ Excel.',
     inventoryExcelImportUploading: 'Đang tải file Excel lên…',
     inventoryExcelImportSending: 'Đang gửi file…',
     inventoryErrInvalidXlsx: 'File không đúng định dạng Excel (.xlsx).',
     inventoryErrEmptySheet: 'Trang tính trống.',
     inventoryErrMissingName: 'Thiếu cột tên hàng (name / tên). Hãy dùng file mẫu.',
-    inventoryErrNoRows: 'Không có dòng dữ liệu hợp lệ (cần ít nhất một dòng có tên hàng).',
+    inventoryErrNoRows:
+      'Không có dòng dữ liệu hợp lệ (cần ít nhất một dòng có tên hàng để thêm/cập nhật, hoặc Trạng thái = 0 kèm Mã SKU hoặc tên để xóa).',
     inventoryErrNoFile: 'Chưa chọn file.',
     inventoryErrFileTooLarge: 'File quá lớn (tối đa ~2 MB).',
     addInventory: 'Thêm mặt hàng',
@@ -1853,6 +1865,7 @@ const VI_DICTIONARY: Dictionary = {
     emptyFaq: 'Chọn câu hỏi mẫu bên dưới và chỉ cần nhập cách shop trả lời.',
     emptyInventory:
       'Chưa có mặt hàng nào. Thêm danh sách hàng có trong kho để AI chỉ tư vấn theo đúng hàng bạn khai báo.',
+    inventoryProductCountSummary: 'Đang có {count} sản phẩm trong kho.',
     cronSetupHint:
       'Production: cấu hình cron gọi GET hoặc POST /api/cron/messaging-partner-ai kèm Bearer MESSAGING_PARTNER_AI_CRON_SECRET (ví dụ mỗi phút) và DEEPSEEK_API_KEY. Không có cron thì job vẫn tạo nhưng AI không bao giờ gửi. Môi trường `next dev` tự chạy xử lý job sau thời gian chờ (không cần cron). Chạy `next start` local mà chưa có cron: thêm MESSAGING_PARTNER_AI_DEV_WAKE=1 vào .env.',
     toggleStatusOn: 'Đang bật',
@@ -1899,6 +1912,15 @@ const VI_DICTIONARY: Dictionary = {
     visionCategoryLabel: 'Danh mục sản phẩm (index)',
     visionBucketOverrideLabel: 'Bucket GCS (tuỳ chọn)',
     visionBucketOverrideHint: 'Để trống để dùng GCS_VISION_CATALOG_BUCKET trên server.',
+    visionWarehouseInventorySummary:
+      'Trong kho: {total} mặt hàng · {withImage} dòng có URL ảnh https (chỉ các dòng này mới được đưa lên Google Vision).',
+    visionCatalogSyncStatsTitle: 'Trạng thái đồng bộ catalog ảnh (NanoAI → Google)',
+    visionCatalogSyncStatsLineSynced: 'Đã khớp — lần đồng bộ sau sẽ bỏ qua (không tải lại): {n} dòng',
+    visionCatalogSyncStatsLinePending: 'Còn chờ đẩy / cập nhật (đổi ảnh hoặc tên): {n} dòng',
+    visionCatalogSyncStatsLineNoHttps: 'Không có URL ảnh https — không import được lên Vision: {n} dòng',
+    visionCatalogSyncStatsLineExcluded: 'Đã loại trừ khỏi Vision: {n} dòng',
+    visionCatalogSyncStatsExplain:
+      'Hệ thống chỉ import các dòng «còn chờ»; dòng đã khớp checksum (ảnh + tên) được coi là đã đăng xong và không upload lại. Trên GCS, số file (object) thường khác số sản phẩm vì có thêm file jsonl và nhiều ảnh. Muốn biết đã có bao nhiêu asset trong corpus/index, xem Vision Warehouse trên Google Cloud. Link ảnh dạng //domain/... (không ghi https) vẫn dùng được: hệ thống tự thêm https.',
     visionSyncButton: 'Đồng bộ ảnh kho lên Google',
     visionSyncAutoWhenEnableHint:
       'Sau khi bật «Bật gợi ý theo ảnh» và lưu thành công, hệ thống tự đồng bộ liên tục (nhiều segment, resume) cho đến khi xong — thường không cần bấm thêm. Chỉ khi gặp lỗi hoặc trần an toàn tuyệt đối mới cần bấm «Đồng bộ ảnh kho lên Google».',
@@ -3287,7 +3309,7 @@ const EN_DICTIONARY: Dictionary = {
     inventoryDescHint: 'Sizes, colors, material, dimensions, what is included in a set…',
     inventoryStockHint: 'Qty left, or “M/L in stock”, “backorder ~5 days”…',
     inventoryFieldsGuide:
-      'Also useful (use description or advisory note): available colors/sizes; delivery time & fees; promo end dates; per-item return rules; care instructions. Every row in this inventory list is sent to the AI for customer replies; remove a row (or omit it from an import) if you do not want the AI to mention that product.',
+      'Also useful (use description or advisory note): available colors/sizes; delivery time & fees; promo end dates; per-item return rules; care instructions. Every row in this inventory list is sent to the AI for customer replies; remove a row (or omit it from an import) if you do not want the AI to mention that product. The sample file includes a Status column: 1 = add/update, 0 = delete that row from inventory (match by SKU or name).',
     inventoryOpenApiLink: 'API integration guide',
     inventoryOpenApiHint:
       'Your shop backend can push inventory to NanoAI with JSON (Open Catalog schema, Shopee-like field names). Same Bearer key as image search; Vision is not required.',
@@ -3295,15 +3317,16 @@ const EN_DICTIONARY: Dictionary = {
     inventoryExportExcel: 'Export Excel',
     inventoryImportExcel: 'Import Excel',
     inventoryImportReplaceWarning:
-      'Excel import: rows matching an existing SKU (case-insensitive) are updated; otherwise inserted. Without a SKU, rows match by name to existing rows that also have no SKU (if several match, the first matching row is used). Display order follows row order in the file unless a Sort order column is present. Items already in stock that are not in the file stay unchanged. Continue?',
-    inventoryImportSuccess: 'Processed {count} row(s): {inserted} added, {updated} updated.',
+      'Excel import: rows matching an existing SKU (case-insensitive) are updated; otherwise inserted. Without a SKU, rows match by name to existing rows that also have no SKU (if several match, the first matching row is used). Status column (or is_active): 1 = add/update; 0 = delete that item from inventory (requires SKU or name to match). Display order follows row order in the file unless a Sort order column is present. Items already in stock that are not in the file stay unchanged. Continue?',
+    inventoryImportSuccess: 'Processed {count} row(s): {inserted} added, {updated} updated, {deleted} removed.',
     inventoryImportFailed: 'Excel import failed.',
     inventoryExcelImportUploading: 'Uploading Excel file…',
     inventoryExcelImportSending: 'Sending file…',
     inventoryErrInvalidXlsx: 'Invalid Excel file (.xlsx).',
     inventoryErrEmptySheet: 'The sheet is empty.',
     inventoryErrMissingName: 'Missing product name column (name). Use the sample file.',
-    inventoryErrNoRows: 'No valid data rows (need at least one row with a product name).',
+    inventoryErrNoRows:
+      'No valid rows (need at least one row with a product name to add/update, or Status = 0 with SKU or name to delete).',
     inventoryErrNoFile: 'No file selected.',
     inventoryErrFileTooLarge: 'File is too large (max ~2 MB).',
     addInventory: 'Add item',
@@ -3311,6 +3334,7 @@ const EN_DICTIONARY: Dictionary = {
     emptyFaq: 'Pick a preset question below and enter how your shop replies.',
     emptyInventory:
       'No items yet. Add what you keep in stock so the AI only advises using that list.',
+    inventoryProductCountSummary: '{count} product(s) in inventory.',
     cronSetupHint:
       'Production: schedule GET or POST /api/cron/messaging-partner-ai with Authorization: Bearer MESSAGING_PARTNER_AI_CRON_SECRET (e.g. every minute) and set DEEPSEEK_API_KEY. Without cron, jobs stay pending and AI never sends. `next dev` auto-runs the processor after the delay (no cron). For `next start` locally without cron, set MESSAGING_PARTNER_AI_DEV_WAKE=1 in .env.',
     toggleStatusOn: 'On',
@@ -3358,6 +3382,15 @@ const EN_DICTIONARY: Dictionary = {
     visionCategoryLabel: 'Product category (index)',
     visionBucketOverrideLabel: 'GCS bucket (optional)',
     visionBucketOverrideHint: 'Leave blank to use the server’s GCS_VISION_CATALOG_BUCKET.',
+    visionWarehouseInventorySummary:
+      'Inventory: {total} items · {withImage} rows with an https image URL (only these rows are uploaded to Google Vision).',
+    visionCatalogSyncStatsTitle: 'Image catalog sync status (NanoAI → Google)',
+    visionCatalogSyncStatsLineSynced: 'Up to date — skipped on the next sync (not re-uploaded): {n} row(s)',
+    visionCatalogSyncStatsLinePending: 'Waiting to upload or update (image or name changed): {n} row(s)',
+    visionCatalogSyncStatsLineNoHttps: 'No https image URL — cannot import to Vision: {n} row(s)',
+    visionCatalogSyncStatsLineExcluded: 'Excluded from Vision: {n} row(s)',
+    visionCatalogSyncStatsExplain:
+      'Only “pending” rows are imported; rows whose checksum matches the current image + name are treated as already published and are not uploaded again. In GCS, the object count often differs from product count because of jsonl batch files and multiple images. For corpus/index asset counts, check Vision Warehouse in Google Cloud. Protocol-relative image URLs (//domain/...) are accepted; https is assumed.',
     visionSyncButton: 'Sync inventory images to Google',
     visionSyncAutoWhenEnableHint:
       'After you turn on image-based suggestions and save succeeds, the app keeps syncing automatically in segments (resume) until finished — you usually do not need to click again. Only if something errors or the absolute safety cap is hit, use «Sync inventory images».',
@@ -4743,7 +4776,7 @@ const ZH_DICTIONARY: Dictionary = {
     inventoryDescHint: '尺码、颜色、材质、尺寸、套装包含内容等。',
     inventoryStockHint: '剩余数量，或“M/L 有货”“预订约 5 天到货”等。',
     inventoryFieldsGuide:
-      '建议在描述或咨询说明中补充：可选颜色/尺码；配送时效与运费；促销截止时间；单品退换规则；保养说明。列表中的每一行都会提供给 AI 用于回复顾客；若不希望 AI 提及某商品，请删除该行或从导入文件中去掉。',
+      '建议在描述或咨询说明中补充：可选颜色/尺码；配送时效与运费；促销截止时间；单品退换规则；保养说明。列表中的每一行都会提供给 AI 用于回复顾客；若不希望 AI 提及某商品，请删除该行或从导入文件中去掉。模板含「状态」列：1 = 新增/更新，0 = 从库存删除该行（按 SKU 或名称匹配）。',
     inventoryOpenApiLink: 'API 集成说明',
     inventoryOpenApiHint:
       '店铺后端可用 JSON 将库存推送到 NanoAI（Open Catalog，字段命名接近 Shopee）。与以图搜商品共用 Bearer；无需 Vision。',
@@ -4751,21 +4784,22 @@ const ZH_DICTIONARY: Dictionary = {
     inventoryExportExcel: '导出 Excel',
     inventoryImportExcel: '导入 Excel',
     inventoryImportReplaceWarning:
-      '导入 Excel：与现有 SKU（不区分大小写）匹配则更新，否则新增。无 SKU 时按名称与同样无 SKU 的库存行匹配（多条同名时取库存中第一条匹配）。若无“排序”列，显示顺序按文件中的行顺序。未出现在文件中的现有商品将保留。是否继续？',
-    inventoryImportSuccess: '已处理 {count} 行：新增 {inserted}，更新 {updated}。',
+      '导入 Excel：与现有 SKU（不区分大小写）匹配则更新，否则新增。无 SKU 时按名称与同样无 SKU 的库存行匹配（多条同名时取库存中第一条匹配）。「状态」列（或 is_active）：1 = 新增/更新；0 = 从库存删除（需填写 SKU 或名称以匹配）。若无“排序”列，显示顺序按文件中的行顺序。未出现在文件中的现有商品将保留。是否继续？',
+    inventoryImportSuccess: '已处理 {count} 行：新增 {inserted}，更新 {updated}，删除 {deleted}。',
     inventoryImportFailed: 'Excel 导入失败。',
     inventoryExcelImportUploading: '正在上传 Excel 文件…',
     inventoryExcelImportSending: '正在发送文件…',
     inventoryErrInvalidXlsx: '不是有效的 Excel 文件（.xlsx）。',
     inventoryErrEmptySheet: '工作表为空。',
     inventoryErrMissingName: '缺少商品名称列（name）。请使用模板文件。',
-    inventoryErrNoRows: '没有有效数据行（至少需一行填写商品名称）。',
+    inventoryErrNoRows: '没有有效数据行（至少需一行填写商品名称以新增/更新，或状态=0并填写 SKU 或名称以删除）。',
     inventoryErrNoFile: '未选择文件。',
     inventoryErrFileTooLarge: '文件过大（最大约 2 MB）。',
     addInventory: '添加商品',
     edit: '编辑',
     emptyFaq: '请从下方预设问题中选择，并填写店铺回复内容。',
     emptyInventory: '暂无商品。请添加店内实际在售/有货列表，AI 将仅按该列表回答。',
+    inventoryProductCountSummary: '当前库存共 {count} 个商品。',
     cronSetupHint:
       '生产环境：配置定时任务 GET 或 POST /api/cron/messaging-partner-ai，请求头 Authorization: Bearer MESSAGING_PARTNER_AI_CRON_SECRET（建议每分钟），并设置 DEEPSEEK_API_KEY。无 cron 时任务会一直排队、AI 不会发出。`next dev` 会在等待时间后自动处理（无需 cron）。本地 `next start` 且无 cron 时，可在 .env 设置 MESSAGING_PARTNER_AI_DEV_WAKE=1。',
     toggleStatusOn: '已开启',
@@ -4812,6 +4846,15 @@ const ZH_DICTIONARY: Dictionary = {
     visionCategoryLabel: '商品类别（索引）',
     visionBucketOverrideLabel: 'GCS 存储桶（可选）',
     visionBucketOverrideHint: '留空则使用服务器的 GCS_VISION_CATALOG_BUCKET。',
+    visionWarehouseInventorySummary:
+      '库存：{total} 个商品 · {withImage} 行具有 https 图片 URL（仅这些行会上传到 Google Vision）。',
+    visionCatalogSyncStatsTitle: '图片目录同步状态（NanoAI → Google）',
+    visionCatalogSyncStatsLineSynced: '已匹配 — 下次同步将跳过（不重复上传）：{n} 行',
+    visionCatalogSyncStatsLinePending: '等待上传或更新（图片或名称已改）：{n} 行',
+    visionCatalogSyncStatsLineNoHttps: '无 https 图片 URL — 无法导入 Vision：{n} 行',
+    visionCatalogSyncStatsLineExcluded: '已从 Vision 排除：{n} 行',
+    visionCatalogSyncStatsExplain:
+      '系统只导入「待处理」行；校验和与当前图片+名称一致的行视为已发布，不会再次上传。GCS 中的对象数通常不等于商品数（另有 jsonl 等文件、多图）。资产数量请在 Google Cloud 的 Vision Warehouse 中查看。以 // 开头的图片地址（省略 https）也视为可用，系统会自动按 https 处理。',
     visionSyncButton: '同步库存图片到 Google',
     visionSyncAutoWhenEnableHint:
       '开启「按图推荐」且保存成功后，会自动分段连续同步（resume）直到完成，一般无需再点。仅出错或触及绝对安全上限时再点「同步库存图片」。',
@@ -6154,7 +6197,7 @@ const JA_DICTIONARY: Dictionary = {
     inventoryDescHint: 'サイズ、色、素材、寸法、セット内容など。',
     inventoryStockHint: '在庫数、「M/L 在庫あり」「取り寄せ約5日」など。',
     inventoryFieldsGuide:
-      '説明または接客メモに：取り扱い色/サイズ、配送目安と送料、セール期限、商品ごとの返品条件、お手入れ方法 など。この一覧の行はすべて AI の顧客返信用コンテキストに含まれます。AI に言及させたくない商品は行を削除するか、インポート対象から外してください。',
+      '説明または接客メモに：取り扱い色/サイズ、配送目安と送料、セール期限、商品ごとの返品条件、お手入れ方法 など。この一覧の行はすべて AI の顧客返信用コンテキストに含まれます。AI に言及させたくない商品は行を削除するか、インポート対象から外してください。テンプレの「状態」列：1 = 追加/更新、0 = 在庫から削除（SKU または商品名で照合）。',
     inventoryOpenApiLink: 'API 連携ガイド',
     inventoryOpenApiHint:
       '店舗バックエンドから JSON で在庫を NanoAI に同期できます（Open Catalog、Shopee 風フィールド名）。画像検索と同じ Bearer。Vision は不要です。',
@@ -6162,15 +6205,16 @@ const JA_DICTIONARY: Dictionary = {
     inventoryExportExcel: 'Excelに出力',
     inventoryImportExcel: 'Excelから取込',
     inventoryImportReplaceWarning:
-      'Excel取込：既存の SKU（大文字小文字無視）と一致すれば更新、なければ新規追加。SKU がない行は、SKU なしの既存行と商品名で照合（複数ある場合は在庫の先頭一致を使用）。「並び順」列がなければ表示順はファイルの行順です。ファイルに無い既存商品はそのまま残ります。続行しますか？',
-    inventoryImportSuccess: '{count} 行を処理：新規 {inserted}、更新 {updated}。',
+      'Excel取込：既存の SKU（大文字小文字無視）と一致すれば更新、なければ新規追加。SKU がない行は、SKU なしの既存行と商品名で照合（複数ある場合は在庫の先頭一致を使用）。「状態」列（または is_active）：1 = 追加/更新、0 = 在庫から削除（SKU または商品名が必要）。「並び順」列がなければ表示順はファイルの行順です。ファイルに無い既存商品はそのまま残ります。続行しますか？',
+    inventoryImportSuccess: '{count} 行を処理：新規 {inserted}、更新 {updated}、削除 {deleted}。',
     inventoryImportFailed: 'Excelの取込に失敗しました。',
     inventoryExcelImportUploading: 'Excelファイルをアップロード中…',
     inventoryExcelImportSending: 'ファイルを送信中…',
     inventoryErrInvalidXlsx: 'Excel（.xlsx）として読み取れません。',
     inventoryErrEmptySheet: 'シートが空です。',
     inventoryErrMissingName: '商品名列（name）がありません。テンプレを使ってください。',
-    inventoryErrNoRows: '有効なデータ行がありません（商品名の入った行が必要です）。',
+    inventoryErrNoRows:
+      '有効なデータ行がありません（追加/更新には商品名が必要。削除は状態=0かつ SKU または商品名が必要）。',
     inventoryErrNoFile: 'ファイルが選ばれていません。',
     inventoryErrFileTooLarge: 'ファイルが大きすぎます（最大約2MB）。',
     addInventory: '商品を追加',
@@ -6178,6 +6222,7 @@ const JA_DICTIONARY: Dictionary = {
     emptyFaq: '下のよくある質問から選び、店舗の返信文だけ入力してください。',
     emptyInventory:
       '在庫商品がありません。店舗が持っている在庫リストを登録すると、AI はそのリストだけを根拠に案内します。',
+    inventoryProductCountSummary: '在庫に {count} 件の商品があります。',
     cronSetupHint:
       '本番：GET または POST /api/cron/messaging-partner-ai を Authorization: Bearer MESSAGING_PARTNER_AI_CRON_SECRET で定期実行（例：毎分）し、DEEPSEEK_API_KEY を設定。cron がないとジョブは保留のまま AI は送りません。`next dev` は待機後に自動処理（cron 不要）。ローカルで `next start` かつ cron なしの場合は .env に MESSAGING_PARTNER_AI_DEV_WAKE=1。',
     toggleStatusOn: 'オン',
@@ -6225,6 +6270,15 @@ const JA_DICTIONARY: Dictionary = {
     visionCategoryLabel: '商品カテゴリ（インデックス）',
     visionBucketOverrideLabel: 'GCS バケット（任意）',
     visionBucketOverrideHint: '空欄の場合はサーバーの GCS_VISION_CATALOG_BUCKET を使用します。',
+    visionWarehouseInventorySummary:
+      '在庫：{total} 件 · https の画像 URL がある行は {withImage} 行（これらのみ Google Vision にアップロードされます）。',
+    visionCatalogSyncStatsTitle: '画像カタログ同期状況（NanoAI → Google）',
+    visionCatalogSyncStatsLineSynced: '一致済み — 次回同期ではスキップ（再アップロードなし）：{n} 行',
+    visionCatalogSyncStatsLinePending: '未アップロードまたは更新待ち（画像・名前変更）：{n} 行',
+    visionCatalogSyncStatsLineNoHttps: 'https の画像 URL なし — Vision に取り込めません：{n} 行',
+    visionCatalogSyncStatsLineExcluded: 'Vision から除外：{n} 行',
+    visionCatalogSyncStatsExplain:
+      '「待ち」の行だけをインポートします。チェックサムが現在の画像＋名前と一致する行は公開済みとみなし再アップロードしません。GCS のオブジェクト数は jsonl や複数画像のため商品数と一致しないことがあります。アセット数は Google Cloud の Vision Warehouse で確認してください。先頭が // の画像 URL（https 省略）も利用可能で、https として扱います。',
     visionSyncButton: '在庫画像を Google に同期',
     visionSyncAutoWhenEnableHint:
       '「写真からの候補」をオンに保存が成功すると、セグメントをまたいで自動的に同期が続き、完了まで通常は追加操作は不要です。エラーや絶対上限のときだけ「在庫画像を同期」を押してください。',
@@ -7596,7 +7650,7 @@ const KO_DICTIONARY: Dictionary = {
     inventoryDescHint: '사이즈, 색상, 소재, 치수, 세트 구성 등.',
     inventoryStockHint: '남은 수량, 또는 “M/L 재고 있음”, “주문 후 약 5일” 등.',
     inventoryFieldsGuide:
-      '설명 또는 상담 메모에: 판매 색상·사이즈, 배송 기간·배송비, 프로모션 종료일, 품목별 교환·환불, 관리 방법 등. 목록의 모든 행은 고객 답변용 AI 컨텍스트에 포함됩니다. AI가 언급하지 않게 하려면 해당 행을 삭제하거나 가져오기 파일에서 제외하세요.',
+      '설명 또는 상담 메모에: 판매 색상·사이즈, 배송 기간·배송비, 프로모션 종료일, 품목별 교환·환불, 관리 방법 등. 목록의 모든 행은 고객 답변용 AI 컨텍스트에 포함됩니다. AI가 언급하지 않게 하려면 해당 행을 삭제하거나 가져오기 파일에서 제외하세요. 샘플의 «상태» 열: 1 = 추가/업데이트, 0 = 재고에서 삭제(SKU 또는 상품명으로 매칭).',
     inventoryOpenApiLink: 'API 연동 안내',
     inventoryOpenApiHint:
       '매장 백엔드에서 JSON으로 재고를 NanoAI에 동기화할 수 있습니다(Open Catalog, Shopee 스타일 필드명). 이미지 검색과 동일 Bearer. Vision 불필요.',
@@ -7604,15 +7658,16 @@ const KO_DICTIONARY: Dictionary = {
     inventoryExportExcel: 'Excel보내기',
     inventoryImportExcel: 'Excel 가져오기',
     inventoryImportReplaceWarning:
-      'Excel 가져오기: 기존 SKU와 일치(대소문자 무시)하면 업데이트, 없으면 추가. SKU가 없으면 SKU 없는 기존 행과 상품명으로 매칭(여러 개면 재고에서 먼저 맞는 행). «정렬» 열이 없으면 표시 순서는 파일 행 순서입니다. 파일에 없는 기존 상품은 유지됩니다. 계속할까요?',
-    inventoryImportSuccess: '{count}행 처리: 추가 {inserted}, 업데이트 {updated}.',
+      'Excel 가져오기: 기존 SKU와 일치(대소문자 무시)하면 업데이트, 없으면 추가. SKU가 없으면 SKU 없는 기존 행과 상품명으로 매칭(여러 개면 재고에서 먼저 맞는 행). «상태» 열(또는 is_active): 1 = 추가/업데이트, 0 = 재고에서 삭제(SKU 또는 상품명 필요). «정렬» 열이 없으면 표시 순서는 파일 행 순서입니다. 파일에 없는 기존 상품은 유지됩니다. 계속할까요?',
+    inventoryImportSuccess: '{count}행 처리: 추가 {inserted}, 업데이트 {updated}, 삭제 {deleted}.',
     inventoryImportFailed: 'Excel 가져오기에 실패했습니다.',
     inventoryExcelImportUploading: 'Excel 파일 업로드 중…',
     inventoryExcelImportSending: '파일 전송 중…',
     inventoryErrInvalidXlsx: '올바른 Excel(.xlsx) 파일이 아닙니다.',
     inventoryErrEmptySheet: '시트가 비어 있습니다.',
     inventoryErrMissingName: '상품명 열(name)이 없습니다. 샘플 파일을 사용하세요.',
-    inventoryErrNoRows: '유효한 데이터 행이 없습니다(상품명이 있는 행이 필요합니다).',
+    inventoryErrNoRows:
+      '유효한 데이터 행이 없습니다(추가/업데이트에는 상품명이 필요하고, 삭제는 상태=0과 SKU 또는 상품명이 필요합니다).',
     inventoryErrNoFile: '파일을 선택하지 않았습니다.',
     inventoryErrFileTooLarge: '파일이 너무 큽니다(최대 약 2MB).',
     addInventory: '상품 추가',
@@ -7620,6 +7675,7 @@ const KO_DICTIONARY: Dictionary = {
     emptyFaq: '아래에서 미리 준비된 질문을 고르고 매장 답변만 입력하세요.',
     emptyInventory:
       '등록된 상품이 없습니다. 매장에 있는 재고 목록을 추가하면 AI는 그 목록만 근거로 안내합니다.',
+    inventoryProductCountSummary: '재고에 상품 {count}개가 있습니다.',
     cronSetupHint:
       '운영: GET 또는 POST /api/cron/messaging-partner-ai를 Authorization: Bearer MESSAGING_PARTNER_AI_CRON_SECRET으로 주기 호출(예: 매분)하고 DEEPSEEK_API_KEY를 설정하세요. cron이 없으면 작업이 대기만 하고 AI가 보내지 않습니다. `next dev`는 대기 시간 후 자동 처리(cron 불필요). 로컬 `next start`에 cron이 없으면 .env에 MESSAGING_PARTNER_AI_DEV_WAKE=1.',
     toggleStatusOn: '켜짐',
@@ -7667,6 +7723,15 @@ const KO_DICTIONARY: Dictionary = {
     visionCategoryLabel: '상품 카테고리(인덱스)',
     visionBucketOverrideLabel: 'GCS 버킷(선택)',
     visionBucketOverrideHint: '비우면 서버의 GCS_VISION_CATALOG_BUCKET을 사용합니다.',
+    visionWarehouseInventorySummary:
+      '재고: {total}개 품목 · https 이미지 URL이 있는 행 {withImage}개(Google Vision에 올라가는 행).',
+    visionCatalogSyncStatsTitle: '이미지 카탈로그 동기화 상태(NanoAI → Google)',
+    visionCatalogSyncStatsLineSynced: '일치 — 다음 동기화에서 건너뜀(재업로드 없음): {n}행',
+    visionCatalogSyncStatsLinePending: '업로드/갱신 대기(이미지 또는 이름 변경): {n}행',
+    visionCatalogSyncStatsLineNoHttps: 'https 이미지 URL 없음 — Vision 가져오기 불가: {n}행',
+    visionCatalogSyncStatsLineExcluded: 'Vision에서 제외: {n}행',
+    visionCatalogSyncStatsExplain:
+      '「대기 중」인 행만 가져옵니다. 체크섬이 현재 이미지+이름과 일치하면 이미 게시된 것으로 보아 다시 올리지 않습니다. GCS 객체 수는 jsonl·다중 이미지 때문에 상품 수와 다를 수 있습니다. 자산 수는 Google Cloud Vision Warehouse에서 확인하세요. // 로 시작하는 이미지 URL(https 생략)도 허용되며 https로 간주합니다.',
     visionSyncButton: '재고 이미지를 Google에 동기화',
     visionSyncAutoWhenEnableHint:
       '「사진 기반 추천」을 켜고 저장이 완료되면 세그먼트를 이어 자동 동기화가 끝날 때까지 진행되며 보통 추가 클릭이 필요 없습니다. 오류나 절대 안전 한도일 때만 «재고 이미지를 Google에 동기화»를 누르세요.',
