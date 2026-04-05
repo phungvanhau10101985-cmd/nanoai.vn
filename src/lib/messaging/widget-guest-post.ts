@@ -18,6 +18,7 @@ import {
 } from '@/lib/messaging/partner-vision-product-search'
 import {
   VISION_MISS_AI_REPLY_DELAY_CAP_SECONDS,
+  VISION_PICK_GRACE_AI_DELAY_SECONDS,
   VISION_SEARCH_REQUEST_TIMEOUT_MS,
 } from '@/lib/messaging/partner-vision-constants'
 import { hasVisionConfig } from '@/lib/vision-api'
@@ -149,17 +150,24 @@ export async function postWidgetGuestMessage(
       } catch (e) {
         console.error('[messaging] vision product search (guest)', e)
       }
+    } else if (aiSet?.vision_product_search_enabled && !aiSet.vision_index_ready) {
+      /** Index chưa sẵn sàng — không chờ reply_delay + cron; xếp hàng AI ngay như khi không khớp ảnh. */
+      capReplyDelaySeconds = VISION_MISS_AI_REPLY_DELAY_CAP_SECONDS
     }
   }
 
-  if (newMessageId && !visionPickRequired) {
+  if (newMessageId) {
     const hint = await handlePartnerInboundForAi(db, {
       partnerId: params.partnerId,
       conversationId,
       messageId: newMessageId,
       inboundBody: inboundTextForPartnerAi(body, imagePublicUrl),
       channel: 'widget',
-      ...(capReplyDelaySeconds !== undefined ? { capReplyDelaySeconds } : {}),
+      ...(visionPickRequired
+        ? { scheduleAiAfterSeconds: VISION_PICK_GRACE_AI_DELAY_SECONDS }
+        : capReplyDelaySeconds !== undefined
+          ? { capReplyDelaySeconds }
+          : {}),
     })
     if (hint.show) shopTyping = { maxWaitMs: hint.maxWaitMs }
   }

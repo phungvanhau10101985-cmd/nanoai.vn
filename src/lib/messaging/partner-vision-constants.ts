@@ -165,6 +165,12 @@ export const VISION_SEARCH_REQUEST_TIMEOUT_MS = 12_000
 export const VISION_MISS_AI_REPLY_DELAY_CAP_SECONDS = 0
 
 /**
+ * Vision trả ứng viên cần chọn SP: vẫn hẹn AI sau N giây — khách không bấm chọn vẫn có tin.
+ * Chọn trước hạn → `cancelPendingAiJobs` + job mới trong `executeGuestVisionPick`.
+ */
+export const VISION_PICK_GRACE_AI_DELAY_SECONDS = 30
+
+/**
  * CDN thường dùng URL protocol-relative `//host/...` — coi như https cho Vision sync & fingerprint.
  * Dùng chung server + client (thống kê UI).
  */

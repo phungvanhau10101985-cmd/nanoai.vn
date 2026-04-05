@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Bell, Loader2 } from 'lucide-react'
 import {
@@ -57,6 +57,7 @@ export function NotificationBell({ t, locale }: NotificationBellProps) {
   const [pushSubscribed, setPushSubscribed] = useState<boolean | null>(null)
   const [pushBusy, setPushBusy] = useState(false)
   const [pushClientOk, setPushClientOk] = useState(false)
+  const unreadCountRef = useRef(0)
 
   const vapidPublic = getPushVapidPublicKey()
   const showPushFooter =
@@ -91,8 +92,8 @@ export function NotificationBell({ t, locale }: NotificationBellProps) {
   }, [])
 
   useEffect(() => {
-    if (open) fetchNotifications()
-  }, [open])
+    unreadCountRef.current = unreadCount
+  }, [unreadCount])
 
   useEffect(() => {
     if (!open || !showPushFooter) return
@@ -117,8 +118,27 @@ export function NotificationBell({ t, locale }: NotificationBellProps) {
     }
   }
 
+  const onPopoverOpenChange = (next: boolean) => {
+    setOpen(next)
+    if (!next) return
+    void (async () => {
+      if (unreadCountRef.current > 0) {
+        try {
+          const res = await fetch('/api/notifications/read-all', { method: 'POST' })
+          if (res.ok) {
+            setUnreadCount(0)
+            unreadCountRef.current = 0
+          }
+        } catch {
+          /* giữ badge; lần sau interval / mở lại */
+        }
+      }
+      fetchNotifications()
+    })()
+  }
+
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={onPopoverOpenChange}>
       <PopoverTrigger asChild>
         <Button
           type="button"

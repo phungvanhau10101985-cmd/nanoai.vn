@@ -73,6 +73,11 @@ export async function handlePartnerInboundForAi(
     channel: CustomerCareChannel
     /** Giới hạn reply_delay (giây) — ví dụ khi Vision không có ứng viên, AI chạy sớm hơn. */
     capReplyDelaySeconds?: number
+    /**
+     * Bỏ qua reply_delay shop: hẹn job sau đúng N giây (vd. chờ khách chọn SP gợi ý Vision).
+     * Không dùng chung với capReplyDelaySeconds trong một lần gọi.
+     */
+    scheduleAiAfterSeconds?: number
   }
 ): Promise<PartnerInboundShopTypingHint> {
   if (input.channel === 'internal') return { show: false }
@@ -102,10 +107,19 @@ export async function handlePartnerInboundForAi(
     await cancelPendingAiJobsForConversation(input.conversationId)
     /** Chat bán hàng: chậm nhất ~30s trước khi bắt đầu luồng trả lời (sau đó còn độ trễ gõ). */
     const configuredDelay = Math.max(5, Math.min(30, settings.reply_delay_seconds ?? 20))
-    const visionFastFallback = input.capReplyDelaySeconds !== undefined
-    const delaySec = visionFastFallback
-      ? Math.min(configuredDelay, Math.max(0, input.capReplyDelaySeconds ?? 0))
-      : configuredDelay
+    const exactSchedule =
+      input.scheduleAiAfterSeconds != null && Number.isFinite(input.scheduleAiAfterSeconds)
+    let delaySec: number
+    let visionFastFallback: boolean
+    if (exactSchedule) {
+      delaySec = Math.max(0, Math.min(120, Math.floor(Number(input.scheduleAiAfterSeconds))))
+      visionFastFallback = delaySec === 0
+    } else {
+      visionFastFallback = input.capReplyDelaySeconds !== undefined
+      delaySec = visionFastFallback
+        ? Math.min(configuredDelay, Math.max(0, input.capReplyDelaySeconds ?? 0))
+        : configuredDelay
+    }
     const runAt = new Date(Date.now() + delaySec * 1000).toISOString()
     const { error } = await db.from('messaging_partner_ai_jobs').insert({
       partner_id: input.partnerId,
@@ -153,7 +167,7 @@ export async function handlePartnerInboundForAi(
     }
 
     /**
-     * Poll phía khách: với fallback Vision (delay ~0) không giữ sàn 60s — vẫn đủ chỗ cho LLM.
+     * Poll phía khách: delay ~0 (Vision miss / index chưa sẵn) — cửa sổ ngắn hơn; delay cố định (chờ chọn SP) — cộng thêm LLM.
      */
     const maxWaitMs = visionFastFallback
       ? Math.min(Math.max(delaySec * 1000 + 52_000, 72_000), 4 * 60 * 1000)

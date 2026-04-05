@@ -457,11 +457,7 @@ export function PartnerGuestChatClient({
       setDraft('')
       clearAttachment()
       await load()
-      if (
-        data.shopTyping?.maxWaitMs &&
-        data.shopTyping.maxWaitMs > 0 &&
-        !data.visionPickRequired
-      ) {
+      if (data.shopTyping?.maxWaitMs && data.shopTyping.maxWaitMs > 0) {
         setShopTyping({
           deadline: Date.now() + data.shopTyping.maxWaitMs,
           baselineOutbound: outboundBaseline,
