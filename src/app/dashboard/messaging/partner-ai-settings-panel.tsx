@@ -699,11 +699,31 @@ export function PartnerAiSettingsPanel({
       }
       const rounds = String(data.roundsExecuted ?? 0)
       const partners = String(data.partnersTouched ?? 0)
+      const syncErrors = (data.errors ?? []).map((x) => x.trim()).filter(Boolean)
+      const lockBusyError = syncErrors.find(
+        (x) =>
+          /corpus đang bị giữ bởi lượt import khác/i.test(x) ||
+          /Vision import lock/i.test(x)
+      )
+      const hasNoWorkDone =
+        (data.roundsExecuted ?? 0) <= 0 &&
+        (data.partnersTouched ?? 0) > 0
       toast({
         title: t.visionBgSyncRunSliceOk.replace('{rounds}', rounds).replace('{partners}', partners),
       })
-      if (data.errors?.length) {
-        toast({ title: data.errors.join('; '), variant: 'destructive' })
+      if (lockBusyError) {
+        toast({
+          title: lockBusyError,
+          description: t.visionHealthUnlockButton,
+          variant: 'destructive',
+        })
+      } else if (syncErrors.length) {
+        toast({ title: syncErrors.join('; '), variant: 'destructive' })
+      } else if (hasNoWorkDone) {
+        toast({
+          title: t.visionBgSyncStatusRunning,
+          description: t.visionBgSyncAlreadyActiveRefreshHint,
+        })
       }
       await load()
     } catch {

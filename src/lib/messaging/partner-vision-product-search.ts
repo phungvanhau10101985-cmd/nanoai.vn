@@ -40,7 +40,11 @@ import {
   visionWarehouseAssetId,
   type VisionWarehouseLocation,
 } from '@/lib/messaging/partner-vision-warehouse'
-import { acquireVisionWarehouseImportLock, releaseVisionWarehouseImportLock } from '@/lib/messaging/partner-vision-import-lock'
+import {
+  acquireVisionWarehouseImportLock,
+  heartbeatVisionWarehouseImportLock,
+  releaseVisionWarehouseImportLock,
+} from '@/lib/messaging/partner-vision-import-lock'
 import { markVisionWarehousePendingWork } from '@/lib/messaging/partner-vision-warehouse-runner'
 import { trackApiUsage } from '@/lib/track-ai-usage'
 
@@ -346,80 +350,89 @@ export async function runVisionCatalogSync(
     }
     const slicesToRun = importSlices.slice(0, maxImportsThisRun)
 
-    if (toImport.length > 0) {
-      await acquireVisionWarehouseImportLock(db, { maxWaitMs: 6_000 })
-    }
-    try {
-      for (const slice of slicesToRun) {
-        const jsonlLines: string[] = []
-        const ok: { id: string; fp: string }[] = []
+    for (const slice of slicesToRun) {
+      const jsonlLines: string[] = []
+      const ok: { id: string; fp: string }[] = []
 
-        for (const row of slice) {
-          const url = normalizeVisionCatalogImageUrl(row.image_url)
-          const got = await fetchImageBytesFromUrl(url)
-          if (!got) continue
-          const ext = extFromContentType(got.contentType)
-          const assetId = visionWarehouseAssetId(partnerId, row.id)
-          const objectPath = `${prefix}/assets/${assetId}.${ext}`
-          await uploadBytesToGcs(bucket, objectPath, got.buf, got.contentType)
-          const gs = gcsUri(bucket, objectPath)
-          const title = row.name?.trim() || assetId
-          jsonlLines.push(
-            visionWarehouseJsonlLine({
-              gcsUri: gs,
-              assetId,
-              partnerId,
-              inventoryId: row.id,
-              title,
-            })
-          )
-          ok.push({ id: row.id, fp: catalogFingerprintForVisionRow(row) })
-        }
+      for (const row of slice) {
+        const url = normalizeVisionCatalogImageUrl(row.image_url)
+        const got = await fetchImageBytesFromUrl(url)
+        if (!got) continue
+        const ext = extFromContentType(got.contentType)
+        const assetId = visionWarehouseAssetId(partnerId, row.id)
+        const objectPath = `${prefix}/assets/${assetId}.${ext}`
+        await uploadBytesToGcs(bucket, objectPath, got.buf, got.contentType)
+        const gs = gcsUri(bucket, objectPath)
+        const title = row.name?.trim() || assetId
+        jsonlLines.push(
+          visionWarehouseJsonlLine({
+            gcsUri: gs,
+            assetId,
+            partnerId,
+            inventoryId: row.id,
+            title,
+          })
+        )
+        ok.push({ id: row.id, fp: catalogFingerprintForVisionRow(row) })
+      }
 
-        if (jsonlLines.length === 0) continue
+      if (jsonlLines.length === 0) continue
 
-        if (!schemasReady) {
-          await ensureVisionWarehouseDataSchemas(projectNumber, loc, corpusId)
-          schemasReady = true
-        }
+      if (!schemasReady) {
+        await ensureVisionWarehouseDataSchemas(projectNumber, loc, corpusId)
+        schemasReady = true
+      }
 
-        importBatches += 1
-        const jsonlPath = `${prefix}/batch-${Date.now()}-${importBatches}.jsonl`
-        await uploadBytesToGcs(bucket, jsonlPath, Buffer.from(jsonlLines.join(''), 'utf8'), 'application/x-ndjson')
+      importBatches += 1
+      const jsonlPath = `${prefix}/batch-${Date.now()}-${importBatches}.jsonl`
+      await uploadBytesToGcs(bucket, jsonlPath, Buffer.from(jsonlLines.join(''), 'utf8'), 'application/x-ndjson')
 
+      let importLock: Awaited<ReturnType<typeof acquireVisionWarehouseImportLock>> | null = null
+      try {
+        importLock = await acquireVisionWarehouseImportLock(db, { maxWaitMs: 6_000 })
         const importOp = await importVisionWarehouseAssetsJsonl({
           projectNumber,
           location: loc,
           corpusId,
           assetsGcsUri: gcsUri(bucket, jsonlPath),
         })
+        const heartbeatIntervalMs = 25_000
+        let lastHeartbeatAt = 0
         await pollVisionAiOperation(importOp, {
           maxMs: importPollMaxMs,
           warehouseLocation: loc,
+          onPending: async () => {
+            const now = Date.now()
+            if (now - lastHeartbeatAt < heartbeatIntervalMs) return
+            lastHeartbeatAt = now
+            if (!importLock) return
+            await heartbeatVisionWarehouseImportLock(db, importLock)
+          },
         })
-        warehouseTouched = true
-
-        const now = new Date().toISOString()
-        for (const { id, fp } of ok) {
-          const { error: upErr } = await db
-            .from('messaging_partner_inventory')
-            .update({
-              vision_catalog_checksum: fp,
-              vision_catalog_synced_at: now,
-              updated_at: now,
-            })
-            .eq('id', id)
-            .eq('partner_id', partnerId)
-          if (!upErr) imported += 1
-        }
-
-        if (postImportCooldownMs > 0) {
-          await new Promise((r) => setTimeout(r, postImportCooldownMs))
+      }
+      finally {
+        if (importLock) {
+          await releaseVisionWarehouseImportLock(db, importLock)
         }
       }
-    } finally {
-      if (toImport.length > 0) {
-        await releaseVisionWarehouseImportLock(db)
+
+      warehouseTouched = true
+      const now = new Date().toISOString()
+      for (const { id, fp } of ok) {
+        const { error: upErr } = await db
+          .from('messaging_partner_inventory')
+          .update({
+            vision_catalog_checksum: fp,
+            vision_catalog_synced_at: now,
+            updated_at: now,
+          })
+          .eq('id', id)
+          .eq('partner_id', partnerId)
+        if (!upErr) imported += 1
+      }
+
+      if (postImportCooldownMs > 0) {
+        await new Promise((r) => setTimeout(r, postImportCooldownMs))
       }
     }
 

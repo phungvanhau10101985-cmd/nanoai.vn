@@ -80,6 +80,8 @@ async function autoUnlockStaleVisionImportLock(
     .update({
       assets_import_busy: false,
       assets_import_busy_at: null,
+      assets_import_owner: null,
+      assets_import_heartbeat_at: null,
       updated_at: now,
     })
     .eq('id', 1)
@@ -99,6 +101,8 @@ async function autoUnlockStaleVisionImportLock(
     .update({
       assets_import_busy: false,
       assets_import_busy_at: null,
+      assets_import_owner: null,
+      assets_import_heartbeat_at: null,
       updated_at: now,
     })
     .eq('id', 1)
@@ -110,6 +114,27 @@ async function autoUnlockStaleVisionImportLock(
     console.error('[vision-bg-sync-cron] auto-unlock null-ts lock', nullTsErr.message)
   } else if (nullTsRow) {
     console.warn('[vision-bg-sync-cron] auto-unlocked inconsistent import lock')
+  }
+
+  // Case 3: busy=true, busy_at mới nhưng heartbeat đã stale => owner đã chết.
+  const { data: staleHeartbeatRow, error: staleHeartbeatErr } = await db
+    .from('vision_warehouse_runner')
+    .update({
+      assets_import_busy: false,
+      assets_import_busy_at: null,
+      assets_import_owner: null,
+      assets_import_heartbeat_at: null,
+      updated_at: now,
+    })
+    .eq('id', 1)
+    .eq('assets_import_busy', true)
+    .lt('assets_import_heartbeat_at', cutoffIso)
+    .select('id')
+    .maybeSingle()
+  if (staleHeartbeatErr) {
+    console.error('[vision-bg-sync-cron] auto-unlock stale heartbeat', staleHeartbeatErr.message)
+  } else if (staleHeartbeatRow) {
+    console.warn('[vision-bg-sync-cron] auto-unlocked stale heartbeat import lock', { staleSeconds })
   }
 }
 

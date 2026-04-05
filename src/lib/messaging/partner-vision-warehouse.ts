@@ -114,7 +114,12 @@ type GcpOperation = {
 
 export async function pollVisionAiOperation(
   operationName: string,
-  opts?: { maxMs?: number; intervalMs?: number; warehouseLocation?: VisionWarehouseLocation }
+  opts?: {
+    maxMs?: number
+    intervalMs?: number
+    warehouseLocation?: VisionWarehouseLocation
+    onPending?: () => Promise<void> | void
+  }
 ): Promise<GcpOperation> {
   const maxMs = opts?.maxMs ?? 300_000
   const intervalMs = opts?.intervalMs ?? 5000
@@ -136,6 +141,7 @@ export async function pollVisionAiOperation(
       if (op.error?.message) throw new Error(op.error.message)
       return op
     }
+    await opts?.onPending?.()
     await new Promise((r) => setTimeout(r, intervalMs))
   }
   throw new Error(`Vision AI operation timeout (${maxMs}ms): ${operationName}`)

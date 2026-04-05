@@ -495,6 +495,8 @@ function buildPartnerVisionSyncHealth(
   runner: {
     assets_import_busy?: boolean | null
     assets_import_busy_at?: string | null
+    assets_import_owner?: string | null
+    assets_import_heartbeat_at?: string | null
   } | null
 ): PartnerVisionSyncHealth {
   let syncable = 0
@@ -551,7 +553,7 @@ export async function getPartnerAiBundle(partnerId: string) {
     .order('sort_order', { ascending: true })
   const { data: runner } = await supabase
     .from('vision_warehouse_runner')
-    .select('assets_import_busy, assets_import_busy_at')
+    .select('assets_import_busy, assets_import_busy_at, assets_import_owner, assets_import_heartbeat_at')
     .eq('id', 1)
     .maybeSingle()
   const inv = inventory ?? []
@@ -1046,6 +1048,8 @@ export async function unlockVisionWarehouseImportLock(partnerId: string) {
     .update({
       assets_import_busy: false,
       assets_import_busy_at: null,
+      assets_import_owner: null,
+      assets_import_heartbeat_at: null,
       updated_at: now,
     })
     .eq('id', 1)

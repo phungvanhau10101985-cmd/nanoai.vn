@@ -224,6 +224,8 @@ export interface Database {
           updated_at: string
           assets_import_busy: boolean
           assets_import_busy_at: string | null
+          assets_import_owner: string | null
+          assets_import_heartbeat_at: string | null
         }
         Insert: {
           id?: number
@@ -234,6 +236,8 @@ export interface Database {
           updated_at?: string
           assets_import_busy?: boolean
           assets_import_busy_at?: string | null
+          assets_import_owner?: string | null
+          assets_import_heartbeat_at?: string | null
         }
         Update: {
           id?: number
@@ -244,6 +248,8 @@ export interface Database {
           updated_at?: string
           assets_import_busy?: boolean
           assets_import_busy_at?: string | null
+          assets_import_owner?: string | null
+          assets_import_heartbeat_at?: string | null
         }
         Relationships: []
       }
@@ -673,11 +679,15 @@ export interface Database {
         }[]
       }
       vision_warehouse_try_acquire_import_lock: {
-        Args: { p_stale_seconds?: number }
+        Args: { p_stale_seconds?: number; p_owner?: string }
+        Returns: boolean
+      }
+      vision_warehouse_heartbeat_import_lock: {
+        Args: { p_owner: string }
         Returns: boolean
       }
       vision_warehouse_release_import_lock: {
-        Args: Record<string, never>
+        Args: { p_owner?: string }
         Returns: null
       }
     }
