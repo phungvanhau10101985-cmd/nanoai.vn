@@ -448,6 +448,9 @@ export type PartnerVisionSyncHealth = {
   lockBusy: boolean
   lockBusyAt: string | null
   lockAgeSec: number | null
+  lockOwner: string | null
+  lockHeartbeatAt: string | null
+  lockHeartbeatAgeSec: number | null
   pendingCount: number
   checksumDoneCount: number
   syncableCount: number
@@ -516,13 +519,22 @@ function buildPartnerVisionSyncHealth(
 
   const lockBusy = Boolean(runner?.assets_import_busy)
   const lockBusyAt = runner?.assets_import_busy_at ?? null
+  const lockOwner = runner?.assets_import_owner?.trim() || null
+  const lockHeartbeatAt = runner?.assets_import_heartbeat_at ?? null
   const lockAgeSec =
     lockBusy && lockBusyAt ? Math.max(0, Math.floor((Date.now() - Date.parse(lockBusyAt)) / 1000)) : null
+  const lockHeartbeatAgeSec =
+    lockBusy && lockHeartbeatAt
+      ? Math.max(0, Math.floor((Date.now() - Date.parse(lockHeartbeatAt)) / 1000))
+      : null
 
   return {
     lockBusy,
     lockBusyAt,
     lockAgeSec: Number.isFinite(lockAgeSec ?? NaN) ? lockAgeSec : null,
+    lockOwner,
+    lockHeartbeatAt,
+    lockHeartbeatAgeSec: Number.isFinite(lockHeartbeatAgeSec ?? NaN) ? lockHeartbeatAgeSec : null,
     pendingCount: Math.max(0, syncable - done),
     checksumDoneCount: done,
     syncableCount: syncable,

@@ -354,7 +354,12 @@ export function PartnerAiSettingsPanel({
   const visionOpsLocked = pending || visionSyncing || visionBgRunSliceBusy || visionBgActive
   const visionHealthLevel: 'idle' | 'healthy' | 'warning' | 'stuck' = useMemo(() => {
     if (!visionSyncHealth) return 'idle'
-    if (visionSyncHealth.lockBusy && (visionSyncHealth.lockAgeSec ?? 0) >= 600) return 'stuck'
+    if (
+      visionSyncHealth.lockBusy &&
+      ((visionSyncHealth.lockAgeSec ?? 0) >= 600 || (visionSyncHealth.lockHeartbeatAgeSec ?? 0) >= 600)
+    ) {
+      return 'stuck'
+    }
     if (visionSyncHealth.pendingCount <= 0 && !visionSyncHealth.lockBusy) return 'healthy'
     if (visionSyncHealth.pendingCount > 0 || visionSyncHealth.lockBusy || visionBgActive) return 'warning'
     return 'idle'
@@ -1118,6 +1123,23 @@ export function PartnerAiSettingsPanel({
                             '{sec}',
                             String(Math.max(0, visionSyncHealth.lockAgeSec ?? 0))
                           )
+                        : t.visionHealthLockFree}
+                    </p>
+                    <p>
+                      {t.visionHealthLockOwner}:{' '}
+                      {visionSyncHealth.lockBusy
+                        ? (visionSyncHealth.lockOwner?.trim() || t.visionHealthOwnerUnknown)
+                        : t.visionHealthLockFree}
+                    </p>
+                    <p>
+                      {t.visionHealthHeartbeatAge}:{' '}
+                      {visionSyncHealth.lockBusy
+                        ? visionSyncHealth.lockHeartbeatAgeSec != null
+                          ? t.visionHealthHeartbeatAlive.replace(
+                              '{sec}',
+                              String(Math.max(0, visionSyncHealth.lockHeartbeatAgeSec))
+                            )
+                          : t.visionHealthHeartbeatNone
                         : t.visionHealthLockFree}
                     </p>
                     <p>

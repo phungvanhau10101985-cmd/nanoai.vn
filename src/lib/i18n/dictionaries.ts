@@ -544,6 +544,11 @@ export type Dictionary = {
     visionHealthLockAge: string
     visionHealthLockBusy: string
     visionHealthLockFree: string
+    visionHealthLockOwner: string
+    visionHealthOwnerUnknown: string
+    visionHealthHeartbeatAge: string
+    visionHealthHeartbeatAlive: string
+    visionHealthHeartbeatNone: string
     visionHealthLastProgress: string
     visionHealthLastProgressNone: string
     visionHealthUnlockButton: string
@@ -2028,6 +2033,11 @@ const VI_DICTIONARY: Dictionary = {
     visionHealthLockAge: 'Tuổi lock',
     visionHealthLockBusy: 'Đang bị giữ ({sec}s)',
     visionHealthLockFree: 'Đang rảnh',
+    visionHealthLockOwner: 'Lock owner',
+    visionHealthOwnerUnknown: 'Không rõ owner',
+    visionHealthHeartbeatAge: 'Tuổi heartbeat',
+    visionHealthHeartbeatAlive: 'Đang sống ({sec}s)',
+    visionHealthHeartbeatNone: 'Chưa có heartbeat',
     visionHealthLastProgress: 'Tiến triển gần nhất',
     visionHealthLastProgressNone: 'Chưa có',
     visionHealthUnlockButton: 'Mở khóa import',
@@ -3512,6 +3522,11 @@ const EN_DICTIONARY: Dictionary = {
     visionHealthLockAge: 'Lock age',
     visionHealthLockBusy: 'Busy ({sec}s)',
     visionHealthLockFree: 'Free',
+    visionHealthLockOwner: 'Lock owner',
+    visionHealthOwnerUnknown: 'Unknown owner',
+    visionHealthHeartbeatAge: 'Heartbeat age',
+    visionHealthHeartbeatAlive: 'Alive ({sec}s)',
+    visionHealthHeartbeatNone: 'No heartbeat',
     visionHealthLastProgress: 'Last progress',
     visionHealthLastProgressNone: 'None',
     visionHealthUnlockButton: 'Unlock import lock',
@@ -4988,6 +5003,11 @@ const ZH_DICTIONARY: Dictionary = {
     visionHealthLockAge: '锁持续时间',
     visionHealthLockBusy: '占用中（{sec}秒）',
     visionHealthLockFree: '空闲',
+    visionHealthLockOwner: '锁持有者',
+    visionHealthOwnerUnknown: '未知持有者',
+    visionHealthHeartbeatAge: '心跳时长',
+    visionHealthHeartbeatAlive: '存活中（{sec}秒）',
+    visionHealthHeartbeatNone: '暂无心跳',
     visionHealthLastProgress: '最近进展',
     visionHealthLastProgressNone: '暂无',
     visionHealthUnlockButton: '解锁导入',
@@ -6429,6 +6449,11 @@ const JA_DICTIONARY: Dictionary = {
     visionHealthLockAge: 'ロック経過',
     visionHealthLockBusy: '使用中（{sec}秒）',
     visionHealthLockFree: '空き',
+    visionHealthLockOwner: 'ロック所有者',
+    visionHealthOwnerUnknown: '所有者不明',
+    visionHealthHeartbeatAge: 'ハートビート経過',
+    visionHealthHeartbeatAlive: '生存中（{sec}秒）',
+    visionHealthHeartbeatNone: 'ハートビートなし',
     visionHealthLastProgress: '最終進捗',
     visionHealthLastProgressNone: 'なし',
     visionHealthUnlockButton: 'インポートロックを解除',
@@ -7897,6 +7922,11 @@ const KO_DICTIONARY: Dictionary = {
     visionHealthLockAge: '락 경과',
     visionHealthLockBusy: '점유 중({sec}초)',
     visionHealthLockFree: '유휴',
+    visionHealthLockOwner: '락 소유자',
+    visionHealthOwnerUnknown: '소유자 알 수 없음',
+    visionHealthHeartbeatAge: '하트비트 경과',
+    visionHealthHeartbeatAlive: '정상 동작({sec}초)',
+    visionHealthHeartbeatNone: '하트비트 없음',
     visionHealthLastProgress: '최근 진행',
     visionHealthLastProgressNone: '없음',
     visionHealthUnlockButton: '가져오기 잠금 해제',
