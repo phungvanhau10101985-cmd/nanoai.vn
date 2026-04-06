@@ -4,6 +4,7 @@ import type { Database } from '@/types/database.types'
 
 type Db = SupabaseClient<Database>
 type InvRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
+const DB_VECTOR_DIMS = 768
 
 const GEMINI_EMBED_MODEL = process.env.GEMINI_IMAGE_EMBED_MODEL?.trim() || 'gemini-embedding-2-preview'
 const GEMINI_EMBED_DIMS = Math.max(
@@ -35,6 +36,7 @@ function rowAsEmbeddingComparable(
         | 'image_embedding_fingerprint'
         | 'image_embedding_model'
         | 'image_embedding_dims'
+        | 'image_embedding_vec'
       >
     >
 ): InvRow {
@@ -55,6 +57,7 @@ function rowAsEmbeddingComparable(
     image_embedding_fingerprint: row.image_embedding_fingerprint ?? null,
     image_embedding_model: row.image_embedding_model ?? null,
     image_embedding_dims: row.image_embedding_dims ?? null,
+    image_embedding_vec: row.image_embedding_vec ?? null,
     image_embedding_updated_at: null,
     image_embedding_error: null,
     vision_catalog_checksum: null,
@@ -84,6 +87,10 @@ function vectorsEqual(a: number[] | null | undefined, b: number[] | null | undef
     if ((a[i] || 0) !== (b[i] || 0)) return false
   }
   return true
+}
+
+function toPgVectorLiteral(vec: number[]): string {
+  return `[${vec.map((v) => (Number.isFinite(v) ? Number(v) : 0)).join(',')}]`
 }
 
 export async function embedImageBufferWithGemini(
@@ -155,7 +162,7 @@ export async function syncPartnerInventoryEmbeddings(
   let query = db
     .from('messaging_partner_inventory')
     .select(
-      'id, partner_id, name, image_url, is_active, image_embedding_json, image_embedding_fingerprint, image_embedding_model, image_embedding_dims'
+      'id, partner_id, name, image_url, is_active, image_embedding_json, image_embedding_fingerprint, image_embedding_model, image_embedding_dims, image_embedding_vec'
     )
     .eq('partner_id', partnerId)
     .order('updated_at', { ascending: false })
@@ -176,6 +183,7 @@ export async function syncPartnerInventoryEmbeddings(
             | 'image_embedding_fingerprint'
             | 'image_embedding_model'
             | 'image_embedding_dims'
+            | 'image_embedding_vec'
           >
         >
     )
@@ -187,10 +195,11 @@ export async function syncPartnerInventoryEmbeddings(
     if (options?.force) return true
     const nextFp = rowFingerprint(row)
     const hasEmbedding = Array.isArray(row.image_embedding_json)
+    const hasVectorColumn = typeof row.image_embedding_vec === 'string' && row.image_embedding_vec.trim().length > 0
     const sameFp = row.image_embedding_fingerprint === nextFp
     const sameModel = (row.image_embedding_model ?? '') === GEMINI_EMBED_MODEL
     const sameDims = (row.image_embedding_dims ?? 0) === GEMINI_EMBED_DIMS
-    return !(hasEmbedding && sameFp && sameModel && sameDims)
+    return !(hasEmbedding && hasVectorColumn && sameFp && sameModel && sameDims)
   })
 
   if (candidates.length === 0) return { ok: true, synced: 0, failed: 0, skipped: rows.length }
@@ -219,6 +228,7 @@ export async function syncPartnerInventoryEmbeddings(
               image_embedding_fingerprint: fp,
               image_embedding_model: GEMINI_EMBED_MODEL,
               image_embedding_dims: GEMINI_EMBED_DIMS,
+              image_embedding_vec: null,
               image_embedding_updated_at: nowIso,
               image_embedding_error: 'FETCH_OR_EMBED_FAILED',
             })
@@ -243,8 +253,10 @@ export async function syncPartnerInventoryEmbeddings(
             image_embedding_fingerprint: fp,
             image_embedding_model: GEMINI_EMBED_MODEL,
             image_embedding_dims: GEMINI_EMBED_DIMS,
+            image_embedding_vec: vec.length === DB_VECTOR_DIMS ? toPgVectorLiteral(vec) : null,
             image_embedding_updated_at: nowIso,
-            image_embedding_error: '',
+            image_embedding_error:
+              vec.length === DB_VECTOR_DIMS ? '' : `VECTOR_DIM_MISMATCH:${vec.length}!=${DB_VECTOR_DIMS}`,
           })
           .eq('id', row.id)
           .eq('partner_id', partnerId)
@@ -263,6 +275,7 @@ export async function syncPartnerInventoryEmbeddings(
             image_embedding_fingerprint: fp,
             image_embedding_model: GEMINI_EMBED_MODEL,
             image_embedding_dims: GEMINI_EMBED_DIMS,
+            image_embedding_vec: null,
             image_embedding_updated_at: nowIso,
             image_embedding_error: msg.slice(0, 300),
           })

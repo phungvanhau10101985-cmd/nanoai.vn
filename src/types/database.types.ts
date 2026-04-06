@@ -409,6 +409,7 @@ export interface Database {
           consult_note: string
           is_active: boolean
           image_embedding_json: number[] | null
+          image_embedding_vec: string | null
           image_embedding_model: string | null
           image_embedding_dims: number | null
           image_embedding_fingerprint: string | null
@@ -434,6 +435,7 @@ export interface Database {
           consult_note?: string
           is_active?: boolean
           image_embedding_json?: number[] | null
+          image_embedding_vec?: string | null
           image_embedding_model?: string | null
           image_embedding_dims?: number | null
           image_embedding_fingerprint?: string | null
@@ -459,6 +461,7 @@ export interface Database {
           consult_note?: string
           is_active?: boolean
           image_embedding_json?: number[] | null
+          image_embedding_vec?: string | null
           image_embedding_model?: string | null
           image_embedding_dims?: number | null
           image_embedding_fingerprint?: string | null
@@ -713,6 +716,22 @@ export interface Database {
       vision_warehouse_release_import_lock: {
         Args: { p_owner?: string }
         Returns: null
+      }
+      match_messaging_partner_inventory_by_embedding: {
+        Args: {
+          p_partner_id: string
+          p_query: string
+          p_limit?: number
+          p_min_score?: number
+        }
+        Returns: {
+          inventory_id: string
+          name: string
+          sku: string | null
+          image_url: string
+          product_url: string | null
+          score: number
+        }[]
       }
     }
   }

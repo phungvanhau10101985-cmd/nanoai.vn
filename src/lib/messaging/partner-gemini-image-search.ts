@@ -1,9 +1,11 @@
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { fetchRemoteImageForCatalog, sniffImageContentType } from '@/lib/fetch-image-1688'
 import { trackApiUsage } from '@/lib/track-ai-usage'
 import type { Database } from '@/types/database.types'
 import { embedImageBufferWithGemini } from '@/lib/messaging/partner-inventory-embedding'
 
 type InvRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
+type Db = SupabaseClient<Database>
 
 export type GeminiImageSearchCandidate = {
   inventoryId: string
@@ -20,11 +22,16 @@ type CacheItem = { value: EmbeddingVector; expiresAt: number }
 const GEMINI_EMBED_MODEL = process.env.GEMINI_IMAGE_EMBED_MODEL?.trim() || 'gemini-embedding-2-preview'
 const INVENTORY_SCAN_LIMIT = Math.max(
   20,
-  Math.min(1500, parseInt(process.env.GEMINI_IMAGE_SEARCH_SCAN_LIMIT || '400', 10) || 400)
+  Math.min(1500, parseInt(process.env.GEMINI_IMAGE_SEARCH_SCAN_LIMIT || '1200', 10) || 1200)
 )
 const MAX_PARALLEL = Math.max(
   1,
   Math.min(8, parseInt(process.env.GEMINI_IMAGE_SEARCH_PARALLEL || '4', 10) || 4)
+)
+const DB_VECTOR_DIMS = 768
+const SEARCH_MIN_SCORE = Math.max(
+  0,
+  Math.min(1, parseFloat(process.env.GEMINI_IMAGE_SEARCH_MIN_SCORE || '0') || 0)
 )
 const CACHE_TTL_MS = Math.max(
   60_000,
@@ -149,6 +156,79 @@ export async function geminiProductSearchFromImageBuffer(
         }
       }),
     }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    return { candidates: [], error: msg }
+  }
+}
+
+function toPgVectorLiteral(vec: number[]): string {
+  return `[${vec.map((v) => (Number.isFinite(v) ? Number(v) : 0)).join(',')}]`
+}
+
+/**
+ * Preferred path for large catalogs: ANN search in Postgres (pgvector index).
+ * Falls back to app-side scan only when RPC/vector path is unavailable.
+ */
+export async function geminiProductSearchFromImageBufferViaVectorDb(
+  db: Db,
+  imageBuffer: Buffer,
+  partnerId: string,
+  options?: { maxResults?: number; userId?: string | null }
+): Promise<{ candidates: GeminiImageSearchCandidate[]; error?: string }> {
+  try {
+    const queryMime = detectImageMimeType(imageBuffer)
+    const queryVec = await embedImageBufferWithGemini(imageBuffer, queryMime)
+    const maxResults = Math.min(25, Math.max(1, Math.floor(options?.maxResults ?? 8)))
+
+    if (queryVec.length === DB_VECTOR_DIMS) {
+      const { data, error } = await db.rpc('match_messaging_partner_inventory_by_embedding', {
+        p_partner_id: partnerId,
+        p_query: toPgVectorLiteral(queryVec),
+        p_limit: maxResults,
+        p_min_score: SEARCH_MIN_SCORE,
+      })
+
+      if (!error && Array.isArray(data)) {
+        const candidates: GeminiImageSearchCandidate[] = data.map((row) => {
+          const purl = row.product_url?.trim() ?? ''
+          return {
+            inventoryId: row.inventory_id,
+            name: row.name,
+            sku: row.sku,
+            image_url: row.image_url ?? '',
+            ...(purl && /^https?:\/\//i.test(purl) ? { product_url: purl } : {}),
+            score: typeof row.score === 'number' ? row.score : undefined,
+          }
+        })
+        void trackApiUsage({
+          userId: options?.userId ?? null,
+          model: GEMINI_EMBED_MODEL,
+          feature: 'image_similarity_search',
+          promptTokenCount: 0,
+          candidatesTokenCount: candidates.length,
+          totalTokenCount: 1,
+        })
+        return { candidates }
+      }
+
+      if (error) {
+        console.error('[image-search] vector-rpc fallback', {
+          partnerId,
+          error: error.message,
+        })
+      }
+    }
+
+    // Fallback path when vector dims mismatch or RPC/index not available.
+    const { data: invRows } = await db
+      .from('messaging_partner_inventory')
+      .select('*')
+      .eq('partner_id', partnerId)
+      .eq('is_active', true)
+      .limit(Math.max(INVENTORY_SCAN_LIMIT, maxResults))
+
+    return geminiProductSearchFromImageBuffer(imageBuffer, partnerId, invRows ?? [], options)
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     return { candidates: [], error: msg }

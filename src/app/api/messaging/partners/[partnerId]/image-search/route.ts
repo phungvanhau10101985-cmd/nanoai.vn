@@ -6,7 +6,7 @@ import {
   getRateLimitRetryAfterSec,
   isRateLimited,
 } from '@/lib/api/simple-ip-rate-limit'
-import { geminiProductSearchFromImageBuffer } from '@/lib/messaging/partner-gemini-image-search'
+import { geminiProductSearchFromImageBufferViaVectorDb } from '@/lib/messaging/partner-gemini-image-search'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -174,12 +174,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ partnerId: str
     if (Number.isFinite(n)) maxResults = n
   }
 
-  const { data: invRows } = await db
-    .from('messaging_partner_inventory')
-    .select('*')
-    .eq('partner_id', partnerId)
-
-  const geminiResult = await geminiProductSearchFromImageBuffer(buf, partnerId, invRows ?? [], {
+  const geminiResult = await geminiProductSearchFromImageBufferViaVectorDb(db, buf, partnerId, {
     maxResults,
     userId: null,
   })

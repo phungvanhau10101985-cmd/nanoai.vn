@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database, Json } from '@/types/database.types'
 import { ensureConversation, insertMessage } from '@/lib/customer-care/conversation-service'
 import { handlePartnerInboundForAi } from '@/lib/messaging/partner-ai-inbound'
-import { geminiProductSearchFromImageBuffer } from '@/lib/messaging/partner-gemini-image-search'
+import { geminiProductSearchFromImageBufferViaVectorDb } from '@/lib/messaging/partner-gemini-image-search'
 import {
   buildGuestMediaPayload,
   guestImageObjectExists,
@@ -70,21 +70,24 @@ export async function postWidgetGuestMessage(
     try {
       const { data: aiSet } = await db
         .from('messaging_partner_ai_settings')
-        .select('image_search_api_enabled')
+        .select('enabled')
         .eq('partner_id', params.partnerId)
         .maybeSingle()
-      if (aiSet?.image_search_api_enabled) {
+      // Hosted guest widget should use internal image similarity even when public API toggle is off.
+      if (aiSet?.enabled) {
         const { data: blob, error: dlErr } = await db.storage.from(GUEST_CHAT_IMAGE_BUCKET).download(imagePath)
         if (!dlErr && blob) {
           const buf = Buffer.from(await blob.arrayBuffer())
-          const { data: invRows } = await db
-            .from('messaging_partner_inventory')
-            .select('*')
-            .eq('partner_id', params.partnerId)
-          const search = await geminiProductSearchFromImageBuffer(buf, params.partnerId, invRows ?? [], {
+          const search = await geminiProductSearchFromImageBufferViaVectorDb(db, buf, params.partnerId, {
             maxResults: 5,
             userId: params.linkedUserId ?? null,
           })
+          if (search.error) {
+            console.error('[widget-guest-post] image candidate search error', {
+              partnerId: params.partnerId,
+              error: search.error,
+            })
+          }
           visionCandidates = search.candidates.map((c) => ({
             inventoryId: c.inventoryId,
             name: c.name,
