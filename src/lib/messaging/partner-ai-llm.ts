@@ -130,7 +130,7 @@ export type DeepseekPartnerChatResult = {
 export async function deepseekPartnerChat(system: string, user: string): Promise<DeepseekPartnerChatResult> {
   const key = process.env.DEEPSEEK_API_KEY?.trim()
   if (!key) return { error: 'DEEPSEEK_API_KEY not configured.' }
-  const model = process.env.DEEPSEEK_MODEL?.trim() || 'deepseek-chat'
+  const model = 'deepseek-chat'
   try {
     const res = await fetch('https://api.deepseek.com/chat/completions', {
       method: 'POST',

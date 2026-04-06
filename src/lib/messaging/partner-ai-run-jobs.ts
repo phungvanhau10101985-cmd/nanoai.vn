@@ -168,7 +168,7 @@ export async function runMessagingPartnerAiJobBatch(
         continue
       }
 
-      const model = llm.model?.trim() || process.env.DEEPSEEK_MODEL?.trim() || 'deepseek-chat'
+      const model = llm.model?.trim() || 'deepseek-chat'
       await insertPartnerAiTokenUsage(db, {
         partner_id: job.partner_id,
         provider: 'deepseek',

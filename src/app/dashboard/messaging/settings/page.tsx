@@ -35,7 +35,7 @@ export default async function DashboardMessagingSettingsPage() {
     .eq('owner_user_id', user.id)
     .order('created_at', { ascending: false })
 
-  const partnerAiLlmModel = process.env.DEEPSEEK_MODEL?.trim() || 'deepseek-chat'
+  const partnerAiLlmModel = 'deepseek-chat'
 
   return (
     <div className="app-shell flex min-h-[calc(100dvh-5rem)] flex-col space-y-6 md:space-y-8">
