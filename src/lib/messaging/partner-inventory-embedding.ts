@@ -241,7 +241,9 @@ export async function syncPartnerInventoryEmbeddings(
           vectorsEqual(row.image_embedding_json as number[], vec) &&
           row.image_embedding_fingerprint === fp &&
           row.image_embedding_model === GEMINI_EMBED_MODEL &&
-          row.image_embedding_dims === GEMINI_EMBED_DIMS
+          row.image_embedding_dims === vec.length &&
+          typeof row.image_embedding_vec === 'string' &&
+          row.image_embedding_vec.trim().length > 0
         ) {
           synced += 1
           continue
@@ -252,7 +254,7 @@ export async function syncPartnerInventoryEmbeddings(
             image_embedding_json: vec,
             image_embedding_fingerprint: fp,
             image_embedding_model: GEMINI_EMBED_MODEL,
-            image_embedding_dims: GEMINI_EMBED_DIMS,
+            image_embedding_dims: vec.length,
             image_embedding_vec: vec.length === DB_VECTOR_DIMS ? toPgVectorLiteral(vec) : null,
             image_embedding_updated_at: nowIso,
             image_embedding_error:
