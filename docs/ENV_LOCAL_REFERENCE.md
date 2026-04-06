@@ -39,6 +39,7 @@ Sau khi clone repo lần đầu: **bắt buộc** có `.env.local` thì `npm run
 | **Cron — Vision catalog** | `VISION_CATALOG_SYNC_CRON_SECRET` | Tuỳ | **Bắt buộc** nếu cron `/api/cron/vision-catalog-sync` |
 | **Cron — Vision enqueue nền** | `VISION_BG_SYNC_ENQUEUE_CRON_SECRET` | Tuỳ | Tuỳ; **không set** thì `/api/cron/vision-bg-sync-enqueue` dùng chung `VISION_CATALOG_SYNC_CRON_SECRET` (xếp hàng job 1 lần/ngày hoặc theo lịch) |
 | **Cron — Vision reindex** | `VISION_WAREHOUSE_REINDEX_CRON_SECRET` | Tuỳ | Tuỳ; **không set** thì route dùng chung `VISION_CATALOG_SYNC_CRON_SECRET` |
+| **Gemini image search fallback** | `GEMINI_IMAGE_EMBED_MODEL`, `GEMINI_IMAGE_EMBED_DIMS`, `GEMINI_IMAGE_SEARCH_SCAN_LIMIT`, `GEMINI_IMAGE_SEARCH_PARALLEL`, `GEMINI_IMAGE_EMBED_CACHE_TTL_MS` | Khuyến nghị bật | Khuyến nghị bật để giảm phụ thuộc Vision Warehouse |
 | Wake không cron | `MESSAGING_PARTNER_AI_DEV_WAKE`, `MESSAGING_PARTNER_AI_INLINE_WAKE` | `DEV_WAKE=1` cho `next start` local | Chỉ 1 node; không thay cron production |
 | Vision tinh chỉnh | `VISION_INCREMENTAL_BATCH_SIZE`, `VISION_INCREMENTAL_MAX_IMPORTS_PER_REQUEST`, `VISION_WAREHOUSE_POST_IMPORT_COOLDOWN_MS`, `VISION_WAREHOUSE_ASSETS_IMPORT_POLL_MAX_MS` | Tuỳ | Giảm 429 ImportAssets (mặc định 1 import/lượt + cooldown); tăng poll khi timeout |
 | Khác | SePay, SMTP, VAPID, cron worksheet/exam… | Xem `.env.example` | Xem `.env.example` |
@@ -78,6 +79,34 @@ Cần khi bật «Gợi ý theo ảnh» Messaging:
 Chi tiết: `.env.example` mục Google AI / Vision và `VISION_API_SETUP.md` (nếu có).
 
 **Lưu ý vận hành:** Google chỉ cho **một** `ImportAssets` chạy đồng thời / corpus — app dùng khóa DB (`vision_warehouse_runner`, migration `*_vision_warehouse_import_lock.sql`). Không cần biến env riêng cho khóa.
+
+---
+
+## Gemini image fallback cho tim anh
+
+Khi API `/api/messaging/partners/{partnerId}/image-search` khong co ket qua Vision (hoac Vision dang tat), he thong fallback sang Gemini image embeddings.
+
+Them vao `.env.local`:
+
+```env
+# Model embedding anh (khuyen nghi)
+GEMINI_IMAGE_EMBED_MODEL=gemini-embedding-2-preview
+# So chieu vector (128..3072). 768 can bang chat luong/chi phi/toc do
+GEMINI_IMAGE_EMBED_DIMS=768
+# So san pham quet moi request image-search
+GEMINI_IMAGE_SEARCH_SCAN_LIMIT=400
+# So luong embedding song song moi request
+GEMINI_IMAGE_SEARCH_PARALLEL=4
+# Cache embedding theo image_url trong memory (24h)
+GEMINI_IMAGE_EMBED_CACHE_TTL_MS=86400000
+```
+
+Huong dan nhanh:
+
+1. Copy block tren vao `.env.local` (local va VPS neu can).
+2. Dam bao da co `GOOGLE_API_KEY` hop le.
+3. Restart app (`npm run dev` lai hoac `pm2 restart <app>` tren VPS).
+4. Test lai endpoint image search bang anh that.
 
 ---
 

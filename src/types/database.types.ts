@@ -226,6 +226,8 @@ export interface Database {
           assets_import_busy_at: string | null
           assets_import_owner: string | null
           assets_import_heartbeat_at: string | null
+          assets_import_operation: string
+          assets_import_operation_started_at: string | null
         }
         Insert: {
           id?: number
@@ -238,6 +240,8 @@ export interface Database {
           assets_import_busy_at?: string | null
           assets_import_owner?: string | null
           assets_import_heartbeat_at?: string | null
+          assets_import_operation?: string
+          assets_import_operation_started_at?: string | null
         }
         Update: {
           id?: number
@@ -250,6 +254,8 @@ export interface Database {
           assets_import_busy_at?: string | null
           assets_import_owner?: string | null
           assets_import_heartbeat_at?: string | null
+          assets_import_operation?: string
+          assets_import_operation_started_at?: string | null
         }
         Relationships: []
       }
@@ -402,6 +408,12 @@ export interface Database {
           product_url: string
           consult_note: string
           is_active: boolean
+          image_embedding_json: number[] | null
+          image_embedding_model: string | null
+          image_embedding_dims: number | null
+          image_embedding_fingerprint: string | null
+          image_embedding_updated_at: string | null
+          image_embedding_error: string | null
           vision_catalog_checksum: string | null
           vision_catalog_synced_at: string | null
           vision_catalog_excluded: boolean
@@ -421,6 +433,12 @@ export interface Database {
           product_url?: string
           consult_note?: string
           is_active?: boolean
+          image_embedding_json?: number[] | null
+          image_embedding_model?: string | null
+          image_embedding_dims?: number | null
+          image_embedding_fingerprint?: string | null
+          image_embedding_updated_at?: string | null
+          image_embedding_error?: string | null
           vision_catalog_checksum?: string | null
           vision_catalog_synced_at?: string | null
           vision_catalog_excluded?: boolean
@@ -440,6 +458,12 @@ export interface Database {
           product_url?: string
           consult_note?: string
           is_active?: boolean
+          image_embedding_json?: number[] | null
+          image_embedding_model?: string | null
+          image_embedding_dims?: number | null
+          image_embedding_fingerprint?: string | null
+          image_embedding_updated_at?: string | null
+          image_embedding_error?: string | null
           vision_catalog_checksum?: string | null
           vision_catalog_synced_at?: string | null
           vision_catalog_excluded?: boolean

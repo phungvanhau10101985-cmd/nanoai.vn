@@ -5,7 +5,7 @@ import {
   inventoryNameMatchKey,
   inventorySkuMatchKey,
 } from '@/lib/messaging/partner-inventory-excel'
-import { tryDeleteVisionProductForInventoryItem } from '@/lib/messaging/partner-vision-product-search'
+import { syncPartnerInventoryEmbeddings } from '@/lib/messaging/partner-inventory-embedding'
 
 type Db = SupabaseClient<Database>
 type InventoryRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
@@ -96,6 +96,7 @@ export async function upsertPartnerInventoryBatch(
   let inserted = 0
   let updated = 0
   let deleted = 0
+  const changedIds = new Set<string>()
 
   const dropFromSkuIndex = (skuKey: string, invId: string) => {
     const arr = bySku.get(skuKey)
@@ -138,7 +139,6 @@ export async function upsertPartnerInventoryBatch(
 
     if (r.removeFromInventory) {
       if (!targetId) continue
-      await tryDeleteVisionProductForInventoryItem(db, partnerId, targetId)
       const { error: delErr } = await db
         .from('messaging_partner_inventory')
         .delete()
@@ -146,6 +146,7 @@ export async function upsertPartnerInventoryBatch(
         .eq('partner_id', partnerId)
       if (delErr) return { ok: false, error: delErr.message }
       deleted += 1
+      changedIds.add(targetId)
       if (skuKey) {
         skuResolvedId.delete(skuKey)
         dropFromSkuIndex(skuKey, targetId)
@@ -186,6 +187,7 @@ export async function upsertPartnerInventoryBatch(
         .eq('partner_id', partnerId)
       if (upErr) return { ok: false, error: upErr.message }
       updated += 1
+      changedIds.add(targetId)
       if (current) {
         existingById.set(targetId, {
           ...current,
@@ -208,9 +210,17 @@ export async function upsertPartnerInventoryBatch(
       if (insErr) return { ok: false, error: insErr.message }
       const newId = ins.id as string
       inserted += 1
+      changedIds.add(newId)
       if (skuKey) skuResolvedId.set(skuKey, newId)
       else nameNoSkuResolvedId.set(inventoryNameMatchKey(r.name), newId)
     }
+  }
+
+  if (changedIds.size > 0) {
+    await syncPartnerInventoryEmbeddings(db, partnerId, {
+      inventoryIds: Array.from(changedIds),
+      force: false,
+    })
   }
 
   return { ok: true, inserted, updated, deleted }

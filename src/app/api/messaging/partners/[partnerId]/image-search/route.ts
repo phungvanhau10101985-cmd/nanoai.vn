@@ -6,10 +6,7 @@ import {
   getRateLimitRetryAfterSec,
   isRateLimited,
 } from '@/lib/api/simple-ip-rate-limit'
-import {
-  buildInventoryMapByVisionProductId,
-  visionProductSearchFromImageBuffer,
-} from '@/lib/messaging/partner-vision-product-search'
+import { geminiProductSearchFromImageBuffer } from '@/lib/messaging/partner-gemini-image-search'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -74,8 +71,8 @@ export async function OPTIONS(req: Request) {
 }
 
 /**
- * API công khai (Bearer) cho web shop: multipart ảnh → sản phẩm gần giống trong catalog Vision.
- * Khuyến nghị gọi từ backend shop để không lộ khóa.
+ * API cong khai (Bearer) cho web shop: multipart anh -> tim san pham gan giong.
+ * Tim san pham bang anh theo Gemini image embedding (khong dung Vision Warehouse).
  */
 export async function POST(req: Request, ctx: { params: Promise<{ partnerId: string }> }) {
   const { partnerId } = await ctx.params
@@ -143,14 +140,6 @@ export async function POST(req: Request, ctx: { params: Promise<{ partnerId: str
   if (!secretMatches(settings.image_search_api_secret, bearer)) {
     return jsonWithCors(req, { error: 'Invalid API key.' }, 401)
   }
-  if (!settings.vision_product_search_enabled || !settings.vision_index_ready) {
-    return jsonWithCors(
-      req,
-      { error: 'Vision product search is off or the catalog is not synced yet.' },
-      503
-    )
-  }
-
   let form: FormData
   try {
     form = await req.formData()
@@ -190,15 +179,12 @@ export async function POST(req: Request, ctx: { params: Promise<{ partnerId: str
     .select('*')
     .eq('partner_id', partnerId)
 
-  const map = buildInventoryMapByVisionProductId(invRows ?? [], partnerId)
-  const { candidates, error: visionErr } = await visionProductSearchFromImageBuffer(
-    buf,
-    settings,
-    partnerId,
-    map,
-    { userId: null },
-    { maxResults }
-  )
+  const geminiResult = await geminiProductSearchFromImageBuffer(buf, partnerId, invRows ?? [], {
+    maxResults,
+    userId: null,
+  })
+  const candidates = geminiResult.candidates
+  const publicError = candidates.length > 0 ? null : geminiResult.error ?? null
 
   return jsonWithCors(
     req,
@@ -212,7 +198,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ partnerId: str
         product_url: c.product_url ?? null,
         score: c.score ?? null,
       })),
-      error: visionErr ?? null,
+      error: publicError,
     },
     200
   )

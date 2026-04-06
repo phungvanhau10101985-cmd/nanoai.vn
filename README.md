@@ -110,3 +110,4 @@ The current AI logic is a placeholder. To make it work, you need to:
 2.  Find the comment `// 4. Placeholder for AI API call`.
 3.  Remove the placeholder code (the `setTimeout` and mock URL).
 4.  Replace it with the actual API call to your chosen AI service (Google Vertex AI or Replicate) using the API key from your `.env.local` file. You will need to install their respective SDKs (e.g., `@google-cloud/aiplatform` or `replicate`).
+

@@ -11,11 +11,6 @@ import { sendFacebookMessengerImageUrl, sendFacebookMessengerText } from '@/lib/
 import { sendZaloOaText } from '@/lib/customer-care/zalo-oa'
 import { insertMessage } from '@/lib/customer-care/conversation-service'
 import { getFacebookSendToken, getZaloSendToken, upsertFacebookMessengerChannel, upsertZaloOaChannel } from '@/lib/messaging/partner-channels-db'
-import { enqueueVisionCatalogBackgroundSyncJob } from '@/lib/messaging/partner-vision-bg-sync-enqueue'
-import {
-  catalogFingerprintForVisionRow,
-  tryDeleteVisionProductForInventoryItem,
-} from '@/lib/messaging/partner-vision-product-search'
 import { cancelPendingAiJobsForConversation } from '@/lib/messaging/partner-ai-inbound'
 import type { Json } from '@/types/database.types'
 import {
@@ -34,16 +29,7 @@ import {
   PARTNER_FAQ_PRESET_ANSWER_REQUIRED,
   presetSortOrder,
 } from '@/lib/messaging/partner-faq-presets'
-import {
-  VISION_PRODUCT_CATEGORIES,
-  isVisionCatalogImageUrlSyncable,
-  normalizeVisionProductSearchLocation,
-  type VisionProductCategory,
-} from '@/lib/messaging/partner-vision-constants'
-import {
-  getVisionLocationForShopCountry,
-  isVisionShopCountryCode,
-} from '@/lib/messaging/partner-vision-shop-country-presets'
+import { syncPartnerInventoryEmbeddings } from '@/lib/messaging/partner-inventory-embedding'
 
 async function requireUser() {
   const supabase = createClient()
@@ -78,6 +64,24 @@ function slugify(name: string) {
     .replace(/^-|-$/g, '')
     .slice(0, 48)
   return s || 'shop'
+}
+
+function normalizeCatalogImageUrl(raw: string | null | undefined): string {
+  const t = (raw ?? '').trim()
+  if (!t) return ''
+  if (t.startsWith('//')) return `https:${t}`
+  return t
+}
+
+function isCatalogImageSyncable(raw: string | null | undefined): boolean {
+  const n = normalizeCatalogImageUrl(raw)
+  return !!(n && /^https?:\/\//i.test(n))
+}
+
+function catalogFingerprintForRow(row: { image_url?: string | null; name?: string | null }): string {
+  const imgKey = normalizeCatalogImageUrl(row.image_url)
+  const n = (row.name ?? '').trim()
+  return `${imgKey}\n${n}`
 }
 
 export async function createMessagingWorkspace(displayName: string) {
@@ -471,14 +475,14 @@ function buildPartnerVisionCatalogStats(
       visionCatalogExcluded += 1
       continue
     }
-    const valid = isVisionCatalogImageUrlSyncable(row.image_url)
+    const valid = isCatalogImageSyncable(row.image_url)
     if (!valid) {
       noHttpsImageUrl += 1
       if (row.vision_catalog_checksum) pendingSync += 1
       continue
     }
     withHttpsImageUrl += 1
-    const fp = catalogFingerprintForVisionRow(row)
+    const fp = catalogFingerprintForRow(row)
     if (row.vision_catalog_checksum === fp) syncedUpToDate += 1
     else pendingSync += 1
   }
@@ -508,7 +512,7 @@ function buildPartnerVisionSyncHealth(
 
   for (const row of rows) {
     if (row.vision_catalog_excluded) continue
-    if (!isVisionCatalogImageUrlSyncable(row.image_url)) continue
+    if (!isCatalogImageSyncable(row.image_url)) continue
     syncable += 1
     if (row.vision_catalog_checksum) {
       done += 1
@@ -587,18 +591,10 @@ export async function savePartnerAiSettings(partnerId: string, payload: PartnerA
   const delay = Math.min(30, Math.max(5, Math.floor(Number(payload.reply_delay_seconds) || 20)))
   const tmin = Math.min(30000, Math.max(0, Math.floor(Number(payload.typing_pause_min_ms) || 1200)))
   const tmax = Math.min(30000, Math.max(0, Math.floor(Number(payload.typing_pause_max_ms) || 3800)))
-  const shopCountryRaw = payload.vision_shop_country?.trim().toUpperCase() ?? ''
-  const vision_shop_country = isVisionShopCountryCode(shopCountryRaw) ? shopCountryRaw : null
-
-  const locRaw = payload.vision_location?.trim() || 'us-central1'
-  let vision_location = normalizeVisionProductSearchLocation(locRaw)
-  if (vision_shop_country) {
-    const mapped = getVisionLocationForShopCountry(vision_shop_country)
-    if (mapped) vision_location = mapped
-  }
-  const catRaw = (payload.vision_product_category?.trim() || 'general-v1') as VisionProductCategory
-  const vision_product_category = VISION_PRODUCT_CATEGORIES.includes(catRaw) ? catRaw : 'general-v1'
-  const vision_gcs_bucket = payload.vision_gcs_bucket?.trim().slice(0, 200) ?? ''
+  const vision_shop_country: string | null = null
+  const vision_location = 'us-central1'
+  const vision_product_category = 'general-v1'
+  const vision_gcs_bucket = ''
   const now = new Date().toISOString()
   const { data: existingAi } = await supabase
     .from('messaging_partner_ai_settings')
@@ -606,7 +602,7 @@ export async function savePartnerAiSettings(partnerId: string, payload: PartnerA
     .eq('partner_id', partnerId)
     .maybeSingle()
 
-  const visionOff = !Boolean(payload.vision_product_search_enabled)
+  const visionOff = true
   const visionBgReset = visionOff
     ? {
         vision_bg_sync_status: 'idle' as const,
@@ -634,7 +630,7 @@ export async function savePartnerAiSettings(partnerId: string, payload: PartnerA
       disclosure_suffix:
         payload.disclosure_suffix?.trim() ||
         '(Automated message from the shop’s AI assistant.)',
-      vision_product_search_enabled: Boolean(payload.vision_product_search_enabled),
+      vision_product_search_enabled: false,
       vision_shop_country,
       vision_location,
       vision_product_category,
@@ -936,8 +932,9 @@ export async function upsertPartnerInventoryItem(
       .eq('id', itemId)
       .eq('partner_id', partnerId)
     if (error) return { error: error.message }
+    await syncPartnerInventoryEmbeddings(supabase, partnerId, { inventoryIds: [itemId], force: false })
   } else {
-    const { error } = await supabase.from('messaging_partner_inventory').insert({
+    const { data: inserted, error } = await supabase.from('messaging_partner_inventory').insert({
       partner_id: partnerId,
       name: fields.name.trim(),
       sku,
@@ -952,7 +949,12 @@ export async function upsertPartnerInventoryItem(
       created_at: now,
       updated_at: now,
     })
+    .select('id')
+    .single()
     if (error) return { error: error.message }
+    if (inserted?.id) {
+      await syncPartnerInventoryEmbeddings(supabase, partnerId, { inventoryIds: [inserted.id], force: false })
+    }
   }
   revalidateMessagingDashboard()
   return { ok: true as const }
@@ -964,7 +966,6 @@ export async function deletePartnerInventoryItem(partnerId: string, itemId: stri
   const { user, supabase } = auth
   const gate = await assertPartnerOwner(supabase, user.id, partnerId)
   if ('error' in gate) return { error: gate.error }
-  await tryDeleteVisionProductForInventoryItem(supabase, partnerId, itemId)
   const { error } = await supabase
     .from('messaging_partner_inventory')
     .delete()
@@ -996,29 +997,12 @@ export async function enqueueVisionCatalogBackgroundSync(
 ): Promise<
   { ok: true } | { error: string; code?: VisionBgSyncEnqueueErrorCode }
 > {
-  const auth = await requireUser()
-  if ('error' in auth) return { error: auth.error ?? 'Authentication required.' }
-  const { user, supabase } = auth
-  const gate = await assertPartnerOwner(supabase, user.id, partnerId)
-  if ('error' in gate) return { error: gate.error ?? 'Forbidden.' }
-  const r = await enqueueVisionCatalogBackgroundSyncJob(supabase, partnerId, resumeAfterId)
-  if (!r.ok) {
-    if (r.code === 'no_ai_row') {
-      return { code: 'no_ai_row', error: 'Save AI settings once before starting background sync.' }
-    }
-    if (r.code === 'vision_disabled') {
-      return {
-        code: 'enable_vision_first',
-        error: 'Enable image-based suggestions before starting background catalog sync.',
-      }
-    }
-    if (r.code === 'already_active') {
-      return { code: 'already_active', error: r.error }
-    }
-    return { error: r.error }
+  void partnerId
+  void resumeAfterId
+  return {
+    code: 'enable_vision_first',
+    error: 'Vision Warehouse background sync has been removed from this project.',
   }
-  revalidateMessagingDashboard()
-  return { ok: true as const }
 }
 
 export async function cancelVisionCatalogBackgroundSync(partnerId: string) {
@@ -1062,10 +1046,66 @@ export async function unlockVisionWarehouseImportLock(partnerId: string) {
       assets_import_busy_at: null,
       assets_import_owner: null,
       assets_import_heartbeat_at: null,
+      assets_import_operation: '',
+      assets_import_operation_started_at: null,
       updated_at: now,
     })
     .eq('id', 1)
   if (error) return { error: error.message }
+
+  revalidateMessagingDashboard()
+  return { ok: true as const }
+}
+
+/**
+ * Kill switch khẩn cấp: tắt toàn bộ Vision cho shop hiện tại và dọn mọi queue/lock runner.
+ * Dùng khi chi phí Vision tăng bất thường hoặc cần dừng tức thì không qua SQL thủ công.
+ */
+export async function emergencyDisableVisionForPartner(partnerId: string) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const { user, supabase } = auth
+  const gate = await assertPartnerOwner(supabase, user.id, partnerId)
+  if ('error' in gate) return { error: gate.error }
+
+  const svc = createServiceRoleClient()
+  const now = new Date().toISOString()
+
+  const { error: setErr } = await svc
+    .from('messaging_partner_ai_settings')
+    .update({
+      vision_product_search_enabled: false,
+      image_search_api_enabled: false,
+      vision_bg_sync_status: 'idle',
+      vision_bg_sync_resume_after_id: null,
+      vision_bg_sync_rounds: 0,
+      vision_bg_sync_imported: 0,
+      vision_bg_sync_removed: 0,
+      vision_bg_sync_started_at: null,
+      vision_bg_sync_finished_at: now,
+      vision_bg_sync_error: 'Vision disabled by emergency kill switch.',
+      vision_bg_sync_report: '',
+      updated_at: now,
+    })
+    .eq('partner_id', partnerId)
+  if (setErr) return { error: setErr.message }
+
+  const { error: runErr } = await svc
+    .from('vision_warehouse_runner')
+    .update({
+      pending_work: false,
+      analyze_operation: '',
+      index_operation: '',
+      assets_import_busy: false,
+      assets_import_busy_at: null,
+      assets_import_owner: null,
+      assets_import_heartbeat_at: null,
+      assets_import_operation: '',
+      assets_import_operation_started_at: null,
+      updated_at: now,
+    })
+    .eq('id', 1)
+  if (runErr) return { error: runErr.message }
 
   revalidateMessagingDashboard()
   return { ok: true as const }

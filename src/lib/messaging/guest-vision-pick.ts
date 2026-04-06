@@ -2,7 +2,15 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database, Json } from '@/types/database.types'
 import { handlePartnerInboundForAi } from '@/lib/messaging/partner-ai-inbound'
 import { latestInboundTextForPartnerAi } from '@/lib/messaging/guest-chat-image'
-import type { GuestMessageVisionPayload } from '@/lib/messaging/partner-vision-product-search'
+
+type GuestMessageVisionPayload = {
+  vision_candidates?: Array<{
+    inventoryId: string
+    name: string
+    sku: string | null
+  }>
+  vision_pick_required?: boolean
+}
 
 type Db = SupabaseClient<Database>
 

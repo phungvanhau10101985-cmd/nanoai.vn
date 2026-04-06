@@ -11,15 +11,9 @@ import {
   mimeFromGuestImagePath,
   GUEST_CHAT_IMAGE_BUCKET,
 } from '@/lib/messaging/guest-chat-image'
-import type { VisionSearchCandidate } from '@/lib/messaging/partner-vision-product-search'
-import {
-  buildInventoryMapByVisionProductId,
-  visionProductSearchFromImageBuffer,
-} from '@/lib/messaging/partner-vision-product-search'
 import {
   VISION_MISS_AI_REPLY_DELAY_CAP_SECONDS,
   VISION_PICK_GRACE_AI_DELAY_SECONDS,
-  VISION_SEARCH_REQUEST_TIMEOUT_MS,
 } from '@/lib/messaging/partner-vision-constants'
 import { hasVisionConfig } from '@/lib/vision-api'
 
@@ -103,55 +97,8 @@ export async function postWidgetGuestMessage(
       .select('*')
       .eq('partner_id', params.partnerId)
       .maybeSingle()
-    if (aiSet?.vision_product_search_enabled && aiSet.vision_index_ready) {
-      try {
-        const { data: blob, error: dlErr } = await db.storage.from(GUEST_CHAT_IMAGE_BUCKET).download(imagePath)
-        if (!dlErr && blob) {
-          const buf = Buffer.from(await blob.arrayBuffer())
-          const { data: invRows } = await db
-            .from('messaging_partner_inventory')
-            .select('*')
-            .eq('partner_id', params.partnerId)
-          const map = buildInventoryMapByVisionProductId(invRows ?? [], params.partnerId)
-          const visionPromise = visionProductSearchFromImageBuffer(
-            buf,
-            aiSet,
-            params.partnerId,
-            map,
-            { userId: params.linkedUserId ?? null }
-          )
-          type VisionRace = { candidates: VisionSearchCandidate[]; error?: string }
-          const timeoutPromise = new Promise<VisionRace>((resolve) =>
-            setTimeout(
-              () => resolve({ candidates: [], error: 'VISION_SEARCH_TIMEOUT' }),
-              VISION_SEARCH_REQUEST_TIMEOUT_MS
-            )
-          )
-          const { candidates, error: se } = await Promise.race([visionPromise, timeoutPromise])
-          const publicSe = se === 'VISION_SEARCH_TIMEOUT' ? undefined : se
-          const prev = (rawPayload && typeof rawPayload === 'object' ? rawPayload : {}) as Record<string, unknown>
-          const merged: Json = {
-            ...prev,
-            ...(candidates.length > 0
-              ? {
-                  vision_candidates: candidates,
-                  vision_pick_required: true,
-                  vision_search_error: undefined,
-                }
-              : {
-                  vision_search_error: publicSe ?? undefined,
-                  ...(publicSe ? {} : { vision_catalog_no_hits: true }),
-                }),
-          } as Json
-          await db.from('customer_care_messages').update({ raw_payload: merged }).eq('id', newMessageId)
-          if (candidates.length > 0) visionPickRequired = true
-          else capReplyDelaySeconds = VISION_MISS_AI_REPLY_DELAY_CAP_SECONDS
-        }
-      } catch (e) {
-        console.error('[messaging] vision product search (guest)', e)
-      }
-    } else if (aiSet?.vision_product_search_enabled && !aiSet.vision_index_ready) {
-      /** Index chưa sẵn sàng — không chờ reply_delay + cron; xếp hàng AI ngay như khi không khớp ảnh. */
+    if (aiSet?.vision_product_search_enabled) {
+      // Vision Warehouse da bi go bo khoi du an: khong tim image-candidates tu kho.
       capReplyDelaySeconds = VISION_MISS_AI_REPLY_DELAY_CAP_SECONDS
     }
   }

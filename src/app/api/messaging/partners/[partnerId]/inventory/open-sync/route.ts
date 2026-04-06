@@ -11,7 +11,6 @@ import {
   parseOpenCatalogBody,
 } from '@/lib/messaging/partner-inventory-open-sync'
 import { upsertPartnerInventoryBatch } from '@/lib/messaging/partner-inventory-upsert-batch'
-import { enqueueVisionCatalogBackgroundSyncJob } from '@/lib/messaging/partner-vision-bg-sync-enqueue'
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
 
 export const dynamic = 'force-dynamic'
@@ -197,12 +196,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ partnerId: str
     return jsonWithCors(req, { error: batch.error, code: 'UPSERT_FAILED' }, 500)
   }
 
-  // Import xong thì tự xếp hàng sync Vision (nếu shop bật image search) để tránh "lần đầu được, lần sau không".
-  let visionBgSyncQueued = false
-  if (batch.inserted > 0 || batch.updated > 0 || batch.deleted > 0) {
-    const enq = await enqueueVisionCatalogBackgroundSyncJob(db, partnerId, null)
-    if (enq.ok || enq.code === 'already_active') visionBgSyncQueued = true
-  }
+  // Vision Warehouse da bi go bo khoi du an: khong enqueue background sync.
+  const visionBgSyncQueued = false
 
   revalidatePath('/dashboard/messaging')
   revalidatePath('/dashboard/messaging/settings')

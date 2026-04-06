@@ -553,6 +553,9 @@ export type Dictionary = {
     visionHealthLastProgressNone: string
     visionHealthUnlockButton: string
     visionHealthUnlockOk: string
+    visionEmergencyDisableButton: string
+    visionEmergencyDisableConfirm: string
+    visionEmergencyDisableOk: string
     /** Xóa dòng kho → tự gỡ Vision (thay cho file danh sách gỡ) */
     visionInventoryDeleteRemovesIndexNote: string
     imageSearchApiTitle: string
@@ -2042,6 +2045,10 @@ const VI_DICTIONARY: Dictionary = {
     visionHealthLastProgressNone: 'Chưa có',
     visionHealthUnlockButton: 'Mở khóa import',
     visionHealthUnlockOk: 'Đã mở khóa import Vision Warehouse.',
+    visionEmergencyDisableButton: 'Tắt khẩn cấp Vision',
+    visionEmergencyDisableConfirm:
+      'Bạn có chắc muốn tắt toàn bộ Vision cho shop này? Hệ thống sẽ dừng đồng bộ nền, tắt gợi ý ảnh và mở khóa runner.',
+    visionEmergencyDisableOk: 'Đã tắt toàn bộ Vision cho shop này.',
     visionInventoryDeleteRemovesIndexNote:
       'Xóa mặt hàng trong tab «Hàng trong kho» (nút xóa từng dòng) sẽ tự gỡ sản phẩm đó khỏi Google Vision — không cần tải file danh sách gỡ.',
     imageSearchApiTitle: 'API tìm sản phẩm bằng ảnh (cho website shop)',
@@ -3531,6 +3538,10 @@ const EN_DICTIONARY: Dictionary = {
     visionHealthLastProgressNone: 'None',
     visionHealthUnlockButton: 'Unlock import lock',
     visionHealthUnlockOk: 'Vision Warehouse import lock released.',
+    visionEmergencyDisableButton: 'Emergency disable Vision',
+    visionEmergencyDisableConfirm:
+      'Disable all Vision features for this shop now? This will stop background sync, disable image suggestions, and clear runner locks.',
+    visionEmergencyDisableOk: 'Vision has been disabled for this shop.',
     visionInventoryDeleteRemovesIndexNote:
       'Deleting a row in the Inventory tab removes that product from Google Vision automatically — no purge list upload.',
     imageSearchApiTitle: 'Image product search API (for your shop website)',
@@ -5012,6 +5023,9 @@ const ZH_DICTIONARY: Dictionary = {
     visionHealthLastProgressNone: '暂无',
     visionHealthUnlockButton: '解锁导入',
     visionHealthUnlockOk: '已释放 Vision Warehouse 导入锁。',
+    visionEmergencyDisableButton: '紧急关闭 Vision',
+    visionEmergencyDisableConfirm: '确定立即关闭该店铺全部 Vision 功能吗？系统将停止后台同步、关闭图片推荐并清空运行锁。',
+    visionEmergencyDisableOk: '该店铺的 Vision 功能已关闭。',
     visionInventoryDeleteRemovesIndexNote:
       '在「库存」标签删除某一行后，系统会自动从 Google 图片索引移除该商品 — 无需上传移除清单。',
     imageSearchApiTitle: '以图搜商品 API（供店铺网站调用）',
@@ -6458,6 +6472,10 @@ const JA_DICTIONARY: Dictionary = {
     visionHealthLastProgressNone: 'なし',
     visionHealthUnlockButton: 'インポートロックを解除',
     visionHealthUnlockOk: 'Vision Warehouse のインポートロックを解除しました。',
+    visionEmergencyDisableButton: 'Vision を緊急停止',
+    visionEmergencyDisableConfirm:
+      'このショップの Vision 機能を今すぐすべて停止しますか？バックグラウンド同期を止め、画像候補を無効化し、ランナーロックを解除します。',
+    visionEmergencyDisableOk: 'このショップの Vision 機能を停止しました。',
     visionInventoryDeleteRemovesIndexNote:
       '「在庫」タブで行を削除すると、Google Vision の画像インデックスからも自動で削除されます — リストアップロードは不要です。',
     imageSearchApiTitle: '画像で商品検索 API（店舗サイト向け）',
@@ -7931,6 +7949,10 @@ const KO_DICTIONARY: Dictionary = {
     visionHealthLastProgressNone: '없음',
     visionHealthUnlockButton: '가져오기 잠금 해제',
     visionHealthUnlockOk: 'Vision Warehouse 가져오기 잠금을 해제했습니다.',
+    visionEmergencyDisableButton: 'Vision 긴급 중지',
+    visionEmergencyDisableConfirm:
+      '이 상점의 Vision 기능을 즉시 모두 중지하시겠습니까? 백그라운드 동기화 중지, 이미지 추천 비활성화, 러너 잠금 해제를 수행합니다.',
+    visionEmergencyDisableOk: '이 상점의 Vision 기능이 중지되었습니다.',
     visionInventoryDeleteRemovesIndexNote:
       '«재고» 탭에서 행을 삭제하면 Google Vision 이미지 색인에서도 자동으로 제거됩니다 — 제거용 목록 파일을 올릴 필요가 없습니다.',
     imageSearchApiTitle: '이미지로 상품 검색 API(매장 웹사이트용)',

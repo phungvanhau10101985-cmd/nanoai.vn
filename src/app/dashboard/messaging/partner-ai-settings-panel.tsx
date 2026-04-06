@@ -17,20 +17,14 @@ import type {
   PartnerAiSettingsClientRow,
   PartnerAiSettingsPayload,
   PartnerAiTokenUsageStatRow,
-  PartnerVisionCatalogStats,
-  PartnerVisionSyncHealth,
 } from '@/app/dashboard/messaging/actions'
 import {
-  cancelVisionCatalogBackgroundSync,
   deletePartnerFaq,
   deletePartnerInventoryItem,
-  dismissVisionCatalogBackgroundSyncReport,
-  enqueueVisionCatalogBackgroundSync,
   getPartnerAiBundle,
   getPartnerAiTokenUsageStats,
   savePartnerAiSettings,
   savePartnerFaqPreset,
-  unlockVisionWarehouseImportLock,
   upsertPartnerFaq,
   upsertPartnerInventoryItem,
 } from '@/app/dashboard/messaging/actions'
@@ -41,159 +35,16 @@ import {
   type PartnerFaqPresetKey,
 } from '@/lib/messaging/partner-faq-presets'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import {
-  VISION_BG_SYNC_REPORT_MESSAGE,
-  VISION_BG_SYNC_SERVER_ERROR_BAD_CURSOR,
-  VISION_LOCATIONS,
-  VISION_PRODUCT_CATEGORIES,
-  VISION_SYNC_CLIENT_CHAIN_ABSOLUTE_MAX_ROUNDS,
-  VISION_SYNC_CLIENT_CHAIN_MAX_MS,
-  VISION_SYNC_CLIENT_CHAIN_MAX_ROUNDS,
-  VISION_SYNC_CLIENT_CHAIN_PAUSE_MS,
-  VISION_SYNC_CLIENT_CHAIN_SEGMENT_BREAK_MS,
-  VISION_SYNC_CLIENT_FETCH_TIMEOUT_MS,
-  VISION_WAREHOUSE_CORPUS_UNSUPPORTED_TYPE_CODE,
-  VISION_WAREHOUSE_REINDEX_PENDING_CODE,
-  isVisionCatalogImageUrlSyncable,
-  isVisionProductSearchMaintenanceError,
-  normalizeVisionProductSearchLocation,
-} from '@/lib/messaging/partner-vision-constants'
-import { Bot, Download, FileSpreadsheet, Loader2, ScanSearch, Sparkles, Upload } from 'lucide-react'
+import { Bot, Download, FileSpreadsheet, Sparkles, Upload } from 'lucide-react'
 import type { WebLocale } from '@/lib/i18n/config'
-import {
-  VISION_SHOP_COUNTRY_CODES_ORDERED,
-  getVisionLocationForShopCountry,
-  shopCountryMatchesVisionLocation,
-} from '@/lib/messaging/partner-vision-shop-country-presets'
-
-const VISION_SHOP_COUNTRY_SELECT_CUSTOM = '__custom__'
-
-function resolveVisionShopCountrySelectValue(country: string, location: string): string {
-  const c = country.trim().toUpperCase()
-  if (!c || !shopCountryMatchesVisionLocation(c, location)) return VISION_SHOP_COUNTRY_SELECT_CUSTOM
-  return c
-}
 
 type AiT = Dictionary['partnerMessagingAi']
 type SettingsRow = PartnerAiSettingsClientRow
 
-function visionSyncFailureUserMessage(raw: string, t: AiT): { title: string; description?: string } {
-  if (isVisionProductSearchMaintenanceError(raw)) {
-    return {
-      title: t.visionProductSearchMaintenanceTitle,
-      description: t.visionProductSearchMaintenanceDetail,
-    }
-  }
-  return { title: raw }
-}
 type FaqRow = Database['public']['Tables']['messaging_partner_faq']['Row']
 type InvRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
 
 const tokenFmt = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 })
-
-type VisionBgReportParsed = {
-  completed?: boolean
-  totalRounds?: number
-  totalImported?: number
-  totalRemoved?: number
-  hasMore?: boolean
-  lastScannedId?: string | null
-  stoppedReason?: string
-  message?: string
-  errorDetail?: string
-  cronSliceAt?: string
-}
-
-function parseVisionBgSyncReport(raw: string | null | undefined): VisionBgReportParsed | null {
-  if (!raw?.trim()) return null
-  try {
-    return JSON.parse(raw) as VisionBgReportParsed
-  } catch {
-    return null
-  }
-}
-
-function visionBgStatusLabel(t: AiT, status: string): string {
-  switch (status) {
-    case 'idle':
-      return t.visionBgSyncStatusIdle
-    case 'queued':
-      return t.visionBgSyncStatusQueued
-    case 'running':
-      return t.visionBgSyncStatusRunning
-    case 'done':
-      return t.visionBgSyncStatusDone
-    case 'error':
-      return t.visionBgSyncStatusError
-    default:
-      return status
-  }
-}
-
-function formatVisionBgStoppedReason(t: AiT, sr: string): string {
-  switch (sr) {
-    case 'completed':
-      return t.visionBgSyncStopCompleted
-    case 'error':
-      return t.visionBgSyncStopError
-    case 'cron_slice':
-      return t.visionBgSyncStopCronSlice
-    case 'bad_cursor':
-      return t.visionBgSyncStopBadCursor
-    default:
-      return sr
-  }
-}
-
-function formatVisionBgReportMessage(t: AiT, raw: string): string {
-  if (raw === VISION_BG_SYNC_REPORT_MESSAGE.completed) return t.visionBgSyncMsgCompleted
-  if (raw === VISION_BG_SYNC_REPORT_MESSAGE.inProgress) return t.visionBgSyncMsgInProgress
-  if (raw === VISION_BG_SYNC_REPORT_MESSAGE.badCursor) return t.visionBgSyncMsgBadCursor
-  return raw
-}
-
-function buildVisionBgDetailLines(
-  t: AiT,
-  rep: VisionBgReportParsed | null,
-  serverError: string
-): string[] {
-  const parts: string[] = []
-  const seTrim = serverError?.trim() ?? ''
-  if (rep) {
-    if (typeof rep.totalRounds === 'number') parts.push(`${t.visionBgSyncFieldRounds}: ${rep.totalRounds}`)
-    if (typeof rep.totalImported === 'number') parts.push(`${t.visionBgSyncFieldImported}: ${rep.totalImported}`)
-    if (typeof rep.totalRemoved === 'number') parts.push(`${t.visionBgSyncFieldRemoved}: ${rep.totalRemoved}`)
-    if (typeof rep.hasMore === 'boolean') {
-      parts.push(`${t.visionBgSyncFieldHasMore}: ${rep.hasMore ? t.visionBgSyncBoolYes : t.visionBgSyncBoolNo}`)
-    }
-    if (rep.lastScannedId != null && String(rep.lastScannedId).trim() !== '') {
-      parts.push(`${t.visionBgSyncFieldLastScanned}: ${rep.lastScannedId}`)
-    }
-    if (rep.stoppedReason) {
-      parts.push(`${t.visionBgSyncFieldStopped}: ${formatVisionBgStoppedReason(t, rep.stoppedReason)}`)
-    }
-    if (rep.message?.trim()) {
-      const msg = rep.message.trim()
-      parts.push(`${t.visionBgSyncFieldMessage}: ${formatVisionBgReportMessage(t, msg)}`)
-    }
-    const ed = rep.errorDetail?.trim()
-    if (ed && ed !== seTrim) {
-      parts.push(
-        ed === VISION_WAREHOUSE_CORPUS_UNSUPPORTED_TYPE_CODE ? t.visionWarehouseCorpusUnsupportedType : ed
-      )
-    }
-  }
-  if (seTrim) {
-    const displayErr =
-      seTrim === VISION_BG_SYNC_SERVER_ERROR_BAD_CURSOR
-        ? t.visionBgSyncServerErrCursor
-        : seTrim === VISION_WAREHOUSE_CORPUS_UNSUPPORTED_TYPE_CODE
-          ? t.visionWarehouseCorpusUnsupportedType
-          : seTrim
-    parts.push(`${t.visionBgSyncFieldServerError}: ${displayErr}`)
-  }
-  return parts
-}
 
 function defaultsFromSettings(s: SettingsRow | null) {
   return {
@@ -205,42 +56,29 @@ function defaultsFromSettings(s: SettingsRow | null) {
     tone_instructions: s?.tone_instructions ?? '',
     append_ai_disclosure: s?.append_ai_disclosure ?? true,
     disclosure_suffix: s?.disclosure_suffix ?? '',
-    vision_product_search_enabled: s?.vision_product_search_enabled ?? false,
-    vision_shop_country: (s?.vision_shop_country ?? '').trim().toUpperCase(),
-    vision_location: normalizeVisionProductSearchLocation(s?.vision_location ?? undefined),
-    vision_product_category: s?.vision_product_category ?? 'general-v1',
-    vision_gcs_bucket: s?.vision_gcs_bucket ?? '',
-    vision_index_ready: s?.vision_index_ready ?? false,
-    vision_index_synced_at: s?.vision_index_synced_at ?? null,
-    vision_index_error: s?.vision_index_error ?? '',
+    vision_product_search_enabled: false,
+    vision_shop_country: '',
+    vision_location: 'us-central1',
+    vision_product_category: 'general-v1',
+    vision_gcs_bucket: '',
+    vision_index_ready: false,
+    vision_index_synced_at: null,
+    vision_index_error: '',
     image_search_api_enabled: s?.image_search_api_enabled ?? false,
     image_search_api_key_configured: s?.image_search_api_key_configured ?? false,
-    vision_bg_sync_status: s?.vision_bg_sync_status ?? 'idle',
-    vision_bg_sync_resume_after_id: s?.vision_bg_sync_resume_after_id ?? null,
-    vision_bg_sync_rounds: s?.vision_bg_sync_rounds ?? 0,
-    vision_bg_sync_imported: s?.vision_bg_sync_imported ?? 0,
-    vision_bg_sync_removed: s?.vision_bg_sync_removed ?? 0,
-    vision_bg_sync_started_at: s?.vision_bg_sync_started_at ?? null,
-    vision_bg_sync_finished_at: s?.vision_bg_sync_finished_at ?? null,
-    vision_bg_sync_error: s?.vision_bg_sync_error ?? '',
-    vision_bg_sync_report: s?.vision_bg_sync_report ?? '',
+    vision_bg_sync_status: 'idle',
+    vision_bg_sync_resume_after_id: null,
+    vision_bg_sync_rounds: 0,
+    vision_bg_sync_imported: 0,
+    vision_bg_sync_removed: 0,
+    vision_bg_sync_started_at: null,
+    vision_bg_sync_finished_at: null,
+    vision_bg_sync_error: '',
+    vision_bg_sync_report: '',
   }
 }
 
 type FormState = ReturnType<typeof defaultsFromSettings>
-
-type VisionSyncResponse = {
-  ok?: boolean
-  error?: string
-  imported?: number
-  removed?: number
-  importBatches?: number
-  inventoryScanExhausted?: boolean
-  hasMore?: boolean
-  lastScannedId?: string | null
-  /** Phản hồi từ kick analyze sau sync (API thêm trường này). */
-  reindexKick?: { step: string; detail?: string }
-}
 
 function formToPayload(f: FormState): PartnerAiSettingsPayload {
   return {
@@ -266,7 +104,7 @@ export function PartnerAiSettingsPanel({
   t,
   saveOkMessage,
   aiModelId,
-  locale,
+  locale: _locale,
 }: {
   partnerId: string
   t: AiT
@@ -280,29 +118,11 @@ export function PartnerAiSettingsPanel({
   const [loadErr, setLoadErr] = useState<string | null>(null)
   const [faqs, setFaqs] = useState<FaqRow[]>([])
   const [inventory, setInventory] = useState<InvRow[]>([])
-  const [visionCatalogStats, setVisionCatalogStats] = useState<PartnerVisionCatalogStats | null>(null)
-  const [visionSyncHealth, setVisionSyncHealth] = useState<PartnerVisionSyncHealth | null>(null)
   const [tokenUsageRows, setTokenUsageRows] = useState<PartnerAiTokenUsageStatRow[]>([])
   const [tokenUsageLookbackDays, setTokenUsageLookbackDays] = useState(30)
   const [form, setForm] = useState<FormState>(() => defaultsFromSettings(null))
   const formRef = useRef<FormState>(form)
-  const [visionSyncing, setVisionSyncing] = useState(false)
-  const [visionBgRunSliceBusy, setVisionBgRunSliceBusy] = useState(false)
-  const [visionSyncResumeAfterId, setVisionSyncResumeAfterId] = useState<string | null>(null)
-  const prevVisionBgStatusRef = useRef<string | null>(null)
-
-  const regionDisplayNames = useMemo(() => {
-    try {
-      return new Intl.DisplayNames([locale, 'en'], { type: 'region' })
-    } catch {
-      return new Intl.DisplayNames(['en'], { type: 'region' })
-    }
-  }, [locale])
-
-  const visionShopCountrySelectValue = resolveVisionShopCountrySelectValue(
-    form.vision_shop_country,
-    form.vision_location
-  )
+  const [visionSyncing] = useState(false)
 
   const load = useCallback((): Promise<void> => {
     setLoadErr(null)
@@ -318,8 +138,6 @@ export function PartnerAiSettingsPanel({
         setTokenUsageLookbackDays(usageRes.lookbackDays)
       }
       if ('error' in bundleRes && bundleRes.error) {
-        setVisionCatalogStats(null)
-        setVisionSyncHealth(null)
         setLoadErr(bundleRes.error)
         toast({ title: t.loadError, description: bundleRes.error, variant: 'destructive' })
         return
@@ -330,8 +148,6 @@ export function PartnerAiSettingsPanel({
         setForm(next)
         setFaqs(bundleRes.faqs ?? [])
         setInventory(bundleRes.inventory ?? [])
-        setVisionCatalogStats(bundleRes.visionCatalogStats ?? null)
-        setVisionSyncHealth(bundleRes.visionSyncHealth ?? null)
       }
     })()
   }, [partnerId, t.loadError, toast])
@@ -341,63 +157,8 @@ export function PartnerAiSettingsPanel({
   }, [load])
 
   useEffect(() => {
-    setVisionSyncResumeAfterId(null)
-    prevVisionBgStatusRef.current = null
-  }, [partnerId])
-
-  useEffect(() => {
     formRef.current = form
   }, [form])
-
-  const visionBgActive =
-    form.vision_bg_sync_status === 'queued' || form.vision_bg_sync_status === 'running'
-  const visionOpsLocked = pending || visionSyncing || visionBgRunSliceBusy || visionBgActive
-  const visionHealthLevel: 'idle' | 'healthy' | 'warning' | 'stuck' = useMemo(() => {
-    if (!visionSyncHealth) return 'idle'
-    if (
-      visionSyncHealth.lockBusy &&
-      ((visionSyncHealth.lockAgeSec ?? 0) >= 600 || (visionSyncHealth.lockHeartbeatAgeSec ?? 0) >= 600)
-    ) {
-      return 'stuck'
-    }
-    if (visionSyncHealth.pendingCount <= 0 && !visionSyncHealth.lockBusy) return 'healthy'
-    if (visionSyncHealth.pendingCount > 0 || visionSyncHealth.lockBusy || visionBgActive) return 'warning'
-    return 'idle'
-  }, [visionSyncHealth, visionBgActive])
-
-  /** Số dòng kho có URL ảnh https — khớp điều kiện đồng bộ Google (ước lượng tiến độ). */
-  const visionBgImageRowTotal = useMemo(
-    () => inventory.filter((r) => isVisionCatalogImageUrlSyncable(r.image_url)).length,
-    [inventory]
-  )
-
-  useEffect(() => {
-    if (!visionBgActive) return
-    const id = window.setInterval(() => load(), 8000)
-    return () => window.clearInterval(id)
-  }, [visionBgActive, load])
-
-  useEffect(() => {
-    const cur = form.vision_bg_sync_status
-    const prev = prevVisionBgStatusRef.current
-    if (prev !== null && (prev === 'queued' || prev === 'running')) {
-      if (cur === 'done' || cur === 'error') {
-        const rep = parseVisionBgSyncReport(form.vision_bg_sync_report)
-        const lines = buildVisionBgDetailLines(t, rep, form.vision_bg_sync_error)
-        const description = lines.length > 0 ? lines.join('\n') : undefined
-        if (cur === 'done') {
-          toast({ title: t.visionBgSyncToastDone, ...(description ? { description } : {}) })
-        } else {
-          toast({
-            title: t.visionBgSyncToastError,
-            variant: 'destructive',
-            ...(description ? { description } : {}),
-          })
-        }
-      }
-    }
-    prevVisionBgStatusRef.current = cur
-  }, [form.vision_bg_sync_status, form.vision_bg_sync_report, form.vision_bg_sync_error, toast, t])
 
   const persistPartial = useCallback(
     (partial: Partial<FormState>) => {
@@ -417,200 +178,6 @@ export function PartnerAiSettingsPanel({
     [partnerId, saveOkMessage, toast, load]
   )
 
-  const performVisionCatalogSyncRound = useCallback(
-    async (resumeAfterId: string | null): Promise<VisionSyncResponse> => {
-      const body =
-        resumeAfterId != null && resumeAfterId !== '' ? { resumeAfterId } : {}
-      const signal =
-        typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function'
-          ? AbortSignal.timeout(VISION_SYNC_CLIENT_FETCH_TIMEOUT_MS)
-          : undefined
-      const res = await fetch(
-        `/api/messaging/partners/${encodeURIComponent(partnerId)}/vision-catalog-sync`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-          ...(signal ? { signal } : {}),
-        }
-      )
-      const data = (await res.json()) as VisionSyncResponse
-      if (!res.ok) throw new Error(data.error || 'Sync failed')
-      return data
-    },
-    [partnerId]
-  )
-
-  const runVisionCatalogSyncChained = useCallback(
-    async (startResumeAfterId: string | null) => {
-      const sleepMs = (ms: number) =>
-        new Promise<void>((resolve) => {
-          setTimeout(resolve, ms)
-        })
-
-      let resume: string | null = startResumeAfterId
-      let grandImported = 0
-      let grandRemoved = 0
-      let totalRounds = 0
-      let last: VisionSyncResponse = {}
-
-      outer: while (true) {
-        const segmentStarted = Date.now()
-        let segmentRounds = 0
-
-        inner: while (true) {
-          if (totalRounds >= VISION_SYNC_CLIENT_CHAIN_ABSOLUTE_MAX_ROUNDS) {
-            break outer
-          }
-          if (segmentRounds >= VISION_SYNC_CLIENT_CHAIN_MAX_ROUNDS) {
-            break inner
-          }
-          if (Date.now() - segmentStarted >= VISION_SYNC_CLIENT_CHAIN_MAX_MS) {
-            break inner
-          }
-
-          const data = await performVisionCatalogSyncRound(resume)
-          last = data
-          segmentRounds += 1
-          totalRounds += 1
-          grandImported += data.imported ?? 0
-          grandRemoved += data.removed ?? 0
-
-          if (!data.hasMore) {
-            break outer
-          }
-          const nextResume = data.lastScannedId?.trim() || null
-          if (!nextResume) {
-            break outer
-          }
-          resume = nextResume
-          await sleepMs(VISION_SYNC_CLIENT_CHAIN_PAUSE_MS)
-        }
-
-        if (!last.hasMore) {
-          break outer
-        }
-
-        if (totalRounds >= VISION_SYNC_CLIENT_CHAIN_ABSOLUTE_MAX_ROUNDS) {
-          break outer
-        }
-
-        await sleepMs(VISION_SYNC_CLIENT_CHAIN_SEGMENT_BREAK_MS)
-      }
-
-      const stillMore = Boolean(last.hasMore)
-      const missingCursor = stillMore && !last.lastScannedId?.trim()
-      const abortedSafety =
-        stillMore && totalRounds >= VISION_SYNC_CLIENT_CHAIN_ABSOLUTE_MAX_ROUNDS
-
-      if (stillMore && last.lastScannedId) {
-        setVisionSyncResumeAfterId(last.lastScannedId)
-      } else {
-        setVisionSyncResumeAfterId(null)
-      }
-
-      if (missingCursor) {
-        toast({
-          title: t.loadError,
-          description: t.visionSyncToastMore,
-          variant: 'destructive',
-        })
-      } else if (abortedSafety) {
-        toast({
-          title: t.visionSyncChainedAbortedSafety,
-          description: [
-            `${t.visionSyncToastImported}: ${grandImported}`,
-            `${t.visionSyncToastRemoved}: ${grandRemoved}`,
-            t.visionSyncChainedRounds.replace(/\{n\}/g, String(totalRounds)),
-          ].join(' · '),
-          variant: 'destructive',
-        })
-      } else if (!stillMore && grandImported === 0 && grandRemoved === 0) {
-        toast({ title: t.visionSyncToastIdle })
-      } else {
-        const descParts: string[] = []
-        if (grandImported > 0 || grandRemoved > 0) {
-          descParts.push(
-            `${t.visionSyncToastImported}: ${grandImported}`,
-            `${t.visionSyncToastRemoved}: ${grandRemoved}`
-          )
-        }
-        if (totalRounds > 1) {
-          descParts.push(t.visionSyncChainedRounds.replace(/\{n\}/g, String(totalRounds)))
-        }
-        const description = descParts.filter(Boolean).join(' · ')
-        toast({
-          title: t.visionSyncOk,
-          ...(description ? { description } : {}),
-        })
-      }
-    },
-    [
-      performVisionCatalogSyncRound,
-      toast,
-      t.visionSyncOk,
-      t.visionSyncToastIdle,
-      t.visionSyncToastImported,
-      t.visionSyncToastRemoved,
-      t.visionSyncToastMore,
-      t.visionSyncChainedRounds,
-      t.visionSyncChainedAbortedSafety,
-      t.loadError,
-    ]
-  )
-
-  const handleVisionProductSearchToggle = useCallback(
-    (checked: boolean) => {
-      if (!checked) {
-        setVisionSyncResumeAfterId(null)
-        persistPartial({ vision_product_search_enabled: false })
-        return
-      }
-      const prevEnabled = formRef.current.vision_product_search_enabled
-      const next = { ...formRef.current, vision_product_search_enabled: true }
-      formRef.current = next
-      setForm(next)
-      startTransition(async () => {
-        const res = await savePartnerAiSettings(partnerId, formToPayload(next))
-        if ('error' in res && res.error) {
-          toast({ title: res.error, variant: 'destructive' })
-          load()
-          return
-        }
-        toast({ title: saveOkMessage })
-        if (!prevEnabled) {
-          setVisionSyncing(true)
-          setVisionSyncResumeAfterId(null)
-          try {
-            await runVisionCatalogSyncChained(null)
-          } catch (e) {
-            const raw = e instanceof Error ? e.message : t.loadError
-            const { title, description } = visionSyncFailureUserMessage(raw, t)
-            toast({
-              title,
-              ...(description ? { description } : {}),
-              variant: 'destructive',
-            })
-          } finally {
-            setVisionSyncing(false)
-            load()
-          }
-        } else {
-          load()
-        }
-      })
-    },
-    [
-      persistPartial,
-      partnerId,
-      saveOkMessage,
-      toast,
-      load,
-      runVisionCatalogSyncChained,
-      t,
-    ]
-  )
-
   const saveSettings = () => {
     startTransition(async () => {
       const res = await savePartnerAiSettings(partnerId, formToPayload(formRef.current))
@@ -622,142 +189,6 @@ export function PartnerAiSettingsPanel({
       load()
     })
   }
-
-  const runVisionSync = useCallback(() => {
-    if (pending || visionSyncing || visionBgRunSliceBusy || visionBgActive) return
-    setVisionSyncing(true)
-    void (async () => {
-      try {
-        await runVisionCatalogSyncChained(visionSyncResumeAfterId)
-        load()
-      } catch (e) {
-        const raw = e instanceof Error ? e.message : t.loadError
-        const { title, description } = visionSyncFailureUserMessage(raw, t)
-        toast({
-          title,
-          ...(description ? { description } : {}),
-          variant: 'destructive',
-        })
-        load()
-      } finally {
-        setVisionSyncing(false)
-      }
-    })()
-  }, [runVisionCatalogSyncChained, visionSyncResumeAfterId, t, toast, load, pending, visionSyncing, visionBgRunSliceBusy, visionBgActive])
-
-  const handleEnqueueVisionBgSync = useCallback(() => {
-    if (pending || visionSyncing || visionBgRunSliceBusy || visionBgActive) return
-    startTransition(async () => {
-      const res = await enqueueVisionCatalogBackgroundSync(partnerId, visionSyncResumeAfterId)
-      if ('error' in res && res.error) {
-        const msg =
-          res.code === 'already_active'
-            ? t.visionBgSyncAlreadyActive
-            : res.code === 'enable_vision_first'
-              ? t.visionBgSyncEnableVisionFirst
-              : res.code === 'no_ai_row'
-                ? t.visionBgSyncSaveSettingsFirst
-                : res.error
-        if (res.code === 'already_active') {
-          toast({ title: msg, description: t.visionBgSyncAlreadyActiveRefreshHint })
-          await load()
-          return
-        }
-        toast({ title: msg, variant: 'destructive' })
-        return
-      }
-      toast({ title: t.visionBgSyncEnqueueOk })
-      load()
-    })
-  }, [partnerId, visionSyncResumeAfterId, t, toast, load, pending, visionSyncing, visionBgRunSliceBusy, visionBgActive])
-
-  const handleCancelVisionBgSync = useCallback(() => {
-    if (pending || visionSyncing || visionBgRunSliceBusy) return
-    startTransition(async () => {
-      const res = await cancelVisionCatalogBackgroundSync(partnerId)
-      if ('error' in res && res.error) {
-        toast({ title: res.error, variant: 'destructive' })
-        return
-      }
-      load()
-    })
-  }, [partnerId, toast, load, pending, visionSyncing, visionBgRunSliceBusy])
-
-  const handleRunVisionBgSyncSlice = useCallback(async () => {
-    if (pending || visionSyncing || visionBgRunSliceBusy || !visionBgActive) return
-    setVisionBgRunSliceBusy(true)
-    try {
-      const res = await fetch(
-        `/api/messaging/partners/${encodeURIComponent(partnerId)}/vision-bg-sync/run-once`,
-        { method: 'POST', credentials: 'same-origin' }
-      )
-      const data = (await res.json()) as {
-        ok?: boolean
-        error?: string
-        partnersTouched?: number
-        roundsExecuted?: number
-        errors?: string[]
-      }
-      if (!res.ok) {
-        toast({ title: data.error || t.visionBgSyncToastError, variant: 'destructive' })
-        return
-      }
-      const rounds = String(data.roundsExecuted ?? 0)
-      const partners = String(data.partnersTouched ?? 0)
-      const syncErrors = (data.errors ?? []).map((x) => x.trim()).filter(Boolean)
-      const lockBusyError = syncErrors.find(
-        (x) =>
-          /corpus đang bị giữ bởi lượt import khác/i.test(x) ||
-          /Vision import lock/i.test(x)
-      )
-      const hasNoWorkDone =
-        (data.roundsExecuted ?? 0) <= 0 &&
-        (data.partnersTouched ?? 0) > 0
-      toast({
-        title: t.visionBgSyncRunSliceOk.replace('{rounds}', rounds).replace('{partners}', partners),
-      })
-      if (lockBusyError) {
-        toast({
-          title: lockBusyError,
-          description: t.visionHealthUnlockButton,
-          variant: 'destructive',
-        })
-      } else if (syncErrors.length) {
-        toast({ title: syncErrors.join('; '), variant: 'destructive' })
-      } else if (hasNoWorkDone) {
-        toast({
-          title: t.visionBgSyncStatusRunning,
-          description: t.visionBgSyncAlreadyActiveRefreshHint,
-        })
-      }
-      await load()
-    } catch {
-      toast({ title: t.visionBgSyncToastError, variant: 'destructive' })
-    } finally {
-      setVisionBgRunSliceBusy(false)
-    }
-  }, [partnerId, load, toast, t, pending, visionSyncing, visionBgRunSliceBusy, visionBgActive])
-
-  const handleDismissVisionBgReport = useCallback(() => {
-    startTransition(async () => {
-      const res = await dismissVisionCatalogBackgroundSyncReport(partnerId)
-      if ('error' in res && res.error) {
-        toast({ title: res.error, variant: 'destructive' })
-        return
-      }
-      load()
-    })
-  }, [partnerId, toast, load])
-
-  const visionBgReportLines = buildVisionBgDetailLines(
-    t,
-    parseVisionBgSyncReport(form.vision_bg_sync_report),
-    form.vision_bg_sync_error
-  )
-  const showVisionBgReportBlock =
-    form.vision_bg_sync_status === 'done' ||
-    form.vision_bg_sync_status === 'error' ||
-    visionBgReportLines.length > 0
 
   return (
     <Card className="overflow-hidden border-violet-200/60 bg-gradient-to-br from-violet-50/40 via-background to-background dark:border-violet-900/40 dark:from-violet-950/20 shadow-sm">
@@ -897,409 +328,6 @@ export function PartnerAiSettingsPanel({
                 onChange={(e) => setForm((f) => ({ ...f, tone_instructions: e.target.value }))}
                 className="resize-y"
               />
-            </div>
-
-            <div className="space-y-4 rounded-xl border border-border/70 bg-muted/15 p-4">
-              <div className="flex items-start gap-2">
-                <ScanSearch className="mt-0.5 h-5 w-5 shrink-0 text-violet-600" aria-hidden />
-                <div className="min-w-0 space-y-1">
-                  <p className="text-sm font-medium">{t.visionSearchTitle}</p>
-                  <p className="text-xs leading-relaxed text-muted-foreground">{t.visionSearchHint}</p>
-                  <p className="text-[11px] leading-relaxed text-muted-foreground border-l-2 border-violet-300/80 pl-2 dark:border-violet-700">
-                    {t.visionWarehouseInventorySummary
-                      .replace('{total}', String(inventory.length))
-                      .replace('{withImage}', String(visionBgImageRowTotal))}
-                  </p>
-                  {visionCatalogStats ? (
-                    <div className="mt-2 space-y-1.5 rounded-md border border-violet-200/70 bg-violet-50/40 p-2.5 dark:border-violet-900/50 dark:bg-violet-950/25">
-                      <p className="text-[11px] font-medium text-foreground">{t.visionCatalogSyncStatsTitle}</p>
-                      <ul className="list-disc space-y-0.5 pl-4 text-[11px] leading-relaxed text-muted-foreground">
-                        <li>
-                          {t.visionCatalogSyncStatsLineSynced.replace(
-                            '{n}',
-                            String(visionCatalogStats.syncedUpToDate)
-                          )}
-                        </li>
-                        <li>
-                          {t.visionCatalogSyncStatsLinePending.replace(
-                            '{n}',
-                            String(visionCatalogStats.pendingSync)
-                          )}
-                        </li>
-                        <li>
-                          {t.visionCatalogSyncStatsLineNoHttps.replace(
-                            '{n}',
-                            String(visionCatalogStats.noHttpsImageUrl)
-                          )}
-                        </li>
-                        <li>
-                          {t.visionCatalogSyncStatsLineExcluded.replace(
-                            '{n}',
-                            String(visionCatalogStats.visionCatalogExcluded)
-                          )}
-                        </li>
-                      </ul>
-                      <p className="text-[10px] leading-relaxed text-muted-foreground pt-0.5">
-                        {t.visionCatalogSyncStatsExplain}
-                      </p>
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed border-border/60 bg-background/60 px-3 py-2">
-                <div>
-                  <p className="text-sm font-medium">{t.visionSearchEnable}</p>
-                  <p className="text-[11px] text-muted-foreground">
-                    {form.vision_index_ready ? t.visionIndexReady : t.visionIndexNotReady}
-                    {form.vision_index_synced_at
-                      ? ` · ${t.visionLastSynced}: ${new Date(form.vision_index_synced_at).toLocaleString()}`
-                      : ''}
-                  </p>
-                  {form.vision_index_error ? (
-                    form.vision_index_error === VISION_WAREHOUSE_REINDEX_PENDING_CODE ? (
-                      <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-1 leading-relaxed whitespace-pre-wrap break-words">
-                        {t.visionWarehouseReindexPending}
-                      </p>
-                    ) : form.vision_index_error === VISION_WAREHOUSE_CORPUS_UNSUPPORTED_TYPE_CODE ? (
-                      <p className="text-[11px] text-destructive mt-1 leading-relaxed whitespace-pre-wrap break-words">
-                        {t.visionWarehouseCorpusUnsupportedType}
-                      </p>
-                    ) : isVisionProductSearchMaintenanceError(form.vision_index_error) ? (
-                      <div className="text-[11px] text-destructive mt-1 space-y-1">
-                        <p className="font-medium">{t.visionProductSearchMaintenanceTitle}</p>
-                        <p className="leading-relaxed whitespace-pre-wrap break-words">
-                          {t.visionProductSearchMaintenanceDetail}
-                        </p>
-                      </div>
-                    ) : (
-                      <p className="text-[11px] text-destructive mt-1 whitespace-pre-wrap break-words">
-                        {t.visionSyncErrorLabel}: {form.vision_index_error}
-                      </p>
-                    )
-                  ) : null}
-                </div>
-                <Switch
-                  checked={form.vision_product_search_enabled}
-                  onCheckedChange={handleVisionProductSearchToggle}
-                  disabled={pending || visionSyncing}
-                  aria-label={t.visionSearchEnable}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>{t.visionShopCountryLabel}</Label>
-                <p className="text-xs leading-relaxed text-muted-foreground">{t.visionShopCountryHint}</p>
-                <Select
-                  value={visionShopCountrySelectValue}
-                  onValueChange={(v) => {
-                    if (v === VISION_SHOP_COUNTRY_SELECT_CUSTOM) {
-                      persistPartial({ vision_shop_country: '' })
-                      return
-                    }
-                    const loc = getVisionLocationForShopCountry(v)
-                    if (loc) persistPartial({ vision_shop_country: v, vision_location: loc })
-                  }}
-                  disabled={pending || visionSyncing}
-                >
-                  <SelectTrigger className="h-10 bg-background">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={VISION_SHOP_COUNTRY_SELECT_CUSTOM}>{t.visionShopCountryCustom}</SelectItem>
-                    {VISION_SHOP_COUNTRY_CODES_ORDERED.map((code) => (
-                      <SelectItem key={code} value={code}>
-                        {regionDisplayNames.of(code) ?? code}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {visionShopCountrySelectValue === VISION_SHOP_COUNTRY_SELECT_CUSTOM ? (
-                  <p className="text-[11px] leading-relaxed text-muted-foreground">{t.visionShopCountryAdvancedHint}</p>
-                ) : null}
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>{t.visionLocationLabel}</Label>
-                  <Select
-                    value={form.vision_location}
-                    onValueChange={(v) =>
-                      persistPartial({
-                        vision_location: normalizeVisionProductSearchLocation(v),
-                        vision_shop_country: '',
-                      })
-                    }
-                    disabled={pending || visionSyncing}
-                  >
-                    <SelectTrigger className="h-10 bg-background">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {VISION_LOCATIONS.map((loc) => (
-                        <SelectItem key={loc} value={loc}>
-                          {loc}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>{t.visionCategoryLabel}</Label>
-                  <Select
-                    value={form.vision_product_category}
-                    onValueChange={(v) => persistPartial({ vision_product_category: v })}
-                    disabled={pending}
-                  >
-                    <SelectTrigger className="h-10 bg-background">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {VISION_PRODUCT_CATEGORIES.map((cat) => (
-                        <SelectItem key={cat} value={cat}>
-                          {cat}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="vision-bucket">{t.visionBucketOverrideLabel}</Label>
-                <Input
-                  id="vision-bucket"
-                  value={form.vision_gcs_bucket}
-                  placeholder="my-vision-catalog-bucket"
-                  onChange={(e) => setForm((f) => ({ ...f, vision_gcs_bucket: e.target.value }))}
-                  onBlur={() => persistPartial({ vision_gcs_bucket: formRef.current.vision_gcs_bucket })}
-                  disabled={pending || visionSyncing}
-                />
-                <p className="text-xs text-muted-foreground">{t.visionBucketOverrideHint}</p>
-              </div>
-              <div className="space-y-1.5">
-                <Button type="button" variant="secondary" disabled={visionOpsLocked} onClick={runVisionSync}>
-                  {visionSyncing ? t.visionSyncing : t.visionSyncButton}
-                </Button>
-                <p className="text-[11px] text-muted-foreground leading-relaxed max-w-xl">
-                  {t.visionSyncAutoWhenEnableHint}
-                </p>
-                <p className="text-[11px] text-muted-foreground leading-relaxed max-w-xl">
-                  {t.visionInventoryDeleteRemovesIndexNote}
-                </p>
-              </div>
-
-              <div className="space-y-3 rounded-lg border border-dashed border-violet-200/80 bg-violet-50/30 p-3 dark:border-violet-800/60 dark:bg-violet-950/20">
-                {visionSyncHealth ? (
-                  <div
-                    className={`rounded-md border px-3 py-2 text-xs leading-relaxed ${
-                      visionHealthLevel === 'healthy'
-                        ? 'border-emerald-300/80 bg-emerald-50/70 text-emerald-950 dark:border-emerald-800/60 dark:bg-emerald-950/25 dark:text-emerald-100'
-                        : visionHealthLevel === 'stuck'
-                          ? 'border-rose-300/80 bg-rose-50/70 text-rose-950 dark:border-rose-800/60 dark:bg-rose-950/25 dark:text-rose-100'
-                          : visionHealthLevel === 'warning'
-                            ? 'border-amber-300/80 bg-amber-50/70 text-amber-950 dark:border-amber-800/60 dark:bg-amber-950/25 dark:text-amber-100'
-                            : 'border-border/70 bg-background/70 text-foreground'
-                    }`}
-                  >
-                    <div className="mb-1 flex flex-wrap items-center gap-2">
-                      <span className="font-semibold">{t.visionHealthPanelTitle}</span>
-                      <Badge variant="outline" className="text-[10px] font-medium">
-                        {visionHealthLevel === 'healthy'
-                          ? t.visionHealthStatusHealthy
-                          : visionHealthLevel === 'stuck'
-                            ? t.visionHealthStatusStuck
-                            : visionHealthLevel === 'warning'
-                              ? t.visionHealthStatusWarning
-                              : t.visionHealthStatusIdle}
-                      </Badge>
-                    </div>
-                    <p>
-                      {t.visionHealthPendingCount.replace('{n}', String(visionSyncHealth.pendingCount))} ·{' '}
-                      {t.visionHealthChecksumDone
-                        .replace('{done}', String(visionSyncHealth.checksumDoneCount))
-                        .replace('{total}', String(visionSyncHealth.syncableCount))}
-                    </p>
-                    <p>
-                      {t.visionHealthLockAge}:{' '}
-                      {visionSyncHealth.lockBusy
-                        ? t.visionHealthLockBusy.replace(
-                            '{sec}',
-                            String(Math.max(0, visionSyncHealth.lockAgeSec ?? 0))
-                          )
-                        : t.visionHealthLockFree}
-                    </p>
-                    <p>
-                      {t.visionHealthLockOwner}:{' '}
-                      {visionSyncHealth.lockBusy
-                        ? (visionSyncHealth.lockOwner?.trim() || t.visionHealthOwnerUnknown)
-                        : t.visionHealthLockFree}
-                    </p>
-                    <p>
-                      {t.visionHealthHeartbeatAge}:{' '}
-                      {visionSyncHealth.lockBusy
-                        ? visionSyncHealth.lockHeartbeatAgeSec != null
-                          ? t.visionHealthHeartbeatAlive.replace(
-                              '{sec}',
-                              String(Math.max(0, visionSyncHealth.lockHeartbeatAgeSec))
-                            )
-                          : t.visionHealthHeartbeatNone
-                        : t.visionHealthLockFree}
-                    </p>
-                    <p>
-                      {t.visionHealthLastProgress}:{' '}
-                      {visionSyncHealth.lastProgressAt
-                        ? new Date(visionSyncHealth.lastProgressAt).toLocaleString()
-                        : t.visionHealthLastProgressNone}
-                    </p>
-                    {visionHealthLevel === 'stuck' ? (
-                      <div className="mt-2">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          disabled={pending || visionSyncing || visionBgRunSliceBusy}
-                          onClick={() => {
-                            startTransition(async () => {
-                              const res = await unlockVisionWarehouseImportLock(partnerId)
-                              if ('error' in res && res.error) {
-                                toast({ title: res.error, variant: 'destructive' })
-                                return
-                              }
-                              toast({ title: t.visionHealthUnlockOk })
-                              await load()
-                            })
-                          }}
-                        >
-                          {t.visionHealthUnlockButton}
-                        </Button>
-                      </div>
-                    ) : null}
-                  </div>
-                ) : null}
-                <div className="space-y-1">
-                  <p className="text-sm font-medium">{t.visionBgSyncTitle}</p>
-                  <p className="text-[11px] text-muted-foreground leading-relaxed max-w-xl">{t.visionBgSyncHint}</p>
-                  <p className="text-[11px] text-muted-foreground leading-relaxed max-w-xl">
-                    {t.visionBgSyncUseResumeHint}
-                  </p>
-                  {visionBgActive ? (
-                    <p className="text-[11px] text-muted-foreground leading-relaxed max-w-xl">
-                      {t.visionBgSyncPollingNote}
-                    </p>
-                  ) : null}
-                  {visionBgActive ? (
-                    <p className="text-[11px] text-muted-foreground leading-relaxed max-w-xl">
-                      {t.visionBgSyncPostRefreshExplain}
-                    </p>
-                  ) : null}
-                  {visionBgActive && form.vision_bg_sync_status === 'queued' ? (
-                    <p className="max-w-xl rounded-md border border-amber-200/90 bg-amber-50/90 p-2 text-[11px] leading-relaxed text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/35 dark:text-amber-100">
-                      {t.visionBgSyncQueuedExplain}
-                    </p>
-                  ) : null}
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant={visionBgActive ? 'default' : 'secondary'}>
-                    {visionBgStatusLabel(t, form.vision_bg_sync_status)}
-                  </Badge>
-                  {visionBgActive ? (
-                    <span className="text-xs text-muted-foreground">
-                      {t.visionBgSyncFieldRounds}: {form.vision_bg_sync_rounds} · {t.visionBgSyncFieldImported}:{' '}
-                      {form.vision_bg_sync_imported} · {t.visionBgSyncFieldRemoved}: {form.vision_bg_sync_removed}
-                    </span>
-                  ) : null}
-                </div>
-                {visionBgActive ? (
-                  <div className="rounded-md border border-violet-200/80 bg-background/90 p-3 dark:border-violet-900/50">
-                    <p className="mb-2 text-xs font-medium text-foreground">{t.visionBgSyncProgressTitle}</p>
-                    {visionBgImageRowTotal > 0 ? (
-                      <>
-                        <p className="mb-2 text-xs text-muted-foreground">
-                          {t.visionBgSyncProgressRatio
-                            .replace('{imported}', String(form.vision_bg_sync_imported))
-                            .replace('{total}', String(visionBgImageRowTotal))}
-                        </p>
-                        <div
-                          className="h-2.5 w-full overflow-hidden rounded-full bg-muted"
-                          role="progressbar"
-                          aria-valuemin={0}
-                          aria-valuemax={100}
-                          aria-valuenow={Math.min(
-                            100,
-                            Math.round((form.vision_bg_sync_imported / visionBgImageRowTotal) * 100)
-                          )}
-                        >
-                          <div
-                            className="h-full rounded-full bg-violet-600 transition-[width] duration-300 ease-out dark:bg-violet-500"
-                            style={{
-                              width: `${Math.min(
-                                100,
-                                Math.round((form.vision_bg_sync_imported / visionBgImageRowTotal) * 100)
-                              )}%`,
-                            }}
-                          />
-                        </div>
-                        <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">
-                          {t.visionBgSyncProgressHint}
-                        </p>
-                      </>
-                    ) : (
-                      <p className="text-[11px] leading-relaxed text-muted-foreground">
-                        {t.visionBgSyncProgressNoImageRows}
-                      </p>
-                    )}
-                  </div>
-                ) : null}
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    disabled={visionOpsLocked || !form.vision_product_search_enabled}
-                    onClick={handleEnqueueVisionBgSync}
-                  >
-                    {t.visionBgSyncButton}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={pending || visionSyncing || visionBgRunSliceBusy || !visionBgActive}
-                    onClick={handleCancelVisionBgSync}
-                  >
-                    {t.visionBgSyncCancel}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="default"
-                    className="bg-violet-600 hover:bg-violet-700 dark:bg-violet-600 dark:hover:bg-violet-500"
-                    disabled={pending || visionSyncing || !visionBgActive || visionBgRunSliceBusy}
-                    onClick={() => void handleRunVisionBgSyncSlice()}
-                  >
-                    {visionBgRunSliceBusy ? (
-                      <>
-                        <Loader2 className="mr-1.5 h-3.5 w-3.5 shrink-0 animate-spin" aria-hidden />
-                        {t.visionBgSyncRunSliceButton}
-                      </>
-                    ) : (
-                      t.visionBgSyncRunSliceButton
-                    )}
-                  </Button>
-                  {(form.vision_bg_sync_status === 'done' || form.vision_bg_sync_status === 'error') && (
-                    <Button type="button" variant="ghost" size="sm" disabled={pending} onClick={handleDismissVisionBgReport}>
-                      {t.visionBgSyncDismiss}
-                    </Button>
-                  )}
-                </div>
-                {visionBgActive ? (
-                  <p className="text-[10px] leading-relaxed text-muted-foreground max-w-xl">{t.visionBgSyncRunSliceHint}</p>
-                ) : null}
-                {showVisionBgReportBlock ? (
-                  <div className="rounded-md border bg-background/80 p-3 text-xs space-y-1.5">
-                    <p className="font-medium text-sm">{t.visionBgSyncReportTitle}</p>
-                    {visionBgReportLines.map((line, i) => (
-                      <p key={i} className="text-muted-foreground whitespace-pre-wrap break-words">
-                        {line}
-                      </p>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/30 p-3">
