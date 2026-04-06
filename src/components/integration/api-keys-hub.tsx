@@ -108,7 +108,7 @@ export function ApiKeysHub({ variant, baseUrl, locale: localeProp, partnerWorksp
                 <p className="font-medium text-foreground">{t.embedTitle}</p>
                 <p className="mt-1 text-muted-foreground">{t.embedBody}</p>
                 <pre className="mt-2 overflow-x-auto rounded-md border bg-muted/50 p-3 text-[11px] leading-relaxed">
-                  {`${baseUrl}/api/messaging/embed/{slug}`}
+                  {`${baseUrl}/messaging/p/{slug}?embed=1`}
                 </pre>
               </div>
               <div>

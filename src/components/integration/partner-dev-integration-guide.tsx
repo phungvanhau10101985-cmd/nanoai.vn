@@ -21,41 +21,9 @@ function CodeBlock({ children, title }: { children: string; title?: string }) {
 export function PartnerDevIntegrationGuide({ baseUrl, t }: Props) {
   const slug = '{slug}'
   const partnerId = '{partnerId}'
-  const embedBase = `${baseUrl}/api/messaging/embed/${slug}`
   const guestBase = `${baseUrl}/api/messaging/guest/${slug}`
 
   const hostedUrl = `${baseUrl}/messaging/p/${slug}?embed=1`
-
-  const embedGet = `GET ${embedBase}
-X-Embed-Key: <from_dashboard_messaging_settings>
-X-Session-Id: <stable_uuid_v1_to_v5>`
-
-  const embedPost = `POST ${embedBase}
-Content-Type: application/json
-X-Embed-Key: <same_as_above>
-X-Session-Id: <same_session_as_get>
-
-{
-  "text": "Hello",
-  "imageStoragePath": "optional/path/from/upload_response"
-}`
-
-  const embedUpload = `POST ${embedBase}/image
-Content-Type: multipart/form-data
-X-Embed-Key: <same>
-X-Session-Id: <same>
-
--- form field: file = (image binary)`
-
-  const embedVisionPick = `POST ${embedBase}/vision-pick
-Content-Type: application/json
-X-Embed-Key: <same>
-X-Session-Id: <same>
-
-{
-  "messageId": "<id_from_conversation>",
-  "inventoryId": "<uuid_from_search_or_ui>"
-}`
 
   const guestGet = `GET ${guestBase}
 Cookie: <supabase_auth_session>`
@@ -145,23 +113,6 @@ Cookie: <supabase_auth_session>
           t.hostedTitle,
           t.hostedBody,
           <CodeBlock>{hostedUrl}</CodeBlock>
-        )}
-
-        {section(
-          t.embedTitle,
-          t.embedBody,
-          <>
-            <p className="text-xs leading-relaxed text-muted-foreground">{t.embedSessionUuid}</p>
-            <p className="mt-2 text-xs font-medium text-foreground">{t.embedHeadersLabel}</p>
-            <p className="mt-2 text-xs font-medium text-foreground">{t.embedGetDesc}</p>
-            <CodeBlock>{embedGet}</CodeBlock>
-            <p className="text-xs font-medium text-foreground">{t.embedPostDesc}</p>
-            <CodeBlock>{embedPost}</CodeBlock>
-            <p className="text-xs font-medium text-foreground">{t.embedUploadDesc}</p>
-            <CodeBlock>{embedUpload}</CodeBlock>
-            <p className="text-xs font-medium text-foreground">{t.embedVisionPickDesc}</p>
-            <CodeBlock>{embedVisionPick}</CodeBlock>
-          </>
         )}
 
         {section(

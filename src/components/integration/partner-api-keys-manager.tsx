@@ -56,7 +56,6 @@ export function PartnerApiKeysManager({ partners, t }: Props) {
   const { toast } = useToast()
   const [partnerId, setPartnerId] = useState(partners[0]?.id ?? '')
   const [bundle, setBundle] = useState<BundleOk | null>(null)
-  const [embedVisible, setEmbedVisible] = useState(false)
   const [imageVisible, setImageVisible] = useState(false)
   const [imageSecret, setImageSecret] = useState<string | null>(null)
   const [ephemeralSecret, setEphemeralSecret] = useState<string | null>(null)
@@ -84,14 +83,12 @@ export function PartnerApiKeysManager({ partners, t }: Props) {
 
   useEffect(() => {
     if (!partnerId) return
-    setEmbedVisible(false)
     setImageVisible(false)
     setImageSecret(null)
     setEphemeralSecret(null)
     loadBundle(partnerId)
   }, [partnerId, loadBundle])
 
-  const embedKey = bundle?.embedKey ?? ''
   const imageConfigured = bundle?.imageSearchConfigured ?? false
   const imageEnabled = bundle?.imageSearchEnabled ?? false
   const aiRow = bundle?.aiSettingsRowExists ?? false
@@ -137,11 +134,6 @@ export function PartnerApiKeysManager({ partners, t }: Props) {
     } catch {
       toast({ title: t.copyFailed, variant: 'destructive' })
     }
-  }
-
-  const copyEmbed = () => {
-    if (!embedKey) return
-    void copyText(embedKey, t.copied)
   }
 
   const copyImage = async () => {
@@ -269,39 +261,6 @@ export function PartnerApiKeysManager({ partners, t }: Props) {
             <p className="text-[11px] text-muted-foreground font-mono break-all">
               {t.partnerIdLabel}: {partnerId}
             </p>
-          </div>
-
-          <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
-            <p className="text-sm font-medium">{t.embedTitle}</p>
-            <p className="text-xs text-muted-foreground leading-relaxed">{t.embedHint}</p>
-            <div className="flex flex-wrap items-center gap-2">
-              <code className="min-w-0 flex-1 break-all rounded-md border bg-background px-2 py-1.5 text-[11px] font-mono">
-                {!embedKey ? t.noEmbedKey : embedVisible ? embedKey : MASK}
-              </code>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="shrink-0 gap-1"
-                onClick={() => setEmbedVisible((v) => !v)}
-                disabled={!embedKey}
-                aria-pressed={embedVisible}
-              >
-                {embedVisible ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                {embedVisible ? t.hide : t.show}
-              </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                className="shrink-0 gap-1"
-                onClick={copyEmbed}
-                disabled={!embedKey}
-              >
-                <Copy className="h-3.5 w-3.5" />
-                {t.copy}
-              </Button>
-            </div>
           </div>
 
           <div className="space-y-3 rounded-lg border border-violet-300/40 bg-violet-50/15 p-3 dark:border-violet-900/40 dark:bg-violet-950/20">
