@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
+import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
@@ -34,7 +34,6 @@ import {
   PARTNER_FAQ_PRESET_KEYS,
   type PartnerFaqPresetKey,
 } from '@/lib/messaging/partner-faq-presets'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Bot, Download, FileSpreadsheet, Sparkles, Upload } from 'lucide-react'
 import type { WebLocale } from '@/lib/i18n/config'
 
@@ -104,7 +103,7 @@ export function PartnerAiSettingsPanel({
   t,
   saveOkMessage,
   aiModelId,
-  locale: _locale,
+  locale,
 }: {
   partnerId: string
   t: AiT
@@ -113,6 +112,7 @@ export function PartnerAiSettingsPanel({
   aiModelId: string
   locale: WebLocale
 }) {
+  void locale
   const { toast } = useToast()
   const [pending, startTransition] = useTransition()
   const [loadErr, setLoadErr] = useState<string | null>(null)
@@ -122,7 +122,6 @@ export function PartnerAiSettingsPanel({
   const [tokenUsageLookbackDays, setTokenUsageLookbackDays] = useState(30)
   const [form, setForm] = useState<FormState>(() => defaultsFromSettings(null))
   const formRef = useRef<FormState>(form)
-  const [visionSyncing] = useState(false)
 
   const load = useCallback((): Promise<void> => {
     setLoadErr(null)

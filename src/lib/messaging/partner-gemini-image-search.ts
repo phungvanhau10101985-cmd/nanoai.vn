@@ -18,10 +18,6 @@ type EmbeddingVector = number[]
 type CacheItem = { value: EmbeddingVector; expiresAt: number }
 
 const GEMINI_EMBED_MODEL = process.env.GEMINI_IMAGE_EMBED_MODEL?.trim() || 'gemini-embedding-2-preview'
-const GEMINI_EMBED_DIMS = Math.max(
-  128,
-  Math.min(3072, parseInt(process.env.GEMINI_IMAGE_EMBED_DIMS || '768', 10) || 768)
-)
 const INVENTORY_SCAN_LIMIT = Math.max(
   20,
   Math.min(1500, parseInt(process.env.GEMINI_IMAGE_SEARCH_SCAN_LIMIT || '400', 10) || 400)

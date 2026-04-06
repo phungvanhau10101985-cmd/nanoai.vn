@@ -87,7 +87,7 @@ export async function postWidgetGuestMessage(
 
   const newMessageId = 'messageId' in ins ? ins.messageId : null
   let shopTyping: { maxWaitMs: number } | undefined
-  let visionPickRequired = false
+  const visionPickRequired = false
   /** Chỉ set khi đã chạy Vision và không có ứng viên — hẹn AI sớm hơn. */
   let capReplyDelaySeconds: number | undefined
 
