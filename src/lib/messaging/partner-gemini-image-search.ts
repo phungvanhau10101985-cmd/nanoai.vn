@@ -13,6 +13,7 @@ export type GeminiImageSearchCandidate = {
   sku: string | null
   image_url: string
   product_url?: string
+  price_hint?: string
   score?: number
 }
 
@@ -152,6 +153,7 @@ export async function geminiProductSearchFromImageBuffer(
           sku: row.sku,
           image_url: row.image_url ?? '',
           ...(purl && /^https?:\/\//i.test(purl) ? { product_url: purl } : {}),
+          ...(row.price_hint?.trim() ? { price_hint: row.price_hint.trim() } : {}),
           score,
         }
       }),
@@ -190,14 +192,29 @@ export async function geminiProductSearchFromImageBufferViaVectorDb(
       })
 
       if (!error && Array.isArray(data)) {
+        const ids = data.map((row) => row.inventory_id)
+        const priceById = new Map<string, string>()
+        if (ids.length > 0) {
+          const { data: pricedRows } = await db
+            .from('messaging_partner_inventory')
+            .select('id, price_hint')
+            .eq('partner_id', partnerId)
+            .in('id', ids)
+          for (const r of pricedRows ?? []) {
+            priceById.set(r.id, r.price_hint ?? '')
+          }
+        }
+
         const candidates: GeminiImageSearchCandidate[] = data.map((row) => {
           const purl = row.product_url?.trim() ?? ''
+          const ph = priceById.get(row.inventory_id)?.trim() ?? ''
           return {
             inventoryId: row.inventory_id,
             name: row.name,
             sku: row.sku,
             image_url: row.image_url ?? '',
             ...(purl && /^https?:\/\//i.test(purl) ? { product_url: purl } : {}),
+            ...(ph ? { price_hint: ph } : {}),
             score: typeof row.score === 'number' ? row.score : undefined,
           }
         })

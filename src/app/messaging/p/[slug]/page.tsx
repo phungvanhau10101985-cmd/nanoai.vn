@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
+import { createClient } from '@/lib/supabase/server'
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
+import { listWidgetChatsForLinkedUser } from '@/lib/messaging/list-widget-chats-for-linked-user'
 import { getCurrentWebLocale, getServerDictionary } from '@/lib/i18n/server'
 import { buildMetadata } from '@/lib/seo'
 import type { WebLocale } from '@/lib/i18n/config'
@@ -76,12 +78,26 @@ export default async function PartnerGuestChatPage(props: { params: Promise<{ sl
 
   if (!partner?.is_active) notFound()
 
+  const supabase = createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  const chatList =
+    user?.id
+      ? (await listWidgetChatsForLinkedUser(db, user.id)).items
+      : []
+
   const { t } = getServerDictionary()
 
   return (
     <>
       <Toaster />
-      <PartnerGuestChatClient slug={slug} shopDisplayName={partner.display_name} t={t.partnerGuestChat} />
+      <PartnerGuestChatClient
+        slug={slug}
+        shopDisplayName={partner.display_name}
+        t={t.partnerGuestChat}
+        initialChatList={chatList}
+      />
     </>
   )
 }

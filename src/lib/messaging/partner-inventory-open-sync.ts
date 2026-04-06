@@ -59,6 +59,30 @@ function coalesceTextField(...vals: unknown[]): string {
   return ''
 }
 
+function normalizeComparableText(s: string): string {
+  return s.trim().toLowerCase()
+}
+
+function looksLikePriceText(s: string): boolean {
+  const t = normalizeComparableText(s)
+  if (!t) return false
+  if (/[₫$€¥£]|vnd|vnđ|k\b|đ\b|usd|eur|jpy|cny|krw|thb|rs\b/.test(t)) return true
+  const digits = (t.match(/\d/g) ?? []).length
+  if (digits >= 3 && /[0-9][\d\s.,]{2,}/.test(t)) return true
+  return false
+}
+
+function looksLikeStockStatusText(s: string): boolean {
+  const t = normalizeComparableText(s)
+  if (!t) return false
+  return /(còn|con|hết|het|size|cỡ|co san|co hang|in stock|out of stock|available|sold out|pre-?order)/.test(t)
+}
+
+function invalidPriceStructureMessage(itemName: string): string {
+  const n = itemName.trim() || '(unknown item)'
+  return `INVALID_PRICE_STRUCTURE for "${n}": price_hint/price looks like stock-status text. Put availability in stock_note and actual price in price_hint.`
+}
+
 /** Trạng thái listing kiểu sàn — map sang is_active. */
 function itemStatusToActive(raw: unknown): boolean {
   const s = cellStr(raw).toUpperCase().replace(/\s+/g, '_')
@@ -124,18 +148,33 @@ export function openCatalogItemToInsert(obj: unknown): InventoryExcelInsert | nu
   if (!Number.isFinite(sort_order)) sort_order = 100
 
   const description = coalesceTextField(o.description, o.desc, o.item_description).slice(0, 4000)
-  const stock_note = coalesceTextField(
+  const rawStockNote = coalesceTextField(
     o.stock_note,
     o.stock,
     o.seller_stock,
     o.stock_info
-  ).slice(0, 2000)
-  const price_hint = coalesceTextField(
+  )
+  const rawPriceHint = coalesceTextField(
     o.price_hint,
     o.price,
     o.original_price,
     o.price_info
-  ).slice(0, 500)
+  )
+  let stock_note = rawStockNote
+  let price_hint = rawPriceHint
+
+  if (price_hint && !looksLikePriceText(price_hint) && looksLikeStockStatusText(price_hint)) {
+    throw new Error(invalidPriceStructureMessage(name))
+  }
+
+  // Fallback: if only stock field looks like a valid price, recover it as price_hint.
+  if (!price_hint && stock_note && looksLikePriceText(stock_note) && !looksLikeStockStatusText(stock_note)) {
+    price_hint = stock_note
+    stock_note = ''
+  }
+
+  stock_note = stock_note.slice(0, 2000)
+  price_hint = price_hint.slice(0, 500)
 
   const image_url = firstImageUrlFromItem(o)
   const product_url = validateInventoryProductUrl(
@@ -195,7 +234,13 @@ export function parseOpenCatalogBody(json: unknown): OpenCatalogParseResult {
 
   const rows: InventoryExcelInsert[] = []
   for (let i = 0; i < items.length; i++) {
-    const row = openCatalogItemToInsert(items[i])
+    let row: InventoryExcelInsert | null = null
+    try {
+      row = openCatalogItemToInsert(items[i])
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Invalid item.'
+      return { ok: false, error: msg, code: 'INVALID_PRICE_STRUCTURE' }
+    }
     if (!row) {
       return {
         ok: false,

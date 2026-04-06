@@ -2111,7 +2111,7 @@ const VI_DICTIONARY: Dictionary = {
     visionPickHint: 'Chọn đúng mặt hàng (hoặc đợi shop trả lời thủ công).',
     visionPickBusy: 'Đang gửi…',
     visionPickError: 'Không gửi được lựa chọn. Thử lại.',
-    visionProductLink: 'Trang sản phẩm',
+    visionProductLink: 'Mua ngay',
   },
   messagingMyChats: {
     pageTitle: 'Tin nhắn của tôi',
@@ -3605,7 +3605,7 @@ const EN_DICTIONARY: Dictionary = {
     visionPickHint: 'Choose the right product (or wait for a manual reply).',
     visionPickBusy: 'Sending…',
     visionPickError: 'Could not send your choice. Try again.',
-    visionProductLink: 'Product page',
+    visionProductLink: 'Buy now',
   },
   messagingMyChats: {
     pageTitle: 'My messages',
@@ -5087,7 +5087,7 @@ const ZH_DICTIONARY: Dictionary = {
     visionPickHint: '请选择正确商品（或等待人工回复）。',
     visionPickBusy: '发送中…',
     visionPickError: '无法提交选择，请重试。',
-    visionProductLink: '商品页',
+    visionProductLink: '立即购买',
   },
   messagingMyChats: {
     pageTitle: '我的消息',
@@ -6539,7 +6539,7 @@ const JA_DICTIONARY: Dictionary = {
     visionPickHint: '正しい商品を選ぶか、手動の返信をお待ちください。',
     visionPickBusy: '送信中…',
     visionPickError: '選択を送信できませんでした。もう一度お試しください。',
-    visionProductLink: '商品ページ',
+    visionProductLink: '今すぐ購入',
   },
   messagingMyChats: {
     pageTitle: '自分のメッセージ',
@@ -8016,7 +8016,7 @@ const KO_DICTIONARY: Dictionary = {
     visionPickHint: '맞는 상품을 고르거나 직접 답장을 기다려 주세요.',
     visionPickBusy: '보내는 중…',
     visionPickError: '선택을 보낼 수 없습니다. 다시 시도해 주세요.',
-    visionProductLink: '상품 페이지',
+    visionProductLink: '지금 구매',
   },
   messagingMyChats: {
     pageTitle: '내 메시지',

@@ -24,15 +24,11 @@ import {
   getPartnerAiBundle,
   getPartnerAiTokenUsageStats,
   savePartnerAiSettings,
-  savePartnerFaqPreset,
   upsertPartnerFaq,
   upsertPartnerInventoryItem,
 } from '@/app/dashboard/messaging/actions'
 import {
   PARTNER_FAQ_CUSTOM_KEYWORDS_REQUIRED,
-  PARTNER_FAQ_PRESET_ANSWER_REQUIRED,
-  PARTNER_FAQ_PRESET_KEYS,
-  type PartnerFaqPresetKey,
 } from '@/lib/messaging/partner-faq-presets'
 import { Bot, Download, FileSpreadsheet, Sparkles, Upload } from 'lucide-react'
 import type { WebLocale } from '@/lib/i18n/config'
@@ -48,9 +44,9 @@ const tokenFmt = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 })
 function defaultsFromSettings(s: SettingsRow | null) {
   return {
     enabled: s?.enabled ?? false,
-    reply_delay_seconds: s?.reply_delay_seconds ?? 20,
-    typing_pause_min_ms: s?.typing_pause_min_ms ?? 1200,
-    typing_pause_max_ms: s?.typing_pause_max_ms ?? 3800,
+    reply_delay_seconds: s?.reply_delay_seconds ?? 10,
+    typing_pause_min_ms: s?.typing_pause_min_ms ?? 700,
+    typing_pause_max_ms: s?.typing_pause_max_ms ?? 1200,
     shop_policy: s?.shop_policy ?? '',
     tone_instructions: s?.tone_instructions ?? '',
     append_ai_disclosure: s?.append_ai_disclosure ?? true,
@@ -441,81 +437,6 @@ export function PartnerAiSettingsPanel({
   )
 }
 
-function PresetFaqCard({
-  partnerId,
-  presetKey,
-  row,
-  t,
-  saveOkMessage,
-  pending,
-  startTransition,
-  toast,
-  onSaved,
-}: {
-  partnerId: string
-  presetKey: PartnerFaqPresetKey
-  row: FaqRow | undefined
-  t: AiT
-  saveOkMessage: string
-  pending: boolean
-  startTransition: (cb: () => Promise<void>) => void
-  toast: ReturnType<typeof useToast>['toast']
-  onSaved: () => void
-}) {
-  const [answer, setAnswer] = useState(row?.answer ?? '')
-  const [isActive, setIsActive] = useState(row?.is_active ?? false)
-
-  useEffect(() => {
-    setAnswer(row?.answer ?? '')
-    setIsActive(row?.is_active ?? false)
-  }, [row?.id, row?.answer, row?.is_active, partnerId, presetKey])
-
-  const save = () => {
-    startTransition(async () => {
-      const res = await savePartnerFaqPreset(partnerId, presetKey, { answer, is_active: isActive })
-      if ('error' in res && res.error) {
-        toast({
-          title:
-            res.error === PARTNER_FAQ_PRESET_ANSWER_REQUIRED ? t.faqPresetAnswerRequired : res.error,
-          variant: 'destructive',
-        })
-        return
-      }
-      toast({ title: saveOkMessage })
-      onSaved()
-    })
-  }
-
-  return (
-    <div className="rounded-lg border bg-card p-3 shadow-sm space-y-3">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <p className="text-sm font-medium leading-snug pr-2">{t.faqPresetQuestions[presetKey]}</p>
-        <label className="flex shrink-0 cursor-pointer items-center gap-2 text-xs">
-          <input
-            type="checkbox"
-            className="h-4 w-4 rounded border-input"
-            checked={isActive}
-            onChange={(e) => setIsActive(e.target.checked)}
-          />
-          {t.faqActiveLabel}
-        </label>
-      </div>
-      <div className="space-y-1.5">
-        <Label className="text-xs">{t.faqAnswerLabel}</Label>
-        <Textarea
-          rows={3}
-          value={answer}
-          onChange={(e) => setAnswer(e.target.value)}
-          className="min-h-[72px] resize-y"
-        />
-      </div>
-      <Button type="button" size="sm" onClick={save} disabled={pending}>
-        {t.saveRow}
-      </Button>
-    </div>
-  )
-}
-
 function FaqEditor({
   partnerId,
   t,
@@ -617,28 +538,7 @@ function FaqEditor({
 
   return (
     <div className="space-y-4">
-      <p className="text-sm leading-relaxed text-muted-foreground">{t.faqPresetsIntro}</p>
-      <p className="text-[11px] text-muted-foreground">{t.faqPresetSaveHint}</p>
-
-      <ul className="max-h-[48vh] space-y-3 overflow-y-auto pr-1">
-        {PARTNER_FAQ_PRESET_KEYS.map((key) => (
-          <li key={key}>
-            <PresetFaqCard
-              partnerId={partnerId}
-              presetKey={key}
-              row={faqs.find((r) => r.preset_key === key)}
-              t={t}
-              saveOkMessage={saveOkMessage}
-              pending={pending}
-              startTransition={startTransition}
-              toast={toast}
-              onSaved={onChanged}
-            />
-          </li>
-        ))}
-      </ul>
-
-      <div className="space-y-3 border-t pt-4">
+      <div className="space-y-3">
         <h4 className="text-sm font-semibold">{t.faqCustomSectionTitle}</h4>
         <p className="text-[11px] leading-relaxed text-muted-foreground">{t.faqCustomSectionIntro}</p>
 
@@ -711,14 +611,6 @@ function FaqEditor({
               />
               <p className="text-[11px] text-muted-foreground">{t.faqKeywordsHint}</p>
             </div>
-            <div className="space-y-2">
-              <Label>{t.faqSortLabel}</Label>
-              <Input
-                type="number"
-                value={draft.sort_order}
-                onChange={(e) => setDraft((d) => ({ ...d, sort_order: Number(e.target.value) || 0 }))}
-              />
-            </div>
             <div className="flex items-end gap-2 pb-2">
               <label className="flex cursor-pointer items-center gap-2 text-sm">
                 <input
@@ -777,7 +669,8 @@ function postInventoryExcelImport(
     xhr.withCredentials = true
     xhr.upload.onprogress = (ev) => {
       if (ev.lengthComputable && ev.total > 0) {
-        onProgress({ percent: Math.min(100, Math.round((100 * ev.loaded) / ev.total)) })
+        // Keep upload phase under 100%; final 100% is shown only after server processing succeeds.
+        onProgress({ percent: Math.min(99, Math.round((100 * ev.loaded) / ev.total)) })
       } else {
         onProgress({ percent: null })
       }
@@ -795,6 +688,10 @@ function postInventoryExcelImport(
 }
 
 function mapInventoryImportError(code: string | undefined, t: AiT): string {
+  if (code?.startsWith('INVALID_PRICE_STRUCTURE_ROW_')) {
+    const row = code.slice('INVALID_PRICE_STRUCTURE_ROW_'.length)
+    return `Cấu trúc dữ liệu sai ở dòng ${row}: cột Giá đang chứa trạng thái tồn kho/size. Vui lòng chuyển nội dung này sang cột Ghi chú tồn kho.`
+  }
   switch (code) {
     case 'INVALID_XLSX':
       return t.inventoryErrInvalidXlsx
@@ -974,7 +871,6 @@ function InventoryEditor({
       fd.set('file', file)
       const url = `/api/messaging/partners/${encodeURIComponent(partnerId)}/inventory/import`
       const { ok, text } = await postInventoryExcelImport(url, fd, setExcelImportProgress)
-      setExcelImportProgress({ percent: 100 })
       let data: {
         ok?: boolean
         count?: number
@@ -995,6 +891,7 @@ function InventoryEditor({
         })
         return
       }
+      setExcelImportProgress({ percent: 100 })
       toast({
         title: t.inventoryImportSuccess
           .replace('{count}', String(data.count ?? 0))

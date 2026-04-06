@@ -3,6 +3,7 @@ import type { Database, Json } from '@/types/database.types'
 import type { CustomerCareChannel } from '@/lib/customer-care/types'
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
 import { findMatchingFaq } from '@/lib/messaging/partner-ai-faq'
+import { inboundTextHasVisionSelectionHint } from '@/lib/messaging/guest-chat-image'
 import { deliverAutomatedPartnerMessage } from '@/lib/messaging/partner-ai-deliver'
 import { runMessagingPartnerAiJobBatch } from '@/lib/messaging/partner-ai-run-jobs'
 
@@ -96,7 +97,8 @@ export async function handlePartnerInboundForAi(
 
     if (!settings?.enabled) return { show: false }
 
-    const faq = await findMatchingFaq(db, input.partnerId, input.inboundBody)
+    const skipFaq = inboundTextHasVisionSelectionHint(input.inboundBody)
+    const faq = skipFaq ? null : await findMatchingFaq(db, input.partnerId, input.inboundBody)
     if (faq) {
       void runInstantFaq(db, {
         partnerId: input.partnerId,

@@ -3,6 +3,16 @@ import { aiProductCardsFromPayload, type PartnerAiProductCard } from '@/lib/mess
 
 type Row = { body: string; raw_payload: Json | null }
 
+function formatVndPrice(priceHint: string | undefined): string | null {
+  const raw = (priceHint ?? '').trim()
+  if (!raw) return null
+  const digits = raw.replace(/[^\d]/g, '')
+  if (digits.length < 3) return raw
+  const n = Number.parseInt(digits, 10)
+  if (!Number.isFinite(n)) return raw
+  return `${new Intl.NumberFormat('vi-VN').format(n)}đ`
+}
+
 function imageUrlFromPayload(raw: Json | null): string | null {
   if (!raw || typeof raw !== 'object' || raw === null) return null
   const o = raw as Record<string, unknown>
@@ -32,16 +42,14 @@ function AiProductCards({
   if (!cards.length) return null
   const cta = labels?.productCardOpenProduct?.trim()
   return (
-    <div className="grid max-w-sm gap-2 sm:grid-cols-2">
+    <div className="-mx-1 flex snap-x snap-mandatory gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:thin]">
       {cards.map((p, idx) => {
         const aria = cta ? `${p.name}. ${cta}` : p.name
+        const priceLabel = formatVndPrice(p.price_hint)
         return (
-          <a
+          <div
             key={`${idx}-${p.product_url}`}
-            href={p.product_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={`block overflow-hidden rounded-lg border shadow-sm transition-opacity hover:opacity-95 ${
+            className={`w-36 shrink-0 snap-start overflow-hidden rounded-lg border shadow-sm transition-opacity hover:opacity-95 ${
               onViolet ? 'border-white/25 bg-white/10' : 'border-border/60 bg-card'
             }`}
             aria-label={aria}
@@ -51,21 +59,33 @@ function AiProductCards({
             <img
               src={p.image_url}
               alt=""
-              className={`h-28 w-full object-cover sm:h-32 ${onViolet ? 'opacity-95' : ''}`}
+              className={`h-28 w-full object-contain ${onViolet ? 'bg-white/10 opacity-95' : 'bg-muted/30'}`}
               loading="lazy"
             />
-            <div className={`space-y-0.5 px-2 py-1.5 text-left ${onViolet ? 'text-white' : ''}`}>
-              <p className="line-clamp-2 text-xs font-medium leading-snug">{p.name}</p>
-              {p.price_hint ? (
-                <p className={`text-[11px] tabular-nums ${onViolet ? 'text-white/85' : 'text-muted-foreground'}`}>
-                  {p.price_hint}
+            <div className={`px-2 py-1.5 text-left ${onViolet ? 'text-white' : ''}`}>
+              <div className="flex items-center justify-between gap-2">
+                <p
+                  className={`min-w-0 flex-1 truncate text-[11px] tabular-nums ${onViolet ? 'text-white/85' : 'text-muted-foreground'}`}
+                >
+                  {priceLabel ?? ''}
                 </p>
-              ) : null}
-              {cta ? (
-                <p className={`text-[10px] font-medium ${onViolet ? 'text-white/90' : 'text-primary'}`}>{cta}</p>
-              ) : null}
+                {cta ? (
+                  <a
+                    href={p.product_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-md px-2 py-1 text-[10px] font-semibold leading-none ${
+                      onViolet
+                        ? 'bg-white/20 text-white hover:bg-white/30'
+                        : 'bg-primary/10 text-primary hover:bg-primary/15'
+                    }`}
+                  >
+                    {cta}
+                  </a>
+                ) : null}
+              </div>
             </div>
-          </a>
+          </div>
         )
       })}
     </div>

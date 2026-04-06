@@ -86,6 +86,36 @@ export function extractInventorySearchTokens(message: string): string[] {
   const text = message.replace(/^📷\s*/u, '').trim()
   if (!text) return []
   const candidates = collectTokenCandidates(text)
+  // Keep color/style tokens so text queries can suggest similar products better.
+  const styleHints: Array<{ token: string; priority: number }> = []
+  const addHint = (token: string, priority: number) => {
+    const t = sanitizeInventorySearchToken(token)
+    if (!t) return
+    styleHints.push({ token: t, priority })
+  }
+  const lower = text.toLowerCase()
+  const hintWords = [
+    'đỏ',
+    'đen',
+    'trắng',
+    'nâu',
+    'be',
+    'xám',
+    'hồng',
+    'xanh',
+    'vàng',
+    'cao gót',
+    'gót nhọn',
+    'gót vuông',
+    'boot',
+    'sneaker',
+    'sandal',
+    'loafer',
+  ]
+  for (const w of hintWords) {
+    if (lower.includes(w)) addHint(w, 58)
+  }
+  candidates.push(...styleHints)
   candidates.sort((a, b) => b.priority - a.priority || b.token.length - a.token.length)
   return candidates.slice(0, SEARCH_TOKEN_MAX).map((c) => c.token)
 }

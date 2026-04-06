@@ -88,12 +88,35 @@ export async function postWidgetGuestMessage(
               error: search.error,
             })
           }
+          const candidateIds = search.candidates.map((c) => c.inventoryId)
+          const priceById = new Map<string, string>()
+          if (candidateIds.length > 0) {
+            const { data: pricedRows, error: pricedErr } = await db
+              .from('messaging_partner_inventory')
+              .select('id, price_hint')
+              .eq('partner_id', params.partnerId)
+              .in('id', candidateIds)
+            if (pricedErr) {
+              console.error('[widget-guest-post] price lookup error', {
+                partnerId: params.partnerId,
+                error: pricedErr.message,
+              })
+            }
+            for (const r of pricedRows ?? []) {
+              priceById.set(r.id, r.price_hint ?? '')
+            }
+          }
           visionCandidates = search.candidates.map((c) => ({
             inventoryId: c.inventoryId,
             name: c.name,
             sku: c.sku,
             image_url: c.image_url,
             ...(c.product_url ? { product_url: c.product_url } : {}),
+            ...(c.price_hint?.trim()
+              ? { price_hint: c.price_hint.trim() }
+              : priceById.get(c.inventoryId)?.trim()
+                ? { price_hint: priceById.get(c.inventoryId) }
+                : {}),
             ...(typeof c.score === 'number' ? { score: c.score } : {}),
           }))
         }

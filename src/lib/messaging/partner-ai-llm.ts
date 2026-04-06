@@ -33,6 +33,12 @@ function visionCatalogNoHitsFromTrigger(raw: Json | null | undefined): boolean {
   return (raw as { vision_catalog_no_hits?: unknown }).vision_catalog_no_hits === true
 }
 
+function selectedInventoryIdFromTrigger(raw: Json | null | undefined): string | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const v = (raw as { vision_selected_inventory_id?: unknown }).vision_selected_inventory_id
+  return typeof v === 'string' && v.trim() ? v.trim() : null
+}
+
 export async function buildPartnerAiContext(
   db: Db,
   partnerId: string,
@@ -42,7 +48,22 @@ export async function buildPartnerAiContext(
   triggerRawPayload?: Json | null
 ): Promise<{ system: string; user: string }> {
   const explicitSkuRows = await fetchInventoryRowsByExplicitSku(db, partnerId, latestCustomerMessage)
+  const selectedInventoryId = selectedInventoryIdFromTrigger(triggerRawPayload)
   const inv = await fetchInventoryRowsForPartnerAi(db, partnerId, latestCustomerMessage)
+  let selectedRowBlock = ''
+  let invForContext = inv
+  if (selectedInventoryId) {
+    const { data: selectedRow } = await db
+      .from('messaging_partner_inventory')
+      .select('*')
+      .eq('partner_id', partnerId)
+      .eq('id', selectedInventoryId)
+      .maybeSingle()
+    if (selectedRow) {
+      selectedRowBlock = `\n\nMặt hàng khách đã CHỌN từ danh sách ảnh gợi ý (ưu tiên cao nhất, chỉ tư vấn theo hàng này nếu không có yêu cầu đổi mẫu):\n${formatInventoryLines([selectedRow])}`
+      invForContext = [selectedRow, ...inv.filter((r) => r.id !== selectedRow.id)]
+    }
+  }
 
   const { data: msgs } = await db
     .from('customer_care_messages')
@@ -73,7 +94,10 @@ export async function buildPartnerAiContext(
 Giọng điệu: ${tone}
 Tuân thủ nghiêm các quy tắc / chính sách sau (không bịa điều không có trong dữ liệu):
 ${policy}
-Toàn bộ mặt hàng trong danh sách kho dưới đây đều dùng để tư vấn khách. Chỉ tư vấn sản phẩm/tồn kho dựa trên danh sách đó. Nếu không có trong danh sách, nói rõ bạn không có thông tin và gợi ý khách liên hệ shop.
+Toàn bộ mặt hàng trong danh sách kho dưới đây đều dùng để tư vấn khách. Chỉ tư vấn sản phẩm/tồn kho dựa trên danh sách đó. Nếu không có đúng sản phẩm trong danh sách, nói rõ chưa thấy thông tin khớp và chuyển hướng tư vấn: hỏi khách có muốn xem sản phẩm tương tự đang có trong kho không.
+Khi khách hỏi tìm hàng theo thuộc tính (ví dụ: loại hàng, màu, kiểu dáng, chất liệu, chiều cao gót, khoảng giá), hãy chủ động đề xuất 2-4 sản phẩm gần nhất từ danh sách kho (nếu có) trong mảng products thay vì chỉ trả lời chung chung.
+Nếu không có "khớp tuyệt đối", vẫn ưu tiên đưa các mẫu "khớp gần" đang có trong kho vào products để khách chọn tiếp.
+Khi đã có products khác rỗng, message phải thật ngắn (1-2 câu), không liệt kê chi tiết từng mẫu, không bullet dài; chỉ mời khách chọn mẫu trong ảnh/card để shop tư vấn tiếp theo mẫu đã chọn.
 Khi giới thiệu mặt hàng có "Ảnh (URL)" và/hoặc "Trang sản phẩm (URL)" trong kho, đưa ảnh và link trang vào mảng products trong JSON đầu ra (khách sẽ thấy thẻ sản phẩm có ảnh và giá). Không dán URL ảnh hay URL trang sản phẩm dạng chữ trong trường message nếu đã khai báo đủ trong products.
 Định dạng đầu ra: một đối tượng JSON đúng schema ở cuối prompt user — không bọc markdown, không giải thích ngoài JSON.
 Không hứa giảm giá hay thay đổi chính sách ngoài nội dung đã cho. Trả lời súc tích trong trường message, có thể dùng gạch đầu dòng.`
@@ -84,8 +108,9 @@ ${formatInventoryLines(explicitSkuRows)}`
     : ''
 
   const user = `Danh sách kho (do shop khai báo; có thể không đầy đủ so với toàn bộ hàng thực tế). Các dòng đầu là mặt hàng được ưu tiên theo mã/tên/từ khóa gần với tin nhắn khách (nếu có), sau đó là các mặt hàng còn lại theo thứ tự shop sắp xếp — tất cả đều có thể dùng để tư vấn:
-${formatInventoryLines(inv)}
+${formatInventoryLines(invForContext)}
 ${explicitSkuBlock}
+${selectedRowBlock}
 
 Lịch sử hội thoại gần đây:
 ${transcript}
@@ -99,8 +124,8 @@ ${
 Tình huống bổ sung (bắt buộc xử lý đúng): Tin kích hoạt này kèm ảnh từ khách và shop đã bật tìm sản phẩm theo ảnh, nhưng hệ thống không tìm được mặt hàng tương ứng trong kho (không có ứng viên). Hãy soạn một tin trả lời ngắn, lịch sự:
 - Chào hỏi (có thể xưng hô phù hợp giọng shop).
 - Cảm ơn khách đã gửi ảnh.
-- Nói rõ shop hiện không có thông tin khớp với mẫu trong ảnh trong dữ liệu kho (không nói “lỗi kỹ thuật” trừ khi có lý do rõ).
-- Đề nghị khách mô tả thêm (tên sản phẩm, mã hàng/SKU) hoặc liên hệ trực tiếp shop để được hỗ trợ.
+- Nói rõ hiện chưa có mẫu khớp trong dữ liệu kho (không nói “lỗi kỹ thuật” trừ khi có lý do rõ).
+- Chủ động hỏi khách có muốn xem các mẫu tương tự đang có bên shop không, và mời khách nêu nhu cầu (màu/size/mức giá).
 - Không bịa tên hay giá sản phẩm; không hứa chắc còn hàng nếu không có trong danh sách kho.`
     : ''
 }
@@ -109,7 +134,10 @@ Trả lời BẮT BUỘC là một JSON hợp lệ duy nhất (không bọc mark
 {"message":"nội dung gửi khách (plain text, có thể xuống dòng; không nhét URL ảnh/trang sản phẩm nếu đã có trong products)","products":[]}
 products là mảng, tối đa 4 phần tử. Khi giới thiệu mặt hàng từ danh sách kho có ảnh hoặc trang sản phẩm, mỗi phần tử:
 {"name":"tên ngắn (có thể gồm mã/SKU)","image_url":"https://...","product_url":"https://...","price_hint":"199.000đ (tuỳ chọn, copy từ cột Giá trong kho nếu có)"}
-Chỉ dùng URL http(s) đúng như trong dữ liệu kho; không bịa link. image_url và product_url bắt buộc là chuỗi URL hợp lệ. Khi không giới thiệu hàng kèm ảnh/trang, để products là [].`
+Chỉ dùng URL http(s) đúng như trong dữ liệu kho; không bịa link. image_url và product_url bắt buộc là chuỗi URL hợp lệ.
+Ưu tiên để products có dữ liệu khi trong kho có mặt hàng gần với nhu cầu khách (ví dụ cùng nhóm sản phẩm/màu/kiểu), kể cả khi không khớp tuyệt đối.
+Khi products có phần tử: message không được liệt kê từng tên sản phẩm; chỉ xác nhận ngắn gọn và yêu cầu khách chọn mẫu để tư vấn tiếp.
+Chỉ để products = [] khi thực sự không tìm được mặt hàng phù hợp hoặc gần phù hợp trong danh sách kho.`
 
   return { system, user }
 }

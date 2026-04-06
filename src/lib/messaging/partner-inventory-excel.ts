@@ -149,6 +149,25 @@ function cellStr(val: unknown): string {
   return String(val).trim()
 }
 
+function normalizeComparableText(s: string): string {
+  return s.trim().toLowerCase()
+}
+
+function looksLikePriceText(s: string): boolean {
+  const t = normalizeComparableText(s)
+  if (!t) return false
+  if (/[₫$€¥£]|vnd|vnđ|k\b|đ\b|usd|eur|jpy|cny|krw|thb|rs\b/.test(t)) return true
+  const digits = (t.match(/\d/g) ?? []).length
+  if (digits >= 3 && /[0-9][\d\s.,]{2,}/.test(t)) return true
+  return false
+}
+
+function looksLikeStockStatusText(s: string): boolean {
+  const t = normalizeComparableText(s)
+  if (!t) return false
+  return /(còn|con|hết|het|size|cỡ|co san|co hang|in stock|out of stock|available|sold out|pre-?order)/.test(t)
+}
+
 export function buildInventoryTemplateBuffer(): Buffer {
   const header = [...INVENTORY_EXCEL_HEADER_LABELS_VI]
   /** Mỗi ô khớp đúng một cột tiêu đề (9 cột); không chèn thêm cột ẩn (vd. số 100) kẻo lệch cả file. */
@@ -269,6 +288,9 @@ export function parseInventoryWorkbook(buffer: Buffer): { ok: true; rows: Invent
     const description = get('description')
     const stock_note = get('stock_note')
     const price_hint = get('price_hint')
+    if (price_hint && !looksLikePriceText(price_hint) && looksLikeStockStatusText(price_hint)) {
+      return { ok: false, error: `INVALID_PRICE_STRUCTURE_ROW_${r + 1}` }
+    }
     const image_url = validateInventoryImageUrl(get('image_url'))
     const product_url = validateInventoryProductUrl(get('product_url'))
     const consult_note = get('consult_note').trim().slice(0, 2000)

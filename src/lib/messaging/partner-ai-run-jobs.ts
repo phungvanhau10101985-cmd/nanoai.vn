@@ -2,12 +2,20 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database, Json } from '@/types/database.types'
 import { findMatchingFaq } from '@/lib/messaging/partner-ai-faq'
 import { latestInboundTextForPartnerAi } from '@/lib/messaging/guest-chat-image'
+import { inboundTextHasVisionSelectionHint } from '@/lib/messaging/guest-chat-image'
 import { deliverAutomatedPartnerMessage } from '@/lib/messaging/partner-ai-deliver'
 import { buildPartnerAiContext, deepseekPartnerChat } from '@/lib/messaging/partner-ai-llm'
 import { parsePartnerAiLlmStructured } from '@/lib/messaging/partner-ai-product-cards'
 import { insertPartnerAiTokenUsage } from '@/lib/messaging/partner-ai-token-usage'
 
 type Db = SupabaseClient<Database>
+type TriggerRawForVisionRepick = { vision_selected_inventory_id?: string }
+
+function hasVisionRepickSelection(raw: Json | null | undefined): boolean {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return false
+  const sid = (raw as TriggerRawForVisionRepick).vision_selected_inventory_id
+  return typeof sid === 'string' && sid.trim().length > 0
+}
 
 function sleep(ms: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, ms))
@@ -72,6 +80,7 @@ export async function runMessagingPartnerAiJobBatch(
 
       const triggerAt = triggerMsg.created_at
       const inboundForAi = latestInboundTextForPartnerAi(triggerMsg.body, triggerMsg.raw_payload)
+      const allowRepeatedReplyForVisionPick = hasVisionRepickSelection(triggerMsg.raw_payload)
 
       const { data: humanOut } = await db
         .from('customer_care_messages')
@@ -88,19 +97,21 @@ export async function runMessagingPartnerAiJobBatch(
         continue
       }
 
-      const { data: autoOut } = await db
-        .from('customer_care_messages')
-        .select('id')
-        .eq('conversation_id', job.conversation_id)
-        .eq('direction', 'outbound')
-        .is('sender_admin_id', null)
-        .gt('created_at', triggerAt)
-        .limit(1)
+      if (!allowRepeatedReplyForVisionPick) {
+        const { data: autoOut } = await db
+          .from('customer_care_messages')
+          .select('id')
+          .eq('conversation_id', job.conversation_id)
+          .eq('direction', 'outbound')
+          .is('sender_admin_id', null)
+          .gt('created_at', triggerAt)
+          .limit(1)
 
-      if (autoOut?.length) {
-        await db.from('messaging_partner_ai_jobs').update({ status: 'done' }).eq('id', job.id)
-        completed += 1
-        continue
+        if (autoOut?.length) {
+          await db.from('messaging_partner_ai_jobs').update({ status: 'done' }).eq('id', job.id)
+          completed += 1
+          continue
+        }
       }
 
       const { data: conv, error: cErr } = await db
@@ -130,7 +141,8 @@ export async function runMessagingPartnerAiJobBatch(
         continue
       }
 
-      const faq = await findMatchingFaq(db, job.partner_id, inboundForAi)
+      const skipFaq = inboundTextHasVisionSelectionHint(inboundForAi)
+      const faq = skipFaq ? null : await findMatchingFaq(db, job.partner_id, inboundForAi)
       if (faq) {
         await sleep(typingDelayMs(settings))
         const rawFaq = { source: 'ai_faq', faq_id: faq.id } as unknown as Json

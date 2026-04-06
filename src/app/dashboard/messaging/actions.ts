@@ -588,9 +588,9 @@ export async function savePartnerAiSettings(partnerId: string, payload: PartnerA
   const { user, supabase } = auth
   const gate = await assertPartnerOwner(supabase, user.id, partnerId)
   if ('error' in gate) return { error: gate.error }
-  const delay = Math.min(30, Math.max(5, Math.floor(Number(payload.reply_delay_seconds) || 20)))
-  const tmin = Math.min(30000, Math.max(0, Math.floor(Number(payload.typing_pause_min_ms) || 1200)))
-  const tmax = Math.min(30000, Math.max(0, Math.floor(Number(payload.typing_pause_max_ms) || 3800)))
+  const delay = Math.min(30, Math.max(5, Math.floor(Number(payload.reply_delay_seconds) || 10)))
+  const tmin = Math.min(30000, Math.max(0, Math.floor(Number(payload.typing_pause_min_ms) || 700)))
+  const tmax = Math.min(30000, Math.max(0, Math.floor(Number(payload.typing_pause_max_ms) || 1200)))
   const vision_shop_country: string | null = null
   const vision_location = 'us-central1'
   const vision_product_category = 'general-v1'
@@ -812,7 +812,7 @@ export async function upsertPartnerFaq(
 export async function savePartnerFaqPreset(
   partnerId: string,
   presetKey: string,
-  fields: { answer: string; is_active: boolean }
+  fields: { custom_title: string; answer: string; is_active: boolean }
 ) {
   if (!isPartnerFaqPresetKey(presetKey)) return { error: 'Invalid FAQ preset.' }
   const auth = await requireUser()
@@ -821,6 +821,7 @@ export async function savePartnerFaqPreset(
   const gate = await assertPartnerOwner(supabase, user.id, partnerId)
   if ('error' in gate) return { error: gate.error }
 
+  const customTitle = fields.custom_title.trim()
   const answer = fields.answer.trim()
   if (fields.is_active && !answer) {
     return { error: PARTNER_FAQ_PRESET_ANSWER_REQUIRED }
@@ -849,6 +850,7 @@ export async function savePartnerFaqPreset(
     const { error } = await supabase
       .from('messaging_partner_faq')
       .update({
+        custom_title: customTitle,
         answer,
         is_active: fields.is_active,
         trigger_keywords: '',
@@ -863,6 +865,7 @@ export async function savePartnerFaqPreset(
     const { error } = await supabase.from('messaging_partner_faq').insert({
       partner_id: partnerId,
       preset_key: presetKey,
+      custom_title: customTitle,
       trigger_keywords: '',
       answer,
       sort_order: sortOrder,

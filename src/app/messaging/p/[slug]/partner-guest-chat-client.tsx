@@ -12,7 +12,7 @@ import type { Dictionary } from '@/lib/i18n/dictionaries'
 import type { Json } from '@/types/database.types'
 import { sanitizeLoginNext } from '@/lib/auth/sanitize-login-next'
 import { createClient } from '@/lib/supabase/client'
-import { Camera, ImagePlus, Loader2, Send, Sparkles, X } from 'lucide-react'
+import { Camera, ImagePlus, Loader2, MessageSquareText, Send, Sparkles, Store, X } from 'lucide-react'
 
 type GuestMsg = {
   id: string
@@ -28,13 +28,18 @@ type GuestVisionCandidate = {
   sku: string | null
   image_url: string
   product_url?: string
+  price_hint?: string
   score?: number
 }
 
-function getVisionPickState(raw: Json | null | undefined): { required: boolean; candidates: GuestVisionCandidate[] } {
+function getVisionPickState(raw: Json | null | undefined): {
+  required: boolean
+  candidates: GuestVisionCandidate[]
+  selectedInventoryId: string | null
+} {
   const o = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : null
-  if (!o || o.vision_pick_required !== true || !Array.isArray(o.vision_candidates)) {
-    return { required: false, candidates: [] }
+  if (!o || !Array.isArray(o.vision_candidates)) {
+    return { required: false, candidates: [], selectedInventoryId: null }
   }
   const out: GuestVisionCandidate[] = []
   for (const x of o.vision_candidates) {
@@ -50,10 +55,25 @@ function getVisionPickState(raw: Json | null | undefined): { required: boolean; 
       sku: typeof r.sku === 'string' ? r.sku : null,
       image_url: typeof r.image_url === 'string' ? r.image_url : '',
       ...(pu && /^https?:\/\//i.test(pu) ? { product_url: pu } : {}),
+      ...(typeof r.price_hint === 'string' && r.price_hint.trim() ? { price_hint: r.price_hint.trim() } : {}),
       score: typeof r.score === 'number' ? r.score : undefined,
     })
   }
-  return { required: true, candidates: out }
+  const selectedInventoryId =
+    typeof o.vision_selected_inventory_id === 'string' && o.vision_selected_inventory_id.trim()
+      ? o.vision_selected_inventory_id.trim()
+      : null
+  return { required: o.vision_pick_required === true, candidates: out, selectedInventoryId }
+}
+
+function formatVndPrice(priceHint: string | undefined): string | null {
+  const raw = (priceHint ?? '').trim()
+  if (!raw) return null
+  const digits = raw.replace(/[^\d]/g, '')
+  if (digits.length < 3) return raw
+  const n = Number.parseInt(digits, 10)
+  if (!Number.isFinite(n)) return raw
+  return `${new Intl.NumberFormat('vi-VN').format(n)}đ`
 }
 
 type T = Dictionary['partnerGuestChat']
@@ -65,6 +85,14 @@ type SelectedImage = {
   previewUrl: string
 }
 
+type ChatRailItem = {
+  conversationId: string
+  shopName: string
+  slug: string
+  lastMessageAt: string | null
+  lastMessagePreview: string | null
+}
+
 function formatCredits(value: number) {
   return Number.isInteger(value) ? String(value) : value.toFixed(1)
 }
@@ -73,10 +101,12 @@ export function PartnerGuestChatClient({
   slug,
   shopDisplayName,
   t,
+  initialChatList = [],
 }: {
   slug: string
   shopDisplayName: string
   t: T
+  initialChatList?: ChatRailItem[]
 }) {
   const { toast } = useToast()
   const pathname = usePathname()
@@ -490,6 +520,21 @@ export function PartnerGuestChatClient({
 
   const canSend = Boolean(userId && (draft.trim() || imageStoragePath) && !uploading)
   const showCameraButton = isTouchDevice
+  const activeChatList: ChatRailItem[] = (() => {
+    const existing = initialChatList.find((x) => x.slug === slug)
+    if (existing) return initialChatList
+    const latest = messages[messages.length - 1]
+    return [
+      {
+        conversationId: `current-${slug}`,
+        shopName: shopDisplayName,
+        slug,
+        lastMessageAt: latest?.created_at ?? null,
+        lastMessagePreview: latest?.body ?? null,
+      },
+      ...initialChatList,
+    ]
+  })()
 
   if (!authReady) {
     return (
@@ -517,9 +562,8 @@ export function PartnerGuestChatClient({
     )
   }
 
-  return (
-    <div className="flex h-[100dvh] w-full flex-col overflow-hidden px-2 pb-0 pt-0 sm:mx-auto sm:max-w-lg sm:px-3">
-      <Card className="flex h-full min-h-0 flex-col overflow-hidden border-border shadow-md">
+  const chatPane = (
+      <Card className="flex h-full min-h-0 flex-col overflow-hidden border-border shadow-md bg-background">
         <h1 className="sr-only">{shopDisplayName}</h1>
         <CardContent className="flex min-h-0 flex-1 flex-col p-0">
           <div
@@ -555,47 +599,62 @@ export function PartnerGuestChatClient({
                     </div>
                     {(() => {
                       const vs = getVisionPickState(m.raw_payload)
-                      if (!isMe || !vs.required || vs.candidates.length === 0) return null
+                      if (!isMe || vs.candidates.length === 0) return null
                       return (
                         <div className="mt-2 space-y-2 border-t border-white/20 pt-2">
                           <p className="text-[11px] font-medium leading-snug text-white/95">{t.visionMatchTitle}</p>
-                          <p className="text-[10px] leading-snug text-white/80">{t.visionPickHint}</p>
-                          <div className="flex flex-col gap-1.5">
-                            {vs.candidates.map((c) => (
-                              <button
-                                key={c.inventoryId}
-                                type="button"
-                                disabled={visionPickBusyId === m.id}
-                                className="flex items-center gap-2 rounded-lg bg-white/10 px-2 py-1.5 text-left text-xs text-white hover:bg-white/20 disabled:opacity-50"
-                                onClick={() => void submitVisionPick(m.id, c.inventoryId)}
-                              >
-                                {c.image_url ? (
-                                  // eslint-disable-next-line @next/next/no-img-element
-                                  <img
-                                    src={c.image_url}
-                                    alt=""
-                                    className="h-9 w-9 shrink-0 rounded object-cover"
-                                  />
-                                ) : null}
-                                <span className="line-clamp-2 min-w-0 flex flex-col gap-0.5">
-                                  <span>
-                                    {c.name}
-                                    {c.sku ? ` · ${c.sku}` : ''}
-                                  </span>
-                                  {c.product_url ? (
-                                    <a
-                                      href={c.product_url}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="font-normal text-white/90 underline underline-offset-2 hover:text-white"
-                                      onClick={(ev) => ev.stopPropagation()}
-                                    >
-                                      {t.visionProductLink}
-                                    </a>
-                                  ) : null}
-                                </span>
-                              </button>
-                            ))}
+                          {vs.required ? (
+                            <p className="text-[10px] leading-snug text-white/80">{t.visionPickHint}</p>
+                          ) : null}
+                          <div className="-mx-1 flex snap-x snap-mandatory gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:thin]">
+                            {vs.candidates.map((c) => {
+                              const isSelected = vs.selectedInventoryId === c.inventoryId
+                              return (
+                                <button
+                                  key={c.inventoryId}
+                                  type="button"
+                                  disabled={visionPickBusyId === m.id}
+                                  className={`w-36 shrink-0 snap-start overflow-hidden rounded-lg border text-left text-xs text-white transition-all disabled:opacity-50 ${
+                                    isSelected
+                                      ? 'border-white ring-2 ring-white/90 ring-offset-1 ring-offset-violet-700 opacity-100'
+                                      : 'border-white/25 hover:border-white/45'
+                                  }`}
+                                  onClick={() => void submitVisionPick(m.id, c.inventoryId)}
+                                  aria-label={c.name}
+                                  aria-pressed={isSelected}
+                                  title={c.name}
+                                >
+                                  {c.image_url ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img
+                                      src={c.image_url}
+                                      alt=""
+                                      className="h-28 w-full bg-white/10 object-contain"
+                                    />
+                                  ) : (
+                                    <div className="h-28 w-full bg-white/5" />
+                                  )}
+                                  <div className="px-2 py-1.5">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <p className="min-w-0 flex-1 truncate text-[11px] tabular-nums text-white/85">
+                                        {formatVndPrice(c.price_hint) ?? ''}
+                                      </p>
+                                      {c.product_url ? (
+                                        <a
+                                          href={c.product_url}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="inline-flex shrink-0 items-center whitespace-nowrap rounded-md bg-white/20 px-2 py-1 text-[10px] font-semibold leading-none text-white hover:bg-white/30"
+                                          onClick={(ev) => ev.stopPropagation()}
+                                        >
+                                          {t.visionProductLink}
+                                        </a>
+                                      ) : null}
+                                    </div>
+                                  </div>
+                                </button>
+                              )
+                            })}
                           </div>
                           {visionPickBusyId === m.id ? (
                             <p className="text-[10px] text-white/80">{t.visionPickBusy}</p>
@@ -860,6 +919,76 @@ export function PartnerGuestChatClient({
           </div>
         </CardContent>
       </Card>
+  )
+
+  return (
+    <div className="h-[100dvh] w-full overflow-hidden bg-muted/20">
+      <div className="mx-auto flex h-full w-full max-w-[1600px] gap-3 px-2 py-2 sm:px-3">
+        <aside className="hidden min-h-0 w-72 shrink-0 flex-col rounded-2xl border border-border/70 bg-background p-3 shadow-sm xl:flex">
+          <div className="mb-2 flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-violet-600" aria-hidden />
+            <p className="text-sm font-semibold">{t.pageTitleSuffix}</p>
+          </div>
+          <p className="text-xs leading-relaxed text-muted-foreground">{t.subline}</p>
+          <div className="mt-4 space-y-2">
+            <div className="rounded-lg border border-border/60 bg-muted/30 px-3 py-2 text-sm">{t.tryOnOpen}</div>
+            <div className="rounded-lg border border-border/60 bg-muted/30 px-3 py-2 text-sm">{t.guestAttachPhoto}</div>
+            <Link
+              href="/messaging/my-chats"
+              className="block rounded-lg border border-border/60 bg-muted/30 px-3 py-2 text-sm hover:bg-muted/50"
+            >
+              {t.linkMyShops}
+            </Link>
+          </div>
+          <p className="mt-auto text-[11px] text-muted-foreground">{t.pollNote}</p>
+        </aside>
+
+        <aside className="hidden min-h-0 w-80 shrink-0 flex-col rounded-2xl border border-border/70 bg-background p-2 shadow-sm lg:flex">
+          <div className="mb-2 flex items-center gap-2 px-2">
+            <MessageSquareText className="h-4 w-4 text-violet-600" aria-hidden />
+            <p className="text-sm font-semibold">{t.linkMyShops}</p>
+          </div>
+          <div className="min-h-0 flex-1 space-y-1 overflow-y-auto">
+            {activeChatList.length === 0 ? (
+              <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-3 text-sm text-muted-foreground">
+                {t.emptyThread}
+              </div>
+            ) : (
+              activeChatList.map((row) => {
+                const active = row.slug === slug
+                return (
+                  <Link
+                    key={row.conversationId}
+                    href={`/messaging/p/${encodeURIComponent(row.slug)}`}
+                    className={`block rounded-xl border px-3 py-2 transition-colors ${
+                      active
+                        ? 'border-violet-300/70 bg-violet-50/70 dark:border-violet-700/70 dark:bg-violet-950/30'
+                        : 'border-border/60 bg-background hover:bg-muted/40'
+                    }`}
+                  >
+                    <div className="flex items-start gap-2">
+                      <Store className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium">{row.shopName}</p>
+                        {row.lastMessagePreview ? (
+                          <p className="line-clamp-1 text-xs text-muted-foreground">{row.lastMessagePreview}</p>
+                        ) : null}
+                        {row.lastMessageAt ? (
+                          <p className="text-[11px] text-muted-foreground">
+                            {new Date(row.lastMessageAt).toLocaleString()}
+                          </p>
+                        ) : null}
+                      </div>
+                    </div>
+                  </Link>
+                )
+              })
+            )}
+          </div>
+        </aside>
+
+        <div className="min-h-0 min-w-0 flex-1">{chatPane}</div>
+      </div>
     </div>
   )
 }

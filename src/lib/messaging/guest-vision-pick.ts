@@ -50,7 +50,7 @@ export async function executeGuestVisionPick(
   }
 
   const pl = msg.raw_payload as GuestMessageVisionPayload | null
-  if (!pl?.vision_pick_required || !Array.isArray(pl.vision_candidates)) {
+  if (!Array.isArray(pl?.vision_candidates) || pl.vision_candidates.length === 0) {
     return { error: 'Invalid message state.', badRequest: true }
   }
 
@@ -65,7 +65,7 @@ export async function executeGuestVisionPick(
 
   const nextPayload = {
     ...(typeof msg.raw_payload === 'object' && msg.raw_payload ? msg.raw_payload : {}),
-    vision_pick_required: false,
+    vision_pick_required: true,
     vision_selected_inventory_id: inventoryId,
     vision_selected_product_label: label,
   } as Json

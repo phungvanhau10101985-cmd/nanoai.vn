@@ -178,6 +178,12 @@ type VisionPickRaw = {
   vision_selected_product_label?: string
 }
 
+const VISION_SELECTED_HINT_PREFIX = '[Customer confirmed product from image match:'
+
+export function inboundTextHasVisionSelectionHint(textBody: string): boolean {
+  return textBody.includes(VISION_SELECTED_HINT_PREFIX)
+}
+
 /** FAQ + LLM: kèm URL ảnh và (nếu có) sản phẩm khách chọn sau Vision Warehouse / tìm theo ảnh. */
 export function latestInboundTextForPartnerAi(textBody: string, rawPayload: Json | null): string {
   const pl = rawPayload as VisionPickRaw | null
