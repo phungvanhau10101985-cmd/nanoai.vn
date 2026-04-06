@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
@@ -13,6 +13,8 @@ import type { Json } from '@/types/database.types'
 import { sanitizeLoginNext } from '@/lib/auth/sanitize-login-next'
 import { createClient } from '@/lib/supabase/client'
 import { Camera, ImagePlus, Loader2, MessageSquareText, Send, Sparkles, Store, X } from 'lucide-react'
+import { aiProductCardsFromPayload } from '@/lib/messaging/partner-ai-product-cards'
+import type { PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-cards'
 
 type GuestMsg = {
   id: string
@@ -81,8 +83,11 @@ const TRY_ON_COST_2K = 1
 const MAX_TRY_ON_GARMENTS = 4
 
 type SelectedImage = {
-  file: File
+  file: File | null
   previewUrl: string
+  sourceUrl?: string
+  sourceLabel?: string
+  revokeObjectUrl?: boolean
 }
 
 type ChatRailItem = {
@@ -125,6 +130,7 @@ export function PartnerGuestChatClient({
   const [tryOnBusy, setTryOnBusy] = useState(false)
   const [tryOnUserFile, setTryOnUserFile] = useState<File | null>(null)
   const [tryOnGarmentFiles, setTryOnGarmentFiles] = useState<SelectedImage[]>([])
+  const [tryOnGarmentPickerOpen, setTryOnGarmentPickerOpen] = useState(false)
   const [tryOnUserPreviewUrl, setTryOnUserPreviewUrl] = useState<string | null>(null)
   const [imageStoragePath, setImageStoragePath] = useState<string | null>(null)
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null)
@@ -138,6 +144,24 @@ export function PartnerGuestChatClient({
   const draftTextareaRef = useRef<HTMLTextAreaElement>(null)
 
   const loginHref = `/auth/login?next=${encodeURIComponent(sanitizeLoginNext(pathname || `/messaging/p/${slug}`))}`
+
+  const recentSuggestedGarmentImages = useMemo(() => {
+    const out: Array<{ name: string; imageUrl: string }> = []
+    const seen = new Set<string>()
+    for (let idx = messages.length - 1; idx >= 0; idx--) {
+      const m = messages[idx]
+      if (m.direction !== 'outbound') continue
+      const cards = aiProductCardsFromPayload(m.raw_payload ?? null)
+      for (const card of cards) {
+        const imageUrl = card.image_url.trim()
+        if (!imageUrl || seen.has(imageUrl)) continue
+        seen.add(imageUrl)
+        out.push({ name: card.name, imageUrl })
+        if (out.length >= 20) return out
+      }
+    }
+    return out
+  }, [messages])
 
   useEffect(() => {
     const supabase = createClient()
@@ -209,7 +233,7 @@ export function PartnerGuestChatClient({
       setShopTyping((s) => (s && Date.now() >= s.deadline ? null : s))
     }, ms)
     return () => window.clearTimeout(t)
-  }, [shopTyping?.deadline])
+  }, [shopTyping, shopTyping?.deadline])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -250,7 +274,7 @@ export function PartnerGuestChatClient({
   useEffect(() => {
     return () => {
       for (const item of tryOnGarmentFiles) {
-        URL.revokeObjectURL(item.previewUrl)
+        if (item.revokeObjectUrl) URL.revokeObjectURL(item.previewUrl)
       }
     }
   }, [tryOnGarmentFiles])
@@ -264,7 +288,7 @@ export function PartnerGuestChatClient({
       behavior: didInitialAutoScrollRef.current ? 'smooth' : 'auto',
     })
     didInitialAutoScrollRef.current = true
-  }, [messages.length, shopTyping?.deadline])
+  }, [messages.length, shopTyping, shopTyping?.deadline])
 
   const addTryOnGarmentFile = (file: File | null) => {
     if (!file) return
@@ -280,13 +304,32 @@ export function PartnerGuestChatClient({
       return
     }
     const previewUrl = URL.createObjectURL(file)
-    setTryOnGarmentFiles((prev) => [...prev, { file, previewUrl }])
+    setTryOnGarmentFiles((prev) => [...prev, { file, previewUrl, revokeObjectUrl: true }])
+    setTryOnGarmentPickerOpen(false)
+  }
+
+  const addTryOnGarmentFromRecent = (imageUrl: string, name: string) => {
+    if (!imageUrl) return
+    if (tryOnGarmentFiles.length >= MAX_TRY_ON_GARMENTS) {
+      toast({
+        title: t.tryOnGarmentLimitReached.replace('{max}', String(MAX_TRY_ON_GARMENTS)),
+        variant: 'destructive',
+      })
+      return
+    }
+    const exists = tryOnGarmentFiles.some((item) => item.sourceUrl === imageUrl)
+    if (exists) return
+    setTryOnGarmentFiles((prev) => [
+      ...prev,
+      { file: null, previewUrl: imageUrl, sourceUrl: imageUrl, sourceLabel: name, revokeObjectUrl: false },
+    ])
+    setTryOnGarmentPickerOpen(false)
   }
 
   const removeTryOnGarmentAt = (index: number) => {
     setTryOnGarmentFiles((prev) => {
       const target = prev[index]
-      if (target) URL.revokeObjectURL(target.previewUrl)
+      if (target?.revokeObjectUrl) URL.revokeObjectURL(target.previewUrl)
       return prev.filter((_, i) => i !== index)
     })
   }
@@ -294,6 +337,7 @@ export function PartnerGuestChatClient({
   const clearAttachment = () => {
     setImageStoragePath(null)
     setImagePreviewUrl(null)
+    setTryOnGarmentPickerOpen(false)
     if (galleryInputRef.current) galleryInputRef.current.value = ''
     if (cameraInputRef.current) cameraInputRef.current.value = ''
   }
@@ -329,6 +373,46 @@ export function PartnerGuestChatClient({
       toast({ title: t.visionPickError, variant: 'destructive' })
     } finally {
       setVisionPickBusyId(null)
+    }
+  }
+
+  const submitProductCardPick = async (card: PartnerAiProductCard) => {
+    if (!userId) return
+    const label = card.name?.trim() || 'mẫu sản phẩm'
+    const ask = `Em/chị chọn mẫu này, shop tư vấn chi tiết giúp em/chị nhé: ${label}`
+    const outboundBaseline = messages.filter((m) => m.direction === 'outbound').length
+    setSending(true)
+    try {
+      const res = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: ask }),
+      })
+      const data = (await res.json()) as {
+        ok?: boolean
+        error?: string
+        shopTyping?: { maxWaitMs: number }
+      }
+      if (res.status === 401) {
+        setUserId(null)
+        return
+      }
+      if (!res.ok) {
+        toast({ title: data.error || t.sendError, variant: 'destructive' })
+        return
+      }
+      await load()
+      if (data.shopTyping?.maxWaitMs && data.shopTyping.maxWaitMs > 0) {
+        setShopTyping({
+          deadline: Date.now() + data.shopTyping.maxWaitMs,
+          baselineOutbound: outboundBaseline,
+        })
+      }
+    } catch {
+      toast({ title: t.sendError, variant: 'destructive' })
+    } finally {
+      setSending(false)
     }
   }
 
@@ -412,7 +496,15 @@ export function PartnerGuestChatClient({
     try {
       const fd = new FormData()
       fd.set('userImage', tryOnUserFile)
-      tryOnGarmentFiles.forEach((item, idx) => fd.set(`garmentImage${idx}`, item.file))
+      tryOnGarmentFiles.forEach((item, idx) => {
+        if (item.file) {
+          fd.set(`garmentImage${idx}`, item.file)
+          return
+        }
+        if (item.sourceUrl) {
+          fd.set(`garmentUrl${idx}`, item.sourceUrl)
+        }
+      })
       fd.set('garmentCount', String(tryOnGarmentFiles.length))
       fd.set('imageQuality', '2K')
 
@@ -447,9 +539,12 @@ export function PartnerGuestChatClient({
       // Keep panel visible, but clear source selections to avoid sending wrong images.
       setTryOnUserFile(null)
       setTryOnGarmentFiles((prev) => {
-        prev.forEach((item) => URL.revokeObjectURL(item.previewUrl))
+        prev.forEach((item) => {
+          if (item.revokeObjectUrl) URL.revokeObjectURL(item.previewUrl)
+        })
         return []
       })
+      setTryOnGarmentPickerOpen(false)
       if (tryOnUserInputRef.current) tryOnUserInputRef.current.value = ''
       if (tryOnGarmentInputRef.current) tryOnGarmentInputRef.current.value = ''
       const remaining =
@@ -595,6 +690,7 @@ export function PartnerGuestChatClient({
                         row={{ body: m.body, raw_payload: m.raw_payload ?? null }}
                         tone={isMe ? 'onViolet' : 'default'}
                         labels={{ productCardOpenProduct: t.visionProductLink }}
+                        onProductCardPick={isMe ? undefined : (card) => void submitProductCardPick(card)}
                       />
                     </div>
                     {(() => {
@@ -609,17 +705,29 @@ export function PartnerGuestChatClient({
                           <div className="-mx-1 flex snap-x snap-mandatory gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:thin]">
                             {vs.candidates.map((c) => {
                               const isSelected = vs.selectedInventoryId === c.inventoryId
+                              const isBusy = visionPickBusyId === m.id
                               return (
-                                <button
+                                <div
                                   key={c.inventoryId}
-                                  type="button"
-                                  disabled={visionPickBusyId === m.id}
-                                  className={`w-36 shrink-0 snap-start overflow-hidden rounded-lg border text-left text-xs text-white transition-all disabled:opacity-50 ${
+                                  role="button"
+                                  tabIndex={isBusy ? -1 : 0}
+                                  aria-disabled={isBusy}
+                                  className={`w-36 shrink-0 snap-start overflow-hidden rounded-lg border text-left text-xs text-white transition-all ${
                                     isSelected
                                       ? 'border-white ring-2 ring-white/90 ring-offset-1 ring-offset-violet-700 opacity-100'
                                       : 'border-white/25 hover:border-white/45'
-                                  }`}
-                                  onClick={() => void submitVisionPick(m.id, c.inventoryId)}
+                                  } ${isBusy ? 'opacity-50' : 'cursor-pointer'}`}
+                                  onClick={() => {
+                                    if (isBusy) return
+                                    void submitVisionPick(m.id, c.inventoryId)
+                                  }}
+                                  onKeyDown={(ev) => {
+                                    if (isBusy) return
+                                    if (ev.key === 'Enter' || ev.key === ' ') {
+                                      ev.preventDefault()
+                                      void submitVisionPick(m.id, c.inventoryId)
+                                    }
+                                  }}
                                   aria-label={c.name}
                                   aria-pressed={isSelected}
                                   title={c.name}
@@ -652,7 +760,7 @@ export function PartnerGuestChatClient({
                                       ) : null}
                                     </div>
                                   </div>
-                                </button>
+                                </div>
                               )
                             })}
                           </div>
@@ -801,7 +909,10 @@ export function PartnerGuestChatClient({
                           const item = tryOnGarmentFiles[idx]
                           if (item) {
                             return (
-                              <div key={`${item.file.name}-${idx}`} className="relative h-12 w-12 overflow-hidden rounded-md border bg-background/70">
+                              <div
+                                key={`${item.file?.name ?? item.sourceUrl ?? `garment-${idx}`}-${idx}`}
+                                className="relative h-12 w-12 overflow-hidden rounded-md border bg-background/70"
+                              >
                                 <img src={item.previewUrl} alt="" className="h-full w-full object-cover" />
                                 <button
                                   type="button"
@@ -821,7 +932,7 @@ export function PartnerGuestChatClient({
                                 type="button"
                                 className="flex h-12 w-12 items-center justify-center rounded-md border border-dashed border-border/80 bg-background/70 text-muted-foreground transition-colors hover:border-violet-400/70"
                                 disabled={tryOnBusy}
-                                onClick={() => tryOnGarmentInputRef.current?.click()}
+                                onClick={() => setTryOnGarmentPickerOpen((v) => !v)}
                               >
                                 <ImagePlus className="h-4 w-4" />
                               </button>
@@ -830,6 +941,50 @@ export function PartnerGuestChatClient({
                           return <div key={`empty-slot-${idx}`} className="h-12 w-12 rounded-md border border-dashed border-border/70 bg-background/40" />
                         })}
                       </div>
+                      {tryOnGarmentPickerOpen ? (
+                        <div className="mt-2 space-y-2 rounded-md border border-border/70 bg-background/70 p-2">
+                          <p className="text-[11px] font-medium text-foreground">{t.tryOnGarmentSourceTitle}</p>
+                          <div className="grid grid-cols-1 gap-1">
+                            <button
+                              type="button"
+                              className="flex h-8 items-center justify-center rounded-md border border-border/70 bg-background text-[11px] text-foreground transition-colors hover:border-violet-400/70"
+                              disabled={tryOnBusy}
+                              onClick={() => tryOnGarmentInputRef.current?.click()}
+                            >
+                              {t.tryOnGarmentSourceDevice}
+                            </button>
+                            <div className="space-y-1">
+                              <p className="text-[10px] text-muted-foreground">{t.tryOnGarmentSourceRecent}</p>
+                              {recentSuggestedGarmentImages.length === 0 ? (
+                                <p className="text-[10px] text-muted-foreground">{t.tryOnGarmentRecentEmpty}</p>
+                              ) : (
+                                <div className="-mx-0.5 flex snap-x snap-mandatory gap-1 overflow-x-auto px-0.5 pb-1 [scrollbar-width:thin]">
+                                  {recentSuggestedGarmentImages.map((item) => {
+                                    const isPicked = tryOnGarmentFiles.some((x) => x.sourceUrl === item.imageUrl)
+                                    return (
+                                      <button
+                                        key={item.imageUrl}
+                                        type="button"
+                                        className={`h-12 w-12 shrink-0 snap-start overflow-hidden rounded-md border bg-background transition-all ${
+                                          isPicked
+                                            ? 'border-violet-500 ring-2 ring-violet-400/70 ring-offset-1 ring-offset-background'
+                                            : 'border-border/70 hover:border-violet-400/70'
+                                        }`}
+                                        disabled={tryOnBusy}
+                                        onClick={() => addTryOnGarmentFromRecent(item.imageUrl, item.name)}
+                                        title={item.name}
+                                        aria-pressed={isPicked}
+                                      >
+                                        <img src={item.imageUrl} alt={item.name} className="h-full w-full object-cover" />
+                                      </button>
+                                    )
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                   <Button
@@ -874,12 +1029,12 @@ export function PartnerGuestChatClient({
                   >
                     {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                   </Button>
-                  <div className="absolute bottom-0 left-0 z-10 flex max-w-[calc(100%-2.5rem)] flex-wrap items-center gap-1">
+                  <div className="absolute bottom-0 left-0 z-10 flex max-w-[calc(100%-2.5rem)] items-center gap-1 overflow-x-auto pr-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
                     <Button
                       type="button"
                       variant="secondary"
                       size="sm"
-                      className="h-7 gap-1 px-2 text-xs"
+                      className="h-6 shrink-0 gap-1 px-2 text-[11px] sm:h-7 sm:text-xs"
                       disabled={uploading || sending || tryOnBusy}
                       onClick={() => setTryOnOpen((v) => !v)}
                     >
@@ -890,7 +1045,7 @@ export function PartnerGuestChatClient({
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="h-7 gap-1 px-2 text-xs"
+                      className="h-6 shrink-0 gap-1 px-2 text-[11px] sm:h-7 sm:text-xs"
                       disabled={uploading || sending}
                       onClick={() => galleryInputRef.current?.click()}
                     >
@@ -902,7 +1057,7 @@ export function PartnerGuestChatClient({
                         type="button"
                         variant="outline"
                         size="sm"
-                        className="h-7 gap-1 px-2 text-xs"
+                        className="h-6 shrink-0 gap-1 px-2 text-[11px] sm:h-7 sm:text-xs"
                         disabled={uploading || sending}
                         onClick={() => cameraInputRef.current?.click()}
                       >
@@ -913,7 +1068,7 @@ export function PartnerGuestChatClient({
                   </div>
                 </div>
                 {uploading ? <p className="text-[10px] text-muted-foreground">{t.guestUploading}</p> : null}
-                <p className="text-[10px] leading-tight text-muted-foreground">{t.sendKeyboardHint}</p>
+                <p className="hidden text-[10px] leading-tight text-muted-foreground sm:block">{t.sendKeyboardHint}</p>
               </div>
             </div>
           </div>

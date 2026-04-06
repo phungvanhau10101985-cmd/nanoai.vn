@@ -24,6 +24,15 @@ export function PartnerDevIntegrationGuide({ baseUrl, t }: Props) {
   const guestBase = `${baseUrl}/api/messaging/guest/${slug}`
 
   const hostedUrl = `${baseUrl}/messaging/p/${slug}?embed=1`
+  const hostedIframe = `<iframe
+  src="${hostedUrl}"
+  title="Chat NanoAI"
+  width="100%"
+  height="560"
+  style="border:0;border-radius:12px;max-width:100%"
+  loading="lazy"
+  referrerpolicy="no-referrer-when-downgrade">
+</iframe>`
 
   const guestGet = `GET ${guestBase}
 Cookie: <supabase_auth_session>`
@@ -112,7 +121,10 @@ Cookie: <supabase_auth_session>
         {section(
           t.hostedTitle,
           t.hostedBody,
-          <CodeBlock>{hostedUrl}</CodeBlock>
+          <>
+            <CodeBlock>{hostedUrl}</CodeBlock>
+            <CodeBlock title={t.codeLabelExample}>{hostedIframe}</CodeBlock>
+          </>
         )}
 
         {section(

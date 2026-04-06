@@ -34,10 +34,12 @@ function AiProductCards({
   cards,
   onViolet,
   labels,
+  onProductCardPick,
 }: {
   cards: PartnerAiProductCard[]
   onViolet: boolean
   labels?: CustomerCareMessageBodyLabels
+  onProductCardPick?: (card: PartnerAiProductCard) => void
 }) {
   if (!cards.length) return null
   const cta = labels?.productCardOpenProduct?.trim()
@@ -46,14 +48,27 @@ function AiProductCards({
       {cards.map((p, idx) => {
         const aria = cta ? `${p.name}. ${cta}` : p.name
         const priceLabel = formatVndPrice(p.price_hint)
+        const pickable = typeof onProductCardPick === 'function'
         return (
           <div
             key={`${idx}-${p.product_url}`}
             className={`w-36 shrink-0 snap-start overflow-hidden rounded-lg border shadow-sm transition-opacity hover:opacity-95 ${
               onViolet ? 'border-white/25 bg-white/10' : 'border-border/60 bg-card'
-            }`}
+            } ${pickable ? 'cursor-pointer' : ''}`}
             aria-label={aria}
             title={cta || undefined}
+            role={pickable ? 'button' : undefined}
+            tabIndex={pickable ? 0 : undefined}
+            onClick={() => {
+              if (pickable) onProductCardPick?.(p)
+            }}
+            onKeyDown={(ev) => {
+              if (!pickable) return
+              if (ev.key === 'Enter' || ev.key === ' ') {
+                ev.preventDefault()
+                onProductCardPick?.(p)
+              }
+            }}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
@@ -79,6 +94,7 @@ function AiProductCards({
                         ? 'bg-white/20 text-white hover:bg-white/30'
                         : 'bg-primary/10 text-primary hover:bg-primary/15'
                     }`}
+                    onClick={(ev) => ev.stopPropagation()}
                   >
                     {cta}
                   </a>
@@ -97,10 +113,12 @@ export function CustomerCareMessageBody({
   row,
   tone = 'default',
   labels,
+  onProductCardPick,
 }: {
   row: Row
   tone?: CustomerCareMessageBodyTone
   labels?: CustomerCareMessageBodyLabels
+  onProductCardPick?: (card: PartnerAiProductCard) => void
 }) {
   const url = imageUrlFromPayload(row.raw_payload)
   const caption = row.body.replace(/^📷\s*/u, '').trim()
@@ -122,7 +140,7 @@ export function CustomerCareMessageBody({
       {caption ? (
         <div className={`whitespace-pre-wrap break-words ${onViolet ? 'text-white' : ''}`}>{caption}</div>
       ) : null}
-      <AiProductCards cards={productCards} onViolet={onViolet} labels={labels} />
+      <AiProductCards cards={productCards} onViolet={onViolet} labels={labels} onProductCardPick={onProductCardPick} />
       {!url && !caption && !productCards.length && row.body ? (
         <div className={`whitespace-pre-wrap break-words ${onViolet ? 'text-white' : ''}`}>{row.body}</div>
       ) : null}

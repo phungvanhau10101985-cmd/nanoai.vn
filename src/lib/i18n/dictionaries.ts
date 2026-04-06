@@ -602,6 +602,10 @@ export type Dictionary = {
     tryOnTitle: string
     tryOnModelPhoto: string
     tryOnGarmentPhoto: string
+    tryOnGarmentSourceTitle: string
+    tryOnGarmentSourceDevice: string
+    tryOnGarmentSourceRecent: string
+    tryOnGarmentRecentEmpty: string
     tryOnGenerate: string
     tryOnGenerateWithCost: string
     tryOnPreparing: string
@@ -2097,6 +2101,10 @@ const VI_DICTIONARY: Dictionary = {
     tryOnTitle: 'Thử đồ ngay trong chat',
     tryOnModelPhoto: 'Ảnh người mẫu',
     tryOnGarmentPhoto: 'Ảnh trang phục',
+    tryOnGarmentSourceTitle: 'Chọn nguồn ảnh trang phục',
+    tryOnGarmentSourceDevice: 'Chọn ảnh trong máy',
+    tryOnGarmentSourceRecent: 'Chọn từ 20 ảnh shop đề xuất gần nhất',
+    tryOnGarmentRecentEmpty: 'Chưa có ảnh đề xuất gần đây.',
     tryOnGenerate: 'Tạo ảnh thử đồ',
     tryOnGenerateWithCost: 'Tạo ảnh thử đồ (-{credits} credits)',
     tryOnPreparing: 'Đang tạo ảnh thử đồ…',
@@ -3591,6 +3599,10 @@ const EN_DICTIONARY: Dictionary = {
     tryOnTitle: 'Try on directly in chat',
     tryOnModelPhoto: 'Model photo',
     tryOnGarmentPhoto: 'Garment photo',
+    tryOnGarmentSourceTitle: 'Choose garment image source',
+    tryOnGarmentSourceDevice: 'Choose image from device',
+    tryOnGarmentSourceRecent: 'Choose from 20 latest shop suggestions',
+    tryOnGarmentRecentEmpty: 'No recent suggested images yet.',
     tryOnGenerate: 'Generate try-on image',
     tryOnGenerateWithCost: 'Generate try-on image (-{credits} credits)',
     tryOnPreparing: 'Generating try-on image…',
@@ -5073,6 +5085,10 @@ const ZH_DICTIONARY: Dictionary = {
     tryOnTitle: '在聊天中直接试穿',
     tryOnModelPhoto: '人物照片',
     tryOnGarmentPhoto: '服装照片',
+    tryOnGarmentSourceTitle: '选择服装图片来源',
+    tryOnGarmentSourceDevice: '从设备选择图片',
+    tryOnGarmentSourceRecent: '从店铺最近 20 张推荐图中选择',
+    tryOnGarmentRecentEmpty: '暂无最近推荐图片。',
     tryOnGenerate: '生成试穿图',
     tryOnGenerateWithCost: '生成试穿图（-{credits} 积分）',
     tryOnPreparing: '正在生成试穿图…',
@@ -6525,6 +6541,10 @@ const JA_DICTIONARY: Dictionary = {
     tryOnTitle: 'チャット内で試着',
     tryOnModelPhoto: '人物写真',
     tryOnGarmentPhoto: '服の写真',
+    tryOnGarmentSourceTitle: '服画像の選択元',
+    tryOnGarmentSourceDevice: '端末から画像を選択',
+    tryOnGarmentSourceRecent: '店舗の最近20件のおすすめ画像から選択',
+    tryOnGarmentRecentEmpty: '最近のおすすめ画像はありません。',
     tryOnGenerate: '試着画像を作成',
     tryOnGenerateWithCost: '試着画像を作成（-{credits} クレジット）',
     tryOnPreparing: '試着画像を作成中…',
@@ -8002,6 +8022,10 @@ const KO_DICTIONARY: Dictionary = {
     tryOnTitle: '채팅에서 바로 가상 피팅',
     tryOnModelPhoto: '인물 사진',
     tryOnGarmentPhoto: '의류 사진',
+    tryOnGarmentSourceTitle: '의류 이미지 소스 선택',
+    tryOnGarmentSourceDevice: '기기에서 이미지 선택',
+    tryOnGarmentSourceRecent: '매장의 최근 추천 이미지 20개에서 선택',
+    tryOnGarmentRecentEmpty: '최근 추천 이미지가 없습니다.',
     tryOnGenerate: '피팅 이미지 생성',
     tryOnGenerateWithCost: '피팅 이미지 생성 (-{credits} 크레딧)',
     tryOnPreparing: '피팅 이미지를 생성하는 중…',
