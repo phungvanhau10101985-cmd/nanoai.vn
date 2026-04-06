@@ -21,7 +21,7 @@ type Props = {
   /** Override locale (e.g. from server dictionary) */
   locale?: ApiKeysHubLocale
   /** Workspaces của user — để quản lý khóa trên trang đối tác */
-  partnerWorkspaces?: { id: string; display_name: string | null }[]
+  partnerWorkspaces?: { id: string; display_name: string | null; slug: string }[]
 }
 
 export function ApiKeysHub({ variant, baseUrl, locale: localeProp, partnerWorkspaces }: Props) {
@@ -95,7 +95,16 @@ export function ApiKeysHub({ variant, baseUrl, locale: localeProp, partnerWorksp
       </Card>
 
       {isPartner ? (
-        <PartnerDevIntegrationGuide baseUrl={baseUrl} t={PARTNER_DEV_INTEGRATION_COPY[locale]} />
+        <PartnerDevIntegrationGuide
+          baseUrl={baseUrl}
+          t={PARTNER_DEV_INTEGRATION_COPY[locale]}
+          partners={partnerWorkspaces ?? []}
+          labels={{
+            selectShop: PARTNER_API_KEYS_MANAGER_COPY[locale].selectShop,
+            partnerId: PARTNER_API_KEYS_MANAGER_COPY[locale].partnerIdLabel,
+            slug: 'slug',
+          }}
+        />
       ) : (
         <>
           <Card>

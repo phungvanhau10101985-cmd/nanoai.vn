@@ -34,7 +34,7 @@ export default async function DashboardApiIntegrationPage() {
 
   const { data: partnerRows } = await supabase
     .from('messaging_partners')
-    .select('id, display_name')
+    .select('id, display_name, slug')
     .eq('owner_user_id', user.id)
     .order('created_at', { ascending: false })
 

@@ -126,6 +126,7 @@ export function PartnerGuestChatClient({
   const [shopTyping, setShopTyping] = useState<{ deadline: number; baselineOutbound: number } | null>(null)
   const [uploading, setUploading] = useState(false)
   const [isTouchDevice, setIsTouchDevice] = useState(false)
+  const [loginOpenInNewTab, setLoginOpenInNewTab] = useState(false)
   const [tryOnOpen, setTryOnOpen] = useState(false)
   const [tryOnBusy, setTryOnBusy] = useState(false)
   const [tryOnUserFile, setTryOnUserFile] = useState<File | null>(null)
@@ -244,6 +245,18 @@ export function PartnerGuestChatClient({
     sync()
     mq.addEventListener('change', sync)
     return () => mq.removeEventListener('change', sync)
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const embedMode = new URLSearchParams(window.location.search).get('embed') === '1'
+    let inIframe = false
+    try {
+      inIframe = window.self !== window.top
+    } catch {
+      inIframe = true
+    }
+    setLoginOpenInNewTab(embedMode || inIframe)
   }, [])
 
   const autoResizeDraft = useCallback(() => {
@@ -649,7 +662,9 @@ export function PartnerGuestChatClient({
           </CardHeader>
           <CardContent>
             <Button asChild className="w-full">
-              <Link href={loginHref}>{t.signInWithGoogle}</Link>
+              <a href={loginHref} target={loginOpenInNewTab ? '_blank' : '_self'} rel="noopener noreferrer">
+                {t.signInWithGoogle}
+              </a>
             </Button>
           </CardContent>
         </Card>
@@ -658,7 +673,7 @@ export function PartnerGuestChatClient({
   }
 
   const chatPane = (
-      <Card className="flex h-full min-h-0 flex-col overflow-hidden border-border shadow-md bg-background">
+      <Card className="flex h-full min-h-0 flex-col overflow-hidden bg-background rounded-none border-0 shadow-none sm:rounded-2xl sm:border sm:border-border sm:shadow-md">
         <h1 className="sr-only">{shopDisplayName}</h1>
         <CardContent className="flex min-h-0 flex-1 flex-col p-0">
           <div
@@ -1077,8 +1092,8 @@ export function PartnerGuestChatClient({
   )
 
   return (
-    <div className="h-[100dvh] w-full overflow-hidden bg-muted/20">
-      <div className="mx-auto flex h-full w-full max-w-[1600px] gap-3 px-2 py-2 sm:px-3">
+    <div className="h-[100dvh] w-full overflow-hidden bg-background sm:bg-muted/20">
+      <div className="mx-auto flex h-full w-full max-w-[1600px] gap-0 px-0 py-0 sm:gap-3 sm:px-3 sm:py-2">
         <aside className="hidden min-h-0 w-72 shrink-0 flex-col rounded-2xl border border-border/70 bg-background p-3 shadow-sm xl:flex">
           <div className="mb-2 flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-violet-600" aria-hidden />

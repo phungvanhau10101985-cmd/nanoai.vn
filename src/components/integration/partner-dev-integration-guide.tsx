@@ -1,10 +1,18 @@
-import type { ReactNode } from 'react'
+'use client'
+
+import { useMemo, useState, type ReactNode } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import type { PartnerDevIntegrationStrings } from '@/lib/integration/partner-dev-integration-copy'
 
 type Props = {
   baseUrl: string
   t: PartnerDevIntegrationStrings
+  partners: Array<{ id: string; display_name: string | null; slug: string }>
+  labels: {
+    selectShop: string
+    partnerId: string
+    slug: string
+  }
 }
 
 function CodeBlock({ children, title }: { children: string; title?: string }) {
@@ -18,9 +26,15 @@ function CodeBlock({ children, title }: { children: string; title?: string }) {
   )
 }
 
-export function PartnerDevIntegrationGuide({ baseUrl, t }: Props) {
-  const slug = '{slug}'
-  const partnerId = '{partnerId}'
+export function PartnerDevIntegrationGuide({ baseUrl, t, partners, labels }: Props) {
+  const [selectedPartnerId, setSelectedPartnerId] = useState(partners[0]?.id ?? '')
+  const selectedPartner = useMemo(
+    () => partners.find((p) => p.id === selectedPartnerId) ?? partners[0] ?? null,
+    [partners, selectedPartnerId]
+  )
+
+  const slug = selectedPartner?.slug ?? '{slug}'
+  const partnerId = selectedPartner?.id ?? '{partnerId}'
   const guestBase = `${baseUrl}/api/messaging/guest/${slug}`
 
   const hostedUrl = `${baseUrl}/messaging/p/${slug}?embed=1`
@@ -117,6 +131,30 @@ Cookie: <supabase_auth_session>
         <CardTitle className="text-base">{t.title}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-6 text-sm">
+        {partners.length > 0 ? (
+          <div className="space-y-2 rounded-lg border border-border/70 bg-muted/20 p-3">
+            <label className="text-xs font-medium text-foreground">{labels.selectShop}</label>
+            <select
+              className="h-9 w-full max-w-md rounded-md border border-border bg-background px-2 text-sm"
+              value={selectedPartner?.id ?? ''}
+              onChange={(e) => setSelectedPartnerId(e.target.value)}
+            >
+              {partners.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.display_name?.trim() || p.id.slice(0, 8)}
+                </option>
+              ))}
+            </select>
+            <div className="space-y-1 text-[11px] text-muted-foreground">
+              <p className="font-mono break-all">
+                {labels.partnerId}: {partnerId}
+              </p>
+              <p className="font-mono break-all">
+                {labels.slug}: {slug}
+              </p>
+            </div>
+          </div>
+        ) : null}
         <p className="text-xs leading-relaxed text-muted-foreground">{t.snippetNote}</p>
         {section(
           t.hostedTitle,
