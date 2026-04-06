@@ -78,6 +78,11 @@ export async function handlePartnerInboundForAi(
      * Không dùng chung với capReplyDelaySeconds trong một lần gọi.
      */
     scheduleAiAfterSeconds?: number
+    /**
+     * Chỉ lên lịch job, bỏ qua vòng eager-run trong request hiện tại để giảm latency API.
+     * Dùng cho widget khi cần trả response nhanh nhưng vẫn đảm bảo đã ghi job vào DB.
+     */
+    skipEagerBatchRun?: boolean
   }
 ): Promise<PartnerInboundShopTypingHint> {
   if (input.channel === 'internal') return { show: false }
@@ -138,10 +143,12 @@ export async function handlePartnerInboundForAi(
      * không cấu hình, khách sẽ không bao giờ nhận tin. Job có run_at trong tương lai không bị pick
      * (một vòng query rẻ); job delay 0 (fallback Vision) hoặc run_at đã qua sẽ chạy LLM tại đây.
      */
-    try {
-      await runMessagingPartnerAiJobBatch(db, 15)
-    } catch (e) {
-      console.error('[partner-ai] eager batch after schedule', e)
+    if (!input.skipEagerBatchRun) {
+      try {
+        await runMessagingPartnerAiJobBatch(db, 15)
+      } catch (e) {
+        console.error('[partner-ai] eager batch after schedule', e)
+      }
     }
 
     /**

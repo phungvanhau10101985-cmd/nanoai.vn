@@ -116,6 +116,7 @@ export function PartnerAiSettingsPanel({
   const { toast } = useToast()
   const [pending, startTransition] = useTransition()
   const [loadErr, setLoadErr] = useState<string | null>(null)
+  const [settingsLoaded, setSettingsLoaded] = useState(false)
   const [faqs, setFaqs] = useState<FaqRow[]>([])
   const [inventory, setInventory] = useState<InvRow[]>([])
   const [tokenUsageRows, setTokenUsageRows] = useState<PartnerAiTokenUsageStatRow[]>([])
@@ -125,6 +126,7 @@ export function PartnerAiSettingsPanel({
 
   const load = useCallback((): Promise<void> => {
     setLoadErr(null)
+    setSettingsLoaded(false)
     return (async () => {
       const [bundleRes, usageRes] = await Promise.all([
         getPartnerAiBundle(partnerId),
@@ -147,6 +149,9 @@ export function PartnerAiSettingsPanel({
         setForm(next)
         setFaqs(bundleRes.faqs ?? [])
         setInventory(bundleRes.inventory ?? [])
+        setSettingsLoaded(true)
+      } else {
+        setSettingsLoaded(true)
       }
     })()
   }, [partnerId, t.loadError, toast])
@@ -215,12 +220,12 @@ export function PartnerAiSettingsPanel({
               <span
                 className={`text-xs font-semibold tabular-nums ${form.enabled ? 'text-violet-600 dark:text-violet-400' : 'text-muted-foreground'}`}
               >
-                {form.enabled ? t.toggleStatusOn : t.toggleStatusOff}
+                {settingsLoaded ? (form.enabled ? t.toggleStatusOn : t.toggleStatusOff) : '...'}
               </span>
               <Switch
                 checked={form.enabled}
                 onCheckedChange={(c) => persistPartial({ enabled: c })}
-                disabled={pending}
+                disabled={pending || !settingsLoaded}
                 aria-label={t.enableLabel}
               />
             </div>

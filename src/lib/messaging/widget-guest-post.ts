@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database, Json } from '@/types/database.types'
 import { ensureConversation, insertMessage } from '@/lib/customer-care/conversation-service'
 import { handlePartnerInboundForAi } from '@/lib/messaging/partner-ai-inbound'
+import { geminiProductSearchFromImageBuffer } from '@/lib/messaging/partner-gemini-image-search'
 import {
   buildGuestMediaPayload,
   guestImageObjectExists,
@@ -11,13 +12,17 @@ import {
   mimeFromGuestImagePath,
   GUEST_CHAT_IMAGE_BUCKET,
 } from '@/lib/messaging/guest-chat-image'
-import {
-  VISION_MISS_AI_REPLY_DELAY_CAP_SECONDS,
-  VISION_PICK_GRACE_AI_DELAY_SECONDS,
-} from '@/lib/messaging/partner-vision-constants'
-import { hasVisionConfig } from '@/lib/vision-api'
+import { VISION_PICK_GRACE_AI_DELAY_SECONDS } from '@/lib/messaging/partner-vision-constants'
 
 type Db = SupabaseClient<Database>
+type GuestVisionCandidatePayload = {
+  inventoryId: string
+  name: string
+  sku: string | null
+  image_url: string
+  product_url?: string
+  score?: number
+}
 
 /**
  * Tin inbound từ khách qua widget (trang hosted NanoAI — bắt buộc đăng nhập; hoặc embed API ẩn danh trên site shop).
@@ -49,6 +54,7 @@ export async function postWidgetGuestMessage(
   let body: string
   let rawPayload: Json | null = null
   let imagePublicUrl: string | null = null
+  let visionCandidates: GuestVisionCandidatePayload[] = []
 
   if (imagePath) {
     if (!isGuestMessagingStoragePathForPartner(imagePath, params.partnerId)) {
@@ -59,7 +65,48 @@ export async function postWidgetGuestMessage(
     const mime = mimeFromGuestImagePath(imagePath)
     const { data } = db.storage.from(GUEST_CHAT_IMAGE_BUCKET).getPublicUrl(imagePath)
     imagePublicUrl = data.publicUrl
-    rawPayload = guestMediaPayloadToJson(buildGuestMediaPayload(imagePublicUrl, imagePath, mime))
+    const basePayload = guestMediaPayloadToJson(buildGuestMediaPayload(imagePublicUrl, imagePath, mime))
+
+    try {
+      const { data: aiSet } = await db
+        .from('messaging_partner_ai_settings')
+        .select('image_search_api_enabled')
+        .eq('partner_id', params.partnerId)
+        .maybeSingle()
+      if (aiSet?.image_search_api_enabled) {
+        const { data: blob, error: dlErr } = await db.storage.from(GUEST_CHAT_IMAGE_BUCKET).download(imagePath)
+        if (!dlErr && blob) {
+          const buf = Buffer.from(await blob.arrayBuffer())
+          const { data: invRows } = await db
+            .from('messaging_partner_inventory')
+            .select('*')
+            .eq('partner_id', params.partnerId)
+          const search = await geminiProductSearchFromImageBuffer(buf, params.partnerId, invRows ?? [], {
+            maxResults: 5,
+            userId: params.linkedUserId ?? null,
+          })
+          visionCandidates = search.candidates.map((c) => ({
+            inventoryId: c.inventoryId,
+            name: c.name,
+            sku: c.sku,
+            image_url: c.image_url,
+            ...(c.product_url ? { product_url: c.product_url } : {}),
+            ...(typeof c.score === 'number' ? { score: c.score } : {}),
+          }))
+        }
+      }
+    } catch (e) {
+      console.error('[widget-guest-post] image candidate search', e)
+    }
+
+    rawPayload =
+      visionCandidates.length > 0
+        ? ({
+            ...(basePayload && typeof basePayload === 'object' ? (basePayload as Record<string, unknown>) : {}),
+            vision_pick_required: true,
+            vision_candidates: visionCandidates,
+          } as Json)
+        : basePayload
     body = text ? `📷 ${text}` : '📷'
   } else {
     body = text
@@ -87,21 +134,7 @@ export async function postWidgetGuestMessage(
 
   const newMessageId = 'messageId' in ins ? ins.messageId : null
   let shopTyping: { maxWaitMs: number } | undefined
-  const visionPickRequired = false
-  /** Chỉ set khi đã chạy Vision và không có ứng viên — hẹn AI sớm hơn. */
-  let capReplyDelaySeconds: number | undefined
-
-  if (newMessageId && imagePath && hasVisionConfig()) {
-    const { data: aiSet } = await db
-      .from('messaging_partner_ai_settings')
-      .select('*')
-      .eq('partner_id', params.partnerId)
-      .maybeSingle()
-    if (aiSet?.vision_product_search_enabled) {
-      // Vision Warehouse da bi go bo khoi du an: khong tim image-candidates tu kho.
-      capReplyDelaySeconds = VISION_MISS_AI_REPLY_DELAY_CAP_SECONDS
-    }
-  }
+  const visionPickRequired = visionCandidates.length > 0
 
   if (newMessageId) {
     const hint = await handlePartnerInboundForAi(db, {
@@ -110,11 +143,10 @@ export async function postWidgetGuestMessage(
       messageId: newMessageId,
       inboundBody: inboundTextForPartnerAi(body, imagePublicUrl),
       channel: 'widget',
+      skipEagerBatchRun: true,
       ...(visionPickRequired
         ? { scheduleAiAfterSeconds: VISION_PICK_GRACE_AI_DELAY_SECONDS }
-        : capReplyDelaySeconds !== undefined
-          ? { capReplyDelaySeconds }
-          : {}),
+        : {}),
     })
     if (hint.show) shopTyping = { maxWaitMs: hint.maxWaitMs }
   }
