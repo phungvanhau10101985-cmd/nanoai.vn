@@ -14,6 +14,7 @@ import { useToast } from '@/hooks/use-toast'
 import type { Database } from '@/types/database.types'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
 import type {
+  PartnerInventoryEmbeddingStats,
   PartnerAiSettingsClientRow,
   PartnerAiSettingsPayload,
   PartnerAiTokenUsageStatRow,
@@ -22,6 +23,7 @@ import {
   deletePartnerFaq,
   deletePartnerInventoryItem,
   getPartnerAiBundle,
+  getPartnerInventoryEmbeddingStats,
   getPartnerInventoryPage,
   getPartnerAiTokenUsageStats,
   savePartnerAiSettings,
@@ -122,22 +124,37 @@ export function PartnerAiSettingsPanel({
   const [inventoryLoadingMore, setInventoryLoadingMore] = useState(false)
   const [tokenUsageRows, setTokenUsageRows] = useState<PartnerAiTokenUsageStatRow[]>([])
   const [tokenUsageLookbackDays, setTokenUsageLookbackDays] = useState(30)
+  const [embeddingStats, setEmbeddingStats] = useState<PartnerInventoryEmbeddingStats | null>(null)
   const [form, setForm] = useState<FormState>(() => defaultsFromSettings(null))
   const formRef = useRef<FormState>(form)
+  const loadSeqRef = useRef(0)
 
   const load = useCallback((): Promise<void> => {
+    const seq = ++loadSeqRef.current
     setLoadErr(null)
     setSettingsLoaded(false)
+    setFaqs([])
+    setInventory([])
+    setInventoryTotalCount(0)
+    setInventoryPage(0)
+    setEmbeddingStats(null)
     return (async () => {
-      const [bundleRes, usageRes] = await Promise.all([
+      const [bundleRes, usageRes, embeddingRes] = await Promise.all([
         getPartnerAiBundle(partnerId),
         getPartnerAiTokenUsageStats(partnerId),
+        getPartnerInventoryEmbeddingStats(partnerId),
       ])
+      if (seq !== loadSeqRef.current) return
       if ('error' in usageRes) {
         setTokenUsageRows([])
       } else {
         setTokenUsageRows(usageRes.rows)
         setTokenUsageLookbackDays(usageRes.lookbackDays)
+      }
+      if ('error' in embeddingRes) {
+        setEmbeddingStats(null)
+      } else {
+        setEmbeddingStats(embeddingRes.stats)
       }
       if ('error' in bundleRes && bundleRes.error) {
         setLoadErr(bundleRes.error)
@@ -424,6 +441,18 @@ export function PartnerAiSettingsPanel({
                 {t.inventoryProductCountSummary.replace('{count}', String(inventoryTotalCount))}
               </p>
             </div>
+            {embeddingStats ? (
+              <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2.5 text-xs">
+                <p className="font-medium text-foreground">{t.inventoryEmbeddingTitle}</p>
+                <p className="mt-1 text-muted-foreground">
+                  {t.inventoryEmbeddingSummary
+                    .replace('{done}', String(embeddingStats.done))
+                    .replace('{eligible}', String(embeddingStats.eligible))
+                    .replace('{pending}', String(embeddingStats.pending))
+                    .replace('{failed}', String(embeddingStats.failed))}
+                </p>
+              </div>
+            ) : null}
             <InventoryEditor
               partnerId={partnerId}
               t={t}

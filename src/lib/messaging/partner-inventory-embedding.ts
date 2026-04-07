@@ -19,6 +19,14 @@ const SYNC_LIMIT = Math.max(
   20,
   Math.min(5000, parseInt(process.env.GEMINI_IMAGE_EMBED_SYNC_LIMIT || '1200', 10) || 1200)
 )
+const SCAN_PAGE_SIZE = Math.max(
+  100,
+  Math.min(5000, parseInt(process.env.GEMINI_IMAGE_EMBED_SCAN_PAGE_SIZE || '1000', 10) || 1000)
+)
+const SCAN_MAX_ROWS = Math.max(
+  1000,
+  Math.min(200000, parseInt(process.env.GEMINI_IMAGE_EMBED_SCAN_MAX_ROWS || '30000', 10) || 30000)
+)
 
 function normalizeImageUrl(raw: string | null | undefined): string {
   const t = (raw ?? '').trim()
@@ -93,6 +101,34 @@ function toPgVectorLiteral(vec: number[]): string {
   return `[${vec.map((v) => (Number.isFinite(v) ? Number(v) : 0)).join(',')}]`
 }
 
+type EmbeddingComparableRow = Pick<
+  InvRow,
+  | 'id'
+  | 'partner_id'
+  | 'name'
+  | 'image_url'
+  | 'is_active'
+  | 'image_embedding_json'
+  | 'image_embedding_fingerprint'
+  | 'image_embedding_model'
+  | 'image_embedding_dims'
+  | 'image_embedding_vec'
+>
+
+function needsEmbeddingSync(row: EmbeddingComparableRow, force = false): boolean {
+  const imageUrl = normalizeImageUrl(row.image_url)
+  if (!row.is_active) return false
+  if (!isHttpImageUrl(imageUrl)) return false
+  if (force) return true
+  const nextFp = rowFingerprint(row)
+  const hasEmbedding = Array.isArray(row.image_embedding_json)
+  const hasVectorColumn = typeof row.image_embedding_vec === 'string' && row.image_embedding_vec.trim().length > 0
+  const sameFp = row.image_embedding_fingerprint === nextFp
+  const sameModel = (row.image_embedding_model ?? '') === GEMINI_EMBED_MODEL
+  const sameDims = (row.image_embedding_dims ?? 0) === GEMINI_EMBED_DIMS
+  return !(hasEmbedding && hasVectorColumn && sameFp && sameModel && sameDims)
+}
+
 export async function embedImageBufferWithGemini(
   imageBuffer: Buffer,
   mimeType: string
@@ -158,50 +194,75 @@ export async function syncPartnerInventoryEmbeddings(
 ): Promise<{ ok: true; synced: number; failed: number; skipped: number } | { ok: false; error: string }> {
   const cap = Math.max(1, Math.min(5000, options?.limit ?? SYNC_LIMIT))
   const idList = (options?.inventoryIds ?? []).map((x) => x.trim()).filter(Boolean)
+  const rows: InvRow[] = []
 
-  let query = db
-    .from('messaging_partner_inventory')
-    .select(
-      'id, partner_id, name, image_url, is_active, image_embedding_json, image_embedding_fingerprint, image_embedding_model, image_embedding_dims, image_embedding_vec'
+  if (idList.length > 0) {
+    const { data, error } = await db
+      .from('messaging_partner_inventory')
+      .select(
+        'id, partner_id, name, image_url, is_active, image_embedding_json, image_embedding_fingerprint, image_embedding_model, image_embedding_dims, image_embedding_vec'
+      )
+      .eq('partner_id', partnerId)
+      .in('id', idList)
+    if (error) return { ok: false, error: error.message }
+    rows.push(
+      ...(data ?? []).map((r) =>
+        rowAsEmbeddingComparable(
+          r as Pick<InvRow, 'id' | 'partner_id' | 'name' | 'image_url' | 'is_active'> &
+            Partial<
+              Pick<
+                InvRow,
+                | 'image_embedding_json'
+                | 'image_embedding_fingerprint'
+                | 'image_embedding_model'
+                | 'image_embedding_dims'
+                | 'image_embedding_vec'
+              >
+            >
+        )
+      )
     )
-    .eq('partner_id', partnerId)
-    .order('updated_at', { ascending: false })
-    .limit(Math.max(cap, idList.length || 1))
+  } else {
+    let scanned = 0
+    let from = 0
+    while (scanned < SCAN_MAX_ROWS && rows.length < cap) {
+      const to = from + SCAN_PAGE_SIZE - 1
+      const { data, error } = await db
+        .from('messaging_partner_inventory')
+        .select(
+          'id, partner_id, name, image_url, is_active, image_embedding_json, image_embedding_fingerprint, image_embedding_model, image_embedding_dims, image_embedding_vec'
+        )
+        .eq('partner_id', partnerId)
+        .order('updated_at', { ascending: true })
+        .range(from, to)
+      if (error) return { ok: false, error: error.message }
+      const chunk = (data ?? []).map((r) =>
+        rowAsEmbeddingComparable(
+          r as Pick<InvRow, 'id' | 'partner_id' | 'name' | 'image_url' | 'is_active'> &
+            Partial<
+              Pick<
+                InvRow,
+                | 'image_embedding_json'
+                | 'image_embedding_fingerprint'
+                | 'image_embedding_model'
+                | 'image_embedding_dims'
+                | 'image_embedding_vec'
+              >
+            >
+        )
+      )
+      if (chunk.length === 0) break
+      scanned += chunk.length
+      for (const row of chunk) {
+        if (needsEmbeddingSync(row, Boolean(options?.force))) rows.push(row)
+        if (rows.length >= cap) break
+      }
+      if (chunk.length < SCAN_PAGE_SIZE) break
+      from += SCAN_PAGE_SIZE
+    }
+  }
 
-  if (idList.length > 0) query = query.in('id', idList)
-
-  const { data, error } = await query
-  if (error) return { ok: false, error: error.message }
-
-  const rows = (data ?? []).map((r) =>
-    rowAsEmbeddingComparable(
-      r as Pick<InvRow, 'id' | 'partner_id' | 'name' | 'image_url' | 'is_active'> &
-        Partial<
-          Pick<
-            InvRow,
-            | 'image_embedding_json'
-            | 'image_embedding_fingerprint'
-            | 'image_embedding_model'
-            | 'image_embedding_dims'
-            | 'image_embedding_vec'
-          >
-        >
-    )
-  )
-  const candidates = rows.filter((row) => {
-    const imageUrl = normalizeImageUrl(row.image_url)
-    if (!row.is_active) return false
-    if (!isHttpImageUrl(imageUrl)) return false
-    if (options?.force) return true
-    const nextFp = rowFingerprint(row)
-    const hasEmbedding = Array.isArray(row.image_embedding_json)
-    const hasVectorColumn = typeof row.image_embedding_vec === 'string' && row.image_embedding_vec.trim().length > 0
-    const sameFp = row.image_embedding_fingerprint === nextFp
-    const sameModel = (row.image_embedding_model ?? '') === GEMINI_EMBED_MODEL
-    const sameDims = (row.image_embedding_dims ?? 0) === GEMINI_EMBED_DIMS
-    return !(hasEmbedding && hasVectorColumn && sameFp && sameModel && sameDims)
-  })
-
+  const candidates = rows.filter((row) => needsEmbeddingSync(row, Boolean(options?.force)))
   if (candidates.length === 0) return { ok: true, synced: 0, failed: 0, skipped: rows.length }
 
   let cursor = 0

@@ -466,6 +466,14 @@ export type PartnerVisionSyncHealth = {
   lastProgressAt: string | null
 }
 
+export type PartnerInventoryEmbeddingStats = {
+  total: number
+  eligible: number
+  done: number
+  pending: number
+  failed: number
+}
+
 function buildPartnerVisionCatalogStats(
   rows: Database['public']['Tables']['messaging_partner_inventory']['Row'][]
 ): PartnerVisionCatalogStats {
@@ -619,6 +627,41 @@ export async function getPartnerInventoryPage(partnerId: string, page: number, p
     totalCount: Math.max(rows.length, count ?? 0),
     hasMore: from + rows.length < Math.max(rows.length, count ?? 0),
   }
+}
+
+export async function getPartnerInventoryEmbeddingStats(partnerId: string) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const { user, supabase } = auth
+  const gate = await assertPartnerOwner(supabase, user.id, partnerId)
+  if ('error' in gate) return { error: gate.error }
+
+  const { data, error } = await supabase
+    .from('messaging_partner_inventory')
+    .select('is_active, image_url, image_embedding_updated_at, image_embedding_error')
+    .eq('partner_id', partnerId)
+  if (error) return { error: error.message }
+
+  let total = 0
+  let eligible = 0
+  let done = 0
+  let pending = 0
+  let failed = 0
+
+  for (const row of data ?? []) {
+    total += 1
+    const active = Boolean(row.is_active)
+    const imageUrl = String(row.image_url ?? '').trim()
+    const validImage = /^https?:\/\//i.test(imageUrl) || imageUrl.startsWith('//')
+    if (!active || !validImage) continue
+    eligible += 1
+    if (row.image_embedding_updated_at) done += 1
+    else pending += 1
+    if (String(row.image_embedding_error ?? '').trim()) failed += 1
+  }
+
+  const stats: PartnerInventoryEmbeddingStats = { total, eligible, done, pending, failed }
+  return { stats }
 }
 
 export async function savePartnerAiSettings(partnerId: string, payload: PartnerAiSettingsPayload) {
