@@ -399,6 +399,7 @@ export type Dictionary = {
     inventoryErrNoRows: string
     inventoryErrNoFile: string
     inventoryErrFileTooLarge: string
+    inventoryErrTooManyRows: string
     addInventory: string
     edit: string
     emptyFaq: string
@@ -1898,6 +1899,7 @@ const VI_DICTIONARY: Dictionary = {
       'Không có dòng dữ liệu hợp lệ (cần ít nhất một dòng có tên hàng để thêm/cập nhật, hoặc Trạng thái = 0 kèm Mã SKU hoặc tên để xóa).',
     inventoryErrNoFile: 'Chưa chọn file.',
     inventoryErrFileTooLarge: 'File quá lớn (tối đa ~20 MB).',
+    inventoryErrTooManyRows: 'File có quá nhiều dòng. Tối đa {max} dòng mỗi lần import.',
     addInventory: 'Thêm mặt hàng',
     edit: 'Sửa',
     emptyFaq: 'Chọn câu hỏi mẫu bên dưới và chỉ cần nhập cách shop trả lời.',
@@ -3406,6 +3408,7 @@ const EN_DICTIONARY: Dictionary = {
       'No valid rows (need at least one row with a product name to add/update, or Status = 0 with SKU or name to delete).',
     inventoryErrNoFile: 'No file selected.',
     inventoryErrFileTooLarge: 'File is too large (max ~20 MB).',
+    inventoryErrTooManyRows: 'File has too many rows. Maximum {max} rows per import.',
     addInventory: 'Add item',
     edit: 'Edit',
     emptyFaq: 'Pick a preset question below and enter how your shop replies.',
@@ -4911,6 +4914,7 @@ const ZH_DICTIONARY: Dictionary = {
     inventoryErrNoRows: '没有有效数据行（至少需一行填写商品名称以新增/更新，或状态=0并填写 SKU 或名称以删除）。',
     inventoryErrNoFile: '未选择文件。',
     inventoryErrFileTooLarge: '文件过大（最大约 20 MB）。',
+    inventoryErrTooManyRows: '文件行数过多。每次导入最多 {max} 行。',
     addInventory: '添加商品',
     edit: '编辑',
     emptyFaq: '请从下方预设问题中选择，并填写店铺回复内容。',
@@ -6371,6 +6375,7 @@ const JA_DICTIONARY: Dictionary = {
       '有効なデータ行がありません（追加/更新には商品名が必要。削除は状態=0かつ SKU または商品名が必要）。',
     inventoryErrNoFile: 'ファイルが選ばれていません。',
     inventoryErrFileTooLarge: 'ファイルが大きすぎます（最大約20MB）。',
+    inventoryErrTooManyRows: '行数が多すぎます。1回のインポートは最大 {max} 行です。',
     addInventory: '商品を追加',
     edit: '編集',
     emptyFaq: '下のよくある質問から選び、店舗の返信文だけ入力してください。',
@@ -7863,6 +7868,7 @@ const KO_DICTIONARY: Dictionary = {
       '유효한 데이터 행이 없습니다(추가/업데이트에는 상품명이 필요하고, 삭제는 상태=0과 SKU 또는 상품명이 필요합니다).',
     inventoryErrNoFile: '파일을 선택하지 않았습니다.',
     inventoryErrFileTooLarge: '파일이 너무 큽니다(최대 약 20MB).',
+    inventoryErrTooManyRows: '행 수가 너무 많습니다. 한 번에 최대 {max}행까지 가져올 수 있습니다.',
     addInventory: '상품 추가',
     edit: '편집',
     emptyFaq: '아래에서 미리 준비된 질문을 고르고 매장 답변만 입력하세요.',

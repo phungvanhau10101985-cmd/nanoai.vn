@@ -209,7 +209,10 @@ export function buildInventoryExportBuffer(rows: InventoryRow[]): Buffer {
   return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer
 }
 
-const MAX_IMPORT_ROWS = 500
+const MAX_IMPORT_ROWS = Math.max(
+  500,
+  Math.min(200_000, parseInt(process.env.PARTNER_INVENTORY_IMPORT_MAX_ROWS || '100000', 10) || 100_000)
+)
 
 export function parseInventoryWorkbook(buffer: Buffer): { ok: true; rows: InventoryExcelInsert[] } | { ok: false; error: string } {
   let wb: XLSX.WorkBook
@@ -269,7 +272,9 @@ export function parseInventoryWorkbook(buffer: Buffer): { ok: true; rows: Invent
         is_active: true,
         removeFromInventory: true,
       })
-      if (out.length >= MAX_IMPORT_ROWS) break
+      if (out.length >= MAX_IMPORT_ROWS) {
+        return { ok: false, error: `TOO_MANY_ROWS_${MAX_IMPORT_ROWS}` }
+      }
       continue
     }
 
@@ -307,7 +312,9 @@ export function parseInventoryWorkbook(buffer: Buffer): { ok: true; rows: Invent
       is_active: true,
       removeFromInventory: false,
     })
-    if (out.length >= MAX_IMPORT_ROWS) break
+    if (out.length >= MAX_IMPORT_ROWS) {
+      return { ok: false, error: `TOO_MANY_ROWS_${MAX_IMPORT_ROWS}` }
+    }
   }
 
   if (out.length === 0) return { ok: false, error: 'NO_DATA_ROWS' }

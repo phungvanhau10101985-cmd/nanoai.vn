@@ -692,6 +692,10 @@ function mapInventoryImportError(code: string | undefined, t: AiT): string {
     const row = code.slice('INVALID_PRICE_STRUCTURE_ROW_'.length)
     return `Cấu trúc dữ liệu sai ở dòng ${row}: cột Giá đang chứa trạng thái tồn kho/size. Vui lòng chuyển nội dung này sang cột Ghi chú tồn kho.`
   }
+  if (code?.startsWith('TOO_MANY_ROWS_')) {
+    const max = code.slice('TOO_MANY_ROWS_'.length) || '100000'
+    return t.inventoryErrTooManyRows.replace('{max}', max)
+  }
   switch (code) {
     case 'INVALID_XLSX':
       return t.inventoryErrInvalidXlsx
