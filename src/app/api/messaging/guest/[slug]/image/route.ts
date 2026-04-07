@@ -10,6 +10,7 @@ import {
   createGuestSessionId,
   readGuestSessionIdFromRequest,
   writeGuestSessionCookie,
+  writeGuestSessionHeader,
 } from '@/lib/messaging/guest-auth-session'
 
 export const dynamic = 'force-dynamic'
@@ -68,6 +69,9 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     return NextResponse.json({ error: up.error }, { status: 400 })
   }
   const res = NextResponse.json({ path: up.path, publicUrl: up.publicUrl })
-  if (newSessionId) writeGuestSessionCookie(res, request, newSessionId)
+  if (newSessionId) {
+    writeGuestSessionCookie(res, request, newSessionId)
+    writeGuestSessionHeader(res, newSessionId)
+  }
   return res
 }

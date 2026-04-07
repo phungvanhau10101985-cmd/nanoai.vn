@@ -6,6 +6,7 @@ import {
   createGuestSessionId,
   readGuestSessionIdFromRequest,
   writeGuestSessionCookie,
+  writeGuestSessionHeader,
 } from '@/lib/messaging/guest-auth-session'
 import { isValidMessagingGuestSessionId } from '@/lib/messaging/guest-session-id'
 import { isSmtpConfigured, sendSmtpMail } from '@/lib/email/smtp'
@@ -92,7 +93,10 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     .maybeSingle()
   if (latest?.id) {
     const response = NextResponse.json({ ok: true, sent: true })
-    if (!existingSessionId) writeGuestSessionCookie(response, request, sessionId)
+    if (!existingSessionId) {
+      writeGuestSessionCookie(response, request, sessionId)
+      writeGuestSessionHeader(response, sessionId)
+    }
     return response
   }
 
@@ -136,6 +140,9 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
   }
 
   const response = NextResponse.json({ ok: true, sent: true })
-  if (!existingSessionId) writeGuestSessionCookie(response, request, sessionId)
+  if (!existingSessionId) {
+    writeGuestSessionCookie(response, request, sessionId)
+    writeGuestSessionHeader(response, sessionId)
+  }
   return response
 }

@@ -98,6 +98,8 @@ type ChatRailItem = {
   lastMessagePreview: string | null
 }
 
+const GUEST_SESSION_STORAGE_KEY = 'nanoai_guest_session_id'
+
 function formatCredits(value: number) {
   return Number.isInteger(value) ? String(value) : value.toFixed(1)
 }
@@ -149,6 +151,7 @@ export function PartnerGuestChatClient({
   const scrollAnchorRef = useRef<HTMLDivElement>(null)
   const didInitialAutoScrollRef = useRef(false)
   const draftTextareaRef = useRef<HTMLTextAreaElement>(null)
+  const guestSessionIdRef = useRef<string | null>(null)
 
   const loginHref = `/auth/login?next=${encodeURIComponent(sanitizeLoginNext(pathname || `/messaging/p/${slug}`))}`
 
@@ -171,6 +174,26 @@ export function PartnerGuestChatClient({
   }, [messages])
 
   useEffect(() => {
+    if (typeof window === 'undefined') return
+    const existing = window.localStorage.getItem(GUEST_SESSION_STORAGE_KEY)?.trim() ?? ''
+    if (existing) guestSessionIdRef.current = existing
+  }, [])
+
+  const authHeaders = useCallback((): Record<string, string> => {
+    const h: Record<string, string> = {}
+    const sessionId = guestSessionIdRef.current?.trim() ?? ''
+    if (sessionId) h['x-guest-session-id'] = sessionId
+    return h
+  }, [])
+
+  const captureGuestSessionFromResponse = useCallback((res: Response) => {
+    const sid = res.headers.get('x-guest-session-id')?.trim() ?? ''
+    if (!sid) return
+    guestSessionIdRef.current = sid
+    if (typeof window !== 'undefined') window.localStorage.setItem(GUEST_SESSION_STORAGE_KEY, sid)
+  }, [])
+
+  useEffect(() => {
     const supabase = createClient()
     void supabase.auth.getSession().then(({ data }) => {
       setUserId(data.session?.user.id ?? null)
@@ -185,7 +208,11 @@ export function PartnerGuestChatClient({
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}`, { credentials: 'same-origin' })
+      const res = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}`, {
+        credentials: 'same-origin',
+        headers: { ...authHeaders() },
+      })
+      captureGuestSessionFromResponse(res)
       const data = (await res.json()) as {
         messages?: GuestMsg[]
         error?: string
@@ -216,7 +243,7 @@ export function PartnerGuestChatClient({
     } finally {
       setLoading(false)
     }
-  }, [slug, toast, t.loadError])
+  }, [slug, toast, t.loadError, authHeaders, captureGuestSessionFromResponse])
 
   useEffect(() => {
     if (authReady) void load()
@@ -387,9 +414,10 @@ export function PartnerGuestChatClient({
       const res = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}/vision-pick`, {
         method: 'POST',
         credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({ messageId, inventoryId }),
       })
+      captureGuestSessionFromResponse(res)
       const data = (await res.json()) as { ok?: boolean; error?: string; shopTyping?: { maxWaitMs: number } }
       if (res.status === 401) {
         setUserId(null)
@@ -422,9 +450,10 @@ export function PartnerGuestChatClient({
       const res = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}`, {
         method: 'POST',
         credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({ text: ask }),
       })
+      captureGuestSessionFromResponse(res)
       const data = (await res.json()) as {
         ok?: boolean
         error?: string
@@ -465,7 +494,9 @@ export function PartnerGuestChatClient({
         method: 'POST',
         body: fd,
         credentials: 'same-origin',
+        headers: { ...authHeaders() },
       })
+      captureGuestSessionFromResponse(res)
       const data = (await res.json()) as { path?: string; publicUrl?: string; error?: string }
       if (res.status === 401) {
         setUserId(null)
@@ -550,7 +581,9 @@ export function PartnerGuestChatClient({
         method: 'POST',
         body: fd,
         credentials: 'same-origin',
+        headers: { ...authHeaders() },
       })
+      captureGuestSessionFromResponse(res)
       const data = (await res.json()) as {
         ok?: boolean
         resultUrl?: string
@@ -618,12 +651,13 @@ export function PartnerGuestChatClient({
       const res = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}`, {
         method: 'POST',
         credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({
           text: text || undefined,
           imageStoragePath: imageStoragePath || undefined,
         }),
       })
+      captureGuestSessionFromResponse(res)
       const data = (await res.json()) as {
         ok?: boolean
         error?: string
@@ -682,9 +716,10 @@ export function PartnerGuestChatClient({
       const res = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}/auth/email/request`, {
         method: 'POST',
         credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({ email }),
       })
+      captureGuestSessionFromResponse(res)
       const data = (await res.json()) as { ok?: boolean; error?: string; retry_after_sec?: number }
       if (!res.ok) {
         if (data.error === 'Missing session') {
@@ -720,9 +755,10 @@ export function PartnerGuestChatClient({
       const res = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}/auth/email/verify-otp`, {
         method: 'POST',
         credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({ email, otp }),
       })
+      captureGuestSessionFromResponse(res)
       const data = (await res.json()) as { ok?: boolean; error?: string; retry_after_sec?: number }
       if (!res.ok || !data.ok) {
         if (res.status === 429) {

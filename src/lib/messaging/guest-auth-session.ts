@@ -2,11 +2,20 @@ import type { NextRequest, NextResponse } from 'next/server'
 import { isValidMessagingGuestSessionId } from '@/lib/messaging/guest-session-id'
 
 export const MESSAGING_GUEST_SESSION_COOKIE = 'nanoai_guest_session_id'
+export const MESSAGING_GUEST_SESSION_HEADER = 'x-guest-session-id'
 
-export function readGuestSessionIdFromRequest(request: NextRequest): string | null {
-  const raw = request.cookies.get(MESSAGING_GUEST_SESSION_COOKIE)?.value?.trim() ?? ''
+export function readGuestSessionIdFromHeader(request: NextRequest): string | null {
+  const raw = request.headers.get(MESSAGING_GUEST_SESSION_HEADER)?.trim() ?? ''
   if (!raw) return null
   return isValidMessagingGuestSessionId(raw) ? raw : null
+}
+
+export function readGuestSessionIdFromRequest(request: NextRequest): string | null {
+  return readGuestSessionIdFromHeader(request) ?? ((): string | null => {
+    const raw = request.cookies.get(MESSAGING_GUEST_SESSION_COOKIE)?.value?.trim() ?? ''
+    if (!raw) return null
+    return isValidMessagingGuestSessionId(raw) ? raw : null
+  })()
 }
 
 export function createGuestSessionId(): string {
@@ -21,4 +30,8 @@ export function writeGuestSessionCookie(response: NextResponse, request: NextReq
     path: '/',
     maxAge: 60 * 60 * 24 * 365,
   })
+}
+
+export function writeGuestSessionHeader(response: NextResponse, sessionId: string) {
+  response.headers.set(MESSAGING_GUEST_SESSION_HEADER, sessionId)
 }

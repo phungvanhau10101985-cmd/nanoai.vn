@@ -8,6 +8,7 @@ import {
   createGuestSessionId,
   readGuestSessionIdFromRequest,
   writeGuestSessionCookie,
+  writeGuestSessionHeader,
 } from '@/lib/messaging/guest-auth-session'
 import { readGuestAccountIdFromRequest, writeGuestAccountCookie } from '@/lib/messaging/guest-account-session'
 import { mergeGuestSessionConversationToAccount } from '@/lib/messaging/guest-account-merge'
@@ -178,7 +179,10 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
       messages: [],
       authMode: effectiveGuestAccountId || identity.linkedUserId ? 'account' : 'anonymous',
     })
-    if (identity.newSessionId) writeGuestSessionCookie(res, request, identity.newSessionId)
+    if (identity.newSessionId) {
+      writeGuestSessionCookie(res, request, identity.newSessionId)
+      writeGuestSessionHeader(res, identity.newSessionId)
+    }
     if (effectiveGuestAccountId) writeGuestAccountCookie(res, request, effectiveGuestAccountId)
     return res
   }
@@ -194,7 +198,10 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
     messages: messages ?? [],
     authMode: effectiveGuestAccountId || identity.linkedUserId ? 'account' : 'anonymous',
   })
-  if (identity.newSessionId) writeGuestSessionCookie(res, request, identity.newSessionId)
+  if (identity.newSessionId) {
+    writeGuestSessionCookie(res, request, identity.newSessionId)
+    writeGuestSessionHeader(res, identity.newSessionId)
+  }
   if (effectiveGuestAccountId) writeGuestAccountCookie(res, request, effectiveGuestAccountId)
   return res
 }
@@ -242,7 +249,10 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
       { error: posted.error, requireAuth: posted.requireAuth === true },
       { status }
     )
-    if (identity.newSessionId) writeGuestSessionCookie(res, request, identity.newSessionId)
+    if (identity.newSessionId) {
+      writeGuestSessionCookie(res, request, identity.newSessionId)
+      writeGuestSessionHeader(res, identity.newSessionId)
+    }
     return res
   }
   const res = NextResponse.json({
@@ -251,7 +261,10 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     visionPickRequired: posted.visionPickRequired ?? false,
     authMode: effectiveGuestAccountId || identity.linkedUserId ? 'account' : 'anonymous',
   })
-  if (identity.newSessionId) writeGuestSessionCookie(res, request, identity.newSessionId)
+  if (identity.newSessionId) {
+    writeGuestSessionCookie(res, request, identity.newSessionId)
+    writeGuestSessionHeader(res, identity.newSessionId)
+  }
   if (effectiveGuestAccountId) writeGuestAccountCookie(res, request, effectiveGuestAccountId)
   return res
 }
