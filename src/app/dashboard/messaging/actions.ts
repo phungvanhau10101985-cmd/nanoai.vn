@@ -22,6 +22,7 @@ import {
   partnerMediaPayloadToJson,
 } from '@/lib/messaging/guest-chat-image'
 import { validateInventoryImageUrl } from '@/lib/messaging/partner-inventory-excel'
+import { listPartnerInventoryRows } from '@/lib/messaging/partner-inventory-upsert-batch'
 import { parseTriggerKeywords } from '@/lib/messaging/partner-ai-faq'
 import {
   isPartnerFaqPresetKey,
@@ -562,17 +563,14 @@ export async function getPartnerAiBundle(partnerId: string) {
     .select('*')
     .eq('partner_id', partnerId)
     .order('sort_order', { ascending: true })
-  const { data: inventory } = await supabase
-    .from('messaging_partner_inventory')
-    .select('*')
-    .eq('partner_id', partnerId)
-    .order('sort_order', { ascending: true })
+  const listedInventory = await listPartnerInventoryRows(supabase, partnerId)
+  if (!listedInventory.ok) return { error: listedInventory.error }
   const { data: runner } = await supabase
     .from('vision_warehouse_runner')
     .select('assets_import_busy, assets_import_busy_at, assets_import_owner, assets_import_heartbeat_at')
     .eq('id', 1)
     .maybeSingle()
-  const inv = inventory ?? []
+  const inv = listedInventory.rows
   return {
     settings: toPartnerAiSettingsClient(settings ?? null),
     faqs: faqs ?? [],
