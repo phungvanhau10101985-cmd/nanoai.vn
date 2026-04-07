@@ -14,7 +14,7 @@ import {
 } from '@/lib/messaging/partner-inventory-excel'
 import type { Database } from '@/types/database.types'
 
-export const MAX_OPEN_CATALOG_ITEMS_PER_REQUEST = 500
+export const DEFAULT_MAX_OPEN_CATALOG_ITEMS_PER_REQUEST = 500
 
 function asRecord(x: unknown): Record<string, unknown> | null {
   if (x && typeof x === 'object' && !Array.isArray(x)) return x as Record<string, unknown>
@@ -212,7 +212,10 @@ export type OpenCatalogParseResult =
  * }
  * ```
  */
-export function parseOpenCatalogBody(json: unknown): OpenCatalogParseResult {
+export function parseOpenCatalogBody(
+  json: unknown,
+  options?: { maxItems?: number }
+): OpenCatalogParseResult {
   const root = asRecord(json)
   if (!root) return { ok: false, error: 'Body must be a JSON object.', code: 'INVALID_JSON_ROOT' }
 
@@ -224,10 +227,11 @@ export function parseOpenCatalogBody(json: unknown): OpenCatalogParseResult {
   if (items.length === 0) {
     return { ok: false, error: 'Empty "items" array.', code: 'EMPTY_ITEMS' }
   }
-  if (items.length > MAX_OPEN_CATALOG_ITEMS_PER_REQUEST) {
+  const maxItems = Math.max(1, Math.min(200_000, options?.maxItems ?? DEFAULT_MAX_OPEN_CATALOG_ITEMS_PER_REQUEST))
+  if (items.length > maxItems) {
     return {
       ok: false,
-      error: `Too many items (max ${MAX_OPEN_CATALOG_ITEMS_PER_REQUEST} per request).`,
+      error: `Too many items (max ${maxItems} per request).`,
       code: 'TOO_MANY_ITEMS',
     }
   }

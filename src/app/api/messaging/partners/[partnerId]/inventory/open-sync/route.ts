@@ -10,14 +10,30 @@ import {
   buildOpenCatalogReconcileRows,
   parseOpenCatalogBody,
 } from '@/lib/messaging/partner-inventory-open-sync'
-import { upsertPartnerInventoryBatch } from '@/lib/messaging/partner-inventory-upsert-batch'
+import {
+  listPartnerInventoryRows,
+  upsertPartnerInventoryBatch,
+} from '@/lib/messaging/partner-inventory-upsert-batch'
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
-export const maxDuration = 120
+export const maxDuration = 600
 
-const MAX_JSON_BYTES = 900_000
+const MAX_JSON_BYTES = Math.max(
+  1_000_000,
+  Math.min(
+    100_000_000,
+    parseInt(process.env.PARTNER_INVENTORY_OPEN_SYNC_MAX_BODY_BYTES || '35000000', 10) || 35_000_000
+  )
+)
+const MAX_OPEN_SYNC_ITEMS = Math.max(
+  500,
+  Math.min(
+    200_000,
+    parseInt(process.env.PARTNER_INVENTORY_OPEN_SYNC_MAX_ITEMS || '100000', 10) || 100_000
+  )
+)
 
 const PARTNER_ID_UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -124,7 +140,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ partnerId: str
     return jsonWithCors(req, { error: 'Invalid JSON.', code: 'INVALID_JSON' }, 400)
   }
 
-  const parsed = parseOpenCatalogBody(body)
+  const parsed = parseOpenCatalogBody(body, { maxItems: MAX_OPEN_SYNC_ITEMS })
   if (!parsed.ok) {
     return jsonWithCors(req, { error: parsed.error, code: parsed.code }, 400)
   }
@@ -182,16 +198,12 @@ export async function POST(req: Request, ctx: { params: Promise<{ partnerId: str
     return jsonWithCors(req, { error: 'Invalid API key.', code: 'INVALID_KEY' }, 401)
   }
 
-  const { data: existingRows, error: exErr } = await db
-    .from('messaging_partner_inventory')
-    .select('*')
-    .eq('partner_id', partnerId)
-    .order('created_at', { ascending: true })
-    .limit(5000)
-  if (exErr) return jsonWithCors(req, { error: exErr.message, code: 'DB_ERROR' }, 500)
-
-  const reconcileRows = buildOpenCatalogReconcileRows(parsed.rows, existingRows ?? [])
-  const batch = await upsertPartnerInventoryBatch(db, partnerId, reconcileRows)
+  const listed = await listPartnerInventoryRows(db, partnerId)
+  if (!listed.ok) return jsonWithCors(req, { error: listed.error, code: 'DB_ERROR' }, 500)
+  const reconcileRows = buildOpenCatalogReconcileRows(parsed.rows, listed.rows)
+  const batch = await upsertPartnerInventoryBatch(db, partnerId, reconcileRows, {
+    existingRows: listed.rows,
+  })
   if (!batch.ok) {
     return jsonWithCors(req, { error: batch.error, code: 'UPSERT_FAILED' }, 500)
   }

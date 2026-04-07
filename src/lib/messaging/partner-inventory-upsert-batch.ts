@@ -9,6 +9,7 @@ import { syncPartnerInventoryEmbeddings } from '@/lib/messaging/partner-inventor
 
 type Db = SupabaseClient<Database>
 type InventoryRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
+const INVENTORY_SELECT_PAGE_SIZE = 1000
 
 type InventoryUpsertBase = {
   name: string
@@ -67,28 +68,51 @@ function indexExistingNoSkuByName(rows: InventoryRow[]) {
  * Upsert nhiều dòng kho theo cùng quy tắc import Excel (SKU → khớp SKU; không SKU → khớp tên).
  * Dùng cho import Excel và cổng Open Catalog (JSON).
  */
+export async function listPartnerInventoryRows(
+  db: Db,
+  partnerId: string
+): Promise<{ ok: true; rows: InventoryRow[] } | { ok: false; error: string }> {
+  const allRows: InventoryRow[] = []
+  let from = 0
+  while (true) {
+    const to = from + INVENTORY_SELECT_PAGE_SIZE - 1
+    const { data, error } = await db
+      .from('messaging_partner_inventory')
+      .select('*')
+      .eq('partner_id', partnerId)
+      .order('created_at', { ascending: true })
+      .range(from, to)
+    if (error) return { ok: false, error: error.message }
+    const chunk = data ?? []
+    if (chunk.length === 0) break
+    allRows.push(...chunk)
+    if (chunk.length < INVENTORY_SELECT_PAGE_SIZE) break
+    from += INVENTORY_SELECT_PAGE_SIZE
+  }
+  return { ok: true, rows: allRows }
+}
+
 export async function upsertPartnerInventoryBatch(
   db: Db,
   partnerId: string,
-  rows: InventoryExcelInsert[]
+  rows: InventoryExcelInsert[],
+  options?: { existingRows?: InventoryRow[] }
 ): Promise<
   { ok: true; inserted: number; updated: number; deleted: number } | { ok: false; error: string }
 > {
   const now = new Date().toISOString()
 
-  const { data: existing, error: exErr } = await db
-    .from('messaging_partner_inventory')
-    .select('*')
-    .eq('partner_id', partnerId)
-    .order('created_at', { ascending: true })
-    .limit(5000)
-
-  if (exErr) return { ok: false, error: exErr.message }
-
-  const existingRows = existing ?? []
-  const existingById = new Map(existingRows.map((r) => [r.id, r]))
-  const bySku = indexExistingBySku(existingRows)
-  const byNameNoSku = indexExistingNoSkuByName(existingRows)
+  let resolvedExistingRows: InventoryRow[]
+  if (options?.existingRows) {
+    resolvedExistingRows = options.existingRows
+  } else {
+    const listed = await listPartnerInventoryRows(db, partnerId)
+    if (!listed.ok) return { ok: false, error: listed.error }
+    resolvedExistingRows = listed.rows
+  }
+  const existingById = new Map(resolvedExistingRows.map((r) => [r.id, r]))
+  const bySku = indexExistingBySku(resolvedExistingRows)
+  const byNameNoSku = indexExistingNoSkuByName(resolvedExistingRows)
 
   const skuResolvedId = new Map<string, string>()
   const nameNoSkuResolvedId = new Map<string, string>()
