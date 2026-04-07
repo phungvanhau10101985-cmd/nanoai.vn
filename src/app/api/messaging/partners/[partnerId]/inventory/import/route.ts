@@ -7,7 +7,7 @@ import { requireMessagingPartnerOwner } from '@/lib/messaging/partner-inventory-
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-const MAX_BYTES = 2_000_000
+const MAX_BYTES = 20 * 1024 * 1024
 
 export async function POST(req: Request, ctx: { params: Promise<{ partnerId: string }> }) {
   const { partnerId } = await ctx.params
