@@ -687,6 +687,11 @@ export function PartnerGuestChatClient({
       })
       const data = (await res.json()) as { ok?: boolean; error?: string; retry_after_sec?: number }
       if (!res.ok) {
+        if (data.error === 'Missing session') {
+          toast({ title: t.sendError, variant: 'destructive' })
+          await load()
+          return
+        }
         if (res.status === 429) {
           const waitSec = Number.isFinite(data.retry_after_sec) ? Math.max(1, Math.round(data.retry_after_sec as number)) : 60
           toast({
@@ -943,17 +948,13 @@ export function PartnerGuestChatClient({
               ) : null}
               {imageStoragePath ? <p className="text-[11px] text-muted-foreground">{t.guestCaptionHint}</p> : null}
 
-              {authMode !== 'account' ? (
+              {authMode !== 'account' && authGateRequired ? (
                 <div className="rounded-lg border border-border/70 bg-muted/20 px-2.5 py-2">
                   <p className="text-xs font-medium text-foreground">{t.loginPromptTitle}</p>
                   <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">{t.loginPromptDescription}</p>
-                  {authGateRequired ? (
-                    <p className="mt-1 text-[11px] font-medium text-amber-700 dark:text-amber-300">
-                      {t.guestAuthRequiredAfterLimit.replace('{count}', '5')}
-                    </p>
-                  ) : (
-                    <p className="mt-1 text-[11px] text-muted-foreground">{t.guestAuthPromptBody}</p>
-                  )}
+                  <p className="mt-1 text-[11px] font-medium text-amber-700 dark:text-amber-300">
+                    {t.guestAuthRequiredAfterLimit.replace('{count}', '5')}
+                  </p>
                   <div className="mt-2 grid grid-cols-1 gap-1.5">
                     <input
                       type="email"

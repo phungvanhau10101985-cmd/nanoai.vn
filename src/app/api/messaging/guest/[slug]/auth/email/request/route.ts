@@ -2,7 +2,11 @@ import crypto from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
 import { isReservedMessagingGuestSlug } from '@/lib/messaging/reserved-guest-slugs'
-import { readGuestSessionIdFromRequest } from '@/lib/messaging/guest-auth-session'
+import {
+  createGuestSessionId,
+  readGuestSessionIdFromRequest,
+  writeGuestSessionCookie,
+} from '@/lib/messaging/guest-auth-session'
 import { isValidMessagingGuestSessionId } from '@/lib/messaging/guest-session-id'
 import { isSmtpConfigured, sendSmtpMail } from '@/lib/email/smtp'
 import {
@@ -59,10 +63,11 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     return NextResponse.json({ error: 'Invalid email' }, { status: 400 })
   }
 
-  const sessionId = readGuestSessionIdFromRequest(request)
-  if (!sessionId || !isValidMessagingGuestSessionId(sessionId)) {
-    return NextResponse.json({ error: 'Missing session' }, { status: 400 })
-  }
+  const existingSessionId = readGuestSessionIdFromRequest(request)
+  const sessionId =
+    existingSessionId && isValidMessagingGuestSessionId(existingSessionId)
+      ? existingSessionId
+      : createGuestSessionId()
 
   const ip = getClientIpFromRequest(request)
   const rlKey = `guest-auth-email-request:${partnerId}:${ip}:${email}`
@@ -86,7 +91,9 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     .limit(1)
     .maybeSingle()
   if (latest?.id) {
-    return NextResponse.json({ ok: true, sent: true })
+    const response = NextResponse.json({ ok: true, sent: true })
+    if (!existingSessionId) writeGuestSessionCookie(response, request, sessionId)
+    return response
   }
 
   const otp = randOtp6()
@@ -128,5 +135,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     })
   }
 
-  return NextResponse.json({ ok: true, sent: true })
+  const response = NextResponse.json({ ok: true, sent: true })
+  if (!existingSessionId) writeGuestSessionCookie(response, request, sessionId)
+  return response
 }
