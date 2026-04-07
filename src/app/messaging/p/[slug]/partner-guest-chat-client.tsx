@@ -443,7 +443,7 @@ export function PartnerGuestChatClient({
 
   const submitProductCardPick = async (card: PartnerAiProductCard) => {
     const label = card.name?.trim() || 'mẫu sản phẩm'
-    const ask = `Em/chị chọn mẫu này, shop tư vấn chi tiết giúp em/chị nhé: ${label}`
+    const ask = `Mình chọn mẫu này, shop tư vấn chi tiết giúp mình nhé: ${label}`
     const outboundBaseline = messages.filter((m) => m.direction === 'outbound').length
     setSending(true)
     try {

@@ -5,6 +5,16 @@ export type PartnerDevIntegrationStrings = {
   title: string
   hostedTitle: string
   hostedBody: string
+  embedWidgetSettingsTitle: string
+  embedWidgetSettingsBody: string
+  embedPositionLabel: string
+  embedPositionRight: string
+  embedPositionLeft: string
+  embedBottomOffsetLabel: string
+  embedHorizontalOffsetLabel: string
+  embedDesktopWidthLabel: string
+  embedDesktopHeightLabel: string
+  embedBorderRadiusLabel: string
   embedTitle: string
   embedBody: string
   embedSessionUuid: string
@@ -39,6 +49,16 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
     hostedTitle: 'A — Chat trên NanoAI (iframe / liên kết)',
     hostedBody:
       'Khách đăng nhập Google trong trang NanoAI (cookie first-party). Tin đồng bộ với mục tin nhắn NanoAI của khách. Copy URL và đoạn iframe tại Bảng điều khiển → Tích hợp API (/dashboard/api-integration, mục chat hosted). Nên thêm ?embed=1 khi nhúng iframe để giao diện tối ưu trong khung. Đường dẫn công khai có dạng:',
+    embedWidgetSettingsTitle: 'Cài đặt mã nhúng nổi',
+    embedWidgetSettingsBody: 'Tùy chỉnh vị trí trái/phải, khoảng cách đáy, rộng/cao desktop; mã iframe bên dưới sẽ tự cập nhật.',
+    embedPositionLabel: 'Góc hiển thị',
+    embedPositionRight: 'Phải',
+    embedPositionLeft: 'Trái',
+    embedBottomOffsetLabel: 'Cách đáy (px)',
+    embedHorizontalOffsetLabel: 'Cách cạnh trái/phải (px)',
+    embedDesktopWidthLabel: 'Rộng desktop (px)',
+    embedDesktopHeightLabel: 'Cao desktop (px)',
+    embedBorderRadiusLabel: 'Bo góc (px)',
     embedTitle: 'B — API chat ẩn danh trên domain shop (CORS)',
     embedBody:
       'Gọi từ trình duyệt trên website shop; API cho phép CORS *. Không dùng Bearer.',
@@ -84,6 +104,17 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
     hostedTitle: 'A — Chat on NanoAI (iframe / link)',
     hostedBody:
       'Shoppers sign in with Google on NanoAI (first-party cookies). Threads sync with NanoAI “My chats”. Copy the public URL and iframe snippet under Dashboard → API integration (hosted chat section, /dashboard/api-integration). Add ?embed=1 when embedding as an iframe for a compact layout. Public path pattern:',
+    embedWidgetSettingsTitle: 'Floating embed settings',
+    embedWidgetSettingsBody:
+      'Customize left/right corner, bottom offset, and desktop width/height. The iframe snippet below updates automatically.',
+    embedPositionLabel: 'Corner',
+    embedPositionRight: 'Right',
+    embedPositionLeft: 'Left',
+    embedBottomOffsetLabel: 'Bottom offset (px)',
+    embedHorizontalOffsetLabel: 'Left/Right offset (px)',
+    embedDesktopWidthLabel: 'Desktop width (px)',
+    embedDesktopHeightLabel: 'Desktop height (px)',
+    embedBorderRadiusLabel: 'Border radius (px)',
     embedTitle: 'B — Anonymous chat API on your shop domain (CORS)',
     embedBody:
       'Call from the browser on your storefront; APIs send Access-Control-Allow-Origin: *. No Bearer.',
@@ -129,6 +160,16 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
     hostedTitle: 'A — 在 NanoAI 上聊天（iframe / 链接）',
     hostedBody:
       '顾客在 NanoAI 页面使用 Google 登录（第一方 cookie）。会话与 NanoAI「我的聊天」同步。在 控制台 → API 集成说明（/dashboard/api-integration，托管聊天）复制公开 URL 与 iframe。iframe 嵌入时建议加 ?embed=1 以优化布局。公开路径形式：',
+    embedWidgetSettingsTitle: '浮动嵌入设置',
+    embedWidgetSettingsBody: '可设置左右角、距底部间距、桌面宽高；下方 iframe 代码会自动更新。',
+    embedPositionLabel: '显示角落',
+    embedPositionRight: '右侧',
+    embedPositionLeft: '左侧',
+    embedBottomOffsetLabel: '距底部 (px)',
+    embedHorizontalOffsetLabel: '距左/右边 (px)',
+    embedDesktopWidthLabel: '桌面宽度 (px)',
+    embedDesktopHeightLabel: '桌面高度 (px)',
+    embedBorderRadiusLabel: '圆角 (px)',
     embedTitle: 'B — 店铺域名上的匿名聊天 API（CORS）',
     embedBody: '从店铺网站浏览器调用；接口返回 Access-Control-Allow-Origin: *。不使用 Bearer。',
     embedSessionUuid:
@@ -171,6 +212,17 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
     hostedTitle: 'A — NanoAI 上のチャット（iframe / リンク）',
     hostedBody:
       '購入者は NanoAI 上で Google ログイン（ファーストパーティ cookie）。スレッドは NanoAI の「マイチャット」と同期。ダッシュボード → API 連携ガイド（/dashboard/api-integration、ホスト型チャット）で公開 URL と iframe をコピー。iframe 埋め込み時は ?embed=1 を付与するとレイアウトが最適化されます。公開パスの例:',
+    embedWidgetSettingsTitle: 'フローティング埋め込み設定',
+    embedWidgetSettingsBody:
+      '左右位置、下端オフセット、デスクトップ幅・高さを調整できます。下の iframe コードは自動更新されます。',
+    embedPositionLabel: '表示位置',
+    embedPositionRight: '右',
+    embedPositionLeft: '左',
+    embedBottomOffsetLabel: '下端オフセット (px)',
+    embedHorizontalOffsetLabel: '左右オフセット (px)',
+    embedDesktopWidthLabel: 'デスクトップ幅 (px)',
+    embedDesktopHeightLabel: 'デスクトップ高さ (px)',
+    embedBorderRadiusLabel: '角丸 (px)',
     embedTitle: 'B — 店舗ドメイン上の匿名チャット API（CORS）',
     embedBody: '店舗サイトのブラウザから呼び出し。Access-Control-Allow-Origin: *。Bearer は使いません。',
     embedSessionUuid:
@@ -213,6 +265,17 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
     hostedTitle: 'A — NanoAI에서 채팅(iframe / 링크)',
     hostedBody:
       '고객이 NanoAI 페이지에서 Google 로그인(퍼스트파티 쿠키). 스레드는 NanoAI「내 채팅」과 동기화. 대시보드 → API 연동 안내(/dashboard/api-integration, 호스팅 채팅)에서 공개 URL과 iframe을 복사합니다. iframe 임베드 시 ?embed=1을 붙이면 레이아웃이 최적화됩니다. 공개 경로 예:',
+    embedWidgetSettingsTitle: '플로팅 임베드 설정',
+    embedWidgetSettingsBody:
+      '좌/우 위치, 하단 간격, 데스크톱 너비/높이를 조정하면 아래 iframe 코드가 자동으로 바뀝니다.',
+    embedPositionLabel: '위치',
+    embedPositionRight: '오른쪽',
+    embedPositionLeft: '왼쪽',
+    embedBottomOffsetLabel: '하단 간격 (px)',
+    embedHorizontalOffsetLabel: '좌/우 간격 (px)',
+    embedDesktopWidthLabel: '데스크톱 너비 (px)',
+    embedDesktopHeightLabel: '데스크톱 높이 (px)',
+    embedBorderRadiusLabel: '모서리 둥글기 (px)',
     embedTitle: 'B — 매장 도메인 익명 채팅 API(CORS)',
     embedBody: '매장 사이트 브라우저에서 호출. Access-Control-Allow-Origin: *. Bearer 없음.',
     embedSessionUuid:

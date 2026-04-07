@@ -26,6 +26,9 @@ export function FloatingChatWidget({
   openFullPageLabel,
 }: Props) {
   const [closed, setClosed] = useState(false)
+  // Keep NanoAI widget above common social/contact bubbles (e.g. Zalo).
+  const anchorClass = 'bottom-[10.5rem] right-3 md:bottom-6 md:right-4'
+  const topLayerClass = 'z-[2147483000]'
 
   const fullPageUrl = useMemo(() => {
     try {
@@ -42,7 +45,7 @@ export function FloatingChatWidget({
       <Button
         type="button"
         size="sm"
-        className="fixed bottom-3 right-3 z-50 h-10 rounded-full px-3 shadow-xl"
+        className={`fixed ${anchorClass} ${topLayerClass} h-10 rounded-full px-3 shadow-xl`}
         onClick={() => setClosed(false)}
         title={openLabel}
       >
@@ -53,7 +56,9 @@ export function FloatingChatWidget({
   }
 
   return (
-    <div className="fixed bottom-3 right-3 z-50 h-[min(70vh,560px)] w-[min(92vw,380px)] overflow-hidden rounded-xl border border-border/60 bg-background/95 shadow-2xl backdrop-blur-sm">
+    <div
+      className={`fixed ${anchorClass} ${topLayerClass} h-[min(70vh,560px)] w-[min(92vw,380px)] overflow-hidden rounded-xl border border-border/60 bg-background/95 shadow-2xl backdrop-blur-sm`}
+    >
       <div className="flex items-center justify-between gap-2 border-b border-border/60 bg-muted/40 px-3 py-2">
         <div className="truncate text-base font-semibold">{shopName}</div>
         <div className="flex items-center gap-1">

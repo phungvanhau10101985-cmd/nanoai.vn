@@ -28,6 +28,12 @@ function CodeBlock({ children, title }: { children: string; title?: string }) {
 
 export function PartnerDevIntegrationGuide({ baseUrl, t, partners, labels }: Props) {
   const [selectedPartnerId, setSelectedPartnerId] = useState(partners[0]?.id ?? '')
+  const [embedSide, setEmbedSide] = useState<'left' | 'right'>('right')
+  const [embedBottomPx, setEmbedBottomPx] = useState(24)
+  const [embedHorizontalPx, setEmbedHorizontalPx] = useState(16)
+  const [embedDesktopWidthPx, setEmbedDesktopWidthPx] = useState(380)
+  const [embedDesktopHeightPx, setEmbedDesktopHeightPx] = useState(560)
+  const [embedRadiusPx, setEmbedRadiusPx] = useState(12)
   const selectedPartner = useMemo(
     () => partners.find((p) => p.id === selectedPartnerId) ?? partners[0] ?? null,
     [partners, selectedPartnerId]
@@ -36,14 +42,19 @@ export function PartnerDevIntegrationGuide({ baseUrl, t, partners, labels }: Pro
   const slug = selectedPartner?.slug ?? '{slug}'
   const partnerId = selectedPartner?.id ?? '{partnerId}'
   const guestBase = `${baseUrl}/api/messaging/guest/${slug}`
+  const safeBottomPx = Math.max(0, Math.min(300, Math.floor(embedBottomPx) || 24))
+  const safeHorizontalPx = Math.max(0, Math.min(300, Math.floor(embedHorizontalPx) || 16))
+  const safeDesktopWidthPx = Math.max(280, Math.min(1200, Math.floor(embedDesktopWidthPx) || 380))
+  const safeDesktopHeightPx = Math.max(320, Math.min(1200, Math.floor(embedDesktopHeightPx) || 560))
+  const safeRadiusPx = Math.max(0, Math.min(60, Math.floor(embedRadiusPx) || 12))
 
   const hostedUrl = `${baseUrl}/messaging/p/${slug}?embed=1`
   const hostedIframe = `<iframe
   src="${hostedUrl}"
   title="Chat NanoAI"
   width="100%"
-  height="560"
-  style="border:0;border-radius:12px;max-width:100%"
+  height="${safeDesktopHeightPx}"
+  style="position:fixed;bottom:${safeBottomPx}px;${embedSide}:${safeHorizontalPx}px;width:min(92vw,${safeDesktopWidthPx}px);height:min(70vh,${safeDesktopHeightPx}px);border:0;border-radius:${safeRadiusPx}px;max-width:100%;z-index:2147483000"
   loading="lazy"
   referrerpolicy="no-referrer-when-downgrade">
 </iframe>`
@@ -161,6 +172,78 @@ Cookie: <supabase_auth_session>
           t.hostedBody,
           <>
             <CodeBlock>{hostedUrl}</CodeBlock>
+            <div className="space-y-2 rounded-lg border border-border/70 bg-muted/20 p-3">
+              <p className="text-xs font-medium text-foreground">{t.embedWidgetSettingsTitle}</p>
+              <p className="text-[11px] text-muted-foreground">{t.embedWidgetSettingsBody}</p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <label className="space-y-1 text-[11px] text-muted-foreground">
+                  <span>{t.embedPositionLabel}</span>
+                  <select
+                    className="h-8 w-full rounded-md border border-border bg-background px-2 text-xs text-foreground"
+                    value={embedSide}
+                    onChange={(e) => setEmbedSide(e.target.value === 'left' ? 'left' : 'right')}
+                  >
+                    <option value="right">{t.embedPositionRight}</option>
+                    <option value="left">{t.embedPositionLeft}</option>
+                  </select>
+                </label>
+                <label className="space-y-1 text-[11px] text-muted-foreground">
+                  <span>{t.embedBottomOffsetLabel}</span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={300}
+                    value={safeBottomPx}
+                    onChange={(e) => setEmbedBottomPx(Number.parseInt(e.target.value || '0', 10))}
+                    className="h-8 w-full rounded-md border border-border bg-background px-2 text-xs text-foreground"
+                  />
+                </label>
+                <label className="space-y-1 text-[11px] text-muted-foreground">
+                  <span>{t.embedHorizontalOffsetLabel}</span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={300}
+                    value={safeHorizontalPx}
+                    onChange={(e) => setEmbedHorizontalPx(Number.parseInt(e.target.value || '0', 10))}
+                    className="h-8 w-full rounded-md border border-border bg-background px-2 text-xs text-foreground"
+                  />
+                </label>
+                <label className="space-y-1 text-[11px] text-muted-foreground">
+                  <span>{t.embedDesktopWidthLabel}</span>
+                  <input
+                    type="number"
+                    min={280}
+                    max={1200}
+                    value={safeDesktopWidthPx}
+                    onChange={(e) => setEmbedDesktopWidthPx(Number.parseInt(e.target.value || '0', 10))}
+                    className="h-8 w-full rounded-md border border-border bg-background px-2 text-xs text-foreground"
+                  />
+                </label>
+                <label className="space-y-1 text-[11px] text-muted-foreground">
+                  <span>{t.embedDesktopHeightLabel}</span>
+                  <input
+                    type="number"
+                    min={320}
+                    max={1200}
+                    value={safeDesktopHeightPx}
+                    onChange={(e) => setEmbedDesktopHeightPx(Number.parseInt(e.target.value || '0', 10))}
+                    className="h-8 w-full rounded-md border border-border bg-background px-2 text-xs text-foreground"
+                  />
+                </label>
+                <label className="space-y-1 text-[11px] text-muted-foreground">
+                  <span>{t.embedBorderRadiusLabel}</span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={60}
+                    value={safeRadiusPx}
+                    onChange={(e) => setEmbedRadiusPx(Number.parseInt(e.target.value || '0', 10))}
+                    className="h-8 w-full rounded-md border border-border bg-background px-2 text-xs text-foreground"
+                  />
+                </label>
+              </div>
+            </div>
             <CodeBlock title={t.codeLabelExample}>{hostedIframe}</CodeBlock>
           </>
         )}
