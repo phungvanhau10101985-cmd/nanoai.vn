@@ -44,7 +44,17 @@ const nextConfig = {
     async headers() {
         const headers = [
             {
-                source: '/(.*)',
+                // Hosted guest chat pages are intentionally embeddable on partner sites.
+                source: '/messaging/p/:slug',
+                headers: [
+                    { key: 'X-Content-Type-Options', value: 'nosniff' },
+                    { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+                    { key: 'Content-Security-Policy', value: 'frame-ancestors *' },
+                ],
+            },
+            {
+                // Keep SAMEORIGIN framing protection for every other route.
+                source: '/((?!messaging/p/).*)',
                 headers: [
                     { key: 'X-Content-Type-Options', value: 'nosniff' },
                     { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
