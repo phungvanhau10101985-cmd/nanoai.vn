@@ -281,8 +281,10 @@ export function PartnerAiSettingsPanel({
       .finally(() => setEmbeddingSyncing(false))
   }
 
+  const embeddingPending = embeddingStats?.pending ?? 0
+
   useEffect(() => {
-    if (!embeddingStats || embeddingStats.pending <= 0) return
+    if (embeddingPending <= 0) return
     let cancelled = false
     const AUTO_SYNC_INTERVAL_MS = 45_000
     const runAutoSync = async () => {
@@ -298,7 +300,7 @@ export function PartnerAiSettingsPanel({
         if (cancelled || ('error' in res && res.error)) return
         const refreshed = await getPartnerInventoryEmbeddingStats(partnerId)
         if (cancelled || ('error' in refreshed && refreshed.error)) return
-        if ('stats' in refreshed) setEmbeddingStats(refreshed.stats)
+        if ('stats' in refreshed && refreshed.stats) setEmbeddingStats(refreshed.stats)
       } finally {
         autoEmbedSyncStateRef.current.running = false
       }
@@ -311,7 +313,7 @@ export function PartnerAiSettingsPanel({
       cancelled = true
       window.clearInterval(timer)
     }
-  }, [partnerId, embeddingStats?.pending])
+  }, [partnerId, embeddingPending])
 
   return (
     <Card className="overflow-hidden border-violet-200/60 bg-gradient-to-br from-violet-50/40 via-background to-background dark:border-violet-900/40 dark:from-violet-950/20 shadow-sm">
