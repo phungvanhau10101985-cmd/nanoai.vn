@@ -24,6 +24,7 @@ import {
   deletePartnerInventoryItem,
   getPartnerAiBundle,
   getPartnerInventoryEmbeddingStats,
+  triggerPartnerInventoryEmbeddingSync,
   getPartnerInventoryPage,
   getPartnerAiTokenUsageStats,
   savePartnerAiSettings,
@@ -125,9 +126,15 @@ export function PartnerAiSettingsPanel({
   const [tokenUsageRows, setTokenUsageRows] = useState<PartnerAiTokenUsageStatRow[]>([])
   const [tokenUsageLookbackDays, setTokenUsageLookbackDays] = useState(30)
   const [embeddingStats, setEmbeddingStats] = useState<PartnerInventoryEmbeddingStats | null>(null)
+  const [embeddingSyncing, setEmbeddingSyncing] = useState(false)
   const [form, setForm] = useState<FormState>(() => defaultsFromSettings(null))
   const formRef = useRef<FormState>(form)
   const loadSeqRef = useRef(0)
+  const autoEmbedSyncStateRef = useRef<{ running: boolean; lastRunAt: number; partnerId: string | null }>({
+    running: false,
+    lastRunAt: 0,
+    partnerId: null,
+  })
 
   const load = useCallback((): Promise<void> => {
     const seq = ++loadSeqRef.current
@@ -222,10 +229,12 @@ export function PartnerAiSettingsPanel({
 
   const loadMoreInventory = () => {
     if (inventoryLoadingMore || !hasMoreInventory) return
+    const seq = loadSeqRef.current
     setInventoryLoadingMore(true)
     const nextPage = inventoryPage + 1
     ;(async () => {
       const res = await getPartnerInventoryPage(partnerId, nextPage, inventoryPageSize)
+      if (seq !== loadSeqRef.current) return
       if ('error' in res && res.error) {
         toast({ title: res.error, variant: 'destructive' })
         return
@@ -238,7 +247,7 @@ export function PartnerAiSettingsPanel({
         const add = rows.filter((r) => !seen.has(r.id))
         return [...prev, ...add]
       })
-      setInventoryTotalCount((prev) => Math.max(prev, totalCount))
+      setInventoryTotalCount(Math.max(0, totalCount))
       setInventoryPage(page)
     })()
       .catch(() => {
@@ -246,6 +255,63 @@ export function PartnerAiSettingsPanel({
       })
       .finally(() => setInventoryLoadingMore(false))
   }
+
+  const runEmbeddingSync = () => {
+    if (embeddingSyncing) return
+    setEmbeddingSyncing(true)
+    ;(async () => {
+      const res = await triggerPartnerInventoryEmbeddingSync(partnerId, 1200)
+      if ('error' in res && res.error) {
+        toast({ title: res.error, variant: 'destructive' })
+        return
+      }
+      const synced = Number((res as { synced?: number }).synced ?? 0)
+      const failed = Number((res as { failed?: number }).failed ?? 0)
+      toast({
+        title: t.inventoryEmbeddingSyncDoneTitle,
+        description: t.inventoryEmbeddingSyncDoneBody
+          .replace('{synced}', String(synced))
+          .replace('{failed}', String(failed)),
+      })
+      await load()
+    })()
+      .catch(() => {
+        toast({ title: t.loadError, variant: 'destructive' })
+      })
+      .finally(() => setEmbeddingSyncing(false))
+  }
+
+  useEffect(() => {
+    if (!embeddingStats || embeddingStats.pending <= 0) return
+    let cancelled = false
+    const AUTO_SYNC_INTERVAL_MS = 45_000
+    const runAutoSync = async () => {
+      const state = autoEmbedSyncStateRef.current
+      if (state.running) return
+      const now = Date.now()
+      if (state.partnerId === partnerId && now - state.lastRunAt < AUTO_SYNC_INTERVAL_MS) return
+      state.running = true
+      state.lastRunAt = now
+      state.partnerId = partnerId
+      try {
+        const res = await triggerPartnerInventoryEmbeddingSync(partnerId, 1200)
+        if (cancelled || ('error' in res && res.error)) return
+        const refreshed = await getPartnerInventoryEmbeddingStats(partnerId)
+        if (cancelled || ('error' in refreshed && refreshed.error)) return
+        if ('stats' in refreshed) setEmbeddingStats(refreshed.stats)
+      } finally {
+        autoEmbedSyncStateRef.current.running = false
+      }
+    }
+    void runAutoSync()
+    const timer = window.setInterval(() => {
+      void runAutoSync()
+    }, AUTO_SYNC_INTERVAL_MS)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
+  }, [partnerId, embeddingStats?.pending])
 
   return (
     <Card className="overflow-hidden border-violet-200/60 bg-gradient-to-br from-violet-50/40 via-background to-background dark:border-violet-900/40 dark:from-violet-950/20 shadow-sm">
@@ -443,7 +509,12 @@ export function PartnerAiSettingsPanel({
             </div>
             {embeddingStats ? (
               <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2.5 text-xs">
-                <p className="font-medium text-foreground">{t.inventoryEmbeddingTitle}</p>
+                <div className="flex items-center justify-between gap-3">
+                  <p className="font-medium text-foreground">{t.inventoryEmbeddingTitle}</p>
+                  <Button type="button" size="sm" variant="outline" onClick={runEmbeddingSync} disabled={embeddingSyncing}>
+                    {embeddingSyncing ? t.inventoryEmbeddingSyncRunning : t.inventoryEmbeddingSyncNow}
+                  </Button>
+                </div>
                 <p className="mt-1 text-muted-foreground">
                   {t.inventoryEmbeddingSummary
                     .replace('{done}', String(embeddingStats.done))

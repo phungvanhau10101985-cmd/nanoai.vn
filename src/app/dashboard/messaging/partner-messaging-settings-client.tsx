@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useCallback, useEffect, useState, useTransition } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -45,9 +46,16 @@ export function PartnerMessagingSettingsClient({
   tAi: TAi
   partnerAiLlmModel: string
 }) {
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const queryPartnerId = searchParams.get('partner')
   const { toast } = useToast()
   const [partners, setPartners] = useState<PartnerRow[]>(initialPartners)
-  const [selectedPartnerId, setSelectedPartnerId] = useState<string | null>(initialPartners[0]?.id ?? null)
+  const [selectedPartnerId, setSelectedPartnerId] = useState<string | null>(() => {
+    if (queryPartnerId && initialPartners.some((p) => p.id === queryPartnerId)) return queryPartnerId
+    return initialPartners[0]?.id ?? null
+  })
   const [workspaceName, setWorkspaceName] = useState('')
   const [fbPageId, setFbPageId] = useState('')
   const [fbToken, setFbToken] = useState('')
@@ -57,6 +65,25 @@ export function PartnerMessagingSettingsClient({
   const [pending, startTransition] = useTransition()
   const [channelSnap, setChannelSnap] = useState<ChannelSnap | null>(null)
   const [showAddWorkspace, setShowAddWorkspace] = useState(false)
+
+  const setSelectedPartnerAndPersist = useCallback(
+    (partnerId: string | null) => {
+      setSelectedPartnerId(partnerId)
+      if (!partnerId) return
+      const current = searchParams.get('partner')
+      if (current === partnerId) return
+      const next = new URLSearchParams(searchParams.toString())
+      next.set('partner', partnerId)
+      router.replace(`${pathname}?${next.toString()}`, { scroll: false })
+    },
+    [pathname, router, searchParams]
+  )
+
+  useEffect(() => {
+    if (selectedPartnerId && partners.some((p) => p.id === selectedPartnerId)) return
+    const fallback = queryPartnerId && partners.some((p) => p.id === queryPartnerId) ? queryPartnerId : partners[0]?.id ?? null
+    if (fallback !== selectedPartnerId) setSelectedPartnerId(fallback)
+  }, [partners, queryPartnerId, selectedPartnerId])
 
   const loadChannelStatus = useCallback(() => {
     if (!selectedPartnerId) {
@@ -88,10 +115,10 @@ export function PartnerMessagingSettingsClient({
       if ('rows' in res) {
         const next = res.rows ?? []
         setPartners(next)
-        if (!selectedPartnerId && next[0]) setSelectedPartnerId(next[0].id)
+        if (!selectedPartnerId && next[0]) setSelectedPartnerAndPersist(next[0].id)
       }
     })
-  }, [selectedPartnerId, toast])
+  }, [selectedPartnerId, setSelectedPartnerAndPersist, toast])
 
   useEffect(() => {
     setFbToken('')
@@ -112,7 +139,7 @@ export function PartnerMessagingSettingsClient({
       if ('partner' in res && res.partner) {
         setWorkspaceName('')
         setPartners((p) => [res.partner as PartnerRow, ...p])
-        setSelectedPartnerId(res.partner.id)
+        setSelectedPartnerAndPersist(res.partner.id)
         setShowAddWorkspace(false)
         toast({ title: t.saveOk })
       }
@@ -193,7 +220,7 @@ export function PartnerMessagingSettingsClient({
             <CardContent className="flex flex-col gap-3">
               <Select
                 value={selectedPartnerId ?? undefined}
-                onValueChange={(v) => setSelectedPartnerId(v)}
+                onValueChange={(v) => setSelectedPartnerAndPersist(v)}
               >
                 <SelectTrigger className="h-10 w-full bg-background">
                   <SelectValue placeholder={t.workspaceLabel} />
@@ -319,6 +346,7 @@ export function PartnerMessagingSettingsClient({
 
           {selectedPartnerId ? (
             <PartnerAiSettingsPanel
+              key={selectedPartnerId}
               partnerId={selectedPartnerId}
               locale={locale}
               t={tAi}

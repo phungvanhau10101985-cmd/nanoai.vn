@@ -409,6 +409,10 @@ export type Dictionary = {
     inventoryProductCountSummary: string
     inventoryEmbeddingTitle: string
     inventoryEmbeddingSummary: string
+    inventoryEmbeddingSyncNow: string
+    inventoryEmbeddingSyncRunning: string
+    inventoryEmbeddingSyncDoneTitle: string
+    inventoryEmbeddingSyncDoneBody: string
     cronSetupHint: string
     /** Trạng thái nút gạt AI */
     toggleStatusOn: string
@@ -1912,6 +1916,10 @@ const VI_DICTIONARY: Dictionary = {
     inventoryProductCountSummary: 'Đang có {count} sản phẩm trong kho.',
     inventoryEmbeddingTitle: 'Tiến độ tạo vector ảnh',
     inventoryEmbeddingSummary: 'Đã tạo {done}/{eligible}. Còn thiếu {pending}. Lỗi {failed}.',
+    inventoryEmbeddingSyncNow: 'Đồng bộ ngay',
+    inventoryEmbeddingSyncRunning: 'Đang đồng bộ...',
+    inventoryEmbeddingSyncDoneTitle: 'Đã chạy đồng bộ vector ảnh',
+    inventoryEmbeddingSyncDoneBody: 'Đã xử lý {synced} ảnh. Lỗi {failed}.',
     cronSetupHint:
       'Production: cấu hình cron gọi GET hoặc POST /api/cron/messaging-partner-ai kèm Bearer MESSAGING_PARTNER_AI_CRON_SECRET (ví dụ mỗi phút) và DEEPSEEK_API_KEY. Không có cron thì job vẫn tạo nhưng AI không bao giờ gửi. Môi trường `next dev` tự chạy xử lý job sau thời gian chờ (không cần cron). Chạy `next start` local mà chưa có cron: thêm MESSAGING_PARTNER_AI_DEV_WAKE=1 vào .env.',
     toggleStatusOn: 'Đang bật',
@@ -3424,6 +3432,10 @@ const EN_DICTIONARY: Dictionary = {
     inventoryProductCountSummary: '{count} product(s) in inventory.',
     inventoryEmbeddingTitle: 'Image embedding progress',
     inventoryEmbeddingSummary: 'Embedded {done}/{eligible}. Pending {pending}. Errors {failed}.',
+    inventoryEmbeddingSyncNow: 'Sync now',
+    inventoryEmbeddingSyncRunning: 'Syncing...',
+    inventoryEmbeddingSyncDoneTitle: 'Image embedding sync completed',
+    inventoryEmbeddingSyncDoneBody: 'Processed {synced} image(s). Failed {failed}.',
     cronSetupHint:
       'Production: schedule GET or POST /api/cron/messaging-partner-ai with Authorization: Bearer MESSAGING_PARTNER_AI_CRON_SECRET (e.g. every minute) and set DEEPSEEK_API_KEY. Without cron, jobs stay pending and AI never sends. `next dev` auto-runs the processor after the delay (no cron). For `next start` locally without cron, set MESSAGING_PARTNER_AI_DEV_WAKE=1 in .env.',
     toggleStatusOn: 'On',
@@ -4932,6 +4944,10 @@ const ZH_DICTIONARY: Dictionary = {
     inventoryProductCountSummary: '当前库存共 {count} 个商品。',
     inventoryEmbeddingTitle: '图片向量进度',
     inventoryEmbeddingSummary: '已完成 {done}/{eligible}。待处理 {pending}。错误 {failed}。',
+    inventoryEmbeddingSyncNow: '立即同步',
+    inventoryEmbeddingSyncRunning: '同步中...',
+    inventoryEmbeddingSyncDoneTitle: '图片向量同步已完成',
+    inventoryEmbeddingSyncDoneBody: '已处理 {synced} 张图片。失败 {failed}。',
     cronSetupHint:
       '生产环境：配置定时任务 GET 或 POST /api/cron/messaging-partner-ai，请求头 Authorization: Bearer MESSAGING_PARTNER_AI_CRON_SECRET（建议每分钟），并设置 DEEPSEEK_API_KEY。无 cron 时任务会一直排队、AI 不会发出。`next dev` 会在等待时间后自动处理（无需 cron）。本地 `next start` 且无 cron 时，可在 .env 设置 MESSAGING_PARTNER_AI_DEV_WAKE=1。',
     toggleStatusOn: '已开启',
@@ -6397,6 +6413,10 @@ const JA_DICTIONARY: Dictionary = {
     inventoryProductCountSummary: '在庫に {count} 件の商品があります。',
     inventoryEmbeddingTitle: '画像ベクトル進捗',
     inventoryEmbeddingSummary: '完了 {done}/{eligible}。未処理 {pending}。エラー {failed}。',
+    inventoryEmbeddingSyncNow: '今すぐ同期',
+    inventoryEmbeddingSyncRunning: '同期中...',
+    inventoryEmbeddingSyncDoneTitle: '画像ベクトル同期が完了しました',
+    inventoryEmbeddingSyncDoneBody: '{synced}件を処理。失敗 {failed}。',
     cronSetupHint:
       '本番：GET または POST /api/cron/messaging-partner-ai を Authorization: Bearer MESSAGING_PARTNER_AI_CRON_SECRET で定期実行（例：毎分）し、DEEPSEEK_API_KEY を設定。cron がないとジョブは保留のまま AI は送りません。`next dev` は待機後に自動処理（cron 不要）。ローカルで `next start` かつ cron なしの場合は .env に MESSAGING_PARTNER_AI_DEV_WAKE=1。',
     toggleStatusOn: 'オン',
@@ -7893,6 +7913,10 @@ const KO_DICTIONARY: Dictionary = {
     inventoryProductCountSummary: '재고에 상품 {count}개가 있습니다.',
     inventoryEmbeddingTitle: '이미지 벡터 진행률',
     inventoryEmbeddingSummary: '완료 {done}/{eligible}. 대기 {pending}. 오류 {failed}.',
+    inventoryEmbeddingSyncNow: '지금 동기화',
+    inventoryEmbeddingSyncRunning: '동기화 중...',
+    inventoryEmbeddingSyncDoneTitle: '이미지 벡터 동기화 완료',
+    inventoryEmbeddingSyncDoneBody: '{synced}개 처리됨. 실패 {failed}.',
     cronSetupHint:
       '운영: GET 또는 POST /api/cron/messaging-partner-ai를 Authorization: Bearer MESSAGING_PARTNER_AI_CRON_SECRET으로 주기 호출(예: 매분)하고 DEEPSEEK_API_KEY를 설정하세요. cron이 없으면 작업이 대기만 하고 AI가 보내지 않습니다. `next dev`는 대기 시간 후 자동 처리(cron 불필요). 로컬 `next start`에 cron이 없으면 .env에 MESSAGING_PARTNER_AI_DEV_WAKE=1.',
     toggleStatusOn: '켜짐',

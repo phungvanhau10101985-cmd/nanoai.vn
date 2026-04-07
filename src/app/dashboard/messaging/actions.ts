@@ -575,13 +575,29 @@ export async function getPartnerAiBundle(partnerId: string) {
     .select('*')
     .eq('partner_id', partnerId)
     .order('sort_order', { ascending: true })
-  const { data: inventoryPage, error: invErr, count: inventoryCount } = await supabase
+  const svc = createServiceRoleClient()
+  const { data: ownerPartner, error: ownerErr } = await svc
+    .from('messaging_partners')
+    .select('id')
+    .eq('id', partnerId)
+    .eq('owner_user_id', user.id)
+    .maybeSingle()
+  if (ownerErr) return { error: ownerErr.message }
+  if (!ownerPartner) return { error: 'Forbidden.' }
+  const { data: inventoryPage, error: invErr } = await supabase
     .from('messaging_partner_inventory')
-    .select('*', { count: 'exact' })
+    .select('*')
     .eq('partner_id', partnerId)
+    .eq('is_active', true)
     .order('sort_order', { ascending: true })
     .range(0, PARTNER_INVENTORY_PAGE_SIZE - 1)
   if (invErr) return { error: invErr.message }
+  const { count: inventoryCount, error: countErr } = await svc
+    .from('messaging_partner_inventory')
+    .select('id', { count: 'exact', head: true })
+    .eq('partner_id', partnerId)
+    .eq('is_active', true)
+  if (countErr) return { error: countErr.message }
   const { data: runner } = await supabase
     .from('vision_warehouse_runner')
     .select('assets_import_busy, assets_import_busy_at, assets_import_owner, assets_import_heartbeat_at')
@@ -612,20 +628,37 @@ export async function getPartnerInventoryPage(partnerId: string, page: number, p
   const from = index * size
   const to = from + size - 1
 
-  const { data, error, count } = await supabase
+  const svc = createServiceRoleClient()
+  const { data: ownerPartner, error: ownerErr } = await svc
+    .from('messaging_partners')
+    .select('id')
+    .eq('id', partnerId)
+    .eq('owner_user_id', user.id)
+    .maybeSingle()
+  if (ownerErr) return { error: ownerErr.message }
+  if (!ownerPartner) return { error: 'Forbidden.' }
+  const { data, error } = await supabase
     .from('messaging_partner_inventory')
-    .select('*', { count: 'exact' })
+    .select('*')
     .eq('partner_id', partnerId)
+    .eq('is_active', true)
     .order('sort_order', { ascending: true })
     .range(from, to)
   if (error) return { error: error.message }
+  const { count, error: countErr } = await svc
+    .from('messaging_partner_inventory')
+    .select('id', { count: 'exact', head: true })
+    .eq('partner_id', partnerId)
+    .eq('is_active', true)
+  if (countErr) return { error: countErr.message }
   const rows = data ?? []
+  const totalCount = Math.max(rows.length, count ?? 0)
   return {
     rows,
     page: index,
     pageSize: size,
-    totalCount: Math.max(rows.length, count ?? 0),
-    hasMore: from + rows.length < Math.max(rows.length, count ?? 0),
+    totalCount,
+    hasMore: from + rows.length < totalCount,
   }
 }
 
@@ -636,32 +669,77 @@ export async function getPartnerInventoryEmbeddingStats(partnerId: string) {
   const gate = await assertPartnerOwner(supabase, user.id, partnerId)
   if ('error' in gate) return { error: gate.error }
 
-  const { data, error } = await supabase
-    .from('messaging_partner_inventory')
-    .select('is_active, image_url, image_embedding_updated_at, image_embedding_error')
-    .eq('partner_id', partnerId)
-  if (error) return { error: error.message }
-
+  const svc = createServiceRoleClient()
+  const { data: ownerPartner, error: ownerErr } = await svc
+    .from('messaging_partners')
+    .select('id')
+    .eq('id', partnerId)
+    .eq('owner_user_id', user.id)
+    .maybeSingle()
+  if (ownerErr) return { error: ownerErr.message }
+  if (!ownerPartner) return { error: 'Forbidden.' }
   let total = 0
   let eligible = 0
   let done = 0
   let pending = 0
   let failed = 0
 
-  for (const row of data ?? []) {
-    total += 1
-    const active = Boolean(row.is_active)
-    const imageUrl = String(row.image_url ?? '').trim()
-    const validImage = /^https?:\/\//i.test(imageUrl) || imageUrl.startsWith('//')
-    if (!active || !validImage) continue
-    eligible += 1
-    if (row.image_embedding_updated_at) done += 1
-    else pending += 1
-    if (String(row.image_embedding_error ?? '').trim()) failed += 1
+  // Supabase thường giới hạn ~1000 rows/response; dùng 1000 để tránh dừng sớm sai thống kê.
+  const PAGE_SIZE = 1000
+  let from = 0
+  while (true) {
+    const to = from + PAGE_SIZE - 1
+    const { data, error } = await svc
+      .from('messaging_partner_inventory')
+      .select('is_active, image_url, image_embedding_updated_at, image_embedding_error')
+      .eq('partner_id', partnerId)
+      .order('id', { ascending: true })
+      .range(from, to)
+    if (error) return { error: error.message }
+    const rows = data ?? []
+    if (rows.length === 0) break
+
+    for (const row of rows) {
+      total += 1
+      const active = row.is_active !== false
+      const imageUrl = String(row.image_url ?? '').trim()
+      const validImage = /^https?:\/\//i.test(imageUrl) || imageUrl.startsWith('//')
+      if (!active || !validImage) continue
+      eligible += 1
+      if (row.image_embedding_updated_at) done += 1
+      else pending += 1
+      if (String(row.image_embedding_error ?? '').trim()) failed += 1
+    }
+
+    from += PAGE_SIZE
   }
 
   const stats: PartnerInventoryEmbeddingStats = { total, eligible, done, pending, failed }
   return { stats }
+}
+
+export async function triggerPartnerInventoryEmbeddingSync(partnerId: string, limit = 400) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const { user, supabase } = auth
+  const gate = await assertPartnerOwner(supabase, user.id, partnerId)
+  if ('error' in gate) return { error: gate.error }
+
+  const svc = createServiceRoleClient()
+  const { data: ownerPartner, error: ownerErr } = await svc
+    .from('messaging_partners')
+    .select('id')
+    .eq('id', partnerId)
+    .eq('owner_user_id', user.id)
+    .maybeSingle()
+  if (ownerErr) return { error: ownerErr.message }
+  if (!ownerPartner) return { error: 'Forbidden.' }
+
+  const batchLimit = Math.max(20, Math.min(5000, Math.floor(Number(limit) || 400)))
+  const run = await syncPartnerInventoryEmbeddings(svc, partnerId, { force: false, limit: batchLimit })
+  if (!run.ok) return { error: run.error }
+  revalidateMessagingDashboard()
+  return run
 }
 
 export async function savePartnerAiSettings(partnerId: string, payload: PartnerAiSettingsPayload) {

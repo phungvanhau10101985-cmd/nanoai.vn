@@ -74,6 +74,36 @@ function chunked<T>(items: T[], size: number): T[][] {
   return out
 }
 
+function dedupeExistingBySku(rows: InventoryRow[]): { canonical: InventoryRow[]; duplicateIds: string[] } {
+  const bySku = new Map<string, InventoryRow[]>()
+  const noSku: InventoryRow[] = []
+  for (const row of rows) {
+    const skuKey = inventorySkuMatchKey(row.sku)
+    if (!skuKey) {
+      noSku.push(row)
+      continue
+    }
+    const bucket = bySku.get(skuKey) ?? []
+    bucket.push(row)
+    bySku.set(skuKey, bucket)
+  }
+
+  const canonical: InventoryRow[] = [...noSku]
+  const duplicateIds: string[] = []
+  for (const bucket of bySku.values()) {
+    bucket.sort((a, b) => {
+      const u = (b.updated_at ?? '').localeCompare(a.updated_at ?? '')
+      if (u !== 0) return u
+      const c = (b.created_at ?? '').localeCompare(a.created_at ?? '')
+      if (c !== 0) return c
+      return a.id.localeCompare(b.id)
+    })
+    canonical.push(bucket[0])
+    for (let i = 1; i < bucket.length; i++) duplicateIds.push(bucket[i].id)
+  }
+  return { canonical, duplicateIds }
+}
+
 function toInventoryRow(id: string, partnerId: string, base: InventoryUpsertBase, createdAt: string): InventoryRow {
   return {
     id,
@@ -120,6 +150,7 @@ export async function listPartnerInventoryRows(
       .select('*')
       .eq('partner_id', partnerId)
       .order('created_at', { ascending: true })
+      .order('id', { ascending: true })
       .range(from, to)
     if (error) return { ok: false, error: error.message }
     const chunk = data ?? []
@@ -149,6 +180,8 @@ export async function upsertPartnerInventoryBatch(
     if (!listed.ok) return { ok: false, error: listed.error }
     resolvedExistingRows = listed.rows
   }
+  const deduped = dedupeExistingBySku(resolvedExistingRows)
+  resolvedExistingRows = deduped.canonical
   const existingById = new Map(resolvedExistingRows.map((r) => [r.id, r]))
   const bySku = indexExistingBySku(resolvedExistingRows)
   const byNameNoSku = indexExistingNoSkuByName(resolvedExistingRows)
@@ -160,7 +193,7 @@ export async function upsertPartnerInventoryBatch(
   let updated = 0
   let deleted = 0
   const changedIds = new Set<string>()
-  const plannedDeletes = new Set<string>()
+  const plannedDeletes = new Set<string>(deduped.duplicateIds)
   const plannedUpdates = new Map<string, InventoryInsert>()
   const plannedInserts = new Map<string, InventoryInsert>()
   const countedUpdatedIds = new Set<string>()
