@@ -6,6 +6,7 @@ import { requireMessagingPartnerOwner } from '@/lib/messaging/partner-inventory-
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
+export const maxDuration = 600
 
 const MAX_BYTES = 20 * 1024 * 1024
 
