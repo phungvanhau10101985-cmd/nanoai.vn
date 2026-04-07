@@ -22,6 +22,7 @@ import {
   deletePartnerFaq,
   deletePartnerInventoryItem,
   getPartnerAiBundle,
+  getPartnerInventoryPage,
   getPartnerAiTokenUsageStats,
   savePartnerAiSettings,
   upsertPartnerFaq,
@@ -115,6 +116,10 @@ export function PartnerAiSettingsPanel({
   const [settingsLoaded, setSettingsLoaded] = useState(false)
   const [faqs, setFaqs] = useState<FaqRow[]>([])
   const [inventory, setInventory] = useState<InvRow[]>([])
+  const [inventoryTotalCount, setInventoryTotalCount] = useState(0)
+  const [inventoryPageSize, setInventoryPageSize] = useState(120)
+  const [inventoryPage, setInventoryPage] = useState(0)
+  const [inventoryLoadingMore, setInventoryLoadingMore] = useState(false)
   const [tokenUsageRows, setTokenUsageRows] = useState<PartnerAiTokenUsageStatRow[]>([])
   const [tokenUsageLookbackDays, setTokenUsageLookbackDays] = useState(30)
   const [form, setForm] = useState<FormState>(() => defaultsFromSettings(null))
@@ -144,7 +149,13 @@ export function PartnerAiSettingsPanel({
         formRef.current = next
         setForm(next)
         setFaqs(bundleRes.faqs ?? [])
-        setInventory(bundleRes.inventory ?? [])
+        const inv = bundleRes.inventory ?? []
+        setInventory(inv)
+        setInventoryTotalCount(
+          Math.max(inv.length, typeof bundleRes.inventoryTotalCount === 'number' ? bundleRes.inventoryTotalCount : 0)
+        )
+        setInventoryPageSize(Math.max(20, Number(bundleRes.inventoryPageSize ?? 120) || 120))
+        setInventoryPage(0)
         setSettingsLoaded(true)
       } else {
         setSettingsLoaded(true)
@@ -188,6 +199,35 @@ export function PartnerAiSettingsPanel({
       toast({ title: saveOkMessage })
       load()
     })
+  }
+
+  const hasMoreInventory = inventory.length < inventoryTotalCount
+
+  const loadMoreInventory = () => {
+    if (inventoryLoadingMore || !hasMoreInventory) return
+    setInventoryLoadingMore(true)
+    const nextPage = inventoryPage + 1
+    ;(async () => {
+      const res = await getPartnerInventoryPage(partnerId, nextPage, inventoryPageSize)
+      if ('error' in res && res.error) {
+        toast({ title: res.error, variant: 'destructive' })
+        return
+      }
+      const rows = Array.isArray((res as { rows?: InvRow[] }).rows) ? ((res as { rows?: InvRow[] }).rows ?? []) : []
+      const totalCount = Number((res as { totalCount?: number }).totalCount ?? 0)
+      const page = Math.max(0, Number((res as { page?: number }).page ?? nextPage))
+      setInventory((prev) => {
+        const seen = new Set(prev.map((r) => r.id))
+        const add = rows.filter((r) => !seen.has(r.id))
+        return [...prev, ...add]
+      })
+      setInventoryTotalCount((prev) => Math.max(prev, totalCount))
+      setInventoryPage(page)
+    })()
+      .catch(() => {
+        toast({ title: t.loadError, variant: 'destructive' })
+      })
+      .finally(() => setInventoryLoadingMore(false))
   }
 
   return (
@@ -252,7 +292,7 @@ export function PartnerAiSettingsPanel({
             <TabsTrigger value="inv" className="text-xs sm:text-sm gap-1.5">
               {t.tabInventory}
               <Badge variant="secondary" className="h-5 min-w-5 px-1.5 font-mono text-[10px] tabular-nums">
-                {inventory.length}
+                {inventoryTotalCount}
               </Badge>
             </TabsTrigger>
             <TabsTrigger value="usage" className="text-xs sm:text-sm">
@@ -381,7 +421,7 @@ export function PartnerAiSettingsPanel({
           <TabsContent value="inv" className="mt-0 space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/60 bg-muted/25 px-3 py-2.5">
               <p className="text-sm font-medium tabular-nums">
-                {t.inventoryProductCountSummary.replace('{count}', String(inventory.length))}
+                {t.inventoryProductCountSummary.replace('{count}', String(inventoryTotalCount))}
               </p>
             </div>
             <InventoryEditor
@@ -393,6 +433,10 @@ export function PartnerAiSettingsPanel({
               pending={pending}
               startTransition={startTransition}
               toast={toast}
+              totalCount={inventoryTotalCount}
+              hasMore={hasMoreInventory}
+              loadingMore={inventoryLoadingMore}
+              onLoadMore={loadMoreInventory}
             />
           </TabsContent>
 
@@ -724,6 +768,10 @@ function InventoryEditor({
   pending,
   startTransition,
   toast,
+  totalCount,
+  hasMore,
+  loadingMore,
+  onLoadMore,
 }: {
   partnerId: string
   t: AiT
@@ -733,6 +781,10 @@ function InventoryEditor({
   pending: boolean
   startTransition: (cb: () => Promise<void>) => void
   toast: ReturnType<typeof useToast>['toast']
+  totalCount: number
+  hasMore: boolean
+  loadingMore: boolean
+  onLoadMore: () => void
 }) {
   const importInputRef = useRef<HTMLInputElement>(null)
   const [excelBusy, setExcelBusy] = useState(false)
@@ -1063,6 +1115,17 @@ function InventoryEditor({
           </li>
         ))}
       </ul>
+      {hasMore ? (
+        <div className="flex justify-center">
+          <Button type="button" variant="outline" size="sm" disabled={loadingMore || pending} onClick={onLoadMore}>
+            {loadingMore
+              ? t.inventoryExcelImportUploading
+              : t.inventoryLoadMore
+                  .replace('{shown}', String(rows.length))
+                  .replace('{total}', String(totalCount))}
+          </Button>
+        </div>
+      ) : null}
 
       <div className="rounded-xl border border-dashed border-violet-300/60 bg-violet-50/30 dark:border-violet-800/50 dark:bg-violet-950/20 p-4 space-y-3">
         <h4 className="text-sm font-semibold">{draft.id ? t.edit : t.addInventory}</h4>

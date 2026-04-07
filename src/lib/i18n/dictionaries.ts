@@ -400,6 +400,7 @@ export type Dictionary = {
     inventoryErrNoFile: string
     inventoryErrFileTooLarge: string
     inventoryErrTooManyRows: string
+    inventoryLoadMore: string
     addInventory: string
     edit: string
     emptyFaq: string
@@ -1900,6 +1901,7 @@ const VI_DICTIONARY: Dictionary = {
     inventoryErrNoFile: 'Chưa chọn file.',
     inventoryErrFileTooLarge: 'File quá lớn (tối đa ~20 MB).',
     inventoryErrTooManyRows: 'File có quá nhiều dòng. Tối đa {max} dòng mỗi lần import.',
+    inventoryLoadMore: 'Tải thêm ({shown}/{total})',
     addInventory: 'Thêm mặt hàng',
     edit: 'Sửa',
     emptyFaq: 'Chọn câu hỏi mẫu bên dưới và chỉ cần nhập cách shop trả lời.',
@@ -3409,6 +3411,7 @@ const EN_DICTIONARY: Dictionary = {
     inventoryErrNoFile: 'No file selected.',
     inventoryErrFileTooLarge: 'File is too large (max ~20 MB).',
     inventoryErrTooManyRows: 'File has too many rows. Maximum {max} rows per import.',
+    inventoryLoadMore: 'Load more ({shown}/{total})',
     addInventory: 'Add item',
     edit: 'Edit',
     emptyFaq: 'Pick a preset question below and enter how your shop replies.',
@@ -4915,6 +4918,7 @@ const ZH_DICTIONARY: Dictionary = {
     inventoryErrNoFile: '未选择文件。',
     inventoryErrFileTooLarge: '文件过大（最大约 20 MB）。',
     inventoryErrTooManyRows: '文件行数过多。每次导入最多 {max} 行。',
+    inventoryLoadMore: '加载更多（{shown}/{total}）',
     addInventory: '添加商品',
     edit: '编辑',
     emptyFaq: '请从下方预设问题中选择，并填写店铺回复内容。',
@@ -6376,6 +6380,7 @@ const JA_DICTIONARY: Dictionary = {
     inventoryErrNoFile: 'ファイルが選ばれていません。',
     inventoryErrFileTooLarge: 'ファイルが大きすぎます（最大約20MB）。',
     inventoryErrTooManyRows: '行数が多すぎます。1回のインポートは最大 {max} 行です。',
+    inventoryLoadMore: 'さらに読み込む（{shown}/{total}）',
     addInventory: '商品を追加',
     edit: '編集',
     emptyFaq: '下のよくある質問から選び、店舗の返信文だけ入力してください。',
@@ -7869,6 +7874,7 @@ const KO_DICTIONARY: Dictionary = {
     inventoryErrNoFile: '파일을 선택하지 않았습니다.',
     inventoryErrFileTooLarge: '파일이 너무 큽니다(최대 약 20MB).',
     inventoryErrTooManyRows: '행 수가 너무 많습니다. 한 번에 최대 {max}행까지 가져올 수 있습니다.',
+    inventoryLoadMore: '더 불러오기 ({shown}/{total})',
     addInventory: '상품 추가',
     edit: '편집',
     emptyFaq: '아래에서 미리 준비된 질문을 고르고 매장 답변만 입력하세요.',

@@ -22,7 +22,6 @@ import {
   partnerMediaPayloadToJson,
 } from '@/lib/messaging/guest-chat-image'
 import { validateInventoryImageUrl } from '@/lib/messaging/partner-inventory-excel'
-import { listPartnerInventoryRows } from '@/lib/messaging/partner-inventory-upsert-batch'
 import { parseTriggerKeywords } from '@/lib/messaging/partner-ai-faq'
 import {
   isPartnerFaqPresetKey,
@@ -31,6 +30,11 @@ import {
   presetSortOrder,
 } from '@/lib/messaging/partner-faq-presets'
 import { syncPartnerInventoryEmbeddings } from '@/lib/messaging/partner-inventory-embedding'
+
+const PARTNER_INVENTORY_PAGE_SIZE = Math.max(
+  50,
+  Math.min(500, parseInt(process.env.PARTNER_INVENTORY_UI_PAGE_SIZE || '120', 10) || 120)
+)
 
 async function requireUser() {
   const supabase = createClient()
@@ -563,20 +567,57 @@ export async function getPartnerAiBundle(partnerId: string) {
     .select('*')
     .eq('partner_id', partnerId)
     .order('sort_order', { ascending: true })
-  const listedInventory = await listPartnerInventoryRows(supabase, partnerId)
-  if (!listedInventory.ok) return { error: listedInventory.error }
+  const { data: inventoryPage, error: invErr, count: inventoryCount } = await supabase
+    .from('messaging_partner_inventory')
+    .select('*', { count: 'exact' })
+    .eq('partner_id', partnerId)
+    .order('sort_order', { ascending: true })
+    .range(0, PARTNER_INVENTORY_PAGE_SIZE - 1)
+  if (invErr) return { error: invErr.message }
   const { data: runner } = await supabase
     .from('vision_warehouse_runner')
     .select('assets_import_busy, assets_import_busy_at, assets_import_owner, assets_import_heartbeat_at')
     .eq('id', 1)
     .maybeSingle()
-  const inv = listedInventory.rows
+  const inv = inventoryPage ?? []
+  const total = Math.max(inv.length, inventoryCount ?? 0)
   return {
     settings: toPartnerAiSettingsClient(settings ?? null),
     faqs: faqs ?? [],
     inventory: inv,
+    inventoryTotalCount: total,
+    inventoryPageSize: PARTNER_INVENTORY_PAGE_SIZE,
     visionCatalogStats: buildPartnerVisionCatalogStats(inv),
     visionSyncHealth: buildPartnerVisionSyncHealth(inv, runner ?? null),
+  }
+}
+
+export async function getPartnerInventoryPage(partnerId: string, page: number, pageSize?: number) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const { user, supabase } = auth
+  const gate = await assertPartnerOwner(supabase, user.id, partnerId)
+  if ('error' in gate) return { error: gate.error }
+
+  const size = Math.max(20, Math.min(500, Math.floor(Number(pageSize) || PARTNER_INVENTORY_PAGE_SIZE)))
+  const index = Math.max(0, Math.floor(Number(page) || 0))
+  const from = index * size
+  const to = from + size - 1
+
+  const { data, error, count } = await supabase
+    .from('messaging_partner_inventory')
+    .select('*', { count: 'exact' })
+    .eq('partner_id', partnerId)
+    .order('sort_order', { ascending: true })
+    .range(from, to)
+  if (error) return { error: error.message }
+  const rows = data ?? []
+  return {
+    rows,
+    page: index,
+    pageSize: size,
+    totalCount: Math.max(rows.length, count ?? 0),
+    hasMore: from + rows.length < Math.max(rows.length, count ?? 0),
   }
 }
 
