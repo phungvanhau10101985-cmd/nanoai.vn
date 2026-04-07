@@ -418,12 +418,33 @@ export function PartnerGuestChatClient({
         body: JSON.stringify({ messageId, inventoryId }),
       })
       captureGuestSessionFromResponse(res)
-      const data = (await res.json()) as { ok?: boolean; error?: string; shopTyping?: { maxWaitMs: number } }
+      const data = (await res.json()) as {
+        ok?: boolean
+        error?: string
+        shopTyping?: { maxWaitMs: number }
+        requireAuth?: boolean
+      }
       if (res.status === 401) {
         setUserId(null)
         return
       }
       if (!res.ok) {
+        if (data.requireAuth) {
+          setAuthGateRequired(true)
+          toast({
+            title: t.guestAuthRequiredAfterLimit.replace('{count}', '5'),
+            variant: 'destructive',
+          })
+          return
+        }
+        if (data.error?.startsWith('AUTH_REQUIRED_')) {
+          setAuthGateRequired(true)
+          toast({
+            title: t.guestAuthRequiredAfterLimit.replace('{count}', '5'),
+            variant: 'destructive',
+          })
+          return
+        }
         toast({ title: data.error || t.visionPickError, variant: 'destructive' })
         return
       }
@@ -458,12 +479,29 @@ export function PartnerGuestChatClient({
         ok?: boolean
         error?: string
         shopTyping?: { maxWaitMs: number }
+        requireAuth?: boolean
       }
       if (res.status === 401) {
         setUserId(null)
         return
       }
       if (!res.ok) {
+        if (data.requireAuth) {
+          setAuthGateRequired(true)
+          toast({
+            title: t.guestAuthRequiredAfterLimit.replace('{count}', '5'),
+            variant: 'destructive',
+          })
+          return
+        }
+        if (data.error?.startsWith('AUTH_REQUIRED_')) {
+          setAuthGateRequired(true)
+          toast({
+            title: t.guestAuthRequiredAfterLimit.replace('{count}', '5'),
+            variant: 'destructive',
+          })
+          return
+        }
         toast({ title: data.error || t.sendError, variant: 'destructive' })
         return
       }
@@ -672,6 +710,14 @@ export function PartnerGuestChatClient({
       }
       if (!res.ok) {
         if (data.requireAuth) {
+          setAuthGateRequired(true)
+          toast({
+            title: t.guestAuthRequiredAfterLimit.replace('{count}', '5'),
+            variant: 'destructive',
+          })
+          return
+        }
+        if (data.error?.startsWith('AUTH_REQUIRED_')) {
           setAuthGateRequired(true)
           toast({
             title: t.guestAuthRequiredAfterLimit.replace('{count}', '5'),
