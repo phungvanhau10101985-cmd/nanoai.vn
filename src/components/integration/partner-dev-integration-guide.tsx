@@ -47,17 +47,147 @@ export function PartnerDevIntegrationGuide({ baseUrl, t, partners, labels }: Pro
   const safeDesktopWidthPx = Math.max(280, Math.min(1200, Math.floor(embedDesktopWidthPx) || 380))
   const safeDesktopHeightPx = Math.max(320, Math.min(1200, Math.floor(embedDesktopHeightPx) || 560))
   const safeRadiusPx = Math.max(0, Math.min(60, Math.floor(embedRadiusPx) || 12))
+  const safeDesktopWidthVw = Math.max(40, Math.min(98, Math.round((safeDesktopWidthPx / 1920) * 100)))
+  const safeDesktopHeightVh = Math.max(40, Math.min(95, Math.round((safeDesktopHeightPx / 1080) * 100)))
 
   const hostedUrl = `${baseUrl}/messaging/p/${slug}?embed=1`
-  const hostedIframe = `<iframe
-  src="${hostedUrl}"
-  title="Chat NanoAI"
-  width="100%"
-  height="${safeDesktopHeightPx}"
-  style="position:fixed;bottom:${safeBottomPx}px;${embedSide}:${safeHorizontalPx}px;width:min(92vw,${safeDesktopWidthPx}px);height:min(70vh,${safeDesktopHeightPx}px);border:0;border-radius:${safeRadiusPx}px;max-width:100%;z-index:2147483000"
-  loading="lazy"
-  referrerpolicy="no-referrer-when-downgrade">
-</iframe>`
+  const hostedScript = `<script>
+(function () {
+  var CONFIG = {
+    chatUrl: "${hostedUrl}",
+    logoUrl: "${baseUrl}/icons/icon-192x192.png",
+    widgetId: "nanoai-chat-widget-v1",
+    side: "${embedSide}",
+    zIndex: 2147483000,
+    desktop: {
+      bottom: ${safeBottomPx},
+      offsetX: ${safeHorizontalPx},
+      width: ${safeDesktopWidthPx},
+      height: ${safeDesktopHeightPx},
+      radius: ${safeRadiusPx},
+      gapAboveBubble: 14
+    },
+    mobile: {
+      breakpoint: 768,
+      fullScreen: true,
+      bubbleSize: 52
+    },
+    bubble: { size: 56 }
+  };
+
+  if (document.getElementById(CONFIG.widgetId)) return;
+  var root = document.createElement("div");
+  root.id = CONFIG.widgetId;
+  root.style.cssText = "position:fixed;z-index:" + CONFIG.zIndex + ";font-family:Arial,sans-serif;";
+  document.body.appendChild(root);
+
+  var bubble = document.createElement("button");
+  bubble.type = "button";
+  bubble.setAttribute("aria-label", "Mở chat NanoAI");
+  bubble.style.cssText =
+    "width:" + CONFIG.bubble.size + "px;height:" + CONFIG.bubble.size + "px;border:none;border-radius:9999px;cursor:pointer;" +
+    "background:linear-gradient(135deg,#7c3aed,#6366f1);" +
+    "box-shadow:0 10px 24px rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;padding:0;";
+  var logo = document.createElement("img");
+  logo.src = CONFIG.logoUrl;
+  logo.alt = "NanoAI";
+  logo.style.cssText = "width:30px;height:30px;object-fit:contain;display:block;";
+  logo.onerror = function () { this.style.display = "none"; bubble.textContent = "AI"; bubble.style.color = "#fff"; bubble.style.fontWeight = "700"; };
+  bubble.appendChild(logo);
+  root.appendChild(bubble);
+
+  var panel = document.createElement("div");
+  panel.style.cssText = "display:none;position:absolute;background:#fff;overflow:hidden;box-shadow:0 16px 40px rgba(0,0,0,.28);border:1px solid #e5e7eb;";
+  root.appendChild(panel);
+
+  var header = document.createElement("div");
+  header.style.cssText = "height:44px;background:#fff;border-bottom:1px solid #eee;display:flex;align-items:center;justify-content:space-between;padding:0 10px;";
+  header.innerHTML = '<div style="font-weight:700;font-size:15px;color:#111">NanoAI</div>';
+  panel.appendChild(header);
+
+  var closeBtn = document.createElement("button");
+  closeBtn.type = "button";
+  closeBtn.setAttribute("aria-label", "Đóng chat");
+  closeBtn.style.cssText = "width:28px;height:28px;border:none;border-radius:8px;cursor:pointer;background:#f3f4f6;color:#111;font-size:18px;line-height:1;";
+  closeBtn.textContent = "×";
+  header.appendChild(closeBtn);
+
+  var body = document.createElement("div");
+  body.style.cssText = "width:100%;height:calc(100% - 44px);";
+  panel.appendChild(body);
+
+  var iframe = null;
+  function ensureIframe() {
+    if (iframe) return;
+    iframe = document.createElement("iframe");
+    iframe.src = CONFIG.chatUrl;
+    iframe.title = "Chat NanoAI";
+    iframe.loading = "lazy";
+    iframe.referrerPolicy = "no-referrer-when-downgrade";
+    iframe.style.cssText = "width:100%;height:100%;border:0;";
+    body.appendChild(iframe);
+  }
+
+  function openChat() { ensureIframe(); panel.style.display = "block"; bubble.style.display = "none"; }
+  function closeChat() { panel.style.display = "none"; bubble.style.display = "flex"; }
+  bubble.addEventListener("click", openChat);
+  closeBtn.addEventListener("click", closeChat);
+
+  function placeDesktop() {
+    var d = CONFIG.desktop;
+    root.style.bottom = d.bottom + "px";
+    if (CONFIG.side === "left") {
+      root.style.left = d.offsetX + "px";
+      root.style.right = "auto";
+      panel.style.left = "0";
+      panel.style.right = "auto";
+    } else {
+      root.style.right = d.offsetX + "px";
+      root.style.left = "auto";
+      panel.style.right = "0";
+      panel.style.left = "auto";
+    }
+    panel.style.bottom = (CONFIG.bubble.size + d.gapAboveBubble) + "px";
+    panel.style.width = "min(${safeDesktopWidthVw}vw," + d.width + "px)";
+    panel.style.height = "min(${safeDesktopHeightVh}vh," + d.height + "px)";
+    panel.style.borderRadius = d.radius + "px";
+    bubble.style.width = CONFIG.bubble.size + "px";
+    bubble.style.height = CONFIG.bubble.size + "px";
+    bubble.style.margin = "0";
+  }
+
+  function placeMobile() {
+    root.style.left = "0";
+    root.style.right = "0";
+    root.style.bottom = "0";
+    if (CONFIG.mobile.fullScreen) {
+      panel.style.left = "0";
+      panel.style.right = "0";
+      panel.style.bottom = "0";
+      panel.style.width = "100vw";
+      panel.style.height = "100dvh";
+      panel.style.borderRadius = "0";
+    } else {
+      placeDesktop();
+    }
+    bubble.style.width = CONFIG.mobile.bubbleSize + "px";
+    bubble.style.height = CONFIG.mobile.bubbleSize + "px";
+    bubble.style.margin = "0 10px 10px 0";
+  }
+
+  var resizeTimer = null;
+  function applyLayout() {
+    if (window.innerWidth <= CONFIG.mobile.breakpoint) placeMobile();
+    else placeDesktop();
+  }
+  function onResize() {
+    if (resizeTimer) window.clearTimeout(resizeTimer);
+    resizeTimer = window.setTimeout(applyLayout, 100);
+  }
+  applyLayout();
+  window.addEventListener("resize", onResize, { passive: true });
+})();
+</script>`
 
   const guestGet = `GET ${guestBase}
 Cookie: <supabase_auth_session>`
@@ -244,7 +374,7 @@ Cookie: <supabase_auth_session>
                 </label>
               </div>
             </div>
-            <CodeBlock title={t.codeLabelExample}>{hostedIframe}</CodeBlock>
+            <CodeBlock title={t.codeLabelExample}>{hostedScript}</CodeBlock>
           </>
         )}
 

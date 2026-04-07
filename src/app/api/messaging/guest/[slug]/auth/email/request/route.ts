@@ -52,6 +52,20 @@ function sha256(v: string) {
   return crypto.createHash('sha256').update(v).digest('hex')
 }
 
+function resolvePublicOrigin(request: NextRequest): string {
+  const envOrigin =
+    process.env.APP_URL?.trim() ||
+    process.env.NEXT_PUBLIC_APP_URL?.trim() ||
+    process.env.NEXT_PUBLIC_BASE_URL?.trim() ||
+    ''
+  if (envOrigin) return envOrigin.replace(/\/$/, '')
+
+  const xfProto = request.headers.get('x-forwarded-proto')?.trim()
+  const xfHost = request.headers.get('x-forwarded-host')?.trim()
+  if (xfHost) return `${xfProto || 'https'}://${xfHost}`.replace(/\/$/, '')
+  return request.nextUrl.origin.replace(/\/$/, '')
+}
+
 export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: string }> }) {
   const { slug } = await ctx.params
   const p = await resolvePartner(slug)
@@ -117,9 +131,10 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
   })
   if (insErr) return NextResponse.json({ error: insErr.message }, { status: 500 })
 
-  const magicUrl = `${request.nextUrl.origin}/api/messaging/guest/${encodeURIComponent(slug)}/auth/email/verify-magic?token=${encodeURIComponent(
+  const publicOrigin = resolvePublicOrigin(request)
+  const magicUrl = `${publicOrigin}/api/messaging/guest/${encodeURIComponent(slug)}/auth/email/verify-magic?token=${encodeURIComponent(
     magicRaw
-  )}&email=${encodeURIComponent(email)}`
+  )}&email=${encodeURIComponent(email)}&sid=${encodeURIComponent(sessionId)}`
   const subject = `Xac thuc chat - ${displayName}`
   const text = [
     `Xin chao,`,

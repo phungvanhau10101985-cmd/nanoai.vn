@@ -5,6 +5,7 @@ import { isReservedMessagingGuestSlug } from '@/lib/messaging/reserved-guest-slu
 import { readGuestSessionIdFromRequest } from '@/lib/messaging/guest-auth-session'
 import { writeGuestAccountCookie } from '@/lib/messaging/guest-account-session'
 import { mergeGuestSessionConversationToAccount } from '@/lib/messaging/guest-account-merge'
+import { isValidMessagingGuestSessionId } from '@/lib/messaging/guest-session-id'
 import {
   getClientIpFromRequest,
   getRateLimitRetryAfterSec,
@@ -35,17 +36,36 @@ async function resolvePartner(slug: string) {
   return { db, partnerId: partner.id }
 }
 
+function resolvePublicOrigin(request: NextRequest): string {
+  const envOrigin =
+    process.env.APP_URL?.trim() ||
+    process.env.NEXT_PUBLIC_APP_URL?.trim() ||
+    process.env.NEXT_PUBLIC_BASE_URL?.trim() ||
+    ''
+  if (envOrigin) return envOrigin.replace(/\/$/, '')
+
+  const xfProto = request.headers.get('x-forwarded-proto')?.trim()
+  const xfHost = request.headers.get('x-forwarded-host')?.trim()
+  if (xfHost) return `${xfProto || 'https'}://${xfHost}`.replace(/\/$/, '')
+  return request.nextUrl.origin.replace(/\/$/, '')
+}
+
 export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: string }> }) {
   const { slug } = await ctx.params
+  const publicOrigin = resolvePublicOrigin(request)
+  const guestChatUrl = `${publicOrigin}/messaging/p/${encodeURIComponent(slug)}`
   const p = await resolvePartner(slug)
-  if ('error' in p) return NextResponse.redirect(new URL(`/messaging/p/${encodeURIComponent(slug)}?auth=failed`, request.url))
+  if ('error' in p) return NextResponse.redirect(new URL(`${guestChatUrl}?auth=failed`))
   const { db, partnerId } = p
 
   const email = String(request.nextUrl.searchParams.get('email') ?? '').trim().toLowerCase()
   const token = String(request.nextUrl.searchParams.get('token') ?? '').trim()
-  const sessionId = readGuestSessionIdFromRequest(request)
+  const sessionIdFromCookieOrHeader = readGuestSessionIdFromRequest(request)
+  const sidQuery = String(request.nextUrl.searchParams.get('sid') ?? '').trim()
+  const sessionId =
+    sessionIdFromCookieOrHeader || (isValidMessagingGuestSessionId(sidQuery) ? sidQuery : null)
   if (!email || !token || !sessionId) {
-    return NextResponse.redirect(new URL(`/messaging/p/${encodeURIComponent(slug)}?auth=failed`, request.url))
+    return NextResponse.redirect(new URL(`${guestChatUrl}?auth=failed`))
   }
 
   const ip = getClientIpFromRequest(request)
@@ -72,7 +92,7 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
     .limit(1)
     .maybeSingle()
   if (!row?.id || row.expires_at < nowIso) {
-    return NextResponse.redirect(new URL(`/messaging/p/${encodeURIComponent(slug)}?auth=failed`, request.url))
+    return NextResponse.redirect(new URL(`${guestChatUrl}?auth=failed`))
   }
 
   await db.from('messaging_guest_email_challenges').update({ consumed_at: nowIso }).eq('id', row.id)
@@ -104,7 +124,7 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
       .eq('id', accountId)
   }
   if (!accountId) {
-    return NextResponse.redirect(new URL(`/messaging/p/${encodeURIComponent(slug)}?auth=failed`, request.url))
+    return NextResponse.redirect(new URL(`${guestChatUrl}?auth=failed`))
   }
 
   await db
@@ -121,7 +141,7 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
 
   await mergeGuestSessionConversationToAccount(db, partnerId, sessionId, accountId)
 
-  const redirectUrl = new URL(`/messaging/p/${encodeURIComponent(slug)}?auth=ok`, request.url)
+  const redirectUrl = new URL(`${guestChatUrl}?auth=ok`)
   const res = NextResponse.redirect(redirectUrl)
   writeGuestAccountCookie(res, request, accountId)
   return res
