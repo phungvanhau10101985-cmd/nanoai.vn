@@ -4,6 +4,8 @@ import { createServiceRoleClient } from '@/lib/supabase/service-role'
 import { isReservedMessagingGuestSlug } from '@/lib/messaging/reserved-guest-slugs'
 import { isValidMessagingGuestSessionId } from '@/lib/messaging/guest-session-id'
 import { executeGuestVisionPick } from '@/lib/messaging/guest-vision-pick'
+import { readGuestSessionIdFromRequest } from '@/lib/messaging/guest-auth-session'
+import { readGuestAccountIdFromRequest } from '@/lib/messaging/guest-account-session'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -77,10 +79,20 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (user?.id) {
+      externalThreadId = user.id
+    } else {
+      const accountIdFromCookie = readGuestAccountIdFromRequest(request)
+      if (accountIdFromCookie) {
+        externalThreadId = accountIdFromCookie
+      } else {
+        const sessionFromCookie = readGuestSessionIdFromRequest(request)
+        if (!sessionFromCookie) {
+          return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        }
+        externalThreadId = sessionFromCookie
+      }
     }
-    externalThreadId = user.id
   }
 
   const result = await executeGuestVisionPick(db, {

@@ -15,6 +15,7 @@ import {
 import { VISION_PICK_GRACE_AI_DELAY_SECONDS } from '@/lib/messaging/partner-vision-constants'
 
 type Db = SupabaseClient<Database>
+const ANONYMOUS_INBOUND_AUTH_THRESHOLD = 5
 type GuestVisionCandidatePayload = {
   inventoryId: string
   name: string
@@ -36,6 +37,8 @@ export async function postWidgetGuestMessage(
     externalThreadId: string
     /** Liên kết tài khoản Google (hosted); embed để null */
     linkedUserId?: string | null
+    /** Tài khoản khách xác thực email OTP/magic (không phụ thuộc Google) */
+    guestAccountId?: string | null
     customerName: string
     metadata: Json
     text?: string
@@ -43,7 +46,7 @@ export async function postWidgetGuestMessage(
   }
 ): Promise<
   | { ok: true; shopTyping?: { maxWaitMs: number }; visionPickRequired?: boolean }
-  | { error: string }
+  | { error: string; requireAuth?: boolean }
 > {
   const text = params.text?.trim() ?? ''
   const imagePath = params.imageStoragePath?.trim() ?? ''
@@ -149,6 +152,19 @@ export async function postWidgetGuestMessage(
   if ('error' in conv) return { error: conv.error ?? 'Conversation error.' }
   const conversationId = conv.conversationId
   if (!conversationId) return { error: 'Conversation failed.' }
+
+  // Anonymous guests can chat immediately, then verify email to continue after N inbound messages.
+  if (!params.linkedUserId && !params.guestAccountId) {
+    const { count: inboundCount, error: cntErr } = await db
+      .from('customer_care_messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('conversation_id', conversationId)
+      .eq('direction', 'inbound')
+    if (cntErr) return { error: cntErr.message }
+    if ((inboundCount ?? 0) >= ANONYMOUS_INBOUND_AUTH_THRESHOLD) {
+      return { error: `AUTH_REQUIRED_${ANONYMOUS_INBOUND_AUTH_THRESHOLD}`, requireAuth: true }
+    }
+  }
 
   const ins = await insertMessage(db, {
     conversationId,

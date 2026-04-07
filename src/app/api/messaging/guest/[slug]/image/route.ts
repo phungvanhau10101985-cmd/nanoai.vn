@@ -6,6 +6,11 @@ import {
   isAllowedGuestImageMime,
   uploadGuestChatImageBuffer,
 } from '@/lib/messaging/guest-chat-image'
+import {
+  createGuestSessionId,
+  readGuestSessionIdFromRequest,
+  writeGuestSessionCookie,
+} from '@/lib/messaging/guest-auth-session'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -33,9 +38,8 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
   const {
     data: { user },
   } = await supabase.auth.getUser()
-  if (!user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const existingSessionId = readGuestSessionIdFromRequest(request)
+  const newSessionId = !user?.id && !existingSessionId ? createGuestSessionId() : null
 
   let formData: FormData
   try {
@@ -63,5 +67,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
   if ('error' in up) {
     return NextResponse.json({ error: up.error }, { status: 400 })
   }
-  return NextResponse.json({ path: up.path, publicUrl: up.publicUrl })
+  const res = NextResponse.json({ path: up.path, publicUrl: up.publicUrl })
+  if (newSessionId) writeGuestSessionCookie(res, request, newSessionId)
+  return res
 }

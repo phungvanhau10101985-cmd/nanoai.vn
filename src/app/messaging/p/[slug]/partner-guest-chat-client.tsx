@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
 import { CustomerCareMessageBody } from '@/components/messaging/customer-care-message-body'
 import { useToast } from '@/hooks/use-toast'
@@ -122,6 +122,12 @@ export function PartnerGuestChatClient({
   const [draft, setDraft] = useState('')
   const [loading, setLoading] = useState(false)
   const [sending, setSending] = useState(false)
+  const [authMode, setAuthMode] = useState<'anonymous' | 'account'>('anonymous')
+  const [authGateRequired, setAuthGateRequired] = useState(false)
+  const [guestAuthEmail, setGuestAuthEmail] = useState('')
+  const [guestAuthOtp, setGuestAuthOtp] = useState('')
+  const [guestAuthSending, setGuestAuthSending] = useState(false)
+  const [guestAuthVerifying, setGuestAuthVerifying] = useState(false)
   /** Sau khi gửi tin: server báo AI/FAQ đang trả lời — poll nhanh và hiện “đang soạn tin”. */
   const [shopTyping, setShopTyping] = useState<{ deadline: number; baselineOutbound: number } | null>(null)
   const [uploading, setUploading] = useState(false)
@@ -177,11 +183,14 @@ export function PartnerGuestChatClient({
   }, [])
 
   const load = useCallback(async () => {
-    if (!userId) return
     setLoading(true)
     try {
       const res = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}`, { credentials: 'same-origin' })
-      const data = (await res.json()) as { messages?: GuestMsg[]; error?: string }
+      const data = (await res.json()) as {
+        messages?: GuestMsg[]
+        error?: string
+        authMode?: 'anonymous' | 'account'
+      }
       if (res.status === 401) {
         setUserId(null)
         return
@@ -192,6 +201,8 @@ export function PartnerGuestChatClient({
       }
       const next = Array.isArray(data.messages) ? data.messages : []
       setMessages(next)
+      setAuthMode(data.authMode === 'account' ? 'account' : 'anonymous')
+      if (data.authMode === 'account') setAuthGateRequired(false)
       setHasLoadedOnce(true)
       setShopTyping((prev) => {
         if (!prev) return null
@@ -205,21 +216,20 @@ export function PartnerGuestChatClient({
     } finally {
       setLoading(false)
     }
-  }, [slug, userId, toast, t.loadError])
+  }, [slug, toast, t.loadError])
 
   useEffect(() => {
-    if (userId) void load()
-  }, [userId, load])
+    if (authReady) void load()
+  }, [authReady, load])
 
   useEffect(() => {
     didInitialAutoScrollRef.current = false
   }, [slug, userId])
 
   useEffect(() => {
-    if (!userId) return
     const id = window.setInterval(() => void load(), 18000)
     return () => window.clearInterval(id)
-  }, [userId, load])
+  }, [load])
 
   useEffect(() => {
     if (!shopTyping) return
@@ -246,6 +256,21 @@ export function PartnerGuestChatClient({
     mq.addEventListener('change', sync)
     return () => mq.removeEventListener('change', sync)
   }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const sp = new URLSearchParams(window.location.search)
+    const auth = sp.get('auth')
+    if (!auth) return
+    if (auth === 'ok') {
+      setAuthGateRequired(false)
+      setAuthMode('account')
+      void load()
+    }
+    sp.delete('auth')
+    const next = `${window.location.pathname}${sp.toString() ? `?${sp.toString()}` : ''}`
+    window.history.replaceState(null, '', next)
+  }, [load])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -356,7 +381,6 @@ export function PartnerGuestChatClient({
   }
 
   const submitVisionPick = async (messageId: string, inventoryId: string) => {
-    if (!userId) return
     setVisionPickBusyId(messageId)
     const outboundBaseline = messages.filter((m) => m.direction === 'outbound').length
     try {
@@ -390,7 +414,6 @@ export function PartnerGuestChatClient({
   }
 
   const submitProductCardPick = async (card: PartnerAiProductCard) => {
-    if (!userId) return
     const label = card.name?.trim() || 'mẫu sản phẩm'
     const ask = `Em/chị chọn mẫu này, shop tư vấn chi tiết giúp em/chị nhé: ${label}`
     const outboundBaseline = messages.filter((m) => m.direction === 'outbound').length
@@ -430,7 +453,6 @@ export function PartnerGuestChatClient({
   }
 
   const uploadFile = async (file: File) => {
-    if (!userId) return
     if (!file.type.startsWith('image/')) {
       toast({ title: t.guestImageInvalidType, variant: 'destructive' })
       return
@@ -475,7 +497,7 @@ export function PartnerGuestChatClient({
   }
 
   const onDraftPaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    if (!userId || uploading || sending || tryOnBusy) return
+    if (uploading || sending || tryOnBusy) return
     const cd = e.clipboardData
     if (!cd) return
     const attachFirstImage = (f: File | null) => {
@@ -500,7 +522,10 @@ export function PartnerGuestChatClient({
   }
 
   const runTryOn = async () => {
-    if (!userId) return
+    if (!userId) {
+      toast({ title: t.loginPromptTitle, description: t.loginPromptDescription })
+      return
+    }
     if (!tryOnUserFile || tryOnGarmentFiles.length === 0) {
       toast({ title: t.tryOnNeedBoth, variant: 'destructive' })
       return
@@ -579,7 +604,13 @@ export function PartnerGuestChatClient({
 
   const send = async () => {
     const text = draft.trim()
-    if (!userId) return
+    if (authGateRequired && authMode !== 'account') {
+      toast({
+        title: t.guestAuthRequiredAfterLimit.replace('{count}', '5'),
+        variant: 'destructive',
+      })
+      return
+    }
     if (!text && !imageStoragePath) return
     const outboundBaseline = messages.filter((m) => m.direction === 'outbound').length
     setSending(true)
@@ -598,12 +629,22 @@ export function PartnerGuestChatClient({
         error?: string
         shopTyping?: { maxWaitMs: number }
         visionPickRequired?: boolean
+        requireAuth?: boolean
+        authMode?: 'anonymous' | 'account'
       }
       if (res.status === 401) {
         setUserId(null)
         return
       }
       if (!res.ok) {
+        if (data.requireAuth) {
+          setAuthGateRequired(true)
+          toast({
+            title: t.guestAuthRequiredAfterLimit.replace('{count}', '5'),
+            variant: 'destructive',
+          })
+          return
+        }
         const msg = data.error || t.sendError
         if (/large|too large|lớn/i.test(msg)) toast({ title: t.guestImageTooLarge, variant: 'destructive' })
         else if (/type|Unsupported|hỗ trợ/i.test(msg)) toast({ title: t.guestImageInvalidType, variant: 'destructive' })
@@ -612,6 +653,10 @@ export function PartnerGuestChatClient({
       }
       setDraft('')
       clearAttachment()
+      if (data.authMode === 'account') {
+        setAuthMode('account')
+        setAuthGateRequired(false)
+      }
       await load()
       if (data.shopTyping?.maxWaitMs && data.shopTyping.maxWaitMs > 0) {
         setShopTyping({
@@ -626,8 +671,76 @@ export function PartnerGuestChatClient({
     }
   }
 
-  const canSend = Boolean(userId && (draft.trim() || imageStoragePath) && !uploading)
+  const canSend = Boolean((draft.trim() || imageStoragePath) && !uploading && !(authGateRequired && authMode !== 'account'))
   const showCameraButton = isTouchDevice
+
+  const requestGuestAuthEmail = async () => {
+    const email = guestAuthEmail.trim().toLowerCase()
+    if (!email) return
+    setGuestAuthSending(true)
+    try {
+      const res = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}/auth/email/request`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      })
+      const data = (await res.json()) as { ok?: boolean; error?: string; retry_after_sec?: number }
+      if (!res.ok) {
+        if (res.status === 429) {
+          const waitSec = Number.isFinite(data.retry_after_sec) ? Math.max(1, Math.round(data.retry_after_sec as number)) : 60
+          toast({
+            title: t.guestAuthRateLimited.replace('{seconds}', String(waitSec)),
+            variant: 'destructive',
+          })
+          return
+        }
+        toast({ title: data.error || t.sendError, variant: 'destructive' })
+        return
+      }
+      toast({ title: t.guestAuthEmailSent })
+    } catch {
+      toast({ title: t.sendError, variant: 'destructive' })
+    } finally {
+      setGuestAuthSending(false)
+    }
+  }
+
+  const verifyGuestOtp = async () => {
+    const email = guestAuthEmail.trim().toLowerCase()
+    const otp = guestAuthOtp.trim()
+    if (!email || !otp) return
+    setGuestAuthVerifying(true)
+    try {
+      const res = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}/auth/email/verify-otp`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, otp }),
+      })
+      const data = (await res.json()) as { ok?: boolean; error?: string; retry_after_sec?: number }
+      if (!res.ok || !data.ok) {
+        if (res.status === 429) {
+          const waitSec = Number.isFinite(data.retry_after_sec) ? Math.max(1, Math.round(data.retry_after_sec as number)) : 60
+          toast({
+            title: t.guestAuthRateLimited.replace('{seconds}', String(waitSec)),
+            variant: 'destructive',
+          })
+          return
+        }
+        toast({ title: t.guestAuthOtpInvalid, variant: 'destructive' })
+        return
+      }
+      setAuthMode('account')
+      setAuthGateRequired(false)
+      setGuestAuthOtp('')
+      await load()
+    } catch {
+      toast({ title: t.guestAuthOtpInvalid, variant: 'destructive' })
+    } finally {
+      setGuestAuthVerifying(false)
+    }
+  }
   const activeChatList: ChatRailItem[] = (() => {
     const existing = initialChatList.find((x) => x.slug === slug)
     if (existing) return initialChatList
@@ -648,26 +761,6 @@ export function PartnerGuestChatClient({
     return (
       <div className="flex w-full max-w-lg justify-center py-16">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" aria-hidden />
-      </div>
-    )
-  }
-
-  if (!userId) {
-    return (
-      <div className="w-full max-w-lg">
-        <Card className="border-border/70 shadow-md">
-          <CardHeader>
-            <CardTitle>{t.loginPromptTitle}</CardTitle>
-            <CardDescription>{t.loginPromptDescription}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button asChild className="w-full">
-              <a href={loginHref} target={loginOpenInNewTab ? '_blank' : '_self'} rel="noopener noreferrer">
-                {t.signInWithGoogle}
-              </a>
-            </Button>
-          </CardContent>
-        </Card>
       </div>
     )
   }
@@ -849,6 +942,75 @@ export function PartnerGuestChatClient({
                 </div>
               ) : null}
               {imageStoragePath ? <p className="text-[11px] text-muted-foreground">{t.guestCaptionHint}</p> : null}
+
+              {authMode !== 'account' ? (
+                <div className="rounded-lg border border-border/70 bg-muted/20 px-2.5 py-2">
+                  <p className="text-xs font-medium text-foreground">{t.loginPromptTitle}</p>
+                  <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">{t.loginPromptDescription}</p>
+                  {authGateRequired ? (
+                    <p className="mt-1 text-[11px] font-medium text-amber-700 dark:text-amber-300">
+                      {t.guestAuthRequiredAfterLimit.replace('{count}', '5')}
+                    </p>
+                  ) : (
+                    <p className="mt-1 text-[11px] text-muted-foreground">{t.guestAuthPromptBody}</p>
+                  )}
+                  <div className="mt-2 grid grid-cols-1 gap-1.5">
+                    <input
+                      type="email"
+                      value={guestAuthEmail}
+                      onChange={(e) => setGuestAuthEmail(e.target.value)}
+                      placeholder={t.guestAuthEmailPlaceholder}
+                      className="h-8 rounded-md border border-border bg-background px-2 text-[12px]"
+                    />
+                    <div className="flex flex-wrap gap-1.5">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        className="h-7 text-[11px]"
+                        disabled={guestAuthSending || !guestAuthEmail.trim()}
+                        onClick={() => void requestGuestAuthEmail()}
+                      >
+                        {t.guestAuthSendMagicLink}
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-[11px]"
+                        disabled={guestAuthSending || !guestAuthEmail.trim()}
+                        onClick={() => void requestGuestAuthEmail()}
+                      >
+                        {t.guestAuthSendOtp}
+                      </Button>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      <input
+                        type="text"
+                        value={guestAuthOtp}
+                        onChange={(e) => setGuestAuthOtp(e.target.value)}
+                        placeholder={t.guestAuthOtpPlaceholder}
+                        className="h-8 min-w-[150px] flex-1 rounded-md border border-border bg-background px-2 text-[12px]"
+                      />
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-8 text-[11px]"
+                        disabled={guestAuthVerifying || !guestAuthEmail.trim() || !guestAuthOtp.trim()}
+                        onClick={() => void verifyGuestOtp()}
+                      >
+                        {t.guestAuthVerifyOtp}
+                      </Button>
+                    </div>
+                  </div>
+                  <Button asChild size="sm" variant="secondary" className="mt-2 h-7 text-[11px]">
+                    <a href={loginHref} target={loginOpenInNewTab ? '_blank' : '_self'} rel="noopener noreferrer">
+                      {t.signInWithGoogle}
+                    </a>
+                  </Button>
+                </div>
+              ) : null}
 
               {tryOnOpen ? (
                 <div className="space-y-2 rounded-lg border border-border/70 bg-muted/20 p-2">

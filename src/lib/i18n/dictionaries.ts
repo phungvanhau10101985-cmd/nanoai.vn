@@ -615,6 +615,17 @@ export type Dictionary = {
     tryOnFailed: string
     tryOnReady: string
     tryOnChargedToast: string
+    guestAuthPromptTitle: string
+    guestAuthPromptBody: string
+    guestAuthEmailPlaceholder: string
+    guestAuthSendMagicLink: string
+    guestAuthSendOtp: string
+    guestAuthOtpPlaceholder: string
+    guestAuthVerifyOtp: string
+    guestAuthRequiredAfterLimit: string
+    guestAuthEmailSent: string
+    guestAuthOtpInvalid: string
+    guestAuthRateLimited: string
     /** Hiển thị khi shop/AI đang chuẩn bị trả lời sau tin của khách */
     shopTypingHint: string
     visionMatchTitle: string
@@ -2114,6 +2125,17 @@ const VI_DICTIONARY: Dictionary = {
     tryOnFailed: 'Không tạo được ảnh thử đồ.',
     tryOnReady: 'Đã tạo ảnh thử đồ. Bạn có thể gửi ngay trong chat.',
     tryOnChargedToast: 'Đã trừ {cost} credits. Còn lại {remaining} credits.',
+    guestAuthPromptTitle: 'Đăng nhập để lưu lịch sử lâu dài',
+    guestAuthPromptBody: 'Bạn vẫn có thể chat ngay. Đăng nhập giúp đồng bộ hội thoại khi đổi máy/trình duyệt.',
+    guestAuthEmailPlaceholder: 'Nhập email của bạn',
+    guestAuthSendMagicLink: 'Gửi link đăng nhập',
+    guestAuthSendOtp: 'Gửi mã OTP',
+    guestAuthOtpPlaceholder: 'Nhập mã OTP 6 số',
+    guestAuthVerifyOtp: 'Xác thực OTP',
+    guestAuthRequiredAfterLimit: 'Bạn đã nhắn {count} tin. Vui lòng xác thực email để tiếp tục chat.',
+    guestAuthEmailSent: 'Đã gửi email xác thực. Vui lòng kiểm tra hộp thư.',
+    guestAuthOtpInvalid: 'Mã OTP không hợp lệ hoặc đã hết hạn.',
+    guestAuthRateLimited: 'Bạn thao tác quá nhanh. Vui lòng thử lại sau {seconds} giây.',
     shopTypingHint: 'Cửa hàng đang soạn tin…',
     visionMatchTitle: 'Có thể là một trong các mặt hàng sau — chọn để shop tư vấn tiếp:',
     visionPickHint: 'Chọn đúng mặt hàng (hoặc đợi shop trả lời thủ công).',
@@ -3612,6 +3634,17 @@ const EN_DICTIONARY: Dictionary = {
     tryOnFailed: 'Could not generate the try-on image.',
     tryOnReady: 'Try-on image is ready. You can send it in chat.',
     tryOnChargedToast: 'Charged {cost} credits. Remaining {remaining} credits.',
+    guestAuthPromptTitle: 'Sign in to keep chat history longer',
+    guestAuthPromptBody: 'You can still chat now. Signing in lets you keep history across devices/browsers.',
+    guestAuthEmailPlaceholder: 'Enter your email',
+    guestAuthSendMagicLink: 'Send sign-in link',
+    guestAuthSendOtp: 'Send OTP code',
+    guestAuthOtpPlaceholder: 'Enter 6-digit OTP',
+    guestAuthVerifyOtp: 'Verify OTP',
+    guestAuthRequiredAfterLimit: 'You have sent {count} messages. Please verify your email to continue chatting.',
+    guestAuthEmailSent: 'Verification email sent. Please check your inbox.',
+    guestAuthOtpInvalid: 'OTP is invalid or expired.',
+    guestAuthRateLimited: 'You are doing this too quickly. Please try again in {seconds} seconds.',
     shopTypingHint: 'The shop is typing…',
     visionMatchTitle: 'This might be one of these items — pick one so the shop can advise:',
     visionPickHint: 'Choose the right product (or wait for a manual reply).',
@@ -5098,6 +5131,17 @@ const ZH_DICTIONARY: Dictionary = {
     tryOnFailed: '试穿图生成失败。',
     tryOnReady: '试穿图已生成，可直接在聊天中发送。',
     tryOnChargedToast: '已扣除 {cost} 积分，剩余 {remaining} 积分。',
+    guestAuthPromptTitle: '登录以长期保存聊天记录',
+    guestAuthPromptBody: '您仍可立即聊天。登录后可在更换设备/浏览器时同步历史。',
+    guestAuthEmailPlaceholder: '请输入您的邮箱',
+    guestAuthSendMagicLink: '发送登录链接',
+    guestAuthSendOtp: '发送 OTP 验证码',
+    guestAuthOtpPlaceholder: '输入 6 位 OTP',
+    guestAuthVerifyOtp: '验证 OTP',
+    guestAuthRequiredAfterLimit: '您已发送 {count} 条消息。请先验证邮箱再继续聊天。',
+    guestAuthEmailSent: '验证邮件已发送，请检查收件箱。',
+    guestAuthOtpInvalid: 'OTP 无效或已过期。',
+    guestAuthRateLimited: '操作过于频繁，请在 {seconds} 秒后重试。',
     shopTypingHint: '店铺正在输入…',
     visionMatchTitle: '可能是以下商品之一 — 请选择以便店铺继续咨询：',
     visionPickHint: '请选择正确商品（或等待人工回复）。',
@@ -6554,6 +6598,17 @@ const JA_DICTIONARY: Dictionary = {
     tryOnFailed: '試着画像を作成できませんでした。',
     tryOnReady: '試着画像ができました。チャットで送信できます。',
     tryOnChargedToast: '{cost} クレジットを消費しました。残り {remaining} クレジット。',
+    guestAuthPromptTitle: 'ログインして履歴を長期保存',
+    guestAuthPromptBody: '今すぐチャットは可能です。ログインすると端末/ブラウザを変えても履歴を引き継げます。',
+    guestAuthEmailPlaceholder: 'メールアドレスを入力',
+    guestAuthSendMagicLink: 'ログインリンクを送信',
+    guestAuthSendOtp: 'OTPコードを送信',
+    guestAuthOtpPlaceholder: '6桁のOTPを入力',
+    guestAuthVerifyOtp: 'OTPを認証',
+    guestAuthRequiredAfterLimit: '{count}件送信しました。続けるにはメール認証が必要です。',
+    guestAuthEmailSent: '認証メールを送信しました。受信箱をご確認ください。',
+    guestAuthOtpInvalid: 'OTPが無効か期限切れです。',
+    guestAuthRateLimited: '操作が速すぎます。{seconds}秒後に再試行してください。',
     shopTypingHint: '店舗が入力中…',
     visionMatchTitle: '次のいずれかの商品の可能性があります。選ぶと店舗が案内を続けます：',
     visionPickHint: '正しい商品を選ぶか、手動の返信をお待ちください。',
@@ -8035,6 +8090,17 @@ const KO_DICTIONARY: Dictionary = {
     tryOnFailed: '피팅 이미지를 만들지 못했습니다.',
     tryOnReady: '피팅 이미지가 준비되었습니다. 채팅에서 바로 보낼 수 있습니다.',
     tryOnChargedToast: '{cost} 크레딧이 차감되었습니다. 잔액 {remaining} 크레딧.',
+    guestAuthPromptTitle: '로그인하고 채팅 기록 오래 보관',
+    guestAuthPromptBody: '지금도 채팅할 수 있습니다. 로그인하면 기기/브라우저를 바꿔도 기록이 동기화됩니다.',
+    guestAuthEmailPlaceholder: '이메일을 입력하세요',
+    guestAuthSendMagicLink: '로그인 링크 보내기',
+    guestAuthSendOtp: 'OTP 코드 보내기',
+    guestAuthOtpPlaceholder: '6자리 OTP 입력',
+    guestAuthVerifyOtp: 'OTP 인증',
+    guestAuthRequiredAfterLimit: '메시지 {count}개를 보냈습니다. 계속하려면 이메일 인증이 필요합니다.',
+    guestAuthEmailSent: '인증 메일을 보냈습니다. 받은편지함을 확인하세요.',
+    guestAuthOtpInvalid: 'OTP가 유효하지 않거나 만료되었습니다.',
+    guestAuthRateLimited: '요청이 너무 빠릅니다. {seconds}초 후 다시 시도해 주세요.',
     shopTypingHint: '매장이 입력 중…',
     visionMatchTitle: '다음 중 하나일 수 있습니다. 선택하면 매장이 계속 안내합니다:',
     visionPickHint: '맞는 상품을 고르거나 직접 답장을 기다려 주세요.',

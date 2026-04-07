@@ -66,6 +66,7 @@ export interface Database {
           external_thread_id: string
           channel_external_ref: string | null
           linked_user_id: string | null
+          guest_account_id: string | null
           customer_name: string | null
           customer_avatar_url: string | null
           metadata: Json
@@ -82,6 +83,7 @@ export interface Database {
           external_thread_id: string
           channel_external_ref?: string | null
           linked_user_id?: string | null
+          guest_account_id?: string | null
           customer_name?: string | null
           customer_avatar_url?: string | null
           metadata?: Json
@@ -98,6 +100,7 @@ export interface Database {
           external_thread_id?: string
           channel_external_ref?: string | null
           linked_user_id?: string | null
+          guest_account_id?: string | null
           customer_name?: string | null
           customer_avatar_url?: string | null
           metadata?: Json
@@ -170,6 +173,111 @@ export interface Database {
           owner_user_id?: string | null
           embed_key?: string
           is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      messaging_guest_accounts: {
+        Row: {
+          id: string
+          partner_id: string
+          email_raw: string
+          email_normalized: string
+          first_verified_at: string
+          last_login_at: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          partner_id: string
+          email_raw: string
+          email_normalized: string
+          first_verified_at?: string
+          last_login_at?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          partner_id?: string
+          email_raw?: string
+          email_normalized?: string
+          first_verified_at?: string
+          last_login_at?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      messaging_guest_identities: {
+        Row: {
+          id: string
+          partner_id: string
+          guest_account_id: string
+          provider: 'google' | 'email_otp'
+          provider_subject: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          partner_id: string
+          guest_account_id: string
+          provider: 'google' | 'email_otp'
+          provider_subject: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          partner_id?: string
+          guest_account_id?: string
+          provider?: 'google' | 'email_otp'
+          provider_subject?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      messaging_guest_email_challenges: {
+        Row: {
+          id: string
+          partner_id: string
+          email_normalized: string
+          session_id: string
+          code_hash: string
+          magic_token_hash: string
+          expires_at: string
+          attempt_count: number
+          consumed_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          partner_id: string
+          email_normalized: string
+          session_id: string
+          code_hash: string
+          magic_token_hash: string
+          expires_at: string
+          attempt_count?: number
+          consumed_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          partner_id?: string
+          email_normalized?: string
+          session_id?: string
+          code_hash?: string
+          magic_token_hash?: string
+          expires_at?: string
+          attempt_count?: number
+          consumed_at?: string | null
           created_at?: string
           updated_at?: string
         }
