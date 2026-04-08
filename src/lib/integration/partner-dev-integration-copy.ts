@@ -39,6 +39,10 @@ export type PartnerDevIntegrationStrings = {
   codeLabelExampleServer: string
   codeLabelResponseShape: string
   codeLabelExample: string
+  /** Nút sao chép đoạn <script> nhúng widget chat */
+  copyHostedScriptButton: string
+  copyHostedScriptToast: string
+  copyHostedScriptError: string
   checklistTitle: string
   checklistBody: string
 }
@@ -50,7 +54,8 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
     hostedBody:
       'Khách đăng nhập Google trong trang NanoAI (cookie first-party). Tin đồng bộ với mục tin nhắn NanoAI của khách. Copy URL và đoạn iframe tại Bảng điều khiển → Tích hợp API (/dashboard/api-integration, mục chat hosted). Nên thêm ?embed=1 khi nhúng iframe để giao diện tối ưu trong khung. Đường dẫn công khai có dạng:',
     embedWidgetSettingsTitle: 'Cài đặt mã nhúng nổi',
-    embedWidgetSettingsBody: 'Tùy chỉnh vị trí trái/phải, khoảng cách đáy, rộng/cao desktop; mã iframe bên dưới sẽ tự cập nhật.',
+    embedWidgetSettingsBody:
+      'Góc (trái/phải) và khoảng cách đáy, cạnh áp dụng cho nút nổi trên cả mobile và desktop. Rộng/cao chỉ cho khung chat trên desktop; mã script bên dưới tự cập nhật.',
     embedPositionLabel: 'Góc hiển thị',
     embedPositionRight: 'Phải',
     embedPositionLeft: 'Trái',
@@ -95,6 +100,9 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
     codeLabelExampleServer: 'Ví dụ (backend shop)',
     codeLabelResponseShape: 'Cấu trúc phản hồi',
     codeLabelExample: 'Ví dụ',
+    copyHostedScriptButton: 'Sao chép mã nhúng script',
+    copyHostedScriptToast: 'Đã sao chép mã nhúng script.',
+    copyHostedScriptError: 'Không sao chép được. Hãy chọn và copy thủ công.',
     checklistTitle: 'Checklist trước khi production',
     checklistBody:
       '• Không đặt X-Embed-Key hay Bearer trong bundle JS công khai.\n• Nếu dùng D: đã tạo/bật khóa Bearer tại Bảng điều khiển → Tích hợp API; đã bật gợi ý theo ảnh và đồng bộ catalog Vision tại Messaging → Cài đặt → AI.\n• Nếu dùng F: cùng khóa Bearer; gọi từ server shop; xử lý mã lỗi `code` trong JSON.\n• Đã test CORS từ domain thật của shop (nhánh B).\n• Xử lý 401 / 403 / 429 / 503 và thông báo cho người dùng.',
@@ -106,7 +114,7 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
       'Shoppers sign in with Google on NanoAI (first-party cookies). Threads sync with NanoAI “My chats”. Copy the public URL and iframe snippet under Dashboard → API integration (hosted chat section, /dashboard/api-integration). Add ?embed=1 when embedding as an iframe for a compact layout. Public path pattern:',
     embedWidgetSettingsTitle: 'Floating embed settings',
     embedWidgetSettingsBody:
-      'Customize left/right corner, bottom offset, and desktop width/height. The iframe snippet below updates automatically.',
+      'Corner, bottom, and horizontal offsets apply to the floating button on mobile and desktop. Width/height apply to the chat panel on desktop only. The script below updates automatically.',
     embedPositionLabel: 'Corner',
     embedPositionRight: 'Right',
     embedPositionLeft: 'Left',
@@ -151,6 +159,9 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
     codeLabelExampleServer: 'Example (shop backend)',
     codeLabelResponseShape: 'Response shape',
     codeLabelExample: 'Example',
+    copyHostedScriptButton: 'Copy embed script',
+    copyHostedScriptToast: 'Embed script copied.',
+    copyHostedScriptError: 'Could not copy. Select the code and copy manually.',
     checklistTitle: 'Pre-production checklist',
     checklistBody:
       '• Do not ship X-Embed-Key or Bearer keys in public frontend bundles.\n• For D: create/enable the Bearer key on Dashboard → API integration; enable Vision image suggestions and sync the catalog under Messaging → Settings → AI.\n• For F: same Bearer key; call from the shop server; handle JSON `code` on errors.\n• Test CORS from your real shop domain (track B).\n• Handle 401 / 403 / 429 / 503 with clear user messaging.',
@@ -161,7 +172,8 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
     hostedBody:
       '顾客在 NanoAI 页面使用 Google 登录（第一方 cookie）。会话与 NanoAI「我的聊天」同步。在 控制台 → API 集成说明（/dashboard/api-integration，托管聊天）复制公开 URL 与 iframe。iframe 嵌入时建议加 ?embed=1 以优化布局。公开路径形式：',
     embedWidgetSettingsTitle: '浮动嵌入设置',
-    embedWidgetSettingsBody: '可设置左右角、距底部间距、桌面宽高；下方 iframe 代码会自动更新。',
+    embedWidgetSettingsBody:
+      '左右角与距底/侧边距对移动端与桌面端的浮动按钮均生效；宽高仅作用于桌面端聊天窗；下方脚本会自动更新。',
     embedPositionLabel: '显示角落',
     embedPositionRight: '右侧',
     embedPositionLeft: '左侧',
@@ -203,6 +215,9 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
     codeLabelExampleServer: '示例（店铺后端）',
     codeLabelResponseShape: '响应结构',
     codeLabelExample: '示例',
+    copyHostedScriptButton: '复制嵌入脚本',
+    copyHostedScriptToast: '已复制嵌入脚本。',
+    copyHostedScriptError: '无法复制，请手动选择代码复制。',
     checklistTitle: '上线前检查',
     checklistBody:
       '• 勿将 X-Embed-Key 或 Bearer 打入公开前端包。\n• 使用 D 时：已在 API 集成说明页创建/启用 Bearer；已在 Messaging → 设置 → AI 开启 Vision 以图提示并同步目录。\n• 使用 F 时：同一 Bearer；从店铺服务端调用；处理 JSON 中的 `code`。\n• 在真实店铺域名下测试 CORS（路径 B）。\n• 处理 401 / 403 / 429 / 503 并向用户提示。',
@@ -214,7 +229,7 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
       '購入者は NanoAI 上で Google ログイン（ファーストパーティ cookie）。スレッドは NanoAI の「マイチャット」と同期。ダッシュボード → API 連携ガイド（/dashboard/api-integration、ホスト型チャット）で公開 URL と iframe をコピー。iframe 埋め込み時は ?embed=1 を付与するとレイアウトが最適化されます。公開パスの例:',
     embedWidgetSettingsTitle: 'フローティング埋め込み設定',
     embedWidgetSettingsBody:
-      '左右位置、下端オフセット、デスクトップ幅・高さを調整できます。下の iframe コードは自動更新されます。',
+      '左右位置・下端・左右オフセットはモバイル/デスクトップのフローティングボタンに適用。幅・高さはデスクトップのチャット枠のみ。下のスクリプトは自動更新されます。',
     embedPositionLabel: '表示位置',
     embedPositionRight: '右',
     embedPositionLeft: '左',
@@ -256,6 +271,9 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
     codeLabelExampleServer: '例（店舗バックエンド）',
     codeLabelResponseShape: 'レスポンスの形',
     codeLabelExample: '例',
+    copyHostedScriptButton: '埋め込みスクリプトをコピー',
+    copyHostedScriptToast: 'スクリプトをコピーしました。',
+    copyHostedScriptError: 'コピーできませんでした。コードを選択して手動でコピーしてください。',
     checklistTitle: '本番前チェックリスト',
     checklistBody:
       '• X-Embed-Key / Bearer を公開 JS に含めない。\n• D 利用時: API 連携ガイドで Bearer を作成・有効化し、Messaging → 設定 → AI で Vision 画像提案とカタログ同期を有効化。\n• F 利用時: 同じ Bearer、店舗サーバーから呼び出し、エラー時は JSON の `code` を処理。\n• 実ドメインで CORS をテスト（B）。\n• 401 / 403 / 429 / 503 をユーザー向けに処理。',
@@ -267,7 +285,7 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
       '고객이 NanoAI 페이지에서 Google 로그인(퍼스트파티 쿠키). 스레드는 NanoAI「내 채팅」과 동기화. 대시보드 → API 연동 안내(/dashboard/api-integration, 호스팅 채팅)에서 공개 URL과 iframe을 복사합니다. iframe 임베드 시 ?embed=1을 붙이면 레이아웃이 최적화됩니다. 공개 경로 예:',
     embedWidgetSettingsTitle: '플로팅 임베드 설정',
     embedWidgetSettingsBody:
-      '좌/우 위치, 하단 간격, 데스크톱 너비/높이를 조정하면 아래 iframe 코드가 자동으로 바뀝니다.',
+      '좌/우·하단·좌우 간격은 모바일·데스크톱 플로팅 버튼에 적용됩니다. 너비/높이는 데스크톱 채팅 패널만 해당. 아래 스크립트는 자동 갱신됩니다.',
     embedPositionLabel: '위치',
     embedPositionRight: '오른쪽',
     embedPositionLeft: '왼쪽',
@@ -309,6 +327,9 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
     codeLabelExampleServer: '예시(매장 백엔드)',
     codeLabelResponseShape: '응답 형태',
     codeLabelExample: '예시',
+    copyHostedScriptButton: '임베드 스크립트 복사',
+    copyHostedScriptToast: '임베드 스크립트를 복사했습니다.',
+    copyHostedScriptError: '복사에 실패했습니다. 코드를 직접 선택해 복사하세요.',
     checklistTitle: '프로덕션 체크리스트',
     checklistBody:
       '• X-Embed-Key / Bearer를 공개 프론트 번들에 넣지 않기.\n• D 사용 시: API 연동 안내에서 Bearer 생성·활성화, Messaging → 설정 → AI에서 Vision 이미지 제안·카탈로그 동기화 활성화.\n• F 사용 시: 동일 Bearer, 매장 서버에서 호출, 오류 시 JSON `code` 처리.\n• 실제 매장 도메인에서 CORS 테스트(B).\n• 401 / 403 / 429 / 503 사용자 메시지 처리.',

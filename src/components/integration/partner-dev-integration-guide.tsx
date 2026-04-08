@@ -1,7 +1,10 @@
 'use client'
 
+import { Copy } from 'lucide-react'
 import { useMemo, useState, type ReactNode } from 'react'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { useToast } from '@/hooks/use-toast'
 import type { PartnerDevIntegrationStrings } from '@/lib/integration/partner-dev-integration-copy'
 
 type Props = {
@@ -15,10 +18,54 @@ type Props = {
   }
 }
 
-function CodeBlock({ children, title }: { children: string; title?: string }) {
+function CodeBlock({
+  children,
+  title,
+  copyButtonLabel,
+  copySuccessMessage,
+  copyErrorMessage,
+}: {
+  children: string
+  title?: string
+  copyButtonLabel?: string
+  copySuccessMessage?: string
+  copyErrorMessage?: string
+}) {
+  const { toast } = useToast()
+  const showToolbar = Boolean(title || copyButtonLabel)
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(children)
+      if (copySuccessMessage) toast({ title: copySuccessMessage })
+    } catch {
+      if (copyErrorMessage) toast({ title: copyErrorMessage, variant: 'destructive' })
+    }
+  }
+
   return (
     <div className="space-y-1">
-      {title ? <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{title}</p> : null}
+      {showToolbar ? (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          {title ? (
+            <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{title}</p>
+          ) : (
+            <span className="min-w-0 flex-1" />
+          )}
+          {copyButtonLabel ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-8 shrink-0 gap-1.5 px-2 text-[11px]"
+              onClick={() => void handleCopy()}
+            >
+              <Copy className="h-3.5 w-3.5" aria-hidden />
+              {copyButtonLabel}
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
       <pre className="overflow-x-auto rounded-md border bg-muted/60 p-3 text-[10px] leading-relaxed whitespace-pre-wrap break-all sm:text-[11px] sm:whitespace-pre">
         {children}
       </pre>
@@ -137,34 +184,61 @@ export function PartnerDevIntegrationGuide({ baseUrl, t, partners, labels }: Pro
 
   function placeDesktop() {
     var d = CONFIG.desktop;
+    root.style.top = "";
+    root.style.left = "";
+    root.style.right = "";
     root.style.bottom = d.bottom + "px";
     if (CONFIG.side === "left") {
       root.style.left = d.offsetX + "px";
       root.style.right = "auto";
+      panel.style.position = "absolute";
       panel.style.left = "0";
       panel.style.right = "auto";
+      panel.style.top = "";
     } else {
       root.style.right = d.offsetX + "px";
       root.style.left = "auto";
+      panel.style.position = "absolute";
       panel.style.right = "0";
       panel.style.left = "auto";
+      panel.style.top = "";
     }
     panel.style.bottom = (CONFIG.bubble.size + d.gapAboveBubble) + "px";
     panel.style.width = "min(${safeDesktopWidthVw}vw," + d.width + "px)";
     panel.style.height = "min(${safeDesktopHeightVh}vh," + d.height + "px)";
     panel.style.borderRadius = d.radius + "px";
+    bubble.style.position = "";
+    bubble.style.left = "";
+    bubble.style.right = "";
+    bubble.style.bottom = "";
     bubble.style.width = CONFIG.bubble.size + "px";
     bubble.style.height = CONFIG.bubble.size + "px";
     bubble.style.margin = "0";
   }
 
   function placeMobile() {
+    var d = CONFIG.desktop;
+    root.style.top = "0";
     root.style.left = "0";
     root.style.right = "0";
     root.style.bottom = "0";
+    bubble.style.position = "absolute";
+    bubble.style.bottom = d.bottom + "px";
+    bubble.style.margin = "0";
+    bubble.style.width = CONFIG.mobile.bubbleSize + "px";
+    bubble.style.height = CONFIG.mobile.bubbleSize + "px";
+    if (CONFIG.side === "left") {
+      bubble.style.left = d.offsetX + "px";
+      bubble.style.right = "auto";
+    } else {
+      bubble.style.right = d.offsetX + "px";
+      bubble.style.left = "auto";
+    }
     if (CONFIG.mobile.fullScreen) {
+      panel.style.position = "fixed";
       panel.style.left = "0";
       panel.style.right = "0";
+      panel.style.top = "0";
       panel.style.bottom = "0";
       panel.style.width = "100vw";
       panel.style.height = "100dvh";
@@ -172,9 +246,6 @@ export function PartnerDevIntegrationGuide({ baseUrl, t, partners, labels }: Pro
     } else {
       placeDesktop();
     }
-    bubble.style.width = CONFIG.mobile.bubbleSize + "px";
-    bubble.style.height = CONFIG.mobile.bubbleSize + "px";
-    bubble.style.margin = "0 10px 10px 0";
   }
 
   var resizeTimer = null;
@@ -376,7 +447,14 @@ Cookie: <supabase_auth_session>
                 </label>
               </div>
             </div>
-            <CodeBlock title={t.codeLabelExample}>{hostedScript}</CodeBlock>
+            <CodeBlock
+              title={t.codeLabelExample}
+              copyButtonLabel={t.copyHostedScriptButton}
+              copySuccessMessage={t.copyHostedScriptToast}
+              copyErrorMessage={t.copyHostedScriptError}
+            >
+              {hostedScript}
+            </CodeBlock>
           </>
         )}
 
