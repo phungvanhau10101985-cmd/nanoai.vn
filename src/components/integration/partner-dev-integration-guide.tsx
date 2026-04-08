@@ -78,14 +78,15 @@ export function PartnerDevIntegrationGuide({ baseUrl, t, partners, labels }: Pro
   if (document.getElementById(CONFIG.widgetId)) return;
   var root = document.createElement("div");
   root.id = CONFIG.widgetId;
-  root.style.cssText = "position:fixed;z-index:" + CONFIG.zIndex + ";font-family:Arial,sans-serif;";
+  root.style.cssText =
+    "position:fixed;z-index:" + CONFIG.zIndex + ";font-family:Arial,sans-serif;pointer-events:none;";
   document.body.appendChild(root);
 
   var bubble = document.createElement("button");
   bubble.type = "button";
   bubble.setAttribute("aria-label", "Mở chat NanoAI");
   bubble.style.cssText =
-    "width:" + CONFIG.bubble.size + "px;height:" + CONFIG.bubble.size + "px;border:none;border-radius:9999px;cursor:pointer;" +
+    "pointer-events:auto;width:" + CONFIG.bubble.size + "px;height:" + CONFIG.bubble.size + "px;border:none;border-radius:9999px;cursor:pointer;" +
     "background:linear-gradient(135deg,#7c3aed,#6366f1);" +
     "box-shadow:0 10px 24px rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;padding:0;";
   var logo = document.createElement("img");
@@ -97,7 +98,8 @@ export function PartnerDevIntegrationGuide({ baseUrl, t, partners, labels }: Pro
   root.appendChild(bubble);
 
   var panel = document.createElement("div");
-  panel.style.cssText = "display:none;position:absolute;background:#fff;overflow:hidden;box-shadow:0 16px 40px rgba(0,0,0,.28);border:1px solid #e5e7eb;";
+  panel.style.cssText =
+    "pointer-events:auto;display:none;position:absolute;background:#fff;overflow:hidden;box-shadow:0 16px 40px rgba(0,0,0,.28);border:1px solid #e5e7eb;";
   root.appendChild(panel);
 
   var header = document.createElement("div");
