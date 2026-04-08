@@ -6,6 +6,7 @@ import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { revalidatePath } from 'next/cache'
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
+import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 import { buildTransparentPngFromMask } from '@/lib/mask-to-transparent'
 
 const REMOVE_BG_COST = 1.5
@@ -45,12 +46,13 @@ export async function removeBackgroundToTransparentPng(formData: FormData) {
 
   const timestamp = Date.now()
   const uploadPath = `uploads/${user.id}/remove_bg_${timestamp}.png`
-  await supabase.storage.from('try-on-images').upload(uploadPath, image)
-  const { data: origUrl } = supabase.storage.from('try-on-images').getPublicUrl(uploadPath)
+  const { publicUrl: originalPublicUrl } = await uploadTryOnImagePublic(supabase, uploadPath, image, {
+    contentType: image.type || 'image/png',
+  })
   const { data: historyItem, error: historyError } = await supabase.from('try_on_history').insert({
     user_id: user.id,
-    original_image_url: origUrl.publicUrl,
-    garment_image_url: origUrl.publicUrl,
+    original_image_url: originalPublicUrl,
+    garment_image_url: originalPublicUrl,
     status: 'processing',
     feature: 'xoa-nen-png',
   }).select().single()
@@ -89,8 +91,10 @@ export async function removeBackgroundToTransparentPng(formData: FormData) {
     const transparentPngBuffer = await buildTransparentPngFromMask(inputBuffer, maskBuffer)
 
     const resultPath = `results/${user.id}/remove_bg_${Date.now()}.png`
-    await adminSupabase.storage.from('try-on-images').upload(resultPath, transparentPngBuffer, { contentType: 'image/png', upsert: true })
-    const { data: urlData } = adminSupabase.storage.from('try-on-images').getPublicUrl(resultPath)
+    const { publicUrl: resultPublicUrl } = await uploadTryOnImagePublic(adminSupabase, resultPath, transparentPngBuffer, {
+      contentType: 'image/png',
+      upsert: true,
+    })
 
     const { data: latestCredit } = await adminSupabase.from('credits').select('balance').eq('user_id', user.id).single()
     if (!latestCredit || toTenths(latestCredit.balance) < toTenths(COST)) {
@@ -99,11 +103,11 @@ export async function removeBackgroundToTransparentPng(formData: FormData) {
     }
     const newBalance = fromTenths(toTenths(latestCredit.balance) - toTenths(COST))
     await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', user.id)
-    await adminSupabase.from('try_on_history').update({ result_image_url: urlData.publicUrl, status: 'completed' }).eq('id', historyItem.id)
+    await adminSupabase.from('try_on_history').update({ result_image_url: resultPublicUrl, status: 'completed' }).eq('id', historyItem.id)
 
     revalidatePath('/xoa-nen-png')
     revalidatePath('/dashboard/history')
-    return { success: true, resultUrl: urlData.publicUrl }
+    return { success: true, resultUrl: resultPublicUrl }
   } catch (e) {
     await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
     const msg = e instanceof Error ? e.message : String(e)

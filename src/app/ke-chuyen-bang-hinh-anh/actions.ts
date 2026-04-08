@@ -7,6 +7,7 @@ import { revalidatePath } from 'next/cache'
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
 import { GEMINI_25_FLASH_TEXT_NO_THINKING } from '@/lib/gemini-config'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
+import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 
 const STORY_COSTS = { '2K': 3, '4K': 6 } as const
 const VALID_ASPECT_RATIOS = ['1:1', '4:3', '3:4', '16:9', '9:16'] as const
@@ -119,8 +120,10 @@ export async function createStoryImage(formData: FormData) {
 
     const resultBuffer = Buffer.from((imagePartRes as { inlineData: { data: string } }).inlineData.data, 'base64')
     const resultPath = `results/${user.id}/story_${Date.now()}.png`
-    await adminSupabase.storage.from('try-on-images').upload(resultPath, resultBuffer, { contentType: 'image/png', upsert: true })
-    const { data: urlData } = adminSupabase.storage.from('try-on-images').getPublicUrl(resultPath)
+    const { publicUrl: resultPublicUrl } = await uploadTryOnImagePublic(adminSupabase, resultPath, resultBuffer, {
+      contentType: 'image/png',
+      upsert: true,
+    })
 
     const { data: latestCredit } = await adminSupabase.from('credits').select('balance').eq('user_id', user.id).single()
     if (!latestCredit || toTenths(latestCredit.balance) < toTenths(COST)) {
@@ -129,11 +132,11 @@ export async function createStoryImage(formData: FormData) {
     }
     const newBalance = fromTenths(toTenths(latestCredit.balance) - toTenths(COST))
     await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', user.id)
-    await adminSupabase.from('try_on_history').update({ result_image_url: urlData.publicUrl, status: 'completed' }).eq('id', historyItem.id)
+    await adminSupabase.from('try_on_history').update({ result_image_url: resultPublicUrl, status: 'completed' }).eq('id', historyItem.id)
 
     revalidatePath('/ke-chuyen-bang-hinh-anh')
     revalidatePath('/dashboard/history')
-    return { success: true, resultUrl: urlData.publicUrl }
+    return { success: true, resultUrl: resultPublicUrl }
   } catch (e) {
     await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
     const msg = e instanceof Error ? e.message : String(e)

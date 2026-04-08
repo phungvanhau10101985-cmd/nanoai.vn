@@ -13,6 +13,7 @@ import {
   formatGoogleGenAiCaughtErrorForVeoCreate,
 } from '@/lib/gemini/google-genai-error-message'
 import { TRY_ON_HISTORY_INPUT_PLACEHOLDER_SRC } from '@/lib/try-on-history-placeholder'
+import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 import { trackApiUsage, trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import {
   buildMusicVideoVeoStandaloneClipPrompt,
@@ -470,9 +471,8 @@ export async function createMusicVideoVeo8s(formData: FormData) {
   for (let i = 0; i < frames.length; i++) {
     const f = frames[i]
     const path = `uploads/${user.id}/mv_frame_${ts}_${i}.png`
-    await supabase.storage.from('try-on-images').upload(path, f)
-    const { data: u } = supabase.storage.from('try-on-images').getPublicUrl(path)
-    uploadedUrls.push(u.publicUrl)
+    const { publicUrl } = await uploadTryOnImagePublic(supabase, path, f, { contentType: f.type || 'image/png' })
+    uploadedUrls.push(publicUrl)
   }
 
   const { data: historyItem, error: historyError } = await supabase
@@ -559,10 +559,10 @@ export async function createMusicVideoVeo8s(formData: FormData) {
     const videoBuffer = await downloadVeoVideoToBuffer(ai, genVideo, apiKey)
 
     const resultPath = `results/${user.id}/veo_mv_${Date.now()}.mp4`
-    await adminSupabase.storage
-      .from('try-on-images')
-      .upload(resultPath, videoBuffer, { contentType: 'video/mp4', upsert: true })
-    const { data: urlData } = adminSupabase.storage.from('try-on-images').getPublicUrl(resultPath)
+    const { publicUrl: resultVideoUrl } = await uploadTryOnImagePublic(adminSupabase, resultPath, videoBuffer, {
+      contentType: 'video/mp4',
+      upsert: true,
+    })
 
     const newBalance = fromTenths(toTenths(creditData.balance) - toTenths(CLIP_CREDITS))
     await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', user.id)
@@ -571,7 +571,7 @@ export async function createMusicVideoVeo8s(formData: FormData) {
     await adminSupabase
       .from('try_on_history')
       .update({
-        result_image_url: urlData.publicUrl,
+        result_image_url: resultVideoUrl,
         status: 'completed',
         ...(geminiUri ? { veo_gemini_video_uri: geminiUri } : {}),
       })
@@ -588,7 +588,7 @@ export async function createMusicVideoVeo8s(formData: FormData) {
 
     revalidatePath('/flow-nhac-video-veo')
     revalidatePath('/dashboard/history')
-    return { success: true, resultUrl: urlData.publicUrl, historyId: historyItem.id }
+    return { success: true, resultUrl: resultVideoUrl, historyId: historyItem.id }
   } catch (e) {
     await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
     return { error: formatGoogleGenAiCaughtErrorForVeoCreate(e) }
@@ -597,6 +597,12 @@ export async function createMusicVideoVeo8s(formData: FormData) {
 
 function isUserTryOnResultMp4Url(url: string, userId: string): boolean {
   try {
+    const bunnyBase = process.env.BUNNY_STORAGE_PUBLIC_BASE_URL?.replace(/\/$/, '')
+    if (bunnyBase && url.startsWith(bunnyBase)) {
+      const u = new URL(url)
+      const path = decodeURIComponent(u.pathname.replace(/^\/+/, ''))
+      return path.includes(`results/${userId}/`) && /\.mp4($|\?)/i.test(`${path}${u.search}`)
+    }
     const base = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, '')
     if (!base || !url.startsWith(base)) return false
     const u = new URL(url)
@@ -678,16 +684,16 @@ export async function mergeFlowMusicVeoClips(formData: FormData) {
 
     const mergedBuf = await readFile(outPath)
     const resultPath = `results/${user.id}/veo_mv_merged_${Date.now()}.mp4`
-    await adminSupabase.storage
-      .from('try-on-images')
-      .upload(resultPath, mergedBuf, { contentType: 'video/mp4', upsert: true })
-    const { data: urlData } = adminSupabase.storage.from('try-on-images').getPublicUrl(resultPath)
+    const { publicUrl: mergedPublicUrl } = await uploadTryOnImagePublic(adminSupabase, resultPath, mergedBuf, {
+      contentType: 'video/mp4',
+      upsert: true,
+    })
 
     await adminSupabase.from('try_on_history').insert({
       user_id: user.id,
       original_image_url: TRY_ON_HISTORY_INPUT_PLACEHOLDER_SRC,
       garment_image_url: TRY_ON_HISTORY_INPUT_PLACEHOLDER_SRC,
-      result_image_url: urlData.publicUrl,
+      result_image_url: mergedPublicUrl,
       status: 'completed',
       feature: 'veo-music-video-merged',
       aspect_ratio: aspectRatio,
@@ -695,7 +701,7 @@ export async function mergeFlowMusicVeoClips(formData: FormData) {
 
     revalidatePath('/flow-nhac-video-veo')
     revalidatePath('/dashboard/history')
-    return { success: true as const, resultUrl: urlData.publicUrl }
+    return { success: true as const, resultUrl: mergedPublicUrl }
   } finally {
     await rm(workDir, { recursive: true, force: true }).catch(() => {})
   }

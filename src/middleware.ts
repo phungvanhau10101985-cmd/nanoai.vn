@@ -13,7 +13,17 @@ export async function middleware(request: NextRequest) {
   const { supabase, response } = createClient(requestWithLoginNext)
   const cookieLocale = normalizeWebLocale(request.cookies.get(LOCALE_COOKIE_NAME)?.value)
 
-  const { data: { user } } = await supabase.auth.getUser() // Validate with Auth server (getSession reads from storage, insecure)
+  const AUTH_GET_USER_MS = Math.min(
+    30_000,
+    Math.max(2000, parseInt(process.env.NANOAI_SUPABASE_FETCH_TIMEOUT_MS || '8000', 10) || 8000)
+  )
+  const userResult = await Promise.race([
+    supabase.auth.getUser(),
+    new Promise<{ data: { user: null }; error: null }>((resolve) =>
+      setTimeout(() => resolve({ data: { user: null }, error: null }), AUTH_GET_USER_MS)
+    ),
+  ])
+  const user = userResult.data.user // Validate with Auth server (getSession reads from storage, insecure)
   const accountLocale = normalizeWebLocale((user?.user_metadata as { web_locale?: string } | undefined)?.web_locale)
   const locale = accountLocale || cookieLocale || DEFAULT_WEB_LOCALE
   response.cookies.set(LOCALE_COOKIE_NAME, locale, { path: '/', maxAge: 60 * 60 * 24 * 365, sameSite: 'lax' })

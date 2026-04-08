@@ -5,6 +5,7 @@ import { getUserForAction } from '@/lib/auth'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { deductUserCredits, refundUserCredits } from '@/lib/music/deduct-user-credits'
 import { trackApiUsage } from '@/lib/track-ai-usage'
+import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 
 export const maxDuration = 300
 
@@ -505,17 +506,18 @@ export async function POST(request: NextRequest) {
     const durTag = variant === 'clip' ? '30' : String(proTargetSec)
     const uploadPath = `music-history/${user.id}/lyria3_${variant}_${durTag}s_${vocalMode}_${imgTag}_${timestamp}.${ext}`
 
-    const { error: uploadError } = await adminSupabase.storage
-      .from('try-on-images')
-      .upload(uploadPath, buffer, { contentType: mimeType, upsert: true })
-
-    if (uploadError) {
+    let audioUrl: string
+    try {
+      const { publicUrl } = await uploadTryOnImagePublic(adminSupabase, uploadPath, buffer, {
+        contentType: mimeType,
+        upsert: true,
+      })
+      audioUrl = publicUrl
+    } catch (uploadError: unknown) {
       await refundUserCredits(user.id, cost)
-      return NextResponse.json({ error: uploadError.message || 'Không upload được audio.' }, { status: 500 })
+      const msg = uploadError instanceof Error ? uploadError.message : 'Không upload được audio.'
+      return NextResponse.json({ error: msg }, { status: 500 })
     }
-
-    const { data: publicData } = adminSupabase.storage.from('try-on-images').getPublicUrl(uploadPath)
-    const audioUrl = publicData.publicUrl
 
     const baseTitle =
       variant === 'clip'

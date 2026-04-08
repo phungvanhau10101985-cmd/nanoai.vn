@@ -7,6 +7,7 @@ import { revalidatePath } from 'next/cache'
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
 import { normalizeToEnglish } from '@/lib/ai-normalize'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
+import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 
 const SEAL_COSTS = { '2K': 1.5, '4K': 3 } as const
 const VALID_ASPECT_RATIOS = ['1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '5:7', '7:10'] as const
@@ -136,8 +137,10 @@ export async function createSealLabelWithAI(formData: FormData) {
     }
     const resultBuffer = Buffer.from((imagePartRes as { inlineData: { data: string } }).inlineData.data, 'base64')
     const resultPath = `results/${user.id}/seal_${Date.now()}.png`
-    await adminSupabase.storage.from('try-on-images').upload(resultPath, resultBuffer, { contentType: 'image/png', upsert: true })
-    const { data: urlData } = adminSupabase.storage.from('try-on-images').getPublicUrl(resultPath)
+    const { publicUrl: resultPublicUrl } = await uploadTryOnImagePublic(adminSupabase, resultPath, resultBuffer, {
+      contentType: 'image/png',
+      upsert: true,
+    })
 
     const { data: latestCredit } = await adminSupabase.from('credits').select('balance').eq('user_id', user.id).single()
     if (!latestCredit || toTenths(latestCredit.balance) < toTenths(COST)) {
@@ -146,11 +149,11 @@ export async function createSealLabelWithAI(formData: FormData) {
     }
     const newBalance = fromTenths(toTenths(latestCredit.balance) - toTenths(COST))
     await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', user.id)
-    await adminSupabase.from('try_on_history').update({ result_image_url: urlData.publicUrl, status: 'completed', aspect_ratio: aspectRatio }).eq('id', historyItem.id)
+    await adminSupabase.from('try_on_history').update({ result_image_url: resultPublicUrl, status: 'completed', aspect_ratio: aspectRatio }).eq('id', historyItem.id)
 
     revalidatePath('/tao-tem-niem-phong-bao-hanh')
     revalidatePath('/dashboard/history')
-    return { success: true, resultUrl: urlData.publicUrl }
+    return { success: true, resultUrl: resultPublicUrl }
   } catch (e) {
     await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
     const msg = e instanceof Error ? e.message : String(e)

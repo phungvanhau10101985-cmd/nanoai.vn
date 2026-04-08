@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database, Json } from '@/types/database.types'
+import { tryOnObjectExists, uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 
 export const GUEST_CHAT_IMAGE_MAX_BYTES = 3 * 1024 * 1024
 
@@ -59,8 +60,7 @@ export async function guestImageObjectExists(
   db: SupabaseClient<Database>,
   path: string
 ): Promise<boolean> {
-  const { error } = await db.storage.from(GUEST_CHAT_IMAGE_BUCKET).download(path)
-  return !error
+  return tryOnObjectExists(db, path)
 }
 
 export async function uploadGuestChatImageBuffer(
@@ -75,13 +75,12 @@ export async function uploadGuestChatImageBuffer(
     return { error: 'Image too large.' }
   }
   const path = buildGuestMessagingStoragePath(partnerId, ext)
-  const { error } = await db.storage.from(GUEST_CHAT_IMAGE_BUCKET).upload(path, buffer, {
-    contentType: mime,
-    upsert: false,
-  })
-  if (error) return { error: error.message }
-  const { data } = db.storage.from(GUEST_CHAT_IMAGE_BUCKET).getPublicUrl(path)
-  return { path, publicUrl: data.publicUrl }
+  try {
+    const { publicUrl } = await uploadTryOnImagePublic(db, path, buffer, { contentType: mime })
+    return { path, publicUrl }
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Upload failed.' }
+  }
 }
 
 export async function uploadPartnerChatImageBuffer(
@@ -96,13 +95,12 @@ export async function uploadPartnerChatImageBuffer(
     return { error: 'Image too large.' }
   }
   const path = buildPartnerMessagingStoragePath(partnerId, ext)
-  const { error } = await db.storage.from(GUEST_CHAT_IMAGE_BUCKET).upload(path, buffer, {
-    contentType: mime,
-    upsert: false,
-  })
-  if (error) return { error: error.message }
-  const { data } = db.storage.from(GUEST_CHAT_IMAGE_BUCKET).getPublicUrl(path)
-  return { path, publicUrl: data.publicUrl }
+  try {
+    const { publicUrl } = await uploadTryOnImagePublic(db, path, buffer, { contentType: mime })
+    return { path, publicUrl }
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Upload failed.' }
+  }
 }
 
 export type GuestMediaRawPayload = {

@@ -12,6 +12,7 @@ import {
 } from '@/lib/gemini/google-genai-error-message'
 import { trackApiUsage } from '@/lib/track-ai-usage'
 import { TRY_ON_HISTORY_INPUT_PLACEHOLDER_SRC } from '@/lib/try-on-history-placeholder'
+import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 
 export type VeoVideoMode = 'text' | 'image'
 export type VeoAspectRatio = '16:9' | '9:16'
@@ -115,10 +116,11 @@ export async function createVeoVideo(formData: FormData) {
   if (mode === 'image' && image) {
     const timestamp = Date.now()
     const uploadPath = `uploads/${user.id}/video_input_${timestamp}.png`
-    await supabase.storage.from('try-on-images').upload(uploadPath, image)
-    const { data: origUrl } = supabase.storage.from('try-on-images').getPublicUrl(uploadPath)
-    originalUrl = origUrl.publicUrl
-    garmentUrl = origUrl.publicUrl
+    const { publicUrl: videoInputPublicUrl } = await uploadTryOnImagePublic(supabase, uploadPath, image, {
+      contentType: image.type || 'image/png',
+    })
+    originalUrl = videoInputPublicUrl
+    garmentUrl = videoInputPublicUrl
   }
 
   const { data: historyItem, error: historyError } = await supabase
@@ -184,10 +186,10 @@ export async function createVeoVideo(formData: FormData) {
     const videoBuffer = await downloadVeoVideoToBuffer(ai, genVideo, apiKey)
 
     const resultPath = `results/${user.id}/veo_${Date.now()}.mp4`
-    await adminSupabase.storage
-      .from('try-on-images')
-      .upload(resultPath, videoBuffer, { contentType: 'video/mp4', upsert: true })
-    const { data: urlData } = adminSupabase.storage.from('try-on-images').getPublicUrl(resultPath)
+    const { publicUrl: veoResultPublicUrl } = await uploadTryOnImagePublic(adminSupabase, resultPath, videoBuffer, {
+      contentType: 'video/mp4',
+      upsert: true,
+    })
 
     const newBalance = fromTenths(toTenths(creditData.balance) - toTenths(COST))
     await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', user.id)
@@ -195,7 +197,7 @@ export async function createVeoVideo(formData: FormData) {
     await adminSupabase
       .from('try_on_history')
       .update({
-        result_image_url: urlData.publicUrl,
+        result_image_url: veoResultPublicUrl,
         status: 'completed',
         ...(geminiUri ? { veo_gemini_video_uri: geminiUri } : {}),
       })
@@ -213,7 +215,7 @@ export async function createVeoVideo(formData: FormData) {
     revalidatePath('/tao-video-tu-anh')
     revalidatePath('/flow-nhac-video-veo')
     revalidatePath('/dashboard/history')
-    return { success: true, resultUrl: urlData.publicUrl, historyId: historyItem.id }
+    return { success: true, resultUrl: veoResultPublicUrl, historyId: historyItem.id }
   } catch (e) {
     await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
     return { error: formatGoogleGenAiCaughtErrorForVeoCreate(e) }
@@ -342,10 +344,10 @@ export async function extendVeoVideo(formData: FormData) {
     const videoBuffer = await downloadVeoVideoToBuffer(ai, genVideo, apiKey)
 
     const resultPath = `results/${user.id}/veo_extend_${Date.now()}.mp4`
-    await adminSupabase.storage
-      .from('try-on-images')
-      .upload(resultPath, videoBuffer, { contentType: 'video/mp4', upsert: true })
-    const { data: urlData } = adminSupabase.storage.from('try-on-images').getPublicUrl(resultPath)
+    const { publicUrl: veoExtendResultPublicUrl } = await uploadTryOnImagePublic(adminSupabase, resultPath, videoBuffer, {
+      contentType: 'video/mp4',
+      upsert: true,
+    })
 
     const newBalance = fromTenths(toTenths(creditData.balance) - toTenths(EXTEND_CREDITS))
     await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', user.id)
@@ -354,7 +356,7 @@ export async function extendVeoVideo(formData: FormData) {
     await adminSupabase
       .from('try_on_history')
       .update({
-        result_image_url: urlData.publicUrl,
+        result_image_url: veoExtendResultPublicUrl,
         status: 'completed',
         ...(geminiUri ? { veo_gemini_video_uri: geminiUri } : {}),
       })
@@ -372,7 +374,7 @@ export async function extendVeoVideo(formData: FormData) {
     revalidatePath('/tao-video-tu-anh')
     revalidatePath('/flow-nhac-video-veo')
     revalidatePath('/dashboard/history')
-    return { success: true, resultUrl: urlData.publicUrl, historyId: historyItem.id }
+    return { success: true, resultUrl: veoExtendResultPublicUrl, historyId: historyItem.id }
   } catch (e) {
     await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
     return { error: formatGoogleGenAiCaughtErrorForVeoExtend(e) }

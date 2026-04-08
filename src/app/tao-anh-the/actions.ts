@@ -7,6 +7,7 @@ import { revalidatePath } from 'next/cache'
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
 import { normalizeToEnglish } from '@/lib/ai-normalize'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
+import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 
 const IDCARD_COSTS = { '2K': 1.5, '4K': 3 } as const
 const VALID_ASPECT_RATIOS = ['1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '21:9'] as const
@@ -75,12 +76,13 @@ export async function createIdCard(formData: FormData) {
 
   const timestamp = Date.now()
   const path = `uploads/${user.id}/idcard_${timestamp}.png`
-  await supabase.storage.from('try-on-images').upload(path, image)
-  const { data: origUrl } = supabase.storage.from('try-on-images').getPublicUrl(path)
+  const { publicUrl: originalPublicUrl } = await uploadTryOnImagePublic(supabase, path, image, {
+    contentType: image.type || 'image/png',
+  })
   const { data: historyItem, error: historyError } = await supabase.from('try_on_history').insert({
     user_id: user.id,
-    original_image_url: origUrl.publicUrl,
-    garment_image_url: origUrl.publicUrl,
+    original_image_url: originalPublicUrl,
+    garment_image_url: originalPublicUrl,
     status: 'processing',
   }).select().single()
   if (historyError || !historyItem) return { error: 'Không thể khởi tạo phiên xử lý.' }
@@ -113,8 +115,10 @@ export async function createIdCard(formData: FormData) {
     }
     const resultBuffer = Buffer.from((imagePartRes as { inlineData: { data: string } }).inlineData.data, 'base64')
     const resultPath = `results/${user.id}/idcard_${Date.now()}.png`
-    await adminSupabase.storage.from('try-on-images').upload(resultPath, resultBuffer, { contentType: 'image/png', upsert: true })
-    const { data: urlData } = adminSupabase.storage.from('try-on-images').getPublicUrl(resultPath)
+    const { publicUrl: resultPublicUrl } = await uploadTryOnImagePublic(adminSupabase, resultPath, resultBuffer, {
+      contentType: 'image/png',
+      upsert: true,
+    })
 
     const { data: latestCredit } = await adminSupabase.from('credits').select('balance').eq('user_id', user.id).single()
     if (!latestCredit || toTenths(latestCredit.balance) < toTenths(COST)) {
@@ -123,11 +127,11 @@ export async function createIdCard(formData: FormData) {
     }
     const newBalance = fromTenths(toTenths(latestCredit.balance) - toTenths(COST))
     await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', user.id)
-    await adminSupabase.from('try_on_history').update({ result_image_url: urlData.publicUrl, status: 'completed' }).eq('id', historyItem.id)
+    await adminSupabase.from('try_on_history').update({ result_image_url: resultPublicUrl, status: 'completed' }).eq('id', historyItem.id)
 
     revalidatePath('/tao-anh-the')
     revalidatePath('/dashboard/history')
-    return { success: true, resultUrl: urlData.publicUrl }
+    return { success: true, resultUrl: resultPublicUrl }
   } catch (e) {
     await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
     const msg = e instanceof Error ? e.message : String(e)

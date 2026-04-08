@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 
 export async function POST(request: Request) {
   try {
@@ -30,16 +31,16 @@ export async function POST(request: Request) {
     const extension = file.type.includes('wav') ? 'wav' : 'bin'
     const uploadPath = `english-coach-history/${user.id}/${sessionId}/${messageId}.${extension}`
     const buffer = Buffer.from(await file.arrayBuffer())
-    const { error: uploadError } = await adminSupabase.storage
-      .from('try-on-images')
-      .upload(uploadPath, buffer, { contentType: file.type || 'audio/wav', upsert: true })
-
-    if (uploadError) {
-      return NextResponse.json({ error: uploadError.message || 'Không upload được audio.' }, { status: 500 })
+    try {
+      const { publicUrl } = await uploadTryOnImagePublic(adminSupabase, uploadPath, buffer, {
+        contentType: file.type || 'audio/wav',
+        upsert: true,
+      })
+      return NextResponse.json({ audioUrl: publicUrl })
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Không upload được audio.'
+      return NextResponse.json({ error: msg }, { status: 500 })
     }
-
-    const { data } = adminSupabase.storage.from('try-on-images').getPublicUrl(uploadPath)
-    return NextResponse.json({ audioUrl: data.publicUrl })
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Lỗi không xác định.'
     return NextResponse.json({ error: msg }, { status: 500 })

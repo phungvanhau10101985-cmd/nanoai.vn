@@ -9,6 +9,7 @@ import { normalizeToEnglish } from '@/lib/ai-normalize'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import sharp from 'sharp'
 import { detectFaceInTargetImage, detectFacesInTargetImage, extractFaceFromSourceImage, type FaceBbox } from '@/lib/face-swap-vision'
+import { uploadTryOnImagePublic, getTryOnPublicUrl } from '@/lib/storage/try-on-public-upload'
 
 const FACESWAP_COSTS = { '2K': 2, '4K': 4 } as const
 const toTenths = (value: number) => Math.round(value * 10)
@@ -156,17 +157,17 @@ export async function faceSwap(formData: FormData) {
   const sourcePath = `uploads/${user.id}/faceswap_source_${timestamp}.png`
   const targetPath = `uploads/${user.id}/faceswap_target_${timestamp}.png`
   if (swapMode === 'single' && faceImage) {
-    await supabase.storage.from('try-on-images').upload(sourcePath, faceImage)
+    await uploadTryOnImagePublic(supabase, sourcePath, faceImage, { contentType: faceImage.type || 'image/png' })
   } else if (faceImageLeft) {
-    await supabase.storage.from('try-on-images').upload(sourcePath, faceImageLeft)
+    await uploadTryOnImagePublic(supabase, sourcePath, faceImageLeft, { contentType: faceImageLeft.type || 'image/png' })
   }
-  await supabase.storage.from('try-on-images').upload(targetPath, targetImage)
-  const { data: sourceUrl } = supabase.storage.from('try-on-images').getPublicUrl(sourcePath)
-  const { data: targetUrl } = supabase.storage.from('try-on-images').getPublicUrl(targetPath)
+  await uploadTryOnImagePublic(supabase, targetPath, targetImage, { contentType: targetImage.type || 'image/png' })
+  const sourcePublicUrl = getTryOnPublicUrl(supabase, sourcePath)
+  const targetPublicUrl = getTryOnPublicUrl(supabase, targetPath)
   const { data: historyItem, error: historyError } = await supabase.from('try_on_history').insert({
     user_id: user.id,
-    original_image_url: sourceUrl.publicUrl,
-    garment_image_url: targetUrl.publicUrl,
+    original_image_url: sourcePublicUrl,
+    garment_image_url: targetPublicUrl,
     status: 'processing',
   }).select().single()
   if (historyError || !historyItem) return { error: 'Không thể khởi tạo phiên xử lý.' }
@@ -302,8 +303,10 @@ ${NO_TEXT}`
     const resultBuffer = Buffer.from(swapInline.data, 'base64')
 
     const resultPath = `results/${user.id}/faceswap_${Date.now()}.png`
-    await adminSupabase.storage.from('try-on-images').upload(resultPath, resultBuffer, { contentType: 'image/png', upsert: true })
-    const { data: urlData } = adminSupabase.storage.from('try-on-images').getPublicUrl(resultPath)
+    const { publicUrl: resultPublicUrl } = await uploadTryOnImagePublic(adminSupabase, resultPath, resultBuffer, {
+      contentType: 'image/png',
+      upsert: true,
+    })
 
     const { data: latestCredit } = await adminSupabase.from('credits').select('balance').eq('user_id', user.id).single()
     if (!latestCredit || toTenths(latestCredit.balance) < toTenths(COST)) {
@@ -312,11 +315,11 @@ ${NO_TEXT}`
     }
     const newBalance = fromTenths(toTenths(latestCredit.balance) - toTenths(COST))
     await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', user.id)
-    await adminSupabase.from('try_on_history').update({ result_image_url: urlData.publicUrl, status: 'completed' }).eq('id', historyItem.id)
+    await adminSupabase.from('try_on_history').update({ result_image_url: resultPublicUrl, status: 'completed' }).eq('id', historyItem.id)
 
     revalidatePath('/hoan-doi-khuon-mat')
     revalidatePath('/dashboard/history')
-    return { success: true, resultUrl: urlData.publicUrl }
+    return { success: true, resultUrl: resultPublicUrl }
   } catch (e) {
     await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
     const msg = e instanceof Error ? e.message : String(e)

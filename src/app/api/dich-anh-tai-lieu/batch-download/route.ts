@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getUserOrBypass } from '@/lib/auth'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import archiver from 'archiver'
+import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 
 /** Route Handler cho tải PDF/zip – timeout 120s (Server Action chỉ 15s trên Vercel) */
 export const maxDuration = 120
@@ -70,11 +71,10 @@ export async function GET(request: NextRequest) {
       archive.finalize()
     })
     const resultZipPath = `results/${user.id}/dich_tai_lieu_${Date.now()}.zip`
-    await adminSupabase.storage.from('try-on-images').upload(resultZipPath, resultZipBuffer, {
+    const { publicUrl: resultZipPublicUrl } = await uploadTryOnImagePublic(adminSupabase, resultZipPath, resultZipBuffer, {
       contentType: 'application/zip',
       upsert: true,
     })
-    const { data: zipUrlData } = adminSupabase.storage.from('try-on-images').getPublicUrl(resultZipPath)
 
     // Zip ảnh gốc
     const originalZipEntries: Array<{ name: string; buffer: Buffer }> = []
@@ -104,15 +104,14 @@ export async function GET(request: NextRequest) {
         archive.finalize()
       })
       const originalZipPath = `results/${user.id}/dich_tai_lieu_goc_${Date.now()}.zip`
-      await adminSupabase.storage.from('try-on-images').upload(originalZipPath, originalZipBuffer, {
+      const { publicUrl: originalZipPublicUrl } = await uploadTryOnImagePublic(adminSupabase, originalZipPath, originalZipBuffer, {
         contentType: 'application/zip',
         upsert: true,
       })
-      const { data: origZipUrlData } = adminSupabase.storage.from('try-on-images').getPublicUrl(originalZipPath)
-      originalZipUrl = origZipUrlData.publicUrl
+      originalZipUrl = originalZipPublicUrl
     }
 
-    return NextResponse.json({ zipUrl: zipUrlData.publicUrl, originalZipUrl })
+    return NextResponse.json({ zipUrl: resultZipPublicUrl, originalZipUrl })
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     console.error('[batch-download] Lỗi:', msg)

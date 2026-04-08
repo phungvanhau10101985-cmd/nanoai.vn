@@ -6,6 +6,7 @@ import { translateOneImage } from '@/lib/translate-document-image'
 import { applyPostCheckOcr } from '@/lib/translate-post-check'
 import { fetchImageWith1688Bypass } from '@/lib/fetch-image-1688'
 import { notifyTranslateImageJobDone, notifyTranslateImageSuccessSmart } from '@/lib/notifications/notify-job-events'
+import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 
 const TRANSLATE_COSTS = { '2K': 3, '4K': 6 } as const
 const toTenths = (value: number) => Math.round(value * 10)
@@ -237,11 +238,10 @@ async function handleProcessTranslate(request: NextRequest) {
   })
 
   const resultPath = `results/${userId}/translate_bg_${Date.now()}.png`
-  await adminSupabase.storage.from('try-on-images').upload(resultPath, finalBuffer, {
+  const { publicUrl: resultPublicUrl } = await uploadTryOnImagePublic(adminSupabase, resultPath, finalBuffer, {
     contentType: 'image/png',
     upsert: true,
   })
-  const { data: urlData } = adminSupabase.storage.from('try-on-images').getPublicUrl(resultPath)
 
   const { data: creditData } = await adminSupabase.from('credits').select('balance').eq('user_id', userId).single()
   if (!creditData || toTenths(creditData.balance) < toTenths(cost)) {
@@ -260,7 +260,7 @@ async function handleProcessTranslate(request: NextRequest) {
   await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', userId)
   await adminSupabase
     .from('try_on_history')
-    .update({ result_image_url: urlData.publicUrl, status: 'completed' })
+    .update({ result_image_url: resultPublicUrl, status: 'completed' })
     .eq('id', historyId)
   await adminSupabase.from('translate_jobs').update({ status: 'completed' }).eq('id', resolvedJobId)
 
@@ -280,5 +280,5 @@ async function handleProcessTranslate(request: NextRequest) {
   triggerNext()
   const memEnd = process.memoryUsage()
   console.log('[process-translate] Hoàn thành job', resolvedJobId, '| heap:', Math.round(memEnd.heapUsed / 1024 / 1024), 'MB')
-  return NextResponse.json({ success: true, resultUrl: urlData.publicUrl })
+  return NextResponse.json({ success: true, resultUrl: resultPublicUrl })
 }

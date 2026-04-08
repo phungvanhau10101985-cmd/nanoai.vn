@@ -7,6 +7,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
 import { removeFaceFromGarmentImages } from '@/lib/remove-face-garment-server'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
+import { uploadTryOnImagePublic, getTryOnPublicUrl } from '@/lib/storage/try-on-public-upload'
 
 const toTenths = (value: number) => Math.round(value * 10)
 const fromTenths = (value: number) => value / 10
@@ -80,11 +81,14 @@ export async function runVirtualTryOnPipeline(params: RunVirtualTryOnPipelinePar
   const timestamp = Date.now()
   const userImagePath = `uploads/${billingUserId}/user_${timestamp}.png`
   const userBuf = Buffer.from(await userImage.arrayBuffer())
-  const { error: userImageError } = await adminSupabase.storage.from('try-on-images').upload(userImagePath, userBuf, {
-    contentType: userImage.type || 'image/png',
-    upsert: true,
-  })
-  if (userImageError) return { error: 'Failed to upload user image.' }
+  try {
+    await uploadTryOnImagePublic(adminSupabase, userImagePath, userBuf, {
+      contentType: userImage.type || 'image/png',
+      upsert: true,
+    })
+  } catch {
+    return { error: 'Failed to upload user image.' }
+  }
 
   let processedGarmentImages: File[]
   try {
@@ -98,20 +102,19 @@ export async function runVirtualTryOnPipeline(params: RunVirtualTryOnPipelinePar
   for (let i = 0; i < processedGarmentImages.length; i++) {
     const path = `uploads/${billingUserId}/garment_${i}_${timestamp}.png`
     const gBuf = Buffer.from(await processedGarmentImages[i].arrayBuffer())
-    await adminSupabase.storage.from('try-on-images').upload(path, gBuf, {
+    await uploadTryOnImagePublic(adminSupabase, path, gBuf, {
       contentType: processedGarmentImages[i].type || 'image/png',
       upsert: true,
     })
-    const { data } = adminSupabase.storage.from('try-on-images').getPublicUrl(path)
-    garmentImageUrls.push(data.publicUrl)
+    garmentImageUrls.push(getTryOnPublicUrl(adminSupabase, path))
   }
-  const { data: userImageUrl } = adminSupabase.storage.from('try-on-images').getPublicUrl(userImagePath)
+  const userImagePublicUrl = getTryOnPublicUrl(adminSupabase, userImagePath)
 
   const { data: historyItem, error: historyError } = await adminSupabase
     .from('try_on_history')
     .insert({
       user_id: billingUserId,
-      original_image_url: userImageUrl.publicUrl,
+      original_image_url: userImagePublicUrl,
       garment_image_url: garmentImageUrls[0] || null,
       status: 'processing',
       feature: 'try_on',
@@ -183,12 +186,10 @@ export async function runVirtualTryOnPipeline(params: RunVirtualTryOnPipelinePar
     const resultImageBuffer = Buffer.from(resultImageBase64, 'base64')
     const resultImagePath = `results/${billingUserId}/try-on_${timestamp}.png`
 
-    await adminSupabase.storage.from('try-on-images').upload(resultImagePath, resultImageBuffer, {
+    const { publicUrl: resultImageUrl } = await uploadTryOnImagePublic(adminSupabase, resultImagePath, resultImageBuffer, {
       contentType: 'image/png',
       upsert: true,
     })
-    const { data: resultImageUrlData } = adminSupabase.storage.from('try-on-images').getPublicUrl(resultImagePath)
-    const resultImageUrl = resultImageUrlData.publicUrl
 
     const { data: latestCreditData, error: latestCreditError } = await adminSupabase
       .from('credits')

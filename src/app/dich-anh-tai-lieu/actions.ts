@@ -15,6 +15,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai'
 import { translateOneImage } from '@/lib/translate-document-image'
 import { applyPostCheckOcr } from '@/lib/translate-post-check'
 import { fetchImageWith1688Bypass } from '@/lib/fetch-image-1688'
+import { uploadTryOnImagePublic, downloadTryOnObject } from '@/lib/storage/try-on-public-upload'
 const TRANSLATE_COSTS = { '2K': 3, '4K': 6 } as const
 const MAX_PDF_PAGES = 50
 const POPPLER_DPI = 300
@@ -176,14 +177,15 @@ export async function translateDocumentImage(formData: FormData) {
 
   const timestamp = Date.now()
   const uploadPath = `uploads/${user.id}/translate_${timestamp}.png`
-  await supabase.storage.from('try-on-images').upload(uploadPath, image)
-  const { data: origUrl } = supabase.storage.from('try-on-images').getPublicUrl(uploadPath)
+  const { publicUrl: originalPublicUrl } = await uploadTryOnImagePublic(supabase, uploadPath, image, {
+    contentType: image.type || 'image/png',
+  })
   let historyItem: { id: string } | null = null
   let historyError: { message: string } | null = null
   const res1 = await supabase.from('try_on_history').insert({
     user_id: user.id,
-    original_image_url: origUrl.publicUrl,
-    garment_image_url: origUrl.publicUrl,
+    original_image_url: originalPublicUrl,
+    garment_image_url: originalPublicUrl,
     status: 'processing',
     feature: 'translate',
   }).select().single()
@@ -192,8 +194,8 @@ export async function translateDocumentImage(formData: FormData) {
   if (historyError && (String(historyError.message).includes('column'))) {
     const res2 = await supabase.from('try_on_history').insert({
       user_id: user.id,
-      original_image_url: origUrl.publicUrl,
-      garment_image_url: origUrl.publicUrl,
+      original_image_url: originalPublicUrl,
+      garment_image_url: originalPublicUrl,
       status: 'processing',
       feature: 'translate',
     }).select().single()
@@ -222,8 +224,10 @@ export async function translateDocumentImage(formData: FormData) {
 
     const finalBuffer = await applyPostCheckOcr(resultBuffer, genAI, { sourceLang, targetLang, userId: user.id })
     const resultPath = `results/${user.id}/translate_${Date.now()}.png`
-    await adminSupabase.storage.from('try-on-images').upload(resultPath, finalBuffer, { contentType: 'image/png', upsert: true })
-    const { data: urlData } = adminSupabase.storage.from('try-on-images').getPublicUrl(resultPath)
+    const { publicUrl: resultPublicUrl } = await uploadTryOnImagePublic(adminSupabase, resultPath, finalBuffer, {
+      contentType: 'image/png',
+      upsert: true,
+    })
 
     const { data: latestCredit } = await adminSupabase.from('credits').select('balance').eq('user_id', user.id).single()
     if (!latestCredit || toTenths(latestCredit.balance) < toTenths(COST)) {
@@ -232,11 +236,11 @@ export async function translateDocumentImage(formData: FormData) {
     }
     const newBalance = fromTenths(toTenths(latestCredit.balance) - toTenths(COST))
     await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', user.id)
-    await adminSupabase.from('try_on_history').update({ result_image_url: urlData.publicUrl, status: 'completed', feature: 'translate' }).eq('id', historyItem.id)
+    await adminSupabase.from('try_on_history').update({ result_image_url: resultPublicUrl, status: 'completed', feature: 'translate' }).eq('id', historyItem.id)
 
     revalidatePath('/dich-anh-tai-lieu')
     revalidatePath('/dashboard/history')
-    return { success: true, resultUrl: urlData.publicUrl }
+    return { success: true, resultUrl: resultPublicUrl }
   } catch (e) {
     await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
     const msg = e instanceof Error ? e.message : String(e)
@@ -256,9 +260,9 @@ async function getPdfPagesFromStorage(
   const buffers: Buffer[] = []
   for (let i = 0; i < pageCount; i++) {
     const path = `${PDF_EXTRACT_STORAGE_PREFIX}/${userId}/${hash}/page_${i}.png`
-    const { data, error } = await adminSupabase.storage.from('try-on-images').download(path)
-    if (error || !data) return null
-    buffers.push(Buffer.from(await data.arrayBuffer()))
+    const buf = await downloadTryOnObject(adminSupabase, path)
+    if (!buf) return null
+    buffers.push(buf)
   }
   console.log('[getPdfPagesFromStorage] Lấy', pageCount, 'ảnh từ storage, không tách lại')
   return buffers
@@ -291,7 +295,7 @@ export async function getPdfPageInfo(
       if (user) {
         for (let i = 0; i < pageBuffers.length; i++) {
           const path = `${PDF_EXTRACT_STORAGE_PREFIX}/${user.id}/${cacheKey}/page_${i}.png`
-          await adminSupabase.storage.from('try-on-images').upload(path, pageBuffers[i], { contentType: 'image/png', upsert: true })
+          await uploadTryOnImagePublic(adminSupabase, path, pageBuffers[i], { contentType: 'image/png', upsert: true })
         }
         console.log('[getPdfPageInfo] Đã upload', pageCount, 'ảnh lên storage để dùng khi dịch')
       }
@@ -411,24 +415,27 @@ export async function translatePdfDocument(
   const outPdfBuffer = Buffer.from(await pdfDoc.save())
   const timestamp = Date.now()
   const uploadPath = `uploads/${user.id}/translate_pdf_${timestamp}.pdf`
-  await adminSupabase.storage.from('try-on-images').upload(uploadPath, pdfBuffer)
-  const { data: origUrl } = adminSupabase.storage.from('try-on-images').getPublicUrl(uploadPath)
+  const { publicUrl: originalPdfPublicUrl } = await uploadTryOnImagePublic(adminSupabase, uploadPath, pdfBuffer, {
+    contentType: 'application/pdf',
+  })
   const resultPath = `results/${user.id}/translate_pdf_${timestamp}.pdf`
-  await adminSupabase.storage.from('try-on-images').upload(resultPath, outPdfBuffer, { contentType: 'application/pdf', upsert: true })
-  const { data: urlData } = adminSupabase.storage.from('try-on-images').getPublicUrl(resultPath)
+  const { publicUrl: resultPdfPublicUrl } = await uploadTryOnImagePublic(adminSupabase, resultPath, outPdfBuffer, {
+    contentType: 'application/pdf',
+    upsert: true,
+  })
 
   await adminSupabase.from('try_on_history').insert({
     user_id: user.id,
-    original_image_url: origUrl.publicUrl,
-    garment_image_url: origUrl.publicUrl,
-    result_image_url: urlData.publicUrl,
+    original_image_url: originalPdfPublicUrl,
+    garment_image_url: originalPdfPublicUrl,
+    result_image_url: resultPdfPublicUrl,
     status: 'completed',
     feature: 'translate',
   })
 
   revalidatePath('/dich-anh-tai-lieu')
   revalidatePath('/dashboard/history')
-  return { success: true, resultPdfUrl: urlData.publicUrl }
+  return { success: true, resultPdfUrl: resultPdfPublicUrl }
 }
 
 /** Khởi tạo batch dịch PDF nền – tách trang, upload, tạo jobs, fire API. User redirect sang trang tiến trình. */
@@ -480,7 +487,7 @@ export async function startTranslatePdfBatch(formData: FormData): Promise<{ batc
     pdfExtractCache.set(cacheKey, { buffers: pageBuffers, createdAt: Date.now() })
     for (let i = 0; i < pageBuffers.length; i++) {
       const path = `${PDF_EXTRACT_STORAGE_PREFIX}/${user.id}/${cacheKey}/page_${i}.png`
-      await adminSupabase.storage.from('try-on-images').upload(path, pageBuffers[i], { contentType: 'image/png', upsert: true })
+      await uploadTryOnImagePublic(adminSupabase, path, pageBuffers[i], { contentType: 'image/png', upsert: true })
     }
     console.log('[startTranslatePdfBatch] Tách PDF lần đầu, đã upload lên storage')
   } else {
@@ -497,13 +504,15 @@ export async function startTranslatePdfBatch(formData: FormData): Promise<{ batc
   for (let i = 0; i < pageCount; i++) {
     const pageBuffer = pageBuffers[i]
     const uploadPath = `uploads/${user.id}/translate_pdf_${batchTimestamp}_page_${i}.png`
-    await adminSupabase.storage.from('try-on-images').upload(uploadPath, pageBuffer, { contentType: 'image/png', upsert: true })
-    const { data: origUrl } = adminSupabase.storage.from('try-on-images').getPublicUrl(uploadPath)
+    const { publicUrl: pageOriginalPublicUrl } = await uploadTryOnImagePublic(adminSupabase, uploadPath, pageBuffer, {
+      contentType: 'image/png',
+      upsert: true,
+    })
 
     const insertPayload: Record<string, unknown> = {
       user_id: user.id,
-      original_image_url: origUrl.publicUrl,
-      garment_image_url: origUrl.publicUrl,
+      original_image_url: pageOriginalPublicUrl,
+      garment_image_url: pageOriginalPublicUrl,
       status: 'processing',
       feature: 'translate',
       batch_id: batchId,
@@ -602,8 +611,9 @@ export async function translateOneImageFromBatch(
 
   const timestamp = Date.now()
   const uploadPath = `uploads/${user.id}/translate_batch_${timestamp}.png`
-  await supabase.storage.from('try-on-images').upload(uploadPath, image)
-  const { data: origUrl } = supabase.storage.from('try-on-images').getPublicUrl(uploadPath)
+  const { publicUrl: batchOriginalPublicUrl } = await uploadTryOnImagePublic(supabase, uploadPath, image, {
+    contentType: image.type || 'image/png',
+  })
 
   const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!)
   const buffer = Buffer.from(await image.arrayBuffer())
@@ -623,8 +633,10 @@ export async function translateOneImageFromBatch(
 
   const finalBuffer = await applyPostCheckOcr(resultBuffer, genAI, { sourceLang, targetLang, userId: user.id })
   const resultPath = `results/${user.id}/translate_batch_${timestamp}.png`
-  await adminSupabase.storage.from('try-on-images').upload(resultPath, finalBuffer, { contentType: 'image/png', upsert: true })
-  const { data: urlData } = adminSupabase.storage.from('try-on-images').getPublicUrl(resultPath)
+  const { publicUrl: batchResultPublicUrl } = await uploadTryOnImagePublic(adminSupabase, resultPath, finalBuffer, {
+    contentType: 'image/png',
+    upsert: true,
+  })
 
   const { data: latestCredit } = await adminSupabase.from('credits').select('balance').eq('user_id', user.id).single()
   if (!latestCredit || toTenths(latestCredit.balance) < toTenths(COST)) {
@@ -635,9 +647,9 @@ export async function translateOneImageFromBatch(
 
   await adminSupabase.from('try_on_history').insert({
     user_id: user.id,
-    original_image_url: origUrl.publicUrl,
-    garment_image_url: origUrl.publicUrl,
-    result_image_url: urlData.publicUrl,
+    original_image_url: batchOriginalPublicUrl,
+    garment_image_url: batchOriginalPublicUrl,
+    result_image_url: batchResultPublicUrl,
     status: 'completed',
     feature: 'translate',
   })
@@ -645,7 +657,7 @@ export async function translateOneImageFromBatch(
   revalidatePath('/dich-anh-tai-lieu')
   revalidatePath('/dashboard/history')
   revalidatePath('/dashboard/history/translate')
-  return { success: true, resultUrl: urlData.publicUrl, originalUrl: origUrl.publicUrl }
+  return { success: true, resultUrl: batchResultPublicUrl, originalUrl: batchOriginalPublicUrl }
 }
 
 /** Dịch 1 ảnh từ URL (Excel) – xử lý đồng bộ. */
@@ -684,8 +696,9 @@ export async function translateOneImageFromUrl(
 
   const timestamp = Date.now()
   const uploadPath = `uploads/${user.id}/translate_excel_${timestamp}.png`
-  await supabase.storage.from('try-on-images').upload(uploadPath, imageBuffer)
-  const { data: origUrl } = supabase.storage.from('try-on-images').getPublicUrl(uploadPath)
+  const { publicUrl: excelOriginalPublicUrl } = await uploadTryOnImagePublic(supabase, uploadPath, imageBuffer, {
+    contentType: 'image/png',
+  })
 
   const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!)
   const { buffer: resultBuffer, error: translateError } = await translateOneImage(
@@ -704,8 +717,10 @@ export async function translateOneImageFromUrl(
 
   const finalBuffer = await applyPostCheckOcr(resultBuffer, genAI, { sourceLang, targetLang, userId: user.id })
   const resultPath = `results/${user.id}/translate_excel_${timestamp}.png`
-  await adminSupabase.storage.from('try-on-images').upload(resultPath, finalBuffer, { contentType: 'image/png', upsert: true })
-  const { data: urlData } = adminSupabase.storage.from('try-on-images').getPublicUrl(resultPath)
+  const { publicUrl: excelResultPublicUrl } = await uploadTryOnImagePublic(adminSupabase, resultPath, finalBuffer, {
+    contentType: 'image/png',
+    upsert: true,
+  })
 
   const { data: latestCredit } = await adminSupabase.from('credits').select('balance').eq('user_id', user.id).single()
   if (!latestCredit || toTenths(latestCredit.balance) < toTenths(COST)) {
@@ -716,9 +731,9 @@ export async function translateOneImageFromUrl(
 
   await adminSupabase.from('try_on_history').insert({
     user_id: user.id,
-    original_image_url: origUrl.publicUrl,
-    garment_image_url: origUrl.publicUrl,
-    result_image_url: urlData.publicUrl,
+    original_image_url: excelOriginalPublicUrl,
+    garment_image_url: excelOriginalPublicUrl,
+    result_image_url: excelResultPublicUrl,
     status: 'completed',
     feature: 'translate',
   })
@@ -726,7 +741,7 @@ export async function translateOneImageFromUrl(
   revalidatePath('/dich-anh-tai-lieu')
   revalidatePath('/dashboard/history')
   revalidatePath('/dashboard/history/translate')
-  return { success: true, resultUrl: urlData.publicUrl, originalUrl: origUrl.publicUrl }
+  return { success: true, resultUrl: excelResultPublicUrl, originalUrl: excelOriginalPublicUrl }
 }
 
 /** Tạo file zip từ danh sách kết quả */
@@ -767,10 +782,12 @@ export async function createZipFromResults(
   })
 
   const zipPath = `results/${user.id}/dich_tai_lieu_${Date.now()}.zip`
-  await adminSupabase.storage.from('try-on-images').upload(zipPath, zipBuffer, { contentType: 'application/zip', upsert: true })
-  const { data: zipUrlData } = adminSupabase.storage.from('try-on-images').getPublicUrl(zipPath)
+  const { publicUrl: zipPublicUrl } = await uploadTryOnImagePublic(adminSupabase, zipPath, zipBuffer, {
+    contentType: 'application/zip',
+    upsert: true,
+  })
   revalidatePath('/dich-anh-tai-lieu')
-  return { zipUrl: zipUrlData.publicUrl }
+  return { zipUrl: zipPublicUrl }
 }
 
 /** Dịch nhiều ảnh tài liệu – xử lý tuần tự, trả về kết quả + file zip. */
@@ -812,8 +829,9 @@ export async function translateDocumentImageBatch(
   for (let i = 0; i < images.length; i++) {
     const image = images[i]
     const uploadPath = `uploads/${user.id}/translate_batch_${batchTimestamp}_${i}.png`
-    await supabase.storage.from('try-on-images').upload(uploadPath, image)
-    const { data: origUrl } = supabase.storage.from('try-on-images').getPublicUrl(uploadPath)
+    const { publicUrl: docBatchOriginalPublicUrl } = await uploadTryOnImagePublic(supabase, uploadPath, image, {
+      contentType: image.type || 'image/png',
+    })
 
     const buffer = Buffer.from(await image.arrayBuffer())
     const { buffer: resultBuffer, error: translateError } = await translateOneImage(
@@ -838,8 +856,10 @@ export async function translateDocumentImageBatch(
       userId: user.id,
     })
     const resultPath = `results/${user.id}/translate_batch_${batchTimestamp}_${i}.png`
-    await adminSupabase.storage.from('try-on-images').upload(resultPath, finalBuffer, { contentType: 'image/png', upsert: true })
-    const { data: urlData } = adminSupabase.storage.from('try-on-images').getPublicUrl(resultPath)
+    const { publicUrl: docBatchResultPublicUrl } = await uploadTryOnImagePublic(adminSupabase, resultPath, finalBuffer, {
+      contentType: 'image/png',
+      upsert: true,
+    })
 
     const { data: latestCredit } = await adminSupabase.from('credits').select('balance').eq('user_id', user.id).single()
     if (!latestCredit || toTenths(latestCredit.balance) < toTenths(COST_PER_IMAGE)) {
@@ -850,14 +870,14 @@ export async function translateDocumentImageBatch(
 
     await adminSupabase.from('try_on_history').insert({
       user_id: user.id,
-      original_image_url: origUrl.publicUrl,
-      garment_image_url: origUrl.publicUrl,
-      result_image_url: urlData.publicUrl,
+      original_image_url: docBatchOriginalPublicUrl,
+      garment_image_url: docBatchOriginalPublicUrl,
+      result_image_url: docBatchResultPublicUrl,
       status: 'completed',
       feature: 'translate',
     })
 
-    results.push({ originalUrl: origUrl.publicUrl, resultUrl: urlData.publicUrl })
+    results.push({ originalUrl: docBatchOriginalPublicUrl, resultUrl: docBatchResultPublicUrl })
     zipEntries.push({ name: safeZipName(image.name, i), buffer: finalBuffer })
   }
 
@@ -875,9 +895,11 @@ export async function translateDocumentImageBatch(
       archive.finalize()
     })
     const zipPath = `results/${user.id}/dich_tai_lieu_${batchTimestamp}.zip`
-    await adminSupabase.storage.from('try-on-images').upload(zipPath, zipBuffer, { contentType: 'application/zip', upsert: true })
-    const { data: zipUrlData } = adminSupabase.storage.from('try-on-images').getPublicUrl(zipPath)
-    zipUrl = zipUrlData.publicUrl
+    const { publicUrl: docBatchZipPublicUrl } = await uploadTryOnImagePublic(adminSupabase, zipPath, zipBuffer, {
+      contentType: 'application/zip',
+      upsert: true,
+    })
+    zipUrl = docBatchZipPublicUrl
   }
 
   revalidatePath('/dich-anh-tai-lieu')
@@ -931,9 +953,10 @@ export async function startTranslateBatch(formData: FormData): Promise<{ batchId
         return { error: `Ảnh ${i + 1}/${urls.length}: Không tải được. ${msg}` }
       }
       const uploadPath = `uploads/${user.id}/translate_excel_${Date.now()}_${i}.png`
-      await supabase.storage.from('try-on-images').upload(uploadPath, imageBuffer)
-      const { data: origUrl } = supabase.storage.from('try-on-images').getPublicUrl(uploadPath)
-      items.push({ originalUrl: origUrl.publicUrl, name: `image_${i + 1}` })
+      const { publicUrl: startBatchExcelPublicUrl } = await uploadTryOnImagePublic(supabase, uploadPath, imageBuffer, {
+        contentType: 'image/png',
+      })
+      items.push({ originalUrl: startBatchExcelPublicUrl, name: `image_${i + 1}` })
     }
   } else {
     const images: File[] = []
@@ -951,9 +974,10 @@ export async function startTranslateBatch(formData: FormData): Promise<{ batchId
     for (let i = 0; i < images.length; i++) {
       const image = images[i]
       const uploadPath = `uploads/${user.id}/translate_batch_${batchTimestamp}_${i}.png`
-      await supabase.storage.from('try-on-images').upload(uploadPath, image)
-      const { data: origUrl } = supabase.storage.from('try-on-images').getPublicUrl(uploadPath)
-      items.push({ originalUrl: origUrl.publicUrl, name: image.name })
+      const { publicUrl: startBatchImgPublicUrl } = await uploadTryOnImagePublic(supabase, uploadPath, image, {
+        contentType: image.type || 'image/png',
+      })
+      items.push({ originalUrl: startBatchImgPublicUrl, name: image.name })
     }
   }
 
@@ -1241,8 +1265,9 @@ export async function translateFromExcel(
     }
 
     const uploadPath = `uploads/${user.id}/translate_excel_${batchTimestamp}_${i}.png`
-    await supabase.storage.from('try-on-images').upload(uploadPath, imageBuffer)
-    const { data: origUrl } = supabase.storage.from('try-on-images').getPublicUrl(uploadPath)
+    const { publicUrl: fromExcelOriginalPublicUrl } = await uploadTryOnImagePublic(supabase, uploadPath, imageBuffer, {
+      contentType: 'image/png',
+    })
 
     const { buffer: resultBuffer, error: translateError } = await translateOneImage(
       genAI,
@@ -1265,22 +1290,24 @@ export async function translateFromExcel(
       userId: user.id,
     })
     const resultPath = `results/${user.id}/translate_excel_${batchTimestamp}_${i}.png`
-    await adminSupabase.storage.from('try-on-images').upload(resultPath, finalBuffer, { contentType: 'image/png', upsert: true })
-    const { data: urlData } = adminSupabase.storage.from('try-on-images').getPublicUrl(resultPath)
+    const { publicUrl: fromExcelResultPublicUrl } = await uploadTryOnImagePublic(adminSupabase, resultPath, finalBuffer, {
+      contentType: 'image/png',
+      upsert: true,
+    })
 
     const newBalance = fromTenths(toTenths(latestCredit.balance) - toTenths(COST_PER_IMAGE))
     await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', user.id)
 
     await adminSupabase.from('try_on_history').insert({
       user_id: user.id,
-      original_image_url: origUrl.publicUrl,
-      garment_image_url: origUrl.publicUrl,
-      result_image_url: urlData.publicUrl,
+      original_image_url: fromExcelOriginalPublicUrl,
+      garment_image_url: fromExcelOriginalPublicUrl,
+      result_image_url: fromExcelResultPublicUrl,
       status: 'completed',
       feature: 'translate',
     })
 
-    results.push({ originalUrl: origUrl.publicUrl, resultUrl: urlData.publicUrl })
+    results.push({ originalUrl: fromExcelOriginalPublicUrl, resultUrl: fromExcelResultPublicUrl })
     let baseName = `image_${i + 1}`
     try {
       baseName = path.basename(new URL(url).pathname) || baseName
@@ -1304,9 +1331,11 @@ export async function translateFromExcel(
       archive.finalize()
     })
     const zipPath = `results/${user.id}/dich_tai_lieu_${batchTimestamp}.zip`
-    await adminSupabase.storage.from('try-on-images').upload(zipPath, zipBuffer, { contentType: 'application/zip', upsert: true })
-    const { data: zipUrlData } = adminSupabase.storage.from('try-on-images').getPublicUrl(zipPath)
-    zipUrl = zipUrlData.publicUrl
+    const { publicUrl: fromExcelZipPublicUrl } = await uploadTryOnImagePublic(adminSupabase, zipPath, zipBuffer, {
+      contentType: 'application/zip',
+      upsert: true,
+    })
+    zipUrl = fromExcelZipPublicUrl
   }
 
   revalidatePath('/dich-anh-tai-lieu')

@@ -7,6 +7,7 @@ import { revalidatePath } from 'next/cache'
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
 import { normalizeToEnglish } from '@/lib/ai-normalize'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
+import { uploadTryOnImagePublic, getTryOnPublicUrl } from '@/lib/storage/try-on-public-upload'
 
 const LOGO_COSTS = { '2K': 1.5, '4K': 3 } as const
 const VALID_ASPECT_RATIOS = ['1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '21:9'] as const
@@ -51,14 +52,18 @@ export async function createLogo(formData: FormData) {
 
   const timestamp = Date.now()
   const uploadPath = image?.size ? `uploads/${user.id}/logo_ref_${timestamp}.png` : null
-  if (image?.size) {
-    await supabase.storage.from('try-on-images').upload(uploadPath!, image)
+  const placeholderPath = `uploads/${user.id}/placeholder.png`
+  let logoOriginalPublicUrl: string
+  if (image?.size && uploadPath) {
+    const { publicUrl } = await uploadTryOnImagePublic(supabase, uploadPath, image, { contentType: image.type || 'image/png' })
+    logoOriginalPublicUrl = publicUrl
+  } else {
+    logoOriginalPublicUrl = getTryOnPublicUrl(supabase, placeholderPath)
   }
-  const { data: origUrl } = supabase.storage.from('try-on-images').getPublicUrl(uploadPath || `uploads/${user.id}/placeholder.png`)
   const { data: historyItem, error: historyError } = await supabase.from('try_on_history').insert({
     user_id: user.id,
-    original_image_url: origUrl.publicUrl,
-    garment_image_url: origUrl.publicUrl,
+    original_image_url: logoOriginalPublicUrl,
+    garment_image_url: logoOriginalPublicUrl,
     status: 'processing',
   }).select().single()
   if (historyError || !historyItem) return { error: 'Không thể khởi tạo phiên xử lý.' }
@@ -101,8 +106,10 @@ export async function createLogo(formData: FormData) {
     }
     const resultBuffer = Buffer.from((imagePartRes as { inlineData: { data: string } }).inlineData.data, 'base64')
     const resultPath = `results/${user.id}/logo_${Date.now()}.png`
-    await adminSupabase.storage.from('try-on-images').upload(resultPath, resultBuffer, { contentType: 'image/png', upsert: true })
-    const { data: urlData } = adminSupabase.storage.from('try-on-images').getPublicUrl(resultPath)
+    const { publicUrl: logoResultPublicUrl } = await uploadTryOnImagePublic(adminSupabase, resultPath, resultBuffer, {
+      contentType: 'image/png',
+      upsert: true,
+    })
 
     const { data: latestCredit } = await adminSupabase.from('credits').select('balance').eq('user_id', user.id).single()
     if (!latestCredit || toTenths(latestCredit.balance) < toTenths(COST)) {
@@ -111,11 +118,11 @@ export async function createLogo(formData: FormData) {
     }
     const newBalance = fromTenths(toTenths(latestCredit.balance) - toTenths(COST))
     await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', user.id)
-    await adminSupabase.from('try_on_history').update({ result_image_url: urlData.publicUrl, status: 'completed', feature: 'thiet-ke-logo', aspect_ratio: aspectRatio }).eq('id', historyItem.id)
+    await adminSupabase.from('try_on_history').update({ result_image_url: logoResultPublicUrl, status: 'completed', feature: 'thiet-ke-logo', aspect_ratio: aspectRatio }).eq('id', historyItem.id)
 
     revalidatePath('/thiet-ke-logo')
     revalidatePath('/dashboard/history')
-    return { success: true, resultUrl: urlData.publicUrl }
+    return { success: true, resultUrl: logoResultPublicUrl }
   } catch (e) {
     await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
     const msg = e instanceof Error ? e.message : String(e)

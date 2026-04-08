@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createSupabaseAdmin } from '@supabase/supabase-js'
 import { getUserForAction } from '@/lib/auth'
+import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 
 const MAX_IMAGES = 10
 
@@ -37,17 +38,20 @@ export async function POST(req: NextRequest) {
     const imageUrls: string[] = []
     if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
       const admin = createSupabaseAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY)
-      const bucket = 'try-on-images'
       const jobPrefix = `worksheet-sgk/job-${jobId}`
       for (let i = 0; i < files.length; i++) {
         const file = files[i]
         const ext = file.type?.includes('jpeg') || file.type?.includes('jpg') ? 'jpg' : 'png'
         const path = `${jobPrefix}/${Date.now()}_${i}.${ext}`
         const buf = Buffer.from(await file.arrayBuffer())
-        const { error: upErr } = await admin.storage.from(bucket).upload(path, buf, { contentType: file.type || 'image/png', upsert: true })
-        if (!upErr) {
-          const { data } = admin.storage.from(bucket).getPublicUrl(path)
-          imageUrls.push(data.publicUrl)
+        try {
+          const { publicUrl } = await uploadTryOnImagePublic(admin, path, buf, {
+            contentType: file.type || 'image/png',
+            upsert: true,
+          })
+          imageUrls.push(publicUrl)
+        } catch {
+          /* skip failed slice */
         }
       }
     }

@@ -11,6 +11,7 @@ import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { getAspectRatioFromDimensions } from '@/lib/aspect-ratio-from-dimensions'
 import { GEMINI_ASPECT_RATIOS } from '@/lib/label-size-presets'
 import { BAG_TYPE_OPTIONS, type BagType } from './bag-types'
+import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 
 const PACKAGING_COSTS = { '2K': 1.5, '4K': 3 } as const
 const VALID_ASPECT_RATIOS = GEMINI_ASPECT_RATIOS
@@ -84,12 +85,12 @@ export async function generateBoxDielinePdf(params: {
     })
 
     const pdfPath = `results/${user.id}/box_dieline_${Date.now()}.pdf`
-    await adminSupabase.storage
-      .from('try-on-images')
-      .upload(pdfPath, pdfBuffer, { contentType: 'application/pdf', upsert: true })
-    const { data: urlData } = adminSupabase.storage.from('try-on-images').getPublicUrl(pdfPath)
+    const { publicUrl: pdfPublicUrl } = await uploadTryOnImagePublic(adminSupabase, pdfPath, pdfBuffer, {
+      contentType: 'application/pdf',
+      upsert: true,
+    })
 
-    return { pdfUrl: urlData.publicUrl }
+    return { pdfUrl: pdfPublicUrl }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     return { error: `Xuất Dieline thất bại: ${msg}` }
@@ -125,12 +126,12 @@ export async function generateBoxNetPdf(
     const pdfBuffer = await createPrintReadyPdf(imageBuffer, { widthMm, heightMm })
 
     const pdfPath = `results/${user.id}/box_net_${Date.now()}.pdf`
-    await adminSupabase.storage
-      .from('try-on-images')
-      .upload(pdfPath, pdfBuffer, { contentType: 'application/pdf', upsert: true })
-    const { data: urlData } = adminSupabase.storage.from('try-on-images').getPublicUrl(pdfPath)
+    const { publicUrl: netPdfPublicUrl } = await uploadTryOnImagePublic(adminSupabase, pdfPath, pdfBuffer, {
+      contentType: 'application/pdf',
+      upsert: true,
+    })
 
-    return { pdfUrl: urlData.publicUrl }
+    return { pdfUrl: netPdfPublicUrl }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     return { error: `Xuất PDF thất bại: ${msg}` }
@@ -352,8 +353,10 @@ export async function createPackagingDesignWithAI(formData: FormData): Promise<
     }
     const resultBuffer = Buffer.from((imagePartRes as { inlineData: { data: string } }).inlineData.data, 'base64')
     const resultPath = `results/${user.id}/packaging_${designType}_${Date.now()}.png`
-    await adminSupabase.storage.from('try-on-images').upload(resultPath, resultBuffer, { contentType: 'image/png', upsert: true })
-    const { data: urlData } = adminSupabase.storage.from('try-on-images').getPublicUrl(resultPath)
+    const { publicUrl: resultPublicUrl } = await uploadTryOnImagePublic(adminSupabase, resultPath, resultBuffer, {
+      contentType: 'image/png',
+      upsert: true,
+    })
 
     const { data: latestCredit } = await adminSupabase.from('credits').select('balance').eq('user_id', user.id).single()
     if (!latestCredit || toTenths(latestCredit.balance) < toTenths(COST)) {
@@ -362,11 +365,11 @@ export async function createPackagingDesignWithAI(formData: FormData): Promise<
     }
     const newBalance = fromTenths(toTenths(latestCredit.balance) - toTenths(COST))
     await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', user.id)
-    await adminSupabase.from('try_on_history').update({ result_image_url: urlData.publicUrl, status: 'completed', aspect_ratio: aspectRatio }).eq('id', historyItem.id)
+    await adminSupabase.from('try_on_history').update({ result_image_url: resultPublicUrl, status: 'completed', aspect_ratio: aspectRatio }).eq('id', historyItem.id)
 
     revalidatePath('/thiet-ke-bao-bi')
     revalidatePath('/dashboard/history')
-    return { success: true, resultUrl: urlData.publicUrl }
+    return { success: true, resultUrl: resultPublicUrl }
   } catch (e) {
     await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
     const msg = e instanceof Error ? e.message : String(e)
@@ -686,8 +689,10 @@ ${backgroundRule} ${borderHint} ${textOrientationHint} ${stylePrompt} ${textInst
     }
     const resultBuffer = Buffer.from((imagePartRes as { inlineData: { data: string } }).inlineData.data, 'base64')
     const resultPath = `results/${user.id}/box_surface_${Date.now()}.png`
-    await adminSupabase.storage.from('try-on-images').upload(resultPath, resultBuffer, { contentType: 'image/png', upsert: true })
-    const { data: urlData } = adminSupabase.storage.from('try-on-images').getPublicUrl(resultPath)
+    const { publicUrl: resultPublicUrl } = await uploadTryOnImagePublic(adminSupabase, resultPath, resultBuffer, {
+      contentType: 'image/png',
+      upsert: true,
+    })
 
     const { data: latestCredit } = await adminSupabase.from('credits').select('balance').eq('user_id', user.id).single()
     if (!latestCredit || toTenths(latestCredit.balance) < toTenths(COST)) {
@@ -696,11 +701,11 @@ ${backgroundRule} ${borderHint} ${textOrientationHint} ${stylePrompt} ${textInst
     }
     const newBalance = fromTenths(toTenths(latestCredit.balance) - toTenths(COST))
     await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', user.id)
-    await adminSupabase.from('try_on_history').update({ result_image_url: urlData.publicUrl, status: 'completed', aspect_ratio: aspectRatio }).eq('id', historyItem.id)
+    await adminSupabase.from('try_on_history').update({ result_image_url: resultPublicUrl, status: 'completed', aspect_ratio: aspectRatio }).eq('id', historyItem.id)
 
     revalidatePath('/thiet-ke-bao-bi')
     revalidatePath('/dashboard/history')
-    return { success: true, resultUrl: urlData.publicUrl }
+    return { success: true, resultUrl: resultPublicUrl }
   } catch (e) {
     await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
     const msg = e instanceof Error ? e.message : String(e)
@@ -956,8 +961,10 @@ ${backgroundRule} ${borderHint} ${textOrientationHint} ${stylePrompt} ${textInst
     }
     const resultBuffer = Buffer.from((imagePartRes as { inlineData: { data: string } }).inlineData.data, 'base64')
     const resultPath = `results/${user.id}/bag_surface_${Date.now()}.png`
-    await adminSupabase.storage.from('try-on-images').upload(resultPath, resultBuffer, { contentType: 'image/png', upsert: true })
-    const { data: urlData } = adminSupabase.storage.from('try-on-images').getPublicUrl(resultPath)
+    const { publicUrl: resultPublicUrl } = await uploadTryOnImagePublic(adminSupabase, resultPath, resultBuffer, {
+      contentType: 'image/png',
+      upsert: true,
+    })
 
     const { data: latestCredit } = await adminSupabase.from('credits').select('balance').eq('user_id', user.id).single()
     if (!latestCredit || toTenths(latestCredit.balance) < toTenths(COST)) {
@@ -966,11 +973,11 @@ ${backgroundRule} ${borderHint} ${textOrientationHint} ${stylePrompt} ${textInst
     }
     const newBalance = fromTenths(toTenths(latestCredit.balance) - toTenths(COST))
     await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', user.id)
-    await adminSupabase.from('try_on_history').update({ result_image_url: urlData.publicUrl, status: 'completed', aspect_ratio: aspectRatio }).eq('id', historyItem.id)
+    await adminSupabase.from('try_on_history').update({ result_image_url: resultPublicUrl, status: 'completed', aspect_ratio: aspectRatio }).eq('id', historyItem.id)
 
     revalidatePath('/thiet-ke-bao-bi')
     revalidatePath('/dashboard/history')
-    return { success: true, resultUrl: urlData.publicUrl }
+    return { success: true, resultUrl: resultPublicUrl }
   } catch (e) {
     await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
     const msg = e instanceof Error ? e.message : String(e)
@@ -1088,8 +1095,10 @@ Result: a 3D box where top, front, and side all show the respective designs. Pro
     }
     const resultBuffer = Buffer.from((imagePartRes as { inlineData: { data: string } }).inlineData.data, 'base64')
     const resultPath = `results/${user.id}/box_mockup_${Date.now()}.png`
-    await adminSupabase.storage.from('try-on-images').upload(resultPath, resultBuffer, { contentType: 'image/png', upsert: true })
-    const { data: urlData } = adminSupabase.storage.from('try-on-images').getPublicUrl(resultPath)
+    const { publicUrl: resultPublicUrl } = await uploadTryOnImagePublic(adminSupabase, resultPath, resultBuffer, {
+      contentType: 'image/png',
+      upsert: true,
+    })
 
     const { data: latestCredit } = await adminSupabase.from('credits').select('balance').eq('user_id', user.id).single()
     if (!latestCredit || toTenths(latestCredit.balance) < toTenths(COST)) {
@@ -1098,11 +1107,11 @@ Result: a 3D box where top, front, and side all show the respective designs. Pro
     }
     const newBalance = fromTenths(toTenths(latestCredit.balance) - toTenths(COST))
     await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', user.id)
-    await adminSupabase.from('try_on_history').update({ result_image_url: urlData.publicUrl, status: 'completed', aspect_ratio: aspectRatio }).eq('id', historyItem.id)
+    await adminSupabase.from('try_on_history').update({ result_image_url: resultPublicUrl, status: 'completed', aspect_ratio: aspectRatio }).eq('id', historyItem.id)
 
     revalidatePath('/thiet-ke-bao-bi')
     revalidatePath('/dashboard/history')
-    return { success: true, resultUrl: urlData.publicUrl }
+    return { success: true, resultUrl: resultPublicUrl }
   } catch (e) {
     await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
     const msg = e instanceof Error ? e.message : String(e)
@@ -1233,8 +1242,10 @@ Result: a 3D box where the specified faces show the respective designs. Professi
     }
     const resultBuffer = Buffer.from((imagePartRes as { inlineData: { data: string } }).inlineData.data, 'base64')
     const resultPath = `results/${user.id}/box_mockup_${Date.now()}.png`
-    await adminSupabase.storage.from('try-on-images').upload(resultPath, resultBuffer, { contentType: 'image/png', upsert: true })
-    const { data: urlData } = adminSupabase.storage.from('try-on-images').getPublicUrl(resultPath)
+    const { publicUrl: resultPublicUrl } = await uploadTryOnImagePublic(adminSupabase, resultPath, resultBuffer, {
+      contentType: 'image/png',
+      upsert: true,
+    })
 
     const { data: latestCredit } = await adminSupabase.from('credits').select('balance').eq('user_id', user.id).single()
     if (!latestCredit || toTenths(latestCredit.balance) < toTenths(COST)) {
@@ -1243,11 +1254,11 @@ Result: a 3D box where the specified faces show the respective designs. Professi
     }
     const newBalance = fromTenths(toTenths(latestCredit.balance) - toTenths(COST))
     await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', user.id)
-    await adminSupabase.from('try_on_history').update({ result_image_url: urlData.publicUrl, status: 'completed', aspect_ratio: aspectRatio }).eq('id', historyItem.id)
+    await adminSupabase.from('try_on_history').update({ result_image_url: resultPublicUrl, status: 'completed', aspect_ratio: aspectRatio }).eq('id', historyItem.id)
 
     revalidatePath('/thiet-ke-bao-bi')
     revalidatePath('/dashboard/history')
-    return { success: true, resultUrl: urlData.publicUrl }
+    return { success: true, resultUrl: resultPublicUrl }
   } catch (e) {
     await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
     const msg = e instanceof Error ? e.message : String(e)
@@ -1345,8 +1356,10 @@ Result: a 3D bag/pouch mockup where the front face shows the provided design. Pr
     }
     const resultBuffer = Buffer.from((imagePartRes as { inlineData: { data: string } }).inlineData.data, 'base64')
     const resultPath = `results/${user.id}/bag_mockup_${Date.now()}.png`
-    await adminSupabase.storage.from('try-on-images').upload(resultPath, resultBuffer, { contentType: 'image/png', upsert: true })
-    const { data: urlData } = adminSupabase.storage.from('try-on-images').getPublicUrl(resultPath)
+    const { publicUrl: resultPublicUrl } = await uploadTryOnImagePublic(adminSupabase, resultPath, resultBuffer, {
+      contentType: 'image/png',
+      upsert: true,
+    })
 
     const { data: latestCredit } = await adminSupabase.from('credits').select('balance').eq('user_id', user.id).single()
     if (!latestCredit || toTenths(latestCredit.balance) < toTenths(COST)) {
@@ -1355,11 +1368,11 @@ Result: a 3D bag/pouch mockup where the front face shows the provided design. Pr
     }
     const newBalance = fromTenths(toTenths(latestCredit.balance) - toTenths(COST))
     await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', user.id)
-    await adminSupabase.from('try_on_history').update({ result_image_url: urlData.publicUrl, status: 'completed', aspect_ratio: aspectRatio }).eq('id', historyItem.id)
+    await adminSupabase.from('try_on_history').update({ result_image_url: resultPublicUrl, status: 'completed', aspect_ratio: aspectRatio }).eq('id', historyItem.id)
 
     revalidatePath('/thiet-ke-bao-bi')
     revalidatePath('/dashboard/history')
-    return { success: true, resultUrl: urlData.publicUrl }
+    return { success: true, resultUrl: resultPublicUrl }
   } catch (e) {
     await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
     const msg = e instanceof Error ? e.message : String(e)

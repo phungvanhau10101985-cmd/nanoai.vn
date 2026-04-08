@@ -10,6 +10,7 @@ import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
 import { normalizeToEnglish } from '@/lib/ai-normalize'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { MAX_BOOK_PAGE_IMAGES } from './infographic-limits'
+import { uploadTryOnImagePublic, getTryOnPublicUrl } from '@/lib/storage/try-on-public-upload'
 
 const COST_2K = 1.5
 const MAX_CONTENT_TEXT = 28000
@@ -208,11 +209,12 @@ export async function createInfographicFromBook(formData: FormData) {
   }
 
   const timestamp = Date.now()
-  const { data: origUrl } = supabase.storage.from('try-on-images').getPublicUrl(`uploads/${user.id}/book_infographic_pending_${timestamp}`)
+  const pendingPath = `uploads/${user.id}/book_infographic_pending_${timestamp}`
+  const pendingPublicUrl = getTryOnPublicUrl(supabase, pendingPath)
   const { data: historyItem, error: historyError } = await supabase.from('try_on_history').insert({
     user_id: user.id,
-    original_image_url: origUrl.publicUrl,
-    garment_image_url: origUrl.publicUrl,
+    original_image_url: pendingPublicUrl,
+    garment_image_url: pendingPublicUrl,
     status: 'processing',
   }).select().single()
   if (historyError || !historyItem) return { error: 'Không thể khởi tạo phiên xử lý.' }
@@ -355,11 +357,10 @@ ${flashInstruction}`
     }
 
     const resultPath = `results/${user.id}/book_infographic_${Date.now()}.${resultExt}`
-    await adminSupabase.storage.from('try-on-images').upload(resultPath, resultBuffer, {
+    const { publicUrl: infographicResultPublicUrl } = await uploadTryOnImagePublic(adminSupabase, resultPath, resultBuffer, {
       contentType: resultContentType,
       upsert: true,
     })
-    const { data: urlData } = adminSupabase.storage.from('try-on-images').getPublicUrl(resultPath)
 
     const { data: latestCredit } = await adminSupabase.from('credits').select('balance').eq('user_id', user.id).single()
     if (!latestCredit || toTenths(latestCredit.balance) < toTenths(COST_2K)) {
@@ -369,7 +370,7 @@ ${flashInstruction}`
     const newBalance = fromTenths(toTenths(latestCredit.balance) - toTenths(COST_2K))
     await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', user.id)
     await adminSupabase.from('try_on_history').update({
-      result_image_url: urlData.publicUrl,
+      result_image_url: infographicResultPublicUrl,
       status: 'completed',
       feature: 'tao-infographic-tu-sach',
       aspect_ratio: '16:9',
@@ -377,7 +378,7 @@ ${flashInstruction}`
 
     revalidatePath('/tao-infographic-tu-sach')
     revalidatePath('/dashboard/history')
-    return { success: true, resultUrl: urlData.publicUrl, summary, mermaid }
+    return { success: true, resultUrl: infographicResultPublicUrl, summary, mermaid }
   } catch (e) {
     await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
     const msg = e instanceof Error ? e.message : String(e)

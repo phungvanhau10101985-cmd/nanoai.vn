@@ -10,8 +10,8 @@ import {
   inboundTextForPartnerAi,
   isGuestMessagingStoragePathForPartner,
   mimeFromGuestImagePath,
-  GUEST_CHAT_IMAGE_BUCKET,
 } from '@/lib/messaging/guest-chat-image'
+import { downloadTryOnObject, getTryOnPublicUrl } from '@/lib/storage/try-on-public-upload'
 import { VISION_PICK_GRACE_AI_DELAY_SECONDS } from '@/lib/messaging/partner-vision-constants'
 
 type Db = SupabaseClient<Database>
@@ -66,8 +66,7 @@ export async function postWidgetGuestMessage(
     const exists = await guestImageObjectExists(db, imagePath)
     if (!exists) return { error: 'Image not found.' }
     const mime = mimeFromGuestImagePath(imagePath)
-    const { data } = db.storage.from(GUEST_CHAT_IMAGE_BUCKET).getPublicUrl(imagePath)
-    imagePublicUrl = data.publicUrl
+    imagePublicUrl = getTryOnPublicUrl(db, imagePath)
     const basePayload = guestMediaPayloadToJson(buildGuestMediaPayload(imagePublicUrl, imagePath, mime))
 
     try {
@@ -78,9 +77,8 @@ export async function postWidgetGuestMessage(
         .maybeSingle()
       // Hosted guest widget should use internal image similarity even when public API toggle is off.
       if (aiSet?.enabled) {
-        const { data: blob, error: dlErr } = await db.storage.from(GUEST_CHAT_IMAGE_BUCKET).download(imagePath)
-        if (!dlErr && blob) {
-          const buf = Buffer.from(await blob.arrayBuffer())
+        const buf = await downloadTryOnObject(db, imagePath)
+        if (buf) {
           const search = await geminiProductSearchFromImageBufferViaVectorDb(db, buf, params.partnerId, {
             maxResults: 5,
             userId: params.linkedUserId ?? null,

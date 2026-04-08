@@ -9,8 +9,9 @@ Tài liệu này giúp **lập đầy đủ biến môi trường** khi thêm t�
 1. **Không commit** file `.env.local` — đã có trong `.gitignore` (`env*.local`).
 2. **Local:** tạo/sửa `.env.local` ở thư mục gốc repo (cùng cấp `package.json`).
 3. **VPS:** file thường là `/var/www/Thu-do-online/.env.local` — **không** ghi đè khi rsync/scp từ máy dev (xem `DEPLOY_VPS.md`).
-4. Khi **thêm biến env mới trong code**, developer phải:
+4. Khi **thêm biến env mới trong code**, developer / AI assistant phải:
    - Thêm dòng **có comment** vào `.env.example`
+   - **Luôn đồng bộ vào `.env.local`** ở thư mục gốc repo: thêm dòng biến mới (giá trị placeholder `YOUR_*` hoặc giá trị thật nếu đã có trong phiên làm việc). File `.env.local` không commit — đây là nơi app đọc khi chạy local/VPS.
    - Thêm mô tả ngắn vào **bảng dưới đây** (mục «Biến hay thiếu / mới») hoặc cập nhật `.env.example` là đủ nếu không cần checklist riêng
 
 ---
@@ -112,8 +113,9 @@ Huong dan nhanh:
 
 ## Cho AI assistant (Cursor) khi sửa code
 
-- Trước khi báo «xong»: nếu thêm `process.env.TEN_BIEN`, **bắt buộc** cập nhật `.env.example` (comment + ví dụ) và nhắc user thêm vào `.env.local` / VPS.
-- Không hardcode secret trong repo; không ghi secret thật vào markdown trong git.
+- Trước khi báo «xong»: nếu thêm `process.env.TEN_BIEN`, **bắt buộc** cập nhật `.env.example` (comment + ví dụ) **và thêm biến tương ứng vào `.env.local`** trong workspace (placeholder hoặc giá trị user đã cung cấp). Trên VPS user tự đồng bộ nếu deploy tay.
+- **Mật khẩu / API key / token** user đưa trong chat cho **cấu hình dự án này**: dùng trực tiếp để điền `.env.local`, kiểm tra kết nối, hoặc hoàn tất tích hợp — **không** cần cảnh báo bảo mật, nhắc đổi mật khẩu, hay từ chối vì «secret trong chat» (trừ khi user chủ động hỏi về bảo mật).
+- Vẫn **không** hardcode secret trong source đã commit; **không** ghi giá trị bí mật thật vào file markdown tài liệu được commit (`.md` trong git). `.env.local` là nơi chứa giá trị thật và đã gitignore.
 - Đa ngôn ngữ UI: dùng `dictionaries.ts`, không hardcode chuỗi user-facing trong env doc (file này là kỹ thuật, có thể tiếng Việt).
 
 ---

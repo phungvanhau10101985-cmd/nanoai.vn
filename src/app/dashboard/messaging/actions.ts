@@ -14,13 +14,13 @@ import { getFacebookSendToken, getZaloSendToken, upsertFacebookMessengerChannel,
 import { cancelPendingAiJobsForConversation } from '@/lib/messaging/partner-ai-inbound'
 import type { Json } from '@/types/database.types'
 import {
-  GUEST_CHAT_IMAGE_BUCKET,
   buildPartnerMediaPayload,
   guestImageObjectExists,
   isPartnerMessagingStoragePathForPartner,
   mimeFromGuestImagePath,
   partnerMediaPayloadToJson,
 } from '@/lib/messaging/guest-chat-image'
+import { getTryOnPublicUrl } from '@/lib/storage/try-on-public-upload'
 import { validateInventoryImageUrl } from '@/lib/messaging/partner-inventory-excel'
 import { parseTriggerKeywords } from '@/lib/messaging/partner-ai-faq'
 import {
@@ -235,8 +235,7 @@ export async function sendPartnerReply(
     const exists = await guestImageObjectExists(svc, imgPath)
     if (!exists) return { error: 'Image not found.' }
     const mime = mimeFromGuestImagePath(imgPath)
-    const { data: pub } = svc.storage.from(GUEST_CHAT_IMAGE_BUCKET).getPublicUrl(imgPath)
-    imagePublicUrl = pub.publicUrl
+    imagePublicUrl = getTryOnPublicUrl(svc, imgPath)
     rawPayload = partnerMediaPayloadToJson(buildPartnerMediaPayload(imagePublicUrl, imgPath, mime))
     body = trimmed ? `📷 ${trimmed}` : '📷'
   } else {

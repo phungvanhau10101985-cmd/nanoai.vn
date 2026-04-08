@@ -9,6 +9,7 @@ import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/ge
 import { APPLY_COSTS, ANALYZE_CREDIT, ARCH_THEMES, MAIN_COLORS, INTERIOR_STYLES, ROOM_STAGING_PROMPTS, FURNITURE_ITEMS, EXTERIOR_FURNITURE_ITEMS, FURNITURE_MATERIALS, FURNITURE_COLORS, FURNITURE_STYLE_OPTIONS, EXTERIOR_POSITION_OPTIONS, POOL_SHAPE_OPTIONS, POOL_ORIENTATION_OPTIONS } from './constants'
 import { normalizeToEnglish } from '@/lib/ai-normalize'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
+import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 
 const IMAGE_COSTS = APPLY_COSTS
 const ANALYZE_COST = ANALYZE_CREDIT
@@ -267,12 +268,13 @@ export async function applyInteriorChanges(formData: FormData): Promise<ApplyInt
 
   const timestamp = Date.now()
   const path = `uploads/${user.id}/interior_${timestamp}.png`
-  await supabase.storage.from('try-on-images').upload(path, imageBuffer, { contentType: mimeType })
-  const { data: origUrl } = supabase.storage.from('try-on-images').getPublicUrl(path)
+  const { publicUrl: interiorOriginalPublicUrl } = await uploadTryOnImagePublic(supabase, path, imageBuffer, {
+    contentType: mimeType,
+  })
   const { data: historyItem, error: historyError } = await supabase.from('try_on_history').insert({
     user_id: user.id,
-    original_image_url: origUrl.publicUrl,
-    garment_image_url: origUrl.publicUrl,
+    original_image_url: interiorOriginalPublicUrl,
+    garment_image_url: interiorOriginalPublicUrl,
     status: 'processing',
   }).select().single()
   if (historyError || !historyItem) return { error: 'Không thể khởi tạo phiên xử lý.' }
@@ -331,9 +333,11 @@ export async function applyInteriorChanges(formData: FormData): Promise<ApplyInt
       }
       const resultBuffer = Buffer.from((imagePartRes as { inlineData: { data: string } }).inlineData.data, 'base64')
       const resultPath = `results/${user.id}/interior_${Date.now()}_${i}.png`
-      await adminSupabase.storage.from('try-on-images').upload(resultPath, resultBuffer, { contentType: 'image/png', upsert: true })
-      const { data: urlData } = adminSupabase.storage.from('try-on-images').getPublicUrl(resultPath)
-      resultUrls.push(urlData.publicUrl)
+      const { publicUrl: variantPublicUrl } = await uploadTryOnImagePublic(adminSupabase, resultPath, resultBuffer, {
+        contentType: 'image/png',
+        upsert: true,
+      })
+      resultUrls.push(variantPublicUrl)
     }
     if (resultUrls.length === 0) {
       await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
@@ -467,12 +471,13 @@ export async function processInteriorImage(formData: FormData) {
 
   const timestamp = Date.now()
   const path = `uploads/${user.id}/interior_${timestamp}.png`
-  await supabase.storage.from('try-on-images').upload(path, image)
-  const { data: origUrl } = supabase.storage.from('try-on-images').getPublicUrl(path)
+  const { publicUrl: processInteriorOriginalPublicUrl } = await uploadTryOnImagePublic(supabase, path, image, {
+    contentType: image.type || 'image/png',
+  })
   const { data: historyItem, error: historyError } = await supabase.from('try_on_history').insert({
     user_id: user.id,
-    original_image_url: origUrl.publicUrl,
-    garment_image_url: origUrl.publicUrl,
+    original_image_url: processInteriorOriginalPublicUrl,
+    garment_image_url: processInteriorOriginalPublicUrl,
     status: 'processing',
   }).select().single()
   if (historyError || !historyItem) return { error: 'Không thể khởi tạo phiên xử lý.' }
@@ -505,8 +510,10 @@ export async function processInteriorImage(formData: FormData) {
     }
     const resultBuffer = Buffer.from((imagePartRes as { inlineData: { data: string } }).inlineData.data, 'base64')
     const resultPath = `results/${user.id}/interior_${Date.now()}.png`
-    await adminSupabase.storage.from('try-on-images').upload(resultPath, resultBuffer, { contentType: 'image/png', upsert: true })
-    const { data: urlData } = adminSupabase.storage.from('try-on-images').getPublicUrl(resultPath)
+    const { publicUrl: processInteriorResultPublicUrl } = await uploadTryOnImagePublic(adminSupabase, resultPath, resultBuffer, {
+      contentType: 'image/png',
+      upsert: true,
+    })
 
     const { data: latestCredit } = await adminSupabase.from('credits').select('balance').eq('user_id', user.id).single()
     if (!latestCredit || toTenths(latestCredit.balance) < toTenths(COST)) {
@@ -515,11 +522,11 @@ export async function processInteriorImage(formData: FormData) {
     }
     const newBalance = fromTenths(toTenths(latestCredit.balance) - toTenths(COST))
     await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', user.id)
-    await adminSupabase.from('try_on_history').update({ result_image_url: urlData.publicUrl, status: 'completed' }).eq('id', historyItem.id)
+    await adminSupabase.from('try_on_history').update({ result_image_url: processInteriorResultPublicUrl, status: 'completed' }).eq('id', historyItem.id)
 
     revalidatePath('/thiet-ke-noi-ngoai-that')
     revalidatePath('/dashboard/history')
-    return { success: true, resultUrl: urlData.publicUrl }
+    return { success: true, resultUrl: processInteriorResultPublicUrl }
   } catch (e) {
     await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
     const msg = e instanceof Error ? e.message : String(e)

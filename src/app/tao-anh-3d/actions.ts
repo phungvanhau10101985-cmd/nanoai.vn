@@ -7,6 +7,7 @@ import { revalidatePath } from 'next/cache'
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
 import { normalizeToEnglish } from '@/lib/ai-normalize'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
+import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 
 const MOCKUP_COSTS = { '2K': 1.5, '4K': 3 } as const
 
@@ -58,16 +59,17 @@ export async function create3DMockup(formData: FormData) {
 
   const timestamp = Date.now()
   const logoPath = `uploads/${user.id}/mockup3d_logo_${timestamp}.png`
-  await supabase.storage.from('try-on-images').upload(logoPath, logoImage)
-  const { data: logoUrlData } = supabase.storage.from('try-on-images').getPublicUrl(logoPath)
+  const { publicUrl: logoPublicUrl } = await uploadTryOnImagePublic(supabase, logoPath, logoImage, {
+    contentType: logoImage.type || 'image/png',
+  })
 
   const buf = Buffer.from(await productImage.arrayBuffer())
   const productImagePart = { inlineData: { data: buf.toString('base64'), mimeType: productImage.type } }
 
   const { data: historyItem, error: historyError } = await supabase.from('try_on_history').insert({
     user_id: user.id,
-    original_image_url: logoUrlData.publicUrl,
-    garment_image_url: logoUrlData.publicUrl,
+    original_image_url: logoPublicUrl,
+    garment_image_url: logoPublicUrl,
     status: 'processing',
   }).select().single()
   if (historyError || !historyItem) return { error: 'Không thể khởi tạo phiên xử lý.' }
@@ -103,8 +105,10 @@ export async function create3DMockup(formData: FormData) {
     }
     const resultBuffer = Buffer.from((imagePartRes as { inlineData: { data: string } }).inlineData.data, 'base64')
     const resultPath = `results/${user.id}/mockup3d_${Date.now()}.png`
-    await adminSupabase.storage.from('try-on-images').upload(resultPath, resultBuffer, { contentType: 'image/png', upsert: true })
-    const { data: urlData } = adminSupabase.storage.from('try-on-images').getPublicUrl(resultPath)
+    const { publicUrl: resultPublicUrl } = await uploadTryOnImagePublic(adminSupabase, resultPath, resultBuffer, {
+      contentType: 'image/png',
+      upsert: true,
+    })
 
     const { data: latestCredit } = await adminSupabase.from('credits').select('balance').eq('user_id', user.id).single()
     if (!latestCredit || toTenths(latestCredit.balance) < toTenths(COST)) {
@@ -113,11 +117,11 @@ export async function create3DMockup(formData: FormData) {
     }
     const newBalance = fromTenths(toTenths(latestCredit.balance) - toTenths(COST))
     await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', user.id)
-    await adminSupabase.from('try_on_history').update({ result_image_url: urlData.publicUrl, status: 'completed' }).eq('id', historyItem.id)
+    await adminSupabase.from('try_on_history').update({ result_image_url: resultPublicUrl, status: 'completed' }).eq('id', historyItem.id)
 
     revalidatePath('/tao-anh-3d')
     revalidatePath('/dashboard/history')
-    return { success: true, resultUrl: urlData.publicUrl }
+    return { success: true, resultUrl: resultPublicUrl }
   } catch (e) {
     await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
     const msg = e instanceof Error ? e.message : String(e)

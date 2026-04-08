@@ -7,6 +7,7 @@ import { revalidatePath } from 'next/cache'
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
 import { GEMINI_25_FLASH_TEXT_NO_THINKING } from '@/lib/gemini-config'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
+import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 
 const COSTS = {
   floor_3d: 4,
@@ -314,10 +315,12 @@ export async function step1Build3D(formData: FormData) {
 
   const buf = Buffer.from((imgPart as { inlineData: { data: string } }).inlineData.data, 'base64')
   const path = `results/${user.id}/house3d_${Date.now()}.png`
-  await adminSupabase.storage.from('try-on-images').upload(path, buf, { contentType: 'image/png', upsert: true })
-  const { data: urlData } = adminSupabase.storage.from('try-on-images').getPublicUrl(path)
+  const { publicUrl: stepImagePublicUrl } = await uploadTryOnImagePublic(adminSupabase, path, buf, {
+    contentType: 'image/png',
+    upsert: true,
+  })
 
-  const steps = { floor_3d: { imageUrl: urlData.publicUrl, approved: false } }
+  const steps = { floor_3d: { imageUrl: stepImagePublicUrl, approved: false } }
   const sizeStr = houseInfo.houseDepth ? `${houseInfo.houseLength}x${houseInfo.houseDepth}m` : `${houseInfo.houseLength}m`
   const projectName = `Nhà ${sizeStr} ${houseInfo.designStyle} ${houseInfo.floors}t`
 
@@ -339,7 +342,7 @@ export async function step1Build3D(formData: FormData) {
 
   if (error || !newProject) return { error: 'Không tạo được dự án mới.' }
   revalidatePath('/xay-nha-tu-dat-nen')
-  return { success: true, projectId: newProject.id, imageUrl: urlData.publicUrl }
+  return { success: true, projectId: newProject.id, imageUrl: stepImagePublicUrl }
 }
 
 /** Duyệt ảnh 3D và chuyển sang chia phòng tầng 1 */
@@ -446,12 +449,14 @@ export async function stepFloorPlan(sourceProjectId: string, floorNum: number, f
 
   const buf = Buffer.from((imgPart as { inlineData: { data: string } }).inlineData.data, 'base64')
   const path = `results/${user.id}/floorplan_${floorNum}_${Date.now()}.png`
-  await adminSupabase.storage.from('try-on-images').upload(path, buf, { contentType: 'image/png', upsert: true })
-  const { data: urlData } = adminSupabase.storage.from('try-on-images').getPublicUrl(path)
+  const { publicUrl: stepImagePublicUrl } = await uploadTryOnImagePublic(adminSupabase, path, buf, {
+    contentType: 'image/png',
+    upsert: true,
+  })
 
   const steps = { ...(sourceProject.steps as Record<string, unknown>) }
   const key = `floor_plan_${floorNum}` as const
-  steps[key] = { imageUrl: urlData.publicUrl, approved: false, input }
+  steps[key] = { imageUrl: stepImagePublicUrl, approved: false, input }
 
   const newBalance = fromTenths(toTenths(creditData.balance) - toTenths(COST))
   await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', user.id)
@@ -472,7 +477,7 @@ export async function stepFloorPlan(sourceProjectId: string, floorNum: number, f
 
   if (error || !newProject) return { error: 'Không tạo được dự án mới.' }
   revalidatePath('/xay-nha-tu-dat-nen')
-  return { success: true, projectId: newProject.id, imageUrl: urlData.publicUrl }
+  return { success: true, projectId: newProject.id, imageUrl: stepImagePublicUrl }
 }
 
 /** Duyệt chia phòng tầng N và chuyển sang thiết kế kết cấu */
@@ -540,12 +545,14 @@ export async function stepStructural(sourceProjectId: string, floorNum: number, 
 
   const buf = Buffer.from((imgPart as { inlineData: { data: string } }).inlineData.data, 'base64')
   const path = `results/${user.id}/structural_${floorNum}_${Date.now()}.png`
-  await adminSupabase.storage.from('try-on-images').upload(path, buf, { contentType: 'image/png', upsert: true })
-  const { data: urlData } = adminSupabase.storage.from('try-on-images').getPublicUrl(path)
+  const { publicUrl: stepImagePublicUrl } = await uploadTryOnImagePublic(adminSupabase, path, buf, {
+    contentType: 'image/png',
+    upsert: true,
+  })
 
   const steps = { ...(sourceProject.steps as Record<string, unknown>) }
   const key = `structural_${floorNum}` as const
-  steps[key] = { imageUrl: urlData.publicUrl, approved: false }
+  steps[key] = { imageUrl: stepImagePublicUrl, approved: false }
 
   const newBalance = fromTenths(toTenths(creditData.balance) - toTenths(COST))
   await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', user.id)
@@ -566,7 +573,7 @@ export async function stepStructural(sourceProjectId: string, floorNum: number, 
 
   if (error || !newProject) return { error: 'Không tạo được dự án mới.' }
   revalidatePath('/xay-nha-tu-dat-nen')
-  return { success: true, projectId: newProject.id, imageUrl: urlData.publicUrl }
+  return { success: true, projectId: newProject.id, imageUrl: stepImagePublicUrl }
 }
 
 /** Duyệt kết cấu tầng N và chuyển sang bước tiếp theo */

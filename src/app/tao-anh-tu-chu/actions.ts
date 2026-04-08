@@ -7,6 +7,7 @@ import { revalidatePath } from 'next/cache'
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
 import { normalizeToEnglish } from '@/lib/ai-normalize'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
+import { uploadTryOnImagePublic, getTryOnPublicUrl } from '@/lib/storage/try-on-public-upload'
 
 const COSTS = { '2K': 1.5, '4K': 3 } as const
 const VALID_ASPECT_RATIOS = ['1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '21:9'] as const
@@ -105,14 +106,18 @@ export async function createImageFromText(formData: FormData) {
 
   const timestamp = Date.now()
   const uploadPath = hasRef && ref ? `uploads/${user.id}/text2img_ref_${timestamp}.png` : null
+  const placeholderPath = `uploads/${user.id}/text2img_placeholder_${timestamp}`
+  let text2imgOriginalPublicUrl: string
   if (hasRef && ref && uploadPath) {
-    await supabase.storage.from('try-on-images').upload(uploadPath, ref)
+    const { publicUrl } = await uploadTryOnImagePublic(supabase, uploadPath, ref, { contentType: ref.type || 'image/png' })
+    text2imgOriginalPublicUrl = publicUrl
+  } else {
+    text2imgOriginalPublicUrl = getTryOnPublicUrl(supabase, placeholderPath)
   }
-  const { data: origUrl } = supabase.storage.from('try-on-images').getPublicUrl(uploadPath || `uploads/${user.id}/text2img_placeholder_${timestamp}`)
   const { data: historyItem, error: historyError } = await supabase.from('try_on_history').insert({
     user_id: user.id,
-    original_image_url: origUrl.publicUrl,
-    garment_image_url: origUrl.publicUrl,
+    original_image_url: text2imgOriginalPublicUrl,
+    garment_image_url: text2imgOriginalPublicUrl,
     status: 'processing',
   }).select().single()
   if (historyError || !historyItem) return { error: 'Không thể khởi tạo phiên xử lý.' }
@@ -154,8 +159,10 @@ export async function createImageFromText(formData: FormData) {
     }
     const resultBuffer = Buffer.from((imagePartRes as { inlineData: { data: string } }).inlineData.data, 'base64')
     const resultPath = `results/${user.id}/text2img_${Date.now()}.png`
-    await adminSupabase.storage.from('try-on-images').upload(resultPath, resultBuffer, { contentType: 'image/png', upsert: true })
-    const { data: urlData } = adminSupabase.storage.from('try-on-images').getPublicUrl(resultPath)
+    const { publicUrl: text2imgResultPublicUrl } = await uploadTryOnImagePublic(adminSupabase, resultPath, resultBuffer, {
+      contentType: 'image/png',
+      upsert: true,
+    })
 
     const { data: latestCredit } = await adminSupabase.from('credits').select('balance').eq('user_id', user.id).single()
     if (!latestCredit || toTenths(latestCredit.balance) < toTenths(COST)) {
@@ -165,7 +172,7 @@ export async function createImageFromText(formData: FormData) {
     const newBalance = fromTenths(toTenths(latestCredit.balance) - toTenths(COST))
     await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', user.id)
     await adminSupabase.from('try_on_history').update({
-      result_image_url: urlData.publicUrl,
+      result_image_url: text2imgResultPublicUrl,
       status: 'completed',
       feature: 'tao-anh-tu-chu',
       aspect_ratio: aspectRatio,
@@ -173,7 +180,7 @@ export async function createImageFromText(formData: FormData) {
 
     revalidatePath('/tao-anh-tu-chu')
     revalidatePath('/dashboard/history')
-    return { success: true, resultUrl: urlData.publicUrl }
+    return { success: true, resultUrl: text2imgResultPublicUrl }
   } catch (e) {
     await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
     const msg = e instanceof Error ? e.message : String(e)

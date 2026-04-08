@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
 import { normalizeToEnglish } from '@/lib/ai-normalize'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
+import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 
 const COST_2K = 1.5
 const MAX_SLIDE_TEXT = 28000
@@ -239,15 +240,17 @@ ${FLASH_INSTRUCTION}`
       resultBuffer = rawPng
     }
     const resultPath = `results/${user.id}/curriculum_infographic_${curriculumId}_${Date.now()}.${resultExt}`
-    const { error: uploadErr } = await adminSupabase.storage.from('try-on-images').upload(resultPath, resultBuffer, {
-      contentType: resultContentType,
-      upsert: true,
-    })
-    if (uploadErr) {
+    let infographicPublicUrl: string
+    try {
+      const { publicUrl } = await uploadTryOnImagePublic(adminSupabase, resultPath, resultBuffer, {
+        contentType: resultContentType,
+        upsert: true,
+      })
+      infographicPublicUrl = publicUrl
+    } catch (uploadErr) {
       console.error('[curriculum-slide-infographic] upload:', uploadErr)
       return NextResponse.json({ error: 'Không upload được ảnh. Thử lại sau.' }, { status: 502 })
     }
-    const { data: urlData } = adminSupabase.storage.from('try-on-images').getPublicUrl(resultPath)
 
     const { data: latestCredit } = await adminSupabase.from('credits').select('balance').eq('user_id', user.id).single()
     if (!latestCredit || toTenths(latestCredit.balance) < toTenths(COST_2K)) {
@@ -262,7 +265,7 @@ ${FLASH_INSTRUCTION}`
       infographic: {
         summary,
         mermaid,
-        imageUrl: urlData.publicUrl,
+        imageUrl: infographicPublicUrl,
         generatedAt,
       },
     })

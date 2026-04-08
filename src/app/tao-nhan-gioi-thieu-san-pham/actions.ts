@@ -7,6 +7,7 @@ import { revalidatePath } from 'next/cache'
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
 import { normalizeToEnglish } from '@/lib/ai-normalize'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
+import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 
 const LABEL_COSTS = { '2K': 1.5, '4K': 3 } as const
 const MOCKUP_COSTS = { '2K': 1.5, '4K': 3 } as const
@@ -266,17 +267,21 @@ export async function createProductLabel(formData: FormData) {
 
   const timestamp = Date.now()
   const path = `uploads/${user.id}/label_${timestamp}_0.png`
+  let labelOriginalPublicUrl: string
   if (images.length > 0) {
-    await supabase.storage.from('try-on-images').upload(path, images[0])
+    const { publicUrl } = await uploadTryOnImagePublic(supabase, path, images[0], {
+      contentType: images[0].type || 'image/png',
+    })
+    labelOriginalPublicUrl = publicUrl
   } else {
     const placeholderPng = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64')
-    await supabase.storage.from('try-on-images').upload(path, placeholderPng, { contentType: 'image/png' })
+    const { publicUrl } = await uploadTryOnImagePublic(supabase, path, placeholderPng, { contentType: 'image/png' })
+    labelOriginalPublicUrl = publicUrl
   }
-  const { data: origUrl } = supabase.storage.from('try-on-images').getPublicUrl(path)
   const { data: historyItem, error: historyError } = await supabase.from('try_on_history').insert({
     user_id: user.id,
-    original_image_url: origUrl.publicUrl,
-    garment_image_url: origUrl.publicUrl,
+    original_image_url: labelOriginalPublicUrl,
+    garment_image_url: labelOriginalPublicUrl,
     status: 'processing',
   }).select().single()
   if (historyError || !historyItem) return { error: 'Không thể khởi tạo phiên xử lý.' }
@@ -323,8 +328,10 @@ export async function createProductLabel(formData: FormData) {
     }
     const resultBuffer = Buffer.from((imagePartRes as { inlineData: { data: string } }).inlineData.data, 'base64')
     const resultPath = `results/${user.id}/label_${Date.now()}.png`
-    await adminSupabase.storage.from('try-on-images').upload(resultPath, resultBuffer, { contentType: 'image/png', upsert: true })
-    const { data: urlData } = adminSupabase.storage.from('try-on-images').getPublicUrl(resultPath)
+    const { publicUrl: labelResultPublicUrl } = await uploadTryOnImagePublic(adminSupabase, resultPath, resultBuffer, {
+      contentType: 'image/png',
+      upsert: true,
+    })
 
     const { data: latestCredit } = await adminSupabase.from('credits').select('balance').eq('user_id', user.id).single()
     if (!latestCredit || toTenths(latestCredit.balance) < toTenths(COST)) {
@@ -333,11 +340,11 @@ export async function createProductLabel(formData: FormData) {
     }
     const newBalance = fromTenths(toTenths(latestCredit.balance) - toTenths(COST))
     await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', user.id)
-    await adminSupabase.from('try_on_history').update({ result_image_url: urlData.publicUrl, status: 'completed', feature: 'tao-nhan-gioi-thieu-san-pham', aspect_ratio: aspectRatio }).eq('id', historyItem.id)
+    await adminSupabase.from('try_on_history').update({ result_image_url: labelResultPublicUrl, status: 'completed', feature: 'tao-nhan-gioi-thieu-san-pham', aspect_ratio: aspectRatio }).eq('id', historyItem.id)
 
     revalidatePath('/tao-nhan-gioi-thieu-san-pham')
     revalidatePath('/dashboard/history')
-    return { success: true, resultUrl: urlData.publicUrl }
+    return { success: true, resultUrl: labelResultPublicUrl }
   } catch (e) {
     await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
     const msg = e instanceof Error ? e.message : String(e)
@@ -436,8 +443,10 @@ export async function createLabelMockupOnProduct(formData: FormData) {
     }
     const resultBuffer = Buffer.from((imagePartRes as { inlineData: { data: string } }).inlineData.data, 'base64')
     const resultPath = `results/${user.id}/label_mockup_${Date.now()}.png`
-    await adminSupabase.storage.from('try-on-images').upload(resultPath, resultBuffer, { contentType: 'image/png', upsert: true })
-    const { data: urlData } = adminSupabase.storage.from('try-on-images').getPublicUrl(resultPath)
+    const { publicUrl: mockupResultPublicUrl } = await uploadTryOnImagePublic(adminSupabase, resultPath, resultBuffer, {
+      contentType: 'image/png',
+      upsert: true,
+    })
 
     const { data: latestCredit } = await adminSupabase.from('credits').select('balance').eq('user_id', user.id).single()
     if (!latestCredit || toTenths(latestCredit.balance) < toTenths(COST)) {
@@ -446,11 +455,11 @@ export async function createLabelMockupOnProduct(formData: FormData) {
     }
     const newBalance = fromTenths(toTenths(latestCredit.balance) - toTenths(COST))
     await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', user.id)
-    await adminSupabase.from('try_on_history').update({ result_image_url: urlData.publicUrl, status: 'completed', feature: 'tao-nhan-gioi-thieu-san-pham-mockup' }).eq('id', historyItem.id)
+    await adminSupabase.from('try_on_history').update({ result_image_url: mockupResultPublicUrl, status: 'completed', feature: 'tao-nhan-gioi-thieu-san-pham-mockup' }).eq('id', historyItem.id)
 
     revalidatePath('/tao-nhan-gioi-thieu-san-pham')
     revalidatePath('/dashboard/history')
-    return { success: true, resultUrl: urlData.publicUrl }
+    return { success: true, resultUrl: mockupResultPublicUrl }
   } catch (e) {
     await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
     const msg = e instanceof Error ? e.message : String(e)

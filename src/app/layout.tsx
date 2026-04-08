@@ -72,20 +72,38 @@ type IframeEmbedPayload = {
   referrerPolicy?: React.IframeHTMLAttributes<HTMLIFrameElement>["referrerPolicy"];
 };
 
+const ADMIN_INTEGRATIONS_FETCH_MS = Math.min(
+  30_000,
+  Math.max(3000, parseInt(process.env.NANOAI_SUPABASE_FETCH_TIMEOUT_MS || '8000', 10) || 8000)
+)
+
 async function loadAdminIntegrationsSettings(): Promise<AdminIntegrationsSettings> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) return {};
 
-  const admin = createAdminClient(url, key, { auth: { persistSession: false } });
-  const { data, error } = await admin
-    .from(INTEGRATIONS_TABLE)
-    .select("value_json")
-    .eq("key", INTEGRATIONS_KEY)
-    .maybeSingle();
+  const run = async (): Promise<AdminIntegrationsSettings> => {
+    const admin = createAdminClient(url, key, { auth: { persistSession: false } });
+    const { data, error } = await admin
+      .from(INTEGRATIONS_TABLE)
+      .select("value_json")
+      .eq("key", INTEGRATIONS_KEY)
+      .maybeSingle();
 
-  if (error) return {};
-  return (data?.value_json ?? {}) as AdminIntegrationsSettings;
+    if (error) return {};
+    return (data?.value_json ?? {}) as AdminIntegrationsSettings;
+  };
+
+  try {
+    return await Promise.race([
+      run(),
+      new Promise<AdminIntegrationsSettings>((resolve) =>
+        setTimeout(() => resolve({}), ADMIN_INTEGRATIONS_FETCH_MS)
+      ),
+    ]);
+  } catch {
+    return {};
+  }
 }
 
 function parseMetaTag(raw: string): MetaTagPayload | null {

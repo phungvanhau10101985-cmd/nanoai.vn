@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { createPrintReadyPdf } from '@/lib/print-ready-pdf'
+import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 
 /**
  * Tạo PDF chuẩn in từ ảnh base64 (cho net túi client-generated).
@@ -34,12 +35,12 @@ export async function generateBagNetPdf(
     const pdfBuffer = await createPrintReadyPdf(imageBuffer, { widthMm, heightMm })
 
     const pdfPath = `results/${user.id}/bag_net_${Date.now()}.pdf`
-    await adminSupabase.storage
-      .from('try-on-images')
-      .upload(pdfPath, pdfBuffer, { contentType: 'application/pdf', upsert: true })
-    const { data: urlData } = adminSupabase.storage.from('try-on-images').getPublicUrl(pdfPath)
+    const { publicUrl: pdfPublicUrl } = await uploadTryOnImagePublic(adminSupabase, pdfPath, pdfBuffer, {
+      contentType: 'application/pdf',
+      upsert: true,
+    })
 
-    return { pdfUrl: urlData.publicUrl }
+    return { pdfUrl: pdfPublicUrl }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     return { error: `Xuất PDF thất bại: ${msg}` }
