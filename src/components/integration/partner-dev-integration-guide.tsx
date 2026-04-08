@@ -7,6 +7,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useToast } from '@/hooks/use-toast'
 import type { PartnerDevIntegrationStrings } from '@/lib/integration/partner-dev-integration-copy'
 
+/** Giới hạn tối đa «Cách đáy» (px) trong form — script vẫn clamp cùng giá trị. */
+const EMBED_BOTTOM_OFFSET_MAX_PX = 800
+
 type Props = {
   baseUrl: string
   t: PartnerDevIntegrationStrings
@@ -89,7 +92,7 @@ export function PartnerDevIntegrationGuide({ baseUrl, t, partners, labels }: Pro
   const slug = selectedPartner?.slug ?? '{slug}'
   const partnerId = selectedPartner?.id ?? '{partnerId}'
   const guestBase = `${baseUrl}/api/messaging/guest/${slug}`
-  const safeBottomPx = Math.max(0, Math.min(300, Math.floor(embedBottomPx) || 24))
+  const safeBottomPx = Math.max(0, Math.min(EMBED_BOTTOM_OFFSET_MAX_PX, Math.floor(embedBottomPx) || 24))
   const safeHorizontalPx = Math.max(0, Math.min(300, Math.floor(embedHorizontalPx) || 16))
   const safeDesktopWidthPx = Math.max(280, Math.min(1200, Math.floor(embedDesktopWidthPx) || 380))
   const safeDesktopHeightPx = Math.max(320, Math.min(1200, Math.floor(embedDesktopHeightPx) || 560))
@@ -395,7 +398,7 @@ Cookie: <supabase_auth_session>
                   <input
                     type="number"
                     min={0}
-                    max={300}
+                    max={EMBED_BOTTOM_OFFSET_MAX_PX}
                     value={safeBottomPx}
                     onChange={(e) => setEmbedBottomPx(Number.parseInt(e.target.value || '0', 10))}
                     className="h-8 w-full rounded-md border border-border bg-background px-2 text-xs text-foreground"

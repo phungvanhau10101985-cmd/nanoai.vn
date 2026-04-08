@@ -135,6 +135,11 @@ export function PartnerAiSettingsPanel({
     lastRunAt: 0,
     partnerId: null,
   })
+  /** Tránh chạy song song với nút «Đồng bộ ngay». */
+  const manualEmbedLockRef = useRef(false)
+  /** Đồng bộ ref mỗi render — không đưa vào deps của useEffect auto-sync (tránh cắt chuỗi lô khi pending đổi). */
+  const embeddingPendingRef = useRef(0)
+  embeddingPendingRef.current = embeddingStats?.pending ?? 0
 
   const load = useCallback((): Promise<void> => {
     const seq = ++loadSeqRef.current
@@ -259,6 +264,7 @@ export function PartnerAiSettingsPanel({
   const runEmbeddingSync = () => {
     if (embeddingSyncing) return
     setEmbeddingSyncing(true)
+    manualEmbedLockRef.current = true
     ;(async () => {
       const res = await triggerPartnerInventoryEmbeddingSync(partnerId, 1200)
       if ('error' in res && res.error) {
@@ -278,42 +284,66 @@ export function PartnerAiSettingsPanel({
       .catch(() => {
         toast({ title: t.loadError, variant: 'destructive' })
       })
-      .finally(() => setEmbeddingSyncing(false))
+      .finally(() => {
+        setEmbeddingSyncing(false)
+        manualEmbedLockRef.current = false
+      })
   }
 
-  const embeddingPending = embeddingStats?.pending ?? 0
-
   useEffect(() => {
-    if (embeddingPending <= 0) return
     let cancelled = false
-    const AUTO_SYNC_INTERVAL_MS = 45_000
-    const runAutoSync = async () => {
+    /** Gọi định kỳ để bắt đầu chuỗi lô khi thống kê tải xong / còn backlog; không phụ thuộc pending trong deps để tránh hủy giữa chừng. */
+    const WAKE_POLL_MS = 5000
+    /** Tránh spam server khi vừa chạy xong một chuỗi nhưng vẫn còn pending (ví dụ max rounds). */
+    const BETWEEN_WAKE_MIN_MS = 45_000
+    const CHAIN_COOLDOWN_MS = 2000
+    const CHAIN_MAX_ROUNDS = 80
+
+    const runChainedSync = async (fromWake: boolean) => {
       const state = autoEmbedSyncStateRef.current
-      if (state.running) return
+      if (state.running || manualEmbedLockRef.current) return
+      if (embeddingPendingRef.current <= 0) return
       const now = Date.now()
-      if (state.partnerId === partnerId && now - state.lastRunAt < AUTO_SYNC_INTERVAL_MS) return
+      if (
+        fromWake &&
+        state.partnerId === partnerId &&
+        now - state.lastRunAt < BETWEEN_WAKE_MIN_MS
+      ) {
+        return
+      }
+
       state.running = true
-      state.lastRunAt = now
       state.partnerId = partnerId
       try {
-        const res = await triggerPartnerInventoryEmbeddingSync(partnerId, 1200)
-        if (cancelled || ('error' in res && res.error)) return
-        const refreshed = await getPartnerInventoryEmbeddingStats(partnerId)
-        if (cancelled || ('error' in refreshed && refreshed.error)) return
-        if ('stats' in refreshed && refreshed.stats) setEmbeddingStats(refreshed.stats)
+        let rounds = 0
+        while (!cancelled && !manualEmbedLockRef.current && rounds < CHAIN_MAX_ROUNDS) {
+          if (embeddingPendingRef.current <= 0) break
+          state.lastRunAt = Date.now()
+          const res = await triggerPartnerInventoryEmbeddingSync(partnerId, 1200)
+          if (cancelled || ('error' in res && res.error)) break
+          const refreshed = await getPartnerInventoryEmbeddingStats(partnerId)
+          if (cancelled || ('error' in refreshed && refreshed.error)) break
+          if ('stats' in refreshed && refreshed.stats) setEmbeddingStats(refreshed.stats)
+          embeddingPendingRef.current = refreshed.stats?.pending ?? 0
+          const stillPending = embeddingPendingRef.current
+          if (stillPending <= 0) break
+          rounds += 1
+          await new Promise<void>((r) => window.setTimeout(r, CHAIN_COOLDOWN_MS))
+        }
       } finally {
-        autoEmbedSyncStateRef.current.running = false
+        state.running = false
       }
     }
-    void runAutoSync()
+
+    void runChainedSync(false)
     const timer = window.setInterval(() => {
-      void runAutoSync()
-    }, AUTO_SYNC_INTERVAL_MS)
+      void runChainedSync(true)
+    }, WAKE_POLL_MS)
     return () => {
       cancelled = true
       window.clearInterval(timer)
     }
-  }, [partnerId, embeddingPending])
+  }, [partnerId])
 
   return (
     <Card className="overflow-hidden border-violet-200/60 bg-gradient-to-br from-violet-50/40 via-background to-background dark:border-violet-900/40 dark:from-violet-950/20 shadow-sm">
@@ -523,6 +553,9 @@ export function PartnerAiSettingsPanel({
                     .replace('{eligible}', String(embeddingStats.eligible))
                     .replace('{pending}', String(embeddingStats.pending))
                     .replace('{failed}', String(embeddingStats.failed))}
+                </p>
+                <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground border-t border-border/40 pt-2">
+                  {t.inventoryEmbeddingAutoHint}
                 </p>
               </div>
             ) : null}

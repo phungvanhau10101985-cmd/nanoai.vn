@@ -16,16 +16,24 @@ const PARTNER_SCAN_ROWS = Math.max(
 )
 const LIMIT_PER_PARTNER = Math.max(
   20,
-  Math.min(5000, parseInt(process.env.MESSAGING_INVENTORY_EMBED_CRON_LIMIT_PER_PARTNER || '400', 10) || 400)
+  Math.min(5000, parseInt(process.env.MESSAGING_INVENTORY_EMBED_CRON_LIMIT_PER_PARTNER || '800', 10) || 800)
 )
 
 function isAuthorized(req: NextRequest): boolean {
-  const secret =
-    process.env.MESSAGING_INVENTORY_EMBED_CRON_SECRET?.trim() ||
-    process.env.MESSAGING_PARTNER_AI_CRON_SECRET?.trim()
-  if (!secret) return false
   const auth = req.headers.get('authorization')?.trim()
-  return auth === `Bearer ${secret}`
+  if (!auth?.startsWith('Bearer ')) return false
+  const token = auth.slice('Bearer '.length).trim()
+  const candidates = new Set<string>()
+  const add = (s: string | undefined) => {
+    const t = s?.trim()
+    if (t) candidates.add(t)
+  }
+  add(process.env.MESSAGING_INVENTORY_EMBED_CRON_SECRET)
+  add(process.env.MESSAGING_PARTNER_AI_CRON_SECRET)
+  /** Vercel Cron gửi Authorization: Bearer <CRON_SECRET> khi biến CRON_SECRET đã set trong project. */
+  add(process.env.CRON_SECRET)
+  if (candidates.size === 0) return false
+  return candidates.has(token)
 }
 
 async function handleCron(req: NextRequest) {
