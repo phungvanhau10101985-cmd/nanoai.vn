@@ -4,12 +4,7 @@ import LamBaiClientPage from './lam-bai-client-page'
 import { getUserForAction } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { getServerDictionary } from '@/lib/i18n/server'
-import {
-  DEFAULT_WEB_LOCALE,
-  LOCALE_COOKIE_NAME,
-  normalizeWebLocale,
-  type WebLocale,
-} from '@/lib/i18n/config'
+import { resolveWebLocaleFromCookieStore, type WebLocale } from '@/lib/i18n/config'
 import { getDictionary } from '@/lib/i18n/dictionaries'
 import { buildMetadata } from '@/lib/seo'
 import { loadExamSessionForLamBaiMetadata } from '@/lib/exam-session/load-session-for-lam-bai-metadata'
@@ -32,8 +27,7 @@ export async function generateMetadata({
   params: Promise<{ code: string }>
 }): Promise<Metadata> {
   const { code } = await params
-  const locale =
-    normalizeWebLocale(cookies().get(LOCALE_COOKIE_NAME)?.value) ?? DEFAULT_WEB_LOCALE
+  const locale = resolveWebLocaleFromCookieStore(cookies())
   const t = getDictionary(locale)
   const path = `/lam-bai/${encodeURIComponent(code)}`
   const row = await loadExamSessionForLamBaiMetadata(code)

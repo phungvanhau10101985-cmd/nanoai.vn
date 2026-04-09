@@ -12,7 +12,7 @@ export const metadata: Metadata = buildMetadata({
   description:
     'Mở và luyện các bài học có sẵn phù hợp cài đặt hiện tại. Giữ luồng luyện tập tách biệt với bài học live AI để dễ theo dõi.',
   path: '/hoc-bai-hoc-co-san',
-  keywords: ['bài học có sẵn', 'ôn tập bài học', 'luyện nói theo bài lưu sẵn', 'nanoai'],
+  keywords: ['bài học có sẵn', 'ôn tập bài học', 'luyện nói theo bài lưu sẵn', 'học tiếng anh ai'],
 })
 
 export default function HocBaiHocCoSanPage() {

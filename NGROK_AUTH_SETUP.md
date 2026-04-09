@@ -7,7 +7,7 @@
 
 ## Cấu hình OAuth / Redirect URL
 
-Nơi bạn đăng ký **Google OAuth** và **Redirect URLs** (trùng với host trong `NEXT_PUBLIC_SUPABASE_*` nếu session đi qua host đó):
+Nơi bạn đăng ký **Google OAuth** và **Redirect URLs** (trùng với host trong `NEXT_PUBLIC_LEGACY_HTTP_ORIGIN` hoặc alias env cũ nếu session đi qua host đó):
 
 1. **Authentication** → **URL Configuration** (menu tùy nhà cung cấp).
 2. Thêm **Redirect URLs**:

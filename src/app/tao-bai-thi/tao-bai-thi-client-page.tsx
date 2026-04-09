@@ -37,18 +37,12 @@ import { latexToReadable } from '../tao-giao-trinh/lib/latex-to-readable'
 import { exportWorksheetToPdf, exportWorksheetToWord } from '../tao-giao-trinh/lib/worksheet-export'
 import { formatSessionIsoDateTime } from '@/lib/datetime/format-session-iso-local'
 import { getDictionary, type Dictionary } from '@/lib/i18n/dictionaries'
-import { DEFAULT_WEB_LOCALE, normalizeWebLocale, type WebLocale } from '@/lib/i18n/config'
+import { DEFAULT_WEB_LOCALE, type WebLocale } from '@/lib/i18n/config'
+import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
 import { AttachExamToClassDialog } from '@/components/exam/attach-exam-to-class-dialog'
 
 function getWebLocaleFromCookie(): WebLocale {
-  if (typeof document === 'undefined') return DEFAULT_WEB_LOCALE
-  const cookieValue = document.cookie
-    .split(';')
-    .map((x) => x.trim())
-    .find((x) => x.startsWith('nanoai_locale='))
-    ?.split('=')[1]
-    ?.trim()
-  return normalizeWebLocale(cookieValue) ?? DEFAULT_WEB_LOCALE
+  return readWebLocaleFromDocumentCookie()
 }
 
 const EXAM_TYPE_ORDER = ['15ph', '1tiet', 'hocky', 'totnghiep'] as const
@@ -76,8 +70,10 @@ function fillExamTpl(template: string, vars: Record<string, string | number>): s
   return s
 }
 
-const EXAM_FORM_DEFAULTS_KEY_EXAM = 'nanoai_tao_bai_thi_form_defaults_v1'
-const EXAM_FORM_DEFAULTS_KEY_HOMEWORK = 'nanoai_tao_bai_tap_ve_nha_form_defaults_v1'
+const EXAM_FORM_DEFAULTS_KEY_EXAM = 'app_tao_bai_thi_form_defaults_v1'
+const EXAM_FORM_DEFAULTS_KEY_EXAM_LEGACY = 'nanoai_tao_bai_thi_form_defaults_v1'
+const EXAM_FORM_DEFAULTS_KEY_HOMEWORK = 'app_tao_bai_tap_ve_nha_form_defaults_v1'
+const EXAM_FORM_DEFAULTS_KEY_HOMEWORK_LEGACY = 'nanoai_tao_bai_tap_ve_nha_form_defaults_v1'
 const EXAM_FORM_DEFAULTS_VERSION = 1
 
 type ExamFormDefaultsV1 = {
@@ -94,23 +90,27 @@ type ExamFormDefaultsV1 = {
   newClassTeacher: string
 }
 
-function readExamFormDefaults(storageKey: string): Partial<ExamFormDefaultsV1> | null {
+function readExamFormDefaults(primaryKey: string, legacyKey: string): Partial<ExamFormDefaultsV1> | null {
   if (typeof window === 'undefined') return null
-  try {
-    const raw = window.localStorage.getItem(storageKey)
+  const parseOne = (raw: string | null): Partial<ExamFormDefaultsV1> | null => {
     if (!raw) return null
-    const p = JSON.parse(raw) as ExamFormDefaultsV1
-    if (!p || p.version !== EXAM_FORM_DEFAULTS_VERSION) return null
-    return p
-  } catch {
-    return null
+    try {
+      const p = JSON.parse(raw) as ExamFormDefaultsV1
+      if (!p || p.version !== EXAM_FORM_DEFAULTS_VERSION) return null
+      return p
+    } catch {
+      return null
+    }
   }
+  return parseOne(window.localStorage.getItem(primaryKey)) ?? parseOne(window.localStorage.getItem(legacyKey))
 }
 
-function writeExamFormDefaults(payload: ExamFormDefaultsV1, storageKey: string) {
+function writeExamFormDefaults(payload: ExamFormDefaultsV1, primaryKey: string, legacyKey: string) {
   if (typeof window === 'undefined') return
   try {
-    window.localStorage.setItem(storageKey, JSON.stringify(payload))
+    const json = JSON.stringify(payload)
+    window.localStorage.setItem(primaryKey, json)
+    window.localStorage.setItem(legacyKey, json)
   } catch {
     // ignore quota / private mode
   }
@@ -305,7 +305,8 @@ export default function TaoBaiThiClientPage({
   initialWebLocale = DEFAULT_WEB_LOCALE,
 }: { variant?: 'exam' | 'homework'; initialWebLocale?: WebLocale } = {}) {
   const isHomework = variant === 'homework'
-  const formDefaultsKey = isHomework ? EXAM_FORM_DEFAULTS_KEY_HOMEWORK : EXAM_FORM_DEFAULTS_KEY_EXAM
+  const formDefaultsPrimary = isHomework ? EXAM_FORM_DEFAULTS_KEY_HOMEWORK : EXAM_FORM_DEFAULTS_KEY_EXAM
+  const formDefaultsLegacy = isHomework ? EXAM_FORM_DEFAULTS_KEY_HOMEWORK_LEGACY : EXAM_FORM_DEFAULTS_KEY_EXAM_LEGACY
   const [uiLocale, setUiLocale] = useState<WebLocale>(initialWebLocale)
   /** Homework: không hiện “loại đề” — dùng 90 phút nội bộ làm giới hạn mềm trên lam-bai */
   const [examType, setExamType] = useState<string>(() => (variant === 'homework' ? 'hocky' : '15ph'))
@@ -472,7 +473,7 @@ export default function TaoBaiThiClientPage({
   }, [isHomework])
 
   useLayoutEffect(() => {
-    const d = readExamFormDefaults(formDefaultsKey)
+    const d = readExamFormDefaults(formDefaultsPrimary, formDefaultsLegacy)
     if (!d) {
       examFormHydratedRef.current = true
       if (isHomework) setExamType('hocky')
@@ -495,7 +496,7 @@ export default function TaoBaiThiClientPage({
     if (typeof d.newClassTeacher === 'string') setNewClassTeacher(d.newClassTeacher)
     examFormHydratedRef.current = true
     if (isHomework) setExamType('hocky')
-  }, [formDefaultsKey, isHomework])
+  }, [formDefaultsPrimary, formDefaultsLegacy, isHomework])
 
   useEffect(() => {
     if (!examFormHydratedRef.current) return
@@ -513,10 +514,12 @@ export default function TaoBaiThiClientPage({
         newClassSubject,
         newClassTeacher,
       },
-      formDefaultsKey
+      formDefaultsPrimary,
+      formDefaultsLegacy
     )
   }, [
-    formDefaultsKey,
+    formDefaultsPrimary,
+    formDefaultsLegacy,
     examType,
     subjectId,
     gradeLevelId,

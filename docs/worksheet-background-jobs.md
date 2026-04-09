@@ -52,7 +52,7 @@ Khi user đóng trang rồi quay lại, client tự kiểm tra `localStorage` v�
 
 ## File liên quan
 
-- `supabase/migrations/20260325000000_create_worksheet_jobs.sql`
+- `db/migrations/20260325000000_create_worksheet_jobs.sql`
 - `src/app/api/worksheet-submit-job/route.ts`
 - `src/app/api/worksheet-job-status/route.ts`
 - `scripts/worksheet-job-worker.ts`

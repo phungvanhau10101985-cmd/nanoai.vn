@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
-import { REFERRAL_STORAGE_KEY, parseReferrerUuid } from '@/lib/referral'
+import { REFERRAL_STORAGE_KEY, REFERRAL_STORAGE_KEY_LEGACY, parseReferrerUuid } from '@/lib/referral'
 
 /**
  * Đọc ?ref= hoặc ?invite= trên URL (client), lưu UUID người mời vào localStorage.
@@ -14,6 +14,7 @@ export function ReferralCapture() {
       const id = parseReferrerUuid(params.get('ref') || params.get('invite'))
       if (!id) return
       localStorage.setItem(REFERRAL_STORAGE_KEY, id)
+      localStorage.setItem(REFERRAL_STORAGE_KEY_LEGACY, id)
       if (params.has('ref') || params.has('invite')) {
         const url = new URL(window.location.href)
         url.searchParams.delete('ref')

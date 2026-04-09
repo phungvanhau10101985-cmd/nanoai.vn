@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { LayoutDashboard, Sparkles, Wallet, Home } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
 
 const MOBILE_BAR_ITEMS = [
   { href: '/', label: (tr: (vi: string, en: string, zh: string, ja: string, ko: string) => string) => tr('Trang chủ', 'Home', '首页', 'ホーム', '홈'), icon: Home },
@@ -27,15 +28,7 @@ export function MobileBottomBar() {
 
   useEffect(() => {
     const syncLocale = () => {
-      const cookieValue = document.cookie
-        .split(';')
-        .map((x) => x.trim())
-        .find((x) => x.startsWith('nanoai_locale='))
-        ?.split('=')[1]
-        ?.trim()
-        .toLowerCase()
-      if (cookieValue === 'en' || cookieValue === 'zh' || cookieValue === 'ja' || cookieValue === 'ko') setUiLocale(cookieValue)
-      else setUiLocale('vi')
+      setUiLocale(readWebLocaleFromDocumentCookie())
     }
     syncLocale()
     const timer = window.setInterval(syncLocale, 1000)

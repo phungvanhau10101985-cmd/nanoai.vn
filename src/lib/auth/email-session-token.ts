@@ -1,6 +1,11 @@
 import { SignJWT } from 'jose'
 import { cookies } from 'next/headers'
-import { EMAIL_SESSION_COOKIE, getAuthJwtSecretBytes, isEmailAuthEnabled } from '@/lib/auth/email-auth-config'
+import {
+  EMAIL_SESSION_COOKIE,
+  EMAIL_SESSION_COOKIE_LEGACY,
+  getAuthJwtSecretBytes,
+  isEmailAuthEnabled,
+} from '@/lib/auth/email-auth-config'
 
 export const EMAIL_SESSION_MAX_AGE_SEC = 60 * 60 * 24 * 400 // ~400 ngày
 
@@ -30,13 +35,17 @@ export async function setEmailSessionCookie(userId: string, email: string): Prom
   if (!isEmailAuthEnabled()) return { ok: false, error: 'email_auth_disabled' }
   const token = await createEmailSessionTokenString(userId, email)
   if (!token) return { ok: false, error: 'auth_jwt_secret_missing' }
-  cookies().set(EMAIL_SESSION_COOKIE, token, getEmailSessionCookieOptions())
+  const opts = getEmailSessionCookieOptions()
+  cookies().set(EMAIL_SESSION_COOKIE, token, opts)
+  cookies().set(EMAIL_SESSION_COOKIE_LEGACY, token, opts)
   return { ok: true }
 }
 
 export async function clearEmailSessionCookie(): Promise<void> {
   try {
-    cookies().set(EMAIL_SESSION_COOKIE, '', { path: '/', maxAge: 0 })
+    const clear = { path: '/', maxAge: 0 }
+    cookies().set(EMAIL_SESSION_COOKIE, '', clear)
+    cookies().set(EMAIL_SESSION_COOKIE_LEGACY, '', clear)
   } catch {
     /* ignore */
   }

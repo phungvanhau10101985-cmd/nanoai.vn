@@ -1,5 +1,6 @@
-/** Cookie JWT phiên đăng nhập email (OTP / magic link). */
-export const EMAIL_SESSION_COOKIE = 'nanoai_email_session'
+/** Cookie JWT phiên đăng nhập email (OTP / magic link). Legacy `nanoai_email_session` vẫn được ghi/xóa song song. */
+export const EMAIL_SESSION_COOKIE = 'app_email_session'
+export const EMAIL_SESSION_COOKIE_LEGACY = 'nanoai_email_session'
 
 export function isEmailAuthEnabled(): boolean {
   const v = process.env.EMAIL_AUTH_ENABLED

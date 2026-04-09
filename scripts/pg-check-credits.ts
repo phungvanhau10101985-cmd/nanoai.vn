@@ -67,7 +67,7 @@ async function main() {
     }
     if (!hasFn) {
       console.error(
-        'Thiếu function public.spend_credits_idempotent. Cần file migration 20260303103000_add_atomic_english_coach_credit_charging.sql trong supabase/migrations/ (hoặc tương đương).'
+        'Thiếu function public.spend_credits_idempotent. Cần file migration 20260303103000_add_atomic_english_coach_credit_charging.sql trong db/migrations/ (hoặc tương đương).'
       )
     }
 

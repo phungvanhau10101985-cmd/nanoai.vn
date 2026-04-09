@@ -13,6 +13,8 @@ function hostnameFromEnvUrl(key) {
 
 const legacyStorageRestHost =
     hostnameFromEnvUrl('NEXT_PUBLIC_STORAGE_LEGACY_REST_ORIGIN') ||
+    hostnameFromEnvUrl('NEXT_PUBLIC_LEGACY_HTTP_ORIGIN') ||
+    // Tên biến cũ trong .env (vẫn đọc — ưu tiên hai khóa phía trên)
     hostnameFromEnvUrl('NEXT_PUBLIC_SUPABASE_URL');
 
 const legacyStorageImagePatterns = legacyStorageRestHost

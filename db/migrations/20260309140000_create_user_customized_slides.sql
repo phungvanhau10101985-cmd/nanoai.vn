@@ -1,0 +1,22 @@
+-- Bảng lưu slide đã chỉnh sửa của từng giáo viên (thêm biểu đồ, sửa nội dung)
+-- Không ghi đè worksheet_slides – dữ liệu gốc giữ nguyên cho giáo viên khác
+create table if not exists user_customized_slides (
+  id uuid default gen_random_uuid() primary key,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  curriculum_id uuid not null references worksheet_curricula(id) on delete cascade,
+  slides_json jsonb not null,
+  updated_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  unique(user_id, curriculum_id)
+);
+
+create index idx_user_customized_slides_user on user_customized_slides(user_id);
+create index idx_user_customized_slides_curriculum on user_customized_slides(curriculum_id);
+
+alter table user_customized_slides enable row level security;
+
+create policy "Users can manage own customized slides"
+  on user_customized_slides for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+comment on table user_customized_slides is 'Slide đã chỉnh sửa theo từng giáo viên – thêm biểu đồ, sửa nội dung. Không ảnh hưởng dữ liệu gốc.';

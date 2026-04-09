@@ -1,6 +1,6 @@
 # Thu-do-online (Next.js)
 
-Ứng dụng web Next.js (nanoai.vn): Postgres qua **`DATABASE_URL`**, lưu trữ media qua **Bunny**; không còn SDK client npm `@supabase/supabase-js`. Một số biến env vẫn theo convention tên `NEXT_PUBLIC_SUPABASE_*` nếu bạn dùng cùng stack hosted — xem `.env.example` và `docs/ENV_LOCAL_REFERENCE.md`.
+Ứng dụng web Next.js (nanoai.vn): Postgres qua **`DATABASE_URL`**, lưu trữ media qua **Bunny**; không dùng SDK npm hosted client. Biến env ưu tiên tên trung tính (`NEXT_PUBLIC_LEGACY_HTTP_ORIGIN`, …); alias cũ vẫn đọc được — xem `.env.example` và `docs/ENV_LOCAL_REFERENCE.md`.
 
 ## Getting started
 
@@ -13,12 +13,12 @@
 
 ### 2. Database
 
-1. Áp dụng migration trong thứ tự thư mục `supabase/migrations/` lên database của bạn (bất kỳ Postgres nào), **hoặc** `npm run db:push` nếu dùng CLI migration đã link project (xem `package.json`).
+1. Áp dụng migration trong thứ tự thư mục **`db/migrations/`** lên database của bạn (bất kỳ Postgres nào), **hoặc** `npm run db:migrate:push` / `npm run db:push` nếu dùng CLI migration đã link project (xem `package.json` và `db/README.md`).
 2. Đặt **`DATABASE_URL`** trong `.env.local` (connection string có `sslmode=require` nếu host yêu cầu TLS).
 
 ### 3. Auth & redirect URL (Google OAuth)
 
-Nếu đăng nhập Google đi qua host Auth bạn cấu hình (cùng origin với các biến `NEXT_PUBLIC_SUPABASE_*` nếu dùng): thêm **Authorized redirect URI** trỏ tới callback của app (ví dụ `https://your-domain/auth/callback` và `http://localhost:3000/auth/callback` cho local). Chi tiết: `DEPLOY_VPS.md`.
+Nếu đăng nhập Google đi qua host Auth bạn cấu hình (cùng origin với `NEXT_PUBLIC_LEGACY_HTTP_ORIGIN` hoặc alias cũ): thêm **Authorized redirect URI** trỏ tới callback của app (ví dụ `https://your-domain/auth/callback` và `http://localhost:3000/auth/callback` cho local). Chi tiết: `DEPLOY_VPS.md`.
 
 ### 4. Storage (ảnh/video)
 
@@ -40,7 +40,7 @@ Mở [http://localhost:3000](http://localhost:3000).
 
 Để xóa dữ liệu do AI tạo (giáo trình, bài thi, phiếu bài tập, …) nhưng giữ tài khoản / credit / câu hỏi đã upload:
 
-1. Mở `supabase/scripts/reset-ai-test-data.sql`
+1. Mở `db/scripts/reset-ai-test-data.sql`
 2. Chạy trên database của bạn (SQL client hoặc dashboard host Postgres)
 
 Chi tiết: `docs/reset-ai-test-data.md`.

@@ -3,6 +3,7 @@
 import { randomBytes } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
 import { getUserForAction } from '@/lib/auth'
+import { RESERVED_MESSAGING_GUEST_SLUGS } from '@/lib/messaging/reserved-guest-slugs'
 import {
   clearMessagingPartnerAiImageSearchSecretFromPg,
   emergencyDisablePartnerAiVisionFromPg,
@@ -150,7 +151,7 @@ export async function createMessagingWorkspace(displayName: string) {
   if (!name || name.length > 120) return { error: 'Invalid name.' }
 
   let base = slugify(name)
-  if (base === 'nanoai') base = `${base}-ws`
+  if (RESERVED_MESSAGING_GUEST_SLUGS.has(base)) base = `${base}-ws`
   const suffix = Math.random().toString(36).slice(2, 6)
   const slug = `${base}-${suffix}`
 

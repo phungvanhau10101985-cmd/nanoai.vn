@@ -232,7 +232,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     guestAccountId: effectiveGuestAccountId,
     customerName: guestCustomerName(displayName, identity.user),
     metadata: {
-      source: 'nanoai_hosted_page',
+      source: 'hosted_chat_page',
       auth_mode: effectiveGuestAccountId || identity.linkedUserId ? 'account' : 'anonymous',
     },
     text: body?.text,

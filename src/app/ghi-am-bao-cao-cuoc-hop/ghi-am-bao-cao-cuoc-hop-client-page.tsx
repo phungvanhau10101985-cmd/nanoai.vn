@@ -1,5 +1,7 @@
 'use client'
 
+import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
+
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button, buttonVariants } from '@/components/ui/button'
 import {
@@ -44,17 +46,12 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 
-const TITLE_STORAGE = 'nanoai.meetingRecorder.title'
+const TITLE_STORAGE = 'app.meetingRecorder.title'
+const TITLE_STORAGE_LEGACY = 'nanoai.meetingRecorder.title'
 
 function readWebLocale(): WebLocale {
   if (typeof document === 'undefined') return 'vi'
-  const v = document.cookie
-    .split(';')
-    .map((x) => x.trim())
-    .find((x) => x.startsWith('nanoai_locale='))
-    ?.split('=')[1]
-    ?.trim()
-    .toLowerCase()
+  const v = readWebLocaleFromDocumentCookie()
   if (v === 'en' || v === 'zh' || v === 'ja' || v === 'ko') return v
   return 'vi'
 }
@@ -132,7 +129,8 @@ export default function GhiAmBaoCaoCuocHopClientPage() {
     setUiLocale(readWebLocale())
     setReportLocale(readWebLocale())
     try {
-      const saved = localStorage.getItem(TITLE_STORAGE)
+      const saved =
+        localStorage.getItem(TITLE_STORAGE) ?? localStorage.getItem(TITLE_STORAGE_LEGACY)
       if (saved) setMeetingTitle(saved)
     } catch {
       // ignore
@@ -246,7 +244,9 @@ export default function GhiAmBaoCaoCuocHopClientPage() {
       return
     }
     try {
-      localStorage.setItem(TITLE_STORAGE, meetingTitleRef.current.trim().slice(0, 200))
+      const t = meetingTitleRef.current.trim().slice(0, 200)
+      localStorage.setItem(TITLE_STORAGE, t)
+      localStorage.setItem(TITLE_STORAGE_LEGACY, t)
     } catch {
       // ignore
     }

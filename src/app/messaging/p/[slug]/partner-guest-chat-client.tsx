@@ -14,6 +14,10 @@ import { sanitizeLoginNext } from '@/lib/auth/sanitize-login-next'
 import { Camera, ImagePlus, Loader2, MessageSquareText, Send, Sparkles, Store, X } from 'lucide-react'
 import { aiProductCardsFromPayload } from '@/lib/messaging/partner-ai-product-cards'
 import type { PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-cards'
+import {
+  MESSAGING_GUEST_SESSION_STORAGE_KEY,
+  MESSAGING_GUEST_SESSION_STORAGE_KEY_LEGACY,
+} from '@/lib/messaging/guest-auth-session'
 
 type GuestMsg = {
   id: string
@@ -97,8 +101,6 @@ type ChatRailItem = {
   lastMessagePreview: string | null
 }
 
-const GUEST_SESSION_STORAGE_KEY = 'nanoai_guest_session_id'
-
 function formatCredits(value: number) {
   return Number.isInteger(value) ? String(value) : value.toFixed(1)
 }
@@ -174,7 +176,10 @@ export function PartnerGuestChatClient({
 
   useEffect(() => {
     if (typeof window === 'undefined') return
-    const existing = window.localStorage.getItem(GUEST_SESSION_STORAGE_KEY)?.trim() ?? ''
+    const existing =
+      window.localStorage.getItem(MESSAGING_GUEST_SESSION_STORAGE_KEY)?.trim()
+      ?? window.localStorage.getItem(MESSAGING_GUEST_SESSION_STORAGE_KEY_LEGACY)?.trim()
+      ?? ''
     if (existing) guestSessionIdRef.current = existing
   }, [])
 
@@ -189,7 +194,10 @@ export function PartnerGuestChatClient({
     const sid = res.headers.get('x-guest-session-id')?.trim() ?? ''
     if (!sid) return
     guestSessionIdRef.current = sid
-    if (typeof window !== 'undefined') window.localStorage.setItem(GUEST_SESSION_STORAGE_KEY, sid)
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(MESSAGING_GUEST_SESSION_STORAGE_KEY, sid)
+      window.localStorage.setItem(MESSAGING_GUEST_SESSION_STORAGE_KEY_LEGACY, sid)
+    }
   }, [])
 
   useEffect(() => {

@@ -1,17 +1,13 @@
 'use client'
 
+import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
+
 import { useEffect } from 'react'
 
 /** Locale UI trình chiếu học sinh (cookie web) — dùng chung file nhỏ, không gắn logic giáo trình/phiếu. */
 export function getWebLocale(): 'vi' | 'en' | 'zh' | 'ja' | 'ko' {
   if (typeof document === 'undefined') return 'vi'
-  const cookieValue = document.cookie
-    .split(';')
-    .map((x) => x.trim())
-    .find((x) => x.startsWith('nanoai_locale='))
-    ?.split('=')[1]
-    ?.trim()
-    .toLowerCase()
+  const cookieValue = readWebLocaleFromDocumentCookie()
   if (cookieValue === 'en' || cookieValue === 'zh' || cookieValue === 'ja' || cookieValue === 'ko') return cookieValue
   return 'vi'
 }

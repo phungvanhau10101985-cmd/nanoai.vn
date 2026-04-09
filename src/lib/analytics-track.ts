@@ -9,7 +9,8 @@ type PendingGeneration = {
   startedAt: number
 }
 
-const PENDING_KEY = 'nanoai.pending_generation'
+const PENDING_KEY = 'app.pending_generation'
+const PENDING_KEY_LEGACY = 'nanoai.pending_generation'
 
 declare global {
   interface Window {
@@ -33,7 +34,9 @@ export function trackEvent(eventName: string, params: EventParams = {}) {
 export function setPendingGeneration(pending: PendingGeneration) {
   if (typeof window === 'undefined') return
   try {
-    sessionStorage.setItem(PENDING_KEY, JSON.stringify(pending))
+    const raw = JSON.stringify(pending)
+    sessionStorage.setItem(PENDING_KEY, raw)
+    sessionStorage.setItem(PENDING_KEY_LEGACY, raw)
   } catch {
     // ignore storage failures
   }
@@ -54,6 +57,7 @@ export function clearPendingGeneration() {
   if (typeof window === 'undefined') return
   try {
     sessionStorage.removeItem(PENDING_KEY)
+    sessionStorage.removeItem(PENDING_KEY_LEGACY)
   } catch {
     // ignore storage failures
   }

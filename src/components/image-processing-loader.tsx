@@ -1,5 +1,7 @@
 'use client'
 
+import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
+
 import { useEffect, useState } from 'react'
 import { Sparkles, ImageIcon, Focus, Layers, Layout, User, Palette, Smile, Eraser, Package, Briefcase, Expand, Repeat, Box, BoxSelect, Home, BookOpen, Tag } from 'lucide-react'
 import { ImagePreview } from '@/components/ui/image-preview'
@@ -173,13 +175,7 @@ export function ImageProcessingLoader({
 
   useEffect(() => {
     const syncLocale = () => {
-      const cookieValue = document.cookie
-        .split(';')
-        .map((x) => x.trim())
-        .find((x) => x.startsWith('nanoai_locale='))
-        ?.split('=')[1]
-        ?.trim()
-        .toLowerCase()
+      const cookieValue = readWebLocaleFromDocumentCookie()
       if (cookieValue === 'en' || cookieValue === 'zh' || cookieValue === 'ja' || cookieValue === 'ko') setUiLocale(cookieValue)
       else setUiLocale('vi')
     }

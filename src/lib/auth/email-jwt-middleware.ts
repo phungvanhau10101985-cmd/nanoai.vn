@@ -3,13 +3,19 @@
  */
 import type { NextRequest } from 'next/server'
 import { jwtVerify } from 'jose'
-import { EMAIL_SESSION_COOKIE, isEmailAuthEnabled } from '@/lib/auth/email-auth-config'
+import {
+  EMAIL_SESSION_COOKIE,
+  EMAIL_SESSION_COOKIE_LEGACY,
+  isEmailAuthEnabled,
+} from '@/lib/auth/email-auth-config'
 
 export async function getJwtUserFromRequest(request: NextRequest): Promise<{ sub: string; email: string } | null> {
   if (!isEmailAuthEnabled()) return null
   const secret = process.env.AUTH_JWT_SECRET?.trim()
   if (!secret || secret.length < 32) return null
-  const token = request.cookies.get(EMAIL_SESSION_COOKIE)?.value
+  const token =
+    request.cookies.get(EMAIL_SESSION_COOKIE)?.value
+    ?? request.cookies.get(EMAIL_SESSION_COOKIE_LEGACY)?.value
   if (!token) return null
   try {
     const { payload } = await jwtVerify(token, new TextEncoder().encode(secret), { algorithms: ['HS256'] })

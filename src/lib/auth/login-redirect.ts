@@ -1,17 +1,18 @@
 import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
+import { readLoginNextFromHeaders } from '@/lib/auth/app-request-headers'
 import { sanitizeLoginNext } from '@/lib/auth/sanitize-login-next'
 
 export { sanitizeLoginNext } from '@/lib/auth/sanitize-login-next'
 
 /**
- * Đọc URL trang đang truy cập do middleware gắn (x-nanoai-login-next).
+ * Đọc URL trang đang truy cập do middleware gắn (`x-app-login-next`, legacy `x-nanoai-login-next`).
  */
 export function getIntendedPathFromRequest(): string {
   try {
     const h = headers()
-    const fromHeader = h.get('x-nanoai-login-next')
-    return sanitizeLoginNext(fromHeader)
+    const fromHeader = readLoginNextFromHeaders((name) => h.get(name))
+    return sanitizeLoginNext(fromHeader || null)
   } catch {
     return sanitizeLoginNext(null)
   }

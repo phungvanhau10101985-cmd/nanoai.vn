@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import Link from 'next/link'
 import { headers } from 'next/headers'
+import { readLoginNextFromHeaders } from '@/lib/auth/app-request-headers'
 import { getServerDictionary } from '@/lib/i18n/server'
 import { CREATION_SIDEBAR_POPULAR_LINKS } from '@/lib/creation-tool-sidebar-config'
 import { getUserOrBypass } from '@/lib/auth'
@@ -8,7 +9,7 @@ import { listWidgetChatsForLinkedUser } from '@/lib/messaging/list-widget-chats-
 
 export default async function MessagingLayout({ children }: { children: ReactNode }) {
   const headerStore = headers()
-  const pathWithQuery = headerStore.get('x-nanoai-login-next') || ''
+  const pathWithQuery = readLoginNextFromHeaders((name) => headerStore.get(name))
   const [pathname = ''] = pathWithQuery.split('?')
   /** Khớp root layout: mọi /messaging/p/* = shell chat toàn màn, không sidebar «Tin nhắn». */
   const isEmbeddedGuestChat = pathname.startsWith('/messaging/p/')

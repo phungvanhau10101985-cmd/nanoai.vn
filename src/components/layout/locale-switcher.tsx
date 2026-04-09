@@ -3,7 +3,12 @@
 import { useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { LOCALE_COOKIE_NAME, WEB_LOCALES, type WebLocale } from '@/lib/i18n/config'
+import {
+  LOCALE_COOKIE_NAME,
+  LOCALE_COOKIE_NAME_LEGACY,
+  WEB_LOCALES,
+  type WebLocale,
+} from '@/lib/i18n/config'
 
 type LocaleSwitcherProps = {
   currentLocale: WebLocale
@@ -23,7 +28,10 @@ export function LocaleSwitcher({ currentLocale }: LocaleSwitcherProps) {
 
   const setLocale = (locale: WebLocale) => {
     if (locale === currentLocale) return
-    document.cookie = `${LOCALE_COOKIE_NAME}=${locale}; path=/; max-age=31536000; samesite=lax`
+    const maxAge = 31536000
+    const tail = `; path=/; max-age=${maxAge}; samesite=lax`
+    document.cookie = `${LOCALE_COOKIE_NAME}=${locale}${tail}`
+    document.cookie = `${LOCALE_COOKIE_NAME_LEGACY}=${locale}${tail}`
     startTransition(() => {
       router.refresh()
     })

@@ -2,9 +2,7 @@
  * pg_dump → file custom format trong backups/
  *   node scripts/pg-backup-source.mjs
  *
- * URI nguồn (ưu tiên tên trung tính):
- *   PG_DUMP_SOURCE_URL — bất kỳ connection string Postgres (khuyến nghị)
- *   SUPABASE_DB_URL — alias cũ (Session pooler / Direct từ dashboard hosted DB)
+ * URI nguồn (ưu tiên PG_DUMP_SOURCE_URL; thêm DATABASE_BACKUP_SOURCE_URL, LEGACY_PG_DUMP_URI; xem .env.example).
  *
  * Cloud Postgres thường 17 — cần pg_dump 17+ (hoặc PG_DUMP_PATH). pg_dump 15 có thể báo "server version mismatch".
  */
@@ -16,9 +14,15 @@ import { config } from 'dotenv'
 config({ path: resolve(process.cwd(), '.env.local') })
 config({ path: resolve(process.cwd(), '.env') })
 
-const uri = process.env.PG_DUMP_SOURCE_URL?.trim() || process.env.SUPABASE_DB_URL?.trim()
+const uri =
+  process.env.PG_DUMP_SOURCE_URL?.trim() ||
+  process.env.DATABASE_BACKUP_SOURCE_URL?.trim() ||
+  process.env.LEGACY_PG_DUMP_URI?.trim() ||
+  process.env.SUPABASE_DB_URL?.trim()
 if (!uri) {
-  console.error('Thiếu PG_DUMP_SOURCE_URL hoặc SUPABASE_DB_URL trong .env / .env.local (connection string Postgres cho pg_dump).')
+  console.error(
+    'Thiếu PG_DUMP_SOURCE_URL hoặc một biến fallback (DATABASE_BACKUP_SOURCE_URL, LEGACY_PG_DUMP_URI, … — xem .env.example) trong .env / .env.local (connection string Postgres cho pg_dump).'
+  )
   process.exit(1)
 }
 

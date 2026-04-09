@@ -1,5 +1,7 @@
 'use client'
 
+import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
+
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { X, Share, Plus } from 'lucide-react'
@@ -61,13 +63,7 @@ export function InstallPrompt() {
 
   useEffect(() => {
     const syncLocale = () => {
-      const cookieValue = document.cookie
-        .split(';')
-        .map((x) => x.trim())
-        .find((x) => x.startsWith('nanoai_locale='))
-        ?.split('=')[1]
-        ?.trim()
-        .toLowerCase()
+      const cookieValue = readWebLocaleFromDocumentCookie()
       if (cookieValue === 'en' || cookieValue === 'zh' || cookieValue === 'ja' || cookieValue === 'ko') setUiLocale(cookieValue)
       else setUiLocale('vi')
     }

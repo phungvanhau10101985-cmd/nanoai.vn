@@ -1,5 +1,6 @@
 "use client"
 
+import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
 import { useEffect, useState } from 'react'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { sanitizeLoginNext } from '@/lib/auth/sanitize-login-next'
@@ -32,13 +33,7 @@ export default function LoginClient({
 
   useEffect(() => {
     const syncLocale = () => {
-      const cookieValue = document.cookie
-        .split(';')
-        .map((x) => x.trim())
-        .find((x) => x.startsWith('nanoai_locale='))
-        ?.split('=')[1]
-        ?.trim()
-        .toLowerCase()
+      const cookieValue = readWebLocaleFromDocumentCookie()
       if (cookieValue === 'en' || cookieValue === 'zh' || cookieValue === 'ja' || cookieValue === 'ko') setUiLocale(cookieValue)
       else setUiLocale('vi')
     }

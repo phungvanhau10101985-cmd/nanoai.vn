@@ -11,6 +11,7 @@ import { Footer } from "@/components/layout/footer";
 import { DepositCreditProvider } from "@/components/deposit-credit-context";
 import { buildMetadata, buildJsonLdWebApplication, buildJsonLdOrganization, SITE_URL, SITE_NAME } from "@/lib/seo";
 import { JsonLd } from "@/components/seo-json-ld";
+import { readLoginNextFromHeaders } from '@/lib/auth/app-request-headers'
 import { getCurrentWebLocale, getServerDictionary } from '@/lib/i18n/server'
 import { FloatingChatWidget } from '@/components/messaging/floating-chat-widget'
 
@@ -56,6 +57,9 @@ type AdminIntegrationsSettings = {
   googleTagManagerId?: string;
   webConsoleVerificationTag?: string;
   domainVerificationTags?: DomainVerificationTag[];
+  /** Mã nhúng chat (tên mới). */
+  chatEmbedCode?: string;
+  /** Alias cũ trong JSON đã lưu — vẫn đọc khi chưa migrate. */
   nanoaiEmbedCode?: string;
 };
 
@@ -208,7 +212,7 @@ export default async function RootLayout({
   const host = forwardedHost || headerStore.get("host") || "";
   const protocol = forwardedProto || (process.env.NODE_ENV === "development" ? "http" : "https");
   const requestOrigin = host ? `${protocol}://${host}` : "";
-  const currentPathWithQuery = headerStore.get("x-nanoai-login-next") || "";
+  const currentPathWithQuery = readLoginNextFromHeaders((name) => headerStore.get(name));
   const [currentPathname = ""] = currentPathWithQuery.split("?");
   const isMessagingGuestPage = currentPathname.startsWith("/messaging/p/");
   /** Trang chat khách: luôn layout tối giản (giống nhúng iframe) — tránh Header/thanh dưới + cuộn kép trên server. */
@@ -235,9 +239,12 @@ export default async function RootLayout({
       .map((item) => String(item?.code || ""))),
   ];
   const metaTags = metaTagCandidates.map(parseMetaTag).filter((item): item is MetaTagPayload => Boolean(item));
-  const nanoaiChatEmbed = parseIframeEmbed(String(settings.nanoaiEmbedCode || ""));
-  const nanoaiChatSrc = nanoaiChatEmbed
-    ? normalizeEmbedSrc(nanoaiChatEmbed.src, requestOrigin)
+  const embedIframeRaw = String(
+    (settings.chatEmbedCode || "").trim() || settings.nanoaiEmbedCode || ""
+  );
+  const hostedChatIframe = parseIframeEmbed(embedIframeRaw);
+  const hostedChatUrl = hostedChatIframe
+    ? normalizeEmbedSrc(hostedChatIframe.src, requestOrigin)
     : "";
   const widgetText = {
     openLabel:
@@ -272,7 +279,7 @@ export default async function RootLayout({
               : 'Mở toàn trang',
   }
   const shouldRenderGlobalChatWidget =
-    Boolean(nanoaiChatEmbed && nanoaiChatSrc) &&
+    Boolean(hostedChatIframe && hostedChatUrl) &&
     !currentPathname.startsWith("/messaging/p/") &&
     !currentPathname.startsWith("/support-chat");
 
@@ -352,11 +359,11 @@ export default async function RootLayout({
               <SwUpdateReload />
               {shouldRenderGlobalChatWidget ? (
                 <FloatingChatWidget
-                  chatUrl={nanoaiChatSrc}
-                  title={nanoaiChatEmbed?.title || 'Chat widget'}
-                  shopName={normalizeShopName(nanoaiChatEmbed?.title || '')}
-                  loading={nanoaiChatEmbed?.loading || 'lazy'}
-                  referrerPolicy={nanoaiChatEmbed?.referrerPolicy}
+                  chatUrl={hostedChatUrl}
+                  title={hostedChatIframe?.title || 'Chat widget'}
+                  shopName={normalizeShopName(hostedChatIframe?.title || '')}
+                  loading={hostedChatIframe?.loading || 'lazy'}
+                  referrerPolicy={hostedChatIframe?.referrerPolicy}
                   openLabel={widgetText.openLabel}
                   closeLabel={widgetText.closeLabel}
                   openFullPageLabel={widgetText.openFullPageLabel}

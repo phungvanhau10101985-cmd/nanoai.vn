@@ -18,7 +18,7 @@ Mở **http://localhost:3000**. File `.env.local` trên máy bạn dùng `NEXT_P
 
 Để **đăng nhập Google** hoạt động trên local, bảng điều khiển **Auth** của host bạn dùng (nơi cấu hình OAuth redirect) phải cho phép callback của app:
 
-1. Vào **Authentication** → **URL Configuration** (vị trí menu tùy host; thường cùng project với `NEXT_PUBLIC_SUPABASE_URL` nếu Auth hosted).
+1. Vào **Authentication** → **URL Configuration** (vị trí menu tùy host; thường cùng project với `NEXT_PUBLIC_LEGACY_HTTP_ORIGIN` hoặc alias cũ nếu Auth hosted).
 2. Trong **Redirect URLs**, thêm:
    ```
    http://localhost:3000/auth/callback
@@ -31,9 +31,9 @@ Mở **http://localhost:3000**. File `.env.local` trên máy bạn dùng `NEXT_P
 |------|--------|---------|
 | `DATABASE_URL` | ✓ | Postgres — bắt buộc cho dữ liệu app (URI có `sslmode=require` nếu cần) |
 | `NEXT_PUBLIC_BASE_URL` | ✓ | `http://localhost:3000` cho local |
-| `NEXT_PUBLIC_SUPABASE_URL` | ✓ nếu Auth/session dùng host đó | URL project (Settings → API trên host đó) |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | ✓ cùng lúc với URL trên | Anon/public key — client + middleware |
-| `SUPABASE_SERVICE_ROLE_KEY` | ✓ nếu cần server gọi Auth/legacy REST | Service role (chỉ server, không lộ client) |
+| `NEXT_PUBLIC_LEGACY_HTTP_ORIGIN` | ✓ nếu Auth/session dùng host đó | URL gốc HTTP (Settings → API); hoặc alias trong `.env.example` |
+| Biến anon/public JWT (dashboard Auth cũ, nếu còn dùng) | ✓ cùng lúc với URL trên | Tuỳ stack — xem `.env.example` |
+| `LEGACY_HTTP_SERVICE_ROLE_KEY` | ✓ nếu cần server gọi Auth / HTTP API cũ | Service role (chỉ server); alias trong `.env.example` |
 | `GOOGLE_API_KEY` | ✓ | Từ Google AI Studio |
 | `VISION_CREDENTIALS_PATH` | ✓ | Đường dẫn file GCP credentials (thử đồ, hoán đổi mặt) |
 | `AUTH_DEV_USER_ID` | ✓ | UUID user test khi bypass đăng nhập |

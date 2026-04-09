@@ -1,5 +1,7 @@
 'use client'
 
+import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
+
 import { useState, useRef, useEffect } from 'react'
 import { cn } from '@/lib/utils'
 import { Maximize2, X } from 'lucide-react'
@@ -126,13 +128,7 @@ export function CompareSlider({ before, after, beforeLabel = 'Trước', afterLa
 
   useEffect(() => {
     const syncLocale = () => {
-      const cookieValue = document.cookie
-        .split(';')
-        .map((x) => x.trim())
-        .find((x) => x.startsWith('nanoai_locale='))
-        ?.split('=')[1]
-        ?.trim()
-        .toLowerCase()
+      const cookieValue = readWebLocaleFromDocumentCookie()
       if (cookieValue === 'en' || cookieValue === 'zh' || cookieValue === 'ja' || cookieValue === 'ko') setUiLocale(cookieValue)
       else setUiLocale('vi')
     }

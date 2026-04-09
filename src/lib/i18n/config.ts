@@ -13,7 +13,19 @@ export const LEARNING_LOCALES = ['vi', 'en', 'zh', 'ja', 'ko', 'th', 'hi'] as co
 export type LearningLocale = (typeof LEARNING_LOCALES)[number]
 
 export const DEFAULT_WEB_LOCALE: WebLocale = 'vi'
-export const LOCALE_COOKIE_NAME = 'nanoai_locale'
+/** Cookie chính (ưu tiên). Legacy `nanoai_locale` vẫn được ghi/đọc song song. */
+export const LOCALE_COOKIE_NAME = 'app_web_locale'
+export const LOCALE_COOKIE_NAME_LEGACY = 'nanoai_locale'
+
+/** Đọc locale từ `cookies()` (server / route handlers). */
+export function resolveWebLocaleFromCookieStore(cookieStore: {
+  get: (name: string) => { value?: string } | undefined
+}): WebLocale {
+  const fromNew = normalizeWebLocale(cookieStore.get(LOCALE_COOKIE_NAME)?.value)
+  if (fromNew) return fromNew
+  const fromLegacy = normalizeWebLocale(cookieStore.get(LOCALE_COOKIE_NAME_LEGACY)?.value)
+  return fromLegacy ?? DEFAULT_WEB_LOCALE
+}
 
 export function normalizeWebLocale(raw: string | undefined | null): WebLocale | null {
   const value = String(raw || '').trim().toLowerCase()

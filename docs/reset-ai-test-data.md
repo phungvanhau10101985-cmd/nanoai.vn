@@ -7,7 +7,7 @@ Script xóa dữ liệu do AI tạo ra để test lại, **giữ nguyên** dữ 
 | Mục đích | File | Chạy |
 |----------|------|------|
 | **Chỉ giáo trình + phiếu + slide** | `scripts/reset-curriculum-worksheet-data.sql` | SQL Editor / `psql` trên Postgres |
-| **Toàn bộ AI** (exam, worksheet, language coach, music, try_on...) | `supabase/scripts/reset-ai-test-data.sql` | SQL Editor / `psql` trên Postgres |
+| **Toàn bộ AI** (exam, worksheet, language coach, music, try_on...) | `db/scripts/reset-ai-test-data.sql` | SQL Editor / `psql` trên Postgres |
 | **Chỉ language coach** | `npm run reset-db:language-coach` | Node.js (cần .env.local) |
 
 ## Cách chạy (SQL)

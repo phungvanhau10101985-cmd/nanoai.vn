@@ -1,6 +1,7 @@
 /**
- * Cấu hình REST cho URL dạng `{origin}/storage/v1/object/...` (S3-compatible Storage HTTP API).
- * Ưu tiên `STORAGE_LEGACY_*` / `NEXT_PUBLIC_STORAGE_LEGACY_*`; nếu thiếu, đọc cặp URL + service key theo convention biến cũ trong `.env`.
+ * Cấu hình REST cho URL dạng `{origin}/storage/v1/object/...` (bucket/object HTTP API cũ).
+ * Ưu tiên `STORAGE_LEGACY_*` / `NEXT_PUBLIC_STORAGE_LEGACY_*`, rồi `NEXT_PUBLIC_LEGACY_HTTP_ORIGIN` + `LEGACY_HTTP_SERVICE_ROLE_KEY`;
+ * thêm các biến alias trong `.env.example` nếu chưa migrate tên env.
  */
 
 function trimOrigin(url: string): string {
@@ -12,6 +13,7 @@ export function getStorageLegacyRestOrigin(): string {
   return trimOrigin(
     process.env.NEXT_PUBLIC_STORAGE_LEGACY_REST_ORIGIN?.trim() ||
       process.env.STORAGE_LEGACY_REST_ORIGIN?.trim() ||
+      process.env.NEXT_PUBLIC_LEGACY_HTTP_ORIGIN?.trim() ||
       process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() ||
       ''
   )
@@ -21,6 +23,7 @@ export function getStorageLegacyRestOrigin(): string {
 export function getStorageLegacyServiceKey(): string {
   return (
     process.env.STORAGE_LEGACY_SERVICE_KEY?.trim() ||
+    process.env.LEGACY_HTTP_SERVICE_ROLE_KEY?.trim() ||
     process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ||
     ''
   )

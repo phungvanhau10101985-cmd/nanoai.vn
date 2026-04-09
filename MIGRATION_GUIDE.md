@@ -12,7 +12,7 @@ Tạo query mới (hoặc `psql` và dán SQL).
 
 Copy toàn bộ SQL dưới đây, paste và chạy (**Run** / Enter tùy client):
 
-*(Khuyến nghị lâu dài: đưa DDL vào file trong `supabase/migrations/` và áp dụng theo quy trình migration của team thay vì chỉ paste tay.)*
+*(Khuyến nghị lâu dài: đưa DDL vào file trong `db/migrations/` và áp dụng theo quy trình migration của team thay vì chỉ paste tay.)*
 
 ```sql
 -- Tạo bảng lưu thông tin giao dịch thanh toán

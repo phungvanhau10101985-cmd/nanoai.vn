@@ -22,6 +22,7 @@ import { fetchSchoolByIdPg } from '@/lib/db/schools-repo'
 import {
   DEFAULT_WEB_LOCALE,
   LOCALE_COOKIE_NAME,
+  LOCALE_COOKIE_NAME_LEGACY,
   normalizeWebLocale,
   type WebLocale,
 } from '@/lib/i18n/config'
@@ -193,9 +194,10 @@ export async function POST(req: NextRequest) {
     )
     if (localeFromBody) titleLocale = localeFromBody
     else {
-      const localeFromCookie = normalizeWebLocale(
-        cookies().get(LOCALE_COOKIE_NAME)?.value
-      )
+      const cs = cookies()
+      const localeFromCookie =
+        normalizeWebLocale(cs.get(LOCALE_COOKIE_NAME)?.value)
+        ?? normalizeWebLocale(cs.get(LOCALE_COOKIE_NAME_LEGACY)?.value)
       if (localeFromCookie) titleLocale = localeFromCookie
     }
     const titleFromBody = String(body?.title ?? '').trim()

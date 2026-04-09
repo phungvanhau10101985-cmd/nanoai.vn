@@ -76,7 +76,7 @@ export function AdminIntegrationsClient(props: Props) {
       setFacebookPixelId(res.data.facebookPixelId)
       setWebConsoleVerificationTag(res.data.webConsoleVerificationTag)
       setDomainVerificationTags(res.data.domainVerificationTags || [])
-      setNanoaiEmbedCode(res.data.nanoaiEmbedCode)
+      setNanoaiEmbedCode(res.data.chatEmbedCode)
       setFacebookChatEmbedCode(res.data.facebookChatEmbedCode)
       setZaloChatEmbedCode(res.data.zaloChatEmbedCode)
     })
@@ -109,6 +109,7 @@ export function AdminIntegrationsClient(props: Props) {
           facebookPixelId,
           webConsoleVerificationTag,
           domainVerificationTags,
+          chatEmbedCode: nanoaiEmbedCode,
           nanoaiEmbedCode,
           facebookChatEmbedCode,
           zaloChatEmbedCode,

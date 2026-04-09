@@ -9,14 +9,14 @@
 ## Triển khai DB
 
 ```bash
-npm run db:push
+npm run db:migrate:push
 ```
 
-Migration: `supabase/migrations/20260327000000_worksheet_verify_batch_reports.sql` (bảng + RPC `get_worksheet_ids_pending_verify` – chỉ `service_role` gọi được).
+Migration: `db/migrations/20260327000000_worksheet_verify_batch_reports.sql` (bảng + RPC `get_worksheet_ids_pending_verify` – chỉ `service_role` gọi được).
 
 ## Cấu hình
 
-- **`SUPABASE_SERVICE_ROLE_KEY`**: bắt buộc cho API admin batch; **cũng nên có** cho `/api/worksheet-verify-background` vì bảng `worksheet_questions` chỉ có RLS UPDATE cho `user_id = auth.uid()` — verify phiếu của người khác hoặc ghi `verified_at` ổn định cần service role trên server.
+- **`LEGACY_HTTP_SERVICE_ROLE_KEY`** (hoặc alias trong `.env.example`): bắt buộc cho API admin batch; **cũng nên có** cho `/api/worksheet-verify-background` vì bảng `worksheet_questions` chỉ có RLS UPDATE cho `user_id = auth.uid()` — verify phiếu của người khác hoặc ghi `verified_at` ổn định cần service role trên server.
 - **`GOOGLE_API_KEY`**: bắt buộc cho bước gọi Gemini khi verify.
 - **`ADMIN_WORKSHEET_VERIFY_CRON_SECRET`** (tùy chọn): bí mật cho cron tự động.
 

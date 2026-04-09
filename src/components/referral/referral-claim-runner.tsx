@@ -3,9 +3,12 @@
 import { useEffect, useRef } from 'react'
 import { getClientUserId } from '@/lib/auth/get-client-user-id'
 import { useToast } from '@/hooks/use-toast'
-import { REFERRAL_STORAGE_KEY, parseReferrerUuid } from '@/lib/referral'
+import {
+  clearReferrerFromLocalStorage,
+  readReferrerIdFromLocalStorage,
+} from '@/lib/referral'
 import { getDictionary } from '@/lib/i18n/dictionaries'
-import { DEFAULT_WEB_LOCALE, type WebLocale } from '@/lib/i18n/config'
+import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
 
 const SILENT_RPC_ERRORS = new Set([
   'already_claimed',
@@ -16,21 +19,6 @@ const SILENT_RPC_ERRORS = new Set([
   'not_authenticated',
   'self_referral',
 ])
-
-function localeFromCookie(): WebLocale {
-  if (typeof document === 'undefined') return DEFAULT_WEB_LOCALE
-  const cookieValue = document.cookie
-    .split(';')
-    .map((x) => x.trim())
-    .find((x) => x.startsWith('nanoai_locale='))
-    ?.split('=')[1]
-    ?.trim()
-    .toLowerCase()
-  if (cookieValue === 'en' || cookieValue === 'zh' || cookieValue === 'ja' || cookieValue === 'ko') {
-    return cookieValue
-  }
-  return 'vi'
-}
 
 /**
  * Sau khi đăng nhập: nếu có mã mời trong localStorage thì gọi API claim (một lần / phiên).
@@ -46,30 +34,20 @@ export function ReferralClaimRunner() {
 
     const run = async () => {
       if (inFlightRef.current) return
-      let inviterRaw: string | null = null
-      try {
-        inviterRaw = localStorage.getItem(REFERRAL_STORAGE_KEY)
-      } catch {
-        return
-      }
-      const inviterId = parseReferrerUuid(inviterRaw)
+      const inviterId = readReferrerIdFromLocalStorage()
       if (!inviterId) return
 
       const uid = await getClientUserId()
       if (!uid) return
 
       if (uid === inviterId) {
-        try {
-          localStorage.removeItem(REFERRAL_STORAGE_KEY)
-        } catch {
-          /* ignore */
-        }
+        clearReferrerFromLocalStorage()
         return
       }
 
       inFlightRef.current = true
 
-      const locale = localeFromCookie()
+      const locale = readWebLocaleFromDocumentCookie()
       const t = getDictionary(locale).referral
 
       try {
@@ -81,13 +59,7 @@ export function ReferralClaimRunner() {
         const json = (await res.json().catch(() => ({}))) as Record<string, unknown>
 
         const clearRef = res.ok || (res.status >= 400 && res.status < 500 && res.status !== 401)
-        if (clearRef) {
-          try {
-            localStorage.removeItem(REFERRAL_STORAGE_KEY)
-          } catch {
-            /* ignore */
-          }
-        }
+        if (clearRef) clearReferrerFromLocalStorage()
         if (!res.ok && res.status >= 500) {
           return
         }

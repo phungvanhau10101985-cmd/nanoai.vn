@@ -106,7 +106,7 @@ export function PartnerDevIntegrationGuide({ baseUrl, t, partners, labels }: Pro
   var CONFIG = {
     chatUrl: "${hostedUrl}",
     logoUrl: "${baseUrl}/icons/icon-192x192.png",
-    widgetId: "nanoai-chat-widget-v1",
+    widgetId: "app-chat-widget-v1",
     side: "${embedSide}",
     zIndex: 2147483000,
     desktop: {

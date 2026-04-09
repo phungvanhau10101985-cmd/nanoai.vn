@@ -7,7 +7,7 @@
  * (worksheet, slide share/quiz, xây nhà, job worksheet, báo cáo verify, inventory chat, sgk_image_urls…).
  *
  * DB: DATABASE_URL (Postgres).
- * Tải/xóa object nguồn (Storage REST legacy): STORAGE_LEGACY_* hoặc NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY.
+ * Tải/xóa object nguồn (Storage REST cũ): STORAGE_LEGACY_* hoặc cặp URL + service role (xem `.env.example`).
  * Bunny: BUNNY_STORAGE_ZONE, BUNNY_STORAGE_API_KEY, BUNNY_STORAGE_PUBLIC_BASE_URL
  *
  *   npx tsx scripts/backfill-try-on-legacy-to-bunny.ts
@@ -335,7 +335,7 @@ async function main() {
   }
   if (!getStorageLegacyRestConfig()) {
     console.error(
-      'Thiếu cấu hình Storage REST nguồn: STORAGE_LEGACY_REST_ORIGIN + STORAGE_LEGACY_SERVICE_KEY (hoặc NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY).'
+      'Thiếu cấu hình Storage REST nguồn (STORAGE_LEGACY_* hoặc NEXT_PUBLIC_LEGACY_HTTP_ORIGIN + LEGACY_HTTP_SERVICE_ROLE_KEY — xem .env.example).'
     )
     process.exit(1)
   }

@@ -4,7 +4,7 @@ Các file ở đây phục vụ **migration source** khi gỡ SDK/hosted client 
 
 | File | Mục đích |
 |------|----------|
-| `migrate-service-role-clients.mjs` | One-off cũ: pattern thay import `service-role` / `createClient` (thư mục `@/lib/supabase` đã xóa). |
+| `migrate-service-role-clients.mjs` | One-off cũ: pattern thay import `service-role` / `createClient` (module hosted cũ đã gỡ). |
 | `cleanup-orphan-legacy-sdk-imports.mjs` | Xóa import orphan từ package npm cũ (regex theo tên module). |
 
 Chạy từ thư mục gốc repo: `node scripts/legacy/<file>.mjs`.

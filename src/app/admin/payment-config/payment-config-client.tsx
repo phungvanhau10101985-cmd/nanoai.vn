@@ -26,7 +26,8 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/hooks/use-toast'
-import { LOCALE_COOKIE_NAME, type WebLocale } from '@/lib/i18n/config'
+import type { WebLocale } from '@/lib/i18n/config'
+import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
 import { Loader2, Pencil, Plus, Trash2 } from 'lucide-react'
 import {
   deletePaymentConfigAction,
@@ -39,16 +40,7 @@ const DEFAULT_QR =
   'https://qr.sepay.vn/img?acc={bank_acc}&bank={bank_id}&amount={amount}&des={content}'
 
 function readUiLocaleFromCookie(): WebLocale {
-  if (typeof document === 'undefined') return 'vi'
-  const raw = document.cookie
-    .split(';')
-    .map((x) => x.trim())
-    .find((x) => x.startsWith(`${LOCALE_COOKIE_NAME}=`))
-    ?.split('=')[1]
-    ?.trim()
-    .toLowerCase()
-  if (raw === 'en' || raw === 'zh' || raw === 'ja' || raw === 'ko') return raw
-  return 'vi'
+  return readWebLocaleFromDocumentCookie()
 }
 
 export function PaymentConfigClient({ initialLocale }: { initialLocale: WebLocale }) {

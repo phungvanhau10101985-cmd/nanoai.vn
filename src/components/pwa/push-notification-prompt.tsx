@@ -5,7 +5,7 @@ import { getClientUserId } from '@/lib/auth/get-client-user-id'
 import { Button } from '@/components/ui/button'
 import { X } from 'lucide-react'
 import { getDictionary } from '@/lib/i18n/dictionaries'
-import { DEFAULT_WEB_LOCALE, type WebLocale } from '@/lib/i18n/config'
+import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
 import {
   getPushVapidPublicKey,
   requestPushPermissionAndSubscribe,
@@ -13,21 +13,27 @@ import {
   syncPushSubscriptionWithServer,
 } from '@/lib/pwa/push-subscribe-client'
 
-const DISMISS_KEY = 'nanoai_push_prompt_dismiss'
+const PUSH_PROMPT_DISMISS_KEY = 'app_push_prompt_dismiss'
+const PUSH_PROMPT_DISMISS_KEY_LEGACY = 'nanoai_push_prompt_dismiss'
 
-function localeFromCookie(): WebLocale {
-  if (typeof document === 'undefined') return DEFAULT_WEB_LOCALE
-  const cookieValue = document.cookie
-    .split(';')
-    .map((x) => x.trim())
-    .find((x) => x.startsWith('nanoai_locale='))
-    ?.split('=')[1]
-    ?.trim()
-    .toLowerCase()
-  if (cookieValue === 'en' || cookieValue === 'zh' || cookieValue === 'ja' || cookieValue === 'ko') {
-    return cookieValue
-  }
-  return 'vi'
+function isPushPromptDismissed(): boolean {
+  if (typeof window === 'undefined') return false
+  return (
+    window.localStorage.getItem(PUSH_PROMPT_DISMISS_KEY) === '1'
+    || window.localStorage.getItem(PUSH_PROMPT_DISMISS_KEY_LEGACY) === '1'
+  )
+}
+
+function setPushPromptDismissed(): void {
+  if (typeof window === 'undefined') return
+  window.localStorage.setItem(PUSH_PROMPT_DISMISS_KEY, '1')
+  window.localStorage.setItem(PUSH_PROMPT_DISMISS_KEY_LEGACY, '1')
+}
+
+function clearPushPromptDismissed(): void {
+  if (typeof window === 'undefined') return
+  window.localStorage.removeItem(PUSH_PROMPT_DISMISS_KEY)
+  window.localStorage.removeItem(PUSH_PROMPT_DISMISS_KEY_LEGACY)
 }
 
 /**
@@ -39,10 +45,10 @@ export function PushNotificationPrompt() {
   const [visible, setVisible] = useState(false)
   const [busy, setBusy] = useState(false)
   const [justEnabled, setJustEnabled] = useState(false)
-  const [pushT, setPushT] = useState(() => getDictionary(localeFromCookie()).push)
+  const [pushT, setPushT] = useState(() => getDictionary(readWebLocaleFromDocumentCookie()).push)
 
   useEffect(() => {
-    const sync = () => setPushT(getDictionary(localeFromCookie()).push)
+    const sync = () => setPushT(getDictionary(readWebLocaleFromDocumentCookie()).push)
     sync()
     const t = window.setInterval(sync, 1500)
     window.addEventListener('focus', sync)
@@ -72,7 +78,7 @@ export function PushNotificationPrompt() {
         return
       }
       if (Notification.permission === 'denied') return
-      if (localStorage.getItem(DISMISS_KEY) === '1') return
+      if (isPushPromptDismissed()) return
       if (!shouldOfferPushInstallUi()) return
 
       if (mountedRef.current) setVisible(true)
@@ -112,7 +118,7 @@ export function PushNotificationPrompt() {
       const synced = await requestPushPermissionAndSubscribe(vapidPublic)
       if (!synced) return
       setJustEnabled(true)
-      localStorage.removeItem(DISMISS_KEY)
+      clearPushPromptDismissed()
       window.setTimeout(() => {
         setVisible(false)
         setJustEnabled(false)
@@ -123,7 +129,7 @@ export function PushNotificationPrompt() {
   }
 
   const handleLater = () => {
-    localStorage.setItem(DISMISS_KEY, '1')
+    setPushPromptDismissed()
     setVisible(false)
   }
 

@@ -1,5 +1,7 @@
 'use client'
 
+import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
+
 import { useState, useEffect, useRef, type ChangeEvent } from 'react'
 import * as XLSX from 'xlsx'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -110,13 +112,7 @@ type UiLocale = 'vi' | 'en' | 'zh' | 'ja' | 'ko'
 
 function getWebLocaleFromCookie(): UiLocale {
   if (typeof document === 'undefined') return 'vi'
-  const cookieValue = document.cookie
-    .split(';')
-    .map((x) => x.trim())
-    .find((x) => x.startsWith('nanoai_locale='))
-    ?.split('=')[1]
-    ?.trim()
-    .toLowerCase()
+  const cookieValue = readWebLocaleFromDocumentCookie()
   if (cookieValue === 'en' || cookieValue === 'zh' || cookieValue === 'ja' || cookieValue === 'ko') return cookieValue
   return 'vi'
 }
@@ -2182,11 +2178,11 @@ export default function ThietKeBaoBiClientPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <div className="space-y-1">
                     <label className="text-xs text-muted-foreground">{tr('Website', 'Website', '网站', 'ウェブサイト', '웹사이트')}{opt}</label>
-                    <Input placeholder="VD: www.nanoai.vn" value={website} onChange={(e) => setWebsite(e.target.value)} />
+                    <Input placeholder="VD: www.example.com" value={website} onChange={(e) => setWebsite(e.target.value)} />
                   </div>
                   <div className="space-y-1">
                     <label className="text-xs text-muted-foreground">{tr('Email', 'Email', '邮箱', 'メール', '이메일')}{opt}</label>
-                    <Input placeholder="VD: contact@nanoai.vn" value={email} onChange={(e) => setEmail(e.target.value)} />
+                    <Input placeholder="VD: contact@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
                   </div>
                   <div className="space-y-1">
                     <label className="text-xs text-muted-foreground">{tr('Hotline / SĐT', 'Hotline / Phone', '热线/电话', 'ホットライン', '홀라인/전화')}{opt}</label>
@@ -2214,7 +2210,7 @@ export default function ThietKeBaoBiClientPage() {
                   </div>
                   <div className="space-y-1 sm:col-span-2">
                     <label className="text-xs text-muted-foreground">{tr('Link mạng xã hội', 'Social media links', '社交媒体', 'SNS', '소셜 미디어')}{opt}</label>
-                    <Input placeholder="VD: facebook.com/nanoai | instagram.com/nanoai" value={socialLinks} onChange={(e) => setSocialLinks(e.target.value)} />
+                    <Input placeholder="VD: facebook.com/ten-trang | instagram.com/ten-trang" value={socialLinks} onChange={(e) => setSocialLinks(e.target.value)} />
                   </div>
                 </div>
               </div>
@@ -2697,11 +2693,11 @@ export default function ThietKeBaoBiClientPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <div className="space-y-1">
                     <label className="text-xs text-muted-foreground">{tr('Website', 'Website', '网站', 'ウェブサイト', '웹사이트')}{opt}</label>
-                    <Input placeholder="www.nanoai.vn" value={website} onChange={(e) => setWebsite(e.target.value)} />
+                    <Input placeholder="www.example.com" value={website} onChange={(e) => setWebsite(e.target.value)} />
                   </div>
                   <div className="space-y-1">
                     <label className="text-xs text-muted-foreground">{tr('Email', 'Email', '邮箱', 'メール', '이메일')}{opt}</label>
-                    <Input placeholder="contact@nanoai.vn" value={email} onChange={(e) => setEmail(e.target.value)} />
+                    <Input placeholder="contact@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
                   </div>
                   <div className="space-y-1">
                     <label className="text-xs text-muted-foreground">{tr('Hotline', 'Hotline', '热线', 'ホットライン', '홀라인')}{opt}</label>

@@ -13,7 +13,7 @@ set -euo pipefail
 #   DEPLOY_REBOOT_VPS=1  Sau khi deploy OK: reboot cả VPS (SSH sẽ ngắt; cần pm2 startup)
 #
 # Lưu ý (không tự chạy trong script này):
-# - Migration Supabase: messaging_partner_ai_* (xem supabase/migrations/)
+# - Migration DB: messaging_partner_ai_* (xem db/migrations/)
 # - Partner AI cron: MESSAGING_PARTNER_AI_CRON_SECRET + crontab gọi GET/POST /api/cron/messaging-partner-ai
 
 APP_DIR="/var/www/Thu-do-online"

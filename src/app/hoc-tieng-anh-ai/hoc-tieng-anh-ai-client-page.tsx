@@ -1,4 +1,6 @@
 'use client'
+
+import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
 /* eslint-disable @typescript-eslint/no-unused-vars -- nhiều state/helper dự phòng; dọn dần khi refactor */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -9,6 +11,11 @@ import { Input } from '@/components/ui/input'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
 import { getClientUserId } from '@/lib/auth/get-client-user-id'
+import {
+  clearWritingTaskProgressLocal,
+  getWritingTaskProgressLocal,
+  setWritingTaskProgressLocal,
+} from '@/lib/english-coach/writing-task-progress-storage'
 import { Loader2, Mic, MicOff, Minus, Plus, Send, Languages, Volume2, Play, RotateCcw, Trash2, Navigation, X } from 'lucide-react'
 import { WordPracticeOverlay } from './components/word-practice-overlay'
 import { PreLessonReviewOverlay } from './components/pre-lesson-review-overlay'
@@ -1399,13 +1406,7 @@ function detectNativeLanguageFromBrowser(): NativeLanguageCode {
 
 function getWebLocaleFromCookie(): UiLocale | null {
   if (typeof document === 'undefined') return null
-  const cookieValue = document.cookie
-    .split(';')
-    .map((x) => x.trim())
-    .find((x) => x.startsWith('nanoai_locale='))
-    ?.split('=')[1]
-    ?.trim()
-    .toLowerCase()
+  const cookieValue = readWebLocaleFromDocumentCookie()
   if (!cookieValue) return null
   if (cookieValue === 'vi' || cookieValue === 'en' || cookieValue === 'zh' || cookieValue === 'ja' || cookieValue === 'ko') {
     return cookieValue
@@ -2910,8 +2911,6 @@ export default function HocTiengAnhAiClientPage() {
     return () => window.removeEventListener('pagehide', onPageHide)
   }, [sessionId, learningMode])
 
-  const getWritingTaskProgressStorageKey = useCallback((sid: string) => `nanoai_writing_task_progress:${sid}`, [])
-
   const redirectToMiniDrill = useCallback(() => {
     if (String(reviewDrillStage) === 'writing') {
       writingTaskRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
@@ -3685,14 +3684,13 @@ export default function HocTiengAnhAiClientPage() {
 
   useEffect(() => {
     if (typeof window === 'undefined' || !sessionId) return
-    const key = getWritingTaskProgressStorageKey(sessionId)
     if (!writingTask) {
-      window.localStorage.removeItem(key)
+      clearWritingTaskProgressLocal(sessionId)
       return
     }
     try {
-      window.localStorage.setItem(
-        key,
+      setWritingTaskProgressLocal(
+        sessionId,
         JSON.stringify({
           messageId: writingTask.messageId,
           requiredSentences: writingTask.requiredSentences,
@@ -3707,7 +3705,7 @@ export default function HocTiengAnhAiClientPage() {
     } catch {
       // ignore localStorage failures
     }
-  }, [writingTask, sessionId, getWritingTaskProgressStorageKey])
+  }, [writingTask, sessionId])
 
   useEffect(() => {
     return () => {
@@ -5737,8 +5735,7 @@ export default function HocTiengAnhAiClientPage() {
       }
       if (loadedLearningMode !== 'reflex' && lastTeacherItem) {
         try {
-          const key = getWritingTaskProgressStorageKey(targetSessionId)
-          const raw = typeof window !== 'undefined' ? window.localStorage.getItem(key) : null
+          const raw = typeof window !== 'undefined' ? getWritingTaskProgressLocal(targetSessionId) : null
           if (raw) {
             const localTask = JSON.parse(raw) as {
               messageId?: string

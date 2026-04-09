@@ -1,5 +1,7 @@
 'use client'
 
+import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
+
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createPortal } from 'react-dom'
@@ -29,6 +31,7 @@ import {
 } from '@/app/tao-giao-trinh/lib/worksheet-answer-segments'
 import { createPresentationSyncId, getPresentationBroadcastChannelName } from '../lib/presentation-broadcast'
 import { getStudentSlideWindowConfig, isPathMatchingStudentSlideKind, studentSlideUrlWithSync } from '../lib/student-slide-window'
+import { TEACHER_SLIDE_WINDOW_TARGET_NAME } from '@/lib/tao-giao-trinh/teacher-slide-window'
 import { QuizPopupDialog } from '../components/quiz-popup-dialog'
 import { getSlideProposalsForCurriculum, resetPersonalToOriginal, saveSlidesToCurriculum, saveUserCustomizedSlides, saveWorksheetContent } from '../actions'
 import { parseWorksheetIntoBlocks, replaceBlockInMarkdown } from '../lib/worksheet-parse-questions'
@@ -554,13 +557,7 @@ function getVisualCellsForPresentation(
 type UiLocale = 'vi' | 'en' | 'zh' | 'ja' | 'ko'
 function getWebLocaleFromCookie(): UiLocale {
   if (typeof document === 'undefined') return 'vi'
-  const cookieValue = document.cookie
-    .split(';')
-    .map((x) => x.trim())
-    .find((x) => x.startsWith('nanoai_locale='))
-    ?.split('=')[1]
-    ?.trim()
-    .toLowerCase()
+  const cookieValue = readWebLocaleFromDocumentCookie()
   if (cookieValue === 'en' || cookieValue === 'zh' || cookieValue === 'ja' || cookieValue === 'ko') return cookieValue
   return 'vi'
 }
@@ -1267,7 +1264,7 @@ export default function CurriculumViewPage() {
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      window.name = 'nanoai-teacher-view'
+      window.name = TEACHER_SLIDE_WINDOW_TARGET_NAME
     }
   }, [])
 

@@ -1,5 +1,7 @@
 'use client'
 
+import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
+
 import { useState, useRef, ChangeEvent, useEffect, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -20,13 +22,7 @@ type UiLocale = 'vi' | 'en' | 'zh' | 'ja' | 'ko'
 
 function getWebLocaleFromCookie(): UiLocale {
   if (typeof document === 'undefined') return 'vi'
-  const cookieValue = document.cookie
-    .split(';')
-    .map((x) => x.trim())
-    .find((x) => x.startsWith('nanoai_locale='))
-    ?.split('=')[1]
-    ?.trim()
-    .toLowerCase()
+  const cookieValue = readWebLocaleFromDocumentCookie()
   if (cookieValue === 'en' || cookieValue === 'zh' || cookieValue === 'ja' || cookieValue === 'ko') return cookieValue
   return 'vi'
 }

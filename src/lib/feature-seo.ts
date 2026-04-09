@@ -716,7 +716,7 @@ const FEATURE_SEO_DATA: Record<string, FeatureSeoData> = {
     pageDescription:
       'Gemini Flash sinh lời theo từng đoạn bạn chọn; clip đầu từ ảnh (~8s), các đoạn sau Veo extend nối tiếp — mỗi bước một prompt kèm lời đoạn đó. Một file MP4 liền (hoặc thử một clip đầu).',
     path: '/flow-nhac-video-veo',
-    keywords: ['video âm nhạc ai', 'gemini flash', 'veo', 'veo extend', 'lyrics', 'image to video', 'nanoai'],
+    keywords: ['video âm nhạc ai', 'gemini flash', 'veo', 'veo extend', 'lyrics', 'image to video', 'ai video'],
     serviceName: 'Video âm nhạc AI (Flash + Veo)',
     serviceDescription:
       'Lời (Flash, JSON theo N đoạn) → phong cách kiểu Lyria có lời → Veo: tạo đầu từ ảnh rồi kéo dài nối tiếp; giải thích 1 ảnh khung đầu vs 2–3 ảnh tham chiếu.',
@@ -751,7 +751,7 @@ const FEATURE_SEO_DATA: Record<string, FeatureSeoData> = {
       'biên bản họp ai',
       'meeting minutes ai',
       'transcript meeting',
-      'nanoai',
+      'biên bản họp online',
     ],
     serviceName: 'Ghi âm cuộc họp và báo cáo AI',
     serviceDescription: 'Ghi âm micro, lưu tên cuộc họp; tạo phiên âm và biên bản có cấu trúc khi bạn yêu cầu.',

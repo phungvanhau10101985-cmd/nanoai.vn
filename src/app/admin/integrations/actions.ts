@@ -22,6 +22,8 @@ type IntegrationSettings = {
   facebookPixelId: string
   webConsoleVerificationTag: string
   domainVerificationTags: DomainVerificationTag[]
+  chatEmbedCode: string
+  /** Ghi song song để JSON cũ vẫn có khóa quen thuộc. */
   nanoaiEmbedCode: string
   facebookChatEmbedCode: string
   zaloChatEmbedCode: string
@@ -53,13 +55,19 @@ function sanitizeSettings(input: Partial<IntegrationSettings>, fallbackEmbedCode
     }))
     .filter((row) => row.name || row.code)
 
+  const embed =
+    String(
+      (input as { chatEmbedCode?: string }).chatEmbedCode || input.nanoaiEmbedCode || ''
+    ).trim() || fallbackEmbedCode
+
   return {
     googleAnalyticsId,
     googleTagManagerId,
     facebookPixelId: String(input.facebookPixelId || '').trim(),
     webConsoleVerificationTag: String(input.webConsoleVerificationTag || '').trim(),
     domainVerificationTags,
-    nanoaiEmbedCode: String(input.nanoaiEmbedCode || '').trim() || fallbackEmbedCode,
+    chatEmbedCode: embed,
+    nanoaiEmbedCode: embed,
     facebookChatEmbedCode: String(input.facebookChatEmbedCode || '').trim(),
     zaloChatEmbedCode: String(input.zaloChatEmbedCode || '').trim(),
   }

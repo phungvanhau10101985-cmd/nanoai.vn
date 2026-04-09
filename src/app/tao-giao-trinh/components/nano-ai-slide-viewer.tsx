@@ -30,6 +30,7 @@ import {
 } from '../lib/default-visual-image'
 import { createPresentationSyncId, getPresentationBroadcastChannelName, LEGACY_PRESENTATION_BROADCAST_CHANNEL } from '../lib/presentation-broadcast'
 import { getStudentSlideWindowConfig, isPathMatchingStudentSlideKind, studentSlideUrlWithSync, STUDENT_WINDOW_NAME_CURRICULUM, STUDENT_WINDOW_NAME_WORKSHEET } from '../lib/student-slide-window'
+import { TEACHER_SLIDE_WINDOW_TARGET_NAME } from '@/lib/tao-giao-trinh/teacher-slide-window'
 
 /** Phát tiếng chuông khi hết giờ (đồng hồ cát học sinh) */
 function playTimerEndBell() {
@@ -1708,7 +1709,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     if (typeof window === 'undefined') return
     // Ưu tiên window name cố định để browser xử lý focus ổn định hơn.
     try {
-      const namedRef = window.open('', 'nanoai-teacher-view')
+      const namedRef = window.open('', TEACHER_SLIDE_WINDOW_TARGET_NAME)
       if (namedRef) {
         try {
           namedRef.postMessage({ type: 'request-curriculum' }, window.location.origin)

@@ -1,6 +1,6 @@
 import { getStorageLegacyRestOrigin } from '@/lib/storage/storage-legacy-rest-config'
 
-/** Bucket storage legacy — phải trùng migration `20260327100000_exam_essay_submission_storage.sql`. */
+/** Bucket storage legacy — phải trùng migration `db/migrations/20260327100000_exam_essay_submission_storage.sql`. */
 export const EXAM_ESSAY_IMAGES_BUCKET = 'exam-essay-images' as const
 
 const LEGACY_EXAM_ESSAY_PUBLIC_PATH_MARKER = `/storage/v1/object/public/${EXAM_ESSAY_IMAGES_BUCKET}/`

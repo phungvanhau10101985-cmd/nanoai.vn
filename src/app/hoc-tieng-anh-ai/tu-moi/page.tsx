@@ -9,7 +9,7 @@ export const metadata: Metadata = buildMetadata({
   description:
     'Xem tất cả từ mới bạn đã lưu từ các buổi học Live AI và bài học có sẵn.',
   path: '/hoc-tieng-anh-ai/tu-moi',
-  keywords: ['từ mới', 'danh sách từ vựng', 'học ngoại ngữ', 'nanoai'],
+  keywords: ['từ mới', 'danh sách từ vựng', 'học ngoại ngữ', 'từ vựng tiếng anh'],
 })
 
 export default function TuMoiPage() {
