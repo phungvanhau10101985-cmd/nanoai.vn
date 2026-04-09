@@ -2,6 +2,7 @@ import { createHash } from 'crypto'
 import { NextResponse } from 'next/server'
 import { EMAIL_SESSION_COOKIE, EMAIL_SESSION_COOKIE_LEGACY, isEmailAuthEnabled } from '@/lib/auth/email-auth-config'
 import { createEmailSessionTokenString, getEmailSessionCookieOptions } from '@/lib/auth/email-session-token'
+import { getPublicAppUrlForServer } from '@/lib/auth/public-app-url'
 import { sanitizeLoginNext } from '@/lib/auth/sanitize-login-next'
 import { isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
@@ -16,13 +17,20 @@ function normalizeEmail(e: string) {
   return e.trim().toLowerCase()
 }
 
+/** Tránh `new URL(path, req.url)` — sau reverse proxy `req.url` thường là 127.0.0.1 → redirect sai domain. */
+function absoluteRedirect(req: Request, pathAndQuery: string): NextResponse {
+  const base = getPublicAppUrlForServer(req).replace(/\/$/, '')
+  const p = pathAndQuery.startsWith('/') ? pathAndQuery : `/${pathAndQuery}`
+  return NextResponse.redirect(`${base}${p}`)
+}
+
 export async function GET(req: Request) {
   try {
     if (!isEmailAuthEnabled()) {
-      return NextResponse.redirect(new URL('/auth/login?error=email_auth_disabled', req.url))
+      return absoluteRedirect(req, '/auth/login?error=email_auth_disabled')
     }
     if (!isPgConfigured()) {
-      return NextResponse.redirect(new URL('/auth/login?error=database', req.url))
+      return absoluteRedirect(req, '/auth/login?error=database')
     }
 
     const url = new URL(req.url)
@@ -32,7 +40,7 @@ export async function GET(req: Request) {
     const next = sanitizeLoginNext(nextRaw)
 
     if (!token || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      return NextResponse.redirect(new URL('/auth/login?error=invalid_link', req.url))
+      return absoluteRedirect(req, '/auth/login?error=invalid_link')
     }
 
     /** Khớp đúng challenge theo token (không chỉ «bản mới nhất») — tránh wrong_link khi gửi OTP nhiều lần. */
@@ -45,7 +53,7 @@ export async function GET(req: Request) {
       [email, tryHash]
     )
     if (!row) {
-      return NextResponse.redirect(new URL('/auth/login?error=expired_or_invalid_link', req.url))
+      return absoluteRedirect(req, '/auth/login?error=expired_or_invalid_link')
     }
 
     const uidRow = await pgQueryOne<{ id: string }>(
@@ -53,17 +61,17 @@ export async function GET(req: Request) {
       [email]
     )
     if (!uidRow?.id) {
-      return NextResponse.redirect(new URL('/auth/login?error=user', req.url))
+      return absoluteRedirect(req, '/auth/login?error=user')
     }
 
     await pgQuery(`update public.nanoai_email_login_challenges set consumed_at = now() where id = $1::uuid`, [row.id])
 
     const jwt = await createEmailSessionTokenString(uidRow.id, email)
     if (!jwt) {
-      return NextResponse.redirect(new URL('/auth/login?error=jwt', req.url))
+      return absoluteRedirect(req, '/auth/login?error=jwt')
     }
 
-    const res = NextResponse.redirect(new URL(next, req.url))
+    const res = absoluteRedirect(req, next)
     const opts = getEmailSessionCookieOptions()
     res.cookies.set(EMAIL_SESSION_COOKIE, jwt, opts)
     res.cookies.set(EMAIL_SESSION_COOKIE_LEGACY, jwt, opts)
@@ -71,9 +79,9 @@ export async function GET(req: Request) {
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     if (msg.includes('auth.instances_empty')) {
-      return NextResponse.redirect(new URL('/auth/login?error=auth_instances', req.url))
+      return absoluteRedirect(req, '/auth/login?error=auth_instances')
     }
     console.error('[auth/email/verify-magic]', msg)
-    return NextResponse.redirect(new URL('/auth/login?error=server', req.url))
+    return absoluteRedirect(req, '/auth/login?error=server')
   }
 }
