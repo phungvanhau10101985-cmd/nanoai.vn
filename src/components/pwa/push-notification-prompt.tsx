@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { getClientUserId } from '@/lib/auth/get-client-user-id'
 import { Button } from '@/components/ui/button'
 import { X } from 'lucide-react'
 import { getDictionary } from '@/lib/i18n/dictionaries'
@@ -60,11 +60,8 @@ export function PushNotificationPrompt() {
     if (process.env.NODE_ENV === 'development') return
     if (!window.isSecureContext) return
 
-    const supabase = createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-    if (!user || !mountedRef.current) return
+    const uid = await getClientUserId()
+    if (!uid || !mountedRef.current) return
 
     try {
       await navigator.serviceWorker.ready

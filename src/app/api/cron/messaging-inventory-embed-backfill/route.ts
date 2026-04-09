@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { fetchActivePartnerInventoryScanRowsFromPg } from '@/lib/db/messaging-partner-inventory-pg'
+import { isPgConfigured } from '@/lib/db/pool'
 import { syncPartnerInventoryEmbeddings } from '@/lib/messaging/partner-inventory-embedding'
-import { createServiceRoleClient } from '@/lib/supabase/service-role'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -41,18 +42,21 @@ async function handleCron(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const db = createServiceRoleClient()
-  const { data: inventoryRows, error: invErr } = await db
-    .from('messaging_partner_inventory')
-    .select('partner_id, updated_at')
-    .eq('is_active', true)
-    .order('updated_at', { ascending: false })
-    .limit(PARTNER_SCAN_ROWS)
-  if (invErr) return NextResponse.json({ error: invErr.message }, { status: 500 })
+  if (!isPgConfigured()) {
+    return NextResponse.json(
+      { error: 'DATABASE_URL not configured — inventory embed cron requires Postgres.' },
+      { status: 503 }
+    )
+  }
+
+  const inventoryRows = await fetchActivePartnerInventoryScanRowsFromPg(PARTNER_SCAN_ROWS)
+  if (inventoryRows === null) {
+    return NextResponse.json({ error: 'Failed to load inventory partners from database.' }, { status: 500 })
+  }
 
   const uniquePartnerIds: string[] = []
   const seen = new Set<string>()
-  for (const row of inventoryRows ?? []) {
+  for (const row of inventoryRows) {
     const pid = String(row.partner_id ?? '').trim()
     if (!pid || seen.has(pid)) continue
     seen.add(pid)
@@ -60,13 +64,20 @@ async function handleCron(req: NextRequest) {
     if (uniquePartnerIds.length >= PARTNERS_PER_RUN) break
   }
 
-  const results: Array<{ partnerId: string; ok: boolean; synced?: number; failed?: number; skipped?: number; error?: string }> = []
+  const results: Array<{
+    partnerId: string
+    ok: boolean
+    synced?: number
+    failed?: number
+    skipped?: number
+    error?: string
+  }> = []
   let totalSynced = 0
   let totalFailed = 0
   let totalSkipped = 0
 
   for (const partnerId of uniquePartnerIds) {
-    const one = await syncPartnerInventoryEmbeddings(db, partnerId, { limit: LIMIT_PER_PARTNER, force: false })
+    const one = await syncPartnerInventoryEmbeddings(partnerId, { limit: LIMIT_PER_PARTNER, force: false })
     if (!one.ok) {
       results.push({ partnerId, ok: false, error: one.error })
       continue

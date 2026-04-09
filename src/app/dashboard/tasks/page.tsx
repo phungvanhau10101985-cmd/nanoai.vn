@@ -1,5 +1,4 @@
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/server'
 import { redirectToLogin } from '@/lib/auth/login-redirect'
 import { getUserOrBypass } from '@/lib/auth'
 import { Button } from '@/components/ui/button'
@@ -21,11 +20,9 @@ export const metadata: Metadata = buildMetadata({
 export default async function DashboardTasksPage() {
   const { t, locale } = getServerDictionary()
   const th = t.taskHub
-  const supabase = createClient()
-  const user = await getUserOrBypass(() => supabase.auth.getUser())
+  const user = await getUserOrBypass()
   if (!user) redirectToLogin()
-
-  const initial = await buildTaskHubSnapshot(supabase, user.id)
+  const initial = await buildTaskHubSnapshot(user.id)
 
   return (
     <div className="app-shell space-y-6 md:space-y-8">

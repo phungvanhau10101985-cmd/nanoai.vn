@@ -1,20 +1,21 @@
-import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Database, Json } from '@/types/database.types'
+import type { Json } from '@/types/database.types'
 import { ensureConversation, insertMessage } from '@/lib/customer-care/conversation-service'
 import { handlePartnerInboundForAi } from '@/lib/messaging/partner-ai-inbound'
 import { geminiProductSearchFromImageBufferViaVectorDb } from '@/lib/messaging/partner-gemini-image-search'
 import {
   buildGuestMediaPayload,
-  guestImageObjectExists,
   guestMediaPayloadToJson,
   inboundTextForPartnerAi,
   isGuestMessagingStoragePathForPartner,
   mimeFromGuestImagePath,
 } from '@/lib/messaging/guest-chat-image'
-import { downloadTryOnObject, getTryOnPublicUrl } from '@/lib/storage/try-on-public-upload'
+import { downloadTryOnObject, getTryOnPublicUrlFromPath, tryOnObjectExistsByPath } from '@/lib/storage/try-on-public-upload'
 import { VISION_PICK_GRACE_AI_DELAY_SECONDS } from '@/lib/messaging/partner-vision-constants'
+import { countInboundMessagesForConversationPg } from '@/lib/db/customer-care-pg'
+import { fetchMessagingPartnerAiEnabledFromPg } from '@/lib/db/messaging-partner-ai-settings-pg'
+import { fetchPartnerInventoryPriceHintsByIdsFromPg } from '@/lib/db/messaging-partner-inventory-pg'
+import { isPgConfigured } from '@/lib/db/pool'
 
-type Db = SupabaseClient<Database>
 const ANONYMOUS_INBOUND_AUTH_THRESHOLD = 5
 type GuestVisionCandidatePayload = {
   inventoryId: string
@@ -27,24 +28,18 @@ type GuestVisionCandidatePayload = {
 
 /**
  * Tin inbound từ khách qua widget (trang hosted NanoAI — bắt buộc đăng nhập; hoặc embed API ẩn danh trên site shop).
- * Cho phép chỉ chữ, chỉ ảnh (đã upload), hoặc ảnh + chú thích.
+ * Cho phép chỉ chữ, chỉ ảnh (đã upload), hoặc ảnh + chú thích. Chỉ Postgres cho đếm/AI settings/giá kho.
  */
-export async function postWidgetGuestMessage(
-  db: Db,
-  params: {
-    partnerId: string
-    /** external_thread_id — hosted NanoAI dùng auth user id; embed dùng UUID phiên ẩn danh */
-    externalThreadId: string
-    /** Liên kết tài khoản Google (hosted); embed để null */
-    linkedUserId?: string | null
-    /** Tài khoản khách xác thực email OTP/magic (không phụ thuộc Google) */
-    guestAccountId?: string | null
-    customerName: string
-    metadata: Json
-    text?: string
-    imageStoragePath?: string
-  }
-): Promise<
+export async function postWidgetGuestMessage(params: {
+  partnerId: string
+  externalThreadId: string
+  linkedUserId?: string | null
+  guestAccountId?: string | null
+  customerName: string
+  metadata: Json
+  text?: string
+  imageStoragePath?: string
+}): Promise<
   | { ok: true; shopTyping?: { maxWaitMs: number }; visionPickRequired?: boolean }
   | { error: string; requireAuth?: boolean }
 > {
@@ -63,23 +58,24 @@ export async function postWidgetGuestMessage(
     if (!isGuestMessagingStoragePathForPartner(imagePath, params.partnerId)) {
       return { error: 'Invalid image path.' }
     }
-    const exists = await guestImageObjectExists(db, imagePath)
+    const exists = await tryOnObjectExistsByPath(imagePath)
     if (!exists) return { error: 'Image not found.' }
     const mime = mimeFromGuestImagePath(imagePath)
-    imagePublicUrl = getTryOnPublicUrl(db, imagePath)
+    imagePublicUrl = getTryOnPublicUrlFromPath(imagePath)
     const basePayload = guestMediaPayloadToJson(buildGuestMediaPayload(imagePublicUrl, imagePath, mime))
 
     try {
-      const { data: aiSet } = await db
-        .from('messaging_partner_ai_settings')
-        .select('enabled')
-        .eq('partner_id', params.partnerId)
-        .maybeSingle()
-      // Hosted guest widget should use internal image similarity even when public API toggle is off.
-      if (aiSet?.enabled) {
-        const buf = await downloadTryOnObject(db, imagePath)
+      let aiEnabled = false
+      if (isPgConfigured()) {
+        const fromPg = await fetchMessagingPartnerAiEnabledFromPg(params.partnerId)
+        if (fromPg !== null) {
+          aiEnabled = fromPg.enabled
+        }
+      }
+      if (aiEnabled) {
+        const buf = await downloadTryOnObject(imagePath)
         if (buf) {
-          const search = await geminiProductSearchFromImageBufferViaVectorDb(db, buf, params.partnerId, {
+          const search = await geminiProductSearchFromImageBufferViaVectorDb(buf, params.partnerId, {
             maxResults: 5,
             userId: params.linkedUserId ?? null,
           })
@@ -91,20 +87,10 @@ export async function postWidgetGuestMessage(
           }
           const candidateIds = search.candidates.map((c) => c.inventoryId)
           const priceById = new Map<string, string>()
-          if (candidateIds.length > 0) {
-            const { data: pricedRows, error: pricedErr } = await db
-              .from('messaging_partner_inventory')
-              .select('id, price_hint')
-              .eq('partner_id', params.partnerId)
-              .in('id', candidateIds)
-            if (pricedErr) {
-              console.error('[widget-guest-post] price lookup error', {
-                partnerId: params.partnerId,
-                error: pricedErr.message,
-              })
-            }
-            for (const r of pricedRows ?? []) {
-              priceById.set(r.id, r.price_hint ?? '')
+          if (candidateIds.length > 0 && isPgConfigured()) {
+            const priceFromPg = await fetchPartnerInventoryPriceHintsByIdsFromPg(params.partnerId, candidateIds)
+            if (priceFromPg !== null) {
+              for (const [id, hint] of priceFromPg) priceById.set(id, hint)
             }
           }
           visionCandidates = search.candidates.map((c) => ({
@@ -139,7 +125,7 @@ export async function postWidgetGuestMessage(
     body = text
   }
 
-  const conv = await ensureConversation(db, {
+  const conv = await ensureConversation({
     partnerId: params.partnerId,
     channel: 'widget',
     externalThreadId: params.externalThreadId,
@@ -151,20 +137,24 @@ export async function postWidgetGuestMessage(
   const conversationId = conv.conversationId
   if (!conversationId) return { error: 'Conversation failed.' }
 
-  // Anonymous guests can chat immediately, then verify email to continue after N inbound messages.
   if (!params.linkedUserId && !params.guestAccountId) {
-    const { count: inboundCount, error: cntErr } = await db
-      .from('customer_care_messages')
-      .select('id', { count: 'exact', head: true })
-      .eq('conversation_id', conversationId)
-      .eq('direction', 'inbound')
-    if (cntErr) return { error: cntErr.message }
-    if ((inboundCount ?? 0) >= ANONYMOUS_INBOUND_AUTH_THRESHOLD) {
+    let inboundCount: number | null = null
+    if (isPgConfigured()) {
+      try {
+        inboundCount = await countInboundMessagesForConversationPg(conversationId)
+      } catch {
+        inboundCount = null
+      }
+    }
+    if (inboundCount === null) {
+      return { error: 'Could not verify anonymous message limit.' }
+    }
+    if (inboundCount >= ANONYMOUS_INBOUND_AUTH_THRESHOLD) {
       return { error: `AUTH_REQUIRED_${ANONYMOUS_INBOUND_AUTH_THRESHOLD}`, requireAuth: true }
     }
   }
 
-  const ins = await insertMessage(db, {
+  const ins = await insertMessage({
     conversationId,
     direction: 'inbound',
     body,
@@ -177,7 +167,7 @@ export async function postWidgetGuestMessage(
   const visionPickRequired = visionCandidates.length > 0
 
   if (newMessageId) {
-    const hint = await handlePartnerInboundForAi(db, {
+    const hint = await handlePartnerInboundForAi({
       partnerId: params.partnerId,
       conversationId,
       messageId: newMessageId,

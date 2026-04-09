@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
-import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
-import { createClient as createSupabaseAdmin } from '@supabase/supabase-js'
+import { isPgConfigured } from '@/lib/db/pool'
+import { fetchMeetingRecordingForUserPg, updateMeetingRecordingTitlePg } from '@/lib/db/meeting-recordings-pg'
 import { deductUserCredits, refundUserCredits } from '@/lib/music/deduct-user-credits'
 import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
@@ -13,7 +13,7 @@ import {
   capMeetingDurationByFileSize,
   computeMeetingReportCredits,
 } from '@/lib/meeting-report-pricing'
-import { MEETING_RECORDINGS_BUCKET } from '@/lib/meeting-recording-config'
+import { downloadMeetingRecordingBuffer } from '@/lib/storage/meeting-recordings-storage'
 
 export const maxDuration = 300
 export const runtime = 'nodejs'
@@ -110,8 +110,7 @@ export async function POST(request: NextRequest) {
   let userIdForRefund: string | null = null
 
   try {
-    const supabase = createClient()
-    const auth = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập để tạo báo cáo.')
+    const auth = await getUserForAction()
     if ('error' in auth) {
       return NextResponse.json({ error: auth.error }, { status: 401 })
     }
@@ -127,28 +126,19 @@ export async function POST(request: NextRequest) {
     const reportLocaleRaw = String(form.get('reportLocale') || 'vi').toLowerCase()
     const reportLocale = REPORT_LOCALES.has(reportLocaleRaw) ? reportLocaleRaw : 'vi'
 
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim()
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()
-
     let segments: LoadedSegment[] = []
     let billingDuration = 0
     let claimedDuration = 0
 
     if (ids.length > 0) {
-      if (!url || !serviceKey) {
-        return NextResponse.json({ error: 'Thiếu cấu hình máy chủ.' }, { status: 500 })
+      if (!isPgConfigured()) {
+        return NextResponse.json({ error: 'Thiếu cấu hình cơ sở dữ liệu (DATABASE_URL).' }, { status: 500 })
       }
-      const admin = createSupabaseAdmin(url, serviceKey)
 
       for (const recordingId of ids) {
-        const { data: row, error: rowErr } = await admin
-          .from('meeting_recordings')
-          .select('id, user_id, title, storage_path, duration_seconds, mime_type, file_size_bytes')
-          .eq('id', recordingId)
-          .eq('user_id', user.id)
-          .maybeSingle()
+        const row = await fetchMeetingRecordingForUserPg(recordingId, user.id)
 
-        if (rowErr || !row) {
+        if (!row) {
           return NextResponse.json({ error: 'Không tìm thấy bản ghi hoặc đã hết hạn.' }, { status: 404 })
         }
 
@@ -158,18 +148,15 @@ export async function POST(request: NextRequest) {
 
         const titleToStore = titleRaw || String(row.title || '')
         if (titleToStore !== row.title) {
-          await admin.from('meeting_recordings').update({ title: titleToStore.slice(0, 200) }).eq('id', recordingId)
+          await updateMeetingRecordingTitlePg(recordingId, user.id, titleToStore.slice(0, 200))
         }
 
-        const { data: dl, error: dlErr } = await admin.storage
-          .from(MEETING_RECORDINGS_BUCKET)
-          .download(row.storage_path)
-
-        if (dlErr || !dl) {
+        let buf: Buffer
+        try {
+          buf = await downloadMeetingRecordingBuffer(row.storage_path)
+        } catch {
           return NextResponse.json({ error: 'Không đọc được file âm thanh trên máy chủ.' }, { status: 404 })
         }
-
-        const buf = Buffer.from(await dl.arrayBuffer())
         if (buf.length > MEETING_REPORT_MAX_FILE_BYTES) {
           return NextResponse.json({ error: 'Một đoạn âm thanh quá lớn (tối đa 20MB).' }, { status: 400 })
         }

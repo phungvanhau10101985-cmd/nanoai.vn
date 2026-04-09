@@ -1,5 +1,4 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
 import { getUserOrBypass } from '@/lib/auth'
 import { getServerDictionary, getCurrentWebLocale } from '@/lib/i18n/server'
 import { buildMetadata } from '@/lib/seo'
@@ -29,8 +28,7 @@ export async function generateMetadata() {
 }
 
 export default async function AccountPlanPage() {
-  const supabase = createClient()
-  const user = await getUserOrBypass(() => supabase.auth.getUser())
+  const user = await getUserOrBypass()
   if (!user) {
     redirect('/auth/login?next=/account/plan')
   }

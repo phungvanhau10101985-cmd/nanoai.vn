@@ -1,17 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
-import { createClient as createAdminClient } from '@supabase/supabase-js'
+import {
+  fetchExamAttemptEssayGradeBundlePg,
+  updateExamAttemptEssayGradeScoresPg,
+} from '@/lib/db/exam-session-pg'
+import { isPgConfigured } from '@/lib/db/pool'
 import { getExamAttemptFeedbackWithMeta, parseExamGradingMeta, type ExamGradingMeta } from '@/lib/exam-feedback'
 import { notifyExamEssayGraded } from '@/lib/notifications/notify-job-events'
-
-function admin() {
-  return createAdminClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false } }
-  )
-}
 
 export async function PATCH(
   req: NextRequest,
@@ -29,30 +24,26 @@ export async function PATCH(
       return NextResponse.json({ error: 'Điểm tự luận không hợp lệ.' }, { status: 400 })
     }
 
-    const supabase = createClient()
-    const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+    const authResult = await getUserForAction()
     if ('error' in authResult) return NextResponse.json({ error: authResult.error }, { status: 401 })
     const { user } = authResult
 
-    const db = admin()
-    const { data: att, error: aErr } = await db
-      .from('exam_attempts')
-      .select('id, session_id, user_id, score, max_score, grading_meta')
-      .eq('id', attemptId)
-      .maybeSingle()
+    if (!isPgConfigured()) {
+      return NextResponse.json({ error: 'Chưa cấu hình cơ sở dữ liệu.' }, { status: 503 })
+    }
 
-    if (aErr || !att) return NextResponse.json({ error: 'Không tìm thấy bài làm.' }, { status: 404 })
-
-    const { data: session, error: sErr } = await db
-      .from('exam_sessions')
-      .select('teacher_id, code')
-      .eq('id', att.session_id)
-      .maybeSingle()
-
-    if (sErr || !session) return NextResponse.json({ error: 'Không tìm thấy phiên thi.' }, { status: 404 })
-    if (String(session.teacher_id ?? '') !== user.id) {
+    const bundle = await fetchExamAttemptEssayGradeBundlePg(attemptId, user.id)
+    if (bundle === null) {
+      return NextResponse.json({ error: 'Lỗi đọc bài làm.' }, { status: 500 })
+    }
+    if (bundle === 'not_found') {
+      return NextResponse.json({ error: 'Không tìm thấy bài làm.' }, { status: 404 })
+    }
+    if (bundle === 'forbidden') {
       return NextResponse.json({ error: 'Bạn không có quyền chấm bài này.' }, { status: 403 })
     }
+
+    const { attempt: att, session } = bundle
 
     const meta = parseExamGradingMeta(att.grading_meta)
     if (!meta || meta.essayPointsMax <= 0) {
@@ -69,23 +60,16 @@ export async function PATCH(
       essayGradedAt: new Date().toISOString(),
     }
 
-    const { error: uErr } = await db
-      .from('exam_attempts')
-      .update({
-        score: newScore,
-        grading_meta: newMeta,
-      })
-      .eq('id', attemptId)
-
-    if (uErr) {
-      console.error('[essay-grade]', uErr.message)
+    const ok = await updateExamAttemptEssayGradeScoresPg(attemptId, user.id, newScore, newMeta)
+    if (ok === null || !ok) {
+      console.error('[essay-grade] update failed')
       return NextResponse.json({ error: 'Cập nhật điểm thất bại.' }, { status: 500 })
     }
 
     const studentId = att.user_id ? String(att.user_id) : ''
     const sessionCode = session.code ? String(session.code) : ''
     if (studentId && sessionCode) {
-      await notifyExamEssayGraded(db, {
+      await notifyExamEssayGraded({
         studentUserId: studentId,
         sessionCode,
         attemptId,

@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
+import { insertWorksheetJobFromPg } from '@/lib/db/worksheet-pg'
+import { isPgConfigured } from '@/lib/db/pool'
 
 /** Endpoint 2: chỉ giải các bài tự luận SGK còn thiếu lời giải. */
 export async function POST(req: NextRequest) {
   try {
-    const supabase = createClient()
-    const auth = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+    const auth = await getUserForAction()
     if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
     const userId = auth.user?.id
 
@@ -15,19 +15,21 @@ export async function POST(req: NextRequest) {
     const curriculumMarkdown = String(body?.curriculumMarkdown ?? '').trim()
     if (!worksheetId) return NextResponse.json({ error: 'Thiếu worksheetId.' }, { status: 400 })
 
-    const { data: job, error } = await supabase
-      .from('worksheet_jobs')
-      .insert({
-        user_id: userId,
-        type: 'solve_sgk_essays',
-        status: 'pending',
-        params: { worksheetId, curriculumMarkdown },
-      })
-      .select('id')
-      .single()
-    if (error || !job?.id) return NextResponse.json({ error: error?.message || 'Lỗi tạo job.' }, { status: 500 })
+    if (!isPgConfigured()) {
+      return NextResponse.json({ error: 'Chưa cấu hình cơ sở dữ liệu.' }, { status: 503 })
+    }
 
-    return NextResponse.json({ jobId: job.id })
+    const params = { worksheetId, curriculumMarkdown }
+    const jobId = await insertWorksheetJobFromPg({
+      userId: userId!,
+      type: 'solve_sgk_essays',
+      params,
+    })
+    if (!jobId) {
+      return NextResponse.json({ error: 'Lỗi tạo job.' }, { status: 500 })
+    }
+
+    return NextResponse.json({ jobId })
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     return NextResponse.json({ error: msg }, { status: 500 })

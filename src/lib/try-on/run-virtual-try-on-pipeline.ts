@@ -1,16 +1,25 @@
 /**
- * Pipeline thử đồ ảo (Gemini + Vision) — dùng Supabase service role.
- * Gọi từ server action (user đăng nhập) hoặc API partner (Bearer).
+ * Pipeline thử đồ ảo (Gemini + Vision) — lưu storage Bunny + bản ghi try_on_history qua Postgres.
  */
 import sharp from 'sharp'
-import type { SupabaseClient } from '@supabase/supabase-js'
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
 import { removeFaceFromGarmentImages } from '@/lib/remove-face-garment-server'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
-import { uploadTryOnImagePublic, getTryOnPublicUrl } from '@/lib/storage/try-on-public-upload'
+import {
+  uploadTryOnImagePublic,
+  getTryOnPublicUrlFromPath,
+  removeTryOnStorageObjects,
+} from '@/lib/storage/try-on-public-upload'
+import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
+import { deductUserCredits } from '@/lib/music/deduct-user-credits'
+import {
+  deleteTryOnHistoryPg,
+  insertTryOnHistoryProcessingPg,
+  updateTryOnHistoryCompletedPg,
+} from '@/lib/db/try-on-history-pg'
+import { isPgConfigured } from '@/lib/db/pool'
 
 const toTenths = (value: number) => Math.round(value * 10)
-const fromTenths = (value: number) => value / 10
 const formatCredits = (value: number) => value.toLocaleString('vi-VN', { maximumFractionDigits: 1 })
 
 async function getAspectRatioFromImage(buffer: Buffer): Promise<string> {
@@ -40,7 +49,6 @@ async function getAspectRatioFromImage(buffer: Buffer): Promise<string> {
 }
 
 export type RunVirtualTryOnPipelineParams = {
-  adminSupabase: SupabaseClient
   billingUserId: string
   prompt: string
   cost: number
@@ -54,7 +62,11 @@ export type RunVirtualTryOnPipelineResult =
   | { error: string }
 
 export async function runVirtualTryOnPipeline(params: RunVirtualTryOnPipelineParams): Promise<RunVirtualTryOnPipelineResult> {
-  const { adminSupabase, billingUserId, prompt, cost, imageQuality, userImage, garmentFilesOrdered } = params
+  const { billingUserId, prompt, cost, imageQuality, userImage, garmentFilesOrdered } = params
+
+  if (!isPgConfigured()) {
+    return { error: 'Thiếu cấu hình cơ sở dữ liệu (DATABASE_URL).' }
+  }
 
   if (!Number.isFinite(cost) || cost <= 0) {
     return { error: 'Cấu hình chi phí không hợp lệ.' }
@@ -66,26 +78,28 @@ export async function runVirtualTryOnPipeline(params: RunVirtualTryOnPipelinePar
     return { error: 'Prompt thử đồ không hợp lệ.' }
   }
 
-  const { data: creditData, error: creditError } = await adminSupabase
-    .from('credits')
-    .select('balance')
-    .eq('user_id', billingUserId)
-    .single()
-
-  if (creditError || !creditData || toTenths(creditData.balance) < toTenths(cost)) {
+  let balanceBefore: number
+  try {
+    balanceBefore = await getCreditBalanceByUserId(billingUserId)
+  } catch {
+    return { error: 'Không đọc được số dư credits.' }
+  }
+  if (toTenths(balanceBefore) < toTenths(cost)) {
     return {
-      error: `Không đủ credits. Cần ${formatCredits(cost)} credits, hiện có ${formatCredits(creditData?.balance || 0)}.`,
+      error: `Không đủ credits. Cần ${formatCredits(cost)} credits, hiện có ${formatCredits(balanceBefore)}.`,
     }
   }
 
   const timestamp = Date.now()
   const userImagePath = `uploads/${billingUserId}/user_${timestamp}.png`
+  const stagedPaths: string[] = []
   const userBuf = Buffer.from(await userImage.arrayBuffer())
   try {
-    await uploadTryOnImagePublic(adminSupabase, userImagePath, userBuf, {
+    await uploadTryOnImagePublic(userImagePath, userBuf, {
       contentType: userImage.type || 'image/png',
       upsert: true,
     })
+    stagedPaths.push(userImagePath)
   } catch {
     return { error: 'Failed to upload user image.' }
   }
@@ -94,35 +108,39 @@ export async function runVirtualTryOnPipeline(params: RunVirtualTryOnPipelinePar
   try {
     processedGarmentImages = await removeFaceFromGarmentImages(garmentFilesOrdered)
   } catch (visionErr) {
+    await removeTryOnStorageObjects(stagedPaths)
     const msg = visionErr instanceof Error ? visionErr.message : String(visionErr)
     return { error: `Vision API lỗi: ${msg}` }
   }
 
   const garmentImageUrls: string[] = []
-  for (let i = 0; i < processedGarmentImages.length; i++) {
-    const path = `uploads/${billingUserId}/garment_${i}_${timestamp}.png`
-    const gBuf = Buffer.from(await processedGarmentImages[i].arrayBuffer())
-    await uploadTryOnImagePublic(adminSupabase, path, gBuf, {
-      contentType: processedGarmentImages[i].type || 'image/png',
-      upsert: true,
-    })
-    garmentImageUrls.push(getTryOnPublicUrl(adminSupabase, path))
+  try {
+    for (let i = 0; i < processedGarmentImages.length; i++) {
+      const path = `uploads/${billingUserId}/garment_${i}_${timestamp}.png`
+      const gBuf = Buffer.from(await processedGarmentImages[i].arrayBuffer())
+      await uploadTryOnImagePublic(path, gBuf, {
+        contentType: processedGarmentImages[i].type || 'image/png',
+        upsert: true,
+      })
+      stagedPaths.push(path)
+      garmentImageUrls.push(getTryOnPublicUrlFromPath(path))
+    }
+  } catch {
+    await removeTryOnStorageObjects(stagedPaths)
+    return { error: 'Failed to upload garment images.' }
   }
-  const userImagePublicUrl = getTryOnPublicUrl(adminSupabase, userImagePath)
+  const userImagePublicUrl = getTryOnPublicUrlFromPath(userImagePath)
+  const garmentUrlForHistory = garmentImageUrls[0] ?? userImagePublicUrl
 
-  const { data: historyItem, error: historyError } = await adminSupabase
-    .from('try_on_history')
-    .insert({
-      user_id: billingUserId,
-      original_image_url: userImagePublicUrl,
-      garment_image_url: garmentImageUrls[0] || null,
-      status: 'processing',
-      feature: 'try_on',
-    })
-    .select()
-    .single()
+  const historyItem = await insertTryOnHistoryProcessingPg({
+    userId: billingUserId,
+    originalImageUrl: userImagePublicUrl,
+    garmentImageUrl: garmentUrlForHistory,
+    feature: 'try_on',
+  })
 
-  if (historyError || !historyItem) {
+  if (!historyItem) {
+    await removeTryOnStorageObjects(stagedPaths)
     return { error: 'Failed to initialize try-on session.' }
   }
 
@@ -130,7 +148,8 @@ export async function runVirtualTryOnPipeline(params: RunVirtualTryOnPipelinePar
 
   const apiKey = process.env.GOOGLE_API_KEY
   if (!apiKey) {
-    await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+    await removeTryOnStorageObjects(stagedPaths)
+    await deleteTryOnHistoryPg(historyItem.id)
     return { error: 'Thiếu GOOGLE_API_KEY trên server.' }
   }
 
@@ -186,40 +205,24 @@ export async function runVirtualTryOnPipeline(params: RunVirtualTryOnPipelinePar
     const resultImageBuffer = Buffer.from(resultImageBase64, 'base64')
     const resultImagePath = `results/${billingUserId}/try-on_${timestamp}.png`
 
-    const { publicUrl: resultImageUrl } = await uploadTryOnImagePublic(adminSupabase, resultImagePath, resultImageBuffer, {
+    const { publicUrl: resultImageUrl } = await uploadTryOnImagePublic(resultImagePath, resultImageBuffer, {
       contentType: 'image/png',
       upsert: true,
     })
+    stagedPaths.push(resultImagePath)
 
-    const { data: latestCreditData, error: latestCreditError } = await adminSupabase
-      .from('credits')
-      .select('balance')
-      .eq('user_id', billingUserId)
-      .single()
-
-    if (latestCreditError || !latestCreditData) {
-      throw new Error('Không thể đọc số dư credit hiện tại để trừ credit.')
+    const deduct = await deductUserCredits(billingUserId, cost)
+    if (!deduct.ok) {
+      throw new Error(
+        deduct.code === 'INSUFFICIENT_CREDITS'
+          ? `Không đủ credits để hoàn tất giao dịch. Cần ${formatCredits(cost)}.`
+          : deduct.error || 'Đã tạo ảnh nhưng không thể trừ credit. Vui lòng thử lại.'
+      )
     }
-    if (toTenths(latestCreditData.balance) < toTenths(cost)) {
-      throw new Error(`Không đủ credits để hoàn tất giao dịch. Cần ${formatCredits(cost)}, hiện có ${formatCredits(latestCreditData.balance)}.`)
-    }
+    const newBalance = deduct.balance
 
-    const newBalance = fromTenths(toTenths(latestCreditData.balance) - toTenths(cost))
-    const { error: deductCreditError } = await adminSupabase
-      .from('credits')
-      .update({ balance: newBalance })
-      .eq('user_id', billingUserId)
-
-    if (deductCreditError) {
-      throw new Error('Đã tạo ảnh nhưng không thể trừ credit. Vui lòng thử lại.')
-    }
-
-    const { error: updateHistoryError } = await adminSupabase
-      .from('try_on_history')
-      .update({ result_image_url: resultImageUrl, status: 'completed' })
-      .eq('id', historyItem.id)
-
-    if (updateHistoryError) {
+    const updated = await updateTryOnHistoryCompletedPg(historyItem.id, resultImageUrl)
+    if (!updated) {
       throw new Error('Đã tạo ảnh và trừ credit, nhưng không thể cập nhật lịch sử thử đồ.')
     }
 
@@ -231,7 +234,8 @@ export async function runVirtualTryOnPipeline(params: RunVirtualTryOnPipelinePar
     }
   } catch (aiError: unknown) {
     console.error('[runVirtualTryOnPipeline]', aiError)
-    await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+    await removeTryOnStorageObjects(stagedPaths)
+    await deleteTryOnHistoryPg(historyItem.id)
     const aiErrorMessage = aiError instanceof Error ? aiError.message : 'Unknown error'
     if (/500|Internal Server Error|Internal error/i.test(aiErrorMessage)) {
       return { error: 'Hệ thống quá tải. Có thể chọn 2K hoặc thử lại sau ít phút.' }

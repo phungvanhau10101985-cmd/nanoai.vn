@@ -1,16 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient as createSupabaseClient, type SupabaseClient } from '@supabase/supabase-js'
-import type { Database } from '@/types/database.types'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { translateOneImage } from '@/lib/translate-document-image'
 import { applyPostCheckOcr } from '@/lib/translate-post-check'
 import { fetchImageWith1688Bypass } from '@/lib/fetch-image-1688'
 import { notifyTranslateImageJobDone, notifyTranslateImageSuccessSmart } from '@/lib/notifications/notify-job-events'
 import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
+import { deductUserCredits } from '@/lib/music/deduct-user-credits'
+import { isPgConfigured } from '@/lib/db/pool'
+import {
+  fetchNextPendingTranslateJobWithHistoryPg,
+  fetchPendingTranslateJobWithHistoryByIdPg,
+  fetchTryOnHistoryIdsByBatchIdPg,
+  markTranslateJobCompletedPg,
+  markTranslateJobFailedPg,
+  markTranslateJobProcessingPg,
+  resetStaleTranslateJobsForHistoryIdsPg,
+  updateTryOnHistoryFailedPg,
+  updateTryOnHistoryResultCompletedPg,
+  type ProcessTranslateJobRowPg,
+} from '@/lib/db/translate-process-pg'
 
 const TRANSLATE_COSTS = { '2K': 3, '4K': 6 } as const
-const toTenths = (value: number) => Math.round(value * 10)
-const fromTenths = (value: number) => value / 10
 
 function getBaseUrl(): string {
   if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, '')
@@ -39,12 +49,11 @@ async function handleProcessTranslate(request: NextRequest) {
   }
 
   let historyId: string | null = null
-  let adminSupabase: SupabaseClient<Database> | null = null
 
   const safeUpdateFailed = async (errText: string) => {
-    if (adminSupabase && historyId) {
+    if (historyId) {
       try {
-        await adminSupabase!.from('try_on_history').update({ status: 'failed', error_message: errText }).eq('id', historyId)
+        await updateTryOnHistoryFailedPg(historyId, errText)
       } catch (e) {
         console.error('[process-translate] Failed to update history:', e)
       }
@@ -57,62 +66,31 @@ async function handleProcessTranslate(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!supabaseUrl || !serviceRoleKey) {
-    return NextResponse.json({ error: 'Server config missing' }, { status: 500 })
+  if (!isPgConfigured()) {
+    return NextResponse.json({ error: 'Chưa cấu hình cơ sở dữ liệu (DATABASE_URL).' }, { status: 503 })
   }
 
-  adminSupabase = createSupabaseClient<Database>(supabaseUrl, serviceRoleKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  })
-
-  type JobRow = {
-    id: string
-    user_id: string
-    history_id: string
-    retry_round?: number
-    source_lang?: string | null
-    source_lang_2?: string | null
-    target_lang?: string | null
-    image_quality?: string | null
-    cost?: number | null
-    try_on_history: { original_image_url: string; result_image_url?: string | null }
-  }
-  let job: JobRow | null = null
+  let job: ProcessTranslateJobRowPg | null = null
 
   if (batchId) {
-    const { data: historyList } = await adminSupabase.from('try_on_history').select('id').eq('batch_id', batchId)
-    const historyIds = (historyList ?? []).map((h) => h.id)
+    const historyIds = await fetchTryOnHistoryIdsByBatchIdPg(batchId)
+    if (historyIds === null) {
+      return NextResponse.json({ error: 'Database error' }, { status: 500 })
+    }
     if (historyIds.length === 0) {
       return NextResponse.json({ error: 'No pending job for batch' }, { status: 404 })
     }
-    /** Job chạy tối đa 120s (maxDuration). Nếu processing_started_at > 2.5 phút = chắc chắn crash/restart → reset về pending */
     const staleThreshold = new Date(Date.now() - 150 * 1000).toISOString()
-    await adminSupabase.from('translate_jobs').update({ status: 'pending', processing_started_at: null }).in('history_id', historyIds).eq('status', 'processing').is('processing_started_at', null)
-    await adminSupabase.from('translate_jobs').update({ status: 'pending', processing_started_at: null }).in('history_id', historyIds).eq('status', 'processing').lt('processing_started_at', staleThreshold)
-    const { data: jobs } = await adminSupabase
-      .from('translate_jobs')
-      .select('*, try_on_history!inner(original_image_url, result_image_url)')
-      .in('history_id', historyIds)
-      .eq('status', 'pending')
-      .order('created_at', { ascending: true })
-      .limit(1)
-    job = (jobs as unknown as JobRow[] | null)?.[0] ?? null
+    await resetStaleTranslateJobsForHistoryIdsPg(historyIds, staleThreshold)
+    job = await fetchNextPendingTranslateJobWithHistoryPg(historyIds)
   } else {
     if (!jobId) {
       return NextResponse.json({ error: 'Missing jobId' }, { status: 400 })
     }
-    const { data: j, error: jobError } = await adminSupabase
-      .from('translate_jobs')
-      .select('*, try_on_history!inner(original_image_url, result_image_url)')
-      .eq('id', jobId)
-      .eq('status', 'pending')
-      .single()
-    if (jobError || !j) {
+    job = await fetchPendingTranslateJobWithHistoryByIdPg(jobId)
+    if (!job) {
       return NextResponse.json({ error: 'Job not found or already processed' }, { status: 404 })
     }
-    job = j as unknown as JobRow
   }
 
   if (!job) {
@@ -124,8 +102,9 @@ async function handleProcessTranslate(request: NextRequest) {
   const retryRound = job.retry_round ?? 1
   const mem = process.memoryUsage()
   console.log('[process-translate] Chọn job', resolvedJobId, '| retryRound=', retryRound, '| heap:', Math.round(mem.heapUsed / 1024 / 1024), 'MB')
-  const history = job.try_on_history
-  const imageUrl = retryRound === 2 && history?.result_image_url ? history.result_image_url : history?.original_image_url
+
+  const imageUrl =
+    retryRound === 2 && job.result_image_url ? job.result_image_url : job.original_image_url
   const userId = job.user_id
   historyId = job.history_id
   if (!imageUrl || !userId || !historyId) {
@@ -134,17 +113,15 @@ async function handleProcessTranslate(request: NextRequest) {
 
   const notifyTranslateFailed = async (errText: string) => {
     await safeUpdateFailed(errText)
-    if (adminSupabase && historyId) {
-      await notifyTranslateImageJobDone(adminSupabase, {
-        userId,
-        historyId,
-        success: false,
-        errorMessage: errText,
-      })
-    }
+    await notifyTranslateImageJobDone({
+      userId,
+      historyId,
+      success: false,
+      errorMessage: errText,
+    })
   }
 
-  await adminSupabase.from('translate_jobs').update({ status: 'processing', processing_started_at: new Date().toISOString() }).eq('id', resolvedJobId)
+  await markTranslateJobProcessingPg(resolvedJobId)
 
   let imageBuffer: Buffer
   try {
@@ -154,7 +131,7 @@ async function handleProcessTranslate(request: NextRequest) {
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     const errText = `Không tải ảnh: ${msg}`
-    await adminSupabase.from('translate_jobs').update({ status: 'failed', error_message: errText }).eq('id', resolvedJobId)
+    await markTranslateJobFailedPg(resolvedJobId, errText)
     await notifyTranslateFailed(errText)
     if (batchId) {
       const h: Record<string, string> = {}
@@ -173,7 +150,7 @@ async function handleProcessTranslate(request: NextRequest) {
   const apiKey = process.env.GOOGLE_API_KEY
   if (!apiKey) {
     const errText = 'Thiếu GOOGLE_API_KEY trong cấu hình server'
-    await adminSupabase.from('translate_jobs').update({ status: 'failed', error_message: errText }).eq('id', resolvedJobId)
+    await markTranslateJobFailedPg(resolvedJobId, errText)
     await notifyTranslateFailed(errText)
     if (batchId) {
       const h: Record<string, string> = {}
@@ -189,25 +166,32 @@ async function handleProcessTranslate(request: NextRequest) {
   let translateError: string | undefined
   try {
     const result = await translateOneImage(
-    genAI,
-    imageBuffer,
-    'image/png',
-    sourceLang,
-    targetLang,
-    imageQuality,
-    userId,
-    sourceLang2,
-    { retryRound, logPrefix: `[process-translate] job=${resolvedJobId}` }
-  )
+      genAI,
+      imageBuffer,
+      'image/png',
+      sourceLang,
+      targetLang,
+      imageQuality,
+      userId,
+      sourceLang2,
+      { retryRound, logPrefix: `[process-translate] job=${resolvedJobId}` }
+    )
     resultBuffer = result.buffer
     translateError = result.error
-    console.log('[process-translate] Gemini xong job', resolvedJobId, '| result:', resultBuffer?.length ? `${Math.round(resultBuffer.length / 1024)}KB` : 'empty', '| error:', translateError ?? 'none')
+    console.log(
+      '[process-translate] Gemini xong job',
+      resolvedJobId,
+      '| result:',
+      resultBuffer?.length ? `${Math.round(resultBuffer.length / 1024)}KB` : 'empty',
+      '| error:',
+      translateError ?? 'none'
+    )
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     const errText = `Lỗi AI: ${msg}`
     console.error('[process-translate] translateOneImage CRASH:', msg)
     if (e instanceof Error) console.error('[process-translate] stack:', e.stack)
-    await adminSupabase.from('translate_jobs').update({ status: 'failed', error_message: errText }).eq('id', resolvedJobId)
+    await markTranslateJobFailedPg(resolvedJobId, errText)
     await notifyTranslateFailed(errText)
     if (batchId) {
       const h: Record<string, string> = {}
@@ -219,7 +203,7 @@ async function handleProcessTranslate(request: NextRequest) {
 
   if (translateError || !resultBuffer.length) {
     const errText = translateError || 'AI không trả về ảnh'
-    await adminSupabase.from('translate_jobs').update({ status: 'failed', error_message: errText }).eq('id', resolvedJobId)
+    await markTranslateJobFailedPg(resolvedJobId, errText)
     await notifyTranslateFailed(errText)
     if (batchId) {
       const h: Record<string, string> = {}
@@ -238,15 +222,15 @@ async function handleProcessTranslate(request: NextRequest) {
   })
 
   const resultPath = `results/${userId}/translate_bg_${Date.now()}.png`
-  const { publicUrl: resultPublicUrl } = await uploadTryOnImagePublic(adminSupabase, resultPath, finalBuffer, {
+  const { publicUrl: resultPublicUrl } = await uploadTryOnImagePublic(resultPath, finalBuffer, {
     contentType: 'image/png',
     upsert: true,
   })
 
-  const { data: creditData } = await adminSupabase.from('credits').select('balance').eq('user_id', userId).single()
-  if (!creditData || toTenths(creditData.balance) < toTenths(cost)) {
-    const errText = 'Không đủ credits'
-    await adminSupabase.from('translate_jobs').update({ status: 'failed', error_message: errText }).eq('id', resolvedJobId)
+  const d = await deductUserCredits(userId, cost)
+  if (!d.ok) {
+    const errText = d.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credits' : d.error
+    await markTranslateJobFailedPg(resolvedJobId, errText)
     await notifyTranslateFailed(errText)
     if (batchId) {
       const h: Record<string, string> = {}
@@ -255,16 +239,10 @@ async function handleProcessTranslate(request: NextRequest) {
     }
     return NextResponse.json({ error: errText }, { status: 402 })
   }
+  await updateTryOnHistoryResultCompletedPg(historyId, resultPublicUrl)
+  await markTranslateJobCompletedPg(resolvedJobId)
 
-  const newBalance = fromTenths(toTenths(creditData.balance) - toTenths(cost))
-  await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', userId)
-  await adminSupabase
-    .from('try_on_history')
-    .update({ result_image_url: resultPublicUrl, status: 'completed' })
-    .eq('id', historyId)
-  await adminSupabase.from('translate_jobs').update({ status: 'completed' }).eq('id', resolvedJobId)
-
-  await notifyTranslateImageSuccessSmart(adminSupabase, {
+  await notifyTranslateImageSuccessSmart({
     userId,
     historyId,
   })

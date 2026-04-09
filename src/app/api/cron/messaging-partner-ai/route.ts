@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServiceRoleClient } from '@/lib/supabase/service-role'
+import { isPgConfigured } from '@/lib/db/pool'
 import { runMessagingPartnerAiJobBatch } from '@/lib/messaging/partner-ai-run-jobs'
 
 /**
  * Cron: xử lý job trả lời AI sau delay (FAQ trong job hoặc DeepSeek).
  * GET hoặc POST + Authorization: Bearer <MESSAGING_PARTNER_AI_CRON_SECRET>
+ * Cần DATABASE_URL (Postgres); không dùng service key hosted cũ.
  */
 async function handleCron(req: NextRequest) {
   const secret = process.env.MESSAGING_PARTNER_AI_CRON_SECRET?.trim()
@@ -16,9 +17,15 @@ async function handleCron(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  if (!isPgConfigured()) {
+    return NextResponse.json(
+      { error: 'DATABASE_URL not configured — messaging partner AI cron requires Postgres.' },
+      { status: 503 }
+    )
+  }
+
   try {
-    const db = createServiceRoleClient()
-    const stats = await runMessagingPartnerAiJobBatch(db, 15)
+    const stats = await runMessagingPartnerAiJobBatch(15)
     return NextResponse.json({ ok: true, ...stats })
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'error'

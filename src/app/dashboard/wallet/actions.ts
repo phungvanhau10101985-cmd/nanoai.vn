@@ -1,7 +1,7 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
+import { insertPendingDepositTransaction } from '@/lib/db/transactions-repo'
 import { revalidatePath } from 'next/cache'
 
 const CREDIT_PACKAGES = [
@@ -11,8 +11,7 @@ const CREDIT_PACKAGES = [
 ]
 
 export async function createDepositTransaction(packageId: number) {
-  const supabase = createClient()
-  const result = await getUserForAction(() => supabase.auth.getUser(), 'You must be logged in to make a deposit.')
+  const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
@@ -22,22 +21,17 @@ export async function createDepositTransaction(packageId: number) {
     return { error: 'Invalid credit package selected.' }
   }
 
-  const { data, error } = await supabase
-    .from('transactions')
-    .insert({
-      user_id: user.id,
-      amount: selectedPackage.price,
-      type: 'deposit',
-      status: 'pending',
-      description: `${selectedPackage.credits} credits package`,
-    })
-    .select()
-    .single()
+  const out = await insertPendingDepositTransaction({
+    userId: user.id,
+    amount: selectedPackage.price,
+    description: `${selectedPackage.credits} credits package`,
+  })
 
-  if (error) {
+  if ('error' in out) {
     return { error: 'Could not create transaction. Please try again.' }
   }
 
   revalidatePath('/wallet')
-  return { transactionId: data.id }
+  return { transactionId: out.id }
 }
+

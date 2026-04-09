@@ -3,7 +3,12 @@
  * Yêu cầu đăng nhập.
  */
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import {
+  fetchWorksheetQuestionCatalogRowsByIdsFromPg,
+  fetchWorksheetQuestionIdsByCurriculumColumnFromPg,
+  fetchWorksheetSheetsForCurriculumCatalogFromPg,
+} from '@/lib/db/worksheet-pg'
+import { isPgConfigured } from '@/lib/db/pool'
 import { getUserForAction } from '@/lib/auth'
 import { parseExerciseIndex } from '@/lib/worksheet-exercise-sort'
 import { getEssayProblem, getEssaySolution } from '@/app/tao-giao-trinh/lib/worksheet-content-json'
@@ -130,30 +135,36 @@ function compareCatalogRows(
 
 export async function GET(req: NextRequest) {
   try {
-    const supabase = createClient()
-    const auth = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+    const auth = await getUserForAction()
     if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
 
     const { searchParams } = req.nextUrl
     const curriculumId = (searchParams.get('curriculumId') ?? '').trim()
     if (!curriculumId) return NextResponse.json({ error: 'Thiếu curriculumId.' }, { status: 400 })
 
+    if (!isPgConfigured()) {
+      return NextResponse.json({ error: 'Chưa cấu hình cơ sở dữ liệu.' }, { status: 503 })
+    }
+
     const typeParam = (searchParams.get('type') ?? 'all').trim()
     const limit = Math.min(100, Math.max(1, Number(searchParams.get('limit')) || 50))
     const offset = Math.max(0, Number(searchParams.get('offset')) || 0)
 
-    const { data: sheets } = await supabase
-      .from('worksheet_worksheets')
-      .select('question_ids, created_at')
-      .eq('curriculum_id', curriculumId)
-      .order('created_at', { ascending: false })
+    type SheetListRow = { question_ids: string[]; created_at: string }
+    const sheetsListRaw = await fetchWorksheetSheetsForCurriculumCatalogFromPg(curriculumId)
+    const curriculumLinkedIdsRaw = await fetchWorksheetQuestionIdsByCurriculumColumnFromPg(curriculumId)
+    if (sheetsListRaw === null || curriculumLinkedIdsRaw === null) {
+      return NextResponse.json({ error: 'Không đọc được danh sách câu.' }, { status: 500 })
+    }
+    const sheetsList: SheetListRow[] = sheetsListRaw
+    const curriculumLinkedIds: string[] = curriculumLinkedIdsRaw
 
     const idSet = new Set<string>()
     /** Thứ tự trên phiếu mới nhất → cũ hơn → câu chỉ có curriculum_id (cuối danh sách). */
     const sheetIndexById = new Map<string, number>()
     let seq = 0
-    for (const s of sheets ?? []) {
-      for (const id of (s.question_ids ?? []) as string[]) {
+    for (const s of sheetsList) {
+      for (const id of s.question_ids) {
         if (!id) continue
         const sid = String(id)
         if (!idSet.has(sid)) {
@@ -163,15 +174,9 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const { data: byCurriculum } = await supabase
-      .from('worksheet_questions')
-      .select('id')
-      .eq('curriculum_id', curriculumId)
-      .in('type', ['quiz', 'essay'])
-
-    for (const r of byCurriculum ?? []) {
-      if (!r.id) continue
-      const sid = String(r.id)
+    for (const sidRaw of curriculumLinkedIds) {
+      if (!sidRaw) continue
+      const sid = String(sidRaw)
       if (!idSet.has(sid)) {
         idSet.add(sid)
         sheetIndexById.set(sid, seq++)
@@ -205,29 +210,33 @@ export async function GET(req: NextRequest) {
 
     const rows: QRow[] = []
     for (const part of chunk(allIds, CHUNK)) {
-      const { data, error } = await supabase
-        .from('worksheet_questions')
-        .select('id, type, topic, subject_id, grade_level_id, source, difficulty, "order", created_at, verified_at, content_json')
-        .in('id', part)
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-      for (const row of data ?? []) {
-        const t = String(row.type)
-        if (t !== 'quiz' && t !== 'essay') continue
-        const r = row as Record<string, unknown>
-        rows.push({
-          id: String(r.id),
-          type: t,
-          topic: (r.topic as string | null) ?? null,
-          subject_id: String(r.subject_id ?? ''),
-          grade_level_id: String(r.grade_level_id ?? ''),
-          source: (r.source as string | null) ?? null,
-          difficulty: (r.difficulty as string | null) ?? null,
-          order: typeof r.order === 'number' ? r.order : Number(r.order) || 0,
-          created_at: String(r.created_at ?? ''),
-          verified_at: (r.verified_at as string | null) ?? null,
-          content_json: r.content_json,
-        })
+      let partRows: QRow[] | null = null
+      try {
+        const fromPg = await fetchWorksheetQuestionCatalogRowsByIdsFromPg(part)
+        if (fromPg !== null && !(fromPg.length === 0 && part.length > 0)) {
+          partRows = fromPg
+            .filter((row) => row.type === 'quiz' || row.type === 'essay')
+            .map((row) => ({
+              id: row.id,
+              type: row.type,
+              topic: row.topic,
+              subject_id: row.subject_id,
+              grade_level_id: row.grade_level_id,
+              source: row.source,
+              difficulty: row.difficulty,
+              order: row.order,
+              created_at: row.created_at,
+              verified_at: row.verified_at,
+              content_json: row.content_json,
+            }))
+        }
+      } catch (e) {
+        console.warn('[curriculum-questions-catalog] PG chunk failed', e)
       }
+      if (partRows === null) {
+        return NextResponse.json({ error: 'Không đọc được chi tiết câu hỏi.' }, { status: 500 })
+      }
+      rows.push(...partRows)
     }
 
     const byId = new Map(rows.map((r) => [r.id, r]))

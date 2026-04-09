@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { randomUUID } from 'crypto'
-
-function adminClient() {
-  return createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-}
+import { isPgConfigured } from '@/lib/db/pool'
+import { fetchLearnerProfileFields } from '@/lib/db/profiles-repo'
+import {
+  fetchCompletedLessonCandidatesPg,
+  fetchPresetTurnsByIdsPg,
+  insertCoachOpeningMessagePg,
+  upsertSessionMemoryPresetCopyPg,
+  type CompletedLessonCandidateRow,
+} from '@/lib/db/language-coach-completed-lesson-pg'
 
 type Payload = {
   action?: 'random_copy' | 'check_match'
@@ -269,11 +272,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Action không hợp lệ.' }, { status: 400 })
     }
 
-    const supabase = createClient()
-    const auth = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập để dùng bài học có sẵn.')
+    const auth = await getUserForAction()
     if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
     const { user } = auth
-    const adminSupabase = adminClient()
+    if (!isPgConfigured()) {
+      return NextResponse.json({ error: 'Database not configured.' }, { status: 503 })
+    }
     const userMeta = user.user_metadata as {
       full_name?: string
       name?: string
@@ -288,12 +292,8 @@ export async function POST(request: NextRequest) {
     const resolvedAge = String(userMeta?.coach_age || '').trim()
     const resolvedGender = String(userMeta?.coach_gender || '').trim().toLowerCase()
     if (!resolvedLearnerName) {
-      const { data: profileRow } = await adminSupabase
-        .from('profiles')
-        .select('full_name')
-        .eq('id', user.id)
-        .maybeSingle()
-      resolvedLearnerName = String((profileRow as { full_name?: string } | null)?.full_name || '').trim()
+      const profileRow = await fetchLearnerProfileFields(user.id)
+      resolvedLearnerName = String(profileRow?.full_name || '').trim()
     }
     const resolvedLearnerProfile: LearnerProfileLite = {
       name: resolvedLearnerName,
@@ -329,24 +329,14 @@ export async function POST(request: NextRequest) {
     const normalizedLanguageCode = normalizeLookup(languageCode)
 
     // Chỉ lấy bài ôn tập làm preset, không lấy bài phản xạ
-    const { data: candidates, error: candidateError } = await adminSupabase
-      .from('language_coach_completed_lessons')
-      .select('id, user_id, session_id, target_language, native_language, learner_level, topic_id, topic_label, mode, learning_mode, language_code, teacher_label, teacher_locale, transcript_json, summary_json, turn_ids')
-      .neq('user_id', user.id)
-      .eq('learner_level', learnerLevel)
-      .eq('learning_mode', 'review')
-      .eq('mode', mode)
-      .order('ended_at', { ascending: false })
-      .limit(240)
-
-    if (candidateError) {
-      return NextResponse.json({ error: candidateError.message || 'Không đọc được bài học có sẵn.' }, { status: 500 })
+    const candidateRes = await fetchCompletedLessonCandidatesPg(user.id, learnerLevel, mode)
+    if (!candidateRes.ok) {
+      return NextResponse.json({ error: candidateRes.message || 'Không đọc được bài học có sẵn.' }, { status: 500 })
     }
 
-    const rows = Array.isArray(candidates) ? candidates : []
-    const cleanRows = rows
+    const cleanRows = candidateRes.rows
 
-    const strict = cleanRows.filter((r) => {
+    const strict = cleanRows.filter((r: CompletedLessonCandidateRow) => {
       const sameTarget = normalizeLookup(String(r.target_language || '')) === normalizedTarget
       const sameNative = normalizeLookup(String(r.native_language || '')) === normalizedNative
       const rowTopicId = normalizeLookup(String(r.topic_id || ''))
@@ -355,15 +345,15 @@ export async function POST(request: NextRequest) {
         normalizedTopicId
           ? rowTopicId === normalizedTopicId
           : (normalizedTopicLabel ? rowTopicLabel === normalizedTopicLabel : false)
-      const sameTeacherLabel = !normalizedTeacherLabel || normalizeLookup(String((r as { teacher_label?: string }).teacher_label || '')) === normalizedTeacherLabel
-      const sameTeacherLocale = !normalizedTeacherLocale || normalizeLookup(String((r as { teacher_locale?: string }).teacher_locale || '')) === normalizedTeacherLocale
-      const sameLanguageCode = !normalizedLanguageCode || normalizeLookup(String((r as { language_code?: string }).language_code || '')) === normalizedLanguageCode
+      const sameTeacherLabel = !normalizedTeacherLabel || normalizeLookup(String(r.teacher_label || '')) === normalizedTeacherLabel
+      const sameTeacherLocale = !normalizedTeacherLocale || normalizeLookup(String(r.teacher_locale || '')) === normalizedTeacherLocale
+      const sameLanguageCode = !normalizedLanguageCode || normalizeLookup(String(r.language_code || '')) === normalizedLanguageCode
       return sameTarget && sameNative && sameTopic && sameTeacherLabel && sameTeacherLocale && sameLanguageCode
     })
-    const strictUsable = strict.filter((r) => {
-      const turnIdsArr = (r as { turn_ids?: string[] }).turn_ids
+    const strictUsable = strict.filter((r: CompletedLessonCandidateRow) => {
+      const turnIdsArr = r.turn_ids
       if (Array.isArray(turnIdsArr) && turnIdsArr.length > 0) return true
-      const transcriptRaw = String((r as { transcript_json?: string }).transcript_json || '[]').trim()
+      const transcriptRaw = String(r.transcript_json || '[]').trim()
       const sanitizedTranscript = parseTranscriptWithoutPersonalization(transcriptRaw)
       const teacherRows = parseTeacherRowsFromTranscript(JSON.stringify(sanitizedTranscript), mode)
       return teacherRows.length > 0
@@ -381,21 +371,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ found: false, strictMatched: false })
     }
     const picked = pool[Math.floor(Math.random() * pool.length)]
-    const turnIdsRaw = (picked as { turn_ids?: string[] }).turn_ids
+    const turnIdsRaw = picked.turn_ids
     const turnIds = Array.isArray(turnIdsRaw) ? turnIdsRaw.filter((id): id is string => typeof id === 'string') : []
-    const transcriptRaw = String((picked as { transcript_json?: string }).transcript_json || '[]').trim()
-    const summaryRaw = String((picked as { summary_json?: string }).summary_json || '{}').trim()
+    const transcriptRaw = String(picked.transcript_json || '[]').trim()
+    const summaryRaw = String(picked.summary_json || '{}').trim()
 
     let presetTurns: PresetTurn[]
     let firstTeacher: { teacherLabel?: string; teacherLocale?: string; languageCode?: string; targetLanguage?: string; mode?: string }
 
     if (turnIds.length > 0) {
-      const { data: turnRows } = await adminSupabase
-        .from('language_coach_preset_turns')
-        .select('id, reply, expected_student_text, main_sentence, correction_note, intent_answer, must_know_text, teacher_label, teacher_locale, language_code, target_language, tokens_json, writing_task_json')
-        .in('id', turnIds)
+      const turnRes = await fetchPresetTurnsByIdsPg(turnIds)
+      if (!turnRes.ok) {
+        return NextResponse.json({ error: turnRes.message || 'Không đọc được preset turns.' }, { status: 500 })
+      }
+      const turnRows = turnRes.rows
 
-      const orderedTurns = (turnRows || [])
+      const orderedTurns = turnRows
         .sort((a, b) => turnIds.indexOf(a.id) - turnIds.indexOf(b.id))
         .map((t) => ({
           reply: personalizeTextForLearner(String(t.reply || '').trim(), resolvedLearnerProfile).trim().slice(0, 4000),
@@ -408,14 +399,14 @@ export async function POST(request: NextRequest) {
           teacherLocale: String(t.teacher_locale || '').trim() || undefined,
           languageCode: String(t.language_code || '').trim() || undefined,
           targetLanguage: String(t.target_language || '').trim() || undefined,
-          tokensJson: String((t as { tokens_json?: string }).tokens_json || '').trim() || undefined,
-          writingTaskJson: String((t as { writing_task_json?: string }).writing_task_json || '').trim() || undefined,
+          tokensJson: String(t.tokens_json || '').trim() || undefined,
+          writingTaskJson: String(t.writing_task_json || '').trim() || undefined,
         }))
         .filter((t) => t.reply)
 
       if (orderedTurns.length === 0) return NextResponse.json({ found: false })
       presetTurns = orderedTurns
-      const lessonMode = String((picked as { mode?: string }).mode || mode || 'chat').trim()
+      const lessonMode = String(picked.mode || mode || 'chat').trim()
       firstTeacher = {
         teacherLabel: orderedTurns[0]?.teacherLabel,
         teacherLocale: orderedTurns[0]?.teacherLocale,
@@ -465,30 +456,25 @@ export async function POST(request: NextRequest) {
 
     const newSessionId = randomUUID()
     const nowIso = new Date().toISOString()
-    const openingRecord = {
-      user_id: user.id,
-      session_id: newSessionId,
-      role: 'teacher' as const,
+    const insertOpening = await insertCoachOpeningMessagePg({
+      userId: user.id,
+      sessionId: newSessionId,
       text: openingText,
-      audio_url: null,
+      audioUrl: null,
       translation: null,
-      language_code: openingLanguageCode || null,
-      target_language: openingTargetLanguage,
-      teacher_label: openingTeacherLabel || null,
-      teacher_locale: openingTeacherLocale || null,
-      mode: firstTeacher.mode,
-      main_sentence: null,
-      correction_note: null,
-      intent_answer: null,
-      tokens_json: null,
-      writing_task_json: null,
-    }
-
-    const { error: insertError } = await adminSupabase
-      .from('language_coach_messages')
-      .insert(openingRecord)
-    if (insertError) {
-      return NextResponse.json({ error: insertError.message || 'Không copy được transcript bài có sẵn.' }, { status: 500 })
+      languageCode: openingLanguageCode || null,
+      targetLanguage: openingTargetLanguage,
+      teacherLabel: openingTeacherLabel || null,
+      teacherLocale: openingTeacherLocale || null,
+      mode: firstTeacher.mode || 'chat',
+      mainSentence: null,
+      correctionNote: null,
+      intentAnswer: null,
+      tokensJson: null,
+      writingTaskJson: null,
+    })
+    if (!insertOpening.ok) {
+      return NextResponse.json({ error: insertOpening.message || 'Không copy được transcript bài có sẵn.' }, { status: 500 })
     }
 
     const parsedPinnedFacts = (() => {
@@ -500,34 +486,29 @@ export async function POST(request: NextRequest) {
       }
     })()
 
-    const { error: memoryError } = await adminSupabase
-      .from('language_coach_session_memories')
-      .upsert(
-        {
-          user_id: user.id,
-          session_id: newSessionId,
-          target_language: targetLanguage,
-          native_language: nativeLanguage,
-          learner_level: learnerLevel,
-          topic_id: topicId || null,
-          topic_label: topicLabel || null,
-          learning_mode: learningMode,
-          running_summary: runningSummary,
-          pinned_facts_json: JSON.stringify({
-            ...parsedPinnedFacts,
-            preset_replay: {
-              source_lesson_id: String(picked.id || ''),
-              active: true,
-              next_turn_index: 0,
-              turns: presetTurns,
-            },
-          }),
-          updated_at: nowIso,
+    const memoryUpsert = await upsertSessionMemoryPresetCopyPg({
+      userId: user.id,
+      sessionId: newSessionId,
+      targetLanguage,
+      nativeLanguage,
+      learnerLevel,
+      topicId: topicId || null,
+      topicLabel: topicLabel || null,
+      learningMode,
+      runningSummary,
+      pinnedFactsJson: JSON.stringify({
+        ...parsedPinnedFacts,
+        preset_replay: {
+          source_lesson_id: String(picked.id || ''),
+          active: true,
+          next_turn_index: 0,
+          turns: presetTurns,
         },
-        { onConflict: 'user_id,session_id' }
-      )
-    if (memoryError) {
-      return NextResponse.json({ error: memoryError.message || 'Không tạo được memory cho buổi copy.' }, { status: 500 })
+      }),
+      updatedAtIso: nowIso,
+    })
+    if (!memoryUpsert.ok) {
+      return NextResponse.json({ error: memoryUpsert.message || 'Không tạo được memory cho buổi copy.' }, { status: 500 })
     }
 
     // Không copy từ mới từ người tạo bài sang học viên khác.
@@ -536,7 +517,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       found: true,
       sessionId: newSessionId,
-      sourceLessonId: String(picked.id || ''),
+      sourceLessonId: String(picked.id),
       strictMatched: strict.length > 0,
       scriptedTurns: presetTurns.length,
     })

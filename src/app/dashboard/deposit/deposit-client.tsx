@@ -1,13 +1,13 @@
 "use client"
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
-import { createClient } from '@/lib/supabase/client'
+import { getClientUserId } from '@/lib/auth/get-client-user-id'
 import { CreditCard, QrCode, Banknote, CheckCircle, Copy, RefreshCw, AlertCircle } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { formatNumber } from '@/lib/format'
@@ -45,7 +45,6 @@ export default function DepositClient() {
   const [activePayment, setActivePayment] = useState<Payment | null>(null)
   const [loading, setLoading] = useState(false)
   const [userCredits, setUserCredits] = useState<number>(0)
-  const supabase = useMemo(() => createClient(), [])
   const tr = useCallback((vi: string, en: string, zh: string, ja: string, ko: string) => {
     if (uiLocale === 'en') return en
     if (uiLocale === 'zh') return zh
@@ -95,16 +94,12 @@ export default function DepositClient() {
 
   const fetchPaymentConfigs = useCallback(async () => {
     try {
-      const { data, error } = await supabase
-        .from('payment_configs')
-        .select('*')
-        .eq('is_active', true)
-        .order('created_at', { ascending: true })
-
-      if (error) throw error
-      
-      setPaymentConfigs(data || [])
-      if (data && data.length > 0) {
+      const res = await fetch('/api/payment-configs', { credentials: 'same-origin' })
+      if (!res.ok) throw new Error('config')
+      const j = (await res.json()) as { configs?: PaymentConfig[] }
+      const data = j.configs || []
+      setPaymentConfigs(data)
+      if (data.length > 0) {
         setSelectedBank(data[0].id)
       }
     } catch (error) {
@@ -115,25 +110,21 @@ export default function DepositClient() {
         variant: 'destructive'
       })
     }
-  }, [supabase, tr])
+  }, [tr])
 
   const fetchUserCredits = useCallback(async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+      const uid = await getClientUserId()
+      if (!uid) return
 
-      const { data, error } = await supabase
-        .from('credits')
-        .select('balance')
-        .eq('user_id', user.id)
-        .single()
-
-      if (error) throw error
-      setUserCredits(data?.balance || 0)
+      const res = await fetch('/api/account/credits', { credentials: 'same-origin' })
+      if (!res.ok) throw new Error('credits')
+      const j = (await res.json()) as { balance?: number }
+      setUserCredits(Number(j.balance) || 0)
     } catch (error) {
       console.error('Error fetching user credits:', error)
     }
-  }, [supabase])
+  }, [])
 
   useEffect(() => {
     const syncLocale = () => {
@@ -181,8 +172,8 @@ export default function DepositClient() {
 
     setLoading(true)
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      const userId = user?.id ?? (isLocalhost() ? getDevUserId() : null)
+      let userId = await getClientUserId()
+      if (!userId && isLocalhost()) userId = getDevUserId()
       if (!userId) {
         toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: tr('Vui lòng đăng nhập để nạp tiền.', 'Please sign in to top up.', '请登录后充值。', 'チャージするにはログインしてください。', '충전하려면 로그인해 주세요.'), variant: 'destructive' })
         setLoading(false)
@@ -204,25 +195,25 @@ export default function DepositClient() {
         selectedConfig.qr_template_url
       )
 
-      // Tạo payment record
-      const { data: payment, error } = await supabase
-        .from('payments')
-        .insert({
-          user_id: userId,
-          amount: amount,
+      const payRes = await fetch('/api/account/payments', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount,
           credits_added: creditsToAdd,
           transaction_content: content,
           bank_account: selectedConfig.bank_account,
           bank_name: selectedConfig.bank_name,
           qr_url: qrUrl,
-          status: 'pending'
-        })
-        .select()
-        .single()
+        }),
+      })
+      const payJson = (await payRes.json()) as { payment?: Payment; error?: string }
+      if (!payRes.ok || !payJson.payment) {
+        throw new Error(payJson.error || 'payment')
+      }
 
-      if (error) throw error
-
-      setActivePayment(payment)
+      setActivePayment(payJson.payment)
       toast({
         title: tr('Thành công', 'Success', '成功', '成功', '성공'),
         description: tr('Đã tạo mã QR thanh toán', 'Payment QR created', '支付二维码已创建', '支払いQRを作成しました', '결제 QR을 생성했습니다'),
@@ -290,13 +281,12 @@ export default function DepositClient() {
 
   const fetchPaymentStatus = async (paymentId: string) => {
     try {
-      const { data, error } = await supabase
-        .from('payments')
-        .select('*')
-        .eq('id', paymentId)
-        .single()
-
-      if (error) throw error
+      const res = await fetch(`/api/account/payments/${encodeURIComponent(paymentId)}`, {
+        credentials: 'same-origin',
+      })
+      const j = (await res.json()) as { payment?: Payment; error?: string }
+      if (!res.ok || !j.payment) throw new Error(j.error || 'status')
+      const data = j.payment
 
       if (data.status === 'completed') {
         setActivePayment(data)

@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import {
+  fetchWorksheetQuestionsByCurriculumLatestSheetFromPg,
+  insertWorksheetQuestionPg,
+} from '@/lib/db/worksheet-pg'
+import { isPgConfigured } from '@/lib/db/pool'
 import { getUserForAction } from '@/lib/auth'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_PRO } from '@/lib/gemini-config'
@@ -76,10 +80,13 @@ function parseQuizzes(raw: string): Array<{ question: string; options: string[];
 /** Tạo 1 câu trắc nghiệm, lưu DB, hiển thị ngay. Verify chạy ngầm sau (qua worksheet-verify-background). */
 export async function POST(req: NextRequest) {
   try {
-    const supabase = createClient()
-    const auth = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+    const auth = await getUserForAction()
     if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
     const userId = auth.user?.id
+
+    if (!isPgConfigured()) {
+      return NextResponse.json({ error: 'Chưa cấu hình cơ sở dữ liệu.' }, { status: 503 })
+    }
 
     const body = await req.json().catch(() => ({}))
     const curriculumMarkdown = String(body?.curriculumMarkdown ?? '').trim()
@@ -95,22 +102,35 @@ export async function POST(req: NextRequest) {
     let existingQuestions = fromClient
 
     if (curriculumId) {
-      const { data: ws } = await supabase.from('worksheet_worksheets').select('question_ids').eq('curriculum_id', curriculumId).order('created_at', { ascending: false }).limit(1).maybeSingle()
-      const qIds = ((ws?.question_ids ?? []) as string[]).filter(Boolean)
       const sessionCount = Math.max(0, Number(body?.sessionQuizCountByDiff?.[difficulty] ?? 0))
+      const qRows = await fetchWorksheetQuestionsByCurriculumLatestSheetFromPg(curriculumId)
+      if (qRows === null) {
+        return NextResponse.json({ error: 'Lỗi đọc câu hỏi giáo trình.' }, { status: 500 })
+      }
+
+      const questionRows = qRows
       let worksheetCount = 0
-      if (qIds.length > 0) {
-        const { data: qRows } = await supabase.from('worksheet_questions').select('id, type, content_json, difficulty').in('id', qIds)
-        const fromWorksheet = (qRows ?? []).filter((r) => r.type === 'quiz').map((r) => {
-          const c = r.content_json as { question?: string; options?: string[] }
-          return { question: c?.question ?? '', options: (c?.options ?? []).slice(0, 4) }
-        }).filter((eq) => eq.question)
+      if (questionRows.length > 0) {
+        const fromWorksheet = questionRows
+          .filter((r: { type: string }) => r.type === 'quiz')
+          .map((r: { content_json?: unknown }) => {
+            const c = r.content_json as { question?: string; options?: string[] }
+            return { question: c?.question ?? '', options: (c?.options ?? []).slice(0, 4) }
+          })
+          .filter((eq: { question: string }) => eq.question)
         existingQuestions = [...fromWorksheet, ...fromClient]
-        for (const r of qRows ?? []) {
-          if (r.type === 'quiz' && (r.difficulty === difficulty || (!r.difficulty && difficulty === 'medium'))) worksheetCount++
+        for (const r of questionRows) {
+          if (r.type === 'quiz' && (r.difficulty === difficulty || (!r.difficulty && difficulty === 'medium')))
+            worksheetCount++
         }
       }
-      if (worksheetCount + sessionCount >= 10) return NextResponse.json({ error: `Đã đủ 10 câu trắc nghiệm mức ${difficulty === 'easy' ? 'Dễ' : difficulty === 'medium' ? 'Trung bình' : 'Khó'}.` }, { status: 400 })
+      if (worksheetCount + sessionCount >= 10)
+        return NextResponse.json(
+          {
+            error: `Đã đủ 10 câu trắc nghiệm mức ${difficulty === 'easy' ? 'Dễ' : difficulty === 'medium' ? 'Trung bình' : 'Khó'}.`,
+          },
+          { status: 400 }
+        )
     }
 
     if (!curriculumMarkdown) return NextResponse.json({ error: 'Thiếu giáo trình.' }, { status: 400 })
@@ -171,25 +191,23 @@ export async function POST(req: NextRequest) {
     const sanitizedOpts = lastQuiz.options.map(stripOptionPrefix)
     const { options: shuffledOpts, correctIndex: shuffledCorrect } = shuffleCorrectPosition(sanitizedOpts, lastQuiz.correctIndex)
 
-    const { data: row, error } = await supabase
-      .from('worksheet_questions')
-      .insert({
-        user_id: userId,
-        curriculum_id: curriculumId || null,
-        type: 'quiz',
-        subject_id: subjectId,
-        grade_level_id: gradeLevelId,
-        topic: topic || null,
-        lesson_topics: lessonTopics || null,
-        difficulty,
-        content_json: { question: lastQuiz.question, options: shuffledOpts, correctIndex: shuffledCorrect },
-        source: 'ai',
-        order,
-      })
-      .select('id, content_json, created_at')
-      .single()
+    const contentJson = { question: lastQuiz.question, options: shuffledOpts, correctIndex: shuffledCorrect }
+    const row = await insertWorksheetQuestionPg({
+      userId: userId!,
+      curriculumId,
+      type: 'quiz',
+      subjectId,
+      gradeLevelId,
+      topic: topic || null,
+      lessonTopics,
+      difficulty,
+      contentJson,
+      order,
+    })
+    if (!row) {
+      return NextResponse.json({ error: 'Lỗi lưu câu hỏi.' }, { status: 500 })
+    }
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     return NextResponse.json({ success: true, question: row })
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)

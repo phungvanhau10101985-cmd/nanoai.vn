@@ -1,15 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
-import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { fetchExamQuestionsForReviewPg, fetchExamSessionForTeacherReviewPg } from '@/lib/db/exam-session-pg'
+import { fetchWorksheetQuestionsTypeContentByIdsFromPg } from '@/lib/db/worksheet-pg'
+import { isPgConfigured } from '@/lib/db/pool'
 import { getEssaySolution } from '@/app/tao-giao-trinh/lib/worksheet-content-json'
 
-function getAdminClient() {
-  return createAdminClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false } }
-  )
+type ExamQuestionRow = {
+  id: string
+  question_text?: unknown
+  options?: unknown
+  correct_index?: unknown
+  order?: unknown
+  source?: unknown
+  worksheet_question_id?: string | null
 }
 
 function indexToLetter(index: number): string {
@@ -26,63 +29,62 @@ export async function GET(
 ) {
   try {
     const { code } = await params
-    const supabase = createClient()
-    const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+    const authResult = await getUserForAction()
     if ('error' in authResult) return NextResponse.json({ error: authResult.error }, { status: 401 })
     const { user } = authResult
 
-    const admin = getAdminClient()
-    const { data: session, error: sessionErr } = await admin
-      .from('exam_sessions')
-      .select('id, code, title, teacher_id, is_practice_homework')
-      .eq('code', String(code || '').trim().toUpperCase())
-      .single()
-    if (sessionErr || !session) return NextResponse.json({ error: 'Không tìm thấy bài thi.' }, { status: 404 })
-    if (String(session.teacher_id ?? '') !== user.id) {
+    if (!isPgConfigured()) {
+      return NextResponse.json({ error: 'Chưa cấu hình cơ sở dữ liệu.' }, { status: 503 })
+    }
+
+    const sessionRes = await fetchExamSessionForTeacherReviewPg(String(code || '').trim().toUpperCase(), user.id)
+    if (sessionRes === null) {
+      return NextResponse.json({ error: 'Lỗi đọc bài thi.' }, { status: 500 })
+    }
+    if (sessionRes === 'not_found') {
+      return NextResponse.json({ error: 'Không tìm thấy bài thi.' }, { status: 404 })
+    }
+    if (sessionRes === 'forbidden') {
       return NextResponse.json({ error: 'Bạn không có quyền xem chữa bài của đề này.' }, { status: 403 })
     }
 
-    const { data: questions, error: qErr } = await admin
-      .from('exam_questions')
-      .select('id, question_text, options, correct_index, order, source, worksheet_question_id')
-      .eq('session_id', session.id)
-      .order('order', { ascending: true })
-    if (qErr) return NextResponse.json({ error: qErr.message }, { status: 500 })
+    const session = sessionRes
+    const questions = await fetchExamQuestionsForReviewPg(session.id)
+    if (questions === null) {
+      return NextResponse.json({ error: 'Lỗi đọc câu hỏi.' }, { status: 500 })
+    }
 
+    const questionRows = questions as ExamQuestionRow[]
     const wsIds = Array.from(
       new Set(
-        (questions ?? [])
-          .map((q) => (q as { worksheet_question_id?: string | null }).worksheet_question_id)
+        questionRows
+          .map((q) => q.worksheet_question_id)
           .filter((id): id is string => Boolean(id && String(id).trim()))
       )
     )
     const solutionByWorksheetQid = new Map<string, string>()
     if (wsIds.length > 0) {
-      const { data: wsRows, error: wsErr } = await admin
-        .from('worksheet_questions')
-        .select('id, type, content_json')
-        .in('id', wsIds)
-      if (wsErr) return NextResponse.json({ error: wsErr.message }, { status: 500 })
-      for (const row of wsRows ?? []) {
-        const id = String((row as { id?: string }).id ?? '')
-        if (!id) continue
-        const type = String((row as { type?: string }).type ?? '')
-        const cj = (row as { content_json?: unknown }).content_json
+      const wsMap = await fetchWorksheetQuestionsTypeContentByIdsFromPg(wsIds)
+      if (wsMap === null) {
+        return NextResponse.json({ error: 'Lỗi đọc lời giải.' }, { status: 500 })
+      }
+      for (const [id, row] of wsMap) {
+        const type = row.type
         if (type === 'essay') {
-          const sol = getEssaySolution(cj).trim()
+          const sol = getEssaySolution(row.content_json).trim()
           if (sol) solutionByWorksheetQid.set(id, sol)
         }
       }
     }
 
-    const items = (questions ?? []).map((q, idx) => {
-      const options = Array.isArray(q.options) ? q.options.map((x) => String(x ?? '').trim()).filter(Boolean) : []
+    const items = questionRows.map((q, idx) => {
+      const options = Array.isArray(q.options) ? q.options.map((x: unknown) => String(x ?? '').trim()).filter(Boolean) : []
       const ci = typeof q.correct_index === 'number' ? q.correct_index : Number(q.correct_index ?? -1)
       const hasChoice = options.length >= 2
       const correctIndex = hasChoice && Number.isFinite(ci) ? Math.max(0, Math.min(options.length - 1, Math.floor(ci))) : -1
       const correctLabel = correctIndex >= 0 ? indexToLetter(correctIndex) : null
       let correctOption = correctIndex >= 0 ? options[correctIndex] ?? '' : ''
-      const wsq = String((q as { worksheet_question_id?: string | null }).worksheet_question_id ?? '').trim()
+      const wsq = String(q.worksheet_question_id ?? '').trim()
       if (!hasChoice && wsq) {
         const fromDb = solutionByWorksheetQid.get(wsq)
         if (fromDb) correctOption = fromDb
@@ -102,7 +104,7 @@ export async function GET(
     return NextResponse.json({
       code: session.code,
       title: session.title,
-      practiceHomework: Boolean((session as { is_practice_homework?: boolean }).is_practice_homework),
+      practiceHomework: session.is_practice_homework,
       questions: items,
     })
   } catch (e) {

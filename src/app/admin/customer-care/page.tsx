@@ -1,10 +1,15 @@
-import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { getUserOrBypass } from '@/lib/auth'
 import { buildMetadata } from '@/lib/seo'
 import { getServerDictionary } from '@/lib/i18n/server'
 import { CustomerCareInboxClient } from '@/app/admin/customer-care/customer-care-inbox-client'
+import {
+  fetchPartnerConversationsFromPg,
+  type CustomerCareConversationRow,
+} from '@/lib/db/customer-care-pg'
+import { isPgConfigured } from '@/lib/db/pool'
 import { PLATFORM_MESSAGING_PARTNER_ID } from '@/lib/messaging/platform-partner'
+import { getProfileRoleWithFallback } from '@/lib/db/read-user-dashboard-pg'
 
 export const metadata = buildMetadata({
   title: 'Hộp thư chăm sóc khách hàng (nền tảng NanoAI)',
@@ -15,18 +20,20 @@ export const metadata = buildMetadata({
 })
 
 export default async function AdminCustomerCarePage() {
-  const supabase = createClient()
-  const user = await getUserOrBypass(() => supabase.auth.getUser())
+  const user = await getUserOrBypass()
   if (!user) redirect('/auth/login?next=/admin/customer-care')
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-  if (profile?.role !== 'admin') redirect('/')
+  const role = await getProfileRoleWithFallback(user.id)
+  if (role !== 'admin') redirect('/')
 
-  const { data: conversations } = await supabase
-    .from('customer_care_conversations')
-    .select('*')
-    .eq('partner_id', PLATFORM_MESSAGING_PARTNER_ID)
-    .order('last_message_at', { ascending: false, nullsFirst: false })
-    .limit(100)
+  let initialConversations: CustomerCareConversationRow[] = []
+  if (isPgConfigured()) {
+    try {
+      const rows = await fetchPartnerConversationsFromPg(PLATFORM_MESSAGING_PARTNER_ID, 100)
+      if (rows) initialConversations = rows
+    } catch (e) {
+      console.warn('[admin customer-care page] PG list failed', e)
+    }
+  }
 
   const { t } = getServerDictionary()
   const tc = t.customerCareAdmin
@@ -37,7 +44,7 @@ export default async function AdminCustomerCarePage() {
         <h1 className="text-2xl font-bold tracking-tight">{tc.pageTitle}</h1>
         <p className="text-sm text-muted-foreground">{tc.pageDescription}</p>
       </div>
-      <CustomerCareInboxClient initialConversations={conversations ?? []} t={tc} />
+      <CustomerCareInboxClient initialConversations={initialConversations} t={tc} />
     </div>
   )
 }

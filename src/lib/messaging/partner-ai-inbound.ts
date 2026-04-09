@@ -1,13 +1,17 @@
-import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database, Json } from '@/types/database.types'
+import { fetchCustomerCareConversationByIdPg } from '@/lib/db/customer-care-pg'
+import { fetchMessagingPartnerAiSettingsFullFromPg } from '@/lib/db/messaging-partner-ai-settings-pg'
+import {
+  cancelPendingAiJobsForConversationPg,
+  insertPartnerAiJobPg,
+} from '@/lib/db/messaging-partner-ai-jobs-pg'
+import { isPgConfigured } from '@/lib/db/pool'
 import type { CustomerCareChannel } from '@/lib/customer-care/types'
-import { createServiceRoleClient } from '@/lib/supabase/service-role'
 import { findMatchingFaq } from '@/lib/messaging/partner-ai-faq'
 import { inboundTextHasVisionSelectionHint } from '@/lib/messaging/guest-chat-image'
 import { deliverAutomatedPartnerMessage } from '@/lib/messaging/partner-ai-deliver'
 import { runMessagingPartnerAiJobBatch } from '@/lib/messaging/partner-ai-run-jobs'
 
-type Db = SupabaseClient<Database>
 type SettingsRow = Database['public']['Tables']['messaging_partner_ai_settings']['Row']
 
 function sleep(ms: number) {
@@ -20,35 +24,33 @@ function typingDelayMs(settings: SettingsRow): number {
   return a + Math.floor(Math.random() * Math.max(1, b - a + 1))
 }
 
-/** Bảng jobs không có policy JWT — luôn dùng service role. */
+/** Hủy job AI pending — chỉ Postgres. */
 export async function cancelPendingAiJobsForConversation(conversationId: string) {
   try {
-    const db = createServiceRoleClient()
-    await db
-      .from('messaging_partner_ai_jobs')
-      .update({ status: 'cancelled' })
-      .eq('conversation_id', conversationId)
-      .eq('status', 'pending')
+    if (!isPgConfigured()) return
+    await cancelPendingAiJobsForConversationPg(conversationId)
   } catch (e) {
     console.error('[partner-ai] cancel jobs', e)
   }
 }
 
-async function runInstantFaq(
-  db: Db,
-  ctx: {
-    partnerId: string
-    conversationId: string
-    settings: SettingsRow
-    answer: string
-    faqId: string
+async function runInstantFaq(ctx: {
+  partnerId: string
+  conversationId: string
+  settings: SettingsRow
+  answer: string
+  faqId: string
+}) {
+  let conv: Database['public']['Tables']['customer_care_conversations']['Row'] | null = null
+  try {
+    conv = await fetchCustomerCareConversationByIdPg(ctx.conversationId)
+  } catch (e) {
+    console.warn('[partner-ai] runInstantFaq PG conv failed', e)
   }
-) {
-  const { data: conv } = await db.from('customer_care_conversations').select('*').eq('id', ctx.conversationId).single()
   if (!conv) return
   await sleep(typingDelayMs(ctx.settings))
   const rawPayload = { source: 'ai_faq', faq_id: ctx.faqId } as unknown as Json
-  const err = await deliverAutomatedPartnerMessage(db, {
+  const err = await deliverAutomatedPartnerMessage({
     conversation: conv,
     settings: ctx.settings,
     body: ctx.answer,
@@ -63,44 +65,29 @@ export type PartnerInboundShopTypingHint = { show: false } | { show: true; maxWa
 /**
  * Sau mỗi tin inbound từ khách (FB/Zalo/widget/hosted): FAQ tức thì (nền) hoặc lên lịch job AI.
  * Luôn await đến khi job đã insert (hoặc bỏ qua) để serverless không cắt giữa chừng.
+ * Chỉ Postgres — cần `DATABASE_URL` để lên lịch job.
  */
-export async function handlePartnerInboundForAi(
-  db: Db,
-  input: {
-    partnerId: string
-    conversationId: string
-    messageId: string
-    inboundBody: string
-    channel: CustomerCareChannel
-    /** Giới hạn reply_delay (giây) — ví dụ khi Vision không có ứng viên, AI chạy sớm hơn. */
-    capReplyDelaySeconds?: number
-    /**
-     * Bỏ qua reply_delay shop: hẹn job sau đúng N giây (vd. chờ khách chọn SP gợi ý Vision).
-     * Không dùng chung với capReplyDelaySeconds trong một lần gọi.
-     */
-    scheduleAiAfterSeconds?: number
-    /**
-     * Chỉ lên lịch job, bỏ qua vòng eager-run trong request hiện tại để giảm latency API.
-     * Dùng cho widget khi cần trả response nhanh nhưng vẫn đảm bảo đã ghi job vào DB.
-     */
-    skipEagerBatchRun?: boolean
-  }
-): Promise<PartnerInboundShopTypingHint> {
+export async function handlePartnerInboundForAi(input: {
+  partnerId: string
+  conversationId: string
+  messageId: string
+  inboundBody: string
+  channel: CustomerCareChannel
+  capReplyDelaySeconds?: number
+  scheduleAiAfterSeconds?: number
+  skipEagerBatchRun?: boolean
+}): Promise<PartnerInboundShopTypingHint> {
   if (input.channel === 'internal') return { show: false }
 
   try {
-    const { data: settings } = await db
-      .from('messaging_partner_ai_settings')
-      .select('*')
-      .eq('partner_id', input.partnerId)
-      .maybeSingle()
+    const settings = await fetchMessagingPartnerAiSettingsFullFromPg(input.partnerId)
 
     if (!settings?.enabled) return { show: false }
 
     const skipFaq = inboundTextHasVisionSelectionHint(input.inboundBody)
-    const faq = skipFaq ? null : await findMatchingFaq(db, input.partnerId, input.inboundBody)
+    const faq = skipFaq ? null : await findMatchingFaq(input.partnerId, input.inboundBody)
     if (faq) {
-      void runInstantFaq(db, {
+      void runInstantFaq({
         partnerId: input.partnerId,
         conversationId: input.conversationId,
         settings,
@@ -112,7 +99,6 @@ export async function handlePartnerInboundForAi(
     }
 
     await cancelPendingAiJobsForConversation(input.conversationId)
-    /** Chat bán hàng: chậm nhất ~30s trước khi bắt đầu luồng trả lời (sau đó còn độ trễ gõ). */
     const configuredDelay = Math.max(5, Math.min(30, settings.reply_delay_seconds ?? 20))
     const exactSchedule =
       input.scheduleAiAfterSeconds != null && Number.isFinite(input.scheduleAiAfterSeconds)
@@ -128,37 +114,33 @@ export async function handlePartnerInboundForAi(
         : configuredDelay
     }
     const runAt = new Date(Date.now() + delaySec * 1000).toISOString()
-    const { error } = await db.from('messaging_partner_ai_jobs').insert({
-      partner_id: input.partnerId,
-      conversation_id: input.conversationId,
-      trigger_message_id: input.messageId,
-      run_at: runAt,
-      status: 'pending',
-    })
-    if (error) {
-      console.error('[partner-ai] schedule job', error.message)
+    let scheduled = false
+    if (isPgConfigured()) {
+      try {
+        const ins = await insertPartnerAiJobPg({
+          partnerId: input.partnerId,
+          conversationId: input.conversationId,
+          triggerMessageId: input.messageId,
+          runAtIso: runAt,
+        })
+        scheduled = Boolean(ins?.id)
+      } catch (e) {
+        console.warn('[partner-ai] schedule job PG failed', e)
+      }
+    }
+    if (!scheduled) {
+      console.error('[partner-ai] schedule job: Postgres insert failed')
       return { show: false }
     }
 
-    /**
-     * Luôn thử xử lý job đã đến hạn ngay trong request này. Nếu chỉ dựa cron / INLINE_WAKE mà server
-     * không cấu hình, khách sẽ không bao giờ nhận tin. Job có run_at trong tương lai không bị pick
-     * (một vòng query rẻ); job delay 0 (fallback Vision) hoặc run_at đã qua sẽ chạy LLM tại đây.
-     */
     if (!input.skipEagerBatchRun) {
       try {
-        await runMessagingPartnerAiJobBatch(db, 15)
+        await runMessagingPartnerAiJobBatch(15)
       } catch (e) {
         console.error('[partner-ai] eager batch after schedule', e)
       }
     }
 
-    /**
-     * Luôn thử "wake" cục bộ sau delay (trừ khi tắt tường minh bằng INLINE_WAKE=0):
-     * - VPS/PM2 không có cron vẫn xử lý được job delay > 0.
-     * - Có cron vẫn an toàn vì runner lock theo trạng thái pending->processing (không gửi trùng).
-     * - Serverless có thể không giữ timer sau response; khi đó cron vẫn là đường chính.
-     */
     const scheduledWake =
       process.env.MESSAGING_PARTNER_AI_INLINE_WAKE !== '0' &&
       (process.env.NODE_ENV === 'development' ||
@@ -170,7 +152,7 @@ export async function handlePartnerInboundForAi(
       setTimeout(() => {
         void (async () => {
           try {
-            await runMessagingPartnerAiJobBatch(createServiceRoleClient(), 15)
+            await runMessagingPartnerAiJobBatch(15)
           } catch (e) {
             console.error('[partner-ai] scheduled wake batch', e)
           }
@@ -178,9 +160,6 @@ export async function handlePartnerInboundForAi(
       }, ms)
     }
 
-    /**
-     * Poll phía khách: delay ~0 (Vision miss / index chưa sẵn) — cửa sổ ngắn hơn; delay cố định (chờ chọn SP) — cộng thêm LLM.
-     */
     const maxWaitMs = visionFastFallback
       ? Math.min(Math.max(delaySec * 1000 + 52_000, 72_000), 4 * 60 * 1000)
       : Math.min(Math.max(delaySec * 1000 + 35_000, 60_000), 6 * 60 * 1000)

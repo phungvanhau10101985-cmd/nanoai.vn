@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { isPgConfigured } from '@/lib/db/pool'
+import { fetchReviewQueueDueCountsByUserPg } from '@/lib/db/language-coach-cron-pg'
 import { notifyCoachReviewDueIfAllowed } from '@/lib/notifications/notify-job-events'
 
 /**
@@ -16,35 +17,19 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim()
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()
-  if (!url || !key) {
-    return NextResponse.json({ error: 'Missing Supabase service env.' }, { status: 500 })
+  if (!isPgConfigured()) {
+    return NextResponse.json({ error: 'Database not configured.' }, { status: 503 })
   }
 
-  const admin = createClient(url, key)
   const nowIso = new Date().toISOString()
-
-  const { data: rows, error } = await admin
-    .from('language_coach_review_queue')
-    .select('user_id')
-    .lte('due_at', nowIso)
-
-  if (error) {
-    console.error('[cron/coach-review-reminder]', error.message)
-    return NextResponse.json({ error: error.message }, { status: 500 })
-  }
-
-  const counts = new Map<string, number>()
-  for (const r of rows ?? []) {
-    const uid = typeof r.user_id === 'string' ? r.user_id : null
-    if (!uid) continue
-    counts.set(uid, (counts.get(uid) ?? 0) + 1)
+  const grouped = await fetchReviewQueueDueCountsByUserPg(nowIso)
+  if (grouped === null) {
+    return NextResponse.json({ error: 'Failed to load review queue.' }, { status: 500 })
   }
 
   let notified = 0
-  for (const [userId, dueWordCount] of counts) {
-    const sent = await notifyCoachReviewDueIfAllowed(admin, {
+  for (const { user_id: userId, cnt: dueWordCount } of grouped) {
+    const sent = await notifyCoachReviewDueIfAllowed({
       userId,
       dueWordCount,
       minHoursSinceLast: 20,
@@ -54,7 +39,7 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     ok: true,
-    usersWithDueWords: counts.size,
+    usersWithDueWords: grouped.length,
     notificationsSent: notified,
   })
 }

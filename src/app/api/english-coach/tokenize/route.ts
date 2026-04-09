@@ -1,15 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
+import { isPgConfigured } from '@/lib/db/pool'
+import {
+  fetchCoachMessageTokensByIdPg,
+  fetchTeacherMessagesWithTokensPg,
+  fetchTokenizationExactPg,
+  fetchTokenizationsForUserTargetPg,
+  upsertTokenizationPg,
+} from '@/lib/db/language-coach-transliteration-tokenize-pg'
 import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
 import {
   EnglishCoachApiFeature,
   trackEnglishCoachGeminiResult,
   type EnglishCoachUsageContext,
 } from '@/lib/english-coach-api-usage'
-import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
-
 type TokenizePayload = {
   sentence?: string
   targetLanguage?: string
@@ -128,10 +133,6 @@ function sanitizeTokensWithUsage(raw: unknown, targetLanguageCode: string): Toke
   return out
 }
 
-function adminClient() {
-  return createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-}
-
 /** Normalize sentence for flexible matching: trim, collapse whitespace */
 function normalizeForMatch(s: string): string {
   return String(s || '')
@@ -164,21 +165,17 @@ export async function POST(request: NextRequest) {
     // vocabulary from the whole explanation block, not just one labeled sentence.
     const sentence = rawSentence
 
-    const supabase = createClient()
-    const auth = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập để tách từ.')
+    const auth = await getUserForAction()
     if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
     const { user } = auth
-    const adminSupabase = adminClient()
+    if (!isPgConfigured()) {
+      return NextResponse.json({ error: 'Cơ sở dữ liệu chưa cấu hình.' }, { status: 503 })
+    }
     const messageId = String(payload.messageId || '').trim()
 
     // 0) Nếu có messageId (UUID của đoạn hỏi đáp) → lấy tokens_json trực tiếp từ message
     if (messageId && isUuid(messageId)) {
-      const { data: msgRow } = await adminSupabase
-        .from('language_coach_messages')
-        .select('tokens_json, target_language')
-        .eq('id', messageId)
-        .eq('user_id', user.id)
-        .maybeSingle()
+      const msgRow = await fetchCoachMessageTokensByIdPg(user.id, messageId)
 
       if (msgRow?.tokens_json) {
         try {
@@ -221,25 +218,15 @@ export async function POST(request: NextRequest) {
     const normSentence = normalizeForMatch(sentence)
 
     // 1) Check language_coach_tokenizations (exact + normalized match)
-    const { data: cachedExact } = await adminSupabase
-      .from('language_coach_tokenizations')
-      .select('tokens_json')
-      .eq('user_id', user.id)
-      .eq('target_language', targetLanguage)
-      .eq('sentence', sentence)
-      .maybeSingle()
+    const cachedExact = await fetchTokenizationExactPg(user.id, targetLanguage, sentence)
 
-    let cached = cachedExact
+    let cached: { tokens_json: string } | null = cachedExact
     if (!cached?.tokens_json) {
-      const { data: tokenRows } = await adminSupabase
-        .from('language_coach_tokenizations')
-        .select('sentence, tokens_json')
-        .eq('user_id', user.id)
-        .eq('target_language', targetLanguage)
-        .limit(500)
-      const matchedToken = Array.isArray(tokenRows)
-        ? tokenRows.find((r) => normalizeForMatch(String(r.sentence || '')) === normSentence)
-        : null
+      const tokenRows = await fetchTokenizationsForUserTargetPg(user.id, targetLanguage, 500)
+      if (tokenRows === null) {
+        return NextResponse.json({ error: 'Không đọc được cache tokenization.' }, { status: 500 })
+      }
+      const matchedToken = tokenRows.find((r) => normalizeForMatch(String(r.sentence || '')) === normSentence)
       if (matchedToken?.tokens_json) cached = { tokens_json: matchedToken.tokens_json }
     }
 
@@ -279,19 +266,16 @@ export async function POST(request: NextRequest) {
     // 2) Fallback: check language_coach_messages (main_sentence, intent_answer, text) - reuse tokens_json đã có
     // Chạy khi tokenizations miss HOẶC parse lỗi
     {
-      let msgQuery = adminSupabase
-        .from('language_coach_messages')
-        .select('main_sentence, intent_answer, text, tokens_json')
-        .eq('user_id', user.id)
-        .eq('role', 'teacher')
-        .not('tokens_json', 'is', null)
-        .order('created_at', { ascending: false })
-        .limit(200)
-      if (targetLanguage) msgQuery = msgQuery.eq('target_language', targetLanguage)
-      const { data: msgRows } = await msgQuery
+      const msgRows = await fetchTeacherMessagesWithTokensPg(
+        user.id,
+        targetLanguage || null,
+        200
+      )
+      if (msgRows === null) {
+        return NextResponse.json({ error: 'Không đọc được tin nhắn coach.' }, { status: 500 })
+      }
 
-      const matched = Array.isArray(msgRows)
-        ? msgRows.find((r) => {
+      const matched = msgRows.find((r) => {
             const main = String(r.main_sentence || '').trim()
             const intent = String(r.intent_answer || '').trim()
             const text = String(r.text || '').trim()
@@ -305,7 +289,6 @@ export async function POST(request: NextRequest) {
               normSentence === normalizeForMatch(combinedAlt)
             )
           })
-        : null
 
       if (matched?.tokens_json) {
         try {
@@ -317,16 +300,16 @@ export async function POST(request: NextRequest) {
               tokenCount: withUsage.length,
             })
             // Backfill tokenizations for next time
-            await adminSupabase.from('language_coach_tokenizations').upsert(
-              {
-                user_id: user.id,
-                target_language: targetLanguage,
-                sentence,
-                tokens_json: JSON.stringify(withUsage),
-                updated_at: new Date().toISOString(),
-              },
-              { onConflict: 'user_id,target_language,sentence' }
-            )
+            const up1 = await upsertTokenizationPg({
+              userId: user.id,
+              targetLanguage,
+              sentence,
+              tokensJson: JSON.stringify(withUsage),
+              updatedAtIso: new Date().toISOString(),
+            })
+            if (!up1.ok) {
+              return NextResponse.json({ error: up1.message || 'Không lưu được tokenization.' }, { status: 500 })
+            }
             return NextResponse.json({
               tokens: withUsage.map((t) => t.word),
               tokensWithUsage: withUsage,
@@ -340,16 +323,16 @@ export async function POST(request: NextRequest) {
               sentenceLen: sentence.length,
               tokenCount: tokens.length,
             })
-            await adminSupabase.from('language_coach_tokenizations').upsert(
-              {
-                user_id: user.id,
-                target_language: targetLanguage,
-                sentence,
-                tokens_json: JSON.stringify(fallbackWithUsage),
-                updated_at: new Date().toISOString(),
-              },
-              { onConflict: 'user_id,target_language,sentence' }
-            )
+            const up2 = await upsertTokenizationPg({
+              userId: user.id,
+              targetLanguage,
+              sentence,
+              tokensJson: JSON.stringify(fallbackWithUsage),
+              updatedAtIso: new Date().toISOString(),
+            })
+            if (!up2.ok) {
+              return NextResponse.json({ error: up2.message || 'Không lưu được tokenization.' }, { status: 500 })
+            }
             return NextResponse.json({
               tokens,
               tokensWithUsage: fallbackWithUsage,
@@ -414,16 +397,16 @@ ${sentence}`
       const parsed = JSON.parse(cleaned) as { tokens?: unknown }
       const withUsage = sanitizeTokensWithUsage(parsed.tokens, targetLanguageCode)
       if (withUsage.length > 0) {
-        await adminSupabase.from('language_coach_tokenizations').upsert(
-          {
-            user_id: user.id,
-            target_language: targetLanguage,
-            sentence,
-            tokens_json: JSON.stringify(withUsage),
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: 'user_id,target_language,sentence' }
-        )
+        const up3 = await upsertTokenizationPg({
+          userId: user.id,
+          targetLanguage,
+          sentence,
+          tokensJson: JSON.stringify(withUsage),
+          updatedAtIso: new Date().toISOString(),
+        })
+        if (!up3.ok) {
+          return NextResponse.json({ error: up3.message || 'Không lưu được tokenization.' }, { status: 500 })
+        }
         console.log('[tokenize] AI_SUCCESS: Gemini returned tokens, saved to DB', {
           sentenceLen: sentence.length,
           tokenCount: withUsage.length,
@@ -437,16 +420,16 @@ ${sentence}`
       const tokens = sanitizeTokens(parsed.tokens, targetLanguageCode)
       if (tokens.length > 0) {
         const fallbackWithUsage = tokens.map((w) => ({ word: w, usageLevel: 'medium' as const }))
-        await adminSupabase.from('language_coach_tokenizations').upsert(
-          {
-            user_id: user.id,
-            target_language: targetLanguage,
-            sentence,
-            tokens_json: JSON.stringify(fallbackWithUsage),
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: 'user_id,target_language,sentence' }
-        )
+        const up4 = await upsertTokenizationPg({
+          userId: user.id,
+          targetLanguage,
+          sentence,
+          tokensJson: JSON.stringify(fallbackWithUsage),
+          updatedAtIso: new Date().toISOString(),
+        })
+        if (!up4.ok) {
+          return NextResponse.json({ error: up4.message || 'Không lưu được tokenization.' }, { status: 500 })
+        }
         console.log('[tokenize] AI_SUCCESS: Gemini returned (fallback parse), saved to DB', {
           sentenceLen: sentence.length,
           tokenCount: tokens.length,

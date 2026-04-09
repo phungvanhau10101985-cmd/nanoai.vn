@@ -41,11 +41,10 @@ pm2 startup
 
 ## Biến môi trường
 
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `GOOGLE_API_KEY`
+- `DATABASE_URL` — Postgres (bảng `worksheet_jobs`, v.v.)
+- `GOOGLE_API_KEY` — Gemini khi job cần gọi AI
 
-Đặt trong `.env.local` hoặc `.env` (worker tự load).
+Đặt trong `.env.local` hoặc `.env` (worker tự load). Không còn PostgREST / SDK JS client cũ cho bảng này.
 
 ## Khôi phục khi quay lại trang
 

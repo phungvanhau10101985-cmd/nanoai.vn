@@ -1,8 +1,12 @@
 'use server'
+import { deleteTryOnHistoryRowAndStorage } from '@/lib/storage/try-on-history-cleanup'
 
-import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+import {
+  getTryOnHistoryRowByIdPg,
+  insertTryOnHistoryProcessingPg,
+  updateTryOnHistoryCompletedPg,
+} from '@/lib/db/try-on-history-pg'
 import { revalidatePath } from 'next/cache'
 import { GoogleGenAI } from '@google/genai'
 import { downloadVeoVideoToBuffer } from '@/lib/gemini/download-veo-video-buffer'
@@ -13,6 +17,8 @@ import {
 import { trackApiUsage } from '@/lib/track-ai-usage'
 import { TRY_ON_HISTORY_INPUT_PLACEHOLDER_SRC } from '@/lib/try-on-history-placeholder'
 import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
+import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
+import { deductUserCredits } from '@/lib/music/deduct-user-credits'
 
 export type VeoVideoMode = 'text' | 'image'
 export type VeoAspectRatio = '16:9' | '9:16'
@@ -20,7 +26,6 @@ export type VeoResolution = '720p' | '1080p' | '4k'
 export type VeoDuration = 4 | 6 | 8
 
 const toTenths = (v: number) => Math.round(v * 10)
-const fromTenths = (v: number) => v / 10
 const formatCredits = (v: number) => v.toLocaleString('vi-VN', { maximumFractionDigits: 1 })
 
 const DEFAULT_IMAGE_PROMPT =
@@ -90,23 +95,19 @@ export async function createVeoVideo(formData: FormData) {
         ? prompt
         : DEFAULT_IMAGE_PROMPT
 
-  const supabase = createClient()
-  const adminSupabase = createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
-  const result = await getUserForAction(() => supabase.auth.getUser())
+  const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
-  const { data: creditData, error: creditError } = await supabase
-    .from('credits')
-    .select('balance')
-    .eq('user_id', user.id)
-    .single()
-  if (creditError || !creditData || toTenths(creditData.balance) < toTenths(COST)) {
+  let openBalance = 0
+  try {
+    openBalance = await getCreditBalanceByUserId(user.id)
+  } catch {
+    return { error: 'Không đọc được số dư credits.' }
+  }
+  if (toTenths(openBalance) < toTenths(COST)) {
     return {
-      error: `Không đủ credits. Cần ${formatCredits(COST)} credits, hiện có ${formatCredits(creditData?.balance || 0)}.`,
+      error: `Không đủ credits. Cần ${formatCredits(COST)} credits, hiện có ${formatCredits(openBalance)}.`,
     }
   }
 
@@ -116,26 +117,21 @@ export async function createVeoVideo(formData: FormData) {
   if (mode === 'image' && image) {
     const timestamp = Date.now()
     const uploadPath = `uploads/${user.id}/video_input_${timestamp}.png`
-    const { publicUrl: videoInputPublicUrl } = await uploadTryOnImagePublic(supabase, uploadPath, image, {
+    const { publicUrl: videoInputPublicUrl } = await uploadTryOnImagePublic(uploadPath, image, {
       contentType: image.type || 'image/png',
     })
     originalUrl = videoInputPublicUrl
     garmentUrl = videoInputPublicUrl
   }
 
-  const { data: historyItem, error: historyError } = await supabase
-    .from('try_on_history')
-    .insert({
-      user_id: user.id,
-      original_image_url: originalUrl,
-      garment_image_url: garmentUrl,
-      status: 'processing',
-      feature: mode === 'text' ? 'veo-video-text' : 'veo-video-image',
-      aspect_ratio: aspectRatio,
-    })
-    .select()
-    .single()
-  if (historyError || !historyItem) return { error: 'Không thể khởi tạo phiên xử lý.' }
+  const historyItem = await insertTryOnHistoryProcessingPg({
+    userId: user.id,
+    originalImageUrl: originalUrl,
+    garmentImageUrl: garmentUrl,
+    feature: mode === 'text' ? 'veo-video-text' : 'veo-video-image',
+    aspectRatio: aspectRatio,
+  })
+  if (!historyItem) return { error: 'Không thể khởi tạo phiên xử lý.' }
 
   const apiKey = process.env.GOOGLE_API_KEY
   if (!apiKey) return { error: 'Thiếu cấu hình GOOGLE_API_KEY.' }
@@ -174,34 +170,32 @@ export async function createVeoVideo(formData: FormData) {
     }
 
     if (!op.done || !op.response?.generatedVideos?.[0]?.video) {
-      await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+      await deleteTryOnHistoryRowAndStorage(historyItem.id)
       return { error: 'AI không tạo được video. Vui lòng thử lại.' }
     }
 
     const genVideo = op.response.generatedVideos[0].video
     if (!genVideo) {
-      await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+      await deleteTryOnHistoryRowAndStorage(historyItem.id)
       return { error: 'Không lấy được dữ liệu video.' }
     }
     const videoBuffer = await downloadVeoVideoToBuffer(ai, genVideo, apiKey)
 
     const resultPath = `results/${user.id}/veo_${Date.now()}.mp4`
-    const { publicUrl: veoResultPublicUrl } = await uploadTryOnImagePublic(adminSupabase, resultPath, videoBuffer, {
+    const { publicUrl: veoResultPublicUrl } = await uploadTryOnImagePublic(resultPath, videoBuffer, {
       contentType: 'video/mp4',
       upsert: true,
     })
 
-    const newBalance = fromTenths(toTenths(creditData.balance) - toTenths(COST))
-    await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', user.id)
+    const d = await deductUserCredits(user.id, COST)
+    if (!d.ok) {
+      await deleteTryOnHistoryRowAndStorage(historyItem.id)
+      return { error: d.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credits để hoàn tất.' : d.error }
+    }
     const geminiUri = typeof genVideo?.uri === 'string' && genVideo.uri.length > 0 ? genVideo.uri : null
-    await adminSupabase
-      .from('try_on_history')
-      .update({
-        result_image_url: veoResultPublicUrl,
-        status: 'completed',
-        ...(geminiUri ? { veo_gemini_video_uri: geminiUri } : {}),
-      })
-      .eq('id', historyItem.id)
+    await updateTryOnHistoryCompletedPg(historyItem.id, veoResultPublicUrl, {
+      veo_gemini_video_uri: geminiUri,
+    })
 
     trackApiUsage({
       userId: user.id,
@@ -217,7 +211,7 @@ export async function createVeoVideo(formData: FormData) {
     revalidatePath('/dashboard/history')
     return { success: true, resultUrl: veoResultPublicUrl, historyId: historyItem.id }
   } catch (e) {
-    await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+    await deleteTryOnHistoryRowAndStorage(historyItem.id)
     return { error: formatGoogleGenAiCaughtErrorForVeoCreate(e) }
   }
 }
@@ -247,22 +241,13 @@ export async function extendVeoVideo(formData: FormData) {
     return { error: 'Thiếu mã phiên video gốc.' }
   }
 
-  const supabase = createClient()
-  const adminSupabase = createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
-  const result = await getUserForAction(() => supabase.auth.getUser())
+  const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
-  const { data: parentRow, error: parentErr } = await supabase
-    .from('try_on_history')
-    .select('id,user_id,feature,veo_gemini_video_uri,aspect_ratio,status')
-    .eq('id', parentId)
-    .single()
+  const parentRow = await getTryOnHistoryRowByIdPg(parentId)
 
-  if (parentErr || !parentRow || parentRow.user_id !== user.id) {
+  if (!parentRow || parentRow.user_id !== user.id) {
     return { error: 'Không tìm thấy video gốc hoặc không thuộc tài khoản của bạn.' }
   }
   if (parentRow.status !== 'completed') {
@@ -271,7 +256,7 @@ export async function extendVeoVideo(formData: FormData) {
   if (!parentRow.feature || !VEO_EXTENDABLE_FEATURES.has(parentRow.feature)) {
     return { error: 'Chỉ có thể kéo dài video do Veo tạo (ảnh hoặc văn bản).' }
   }
-  const sourceUri = parentRow.veo_gemini_video_uri as string | null
+  const sourceUri = parentRow.veo_gemini_video_uri
   if (!sourceUri) {
     return {
       error:
@@ -279,31 +264,29 @@ export async function extendVeoVideo(formData: FormData) {
     }
   }
 
-  const { data: creditData, error: creditError } = await supabase
-    .from('credits')
-    .select('balance')
-    .eq('user_id', user.id)
-    .single()
-  if (creditError || !creditData || toTenths(creditData.balance) < toTenths(EXTEND_CREDITS)) {
+  let openBalExt = 0
+  try {
+    openBalExt = await getCreditBalanceByUserId(user.id)
+  } catch {
+    return { error: 'Không đọc được số dư credits.' }
+  }
+  if (toTenths(openBalExt) < toTenths(EXTEND_CREDITS)) {
     return {
-      error: `Không đủ credits. Cần ${formatCredits(EXTEND_CREDITS)} credits, hiện có ${formatCredits(creditData?.balance || 0)}.`,
+      error: `Không đủ credits. Cần ${formatCredits(EXTEND_CREDITS)} credits, hiện có ${formatCredits(openBalExt)}.`,
     }
   }
 
   const veoAspect = aspectRatioFromHistory(parentRow.aspect_ratio)
-  const { data: historyItem, error: historyError } = await supabase.from('try_on_history').insert({
-    user_id: user.id,
-    original_image_url: TRY_ON_HISTORY_INPUT_PLACEHOLDER_SRC,
-    garment_image_url: TRY_ON_HISTORY_INPUT_PLACEHOLDER_SRC,
-    status: 'processing',
+  const historyItem = await insertTryOnHistoryProcessingPg({
+    userId: user.id,
+    originalImageUrl: TRY_ON_HISTORY_INPUT_PLACEHOLDER_SRC,
+    garmentImageUrl: TRY_ON_HISTORY_INPUT_PLACEHOLDER_SRC,
     feature: 'veo-video-extended',
-    aspect_ratio: veoAspect,
-    veo_extend_parent_id: parentId,
+    aspectRatio: veoAspect,
+    veoExtendParentId: parentId,
   })
-    .select()
-    .single()
 
-  if (historyError || !historyItem) return { error: 'Không thể khởi tạo phiên kéo dài.' }
+  if (!historyItem) return { error: 'Không thể khởi tạo phiên kéo dài.' }
 
   const apiKey = process.env.GOOGLE_API_KEY
   if (!apiKey) return { error: 'Thiếu cấu hình GOOGLE_API_KEY.' }
@@ -332,35 +315,33 @@ export async function extendVeoVideo(formData: FormData) {
     }
 
     if (!op.done || !op.response?.generatedVideos?.[0]?.video) {
-      await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+      await deleteTryOnHistoryRowAndStorage(historyItem.id)
       return { error: 'AI không kéo dài được video. Vui lòng thử lại.' }
     }
 
     const genVideo = op.response.generatedVideos[0].video
     if (!genVideo) {
-      await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+      await deleteTryOnHistoryRowAndStorage(historyItem.id)
       return { error: 'Không lấy được dữ liệu video.' }
     }
     const videoBuffer = await downloadVeoVideoToBuffer(ai, genVideo, apiKey)
 
     const resultPath = `results/${user.id}/veo_extend_${Date.now()}.mp4`
-    const { publicUrl: veoExtendResultPublicUrl } = await uploadTryOnImagePublic(adminSupabase, resultPath, videoBuffer, {
+    const { publicUrl: veoExtendResultPublicUrl } = await uploadTryOnImagePublic(resultPath, videoBuffer, {
       contentType: 'video/mp4',
       upsert: true,
     })
 
-    const newBalance = fromTenths(toTenths(creditData.balance) - toTenths(EXTEND_CREDITS))
-    await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', user.id)
+    const dExt = await deductUserCredits(user.id, EXTEND_CREDITS)
+    if (!dExt.ok) {
+      await deleteTryOnHistoryRowAndStorage(historyItem.id)
+      return { error: dExt.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credits để hoàn tất.' : dExt.error }
+    }
 
     const geminiUri = typeof genVideo?.uri === 'string' && genVideo.uri.length > 0 ? genVideo.uri : null
-    await adminSupabase
-      .from('try_on_history')
-      .update({
-        result_image_url: veoExtendResultPublicUrl,
-        status: 'completed',
-        ...(geminiUri ? { veo_gemini_video_uri: geminiUri } : {}),
-      })
-      .eq('id', historyItem.id)
+    await updateTryOnHistoryCompletedPg(historyItem.id, veoExtendResultPublicUrl, {
+      veo_gemini_video_uri: geminiUri,
+    })
 
     trackApiUsage({
       userId: user.id,
@@ -376,7 +357,7 @@ export async function extendVeoVideo(formData: FormData) {
     revalidatePath('/dashboard/history')
     return { success: true, resultUrl: veoExtendResultPublicUrl, historyId: historyItem.id }
   } catch (e) {
-    await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+    await deleteTryOnHistoryRowAndStorage(historyItem.id)
     return { error: formatGoogleGenAiCaughtErrorForVeoExtend(e) }
   }
 }

@@ -1,8 +1,8 @@
 'use server'
+import { deleteTryOnHistoryRowAndStorage } from '@/lib/storage/try-on-history-cleanup'
 
-import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+import { insertTryOnHistoryProcessingPg, updateTryOnHistoryCompletedPg } from '@/lib/db/try-on-history-pg'
 import { createPrintReadyPdf } from '@/lib/print-ready-pdf'
 import { createBoxDielinePdf } from './lib/box-dieline-pdf'
 import { revalidatePath } from 'next/cache'
@@ -12,6 +12,9 @@ import { getAspectRatioFromDimensions } from '@/lib/aspect-ratio-from-dimensions
 import { GEMINI_ASPECT_RATIOS } from '@/lib/label-size-presets'
 import { BAG_TYPE_OPTIONS, type BagType } from './bag-types'
 import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
+import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
+import { deductUserCredits } from '@/lib/music/deduct-user-credits'
+
 
 const PACKAGING_COSTS = { '2K': 1.5, '4K': 3 } as const
 const VALID_ASPECT_RATIOS = GEMINI_ASPECT_RATIOS
@@ -20,7 +23,6 @@ function isPackagingAspectRatio(s: string): s is PackagingAspectRatio {
   return (VALID_ASPECT_RATIOS as readonly string[]).includes(s)
 }
 const toTenths = (value: number) => Math.round(value * 10)
-const fromTenths = (value: number) => value / 10
 const formatCredits = (value: number) => value.toLocaleString('vi-VN', { maximumFractionDigits: 1 })
 
 const DESIGN_TYPE_PROMPTS: Record<string, string> = {
@@ -52,12 +54,7 @@ export async function generateBoxDielinePdf(params: {
     return { error: 'Kích thước hộp phải từ 10–800 mm.' }
   }
 
-  const supabase = createClient()
-  const adminSupabase = createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
-  const result = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập để xuất Dieline.')
+  const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
@@ -85,7 +82,7 @@ export async function generateBoxDielinePdf(params: {
     })
 
     const pdfPath = `results/${user.id}/box_dieline_${Date.now()}.pdf`
-    const { publicUrl: pdfPublicUrl } = await uploadTryOnImagePublic(adminSupabase, pdfPath, pdfBuffer, {
+    const { publicUrl: pdfPublicUrl } = await uploadTryOnImagePublic(pdfPath, pdfBuffer, {
       contentType: 'application/pdf',
       upsert: true,
     })
@@ -110,12 +107,7 @@ export async function generateBoxNetPdf(
     return { error: 'Kích thước phải từ 10–800 mm.' }
   }
 
-  const supabase = createClient()
-  const adminSupabase = createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
-  const result = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập để xuất PDF chuẩn in.')
+  const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
@@ -126,7 +118,7 @@ export async function generateBoxNetPdf(
     const pdfBuffer = await createPrintReadyPdf(imageBuffer, { widthMm, heightMm })
 
     const pdfPath = `results/${user.id}/box_net_${Date.now()}.pdf`
-    const { publicUrl: netPdfPublicUrl } = await uploadTryOnImagePublic(adminSupabase, pdfPath, pdfBuffer, {
+    const { publicUrl: netPdfPublicUrl } = await uploadTryOnImagePublic(pdfPath, pdfBuffer, {
       contentType: 'application/pdf',
       upsert: true,
     })
@@ -189,30 +181,30 @@ export async function createPackagingDesignWithAI(formData: FormData): Promise<
     return { error: 'Tỷ lệ khung hình không hợp lệ.' }
   }
 
-  const supabase = createClient()
-  const result = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập để thiết kế bao bì.')
+  const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
   const COST = PACKAGING_COSTS[imageQuality]
-  const adminSupabase = createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
 
-  const { data: creditData, error: creditError } = await supabase.from('credits').select('balance').eq('user_id', user.id).single()
-  if (creditError || !creditData || toTenths(creditData.balance) < toTenths(COST)) {
-    return { error: `Không đủ credits. Cần ${formatCredits(COST)} credits, hiện có ${formatCredits(creditData?.balance || 0)}.` }
+  let openBalance = 0
+  try {
+    openBalance = await getCreditBalanceByUserId(user.id)
+  } catch {
+    return { error: 'Không đọc được số dư credits.' }
+  }
+  if (toTenths(openBalance) < toTenths(COST)) {
+    return { error: `Không đủ credits. Cần ${formatCredits(COST)} credits, hiện có ${formatCredits(openBalance)}.` }
   }
 
-  const { data: historyItem, error: historyError } = await supabase.from('try_on_history').insert({
-    user_id: user.id,
-    original_image_url: '',
-    garment_image_url: '',
-    status: 'processing',
+  const historyRow = await insertTryOnHistoryProcessingPg({
+    userId: user.id,
+    originalImageUrl: '',
+    garmentImageUrl: '',
     feature: 'thiet-ke-bao-bi',
-  }).select().single()
-  if (historyError || !historyItem) return { error: 'Không thể khởi tạo phiên xử lý.' }
+  })
+  if (!historyRow) return { error: 'Không thể khởi tạo phiên xử lý.' }
+  const historyItem = { id: historyRow.id }
 
   let designPrompt = DESIGN_TYPE_PROMPTS[designType] || DESIGN_TYPE_PROMPTS.box
   if (designType === 'box') {
@@ -348,30 +340,28 @@ export async function createPackagingDesignWithAI(formData: FormData): Promise<
     trackFromUsageMetadata(response.usageMetadata, 'gemini-3-pro-image-preview', 'thiet-ke-bao-bi', user.id, imageQuality)
     const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
     if (!imagePartRes || !('inlineData' in imagePartRes)) {
-      await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+      await deleteTryOnHistoryRowAndStorage(historyItem.id)
       return { error: 'AI không trả về ảnh. Vui lòng thử lại (đôi khi AI tạm thời không tạo được ảnh).' }
     }
     const resultBuffer = Buffer.from((imagePartRes as { inlineData: { data: string } }).inlineData.data, 'base64')
     const resultPath = `results/${user.id}/packaging_${designType}_${Date.now()}.png`
-    const { publicUrl: resultPublicUrl } = await uploadTryOnImagePublic(adminSupabase, resultPath, resultBuffer, {
+    const { publicUrl: resultPublicUrl } = await uploadTryOnImagePublic(resultPath, resultBuffer, {
       contentType: 'image/png',
       upsert: true,
     })
 
-    const { data: latestCredit } = await adminSupabase.from('credits').select('balance').eq('user_id', user.id).single()
-    if (!latestCredit || toTenths(latestCredit.balance) < toTenths(COST)) {
-      await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
-      return { error: 'Không đủ credits để hoàn tất.' }
+    const d = await deductUserCredits(user.id, COST)
+    if (!d.ok) {
+      await deleteTryOnHistoryRowAndStorage(historyItem.id)
+      return { error: d.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credits để hoàn tất.' : d.error }
     }
-    const newBalance = fromTenths(toTenths(latestCredit.balance) - toTenths(COST))
-    await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', user.id)
-    await adminSupabase.from('try_on_history').update({ result_image_url: resultPublicUrl, status: 'completed', aspect_ratio: aspectRatio }).eq('id', historyItem.id)
+    await updateTryOnHistoryCompletedPg(historyItem.id, resultPublicUrl, { aspect_ratio: aspectRatio })
 
     revalidatePath('/thiet-ke-bao-bi')
     revalidatePath('/dashboard/history')
     return { success: true, resultUrl: resultPublicUrl }
   } catch (e) {
-    await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+    await deleteTryOnHistoryRowAndStorage(historyItem.id)
     const msg = e instanceof Error ? e.message : String(e)
     if (/500|Internal Server Error|Internal error/i.test(msg)) {
       return { error: 'Hệ thống quá tải. Bạn có thể chọn 2K hoặc thử lại sau ít phút.' }
@@ -438,30 +428,30 @@ export async function createBoxSurfaceImageWithAI(formData: FormData): Promise<
 
   const aspectRatio = getAspectRatioFromDimensions(surfaceLength, surfaceWidth, textOrientation)
 
-  const supabase = createClient()
-  const result = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập để tạo ảnh bề mặt hộp.')
+  const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
   const COST = PACKAGING_COSTS[imageQuality]
-  const adminSupabase = createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
 
-  const { data: creditData, error: creditError } = await supabase.from('credits').select('balance').eq('user_id', user.id).single()
-  if (creditError || !creditData || toTenths(creditData.balance) < toTenths(COST)) {
-    return { error: `Không đủ credits. Cần ${formatCredits(COST)} credits, hiện có ${formatCredits(creditData?.balance || 0)}.` }
+  let openBalance = 0
+  try {
+    openBalance = await getCreditBalanceByUserId(user.id)
+  } catch {
+    return { error: 'Không đọc được số dư credits.' }
+  }
+  if (toTenths(openBalance) < toTenths(COST)) {
+    return { error: `Không đủ credits. Cần ${formatCredits(COST)} credits, hiện có ${formatCredits(openBalance)}.` }
   }
 
-  const { data: historyItem, error: historyError } = await supabase.from('try_on_history').insert({
-    user_id: user.id,
-    original_image_url: referenceImageUrl || '',
-    garment_image_url: '',
-    status: 'processing',
+  const historyRow = await insertTryOnHistoryProcessingPg({
+    userId: user.id,
+    originalImageUrl: referenceImageUrl || '',
+    garmentImageUrl: '',
     feature: 'thiet-ke-bao-bi',
-  }).select().single()
-  if (historyError || !historyItem) return { error: 'Không thể khởi tạo phiên xử lý.' }
+  })
+  if (!historyRow) return { error: 'Không thể khởi tạo phiên xử lý.' }
+  const historyItem = { id: historyRow.id }
 
   let referenceBase64: string | null = null
   if (faceIndex === 1 && referenceImageFile?.size && referenceImageFile.size > 0) {
@@ -469,7 +459,7 @@ export async function createBoxSurfaceImageWithAI(formData: FormData): Promise<
       const buf = await referenceImageFile.arrayBuffer()
       referenceBase64 = Buffer.from(buf).toString('base64')
     } catch {
-      await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+      await deleteTryOnHistoryRowAndStorage(historyItem.id)
       return { error: 'Không thể đọc ảnh tham khảo.' }
     }
   } else if (referenceImageUrl) {
@@ -479,7 +469,7 @@ export async function createBoxSurfaceImageWithAI(formData: FormData): Promise<
       const buf = await res.arrayBuffer()
       referenceBase64 = Buffer.from(buf).toString('base64')
     } catch {
-      await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+      await deleteTryOnHistoryRowAndStorage(historyItem.id)
       return { error: 'Không thể tải ảnh tham khảo.' }
     }
   }
@@ -684,30 +674,28 @@ ${backgroundRule} ${borderHint} ${textOrientationHint} ${stylePrompt} ${textInst
     trackFromUsageMetadata(response.usageMetadata, 'gemini-3-pro-image-preview', 'thiet-ke-bao-bi-surface', user.id, imageQuality)
     const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
     if (!imagePartRes || !('inlineData' in imagePartRes)) {
-      await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+      await deleteTryOnHistoryRowAndStorage(historyItem.id)
       return { error: 'AI không trả về ảnh. Vui lòng thử lại (đôi khi AI tạm thời không tạo được ảnh).' }
     }
     const resultBuffer = Buffer.from((imagePartRes as { inlineData: { data: string } }).inlineData.data, 'base64')
     const resultPath = `results/${user.id}/box_surface_${Date.now()}.png`
-    const { publicUrl: resultPublicUrl } = await uploadTryOnImagePublic(adminSupabase, resultPath, resultBuffer, {
+    const { publicUrl: resultPublicUrl } = await uploadTryOnImagePublic(resultPath, resultBuffer, {
       contentType: 'image/png',
       upsert: true,
     })
 
-    const { data: latestCredit } = await adminSupabase.from('credits').select('balance').eq('user_id', user.id).single()
-    if (!latestCredit || toTenths(latestCredit.balance) < toTenths(COST)) {
-      await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
-      return { error: 'Không đủ credits để hoàn tất.' }
+    const d = await deductUserCredits(user.id, COST)
+    if (!d.ok) {
+      await deleteTryOnHistoryRowAndStorage(historyItem.id)
+      return { error: d.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credits để hoàn tất.' : d.error }
     }
-    const newBalance = fromTenths(toTenths(latestCredit.balance) - toTenths(COST))
-    await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', user.id)
-    await adminSupabase.from('try_on_history').update({ result_image_url: resultPublicUrl, status: 'completed', aspect_ratio: aspectRatio }).eq('id', historyItem.id)
+    await updateTryOnHistoryCompletedPg(historyItem.id, resultPublicUrl, { aspect_ratio: aspectRatio })
 
     revalidatePath('/thiet-ke-bao-bi')
     revalidatePath('/dashboard/history')
     return { success: true, resultUrl: resultPublicUrl }
   } catch (e) {
-    await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+    await deleteTryOnHistoryRowAndStorage(historyItem.id)
     const msg = e instanceof Error ? e.message : String(e)
     if (/500|Internal Server Error|Internal error/i.test(msg)) {
       return { error: 'Hệ thống quá tải. Bạn có thể chọn 2K hoặc thử lại sau ít phút.' }
@@ -761,30 +749,30 @@ export async function createBagSurfaceImageWithAI(formData: FormData): Promise<
 
   const aspectRatio = getAspectRatioFromDimensions(surfaceLength, surfaceWidth, textOrientation)
 
-  const supabase = createClient()
-  const result = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập để tạo ảnh phẳng túi.')
+  const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
   const COST = PACKAGING_COSTS[imageQuality]
-  const adminSupabase = createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
 
-  const { data: creditData, error: creditError } = await supabase.from('credits').select('balance').eq('user_id', user.id).single()
-  if (creditError || !creditData || toTenths(creditData.balance) < toTenths(COST)) {
-    return { error: `Không đủ credits. Cần ${formatCredits(COST)} credits, hiện có ${formatCredits(creditData?.balance || 0)}.` }
+  let openBalance = 0
+  try {
+    openBalance = await getCreditBalanceByUserId(user.id)
+  } catch {
+    return { error: 'Không đọc được số dư credits.' }
+  }
+  if (toTenths(openBalance) < toTenths(COST)) {
+    return { error: `Không đủ credits. Cần ${formatCredits(COST)} credits, hiện có ${formatCredits(openBalance)}.` }
   }
 
-  const { data: historyItem, error: historyError } = await supabase.from('try_on_history').insert({
-    user_id: user.id,
-    original_image_url: '',
-    garment_image_url: '',
-    status: 'processing',
+  const historyRow = await insertTryOnHistoryProcessingPg({
+    userId: user.id,
+    originalImageUrl: '',
+    garmentImageUrl: '',
     feature: 'thiet-ke-bao-bi',
-  }).select().single()
-  if (historyError || !historyItem) return { error: 'Không thể khởi tạo phiên xử lý.' }
+  })
+  if (!historyRow) return { error: 'Không thể khởi tạo phiên xử lý.' }
+  const historyItem = { id: historyRow.id }
 
   const stylePrompt = STYLE_PROMPTS[style] || STYLE_PROMPTS.modern
   const isVi = uiLocale === 'vi'
@@ -956,30 +944,28 @@ ${backgroundRule} ${borderHint} ${textOrientationHint} ${stylePrompt} ${textInst
     trackFromUsageMetadata(response.usageMetadata, 'gemini-3-pro-image-preview', 'thiet-ke-bao-bi-bag-surface', user.id, imageQuality)
     const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
     if (!imagePartRes || !('inlineData' in imagePartRes)) {
-      await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+      await deleteTryOnHistoryRowAndStorage(historyItem.id)
       return { error: 'AI không trả về ảnh. Vui lòng thử lại (đôi khi AI tạm thời không tạo được ảnh).' }
     }
     const resultBuffer = Buffer.from((imagePartRes as { inlineData: { data: string } }).inlineData.data, 'base64')
     const resultPath = `results/${user.id}/bag_surface_${Date.now()}.png`
-    const { publicUrl: resultPublicUrl } = await uploadTryOnImagePublic(adminSupabase, resultPath, resultBuffer, {
+    const { publicUrl: resultPublicUrl } = await uploadTryOnImagePublic(resultPath, resultBuffer, {
       contentType: 'image/png',
       upsert: true,
     })
 
-    const { data: latestCredit } = await adminSupabase.from('credits').select('balance').eq('user_id', user.id).single()
-    if (!latestCredit || toTenths(latestCredit.balance) < toTenths(COST)) {
-      await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
-      return { error: 'Không đủ credits để hoàn tất.' }
+    const d = await deductUserCredits(user.id, COST)
+    if (!d.ok) {
+      await deleteTryOnHistoryRowAndStorage(historyItem.id)
+      return { error: d.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credits để hoàn tất.' : d.error }
     }
-    const newBalance = fromTenths(toTenths(latestCredit.balance) - toTenths(COST))
-    await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', user.id)
-    await adminSupabase.from('try_on_history').update({ result_image_url: resultPublicUrl, status: 'completed', aspect_ratio: aspectRatio }).eq('id', historyItem.id)
+    await updateTryOnHistoryCompletedPg(historyItem.id, resultPublicUrl, { aspect_ratio: aspectRatio })
 
     revalidatePath('/thiet-ke-bao-bi')
     revalidatePath('/dashboard/history')
     return { success: true, resultUrl: resultPublicUrl }
   } catch (e) {
-    await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+    await deleteTryOnHistoryRowAndStorage(historyItem.id)
     const msg = e instanceof Error ? e.message : String(e)
     if (/500|Internal Server Error|Internal error/i.test(msg)) {
       return { error: 'Hệ thống quá tải. Bạn có thể chọn 2K hoặc thử lại sau ít phút.' }
@@ -1005,30 +991,30 @@ export async function createBoxMockupFrom3Faces(formData: FormData): Promise<
   if (!face1Url || !face2Url || !face3Url) return { error: 'Thiếu đủ 3 ảnh bề mặt.' }
   if (!isPackagingAspectRatio(aspectRatio)) return { error: 'Tỷ lệ khung hình không hợp lệ.' }
 
-  const supabase = createClient()
-  const result = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập để tạo mockup 3D.')
+  const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
   const COST = PACKAGING_COSTS[imageQuality]
-  const adminSupabase = createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
 
-  const { data: creditData, error: creditError } = await supabase.from('credits').select('balance').eq('user_id', user.id).single()
-  if (creditError || !creditData || toTenths(creditData.balance) < toTenths(COST)) {
-    return { error: `Không đủ credits. Cần ${formatCredits(COST)} credits, hiện có ${formatCredits(creditData?.balance || 0)}.` }
+  let openBalance = 0
+  try {
+    openBalance = await getCreditBalanceByUserId(user.id)
+  } catch {
+    return { error: 'Không đọc được số dư credits.' }
+  }
+  if (toTenths(openBalance) < toTenths(COST)) {
+    return { error: `Không đủ credits. Cần ${formatCredits(COST)} credits, hiện có ${formatCredits(openBalance)}.` }
   }
 
-  const { data: historyItem, error: historyError } = await supabase.from('try_on_history').insert({
-    user_id: user.id,
-    original_image_url: face1Url,
-    garment_image_url: '',
-    status: 'processing',
+  const historyRow = await insertTryOnHistoryProcessingPg({
+    userId: user.id,
+    originalImageUrl: face1Url,
+    garmentImageUrl: '',
     feature: 'thiet-ke-bao-bi',
-  }).select().single()
-  if (historyError || !historyItem) return { error: 'Không thể khởi tạo phiên xử lý.' }
+  })
+  if (!historyRow) return { error: 'Không thể khởi tạo phiên xử lý.' }
+  const historyItem = { id: historyRow.id }
 
   const fetchBase64 = async (url: string): Promise<string> => {
     const res = await fetch(url)
@@ -1047,7 +1033,7 @@ export async function createBoxMockupFrom3Faces(formData: FormData): Promise<
       fetchBase64(face3Url),
     ])
   } catch {
-    await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+    await deleteTryOnHistoryRowAndStorage(historyItem.id)
     return { error: 'Không thể tải ảnh bề mặt.' }
   }
 
@@ -1090,30 +1076,28 @@ Result: a 3D box where top, front, and side all show the respective designs. Pro
     trackFromUsageMetadata(response.usageMetadata, 'gemini-3-pro-image-preview', 'thiet-ke-bao-bi-mockup', user.id, imageQuality)
     const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
     if (!imagePartRes || !('inlineData' in imagePartRes)) {
-      await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+      await deleteTryOnHistoryRowAndStorage(historyItem.id)
       return { error: 'AI không trả về ảnh. Vui lòng thử lại (đôi khi AI tạm thời không tạo được ảnh).' }
     }
     const resultBuffer = Buffer.from((imagePartRes as { inlineData: { data: string } }).inlineData.data, 'base64')
     const resultPath = `results/${user.id}/box_mockup_${Date.now()}.png`
-    const { publicUrl: resultPublicUrl } = await uploadTryOnImagePublic(adminSupabase, resultPath, resultBuffer, {
+    const { publicUrl: resultPublicUrl } = await uploadTryOnImagePublic(resultPath, resultBuffer, {
       contentType: 'image/png',
       upsert: true,
     })
 
-    const { data: latestCredit } = await adminSupabase.from('credits').select('balance').eq('user_id', user.id).single()
-    if (!latestCredit || toTenths(latestCredit.balance) < toTenths(COST)) {
-      await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
-      return { error: 'Không đủ credits để hoàn tất.' }
+    const d = await deductUserCredits(user.id, COST)
+    if (!d.ok) {
+      await deleteTryOnHistoryRowAndStorage(historyItem.id)
+      return { error: d.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credits để hoàn tất.' : d.error }
     }
-    const newBalance = fromTenths(toTenths(latestCredit.balance) - toTenths(COST))
-    await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', user.id)
-    await adminSupabase.from('try_on_history').update({ result_image_url: resultPublicUrl, status: 'completed', aspect_ratio: aspectRatio }).eq('id', historyItem.id)
+    await updateTryOnHistoryCompletedPg(historyItem.id, resultPublicUrl, { aspect_ratio: aspectRatio })
 
     revalidatePath('/thiet-ke-bao-bi')
     revalidatePath('/dashboard/history')
     return { success: true, resultUrl: resultPublicUrl }
   } catch (e) {
-    await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+    await deleteTryOnHistoryRowAndStorage(historyItem.id)
     const msg = e instanceof Error ? e.message : String(e)
     if (/500|Internal Server Error|Internal error/i.test(msg)) {
       return { error: 'Hệ thống quá tải. Bạn có thể chọn 2K hoặc thử lại sau ít phút.' }
@@ -1140,30 +1124,30 @@ export async function createBoxMockupFromFaces(params: {
   if (!faces?.length || faces.length > 6) return { error: 'Cần 1–6 ảnh bề mặt.' }
   if (!isPackagingAspectRatio(aspectRatio)) return { error: 'Tỷ lệ khung hình không hợp lệ.' }
 
-  const supabase = createClient()
-  const result = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập để tạo mockup 3D.')
+  const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
   const COST = PACKAGING_COSTS[imageQuality]
-  const adminSupabase = createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
 
-  const { data: creditData, error: creditError } = await supabase.from('credits').select('balance').eq('user_id', user.id).single()
-  if (creditError || !creditData || toTenths(creditData.balance) < toTenths(COST)) {
-    return { error: `Không đủ credits. Cần ${formatCredits(COST)} credits, hiện có ${formatCredits(creditData?.balance || 0)}.` }
+  let openBalance = 0
+  try {
+    openBalance = await getCreditBalanceByUserId(user.id)
+  } catch {
+    return { error: 'Không đọc được số dư credits.' }
+  }
+  if (toTenths(openBalance) < toTenths(COST)) {
+    return { error: `Không đủ credits. Cần ${formatCredits(COST)} credits, hiện có ${formatCredits(openBalance)}.` }
   }
 
-  const { data: historyItem, error: historyError } = await supabase.from('try_on_history').insert({
-    user_id: user.id,
-    original_image_url: faces[0]?.url || '',
-    garment_image_url: '',
-    status: 'processing',
+  const historyRow = await insertTryOnHistoryProcessingPg({
+    userId: user.id,
+    originalImageUrl: faces[0]?.url || '',
+    garmentImageUrl: '',
     feature: 'thiet-ke-bao-bi',
-  }).select().single()
-  if (historyError || !historyItem) return { error: 'Không thể khởi tạo phiên xử lý.' }
+  })
+  if (!historyRow) return { error: 'Không thể khởi tạo phiên xử lý.' }
+  const historyItem = { id: historyRow.id }
 
   const fetchBase64 = async (url: string): Promise<string> => {
     const res = await fetch(url)
@@ -1196,7 +1180,7 @@ export async function createBoxMockupFromFaces(params: {
   try {
     imagesBase64 = await Promise.all(orderedFaces.map((f) => fetchBase64(f.url)))
   } catch {
-    await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+    await deleteTryOnHistoryRowAndStorage(historyItem.id)
     return { error: 'Không thể tải ảnh bề mặt.' }
   }
 
@@ -1237,30 +1221,28 @@ Result: a 3D box where the specified faces show the respective designs. Professi
     trackFromUsageMetadata(response.usageMetadata, 'gemini-3-pro-image-preview', 'thiet-ke-bao-bi-mockup', user.id, imageQuality)
     const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
     if (!imagePartRes || !('inlineData' in imagePartRes)) {
-      await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+      await deleteTryOnHistoryRowAndStorage(historyItem.id)
       return { error: 'AI không trả về ảnh. Vui lòng thử lại (đôi khi AI tạm thời không tạo được ảnh).' }
     }
     const resultBuffer = Buffer.from((imagePartRes as { inlineData: { data: string } }).inlineData.data, 'base64')
     const resultPath = `results/${user.id}/box_mockup_${Date.now()}.png`
-    const { publicUrl: resultPublicUrl } = await uploadTryOnImagePublic(adminSupabase, resultPath, resultBuffer, {
+    const { publicUrl: resultPublicUrl } = await uploadTryOnImagePublic(resultPath, resultBuffer, {
       contentType: 'image/png',
       upsert: true,
     })
 
-    const { data: latestCredit } = await adminSupabase.from('credits').select('balance').eq('user_id', user.id).single()
-    if (!latestCredit || toTenths(latestCredit.balance) < toTenths(COST)) {
-      await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
-      return { error: 'Không đủ credits để hoàn tất.' }
+    const d = await deductUserCredits(user.id, COST)
+    if (!d.ok) {
+      await deleteTryOnHistoryRowAndStorage(historyItem.id)
+      return { error: d.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credits để hoàn tất.' : d.error }
     }
-    const newBalance = fromTenths(toTenths(latestCredit.balance) - toTenths(COST))
-    await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', user.id)
-    await adminSupabase.from('try_on_history').update({ result_image_url: resultPublicUrl, status: 'completed', aspect_ratio: aspectRatio }).eq('id', historyItem.id)
+    await updateTryOnHistoryCompletedPg(historyItem.id, resultPublicUrl, { aspect_ratio: aspectRatio })
 
     revalidatePath('/thiet-ke-bao-bi')
     revalidatePath('/dashboard/history')
     return { success: true, resultUrl: resultPublicUrl }
   } catch (e) {
-    await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+    await deleteTryOnHistoryRowAndStorage(historyItem.id)
     const msg = e instanceof Error ? e.message : String(e)
     if (/500|Internal Server Error|Internal error/i.test(msg)) {
       return { error: 'Hệ thống quá tải. Bạn có thể chọn 2K hoặc thử lại sau ít phút.' }
@@ -1283,30 +1265,30 @@ export async function createBagMockupFromFlat(params: {
   if (!flatImageUrl?.trim()) return { error: 'Thiếu ảnh phẳng túi.' }
   if (!isPackagingAspectRatio(aspectRatio)) return { error: 'Tỷ lệ khung hình không hợp lệ.' }
 
-  const supabase = createClient()
-  const result = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập để tạo mockup 3D túi.')
+  const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
   const COST = PACKAGING_COSTS[imageQuality]
-  const adminSupabase = createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
 
-  const { data: creditData, error: creditError } = await supabase.from('credits').select('balance').eq('user_id', user.id).single()
-  if (creditError || !creditData || toTenths(creditData.balance) < toTenths(COST)) {
-    return { error: `Không đủ credits. Cần ${formatCredits(COST)} credits, hiện có ${formatCredits(creditData?.balance || 0)}.` }
+  let openBalance = 0
+  try {
+    openBalance = await getCreditBalanceByUserId(user.id)
+  } catch {
+    return { error: 'Không đọc được số dư credits.' }
+  }
+  if (toTenths(openBalance) < toTenths(COST)) {
+    return { error: `Không đủ credits. Cần ${formatCredits(COST)} credits, hiện có ${formatCredits(openBalance)}.` }
   }
 
-  const { data: historyItem, error: historyError } = await supabase.from('try_on_history').insert({
-    user_id: user.id,
-    original_image_url: flatImageUrl,
-    garment_image_url: '',
-    status: 'processing',
+  const historyRow = await insertTryOnHistoryProcessingPg({
+    userId: user.id,
+    originalImageUrl: flatImageUrl,
+    garmentImageUrl: '',
     feature: 'thiet-ke-bao-bi',
-  }).select().single()
-  if (historyError || !historyItem) return { error: 'Không thể khởi tạo phiên xử lý.' }
+  })
+  if (!historyRow) return { error: 'Không thể khởi tạo phiên xử lý.' }
+  const historyItem = { id: historyRow.id }
 
   let flatBase64: string
   try {
@@ -1315,7 +1297,7 @@ export async function createBagMockupFromFlat(params: {
     const buf = await res.arrayBuffer()
     flatBase64 = Buffer.from(buf).toString('base64')
   } catch {
-    await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+    await deleteTryOnHistoryRowAndStorage(historyItem.id)
     return { error: 'Không thể tải ảnh phẳng túi.' }
   }
 
@@ -1351,30 +1333,28 @@ Result: a 3D bag/pouch mockup where the front face shows the provided design. Pr
     trackFromUsageMetadata(response.usageMetadata, 'gemini-3-pro-image-preview', 'thiet-ke-bao-bi-bag-mockup', user.id, imageQuality)
     const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
     if (!imagePartRes || !('inlineData' in imagePartRes)) {
-      await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+      await deleteTryOnHistoryRowAndStorage(historyItem.id)
       return { error: 'AI không trả về ảnh. Vui lòng thử lại (đôi khi AI tạm thời không tạo được ảnh).' }
     }
     const resultBuffer = Buffer.from((imagePartRes as { inlineData: { data: string } }).inlineData.data, 'base64')
     const resultPath = `results/${user.id}/bag_mockup_${Date.now()}.png`
-    const { publicUrl: resultPublicUrl } = await uploadTryOnImagePublic(adminSupabase, resultPath, resultBuffer, {
+    const { publicUrl: resultPublicUrl } = await uploadTryOnImagePublic(resultPath, resultBuffer, {
       contentType: 'image/png',
       upsert: true,
     })
 
-    const { data: latestCredit } = await adminSupabase.from('credits').select('balance').eq('user_id', user.id).single()
-    if (!latestCredit || toTenths(latestCredit.balance) < toTenths(COST)) {
-      await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
-      return { error: 'Không đủ credits để hoàn tất.' }
+    const d = await deductUserCredits(user.id, COST)
+    if (!d.ok) {
+      await deleteTryOnHistoryRowAndStorage(historyItem.id)
+      return { error: d.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credits để hoàn tất.' : d.error }
     }
-    const newBalance = fromTenths(toTenths(latestCredit.balance) - toTenths(COST))
-    await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', user.id)
-    await adminSupabase.from('try_on_history').update({ result_image_url: resultPublicUrl, status: 'completed', aspect_ratio: aspectRatio }).eq('id', historyItem.id)
+    await updateTryOnHistoryCompletedPg(historyItem.id, resultPublicUrl, { aspect_ratio: aspectRatio })
 
     revalidatePath('/thiet-ke-bao-bi')
     revalidatePath('/dashboard/history')
     return { success: true, resultUrl: resultPublicUrl }
   } catch (e) {
-    await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+    await deleteTryOnHistoryRowAndStorage(historyItem.id)
     const msg = e instanceof Error ? e.message : String(e)
     if (/500|Internal Server Error|Internal error/i.test(msg)) {
       return { error: 'Hệ thống quá tải. Bạn có thể chọn 2K hoặc thử lại sau ít phút.' }

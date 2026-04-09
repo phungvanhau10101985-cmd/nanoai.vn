@@ -1,4 +1,3 @@
-import { createClient } from '@/lib/supabase/server'
 import { redirectToLogin } from '@/lib/auth/login-redirect'
 import { getUserOrBypass } from '@/lib/auth'
 import { buildMetadata } from '@/lib/seo'
@@ -14,8 +13,7 @@ export const metadata = buildMetadata({
 })
 
 export default async function TaoLopPage() {
-  const supabase = createClient()
-  const user = await getUserOrBypass(() => supabase.auth.getUser())
+  const user = await getUserOrBypass()
   if (!user) redirectToLogin()
 
   const { t } = await getServerDictionary()

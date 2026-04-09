@@ -1,9 +1,27 @@
 'use server'
 
-import { createClient as createServiceRoleClient } from '@supabase/supabase-js'
-import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
+import { isPgConfigured } from '@/lib/db/pool'
+import {
+  classExistsWithJoinCodePg,
+  classMemberExistsPg,
+  deleteClassWorksheetForTeacherPg,
+  fetchClassIdByJoinCodePg,
+  fetchClassMemberBriefForUserPg,
+  fetchClassTeacherAndSchoolIdPg,
+  fetchTeacherSchoolSettingsPrevMinePg,
+  insertClassMemberPg,
+  insertClassMinePg,
+  removeClassMemberPg,
+  schoolExistsByIdPg,
+  updateClassMemberDisplayNameForTeacherPg,
+  updateClassMemberProfilePg,
+  updateClassStudentFacingLabelsPg,
+  upsertClassWorksheetForTeacherPg,
+  upsertTeacherSchoolSettingsMinePg,
+} from '@/lib/db/classes-pg'
+import { fetchExamSessionForClassJoinByCodePg } from '@/lib/db/exam-session-pg'
 import { isValidStudentDobIso } from '@/lib/student-dob'
 
 function generateJoinCode(): string {
@@ -21,11 +39,13 @@ function normalizeFacingLabel(raw: string, maxLen: number): string {
   return s.length > maxLen ? s.slice(0, maxLen) : s
 }
 
+const DB_ERR = 'Chưa cấu hình cơ sở dữ liệu hoặc lỗi kết nối.'
+
 export async function createClass(formData: FormData) {
-  const supabase = createClient()
-  const result = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+  const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
+  if (!isPgConfigured()) return { error: DB_ERR }
 
   const name = formData.get('name')?.toString()?.trim()
   if (!name) return { error: 'Vui lòng nhập tên lớp.' }
@@ -33,8 +53,9 @@ export async function createClass(formData: FormData) {
   const schoolId = formData.get('schoolId')?.toString()?.trim()
   if (!schoolId) return { error: 'Vui lòng chọn trường trước khi tạo lớp.' }
 
-  const { data: schoolRow } = await supabase.from('schools').select('id').eq('id', schoolId).maybeSingle()
-  if (!schoolRow) return { error: 'Không tìm thấy trường đã chọn.' }
+  const schoolOk = await schoolExistsByIdPg(schoolId)
+  if (schoolOk === null) return { error: DB_ERR }
+  if (!schoolOk) return { error: 'Không tìm thấy trường đã chọn.' }
 
   const subjectLabel = normalizeFacingLabel(formData.get('subjectLabel')?.toString() ?? '', 120)
   const teacherDisplayName = normalizeFacingLabel(formData.get('teacherDisplayName')?.toString() ?? '', 120)
@@ -42,49 +63,34 @@ export async function createClass(formData: FormData) {
   let joinCode = generateJoinCode()
   let attempts = 0
   while (attempts < 10) {
-    const { data: existing } = await supabase
-      .from('classes')
-      .select('id')
-      .eq('join_code', joinCode)
-      .maybeSingle()
-    if (!existing) break
+    const taken = await classExistsWithJoinCodePg(joinCode)
+    if (taken === null) return { error: DB_ERR }
+    if (!taken) break
     joinCode = generateJoinCode()
     attempts++
   }
 
-  const { data, error } = await supabase
-    .from('classes')
-    .insert({
-      teacher_id: user.id,
-      name,
-      join_code: joinCode,
-      school_id: schoolId,
-      subject_label: subjectLabel || null,
-      teacher_display_name: teacherDisplayName || null,
-    })
-    .select('id')
-    .single()
+  const inserted = await insertClassMinePg({
+    teacherId: user.id,
+    name,
+    joinCode,
+    schoolId,
+    gradeLevelId: null,
+    subjectLabel: subjectLabel || null,
+    teacherDisplayName: teacherDisplayName || null,
+  })
+  if (!inserted) return { error: 'Không tạo được lớp.' }
 
-  if (error) return { error: error.message }
-
-  const { data: prevSetting } = await supabase
-    .from('teacher_school_settings')
-    .select('teacher_display_name, default_subject_label')
-    .eq('teacher_id', user.id)
-    .maybeSingle()
-
-  await supabase.from('teacher_school_settings').upsert(
-    {
-      teacher_id: user.id,
-      school_id: schoolId,
-      teacher_display_name: teacherDisplayName || prevSetting?.teacher_display_name || null,
-      default_subject_label: subjectLabel || prevSetting?.default_subject_label || null,
-    },
-    { onConflict: 'teacher_id' }
-  )
+  const prevSetting = await fetchTeacherSchoolSettingsPrevMinePg(user.id)
+  await upsertTeacherSchoolSettingsMinePg({
+    teacherId: user.id,
+    schoolId,
+    teacherDisplayName: teacherDisplayName || prevSetting?.teacher_display_name || null,
+    defaultSubjectLabel: subjectLabel || prevSetting?.default_subject_label || null,
+  })
 
   revalidatePath('/lop')
-  return { success: true, classId: data.id, joinCode }
+  return { success: true, classId: inserted.id, joinCode }
 }
 
 export async function updateClassStudentFacingInfo(input: {
@@ -93,10 +99,10 @@ export async function updateClassStudentFacingInfo(input: {
   teacherDisplayName: string
   saveAsDefaults?: boolean
 }) {
-  const supabase = createClient()
-  const result = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+  const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
+  if (!isPgConfigured()) return { error: DB_ERR }
 
   const cid = input.classId?.trim()
   if (!cid) return { error: 'Thiếu thông tin.' }
@@ -104,38 +110,26 @@ export async function updateClassStudentFacingInfo(input: {
   const subjectLabel = normalizeFacingLabel(input.subjectLabel ?? '', 120)
   const teacherDisplayName = normalizeFacingLabel(input.teacherDisplayName ?? '', 120)
 
-  const { data: cls } = await supabase
-    .from('classes')
-    .select('teacher_id, school_id')
-    .eq('id', cid)
-    .maybeSingle()
-  if (!cls || cls.teacher_id !== user.id) return { error: 'Bạn không có quyền.' }
+  const cls = await fetchClassTeacherAndSchoolIdPg(cid)
+  if (!cls) return { error: DB_ERR }
+  if (cls.teacher_id !== user.id) return { error: 'Bạn không có quyền.' }
 
-  const { error } = await supabase
-    .from('classes')
-    .update({
-      subject_label: subjectLabel || null,
-      teacher_display_name: teacherDisplayName || null,
-    })
-    .eq('id', cid)
-
-  if (error) return { error: error.message }
+  const ok = await updateClassStudentFacingLabelsPg({
+    classId: cid,
+    teacherUserId: user.id,
+    subjectLabel: subjectLabel || null,
+    teacherDisplayName: teacherDisplayName || null,
+  })
+  if (ok !== true) return { error: 'Không cập nhật được.' }
 
   if (input.saveAsDefaults && cls.school_id) {
-    const { data: prevSetting } = await supabase
-      .from('teacher_school_settings')
-      .select('teacher_display_name, default_subject_label')
-      .eq('teacher_id', user.id)
-      .maybeSingle()
-    await supabase.from('teacher_school_settings').upsert(
-      {
-        teacher_id: user.id,
-        school_id: String(cls.school_id),
-        teacher_display_name: teacherDisplayName || prevSetting?.teacher_display_name || null,
-        default_subject_label: subjectLabel || prevSetting?.default_subject_label || null,
-      },
-      { onConflict: 'teacher_id' }
-    )
+    const prevSetting = await fetchTeacherSchoolSettingsPrevMinePg(user.id)
+    await upsertTeacherSchoolSettingsMinePg({
+      teacherId: user.id,
+      schoolId: String(cls.school_id),
+      teacherDisplayName: teacherDisplayName || prevSetting?.teacher_display_name || null,
+      defaultSubjectLabel: subjectLabel || prevSetting?.default_subject_label || null,
+    })
   }
 
   revalidatePath('/lop')
@@ -146,10 +140,10 @@ export async function updateClassStudentFacingInfo(input: {
 }
 
 export async function joinClass(input: { joinCode: string; studentDisplayName: string; birthDate: string }) {
-  const supabase = createClient()
-  const result = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+  const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
+  if (!isPgConfigured()) return { error: DB_ERR }
 
   const code = input.joinCode?.trim().toUpperCase()
   if (!code) return { error: 'Vui lòng nhập mã tham gia.' }
@@ -162,52 +156,42 @@ export async function joinClass(input: { joinCode: string; studentDisplayName: s
   if (!birthRaw) return { error: 'Vui lòng chọn ngày sinh.' }
   if (!isValidStudentDobIso(birthRaw)) return { error: 'Ngày sinh không hợp lệ.' }
 
-  const { data: cls, error: clsErr } = await supabase
-    .from('classes')
-    .select('id')
-    .eq('join_code', code)
-    .single()
+  const classId = await fetchClassIdByJoinCodePg(code)
+  if (!classId) return { error: 'Mã không hợp lệ.' }
 
-  if (clsErr || !cls) return { error: 'Mã không hợp lệ.' }
+  const exists = await classMemberExistsPg(classId, user.id)
+  if (exists === null) return { error: DB_ERR }
+  if (exists) return { error: 'Bạn đã trong lớp này.' }
 
-  const { data: existing } = await supabase
-    .from('class_members')
-    .select('id')
-    .eq('class_id', cls.id)
-    .eq('user_id', user.id)
-    .maybeSingle()
-
-  if (existing) return { error: 'Bạn đã trong lớp này.' }
-
-  const { error: insertErr } = await supabase.from('class_members').insert({
-    class_id: cls.id,
-    user_id: user.id,
-    member_display_name: displayName,
-    birth_date: birthRaw,
+  const ins = await insertClassMemberPg({
+    classId,
+    userId: user.id,
+    memberDisplayName: displayName,
+    birthDateIso: birthRaw,
   })
+  if (ins !== true) return { error: 'Không thể tham gia lớp.' }
 
-  if (insertErr) return { error: insertErr.message }
   revalidatePath('/lop')
-  revalidatePath(`/lop/${cls.id}`)
-  return { success: true, classId: cls.id }
+  revalidatePath(`/lop/${classId}`)
+  return { success: true, classId }
 }
 
 export async function removeClassMember(classId: string, memberUserId: string) {
-  const supabase = createClient()
-  const result = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+  const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
+  if (!isPgConfigured()) return { error: DB_ERR }
 
   const cid = classId?.trim()
   const mid = memberUserId?.trim()
   if (!cid || !mid) return { error: 'Thiếu thông tin.' }
 
-  const { data: cls } = await supabase.from('classes').select('teacher_id').eq('id', cid).maybeSingle()
-  if (!cls || cls.teacher_id !== user.id) return { error: 'Bạn không có quyền xóa thành viên.' }
-  if (mid === cls.teacher_id) return { error: 'Không thể xóa chủ lớp khỏi danh sách này.' }
+  const res = await removeClassMemberPg(cid, user.id, mid)
+  if (res === null) return { error: DB_ERR }
+  if (res === 'not_teacher') return { error: 'Bạn không có quyền xóa thành viên.' }
+  if (res === 'cannot_remove_owner') return { error: 'Không thể xóa chủ lớp khỏi danh sách này.' }
+  if (res === 'not_found') return { error: 'Không tìm thấy thành viên.' }
 
-  const { error } = await supabase.from('class_members').delete().eq('class_id', cid).eq('user_id', mid)
-  if (error) return { error: error.message }
   revalidatePath('/lop')
   revalidatePath(`/lop/${cid}`)
   return { success: true }
@@ -219,10 +203,10 @@ export async function updateStudentDisplayNameInClass(
   memberUserId: string,
   displayName: string
 ) {
-  const supabase = createClient()
-  const result = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+  const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
+  if (!isPgConfigured()) return { error: DB_ERR }
 
   const cid = classId?.trim()
   const mid = memberUserId?.trim()
@@ -232,72 +216,45 @@ export async function updateStudentDisplayNameInClass(
   if (name.length < 2) return { error: 'Họ tên quá ngắn (ít nhất 2 ký tự).' }
   if (name.length > 120) return { error: 'Họ tên quá dài.' }
 
-  const { data: cls } = await supabase.from('classes').select('teacher_id').eq('id', cid).maybeSingle()
-  if (!cls || cls.teacher_id !== user.id) return { error: 'Bạn không có quyền.' }
-  if (mid === cls.teacher_id) return { error: 'Không thể đổi tên chủ lớp tại đây.' }
+  const res = await updateClassMemberDisplayNameForTeacherPg({
+    classId: cid,
+    teacherUserId: user.id,
+    memberUserId: mid,
+    displayName: name,
+  })
+  if (res === null) return { error: DB_ERR }
+  if (res === 'not_teacher') return { error: 'Bạn không có quyền.' }
+  if (res === 'cannot_edit_owner') return { error: 'Không thể đổi tên chủ lớp tại đây.' }
+  if (res === 'member_not_found') return { error: 'Không tìm thấy học sinh trong lớp.' }
 
-  const { data: mem } = await supabase
-    .from('class_members')
-    .select('user_id')
-    .eq('class_id', cid)
-    .eq('user_id', mid)
-    .maybeSingle()
-  if (!mem) return { error: 'Không tìm thấy học sinh trong lớp.' }
-
-  const { error } = await supabase
-    .from('class_members')
-    .update({ member_display_name: name })
-    .eq('class_id', cid)
-    .eq('user_id', mid)
-
-  if (error) return { error: error.message }
   revalidatePath('/lop')
   revalidatePath(`/lop/${cid}`)
   return { success: true }
 }
 
 export async function assignWorksheetToClass(classId: string, worksheetId: string) {
-  const supabase = createClient()
-  const result = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+  const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
+  if (!isPgConfigured()) return { error: DB_ERR }
 
-  const { data: cls, error: clsErr } = await supabase
-    .from('classes')
-    .select('id, teacher_id')
-    .eq('id', classId)
-    .single()
+  const res = await upsertClassWorksheetForTeacherPg(classId, worksheetId, result.user.id)
+  if (res === null) return { error: DB_ERR }
+  if (res === 'forbidden') return { error: 'Không có quyền.' }
 
-  if (clsErr || !cls || cls.teacher_id !== result.user.id) return { error: 'Không có quyền.' }
-
-  const { error } = await supabase.from('class_worksheets').upsert(
-    { class_id: classId, worksheet_id: worksheetId },
-    { onConflict: 'class_id,worksheet_id' }
-  )
-  if (error) return { error: error.message }
   revalidatePath(`/lop/${classId}`)
   revalidatePath(`/lop/${classId}/phieu-bai-tap`)
   return { success: true }
 }
 
 export async function removeWorksheetFromClass(classId: string, worksheetId: string) {
-  const supabase = createClient()
-  const result = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+  const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
+  if (!isPgConfigured()) return { error: DB_ERR }
 
-  const { data: cls } = await supabase
-    .from('classes')
-    .select('teacher_id')
-    .eq('id', classId)
-    .single()
+  const res = await deleteClassWorksheetForTeacherPg(classId, worksheetId, result.user.id)
+  if (res === null) return { error: DB_ERR }
+  if (res === 'forbidden') return { error: 'Không có quyền.' }
 
-  if (!cls || cls.teacher_id !== result.user.id) return { error: 'Không có quyền.' }
-
-  const { error } = await supabase
-    .from('class_worksheets')
-    .delete()
-    .eq('class_id', classId)
-    .eq('worksheet_id', worksheetId)
-  if (error) return { error: error.message }
   revalidatePath(`/lop/${classId}`)
   revalidatePath(`/lop/${classId}/phieu-bai-tap`)
   return { success: true }
@@ -311,10 +268,10 @@ export async function joinClassForActiveExam(input: {
   studentDisplayName: string
   birthDate: string
 }) {
-  const supabase = createClient()
-  const result = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+  const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
+  if (!isPgConfigured()) return { error: DB_ERR }
 
   const examCode = input.examCode?.trim().toUpperCase()
   if (!examCode || examCode.length < 4) return { error: 'Mã bài thi không hợp lệ.' }
@@ -327,31 +284,14 @@ export async function joinClassForActiveExam(input: {
   if (!birthRaw) return { error: 'Vui lòng chọn ngày sinh.' }
   if (!isValidStudentDobIso(birthRaw)) return { error: 'Ngày sinh không hợp lệ.' }
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!url?.trim() || !serviceKey?.trim()) {
-    return { error: 'Máy chủ chưa cấu hình đầy đủ.' }
-  }
-
-  const admin = createServiceRoleClient(url, serviceKey, { auth: { persistSession: false } })
-  const { data: session, error: sessErr } = await admin
-    .from('exam_sessions')
-    .select('id, class_id, status')
-    .eq('code', examCode)
-    .maybeSingle()
-
-  if (sessErr || !session || session.status !== 'active') {
+  const session = await fetchExamSessionForClassJoinByCodePg(examCode)
+  if (!session || session.status !== 'active') {
     return { error: 'Không tìm thấy bài thi hoặc bài thi đã đóng.' }
   }
   const classId = session.class_id ? String(session.class_id) : ''
   if (!classId) return { error: 'Đề thi này không gắn lớp.' }
 
-  const { data: existing } = await supabase
-    .from('class_members')
-    .select('id, member_display_name, birth_date')
-    .eq('class_id', classId)
-    .eq('user_id', user.id)
-    .maybeSingle()
+  const existing = await fetchClassMemberBriefForUserPg(classId, user.id)
 
   const alreadyComplete =
     existing &&
@@ -365,20 +305,21 @@ export async function joinClassForActiveExam(input: {
   }
 
   if (existing) {
-    const { error: updErr } = await supabase
-      .from('class_members')
-      .update({ member_display_name: displayName, birth_date: birthRaw })
-      .eq('class_id', classId)
-      .eq('user_id', user.id)
-    if (updErr) return { error: updErr.message }
-  } else {
-    const { error: insertErr } = await supabase.from('class_members').insert({
-      class_id: classId,
-      user_id: user.id,
-      member_display_name: displayName,
-      birth_date: birthRaw,
+    const upd = await updateClassMemberProfilePg({
+      classId,
+      userId: user.id,
+      memberDisplayName: displayName,
+      birthDateIso: birthRaw,
     })
-    if (insertErr) return { error: insertErr.message }
+    if (upd !== true) return { error: 'Không cập nhật được thông tin lớp.' }
+  } else {
+    const ins = await insertClassMemberPg({
+      classId,
+      userId: user.id,
+      memberDisplayName: displayName,
+      birthDateIso: birthRaw,
+    })
+    if (ins !== true) return { error: 'Không thể tham gia lớp.' }
   }
 
   revalidatePath('/lop')

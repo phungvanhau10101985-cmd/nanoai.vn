@@ -1,8 +1,7 @@
 'use client'
 
 import { useCallback, useRef, useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
-import type { RealtimeChannel } from '@supabase/supabase-js'
+import { ScreenLiveChannel } from '../lib/screen-live-channel'
 
 function generateShareCode(): string {
   return crypto.randomUUID().replace(/-/g, '').slice(0, 8)
@@ -50,7 +49,7 @@ export function useScreenShareLive(): UseScreenShareLiveReturn {
 
   const pcMapRef = useRef<Map<string, RTCPeerConnection>>(new Map())
   const streamRef = useRef<MediaStream | null>(null)
-  const channelRef = useRef<RealtimeChannel | null>(null)
+  const channelRef = useRef<ScreenLiveChannel | null>(null)
 
   const stopShare = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop())
@@ -80,9 +79,7 @@ export function useScreenShareLive(): UseScreenShareLiveReturn {
       const url = `${baseUrl}/giao-trinh/xem-man-hinh?share=${code}`
       setShareUrl(url)
 
-      const supabase = createClient()
-      const channelName = `screen-live-${code}`
-      const channel = supabase.channel(channelName, { config: { private: false } })
+      const channel = new ScreenLiveChannel(code)
       channelRef.current = channel
 
       const sendOfferToViewer = async (viewerId: string) => {

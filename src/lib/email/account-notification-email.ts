@@ -1,11 +1,12 @@
-import type { SupabaseClient, User } from '@supabase/supabase-js'
+import type { AppUser } from '@/lib/auth/app-user'
+import { getAuthUserEmailFromPg } from '@/lib/db/auth-user-email-pg'
 import { isSmtpConfigured, sendSmtpMail } from '@/lib/email/smtp'
 
 /**
- * Email đăng nhập Google (và email/password) do Supabase lưu ở `user.email`.
+ * Email đăng nhập Google (và email/password) lấy từ `user.email` trong `auth.users`.
  * Fallback: user_metadata.email hoặc identity_data (trường hợp hiếm / provider lệch).
  */
-export function resolveAuthUserEmail(user: User | null | undefined): string | null {
+export function resolveAuthUserEmail(user: AppUser | null | undefined): string | null {
   if (!user) return null
   const direct = user.email?.trim()
   if (direct) return direct
@@ -32,28 +33,18 @@ function appBaseUrl(): string {
  * Bỏ qua nếu chưa cấu hình SMTP hoặc user không có email.
  * Không throw — chỉ log lỗi.
  */
-export async function sendAccountNotificationEmail(
-  adminSupabase: SupabaseClient,
+/** Gửi email khi đã biết userId — ưu tiên đọc email từ Postgres `auth.users` (không gọi HTTP Auth hosted). */
+export async function sendAccountNotificationEmailByUserIdPg(
   userId: string,
   payload: { title: string; body: string }
 ): Promise<void> {
   if (!isSmtpConfigured()) return
-
   try {
-    const { data, error } = await adminSupabase.auth.admin.getUserById(userId)
-    if (error) {
-      console.error('[account-notification-email] getUserById:', error.message)
-      return
-    }
-    const email = resolveAuthUserEmail(data.user)
+    const email = await getAuthUserEmailFromPg(userId)
     if (!email) {
-      console.warn(
-        '[account-notification-email] no email on auth user (OAuth/Google thường có email ở user.email — kiểm tra provider Supabase)',
-        { userId }
-      )
+      console.warn('[account-notification-email] no email in auth.users', { userId })
       return
     }
-
     const base = appBaseUrl()
     const lines = [
       payload.title,
@@ -63,7 +54,6 @@ export async function sendAccountNotificationEmail(
       '—',
       base ? `Mở NanoAI để xem thông báo trong ứng dụng: ${base}` : 'Xem thông báo trong ứng dụng NanoAI.',
     ]
-
     await sendSmtpMail({
       to: email,
       subject: `[NanoAI] ${payload.title}`,
@@ -71,6 +61,6 @@ export async function sendAccountNotificationEmail(
     })
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
-    console.error('[account-notification-email]', msg)
+    console.error('[account-notification-email] pg path', msg)
   }
 }

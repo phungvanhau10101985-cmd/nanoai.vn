@@ -1,5 +1,5 @@
-import { createClient } from '@/lib/supabase/server'
 import { redirectToLogin } from '@/lib/auth/login-redirect'
+import { pgListTryOnHistoryTranslateCompleted } from '@/lib/db/dashboard-user-pg'
 import { getUserOrBypass } from '@/lib/auth'
 import Link from 'next/link'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
@@ -51,25 +51,26 @@ export default async function TranslateHistoryPage() {
   const locale = getCurrentWebLocale()
   const tr = (vi: string, en: string, zh: string, ja: string, ko: string) =>
     locale === 'en' ? en : locale === 'zh' ? zh : locale === 'ja' ? ja : locale === 'ko' ? ko : vi
-  const supabase = createClient()
-
-  const user = await getUserOrBypass(() => supabase.auth.getUser())
+  const user = await getUserOrBypass()
   if (!user) redirectToLogin()
 
-  const { data: history, error } = await supabase
-    .from('try_on_history')
-    .select('*')
-    .eq('user_id', user.id)
-    .eq('status', 'completed')
-    .eq('feature', 'translate')
-    .order('created_at', { ascending: false })
+  const history = await pgListTryOnHistoryTranslateCompleted(user.id)
 
-  if (error) {
-    console.error('Error fetching translate history:', error)
-    return <div>Failed to load history.</div>
+  type TranslateHistoryRow = {
+    id: string
+    created_at: string
+    batch_id?: string | null
+    result_image_url: string | null
+    original_image_url: string | null
   }
-
-  const batches = groupByBatch(history ?? [])
+  const historyRows: TranslateHistoryRow[] = (history ?? []).map((h: Record<string, unknown>) => ({
+    id: String(h.id),
+    created_at: String(h.created_at),
+    batch_id: (h.batch_id as string | null | undefined) ?? null,
+    result_image_url: (h.result_image_url as string | null | undefined) ?? null,
+    original_image_url: (h.original_image_url as string | null | undefined) ?? null,
+  }))
+  const batches = groupByBatch(historyRows)
 
   return (
     <div className="app-shell space-y-6 md:space-y-8 lg:space-y-8 xl:space-y-10">
@@ -144,13 +145,13 @@ export default async function TranslateHistoryPage() {
                       <p className="text-xs font-medium text-muted-foreground">{tr('Ảnh gốc', 'Original image', '原图', '元画像', '원본 이미지')}</p>
                       <div className="relative aspect-[4/3] rounded-md overflow-hidden border bg-muted">
                         <ImagePreview
-                          src={item.original_image_url}
+                          src={item.original_image_url ?? ''}
                           alt={tr('Gốc', 'Original', '原图', '元画像', '원본')}
                           className="w-full h-full"
                         />
                       </div>
                       <a
-                        href={item.original_image_url}
+                        href={item.original_image_url ?? '#'}
                         download={`goc-${item.id}.png`}
                         target="_blank"
                         rel="noopener noreferrer"

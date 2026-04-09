@@ -1,8 +1,8 @@
 'use server'
+import { deleteTryOnHistoryRowAndStorage } from '@/lib/storage/try-on-history-cleanup'
 
-import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+import { insertTryOnHistoryProcessingPg, updateTryOnHistoryCompletedPg } from '@/lib/db/try-on-history-pg'
 import { revalidatePath } from 'next/cache'
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
 
@@ -10,12 +10,13 @@ import { APPLY_COSTS, ANALYZE_CREDIT, ARCH_THEMES, MAIN_COLORS, INTERIOR_STYLES,
 import { normalizeToEnglish } from '@/lib/ai-normalize'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
+import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
+import { deductUserCredits } from '@/lib/music/deduct-user-credits'
 
 const IMAGE_COSTS = APPLY_COSTS
 const ANALYZE_COST = ANALYZE_CREDIT
 const INTERIOR_AI_TIMEOUT_MS = Number(process.env.INTERIOR_AI_TIMEOUT_MS || 300_000)
 const toTenths = (value: number) => Math.round(value * 10)
-const fromTenths = (value: number) => value / 10
 const formatCredits = (value: number) => value.toLocaleString('vi-VN', { maximumFractionDigits: 1 })
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutMessage: string): Promise<T> {
@@ -255,29 +256,32 @@ export async function applyInteriorChanges(formData: FormData): Promise<ApplyInt
   const COST_PER_IMAGE = IMAGE_COSTS[imageQuality]
   const actualVariantCount = isRotationOnly || isExpandExteriorDown ? 1 : variantCount
   const COST = COST_PER_IMAGE * actualVariantCount
-  const supabase = createClient()
-  const adminSupabase = createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-  const result = await getUserForAction(() => supabase.auth.getUser())
+  const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
-  const { data: creditData, error: creditError } = await supabase.from('credits').select('balance').eq('user_id', user.id).single()
-  if (creditError || !creditData || toTenths(creditData.balance) < toTenths(COST)) {
+  let openBalApply = 0
+  try {
+    openBalApply = await getCreditBalanceByUserId(user.id)
+  } catch {
+    return { error: 'Không đọc được số dư credits.' }
+  }
+  if (toTenths(openBalApply) < toTenths(COST)) {
     return { error: `Không đủ credits. Cần ${formatCredits(COST)} credits.` }
   }
 
   const timestamp = Date.now()
   const path = `uploads/${user.id}/interior_${timestamp}.png`
-  const { publicUrl: interiorOriginalPublicUrl } = await uploadTryOnImagePublic(supabase, path, imageBuffer, {
+  const { publicUrl: interiorOriginalPublicUrl } = await uploadTryOnImagePublic(path, imageBuffer, {
     contentType: mimeType,
   })
-  const { data: historyItem, error: historyError } = await supabase.from('try_on_history').insert({
-    user_id: user.id,
-    original_image_url: interiorOriginalPublicUrl,
-    garment_image_url: interiorOriginalPublicUrl,
-    status: 'processing',
-  }).select().single()
-  if (historyError || !historyItem) return { error: 'Không thể khởi tạo phiên xử lý.' }
+  const historyItem = await insertTryOnHistoryProcessingPg({
+    userId: user.id,
+    originalImageUrl: interiorOriginalPublicUrl,
+    garmentImageUrl: interiorOriginalPublicUrl,
+    feature: 'thiet-ke-noi-ngoai-that',
+  })
+  if (!historyItem) return { error: 'Không thể khởi tạo phiên xử lý.' }
 
   const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!)
   const model = genAI.getGenerativeModel({
@@ -326,54 +330,42 @@ export async function applyInteriorChanges(formData: FormData): Promise<ApplyInt
       const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
       if (!imagePartRes || !('inlineData' in imagePartRes)) {
         if (resultUrls.length === 0) {
-          await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+          await deleteTryOnHistoryRowAndStorage(historyItem.id)
           return { error: 'AI không trả về ảnh hợp lệ.' }
         }
         break
       }
       const resultBuffer = Buffer.from((imagePartRes as { inlineData: { data: string } }).inlineData.data, 'base64')
       const resultPath = `results/${user.id}/interior_${Date.now()}_${i}.png`
-      const { publicUrl: variantPublicUrl } = await uploadTryOnImagePublic(adminSupabase, resultPath, resultBuffer, {
+      const { publicUrl: variantPublicUrl } = await uploadTryOnImagePublic(resultPath, resultBuffer, {
         contentType: 'image/png',
         upsert: true,
       })
       resultUrls.push(variantPublicUrl)
     }
     if (resultUrls.length === 0) {
-      await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+      await deleteTryOnHistoryRowAndStorage(historyItem.id)
       return { error: 'AI không trả về ảnh hợp lệ.' }
     }
-    const { data: latestCredit } = await adminSupabase.from('credits').select('balance').eq('user_id', user.id).single()
     const actualCost = COST_PER_IMAGE * resultUrls.length
-    if (!latestCredit || toTenths(latestCredit.balance) < toTenths(actualCost)) {
-      await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
-      return { error: 'Không đủ credits.' }
+    const dApply = await deductUserCredits(user.id, actualCost)
+    if (!dApply.ok) {
+      await deleteTryOnHistoryRowAndStorage(historyItem.id)
+      return { error: dApply.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credits.' : dApply.error }
     }
-    const newBalance = fromTenths(toTenths(latestCredit.balance) - toTenths(actualCost))
-    await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', user.id)
-    await adminSupabase.from('try_on_history').update({ result_image_url: resultUrls[0], status: 'completed' }).eq('id', historyItem.id)
+    await updateTryOnHistoryCompletedPg(historyItem.id, resultUrls[0])
 
     revalidatePath('/thiet-ke-noi-ngoai-that')
     revalidatePath('/dashboard/history')
     console.info('[interior-apply] completed', { userId: user.id, generatedCount: resultUrls.length })
     return { success: true, resultUrl: resultUrls[0], resultUrls }
   } catch (e) {
-    await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+    await deleteTryOnHistoryRowAndStorage(historyItem.id)
     const msg = e instanceof Error ? e.message : String(e)
     console.error('[interior-apply] failed', { userId: user.id, error: msg })
     if (/500|Internal Server Error|Internal error/i.test(msg)) return { error: 'Hệ thống quá tải. Thử lại sau.' }
     return { error: `Xử lý thất bại: ${msg}` }
   }
-}
-
-/** Lấy số dư credits của user */
-export async function getCredits(): Promise<number> {
-  const supabase = createClient()
-  const result = await getUserForAction(() => supabase.auth.getUser())
-  if ('error' in result) return 0
-  const { user } = result
-  const { data } = await supabase.from('credits').select('balance').eq('user_id', user.id).single()
-  return data?.balance ?? 0
 }
 
 const PROMPTS = {
@@ -389,14 +381,17 @@ export async function analyzeInterior(formData: FormData) {
   const image = formData.get('image') as File
   if (!image || image.size === 0) return { error: 'Cần tải lên ảnh không gian cần thiết kế.' }
 
-  const supabase = createClient()
-  const adminSupabase = createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-  const result = await getUserForAction(() => supabase.auth.getUser())
+  const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
-  const { data: creditData, error: creditError } = await supabase.from('credits').select('balance').eq('user_id', user.id).single()
-  if (creditError || !creditData || toTenths(creditData.balance) < toTenths(ANALYZE_COST)) {
+  let openBalAn = 0
+  try {
+    openBalAn = await getCreditBalanceByUserId(user.id)
+  } catch {
+    return { error: 'Không đọc được số dư credits.' }
+  }
+  if (toTenths(openBalAn) < toTenths(ANALYZE_COST)) {
     return { error: `Không đủ credits. Cần ${formatCredits(ANALYZE_COST)} credits.` }
   }
 
@@ -426,10 +421,8 @@ export async function analyzeInterior(formData: FormData) {
     const jsonMatch = text.match(/\{[\s\S]*\}/)
     const analysisJson = jsonMatch ? jsonMatch[0] : text
 
-    const { data: latestCredit } = await adminSupabase.from('credits').select('balance').eq('user_id', user.id).single()
-    if (!latestCredit || toTenths(latestCredit.balance) < toTenths(ANALYZE_COST)) return { error: 'Không đủ credits.' }
-    const newBalance = fromTenths(toTenths(latestCredit.balance) - toTenths(ANALYZE_COST))
-    await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', user.id)
+    const dAn = await deductUserCredits(user.id, ANALYZE_COST)
+    if (!dAn.ok) return { error: dAn.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credits.' : dAn.error }
 
     revalidatePath('/thiet-ke-noi-ngoai-that')
     console.info('[interior-analyze] completed', { userId: user.id })
@@ -458,29 +451,32 @@ export async function processInteriorImage(formData: FormData) {
   }
 
   const COST = IMAGE_COSTS[imageQuality]
-  const supabase = createClient()
-  const adminSupabase = createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-  const result = await getUserForAction(() => supabase.auth.getUser())
+  const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
-  const { data: creditData, error: creditError } = await supabase.from('credits').select('balance').eq('user_id', user.id).single()
-  if (creditError || !creditData || toTenths(creditData.balance) < toTenths(COST)) {
+  let openBalProc = 0
+  try {
+    openBalProc = await getCreditBalanceByUserId(user.id)
+  } catch {
+    return { error: 'Không đọc được số dư credits.' }
+  }
+  if (toTenths(openBalProc) < toTenths(COST)) {
     return { error: `Không đủ credits. Cần ${formatCredits(COST)} credits.` }
   }
 
   const timestamp = Date.now()
   const path = `uploads/${user.id}/interior_${timestamp}.png`
-  const { publicUrl: processInteriorOriginalPublicUrl } = await uploadTryOnImagePublic(supabase, path, image, {
+  const { publicUrl: processInteriorOriginalPublicUrl } = await uploadTryOnImagePublic(path, image, {
     contentType: image.type || 'image/png',
   })
-  const { data: historyItem, error: historyError } = await supabase.from('try_on_history').insert({
-    user_id: user.id,
-    original_image_url: processInteriorOriginalPublicUrl,
-    garment_image_url: processInteriorOriginalPublicUrl,
-    status: 'processing',
-  }).select().single()
-  if (historyError || !historyItem) return { error: 'Không thể khởi tạo phiên xử lý.' }
+  const historyItem = await insertTryOnHistoryProcessingPg({
+    userId: user.id,
+    originalImageUrl: processInteriorOriginalPublicUrl,
+    garmentImageUrl: processInteriorOriginalPublicUrl,
+    feature: 'thiet-ke-noi-ngoai-that-process',
+  })
+  if (!historyItem) return { error: 'Không thể khởi tạo phiên xử lý.' }
 
   const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!)
   const model = genAI.getGenerativeModel({
@@ -505,30 +501,28 @@ export async function processInteriorImage(formData: FormData) {
     trackFromUsageMetadata(response.usageMetadata, 'gemini-3-pro-image-preview', 'thiet-ke-noi-ngoai-that-process', user.id, imageQuality)
     const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
     if (!imagePartRes || !('inlineData' in imagePartRes)) {
-      await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+      await deleteTryOnHistoryRowAndStorage(historyItem.id)
       return { error: 'AI không trả về ảnh hợp lệ.' }
     }
     const resultBuffer = Buffer.from((imagePartRes as { inlineData: { data: string } }).inlineData.data, 'base64')
     const resultPath = `results/${user.id}/interior_${Date.now()}.png`
-    const { publicUrl: processInteriorResultPublicUrl } = await uploadTryOnImagePublic(adminSupabase, resultPath, resultBuffer, {
+    const { publicUrl: processInteriorResultPublicUrl } = await uploadTryOnImagePublic(resultPath, resultBuffer, {
       contentType: 'image/png',
       upsert: true,
     })
 
-    const { data: latestCredit } = await adminSupabase.from('credits').select('balance').eq('user_id', user.id).single()
-    if (!latestCredit || toTenths(latestCredit.balance) < toTenths(COST)) {
-      await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
-      return { error: 'Không đủ credits.' }
+    const dProc = await deductUserCredits(user.id, COST)
+    if (!dProc.ok) {
+      await deleteTryOnHistoryRowAndStorage(historyItem.id)
+      return { error: dProc.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credits.' : dProc.error }
     }
-    const newBalance = fromTenths(toTenths(latestCredit.balance) - toTenths(COST))
-    await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', user.id)
-    await adminSupabase.from('try_on_history').update({ result_image_url: processInteriorResultPublicUrl, status: 'completed' }).eq('id', historyItem.id)
+    await updateTryOnHistoryCompletedPg(historyItem.id, processInteriorResultPublicUrl)
 
     revalidatePath('/thiet-ke-noi-ngoai-that')
     revalidatePath('/dashboard/history')
     return { success: true, resultUrl: processInteriorResultPublicUrl }
   } catch (e) {
-    await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+    await deleteTryOnHistoryRowAndStorage(historyItem.id)
     const msg = e instanceof Error ? e.message : String(e)
     if (/500|Internal Server Error|Internal error/i.test(msg)) return { error: 'Hệ thống quá tải. Thử lại sau.' }
     return { error: `Xử lý thất bại: ${msg}` }

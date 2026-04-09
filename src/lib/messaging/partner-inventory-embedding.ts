@@ -1,8 +1,13 @@
-import type { SupabaseClient } from '@supabase/supabase-js'
+import {
+  fetchPartnerInventoryRowsByIdsForEmbeddingSyncFromPg,
+  fetchPartnerInventorySliceByUpdatedAtAscFromPg,
+  updatePartnerInventoryEmbeddingFieldsFromPg,
+  type PartnerInventoryEmbeddingUpdatePatch,
+} from '@/lib/db/messaging-partner-inventory-pg'
+import { isPgConfigured } from '@/lib/db/pool'
 import { fetchRemoteImageForCatalog, sniffImageContentType } from '@/lib/fetch-image-1688'
 import type { Database } from '@/types/database.types'
 
-type Db = SupabaseClient<Database>
 type InvRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
 const DB_VECTOR_DIMS = 768
 
@@ -187,70 +192,42 @@ async function embedImageUrlWithGemini(imageUrl: string): Promise<number[] | nul
   return embedImageBufferWithGemini(img.buf, img.contentType || detectImageMimeType(img.buf))
 }
 
+async function persistInventoryEmbeddingPatch(
+  partnerId: string,
+  rowId: string,
+  patch: PartnerInventoryEmbeddingUpdatePatch
+): Promise<boolean> {
+  if (!isPgConfigured()) return false
+  return updatePartnerInventoryEmbeddingFieldsFromPg(partnerId, rowId, patch)
+}
+
 export async function syncPartnerInventoryEmbeddings(
-  db: Db,
   partnerId: string,
   options?: { inventoryIds?: string[]; force?: boolean; limit?: number }
 ): Promise<{ ok: true; synced: number; failed: number; skipped: number } | { ok: false; error: string }> {
+  if (!isPgConfigured()) {
+    return { ok: false, error: 'Postgres (DATABASE_URL) is not configured.' }
+  }
+
   const cap = Math.max(1, Math.min(5000, options?.limit ?? SYNC_LIMIT))
   const idList = (options?.inventoryIds ?? []).map((x) => x.trim()).filter(Boolean)
   const rows: InvRow[] = []
 
   if (idList.length > 0) {
-    const { data, error } = await db
-      .from('messaging_partner_inventory')
-      .select(
-        'id, partner_id, name, image_url, is_active, image_embedding_json, image_embedding_fingerprint, image_embedding_model, image_embedding_dims, image_embedding_vec'
-      )
-      .eq('partner_id', partnerId)
-      .in('id', idList)
-    if (error) return { ok: false, error: error.message }
-    rows.push(
-      ...(data ?? []).map((r) =>
-        rowAsEmbeddingComparable(
-          r as Pick<InvRow, 'id' | 'partner_id' | 'name' | 'image_url' | 'is_active'> &
-            Partial<
-              Pick<
-                InvRow,
-                | 'image_embedding_json'
-                | 'image_embedding_fingerprint'
-                | 'image_embedding_model'
-                | 'image_embedding_dims'
-                | 'image_embedding_vec'
-              >
-            >
-        )
-      )
-    )
+    const pgRows = await fetchPartnerInventoryRowsByIdsForEmbeddingSyncFromPg(partnerId, idList)
+    if (pgRows === null) {
+      return { ok: false, error: 'Could not load inventory rows for embedding sync.' }
+    }
+    rows.push(...pgRows.map((r) => rowAsEmbeddingComparable(r)))
   } else {
     let scanned = 0
     let from = 0
     while (scanned < SCAN_MAX_ROWS && rows.length < cap) {
-      const to = from + SCAN_PAGE_SIZE - 1
-      const { data, error } = await db
-        .from('messaging_partner_inventory')
-        .select(
-          'id, partner_id, name, image_url, is_active, image_embedding_json, image_embedding_fingerprint, image_embedding_model, image_embedding_dims, image_embedding_vec'
-        )
-        .eq('partner_id', partnerId)
-        .order('updated_at', { ascending: true })
-        .range(from, to)
-      if (error) return { ok: false, error: error.message }
-      const chunk = (data ?? []).map((r) =>
-        rowAsEmbeddingComparable(
-          r as Pick<InvRow, 'id' | 'partner_id' | 'name' | 'image_url' | 'is_active'> &
-            Partial<
-              Pick<
-                InvRow,
-                | 'image_embedding_json'
-                | 'image_embedding_fingerprint'
-                | 'image_embedding_model'
-                | 'image_embedding_dims'
-                | 'image_embedding_vec'
-              >
-            >
-        )
-      )
+      const page = await fetchPartnerInventorySliceByUpdatedAtAscFromPg(partnerId, SCAN_PAGE_SIZE, from)
+      if (page === null) {
+        return { ok: false, error: 'Could not scan inventory for embedding sync.' }
+      }
+      const chunk = page.map((r) => rowAsEmbeddingComparable(r))
       if (chunk.length === 0) break
       scanned += chunk.length
       for (const row of chunk) {
@@ -282,19 +259,15 @@ export async function syncPartnerInventoryEmbeddings(
         const vec = await embedImageUrlWithGemini(imageUrl)
         if (!vec || vec.length === 0) {
           failed += 1
-          await db
-            .from('messaging_partner_inventory')
-            .update({
-              image_embedding_json: null,
-              image_embedding_fingerprint: fp,
-              image_embedding_model: GEMINI_EMBED_MODEL,
-              image_embedding_dims: GEMINI_EMBED_DIMS,
-              image_embedding_vec: null,
-              image_embedding_updated_at: nowIso,
-              image_embedding_error: 'FETCH_OR_EMBED_FAILED',
-            })
-            .eq('id', row.id)
-            .eq('partner_id', partnerId)
+          await persistInventoryEmbeddingPatch(partnerId, row.id, {
+            image_embedding_json: null,
+            image_embedding_fingerprint: fp,
+            image_embedding_model: GEMINI_EMBED_MODEL,
+            image_embedding_dims: GEMINI_EMBED_DIMS,
+            image_embedding_vec: null,
+            image_embedding_updated_at: nowIso,
+            image_embedding_error: 'FETCH_OR_EMBED_FAILED',
+          })
           continue
         }
         if (
@@ -309,21 +282,17 @@ export async function syncPartnerInventoryEmbeddings(
           synced += 1
           continue
         }
-        const { error: upErr } = await db
-          .from('messaging_partner_inventory')
-          .update({
-            image_embedding_json: vec,
-            image_embedding_fingerprint: fp,
-            image_embedding_model: GEMINI_EMBED_MODEL,
-            image_embedding_dims: vec.length,
-            image_embedding_vec: vec.length === DB_VECTOR_DIMS ? toPgVectorLiteral(vec) : null,
-            image_embedding_updated_at: nowIso,
-            image_embedding_error:
-              vec.length === DB_VECTOR_DIMS ? '' : `VECTOR_DIM_MISMATCH:${vec.length}!=${DB_VECTOR_DIMS}`,
-          })
-          .eq('id', row.id)
-          .eq('partner_id', partnerId)
-        if (upErr) {
+        const upOk = await persistInventoryEmbeddingPatch(partnerId, row.id, {
+          image_embedding_json: vec,
+          image_embedding_fingerprint: fp,
+          image_embedding_model: GEMINI_EMBED_MODEL,
+          image_embedding_dims: vec.length,
+          image_embedding_vec: vec.length === DB_VECTOR_DIMS ? toPgVectorLiteral(vec) : null,
+          image_embedding_updated_at: nowIso,
+          image_embedding_error:
+            vec.length === DB_VECTOR_DIMS ? '' : `VECTOR_DIM_MISMATCH:${vec.length}!=${DB_VECTOR_DIMS}`,
+        })
+        if (!upOk) {
           failed += 1
           continue
         }
@@ -331,19 +300,15 @@ export async function syncPartnerInventoryEmbeddings(
       } catch (e) {
         failed += 1
         const msg = e instanceof Error ? e.message : String(e)
-        await db
-          .from('messaging_partner_inventory')
-          .update({
-            image_embedding_json: null,
-            image_embedding_fingerprint: fp,
-            image_embedding_model: GEMINI_EMBED_MODEL,
-            image_embedding_dims: GEMINI_EMBED_DIMS,
-            image_embedding_vec: null,
-            image_embedding_updated_at: nowIso,
-            image_embedding_error: msg.slice(0, 300),
-          })
-          .eq('id', row.id)
-          .eq('partner_id', partnerId)
+        await persistInventoryEmbeddingPatch(partnerId, row.id, {
+          image_embedding_json: null,
+          image_embedding_fingerprint: fp,
+          image_embedding_model: GEMINI_EMBED_MODEL,
+          image_embedding_dims: GEMINI_EMBED_DIMS,
+          image_embedding_vec: null,
+          image_embedding_updated_at: nowIso,
+          image_embedding_error: msg.slice(0, 300),
+        })
       }
     }
   })

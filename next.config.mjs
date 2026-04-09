@@ -1,5 +1,50 @@
 import withPWAInit from '@ducanh2912/next-pwa';
 
+/** Host cho ảnh URL cũ (Storage REST `/storage/v1/object/...`) — không hardcode domain trong repo. */
+function hostnameFromEnvUrl(key) {
+    const raw = process.env[key]?.trim();
+    if (!raw) return null;
+    try {
+        return new URL(raw).hostname;
+    } catch {
+        return null;
+    }
+}
+
+const legacyStorageRestHost =
+    hostnameFromEnvUrl('NEXT_PUBLIC_STORAGE_LEGACY_REST_ORIGIN') ||
+    hostnameFromEnvUrl('NEXT_PUBLIC_SUPABASE_URL');
+
+const legacyStorageImagePatterns = legacyStorageRestHost
+    ? [
+          {
+              protocol: 'https',
+              hostname: legacyStorageRestHost,
+              port: '',
+              pathname: '/storage/v1/object/public/**',
+          },
+          {
+              protocol: 'https',
+              hostname: legacyStorageRestHost,
+              port: '',
+              pathname: '/storage/v1/object/sign/**',
+          },
+      ]
+    : [];
+
+/** Pull zone Bunny — hostname từ BUNNY_STORAGE_PUBLIC_BASE_URL (không hardcode CDN trong repo). */
+const bunnyPullZoneHost = hostnameFromEnvUrl('BUNNY_STORAGE_PUBLIC_BASE_URL');
+const bunnyImagePatterns = bunnyPullZoneHost
+    ? [
+          {
+              protocol: 'https',
+              hostname: bunnyPullZoneHost,
+              port: '',
+              pathname: '/**',
+          },
+      ]
+    : [];
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
     // Bật lint/typecheck khi build — `tsc` và `next lint` đã xanh; bắt lỗi sớm trên CI.
@@ -14,24 +59,14 @@ const nextConfig = {
     typescript: { ignoreBuildErrors: false },
     images: {
         remotePatterns: [
-            {
-                protocol: 'https',
-                hostname: 'mxwfxudyeoqstgwmlupa.supabase.co',
-                port: '',
-                pathname: '/storage/v1/object/public/**',
-            },
-            {
-                protocol: 'https',
-                hostname: 'mxwfxudyeoqstgwmlupa.supabase.co',
-                port: '',
-                pathname: '/storage/v1/object/sign/**',
-            },
+            ...legacyStorageImagePatterns,
             {
                 protocol: 'https',
                 hostname: 'img.vietqr.io',
                 port: '',
                 pathname: '/image/**',
             },
+            ...bunnyImagePatterns,
         ],
     },
     // Tắt webpack cache có thể gây lỗi clientModules trên Windows

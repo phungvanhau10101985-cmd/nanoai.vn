@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenAI, createUserContent } from '@google/genai'
-import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+import { insertMusicGenerationPg } from '@/lib/db/music-generations-pg'
 import { deductUserCredits, refundUserCredits } from '@/lib/music/deduct-user-credits'
 import { trackApiUsage } from '@/lib/track-ai-usage'
-import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
+import { bunnyStorageConfigured, uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 
 export const maxDuration = 300
 
@@ -407,10 +406,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Nội dung bài hát quá dài.' }, { status: 400 })
     }
 
-    const supabase = createClient()
-    const auth = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập để tạo nhạc.')
+    const auth = await getUserForAction()
     if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
     const { user } = auth
+
+    if (!bunnyStorageConfigured()) {
+      return NextResponse.json(
+        { error: 'Thiếu cấu hình lưu file âm thanh (Bunny Storage: BUNNY_STORAGE_ZONE, BUNNY_STORAGE_API_KEY, BUNNY_STORAGE_PUBLIC_BASE_URL).' },
+        { status: 503 }
+      )
+    }
 
     const cost = lyria3Charge(variant, proTargetSec)
     const charged = await deductUserCredits(user.id, cost)
@@ -418,11 +423,6 @@ export async function POST(request: NextRequest) {
       const status = charged.code === 'INSUFFICIENT_CREDITS' ? 402 : 500
       return NextResponse.json({ error: charged.error, code: charged.code }, { status })
     }
-
-    const adminSupabase = createSupabaseClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
 
     const hasImage = Boolean(imageBuffer?.length)
     const corePrompt = buildCorePrompt({
@@ -508,7 +508,7 @@ export async function POST(request: NextRequest) {
 
     let audioUrl: string
     try {
-      const { publicUrl } = await uploadTryOnImagePublic(adminSupabase, uploadPath, buffer, {
+      const { publicUrl } = await uploadTryOnImagePublic(uploadPath, buffer, {
         contentType: mimeType,
         upsert: true,
       })
@@ -531,19 +531,17 @@ export async function POST(request: NextRequest) {
     if (hasImage) titleVi += ' + ảnh'
     const styleSnippet = [genre, promptRaw.slice(0, 80)].filter(Boolean).join(' · ')
 
-    const { error: insertError } = await adminSupabase.from('music_generations').insert({
-      user_id: user.id,
+    const historySaved = await insertMusicGenerationPg({
+      userId: user.id,
       mode: 'lyria3',
       title: titleVi,
       style: styleSnippet.slice(0, 120),
-      duration_seconds: storedDurationSeconds(variant, proTargetSec),
-      charged_credits: cost,
-      audio_url: audioUrl,
+      durationSeconds: storedDurationSeconds(variant, proTargetSec),
+      chargedCredits: cost,
+      audioUrl,
     })
-
-    const historySaved = !insertError
-    if (insertError) {
-      console.error('music_generations insert failed', insertError)
+    if (!historySaved) {
+      console.error('music_generations insert failed (pg)')
     }
 
     return NextResponse.json({
@@ -556,7 +554,7 @@ export async function POST(request: NextRequest) {
       targetDurationSec: variant === 'pro' ? proTargetSec : 30,
       vocalMode,
       historySaved,
-      historyError: insertError?.message,
+      historyError: historySaved ? undefined : 'Không lưu được lịch sử (DATABASE_URL hoặc lỗi DB).',
     })
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Lỗi không xác định.'

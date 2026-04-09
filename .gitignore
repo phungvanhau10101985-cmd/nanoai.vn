@@ -27,6 +27,8 @@ yarn-error.log*
 
 # local env files
 .env*.local
+.env.local.bak
+.env.*.bak
 .env
 .env.production
 .env.development
@@ -53,6 +55,7 @@ google-credentials.json
 thu-do-online-*.json
 
 # local tooling state
+/.cache/
 .cursor/
 .idea/
 .vscode/
@@ -61,3 +64,6 @@ supabase/.temp/
 # deployment/runtime logs
 logs/
 *.log
+
+# Local pg_dump backups (chứa dữ liệu DB)
+/backups/

@@ -1,0 +1,203 @@
+import { getPgPool, isPgConfigured } from '@/lib/db/pool'
+import { pgQueryOne } from '@/lib/db/pg-query'
+
+export async function findGuestAccountIdByEmailPg(
+  partnerId: string,
+  emailNormalized: string
+): Promise<string | null> {
+  if (!isPgConfigured()) return null
+  const row = await pgQueryOne<{ id: string }>(
+    `select id::text as id from public.messaging_guest_accounts
+     where partner_id = $1::uuid and email_normalized = $2
+     limit 1`,
+    [partnerId, emailNormalized]
+  )
+  return row?.id ?? null
+}
+
+export async function insertGuestAccountPg(params: {
+  partnerId: string
+  emailRaw: string
+  emailNormalized: string
+  firstVerifiedAt: string
+  lastLoginAt: string
+}): Promise<string | null> {
+  if (!isPgConfigured()) return null
+  const row = await pgQueryOne<{ id: string }>(
+    `insert into public.messaging_guest_accounts (
+       partner_id, email_raw, email_normalized, first_verified_at, last_login_at
+     ) values ($1::uuid, $2, $3, $4::timestamptz, $5::timestamptz)
+     returning id::text as id`,
+    [params.partnerId, params.emailRaw, params.emailNormalized, params.firstVerifiedAt, params.lastLoginAt]
+  )
+  return row?.id ?? null
+}
+
+export async function updateGuestAccountLastLoginPg(accountId: string, lastLoginAt: string): Promise<boolean> {
+  if (!isPgConfigured()) return false
+  try {
+    const res = await getPgPool().query(
+      `update public.messaging_guest_accounts set last_login_at = $1::timestamptz, updated_at = now() where id = $2::uuid`,
+      [lastLoginAt, accountId]
+    )
+    return (res.rowCount ?? 0) > 0
+  } catch (e) {
+    console.error('[messaging-guest-pg] updateGuestAccountLastLoginPg', e)
+    return false
+  }
+}
+
+export async function upsertGuestIdentityPg(params: {
+  partnerId: string
+  guestAccountId: string
+  provider: 'google' | 'email_otp'
+  providerSubject: string
+}): Promise<boolean> {
+  if (!isPgConfigured()) return false
+  try {
+    const res = await getPgPool().query(
+      `insert into public.messaging_guest_identities (
+         partner_id, guest_account_id, provider, provider_subject, created_at, updated_at
+       ) values ($1::uuid, $2::uuid, $3, $4, now(), now())
+       on conflict (partner_id, provider, provider_subject)
+       do update set guest_account_id = excluded.guest_account_id, updated_at = now()`,
+      [params.partnerId, params.guestAccountId, params.provider, params.providerSubject]
+    )
+    return (res.rowCount ?? 0) > 0
+  } catch (e) {
+    console.error('[messaging-guest-pg] upsertGuestIdentityPg', e)
+    return false
+  }
+}
+
+export async function findLatestEmailChallengeInCooldownPg(
+  partnerId: string,
+  emailNormalized: string,
+  cooldownAfterIso: string
+): Promise<{ id: string; created_at: string } | null> {
+  if (!isPgConfigured()) return null
+  return pgQueryOne(
+    `select id::text as id, created_at
+     from public.messaging_guest_email_challenges
+     where partner_id = $1::uuid and email_normalized = $2 and created_at > $3::timestamptz
+     order by created_at desc
+     limit 1`,
+    [partnerId, emailNormalized, cooldownAfterIso]
+  )
+}
+
+export async function insertGuestEmailChallengePg(params: {
+  partnerId: string
+  emailNormalized: string
+  sessionId: string
+  codeHash: string
+  magicTokenHash: string
+  expiresAt: string
+}): Promise<boolean> {
+  if (!isPgConfigured()) return false
+  try {
+    const res = await getPgPool().query(
+      `insert into public.messaging_guest_email_challenges (
+         partner_id, email_normalized, session_id, code_hash, magic_token_hash,
+         expires_at, attempt_count
+       ) values ($1::uuid, $2, $3, $4, $5, $6::timestamptz, 0)`,
+      [
+        params.partnerId,
+        params.emailNormalized,
+        params.sessionId,
+        params.codeHash,
+        params.magicTokenHash,
+        params.expiresAt,
+      ]
+    )
+    return (res.rowCount ?? 0) > 0
+  } catch (e) {
+    console.error('[messaging-guest-pg] insertGuestEmailChallengePg', e)
+    return false
+  }
+}
+
+export async function findActiveOtpChallengePg(
+  partnerId: string,
+  emailNormalized: string,
+  sessionId: string
+): Promise<{
+  id: string
+  code_hash: string
+  expires_at: string
+  attempt_count: number
+  consumed_at: string | null
+} | null> {
+  if (!isPgConfigured()) return null
+  const row = await pgQueryOne<Record<string, unknown>>(
+    `select id::text as id, code_hash, expires_at, attempt_count, consumed_at
+     from public.messaging_guest_email_challenges
+     where partner_id = $1::uuid and email_normalized = $2 and session_id = $3
+       and consumed_at is null
+     order by created_at desc
+     limit 1`,
+    [partnerId, emailNormalized, sessionId]
+  )
+  if (!row) return null
+  return {
+    id: String(row.id),
+    code_hash: String(row.code_hash ?? ''),
+    expires_at: String(row.expires_at ?? ''),
+    attempt_count: Number(row.attempt_count ?? 0),
+    consumed_at: row.consumed_at != null ? String(row.consumed_at) : null,
+  }
+}
+
+export async function incrementOtpChallengeAttemptsPg(challengeId: string, nextCount: number): Promise<boolean> {
+  if (!isPgConfigured()) return false
+  try {
+    const res = await getPgPool().query(
+      `update public.messaging_guest_email_challenges set attempt_count = $1, updated_at = now() where id = $2::uuid`,
+      [nextCount, challengeId]
+    )
+    return (res.rowCount ?? 0) > 0
+  } catch (e) {
+    console.error('[messaging-guest-pg] incrementOtpChallengeAttemptsPg', e)
+    return false
+  }
+}
+
+export async function consumeEmailChallengePg(challengeId: string, consumedAtIso: string): Promise<boolean> {
+  if (!isPgConfigured()) return false
+  try {
+    const res = await getPgPool().query(
+      `update public.messaging_guest_email_challenges
+       set consumed_at = $1::timestamptz, updated_at = now()
+       where id = $2::uuid and consumed_at is null`,
+      [consumedAtIso, challengeId]
+    )
+    return (res.rowCount ?? 0) > 0
+  } catch (e) {
+    console.error('[messaging-guest-pg] consumeEmailChallengePg', e)
+    return false
+  }
+}
+
+export async function findMagicLinkChallengePg(
+  partnerId: string,
+  emailNormalized: string,
+  sessionId: string,
+  magicTokenHash: string
+): Promise<{ id: string; expires_at: string; consumed_at: string | null } | null> {
+  if (!isPgConfigured()) return null
+  const row = await pgQueryOne<Record<string, unknown>>(
+    `select id::text as id, expires_at, consumed_at
+     from public.messaging_guest_email_challenges
+     where partner_id = $1::uuid and email_normalized = $2 and session_id = $3
+       and magic_token_hash = $4 and consumed_at is null
+     order by created_at desc
+     limit 1`,
+    [partnerId, emailNormalized, sessionId, magicTokenHash]
+  )
+  if (!row) return null
+  return {
+    id: String(row.id),
+    expires_at: String(row.expires_at ?? ''),
+    consumed_at: row.consumed_at != null ? String(row.consumed_at) : null,
+  }
+}

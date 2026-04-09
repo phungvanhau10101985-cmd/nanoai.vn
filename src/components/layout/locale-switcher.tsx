@@ -4,7 +4,6 @@ import { useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { LOCALE_COOKIE_NAME, WEB_LOCALES, type WebLocale } from '@/lib/i18n/config'
-import { createClient } from '@/lib/supabase/client'
 
 type LocaleSwitcherProps = {
   currentLocale: WebLocale
@@ -25,16 +24,6 @@ export function LocaleSwitcher({ currentLocale }: LocaleSwitcherProps) {
   const setLocale = (locale: WebLocale) => {
     if (locale === currentLocale) return
     document.cookie = `${LOCALE_COOKIE_NAME}=${locale}; path=/; max-age=31536000; samesite=lax`
-    // Persist locale per account for future logins.
-    const supabase = createClient()
-    void supabase.auth.getUser().then(({ data }) => {
-      const user = data.user
-      if (!user) return
-      const nextMeta = { ...(user.user_metadata || {}), web_locale: locale }
-      void supabase.auth.updateUser({ data: nextMeta })
-    }).catch(() => {
-      // Ignore metadata persistence errors; cookie still applies locally.
-    })
     startTransition(() => {
       router.refresh()
     })
@@ -58,4 +47,3 @@ export function LocaleSwitcher({ currentLocale }: LocaleSwitcherProps) {
     </div>
   )
 }
-

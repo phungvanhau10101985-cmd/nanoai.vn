@@ -1,8 +1,6 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { revalidatePath } from 'next/cache'
 import { normalizeToEnglish } from '@/lib/ai-normalize'
 import {
@@ -151,11 +149,7 @@ export async function generateAiImage(formData: FormData) {
       return { error: 'Cần có ảnh người dùng và ít nhất một ảnh sản phẩm cho một trong năm người.' }
   }
 
-  const supabase = createClient()
-  const adminSupabase = createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  })
-  const result = await getUserForAction(() => supabase.auth.getUser(), 'Authentication required.')
+  const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
@@ -204,7 +198,6 @@ export async function generateAiImage(formData: FormData) {
   ]
 
   const pipe = await runVirtualTryOnPipeline({
-    adminSupabase,
     billingUserId: user.id,
     prompt,
     cost,

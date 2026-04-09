@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
-import type { Database } from '@/types/database.types'
 import { normalizeToEnglish } from '@/lib/ai-normalize'
 import { tryOnCostMap, buildSinglePersonPrompt } from '@/lib/try-on/try-on-prompts'
 import { runVirtualTryOnPipeline } from '@/lib/try-on/run-virtual-try-on-pipeline'
@@ -10,15 +8,6 @@ export const maxDuration = 120
 export const dynamic = 'force-dynamic'
 
 const MAX_GARMENTS = 12
-
-function adminSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!url || !key) throw new Error('Missing Supabase env')
-  return createSupabaseClient<Database>(url, key, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  })
-}
 
 /**
  * Partner virtual try-on (single person).
@@ -34,8 +23,7 @@ function adminSupabase() {
  */
 export async function POST(request: NextRequest) {
   try {
-    const supabase = adminSupabase()
-    const auth = await resolvePartnerTryOnBillingUserId(supabase, request.headers.get('authorization'))
+    const auth = await resolvePartnerTryOnBillingUserId(request.headers.get('authorization'))
     if ('error' in auth) {
       return NextResponse.json({ ok: false, error: auth.error }, { status: auth.status })
     }
@@ -89,7 +77,6 @@ export async function POST(request: NextRequest) {
     const prompt = buildSinglePersonPrompt(genderLabel, customPromptEn, garmentImages.length)
 
     const pipe = await runVirtualTryOnPipeline({
-      adminSupabase: supabase,
       billingUserId,
       prompt,
       cost,

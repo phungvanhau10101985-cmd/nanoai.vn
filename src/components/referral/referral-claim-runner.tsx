@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { getClientUserId } from '@/lib/auth/get-client-user-id'
 import { useToast } from '@/hooks/use-toast'
 import { REFERRAL_STORAGE_KEY, parseReferrerUuid } from '@/lib/referral'
 import { getDictionary } from '@/lib/i18n/dictionaries'
@@ -55,13 +55,10 @@ export function ReferralClaimRunner() {
       const inviterId = parseReferrerUuid(inviterRaw)
       if (!inviterId) return
 
-      const supabase = createClient()
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      if (!user) return
+      const uid = await getClientUserId()
+      if (!uid) return
 
-      if (user.id === inviterId) {
+      if (uid === inviterId) {
         try {
           localStorage.removeItem(REFERRAL_STORAGE_KEY)
         } catch {
@@ -96,7 +93,6 @@ export function ReferralClaimRunner() {
         }
 
         if (json?.ok === true && json?.applied === true) {
-          // Chỉ người mời nhận credit; người được mời không toast / không cộng thưởng giới thiệu.
           return
         }
         if (json?.ok === true && json?.applied === false && json?.reason === 'already_claimed') {
@@ -118,15 +114,6 @@ export function ReferralClaimRunner() {
     }
 
     void run()
-
-    const supabase = createClient()
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user) void run()
-    })
-
-    return () => subscription.unsubscribe()
   }, [])
 
   return null

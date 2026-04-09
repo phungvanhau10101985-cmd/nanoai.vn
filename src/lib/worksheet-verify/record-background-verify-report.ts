@@ -1,25 +1,24 @@
-import type { SupabaseClient } from '@supabase/supabase-js'
 import type { RunWorksheetVerifyStats } from '@/lib/worksheet-verify/run-worksheet-verify-for-sheet'
 import type { WorksheetVerifyDetailRow } from '@/lib/worksheet-verify/admin-batch-verify'
+import { isPgConfigured } from '@/lib/db/pool'
+import { insertWorksheetVerifyBatchReportPg } from '@/lib/db/worksheet-verify-batch-pg'
+import { fetchWorksheetSheetForVerifyPg } from '@/lib/db/worksheet-verify-run-pg'
 
 /**
  * Ghi một dòng vào worksheet_verify_batch_reports sau verify ngầm (tao-giao-trinh).
- * Admin dashboard chỉ đọc bảng này; batch/cron cũng dùng chung.
- * Cần Supabase client service_role (bypass RLS insert).
  */
-export async function recordBackgroundVerifyReport(
-  admin: SupabaseClient,
-  params: {
-    worksheetId: string
-    triggeredBy: string | null
-    stats: RunWorksheetVerifyStats
-    durationMs: number
-  }
-): Promise<void> {
+export async function recordBackgroundVerifyReport(params: {
+  worksheetId: string
+  triggeredBy: string | null
+  stats: RunWorksheetVerifyStats
+  durationMs: number
+}): Promise<void> {
   const { worksheetId, triggeredBy, stats, durationMs } = params
 
-  const { data: ws } = await admin.from('worksheet_worksheets').select('topic').eq('id', worksheetId).maybeSingle()
-  const topic = (ws?.topic as string) || ''
+  if (!isPgConfigured()) return
+
+  const ws = await fetchWorksheetSheetForVerifyPg(worksheetId)
+  const topic = ws?.topic ?? ''
 
   const detailRow: WorksheetVerifyDetailRow = {
     worksheetId,
@@ -35,14 +34,14 @@ export async function recordBackgroundVerifyReport(
   const errorSummary =
     stats.errors.length > 0 ? stats.errors.slice(0, 5).join('; ').slice(0, 2000) : null
 
-  const { error } = await admin.from('worksheet_verify_batch_reports').insert({
+  const id = await insertWorksheetVerifyBatchReportPg({
     status: 'completed',
-    triggered_by: triggeredBy,
-    worksheets_planned: 1,
-    worksheets_processed: 1,
-    questions_marked_verified: stats.markedVerified,
-    questions_content_updated: stats.contentUpdates,
-    questions_skipped_invalid: stats.skippedInvalid,
+    triggeredBy,
+    worksheetsPlanned: 1,
+    worksheetsProcessed: 1,
+    questionsMarkedVerified: stats.markedVerified,
+    questionsContentUpdated: stats.contentUpdates,
+    questionsSkippedInvalid: stats.skippedInvalid,
     progress: {
       source: 'background',
       pendingIds: [worksheetId],
@@ -50,10 +49,10 @@ export async function recordBackgroundVerifyReport(
       topicsById: { [worksheetId]: topic },
     },
     details: [detailRow],
-    finished_at: now,
-    updated_at: now,
-    error_summary: errorSummary,
+    finishedAt: now,
+    updatedAt: now,
+    errorSummary,
   })
 
-  if (error) throw new Error(error.message)
+  if (!id) throw new Error('Không ghi được báo cáo verify nền')
 }

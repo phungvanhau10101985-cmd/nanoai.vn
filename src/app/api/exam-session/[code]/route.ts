@@ -1,11 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-import { createClient as createServerClient } from '@/lib/supabase/server'
+import { getUserForAction } from '@/lib/auth'
+import {
+  fetchClassAndSchoolDisplayNamesPg,
+  getClassMemberExamIdentityFromPg,
+} from '@/lib/db/classes-pg'
+import {
+  deleteExamAttemptByIdPg,
+  existsAnyExamQuestionForSessionPg,
+  fetchExamAttemptFullForUserGetRoutePg,
+  fetchExamQuestionsFullOrderedForSessionPg,
+  fetchExamSessionActiveForGetRoutePg,
+} from '@/lib/db/exam-session-pg'
+import { isPgConfigured } from '@/lib/db/pool'
 import { resolveWebLocaleFromAcceptLanguage } from '@/lib/i18n/config'
 import { resolveDefaultExamSessionTitle } from '@/lib/i18n/exam-session-default-titles'
 import { getExamAttemptFeedbackWithMeta, parseExamGradingMeta } from '@/lib/exam-feedback'
 import { signExamLayoutToken } from '@/lib/exam-layout-token'
-import { getClassMemberExamIdentity } from '@/lib/lop/require-class-enrollment'
 import {
   parseLayoutSnapshot,
   rebuildPublicFromSnapshot,
@@ -13,10 +23,10 @@ import {
 } from '@/lib/exam-session/student-exam-layout'
 import { buildActiveAttemptSessionJson } from '@/lib/exam-session/student-exam-session-payload'
 import {
-  tryFinalizeOverdueExamAttempt,
+  tryFinalizeOverdueExamAttemptPg,
   isServerDeadlinePassed,
   resolveDeadlineEndMs,
-  fetchAlreadySubmittedPayloadForAttempt,
+  fetchAlreadySubmittedPayloadForAttemptPg,
 } from '@/lib/exam-session/finalize-overdue-exam-attempt'
 
 const NO_STORE_HEADERS = {
@@ -29,15 +39,14 @@ export async function GET(
   { params }: { params: Promise<{ code: string }> }
 ) {
   try {
-    const serverSupabase = createServerClient()
-    const { data: authData } = await serverSupabase.auth.getUser()
-    const user = authData.user
-    if (!user) {
+    const auth = await getUserForAction('Vui lòng đăng nhập để làm bài thi.')
+    if ('error' in auth) {
       return NextResponse.json(
-        { error: 'Vui lòng đăng nhập để làm bài thi.' },
+        { error: auth.error },
         { status: 401, headers: NO_STORE_HEADERS }
       )
     }
+    const user = auth.user
 
     const { code } = await params
     if (!code || code.length < 4) {
@@ -47,46 +56,39 @@ export async function GET(
       )
     }
 
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      { auth: { persistSession: false } }
-    )
+    if (!isPgConfigured()) {
+      return NextResponse.json(
+        { error: 'Chưa cấu hình cơ sở dữ liệu.' },
+        { status: 503, headers: NO_STORE_HEADERS }
+      )
+    }
 
-    const { data: session, error: sessionErr } = await supabase
-      .from('exam_sessions')
-      .select('id, code, title, exam_type, duration_minutes, status, class_id, school_id, is_practice_homework')
-      .eq('code', code.toUpperCase())
-      .single()
-
-    if (sessionErr || !session || session.status !== 'active') {
+    const sessionRes = await fetchExamSessionActiveForGetRoutePg(code.toUpperCase())
+    if (sessionRes === null) {
+      return NextResponse.json(
+        { error: 'Lỗi đọc bài thi.' },
+        { status: 500, headers: NO_STORE_HEADERS }
+      )
+    }
+    if (sessionRes === 'not_found') {
       return NextResponse.json(
         { error: 'Không tìm thấy bài thi hoặc bài thi đã đóng.' },
         { status: 404, headers: NO_STORE_HEADERS }
       )
     }
 
-    const practiceHomework = Boolean((session as { is_practice_homework?: boolean }).is_practice_homework)
+    const session = sessionRes
+    const practiceHomework = session.is_practice_homework
     const reqLocale = resolveWebLocaleFromAcceptLanguage(_req.headers.get('accept-language'))
     const sessionTitleFallback = resolveDefaultExamSessionTitle(reqLocale, practiceHomework)
-    const resolvedSessionTitle =
-      String(session.title ?? '').trim() || sessionTitleFallback
+    const resolvedSessionTitle = String(session.title ?? '').trim() || sessionTitleFallback
 
-    const { data: priorAttempt, error: priorErr } = await supabase
-      .from('exam_attempts')
-      .select(
-        'id, submitted_at, score, max_score, grading_meta, layout_snapshot, answers, essay_submission, student_name, student_code, started_at, deadline_at'
-      )
-      .eq('session_id', session.id)
-      .eq('user_id', user.id)
-      .maybeSingle()
-
-    let attemptRow = !priorErr ? priorAttempt : null
+    let attemptRow = await fetchExamAttemptFullForUserGetRoutePg(session.id, user.id)
 
     if (attemptRow && attemptRow.submitted_at == null) {
       const snap = parseLayoutSnapshot(attemptRow.layout_snapshot)
       if (!snap) {
-        await supabase.from('exam_attempts').delete().eq('id', attemptRow.id)
+        await deleteExamAttemptByIdPg(attemptRow.id)
         attemptRow = null
       }
     }
@@ -96,7 +98,7 @@ export async function GET(
       const mx = Number(attemptRow.max_score ?? 0)
       const meta = parseExamGradingMeta(attemptRow.grading_meta)
       const feedback = getExamAttemptFeedbackWithMeta(sc, mx, meta)
-      const durationMin = typeof session.duration_minutes === 'number' ? session.duration_minutes : 15
+      const durationMin = session.duration_minutes
       return NextResponse.json(
         {
           alreadySubmitted: true,
@@ -119,38 +121,23 @@ export async function GET(
     let className: string | null = null
     let schoolName: string | null = null
     if (session.class_id) {
-      const { data: cls } = await supabase
-        .from('classes')
-        .select('name, school_id')
-        .eq('id', session.class_id)
-        .maybeSingle()
-      className = cls?.name ?? null
-      const schoolId = String(session.school_id ?? cls?.school_id ?? '').trim()
-      if (schoolId) {
-        const { data: school } = await supabase
-          .from('schools')
-          .select('name')
-          .eq('id', schoolId)
-          .maybeSingle()
-        schoolName = school?.name ?? null
+      const ns = await fetchClassAndSchoolDisplayNamesPg(session.class_id, session.school_id)
+      if (ns) {
+        className = ns.className
+        schoolName = ns.schoolName
       }
     }
 
     let classExamIdentity: { displayName: string; birthDate: string } | null = null
     if (session.class_id) {
-      classExamIdentity = await getClassMemberExamIdentity(
-        supabase,
-        String(session.class_id),
-        user.id
-      )
+      classExamIdentity = await getClassMemberExamIdentityFromPg(String(session.class_id), user.id)
       if (!classExamIdentity) {
         return NextResponse.json(
           {
             needsEnrollment: true,
             practiceHomework,
             title: resolvedSessionTitle,
-            durationMinutes:
-              typeof session.duration_minutes === 'number' ? session.duration_minutes : 15,
+            durationMinutes: session.duration_minutes,
             className,
             schoolName,
           },
@@ -159,7 +146,7 @@ export async function GET(
       }
     }
 
-    const durationMin = typeof session.duration_minutes === 'number' ? session.duration_minutes : 15
+    const durationMin = session.duration_minutes
     const serverNowMs = Date.now()
 
     if (attemptRow && attemptRow.submitted_at == null) {
@@ -173,8 +160,7 @@ export async function GET(
             serverNowMs
           )
         ) {
-          const finalized = await tryFinalizeOverdueExamAttempt({
-            supabase,
+          const finalized = await tryFinalizeOverdueExamAttemptPg({
             sessionId: String(session.id),
             sessionTitle: resolvedSessionTitle,
             durationMinutes: durationMin,
@@ -204,8 +190,7 @@ export async function GET(
               { headers: NO_STORE_HEADERS }
             )
           }
-          const reopened = await fetchAlreadySubmittedPayloadForAttempt(
-            supabase,
+          const reopened = await fetchAlreadySubmittedPayloadForAttemptPg(
             String(attemptRow.id),
             practiceHomework,
             resolvedSessionTitle,
@@ -223,13 +208,8 @@ export async function GET(
           )
         }
 
-        const { data: questions, error: questionsErr } = await supabase
-          .from('exam_questions')
-          .select('id, question_text, options, correct_index, source, order')
-          .eq('session_id', session.id)
-          .order('order', { ascending: true })
-
-        if (!questionsErr && questions?.length) {
+        const questions = await fetchExamQuestionsFullOrderedForSessionPg(session.id)
+        if (questions?.length) {
           const publicQuestions = rebuildPublicFromSnapshot(questions as ExamQuestionRow[], snap)
           if (publicQuestions?.length) {
             const endMs =
@@ -263,14 +243,14 @@ export async function GET(
       }
     }
 
-    const { data: anyQuestion, error: anyQErr } = await supabase
-      .from('exam_questions')
-      .select('id')
-      .eq('session_id', session.id)
-      .limit(1)
-      .maybeSingle()
-
-    if (anyQErr || !anyQuestion) {
+    const anyQ = await existsAnyExamQuestionForSessionPg(session.id)
+    if (anyQ === null) {
+      return NextResponse.json(
+        { error: 'Lỗi đọc câu hỏi.' },
+        { status: 500, headers: NO_STORE_HEADERS }
+      )
+    }
+    if (!anyQ) {
       return NextResponse.json(
         { error: 'Bài thi chưa có câu hỏi.' },
         { status: 404, headers: NO_STORE_HEADERS }

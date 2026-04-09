@@ -1,9 +1,6 @@
 import type { ExamLayoutSnapshotV1 } from '@/lib/exam-session/student-exam-layout'
 import type { ExamGradingMeta } from '@/lib/exam-feedback'
-import {
-  EXAM_ESSAY_IMAGE_RETENTION_DAYS,
-  publicExamEssayImageUrlPrefix,
-} from '@/lib/exam-essay-config'
+import { EXAM_ESSAY_IMAGE_RETENTION_DAYS, isPublicExamEssayImageUrl } from '@/lib/exam-essay-config'
 
 const MAX_ESSAY_TEXT = 12000
 const MAX_IMAGES_PER_ESSAY = 10
@@ -17,8 +14,7 @@ export type ExamQuestionGradeRow = {
 
 function normalizeEssaySubmission(
   raw: unknown,
-  essayQuestionIds: Set<string>,
-  urlPrefix: string
+  essayQuestionIds: Set<string>
 ): Record<string, { text: string; imageUrls: string[] }> {
   const out: Record<string, { text: string; imageUrls: string[] }> = {}
   if (!raw || typeof raw !== 'object') return out
@@ -33,7 +29,7 @@ function normalizeEssaySubmission(
     if (Array.isArray(urlsRaw)) {
       for (const u of urlsRaw) {
         const s = String(u ?? '').trim()
-        if (!s.startsWith(urlPrefix)) continue
+        if (!isPublicExamEssayImageUrl(s)) continue
         if (imageUrls.length >= MAX_IMAGES_PER_ESSAY) break
         if (!imageUrls.includes(s)) imageUrls.push(s)
       }
@@ -93,12 +89,7 @@ export function gradeExamFromStoredAnswers(
     questions.filter((q) => !scorableQuestionIds.has(String(q.id))).map((q) => String(q.id))
   )
 
-  const urlPrefix = publicExamEssayImageUrlPrefix()
-  const essaySubmission = normalizeEssaySubmission(
-    essaySubmissionStored,
-    essayQuestionIds,
-    urlPrefix
-  )
+  const essaySubmission = normalizeEssaySubmission(essaySubmissionStored, essayQuestionIds)
   for (const qid of essayQuestionIds) {
     const textFromAnswer =
       typeof answers[qid] === 'string' ? String(answers[qid] ?? '').trim().slice(0, MAX_ESSAY_TEXT) : ''

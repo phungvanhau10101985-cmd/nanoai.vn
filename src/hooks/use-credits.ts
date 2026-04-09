@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { getCredits } from '@/lib/credits'
 import { useToast } from '@/hooks/use-toast'
 import { trackEvent, setPendingGeneration, toFeatureFromRoute } from '@/lib/analytics-track'
 import { subscribeToUrlChanges } from '@/lib/client-history-navigation'
@@ -21,8 +20,17 @@ export function useCredits() {
   }, [])
 
   const fetchCredits = useCallback(async () => {
-    const bal = await getCredits()
-    setCredits(bal)
+    try {
+      const res = await fetch('/api/account/credits', { credentials: 'same-origin' })
+      if (!res.ok) {
+        setCredits(0)
+        return
+      }
+      const j = (await res.json()) as { balance?: number }
+      setCredits(Number(j.balance ?? 0))
+    } catch {
+      setCredits(0)
+    }
   }, [])
 
   useEffect(() => {

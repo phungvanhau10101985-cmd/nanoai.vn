@@ -9,16 +9,20 @@
  *   npx tsx scripts/normalize-curriculum-infographics.ts --apply --delete-storage
  *     # (tùy chọn) xóa file storage try-on-images cho URL đã gỡ khỏi JSON
  *
- * Cần: NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+ * Cần: DATABASE_URL (Postgres trực tiếp).
  */
 import { config } from 'dotenv'
 import { resolve } from 'path'
-import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { pgQuery } from '../src/lib/db/pg-query'
 import {
   parseStoredCurriculumSlidesJson,
   serializeStoredCurriculumSlidesJson,
 } from '../src/app/tao-giao-trinh/lib/curriculum-slides-json'
 import type { SlideInfographic } from '../src/app/tao-giao-trinh/lib/slide-infographic'
+import {
+  removeTryOnStorageObjects,
+  tryOnPublicUrlToStoragePath,
+} from '../src/lib/storage/try-on-public-upload'
 
 config({ path: resolve(process.cwd(), '.env.local') })
 config({ path: resolve(process.cwd(), '.env') })
@@ -47,13 +51,6 @@ function stripIfSameWhole(
   return inf
 }
 
-function tryStoragePathFromPublicUrl(url: string): string | null {
-  const t = url.trim()
-  const idx = t.indexOf('/try-on-images/')
-  if (idx < 0) return null
-  return t.slice(idx + '/try-on-images/'.length).split('?')[0] || null
-}
-
 type LessonRow = {
   id: string
   curriculum_id: string
@@ -63,26 +60,25 @@ type LessonRow = {
   slides_json: unknown
 }
 
-async function loadWholeUrlByCurriculum(supabase: SupabaseClient): Promise<Map<string, string>> {
+async function loadWholeUrlByCurriculum(): Promise<Map<string, string>> {
   const map = new Map<string, string>()
-  let from = 0
+  let offset = 0
   const page = 300
   for (;;) {
-    const { data, error } = await supabase
-      .from('worksheet_slides')
-      .select('curriculum_id, content_json')
-      .range(from, from + page - 1)
-    if (error) throw new Error(`worksheet_slides: ${error.message}`)
-    if (!data?.length) break
-    for (const row of data) {
+    const rows = await pgQuery<{ curriculum_id: string; content_json: unknown }>(
+      `select curriculum_id, content_json from worksheet_slides order by curriculum_id limit $1 offset $2`,
+      [page, offset]
+    )
+    if (rows.length === 0) break
+    for (const row of rows) {
       const cid = String(row.curriculum_id ?? '')
       if (!cid) continue
       const inf = parseStoredCurriculumSlidesJson(row.content_json).curriculumInfographic
       const u = inf?.imageUrl?.trim()
       if (u) map.set(cid, u)
     }
-    if (data.length < page) break
-    from += page
+    if (rows.length < page) break
+    offset += page
   }
   return map
 }
@@ -90,14 +86,11 @@ async function loadWholeUrlByCurriculum(supabase: SupabaseClient): Promise<Map<s
 async function main() {
   const apply = process.argv.includes('--apply')
   const deleteStorage = process.argv.includes('--delete-storage')
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim()
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()
-  if (!url || !serviceKey) {
-    console.error('Thiếu NEXT_PUBLIC_SUPABASE_URL hoặc SUPABASE_SERVICE_ROLE_KEY')
+  if (!process.env.DATABASE_URL?.trim()) {
+    console.error('Thiếu DATABASE_URL')
     process.exit(1)
   }
 
-  const supabase = createClient(url, serviceKey)
   const strippedUrls = new Set<string>()
   let userUpdated = 0
   let userScanned = 0
@@ -110,19 +103,18 @@ async function main() {
     console.warn('--delete-storage bị bỏ qua khi không có --apply')
   }
 
-  const wholeByCurriculum = await loadWholeUrlByCurriculum(supabase)
+  const wholeByCurriculum = await loadWholeUrlByCurriculum()
   console.log(`Đã đọc worksheet_slides: ${wholeByCurriculum.size} giáo trình có ảnh cả bài.`)
 
   // --- user_customized_slides: bỏ curriculumInfographic khi bản chung đã có ảnh cả bài ---
-  let uFrom = 0
+  let uOffset = 0
   const uPage = 200
   for (;;) {
-    const { data, error } = await supabase
-      .from('user_customized_slides')
-      .select('user_id, curriculum_id, slides_json')
-      .range(uFrom, uFrom + uPage - 1)
-    if (error) throw new Error(`user_customized_slides: ${error.message}`)
-    if (!data?.length) break
+    const data = await pgQuery<{ user_id: string; curriculum_id: string; slides_json: unknown }>(
+      `select user_id, curriculum_id, slides_json from user_customized_slides order by user_id, curriculum_id limit $1 offset $2`,
+      [uPage, uOffset]
+    )
+    if (data.length === 0) break
     for (const row of data) {
       userScanned += 1
       const cid = String(row.curriculum_id ?? '')
@@ -138,32 +130,33 @@ async function main() {
       strippedUrls.add(normUrl(parsed.curriculumInfographic.imageUrl))
       userUpdated += 1
       if (apply) {
-        const { error: upErr } = await supabase
-          .from('user_customized_slides')
-          .update({ slides_json: next, updated_at: new Date().toISOString() })
-          .eq('user_id', row.user_id)
-          .eq('curriculum_id', row.curriculum_id)
-        if (upErr) console.error('Lỗi update user_customized_slides', row.curriculum_id, upErr.message)
+        try {
+          await pgQuery(
+            `update user_customized_slides set slides_json = $1, updated_at = $2::timestamptz where user_id = $3 and curriculum_id = $4`,
+            [next, new Date().toISOString(), row.user_id, row.curriculum_id]
+          )
+        } catch (upErr) {
+          console.error('Lỗi update user_customized_slides', row.curriculum_id, upErr instanceof Error ? upErr.message : upErr)
+        }
       }
     }
     if (data.length < uPage) break
-    uFrom += uPage
+    uOffset += uPage
   }
 
   // --- worksheet_curriculum_lesson_slides ---
   const lessonRows: LessonRow[] = []
-  let lFrom = 0
+  let lOffset = 0
   const lPage = 500
   for (;;) {
-    const { data, error } = await supabase
-      .from('worksheet_curriculum_lesson_slides')
-      .select('id, curriculum_id, mode, user_id, lesson_no, slides_json')
-      .range(lFrom, lFrom + lPage - 1)
-    if (error) throw new Error(`worksheet_curriculum_lesson_slides: ${error.message}`)
-    if (!data?.length) break
-    lessonRows.push(...(data as LessonRow[]))
+    const data = await pgQuery<LessonRow>(
+      `select id, curriculum_id, mode, user_id, lesson_no, slides_json from worksheet_curriculum_lesson_slides order by id limit $1 offset $2`,
+      [lPage, lOffset]
+    )
+    if (data.length === 0) break
+    lessonRows.push(...data)
     if (data.length < lPage) break
-    lFrom += lPage
+    lOffset += lPage
   }
 
   const groupKey = (cid: string, lessonNo: number) => `${cid}|${lessonNo}`
@@ -213,28 +206,29 @@ async function main() {
 
       lessonUpdated += 1
       if (apply) {
-        const { error: upErr } = await supabase
-          .from('worksheet_curriculum_lesson_slides')
-          .update({ slides_json: nextJson, updated_at: new Date().toISOString() })
-          .eq('id', r.id)
-        if (upErr) console.error('Lỗi update lesson_slides', r.id, upErr.message)
+        try {
+          await pgQuery(
+            `update worksheet_curriculum_lesson_slides set slides_json = $1, updated_at = $2::timestamptz where id = $3`,
+            [nextJson, new Date().toISOString(), r.id]
+          )
+        } catch (upErr) {
+          console.error('Lỗi update lesson_slides', r.id, upErr instanceof Error ? upErr.message : upErr)
+        }
       }
     }
   }
 
   if (apply && deleteStorage && strippedUrls.size > 0) {
-    const paths = [...strippedUrls]
-      .map((u) => tryStoragePathFromPublicUrl(u))
-      .filter((p): p is string => !!p)
-    const uniquePaths = [...new Set(paths)]
-    for (const p of uniquePaths) {
-      if (!p.includes('curriculum_infographic_')) continue
-      const { error: delErr } = await supabase.storage.from('try-on-images').remove([p])
-      if (delErr) {
-        console.warn('Storage remove skip:', p, delErr.message)
-      } else {
-        storageRemoved += 1
-      }
+    const uniquePaths = [
+      ...new Set(
+        [...strippedUrls]
+          .map((u) => tryOnPublicUrlToStoragePath(u))
+          .filter((p): p is string => !!p && p.includes('curriculum_infographic_'))
+      ),
+    ]
+    if (uniquePaths.length > 0) {
+      await removeTryOnStorageObjects(uniquePaths)
+      storageRemoved += uniquePaths.length
     }
   }
 

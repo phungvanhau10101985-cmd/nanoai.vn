@@ -4,10 +4,12 @@
  * Dùng:
  *   npx tsx scripts/backfill-curriculum-slides-lessons.ts          # dry-run
  *   npx tsx scripts/backfill-curriculum-slides-lessons.ts --apply  # ghi DB
+ *
+ * Cần: DATABASE_URL
  */
 import { config } from 'dotenv'
 import { resolve } from 'path'
-import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { pgQuery } from '../src/lib/db/pg-query'
 import {
   parseStoredCurriculumSlidesJson,
   serializeStoredCurriculumSlidesJson,
@@ -42,17 +44,15 @@ function stable(v: unknown): string {
   }
 }
 
-async function processSharedTable(admin: SupabaseClient, apply: boolean) {
+async function processSharedTable(apply: boolean) {
   let offset = 0
   let scanned = 0
   let changed = 0
   for (;;) {
-    const { data, error } = await admin
-      .from('worksheet_slides')
-      .select('curriculum_id, content_json')
-      .range(offset, offset + PAGE_SIZE - 1)
-    if (error) throw new Error(`worksheet_slides: ${error.message}`)
-    const rows = (data ?? []) as SharedRow[]
+    const rows = await pgQuery<SharedRow>(
+      `select curriculum_id, content_json from worksheet_slides order by curriculum_id limit $1 offset $2`,
+      [PAGE_SIZE, offset]
+    )
     if (rows.length === 0) break
     for (const row of rows) {
       scanned += 1
@@ -61,11 +61,7 @@ async function processSharedTable(admin: SupabaseClient, apply: boolean) {
       if (stable(nextJson) === stable(row.content_json)) continue
       changed += 1
       if (apply) {
-        const { error: upErr } = await admin
-          .from('worksheet_slides')
-          .update({ content_json: nextJson })
-          .eq('curriculum_id', row.curriculum_id)
-        if (upErr) throw new Error(`worksheet_slides update(${row.curriculum_id}): ${upErr.message}`)
+        await pgQuery(`update worksheet_slides set content_json = $1 where curriculum_id = $2`, [nextJson, row.curriculum_id])
       }
     }
     if (rows.length < PAGE_SIZE) break
@@ -74,17 +70,15 @@ async function processSharedTable(admin: SupabaseClient, apply: boolean) {
   return { scanned, changed }
 }
 
-async function processOriginalTable(admin: SupabaseClient, apply: boolean) {
+async function processOriginalTable(apply: boolean) {
   let offset = 0
   let scanned = 0
   let changed = 0
   for (;;) {
-    const { data, error } = await admin
-      .from('worksheet_slides_original')
-      .select('curriculum_id, content_json')
-      .range(offset, offset + PAGE_SIZE - 1)
-    if (error) throw new Error(`worksheet_slides_original: ${error.message}`)
-    const rows = (data ?? []) as OriginalRow[]
+    const rows = await pgQuery<OriginalRow>(
+      `select curriculum_id, content_json from worksheet_slides_original order by curriculum_id limit $1 offset $2`,
+      [PAGE_SIZE, offset]
+    )
     if (rows.length === 0) break
     for (const row of rows) {
       scanned += 1
@@ -93,11 +87,10 @@ async function processOriginalTable(admin: SupabaseClient, apply: boolean) {
       if (stable(nextJson) === stable(row.content_json)) continue
       changed += 1
       if (apply) {
-        const { error: upErr } = await admin
-          .from('worksheet_slides_original')
-          .update({ content_json: nextJson })
-          .eq('curriculum_id', row.curriculum_id)
-        if (upErr) throw new Error(`worksheet_slides_original update(${row.curriculum_id}): ${upErr.message}`)
+        await pgQuery(`update worksheet_slides_original set content_json = $1 where curriculum_id = $2`, [
+          nextJson,
+          row.curriculum_id,
+        ])
       }
     }
     if (rows.length < PAGE_SIZE) break
@@ -106,17 +99,15 @@ async function processOriginalTable(admin: SupabaseClient, apply: boolean) {
   return { scanned, changed }
 }
 
-async function processPersonalTable(admin: SupabaseClient, apply: boolean) {
+async function processPersonalTable(apply: boolean) {
   let offset = 0
   let scanned = 0
   let changed = 0
   for (;;) {
-    const { data, error } = await admin
-      .from('user_customized_slides')
-      .select('user_id, curriculum_id, slides_json')
-      .range(offset, offset + PAGE_SIZE - 1)
-    if (error) throw new Error(`user_customized_slides: ${error.message}`)
-    const rows = (data ?? []) as PersonalRow[]
+    const rows = await pgQuery<PersonalRow>(
+      `select user_id, curriculum_id, slides_json from user_customized_slides order by user_id, curriculum_id limit $1 offset $2`,
+      [PAGE_SIZE, offset]
+    )
     if (rows.length === 0) break
     for (const row of rows) {
       scanned += 1
@@ -125,12 +116,11 @@ async function processPersonalTable(admin: SupabaseClient, apply: boolean) {
       if (stable(nextJson) === stable(row.slides_json)) continue
       changed += 1
       if (apply) {
-        const { error: upErr } = await admin
-          .from('user_customized_slides')
-          .update({ slides_json: nextJson })
-          .eq('user_id', row.user_id)
-          .eq('curriculum_id', row.curriculum_id)
-        if (upErr) throw new Error(`user_customized_slides update(${row.user_id}/${row.curriculum_id}): ${upErr.message}`)
+        await pgQuery(`update user_customized_slides set slides_json = $1 where user_id = $2 and curriculum_id = $3`, [
+          nextJson,
+          row.user_id,
+          row.curriculum_id,
+        ])
       }
     }
     if (rows.length < PAGE_SIZE) break
@@ -141,18 +131,15 @@ async function processPersonalTable(admin: SupabaseClient, apply: boolean) {
 
 async function main() {
   const apply = process.argv.includes('--apply')
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim()
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()
-  if (!url || !key) {
-    console.error('Thiếu NEXT_PUBLIC_SUPABASE_URL hoặc SUPABASE_SERVICE_ROLE_KEY')
+  if (!process.env.DATABASE_URL?.trim()) {
+    console.error('Thiếu DATABASE_URL')
     process.exit(1)
   }
-  const admin = createClient(url, key)
   console.log(`[lesson-backfill] mode=${apply ? 'APPLY' : 'DRY-RUN'}`)
 
-  const shared = await processSharedTable(admin, apply)
-  const original = await processOriginalTable(admin, apply)
-  const personal = await processPersonalTable(admin, apply)
+  const shared = await processSharedTable(apply)
+  const original = await processOriginalTable(apply)
+  const personal = await processPersonalTable(apply)
 
   console.log('[lesson-backfill] worksheet_slides:', shared)
   console.log('[lesson-backfill] worksheet_slides_original:', original)

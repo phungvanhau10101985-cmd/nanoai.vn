@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
 import {
@@ -7,10 +6,8 @@ import {
   parseCoachUsageContextPayload,
   trackEnglishCoachGeminiResult,
 } from '@/lib/english-coach-api-usage'
-
-function adminClient() {
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-}
+import { isPgConfigured } from '@/lib/db/pool'
+import { getOpeningTranslationCachePg, upsertOpeningTranslationCachePg } from '@/lib/db/language-coach-misc-pg'
 
 async function buildCacheKey(text: string, targetLanguageCode: string, nativeLanguage: string, explainType?: string): Promise<string> {
   const normalized = `${String(explainType || '')}::${String(text || '').trim()}::${String(targetLanguageCode || '').trim()}::${String(nativeLanguage || '').trim()}`
@@ -105,16 +102,11 @@ export async function POST(request: NextRequest) {
     const targetLanguageCode = String(payload.targetLanguageCode || 'en').trim()
     const isOpeningStyle = !studentText && !correctionNote && (explainType === 'idea3' ? !correctedSentence : !intentAnswer)
 
-    if (isOpeningStyle) {
+    if (isOpeningStyle && isPgConfigured()) {
       const cacheKey = await buildCacheKey(textToExplain, targetLanguageCode, nativeLanguage, explainType)
-      const adminSupabase = adminClient()
-      const { data: cached } = await adminSupabase
-        .from('language_coach_opening_translation_cache')
-        .select('translation')
-        .eq('cache_key', cacheKey)
-        .single()
-      if (cached?.translation) {
-        const cachedNormalized = normalizeVietnameseLearnerAddressing(String(cached.translation || '').trim())
+      const cached = await getOpeningTranslationCachePg(cacheKey)
+      if (cached) {
+        const cachedNormalized = normalizeVietnameseLearnerAddressing(String(cached || '').trim())
         return NextResponse.json({ explanation: cachedNormalized })
       }
     }
@@ -168,13 +160,9 @@ Trả về JSON hợp lệ, không markdown:
 
     const explanation = normalizeVietnameseLearnerAddressing(normalizeShortMeaning(parsed.explanation))
 
-    if (isOpeningStyle) {
+    if (isOpeningStyle && isPgConfigured()) {
       const cacheKey = await buildCacheKey(textToExplain, targetLanguageCode, nativeLanguage, explainType)
-      const adminSupabase = adminClient()
-      await adminSupabase.from('language_coach_opening_translation_cache').upsert(
-        { cache_key: cacheKey, translation: explanation },
-        { onConflict: 'cache_key' }
-      )
+      await upsertOpeningTranslationCachePg(cacheKey, explanation)
     }
 
     return NextResponse.json({ explanation })
@@ -183,4 +171,3 @@ Trả về JSON hợp lệ, không markdown:
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 }
-

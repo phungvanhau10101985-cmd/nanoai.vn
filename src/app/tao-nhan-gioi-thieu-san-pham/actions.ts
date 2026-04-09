@@ -1,19 +1,21 @@
 'use server'
+import { deleteTryOnHistoryRowAndStorage } from '@/lib/storage/try-on-history-cleanup'
 
-import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+import { insertTryOnHistoryProcessingPg, updateTryOnHistoryCompletedPg } from '@/lib/db/try-on-history-pg'
 import { revalidatePath } from 'next/cache'
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
 import { normalizeToEnglish } from '@/lib/ai-normalize'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
+import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
+import { deductUserCredits } from '@/lib/music/deduct-user-credits'
+
 
 const LABEL_COSTS = { '2K': 1.5, '4K': 3 } as const
 const MOCKUP_COSTS = { '2K': 1.5, '4K': 3 } as const
 const VALID_ASPECT_RATIOS = ['1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '9:21', '21:9'] as const
 const toTenths = (value: number) => Math.round(value * 10)
-const fromTenths = (value: number) => value / 10
 const formatCredits = (value: number) => value.toLocaleString('vi-VN', { maximumFractionDigits: 1 })
 
 const STYLE_PROMPTS: Record<string, string> = {
@@ -251,40 +253,40 @@ export async function createProductLabel(formData: FormData) {
 
   const COST = LABEL_COSTS[imageQuality]
 
-  const supabase = createClient()
-  const adminSupabase = createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
-  const result = await getUserForAction(() => supabase.auth.getUser())
+  const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
-  const { data: creditData, error: creditError } = await supabase.from('credits').select('balance').eq('user_id', user.id).single()
-  if (creditError || !creditData || toTenths(creditData.balance) < toTenths(COST)) {
-    return { error: `Không đủ credits. Cần ${formatCredits(COST)} credits, hiện có ${formatCredits(creditData?.balance || 0)}.` }
+  let openBalance = 0
+  try {
+    openBalance = await getCreditBalanceByUserId(user.id)
+  } catch {
+    return { error: 'Không đọc được số dư credits.' }
+  }
+  if (toTenths(openBalance) < toTenths(COST)) {
+    return { error: `Không đủ credits. Cần ${formatCredits(COST)} credits, hiện có ${formatCredits(openBalance)}.` }
   }
 
   const timestamp = Date.now()
   const path = `uploads/${user.id}/label_${timestamp}_0.png`
   let labelOriginalPublicUrl: string
   if (images.length > 0) {
-    const { publicUrl } = await uploadTryOnImagePublic(supabase, path, images[0], {
+    const { publicUrl } = await uploadTryOnImagePublic(path, images[0], {
       contentType: images[0].type || 'image/png',
     })
     labelOriginalPublicUrl = publicUrl
   } else {
     const placeholderPng = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64')
-    const { publicUrl } = await uploadTryOnImagePublic(supabase, path, placeholderPng, { contentType: 'image/png' })
+    const { publicUrl } = await uploadTryOnImagePublic(path, placeholderPng, { contentType: 'image/png' })
     labelOriginalPublicUrl = publicUrl
   }
-  const { data: historyItem, error: historyError } = await supabase.from('try_on_history').insert({
-    user_id: user.id,
-    original_image_url: labelOriginalPublicUrl,
-    garment_image_url: labelOriginalPublicUrl,
-    status: 'processing',
-  }).select().single()
-  if (historyError || !historyItem) return { error: 'Không thể khởi tạo phiên xử lý.' }
+  const historyItem = await insertTryOnHistoryProcessingPg({
+    userId: user.id,
+    originalImageUrl: labelOriginalPublicUrl,
+    garmentImageUrl: labelOriginalPublicUrl,
+    feature: 'tao-nhan-gioi-thieu-san-pham',
+  })
+  if (!historyItem) return { error: 'Không thể khởi tạo phiên xử lý.' }
 
   const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!)
   const model = genAI.getGenerativeModel({
@@ -323,30 +325,31 @@ export async function createProductLabel(formData: FormData) {
     trackFromUsageMetadata(response.usageMetadata, 'gemini-3-pro-image-preview', 'tao-nhan-gioi-thieu-san-pham', user.id, imageQuality)
     const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
     if (!imagePartRes || !('inlineData' in imagePartRes)) {
-      await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+      await deleteTryOnHistoryRowAndStorage(historyItem.id)
       return { error: 'AI không trả về ảnh hợp lệ.' }
     }
     const resultBuffer = Buffer.from((imagePartRes as { inlineData: { data: string } }).inlineData.data, 'base64')
     const resultPath = `results/${user.id}/label_${Date.now()}.png`
-    const { publicUrl: labelResultPublicUrl } = await uploadTryOnImagePublic(adminSupabase, resultPath, resultBuffer, {
+    const { publicUrl: labelResultPublicUrl } = await uploadTryOnImagePublic(resultPath, resultBuffer, {
       contentType: 'image/png',
       upsert: true,
     })
 
-    const { data: latestCredit } = await adminSupabase.from('credits').select('balance').eq('user_id', user.id).single()
-    if (!latestCredit || toTenths(latestCredit.balance) < toTenths(COST)) {
-      await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
-      return { error: 'Không đủ credits để hoàn tất.' }
+    const d = await deductUserCredits(user.id, COST)
+    if (!d.ok) {
+      await deleteTryOnHistoryRowAndStorage(historyItem.id)
+      return { error: d.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credits để hoàn tất.' : d.error }
     }
-    const newBalance = fromTenths(toTenths(latestCredit.balance) - toTenths(COST))
-    await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', user.id)
-    await adminSupabase.from('try_on_history').update({ result_image_url: labelResultPublicUrl, status: 'completed', feature: 'tao-nhan-gioi-thieu-san-pham', aspect_ratio: aspectRatio }).eq('id', historyItem.id)
+    await updateTryOnHistoryCompletedPg(historyItem.id, labelResultPublicUrl, {
+      feature: 'tao-nhan-gioi-thieu-san-pham',
+      aspect_ratio: aspectRatio,
+    })
 
     revalidatePath('/tao-nhan-gioi-thieu-san-pham')
     revalidatePath('/dashboard/history')
     return { success: true, resultUrl: labelResultPublicUrl }
   } catch (e) {
-    await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+    await deleteTryOnHistoryRowAndStorage(historyItem.id)
     const msg = e instanceof Error ? e.message : String(e)
     if (/500|Internal Server Error|Internal error/i.test(msg)) {
       return { error: 'Hệ thống quá tải. Bạn có thể chọn 2K hoặc thử lại sau ít phút.' }
@@ -378,18 +381,18 @@ export async function createLabelMockupOnProduct(formData: FormData) {
   }
 
   const COST = MOCKUP_COSTS[imageQuality]
-  const supabase = createClient()
-  const adminSupabase = createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
-  const result = await getUserForAction(() => supabase.auth.getUser())
+  const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
-  const { data: creditData, error: creditError } = await supabase.from('credits').select('balance').eq('user_id', user.id).single()
-  if (creditError || !creditData || toTenths(creditData.balance) < toTenths(COST)) {
-    return { error: `Không đủ credits. Cần ${formatCredits(COST)} credits, hiện có ${formatCredits(creditData?.balance || 0)}.` }
+  let openBalance = 0
+  try {
+    openBalance = await getCreditBalanceByUserId(user.id)
+  } catch {
+    return { error: 'Không đọc được số dư credits.' }
+  }
+  if (toTenths(openBalance) < toTenths(COST)) {
+    return { error: `Không đủ credits. Cần ${formatCredits(COST)} credits, hiện có ${formatCredits(openBalance)}.` }
   }
 
   let labelBuffer: Buffer
@@ -406,13 +409,13 @@ export async function createLabelMockupOnProduct(formData: FormData) {
   const productImagePart = { inlineData: { data: productBuffer.toString('base64'), mimeType: productImage.type } }
   const labelImagePart = { inlineData: { data: labelBuffer.toString('base64'), mimeType: 'image/png' } }
 
-  const { data: historyItem, error: historyError } = await supabase.from('try_on_history').insert({
-    user_id: user.id,
-    original_image_url: labelImageUrl,
-    garment_image_url: labelImageUrl,
-    status: 'processing',
-  }).select().single()
-  if (historyError || !historyItem) return { error: 'Không thể khởi tạo phiên xử lý.' }
+  const historyItem = await insertTryOnHistoryProcessingPg({
+    userId: user.id,
+    originalImageUrl: labelImageUrl,
+    garmentImageUrl: labelImageUrl,
+    feature: 'tao-nhan-gioi-thieu-san-pham-mockup',
+  })
+  if (!historyItem) return { error: 'Không thể khởi tạo phiên xử lý.' }
 
   const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!)
   const model = genAI.getGenerativeModel({
@@ -438,30 +441,30 @@ export async function createLabelMockupOnProduct(formData: FormData) {
     trackFromUsageMetadata(response.usageMetadata, 'gemini-3-pro-image-preview', 'tao-nhan-gioi-thieu-san-pham-mockup', user.id, imageQuality)
     const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
     if (!imagePartRes || !('inlineData' in imagePartRes)) {
-      await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+      await deleteTryOnHistoryRowAndStorage(historyItem.id)
       return { error: 'AI không trả về ảnh hợp lệ.' }
     }
     const resultBuffer = Buffer.from((imagePartRes as { inlineData: { data: string } }).inlineData.data, 'base64')
     const resultPath = `results/${user.id}/label_mockup_${Date.now()}.png`
-    const { publicUrl: mockupResultPublicUrl } = await uploadTryOnImagePublic(adminSupabase, resultPath, resultBuffer, {
+    const { publicUrl: mockupResultPublicUrl } = await uploadTryOnImagePublic(resultPath, resultBuffer, {
       contentType: 'image/png',
       upsert: true,
     })
 
-    const { data: latestCredit } = await adminSupabase.from('credits').select('balance').eq('user_id', user.id).single()
-    if (!latestCredit || toTenths(latestCredit.balance) < toTenths(COST)) {
-      await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
-      return { error: 'Không đủ credits để hoàn tất.' }
+    const d = await deductUserCredits(user.id, COST)
+    if (!d.ok) {
+      await deleteTryOnHistoryRowAndStorage(historyItem.id)
+      return { error: d.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credits để hoàn tất.' : d.error }
     }
-    const newBalance = fromTenths(toTenths(latestCredit.balance) - toTenths(COST))
-    await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', user.id)
-    await adminSupabase.from('try_on_history').update({ result_image_url: mockupResultPublicUrl, status: 'completed', feature: 'tao-nhan-gioi-thieu-san-pham-mockup' }).eq('id', historyItem.id)
+    await updateTryOnHistoryCompletedPg(historyItem.id, mockupResultPublicUrl, {
+      feature: 'tao-nhan-gioi-thieu-san-pham-mockup',
+    })
 
     revalidatePath('/tao-nhan-gioi-thieu-san-pham')
     revalidatePath('/dashboard/history')
     return { success: true, resultUrl: mockupResultPublicUrl }
   } catch (e) {
-    await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+    await deleteTryOnHistoryRowAndStorage(historyItem.id)
     const msg = e instanceof Error ? e.message : String(e)
     if (/500|Internal Server Error|Internal error/i.test(msg)) {
       return { error: 'Hệ thống quá tải. Bạn có thể chọn 2K hoặc thử lại sau ít phút.' }

@@ -1,5 +1,17 @@
-import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database, Json } from '@/types/database.types'
+import {
+  fetchCustomerCareConversationByIdPg,
+  fetchCustomerCareMessageByIdPg,
+  hasAutoOutboundAfterTriggerPg,
+  hasHumanOutboundAfterTriggerPg,
+} from '@/lib/db/customer-care-pg'
+import { fetchMessagingPartnerAiSettingsFullFromPg } from '@/lib/db/messaging-partner-ai-settings-pg'
+import {
+  claimPartnerAiJobProcessingPg,
+  fetchPendingJobsDueFromPg,
+  updatePartnerAiJobStatusPg,
+} from '@/lib/db/messaging-partner-ai-jobs-pg'
+import { isPgConfigured } from '@/lib/db/pool'
 import { findMatchingFaq } from '@/lib/messaging/partner-ai-faq'
 import { latestInboundTextForPartnerAi } from '@/lib/messaging/guest-chat-image'
 import { inboundTextHasVisionSelectionHint } from '@/lib/messaging/guest-chat-image'
@@ -8,7 +20,6 @@ import { buildPartnerAiContext, deepseekPartnerChat } from '@/lib/messaging/part
 import { parsePartnerAiLlmStructured } from '@/lib/messaging/partner-ai-product-cards'
 import { insertPartnerAiTokenUsage } from '@/lib/messaging/partner-ai-token-usage'
 
-type Db = SupabaseClient<Database>
 type TriggerRawForVisionRepick = { vision_selected_inventory_id?: string }
 
 function hasVisionRepickSelection(raw: Json | null | undefined): boolean {
@@ -27,161 +38,131 @@ function typingDelayMs(settings: Database['public']['Tables']['messaging_partner
   return a + Math.floor(Math.random() * Math.max(1, b - a + 1))
 }
 
-export async function runMessagingPartnerAiJobBatch(
-  db: Db,
-  limit = 12
-): Promise<{ claimed: number; completed: number; skipped: number; failed: number }> {
-  const nowIso = new Date().toISOString()
-  const { data: jobs, error: qErr } = await db
-    .from('messaging_partner_ai_jobs')
-    .select('*')
-    .eq('status', 'pending')
-    .lte('run_at', nowIso)
-    .order('run_at', { ascending: true })
-    .limit(limit)
-
-  if (qErr || !jobs?.length) {
-    return { claimed: 0, completed: 0, skipped: 0, failed: 0 }
+async function setPartnerAiJobStatus(
+  jobId: string,
+  patch: { status: Database['public']['Tables']['messaging_partner_ai_jobs']['Row']['status']; error?: string | null }
+) {
+  if (!isPgConfigured()) return
+  const ok = await updatePartnerAiJobStatusPg(jobId, {
+    status: patch.status,
+    error: patch.error ?? null,
+  })
+  if (!ok) {
+    console.warn('[partner-ai-run-jobs] update job status failed', jobId)
   }
+}
+
+async function resolveHumanOutboundAfterTrigger(conversationId: string, triggerAtIso: string): Promise<boolean> {
+  if (!isPgConfigured()) return false
+  const v = await hasHumanOutboundAfterTriggerPg(conversationId, triggerAtIso)
+  return v === true
+}
+
+async function resolveAutoOutboundAfterTrigger(conversationId: string, triggerAtIso: string): Promise<boolean> {
+  if (!isPgConfigured()) return false
+  const v = await hasAutoOutboundAfterTriggerPg(conversationId, triggerAtIso)
+  return v === true
+}
+
+async function runMessagingPartnerAiJobBatchUsingPg(
+  limit: number
+): Promise<{ claimed: number; completed: number; skipped: number; failed: number } | null> {
+  const nowIso = new Date().toISOString()
+  const jobs = await fetchPendingJobsDueFromPg(nowIso, limit)
+  if (jobs === null) return null
+  if (!jobs.length) return { claimed: 0, completed: 0, skipped: 0, failed: 0 }
 
   let completed = 0
   let skipped = 0
   let failed = 0
 
   for (const job of jobs) {
-    const { data: lockRow } = await db
-      .from('messaging_partner_ai_jobs')
-      .update({ status: 'processing' })
-      .eq('id', job.id)
-      .eq('status', 'pending')
-      .select('id')
-      .maybeSingle()
-
-    if (!lockRow) {
+    const locked = await claimPartnerAiJobProcessingPg(job.id)
+    if (!locked) {
       skipped += 1
       continue
     }
 
     try {
-      const { data: triggerMsg, error: tErr } = await db
-        .from('customer_care_messages')
-        .select('id, body, created_at, raw_payload')
-        .eq('id', job.trigger_message_id)
-        .single()
-
-      if (tErr || !triggerMsg) {
-        await db
-          .from('messaging_partner_ai_jobs')
-          .update({ status: 'failed', error: 'Trigger message missing' })
-          .eq('id', job.id)
+      const triggerFull = await fetchCustomerCareMessageByIdPg(job.trigger_message_id)
+      if (!triggerFull) {
+        await setPartnerAiJobStatus(job.id, { status: 'failed', error: 'Trigger message missing' })
         failed += 1
         continue
       }
 
-      const triggerAt = triggerMsg.created_at
-      const inboundForAi = latestInboundTextForPartnerAi(triggerMsg.body, triggerMsg.raw_payload)
-      const allowRepeatedReplyForVisionPick = hasVisionRepickSelection(triggerMsg.raw_payload)
+      const triggerAt = triggerFull.created_at
+      const inboundForAi = latestInboundTextForPartnerAi(triggerFull.body, triggerFull.raw_payload)
+      const allowRepeatedReplyForVisionPick = hasVisionRepickSelection(triggerFull.raw_payload)
 
-      const { data: humanOut } = await db
-        .from('customer_care_messages')
-        .select('id')
-        .eq('conversation_id', job.conversation_id)
-        .eq('direction', 'outbound')
-        .not('sender_admin_id', 'is', null)
-        .gt('created_at', triggerAt)
-        .limit(1)
-
-      if (humanOut?.length) {
-        await db.from('messaging_partner_ai_jobs').update({ status: 'cancelled' }).eq('id', job.id)
+      const hasHuman = await resolveHumanOutboundAfterTrigger(job.conversation_id, triggerAt)
+      if (hasHuman) {
+        await setPartnerAiJobStatus(job.id, { status: 'cancelled', error: null })
         skipped += 1
         continue
       }
 
       if (!allowRepeatedReplyForVisionPick) {
-        const { data: autoOut } = await db
-          .from('customer_care_messages')
-          .select('id')
-          .eq('conversation_id', job.conversation_id)
-          .eq('direction', 'outbound')
-          .is('sender_admin_id', null)
-          .gt('created_at', triggerAt)
-          .limit(1)
-
-        if (autoOut?.length) {
-          await db.from('messaging_partner_ai_jobs').update({ status: 'done' }).eq('id', job.id)
+        const hasAuto = await resolveAutoOutboundAfterTrigger(job.conversation_id, triggerAt)
+        if (hasAuto) {
+          await setPartnerAiJobStatus(job.id, { status: 'done', error: null })
           completed += 1
           continue
         }
       }
 
-      const { data: conv, error: cErr } = await db
-        .from('customer_care_conversations')
-        .select('*')
-        .eq('id', job.conversation_id)
-        .single()
-
-      if (cErr || !conv) {
-        await db
-          .from('messaging_partner_ai_jobs')
-          .update({ status: 'failed', error: 'Conversation missing' })
-          .eq('id', job.id)
+      const conv = await fetchCustomerCareConversationByIdPg(job.conversation_id)
+      if (!conv) {
+        await setPartnerAiJobStatus(job.id, { status: 'failed', error: 'Conversation missing' })
         failed += 1
         continue
       }
 
-      const { data: settings } = await db
-        .from('messaging_partner_ai_settings')
-        .select('*')
-        .eq('partner_id', job.partner_id)
-        .maybeSingle()
+      const settings = await fetchMessagingPartnerAiSettingsFullFromPg(job.partner_id)
 
       if (!settings?.enabled) {
-        await db.from('messaging_partner_ai_jobs').update({ status: 'cancelled' }).eq('id', job.id)
+        await setPartnerAiJobStatus(job.id, { status: 'cancelled', error: null })
         skipped += 1
         continue
       }
 
       const skipFaq = inboundTextHasVisionSelectionHint(inboundForAi)
-      const faq = skipFaq ? null : await findMatchingFaq(db, job.partner_id, inboundForAi)
+      const faq = skipFaq ? null : await findMatchingFaq(job.partner_id, inboundForAi)
       if (faq) {
         await sleep(typingDelayMs(settings))
         const rawFaq = { source: 'ai_faq', faq_id: faq.id } as unknown as Json
-        const d1 = await deliverAutomatedPartnerMessage(db, {
+        const d1 = await deliverAutomatedPartnerMessage({
           conversation: conv,
           settings,
           body: faq.answer,
           rawPayload: rawFaq,
         })
         if (d1.error) {
-          await db.from('messaging_partner_ai_jobs').update({ status: 'failed', error: d1.error }).eq('id', job.id)
+          await setPartnerAiJobStatus(job.id, { status: 'failed', error: d1.error })
           failed += 1
         } else {
-          await db.from('messaging_partner_ai_jobs').update({ status: 'done' }).eq('id', job.id)
+          await setPartnerAiJobStatus(job.id, { status: 'done', error: null })
           completed += 1
         }
         continue
       }
 
       const { system, user } = await buildPartnerAiContext(
-        db,
         job.partner_id,
         job.conversation_id,
         settings,
         inboundForAi,
-        triggerMsg.raw_payload
+        triggerFull.raw_payload
       )
       const llm = await deepseekPartnerChat(system, user)
       if (llm.error || !llm.text) {
-        await db
-          .from('messaging_partner_ai_jobs')
-          .update({ status: 'failed', error: llm.error || 'empty llm' })
-          .eq('id', job.id)
+        await setPartnerAiJobStatus(job.id, { status: 'failed', error: llm.error || 'empty llm' })
         failed += 1
         continue
       }
 
       const model = llm.model?.trim() || 'deepseek-chat'
-      await insertPartnerAiTokenUsage(db, {
+      await insertPartnerAiTokenUsage({
         partner_id: job.partner_id,
         provider: 'deepseek',
         model,
@@ -200,25 +181,41 @@ export async function runMessagingPartnerAiJobBatch(
         usage: llm.usage ?? null,
         ai_product_cards: parsed.products,
       } as unknown as Json
-      const d2 = await deliverAutomatedPartnerMessage(db, {
+      const d2 = await deliverAutomatedPartnerMessage({
         conversation: conv,
         settings,
         body: parsed.message,
         rawPayload: rawLlm,
       })
       if (d2.error) {
-        await db.from('messaging_partner_ai_jobs').update({ status: 'failed', error: d2.error }).eq('id', job.id)
+        await setPartnerAiJobStatus(job.id, { status: 'failed', error: d2.error })
         failed += 1
       } else {
-        await db.from('messaging_partner_ai_jobs').update({ status: 'done' }).eq('id', job.id)
+        await setPartnerAiJobStatus(job.id, { status: 'done', error: null })
         completed += 1
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'unknown'
-      await db.from('messaging_partner_ai_jobs').update({ status: 'failed', error: msg }).eq('id', job.id)
+      await setPartnerAiJobStatus(job.id, { status: 'failed', error: msg })
       failed += 1
     }
   }
 
   return { claimed: jobs.length, completed, skipped, failed }
+}
+
+/** Xử lý batch job AI — chỉ Postgres (`DATABASE_URL`). */
+export async function runMessagingPartnerAiJobBatch(
+  limit = 12
+): Promise<{ claimed: number; completed: number; skipped: number; failed: number }> {
+  if (!isPgConfigured()) {
+    return { claimed: 0, completed: 0, skipped: 0, failed: 0 }
+  }
+  try {
+    const pg = await runMessagingPartnerAiJobBatchUsingPg(limit)
+    if (pg !== null) return pg
+  } catch (e) {
+    console.warn('[partner-ai-run-jobs] PG batch failed', e)
+  }
+  return { claimed: 0, completed: 0, skipped: 0, failed: 0 }
 }

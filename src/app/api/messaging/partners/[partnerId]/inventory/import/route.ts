@@ -35,8 +35,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ partnerId: str
     return NextResponse.json({ error: parsed.error }, { status: 400 })
   }
 
-  const { supabase } = gate
-  const batch = await upsertPartnerInventoryBatch(supabase, partnerId, parsed.rows)
+  const batch = await upsertPartnerInventoryBatch(partnerId, parsed.rows)
   if (!batch.ok) return NextResponse.json({ error: batch.error }, { status: 500 })
 
   const visionBgSyncQueued = false

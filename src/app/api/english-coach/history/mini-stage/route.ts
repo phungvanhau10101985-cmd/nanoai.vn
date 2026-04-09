@@ -1,19 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+import { isPgConfigured } from '@/lib/db/pool'
+import {
+  fetchSessionMemoryPinnedFactsJsonPg,
+  updateSessionMemoryPinnedFactsPg,
+} from '@/lib/db/language-coach-session-memory-pg'
 
 type Payload = {
   sessionId?: string
   stage?: 'idle' | 'writing' | 'speaking' | 'listening' | 'done'
 }
 
-function adminClient() {
-  return createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-}
-
 export async function POST(request: NextRequest) {
   try {
+    if (!isPgConfigured()) {
+      return NextResponse.json({ error: 'Cơ sở dữ liệu chưa cấu hình.' }, { status: 503 })
+    }
     const payload = (await request.json()) as Payload
     const sessionId = String(payload.sessionId || '').trim()
     const stageRaw = String(payload.stage || '').trim().toLowerCase()
@@ -26,30 +28,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Thiếu sessionId.' }, { status: 400 })
     }
 
-    const supabase = createClient()
-    const auth = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập để lưu tiến độ.')
+    const auth = await getUserForAction()
     if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
     const { user } = auth
-    const adminSupabase = adminClient()
 
-    const { data: memory, error: memoryError } = await adminSupabase
-      .from('language_coach_session_memories')
-      .select('pinned_facts_json')
-      .eq('user_id', user.id)
-      .eq('session_id', sessionId)
-      .limit(1)
-      .maybeSingle()
-
-    if (memoryError) {
-      return NextResponse.json({ error: memoryError.message || 'Không tải được trạng thái buổi học.' }, { status: 500 })
-    }
-    if (!memory) {
-      return NextResponse.json({ error: 'Không tìm thấy buổi học để cập nhật.' }, { status: 404 })
+    const mem = await fetchSessionMemoryPinnedFactsJsonPg(user.id, sessionId)
+    if (!mem.ok) {
+      if (mem.notFound) {
+        return NextResponse.json({ error: 'Không tìm thấy buổi học để cập nhật.' }, { status: 404 })
+      }
+      return NextResponse.json(
+        { error: mem.message || 'Không tải được trạng thái buổi học.' },
+        { status: 500 }
+      )
     }
 
     const nextPinnedFactsRaw = (() => {
       try {
-        const parsed = JSON.parse(String(memory.pinned_facts_json || '{}')) as Record<string, unknown>
+        const parsed = JSON.parse(String(mem.pinned_facts_json || '{}')) as Record<string, unknown>
         const root = parsed && typeof parsed === 'object' ? { ...parsed } : {}
         root.mini_stage_snapshot = {
           stage,
@@ -67,17 +63,10 @@ export async function POST(request: NextRequest) {
       }
     })()
 
-    const { error: updateError } = await adminSupabase
-      .from('language_coach_session_memories')
-      .update({
-        pinned_facts_json: nextPinnedFactsRaw,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('user_id', user.id)
-      .eq('session_id', sessionId)
-
-    if (updateError) {
-      return NextResponse.json({ error: updateError.message || 'Không lưu được mini stage.' }, { status: 500 })
+    const updatedAt = new Date().toISOString()
+    const upd = await updateSessionMemoryPinnedFactsPg(user.id, sessionId, nextPinnedFactsRaw, updatedAt)
+    if (!upd.ok) {
+      return NextResponse.json({ error: upd.message || 'Không lưu được mini stage.' }, { status: 500 })
     }
 
     return NextResponse.json({ ok: true })

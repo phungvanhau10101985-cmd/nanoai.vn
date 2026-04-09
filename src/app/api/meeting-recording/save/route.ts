@@ -1,13 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { randomUUID } from 'crypto'
-import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
-import { createClient as createSupabaseAdmin } from '@supabase/supabase-js'
+import { isPgConfigured } from '@/lib/db/pool'
+import { insertMeetingRecordingPg } from '@/lib/db/meeting-recordings-pg'
 import {
   MEETING_REPORT_MAX_DURATION_SECONDS,
   MEETING_REPORT_MAX_FILE_BYTES,
 } from '@/lib/meeting-report-pricing'
-import { MEETING_RECORDINGS_BUCKET } from '@/lib/meeting-recording-config'
+import {
+  removeMeetingRecordingObjects,
+  uploadMeetingRecordingObject,
+} from '@/lib/storage/meeting-recordings-storage'
+import { bunnyStorageConfigured } from '@/lib/storage/try-on-public-upload'
 
 export const maxDuration = 120
 export const runtime = 'nodejs'
@@ -23,19 +27,18 @@ function extFromMime(m: string): string {
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createClient()
-    const auth = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập để lưu bản ghi.')
+    const auth = await getUserForAction()
     if ('error' in auth) {
       return NextResponse.json({ error: auth.error }, { status: 401 })
     }
     const { user } = auth
 
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim()
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()
-    if (!url || !serviceKey) {
-      return NextResponse.json({ error: 'Thiếu cấu hình máy chủ.' }, { status: 500 })
+    if (!isPgConfigured()) {
+      return NextResponse.json({ error: 'Thiếu cấu hình cơ sở dữ liệu (DATABASE_URL).' }, { status: 500 })
     }
-    const admin = createSupabaseAdmin(url, serviceKey)
+    if (!bunnyStorageConfigured()) {
+      return NextResponse.json({ error: 'Thiếu cấu hình Bunny Storage cho bản ghi âm.' }, { status: 500 })
+    }
 
     const form = await request.formData()
     const file = form.get('audio')
@@ -60,28 +63,27 @@ export async function POST(request: NextRequest) {
     const storagePath = `${user.id}/${id}.${ext}`
 
     const buf = Buffer.from(await file.arrayBuffer())
-    const { error: upErr } = await admin.storage
-      .from(MEETING_RECORDINGS_BUCKET)
-      .upload(storagePath, buf, { contentType: mimeType, upsert: false })
-
-    if (upErr) {
-      console.error('[meeting-recording/save] upload', upErr.message)
+    try {
+      await uploadMeetingRecordingObject(storagePath, buf, mimeType)
+    } catch (upErr) {
+      const msg = upErr instanceof Error ? upErr.message : 'upload failed'
+      console.error('[meeting-recording/save] upload', msg)
       return NextResponse.json({ error: 'Không upload được bản ghi.' }, { status: 500 })
     }
 
-    const { error: insErr } = await admin.from('meeting_recordings').insert({
+    const ok = await insertMeetingRecordingPg({
       id,
-      user_id: user.id,
+      userId: user.id,
       title,
-      storage_path: storagePath,
-      duration_seconds: durationSeconds,
-      mime_type: mimeType,
-      file_size_bytes: buf.length,
+      storagePath,
+      durationSeconds,
+      mimeType,
+      fileSizeBytes: buf.length,
     })
 
-    if (insErr) {
-      console.error('[meeting-recording/save] insert', insErr.message)
-      await admin.storage.from(MEETING_RECORDINGS_BUCKET).remove([storagePath])
+    if (!ok) {
+      console.error('[meeting-recording/save] insert failed')
+      await removeMeetingRecordingObjects([storagePath])
       return NextResponse.json({ error: 'Không lưu được metadata bản ghi.' }, { status: 500 })
     }
 

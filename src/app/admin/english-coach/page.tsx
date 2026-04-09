@@ -1,5 +1,9 @@
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { revalidatePath } from 'next/cache'
+import {
+  pgAdminDeleteCompletedLesson,
+  pgListRecentCompletedLessonsForAdmin,
+  pgListSessionMemoriesPinnedBySessionIds,
+} from '@/lib/db/admin-english-coach-pg'
 import { getCurrentWebLocale } from '@/lib/i18n/server'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -8,27 +12,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { FixWordExamplesButton } from './fix-word-examples-button'
 import { FixWordMeaningButton } from './fix-word-meaning-button'
 import { AdminFilterPersist } from './admin-filter-persist'
-
-type CompletedLessonRow = {
-  id: string
-  user_id: string
-  session_id: string
-  target_language: string | null
-  native_language: string | null
-  language_code: string | null
-  learner_level: number | null
-  topic_id: string | null
-  topic_label: string | null
-  teacher_label: string | null
-  teacher_locale: string | null
-  mode: string | null
-  learning_mode: string | null
-  total_messages: number | null
-  duration_seconds: number | null
-  ended_at: string | null
-  completion_reason: string | null
-  summary_json: string | null
-}
 
 type ReviewDrillStats = {
   speakingPass: number
@@ -94,14 +77,10 @@ async function deleteCompletedLessonAction(formData: FormData) {
   'use server'
   const lessonId = String(formData.get('lessonId') || '').trim()
   if (!lessonId) return
-  const adminSupabase = createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
-  await adminSupabase
-    .from('language_coach_completed_lessons')
-    .delete()
-    .eq('id', lessonId)
+  const r = await pgAdminDeleteCompletedLesson(lessonId)
+  if ('error' in r) {
+    console.error('[deleteCompletedLesson]', r.error)
+  }
   revalidatePath('/admin/english-coach')
 }
 
@@ -118,10 +97,6 @@ export default async function AdminEnglishCoachPage({
     if (uiLocale === 'ko') return ko
     return vi
   }
-  const adminSupabase = createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
   const sortRaw = Array.isArray(searchParams?.sort) ? searchParams?.sort[0] : searchParams?.sort
   const minRateRaw = Array.isArray(searchParams?.minRate) ? searchParams?.minRate[0] : searchParams?.minRate
   const resetRaw = Array.isArray(searchParams?.reset) ? searchParams?.reset[0] : searchParams?.reset
@@ -135,23 +110,13 @@ export default async function AdminEnglishCoachPage({
     : 0
   const shouldResetFilterMemory = String(resetRaw || '') === '1'
   const hasActiveFilterQuery = Boolean(String(sortRaw || '').trim() || String(minRateRaw || '').trim())
-  const { data: rows, error } = await adminSupabase
-    .from('language_coach_completed_lessons')
-    .select(
-      'id, user_id, session_id, target_language, native_language, language_code, learner_level, topic_id, topic_label, teacher_label, teacher_locale, mode, learning_mode, total_messages, duration_seconds, ended_at, completion_reason, summary_json'
-    )
-    .order('ended_at', { ascending: false })
-    .limit(200)
-  const lessons = Array.isArray(rows) ? (rows as CompletedLessonRow[]) : []
+  const { rows: lessons, error } = await pgListRecentCompletedLessonsForAdmin(200)
   const lessonSessionIds = [...new Set(lessons.map((x) => String(x.session_id || '').trim()).filter(Boolean))]
   const reviewDrillStatsByKey = new Map<string, ReviewDrillStats>()
   if (lessonSessionIds.length > 0) {
-    const { data: memoryRows } = await adminSupabase
-      .from('language_coach_session_memories')
-      .select('user_id, session_id, pinned_facts_json')
-      .in('session_id', lessonSessionIds)
-      .limit(1000)
-    for (const row of (memoryRows ?? []) as Array<{ user_id?: string; session_id?: string; pinned_facts_json?: string }>) {
+    const { rows: memoryRows, error: memErr } = await pgListSessionMemoriesPinnedBySessionIds(lessonSessionIds)
+    if (memErr) console.error('[admin english-coach session_memories]', memErr)
+    for (const row of memoryRows ?? []) {
       const uid = String(row.user_id || '').trim()
       const sid = String(row.session_id || '').trim()
       if (!uid || !sid) continue
@@ -378,7 +343,7 @@ export default async function AdminEnglishCoachPage({
         <CardContent className="space-y-3">
           {error ? (
             <p className="text-sm text-red-600">
-              {tr('Không tải được dữ liệu:', 'Failed to load data:', '无法加载数据：', 'データを読み込めません：', '데이터를 불러오지 못했습니다:')} {error.message}
+              {tr('Không tải được dữ liệu:', 'Failed to load data:', '无法加载数据：', 'データを読み込めません：', '데이터를 불러오지 못했습니다:')} {error}
             </p>
           ) : null}
           {lessons.length === 0 ? (

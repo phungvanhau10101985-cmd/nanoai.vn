@@ -9,7 +9,8 @@
 import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { config } from 'dotenv'
-import { createServiceRoleClient } from '../src/lib/supabase/service-role'
+import { isPgConfigured } from '../src/lib/db/pool'
+import { pgQuery } from '../src/lib/db/pg-query'
 import { syncPartnerInventoryEmbeddings } from '../src/lib/messaging/partner-inventory-embedding'
 
 const cwd = process.cwd()
@@ -22,33 +23,22 @@ const partnerIdArg = process.argv[2]?.trim() || ''
 const force = process.argv.includes('--force')
 
 async function listPartnerIdsWithInventory(): Promise<string[]> {
-  const db = createServiceRoleClient()
-  const pageSize = 1000
-  let from = 0
-  const set = new Set<string>()
-
-  while (true) {
-    const to = from + pageSize - 1
-    const { data, error } = await db
-      .from('messaging_partner_inventory')
-      .select('partner_id')
-      .range(from, to)
-
-    if (error) throw new Error(error.message)
-    const rows = data ?? []
-    for (const row of rows) {
-      const id = (row.partner_id ?? '').trim()
-      if (id) set.add(id)
-    }
-    if (rows.length < pageSize) break
-    from += pageSize
+  if (!isPgConfigured()) {
+    throw new Error('DATABASE_URL is required')
   }
-
+  const rows = await pgQuery<{ partner_id: string }>(
+    `select distinct partner_id::text as partner_id from public.messaging_partner_inventory`,
+    []
+  )
+  const set = new Set<string>()
+  for (const row of rows) {
+    const id = (row.partner_id ?? '').trim()
+    if (id) set.add(id)
+  }
   return Array.from(set)
 }
 
 async function main() {
-  const db = createServiceRoleClient()
   const partnerIds = partnerIdArg ? [partnerIdArg] : await listPartnerIdsWithInventory()
 
   if (partnerIds.length === 0) {
@@ -66,7 +56,7 @@ async function main() {
 
   for (const partnerId of partnerIds) {
     const startedAt = Date.now()
-    const res = await syncPartnerInventoryEmbeddings(db, partnerId, { force })
+    const res = await syncPartnerInventoryEmbeddings(partnerId, { force })
     const elapsedMs = Date.now() - startedAt
     if (!res.ok) {
       partnerErrors += 1
@@ -88,8 +78,6 @@ async function main() {
 }
 
 void main().catch((err) => {
-  const msg = err instanceof Error ? err.message : String(err)
-  console.error('Backfill failed:', msg)
+  console.error(err)
   process.exit(1)
 })
-

@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { isPgConfigured } from '@/lib/db/pool'
+import {
+  deleteMeetingRecordingsBeforeCutoffPg,
+  listMeetingRecordingStoragePathsBeforeCutoffPg,
+} from '@/lib/db/meeting-recordings-pg'
 import { MEETING_RECORDING_RETENTION_DAYS } from '@/lib/meeting-recording-config'
+import { removeMeetingRecordingObjects } from '@/lib/storage/meeting-recordings-storage'
+import { bunnyStorageConfigured } from '@/lib/storage/try-on-public-upload'
 
 /**
- * Cron: xóa bản ghi cuộc họp (DB + storage) quá hạn.
+ * Cron: xóa file audio trên Bunny rồi xóa dòng `meeting_recordings` quá hạn.
  * Bảo vệ: Authorization: Bearer <MEETING_RECORDINGS_CRON_SECRET>
  */
 export async function GET(req: NextRequest) {
@@ -16,30 +22,25 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim()
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()
-  if (!url || !key) {
-    return NextResponse.json({ error: 'Missing Supabase service env.' }, { status: 500 })
+  if (!isPgConfigured()) {
+    return NextResponse.json({ error: 'DATABASE_URL not configured.' }, { status: 500 })
+  }
+  if (!bunnyStorageConfigured()) {
+    return NextResponse.json(
+      { error: 'Bunny Storage chưa cấu hình (BUNNY_STORAGE_ZONE, BUNNY_STORAGE_API_KEY, BUNNY_STORAGE_PUBLIC_BASE_URL).' },
+      { status: 503 }
+    )
   }
 
-  const admin = createClient(url, key)
   try {
-    const { data, error } = await admin.rpc('cleanup_meeting_recordings_older_than', {
-      p_days: MEETING_RECORDING_RETENTION_DAYS,
-    })
-    if (error) {
-      console.error('[cron/meeting-recordings-cleanup]', error.message)
-      return NextResponse.json({ error: error.message }, { status: 500 })
+    const retentionMs = MEETING_RECORDING_RETENTION_DAYS * 24 * 60 * 60 * 1000
+    const cutoffIso = new Date(Date.now() - retentionMs).toISOString()
+    const stalePaths = await listMeetingRecordingStoragePathsBeforeCutoffPg(cutoffIso)
+    if (stalePaths.length > 0) {
+      await removeMeetingRecordingObjects(stalePaths)
     }
-    const deleted = (() => {
-      if (typeof data === 'bigint') return Number(data)
-      if (typeof data === 'number' && Number.isFinite(data)) return data
-      if (typeof data === 'string') {
-        const n = Number(data)
-        return Number.isFinite(n) ? n : 0
-      }
-      return 0
-    })()
+
+    const deleted = await deleteMeetingRecordingsBeforeCutoffPg(cutoffIso)
     return NextResponse.json({
       ok: true,
       deletedRows: deleted,

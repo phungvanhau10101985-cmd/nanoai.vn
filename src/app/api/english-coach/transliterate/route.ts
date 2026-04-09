@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 import { createHash } from 'crypto'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
@@ -8,15 +7,17 @@ import {
   parseCoachUsageContextPayload,
   trackEnglishCoachGeminiResult,
 } from '@/lib/english-coach-api-usage'
+import { isPgConfigured } from '@/lib/db/pool'
+import {
+  fetchTransliterationCachePg,
+  touchTransliterationCachePg,
+  upsertTransliterationCachePg,
+} from '@/lib/db/language-coach-transliteration-tokenize-pg'
 
 type Payload = {
   text?: string
   languageCode?: string
   coachUsageContext?: 'live' | 'preset'
-}
-
-function adminClient() {
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 }
 
 function toCacheKey(text: string, languageCode: string): string {
@@ -100,22 +101,15 @@ export async function POST(request: NextRequest) {
     if (!languageCode) return NextResponse.json({ transliteration: '' })
 
     const cacheKey = toCacheKey(text, languageCode)
-    const adminSupabase = adminClient()
-    const { data: cachedRows } = await adminSupabase
-      .from('language_coach_transliteration_cache')
-      .select('id, transliteration')
-      .eq('cache_key', cacheKey)
-      .limit(1)
-    const cached = Array.isArray(cachedRows) && cachedRows.length > 0 ? cachedRows[0] : null
-    if (cached) {
-      void adminSupabase
-        .from('language_coach_transliteration_cache')
-        .update({ last_used_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-        .eq('id', cached.id)
-      return NextResponse.json({
-        transliteration: String(cached.transliteration || '').trim(),
-        cached: true,
-      })
+    if (isPgConfigured()) {
+      const cached = await fetchTransliterationCachePg(cacheKey)
+      if (cached) {
+        void touchTransliterationCachePg(cached.id, new Date().toISOString())
+        return NextResponse.json({
+          transliteration: String(cached.transliteration || '').trim(),
+          cached: true,
+        })
+      }
     }
 
     const ai = new GoogleGenerativeAI(apiKey)
@@ -133,26 +127,29 @@ export async function POST(request: NextRequest) {
       .replace(/```$/g, '')
       .trim()
 
-    // Strip THOUGHTS / Reasoning blocks - Gemini may leak thinking into response
     const lines = raw.split(/\r?\n/).map((s) => s.trim()).filter(Boolean)
     const skipPattern = /^(THOUGHTS|Reasoning|Thinking|思考|推理)[:\s]/i
-    const latinLinePattern = /[A-Za-z\u00C0-\u024F]/ // pinyin/romaji/romanization
+    const latinLinePattern = /[A-Za-z\u00C0-\u024F]/
     const candidateLines = lines.filter((line) => !skipPattern.test(line))
     const lastLatinLine = [...candidateLines].reverse().find((line) => latinLinePattern.test(line))
     const transliteration = (lastLatinLine ?? raw)
       .replace(/\s+/g, ' ')
       .trim()
 
-    await adminSupabase.from('language_coach_transliteration_cache').upsert(
-      {
-        cache_key: cacheKey,
-        language_code: languageCode,
+    if (isPgConfigured()) {
+      const up = await upsertTransliterationCachePg({
+        cacheKey,
+        languageCode,
         transliteration,
-        last_used_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'cache_key' }
-    )
+        nowIso: new Date().toISOString(),
+      })
+      if (!up.ok) {
+        return NextResponse.json(
+          { error: up.message || 'Không lưu được cache phiên âm.' },
+          { status: 500 }
+        )
+      }
+    }
 
     return NextResponse.json({ transliteration, cached: false })
   } catch (e) {
@@ -160,4 +157,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 }
-

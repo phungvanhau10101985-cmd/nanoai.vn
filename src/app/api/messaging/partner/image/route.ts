@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
-import { createServiceRoleClient } from '@/lib/supabase/service-role'
+import { getUserForAction } from '@/lib/auth'
+import { isPgConfigured } from '@/lib/db/pool'
+import { pgQueryOne } from '@/lib/db/pg-query'
 import { isAllowedGuestImageMime, uploadPartnerChatImageBuffer } from '@/lib/messaging/guest-chat-image'
 
 export const dynamic = 'force-dynamic'
@@ -8,12 +9,14 @@ export const maxDuration = 60
 
 /** Upload ảnh shop gửi khách — chủ workspace; multipart: partnerId, file */
 export async function POST(request: NextRequest) {
-  const supabase = createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user?.id) {
+  const auth = await getUserForAction('Unauthorized')
+  if ('error' in auth) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+  const user = auth.user
+
+  if (!isPgConfigured()) {
+    return NextResponse.json({ error: 'Server database is not configured.' }, { status: 503 })
   }
 
   let formData: FormData
@@ -28,14 +31,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Missing partnerId.' }, { status: 400 })
   }
 
-  const { data: owned, error: ownErr } = await supabase
-    .from('messaging_partners')
-    .select('id')
-    .eq('id', partnerId)
-    .eq('owner_user_id', user.id)
-    .maybeSingle()
+  let ownerVerified = false
+  try {
+    const row = await pgQueryOne<{ id: string }>(
+      `select id::text from public.messaging_partners
+       where id = $1::uuid and owner_user_id = $2::uuid limit 1`,
+      [partnerId, user.id]
+    )
+    ownerVerified = Boolean(row)
+  } catch (e) {
+    console.warn('[partner/image] PG ownership check failed', e)
+    return NextResponse.json({ error: 'Forbidden.' }, { status: 403 })
+  }
 
-  if (ownErr || !owned) {
+  if (!ownerVerified) {
     return NextResponse.json({ error: 'Forbidden.' }, { status: 403 })
   }
 
@@ -48,9 +57,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unsupported image type.' }, { status: 400 })
   }
 
-  const db = createServiceRoleClient()
   const buffer = Buffer.from(await file.arrayBuffer())
-  const up = await uploadPartnerChatImageBuffer(db, partnerId, buffer, mime)
+  const up = await uploadPartnerChatImageBuffer(partnerId, buffer, mime)
   if ('error' in up) {
     return NextResponse.json({ error: up.error }, { status: 400 })
   }

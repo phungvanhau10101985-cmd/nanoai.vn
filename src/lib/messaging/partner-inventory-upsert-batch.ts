@@ -1,6 +1,12 @@
 import { randomUUID } from 'node:crypto'
-import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/database.types'
+import {
+  deletePartnerInventoryByIdsForPartnerFromPg,
+  fetchPartnerInventoryFullListOrderedCreatedFromPg,
+  insertPartnerInventoryChunkFromPg,
+  upsertPartnerInventoryChunkFromPg,
+} from '@/lib/db/messaging-partner-inventory-pg'
+import { isPgConfigured } from '@/lib/db/pool'
 import type { InventoryExcelInsert } from '@/lib/messaging/partner-inventory-excel'
 import {
   inventoryNameMatchKey,
@@ -8,10 +14,8 @@ import {
 } from '@/lib/messaging/partner-inventory-excel'
 import { syncPartnerInventoryEmbeddings } from '@/lib/messaging/partner-inventory-embedding'
 
-type Db = SupabaseClient<Database>
 type InventoryRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
 type InventoryInsert = Database['public']['Tables']['messaging_partner_inventory']['Insert']
-const INVENTORY_SELECT_PAGE_SIZE = 1000
 const WRITE_CHUNK_SIZE = 500
 
 type InventoryUpsertBase = {
@@ -138,45 +142,36 @@ function toInventoryRow(id: string, partnerId: string, base: InventoryUpsertBase
  * Dùng cho import Excel và cổng Open Catalog (JSON).
  */
 export async function listPartnerInventoryRows(
-  db: Db,
   partnerId: string
 ): Promise<{ ok: true; rows: InventoryRow[] } | { ok: false; error: string }> {
-  const allRows: InventoryRow[] = []
-  let from = 0
-  while (true) {
-    const to = from + INVENTORY_SELECT_PAGE_SIZE - 1
-    const { data, error } = await db
-      .from('messaging_partner_inventory')
-      .select('*')
-      .eq('partner_id', partnerId)
-      .order('created_at', { ascending: true })
-      .order('id', { ascending: true })
-      .range(from, to)
-    if (error) return { ok: false, error: error.message }
-    const chunk = data ?? []
-    if (chunk.length === 0) break
-    allRows.push(...chunk)
-    if (chunk.length < INVENTORY_SELECT_PAGE_SIZE) break
-    from += INVENTORY_SELECT_PAGE_SIZE
+  if (!isPgConfigured()) {
+    return { ok: false, error: 'Postgres (DATABASE_URL) is not configured.' }
   }
-  return { ok: true, rows: allRows }
+  const fromPg = await fetchPartnerInventoryFullListOrderedCreatedFromPg(partnerId)
+  if (fromPg === null) {
+    return { ok: false, error: 'Could not load inventory from Postgres.' }
+  }
+  return { ok: true, rows: fromPg as InventoryRow[] }
 }
 
 export async function upsertPartnerInventoryBatch(
-  db: Db,
   partnerId: string,
   rows: InventoryExcelInsert[],
   options?: { existingRows?: InventoryRow[] }
 ): Promise<
   { ok: true; inserted: number; updated: number; deleted: number } | { ok: false; error: string }
 > {
+  if (!isPgConfigured()) {
+    return { ok: false, error: 'Postgres (DATABASE_URL) is not configured.' }
+  }
+
   const now = new Date().toISOString()
 
   let resolvedExistingRows: InventoryRow[]
   if (options?.existingRows) {
     resolvedExistingRows = options.existingRows
   } else {
-    const listed = await listPartnerInventoryRows(db, partnerId)
+    const listed = await listPartnerInventoryRows(partnerId)
     if (!listed.ok) return { ok: false, error: listed.error }
     resolvedExistingRows = listed.rows
   }
@@ -325,30 +320,28 @@ export async function upsertPartnerInventoryBatch(
   }
 
   for (const ids of chunked(Array.from(plannedDeletes), WRITE_CHUNK_SIZE)) {
-    const { error } = await db
-      .from('messaging_partner_inventory')
-      .delete()
-      .eq('partner_id', partnerId)
-      .in('id', ids)
-    if (error) return { ok: false, error: error.message }
+    const ok = await deletePartnerInventoryByIdsForPartnerFromPg(partnerId, ids)
+    if (!ok) {
+      return { ok: false, error: 'Inventory delete failed (Postgres).' }
+    }
   }
 
   for (const rowsChunk of chunked(Array.from(plannedUpdates.values()), WRITE_CHUNK_SIZE)) {
-    const { error } = await db
-      .from('messaging_partner_inventory')
-      .upsert(rowsChunk, { onConflict: 'id' })
-    if (error) return { ok: false, error: error.message }
+    const ok = await upsertPartnerInventoryChunkFromPg(rowsChunk)
+    if (!ok) {
+      return { ok: false, error: 'Inventory update failed (Postgres).' }
+    }
   }
 
   for (const rowsChunk of chunked(Array.from(plannedInserts.values()), WRITE_CHUNK_SIZE)) {
-    const { error } = await db
-      .from('messaging_partner_inventory')
-      .insert(rowsChunk)
-    if (error) return { ok: false, error: error.message }
+    const ok = await insertPartnerInventoryChunkFromPg(rowsChunk)
+    if (!ok) {
+      return { ok: false, error: 'Inventory insert failed (Postgres).' }
+    }
   }
 
   if (changedIds.size > 0) {
-    await syncPartnerInventoryEmbeddings(db, partnerId, {
+    await syncPartnerInventoryEmbeddings(partnerId, {
       inventoryIds: Array.from(changedIds),
       force: false,
     })

@@ -1,6 +1,6 @@
-import { createClient } from '@/lib/supabase/server'
 import { redirectToLogin } from '@/lib/auth/login-redirect'
 import { getUserOrBypass } from '@/lib/auth'
+import { fetchClassesAsMemberForUserPg, fetchClassesMineListForTeacherPg } from '@/lib/db/classes-pg'
 import { buildMetadata } from '@/lib/seo'
 import { getServerDictionary } from '@/lib/i18n/server'
 import Link from 'next/link'
@@ -14,24 +14,29 @@ export const metadata = buildMetadata({
   keywords: ['lớp học', 'quản lý lớp', 'tham gia lớp'],
 })
 
+function mapMineToClassItem(
+  c: NonNullable<Awaited<ReturnType<typeof fetchClassesMineListForTeacherPg>>>[number]
+): ClassItem {
+  return {
+    id: c.id,
+    name: c.name,
+    join_code: c.join_code,
+    grade_level_id: c.grade_level_id,
+    subject_label: c.subject_label,
+    teacher_display_name: c.teacher_display_name,
+    schools: c.school_name ? { name: c.school_name } : null,
+  }
+}
+
 export default async function LopPage() {
-  const supabase = createClient()
-  const user = await getUserOrBypass(() => supabase.auth.getUser())
+  const user = await getUserOrBypass()
   if (!user) redirectToLogin()
 
-  const { data: myClasses } = await supabase
-    .from('classes')
-    .select('id, name, join_code, created_at, grade_level_id, subject_label, teacher_display_name, schools(name)')
-    .eq('teacher_id', user.id)
-    .order('created_at', { ascending: false })
+  const myRows = await fetchClassesMineListForTeacherPg(user.id)
+  const memberRows = await fetchClassesAsMemberForUserPg(user.id)
 
-  const { data: memberClasses } = await supabase
-    .from('class_members')
-    .select(`
-      class_id,
-      classes (id, name, join_code, grade_level_id, subject_label, teacher_display_name, schools(name))
-    `)
-    .eq('user_id', user.id)
+  const myClasses: ClassItem[] = (myRows ?? []).map(mapMineToClassItem)
+  const memberClasses: ClassItem[] = (memberRows ?? []).map(mapMineToClassItem)
 
   const { t } = await getServerDictionary()
 
@@ -57,7 +62,7 @@ export default async function LopPage() {
             </div>
           </header>
 
-          {(myClasses?.length ?? 0) > 0 ? (
+          {myClasses.length > 0 ? (
             <div className="mb-6 grid gap-2 md:hidden sm:grid-cols-2">
               <Link
                 href="/tao-bai-thi"
@@ -74,28 +79,7 @@ export default async function LopPage() {
             </div>
           ) : null}
 
-          <LopClientPage
-            t={t.classes}
-            myClasses={myClasses ?? []}
-            memberClasses={(() => {
-              const out: ClassItem[] = []
-              for (const m of memberClasses ?? []) {
-                const raw = m.classes
-                const c = raw == null ? null : Array.isArray(raw) ? raw[0] : raw
-                if (!c) continue
-                out.push({
-                  id: c.id,
-                  name: c.name,
-                  join_code: c.join_code,
-                  grade_level_id: c.grade_level_id ?? null,
-                  subject_label: (c as { subject_label?: string | null }).subject_label ?? null,
-                  teacher_display_name: (c as { teacher_display_name?: string | null }).teacher_display_name ?? null,
-                  schools: c.schools ?? null,
-                })
-              }
-              return out
-            })()}
-          />
+          <LopClientPage t={t.classes} myClasses={myClasses} memberClasses={memberClasses} />
         </div>
       </CreationToolPageShell>
     </div>

@@ -1,19 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import sharp from 'sharp'
-import { createClient } from '@/lib/supabase/server'
+import { getUserForAction } from '@/lib/auth'
 import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
 import { normalizeToEnglish } from '@/lib/ai-normalize'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
-import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
+import { bunnyStorageConfigured, uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
+import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
+import { deductUserCredits } from '@/lib/music/deduct-user-credits'
 
 const COST_2K = 1.5
 const MAX_SLIDE_TEXT = 28000
 const INFOGRAPHIC_TARGET_BYTES = 820 * 1024
 const INFOGRAPHIC_MAX_DIMENSION = 2048
 const toTenths = (value: number) => Math.round(value * 10)
-const fromTenths = (value: number) => value / 10
 const formatCredits = (value: number) => value.toLocaleString('vi-VN', { maximumFractionDigits: 1 })
 
 const OUTPUT_LOCALES = new Set(['vi', 'en', 'zh', 'ja', 'ko'])
@@ -80,10 +80,11 @@ export async function POST(req: NextRequest) {
     if (!apiKey) {
       return NextResponse.json({ error: 'Thiếu GOOGLE_API_KEY.' }, { status: 500 })
     }
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-    if (!supabaseUrl || !serviceKey) {
-      return NextResponse.json({ error: 'Thiếu cấu hình Supabase (upload/lưu).' }, { status: 500 })
+    if (!bunnyStorageConfigured()) {
+      return NextResponse.json(
+        { error: 'Thiếu cấu hình lưu ảnh (Bunny Storage: BUNNY_STORAGE_ZONE, BUNNY_STORAGE_API_KEY, BUNNY_STORAGE_PUBLIC_BASE_URL).' },
+        { status: 503 }
+      )
     }
 
     let body: {
@@ -116,25 +117,22 @@ export async function POST(req: NextRequest) {
       lessonText = lessonText.slice(0, MAX_SLIDE_TEXT)
     }
 
-    const supabase = createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-    if (!user?.id) {
-      return NextResponse.json({ error: 'Vui lòng đăng nhập.' }, { status: 401 })
+    const auth = await getUserForAction('Vui lòng đăng nhập.')
+    if ('error' in auth) {
+      return NextResponse.json({ error: auth.error }, { status: 401 })
     }
+    const user = auth.user
 
-    const adminSupabase = createSupabaseClient(supabaseUrl, serviceKey)
-
-    const { data: creditData, error: creditError } = await supabase
-      .from('credits')
-      .select('balance')
-      .eq('user_id', user.id)
-      .single()
-    if (creditError || !creditData || toTenths(creditData.balance) < toTenths(COST_2K)) {
+    let openBal = 0
+    try {
+      openBal = await getCreditBalanceByUserId(user.id)
+    } catch {
+      return NextResponse.json({ error: 'Không đọc được số dư credits.' }, { status: 500 })
+    }
+    if (toTenths(openBal) < toTenths(COST_2K)) {
       return NextResponse.json(
         {
-          error: `Không đủ credits. Cần ${formatCredits(COST_2K)} credits, hiện có ${formatCredits(creditData?.balance || 0)}.`,
+          error: `Không đủ credits. Cần ${formatCredits(COST_2K)} credits, hiện có ${formatCredits(openBal)}.`,
         },
         { status: 402 }
       )
@@ -242,7 +240,7 @@ ${FLASH_INSTRUCTION}`
     const resultPath = `results/${user.id}/curriculum_infographic_${curriculumId}_${Date.now()}.${resultExt}`
     let infographicPublicUrl: string
     try {
-      const { publicUrl } = await uploadTryOnImagePublic(adminSupabase, resultPath, resultBuffer, {
+      const { publicUrl } = await uploadTryOnImagePublic(resultPath, resultBuffer, {
         contentType: resultContentType,
         upsert: true,
       })
@@ -252,12 +250,13 @@ ${FLASH_INSTRUCTION}`
       return NextResponse.json({ error: 'Không upload được ảnh. Thử lại sau.' }, { status: 502 })
     }
 
-    const { data: latestCredit } = await adminSupabase.from('credits').select('balance').eq('user_id', user.id).single()
-    if (!latestCredit || toTenths(latestCredit.balance) < toTenths(COST_2K)) {
-      return NextResponse.json({ error: 'Không đủ credits để hoàn tất.' }, { status: 402 })
+    const d = await deductUserCredits(user.id, COST_2K)
+    if (!d.ok) {
+      return NextResponse.json(
+        { error: d.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credits để hoàn tất.' : d.error },
+        { status: 402 }
+      )
     }
-    const newBalance = fromTenths(toTenths(latestCredit.balance) - toTenths(COST_2K))
-    await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', user.id)
 
     const generatedAt = new Date().toISOString()
     return NextResponse.json({

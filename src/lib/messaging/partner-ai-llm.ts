@@ -1,11 +1,12 @@
-import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database, Json } from '@/types/database.types'
+import { fetchCustomerCareTranscriptLinesFromPg } from '@/lib/db/customer-care-pg'
+import { fetchPartnerInventoryRowByIdForPartnerFromPg } from '@/lib/db/messaging-partner-inventory-pg'
+import { isPgConfigured } from '@/lib/db/pool'
 import {
   fetchInventoryRowsByExplicitSku,
   fetchInventoryRowsForPartnerAi,
 } from '@/lib/messaging/partner-inventory-ai-search'
 
-type Db = SupabaseClient<Database>
 type SettingsRow = Database['public']['Tables']['messaging_partner_ai_settings']['Row']
 
 function formatInventoryLines(
@@ -40,39 +41,48 @@ function selectedInventoryIdFromTrigger(raw: Json | null | undefined): string | 
 }
 
 export async function buildPartnerAiContext(
-  db: Db,
   partnerId: string,
   conversationId: string,
   settings: SettingsRow,
   latestCustomerMessage: string,
   triggerRawPayload?: Json | null
 ): Promise<{ system: string; user: string }> {
-  const explicitSkuRows = await fetchInventoryRowsByExplicitSku(db, partnerId, latestCustomerMessage)
+  const explicitSkuRows = await fetchInventoryRowsByExplicitSku(partnerId, latestCustomerMessage)
   const selectedInventoryId = selectedInventoryIdFromTrigger(triggerRawPayload)
-  const inv = await fetchInventoryRowsForPartnerAi(db, partnerId, latestCustomerMessage)
+  const inv = await fetchInventoryRowsForPartnerAi(partnerId, latestCustomerMessage)
   let selectedRowBlock = ''
   let invForContext = inv
   if (selectedInventoryId) {
-    const { data: selectedRow } = await db
-      .from('messaging_partner_inventory')
-      .select('*')
-      .eq('partner_id', partnerId)
-      .eq('id', selectedInventoryId)
-      .maybeSingle()
+    let selectedRow: Database['public']['Tables']['messaging_partner_inventory']['Row'] | null = null
+    if (isPgConfigured()) {
+      try {
+        selectedRow = await fetchPartnerInventoryRowByIdForPartnerFromPg(partnerId, selectedInventoryId)
+      } catch (e) {
+        console.warn('[partner-ai-llm] selected inventory PG failed', e)
+      }
+    }
     if (selectedRow) {
       selectedRowBlock = `\n\nMặt hàng khách đã CHỌN từ danh sách ảnh gợi ý (ưu tiên cao nhất, chỉ tư vấn theo hàng này nếu không có yêu cầu đổi mẫu):\n${formatInventoryLines([selectedRow])}`
       invForContext = [selectedRow, ...inv.filter((r) => r.id !== selectedRow.id)]
     }
   }
 
-  const { data: msgs } = await db
-    .from('customer_care_messages')
-    .select('direction, body, created_at, raw_payload')
-    .eq('conversation_id', conversationId)
-    .order('created_at', { ascending: false })
-    .limit(14)
-
-  const chronological = (msgs ?? []).reverse()
+  let chronological: {
+    direction: string
+    body: string
+    created_at: string
+    raw_payload: Json | null
+  }[] | null = null
+  if (isPgConfigured()) {
+    try {
+      chronological = await fetchCustomerCareTranscriptLinesFromPg(conversationId, 14)
+    } catch (e) {
+      console.warn('[partner-ai-llm] transcript PG failed', e)
+    }
+  }
+  if (chronological === null) {
+    chronological = []
+  }
   const transcript = chronological
     .map((m) => {
       const label = m.direction === 'inbound' ? 'Khách' : 'Shop'

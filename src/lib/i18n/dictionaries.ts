@@ -2124,8 +2124,8 @@ const VI_DICTIONARY: Dictionary = {
     guestCaptionHint: 'Có thể thêm chú thích kèm ảnh (tuỳ chọn).',
     loginPromptTitle: 'Đăng nhập để chat',
     loginPromptDescription:
-      'Dùng tài khoản Google để nhắn tin với cửa hàng và xem lại hội thoại trên điện thoại hoặc máy tính khác.',
-    signInWithGoogle: 'Đăng nhập bằng Google',
+      'Đăng nhập bằng email để nhắn tin với cửa hàng và xem lại hội thoại trên thiết bị khác.',
+    signInWithGoogle: 'Đăng nhập',
     linkMyShops: 'Tin nhắn của tôi',
     sendKeyboardHint: 'Enter gửi · Shift+Enter xuống dòng · Ctrl+V dán ảnh',
     tryOnOpen: 'Thử đồ AI',
@@ -3070,7 +3070,7 @@ const VI_DICTIONARY: Dictionary = {
     pageDescription:
       'Trang này chủ yếu để đọc lại báo cáo các lượt verify tự động (cron): số phiếu trong hàng đợi, đã xử lý, số lần đóng verified và sửa nội dung. Bấm một dòng để xem chi tiết từng phiếu. Khi cần, có thể bấm "Bắt đầu quét mới" để chạy thủ công từng lô trên máy chủ.',
     reportScopeNote:
-      'Mỗi lần verify ngầm sau khi tạo/sửa phiếu (Tạo giáo trình) cũng được ghi vào danh sách này khi máy chủ có SUPABASE_SERVICE_ROLE_KEY. Trước đây chỉ có quét lô/cron mới tạo dòng — nếu bạn đã verify nhưng không thấy báo cáo, hãy cấu hình service role và chạy verify lại một lần.',
+      'Mỗi lần verify ngầm sau khi tạo/sửa phiếu (Tạo giáo trình) cũng được ghi vào danh sách này khi máy chủ được cấu hình đầy đủ cho verify nền. Trước đây chỉ có quét lô/cron mới tạo dòng — nếu bạn đã verify nhưng không thấy báo cáo, hãy kiểm tra biến môi trường máy chủ và chạy verify lại một lần.',
     newScan: 'Bắt đầu quét mới',
     nextBatch: 'Xử lý lô tiếp theo',
     refresh: 'Làm mới',
@@ -3643,8 +3643,8 @@ const EN_DICTIONARY: Dictionary = {
     guestCaptionHint: 'You can add an optional caption with the photo.',
     loginPromptTitle: 'Sign in to chat',
     loginPromptDescription:
-      'Use your Google account to message the shop and continue the conversation on any phone or computer.',
-    signInWithGoogle: 'Sign in with Google',
+      'Sign in with email to message the shop and continue the conversation on any device.',
+    signInWithGoogle: 'Sign in',
     linkMyShops: 'My messages',
     sendKeyboardHint: 'Enter to send · Shift+Enter for a new line · Ctrl+V / Cmd+V to paste an image',
     tryOnOpen: 'AI try-on',
@@ -4587,7 +4587,7 @@ const EN_DICTIONARY: Dictionary = {
     pageDescription:
       'Mainly for reviewing reports from automated verify runs (cron): queued/processed worksheets, verify marks, and content fixes. Expand a row for per-worksheet details. Use “Start new scan” to run an on-demand batch on the server when needed.',
     reportScopeNote:
-      'Each background verify (after creating/editing a worksheet in the curriculum builder) is also logged here when the server has SUPABASE_SERVICE_ROLE_KEY. Previously only batch/cron runs created rows—if you verified but saw no report, set the service role key and run verify once more.',
+      'Each background verify (after creating/editing a worksheet in the curriculum builder) is also logged here when the server is configured for background verify. Previously only batch/cron runs created rows—if you verified but saw no report, check your server environment and run verify once more.',
     newScan: 'Start new scan',
     nextBatch: 'Process next batch',
     refresh: 'Refresh',
@@ -5150,8 +5150,8 @@ const ZH_DICTIONARY: Dictionary = {
     guestImageInvalidType: '仅支持 JPG、PNG、WebP 或 GIF。',
     guestCaptionHint: '可为图片添加说明（选填）。',
     loginPromptTitle: '登录后开始聊天',
-    loginPromptDescription: '使用 Google 账号与店铺沟通，并在手机或电脑上继续对话。',
-    signInWithGoogle: '使用 Google 登录',
+    loginPromptDescription: '使用邮箱登录与店铺沟通，并在其他设备上继续对话。',
+    signInWithGoogle: '登录',
     linkMyShops: '我的消息',
     sendKeyboardHint: 'Enter 发送 · Shift+Enter 换行 · Ctrl+V 粘贴图片',
     tryOnOpen: 'AI 试穿',
@@ -6044,7 +6044,7 @@ const ZH_DICTIONARY: Dictionary = {
     pageDescription:
       '主要用于查看自动核验（cron）各次运行的报告：排队/已处理作业单数、核验标记与内容修正次数；展开行可看每张作业单明细。需要时也可点此「开始新扫描」在服务器上手动分批执行。',
     reportScopeNote:
-      '在课程创建流程中每次后台核验也会写入此列表（需服务器配置 SUPABASE_SERVICE_ROLE_KEY）。若之前只有批量/cron 才会出现记录，请配置该密钥后重新触发一次核验。',
+      '在课程创建流程中每次后台核验也会写入此列表（需服务器已正确配置后台核验）。若之前只有批量/cron 才会出现记录，请检查服务器环境后重新触发一次核验。',
     newScan: '开始新扫描',
     nextBatch: '处理下一批',
     refresh: '刷新',
@@ -6627,8 +6627,8 @@ const JA_DICTIONARY: Dictionary = {
     guestCaptionHint: '写真に説明を添えられます（任意）。',
     loginPromptTitle: 'チャットするにはログイン',
     loginPromptDescription:
-      'Google アカウントでログインすると、店舗へのメッセージをスマホや PC で続けられます。',
-    signInWithGoogle: 'Google でログイン',
+      'メールでログインすると、店舗へのメッセージを別の端末でも続けられます。',
+    signInWithGoogle: 'ログイン',
     linkMyShops: '自分のメッセージ',
     sendKeyboardHint: 'Enter で送信 · Shift+Enter で改行 · Ctrl+V / Cmd+V で画像を貼り付け',
     tryOnOpen: 'AI 試着',
@@ -7547,7 +7547,7 @@ const JA_DICTIONARY: Dictionary = {
     pageDescription:
       '未検証の設問があるワークシートを走査し、AI（Gemini Flash）で検証してバッチごとに集計します。手動ステップまたは cron（.env.example 参照）で実行できます。',
     reportScopeNote:
-      'カリキュラム作成後のバックグラウンド検証も、サーバーに SUPABASE_SERVICE_ROLE_KEY がある場合はここに記録されます。以前はバッチ/cron のみでした。記録が無い場合はキーを設定し、検証を再実行してください。',
+      'カリキュラム作成後のバックグラウンド検証も、サーバーがバックグラウンド検証向けに設定されている場合はここに記録されます。以前はバッチ/cron のみでした。記録が無い場合は環境を確認し、検証を再実行してください。',
     newScan: '新しいスキャンを開始',
     nextBatch: '次のバッチを処理',
     refresh: '更新',
@@ -8129,8 +8129,8 @@ const KO_DICTIONARY: Dictionary = {
     guestCaptionHint: '사진에 설명을 덧붙일 수 있습니다(선택).',
     loginPromptTitle: '채팅하려면 로그인',
     loginPromptDescription:
-      'Google 계정으로 로그인하면 매장과의 대화를 휴대폰이나 PC에서 이어갈 수 있습니다.',
-    signInWithGoogle: 'Google로 로그인',
+      '이메일로 로그인하면 매장과의 대화를 다른 기기에서도 이어갈 수 있습니다.',
+    signInWithGoogle: '로그인',
     linkMyShops: '내 메시지',
     sendKeyboardHint: 'Enter로 전송 · Shift+Enter로 줄 바꿈 · Ctrl+V / Cmd+V로 이미지 붙여넣기',
     tryOnOpen: 'AI 피팅',
@@ -9044,7 +9044,7 @@ const KO_DICTIONARY: Dictionary = {
     pageDescription:
       '주로 자동 검증(cron) 실행 결과 보고서를 다시 보는 페이지입니다. 대기/처리 워크시트 수, 검증 표시·내용 수정 횟수를 보여 주며 행을 펼치면 워크시트별 상세를 볼 수 있습니다. 필요 시 «새 스캔 시작»으로 서버에서 수동 배치 실행도 가능합니다.',
     reportScopeNote:
-      '교육과정 생성 후 백그라운드 검증도 서버에 SUPABASE_SERVICE_ROLE_KEY가 있으면 여기에 기록됩니다. 이전에는 배치/cron만 기록되었습니다. 보고서가 없으면 키를 설정한 뒤 검증을 한 번 더 실행하세요.',
+      '교육과정 생성 후 백그라운드 검증도 서버가 백그라운드 검증에 맞게 설정된 경우 여기에 기록됩니다. 이전에는 배치/cron만 기록되었습니다. 보고서가 없으면 서버 환경을 확인한 뒤 검증을 한 번 더 실행하세요.',
     newScan: '새 스캔 시작',
     nextBatch: '다음 배치 처리',
     refresh: '새로고침',

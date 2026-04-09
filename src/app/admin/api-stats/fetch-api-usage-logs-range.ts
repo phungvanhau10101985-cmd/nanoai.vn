@@ -1,5 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Database } from '@/types/database.types'
+import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 
 /** Mỗi lần range — tránh một response quá lớn; lặp cho đến hết khoảng ngày. */
 const PAGE_SIZE = 5000
@@ -16,59 +15,79 @@ export type ApiUsageLogRow = {
 }
 
 export type FetchApiUsageLogsOptions = {
-  /** PostgREST `like` trên cột feature, ví dụ `curriculum-%` */
+  /** SQL `LIKE` trên cột feature, ví dụ `curriculum-%` */
   featureLike?: string
 }
 
 /**
  * Tải toàn bộ `api_usage_log` trong [fromIso, toIso] (phân trang server-side).
- * Thứ tự tăng dần theo `created_at`, `id` — dùng `sortApiUsageLogsNewestFirst` khi cần “mới nhất trước”.
+ * Chỉ Postgres — cần `DATABASE_URL`.
  */
 export async function fetchAllApiUsageLogsInRange(
-  admin: SupabaseClient<Database>,
   fromIso: string,
   toIso: string,
   options?: FetchApiUsageLogsOptions
 ): Promise<{ data: ApiUsageLogRow[]; error: { message: string } | null; count: number | null }> {
-  const columns =
-    'id, model, feature, prompt_token_count, candidates_token_count, total_token_count, image_size, created_at'
-
-  const all: ApiUsageLogRow[] = []
-  let offset = 0
-  let totalCount: number | null = null
-
-  for (;;) {
-    const withCount = offset === 0
-    let q = admin
-      .from('api_usage_log')
-      .select(columns, withCount ? ({ count: 'exact' } as const) : undefined)
-      .gte('created_at', fromIso)
-      .lte('created_at', toIso)
-
-    if (options?.featureLike) {
-      q = q.like('feature', options.featureLike)
-    }
-
-    const { data, error, count } = await q
-      .order('created_at', { ascending: true })
-      .order('id', { ascending: true })
-      .range(offset, offset + PAGE_SIZE - 1)
-
-    if (error) {
-      return { data: all, error: { message: error.message }, count: totalCount }
-    }
-
-    if (withCount && typeof count === 'number') {
-      totalCount = count
-    }
-
-    const batch = (data ?? []) as unknown as ApiUsageLogRow[]
-    all.push(...batch)
-    if (batch.length < PAGE_SIZE) break
-    offset += PAGE_SIZE
+  if (!isPgConfigured()) {
+    return { data: [], error: { message: 'DATABASE_URL not set' }, count: 0 }
   }
 
-  return { data: all, error: null, count: totalCount ?? all.length }
+  const pool = getPgPool()
+  const featurePattern = options?.featureLike?.trim() || null
+
+  try {
+    const countRes = await pool.query<{ c: string }>(
+      `select count(*)::text as c from public.api_usage_log
+       where created_at >= $1::timestamptz and created_at <= $2::timestamptz
+         and ($3::text is null or feature like $3)`,
+      [fromIso, toIso, featurePattern]
+    )
+    const totalCount = Number(countRes.rows[0]?.c ?? 0)
+    const totalCountFinal = Number.isFinite(totalCount) ? totalCount : null
+
+    const all: ApiUsageLogRow[] = []
+    let offset = 0
+    for (;;) {
+      const res = await pool.query<{
+        id: string
+        model: string
+        feature: string
+        prompt_token_count: number | null
+        candidates_token_count: number | null
+        total_token_count: number | null
+        image_size: string | null
+        created_at: string
+      }>(
+        `select id::text, model, feature,
+                prompt_token_count, candidates_token_count, total_token_count,
+                image_size, created_at::text
+         from public.api_usage_log
+         where created_at >= $1::timestamptz and created_at <= $2::timestamptz
+           and ($3::text is null or feature like $3)
+         order by created_at asc, id asc
+         limit $4 offset $5`,
+        [fromIso, toIso, featurePattern, PAGE_SIZE, offset]
+      )
+      const batch = res.rows.map((r) => ({
+        id: r.id,
+        model: r.model,
+        feature: r.feature,
+        prompt_token_count: r.prompt_token_count,
+        candidates_token_count: r.candidates_token_count,
+        total_token_count: r.total_token_count,
+        image_size: r.image_size,
+        created_at: r.created_at,
+      }))
+      all.push(...batch)
+      if (batch.length < PAGE_SIZE) break
+      offset += PAGE_SIZE
+    }
+
+    return { data: all, error: null, count: totalCountFinal ?? all.length }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    return { data: [], error: { message: msg }, count: null }
+  }
 }
 
 export function sortApiUsageLogsNewestFirst(logs: ApiUsageLogRow[]): ApiUsageLogRow[] {

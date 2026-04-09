@@ -1,11 +1,11 @@
 "use client"
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { createClient } from '@/lib/supabase/client'
+import { getClientUserId } from '@/lib/auth/get-client-user-id'
 import { History, CreditCard, CheckCircle, Clock, XCircle, Filter, Download } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { formatNumber } from '@/lib/format'
@@ -16,8 +16,8 @@ type Payment = {
   amount: number
   credits_added: number
   status: string
-  bank_name: string
-  transaction_content: string
+  bank_name: string | null
+  transaction_content: string | null
   created_at: string
   completed_at: string | null
 }
@@ -27,7 +27,6 @@ export default function TransactionsClient() {
   const [payments, setPayments] = useState<Payment[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<string>('all')
-  const supabase = useMemo(() => createClient(), [])
   const tr = useCallback((vi: string, en: string, zh: string, ja: string, ko: string) => {
     if (uiLocale === 'en') return en
     if (uiLocale === 'zh') return zh
@@ -39,24 +38,15 @@ export default function TransactionsClient() {
   const fetchPayments = useCallback(async () => {
     setLoading(true)
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+      const uid = await getClientUserId()
+      if (!uid) return
 
-      let query = supabase
-        .from('payments')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-
-      // Áp dụng filter
-      if (filter !== 'all') {
-        query = query.eq('status', filter)
-      }
-
-      const { data, error } = await query
-
-      if (error) throw error
-      setPayments(data || [])
+      const qs = new URLSearchParams({ limit: '200' })
+      if (filter !== 'all') qs.set('status', filter)
+      const res = await fetch(`/api/account/payments?${qs.toString()}`, { credentials: 'same-origin' })
+      if (!res.ok) throw new Error('payments')
+      const j = (await res.json()) as { payments?: Payment[] }
+      setPayments(j.payments || [])
     } catch (error: unknown) {
       console.error('Error fetching payments:', error)
       toast({
@@ -67,7 +57,7 @@ export default function TransactionsClient() {
     } finally {
       setLoading(false)
     }
-  }, [filter, supabase, tr])
+  }, [filter, tr])
 
   useEffect(() => {
     const syncLocale = () => {
@@ -144,7 +134,7 @@ export default function TransactionsClient() {
       formatDate(payment.created_at),
       formatCurrency(payment.amount),
       payment.credits_added.toString(),
-      payment.bank_name,
+      payment.bank_name || '',
       payment.status === 'completed' ? tr('Thành công', 'Success', '成功', '成功', '성공') : 
       payment.status === 'pending' ? tr('Chờ xử lý', 'Pending', '处理中', '保留中', '처리 대기') : tr('Thất bại', 'Failed', '失败', '失敗', '실패'),
       payment.transaction_content || ''

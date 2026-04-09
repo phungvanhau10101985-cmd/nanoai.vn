@@ -1,12 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
+import { isPgConfigured } from '@/lib/db/pool'
+import {
+  fetchVocabCacheRowPg,
+  incrementWordCacheStatPg,
+  touchVocabCacheUsagePg,
+  upsertVocabCacheFromWordRoutePg,
+} from '@/lib/db/language-coach-vocab-cache-pg'
 import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
 import {
   EnglishCoachApiFeature,
   parseCoachUsageContextPayload,
   trackEnglishCoachGeminiResult,
 } from '@/lib/english-coach-api-usage'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { createHash } from 'crypto'
 
 type WordPayload = {
@@ -120,21 +126,6 @@ function formatMeaningWithWord(word: string, meaning: string, locale: 'vi' | 'en
     return `${normalizedWord}: ${text}`
   }
   return `${normalizedWord}: ${normalizedMeaning}`
-}
-
-function adminClient() {
-  return createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-}
-
-async function recordCacheMetric(
-  supabase: ReturnType<typeof adminClient>,
-  metric: 'word_hit' | 'word_miss'
-) {
-  try {
-    await supabase.rpc('increment_language_coach_cache_stat', { p_metric: metric, p_inc: 1 })
-  } catch {
-    // Keep word lookup fast and resilient even if stats logging fails.
-  }
 }
 
 function normalizeLookup(input: string): string {
@@ -296,26 +287,17 @@ export async function POST(request: NextRequest) {
     if (!word) {
       return NextResponse.json({ error: msg(locale, 'Thiếu từ cần giải nghĩa.', 'Missing word to explain.') }, { status: 400 })
     }
+    if (!isPgConfigured()) {
+      return NextResponse.json({ error: msg(locale, 'Chưa cấu hình cơ sở dữ liệu.', 'Database not configured.') }, { status: 503 })
+    }
 
     // Shared DB-first lookup: reuse meanings saved by any learner first,
     // only call AI when the database does not have this word yet.
-    const adminSupabase = adminClient()
     const normalizedWord = normalizeLookup(word)
     const normalizedTarget = normalizeLookup(targetLanguage)
     const normalizedNative = normalizeLookup(nativeLanguage)
     const contextHash = hashContextSentence(contextSentence)
-    const { data: cachedRows } = await adminSupabase
-      .from('language_coach_vocab_cache')
-      .select(
-        'id, meaning, pronunciation, part_of_speech, example_target, example_native, pronunciation_audio_url, meaning_items_json, example_items_json, usage_level, importance_score, is_context_sensitive'
-      )
-      .eq('normalized_word', normalizedWord)
-      .eq('normalized_target_language', normalizedTarget)
-      .eq('normalized_native_language', normalizedNative)
-      .order('updated_at', { ascending: false })
-      .limit(1)
-
-    const cached = Array.isArray(cachedRows) && cachedRows.length > 0 ? cachedRows[0] : null
+    const cached = await fetchVocabCacheRowPg(normalizedWord, normalizedTarget, normalizedNative)
     if (cached) {
       const cachedExampleItems = sanitizeExampleItems(parseJsonListField(cached.example_items_json))
       const itemsToCheck = cachedExampleItems.length > 0 ? cachedExampleItems : [{ targetText: String(cached.example_target || '').trim() }]
@@ -324,11 +306,9 @@ export async function POST(request: NextRequest) {
       } else {
         const cachedSenseItemsRaw = sanitizeSenseItems(parseJsonListField(cached.meaning_items_json))
         wordCacheStats.hit += 1
-        void recordCacheMetric(adminSupabase, 'word_hit')
-        void adminSupabase
-          .from('language_coach_vocab_cache')
-          .update({ last_used_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-          .eq('id', cached.id)
+        void incrementWordCacheStatPg('word_hit')
+        const nowTouch = new Date().toISOString()
+        void touchVocabCacheUsagePg(cached.id, nowTouch)
         const normalizedCachedSenses = normalizeSensesForDictionary(cachedSenseItemsRaw)
         const fallbackMeaning = formatMeaningWithWord(word, buildMeaningFromSenses(
           normalizedCachedSenses,
@@ -370,7 +350,7 @@ export async function POST(request: NextRequest) {
       }
     }
     wordCacheStats.miss += 1
-    void recordCacheMetric(adminSupabase, 'word_miss')
+    void incrementWordCacheStatPg('word_miss')
     console.info(`[WORD] cache-miss word="${word}"`)
 
     const apiKey = process.env.GOOGLE_API_KEY
@@ -494,31 +474,31 @@ Trả về JSON hợp lệ, không markdown:
       contextSensitive: true,
     }
 
-    await adminSupabase.from('language_coach_vocab_cache').upsert(
-      {
-        word,
-        normalized_word: normalizedWord,
-        target_language: targetLanguage,
-        normalized_target_language: normalizedTarget,
-        native_language: nativeLanguage,
-        normalized_native_language: normalizedNative,
-        context_hash: contextHash || null,
-        part_of_speech: completed.partOfSpeech || null,
-        meaning: normalizeMeaningOutput(completed.meaning),
-        pronunciation: completed.pronunciation || null,
-        example_target: completed.exampleTarget || null,
-        example_native: completed.exampleNative || null,
-        meaning_items_json: JSON.stringify(completed.senses),
-        example_items_json: JSON.stringify(completed.exampleItems),
-        usage_level: completed.usageLevel,
-        importance_score: completed.importanceScore,
-        is_context_sensitive: completed.contextSensitive,
-        source_model: 'gemini-2.5-flash',
-        last_used_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'normalized_word,normalized_target_language,normalized_native_language' }
-    )
+    const nowIso = new Date().toISOString()
+    const upsertRes = await upsertVocabCacheFromWordRoutePg({
+      word,
+      normalizedWord,
+      targetLanguage,
+      normalizedTargetLanguage: normalizedTarget,
+      nativeLanguage,
+      normalizedNativeLanguage: normalizedNative,
+      contextHash: contextHash || null,
+      partOfSpeech: completed.partOfSpeech || null,
+      meaning: normalizeMeaningOutput(completed.meaning),
+      pronunciation: completed.pronunciation || null,
+      exampleTarget: completed.exampleTarget || null,
+      exampleNative: completed.exampleNative || null,
+      meaningItemsJson: JSON.stringify(completed.senses),
+      exampleItemsJson: JSON.stringify(completed.exampleItems),
+      usageLevel: completed.usageLevel,
+      importanceScore: completed.importanceScore,
+      isContextSensitive: completed.contextSensitive,
+      sourceModel: 'gemini-2.5-flash',
+      nowIso,
+    })
+    if (!upsertRes.ok) {
+      return NextResponse.json({ error: upsertRes.message || 'Không lưu được từ vào cache.' }, { status: 500 })
+    }
     logWordCacheStats(word)
 
     return NextResponse.json({

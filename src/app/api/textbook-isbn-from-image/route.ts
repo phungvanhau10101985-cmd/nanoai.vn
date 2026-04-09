@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
-import { createClient } from '@/lib/supabase/server'
+import { getUserForAction } from '@/lib/auth'
 import { CurriculumApiFeature, trackCurriculumGeminiResult } from '@/lib/curriculum-api-usage'
 import { isValidBookIsbn, normalizeBookIsbn } from '@/app/tao-giao-trinh/lib/book-isbn'
 
@@ -10,13 +10,11 @@ const MAX_BYTES = 8 * 1024 * 1024
 /** Đọc ISBN từ ảnh mã vạch / dòng ISBN trên sách (Gemini 2.5 Flash). */
 export async function POST(req: NextRequest) {
   try {
-    const supabase = createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-    if (!user) {
-      return NextResponse.json({ error: 'Vui lòng đăng nhập.' }, { status: 401 })
+    const auth = await getUserForAction()
+    if ('error' in auth) {
+      return NextResponse.json({ error: auth.error }, { status: 401 })
     }
+    const user = auth.user
 
     const apiKey = process.env.GOOGLE_API_KEY?.trim()
     if (!apiKey) {

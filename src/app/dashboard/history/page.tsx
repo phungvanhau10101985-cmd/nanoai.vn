@@ -1,5 +1,5 @@
-import { createClient } from '@/lib/supabase/server'
 import { redirectToLogin } from '@/lib/auth/login-redirect'
+import { pgListTryOnHistoryCompletedExcludeTranslate } from '@/lib/db/dashboard-user-pg'
 import { getUserOrBypass } from '@/lib/auth'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -20,23 +20,22 @@ export default async function HistoryPage() {
   const locale = getCurrentWebLocale()
   const tr = (vi: string, en: string, zh: string, ja: string, ko: string) =>
     locale === 'en' ? en : locale === 'zh' ? zh : locale === 'ja' ? ja : locale === 'ko' ? ko : vi
-  const supabase = createClient()
-
-  const user = await getUserOrBypass(() => supabase.auth.getUser())
+  const user = await getUserOrBypass()
   if (!user) redirectToLogin()
 
-  const { data: history, error } = await supabase
-    .from('try_on_history')
-    .select('*')
-    .eq('user_id', user.id)
-    .eq('status', 'completed')
-    .or('feature.neq.translate,feature.is.null')
-    .order('created_at', { ascending: false })
+  const history = await pgListTryOnHistoryCompletedExcludeTranslate(user.id)
 
-  if (error) {
-    console.error('Error fetching history:', error)
-    return <div>Failed to load history.</div>
+  type HistoryRow = {
+    id: string
+    created_at: string
+    status: string
+    result_image_url?: string | null
+    original_image_url?: string | null
+    garment_image_url?: string | null
+    feature?: string | null
+    aspect_ratio?: string | null
   }
+  const historyRows = (history ?? []) as HistoryRow[]
 
   return (
     <div className="app-shell space-y-6 md:space-y-8 lg:space-y-8 xl:space-y-10">
@@ -47,7 +46,7 @@ export default async function HistoryPage() {
         </h1>
         <div className="flex flex-wrap items-center gap-2 sm:gap-4">
           <p className="text-muted-foreground">
-            {history?.length || 0} {tr('kết quả', 'results', '条结果', '件', '개 결과')}
+            {historyRows.length || 0} {tr('kết quả', 'results', '条结果', '件', '개 결과')}
           </p>
           <Button variant="outline" size="sm" asChild>
             <Link href="/dashboard/tasks">{t.menu.tasksHub}</Link>
@@ -58,9 +57,9 @@ export default async function HistoryPage() {
         </div>
       </div>
 
-      {history && history.length > 0 ? (
+      {historyRows.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {history.map((item) => (
+          {historyRows.map((item) => (
             <Card key={item.id} className="tool-tile overflow-hidden flex flex-col">
               <CardHeader className="p-4 pb-2 flex flex-row items-center justify-between space-y-0">
                 <div className="flex items-center text-sm text-muted-foreground">

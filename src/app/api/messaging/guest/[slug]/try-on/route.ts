@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
-import { createServiceRoleClient } from '@/lib/supabase/service-role'
-import { isReservedMessagingGuestSlug } from '@/lib/messaging/reserved-guest-slugs'
+import { getUserForAction } from '@/lib/auth'
+import { resolveActiveMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
 import { buildSinglePersonPrompt } from '@/lib/try-on/try-on-prompts'
 import { runVirtualTryOnPipeline } from '@/lib/try-on/run-virtual-try-on-pipeline'
 
@@ -15,28 +14,18 @@ function isHttpImageUrl(value: string): boolean {
 }
 
 async function resolvePartner(slug: string) {
-  if (isReservedMessagingGuestSlug(slug)) return { error: 'not_found' as const }
-  const db = createServiceRoleClient()
-  const { data: partner, error } = await db
-    .from('messaging_partners')
-    .select('id, is_active')
-    .eq('slug', slug)
-    .maybeSingle()
-  if (error || !partner?.is_active) {
-    return { error: 'not_found' as const }
-  }
-  return { partnerId: partner.id, db }
+  const active = await resolveActiveMessagingPartnerBySlug(slug)
+  if (!active) return { error: 'not_found' as const }
+  return { partnerId: active.id }
 }
 
 export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: string }> }) {
   const { slug } = await ctx.params
-  const supabase = createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user?.id) {
+  const auth = await getUserForAction('Unauthorized')
+  if ('error' in auth) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+  const user = auth.user
 
   const partner = await resolvePartner(slug)
   if ('error' in partner) {
@@ -116,7 +105,6 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
   const cost = imageQuality === '4K' ? baseCost * 2.2 : baseCost
 
   const pipe = await runVirtualTryOnPipeline({
-    adminSupabase: partner.db,
     // Charge credits to the currently signed-in browser user.
     billingUserId: user.id,
     prompt,

@@ -11,7 +11,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { createClient } from '@/lib/supabase/client'
+import { getClientUserId } from '@/lib/auth/get-client-user-id'
 import { formatNumber } from '@/lib/format'
 import { toast } from '@/hooks/use-toast'
 import { Download, Copy, CreditCard, Loader2, CheckCircle } from 'lucide-react'
@@ -75,7 +75,6 @@ export function DepositCreditPopup({ open, onOpenChange, returnPath, onCreditsUp
   const [paymentSuccess, setPaymentSuccess] = useState<{ amount: number; credits_added: number } | null>(null)
   const [creating, setCreating] = useState(false)
   const createPressLockRef = useRef(false)
-  const supabase = createClient()
   const tr = (vi: string, en: string, zh: string, ja: string, ko: string) => {
     if (uiLocale === 'en') return en
     if (uiLocale === 'zh') return zh
@@ -85,19 +84,17 @@ export function DepositCreditPopup({ open, onOpenChange, returnPath, onCreditsUp
   }
 
   const fetchConfigs = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('payment_configs')
-      .select('id, bank_account, bank_id, bank_name, account_holder_name, qr_template_url')
-      .eq('is_active', true)
-      .order('created_at', { ascending: true })
-    if (error) throw error
-    setConfigs(data || [])
-    if (data?.length && !selectedConfigId) setSelectedConfigId(data[0].id)
-  }, [supabase, selectedConfigId])
+    const res = await fetch('/api/payment-configs', { credentials: 'same-origin' })
+    if (!res.ok) throw new Error('config')
+    const j = (await res.json()) as { configs?: PaymentConfig[] }
+    const data = j.configs || []
+    setConfigs(data)
+    if (data.length && !selectedConfigId) setSelectedConfigId(data[0].id)
+  }, [selectedConfigId])
 
   const createPayment = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    const userId = user?.id ?? (isLocalhost() ? getDevUserId() : null)
+    let userId = await getClientUserId()
+    if (!userId && isLocalhost()) userId = getDevUserId()
     if (!userId) {
       toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: tr('Vui lòng đăng nhập để nạp tiền.', 'Please sign in to top up.', '请登录后充值。', 'チャージするにはログインしてください。', '충전하려면 로그인해 주세요.'), variant: 'destructive' })
       return
@@ -117,30 +114,29 @@ export function DepositCreditPopup({ open, onOpenChange, returnPath, onCreditsUp
       })
       const creditsToAdd = Math.floor(amount / CREDIT_UNIT_PRICE_VND)
 
-      const { data: pay, error } = await supabase
-        .from('payments')
-        .insert({
-          user_id: userId,
+      const payRes = await fetch('/api/account/payments', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           amount,
           credits_added: creditsToAdd,
           transaction_content: content,
           bank_account: config.bank_account,
           bank_name: config.bank_name,
           qr_url: qrUrl,
-          status: 'pending',
-        })
-        .select()
-        .single()
-
-      if (error) throw error
-      setPayment(pay)
+        }),
+      })
+      const payJson = (await payRes.json()) as { payment?: Payment; error?: string }
+      if (!payRes.ok || !payJson.payment) throw new Error(payJson.error || 'payment')
+      setPayment(payJson.payment)
     } catch (e) {
       console.error(e)
       toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: tr('Không thể tạo giao dịch', 'Cannot create transaction', '无法创建交易', '取引を作成できません', '거래를 생성할 수 없습니다'), variant: 'destructive' })
     } finally {
       setCreating(false)
     }
-  }, [configs, selectedConfigId, amount, supabase])
+  }, [configs, selectedConfigId, amount])
 
   const handleCreatePaymentPress = async () => {
     if (createPressLockRef.current || creating) return
@@ -216,7 +212,11 @@ export function DepositCreditPopup({ open, onOpenChange, returnPath, onCreditsUp
   useEffect(() => {
     if (!open || !payment || payment.status === 'completed') return
     const interval = setInterval(async () => {
-      const { data } = await supabase.from('payments').select('status, amount, credits_added').eq('id', payment.id).single()
+      const res = await fetch(`/api/account/payments/${encodeURIComponent(payment.id)}`, {
+        credentials: 'same-origin',
+      })
+      const j = (await res.json()) as { payment?: { status: string; amount: number; credits_added: number } }
+      const data = j.payment
       if (data?.status === 'completed') {
         const route = returnPath || window.location.pathname
         trackEvent('topup_success', {
@@ -248,7 +248,7 @@ export function DepositCreditPopup({ open, onOpenChange, returnPath, onCreditsUp
       }
     }, 2000) // Poll mỗi 2 giây
     return () => clearInterval(interval)
-  }, [open, payment?.id, payment?.status, supabase, onOpenChange, returnPath, router, onCreditsUpdated])
+  }, [open, payment?.id, payment?.status, onOpenChange, returnPath, router, onCreditsUpdated])
 
   const config = configs.find(c => c.id === selectedConfigId)
 

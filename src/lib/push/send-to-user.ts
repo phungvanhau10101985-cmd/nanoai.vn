@@ -1,5 +1,7 @@
 import webpush from 'web-push'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+import { isPgConfigured } from '@/lib/db/pool'
+import { getPgPool } from '@/lib/db/pool'
+import { pgQuery } from '@/lib/db/pg-query'
 
 export function isWebPushConfigured(): boolean {
   return Boolean(
@@ -11,20 +13,19 @@ export function isWebPushConfigured(): boolean {
  * Gửi Web Push tới mọi thiết bị đã đăng ký của user (Android PWA, Chrome…).
  * Bỏ qua nếu chưa cấu VAPID. Xóa subscription hết hạn (410/404).
  */
+type PushSubRow = { id: string; endpoint: string; p256dh: string; auth: string }
+
+async function deletePushSubscriptionById(subId: string): Promise<void> {
+  if (!isPgConfigured()) return
+  await getPgPool().query('delete from public.push_subscriptions where id = $1::uuid', [subId])
+}
+
 export async function sendPushNotificationsToUser(
   userId: string,
   payload: { title: string; body: string; url?: string }
 ): Promise<void> {
   try {
     if (!isWebPushConfigured()) return
-
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const key = process.env.SUPABASE_SERVICE_ROLE_KEY
-    if (!url || !key) return
-
-    const admin = createSupabaseClient(url, key, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    })
 
     const subject = process.env.VAPID_SUBJECT?.trim() || 'mailto:thongbao@nanoai.vn'
     webpush.setVapidDetails(
@@ -33,12 +34,15 @@ export async function sendPushNotificationsToUser(
       process.env.VAPID_PRIVATE_KEY!.trim()
     )
 
-    const { data: subs, error } = await admin
-      .from('push_subscriptions')
-      .select('id, endpoint, p256dh, auth')
-      .eq('user_id', userId)
+    if (!isPgConfigured()) return
+    const subs: PushSubRow[] = await pgQuery<PushSubRow>(
+      `select id::text, endpoint, p256dh, auth
+       from public.push_subscriptions
+       where user_id = $1::uuid`,
+      [userId]
+    )
 
-    if (error || !subs?.length) return
+    if (!subs.length) return
 
     const shortBody =
       payload.body.length > 220 ? `${payload.body.slice(0, 217)}...` : payload.body
@@ -59,7 +63,7 @@ export async function sendPushNotificationsToUser(
         const err = e as { statusCode?: number; status?: number }
         const status = err.statusCode ?? err.status
         if (status === 410 || status === 404) {
-          await admin.from('push_subscriptions').delete().eq('id', row.id)
+          await deletePushSubscriptionById(row.id)
         } else {
           console.error('[web-push]', status, e)
         }

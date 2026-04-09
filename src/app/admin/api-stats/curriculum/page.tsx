@@ -1,5 +1,4 @@
 import Link from 'next/link'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
@@ -49,14 +48,9 @@ export default async function AdminCurriculumApiStatsPage({
   const fromDate = fromParam || toYMD(thirtyDaysAgo)
   const toDate = toParam || toYMD(today)
 
-  const adminSupabase = createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
-
   const fromIso = fromDate + 'T00:00:00'
   const toIso = toDate + 'T23:59:59.999'
-  const { data: logsRaw, error } = await fetchAllApiUsageLogsInRange(adminSupabase, fromIso, toIso, {
+  const { data: logsRaw, error } = await fetchAllApiUsageLogsInRange(fromIso, toIso, {
     featureLike: 'curriculum-%',
   })
 

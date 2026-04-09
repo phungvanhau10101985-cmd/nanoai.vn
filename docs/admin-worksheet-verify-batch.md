@@ -9,7 +9,7 @@
 ## Triển khai DB
 
 ```bash
-npx supabase db push
+npm run db:push
 ```
 
 Migration: `supabase/migrations/20260327000000_worksheet_verify_batch_reports.sql` (bảng + RPC `get_worksheet_ids_pending_verify` – chỉ `service_role` gọi được).

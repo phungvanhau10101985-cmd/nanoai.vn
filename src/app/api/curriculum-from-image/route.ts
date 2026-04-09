@@ -2,12 +2,12 @@ import { randomUUID } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_PRO } from '@/lib/gemini-config'
-import { createClient } from '@/lib/supabase/server'
+import { getUserOrBypass } from '@/lib/auth'
 import { CurriculumApiFeature, trackCurriculumGeminiResult } from '@/lib/curriculum-api-usage'
 import { trackApiUsage } from '@/lib/track-ai-usage'
+import { isPgConfigured } from '@/lib/db/pool'
 import {
   CURRICULUM_AI_CHARGE_TYPES,
-  curriculumAiAdminClient,
   curriculumMarkdownCreditHash,
   FROM_IMAGE_CREDIT_COST,
   isCurriculumAiCreditsDisabled,
@@ -204,15 +204,11 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const supabase = createClient()
-    const {
-      data: { user: visionUser },
-    } = await supabase.auth.getUser()
+    const visionUser = await getUserOrBypass()
     const trackUserId = visionUser?.id ?? null
     const billingUserId = visionUser?.id
 
     const chargeDisabled = isCurriculumAiCreditsDisabled()
-    const admin = chargeDisabled ? null : curriculumAiAdminClient()
     const fromImageCost = FROM_IMAGE_CREDIT_COST
 
     if (!chargeDisabled && !billingUserId) {
@@ -222,16 +218,16 @@ export async function POST(req: NextRequest) {
       )
     }
     if (!chargeDisabled) {
-      if (!admin) {
+      if (!isPgConfigured()) {
         return NextResponse.json(
           {
-            error: 'Máy chủ thiếu cấu hình trừ credit (SUPABASE_SERVICE_ROLE_KEY).',
+            error: 'Máy chủ thiếu DATABASE_URL — không thể kiểm tra/trừ credit.',
             code: 'BILLING_CONFIG_MISSING',
           },
           { status: 503 }
         )
       }
-      const bal = await readUserCreditBalance(admin, billingUserId!)
+      const bal = await readUserCreditBalance(billingUserId!)
       if (bal < fromImageCost) {
         return NextResponse.json(
           {
@@ -377,9 +373,9 @@ Ràng buộc:
     let creditsCharged = false
     let newBalance: number | undefined
     let chargeError: string | undefined
-    if (!chargeDisabled && admin && billingUserId) {
+    if (!chargeDisabled && isPgConfigured() && billingUserId) {
       try {
-        const spend = await spendCurriculumAiCredits(admin, {
+        const spend = await spendCurriculumAiCredits({
           userId: billingUserId,
           amount: fromImageCost,
           chargeType: CURRICULUM_AI_CHARGE_TYPES.fromImage,

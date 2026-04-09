@@ -1,7 +1,7 @@
 import { MetadataRoute } from 'next'
 import { SITE_URL } from '@/lib/seo'
 
-// LƯU Ý: Production cần set NEXT_PUBLIC_BASE_URL=https://nanoai.vn khi build. Nếu để localhost, Host/Sitemap sẽ sai.
+// Production: set NEXT_PUBLIC_BASE_URL (domain thật) khi build để host/sitemap đúng.
 export default function robots(): MetadataRoute.Robots {
   return {
     rules: [

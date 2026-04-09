@@ -1,7 +1,5 @@
-import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Database } from '@/types/database.types'
-
-type Db = SupabaseClient<Database>
+import { insertPartnerAiTokenUsagePg } from '@/lib/db/partner-ai-token-usage-pg'
+import { isPgConfigured } from '@/lib/db/pool'
 
 export type PartnerAiTokenUsageInsert = {
   partner_id: string
@@ -14,24 +12,16 @@ export type PartnerAiTokenUsageInsert = {
   ai_job_id?: string | null
 }
 
-export async function insertPartnerAiTokenUsage(db: Db, row: PartnerAiTokenUsageInsert): Promise<void> {
-  const prompt = row.prompt_tokens ?? null
-  const completion = row.completion_tokens ?? null
-  let total = row.total_tokens ?? null
-  if (total == null && prompt != null && completion != null) {
-    total = prompt + completion
+/** Ghi token usage — chỉ Postgres. */
+export async function insertPartnerAiTokenUsage(row: PartnerAiTokenUsageInsert): Promise<void> {
+  if (!isPgConfigured()) {
+    console.warn('[partner-ai-token-usage] skipped (no DATABASE_URL)')
+    return
   }
-  const { error } = await db.from('messaging_partner_ai_token_usage').insert({
-    partner_id: row.partner_id,
-    provider: row.provider ?? 'deepseek',
-    model: row.model,
-    prompt_tokens: prompt,
-    completion_tokens: completion,
-    total_tokens: total,
-    conversation_id: row.conversation_id ?? null,
-    ai_job_id: row.ai_job_id ?? null,
-  })
-  if (error) {
-    console.warn('[partner-ai-token-usage] insert failed', error.message)
+  try {
+    const ok = await insertPartnerAiTokenUsagePg(row)
+    if (!ok) console.warn('[partner-ai-token-usage] insert returned false')
+  } catch (e) {
+    console.warn('[partner-ai-token-usage] PG insert failed', e)
   }
 }

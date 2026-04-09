@@ -17,7 +17,6 @@ import {
 } from 'lucide-react'
 import { DepositCreditButton } from '@/components/deposit-credit-button'
 import { DepositCreditMenuItem } from '@/components/deposit-credit-menu-item'
-import { createClient } from '@/lib/supabase/client'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,11 +26,11 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import type { User } from '@supabase/supabase-js'
+import type { AppUser } from '@/lib/auth/app-user'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
 
 interface HeaderUserMenuProps {
-  user: User
+  user: AppUser
   credits: number
   isAdmin?: boolean
   t: Dictionary
@@ -47,15 +46,12 @@ export function HeaderUserMenu({ user, credits, isAdmin, t }: HeaderUserMenuProp
 
   useEffect(() => {
     let mounted = true
-    const supabase = createClient()
     const refreshCredits = async () => {
-      const { data } = await supabase
-        .from('credits')
-        .select('balance')
-        .eq('user_id', user.id)
-        .single()
+      const res = await fetch('/api/account/credits', { credentials: 'same-origin' })
+      if (!res.ok) return
+      const j = (await res.json()) as { balance?: unknown }
       if (!mounted) return
-      const nextBalance = Number(data?.balance)
+      const nextBalance = Number(j.balance)
       if (Number.isFinite(nextBalance)) setDisplayCredits(nextBalance)
     }
     void refreshCredits()
@@ -82,15 +78,20 @@ export function HeaderUserMenu({ user, credits, isAdmin, t }: HeaderUserMenuProp
             aria-label={t.menu.accountMenu}
           >
             <Avatar className="pointer-events-none h-8 w-8">
-              <AvatarImage src={user.user_metadata?.avatar_url} alt={user.email} />
-              <AvatarFallback>{user.email?.charAt(0).toUpperCase()}</AvatarFallback>
+              <AvatarImage
+                src={typeof user.user_metadata?.avatar_url === 'string' ? user.user_metadata.avatar_url : undefined}
+                alt={user.email ?? ''}
+              />
+              <AvatarFallback>{(user.email ?? '?').charAt(0).toUpperCase()}</AvatarFallback>
             </Avatar>
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent className="w-56 z-[1000]" align="end" sideOffset={8}>
           <DropdownMenuLabel className="font-normal">
             <div className="flex flex-col space-y-1">
-              <p className="text-sm font-medium leading-none">{user.user_metadata?.full_name}</p>
+              <p className="text-sm font-medium leading-none">
+                {typeof user.user_metadata?.full_name === 'string' ? user.user_metadata.full_name : ''}
+              </p>
               <p className="text-xs leading-none text-muted-foreground">
                 {user.email}
               </p>

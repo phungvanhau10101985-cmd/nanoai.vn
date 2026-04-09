@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
-
 export const maxDuration = 120
 import { getUserForAction } from '@/lib/auth'
-import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { isPgConfigured } from '@/lib/db/pool'
+import { fetchAllRowsFromPublicTablePaged } from '@/lib/db/admin-export-pg'
+import { getProfileRoleWithFallback } from '@/lib/db/read-user-dashboard-pg'
 import * as XLSX from 'xlsx'
 import { PUBLIC_TABLES, type PublicTableName } from './public-tables'
 
@@ -41,12 +41,11 @@ function flattenRowForExcel(row: Record<string, unknown>): Record<string, unknow
 }
 
 async function requireAdmin() {
-  const supabase = createClient()
-  const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+  const authResult = await getUserForAction()
   if ('error' in authResult) return { error: authResult.error, status: 401 }
   const { user } = authResult
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-  if (profile?.role !== 'admin') {
+  const role = await getProfileRoleWithFallback(user.id)
+  if (role !== 'admin') {
     return { error: 'Chỉ quản trị viên mới được xuất dữ liệu.', status: 403 }
   }
   return { user }
@@ -73,30 +72,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Chọn ít nhất một bảng để xuất.' }, { status: 400 })
     }
 
-    const admin = createAdminClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      { auth: { persistSession: false } }
-    )
+    if (!isPgConfigured()) {
+      return NextResponse.json({ error: 'Chưa cấu hình cơ sở dữ liệu (DATABASE_URL).' }, { status: 503 })
+    }
 
     const PAGE_SIZE = 1000
     const tablesData: Record<string, unknown[]> = {}
     for (const table of tables) {
-      const allRows: unknown[] = []
-      let offset = 0
-      let hasMore = true
-      while (hasMore) {
-        const { data, error } = await admin.from(table).select('*').range(offset, offset + PAGE_SIZE - 1)
-        if (error) {
-          tablesData[table] = [{ _error: error.message }]
-          break
-        }
-        const rows = data ?? []
-        allRows.push(...rows)
-        hasMore = rows.length === PAGE_SIZE
-        offset += PAGE_SIZE
+      try {
+        tablesData[table] = await fetchAllRowsFromPublicTablePaged(table as PublicTableName, PAGE_SIZE)
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        tablesData[table] = [{ _error: msg }]
       }
-      if (!tablesData[table]) tablesData[table] = allRows
     }
 
     const dateStr = new Date().toISOString().slice(0, 10)

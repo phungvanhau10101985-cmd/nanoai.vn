@@ -1,4 +1,3 @@
-import { createClient } from '@/lib/supabase/server'
 import { redirectToLogin } from '@/lib/auth/login-redirect'
 import { getUserOrBypass } from '@/lib/auth'
 import ThietKeBaoBiClientPage from './thiet-ke-bao-bi-client-page'
@@ -18,8 +17,7 @@ export const metadata = buildMetadata({
 })
 
 export default async function ThietKeBaoBiPage() {
-  const supabase = createClient()
-  const user = await getUserOrBypass(() => supabase.auth.getUser())
+  const user = await getUserOrBypass()
   if (!user) redirectToLogin()
 
   const jsonLd = buildJsonLdService(

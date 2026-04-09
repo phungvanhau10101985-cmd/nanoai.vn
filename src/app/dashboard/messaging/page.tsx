@@ -1,4 +1,5 @@
-import { createClient } from '@/lib/supabase/server'
+import { fetchMessagingPartnersByOwnerFromPg } from '@/lib/db/messaging-partners-pg'
+import { isPgConfigured } from '@/lib/db/pool'
 import { redirectToLogin } from '@/lib/auth/login-redirect'
 import { getUserOrBypass } from '@/lib/auth'
 import { Toaster } from '@/components/ui/toaster'
@@ -22,15 +23,14 @@ export function generateMetadata(): Metadata {
 export default async function DashboardMessagingPage() {
   const { t } = getServerDictionary()
   const pm = t.partnerMessaging
-  const supabase = createClient()
-  const user = await getUserOrBypass(() => supabase.auth.getUser())
+  const user = await getUserOrBypass()
   if (!user) redirectToLogin()
 
-  const { data: rows } = await supabase
-    .from('messaging_partners')
-    .select('*')
-    .eq('owner_user_id', user.id)
-    .order('created_at', { ascending: false })
+  let rows: NonNullable<Awaited<ReturnType<typeof fetchMessagingPartnersByOwnerFromPg>>> = []
+  if (isPgConfigured()) {
+    const fromPg = await fetchMessagingPartnersByOwnerFromPg(user.id)
+    if (fromPg !== null) rows = fromPg
+  }
 
   return (
     <MessagingInboxScrollLock>

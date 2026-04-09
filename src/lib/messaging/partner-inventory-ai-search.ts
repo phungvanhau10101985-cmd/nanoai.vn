@@ -1,10 +1,13 @@
-import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/database.types'
+import {
+  fetchPartnerInventoryDefaultForAiFromPg,
+  fetchPartnerInventoryRowsByTokenIlikeFromPg,
+} from '@/lib/db/messaging-partner-inventory-pg'
+import { isPgConfigured } from '@/lib/db/pool'
 
-type Db = SupabaseClient<Database>
 export type PartnerInventoryRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
 
-/** PostgREST `.or()` uses commas; strip chars that break filters or LIKE. */
+/** Chuỗi lọc kiểu `.or()` (REST) dùng dấu phẩy — loại ký tự làm hỏng filter hoặc LIKE. */
 export function sanitizeInventorySearchToken(raw: string): string {
   return raw.replace(/[%_,().]/g, '').trim().slice(0, 64)
 }
@@ -142,32 +145,28 @@ export function scoreInventoryRowMatch(row: PartnerInventoryRow, needles: string
   return score
 }
 
-async function fetchDefaultInventory(db: Db, partnerId: string): Promise<PartnerInventoryRow[]> {
-  const { data } = await db
-    .from('messaging_partner_inventory')
-    .select('*')
-    .eq('partner_id', partnerId)
-    .order('sort_order', { ascending: true })
-    .limit(PARTNER_AI_INVENTORY_CONTEXT_LIMIT)
-  return data ?? []
+async function fetchDefaultInventory(partnerId: string): Promise<PartnerInventoryRow[]> {
+  if (!isPgConfigured()) return []
+  try {
+    const rows = await fetchPartnerInventoryDefaultForAiFromPg(partnerId, PARTNER_AI_INVENTORY_CONTEXT_LIMIT)
+    return rows ?? []
+  } catch (e) {
+    console.warn('[partner-inventory-ai-search] fetchDefaultInventory PG failed', e)
+    return []
+  }
 }
 
-async function fetchRowsMatchingToken(
-  db: Db,
-  partnerId: string,
-  token: string
-): Promise<PartnerInventoryRow[]> {
+async function fetchRowsMatchingToken(partnerId: string, token: string): Promise<PartnerInventoryRow[]> {
   const clean = sanitizeInventorySearchToken(token).replace(/[%_]/g, '')
   if (clean.length < 2) return []
-  const pattern = `%${clean}%`
-  const { data, error } = await db
-    .from('messaging_partner_inventory')
-    .select('*')
-    .eq('partner_id', partnerId)
-    .or(`sku.ilike.${pattern},name.ilike.${pattern},description.ilike.${pattern}`)
-    .limit(PER_TOKEN_QUERY_LIMIT)
-  if (error) return []
-  return data ?? []
+  if (!isPgConfigured()) return []
+  try {
+    const rows = await fetchPartnerInventoryRowsByTokenIlikeFromPg(partnerId, token, PER_TOKEN_QUERY_LIMIT)
+    return rows ?? []
+  } catch (e) {
+    console.warn('[partner-inventory-ai-search] fetchRowsMatchingToken PG failed', e)
+    return []
+  }
 }
 
 /**
@@ -175,14 +174,13 @@ async function fetchRowsMatchingToken(
  * Dùng để "neo" ngữ cảnh cho AI khi khách hỏi kiểu: "mã B3001 còn hàng không?".
  */
 export async function fetchInventoryRowsByExplicitSku(
-  db: Db,
   partnerId: string,
   customerMessage: string
 ): Promise<PartnerInventoryRow[]> {
   const explicit = extractExplicitSkuCandidates(customerMessage)
   if (!explicit.length) return []
 
-  const candidateChunks = await Promise.all(explicit.map((tok) => fetchRowsMatchingToken(db, partnerId, tok)))
+  const candidateChunks = await Promise.all(explicit.map((tok) => fetchRowsMatchingToken(partnerId, tok)))
   const skuNormSet = new Set(explicit.map((x) => normalizeSkuComparable(x)).filter(Boolean))
   const merged = new Map<string, PartnerInventoryRow>()
   for (const chunk of candidateChunks) {
@@ -200,19 +198,18 @@ export async function fetchInventoryRowsByExplicitSku(
  * scored in-app; fill remainder with default sort_order list (same as before).
  */
 export async function fetchInventoryRowsForPartnerAi(
-  db: Db,
   partnerId: string,
   customerMessage: string
 ): Promise<PartnerInventoryRow[]> {
   const needles = extractInventorySearchTokens(customerMessage)
 
   if (!needles.length) {
-    return fetchDefaultInventory(db, partnerId)
+    return fetchDefaultInventory(partnerId)
   }
 
   const [defaultRowsParallel, ...searchChunks] = await Promise.all([
-    fetchDefaultInventory(db, partnerId),
-    ...needles.map((t) => fetchRowsMatchingToken(db, partnerId, t)),
+    fetchDefaultInventory(partnerId),
+    ...needles.map((t) => fetchRowsMatchingToken(partnerId, t)),
   ])
 
   const merged = new Map<string, PartnerInventoryRow>()

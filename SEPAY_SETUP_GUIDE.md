@@ -33,9 +33,8 @@ https://your-domain.com/api/sepay-webhook
 
 ### 2. Cập nhật thông tin ngân hàng trong database
 
-1. Vào **Supabase Dashboard** → **Table Editor**
-2. Mở bảng **`payment_configs`**
-3. Cập nhật thông tin ngân hàng thực tế:
+1. Mở bảng **`payment_configs`** (Table editor hoặc `SELECT` / `UPDATE` qua SQL).
+2. Cập nhật thông tin ngân hàng thực tế:
 
 | Field | Giá trị mẫu | Cập nhật thành |
 |-------|------------|----------------|
@@ -175,7 +174,7 @@ curl -X POST http://localhost:3000/api/sepay-webhook \
 
 ### Thu Do Online:
 - Kiểm tra logs trong console
-- Kiểm tra database trực tiếp trong Supabase
+- Kiểm tra database trực tiếp (SQL client / Table editor)
 - Test với số tiền nhỏ trước
 
 ## Kết quả mong đợi

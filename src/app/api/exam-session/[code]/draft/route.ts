@@ -1,9 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-import { createClient as createServerClient } from '@/lib/supabase/server'
+import { getUserForAction } from '@/lib/auth'
+import { hasCompleteClassMemberProfileForExamPg } from '@/lib/db/classes-pg'
+import {
+  fetchExamAttemptOpenForDraftPg,
+  fetchExamQuestionOptionsForSessionPg,
+  fetchExamSessionActiveByCodeForDraftPg,
+  updateExamAttemptDraftAnswersPg,
+} from '@/lib/db/exam-session-pg'
+import { isPgConfigured } from '@/lib/db/pool'
 import { verifyExamLayoutToken } from '@/lib/exam-layout-token'
-import { CLASS_ENROLLMENT_ERROR_VI, hasCompleteClassEnrollment } from '@/lib/lop/require-class-enrollment'
-import { publicExamEssayImageUrlPrefix } from '@/lib/exam-essay-config'
+import { CLASS_ENROLLMENT_ERROR_VI } from '@/lib/lop/require-class-enrollment'
+import { isPublicExamEssayImageUrl } from '@/lib/exam-essay-config'
 import { isServerDeadlinePassed } from '@/lib/exam-session/finalize-overdue-exam-attempt'
 
 const MAX_ESSAY_TEXT = 12000
@@ -11,8 +18,7 @@ const MAX_IMAGES_PER_ESSAY = 10
 
 function normalizeEssayDraft(
   raw: unknown,
-  essayQuestionIds: Set<string>,
-  urlPrefix: string
+  essayQuestionIds: Set<string>
 ): Record<string, { text: string; imageUrls: string[] }> {
   const out: Record<string, { text: string; imageUrls: string[] }> = {}
   if (!raw || typeof raw !== 'object') return out
@@ -27,7 +33,7 @@ function normalizeEssayDraft(
     if (Array.isArray(urlsRaw)) {
       for (const u of urlsRaw) {
         const s = String(u ?? '').trim()
-        if (!s.startsWith(urlPrefix)) continue
+        if (!isPublicExamEssayImageUrl(s)) continue
         if (imageUrls.length >= MAX_IMAGES_PER_ESSAY) break
         if (!imageUrls.includes(s)) imageUrls.push(s)
       }
@@ -43,12 +49,11 @@ export async function PATCH(
   { params }: { params: Promise<{ code: string }> }
 ) {
   try {
-    const serverSupabase = createServerClient()
-    const { data: authData } = await serverSupabase.auth.getUser()
-    const user = authData.user
-    if (!user) {
-      return NextResponse.json({ error: 'Vui lòng đăng nhập.' }, { status: 401 })
+    const auth = await getUserForAction('Vui lòng đăng nhập.')
+    if ('error' in auth) {
+      return NextResponse.json({ error: auth.error }, { status: 401 })
     }
+    const user = auth.user
 
     const { code } = await params
     if (!code || code.length < 4) {
@@ -65,51 +70,47 @@ export async function PATCH(
       return NextResponse.json({ error: 'Thiếu answers.' }, { status: 400 })
     }
 
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      { auth: { persistSession: false } }
-    )
+    if (!isPgConfigured()) {
+      return NextResponse.json({ error: 'Chưa cấu hình cơ sở dữ liệu.' }, { status: 503 })
+    }
 
-    const { data: session, error: sessionErr } = await supabase
-      .from('exam_sessions')
-      .select('id, class_id, duration_minutes')
-      .eq('code', code.toUpperCase())
-      .eq('status', 'active')
-      .single()
-
-    if (sessionErr || !session) {
+    const codeUpper = code.toUpperCase()
+    const sessionRow = await fetchExamSessionActiveByCodeForDraftPg(codeUpper)
+    if (sessionRow === null) {
+      return NextResponse.json({ error: 'Lỗi đọc bài thi.' }, { status: 500 })
+    }
+    if (sessionRow === 'not_found') {
       return NextResponse.json({ error: 'Không tìm thấy bài thi.' }, { status: 404 })
     }
 
     const layout = await verifyExamLayoutToken(layoutToken)
-    if (!layout || layout.sessionId !== String(session.id) || layout.userId !== user.id) {
+    if (!layout || layout.sessionId !== String(sessionRow.id) || layout.userId !== user.id) {
       return NextResponse.json(
         { error: 'Phiên làm bài không hợp lệ hoặc đã hết hạn.' },
         { status: 400 }
       )
     }
 
-    if (session.class_id) {
-      const ok = await hasCompleteClassEnrollment(supabase, String(session.class_id), user.id)
+    if (sessionRow.class_id) {
+      const ok = await hasCompleteClassMemberProfileForExamPg(String(sessionRow.class_id), user.id)
+      if (ok === null) {
+        return NextResponse.json({ error: 'Lỗi kiểm tra tham gia lớp.' }, { status: 500 })
+      }
       if (!ok) {
         return NextResponse.json({ error: CLASS_ENROLLMENT_ERROR_VI }, { status: 403 })
       }
     }
 
-    const { data: attempt, error: attErr } = await supabase
-      .from('exam_attempts')
-      .select('id, submitted_at, deadline_at, started_at')
-      .eq('session_id', session.id)
-      .eq('user_id', user.id)
-      .maybeSingle()
-
-    if (attErr || !attempt || attempt.submitted_at != null) {
+    const attemptState = await fetchExamAttemptOpenForDraftPg(sessionRow.id, user.id)
+    if (attemptState === null) {
+      return NextResponse.json({ error: 'Lỗi đọc phiên làm bài.' }, { status: 500 })
+    }
+    if (attemptState === 'missing' || attemptState === 'submitted') {
       return NextResponse.json({ error: 'Không có phiên làm bài đang mở.' }, { status: 400 })
     }
+    const attempt = attemptState
 
-    const durationMin =
-      typeof session.duration_minutes === 'number' ? session.duration_minutes : 15
+    const durationMin = sessionRow.duration_minutes
     if (
       isServerDeadlinePassed(
         attempt.deadline_at,
@@ -124,13 +125,14 @@ export async function PATCH(
       )
     }
 
-    const { data: questions } = await supabase
-      .from('exam_questions')
-      .select('id, options')
-      .eq('session_id', session.id)
+    const questions = await fetchExamQuestionOptionsForSessionPg(sessionRow.id)
+    if (questions === null) {
+      return NextResponse.json({ error: 'Lỗi đọc câu hỏi.' }, { status: 500 })
+    }
 
+    const questionRows = questions as Array<{ id: string; options?: unknown }>
     const scorableQuestionIds = new Set(
-      (questions ?? [])
+      questionRows
         .filter((q) => {
           const opts = Array.isArray(q.options) ? q.options : []
           return opts.length >= 2
@@ -138,13 +140,12 @@ export async function PATCH(
         .map((q) => String(q.id))
     )
     const essayQuestionIds = new Set(
-      (questions ?? [])
+      questionRows
         .filter((q) => !scorableQuestionIds.has(String(q.id)))
         .map((q) => String(q.id))
     )
 
-    const urlPrefix = publicExamEssayImageUrlPrefix()
-    const mergedEssay = normalizeEssayDraft(body?.essaySubmission, essayQuestionIds, urlPrefix)
+    const mergedEssay = normalizeEssayDraft(body?.essaySubmission, essayQuestionIds)
     for (const qid of essayQuestionIds) {
       if (!mergedEssay[qid]) mergedEssay[qid] = { text: '', imageUrls: [] }
       const textFromAnswer =
@@ -156,18 +157,12 @@ export async function PATCH(
       }
     }
 
-    const { error: upErr } = await supabase
-      .from('exam_attempts')
-      .update({
-        answers,
-        essay_submission: mergedEssay,
-      })
-      .eq('id', attempt.id)
-      .is('submitted_at', null)
-
-    if (upErr) {
-      console.error('[exam-draft]', upErr.message)
+    const updated = await updateExamAttemptDraftAnswersPg(attempt.id, user.id, answers, mergedEssay)
+    if (updated === null) {
       return NextResponse.json({ error: 'Lưu nháp thất bại.' }, { status: 500 })
+    }
+    if (!updated) {
+      return NextResponse.json({ error: 'Không có phiên làm bài đang mở.' }, { status: 400 })
     }
 
     return NextResponse.json({ ok: true })

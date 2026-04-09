@@ -19,6 +19,11 @@ export interface Database {
           website: string | null
           /** admin | user — RLS / quản trị */
           role: string | null
+          english_coach_job: string | null
+          english_coach_city: string | null
+          english_coach_age: number | null
+          english_coach_gender: string | null
+          gender: string | null
         }
         Insert: {
           id: string
@@ -28,6 +33,11 @@ export interface Database {
           avatar_url?: string | null
           website?: string | null
           role?: string | null
+          english_coach_job?: string | null
+          english_coach_city?: string | null
+          english_coach_age?: number | null
+          english_coach_gender?: string | null
+          gender?: string | null
         }
         Update: {
           id?: string
@@ -37,6 +47,11 @@ export interface Database {
           avatar_url?: string | null
           website?: string | null
           role?: string | null
+          english_coach_job?: string | null
+          english_coach_city?: string | null
+          english_coach_age?: number | null
+          english_coach_gender?: string | null
+          gender?: string | null
         }
         Relationships: []
       }

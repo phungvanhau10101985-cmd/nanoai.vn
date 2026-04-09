@@ -2,16 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
-import { createClient } from '@/lib/supabase/server'
+import { getUserOrBypass } from '@/lib/auth'
 
 /** Kiểm tra câu hỏi trắc nghiệm chèn thủ công – đối chiếu đáp án với nội dung slide.
  * Model: Gemini 2.5 Flash.
  */
 export async function POST(req: NextRequest) {
   try {
-    const supabase = createClient()
-    const { data: { user: authUser } } = await supabase.auth.getUser()
-    const userId = authUser?.id ?? null
+    const u = await getUserOrBypass()
+    const userId = u?.id ?? null
 
     const body = await req.json().catch(() => ({}))
     const slideTitle = String(body?.slideTitle ?? '').trim()

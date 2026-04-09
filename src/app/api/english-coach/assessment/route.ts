@@ -1,15 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
+import { isPgConfigured } from '@/lib/db/pool'
+import { insertLanguageCoachAssessmentPg } from '@/lib/db/language-coach-assessment-pg'
 import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
 import {
   EnglishCoachApiFeature,
   parseCoachUsageContextPayload,
   trackEnglishCoachGeminiResult,
 } from '@/lib/english-coach-api-usage'
-import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
-
 type Payload = {
   assessmentType?: 'baseline' | 'checkpoint'
   targetLanguage?: string
@@ -28,10 +27,6 @@ type AssessmentResult = {
   readingScore: number
   writingScore: number
   summary: string
-}
-
-function adminClient() {
-  return createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 }
 
 function clampScore(value: unknown, fallback = 60): number {
@@ -119,10 +114,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Cần ít nhất 2 câu mẫu để chấm CEFR.' }, { status: 400 })
     }
 
-    const supabase = createClient()
-    const auth = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập để chạy bài test.')
+    const auth = await getUserForAction()
     if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
     const { user } = auth
+    if (!isPgConfigured()) {
+      return NextResponse.json({ error: 'Database not configured.' }, { status: 503 })
+    }
 
     const apiKey = process.env.GOOGLE_API_KEY
     let assessed: AssessmentResult | null = null
@@ -164,35 +161,29 @@ Quy tắc:
 
     if (!assessed) assessed = buildFallbackFromSamples(samples)
 
-    const adminSupabase = adminClient()
-    const insertPayload = {
-      user_id: user.id,
-      assessment_type: assessmentType,
-      target_language: targetLanguage,
-      native_language: nativeLanguage,
-      cefr_level: assessed.cefrLevel,
-      learner_level: assessed.recommendedLevel,
+    const takenAt = new Date().toISOString()
+    const inserted = await insertLanguageCoachAssessmentPg({
+      userId: user.id,
+      assessmentType,
+      targetLanguage,
+      nativeLanguage,
+      cefrLevel: assessed.cefrLevel,
+      learnerLevel: assessed.recommendedLevel,
       confidence: assessed.confidence,
-      overall_score: assessed.overallScore,
-      speaking_score: assessed.speakingScore,
-      listening_score: assessed.listeningScore,
-      reading_score: assessed.readingScore,
-      writing_score: assessed.writingScore,
-      samples_json: JSON.stringify(samples),
+      overallScore: assessed.overallScore,
+      speakingScore: assessed.speakingScore,
+      listeningScore: assessed.listeningScore,
+      readingScore: assessed.readingScore,
+      writingScore: assessed.writingScore,
+      samplesJson: JSON.stringify(samples),
       summary: assessed.summary,
-      taken_at: new Date().toISOString(),
+      takenAtIso: takenAt,
+    })
+
+    if (!inserted.ok) {
+      return NextResponse.json({ error: inserted.message || 'Không lưu được kết quả test.' }, { status: 500 })
     }
-
-    const { data, error } = await adminSupabase
-      .from('language_coach_assessments')
-      .insert(insertPayload)
-      .select(
-        'id, assessment_type, cefr_level, learner_level, confidence, overall_score, speaking_score, listening_score, reading_score, writing_score, summary'
-      )
-      .single()
-
-    if (error) return NextResponse.json({ error: error.message || 'Không lưu được kết quả test.' }, { status: 500 })
-    return NextResponse.json({ assessment: data })
+    return NextResponse.json({ assessment: inserted.row })
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Lỗi không xác định.'
     return NextResponse.json({ error: msg }, { status: 500 })

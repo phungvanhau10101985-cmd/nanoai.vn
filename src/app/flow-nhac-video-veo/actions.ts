@@ -1,8 +1,11 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+import {
+  insertTryOnHistoryCompletedDirectPg,
+  insertTryOnHistoryProcessingPg,
+  updateTryOnHistoryCompletedPg,
+} from '@/lib/db/try-on-history-pg'
 import { revalidatePath } from 'next/cache'
 import { GoogleGenAI, VideoGenerationReferenceType } from '@google/genai'
 import { GoogleGenerativeAI } from '@google/generative-ai'
@@ -13,7 +16,8 @@ import {
   formatGoogleGenAiCaughtErrorForVeoCreate,
 } from '@/lib/gemini/google-genai-error-message'
 import { TRY_ON_HISTORY_INPUT_PLACEHOLDER_SRC } from '@/lib/try-on-history-placeholder'
-import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
+import { uploadTryOnImagePublic, tryOnPublicUrlToStoragePath } from '@/lib/storage/try-on-public-upload'
+import { deleteTryOnHistoryRowAndStorage } from '@/lib/storage/try-on-history-cleanup'
 import { trackApiUsage, trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import {
   buildMusicVideoVeoStandaloneClipPrompt,
@@ -32,9 +36,10 @@ import { writeFile, readFile, mkdtemp, rm } from 'fs/promises'
 import { join } from 'path'
 import { tmpdir } from 'os'
 import { concatMp4AbsolutePathsToFile } from '@/lib/video/concat-mp4-with-ffmpeg'
+import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
+import { deductUserCredits } from '@/lib/music/deduct-user-credits'
 
 const toTenths = (v: number) => Math.round(v * 10)
-const fromTenths = (v: number) => v / 10
 const formatCredits = (v: number) => v.toLocaleString('vi-VN', { maximumFractionDigits: 1 })
 
 const LYRICS_CREDITS = 1
@@ -87,21 +92,17 @@ export async function generateMusicVideoLyrics(formData: FormData) {
     return { error: 'Nhập gợi ý ít nhất 4 ký tự hoặc tải ảnh tham chiếu.' }
   }
 
-  const supabase = createClient()
-  const adminSupabase = createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
-  const result = await getUserForAction(() => supabase.auth.getUser())
+  const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
-  const { data: creditData, error: creditError } = await supabase
-    .from('credits')
-    .select('balance')
-    .eq('user_id', user.id)
-    .single()
-  if (creditError || !creditData || toTenths(creditData.balance) < toTenths(LYRICS_CREDITS)) {
+  let openBalLyrics = 0
+  try {
+    openBalLyrics = await getCreditBalanceByUserId(user.id)
+  } catch {
+    return { error: 'Không đọc được số dư credits.' }
+  }
+  if (toTenths(openBalLyrics) < toTenths(LYRICS_CREDITS)) {
     return {
       error: `Không đủ credits. Cần ${formatCredits(LYRICS_CREDITS)} credits để sinh lời.`,
     }
@@ -203,8 +204,10 @@ Rules:
 
     const lyrics = segments.join('\n\n')
 
-    const newBalance = fromTenths(toTenths(creditData.balance) - toTenths(LYRICS_CREDITS))
-    await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', user.id)
+    const dLyrics = await deductUserCredits(user.id, LYRICS_CREDITS)
+    if (!dLyrics.ok) {
+      return { error: dLyrics.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credits.' : dLyrics.error }
+    }
 
     revalidatePath('/flow-nhac-video-veo')
     return { success: true as const, lyrics, segments }
@@ -278,21 +281,17 @@ export async function generateMusicVideoLyricsNextSegment(formData: FormData) {
     return { error: 'Nhập gợi ý ít nhất 4 ký tự hoặc tải ảnh tham chiếu.' }
   }
 
-  const supabase = createClient()
-  const adminSupabase = createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
-  const result = await getUserForAction(() => supabase.auth.getUser())
+  const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
-  const { data: creditData, error: creditError } = await supabase
-    .from('credits')
-    .select('balance')
-    .eq('user_id', user.id)
-    .single()
-  if (creditError || !creditData || toTenths(creditData.balance) < toTenths(LYRICS_CREDITS)) {
+  let openBalSeg = 0
+  try {
+    openBalSeg = await getCreditBalanceByUserId(user.id)
+  } catch {
+    return { error: 'Không đọc được số dư credits.' }
+  }
+  if (toTenths(openBalSeg) < toTenths(LYRICS_CREDITS)) {
     return {
       error: `Không đủ credits. Cần ${formatCredits(LYRICS_CREDITS)} credits mỗi lần sinh một đoạn.`,
     }
@@ -386,8 +385,10 @@ Hard rules:
       return { error: 'Đoạn lời trả về quá ngắn hoặc không đọc được. Thử lại.' }
     }
 
-    const newBalance = fromTenths(toTenths(creditData.balance) - toTenths(LYRICS_CREDITS))
-    await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', user.id)
+    const dSeg = await deductUserCredits(user.id, LYRICS_CREDITS)
+    if (!dSeg.ok) {
+      return { error: dSeg.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credits.' : dSeg.error }
+    }
 
     revalidatePath('/flow-nhac-video-veo')
     return {
@@ -446,21 +447,17 @@ export async function createMusicVideoVeo8s(formData: FormData) {
       ? buildMusicVideoVeoStandaloneClipPrompt(openingLyrics, styleEn, visualExtra, segmentIndex, segmentTotal)
       : buildMusicVideoVeoUserPrompt(openingLyrics, styleEn, visualExtra)
 
-  const supabase = createClient()
-  const adminSupabase = createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
-  const result = await getUserForAction(() => supabase.auth.getUser())
+  const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
-  const { data: creditData, error: creditError } = await supabase
-    .from('credits')
-    .select('balance')
-    .eq('user_id', user.id)
-    .single()
-  if (creditError || !creditData || toTenths(creditData.balance) < toTenths(CLIP_CREDITS)) {
+  let openBalClip = 0
+  try {
+    openBalClip = await getCreditBalanceByUserId(user.id)
+  } catch {
+    return { error: 'Không đọc được số dư credits.' }
+  }
+  if (toTenths(openBalClip) < toTenths(CLIP_CREDITS)) {
     return {
       error: `Không đủ credits. Cần ${formatCredits(CLIP_CREDITS)} credits.`,
     }
@@ -471,28 +468,23 @@ export async function createMusicVideoVeo8s(formData: FormData) {
   for (let i = 0; i < frames.length; i++) {
     const f = frames[i]
     const path = `uploads/${user.id}/mv_frame_${ts}_${i}.png`
-    const { publicUrl } = await uploadTryOnImagePublic(supabase, path, f, { contentType: f.type || 'image/png' })
+    const { publicUrl } = await uploadTryOnImagePublic(path, f, { contentType: f.type || 'image/png' })
     uploadedUrls.push(publicUrl)
   }
 
-  const { data: historyItem, error: historyError } = await supabase
-    .from('try_on_history')
-    .insert({
-      user_id: user.id,
-      original_image_url: uploadedUrls[0] ?? TRY_ON_HISTORY_INPUT_PLACEHOLDER_SRC,
-      garment_image_url: uploadedUrls[1] ?? uploadedUrls[0] ?? TRY_ON_HISTORY_INPUT_PLACEHOLDER_SRC,
-      status: 'processing',
-      feature: 'veo-music-video-8s',
-      aspect_ratio: aspectRatio,
-    })
-    .select()
-    .single()
+  const historyItem = await insertTryOnHistoryProcessingPg({
+    userId: user.id,
+    originalImageUrl: uploadedUrls[0] ?? TRY_ON_HISTORY_INPUT_PLACEHOLDER_SRC,
+    garmentImageUrl: uploadedUrls[1] ?? uploadedUrls[0] ?? TRY_ON_HISTORY_INPUT_PLACEHOLDER_SRC,
+    feature: 'veo-music-video-8s',
+    aspectRatio,
+  })
 
-  if (historyError || !historyItem) return { error: 'Không thể khởi tạo phiên xử lý.' }
+  if (!historyItem) return { error: 'Không thể khởi tạo phiên xử lý.' }
 
   const apiKey = process.env.GOOGLE_API_KEY
   if (!apiKey) {
-    await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+    await deleteTryOnHistoryRowAndStorage(historyItem.id)
     return { error: 'Thiếu cấu hình GOOGLE_API_KEY.' }
   }
 
@@ -547,35 +539,33 @@ export async function createMusicVideoVeo8s(formData: FormData) {
     }
 
     if (!op.done || !op.response?.generatedVideos?.[0]?.video) {
-      await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+      await deleteTryOnHistoryRowAndStorage(historyItem.id)
       return { error: 'AI không tạo được video. Vui lòng thử lại.' }
     }
 
     const genVideo = op.response.generatedVideos[0].video
     if (!genVideo) {
-      await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+      await deleteTryOnHistoryRowAndStorage(historyItem.id)
       return { error: 'Không lấy được dữ liệu video.' }
     }
     const videoBuffer = await downloadVeoVideoToBuffer(ai, genVideo, apiKey)
 
     const resultPath = `results/${user.id}/veo_mv_${Date.now()}.mp4`
-    const { publicUrl: resultVideoUrl } = await uploadTryOnImagePublic(adminSupabase, resultPath, videoBuffer, {
+    const { publicUrl: resultVideoUrl } = await uploadTryOnImagePublic(resultPath, videoBuffer, {
       contentType: 'video/mp4',
       upsert: true,
     })
 
-    const newBalance = fromTenths(toTenths(creditData.balance) - toTenths(CLIP_CREDITS))
-    await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', user.id)
+    const dClip = await deductUserCredits(user.id, CLIP_CREDITS)
+    if (!dClip.ok) {
+      await deleteTryOnHistoryRowAndStorage(historyItem.id)
+      return { error: dClip.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credits để hoàn tất.' : dClip.error }
+    }
 
     const geminiUri = typeof genVideo?.uri === 'string' && genVideo.uri.length > 0 ? genVideo.uri : null
-    await adminSupabase
-      .from('try_on_history')
-      .update({
-        result_image_url: resultVideoUrl,
-        status: 'completed',
-        ...(geminiUri ? { veo_gemini_video_uri: geminiUri } : {}),
-      })
-      .eq('id', historyItem.id)
+    await updateTryOnHistoryCompletedPg(historyItem.id, resultVideoUrl, {
+      veo_gemini_video_uri: geminiUri,
+    })
 
     trackApiUsage({
       userId: user.id,
@@ -590,32 +580,24 @@ export async function createMusicVideoVeo8s(formData: FormData) {
     revalidatePath('/dashboard/history')
     return { success: true, resultUrl: resultVideoUrl, historyId: historyItem.id }
   } catch (e) {
-    await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+    await deleteTryOnHistoryRowAndStorage(historyItem.id)
     return { error: formatGoogleGenAiCaughtErrorForVeoCreate(e) }
   }
 }
 
 function isUserTryOnResultMp4Url(url: string, userId: string): boolean {
   try {
-    const bunnyBase = process.env.BUNNY_STORAGE_PUBLIC_BASE_URL?.replace(/\/$/, '')
-    if (bunnyBase && url.startsWith(bunnyBase)) {
-      const u = new URL(url)
-      const path = decodeURIComponent(u.pathname.replace(/^\/+/, ''))
-      return path.includes(`results/${userId}/`) && /\.mp4($|\?)/i.test(`${path}${u.search}`)
-    }
-    const base = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, '')
-    if (!base || !url.startsWith(base)) return false
-    const u = new URL(url)
-    const path = u.pathname
-    const needle = `/storage/v1/object/public/try-on-images/results/${userId}/`
-    return path.includes(needle) && /\.mp4($|\?)/i.test(path)
+    const storagePath = tryOnPublicUrlToStoragePath(url)
+    if (!storagePath) return false
+    if (!storagePath.includes(`results/${userId}/`)) return false
+    return /\.mp4($|\?)/i.test(url.trim())
   } catch {
     return false
   }
 }
 
 /**
- * Ghép các MP4 đã tạo (cùng user, URL Supabase public) thành một file — không trừ credits.
+ * Ghép các MP4 đã tạo (cùng user, URL public legacy hoặc Bunny) thành một file — không trừ credits.
  * Cần ffmpeg (gói `ffmpeg-static` trên server).
  */
 export async function mergeFlowMusicVeoClips(formData: FormData) {
@@ -639,12 +621,7 @@ export async function mergeFlowMusicVeoClips(formData: FormData) {
     return { error: 'Tối đa 20 clip mỗi lần ghép.' }
   }
 
-  const supabase = createClient()
-  const adminSupabase = createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
-  const result = await getUserForAction(() => supabase.auth.getUser())
+  const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
@@ -684,19 +661,18 @@ export async function mergeFlowMusicVeoClips(formData: FormData) {
 
     const mergedBuf = await readFile(outPath)
     const resultPath = `results/${user.id}/veo_mv_merged_${Date.now()}.mp4`
-    const { publicUrl: mergedPublicUrl } = await uploadTryOnImagePublic(adminSupabase, resultPath, mergedBuf, {
+    const { publicUrl: mergedPublicUrl } = await uploadTryOnImagePublic(resultPath, mergedBuf, {
       contentType: 'video/mp4',
       upsert: true,
     })
 
-    await adminSupabase.from('try_on_history').insert({
-      user_id: user.id,
-      original_image_url: TRY_ON_HISTORY_INPUT_PLACEHOLDER_SRC,
-      garment_image_url: TRY_ON_HISTORY_INPUT_PLACEHOLDER_SRC,
-      result_image_url: mergedPublicUrl,
-      status: 'completed',
+    await insertTryOnHistoryCompletedDirectPg({
+      userId: user.id,
+      originalImageUrl: TRY_ON_HISTORY_INPUT_PLACEHOLDER_SRC,
+      garmentImageUrl: TRY_ON_HISTORY_INPUT_PLACEHOLDER_SRC,
+      resultImageUrl: mergedPublicUrl,
       feature: 'veo-music-video-merged',
-      aspect_ratio: aspectRatio,
+      aspectRatio,
     })
 
     revalidatePath('/flow-nhac-video-veo')

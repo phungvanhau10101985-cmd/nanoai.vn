@@ -1,14 +1,17 @@
 'use server'
+import { deleteTryOnHistoryRowAndStorage } from '@/lib/storage/try-on-history-cleanup'
 
-import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+import { insertTryOnHistoryProcessingPg, updateTryOnHistoryCompletedPg } from '@/lib/db/try-on-history-pg'
 import { revalidatePath } from 'next/cache'
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
 import sharp from 'sharp'
 import { normalizeToEnglish } from '@/lib/ai-normalize'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
+import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
+import { deductUserCredits } from '@/lib/music/deduct-user-credits'
+
 
 const COSTS = { '2K': 1.5, '4K': 3 } as const
 const VALID_ASPECT_RATIOS = ['1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '21:9'] as const
@@ -20,7 +23,6 @@ const MAX_FILE_BYTES = 8 * 1024 * 1024
 const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
 
 const toTenths = (value: number) => Math.round(value * 10)
-const fromTenths = (value: number) => value / 10
 const formatCredits = (value: number) => value.toLocaleString('vi-VN', { maximumFractionDigits: 1 })
 
 const MODE_DIRECTIVES: Record<SketchMode, string> = {
@@ -96,18 +98,18 @@ export async function createImageFromSketch(formData: FormData) {
     return { error: 'Thiếu cấu hình GOOGLE_API_KEY.' }
   }
 
-  const supabase = createClient()
-  const adminSupabase = createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
-  const result = await getUserForAction(() => supabase.auth.getUser())
+  const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
-  const { data: creditData, error: creditError } = await supabase.from('credits').select('balance').eq('user_id', user.id).single()
-  if (creditError || !creditData || toTenths(creditData.balance) < toTenths(COST)) {
-    return { error: `Không đủ credits. Cần ${formatCredits(COST)} credits, hiện có ${formatCredits(creditData?.balance || 0)}.` }
+  let openBalance = 0
+  try {
+    openBalance = await getCreditBalanceByUserId(user.id)
+  } catch {
+    return { error: 'Không đọc được số dư credits.' }
+  }
+  if (toTenths(openBalance) < toTenths(COST)) {
+    return { error: `Không đủ credits. Cần ${formatCredits(COST)} credits, hiện có ${formatCredits(openBalance)}.` }
   }
 
   let sketchBuffer: Buffer
@@ -122,13 +124,13 @@ export async function createImageFromSketch(formData: FormData) {
   let sketchOriginalPublicUrl: string
   try {
     const jpegBuf = await sharp(sketchBuffer).rotate().jpeg({ quality: 88, mozjpeg: true }).toBuffer()
-    ;({ publicUrl: sketchOriginalPublicUrl } = await uploadTryOnImagePublic(supabase, uploadPath, jpegBuf, {
+    ;({ publicUrl: sketchOriginalPublicUrl } = await uploadTryOnImagePublic(uploadPath, jpegBuf, {
       contentType: 'image/jpeg',
       upsert: true,
     }))
   } catch {
     try {
-      ;({ publicUrl: sketchOriginalPublicUrl } = await uploadTryOnImagePublic(supabase, uploadPath, sketchBuffer, {
+      ;({ publicUrl: sketchOriginalPublicUrl } = await uploadTryOnImagePublic(uploadPath, sketchBuffer, {
         contentType: sketch.type || 'image/jpeg',
         upsert: true,
       }))
@@ -137,19 +139,19 @@ export async function createImageFromSketch(formData: FormData) {
     }
   }
 
-  const { data: historyItem, error: historyError } = await supabase.from('try_on_history').insert({
-    user_id: user.id,
-    original_image_url: sketchOriginalPublicUrl,
-    garment_image_url: sketchOriginalPublicUrl,
-    status: 'processing',
-  }).select().single()
-  if (historyError || !historyItem) return { error: 'Không thể khởi tạo phiên xử lý.' }
+  const historyItem = await insertTryOnHistoryProcessingPg({
+    userId: user.id,
+    originalImageUrl: sketchOriginalPublicUrl,
+    garmentImageUrl: sketchOriginalPublicUrl,
+    feature: 'du-anh-tu-phac-thao',
+  })
+  if (!historyItem) return { error: 'Không thể khởi tạo phiên xử lý.' }
 
   let inline: { mimeType: string; data: string }
   try {
     inline = await shrinkSketchForModel(sketchBuffer, sketch.type || 'image/jpeg')
   } catch {
-    await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+    await deleteTryOnHistoryRowAndStorage(historyItem.id)
     return { error: 'Không xử lý được ảnh phác thảo.' }
   }
 
@@ -181,45 +183,41 @@ export async function createImageFromSketch(formData: FormData) {
 
     const cand = response.candidates?.[0]
     if (!cand) {
-      await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+      await deleteTryOnHistoryRowAndStorage(historyItem.id)
       return { error: 'AI không trả về kết quả. Thử lại sau.' }
     }
     if (cand.finishReason === 'SAFETY') {
-      await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+      await deleteTryOnHistoryRowAndStorage(historyItem.id)
       return { error: 'Phản hồi bị chặn bộ lọc an toàn. Thử ảnh hoặc ghi chú khác.' }
     }
 
     const imagePartRes = cand.content?.parts?.find((p) => 'inlineData' in p)
     if (!imagePartRes || !('inlineData' in imagePartRes)) {
-      await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+      await deleteTryOnHistoryRowAndStorage(historyItem.id)
       return { error: 'AI không trả về ảnh hợp lệ.' }
     }
     const resultBuffer = Buffer.from((imagePartRes as { inlineData: { data: string } }).inlineData.data, 'base64')
     const resultPath = `results/${user.id}/sketch_rebuild_${Date.now()}.png`
-    const { publicUrl: sketchResultPublicUrl } = await uploadTryOnImagePublic(adminSupabase, resultPath, resultBuffer, {
+    const { publicUrl: sketchResultPublicUrl } = await uploadTryOnImagePublic(resultPath, resultBuffer, {
       contentType: 'image/png',
       upsert: true,
     })
 
-    const { data: latestCredit } = await adminSupabase.from('credits').select('balance').eq('user_id', user.id).single()
-    if (!latestCredit || toTenths(latestCredit.balance) < toTenths(COST)) {
-      await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
-      return { error: 'Không đủ credits để hoàn tất.' }
+    const d = await deductUserCredits(user.id, COST)
+    if (!d.ok) {
+      await deleteTryOnHistoryRowAndStorage(historyItem.id)
+      return { error: d.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credits để hoàn tất.' : d.error }
     }
-    const newBalance = fromTenths(toTenths(latestCredit.balance) - toTenths(COST))
-    await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', user.id)
-    await adminSupabase.from('try_on_history').update({
-      result_image_url: sketchResultPublicUrl,
-      status: 'completed',
+    await updateTryOnHistoryCompletedPg(historyItem.id, sketchResultPublicUrl, {
       feature: 'du-anh-tu-phac-thao',
       aspect_ratio: aspectRatio,
-    }).eq('id', historyItem.id)
+    })
 
     revalidatePath('/du-anh-tu-phac-thao')
     revalidatePath('/dashboard/history')
     return { success: true, resultUrl: sketchResultPublicUrl }
   } catch (e) {
-    await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+    await deleteTryOnHistoryRowAndStorage(historyItem.id)
     const msg = e instanceof Error ? e.message : String(e)
     if (/500|Internal Server Error|Internal error/i.test(msg)) {
       return { error: 'Hệ thống quá tải. Thử chọn 2K hoặc thử lại sau ít phút.' }

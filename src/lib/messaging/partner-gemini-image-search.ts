@@ -1,11 +1,15 @@
-import type { SupabaseClient } from '@supabase/supabase-js'
 import { fetchRemoteImageForCatalog, sniffImageContentType } from '@/lib/fetch-image-1688'
 import { trackApiUsage } from '@/lib/track-ai-usage'
 import type { Database } from '@/types/database.types'
+import {
+  fetchPartnerInventoryDefaultForAiFromPg,
+  fetchPartnerInventoryPriceHintsByIdsFromPg,
+  matchPartnerInventoryByEmbeddingFromPg,
+} from '@/lib/db/messaging-partner-inventory-pg'
+import { isPgConfigured } from '@/lib/db/pool'
 import { embedImageBufferWithGemini } from '@/lib/messaging/partner-inventory-embedding'
 
 type InvRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
-type Db = SupabaseClient<Database>
 
 export type GeminiImageSearchCandidate = {
   inventoryId: string
@@ -173,7 +177,6 @@ function toPgVectorLiteral(vec: number[]): string {
  * Falls back to app-side scan only when RPC/vector path is unavailable.
  */
 export async function geminiProductSearchFromImageBufferViaVectorDb(
-  db: Db,
   imageBuffer: Buffer,
   partnerId: string,
   options?: { maxResults?: number; userId?: string | null }
@@ -184,24 +187,44 @@ export async function geminiProductSearchFromImageBufferViaVectorDb(
     const maxResults = Math.min(25, Math.max(1, Math.floor(options?.maxResults ?? 8)))
 
     if (queryVec.length === DB_VECTOR_DIMS) {
-      const { data, error } = await db.rpc('match_messaging_partner_inventory_by_embedding', {
-        p_partner_id: partnerId,
-        p_query: toPgVectorLiteral(queryVec),
-        p_limit: maxResults,
-        p_min_score: SEARCH_MIN_SCORE,
-      })
+      const qLit = toPgVectorLiteral(queryVec)
+      let data:
+        | Array<{
+            inventory_id: string
+            name: string
+            sku: string | null
+            image_url: string
+            product_url: string | null
+            score: number
+          }>
+        | null = null
 
-      if (!error && Array.isArray(data)) {
+      if (isPgConfigured()) {
+        const fromPg = await matchPartnerInventoryByEmbeddingFromPg(
+          partnerId,
+          qLit,
+          maxResults,
+          SEARCH_MIN_SCORE
+        )
+        if (fromPg !== null) {
+          data = fromPg.map((row) => ({
+            inventory_id: row.inventory_id,
+            name: row.name,
+            sku: row.sku,
+            image_url: row.image_url,
+            product_url: row.product_url,
+            score: row.score,
+          }))
+        }
+      }
+
+      if (data !== null) {
         const ids = data.map((row) => row.inventory_id)
         const priceById = new Map<string, string>()
-        if (ids.length > 0) {
-          const { data: pricedRows } = await db
-            .from('messaging_partner_inventory')
-            .select('id, price_hint')
-            .eq('partner_id', partnerId)
-            .in('id', ids)
-          for (const r of pricedRows ?? []) {
-            priceById.set(r.id, r.price_hint ?? '')
+        if (ids.length > 0 && isPgConfigured()) {
+          const m = await fetchPartnerInventoryPriceHintsByIdsFromPg(partnerId, ids)
+          if (m !== null) {
+            for (const [id, hint] of m) priceById.set(id, hint)
           }
         }
 
@@ -228,24 +251,21 @@ export async function geminiProductSearchFromImageBufferViaVectorDb(
         })
         return { candidates }
       }
-
-      if (error) {
-        console.error('[image-search] vector-rpc fallback', {
-          partnerId,
-          error: error.message,
-        })
-      }
     }
 
     // Fallback path when vector dims mismatch or RPC/index not available.
-    const { data: invRows } = await db
-      .from('messaging_partner_inventory')
-      .select('*')
-      .eq('partner_id', partnerId)
-      .eq('is_active', true)
-      .limit(Math.max(INVENTORY_SCAN_LIMIT, maxResults))
+    const scanLimit = Math.max(INVENTORY_SCAN_LIMIT, maxResults)
+    let invRows: InvRow[] | null = null
+    if (isPgConfigured()) {
+      try {
+        invRows = await fetchPartnerInventoryDefaultForAiFromPg(partnerId, scanLimit)
+      } catch (e) {
+        console.warn('[image-search] scan inventory PG failed', e)
+      }
+    }
+    if (invRows === null) invRows = []
 
-    return geminiProductSearchFromImageBuffer(imageBuffer, partnerId, invRows ?? [], options)
+    return geminiProductSearchFromImageBuffer(imageBuffer, partnerId, invRows, options)
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     return { candidates: [], error: msg }

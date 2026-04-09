@@ -1,5 +1,5 @@
-import { createClient } from '@/lib/supabase/server'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+import { getUserOrBypass } from '@/lib/auth'
+import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import type { UsageMetadata } from '@google/generative-ai'
 
 /** Usage từ API chat/completions kiểu OpenAI (OpenAI, DeepSeek, …). */
@@ -51,7 +51,7 @@ export function trackOpenAiStyleCompletionUsage(params: {
 
 /**
  * Ghi log sử dụng API vào DB. Fire-and-forget, không block luồng chính.
- * Dùng service role để insert – hoạt động cả khi gọi từ API route (process-translate) không có session.
+ * Chỉ Postgres (`public.api_usage_log`).
  */
 export async function trackApiUsage(params: ApiUsageLogParams): Promise<void> {
   const {
@@ -66,33 +66,33 @@ export async function trackApiUsage(params: ApiUsageLogParams): Promise<void> {
 
   if (totalTokenCount <= 0) return
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!url || !serviceKey) {
-    console.error('[trackApiUsage] Thiếu SUPABASE_SERVICE_ROLE_KEY')
-    return
-  }
-
   try {
-    let effectiveUserId = userId ?? null
-    if (effectiveUserId == null) {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      effectiveUserId = user?.id ?? null
+    if (!isPgConfigured()) {
+      console.warn('[trackApiUsage] skipped: DATABASE_URL not set')
+      return
     }
 
-    const adminSupabase = createSupabaseClient(url, serviceKey, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    })
-    await adminSupabase.from('api_usage_log').insert({
-      user_id: effectiveUserId ?? null,
-      model,
-      feature,
-      prompt_token_count: promptTokenCount,
-      candidates_token_count: candidatesTokenCount,
-      total_token_count: totalTokenCount,
-      image_size: imageSize ?? null,
-    })
+    let effectiveUserId = userId ?? null
+    if (effectiveUserId == null) {
+      const u = await getUserOrBypass()
+      effectiveUserId = u?.id ?? null
+    }
+
+    const pool = getPgPool()
+    await pool.query(
+      `insert into public.api_usage_log (
+        user_id, model, feature, prompt_token_count, candidates_token_count, total_token_count, image_size
+      ) values ($1::uuid, $2, $3, $4, $5, $6, $7)`,
+      [
+        effectiveUserId,
+        model,
+        feature,
+        promptTokenCount,
+        candidatesTokenCount,
+        totalTokenCount,
+        imageSize ?? null,
+      ]
+    )
   } catch (err) {
     console.error('[trackApiUsage]', err)
   }

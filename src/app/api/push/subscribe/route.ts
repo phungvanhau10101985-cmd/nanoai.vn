@@ -1,17 +1,14 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { getUserForAction } from '@/lib/auth'
+import { upsertPushSubscription } from '@/lib/db/push-subscriptions-repo'
 
 /**
  * Lưu PushSubscription sau khi user bật thông báo trên PWA/trình duyệt.
  */
 export async function POST(req: Request) {
   try {
-    const supabase = createClient()
-    const {
-      data: { user },
-      error: authErr,
-    } = await supabase.auth.getUser()
-    if (authErr || !user) {
+    const auth = await getUserForAction()
+    if ('error' in auth) {
       return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
     }
 
@@ -24,21 +21,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'invalid_subscription' }, { status: 400 })
     }
 
-    const { error } = await supabase.from('push_subscriptions').upsert(
-      {
-        user_id: user.id,
-        endpoint: String(body.endpoint),
-        p256dh: String(body.keys.p256dh),
-        auth: String(body.keys.auth),
-        user_agent: req.headers.get('user-agent')?.slice(0, 500) ?? null,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'user_id,endpoint' }
-    )
+    const out = await upsertPushSubscription({
+      userId: auth.user.id,
+      endpoint: String(body.endpoint),
+      p256dh: String(body.keys.p256dh),
+      auth: String(body.keys.auth),
+      userAgent: req.headers.get('user-agent')?.slice(0, 500) ?? null,
+    })
 
-    if (error) {
-      console.error('[push/subscribe]', error.message)
-      return NextResponse.json({ error: error.message }, { status: 500 })
+    if (!out.ok) {
+      console.error('[push/subscribe]', out.error)
+      return NextResponse.json({ error: out.error || 'save_failed' }, { status: 500 })
     }
 
     return NextResponse.json({ ok: true })

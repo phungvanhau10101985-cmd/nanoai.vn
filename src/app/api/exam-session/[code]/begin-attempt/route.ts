@@ -1,102 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-import { createClient as createServerClient } from '@/lib/supabase/server'
+import { getUserForAction } from '@/lib/auth'
 import { resolveWebLocaleFromAcceptLanguage } from '@/lib/i18n/config'
 import { resolveDefaultExamSessionTitle } from '@/lib/i18n/exam-session-default-titles'
 import { signExamLayoutToken } from '@/lib/exam-layout-token'
 import {
-  getClassMemberExamIdentity,
-  hasCompleteClassEnrollment,
-  CLASS_ENROLLMENT_ERROR_VI,
-} from '@/lib/lop/require-class-enrollment'
+  fetchClassAndSchoolDisplayNamesPg,
+  getClassMemberExamIdentityFromPg,
+  hasCompleteClassMemberProfileForExamPg,
+} from '@/lib/db/classes-pg'
+import {
+  fetchExamAttemptForBeginPg,
+  fetchExamQuestionsFullOrderedForSessionPg,
+  fetchExamSessionActiveForGetRoutePg,
+  insertExamAttemptBeginPg,
+  deleteExamAttemptByIdPg,
+} from '@/lib/db/exam-session-pg'
+import { isPgConfigured } from '@/lib/db/pool'
+import { CLASS_ENROLLMENT_ERROR_VI } from '@/lib/lop/require-class-enrollment'
 import { isValidStudentDobIso } from '@/lib/student-dob'
 import {
   buildFreshExamLayout,
   parseLayoutSnapshot,
   rebuildPublicFromSnapshot,
-  type ExamLayoutSnapshotV1,
   type ExamQuestionRow,
 } from '@/lib/exam-session/student-exam-layout'
 import { buildActiveAttemptSessionJson } from '@/lib/exam-session/student-exam-session-payload'
 import {
-  tryFinalizeOverdueExamAttempt,
+  tryFinalizeOverdueExamAttemptPg,
   isServerDeadlinePassed,
   resolveDeadlineEndMs,
-  fetchAlreadySubmittedPayloadForAttempt,
+  fetchAlreadySubmittedPayloadForAttemptPg,
 } from '@/lib/exam-session/finalize-overdue-exam-attempt'
 
 const NO_STORE_HEADERS = {
   'Cache-Control': 'no-store, max-age=0, must-revalidate',
-}
-
-const ATTEMPT_SELECT_WITH_DEADLINE =
-  'id, submitted_at, layout_snapshot, answers, essay_submission, started_at, deadline_at' as const
-const ATTEMPT_SELECT_NO_DEADLINE =
-  'id, submitted_at, layout_snapshot, answers, essay_submission, started_at' as const
-
-type ExamAttemptInsertPayload = {
-  session_id: string
-  user_id: string
-  class_id: string | null
-  school_id: string | null
-  student_name: string | null
-  student_code: string | null
-  answers: Record<string, never>
-  essay_submission: Record<string, never>
-  score: number
-  max_score: number
-  started_at: string
-  submitted_at: null
-  deadline_at: string
-  layout_snapshot: ExamLayoutSnapshotV1
-}
-
-/** DB chưa chạy migration `deadline_at` — PostgREST / Postgres báo lỗi cột. */
-function isDeadlineColumnError(err: { message?: string; code?: string } | null | undefined): boolean {
-  if (!err) return false
-  const m = String(err.message ?? '').toLowerCase()
-  if (!m.includes('deadline_at')) return false
-  if (String(err.code ?? '') === '42703') return true
-  return (
-    m.includes('does not exist') ||
-    m.includes('schema cache') ||
-    m.includes('could not find')
-  )
-}
-
-/** PostgREST PGRST204 / Postgres 42703 — cột chưa có trên DB hoặc schema cache chưa reload. */
-function isPostgrestSchemaMissingColumn(
-  err: { message?: string; code?: string } | null | undefined,
-  columnName: string
-): boolean {
-  if (!err) return false
-  const code = String(err.code ?? '')
-  const m = String(err.message ?? '').toLowerCase()
-  const col = columnName.toLowerCase()
-  if (!m.includes(col)) return false
-  if (code === 'PGRST204') return true
-  if (code === '42703') return true
-  return m.includes('schema cache') || m.includes('could not find')
-}
-
-function examDbSchemaNotReadyResponse(opts: {
-  examCode: string
-  err: { message?: string; code?: string }
-  context: 'select' | 'insert'
-}): NextResponse {
-  const { examCode, err, context } = opts
-  console.error('[exam-session begin-attempt] DB schema:', examCode, context, err?.code, err?.message)
-  return NextResponse.json(
-    {
-      error:
-        'Hệ thống làm bài chưa sẵn sàng: cơ sở dữ liệu thiếu cột bắt buộc (ví dụ layout_snapshot). Chạy: npx supabase db push (migration repair 20260330100000_exam_attempts_repair_schema_drift.sql nếu repo đã có). Sau đó Supabase Dashboard → Settings → API → Reload schema.',
-      errorCode: err.code ?? 'PGRST204',
-      errorDetails: err.message ?? null,
-      migrationHint:
-        'Nếu db push báo up to date mà vẫn lỗi: drift schema — cần file 20260330100000_exam_attempts_repair_schema_drift.sql rồi db push + Reload schema.',
-    },
-    { status: 503, headers: NO_STORE_HEADERS }
-  )
 }
 
 type ExistingAttemptRow = {
@@ -109,21 +46,40 @@ type ExistingAttemptRow = {
   deadline_at?: string | null
 }
 
+function mapFullToExisting(a: {
+  id: string
+  submitted_at: string | null
+  layout_snapshot: unknown
+  answers: unknown
+  essay_submission: unknown
+  started_at: string | null
+  deadline_at: string | null
+}): ExistingAttemptRow {
+  return {
+    id: a.id,
+    submitted_at: a.submitted_at,
+    layout_snapshot: a.layout_snapshot,
+    answers: a.answers,
+    essay_submission: a.essay_submission,
+    started_at: a.started_at,
+    deadline_at: a.deadline_at,
+  }
+}
+
 /** HS bấm Bắt đầu — tạo attempt chưa nộp + snapshot; idempotent nếu đã có attempt đang làm. */
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ code: string }> }
 ) {
   try {
-    const serverSupabase = createServerClient()
-    const { data: authData } = await serverSupabase.auth.getUser()
-    const user = authData.user
-    if (!user) {
+    const auth = await getUserForAction('Vui lòng đăng nhập để làm bài thi.')
+    if ('error' in auth) {
       return NextResponse.json(
-        { error: 'Vui lòng đăng nhập để làm bài thi.' },
+        { error: auth.error },
         { status: 401, headers: NO_STORE_HEADERS }
       )
     }
+    const user = auth.user
 
     const { code } = await params
     if (!code || code.length < 4) {
@@ -149,136 +105,88 @@ export async function POST(
       )
     }
 
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      { auth: { persistSession: false } }
-    )
+    if (!isPgConfigured()) {
+      return NextResponse.json(
+        { error: 'Chưa cấu hình cơ sở dữ liệu.' },
+        { status: 503, headers: NO_STORE_HEADERS }
+      )
+    }
 
-    const { data: session, error: sessionErr } = await supabase
-      .from('exam_sessions')
-      .select('id, code, title, exam_type, duration_minutes, status, class_id, school_id, is_practice_homework')
-      .eq('code', code.toUpperCase())
-      .single()
-
-    if (sessionErr || !session || session.status !== 'active') {
+    const sessRow = await fetchExamSessionActiveForGetRoutePg(code.toUpperCase())
+    if (sessRow === null) {
+      return NextResponse.json(
+        { error: 'Không thể tải bài thi.' },
+        { status: 503, headers: NO_STORE_HEADERS }
+      )
+    }
+    if (sessRow === 'not_found') {
       return NextResponse.json(
         { error: 'Không tìm thấy bài thi hoặc bài thi đã đóng.' },
         { status: 404, headers: NO_STORE_HEADERS }
       )
     }
 
-    const sess = session
+    const sess = sessRow
     const userId = user.id
 
-    const practiceHomework = Boolean((sess as { is_practice_homework?: boolean }).is_practice_homework)
+    const practiceHomework = Boolean(sess.is_practice_homework)
     const reqLocale = resolveWebLocaleFromAcceptLanguage(req.headers.get('accept-language'))
     const sessionTitleFallback = resolveDefaultExamSessionTitle(reqLocale, practiceHomework)
-    const resolvedSessionTitle =
-      String(sess.title ?? '').trim() || sessionTitleFallback
+    const resolvedSessionTitle = String(sess.title ?? '').trim() || sessionTitleFallback
 
     if (sess.class_id) {
-      const ok = await hasCompleteClassEnrollment(supabase, String(sess.class_id), userId)
-      if (!ok) {
+      const enrolled = await hasCompleteClassMemberProfileForExamPg(String(sess.class_id), userId)
+      if (enrolled === null) {
         return NextResponse.json(
-          { error: CLASS_ENROLLMENT_ERROR_VI },
-          { status: 403, headers: NO_STORE_HEADERS }
+          { error: 'Không thể kiểm tra tham gia lớp.' },
+          { status: 503, headers: NO_STORE_HEADERS }
         )
+      }
+      if (!enrolled) {
+        return NextResponse.json({ error: CLASS_ENROLLMENT_ERROR_VI }, { status: 403, headers: NO_STORE_HEADERS })
       }
     }
 
     let className: string | null = null
     let schoolName: string | null = null
     if (sess.class_id) {
-      const { data: cls } = await supabase
-        .from('classes')
-        .select('name, school_id')
-        .eq('id', sess.class_id)
-        .maybeSingle()
-      className = cls?.name ?? null
-      const schoolId = String(sess.school_id ?? cls?.school_id ?? '').trim()
-      if (schoolId) {
-        const { data: school } = await supabase
-          .from('schools')
-          .select('name')
-          .eq('id', schoolId)
-          .maybeSingle()
-        schoolName = school?.name ?? null
+      const names = await fetchClassAndSchoolDisplayNamesPg(String(sess.class_id), sess.school_id)
+      if (names === null) {
+        return NextResponse.json(
+          { error: 'Không thể tải thông tin lớp.' },
+          { status: 503, headers: NO_STORE_HEADERS }
+        )
       }
+      className = names.className
+      schoolName = names.schoolName
     }
 
     let classExamIdentity: { displayName: string; birthDate: string } | null = null
     if (sess.class_id) {
-      classExamIdentity = await getClassMemberExamIdentity(
-        supabase,
-        String(sess.class_id),
-        userId
-      )
+      classExamIdentity = await getClassMemberExamIdentityFromPg(String(sess.class_id), userId)
     }
 
-    let attemptSelectForQueries: string = ATTEMPT_SELECT_WITH_DEADLINE
-
-    let existingRows: ExistingAttemptRow[] | null = null
-    let exErr: { message: string; code?: string } | null = null
-    {
-      let res = await supabase
-        .from('exam_attempts')
-        .select(attemptSelectForQueries)
-        .eq('session_id', sess.id)
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })
-        .limit(1)
-      if (res.error && isDeadlineColumnError(res.error)) {
-        attemptSelectForQueries = ATTEMPT_SELECT_NO_DEADLINE
-        res = await supabase
-          .from('exam_attempts')
-          .select(attemptSelectForQueries)
-          .eq('session_id', sess.id)
-          .eq('user_id', userId)
-          .order('created_at', { ascending: false })
-          .limit(1)
-      }
-      existingRows = (res.data as ExistingAttemptRow[] | null) ?? null
-      exErr = res.error
-    }
-
-    if (exErr) {
-      if (
-        isPostgrestSchemaMissingColumn(exErr, 'layout_snapshot') ||
-        isPostgrestSchemaMissingColumn(exErr, 'essay_submission')
-      ) {
-        return examDbSchemaNotReadyResponse({
-          examCode: code.toUpperCase(),
-          err: exErr,
-          context: 'select',
-        })
-      }
-      console.error(
-        '[exam-session begin-attempt] select attempts:',
-        code.toUpperCase(),
-        exErr.message,
-        exErr.code
-      )
+    const attemptFetch = await fetchExamAttemptForBeginPg(sess.id, userId)
+    if (attemptFetch === null) {
       return NextResponse.json(
-        {
-          error: 'Không thể kiểm tra phiên làm bài trước đó.',
-          errorCode: exErr.code ?? null,
-          errorDetails: exErr.message ?? null,
-        },
+        { error: 'Không thể kiểm tra phiên làm bài trước đó.' },
         { status: 500, headers: NO_STORE_HEADERS }
       )
     }
 
-    const existingAttempt: ExistingAttemptRow | null = existingRows?.[0] ?? null
-
-    if (existingAttempt?.submitted_at) {
-      return NextResponse.json(
-        { error: 'Bạn đã nộp bài thi này rồi.' },
-        { status: 409, headers: NO_STORE_HEADERS }
-      )
-    }
-
     const durationMin = typeof sess.duration_minutes === 'number' ? sess.duration_minutes : 15
+
+    async function loadQuestionsForLayout(): Promise<ExamQuestionRow[] | null> {
+      const full = await fetchExamQuestionsFullOrderedForSessionPg(sess.id)
+      if (full === null) return null
+      return full.map(({ id, question_text, options, correct_index, source }) => ({
+        id,
+        question_text,
+        options,
+        correct_index,
+        source,
+      }))
+    }
 
     async function buildResumeFromRow(
       attemptRow: {
@@ -292,13 +200,9 @@ export async function POST(
     ) {
       const snap = parseLayoutSnapshot(attemptRow.layout_snapshot)
       if (!snap) return null
-      const { data: questions, error: questionsErr } = await supabase
-        .from('exam_questions')
-        .select('id, question_text, options, correct_index, source, order')
-        .eq('session_id', sess.id)
-        .order('order', { ascending: true })
-      if (questionsErr || !questions?.length) return null
-      const publicQuestions = rebuildPublicFromSnapshot(questions as ExamQuestionRow[], snap)
+      const questions = await loadQuestionsForLayout()
+      if (!questions?.length) return null
+      const publicQuestions = rebuildPublicFromSnapshot(questions, snap)
       if (!publicQuestions) return null
       const serverNowMs = Date.now()
       const endMs =
@@ -323,6 +227,16 @@ export async function POST(
       })
     }
 
+    const existingAttempt: ExistingAttemptRow | null =
+      attemptFetch === 'missing' ? null : mapFullToExisting(attemptFetch)
+
+    if (existingAttempt?.submitted_at) {
+      return NextResponse.json(
+        { error: 'Bạn đã nộp bài thi này rồi.' },
+        { status: 409, headers: NO_STORE_HEADERS }
+      )
+    }
+
     if (existingAttempt && !existingAttempt.submitted_at) {
       const serverNowMs = Date.now()
       if (
@@ -333,8 +247,7 @@ export async function POST(
           serverNowMs
         )
       ) {
-        const finalized = await tryFinalizeOverdueExamAttempt({
-          supabase,
+        const finalized = await tryFinalizeOverdueExamAttemptPg({
           sessionId: String(sess.id),
           sessionTitle: resolvedSessionTitle,
           durationMinutes: durationMin,
@@ -364,8 +277,7 @@ export async function POST(
             { headers: NO_STORE_HEADERS }
           )
         }
-        const reopenedMain = await fetchAlreadySubmittedPayloadForAttempt(
-          supabase,
+        const reopenedMain = await fetchAlreadySubmittedPayloadForAttemptPg(
           String(existingAttempt.id),
           practiceHomework,
           resolvedSessionTitle,
@@ -386,23 +298,30 @@ export async function POST(
       if (resumed) {
         return NextResponse.json(resumed, { headers: NO_STORE_HEADERS })
       }
-      await supabase.from('exam_attempts').delete().eq('id', existingAttempt.id)
+      const del = await deleteExamAttemptByIdPg(existingAttempt.id)
+      if (del === null || del === false) {
+        return NextResponse.json(
+          { error: 'Không thể làm mới phiên làm bài.' },
+          { status: 500, headers: NO_STORE_HEADERS }
+        )
+      }
     }
 
-    const { data: questions, error: questionsErr } = await supabase
-      .from('exam_questions')
-      .select('id, question_text, options, correct_index, source, order')
-      .eq('session_id', sess.id)
-      .order('order', { ascending: true })
-
-    if (questionsErr || !questions?.length) {
+    const questions = await loadQuestionsForLayout()
+    if (questions === null) {
+      return NextResponse.json(
+        { error: 'Không thể tải câu hỏi.' },
+        { status: 500, headers: NO_STORE_HEADERS }
+      )
+    }
+    if (!questions.length) {
       return NextResponse.json(
         { error: 'Bài thi chưa có câu hỏi.' },
         { status: 404, headers: NO_STORE_HEADERS }
       )
     }
 
-    const { snapshot, publicQuestions } = buildFreshExamLayout(questions as ExamQuestionRow[])
+    const { snapshot, publicQuestions } = buildFreshExamLayout(questions)
     const startedDate = new Date()
     const startedIso = startedDate.toISOString()
     const deadlineIso = new Date(startedDate.getTime() + durationMin * 60_000).toISOString()
@@ -416,48 +335,42 @@ export async function POST(
       expJwt
     )
 
-    const insertPayload: ExamAttemptInsertPayload = {
-      session_id: sess.id,
-      user_id: userId,
-      class_id: sess.class_id ?? null,
-      school_id: sess.school_id ?? null,
-      student_name: studentName || null,
-      student_code: studentDob || null,
-      answers: {},
-      essay_submission: {},
-      score: 0,
-      max_score: 0,
-      started_at: startedIso,
-      submitted_at: null,
-      deadline_at: deadlineIso,
-      layout_snapshot: snapshot,
-    }
-
-    async function insertExamAttemptRow(
-      full: ExamAttemptInsertPayload
-    ): Promise<
-      | { ok: true; storedDeadlineInDb: boolean }
-      | { ok: false; error: { message: string; code?: string } }
+    async function tryInsertOnce(): Promise<
+      | { ok: true }
+      | { ok: false; duplicate: boolean; pgCode: string; message: string }
+      | null
     > {
-      const r = await supabase.from('exam_attempts').insert(full)
-      if (!r.error) return { ok: true, storedDeadlineInDb: true }
-      if (isDeadlineColumnError(r.error)) {
-        const { deadline_at, ...rest } = full
-        void deadline_at
-        const r2 = await supabase
-          .from('exam_attempts')
-          .insert(rest as Omit<ExamAttemptInsertPayload, 'deadline_at'>)
-        if (!r2.error) return { ok: true, storedDeadlineInDb: false }
-        return { ok: false, error: r2.error }
-      }
-      return { ok: false, error: r.error }
+      const ins = await insertExamAttemptBeginPg({
+        sessionId: sess.id,
+        userId,
+        classId: sess.class_id,
+        schoolId: sess.school_id,
+        studentName: studentName || null,
+        studentCode: studentDob || null,
+        answers: {},
+        essaySubmission: {},
+        score: 0,
+        maxScore: 0,
+        startedIso,
+        deadlineIso,
+        layoutSnapshot: snapshot,
+      })
+      if (ins === null) return null
+      if (ins === 'ok') return { ok: true }
+      const duplicate = ins.pgCode === '23505'
+      return { ok: false, duplicate, pgCode: ins.pgCode, message: ins.message }
     }
 
-    let lastInsertErr: { message: string; code?: string } | null = null
+    let lastInsert: { pgCode: string; message: string } | null = null
 
     for (let insertRound = 0; insertRound < 2; insertRound++) {
-      const ins = await insertExamAttemptRow(insertPayload)
-
+      const ins = await tryInsertOnce()
+      if (ins === null) {
+        return NextResponse.json(
+          { error: 'Không thể bắt đầu phiên làm bài.' },
+          { status: 503, headers: NO_STORE_HEADERS }
+        )
+      }
       if (ins.ok) {
         return NextResponse.json(
           buildActiveAttemptSessionJson({
@@ -473,7 +386,7 @@ export async function POST(
               answers: {},
               essay_submission: {},
               started_at: startedIso,
-              deadline_at: ins.storedDeadlineInDb ? deadlineIso : null,
+              deadline_at: deadlineIso,
             },
             resumeInProgress: false,
           }),
@@ -481,48 +394,43 @@ export async function POST(
         )
       }
 
-      const insertErr = ins.error
-      if (
-        isPostgrestSchemaMissingColumn(insertErr, 'layout_snapshot') ||
-        isPostgrestSchemaMissingColumn(insertErr, 'essay_submission')
-      ) {
-        return examDbSchemaNotReadyResponse({
-          examCode: code.toUpperCase(),
-          err: insertErr,
-          context: 'insert',
-        })
+      lastInsert = { pgCode: ins.pgCode, message: ins.message }
+      const isUndefinedColumn =
+        ins.pgCode === '42703' ||
+        (ins.message && /column .* does not exist/i.test(ins.message))
+      if (isUndefinedColumn) {
+        console.error('[exam-session begin-attempt] schema:', code.toUpperCase(), ins.pgCode, ins.message)
+        return NextResponse.json(
+          {
+            error:
+              'Hệ thống làm bài chưa sẵn sàng: thiếu cột trên bảng exam_attempts (ví dụ layout_snapshot, deadline_at). Kiểm tra migration và schema Postgres.',
+            errorCode: ins.pgCode,
+            errorDetails: ins.message,
+          },
+          { status: 503, headers: NO_STORE_HEADERS }
+        )
       }
-      lastInsertErr = insertErr
-      const codePg = (insertErr as { code?: string }).code
-      if (codePg !== '23505' || insertRound === 1) {
+
+      if (!ins.duplicate || insertRound === 1) {
         break
       }
 
-      const { data: againRows } = await supabase
-        .from('exam_attempts')
-        .select(attemptSelectForQueries)
-        .eq('session_id', sess.id)
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })
-        .limit(1)
+      const againFetch = await fetchExamAttemptForBeginPg(sess.id, userId)
+      if (againFetch === null || againFetch === 'missing') {
+        break
+      }
+      const again = mapFullToExisting(againFetch)
 
-      const again: ExistingAttemptRow | null = (againRows?.[0] as ExistingAttemptRow | undefined) ?? null
-
-      if (again?.submitted_at) {
+      if (again.submitted_at) {
         return NextResponse.json(
           { error: 'Bạn đã nộp bài thi này rồi.' },
           { status: 409, headers: NO_STORE_HEADERS }
         )
       }
 
-      if (!again) {
-        break
-      }
-
       const nowMs = Date.now()
       if (isServerDeadlinePassed(again.deadline_at, again.started_at, durationMin, nowMs)) {
-        const finalized = await tryFinalizeOverdueExamAttempt({
-          supabase,
+        const finalized = await tryFinalizeOverdueExamAttemptPg({
           sessionId: String(sess.id),
           sessionTitle: resolvedSessionTitle,
           durationMinutes: durationMin,
@@ -552,8 +460,7 @@ export async function POST(
             { headers: NO_STORE_HEADERS }
           )
         }
-        const reopenedRace = await fetchAlreadySubmittedPayloadForAttempt(
-          supabase,
+        const reopenedRace = await fetchAlreadySubmittedPayloadForAttemptPg(
           String(again.id),
           practiceHomework,
           resolvedSessionTitle,
@@ -576,20 +483,23 @@ export async function POST(
         return NextResponse.json(resumed, { headers: NO_STORE_HEADERS })
       }
 
-      await supabase.from('exam_attempts').delete().eq('id', again.id)
+      const delRace = await deleteExamAttemptByIdPg(again.id)
+      if (delRace === null || delRace === false) {
+        break
+      }
     }
 
     console.error(
       '[exam-session begin-attempt] insert:',
       code.toUpperCase(),
-      lastInsertErr?.message,
-      lastInsertErr?.code
+      lastInsert?.message,
+      lastInsert?.pgCode
     )
     return NextResponse.json(
       {
         error: 'Không thể bắt đầu phiên làm bài.',
-        errorCode: lastInsertErr?.code ?? null,
-        errorDetails: lastInsertErr?.message ?? null,
+        errorCode: lastInsert?.pgCode ?? null,
+        errorDetails: lastInsert?.message ?? null,
       },
       { status: 500, headers: NO_STORE_HEADERS }
     )

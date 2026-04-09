@@ -1,7 +1,6 @@
 import crypto from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
-import { createServiceRoleClient } from '@/lib/supabase/service-role'
-import { isReservedMessagingGuestSlug } from '@/lib/messaging/reserved-guest-slugs'
+import { resolveActiveMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
 import { readGuestSessionIdFromRequest } from '@/lib/messaging/guest-auth-session'
 import { writeGuestAccountCookie } from '@/lib/messaging/guest-account-session'
 import { mergeGuestSessionConversationToAccount } from '@/lib/messaging/guest-account-merge'
@@ -10,6 +9,16 @@ import {
   getRateLimitRetryAfterSec,
   isRateLimited,
 } from '@/lib/api/simple-ip-rate-limit'
+import {
+  consumeEmailChallengePg,
+  findActiveOtpChallengePg,
+  findGuestAccountIdByEmailPg,
+  incrementOtpChallengeAttemptsPg,
+  insertGuestAccountPg,
+  updateGuestAccountLastLoginPg,
+  upsertGuestIdentityPg,
+} from '@/lib/db/messaging-guest-pg'
+import { isPgConfigured } from '@/lib/db/pool'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -27,22 +36,20 @@ function sha256(v: string) {
 }
 
 async function resolvePartner(slug: string) {
-  if (isReservedMessagingGuestSlug(slug)) return { error: 'not_found' as const }
-  const db = createServiceRoleClient()
-  const { data: partner, error } = await db
-    .from('messaging_partners')
-    .select('id, is_active')
-    .eq('slug', slug)
-    .maybeSingle()
-  if (error || !partner?.is_active) return { error: 'not_found' as const }
-  return { db, partnerId: partner.id }
+  const active = await resolveActiveMessagingPartnerBySlug(slug)
+  if (!active) return { error: 'not_found' as const }
+  return { partnerId: active.id }
 }
 
 export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: string }> }) {
   const { slug } = await ctx.params
   const p = await resolvePartner(slug)
   if ('error' in p) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  const { db, partnerId } = p
+  const { partnerId } = p
+
+  if (!isPgConfigured()) {
+    return NextResponse.json({ error: 'Server database is not configured.' }, { status: 503 })
+  }
 
   const sessionId = readGuestSessionIdFromRequest(request)
   if (!sessionId) return NextResponse.json({ error: 'Missing session' }, { status: 400 })
@@ -63,72 +70,69 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
   }
 
   const nowIso = new Date().toISOString()
-  const { data: challenge } = await db
-    .from('messaging_guest_email_challenges')
-    .select('id, code_hash, expires_at, attempt_count, consumed_at')
-    .eq('partner_id', partnerId)
-    .eq('email_normalized', email)
-    .eq('session_id', sessionId)
-    .is('consumed_at', null)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
+
+  let challenge: {
+    id: string
+    code_hash: string
+    expires_at: string
+    attempt_count: number
+    consumed_at: string | null
+  } | null = null
+  try {
+    challenge = await findActiveOtpChallengePg(partnerId, email, sessionId)
+  } catch (e) {
+    console.warn('[verify-otp] challenge PG failed', e)
+    return NextResponse.json({ error: 'Database error.' }, { status: 500 })
+  }
   if (!challenge?.id) return NextResponse.json({ error: 'OTP_INVALID' }, { status: 400 })
   if (challenge.expires_at < nowIso) return NextResponse.json({ error: 'OTP_INVALID' }, { status: 400 })
   if ((challenge.attempt_count ?? 0) >= 5) return NextResponse.json({ error: 'OTP_INVALID' }, { status: 400 })
 
   const hash = sha256(`otp:${partnerId}:${email}:${otp}`)
   if (hash !== challenge.code_hash) {
-    await db
-      .from('messaging_guest_email_challenges')
-      .update({ attempt_count: (challenge.attempt_count ?? 0) + 1 })
-      .eq('id', challenge.id)
+    const next = (challenge.attempt_count ?? 0) + 1
+    await incrementOtpChallengeAttemptsPg(challenge.id, next)
     return NextResponse.json({ error: 'OTP_INVALID' }, { status: 400 })
   }
 
-  await db.from('messaging_guest_email_challenges').update({ consumed_at: nowIso }).eq('id', challenge.id)
+  const consumed = await consumeEmailChallengePg(challenge.id, nowIso)
+  if (!consumed) {
+    return NextResponse.json({ error: 'Could not verify OTP.' }, { status: 500 })
+  }
 
-  const { data: existingAccount } = await db
-    .from('messaging_guest_accounts')
-    .select('id')
-    .eq('partner_id', partnerId)
-    .eq('email_normalized', email)
-    .maybeSingle()
-  let accountId = existingAccount?.id as string | undefined
-  if (!accountId) {
-    const { data: created } = await db
-      .from('messaging_guest_accounts')
-      .insert({
-        partner_id: partnerId,
-        email_raw: email,
-        email_normalized: email,
-        first_verified_at: nowIso,
-        last_login_at: nowIso,
+  let accountId: string | undefined
+  try {
+    let id: string | null = await findGuestAccountIdByEmailPg(partnerId, email)
+    if (!id) {
+      id = await insertGuestAccountPg({
+        partnerId,
+        emailRaw: email,
+        emailNormalized: email,
+        firstVerifiedAt: nowIso,
+        lastLoginAt: nowIso,
       })
-      .select('id')
-      .single()
-    accountId = created?.id
-  } else {
-    await db
-      .from('messaging_guest_accounts')
-      .update({ last_login_at: nowIso })
-      .eq('id', accountId)
+    } else {
+      await updateGuestAccountLastLoginPg(id, nowIso)
+    }
+    if (id) {
+      const identityOk = await upsertGuestIdentityPg({
+        partnerId,
+        guestAccountId: id,
+        provider: 'email_otp',
+        providerSubject: email,
+      })
+      if (!identityOk) {
+        return NextResponse.json({ error: 'Account failed' }, { status: 500 })
+      }
+      accountId = id
+    }
+  } catch (e) {
+    console.warn('[verify-otp] account PG failed', e)
+    return NextResponse.json({ error: 'Account failed' }, { status: 500 })
   }
   if (!accountId) return NextResponse.json({ error: 'Account failed' }, { status: 500 })
 
-  await db
-    .from('messaging_guest_identities')
-    .upsert(
-      {
-        partner_id: partnerId,
-        guest_account_id: accountId,
-        provider: 'email_otp',
-        provider_subject: email,
-      },
-      { onConflict: 'partner_id,provider,provider_subject' }
-    )
-
-  await mergeGuestSessionConversationToAccount(db, partnerId, sessionId, accountId)
+  await mergeGuestSessionConversationToAccount(partnerId, sessionId, accountId)
 
   const res = NextResponse.json({ ok: true, accountId })
   writeGuestAccountCookie(res, request, accountId)

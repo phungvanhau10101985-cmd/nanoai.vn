@@ -8,11 +8,31 @@ import {
   type EnglishCoachUsageContext,
 } from '@/lib/english-coach-api-usage'
 import { trackOpenAiStyleCompletionUsage, type OpenAiStyleUsage } from '@/lib/track-ai-usage'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
-import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
 import { buildChatPrompts } from '@/app/hoc-tieng-anh-ai/prompt/prompt-builder'
 import { getPairPromptConfig, toLanguagePairKey } from '@/app/hoc-tieng-anh-ai/i18n/pairs'
+import { isPgConfigured } from '@/lib/db/pool'
+import {
+  countCreditEventsByTypePg,
+  fetchDialogueReplayCandidatesPg,
+  fetchMessagesRecallCrossSessionPg,
+  fetchPhraseCacheBatchByNormalizedSourcesPg,
+  fetchPhraseCacheRowPg,
+  fetchSessionMemoryForChatPg,
+  touchDialogueReplayHitPg,
+  touchPhraseCacheUsagePg,
+  updatePhraseCachePinyinPg,
+  upsertDialogueReplayCachePg,
+  upsertPhraseCachePg,
+  upsertSessionMemoryChatPg,
+} from '@/lib/db/language-coach-chat-pg'
+
+async function upsertCoachSessionMemory(
+  input: Parameters<typeof upsertSessionMemoryChatPg>[0]
+): Promise<void> {
+  const r = await upsertSessionMemoryChatPg(input)
+  if (!r.ok) throw new Error(r.message)
+}
 
 type TeacherAccent = 'uk' | 'us'
 type TeacherGender = 'female' | 'male'
@@ -524,10 +544,6 @@ function updateRunningSummary(previous: string, studentText: string, teacherRepl
     .filter(Boolean)
     .join('\n')
     .slice(-2400)
-}
-
-function adminClient() {
-  return createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 }
 
 function normalizeLookup(input: string): string {
@@ -1568,26 +1584,25 @@ export async function POST(request: NextRequest) {
     const normalizedStudentText = normalizeLookup(studentText)
     const normalizedTargetLanguage = normalizeLookup(targetLanguage)
     const normalizedNativeLanguage = normalizeLookup(nativeLanguage)
-    const adminSupabase = adminClient()
+    if (!isPgConfigured()) {
+      return NextResponse.json({ error: 'Database not configured.' }, { status: 503 })
+    }
     const replayRequestId = `replay_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
 
     const tryLoadReplayFlow = async (): Promise<ReplayCacheRow | null> => {
-      const { data } = await adminSupabase
-        .from('language_coach_dialogue_replay_cache')
-        .select(
-          'id, normalized_student_text, student_text, teacher_gender, learner_level, topic_id, normalized_topic_id, topic_label, normalized_topic_label, target_language, normalized_target_language, native_language, normalized_native_language, mode, learning_mode, reply, corrections_json, pronunciation_tips_json, correction_note, corrected_sentence, intent_answer, main_sentence, must_know_text, updated_at, last_used_at, hit_count'
-        )
-        .eq('teacher_gender', gender)
-        .eq('learner_level', learnerLevel)
-        .eq('normalized_topic_id', normalizedTopicId)
-        .eq('normalized_topic_label', normalizedTopicLabel)
-        .eq('normalized_target_language', normalizedTargetLanguage)
-        .eq('normalized_native_language', normalizedNativeLanguage)
-        .eq('mode', mode)
-        .eq('learning_mode', learningMode)
-        .order('updated_at', { ascending: false })
-        .limit(40)
-      const rows = Array.isArray(data) ? (data as ReplayCacheRow[]) : []
+      const fetchRes = await fetchDialogueReplayCandidatesPg({
+        teacherGender: gender,
+        learnerLevel,
+        normalizedTopicId,
+        normalizedTopicLabel,
+        normalizedTargetLanguage,
+        normalizedNativeLanguage,
+        mode,
+        learningMode,
+        limit: 40,
+      })
+      const rows =
+        fetchRes.ok && Array.isArray(fetchRes.rows) ? (fetchRes.rows as ReplayCacheRow[]) : []
       if (rows.length === 0) {
         console.info(
           `[REPLAY][${replayRequestId}] miss reason=no-candidate gender=${gender} mode=${mode} learningMode=${learningMode} pair=${normalizedTargetLanguage}/${normalizedNativeLanguage}`
@@ -1612,10 +1627,8 @@ export async function POST(request: NextRequest) {
       console.info(
         `[REPLAY][${replayRequestId}] hit score=${bestScore.toFixed(3)} cacheId=${best.id} gender=${gender} mode=${mode} learningMode=${learningMode}`
       )
-      void adminSupabase
-        .from('language_coach_dialogue_replay_cache')
-        .update({ last_used_at: new Date().toISOString(), hit_count: Math.max(0, Number(best.hit_count || 0)) + 1 })
-        .eq('id', best.id)
+      const nowHit = new Date().toISOString()
+      void touchDialogueReplayHitPg(String(best.id), Math.max(0, Number(best.hit_count || 0)) + 1, nowHit)
       return best
     }
 
@@ -1641,37 +1654,34 @@ export async function POST(request: NextRequest) {
         )
         return
       }
-      const payloadToSave = {
-        student_text: studentText,
-        normalized_student_text: normalizedStudentText,
-        teacher_gender: gender,
-        learner_level: learnerLevel,
-        topic_id: topicId,
-        normalized_topic_id: normalizedTopicId,
-        topic_label: topicLabel,
-        normalized_topic_label: normalizedTopicLabel,
-        target_language: targetLanguage,
-        normalized_target_language: normalizedTargetLanguage,
-        native_language: nativeLanguage,
-        normalized_native_language: normalizedNativeLanguage,
+      const nowReplay = new Date().toISOString()
+      const saveReplay = await upsertDialogueReplayCachePg({
+        studentText: studentText,
+        normalizedStudentText: normalizedStudentText,
+        teacherGender: gender,
+        learnerLevel,
+        topicId: topicId,
+        normalizedTopicId: normalizedTopicId,
+        topicLabel: topicLabel,
+        normalizedTopicLabel: normalizedTopicLabel,
+        targetLanguage: targetLanguage,
+        normalizedTargetLanguage: normalizedTargetLanguage,
+        nativeLanguage: nativeLanguage,
+        normalizedNativeLanguage: normalizedNativeLanguage,
         mode,
-        learning_mode: learningMode,
+        learningMode: learningMode,
         reply: String(input.reply || '').trim(),
-        corrections_json: JSON.stringify(input.corrections || []),
-        pronunciation_tips_json: JSON.stringify(input.pronunciationTips || []),
-        correction_note: String(input.correctionNote || '').trim() || null,
-        corrected_sentence: String(input.correctedSentence || '').trim() || null,
-        intent_answer: String(input.intentAnswer || '').trim() || null,
-        main_sentence: mainSentenceRaw || null,
-        must_know_text: String(input.mustKnowText || '').trim() || null,
-        updated_at: new Date().toISOString(),
-        last_used_at: new Date().toISOString(),
-      }
-      await adminSupabase
-        .from('language_coach_dialogue_replay_cache')
-        .upsert(payloadToSave, {
-          onConflict: 'normalized_student_text,normalized_target_language,normalized_native_language,teacher_gender,mode,learning_mode,learner_level,normalized_topic_id,normalized_topic_label',
-        })
+        correctionsJson: JSON.stringify(input.corrections || []),
+        pronunciationTipsJson: JSON.stringify(input.pronunciationTips || []),
+        correctionNote: String(input.correctionNote || '').trim() || null,
+        correctedSentence: String(input.correctedSentence || '').trim() || null,
+        intentAnswer: String(input.intentAnswer || '').trim() || null,
+        mainSentence: mainSentenceRaw || null,
+        mustKnowText: String(input.mustKnowText || '').trim() || null,
+        updatedAtIso: nowReplay,
+        lastUsedAtIso: nowReplay,
+      })
+      if (!saveReplay.ok) throw new Error(saveReplay.message)
       console.info(
         `[REPLAY][${replayRequestId}] save gender=${gender} mode=${mode} learningMode=${learningMode} pair=${normalizedTargetLanguage}/${normalizedNativeLanguage}`
       )
@@ -1686,17 +1696,10 @@ export async function POST(request: NextRequest) {
     let presetReplay: PresetReplayState | null = null
     let reviewDrill: ReviewDrillState | null = null
     if (sessionId) {
-      const supabase = createClient()
-      const auth = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập để học cùng AI.')
+      const auth = await getUserForAction()
       if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
       userId = auth.user.id
-      const { data: memoryRows } = await adminSupabase
-        .from('language_coach_session_memories')
-        .select('running_summary, pinned_facts_json')
-        .eq('user_id', userId)
-        .eq('session_id', sessionId)
-        .limit(1)
-      const memory = Array.isArray(memoryRows) && memoryRows.length > 0 ? memoryRows[0] : null
+      const memory = await fetchSessionMemoryForChatPg(userId, sessionId)
       sessionPinnedFactsRaw = String(memory?.pinned_facts_json || '{}')
       presetReplay = parsePresetReplay(sessionPinnedFactsRaw)
       reviewDrill = parseReviewDrill(sessionPinnedFactsRaw)
@@ -1713,23 +1716,15 @@ export async function POST(request: NextRequest) {
       if (!sessionUuid) {
         return NextResponse.json({ error: 'sessionId không hợp lệ.' }, { status: 400 })
       }
-      const [{ count: liveStartCount, error: liveStartError }, { count: liveUnlockCountRaw, error: liveUnlockError }] = await Promise.all([
-        adminSupabase
-          .from('language_coach_credit_events')
-          .select('id', { head: true, count: 'exact' })
-          .eq('user_id', userId)
-          .eq('session_id', sessionUuid)
-          .eq('charge_type', 'english_coach_live_start'),
-        adminSupabase
-          .from('language_coach_credit_events')
-          .select('id', { head: true, count: 'exact' })
-          .eq('user_id', userId)
-          .eq('session_id', sessionUuid)
-          .eq('charge_type', 'english_coach_live_unlock'),
+      const [liveStartRes, liveUnlockRes] = await Promise.all([
+        countCreditEventsByTypePg(userId, sessionUuid, 'english_coach_live_start'),
+        countCreditEventsByTypePg(userId, sessionUuid, 'english_coach_live_unlock'),
       ])
-      if (liveStartError || liveUnlockError) {
+      if (!liveStartRes.ok || !liveUnlockRes.ok) {
         return NextResponse.json({ error: 'Không đọc được trạng thái credit của buổi học.' }, { status: 500 })
       }
+      const liveStartCount = liveStartRes.count
+      const liveUnlockCountRaw = liveUnlockRes.count
       const liveStartCharged = (liveStartCount || 0) > 0
       if (!liveStartCharged) {
         return NextResponse.json(
@@ -1895,22 +1890,19 @@ export async function POST(request: NextRequest) {
           }
         })()
         const nextSummary = updateRunningSummary(sessionMemory.runningSummary, studentText, turnReply)
-        await adminSupabase.from('language_coach_session_memories').upsert(
-          {
-            user_id: userId,
-            session_id: sessionId,
-            target_language: targetLanguage,
-            native_language: nativeLanguage,
-            learner_level: learnerLevel,
-            topic_id: topicId || null,
-            topic_label: topicLabel || null,
-            running_summary: nextSummary,
-            pinned_facts_json: nextPinnedRaw,
-            learning_mode: learningMode,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: 'user_id,session_id' }
-        )
+        await upsertCoachSessionMemory({
+          userId,
+          sessionId,
+          targetLanguage,
+          nativeLanguage,
+          learnerLevel,
+          topicId: topicId || null,
+          topicLabel: topicLabel || null,
+          runningSummary: nextSummary,
+          pinnedFactsJson: nextPinnedRaw,
+          learningMode,
+          updatedAtIso: new Date().toISOString(),
+        })
         const nextExpectedStudentText = String(presetReplay.turns[turnIdx + 1]?.expectedStudent || '').trim()
         const turnTokensJson = String(turn.tokensJson || '').trim() || undefined
         return NextResponse.json({
@@ -1955,22 +1947,19 @@ export async function POST(request: NextRequest) {
             speakingFail: 1,
             hintServed: showCooldownHint ? 1 : 0,
           })
-          await adminSupabase.from('language_coach_session_memories').upsert(
-            {
-              user_id: userId,
-              session_id: sessionId,
-              target_language: targetLanguage,
-              native_language: nativeLanguage,
-              learner_level: learnerLevel,
-              topic_id: topicId || null,
-              topic_label: topicLabel || null,
-              running_summary: sessionMemory.runningSummary,
-              pinned_facts_json: pinned,
-              learning_mode: learningMode,
-              updated_at: new Date().toISOString(),
-            },
-            { onConflict: 'user_id,session_id' }
-          )
+          await upsertCoachSessionMemory({
+            userId,
+            sessionId,
+            targetLanguage,
+            nativeLanguage,
+            learnerLevel,
+            topicId: topicId || null,
+            topicLabel: topicLabel || null,
+            runningSummary: sessionMemory.runningSummary,
+            pinnedFactsJson: pinned,
+            learningMode,
+            updatedAtIso: new Date().toISOString(),
+          })
           const retry = strictReplayRetryPromptByLanguageCode(targetLanguageCode, speaking.targetSentence, targetLanguage, speaking.attempt)
           const cooldownHint = showCooldownHint ? speakingCooldownHint(speaking.targetSentence, nativeLanguageCode) : ''
           const correctionNote = [reviewDrillSpeakingHintByLanguageCode(nativeLanguageCode), cooldownHint].filter(Boolean).join(' ')
@@ -1995,22 +1984,19 @@ export async function POST(request: NextRequest) {
           { speakingPass: 1 },
           afterSpeaking?.listening ? 'listening' : 'done'
         )
-        await adminSupabase.from('language_coach_session_memories').upsert(
-          {
-            user_id: userId,
-            session_id: sessionId,
-            target_language: targetLanguage,
-            native_language: nativeLanguage,
-            learner_level: learnerLevel,
-            topic_id: topicId || null,
-            topic_label: topicLabel || null,
-            running_summary: sessionMemory.runningSummary,
-            pinned_facts_json: pinnedAfterSpeaking,
-            learning_mode: learningMode,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: 'user_id,session_id' }
-        )
+        await upsertCoachSessionMemory({
+          userId,
+          sessionId,
+          targetLanguage,
+          nativeLanguage,
+          learnerLevel,
+          topicId: topicId || null,
+          topicLabel: topicLabel || null,
+          runningSummary: sessionMemory.runningSummary,
+          pinnedFactsJson: pinnedAfterSpeaking,
+          learningMode,
+          updatedAtIso: new Date().toISOString(),
+        })
         if (reviewDrill.listening) {
           const listening = reviewDrill.listening
           return NextResponse.json({
@@ -2036,22 +2022,19 @@ export async function POST(request: NextRequest) {
           })
         }
         const pinnedCleared = buildReviewDrillRaw(sessionPinnedFactsRaw, null, { speakingPass: 1 }, 'done')
-        await adminSupabase.from('language_coach_session_memories').upsert(
-          {
-            user_id: userId,
-            session_id: sessionId,
-            target_language: targetLanguage,
-            native_language: nativeLanguage,
-            learner_level: learnerLevel,
-            topic_id: topicId || null,
-            topic_label: topicLabel || null,
-            running_summary: sessionMemory.runningSummary,
-            pinned_facts_json: pinnedCleared,
-            learning_mode: learningMode,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: 'user_id,session_id' }
-        )
+        await upsertCoachSessionMemory({
+          userId,
+          sessionId,
+          targetLanguage,
+          nativeLanguage,
+          learnerLevel,
+          topicId: topicId || null,
+          topicLabel: topicLabel || null,
+          runningSummary: sessionMemory.runningSummary,
+          pinnedFactsJson: pinnedCleared,
+          learningMode,
+          updatedAtIso: new Date().toISOString(),
+        })
         return NextResponse.json({
           reply: reviewDrillListeningDoneByLanguageCode(nativeLanguageCode),
           corrections: [],
@@ -2095,22 +2078,19 @@ export async function POST(request: NextRequest) {
             listeningFail: 1,
             hintServed: showCooldownHint ? 1 : 0,
           })
-          await adminSupabase.from('language_coach_session_memories').upsert(
-            {
-              user_id: userId,
-              session_id: sessionId,
-              target_language: targetLanguage,
-              native_language: nativeLanguage,
-              learner_level: learnerLevel,
-              topic_id: topicId || null,
-              topic_label: topicLabel || null,
-              running_summary: sessionMemory.runningSummary,
-              pinned_facts_json: pinned,
-              learning_mode: learningMode,
-              updated_at: new Date().toISOString(),
-            },
-            { onConflict: 'user_id,session_id' }
-          )
+          await upsertCoachSessionMemory({
+            userId,
+            sessionId,
+            targetLanguage,
+            nativeLanguage,
+            learnerLevel,
+            topicId: topicId || null,
+            topicLabel: topicLabel || null,
+            runningSummary: sessionMemory.runningSummary,
+            pinnedFactsJson: pinned,
+            learningMode,
+            updatedAtIso: new Date().toISOString(),
+          })
           const sampleKeyword = String(listening.expectedKeywords?.[Math.min(nextAttempt - 1, Math.max(0, listening.expectedKeywords.length - 1))] || '').trim()
           const hintBase = nativeLanguageCode === 'vi'
             ? `Gợi ý: em cần chọn đúng ${expectedCount} từ nghe được rõ nhất.`
@@ -2179,22 +2159,19 @@ export async function POST(request: NextRequest) {
           })
         }
         const pinnedCleared = buildReviewDrillRaw(sessionPinnedFactsRaw, null, { listeningPass: 1 }, 'done')
-        await adminSupabase.from('language_coach_session_memories').upsert(
-          {
-            user_id: userId,
-            session_id: sessionId,
-            target_language: targetLanguage,
-            native_language: nativeLanguage,
-            learner_level: learnerLevel,
-            topic_id: topicId || null,
-            topic_label: topicLabel || null,
-            running_summary: sessionMemory.runningSummary,
-            pinned_facts_json: pinnedCleared,
-            learning_mode: learningMode,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: 'user_id,session_id' }
-        )
+        await upsertCoachSessionMemory({
+          userId,
+          sessionId,
+          targetLanguage,
+          nativeLanguage,
+          learnerLevel,
+          topicId: topicId || null,
+          topicLabel: topicLabel || null,
+          runningSummary: sessionMemory.runningSummary,
+          pinnedFactsJson: pinnedCleared,
+          learningMode,
+          updatedAtIso: new Date().toISOString(),
+        })
         return NextResponse.json({
           reply: reviewDrillListeningDoneByLanguageCode(nativeLanguageCode),
           corrections: [],
@@ -2325,22 +2302,19 @@ export async function POST(request: NextRequest) {
                 }
               }
             })()
-            await adminSupabase.from('language_coach_session_memories').upsert(
-              {
-                user_id: userId,
-                session_id: sessionId,
-                target_language: targetLanguage,
-                native_language: nativeLanguage,
-                learner_level: learnerLevel,
-                topic_id: topicId || null,
-                topic_label: topicLabel || null,
-                running_summary: sessionMemory.runningSummary,
-                pinned_facts_json: JSON.stringify(nextPinnedRoot),
-                learning_mode: 'review',
-                updated_at: new Date().toISOString(),
-              },
-              { onConflict: 'user_id,session_id' }
-            )
+            await upsertCoachSessionMemory({
+              userId,
+              sessionId,
+              targetLanguage,
+              nativeLanguage,
+              learnerLevel,
+              topicId: topicId || null,
+              topicLabel: topicLabel || null,
+              runningSummary: sessionMemory.runningSummary,
+              pinnedFactsJson: JSON.stringify(nextPinnedRoot),
+              learningMode: 'review',
+              updatedAtIso: new Date().toISOString(),
+            })
           }
         }
       }
@@ -2366,14 +2340,8 @@ export async function POST(request: NextRequest) {
 
     let retrievalGuide = 'Không yêu cầu truy xuất ngữ cảnh xa.'
     if (asksReviewFar && userId) {
-      const recallQuery = adminSupabase
-        .from('language_coach_messages')
-        .select('role, text, created_at')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })
-        .limit(40)
-      if (sessionId) recallQuery.neq('session_id', sessionId)
-      const { data: recallRows } = await recallQuery
+      const recallRes = await fetchMessagesRecallCrossSessionPg(userId, sessionId || null, 40)
+      const recallRows = recallRes.ok ? recallRes.rows : []
       const recalled = (recallRows || [])
         .map((row) => `${row.role === 'teacher' ? 'Teacher' : 'Student'}: ${String(row.text || '').slice(0, 220)}`)
         .slice(0, 12)
@@ -2524,22 +2492,19 @@ ${studentText}`
         const mainSentence = pinyin ? `${reply}\n\nPinyin: ${pinyin}` : reply
         if (userId && sessionId) {
           const nextSummary = updateRunningSummary(sessionMemory.runningSummary, studentText, mainSentence)
-          await adminSupabase.from('language_coach_session_memories').upsert(
-            {
-              user_id: userId,
-              session_id: sessionId,
-              target_language: targetLanguage,
-              native_language: nativeLanguage,
-              learner_level: learnerLevel,
-              topic_id: topicId || null,
-              topic_label: topicLabel || null,
-              running_summary: nextSummary,
-              pinned_facts_json: JSON.stringify(sessionMemory.pinnedFacts),
-              learning_mode: 'reflex',
-              updated_at: new Date().toISOString(),
-            },
-            { onConflict: 'user_id,session_id' }
-          )
+          await upsertCoachSessionMemory({
+            userId,
+            sessionId,
+            targetLanguage,
+            nativeLanguage,
+            learnerLevel,
+            topicId: topicId || null,
+            topicLabel: topicLabel || null,
+            runningSummary: nextSummary,
+            pinnedFactsJson: JSON.stringify(sessionMemory.pinnedFacts),
+            learningMode: 'reflex',
+            updatedAtIso: new Date().toISOString(),
+          })
         }
         try {
           await saveReplayFlow({
@@ -2563,20 +2528,15 @@ ${studentText}`
     }
 
     if (asksHowToSay) {
-      const { data: phraseCachedRows } = await adminSupabase
-        .from('language_coach_phrase_cache')
-        .select('id, target_sentence, native_meaning, pinyin')
-        .eq('normalized_source_text', normalizedStudentText)
-        .eq('normalized_target_language', normalizedTargetLanguage)
-        .eq('normalized_native_language', normalizedNativeLanguage)
-        .order('updated_at', { ascending: false })
-        .limit(1)
-      const phraseCached = Array.isArray(phraseCachedRows) && phraseCachedRows.length > 0 ? phraseCachedRows[0] : null
+      const phraseLookup = await fetchPhraseCacheRowPg({
+        normalizedSourceText: normalizedStudentText,
+        normalizedTargetLanguage: normalizedTargetLanguage,
+        normalizedNativeLanguage: normalizedNativeLanguage,
+      })
+      const phraseCached = phraseLookup.ok && phraseLookup.row ? phraseLookup.row : null
       if (phraseCached) {
-        void adminSupabase
-          .from('language_coach_phrase_cache')
-          .update({ last_used_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-          .eq('id', phraseCached.id)
+        const phraseTouchIso = new Date().toISOString()
+        void touchPhraseCacheUsagePg(phraseCached.id, phraseTouchIso)
         const replyLines = [
           `${labels.explain} (${nativeLanguage}): ${labels.howToSayExplain}`,
           `${labels.standardSentence} (${targetLanguage}): ${String(phraseCached.target_sentence || '').trim()}`,
@@ -2600,10 +2560,7 @@ ${studentText}`
         if (targetLanguageCode === 'zh' && cachedPinyin) {
           replyLines.push(`Pinyin: ${cachedPinyin}`)
           if (!String(phraseCached.pinyin || '').trim()) {
-            void adminSupabase
-              .from('language_coach_phrase_cache')
-              .update({ pinyin: cachedPinyin, updated_at: new Date().toISOString() })
-              .eq('id', phraseCached.id)
+            void updatePhraseCachePinyinPg(phraseCached.id, cachedPinyin, new Date().toISOString())
           }
         }
         if (nativeMeaning) {
@@ -3191,23 +3148,21 @@ Trả về JSON hợp lệ, không markdown:
             // ignore pinyin enrichment failure
           }
         }
-        await adminSupabase.from('language_coach_phrase_cache').upsert(
-          {
-            source_text: studentText,
-            normalized_source_text: normalizedStudentText,
-            target_language: targetLanguage,
-            normalized_target_language: normalizedTargetLanguage,
-            native_language: nativeLanguage,
-            normalized_native_language: normalizedNativeLanguage,
-            target_sentence: targetSentence,
-            native_meaning: nativeMeaning || null,
-            pinyin: pinyin || null,
-            source_model: 'gemini-2.5-flash',
-            last_used_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: 'normalized_source_text,normalized_target_language,normalized_native_language' }
-        )
+        const phraseNow = new Date().toISOString()
+        const phraseUpsert = await upsertPhraseCachePg({
+          sourceText: studentText,
+          normalizedSourceText: normalizedStudentText,
+          targetLanguage: targetLanguage,
+          normalizedTargetLanguage: normalizedTargetLanguage,
+          nativeLanguage: nativeLanguage,
+          normalizedNativeLanguage: normalizedNativeLanguage,
+          targetSentence: targetSentence,
+          nativeMeaning: nativeMeaning || null,
+          pinyin: pinyin || null,
+          sourceModel: 'gemini-2.5-flash',
+          nowIso: phraseNow,
+        })
+        if (!phraseUpsert.ok) console.error('[chat] phrase_cache', phraseUpsert.message)
       }
     }
 
@@ -3220,16 +3175,17 @@ Trả về JSON hợp lệ, không markdown:
         new Set([targetSentence, ...chineseSentences].map((x) => String(x || '').trim()).filter(Boolean))
       ).slice(0, 8)
       const normalizedSentences = sentencesToSeed.map((s) => normalizeLookup(s))
-      const existingRows = normalizedSentences.length > 0
-        ? await adminSupabase
-          .from('language_coach_phrase_cache')
-          .select('normalized_source_text, pinyin, native_meaning')
-          .eq('normalized_target_language', normalizedTargetLanguage)
-          .eq('normalized_native_language', normalizedNativeLanguage)
-          .in('normalized_source_text', normalizedSentences)
-        : { data: null as Array<{ normalized_source_text: string; pinyin: string | null; native_meaning: string | null }> | null }
+      const batchRes =
+        normalizedSentences.length > 0
+          ? await fetchPhraseCacheBatchByNormalizedSourcesPg({
+              normalizedTargetLanguage: normalizedTargetLanguage,
+              normalizedNativeLanguage: normalizedNativeLanguage,
+              normalizedSourceTexts: normalizedSentences,
+            })
+          : { ok: true as const, rows: [] as Array<{ normalized_source_text: string; pinyin: string | null; native_meaning: string | null }> }
+      const existingRowsList = batchRes.ok ? batchRes.rows : []
       const existingByNorm = new Map<string, { pinyin: string; nativeMeaning: string }>()
-      for (const row of (existingRows.data || [])) {
+      for (const row of existingRowsList) {
         const key = String(row.normalized_source_text || '').trim()
         if (!key) continue
         existingByNorm.set(key, {
@@ -3257,23 +3213,21 @@ Trả về JSON hợp lệ, không markdown:
           sentence === targetSentence
             ? (replyNativeMeaning || existing?.nativeMeaning || null)
             : (existing?.nativeMeaning || null)
-        await adminSupabase.from('language_coach_phrase_cache').upsert(
-          {
-            source_text: sentence,
-            normalized_source_text: normalizedSentence,
-            target_language: targetLanguage,
-            normalized_target_language: normalizedTargetLanguage,
-            native_language: nativeLanguage,
-            normalized_native_language: normalizedNativeLanguage,
-            target_sentence: sentence,
-            native_meaning: nativeMeaningForSentence,
-            pinyin: pinyinForSentence || null,
-            source_model: 'zh-reply-seed',
-            last_used_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: 'normalized_source_text,normalized_target_language,normalized_native_language' }
-        )
+        const seedNow = new Date().toISOString()
+        const seedUpsert = await upsertPhraseCachePg({
+          sourceText: sentence,
+          normalizedSourceText: normalizedSentence,
+          targetLanguage: targetLanguage,
+          normalizedTargetLanguage: normalizedTargetLanguage,
+          nativeLanguage: nativeLanguage,
+          normalizedNativeLanguage: normalizedNativeLanguage,
+          targetSentence: sentence,
+          nativeMeaning: nativeMeaningForSentence,
+          pinyin: pinyinForSentence || null,
+          sourceModel: 'zh-reply-seed',
+          nowIso: seedNow,
+        })
+        if (!seedUpsert.ok) console.error('[chat] phrase_cache seed', seedUpsert.message)
       }
     }
 
@@ -3560,22 +3514,19 @@ Không phân tích gì thêm.`
         }
       })()
       const nextSummary = updateRunningSummary(sessionMemory.runningSummary, studentText, parsed.reply)
-      await adminSupabase.from('language_coach_session_memories').upsert(
-        {
-          user_id: userId,
-          session_id: sessionId,
-          target_language: targetLanguage,
-          native_language: nativeLanguage,
-          learner_level: learnerLevel,
-          topic_id: topicId || null,
-          topic_label: topicLabel || null,
-          running_summary: nextSummary,
-          pinned_facts_json: JSON.stringify(nextPinnedRoot),
-          learning_mode: 'review',
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'user_id,session_id' }
-      )
+      await upsertCoachSessionMemory({
+        userId,
+        sessionId,
+        targetLanguage,
+        nativeLanguage,
+        learnerLevel,
+        topicId: topicId || null,
+        topicLabel: topicLabel || null,
+        runningSummary: nextSummary,
+        pinnedFactsJson: JSON.stringify(nextPinnedRoot),
+        learningMode: 'review',
+        updatedAtIso: new Date().toISOString(),
+      })
     }
     try {
       await saveReplayFlow({

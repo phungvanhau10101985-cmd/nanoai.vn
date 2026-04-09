@@ -1,8 +1,43 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { getInternalBaseUrl } from '@/lib/internal-url'
+import { isPgConfigured } from '@/lib/db/pool'
+import {
+  insertMeaningFixFailedPg,
+  setDailyWordMeaningFixAttemptedPg,
+  setReviewQueueMeaningFixAttemptedPg,
+} from '@/lib/db/language-coach-meaning-examples-fix-pg'
+import { incrementLanguageCoachProgressNewWordsPg } from '@/lib/db/language-coach-progress-pg'
+import {
+  deleteAllDailyWordsForUserPg,
+  deleteAllReviewQueueForUserPg,
+  deleteDailyWordByIdPg,
+  deleteDailyWordsByIdsPg,
+  deleteReviewQueueByIdsPg,
+  deleteReviewQueueByUserWordTargetPg,
+  fetchDailyWordByIdForUserPg,
+  fetchDailyWordsEnrichmentPendingPg,
+  fetchDailyWordsMeaningFixPendingByUserPg,
+  fetchDailyWordsMinimalForCleanupPg,
+  fetchExistingDailyWordForMergePg,
+  fetchExistingReviewQueueForMergePg,
+  fetchLatestSessionMetaWordDailyPg,
+  fetchMaxLearnedDateWordDailyPg,
+  fetchReviewQueueEnrichmentPendingPg,
+  fetchReviewQueueMeaningFixPendingByUserPg,
+  fetchReviewQueueMinimalForCleanupPg,
+  fetchSessionTargetLanguageFromMessagesPg,
+  listDailyWordsForUserPg,
+  markDailyWordEnrichAttemptedPg,
+  markReviewQueueEnrichAttemptedPg,
+  updateDailyWordAfterEnrichmentPg,
+  updateDailyWordMeaningLanguageFixPg,
+  updateReviewQueueAfterEnrichmentPg,
+  updateReviewQueueMeaningLanguageFixPg,
+  upsertDailyWordFromWordDailyRoutePg,
+  upsertReviewQueueFromWordDailyPg,
+} from '@/lib/db/language-coach-word-daily-pg'
+import { upsertVocabCacheFromWordRoutePg } from '@/lib/db/language-coach-vocab-cache-pg'
 
 type DailyWordPayload = {
   action?: string
@@ -25,10 +60,6 @@ type DailyWordPayload = {
   contextSensitive?: boolean
   /** 0-based teacher turn index. -1 or omit = session-level (backward compat). */
   turnIndex?: number
-}
-
-function adminClient() {
-  return createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 }
 
 function toSafeDate(input: string): string {
@@ -217,16 +248,10 @@ function meaningInWrongLanguage(row: {
   return hasCjk(text)
 }
 
-async function normalizeIncompleteWords(
-  adminSupabase: ReturnType<typeof adminClient>,
-  userId: string,
-  baseUrl: string
-) {
-  const { data: dailyRows } = await adminSupabase
-    .from('language_coach_daily_words')
-    .select('id, word, target_language, native_language, meaning, meaning_items_json, example_items_json')
-    .eq('user_id', userId)
-    .eq('enrich_attempted', false) // Chỉ chọn những từ chưa thử
+async function normalizeIncompleteWords(userId: string, baseUrl: string) {
+  if (!isPgConfigured()) return
+
+  const dailyRows = await fetchDailyWordsEnrichmentPendingPg(userId)
 
   const toFix: Array<{ table: 'daily' | 'review'; id: string; word: string; target: string; native: string }> = []
   for (const r of dailyRows ?? []) {
@@ -245,11 +270,7 @@ async function normalizeIncompleteWords(
       })
     }
   }
-  const { data: reviewRows } = await adminSupabase
-    .from('language_coach_review_queue')
-    .select('id, word, target_language, native_language, meaning, meaning_items_json, example_items_json')
-    .eq('user_id', userId)
-    .eq('enrich_attempted', false) // Chỉ chọn những từ chưa thử
+  const reviewRows = await fetchReviewQueueEnrichmentPendingPg(userId)
 
   for (const r of reviewRows ?? []) {
     if (!hasRequiredLanguages(r)) continue
@@ -286,8 +307,8 @@ async function normalizeIncompleteWords(
       // Đánh dấu đã thử ngay lập tức để không thử lại
       const rowsToMark = toFix.filter((x) => x.word === r.word && x.target === r.target && x.native === r.native)
       for (const row of rowsToMark) {
-        const tableName = row.table === 'daily' ? 'language_coach_daily_words' : 'language_coach_review_queue'
-        await adminSupabase.from(tableName).update({ enrich_attempted: true }).eq('id', row.id)
+        if (row.table === 'daily') await markDailyWordEnrichAttemptedPg(row.id)
+        else await markReviewQueueEnrichAttemptedPg(row.id)
       }
 
       const res = await fetch(`${baseUrl}/api/english-coach/word`, {
@@ -317,37 +338,34 @@ async function normalizeIncompleteWords(
       const exampleItems = sanitizeExampleItems(data.exampleItems)
       const primaryEx = exampleItems[0]
       const rowsToUpdate = toFix.filter((x) => x.word === r.word && x.target === r.target && x.native === r.native)
+      const nowIsoEnrich = new Date().toISOString()
       for (const row of rowsToUpdate) {
         if (row.table === 'daily') {
-          await adminSupabase
-            .from('language_coach_daily_words')
-            .update({
-              meaning: data.meaning || null,
-              pronunciation: data.pronunciation || null,
-              meaning_items_json: senses.length > 0 ? JSON.stringify(senses) : null,
-              example_items_json: exampleItems.length > 0 ? JSON.stringify(exampleItems) : null,
-              usage_level: normalizeUsageLevel(data.usageLevel),
-              importance_score: normalizeImportanceScore(data.importanceScore),
-              is_context_sensitive: normalizeContextSensitive(data.contextSensitive),
-              example_target: primaryEx?.targetText || null,
-              example_native: primaryEx?.nativeText || null,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', row.id)
+          await updateDailyWordAfterEnrichmentPg({
+            id: row.id,
+            meaning: data.meaning || null,
+            pronunciation: data.pronunciation || null,
+            meaningItemsJson: senses.length > 0 ? JSON.stringify(senses) : null,
+            exampleItemsJson: exampleItems.length > 0 ? JSON.stringify(exampleItems) : null,
+            usageLevel: normalizeUsageLevel(data.usageLevel),
+            importanceScore: normalizeImportanceScore(data.importanceScore),
+            isContextSensitive: normalizeContextSensitive(data.contextSensitive),
+            exampleTarget: primaryEx?.targetText || null,
+            exampleNative: primaryEx?.nativeText || null,
+            updatedAtIso: nowIsoEnrich,
+          })
         } else {
-          await adminSupabase
-            .from('language_coach_review_queue')
-            .update({
-              meaning: data.meaning || null,
-              pronunciation: data.pronunciation || null,
-              meaning_items_json: senses.length > 0 ? JSON.stringify(senses) : null,
-              example_items_json: exampleItems.length > 0 ? JSON.stringify(exampleItems) : null,
-              usage_level: normalizeUsageLevel(data.usageLevel),
-              importance_score: normalizeImportanceScore(data.importanceScore),
-              is_context_sensitive: normalizeContextSensitive(data.contextSensitive),
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', row.id)
+          await updateReviewQueueAfterEnrichmentPg({
+            id: row.id,
+            meaning: data.meaning || null,
+            pronunciation: data.pronunciation || null,
+            meaningItemsJson: senses.length > 0 ? JSON.stringify(senses) : null,
+            exampleItemsJson: exampleItems.length > 0 ? JSON.stringify(exampleItems) : null,
+            usageLevel: normalizeUsageLevel(data.usageLevel),
+            importanceScore: normalizeImportanceScore(data.importanceScore),
+            isContextSensitive: normalizeContextSensitive(data.contextSensitive),
+            updatedAtIso: nowIsoEnrich,
+          })
         }
       }
       wordsFixed++
@@ -359,11 +377,7 @@ async function normalizeIncompleteWords(
 
   // Chuẩn hóa nghĩa mẹ đẻ sai (CJK thay vì native) - chạy tự động 1 lần
   try {
-    const { data: dailyMeaningRows } = await adminSupabase
-      .from('language_coach_daily_words')
-      .select('id, user_id, word, target_language, native_language, meaning, meaning_items_json')
-      .eq('user_id', userId)
-      .eq('meaning_fix_attempted', false)
+    const dailyMeaningRows = await fetchDailyWordsMeaningFixPendingByUserPg(userId)
 
     const meaningToFix: Array<{ table: 'daily' | 'review'; id: string; word: string; target: string; native: string }> = []
     for (const r of dailyMeaningRows ?? []) {
@@ -379,11 +393,7 @@ async function normalizeIncompleteWords(
       }
     }
 
-    const { data: reviewMeaningRows } = await adminSupabase
-      .from('language_coach_review_queue')
-      .select('id, user_id, word, target_language, native_language, meaning, meaning_items_json')
-      .eq('user_id', userId)
-      .eq('meaning_fix_attempted', false)
+    const reviewMeaningRows = await fetchReviewQueueMeaningFixPendingByUserPg(userId)
 
     for (const r of reviewMeaningRows ?? []) {
       if (!hasRequiredLanguages(r)) continue
@@ -410,8 +420,8 @@ async function normalizeIncompleteWords(
       const rowsToMark = meaningToFix.filter((x) => x.word === r.word && x.target === r.target && x.native === r.native)
       try {
         for (const row of rowsToMark) {
-          const tbl = row.table === 'daily' ? 'language_coach_daily_words' : 'language_coach_review_queue'
-          await adminSupabase.from(tbl).update({ meaning_fix_attempted: true }).eq('id', row.id)
+          if (row.table === 'daily') await setDailyWordMeaningFixAttemptedPg(row.id)
+          else await setReviewQueueMeaningFixAttemptedPg(row.id)
         }
 
         const res = await fetch(`${baseUrl}/api/english-coach/word`, {
@@ -436,14 +446,14 @@ async function normalizeIncompleteWords(
         if (!res.ok || !data.meaning) {
           const errMsg = (data as { error?: string }).error || `Status ${res.status}`
           for (const row of rowsToMark) {
-            await adminSupabase.from('language_coach_meaning_fix_failed').insert({
+            await insertMeaningFixFailedPg({
               word: r.word,
-              target_language: r.target,
-              native_language: r.native,
-              user_id: userId,
-              source_table: row.table === 'daily' ? 'language_coach_daily_words' : 'language_coach_review_queue',
-              source_id: row.id,
-              error_message: errMsg,
+              targetLanguage: r.target,
+              nativeLanguage: r.native,
+              userId,
+              sourceTable: row.table === 'daily' ? 'language_coach_daily_words' : 'language_coach_review_queue',
+              sourceId: row.id,
+              errorMessage: errMsg,
             })
           }
           continue
@@ -453,35 +463,32 @@ async function normalizeIncompleteWords(
         const exampleItems = sanitizeExampleItems(data.exampleItems)
         const primaryEx = exampleItems[0]
 
+        const nowIsoMeaning = new Date().toISOString()
         for (const row of rowsToMark) {
           if (row.table === 'daily') {
-            await adminSupabase
-              .from('language_coach_daily_words')
-              .update({
-                meaning: data.meaning || null,
-                meaning_items_json: senses.length > 0 ? JSON.stringify(senses) : null,
-                example_items_json: exampleItems.length > 0 ? JSON.stringify(exampleItems) : null,
-                usage_level: normalizeUsageLevel(data.usageLevel),
-                importance_score: normalizeImportanceScore(data.importanceScore),
-                is_context_sensitive: normalizeContextSensitive(data.contextSensitive),
-                example_target: primaryEx?.targetText || null,
-                example_native: primaryEx?.nativeText || null,
-                updated_at: new Date().toISOString(),
-              })
-              .eq('id', row.id)
+            await updateDailyWordMeaningLanguageFixPg({
+              id: row.id,
+              meaning: data.meaning || null,
+              meaningItemsJson: senses.length > 0 ? JSON.stringify(senses) : null,
+              exampleItemsJson: exampleItems.length > 0 ? JSON.stringify(exampleItems) : null,
+              usageLevel: normalizeUsageLevel(data.usageLevel),
+              importanceScore: normalizeImportanceScore(data.importanceScore),
+              isContextSensitive: normalizeContextSensitive(data.contextSensitive),
+              exampleTarget: primaryEx?.targetText || null,
+              exampleNative: primaryEx?.nativeText || null,
+              updatedAtIso: nowIsoMeaning,
+            })
           } else {
-            await adminSupabase
-              .from('language_coach_review_queue')
-              .update({
-                meaning: data.meaning || null,
-                meaning_items_json: senses.length > 0 ? JSON.stringify(senses) : null,
-                example_items_json: exampleItems.length > 0 ? JSON.stringify(exampleItems) : null,
-                usage_level: normalizeUsageLevel(data.usageLevel),
-                importance_score: normalizeImportanceScore(data.importanceScore),
-                is_context_sensitive: normalizeContextSensitive(data.contextSensitive),
-                updated_at: new Date().toISOString(),
-              })
-              .eq('id', row.id)
+            await updateReviewQueueMeaningLanguageFixPg({
+              id: row.id,
+              meaning: data.meaning || null,
+              meaningItemsJson: senses.length > 0 ? JSON.stringify(senses) : null,
+              exampleItemsJson: exampleItems.length > 0 ? JSON.stringify(exampleItems) : null,
+              usageLevel: normalizeUsageLevel(data.usageLevel),
+              importanceScore: normalizeImportanceScore(data.importanceScore),
+              isContextSensitive: normalizeContextSensitive(data.contextSensitive),
+              updatedAtIso: nowIsoMeaning,
+            })
           }
         }
         meaningFixed++
@@ -489,14 +496,14 @@ async function normalizeIncompleteWords(
       } catch (e) {
         const errMsg = e instanceof Error ? e.message : 'Lỗi không xác định'
         for (const row of rowsToMark) {
-          await adminSupabase.from('language_coach_meaning_fix_failed').insert({
+          await insertMeaningFixFailedPg({
             word: r.word,
-            target_language: r.target,
-            native_language: r.native,
-            user_id: userId,
-            source_table: row.table === 'daily' ? 'language_coach_daily_words' : 'language_coach_review_queue',
-            source_id: row.id,
-            error_message: errMsg,
+            targetLanguage: r.target,
+            nativeLanguage: r.native,
+            userId,
+            sourceTable: row.table === 'daily' ? 'language_coach_daily_words' : 'language_coach_review_queue',
+            sourceId: row.id,
+            errorMessage: errMsg,
           })
         }
       }
@@ -508,12 +515,13 @@ async function normalizeIncompleteWords(
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createClient()
-    const auth = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập để xem từ mới.')
+    const auth = await getUserForAction()
     if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
     const { user } = auth
 
-    const adminSupabase = adminClient()
+    if (!isPgConfigured()) {
+      return NextResponse.json({ error: 'Database not configured.' }, { status: 503 })
+    }
 
     const dateQuery = String(request.nextUrl.searchParams.get('date') || '').trim()
     const sessionId = String(request.nextUrl.searchParams.get('sessionId') || '').trim()
@@ -536,58 +544,41 @@ export async function GET(request: NextRequest) {
     } else if (dateQuery === 'all') {
       learnedDate = ''
     } else if (dateQuery === 'last' || dateQuery === 'previous') {
-      let latestSessionQuery = adminSupabase
-        .from('language_coach_daily_words')
-        .select('session_id, learned_date')
-        .eq('user_id', user.id)
-        .not('session_id', 'is', null)
-      if (targetLanguageQuery) latestSessionQuery = latestSessionQuery.eq('target_language', targetLanguageQuery)
-      if (nativeLanguageQuery) latestSessionQuery = latestSessionQuery.eq('native_language', nativeLanguageQuery)
-      const { data: latestSessionRows } = await latestSessionQuery
-        .order('updated_at', { ascending: false })
-        .limit(1)
-      previousSessionId = String(latestSessionRows?.[0]?.session_id || '').trim()
+      const latestMeta = await fetchLatestSessionMetaWordDailyPg(
+        user.id,
+        targetLanguageQuery || null,
+        nativeLanguageQuery || null
+      )
+      previousSessionId = String(latestMeta?.session_id || '').trim()
 
-      let maxRowQuery = adminSupabase
-        .from('language_coach_daily_words')
-        .select('learned_date')
-        .eq('user_id', user.id)
-      if (targetLanguageQuery) maxRowQuery = maxRowQuery.eq('target_language', targetLanguageQuery)
-      if (nativeLanguageQuery) maxRowQuery = maxRowQuery.eq('native_language', nativeLanguageQuery)
-      const { data: maxRow } = await maxRowQuery
-        .order('learned_date', { ascending: false })
-        .limit(1)
-      learnedDate = maxRow?.[0]?.learned_date
-        ? String(maxRow[0].learned_date).slice(0, 10)
-        : new Date().toISOString().slice(0, 10)
+      const maxDate = await fetchMaxLearnedDateWordDailyPg(
+        user.id,
+        targetLanguageQuery || null,
+        nativeLanguageQuery || null
+      )
+      learnedDate = maxDate ? String(maxDate).slice(0, 10) : new Date().toISOString().slice(0, 10)
     } else {
       learnedDate = toSafeDate(dateQuery || new Date().toISOString().slice(0, 10))
     }
 
-    const baseQuery = adminSupabase
-      .from('language_coach_daily_words')
-      .select(
-        'id, session_id, learned_date, word, target_language, native_language, meaning, pronunciation, pronunciation_audio_url, example_target, example_native, meaning_items_json, example_items_json, usage_level, importance_score, is_context_sensitive, turn_index, updated_at'
-      )
-      .eq('user_id', user.id)
-      .order('updated_at', { ascending: false })
-      .limit(limit)
-
     const effectiveSessionId = sessionId || previousSessionId
-    let query = effectiveSessionId
-      ? baseQuery.eq('session_id', effectiveSessionId)
-      : fetchAllWords
-        ? baseQuery
-        : baseQuery.eq('learned_date', learnedDate)
-    if (targetLanguageQuery) query = query.eq('target_language', targetLanguageQuery)
-    if (nativeLanguageQuery) query = query.eq('native_language', nativeLanguageQuery)
-    // When turnIndex provided: return session-level (turn_index=-1) + turn-specific words
-    if (effectiveSessionId && turnIndexParam !== undefined && turnIndexParam >= 0) {
-      query = query.or(`turn_index.eq.${-1},turn_index.eq.${turnIndexParam}`)
+    const listRes = await listDailyWordsForUserPg({
+      userId: user.id,
+      limit,
+      sessionId: effectiveSessionId || undefined,
+      learnedDate: learnedDate || undefined,
+      fetchAllWords,
+      targetLanguage: targetLanguageQuery || null,
+      nativeLanguage: nativeLanguageQuery || null,
+      turnIndexOr:
+        Boolean(effectiveSessionId) && turnIndexParam !== undefined && turnIndexParam >= 0
+          ? { other: turnIndexParam }
+          : null,
+    })
+    if (!listRes.ok) {
+      return NextResponse.json({ error: listRes.message || 'Không tải được từ mới trong ngày.' }, { status: 500 })
     }
-    const { data, error } = await query
-
-    if (error) return NextResponse.json({ error: error.message || 'Không tải được từ mới trong ngày.' }, { status: 500 })
+    const data = listRes.rows
 
     const hasMeaning = (row: { meaning?: string | null; meaning_items_json?: string | null }) => {
       const meaning = String(row.meaning ?? '').trim()
@@ -610,9 +601,9 @@ export async function GET(request: NextRequest) {
         pronunciationAudioUrl: row.pronunciation_audio_url || '',
         exampleTarget: row.example_target || '',
         exampleNative: row.example_native || '',
-        senses: sanitizeSenseItems(parseJsonArrayText(row.meaning_items_json || '')),
+        senses: sanitizeSenseItems(parseJsonArrayText(String(row.meaning_items_json ?? ''))),
         meaningItems: [],
-        exampleItems: sanitizeExampleItems(parseJsonArrayText(row.example_items_json || '')),
+        exampleItems: sanitizeExampleItems(parseJsonArrayText(String(row.example_items_json ?? ''))),
         usageLevel: normalizeUsageLevel(row.usage_level),
         importanceScore: normalizeImportanceScore(row.importance_score),
         contextSensitive: normalizeContextSensitive(row.is_context_sensitive),
@@ -635,13 +626,14 @@ export async function POST(request: NextRequest) {
     const payload = (await request.json()) as DailyWordPayload
     const action = String(payload.action || '').trim().toLowerCase()
     if (action === 'normalize_standard') {
-      const supabase = createClient()
-      const auth = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập để chuẩn hóa dữ liệu từ mới.')
+      const auth = await getUserForAction()
       if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
       const { user } = auth
-      const adminSupabase = adminClient()
+      if (!isPgConfigured()) {
+        return NextResponse.json({ error: 'Database not configured.' }, { status: 503 })
+      }
       const baseUrl = getInternalBaseUrl()
-      await normalizeIncompleteWords(adminSupabase, user.id, baseUrl)
+      await normalizeIncompleteWords(user.id, baseUrl)
       return NextResponse.json({ ok: true })
     }
     const learnedDate = toSafeDate(String(payload.learnedDate || new Date().toISOString().slice(0, 10)))
@@ -669,22 +661,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Thiếu từ hoặc sessionId cần lưu.' }, { status: 400 })
     }
 
-    const supabase = createClient()
-    const auth = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập để lưu từ mới.')
+    const auth = await getUserForAction()
     if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
     const { user } = auth
 
-    const adminSupabase = adminClient()
+    if (!isPgConfigured()) {
+      return NextResponse.json({ error: 'Database not configured.' }, { status: 503 })
+    }
+
     const normalizedWord = capitalizeWordForStorage(word).slice(0, 120)
-    const { data: sessionLangRows } = await adminSupabase
-      .from('language_coach_messages')
-      .select('target_language')
-      .eq('user_id', user.id)
-      .eq('session_id', sessionId)
-      .not('target_language', 'is', null)
-      .order('created_at', { ascending: false })
-      .limit(1)
-    const sessionTargetLanguage = String(sessionLangRows?.[0]?.target_language || '').trim()
+    const sessionTargetLanguage = String(
+      (await fetchSessionTargetLanguageFromMessagesPg(user.id, sessionId)) || ''
+    ).trim()
     const payloadLangNorm = normalizeLanguageLabel(targetLanguageInput)
     const sessionLangNorm = normalizeLanguageLabel(sessionTargetLanguage)
     const effectiveTargetLanguage = sessionTargetLanguage || targetLanguageInput
@@ -695,19 +683,13 @@ export async function POST(request: NextRequest) {
       sessionLangNorm.length > 0 &&
       payloadLangNorm !== sessionLangNorm
     const normalizedTargetLanguage = (shouldForceSessionLanguage ? sessionTargetLanguage : effectiveTargetLanguage) || null
-    let existingDailyQuery = adminSupabase
-      .from('language_coach_daily_words')
-      .select('meaning, pronunciation, pronunciation_audio_url, example_target, example_native, meaning_items_json, example_items_json, usage_level, importance_score, is_context_sensitive')
-      .eq('user_id', user.id)
-      .eq('session_id', sessionId)
-      .eq('word', normalizedWord)
-      .eq('turn_index', turnIndex)
-      .limit(1)
-    existingDailyQuery = normalizedTargetLanguage
-      ? existingDailyQuery.eq('target_language', normalizedTargetLanguage)
-      : existingDailyQuery.is('target_language', null)
-    const { data: existingDailyRows } = await existingDailyQuery
-    const existingDailyRow = Array.isArray(existingDailyRows) ? existingDailyRows[0] : null
+    const existingDailyRow = await fetchExistingDailyWordForMergePg({
+      userId: user.id,
+      sessionId,
+      word: normalizedWord,
+      turnIndex,
+      normalizedTargetLanguage,
+    })
 
     const mergedMeaning = preferIncomingOrExisting(meaning, existingDailyRow?.meaning)
     const mergedPronunciation = preferIncomingOrExisting(pronunciation, existingDailyRow?.pronunciation)
@@ -744,15 +726,15 @@ export async function POST(request: NextRequest) {
     )
     const primaryExample = mergedExampleItems[0] || null
 
-    const { data: existingReviewRows } = await adminSupabase
-      .from('language_coach_review_queue')
-      .select('id, meaning, pronunciation, meaning_items_json, example_items_json, usage_level, importance_score, is_context_sensitive')
-      .eq('user_id', user.id)
-      .eq('word', normalizedWord)
-      .eq('target_language', normalizedTargetLanguage || '')
-      .limit(1)
-    const existedInReviewQueue = Array.isArray(existingReviewRows) && existingReviewRows.length > 0
-    const existingReviewRow = Array.isArray(existingReviewRows) && existingReviewRows.length > 0 ? existingReviewRows[0] : null
+    const existingReviewRow =
+      normalizedTargetLanguage
+        ? await fetchExistingReviewQueueForMergePg({
+            userId: user.id,
+            word: normalizedWord,
+            targetLanguage: normalizedTargetLanguage,
+          })
+        : null
+    const existedInReviewQueue = Boolean(existingReviewRow)
 
     const mergedReviewMeaning = preferIncomingOrExisting(mergedMeaning || '', existingReviewRow?.meaning)
     const mergedReviewPronunciation = preferIncomingOrExisting(mergedPronunciation || '', existingReviewRow?.pronunciation)
@@ -777,112 +759,82 @@ export async function POST(request: NextRequest) {
       existingReviewRow?.is_context_sensitive
     )
 
-    const { error } = await adminSupabase.from('language_coach_daily_words').upsert(
-      {
-        user_id: user.id,
-        session_id: sessionId,
-        learned_date: learnedDate,
-        word: normalizedWord,
-        target_language: normalizedTargetLanguage,
-        native_language: nativeLanguage || null,
-        meaning: mergedMeaning,
-        pronunciation: mergedPronunciation,
-        pronunciation_audio_url: mergedPronunciationAudioUrl,
-        example_target: primaryExample?.targetText || mergedExampleTarget,
-        example_native: primaryExample?.nativeText || mergedExampleNative,
-        meaning_items_json: mergedSenses.length > 0 ? JSON.stringify(mergedSenses) : null,
-        example_items_json: mergedExampleItems.length > 0 ? JSON.stringify(mergedExampleItems) : null,
-        usage_level: mergedUsageLevel,
-        importance_score: mergedImportanceScore,
-        is_context_sensitive: mergedContextSensitive,
-        turn_index: turnIndex,
-        updated_at: new Date().toISOString(),
-      },
-      {
-        onConflict: 'user_id,session_id,word,target_language,turn_index',
-      }
-    )
-
-    if (error) return NextResponse.json({ error: error.message || 'Không lưu được từ mới.' }, { status: 500 })
+    const nowIsoPost = new Date().toISOString()
+    const dailyUpsert = await upsertDailyWordFromWordDailyRoutePg({
+      userId: user.id,
+      sessionId,
+      learnedDate,
+      word: normalizedWord,
+      targetLanguage: normalizedTargetLanguage,
+      nativeLanguage: nativeLanguage || null,
+      meaning: mergedMeaning,
+      pronunciation: mergedPronunciation,
+      pronunciationAudioUrl: mergedPronunciationAudioUrl,
+      exampleTarget: primaryExample?.targetText || mergedExampleTarget,
+      exampleNative: primaryExample?.nativeText || mergedExampleNative,
+      meaningItemsJson: mergedSenses.length > 0 ? JSON.stringify(mergedSenses) : null,
+      exampleItemsJson: mergedExampleItems.length > 0 ? JSON.stringify(mergedExampleItems) : null,
+      usageLevel: mergedUsageLevel,
+      importanceScore: mergedImportanceScore,
+      isContextSensitive: mergedContextSensitive,
+      turnIndex,
+      updatedAtIso: nowIsoPost,
+    })
+    if (!dailyUpsert.ok) return NextResponse.json({ error: dailyUpsert.message || 'Không lưu được từ mới.' }, { status: 500 })
 
     if (word && normalizedTargetLanguage) {
-      await adminSupabase.from('language_coach_review_queue').upsert(
-        {
-          user_id: user.id,
-          word: normalizedWord,
-          target_language: normalizedTargetLanguage,
-          native_language: nativeLanguage || null,
-          meaning: mergedReviewMeaning,
-          pronunciation: mergedReviewPronunciation,
-          meaning_items_json: mergedReviewSenses.length > 0 ? JSON.stringify(mergedReviewSenses) : null,
-          example_items_json: mergedReviewExampleItems.length > 0 ? JSON.stringify(mergedReviewExampleItems) : null,
-          usage_level: mergedReviewUsageLevel,
-          importance_score: mergedReviewImportanceScore,
-          is_context_sensitive: mergedReviewContextSensitive,
-          due_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'user_id,word,target_language' }
-      )
+      const reviewUpsert = await upsertReviewQueueFromWordDailyPg({
+        userId: user.id,
+        word: normalizedWord,
+        targetLanguage: normalizedTargetLanguage,
+        nativeLanguage: nativeLanguage || null,
+        meaning: mergedReviewMeaning,
+        pronunciation: mergedReviewPronunciation,
+        meaningItemsJson: mergedReviewSenses.length > 0 ? JSON.stringify(mergedReviewSenses) : null,
+        exampleItemsJson: mergedReviewExampleItems.length > 0 ? JSON.stringify(mergedReviewExampleItems) : null,
+        usageLevel: mergedReviewUsageLevel,
+        importanceScore: mergedReviewImportanceScore,
+        isContextSensitive: mergedReviewContextSensitive,
+        dueAtIso: nowIsoPost,
+        updatedAtIso: nowIsoPost,
+      })
+      if (!reviewUpsert.ok) return NextResponse.json({ error: reviewUpsert.message || 'Không lưu hàng chờ ôn tập.' }, { status: 500 })
     }
 
     if (word && normalizedTargetLanguage && nativeLanguage && mergedMeaning) {
-      const sharedPayload: {
-        word: string
-        normalized_word: string
-        target_language: string
-        normalized_target_language: string
-        native_language: string
-        normalized_native_language: string
-        part_of_speech?: string | null
-        meaning: string
-        pronunciation?: string | null
-        example_target?: string | null
-        example_native?: string | null
-        pronunciation_audio_url?: string | null
-        usage_level?: 'high' | 'medium' | 'low' | null
-        importance_score?: number | null
-        is_context_sensitive?: boolean | null
-        meaning_items_json?: string | null
-        example_items_json?: string | null
-        source_model: string
-        last_used_at: string
-        updated_at: string
-      } = {
+      const vocabUpsert = await upsertVocabCacheFromWordRoutePg({
         word: normalizedWord,
-        normalized_word: normalizeLookup(word).slice(0, 120),
-        target_language: normalizedTargetLanguage,
-        normalized_target_language: normalizeLookup(normalizedTargetLanguage).slice(0, 120),
-        native_language: nativeLanguage,
-        normalized_native_language: normalizeLookup(nativeLanguage).slice(0, 120),
+        normalizedWord: normalizeLookup(word).slice(0, 120),
+        targetLanguage: normalizedTargetLanguage,
+        normalizedTargetLanguage: normalizeLookup(normalizedTargetLanguage).slice(0, 120),
+        nativeLanguage,
+        normalizedNativeLanguage: normalizeLookup(nativeLanguage).slice(0, 120),
+        contextHash: null,
+        partOfSpeech: null,
         meaning: mergedMeaning.slice(0, 1500),
         pronunciation: mergedPronunciation,
-        example_target: primaryExample?.targetText || mergedExampleTarget,
-        example_native: primaryExample?.nativeText || mergedExampleNative,
-        meaning_items_json: mergedSenses.length > 0 ? JSON.stringify(mergedSenses) : null,
-        example_items_json: mergedExampleItems.length > 0 ? JSON.stringify(mergedExampleItems) : null,
-        usage_level: mergedUsageLevel,
-        importance_score: mergedImportanceScore,
-        is_context_sensitive: mergedContextSensitive,
-        source_model: 'daily-word-save',
-        last_used_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }
-      if (mergedPronunciationAudioUrl) sharedPayload.pronunciation_audio_url = mergedPronunciationAudioUrl
-
-      await adminSupabase.from('language_coach_vocab_cache').upsert(
-        sharedPayload,
-        { onConflict: 'normalized_word,normalized_target_language,normalized_native_language' }
-      )
+        exampleTarget: primaryExample?.targetText || mergedExampleTarget,
+        exampleNative: primaryExample?.nativeText || mergedExampleNative,
+        pronunciationAudioUrl: mergedPronunciationAudioUrl || null,
+        meaningItemsJson: mergedSenses.length > 0 ? JSON.stringify(mergedSenses) : '[]',
+        exampleItemsJson: mergedExampleItems.length > 0 ? JSON.stringify(mergedExampleItems) : '[]',
+        usageLevel: mergedUsageLevel,
+        importanceScore: mergedImportanceScore,
+        isContextSensitive: mergedContextSensitive,
+        sourceModel: 'daily-word-save',
+        nowIso: nowIsoPost,
+      })
+      if (!vocabUpsert.ok) return NextResponse.json({ error: vocabUpsert.message || 'Không lưu vocab cache.' }, { status: 500 })
     }
 
     if (!existedInReviewQueue && normalizedTargetLanguage) {
-      await adminSupabase.rpc('increment_language_coach_progress_new_words', {
-        p_user_id: user.id,
-        p_progress_date: learnedDate,
-        p_target_language: normalizedTargetLanguage,
-        p_inc: 1,
+      const incRes = await incrementLanguageCoachProgressNewWordsPg({
+        userId: user.id,
+        progressDate: learnedDate,
+        targetLanguage: normalizedTargetLanguage,
+        inc: 1,
       })
+      if (!incRes.ok) return NextResponse.json({ error: incRes.message || 'Không cập nhật tiến độ.' }, { status: 500 })
     }
 
     return NextResponse.json({ ok: true })
@@ -894,41 +846,30 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const supabase = createClient()
-    const auth = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+    const auth = await getUserForAction()
     if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
     const { user } = auth
 
     const idParam = String(request.nextUrl.searchParams.get('id') || '').trim()
     const cleanup = String(request.nextUrl.searchParams.get('cleanup') || '').trim()
 
-    const adminSupabase = adminClient()
+    if (!isPgConfigured()) {
+      return NextResponse.json({ error: 'Database not configured.' }, { status: 503 })
+    }
 
     if (idParam) {
-      const { data: row, error: fetchErr } = await adminSupabase
-        .from('language_coach_daily_words')
-        .select('id, word, target_language')
-        .eq('id', idParam)
-        .eq('user_id', user.id)
-        .maybeSingle()
-      if (fetchErr || !row) {
+      const row = await fetchDailyWordByIdForUserPg(user.id, idParam)
+      if (!row) {
         return NextResponse.json({ error: 'Không tìm thấy từ cần xóa.' }, { status: 404 })
       }
       const wordVal = String(row.word || '').trim()
       const targetLang = String(row.target_language || '').trim()
-      const { error: dailyErr } = await adminSupabase
-        .from('language_coach_daily_words')
-        .delete()
-        .eq('id', idParam)
-        .eq('user_id', user.id)
-      if (dailyErr) return NextResponse.json({ error: dailyErr.message }, { status: 500 })
+      const dailyDel = await deleteDailyWordByIdPg(user.id, idParam)
+      if (!dailyDel.ok) {
+        return NextResponse.json({ error: dailyDel.message }, { status: 500 })
+      }
       if (wordVal && targetLang) {
-        await adminSupabase
-          .from('language_coach_review_queue')
-          .delete()
-          .eq('user_id', user.id)
-          .eq('word', wordVal)
-          .eq('target_language', targetLang)
+        await deleteReviewQueueByUserWordTargetPg(user.id, wordVal, targetLang)
       }
       return NextResponse.json({ ok: true, deleted: 1 })
     }
@@ -941,24 +882,14 @@ export async function DELETE(request: NextRequest) {
     }
 
     if (cleanup === 'all') {
-      const { data: deletedDaily, error: dailyErr } = await adminSupabase
-        .from('language_coach_daily_words')
-        .delete()
-        .eq('user_id', user.id)
-        .select('id')
+      const deletedDaily = await deleteAllDailyWordsForUserPg(user.id)
+      if (!deletedDaily.ok) return NextResponse.json({ error: deletedDaily.message }, { status: 500 })
 
-      if (dailyErr) return NextResponse.json({ error: dailyErr.message }, { status: 500 })
+      const deletedReview = await deleteAllReviewQueueForUserPg(user.id)
+      if (!deletedReview.ok) return NextResponse.json({ error: deletedReview.message }, { status: 500 })
 
-      const { data: deletedReview, error: reviewErr } = await adminSupabase
-        .from('language_coach_review_queue')
-        .delete()
-        .eq('user_id', user.id)
-        .select('id')
-
-      if (reviewErr) return NextResponse.json({ error: reviewErr.message }, { status: 500 })
-
-      const dailyCount = deletedDaily?.length ?? 0
-      const reviewCount = deletedReview?.length ?? 0
+      const dailyCount = deletedDaily.ids.length
+      const reviewCount = deletedReview.count
       const total = dailyCount + reviewCount
       return NextResponse.json({
         deleted: total,
@@ -966,12 +897,7 @@ export async function DELETE(request: NextRequest) {
       })
     }
 
-    const { data: rows, error } = await adminSupabase
-      .from('language_coach_daily_words')
-      .select('id, meaning, meaning_items_json')
-      .eq('user_id', user.id)
-
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    const rows = await fetchDailyWordsMinimalForCleanupPg(user.id)
 
     const ids = (rows ?? [])
       .filter((r) => {
@@ -986,18 +912,10 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ deleted: 0, message: 'Không có từ thiếu nghĩa.' })
     }
 
-    const { error: delError } = await adminSupabase
-      .from('language_coach_daily_words')
-      .delete()
-      .eq('user_id', user.id)
-      .in('id', ids)
+    const delDaily = await deleteDailyWordsByIdsPg(user.id, ids)
+    if (!delDaily.ok) return NextResponse.json({ error: delDaily.message }, { status: 500 })
 
-    if (delError) return NextResponse.json({ error: delError.message }, { status: 500 })
-
-    const { data: reviewRows } = await adminSupabase
-      .from('language_coach_review_queue')
-      .select('id, meaning, meaning_items_json')
-      .eq('user_id', user.id)
+    const reviewRows = await fetchReviewQueueMinimalForCleanupPg(user.id)
 
     const reviewIds = (reviewRows ?? [])
       .filter((r) => {
@@ -1010,12 +928,8 @@ export async function DELETE(request: NextRequest) {
       .filter(Boolean)
 
     if (reviewIds.length > 0) {
-      const { error: reviewDelErr } = await adminSupabase
-        .from('language_coach_review_queue')
-        .delete()
-        .eq('user_id', user.id)
-        .in('id', reviewIds)
-      if (!reviewDelErr) {
+      const reviewDel = await deleteReviewQueueByIdsPg(user.id, reviewIds)
+      if (reviewDel.ok) {
         return NextResponse.json({
           deleted: ids.length + reviewIds.length,
           message: `Đã xóa ${ids.length} từ mới + ${reviewIds.length} mục ôn tập thiếu nghĩa.`,

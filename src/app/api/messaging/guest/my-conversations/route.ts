@@ -1,21 +1,17 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
-import { createServiceRoleClient } from '@/lib/supabase/service-role'
+import { getUserForAction } from '@/lib/auth'
 import { listWidgetChatsForLinkedUser } from '@/lib/messaging/list-widget-chats-for-linked-user'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
-  const auth = createClient()
-  const {
-    data: { user },
-  } = await auth.auth.getUser()
-  if (!user?.id) {
+  const auth = await getUserForAction('Unauthorized')
+  if ('error' in auth) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+  const user = auth.user
 
-  const db = createServiceRoleClient()
-  const { items, error } = await listWidgetChatsForLinkedUser(db, user.id)
+  const { items, error } = await listWidgetChatsForLinkedUser(user.id)
   if (error) {
     return NextResponse.json({ error }, { status: 500 })
   }

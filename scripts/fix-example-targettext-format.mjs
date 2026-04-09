@@ -3,8 +3,10 @@
  * Fix example_items_json where targetText is pinyin instead of original script (zh/ja/ko).
  * Re-fetches from AI and updates DB.
  * Run: node scripts/fix-example-targettext-format.mjs
+ *
+ * Cần: DATABASE_URL, GOOGLE_API_KEY trong .env.local
  */
-import { createClient } from '@supabase/supabase-js'
+import { pgQuery } from './pg-query.mjs'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { readFileSync } from 'fs'
 import { fileURLToPath } from 'url'
@@ -27,17 +29,27 @@ for (const line of envContent.split('\n')) {
   env[k] = v
 }
 
-const url = env.NEXT_PUBLIC_SUPABASE_URL
-const key = env.SUPABASE_SERVICE_ROLE_KEY
+process.env.DATABASE_URL = env.DATABASE_URL || process.env.DATABASE_URL
 const googleKey = env.GOOGLE_API_KEY
-if (!url || !key || !googleKey) {
-  console.error('Missing env: NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, GOOGLE_API_KEY')
+if (!process.env.DATABASE_URL?.trim() || !googleKey) {
+  console.error('Missing env: DATABASE_URL, GOOGLE_API_KEY')
   process.exit(1)
 }
 
-const supabase = createClient(url, key)
 const genAI = new GoogleGenerativeAI(googleKey)
 const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
+
+function parseExampleItemsJson(val) {
+  if (val == null) return []
+  if (typeof val === 'string') {
+    try {
+      return JSON.parse(val || '[]')
+    } catch {
+      return []
+    }
+  }
+  return Array.isArray(val) ? val : []
+}
 
 function hasCjk(s) {
   return /[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff\uac00-\ud7af]/.test(s)
@@ -45,8 +57,15 @@ function hasCjk(s) {
 
 function exampleItemsNeedFix(items, targetLang) {
   const norm = String(targetLang || '').toLowerCase()
-  if (!norm.includes('chinese') && !norm.includes('zh') && !norm.includes('mandarin') &&
-      !norm.includes('japanese') && !norm.includes('ja') && !norm.includes('korean') && !norm.includes('ko')) {
+  if (
+    !norm.includes('chinese') &&
+    !norm.includes('zh') &&
+    !norm.includes('mandarin') &&
+    !norm.includes('japanese') &&
+    !norm.includes('ja') &&
+    !norm.includes('korean') &&
+    !norm.includes('ko')
+  ) {
     return false
   }
   for (const item of items) {
@@ -99,20 +118,19 @@ Trả về JSON:
 async function main() {
   console.log('Finding rows with targetText=pinyin (wrong format)...\n')
 
-  const { data: dailyRows } = await supabase
-    .from('language_coach_daily_words')
-    .select('id, user_id, word, target_language, native_language, example_items_json')
-    .not('example_items_json', 'is', null)
-
-  const { data: reviewRows } = await supabase
-    .from('language_coach_review_queue')
-    .select('id, user_id, word, target_language, native_language, example_items_json')
-    .not('example_items_json', 'is', null)
+  const dailyRows = await pgQuery(
+    `select id, user_id, word, target_language, native_language, example_items_json
+     from language_coach_daily_words where example_items_json is not null`
+  )
+  const reviewRows = await pgQuery(
+    `select id, user_id, word, target_language, native_language, example_items_json
+     from language_coach_review_queue where example_items_json is not null`
+  )
 
   const toFix = []
   for (const row of dailyRows || []) {
     try {
-      const items = JSON.parse(row.example_items_json || '[]')
+      const items = parseExampleItemsJson(row.example_items_json)
       if (exampleItemsNeedFix(items, row.target_language)) {
         toFix.push({ table: 'daily_words', ...row, items })
       }
@@ -120,7 +138,7 @@ async function main() {
   }
   for (const row of reviewRows || []) {
     try {
-      const items = JSON.parse(row.example_items_json || '[]')
+      const items = parseExampleItemsJson(row.example_items_json)
       if (exampleItemsNeedFix(items, row.target_language)) {
         toFix.push({ table: 'review_queue', ...row, items })
       }
@@ -136,7 +154,7 @@ async function main() {
 
   console.log(`Found ${toFix.length} rows (${byWord.size} unique words) to fix.\n`)
 
-  for (const [k, entry] of byWord) {
+  for (const [, entry] of byWord) {
     const { word, target, native, rows } = entry
     console.log(`Fetching "${word}" (${target}/${native})...`)
     const newItems = await fetchWordFromAI(word, target || 'Chinese', native || 'Vietnamese')
@@ -145,43 +163,45 @@ async function main() {
       continue
     }
     entry.newItems = newItems
-    const newJson = JSON.stringify(newItems)
     for (const r of rows) {
       if (r.table === 'daily_words') {
-        const { error } = await supabase
-          .from('language_coach_daily_words')
-          .update({
-            example_items_json: newJson,
-            example_target: newItems[0]?.targetText || null,
-            example_native: newItems[0]?.nativeText || null,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', r.id)
-        if (error) console.error(`  daily_words ${r.id}:`, error.message)
-        else console.log(`  Updated daily_words ${r.id}`)
+        try {
+          await pgQuery(
+            `update language_coach_daily_words set
+              example_items_json = $1::jsonb,
+              example_target = $2,
+              example_native = $3,
+              updated_at = $4::timestamptz
+             where id = $5`,
+            [newItems, newItems[0]?.targetText || null, newItems[0]?.nativeText || null, new Date().toISOString(), r.id]
+          )
+          console.log(`  Updated daily_words ${r.id}`)
+        } catch (e) {
+          console.error(`  daily_words ${r.id}:`, e instanceof Error ? e.message : e)
+        }
       } else {
-        const { error } = await supabase
-          .from('language_coach_review_queue')
-          .update({
-            example_items_json: newJson,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', r.id)
-        if (error) console.error(`  review_queue ${r.id}:`, error.message)
-        else console.log(`  Updated review_queue ${r.id}`)
+        try {
+          await pgQuery(
+            `update language_coach_review_queue set example_items_json = $1::jsonb, updated_at = $2::timestamptz where id = $3`,
+            [newItems, new Date().toISOString(), r.id]
+          )
+          console.log(`  Updated review_queue ${r.id}`)
+        } catch (e) {
+          console.error(`  review_queue ${r.id}:`, e instanceof Error ? e.message : e)
+        }
       }
     }
   }
 
   console.log('\nUpdating vocab_cache...')
-  const { data: cacheRows } = await supabase
-    .from('language_coach_vocab_cache')
-    .select('id, word, target_language, native_language, example_items_json')
-    .not('example_items_json', 'is', null)
+  const cacheRows = await pgQuery(
+    `select id, word, target_language, native_language, example_items_json
+     from language_coach_vocab_cache where example_items_json is not null`
+  )
 
   for (const row of cacheRows || []) {
     try {
-      const items = JSON.parse(row.example_items_json || '[]')
+      const items = parseExampleItemsJson(row.example_items_json)
       if (!exampleItemsNeedFix(items, row.target_language)) continue
       const k = `${row.word}::${row.target_language || ''}::${row.native_language || ''}`
       let newItems = byWord.get(k)?.newItems
@@ -189,16 +209,25 @@ async function main() {
         newItems = await fetchWordFromAI(row.word, row.target_language || 'Chinese', row.native_language || 'Vietnamese')
       }
       if (newItems?.length) {
-        await supabase.from('language_coach_vocab_cache').update({
-          example_items_json: JSON.stringify(newItems),
-          example_target: newItems[0]?.targetText || null,
-          example_native: newItems[0]?.nativeText || null,
-          updated_at: new Date().toISOString(),
-        }).eq('id', row.id)
+        await pgQuery(
+          `update language_coach_vocab_cache set
+            example_items_json = $1::jsonb,
+            example_target = $2,
+            example_native = $3,
+            updated_at = $4::timestamptz
+           where id = $5`,
+          [
+            newItems,
+            newItems[0]?.targetText || null,
+            newItems[0]?.nativeText || null,
+            new Date().toISOString(),
+            row.id,
+          ]
+        )
         console.log(`  Updated vocab_cache ${row.word}`)
       }
     } catch (e) {
-      console.error(`  vocab_cache ${row.word}:`, e.message)
+      console.error(`  vocab_cache ${row.word}:`, e instanceof Error ? e.message : e)
     }
   }
 

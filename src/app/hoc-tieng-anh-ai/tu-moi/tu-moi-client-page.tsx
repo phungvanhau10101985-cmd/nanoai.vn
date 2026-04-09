@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { sanitizeLoginNext } from '@/lib/auth/sanitize-login-next'
-import { createClient } from '@/lib/supabase/client'
+import { getClientUserId } from '@/lib/auth/get-client-user-id'
 import { getAllWords, deleteWordById } from '../services/english-coach-api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -39,9 +39,8 @@ export default function TuMoiClientPage() {
   useEffect(() => {
     let mounted = true
     const run = async () => {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
+      const uid = await getClientUserId()
+      if (!uid) {
         const path = typeof window !== 'undefined' ? window.location.pathname || '' : ''
         const next = sanitizeLoginNext(path || '/hoc-tieng-anh-ai/tu-moi')
         router.replace(`/auth/login?next=${encodeURIComponent(next)}`)

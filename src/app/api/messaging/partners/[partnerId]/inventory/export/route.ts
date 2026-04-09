@@ -11,7 +11,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ partnerId: str
   const gate = await requireMessagingPartnerOwner(partnerId)
   if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status })
 
-  const listed = await listPartnerInventoryRows(gate.supabase, partnerId)
+  const listed = await listPartnerInventoryRows(partnerId)
   if (!listed.ok) return NextResponse.json({ error: listed.error }, { status: 500 })
   const buf = buildInventoryExportBuffer(listed.rows)
   const dateStr = new Date().toISOString().slice(0, 10)

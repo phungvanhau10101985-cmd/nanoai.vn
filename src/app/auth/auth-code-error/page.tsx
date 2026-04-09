@@ -48,11 +48,11 @@ export default function AuthCodeError() {
             </p>
             <p className="text-muted-foreground text-sm">
               {tr(
-                'Nếu vẫn không đăng nhập được: trong Supabase (Authentication → URL configuration) hãy thêm đúng Redirect URL dạng https://tên-miền-của-bạn/auth/callback, trùng với địa chỉ bạn đang mở web (kể cả www hoặc không www).',
-                'If you still cannot sign in: in Supabase (Authentication → URL configuration) add the exact redirect URL https://your-domain/auth/callback matching the site you use (including www or non-www).',
-                '若仍无法登录：请在 Supabase（Authentication → URL configuration）添加与当前网站完全一致的回调地址 https://你的域名/auth/callback（注意是否带 www）。',
-                'ログインできない場合: Supabase の Authentication → URL configuration に、実際に開いているサイトと一致する https://ドメイン/auth/callback を追加してください（www の有無も一致）。',
-                '계속 로그인되지 않으면: Supabase Authentication → URL configuration에 실제 접속 주소와 동일한 https://도메인/auth/callback 을 추가하세요(www 포함 여부 일치).'
+                'Nếu vẫn không đăng nhập được: trên bảng điều khiển nơi bạn cấu hình đăng nhập OAuth (mục Authentication → URL configuration), hãy thêm đúng Redirect URL dạng https://tên-miền-của-bạn/auth/callback, trùng với địa chỉ bạn đang mở web (kể cả www hoặc không www).',
+                'If you still cannot sign in: in your sign-in provider’s dashboard (Authentication → URL configuration), add the exact redirect URL https://your-domain/auth/callback matching the site you use (including www or non-www).',
+                '若仍无法登录：请在身份验证后台（Authentication → URL configuration）添加与当前网站完全一致的回调地址 https://你的域名/auth/callback（注意是否带 www）。',
+                'ログインできない場合: サインイン設定の管理画面（Authentication → URL configuration）に、実際に開いているサイトと一致する https://ドメイン/auth/callback を追加してください（www の有無も一致）。',
+                '계속 로그인되지 않으면: 로그인 제공자 설정(Authentication → URL configuration)에 실제 접속 주소와 동일한 https://도메인/auth/callback 을 추가하세요(www 포함 여부 일치).'
               )}
             </p>
           </CardDescription>

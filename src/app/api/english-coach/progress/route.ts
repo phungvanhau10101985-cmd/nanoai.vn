@@ -1,7 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+import { isPgConfigured } from '@/lib/db/pool'
+import { fetchActiveLearningGoalPg } from '@/lib/db/language-coach-goals-review-pg'
+import {
+  countDueReviewItemsPg,
+  fetchTodayProgressRowPg,
+  fetchWeeklyProgressRowsPg,
+  fetchDiagnosticsSamplePg,
+  fetchBaselineAssessmentPg,
+  fetchLatestCheckpointAssessmentPg,
+  fetchRecentCheckpointScoresPg,
+  fetchProgressRowForDatePg,
+  fetchYesterdayStreakRowPg,
+  upsertProgressDailyPg,
+  insertTurnDiagnosticPg,
+} from '@/lib/db/language-coach-progress-pg'
 
 type ProgressPayload = {
   targetLanguage?: string
@@ -28,10 +41,6 @@ type ProgressPayload = {
       issueType?: string
     }>
   }
-}
-
-function adminClient() {
-  return createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 }
 
 function toSafeDate(input?: string): string {
@@ -65,11 +74,12 @@ function parseJsonArrayText(input: string | null | undefined): unknown[] {
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createClient()
-    const auth = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập để xem tiến độ học.')
+    if (!isPgConfigured()) {
+      return NextResponse.json({ error: 'Cơ sở dữ liệu chưa cấu hình.' }, { status: 503 })
+    }
+    const auth = await getUserForAction()
     if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
     const { user } = auth
-    const adminSupabase = adminClient()
     const today = toSafeDate(request.nextUrl.searchParams.get('date') || '')
     const targetLanguage = String(request.nextUrl.searchParams.get('targetLanguage') || '').trim()
     const currentLevelRaw = Number(request.nextUrl.searchParams.get('currentLevel') || '')
@@ -77,83 +87,40 @@ export async function GET(request: NextRequest) {
       ? Math.min(4, Math.max(0, Math.round(currentLevelRaw)))
       : null
 
-    const todayProgressQuery = adminSupabase
-      .from('language_coach_progress_daily')
-      .select('*')
-      .eq('user_id', user.id)
-      .eq('progress_date', today)
-      .order('updated_at', { ascending: false })
-      .limit(1)
-    if (targetLanguage) todayProgressQuery.eq('target_language', targetLanguage)
-
     const last7From = daysAgo(today, 6)
+    const diagLang = targetLanguage || 'unknown'
+    const assessmentLang = targetLanguage || 'English'
+
     const [
-      { data: todayRows },
-      { data: dueRows },
-      { data: activeGoal },
-      { data: weeklyRows },
-      { data: diagnosticsRows },
-      { data: latestBaseline },
-      { data: latestCheckpoint },
-      { data: recentCheckpoints },
+      todayRow,
+      dueCount,
+      activeGoal,
+      weeklyRows,
+      diagnosticsRows,
+      latestBaseline,
+      latestCheckpoint,
+      recentCheckpoints,
     ] = await Promise.all([
-      todayProgressQuery,
-      adminSupabase
-        .from('language_coach_review_queue')
-        .select('id', { count: 'exact' })
-        .eq('user_id', user.id)
-        .lte('due_at', new Date().toISOString()),
-      adminSupabase
-        .from('language_coach_learning_goals')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('is_active', true)
-        .order('updated_at', { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-      adminSupabase
-        .from('language_coach_progress_daily')
-        .select('turns_count, sessions_count, corrected_turns, avg_pronunciation_score, progress_date')
-        .eq('user_id', user.id)
-        .gte('progress_date', last7From)
-        .lte('progress_date', today)
-        .order('progress_date', { ascending: false }),
-      adminSupabase
-        .from('language_coach_turn_diagnostics')
-        .select('weak_words_json, word_scores_json')
-        .eq('user_id', user.id)
-        .eq('target_language', targetLanguage || 'unknown')
-        .order('created_at', { ascending: false })
-        .limit(30),
-      adminSupabase
-        .from('language_coach_assessments')
-        .select('cefr_level, learner_level, overall_score, confidence, taken_at, summary')
-        .eq('user_id', user.id)
-        .eq('assessment_type', 'baseline')
-        .eq('target_language', targetLanguage || 'English')
-        .order('taken_at', { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-      adminSupabase
-        .from('language_coach_assessments')
-        .select('cefr_level, learner_level, overall_score, confidence, taken_at, summary')
-        .eq('user_id', user.id)
-        .eq('assessment_type', 'checkpoint')
-        .eq('target_language', targetLanguage || 'English')
-        .order('taken_at', { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-      adminSupabase
-        .from('language_coach_assessments')
-        .select('learner_level, overall_score, taken_at')
-        .eq('user_id', user.id)
-        .eq('assessment_type', 'checkpoint')
-        .eq('target_language', targetLanguage || 'English')
-        .order('taken_at', { ascending: false })
-        .limit(2),
+      fetchTodayProgressRowPg(user.id, today, targetLanguage),
+      countDueReviewItemsPg(user.id),
+      fetchActiveLearningGoalPg(user.id),
+      fetchWeeklyProgressRowsPg(user.id, last7From, today),
+      fetchDiagnosticsSamplePg(user.id, diagLang, 30),
+      fetchBaselineAssessmentPg(user.id, assessmentLang),
+      fetchLatestCheckpointAssessmentPg(user.id, assessmentLang),
+      fetchRecentCheckpointScoresPg(user.id, assessmentLang, 2),
     ])
 
-    const weeklyList = Array.isArray(weeklyRows) ? weeklyRows : []
+    if (
+      dueCount === null ||
+      weeklyRows === null ||
+      diagnosticsRows === null ||
+      recentCheckpoints === null
+    ) {
+      return NextResponse.json({ error: 'Không tải được tiến độ học.' }, { status: 500 })
+    }
+
+    const weeklyList = weeklyRows
     const weeklyTurns = weeklyList.reduce((sum, row) => sum + Number(row?.turns_count || 0), 0)
     const weeklySessions = weeklyList.reduce((sum, row) => sum + Number(row?.sessions_count || 0), 0)
     const weeklyActiveDays = weeklyList.reduce((sum, row) => sum + (Number(row?.turns_count || 0) > 0 ? 1 : 0), 0)
@@ -168,8 +135,7 @@ export async function GET(request: NextRequest) {
       ? weeklyPronSamples.reduce((sum, x) => sum + x, 0) / weeklyPronSamples.length
       : 0
 
-    const todayRow = Array.isArray(todayRows) && todayRows.length > 0 ? todayRows[0] : null
-    const dueReviewCount = dueRows?.length || 0
+    const dueReviewCount = dueCount
     const streak = Number(todayRow?.streak_days || 0)
     const badges: string[] = []
     if (streak >= 3) badges.push('streak_3')
@@ -178,7 +144,7 @@ export async function GET(request: NextRequest) {
     if (dueReviewCount === 0 && Number(todayRow?.turns_count || 0) > 0) badges.push('review_zero_inbox')
 
     const weakWordCount = new Map<string, number>()
-    for (const row of diagnosticsRows ?? []) {
+    for (const row of diagnosticsRows) {
       const weakWords = parseJsonArrayText(String(row?.weak_words_json || '[]'))
       weakWords.forEach((word) => {
         const key = String(word || '').trim().toLowerCase()
@@ -205,7 +171,7 @@ export async function GET(request: NextRequest) {
         ? Number(latestCheckpoint.overall_score || 0) - Number(latestBaseline.overall_score || 0)
         : null
 
-    const checkpointList = Array.isArray(recentCheckpoints) ? recentCheckpoints : []
+    const checkpointList = recentCheckpoints
     const checkpointDelta =
       checkpointList.length >= 2
         ? Number(checkpointList[0]?.overall_score || 0) - Number(checkpointList[1]?.overall_score || 0)
@@ -296,6 +262,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    if (!isPgConfigured()) {
+      return NextResponse.json({ error: 'Cơ sở dữ liệu chưa cấu hình.' }, { status: 503 })
+    }
     const payload = (await request.json()) as ProgressPayload
     const targetLanguage = String(payload.targetLanguage || '').trim()
     const nativeLanguage = String(payload.nativeLanguage || '').trim()
@@ -315,33 +284,19 @@ export async function POST(request: NextRequest) {
     const newSession = Boolean(payload.newSession)
     const diagnostics = payload.diagnostics && typeof payload.diagnostics === 'object' ? payload.diagnostics : null
 
-    const supabase = createClient()
-    const auth = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập để lưu tiến độ học.')
+    const auth = await getUserForAction()
     if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
     const { user } = auth
-    const adminSupabase = adminClient()
 
     const date = toSafeDate(payload.localDate)
     const yesterday = yesterdayOf(date)
-    const { data: todayRows } = await adminSupabase
-      .from('language_coach_progress_daily')
-      .select('*')
-      .eq('user_id', user.id)
-      .eq('progress_date', date)
-      .eq('target_language', targetLanguage || null)
-      .limit(1)
-    const current = Array.isArray(todayRows) && todayRows.length > 0 ? todayRows[0] : null
+    const targetLangDb = targetLanguage || null
+
+    const current = await fetchProgressRowForDatePg(user.id, date, targetLangDb)
 
     let streakDays = Number(current?.streak_days || 0)
     if (!current) {
-      const { data: yRows } = await adminSupabase
-        .from('language_coach_progress_daily')
-        .select('streak_days, turns_count')
-        .eq('user_id', user.id)
-        .eq('progress_date', yesterday)
-        .eq('target_language', targetLanguage || null)
-        .limit(1)
-      const y = Array.isArray(yRows) && yRows.length > 0 ? yRows[0] : null
+      const y = await fetchYesterdayStreakRowPg(user.id, yesterday, targetLangDb)
       streakDays = y && Number(y.turns_count || 0) > 0 ? Number(y.streak_days || 0) + 1 : 1
     }
 
@@ -359,22 +314,21 @@ export async function POST(request: NextRequest) {
       ? ((prevAvg * prevSamples) + pronunciationScore) / Math.max(1, nextSamples)
       : prevAvg
 
-    const { error } = await adminSupabase.from('language_coach_progress_daily').upsert(
-      {
-        user_id: user.id,
-        progress_date: date,
-        target_language: targetLanguage || null,
-        turns_count: nextTurns,
-        sessions_count: nextSessions,
-        corrected_turns: nextCorrected,
-        pronunciation_samples: nextSamples,
-        avg_pronunciation_score: Number(nextAvg.toFixed(2)),
-        streak_days: streakDays,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'user_id,progress_date,target_language' }
-    )
-    if (error) return NextResponse.json({ error: error.message || 'Không lưu được tiến độ học.' }, { status: 500 })
+    const up = await upsertProgressDailyPg({
+      userId: user.id,
+      progressDate: date,
+      targetLanguage: targetLangDb,
+      turnsCount: nextTurns,
+      sessionsCount: nextSessions,
+      correctedTurns: nextCorrected,
+      pronunciationSamples: nextSamples,
+      avgPronunciationScore: Number(nextAvg.toFixed(2)),
+      streakDays,
+      updatedAtIso: new Date().toISOString(),
+    })
+    if (!up.ok) {
+      return NextResponse.json({ error: up.message || 'Không lưu được tiến độ học.' }, { status: 500 })
+    }
 
     if (sessionId || diagnostics) {
       const weakWords = Array.isArray(diagnostics?.weakWords)
@@ -400,25 +354,25 @@ export async function POST(request: NextRequest) {
         ? Math.min(100, Math.max(0, Math.round(Number(diagnostics?.pronunciationProsody))))
         : null
 
-      await adminSupabase.from('language_coach_turn_diagnostics').insert({
-        user_id: user.id,
-        session_id: sessionId || `session-${date}`,
-        progress_date: date,
-        target_language: targetLanguage || 'unknown',
-        native_language: nativeLanguage || null,
-        speaking_mode: speakingMode,
-        input_source: inputSource,
-        had_corrections: hadCorrections,
-        pronunciation_score: hasPronunciationScore ? Math.round(pronunciationScore) : null,
-        pronunciation_accuracy: pronAccuracy,
-        pronunciation_fluency: pronFluency,
-        pronunciation_prosody: pronProsody,
-        weak_words_json: JSON.stringify(weakWords),
-        word_scores_json: JSON.stringify(wordScores),
-        inferred_meaning: String(diagnostics?.inferredMeaning || '').trim() || null,
-        target_transcript: String(diagnostics?.targetTranscript || '').trim() || null,
-        native_transcript: String(diagnostics?.nativeTranscript || '').trim() || null,
-        merged_transcript: String(diagnostics?.mergedTranscript || '').trim() || null,
+      await insertTurnDiagnosticPg({
+        userId: user.id,
+        sessionId: sessionId || `session-${date}`,
+        progressDate: date,
+        targetLanguage: targetLanguage || 'unknown',
+        nativeLanguage: nativeLanguage || null,
+        speakingMode,
+        inputSource,
+        hadCorrections,
+        pronunciationScore: hasPronunciationScore ? Math.round(pronunciationScore) : null,
+        pronunciationAccuracy: pronAccuracy,
+        pronunciationFluency: pronFluency,
+        pronunciationProsody: pronProsody,
+        weakWordsJson: JSON.stringify(weakWords),
+        wordScoresJson: JSON.stringify(wordScores),
+        inferredMeaning: String(diagnostics?.inferredMeaning || '').trim() || null,
+        targetTranscript: String(diagnostics?.targetTranscript || '').trim() || null,
+        nativeTranscript: String(diagnostics?.nativeTranscript || '').trim() || null,
+        mergedTranscript: String(diagnostics?.mergedTranscript || '').trim() || null,
       })
     }
 

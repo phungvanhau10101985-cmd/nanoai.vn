@@ -5,10 +5,12 @@
  *   npx tsx scripts/backfill-curriculum-lesson-json.ts          # dry-run
  *   npx tsx scripts/backfill-curriculum-lesson-json.ts --apply  # ghi DB
  *   npx tsx scripts/backfill-curriculum-lesson-json.ts --apply --force # ghi đè row đã có
+ *
+ * Cần: DATABASE_URL, GOOGLE_API_KEY
  */
 import { config } from 'dotenv'
 import { resolve } from 'path'
-import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { pgQuery } from '../src/lib/db/pg-query'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_FLASH_NO_THINKING } from '../src/lib/gemini-config'
 
@@ -69,11 +71,9 @@ ${markdown.slice(0, 120000)}
 async function main() {
   const apply = process.argv.includes('--apply')
   const force = process.argv.includes('--force')
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim()
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()
   const googleKey = process.env.GOOGLE_API_KEY?.trim()
-  if (!url || !serviceKey) {
-    console.error('Thiếu NEXT_PUBLIC_SUPABASE_URL hoặc SUPABASE_SERVICE_ROLE_KEY')
+  if (!process.env.DATABASE_URL?.trim()) {
+    console.error('Thiếu DATABASE_URL')
     process.exit(1)
   }
   if (!googleKey) {
@@ -81,14 +81,17 @@ async function main() {
     process.exit(1)
   }
 
-  const admin = createClient(url, serviceKey)
   const genAI = new GoogleGenerativeAI(googleKey)
 
-  // Kiểm tra bảng đích đã tồn tại.
-  const check = await admin.from('worksheet_curriculum_lessons').select('id').limit(1)
-  if (check.error && /does not exist|42P01/i.test(check.error.message || '')) {
-    console.error('Bảng worksheet_curriculum_lessons chưa có. Hãy chạy migration trước.')
-    process.exit(1)
+  try {
+    await pgQuery('select id from worksheet_curriculum_lessons limit 1')
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    if (/does not exist|42P01/i.test(msg)) {
+      console.error('Bảng worksheet_curriculum_lessons chưa có. Hãy chạy migration trước.')
+      process.exit(1)
+    }
+    throw e
   }
 
   let offset = 0
@@ -100,13 +103,10 @@ async function main() {
   console.log(`[lesson-json-backfill] mode=${apply ? 'APPLY' : 'DRY-RUN'} force=${force ? 'YES' : 'NO'}`)
 
   for (;;) {
-    const { data, error } = await admin
-      .from('worksheet_curricula')
-      .select('id, content_markdown, num_lessons')
-      .order('created_at', { ascending: true })
-      .range(offset, offset + PAGE_SIZE - 1)
-    if (error) throw new Error(`worksheet_curricula: ${error.message}`)
-    const rows = (data ?? []) as CurriculumRow[]
+    const rows = await pgQuery<CurriculumRow>(
+      `select id, content_markdown, num_lessons from worksheet_curricula order by created_at asc nulls last limit $1 offset $2`,
+      [PAGE_SIZE, offset]
+    )
     if (rows.length === 0) break
 
     for (const row of rows) {
@@ -118,11 +118,11 @@ async function main() {
       }
 
       if (!force) {
-        const { count } = await admin
-          .from('worksheet_curriculum_lessons')
-          .select('id', { count: 'exact', head: true })
-          .eq('curriculum_id', row.id)
-        if ((count ?? 0) > 0) {
+        const cnt = await pgQuery<{ c: number }>(
+          `select count(*)::int as c from worksheet_curriculum_lessons where curriculum_id = $1`,
+          [row.id]
+        )
+        if ((cnt[0]?.c ?? 0) > 0) {
           skipped += 1
           continue
         }
@@ -137,17 +137,22 @@ async function main() {
         }
         changed += 1
         if (apply) {
-          await admin.from('worksheet_curriculum_lessons').delete().eq('curriculum_id', row.id)
-          const payload = lessons.map((l) => ({
-            curriculum_id: row.id,
-            lesson_no: l.lessonNo,
-            lesson_title: l.title,
-            lesson_markdown: l.markdown,
-            lesson_json: { lessonNo: l.lessonNo, title: l.title },
-            updated_at: new Date().toISOString(),
-          }))
-          const { error: insErr } = await admin.from('worksheet_curriculum_lessons').insert(payload)
-          if (insErr) throw new Error(insErr.message)
+          await pgQuery(`delete from worksheet_curriculum_lessons where curriculum_id = $1`, [row.id])
+          const updatedAt = new Date().toISOString()
+          for (const l of lessons) {
+            await pgQuery(
+              `insert into worksheet_curriculum_lessons (curriculum_id, lesson_no, lesson_title, lesson_markdown, lesson_json, updated_at)
+               values ($1, $2, $3, $4, $5, $6::timestamptz)`,
+              [
+                row.id,
+                l.lessonNo,
+                l.title,
+                l.markdown,
+                { lessonNo: l.lessonNo, title: l.title },
+                updatedAt,
+              ]
+            )
+          }
         }
       } catch (e) {
         failed += 1

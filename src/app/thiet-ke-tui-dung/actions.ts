@@ -1,10 +1,8 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { createPrintReadyPdf } from '@/lib/print-ready-pdf'
-import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
+import { bunnyStorageConfigured, uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 
 /**
  * Tạo PDF chuẩn in từ ảnh base64 (cho net túi client-generated).
@@ -19,14 +17,13 @@ export async function generateBagNetPdf(
     return { error: 'Kích thước phải từ 10–800 mm.' }
   }
 
-  const supabase = createClient()
-  const adminSupabase = createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
-  const result = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập để xuất PDF chuẩn in.')
+  const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
+
+  if (!bunnyStorageConfigured()) {
+    return { error: 'Thiếu cấu hình lưu file (Bunny Storage).' }
+  }
 
   try {
     const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, '')
@@ -35,7 +32,7 @@ export async function generateBagNetPdf(
     const pdfBuffer = await createPrintReadyPdf(imageBuffer, { widthMm, heightMm })
 
     const pdfPath = `results/${user.id}/bag_net_${Date.now()}.pdf`
-    const { publicUrl: pdfPublicUrl } = await uploadTryOnImagePublic(adminSupabase, pdfPath, pdfBuffer, {
+    const { publicUrl: pdfPublicUrl } = await uploadTryOnImagePublic(pdfPath, pdfBuffer, {
       contentType: 'application/pdf',
       upsert: true,
     })

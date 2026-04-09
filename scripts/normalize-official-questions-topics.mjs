@@ -5,10 +5,10 @@
  *
  * Chạy: node scripts/normalize-official-questions-topics.mjs
  *
- * Yêu cầu: .env có GOOGLE_API_KEY, NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+ * Yêu cầu: .env có GOOGLE_API_KEY, DATABASE_URL
  */
 
-import { createClient } from '@supabase/supabase-js'
+import { pgQuery } from './pg-query.mjs'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { readFileSync, existsSync } from 'fs'
 import { dirname, join } from 'path'
@@ -17,11 +17,11 @@ import { fileURLToPath } from 'url'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
 function loadEnv() {
+  const merged = {}
   for (const name of ['.env', '.env.local']) {
     const p = join(__dirname, '..', name)
     if (!existsSync(p)) continue
     const content = readFileSync(p, 'utf8')
-    const env = {}
     for (const line of content.split('\n')) {
       const t = line.trim()
       if (!t || t.startsWith('#')) continue
@@ -30,24 +30,22 @@ function loadEnv() {
       const k = t.slice(0, eq).trim()
       let v = t.slice(eq + 1).trim()
       if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) v = v.slice(1, -1)
-      env[k] = v
+      merged[k] = v
     }
-    return env
   }
-  return {}
+  Object.assign(process.env, merged)
+  return merged
 }
 
 const env = loadEnv()
-const GOOGLE_API_KEY = env.GOOGLE_API_KEY?.trim()
-const SUPABASE_URL = env.NEXT_PUBLIC_SUPABASE_URL?.trim()
-const SUPABASE_KEY = env.SUPABASE_SERVICE_ROLE_KEY?.trim()
+const GOOGLE_API_KEY = env.GOOGLE_API_KEY?.trim() || process.env.GOOGLE_API_KEY?.trim()
+process.env.DATABASE_URL = env.DATABASE_URL || process.env.DATABASE_URL
 
-if (!GOOGLE_API_KEY || !SUPABASE_URL || !SUPABASE_KEY) {
-  console.error('Thiếu GOOGLE_API_KEY, NEXT_PUBLIC_SUPABASE_URL hoặc SUPABASE_SERVICE_ROLE_KEY trong .env')
+if (!GOOGLE_API_KEY || !process.env.DATABASE_URL?.trim()) {
+  console.error('Thiếu GOOGLE_API_KEY hoặc DATABASE_URL trong .env')
   process.exit(1)
 }
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY)
 const genAI = new GoogleGenerativeAI(GOOGLE_API_KEY)
 
 /** Chuẩn hóa topic giống normalizeTopicForSearch (bỏ dấu, lowercase) */
@@ -112,15 +110,12 @@ async function main() {
   console.log('')
 
   const onlyNull = process.argv.includes('--only-null')
-  let query = supabase.from('worksheet_official_questions').select('id, question_text, subject_id')
-  if (onlyNull) {
-    query = query.is('topic_label', null)
-  }
-  const { data: all, error } = await query
-  if (error) {
-    console.error('Lỗi fetch:', error.message)
-    process.exit(1)
-  }
+  const all = await pgQuery(
+    onlyNull
+      ? `select id, question_text, subject_id from worksheet_official_questions where topic_label is null`
+      : `select id, question_text, subject_id from worksheet_official_questions`
+  )
+
   const total = all?.length ?? 0
   console.log(`Tổng câu hỏi cần xử lý: ${total}`)
   if (total === 0) {
@@ -143,15 +138,15 @@ async function main() {
       const q = batch[j]
       const label = (topics[j] ?? '').trim().slice(0, 200)
       const normalized = normalizeTopic(label)
-      const { error: updErr } = await supabase
-        .from('worksheet_official_questions')
-        .update({ topic_label: label || null, topic_normalized: normalized || null })
-        .eq('id', q.id)
-      if (updErr) {
-        console.warn('  Lỗi update:', q.id, updErr.message)
-        failed++
-      } else {
+      try {
+        await pgQuery(
+          `update worksheet_official_questions set topic_label = $1, topic_normalized = $2 where id = $3::uuid`,
+          [label || null, normalized || null, q.id]
+        )
         processed++
+      } catch (updErr) {
+        console.warn('  Lỗi update:', q.id, updErr instanceof Error ? updErr.message : updErr)
+        failed++
       }
     }
     console.log(`  ${Math.min(i + BATCH_SIZE, total)}/${total} - processed: ${processed}, failed: ${failed}`)

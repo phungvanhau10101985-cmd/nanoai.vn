@@ -1,19 +1,21 @@
 'use server'
+import { deleteTryOnHistoryRowAndStorage } from '@/lib/storage/try-on-history-cleanup'
+import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
+import { deductUserCredits } from '@/lib/music/deduct-user-credits'
 
-import { createClient } from '@/lib/supabase/server'
+
 import { getUserForAction } from '@/lib/auth'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+import { insertTryOnHistoryProcessingPg, updateTryOnHistoryCompletedPg } from '@/lib/db/try-on-history-pg'
 import { revalidatePath } from 'next/cache'
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
 import { normalizeToEnglish } from '@/lib/ai-normalize'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
-import { uploadTryOnImagePublic, getTryOnPublicUrl } from '@/lib/storage/try-on-public-upload'
+import { uploadTryOnImagePublic, getTryOnPublicUrlFromPath } from '@/lib/storage/try-on-public-upload'
 
 const COSTS = { '2K': 1.5, '4K': 3 } as const
 const VALID_ASPECT_RATIOS = ['1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '21:9'] as const
 const MAX_PROMPT_LEN = 8000
 const toTenths = (value: number) => Math.round(value * 10)
-const fromTenths = (value: number) => value / 10
 const formatCredits = (value: number) => value.toLocaleString('vi-VN', { maximumFractionDigits: 1 })
 
 const PROMPT_TEXT_ONLY = `You are an image generation assistant. Create ONE high-quality image that matches the user's text description. Follow lighting, style, and subject as described. Return only the generated image, no extra text.`
@@ -90,18 +92,18 @@ export async function createImageFromText(formData: FormData) {
 
   const COST = COSTS[imageQuality]
 
-  const supabase = createClient()
-  const adminSupabase = createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
-  const result = await getUserForAction(() => supabase.auth.getUser())
+  const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
-  const { data: creditData, error: creditError } = await supabase.from('credits').select('balance').eq('user_id', user.id).single()
-  if (creditError || !creditData || toTenths(creditData.balance) < toTenths(COST)) {
-    return { error: `Không đủ credits. Cần ${formatCredits(COST)} credits, hiện có ${formatCredits(creditData?.balance || 0)}.` }
+  let openBalance = 0
+  try {
+    openBalance = await getCreditBalanceByUserId(user.id)
+  } catch {
+    return { error: 'Không đọc được số dư credits.' }
+  }
+  if (toTenths(openBalance) < toTenths(COST)) {
+    return { error: `Không đủ credits. Cần ${formatCredits(COST)} credits, hiện có ${formatCredits(openBalance)}.` }
   }
 
   const timestamp = Date.now()
@@ -109,18 +111,18 @@ export async function createImageFromText(formData: FormData) {
   const placeholderPath = `uploads/${user.id}/text2img_placeholder_${timestamp}`
   let text2imgOriginalPublicUrl: string
   if (hasRef && ref && uploadPath) {
-    const { publicUrl } = await uploadTryOnImagePublic(supabase, uploadPath, ref, { contentType: ref.type || 'image/png' })
+    const { publicUrl } = await uploadTryOnImagePublic(uploadPath, ref, { contentType: ref.type || 'image/png' })
     text2imgOriginalPublicUrl = publicUrl
   } else {
-    text2imgOriginalPublicUrl = getTryOnPublicUrl(supabase, placeholderPath)
+    text2imgOriginalPublicUrl = getTryOnPublicUrlFromPath(placeholderPath)
   }
-  const { data: historyItem, error: historyError } = await supabase.from('try_on_history').insert({
-    user_id: user.id,
-    original_image_url: text2imgOriginalPublicUrl,
-    garment_image_url: text2imgOriginalPublicUrl,
-    status: 'processing',
-  }).select().single()
-  if (historyError || !historyItem) return { error: 'Không thể khởi tạo phiên xử lý.' }
+  const historyItem = await insertTryOnHistoryProcessingPg({
+    userId: user.id,
+    originalImageUrl: text2imgOriginalPublicUrl,
+    garmentImageUrl: text2imgOriginalPublicUrl,
+    feature: 'tao-anh-tu-chu',
+  })
+  if (!historyItem) return { error: 'Không thể khởi tạo phiên xử lý.' }
 
   const promptEn = await normalizeToEnglish(rawPrompt)
   const styleBlock = `\n\n${STYLE_DIRECTIVES[imageStyle]}`
@@ -154,35 +156,31 @@ export async function createImageFromText(formData: FormData) {
     trackFromUsageMetadata(response.usageMetadata, 'gemini-3-pro-image-preview', 'tao-anh-tu-chu', user.id, imageQuality)
     const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
     if (!imagePartRes || !('inlineData' in imagePartRes)) {
-      await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+      await deleteTryOnHistoryRowAndStorage(historyItem.id)
       return { error: 'AI không trả về ảnh hợp lệ.' }
     }
     const resultBuffer = Buffer.from((imagePartRes as { inlineData: { data: string } }).inlineData.data, 'base64')
     const resultPath = `results/${user.id}/text2img_${Date.now()}.png`
-    const { publicUrl: text2imgResultPublicUrl } = await uploadTryOnImagePublic(adminSupabase, resultPath, resultBuffer, {
+    const { publicUrl: text2imgResultPublicUrl } = await uploadTryOnImagePublic(resultPath, resultBuffer, {
       contentType: 'image/png',
       upsert: true,
     })
 
-    const { data: latestCredit } = await adminSupabase.from('credits').select('balance').eq('user_id', user.id).single()
-    if (!latestCredit || toTenths(latestCredit.balance) < toTenths(COST)) {
-      await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
-      return { error: 'Không đủ credits để hoàn tất.' }
+    const d = await deductUserCredits(user.id, COST)
+    if (!d.ok) {
+      await deleteTryOnHistoryRowAndStorage(historyItem.id)
+      return { error: d.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credits để hoàn tất.' : d.error }
     }
-    const newBalance = fromTenths(toTenths(latestCredit.balance) - toTenths(COST))
-    await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', user.id)
-    await adminSupabase.from('try_on_history').update({
-      result_image_url: text2imgResultPublicUrl,
-      status: 'completed',
+    await updateTryOnHistoryCompletedPg(historyItem.id, text2imgResultPublicUrl, {
       feature: 'tao-anh-tu-chu',
       aspect_ratio: aspectRatio,
-    }).eq('id', historyItem.id)
+    })
 
     revalidatePath('/tao-anh-tu-chu')
     revalidatePath('/dashboard/history')
     return { success: true, resultUrl: text2imgResultPublicUrl }
   } catch (e) {
-    await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+    await deleteTryOnHistoryRowAndStorage(historyItem.id)
     const msg = e instanceof Error ? e.message : String(e)
     if (/500|Internal Server Error|Internal error/i.test(msg)) {
       return { error: 'Hệ thống quá tải. Bạn có thể chọn 2K hoặc thử lại sau ít phút.' }

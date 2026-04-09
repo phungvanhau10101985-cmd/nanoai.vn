@@ -1,14 +1,12 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { createPrintReadyPdf } from '@/lib/print-ready-pdf'
 import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 
 /**
  * Tạo PDF chuẩn in từ URL ảnh.
- * Trả về URL PDF tạm trên Supabase để tải về.
+ * Trả về URL PDF công khai (Bunny Storage) để tải về.
  */
 export async function generatePrintReadyPdf(
   imageUrl: string,
@@ -20,12 +18,7 @@ export async function generatePrintReadyPdf(
     return { error: 'Kích thước phải từ 10–500 mm.' }
   }
 
-  const supabase = createClient()
-  const adminSupabase = createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
-  const result = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập để xuất PDF chuẩn in.')
+  const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
@@ -37,7 +30,7 @@ export async function generatePrintReadyPdf(
     const pdfBuffer = await createPrintReadyPdf(imageBuffer, { widthMm, heightMm })
 
     const pdfPath = `results/${user.id}/print_ready_${Date.now()}.pdf`
-    const { publicUrl: pdfPublicUrl } = await uploadTryOnImagePublic(adminSupabase, pdfPath, pdfBuffer, {
+    const { publicUrl: pdfPublicUrl } = await uploadTryOnImagePublic(pdfPath, pdfBuffer, {
       contentType: 'application/pdf',
       upsert: true,
     })

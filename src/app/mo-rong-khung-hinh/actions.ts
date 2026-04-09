@@ -1,17 +1,19 @@
 'use server'
+import { deleteTryOnHistoryRowAndStorage } from '@/lib/storage/try-on-history-cleanup'
 
-import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
-import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
+import { bunnyStorageConfigured, uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 import { revalidatePath } from 'next/cache'
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
 import { normalizeToEnglish } from '@/lib/ai-normalize'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
+import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
+import { deductUserCredits } from '@/lib/music/deduct-user-credits'
+import { isPgConfigured } from '@/lib/db/pool'
+import { insertTryOnHistoryProcessingPg, updateTryOnHistoryCompletedPg } from '@/lib/db/try-on-history-pg'
 
 const OUTPAINT_COSTS = { '2K': 1.5, '4K': 3 } as const
 const toTenths = (value: number) => Math.round(value * 10)
-const fromTenths = (value: number) => value / 10
 const formatCredits = (value: number) => value.toLocaleString('vi-VN', { maximumFractionDigits: 1 })
 
 const PROMPT_BASE = `Mở rộng khung hình bằng AI: mở rộng vùng ảnh ra hai bên (hoặc trên/dưới) để đạt tỷ lệ mới. Không làm méo người hoặc chủ thể chính. Phần nền mở rộng phải hòa trộn tự nhiên với ảnh gốc. Chỉ trả về ảnh kết quả, không chèn chữ.`
@@ -27,37 +29,49 @@ export async function outpaintImage(formData: FormData) {
   const note = (formData.get('note') as string)?.trim() || ''
   if (!image || image.size === 0) return { error: 'Cần tải lên ít nhất một ảnh.' }
 
+  if (!bunnyStorageConfigured()) {
+    return { error: 'Thiếu cấu hình lưu ảnh (Bunny Storage).' }
+  }
+  if (!isPgConfigured()) {
+    return { error: 'Thiếu cấu hình cơ sở dữ liệu (DATABASE_URL).' }
+  }
+
   const noteEn = note ? await normalizeToEnglish(note) : ''
   let prompt = PROMPT_BASE
-  prompt = prompt.replace('Chỉ trả về ảnh kết quả, không chèn chữ.', `TỶ LỆ KHUNG HÌNH MỤC TIÊU: ${aspectRatio}. ${noteEn ? `YÊU CẦU: "${noteEn}". ` : ''}Chỉ trả về ảnh kết quả, không chèn chữ.`)
+  prompt = prompt.replace(
+    'Chỉ trả về ảnh kết quả, không chèn chữ.',
+    `TỶ LỆ KHUNG HÌNH MỤC TIÊU: ${aspectRatio}. ${noteEn ? `YÊU CẦU: "${noteEn}". ` : ''}Chỉ trả về ảnh kết quả, không chèn chữ.`
+  )
 
   const COST = OUTPAINT_COSTS[imageQuality]
-  const supabase = createClient()
-  const adminSupabase = createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
-  const result = await getUserForAction(() => supabase.auth.getUser())
+  const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
-  const { data: creditData, error: creditError } = await supabase.from('credits').select('balance').eq('user_id', user.id).single()
-  if (creditError || !creditData || toTenths(creditData.balance) < toTenths(COST)) {
-    return { error: `Không đủ credits. Cần ${formatCredits(COST)} credits, hiện có ${formatCredits(creditData?.balance || 0)}.` }
+  let balanceBefore: number
+  try {
+    balanceBefore = await getCreditBalanceByUserId(user.id)
+  } catch {
+    return { error: 'Không đọc được số dư credits.' }
+  }
+  if (toTenths(balanceBefore) < toTenths(COST)) {
+    return { error: `Không đủ credits. Cần ${formatCredits(COST)} credits, hiện có ${formatCredits(balanceBefore)}.` }
   }
 
   const timestamp = Date.now()
   const path = `uploads/${user.id}/outpaint_${timestamp}.png`
-  const { publicUrl: originalPublicUrl } = await uploadTryOnImagePublic(supabase, path, image, {
+  const { publicUrl: originalPublicUrl } = await uploadTryOnImagePublic(path, image, {
     contentType: image.type || 'image/png',
   })
-  const { data: historyItem, error: historyError } = await supabase.from('try_on_history').insert({
-    user_id: user.id,
-    original_image_url: originalPublicUrl,
-    garment_image_url: originalPublicUrl,
-    status: 'processing',
-  }).select().single()
-  if (historyError || !historyItem) return { error: 'Không thể khởi tạo phiên xử lý.' }
+
+  const inserted = await insertTryOnHistoryProcessingPg({
+    userId: user.id,
+    originalImageUrl: originalPublicUrl,
+    garmentImageUrl: originalPublicUrl,
+    feature: 'outpaint',
+  })
+  if (!inserted) return { error: 'Không thể khởi tạo phiên xử lý.' }
+  const historyItem = { id: inserted.id }
 
   const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!)
   const model = genAI.getGenerativeModel({
@@ -82,30 +96,37 @@ export async function outpaintImage(formData: FormData) {
     trackFromUsageMetadata(response.usageMetadata, 'gemini-3-pro-image-preview', 'mo-rong-khung-hinh', user.id, imageQuality)
     const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
     if (!imagePartRes || !('inlineData' in imagePartRes)) {
-      await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+      await deleteTryOnHistoryRowAndStorage(historyItem.id)
       return { error: 'AI không trả về ảnh hợp lệ.' }
     }
     const resultBuffer = Buffer.from((imagePartRes as { inlineData: { data: string } }).inlineData.data, 'base64')
     const resultPath = `results/${user.id}/outpaint_${Date.now()}.png`
-    const { publicUrl: resultPublicUrl } = await uploadTryOnImagePublic(adminSupabase, resultPath, resultBuffer, {
+    const { publicUrl: resultPublicUrl } = await uploadTryOnImagePublic(resultPath, resultBuffer, {
       contentType: 'image/png',
       upsert: true,
     })
 
-    const { data: latestCredit } = await adminSupabase.from('credits').select('balance').eq('user_id', user.id).single()
-    if (!latestCredit || toTenths(latestCredit.balance) < toTenths(COST)) {
-      await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
-      return { error: 'Không đủ credits để hoàn tất.' }
+    const deduct = await deductUserCredits(user.id, COST)
+    if (!deduct.ok) {
+      await deleteTryOnHistoryRowAndStorage(historyItem.id)
+      return {
+        error:
+          deduct.code === 'INSUFFICIENT_CREDITS'
+            ? 'Không đủ credits để hoàn tất.'
+            : deduct.error || 'Không thể trừ credits.',
+      }
     }
-    const newBalance = fromTenths(toTenths(latestCredit.balance) - toTenths(COST))
-    await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', user.id)
-    await adminSupabase.from('try_on_history').update({ result_image_url: resultPublicUrl, status: 'completed' }).eq('id', historyItem.id)
+    const saved = await updateTryOnHistoryCompletedPg(historyItem.id, resultPublicUrl)
+    if (!saved) {
+      await deleteTryOnHistoryRowAndStorage(historyItem.id)
+      return { error: 'Không lưu được kết quả phiên.' }
+    }
 
     revalidatePath('/mo-rong-khung-hinh')
     revalidatePath('/dashboard/history')
     return { success: true, resultUrl: resultPublicUrl }
   } catch (e) {
-    await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+    await deleteTryOnHistoryRowAndStorage(historyItem.id)
     const msg = e instanceof Error ? e.message : String(e)
     if (/500|Internal Server Error|Internal error/i.test(msg)) {
       return { error: 'Hệ thống quá tải. Bạn có thể chọn 2K hoặc thử lại sau ít phút.' }

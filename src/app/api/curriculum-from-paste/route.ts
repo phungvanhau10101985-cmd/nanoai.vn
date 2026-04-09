@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_PRO } from '@/lib/gemini-config'
-import { createClient } from '@/lib/supabase/server'
+import { getUserOrBypass } from '@/lib/auth'
 import { CurriculumApiFeature, trackCurriculumGeminiResult } from '@/lib/curriculum-api-usage'
 
 const SUBJECT_NAMES: Record<string, string> = {
@@ -52,10 +52,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Thiếu GOOGLE_API_KEY.' }, { status: 500 })
     }
 
-    const supabase = createClient()
-    const {
-      data: { user: pasteUser },
-    } = await supabase.auth.getUser()
+    const pasteUser = await getUserOrBypass()
     const trackUserId = pasteUser?.id ?? null
 
     const subjectName = SUBJECT_NAMES[subjectId] || subjectId

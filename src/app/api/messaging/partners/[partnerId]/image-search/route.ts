@@ -1,6 +1,8 @@
 import { timingSafeEqual } from 'node:crypto'
 import { NextResponse } from 'next/server'
-import { createServiceRoleClient } from '@/lib/supabase/service-role'
+import { fetchMessagingPartnerAiImageSearchAuthFromPg } from '@/lib/db/messaging-partner-ai-settings-pg'
+import { fetchMessagingPartnerByIdFromPg } from '@/lib/db/messaging-partners-pg'
+import { isPgConfigured } from '@/lib/db/pool'
 import {
   getClientIpFromRequest,
   getRateLimitRetryAfterSec,
@@ -100,28 +102,20 @@ export async function POST(req: Request, ctx: { params: Promise<{ partnerId: str
     return jsonWithCors(req, { error: 'Missing Authorization: Bearer <api_key>.' }, 401)
   }
 
-  const db = createServiceRoleClient()
+  if (!isPgConfigured()) {
+    return jsonWithCors(req, { error: 'Server database is not configured.' }, 503)
+  }
 
-  const { data: partner, error: pErr } = await db
-    .from('messaging_partners')
-    .select('id, is_active')
-    .eq('id', partnerId)
-    .maybeSingle()
-
-  if (pErr) return jsonWithCors(req, { error: pErr.message }, 500)
-  if (!partner) return jsonWithCors(req, { error: 'Shop not found.' }, 404)
+  const partner = await fetchMessagingPartnerByIdFromPg(partnerId)
+  if (!partner) {
+    return jsonWithCors(req, { error: 'Shop not found.' }, 404)
+  }
   if (!partner.is_active) {
     return jsonWithCors(req, { error: 'Shop is not active.' }, 403)
   }
 
-  const { data: settings, error: setErr } = await db
-    .from('messaging_partner_ai_settings')
-    .select('*')
-    .eq('partner_id', partnerId)
-    .maybeSingle()
-
-  if (setErr) return jsonWithCors(req, { error: setErr.message }, 500)
-  if (!settings) {
+  const settings = await fetchMessagingPartnerAiImageSearchAuthFromPg(partnerId)
+  if (settings === null) {
     return jsonWithCors(req, { error: 'AI settings not found for this shop.' }, 404)
   }
   if (!settings.image_search_api_enabled) {
@@ -174,7 +168,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ partnerId: str
     if (Number.isFinite(n)) maxResults = n
   }
 
-  const geminiResult = await geminiProductSearchFromImageBufferViaVectorDb(db, buf, partnerId, {
+  const geminiResult = await geminiProductSearchFromImageBufferViaVectorDb(buf, partnerId, {
     maxResults,
     userId: null,
   })

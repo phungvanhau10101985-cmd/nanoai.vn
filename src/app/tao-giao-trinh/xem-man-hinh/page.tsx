@@ -2,8 +2,7 @@
 
 import { Suspense, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
-import type { RealtimeChannel } from '@supabase/supabase-js'
+import { ScreenLiveChannel } from '../lib/screen-live-channel'
 import { RotateCw } from 'lucide-react'
 
 function getWebLocale(): 'vi' | 'en' | 'zh' | 'ja' | 'ko' {
@@ -37,7 +36,7 @@ function XemManHinhInner() {
   const [locale, setLocale] = useState<'vi' | 'en' | 'zh' | 'ja' | 'ko'>('vi')
   const [isPortrait, setIsPortrait] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
-  const channelRef = useRef<RealtimeChannel | null>(null)
+  const channelRef = useRef<ScreenLiveChannel | null>(null)
   const pcRef = useRef<RTCPeerConnection | null>(null)
 
   useEffect(() => {
@@ -81,9 +80,7 @@ function XemManHinhInner() {
     setErrorMsg(null)
 
     const viewerId = crypto.randomUUID()
-    const supabase = createClient()
-    const channelName = `screen-live-${shareCode.trim()}`
-    const channel = supabase.channel(channelName, { config: { private: false } })
+    const channel = new ScreenLiveChannel(shareCode.trim())
     channelRef.current = channel
 
     const pc = new RTCPeerConnection({

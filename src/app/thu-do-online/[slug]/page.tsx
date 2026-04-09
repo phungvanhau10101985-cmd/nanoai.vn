@@ -1,4 +1,3 @@
-import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import { redirectToLogin } from '@/lib/auth/login-redirect'
 import { getUserOrBypass } from '@/lib/auth'
@@ -46,8 +45,7 @@ export default async function TryOnSlugPage({ params }: { params: { slug: string
   const config = MODE_MAP[params.slug]
   if (!config) notFound()
 
-  const supabase = createClient()
-  const user = await getUserOrBypass(() => supabase.auth.getUser())
+  const user = await getUserOrBypass()
   if (!user) redirectToLogin()
 
   const rawGender = (user?.user_metadata?.gender as string) || 'male'

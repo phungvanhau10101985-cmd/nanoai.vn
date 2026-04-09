@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_FLASH_NO_THINKING, GEMINI_25_PRO } from '@/lib/gemini-config'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
-import { createClient } from '@/lib/supabase/server'
+import { getUserOrBypass } from '@/lib/auth'
 
 /** Model tạo / sửa quiz: Gemini 2.5 Pro. */
 const QUIZ_CREATE_MODEL = GEMINI_25_PRO
@@ -190,9 +190,8 @@ Chỉ 1 phần tử trong "quizzes".`
 /** AI tạo 1 câu trắc nghiệm cho một slide */
 export async function POST(req: NextRequest) {
   try {
-    const supabase = createClient()
-    const { data: { user: authUser } } = await supabase.auth.getUser()
-    const userId = authUser?.id ?? null
+    const u = await getUserOrBypass()
+    const userId = u?.id ?? null
 
     const body = await req.json().catch(() => ({}))
     const title = String(body?.title ?? '').trim()

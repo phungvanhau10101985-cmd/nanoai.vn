@@ -1,5 +1,5 @@
-import { createClient } from '@/lib/supabase/server'
 import { redirectToLogin } from '@/lib/auth/login-redirect'
+import { pgListRecentTryOnHistoryForDashboard } from '@/lib/db/dashboard-user-pg'
 import { getUserOrBypass } from '@/lib/auth'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -9,6 +9,7 @@ import { ImagePreview } from '@/components/ui/image-preview'
 import { NAV_GROUPS } from '@/lib/nav-config'
 import { NavHubLinkTile } from '@/components/layout/nav-hub-link-tile'
 import { getCurrentWebLocale, getServerDictionary } from '@/lib/i18n/server'
+import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
 
 export default async function DashboardPage() {
   const { t } = getServerDictionary()
@@ -38,22 +39,17 @@ export default async function DashboardPage() {
             : 'Start your first virtual try-on experience',
     resultAlt: locale === 'vi' ? 'Kết quả thử đồ ngày' : locale === 'zh' ? '试衣结果日期' : locale === 'ja' ? '試着結果日付' : locale === 'ko' ? '피팅 결과 날짜' : 'Try-on result date',
   }
-  const supabase = createClient()
-  const user = await getUserOrBypass(() => supabase.auth.getUser())
+  const user = await getUserOrBypass()
   if (!user) redirectToLogin()
 
-  const { data: credits } = await supabase
-    .from('credits')
-    .select('balance')
-    .eq('user_id', user.id)
-    .single()
+  let creditsBalance = 0
+  try {
+    creditsBalance = await getCreditBalanceByUserId(user.id)
+  } catch {
+    creditsBalance = 0
+  }
 
-  const { data: history } = await supabase
-    .from('try_on_history')
-    .select('*')
-    .eq('user_id', user.id)
-    .order('created_at', { ascending: false })
-    .limit(5)
+  const history = await pgListRecentTryOnHistoryForDashboard(user.id, 5)
 
   return (
     <div className="app-shell space-y-6 md:space-y-8 lg:space-y-8 xl:space-y-10">
@@ -73,7 +69,7 @@ export default async function DashboardPage() {
             <Wallet className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{credits?.balance || 0}</div>
+            <div className="text-2xl font-bold">{creditsBalance}</div>
             <p className="text-xs text-muted-foreground">
               {ui.availableTryOn}
             </p>

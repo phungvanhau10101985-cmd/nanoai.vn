@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
 Import Viet-Doc-VQA-flash2 từ Hugging Face vào worksheet_official_questions.
-Chỉ dùng requests + pyarrow + supabase (không cần huggingface_hub/datasets).
+Chỉ dùng requests + pyarrow + client REST (package pip `supabase`; PostgREST).
 
 Cài đặt: pip install requests pyarrow supabase
 Chạy: python scripts/import-viet-doc-vqa.py
 
-Yêu cầu: .env.local có HUGGINGFACE_TOKEN và SUPABASE_*
+Yêu cầu: .env.local có HUGGINGFACE_TOKEN và URL/key REST (NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY)
 Bước 1: Chấp nhận điều khoản tại https://huggingface.co/datasets/5CD-AI/Viet-Doc-VQA-flash2
 """
 

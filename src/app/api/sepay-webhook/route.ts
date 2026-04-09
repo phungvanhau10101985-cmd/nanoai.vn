@@ -1,23 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createHmac, timingSafeEqual } from 'crypto'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
-import { createUserNotificationWithEmail } from '@/lib/notifications/create-user-notification-server'
+import { deliverUserNotificationPg } from '@/lib/notifications/deliver-user-notification-pg'
 import { CREDIT_UNIT_PRICE_VND } from '@/lib/credit-unit-price'
+import { addCreditsToUser } from '@/lib/db/credits-balance'
+import { isPgConfigured } from '@/lib/db/pool'
+import {
+  sepayFindPaymentByTransactionId,
+  sepayFindPendingPaymentMatch,
+  sepayMarkPaymentCompleted,
+} from '@/lib/db/payments-repo'
 
 type SePayBody = Record<string, string | number | boolean | null | undefined>
-
-const createWebhookClient = () => {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-  if (!supabaseUrl || !serviceRoleKey) {
-    throw new Error('Missing Supabase server configuration for webhook')
-  }
-
-  return createSupabaseClient(supabaseUrl, serviceRoleKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  })
-}
 
 const toStringValue = (value: SePayBody[string]): string | undefined => {
   if (value === null || value === undefined) return undefined
@@ -82,7 +75,6 @@ const verifySePaySignature = (rawBody: string, secretKey: string, signature: str
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createWebhookClient()
     const contentType = request.headers.get('content-type') || ''
     const rawBody = await request.text()
     let body: SePayBody = {}
@@ -163,123 +155,63 @@ export async function POST(request: NextRequest) {
     }
     const normalizedContent = transactionContent.trim().toUpperCase()
 
-    if (transactionId) {
-      const { data: existingPaymentsByTransactionId, error: existingByTxError } = await supabase
-        .from('payments')
-        .select('id, status')
-        .eq('transaction_id', transactionId)
-        .limit(1)
-
-      if (existingByTxError) {
-        console.error('Error checking transaction idempotency:', existingByTxError)
-        return NextResponse.json({ error: 'Database error' }, { status: 500 })
-      }
-
-      if (existingPaymentsByTransactionId && existingPaymentsByTransactionId.length > 0) {
-        const existingPayment = existingPaymentsByTransactionId[0]
-        if (existingPayment.status === 'completed') {
-          return NextResponse.json({
-            success: true,
-            message: 'Payment already processed',
-            data: { paymentId: existingPayment.id }
-          })
-        }
-      }
-    }
-
-    const { data: pendingPayments, error: pendingPaymentError } = await supabase
-      .from('payments')
-      .select('id, user_id, amount, status')
-      .eq('status', 'pending')
-      .ilike('transaction_content', normalizedContent)
-      .eq('amount', amountIn)
-      .order('created_at', { ascending: false })
-      .limit(1)
-
-    if (pendingPaymentError) {
-      console.error('Error finding pending payment:', pendingPaymentError)
-      return NextResponse.json({ error: 'Database error' }, { status: 500 })
-    }
-
-    if (!pendingPayments || pendingPayments.length === 0) {
-      console.warn('No pending payment found for content:', normalizedContent)
-      return NextResponse.json({ error: 'Pending payment not found' }, { status: 404 })
-    }
-
-    const pendingPayment = pendingPayments[0]
-
-    const paymentId = pendingPayment.id
-    const userId = pendingPayment.user_id
-    const creditsToAdd = Math.floor(amountIn / CREDIT_UNIT_PRICE_VND)
-    let newBalance: number
-
-    const { data: currentCredits, error: creditsError } = await supabase
-      .from('credits')
-      .select('balance')
-      .eq('user_id', userId)
-      .maybeSingle()
-
-    if (creditsError) {
-      console.error('Error fetching user credits:', creditsError)
-      return NextResponse.json({ error: 'Failed to fetch credits' }, { status: 500 })
-    }
-
-    if (!currentCredits) {
-      const { error: createCreditsError } = await supabase
-        .from('credits')
-        .insert({
-          user_id: userId,
-          balance: creditsToAdd
-        })
-
-      if (createCreditsError) {
-        console.error('Error creating credits:', createCreditsError)
-        return NextResponse.json({ error: 'Failed to create credits' }, { status: 500 })
-      }
-      newBalance = creditsToAdd
-    } else {
-      const currentBalance = Number(currentCredits.balance || 0)
-      newBalance = currentBalance + creditsToAdd
-      const { error: updateCreditsError } = await supabase
-        .from('credits')
-        .update({ balance: newBalance })
-        .eq('user_id', userId)
-
-      if (updateCreditsError) {
-        console.error('Error updating credits:', updateCreditsError)
-        return NextResponse.json({ error: 'Failed to update credits' }, { status: 500 })
-      }
-    }
-
-    // Chỉ đánh dấu completed sau khi đã cộng credits thành công
-    const { error: updateError } = await supabase
-      .from('payments')
-      .update({
-        status: 'completed',
-        transaction_id: transactionId || null,
-        transaction_content: normalizedContent,
-        bank_account: bankAccount || null,
-        bank_name: bankName || null,
-        sepay_data: body,
-        completed_at: new Date().toISOString()
-      })
-      .eq('id', paymentId)
-
-    if (updateError) {
-      console.error('Error updating payment:', updateError)
-      return NextResponse.json({ error: 'Failed to update payment' }, { status: 500 })
-    }
-
-    console.log(`Payment completed: User ${userId} received ${creditsToAdd} credits (${amountIn} VND)`)
-
     const amountFmt = new Intl.NumberFormat('vi-VN', {
       style: 'currency',
       currency: 'VND',
       maximumFractionDigits: 0,
     }).format(amountIn)
 
+    if (!isPgConfigured()) {
+      return NextResponse.json(
+        { error: 'Chưa cấu hình DATABASE_URL (Postgres). Không thể xử lý thanh toán.' },
+        { status: 503 }
+      )
+    }
+
+    if (transactionId) {
+      const existing = await sepayFindPaymentByTransactionId(transactionId)
+      if (existing?.status === 'completed') {
+        return NextResponse.json({
+          success: true,
+          message: 'Payment already processed',
+          data: { paymentId: existing.id },
+        })
+      }
+    }
+
+    const pending = await sepayFindPendingPaymentMatch(normalizedContent, amountIn)
+    if (!pending) {
+      console.warn('No pending payment found for content:', normalizedContent)
+      return NextResponse.json({ error: 'Pending payment not found' }, { status: 404 })
+    }
+
+    const paymentId = pending.id
+    const userId = pending.user_id
+    const creditsToAdd = Math.floor(amountIn / CREDIT_UNIT_PRICE_VND)
+    const added = await addCreditsToUser(userId, creditsToAdd)
+    if (!added.ok) {
+      console.error('Error adding credits:', added.error)
+      return NextResponse.json({ error: 'Failed to update credits' }, { status: 500 })
+    }
+    const newBalance = added.newBalance
+
+    const upd = await sepayMarkPaymentCompleted({
+      paymentId,
+      transactionId: transactionId || null,
+      normalizedContent,
+      bankAccount: bankAccount ?? null,
+      bankName: bankName ?? null,
+      sepayData: body as Record<string, unknown>,
+    })
+    if (!upd.ok) {
+      console.error('Error updating payment:', upd.error)
+      return NextResponse.json({ error: 'Failed to update payment' }, { status: 500 })
+    }
+
+    console.log(`Payment completed: User ${userId} received ${creditsToAdd} credits (${amountIn} VND)`)
+
     try {
-      await createUserNotificationWithEmail(supabase, {
+      await deliverUserNotificationPg({
         user_id: userId,
         type: 'payment_credits_added',
         title: 'Nạp credit thành công',
@@ -304,8 +236,8 @@ export async function POST(request: NextRequest) {
         userId,
         amountIn,
         creditsAdded: creditsToAdd,
-        paymentId
-      }
+        paymentId,
+      },
     })
 
   } catch (error: unknown) {

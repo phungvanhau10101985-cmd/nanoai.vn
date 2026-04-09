@@ -1,4 +1,3 @@
-import { createClient } from '@/lib/supabase/server'
 import { redirectToLogin } from '@/lib/auth/login-redirect'
 import { getUserOrBypass } from '@/lib/auth'
 
@@ -7,8 +6,7 @@ export default async function DichAnhTaiLieuLayout({
 }: {
   children: React.ReactNode
 }) {
-  const supabase = createClient()
-  const user = await getUserOrBypass(() => supabase.auth.getUser())
+  const user = await getUserOrBypass()
   if (!user) redirectToLogin()
 
   return (

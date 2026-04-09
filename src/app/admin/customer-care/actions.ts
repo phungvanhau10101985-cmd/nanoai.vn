@@ -1,59 +1,65 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
-import { createServiceRoleClient } from '@/lib/supabase/service-role'
+import {
+  fetchConversationFullForPartnerFromPg,
+  fetchPartnerConversationsFromPg,
+  insertMessagePg,
+  listPartnerMessagesBundleFromPg,
+} from '@/lib/db/customer-care-pg'
+import { getFacebookSendTokenFromPg, getZaloSendTokenFromPg } from '@/lib/db/messaging-partner-channels-pg'
+import { isPgConfigured } from '@/lib/db/pool'
 import { sendFacebookMessengerText } from '@/lib/customer-care/facebook-messenger'
 import { sendZaloOaText } from '@/lib/customer-care/zalo-oa'
-import { insertMessage } from '@/lib/customer-care/conversation-service'
-import { getFacebookSendToken, getZaloSendToken } from '@/lib/messaging/partner-channels-db'
 import { cancelPendingAiJobsForConversation } from '@/lib/messaging/partner-ai-inbound'
 import { PLATFORM_MESSAGING_PARTNER_ID } from '@/lib/messaging/platform-partner'
+import { getProfileRoleWithFallback } from '@/lib/db/read-user-dashboard-pg'
+import type { Database } from '@/types/database.types'
 
 async function requireAdmin() {
-  const supabase = createClient()
-  const result = await getUserForAction(() => supabase.auth.getUser(), 'Authentication required.')
+  const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-  if (profile?.role !== 'admin') return { error: 'Permission denied.' }
-  return { user, supabase }
+
+  const role = await getProfileRoleWithFallback(user.id)
+  if (role !== 'admin') return { error: 'Permission denied.' }
+  return { user }
 }
 
 export async function listCustomerCareConversations() {
   const auth = await requireAdmin()
   if ('error' in auth) return { error: auth.error }
-  const { supabase } = auth
-  /** Chỉ inbox nền tảng NanoAI — tách khỏi inbox từng shop (/dashboard/messaging) và khỏi tin user là khách (/messaging/my-chats). */
-  const { data, error } = await supabase
-    .from('customer_care_conversations')
-    .select('*')
-    .eq('partner_id', PLATFORM_MESSAGING_PARTNER_ID)
-    .order('last_message_at', { ascending: false, nullsFirst: false })
-    .limit(100)
-  if (error) return { error: error.message }
-  return { rows: data ?? [] }
+
+  if (!isPgConfigured()) {
+    return { error: 'Cấu hình máy chủ thiếu DATABASE_URL.' }
+  }
+  try {
+    const rows = await fetchPartnerConversationsFromPg(PLATFORM_MESSAGING_PARTNER_ID, 100)
+    if (rows === null) return { error: 'Không tải được danh sách hội thoại.' }
+    return { rows }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    return { error: msg }
+  }
 }
 
 export async function listCustomerCareMessages(conversationId: string) {
   const auth = await requireAdmin()
   if ('error' in auth) return { error: auth.error }
-  const { supabase } = auth
-  const { data: conv } = await supabase
-    .from('customer_care_conversations')
-    .select('id')
-    .eq('id', conversationId)
-    .eq('partner_id', PLATFORM_MESSAGING_PARTNER_ID)
-    .maybeSingle()
-  if (!conv) return { error: 'Conversation not found.' }
-  const { data, error } = await supabase
-    .from('customer_care_messages')
-    .select('*')
-    .eq('conversation_id', conversationId)
-    .order('created_at', { ascending: true })
-  if (error) return { error: error.message }
-  return { rows: data ?? [] }
+
+  if (!isPgConfigured()) {
+    return { error: 'Cấu hình máy chủ thiếu DATABASE_URL.' }
+  }
+  try {
+    const bundle = await listPartnerMessagesBundleFromPg(PLATFORM_MESSAGING_PARTNER_ID, conversationId)
+    if (bundle === 'not_found') return { error: 'Conversation not found.' }
+    if (bundle === null) return { error: 'Không tải được tin nhắn.' }
+    return { rows: bundle.rows }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    return { error: msg }
+  }
 }
 
 export async function sendCustomerCareReply(conversationId: string, text: string) {
@@ -63,16 +69,23 @@ export async function sendCustomerCareReply(conversationId: string, text: string
 
   const auth = await requireAdmin()
   if ('error' in auth) return { error: auth.error }
-  const { user, supabase } = auth
+  const { user } = auth
 
-  const { data: conv, error: convErr } = await supabase
-    .from('customer_care_conversations')
-    .select('*')
-    .eq('id', conversationId)
-    .eq('partner_id', PLATFORM_MESSAGING_PARTNER_ID)
-    .single()
+  if (!isPgConfigured()) {
+    return { error: 'Cấu hình máy chủ thiếu DATABASE_URL.' }
+  }
 
-  if (convErr || !conv) return { error: 'Conversation not found.' }
+  let conv: Database['public']['Tables']['customer_care_conversations']['Row'] | null = null
+  try {
+    const c = await fetchConversationFullForPartnerFromPg(PLATFORM_MESSAGING_PARTNER_ID, conversationId)
+    if (c === 'not_found') return { error: 'Conversation not found.' }
+    if (c === null) return { error: 'Không đọc được hội thoại.' }
+    conv = c
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    return { error: msg }
+  }
+  if (!conv) return { error: 'Conversation not found.' }
 
   await cancelPendingAiJobsForConversation(conversationId)
 
@@ -81,12 +94,9 @@ export async function sendCustomerCareReply(conversationId: string, text: string
   if (conv.channel === 'facebook') {
     let pageToken: string | null = null
     try {
-      const svc = createServiceRoleClient()
       const pageId = conv.channel_external_ref
       if (pageId) {
-        const r = await getFacebookSendToken(svc, conv.partner_id, pageId)
-        if (r.error) return { error: r.error }
-        pageToken = r.token ?? null
+        pageToken = await getFacebookSendTokenFromPg(conv.partner_id, pageId)
       }
     } catch {
       return { error: 'Server configuration error.' }
@@ -98,10 +108,7 @@ export async function sendCustomerCareReply(conversationId: string, text: string
   } else if (conv.channel === 'zalo') {
     let zaloToken: string | null = null
     try {
-      const svc = createServiceRoleClient()
-      const r = await getZaloSendToken(svc, conv.partner_id)
-      if (r.error) return { error: r.error }
-      zaloToken = r.token ?? null
+      zaloToken = await getZaloSendTokenFromPg(conv.partner_id)
     } catch {
       return { error: 'Server configuration error.' }
     }
@@ -111,13 +118,13 @@ export async function sendCustomerCareReply(conversationId: string, text: string
     if ('error' in sent) return { error: sent.error }
   }
 
-  const ins = await insertMessage(supabase, {
+  const ins = await insertMessagePg({
     conversationId,
     direction: 'outbound',
     body: trimmed,
     senderAdminId: user.id,
   })
-  if ('error' in ins) return { error: ins.error }
+  if (!ins) return { error: 'Không lưu được tin nhắn.' }
 
   revalidatePath('/admin/customer-care')
   return { ok: true as const }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+import { insertSlideQuizSessionFromPg } from '@/lib/db/slide-quiz-pg'
+import { isPgConfigured } from '@/lib/db/pool'
+import { getUserForAction } from '@/lib/auth'
 
 function generateCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
@@ -16,11 +17,11 @@ function generateCode(): string {
 }
 
 export async function POST(req: NextRequest) {
-  const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
-    return NextResponse.json({ error: 'Vui lòng đăng nhập.' }, { status: 401 })
+  const auth = await getUserForAction()
+  if ('error' in auth) {
+    return NextResponse.json({ error: auth.error }, { status: 401 })
   }
+  const user = auth.user
 
   const body = await req.json()
   const { curriculumId, slideIndex, blockIndex, quizData } = body as {
@@ -30,31 +31,38 @@ export async function POST(req: NextRequest) {
     quizData: { question: string; options: string[]; correctIndex: number }
   }
 
-  if (!curriculumId || typeof slideIndex !== 'number' || typeof blockIndex !== 'number' || !quizData?.question || !Array.isArray(quizData.options)) {
+  if (
+    !curriculumId ||
+    typeof slideIndex !== 'number' ||
+    typeof blockIndex !== 'number' ||
+    !quizData?.question ||
+    !Array.isArray(quizData.options)
+  ) {
     return NextResponse.json({ error: 'Thiếu dữ liệu.' }, { status: 400 })
   }
 
-  const admin = createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+  if (!isPgConfigured()) {
+    return NextResponse.json({ error: 'Chưa cấu hình cơ sở dữ liệu.' }, { status: 503 })
+  }
+
   let code = generateCode()
   for (let attempt = 0; attempt < 5; attempt++) {
-    const { data, error } = await admin.from('slide_quiz_sessions').insert({
+    const r = await insertSlideQuizSessionFromPg({
       code,
-      curriculum_id: curriculumId,
-      slide_index: slideIndex,
-      block_index: blockIndex,
-      quiz_data: quizData,
-      status: 'active',
-      created_by: user.id,
-    }).select('id, code').single()
-
-    if (!error) {
-      return NextResponse.json({ success: true, code: data.code, sessionId: data.id })
+      curriculumId,
+      slideIndex,
+      blockIndex,
+      quizData,
+      createdBy: user.id,
+    })
+    if (r && typeof r === 'object' && 'id' in r) {
+      return NextResponse.json({ success: true, code: r.code, sessionId: r.id })
     }
-    if ((error as { code?: string }).code === '23505') {
+    if (r === 'duplicate_code') {
       code = generateCode()
       continue
     }
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ error: 'Không tạo được phiên quiz.' }, { status: 500 })
   }
   return NextResponse.json({ error: 'Không tạo được mã.' }, { status: 500 })
 }

@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServiceRoleClient } from '@/lib/supabase/service-role'
 import { ensureConversation, insertMessage } from '@/lib/customer-care/conversation-service'
 import { parseZaloOaInbound, verifyZaloWebhookSecret } from '@/lib/customer-care/zalo-oa'
 import { findZaloChannelByWebhookSecret } from '@/lib/messaging/partner-channels-db'
@@ -26,15 +25,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false }, { status: 403 })
   }
 
-  let db
-  try {
-    db = createServiceRoleClient()
-  } catch (e) {
-    console.error('[zalo-oa-webhook]', e)
-    return NextResponse.json({ ok: false }, { status: 500 })
-  }
-
-  const rowLookup = await findZaloChannelByWebhookSecret(db, headerSecret)
+  const rowLookup = await findZaloChannelByWebhookSecret(headerSecret)
   if ('error' in rowLookup && rowLookup.error) {
     console.error('[zalo-oa-webhook] lookup', rowLookup.error)
     return NextResponse.json({ ok: false }, { status: 500 })
@@ -65,7 +56,7 @@ export async function POST(request: NextRequest) {
 
   let received = 0
   for (const item of items) {
-    const conv = await ensureConversation(db, {
+    const conv = await ensureConversation({
       partnerId,
       channel: 'zalo',
       externalThreadId: item.externalUserId,
@@ -76,7 +67,7 @@ export async function POST(request: NextRequest) {
       console.error('[zalo-oa-webhook] ensureConversation', conv.error)
       continue
     }
-    const ins = await insertMessage(db, {
+    const ins = await insertMessage({
       conversationId: conv.conversationId,
       direction: 'inbound',
       body: item.text,
@@ -88,7 +79,7 @@ export async function POST(request: NextRequest) {
     }
     received += 1
     if ('messageId' in ins && ins.messageId) {
-      await handlePartnerInboundForAi(db, {
+      await handlePartnerInboundForAi({
         partnerId,
         conversationId: conv.conversationId,
         messageId: ins.messageId,

@@ -1,4 +1,3 @@
-import type { SupabaseClient } from '@supabase/supabase-js'
 import {
   getExamAttemptFeedbackWithMeta,
   parseExamGradingMeta,
@@ -49,20 +48,95 @@ export function isServerDeadlinePassed(
   return serverNowMs >= end
 }
 
-/** Đọc attempt đã nộp → payload `alreadySubmitted` cho API (sau race finalize / refetch). */
-export async function fetchAlreadySubmittedPayloadForAttempt(
-  supabase: SupabaseClient,
+/**
+ * Chấm và nộp attempt đang mở khi đã quá deadline. Idempotent (chỉ cập nhật khi submitted_at null).
+ * Trả về payload hiển thị kết quả hoặc null nếu không xử lý được.
+ */
+export async function tryFinalizeOverdueExamAttemptPg(params: {
+  sessionId: string
+  sessionTitle: string
+  durationMinutes: number
+  practiceHomework: boolean
+  attemptId: string
+  layoutSnapshot: unknown
+  answers: unknown
+  essaySubmission: unknown
+  serverNowMs: number
+}): Promise<FinalizedExamSummary | null> {
+  const {
+    fetchExamQuestionsForGradingPg,
+    updateExamAttemptOverdueFinalizePg,
+  } = await import('@/lib/db/exam-session-pg')
+
+  const snap = parseLayoutSnapshot(params.layoutSnapshot)
+  if (!snap) return null
+
+  const answersObj =
+    params.answers && typeof params.answers === 'object' && !Array.isArray(params.answers)
+      ? (params.answers as Record<string, unknown>)
+      : {}
+
+  const questions = await fetchExamQuestionsForGradingPg(params.sessionId)
+  if (!questions?.length) return null
+
+  const graded = gradeExamFromStoredAnswers(
+    questions as ExamQuestionGradeRow[],
+    snap,
+    answersObj,
+    params.essaySubmission
+  )
+  if ('error' in graded) {
+    console.error('[finalize-overdue-pg]', graded.error)
+    return null
+  }
+
+  const metaWithFlag: ExamGradingMeta = {
+    ...graded.gradingMeta,
+    submittedByServerDeadline: true,
+  }
+
+  const feedback = getExamAttemptFeedbackWithMeta(graded.finalScore, graded.maxScore, metaWithFlag)
+
+  const submittedIso = new Date(params.serverNowMs).toISOString()
+
+  const updated = await updateExamAttemptOverdueFinalizePg({
+    attemptId: params.attemptId,
+    answers: answersObj,
+    essaySubmission: graded.essaySubmission,
+    score: graded.finalScore,
+    maxScore: graded.maxScore,
+    gradingMeta: metaWithFlag,
+    submittedIso,
+  })
+
+  if (!updated) {
+    return null
+  }
+
+  return {
+    practiceHomework: params.practiceHomework,
+    title: params.sessionTitle,
+    durationMinutes: params.durationMinutes,
+    score: graded.finalScore,
+    maxScore: graded.maxScore,
+    grade10: feedback.grade10,
+    scoreOn100: feedback.scoreOn100,
+    comment: feedback.comment,
+    shareHint: feedback.shareHint,
+    scoringBreakdown: metaWithFlag,
+    submittedDueToServerDeadline: true,
+  }
+}
+
+export async function fetchAlreadySubmittedPayloadForAttemptPg(
   attemptId: string,
   practiceHomework: boolean,
   title: string,
   durationMinutes: number
 ): Promise<Record<string, unknown> | null> {
-  const { data, error } = await supabase
-    .from('exam_attempts')
-    .select('submitted_at, score, max_score, grading_meta')
-    .eq('id', attemptId)
-    .maybeSingle()
-  if (error || !data?.submitted_at) return null
+  const { fetchExamAttemptSubmittedSummaryRowPg } = await import('@/lib/db/exam-session-pg')
+  const data = await fetchExamAttemptSubmittedSummaryRowPg(attemptId)
+  if (!data?.submitted_at) return null
   const sc = Number(data.score ?? 0)
   const mx = Number(data.max_score ?? 0)
   const meta = parseExamGradingMeta(data.grading_meta)
@@ -80,93 +154,5 @@ export async function fetchAlreadySubmittedPayloadForAttempt(
     shareHint: feedback.shareHint,
     scoringBreakdown: meta ?? undefined,
     submittedDueToServerDeadline: meta?.submittedByServerDeadline === true,
-  }
-}
-
-/**
- * Chấm và nộp attempt đang mở khi đã quá deadline. Idempotent (chỉ cập nhật khi submitted_at null).
- * Trả về payload hiển thị kết quả hoặc null nếu không xử lý được.
- */
-export async function tryFinalizeOverdueExamAttempt(params: {
-  supabase: SupabaseClient
-  sessionId: string
-  sessionTitle: string
-  durationMinutes: number
-  practiceHomework: boolean
-  attemptId: string
-  layoutSnapshot: unknown
-  answers: unknown
-  essaySubmission: unknown
-  serverNowMs: number
-}): Promise<FinalizedExamSummary | null> {
-  const snap = parseLayoutSnapshot(params.layoutSnapshot)
-  if (!snap) return null
-
-  const answersObj =
-    params.answers && typeof params.answers === 'object' && !Array.isArray(params.answers)
-      ? (params.answers as Record<string, unknown>)
-      : {}
-
-  const { data: questions, error: qErr } = await params.supabase
-    .from('exam_questions')
-    .select('id, correct_index, options, points')
-    .eq('session_id', params.sessionId)
-
-  if (qErr || !questions?.length) return null
-
-  const graded = gradeExamFromStoredAnswers(
-    questions as ExamQuestionGradeRow[],
-    snap,
-    answersObj,
-    params.essaySubmission
-  )
-  if ('error' in graded) {
-    console.error('[finalize-overdue]', graded.error)
-    return null
-  }
-
-  const metaWithFlag: ExamGradingMeta = {
-    ...graded.gradingMeta,
-    submittedByServerDeadline: true,
-  }
-
-  const feedback = getExamAttemptFeedbackWithMeta(graded.finalScore, graded.maxScore, metaWithFlag)
-
-  const submittedIso = new Date(params.serverNowMs).toISOString()
-
-  const { data: updated, error: upErr } = await params.supabase
-    .from('exam_attempts')
-    .update({
-      answers: answersObj,
-      essay_submission: graded.essaySubmission,
-      score: graded.finalScore,
-      max_score: graded.maxScore,
-      grading_meta: metaWithFlag,
-      submitted_at: submittedIso,
-    })
-    .eq('id', params.attemptId)
-    .is('submitted_at', null)
-    .select('id')
-
-  if (upErr) {
-    console.error('[finalize-overdue] update:', upErr.message)
-    return null
-  }
-  if (!updated?.length) {
-    return null
-  }
-
-  return {
-    practiceHomework: params.practiceHomework,
-    title: params.sessionTitle,
-    durationMinutes: params.durationMinutes,
-    score: graded.finalScore,
-    maxScore: graded.maxScore,
-    grade10: feedback.grade10,
-    scoreOn100: feedback.scoreOn100,
-    comment: feedback.comment,
-    shareHint: feedback.shareHint,
-    scoringBreakdown: metaWithFlag,
-    submittedDueToServerDeadline: true,
   }
 }

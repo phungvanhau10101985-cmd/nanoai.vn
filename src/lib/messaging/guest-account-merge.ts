@@ -1,45 +1,21 @@
-import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Database } from '@/types/database.types'
+import { mergeGuestSessionConversationToAccountPg } from '@/lib/db/customer-care-pg'
+import { isPgConfigured } from '@/lib/db/pool'
 
-type Db = SupabaseClient<Database>
-
+/**
+ * Merge session → account cho widget guest. Chỉ Postgres (`DATABASE_URL`).
+ */
 export async function mergeGuestSessionConversationToAccount(
-  db: Db,
   partnerId: string,
   sessionId: string,
   guestAccountId: string
 ) {
-  const oldConv = await db
-    .from('customer_care_conversations')
-    .select('id')
-    .eq('partner_id', partnerId)
-    .eq('channel', 'widget')
-    .eq('external_thread_id', sessionId)
-    .maybeSingle()
-  if (oldConv.error || !oldConv.data?.id) return
-
-  const targetConv = await db
-    .from('customer_care_conversations')
-    .select('id')
-    .eq('partner_id', partnerId)
-    .eq('channel', 'widget')
-    .eq('external_thread_id', guestAccountId)
-    .maybeSingle()
-  if (targetConv.error) return
-
-  if (!targetConv.data?.id) {
-    await db
-      .from('customer_care_conversations')
-      .update({ external_thread_id: guestAccountId, updated_at: new Date().toISOString() } as never)
-      .eq('id', oldConv.data.id)
-    return
+  if (!isPgConfigured()) return
+  try {
+    const ok = await mergeGuestSessionConversationToAccountPg(partnerId, sessionId, guestAccountId)
+    if (!ok) {
+      console.warn('[guest-account-merge] mergeGuestSessionConversationToAccountPg returned false')
+    }
+  } catch (e) {
+    console.warn('[guest-account-merge] PG merge failed', e)
   }
-
-  if (targetConv.data.id === oldConv.data.id) return
-
-  await db
-    .from('customer_care_messages')
-    .update({ conversation_id: targetConv.data.id } as never)
-    .eq('conversation_id', oldConv.data.id)
-  await db.from('customer_care_conversations').delete().eq('id', oldConv.data.id)
 }

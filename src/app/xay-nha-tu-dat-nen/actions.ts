@@ -1,13 +1,20 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+import {
+  deleteHouseBuildProjectForUserPg,
+  getHouseBuildProjectForUserPg,
+  insertHouseBuildProjectPg,
+  listHouseBuildProjectsByUserIdPg,
+  updateHouseBuildProjectForUserPg,
+} from '@/lib/db/house-build-projects-pg'
 import { revalidatePath } from 'next/cache'
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
 import { GEMINI_25_FLASH_TEXT_NO_THINKING } from '@/lib/gemini-config'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
+import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
+import { deductUserCredits } from '@/lib/music/deduct-user-credits'
 
 const COSTS = {
   floor_3d: 4,
@@ -16,7 +23,6 @@ const COSTS = {
 } as const
 
 const toTenths = (v: number) => Math.round(v * 10)
-const fromTenths = (v: number) => v / 10
 const formatCredits = (v: number) => v.toLocaleString('vi-VN', { maximumFractionDigits: 1 })
 
 const SYNTH_PROMPT = `Bạn là chuyên gia kiến trúc. Người dùng cung cấp thông tin nhà bằng tiếng Việt hoặc ngôn ngữ trộn. Nhiệm vụ: chuẩn hóa nội dung thành tiếng Việt rõ ràng, đầy đủ, phù hợp làm prompt tạo ảnh kiến trúc. Chỉ trả về prompt tiếng Việt, không giải thích thêm.`
@@ -84,173 +90,119 @@ function getSafetySettings() {
 
 /** Tạo dự án mới */
 export async function createHouseProject() {
-  const supabase = createClient()
-  const result = await getUserForAction(() => supabase.auth.getUser())
+  const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
-  const { data, error } = await supabase
-    .from('house_build_projects')
-    .insert({ user_id: user.id })
-    .select()
-    .single()
-
-  if (error) {
-    const msg = error.message || ''
-    if (msg.includes('does not exist') || msg.includes('relation'))
-      return { error: 'Bảng dự án chưa có. Vui lòng chạy migration: npx supabase db push' }
-    if (msg.includes('permission') || msg.includes('policy') || msg.includes('RLS'))
-      return { error: 'Không có quyền tạo dự án. Kiểm tra RLS policies.' }
-    console.error('[createHouseProject]', error)
-    return { error: `Không tạo được dự án: ${msg}` }
+  const inserted = await insertHouseBuildProjectPg({ userId: user.id })
+  if (!inserted) {
+    return { error: 'Không tạo được dự án. Kiểm tra DATABASE_URL và bảng house_build_projects.' }
   }
   revalidatePath('/xay-nha-tu-dat-nen')
-  return { success: true, projectId: data.id }
+  return { success: true, projectId: inserted.id }
 }
 
 /** Lấy danh sách dự án */
 export async function listHouseProjects() {
-  const supabase = createClient()
-  const result = await getUserForAction(() => supabase.auth.getUser())
+  const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
-  const { data, error } = await supabase
-    .from('house_build_projects')
-    .select('*')
-    .eq('user_id', user.id)
-    .order('updated_at', { ascending: false })
-
-  if (error) return { error: 'Không tải được danh sách.' }
-  return { success: true, projects: data || [] }
+  const projects = await listHouseBuildProjectsByUserIdPg(user.id)
+  return { success: true, projects }
 }
 
 /** Xóa kết quả chia phòng tầng N để chia lại */
 export async function clearFloorPlan(projectId: string, floorNum: number) {
-  const supabase = createClient()
-  const result = await getUserForAction(() => supabase.auth.getUser())
+  const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
-  const { data: project } = await supabase.from('house_build_projects').select('*').eq('id', projectId).eq('user_id', user.id).single()
+  const project = await getHouseBuildProjectForUserPg(projectId, user.id)
   if (!project) return { error: 'Không tìm thấy dự án.' }
 
   const steps = { ...(project.steps as Record<string, unknown>) }
   delete steps[`floor_plan_${floorNum}`]
   delete steps[`structural_${floorNum}`]
 
-  const { error } = await supabase
-    .from('house_build_projects')
-    .update({
-      steps,
-      current_step: `floor_plan_${floorNum}`,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', projectId)
-    .eq('user_id', user.id)
-
-  if (error) return { error: 'Không xóa được.' }
+  const ok = await updateHouseBuildProjectForUserPg(projectId, user.id, {
+    steps,
+    current_step: `floor_plan_${floorNum}`,
+  })
+  if (!ok) return { error: 'Không xóa được.' }
   revalidatePath('/xay-nha-tu-dat-nen')
   return { success: true }
 }
 
 /** Xóa kết quả kết cấu tầng N để thiết kế lại */
 export async function clearStructural(projectId: string, floorNum: number) {
-  const supabase = createClient()
-  const result = await getUserForAction(() => supabase.auth.getUser())
+  const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
-  const { data: project } = await supabase.from('house_build_projects').select('*').eq('id', projectId).eq('user_id', user.id).single()
+  const project = await getHouseBuildProjectForUserPg(projectId, user.id)
   if (!project) return { error: 'Không tìm thấy dự án.' }
 
   const steps = { ...(project.steps as Record<string, unknown>) }
   delete steps[`structural_${floorNum}`]
 
-  const { error } = await supabase
-    .from('house_build_projects')
-    .update({
-      steps,
-      current_step: `structural_${floorNum}`,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', projectId)
-    .eq('user_id', user.id)
-
-  if (error) return { error: 'Không xóa được.' }
+  const ok = await updateHouseBuildProjectForUserPg(projectId, user.id, {
+    steps,
+    current_step: `structural_${floorNum}`,
+  })
+  if (!ok) return { error: 'Không xóa được.' }
   revalidatePath('/xay-nha-tu-dat-nen')
   return { success: true }
 }
 
 /** Xóa dự án */
 export async function deleteHouseProject(projectId: string) {
-  const supabase = createClient()
-  const result = await getUserForAction(() => supabase.auth.getUser())
+  const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
-  const { error } = await supabase
-    .from('house_build_projects')
-    .delete()
-    .eq('id', projectId)
-    .eq('user_id', user.id)
-
-  if (error) return { error: 'Không xóa được dự án.' }
+  const ok = await deleteHouseBuildProjectForUserPg(projectId, user.id)
+  if (!ok) return { error: 'Không xóa được dự án.' }
   revalidatePath('/xay-nha-tu-dat-nen')
   return { success: true }
 }
 
 /** Quay lại form mặt tiền - xóa ảnh 3D, giữ nguyên house_info đã nhập */
 export async function clearFloor3D(projectId: string) {
-  const supabase = createClient()
-  const result = await getUserForAction(() => supabase.auth.getUser())
+  const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
-  const { data: project } = await supabase.from('house_build_projects').select('*').eq('id', projectId).eq('user_id', user.id).single()
+  const project = await getHouseBuildProjectForUserPg(projectId, user.id)
   if (!project) return { error: 'Không tìm thấy dự án.' }
 
   const steps = { ...(project.steps as Record<string, unknown>) }
   delete steps.floor_3d
 
-  const { error } = await supabase
-    .from('house_build_projects')
-    .update({
-      steps,
-      current_step: 'floor_3d',
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', projectId)
-    .eq('user_id', user.id)
-
-  if (error) return { error: 'Không cập nhật được.' }
+  const ok = await updateHouseBuildProjectForUserPg(projectId, user.id, {
+    steps,
+    current_step: 'floor_3d',
+  })
+  if (!ok) return { error: 'Không cập nhật được.' }
   revalidatePath('/xay-nha-tu-dat-nen')
   return { success: true }
 }
 
 /** Cập nhật tên dự án */
 export async function updateProjectName(projectId: string, name: string) {
-  const supabase = createClient()
-  const result = await getUserForAction(() => supabase.auth.getUser())
+  const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
-  const { error } = await supabase
-    .from('house_build_projects')
-    .update({ name: name.trim() || 'Dự án mới', updated_at: new Date().toISOString() })
-    .eq('id', projectId)
-    .eq('user_id', user.id)
-
-  if (error) return { error: 'Không cập nhật được.' }
+  const ok = await updateHouseBuildProjectForUserPg(projectId, user.id, { name: name.trim() || 'Dự án mới' })
+  if (!ok) return { error: 'Không cập nhật được.' }
   revalidatePath('/xay-nha-tu-dat-nen')
   return { success: true }
 }
 
 /** Bước 1: Dựng 3D nhà - mỗi lần tạo ảnh = tạo dự án mới */
 export async function step1Build3D(formData: FormData) {
-  const supabase = createClient()
-  const adminSupabase = createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-  const result = await getUserForAction(() => supabase.auth.getUser())
+  const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
@@ -267,8 +219,13 @@ export async function step1Build3D(formData: FormData) {
   if (!houseInfo.houseLength.trim()) return { error: 'Vui lòng nhập chiều dài mặt tiền.' }
 
   const COST = COSTS.floor_3d
-  const { data: creditData } = await supabase.from('credits').select('balance').eq('user_id', user.id).single()
-  if (!creditData || toTenths(creditData.balance) < toTenths(COST)) {
+  let openBalance = 0
+  try {
+    openBalance = await getCreditBalanceByUserId(user.id)
+  } catch {
+    return { error: 'Không đọc được số dư credits.' }
+  }
+  if (toTenths(openBalance) < toTenths(COST)) {
     return { error: `Không đủ credits. Cần ${formatCredits(COST)}.` }
   }
 
@@ -315,7 +272,7 @@ export async function step1Build3D(formData: FormData) {
 
   const buf = Buffer.from((imgPart as { inlineData: { data: string } }).inlineData.data, 'base64')
   const path = `results/${user.id}/house3d_${Date.now()}.png`
-  const { publicUrl: stepImagePublicUrl } = await uploadTryOnImagePublic(adminSupabase, path, buf, {
+  const { publicUrl: stepImagePublicUrl } = await uploadTryOnImagePublic(path, buf, {
     contentType: 'image/png',
     upsert: true,
   })
@@ -324,61 +281,49 @@ export async function step1Build3D(formData: FormData) {
   const sizeStr = houseInfo.houseDepth ? `${houseInfo.houseLength}x${houseInfo.houseDepth}m` : `${houseInfo.houseLength}m`
   const projectName = `Nhà ${sizeStr} ${houseInfo.designStyle} ${houseInfo.floors}t`
 
-  const newBalance = fromTenths(toTenths(creditData.balance) - toTenths(COST))
-  await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', user.id)
+  const d = await deductUserCredits(user.id, COST)
+  if (!d.ok) {
+    return { error: d.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credits.' : d.error }
+  }
 
-  const { data: newProject, error } = await supabase
-    .from('house_build_projects')
-    .insert({
-      user_id: user.id,
-      name: projectName,
-      house_info: houseInfo,
-      steps,
-      current_step: 'floor_3d',
-      updated_at: new Date().toISOString(),
-    })
-    .select('id')
-    .single()
+  const newProject = await insertHouseBuildProjectPg({
+    userId: user.id,
+    name: projectName,
+    house_info: houseInfo,
+    steps,
+    current_step: 'floor_3d',
+  })
 
-  if (error || !newProject) return { error: 'Không tạo được dự án mới.' }
+  if (!newProject) return { error: 'Không tạo được dự án mới.' }
   revalidatePath('/xay-nha-tu-dat-nen')
   return { success: true, projectId: newProject.id, imageUrl: stepImagePublicUrl }
 }
 
 /** Duyệt ảnh 3D và chuyển sang chia phòng tầng 1 */
 export async function approveFloor3DAndContinue(projectId: string) {
-  const supabase = createClient()
-  const result = await getUserForAction(() => supabase.auth.getUser())
+  const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
-  const { data: project } = await supabase.from('house_build_projects').select('*').eq('id', projectId).eq('user_id', user.id).single()
+  const project = await getHouseBuildProjectForUserPg(projectId, user.id)
   if (!project) return { error: 'Không tìm thấy dự án.' }
 
   const steps = (project.steps as Record<string, unknown>) || {}
   const st = steps.floor_3d as { imageUrl?: string; approved?: boolean } | undefined
   if (st) st.approved = true
 
-  const { error } = await supabase
-    .from('house_build_projects')
-    .update({
-      steps,
-      current_step: 'floor_plan_1',
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', projectId)
-    .eq('user_id', user.id)
-
-  if (error) return { error: 'Không cập nhật được.' }
+  const ok = await updateHouseBuildProjectForUserPg(projectId, user.id, {
+    steps,
+    current_step: 'floor_plan_1',
+  })
+  if (!ok) return { error: 'Không cập nhật được.' }
   revalidatePath('/xay-nha-tu-dat-nen')
   return { success: true }
 }
 
 /** Bước chia phòng tầng N - mỗi lần tạo ảnh = tạo dự án mới */
 export async function stepFloorPlan(sourceProjectId: string, floorNum: number, formData: FormData, referenceImageUrl: string) {
-  const supabase = createClient()
-  const adminSupabase = createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-  const result = await getUserForAction(() => supabase.auth.getUser())
+  const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
@@ -399,10 +344,15 @@ export async function stepFloorPlan(sourceProjectId: string, floorNum: number, f
   }
 
   const COST = COSTS.floor_plan
-  const { data: creditData } = await supabase.from('credits').select('balance').eq('user_id', user.id).single()
-  if (!creditData || toTenths(creditData.balance) < toTenths(COST)) return { error: `Không đủ credits. Cần ${formatCredits(COST)}.` }
+  let openBalFp = 0
+  try {
+    openBalFp = await getCreditBalanceByUserId(user.id)
+  } catch {
+    return { error: 'Không đọc được số dư credits.' }
+  }
+  if (toTenths(openBalFp) < toTenths(COST)) return { error: `Không đủ credits. Cần ${formatCredits(COST)}.` }
 
-  const { data: sourceProject } = await supabase.from('house_build_projects').select('*').eq('id', sourceProjectId).eq('user_id', user.id).single()
+  const sourceProject = await getHouseBuildProjectForUserPg(sourceProjectId, user.id)
   if (!sourceProject) return { error: 'Không tìm thấy dự án.' }
 
   const userInput = [
@@ -449,7 +399,7 @@ export async function stepFloorPlan(sourceProjectId: string, floorNum: number, f
 
   const buf = Buffer.from((imgPart as { inlineData: { data: string } }).inlineData.data, 'base64')
   const path = `results/${user.id}/floorplan_${floorNum}_${Date.now()}.png`
-  const { publicUrl: stepImagePublicUrl } = await uploadTryOnImagePublic(adminSupabase, path, buf, {
+  const { publicUrl: stepImagePublicUrl } = await uploadTryOnImagePublic(path, buf, {
     contentType: 'image/png',
     upsert: true,
   })
@@ -458,36 +408,30 @@ export async function stepFloorPlan(sourceProjectId: string, floorNum: number, f
   const key = `floor_plan_${floorNum}` as const
   steps[key] = { imageUrl: stepImagePublicUrl, approved: false, input }
 
-  const newBalance = fromTenths(toTenths(creditData.balance) - toTenths(COST))
-  await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', user.id)
+  const dFp = await deductUserCredits(user.id, COST)
+  if (!dFp.ok) return { error: dFp.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credits.' : dFp.error }
 
   const projectName = `${sourceProject.name || 'Dự án'} - Chia phòng t${floorNum}`
-  const { data: newProject, error } = await supabase
-    .from('house_build_projects')
-    .insert({
-      user_id: user.id,
-      name: projectName,
-      house_info: sourceProject.house_info,
-      steps,
-      current_step: `floor_plan_${floorNum}`,
-      updated_at: new Date().toISOString(),
-    })
-    .select('id')
-    .single()
+  const newProject = await insertHouseBuildProjectPg({
+    userId: user.id,
+    name: projectName,
+    house_info: sourceProject.house_info,
+    steps,
+    current_step: `floor_plan_${floorNum}`,
+  })
 
-  if (error || !newProject) return { error: 'Không tạo được dự án mới.' }
+  if (!newProject) return { error: 'Không tạo được dự án mới.' }
   revalidatePath('/xay-nha-tu-dat-nen')
   return { success: true, projectId: newProject.id, imageUrl: stepImagePublicUrl }
 }
 
 /** Duyệt chia phòng tầng N và chuyển sang thiết kế kết cấu */
 export async function approveFloorPlanAndContinue(projectId: string, floorNum: number) {
-  const supabase = createClient()
-  const result = await getUserForAction(() => supabase.auth.getUser())
+  const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
-  const { data: project } = await supabase.from('house_build_projects').select('*').eq('id', projectId).eq('user_id', user.id).single()
+  const project = await getHouseBuildProjectForUserPg(projectId, user.id)
   if (!project) return { error: 'Không tìm thấy dự án.' }
 
   const steps = (project.steps as Record<string, unknown>) || {}
@@ -495,34 +439,31 @@ export async function approveFloorPlanAndContinue(projectId: string, floorNum: n
   const fp = steps[key] as { imageUrl?: string; approved?: boolean; input?: FloorPlanInput } | undefined
   if (fp) fp.approved = true
 
-  const { error } = await supabase
-    .from('house_build_projects')
-    .update({
-      steps,
-      current_step: `structural_${floorNum}`,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', projectId)
-    .eq('user_id', user.id)
-
-  if (error) return { error: 'Không cập nhật được.' }
+  const ok = await updateHouseBuildProjectForUserPg(projectId, user.id, {
+    steps,
+    current_step: `structural_${floorNum}`,
+  })
+  if (!ok) return { error: 'Không cập nhật được.' }
   revalidatePath('/xay-nha-tu-dat-nen')
   return { success: true }
 }
 
 /** Bước kết cấu tầng N - mỗi lần tạo ảnh = tạo dự án mới */
 export async function stepStructural(sourceProjectId: string, floorNum: number, floorPlanImageUrl: string) {
-  const supabase = createClient()
-  const adminSupabase = createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-  const result = await getUserForAction(() => supabase.auth.getUser())
+  const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
   const COST = COSTS.structural
-  const { data: creditData } = await supabase.from('credits').select('balance').eq('user_id', user.id).single()
-  if (!creditData || toTenths(creditData.balance) < toTenths(COST)) return { error: `Không đủ credits. Cần ${formatCredits(COST)}.` }
+  let openBalSt = 0
+  try {
+    openBalSt = await getCreditBalanceByUserId(user.id)
+  } catch {
+    return { error: 'Không đọc được số dư credits.' }
+  }
+  if (toTenths(openBalSt) < toTenths(COST)) return { error: `Không đủ credits. Cần ${formatCredits(COST)}.` }
 
-  const { data: sourceProject } = await supabase.from('house_build_projects').select('*').eq('id', sourceProjectId).eq('user_id', user.id).single()
+  const sourceProject = await getHouseBuildProjectForUserPg(sourceProjectId, user.id)
   if (!sourceProject) return { error: 'Không tìm thấy dự án.' }
 
   const imgRes = await fetch(floorPlanImageUrl)
@@ -545,7 +486,7 @@ export async function stepStructural(sourceProjectId: string, floorNum: number, 
 
   const buf = Buffer.from((imgPart as { inlineData: { data: string } }).inlineData.data, 'base64')
   const path = `results/${user.id}/structural_${floorNum}_${Date.now()}.png`
-  const { publicUrl: stepImagePublicUrl } = await uploadTryOnImagePublic(adminSupabase, path, buf, {
+  const { publicUrl: stepImagePublicUrl } = await uploadTryOnImagePublic(path, buf, {
     contentType: 'image/png',
     upsert: true,
   })
@@ -554,36 +495,30 @@ export async function stepStructural(sourceProjectId: string, floorNum: number, 
   const key = `structural_${floorNum}` as const
   steps[key] = { imageUrl: stepImagePublicUrl, approved: false }
 
-  const newBalance = fromTenths(toTenths(creditData.balance) - toTenths(COST))
-  await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', user.id)
+  const dSt = await deductUserCredits(user.id, COST)
+  if (!dSt.ok) return { error: dSt.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credits.' : dSt.error }
 
   const projectName = `${sourceProject.name || 'Dự án'} - Kết cấu t${floorNum}`
-  const { data: newProject, error } = await supabase
-    .from('house_build_projects')
-    .insert({
-      user_id: user.id,
-      name: projectName,
-      house_info: sourceProject.house_info,
-      steps,
-      current_step: `structural_${floorNum}`,
-      updated_at: new Date().toISOString(),
-    })
-    .select('id')
-    .single()
+  const newProject = await insertHouseBuildProjectPg({
+    userId: user.id,
+    name: projectName,
+    house_info: sourceProject.house_info,
+    steps,
+    current_step: `structural_${floorNum}`,
+  })
 
-  if (error || !newProject) return { error: 'Không tạo được dự án mới.' }
+  if (!newProject) return { error: 'Không tạo được dự án mới.' }
   revalidatePath('/xay-nha-tu-dat-nen')
   return { success: true, projectId: newProject.id, imageUrl: stepImagePublicUrl }
 }
 
 /** Duyệt kết cấu tầng N và chuyển sang bước tiếp theo */
 export async function approveStructuralAndContinue(projectId: string, floorNum: number) {
-  const supabase = createClient()
-  const result = await getUserForAction(() => supabase.auth.getUser())
+  const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
-  const { data: project } = await supabase.from('house_build_projects').select('*').eq('id', projectId).eq('user_id', user.id).single()
+  const project = await getHouseBuildProjectForUserPg(projectId, user.id)
   if (!project) return { error: 'Không tìm thấy dự án.' }
 
   const steps = (project.steps as Record<string, unknown>) || {}
@@ -595,17 +530,11 @@ export async function approveStructuralAndContinue(projectId: string, floorNum: 
   const nextFloor = floorNum + 1
   const nextStep = nextFloor <= floors ? `floor_plan_${nextFloor}` : 'completed'
 
-  const { error } = await supabase
-    .from('house_build_projects')
-    .update({
-      steps,
-      current_step: nextStep,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', projectId)
-    .eq('user_id', user.id)
-
-  if (error) return { error: 'Không cập nhật được.' }
+  const ok = await updateHouseBuildProjectForUserPg(projectId, user.id, {
+    steps,
+    current_step: nextStep,
+  })
+  if (!ok) return { error: 'Không cập nhật được.' }
   revalidatePath('/xay-nha-tu-dat-nen')
   return { success: true }
 }

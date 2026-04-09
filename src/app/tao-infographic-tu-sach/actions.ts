@@ -1,8 +1,8 @@
 'use server'
+import { deleteTryOnHistoryRowAndStorage } from '@/lib/storage/try-on-history-cleanup'
 
-import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+import { insertTryOnHistoryProcessingPg, updateTryOnHistoryCompletedPg } from '@/lib/db/try-on-history-pg'
 import { revalidatePath } from 'next/cache'
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
 import sharp from 'sharp'
@@ -10,7 +10,9 @@ import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
 import { normalizeToEnglish } from '@/lib/ai-normalize'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { MAX_BOOK_PAGE_IMAGES } from './infographic-limits'
-import { uploadTryOnImagePublic, getTryOnPublicUrl } from '@/lib/storage/try-on-public-upload'
+import { uploadTryOnImagePublic, getTryOnPublicUrlFromPath } from '@/lib/storage/try-on-public-upload'
+import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
+import { deductUserCredits } from '@/lib/music/deduct-user-credits'
 
 const COST_2K = 1.5
 const MAX_CONTENT_TEXT = 28000
@@ -23,7 +25,6 @@ const INFOGRAPHIC_TARGET_BYTES = 820 * 1024
 const INFOGRAPHIC_MAX_DIMENSION = 2048
 
 const toTenths = (value: number) => Math.round(value * 10)
-const fromTenths = (value: number) => value / 10
 const formatCredits = (value: number) => value.toLocaleString('vi-VN', { maximumFractionDigits: 1 })
 
 const OUTPUT_LOCALES = new Set(['vi', 'en', 'zh', 'ja', 'ko'])
@@ -194,30 +195,30 @@ export async function createInfographicFromBook(formData: FormData) {
     return { error: 'Thiếu cấu hình GOOGLE_API_KEY.' }
   }
 
-  const supabase = createClient()
-  const adminSupabase = createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
-  const result = await getUserForAction(() => supabase.auth.getUser())
+  const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
-  const { data: creditData, error: creditError } = await supabase.from('credits').select('balance').eq('user_id', user.id).single()
-  if (creditError || !creditData || toTenths(creditData.balance) < toTenths(COST_2K)) {
-    return { error: `Không đủ credits. Cần ${formatCredits(COST_2K)} credits, hiện có ${formatCredits(creditData?.balance || 0)}.` }
+  let openBalance = 0
+  try {
+    openBalance = await getCreditBalanceByUserId(user.id)
+  } catch {
+    return { error: 'Không đọc được số dư credits.' }
+  }
+  if (toTenths(openBalance) < toTenths(COST_2K)) {
+    return { error: `Không đủ credits. Cần ${formatCredits(COST_2K)} credits, hiện có ${formatCredits(openBalance)}.` }
   }
 
   const timestamp = Date.now()
   const pendingPath = `uploads/${user.id}/book_infographic_pending_${timestamp}`
-  const pendingPublicUrl = getTryOnPublicUrl(supabase, pendingPath)
-  const { data: historyItem, error: historyError } = await supabase.from('try_on_history').insert({
-    user_id: user.id,
-    original_image_url: pendingPublicUrl,
-    garment_image_url: pendingPublicUrl,
-    status: 'processing',
-  }).select().single()
-  if (historyError || !historyItem) return { error: 'Không thể khởi tạo phiên xử lý.' }
+  const pendingPublicUrl = getTryOnPublicUrlFromPath(pendingPath)
+  const historyItem = await insertTryOnHistoryProcessingPg({
+    userId: user.id,
+    originalImageUrl: pendingPublicUrl,
+    garmentImageUrl: pendingPublicUrl,
+    feature: 'tao-infographic-tu-sach',
+  })
+  if (!historyItem) return { error: 'Không thể khởi tạo phiên xử lý.' }
 
   const inlineParts: { inlineData: { mimeType: string; data: string } }[] = []
   try {
@@ -229,7 +230,7 @@ export async function createInfographicFromBook(formData: FormData) {
       })
     }
   } catch {
-    await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+    await deleteTryOnHistoryRowAndStorage( historyItem.id)
     return { error: 'Không đọc được file ảnh đính kèm.' }
   }
 
@@ -272,11 +273,11 @@ ${flashInstruction}`
 
     const cand = flashResponse.candidates?.[0]
     if (!cand) {
-      await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+      await deleteTryOnHistoryRowAndStorage( historyItem.id)
       return { error: 'AI không trả về kết quả (hết quota hoặc lỗi mạng). Thử lại sau.' }
     }
     if (cand.finishReason === 'SAFETY') {
-      await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+      await deleteTryOnHistoryRowAndStorage( historyItem.id)
       return {
         error:
           'Phản hồi bị chặn bộ lọc an toàn. Thử ảnh/nội dung khác hoặc giảm số trang.',
@@ -288,21 +289,21 @@ ${flashInstruction}`
       flashText = flashResponse.text()?.trim() ?? ''
     } catch (textErr) {
       console.error('[tao-infographic-tu-sach] flash text():', textErr)
-      await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+      await deleteTryOnHistoryRowAndStorage( historyItem.id)
       return {
         error:
           'Không đọc được văn bản từ AI (có thể bị chặn an toàn). Thử giảm số ảnh hoặc thêm vài dòng nội dung chữ.',
       }
     }
     if (!flashText) {
-      await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+      await deleteTryOnHistoryRowAndStorage( historyItem.id)
       return { error: 'AI không trả về tóm tắt. Thử lại hoặc đổi nội dung.' }
     }
     try {
       ;({ summary, mermaid } = parseFlashJson(flashText))
     } catch (parseErr) {
       console.error('[tao-infographic-tu-sach] parseFlashJson:', parseErr, flashText.slice(0, 500))
-      await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+      await deleteTryOnHistoryRowAndStorage( historyItem.id)
       return {
         error:
           'AI trả về định dạng chưa đọc được. Hãy bấm thử lại, hoặc giảm số ảnh, hoặc thêm đoạn chữ tóm tắt vào ô nội dung.',
@@ -310,7 +311,7 @@ ${flashInstruction}`
     }
   } catch (e) {
     console.error('[tao-infographic-tu-sach] flash:', e)
-    await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+    await deleteTryOnHistoryRowAndStorage( historyItem.id)
     const msg = e instanceof Error ? e.message : String(e)
     if (/429|resource_exhausted|quota/i.test(msg)) {
       return { error: 'API tạm quá tải hoặc hết hạn mức. Thử lại sau vài phút.' }
@@ -340,7 +341,7 @@ ${flashInstruction}`
     void trackFromUsageMetadata(imageResponse.usageMetadata, 'gemini-3-pro-image-preview', 'tao-infographic-tu-sach', user.id, '2K')
     const imagePart = imageResponse.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
     if (!imagePart || !('inlineData' in imagePart)) {
-      await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+      await deleteTryOnHistoryRowAndStorage( historyItem.id)
       return { error: 'AI không trả về ảnh infographic hợp lệ.' }
     }
     const rawPng = Buffer.from((imagePart as { inlineData: { data: string } }).inlineData.data, 'base64')
@@ -357,30 +358,26 @@ ${flashInstruction}`
     }
 
     const resultPath = `results/${user.id}/book_infographic_${Date.now()}.${resultExt}`
-    const { publicUrl: infographicResultPublicUrl } = await uploadTryOnImagePublic(adminSupabase, resultPath, resultBuffer, {
+    const { publicUrl: infographicResultPublicUrl } = await uploadTryOnImagePublic(resultPath, resultBuffer, {
       contentType: resultContentType,
       upsert: true,
     })
 
-    const { data: latestCredit } = await adminSupabase.from('credits').select('balance').eq('user_id', user.id).single()
-    if (!latestCredit || toTenths(latestCredit.balance) < toTenths(COST_2K)) {
-      await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
-      return { error: 'Không đủ credits để hoàn tất.' }
+    const d = await deductUserCredits(user.id, COST_2K)
+    if (!d.ok) {
+      await deleteTryOnHistoryRowAndStorage( historyItem.id)
+      return { error: d.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credits để hoàn tất.' : d.error }
     }
-    const newBalance = fromTenths(toTenths(latestCredit.balance) - toTenths(COST_2K))
-    await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', user.id)
-    await adminSupabase.from('try_on_history').update({
-      result_image_url: infographicResultPublicUrl,
-      status: 'completed',
+    await updateTryOnHistoryCompletedPg(historyItem.id, infographicResultPublicUrl, {
       feature: 'tao-infographic-tu-sach',
       aspect_ratio: '16:9',
-    }).eq('id', historyItem.id)
+    })
 
     revalidatePath('/tao-infographic-tu-sach')
     revalidatePath('/dashboard/history')
     return { success: true, resultUrl: infographicResultPublicUrl, summary, mermaid }
   } catch (e) {
-    await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+    await deleteTryOnHistoryRowAndStorage( historyItem.id)
     const msg = e instanceof Error ? e.message : String(e)
     if (/500|Internal Server Error|Internal error/i.test(msg)) {
       return { error: 'Hệ thống quá tải. Thử lại sau ít phút.' }

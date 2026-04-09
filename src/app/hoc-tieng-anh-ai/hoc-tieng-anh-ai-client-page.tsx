@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
-import { createClient } from '@/lib/supabase/client'
+import { getClientUserId } from '@/lib/auth/get-client-user-id'
 import { Loader2, Mic, MicOff, Minus, Plus, Send, Languages, Volume2, Play, RotateCcw, Trash2, Navigation, X } from 'lucide-react'
 import { WordPracticeOverlay } from './components/word-practice-overlay'
 import { PreLessonReviewOverlay } from './components/pre-lesson-review-overlay'
@@ -2412,7 +2412,6 @@ export default function HocTiengAnhAiClientPage() {
   const [studentTranslateBusyByMessageId, setStudentTranslateBusyByMessageId] = useState<Record<string, boolean>>({})
   const [reflexTranslateByMessageId, setReflexTranslateByMessageId] = useState<Record<string, string>>({})
   const [reflexTranslateBusyByMessageId, setReflexTranslateBusyByMessageId] = useState<Record<string, boolean>>({})
-  const supabase = useMemo(() => createClient(), [])
   const lastMicSentTextRef = useRef('')
   const lastMicSentAtRef = useRef(0)
   const routeOpenSessionHandledRef = useRef('')
@@ -6420,26 +6419,26 @@ export default function HocTiengAnhAiClientPage() {
   useEffect(() => {
     const loadLearnerName = async () => {
       try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser()
-        if (!user) return
-        const profile = await supabase.from('profiles').select('full_name').eq('id', user.id).single()
-        const profileName = String((profile.data as { full_name?: string } | null)?.full_name || '').trim()
-        const userMeta = user.user_metadata as {
-          full_name?: string
-          name?: string
-          coach_job?: string
-          coach_city?: string
-          coach_age?: number | string
-          coach_gender?: string
-        } | undefined
-        const metaName = String(userMeta?.full_name || userMeta?.name || '').trim()
-        const metaJob = String(userMeta?.coach_job || '').trim()
-        const metaCity = String(userMeta?.coach_city || '').trim()
-        const metaAge = String(userMeta?.coach_age || '').trim()
-        const metaGender = String(userMeta?.coach_gender || '').trim().toLowerCase()
-        const resolvedName = profileName || metaName || ''
+        const res = await fetch('/api/english-coach/learner-profile', { credentials: 'same-origin' })
+        if (!res.ok) return
+        const j = (await res.json()) as {
+          fullName?: string | null
+          coachJob?: string | null
+          coachCity?: string | null
+          coachAge?: number | null
+          coachGender?: string | null
+        }
+        const profileName = String(j.fullName ?? '').trim()
+        const metaJob = String(j.coachJob ?? '').trim()
+        const metaCity = String(j.coachCity ?? '').trim()
+        const metaAge =
+          j.coachAge != null && Number.isFinite(Number(j.coachAge))
+            ? String(Math.round(Number(j.coachAge)))
+            : ''
+        const metaGender = String(j.coachGender ?? '')
+          .trim()
+          .toLowerCase()
+        const resolvedName = profileName
         setLearnerDisplayName(resolvedName)
         setLearnerProfileNameDraft(resolvedName)
         setLearnerProfileJobDraft(metaJob)
@@ -6448,16 +6447,12 @@ export default function HocTiengAnhAiClientPage() {
         setLearnerProfileGenderDraft(
           metaGender === 'male' || metaGender === 'female' || metaGender === 'other' ? metaGender : ''
         )
-        void metaJob
-        void metaCity
-        void metaAge
-        void metaGender
       } catch {
         // keep page usable when profile lookup fails
       }
     }
     void loadLearnerName()
-  }, [supabase])
+  }, [])
 
   const submitLearnerProfilePrompt = async () => {
     if (learnerProfileBusy) return
@@ -6493,18 +6488,24 @@ export default function HocTiengAnhAiClientPage() {
     }
     setLearnerProfileBusy(true)
     try {
-      const { error: authErr } = await supabase.auth.updateUser({
-        data: {
-          full_name: fullName,
-          name: fullName,
-          coach_job: coachJob,
-          coach_city: coachCity,
-          coach_age: coachAge,
-          coach_gender: coachGender,
-        },
+      const uid = await getClientUserId()
+      if (!uid) throw new Error(localText('Chưa đăng nhập.', 'Not signed in.'))
+      const patchRes = await fetch('/api/english-coach/learner-profile', {
+        method: 'PATCH',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fullName,
+          coachJob,
+          coachCity,
+          coachAge,
+          coachGender,
+        }),
       })
-      if (authErr) throw authErr
-      await supabase.from('profiles').update({ full_name: fullName }).eq('id', (await supabase.auth.getUser()).data.user?.id || '')
+      const patchJson = (await patchRes.json().catch(() => ({}))) as { error?: string }
+      if (!patchRes.ok) {
+        throw new Error(patchJson.error || localText('Không lưu được hồ sơ.', 'Could not save profile.'))
+      }
       if (typeof window !== 'undefined') {
         window.localStorage.setItem(LEARNER_PROFILE_PROMPT_DISMISSED_KEY, '1')
       }

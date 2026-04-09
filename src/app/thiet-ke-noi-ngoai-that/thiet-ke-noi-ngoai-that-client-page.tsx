@@ -4,7 +4,7 @@ import { useState, useRef, ChangeEvent, useEffect, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { analyzeInterior, applyInteriorChanges, getCredits } from './actions'
+import { analyzeInterior, applyInteriorChanges } from './actions'
 import { ARCH_THEMES, MAIN_COLORS, APPLY_COSTS, ANALYZE_CREDIT, ROOM_TYPES, INTERIOR_STYLES, DOOR_TYPE_OPTIONS, WINDOW_TYPE_OPTIONS, WALL_TYPE_OPTIONS, FURNITURE_STAGING_MODES, FURNITURE_ITEMS, EXTERIOR_FURNITURE_ITEMS, FURNITURE_MATERIALS, FURNITURE_COLORS, FURNITURE_STYLE_OPTIONS, EXTERIOR_POSITION_OPTIONS, POOL_SHAPE_OPTIONS, POOL_ORIENTATION_OPTIONS, getMainColorLabel, getArchThemeLabel, getRoomTypeLabel, getInteriorStyleLabel, getFurnitureCategoryLabel, getOptionLabel, getFurnitureItemLabel } from './constants'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
@@ -177,8 +177,17 @@ export default function ThietKeNoiNgoaiThatClientPage() {
   }, [])
 
   const refreshCredits = useCallback(async () => {
-    const bal = await getCredits()
-    setCredits(bal)
+    try {
+      const res = await fetch('/api/account/credits', { credentials: 'same-origin' })
+      if (!res.ok) {
+        setCredits(0)
+        return
+      }
+      const j = (await res.json()) as { balance?: number }
+      setCredits(Number(j.balance ?? 0))
+    } catch {
+      setCredits(0)
+    }
   }, [])
 
   useEffect(() => {

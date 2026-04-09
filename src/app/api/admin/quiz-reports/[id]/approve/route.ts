@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { getUserForAction } from '@/lib/auth'
+import { getProfileRoleWithFallback } from '@/lib/db/read-user-dashboard-pg'
+import { isPgConfigured } from '@/lib/db/pool'
+import {
+  fetchQuizQuestionReportPendingByIdPg,
+  fetchWorksheetSlidesByCurriculumIdPg,
+  updateQuizQuestionReportApprovedPg,
+  updateQuizQuestionReportReplacedPg,
+  updateWorksheetSlidesContentJsonPg,
+} from '@/lib/db/quiz-reports-pg'
 import {
   createQuizWithGemini,
   verifyQuizWithAI,
@@ -9,12 +16,6 @@ import {
   type QuizData,
 } from '@/lib/quiz-ai'
 import { createUserNotificationWithEmail } from '@/lib/notifications/create-user-notification-server'
-
-function adminClient() {
-  return createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  })
-}
 
 type SlideItem = {
   title?: string
@@ -33,41 +34,31 @@ export async function POST(
 ) {
   try {
     const { id } = await params
-    const supabase = createClient()
-    const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+    const authResult = await getUserForAction()
     if ('error' in authResult) return NextResponse.json({ error: authResult.error }, { status: 401 })
 
-    const { data: profile } = await supabase.from('profiles').select('role').eq('id', authResult.user!.id).single()
-    if (profile?.role !== 'admin') {
+    const role = await getProfileRoleWithFallback(authResult.user!.id)
+    if (role !== 'admin') {
       return NextResponse.json({ error: 'Chỉ quản trị viên mới được duyệt.' }, { status: 403 })
+    }
+
+    if (!isPgConfigured()) {
+      return NextResponse.json({ error: 'Chưa cấu hình cơ sở dữ liệu.' }, { status: 503 })
     }
 
     const body = await req.json().catch(() => ({}))
     const approved = body?.approved === true
 
-    const adminSupabase = adminClient()
-
-    const { data: report, error: fetchErr } = await adminSupabase
-      .from('quiz_question_reports')
-      .select('id, user_id, curriculum_id, slide_index, block_index, quiz_marker, slide_content, slide_title')
-      .eq('id', id)
-      .eq('status', 'admin_pending')
-      .single()
-
-    if (fetchErr || !report) {
+    const report = await fetchQuizQuestionReportPendingByIdPg(id)
+    if (!report) {
       return NextResponse.json({ error: 'Không tìm thấy báo cáo hoặc đã được xử lý.' }, { status: 404 })
     }
 
     if (approved) {
-      await adminSupabase
-        .from('quiz_question_reports')
-        .update({
-          status: 'admin_approved',
-          admin_approved_at: new Date().toISOString(),
-          admin_user_id: authResult.user!.id,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', id)
+      const ok = await updateQuizQuestionReportApprovedPg(id, authResult.user!.id)
+      if (ok !== true) {
+        return NextResponse.json({ error: 'Không cập nhật được trạng thái báo cáo.' }, { status: 500 })
+      }
 
       const notifKept = {
         user_id: report.user_id,
@@ -82,7 +73,7 @@ export async function POST(
           action: 'kept',
         },
       }
-      await createUserNotificationWithEmail(adminSupabase, notifKept)
+      await createUserNotificationWithEmail(notifKept)
 
       return NextResponse.json({ action: 'kept', message: 'Đã duyệt giữ nguyên câu hỏi.' })
     }
@@ -106,12 +97,7 @@ export async function POST(
         : created.quiz
     const newMarker = quizToMarker(finalQuiz)
 
-    const { data: slidesRow } = await adminSupabase
-      .from('worksheet_slides')
-      .select('content_json, topic, subject_id, grade_level_id')
-      .eq('curriculum_id', report.curriculum_id)
-      .single()
-
+    const slidesRow = await fetchWorksheetSlidesByCurriculumIdPg(report.curriculum_id)
     if (!slidesRow) {
       return NextResponse.json({ error: 'Không tìm thấy slide.' }, { status: 404 })
     }
@@ -142,37 +128,30 @@ export async function POST(
     if (blocks.length > 0) {
       const newBlocks = [...blocks]
       newBlocks[report.block_index] = { ...blocks[report.block_index], content: newContent }
-      newSlides = slides.map((s, i) =>
-        i === report.slide_index ? { ...s, blocks: newBlocks } : s
-      )
+      newSlides = slides.map((s, i) => (i === report.slide_index ? { ...s, blocks: newBlocks } : s))
     } else {
-      newSlides = slides.map((s, i) =>
-        i === report.slide_index ? { ...s, content: newContent } : s
-      )
+      newSlides = slides.map((s, i) => (i === report.slide_index ? { ...s, content: newContent } : s))
     }
 
-    await adminSupabase
-      .from('worksheet_slides')
-      .update({
-        content_json: newSlides,
-        topic: slidesRow.topic,
-        subject_id: slidesRow.subject_id,
-        grade_level_id: slidesRow.grade_level_id,
-      })
-      .eq('curriculum_id', report.curriculum_id)
+    const upSlides = await updateWorksheetSlidesContentJsonPg({
+      curriculumId: report.curriculum_id,
+      contentJson: newSlides,
+      topic: slidesRow.topic,
+      subjectId: slidesRow.subject_id,
+      gradeLevelId: slidesRow.grade_level_id,
+    })
+    if (upSlides !== true) {
+      return NextResponse.json({ error: 'Không cập nhật được slide.' }, { status: 500 })
+    }
 
-    await adminSupabase
-      .from('quiz_question_reports')
-      .update({
-        status: 'admin_rejected',
-        quiz_marker: newMarker,
-        ai_reasoning: 'Admin duyệt sai – đã thay câu mới (Gemini + DeepSeek).',
-        ai_model_used: 'gemini-2.5-pro',
-        admin_approved_at: new Date().toISOString(),
-        admin_user_id: authResult.user!.id,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', id)
+    const upReport = await updateQuizQuestionReportReplacedPg({
+      reportId: id,
+      adminUserId: authResult.user!.id,
+      newQuizMarker: newMarker,
+    })
+    if (upReport !== true) {
+      return NextResponse.json({ error: 'Không cập nhật được báo cáo.' }, { status: 500 })
+    }
 
     const notifReplaced = {
       user_id: report.user_id,
@@ -187,7 +166,7 @@ export async function POST(
         action: 'replaced',
       },
     }
-    await createUserNotificationWithEmail(adminSupabase, notifReplaced)
+    await createUserNotificationWithEmail(notifReplaced)
 
     return NextResponse.json({
       action: 'replaced',

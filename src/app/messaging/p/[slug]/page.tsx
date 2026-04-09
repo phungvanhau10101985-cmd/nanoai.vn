@@ -1,7 +1,6 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
-import { createServiceRoleClient } from '@/lib/supabase/service-role'
+import { getUserOrBypass } from '@/lib/auth'
 import { listWidgetChatsForLinkedUser } from '@/lib/messaging/list-widget-chats-for-linked-user'
 import { getCurrentWebLocale, getServerDictionary } from '@/lib/i18n/server'
 import { buildMetadata } from '@/lib/seo'
@@ -9,6 +8,7 @@ import type { WebLocale } from '@/lib/i18n/config'
 import { Toaster } from '@/components/ui/toaster'
 import { PartnerGuestChatClient } from './partner-guest-chat-client'
 import { isReservedMessagingGuestSlug } from '@/lib/messaging/reserved-guest-slugs'
+import { resolveActiveMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
 
 const OG_LOCALE: Record<WebLocale, string> = {
   vi: 'vi_VN',
@@ -35,14 +35,9 @@ export async function generateMetadata(props: { params: Promise<{ slug: string }
     })
   }
 
-  const db = createServiceRoleClient()
-  const { data: partner } = await db
-    .from('messaging_partners')
-    .select('display_name, is_active')
-    .eq('slug', slug)
-    .maybeSingle()
+  const partner = await resolveActiveMessagingPartnerBySlug(slug)
 
-  if (!partner?.is_active) {
+  if (!partner) {
     return buildMetadata({
       title: g.notFoundTitle,
       description: g.notFoundDescription,
@@ -69,22 +64,13 @@ export default async function PartnerGuestChatPage(props: { params: Promise<{ sl
   const { slug } = await props.params
   if (isReservedMessagingGuestSlug(slug)) notFound()
 
-  const db = createServiceRoleClient()
-  const { data: partner } = await db
-    .from('messaging_partners')
-    .select('display_name, is_active')
-    .eq('slug', slug)
-    .maybeSingle()
+  const partner = await resolveActiveMessagingPartnerBySlug(slug)
+  if (!partner) notFound()
 
-  if (!partner?.is_active) notFound()
-
-  const supabase = createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getUserOrBypass()
   const chatList =
     user?.id
-      ? (await listWidgetChatsForLinkedUser(db, user.id)).items
+      ? (await listWidgetChatsForLinkedUser(user.id)).items
       : []
 
   const { t } = getServerDictionary()

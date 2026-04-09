@@ -1,9 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createHash } from 'crypto'
-import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
-
+import { isPgConfigured } from '@/lib/db/pool'
+import { fetchTransliterationCacheByKeysPg } from '@/lib/db/language-coach-transliteration-tokenize-pg'
+import {
+  fetchEndedSessionIdsForUserPg,
+  fetchHiddenSessionIdsForUserPg,
+  fetchMessagesForHistoryListPg,
+  fetchMessagesForHistorySessionPg,
+  fetchSessionMemoriesForHistoryListPg,
+  fetchSessionMemoryBriefForHistoryPg,
+  insertHistoryMessagePg,
+  insertSessionMemoryMetadataPg,
+  updateSessionMemoryMetadataPg,
+  upsertHiddenSessionPg,
+  type HistoryListMessagePg,
+  type HistorySessionMessagePg,
+} from '@/lib/db/language-coach-history-pg'
 function toTransliterationCacheKey(text: string, languageCode: string): string {
   const normalized = String(text || '').trim()
   const hash = createHash('sha256').update(normalized).digest('hex')
@@ -221,68 +234,39 @@ function parsePresetReplayPreviewFromPinnedFacts(raw: string): PresetReplayPrevi
   }
 }
 
-function adminClient() {
-  return createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-}
-
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createClient()
-    const auth = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập để xem lịch sử học.')
+    const auth = await getUserForAction()
     if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
     const { user } = auth
+    if (!isPgConfigured()) {
+      return NextResponse.json({ error: 'Database not configured.' }, { status: 503 })
+    }
 
     const sessionId = String(request.nextUrl.searchParams.get('sessionId') || '').trim()
     const scope = String(request.nextUrl.searchParams.get('scope') || 'active').trim().toLowerCase()
     const limitRaw = Number(request.nextUrl.searchParams.get('limit') || 20)
     const limit = Number.isFinite(limitRaw) ? Math.min(50, Math.max(1, Math.floor(limitRaw))) : 20
-    const adminSupabase = adminClient()
-
     if (sessionId) {
-      const [messagesResult, memoryResult, hiddenCheck, endedCheck] = await Promise.all([
-        adminSupabase
-          .from('language_coach_messages')
-          .select('id, session_id, role, text, audio_url, translation, language_code, target_language, teacher_label, teacher_locale, mode, main_sentence, correction_note, intent_answer, tokens_json, writing_task_json, ai_payload_json, created_at')
-          .eq('user_id', user.id)
-          .eq('session_id', sessionId)
-          .order('created_at', { ascending: true })
-          .limit(500),
-        adminSupabase
-          .from('language_coach_session_memories')
-          .select('learning_mode, topic_id, topic_label, pinned_facts_json')
-          .eq('user_id', user.id)
-          .eq('session_id', sessionId)
-          .limit(1)
-          .maybeSingle(),
-        adminSupabase
-          .from('language_coach_hidden_sessions')
-          .select('id')
-          .eq('user_id', user.id)
-          .eq('session_id', sessionId)
-          .limit(1)
-          .maybeSingle(),
-        adminSupabase
-          .from('language_coach_ended_sessions')
-          .select('id')
-          .eq('user_id', user.id)
-          .eq('session_id', sessionId)
-          .limit(1)
-          .maybeSingle(),
+      const [messagesResult, memoryResult] = await Promise.all([
+        fetchMessagesForHistorySessionPg(user.id, sessionId),
+        fetchSessionMemoryBriefForHistoryPg(user.id, sessionId),
       ])
 
-      if (hiddenCheck.data) {
-        // hidden sessions are still readable from "learned lessons"
+      if (!messagesResult.ok) {
+        return NextResponse.json({ error: messagesResult.message || 'Không tải được buổi học.' }, { status: 500 })
       }
-      if (endedCheck.data) {
-        // ended sessions are still readable from "learned lessons"
-      }
-
-      const { data, error } = messagesResult
-      if (error) {
-        return NextResponse.json({ error: error.message || 'Không tải được buổi học.' }, { status: 500 })
+      if (!memoryResult.ok) {
+        return NextResponse.json({ error: memoryResult.message || 'Không tải được memory buổi học.' }, { status: 500 })
       }
 
-      const memory = memoryResult.data as { learning_mode?: string; topic_id?: string; topic_label?: string; pinned_facts_json?: string } | null
+      const data = messagesResult.rows
+      const memory = memoryResult.row as {
+        learning_mode?: string | null
+        topic_id?: string | null
+        topic_label?: string | null
+        pinned_facts_json?: string | null
+      } | null
       const learningMode = memory?.learning_mode
       const safeLearningMode = learningMode === 'reflex' ? 'reflex' : 'review'
       const sessionTopicId = String(memory?.topic_id || '').trim()
@@ -304,18 +288,18 @@ export async function GET(request: NextRequest) {
       const miniStageSnapshot = parseMiniStageSnapshotFromPinnedFacts(String(memory?.pinned_facts_json || '{}'))
       const presetReplayPreview = parsePresetReplayPreviewFromPinnedFacts(String(memory?.pinned_facts_json || '{}'))
 
-      const rows = data ?? []
+      const rows: HistorySessionMessagePg[] = data ?? []
       const cacheKeysToFetch: string[] = []
       for (const row of rows) {
         if (row.role !== 'teacher') continue
         const lang = String(row.language_code || '').trim().toLowerCase()
         if (!needsTransliteration(lang)) continue
         for (const field of ['main_sentence', 'correction_note', 'intent_answer'] as const) {
-          const text = String((row as Record<string, unknown>)[field] || '').trim()
+          const text = String(row[field] || '').trim()
           if (!text) continue
           cacheKeysToFetch.push(toTransliterationCacheKey(text, lang))
         }
-        const wtj = String((row as { writing_task_json?: string }).writing_task_json || '').trim()
+        const wtj = String(row.writing_task_json || '').trim()
         if (wtj) {
           try {
             const parsed = JSON.parse(wtj) as { requiredSentences?: string[] }
@@ -331,11 +315,8 @@ export async function GET(request: NextRequest) {
       const transliterationByKey = new Map<string, string>()
       if (cacheKeysToFetch.length > 0) {
         const uniqueKeys = [...new Set(cacheKeysToFetch)]
-        const { data: cacheRows } = await adminSupabase
-          .from('language_coach_transliteration_cache')
-          .select('cache_key, transliteration')
-          .in('cache_key', uniqueKeys)
-        for (const r of (cacheRows ?? []) as Array<{ cache_key?: string; transliteration?: string }>) {
+        const cacheRows = await fetchTransliterationCacheByKeysPg(uniqueKeys)
+        for (const r of cacheRows) {
           const ck = String(r.cache_key || '')
           const t = String(r.transliteration || '').trim()
           if (ck && t) transliterationByKey.set(ck, t)
@@ -345,7 +326,7 @@ export async function GET(request: NextRequest) {
       const lastTeacher = [...rows].reverse().find((r) => r.role === 'teacher')
       const writingTaskTransliterations: Record<string, string> = {}
       if (lastTeacher) {
-        const wtj = String((lastTeacher as { writing_task_json?: string }).writing_task_json || '').trim()
+        const wtj = String(lastTeacher.writing_task_json || '').trim()
         if (wtj) {
           try {
             const parsed = JSON.parse(wtj) as { requiredSentences?: string[] }
@@ -376,11 +357,11 @@ export async function GET(request: NextRequest) {
         miniStageSnapshot: miniStageSnapshot || undefined,
         presetReplay: presetReplayPreview || undefined,
         writingTaskTransliterations,
-        items: rows.map((row) => {
+        items: rows.map((row: HistorySessionMessagePg) => {
           const lang = String(row.language_code || '').trim().toLowerCase()
-          const mainSentence = (row as { main_sentence?: string }).main_sentence ?? null
-          const correctionNote = (row as { correction_note?: string }).correction_note ?? null
-          const intentAnswer = (row as { intent_answer?: string }).intent_answer ?? null
+          const mainSentence = row.main_sentence ?? null
+          const correctionNote = row.correction_note ?? null
+          const intentAnswer = row.intent_answer ?? null
           const ms = String(mainSentence || '').trim()
           const cn = String(correctionNote || '').trim()
           const ia = String(intentAnswer || '').trim()
@@ -396,7 +377,7 @@ export async function GET(request: NextRequest) {
             role: row.role,
             text: row.text,
             audioUrl: row.audio_url,
-            translation: (row as { translation?: string }).translation ?? null,
+            translation: row.translation ?? null,
             languageCode: row.language_code,
             targetLanguage: row.target_language,
             teacherLabel: row.teacher_label,
@@ -408,9 +389,9 @@ export async function GET(request: NextRequest) {
             mainSentenceTransliteration,
             correctionNoteTransliteration,
             intentAnswerTransliteration,
-            tokensJson: (row as { tokens_json?: string }).tokens_json ?? null,
-            writingTaskJson: (row as { writing_task_json?: string }).writing_task_json ?? null,
-            aiPayloadJson: (row as { ai_payload_json?: string }).ai_payload_json ?? null,
+            tokensJson: row.tokens_json ?? null,
+            writingTaskJson: row.writing_task_json ?? null,
+            aiPayloadJson: row.ai_payload_json ?? null,
             createdAt: row.created_at,
           }
         }),
@@ -418,30 +399,26 @@ export async function GET(request: NextRequest) {
     }
 
     const [messagesResult, memoriesResult, hiddenResult, endedResult] = await Promise.all([
-      adminSupabase
-        .from('language_coach_messages')
-        .select('session_id, role, text, language_code, target_language, teacher_label, teacher_locale, mode, created_at')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(1000),
-      adminSupabase
-        .from('language_coach_session_memories')
-        .select('session_id, learning_mode, topic_id, topic_label, target_language, native_language, pinned_facts_json')
-        .eq('user_id', user.id),
-      adminSupabase
-        .from('language_coach_hidden_sessions')
-        .select('session_id')
-        .eq('user_id', user.id),
-      adminSupabase
-        .from('language_coach_ended_sessions')
-        .select('session_id')
-        .eq('user_id', user.id),
+      fetchMessagesForHistoryListPg(user.id),
+      fetchSessionMemoriesForHistoryListPg(user.id),
+      fetchHiddenSessionIdsForUserPg(user.id),
+      fetchEndedSessionIdsForUserPg(user.id),
     ])
 
-    const { data, error } = messagesResult
-    if (error) {
-      return NextResponse.json({ error: error.message || 'Không tải được danh sách buổi học.' }, { status: 500 })
+    if (!messagesResult.ok) {
+      return NextResponse.json({ error: messagesResult.message || 'Không tải được danh sách buổi học.' }, { status: 500 })
     }
+    if (!memoriesResult.ok) {
+      return NextResponse.json({ error: memoriesResult.message || 'Không tải được danh sách buổi học.' }, { status: 500 })
+    }
+    if (!hiddenResult.ok) {
+      return NextResponse.json({ error: hiddenResult.message || 'Không tải được danh sách buổi học.' }, { status: 500 })
+    }
+    if (!endedResult.ok) {
+      return NextResponse.json({ error: endedResult.message || 'Không tải được danh sách buổi học.' }, { status: 500 })
+    }
+
+    const data = messagesResult.rows
 
     const learningModeBySession = new Map<string, string>()
     const topicIdBySession = new Map<string, string>()
@@ -450,15 +427,7 @@ export async function GET(request: NextRequest) {
     const nativeLanguageBySession = new Map<string, string>()
     const reviewDrillStatsBySession = new Map<string, ReviewDrillStats>()
     const presetReplayBySession = new Map<string, boolean>()
-    for (const row of (memoriesResult.data ?? []) as Array<{
-      session_id?: string
-      learning_mode?: string
-      topic_id?: string
-      topic_label?: string
-      target_language?: string
-      native_language?: string
-      pinned_facts_json?: string
-    }>) {
+    for (const row of memoriesResult.rows) {
       const sid = String(row.session_id || '')
       if (sid) {
         if (row.learning_mode) learningModeBySession.set(sid, row.learning_mode)
@@ -474,12 +443,8 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const hiddenSessionIds = new Set(
-      ((hiddenResult.data ?? []) as Array<{ session_id?: string }>).map((r) => String(r.session_id || '')).filter(Boolean)
-    )
-    const endedSessionIds = new Set(
-      ((endedResult.data ?? []) as Array<{ session_id?: string }>).map((r) => String(r.session_id || '')).filter(Boolean)
-    )
+    const hiddenSessionIds = new Set(hiddenResult.sessionIds)
+    const endedSessionIds = new Set(endedResult.sessionIds)
 
     const bySession = new Map<
       string,
@@ -502,7 +467,7 @@ export async function GET(request: NextRequest) {
       }
     >()
 
-    for (const row of data ?? []) {
+    for (const row of data as HistoryListMessagePg[]) {
       const sid = String(row.session_id || '')
       if (!sid) continue
       const isLearnedSession = hiddenSessionIds.has(sid) || endedSessionIds.has(sid)
@@ -561,22 +526,16 @@ export async function DELETE(request: NextRequest) {
     if (!sessionId) {
       return NextResponse.json({ error: 'Thiếu sessionId.' }, { status: 400 })
     }
-    const supabase = createClient()
-    const auth = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập để xóa buổi học.')
+    const auth = await getUserForAction()
     if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
     const { user } = auth
-    const adminSupabase = adminClient()
+    if (!isPgConfigured()) {
+      return NextResponse.json({ error: 'Database not configured.' }, { status: 503 })
+    }
 
-    const { error } = await adminSupabase.from('language_coach_hidden_sessions').upsert(
-      { user_id: user.id, session_id: sessionId },
-      { onConflict: 'user_id,session_id' }
-    )
-
-    if (error) {
-      return NextResponse.json(
-        { error: error.message || 'Không ẩn được buổi học.' },
-        { status: 500 }
-      )
+    const hidden = await upsertHiddenSessionPg(user.id, sessionId)
+    if (!hidden.ok) {
+      return NextResponse.json({ error: hidden.message || 'Không ẩn được buổi học.' }, { status: 500 })
     }
     return NextResponse.json({ ok: true })
   } catch (e) {
@@ -612,79 +571,69 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Thiếu dữ liệu lưu lịch sử.' }, { status: 400 })
     }
 
-    const supabase = createClient()
-    const auth = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập để lưu lịch sử học.')
+    const auth = await getUserForAction()
     if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
     const { user } = auth
-    const adminSupabase = adminClient()
+    if (!isPgConfigured()) {
+      return NextResponse.json({ error: 'Database not configured.' }, { status: 503 })
+    }
 
-    const { data, error } = await adminSupabase
-      .from('language_coach_messages')
-      .insert({
-        user_id: user.id,
-        session_id: sessionId,
-        client_message_id: clientMessageId || null,
-        role,
-        text: text.slice(0, 4000),
-        audio_url: audioUrl || null,
-        language_code: languageCode || null,
-        target_language: targetLanguage || null,
-        teacher_label: teacherLabel || null,
-        teacher_locale: teacherLocale || null,
-        mode,
-        main_sentence: mainSentence,
-        correction_note: correctionNote,
-        intent_answer: intentAnswer,
-        tokens_json: tokensJson,
-        ai_payload_json: aiPayloadJson,
-      })
-      .select('id')
-      .single()
+    const inserted = await insertHistoryMessagePg({
+      userId: user.id,
+      sessionId,
+      clientMessageId: clientMessageId || null,
+      role,
+      text: text.slice(0, 4000),
+      audioUrl: audioUrl || null,
+      languageCode: languageCode || null,
+      targetLanguage: targetLanguage || null,
+      teacherLabel: teacherLabel || null,
+      teacherLocale: teacherLocale || null,
+      mode,
+      mainSentence,
+      correctionNote,
+      intentAnswer,
+      tokensJson,
+      aiPayloadJson,
+    })
 
-    if (error) {
-      return NextResponse.json({ error: error.message || 'Không lưu được lịch sử học.' }, { status: 500 })
+    if (!inserted.ok) {
+      return NextResponse.json({ error: inserted.message || 'Không lưu được lịch sử học.' }, { status: 500 })
     }
 
     if (targetLanguage && nativeLanguage) {
-      const memoryUpdate = {
-        target_language: targetLanguage,
-        native_language: nativeLanguage,
-        topic_id: topicId,
-        topic_label: topicLabel,
-        learning_mode: learningMode,
-        updated_at: new Date().toISOString(),
-      }
-      const { data: updatedRows, error: updateMemoryError } = await adminSupabase
-        .from('language_coach_session_memories')
-        .update(memoryUpdate)
-        .eq('user_id', user.id)
-        .eq('session_id', sessionId)
-        .select('id')
-        .limit(1)
-
-      if (updateMemoryError) {
-        return NextResponse.json({ error: updateMemoryError.message || 'Không cập nhật được metadata buổi học.' }, { status: 500 })
+      const nowIso = new Date().toISOString()
+      const memUp = await updateSessionMemoryMetadataPg({
+        userId: user.id,
+        sessionId,
+        targetLanguage,
+        nativeLanguage,
+        topicId,
+        topicLabel,
+        learningMode,
+        updatedAtIso: nowIso,
+      })
+      if (!memUp.ok) {
+        return NextResponse.json({ error: memUp.message || 'Không cập nhật được metadata buổi học.' }, { status: 500 })
       }
 
-      if (!updatedRows || updatedRows.length === 0) {
-        const { error: insertMemoryError } = await adminSupabase
-          .from('language_coach_session_memories')
-          .insert({
-            user_id: user.id,
-            session_id: sessionId,
-            target_language: targetLanguage,
-            native_language: nativeLanguage,
-            topic_id: topicId,
-            topic_label: topicLabel,
-            learning_mode: learningMode,
-          })
-        if (insertMemoryError) {
-          return NextResponse.json({ error: insertMemoryError.message || 'Không tạo được metadata buổi học.' }, { status: 500 })
+      if (!memUp.updated) {
+        const memIn = await insertSessionMemoryMetadataPg({
+          userId: user.id,
+          sessionId,
+          targetLanguage,
+          nativeLanguage,
+          topicId,
+          topicLabel,
+          learningMode,
+        })
+        if (!memIn.ok) {
+          return NextResponse.json({ error: memIn.message || 'Không tạo được metadata buổi học.' }, { status: 500 })
         }
       }
     }
 
-    return NextResponse.json({ id: data.id })
+    return NextResponse.json({ id: inserted.id })
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Lỗi không xác định.'
     return NextResponse.json({ error: msg }, { status: 500 })

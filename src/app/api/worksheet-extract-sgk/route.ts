@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
-import { createClient as createSupabaseAdmin } from '@supabase/supabase-js'
+import { insertWorksheetJobFromPg } from '@/lib/db/worksheet-pg'
+import { isPgConfigured } from '@/lib/db/pool'
 import { getUserForAction } from '@/lib/auth'
 import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 
@@ -10,10 +10,13 @@ const MAX_IMAGES = 10
 /** Endpoint 1: chỉ tách câu từ SGK (không giải tự luận). */
 export async function POST(req: NextRequest) {
   try {
-    const supabase = createClient()
-    const auth = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+    const auth = await getUserForAction()
     if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
     const userId = auth.user?.id
+
+    if (!isPgConfigured()) {
+      return NextResponse.json({ error: 'Database not configured.' }, { status: 503 })
+    }
 
     const formData = await req.formData()
     const images = formData.getAll('images') as File[]
@@ -36,44 +39,42 @@ export async function POST(req: NextRequest) {
 
     const jobId = randomUUID()
     const imageUrls: string[] = []
-    if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
-      const admin = createSupabaseAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY)
-      const jobPrefix = `worksheet-sgk/job-${jobId}`
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i]
-        const ext = file.type?.includes('jpeg') || file.type?.includes('jpg') ? 'jpg' : 'png'
-        const path = `${jobPrefix}/${Date.now()}_${i}.${ext}`
-        const buf = Buffer.from(await file.arrayBuffer())
-        try {
-          const { publicUrl } = await uploadTryOnImagePublic(admin, path, buf, {
-            contentType: file.type || 'image/png',
-            upsert: true,
-          })
-          imageUrls.push(publicUrl)
-        } catch {
-          /* skip failed slice */
-        }
+    const jobPrefix = `worksheet-sgk/job-${jobId}`
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i]
+      const ext = file.type?.includes('jpeg') || file.type?.includes('jpg') ? 'jpg' : 'png'
+      const path = `${jobPrefix}/${Date.now()}_${i}.${ext}`
+      const buf = Buffer.from(await file.arrayBuffer())
+      try {
+        const { publicUrl } = await uploadTryOnImagePublic(path, buf, {
+          contentType: file.type || 'image/png',
+          upsert: true,
+        })
+        imageUrls.push(publicUrl)
+      } catch {
+        /* skip failed slice */
       }
     }
 
     if (imageUrls.length === 0) return NextResponse.json({ error: 'Không upload được ảnh.' }, { status: 500 })
 
-    const { error: insertErr } = await supabase.from('worksheet_jobs').insert({
+    const jobParams = {
+      curriculumId,
+      worksheetId,
+      topic,
+      subjectId,
+      gradeLevelId,
+      curriculumMarkdown,
+      imageUrls,
+    }
+
+    const id = await insertWorksheetJobFromPg({
       id: jobId,
-      user_id: userId,
+      userId: userId!,
       type: 'parse_sgk_extract',
-      status: 'pending',
-      params: {
-        curriculumId,
-        worksheetId,
-        topic,
-        subjectId,
-        gradeLevelId,
-        curriculumMarkdown,
-        imageUrls,
-      },
+      params: jobParams,
     })
-    if (insertErr) return NextResponse.json({ error: insertErr.message || 'Lỗi tạo job.' }, { status: 500 })
+    if (!id) return NextResponse.json({ error: 'Không tạo được job.' }, { status: 500 })
 
     return NextResponse.json({ jobId })
   } catch (e) {

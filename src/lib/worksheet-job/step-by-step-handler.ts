@@ -1,12 +1,22 @@
 /**
  * Handler tạo câu từng bước (quiz/essay) – dùng cho worker.
+ * Chỉ Postgres (DATABASE_URL).
  */
-import type { SupabaseClient } from '@supabase/supabase-js'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_PRO } from '@/lib/gemini-config'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { questionsToMarkdown } from '@/app/tao-giao-trinh/lib/questions-to-markdown'
 import { normalizeSolutionToStr } from '@/app/tao-giao-trinh/lib/worksheet-content-json'
+import { isPgConfigured } from '@/lib/db/pool'
+import {
+  fetchLatestWorksheetSheetByCurriculumIdPg,
+  fetchWorksheetQuestionContentJsonByIdPg,
+  fetchWorksheetQuestionIdTypesPg,
+  fetchWorksheetQuestionsMarkdownRowsOrderedFromPg,
+  insertWorksheetQuestionPg,
+  insertWorksheetSheetSlideBuildFromPg,
+  updateWorksheetSheetMarkdownQuestionIdsPg,
+} from '@/lib/db/worksheet-pg'
 
 type Difficulty = 'easy' | 'medium' | 'hard'
 type EssayBloomLevel = 'nhan-biet' | 'thong-hieu' | 'van-dung-thap' | 'van-dung-cao' | 'thuc-te'
@@ -73,7 +83,6 @@ export type StepByStepResult = {
 }
 
 async function createOneQuiz(
-  supabase: SupabaseClient,
   userId: string,
   params: StepByStepParams,
   existingQuestions: Array<{ question: string; options?: string[] }>,
@@ -140,36 +149,33 @@ Schema: ${QUIZ_SCHEMA}`
   const sanitized = last.options.map(stripOptionPrefix)
   const { options, correctIndex } = shuffleCorrectPosition(sanitized, last.correctIndex)
 
-  const { data: row, error } = await supabase
-    .from('worksheet_questions')
-    .insert({
-      user_id: userId,
-      curriculum_id: curriculumId || null,
-      type: 'quiz',
-      subject_id: subjectId,
-      grade_level_id: gradeLevelId,
-      topic: topic || null,
-      lesson_topics: lessonTopics || null,
-      difficulty: diff,
-      content_json: { question: last.question, options, correctIndex },
-      source: 'ai',
-      order,
-    })
-    .select('id')
-    .single()
+  const row = await insertWorksheetQuestionPg({
+    userId,
+    curriculumId: curriculumId || null,
+    type: 'quiz',
+    subjectId,
+    gradeLevelId,
+    topic: topic || null,
+    lessonTopics,
+    difficulty: diff,
+    contentJson: { question: last.question, options, correctIndex },
+    order,
+    source: 'ai',
+  })
 
-  return error ? null : (row as { id: string })
+  return row ? { id: row.id } : null
 }
 
 async function createOneEssay(
-  supabase: SupabaseClient,
   userId: string,
   params: StepByStepParams,
   existingProblems: string[],
   order: number
 ): Promise<{ id: string } | null> {
   const { curriculumMarkdown, topic, subjectId, gradeLevelId, curriculumId, lessonTopics, difficulty } = params
-  const diff = (['nhan-biet', 'thong-hieu', 'van-dung-thap', 'van-dung-cao', 'thuc-te'].includes(difficulty) ? difficulty : 'thong-hieu') as EssayBloomLevel
+  const diff = (['nhan-biet', 'thong-hieu', 'van-dung-thap', 'van-dung-cao', 'thuc-te'].includes(difficulty)
+    ? difficulty
+    : 'thong-hieu') as EssayBloomLevel
   const existingBlock =
     existingProblems.length > 0
       ? `\n⚠️ ĐÃ CÓ CÁC BÀI SAU – KHÔNG tạo trùng:\n${existingProblems.map((p, i) => `${i + 1}. ${p.slice(0, 200)}${p.length > 200 ? '...' : ''}`).join('\n')}\n`
@@ -218,56 +224,53 @@ Schema: ${ESSAY_SCHEMA}`
 
   const solutionStr = normalizeSolutionToStr(parsed.solution) || String(parsed.solution ?? '').trim()
 
-  const { data: row, error } = await supabase
-    .from('worksheet_questions')
-    .insert({
-      user_id: userId,
-      curriculum_id: curriculumId || null,
-      type: 'essay',
-      subject_id: subjectId,
-      grade_level_id: gradeLevelId,
-      topic: topic || null,
-      lesson_topics: lessonTopics || null,
-      difficulty: diff,
-      content_json: { problem: parsed.problem, solution: solutionStr },
-      source: 'ai',
-      order,
-    })
-    .select('id')
-    .single()
+  const row = await insertWorksheetQuestionPg({
+    userId,
+    curriculumId: curriculumId || null,
+    type: 'essay',
+    subjectId,
+    gradeLevelId,
+    topic: topic || null,
+    lessonTopics,
+    difficulty: diff,
+    contentJson: { problem: parsed.problem, solution: solutionStr },
+    order,
+    source: 'ai',
+  })
 
-  return error ? null : (row as { id: string })
+  return row ? { id: row.id } : null
 }
 
 export async function runStepByStep(
-  supabase: SupabaseClient,
   userId: string,
   params: StepByStepParams,
   type: 'quiz' | 'essay'
 ): Promise<StepByStepResult> {
+  if (!isPgConfigured()) throw new Error('DATABASE_URL chưa cấu hình')
+
   const ids: string[] = []
   const count = Math.max(1, Math.min(params.count, type === 'quiz' ? 20 : 10))
 
   if (type === 'quiz') {
     const existingQuizContents: Array<{ question: string; options?: string[] }> = []
     for (let i = 0; i < count; i++) {
-      const row = await createOneQuiz(supabase, userId, params, existingQuizContents, ids.length)
+      const row = await createOneQuiz(userId, params, existingQuizContents, ids.length)
       if (row) {
         ids.push(row.id)
-        const { data: q } = await supabase.from('worksheet_questions').select('content_json').eq('id', row.id).single()
-        const cj = q?.content_json as { question?: string; options?: string[] } | undefined
-        if (cj?.question) existingQuizContents.push({ question: cj.question, options: (cj.options ?? []).slice(0, 4) })
+        const cj = await fetchWorksheetQuestionContentJsonByIdPg(row.id)
+        const c = cj?.content_json as { question?: string; options?: string[] } | undefined
+        if (c?.question) existingQuizContents.push({ question: c.question, options: (c.options ?? []).slice(0, 4) })
       }
     }
   } else {
     const existingEssayProblems: string[] = []
     for (let i = 0; i < count; i++) {
-      const row = await createOneEssay(supabase, userId, params, existingEssayProblems, ids.length)
+      const row = await createOneEssay(userId, params, existingEssayProblems, ids.length)
       if (row) {
         ids.push(row.id)
-        const { data: q } = await supabase.from('worksheet_questions').select('content_json').eq('id', row.id).single()
-        const cj = q?.content_json as { problem?: string } | undefined
-        if (cj?.problem) existingEssayProblems.push(cj.problem)
+        const cj = await fetchWorksheetQuestionContentJsonByIdPg(row.id)
+        const c = cj?.content_json as { problem?: string } | undefined
+        if (c?.problem) existingEssayProblems.push(c.problem)
       }
     }
   }
@@ -275,51 +278,57 @@ export async function runStepByStep(
   if (ids.length === 0) throw new Error('Không tạo được câu hỏi nào.')
 
   const { curriculumId, topic, subjectId, gradeLevelId } = params
-  const newRows = await supabase.from('worksheet_questions').select('id, type, content_json, difficulty, source, verified_at').in('id', ids)
-  const newOrdered = ids.map((id) => newRows.data?.find((r) => r.id === id)).filter(Boolean) as Array<{ id: string; type: string; content_json: unknown; difficulty?: string }>
-  const newTypes = new Map(newOrdered.map((r) => [r.id, r.type]))
+  const newTypes = (await fetchWorksheetQuestionIdTypesPg(ids)) ?? new Map<string, string>()
+  const newOrdered = await fetchWorksheetQuestionsMarkdownRowsOrderedFromPg(ids)
+  if (!newOrdered || newOrdered.length !== ids.length) {
+    throw new Error('Không đọc được câu vừa tạo.')
+  }
 
   let finalIds: string[]
   let contentMarkdown: string
 
   if (curriculumId) {
-    const { data: existingWs } = await supabase
-      .from('worksheet_worksheets')
-      .select('id, question_ids')
-      .eq('curriculum_id', curriculumId)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-
-    const existingIds = ((existingWs?.question_ids ?? []) as string[]).filter(Boolean)
-    if (existingIds.length > 0) {
-      const { data: existingRows } = await supabase.from('worksheet_questions').select('id, type').in('id', existingIds)
-      const existingTypes = new Map((existingRows ?? []).map((r) => [r.id, r.type]))
+    const existingWs = await fetchLatestWorksheetSheetByCurriculumIdPg(curriculumId)
+    const existingIds = existingWs?.question_ids?.filter(Boolean) ?? []
+    if (existingWs && existingIds.length > 0) {
+      const existingTypes = (await fetchWorksheetQuestionIdTypesPg(existingIds)) ?? new Map<string, string>()
       finalIds = mergeQuestionIds(existingIds, existingTypes, ids, newTypes)
-      const { data: allRows } = await supabase.from('worksheet_questions').select('id, type, content_json, difficulty, source, verified_at').in('id', finalIds)
-      const ordered = finalIds.map((id) => allRows?.find((r) => r.id === id)).filter(Boolean) as Array<{ id: string; type: string; content_json: unknown; difficulty?: string }>
-      contentMarkdown = questionsToMarkdown(ordered)
-      await supabase.from('worksheet_worksheets').update({ content_markdown: contentMarkdown, question_ids: finalIds }).eq('id', existingWs!.id)
-      return { worksheetId: existingWs!.id, worksheetMarkdown: contentMarkdown, questionIds: ids }
+      const allRows = await fetchWorksheetQuestionsMarkdownRowsOrderedFromPg(finalIds)
+      if (!allRows || allRows.length !== finalIds.length) throw new Error('Không ghép được danh sách câu.')
+      contentMarkdown = questionsToMarkdown(
+        allRows.map((r) => ({
+          type: r.type,
+          content_json: r.content_json,
+          difficulty: r.difficulty ?? undefined,
+          source: r.source ?? undefined,
+          verified_at: r.verified_at,
+        }))
+      )
+      const ok = await updateWorksheetSheetMarkdownQuestionIdsPg(existingWs.id, finalIds, contentMarkdown)
+      if (!ok) throw new Error('Không cập nhật phiếu giáo trình.')
+      return { worksheetId: existingWs.id, worksheetMarkdown: contentMarkdown, questionIds: ids }
     }
   }
 
   finalIds = ids
-  contentMarkdown = questionsToMarkdown(newOrdered)
-  const { data: row, error } = await supabase
-    .from('worksheet_worksheets')
-    .insert({
-      user_id: userId,
-      curriculum_id: curriculumId || null,
-      topic,
-      subject_id: subjectId,
-      grade_level_id: gradeLevelId,
-      content_markdown: contentMarkdown,
-      question_ids: finalIds,
-    })
-    .select('id')
-    .single()
-
-  if (error) throw new Error(error.message)
-  return { worksheetId: row?.id ?? null, worksheetMarkdown: contentMarkdown, questionIds: ids }
+  contentMarkdown = questionsToMarkdown(
+    newOrdered.map((r) => ({
+      type: r.type,
+      content_json: r.content_json,
+      difficulty: r.difficulty ?? undefined,
+      source: r.source ?? undefined,
+      verified_at: r.verified_at,
+    }))
+  )
+  const newSheetId = await insertWorksheetSheetSlideBuildFromPg({
+    userId,
+    topic,
+    subjectId,
+    gradeLevelId,
+    contentMarkdown,
+    questionIds: finalIds,
+    curriculumId: curriculumId || null,
+  })
+  if (!newSheetId) throw new Error('Không tạo được phiếu bài tập.')
+  return { worksheetId: newSheetId, worksheetMarkdown: contentMarkdown, questionIds: ids }
 }

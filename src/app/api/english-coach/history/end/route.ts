@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
-
-function adminClient() {
-  return createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-}
+import { isPgConfigured } from '@/lib/db/pool'
+import {
+  deleteCompletedLessonPg,
+  deletePresetTurnsForSessionPg,
+  fetchMessagesForSessionEndPg,
+  fetchSessionMemoryForEndPg,
+  insertPresetTurnPg,
+  upsertCompletedLessonFromEndPg,
+  upsertEndedSessionPg,
+  type CoachMessageEndRow,
+} from '@/lib/db/language-coach-history-end-pg'
 
 function isPresetCopiedSession(pinnedFactsRaw: string): boolean {
   try {
@@ -99,6 +104,15 @@ function rowHasPersonalizationSignals(row: {
   return transcriptHasPersonalizationSignals([row])
 }
 
+function rowFromCoachMessage(r: CoachMessageEndRow) {
+  return {
+    text: String(r.text || ''),
+    main_sentence: String(r.main_sentence || ''),
+    correction_note: String(r.correction_note || ''),
+    intent_answer: String(r.intent_answer || ''),
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const payload = (await request.json()) as {
@@ -115,45 +129,32 @@ export async function POST(request: NextRequest) {
     if (!sessionId) {
       return NextResponse.json({ error: 'Thiếu sessionId.' }, { status: 400 })
     }
-    const supabase = createClient()
-    const auth = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập để kết thúc buổi học.')
+    const auth = await getUserForAction()
     if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
     const { user } = auth
-    const adminSupabase = adminClient()
+    if (!isPgConfigured()) {
+      return NextResponse.json({ error: 'Database not configured.' }, { status: 503 })
+    }
 
     const [messagesResult, memoryResult] = await Promise.all([
-      adminSupabase
-        .from('language_coach_messages')
-        .select(
-          'id, role, text, audio_url, translation, language_code, target_language, teacher_label, teacher_locale, mode, main_sentence, correction_note, intent_answer, tokens_json, writing_task_json, ai_payload_json, created_at'
-        )
-        .eq('user_id', user.id)
-        .eq('session_id', sessionId)
-        .order('created_at', { ascending: true })
-        .limit(1200),
-      adminSupabase
-        .from('language_coach_session_memories')
-        .select('target_language, native_language, learner_level, topic_id, topic_label, learning_mode, running_summary, pinned_facts_json')
-        .eq('user_id', user.id)
-        .eq('session_id', sessionId)
-        .limit(1)
-        .maybeSingle(),
+      fetchMessagesForSessionEndPg(user.id, sessionId),
+      fetchSessionMemoryForEndPg(user.id, sessionId),
     ])
 
-    if (messagesResult.error) {
+    if (!messagesResult.ok) {
       return NextResponse.json(
-        { error: messagesResult.error.message || 'Không tải được dữ liệu buổi học để kết thúc.' },
+        { error: messagesResult.message || 'Không tải được dữ liệu buổi học để kết thúc.' },
         { status: 500 }
       )
     }
-    if (memoryResult.error) {
+    if (!memoryResult.ok) {
       return NextResponse.json(
-        { error: memoryResult.error.message || 'Không tải được memory buổi học để kết thúc.' },
+        { error: memoryResult.message || 'Không tải được memory buổi học để kết thúc.' },
         { status: 500 }
       )
     }
 
-    const rows = Array.isArray(messagesResult.data) ? messagesResult.data : []
+    const rows = messagesResult.rows
     const first = rows[0]
     const last = rows.length > 0 ? rows[rows.length - 1] : null
     const studentMessages = rows.filter((r) => r.role === 'student').length
@@ -163,24 +164,10 @@ export async function POST(request: NextRequest) {
       startedAt && endedAt
         ? Math.max(0, Math.round((new Date(endedAt).getTime() - new Date(startedAt).getTime()) / 1000))
         : 0
-    const memory = memoryResult.data as {
-      target_language?: string
-      native_language?: string
-      learner_level?: number
-      topic_id?: string
-      topic_label?: string
-      learning_mode?: string
-      running_summary?: string
-      pinned_facts_json?: string
-    } | null
+    const memory = memoryResult.row
     const isPresetSession = isPresetCopiedSession(String(memory?.pinned_facts_json || '{}'))
     const reviewDrillStats = parseReviewDrillStatsFromPinnedFacts(String(memory?.pinned_facts_json || '{}'))
-    const rowsWithoutPersonalization = rows.filter((r) => !rowHasPersonalizationSignals({
-      text: String((r as { text?: string }).text || ''),
-      main_sentence: String((r as { main_sentence?: string }).main_sentence || ''),
-      correction_note: String((r as { correction_note?: string }).correction_note || ''),
-      intent_answer: String((r as { intent_answer?: string }).intent_answer || ''),
-    }))
+    const rowsWithoutPersonalization = rows.filter((r) => !rowHasPersonalizationSignals(rowFromCoachMessage(r)))
     const replayRows = rowsWithoutPersonalization
     const summary = {
       runningSummary: String(memory?.running_summary || '').trim(),
@@ -194,18 +181,18 @@ export async function POST(request: NextRequest) {
       role: r.role,
       text: r.text,
       audioUrl: r.audio_url,
-      translation: (r as { translation?: string }).translation || null,
+      translation: r.translation || null,
       languageCode: r.language_code,
       targetLanguage: r.target_language,
       teacherLabel: r.teacher_label,
       teacherLocale: r.teacher_locale,
       mode: r.mode,
-      mainSentence: (r as { main_sentence?: string }).main_sentence || null,
-      correctionNote: (r as { correction_note?: string }).correction_note || null,
-      intentAnswer: (r as { intent_answer?: string }).intent_answer || null,
-      tokensJson: (r as { tokens_json?: string }).tokens_json || null,
-      writingTaskJson: (r as { writing_task_json?: string }).writing_task_json || null,
-      aiPayloadJson: (r as { ai_payload_json?: string }).ai_payload_json || null,
+      mainSentence: r.main_sentence || null,
+      correctionNote: r.correction_note || null,
+      intentAnswer: r.intent_answer || null,
+      tokensJson: r.tokens_json || null,
+      writingTaskJson: r.writing_task_json || null,
+      aiPayloadJson: r.ai_payload_json || null,
       createdAt: r.created_at,
     }))
 
@@ -217,104 +204,96 @@ export async function POST(request: NextRequest) {
       qualityPassed && timelineCompleted && meetsDepthGate && !isPresetSession && transcript.length > 0
 
     if (allowCompletedSave) {
-      await adminSupabase
-        .from('language_coach_preset_turns')
-        .delete()
-        .eq('source_user_id', user.id)
-        .eq('source_session_id', sessionId)
+      const delTurns = await deletePresetTurnsForSessionPg(user.id, sessionId)
+      if (!delTurns.ok) {
+        return NextResponse.json({ error: delTurns.message || 'Không xóa được preset turns cũ.' }, { status: 500 })
+      }
 
       const turnIds: string[] = []
       let turnIndex = 0
       let seenFirstTeacher = false
       for (const r of replayRows) {
         if (r.role !== 'teacher') continue
-        const reply = String((r as { text?: string }).text || '').trim().slice(0, 4000)
+        const reply = String(r.text || '').trim().slice(0, 4000)
         if (!reply) continue
         if (!seenFirstTeacher) {
           seenFirstTeacher = true
           continue
         }
-        const mainSentence = String((r as { main_sentence?: string }).main_sentence || '').trim()
-        const intentAnswer = String((r as { intent_answer?: string }).intent_answer || '').trim()
+        const mainSentence = String(r.main_sentence || '').trim()
+        const intentAnswer = String(r.intent_answer || '').trim()
         const expectedStudent = mainSentence || intentAnswer || ''
-        const { data: inserted } = await adminSupabase
-          .from('language_coach_preset_turns')
-          .insert({
-            turn_index: turnIndex,
-            source_user_id: user.id,
-            source_session_id: sessionId,
-            reply,
-            expected_student_text: expectedStudent || null,
-            main_sentence: mainSentence || null,
-            correction_note: String((r as { correction_note?: string }).correction_note || '').trim() || null,
-            intent_answer: intentAnswer || null,
-            must_know_text: (mainSentence || intentAnswer || reply).trim() || null,
-            teacher_label: String((r as { teacher_label?: string }).teacher_label || '').trim() || null,
-            teacher_locale: String((r as { teacher_locale?: string }).teacher_locale || '').trim() || null,
-            language_code: String((r as { language_code?: string }).language_code || '').trim() || null,
-            target_language: String((r as { target_language?: string }).target_language || '').trim() || null,
-            tokens_json: String((r as { tokens_json?: string }).tokens_json || '').trim() || null,
-            writing_task_json: String((r as { writing_task_json?: string }).writing_task_json || '').trim() || null,
-          })
-          .select('id')
-          .single()
-        if (inserted?.id) turnIds.push(inserted.id)
+        const inserted = await insertPresetTurnPg({
+          turnIndex,
+          sourceUserId: user.id,
+          sourceSessionId: sessionId,
+          reply,
+          expectedStudentText: expectedStudent || null,
+          mainSentence: mainSentence || null,
+          correctionNote: String(r.correction_note || '').trim() || null,
+          intentAnswer: intentAnswer || null,
+          mustKnowText: (mainSentence || intentAnswer || reply).trim() || null,
+          teacherLabel: String(r.teacher_label || '').trim() || null,
+          teacherLocale: String(r.teacher_locale || '').trim() || null,
+          languageCode: String(r.language_code || '').trim() || null,
+          targetLanguage: String(r.target_language || '').trim() || null,
+          tokensJson: String(r.tokens_json || '').trim() || null,
+          writingTaskJson: String(r.writing_task_json || '').trim() || null,
+        })
+        if (!inserted.ok) {
+          return NextResponse.json(
+            { error: inserted.message || 'Không lưu được preset turn.' },
+            { status: 500 }
+          )
+        }
+        turnIds.push(inserted.id)
         turnIndex += 1
       }
 
-      const { error: completedError } = await adminSupabase.from('language_coach_completed_lessons').upsert(
-        {
-          user_id: user.id,
-          session_id: sessionId,
-          target_language: String(memory?.target_language || first?.target_language || '').trim() || null,
-          native_language: String(memory?.native_language || '').trim() || null,
-          learner_level: Number.isFinite(Number(memory?.learner_level)) ? Math.max(0, Math.round(Number(memory?.learner_level))) : 0,
-          language_code: String(first?.language_code || '').trim() || null,
-          mode: String(first?.mode || '').trim() || null,
-          learning_mode: String(memory?.learning_mode || 'review').trim() || 'review',
-          topic_id: String(memory?.topic_id || '').trim() || null,
-          topic_label: String(memory?.topic_label || '').trim() || null,
-          teacher_label: String(first?.teacher_label || '').trim() || null,
-          teacher_locale: String(first?.teacher_locale || '').trim() || null,
-          total_messages: replayRows.length,
-          student_messages: replayRows.filter((r) => r.role === 'student').length,
-          teacher_messages: replayRows.filter((r) => r.role === 'teacher').length,
-          started_at: startedAt,
-          ended_at: endedAt,
-          duration_seconds: durationSeconds,
-          completion_reason: completionReason,
-          summary_json: JSON.stringify(summary),
-          transcript_json: JSON.stringify(transcript),
-          turn_ids: turnIds.length > 0 ? turnIds : null,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'user_id,session_id' }
-      )
-      if (completedError) {
+      const completedUpsert = await upsertCompletedLessonFromEndPg({
+        userId: user.id,
+        sessionId,
+        targetLanguage: String(memory?.target_language || first?.target_language || '').trim() || null,
+        nativeLanguage: String(memory?.native_language || '').trim() || null,
+        learnerLevel: Number.isFinite(Number(memory?.learner_level))
+          ? Math.max(0, Math.round(Number(memory?.learner_level)))
+          : 0,
+        languageCode: String(first?.language_code || '').trim() || null,
+        mode: String(first?.mode || '').trim() || null,
+        learningMode: String(memory?.learning_mode || 'review').trim() || 'review',
+        topicId: String(memory?.topic_id || '').trim() || null,
+        topicLabel: String(memory?.topic_label || '').trim() || null,
+        teacherLabel: String(first?.teacher_label || '').trim() || null,
+        teacherLocale: String(first?.teacher_locale || '').trim() || null,
+        totalMessages: replayRows.length,
+        studentMessages: replayRows.filter((r) => r.role === 'student').length,
+        teacherMessages: replayRows.filter((r) => r.role === 'teacher').length,
+        startedAt,
+        endedAt,
+        durationSeconds,
+        completionReason,
+        summaryJson: JSON.stringify(summary),
+        transcriptJson: JSON.stringify(transcript),
+        turnIds: turnIds.length > 0 ? turnIds : null,
+        updatedAtIso: new Date().toISOString(),
+      })
+      if (!completedUpsert.ok) {
         return NextResponse.json(
-          { error: completedError.message || 'Không lưu được dữ liệu buổi học hoàn thành.' },
+          { error: completedUpsert.message || 'Không lưu được dữ liệu buổi học hoàn thành.' },
           { status: 500 }
         )
       }
     } else {
-      await adminSupabase
-        .from('language_coach_completed_lessons')
-        .delete()
-        .eq('user_id', user.id)
-        .eq('session_id', sessionId)
+      const delCompleted = await deleteCompletedLessonPg(user.id, sessionId)
+      if (!delCompleted.ok) {
+        return NextResponse.json({ error: delCompleted.message || 'Không xóa được bản ghi completed.' }, { status: 500 })
+      }
     }
 
     if (markEnded) {
-      const { error } = await adminSupabase.from('language_coach_ended_sessions').upsert(
-        { user_id: user.id, session_id: sessionId },
-        { onConflict: 'user_id,session_id' }
-      )
-
-      if (error) {
-        return NextResponse.json(
-          { error: error.message || 'Không đánh dấu kết thúc được.' },
-          { status: 500 }
-        )
+      const ended = await upsertEndedSessionPg(user.id, sessionId)
+      if (!ended.ok) {
+        return NextResponse.json({ error: ended.message || 'Không đánh dấu kết thúc được.' }, { status: 500 })
       }
     }
     return NextResponse.json({ ok: true })

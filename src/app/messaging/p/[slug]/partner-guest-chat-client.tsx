@@ -11,7 +11,6 @@ import { useToast } from '@/hooks/use-toast'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
 import type { Json } from '@/types/database.types'
 import { sanitizeLoginNext } from '@/lib/auth/sanitize-login-next'
-import { createClient } from '@/lib/supabase/client'
 import { Camera, ImagePlus, Loader2, MessageSquareText, Send, Sparkles, Store, X } from 'lucide-react'
 import { aiProductCardsFromPayload } from '@/lib/messaging/partner-ai-product-cards'
 import type { PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-cards'
@@ -194,15 +193,21 @@ export function PartnerGuestChatClient({
   }, [])
 
   useEffect(() => {
-    const supabase = createClient()
-    void supabase.auth.getSession().then(({ data }) => {
-      setUserId(data.session?.user.id ?? null)
-      setAuthReady(true)
-    })
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUserId(session?.user.id ?? null)
-    })
-    return () => sub.subscription.unsubscribe()
+    let cancelled = false
+    void (async () => {
+      try {
+        const me = await fetch('/api/auth/me', { credentials: 'same-origin' })
+        const j = me.ok ? ((await me.json()) as { user?: { id?: string } }) : {}
+        if (!cancelled) setUserId(j.user?.id ?? null)
+      } catch {
+        if (!cancelled) setUserId(null)
+      } finally {
+        if (!cancelled) setAuthReady(true)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   const load = useCallback(async () => {

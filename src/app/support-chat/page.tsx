@@ -1,5 +1,4 @@
 import type { Metadata } from 'next'
-import { createClient } from '@/lib/supabase/server'
 import { getUserOrBypass } from '@/lib/auth'
 import { getCurrentWebLocale, getServerDictionary } from '@/lib/i18n/server'
 import { buildMetadata } from '@/lib/seo'
@@ -30,8 +29,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function SupportChatPage() {
-  const supabase = createClient()
-  const user = await getUserOrBypass(() => supabase.auth.getUser())
+  const user = await getUserOrBypass()
   const { t } = getServerDictionary()
 
   return (

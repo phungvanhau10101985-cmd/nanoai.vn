@@ -11,8 +11,8 @@
 --   scripts/reset-curriculum-worksheet-data.sql
 --
 -- Cách chạy:
---   Bản dành cho Dashboard (copy-paste): scripts/supabase-dashboard/xoa-bai-tap-ai.sql
---   npm run db:delete-worksheet-exercises   (Supabase CLI --linked)
+--   Bản copy-paste: scripts/db-ops-sql/xoa-bai-tap-ai.sql
+--   npm run db:delete-worksheet-exercises   (CLI project linked — xem package.json)
 --   hoặc: paste file này vào SQL Editor → Run
 --
 -- LƯU Ý: CHỈ dev/test. Đóng tab SQL khác, tắt app (npm run dev) nếu bị deadlock.

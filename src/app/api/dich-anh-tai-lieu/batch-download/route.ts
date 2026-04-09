@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
 import { getUserOrBypass } from '@/lib/auth'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import archiver from 'archiver'
 import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
+import { isPgConfigured } from '@/lib/db/pool'
+import { fetchTryOnHistoryBatchDownloadRowsPg } from '@/lib/db/translate-process-pg'
 
 /** Route Handler cho tải PDF/zip – timeout 120s (Server Action chỉ 15s trên Vercel) */
 export const maxDuration = 120
@@ -14,33 +14,28 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Thiếu batchId.' }, { status: 400 })
   }
 
-  const supabase = createClient()
-  const user = await getUserOrBypass(() => supabase.auth.getUser())
+  const user = await getUserOrBypass()
   if (!user) {
     return NextResponse.json({ error: 'Vui lòng đăng nhập.' }, { status: 401 })
   }
 
-  const adminSupabase = createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
+  if (!isPgConfigured()) {
+    return NextResponse.json({ error: 'Database not configured.' }, { status: 503 })
+  }
 
-  const { data: items } = await supabase
-    .from('try_on_history')
-    .select('id, original_image_url, result_image_url, batch_type')
-    .eq('user_id', user.id)
-    .eq('batch_id', batchId)
-    .eq('feature', 'translate')
-    .eq('status', 'completed')
-    .not('result_image_url', 'is', null)
-    .order('created_at', { ascending: true })
+  const items = await fetchTryOnHistoryBatchDownloadRowsPg(user.id, batchId)
+  if (items === null) {
+    return NextResponse.json({ error: 'Không đọc được dữ liệu lô.' }, { status: 500 })
+  }
 
-  const completed = (items ?? []).filter((x) => x.result_image_url)
+  type TryOnRow = { result_image_url?: string | null; batch_type?: string | null; original_image_url?: string | null }
+  const rows = items as TryOnRow[]
+  const completed = rows.filter((x) => x.result_image_url)
   if (completed.length === 0) {
     return NextResponse.json({ error: 'Không có ảnh đã xử lý xong để tải.' }, { status: 400 })
   }
 
-  const isPdfBatch = (items ?? []).some((x) => (x as { batch_type?: string }).batch_type === 'pdf')
+  const isPdfBatch = rows.some((x) => x.batch_type === 'pdf')
   const pagePrefix = isPdfBatch ? 'trang' : 'image'
 
   try {
@@ -71,7 +66,7 @@ export async function GET(request: NextRequest) {
       archive.finalize()
     })
     const resultZipPath = `results/${user.id}/dich_tai_lieu_${Date.now()}.zip`
-    const { publicUrl: resultZipPublicUrl } = await uploadTryOnImagePublic(adminSupabase, resultZipPath, resultZipBuffer, {
+    const { publicUrl: resultZipPublicUrl } = await uploadTryOnImagePublic(resultZipPath, resultZipBuffer, {
       contentType: 'application/zip',
       upsert: true,
     })
@@ -104,7 +99,7 @@ export async function GET(request: NextRequest) {
         archive.finalize()
       })
       const originalZipPath = `results/${user.id}/dich_tai_lieu_goc_${Date.now()}.zip`
-      const { publicUrl: originalZipPublicUrl } = await uploadTryOnImagePublic(adminSupabase, originalZipPath, originalZipBuffer, {
+      const { publicUrl: originalZipPublicUrl } = await uploadTryOnImagePublic(originalZipPath, originalZipBuffer, {
         contentType: 'application/zip',
         upsert: true,
       })

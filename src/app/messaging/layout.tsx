@@ -3,8 +3,7 @@ import Link from 'next/link'
 import { headers } from 'next/headers'
 import { getServerDictionary } from '@/lib/i18n/server'
 import { CREATION_SIDEBAR_POPULAR_LINKS } from '@/lib/creation-tool-sidebar-config'
-import { createClient } from '@/lib/supabase/server'
-import { createServiceRoleClient } from '@/lib/supabase/service-role'
+import { getUserOrBypass } from '@/lib/auth'
 import { listWidgetChatsForLinkedUser } from '@/lib/messaging/list-widget-chats-for-linked-user'
 
 export default async function MessagingLayout({ children }: { children: ReactNode }) {
@@ -20,14 +19,10 @@ export default async function MessagingLayout({ children }: { children: ReactNod
   const { t } = getServerDictionary()
   const currentSlug = pathname.startsWith('/messaging/p/') ? decodeURIComponent(pathname.replace('/messaging/p/', '')) : ''
 
-  const supabase = createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getUserOrBypass()
   let chatItems: Array<{ conversationId: string; shopName: string; slug: string; lastMessageAt: string | null }> = []
   if (user?.id) {
-    const db = createServiceRoleClient()
-    const { items } = await listWidgetChatsForLinkedUser(db, user.id)
+    const { items } = await listWidgetChatsForLinkedUser(user.id)
     chatItems = items
   }
 

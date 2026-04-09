@@ -266,23 +266,23 @@ export function PartnerDevIntegrationGuide({ baseUrl, t, partners, labels }: Pro
 </script>`
 
   const guestGet = `GET ${guestBase}
-Cookie: <supabase_auth_session>`
+Cookie: <auth_session_cookie>`
 
   const guestPost = `POST ${guestBase}
 Content-Type: application/json
-Cookie: <supabase_auth_session>
+Cookie: <auth_session_cookie>
 
 { "text": "…", "imageStoragePath": "…" }`
 
   const guestImage = `POST ${guestBase}/image
 Content-Type: multipart/form-data
-Cookie: <supabase_auth_session>
+Cookie: <auth_session_cookie>
 
 file = (image binary)`
 
   const guestVisionPick = `POST ${guestBase}/vision-pick
 Content-Type: application/json
-Cookie: <supabase_auth_session>
+Cookie: <auth_session_cookie>
 
 {
   "messageId": "<id_from_conversation>",

@@ -1,12 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-import { createClient as createServerClient } from '@/lib/supabase/server'
+import { getUserForAction } from '@/lib/auth'
+import { hasCompleteClassMemberProfileForExamPg } from '@/lib/db/classes-pg'
+import {
+  fetchExamAttemptOpenForDraftPg,
+  fetchExamQuestionsForGradingPg,
+  fetchExamSessionActiveForStudentFlowPg,
+  finalizeSubmitExamAttemptPg,
+} from '@/lib/db/exam-session-pg'
+import { isPgConfigured } from '@/lib/db/pool'
 import { verifyExamLayoutToken } from '@/lib/exam-layout-token'
 import { getExamAttemptFeedbackWithMeta } from '@/lib/exam-feedback'
-import { CLASS_ENROLLMENT_ERROR_VI, hasCompleteClassEnrollment } from '@/lib/lop/require-class-enrollment'
+import { CLASS_ENROLLMENT_ERROR_VI } from '@/lib/lop/require-class-enrollment'
 import { isValidStudentDobIso } from '@/lib/student-dob'
 import type { ExamLayoutSnapshotV1 } from '@/lib/exam-session/student-exam-layout'
-import { gradeExamFromStoredAnswers } from '@/lib/exam-session/grade-exam-from-sources'
+import {
+  gradeExamFromStoredAnswers,
+  type ExamQuestionGradeRow,
+} from '@/lib/exam-session/grade-exam-from-sources'
 import { isServerDeadlinePassed } from '@/lib/exam-session/finalize-overdue-exam-attempt'
 
 /** Nộp bài – điểm TN theo trọng số; TL chưa chấm. Một attempt / user; hết giờ server thì từ chối (tải lại để hệ thống nộp tự động). */
@@ -15,12 +25,11 @@ export async function POST(
   { params }: { params: Promise<{ code: string }> }
 ) {
   try {
-    const serverSupabase = createServerClient()
-    const { data: authData } = await serverSupabase.auth.getUser()
-    const user = authData.user
-    if (!user) {
-      return NextResponse.json({ error: 'Vui lòng đăng nhập để nộp bài thi.' }, { status: 401 })
+    const auth = await getUserForAction('Vui lòng đăng nhập để nộp bài thi.')
+    if ('error' in auth) {
+      return NextResponse.json({ error: auth.error }, { status: 401 })
     }
+    const user = auth.user
 
     const { code } = await params
     if (!code || code.length < 4) {
@@ -42,29 +51,23 @@ export async function POST(
       return NextResponse.json({ error: 'Thiếu đáp án.' }, { status: 400 })
     }
 
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      { auth: { persistSession: false } }
-    )
+    if (!isPgConfigured()) {
+      return NextResponse.json({ error: 'Chưa cấu hình cơ sở dữ liệu.' }, { status: 503 })
+    }
 
-    const { data: session, error: sessionErr } = await supabase
-      .from('exam_sessions')
-      .select('id, class_id, school_id, is_practice_homework, duration_minutes')
-      .eq('code', code.toUpperCase())
-      .eq('status', 'active')
-      .single()
-
-    if (sessionErr || !session) {
+    const sessionRow = await fetchExamSessionActiveForStudentFlowPg(code.toUpperCase())
+    if (sessionRow === null) {
+      return NextResponse.json({ error: 'Lỗi đọc bài thi.' }, { status: 500 })
+    }
+    if (sessionRow === 'not_found') {
       return NextResponse.json({ error: 'Không tìm thấy bài thi.' }, { status: 404 })
     }
 
-    const practiceHomework = Boolean((session as { is_practice_homework?: boolean }).is_practice_homework)
-    const durationMin =
-      typeof session.duration_minutes === 'number' ? session.duration_minutes : 15
+    const practiceHomework = sessionRow.is_practice_homework
+    const durationMin = sessionRow.duration_minutes
 
     const layout = await verifyExamLayoutToken(layoutToken)
-    if (!layout || layout.sessionId !== String(session.id) || layout.userId !== user.id) {
+    if (!layout || layout.sessionId !== String(sessionRow.id) || layout.userId !== user.id) {
       return NextResponse.json(
         {
           error:
@@ -74,25 +77,27 @@ export async function POST(
       )
     }
 
-    if (session.class_id) {
-      const ok = await hasCompleteClassEnrollment(supabase, String(session.class_id), user.id)
+    if (sessionRow.class_id) {
+      const ok = await hasCompleteClassMemberProfileForExamPg(String(sessionRow.class_id), user.id)
+      if (ok === null) {
+        return NextResponse.json({ error: 'Lỗi kiểm tra tham gia lớp.' }, { status: 500 })
+      }
       if (!ok) {
         return NextResponse.json({ error: CLASS_ENROLLMENT_ERROR_VI }, { status: 403 })
       }
     }
 
-    const { data: attemptRow } = await supabase
-      .from('exam_attempts')
-      .select('id, submitted_at, deadline_at, started_at')
-      .eq('session_id', session.id)
-      .eq('user_id', user.id)
-      .maybeSingle()
-
-    if (attemptRow?.submitted_at != null) {
-      return NextResponse.json({ error: 'Bạn đã nộp bài thi này rồi. Mỗi tài khoản chỉ được làm một lần.' }, { status: 409 })
+    const attemptState = await fetchExamAttemptOpenForDraftPg(sessionRow.id, user.id)
+    if (attemptState === null) {
+      return NextResponse.json({ error: 'Lỗi đọc phiên làm bài.' }, { status: 500 })
     }
-
-    if (!attemptRow?.id) {
+    if (attemptState === 'submitted') {
+      return NextResponse.json(
+        { error: 'Bạn đã nộp bài thi này rồi. Mỗi tài khoản chỉ được làm một lần.' },
+        { status: 409 }
+      )
+    }
+    if (attemptState === 'missing') {
       return NextResponse.json(
         {
           error:
@@ -101,6 +106,7 @@ export async function POST(
         { status: 400 }
       )
     }
+    const attemptRow = attemptState
 
     const serverNowMs = Date.now()
     if (
@@ -121,10 +127,13 @@ export async function POST(
       )
     }
 
-    const { data: questions } = await supabase
-      .from('exam_questions')
-      .select('id, correct_index, options, points')
-      .eq('session_id', session.id)
+    const questions = await fetchExamQuestionsForGradingPg(sessionRow.id)
+    if (questions === null) {
+      return NextResponse.json({ error: 'Lỗi đọc câu hỏi.' }, { status: 500 })
+    }
+    if (questions.length === 0) {
+      return NextResponse.json({ error: 'Bài thi chưa có câu hỏi.' }, { status: 400 })
+    }
 
     const layoutSnap: ExamLayoutSnapshotV1 = {
       v: 1,
@@ -133,7 +142,7 @@ export async function POST(
     }
 
     const graded = gradeExamFromStoredAnswers(
-      questions ?? [],
+      questions as ExamQuestionGradeRow[],
       layoutSnap,
       answers as Record<string, unknown>,
       body?.essaySubmission
@@ -145,27 +154,21 @@ export async function POST(
     const feedback = getExamAttemptFeedbackWithMeta(graded.finalScore, graded.maxScore, graded.gradingMeta)
 
     const submittedIso = new Date().toISOString()
-    const { data: updatedRows, error: updateErr } = await supabase
-      .from('exam_attempts')
-      .update({
-        student_name: studentName || null,
-        student_code: studentDob || null,
-        answers,
-        essay_submission: graded.essaySubmission,
-        score: graded.finalScore,
-        max_score: graded.maxScore,
-        grading_meta: graded.gradingMeta,
-        submitted_at: submittedIso,
-      })
-      .eq('id', attemptRow.id)
-      .is('submitted_at', null)
-      .select('id')
-
-    if (updateErr) {
-      console.error('[exam-submit] Update failed:', updateErr.message)
+    const updated = await finalizeSubmitExamAttemptPg({
+      attemptId: attemptRow.id,
+      studentName: studentName || null,
+      studentCode: studentDob || null,
+      answers,
+      essaySubmission: graded.essaySubmission,
+      score: graded.finalScore,
+      maxScore: graded.maxScore,
+      gradingMeta: graded.gradingMeta,
+      submittedIso,
+    })
+    if (updated === null) {
       return NextResponse.json({ error: 'Lưu bài làm thất bại.' }, { status: 500 })
     }
-    if (!updatedRows?.length) {
+    if (!updated) {
       return NextResponse.json(
         { error: 'Bạn đã nộp bài thi này rồi. Mỗi tài khoản chỉ được làm một lần.' },
         { status: 409 }

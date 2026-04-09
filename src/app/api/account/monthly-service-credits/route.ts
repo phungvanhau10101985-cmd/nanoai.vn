@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient as createSupabaseClient, type SupabaseClient } from '@supabase/supabase-js'
-import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
+import { isPgConfigured } from '@/lib/db/pool'
+import { pgHasLanguageCoachEventKey } from '@/lib/db/language-coach-credits-read'
 import {
   MONTHLY_SERVICE_CREDITS,
   MONTHLY_SERVICE_CHARGE_TYPES,
@@ -11,6 +11,7 @@ import {
   isValidYearMonth,
 } from '@/lib/monthly-service-credits'
 import { CREDIT_UNIT_PRICE_VND } from '@/lib/credit-unit-price'
+import { getCreditBalanceByUserId, spendCreditsIdempotent } from '@/lib/db/credits-balance'
 import {
   SERVICE_FREE_TRIAL_DAYS,
   SIGNUP_BONUS_CREDITS,
@@ -25,62 +26,42 @@ const CURRICULUM_CHARGE_TYPE = MONTHLY_SERVICE_CHARGE_TYPES.curriculum
 /** Trạng thái theo phiên đăng nhập — không cache tĩnh. */
 export const dynamic = 'force-dynamic'
 
-function tryAdminClient(): SupabaseClient | null {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!url || !key) return null
-  return createSupabaseClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } })
+async function readCreditBalance(userId: string): Promise<number> {
+  return getCreditBalanceByUserId(userId)
 }
 
-async function readCreditBalance(admin: SupabaseClient, userId: string): Promise<number> {
-  const { data, error } = await admin.from('credits').select('balance').eq('user_id', userId).maybeSingle()
-  if (error) throw new Error(error.message || 'Không đọc được số dư credits.')
-  return Number(data?.balance ?? 0)
+async function hasChargedPeriod(userId: string, eventKey: string): Promise<boolean> {
+  return pgHasLanguageCoachEventKey(userId, eventKey)
 }
 
-async function hasChargedPeriod(admin: SupabaseClient, userId: string, eventKey: string): Promise<boolean> {
-  const { count, error } = await admin
-    .from('language_coach_credit_events')
-    .select('id', { head: true, count: 'exact' })
-    .eq('user_id', userId)
-    .eq('event_key', eventKey)
-  if (error) throw new Error(error.message || 'Không đọc được trạng thái phí tháng.')
-  return (count || 0) > 0
-}
-
-async function chargeCurriculumMonthlyIdempotent(
-  admin: SupabaseClient,
-  input: { userId: string; yearMonth: string }
-) {
+async function chargeCurriculumMonthlyIdempotent(input: { userId: string; yearMonth: string }) {
   const eventKey = curriculumMonthlyEventKey(input.yearMonth, input.userId)
-  const { data, error } = await admin.rpc('spend_credits_idempotent', {
-    p_user_id: input.userId,
-    p_amount: CURRICULUM_CREDITS,
-    p_event_key: eventKey,
-    p_charge_type: CURRICULUM_CHARGE_TYPE,
-    p_session_id: null,
-    p_metadata_json: JSON.stringify({
+  const r = await spendCreditsIdempotent({
+    userId: input.userId,
+    amount: CURRICULUM_CREDITS,
+    eventKey,
+    chargeType: CURRICULUM_CHARGE_TYPE,
+    sessionId: null,
+    metadataJson: JSON.stringify({
       kind: 'monthly_service_access',
       product: 'curriculum',
       period: input.yearMonth,
       credits: CURRICULUM_CREDITS,
     }),
   })
-  if (error) throw new Error(error.message || 'Không thể trừ credits phí tháng.')
-  const row = Array.isArray(data) ? data[0] : data
   return {
-    ok: Boolean(row?.ok),
-    alreadyApplied: Boolean(row?.already_applied),
-    newBalance: Number(row?.new_balance || 0),
-    error: String(row?.error || '').trim(),
+    ok: r.ok,
+    alreadyApplied: r.alreadyApplied,
+    newBalance: r.newBalance,
+    error: r.error,
     eventKey,
     amount: CURRICULUM_CREDITS,
   }
 }
 
-function curriculumProductPayload(admin: SupabaseClient, userId: string, yearMonth: string) {
+function curriculumProductPayload(userId: string, yearMonth: string) {
   const eventKey = curriculumMonthlyEventKey(yearMonth, userId)
-  return hasChargedPeriod(admin, userId, eventKey).then((chargedThisPeriod) => ({
+  return hasChargedPeriod(userId, eventKey).then((chargedThisPeriod) => ({
     creditsRequired: CURRICULUM_CREDITS,
     estimatedVnd: estimatedVndForMonthlyCredits(CURRICULUM_CREDITS),
     chargedThisPeriod,
@@ -104,19 +85,17 @@ function parseMonthlyPostProduct(raw: string): 'curriculum' | 'legacy_english' |
  */
 export async function GET() {
   try {
-    const supabase = createClient()
-    const auth = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+    const auth = await getUserForAction()
     if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
     const yearMonth = getVietnamYearMonth()
     if (!isValidYearMonth(yearMonth)) {
       return NextResponse.json({ error: 'Không xác định được kỳ tháng.' }, { status: 500 })
     }
 
-    const admin = tryAdminClient()
-    if (!admin) {
-      return NextResponse.json({ error: 'Cấu hình máy chủ thiếu Supabase service role.' }, { status: 503 })
+    if (!isPgConfigured()) {
+      return NextResponse.json({ error: 'Cấu hình máy chủ thiếu DATABASE_URL.' }, { status: 503 })
     }
-    const curriculum = await curriculumProductPayload(admin, auth.user.id, yearMonth)
+    const curriculum = await curriculumProductPayload(auth.user.id, yearMonth)
 
     const createdAt = auth.user.created_at
     const freeTrialActive = isServiceFreeTrialActive(createdAt)
@@ -166,8 +145,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Thiếu hoặc sai product (chỉ hỗ trợ curriculum).' }, { status: 400 })
     }
 
-    const supabase = createClient()
-    const auth = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+    const auth = await getUserForAction()
     if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
 
     const yearMonth = getVietnamYearMonth()
@@ -175,14 +153,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Không xác định được kỳ tháng.' }, { status: 500 })
     }
 
-    const admin = tryAdminClient()
-    if (!admin) {
-      return NextResponse.json({ error: 'Cấu hình máy chủ thiếu Supabase service role.' }, { status: 503 })
+    if (!isPgConfigured()) {
+      return NextResponse.json({ error: 'Cấu hình máy chủ thiếu DATABASE_URL.' }, { status: 503 })
     }
 
     const createdAt = auth.user.created_at
     if (isServiceFreeTrialActive(createdAt)) {
-      const newBalance = await readCreditBalance(admin, auth.user.id)
+      const newBalance = await readCreditBalance(auth.user.id)
       return NextResponse.json({
         ok: true,
         charged: false,
@@ -196,7 +173,7 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    const charged = await chargeCurriculumMonthlyIdempotent(admin, {
+    const charged = await chargeCurriculumMonthlyIdempotent({
       userId: auth.user.id,
       yearMonth,
     })

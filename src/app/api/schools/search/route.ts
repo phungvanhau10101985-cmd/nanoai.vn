@@ -1,18 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
-import { createClient as createAdminClient } from '@supabase/supabase-js'
+import {
+  findSchoolByNormalizedName,
+  insertSchool,
+  searchSchoolsForTeacher,
+  upsertTeacherDefaultSchool,
+} from '@/lib/db/schools-repo'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_FLASH_TEXT_NO_THINKING } from '@/lib/gemini-config'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
-
-function getAdminClient() {
-  return createAdminClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false } }
-  )
-}
 
 function normalizeSchoolName(input: string): string {
   return input
@@ -98,28 +94,26 @@ Input: ${input}`
 }
 
 export async function GET(req: NextRequest) {
-  const supabase = createClient()
-  const auth = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+  const auth = await getUserForAction()
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
 
   const q = String(req.nextUrl.searchParams.get('q') ?? '').trim()
   const useAi = String(req.nextUrl.searchParams.get('ai') ?? '').trim() === '1'
   if (!q) return NextResponse.json({ items: [], canCreate: false })
 
-  const admin = getAdminClient()
   const normalized = normalizeSchoolName(q)
   const queryTokens = toSearchTokens(q)
   const firstToken = queryTokens[0] ?? normalized
-  const { data, error } = await admin
-    .from('schools')
-    .select('id, name, normalized_name, search_tokens')
-    .or(`name.ilike.%${q.replace(/[%_]/g, '')}%,search_tokens.ilike.%${firstToken.replace(/[%_]/g, '')}%`)
-    .order('name', { ascending: true })
-    .limit(80)
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  let data: Awaited<ReturnType<typeof searchSchoolsForTeacher>>
+  try {
+    data = await searchSchoolsForTeacher(q, firstToken)
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    return NextResponse.json({ error: msg }, { status: 500 })
+  }
 
   const minTokenMatch = 1
-  const filtered = (data ?? []).filter((x) => {
+  const filtered = (data || []).filter((x) => {
     const rowTokens = new Set(toSearchTokens(String(x.search_tokens || x.normalized_name || x.name || '')))
     let matched = 0
     for (const token of queryTokens) {
@@ -141,11 +135,7 @@ export async function GET(req: NextRequest) {
     aiSuggestedName = await canonicalizeSchoolNameByAi(q, auth.user?.id ?? null)
     if (aiSuggestedName) {
       const aiNorm = normalizeSchoolName(aiSuggestedName)
-      const { data: exactByAi } = await admin
-        .from('schools')
-        .select('id, name')
-        .eq('normalized_name', aiNorm)
-        .maybeSingle()
+      const exactByAi = await findSchoolByNormalizedName(aiNorm)
       if (exactByAi?.id) {
         aiMatchedExisting = {
           id: String(exactByAi.id),
@@ -169,8 +159,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const supabase = createClient()
-  const auth = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+  const auth = await getUserForAction()
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
   const { user } = auth
 
@@ -182,42 +171,30 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Tên trường quá ngắn.' }, { status: 400 })
   }
 
-  const admin = getAdminClient()
   const canonicalName = ensureSchoolPrefix(useAi ? (await canonicalizeSchoolNameByAi(name, user.id)) || name : name)
   const normalized = normalizeSchoolName(canonicalName)
   if (!normalized) return NextResponse.json({ error: 'Tên trường không hợp lệ.' }, { status: 400 })
 
   let schoolId = ''
-  const { data: existing } = await admin
-    .from('schools')
-    .select('id, name')
-    .eq('normalized_name', normalized)
-    .maybeSingle()
+  const existing = await findSchoolByNormalizedName(normalized)
   if (existing?.id) {
     schoolId = String(existing.id)
   } else {
-    const { data: inserted, error: insertErr } = await admin
-      .from('schools')
-      .insert({
-        name: ensureSchoolPrefix(canonicalName),
-        normalized_name: normalized,
-        search_tokens: normalized,
-        created_by: user.id,
-      })
-      .select('id, name')
-      .single()
-    if (insertErr || !inserted?.id) {
-      return NextResponse.json({ error: insertErr?.message ?? 'Không thể tạo trường.' }, { status: 500 })
+    const inserted = await insertSchool({
+      name: ensureSchoolPrefix(canonicalName),
+      normalizedName: normalized,
+      searchTokens: normalized,
+      createdBy: user.id,
+    })
+    if (!inserted?.id) {
+      return NextResponse.json({ error: 'Không thể tạo trường.' }, { status: 500 })
     }
     schoolId = String(inserted.id)
   }
 
   if (setAsDefault) {
-    const { error: settingErr } = await admin.from('teacher_school_settings').upsert(
-      { teacher_id: user.id, school_id: schoolId },
-      { onConflict: 'teacher_id' }
-    )
-    if (settingErr) return NextResponse.json({ error: settingErr.message }, { status: 500 })
+    const up = await upsertTeacherDefaultSchool(user.id, schoolId)
+    if (!up.ok) return NextResponse.json({ error: up.error ?? 'Không lưu trường mặc định.' }, { status: 500 })
   }
 
   return NextResponse.json({ success: true, schoolId, canonicalName: ensureSchoolPrefix(canonicalName) })

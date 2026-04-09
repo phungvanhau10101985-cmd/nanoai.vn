@@ -1,7 +1,6 @@
 import crypto from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
-import { createServiceRoleClient } from '@/lib/supabase/service-role'
-import { isReservedMessagingGuestSlug } from '@/lib/messaging/reserved-guest-slugs'
+import { resolveActiveMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
 import { readGuestSessionIdFromRequest } from '@/lib/messaging/guest-auth-session'
 import { writeGuestAccountCookie } from '@/lib/messaging/guest-account-session'
 import { mergeGuestSessionConversationToAccount } from '@/lib/messaging/guest-account-merge'
@@ -11,6 +10,15 @@ import {
   getRateLimitRetryAfterSec,
   isRateLimited,
 } from '@/lib/api/simple-ip-rate-limit'
+import {
+  consumeEmailChallengePg,
+  findGuestAccountIdByEmailPg,
+  findMagicLinkChallengePg,
+  insertGuestAccountPg,
+  updateGuestAccountLastLoginPg,
+  upsertGuestIdentityPg,
+} from '@/lib/db/messaging-guest-pg'
+import { isPgConfigured } from '@/lib/db/pool'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -25,15 +33,9 @@ function sha256(v: string) {
 }
 
 async function resolvePartner(slug: string) {
-  if (isReservedMessagingGuestSlug(slug)) return { error: 'not_found' as const }
-  const db = createServiceRoleClient()
-  const { data: partner, error } = await db
-    .from('messaging_partners')
-    .select('id, is_active')
-    .eq('slug', slug)
-    .maybeSingle()
-  if (error || !partner?.is_active) return { error: 'not_found' as const }
-  return { db, partnerId: partner.id }
+  const active = await resolveActiveMessagingPartnerBySlug(slug)
+  if (!active) return { error: 'not_found' as const }
+  return { partnerId: active.id }
 }
 
 function resolvePublicOrigin(request: NextRequest): string {
@@ -56,7 +58,11 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
   const guestChatUrl = `${publicOrigin}/messaging/p/${encodeURIComponent(slug)}`
   const p = await resolvePartner(slug)
   if ('error' in p) return NextResponse.redirect(new URL(`${guestChatUrl}?auth=failed`))
-  const { db, partnerId } = p
+  const { partnerId } = p
+
+  if (!isPgConfigured()) {
+    return NextResponse.redirect(new URL(`${guestChatUrl}?auth=failed`))
+  }
 
   const email = String(request.nextUrl.searchParams.get('email') ?? '').trim().toLowerCase()
   const token = String(request.nextUrl.searchParams.get('token') ?? '').trim()
@@ -80,66 +86,58 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
 
   const hash = sha256(`magic:${partnerId}:${email}:${token}`)
   const nowIso = new Date().toISOString()
-  const { data: row } = await db
-    .from('messaging_guest_email_challenges')
-    .select('id, expires_at, consumed_at')
-    .eq('partner_id', partnerId)
-    .eq('email_normalized', email)
-    .eq('session_id', sessionId)
-    .eq('magic_token_hash', hash)
-    .is('consumed_at', null)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
+
+  let row: { id: string; expires_at: string; consumed_at: string | null } | null = null
+  try {
+    row = await findMagicLinkChallengePg(partnerId, email, sessionId, hash)
+  } catch (e) {
+    console.warn('[verify-magic] PG challenge failed', e)
+    return NextResponse.redirect(new URL(`${guestChatUrl}?auth=failed`))
+  }
   if (!row?.id || row.expires_at < nowIso) {
     return NextResponse.redirect(new URL(`${guestChatUrl}?auth=failed`))
   }
 
-  await db.from('messaging_guest_email_challenges').update({ consumed_at: nowIso }).eq('id', row.id)
+  const consumed = await consumeEmailChallengePg(row.id, nowIso)
+  if (!consumed) {
+    return NextResponse.redirect(new URL(`${guestChatUrl}?auth=failed`))
+  }
 
-  const { data: existingAccount } = await db
-    .from('messaging_guest_accounts')
-    .select('id')
-    .eq('partner_id', partnerId)
-    .eq('email_normalized', email)
-    .maybeSingle()
-  let accountId = existingAccount?.id as string | undefined
-  if (!accountId) {
-    const { data: created } = await db
-      .from('messaging_guest_accounts')
-      .insert({
-        partner_id: partnerId,
-        email_raw: email,
-        email_normalized: email,
-        first_verified_at: nowIso,
-        last_login_at: nowIso,
+  let accountId: string | undefined
+  try {
+    let id: string | null = await findGuestAccountIdByEmailPg(partnerId, email)
+    if (!id) {
+      id = await insertGuestAccountPg({
+        partnerId,
+        emailRaw: email,
+        emailNormalized: email,
+        firstVerifiedAt: nowIso,
+        lastLoginAt: nowIso,
       })
-      .select('id')
-      .single()
-    accountId = created?.id
-  } else {
-    await db
-      .from('messaging_guest_accounts')
-      .update({ last_login_at: nowIso })
-      .eq('id', accountId)
+    } else {
+      await updateGuestAccountLastLoginPg(id, nowIso)
+    }
+    if (id) {
+      const identityOk = await upsertGuestIdentityPg({
+        partnerId,
+        guestAccountId: id,
+        provider: 'email_otp',
+        providerSubject: email,
+      })
+      if (!identityOk) {
+        return NextResponse.redirect(new URL(`${guestChatUrl}?auth=failed`))
+      }
+      accountId = id
+    }
+  } catch (e) {
+    console.warn('[verify-magic] account PG failed', e)
+    return NextResponse.redirect(new URL(`${guestChatUrl}?auth=failed`))
   }
   if (!accountId) {
     return NextResponse.redirect(new URL(`${guestChatUrl}?auth=failed`))
   }
 
-  await db
-    .from('messaging_guest_identities')
-    .upsert(
-      {
-        partner_id: partnerId,
-        guest_account_id: accountId,
-        provider: 'email_otp',
-        provider_subject: email,
-      },
-      { onConflict: 'partner_id,provider,provider_subject' }
-    )
-
-  await mergeGuestSessionConversationToAccount(db, partnerId, sessionId, accountId)
+  await mergeGuestSessionConversationToAccount(partnerId, sessionId, accountId)
 
   const redirectUrl = new URL(`${guestChatUrl}?auth=ok`)
   const res = NextResponse.redirect(redirectUrl)

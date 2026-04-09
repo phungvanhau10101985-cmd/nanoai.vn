@@ -3,65 +3,53 @@
  * Giai đoạn 2: verify từng câu, cập nhật DB nếu cần sửa.
  */
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient as createSupabaseJsClient } from '@supabase/supabase-js'
-import { createClient } from '@/lib/supabase/server'
+import { worksheetSheetExistsByIdFromPg } from '@/lib/db/worksheet-pg'
+import { isPgConfigured } from '@/lib/db/pool'
 import { getUserForAction } from '@/lib/auth'
 import { runWorksheetVerifyForSheet } from '@/lib/worksheet-verify/run-worksheet-verify-for-sheet'
 import { recordBackgroundVerifyReport } from '@/lib/worksheet-verify/record-background-verify-report'
 
-/** Client có quyền ghi verified_at / content_json bất kể owner – bắt buộc vì RLS worksheet_questions không cho UPDATE qua JWT nếu không có policy đủ rộng. */
-function getVerifySupabaseClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim()
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()
-  if (url && serviceKey) {
-    return createSupabaseJsClient(url, serviceKey)
-  }
-  return createClient()
-}
-
 export async function POST(req: NextRequest) {
   try {
-    const supabaseAuth = createClient()
-    const auth = await getUserForAction(() => supabaseAuth.auth.getUser(), 'Vui lòng đăng nhập.')
+    const auth = await getUserForAction()
     if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
-
-    const supabase = getVerifySupabaseClient()
 
     const body = await req.json().catch(() => ({}))
     const worksheetId = (body?.worksheetId as string)?.trim()
     const curriculumMarkdownParam = (body?.curriculumMarkdown as string)?.trim()
     if (!worksheetId) return NextResponse.json({ error: 'Thiếu worksheetId.' }, { status: 400 })
 
+    if (!isPgConfigured()) {
+      return NextResponse.json({ error: 'Database not configured.' }, { status: 503 })
+    }
+
     if (!process.env.GOOGLE_API_KEY?.trim()) {
       return NextResponse.json({ ok: true, skipped: true, reason: 'GOOGLE_API_KEY chưa cấu hình' })
     }
 
-    const { data: ws, error: wsErr } = await supabase
-      .from('worksheet_worksheets')
-      .select('id')
-      .eq('id', worksheetId)
-      .single()
-
-    if (wsErr || !ws) return NextResponse.json({ error: 'Không tìm thấy phiếu bài tập.' }, { status: 404 })
+    const ex = await worksheetSheetExistsByIdFromPg(worksheetId)
+    if (ex === false) {
+      return NextResponse.json({ error: 'Không tìm thấy phiếu bài tập.' }, { status: 404 })
+    }
+    if (ex === null) {
+      return NextResponse.json({ error: 'Không đọc được phiếu bài tập.' }, { status: 500 })
+    }
 
     const t0 = Date.now()
-    const stats = await runWorksheetVerifyForSheet(supabase, worksheetId, {
+    const stats = await runWorksheetVerifyForSheet(worksheetId, {
       curriculumMarkdownOverride: curriculumMarkdownParam,
     })
     const durationMs = Date.now() - t0
 
-    /** Ghi báo cáo cho trang admin (cùng bảng batch). Chỉ khi API dùng service role — user JWT không INSERT được qua RLS. */
-    if (process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()) {
-      try {
-        await recordBackgroundVerifyReport(supabase, {
-          worksheetId,
-          triggeredBy: auth.user.id,
-          stats,
-          durationMs,
-        })
-      } catch (auditErr) {
-        console.error('[worksheet-verify-background] recordBackgroundVerifyReport', auditErr)
-      }
+    try {
+      await recordBackgroundVerifyReport({
+        worksheetId,
+        triggeredBy: auth.user.id,
+        stats,
+        durationMs,
+      })
+    } catch (auditErr) {
+      console.error('[worksheet-verify-background] recordBackgroundVerifyReport', auditErr)
     }
 
     if (stats.errors.length > 0 && stats.markedVerified === 0 && stats.contentUpdates === 0) {

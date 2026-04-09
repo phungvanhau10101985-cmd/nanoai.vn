@@ -1,8 +1,41 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+import { isPgConfigured } from '@/lib/db/pool'
+import { fetchVocabCacheRowByWordTargetPg } from '@/lib/db/language-coach-vocab-cache-pg'
+import {
+  bumpLiveLessonSalesPg,
+  deleteLiveLessonTurnsByLessonIdPg,
+  fetchDailyWordForAssistPg,
+  fetchLessonForAssistWordPg,
+  fetchLessonForMatchTurnPg,
+  fetchLessonForPublishValidatePg,
+  fetchLessonForPurchasePg,
+  fetchLiveLessonByIdPg,
+  fetchLiveLessonPickRandomCandidatesPg,
+  fetchLiveLessonTurnsByIdsPg,
+  fetchLiveLessonTurnsByLessonIdOrderedPg,
+  fetchMatchTurnByIdPg,
+  fetchMatchTurnByLessonIndexPg,
+  fetchMessagesForLiveLessonCreatePg,
+  fetchPurchasedLessonIdsForUserPg,
+  fetchRecentLessonStartsPg,
+  fetchTurnDiagnosticsForSessionPg,
+  hasLiveLessonPurchasePg,
+  insertLiveLessonPurchasePg,
+  insertLiveLessonStartPg,
+  insertLiveLessonTurnsBatchPg,
+  listLiveLessonsPg,
+  type LiveLessonDetailRowPg,
+  type LiveLessonTurnInsertPg,
+  type LiveLessonTurnRowPg,
+  updateLiveLessonPublishedPg,
+  updateLiveLessonTurnIdsPg,
+  upsertDailyWordFromLiveAssistPg,
+  upsertLiveLessonDraftPg,
+} from '@/lib/db/language-coach-live-lesson-pg'
 import { getInternalBaseUrl } from '@/lib/internal-url'
+import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
+import { deductUserCredits } from '@/lib/music/deduct-user-credits'
 
 type ActionPayload = {
   action?: 'create_from_session' | 'publish' | 'purchase' | 'match_turn' | 'assist_word' | 'validate_publish' | 'pick_random'
@@ -33,10 +66,6 @@ const MIN_QUALITY_SCORE_TO_KEEP = 60
 const MIN_AUDIO_COVERAGE_TO_PUBLISH = 0.8
 const MIN_AUDIO_COVERAGE_HARD_REJECT = 0.5
 const MAX_MISSING_CORE_RATE = 0.1
-
-function adminClient() {
-  return createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-}
 
 function normalizeText(input: string): string {
   return String(input || '')
@@ -576,6 +605,37 @@ type PersistedLessonTurn = {
   replay_payload_json: string | null
 }
 
+function numOrNull(v: unknown): number | null {
+  if (v == null || v === '') return null
+  const n = Number(v)
+  return Number.isFinite(n) ? n : null
+}
+
+function liveLessonRowToPublishMeta(lesson: LiveLessonDetailRowPg): {
+  quality_score: number | null
+  turns_count: number | null
+} {
+  return {
+    quality_score: numOrNull(lesson.quality_score),
+    turns_count: numOrNull(lesson.turns_count),
+  }
+}
+
+function mapPgTurnRowsToPersisted(turns: LiveLessonTurnRowPg[]): PersistedLessonTurn[] {
+  return turns.map((t, idx) => ({
+    turn_index: Number.isFinite(Number(t.turn_index)) ? Number(t.turn_index) : idx,
+    source_student_text: t.source_student_text != null ? String(t.source_student_text) : null,
+    source_student_audio_url: t.source_student_audio_url != null ? String(t.source_student_audio_url) : null,
+    standardized_student_text: t.standardized_student_text != null ? String(t.standardized_student_text) : null,
+    teacher_reply_text: t.teacher_reply_text != null ? String(t.teacher_reply_text) : null,
+    teacher_audio_url: t.teacher_audio_url != null ? String(t.teacher_audio_url) : null,
+    teacher_main_sentence: t.teacher_main_sentence != null ? String(t.teacher_main_sentence) : null,
+    teacher_correction_note: t.teacher_correction_note != null ? String(t.teacher_correction_note) : null,
+    teacher_intent_answer: t.teacher_intent_answer != null ? String(t.teacher_intent_answer) : null,
+    replay_payload_json: t.replay_payload_json != null ? String(t.replay_payload_json) : null,
+  }))
+}
+
 function validateLessonForPublish(
   lesson: { quality_score: number | null; turns_count: number | null },
   turns: PersistedLessonTurn[]
@@ -613,9 +673,7 @@ function validateLessonForPublish(
 }
 
 async function getAuthedUser() {
-  const supabase = createClient()
-  const auth = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập để sử dụng Live lesson.')
-  return auth
+  return getUserForAction()
 }
 
 export async function GET(request: NextRequest) {
@@ -623,7 +681,9 @@ export async function GET(request: NextRequest) {
     const auth = await getAuthedUser()
     if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
     const { user } = auth
-    const adminSupabase = adminClient()
+    if (!isPgConfigured()) {
+      return NextResponse.json({ error: 'Database not configured.' }, { status: 503 })
+    }
 
     const lessonId = String(request.nextUrl.searchParams.get('lessonId') || '').trim()
     const mine = String(request.nextUrl.searchParams.get('mine') || '').trim() === '1'
@@ -637,31 +697,18 @@ export async function GET(request: NextRequest) {
     const limit = Number.isFinite(limitRaw) ? Math.min(60, Math.max(1, Math.floor(limitRaw))) : 20
 
     if (lessonId) {
-      const { data: lesson, error: lessonError } = await adminSupabase
-        .from('language_coach_live_lessons')
-        .select(
-          'id, source_user_id, title, topic_id, topic_label, target_language, native_language, learner_level, goal_type, estimated_minutes, duration_bucket, catalog_key, teacher_gender, teacher_label, teacher_locale, language_pair_key, quality_score, quality_meta_json, price_credits, turns_count, status, approved, sales_count, published_at, created_at, turn_ids'
-        )
-        .eq('id', lessonId)
-        .limit(1)
-        .maybeSingle()
-
-      if (lessonError) return NextResponse.json({ error: lessonError.message }, { status: 500 })
+      const lessonFetch = await fetchLiveLessonByIdPg(lessonId)
+      if (!lessonFetch.ok) return NextResponse.json({ error: lessonFetch.message }, { status: 500 })
+      const lesson = lessonFetch.row
       if (!lesson) return NextResponse.json({ error: 'Không tìm thấy bài Live.' }, { status: 404 })
 
-      const isOwner = lesson.source_user_id === user.id
+      const isOwner = String(lesson.source_user_id) === user.id
       const isPublished = String(lesson.status || '') === 'published'
       const isPaid = Number(lesson.price_credits || 0) > 0
       let purchased = false
 
       if (!isOwner && isPaid) {
-        const { data: owned } = await adminSupabase
-          .from('language_coach_live_lesson_purchases')
-          .select('id')
-          .eq('lesson_id', lesson.id)
-          .eq('user_id', user.id)
-          .limit(1)
-        purchased = Array.isArray(owned) && owned.length > 0
+        purchased = await hasLiveLessonPurchasePg(user.id, String(lesson.id))
       }
 
       const canAccessTurns = isOwner || (isPublished && (!isPaid || purchased))
@@ -699,9 +746,10 @@ export async function GET(request: NextRequest) {
         })
       }
 
-      const turnIdsRaw = (lesson as { turn_ids?: string[] }).turn_ids
-      const turnIds = Array.isArray(turnIdsRaw) ? turnIdsRaw.filter((id): id is string => typeof id === 'string') : []
+      const turnIdsRaw = lesson.turn_ids as string[] | null | undefined
+      const turnIds = Array.isArray(turnIdsRaw) ? turnIdsRaw.map((id) => String(id)).filter(Boolean) : []
       let turns: Array<{
+        id?: string
         turn_index?: number
         source_student_text?: string
         source_student_audio_url?: string
@@ -721,24 +769,13 @@ export async function GET(request: NextRequest) {
       }> = []
 
       if (turnIds.length > 0) {
-        const { data: turnRows, error: turnsErr } = await adminSupabase
-          .from('language_coach_live_lesson_turns')
-          .select(
-            'id, turn_index, source_student_text, source_student_audio_url, source_student_client_message_id, source_student_db_message_id, standardized_student_text, teacher_reply_text, teacher_audio_url, teacher_translation, teacher_tokens_json, teacher_writing_task_json, teacher_main_sentence, teacher_correction_note, teacher_intent_answer, teacher_db_message_id, replay_payload_json'
-          )
-          .in('id', turnIds)
-        if (turnsErr) return NextResponse.json({ error: turnsErr.message }, { status: 500 })
-        turns = (turnRows || []).sort((a, b) => turnIds.indexOf(a.id) - turnIds.indexOf(b.id))
+        const turnRes = await fetchLiveLessonTurnsByIdsPg(turnIds)
+        if (!turnRes.ok) return NextResponse.json({ error: turnRes.message }, { status: 500 })
+        turns = turnRes.rows.sort((a, b) => turnIds.indexOf(String(a.id)) - turnIds.indexOf(String(b.id))) as typeof turns
       } else {
-        const { data: turnRows, error: turnsErr } = await adminSupabase
-          .from('language_coach_live_lesson_turns')
-          .select(
-            'turn_index, source_student_text, source_student_audio_url, source_student_client_message_id, source_student_db_message_id, standardized_student_text, teacher_reply_text, teacher_audio_url, teacher_translation, teacher_tokens_json, teacher_writing_task_json, teacher_main_sentence, teacher_correction_note, teacher_intent_answer, teacher_db_message_id, replay_payload_json'
-          )
-          .eq('lesson_id', lesson.id)
-          .order('turn_index', { ascending: true })
-        if (turnsErr) return NextResponse.json({ error: turnsErr.message }, { status: 500 })
-        turns = turnRows || []
+        const turnRes = await fetchLiveLessonTurnsByLessonIdOrderedPg(String(lesson.id))
+        if (!turnRes.ok) return NextResponse.json({ error: turnRes.message }, { status: 500 })
+        turns = turnRes.rows as typeof turns
       }
 
       return NextResponse.json({
@@ -792,41 +829,29 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    let query = adminSupabase
-      .from('language_coach_live_lessons')
-      .select(
-        'id, source_user_id, title, topic_id, topic_label, target_language, native_language, learner_level, goal_type, estimated_minutes, duration_bucket, catalog_key, teacher_gender, teacher_label, teacher_locale, language_pair_key, quality_score, price_credits, turns_count, status, approved, sales_count, published_at, created_at'
-      )
-      .order('published_at', { ascending: false })
-      .order('created_at', { ascending: false })
-      .limit(limit)
-
-    if (mine) {
-      query = query.eq('source_user_id', user.id)
-    } else {
-      query = query.eq('status', 'published')
-      if (topicId) query = query.eq('topic_id', topicId)
-      if (targetLanguage) query = query.eq('target_language', targetLanguage)
-      if (nativeLanguage) query = query.eq('native_language', nativeLanguage)
-      if (goalType) query = query.eq('goal_type', goalType)
-      if (durationBucket === 'short' || durationBucket === 'medium' || durationBucket === 'long') {
-        query = query.eq('duration_bucket', durationBucket)
-      }
-      if (learnerLevel != null) query = query.eq('learner_level', learnerLevel)
-    }
-
-    const { data: lessons, error: listError } = await query
-    if (listError) return NextResponse.json({ error: listError.message }, { status: 500 })
+    const listRes = await listLiveLessonsPg({
+      limit,
+      userId: user.id,
+      mine,
+      topicId: topicId || undefined,
+      targetLanguage: targetLanguage || undefined,
+      nativeLanguage: nativeLanguage || undefined,
+      goalType: goalType || undefined,
+      durationBucket:
+        durationBucket === 'short' || durationBucket === 'medium' || durationBucket === 'long'
+          ? durationBucket
+          : undefined,
+      learnerLevel,
+    })
+    if (!listRes.ok) return NextResponse.json({ error: listRes.message }, { status: 500 })
+    const lessons = listRes.rows
 
     const lessonIds = (lessons || []).map((x) => String(x.id || '')).filter(Boolean)
     let purchasedSet = new Set<string>()
     if (lessonIds.length > 0) {
-      const { data: purchasedRows } = await adminSupabase
-        .from('language_coach_live_lesson_purchases')
-        .select('lesson_id')
-        .eq('user_id', user.id)
-        .in('lesson_id', lessonIds)
-      purchasedSet = new Set((purchasedRows || []).map((x) => String(x.lesson_id || '')))
+      const pur = await fetchPurchasedLessonIdsForUserPg(user.id, lessonIds)
+      if (!pur.ok) return NextResponse.json({ error: pur.message }, { status: 500 })
+      purchasedSet = pur.ids
     }
 
     return NextResponse.json({
@@ -869,40 +894,28 @@ export async function POST(request: NextRequest) {
     const auth = await getAuthedUser()
     if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
     const { user } = auth
+    if (!isPgConfigured()) {
+      return NextResponse.json({ error: 'Database not configured.' }, { status: 503 })
+    }
     const payload = (await request.json()) as ActionPayload
     const action = payload.action
-    const adminSupabase = adminClient()
 
     if (action === 'create_from_session') {
       const sessionId = String(payload.sessionId || '').trim()
       if (!sessionId) return NextResponse.json({ error: 'Thiếu sessionId.' }, { status: 400 })
 
       const [rowsResult, diagnosticsResult] = await Promise.all([
-        adminSupabase
-          .from('language_coach_messages')
-          .select('id, client_message_id, role, text, audio_url, translation, main_sentence, correction_note, intent_answer, tokens_json, writing_task_json, ai_payload_json, teacher_label, teacher_locale, target_language')
-          .eq('user_id', user.id)
-          .eq('session_id', sessionId)
-          .order('created_at', { ascending: true })
-          .limit(500),
-        adminSupabase
-          .from('language_coach_turn_diagnostics')
-          .select(
-            'input_source, speaking_mode, had_corrections, pronunciation_score, pronunciation_accuracy, pronunciation_fluency, pronunciation_prosody, weak_words_json, word_scores_json, inferred_meaning, target_transcript, native_transcript, merged_transcript, created_at'
-          )
-          .eq('user_id', user.id)
-          .eq('session_id', sessionId)
-          .order('created_at', { ascending: true })
-          .limit(1200),
+        fetchMessagesForLiveLessonCreatePg(user.id, sessionId),
+        fetchTurnDiagnosticsForSessionPg(user.id, sessionId),
       ])
 
-      if (rowsResult.error) return NextResponse.json({ error: rowsResult.error.message }, { status: 500 })
-      if (diagnosticsResult.error) return NextResponse.json({ error: diagnosticsResult.error.message }, { status: 500 })
+      if (!rowsResult.ok) return NextResponse.json({ error: rowsResult.message }, { status: 500 })
+      if (!diagnosticsResult.ok) return NextResponse.json({ error: diagnosticsResult.message }, { status: 500 })
 
-      const rows = rowsResult.data || []
+      const rows = rowsResult.rows
       const studentDiagnosticsByMessageId = mapDiagnosticsToStudentMessages(
         rows as Array<{ id: string; role: string; text: string | null }>,
-        (diagnosticsResult.data || []) as RawTurnDiagnosticsRow[]
+        diagnosticsResult.rows as RawTurnDiagnosticsRow[]
       )
       const turns = buildTurns(rows, studentDiagnosticsByMessageId)
       if (turns.length < MIN_TURNS_TO_SELL) {
@@ -975,83 +988,72 @@ export async function POST(request: NextRequest) {
           ? Math.round(priceCreditsRaw * 10) / 10
           : 1
 
-      const { data: lesson, error: upsertError } = await adminSupabase
-        .from('language_coach_live_lessons')
-        .upsert(
-          {
-            source_user_id: user.id,
-            source_session_id: sessionId,
-            title,
-            topic_id: topicId,
-            topic_label: topicLabel,
-            target_language: targetLanguage,
-            native_language: nativeLanguage,
-            learner_level: learnerLevel,
-            goal_type: goalType,
-            estimated_minutes: estimatedMinutes,
-            duration_bucket: durationBucket,
-            catalog_key: catalogKey,
-            teacher_gender: teacherGender,
-            teacher_label: teacherLabel,
-            teacher_locale: teacherLocale,
-            language_pair_key: languagePairKey,
-            quality_score: qualityEvaluation.qualityScore,
-            quality_meta_json: JSON.stringify({
-              ...scoring.qualityMeta,
-              qualityMetrics: qualityEvaluation.metrics,
-              hardRejectReasons: qualityEvaluation.hardRejectReasons,
-              publishIssues: qualityEvaluation.publishIssues,
-            }),
-            price_credits: priceCredits,
-            turns_count: turns.length,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: 'source_user_id,source_session_id' }
-        )
-        .select('id, status, approved')
-        .single()
+      const nowUpsert = new Date().toISOString()
+      const lessonUpsert = await upsertLiveLessonDraftPg({
+        sourceUserId: user.id,
+        sourceSessionId: sessionId,
+        title,
+        topicId,
+        topicLabel,
+        targetLanguage,
+        nativeLanguage,
+        learnerLevel,
+        goalType,
+        estimatedMinutes,
+        durationBucket,
+        catalogKey,
+        teacherGender,
+        teacherLabel,
+        teacherLocale,
+        languagePairKey,
+        qualityScore: qualityEvaluation.qualityScore,
+        qualityMetaJson: JSON.stringify({
+          ...scoring.qualityMeta,
+          qualityMetrics: qualityEvaluation.metrics,
+          hardRejectReasons: qualityEvaluation.hardRejectReasons,
+          publishIssues: qualityEvaluation.publishIssues,
+        }),
+        priceCredits,
+        turnsCount: turns.length,
+        updatedAtIso: nowUpsert,
+      })
 
-      if (upsertError || !lesson) {
-        return NextResponse.json({ error: upsertError?.message || 'Không lưu được bài Live.' }, { status: 500 })
+      if (!lessonUpsert.ok) {
+        return NextResponse.json({ error: 'Không lưu được bài Live.' }, { status: 500 })
       }
+      const lesson = { id: lessonUpsert.id, status: lessonUpsert.status, approved: lessonUpsert.approved }
 
-      await adminSupabase.from('language_coach_live_lesson_turns').delete().eq('lesson_id', lesson.id)
+      const delTurns = await deleteLiveLessonTurnsByLessonIdPg(lesson.id)
+      if (!delTurns.ok) return NextResponse.json({ error: delTurns.message }, { status: 500 })
 
-      const { data: insertedTurns, error: insertTurnsError } = await adminSupabase
-        .from('language_coach_live_lesson_turns')
-        .insert(
-          turns.map((t, index) => ({
-            lesson_id: lesson.id,
-            turn_index: index,
-            source_student_db_message_id: t.sourceStudentDbMessageId,
-            source_student_client_message_id: t.sourceStudentClientMessageId,
-            source_student_text: t.sourceStudentText,
-            source_student_norm: t.sourceStudentNorm,
-            source_student_audio_url: t.sourceStudentAudioUrl,
-            standardized_student_text: t.standardizedStudentText,
-            standardized_student_norm: t.standardizedStudentNorm,
-            teacher_db_message_id: t.teacherDbMessageId,
-            teacher_reply_text: t.teacherReplyText,
-            teacher_audio_url: t.teacherAudioUrl,
-            teacher_translation: t.teacherTranslation,
-            teacher_tokens_json: t.teacherTokensJson,
-            teacher_writing_task_json: t.teacherWritingTaskJson,
-            teacher_main_sentence: t.teacherMainSentence,
-            teacher_correction_note: t.teacherCorrectionNote,
-            teacher_intent_answer: t.teacherIntentAnswer,
-            replay_payload_json: t.replayPayloadJson,
-          }))
-        )
-        .select('id')
+      const turnPayload: LiveLessonTurnInsertPg[] = turns.map((t, index) => ({
+        turnIndex: index,
+        sourceStudentDbMessageId: t.sourceStudentDbMessageId,
+        sourceStudentClientMessageId: t.sourceStudentClientMessageId,
+        sourceStudentText: t.sourceStudentText,
+        sourceStudentNorm: t.sourceStudentNorm,
+        sourceStudentAudioUrl: t.sourceStudentAudioUrl,
+        standardizedStudentText: t.standardizedStudentText,
+        standardizedStudentNorm: t.standardizedStudentNorm,
+        teacherDbMessageId: t.teacherDbMessageId,
+        teacherReplyText: t.teacherReplyText,
+        teacherAudioUrl: t.teacherAudioUrl,
+        teacherTranslation: t.teacherTranslation,
+        teacherTokensJson: t.teacherTokensJson,
+        teacherWritingTaskJson: t.teacherWritingTaskJson,
+        teacherMainSentence: t.teacherMainSentence,
+        teacherCorrectionNote: t.teacherCorrectionNote,
+        teacherIntentAnswer: t.teacherIntentAnswer,
+        replayPayloadJson: t.replayPayloadJson,
+      }))
 
-      if (insertTurnsError) return NextResponse.json({ error: insertTurnsError.message }, { status: 500 })
+      const insertedBatch = await insertLiveLessonTurnsBatchPg(lesson.id, turnPayload)
+      if (!insertedBatch.ok) return NextResponse.json({ error: insertedBatch.message }, { status: 500 })
 
-      const turnIds = (insertedTurns || []).map((r) => String(r.id || '')).filter(Boolean)
+      const turnIds = insertedBatch.ids
       if (turnIds.length > 0) {
-        await adminSupabase
-          .from('language_coach_live_lessons')
-          .update({ turn_ids: turnIds, updated_at: new Date().toISOString() })
-          .eq('id', lesson.id)
+        const updIds = await updateLiveLessonTurnIdsPg(lesson.id, turnIds, new Date().toISOString())
+        if (!updIds.ok) return NextResponse.json({ error: updIds.message }, { status: 500 })
       }
 
       const qa = validateLessonForPublish(
@@ -1087,24 +1089,17 @@ export async function POST(request: NextRequest) {
       const lessonId = String(payload.lessonId || '').trim()
       if (!lessonId) return NextResponse.json({ error: 'Thiếu lessonId.' }, { status: 400 })
 
-      const { data: lesson, error: lessonError } = await adminSupabase
-        .from('language_coach_live_lessons')
-        .select('id, source_user_id, quality_score, turns_count, status')
-        .eq('id', lessonId)
-        .limit(1)
-        .maybeSingle()
-      if (lessonError) return NextResponse.json({ error: lessonError.message }, { status: 500 })
+      const lessonFetch = await fetchLessonForPublishValidatePg(lessonId)
+      if (!lessonFetch.ok) return NextResponse.json({ error: lessonFetch.message }, { status: 500 })
+      const lesson = lessonFetch.row
       if (!lesson) return NextResponse.json({ error: 'Không tìm thấy bài Live.' }, { status: 404 })
-      if (lesson.source_user_id !== user.id) return NextResponse.json({ error: 'Bạn không có quyền kiểm tra bài này.' }, { status: 403 })
+      if (String(lesson.source_user_id) !== user.id) return NextResponse.json({ error: 'Bạn không có quyền kiểm tra bài này.' }, { status: 403 })
 
-      const { data: turns, error: turnsError } = await adminSupabase
-        .from('language_coach_live_lesson_turns')
-        .select('turn_index, source_student_text, source_student_audio_url, standardized_student_text, teacher_reply_text, teacher_audio_url, teacher_main_sentence, teacher_correction_note, teacher_intent_answer, replay_payload_json')
-        .eq('lesson_id', lesson.id)
-        .order('turn_index', { ascending: true })
-      if (turnsError) return NextResponse.json({ error: turnsError.message }, { status: 500 })
+      const turnsFetch = await fetchLiveLessonTurnsByLessonIdOrderedPg(String(lesson.id))
+      if (!turnsFetch.ok) return NextResponse.json({ error: turnsFetch.message }, { status: 500 })
+      const turns = turnsFetch.rows
 
-      const qa = validateLessonForPublish(lesson, (turns || []) as PersistedLessonTurn[])
+      const qa = validateLessonForPublish(liveLessonRowToPublishMeta(lesson), mapPgTurnRowsToPersisted(turns || []))
       return NextResponse.json({
         lessonId: lesson.id,
         ok: qa.ok,
@@ -1131,26 +1126,16 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      let query = adminSupabase
-        .from('language_coach_live_lessons')
-        .select(
-          'id, title, topic_id, topic_label, target_language, native_language, learner_level, goal_type, estimated_minutes, duration_bucket, catalog_key, quality_score, price_credits, turns_count, sales_count'
-        )
-        .eq('status', 'published')
-        .eq('target_language', targetLanguage)
-        .eq('native_language', nativeLanguage)
-        .eq('topic_id', topicId)
-        .eq('learner_level', learnerLevel)
-        .gte('quality_score', MIN_QUALITY_SCORE_TO_PUBLISH)
-        .order('quality_score', { ascending: false })
-        .order('sales_count', { ascending: false })
-        .limit(60)
-
-      if (goalType) query = query.eq('goal_type', goalType)
-      if (durationBucket) query = query.eq('duration_bucket', durationBucket)
-
-      const { data: candidates, error: candidatesError } = await query
-      if (candidatesError) return NextResponse.json({ error: candidatesError.message }, { status: 500 })
+      const candRes = await fetchLiveLessonPickRandomCandidatesPg({
+        targetLanguage,
+        nativeLanguage,
+        topicId,
+        learnerLevel,
+        goalType: goalType || undefined,
+        durationBucket: durationBucket || undefined,
+      })
+      if (!candRes.ok) return NextResponse.json({ error: candRes.message }, { status: 500 })
+      const candidates = candRes.rows
       if (!Array.isArray(candidates) || candidates.length === 0) {
         return NextResponse.json({
           found: false,
@@ -1160,24 +1145,17 @@ export async function POST(request: NextRequest) {
       }
 
       const candidateIds = candidates.map((c) => String(c.id))
-      const { data: recentStarts } = await adminSupabase
-        .from('language_coach_live_lesson_starts')
-        .select('lesson_id')
-        .eq('user_id', user.id)
-        .in('lesson_id', candidateIds)
-        .order('started_at', { ascending: false })
-        .limit(8)
-      const recentlyStartedSet = new Set((recentStarts || []).map((x) => String(x.lesson_id || '')))
+      const recentRes = await fetchRecentLessonStartsPg(user.id, candidateIds)
+      if (!recentRes.ok) return NextResponse.json({ error: recentRes.message }, { status: 500 })
+      const recentlyStartedSet = new Set(recentRes.lessonIds)
 
       let pool = candidates.filter((c) => !recentlyStartedSet.has(String(c.id)))
       if (pool.length === 0) pool = candidates
       const topPool = pool.slice(0, Math.min(30, pool.length))
       const selected = topPool[Math.floor(Math.random() * topPool.length)]
 
-      await adminSupabase.from('language_coach_live_lesson_starts').insert({
-        lesson_id: selected.id,
-        user_id: user.id,
-      })
+      const startIns = await insertLiveLessonStartPg(String(selected.id), user.id)
+      if (!startIns.ok) return NextResponse.json({ error: startIns.message }, { status: 500 })
 
       return NextResponse.json({
         found: true,
@@ -1206,23 +1184,16 @@ export async function POST(request: NextRequest) {
       const lessonId = String(payload.lessonId || '').trim()
       if (!lessonId) return NextResponse.json({ error: 'Thiếu lessonId.' }, { status: 400 })
 
-      const { data: lesson, error: lessonError } = await adminSupabase
-        .from('language_coach_live_lessons')
-        .select('id, source_user_id, quality_score, turns_count, status')
-        .eq('id', lessonId)
-        .limit(1)
-        .maybeSingle()
-      if (lessonError) return NextResponse.json({ error: lessonError.message }, { status: 500 })
+      const lessonFetch = await fetchLessonForPublishValidatePg(lessonId)
+      if (!lessonFetch.ok) return NextResponse.json({ error: lessonFetch.message }, { status: 500 })
+      const lesson = lessonFetch.row
       if (!lesson) return NextResponse.json({ error: 'Không tìm thấy bài Live.' }, { status: 404 })
-      if (lesson.source_user_id !== user.id) return NextResponse.json({ error: 'Bạn không có quyền duyệt bài này.' }, { status: 403 })
-      const { data: turns, error: turnsError } = await adminSupabase
-        .from('language_coach_live_lesson_turns')
-        .select('turn_index, source_student_text, source_student_audio_url, standardized_student_text, teacher_reply_text, teacher_audio_url, teacher_main_sentence, teacher_correction_note, teacher_intent_answer, replay_payload_json')
-        .eq('lesson_id', lesson.id)
-        .order('turn_index', { ascending: true })
-      if (turnsError) return NextResponse.json({ error: turnsError.message }, { status: 500 })
+      if (String(lesson.source_user_id) !== user.id) return NextResponse.json({ error: 'Bạn không có quyền duyệt bài này.' }, { status: 403 })
+      const turnsFetch = await fetchLiveLessonTurnsByLessonIdOrderedPg(String(lesson.id))
+      if (!turnsFetch.ok) return NextResponse.json({ error: turnsFetch.message }, { status: 500 })
+      const turns = turnsFetch.rows
 
-      const qa = validateLessonForPublish(lesson, (turns || []) as PersistedLessonTurn[])
+      const qa = validateLessonForPublish(liveLessonRowToPublishMeta(lesson), mapPgTurnRowsToPersisted(turns || []))
       if (!qa.ok) {
         return NextResponse.json(
           {
@@ -1235,16 +1206,8 @@ export async function POST(request: NextRequest) {
       }
 
       const nowIso = new Date().toISOString()
-      const { error: publishError } = await adminSupabase
-        .from('language_coach_live_lessons')
-        .update({
-          status: 'published',
-          approved: true,
-          published_at: nowIso,
-          updated_at: nowIso,
-        })
-        .eq('id', lesson.id)
-      if (publishError) return NextResponse.json({ error: publishError.message }, { status: 500 })
+      const pub = await updateLiveLessonPublishedPg(String(lesson.id), nowIso)
+      if (!pub.ok) return NextResponse.json({ error: pub.message }, { status: 500 })
 
       return NextResponse.json({ ok: true, lessonId: lesson.id, status: 'published' })
     }
@@ -1253,66 +1216,47 @@ export async function POST(request: NextRequest) {
       const lessonId = String(payload.lessonId || '').trim()
       if (!lessonId) return NextResponse.json({ error: 'Thiếu lessonId.' }, { status: 400 })
 
-      const { data: lesson, error: lessonError } = await adminSupabase
-        .from('language_coach_live_lessons')
-        .select('id, source_user_id, title, price_credits, status, sales_count')
-        .eq('id', lessonId)
-        .eq('status', 'published')
-        .limit(1)
-        .maybeSingle()
-      if (lessonError) return NextResponse.json({ error: lessonError.message }, { status: 500 })
+      const lessonFetch = await fetchLessonForPurchasePg(lessonId)
+      if (!lessonFetch.ok) return NextResponse.json({ error: lessonFetch.message }, { status: 500 })
+      const lesson = lessonFetch.row
       if (!lesson) return NextResponse.json({ error: 'Bài Live chưa được mở bán.' }, { status: 404 })
 
-      const isOwner = lesson.source_user_id === user.id
+      const isOwner = String(lesson.source_user_id) === user.id
       if (isOwner) return NextResponse.json({ ok: true, purchased: true, ownerAccess: true })
 
-      const { data: existing } = await adminSupabase
-        .from('language_coach_live_lesson_purchases')
-        .select('id')
-        .eq('lesson_id', lesson.id)
-        .eq('user_id', user.id)
-        .limit(1)
-      if (Array.isArray(existing) && existing.length > 0) {
+      const already = await hasLiveLessonPurchasePg(user.id, String(lesson.id))
+      if (already) {
         return NextResponse.json({ ok: true, purchased: true, alreadyOwned: true })
       }
 
       const priceCredits = Math.max(0, Number(lesson.price_credits || 0))
       if (priceCredits > 0) {
-        const { data: creditData, error: creditError } = await adminSupabase
-          .from('credits')
-          .select('balance')
-          .eq('user_id', user.id)
-          .single()
-        if (creditError || !creditData) return NextResponse.json({ error: 'Không đọc được số dư credits.' }, { status: 500 })
-        if (Number(creditData.balance) < priceCredits) {
-          return NextResponse.json(
-            {
-              error: `Không đủ credits. Cần ${priceCredits}, hiện có ${Number(creditData.balance).toFixed(1)}.`,
-            },
-            { status: 400 }
-          )
+        const d = await deductUserCredits(user.id, priceCredits)
+        if (!d.ok) {
+          if (d.code === 'INSUFFICIENT_CREDITS') {
+            let bal = 0
+            try {
+              bal = await getCreditBalanceByUserId(user.id)
+            } catch {
+              /* ignore */
+            }
+            return NextResponse.json(
+              {
+                error: `Không đủ credits. Cần ${priceCredits}, hiện có ${bal.toFixed(1)}.`,
+              },
+              { status: 400 }
+            )
+          }
+          return NextResponse.json({ error: d.error || 'Trừ credits thất bại.' }, { status: 500 })
         }
-        const newBalance = Math.round((Number(creditData.balance) - priceCredits) * 10) / 10
-        const { error: updateCreditError } = await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', user.id)
-        if (updateCreditError) return NextResponse.json({ error: 'Trừ credits thất bại.' }, { status: 500 })
       }
 
-      const { error: purchaseError } = await adminSupabase.from('language_coach_live_lesson_purchases').insert({
-        lesson_id: lesson.id,
-        user_id: user.id,
-        paid_credits: priceCredits,
-      })
-      if (purchaseError) return NextResponse.json({ error: purchaseError.message }, { status: 500 })
+      const purchaseIns = await insertLiveLessonPurchasePg(String(lesson.id), user.id, priceCredits)
+      if (!purchaseIns.ok) return NextResponse.json({ error: purchaseIns.message }, { status: 500 })
 
       const nowIso = new Date().toISOString()
-      await adminSupabase
-        .from('language_coach_live_lessons')
-        .update({
-          sales_count: Number(lesson.sales_count || 0) + 1,
-          last_sold_at: nowIso,
-          updated_at: nowIso,
-        })
-        .eq('id', lesson.id)
+      const bump = await bumpLiveLessonSalesPg(String(lesson.id), Number(lesson.sales_count || 0) + 1, nowIso)
+      if (!bump.ok) return NextResponse.json({ error: bump.message }, { status: 500 })
 
       return NextResponse.json({ ok: true, purchased: true, lessonId: lesson.id, paidCredits: priceCredits })
     }
@@ -1338,26 +1282,16 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      const { data: lesson, error: lessonError } = await adminSupabase
-        .from('language_coach_live_lessons')
-        .select('id, source_user_id, topic_id, target_language, native_language, teacher_gender, teacher_label, teacher_locale, price_credits, turns_count, status, turn_ids')
-        .eq('id', lessonId)
-        .limit(1)
-        .maybeSingle()
-      if (lessonError) return NextResponse.json({ error: lessonError.message }, { status: 500 })
+      const lessonFetch = await fetchLessonForMatchTurnPg(lessonId)
+      if (!lessonFetch.ok) return NextResponse.json({ error: lessonFetch.message }, { status: 500 })
+      const lesson = lessonFetch.row
       if (!lesson || String(lesson.status) !== 'published') return NextResponse.json({ error: 'Bài Live chưa sẵn sàng.' }, { status: 404 })
 
-      const isOwner = lesson.source_user_id === user.id
+      const isOwner = String(lesson.source_user_id) === user.id
       const isPaid = Number(lesson.price_credits || 0) > 0
       let purchased = false
       if (!isOwner && isPaid) {
-        const { data: owned } = await adminSupabase
-          .from('language_coach_live_lesson_purchases')
-          .select('id')
-          .eq('lesson_id', lesson.id)
-          .eq('user_id', user.id)
-          .limit(1)
-        purchased = Array.isArray(owned) && owned.length > 0
+        purchased = await hasLiveLessonPurchasePg(user.id, String(lesson.id))
       }
       if (!isOwner && isPaid && !purchased) {
         return NextResponse.json({ error: 'Bạn cần mua bài Live trước khi học.' }, { status: 403 })
@@ -1401,7 +1335,7 @@ export async function POST(request: NextRequest) {
         : []
       const turnId = matchTurnIds.length > turnIndex ? matchTurnIds[turnIndex] : null
 
-      let turn: {
+      type MatchTurnRow = {
         turn_index?: number
         source_student_text?: string
         standardized_student_text?: string
@@ -1415,31 +1349,18 @@ export async function POST(request: NextRequest) {
         teacher_correction_note?: string
         teacher_intent_answer?: string
         replay_payload_json?: string
-      } | null = null
+      }
+
+      let turn: MatchTurnRow | null = null
 
       if (turnId) {
-        const { data: t, error: turnErr } = await adminSupabase
-          .from('language_coach_live_lesson_turns')
-          .select(
-            'turn_index, source_student_text, standardized_student_text, standardized_student_norm, teacher_reply_text, teacher_audio_url, teacher_translation, teacher_tokens_json, teacher_writing_task_json, teacher_main_sentence, teacher_correction_note, teacher_intent_answer, replay_payload_json'
-          )
-          .eq('id', turnId)
-          .limit(1)
-          .maybeSingle()
-        if (!turnErr) turn = t
+        const tRes = await fetchMatchTurnByIdPg(turnId)
+        if (tRes.ok && tRes.row) turn = tRes.row as MatchTurnRow
       }
       if (!turn) {
-        const { data: t, error: turnErr } = await adminSupabase
-          .from('language_coach_live_lesson_turns')
-          .select(
-            'turn_index, source_student_text, standardized_student_text, standardized_student_norm, teacher_reply_text, teacher_audio_url, teacher_translation, teacher_tokens_json, teacher_writing_task_json, teacher_main_sentence, teacher_correction_note, teacher_intent_answer, replay_payload_json'
-          )
-          .eq('lesson_id', lesson.id)
-          .eq('turn_index', turnIndex)
-          .limit(1)
-          .maybeSingle()
-        if (turnErr) return NextResponse.json({ error: turnErr.message }, { status: 500 })
-        turn = t
+        const tRes = await fetchMatchTurnByLessonIndexPg(String(lesson.id), turnIndex)
+        if (!tRes.ok) return NextResponse.json({ error: tRes.message }, { status: 500 })
+        turn = tRes.row ? (tRes.row as MatchTurnRow) : null
       }
       if (!turn) return NextResponse.json({ error: 'Không tìm thấy lượt học.' }, { status: 404 })
 
@@ -1493,28 +1414,18 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Thiếu lessonId hoặc word.' }, { status: 400 })
       }
 
-      const { data: lesson, error: lessonError } = await adminSupabase
-        .from('language_coach_live_lessons')
-        .select('id, source_user_id, target_language, native_language, price_credits, status')
-        .eq('id', lessonId)
-        .limit(1)
-        .maybeSingle()
-      if (lessonError) return NextResponse.json({ error: lessonError.message }, { status: 500 })
+      const assistLesson = await fetchLessonForAssistWordPg(lessonId)
+      if (!assistLesson.ok) return NextResponse.json({ error: assistLesson.message }, { status: 500 })
+      const lesson = assistLesson.row
       if (!lesson || String(lesson.status) !== 'published') {
         return NextResponse.json({ error: 'Bài Live chưa sẵn sàng để tra từ.' }, { status: 404 })
       }
 
-      const isOwner = lesson.source_user_id === user.id
+      const isOwner = String(lesson.source_user_id) === user.id
       const isPaid = Number(lesson.price_credits || 0) > 0
       let purchased = false
       if (!isOwner && isPaid) {
-        const { data: owned } = await adminSupabase
-          .from('language_coach_live_lesson_purchases')
-          .select('id')
-          .eq('lesson_id', lesson.id)
-          .eq('user_id', user.id)
-          .limit(1)
-        purchased = Array.isArray(owned) && owned.length > 0
+        purchased = await hasLiveLessonPurchasePg(user.id, String(lesson.id))
       }
       if (!isOwner && isPaid && !purchased) {
         return NextResponse.json({ error: 'Bạn cần mua bài Live trước khi dùng trợ lý từ mới.' }, { status: 403 })
@@ -1525,18 +1436,9 @@ export async function POST(request: NextRequest) {
       const nativeLanguage = String(lesson.native_language || '').trim() || 'Vietnamese'
       const normalizedTarget = normalizeLookup(targetLanguage)
 
-      const { data: dailyRows } = await adminSupabase
-        .from('language_coach_daily_words')
-        .select(
-          'word, meaning, pronunciation, example_target, example_native, meaning_items_json, example_items_json, usage_level, importance_score, is_context_sensitive, target_language'
-        )
-        .eq('user_id', user.id)
-        .eq('word', word)
-        .eq('target_language', targetLanguage)
-        .order('updated_at', { ascending: false })
-        .limit(1)
-
-      const daily = Array.isArray(dailyRows) && dailyRows.length > 0 ? dailyRows[0] : null
+      const dailyFetch = await fetchDailyWordForAssistPg(user.id, word, targetLanguage)
+      if (!dailyFetch.ok) return NextResponse.json({ error: dailyFetch.message }, { status: 500 })
+      const daily = dailyFetch.row
       if (daily && String(daily.meaning || '').trim()) {
         return NextResponse.json({
           source: 'daily_words',
@@ -1567,15 +1469,7 @@ export async function POST(request: NextRequest) {
         })
       }
 
-      const { data: vocabRows } = await adminSupabase
-        .from('language_coach_vocab_cache')
-        .select(
-          'word, meaning, pronunciation, example_target, example_native, meaning_items_json, example_items_json, usage_level, importance_score, is_context_sensitive'
-        )
-        .eq('normalized_word', normalizedWord)
-        .eq('normalized_target_language', normalizedTarget)
-        .limit(1)
-      const vocab = Array.isArray(vocabRows) && vocabRows.length > 0 ? vocabRows[0] : null
+      const vocab = await fetchVocabCacheRowByWordTargetPg(normalizedWord, normalizedTarget)
       if (vocab && String(vocab.meaning || '').trim()) {
         return NextResponse.json({
           source: 'vocab_cache',
@@ -1622,33 +1516,31 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: aiData.error || 'Không tra được từ bằng AI.' }, { status: aiRes.status || 500 })
       }
 
-      const lessonSessionId = lesson.id
+      const lessonSessionId = String(lesson.id)
       const turnIdx =
         payload.turnIndex !== undefined && Number.isInteger(payload.turnIndex) && payload.turnIndex >= 0
           ? payload.turnIndex
           : -1
-      await adminSupabase.from('language_coach_daily_words').upsert(
-        {
-          user_id: user.id,
-          session_id: lessonSessionId,
-          learned_date: new Date().toISOString().slice(0, 10),
-          word: String(aiData.word || word).slice(0, 120),
-          target_language: targetLanguage,
-          native_language: nativeLanguage,
-          meaning: String(aiData.meaning || '').trim() || null,
-          pronunciation: String(aiData.pronunciation || '').trim() || null,
-          example_target: String(aiData.exampleTarget || '').trim() || null,
-          example_native: String(aiData.exampleNative || '').trim() || null,
-          meaning_items_json: Array.isArray(aiData.meaningItems) ? JSON.stringify(aiData.meaningItems) : null,
-          example_items_json: Array.isArray(aiData.exampleItems) ? JSON.stringify(aiData.exampleItems) : null,
-          usage_level: String(aiData.usageLevel || 'medium'),
-          importance_score: Number(aiData.importanceScore || 50),
-          is_context_sensitive: Boolean(aiData.contextSensitive),
-          turn_index: turnIdx,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'user_id,session_id,word,target_language,turn_index' }
-      )
+      const dailyUpsert = await upsertDailyWordFromLiveAssistPg({
+        userId: user.id,
+        sessionId: lessonSessionId,
+        learnedDate: new Date().toISOString().slice(0, 10),
+        word: String(aiData.word || word).slice(0, 120),
+        targetLanguage,
+        nativeLanguage,
+        meaning: String(aiData.meaning || '').trim() || null,
+        pronunciation: String(aiData.pronunciation || '').trim() || null,
+        exampleTarget: String(aiData.exampleTarget || '').trim() || null,
+        exampleNative: String(aiData.exampleNative || '').trim() || null,
+        meaningItemsJson: Array.isArray(aiData.meaningItems) ? JSON.stringify(aiData.meaningItems) : null,
+        exampleItemsJson: Array.isArray(aiData.exampleItems) ? JSON.stringify(aiData.exampleItems) : null,
+        usageLevel: String(aiData.usageLevel || 'medium'),
+        importanceScore: Number(aiData.importanceScore || 50),
+        isContextSensitive: Boolean(aiData.contextSensitive),
+        turnIndex: turnIdx,
+        updatedAtIso: new Date().toISOString(),
+      })
+      if (!dailyUpsert.ok) return NextResponse.json({ error: dailyUpsert.message }, { status: 500 })
 
       return NextResponse.json({
         ...aiData,

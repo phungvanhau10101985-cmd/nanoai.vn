@@ -1,117 +1,52 @@
-import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Database, Json } from '@/types/database.types'
+import type { Json } from '@/types/database.types'
 import type { CustomerCareChannel } from '@/lib/customer-care/types'
+import { ensureConversationPg, insertMessagePg } from '@/lib/db/customer-care-pg'
+import { isPgConfigured } from '@/lib/db/pool'
 
-type Db = SupabaseClient<Database>
-
-export async function ensureConversation(
-  db: Db,
-  params: {
-    partnerId: string
-    channel: CustomerCareChannel
-    externalThreadId: string
-    channelExternalRef?: string | null
-    customerName?: string | null
-    customerAvatarUrl?: string | null
-    linkedUserId?: string | null
-    metadata?: Json
+/**
+ * Đảm bảo hàng `customer_care_conversations` — chỉ Postgres (`DATABASE_URL`), không qua REST công khai cũ.
+ */
+export async function ensureConversation(params: {
+  partnerId: string
+  channel: CustomerCareChannel
+  externalThreadId: string
+  channelExternalRef?: string | null
+  customerName?: string | null
+  customerAvatarUrl?: string | null
+  linkedUserId?: string | null
+  metadata?: Json
+}): Promise<{ conversationId: string } | { error: string }> {
+  if (!isPgConfigured()) {
+    return { error: 'Database is not configured (DATABASE_URL).' }
   }
-) {
-  const {
-    partnerId,
-    channel,
-    externalThreadId,
-    channelExternalRef,
-    customerName,
-    customerAvatarUrl,
-    linkedUserId,
-    metadata,
-  } = params
-
-  const { data: existing, error: selErr } = await db
-    .from('customer_care_conversations')
-    .select('id, linked_user_id')
-    .eq('partner_id', partnerId)
-    .eq('channel', channel)
-    .eq('external_thread_id', externalThreadId)
-    .maybeSingle()
-
-  if (selErr) {
-    console.error('[customer-care] ensureConversation select', selErr)
-    return { error: selErr.message }
-  }
-
-  if (existing?.id) {
-    const patch: Record<string, unknown> = { updated_at: new Date().toISOString() }
-    if (customerName != null && customerName !== '') patch.customer_name = customerName
-    if (channelExternalRef != null && channelExternalRef !== '') patch.channel_external_ref = channelExternalRef
-    if (
-      linkedUserId != null &&
-      linkedUserId !== '' &&
-      (existing.linked_user_id == null || existing.linked_user_id === '')
-    ) {
-      patch.linked_user_id = linkedUserId
+  try {
+    const fromPg = await ensureConversationPg(params)
+    if (fromPg?.conversationId) {
+      return { conversationId: fromPg.conversationId }
     }
-    if (
-      patch.customer_name !== undefined ||
-      patch.channel_external_ref !== undefined ||
-      patch.linked_user_id !== undefined
-    ) {
-      await db.from('customer_care_conversations').update(patch).eq('id', existing.id)
-    }
-    return { conversationId: existing.id }
+  } catch (e) {
+    console.error('[customer-care] ensureConversation', e)
   }
-
-  const { data: created, error: insErr } = await db
-    .from('customer_care_conversations')
-    .insert({
-      partner_id: partnerId,
-      channel,
-      external_thread_id: externalThreadId,
-      channel_external_ref: channelExternalRef ?? null,
-      customer_name: customerName ?? null,
-      customer_avatar_url: customerAvatarUrl ?? null,
-      linked_user_id: linkedUserId ?? null,
-      metadata: metadata ?? {},
-      status: 'open',
-    })
-    .select('id')
-    .single()
-
-  if (insErr || !created) {
-    console.error('[customer-care] ensureConversation insert', insErr)
-    return { error: insErr?.message ?? 'insert failed' }
-  }
-  return { conversationId: created.id }
+  return { error: 'Could not ensure conversation.' }
 }
 
-export async function insertMessage(
-  db: Db,
-  params: {
-    conversationId: string
-    direction: 'inbound' | 'outbound'
-    body: string
-    rawPayload?: Json | null
-    senderAdminId?: string | null
+export async function insertMessage(params: {
+  conversationId: string
+  direction: 'inbound' | 'outbound'
+  body: string
+  rawPayload?: Json | null
+  senderAdminId?: string | null
+}): Promise<{ ok: true; messageId: string } | { error: string }> {
+  if (!isPgConfigured()) {
+    return { error: 'Database is not configured (DATABASE_URL).' }
   }
-) {
-  const { data, error } = await db
-    .from('customer_care_messages')
-    .insert({
-      conversation_id: params.conversationId,
-      direction: params.direction,
-      body: params.body,
-      raw_payload: params.rawPayload ?? null,
-      sender_admin_id: params.senderAdminId ?? null,
-    })
-    .select('id')
-    .single()
-  if (error) {
-    console.error('[customer-care] insertMessage', error)
-    return { error: error.message }
+  try {
+    const fromPg = await insertMessagePg(params)
+    if (fromPg) {
+      return fromPg
+    }
+  } catch (e) {
+    console.error('[customer-care] insertMessage', e)
   }
-  if (!data?.id) {
-    return { error: 'insert failed' }
-  }
-  return { ok: true as const, messageId: data.id }
+  return { error: 'Could not insert message.' }
 }

@@ -2,7 +2,7 @@ import { Pool } from 'pg'
 
 let pool: Pool | null = null
 
-/** True when `DATABASE_URL` is set (Postgres trực tiếp, ví dụ VPS sau khi tách khỏi Supabase hosting). */
+/** True khi đã set `DATABASE_URL` (Postgres trực tiếp, ví dụ VPS hoặc hosted DB). */
 export function isPgConfigured(): boolean {
   return Boolean(process.env.DATABASE_URL?.trim())
 }

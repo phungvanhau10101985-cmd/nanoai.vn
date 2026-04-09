@@ -1,25 +1,29 @@
-import type { SupabaseClient } from '@supabase/supabase-js'
-import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
-import type { Database } from '@/types/database.types'
+import { isPgConfigured } from '@/lib/db/pool'
+import { pgQueryOne } from '@/lib/db/pg-query'
 
+/** Xác thực chủ workspace (Postgres). */
 export async function requireMessagingPartnerOwner(partnerId: string): Promise<
-  | { ok: true; supabase: SupabaseClient<Database>; userId: string }
-  | { ok: false; error: string; status: number }
+  { ok: true; userId: string } | { ok: false; error: string; status: number }
 > {
-  const supabase = createClient()
-  const auth = await getUserForAction(() => supabase.auth.getUser(), 'Authentication required.')
+  const auth = await getUserForAction()
   if ('error' in auth) return { ok: false, error: auth.error, status: 401 }
 
-  const { data, error } = await supabase
-    .from('messaging_partners')
-    .select('id')
-    .eq('id', partnerId)
-    .eq('owner_user_id', auth.user.id)
-    .maybeSingle()
+  if (!isPgConfigured()) {
+    return { ok: false, error: 'DATABASE_URL is not set.', status: 503 }
+  }
 
-  if (error) return { ok: false, error: error.message, status: 500 }
-  if (!data) return { ok: false, error: 'Forbidden.', status: 403 }
+  try {
+    const row = await pgQueryOne<{ id: string }>(
+      `select id::text from public.messaging_partners
+       where id = $1::uuid and owner_user_id = $2::uuid limit 1`,
+      [partnerId, auth.user.id]
+    )
+    if (row) return { ok: true, userId: auth.user.id }
+  } catch (e) {
+    console.warn('[requireMessagingPartnerOwner] PG check failed', e)
+    return { ok: false, error: 'Server error.', status: 500 }
+  }
 
-  return { ok: true, supabase, userId: auth.user.id }
+  return { ok: false, error: 'Forbidden.', status: 403 }
 }

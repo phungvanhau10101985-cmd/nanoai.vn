@@ -1,4 +1,4 @@
--- Repair schema drift: bản ghi supabase_migrations.schema_migrations có thể đã có version cũ
+-- Repair schema drift: bản ghi trong registry migration (CLI) có thể đã có version cũ
 -- (vd. 20260328120000) trong khi ALTER TABLE thực tế không chạy trên remote → thiếu cột layout_snapshot.
 -- Migration này idempotent (IF NOT EXISTS / ON CONFLICT) — chạy an toàn nhiều lần.
 

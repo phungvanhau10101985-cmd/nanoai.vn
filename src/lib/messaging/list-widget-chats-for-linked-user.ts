@@ -1,7 +1,6 @@
-import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Database } from '@/types/database.types'
-
-type Db = SupabaseClient<Database>
+import { fetchWidgetConversationsForLinkedUserFromPg } from '@/lib/db/customer-care-pg'
+import { fetchMessagingPartnersByIdsFromPg } from '@/lib/db/messaging-partners-pg'
+import { isPgConfigured } from '@/lib/db/pool'
 
 export type WidgetChatListItem = {
   conversationId: string
@@ -13,36 +12,31 @@ export type WidgetChatListItem = {
 
 /**
  * Hội thoại widget đã liên kết user (hosted NanoAI), chỉ shop còn active.
+ * Chỉ Postgres — không còn REST/HTTP client cũ cho bảng này.
  */
 export async function listWidgetChatsForLinkedUser(
-  db: Db,
   linkedUserId: string
 ): Promise<{ items: WidgetChatListItem[]; error: string | null }> {
-  const { data: convs, error: cErr } = await db
-    .from('customer_care_conversations')
-    .select('id, partner_id, last_message_at, last_message_preview')
-    .eq('channel', 'widget')
-    .eq('linked_user_id', linkedUserId)
-    .order('last_message_at', { ascending: false, nullsFirst: false })
-
-  if (cErr) {
-    return { items: [], error: cErr.message }
+  if (!isPgConfigured()) {
+    return { items: [], error: 'Database not configured.' }
   }
-  if (!convs?.length) {
+
+  const convs = await fetchWidgetConversationsForLinkedUserFromPg(linkedUserId)
+  if (convs === null) {
+    return { items: [], error: 'Could not load conversations.' }
+  }
+
+  if (!convs.length) {
     return { items: [], error: null }
   }
 
   const partnerIds = [...new Set(convs.map((c) => c.partner_id))]
-  const { data: partners, error: pErr } = await db
-    .from('messaging_partners')
-    .select('id, display_name, slug, is_active')
-    .in('id', partnerIds)
-
-  if (pErr) {
-    return { items: [], error: pErr.message }
+  const partners = await fetchMessagingPartnersByIdsFromPg(partnerIds)
+  if (partners === null) {
+    return { items: [], error: 'Could not load shop details.' }
   }
 
-  const partnerMap = new Map((partners ?? []).map((p) => [p.id, p]))
+  const partnerMap = new Map(partners.map((p) => [p.id, p]))
 
   const items: WidgetChatListItem[] = []
   for (const c of convs) {

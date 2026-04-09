@@ -23,7 +23,7 @@ cp .env.example .env.local
 # Mở .env.local, điền giá trị thật; xóa hoặc giữ dòng comment (#) tùy nhu cầu
 ```
 
-Sau khi clone repo lần đầu: **bắt buộc** có `.env.local` thì `npm run dev` / build mới đủ key (Supabase, AI, v.v.).
+Sau khi clone repo lần đầu: **bắt buộc** có `.env.local` thì `npm run dev` / build mới đủ key (`DATABASE_URL`, Bunny/AI, v.v.).
 
 ---
 
@@ -32,7 +32,10 @@ Sau khi clone repo lần đầu: **bắt buộc** có `.env.local` thì `npm run
 | Nhóm | Ví dụ biến | Local dev | VPS production |
 |------|------------|-----------|----------------|
 | App URL | `NEXT_PUBLIC_BASE_URL`, `APP_URL`, `NEXT_PUBLIC_APP_URL` | `http://localhost:3000` | `https://nanoai.vn` (domain thật) |
-| Supabase | `NEXT_PUBLIC_SUPABASE_*`, `SUPABASE_SERVICE_ROLE_KEY` | ✓ | ✓ |
+| Postgres | `DATABASE_URL` | ✓ | ✓ |
+| Auth + URL public (tên env legacy) | `NEXT_PUBLIC_SUPABASE_*`, `SUPABASE_SERVICE_ROLE_KEY` | ✓ nếu session qua host đó | ✓ production nếu còn dùng |
+| Bunny Storage | `BUNNY_STORAGE_*`, `BUNNY_STORAGE_PUBLIC_BASE_URL` | ✓ cho upload media mới | ✓ |
+| Storage REST legacy (tùy) | `NEXT_PUBLIC_STORAGE_LEGACY_*`, `STORAGE_LEGACY_*` | Nếu backfill / URL cũ | Tuỳ |
 | Self-host / PM2 | `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` | Tuỳ | **Nên có** khi `next start` + PM2 (tạo: `openssl rand -base64 32`) |
 | DeepSeek / OpenAI | `DEEPSEEK_API_KEY`, `OPENAI_API_KEY`, … | Nếu dùng tính năng AI | ✓ |
 | Google Vision / Warehouse | `VISION_CREDENTIALS_PATH`, `GOOGLE_CLOUD_PROJECT_ID`, `GCS_VISION_CATALOG_BUCKET`, `VISION_WAREHOUSE_*` | Nếu test Messaging + ảnh | ✓ cho shop có Vision |

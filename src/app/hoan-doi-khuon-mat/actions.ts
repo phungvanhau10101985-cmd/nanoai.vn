@@ -1,19 +1,21 @@
 'use server'
+import { deleteTryOnHistoryRowAndStorage } from '@/lib/storage/try-on-history-cleanup'
+import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
+import { deductUserCredits } from '@/lib/music/deduct-user-credits'
 
-import { createClient } from '@/lib/supabase/server'
+
 import { getUserForAction } from '@/lib/auth'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+import { insertTryOnHistoryProcessingPg, updateTryOnHistoryCompletedPg } from '@/lib/db/try-on-history-pg'
 import { revalidatePath } from 'next/cache'
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
 import { normalizeToEnglish } from '@/lib/ai-normalize'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import sharp from 'sharp'
 import { detectFaceInTargetImage, detectFacesInTargetImage, extractFaceFromSourceImage, type FaceBbox } from '@/lib/face-swap-vision'
-import { uploadTryOnImagePublic, getTryOnPublicUrl } from '@/lib/storage/try-on-public-upload'
+import { uploadTryOnImagePublic, getTryOnPublicUrlFromPath } from '@/lib/storage/try-on-public-upload'
 
 const FACESWAP_COSTS = { '2K': 2, '4K': 4 } as const
 const toTenths = (value: number) => Math.round(value * 10)
-const fromTenths = (value: number) => value / 10
 const formatCredits = (value: number) => value.toLocaleString('vi-VN', { maximumFractionDigits: 1 })
 
 const NO_TEXT = `Chỉ trả về ảnh sạch. KHÔNG chữ, KHÔNG watermark, KHÔNG logo, KHÔNG thương hiệu, KHÔNG lớp phủ bất kỳ.`
@@ -139,38 +141,38 @@ export async function faceSwap(formData: FormData) {
   const aspectRatio = await getAspectRatioFromImage(targetBuffer)
 
   const COST = FACESWAP_COSTS[imageQuality]
-  const supabase = createClient()
-  const adminSupabase = createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
-  const result = await getUserForAction(() => supabase.auth.getUser())
+  const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
-  const { data: creditData, error: creditError } = await supabase.from('credits').select('balance').eq('user_id', user.id).single()
-  if (creditError || !creditData || toTenths(creditData.balance) < toTenths(COST)) {
-    return { error: `Không đủ credits. Cần ${formatCredits(COST)} credits, hiện có ${formatCredits(creditData?.balance || 0)}.` }
+  let openBalance = 0
+  try {
+    openBalance = await getCreditBalanceByUserId(user.id)
+  } catch {
+    return { error: 'Không đọc được số dư credits.' }
+  }
+  if (toTenths(openBalance) < toTenths(COST)) {
+    return { error: `Không đủ credits. Cần ${formatCredits(COST)} credits, hiện có ${formatCredits(openBalance)}.` }
   }
 
   const timestamp = Date.now()
   const sourcePath = `uploads/${user.id}/faceswap_source_${timestamp}.png`
   const targetPath = `uploads/${user.id}/faceswap_target_${timestamp}.png`
   if (swapMode === 'single' && faceImage) {
-    await uploadTryOnImagePublic(supabase, sourcePath, faceImage, { contentType: faceImage.type || 'image/png' })
+    await uploadTryOnImagePublic(sourcePath, faceImage, { contentType: faceImage.type || 'image/png' })
   } else if (faceImageLeft) {
-    await uploadTryOnImagePublic(supabase, sourcePath, faceImageLeft, { contentType: faceImageLeft.type || 'image/png' })
+    await uploadTryOnImagePublic(sourcePath, faceImageLeft, { contentType: faceImageLeft.type || 'image/png' })
   }
-  await uploadTryOnImagePublic(supabase, targetPath, targetImage, { contentType: targetImage.type || 'image/png' })
-  const sourcePublicUrl = getTryOnPublicUrl(supabase, sourcePath)
-  const targetPublicUrl = getTryOnPublicUrl(supabase, targetPath)
-  const { data: historyItem, error: historyError } = await supabase.from('try_on_history').insert({
-    user_id: user.id,
-    original_image_url: sourcePublicUrl,
-    garment_image_url: targetPublicUrl,
-    status: 'processing',
-  }).select().single()
-  if (historyError || !historyItem) return { error: 'Không thể khởi tạo phiên xử lý.' }
+  await uploadTryOnImagePublic(targetPath, targetImage, { contentType: targetImage.type || 'image/png' })
+  const sourcePublicUrl = getTryOnPublicUrlFromPath(sourcePath)
+  const targetPublicUrl = getTryOnPublicUrlFromPath(targetPath)
+  const historyItem = await insertTryOnHistoryProcessingPg({
+    userId: user.id,
+    originalImageUrl: sourcePublicUrl,
+    garmentImageUrl: targetPublicUrl,
+    feature: 'hoan-doi-khuon-mat',
+  })
+  if (!historyItem) return { error: 'Không thể khởi tạo phiên xử lý.' }
 
   const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!)
   const model = genAI.getGenerativeModel({
@@ -196,14 +198,14 @@ export async function faceSwap(formData: FormData) {
 
       const croppedSourceFace = await extractFaceFromSourceImage(faceBuffer, user.id)
       if (!croppedSourceFace) {
-        await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+        await deleteTryOnHistoryRowAndStorage(historyItem.id)
         return { error: 'Vision OCR không phát hiện được khuôn mặt rõ trên ảnh nguồn. Vui lòng chọn ảnh có 1 mặt rõ hơn.' }
       }
       console.log('[FaceSwap] Dùng ảnh mặt đã cắt từ nguồn bằng Vision')
 
       const targetFace = await detectFaceInTargetImage(targetBuffer)
       if (!targetFace) {
-        await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+        await deleteTryOnHistoryRowAndStorage(historyItem.id)
         return { error: 'Vision OCR không phát hiện được khuôn mặt trên ảnh đích. Vui lòng dùng ảnh có mặt rõ hơn.' }
       }
 
@@ -237,17 +239,17 @@ ${NO_TEXT}`
       const croppedLeftFace = await extractFaceFromSourceImage(faceBufferLeft, user.id)
       const croppedRightFace = await extractFaceFromSourceImage(faceBufferRight, user.id)
       if (!croppedLeftFace) {
-        await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+        await deleteTryOnHistoryRowAndStorage(historyItem.id)
         return { error: 'Vision OCR không phát hiện mặt trong ảnh nguồn bên trái. Vui lòng chọn ảnh rõ mặt hơn.' }
       }
       if (!croppedRightFace) {
-        await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+        await deleteTryOnHistoryRowAndStorage(historyItem.id)
         return { error: 'Vision OCR không phát hiện mặt trong ảnh nguồn bên phải. Vui lòng chọn ảnh rõ mặt hơn.' }
       }
 
       const targetFaces = await detectFacesInTargetImage(targetBuffer, 2, user.id)
       if (targetFaces.length < 2) {
-        await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+        await deleteTryOnHistoryRowAndStorage(historyItem.id)
         return { error: 'Ảnh đích không nhận đủ 2 khuôn mặt (trái/phải). Vui lòng chọn ảnh có 2 người rõ mặt.' }
       }
 
@@ -289,7 +291,7 @@ ${NO_TEXT}`
     if (!imagePartRes || !('inlineData' in imagePartRes)) {
       const reason = response.candidates?.[0]?.finishReason ?? response.promptFeedback?.blockReason ?? 'unknown'
       console.warn('[FaceSwap] Single call thất bại, finishReason:', reason)
-      await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+      await deleteTryOnHistoryRowAndStorage(historyItem.id)
       if (String(reason).toUpperCase().includes('IMAGE_SAFETY')) {
         return { error: 'Ảnh bị bộ lọc an toàn từ chối. Vui lòng đổi ảnh khác (ít nhạy cảm hơn) và thử lại.' }
       }
@@ -297,31 +299,29 @@ ${NO_TEXT}`
     }
     const swapInline = imagePartRes.inlineData
     if (!swapInline?.data) {
-      await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+      await deleteTryOnHistoryRowAndStorage(historyItem.id)
       return { error: 'AI không trả về ảnh hợp lệ (thiếu dữ liệu ảnh).' }
     }
     const resultBuffer = Buffer.from(swapInline.data, 'base64')
 
     const resultPath = `results/${user.id}/faceswap_${Date.now()}.png`
-    const { publicUrl: resultPublicUrl } = await uploadTryOnImagePublic(adminSupabase, resultPath, resultBuffer, {
+    const { publicUrl: resultPublicUrl } = await uploadTryOnImagePublic(resultPath, resultBuffer, {
       contentType: 'image/png',
       upsert: true,
     })
 
-    const { data: latestCredit } = await adminSupabase.from('credits').select('balance').eq('user_id', user.id).single()
-    if (!latestCredit || toTenths(latestCredit.balance) < toTenths(COST)) {
-      await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
-      return { error: 'Không đủ credits để hoàn tất.' }
+    const d = await deductUserCredits(user.id, COST)
+    if (!d.ok) {
+      await deleteTryOnHistoryRowAndStorage(historyItem.id)
+      return { error: d.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credits để hoàn tất.' : d.error }
     }
-    const newBalance = fromTenths(toTenths(latestCredit.balance) - toTenths(COST))
-    await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', user.id)
-    await adminSupabase.from('try_on_history').update({ result_image_url: resultPublicUrl, status: 'completed' }).eq('id', historyItem.id)
+    await updateTryOnHistoryCompletedPg(historyItem.id, resultPublicUrl)
 
     revalidatePath('/hoan-doi-khuon-mat')
     revalidatePath('/dashboard/history')
     return { success: true, resultUrl: resultPublicUrl }
   } catch (e) {
-    await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+    await deleteTryOnHistoryRowAndStorage(historyItem.id)
     const msg = e instanceof Error ? e.message : String(e)
     const stack = e instanceof Error ? e.stack : undefined
     console.error('[FaceSwap] Lỗi:', msg, stack ? `\n${stack}` : '')

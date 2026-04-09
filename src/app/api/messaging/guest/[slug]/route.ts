@@ -1,8 +1,7 @@
-import type { User } from '@supabase/supabase-js'
+import type { AppUser } from '@/lib/auth/app-user'
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
-import { createServiceRoleClient } from '@/lib/supabase/service-role'
-import { isReservedMessagingGuestSlug } from '@/lib/messaging/reserved-guest-slugs'
+import { getEmailSessionUser } from '@/lib/auth/email-session-user'
+import { resolveActiveMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
 import { postWidgetGuestMessage } from '@/lib/messaging/widget-guest-post'
 import {
   createGuestSessionId,
@@ -12,28 +11,29 @@ import {
 } from '@/lib/messaging/guest-auth-session'
 import { readGuestAccountIdFromRequest, writeGuestAccountCookie } from '@/lib/messaging/guest-account-session'
 import { mergeGuestSessionConversationToAccount } from '@/lib/messaging/guest-account-merge'
+import {
+  fetchGuestWidgetConversationIdFromPg,
+  fetchGuestWidgetMessagesSubsetFromPg,
+} from '@/lib/db/customer-care-pg'
+import {
+  findGuestAccountIdByEmailPg,
+  insertGuestAccountPg,
+  updateGuestAccountLastLoginPg,
+  upsertGuestIdentityPg,
+} from '@/lib/db/messaging-guest-pg'
+import { isPgConfigured } from '@/lib/db/pool'
 
 export const dynamic = 'force-dynamic'
 /** LLM + typing delay có thể kéo dài khi job AI chạy ngay sau POST (không chờ cron). */
 export const maxDuration = 120
 
 async function resolvePartner(slug: string) {
-  if (isReservedMessagingGuestSlug(slug)) {
-    return { error: 'not_found' as const }
-  }
-  const db = createServiceRoleClient()
-  const { data: partner, error } = await db
-    .from('messaging_partners')
-    .select('id, display_name, is_active')
-    .eq('slug', slug)
-    .maybeSingle()
-  if (error || !partner?.is_active) {
-    return { error: 'not_found' as const }
-  }
-  return { partnerId: partner.id, displayName: partner.display_name, db }
+  const active = await resolveActiveMessagingPartnerBySlug(slug)
+  if (!active) return { error: 'not_found' as const }
+  return { partnerId: active.id, displayName: active.display_name }
 }
 
-function guestCustomerName(displayName: string, user: User | null) {
+function guestCustomerName(displayName: string, user: AppUser | null) {
   const meta = (user?.user_metadata as Record<string, unknown> | undefined) ?? undefined
   const fullName = typeof meta?.full_name === 'string' ? meta.full_name : typeof meta?.name === 'string' ? meta.name : ''
   const email = user?.email?.trim() ?? ''
@@ -44,10 +44,7 @@ function guestCustomerName(displayName: string, user: User | null) {
 }
 
 async function resolveGuestIdentity(request: NextRequest) {
-  const supabase = createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getEmailSessionUser()
 
   if (user?.id) {
     return {
@@ -96,55 +93,49 @@ function normalizeEmail(v: string): string {
 }
 
 async function upsertGuestAccountForGoogleIdentity(
-  db: ReturnType<typeof createServiceRoleClient>,
   partnerId: string,
   request: NextRequest,
-  user: User | null
+  user: AppUser | null
 ): Promise<string | null> {
   if (!user?.email) return null
+  if (!isPgConfigured()) return null
   const email = normalizeEmail(user.email)
   const nowIso = new Date().toISOString()
-  const accountByEmail = await db
-    .from('messaging_guest_accounts')
-    .select('id')
-    .eq('partner_id', partnerId)
-    .eq('email_normalized', email)
-    .maybeSingle()
-  let accountId = accountByEmail.data?.id as string | undefined
-  if (!accountId) {
-    const created = await db
-      .from('messaging_guest_accounts')
-      .insert({
-        partner_id: partnerId,
-        email_raw: user.email,
-        email_normalized: email,
-        first_verified_at: nowIso,
-        last_login_at: nowIso,
-      })
-      .select('id')
-      .single()
-    accountId = created.data?.id
-  } else {
-    await db.from('messaging_guest_accounts').update({ last_login_at: nowIso }).eq('id', accountId)
-  }
-  if (!accountId) return null
+  let accountId: string | undefined
 
-  await db
-    .from('messaging_guest_identities')
-    .upsert(
-      {
-            partner_id: partnerId,
-        guest_account_id: accountId,
+  try {
+    let id: string | null = await findGuestAccountIdByEmailPg(partnerId, email)
+    if (!id) {
+      id = await insertGuestAccountPg({
+        partnerId,
+        emailRaw: user.email!,
+        emailNormalized: email,
+        firstVerifiedAt: nowIso,
+        lastLoginAt: nowIso,
+      })
+    } else {
+      await updateGuestAccountLastLoginPg(id, nowIso)
+    }
+    if (id) {
+      const identityOk = await upsertGuestIdentityPg({
+        partnerId,
+        guestAccountId: id,
         provider: 'google',
-        provider_subject: email,
-      },
-          { onConflict: 'partner_id,provider,provider_subject' }
-    )
-  const anonymousSessionId = readGuestSessionIdFromRequest(request)
-  if (anonymousSessionId) {
-    await mergeGuestSessionConversationToAccount(db, partnerId, anonymousSessionId, accountId)
+        providerSubject: email,
+      })
+      if (identityOk) {
+        accountId = id
+      }
+    }
+  } catch (e) {
+    console.warn('[guest] upsertGuestAccountForGoogleIdentity PG failed', e)
   }
-  return accountId
+
+  const anonymousSessionId = readGuestSessionIdFromRequest(request)
+  if (anonymousSessionId && accountId) {
+    await mergeGuestSessionConversationToAccount(partnerId, anonymousSessionId, accountId)
+  }
+  return accountId ?? null
 }
 
 export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: string }> }) {
@@ -155,55 +146,54 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
   if ('error' in r) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
-  const { partnerId, db } = r
+  const { partnerId } = r
   let effectiveExternalThreadId = identity.externalThreadId
   let effectiveGuestAccountId = identity.guestAccountId
 
+  if (!isPgConfigured()) {
+    return NextResponse.json({ error: 'Server database unavailable.' }, { status: 503 })
+  }
+
   if (identity.user?.id) {
-    const accountId = await upsertGuestAccountForGoogleIdentity(db, partnerId, request, identity.user)
+    const accountId = await upsertGuestAccountForGoogleIdentity(partnerId, request, identity.user)
     if (accountId) {
       effectiveGuestAccountId = accountId
       effectiveExternalThreadId = accountId
     }
   }
 
-  const { data: conv } = await db
-    .from('customer_care_conversations')
-    .select('id')
-    .eq('partner_id', partnerId)
-    .eq('channel', 'widget')
-    .eq('external_thread_id', effectiveExternalThreadId)
-    .maybeSingle()
-  if (!conv) {
-    const res = NextResponse.json({
-      messages: [],
-      authMode: effectiveGuestAccountId || identity.linkedUserId ? 'account' : 'anonymous',
-    })
-    if (identity.newSessionId) {
-      writeGuestSessionCookie(res, request, identity.newSessionId)
-      writeGuestSessionHeader(res, identity.newSessionId)
+  try {
+    const convIdPg = await fetchGuestWidgetConversationIdFromPg(partnerId, effectiveExternalThreadId)
+    if (convIdPg === null) {
+      const res = NextResponse.json({
+        messages: [],
+        authMode: effectiveGuestAccountId || identity.linkedUserId ? 'account' : 'anonymous',
+      })
+      if (identity.newSessionId) {
+        writeGuestSessionCookie(res, request, identity.newSessionId)
+        writeGuestSessionHeader(res, identity.newSessionId)
+      }
+      if (effectiveGuestAccountId) writeGuestAccountCookie(res, request, effectiveGuestAccountId)
+      return res
     }
-    if (effectiveGuestAccountId) writeGuestAccountCookie(res, request, effectiveGuestAccountId)
-    return res
+    const messagesPg = await fetchGuestWidgetMessagesSubsetFromPg(convIdPg)
+    if (messagesPg !== null) {
+      const res = NextResponse.json({
+        messages: messagesPg,
+        authMode: effectiveGuestAccountId || identity.linkedUserId ? 'account' : 'anonymous',
+      })
+      if (identity.newSessionId) {
+        writeGuestSessionCookie(res, request, identity.newSessionId)
+        writeGuestSessionHeader(res, identity.newSessionId)
+      }
+      if (effectiveGuestAccountId) writeGuestAccountCookie(res, request, effectiveGuestAccountId)
+      return res
+    }
+    return NextResponse.json({ error: 'Failed to load messages.' }, { status: 500 })
+  } catch (e) {
+    console.warn('[guest widget GET] PG load failed', e)
+    return NextResponse.json({ error: 'Server database unavailable.' }, { status: 503 })
   }
-  const { data: messages, error } = await db
-    .from('customer_care_messages')
-    .select('id, direction, body, created_at, raw_payload')
-    .eq('conversation_id', conv.id)
-    .order('created_at', { ascending: true })
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
-  }
-  const res = NextResponse.json({
-    messages: messages ?? [],
-    authMode: effectiveGuestAccountId || identity.linkedUserId ? 'account' : 'anonymous',
-  })
-  if (identity.newSessionId) {
-    writeGuestSessionCookie(res, request, identity.newSessionId)
-    writeGuestSessionHeader(res, identity.newSessionId)
-  }
-  if (effectiveGuestAccountId) writeGuestAccountCookie(res, request, effectiveGuestAccountId)
-  return res
 }
 
 export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: string }> }) {
@@ -219,18 +209,23 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
   if ('error' in r) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
-  const { partnerId, displayName, db } = r
+  const { partnerId, displayName } = r
+
+  if (!isPgConfigured()) {
+    return NextResponse.json({ error: 'Server database unavailable.' }, { status: 503 })
+  }
+
   let effectiveExternalThreadId = identity.externalThreadId
   let effectiveGuestAccountId = identity.guestAccountId
   if (identity.user?.id) {
-    const accountId = await upsertGuestAccountForGoogleIdentity(db, partnerId, request, identity.user)
+    const accountId = await upsertGuestAccountForGoogleIdentity(partnerId, request, identity.user)
     if (accountId) {
       effectiveGuestAccountId = accountId
       effectiveExternalThreadId = accountId
     }
   }
 
-  const posted = await postWidgetGuestMessage(db, {
+  const posted = await postWidgetGuestMessage({
     partnerId,
     externalThreadId: effectiveExternalThreadId,
     linkedUserId: identity.linkedUserId,

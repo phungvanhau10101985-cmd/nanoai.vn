@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 
 export async function POST(request: Request) {
@@ -18,21 +16,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Thiếu sessionId hoặc messageId.' }, { status: 400 })
     }
 
-    const supabase = createClient()
-    const auth = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập để tải audio.')
+    const auth = await getUserForAction()
     if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
     const { user } = auth
-
-    const adminSupabase = createSupabaseClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
 
     const extension = file.type.includes('wav') ? 'wav' : 'bin'
     const uploadPath = `english-coach-history/${user.id}/${sessionId}/${messageId}.${extension}`
     const buffer = Buffer.from(await file.arrayBuffer())
     try {
-      const { publicUrl } = await uploadTryOnImagePublic(adminSupabase, uploadPath, buffer, {
+      const { publicUrl } = await uploadTryOnImagePublic(uploadPath, buffer, {
         contentType: file.type || 'audio/wav',
         upsert: true,
       })

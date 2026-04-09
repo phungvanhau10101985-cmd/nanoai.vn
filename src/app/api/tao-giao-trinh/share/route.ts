@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
 import { randomBytes } from 'crypto'
+import { isPgConfigured } from '@/lib/db/pool'
+import { insertSlideShareSessionPg } from '@/lib/db/slide-share-pg'
+import { defaultPublicOrigin } from '@/lib/public-app-origin'
 
 function generateShareCode(): string {
   return randomBytes(6).toString('base64url').slice(0, 8)
@@ -9,7 +11,7 @@ function generateShareCode(): string {
 /** Lấy base URL đúng tên miền server – tránh localhost khi chạy production */
 function getShareBaseUrl(req: NextRequest): string {
   const host = req.headers.get('x-forwarded-host') ?? req.headers.get('host') ?? ''
-  const proto = req.headers.get('x-forwarded-proto') ?? (req.nextUrl.protocol.replace(':', ''))
+  const proto = req.headers.get('x-forwarded-proto') ?? req.nextUrl.protocol.replace(':', '')
   const effectiveProto = proto === 'on' || proto === 'https' ? 'https' : proto
   if (host && !host.includes('localhost') && !host.includes('127.0.0.1')) {
     return `${effectiveProto}://${host}`.replace(/\/$/, '')
@@ -19,7 +21,7 @@ function getShareBaseUrl(req: NextRequest): string {
     return envUrl.replace(/\/$/, '')
   }
   if (process.env.NODE_ENV === 'production') {
-    return (envUrl || 'https://nanoai.vn').replace(/\/$/, '')
+    return (envUrl || defaultPublicOrigin()).replace(/\/$/, '')
   }
   return req.nextUrl.origin
 }
@@ -27,6 +29,9 @@ function getShareBaseUrl(req: NextRequest): string {
 /** Tạo phiên chia sẻ slide – trả về share_code và share_url */
 export async function POST(req: NextRequest) {
   try {
+    if (!isPgConfigured()) {
+      return NextResponse.json({ error: 'Chưa cấu hình cơ sở dữ liệu.' }, { status: 503 })
+    }
     const body = await req.json()
     const { content, topic, slides, slideMode, curriculumId } = body as {
       content?: string
@@ -40,18 +45,17 @@ export async function POST(req: NextRequest) {
     }
     const shareCode = generateShareCode()
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000)
-    const supabase = await createClient()
-    const { error } = await supabase.from('slide_share_sessions').insert({
-      share_code: shareCode,
+    const ok = await insertSlideShareSessionPg({
+      shareCode,
       content: content ?? '',
       topic: topic ?? '',
       slides,
-      slide_mode: slideMode ?? null,
-      curriculum_id: curriculumId ?? null,
-      expires_at: expiresAt.toISOString(),
+      slideMode: slideMode ?? null,
+      curriculumId: curriculumId ?? null,
+      expiresAtIso: expiresAt.toISOString(),
     })
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+    if (ok !== true) {
+      return NextResponse.json({ error: 'Không lưu được phiên chia sẻ.' }, { status: 500 })
     }
     const baseUrl = getShareBaseUrl(req)
     const shareUrl = `${baseUrl}/giao-trinh/xem-slide?share=${shareCode}`

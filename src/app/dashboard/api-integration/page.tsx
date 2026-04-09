@@ -1,4 +1,5 @@
-import { createClient } from '@/lib/supabase/server'
+import { fetchMessagingPartnersByOwnerFromPg } from '@/lib/db/messaging-partners-pg'
+import { isPgConfigured } from '@/lib/db/pool'
 import { redirectToLogin } from '@/lib/auth/login-redirect'
 import { getUserOrBypass } from '@/lib/auth'
 import { getServerDictionary } from '@/lib/i18n/server'
@@ -21,9 +22,16 @@ export function generateMetadata(): Metadata {
 }
 
 export default async function DashboardApiIntegrationPage() {
-  const supabase = createClient()
-  const user = await getUserOrBypass(() => supabase.auth.getUser())
+  const user = await getUserOrBypass()
   if (!user) redirectToLogin()
+
+  let partnerRows: { id: string; display_name: string; slug: string }[] = []
+  if (isPgConfigured()) {
+    const fromPg = await fetchMessagingPartnersByOwnerFromPg(user.id)
+    if (fromPg !== null) {
+      partnerRows = fromPg.map((p) => ({ id: p.id, display_name: p.display_name, slug: p.slug }))
+    }
+  }
 
   const h = headers()
   const host = (h.get('x-forwarded-host') ?? h.get('host') ?? '').split(',')[0]?.trim()
@@ -31,12 +39,6 @@ export default async function DashboardApiIntegrationPage() {
   const proto = protoFromProxy || (host && /localhost|127\.0\.0\.1/i.test(host) ? 'http' : 'https')
   const runtimeBaseUrl = host ? `${proto}://${host}` : ''
   const baseUrl = runtimeBaseUrl || resolveApiKeysHubBaseUrl()
-
-  const { data: partnerRows } = await supabase
-    .from('messaging_partners')
-    .select('id, display_name, slug')
-    .eq('owner_user_id', user.id)
-    .order('created_at', { ascending: false })
 
   return (
     <div className="app-shell container max-w-5xl py-6">

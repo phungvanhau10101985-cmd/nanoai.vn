@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 import { EXAM_ESSAY_IMAGE_RETENTION_DAYS } from '@/lib/exam-essay-config'
+import {
+  cleanupBunnyExamEssayImagesOlderThan,
+  examEssayBunnyStorageConfigured,
+} from '@/lib/storage/exam-essay-public-upload'
 
 /**
- * Cron: xóa file ảnh bài tự luận trên storage quá hạn (bucket exam-essay-images).
+ * Cron: xóa file ảnh bài tự luận quá hạn trên Bunny (cây `exam-essay-images/`).
  * Bảo vệ: Authorization: Bearer <EXAM_ESSAY_IMAGES_CRON_SECRET>
  */
 export async function GET(req: NextRequest) {
@@ -16,33 +19,18 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim()
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()
-  if (!url || !key) {
-    return NextResponse.json({ error: 'Missing Supabase service env.' }, { status: 500 })
+  if (!examEssayBunnyStorageConfigured()) {
+    return NextResponse.json(
+      { error: 'Bunny Storage chưa cấu hình (BUNNY_STORAGE_ZONE, BUNNY_STORAGE_API_KEY, BUNNY_STORAGE_PUBLIC_BASE_URL).' },
+      { status: 503 }
+    )
   }
 
-  const admin = createClient(url, key)
   try {
-    const { data, error } = await admin.rpc('cleanup_exam_essay_images_older_than', {
-      p_days: EXAM_ESSAY_IMAGE_RETENTION_DAYS,
-    })
-    if (error) {
-      console.error('[cron/exam-essay-images-cleanup]', error.message)
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
-    const deleted = (() => {
-      if (typeof data === 'bigint') return Number(data)
-      if (typeof data === 'number' && Number.isFinite(data)) return data
-      if (typeof data === 'string') {
-        const n = Number(data)
-        return Number.isFinite(n) ? n : 0
-      }
-      return 0
-    })()
+    const deletedBunny = await cleanupBunnyExamEssayImagesOlderThan(EXAM_ESSAY_IMAGE_RETENTION_DAYS)
     return NextResponse.json({
       ok: true,
-      deleted,
+      deleted: deletedBunny,
       retentionDays: EXAM_ESSAY_IMAGE_RETENTION_DAYS,
     })
   } catch (e) {

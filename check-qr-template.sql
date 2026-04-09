@@ -1,4 +1,4 @@
--- SQL để kiểm tra và cập nhật QR template trong Supabase
+-- SQL kiểm tra / cập nhật QR template (bảng payment_configs trên Postgres)
 
 -- 1. Kiểm tra QR template hiện tại
 SELECT 

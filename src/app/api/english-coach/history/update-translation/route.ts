@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+import { isPgConfigured } from '@/lib/db/pool'
+import {
+  updateLanguageCoachMessagePartialByIdPg,
+  updateLanguageCoachMessagePartialBySessionClientPg,
+} from '@/lib/db/language-coach-messages-pg'
 
 type Payload = {
   messageId: string
@@ -17,12 +20,11 @@ type Payload = {
   aiPayloadJson?: string
 }
 
-function adminClient() {
-  return createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-}
-
 export async function POST(request: NextRequest) {
   try {
+    if (!isPgConfigured()) {
+      return NextResponse.json({ error: 'Cơ sở dữ liệu chưa cấu hình.' }, { status: 503 })
+    }
     const payload = (await request.json()) as Payload
     const messageId = String(payload.messageId || '').trim()
     const sessionId = String(payload.sessionId || '').trim()
@@ -50,46 +52,34 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Thiếu dữ liệu cập nhật.' }, { status: 400 })
     }
 
-    const supabase = createClient()
-    const auth = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập để lưu dịch.')
+    const auth = await getUserForAction()
     if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
     const { user } = auth
-    const adminSupabase = adminClient()
 
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(messageId)
 
     if (isUuid) {
-      const { data, error } = await adminSupabase
-        .from('language_coach_messages')
-        .update(updates)
-        .eq('id', messageId)
-        .eq('user_id', user.id)
-        .select('id')
-        .single()
-
-      if (error) {
-        return NextResponse.json({ error: error.message || 'Không cập nhật được.' }, { status: 500 })
+      const res = await updateLanguageCoachMessagePartialByIdPg(user.id, messageId, updates)
+      if (res === null) {
+        return NextResponse.json({ error: 'Không cập nhật được.' }, { status: 500 })
       }
-      if (!data) {
+      if (res.rowCount === 0) {
         return NextResponse.json({ error: 'Không tìm thấy tin nhắn.' }, { status: 404 })
       }
       return NextResponse.json({ ok: true })
     }
 
     if (sessionId && clientMessageId) {
-      const { data, error } = await adminSupabase
-        .from('language_coach_messages')
-        .update(updates)
-        .eq('session_id', sessionId)
-        .eq('client_message_id', clientMessageId)
-        .eq('user_id', user.id)
-        .select('id')
-        .single()
-
-      if (error) {
-        return NextResponse.json({ error: error.message || 'Không cập nhật được.' }, { status: 500 })
+      const res = await updateLanguageCoachMessagePartialBySessionClientPg(
+        user.id,
+        sessionId,
+        clientMessageId,
+        updates
+      )
+      if (res === null) {
+        return NextResponse.json({ error: 'Không cập nhật được.' }, { status: 500 })
       }
-      if (!data) {
+      if (res.rowCount === 0) {
         return NextResponse.json({ error: 'Không tìm thấy tin nhắn.' }, { status: 404 })
       }
       return NextResponse.json({ ok: true })

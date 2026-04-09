@@ -2,7 +2,8 @@ import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import dynamic from "next/dynamic";
 import Script from "next/script";
-import { createClient as createAdminClient } from "@supabase/supabase-js";
+import { loadAdminIntegrationsValueJsonByKey } from "@/lib/db/admin-integrations-settings-pg";
+import { isPgConfigured } from "@/lib/db/pool";
 import { headers } from "next/headers";
 import "./globals.css";
 import { Header } from "@/components/layout/header";
@@ -43,7 +44,6 @@ const ReferralClaimRunner = dynamic(
 );
 const GA_MEASUREMENT_ID = "G-1KZ2PKX887";
 const INTEGRATIONS_KEY = "admin_integrations_config";
-const INTEGRATIONS_TABLE = "admin_integrations_settings";
 
 type DomainVerificationTag = {
   name?: string;
@@ -72,38 +72,13 @@ type IframeEmbedPayload = {
   referrerPolicy?: React.IframeHTMLAttributes<HTMLIFrameElement>["referrerPolicy"];
 };
 
-const ADMIN_INTEGRATIONS_FETCH_MS = Math.min(
-  30_000,
-  Math.max(3000, parseInt(process.env.NANOAI_SUPABASE_FETCH_TIMEOUT_MS || '8000', 10) || 8000)
-)
-
 async function loadAdminIntegrationsSettings(): Promise<AdminIntegrationsSettings> {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) return {};
-
-  const run = async (): Promise<AdminIntegrationsSettings> => {
-    const admin = createAdminClient(url, key, { auth: { persistSession: false } });
-    const { data, error } = await admin
-      .from(INTEGRATIONS_TABLE)
-      .select("value_json")
-      .eq("key", INTEGRATIONS_KEY)
-      .maybeSingle();
-
-    if (error) return {};
-    return (data?.value_json ?? {}) as AdminIntegrationsSettings;
-  };
-
-  try {
-    return await Promise.race([
-      run(),
-      new Promise<AdminIntegrationsSettings>((resolve) =>
-        setTimeout(() => resolve({}), ADMIN_INTEGRATIONS_FETCH_MS)
-      ),
-    ]);
-  } catch {
-    return {};
+  if (!isPgConfigured()) return {};
+  const fromPg = await loadAdminIntegrationsValueJsonByKey(INTEGRATIONS_KEY);
+  if (fromPg != null && typeof fromPg === "object" && !Array.isArray(fromPg)) {
+    return fromPg as AdminIntegrationsSettings;
   }
+  return {};
 }
 
 function parseMetaTag(raw: string): MetaTagPayload | null {

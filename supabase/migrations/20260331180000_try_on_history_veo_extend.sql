@@ -7,4 +7,4 @@ create index if not exists idx_try_on_history_veo_parent on try_on_history (veo_
 where
   veo_extend_parent_id is not null;
 
-comment on column try_on_history.veo_gemini_video_uri is 'Gemini API video resource URI for Veo extension; not a public Supabase URL';
+comment on column try_on_history.veo_gemini_video_uri is 'Gemini API video resource URI for Veo extension; not a public app storage URL';

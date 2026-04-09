@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+import { fetchSlideQuizResultsForOwnerFromPg } from '@/lib/db/slide-quiz-pg'
+import { isPgConfigured } from '@/lib/db/pool'
+import { getUserForAction } from '@/lib/auth'
 
 export async function GET(
   _req: NextRequest,
@@ -11,34 +12,30 @@ export async function GET(
     return NextResponse.json({ error: 'Thiếu mã.' }, { status: 400 })
   }
 
-  const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  const admin = createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+  const auth = await getUserForAction()
+  if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
+  const user = auth.user
 
-  const { data: session } = await admin
-    .from('slide_quiz_sessions')
-    .select('id, created_by')
-    .eq('code', code)
-    .single()
+  if (!isPgConfigured()) {
+    return NextResponse.json({ error: 'Chưa cấu hình cơ sở dữ liệu.' }, { status: 503 })
+  }
 
-  if (!session) {
+  const res = await fetchSlideQuizResultsForOwnerFromPg(code, user.id)
+  if (res === null) {
+    return NextResponse.json({ error: 'Lỗi đọc kết quả.' }, { status: 500 })
+  }
+  if (res === 'not_found') {
     return NextResponse.json({ error: 'Không tìm thấy phiên.' }, { status: 404 })
   }
-  if (session.created_by !== user?.id) {
+  if (res === 'forbidden') {
     return NextResponse.json({ error: 'Chỉ giáo viên tạo phiên mới xem được kết quả.' }, { status: 403 })
   }
 
-  const { data: responses } = await admin
-    .from('slide_quiz_responses')
-    .select('answer_index')
-    .eq('session_id', session.id)
-
   const counts: Record<number, number> = {}
-  for (const r of responses ?? []) {
-    const i = r.answer_index
+  for (const i of res.answer_indexes) {
     counts[i] = (counts[i] ?? 0) + 1
   }
-  const total = responses?.length ?? 0
+  const total = res.answer_indexes.length
 
   return NextResponse.json({
     counts,

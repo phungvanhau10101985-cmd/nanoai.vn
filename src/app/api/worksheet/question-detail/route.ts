@@ -3,38 +3,22 @@
  * Chỉ khi câu thuộc giáo trình (curriculum_id hoặc nằm trong phiếu của curriculum).
  */
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import {
+  fetchWorksheetQuestionDetailRowPg,
+  isWorksheetQuestionLinkedToCurriculumPg,
+} from '@/lib/db/worksheet-pg'
+import { isPgConfigured } from '@/lib/db/pool'
 import { getUserForAction } from '@/lib/auth'
 import { getEssayProblem, getEssaySolution } from '@/app/tao-giao-trinh/lib/worksheet-content-json'
 
-async function questionLinkedToCurriculum(
-  supabase: ReturnType<typeof createClient>,
-  curriculumId: string,
-  questionId: string
-): Promise<boolean> {
-  const { data: q } = await supabase
-    .from('worksheet_questions')
-    .select('curriculum_id')
-    .eq('id', questionId)
-    .maybeSingle()
-  if (!q) return false
-  if (q.curriculum_id === curriculumId) return true
-  const { data: sheets } = await supabase
-    .from('worksheet_worksheets')
-    .select('question_ids')
-    .eq('curriculum_id', curriculumId)
-  for (const s of sheets ?? []) {
-    const ids = (s.question_ids ?? []) as string[]
-    if (ids.includes(questionId)) return true
-  }
-  return false
-}
-
 export async function GET(req: NextRequest) {
   try {
-    const supabase = createClient()
-    const auth = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+    const auth = await getUserForAction()
     if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
+
+    if (!isPgConfigured()) {
+      return NextResponse.json({ error: 'Chưa cấu hình cơ sở dữ liệu.' }, { status: 503 })
+    }
 
     const { searchParams } = req.nextUrl
     const curriculumId = (searchParams.get('curriculumId') ?? '').trim()
@@ -43,19 +27,17 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Thiếu curriculumId hoặc questionId.' }, { status: 400 })
     }
 
-    const linked = await questionLinkedToCurriculum(supabase, curriculumId, questionId)
+    const linked = await isWorksheetQuestionLinkedToCurriculumPg(curriculumId, questionId)
+    if (linked === null) {
+      return NextResponse.json({ error: 'Không kiểm tra được liên kết câu hỏi.' }, { status: 500 })
+    }
     if (!linked) {
       return NextResponse.json({ error: 'Không tìm thấy câu hoặc không thuộc giáo trình này.' }, { status: 404 })
     }
 
-    const { data: row, error } = await supabase
-      .from('worksheet_questions')
-      .select('id, type, topic, content_json, user_id')
-      .eq('id', questionId)
-      .maybeSingle()
-
-    if (error || !row) {
-      return NextResponse.json({ error: error?.message ?? 'Không đọc được câu hỏi.' }, { status: 500 })
+    const row = await fetchWorksheetQuestionDetailRowPg(questionId)
+    if (!row) {
+      return NextResponse.json({ error: 'Không đọc được câu hỏi.' }, { status: 500 })
     }
 
     if (row.user_id !== auth.user.id) {

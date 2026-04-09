@@ -1,5 +1,6 @@
-import type { User } from '@supabase/supabase-js'
+import type { AppUser } from '@/lib/auth/app-user'
 import { cookies, headers } from 'next/headers'
+import { getEmailSessionUser } from '@/lib/auth/email-session-user'
 
 const FORCE_REAL_LOGIN_COOKIE = 'force_real_login'
 
@@ -38,7 +39,7 @@ export function isAuthRequired(): boolean {
 }
 
 /** Tạo user giả cho môi trường local khi bypass auth */
-function getDevUser(): User {
+function getDevUser(): AppUser {
   const devUserId = process.env.AUTH_DEV_USER_ID || '00000000-0000-0000-0000-000000000001'
   return {
     id: devUserId,
@@ -47,20 +48,16 @@ function getDevUser(): User {
     aud: 'authenticated',
     created_at: new Date().toISOString(),
     email: 'dev@local.test',
-  } as User
+  }
 }
 
 /**
- * Lấy user hiện tại hoặc user giả khi chạy local (bypass auth).
- * Dùng cho pages và components.
+ * Lấy user hiện tại (JWT email) hoặc user giả khi bypass local / crawler.
  */
-export async function getUserOrBypass(
-  getUser: () => Promise<{ data: { user: User | null } }>
-): Promise<User | null> {
-  const { data: { user } } = await getUser()
-  if (user) return user
+export async function getUserOrBypass(): Promise<AppUser | null> {
+  const emailUser = await getEmailSessionUser()
+  if (emailUser) return emailUser
   if (!isAuthRequired()) return getDevUser()
-  // SEO: crawler thấy trang (metadata, nội dung) thay vì redirect sang /auth/ (bị chặn robots)
   if (isSearchEngineCrawler()) return getDevUser()
   return null
 }
@@ -68,15 +65,13 @@ export async function getUserOrBypass(
 export { FORCE_REAL_LOGIN_COOKIE }
 
 /**
- * Lấy user cho server actions.
- * Trả về { user } khi có user (thật hoặc dev), { error } khi cần đăng nhập nhưng chưa có.
+ * Lấy user cho server actions / API (JWT email hoặc dev bypass).
  */
 export async function getUserForAction(
-  getUser: () => Promise<{ data: { user: User | null } }>,
   errorMessage = 'Vui lòng đăng nhập.'
-): Promise<{ user: User } | { error: string }> {
-  const { data: { user } } = await getUser()
-  if (user) return { user }
+): Promise<{ user: AppUser } | { error: string }> {
+  const emailUser = await getEmailSessionUser()
+  if (emailUser) return { user: emailUser }
   if (!isAuthRequired()) return { user: getDevUser() }
   return { error: errorMessage }
 }

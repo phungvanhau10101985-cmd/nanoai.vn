@@ -2,8 +2,10 @@
 /**
  * Query DB for word 听起来 - check example_items_json, targetText format
  * Run: node scripts/query-word-tingqilai.mjs
+ *
+ * Cần: DATABASE_URL trong .env.local
  */
-import { createClient } from '@supabase/supabase-js'
+import { pgQuery } from './pg-query.mjs'
 import { readFileSync } from 'fs'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
@@ -25,54 +27,39 @@ for (const line of envContent.split('\n')) {
   env[k] = v
 }
 
-const url = env.NEXT_PUBLIC_SUPABASE_URL
-const key = env.SUPABASE_SERVICE_ROLE_KEY
-if (!url || !key) {
-  console.error('Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY')
+process.env.DATABASE_URL = env.DATABASE_URL || process.env.DATABASE_URL
+if (!process.env.DATABASE_URL?.trim()) {
+  console.error('Missing DATABASE_URL in .env.local')
   process.exit(1)
 }
-
-const supabase = createClient(url, key)
 
 async function main() {
   const word = '听起来'
   console.log('=== Query word:', word, '===\n')
 
-  const { data: daily, error: e1 } = await supabase
-    .from('language_coach_daily_words')
-    .select('id, word, meaning, pronunciation, example_target, example_native, meaning_items_json, example_items_json')
-    .ilike('word', `%${word}%`)
+  const daily = await pgQuery(
+    `select id, word, meaning, pronunciation, example_target, example_native, meaning_items_json, example_items_json
+     from language_coach_daily_words where word ilike $1`,
+    [`%${word}%`]
+  )
+  console.log('--- language_coach_daily_words ---')
+  console.log(JSON.stringify(daily, null, 2))
 
-  if (e1) {
-    console.error('daily_words error:', e1.message)
-  } else {
-    console.log('--- language_coach_daily_words ---')
-    console.log(JSON.stringify(daily, null, 2))
-  }
+  const review = await pgQuery(
+    `select id, word, meaning, pronunciation, meaning_items_json, example_items_json
+     from language_coach_review_queue where word ilike $1`,
+    [`%${word}%`]
+  )
+  console.log('\n--- language_coach_review_queue ---')
+  console.log(JSON.stringify(review, null, 2))
 
-  const { data: review, error: e2 } = await supabase
-    .from('language_coach_review_queue')
-    .select('id, word, meaning, pronunciation, meaning_items_json, example_items_json')
-    .ilike('word', `%${word}%`)
-
-  if (e2) {
-    console.error('review_queue error:', e2.message)
-  } else {
-    console.log('\n--- language_coach_review_queue ---')
-    console.log(JSON.stringify(review, null, 2))
-  }
-
-  const { data: cache, error: e3 } = await supabase
-    .from('language_coach_vocab_cache')
-    .select('word, meaning, pronunciation, example_target, example_native, meaning_items_json, example_items_json')
-    .ilike('word', `%${word}%`)
-
-  if (e3) {
-    console.error('vocab_cache error:', e3.message)
-  } else {
-    console.log('\n--- language_coach_vocab_cache ---')
-    console.log(JSON.stringify(cache, null, 2))
-  }
+  const cache = await pgQuery(
+    `select word, meaning, pronunciation, example_target, example_native, meaning_items_json, example_items_json
+     from language_coach_vocab_cache where word ilike $1`,
+    [`%${word}%`]
+  )
+  console.log('\n--- language_coach_vocab_cache ---')
+  console.log(JSON.stringify(cache, null, 2))
 }
 
 main().catch(console.error)

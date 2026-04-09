@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenAI } from '@google/genai'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+import { isPgConfigured } from '@/lib/db/pool'
+import {
+  fetchTtsCacheFullPg,
+  incrementLanguageCoachCacheStatPg,
+  touchTtsCachePg,
+  upsertTtsCachePg,
+} from '@/lib/db/language-coach-tts-pg'
 import { createHash } from 'crypto'
 import { trackApiUsage } from '@/lib/track-ai-usage'
 
@@ -71,19 +77,8 @@ function extractStatusCodeFromError(error: unknown): number | null {
   return null
 }
 
-function adminClient() {
-  return createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-}
-
-async function recordCacheMetric(
-  supabase: ReturnType<typeof adminClient>,
-  metric: 'tts_hit' | 'tts_miss'
-) {
-  try {
-    await supabase.rpc('increment_language_coach_cache_stat', { p_metric: metric, p_inc: 1 })
-  } catch {
-    // Keep TTS response path fast and resilient even if stats logging fails.
-  }
+async function recordCacheMetric(metric: 'tts_hit' | 'tts_miss') {
+  await incrementLanguageCoachCacheStatPg(metric)
 }
 
 function toTtsCacheKey(text: string, voiceName: VoiceName, locale: string): string {
@@ -260,26 +255,25 @@ export async function POST(request: NextRequest) {
       `[TTS][${requestId}] start locale=${locale || 'n/a'} gender=${teacherGender || 'n/a'} voice=${voiceName} textLen=${text.length} spokenLen=${speechInput.text.length} engine=${requestedEngine} skipCache=${skipCache}`
     )
 
-    const adminSupabase = adminClient()
     let cached: { id: string; audio_base64: string; mime_type: string; source_model: string } | null = null
-    if (!skipCache) {
-      const { data: cachedRows } = await adminSupabase
-        .from('language_coach_tts_cache')
-        .select('id, audio_base64, mime_type, source_model')
-        .eq('cache_key', cacheKey)
-        .limit(1)
-      cached = Array.isArray(cachedRows) && cachedRows.length > 0 ? cachedRows[0] : null
+    if (!skipCache && isPgConfigured()) {
+      const row = await fetchTtsCacheFullPg(cacheKey)
+      cached = row
+        ? {
+            id: row.id,
+            audio_base64: row.audio_base64,
+            mime_type: row.mime_type,
+            source_model: row.source_model || '',
+          }
+        : null
     }
     const cachedSource = String(cached?.source_model || '')
     const cacheAllowed =
       !!cached && (requestedEngine !== 'gemini-only' || cachedSource.includes('gemini'))
     if (cacheAllowed && cached) {
       ttsCacheStats.hit += 1
-      void recordCacheMetric(adminSupabase, 'tts_hit')
-      void adminSupabase
-        .from('language_coach_tts_cache')
-        .update({ last_used_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-        .eq('id', cached.id)
+      void recordCacheMetric('tts_hit')
+      void touchTtsCachePg(cached.id, new Date().toISOString())
       console.info(`[TTS][${requestId}] cache-hit key=${cacheKey.slice(0, 12)}`)
       logTtsCacheStats(requestId)
       return NextResponse.json({
@@ -292,7 +286,7 @@ export async function POST(request: NextRequest) {
       })
     }
     ttsCacheStats.miss += 1
-    void recordCacheMetric(adminSupabase, 'tts_miss')
+    void recordCacheMetric('tts_miss')
     console.info(`[TTS][${requestId}] cache-miss key=${cacheKey.slice(0, 12)}`)
 
     let extracted: TtsExtracted = null
@@ -445,20 +439,22 @@ ${speechInput.text}`
     console.info(
       `[TTS][${requestId}] tts-success model=${successMeta?.model || 'unknown'} voice=${successMeta?.voice || 'unknown'} attempts=${compactAttempts(attemptLogs)}`
     )
-    await adminSupabase.from('language_coach_tts_cache').upsert(
-      {
-        cache_key: cacheKey,
-        text_hash: textHash,
-        voice_name: voiceName,
+    if (isPgConfigured()) {
+      const nowIso = new Date().toISOString()
+      const up = await upsertTtsCachePg({
+        cacheKey,
+        textHash,
+        voiceName,
         locale: normalizedLocale,
-        mime_type: extracted.mimeType || 'audio/wav',
-        audio_base64: extracted.audioBase64,
-        source_model: successMeta?.model || 'gemini-2.5-flash-preview-tts',
-        last_used_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'cache_key' }
-    )
+        mimeType: extracted.mimeType || 'audio/wav',
+        audioBase64: extracted.audioBase64,
+        sourceModel: successMeta?.model || 'gemini-2.5-flash-preview-tts',
+        nowIso,
+      })
+      if (!up.ok) {
+        console.warn('[TTS] cache-upsert-failed', up.message)
+      }
+    }
     logTtsCacheStats(requestId)
 
     return NextResponse.json({

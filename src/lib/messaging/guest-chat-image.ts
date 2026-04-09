@@ -1,6 +1,5 @@
-import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Database, Json } from '@/types/database.types'
-import { tryOnObjectExists, uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
+import type { Json } from '@/types/database.types'
+import { tryOnObjectExistsByPath, uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 
 export const GUEST_CHAT_IMAGE_MAX_BYTES = 3 * 1024 * 1024
 
@@ -56,15 +55,11 @@ export function mimeFromGuestImagePath(path: string): string {
   return 'image/jpeg'
 }
 
-export async function guestImageObjectExists(
-  db: SupabaseClient<Database>,
-  path: string
-): Promise<boolean> {
-  return tryOnObjectExists(db, path)
+export async function guestImageObjectExists(path: string): Promise<boolean> {
+  return tryOnObjectExistsByPath(path)
 }
 
 export async function uploadGuestChatImageBuffer(
-  db: SupabaseClient<Database>,
   partnerId: string,
   buffer: Buffer,
   mime: string
@@ -76,7 +71,7 @@ export async function uploadGuestChatImageBuffer(
   }
   const path = buildGuestMessagingStoragePath(partnerId, ext)
   try {
-    const { publicUrl } = await uploadTryOnImagePublic(db, path, buffer, { contentType: mime })
+    const { publicUrl } = await uploadTryOnImagePublic(path, buffer, { contentType: mime })
     return { path, publicUrl }
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'Upload failed.' }
@@ -84,7 +79,6 @@ export async function uploadGuestChatImageBuffer(
 }
 
 export async function uploadPartnerChatImageBuffer(
-  db: SupabaseClient<Database>,
   partnerId: string,
   buffer: Buffer,
   mime: string
@@ -96,7 +90,7 @@ export async function uploadPartnerChatImageBuffer(
   }
   const path = buildPartnerMessagingStoragePath(partnerId, ext)
   try {
-    const { publicUrl } = await uploadTryOnImagePublic(db, path, buffer, { contentType: mime })
+    const { publicUrl } = await uploadTryOnImagePublic(path, buffer, { contentType: mime })
     return { path, publicUrl }
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'Upload failed.' }

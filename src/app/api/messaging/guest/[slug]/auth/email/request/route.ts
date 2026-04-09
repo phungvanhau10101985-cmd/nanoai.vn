@@ -1,7 +1,6 @@
 import crypto from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
-import { createServiceRoleClient } from '@/lib/supabase/service-role'
-import { isReservedMessagingGuestSlug } from '@/lib/messaging/reserved-guest-slugs'
+import { resolveActiveMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
 import {
   createGuestSessionId,
   readGuestSessionIdFromRequest,
@@ -15,6 +14,8 @@ import {
   getRateLimitRetryAfterSec,
   isRateLimited,
 } from '@/lib/api/simple-ip-rate-limit'
+import { findLatestEmailChallengeInCooldownPg, insertGuestEmailChallengePg } from '@/lib/db/messaging-guest-pg'
+import { isPgConfigured } from '@/lib/db/pool'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -33,15 +34,9 @@ function normalizeEmail(v: string): string {
 }
 
 async function resolvePartner(slug: string) {
-  if (isReservedMessagingGuestSlug(slug)) return { error: 'not_found' as const }
-  const db = createServiceRoleClient()
-  const { data: partner, error } = await db
-    .from('messaging_partners')
-    .select('id, is_active, display_name')
-    .eq('slug', slug)
-    .maybeSingle()
-  if (error || !partner?.is_active) return { error: 'not_found' as const }
-  return { db, partnerId: partner.id, displayName: partner.display_name, slug }
+  const active = await resolveActiveMessagingPartnerBySlug(slug)
+  if (!active) return { error: 'not_found' as const }
+  return { partnerId: active.id, displayName: active.display_name, slug }
 }
 
 function randOtp6() {
@@ -70,7 +65,11 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
   const { slug } = await ctx.params
   const p = await resolvePartner(slug)
   if ('error' in p) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  const { db, partnerId, displayName } = p
+  const { partnerId, displayName } = p
+
+  if (!isPgConfigured()) {
+    return NextResponse.json({ error: 'Server database is not configured.' }, { status: 503 })
+  }
 
   const body = (await request.json().catch(() => null)) as { email?: string } | null
   const email = normalizeEmail(body?.email ?? '')
@@ -96,16 +95,15 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
 
   const now = new Date()
   const cooldownAfter = new Date(now.getTime() - OTP_RESEND_COOLDOWN_SECONDS * 1000).toISOString()
-  const { data: latest } = await db
-    .from('messaging_guest_email_challenges')
-    .select('id, created_at')
-    .eq('partner_id', partnerId)
-    .eq('email_normalized', email)
-    .gt('created_at', cooldownAfter)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
-  if (latest?.id) {
+  let latestId: string | undefined
+  try {
+    const latest = await findLatestEmailChallengeInCooldownPg(partnerId, email, cooldownAfter)
+    latestId = latest?.id
+  } catch (e) {
+    console.warn('[guest-auth-email-request] cooldown PG failed', e)
+    return NextResponse.json({ error: 'Database error.' }, { status: 500 })
+  }
+  if (latestId) {
     const response = NextResponse.json({ ok: true, sent: true })
     if (!existingSessionId) {
       writeGuestSessionCookie(response, request, sessionId)
@@ -120,16 +118,17 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
   const magicHash = sha256(`magic:${partnerId}:${email}:${magicRaw}`)
   const expiresAt = new Date(now.getTime() + OTP_TTL_MINUTES * 60 * 1000).toISOString()
 
-  const { error: insErr } = await db.from('messaging_guest_email_challenges').insert({
-    partner_id: partnerId,
-    email_normalized: email,
-    session_id: sessionId,
-    code_hash: otpHash,
-    magic_token_hash: magicHash,
-    expires_at: expiresAt,
-    attempt_count: 0,
+  const inserted = await insertGuestEmailChallengePg({
+    partnerId,
+    emailNormalized: email,
+    sessionId,
+    codeHash: otpHash,
+    magicTokenHash: magicHash,
+    expiresAt,
   })
-  if (insErr) return NextResponse.json({ error: insErr.message }, { status: 500 })
+  if (!inserted) {
+    return NextResponse.json({ error: 'Could not create verification challenge.' }, { status: 500 })
+  }
 
   const publicOrigin = resolvePublicOrigin(request)
   const magicUrl = `${publicOrigin}/api/messaging/guest/${encodeURIComponent(slug)}/auth/email/verify-magic?token=${encodeURIComponent(

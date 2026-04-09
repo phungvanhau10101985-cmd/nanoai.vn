@@ -1,5 +1,4 @@
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import { Metadata } from 'next'
 import { SITE_URL } from '@/lib/seo'
@@ -12,6 +11,8 @@ import WorksheetViewWithEdit from './worksheet-view-with-edit'
 import { PresentWorksheetButton } from './present-worksheet-button'
 import { WorksheetSharePanel } from './worksheet-share-panel'
 import { worksheetDisplayMarkdownFromDb } from '@/app/tao-giao-trinh/lib/merge-worksheet-content'
+import { isPgConfigured } from '@/lib/db/pool'
+import { fetchWorksheetSheetPublicViewByIdFromPg, fetchWorksheetTopicByIdFromPg } from '@/lib/db/worksheet-pg'
 
 const DATE_LOCALE: Record<WebLocale, string> = {
   vi: 'vi-VN',
@@ -22,15 +23,13 @@ const DATE_LOCALE: Record<WebLocale, string> = {
 }
 
 export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
-  const supabase = createClient()
   const locale = getCurrentWebLocale()
   const ws = getDictionary(locale).worksheetSolutionPage
-  const { data } = await supabase
-    .from('worksheet_worksheets')
-    .select('topic')
-    .eq('id', params.id)
-    .single()
-  const title = data?.topic ? `${ws.metaTitlePrefix}: ${data.topic}` : ws.metaTitleFallback
+  let topic: string | null = null
+  if (isPgConfigured()) {
+    topic = await fetchWorksheetTopicByIdFromPg(params.id)
+  }
+  const title = topic ? `${ws.metaTitlePrefix}: ${topic}` : ws.metaTitleFallback
   return {
     title,
     description: ws.metaDescription,
@@ -42,23 +41,19 @@ export async function generateMetadata({ params }: { params: { id: string } }): 
 }
 
 export default async function PhieuBaiTapPage({ params }: { params: { id: string } }) {
-  const supabase = createClient()
+  if (!isPgConfigured()) notFound()
+  const data = await fetchWorksheetSheetPublicViewByIdFromPg(params.id)
+  if (!data) notFound()
+
   const { locale, t } = await getServerDictionary()
   const ws = t.worksheetSolutionPage
   const lt = (vi: string, en: string, zh: string, ja: string, ko: string) =>
     locale === 'en' ? en : locale === 'zh' ? zh : locale === 'ja' ? ja : locale === 'ko' ? ko : vi
-  const { data, error } = await supabase
-    .from('worksheet_worksheets')
-    .select('id, topic, content_markdown, question_ids, created_at')
-    .eq('id', params.id)
-    .single()
 
-  if (error || !data) notFound()
-
-  const questionIds = (data.question_ids ?? []) as string[]
+  const questionIds = data.question_ids
   const displayMarkdown =
     questionIds.length > 0
-      ? await worksheetDisplayMarkdownFromDb(supabase, data.content_markdown ?? '', questionIds)
+      ? await worksheetDisplayMarkdownFromDb(data.content_markdown ?? '', questionIds)
       : (data.content_markdown ?? '')
 
   const updatedAt =

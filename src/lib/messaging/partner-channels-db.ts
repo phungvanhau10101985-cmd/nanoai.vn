@@ -1,149 +1,123 @@
-import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Database } from '@/types/database.types'
+import {
+  findFacebookChannelByPageIdFromPg,
+  findFacebookChannelByVerifyTokenFromPg,
+  findZaloChannelByWebhookSecretFromPg,
+  getFacebookSendTokenFromPg,
+  getZaloSendTokenFromPg,
+  upsertFacebookMessengerChannelPg,
+  upsertZaloOaChannelPg,
+} from '@/lib/db/messaging-partner-channels-pg'
+import { isPgConfigured } from '@/lib/db/pool'
 
-type Db = SupabaseClient<Database>
-
-export async function findFacebookChannelByPageId(db: Db, facebookPageId: string) {
-  const { data, error } = await db
-    .from('messaging_partner_channels')
-    .select('partner_id, page_access_token, webhook_verify_token')
-    .eq('provider', 'facebook_messenger')
-    .eq('external_page_id', facebookPageId)
-    .maybeSingle()
-  if (error) return { error: error.message }
-  if (!data) return { channel: null as null }
-  return { channel: data }
+function pgNotConfiguredMessage(): string {
+  return 'Database is not configured (DATABASE_URL).'
 }
 
-export async function findFacebookChannelByVerifyToken(db: Db, verifyToken: string) {
-  const { data, error } = await db
-    .from('messaging_partner_channels')
-    .select('id, partner_id, external_page_id')
-    .eq('provider', 'facebook_messenger')
-    .eq('webhook_verify_token', verifyToken)
-    .limit(1)
-  if (error) return { error: error.message }
-  return { row: data?.[0] ?? null }
+/** Kênh Facebook theo Page ID — chỉ Postgres. */
+export async function findFacebookChannelByPageId(facebookPageId: string) {
+  if (!isPgConfigured()) {
+    return { error: pgNotConfiguredMessage() }
+  }
+  try {
+    const row = await findFacebookChannelByPageIdFromPg(facebookPageId)
+    if (row !== null) return { channel: row }
+    return { channel: null as null }
+  } catch (e) {
+    console.warn('[partner-channels-db] findFacebookChannelByPageId', e)
+    return { error: e instanceof Error ? e.message : 'lookup failed' }
+  }
 }
 
-export async function findZaloChannelByWebhookSecret(db: Db, secret: string) {
-  const { data, error } = await db
-    .from('messaging_partner_channels')
-    .select('partner_id, zalo_access_token')
-    .eq('provider', 'zalo_oa')
-    .eq('zalo_webhook_secret', secret)
-    .limit(1)
-  if (error) return { error: error.message }
-  return { row: data?.[0] ?? null }
+export async function findFacebookChannelByVerifyToken(verifyToken: string) {
+  if (!isPgConfigured()) {
+    return { error: pgNotConfiguredMessage() }
+  }
+  try {
+    const row = await findFacebookChannelByVerifyTokenFromPg(verifyToken)
+    if (row !== null) return { row }
+    return { row: null as null }
+  } catch (e) {
+    console.warn('[partner-channels-db] findFacebookChannelByVerifyToken', e)
+    return { error: e instanceof Error ? e.message : 'lookup failed' }
+  }
+}
+
+export async function findZaloChannelByWebhookSecret(secret: string) {
+  if (!isPgConfigured()) {
+    return { error: pgNotConfiguredMessage() }
+  }
+  try {
+    const row = await findZaloChannelByWebhookSecretFromPg(secret)
+    if (row !== null) return { row }
+    return { row: null as null }
+  } catch (e) {
+    console.warn('[partner-channels-db] findZaloChannelByWebhookSecret', e)
+    return { error: e instanceof Error ? e.message : 'lookup failed' }
+  }
 }
 
 export async function getFacebookSendToken(
-  db: Db,
   partnerId: string,
   facebookPageId: string
 ): Promise<{ token: string | null; error?: string }> {
-  const { data, error } = await db
-    .from('messaging_partner_channels')
-    .select('page_access_token')
-    .eq('provider', 'facebook_messenger')
-    .eq('partner_id', partnerId)
-    .eq('external_page_id', facebookPageId)
-    .maybeSingle()
-  if (error) return { token: null, error: error.message }
-  return { token: data?.page_access_token ?? null }
+  if (!isPgConfigured()) {
+    return { token: null, error: pgNotConfiguredMessage() }
+  }
+  try {
+    const tok = await getFacebookSendTokenFromPg(partnerId, facebookPageId)
+    return { token: tok }
+  } catch (e) {
+    console.warn('[partner-channels-db] getFacebookSendToken', e)
+    return { token: null, error: e instanceof Error ? e.message : 'lookup failed' }
+  }
 }
 
-export async function getZaloSendToken(db: Db, partnerId: string): Promise<{ token: string | null; error?: string }> {
-  const { data, error } = await db
-    .from('messaging_partner_channels')
-    .select('zalo_access_token')
-    .eq('provider', 'zalo_oa')
-    .eq('partner_id', partnerId)
-    .limit(1)
-  if (error) return { token: null, error: error.message }
-  return { token: data?.[0]?.zalo_access_token ?? null }
+export async function getZaloSendToken(partnerId: string): Promise<{ token: string | null; error?: string }> {
+  if (!isPgConfigured()) {
+    return { token: null, error: pgNotConfiguredMessage() }
+  }
+  try {
+    const tok = await getZaloSendTokenFromPg(partnerId)
+    return { token: tok }
+  } catch (e) {
+    console.warn('[partner-channels-db] getZaloSendToken', e)
+    return { token: null, error: e instanceof Error ? e.message : 'lookup failed' }
+  }
 }
 
-export async function upsertFacebookMessengerChannel(
-  db: Db,
-  params: {
-    partnerId: string
-    facebookPageId: string
-    pageAccessToken: string
-    webhookVerifyToken?: string | null
+export async function upsertFacebookMessengerChannel(params: {
+  partnerId: string
+  facebookPageId: string
+  pageAccessToken: string
+  webhookVerifyToken?: string | null
+}) {
+  if (!isPgConfigured()) {
+    return { error: pgNotConfiguredMessage() }
   }
-) {
-  const { partnerId, facebookPageId, pageAccessToken, webhookVerifyToken } = params
-  const { data: existing, error: selErr } = await db
-    .from('messaging_partner_channels')
-    .select('id')
-    .eq('provider', 'facebook_messenger')
-    .eq('external_page_id', facebookPageId)
-    .maybeSingle()
-  if (selErr) return { error: selErr.message }
-  if (existing?.id) {
-    const { data: ownerRow, error: ownErr } = await db
-      .from('messaging_partner_channels')
-      .select('partner_id')
-      .eq('id', existing.id)
-      .single()
-    if (ownErr) return { error: ownErr.message }
-    if (ownerRow?.partner_id !== partnerId) {
-      return { error: 'This Facebook Page is already linked to another workspace.' }
-    }
+  try {
+    const r = await upsertFacebookMessengerChannelPg(params)
+    if ('ok' in r) return r
+    return { error: r.error }
+  } catch (e) {
+    console.warn('[partner-channels-db] upsertFacebookMessengerChannel', e)
+    return { error: e instanceof Error ? e.message : 'upsert failed' }
   }
-  const now = new Date().toISOString()
-  const row = {
-    partner_id: partnerId,
-    provider: 'facebook_messenger' as const,
-    external_page_id: facebookPageId,
-    page_access_token: pageAccessToken,
-    webhook_verify_token: webhookVerifyToken ?? null,
-    updated_at: now,
-  }
-  if (existing?.id) {
-    const { error } = await db.from('messaging_partner_channels').update(row).eq('id', existing.id)
-    if (error) return { error: error.message }
-  } else {
-    const { error } = await db.from('messaging_partner_channels').insert({ ...row, created_at: now })
-    if (error) return { error: error.message }
-  }
-  return { ok: true as const }
 }
 
-export async function upsertZaloOaChannel(
-  db: Db,
-  params: {
-    partnerId: string
-    zaloAccessToken: string
-    zaloWebhookSecret: string
+export async function upsertZaloOaChannel(params: {
+  partnerId: string
+  zaloAccessToken: string
+  zaloWebhookSecret: string
+}) {
+  if (!isPgConfigured()) {
+    return { error: pgNotConfiguredMessage() }
   }
-) {
-  const { partnerId, zaloAccessToken, zaloWebhookSecret } = params
-  const { data: existing, error: selErr } = await db
-    .from('messaging_partner_channels')
-    .select('id')
-    .eq('provider', 'zalo_oa')
-    .eq('partner_id', partnerId)
-    .maybeSingle()
-  if (selErr) return { error: selErr.message }
-  const now = new Date().toISOString()
-  const row = {
-    partner_id: partnerId,
-    provider: 'zalo_oa' as const,
-    external_page_id: 'default',
-    zalo_access_token: zaloAccessToken,
-    zalo_webhook_secret: zaloWebhookSecret,
-    page_access_token: null,
-    webhook_verify_token: null,
-    updated_at: now,
+  try {
+    const r = await upsertZaloOaChannelPg(params)
+    if ('ok' in r) return r
+    return { error: r.error }
+  } catch (e) {
+    console.warn('[partner-channels-db] upsertZaloOaChannel', e)
+    return { error: e instanceof Error ? e.message : 'upsert failed' }
   }
-  if (existing?.id) {
-    const { error } = await db.from('messaging_partner_channels').update(row).eq('id', existing.id)
-    if (error) return { error: error.message }
-  } else {
-    const { error } = await db.from('messaging_partner_channels').insert({ ...row, created_at: now })
-    if (error) return { error: error.message }
-  }
-  return { ok: true as const }
 }

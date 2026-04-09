@@ -1,26 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-import { createClient as createServerClient } from '@/lib/supabase/server'
-import { verifyExamLayoutToken } from '@/lib/exam-layout-token'
-import { CLASS_ENROLLMENT_ERROR_VI, hasCompleteClassEnrollment } from '@/lib/lop/require-class-enrollment'
-import { isServerDeadlinePassed } from '@/lib/exam-session/finalize-overdue-exam-attempt'
 import { randomBytes } from 'crypto'
+import { getUserForAction } from '@/lib/auth'
+import { hasCompleteClassMemberProfileForExamPg } from '@/lib/db/classes-pg'
+import {
+  fetchExamAttemptOpenForDraftPg,
+  fetchExamSessionActiveForStudentFlowPg,
+} from '@/lib/db/exam-session-pg'
+import { isPgConfigured } from '@/lib/db/pool'
+import { verifyExamLayoutToken } from '@/lib/exam-layout-token'
+import { CLASS_ENROLLMENT_ERROR_VI } from '@/lib/lop/require-class-enrollment'
+import { isServerDeadlinePassed } from '@/lib/exam-session/finalize-overdue-exam-attempt'
 import { EXAM_ESSAY_IMAGES_BUCKET } from '@/lib/exam-essay-config'
+import { uploadExamEssayImagePublic } from '@/lib/storage/exam-essay-public-upload'
 
 const MAX_BYTES = 5 * 1024 * 1024
 const ALLOWED = new Set(['image/jpeg', 'image/png', 'image/webp'])
+
+/** Bunny upload — tham số đầu legacy (không dùng). */
+const LEGACY_DB_UNUSED = null
 
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ code: string }> }
 ) {
   try {
-    const serverSupabase = createServerClient()
-    const { data: authData } = await serverSupabase.auth.getUser()
-    const user = authData.user
-    if (!user) {
-      return NextResponse.json({ error: 'Vui lòng đăng nhập.' }, { status: 401 })
+    const auth = await getUserForAction('Vui lòng đăng nhập.')
+    if ('error' in auth) {
+      return NextResponse.json({ error: auth.error }, { status: 401 })
     }
+    const user = auth.user
 
     const { code } = await params
     if (!code || code.length < 4) {
@@ -44,88 +52,85 @@ export async function POST(
       return NextResponse.json({ error: 'Chỉ nhận JPEG, PNG hoặc WebP.' }, { status: 400 })
     }
 
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      { auth: { persistSession: false } }
-    )
+    if (!isPgConfigured()) {
+      return NextResponse.json({ error: 'Chưa cấu hình cơ sở dữ liệu.' }, { status: 503 })
+    }
 
-    const { data: session, error: sessionErr } = await supabase
-      .from('exam_sessions')
-      .select('id, class_id, school_id, duration_minutes')
-      .eq('code', code.toUpperCase())
-      .eq('status', 'active')
-      .single()
-
-    if (sessionErr || !session) {
+    const sessionRow = await fetchExamSessionActiveForStudentFlowPg(code.toUpperCase())
+    if (sessionRow === null) {
+      return NextResponse.json({ error: 'Lỗi đọc bài thi.' }, { status: 500 })
+    }
+    if (sessionRow === 'not_found') {
       return NextResponse.json({ error: 'Không tìm thấy bài thi.' }, { status: 404 })
     }
 
     const layout = await verifyExamLayoutToken(layoutToken)
-    if (!layout || layout.sessionId !== String(session.id) || layout.userId !== user.id) {
+    if (!layout || layout.sessionId !== String(sessionRow.id) || layout.userId !== user.id) {
       return NextResponse.json(
         { error: 'Phiên làm bài không hợp lệ. Vui lòng tải lại trang.' },
         { status: 400 }
       )
     }
 
-    const { data: attemptRow } = await supabase
-      .from('exam_attempts')
-      .select('id, submitted_at, deadline_at, started_at')
-      .eq('session_id', session.id)
-      .eq('user_id', user.id)
-      .maybeSingle()
-    if (attemptRow?.submitted_at != null) {
+    const attemptState = await fetchExamAttemptOpenForDraftPg(sessionRow.id, user.id)
+    if (attemptState === null) {
+      return NextResponse.json({ error: 'Lỗi đọc phiên làm bài.' }, { status: 500 })
+    }
+    if (attemptState === 'submitted') {
       return NextResponse.json({ error: 'Bạn đã nộp bài, không thể tải thêm ảnh.' }, { status: 409 })
     }
-    const durationMin =
-      typeof session.duration_minutes === 'number' ? session.duration_minutes : 15
-    if (
-      attemptRow &&
-      isServerDeadlinePassed(
-        attemptRow.deadline_at,
-        attemptRow.started_at,
-        durationMin,
-        Date.now()
-      )
-    ) {
-      return NextResponse.json(
-        { error: 'Đã hết thời gian làm bài. Vui lòng tải lại trang.' },
-        { status: 400 }
-      )
+
+    const durationMin = sessionRow.duration_minutes
+    if (attemptState !== 'missing') {
+      const attemptRow = attemptState
+      if (
+        isServerDeadlinePassed(
+          attemptRow.deadline_at,
+          attemptRow.started_at,
+          durationMin,
+          Date.now()
+        )
+      ) {
+        return NextResponse.json(
+          { error: 'Đã hết thời gian làm bài. Vui lòng tải lại trang.' },
+          { status: 400 }
+        )
+      }
     }
 
-    if (session.class_id) {
-      const ok = await hasCompleteClassEnrollment(supabase, String(session.class_id), user.id)
+    if (sessionRow.class_id) {
+      const ok = await hasCompleteClassMemberProfileForExamPg(String(sessionRow.class_id), user.id)
+      if (ok === null) {
+        return NextResponse.json({ error: 'Lỗi kiểm tra tham gia lớp.' }, { status: 500 })
+      }
       if (!ok) {
         return NextResponse.json({ error: CLASS_ENROLLMENT_ERROR_VI }, { status: 403 })
       }
     }
 
     const ext = mime === 'image/png' ? 'png' : mime === 'image/webp' ? 'webp' : 'jpg'
-    const objectPath = `${session.id}/${user.id}/${Date.now()}-${randomBytes(6).toString('hex')}.${ext}`
+    const objectPath = `${sessionRow.id}/${user.id}/${Date.now()}-${randomBytes(6).toString('hex')}.${ext}`
     const buf = Buffer.from(await file.arrayBuffer())
 
-    const { error: upErr } = await supabase.storage
-      .from(EXAM_ESSAY_IMAGES_BUCKET)
-      .upload(objectPath, buf, { contentType: mime, upsert: false })
-
-    if (upErr) {
-      console.error('[exam-essay-image]', upErr.message)
-      const msg = String(upErr.message ?? '')
-      const bucketMissing = /bucket not found/i.test(msg)
+    try {
+      const { publicUrl } = await uploadExamEssayImagePublic(LEGACY_DB_UNUSED, objectPath, buf, {
+        contentType: mime,
+        upsert: false,
+      })
+      return NextResponse.json({ url: publicUrl })
+    } catch (upErr: unknown) {
+      const msg = upErr instanceof Error ? upErr.message : String(upErr)
+      console.error('[exam-essay-image]', msg)
+      const likelyConfig = /Thiếu Bunny Storage|Bunny exam-essay upload failed/i.test(msg)
       return NextResponse.json(
         {
-          error: bucketMissing
-            ? `Storage bucket "${EXAM_ESSAY_IMAGES_BUCKET}" chưa có trên Supabase. Vào Dashboard → Storage tạo bucket public cùng tên hoặc chạy migration 20260327100000_exam_essay_submission_storage.sql.`
+          error: likelyConfig
+            ? `Cấu hình Bunny Storage (BUNNY_STORAGE_ZONE, BUNNY_STORAGE_API_KEY, BUNNY_STORAGE_PUBLIC_BASE_URL). Ảnh bài thi lưu trong zone với prefix "${EXAM_ESSAY_IMAGES_BUCKET}/".`
             : 'Tải ảnh lên thất bại.',
         },
         { status: 500 }
       )
     }
-
-    const { data: pub } = supabase.storage.from(EXAM_ESSAY_IMAGES_BUCKET).getPublicUrl(objectPath)
-    return NextResponse.json({ url: pub.publicUrl })
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     return NextResponse.json({ error: msg }, { status: 500 })

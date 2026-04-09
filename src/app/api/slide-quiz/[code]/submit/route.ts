@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+import {
+  fetchSlideQuizSessionIdByCodeFromPg,
+  insertSlideQuizResponseFromPg,
+} from '@/lib/db/slide-quiz-pg'
+import { isPgConfigured } from '@/lib/db/pool'
 
 export async function POST(
   req: NextRequest,
@@ -25,30 +29,27 @@ export async function POST(
     return NextResponse.json({ error: 'Cần deviceId.' }, { status: 400 })
   }
 
-  const supabase = createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-  const { data: session } = await supabase
-    .from('slide_quiz_sessions')
-    .select('id')
-    .eq('code', code)
-    .single()
+  if (!isPgConfigured()) {
+    return NextResponse.json({ error: 'Chưa cấu hình cơ sở dữ liệu.' }, { status: 503 })
+  }
 
-  if (!session) {
+  const sessionId = await fetchSlideQuizSessionIdByCodeFromPg(code)
+  if (!sessionId) {
     return NextResponse.json({ error: 'Không tìm thấy phiên.' }, { status: 404 })
   }
-  const row = {
-    session_id: session.id,
-    answer_index: answerIndex,
-    user_id: userId || null,
-    device_id: did,
+
+  const inserted = await insertSlideQuizResponseFromPg({
+    sessionId,
+    answerIndex,
+    userId: userId || null,
+    deviceId: did,
+  })
+
+  if (inserted === null) {
+    return NextResponse.json({ error: 'Lỗi lưu đáp án.' }, { status: 500 })
   }
-
-  const { error } = await supabase.from('slide_quiz_responses').insert(row)
-
-  if (error) {
-    if ((error as { code?: string }).code === '23505') {
-      return NextResponse.json({ success: false, error: 'Bạn đã gửi rồi. Chỉ được gửi 1 lần.' })
-    }
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  if (inserted === 'duplicate') {
+    return NextResponse.json({ success: false, error: 'Bạn đã gửi rồi. Chỉ được gửi 1 lần.' })
   }
   return NextResponse.json({ success: true })
 }

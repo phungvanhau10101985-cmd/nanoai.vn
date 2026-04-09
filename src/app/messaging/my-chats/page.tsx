@@ -1,7 +1,6 @@
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
-import { createServiceRoleClient } from '@/lib/supabase/service-role'
+import { getUserOrBypass } from '@/lib/auth'
 import { listWidgetChatsForLinkedUser } from '@/lib/messaging/list-widget-chats-for-linked-user'
 import { getCurrentWebLocale, getServerDictionary } from '@/lib/i18n/server'
 import { buildMetadata } from '@/lib/seo'
@@ -34,16 +33,12 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function MyMessagingChatsPage() {
-  const supabase = createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getUserOrBypass()
   if (!user?.id) {
     redirect(`/auth/login?next=${encodeURIComponent(sanitizeLoginNext(PATH))}`)
   }
 
-  const db = createServiceRoleClient()
-  const { items, error } = await listWidgetChatsForLinkedUser(db, user.id)
+  const { items, error } = await listWidgetChatsForLinkedUser(user.id)
 
   const { t } = getServerDictionary()
 

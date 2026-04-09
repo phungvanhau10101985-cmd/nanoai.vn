@@ -5,8 +5,8 @@
  * @see CURRICULUM_CREDIT_RULES trong `@/app/tao-giao-trinh/lib/curriculum-credit-costs`
  */
 import { createHash } from 'crypto'
-import { createClient as createSupabaseClient, type SupabaseClient } from '@supabase/supabase-js'
 import { CURRICULUM_UI_CREDITS } from '@/app/tao-giao-trinh/lib/curriculum-credit-costs'
+import { getCreditBalanceByUserId, spendCreditsIdempotent } from '@/lib/db/credits-balance'
 
 export const CURRICULUM_AI_CHARGE_TYPES = {
   /** POST /api/curriculum-from-image — tạo giáo trình từ ảnh (+ slide trong cùng pipeline) */
@@ -23,17 +23,8 @@ export function isCurriculumAiCreditsDisabled(): boolean {
   return v === '1' || v === 'true'
 }
 
-export function curriculumAiAdminClient(): SupabaseClient | null {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!url || !key) return null
-  return createSupabaseClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } })
-}
-
-export async function readUserCreditBalance(admin: SupabaseClient, userId: string): Promise<number> {
-  const { data, error } = await admin.from('credits').select('balance').eq('user_id', userId).maybeSingle()
-  if (error) throw new Error(error.message || 'Không đọc được số dư credits.')
-  return Number(data?.balance ?? 0)
+export async function readUserCreditBalance(userId: string): Promise<number> {
+  return getCreditBalanceByUserId(userId)
 }
 
 export type SpendCurriculumAiResult = {
@@ -47,31 +38,26 @@ export type SpendCurriculumAiResult = {
  * Mỗi lần gọi AI thực sự dùng event_key **unique** (UUID) — không idempotent theo curriculum
  * để lần tạo slide sau (sau khi xóa DB) vẫn trừ đúng.
  */
-export async function spendCurriculumAiCredits(
-  admin: SupabaseClient,
-  input: {
-    userId: string
-    amount: number
-    chargeType: string
-    eventKey: string
-    metadata?: Record<string, unknown>
-  }
-): Promise<SpendCurriculumAiResult> {
-  const { data, error } = await admin.rpc('spend_credits_idempotent', {
-    p_user_id: input.userId,
-    p_amount: input.amount,
-    p_event_key: input.eventKey,
-    p_charge_type: input.chargeType,
-    p_session_id: null,
-    p_metadata_json: JSON.stringify(input.metadata ?? {}),
+export async function spendCurriculumAiCredits(input: {
+  userId: string
+  amount: number
+  chargeType: string
+  eventKey: string
+  metadata?: Record<string, unknown>
+}): Promise<SpendCurriculumAiResult> {
+  const r = await spendCreditsIdempotent({
+    userId: input.userId,
+    amount: input.amount,
+    eventKey: input.eventKey,
+    chargeType: input.chargeType,
+    sessionId: null,
+    metadataJson: JSON.stringify(input.metadata ?? {}),
   })
-  if (error) throw new Error(error.message || 'Không thể trừ credits.')
-  const row = Array.isArray(data) ? data[0] : data
   return {
-    ok: Boolean(row?.ok),
-    alreadyApplied: Boolean(row?.already_applied),
-    newBalance: Number(row?.new_balance || 0),
-    error: String(row?.error || '').trim(),
+    ok: r.ok,
+    alreadyApplied: r.alreadyApplied,
+    newBalance: r.newBalance,
+    error: r.error,
   }
 }
 

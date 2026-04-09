@@ -1,13 +1,12 @@
-import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/database.types'
+import { fetchMessagingPartnerFaqsActiveFromPg } from '@/lib/db/messaging-partner-faq-pg'
+import { isPgConfigured } from '@/lib/db/pool'
 import {
   isPartnerFaqPresetKey,
   presetKeywordBlob,
   presetSortOrder,
   type PartnerFaqPresetKey,
 } from '@/lib/messaging/partner-faq-presets'
-
-type Db = SupabaseClient<Database>
 
 export type FaqRow = Database['public']['Tables']['messaging_partner_faq']['Row']
 
@@ -45,16 +44,13 @@ function matchKeysForRow(row: FaqRow): string[] {
   return parseTriggerKeywords(row.trigger_keywords)
 }
 
-/** Trả về FAQ đầu tiên khớp (preset mẫu trước, rồi FAQ tuỳ chỉnh). */
-export async function findMatchingFaq(db: Db, partnerId: string, customerMessage: string): Promise<FaqRow | null> {
+/** Trả về FAQ đầu tiên khớp (preset mẫu trước, rồi FAQ tuỳ chỉnh). Chỉ Postgres. */
+export async function findMatchingFaq(partnerId: string, customerMessage: string): Promise<FaqRow | null> {
   const text = normalize(customerMessage)
   if (!text) return null
-  const { data, error } = await db
-    .from('messaging_partner_faq')
-    .select('*')
-    .eq('partner_id', partnerId)
-    .eq('is_active', true)
-  if (error || !data?.length) return null
+  if (!isPgConfigured()) return null
+  const data = await fetchMessagingPartnerFaqsActiveFromPg(partnerId)
+  if (!data?.length) return null
   const rows = sortFaqRowsForMatching(data).filter((r) => r.answer?.trim())
   for (const row of rows) {
     const keys = matchKeysForRow(row)

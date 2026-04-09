@@ -1,6 +1,4 @@
 import Link from 'next/link'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
-import type { Database } from '@/types/database.types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
@@ -13,37 +11,14 @@ import { rollupApiUsageByFeatureGroup, type UsageAggRow } from '../group-aggrega
 import { aggregateLanguageCoachCredits } from '../language-coach-financials'
 import { ApiStatsDateFilter } from '../api-stats-date-filter'
 import { fetchAllApiUsageLogsInRange } from '../fetch-api-usage-logs-range'
+import {
+  fetchLanguageCoachCreditEventsInRange,
+  fetchRevenueFromCompletedPaymentsInRange,
+  sumMusicChargedCreditsInRange,
+} from '@/lib/db/admin-api-stats-pg'
 
 function toYMD(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
-
-async function sumMusicChargedCredits(
-  admin: ReturnType<typeof createSupabaseClient<Database>>,
-  fromIso: string,
-  toIso: string
-): Promise<number> {
-  const pageSize = 1000
-  let offset = 0
-  let sum = 0
-  for (;;) {
-    const { data, error } = await admin
-      .from('music_generations')
-      .select('charged_credits')
-      .gte('created_at', fromIso)
-      .lte('created_at', toIso)
-      .order('created_at', { ascending: true })
-      .range(offset, offset + pageSize - 1)
-    if (error || !data?.length) break
-    for (const row of data) {
-      const n = Number((row as { charged_credits?: number | string }).charged_credits ?? 0)
-      if (Number.isFinite(n)) sum += n
-    }
-    if (data.length < pageSize) break
-    offset += pageSize
-    if (offset > 500_000) break
-  }
-  return sum
 }
 
 function groupLabel(
@@ -75,23 +50,14 @@ export default async function AdminApiStatsBreakdownPage({
   const fromDate = params.from?.trim() || toYMD(thirtyDaysAgo)
   const toDate = params.to?.trim() || toYMD(today)
 
-  const rangeStart = new Date(fromDate)
-  rangeStart.setHours(0, 0, 0, 0)
-  const rangeEnd = new Date(toDate)
-  rangeEnd.setHours(23, 59, 59, 999)
   const fromIso = fromDate + 'T00:00:00'
   const toIso = toDate + 'T23:59:59.999'
 
-  const adminSupabase = createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
-
-  const [logFetch, { data: languageCoachCreditEvents }, { data: allPayments }, musicCreditsSum] = await Promise.all([
-    fetchAllApiUsageLogsInRange(adminSupabase, fromIso, toIso),
-    adminSupabase.from('language_coach_credit_events').select('charge_type, amount').gte('created_at', fromIso).lte('created_at', toIso),
-    adminSupabase.from('payments').select('amount, completed_at, created_at').eq('status', 'completed'),
-    sumMusicChargedCredits(adminSupabase, fromIso, toIso),
+  const [logFetch, languageCoachCreditEvents, revenueInRange, musicCreditsSum] = await Promise.all([
+    fetchAllApiUsageLogsInRange(fromIso, toIso),
+    fetchLanguageCoachCreditEventsInRange(fromIso, toIso),
+    fetchRevenueFromCompletedPaymentsInRange(fromIso, toIso),
+    sumMusicChargedCreditsInRange(fromIso, toIso),
   ])
 
   const { data: logsRaw, error, count: apiLogTotalCount } = logFetch
@@ -128,16 +94,6 @@ export default async function AdminApiStatsBreakdownPage({
     siteModelDistinctGroupCount,
   } = rollupApiUsageByFeatureGroup(logsList, calcCostVnd)
 
-  const revenueInRange =
-    allPayments
-      ?.filter((p) => {
-        const d = (p as { completed_at?: string; created_at?: string }).completed_at ?? (p as { created_at?: string }).created_at
-        if (!d) return false
-        const dt = new Date(d)
-        return dt >= rangeStart && dt <= rangeEnd
-      })
-      .reduce((s, p) => s + (p.amount || 0), 0) ?? 0
-
   let apiCostUsdInRange = 0
   for (const log of logsList) {
     const cost = calcCostVnd(
@@ -151,7 +107,7 @@ export default async function AdminApiStatsBreakdownPage({
   const apiCostVndInRange = Math.round(apiCostUsdInRange * USD_TO_VND)
   const profitInRange = revenueInRange - apiCostVndInRange
 
-  const coachCreditAgg = aggregateLanguageCoachCredits(languageCoachCreditEvents || [])
+  const coachCreditAgg = aggregateLanguageCoachCredits(languageCoachCreditEvents)
   const musicCredits = musicCreditsSum
   const musicCreditsVnd = Math.round(musicCredits * CREDIT_UNIT_PRICE_VND)
   const coachCreditsTotalVnd = coachCreditAgg.liveCreditsVnd + coachCreditAgg.presetCreditsVnd

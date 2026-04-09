@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
-import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
-
-function adminClient() {
-  return createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-}
+import { isPgConfigured } from '@/lib/db/pool'
+import {
+  fetchDailyWordsForSessionListeningPg,
+  fetchDailyWordsRecentUserListeningPg,
+} from '@/lib/db/language-coach-misc-pg'
 
 function normalizeLookup(input: string): string {
   return String(input || '').trim().toLowerCase()
@@ -31,10 +30,13 @@ const DEFAULT_BY_LANG: Record<string, string[]> = {
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createClient()
-    const auth = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+    const auth = await getUserForAction()
     if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
     const { user } = auth
+
+    if (!isPgConfigured()) {
+      return NextResponse.json({ error: 'Server database is not configured.' }, { status: 503 })
+    }
 
     const { searchParams } = new URL(request.url)
     const sessionId = searchParams.get('sessionId')?.trim()
@@ -50,7 +52,6 @@ export async function GET(request: NextRequest) {
     const minLen = ['zh', 'ja', 'ko', 'th', 'hi'].includes(languageCode.toLowerCase()) ? 1 : 2
 
     const out: string[] = []
-    const adminSupabase = adminClient()
 
     const collect = (rows: Array<{ word?: string }> | null | undefined) => {
       for (const row of rows || []) {
@@ -64,30 +65,25 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Ưu tiên từ mới lưu trong DB của session (và turn nếu có)
     if (sessionId) {
-      let query = adminSupabase
-        .from('language_coach_daily_words')
-        .select('word')
-        .eq('user_id', user.id)
-        .eq('session_id', sessionId)
-        .order('updated_at', { ascending: false })
-        .limit(120)
-      if (turnIndex !== undefined && turnIndex >= 0) {
-        query = query.or(`turn_index.eq.${-1},turn_index.eq.${turnIndex}`)
+      const sessionWords = await fetchDailyWordsForSessionListeningPg({
+        userId: user.id,
+        sessionId,
+        turnIndex: turnIndex !== undefined && turnIndex >= 0 ? turnIndex : undefined,
+        limit: 120,
+      })
+      if (sessionWords === null) {
+        return NextResponse.json({ error: 'Could not load vocabulary.' }, { status: 500 })
       }
-      const { data: sessionRows } = await query
-      collect((sessionRows || []) as Array<{ word?: string }>)
+      collect(sessionWords.map((word) => ({ word })))
     }
 
     if (out.length < limit) {
-      const { data: userRows } = await adminSupabase
-        .from('language_coach_daily_words')
-        .select('word')
-        .eq('user_id', user.id)
-        .order('updated_at', { ascending: false })
-        .limit(200)
-      collect((userRows || []) as Array<{ word?: string }>)
+      const userWords = await fetchDailyWordsRecentUserListeningPg(user.id, 200)
+      if (userWords === null) {
+        return NextResponse.json({ error: 'Could not load vocabulary.' }, { status: 500 })
+      }
+      collect(userWords.map((word) => ({ word })))
     }
 
     if (out.length < limit) {
@@ -101,7 +97,6 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Shuffle
     for (let i = out.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [out[i], out[j]] = [out[j], out[i]]

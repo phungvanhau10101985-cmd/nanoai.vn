@@ -1,5 +1,4 @@
 import Link from 'next/link'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
@@ -18,6 +17,10 @@ import { fetchAllApiUsageLogsInRange, sortApiUsageLogsNewestFirst } from './fetc
 import { ApiUsageCharts } from './api-usage-charts'
 import { buildApiUsageChartData } from './build-api-usage-chart-data'
 import { getApiUsageModelDisplayLabel } from './model-display-label'
+import {
+  fetchLanguageCoachCreditEventsInRange,
+  fetchRevenueFromCompletedPaymentsInRange,
+} from '@/lib/db/admin-api-stats-pg'
 
 function toYMD(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -47,41 +50,13 @@ export default async function AdminApiStatsPage({
   const fromDate = fromParam || toYMD(thirtyDaysAgo)
   const toDate = toParam || toYMD(today)
 
-  const rangeStart = new Date(fromDate)
-  rangeStart.setHours(0, 0, 0, 0)
-  const rangeEnd = new Date(toDate)
-  rangeEnd.setHours(23, 59, 59, 999)
-
-  const adminSupabase = createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
-
-  const { data: allPayments } = await adminSupabase
-    .from('payments')
-    .select('amount, completed_at, created_at')
-    .eq('status', 'completed')
-
-  const revenueInRange =
-    allPayments
-      ?.filter((p) => {
-        const d = (p as { completed_at?: string; created_at?: string }).completed_at ?? (p as { created_at?: string }).created_at
-        if (!d) return false
-        const dt = new Date(d)
-        return dt >= rangeStart && dt <= rangeEnd
-      })
-      .reduce((s, p) => s + (p.amount || 0), 0) ?? 0
-
   const fromIso = fromDate + 'T00:00:00'
   const toIso = toDate + 'T23:59:59.999'
 
-  const [logFetch, { data: languageCoachCreditEvents }] = await Promise.all([
-    fetchAllApiUsageLogsInRange(adminSupabase, fromIso, toIso),
-    adminSupabase
-      .from('language_coach_credit_events')
-      .select('charge_type, amount')
-      .gte('created_at', fromIso)
-      .lte('created_at', toIso),
+  const [logFetch, revenueInRange, languageCoachCreditEvents] = await Promise.all([
+    fetchAllApiUsageLogsInRange(fromIso, toIso),
+    fetchRevenueFromCompletedPaymentsInRange(fromIso, toIso),
+    fetchLanguageCoachCreditEventsInRange(fromIso, toIso),
   ])
 
   const { data: logsRaw, error } = logFetch

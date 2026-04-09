@@ -1,15 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
+import { isPgConfigured } from '@/lib/db/pool'
+import { pgQueryOne } from '@/lib/db/pg-query'
+import {
+  deleteCustomTopicsByNormalizedTopicIdPg,
+  listSharedCustomTopicsPg,
+  upsertSharedCustomTopicPg,
+} from '@/lib/db/language-coach-topics-pg'
 import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
 import {
   EnglishCoachApiFeature,
   parseCoachUsageContextPayload,
   trackEnglishCoachGeminiResult,
 } from '@/lib/english-coach-api-usage'
-import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
-
 type Payload = {
   rawTopic?: string
   targetLanguage?: string
@@ -31,10 +35,6 @@ type NormalizedTopic = {
   topicId: string
   topicLabel: string
   topicDifficulty: 'basic' | 'intermediate' | 'advanced'
-}
-
-function adminClient() {
-  return createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 }
 
 function normalizeLookup(input: string): string {
@@ -95,10 +95,11 @@ function safeParse(text: string): NormalizedTopic | null {
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createClient()
+    if (!isPgConfigured()) {
+      return NextResponse.json({ error: 'Cơ sở dữ liệu chưa cấu hình.' }, { status: 503 })
+    }
     const locale = tr(request.nextUrl.searchParams.get('nativeLanguage') || '')
     const auth = await getUserForAction(
-      () => supabase.auth.getUser(),
       msg(locale, 'Vui lòng đăng nhập để xem chủ đề tự tạo.', 'Please sign in to view custom topics.')
     )
     if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
@@ -111,37 +112,33 @@ export async function GET(request: NextRequest) {
     const limitRaw = Number(request.nextUrl.searchParams.get('limit') || 20)
     const limit = Number.isFinite(limitRaw) ? Math.min(50, Math.max(1, Math.floor(limitRaw))) : 20
 
-    const adminSupabase = adminClient()
-    let query = adminSupabase
-      .from('language_coach_custom_topics')
-      .select('topic_id, topic_label, topic_difficulty, target_language, native_language, learner_level')
-      .order('updated_at', { ascending: false })
-      .limit(limit)
-    if (targetLanguage) query = query.eq('normalized_target_language', targetLanguage)
-    if (nativeLanguage) query = query.eq('normalized_native_language', nativeLanguage)
-    query = query.eq('learner_level', learnerLevel)
-
-    const { data, error } = await query
-    if (error) {
-      return NextResponse.json({ error: error.message || msg(locale, 'Không tải được chủ đề tự tạo.', 'Failed to load custom topics.') }, { status: 500 })
+    const data = await listSharedCustomTopicsPg({
+      normalizedTargetLanguage: targetLanguage,
+      normalizedNativeLanguage: nativeLanguage,
+      learnerLevel,
+      limit,
+    })
+    if (data === null) {
+      return NextResponse.json(
+        { error: msg(locale, 'Không tải được chủ đề tự tạo.', 'Failed to load custom topics.') },
+        { status: 500 }
+      )
     }
 
     return NextResponse.json({
-      items: Array.isArray(data)
-        ? data.map((x) => ({
-            topicId: String(x.topic_id || '').trim(),
-            topicLabel: String(x.topic_label || '').trim(),
-            topicDifficulty:
-              x.topic_difficulty === 'advanced'
-                ? 'advanced'
-                : x.topic_difficulty === 'intermediate'
-                  ? 'intermediate'
-                  : 'basic',
-            targetLanguage: String(x.target_language || '').trim(),
-            nativeLanguage: String(x.native_language || '').trim(),
-            learnerLevel: Number(x.learner_level || 0),
-          }))
-        : [],
+      items: data.map((x) => ({
+        topicId: String(x.topic_id || '').trim(),
+        topicLabel: String(x.topic_label || '').trim(),
+        topicDifficulty:
+          x.topic_difficulty === 'advanced'
+            ? 'advanced'
+            : x.topic_difficulty === 'intermediate'
+              ? 'intermediate'
+              : 'basic',
+        targetLanguage: String(x.target_language || '').trim(),
+        nativeLanguage: String(x.native_language || '').trim(),
+        learnerLevel: Number(x.learner_level || 0),
+      })),
     })
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Lỗi không xác định.'
@@ -151,12 +148,13 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createClient()
+    if (!isPgConfigured()) {
+      return NextResponse.json({ error: 'Cơ sở dữ liệu chưa cấu hình.' }, { status: 503 })
+    }
     const payload = (await request.json()) as Payload
     const coachCtx = parseCoachUsageContextPayload(payload.coachUsageContext)
     const locale = tr(payload.nativeLanguage || '')
     const auth = await getUserForAction(
-      () => supabase.auth.getUser(),
       msg(locale, 'Vui lòng đăng nhập để tạo chủ đề.', 'Please sign in to create a topic.')
     )
     if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
@@ -249,32 +247,28 @@ Trả về đúng JSON:
       )
     }
 
-    const adminSupabase = adminClient()
     const now = new Date().toISOString()
-    const { data, error } = await adminSupabase
-      .from('language_coach_custom_topics')
-      .upsert(
-        {
-          user_id: user.id,
-          raw_topic: rawTopic,
-          topic_id: finalTopic.topicId,
-          topic_label: finalTopic.topicLabel,
-          topic_difficulty: finalTopic.topicDifficulty,
-          target_language: targetLanguage,
-          native_language: nativeLanguage,
-          learner_level: learnerLevel,
-          normalized_topic_id: normalizeLookup(finalTopic.topicId),
-          normalized_target_language: normalizeLookup(targetLanguage),
-          normalized_native_language: normalizeLookup(nativeLanguage),
-          updated_at: now,
-          last_used_at: now,
-        },
-        { onConflict: 'normalized_topic_id,normalized_target_language,normalized_native_language,learner_level' }
-      )
-      .select('topic_id, topic_label, topic_difficulty')
-      .single()
+    const data = await upsertSharedCustomTopicPg({
+      userId: user.id,
+      rawTopic,
+      topicId: finalTopic.topicId,
+      topicLabel: finalTopic.topicLabel,
+      topicDifficulty: finalTopic.topicDifficulty,
+      targetLanguage,
+      nativeLanguage,
+      learnerLevel,
+      normalizedTopicId: normalizeLookup(finalTopic.topicId),
+      normalizedTargetLanguage: normalizeLookup(targetLanguage),
+      normalizedNativeLanguage: normalizeLookup(nativeLanguage),
+      nowIso: now,
+    })
 
-    if (error) return NextResponse.json({ error: error.message || msg(locale, 'Không lưu được chủ đề tự tạo.', 'Failed to save custom topic.') }, { status: 500 })
+    if (!data) {
+      return NextResponse.json(
+        { error: msg(locale, 'Không lưu được chủ đề tự tạo.', 'Failed to save custom topic.') },
+        { status: 500 }
+      )
+    }
 
     return NextResponse.json({
       topicId: String(data.topic_id || '').trim(),
@@ -294,39 +288,41 @@ Trả về đúng JSON:
 
 export async function DELETE(request: NextRequest) {
   try {
-    const supabase = createClient()
+    if (!isPgConfigured()) {
+      return NextResponse.json({ error: 'Cơ sở dữ liệu chưa cấu hình.' }, { status: 503 })
+    }
     const payload = (await request.json()) as { topicId?: string; nativeLanguage?: string }
     const locale = tr(payload.nativeLanguage || '')
     const auth = await getUserForAction(
-      () => supabase.auth.getUser(),
       msg(locale, 'Vui lòng đăng nhập để xóa chủ đề.', 'Please sign in to delete a topic.')
     )
     if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
     const { user } = auth
 
-    const adminSupabase = adminClient()
-    const { data: profile, error: profileError } = await adminSupabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single()
-    if (profileError) {
-      return NextResponse.json({ error: profileError.message || msg(locale, 'Không kiểm tra được quyền quản trị.', 'Unable to verify admin permission.') }, { status: 500 })
+    const profile = await pgQueryOne<{ role: unknown }>(
+      'select role from public.profiles where id = $1::uuid limit 1',
+      [user.id]
+    )
+    if (!profile) {
+      return NextResponse.json(
+        { error: msg(locale, 'Không kiểm tra được quyền quản trị.', 'Unable to verify admin permission.') },
+        { status: 500 }
+      )
     }
-    if (String(profile?.role || '') !== 'admin') {
+    if (String(profile.role || '') !== 'admin') {
       return NextResponse.json({ error: msg(locale, 'Chỉ quản trị viên mới có quyền xóa chủ đề.', 'Only admins can delete topics.') }, { status: 403 })
     }
 
     const topicId = String(payload.topicId || '').trim()
     if (!topicId) return NextResponse.json({ error: msg(locale, 'Thiếu topicId cần xóa.', 'Missing topicId to delete.') }, { status: 400 })
 
-    const query = adminSupabase
-      .from('language_coach_custom_topics')
-      .delete()
-      .eq('normalized_topic_id', normalizeLookup(topicId))
-
-    const { error } = await query
-    if (error) return NextResponse.json({ error: error.message || msg(locale, 'Không xóa được chủ đề.', 'Failed to delete topic.') }, { status: 500 })
+    const del = await deleteCustomTopicsByNormalizedTopicIdPg(normalizeLookup(topicId))
+    if (!del.ok) {
+      return NextResponse.json(
+        { error: del.message || msg(locale, 'Không xóa được chủ đề.', 'Failed to delete topic.') },
+        { status: 500 }
+      )
+    }
     return NextResponse.json({ ok: true })
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Lỗi không xác định.'

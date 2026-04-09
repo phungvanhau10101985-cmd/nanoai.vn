@@ -1,15 +1,18 @@
 # Hướng dẫn chạy SQL Migration cho hệ thống thanh toán
 
-## Bước 1: Truy cập Supabase Dashboard
-1. Mở trình duyệt và truy cập: **https://app.supabase.com/project/mxwfxudyeoqstgwmlupa**
-2. Đăng nhập nếu cần
+## Bước 1: Kết nối Postgres
 
-## Bước 2: Mở SQL Editor
-1. Trong sidebar bên trái, click **"SQL Editor"**
-2. Click **"New query"** để tạo query mới
+Dùng bất kỳ client nào nối được tới database (cùng URI với `DATABASE_URL`): **SQL Editor** trên host, **pgAdmin**, **`psql`**, v.v.
 
-## Bước 3: Chạy SQL Migration
-Copy toàn bộ SQL dưới đây và paste vào SQL Editor, sau đó click **"Run"**:
+## Bước 2: Mở cửa sổ query
+
+Tạo query mới (hoặc `psql` và dán SQL).
+
+## Bước 3: Chạy SQL migration
+
+Copy toàn bộ SQL dưới đây, paste và chạy (**Run** / Enter tùy client):
+
+*(Khuyến nghị lâu dài: đưa DDL vào file trong `supabase/migrations/` và áp dụng theo quy trình migration của team thay vì chỉ paste tay.)*
 
 ```sql
 -- Tạo bảng lưu thông tin giao dịch thanh toán
@@ -72,14 +75,14 @@ ON CONFLICT DO NOTHING;
 
 ## Bước 4: Kiểm tra kết quả
 Sau khi chạy SQL thành công, kiểm tra:
-1. **Table Editor** → Xem có 2 bảng mới: `payments` và `payment_configs`
-2. **Bảng `payment_configs`** → Có 2 dòng dữ liệu mẫu
-3. **Bảng `payments`** → Trống (sẽ có dữ liệu khi người dùng nạp tiền)
+1. **Table editor / `\dt`** → Có 2 bảng mới: `payments` và `payment_configs`
+2. **`payment_configs`** → Có 2 dòng dữ liệu mẫu
+3. **`payments`** → Trống (sẽ có dữ liệu khi người dùng nạp tiền)
 
 ## Bước 5: Cập nhật thông tin ngân hàng thực tế
 Sau khi migration thành công, cần cập nhật thông tin ngân hàng thực tế:
 
-1. Vào **Table Editor** → Chọn bảng **`payment_configs`**
+1. Mở bảng **`payment_configs`** (UI hoặc `UPDATE` qua SQL)
 2. Cập nhật thông tin ngân hàng thực tế:
    - `bank_account`: Số tài khoản ngân hàng thực tế
    - `bank_id`: Mã ngân hàng (MB, VCB, VPB, TCB, etc.)

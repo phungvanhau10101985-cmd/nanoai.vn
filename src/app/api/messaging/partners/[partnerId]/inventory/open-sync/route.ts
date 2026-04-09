@@ -14,7 +14,9 @@ import {
   listPartnerInventoryRows,
   upsertPartnerInventoryBatch,
 } from '@/lib/messaging/partner-inventory-upsert-batch'
-import { createServiceRoleClient } from '@/lib/supabase/service-role'
+import { fetchMessagingPartnerAiImageSearchAuthFromPg } from '@/lib/db/messaging-partner-ai-settings-pg'
+import { fetchMessagingPartnerByIdFromPg } from '@/lib/db/messaging-partners-pg'
+import { isPgConfigured } from '@/lib/db/pool'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -145,28 +147,20 @@ export async function POST(req: Request, ctx: { params: Promise<{ partnerId: str
     return jsonWithCors(req, { error: parsed.error, code: parsed.code }, 400)
   }
 
-  const db = createServiceRoleClient()
+  if (!isPgConfigured()) {
+    return jsonWithCors(req, { error: 'Server database is not configured.', code: 'DB_NOT_CONFIGURED' }, 503)
+  }
 
-  const { data: partner, error: pErr } = await db
-    .from('messaging_partners')
-    .select('id, is_active')
-    .eq('id', partnerId)
-    .maybeSingle()
-
-  if (pErr) return jsonWithCors(req, { error: pErr.message, code: 'DB_ERROR' }, 500)
-  if (!partner) return jsonWithCors(req, { error: 'Shop not found.', code: 'SHOP_NOT_FOUND' }, 404)
+  const partner = await fetchMessagingPartnerByIdFromPg(partnerId)
+  if (!partner) {
+    return jsonWithCors(req, { error: 'Shop not found.', code: 'SHOP_NOT_FOUND' }, 404)
+  }
   if (!partner.is_active) {
     return jsonWithCors(req, { error: 'Shop is not active.', code: 'SHOP_INACTIVE' }, 403)
   }
 
-  const { data: settings, error: setErr } = await db
-    .from('messaging_partner_ai_settings')
-    .select('image_search_api_enabled, image_search_api_secret')
-    .eq('partner_id', partnerId)
-    .maybeSingle()
-
-  if (setErr) return jsonWithCors(req, { error: setErr.message, code: 'DB_ERROR' }, 500)
-  if (!settings) {
+  const settings = await fetchMessagingPartnerAiImageSearchAuthFromPg(partnerId)
+  if (settings === null) {
     return jsonWithCors(
       req,
       {
@@ -198,10 +192,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ partnerId: str
     return jsonWithCors(req, { error: 'Invalid API key.', code: 'INVALID_KEY' }, 401)
   }
 
-  const listed = await listPartnerInventoryRows(db, partnerId)
+  const listed = await listPartnerInventoryRows(partnerId)
   if (!listed.ok) return jsonWithCors(req, { error: listed.error, code: 'DB_ERROR' }, 500)
   const reconcileRows = buildOpenCatalogReconcileRows(parsed.rows, listed.rows)
-  const batch = await upsertPartnerInventoryBatch(db, partnerId, reconcileRows, {
+  const batch = await upsertPartnerInventoryBatch(partnerId, reconcileRows, {
     existingRows: listed.rows,
   })
   if (!batch.ok) {

@@ -232,7 +232,7 @@ curl -X POST https://abc123.ngrok.io/api/sepay-webhook \
 
 **Kiểm tra**:
 ```sql
--- Kiểm tra trong Supabase
+-- Kiểm tra trong Postgres
 SELECT * FROM payments ORDER BY created_at DESC LIMIT 5;
 SELECT * FROM credits WHERE user_id = 'user_id_here';
 ```

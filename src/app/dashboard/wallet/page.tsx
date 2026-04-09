@@ -1,5 +1,5 @@
-import { createClient } from '@/lib/supabase/server'
 import { redirectToLogin } from '@/lib/auth/login-redirect'
+import { pgListTransactionsForUser, type TransactionListRow } from '@/lib/db/dashboard-user-pg'
 import { getUserOrBypass } from '@/lib/auth'
 import WalletClientPage from './wallet-client-page'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -11,15 +11,9 @@ export default async function WalletPage() {
   const locale = getCurrentWebLocale()
   const tr = (vi: string, en: string, zh: string, ja: string, ko: string) =>
     locale === 'en' ? en : locale === 'zh' ? zh : locale === 'ja' ? ja : locale === 'ko' ? ko : vi
-  const supabase = createClient()
-  const user = await getUserOrBypass(() => supabase.auth.getUser())
+  const user = await getUserOrBypass()
   if (!user) redirectToLogin()
-
-  const { data: transactions } = await supabase
-    .from('transactions')
-    .select('*')
-    .eq('user_id', user.id)
-    .order('created_at', { ascending: false })
+  const transactions = await pgListTransactionsForUser(user.id)
 
   return (
     <div className="space-y-8">
@@ -43,7 +37,7 @@ export default async function WalletPage() {
               </TableHeader>
               <TableBody>
                 {transactions && transactions.length > 0 ? (
-                  transactions.map((tx) => (
+                  transactions.map((tx: TransactionListRow) => (
                     <TableRow key={tx.id}>
                       <TableCell>{new Date(tx.created_at).toLocaleDateString()}</TableCell>
                       <TableCell>{tx.description}</TableCell>

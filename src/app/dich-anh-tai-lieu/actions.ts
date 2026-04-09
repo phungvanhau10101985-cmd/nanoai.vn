@@ -1,4 +1,8 @@
 'use server'
+import { deleteTryOnHistoryRowAndStorage } from '@/lib/storage/try-on-history-cleanup'
+import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
+import { deductUserCredits } from '@/lib/music/deduct-user-credits'
+
 
 import crypto from 'crypto'
 import fs from 'fs'
@@ -6,10 +10,18 @@ import os from 'os'
 import path from 'path'
 import archiver from 'archiver'
 import * as XLSX from 'xlsx'
-import { createClient } from '@/lib/supabase/server'
 import { getUserForAction, getUserOrBypass } from '@/lib/auth'
-import { createClient as createSupabaseClient, type SupabaseClient } from '@supabase/supabase-js'
-import type { Database } from '@/types/database.types'
+import { insertTryOnHistoryProcessingPg, updateTryOnHistoryCompletedPg } from '@/lib/db/try-on-history-pg'
+import {
+  cancelTranslateBatchPendingPg,
+  fetchTryOnHistoryBatchDownloadRowsPg,
+  fetchTryOnHistoryBatchProgressRowsPg,
+  fetchTryOnHistoryBatchRowsForCancelPg,
+  fetchTryOnHistoryIdsByBatchIdAndUserPg,
+  insertTranslateJobPendingPg,
+  insertTryOnHistoryTranslateCompletedPg,
+  insertTryOnHistoryTranslateProcessingPg,
+} from '@/lib/db/translate-process-pg'
 import { revalidatePath } from 'next/cache'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { translateOneImage } from '@/lib/translate-document-image'
@@ -36,20 +48,9 @@ function getCachedPdfExtract(key: string): Buffer[] | null {
   return entry.buffers
 }
 const toTenths = (value: number) => Math.round(value * 10)
-const fromTenths = (value: number) => value / 10
 const formatCredits = (value: number) => value.toLocaleString('vi-VN', { maximumFractionDigits: 1 })
 
 const MAX_BATCH_IMAGES = 50
-
-/** Lấy số dư credits của user đăng nhập. */
-export async function getCredits(): Promise<number> {
-  const supabase = createClient()
-  const result = await getUserForAction(() => supabase.auth.getUser())
-  if ('error' in result) return 0
-  const { user } = result
-  const { data } = await supabase.from('credits').select('balance').eq('user_id', user.id).single()
-  return data?.balance ?? 0
-}
 
 /** Tạo Poppler instance – trên Windows dùng đường dẫn từ node-poppler-win32. */
 async function createPoppler(): Promise<InstanceType<typeof import('node-poppler').Poppler>> {
@@ -164,45 +165,33 @@ export async function translateDocumentImage(formData: FormData) {
   if (!image || image.size === 0) return { error: 'Cần tải lên ảnh tài liệu.' }
 
   const COST = TRANSLATE_COSTS[imageQuality]
-  const supabase = createClient()
-  const adminSupabase = createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-  const result = await getUserForAction(() => supabase.auth.getUser())
+  const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
-  const { data: creditData, error: creditError } = await supabase.from('credits').select('balance').eq('user_id', user.id).single()
-  if (creditError || !creditData || toTenths(creditData.balance) < toTenths(COST)) {
+  let openBalTr = 0
+  try {
+    openBalTr = await getCreditBalanceByUserId(user.id)
+  } catch {
+    return { error: 'Không đọc được số dư credits.' }
+  }
+  if (toTenths(openBalTr) < toTenths(COST)) {
     return { error: `Không đủ credits. Cần ${formatCredits(COST)} credits.` }
   }
 
   const timestamp = Date.now()
   const uploadPath = `uploads/${user.id}/translate_${timestamp}.png`
-  const { publicUrl: originalPublicUrl } = await uploadTryOnImagePublic(supabase, uploadPath, image, {
+  const { publicUrl: originalPublicUrl } = await uploadTryOnImagePublic(uploadPath, image, {
     contentType: image.type || 'image/png',
   })
-  let historyItem: { id: string } | null = null
-  let historyError: { message: string } | null = null
-  const res1 = await supabase.from('try_on_history').insert({
-    user_id: user.id,
-    original_image_url: originalPublicUrl,
-    garment_image_url: originalPublicUrl,
-    status: 'processing',
+  const historyRow = await insertTryOnHistoryProcessingPg({
+    userId: user.id,
+    originalImageUrl: originalPublicUrl,
+    garmentImageUrl: originalPublicUrl,
     feature: 'translate',
-  }).select().single()
-  historyItem = res1.data
-  historyError = res1.error
-  if (historyError && (String(historyError.message).includes('column'))) {
-    const res2 = await supabase.from('try_on_history').insert({
-      user_id: user.id,
-      original_image_url: originalPublicUrl,
-      garment_image_url: originalPublicUrl,
-      status: 'processing',
-      feature: 'translate',
-    }).select().single()
-    historyItem = res2.data
-    historyError = res2.error
-  }
-  if (historyError || !historyItem) return { error: 'Không thể khởi tạo phiên xử lý.' }
+  })
+  if (!historyRow) return { error: 'Không thể khởi tạo phiên xử lý.' }
+  const historyItem = { id: historyRow.id }
 
   const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!)
   const buffer = Buffer.from(await image.arrayBuffer())
@@ -218,31 +207,29 @@ export async function translateDocumentImage(formData: FormData) {
       user.id
     )
     if (translateError || !resultBuffer.length) {
-      await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+      await deleteTryOnHistoryRowAndStorage(historyItem.id)
       return { error: translateError || 'AI không trả về ảnh hợp lệ.' }
     }
 
     const finalBuffer = await applyPostCheckOcr(resultBuffer, genAI, { sourceLang, targetLang, userId: user.id })
     const resultPath = `results/${user.id}/translate_${Date.now()}.png`
-    const { publicUrl: resultPublicUrl } = await uploadTryOnImagePublic(adminSupabase, resultPath, finalBuffer, {
+    const { publicUrl: resultPublicUrl } = await uploadTryOnImagePublic(resultPath, finalBuffer, {
       contentType: 'image/png',
       upsert: true,
     })
 
-    const { data: latestCredit } = await adminSupabase.from('credits').select('balance').eq('user_id', user.id).single()
-    if (!latestCredit || toTenths(latestCredit.balance) < toTenths(COST)) {
-      await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
-      return { error: 'Không đủ credits để hoàn tất.' }
+    const d = await deductUserCredits(user.id, COST)
+    if (!d.ok) {
+      await deleteTryOnHistoryRowAndStorage(historyItem.id)
+      return { error: d.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credits để hoàn tất.' : d.error }
     }
-    const newBalance = fromTenths(toTenths(latestCredit.balance) - toTenths(COST))
-    await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', user.id)
-    await adminSupabase.from('try_on_history').update({ result_image_url: resultPublicUrl, status: 'completed', feature: 'translate' }).eq('id', historyItem.id)
+    await updateTryOnHistoryCompletedPg(historyItem.id, resultPublicUrl, { feature: 'translate' })
 
     revalidatePath('/dich-anh-tai-lieu')
     revalidatePath('/dashboard/history')
     return { success: true, resultUrl: resultPublicUrl }
   } catch (e) {
-    await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
+    await deleteTryOnHistoryRowAndStorage(historyItem.id)
     const msg = e instanceof Error ? e.message : String(e)
     return { error: `Dịch thất bại: ${msg}` }
   }
@@ -251,16 +238,11 @@ export async function translateDocumentImage(formData: FormData) {
 const PDF_EXTRACT_STORAGE_PREFIX = 'temp_pdf_extract'
 
 /** Lấy ảnh đã tách từ storage (nếu có) – tránh tách lại lần 2 */
-async function getPdfPagesFromStorage(
-  adminSupabase: SupabaseClient<Database>,
-  userId: string,
-  hash: string,
-  pageCount: number
-): Promise<Buffer[] | null> {
+async function getPdfPagesFromStorage(userId: string, hash: string, pageCount: number): Promise<Buffer[] | null> {
   const buffers: Buffer[] = []
   for (let i = 0; i < pageCount; i++) {
     const path = `${PDF_EXTRACT_STORAGE_PREFIX}/${userId}/${hash}/page_${i}.png`
-    const buf = await downloadTryOnObject(adminSupabase, path)
+    const buf = await downloadTryOnObject(path)
     if (!buf) return null
     buffers.push(buf)
   }
@@ -289,13 +271,11 @@ export async function getPdfPageInfo(
     if (!pageBuffers) {
       pageBuffers = await extractPdfPages(pdfBuffer, pageCount)
       pdfExtractCache.set(cacheKey, { buffers: pageBuffers, createdAt: Date.now() })
-      const supabase = createClient()
-      const adminSupabase = createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-      const user = await getUserOrBypass(() => supabase.auth.getUser())
+      const user = await getUserOrBypass()
       if (user) {
         for (let i = 0; i < pageBuffers.length; i++) {
           const path = `${PDF_EXTRACT_STORAGE_PREFIX}/${user.id}/${cacheKey}/page_${i}.png`
-          await uploadTryOnImagePublic(adminSupabase, path, pageBuffers[i], { contentType: 'image/png', upsert: true })
+          await uploadTryOnImagePublic(path, pageBuffers[i], { contentType: 'image/png', upsert: true })
         }
         console.log('[getPdfPageInfo] Đã upload', pageCount, 'ảnh lên storage để dùng khi dịch')
       }
@@ -332,9 +312,7 @@ export async function translatePdfDocument(
   if (!pdfFile || pdfFile.size === 0) return { error: 'Cần tải lên file PDF.' }
   if (pdfFile.type !== 'application/pdf') return { error: 'File phải là PDF.' }
 
-  const supabase = createClient()
-  const adminSupabase = createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-  const result = await getUserForAction(() => supabase.auth.getUser())
+  const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
@@ -354,8 +332,13 @@ export async function translatePdfDocument(
 
   const COST_PER_PAGE = TRANSLATE_COSTS[imageQuality]
   const TOTAL_COST = pageCount * COST_PER_PAGE
-  const { data: creditData, error: creditError } = await supabase.from('credits').select('balance').eq('user_id', user.id).single()
-  if (creditError || !creditData || toTenths(creditData.balance) < toTenths(TOTAL_COST)) {
+  let openBalPdf = 0
+  try {
+    openBalPdf = await getCreditBalanceByUserId(user.id)
+  } catch {
+    return { error: 'Không đọc được số dư credits.' }
+  }
+  if (toTenths(openBalPdf) < toTenths(TOTAL_COST)) {
     return { error: `Không đủ credits. Cần ${formatCredits(TOTAL_COST)} credits (${pageCount} trang × ${formatCredits(COST_PER_PAGE)}).` }
   }
 
@@ -393,12 +376,10 @@ export async function translatePdfDocument(
       userId: user.id,
     })
 
-    const { data: latestCredit } = await adminSupabase.from('credits').select('balance').eq('user_id', user.id).single()
-    if (!latestCredit || toTenths(latestCredit.balance) < toTenths(COST_PER_PAGE)) {
-      return { error: 'Không đủ credits trong quá trình xử lý.' }
+    const dPage = await deductUserCredits(user.id, COST_PER_PAGE)
+    if (!dPage.ok) {
+      return { error: dPage.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credits trong quá trình xử lý.' : dPage.error }
     }
-    const newBalance = fromTenths(toTenths(latestCredit.balance) - toTenths(COST_PER_PAGE))
-    await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', user.id)
 
     translatedBuffers.push(finalBuffer)
   }
@@ -415,23 +396,22 @@ export async function translatePdfDocument(
   const outPdfBuffer = Buffer.from(await pdfDoc.save())
   const timestamp = Date.now()
   const uploadPath = `uploads/${user.id}/translate_pdf_${timestamp}.pdf`
-  const { publicUrl: originalPdfPublicUrl } = await uploadTryOnImagePublic(adminSupabase, uploadPath, pdfBuffer, {
+  const { publicUrl: originalPdfPublicUrl } = await uploadTryOnImagePublic(uploadPath, pdfBuffer, {
     contentType: 'application/pdf',
   })
   const resultPath = `results/${user.id}/translate_pdf_${timestamp}.pdf`
-  const { publicUrl: resultPdfPublicUrl } = await uploadTryOnImagePublic(adminSupabase, resultPath, outPdfBuffer, {
+  const { publicUrl: resultPdfPublicUrl } = await uploadTryOnImagePublic(resultPath, outPdfBuffer, {
     contentType: 'application/pdf',
     upsert: true,
   })
 
-  await adminSupabase.from('try_on_history').insert({
-    user_id: user.id,
-    original_image_url: originalPdfPublicUrl,
-    garment_image_url: originalPdfPublicUrl,
-    result_image_url: resultPdfPublicUrl,
-    status: 'completed',
-    feature: 'translate',
+  const pdfHist = await insertTryOnHistoryTranslateCompletedPg({
+    userId: user.id,
+    originalImageUrl: originalPdfPublicUrl,
+    garmentImageUrl: originalPdfPublicUrl,
+    resultImageUrl: resultPdfPublicUrl,
   })
+  if (!pdfHist) return { error: 'Không lưu được lịch sử dịch PDF.' }
 
   revalidatePath('/dich-anh-tai-lieu')
   revalidatePath('/dashboard/history')
@@ -450,9 +430,7 @@ export async function startTranslatePdfBatch(formData: FormData): Promise<{ batc
   if (!pdfFile || pdfFile.size === 0) return { error: 'Cần tải lên file PDF.' }
   if (pdfFile.type !== 'application/pdf') return { error: 'File phải là PDF.' }
 
-  const supabase = createClient()
-  const adminSupabase = createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-  const result = await getUserForAction(() => supabase.auth.getUser())
+  const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
@@ -472,22 +450,27 @@ export async function startTranslatePdfBatch(formData: FormData): Promise<{ batc
 
   const COST_PER_PAGE = TRANSLATE_COSTS[imageQuality]
   const TOTAL_COST = pageCount * COST_PER_PAGE
-  const { data: creditData, error: creditError } = await supabase.from('credits').select('balance').eq('user_id', user.id).single()
-  if (creditError || !creditData || toTenths(creditData.balance) < toTenths(TOTAL_COST)) {
+  let openBalPdfBatch = 0
+  try {
+    openBalPdfBatch = await getCreditBalanceByUserId(user.id)
+  } catch {
+    return { error: 'Không đọc được số dư credits.' }
+  }
+  if (toTenths(openBalPdfBatch) < toTenths(TOTAL_COST)) {
     return { error: `Không đủ credits. Cần ${formatCredits(TOTAL_COST)} credits (${pageCount} trang × ${formatCredits(COST_PER_PAGE)}).` }
   }
 
   const cacheKey = hashPdfBuffer(pdfBuffer)
   let pageBuffers = getCachedPdfExtract(cacheKey)
   if (!pageBuffers) {
-    pageBuffers = await getPdfPagesFromStorage(adminSupabase, user.id, cacheKey, pageCount)
+    pageBuffers = await getPdfPagesFromStorage(user.id, cacheKey, pageCount)
   }
   if (!pageBuffers) {
     pageBuffers = await extractPdfPages(pdfBuffer, pageCount)
     pdfExtractCache.set(cacheKey, { buffers: pageBuffers, createdAt: Date.now() })
     for (let i = 0; i < pageBuffers.length; i++) {
       const path = `${PDF_EXTRACT_STORAGE_PREFIX}/${user.id}/${cacheKey}/page_${i}.png`
-      await uploadTryOnImagePublic(adminSupabase, path, pageBuffers[i], { contentType: 'image/png', upsert: true })
+      await uploadTryOnImagePublic(path, pageBuffers[i], { contentType: 'image/png', upsert: true })
     }
     console.log('[startTranslatePdfBatch] Tách PDF lần đầu, đã upload lên storage')
   } else {
@@ -504,70 +487,36 @@ export async function startTranslatePdfBatch(formData: FormData): Promise<{ batc
   for (let i = 0; i < pageCount; i++) {
     const pageBuffer = pageBuffers[i]
     const uploadPath = `uploads/${user.id}/translate_pdf_${batchTimestamp}_page_${i}.png`
-    const { publicUrl: pageOriginalPublicUrl } = await uploadTryOnImagePublic(adminSupabase, uploadPath, pageBuffer, {
+    const { publicUrl: pageOriginalPublicUrl } = await uploadTryOnImagePublic(uploadPath, pageBuffer, {
       contentType: 'image/png',
       upsert: true,
     })
 
-    const insertPayload: Record<string, unknown> = {
-      user_id: user.id,
-      original_image_url: pageOriginalPublicUrl,
-      garment_image_url: pageOriginalPublicUrl,
-      status: 'processing',
-      feature: 'translate',
-      batch_id: batchId,
-    }
-    let historyItem: { id: string } | null = null
-    let historyError: { message: string } | null = null
-    const res1 = await adminSupabase.from('try_on_history').insert({ ...insertPayload, batch_type: 'pdf' }).select().single()
-    historyItem = res1.data
-    historyError = res1.error
-    if (historyError) {
-      const msg = historyError.message || ''
-      if (msg.includes('batch_type') || msg.includes('column')) {
-        const retryPayload = { ...insertPayload }
-        const res2 = await adminSupabase.from('try_on_history').insert({ ...retryPayload, batch_type: 'pdf' }).select().single()
-        historyItem = res2.data
-        historyError = res2.error
-        if (historyError) {
-          const res3 = await adminSupabase.from('try_on_history').insert(retryPayload).select().single()
-          historyItem = res3.data
-          historyError = res3.error
-        }
-      }
-    }
-    if (historyError || !historyItem) {
-      const errMsg = historyError?.message ?? 'no data'
-      console.error('[startTranslatePdfBatch] try_on_history insert failed:', errMsg)
-      const hint = String(errMsg).includes('batch_type') || String(errMsg).includes('column')
-        ? ' Chạy migration: npx supabase db push'
-        : ''
-      return { error: `Không thể tạo bản ghi xử lý.${hint}` }
+    const historyItem = await insertTryOnHistoryTranslateProcessingPg({
+      userId: user.id,
+      originalImageUrl: pageOriginalPublicUrl,
+      garmentImageUrl: pageOriginalPublicUrl,
+      batchId: batchId,
+      batchType: 'pdf',
+    })
+    if (!historyItem) {
+      console.error('[startTranslatePdfBatch] try_on_history insert failed')
+      return { error: 'Không thể tạo bản ghi xử lý. Kiểm tra DATABASE_URL và bảng try_on_history.' }
     }
 
     const cost = TRANSLATE_COSTS[imageQuality]
-    const jobPayload: Record<string, unknown> = {
-      user_id: user.id,
-      history_id: historyItem.id,
-      source_lang: sourceLang,
-      target_lang: targetLang,
-      image_quality: imageQuality,
+    const job = await insertTranslateJobPendingPg({
+      userId: user.id,
+      historyId: historyItem.id,
+      sourceLang,
+      targetLang,
+      imageQuality,
       cost,
-      status: 'pending',
-    }
-    let { data: job, error: jobError } = await adminSupabase.from('translate_jobs').insert(jobPayload).select().single()
-    if (jobError && String(jobError.message).includes('source_lang_2')) {
-      delete jobPayload.source_lang_2
-      const retry = await adminSupabase.from('translate_jobs').insert(jobPayload).select().single()
-      job = retry.data
-      jobError = retry.error
-    }
-    if (jobError || !job) {
-      const errMsg = jobError?.message ?? 'unknown'
-      console.error('[startTranslatePdfBatch] translate_jobs insert failed:', errMsg)
-      await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
-      const hint = String(errMsg).includes('source_lang_2') || String(errMsg).includes('column') ? ' Chạy migration: npx supabase db push' : ''
-      return { error: `Không thể tạo job. ${errMsg}${hint}` }
+    })
+    if (!job) {
+      console.error('[startTranslatePdfBatch] translate_jobs insert failed')
+      await deleteTryOnHistoryRowAndStorage(historyItem.id)
+      return { error: 'Không thể tạo job. Kiểm tra DATABASE_URL và bảng translate_jobs.' }
     }
   }
 
@@ -598,20 +547,23 @@ export async function translateOneImageFromBatch(
   if (!image || image.size === 0) return { error: 'Cần ảnh.' }
 
   const COST = TRANSLATE_COSTS[imageQuality]
-  const supabase = createClient()
-  const adminSupabase = createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-  const result = await getUserForAction(() => supabase.auth.getUser())
+  const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
-  const { data: creditData, error: creditError } = await supabase.from('credits').select('balance').eq('user_id', user.id).single()
-  if (creditError || !creditData || toTenths(creditData.balance) < toTenths(COST)) {
+  let openBalBatch1 = 0
+  try {
+    openBalBatch1 = await getCreditBalanceByUserId(user.id)
+  } catch {
+    return { error: 'Không đọc được số dư credits.' }
+  }
+  if (toTenths(openBalBatch1) < toTenths(COST)) {
     return { error: `Không đủ credits. Cần ${formatCredits(COST)} credit.` }
   }
 
   const timestamp = Date.now()
   const uploadPath = `uploads/${user.id}/translate_batch_${timestamp}.png`
-  const { publicUrl: batchOriginalPublicUrl } = await uploadTryOnImagePublic(supabase, uploadPath, image, {
+  const { publicUrl: batchOriginalPublicUrl } = await uploadTryOnImagePublic(uploadPath, image, {
     contentType: image.type || 'image/png',
   })
 
@@ -633,26 +585,23 @@ export async function translateOneImageFromBatch(
 
   const finalBuffer = await applyPostCheckOcr(resultBuffer, genAI, { sourceLang, targetLang, userId: user.id })
   const resultPath = `results/${user.id}/translate_batch_${timestamp}.png`
-  const { publicUrl: batchResultPublicUrl } = await uploadTryOnImagePublic(adminSupabase, resultPath, finalBuffer, {
+  const { publicUrl: batchResultPublicUrl } = await uploadTryOnImagePublic(resultPath, finalBuffer, {
     contentType: 'image/png',
     upsert: true,
   })
 
-  const { data: latestCredit } = await adminSupabase.from('credits').select('balance').eq('user_id', user.id).single()
-  if (!latestCredit || toTenths(latestCredit.balance) < toTenths(COST)) {
-    return { error: 'Không đủ credits.' }
+  const dBatch1 = await deductUserCredits(user.id, COST)
+  if (!dBatch1.ok) {
+    return { error: dBatch1.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credits.' : dBatch1.error }
   }
-  const newBalance = fromTenths(toTenths(latestCredit.balance) - toTenths(COST))
-  await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', user.id)
 
-  await adminSupabase.from('try_on_history').insert({
-    user_id: user.id,
-    original_image_url: batchOriginalPublicUrl,
-    garment_image_url: batchOriginalPublicUrl,
-    result_image_url: batchResultPublicUrl,
-    status: 'completed',
-    feature: 'translate',
+  const insBatch = await insertTryOnHistoryTranslateCompletedPg({
+    userId: user.id,
+    originalImageUrl: batchOriginalPublicUrl,
+    garmentImageUrl: batchOriginalPublicUrl,
+    resultImageUrl: batchResultPublicUrl,
   })
+  if (!insBatch) return { error: 'Không lưu được lịch sử.' }
 
   revalidatePath('/dich-anh-tai-lieu')
   revalidatePath('/dashboard/history')
@@ -672,14 +621,17 @@ export async function translateOneImageFromUrl(
   if (!url || !/^https?:\/\//i.test(url)) return { error: 'Link ảnh không hợp lệ.' }
 
   const COST = TRANSLATE_COSTS[imageQuality]
-  const supabase = createClient()
-  const adminSupabase = createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-  const result = await getUserForAction(() => supabase.auth.getUser())
+  const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
-  const { data: creditData, error: creditError } = await supabase.from('credits').select('balance').eq('user_id', user.id).single()
-  if (creditError || !creditData || toTenths(creditData.balance) < toTenths(COST)) {
+  let openBalUrl = 0
+  try {
+    openBalUrl = await getCreditBalanceByUserId(user.id)
+  } catch {
+    return { error: 'Không đọc được số dư credits.' }
+  }
+  if (toTenths(openBalUrl) < toTenths(COST)) {
     return { error: `Không đủ credits. Cần ${formatCredits(COST)} credit.` }
   }
 
@@ -696,7 +648,7 @@ export async function translateOneImageFromUrl(
 
   const timestamp = Date.now()
   const uploadPath = `uploads/${user.id}/translate_excel_${timestamp}.png`
-  const { publicUrl: excelOriginalPublicUrl } = await uploadTryOnImagePublic(supabase, uploadPath, imageBuffer, {
+  const { publicUrl: excelOriginalPublicUrl } = await uploadTryOnImagePublic(uploadPath, imageBuffer, {
     contentType: 'image/png',
   })
 
@@ -717,26 +669,23 @@ export async function translateOneImageFromUrl(
 
   const finalBuffer = await applyPostCheckOcr(resultBuffer, genAI, { sourceLang, targetLang, userId: user.id })
   const resultPath = `results/${user.id}/translate_excel_${timestamp}.png`
-  const { publicUrl: excelResultPublicUrl } = await uploadTryOnImagePublic(adminSupabase, resultPath, finalBuffer, {
+  const { publicUrl: excelResultPublicUrl } = await uploadTryOnImagePublic(resultPath, finalBuffer, {
     contentType: 'image/png',
     upsert: true,
   })
 
-  const { data: latestCredit } = await adminSupabase.from('credits').select('balance').eq('user_id', user.id).single()
-  if (!latestCredit || toTenths(latestCredit.balance) < toTenths(COST)) {
-    return { error: 'Không đủ credits.' }
+  const dUrl = await deductUserCredits(user.id, COST)
+  if (!dUrl.ok) {
+    return { error: dUrl.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credits.' : dUrl.error }
   }
-  const newBalance = fromTenths(toTenths(latestCredit.balance) - toTenths(COST))
-  await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', user.id)
 
-  await adminSupabase.from('try_on_history').insert({
-    user_id: user.id,
-    original_image_url: excelOriginalPublicUrl,
-    garment_image_url: excelOriginalPublicUrl,
-    result_image_url: excelResultPublicUrl,
-    status: 'completed',
-    feature: 'translate',
+  const insUrl = await insertTryOnHistoryTranslateCompletedPg({
+    userId: user.id,
+    originalImageUrl: excelOriginalPublicUrl,
+    garmentImageUrl: excelOriginalPublicUrl,
+    resultImageUrl: excelResultPublicUrl,
   })
+  if (!insUrl) return { error: 'Không lưu được lịch sử.' }
 
   revalidatePath('/dich-anh-tai-lieu')
   revalidatePath('/dashboard/history')
@@ -750,9 +699,7 @@ export async function createZipFromResults(
 ): Promise<{ zipUrl: string } | { error: string }> {
   if (!entries.length) return { error: 'Không có ảnh để nén.' }
 
-  const supabase = createClient()
-  const adminSupabase = createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-  const result = await getUserForAction(() => supabase.auth.getUser())
+  const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
@@ -782,7 +729,7 @@ export async function createZipFromResults(
   })
 
   const zipPath = `results/${user.id}/dich_tai_lieu_${Date.now()}.zip`
-  const { publicUrl: zipPublicUrl } = await uploadTryOnImagePublic(adminSupabase, zipPath, zipBuffer, {
+  const { publicUrl: zipPublicUrl } = await uploadTryOnImagePublic(zipPath, zipBuffer, {
     contentType: 'application/zip',
     upsert: true,
   })
@@ -810,14 +757,17 @@ export async function translateDocumentImageBatch(
   const COST_PER_IMAGE = TRANSLATE_COSTS[imageQuality]
   const TOTAL_COST = images.length * COST_PER_IMAGE
 
-  const supabase = createClient()
-  const adminSupabase = createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-  const result = await getUserForAction(() => supabase.auth.getUser())
+  const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
-  const { data: creditData, error: creditError } = await supabase.from('credits').select('balance').eq('user_id', user.id).single()
-  if (creditError || !creditData || toTenths(creditData.balance) < toTenths(TOTAL_COST)) {
+  let openBalDoc = 0
+  try {
+    openBalDoc = await getCreditBalanceByUserId(user.id)
+  } catch {
+    return { error: 'Không đọc được số dư credits.' }
+  }
+  if (toTenths(openBalDoc) < toTenths(TOTAL_COST)) {
     return { error: `Không đủ credits. Cần ${formatCredits(TOTAL_COST)} credits (${images.length} × ${formatCredits(COST_PER_IMAGE)}).` }
   }
 
@@ -829,7 +779,7 @@ export async function translateDocumentImageBatch(
   for (let i = 0; i < images.length; i++) {
     const image = images[i]
     const uploadPath = `uploads/${user.id}/translate_batch_${batchTimestamp}_${i}.png`
-    const { publicUrl: docBatchOriginalPublicUrl } = await uploadTryOnImagePublic(supabase, uploadPath, image, {
+    const { publicUrl: docBatchOriginalPublicUrl } = await uploadTryOnImagePublic(uploadPath, image, {
       contentType: image.type || 'image/png',
     })
 
@@ -856,26 +806,23 @@ export async function translateDocumentImageBatch(
       userId: user.id,
     })
     const resultPath = `results/${user.id}/translate_batch_${batchTimestamp}_${i}.png`
-    const { publicUrl: docBatchResultPublicUrl } = await uploadTryOnImagePublic(adminSupabase, resultPath, finalBuffer, {
+    const { publicUrl: docBatchResultPublicUrl } = await uploadTryOnImagePublic(resultPath, finalBuffer, {
       contentType: 'image/png',
       upsert: true,
     })
 
-    const { data: latestCredit } = await adminSupabase.from('credits').select('balance').eq('user_id', user.id).single()
-    if (!latestCredit || toTenths(latestCredit.balance) < toTenths(COST_PER_IMAGE)) {
-      return { error: 'Không đủ credits trong quá trình xử lý.' }
+    const dImg = await deductUserCredits(user.id, COST_PER_IMAGE)
+    if (!dImg.ok) {
+      return { error: dImg.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credits trong quá trình xử lý.' : dImg.error }
     }
-    const newBalance = fromTenths(toTenths(latestCredit.balance) - toTenths(COST_PER_IMAGE))
-    await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', user.id)
 
-    await adminSupabase.from('try_on_history').insert({
-      user_id: user.id,
-      original_image_url: docBatchOriginalPublicUrl,
-      garment_image_url: docBatchOriginalPublicUrl,
-      result_image_url: docBatchResultPublicUrl,
-      status: 'completed',
-      feature: 'translate',
+    const insMulti = await insertTryOnHistoryTranslateCompletedPg({
+      userId: user.id,
+      originalImageUrl: docBatchOriginalPublicUrl,
+      garmentImageUrl: docBatchOriginalPublicUrl,
+      resultImageUrl: docBatchResultPublicUrl,
     })
+    if (!insMulti) return { error: 'Không lưu được lịch sử.' }
 
     results.push({ originalUrl: docBatchOriginalPublicUrl, resultUrl: docBatchResultPublicUrl })
     zipEntries.push({ name: safeZipName(image.name, i), buffer: finalBuffer })
@@ -895,7 +842,7 @@ export async function translateDocumentImageBatch(
       archive.finalize()
     })
     const zipPath = `results/${user.id}/dich_tai_lieu_${batchTimestamp}.zip`
-    const { publicUrl: docBatchZipPublicUrl } = await uploadTryOnImagePublic(adminSupabase, zipPath, zipBuffer, {
+    const { publicUrl: docBatchZipPublicUrl } = await uploadTryOnImagePublic(zipPath, zipBuffer, {
       contentType: 'application/zip',
       upsert: true,
     })
@@ -923,9 +870,7 @@ export async function startTranslateBatch(formData: FormData): Promise<{ batchId
   if (!sourceLang) return { error: 'Bắt buộc chọn Ngôn ngữ nguồn.' }
   if (!targetLang) return { error: 'Bắt buộc chọn Ngôn ngữ đích.' }
 
-  const supabase = createClient()
-  const adminSupabase = createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-  const result = await getUserForAction(() => supabase.auth.getUser())
+  const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
@@ -939,8 +884,13 @@ export async function startTranslateBatch(formData: FormData): Promise<{ batchId
     const urls = extractUrlsFromExcel(buffer)
     if (urls.length === 0) return { error: 'File Excel không có link ảnh hợp lệ ở cột A.' }
     if (urls.length > MAX_BATCH_IMAGES) return { error: `Tối đa ${MAX_BATCH_IMAGES} link.` }
-    const { data: creditData, error: creditError } = await supabase.from('credits').select('balance').eq('user_id', user.id).single()
-    if (creditError || !creditData || toTenths(creditData.balance) < toTenths(COST_PER_IMAGE)) {
+    let openBalExcelStart = 0
+    try {
+      openBalExcelStart = await getCreditBalanceByUserId(user.id)
+    } catch {
+      return { error: 'Không đọc được số dư credits.' }
+    }
+    if (toTenths(openBalExcelStart) < toTenths(COST_PER_IMAGE)) {
       return { error: `Không đủ credits. Cần ít nhất ${formatCredits(COST_PER_IMAGE)} credit.` }
     }
     for (let i = 0; i < urls.length; i++) {
@@ -953,7 +903,7 @@ export async function startTranslateBatch(formData: FormData): Promise<{ batchId
         return { error: `Ảnh ${i + 1}/${urls.length}: Không tải được. ${msg}` }
       }
       const uploadPath = `uploads/${user.id}/translate_excel_${Date.now()}_${i}.png`
-      const { publicUrl: startBatchExcelPublicUrl } = await uploadTryOnImagePublic(supabase, uploadPath, imageBuffer, {
+      const { publicUrl: startBatchExcelPublicUrl } = await uploadTryOnImagePublic(uploadPath, imageBuffer, {
         contentType: 'image/png',
       })
       items.push({ originalUrl: startBatchExcelPublicUrl, name: `image_${i + 1}` })
@@ -966,15 +916,20 @@ export async function startTranslateBatch(formData: FormData): Promise<{ batchId
     }
     if (images.length === 0) return { error: 'Cần tải lên ít nhất 1 ảnh.' }
     const TOTAL_COST = images.length * COST_PER_IMAGE
-    const { data: creditData, error: creditError } = await supabase.from('credits').select('balance').eq('user_id', user.id).single()
-    if (creditError || !creditData || toTenths(creditData.balance) < toTenths(TOTAL_COST)) {
+    let openBalStartBatch = 0
+    try {
+      openBalStartBatch = await getCreditBalanceByUserId(user.id)
+    } catch {
+      return { error: 'Không đọc được số dư credits.' }
+    }
+    if (toTenths(openBalStartBatch) < toTenths(TOTAL_COST)) {
       return { error: `Không đủ credits. Cần ${formatCredits(TOTAL_COST)} credits.` }
     }
     const batchTimestamp = Date.now()
     for (let i = 0; i < images.length; i++) {
       const image = images[i]
       const uploadPath = `uploads/${user.id}/translate_batch_${batchTimestamp}_${i}.png`
-      const { publicUrl: startBatchImgPublicUrl } = await uploadTryOnImagePublic(supabase, uploadPath, image, {
+      const { publicUrl: startBatchImgPublicUrl } = await uploadTryOnImagePublic(uploadPath, image, {
         contentType: image.type || 'image/png',
       })
       items.push({ originalUrl: startBatchImgPublicUrl, name: image.name })
@@ -989,57 +944,29 @@ export async function startTranslateBatch(formData: FormData): Promise<{ batchId
 
   for (let i = 0; i < items.length; i++) {
     const item = items[i]
-    let historyItem: { id: string } | null = null
-    let historyError: { message: string } | null = null
-    const res1 = await adminSupabase.from('try_on_history').insert({
-      user_id: user.id,
-      original_image_url: item.originalUrl,
-      garment_image_url: item.originalUrl,
-      status: 'processing',
-      feature: 'translate',
-      batch_id: batchId,
-    }).select().single()
-    historyItem = res1.data
-    historyError = res1.error
-    if (historyError && String(historyError.message).includes('column')) {
-      const res2 = await adminSupabase.from('try_on_history').insert({
-        user_id: user.id,
-        original_image_url: item.originalUrl,
-        garment_image_url: item.originalUrl,
-        status: 'processing',
-        feature: 'translate',
-        batch_id: batchId,
-      }).select().single()
-      historyItem = res2.data
-      historyError = res2.error
-    }
-    if (historyError || !historyItem) return { error: 'Không thể tạo bản ghi xử lý.' }
+    const historyItem = await insertTryOnHistoryTranslateProcessingPg({
+      userId: user.id,
+      originalImageUrl: item.originalUrl,
+      garmentImageUrl: item.originalUrl,
+      batchId,
+      batchType: 'image',
+    })
+    if (!historyItem) return { error: 'Không thể tạo bản ghi xử lý. Kiểm tra DATABASE_URL.' }
 
     const cost = TRANSLATE_COSTS[imageQuality]
-    const jobPayload: Record<string, unknown> = {
-      user_id: user.id,
-      history_id: historyItem.id,
-      source_lang: sourceLang,
-      target_lang: targetLang,
-      image_quality: imageQuality,
+    const job = await insertTranslateJobPendingPg({
+      userId: user.id,
+      historyId: historyItem.id,
+      sourceLang,
+      targetLang,
+      imageQuality,
       cost,
-      status: 'pending',
+    })
+    if (!job) {
+      console.error('[startTranslateBatch] translate_jobs insert failed')
+      await deleteTryOnHistoryRowAndStorage(historyItem.id)
+      return { error: 'Không thể tạo job. Kiểm tra DATABASE_URL và bảng translate_jobs.' }
     }
-    let { data: job, error: jobError } = await adminSupabase.from('translate_jobs').insert(jobPayload).select().single()
-    if (jobError && String(jobError.message).includes('source_lang_2')) {
-      delete jobPayload.source_lang_2
-      const retry = await adminSupabase.from('translate_jobs').insert(jobPayload).select().single()
-      job = retry.data
-      jobError = retry.error
-    }
-    if (jobError || !job) {
-      const errMsg = jobError?.message ?? 'unknown'
-      console.error('[startTranslateBatch] translate_jobs insert failed:', errMsg)
-      await adminSupabase.from('try_on_history').delete().eq('id', historyItem.id)
-      const hint = String(errMsg).includes('source_lang_2') || String(errMsg).includes('column') ? ' Chạy migration: npx supabase db push' : ''
-      return { error: `Không thể tạo job. ${errMsg}${hint}` }
-    }
-
   }
 
   fetch(`${baseUrl}/api/process-translate?batchId=${batchId}`, { headers }).catch(() => {})
@@ -1062,35 +989,19 @@ export async function cancelBatchTranslate(
     return { error: `Gõ chính xác "${CANCEL_CONFIRM_TEXT}" (viết hoa) để xác nhận hủy.` }
   }
 
-  const supabase = createClient()
-  const adminSupabase = createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-  const authResult = await getUserForAction(() => supabase.auth.getUser())
+  const authResult = await getUserForAction()
   if ('error' in authResult) return { error: authResult.error }
   const { user } = authResult
 
-  const { data: items, error: listError } = await adminSupabase
-    .from('try_on_history')
-    .select('id, status, result_image_url')
-    .eq('user_id', user.id)
-    .eq('batch_id', batchId)
-    .eq('feature', 'translate')
-    .order('created_at', { ascending: true })
-
-  if (listError || !items?.length) return { error: 'Không tìm thấy tiến trình.' }
+  const items = await fetchTryOnHistoryBatchRowsForCancelPg(user.id, batchId)
+  if (items == null) return { error: 'Không tải được tiến trình.' }
+  if (!items.length) return { error: 'Không tìm thấy tiến trình.' }
 
   const completed = items.filter((x) => x.status === 'completed' && x.result_image_url)
   const processingIds = items.filter((x) => x.status === 'processing').map((x) => x.id)
 
   if (processingIds.length > 0) {
-    await adminSupabase
-      .from('translate_jobs')
-      .update({ status: 'cancelled', error_message: 'Đã hủy bởi người dùng' })
-      .in('history_id', processingIds)
-      .eq('status', 'pending')
-    await adminSupabase
-      .from('try_on_history')
-      .update({ status: 'cancelled' })
-      .in('id', processingIds)
+    await cancelTranslateBatchPendingPg(user.id, batchId)
   }
 
   if (completed.length === 0) {
@@ -1110,12 +1021,11 @@ export async function cancelBatchTranslate(
 /** Khởi động lại chuỗi xử lý batch (khi server restart, chuỗi bị đứt). Gọi khi user mở trang tiến trình. */
 export async function resumeBatchTranslate(batchId: string): Promise<void> {
   if (!batchId) return
-  const supabase = createClient()
-  const result = await getUserForAction(() => supabase.auth.getUser())
+  const result = await getUserForAction()
   if ('error' in result) return
   const { user } = result
-  const { data: items } = await supabase.from('try_on_history').select('id').eq('batch_id', batchId).eq('user_id', user.id)
-  if (!items?.length) return
+  const ids = await fetchTryOnHistoryIdsByBatchIdAndUserPg(batchId, user.id)
+  if (!ids?.length) return
   const baseUrl = getProcessTranslateBaseUrl()
   const secret = process.env.PROCESS_TRANSLATE_SECRET
   const headers: Record<string, string> = {}
@@ -1126,29 +1036,21 @@ export async function resumeBatchTranslate(batchId: string): Promise<void> {
 /** Tạo zip ảnh kết quả và ảnh gốc từ batch đã dịch xong – dùng cho nút tải và khi hủy. */
 export async function getBatchZipUrl(batchId: string): Promise<{ zipUrl?: string; originalZipUrl?: string } | { error: string }> {
   if (!batchId) return { error: 'Thiếu batchId.' }
-  const supabase = createClient()
-  const result = await getUserForAction(() => supabase.auth.getUser())
+  const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
-  const { data: items } = await supabase
-    .from('try_on_history')
-    .select('id, original_image_url, result_image_url, batch_type')
-    .eq('user_id', user.id)
-    .eq('batch_id', batchId)
-    .eq('feature', 'translate')
-    .eq('status', 'completed')
-    .not('result_image_url', 'is', null)
-    .order('created_at', { ascending: true })
+  const items = await fetchTryOnHistoryBatchDownloadRowsPg(user.id, batchId)
+  if (items == null) return { error: 'Không tải được dữ liệu batch.' }
 
-  const completed = (items ?? []).filter((x) => x.result_image_url)
+  const completed = items.filter((x) => x.result_image_url)
   if (completed.length === 0) return { error: 'Không có ảnh đã xử lý xong để tải.' }
 
-  const isPdfBatch = (items ?? []).some((x) => (x as { batch_type?: string }).batch_type === 'pdf')
+  const isPdfBatch = items.some((x) => x.batch_type === 'pdf')
   const pagePrefix = isPdfBatch ? 'trang' : 'image'
 
   const zipResult = await createZipFromResults(
-    completed.map((item, i) => ({
+    completed.map((item, i: number) => ({
       resultUrl: item.result_image_url!,
       name: `${pagePrefix}_${i + 1}_dich.png`,
     }))
@@ -1156,12 +1058,12 @@ export async function getBatchZipUrl(batchId: string): Promise<{ zipUrl?: string
   if ('error' in zipResult) return zipResult
 
   const origEntries = completed
-    .map((item, i) => ({ url: (item as { original_image_url?: string }).original_image_url, idx: i + 1 }))
-    .filter((x) => x.url)
+    .map((item, i: number) => ({ url: item.original_image_url, idx: i + 1 }))
+    .filter((x): x is { url: string; idx: number } => Boolean(x.url))
   let originalZipUrl: string | undefined
   if (origEntries.length > 0) {
     const origResult = await createZipFromResults(
-      origEntries.map((x) => ({ resultUrl: x.url!, name: `${pagePrefix}_${x.idx}_goc.png` }))
+      origEntries.map((x) => ({ resultUrl: x.url, name: `${pagePrefix}_${x.idx}_goc.png` }))
     )
     if ('zipUrl' in origResult && origResult.zipUrl) originalZipUrl = origResult.zipUrl
   }
@@ -1174,24 +1076,23 @@ export async function getBatchProgress(batchId: string): Promise<
   { done: number; total: number; items: Array<{ id: string; status: string; original_image_url?: string; result_image_url?: string; error_message?: string | null }>; cancelled?: number; isCancelled?: boolean } | { error: string }
 > {
   if (!batchId) return { error: 'Thiếu batchId.' }
-  const supabase = createClient()
-  const result = await getUserForAction(() => supabase.auth.getUser())
+  const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
-  const { data: items, error } = await supabase
-    .from('try_on_history')
-    .select('id, status, original_image_url, result_image_url, error_message, batch_type')
-    .eq('user_id', user.id)
-    .eq('batch_id', batchId)
-    .eq('feature', 'translate')
-    .order('created_at', { ascending: true })
-
-  if (error) return { error: 'Không tải được tiến trình.' }
-  const list = items ?? []
+  const listRaw = await fetchTryOnHistoryBatchProgressRowsPg(user.id, batchId)
+  if (listRaw == null) return { error: 'Không tải được tiến trình.' }
+  const list = listRaw.map((r) => ({
+    id: r.id,
+    status: r.status,
+    original_image_url: r.original_image_url ?? undefined,
+    result_image_url: r.result_image_url ?? undefined,
+    error_message: r.error_message,
+  }))
   const done = list.filter((x) => x.status === 'completed').length
   const cancelled = list.filter((x) => x.status === 'cancelled').length
-  const isCancelled = list.length > 0 && list.every((x) => x.status === 'completed' || x.status === 'cancelled' || x.status === 'failed')
+  const isCancelled =
+    list.length > 0 && list.every((x) => x.status === 'completed' || x.status === 'cancelled' || x.status === 'failed')
   return { done, total: list.length, items: list, cancelled, isCancelled }
 }
 
@@ -1230,15 +1131,18 @@ export async function translateFromExcel(
   const COST_PER_IMAGE = TRANSLATE_COSTS[imageQuality]
   const estimatedCost = urls.length * COST_PER_IMAGE
 
-  const supabase = createClient()
-  const adminSupabase = createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-  const result = await getUserForAction(() => supabase.auth.getUser())
+  const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
-  const { data: creditData, error: creditError } = await supabase.from('credits').select('balance').eq('user_id', user.id).single()
-  if (creditError || !creditData || toTenths(creditData.balance) < toTenths(COST_PER_IMAGE)) {
-    return { error: `Không đủ credits. Cần ít nhất ${formatCredits(COST_PER_IMAGE)} credit cho 1 ảnh. Tổng dự kiến: ${formatCredits(estimatedCost)} (${urls.length} ảnh).` }
+  let openBalExcelFull = 0
+  try {
+    openBalExcelFull = await getCreditBalanceByUserId(user.id)
+  } catch {
+    return { error: 'Không đọc được số dư credits.' }
+  }
+  if (toTenths(openBalExcelFull) < toTenths(estimatedCost)) {
+    return { error: `Không đủ credits. Cần ${formatCredits(estimatedCost)} credits (${urls.length} ảnh × ${formatCredits(COST_PER_IMAGE)}).` }
   }
 
   const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!)
@@ -1259,13 +1163,8 @@ export async function translateFromExcel(
       return { error: `Ảnh ${i + 1}/${urls.length}: Không tải được. ${msg}${hint}` }
     }
 
-    const { data: latestCredit } = await adminSupabase.from('credits').select('balance').eq('user_id', user.id).single()
-    if (!latestCredit || toTenths(latestCredit.balance) < toTenths(COST_PER_IMAGE)) {
-      return { error: 'Không đủ credits trong quá trình xử lý.' }
-    }
-
     const uploadPath = `uploads/${user.id}/translate_excel_${batchTimestamp}_${i}.png`
-    const { publicUrl: fromExcelOriginalPublicUrl } = await uploadTryOnImagePublic(supabase, uploadPath, imageBuffer, {
+    const { publicUrl: fromExcelOriginalPublicUrl } = await uploadTryOnImagePublic(uploadPath, imageBuffer, {
       contentType: 'image/png',
     })
 
@@ -1290,22 +1189,23 @@ export async function translateFromExcel(
       userId: user.id,
     })
     const resultPath = `results/${user.id}/translate_excel_${batchTimestamp}_${i}.png`
-    const { publicUrl: fromExcelResultPublicUrl } = await uploadTryOnImagePublic(adminSupabase, resultPath, finalBuffer, {
+    const { publicUrl: fromExcelResultPublicUrl } = await uploadTryOnImagePublic(resultPath, finalBuffer, {
       contentType: 'image/png',
       upsert: true,
     })
 
-    const newBalance = fromTenths(toTenths(latestCredit.balance) - toTenths(COST_PER_IMAGE))
-    await adminSupabase.from('credits').update({ balance: newBalance }).eq('user_id', user.id)
+    const dExcel = await deductUserCredits(user.id, COST_PER_IMAGE)
+    if (!dExcel.ok) {
+      return { error: dExcel.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credits trong quá trình xử lý.' : dExcel.error }
+    }
 
-    await adminSupabase.from('try_on_history').insert({
-      user_id: user.id,
-      original_image_url: fromExcelOriginalPublicUrl,
-      garment_image_url: fromExcelOriginalPublicUrl,
-      result_image_url: fromExcelResultPublicUrl,
-      status: 'completed',
-      feature: 'translate',
+    const insExcel = await insertTryOnHistoryTranslateCompletedPg({
+      userId: user.id,
+      originalImageUrl: fromExcelOriginalPublicUrl,
+      garmentImageUrl: fromExcelOriginalPublicUrl,
+      resultImageUrl: fromExcelResultPublicUrl,
     })
+    if (!insExcel) return { error: 'Không lưu được lịch sử.' }
 
     results.push({ originalUrl: fromExcelOriginalPublicUrl, resultUrl: fromExcelResultPublicUrl })
     let baseName = `image_${i + 1}`
@@ -1331,7 +1231,7 @@ export async function translateFromExcel(
       archive.finalize()
     })
     const zipPath = `results/${user.id}/dich_tai_lieu_${batchTimestamp}.zip`
-    const { publicUrl: fromExcelZipPublicUrl } = await uploadTryOnImagePublic(adminSupabase, zipPath, zipBuffer, {
+    const { publicUrl: fromExcelZipPublicUrl } = await uploadTryOnImagePublic(zipPath, zipBuffer, {
       contentType: 'application/zip',
       upsert: true,
     })

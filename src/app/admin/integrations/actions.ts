@@ -1,12 +1,15 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
-import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { revalidatePath } from 'next/cache'
+import { getProfileRoleWithFallback } from '@/lib/db/read-user-dashboard-pg'
+import {
+  loadAdminIntegrationsValueJsonByKey,
+  upsertAdminIntegrationsValueJson,
+} from '@/lib/db/admin-integrations-settings-pg'
+import { isPgConfigured } from '@/lib/db/pool'
 
 const SETTINGS_KEY = 'admin_integrations_config'
-const SETTINGS_TABLE = 'admin_integrations_settings'
 
 type DomainVerificationTag = {
   name: string
@@ -24,20 +27,13 @@ type IntegrationSettings = {
   zaloChatEmbedCode: string
 }
 
-function adminServiceClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!url || !key) return null
-  return createAdminClient(url, key, { auth: { persistSession: false } })
-}
-
 async function requireAdmin(): Promise<{ user: { id: string } } | { error: string }> {
-  const supabase = createClient()
-  const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+  const authResult = await getUserForAction()
   if ('error' in authResult) return { error: authResult.error }
   const { user } = authResult
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-  if (profile?.role !== 'admin') {
+
+  const role = await getProfileRoleWithFallback(user.id)
+  if (role !== 'admin') {
     return { error: 'Permission denied. You must be an admin.' }
   }
   return { user }
@@ -75,18 +71,16 @@ export async function loadAdminIntegrationsConfigAction(
   const gate = await requireAdmin()
   if ('error' in gate) return { error: gate.error }
 
-  const admin = adminServiceClient()
-  if (!admin) return { error: 'Thiếu SUPABASE_SERVICE_ROLE_KEY trên server.' }
+  if (!isPgConfigured()) {
+    return { error: 'Cấu hình máy chủ thiếu DATABASE_URL.' }
+  }
 
-  const { data, error } = await admin
-    .from(SETTINGS_TABLE)
-    .select('value_json')
-    .eq('key', SETTINGS_KEY)
-    .maybeSingle()
+  const fromPg = await loadAdminIntegrationsValueJsonByKey(SETTINGS_KEY)
+  let raw: Partial<IntegrationSettings> = {}
+  if (fromPg != null && typeof fromPg === 'object' && !Array.isArray(fromPg)) {
+    raw = fromPg as Partial<IntegrationSettings>
+  }
 
-  if (error) return { error: error.message }
-
-  const raw = (data?.value_json || {}) as Partial<IntegrationSettings>
   return { data: sanitizeSettings(raw, fallbackEmbedCode) }
 }
 
@@ -97,23 +91,14 @@ export async function saveAdminIntegrationsConfigAction(
   const gate = await requireAdmin()
   if ('error' in gate) return { error: gate.error }
 
-  const admin = adminServiceClient()
-  if (!admin) return { error: 'Thiếu SUPABASE_SERVICE_ROLE_KEY trên server.' }
-
   const payload = sanitizeSettings(input, fallbackEmbedCode)
 
-  const { error } = await admin.from(SETTINGS_TABLE).upsert(
-    {
-      key: SETTINGS_KEY,
-      value_json: payload,
-      updated_by: gate.user.id,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: 'key' }
-  )
-  if (error) return { error: error.message }
+  if (!isPgConfigured()) {
+    return { error: 'Cấu hình máy chủ thiếu DATABASE_URL.' }
+  }
 
+  const result = await upsertAdminIntegrationsValueJson(SETTINGS_KEY, payload, gate.user.id)
+  if ('error' in result) return { error: result.error }
   revalidatePath('/admin/integrations')
   return { ok: true }
 }
-

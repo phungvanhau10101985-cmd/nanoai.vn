@@ -7,7 +7,7 @@ import { NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
-import { createClient } from '@/lib/supabase/server'
+import { getUserOrBypass } from '@/lib/auth'
 
 const PROMPT_QUIZ = `Bạn là chuyên gia kiểm tra phiếu bài tập toán. Phân tích câu trắc nghiệm dưới đây.
 
@@ -95,9 +95,8 @@ function parseResponse(text: string): { issues: Array<{ field: string; location:
 
 export async function POST(req: Request) {
   try {
-    const supabase = createClient()
-    const { data: { user: authUser } } = await supabase.auth.getUser()
-    const userId = authUser?.id ?? null
+    const u = await getUserOrBypass()
+    const userId = u?.id ?? null
 
     const apiKey = process.env.GOOGLE_API_KEY?.trim()
     if (!apiKey) {

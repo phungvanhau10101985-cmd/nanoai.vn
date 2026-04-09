@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
+import { markNotificationReadForUser } from '@/lib/db/notifications-repo'
 
 /** Đánh dấu thông báo đã đọc */
 export async function PATCH(
@@ -9,17 +9,11 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params
-    const supabase = createClient()
-    const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+    const authResult = await getUserForAction()
     if ('error' in authResult) return NextResponse.json({ error: authResult.error }, { status: 401 })
 
-    const { error } = await supabase
-      .from('notifications')
-      .update({ read_at: new Date().toISOString() })
-      .eq('id', id)
-      .eq('user_id', authResult.user!.id)
-
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    const out = await markNotificationReadForUser(id, authResult.user!.id)
+    if (!out.ok) return NextResponse.json({ error: out.error || 'update_failed' }, { status: 500 })
     return NextResponse.json({ ok: true })
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)

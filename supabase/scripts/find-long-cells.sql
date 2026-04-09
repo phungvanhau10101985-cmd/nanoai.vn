@@ -1,5 +1,5 @@
 -- Tìm các ô có dữ liệu dài > 32767 ký tự (giới hạn Excel)
--- Chạy trong Supabase SQL Editor
+-- Chạy trong SQL Editor / psql (Postgres)
 
 -- 1. question_text dài
 SELECT id, 'question_text' as col, length(question_text) as len,

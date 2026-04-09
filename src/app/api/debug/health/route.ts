@@ -1,16 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { checkPgConnection } from '@/lib/db/pg-query'
+import { isPgConfigured } from '@/lib/db/pool'
+import { getEmailSessionUser } from '@/lib/auth/email-session-user'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
   const startedAt = Date.now()
   try {
-    const supabase = createClient()
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
+    const user = await getEmailSessionUser()
+
+    const pgConfigured = isPgConfigured()
+    const pgCheck = pgConfigured ? await checkPgConnection() : { ok: false, error: 'DATABASE_URL not set' }
 
     const cookieHeader = req.headers.get('cookie') || ''
     const payload = {
@@ -23,7 +24,12 @@ export async function GET(req: NextRequest) {
       hasCookieHeader: cookieHeader.length > 0,
       cookieBytes: cookieHeader.length,
       userId: user?.id || null,
-      authError: authError?.message || null,
+      authError: user ? null : 'no_jwt_session',
+      postgres: {
+        databaseUrlConfigured: pgConfigured,
+        selectOneOk: pgCheck.ok,
+        error: pgCheck.error ?? null,
+      },
     }
 
     console.info('[debug-health] ok', {

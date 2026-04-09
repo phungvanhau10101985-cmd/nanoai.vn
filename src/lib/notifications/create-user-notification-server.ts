@@ -1,5 +1,6 @@
-import type { SupabaseClient } from '@supabase/supabase-js'
-import { sendAccountNotificationEmail } from '@/lib/email/account-notification-email'
+import { insertNotificationPg } from '@/lib/db/notifications-repo'
+import { isPgConfigured } from '@/lib/db/pool'
+import { sendAccountNotificationEmailByUserIdPg } from '@/lib/email/account-notification-email'
 import { sendPushNotificationsToUser } from '@/lib/push/send-to-user'
 
 export type UserNotificationPayload = {
@@ -12,30 +13,31 @@ export type UserNotificationPayload = {
 
 /**
  * Ghi thông báo trong app (chuông), gửi email (nếu có SMTP) và Web Push (nếu có VAPID + subscription).
- * Chỉ dùng với Supabase service role (RLS không cho user tự insert notifications).
+ * Chỉ Postgres — cần `DATABASE_URL`.
  */
-export async function createUserNotificationWithEmail(
-  adminSupabase: SupabaseClient,
-  payload: UserNotificationPayload
-): Promise<void> {
-  const { error } = await adminSupabase.from('notifications').insert({
-    user_id: payload.user_id,
-    type: payload.type,
-    title: payload.title,
-    body: payload.body,
-    meta: payload.meta ?? {},
-  })
-  if (error) {
-    console.error('[createUserNotificationWithEmail] insert:', error.message)
-    return
-  }
-
+export async function createUserNotificationWithEmail(payload: UserNotificationPayload): Promise<void> {
   const pushUrl =
     typeof payload.meta?.push_url === 'string' && payload.meta.push_url.startsWith('/')
       ? payload.meta.push_url
       : '/'
 
-  await sendAccountNotificationEmail(adminSupabase, payload.user_id, {
+  if (!isPgConfigured()) {
+    console.warn('[createUserNotificationWithEmail] skipped: DATABASE_URL not configured')
+    return
+  }
+
+  const ins = await insertNotificationPg({
+    user_id: payload.user_id,
+    type: payload.type,
+    title: payload.title,
+    body: payload.body,
+    meta: payload.meta,
+  })
+  if (!ins.ok) {
+    console.error('[createUserNotificationWithEmail] insert:', ins.error)
+    return
+  }
+  await sendAccountNotificationEmailByUserIdPg(payload.user_id, {
     title: payload.title,
     body: payload.body,
   })

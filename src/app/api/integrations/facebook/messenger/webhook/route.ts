@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServiceRoleClient } from '@/lib/supabase/service-role'
 import { ensureConversation, insertMessage } from '@/lib/customer-care/conversation-service'
 import {
   parseFacebookMessengerInbound,
@@ -26,8 +25,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const db = createServiceRoleClient()
-    const found = await findFacebookChannelByVerifyToken(db, token)
+    const found = await findFacebookChannelByVerifyToken(token)
     if ('error' in found && found.error) {
       console.error('[facebook-messenger-webhook] verify lookup', found.error)
       return new NextResponse('Forbidden', { status: 403 })
@@ -65,19 +63,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, received: 0 })
   }
 
-  let db
-  try {
-    db = createServiceRoleClient()
-  } catch (e) {
-    console.error('[facebook-messenger-webhook]', e)
-    return NextResponse.json({ ok: false }, { status: 500 })
-  }
-
   let received = 0
   for (const item of items) {
     const pageId = item.facebookPageId
     if (!pageId) continue
-    const ch = await findFacebookChannelByPageId(db, pageId)
+    const ch = await findFacebookChannelByPageId(pageId)
     if ('error' in ch && ch.error) {
       console.error('[facebook-messenger-webhook] channel', ch.error)
       continue
@@ -86,7 +76,7 @@ export async function POST(request: NextRequest) {
       console.warn('[facebook-messenger-webhook] No partner channel for page', pageId)
       continue
     }
-    const conv = await ensureConversation(db, {
+    const conv = await ensureConversation({
       partnerId: ch.channel.partner_id,
       channel: 'facebook',
       externalThreadId: item.externalUserId,
@@ -97,7 +87,7 @@ export async function POST(request: NextRequest) {
       console.error('[facebook-messenger-webhook] ensureConversation', conv.error)
       continue
     }
-    const ins = await insertMessage(db, {
+    const ins = await insertMessage({
       conversationId: conv.conversationId,
       direction: 'inbound',
       body: item.text,
@@ -109,7 +99,7 @@ export async function POST(request: NextRequest) {
     }
     received += 1
     if ('messageId' in ins && ins.messageId) {
-      await handlePartnerInboundForAi(db, {
+      await handlePartnerInboundForAi({
         partnerId: ch.channel.partner_id,
         conversationId: conv.conversationId,
         messageId: ins.messageId,

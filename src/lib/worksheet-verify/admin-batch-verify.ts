@@ -1,4 +1,11 @@
-import type { SupabaseClient } from '@supabase/supabase-js'
+import { isPgConfigured } from '@/lib/db/pool'
+import {
+  fetchPendingWorksheetIdsPg,
+  fetchWorksheetVerifyBatchReportByIdPg,
+  insertWorksheetVerifyBatchReportPg,
+  markWorksheetVerifyBatchReportCompletedPg,
+  updateWorksheetVerifyBatchReportPg,
+} from '@/lib/db/worksheet-verify-batch-pg'
 import { runWorksheetVerifyForSheet, type RunWorksheetVerifyStats } from '@/lib/worksheet-verify/run-worksheet-verify-for-sheet'
 
 export type WorksheetVerifyDetailRow = {
@@ -17,45 +24,50 @@ export type BatchProgress = {
   nextIndex: number
 }
 
-export async function fetchPendingWorksheetIds(admin: SupabaseClient): Promise<{ id: string; topic: string }[]> {
-  const { data, error } = await admin.rpc('get_worksheet_ids_pending_verify')
-  if (error) throw new Error(error.message)
-  const rows = (data ?? []) as { worksheet_id: string; worksheet_topic: string }[]
-  return rows.map((r) => ({ id: r.worksheet_id, topic: r.worksheet_topic ?? '' }))
+function repRowToCompat(rep: Record<string, unknown>) {
+  return {
+    status: String(rep.status ?? ''),
+    worksheets_processed: Number(rep.worksheets_processed ?? 0),
+    worksheets_planned: Number(rep.worksheets_planned ?? 0),
+    questions_marked_verified: Number(rep.questions_marked_verified ?? 0),
+    questions_content_updated: Number(rep.questions_content_updated ?? 0),
+    questions_skipped_invalid: Number(rep.questions_skipped_invalid ?? 0),
+    progress: rep.progress,
+    details: rep.details,
+  }
 }
 
 export async function startNewBatchReport(
-  admin: SupabaseClient,
   triggeredBy: string | null
 ): Promise<{ reportId: string; worksheetsPlanned: number }> {
-  const pending = await fetchPendingWorksheetIds(admin)
-  const pendingIds = pending.map((p) => p.id)
+  if (!isPgConfigured()) throw new Error('DATABASE_URL chưa cấu hình')
+
+  const pendingRows = await fetchPendingWorksheetIdsPg()
+  if (pendingRows === null) throw new Error('Không đọc được danh sách phiếu chờ verify')
+
+  const pendingIds = pendingRows.map((p) => p.id)
   const topicsById: Record<string, string> = {}
-  for (const p of pending) topicsById[p.id] = p.topic
+  for (const p of pendingRows) topicsById[p.id] = p.topic
 
   const progress: BatchProgress = { pendingIds, topicsById, nextIndex: 0 }
   const now = new Date().toISOString()
   const emptyDone = pendingIds.length === 0
 
-  const { data, error } = await admin
-    .from('worksheet_verify_batch_reports')
-    .insert({
-      status: emptyDone ? 'completed' : 'running',
-      triggered_by: triggeredBy,
-      worksheets_planned: pendingIds.length,
-      worksheets_processed: 0,
-      questions_marked_verified: 0,
-      questions_content_updated: 0,
-      questions_skipped_invalid: 0,
-      progress,
-      details: [],
-      finished_at: emptyDone ? now : null,
-    })
-    .select('id')
-    .single()
-
-  if (error) throw new Error(error.message)
-  return { reportId: data!.id as string, worksheetsPlanned: pendingIds.length }
+  const reportId = await insertWorksheetVerifyBatchReportPg({
+    status: emptyDone ? 'completed' : 'running',
+    triggeredBy,
+    worksheetsPlanned: pendingIds.length,
+    worksheetsProcessed: 0,
+    questionsMarkedVerified: 0,
+    questionsContentUpdated: 0,
+    questionsSkippedInvalid: 0,
+    progress,
+    details: [],
+    finishedAt: emptyDone ? now : null,
+    updatedAt: now,
+  })
+  if (!reportId) throw new Error('Không tạo được báo cáo lô')
+  return { reportId, worksheetsPlanned: pendingIds.length }
 }
 
 export type StepResult = {
@@ -71,72 +83,64 @@ export type StepResult = {
   errorSummary?: string
 }
 
-export async function runBatchVerifyStep(
-  admin: SupabaseClient,
-  reportId: string,
-  batchSize: number
-): Promise<StepResult> {
-  const { data: rep, error: fetchErr } = await admin
-    .from('worksheet_verify_batch_reports')
-    .select('*')
-    .eq('id', reportId)
-    .single()
+export async function runBatchVerifyStep(reportId: string, batchSize: number): Promise<StepResult> {
+  if (!isPgConfigured()) throw new Error('DATABASE_URL chưa cấu hình')
 
-  if (fetchErr || !rep) throw new Error(fetchErr?.message || 'Không tìm thấy báo cáo')
+  const raw = await fetchWorksheetVerifyBatchReportByIdPg(reportId)
+  if (!raw) throw new Error('Không tìm thấy báo cáo')
+
+  const rep = repRowToCompat(raw)
 
   if (rep.status !== 'running') {
     return {
       reportId,
       status: rep.status as StepResult['status'],
       worksheetsProcessedThisStep: 0,
-      worksheetsProcessedTotal: rep.worksheets_processed ?? 0,
-      worksheetsPlanned: rep.worksheets_planned ?? 0,
-      questionsMarkedVerified: rep.questions_marked_verified ?? 0,
-      questionsContentUpdated: rep.questions_content_updated ?? 0,
-      questionsSkippedInvalid: rep.questions_skipped_invalid ?? 0,
+      worksheetsProcessedTotal: rep.worksheets_processed,
+      worksheetsPlanned: rep.worksheets_planned,
+      questionsMarkedVerified: rep.questions_marked_verified,
+      questionsContentUpdated: rep.questions_content_updated,
+      questionsSkippedInvalid: rep.questions_skipped_invalid,
       lastDetails: [],
     }
   }
 
-  const progress = rep.progress as unknown as BatchProgress
+  const progress = raw.progress as unknown as BatchProgress
   const pendingIds = progress?.pendingIds ?? []
   const nextIndex = Math.max(0, progress?.nextIndex ?? 0)
   const topicsById = progress?.topicsById ?? {}
 
   if (nextIndex >= pendingIds.length) {
     const now = new Date().toISOString()
-    await admin
-      .from('worksheet_verify_batch_reports')
-      .update({ status: 'completed', finished_at: now, updated_at: now })
-      .eq('id', reportId)
+    await markWorksheetVerifyBatchReportCompletedPg(reportId, now)
     return {
       reportId,
       status: 'completed',
       worksheetsProcessedThisStep: 0,
-      worksheetsProcessedTotal: rep.worksheets_processed ?? 0,
-      worksheetsPlanned: rep.worksheets_planned ?? 0,
-      questionsMarkedVerified: rep.questions_marked_verified ?? 0,
-      questionsContentUpdated: rep.questions_content_updated ?? 0,
-      questionsSkippedInvalid: rep.questions_skipped_invalid ?? 0,
+      worksheetsProcessedTotal: rep.worksheets_processed,
+      worksheetsPlanned: rep.worksheets_planned,
+      questionsMarkedVerified: rep.questions_marked_verified,
+      questionsContentUpdated: rep.questions_content_updated,
+      questionsSkippedInvalid: rep.questions_skipped_invalid,
       lastDetails: [],
     }
   }
 
   const slice = pendingIds.slice(nextIndex, nextIndex + Math.max(1, batchSize))
   const lastDetails: WorksheetVerifyDetailRow[] = []
-  let qMarked = rep.questions_marked_verified ?? 0
-  let qContent = rep.questions_content_updated ?? 0
-  let qSkip = rep.questions_skipped_invalid ?? 0
-  let processed = rep.worksheets_processed ?? 0
-  const details: WorksheetVerifyDetailRow[] = Array.isArray(rep.details)
-    ? (rep.details as WorksheetVerifyDetailRow[])
+  let qMarked = rep.questions_marked_verified
+  let qContent = rep.questions_content_updated
+  let qSkip = rep.questions_skipped_invalid
+  let processed = rep.worksheets_processed
+  const details: WorksheetVerifyDetailRow[] = Array.isArray(raw.details)
+    ? ([...(raw.details as WorksheetVerifyDetailRow[])] as WorksheetVerifyDetailRow[])
     : []
   let fatal: string | null = null
 
   for (const wid of slice) {
     const t0 = Date.now()
     try {
-      const st: RunWorksheetVerifyStats = await runWorksheetVerifyForSheet(admin, wid)
+      const st: RunWorksheetVerifyStats = await runWorksheetVerifyForSheet(wid)
       qMarked += st.markedVerified
       qContent += st.contentUpdates
       qSkip += st.skippedInvalid
@@ -175,32 +179,36 @@ export async function runBatchVerifyStep(
   const now = new Date().toISOString()
   const newProgress: BatchProgress = { ...progress, pendingIds, topicsById, nextIndex: newIndex }
 
-  await admin
-    .from('worksheet_verify_batch_reports')
-    .update({
-      updated_at: now,
-      worksheets_processed: processed,
-      questions_marked_verified: qMarked,
-      questions_content_updated: qContent,
-      questions_skipped_invalid: qSkip,
-      progress: newProgress as unknown as Record<string, unknown>,
-      details: details as unknown as Record<string, unknown>,
-      status: done ? 'completed' : 'running',
-      finished_at: done ? now : null,
-      error_summary: fatal,
-    })
-    .eq('id', reportId)
+  const ok = await updateWorksheetVerifyBatchReportPg(reportId, {
+    updatedAt: now,
+    worksheetsProcessed: processed,
+    questionsMarkedVerified: qMarked,
+    questionsContentUpdated: qContent,
+    questionsSkippedInvalid: qSkip,
+    progress: newProgress,
+    details,
+    status: done ? 'completed' : 'running',
+    finishedAt: done ? now : null,
+    errorSummary: fatal,
+  })
+  if (!ok) throw new Error('Không cập nhật được báo cáo lô')
 
   return {
     reportId,
     status: done ? 'completed' : 'running',
     worksheetsProcessedThisStep: slice.length,
     worksheetsProcessedTotal: processed,
-    worksheetsPlanned: rep.worksheets_planned ?? 0,
+    worksheetsPlanned: rep.worksheets_planned,
     questionsMarkedVerified: qMarked,
     questionsContentUpdated: qContent,
     questionsSkippedInvalid: qSkip,
     lastDetails,
     errorSummary: fatal ?? undefined,
   }
+}
+
+/** Tương thích cron — danh sách phiếu còn câu chưa verify. */
+export async function fetchPendingWorksheetIds(): Promise<Array<{ id: string; topic: string }>> {
+  const rows = await fetchPendingWorksheetIdsPg()
+  return rows ?? []
 }

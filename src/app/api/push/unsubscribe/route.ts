@@ -1,39 +1,24 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { getUserForAction } from '@/lib/auth'
+import { deletePushSubscriptionsForUser } from '@/lib/db/push-subscriptions-repo'
 
 /**
  * Xóa subscription: body { endpoint } hoặc không có endpoint → xóa hết thiết bị của user.
  */
 export async function POST(req: Request) {
   try {
-    const supabase = createClient()
-    const {
-      data: { user },
-      error: authErr,
-    } = await supabase.auth.getUser()
-    if (authErr || !user) {
+    const auth = await getUserForAction()
+    if ('error' in auth) {
       return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
     }
 
     const body = (await req.json().catch(() => ({}))) as { endpoint?: string }
     const endpoint = typeof body.endpoint === 'string' ? body.endpoint.trim() : ''
 
-    if (endpoint) {
-      const { error } = await supabase
-        .from('push_subscriptions')
-        .delete()
-        .eq('user_id', user.id)
-        .eq('endpoint', endpoint)
-      if (error) {
-        console.error('[push/unsubscribe]', error.message)
-        return NextResponse.json({ error: error.message }, { status: 500 })
-      }
-    } else {
-      const { error } = await supabase.from('push_subscriptions').delete().eq('user_id', user.id)
-      if (error) {
-        console.error('[push/unsubscribe]', error.message)
-        return NextResponse.json({ error: error.message }, { status: 500 })
-      }
+    const out = await deletePushSubscriptionsForUser(auth.user.id, endpoint || undefined)
+    if (!out.ok) {
+      console.error('[push/unsubscribe]', out.error)
+      return NextResponse.json({ error: out.error || 'delete_failed' }, { status: 500 })
     }
 
     return NextResponse.json({ ok: true })

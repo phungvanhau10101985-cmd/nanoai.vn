@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { createClient } from '@/lib/supabase/client'
+import { getClientUserId } from '@/lib/auth/get-client-user-id'
 import { Wallet, CreditCard, History, ArrowRight, Zap, TrendingUp } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import Link from 'next/link'
@@ -25,7 +25,6 @@ export default function WalletClient() {
   const [userCredits, setUserCredits] = useState<number>(0)
   const [recentPayments, setRecentPayments] = useState<Payment[]>([])
   const [loading, setLoading] = useState(true)
-  const supabase = createClient()
   const tr = (vi: string, en: string, zh: string, ja: string, ko: string) => {
     if (uiLocale === 'en') return en
     if (uiLocale === 'zh') return zh
@@ -61,30 +60,19 @@ export default function WalletClient() {
   const fetchWalletData = async () => {
     setLoading(true)
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+      const uid = await getClientUserId()
+      if (!uid) return
 
-      // Fetch user credits
-      const { data: creditsData, error: creditsError } = await supabase
-        .from('credits')
-        .select('balance')
-        .eq('user_id', user.id)
-        .single()
-
-      if (!creditsError && creditsData) {
-        setUserCredits(creditsData.balance || 0)
+      const creditsRes = await fetch('/api/account/credits', { credentials: 'same-origin' })
+      if (creditsRes.ok) {
+        const j = (await creditsRes.json()) as { balance?: number }
+        setUserCredits(Number(j.balance) || 0)
       }
 
-      // Fetch recent payments
-      const { data: paymentsData, error: paymentsError } = await supabase
-        .from('payments')
-        .select('id, amount, credits_added, status, created_at')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(5)
-
-      if (!paymentsError) {
-        setRecentPayments(paymentsData || [])
+      const payRes = await fetch('/api/account/payments?limit=5', { credentials: 'same-origin' })
+      if (payRes.ok) {
+        const j = (await payRes.json()) as { payments?: Payment[] }
+        setRecentPayments(j.payments || [])
       }
     } catch (error: unknown) {
       console.error('Error fetching wallet data:', error)

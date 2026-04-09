@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyEssay } from '@/app/tao-giao-trinh/lib/worksheet-verify-essay'
-import { createClient } from '@/lib/supabase/server'
+import { getUserOrBypass } from '@/lib/auth'
 
 /** Kiểm tra bài tự luận: đề có khớp lời giải không, công thức đúng không. */
 export async function POST(req: NextRequest) {
   try {
-    const supabase = createClient()
-    const { data: { user: authUser } } = await supabase.auth.getUser()
-    const userId = authUser?.id ?? null
+    const u = await getUserOrBypass()
+    const userId = u?.id ?? null
 
     const body = await req.json().catch(() => ({}))
     const curriculumMarkdown = String(body?.curriculumMarkdown ?? '').trim()

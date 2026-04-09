@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
+import { isPgConfigured } from '@/lib/db/pool'
+import {
+  fetchQuizQuestionReportSlotPg,
+  fetchQuizQuestionReportsResolvedForUserPg,
+  upsertQuizQuestionReportTeacherPg,
+} from '@/lib/db/quiz-reports-pg'
 import {
   checkQuizWrongWithGemini,
   checkQuizWrongWithGPT,
@@ -13,7 +18,6 @@ import {
 import { parseQuizData } from '@/lib/parse-quiz-data'
 
 function extractQuizFromMarker(marker: string): QuizData | null {
-  // Khớp format [quiz:...] – nội dung kết thúc bằng \x1f hoặc | + digit 0-3
   const m = marker.match(/\[quiz:\s*(.+[\x1f|][0-3])\]/i)
   if (!m) return null
   return parseQuizData(m[1].trim()) as QuizData | null
@@ -22,9 +26,12 @@ function extractQuizFromMarker(marker: string): QuizData | null {
 /** Lấy báo cáo đã được admin xử lý (để thông báo giáo viên) */
 export async function GET(req: NextRequest) {
   try {
-    const supabase = createClient()
-    const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+    const authResult = await getUserForAction()
     if ('error' in authResult) return NextResponse.json({ error: authResult.error }, { status: 401 })
+
+    if (!isPgConfigured()) {
+      return NextResponse.json({ error: 'Chưa cấu hình cơ sở dữ liệu.' }, { status: 503 })
+    }
 
     const { searchParams } = new URL(req.url)
     const curriculumId = searchParams.get('curriculumId')?.trim()
@@ -36,18 +43,15 @@ export async function GET(req: NextRequest) {
     const since = new Date()
     since.setDate(since.getDate() - 7)
 
-    const { data, error } = await supabase
-      .from('quiz_question_reports')
-      .select('id, slide_index, block_index, status, admin_approved_at')
-      .eq('curriculum_id', curriculumId)
-      .eq('user_id', authResult.user!.id)
-      .in('status', ['admin_approved', 'admin_rejected'])
-      .gte('admin_approved_at', since.toISOString())
-      .order('admin_approved_at', { ascending: false })
-      .limit(10)
-
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    return NextResponse.json({ items: data ?? [] })
+    const data = await fetchQuizQuestionReportsResolvedForUserPg(
+      curriculumId,
+      authResult.user!.id,
+      since.toISOString()
+    )
+    if (data === null) {
+      return NextResponse.json({ error: 'Không đọc được báo cáo.' }, { status: 500 })
+    }
+    return NextResponse.json({ items: data })
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     console.error('[slide-quiz-report] GET:', msg)
@@ -60,10 +64,13 @@ export async function GET(req: NextRequest) {
  */
 export async function POST(req: NextRequest) {
   try {
-    const supabase = createClient()
-    const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+    const authResult = await getUserForAction()
     if ('error' in authResult) return NextResponse.json({ error: authResult.error }, { status: 401 })
     const { user } = authResult
+
+    if (!isPgConfigured()) {
+      return NextResponse.json({ error: 'Chưa cấu hình cơ sở dữ liệu.' }, { status: 503 })
+    }
 
     const body = await req.json().catch(() => ({}))
     const curriculumId = String(body?.curriculumId ?? '').trim()
@@ -87,16 +94,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Thiếu nội dung slide để kiểm tra.' }, { status: 400 })
     }
 
-    const { data: existing } = await supabase
-      .from('quiz_question_reports')
-      .select('id, report_count, status')
-      .eq('curriculum_id', curriculumId)
-      .eq('user_id', user!.id)
-      .eq('slide_index', slideIndex)
-      .eq('block_index', blockIndex)
-      .maybeSingle()
-
+    const existing = await fetchQuizQuestionReportSlotPg({
+      curriculumId,
+      userId: user!.id,
+      slideIndex,
+      blockIndex,
+    })
     const reportCount = existing ? (existing.report_count ?? 1) + 1 : 1
+
+    const upsertOrFail = async (p: Parameters<typeof upsertQuizQuestionReportTeacherPg>[0]) => {
+      const ok = await upsertQuizQuestionReportTeacherPg(p)
+      if (ok !== true) {
+        throw new Error('Không lưu được báo cáo.')
+      }
+    }
 
     if (reportCount === 1) {
       const check = await checkQuizWrongWithGemini(fullContent, quizData, user!.id)
@@ -109,49 +120,52 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ error: 'AI không tạo được câu mới.' }, { status: 500 })
         }
         const verified = await verifyQuizWithAI(fullContent, created.quiz, user!.id)
-        const finalQuiz = verified && !verified.verified && typeof verified.correctIndex === 'number' && verified.correctIndex >= 0 && verified.correctIndex <= 3
-          ? { ...created.quiz, correctIndex: verified.correctIndex }
-          : created.quiz
+        const finalQuiz =
+          verified && !verified.verified && typeof verified.correctIndex === 'number' && verified.correctIndex >= 0 && verified.correctIndex <= 3
+            ? { ...created.quiz, correctIndex: verified.correctIndex }
+            : created.quiz
         const newMarker = quizToMarker(finalQuiz)
 
-        await supabase.from('quiz_question_reports').upsert(
-          {
-            curriculum_id: curriculumId,
-            user_id: user!.id,
-            slide_index: slideIndex,
-            block_index: blockIndex,
-            quiz_marker: newMarker,
-            slide_content: slideContent,
-            slide_title: slideTitle,
-            report_count: 1,
+        try {
+          await upsertOrFail({
+            curriculumId,
+            userId: user!.id,
+            slideIndex,
+            blockIndex,
+            quizMarker: newMarker,
+            slideContent,
+            slideTitle,
+            reportCount: 1,
             status: 'ai_replaced',
-            ai_reasoning: check.reasoning,
-            ai_model_used: 'gemini-2.5-pro',
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: 'curriculum_id,slide_index,block_index,user_id' }
-        )
+            aiReasoning: check.reasoning,
+            aiModelUsed: 'gemini-2.5-pro',
+          })
+        } catch (err) {
+          const m = err instanceof Error ? err.message : String(err)
+          return NextResponse.json({ error: m }, { status: 500 })
+        }
 
         return NextResponse.json({ action: 'replaced', newMarker, reasoning: check.reasoning })
       }
 
-      await supabase.from('quiz_question_reports').upsert(
-        {
-          curriculum_id: curriculumId,
-          user_id: user!.id,
-          slide_index: slideIndex,
-          block_index: blockIndex,
-          quiz_marker: quizMarker,
-          slide_content: slideContent,
-          slide_title: slideTitle,
-          report_count: 1,
+      try {
+        await upsertOrFail({
+          curriculumId,
+          userId: user!.id,
+          slideIndex,
+          blockIndex,
+          quizMarker,
+          slideContent,
+          slideTitle,
+          reportCount: 1,
           status: 'ai_checked_kept',
-          ai_reasoning: check.reasoning,
-          ai_model_used: 'gemini-2.5-pro',
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'curriculum_id,slide_index,block_index,user_id' }
-      )
+          aiReasoning: check.reasoning,
+          aiModelUsed: 'gemini-2.5-pro',
+        })
+      } catch (err) {
+        const m = err instanceof Error ? err.message : String(err)
+        return NextResponse.json({ error: m }, { status: 500 })
+      }
 
       return NextResponse.json({ action: 'kept', reasoning: check.reasoning })
     }
@@ -167,69 +181,75 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ error: 'GPT không tạo được câu mới.' }, { status: 500 })
         }
         const verified = await verifyQuizWithAI(fullContent, created.quiz, user!.id)
-        const finalQuiz = verified && !verified.verified && typeof verified.correctIndex === 'number' && verified.correctIndex >= 0 && verified.correctIndex <= 3
-          ? { ...created.quiz, correctIndex: verified.correctIndex }
-          : created.quiz
+        const finalQuiz =
+          verified && !verified.verified && typeof verified.correctIndex === 'number' && verified.correctIndex >= 0 && verified.correctIndex <= 3
+            ? { ...created.quiz, correctIndex: verified.correctIndex }
+            : created.quiz
         const newMarker = quizToMarker(finalQuiz)
 
-        await supabase.from('quiz_question_reports').upsert(
-          {
-            curriculum_id: curriculumId,
-            user_id: user!.id,
-            slide_index: slideIndex,
-            block_index: blockIndex,
-            quiz_marker: newMarker,
-            slide_content: slideContent,
-            slide_title: slideTitle,
-            report_count: 2,
+        try {
+          await upsertOrFail({
+            curriculumId,
+            userId: user!.id,
+            slideIndex,
+            blockIndex,
+            quizMarker: newMarker,
+            slideContent,
+            slideTitle,
+            reportCount: 2,
             status: 'gpt_replaced',
-            ai_reasoning: check.reasoning,
-            ai_model_used: 'gpt-4o',
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: 'curriculum_id,slide_index,block_index,user_id' }
-        )
+            aiReasoning: check.reasoning,
+            aiModelUsed: 'gpt-4o',
+          })
+        } catch (err) {
+          const m = err instanceof Error ? err.message : String(err)
+          return NextResponse.json({ error: m }, { status: 500 })
+        }
 
         return NextResponse.json({ action: 'replaced', newMarker, reasoning: check.reasoning })
       }
 
-      await supabase.from('quiz_question_reports').upsert(
-        {
-          curriculum_id: curriculumId,
-          user_id: user!.id,
-          slide_index: slideIndex,
-          block_index: blockIndex,
-          quiz_marker: quizMarker,
-          slide_content: slideContent,
-          slide_title: slideTitle,
-          report_count: 2,
+      try {
+        await upsertOrFail({
+          curriculumId,
+          userId: user!.id,
+          slideIndex,
+          blockIndex,
+          quizMarker,
+          slideContent,
+          slideTitle,
+          reportCount: 2,
           status: 'gpt_checked_kept',
-          ai_reasoning: check.reasoning,
-          ai_model_used: 'gpt-4o',
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'curriculum_id,slide_index,block_index,user_id' }
-      )
+          aiReasoning: check.reasoning,
+          aiModelUsed: 'gpt-4o',
+        })
+      } catch (err) {
+        const m = err instanceof Error ? err.message : String(err)
+        return NextResponse.json({ error: m }, { status: 500 })
+      }
 
       return NextResponse.json({ action: 'kept', reasoning: check.reasoning })
     }
 
     if (reportCount >= 3) {
-      await supabase.from('quiz_question_reports').upsert(
-        {
-          curriculum_id: curriculumId,
-          user_id: user!.id,
-          slide_index: slideIndex,
-          block_index: blockIndex,
-          quiz_marker: quizMarker,
-          slide_content: slideContent,
-          slide_title: slideTitle,
-          report_count: reportCount,
+      try {
+        await upsertOrFail({
+          curriculumId,
+          userId: user!.id,
+          slideIndex,
+          blockIndex,
+          quizMarker,
+          slideContent,
+          slideTitle,
+          reportCount,
           status: 'admin_pending',
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'curriculum_id,slide_index,block_index,user_id' }
-      )
+          aiReasoning: null,
+          aiModelUsed: null,
+        })
+      } catch (err) {
+        const m = err instanceof Error ? err.message : String(err)
+        return NextResponse.json({ error: m }, { status: 500 })
+      }
 
       return NextResponse.json({ action: 'admin_pending', message: 'Đã gửi cho admin kiểm tra.' })
     }

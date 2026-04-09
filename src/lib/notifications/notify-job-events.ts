@@ -1,5 +1,11 @@
-import type { SupabaseClient } from '@supabase/supabase-js'
 import { createUserNotificationWithEmail } from '@/lib/notifications/create-user-notification-server'
+import { isPgConfigured } from '@/lib/db/pool'
+import { countNotificationsByUserTypeSincePg } from '@/lib/db/notifications-pg'
+import {
+  countTranslateJobsPendingOrProcessingForHistoryIdsPg,
+  fetchTryOnHistoryBatchIdPg,
+  fetchTryOnHistoryIdStatusForBatchPg,
+} from '@/lib/db/translate-process-pg'
 
 const WORKSHEET_JOB_LABELS: Record<string, { title: string; ok: string; fail: string }> = {
   parse_sgk_extract: {
@@ -39,67 +45,47 @@ function worksheetCopy(type: string, ok: boolean): { title: string; body: string
  * Sau khi một trang dịch xong: nếu thuộc lô (batch_id) và còn job pending/processing → không gửi.
  * Khi lô xử lý hết → một thông báo tóm tắt (tránh spam nhiều trang).
  */
-export async function notifyTranslateImageSuccessSmart(
-  admin: SupabaseClient,
-  params: { userId: string; historyId: string }
-): Promise<void> {
+export async function notifyTranslateImageSuccessSmart(params: { userId: string; historyId: string }): Promise<void> {
   const { userId, historyId } = params
 
-  const { data: row, error } = await admin
-    .from('try_on_history')
-    .select('batch_id')
-    .eq('id', historyId)
-    .eq('user_id', userId)
-    .maybeSingle()
-
-  if (error || !row) {
-    await notifyTranslateImageJobDone(admin, { userId, historyId, success: true })
+  if (!isPgConfigured()) {
+    await notifyTranslateImageJobDone({ userId, historyId, success: true })
     return
   }
 
-  const bid = row.batch_id as string | null | undefined
+  const bid = await fetchTryOnHistoryBatchIdPg(historyId, userId)
   if (!bid) {
-    await notifyTranslateImageJobDone(admin, { userId, historyId, success: true })
+    await notifyTranslateImageJobDone({ userId, historyId, success: true })
     return
   }
 
-  const { data: batchHist } = await admin
-    .from('try_on_history')
-    .select('id, status')
-    .eq('batch_id', bid)
-    .eq('user_id', userId)
-
-  const ids = (batchHist ?? []).map((h) => h.id)
-  if (ids.length === 0) {
-    await notifyTranslateImageJobDone(admin, { userId, historyId, success: true })
+  const batchHist = await fetchTryOnHistoryIdStatusForBatchPg(bid, userId)
+  if (!batchHist?.length) {
+    await notifyTranslateImageJobDone({ userId, historyId, success: true })
     return
   }
 
-  const { count: remaining, error: cErr } = await admin
-    .from('translate_jobs')
-    .select('id', { count: 'exact', head: true })
-    .in('history_id', ids)
-    .in('status', ['pending', 'processing'])
-
-  if (cErr) {
-    await notifyTranslateImageJobDone(admin, { userId, historyId, success: true })
+  const ids = batchHist.map((h) => h.id)
+  const remaining = await countTranslateJobsPendingOrProcessingForHistoryIdsPg(ids)
+  if (remaining === null) {
+    await notifyTranslateImageJobDone({ userId, historyId, success: true })
     return
   }
 
-  if ((remaining ?? 0) > 0) {
+  if (remaining > 0) {
     return
   }
 
-  const completed = (batchHist ?? []).filter((h) => h.status === 'completed').length
-  const failed = (batchHist ?? []).filter((h) => h.status === 'failed').length
-  const total = batchHist?.length ?? 0
+  const completed = batchHist.filter((h) => h.status === 'completed').length
+  const failed = batchHist.filter((h) => h.status === 'failed').length
+  const total = batchHist.length
 
   const body =
     failed === 0
       ? `Đã dịch xong ${completed}/${total} ảnh trong lô. Mở Trung tâm tác vụ hoặc Dịch ảnh tài liệu để tải.`
       : `Lô dịch kết thúc: ${completed} thành công, ${failed} lỗi (tổng ${total}). Xem chi tiết trong Trung tâm tác vụ.`
 
-  await createUserNotificationWithEmail(admin, {
+  await createUserNotificationWithEmail({
     user_id: userId,
     type: 'translate_batch_completed',
     title: 'Dịch ảnh tài liệu — lô đã xử lý xong',
@@ -112,13 +98,15 @@ export async function notifyTranslateImageSuccessSmart(
 }
 
 /** Dịch ảnh tài liệu (job nền / process-translate). */
-export async function notifyTranslateImageJobDone(
-  admin: SupabaseClient,
-  params: { userId: string; historyId: string; success: boolean; errorMessage?: string | null }
-): Promise<void> {
+export async function notifyTranslateImageJobDone(params: {
+  userId: string
+  historyId: string
+  success: boolean
+  errorMessage?: string | null
+}): Promise<void> {
   const { userId, historyId, success } = params
   const err = (params.errorMessage || '').trim()
-  await createUserNotificationWithEmail(admin, {
+  await createUserNotificationWithEmail({
     user_id: userId,
     type: success ? 'translate_image_completed' : 'translate_image_failed',
     title: success ? 'Dịch ảnh tài liệu đã xong' : 'Dịch ảnh tài liệu thất bại',
@@ -135,14 +123,17 @@ export async function notifyTranslateImageJobDone(
 }
 
 /** Worksheet background jobs (PM2 worker). */
-export async function notifyWorksheetJobOutcome(
-  admin: SupabaseClient,
-  params: { userId: string; jobId: string; jobType: string; success: boolean; errorMessage?: string | null }
-): Promise<void> {
+export async function notifyWorksheetJobOutcome(params: {
+  userId: string
+  jobId: string
+  jobType: string
+  success: boolean
+  errorMessage?: string | null
+}): Promise<void> {
   const { userId, jobId, jobType, success } = params
   const { title, body } = worksheetCopy(jobType, success)
   const err = (params.errorMessage || '').trim()
-  await createUserNotificationWithEmail(admin, {
+  await createUserNotificationWithEmail({
     user_id: userId,
     type: success ? 'worksheet_job_completed' : 'worksheet_job_failed',
     title,
@@ -156,21 +147,18 @@ export async function notifyWorksheetJobOutcome(
 }
 
 /** Giáo viên vừa chấm điểm tự luận — báo học sinh (nếu có user_id). */
-export async function notifyExamEssayGraded(
-  admin: SupabaseClient,
-  params: {
-    studentUserId: string
-    sessionCode: string
-    attemptId: string
-    essayPoints: number
-    essayMax: number
-    totalScore: number
-    maxScore: number
-  }
-): Promise<void> {
+export async function notifyExamEssayGraded(params: {
+  studentUserId: string
+  sessionCode: string
+  attemptId: string
+  essayPoints: number
+  essayMax: number
+  totalScore: number
+  maxScore: number
+}): Promise<void> {
   const { studentUserId, sessionCode, attemptId, essayPoints, essayMax, totalScore, maxScore } = params
   const codeEnc = encodeURIComponent(sessionCode)
-  await createUserNotificationWithEmail(admin, {
+  await createUserNotificationWithEmail({
     user_id: studentUserId,
     type: 'exam_essay_graded',
     title: 'Bài thi đã được chấm tự luận',
@@ -184,28 +172,24 @@ export async function notifyExamEssayGraded(
 }
 
 /** Nhắc ôn từ (SRS) — gọi từ cron, đã chống spam theo khoảng thời gian. */
-export async function notifyCoachReviewDueIfAllowed(
-  admin: SupabaseClient,
-  params: { userId: string; dueWordCount: number; minHoursSinceLast: number }
-): Promise<boolean> {
+export async function notifyCoachReviewDueIfAllowed(params: {
+  userId: string
+  dueWordCount: number
+  minHoursSinceLast: number
+}): Promise<boolean> {
   const { userId, dueWordCount, minHoursSinceLast } = params
   if (dueWordCount <= 0) return false
+  if (!isPgConfigured()) return false
 
   const since = new Date(Date.now() - minHoursSinceLast * 3600000).toISOString()
-  const { count, error } = await admin
-    .from('notifications')
-    .select('id', { count: 'exact', head: true })
-    .eq('user_id', userId)
-    .eq('type', 'coach_review_due')
-    .gte('created_at', since)
-
-  if (error) {
-    console.error('[notifyCoachReviewDueIfAllowed] count:', error.message)
+  const recent = await countNotificationsByUserTypeSincePg(userId, 'coach_review_due', since)
+  if (recent === null) {
+    console.error('[notifyCoachReviewDueIfAllowed] count failed')
     return false
   }
-  if ((count ?? 0) > 0) return false
+  if (recent > 0) return false
 
-  await createUserNotificationWithEmail(admin, {
+  await createUserNotificationWithEmail({
     user_id: userId,
     type: 'coach_review_due',
     title: 'Có từ vựng cần ôn tập',

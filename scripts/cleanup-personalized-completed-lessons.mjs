@@ -1,5 +1,8 @@
 #!/usr/bin/env node
-import { createClient } from '@supabase/supabase-js'
+/**
+ * Cần: DATABASE_URL trong .env.local
+ */
+import { pgQuery, pgQueryRaw } from './pg-query.mjs'
 import { readFileSync } from 'fs'
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
@@ -21,14 +24,11 @@ for (const line of envContent.split('\n')) {
   env[k] = v
 }
 
-const url = env.NEXT_PUBLIC_SUPABASE_URL
-const key = env.SUPABASE_SERVICE_ROLE_KEY
-if (!url || !key) {
-  console.error('Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY')
+process.env.DATABASE_URL = env.DATABASE_URL || process.env.DATABASE_URL
+if (!process.env.DATABASE_URL?.trim()) {
+  console.error('Missing DATABASE_URL in .env.local')
   process.exit(1)
 }
-
-const supabase = createClient(url, key)
 
 const PERSONALIZATION_PATTERNS = [
   /\bmy\s+name\b/i,
@@ -75,20 +75,16 @@ function rowHasPersonalizationSignals(transcriptJson) {
 }
 
 async function main() {
-  let from = 0
+  let offset = 0
   const pageSize = 500
   const flaggedIds = []
 
   while (true) {
-    const { data, error } = await supabase
-      .from('language_coach_completed_lessons')
-      .select('id, transcript_json')
-      .range(from, from + pageSize - 1)
+    const data = await pgQuery(
+      `select id, transcript_json from language_coach_completed_lessons order by id asc limit $1 offset $2`,
+      [pageSize, offset]
+    )
 
-    if (error) {
-      console.error('Select failed:', error.message)
-      process.exit(1)
-    }
     if (!Array.isArray(data) || data.length === 0) break
 
     for (const row of data) {
@@ -98,7 +94,7 @@ async function main() {
     }
 
     if (data.length < pageSize) break
-    from += pageSize
+    offset += pageSize
   }
 
   if (flaggedIds.length === 0) {
@@ -110,16 +106,12 @@ async function main() {
   const chunk = 200
   for (let i = 0; i < flaggedIds.length; i += chunk) {
     const part = flaggedIds.slice(i, i + chunk)
-    const { error } = await supabase
-      .from('language_coach_completed_lessons')
-      .delete()
-      .in('id', part)
-
-    if (error) {
-      console.error('Delete failed:', error.message)
+    const res = await pgQueryRaw(`delete from language_coach_completed_lessons where id = any($1::uuid[])`, [part])
+    if (res.rowCount == null) {
+      console.error('Delete failed')
       process.exit(1)
     }
-    deleted += part.length
+    deleted += res.rowCount
   }
 
   console.log(`Deleted personalized completed lessons: ${deleted}`)
@@ -129,4 +121,3 @@ main().catch((e) => {
   console.error(e instanceof Error ? e.message : String(e))
   process.exit(1)
 })
-

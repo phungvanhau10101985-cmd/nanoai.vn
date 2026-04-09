@@ -11,14 +11,9 @@ export type ExamLayoutPayload = {
 const ISS = 'exam-layout'
 
 function getSecretKey(): Uint8Array {
-  const raw =
-    process.env.EXAM_LAYOUT_SECRET?.trim() ||
-    process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ||
-    ''
+  const raw = process.env.EXAM_LAYOUT_SECRET?.trim() || ''
   if (!raw) {
-    throw new Error(
-      'Thiếu EXAM_LAYOUT_SECRET (hoặc SUPABASE_SERVICE_ROLE_KEY) để ký layout đề thi.'
-    )
+    throw new Error('Thiếu EXAM_LAYOUT_SECRET để ký layout đề thi (openssl rand -base64 32).')
   }
   return new TextEncoder().encode(raw)
 }

@@ -1,17 +1,17 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
-import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { getProfileRoleWithFallback } from '@/lib/db/read-user-dashboard-pg'
+import { isPgConfigured } from '@/lib/db/pool'
+import { pgQuery } from '@/lib/db/pg-query'
 
 const EXCEL_MAX_CELL = 32767
 
 async function requireAdmin() {
-  const supabase = createClient()
-  const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+  const authResult = await getUserForAction()
   if ('error' in authResult) return { error: authResult.error, status: 401 }
   const { user } = authResult
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-  if (profile?.role !== 'admin') {
+  const role = await getProfileRoleWithFallback(user.id)
+  if (role !== 'admin') {
     return { error: 'Chỉ quản trị viên mới được kiểm tra.', status: 403 }
   }
   return { user }
@@ -22,24 +22,29 @@ export async function GET() {
   const auth = await requireAdmin()
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
-  const admin = createAdminClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false } }
-  )
+  if (!isPgConfigured()) {
+    return NextResponse.json({ error: 'Chưa cấu hình cơ sở dữ liệu.' }, { status: 503 })
+  }
 
   const results: Array<{ table: string; id: string; column: string; length: number; preview: string }> = []
 
-  // worksheet_official_questions - phân trang để lấy hết
   const PAGE_SIZE = 1000
   let offset = 0
   let hasMore = true
   while (hasMore) {
-    const { data: questions } = await admin
-      .from('worksheet_official_questions')
-      .select('id, question_text, explanation, options')
-      .range(offset, offset + PAGE_SIZE - 1)
-    if (!questions?.length) break
+    const questions = await pgQuery<{
+      id: string
+      question_text: string | null
+      explanation: string | null
+      options: unknown
+    }>(
+      `select id::text, question_text, explanation, options
+       from public.worksheet_official_questions
+       order by id
+       limit $1 offset $2`,
+      [PAGE_SIZE, offset]
+    )
+    if (!questions.length) break
     for (const row of questions) {
       const q = row.question_text ?? ''
       if (q.length > EXCEL_MAX_CELL) {

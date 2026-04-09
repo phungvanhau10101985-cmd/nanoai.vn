@@ -1,15 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
-import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { fetchExamAttemptDetailForTeacherPg, fetchExamQuestionsForReviewPg } from '@/lib/db/exam-session-pg'
+import { isPgConfigured } from '@/lib/db/pool'
 import { parseExamGradingMeta } from '@/lib/exam-feedback'
 
-function admin() {
-  return createAdminClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false } }
-  )
+type ExamQuestionRow = {
+  id: string
+  question_text?: unknown
+  options?: unknown
 }
 
 export async function GET(
@@ -22,42 +20,34 @@ export async function GET(
       return NextResponse.json({ error: 'Thiếu mã bài làm.' }, { status: 400 })
     }
 
-    const supabase = createClient()
-    const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+    const authResult = await getUserForAction()
     if ('error' in authResult) return NextResponse.json({ error: authResult.error }, { status: 401 })
     const { user } = authResult
 
-    const db = admin()
-    const { data: att, error: aErr } = await db
-      .from('exam_attempts')
-      .select(
-        'id, session_id, user_id, student_name, answers, essay_submission, score, max_score, grading_meta, submitted_at'
-      )
-      .eq('id', attemptId)
-      .maybeSingle()
+    if (!isPgConfigured()) {
+      return NextResponse.json({ error: 'Chưa cấu hình cơ sở dữ liệu.' }, { status: 503 })
+    }
 
-    if (aErr || !att) return NextResponse.json({ error: 'Không tìm thấy bài làm.' }, { status: 404 })
-
-    const { data: session, error: sErr } = await db
-      .from('exam_sessions')
-      .select('id, code, title, teacher_id')
-      .eq('id', att.session_id)
-      .maybeSingle()
-
-    if (sErr || !session) return NextResponse.json({ error: 'Không tìm thấy phiên thi.' }, { status: 404 })
-    if (String(session.teacher_id ?? '') !== user.id) {
+    const bundle = await fetchExamAttemptDetailForTeacherPg(attemptId, user.id)
+    if (bundle === null) {
+      return NextResponse.json({ error: 'Lỗi đọc bài làm.' }, { status: 500 })
+    }
+    if (bundle === 'not_found') {
+      return NextResponse.json({ error: 'Không tìm thấy bài làm.' }, { status: 404 })
+    }
+    if (bundle === 'forbidden') {
       return NextResponse.json({ error: 'Bạn không có quyền xem bài làm này.' }, { status: 403 })
     }
 
-    const { data: questions, error: qErr } = await db
-      .from('exam_questions')
-      .select('id, question_text, options, correct_index, order')
-      .eq('session_id', session.id)
-      .order('order', { ascending: true })
+    const { attempt: att, session } = bundle
 
-    if (qErr) return NextResponse.json({ error: qErr.message }, { status: 500 })
+    const questions = await fetchExamQuestionsForReviewPg(session.id)
+    if (questions === null) {
+      return NextResponse.json({ error: 'Lỗi đọc câu hỏi.' }, { status: 500 })
+    }
 
-    const items = (questions ?? []).map((q, idx) => {
+    const questionRows = questions as ExamQuestionRow[]
+    const items = questionRows.map((q, idx) => {
       const opts = Array.isArray(q.options) ? q.options : []
       const hasChoice = opts.length >= 2
       return {

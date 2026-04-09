@@ -1,8 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
-import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
-import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { isPgConfigured } from '@/lib/db/pool'
+import {
+  collectAllowedQuestionIdsFromCurriculaPg,
+  fetchLessonTopicsFromCurriculumIdsPg,
+  fetchOfficialQuestionsBankPg,
+  fetchWorksheetEssayRowsByIdsPg,
+  fetchWorksheetQuizRowsByIdsPg,
+  insertExamQuestionRowsPg,
+  insertExamSessionCreatePg,
+  deleteExamSessionByIdPg,
+  setExamLineageRootToSelfPg,
+} from '@/lib/db/exam-session-admin-pg'
+import {
+  fetchClassForExamSessionCreatePg,
+  updateClassGradeLevelIfDifferentPg,
+  updateClassSchoolAndGradeIfUnsetPg,
+} from '@/lib/db/classes-pg'
+import { fetchSchoolByIdPg } from '@/lib/db/schools-repo'
 import {
   DEFAULT_WEB_LOCALE,
   LOCALE_COOKIE_NAME,
@@ -12,6 +28,28 @@ import {
 import { resolveDefaultExamSessionTitle } from '@/lib/i18n/exam-session-default-titles'
 import { getEssayProblem } from '@/app/tao-giao-trinh/lib/worksheet-content-json'
 import { shuffleArray } from '@/lib/exam-layout-token'
+import { defaultPublicOrigin } from '@/lib/public-app-origin'
+
+/** Hàng từ worksheet_questions / ngân hàng — annotate để TS khớp khi client là service role. */
+type WorksheetQuestionPick = {
+  id: string
+  type?: string
+  difficulty?: unknown
+  content_json?: unknown
+}
+type OfficialBankRow = {
+  question_text?: unknown
+  options?: unknown
+  correct_index?: unknown
+  difficulty?: unknown
+}
+type OfficialPoolItem = {
+  question_text: string
+  options: string[]
+  correct_index: number
+  source: 'official'
+  difficulty: string
+}
 
 /** Tổng điểm tối đa toàn đề (TN + TL) — khớp UI tạo đề */
 const EXAM_TARGET_TOTAL_POINTS = 100
@@ -118,16 +156,19 @@ function resolveBaseUrl(req: NextRequest): string {
     && !requestOrigin.includes('127.0.0.1')
   ) return requestOrigin
   if (envBase) return envBase
-  return requestOrigin.startsWith('http') ? requestOrigin : 'https://nanoai.vn'
+  return requestOrigin.startsWith('http') ? requestOrigin : defaultPublicOrigin()
 }
 
 /** Tạo phiên thi – lấy câu hỏi từ DB theo topic, thiếu thì bỏ qua (không AI tạo). */
 export async function POST(req: NextRequest) {
   try {
-    const supabase = createClient()
-    const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập để tạo bài thi.')
+    const authResult = await getUserForAction()
     if ('error' in authResult) return NextResponse.json({ error: authResult.error }, { status: 401 })
     const { user } = authResult
+
+    if (!isPgConfigured()) {
+      return NextResponse.json({ error: 'Chưa cấu hình cơ sở dữ liệu.' }, { status: 503 })
+    }
 
     const body = await req.json().catch(() => ({}))
     const examType = String(body?.examType ?? '15ph').toLowerCase()
@@ -138,22 +179,12 @@ export async function POST(req: NextRequest) {
     const requestedSchoolId = String(body?.schoolId ?? '').trim()
     let lessonTopics: string[] = Array.isArray(body?.lessonTopics) ? (body.lessonTopics as string[]).map(String).filter(Boolean) : []
     const curriculumIds = Array.isArray(body?.curriculumIds) ? (body.curriculumIds as string[]).map(String).filter(Boolean) : []
-    const adminSupabase = createAdminClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      { auth: { persistSession: false } }
-    )
     if (curriculumIds.length > 0 && lessonTopics.length === 0) {
-      const { data: curricula } = await adminSupabase
-        .from('worksheet_curricula')
-        .select('lesson_topics')
-        .in('id', curriculumIds)
-      const topics = new Set<string>()
-      for (const c of curricula ?? []) {
-        const t = c?.lesson_topics
-        if (Array.isArray(t)) for (const x of t) if (typeof x === 'string' && x.trim()) topics.add(x.trim())
+      const topicsFetched = await fetchLessonTopicsFromCurriculumIdsPg(curriculumIds)
+      if (topicsFetched === null) {
+        return NextResponse.json({ error: 'Không thể đọc chủ đề từ giáo trình.' }, { status: 503 })
       }
-      lessonTopics = Array.from(topics)
+      lessonTopics = topicsFetched
     }
     const practiceHomework = body?.practiceHomework === true
     let titleLocale: WebLocale = DEFAULT_WEB_LOCALE
@@ -267,14 +298,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Vui lòng chọn lớp cho bài thi.' }, { status: 400 })
     }
 
-    const { data: cls, error: clsErr } = await adminSupabase
-      .from('classes')
-      .select('id, teacher_id, name, school_id, grade_level_id')
-      .eq('id', classId)
-      .single()
-    if (clsErr || !cls) {
+    const clsFetch = await fetchClassForExamSessionCreatePg(classId)
+    if (clsFetch === null) {
+      return NextResponse.json({ error: 'Không thể đọc lớp.' }, { status: 503 })
+    }
+    if (clsFetch === 'not_found') {
       return NextResponse.json({ error: 'Không tìm thấy lớp đã chọn.' }, { status: 404 })
     }
+    const cls = clsFetch
     if (String(cls.teacher_id ?? '') !== user.id) {
       return NextResponse.json({ error: 'Bạn không có quyền dùng lớp này.' }, { status: 403 })
     }
@@ -283,11 +314,7 @@ export async function POST(req: NextRequest) {
     if (!finalSchoolId) {
       return NextResponse.json({ error: 'Vui lòng chọn trường trước khi tạo bài thi.' }, { status: 400 })
     }
-    const { data: schoolRow } = await adminSupabase
-      .from('schools')
-      .select('id, name')
-      .eq('id', finalSchoolId)
-      .maybeSingle()
+    const schoolRow = await fetchSchoolByIdPg(finalSchoolId)
     if (!schoolRow) {
       return NextResponse.json({ error: 'Không tìm thấy trường đã chọn.' }, { status: 404 })
     }
@@ -295,35 +322,29 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Lớp đã gắn với trường khác. Vui lòng chọn đúng trường của lớp.' }, { status: 400 })
     }
     if (!String(cls.school_id ?? '').trim()) {
-      await adminSupabase
-        .from('classes')
-        .update({ school_id: finalSchoolId, grade_level_id: gradeLevelId || null })
-        .eq('id', classId)
+      const up = await updateClassSchoolAndGradeIfUnsetPg(
+        classId,
+        user.id,
+        finalSchoolId,
+        gradeLevelId || null
+      )
+      if (up === null) {
+        return NextResponse.json({ error: 'Không thể cập nhật lớp.' }, { status: 503 })
+      }
     } else if (gradeLevelId && String(cls.grade_level_id ?? '').trim() !== gradeLevelId) {
-      await adminSupabase
-        .from('classes')
-        .update({ grade_level_id: gradeLevelId })
-        .eq('id', classId)
+      const up = await updateClassGradeLevelIfDifferentPg(classId, user.id, gradeLevelId)
+      if (up === null) {
+        return NextResponse.json({ error: 'Không thể cập nhật khối lớp.' }, { status: 503 })
+      }
     }
 
-    const allowedQuestionIds = new Set<string>()
+    let allowedQuestionIds = new Set<string>()
     if (curriculumIds.length > 0) {
-      const { data: worksheets } = await adminSupabase
-        .from('worksheet_worksheets')
-        .select('question_ids')
-        .in('curriculum_id', curriculumIds)
-      for (const ws of worksheets ?? []) {
-        for (const qid of ((ws.question_ids ?? []) as string[])) {
-          if (qid) allowedQuestionIds.add(String(qid))
-        }
+      const collected = await collectAllowedQuestionIdsFromCurriculaPg(curriculumIds)
+      if (collected === null) {
+        return NextResponse.json({ error: 'Không thể đọc câu hỏi theo giáo trình.' }, { status: 503 })
       }
-      const { data: directRows } = await adminSupabase
-        .from('worksheet_questions')
-        .select('id')
-        .in('curriculum_id', curriculumIds)
-      for (const row of directRows ?? []) {
-        if (row.id) allowedQuestionIds.add(String(row.id))
-      }
+      allowedQuestionIds = collected
     }
     const scopedQuizIds = allowedQuestionIds.size > 0
       ? selectedQuizQuestionIds.filter((id) => allowedQuestionIds.has(id))
@@ -333,20 +354,19 @@ export async function POST(req: NextRequest) {
       : selectedEssayQuestionIds
 
     if (selectionMode === 'manual' && scopedQuizIds.length > 0) {
-      const { data: selectedRows, error: selectedErr } = await adminSupabase
-        .from('worksheet_questions')
-        .select('id, type, difficulty, content_json')
-        .in('id', scopedQuizIds)
-        .eq('type', 'quiz')
-      if (selectedErr) return NextResponse.json({ error: selectedErr.message }, { status: 500 })
-      const byId = new Map((selectedRows ?? []).map((r) => [String(r.id), r]))
+      const selectedRows = await fetchWorksheetQuizRowsByIdsPg(scopedQuizIds)
+      if (selectedRows === null) {
+        return NextResponse.json({ error: 'Không thể đọc câu trắc nghiệm đã chọn.' }, { status: 503 })
+      }
+      const selectedQuiz = selectedRows as WorksheetQuestionPick[]
+      const byId = new Map(selectedQuiz.map((r) => [String(r.id), r]))
       const selectedByDifficulty = { easy: 0, medium: 0, hard: 0 }
       for (const qid of scopedQuizIds) {
         const row = byId.get(qid)
         if (!row) continue
         const quiz = normalizeQuizFromContentJson(row.content_json)
         if (!quiz) continue
-        const diff = normalizeDifficulty(String((row as { difficulty?: unknown }).difficulty ?? ''))
+        const diff = normalizeDifficulty(String(row.difficulty ?? ''))
         selectedByDifficulty[diff] += 1
         pickedQuestions.push({
           question_text: quiz.question,
@@ -354,7 +374,7 @@ export async function POST(req: NextRequest) {
           correct_index: quiz.correctIndex,
           source: 'worksheet_quiz',
           worksheet_question_id: String(qid),
-          points: pointsForQuizDifficulty(String((row as { difficulty?: unknown }).difficulty ?? '')),
+          points: pointsForQuizDifficulty(String(row.difficulty ?? '')),
         })
         perQuestionMinutes.push(
           quizMinutesForDifficulty(diff, {
@@ -377,13 +397,12 @@ export async function POST(req: NextRequest) {
     } else if (requestedQuizCount > 0) {
       // Random quiz: if teacher selected quiz pool from curricula, random within that pool first.
       if (scopedQuizIds.length > 0) {
-        const { data: poolRows, error: poolErr } = await adminSupabase
-          .from('worksheet_questions')
-          .select('id, type, difficulty, content_json')
-          .in('id', scopedQuizIds)
-          .eq('type', 'quiz')
-        if (poolErr) return NextResponse.json({ error: poolErr.message }, { status: 500 })
-        const pool = (poolRows ?? []).map((r) => {
+        const poolRowsRaw = await fetchWorksheetQuizRowsByIdsPg(scopedQuizIds)
+        if (poolRowsRaw === null) {
+          return NextResponse.json({ error: 'Không thể đọc ngân hàng câu trắc nghiệm.' }, { status: 503 })
+        }
+        const poolRowsTyped = poolRowsRaw as WorksheetQuestionPick[]
+        const pool = poolRowsTyped.map((r) => {
           const quiz = normalizeQuizFromContentJson(r.content_json)
           const diff = String((r as { difficulty?: unknown }).difficulty ?? '')
           if (!quiz) return null
@@ -439,27 +458,26 @@ export async function POST(req: NextRequest) {
           )
         }
       } else {
-        let q = adminSupabase
-          .from('worksheet_official_questions')
-          .select('question_text, options, correct_index, difficulty')
-          .eq('subject_id', subjectId)
-          .eq('grade_level_id', gradeLevelId)
-
-        if (lessonTopics.length >= 1) {
-          q = q.not('topic_normalized', 'is', null).in('topic_normalized', lessonTopics)
+        const officialRows = await fetchOfficialQuestionsBankPg({
+          subjectId,
+          gradeLevelId,
+          lessonTopics,
+          difficulty: difficulty as string | undefined,
+          limit: Math.max(30, requestedQuizCount * 4),
+        })
+        if (officialRows === null) {
+          return NextResponse.json({ error: 'Không thể đọc ngân hàng câu chính thức.' }, { status: 503 })
         }
-        if (difficulty) {
-          q = q.eq('difficulty', difficulty)
-        }
-
-        const { data: officialRows } = await q.limit(Math.max(30, requestedQuizCount * 4))
-        const pool = (officialRows ?? []).map((r) => ({
-          question_text: String(r.question_text ?? '').trim(),
-          options: Array.isArray(r.options) ? r.options.map((x) => String(x ?? '').trim()).filter(Boolean).slice(0, 4) : [],
-          correct_index: typeof r.correct_index === 'number' ? r.correct_index : Number(r.correct_index ?? 0),
-          source: 'official' as const,
-          difficulty: String((r as { difficulty?: unknown }).difficulty ?? ''),
-        })).filter((r) => r.question_text && r.options.length >= 2)
+        const bankRows = officialRows as OfficialBankRow[]
+        const pool: OfficialPoolItem[] = bankRows
+          .map((r) => ({
+            question_text: String(r.question_text ?? '').trim(),
+            options: Array.isArray(r.options) ? r.options.map((x: unknown) => String(x ?? '').trim()).filter(Boolean).slice(0, 4) : [],
+            correct_index: typeof r.correct_index === 'number' ? r.correct_index : Number(r.correct_index ?? 0),
+            source: 'official' as const,
+            difficulty: String(r.difficulty ?? ''),
+          }))
+          .filter((r): r is OfficialPoolItem => Boolean(r.question_text && r.options.length >= 2))
         const easyPool = sampleShuffle(pool.filter((x) => normalizeDifficulty(x.difficulty) === 'easy'))
         const mediumPool = sampleShuffle(pool.filter((x) => normalizeDifficulty(x.difficulty) === 'medium'))
         const hardPool = sampleShuffle(pool.filter((x) => normalizeDifficulty(x.difficulty) === 'hard'))
@@ -473,13 +491,13 @@ export async function POST(req: NextRequest) {
             { status: 400 }
           )
         }
-        const picked = [
+        const picked: OfficialPoolItem[] = [
           ...easyPool.slice(0, requestedQuizByDifficulty.easy),
           ...mediumPool.slice(0, requestedQuizByDifficulty.medium),
           ...hardPool.slice(0, requestedQuizByDifficulty.hard),
         ]
         pickedQuestions.push(
-          ...picked.map((qz) => ({
+          ...picked.map((qz: OfficialPoolItem) => ({
             question_text: qz.question_text,
             options: qz.options,
             correct_index: Number.isFinite(qz.correct_index) ? Math.max(0, Math.min(3, Math.floor(qz.correct_index))) : 0,
@@ -500,13 +518,12 @@ export async function POST(req: NextRequest) {
     }
 
     if (scopedEssayIds.length > 0) {
-      const { data: selectedEssayRows, error: essayErr } = await adminSupabase
-        .from('worksheet_questions')
-        .select('id, type, content_json')
-        .in('id', scopedEssayIds)
-        .eq('type', 'essay')
-      if (essayErr) return NextResponse.json({ error: essayErr.message }, { status: 500 })
-      const byEssayId = new Map((selectedEssayRows ?? []).map((r) => [String(r.id), r]))
+      const essayRowsRaw = await fetchWorksheetEssayRowsByIdsPg(scopedEssayIds)
+      if (essayRowsRaw === null) {
+        return NextResponse.json({ error: 'Không thể đọc câu tự luận.' }, { status: 503 })
+      }
+      const essayRows = essayRowsRaw as WorksheetQuestionPick[]
+      const byEssayId = new Map(essayRows.map((r) => [String(r.id), r]))
       for (const qid of scopedEssayIds) {
         const row = byEssayId.get(qid)
         if (!row) continue
@@ -569,64 +586,59 @@ export async function POST(req: NextRequest) {
     const calculatedMinutesPerQuestion = perQuestionMinutes.length > 0
       ? perQuestionMinutes.reduce((sum, m) => sum + (Number.isFinite(m) ? m : 0), 0) / perQuestionMinutes.length
       : weightedMinutesPerQuestion
-    const { data: session, error: sessionErr } = await adminSupabase
-      .from('exam_sessions')
-      .insert({
-        code,
-        teacher_id: user.id,
-        title,
-        exam_type: examType,
-        subject_id: subjectId,
-        grade_level_id: gradeLevelId,
-        class_id: classId,
-        school_id: finalSchoolId,
-        duration_minutes: finalDurationMinutes,
-        minutes_per_question: calculatedMinutesPerQuestion,
-        config: {
-          lessonTopics,
-          difficulty,
-          selectionMode,
-          requestedQuizCount,
-          requestedQuizByDifficulty,
-          requestedEssayCount,
-          quizMinutesEasy,
-          quizMinutesMedium,
-          quizMinutesHard,
-          quizPointsEasy,
-          quizPointsMedium,
-          quizPointsHard,
-          essayMinutesById,
-          essayPointsById,
-          calculatedDurationMinutes,
-          finalDurationMinutes,
-          classId,
-          schoolId: finalSchoolId,
-          practiceHomework,
-          scoring: {
-            quizPointsMax,
-            essayPointsMax,
-            quizCount: nQuiz,
-            essayCount: nEssay,
-            perQuestionWeights: true,
-          },
+    const sessionInsert = await insertExamSessionCreatePg({
+      code,
+      teacherId: user.id,
+      title,
+      examType,
+      subjectId,
+      gradeLevelId,
+      classId,
+      schoolId: finalSchoolId,
+      durationMinutes: finalDurationMinutes,
+      minutesPerQuestion: calculatedMinutesPerQuestion,
+      config: {
+        lessonTopics,
+        difficulty,
+        selectionMode,
+        requestedQuizCount,
+        requestedQuizByDifficulty,
+        requestedEssayCount,
+        quizMinutesEasy,
+        quizMinutesMedium,
+        quizMinutesHard,
+        quizPointsEasy,
+        quizPointsMedium,
+        quizPointsHard,
+        essayMinutesById,
+        essayPointsById,
+        calculatedDurationMinutes,
+        finalDurationMinutes,
+        classId,
+        schoolId: finalSchoolId,
+        practiceHomework,
+        scoring: {
+          quizPointsMax,
+          essayPointsMax,
+          quizCount: nQuiz,
+          essayCount: nEssay,
+          perQuestionWeights: true,
         },
-        status: 'active',
-        is_practice_homework: practiceHomework,
-      })
-      .select('id')
-      .single()
+      },
+      practiceHomework,
+    })
 
-    if (sessionErr || !session?.id) {
-      console.error('[exam-session] Insert session failed:', sessionErr?.message)
+    if (!sessionInsert?.id) {
+      console.error('[exam-session] Insert session failed')
       return NextResponse.json({ error: 'Tạo phiên thi thất bại.' }, { status: 500 })
     }
+    const session = { id: sessionInsert.id }
 
     /** Trắc nghiệm luôn trên, tự luận dưới — chỉ xáo thứ tự trong từng nhóm */
     const quizzes = pickedQuestions.filter((q) => Array.isArray(q.options) && q.options.length >= 2)
     const essays = pickedQuestions.filter((q) => !Array.isArray(q.options) || q.options.length < 2)
     const orderedQuestions = [...shuffleArray(quizzes), ...shuffleArray(essays)]
     const inserts = orderedQuestions.map((q, idx) => ({
-      session_id: session.id,
       question_text: q.question_text,
       options: Array.isArray(q.options) ? q.options : [],
       correct_index: typeof q.correct_index === 'number' ? q.correct_index : 0,
@@ -636,19 +648,16 @@ export async function POST(req: NextRequest) {
       points: Number.isFinite(q.points) && q.points >= 0 ? q.points : 1,
     }))
 
-    const { error: questionsErr } = await adminSupabase.from('exam_questions').insert(inserts)
-    if (questionsErr) {
-      console.error('[exam-session] Insert questions failed:', questionsErr.message)
-      await adminSupabase.from('exam_sessions').delete().eq('id', session.id)
+    const questionsOk = await insertExamQuestionRowsPg(session.id, inserts)
+    if (questionsOk !== true) {
+      console.error('[exam-session] Insert questions failed')
+      await deleteExamSessionByIdPg(session.id)
       return NextResponse.json({ error: 'Lưu câu hỏi thất bại.' }, { status: 500 })
     }
 
-    const { error: lineageErr } = await adminSupabase
-      .from('exam_sessions')
-      .update({ exam_lineage_root_id: String(session.id) })
-      .eq('id', String(session.id))
-    if (lineageErr) {
-      console.error('[exam-session] Set exam_lineage_root_id failed:', lineageErr.message)
+    const lineageOk = await setExamLineageRootToSelfPg(session.id)
+    if (lineageOk !== true) {
+      console.error('[exam-session] Set exam_lineage_root_id failed')
     }
 
     const examUrl = `${resolveBaseUrl(req)}/lam-bai/${code}`

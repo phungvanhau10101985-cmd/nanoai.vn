@@ -2,7 +2,15 @@
  * Chạy verify các câu trên một phiếu bài tập (dùng chung API ngầm + admin batch).
  * Mặc định chỉ câu chưa có verified_at; `reverifyAll` thì chạy lại cả câu đã verify.
  */
-import type { SupabaseClient } from '@supabase/supabase-js'
+import {
+  fetchCurriculumContentMarkdownForVerifyPg,
+  fetchWorksheetQuestionsByIdsForVerifyPg,
+  fetchWorksheetSheetForVerifyPg,
+  updateWorksheetQuestionContentJsonPg,
+  updateWorksheetQuestionVerifiedAtNowPg,
+  updateWorksheetSheetContentMarkdownPg,
+} from '@/lib/db/worksheet-verify-run-pg'
+import { isPgConfigured } from '@/lib/db/pool'
 import {
   verifyQuizWithDeepSeek,
   verifyEssayWithDeepSeek,
@@ -26,10 +34,9 @@ export type RunWorksheetVerifyStats = {
 }
 
 /**
- * @param supabase Client có quyền update worksheet_questions + worksheet_worksheets (user hoặc service role)
+ * Verify một phiếu — chỉ Postgres (DATABASE_URL).
  */
 export async function runWorksheetVerifyForSheet(
-  supabase: SupabaseClient,
   worksheetId: string,
   options?: { curriculumMarkdownOverride?: string; reverifyAll?: boolean }
 ): Promise<RunWorksheetVerifyStats> {
@@ -40,49 +47,40 @@ export async function runWorksheetVerifyForSheet(
     errors: [],
   }
 
+  if (!isPgConfigured()) {
+    stats.errors.push('DATABASE_URL chưa cấu hình')
+    return stats
+  }
+
   if (!process.env.GOOGLE_API_KEY?.trim()) {
     stats.errors.push('GOOGLE_API_KEY chưa cấu hình')
     return stats
   }
 
-  const { data: ws, error: wsErr } = await supabase
-    .from('worksheet_worksheets')
-    .select('id, user_id, curriculum_id, topic, question_ids, sgk_image_urls')
-    .eq('id', worksheetId)
-    .single()
-
-  if (wsErr || !ws) {
-    stats.errors.push(wsErr?.message || 'Không tìm thấy phiếu bài tập')
+  const ws = await fetchWorksheetSheetForVerifyPg(worksheetId)
+  if (!ws) {
+    stats.errors.push('Không tìm thấy phiếu bài tập')
     return stats
   }
 
-  const questionIds = ((ws.question_ids ?? []) as string[]).filter(Boolean)
+  const questionIds = (ws.question_ids ?? []).filter(Boolean)
   if (questionIds.length === 0) return stats
 
   let curriculumMarkdown = (options?.curriculumMarkdownOverride ?? '').trim()
   if (!curriculumMarkdown && ws.curriculum_id) {
-    const { data: cur } = await supabase
-      .from('worksheet_curricula')
-      .select('content_markdown')
-      .eq('id', ws.curriculum_id)
-      .single()
-    curriculumMarkdown = (cur?.content_markdown as string) ?? ''
+    curriculumMarkdown = (await fetchCurriculumContentMarkdownForVerifyPg(ws.curriculum_id)) ?? ''
   }
-  const topic = (ws.topic as string) || 'Phiếu bài tập'
+  const topic = ws.topic || 'Phiếu bài tập'
   const fullContent = topic ? `## ${topic}\n\n${curriculumMarkdown}` : curriculumMarkdown
-  const sheetUserId = (ws.user_id as string | undefined) ?? null
+  const sheetUserId = ws.user_id || null
 
-  const { data: qRows, error: qErr } = await supabase
-    .from('worksheet_questions')
-    .select('id, type, content_json, difficulty, source, verified_at')
-    .in('id', questionIds)
-
-  if (qErr) {
-    stats.errors.push(qErr.message)
+  const qRowsRaw = await fetchWorksheetQuestionsByIdsForVerifyPg(questionIds)
+  if (qRowsRaw === null) {
+    stats.errors.push('Không đọc được câu hỏi từ DB')
     return stats
   }
 
-  const ordered = questionIds.map((id) => qRows?.find((r) => r.id === id)).filter(Boolean) as Array<{
+  const ordered = questionIds.map((id) => qRowsRaw.find((r) => r.id === id)).filter(Boolean) as Array<{
     id: string
     type: string
     content_json: unknown
@@ -92,7 +90,9 @@ export async function runWorksheetVerifyForSheet(
 
   const reverifyAll = options?.reverifyAll === true
 
-  const sgkImageUrls = ((ws?.sgk_image_urls ?? []) as string[]).filter(Boolean)
+  const sgkImageUrls = (Array.isArray(ws.sgk_image_urls) ? ws.sgk_image_urls : []).filter(
+    (x): x is string => typeof x === 'string' && x.length > 0
+  )
   let imagePartsCache: Array<{ inlineData: { data: string; mimeType: string } }> | null = null
 
   async function getSgkImageParts(): Promise<Array<{ inlineData: { data: string; mimeType: string } }>> {
@@ -114,6 +114,8 @@ export async function runWorksheetVerifyForSheet(
     return parts
   }
 
+  const nowIso = () => new Date().toISOString()
+
   for (const row of ordered) {
     if (!reverifyAll && row.verified_at) continue
     if (row.type === 'quiz') {
@@ -130,7 +132,6 @@ export async function runWorksheetVerifyForSheet(
 
       let finalQ = q
       let needsUpdate = false
-      /** SGK + có ảnh: verify vision trước để không bỏ qua đề đọc đồ thị */
       let skipTextVerifyPipeline = false
       if (row.source === 'sgk' && sgkImageUrls.length > 0) {
         const imageParts = await getSgkImageParts()
@@ -154,48 +155,44 @@ export async function runWorksheetVerifyForSheet(
         }
       }
 
-      if (skipTextVerifyPipeline) {
-        /* đã xử lý bằng vision */
-      } else {
-      const deepSeekResult = await verifyQuizWithDeepSeek(fullContent, q, sheetUserId)
-      if (deepSeekResult && !deepSeekResult.verified) {
-        let geminiResult: { verified: boolean; correctIndex?: number; question?: string; options?: string[] } | null = null
-        if (deepSeekResult.needsImage && sgkImageUrls.length > 0 && row.source === 'sgk') {
-          const imageParts = await getSgkImageParts()
-          if (imageParts.length > 0) geminiResult = await verifyQuizWithGeminiVision(fullContent, q, imageParts, sheetUserId)
-        }
-        if (!geminiResult) geminiResult = await verifyQuizWithGemini(fullContent, q, sheetUserId)
-        const verifyResult = geminiResult ?? deepSeekResult
-        if (verifyResult.question || verifyResult.options || typeof verifyResult.correctIndex === 'number') {
-          if (verifyResult.question) finalQ = { ...finalQ, question: verifyResult.question }
-          if (verifyResult.options) finalQ = { ...finalQ, options: verifyResult.options }
-          if (typeof verifyResult.correctIndex === 'number' && verifyResult.correctIndex >= 0 && verifyResult.correctIndex <= 3) {
-            finalQ = { ...finalQ, correctIndex: verifyResult.correctIndex }
+      if (!skipTextVerifyPipeline) {
+        const deepSeekResult = await verifyQuizWithDeepSeek(fullContent, q, sheetUserId)
+        if (deepSeekResult && !deepSeekResult.verified) {
+          let geminiResult: { verified: boolean; correctIndex?: number; question?: string; options?: string[] } | null = null
+          if (deepSeekResult.needsImage && sgkImageUrls.length > 0 && row.source === 'sgk') {
+            const imageParts = await getSgkImageParts()
+            if (imageParts.length > 0) geminiResult = await verifyQuizWithGeminiVision(fullContent, q, imageParts, sheetUserId)
           }
-          needsUpdate = true
-        } else {
-          const fixed = await fixQuizWhenVerifyFailed(fullContent, q, sheetUserId)
-          if (fixed) {
-            finalQ = fixed
+          if (!geminiResult) geminiResult = await verifyQuizWithGemini(fullContent, q, sheetUserId)
+          const verifyResult = geminiResult ?? deepSeekResult
+          if (verifyResult.question || verifyResult.options || typeof verifyResult.correctIndex === 'number') {
+            if (verifyResult.question) finalQ = { ...finalQ, question: verifyResult.question }
+            if (verifyResult.options) finalQ = { ...finalQ, options: verifyResult.options }
+            if (typeof verifyResult.correctIndex === 'number' && verifyResult.correctIndex >= 0 && verifyResult.correctIndex <= 3) {
+              finalQ = { ...finalQ, correctIndex: verifyResult.correctIndex }
+            }
             needsUpdate = true
+          } else {
+            const fixed = await fixQuizWhenVerifyFailed(fullContent, q, sheetUserId)
+            if (fixed) {
+              finalQ = fixed
+              needsUpdate = true
+            }
           }
         }
-      }
       }
       if (needsUpdate) {
-        const { error: upErr } = await supabase
-          .from('worksheet_questions')
-          .update({ content_json: { question: finalQ.question, options: finalQ.options, correctIndex: finalQ.correctIndex } })
-          .eq('id', row.id)
-        if (!upErr) stats.contentUpdates++
-        else stats.errors.push(`quiz update ${row.id}: ${upErr.message}`)
+        const ok = await updateWorksheetQuestionContentJsonPg(row.id, {
+          question: finalQ.question,
+          options: finalQ.options,
+          correctIndex: finalQ.correctIndex,
+        })
+        if (ok) stats.contentUpdates++
+        else stats.errors.push(`quiz update ${row.id}`)
       }
-      const { error: markErr } = await supabase
-        .from('worksheet_questions')
-        .update({ verified_at: new Date().toISOString() })
-        .eq('id', row.id)
-      if (!markErr) stats.markedVerified++
-      else stats.errors.push(`quiz verify mark ${row.id}: ${markErr.message}`)
+      const okMark = await updateWorksheetQuestionVerifiedAtNowPg(row.id, nowIso())
+      if (okMark) stats.markedVerified++
+      else stats.errors.push(`quiz verify mark ${row.id}`)
     } else if (row.type === 'essay') {
       const c = row.content_json as { problem?: string; solution?: unknown }
       const problem = (c?.problem ?? '').trim()
@@ -207,7 +204,6 @@ export async function runWorksheetVerifyForSheet(
 
       let finalE = { problem, solution }
       let needsUpdate = false
-      /** SGK + có ảnh: luôn verify vision trước — bắt lời giải chỉ đạo hàm khi đề yêu cầu đọc đồ thị */
       let skipTextVerifyPipeline = false
       if (row.source === 'sgk' && sgkImageUrls.length > 0) {
         const imageParts = await getSgkImageParts()
@@ -225,65 +221,58 @@ export async function runWorksheetVerifyForSheet(
       }
 
       if (!skipTextVerifyPipeline) {
-      const deepSeekResult = await verifyEssayWithDeepSeek(fullContent, problem, solution, sheetUserId)
-      if (deepSeekResult && !deepSeekResult.verified) {
-        let geminiResult: { verified: boolean; problem?: string; solution?: string } | null = null
-        if (deepSeekResult.needsImage && sgkImageUrls.length > 0 && row.source === 'sgk') {
-          const imageParts = await getSgkImageParts()
-          if (imageParts.length > 0) geminiResult = await verifyEssayWithGeminiVision(fullContent, problem, solution, imageParts, sheetUserId)
-        }
-        if (!geminiResult) geminiResult = await verifyEssayWithGemini(fullContent, problem, solution, sheetUserId)
-        const verifyResult = geminiResult ?? deepSeekResult
-        if (verifyResult.problem || verifyResult.solution) {
-          if (verifyResult.problem) finalE = { ...finalE, problem: verifyResult.problem }
-          if (verifyResult.solution) finalE = { ...finalE, solution: verifyResult.solution }
-          needsUpdate = true
-        } else {
-          const fixed = await fixEssayWhenVerifyFailed(fullContent, { problem, solution }, sheetUserId)
-          if (fixed) {
-            finalE = fixed
+        const deepSeekResult = await verifyEssayWithDeepSeek(fullContent, problem, solution, sheetUserId)
+        if (deepSeekResult && !deepSeekResult.verified) {
+          let geminiResult: { verified: boolean; problem?: string; solution?: string } | null = null
+          if (deepSeekResult.needsImage && sgkImageUrls.length > 0 && row.source === 'sgk') {
+            const imageParts = await getSgkImageParts()
+            if (imageParts.length > 0) geminiResult = await verifyEssayWithGeminiVision(fullContent, problem, solution, imageParts, sheetUserId)
+          }
+          if (!geminiResult) geminiResult = await verifyEssayWithGemini(fullContent, problem, solution, sheetUserId)
+          const verifyResult = geminiResult ?? deepSeekResult
+          if (verifyResult.problem || verifyResult.solution) {
+            if (verifyResult.problem) finalE = { ...finalE, problem: verifyResult.problem }
+            if (verifyResult.solution) finalE = { ...finalE, solution: verifyResult.solution }
             needsUpdate = true
+          } else {
+            const fixed = await fixEssayWhenVerifyFailed(fullContent, { problem, solution }, sheetUserId)
+            if (fixed) {
+              finalE = fixed
+              needsUpdate = true
+            }
           }
         }
       }
-      }
       if (needsUpdate) {
         const solutionStr = normalizeSolutionToStr(finalE.solution) || String(finalE.solution ?? '').trim()
-        const { error: upErr } = await supabase
-          .from('worksheet_questions')
-          .update({ content_json: { problem: finalE.problem, solution: solutionStr } })
-          .eq('id', row.id)
-        if (!upErr) stats.contentUpdates++
-        else stats.errors.push(`essay update ${row.id}: ${upErr.message}`)
+        const ok = await updateWorksheetQuestionContentJsonPg(row.id, { problem: finalE.problem, solution: solutionStr })
+        if (ok) stats.contentUpdates++
+        else stats.errors.push(`essay update ${row.id}`)
       }
-      const { error: markErr } = await supabase
-        .from('worksheet_questions')
-        .update({ verified_at: new Date().toISOString() })
-        .eq('id', row.id)
-      if (!markErr) stats.markedVerified++
-      else stats.errors.push(`essay verify mark ${row.id}: ${markErr.message}`)
+      const okMark = await updateWorksheetQuestionVerifiedAtNowPg(row.id, nowIso())
+      if (okMark) stats.markedVerified++
+      else stats.errors.push(`essay verify mark ${row.id}`)
     }
   }
 
   if (stats.contentUpdates > 0 || stats.markedVerified > 0) {
-    const { data: freshRows } = await supabase
-      .from('worksheet_questions')
-      .select('id, type, content_json, difficulty, source, verified_at')
-      .in('id', questionIds)
-    const freshOrdered = questionIds
-      .map((id) => freshRows?.find((r) => r.id === id))
-      .filter(Boolean) as Array<{
-        id: string
-        type: string
-        content_json: unknown
-        difficulty?: string
-        source?: string
-        verified_at?: string | null
-      }>
-    if (freshOrdered.length > 0) {
-      const newMarkdown = questionsToMarkdown(freshOrdered)
-      const { error: mdErr } = await supabase.from('worksheet_worksheets').update({ content_markdown: newMarkdown }).eq('id', worksheetId)
-      if (mdErr) stats.errors.push(`markdown: ${mdErr.message}`)
+    const freshRows = await fetchWorksheetQuestionsByIdsForVerifyPg(questionIds)
+    if (freshRows && freshRows.length > 0) {
+      const freshOrdered = questionIds
+        .map((id) => freshRows.find((r) => r.id === id))
+        .filter(Boolean) as Array<{
+          id: string
+          type: string
+          content_json: unknown
+          difficulty?: string
+          source?: string
+          verified_at?: string | null
+        }>
+      if (freshOrdered.length > 0) {
+        const newMarkdown = questionsToMarkdown(freshOrdered)
+        const mdOk = await updateWorksheetSheetContentMarkdownPg(worksheetId, newMarkdown)
+        if (!mdOk) stats.errors.push('markdown: không cập nhật được content_markdown phiếu')
+      }
     }
   }
 

@@ -11,7 +11,7 @@
 --
 -- XÓA: Giáo trình AI, bài thi, phiếu bài tập, học ngoại ngữ AI, nhạc, thử đồ, v.v.
 --
--- Cách chạy: Supabase Dashboard → SQL Editor → paste và Run
+-- Cách chạy: SQL Editor / psql — paste và Run
 -- =============================================================================
 
 begin;

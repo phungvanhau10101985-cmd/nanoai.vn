@@ -1,4 +1,3 @@
-import { createClient } from '@/lib/supabase/server'
 import { redirectToLogin } from '@/lib/auth/login-redirect'
 import { getUserOrBypass } from '@/lib/auth'
 import TaoAnh3DClientPage from './tao-anh-3d-client-page'
@@ -19,8 +18,7 @@ export const metadata: Metadata = buildMetadata({
 })
 
 export default async function TaoAnh3DPage() {
-  const supabase = createClient()
-  const user = await getUserOrBypass(() => supabase.auth.getUser())
+  const user = await getUserOrBypass()
   if (!user) redirectToLogin()
 
   const jsonLd = buildJsonLdService(

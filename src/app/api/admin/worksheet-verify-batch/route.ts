@@ -1,31 +1,24 @@
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-import { createClient as createServerClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
+import { getProfileRoleWithFallback } from '@/lib/db/read-user-dashboard-pg'
+import { isPgConfigured } from '@/lib/db/pool'
 import {
-  startNewBatchReport,
-  runBatchVerifyStep,
-} from '@/lib/worksheet-verify/admin-batch-verify'
-
-function getAdminServiceClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim()
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()
-  if (!url || !key) return null
-  return createClient(url, key)
-}
+  fetchWorksheetVerifyBatchReportByIdPg,
+  listWorksheetVerifyBatchReportsPg,
+} from '@/lib/db/worksheet-verify-batch-pg'
+import { startNewBatchReport, runBatchVerifyStep } from '@/lib/worksheet-verify/admin-batch-verify'
 
 async function requireAdmin() {
-  const supabase = createServerClient()
-  const auth = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+  const auth = await getUserForAction()
   if ('error' in auth) {
     return { error: NextResponse.json({ error: auth.error }, { status: 401 }) }
   }
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', auth.user.id).single()
-  if (profile?.role !== 'admin') {
+  const role = await getProfileRoleWithFallback(auth.user.id)
+  if (role !== 'admin') {
     return { error: NextResponse.json({ error: 'Chỉ quản trị viên.' }, { status: 403 }) }
   }
-  return { user: auth.user, supabase }
+  return { user: auth.user }
 }
 
 /** Danh sách báo cáo lô verify, hoặc ?id=uuid để lấy một bản ghi kèm details (JSON) */
@@ -33,25 +26,21 @@ export async function GET(req: NextRequest) {
   try {
     const gate = await requireAdmin()
     if ('error' in gate) return gate.error
-    const { supabase } = gate
+
+    if (!isPgConfigured()) {
+      return NextResponse.json({ error: 'Database not configured.' }, { status: 503 })
+    }
 
     const id = req.nextUrl.searchParams.get('id')?.trim()
     if (id) {
-      const { data, error } = await supabase.from('worksheet_verify_batch_reports').select('*').eq('id', id).single()
-      if (error) return NextResponse.json({ error: error.message }, { status: 404 })
+      const data = await fetchWorksheetVerifyBatchReportByIdPg(id)
+      if (!data) return NextResponse.json({ error: 'Not found' }, { status: 404 })
       return NextResponse.json({ item: data })
     }
 
-    const { data, error } = await supabase
-      .from('worksheet_verify_batch_reports')
-      .select(
-        'id, created_at, updated_at, finished_at, status, triggered_by, worksheets_planned, worksheets_processed, questions_marked_verified, questions_content_updated, questions_skipped_invalid, error_summary'
-      )
-      .order('created_at', { ascending: false })
-      .limit(80)
-
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    return NextResponse.json({ items: data ?? [] })
+    const items = await listWorksheetVerifyBatchReportsPg(80)
+    if (items === null) return NextResponse.json({ error: 'Query failed' }, { status: 500 })
+    return NextResponse.json({ items })
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     return NextResponse.json({ error: msg }, { status: 500 })
@@ -70,16 +59,15 @@ export async function POST(req: NextRequest) {
     if ('error' in gate) return gate.error
     const { user } = gate
 
-    const admin = getAdminServiceClient()
-    if (!admin) {
-      return NextResponse.json({ error: 'Thiếu SUPABASE_SERVICE_ROLE_KEY hoặc NEXT_PUBLIC_SUPABASE_URL.' }, { status: 500 })
+    if (!isPgConfigured()) {
+      return NextResponse.json({ error: 'Database not configured.' }, { status: 503 })
     }
 
     const body = await req.json().catch(() => ({}))
     const action = (body?.action as string)?.trim()
 
     if (action === 'start') {
-      const { reportId, worksheetsPlanned } = await startNewBatchReport(admin, user.id)
+      const { reportId, worksheetsPlanned } = await startNewBatchReport(user.id)
       return NextResponse.json({ ok: true, reportId, worksheetsPlanned })
     }
 
@@ -87,7 +75,7 @@ export async function POST(req: NextRequest) {
       const reportId = (body?.reportId as string)?.trim()
       if (!reportId) return NextResponse.json({ error: 'Thiếu reportId.' }, { status: 400 })
       const batchSize = Math.min(10, Math.max(1, Number(body?.batchSize) || 1))
-      const result = await runBatchVerifyStep(admin, reportId, batchSize)
+      const result = await runBatchVerifyStep(reportId, batchSize)
       return NextResponse.json({ ok: true, ...result })
     }
 

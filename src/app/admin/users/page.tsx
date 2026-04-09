@@ -1,4 +1,3 @@
-import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -6,6 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { EditCreditDialog } from './edit-credit-dialog'
 import { Toaster } from '@/components/ui/sonner'
 import { getCurrentWebLocale } from '@/lib/i18n/server'
+import { pgListProfilesWithCreditBalance } from '@/lib/db/admin-users-pg'
 
 export default async function AdminUsersPage() {
   const uiLocale = getCurrentWebLocale()
@@ -16,31 +16,17 @@ export default async function AdminUsersPage() {
     if (uiLocale === 'ko') return ko
     return vi
   }
-  const supabase = createClient()
-
-  const { data: usersData, error } = await supabase
-    .from('profiles')
-    .select(`
-      id,
-      full_name,
-      avatar_url,
-      role,
-      credits(balance)
-    `)
-
-  if (error) {
-    console.error('Error fetching users:', error)
-    // Handle error appropriately
+  const { rows: usersRaw, error: usersError } = await pgListProfilesWithCreditBalance()
+  if (usersError) {
+    console.error('Error fetching users:', usersError)
   }
 
-  // The query returns credits as an array, so we need to flatten it
-  const users = usersData?.map(u => ({
-    ...u,
-    email: 'N/A',
-    balance: Array.isArray((u as { credits?: Array<{ balance?: number }> }).credits)
-      ? ((u as { credits?: Array<{ balance?: number }> }).credits?.[0]?.balance ?? 0)
-      : 0,
-  })) || []
+  const users =
+    usersRaw?.map((u) => ({
+      ...u,
+      email: 'N/A' as const,
+      balance: u.balance ?? 0,
+    })) ?? []
 
   return (
     <div className="space-y-8">
@@ -50,6 +36,11 @@ export default async function AdminUsersPage() {
       </div>
       <Card>
         <CardContent className="mt-6">
+          {usersError ? (
+            <p className="mb-4 text-sm text-destructive" role="alert">
+              {usersError}
+            </p>
+          ) : null}
           <Table>
             <TableHeader>
               <TableRow>
@@ -60,7 +51,7 @@ export default async function AdminUsersPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {users.map((user) => (
+              {users.map((user: { id: string; full_name?: string | null; avatar_url?: string | null; role?: string | null; email?: string; balance?: number }) => (
                 <TableRow key={user.id}>
                   <TableCell>
                     <div className="flex items-center gap-4">
@@ -81,7 +72,7 @@ export default async function AdminUsersPage() {
                   </TableCell>
                   <TableCell className="text-right font-medium">{user.balance}</TableCell>
                   <TableCell className="text-right">
-                    <EditCreditDialog userId={user.id} currentBalance={user.balance} />
+                    <EditCreditDialog userId={user.id} currentBalance={user.balance ?? 0} />
                   </TableCell>
                 </TableRow>
               ))}

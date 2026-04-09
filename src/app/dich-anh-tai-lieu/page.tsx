@@ -1,4 +1,3 @@
-import { createClient } from '@/lib/supabase/server'
 import { redirectToLogin } from '@/lib/auth/login-redirect'
 import { getUserOrBypass } from '@/lib/auth'
 import DichAnhTaiLieuClientPage from './dich-anh-tai-lieu-client-page'
@@ -32,8 +31,7 @@ export default async function DichAnhTaiLieuPage() {
           : locale === 'ko'
             ? '문서 이미지 번역 도구를 불러오는 중...'
             : 'Đang tải công cụ dịch ảnh tài liệu...'
-  const supabase = createClient()
-  const user = await getUserOrBypass(() => supabase.auth.getUser())
+  const user = await getUserOrBypass()
   if (!user) redirectToLogin()
 
   const jsonLd = buildJsonLdService(

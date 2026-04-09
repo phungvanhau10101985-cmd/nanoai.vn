@@ -1,5 +1,4 @@
 import Link from 'next/link'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
@@ -14,6 +13,7 @@ import {
   aggregateLanguageCoachCredits,
 } from '../language-coach-financials'
 import { fetchAllApiUsageLogsInRange, sortApiUsageLogsNewestFirst } from '../fetch-api-usage-logs-range'
+import { fetchLanguageCoachCreditEventsInRange } from '@/lib/db/admin-api-stats-pg'
 
 function toYMD(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -43,21 +43,12 @@ export default async function AdminEnglishCoachApiStatsPage({
   const fromDate = fromParam || toYMD(thirtyDaysAgo)
   const toDate = toParam || toYMD(today)
 
-  const adminSupabase = createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
-
   const fromIso = fromDate + 'T00:00:00'
   const toIso = toDate + 'T23:59:59.999'
 
-  const [logFetch, { data: creditEvents }] = await Promise.all([
-    fetchAllApiUsageLogsInRange(adminSupabase, fromIso, toIso, { featureLike: 'english-coach-%' }),
-    adminSupabase
-      .from('language_coach_credit_events')
-      .select('charge_type, amount')
-      .gte('created_at', fromIso)
-      .lte('created_at', toIso),
+  const [logFetch, creditEvents] = await Promise.all([
+    fetchAllApiUsageLogsInRange(fromIso, toIso, { featureLike: 'english-coach-%' }),
+    fetchLanguageCoachCreditEventsInRange(fromIso, toIso),
   ])
 
   const { data: logsRaw, error } = logFetch
@@ -78,7 +69,7 @@ export default async function AdminEnglishCoachApiStatsPage({
   }
 
   const logsList = sortApiUsageLogsNewestFirst(logsRaw || [])
-  const creditAgg = aggregateLanguageCoachCredits(creditEvents || [])
+  const creditAgg = aggregateLanguageCoachCredits(creditEvents)
   const apiByKind = aggregateEnglishCoachApiCostByLessonKind(logsList)
   const coachFeatureLabels = buildEnglishCoachFeatureLabelsForLogs(logsList.map((l) => l.feature))
 

@@ -6,7 +6,7 @@
 Người dùng nhập ý tưởng (tiếng Việt)
     → Bước 1: Gemini Flash 2.5 mở rộng ý tưởng thành mô tả chi tiết
     → Bước 2: Gemini 3 Pro Image tạo ảnh nhãn dán từ mô tả
-    → Kết quả: PNG nền trong suốt, lưu Supabase, trừ credits
+    → Kết quả: PNG nền trong suốt, lưu storage (Bunny), trừ credits
 ```
 
 ## 2. Yêu cầu chức năng

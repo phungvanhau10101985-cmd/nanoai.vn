@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { cookies } from 'next/headers'
 import LamBaiClientPage from './lam-bai-client-page'
-import { createClient } from '@/lib/supabase/server'
+import { getUserForAction } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { getServerDictionary } from '@/lib/i18n/server'
 import {
@@ -76,9 +76,8 @@ export async function generateMetadata({
 
 export default async function LamBaiPage({ params }: { params: Promise<{ code: string }> }) {
   const { code } = await params
-  const supabase = createClient()
-  const { data } = await supabase.auth.getUser()
-  if (!data.user) {
+  const auth = await getUserForAction()
+  if ('error' in auth) {
     redirect(`/auth/force-login?next=${encodeURIComponent(`/lam-bai/${code}`)}`)
   }
   const { t } = await getServerDictionary()

@@ -4,7 +4,7 @@ import { useState, useRef, ChangeEvent, useEffect } from 'react'
 import * as XLSX from 'xlsx'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { translateDocumentImage, startTranslateBatch, startTranslatePdfBatch, getPdfPageInfo, getCredits } from './actions'
+import { translateDocumentImage, startTranslateBatch, startTranslatePdfBatch, getPdfPageInfo } from './actions'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { preloadImageUrl } from '@/lib/preload-image-url'
@@ -123,8 +123,17 @@ export default function DichAnhTaiLieuClientPage() {
   const { checkCreditsAndProceed } = useCredits()
 
   const fetchCredits = async () => {
-    const bal = await getCredits()
-    setUserCredits(bal)
+    try {
+      const res = await fetch('/api/account/credits', { credentials: 'same-origin' })
+      if (!res.ok) {
+        setUserCredits(0)
+        return
+      }
+      const j = (await res.json()) as { balance?: number }
+      setUserCredits(Number(j.balance ?? 0))
+    } catch {
+      setUserCredits(0)
+    }
   }
   useEffect(() => {
     const syncLocale = () => setUiLocale(getWebLocaleFromCookie())

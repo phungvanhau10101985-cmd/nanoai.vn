@@ -4,11 +4,11 @@
  * Dùng Node.js + hyparquet (pure JS, không cần Python/C++).
  *
  * Chạy: npm run import:viet-doc-vqa
- * Yêu cầu: .env.local có HUGGINGFACE_TOKEN và SUPABASE_*
+ * Yêu cầu: .env.local có HUGGINGFACE_TOKEN và DATABASE_URL
  * Bước 1: Chấp nhận điều khoản tại https://huggingface.co/datasets/5CD-AI/Viet-Doc-VQA-flash2
  */
 
-import { createClient } from '@supabase/supabase-js'
+import { pgQueryRaw } from './pg-query.mjs'
 import { readFileSync, existsSync } from 'fs'
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
@@ -31,15 +31,33 @@ for (const line of readFileSync(envPath, 'utf8').split('\n')) {
 }
 
 const hfToken = env.HUGGINGFACE_TOKEN?.trim()
-const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL?.trim()
-const supabaseKey = env.SUPABASE_SERVICE_ROLE_KEY?.trim()
+process.env.DATABASE_URL = env.DATABASE_URL || process.env.DATABASE_URL
 
-if (!hfToken || !supabaseUrl || !supabaseKey) {
-  console.error('Thiếu HUGGINGFACE_TOKEN hoặc SUPABASE_* trong .env.local')
+if (!hfToken || !process.env.DATABASE_URL?.trim()) {
+  console.error('Thiếu HUGGINGFACE_TOKEN hoặc DATABASE_URL trong .env.local')
   process.exit(1)
 }
 
-const supabase = createClient(supabaseUrl, supabaseKey)
+async function insertOfficialQuestion(rec) {
+  await pgQueryRaw(
+    `insert into worksheet_official_questions (
+      subject_id, grade_level_id, textbook_set_id, lesson_order,
+      question_text, options, correct_index, explanation, source, external_id
+    ) values ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9, $10)`,
+    [
+      rec.subject_id,
+      rec.grade_level_id,
+      rec.textbook_set_id,
+      rec.lesson_order,
+      rec.question_text,
+      rec.options,
+      rec.correct_index,
+      rec.explanation,
+      rec.source,
+      rec.external_id,
+    ]
+  )
+}
 
 const REPO = '5CD-AI/Viet-Doc-VQA-flash2'
 const MAX_ROWS = parseInt(process.env.VIET_DOC_VQA_MAX_ROWS || '5000', 10)
@@ -174,10 +192,10 @@ async function main() {
 
         if (!DRY_RUN) {
           try {
-            await supabase.from('worksheet_official_questions').insert(rec)
+            await insertOfficialQuestion(rec)
             imported++
           } catch (e) {
-            if (!String(e).includes('23505')) console.warn('Lỗi:', e.message)
+            if (e.code !== '23505') console.warn('Lỗi:', e.message)
             skipped++
           }
         } else {

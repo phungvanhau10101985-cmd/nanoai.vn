@@ -1,4 +1,3 @@
-import type { SupabaseClient } from '@supabase/supabase-js'
 import {
   groupTryOnHistoryForTaskHub,
   isoDaysAgo,
@@ -8,6 +7,8 @@ import {
   type TryOnGroupAgg,
   type WorksheetJobRow,
 } from '@/lib/dashboard/task-hub'
+import { pgFetchTaskHubRaw } from '@/lib/db/dashboard-user-pg'
+import { isPgConfigured } from '@/lib/db/pool'
 
 export type TaskHubRecentLine =
   | { kind: 'tryon'; at: string; group: TryOnGroupAgg }
@@ -19,39 +20,21 @@ export type TaskHubSnapshot = {
   recentTop: TaskHubRecentLine[]
 }
 
-export async function buildTaskHubSnapshot(
-  supabase: SupabaseClient,
-  userId: string
-): Promise<TaskHubSnapshot> {
+export async function buildTaskHubSnapshot(userId: string): Promise<TaskHubSnapshot> {
+  const empty: TaskHubSnapshot = { runningTryOn: [], runningWs: [], recentTop: [] }
+  if (!isPgConfigured()) return empty
+
+  const raw = await pgFetchTaskHubRaw(userId)
+  if (!raw) return empty
+
   const cutoff = isoDaysAgo(TASK_HUB_RECENT_DAYS)
 
-  const [processingRes, recentTailRes, worksheetRes] = await Promise.all([
-    supabase
-      .from('try_on_history')
-      .select('id, feature, status, batch_id, batch_type, created_at, error_message')
-      .eq('user_id', userId)
-      .eq('status', 'processing'),
-    supabase
-      .from('try_on_history')
-      .select('id, feature, status, batch_id, batch_type, created_at, error_message')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(500),
-    supabase
-      .from('worksheet_jobs')
-      .select('id, type, status, created_at, updated_at, error_message')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(100),
-  ])
-
   const byId = new Map<string, TryOnHistoryTaskRow>()
-  for (const r of processingRes.data ?? []) {
-    byId.set(r.id, r as TryOnHistoryTaskRow)
+  for (const r of raw.processing) {
+    byId.set(r.id, r)
   }
-  for (const r of recentTailRes.data ?? []) {
-    const row = r as TryOnHistoryTaskRow
-    if (!byId.has(row.id)) byId.set(row.id, row)
+  for (const r of raw.recentTail) {
+    if (!byId.has(r.id)) byId.set(r.id, r)
   }
   const mergedHistory = [...byId.values()]
 
@@ -64,11 +47,10 @@ export async function buildTaskHubSnapshot(
       g.maxCreatedAt >= cutoff
   )
 
-  const ws = (worksheetRes.data ?? []) as WorksheetJobRow[]
+  const ws = raw.worksheet
   const runningWs = ws.filter((j) => j.status === 'pending' || j.status === 'processing')
   const recentWs = ws.filter(
-    (j) =>
-      (j.status === 'completed' || j.status === 'failed') && j.updated_at >= cutoff
+    (j) => (j.status === 'completed' || j.status === 'failed') && j.updated_at >= cutoff
   )
 
   const recentLines: TaskHubRecentLine[] = [

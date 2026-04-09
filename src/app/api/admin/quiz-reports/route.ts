@@ -1,28 +1,30 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
+import { getProfileRoleWithFallback } from '@/lib/db/read-user-dashboard-pg'
+import { isPgConfigured } from '@/lib/db/pool'
+import { fetchQuizQuestionReportsAdminPendingPg } from '@/lib/db/quiz-reports-pg'
 
 /** Admin: danh sách báo cáo câu hỏi sai chờ duyệt */
 export async function GET() {
   try {
-    const supabase = createClient()
-    const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+    const authResult = await getUserForAction()
     if ('error' in authResult) return NextResponse.json({ error: authResult.error }, { status: 401 })
 
-    const { data: profile } = await supabase.from('profiles').select('role').eq('id', authResult.user!.id).single()
-    if (profile?.role !== 'admin') {
+    const role = await getProfileRoleWithFallback(authResult.user!.id)
+    if (role !== 'admin') {
       return NextResponse.json({ error: 'Chỉ quản trị viên mới được xem.' }, { status: 403 })
     }
 
-    const { data, error } = await supabase
-      .from('quiz_question_reports')
-      .select('id, curriculum_id, user_id, slide_index, block_index, quiz_marker, slide_content, slide_title, report_count, status, ai_reasoning, ai_model_used, created_at, updated_at')
-      .eq('status', 'admin_pending')
-      .order('updated_at', { ascending: false })
+    if (!isPgConfigured()) {
+      return NextResponse.json({ error: 'Chưa cấu hình cơ sở dữ liệu.' }, { status: 503 })
+    }
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    const items = await fetchQuizQuestionReportsAdminPendingPg()
+    if (items === null) {
+      return NextResponse.json({ error: 'Không đọc được danh sách báo cáo.' }, { status: 500 })
+    }
 
-    return NextResponse.json({ items: data ?? [] })
+    return NextResponse.json({ items })
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     console.error('[admin/quiz-reports] GET:', msg)

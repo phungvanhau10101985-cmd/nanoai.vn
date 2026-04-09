@@ -6,10 +6,10 @@
  * Chạy: node scripts/reset-language-coach-db.mjs
  * Hoặc: npm run reset-db:language-coach
  *
- * Yêu cầu: .env.local có NEXT_PUBLIC_SUPABASE_URL và SUPABASE_SERVICE_ROLE_KEY
+ * Yêu cầu: .env.local có DATABASE_URL
  */
 
-import { createClient } from '@supabase/supabase-js'
+import { pgQuery, pgQueryRaw } from './pg-query.mjs'
 import { readFileSync, existsSync } from 'fs'
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
@@ -37,14 +37,12 @@ for (const line of envContent.split('\n')) {
   env[k] = v
 }
 
-const url = env.NEXT_PUBLIC_SUPABASE_URL
-const key = env.SUPABASE_SERVICE_ROLE_KEY
-if (!url || !key) {
-  console.error('Thiếu NEXT_PUBLIC_SUPABASE_URL hoặc SUPABASE_SERVICE_ROLE_KEY trong .env.local')
+process.env.DATABASE_URL = env.DATABASE_URL || process.env.DATABASE_URL
+if (!process.env.DATABASE_URL?.trim()) {
+  console.error('Thiếu DATABASE_URL trong .env.local')
   process.exit(1)
 }
 
-// Chỉ cho phép khi có flag hoặc development (NODE_ENV mặc định undefined = dev)
 const force = process.argv.includes('--force')
 const isProd = process.env.NODE_ENV === 'production'
 if (isProd && !force) {
@@ -52,7 +50,12 @@ if (isProd && !force) {
   process.exit(1)
 }
 
-const supabase = createClient(url, key)
+function quoteIdent(name) {
+  if (!/^[a-z_][a-z0-9_]*$/i.test(name)) {
+    throw new Error(`Invalid SQL identifier: ${name}`)
+  }
+  return `"${String(name).replace(/"/g, '""')}"`
+}
 
 /** Thứ tự xóa: bảng con trước (có FK) */
 const TABLES = [
@@ -86,7 +89,6 @@ const TABLES = [
   'language_coach_topic_curricula',
 ]
 
-/** Bảng dùng cột khác làm PK */
 const TABLE_PK = {
   language_coach_cache_daily_stats: 'stat_date',
   language_coach_opening_translation_cache: 'cache_key',
@@ -94,19 +96,17 @@ const TABLE_PK = {
 
 async function deleteAllFromTable(table) {
   const pk = TABLE_PK[table] || 'id'
+  const t = quoteIdent(table)
+  const col = quoteIdent(pk)
   let total = 0
   const batchSize = 500
   for (;;) {
-    const { data: rows, error: selErr } = await supabase
-      .from(table)
-      .select(pk)
-      .limit(batchSize)
-    if (selErr) return { ok: false, error: selErr.message }
+    const rows = await pgQuery(`select ${col} as pk from ${t} limit $1`, [batchSize])
     if (!rows || rows.length === 0) break
-    const values = rows.map((r) => r[pk])
-    const { error: delErr } = await supabase.from(table).delete().in(pk, values)
-    if (delErr) return { ok: false, error: delErr.message }
-    total += values.length
+    const values = rows.map((r) => r.pk)
+    const placeholders = values.map((_, i) => `$${i + 1}`).join(', ')
+    const res = await pgQueryRaw(`delete from ${t} where ${col} in (${placeholders})`, values)
+    total += res.rowCount ?? values.length
     if (rows.length < batchSize) break
   }
   return { ok: true, count: total }
@@ -122,7 +122,6 @@ async function main() {
         const count = result.count ?? 0
         console.log(`  ✓ ${table}${count > 0 ? ` (${count} dòng)` : ''}`)
       } else {
-        console.error(`  ✗ ${table}: ${result.error}`)
         failed++
       }
     } catch (e) {

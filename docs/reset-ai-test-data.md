@@ -6,15 +6,15 @@ Script xóa dữ liệu do AI tạo ra để test lại, **giữ nguyên** dữ 
 
 | Mục đích | File | Chạy |
 |----------|------|------|
-| **Chỉ giáo trình + phiếu + slide** | `scripts/reset-curriculum-worksheet-data.sql` | Supabase Dashboard → SQL Editor |
-| **Toàn bộ AI** (exam, worksheet, language coach, music, try_on...) | `supabase/scripts/reset-ai-test-data.sql` | Supabase Dashboard → SQL Editor |
+| **Chỉ giáo trình + phiếu + slide** | `scripts/reset-curriculum-worksheet-data.sql` | SQL Editor / `psql` trên Postgres |
+| **Toàn bộ AI** (exam, worksheet, language coach, music, try_on...) | `supabase/scripts/reset-ai-test-data.sql` | SQL Editor / `psql` trên Postgres |
 | **Chỉ language coach** | `npm run reset-db:language-coach` | Node.js (cần .env.local) |
 
 ## Cách chạy (SQL)
 
-1. Mở **Supabase Dashboard** → **SQL Editor**
-2. Mở file tương ứng
-3. Copy toàn bộ nội dung, paste vào SQL Editor, bấm **Run**
+1. Kết nối tới database dev/test (SQL Editor của host, **pgAdmin**, **`psql`**, v.v.).
+2. Mở file tương ứng trong repo.
+3. Copy toàn bộ nội dung, paste vào client SQL, bấm **Run**.
 
 ## Dữ liệu GIỮ LẠI (không bao giờ xóa)
 

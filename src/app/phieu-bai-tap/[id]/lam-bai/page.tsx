@@ -1,4 +1,3 @@
-import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import { redirectToLogin } from '@/lib/auth/login-redirect'
 import { getUserOrBypass } from '@/lib/auth'
@@ -6,6 +5,9 @@ import { buildMetadata } from '@/lib/seo'
 import { getServerDictionary } from '@/lib/i18n/server'
 import LamBaiClient from './lam-bai-client'
 import { worksheetDisplayMarkdownFromDb } from '@/app/tao-giao-trinh/lib/merge-worksheet-content'
+import { isPgConfigured } from '@/lib/db/pool'
+import { classMemberExistsPg, classWorksheetLinkExistsPg } from '@/lib/db/classes-pg'
+import { fetchWorksheetSheetMinimalByIdFromPg, fetchWorksheetTopicByIdFromPg } from '@/lib/db/worksheet-pg'
 
 export async function generateMetadata({
   params,
@@ -17,16 +19,19 @@ export async function generateMetadata({
   const { id } = await params
   const { classId } = await searchParams
   if (!classId) {
-    return buildMetadata({ title: 'Làm bài', description: 'Làm bài tập', path: `/phieu-bai-tap/${id}/lam-bai`, noIndex: true })
+    return buildMetadata({
+      title: 'Làm bài',
+      description: 'Làm bài tập',
+      path: `/phieu-bai-tap/${id}/lam-bai`,
+      noIndex: true,
+    })
   }
-  const supabase = createClient()
-  const { data } = await supabase
-    .from('worksheet_worksheets')
-    .select('topic')
-    .eq('id', id)
-    .single()
+  let titleTopic: string | null = null
+  if (isPgConfigured()) {
+    titleTopic = await fetchWorksheetTopicByIdFromPg(id)
+  }
   return buildMetadata({
-    title: data?.topic ? `Làm bài: ${data.topic}` : 'Làm bài',
+    title: titleTopic ? `Làm bài: ${titleTopic}` : 'Làm bài',
     description: 'Làm bài tập',
     path: `/phieu-bai-tap/${id}/lam-bai`,
     noIndex: true,
@@ -42,42 +47,24 @@ export default async function LamBaiPage({
 }) {
   const { id: worksheetId } = await params
   const { classId } = await searchParams
-  const supabase = createClient()
-  const user = await getUserOrBypass(() => supabase.auth.getUser())
+  const user = await getUserOrBypass()
   if (!user) redirectToLogin()
-
   if (!classId) notFound()
+  if (!isPgConfigured()) notFound()
 
-  const { data: member } = await supabase
-    .from('class_members')
-    .select('id')
-    .eq('class_id', classId)
-    .eq('user_id', user.id)
-    .maybeSingle()
+  const memberOk = await classMemberExistsPg(classId, user.id)
+  if (memberOk !== true) notFound()
 
-  if (!member) notFound()
+  const linkOk = await classWorksheetLinkExistsPg(classId, worksheetId)
+  if (linkOk !== true) notFound()
 
-  const { data: cw } = await supabase
-    .from('class_worksheets')
-    .select('id')
-    .eq('class_id', classId)
-    .eq('worksheet_id', worksheetId)
-    .maybeSingle()
+  const worksheet = await fetchWorksheetSheetMinimalByIdFromPg(worksheetId)
+  if (!worksheet) notFound()
 
-  if (!cw) notFound()
-
-  const { data: worksheet, error } = await supabase
-    .from('worksheet_worksheets')
-    .select('id, topic, content_markdown, question_ids')
-    .eq('id', worksheetId)
-    .single()
-
-  if (error || !worksheet) notFound()
-
-  const questionIds = (worksheet.question_ids ?? []) as string[]
+  const questionIds = worksheet.question_ids
   const displayMarkdown =
     questionIds.length > 0
-      ? await worksheetDisplayMarkdownFromDb(supabase, worksheet.content_markdown ?? '', questionIds)
+      ? await worksheetDisplayMarkdownFromDb(worksheet.content_markdown ?? '', questionIds)
       : (worksheet.content_markdown ?? '')
 
   const { t } = await getServerDictionary()

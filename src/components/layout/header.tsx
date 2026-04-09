@@ -1,7 +1,6 @@
 import Link from 'next/link'
-import type { User } from '@supabase/supabase-js'
+import type { AppUser } from '@/lib/auth/app-user'
 import { Button } from '@/components/ui/button'
-import { createClient } from '@/lib/supabase/server'
 import { getUserOrBypass } from '@/lib/auth'
 import { MobileNav } from './mobile-nav'
 import { HeaderUserMenu } from './header-user-menu'
@@ -11,36 +10,35 @@ import { NotificationBell } from './notification-bell'
 import { LoginNavButton } from './login-nav-button'
 import { getServerDictionary, getCurrentWebLocale } from '@/lib/i18n/server'
 import { getDictionary, type Dictionary } from '@/lib/i18n/dictionaries'
+import { getProfileRoleWithFallback, readUserDashboardFromPg } from '@/lib/db/read-user-dashboard-pg'
+import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
 
 export async function Header() {
   const { t } = getServerDictionary()
   const locale = getCurrentWebLocale()
   const clientDictionary: Dictionary = getDictionary(locale)
 
-  let user: User | null = null
+  let user: AppUser | null = null
   let credits = 0
   let isAdmin = false
 
   try {
-    const supabase = createClient()
-    user = await getUserOrBypass(() => supabase.auth.getUser())
+    user = await getUserOrBypass()
 
     if (user) {
-      const [creditRes, profileRes] = await Promise.all([
-        supabase
-          .from('credits')
-          .select('balance')
-          .eq('user_id', user.id)
-          .single(),
-        supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', user.id)
-          .single(),
-      ])
-
-      credits = creditRes.data?.balance || 0
-      isAdmin = profileRes.data?.role === 'admin'
+      const fromPg = await readUserDashboardFromPg(user.id)
+      if (fromPg !== null) {
+        credits = fromPg.credits
+        isAdmin = fromPg.isAdmin
+      } else {
+        try {
+          credits = await getCreditBalanceByUserId(user.id)
+        } catch {
+          credits = 0
+        }
+        const role = await getProfileRoleWithFallback(user.id)
+        isAdmin = role === 'admin'
+      }
     }
   } catch (err) {
     console.error('[Header] SSR fetch failed, showing logged-out shell', err)

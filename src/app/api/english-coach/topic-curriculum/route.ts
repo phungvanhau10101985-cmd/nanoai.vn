@@ -6,7 +6,12 @@ import {
   parseCoachUsageContextPayload,
   trackEnglishCoachGeminiResult,
 } from '@/lib/english-coach-api-usage'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+import { isPgConfigured } from '@/lib/db/pool'
+import {
+  fetchTopicCurriculumCachePg,
+  touchTopicCurriculumLastUsedPg,
+  upsertTopicCurriculumPg,
+} from '@/lib/db/language-coach-topics-pg'
 
 type Payload = {
   topicId?: string
@@ -36,10 +41,6 @@ function tr(input: string): 'vi' | 'en' {
 
 function msg(locale: 'vi' | 'en', vi: string, en: string): string {
   return locale === 'vi' ? vi : en
-}
-
-function adminClient() {
-  return createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 }
 
 function normalizeLookup(input: string): string {
@@ -90,24 +91,22 @@ export async function POST(request: NextRequest) {
     const learnerLevel: 0 | 1 | 2 | 3 | 4 =
       learnerLevelRaw === 4 ? 4 : learnerLevelRaw === 3 ? 3 : learnerLevelRaw === 2 ? 2 : learnerLevelRaw === 1 ? 1 : 0
 
-    const adminSupabase = adminClient()
+    if (!isPgConfigured()) {
+      return NextResponse.json({ error: msg(locale, 'Cơ sở dữ liệu chưa cấu hình.', 'Database not configured.') }, { status: 503 })
+    }
+
     const normalizedTopicId = normalizeLookup(topicId)
     const normalizedTarget = normalizeLookup(targetLanguage)
     const normalizedNative = normalizeLookup(nativeLanguage)
-    const { data: cachedRows } = await adminSupabase
-      .from('language_coach_topic_curricula')
-      .select('id, roleplay_role, daily_quest, objective, keywords_json, starter_sentences_json, lesson_steps_json, opening_line, opening_question')
-      .eq('normalized_topic_id', normalizedTopicId)
-      .eq('normalized_target_language', normalizedTarget)
-      .eq('normalized_native_language', normalizedNative)
-      .eq('learner_level', learnerLevel)
-      .limit(1)
-    const cached = Array.isArray(cachedRows) && cachedRows.length > 0 ? cachedRows[0] : null
+    const cached = await fetchTopicCurriculumCachePg({
+      normalizedTopicId,
+      normalizedTargetLanguage: normalizedTarget,
+      normalizedNativeLanguage: normalizedNative,
+      learnerLevel,
+    })
     if (cached) {
-      void adminSupabase
-        .from('language_coach_topic_curricula')
-        .update({ last_used_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-        .eq('id', cached.id)
+      const nowIso = new Date().toISOString()
+      void touchTopicCurriculumLastUsedPg(cached.id, nowIso)
       return NextResponse.json({
         roleplayRole: String(cached.roleplay_role || '').trim(),
         dailyQuest: String(cached.daily_quest || '').trim(),
@@ -188,34 +187,37 @@ Trả về JSON:
       return NextResponse.json({ error: msg(locale, 'Không tạo được giáo trình chủ đề.', 'Failed to generate topic curriculum.') }, { status: 502 })
     }
 
-    await adminSupabase.from('language_coach_topic_curricula').upsert(
-      {
-        topic_id: topicId,
-        topic_label: topicLabel,
-        normalized_topic_id: normalizedTopicId,
-        target_language: targetLanguage,
-        normalized_target_language: normalizedTarget,
-        native_language: nativeLanguage,
-        normalized_native_language: normalizedNative,
-        learner_level: learnerLevel,
-        roleplay_role: parsed.roleplayRole,
-        daily_quest: parsed.dailyQuest,
-        objective: parsed.objective,
-        keywords_json: JSON.stringify(parsed.keywords),
-        starter_sentences_json: JSON.stringify(parsed.starterSentences),
-        lesson_steps_json: JSON.stringify(parsed.lessonSteps),
-        opening_line: parsed.openingLine || null,
-        opening_question: parsed.openingQuestion || null,
-        source_model: 'gemini-2.5-flash',
-        last_used_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'normalized_topic_id,normalized_target_language,normalized_native_language,learner_level' }
-    )
+    const nowIso = new Date().toISOString()
+    const saved = await upsertTopicCurriculumPg({
+      topicId,
+      topicLabel,
+      normalizedTopicId,
+      targetLanguage,
+      normalizedTargetLanguage: normalizedTarget,
+      nativeLanguage,
+      normalizedNativeLanguage: normalizedNative,
+      learnerLevel,
+      roleplayRole: parsed.roleplayRole,
+      dailyQuest: parsed.dailyQuest,
+      objective: parsed.objective,
+      keywordsJson: JSON.stringify(parsed.keywords),
+      starterSentencesJson: JSON.stringify(parsed.starterSentences),
+      lessonStepsJson: JSON.stringify(parsed.lessonSteps),
+      openingLine: parsed.openingLine || null,
+      openingQuestion: parsed.openingQuestion || null,
+      sourceModel: 'gemini-2.5-flash',
+      nowIso,
+    })
+    if (!saved.ok) {
+      return NextResponse.json(
+        { error: saved.message || msg(locale, 'Không lưu được giáo trình chủ đề.', 'Failed to save topic curriculum.') },
+        { status: 500 }
+      )
+    }
 
     return NextResponse.json({ ...parsed, cached: false })
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'Lỗi không xác định.'
-    return NextResponse.json({ error: msg }, { status: 500 })
+    const msgErr = e instanceof Error ? e.message : 'Lỗi không xác định.'
+    return NextResponse.json({ error: msgErr }, { status: 500 })
   }
 }

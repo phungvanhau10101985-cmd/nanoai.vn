@@ -1,24 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-import { createClient as createServerClient } from '@/lib/supabase/server'
+import {
+  fetchWorksheetQuestionsMarkdownRowsOrderedFromPg,
+  insertWorksheetSheetSlideBuildFromPg,
+} from '@/lib/db/worksheet-pg'
+import { isPgConfigured } from '@/lib/db/pool'
 import { getUserForAction } from '@/lib/auth'
+import { getProfileRoleWithFallback } from '@/lib/db/read-user-dashboard-pg'
 import { questionsToMarkdown } from '@/app/tao-giao-trinh/lib/questions-to-markdown'
 
-function getAdminServiceClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim()
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()
-  if (!url || !key) return null
-  return createClient(url, key)
-}
-
 async function requireAdmin() {
-  const supabase = createServerClient()
-  const auth = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+  const auth = await getUserForAction()
   if ('error' in auth) {
     return { error: NextResponse.json({ error: auth.error }, { status: 401 }) }
   }
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', auth.user.id).single()
-  if (profile?.role !== 'admin') {
+  const role = await getProfileRoleWithFallback(auth.user.id)
+  if (role !== 'admin') {
     return { error: NextResponse.json({ error: 'Chỉ quản trị viên.' }, { status: 403 }) }
   }
   return { user: auth.user }
@@ -49,9 +45,8 @@ export async function POST(req: NextRequest) {
     const gate = await requireAdmin()
     if ('error' in gate) return gate.error
 
-    const admin = getAdminServiceClient()
-    if (!admin) {
-      return NextResponse.json({ error: 'Thiếu SUPABASE_SERVICE_ROLE_KEY.' }, { status: 500 })
+    if (!isPgConfigured()) {
+      return NextResponse.json({ error: 'Database not configured.' }, { status: 503 })
     }
 
     const body = await req.json().catch(() => ({}))
@@ -61,24 +56,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Thiếu questionIds.' }, { status: 400 })
     }
 
-    const { data: rows, error: fetchErr } = await admin
-      .from('worksheet_questions')
-      .select('id, type, content_json, difficulty, source, verified_at, subject_id, grade_level_id')
-      .in('id', questionIds)
-
-    if (fetchErr) return NextResponse.json({ error: fetchErr.message }, { status: 500 })
-    if (!rows?.length) return NextResponse.json({ error: 'Không tìm thấy câu hỏi.' }, { status: 404 })
-
-    const found = new Set(rows.map((r) => r.id as string))
-    const missing = questionIds.filter((id) => !found.has(id))
-    if (missing.length > 0) {
-      return NextResponse.json({ error: `Một số id không tồn tại: ${missing.slice(0, 5).join(', ')}` }, { status: 400 })
-    }
-
-    const orderedIds = orderQuizThenEssay(questionIds, rows as Array<{ id: string; type: string }>)
-    const ordered = orderedIds
-      .map((id) => rows.find((r) => r.id === id))
-      .filter(Boolean) as Array<{
+    type QRow = {
       id: string
       type: string
       content_json: unknown
@@ -87,7 +65,39 @@ export async function POST(req: NextRequest) {
       verified_at?: string | null
       subject_id?: string
       grade_level_id?: string
-    }>
+    }
+
+    const fromPg = await fetchWorksheetQuestionsMarkdownRowsOrderedFromPg(questionIds)
+    if (
+      fromPg === null ||
+      (fromPg.length === 0 && questionIds.length > 0) ||
+      fromPg.length !== questionIds.length
+    ) {
+      return NextResponse.json(
+        { error: 'Không tìm thấy đủ câu hỏi hoặc không đọc được cơ sở dữ liệu.' },
+        { status: 404 }
+      )
+    }
+
+    const rows: QRow[] = fromPg.map((r) => ({
+      id: r.id,
+      type: r.type,
+      content_json: r.content_json,
+      difficulty: r.difficulty ?? undefined,
+      source: r.source ?? undefined,
+      verified_at: r.verified_at,
+      subject_id: r.subject_id,
+      grade_level_id: r.grade_level_id,
+    }))
+
+    const found = new Set(rows.map((r) => r.id))
+    const missing = questionIds.filter((id) => !found.has(id))
+    if (missing.length > 0) {
+      return NextResponse.json({ error: `Một số id không tồn tại: ${missing.slice(0, 5).join(', ')}` }, { status: 400 })
+    }
+
+    const orderedIds = orderQuizThenEssay(questionIds, rows as Array<{ id: string; type: string }>)
+    const ordered = orderedIds.map((id) => rows.find((r) => r.id === id)).filter(Boolean) as QRow[]
 
     const contentMarkdown = questionsToMarkdown(ordered)
     const first = ordered[0]
@@ -96,23 +106,19 @@ export async function POST(req: NextRequest) {
         ? body.topic.trim()
         : 'Slide chữa bài tập'
 
-    const { data: inserted, error: insErr } = await admin
-      .from('worksheet_worksheets')
-      .insert({
-        user_id: gate.user.id,
-        curriculum_id: null,
-        topic,
-        subject_id: first?.subject_id ?? 'toan',
-        grade_level_id: first?.grade_level_id ?? 'lop-6',
-        content_markdown: contentMarkdown,
-        question_ids: orderedIds,
-      })
-      .select('id')
-      .single()
+    const worksheetId = await insertWorksheetSheetSlideBuildFromPg({
+      userId: gate.user.id,
+      topic,
+      subjectId: first?.subject_id ?? 'toan',
+      gradeLevelId: first?.grade_level_id ?? 'lop-6',
+      contentMarkdown,
+      questionIds: orderedIds,
+      curriculumId: null,
+    })
+    if (!worksheetId) {
+      return NextResponse.json({ error: 'Không tạo được phiếu bài tập.' }, { status: 500 })
+    }
 
-    if (insErr) return NextResponse.json({ error: insErr.message }, { status: 500 })
-
-    const worksheetId = inserted?.id as string
     return NextResponse.json({
       ok: true,
       worksheetId,

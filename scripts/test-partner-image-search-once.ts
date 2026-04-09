@@ -7,9 +7,10 @@
 import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { config } from 'dotenv'
-import { createServiceRoleClient } from '../src/lib/supabase/service-role'
 import { fetchRemoteImageForCatalog } from '../src/lib/fetch-image-1688'
 import { geminiProductSearchFromImageBufferViaVectorDb } from '../src/lib/messaging/partner-gemini-image-search'
+import { isPgConfigured } from '../src/lib/db/pool'
+import { pgQuery } from '../src/lib/db/pg-query'
 
 const cwd = process.cwd()
 const envPath = resolve(cwd, '.env')
@@ -24,22 +25,24 @@ if (!partnerId) {
 }
 
 async function main() {
-  const db = createServiceRoleClient()
-  const { data: invRows, error } = await db
-    .from('messaging_partner_inventory')
-    .select('id,name,image_url,is_active')
-    .eq('partner_id', partnerId)
-    .eq('is_active', true)
-    .limit(50)
+  if (!isPgConfigured()) {
+    throw new Error('DATABASE_URL required')
+  }
+  const invRows = await pgQuery<{ id: string; name: string; image_url: string | null }>(
+    `select id::text as id, name, image_url
+     from public.messaging_partner_inventory
+     where partner_id = $1::uuid and coalesce(is_active, true) = true
+     limit 50`,
+    [partnerId]
+  )
 
-  if (error) throw new Error(error.message)
-  const pick = (invRows ?? []).find((r) => /^https?:\/\//i.test((r.image_url || '').trim()))
+  const pick = invRows.find((r) => /^https?:\/\//i.test((r.image_url || '').trim()))
   if (!pick?.image_url) throw new Error('No active inventory image_url found for test.')
 
   const img = await fetchRemoteImageForCatalog(pick.image_url, { timeoutMs: 15000 })
   if (!img?.buf) throw new Error('Failed to fetch test image from inventory URL.')
 
-  const result = await geminiProductSearchFromImageBufferViaVectorDb(db, img.buf, partnerId, {
+  const result = await geminiProductSearchFromImageBufferViaVectorDb(img.buf, partnerId, {
     maxResults: 5,
     userId: null,
   })
@@ -58,4 +61,3 @@ void main().catch((err) => {
   console.error('Test failed:', msg)
   process.exit(1)
 })
-

@@ -13,9 +13,17 @@ export const metadata: Metadata = buildMetadata({
 export default function LoginPage({
   searchParams,
 }: {
-  searchParams: { message: string; error: string; next?: string }
+  searchParams: { message?: string; error?: string; notice?: string; next?: string }
 }) {
+  const emailAuthEnabled =
+    process.env.EMAIL_AUTH_ENABLED === '1' || process.env.EMAIL_AUTH_ENABLED === 'true'
   return (
-    <LoginClient message={searchParams?.message} error={searchParams?.error} nextPath={searchParams?.next} />
+    <LoginClient
+      message={searchParams?.message}
+      notice={searchParams?.notice}
+      error={searchParams?.error}
+      nextPath={searchParams?.next}
+      emailAuthEnabled={emailAuthEnabled}
+    />
   )
 }

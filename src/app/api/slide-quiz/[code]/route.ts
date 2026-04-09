@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+import {
+  fetchSlideQuizSessionByCodeFromPg,
+  updateSlideQuizSessionRevealedForOwnerPg,
+} from '@/lib/db/slide-quiz-pg'
+import { isPgConfigured } from '@/lib/db/pool'
+import { getUserForAction } from '@/lib/auth'
 
 export async function PATCH(
   req: NextRequest,
@@ -9,21 +13,26 @@ export async function PATCH(
   const code = params.code?.toUpperCase()
   if (!code) return NextResponse.json({ error: 'Thiếu mã.' }, { status: 400 })
 
-  const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Vui lòng đăng nhập.' }, { status: 401 })
+  const auth = await getUserForAction()
+  if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
+  const user = auth.user
 
   const body = await req.json().catch(() => ({}))
   const { status } = body as { status?: string }
   if (status !== 'revealed') return NextResponse.json({ error: 'Trạng thái không hợp lệ.' }, { status: 400 })
 
-  const admin = createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-  const { data: session } = await admin.from('slide_quiz_sessions').select('id, created_by').eq('code', code).single()
-  if (!session || session.created_by !== user.id) {
+  if (!isPgConfigured()) {
+    return NextResponse.json({ error: 'Chưa cấu hình cơ sở dữ liệu.' }, { status: 503 })
+  }
+
+  const updated = await updateSlideQuizSessionRevealedForOwnerPg(code, user.id)
+  if (updated === null) {
+    return NextResponse.json({ error: 'Lỗi cập nhật phiên.' }, { status: 500 })
+  }
+  if (!updated) {
     return NextResponse.json({ error: 'Không có quyền.' }, { status: 403 })
   }
 
-  await admin.from('slide_quiz_sessions').update({ status: 'revealed' }).eq('id', session.id)
   return NextResponse.json({ success: true })
 }
 
@@ -36,14 +45,12 @@ export async function GET(
     return NextResponse.json({ error: 'Thiếu mã.' }, { status: 400 })
   }
 
-  const supabase = createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-  const { data, error } = await supabase
-    .from('slide_quiz_sessions')
-    .select('id, code, quiz_data, status')
-    .eq('code', code)
-    .single()
+  if (!isPgConfigured()) {
+    return NextResponse.json({ error: 'Chưa cấu hình cơ sở dữ liệu.' }, { status: 503 })
+  }
 
-  if (error || !data) {
+  const data = await fetchSlideQuizSessionByCodeFromPg(code)
+  if (!data) {
     return NextResponse.json({ error: 'Không tìm thấy phiên.' }, { status: 404 })
   }
 
@@ -54,7 +61,14 @@ export async function GET(
   let correctIndex = quiz?.correctIndex ?? 0
   if (idxByMarker >= 0) correctIndex = idxByMarker
 
-  const payload: { sessionId: string; code: string; question: string; options: string[]; status: string; correctIndex?: number } = {
+  const payload: {
+    sessionId: string
+    code: string
+    question: string
+    options: string[]
+    status: string
+    correctIndex?: number
+  } = {
     sessionId: data.id,
     code: data.code,
     question: quiz?.question ?? '',

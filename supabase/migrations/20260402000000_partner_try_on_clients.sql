@@ -15,7 +15,7 @@ create index if not exists idx_partner_try_on_clients_billing_user_id
 create index if not exists idx_partner_try_on_clients_active
   on public.partner_try_on_clients (is_active) where is_active = true;
 
-comment on table public.partner_try_on_clients is 'B2B virtual try-on: API key hash maps to billing Supabase user for credits.';
+comment on table public.partner_try_on_clients is 'B2B virtual try-on: API key hash maps to billing user id for credits.';
 
 alter table public.partner_try_on_clients enable row level security;
 

@@ -3,8 +3,8 @@
 -- =============================================================================
 -- CHỈ dùng cho môi trường dev/test.
 --
--- Cách chạy: Supabase Dashboard → SQL Editor → paste file này và Run
--- Hoặc: supabase db execute -f scripts/reset-curriculum-worksheet-data.sql
+-- Cách chạy: SQL Editor / psql — paste file này và Run
+-- Hoặc: psql "$DATABASE_URL" -f scripts/reset-curriculum-worksheet-data.sql
 --
 -- LƯU Ý nếu deadlock: đóng tab SQL khác, tắt app (npm run dev), chạy lại.
 -- Dùng 1 lệnh TRUNCATE nhiều bảng – Postgres tự xử lý thứ tự, giảm deadlock.

@@ -1,13 +1,18 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
 import { EnglishCoachApiFeature, trackEnglishCoachGeminiResult } from '@/lib/english-coach-api-usage'
-
-function adminClient() {
-  return createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-}
+import { getProfileRoleWithFallback } from '@/lib/db/read-user-dashboard-pg'
+import { getUserForAction } from '@/lib/auth'
+import { isPgConfigured } from '@/lib/db/pool'
+import {
+  fetchDailyWordsWithExampleItemsPg,
+  fetchReviewQueueWithExampleItemsPg,
+  fetchVocabCacheWithExampleItemsPg,
+  updateDailyWordExampleItemsPg,
+  updateReviewQueueExampleItemsPg,
+  updateVocabCacheExampleItemsPg,
+} from '@/lib/db/language-coach-meaning-examples-fix-pg'
 
 function hasCjk(s: string): boolean {
   return /[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff\uac00-\ud7af]/.test(s)
@@ -93,30 +98,27 @@ Trả về JSON:
 
 export async function POST() {
   try {
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return NextResponse.json({ error: 'Vui lòng đăng nhập.' }, { status: 401 })
+    if (!isPgConfigured()) {
+      return NextResponse.json({ error: 'Cơ sở dữ liệu chưa cấu hình.' }, { status: 503 })
+    }
+    const auth = await getUserForAction()
+    if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
+    const user = auth.user
     const adminUserId = user.id
 
-    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-    if (profile?.role !== 'admin') {
+    const role = await getProfileRoleWithFallback(user.id)
+    if (role !== 'admin') {
       return NextResponse.json({ error: 'Chỉ quản trị viên mới được thực hiện thao tác này.' }, { status: 403 })
     }
 
-    const adminSupabase = adminClient()
-
-    const { data: dailyRows } = await adminSupabase
-      .from('language_coach_daily_words')
-      .select('id, user_id, word, target_language, native_language, example_items_json')
-      .not('example_items_json', 'is', null)
-
-    const { data: reviewRows } = await adminSupabase
-      .from('language_coach_review_queue')
-      .select('id, user_id, word, target_language, native_language, example_items_json')
-      .not('example_items_json', 'is', null)
+    const dailyRows = await fetchDailyWordsWithExampleItemsPg()
+    const reviewRows = await fetchReviewQueueWithExampleItemsPg()
+    if (dailyRows === null || reviewRows === null) {
+      return NextResponse.json({ error: 'Không đọc được dữ liệu từ vựng.' }, { status: 500 })
+    }
 
     const toFix: Array<{ table: string; id: string; word: string; target_language: string | null; native_language: string | null }> = []
-    for (const row of dailyRows || []) {
+    for (const row of dailyRows) {
       try {
         const items = JSON.parse(row.example_items_json || '[]') as Array<{ targetText?: string }>
         if (exampleItemsNeedFix(items, row.target_language)) {
@@ -124,7 +126,7 @@ export async function POST() {
         }
       } catch {}
     }
-    for (const row of reviewRows || []) {
+    for (const row of reviewRows) {
       try {
         const items = JSON.parse(row.example_items_json || '[]') as Array<{ targetText?: string }>
         if (exampleItemsNeedFix(items, row.target_language)) {
@@ -142,6 +144,7 @@ export async function POST() {
 
     let updatedDaily = 0
     let updatedReview = 0
+    const t = () => new Date().toISOString()
     for (const [, entry] of byWord) {
       const { word, target, native, rows } = entry
       const newItems = await fetchWordExamplesFromAI(word, target || 'Chinese', native || 'Vietnamese', adminUserId)
@@ -150,36 +153,32 @@ export async function POST() {
       const newJson = JSON.stringify(newItems)
       for (const r of rows) {
         if (r.table === 'daily_words') {
-          const { error } = await adminSupabase
-            .from('language_coach_daily_words')
-            .update({
-              example_items_json: newJson,
-              example_target: newItems[0]?.targetText || null,
-              example_native: newItems[0]?.nativeText || null,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', r.id)
-          if (!error) updatedDaily++
+          const ok = await updateDailyWordExampleItemsPg({
+            id: r.id,
+            exampleItemsJson: newJson,
+            exampleTarget: newItems[0]?.targetText || null,
+            exampleNative: newItems[0]?.nativeText || null,
+            updatedAtIso: t(),
+          })
+          if (ok) updatedDaily++
         } else {
-          const { error } = await adminSupabase
-            .from('language_coach_review_queue')
-            .update({
-              example_items_json: newJson,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', r.id)
-          if (!error) updatedReview++
+          const ok = await updateReviewQueueExampleItemsPg({
+            id: r.id,
+            exampleItemsJson: newJson,
+            updatedAtIso: t(),
+          })
+          if (ok) updatedReview++
         }
       }
     }
 
-    const { data: cacheRows } = await adminSupabase
-      .from('language_coach_vocab_cache')
-      .select('id, word, target_language, native_language, example_items_json')
-      .not('example_items_json', 'is', null)
+    const cacheRows = await fetchVocabCacheWithExampleItemsPg()
+    if (cacheRows === null) {
+      return NextResponse.json({ error: 'Không đọc được vocab cache.' }, { status: 500 })
+    }
 
     let updatedCache = 0
-    for (const row of cacheRows || []) {
+    for (const row of cacheRows) {
       try {
         const items = JSON.parse(row.example_items_json || '[]') as Array<{ targetText?: string }>
         if (!exampleItemsNeedFix(items, row.target_language)) continue
@@ -195,16 +194,14 @@ export async function POST() {
           )
         }
         if (newItems?.length) {
-          const { error } = await adminSupabase
-            .from('language_coach_vocab_cache')
-            .update({
-              example_items_json: JSON.stringify(newItems),
-              example_target: newItems[0]?.targetText || null,
-              example_native: newItems[0]?.nativeText || null,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', row.id)
-          if (!error) updatedCache++
+          const ok = await updateVocabCacheExampleItemsPg({
+            id: row.id,
+            exampleItemsJson: JSON.stringify(newItems),
+            exampleTarget: newItems[0]?.targetText || null,
+            exampleNative: newItems[0]?.nativeText || null,
+            updatedAtIso: t(),
+          })
+          if (ok) updatedCache++
         }
       } catch {}
     }

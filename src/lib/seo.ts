@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
+import { defaultPublicOrigin } from '@/lib/public-app-origin'
 
-const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://nanoai.vn'
+const SITE_URL = defaultPublicOrigin()
 const SITE_NAME = 'NanoAI'
 const DEFAULT_OG_IMAGE = `${SITE_URL}/og-image.png`
 

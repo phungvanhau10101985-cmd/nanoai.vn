@@ -1,56 +1,27 @@
 "use client"
 
 import { useEffect, useState } from 'react'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
-import { signInWithGoogle } from '../actions'
 import { sanitizeLoginNext } from '@/lib/auth/sanitize-login-next'
-import { Chrome } from 'lucide-react'
+import { EmailAuthPanel } from './email-auth-panel'
 
 type LoginClientProps = {
   message?: string
+  notice?: string
   error?: string
   nextPath?: string
+  emailAuthEnabled?: boolean
 }
 
-const isNgrok = () => typeof window !== 'undefined' && window.location.hostname.includes('ngrok')
-
-function useFormSubmitWithNgrok() {
-  return async (e: React.FormEvent<HTMLFormElement>) => {
-    if (!isNgrok()) return
-    e.preventDefault()
-    const form = e.currentTarget
-    const formData = new FormData(form)
-    try {
-      const res = await fetch(window.location.href, {
-        method: 'POST',
-        body: formData,
-        headers: { 'ngrok-skip-browser-warning': 'true' },
-        redirect: 'manual',
-      })
-      if (res.status === 303 || res.status === 302) {
-        const loc = res.headers.get('Location')
-        if (loc) {
-          window.location.href = loc
-          return
-        }
-      }
-      if (!res.ok) {
-        window.location.href = window.location.pathname + '?error=' + encodeURIComponent('Đăng nhập thất bại')
-        return
-      }
-      window.location.reload()
-    } catch (err) {
-      console.error('Login request failed:', err)
-    }
-  }
-}
-
-export default function LoginClient({ message, error, nextPath }: LoginClientProps) {
+export default function LoginClient({
+  message,
+  notice,
+  error,
+  nextPath,
+  emailAuthEnabled,
+}: LoginClientProps) {
   const safeNextPath = sanitizeLoginNext(nextPath)
   const [uiLocale, setUiLocale] = useState<'vi' | 'en' | 'zh' | 'ja' | 'ko'>('vi')
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const handleGoogleNgrok = useFormSubmitWithNgrok()
   const tr = (vi: string, en: string, zh: string, ja: string, ko: string) => {
     if (uiLocale === 'en') return en
     if (uiLocale === 'zh') return zh
@@ -88,7 +59,13 @@ export default function LoginClient({ message, error, nextPath }: LoginClientPro
         <CardHeader className="text-center space-y-2">
           <CardTitle className="text-2xl font-bold">{tr('Đăng nhập', 'Sign in', '登录', 'ログイン', '로그인')}</CardTitle>
           <CardDescription>
-            {tr('Đăng nhập bằng tài khoản Google để bắt đầu trải nghiệm.', 'Sign in with your Google account to get started.', '使用 Google 账号登录以开始体验。', 'Googleアカウントでログインして始めましょう。', 'Google 계정으로 로그인하여 시작하세요.')}
+            {tr(
+              'Đăng nhập bằng email (mã OTP hoặc link trong email).',
+              'Sign in with email (OTP code or link in your inbox).',
+              '使用邮箱登录（验证码或邮件中的链接）。',
+              'メール（OTPまたは受信トレイのリンク）でログイン。',
+              '이메일(OTP 또는 받은편지함 링크)로 로그인.'
+            )}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -97,31 +74,30 @@ export default function LoginClient({ message, error, nextPath }: LoginClientPro
               {message}
             </div>
           )}
+          {notice && (
+            <div className="mb-4 rounded-md bg-sky-50 p-3 text-sm text-sky-800">
+              {notice}
+            </div>
+          )}
           {error && (
             <div className="mb-4 rounded-md bg-destructive/15 p-3 text-sm text-destructive">
               {error}
             </div>
           )}
 
-          <form
-            action={signInWithGoogle}
-            onSubmit={(e) => {
-              if (isSubmitting) {
-                e.preventDefault()
-                return
-              }
-              setIsSubmitting(true)
-              handleGoogleNgrok(e)
-            }}
-          >
-            <input type="hidden" name="next" value={safeNextPath} />
-            <Button type="submit" disabled={isSubmitting} className="w-full h-11">
-              <Chrome className="mr-2 h-4 w-4" />
-              {isSubmitting
-                ? tr('Đang chuyển hướng...', 'Redirecting...', '正在跳转...', 'リダイレクト中...', '리디렉션 중...')
-                : tr('Đăng nhập bằng Google', 'Sign in with Google', '使用 Google 登录', 'Googleでログイン', 'Google로 로그인')}
-            </Button>
-          </form>
+          {emailAuthEnabled ? (
+            <EmailAuthPanel nextPath={safeNextPath} tr={tr} />
+          ) : (
+            <p className="text-sm text-muted-foreground text-center">
+              {tr(
+                'Chưa bật EMAIL_AUTH_ENABLED trên server — liên hệ quản trị.',
+                'EMAIL_AUTH_ENABLED is not set — contact your administrator.',
+                '服务器未启用邮箱登录，请联系管理员。',
+                'サーバーでメールログインが有効ではありません。',
+                '서버에서 이메일 로그인이 켜져 있지 않습니다.'
+              )}
+            </p>
+          )}
         </CardContent>
         <CardFooter className="text-xs text-muted-foreground">
           {tr('Thông tin cá nhân của bạn được bảo mật an toàn.', 'Your personal information is securely protected.', '你的个人信息将被安全保护。', '個人情報は安全に保護されます。', '개인정보는 안전하게 보호됩니다.')}

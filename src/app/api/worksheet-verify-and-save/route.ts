@@ -3,26 +3,47 @@
  * Dùng khi câu hỏi không qua kiểm tra sau 3 lần thử.
  */
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import {
+  fetchWorksheetQuestionsMarkdownRowsOrderedFromPg,
+  fetchWorksheetSheetOwnerAndQuestionIdsFromPg,
+  insertWorksheetQuestionPg,
+  updateWorksheetSheetContentForOwnerPg,
+} from '@/lib/db/worksheet-pg'
+import { isPgConfigured } from '@/lib/db/pool'
 import { getUserForAction } from '@/lib/auth'
 import { verifyQuizWithDeepSeek, verifyEssayWithDeepSeek } from '@/app/tao-giao-trinh/lib/worksheet-verify-oneshot'
 import { fixQuizWhenVerifyFailed, fixEssayWhenVerifyFailed } from '@/app/tao-giao-trinh/lib/worksheet-regenerate'
 import { normalizeSolutionToStr } from '@/app/tao-giao-trinh/lib/worksheet-content-json'
 import { questionsToMarkdown } from '@/app/tao-giao-trinh/lib/questions-to-markdown'
 
-async function getQuestionsToMarkdown(supabase: ReturnType<typeof createClient>, questionIds: string[]) {
-  const { data: rows } = await supabase
-    .from('worksheet_questions')
-    .select('id, type, content_json, difficulty, source, verified_at')
-    .in('id', questionIds)
-  const ordered = questionIds.map((id) => rows?.find((r) => r.id === id)).filter(Boolean) as Array<{ id: string; type: string; content_json: unknown; difficulty?: string; source?: string; verified_at?: string | null }>
-  return questionsToMarkdown(ordered)
+async function buildMarkdownForQuestionIds(questionIds: string[]): Promise<string | null> {
+  if (!questionIds.length) return ''
+  const fromPg = await fetchWorksheetQuestionsMarkdownRowsOrderedFromPg(questionIds)
+  if (
+    fromPg === null ||
+    (fromPg.length === 0 && questionIds.length > 0) ||
+    fromPg.length !== questionIds.length
+  ) {
+    return null
+  }
+  return questionsToMarkdown(
+    fromPg.map((r) => ({
+      type: r.type,
+      content_json: r.content_json,
+      difficulty: r.difficulty ?? undefined,
+      source: r.source ?? undefined,
+      verified_at: r.verified_at,
+    }))
+  )
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const supabase = createClient()
-    const auth = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+    if (!isPgConfigured()) {
+      return NextResponse.json({ error: 'Database not configured.' }, { status: 503 })
+    }
+
+    const auth = await getUserForAction()
     if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
     const userId = auth.user?.id
 
@@ -77,38 +98,41 @@ export async function POST(req: NextRequest) {
         finalQuiz = { ...finalQuiz, correctIndex: verifyResult.correctIndex }
       }
 
-      const { data: qRow, error: qErr } = await supabase
-        .from('worksheet_questions')
-        .insert({
-          user_id: userId,
-          curriculum_id: curriculumId || null,
-          type: 'quiz',
-          subject_id: subjectId,
-          grade_level_id: gradeLevelId,
-          topic: topic || null,
-          difficulty: 'medium',
-          content_json: { question: finalQuiz.question, options: finalQuiz.options, correctIndex: finalQuiz.correctIndex },
-          source: 'ai',
-          order: 0,
-          verified_at: verifyResult?.verified ? new Date().toISOString() : null,
-        })
-        .select('id')
-        .single()
-
-      if (qErr) return NextResponse.json({ error: qErr.message }, { status: 500 })
-
-      if (worksheetId) {
-        const { data: ws, error: wsErr } = await supabase.from('worksheet_worksheets').select('user_id, question_ids').eq('id', worksheetId).single()
-        if (wsErr || !ws) return NextResponse.json({ error: 'Không tìm thấy phiếu bài tập.' }, { status: 404 })
-        if (ws.user_id !== userId) return NextResponse.json({ error: 'Bạn không có quyền sửa phiếu này.' }, { status: 403 })
-        const existingIds = (ws.question_ids ?? []) as string[]
-        const newIds = [...existingIds, qRow!.id]
-        const newMarkdown = await getQuestionsToMarkdown(supabase, newIds)
-        const { error: updateErr } = await supabase.from('worksheet_worksheets').update({ question_ids: newIds, content_markdown: newMarkdown }).eq('id', worksheetId)
-        if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 })
+      const verifiedAtIso = verifyResult?.verified ? new Date().toISOString() : null
+      const contentJsonQuiz = {
+        question: finalQuiz.question,
+        options: finalQuiz.options,
+        correctIndex: finalQuiz.correctIndex,
       }
 
-      return NextResponse.json({ success: true, verified: true, questionId: qRow?.id })
+      const ins = await insertWorksheetQuestionPg({
+        userId: userId!,
+        curriculumId: curriculumId || null,
+        type: 'quiz',
+        subjectId,
+        gradeLevelId,
+        topic: topic || null,
+        lessonTopics: undefined,
+        difficulty: 'medium',
+        contentJson: contentJsonQuiz,
+        order: 0,
+        verifiedAtIso,
+      })
+      const qRow = ins ? { id: ins.id } : null
+      if (!qRow) return NextResponse.json({ error: 'Lỗi lưu câu hỏi.' }, { status: 500 })
+
+      if (worksheetId) {
+        const ws = await fetchWorksheetSheetOwnerAndQuestionIdsFromPg(worksheetId)
+        if (!ws) return NextResponse.json({ error: 'Không tìm thấy phiếu bài tập.' }, { status: 404 })
+        if (ws.user_id !== userId) return NextResponse.json({ error: 'Bạn không có quyền sửa phiếu này.' }, { status: 403 })
+        const newIds = [...ws.question_ids, qRow.id]
+        const newMarkdown = await buildMarkdownForQuestionIds(newIds)
+        if (newMarkdown === null) return NextResponse.json({ error: 'Không sinh được markdown phiếu.' }, { status: 500 })
+        const u = await updateWorksheetSheetContentForOwnerPg(worksheetId, userId!, newIds, newMarkdown)
+        if (u !== true) return NextResponse.json({ error: 'Không cập nhật được phiếu bài tập.' }, { status: 500 })
+      }
+
+      return NextResponse.json({ success: true, verified: true, questionId: qRow.id })
     }
 
     const e = body?.content as { problem?: string; solution?: unknown }
@@ -118,7 +142,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Thiếu nội dung bài tự luận (problem, solution).' }, { status: 400 })
     }
 
-    const verifyResult = await verifyEssayWithDeepSeek(fullContent, problem, solution)
+    const verifyResult = await verifyEssayWithDeepSeek(fullContent, problem, solution, userId ?? null)
     let finalEssay = { problem, solution }
     if (verifyResult && !verifyResult.verified && (verifyResult.problem || verifyResult.solution)) {
       if (verifyResult.problem) finalEssay = { ...finalEssay, problem: verifyResult.problem }
@@ -141,38 +165,40 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    const { data: eRow, error: eErr } = await supabase
-      .from('worksheet_questions')
-      .insert({
-        user_id: userId,
-        curriculum_id: curriculumId || null,
-        type: 'essay',
-        subject_id: subjectId,
-        grade_level_id: gradeLevelId,
-        topic: topic || null,
-        difficulty: 'medium',
-        content_json: { problem: finalEssay.problem, solution: normalizeSolutionToStr(finalEssay.solution) || finalEssay.solution },
-        source: 'ai',
-        order: 0,
-        verified_at: verifyResult?.verified ? new Date().toISOString() : null,
-      })
-      .select('id')
-      .single()
-
-    if (eErr) return NextResponse.json({ error: eErr.message }, { status: 500 })
-
-    if (worksheetId) {
-      const { data: ws, error: wsErr } = await supabase.from('worksheet_worksheets').select('user_id, question_ids').eq('id', worksheetId).single()
-      if (wsErr || !ws) return NextResponse.json({ error: 'Không tìm thấy phiếu bài tập.' }, { status: 404 })
-      if (ws.user_id !== userId) return NextResponse.json({ error: 'Bạn không có quyền sửa phiếu này.' }, { status: 403 })
-      const existingIds = (ws.question_ids ?? []) as string[]
-      const newIds = [...existingIds, eRow!.id]
-      const newMarkdown = await getQuestionsToMarkdown(supabase, newIds)
-      const { error: updateErr } = await supabase.from('worksheet_worksheets').update({ question_ids: newIds, content_markdown: newMarkdown }).eq('id', worksheetId)
-      if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 })
+    const verifiedAtEssay = verifyResult?.verified ? new Date().toISOString() : null
+    const contentJsonEssay = {
+      problem: finalEssay.problem,
+      solution: normalizeSolutionToStr(finalEssay.solution) || finalEssay.solution,
     }
 
-    return NextResponse.json({ success: true, verified: true, questionId: eRow?.id })
+    const insEssay = await insertWorksheetQuestionPg({
+      userId: userId!,
+      curriculumId: curriculumId || null,
+      type: 'essay',
+      subjectId,
+      gradeLevelId,
+      topic: topic || null,
+      lessonTopics: undefined,
+      difficulty: 'medium',
+      contentJson: contentJsonEssay,
+      order: 0,
+      verifiedAtIso: verifiedAtEssay,
+    })
+    const eRow = insEssay ? { id: insEssay.id } : null
+    if (!eRow) return NextResponse.json({ error: 'Lỗi lưu câu hỏi.' }, { status: 500 })
+
+    if (worksheetId) {
+      const ws = await fetchWorksheetSheetOwnerAndQuestionIdsFromPg(worksheetId)
+      if (!ws) return NextResponse.json({ error: 'Không tìm thấy phiếu bài tập.' }, { status: 404 })
+      if (ws.user_id !== userId) return NextResponse.json({ error: 'Bạn không có quyền sửa phiếu này.' }, { status: 403 })
+      const newIds = [...ws.question_ids, eRow.id]
+      const newMarkdown = await buildMarkdownForQuestionIds(newIds)
+      if (newMarkdown === null) return NextResponse.json({ error: 'Không sinh được markdown phiếu.' }, { status: 500 })
+      const u = await updateWorksheetSheetContentForOwnerPg(worksheetId, userId!, newIds, newMarkdown)
+      if (u !== true) return NextResponse.json({ error: 'Không cập nhật được phiếu bài tập.' }, { status: 500 })
+    }
+
+    return NextResponse.json({ success: true, verified: true, questionId: eRow.id })
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     return NextResponse.json({ error: msg }, { status: 500 })

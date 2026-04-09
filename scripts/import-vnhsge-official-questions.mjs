@@ -5,10 +5,10 @@
  *
  * Chạy: node scripts/import-vnhsge-official-questions.mjs
  *
- * Yêu cầu: .env.local có NEXT_PUBLIC_SUPABASE_URL và SUPABASE_SERVICE_ROLE_KEY
+ * Yêu cầu: .env.local có DATABASE_URL
  */
 
-import { createClient } from '@supabase/supabase-js'
+import { pgQueryRaw } from './pg-query.mjs'
 import { readFileSync, existsSync } from 'fs'
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
@@ -36,14 +36,11 @@ for (const line of envContent.split('\n')) {
   env[k] = v
 }
 
-const url = env.NEXT_PUBLIC_SUPABASE_URL
-const key = env.SUPABASE_SERVICE_ROLE_KEY
-if (!url || !key) {
-  console.error('Thiếu NEXT_PUBLIC_SUPABASE_URL hoặc SUPABASE_SERVICE_ROLE_KEY trong .env.local')
+process.env.DATABASE_URL = env.DATABASE_URL || process.env.DATABASE_URL
+if (!process.env.DATABASE_URL?.trim()) {
+  console.error('Thiếu DATABASE_URL trong .env.local')
   process.exit(1)
 }
-
-const supabase = createClient(url, key)
 
 /** Map category_en từ VNHSGE sang subject_id dự án */
 const CATEGORY_TO_SUBJECT = {
@@ -89,6 +86,54 @@ function parseAnswer(answerStr, optionsLength) {
   if (n >= 1 && n <= optionsLength) return n - 1
   if (n >= 0 && n < optionsLength) return n
   return 0
+}
+
+async function insertOne(rec) {
+  await pgQueryRaw(
+    `insert into worksheet_official_questions (
+      subject_id, grade_level_id, textbook_set_id, lesson_order,
+      question_text, options, correct_index, explanation, source, external_id
+    ) values ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9, $10)`,
+    [
+      rec.subject_id,
+      rec.grade_level_id,
+      rec.textbook_set_id,
+      rec.lesson_order,
+      rec.question_text,
+      rec.options,
+      rec.correct_index,
+      rec.explanation,
+      rec.source,
+      rec.external_id,
+    ]
+  )
+}
+
+async function insertBatch(batch) {
+  if (batch.length === 0) return
+  const cols =
+    'subject_id, grade_level_id, textbook_set_id, lesson_order, question_text, options, correct_index, explanation, source, external_id'
+  const parts = []
+  const params = []
+  let p = 1
+  for (const rec of batch) {
+    parts.push(
+      `($${p++},$${p++},$${p++},$${p++},$${p++},$${p++}::jsonb,$${p++},$${p++},$${p++},$${p++})`
+    )
+    params.push(
+      rec.subject_id,
+      rec.grade_level_id,
+      rec.textbook_set_id,
+      rec.lesson_order,
+      rec.question_text,
+      rec.options,
+      rec.correct_index,
+      rec.explanation,
+      rec.source,
+      rec.external_id
+    )
+  }
+  await pgQueryRaw(`insert into worksheet_official_questions (${cols}) values ${parts.join(',')}`, params)
 }
 
 async function main() {
@@ -142,19 +187,22 @@ async function main() {
     }
 
     if (batch.length > 0) {
-      const { error } = await supabase.from('worksheet_official_questions').insert(batch)
-      if (error) {
-        if (error.code === '23505') {
+      try {
+        await insertBatch(batch)
+        imported += batch.length
+      } catch (e) {
+        if (e.code === '23505') {
           for (const rec of batch) {
-            const { error: insErr } = await supabase.from('worksheet_official_questions').insert(rec)
-            if (!insErr) imported++
-            else if (insErr.code !== '23505') console.warn('Lỗi:', insErr.message)
+            try {
+              await insertOne(rec)
+              imported++
+            } catch (insErr) {
+              if (insErr.code !== '23505') console.warn('Lỗi:', insErr.message)
+            }
           }
         } else {
-          console.warn('Lỗi batch:', error.message)
+          console.warn('Lỗi batch:', e.message)
         }
-      } else {
-        imported += batch.length
       }
     }
 

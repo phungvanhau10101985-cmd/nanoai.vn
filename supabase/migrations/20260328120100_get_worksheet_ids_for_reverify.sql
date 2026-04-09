@@ -1,5 +1,5 @@
 -- Phiếu có ít nhất một câu đã từng verify (để chạy verify lại với logic/prompt mới)
--- Version 20260328120100: tránh trùng 20260328120000 với exam_attempt_layout_snapshot (Supabase schema_migrations PK theo version).
+-- Version 20260328120100: tránh trùng 20260328120000 với exam_attempt_layout_snapshot (bảng registry migration — PK theo version).
 create or replace function public.get_worksheet_ids_for_reverify()
 returns table (worksheet_id uuid, worksheet_topic text)
 language sql

@@ -1,5 +1,10 @@
-import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Database, Json } from '@/types/database.types'
+import type { Json } from '@/types/database.types'
+import {
+  fetchGuestWidgetConversationIdFromPg,
+  fetchCustomerCareMessageByIdForConversationPg,
+  updateCustomerCareMessageRawPayloadPg,
+} from '@/lib/db/customer-care-pg'
+import { isPgConfigured } from '@/lib/db/pool'
 import { handlePartnerInboundForAi } from '@/lib/messaging/partner-ai-inbound'
 import { latestInboundTextForPartnerAi } from '@/lib/messaging/guest-chat-image'
 
@@ -12,40 +17,56 @@ type GuestMessageVisionPayload = {
   vision_pick_required?: boolean
 }
 
-type Db = SupabaseClient<Database>
-
-export async function executeGuestVisionPick(
-  db: Db,
-  input: {
-    partnerId: string
-    externalThreadId: string
-    messageId: string
-    inventoryId: string
-  }
-): Promise<
+export async function executeGuestVisionPick(input: {
+  partnerId: string
+  externalThreadId: string
+  messageId: string
+  inventoryId: string
+}): Promise<
   | { ok: true; shopTyping?: { maxWaitMs: number } }
-  | { error: string; notFound?: boolean; badRequest?: boolean }
+  | { error: string; notFound?: boolean; badRequest?: boolean; serviceUnavailable?: boolean }
 > {
   const { partnerId, externalThreadId, messageId, inventoryId } = input
 
-  const { data: conv } = await db
-    .from('customer_care_conversations')
-    .select('id')
-    .eq('partner_id', partnerId)
-    .eq('channel', 'widget')
-    .eq('external_thread_id', externalThreadId)
-    .maybeSingle()
+  if (!isPgConfigured()) {
+    return { error: 'Server database is not configured.', serviceUnavailable: true }
+  }
 
-  if (!conv) return { error: 'Not found.', notFound: true }
+  let convId: string | null = null
+  try {
+    convId = await fetchGuestWidgetConversationIdFromPg(partnerId, externalThreadId)
+  } catch (e) {
+    console.warn('[guest-vision-pick] PG conv lookup failed', e)
+  }
 
-  const { data: msg, error: msgErr } = await db
-    .from('customer_care_messages')
-    .select('id, direction, body, raw_payload, conversation_id')
-    .eq('id', messageId)
-    .eq('conversation_id', conv.id)
-    .maybeSingle()
+  if (!convId) return { error: 'Not found.', notFound: true }
 
-  if (msgErr || !msg || msg.direction !== 'inbound') {
+  let msg: {
+    id: string
+    direction: string
+    body: string
+    raw_payload: Json | null
+    conversation_id: string
+  } | null = null
+  try {
+    const row = await fetchCustomerCareMessageByIdForConversationPg(messageId, convId)
+    if (row) {
+      msg = {
+        id: row.id,
+        direction: row.direction,
+        body: row.body,
+        raw_payload: row.raw_payload,
+        conversation_id: row.conversation_id,
+      }
+    }
+  } catch (e) {
+    console.warn('[guest-vision-pick] PG message load failed', e)
+  }
+  if (!msg) {
+    return { error: 'Not found.', notFound: true }
+  }
+
+  if (msg.direction !== 'inbound') {
     return { error: 'Not found.', notFound: true }
   }
 
@@ -70,10 +91,17 @@ export async function executeGuestVisionPick(
     vision_selected_product_label: label,
   } as Json
 
-  const { error: upErr } = await db.from('customer_care_messages').update({ raw_payload: nextPayload }).eq('id', messageId)
-  if (upErr) return { error: upErr.message }
+  let updated = false
+  try {
+    updated = await updateCustomerCareMessageRawPayloadPg(messageId, nextPayload)
+  } catch (e) {
+    console.warn('[guest-vision-pick] PG update payload failed', e)
+  }
+  if (!updated) {
+    return { error: 'Could not update message.' }
+  }
 
-  const hint = await handlePartnerInboundForAi(db, {
+  const hint = await handlePartnerInboundForAi({
     partnerId,
     conversationId: msg.conversation_id,
     messageId,

@@ -1,21 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
-import { createClient } from '@/lib/supabase/server'
 import { getUserForAction } from '@/lib/auth'
-import { createClient as createAdminClient } from '@supabase/supabase-js'
+import {
+  fetchExamAttemptEssayAiBundlePg,
+  fetchExamQuestionsForEssayAiPg,
+} from '@/lib/db/exam-session-pg'
+import { fetchWorksheetQuestionsTypeContentByIdsFromPg } from '@/lib/db/worksheet-pg'
+import { isPgConfigured } from '@/lib/db/pool'
 import { parseExamGradingMeta } from '@/lib/exam-feedback'
 import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { isPublicExamEssayImageUrl } from '@/lib/exam-essay-config'
 import { getEssaySolution } from '@/app/tao-giao-trinh/lib/worksheet-content-json'
-
-function admin() {
-  return createAdminClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false } }
-  )
-}
 
 const MAX_TOTAL_INLINE_IMAGES = 14
 const MAX_IMAGES_PER_QUESTION = 8
@@ -60,7 +56,7 @@ type ExamQuestionRow = {
   id: string
   question_text: string
   options: unknown
-  order: number
+  ord: number
   worksheet_question_id: string | null
   points: number | string | null
 }
@@ -80,41 +76,35 @@ export async function POST(
       return NextResponse.json({ error: 'Chưa cấu hình GOOGLE_API_KEY.' }, { status: 500 })
     }
 
-    const supabase = createClient()
-    const authResult = await getUserForAction(() => supabase.auth.getUser(), 'Vui lòng đăng nhập.')
+    const authResult = await getUserForAction()
     if ('error' in authResult) return NextResponse.json({ error: authResult.error }, { status: 401 })
     const { user } = authResult
 
-    const db = admin()
-    const { data: att, error: aErr } = await db
-      .from('exam_attempts')
-      .select('id, session_id, essay_submission, answers, grading_meta')
-      .eq('id', attemptId)
-      .maybeSingle()
+    if (!isPgConfigured()) {
+      return NextResponse.json({ error: 'Chưa cấu hình cơ sở dữ liệu.' }, { status: 503 })
+    }
 
-    if (aErr || !att) return NextResponse.json({ error: 'Không tìm thấy bài làm.' }, { status: 404 })
-
-    const { data: session, error: sErr } = await db
-      .from('exam_sessions')
-      .select('teacher_id')
-      .eq('id', att.session_id)
-      .maybeSingle()
-
-    if (sErr || !session) return NextResponse.json({ error: 'Không tìm thấy phiên thi.' }, { status: 404 })
-    if (String(session.teacher_id ?? '') !== user.id) {
+    const bundle = await fetchExamAttemptEssayAiBundlePg(attemptId, user.id)
+    if (bundle === null) {
+      return NextResponse.json({ error: 'Lỗi đọc bài làm.' }, { status: 500 })
+    }
+    if (bundle === 'not_found') {
+      return NextResponse.json({ error: 'Không tìm thấy bài làm.' }, { status: 404 })
+    }
+    if (bundle === 'forbidden') {
       return NextResponse.json({ error: 'Bạn không có quyền.' }, { status: 403 })
     }
 
+    const att = bundle.attempt
     const meta = parseExamGradingMeta(att.grading_meta)
     if (!meta || meta.essayPointsMax <= 0) {
       return NextResponse.json({ error: 'Không có tự luận.' }, { status: 400 })
     }
 
-    const { data: questions } = await db
-      .from('exam_questions')
-      .select('id, question_text, options, "order", worksheet_question_id, points')
-      .eq('session_id', att.session_id)
-      .order('order', { ascending: true })
+    const questions = await fetchExamQuestionsForEssayAiPg(att.session_id)
+    if (questions === null) {
+      return NextResponse.json({ error: 'Lỗi đọc câu hỏi.' }, { status: 500 })
+    }
 
     const essaySubmission =
       att.essay_submission && typeof att.essay_submission === 'object'
@@ -122,10 +112,11 @@ export async function POST(
         : {}
     const answers = att.answers && typeof att.answers === 'object' ? (att.answers as Record<string, unknown>) : {}
 
-    const essayQs = (questions ?? []).filter((q) => {
+    const questionRows = questions as ExamQuestionRow[]
+    const essayQs = questionRows.filter((q) => {
       const opts = Array.isArray(q.options) ? q.options : []
       return opts.length < 2
-    }) as ExamQuestionRow[]
+    })
 
     if (essayQs.length === 0) {
       return NextResponse.json({ error: 'Không tìm thấy câu tự luận.' }, { status: 400 })
@@ -139,11 +130,12 @@ export async function POST(
 
     const wqById = new Map<string, { content_json: unknown }>()
     if (wqIds.length > 0) {
-      const { data: wqRows } = await db.from('worksheet_questions').select('id, content_json').in('id', wqIds)
-      for (const r of wqRows ?? []) {
-        wqById.set(String((r as { id: string }).id), {
-          content_json: (r as { content_json: unknown }).content_json,
-        })
+      const wsMap = await fetchWorksheetQuestionsTypeContentByIdsFromPg(wqIds)
+      if (wsMap === null) {
+        return NextResponse.json({ error: 'Lỗi đọc ngân hàng câu.' }, { status: 500 })
+      }
+      for (const [id, row] of wsMap) {
+        wqById.set(id, { content_json: row.content_json })
       }
     }
 

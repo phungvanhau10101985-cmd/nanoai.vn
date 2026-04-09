@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { isPgConfigured } from '@/lib/db/pool'
+import { fetchRunningWorksheetVerifyBatchReportIdPg } from '@/lib/db/worksheet-verify-batch-pg'
 import {
   startNewBatchReport,
   runBatchVerifyStep,
@@ -24,36 +25,25 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim()
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()
-  if (!url || !key) {
-    return NextResponse.json({ error: 'Thiếu Supabase service env.' }, { status: 500 })
+  if (!isPgConfigured()) {
+    return NextResponse.json({ error: 'Database not configured.' }, { status: 503 })
   }
 
-  const admin = createClient(url, key)
   const batchSize = Math.min(5, Math.max(1, Number(req.nextUrl.searchParams.get('batchSize')) || 2))
 
   try {
-    const { data: running } = await admin
-      .from('worksheet_verify_batch_reports')
-      .select('id')
-      .eq('status', 'running')
-      .order('created_at', { ascending: true })
-      .limit(1)
-      .maybeSingle()
-
-    let reportId = running?.id as string | undefined
+    let reportId = (await fetchRunningWorksheetVerifyBatchReportIdPg()) ?? undefined
 
     if (!reportId) {
-      const pending = await fetchPendingWorksheetIds(admin)
+      const pending = await fetchPendingWorksheetIds()
       if (pending.length === 0) {
         return NextResponse.json({ ok: true, message: 'no_pending', processed: 0 })
       }
-      const started = await startNewBatchReport(admin, null)
+      const started = await startNewBatchReport(null)
       reportId = started.reportId
     }
 
-    const result = await runBatchVerifyStep(admin, reportId!, batchSize)
+    const result = await runBatchVerifyStep(reportId!, batchSize)
     return NextResponse.json({ ok: true, cron: true, ...result })
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)

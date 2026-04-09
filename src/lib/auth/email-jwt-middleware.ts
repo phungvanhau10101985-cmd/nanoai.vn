@@ -1,0 +1,23 @@
+/**
+ * Xác thực JWT đăng nhập email trên Edge (middleware) — không dùng Node crypto / pg.
+ */
+import type { NextRequest } from 'next/server'
+import { jwtVerify } from 'jose'
+import { EMAIL_SESSION_COOKIE, isEmailAuthEnabled } from '@/lib/auth/email-auth-config'
+
+export async function getJwtUserFromRequest(request: NextRequest): Promise<{ sub: string; email: string } | null> {
+  if (!isEmailAuthEnabled()) return null
+  const secret = process.env.AUTH_JWT_SECRET?.trim()
+  if (!secret || secret.length < 32) return null
+  const token = request.cookies.get(EMAIL_SESSION_COOKIE)?.value
+  if (!token) return null
+  try {
+    const { payload } = await jwtVerify(token, new TextEncoder().encode(secret), { algorithms: ['HS256'] })
+    const sub = String(payload.sub || '')
+    const email = String((payload as { email?: string }).email || '')
+    if (!sub || !email) return null
+    return { sub, email }
+  } catch {
+    return null
+  }
+}

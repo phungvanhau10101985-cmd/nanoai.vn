@@ -28,7 +28,7 @@ import {
 import { extractEditRegions } from './lib/curriculum-region-extract'
 import { highlightMatchInCurriculum } from './components/curriculum-edit-sheet'
 import { parseWorksheetIntoBlocks, replaceBlockInMarkdown } from './lib/worksheet-parse-questions'
-import { mergeContentWithQuestions } from './lib/merge-worksheet-content'
+import { mergeContentWithQuestions } from './lib/merge-worksheet-content-pure'
 import { toEditableBlockContent } from './lib/worksheet-editable-block-content'
 import { WorksheetEditSectionPopup } from './components/worksheet-edit-section-popup'
 import { getEssayProblem, getEssaySolution, normalizeSolutionToStr } from './lib/worksheet-content-json'

@@ -3,9 +3,9 @@ import { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { redirectToLogin } from '@/lib/auth/login-redirect'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/server'
 import { Toaster } from '@/components/ui/toaster'
 import { getUserOrBypass } from '@/lib/auth'
+import { getProfileRoleWithFallback } from '@/lib/db/read-user-dashboard-pg'
 import { buildMetadata } from '@/lib/seo'
 import { ChevronLeft } from 'lucide-react'
 
@@ -17,11 +17,10 @@ export const metadata: Metadata = buildMetadata({
 })
 
 export default async function AdminLayout({ children }: { children: ReactNode }) {
-  const supabase = createClient()
-  const user = await getUserOrBypass(() => supabase.auth.getUser())
+  const user = await getUserOrBypass()
   if (!user) redirectToLogin()
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-  if (profile?.role !== 'admin') redirect('/')
+  const role = await getProfileRoleWithFallback(user.id)
+  if (role !== 'admin') redirect('/')
   return (
     <div className="container max-w-5xl py-6 space-y-6">
       <Toaster />
