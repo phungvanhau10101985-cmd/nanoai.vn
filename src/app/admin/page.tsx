@@ -14,6 +14,7 @@ import {
   MessageCircle,
   Code2,
   KeyRound,
+  Table2,
 } from 'lucide-react'
 import { getCurrentWebLocale } from '@/lib/i18n/server'
 
@@ -240,6 +241,24 @@ const ADMIN_LINKS: AdminLink[] = [
       ko: '테이블 선택, JSON/Excel 형식. 테이블별 내보내기.',
     },
     icon: Download,
+  },
+  {
+    href: '/admin/db-tables',
+    title: {
+      vi: 'Duyệt mọi bảng',
+      en: 'Browse all tables',
+      zh: '浏览所有表',
+      ja: '全テーブル参照',
+      ko: '모든 테이블 보기',
+    },
+    description: {
+      vi: 'Xem danh sách và nội dung phân trang (public + auth). Chỉ đọc.',
+      en: 'List and paginate rows (public + auth). Read-only.',
+      zh: '列出并分页查看（public + auth）。只读。',
+      ja: '一覧とページ表示（public + auth）。読み取り専用。',
+      ko: '목록 및 페이지 조회(public + auth). 읽기 전용.',
+    },
+    icon: Table2,
   },
   {
     href: '/admin/english-coach',
