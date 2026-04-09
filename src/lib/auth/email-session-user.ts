@@ -7,6 +7,7 @@ import {
   getAuthJwtSecretBytes,
   isEmailAuthEnabled,
 } from '@/lib/auth/email-auth-config'
+import { isValidUuidString } from '@/lib/validate-uuid'
 
 /** Phiên đăng nhập email (JWT cookie). */
 export async function getEmailSessionUser(): Promise<AppUser | null> {
@@ -19,9 +20,9 @@ export async function getEmailSessionUser(): Promise<AppUser | null> {
   if (!token) return null
   try {
     const { payload } = await jwtVerify(token, secret, { algorithms: ['HS256'] })
-    const id = String(payload.sub || '')
-    const email = String((payload as { email?: string }).email || '')
-    if (!id || !email) return null
+    const id = String(payload.sub || '').trim()
+    const email = String((payload as { email?: string }).email || '').trim()
+    if (!isValidUuidString(id) || !email) return null
     return {
       id,
       email,

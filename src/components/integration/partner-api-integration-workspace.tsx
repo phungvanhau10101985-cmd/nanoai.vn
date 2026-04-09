@@ -43,13 +43,15 @@ export function PartnerApiIntegrationWorkspace({
 
   const setPartnerId = useCallback(
     (id: string) => {
-      setPartnerIdState(id)
+      const nextId = id.trim()
+      if (!nextId || !partners.some((p) => p.id === nextId)) return
+      setPartnerIdState(nextId)
       const next = new URLSearchParams(searchParams.toString())
-      next.set('partner', id)
+      next.set('partner', nextId)
       const hash = typeof window !== 'undefined' ? window.location.hash : ''
       router.replace(`${pathname}?${next.toString()}${hash}`, { scroll: false })
     },
-    [pathname, router, searchParams]
+    [partners, pathname, router, searchParams]
   )
 
   useEffect(() => {

@@ -1,6 +1,7 @@
 import type { Database } from '@/types/database.types'
 import { isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
+import { isValidUuidString } from '@/lib/validate-uuid'
 
 export type MessagingPartnerRow = Database['public']['Tables']['messaging_partners']['Row']
 
@@ -110,6 +111,10 @@ export async function fetchMessagingPartnersByIdsFromPg(partnerIds: string[]): P
  */
 export async function fetchMessagingPartnersByOwnerFromPg(ownerUserId: string): Promise<MessagingPartnerRow[] | null> {
   if (!isPgConfigured()) return null
+  if (!isValidUuidString(ownerUserId)) {
+    console.warn('[fetchMessagingPartnersByOwnerFromPg] skip: invalid owner_user_id')
+    return null
+  }
   try {
     const rows = await pgQuery<{
       id: string
@@ -179,6 +184,10 @@ export async function insertMessagingPartnerForOwnerFromPg(params: {
   owner_user_id: string
 }): Promise<MessagingPartnerRow | null> {
   if (!isPgConfigured()) return null
+  if (!isValidUuidString(params.owner_user_id)) {
+    console.warn('[insertMessagingPartnerForOwnerFromPg] skip: invalid owner_user_id')
+    return null
+  }
   try {
     const row = await pgQueryOne<{
       id: string

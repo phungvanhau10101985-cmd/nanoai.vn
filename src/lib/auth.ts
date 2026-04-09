@@ -1,6 +1,7 @@
 import type { AppUser } from '@/lib/auth/app-user'
 import { cookies, headers } from 'next/headers'
 import { getEmailSessionUser } from '@/lib/auth/email-session-user'
+import { isValidUuidString } from '@/lib/validate-uuid'
 
 const FORCE_REAL_LOGIN_COOKIE = 'force_real_login'
 
@@ -40,7 +41,11 @@ export function isAuthRequired(): boolean {
 
 /** Tạo user giả cho môi trường local khi bypass auth */
 function getDevUser(): AppUser {
-  const devUserId = process.env.AUTH_DEV_USER_ID || '00000000-0000-0000-0000-000000000001'
+  const fromEnv = process.env.AUTH_DEV_USER_ID?.trim()
+  const devUserId =
+    fromEnv && isValidUuidString(fromEnv)
+      ? fromEnv
+      : '00000000-0000-0000-0000-000000000001'
   return {
     id: devUserId,
     app_metadata: {},

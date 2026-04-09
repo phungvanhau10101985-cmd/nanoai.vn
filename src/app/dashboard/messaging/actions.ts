@@ -80,6 +80,7 @@ import {
   presetSortOrder,
 } from '@/lib/messaging/partner-faq-presets'
 import { syncPartnerInventoryEmbeddings } from '@/lib/messaging/partner-inventory-embedding'
+import { isValidUuidString } from '@/lib/validate-uuid'
 
 export type { PartnerAiTokenUsageStatRow } from '@/lib/db/messaging-partner-ai-token-usage-pg'
 
@@ -95,6 +96,9 @@ async function requireUser() {
 }
 
 async function assertPartnerOwner(userId: string, partnerId: string) {
+  if (!isValidUuidString(userId) || !isValidUuidString(partnerId)) {
+    return { error: 'Forbidden.' }
+  }
   if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
   try {
     const row = await pgQueryOne<{ id: string }>(
