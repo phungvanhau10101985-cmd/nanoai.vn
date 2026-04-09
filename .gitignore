@@ -59,10 +59,6 @@ thu-do-online-*.json
 .cursor/
 .idea/
 .vscode/
-supabase/.temp/
-# CLI migration: junction/symlink tới db/migrations (scripts/ensure-pg-migration-cli-link.mjs)
-/supabase/migrations
-
 # deployment/runtime logs
 logs/
 *.log

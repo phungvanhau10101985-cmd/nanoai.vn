@@ -14,7 +14,6 @@ export function getStorageLegacyRestOrigin(): string {
     process.env.NEXT_PUBLIC_STORAGE_LEGACY_REST_ORIGIN?.trim() ||
       process.env.STORAGE_LEGACY_REST_ORIGIN?.trim() ||
       process.env.NEXT_PUBLIC_LEGACY_HTTP_ORIGIN?.trim() ||
-      process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() ||
       ''
   )
 }
@@ -24,7 +23,6 @@ export function getStorageLegacyServiceKey(): string {
   return (
     process.env.STORAGE_LEGACY_SERVICE_KEY?.trim() ||
     process.env.LEGACY_HTTP_SERVICE_ROLE_KEY?.trim() ||
-    process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ||
     ''
   )
 }

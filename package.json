@@ -14,10 +14,10 @@
     "reset-db:language-coach": "node scripts/reset-language-coach-db.mjs",
     "import:official-questions": "node scripts/import-vnhsge-official-questions.mjs",
     "import:viet-doc-vqa": "node scripts/import-viet-doc-vqa.mjs",
-    "postinstall": "node scripts/ensure-pg-migration-cli-link.mjs",
-    "db:migrate:push": "node scripts/ensure-pg-migration-cli-link.mjs && supabase db push",
-    "db:push": "npm run db:migrate:push",
-    "db:sql:worksheet-delete-exercises": "supabase db query -f scripts/delete-worksheet-exercises-for-recreate.sql --linked",
+    "db:migrate:push": "node scripts/pg-apply-migrations.mjs --apply",
+    "db:migrate:status": "node scripts/pg-apply-migrations.mjs",
+    "db:push": "node scripts/pg-apply-migrations.mjs --apply",
+    "db:sql:worksheet-delete-exercises": "node scripts/pg-run-sql-file.mjs scripts/delete-worksheet-exercises-for-recreate.sql --apply",
     "db:delete-worksheet-exercises": "npm run db:sql:worksheet-delete-exercises",
     "normalize:official-questions": "node scripts/normalize-official-questions-topics.mjs",
     "worker": "npx tsx scripts/worksheet-job-worker.ts",
@@ -36,7 +36,8 @@
     "pg:fresh-restore-public": "node scripts/pg-fresh-restore-public.mjs",
     "pg:smoke": "npx tsx scripts/pg-smoke-local.ts",
     "pg:check-credits": "npx tsx scripts/pg-check-credits.ts",
-    "pg:truncate-all": "node scripts/pg-truncate-all-data.mjs"
+    "pg:truncate-all": "node scripts/pg-truncate-all-data.mjs",
+    "pg:set-admin": "node scripts/pg-set-admin.mjs"
   },
   "overrides": {
     "react": "^18.3.1",
@@ -61,12 +62,12 @@
     "@radix-ui/react-switch": "^1.2.6",
     "@radix-ui/react-tabs": "^1.1.13",
     "@radix-ui/react-toast": "^1.2.15",
-    "cookie": "^1.0.2",
     "archiver": "^7.0.1",
     "bwip-js": "^4.8.0",
     "canvas": "^3.2.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "cookie": "^1.0.2",
     "docx": "^9.6.0",
     "ffmpeg-static": "^5.3.0",
     "file-saver": "^2.0.5",
@@ -112,7 +113,6 @@
     "eslint-config-next": "^14.2.35",
     "postcss": "^8",
     "tailwindcss": "^3.4.1",
-    "supabase": "^2.88.1",
     "tsx": "^4.21.0",
     "typescript": "^5"
   }

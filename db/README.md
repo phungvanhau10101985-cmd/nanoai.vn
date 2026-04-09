@@ -1,6 +1,8 @@
 # Postgres — migration SQL
 
-- **`migrations/`**: file `.sql` theo thứ tự thời gian — áp lên **bất kỳ Postgres nào** (`DATABASE_URL`), không gắn với một nhà cung cấp cụ thể.
-- **`scripts/`**: script SQL tiện ích (reset dữ liệu test, v.v.).
+- **`migrations/`**: file `.sql` theo thứ tự thời gian — áp lên **bất kỳ Postgres nào** (`DATABASE_URL`).
+- **`scripts/`** (ở gốc repo): script SQL tiện ích (reset dữ liệu test, v.v.).
 
-Áp migration: `psql` từng file theo thứ tự, hoặc `npm run db:migrate:push` (sau `npm install` có script tạo liên kết tới thư mục mà CLI kỳ vọng — xem `scripts/ensure-pg-migration-cli-link.mjs`).
+Áp migration: `npm run db:push` hoặc `node scripts/pg-apply-migrations.mjs --apply` (theo dõi bảng `public.app_applied_sql_migrations`). Xem pending: `npm run db:migrate:status`.
+
+DB đã migrate bằng công cụ cũ trước khi có bảng tracking: `node scripts/pg-apply-migrations.mjs --mark-all-applied` (một lần), rồi chỉ dùng `--apply` cho file mới.

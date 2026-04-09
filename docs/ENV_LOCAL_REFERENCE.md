@@ -126,6 +126,6 @@ Huong dan nhanh:
 ## Tài liệu liên quan
 
 - `.env.example` — danh sách đầy đủ có comment
-- `docs/huong-dan-loai-bo-supabase.md` — loại bỏ phụ thuộc Supabase (env, CLI, quy tắc không thêm `@supabase/supabase-js`)
+- `docs/postgres-direct.md` — Postgres trực tiếp, migration, schema `auth`
 - `DEPLOY_VPS.md` — deploy, rsync exclude `.env.local`, cron mẫu
 - `next.config.mjs` — biến `NEXT_PUBLIC_*` cần rebuild sau khi đổi

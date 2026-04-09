@@ -82,7 +82,7 @@ export default function LoginClient({
       case 'jwt':
         return m('Lỗi cấu hình phiên đăng nhập (AUTH_JWT_SECRET).', 'Sign-in session misconfigured (AUTH_JWT_SECRET).', '登录会话配置错误。', 'ログイン設定エラー。', '로그인 설정 오류.')
       case 'auth_instances':
-        return m('Thiếu cấu hình auth (auth.instances). Cần schema Supabase/Auth đầy đủ trên DB.', 'Auth is not fully configured (auth.instances).', '缺少 auth 实例配置。', 'auth.instances がありません。', 'auth.instances가 없습니다.')
+        return m('Thiếu cấu hình auth (auth.instances). Cần schema auth đầy đủ trên Postgres (xem pg-ensure-auth-compat).', 'Auth is not fully configured (auth.instances).', '缺少 auth 实例配置。', 'auth.instances がありません。', 'auth.instances가 없습니다.')
       case 'server':
         return m('Lỗi máy chủ. Thử lại sau.', 'Server error. Try again later.', '服务器错误。', 'サーバーエラー。', '서버 오류.')
       default:

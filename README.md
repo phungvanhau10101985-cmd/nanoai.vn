@@ -1,6 +1,6 @@
 # Thu-do-online (Next.js)
 
-Ứng dụng web Next.js (nanoai.vn): Postgres qua **`DATABASE_URL`**, lưu trữ media qua **Bunny**; không dùng SDK npm hosted client. Biến env ưu tiên tên trung tính (`NEXT_PUBLIC_LEGACY_HTTP_ORIGIN`, …); alias cũ vẫn đọc được — xem `.env.example` và `docs/ENV_LOCAL_REFERENCE.md`.
+Ứng dụng web Next.js (nanoai.vn): Postgres qua **`DATABASE_URL`**, lưu trữ media qua **Bunny**. Xem `.env.example`, `docs/ENV_LOCAL_REFERENCE.md`, `docs/postgres-direct.md`.
 
 ## Getting started
 
@@ -13,7 +13,7 @@
 
 ### 2. Database
 
-1. Áp dụng migration trong thứ tự thư mục **`db/migrations/`** lên database của bạn (bất kỳ Postgres nào), **hoặc** `npm run db:migrate:push` / `npm run db:push` nếu dùng CLI migration đã link project (xem `package.json` và `db/README.md`).
+1. Áp migration: **`npm run db:push`** (hoặc `node scripts/pg-apply-migrations.mjs --apply`) — nguồn SQL: **`db/migrations/`** — xem `db/README.md`, `docs/postgres-direct.md`.
 2. Đặt **`DATABASE_URL`** trong `.env.local` (connection string có `sslmode=require` nếu host yêu cầu TLS).
 
 ### 3. Auth & redirect URL (Google OAuth)

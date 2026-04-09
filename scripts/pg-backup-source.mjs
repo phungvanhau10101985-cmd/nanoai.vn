@@ -18,7 +18,7 @@ const uri =
   process.env.PG_DUMP_SOURCE_URL?.trim() ||
   process.env.DATABASE_BACKUP_SOURCE_URL?.trim() ||
   process.env.LEGACY_PG_DUMP_URI?.trim() ||
-  process.env.SUPABASE_DB_URL?.trim()
+  process.env.DATABASE_URL?.trim()
 if (!uri) {
   console.error(
     'Thiếu PG_DUMP_SOURCE_URL hoặc một biến fallback (DATABASE_BACKUP_SOURCE_URL, LEGACY_PG_DUMP_URI, … — xem .env.example) trong .env / .env.local (connection string Postgres cho pg_dump).'

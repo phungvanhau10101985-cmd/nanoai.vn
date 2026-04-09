@@ -144,7 +144,7 @@ async function main() {
   if (nukeMigrationMeta) {
     console.log('Đã bật: --nuke-migration-meta (xóa luôn lịch sử migration public — có thể cần chạy lại migration từ đầu).')
   } else {
-    console.log('Giữ lại: public.supabase_migrations / schema_migrations / _prisma_migrations. Dùng --nuke-migration-meta để xóa luôn.')
+    console.log('Giữ lại: bảng metadata migration trong public (schema_migrations, …). --nuke-migration-meta để xóa luôn.')
   }
   if (!includePostgisRef) {
     console.log('Giữ lại: public.spatial_ref_sys (PostGIS). Dùng --include-postgis-ref để truncate luôn.')
