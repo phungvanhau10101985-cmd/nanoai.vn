@@ -34,6 +34,16 @@ export function EmailAuthPanel({ nextPath, tr }: Props) {
         const code = typeof data.error === 'string' ? data.error : ''
         if (code === 'rate_limited') {
           setErr(tr('Quá nhiều lần gửi. Thử lại sau.', 'Too many requests.', '请求过多。', 'リクエストが多すぎます。', '요청이 너무 많습니다.'))
+        } else if (code === 'resend_cooldown') {
+          setErr(
+            tr(
+              'Vui lòng đợi một chút trước khi gửi lại mã.',
+              'Please wait a moment before requesting another code.',
+              '请稍后再请求验证码。',
+              'しばらく待ってから再度お試しください。',
+              '잠시 후 다시 요청하세요.'
+            )
+          )
         } else if (code === 'smtp_not_configured') {
           setErr(
             tr(

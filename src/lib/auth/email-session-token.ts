@@ -7,7 +7,15 @@ import {
   isEmailAuthEnabled,
 } from '@/lib/auth/email-auth-config'
 
-export const EMAIL_SESSION_MAX_AGE_SEC = 60 * 60 * 24 * 400 // ~400 ngày
+function resolveEmailSessionMaxAgeSec(): number {
+  const raw = process.env.EMAIL_SESSION_MAX_AGE_DAYS?.trim()
+  const days = raw ? parseInt(raw, 10) : 400
+  const d = Number.isFinite(days) ? Math.min(3650, Math.max(30, days)) : 400
+  return 60 * 60 * 24 * d
+}
+
+/** Thời hạn cookie + JWT (mặc định ~400 ngày; chỉnh bằng EMAIL_SESSION_MAX_AGE_DAYS). */
+export const EMAIL_SESSION_MAX_AGE_SEC = resolveEmailSessionMaxAgeSec()
 
 export function getEmailSessionCookieOptions() {
   const isProd = process.env.NODE_ENV === 'production'
