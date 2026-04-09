@@ -1,4 +1,4 @@
-import { createHash, timingSafeEqual } from 'crypto'
+import { createHash } from 'crypto'
 import { NextResponse } from 'next/server'
 import { EMAIL_SESSION_COOKIE, EMAIL_SESSION_COOKIE_LEGACY, isEmailAuthEnabled } from '@/lib/auth/email-auth-config'
 import { createEmailSessionTokenString, getEmailSessionCookieOptions } from '@/lib/auth/email-session-token'
@@ -14,11 +14,6 @@ function sha256hex(s: string) {
 
 function normalizeEmail(e: string) {
   return e.trim().toLowerCase()
-}
-
-function safeEqStr(a: string, b: string) {
-  if (a.length !== b.length) return false
-  return timingSafeEqual(Buffer.from(a, 'utf8'), Buffer.from(b, 'utf8'))
 }
 
 export async function GET(req: Request) {
@@ -40,19 +35,17 @@ export async function GET(req: Request) {
       return NextResponse.redirect(new URL('/auth/login?error=invalid_link', req.url))
     }
 
+    /** Khớp đúng challenge theo token (không chỉ «bản mới nhất») — tránh wrong_link khi gửi OTP nhiều lần. */
+    const tryHash = sha256hex(`magic:${email}:${token}`)
     const row = await pgQueryOne<{ id: string; magic_token_hash: string }>(
       `select id, magic_token_hash from public.nanoai_email_login_challenges
        where email_normalized = $1 and consumed_at is null and expires_at > now()
+         and magic_token_hash = $2
        order by created_at desc limit 1`,
-      [email]
+      [email, tryHash]
     )
     if (!row) {
-      return NextResponse.redirect(new URL('/auth/login?error=expired_link', req.url))
-    }
-
-    const tryHash = sha256hex(`magic:${email}:${token}`)
-    if (!safeEqStr(tryHash, row.magic_token_hash)) {
-      return NextResponse.redirect(new URL('/auth/login?error=wrong_link', req.url))
+      return NextResponse.redirect(new URL('/auth/login?error=expired_or_invalid_link', req.url))
     }
 
     const uidRow = await pgQueryOne<{ id: string }>(

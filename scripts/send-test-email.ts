@@ -50,12 +50,19 @@ async function main() {
 
   const r = await sendSmtpMail({
     to,
-    subject: '[NanoAI] Thử gửi mail',
+    subject: '[NanoAI] Thử gửi mail (SMTP)',
     text: [
-      'Đây là email thử từ NanoAI (script scripts/send-test-email.ts).',
+      'Đây chỉ là email kiểm tra SMTP — không có mã OTP và không có link đăng nhập (đúng thiết kế).',
       '',
-      `Thời điểm: ${new Date().toISOString()}`,
+      'Email đăng nhập thật (có OTP 6 số + link magic) chỉ được gửi khi bạn nhập email trên trang /auth/login và bấm «Gửi mã OTP».',
+      '',
+      `Thời điểm gửi thử: ${new Date().toISOString()}`,
     ].join('\n'),
+    html: [
+      '<p>Đây chỉ là email <strong>kiểm tra SMTP</strong> — <em>không</em> có mã OTP và <em>không</em> có link đăng nhập (đúng thiết kế).</p>',
+      '<p>Email đăng nhập thật (có OTP 6 số + link magic) chỉ được gửi khi bạn nhập email trên trang <code>/auth/login</code> và bấm «Gửi mã OTP».</p>',
+      `<p style="color:#666;font-size:12px">Thời điểm: ${new Date().toISOString()}</p>`,
+    ].join(''),
   })
 
   if (r.ok) {

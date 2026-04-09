@@ -140,6 +140,16 @@ function normalizeEmbedSrc(src: string, requestOrigin: string): string {
   }
 }
 
+/** Khi chưa có mã nhúng trong admin DB: dùng NEXT_PUBLIC_CHAT_WIDGET_EMBED hoặc NEXT_PUBLIC_CHAT_WIDGET_SLUG (slug phải tồn tại trong messaging partners, nếu không iframe báo 404). */
+function envChatEmbedHtml(requestOrigin: string): string {
+  const full = process.env.NEXT_PUBLIC_CHAT_WIDGET_EMBED?.trim();
+  if (full) return full;
+  const slug = process.env.NEXT_PUBLIC_CHAT_WIDGET_SLUG?.trim();
+  if (!slug || !requestOrigin) return "";
+  const u = `${requestOrigin.replace(/\/$/, "")}/messaging/p/${encodeURIComponent(slug)}?embed=1`;
+  return `<iframe src="${u}" title="Chat" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>`;
+}
+
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
@@ -239,9 +249,16 @@ export default async function RootLayout({
       .map((item) => String(item?.code || ""))),
   ];
   const metaTags = metaTagCandidates.map(parseMetaTag).filter((item): item is MetaTagPayload => Boolean(item));
-  const embedIframeRaw = String(
+  const embedFromDb = String(
     (settings.chatEmbedCode || "").trim() || settings.nanoaiEmbedCode || ""
-  );
+  ).trim();
+  const envEmbedExplicit =
+    Boolean(process.env.NEXT_PUBLIC_CHAT_WIDGET_EMBED?.trim()) ||
+    Boolean(process.env.NEXT_PUBLIC_CHAT_WIDGET_SLUG?.trim());
+  const embedFromEnv = envChatEmbedHtml(requestOrigin);
+  const embedIframeRaw = envEmbedExplicit
+    ? embedFromEnv || embedFromDb
+    : embedFromDb || embedFromEnv;
   const hostedChatIframe = parseIframeEmbed(embedIframeRaw);
   const hostedChatUrl = hostedChatIframe
     ? normalizeEmbedSrc(hostedChatIframe.src, requestOrigin)

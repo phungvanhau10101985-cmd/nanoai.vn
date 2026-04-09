@@ -48,6 +48,48 @@ export default function LoginClient({
     }
   }, [])
 
+  const errorDisplay = (() => {
+    if (!error?.trim()) return null
+    const code = error.trim()
+    const m = (vi: string, en: string, zh: string, ja: string, ko: string) => tr(vi, en, zh, ja, ko)
+    switch (code) {
+      case 'wrong_link':
+        return m(
+          'Link đăng nhập không khớp. Hãy dùng link trong email mới nhất, hoặc nhập mã OTP.',
+          'That sign-in link does not match. Use the link in your latest email, or enter the OTP code.',
+          '登录链接无效。请使用最新邮件中的链接，或输入验证码。',
+          'リンクが一致しません。最新のメールのリンクを使うか、OTPを入力してください。',
+          '링크가 맞지 않습니다. 최신 메일의 링크를 쓰거나 OTP를 입력하세요.'
+        )
+      case 'expired_or_invalid_link':
+      case 'expired_link':
+        return m(
+          'Link đăng nhập hết hạn hoặc không hợp lệ. Gửi lại mã OTP từ trang này.',
+          'This sign-in link has expired or is invalid. Request a new code from this page.',
+          '链接已失效。请在本页重新发送验证码。',
+          'リンクの有効期限切れか無効です。再度コードを送信してください。',
+          '만료되었거나 잘못된 링크입니다. 이 페이지에서 코드를 다시 요청하세요.'
+        )
+      case 'invalid_link':
+        return m('Link không đúng định dạng.', 'Invalid link format.', '链接格式无效。', 'リンク形式が無効です。', '잘못된 링크입니다.')
+      case 'email_auth_disabled':
+        return m('Đăng nhập email chưa bật trên server.', 'Email sign-in is disabled on the server.', '服务器未启用邮箱登录。', 'メールログインが無効です。', '이메일 로그인이 꺼져 있습니다.')
+      case 'database':
+      case 'database_not_configured':
+        return m('Chưa cấu hình cơ sở dữ liệu.', 'Database is not configured.', '数据库未配置。', 'データベースが未設定です。', 'DB가 설정되지 않았습니다.')
+      case 'user':
+        return m('Không tạo được tài khoản.', 'Could not create account.', '无法创建账户。', 'アカウントを作成できません。', '계정을 만들 수 없습니다.')
+      case 'jwt':
+        return m('Lỗi cấu hình phiên đăng nhập (AUTH_JWT_SECRET).', 'Sign-in session misconfigured (AUTH_JWT_SECRET).', '登录会话配置错误。', 'ログイン設定エラー。', '로그인 설정 오류.')
+      case 'auth_instances':
+        return m('Thiếu cấu hình auth (auth.instances). Cần schema Supabase/Auth đầy đủ trên DB.', 'Auth is not fully configured (auth.instances).', '缺少 auth 实例配置。', 'auth.instances がありません。', 'auth.instances가 없습니다.')
+      case 'server':
+        return m('Lỗi máy chủ. Thử lại sau.', 'Server error. Try again later.', '服务器错误。', 'サーバーエラー。', '서버 오류.')
+      default:
+        return code
+    }
+  })()
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 via-white to-indigo-50 px-4 py-10">
       <Card className="w-full max-w-md border-muted/60 shadow-lg">
@@ -74,9 +116,9 @@ export default function LoginClient({
               {notice}
             </div>
           )}
-          {error && (
+          {errorDisplay && (
             <div className="mb-4 rounded-md bg-destructive/15 p-3 text-sm text-destructive">
-              {error}
+              {errorDisplay}
             </div>
           )}
 

@@ -29,13 +29,46 @@ export function EmailAuthPanel({ nextPath, tr }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.trim(), next: safeNext }),
       })
-      const data = await res.json().catch(() => ({}))
+      const data = (await res.json().catch(() => ({}))) as { error?: string }
       if (!res.ok) {
-        setErr(
-          data.error === 'rate_limited'
-            ? tr('Quá nhiều lần gửi. Thử lại sau.', 'Too many requests.', '请求过多。', 'リクエストが多すぎます。', '요청이 너무 많습니다.')
-            : tr('Không gửi được email. Kiểm tra SMTP / email.', 'Could not send email.', '无法发送邮件。', 'メールを送信できません。', '이메일을 보낼 수 없습니다.')
-        )
+        const code = typeof data.error === 'string' ? data.error : ''
+        if (code === 'rate_limited') {
+          setErr(tr('Quá nhiều lần gửi. Thử lại sau.', 'Too many requests.', '请求过多。', 'リクエストが多すぎます。', '요청이 너무 많습니다.'))
+        } else if (code === 'smtp_not_configured') {
+          setErr(
+            tr(
+              'Chưa cấu hình SMTP (SMTP_HOST / SMTP_USER / SMTP_PASS / SMTP_FROM).',
+              'SMTP is not configured (SMTP_HOST / SMTP_USER / SMTP_PASS / SMTP_FROM).',
+              '未配置 SMTP。',
+              'SMTP が未設定です。',
+              'SMTP가 설정되지 않았습니다.'
+            )
+          )
+        } else if (code === 'email_auth_disabled') {
+          setErr(tr('Đăng nhập email chưa bật (EMAIL_AUTH_ENABLED).', 'Email sign-in is disabled.', '未启用邮箱登录。', 'メールログインが無効です。', '이메일 로그인이 꺼져 있습니다.'))
+        } else if (code === 'database_not_configured') {
+          setErr(tr('Chưa cấu hình DATABASE_URL.', 'Database is not configured.', '数据库未配置。', 'DB が未設定です。', 'DB가 설정되지 않았습니다.'))
+        } else if (code && code.length < 400) {
+          setErr(
+            tr(
+              `Không gửi được email. Chi tiết: ${code}`,
+              `Could not send email. Details: ${code}`,
+              `无法发送邮件：${code}`,
+              `メール送信失敗: ${code}`,
+              `이메일 전송 실패: ${code}`
+            )
+          )
+        } else {
+          setErr(
+            tr(
+              'Không gửi được email. Kiểm tra SMTP; xem thư mục spam. Khởi động lại server sau khi sửa .env.local.',
+              'Could not send email. Check SMTP and spam folder. Restart the server after changing .env.local.',
+              '无法发送邮件。请检查 SMTP 与垃圾邮件。',
+              'メールを送信できません。SMTPと迷惑メールを確認。',
+              '이메일을 보낼 수 없습니다. SMTP·스팸함 확인.'
+            )
+          )
+        }
         setLoading(false)
         return
       }

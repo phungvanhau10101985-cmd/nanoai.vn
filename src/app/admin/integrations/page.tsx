@@ -15,7 +15,8 @@ export default function AdminIntegrationsPage() {
   }
 
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
-  const nanoaiEmbedCodeDefault = `<iframe src="${baseUrl.replace(/\/$/, '')}/messaging/p/nanoai-ws-wdh5?embed=1" title="Chat NanoAI" width="100%" height="560" style="border:0;border-radius:12px;max-width:100%" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>`
+  const defaultChatSlug = process.env.NEXT_PUBLIC_CHAT_WIDGET_SLUG || 'nanoai-ws-wdh5'
+  const nanoaiEmbedCodeDefault = `<iframe src="${baseUrl.replace(/\/$/, '')}/messaging/p/${encodeURIComponent(defaultChatSlug)}?embed=1" title="Chat NanoAI" width="100%" height="560" style="border:0;border-radius:12px;max-width:100%" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>`
 
   return (
     <div className="mx-auto w-full max-w-4xl space-y-4 py-2">
