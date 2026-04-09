@@ -79,7 +79,7 @@ export async function POST(req: Request) {
       [email, otpHash, magicHash, ttlMinutes]
     )
 
-    const baseUrl = getPublicAppUrlForServer()
+    const baseUrl = getPublicAppUrlForServer(req)
     const magicUrl = `${baseUrl}/api/auth/email/verify-magic?token=${encodeURIComponent(magicRaw)}&email=${encodeURIComponent(email)}&next=${encodeURIComponent(next)}`
 
     const sent = await sendSmtpMail({
