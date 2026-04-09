@@ -5,7 +5,10 @@ echo   RESET - Dừng hết, xoa cache, khoi dong lai
 echo ========================================
 echo.
 
-echo [1/6] Dung tat ca Node.js, tsx, ngrok...
+echo [1/6] Dung npm run dev + tat ca Node.js, tsx, ngrok...
+taskkill /F /FI "WINDOWTITLE eq Next.js Dev Server*" 2>nul
+taskkill /F /FI "WINDOWTITLE eq Worksheet Worker*" 2>nul
+taskkill /F /FI "WINDOWTITLE eq ngrok*" 2>nul
 taskkill /F /IM node.exe 2>nul
 taskkill /F /IM ngrok.exe 2>nul
 taskkill /F /IM tsx.exe 2>nul
@@ -44,7 +47,7 @@ if exist ".turbo" (
 )
 echo.
 
-echo [5/6] Khoi dong Next.js va Worksheet Worker...
+echo [5/6] Chay lai npm run dev + Worksheet Worker...
 start "Next.js Dev Server" cmd /k "cd /d "%~dp0" && set NODE_OPTIONS=--max-old-space-size=4096 && npm run dev"
 echo       Next.js dang khoi dong...
 timeout /t 3 /nobreak >nul

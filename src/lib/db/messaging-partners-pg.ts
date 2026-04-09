@@ -1,9 +1,32 @@
 import type { Database } from '@/types/database.types'
 import { isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
-import { isValidUuidString } from '@/lib/validate-uuid'
-
 export type MessagingPartnerRow = Database['public']['Tables']['messaging_partners']['Row']
+
+/** Tránh đưa "" vào Postgres `::uuid` / `uuid[]` (lỗi 22P02). */
+const UUID_SQL =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+function filterUuidStrings(ids: string[]): string[] {
+  const out: string[] = []
+  for (const raw of ids) {
+    const s = typeof raw === 'string' ? raw.trim() : ''
+    if (s && UUID_SQL.test(s)) out.push(s)
+  }
+  return [...new Set(out)]
+}
+
+function safeOwnerUuid(ownerUserId: unknown): string | null {
+  const s = typeof ownerUserId === 'string' ? ownerUserId.trim() : String(ownerUserId ?? '').trim()
+  if (!s || !UUID_SQL.test(s)) return null
+  return s
+}
+
+function safeUuid(id: unknown): string | null {
+  const s = typeof id === 'string' ? id.trim() : String(id ?? '').trim()
+  if (!s || !UUID_SQL.test(s)) return null
+  return s
+}
 
 function mapTimestamptz(v: unknown): string {
   if (v instanceof Date) return v.toISOString()
@@ -30,7 +53,7 @@ export async function fetchMessagingPartnerBySlugFromPg(slug: string): Promise<M
       is_active: boolean | null
       embed_key: string | null
     }>(
-      `select id::text, display_name, is_active, coalesce(embed_key, '') as embed_key
+      `select id::text, display_name, is_active, coalesce(embed_key::text, '') as embed_key
        from public.messaging_partners where slug = $1 limit 1`,
       [slug]
     )
@@ -57,10 +80,15 @@ export type MessagingPartnerByIdRow = {
  */
 export async function fetchMessagingPartnerByIdFromPg(partnerId: string): Promise<MessagingPartnerByIdRow | null> {
   if (!isPgConfigured()) return null
+  const pid = safeUuid(partnerId)
+  if (!pid) {
+    console.warn('[fetchMessagingPartnerByIdFromPg] skip: invalid partner_id')
+    return null
+  }
   try {
     const row = await pgQueryOne<{ id: string; is_active: boolean | null }>(
       `select id::text, is_active from public.messaging_partners where id = $1::uuid limit 1`,
-      [partnerId]
+      [pid]
     )
     if (!row) return null
     return { id: row.id, is_active: row.is_active !== false }
@@ -81,7 +109,9 @@ export type MessagingPartnerByIdsRow = {
  * Nhiều partner theo id (Postgres). `null` = không cấu hình pool hoặc lỗi truy vấn — caller nên caller xử lý khi không có PG.
  */
 export async function fetchMessagingPartnersByIdsFromPg(partnerIds: string[]): Promise<MessagingPartnerByIdsRow[] | null> {
-  if (!isPgConfigured() || partnerIds.length === 0) return null
+  if (!isPgConfigured()) return null
+  const cleanIds = filterUuidStrings(partnerIds)
+  if (cleanIds.length === 0) return null
   try {
     const rows = await pgQuery<{
       id: string
@@ -92,7 +122,7 @@ export async function fetchMessagingPartnersByIdsFromPg(partnerIds: string[]): P
       `select id::text, display_name, slug, is_active
        from public.messaging_partners
        where id = any($1::uuid[])`,
-      [partnerIds]
+      [cleanIds]
     )
     return rows.map((r) => ({
       id: r.id,
@@ -111,9 +141,10 @@ export async function fetchMessagingPartnersByIdsFromPg(partnerIds: string[]): P
  */
 export async function fetchMessagingPartnersByOwnerFromPg(ownerUserId: string): Promise<MessagingPartnerRow[] | null> {
   if (!isPgConfigured()) return null
-  if (!isValidUuidString(ownerUserId)) {
-    console.warn('[fetchMessagingPartnersByOwnerFromPg] skip: invalid owner_user_id')
-    return null
+  const uidRaw = typeof ownerUserId === 'string' ? ownerUserId.trim() : String(ownerUserId ?? '').trim()
+  // Nếu DB từng có owner_user_id rỗng/text bẩn, so sánh text-safe để tránh 22P02.
+  if (!uidRaw || !UUID_SQL.test(uidRaw)) {
+    console.warn('[fetchMessagingPartnersByOwnerFromPg] skip: invalid or empty owner_user_id')
   }
   try {
     const rows = await pgQuery<{
@@ -127,13 +158,13 @@ export async function fetchMessagingPartnersByOwnerFromPg(ownerUserId: string): 
       updated_at: unknown
     }>(
       `select id::text, slug, display_name, owner_user_id::text,
-              coalesce(embed_key, '') as embed_key,
+              coalesce(embed_key::text, '') as embed_key,
               coalesce(is_active, true) as is_active,
               created_at, updated_at
        from public.messaging_partners
-       where owner_user_id = $1::uuid
+       where nullif(owner_user_id::text, '') = $1
        order by created_at desc`,
-      [ownerUserId]
+      [uidRaw]
     )
     return rows.map((r) => ({
       id: r.id,
@@ -159,13 +190,19 @@ export async function fetchMessagingPartnerEmbedKeyForOwnerFromPg(
   ownerUserId: string
 ): Promise<string | null> {
   if (!isPgConfigured()) return null
+  const pid = safeUuid(partnerId)
+  const uid = safeOwnerUuid(ownerUserId)
+  if (!pid || !uid) {
+    console.warn('[fetchMessagingPartnerEmbedKeyForOwnerFromPg] skip: invalid partner_id or owner_user_id')
+    return null
+  }
   try {
     const row = await pgQueryOne<{ embed_key: string | null }>(
-      `select coalesce(embed_key, '') as embed_key
+      `select coalesce(embed_key::text, '') as embed_key
        from public.messaging_partners
        where id = $1::uuid and owner_user_id = $2::uuid
        limit 1`,
-      [partnerId, ownerUserId]
+      [pid, uid]
     )
     if (!row) return null
     return String(row.embed_key ?? '')
@@ -184,7 +221,7 @@ export async function insertMessagingPartnerForOwnerFromPg(params: {
   owner_user_id: string
 }): Promise<MessagingPartnerRow | null> {
   if (!isPgConfigured()) return null
-  if (!isValidUuidString(params.owner_user_id)) {
+  if (!safeOwnerUuid(params.owner_user_id)) {
     console.warn('[insertMessagingPartnerForOwnerFromPg] skip: invalid owner_user_id')
     return null
   }
@@ -203,7 +240,7 @@ export async function insertMessagingPartnerForOwnerFromPg(params: {
        values ($1, $2, $3::uuid)
        returning id::text, slug, display_name, owner_user_id::text, embed_key::text as embed_key,
                  coalesce(is_active, true) as is_active, created_at, updated_at`,
-      [params.slug, params.display_name, params.owner_user_id]
+      [params.slug, params.display_name, safeOwnerUuid(params.owner_user_id)!]
     )
     if (!row) return null
     return {

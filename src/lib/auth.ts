@@ -61,7 +61,10 @@ function getDevUser(): AppUser {
  */
 export async function getUserOrBypass(): Promise<AppUser | null> {
   const emailUser = await getEmailSessionUser()
-  if (emailUser) return emailUser
+  if (emailUser) {
+    if (!isValidUuidString(emailUser.id)) return null
+    return emailUser
+  }
   if (!isAuthRequired()) return getDevUser()
   if (isSearchEngineCrawler()) return getDevUser()
   return null
@@ -76,7 +79,10 @@ export async function getUserForAction(
   errorMessage = 'Vui lòng đăng nhập.'
 ): Promise<{ user: AppUser } | { error: string }> {
   const emailUser = await getEmailSessionUser()
-  if (emailUser) return { user: emailUser }
+  if (emailUser) {
+    if (!isValidUuidString(emailUser.id)) return { error: errorMessage }
+    return { user: emailUser }
+  }
   if (!isAuthRequired()) return { user: getDevUser() }
   return { error: errorMessage }
 }
