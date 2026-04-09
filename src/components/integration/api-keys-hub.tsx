@@ -6,9 +6,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import {
   API_KEYS_HUB_COPY,
   isApiHubBaseUrlPlaceholder,
-  pickApiKeysHubLocale,
   type ApiKeysHubLocale,
 } from '@/lib/integration/api-keys-hub-copy'
+import { pickApiKeysHubLocale } from '@/lib/integration/api-keys-hub-locale-server'
 import { PartnerApiIntegrationWorkspace } from '@/components/integration/partner-api-integration-workspace'
 
 export type ApiKeysHubVariant = 'partner' | 'operator'

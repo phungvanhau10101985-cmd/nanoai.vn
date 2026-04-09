@@ -1,5 +1,3 @@
-import { getCurrentWebLocale } from '@/lib/i18n/server'
-
 export type ApiKeysHubLocale = 'vi' | 'en' | 'zh' | 'ja' | 'ko'
 
 export type ApiKeysHubStrings = {
@@ -304,12 +302,6 @@ export const API_KEYS_HUB_COPY: Record<ApiKeysHubLocale, ApiKeysHubStrings> = {
     partnerBaseUrlFallbackWarning:
       '이 환경에 NEXT_PUBLIC_APP_URL(또는 NEXT_PUBLIC_BASE_URL)이 없어 예시 URL이 플레이스홀더입니다. 운영에서는 설정해 실제 NanoAI 도메인을 표시하세요.',
   },
-}
-
-export function pickApiKeysHubLocale(): ApiKeysHubLocale {
-  const l = getCurrentWebLocale()
-  if (l === 'en' || l === 'zh' || l === 'ja' || l === 'ko') return l
-  return 'vi'
 }
 
 export function resolveApiKeysHubBaseUrl(): string {
