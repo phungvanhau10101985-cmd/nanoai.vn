@@ -35,7 +35,8 @@
     "pg:setup-pgvector-pg17": "node scripts/pg-setup-pgvector-pg17.mjs",
     "pg:fresh-restore-public": "node scripts/pg-fresh-restore-public.mjs",
     "pg:smoke": "npx tsx scripts/pg-smoke-local.ts",
-    "pg:check-credits": "npx tsx scripts/pg-check-credits.ts"
+    "pg:check-credits": "npx tsx scripts/pg-check-credits.ts",
+    "pg:truncate-all": "node scripts/pg-truncate-all-data.mjs"
   },
   "overrides": {
     "react": "^18.3.1",
