@@ -13,7 +13,11 @@ Chi tiết: `db/README.md`.
 
 ## Schema đăng nhập
 
-Email OTP/magic tạo user trong **`auth.users`**; trigger tạo **`public.profiles`**. Cần bảng **`auth.instances`** (ít nhất một dòng) — xem `scripts/pg-ensure-auth-compat.mjs` nếu thiếu.
+Email OTP/magic tạo user trong **`auth.users`**; trigger tạo **`public.profiles`**. Cần **`auth.instances` có ít nhất một dòng** — nếu báo *Thiếu cấu hình auth (auth.instances)* / `auth.instances_empty`:
+
+1. Chạy: **`npm run pg:ensure-auth-compat`** (hoặc `node scripts/pg-ensure-auth-compat.mjs`) với `DATABASE_URL` đúng DB.
+2. Hoặc áp migration **`db/migrations/20260409170000_auth_instances_seed_self_hosted.sql`** (`npm run db:push`).
+3. Thủ công (psql): `insert into auth.instances (id) values (gen_random_uuid());` — nếu bảng đã có đủ cột / quyền.
 
 ## Quản trị
 
