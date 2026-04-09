@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { Copy } from 'lucide-react'
 import { useMemo, useState, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
@@ -17,7 +18,6 @@ type Props = {
   labels: {
     selectShop: string
     partnerId: string
-    slug: string
   }
 }
 
@@ -89,8 +89,8 @@ export function PartnerDevIntegrationGuide({ baseUrl, t, partners, labels }: Pro
     [partners, selectedPartnerId]
   )
 
-  const slug = selectedPartner?.slug ?? '{slug}'
-  const partnerId = selectedPartner?.id ?? '{partnerId}'
+  const slug = selectedPartner?.slug ?? ''
+  const partnerId = selectedPartner?.id ?? ''
   const guestBase = `${baseUrl}/api/messaging/guest/${slug}`
   const safeBottomPx = Math.max(0, Math.min(EMBED_BOTTOM_OFFSET_MAX_PX, Math.floor(embedBottomPx) || 24))
   const safeHorizontalPx = Math.max(0, Math.min(300, Math.floor(embedHorizontalPx) || 16))
@@ -342,36 +342,54 @@ Cookie: <auth_session_cookie>
     </div>
   )
 
+  if (!partners.length) {
+    return (
+      <Card className="border-primary/15">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">{t.noWorkspaceTitle}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4 text-sm">
+          <p className="leading-relaxed text-muted-foreground">{t.noWorkspaceBody}</p>
+          <Button size="sm" asChild>
+            <Link href="/dashboard/messaging/settings">{t.noWorkspaceCta}</Link>
+          </Button>
+          <p className="text-xs leading-relaxed text-muted-foreground">{t.snippetNote}</p>
+        </CardContent>
+      </Card>
+    )
+  }
+
   return (
     <Card className="border-primary/15">
       <CardHeader className="pb-2">
         <CardTitle className="text-base">{t.title}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-6 text-sm">
-        {partners.length > 0 ? (
-          <div className="space-y-2 rounded-lg border border-border/70 bg-muted/20 p-3">
-            <label className="text-xs font-medium text-foreground">{labels.selectShop}</label>
-            <select
-              className="h-9 w-full max-w-md rounded-md border border-border bg-background px-2 text-sm"
-              value={selectedPartner?.id ?? ''}
-              onChange={(e) => setSelectedPartnerId(e.target.value)}
-            >
-              {partners.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.display_name?.trim() || p.id.slice(0, 8)}
-                </option>
-              ))}
-            </select>
-            <div className="space-y-1 text-[11px] text-muted-foreground">
-              <p className="font-mono break-all">
-                {labels.partnerId}: {partnerId}
-              </p>
-              <p className="font-mono break-all">
-                {labels.slug}: {slug}
-              </p>
-            </div>
+        <div className="space-y-2 rounded-lg border border-border/70 bg-muted/20 p-3">
+          <label className="text-xs font-medium text-foreground">{labels.selectShop}</label>
+          <select
+            className="h-9 w-full max-w-md rounded-md border border-border bg-background px-2 text-sm"
+            value={selectedPartner?.id ?? ''}
+            onChange={(e) => setSelectedPartnerId(e.target.value)}
+          >
+            {partners.map((p) => (
+              <option key={p.id} value={p.id}>
+                {(p.display_name?.trim() || p.slug) + ' — slug: ' + p.slug}
+              </option>
+            ))}
+          </select>
+          <div className="space-y-1 text-[11px] text-muted-foreground">
+            <p className="font-mono break-all">
+              {labels.partnerId}: {partnerId}
+            </p>
+            <p className="font-mono break-all">
+              {t.shopIdentifierLabel}: {slug}
+            </p>
           </div>
-        ) : null}
+          <p className="rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-[11px] leading-relaxed text-foreground">
+            {t.hostedAutoFilledNote}
+          </p>
+        </div>
         <p className="text-xs leading-relaxed text-muted-foreground">{t.snippetNote}</p>
         {section(
           t.hostedTitle,

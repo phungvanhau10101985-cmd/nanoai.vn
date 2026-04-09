@@ -45,6 +45,13 @@ export type PartnerDevIntegrationStrings = {
   copyHostedScriptError: string
   checklistTitle: string
   checklistBody: string
+  /** Nhãn hiển thị cho mã slug (không phải placeholder {slug}) */
+  shopIdentifierLabel: string
+  /** Gợi ý: chọn shop → link & script đã điền sẵn */
+  hostedAutoFilledNote: string
+  noWorkspaceTitle: string
+  noWorkspaceBody: string
+  noWorkspaceCta: string
 }
 
 export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIntegrationStrings> = {
@@ -106,6 +113,13 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
     checklistTitle: 'Checklist trước khi production',
     checklistBody:
       '• Không đặt X-Embed-Key hay Bearer trong bundle JS công khai.\n• Nếu dùng D: đã tạo/bật khóa Bearer tại Bảng điều khiển → Tích hợp API; đã bật gợi ý theo ảnh và đồng bộ catalog Vision tại Messaging → Cài đặt → AI.\n• Nếu dùng F: cùng khóa Bearer; gọi từ server shop; xử lý mã lỗi `code` trong JSON.\n• Đã test CORS từ domain thật của shop (nhánh B).\n• Xử lý 401 / 403 / 429 / 503 và thông báo cho người dùng.',
+    shopIdentifierLabel: 'Mã định danh chat (slug)',
+    hostedAutoFilledNote:
+      'Chọn đúng shop ở danh sách phía trên: đường link công khai và toàn bộ mã nhúng bên dưới đã được điền sẵn cho shop đó — bạn chỉ cần «Sao chép mã nhúng script» và dán vào website; không phải thay {slug} hay sửa URL tay.',
+    noWorkspaceTitle: 'Chưa có shop nhắn tin',
+    noWorkspaceBody:
+      'Bạn cần tạo ít nhất một workspace (cửa hàng) trong Messaging. Sau khi tạo xong, quay lại trang này: chọn shop trong danh sách và sao chép mã — hệ thống tự gắn đúng mã định danh, không cần chỉnh sửa.',
+    noWorkspaceCta: 'Tạo shop — Cài đặt Messaging',
   },
   en: {
     title: 'Developer implementation guide',
@@ -165,6 +179,13 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
     checklistTitle: 'Pre-production checklist',
     checklistBody:
       '• Do not ship X-Embed-Key or Bearer keys in public frontend bundles.\n• For D: create/enable the Bearer key on Dashboard → API integration; enable Vision image suggestions and sync the catalog under Messaging → Settings → AI.\n• For F: same Bearer key; call from the shop server; handle JSON `code` on errors.\n• Test CORS from your real shop domain (track B).\n• Handle 401 / 403 / 429 / 503 with clear user messaging.',
+    shopIdentifierLabel: 'Chat shop ID (slug)',
+    hostedAutoFilledNote:
+      'Pick your shop above: the public URL and embed script below are pre-filled for that workspace — use «Copy embed script» and paste on your site. No manual {slug} replacement.',
+    noWorkspaceTitle: 'No messaging workspace yet',
+    noWorkspaceBody:
+      'Create a workspace under Messaging settings first. Then return here, select your shop, and copy the ready-made embed code — the correct slug is filled in automatically.',
+    noWorkspaceCta: 'Create workspace — Messaging settings',
   },
   zh: {
     title: '开发者实施指南',
@@ -221,6 +242,13 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
     checklistTitle: '上线前检查',
     checklistBody:
       '• 勿将 X-Embed-Key 或 Bearer 打入公开前端包。\n• 使用 D 时：已在 API 集成说明页创建/启用 Bearer；已在 Messaging → 设置 → AI 开启 Vision 以图提示并同步目录。\n• 使用 F 时：同一 Bearer；从店铺服务端调用；处理 JSON 中的 `code`。\n• 在真实店铺域名下测试 CORS（路径 B）。\n• 处理 401 / 403 / 429 / 503 并向用户提示。',
+    shopIdentifierLabel: '聊天店铺标识 (slug)',
+    hostedAutoFilledNote:
+      '在上方选择店铺后：下方公开链接与嵌入脚本已自动填入该店铺，直接「复制嵌入脚本」粘贴到网站即可，无需手动替换 slug。',
+    noWorkspaceTitle: '还没有消息店铺',
+    noWorkspaceBody:
+      '请先在 Messaging 中创建工作区。完成后回到本页，在列表中选择店铺并复制代码 — 系统会自动填入正确的标识。',
+    noWorkspaceCta: '创建工作区 — Messaging 设置',
   },
   ja: {
     title: '開発者向け実装ガイド',
@@ -277,6 +305,13 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
     checklistTitle: '本番前チェックリスト',
     checklistBody:
       '• X-Embed-Key / Bearer を公開 JS に含めない。\n• D 利用時: API 連携ガイドで Bearer を作成・有効化し、Messaging → 設定 → AI で Vision 画像提案とカタログ同期を有効化。\n• F 利用時: 同じ Bearer、店舗サーバーから呼び出し、エラー時は JSON の `code` を処理。\n• 実ドメインで CORS をテスト（B）。\n• 401 / 403 / 429 / 503 をユーザー向けに処理。',
+    shopIdentifierLabel: 'チャット店舗 ID（slug）',
+    hostedAutoFilledNote:
+      '上で店舗を選ぶと、下の公開 URL と埋め込みスクリプトがその店舗用に自動入力されます。「埋め込みスクリプトをコピー」してサイトに貼るだけで、slug の手入力は不要です。',
+    noWorkspaceTitle: 'メッセージ店舗がまだありません',
+    noWorkspaceBody:
+      '先に Messaging でワークスペースを作成してください。作成後にこのページに戻り、リストから店舗を選んでコードをコピーします — 正しい slug が自動で入ります。',
+    noWorkspaceCta: 'ワークスペースを作成 — Messaging 設定',
   },
   ko: {
     title: '개발자 구현 가이드',
@@ -333,5 +368,12 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
     checklistTitle: '프로덕션 체크리스트',
     checklistBody:
       '• X-Embed-Key / Bearer를 공개 프론트 번들에 넣지 않기.\n• D 사용 시: API 연동 안내에서 Bearer 생성·활성화, Messaging → 설정 → AI에서 Vision 이미지 제안·카탈로그 동기화 활성화.\n• F 사용 시: 동일 Bearer, 매장 서버에서 호출, 오류 시 JSON `code` 처리.\n• 실제 매장 도메인에서 CORS 테스트(B).\n• 401 / 403 / 429 / 503 사용자 메시지 처리.',
+    shopIdentifierLabel: '채팅 매장 ID(slug)',
+    hostedAutoFilledNote:
+      '위에서 매장을 선택하면 아래 공개 URL과 임베드 스크립트가 해당 매장으로 채워집니다. «임베드 스크립트 복사» 후 사이트에 붙여 넣으면 되며 slug를 수동으로 바꿀 필요가 없습니다.',
+    noWorkspaceTitle: '메시징 워크스페이스가 없습니다',
+    noWorkspaceBody:
+      '먼저 Messaging에서 워크스페이스를 만든 뒤 이 페이지로 돌아와 목록에서 매장을 선택하고 코드를 복사하세요 — 올바른 slug가 자동으로 들어갑니다.',
+    noWorkspaceCta: '워크스페이스 만들기 — Messaging 설정',
   },
 }

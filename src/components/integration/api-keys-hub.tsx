@@ -102,7 +102,6 @@ export function ApiKeysHub({ variant, baseUrl, locale: localeProp, partnerWorksp
           labels={{
             selectShop: PARTNER_API_KEYS_MANAGER_COPY[locale].selectShop,
             partnerId: PARTNER_API_KEYS_MANAGER_COPY[locale].partnerIdLabel,
-            slug: 'slug',
           }}
         />
       ) : (
