@@ -338,7 +338,15 @@ export function PartnerMessagingSettingsClient({
             </CardHeader>
             <CardContent className="flex flex-wrap gap-2">
               <Button type="button" variant="default" size="sm" asChild>
-                <Link href="/dashboard/api-integration#partner-api-keys">{t.apiIntegrationGuideLink}</Link>
+                <Link
+                  href={
+                    selectedPartnerId
+                      ? `/dashboard/api-integration?partner=${selectedPartnerId}#partner-api-keys`
+                      : '/dashboard/api-integration#partner-api-keys'
+                  }
+                >
+                  {t.apiIntegrationGuideLink}
+                </Link>
               </Button>
               <p className="w-full text-[11px] text-muted-foreground">{t.apiIntegrationGuideShort}</p>
             </CardContent>

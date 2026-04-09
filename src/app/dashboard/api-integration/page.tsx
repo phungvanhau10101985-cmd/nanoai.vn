@@ -21,7 +21,11 @@ export function generateMetadata(): Metadata {
   })
 }
 
-export default async function DashboardApiIntegrationPage() {
+export default async function DashboardApiIntegrationPage({
+  searchParams,
+}: {
+  searchParams?: Record<string, string | string[] | undefined>
+}) {
   const user = await getUserOrBypass()
   if (!user) redirectToLogin()
 
@@ -33,6 +37,12 @@ export default async function DashboardApiIntegrationPage() {
     }
   }
 
+  const rawPartner = searchParams?.partner
+  const partnerParam = Array.isArray(rawPartner) ? rawPartner[0] : rawPartner
+  const partnerQuery = typeof partnerParam === 'string' ? partnerParam.trim() : ''
+  const initialSelectedPartnerId =
+    partnerQuery && partnerRows.some((p) => p.id === partnerQuery) ? partnerQuery : null
+
   const h = headers()
   const host = (h.get('x-forwarded-host') ?? h.get('host') ?? '').split(',')[0]?.trim()
   const protoFromProxy = (h.get('x-forwarded-proto') ?? '').split(',')[0]?.trim()
@@ -42,7 +52,12 @@ export default async function DashboardApiIntegrationPage() {
 
   return (
     <div className="app-shell container max-w-5xl py-6">
-      <ApiKeysHub variant="partner" baseUrl={baseUrl} partnerWorkspaces={partnerRows ?? []} />
+      <ApiKeysHub
+        variant="partner"
+        baseUrl={baseUrl}
+        partnerWorkspaces={partnerRows ?? []}
+        initialSelectedPartnerId={initialSelectedPartnerId}
+      />
     </div>
   )
 }

@@ -15,10 +15,8 @@ type Props = {
   baseUrl: string
   t: PartnerDevIntegrationStrings
   partners: Array<{ id: string; display_name: string | null; slug: string }>
-  labels: {
-    selectShop: string
-    partnerId: string
-  }
+  /** Đồng bộ với ô chọn shop ở mục khóa API phía trên */
+  selectedPartnerId?: string
 }
 
 function CodeBlock({
@@ -76,8 +74,13 @@ function CodeBlock({
   )
 }
 
-export function PartnerDevIntegrationGuide({ baseUrl, t, partners, labels }: Props) {
-  const [selectedPartnerId, setSelectedPartnerId] = useState(partners[0]?.id ?? '')
+export function PartnerDevIntegrationGuide({ baseUrl, t, partners, selectedPartnerId }: Props) {
+  const effectivePid = useMemo(() => {
+    if (!partners.length) return ''
+    if (selectedPartnerId && partners.some((p) => p.id === selectedPartnerId)) return selectedPartnerId
+    return partners[0]?.id ?? ''
+  }, [partners, selectedPartnerId])
+
   const [embedSide, setEmbedSide] = useState<'left' | 'right'>('right')
   const [embedBottomPx, setEmbedBottomPx] = useState(24)
   const [embedHorizontalPx, setEmbedHorizontalPx] = useState(16)
@@ -85,8 +88,8 @@ export function PartnerDevIntegrationGuide({ baseUrl, t, partners, labels }: Pro
   const [embedDesktopHeightPx, setEmbedDesktopHeightPx] = useState(560)
   const [embedRadiusPx, setEmbedRadiusPx] = useState(12)
   const selectedPartner = useMemo(
-    () => partners.find((p) => p.id === selectedPartnerId) ?? partners[0] ?? null,
-    [partners, selectedPartnerId]
+    () => partners.find((p) => p.id === effectivePid) ?? partners[0] ?? null,
+    [partners, effectivePid]
   )
 
   const slug = selectedPartner?.slug ?? ''
@@ -365,31 +368,9 @@ Cookie: <auth_session_cookie>
         <CardTitle className="text-base">{t.title}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-6 text-sm">
-        <div className="space-y-2 rounded-lg border border-border/70 bg-muted/20 p-3">
-          <label className="text-xs font-medium text-foreground">{labels.selectShop}</label>
-          <select
-            className="h-9 w-full max-w-md rounded-md border border-border bg-background px-2 text-sm"
-            value={selectedPartner?.id ?? ''}
-            onChange={(e) => setSelectedPartnerId(e.target.value)}
-          >
-            {partners.map((p) => (
-              <option key={p.id} value={p.id}>
-                {(p.display_name?.trim() || p.slug) + ' — slug: ' + p.slug}
-              </option>
-            ))}
-          </select>
-          <div className="space-y-1 text-[11px] text-muted-foreground">
-            <p className="font-mono break-all">
-              {labels.partnerId}: {partnerId}
-            </p>
-            <p className="font-mono break-all">
-              {t.shopIdentifierLabel}: {slug}
-            </p>
-          </div>
-          <p className="rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-[11px] leading-relaxed text-foreground">
-            {t.hostedAutoFilledNote}
-          </p>
-        </div>
+        <p className="rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-[11px] leading-relaxed text-foreground">
+          {t.hostedAutoFilledNote}
+        </p>
         <p className="text-xs leading-relaxed text-muted-foreground">{t.snippetNote}</p>
         {section(
           t.hostedTitle,

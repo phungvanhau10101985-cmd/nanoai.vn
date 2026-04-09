@@ -45,16 +45,23 @@ type BundleOk = {
 export type PartnerApiKeysManagerPartner = {
   id: string
   display_name: string | null
+  slug?: string
 }
 
 type Props = {
   partners: PartnerApiKeysManagerPartner[]
   t: PartnerApiKeysManagerStrings
+  /** Đồng bộ với hướng dẫn nhúng — truyền cả hai khi có shop */
+  partnerId?: string
+  onPartnerIdChange?: (id: string) => void
 }
 
-export function PartnerApiKeysManager({ partners, t }: Props) {
+export function PartnerApiKeysManager({ partners, t, partnerId: partnerIdProp, onPartnerIdChange }: Props) {
   const { toast } = useToast()
-  const [partnerId, setPartnerId] = useState(partners[0]?.id ?? '')
+  const [internalPartnerId, setInternalPartnerId] = useState(partners[0]?.id ?? '')
+  const isControlled = typeof onPartnerIdChange === 'function'
+  const partnerId = isControlled ? (partnerIdProp ?? '') : internalPartnerId
+  const setPartnerId = isControlled ? onPartnerIdChange! : setInternalPartnerId
   const [bundle, setBundle] = useState<BundleOk | null>(null)
   const [imageVisible, setImageVisible] = useState(false)
   const [imageSecret, setImageSecret] = useState<string | null>(null)
@@ -253,7 +260,8 @@ export function PartnerApiKeysManager({ partners, t }: Props) {
               <SelectContent>
                 {partners.map((p) => (
                   <SelectItem key={p.id} value={p.id}>
-                    {p.display_name?.trim() || p.id.slice(0, 8)}
+                    {(p.display_name?.trim() || p.slug || p.id.slice(0, 8)) +
+                      (p.slug ? ` — slug: ${p.slug}` : '')}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -261,6 +269,12 @@ export function PartnerApiKeysManager({ partners, t }: Props) {
             <p className="text-[11px] text-muted-foreground font-mono break-all">
               {t.partnerIdLabel}: {partnerId}
             </p>
+            {(() => {
+              const slug = partners.find((p) => p.id === partnerId)?.slug?.trim()
+              return slug ? (
+                <p className="text-[11px] text-muted-foreground font-mono break-all">slug: {slug}</p>
+              ) : null
+            })()}
           </div>
 
           <div className="space-y-3 rounded-lg border border-violet-300/40 bg-violet-50/15 p-3 dark:border-violet-900/40 dark:bg-violet-950/20">

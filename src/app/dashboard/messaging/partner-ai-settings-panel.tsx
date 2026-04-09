@@ -1176,7 +1176,7 @@ function InventoryEditor({
       <p className="text-[11px] leading-relaxed text-muted-foreground">
         {t.inventoryOpenApiHint}{' '}
         <Link
-          href="/dashboard/api-integration"
+          href={`/dashboard/api-integration?partner=${encodeURIComponent(partnerId)}#partner-api-keys`}
           className="text-violet-600 underline underline-offset-2 dark:text-violet-400"
         >
           {t.inventoryOpenApiLink}

@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, KeyRound } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -8,10 +9,7 @@ import {
   pickApiKeysHubLocale,
   type ApiKeysHubLocale,
 } from '@/lib/integration/api-keys-hub-copy'
-import { PARTNER_DEV_INTEGRATION_COPY } from '@/lib/integration/partner-dev-integration-copy'
-import { PartnerDevIntegrationGuide } from '@/components/integration/partner-dev-integration-guide'
-import { PartnerApiKeysManager } from '@/components/integration/partner-api-keys-manager'
-import { PARTNER_API_KEYS_MANAGER_COPY } from '@/lib/integration/api-keys-hub-copy'
+import { PartnerApiIntegrationWorkspace } from '@/components/integration/partner-api-integration-workspace'
 
 export type ApiKeysHubVariant = 'partner' | 'operator'
 
@@ -22,9 +20,17 @@ type Props = {
   locale?: ApiKeysHubLocale
   /** Workspaces của user — để quản lý khóa trên trang đối tác */
   partnerWorkspaces?: { id: string; display_name: string | null; slug: string }[]
+  /** `?partner=` từ URL — đã khớp owner trên server */
+  initialSelectedPartnerId?: string | null
 }
 
-export function ApiKeysHub({ variant, baseUrl, locale: localeProp, partnerWorkspaces }: Props) {
+export function ApiKeysHub({
+  variant,
+  baseUrl,
+  locale: localeProp,
+  partnerWorkspaces,
+  initialSelectedPartnerId = null,
+}: Props) {
   const locale = localeProp ?? pickApiKeysHubLocale()
   const t = API_KEYS_HUB_COPY[locale]
   const isPartner = variant === 'partner'
@@ -84,27 +90,36 @@ export function ApiKeysHub({ variant, baseUrl, locale: localeProp, partnerWorksp
       </div>
 
       {isPartner ? (
-        <PartnerApiKeysManager partners={partnerWorkspaces ?? []} t={PARTNER_API_KEYS_MANAGER_COPY[locale]} />
+        <Suspense
+          fallback={<div className="h-40 animate-pulse rounded-xl border border-border/60 bg-muted/30" aria-hidden />}
+        >
+          <PartnerApiIntegrationWorkspace
+            partners={partnerWorkspaces ?? []}
+            initialSelectedPartnerId={initialSelectedPartnerId}
+            baseUrl={baseUrl}
+            locale={locale}
+            betweenKeysAndGuide={
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base">{t.ruleTitle}</CardTitle>
+                  <CardDescription className="text-sm leading-relaxed">{ruleBody}</CardDescription>
+                </CardHeader>
+              </Card>
+            }
+          />
+        </Suspense>
       ) : null}
 
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">{t.ruleTitle}</CardTitle>
-          <CardDescription className="text-sm leading-relaxed">{ruleBody}</CardDescription>
-        </CardHeader>
-      </Card>
+      {!isPartner ? (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">{t.ruleTitle}</CardTitle>
+            <CardDescription className="text-sm leading-relaxed">{ruleBody}</CardDescription>
+          </CardHeader>
+        </Card>
+      ) : null}
 
-      {isPartner ? (
-        <PartnerDevIntegrationGuide
-          baseUrl={baseUrl}
-          t={PARTNER_DEV_INTEGRATION_COPY[locale]}
-          partners={partnerWorkspaces ?? []}
-          labels={{
-            selectShop: PARTNER_API_KEYS_MANAGER_COPY[locale].selectShop,
-            partnerId: PARTNER_API_KEYS_MANAGER_COPY[locale].partnerIdLabel,
-          }}
-        />
-      ) : (
+      {!isPartner ? (
         <>
           <Card>
             <CardHeader className="pb-2">
@@ -142,7 +157,7 @@ export function ApiKeysHub({ variant, baseUrl, locale: localeProp, partnerWorksp
             </CardContent>
           </Card>
         </>
-      )}
+      ) : null}
 
       {isPartner ? (
         <Card>
