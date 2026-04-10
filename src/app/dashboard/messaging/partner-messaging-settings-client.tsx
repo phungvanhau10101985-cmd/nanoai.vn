@@ -15,12 +15,15 @@ import {
   createMessagingWorkspace,
   getPartnerChannelStatus,
   listMyMessagingPartners,
+  removeMyMessagingWorkspace,
   savePartnerFacebookChannel,
   savePartnerZaloChannel,
 } from '@/app/dashboard/messaging/actions'
 import { PartnerAiSettingsPanel } from '@/app/dashboard/messaging/partner-ai-settings-panel'
-import { ArrowLeft, RefreshCw } from 'lucide-react'
+import { ArrowLeft, RefreshCw, Trash2 } from 'lucide-react'
 import type { WebLocale } from '@/lib/i18n/config'
+
+const DELETE_WORKSPACE_CONFIRM_TOKEN = 'XOA'
 
 type ChannelSnap = {
   facebookPageId: string | null
@@ -69,12 +72,17 @@ export function PartnerMessagingSettingsClient({
   const setSelectedPartnerAndPersist = useCallback(
     (partnerId: string | null) => {
       setSelectedPartnerId(partnerId)
-      if (!partnerId) return
-      const current = searchParams.get('partner')
-      if (current === partnerId) return
       const next = new URLSearchParams(searchParams.toString())
-      next.set('partner', partnerId)
-      router.replace(`${pathname}?${next.toString()}`, { scroll: false })
+      if (!partnerId) {
+        if (!next.has('partner')) return
+        next.delete('partner')
+      } else {
+        const current = searchParams.get('partner')
+        if (current === partnerId) return
+        next.set('partner', partnerId)
+      }
+      const qs = next.toString()
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
     },
     [pathname, router, searchParams]
   )
@@ -143,6 +151,33 @@ export function PartnerMessagingSettingsClient({
         setShowAddWorkspace(false)
         toast({ title: t.saveOk })
       }
+    })
+  }
+
+  const removeWs = () => {
+    if (!selectedPartnerId) return
+    const confirmation = window.prompt(t.deleteWorkspaceConfirm, '')
+    if (confirmation === null) return
+    if (confirmation.trim().toUpperCase() !== DELETE_WORKSPACE_CONFIRM_TOKEN) {
+      toast({ title: `Xac nhan khong dung (${DELETE_WORKSPACE_CONFIRM_TOKEN}).`, variant: 'destructive' })
+      return
+    }
+    const removingId = selectedPartnerId
+    startTransition(async () => {
+      const res = await removeMyMessagingWorkspace(removingId)
+      if ('error' in res && res.error) {
+        toast({ title: res.error, variant: 'destructive' })
+        return
+      }
+      setPartners((prev) => {
+        const next = prev.filter((p) => p.id !== removingId)
+        const fallback = next[0]?.id ?? null
+        setSelectedPartnerAndPersist(fallback)
+        return next
+      })
+      setShowAddWorkspace(false)
+      toast({ title: t.deleteWorkspaceSuccess })
+      router.refresh()
     })
   }
 
@@ -233,9 +268,22 @@ export function PartnerMessagingSettingsClient({
                   ))}
                 </SelectContent>
               </Select>
-              <Button type="button" variant="secondary" size="sm" onClick={() => setShowAddWorkspace((v) => !v)}>
-                {t.addAnotherWorkspace}
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" variant="secondary" size="sm" onClick={() => setShowAddWorkspace((v) => !v)}>
+                  {t.addAnotherWorkspace}
+                </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  onClick={removeWs}
+                  disabled={pending || !selectedPartnerId}
+                  className="gap-1.5"
+                >
+                  <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                  {t.deleteWorkspaceButton}
+                </Button>
+              </div>
             </CardContent>
           </Card>
 

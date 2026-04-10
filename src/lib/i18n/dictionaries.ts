@@ -299,6 +299,9 @@ export type Dictionary = {
     copyZaloChatEmbedButton: string
     addAnotherWorkspace: string
     cancelAddWorkspace: string
+    deleteWorkspaceButton: string
+    deleteWorkspaceConfirm: string
+    deleteWorkspaceSuccess: string
     fbLinkedLine: string
     zaloLinkedLine: string
     credentialsKeepHint: string
@@ -1806,6 +1809,10 @@ const VI_DICTIONARY: Dictionary = {
     copyZaloChatEmbedButton: 'Sao chép mã Zalo chat',
     addAnotherWorkspace: 'Tạo thêm workspace',
     cancelAddWorkspace: 'Hủy',
+    deleteWorkspaceButton: 'Xóa workspace',
+    deleteWorkspaceConfirm:
+      'Canh bao: xoa workspace nay se xoa vinh vien va KHONG THE KHOI PHUC. Hay go "XOA" de xac nhan.',
+    deleteWorkspaceSuccess: 'Đã xóa workspace.',
     fbLinkedLine: 'Facebook Page đã liên kết: {pageId}',
     zaloLinkedLine: 'Zalo OA đã cấu hình webhook & token.',
     credentialsKeepHint:
@@ -3325,6 +3332,10 @@ const EN_DICTIONARY: Dictionary = {
     copyZaloChatEmbedButton: 'Copy Zalo chat code',
     addAnotherWorkspace: 'Add another workspace',
     cancelAddWorkspace: 'Cancel',
+    deleteWorkspaceButton: 'Delete workspace',
+    deleteWorkspaceConfirm:
+      'Warning: deleting this workspace is permanent and cannot be undone. Type "XOA" to confirm.',
+    deleteWorkspaceSuccess: 'Workspace deleted.',
     fbLinkedLine: 'Facebook Page linked: {pageId}',
     zaloLinkedLine: 'Zalo OA webhook & token are saved.',
     credentialsKeepHint: 'Leave token or secret blank to keep the saved values.',

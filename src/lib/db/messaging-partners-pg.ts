@@ -163,6 +163,7 @@ export async function fetchMessagingPartnersByOwnerFromPg(ownerUserId: string): 
               created_at, updated_at
        from public.messaging_partners
        where nullif(owner_user_id::text, '') = $1
+         and coalesce(is_active, true) = true
        order by created_at desc`,
       [uidRaw]
     )
@@ -256,5 +257,34 @@ export async function insertMessagingPartnerForOwnerFromPg(params: {
   } catch (e) {
     console.warn('[insertMessagingPartnerForOwnerFromPg]', e)
     return null
+  }
+}
+
+/**
+ * Xóa mềm workspace: đặt `is_active = false` khi đúng owner. Trả `false` khi không có bản ghi khớp hoặc lỗi.
+ */
+export async function deactivateMessagingPartnerForOwnerFromPg(
+  partnerId: string,
+  ownerUserId: string
+): Promise<boolean> {
+  if (!isPgConfigured()) return false
+  const pid = safeUuid(partnerId)
+  const uid = safeOwnerUuid(ownerUserId)
+  if (!pid || !uid) {
+    console.warn('[deactivateMessagingPartnerForOwnerFromPg] skip: invalid partner_id or owner_user_id')
+    return false
+  }
+  try {
+    const row = await pgQueryOne<{ id: string }>(
+      `update public.messaging_partners
+       set is_active = false, updated_at = now()
+       where id = $1::uuid and owner_user_id = $2::uuid and coalesce(is_active, true) = true
+       returning id::text as id`,
+      [pid, uid]
+    )
+    return Boolean(row?.id)
+  } catch (e) {
+    console.warn('[deactivateMessagingPartnerForOwnerFromPg]', e)
+    return false
   }
 }

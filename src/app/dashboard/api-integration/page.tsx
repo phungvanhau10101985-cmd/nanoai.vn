@@ -2,6 +2,7 @@ import { fetchMessagingPartnersByOwnerFromPg } from '@/lib/db/messaging-partners
 import { isPgConfigured } from '@/lib/db/pool'
 import { redirectToLogin } from '@/lib/auth/login-redirect'
 import { getUserOrBypass } from '@/lib/auth'
+import { isValidUuidString } from '@/lib/validate-uuid'
 import { getServerDictionary } from '@/lib/i18n/server'
 import { buildMetadata } from '@/lib/seo'
 import type { Metadata } from 'next'
@@ -28,6 +29,7 @@ export default async function DashboardApiIntegrationPage({
 }) {
   const user = await getUserOrBypass()
   if (!user) redirectToLogin()
+  if (!isValidUuidString(user.id)) redirectToLogin()
 
   let partnerRows: { id: string; display_name: string; slug: string }[] = []
   if (isPgConfigured()) {

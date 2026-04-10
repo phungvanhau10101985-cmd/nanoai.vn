@@ -2,6 +2,7 @@ import { fetchMessagingPartnersByOwnerFromPg } from '@/lib/db/messaging-partners
 import { isPgConfigured } from '@/lib/db/pool'
 import { redirectToLogin } from '@/lib/auth/login-redirect'
 import { getUserOrBypass } from '@/lib/auth'
+import { isValidUuidString } from '@/lib/validate-uuid'
 import { Toaster } from '@/components/ui/toaster'
 import { getServerDictionary } from '@/lib/i18n/server'
 import { buildMetadata } from '@/lib/seo'
@@ -25,6 +26,7 @@ export default async function DashboardMessagingPage() {
   const pm = t.partnerMessaging
   const user = await getUserOrBypass()
   if (!user) redirectToLogin()
+  if (!isValidUuidString(user.id)) redirectToLogin()
 
   let rows: NonNullable<Awaited<ReturnType<typeof fetchMessagingPartnersByOwnerFromPg>>> = []
   if (isPgConfigured()) {

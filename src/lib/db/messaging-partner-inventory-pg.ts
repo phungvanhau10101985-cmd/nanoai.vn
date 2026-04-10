@@ -43,6 +43,14 @@ function parseEmbeddingJson(v: unknown): number[] | null {
   return out.length ? out : null
 }
 
+function isMissingInventoryTableError(e: unknown): boolean {
+  if (!e || typeof e !== 'object') return false
+  const code = (e as { code?: unknown }).code
+  if (code !== '42P01') return false
+  const msg = String((e as { message?: unknown }).message ?? '')
+  return /messaging_partner_inventory/i.test(msg)
+}
+
 type PgInventoryRaw = {
   id: string
   partner_id: string
@@ -156,6 +164,9 @@ export async function fetchPartnerInventoryActivePageWithCountFromPg(
       rows: rows.map(mapPgInventoryRow),
     }
   } catch (e) {
+    if (isMissingInventoryTableError(e)) {
+      return { rows: [], count: 0 }
+    }
     console.warn('[fetchPartnerInventoryActivePageWithCountFromPg]', e)
     return null
   }
@@ -636,6 +647,9 @@ export async function fetchPartnerInventoryEmbeddingStatsFromPg(
       failed: n(row.failed),
     }
   } catch (e) {
+    if (isMissingInventoryTableError(e)) {
+      return { total: 0, eligible: 0, done: 0, pending: 0, failed: 0 }
+    }
     console.warn('[fetchPartnerInventoryEmbeddingStatsFromPg]', e)
     return null
   }

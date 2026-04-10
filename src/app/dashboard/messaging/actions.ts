@@ -52,6 +52,7 @@ import {
   upsertZaloOaChannelPg,
 } from '@/lib/db/messaging-partner-channels-pg'
 import {
+  deactivateMessagingPartnerForOwnerFromPg,
   fetchMessagingPartnerEmbedKeyForOwnerFromPg,
   fetchMessagingPartnersByOwnerFromPg,
   insertMessagingPartnerForOwnerFromPg,
@@ -214,6 +215,20 @@ export async function listMyMessagingPartners() {
     return { error: 'Failed to load messaging workspaces.' }
   }
   return { rows: fromPg }
+}
+
+export async function removeMyMessagingWorkspace(partnerId: string) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const { user } = auth
+  if (!isValidUuidString(partnerId)) return { error: 'Invalid workspace.' }
+  if (!isPgConfigured()) {
+    return { error: 'DATABASE_URL is not set.' }
+  }
+  const ok = await deactivateMessagingPartnerForOwnerFromPg(partnerId, user.id)
+  if (!ok) return { error: 'Không xóa được workspace.' }
+  revalidateMessagingDashboard()
+  return { ok: true as const }
 }
 
 export async function listPartnerConversations(partnerId: string) {

@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -10,7 +11,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast'
 import type { Database } from '@/types/database.types'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
-import { listPartnerConversations, listPartnerMessages, sendPartnerReply } from '@/app/dashboard/messaging/actions'
+import {
+  listPartnerConversations,
+  listPartnerMessages,
+  removeMyMessagingWorkspace,
+  sendPartnerReply,
+} from '@/app/dashboard/messaging/actions'
 import { CustomerCareMessageBody } from '@/components/messaging/customer-care-message-body'
 import {
   CalendarDays,
@@ -26,9 +32,12 @@ import {
   Send,
   Settings,
   StickyNote,
+  Trash2,
   Users,
   X,
 } from 'lucide-react'
+
+const DELETE_WORKSPACE_CONFIRM_TOKEN = 'XOA'
 
 type ConvRow = Database['public']['Tables']['customer_care_conversations']['Row']
 type MsgRow = Database['public']['Tables']['customer_care_messages']['Row']
@@ -60,8 +69,9 @@ function shortThreadDate(iso: string | null) {
 }
 
 export function PartnerMessagingInboxClient({ initialPartners, t }: { initialPartners: PartnerRow[]; t: T }) {
+  const router = useRouter()
   const { toast } = useToast()
-  const partners = initialPartners
+  const [partners, setPartners] = useState<PartnerRow[]>(initialPartners)
   const [selectedPartnerId, setSelectedPartnerId] = useState<string | null>(initialPartners[0]?.id ?? null)
   const [conversations, setConversations] = useState<ConvRow[]>([])
   const [selectedConvId, setSelectedConvId] = useState<string | null>(null)
@@ -121,6 +131,15 @@ export function PartnerMessagingInboxClient({ initialPartners, t }: { initialPar
     }, 14000)
     return () => window.clearInterval(id)
   }, [selectedPartnerId, selectedConvId])
+
+  useEffect(() => {
+    if (!partners.length) {
+      if (selectedPartnerId !== null) setSelectedPartnerId(null)
+      return
+    }
+    if (selectedPartnerId && partners.some((p) => p.id === selectedPartnerId)) return
+    setSelectedPartnerId(partners[0]?.id ?? null)
+  }, [partners, selectedPartnerId])
 
   const clearAttachment = useCallback(() => {
     setImageStoragePath(null)
@@ -258,6 +277,34 @@ export function PartnerMessagingInboxClient({ initialPartners, t }: { initialPar
     })
   }
 
+  const removeWorkspace = () => {
+    if (!selectedPartnerId) return
+    const confirmation = window.prompt(t.deleteWorkspaceConfirm, '')
+    if (confirmation === null) return
+    if (confirmation.trim().toUpperCase() !== DELETE_WORKSPACE_CONFIRM_TOKEN) {
+      toast({ title: `Xac nhan khong dung (${DELETE_WORKSPACE_CONFIRM_TOKEN}).`, variant: 'destructive' })
+      return
+    }
+    const removingId = selectedPartnerId
+    startTransition(async () => {
+      const res = await removeMyMessagingWorkspace(removingId)
+      if ('error' in res && res.error) {
+        toast({ title: res.error, variant: 'destructive' })
+        return
+      }
+      setPartners((prev) => {
+        const next = prev.filter((p) => p.id !== removingId)
+        setSelectedPartnerId(next[0]?.id ?? null)
+        return next
+      })
+      setSelectedConvId(null)
+      setMessages([])
+      setConversations([])
+      toast({ title: t.deleteWorkspaceSuccess })
+      router.refresh()
+    })
+  }
+
   if (partners.length === 0) {
     return (
       <div className="rounded-xl border border-border/70 bg-card/90 p-6 shadow-sm">
@@ -306,6 +353,17 @@ export function PartnerMessagingInboxClient({ initialPartners, t }: { initialPar
             <Settings className="h-3 w-3" aria-hidden />
             {t.messagingSettingsLink}
           </Link>
+        </Button>
+        <Button
+          type="button"
+          variant="destructive"
+          size="sm"
+          className="h-7 gap-1 px-2 text-[11px]"
+          onClick={removeWorkspace}
+          disabled={pending || !selectedPartnerId}
+        >
+          <Trash2 className="h-3 w-3" aria-hidden />
+          {t.deleteWorkspaceButton}
         </Button>
       </div>
 
@@ -489,7 +547,7 @@ export function PartnerMessagingInboxClient({ initialPartners, t }: { initialPar
               <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium text-foreground">
                 <StickyNote className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
                 {selectedConvId ? t.inboxSideNoNotes : t.pickConversation}
-            </div>
+              </div>
               <Input
                 placeholder={t.inboxSideNotePlaceholder}
                 className="h-7 border-border/60 bg-background text-[11px]"
