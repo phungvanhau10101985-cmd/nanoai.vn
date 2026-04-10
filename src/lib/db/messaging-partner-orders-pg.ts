@@ -58,6 +58,14 @@ function num(v: unknown, fallback = 0): number {
   return Number.isFinite(n) ? n : fallback
 }
 
+function isMissingPaymentSettingsTableError(e: unknown): boolean {
+  if (!e || typeof e !== 'object') return false
+  const err = e as { code?: string; message?: string }
+  if (err.code !== '42P01') return false
+  const msg = String(err.message ?? '').toLowerCase()
+  return msg.includes('messaging_partner_payment_settings')
+}
+
 function mapOrderRow(r: Record<string, unknown>): PartnerOrderRow {
   return {
     id: String(r.id),
@@ -141,6 +149,7 @@ export async function fetchPartnerPaymentSettingsFromPg(partnerId: string): Prom
       updated_at: String(row.updated_at ?? ''),
     }
   } catch (e) {
+    if (isMissingPaymentSettingsTableError(e)) return null
     console.warn('[fetchPartnerPaymentSettingsFromPg]', e)
     return null
   }
@@ -206,6 +215,7 @@ export async function upsertPartnerPaymentSettingsFromPg(input: {
     )
     return true
   } catch (e) {
+    if (isMissingPaymentSettingsTableError(e)) return false
     console.warn('[upsertPartnerPaymentSettingsFromPg]', e)
     return false
   }

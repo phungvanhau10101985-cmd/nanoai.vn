@@ -51,6 +51,14 @@ function isMissingInventoryTableError(e: unknown): boolean {
   return /messaging_partner_inventory/i.test(msg)
 }
 
+function isMissingInventoryStockQtyColumnError(e: unknown): boolean {
+  if (!e || typeof e !== 'object') return false
+  const err = e as { code?: string; message?: string }
+  if (err.code !== '42703') return false
+  const msg = String(err.message ?? '').toLowerCase()
+  return msg.includes('stock_qty') && msg.includes('messaging_partner_inventory')
+}
+
 type PgInventoryRaw = {
   id: string
   partner_id: string
@@ -137,6 +145,46 @@ const INVENTORY_PAGE_SELECT = `select
   mpi.updated_at
 from public.messaging_partner_inventory mpi`
 
+const INVENTORY_PAGE_SELECT_LEGACY = `select
+  mpi.id::text as id,
+  mpi.partner_id::text as partner_id,
+  mpi.sort_order,
+  mpi.sku,
+  coalesce(mpi.name, '') as name,
+  coalesce(mpi.description, '') as description,
+  coalesce(mpi.stock_note, '') as stock_note,
+  0 as stock_qty,
+  coalesce(mpi.price_hint, '') as price_hint,
+  coalesce(mpi.image_url, '') as image_url,
+  coalesce(mpi.product_url, '') as product_url,
+  coalesce(mpi.consult_note, '') as consult_note,
+  coalesce(mpi.is_active, true) as is_active,
+  mpi.image_embedding_json,
+  mpi.image_embedding_vec::text as image_embedding_vec,
+  mpi.image_embedding_model,
+  mpi.image_embedding_dims,
+  mpi.image_embedding_fingerprint,
+  mpi.image_embedding_updated_at,
+  mpi.image_embedding_error,
+  mpi.vision_catalog_checksum,
+  mpi.vision_catalog_synced_at,
+  coalesce(mpi.vision_catalog_excluded, false) as vision_catalog_excluded,
+  mpi.created_at,
+  mpi.updated_at
+from public.messaging_partner_inventory mpi`
+
+async function runInventorySelectWithStockQtyFallback(
+  sqlFromSelect: string,
+  params: unknown[]
+): Promise<PgInventoryRaw[]> {
+  try {
+    return await pgQuery<PgInventoryRaw>(`${INVENTORY_PAGE_SELECT}\n${sqlFromSelect}`, params)
+  } catch (e) {
+    if (!isMissingInventoryStockQtyColumnError(e)) throw e
+    return await pgQuery<PgInventoryRaw>(`${INVENTORY_PAGE_SELECT_LEGACY}\n${sqlFromSelect}`, params)
+  }
+}
+
 /**
  * Trang inventory active + tổng số (Postgres). `null` = không pool hoặc lỗi — caller xử lý khi không có PG.
  */
@@ -155,9 +203,8 @@ export async function fetchPartnerInventoryActivePageWithCountFromPg(
        where partner_id = $1::uuid and coalesce(is_active, true) = true`,
       [partnerId]
     )
-    const rows = await pgQuery<PgInventoryRaw>(
-      `${INVENTORY_PAGE_SELECT}
-       where mpi.partner_id = $1::uuid and coalesce(mpi.is_active, true) = true
+    const rows = await runInventorySelectWithStockQtyFallback(
+      `where mpi.partner_id = $1::uuid and coalesce(mpi.is_active, true) = true
        order by mpi.sort_order asc
        limit $2 offset $3`,
       [partnerId, lim, off]
@@ -218,9 +265,8 @@ export async function fetchPartnerInventoryDefaultForAiFromPg(
   if (!isPgConfigured()) return null
   const lim = Math.max(1, Math.floor(limit))
   try {
-    const rows = await pgQuery<PgInventoryRaw>(
-      `${INVENTORY_PAGE_SELECT}
-       where mpi.partner_id = $1::uuid and coalesce(mpi.is_active, true) = true
+    const rows = await runInventorySelectWithStockQtyFallback(
+      `where mpi.partner_id = $1::uuid and coalesce(mpi.is_active, true) = true
        order by mpi.sort_order asc
        limit $2`,
       [partnerId, lim]
@@ -247,9 +293,8 @@ export async function fetchPartnerInventoryRowsByTokenIlikeFromPg(
   const lim = Math.max(1, Math.floor(limit))
   const pattern = `%${clean}%`
   try {
-    const rows = await pgQuery<PgInventoryRaw>(
-      `${INVENTORY_PAGE_SELECT}
-       where mpi.partner_id = $1::uuid
+    const rows = await runInventorySelectWithStockQtyFallback(
+      `where mpi.partner_id = $1::uuid
          and coalesce(mpi.is_active, true) = true
          and (
            coalesce(mpi.sku, '') ilike $2
@@ -275,15 +320,15 @@ export async function fetchPartnerInventoryRowByProductUrlFromPg(
   const u = String(productUrl ?? '').trim()
   if (!u) return null
   try {
-    const row = await pgQueryOne<PgInventoryRaw>(
-      `${INVENTORY_PAGE_SELECT}
-       where mpi.partner_id = $1::uuid
+    const rows = await runInventorySelectWithStockQtyFallback(
+      `where mpi.partner_id = $1::uuid
          and coalesce(mpi.is_active, true) = true
          and coalesce(mpi.product_url, '') = $2
        order by mpi.sort_order asc
        limit 1`,
       [partnerId, u]
     )
+    const row = rows[0] ?? null
     return row ? mapPgInventoryRow(row) : null
   } catch (e) {
     console.warn('[fetchPartnerInventoryRowByProductUrlFromPg]', e)
@@ -297,12 +342,12 @@ export async function fetchPartnerInventoryRowByIdForPartnerFromPg(
 ): Promise<MessagingPartnerInventoryRow | null> {
   if (!isPgConfigured()) return null
   try {
-    const row = await pgQueryOne<PgInventoryRaw>(
-      `${INVENTORY_PAGE_SELECT}
-       where mpi.partner_id = $1::uuid and mpi.id = $2::uuid
+    const rows = await runInventorySelectWithStockQtyFallback(
+      `where mpi.partner_id = $1::uuid and mpi.id = $2::uuid
        limit 1`,
       [partnerId, inventoryId]
     )
+    const row = rows[0] ?? null
     return row ? mapPgInventoryRow(row) : null
   } catch (e) {
     console.warn('[fetchPartnerInventoryRowByIdForPartnerFromPg]', e)
@@ -373,9 +418,8 @@ export async function fetchPartnerInventoryRowsByIdsForEmbeddingSyncFromPg(
 ): Promise<MessagingPartnerInventoryRow[] | null> {
   if (!isPgConfigured() || ids.length === 0) return null
   try {
-    const rows = await pgQuery<PgInventoryRaw>(
-      `${INVENTORY_PAGE_SELECT}
-       where mpi.partner_id = $1::uuid and mpi.id = any($2::uuid[])`,
+    const rows = await runInventorySelectWithStockQtyFallback(
+      `where mpi.partner_id = $1::uuid and mpi.id = any($2::uuid[])`,
       [partnerId, ids]
     )
     return rows.map(mapPgInventoryRow)
@@ -398,9 +442,8 @@ export async function fetchPartnerInventorySliceByUpdatedAtAscFromPg(
   const lim = Math.max(1, Math.floor(limit))
   const off = Math.max(0, Math.floor(offset))
   try {
-    const rows = await pgQuery<PgInventoryRaw>(
-      `${INVENTORY_PAGE_SELECT}
-       where mpi.partner_id = $1::uuid
+    const rows = await runInventorySelectWithStockQtyFallback(
+      `where mpi.partner_id = $1::uuid
        order by mpi.updated_at asc nulls last
        limit $2 offset $3`,
       [partnerId, lim, off]
@@ -477,9 +520,8 @@ export async function fetchPartnerInventoryFullListOrderedCreatedFromPg(
   let from = 0
   try {
     while (true) {
-      const rows = await pgQuery<PgInventoryRaw>(
-        `${INVENTORY_PAGE_SELECT}
-         where mpi.partner_id = $1::uuid
+      const rows = await runInventorySelectWithStockQtyFallback(
+        `where mpi.partner_id = $1::uuid
          order by mpi.created_at asc nulls last, mpi.id asc
          limit $2 offset $3`,
         [partnerId, INVENTORY_FULL_LIST_PAGE, from]
