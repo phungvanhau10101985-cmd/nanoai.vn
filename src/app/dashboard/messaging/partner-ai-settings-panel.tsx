@@ -847,6 +847,59 @@ function downloadBlob(blob: Blob, filename: string) {
   URL.revokeObjectURL(url)
 }
 
+function downloadTextFile(content: string, filename: string) {
+  const blob = new Blob([content], { type: 'text/csv;charset=utf-8' })
+  downloadBlob(blob, filename)
+}
+
+type InventoryImportWarningRow = {
+  row_number?: number
+  sku?: string
+  name?: string
+  field?: string
+  code?: string
+  raw_value?: string
+  normalized_value?: string
+  message?: string
+}
+
+function toCsvCell(raw: unknown): string {
+  const s = String(raw ?? '')
+  const esc = s.replace(/"/g, '""')
+  return `"${esc}"`
+}
+
+function buildInventoryImportWarningCsv(rows: InventoryImportWarningRow[]): string {
+  const header = [
+    'row_number',
+    'sku',
+    'name',
+    'field',
+    'code',
+    'raw_value',
+    'normalized_value',
+    'message',
+  ]
+  const lines = [header.map(toCsvCell).join(',')]
+  for (const r of rows) {
+    lines.push(
+      [
+        r.row_number ?? '',
+        r.sku ?? '',
+        r.name ?? '',
+        r.field ?? '',
+        r.code ?? '',
+        r.raw_value ?? '',
+        r.normalized_value ?? '',
+        r.message ?? '',
+      ]
+        .map(toCsvCell)
+        .join(',')
+    )
+  }
+  return `\uFEFF${lines.join('\n')}`
+}
+
 /** POST multipart với tiến trình upload (fetch không hỗ trợ upload progress). */
 function postInventoryExcelImport(
   url: string,
@@ -1105,6 +1158,8 @@ function InventoryEditor({
         inserted?: number
         updated?: number
         deleted?: number
+        warnings?: InventoryImportWarningRow[]
+        warnings_count?: number
         error?: string
       } = {}
       try {
@@ -1128,6 +1183,14 @@ function InventoryEditor({
           .replace('{updated}', String(data.updated ?? 0))
           .replace('{deleted}', String(data.deleted ?? 0)),
       })
+      if (Array.isArray(data.warnings) && data.warnings.length > 0) {
+        const csv = buildInventoryImportWarningCsv(data.warnings)
+        const ts = new Date().toISOString().replace(/[:.]/g, '-')
+        downloadTextFile(csv, `bao-cao-import-canh-bao-${ts}.csv`)
+        toast({
+          title: `Import vẫn thành công, có ${data.warnings.length} dòng cần rà soát. Đã tải báo cáo CSV.`,
+        })
+      }
       resetDraft()
       onChanged()
       onImportCompleted?.()

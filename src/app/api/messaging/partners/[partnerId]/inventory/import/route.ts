@@ -68,6 +68,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ partnerId: str
     inserted: batch.inserted,
     updated: batch.updated,
     deleted: batch.deleted,
+    warnings: parsed.warnings ?? [],
+    warnings_count: Array.isArray(parsed.warnings) ? parsed.warnings.length : 0,
     vision_bg_sync_queued: visionBgSyncQueued,
   })
 }

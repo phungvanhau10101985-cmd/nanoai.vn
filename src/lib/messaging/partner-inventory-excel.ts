@@ -49,6 +49,17 @@ export type InventoryExcelInsert = {
   removeFromInventory: boolean
 }
 
+export type InventoryImportWarning = {
+  row_number: number
+  sku: string
+  name: string
+  field: 'size_json' | 'color_json' | 'stock_qty' | 'price_hint'
+  code: string
+  raw_value: string
+  normalized_value: string
+  message: string
+}
+
 const SHEET_NAME = 'inventory'
 
 function normalizeHeaderKey(raw: string): string {
@@ -195,34 +206,90 @@ function looksLikeStockStatusText(s: string): boolean {
   return /(còn|con|hết|het|size|cỡ|co san|co hang|in stock|out of stock|available|sold out|pre-?order)/.test(t)
 }
 
-function isJsonArrayOfStrings(raw: string): boolean {
+function normalizeJsonArrayOfStringsLenient(raw: string): string {
   const t = raw.trim()
-  if (!t) return true
+  if (!t) return ''
+  const out: string[] = []
+  const seen = new Set<string>()
+  const push = (v: unknown) => {
+    const s = String(v ?? '').trim()
+    if (!s) return
+    const key = s.toLowerCase()
+    if (seen.has(key)) return
+    seen.add(key)
+    out.push(s)
+  }
   try {
     const parsed = JSON.parse(t) as unknown
-    if (!Array.isArray(parsed)) return false
-    return parsed.every((x) => typeof x === 'string')
+    if (Array.isArray(parsed)) {
+      for (const item of parsed) {
+        if (typeof item === 'string') push(item)
+      }
+    }
   } catch {
-    return false
+    // ignore and fallback below
   }
+  if (out.length === 0) {
+    // Ưu tiên vớt chuỗi có quote trước: ["M","L",,"5xl"] => M,L,5xl
+    const quoted = /"([^"\\]*(?:\\.[^"\\]*)*)"/g
+    let m: RegExpExecArray | null
+    while ((m = quoted.exec(t))) {
+      const rawToken = m[1] ?? ''
+      try {
+        push(JSON.parse(`"${rawToken}"`))
+      } catch {
+        push(rawToken)
+      }
+    }
+  }
+  if (out.length === 0) {
+    // Fallback cuối: cắt theo dấu phẩy nếu user nhập gần-JSON hoặc plain text.
+    const noBrackets = t.replace(/^\s*\[/, '').replace(/\]\s*$/, '')
+    const parts = noBrackets.split(',')
+    for (const p of parts) {
+      const cleaned = p.trim().replace(/^['"]+|['"]+$/g, '')
+      push(cleaned)
+    }
+  }
+  return out.length > 0 ? JSON.stringify(out.slice(0, 100)) : ''
 }
 
-function isJsonArrayOfColorVariants(raw: string): boolean {
+function normalizeColorVariantsJsonLenient(raw: string): string {
   const t = raw.trim()
-  if (!t) return true
+  if (!t) return ''
+  const out: Array<{ name: string; img: string }> = []
+  const seen = new Set<string>()
+  const push = (nameRaw: unknown, imgRaw: unknown) => {
+    const name = String(nameRaw ?? '').trim()
+    const img = validateInventoryImageUrl(String(imgRaw ?? ''))
+    if (!name || !img) return
+    const key = `${name.toLowerCase()}|${img.toLowerCase()}`
+    if (seen.has(key)) return
+    seen.add(key)
+    out.push({ name, img })
+  }
   try {
     const parsed = JSON.parse(t) as unknown
-    if (!Array.isArray(parsed)) return false
-    return parsed.every((x) => {
-      if (!x || typeof x !== 'object' || Array.isArray(x)) return false
-      const o = x as Record<string, unknown>
-      const name = typeof o.name === 'string' ? o.name.trim() : ''
-      const img = typeof o.img === 'string' ? o.img.trim() : ''
-      return Boolean(name && validateInventoryImageUrl(img))
-    })
+    if (Array.isArray(parsed)) {
+      for (const item of parsed) {
+        if (!item || typeof item !== 'object' || Array.isArray(item)) continue
+        const o = item as Record<string, unknown>
+        push(o.name, o.img)
+      }
+    }
   } catch {
-    return false
+    // ignore and fallback below
   }
+  if (out.length === 0) {
+    // Vớt các cặp name/img trong text lỗi JSON.
+    const r1 = /name\s*["']?\s*:\s*["']([^"']+)["'][\s,]*img\s*["']?\s*:\s*["']([^"']+)["']/gi
+    let m1: RegExpExecArray | null
+    while ((m1 = r1.exec(t))) push(m1[1], m1[2])
+    const r2 = /img\s*["']?\s*:\s*["']([^"']+)["'][\s,]*name\s*["']?\s*:\s*["']([^"']+)["']/gi
+    let m2: RegExpExecArray | null
+    while ((m2 = r2.exec(t))) push(m2[2], m2[1])
+  }
+  return out.length > 0 ? JSON.stringify(out.slice(0, 100)) : ''
 }
 
 export function buildInventoryTemplateBuffer(): Buffer {
@@ -273,7 +340,7 @@ const MAX_IMPORT_ROWS = Math.max(
   Math.min(200_000, parseInt(process.env.PARTNER_INVENTORY_IMPORT_MAX_ROWS || '100000', 10) || 100_000)
 )
 
-export function parseInventoryWorkbook(buffer: Buffer): { ok: true; rows: InventoryExcelInsert[] } | { ok: false; error: string } {
+export function parseInventoryWorkbook(buffer: Buffer): { ok: true; rows: InventoryExcelInsert[]; warnings: InventoryImportWarning[] } | { ok: false; error: string } {
   let wb: XLSX.WorkBook
   try {
     wb = XLSX.read(buffer, { type: 'buffer' })
@@ -316,6 +383,10 @@ export function parseInventoryWorkbook(buffer: Buffer): { ok: true; rows: Invent
   if (colIndex.name === undefined) return { ok: false, error: 'MISSING_NAME_COLUMN' }
 
   const out: InventoryExcelInsert[] = []
+  const warnings: InventoryImportWarning[] = []
+  const pushWarning = (w: InventoryImportWarning) => {
+    if (warnings.length < 5000) warnings.push(w)
+  }
   for (let r = 1; r < matrix.length; r++) {
     const line = matrix[r] ?? []
     const get = (k: string) => {
@@ -371,18 +442,65 @@ export function parseInventoryWorkbook(buffer: Buffer): { ok: true; rows: Invent
       sort_order = 100 + out.length
     }
 
-    const description = get('description')
-    const stock_note = get('stock_note')
-    const stock_qty = parseStockQty(get('stock_qty'))
-    if (!isJsonArrayOfStrings(description)) {
-      return { ok: false, error: `INVALID_SIZE_JSON_ROW_${r + 1}` }
+    const rawDescription = get('description')
+    const rawColorJson = get('stock_note')
+    const rawStockQty = get('stock_qty')
+    const rawPriceHint = get('price_hint')
+
+    const description = normalizeJsonArrayOfStringsLenient(rawDescription)
+    const stock_note = normalizeColorVariantsJsonLenient(rawColorJson)
+    const stock_qty = parseStockQty(rawStockQty)
+    let price_hint = rawPriceHint
+
+    if (rawDescription.trim() && description !== rawDescription.trim()) {
+      pushWarning({
+        row_number: r + 1,
+        sku: sku ?? '',
+        name: name.slice(0, 500),
+        field: 'size_json',
+        code: 'SIZE_JSON_NORMALIZED',
+        raw_value: rawDescription.slice(0, 2000),
+        normalized_value: description.slice(0, 2000),
+        message: 'Size JSON lỗi nhẹ đã được chuẩn hóa; phần không hợp lệ đã bị bỏ qua.',
+      })
     }
-    if (!isJsonArrayOfColorVariants(stock_note)) {
-      return { ok: false, error: `INVALID_COLOR_VARIANTS_JSON_ROW_${r + 1}` }
+    if (rawColorJson.trim() && stock_note !== rawColorJson.trim()) {
+      pushWarning({
+        row_number: r + 1,
+        sku: sku ?? '',
+        name: name.slice(0, 500),
+        field: 'color_json',
+        code: 'COLOR_JSON_NORMALIZED',
+        raw_value: rawColorJson.slice(0, 2000),
+        normalized_value: stock_note.slice(0, 2000),
+        message: 'Màu sắc JSON lỗi nhẹ đã được chuẩn hóa; phần không hợp lệ đã bị bỏ qua.',
+      })
     }
-    const price_hint = get('price_hint')
+    if (rawStockQty.trim() && !/^\s*\d+\s*$/.test(rawStockQty)) {
+      pushWarning({
+        row_number: r + 1,
+        sku: sku ?? '',
+        name: name.slice(0, 500),
+        field: 'stock_qty',
+        code: 'STOCK_QTY_NORMALIZED',
+        raw_value: rawStockQty.slice(0, 2000),
+        normalized_value: String(stock_qty),
+        message: 'Số lượng tồn không phải số nguyên sạch; đã chuẩn hóa về số hợp lệ.',
+      })
+    }
+
     if (price_hint && !looksLikePriceText(price_hint) && looksLikeStockStatusText(price_hint)) {
-      return { ok: false, error: `INVALID_PRICE_STRUCTURE_ROW_${r + 1}` }
+      pushWarning({
+        row_number: r + 1,
+        sku: sku ?? '',
+        name: name.slice(0, 500),
+        field: 'price_hint',
+        code: 'PRICE_HINT_SKIPPED',
+        raw_value: price_hint.slice(0, 2000),
+        normalized_value: '',
+        message: 'Giá có vẻ là trạng thái tồn kho/size nên đã bỏ qua giá ở dòng này.',
+      })
+      price_hint = ''
     }
     const image_url = validateInventoryImageUrl(get('image_url'))
     const product_url = validateInventoryProductUrl(get('product_url'))
@@ -407,7 +525,7 @@ export function parseInventoryWorkbook(buffer: Buffer): { ok: true; rows: Invent
   }
 
   if (out.length === 0) return { ok: false, error: 'NO_DATA_ROWS' }
-  return { ok: true, rows: out }
+  return { ok: true, rows: out, warnings }
 }
 
 /** Khớp theo SKU (không phân biệt hoa thường, đã trim). Rỗng → null. */
