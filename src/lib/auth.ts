@@ -11,6 +11,21 @@ async function canonicalizeUserByEmail(user: AppUser): Promise<AppUser> {
   const email = String(user.email ?? '').trim().toLowerCase()
   if (!email || !isPgConfigured()) return user
   try {
+    const direct = await pgQueryOne<{ id: string }>(
+      `select id::text
+       from auth.users
+       where lower(coalesce(email, '')) = $1
+       order by created_at asc
+       limit 1`,
+      [email]
+    )
+    if (direct?.id && isValidUuidString(direct.id) && direct.id !== user.id) {
+      return { ...user, id: direct.id }
+    }
+  } catch {
+    // Some DB roles may not allow direct read from auth.users.
+  }
+  try {
     const row = await pgQueryOne<{ id: string }>(
       `select (public.nanoai_ensure_user_by_email($1::text))::text as id`,
       [email]
