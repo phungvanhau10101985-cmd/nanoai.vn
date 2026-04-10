@@ -62,16 +62,39 @@ function collectRecentSuggestedCardsFromMessages(
 ): PartnerAiProductCard[] {
   const out: PartnerAiProductCard[] = []
   const seen = new Set<string>()
+  const pushCard = (card: PartnerAiProductCard) => {
+    const productUrl = card.product_url.trim()
+    const imageUrl = card.image_url.trim()
+    if (!/^https?:\/\//i.test(productUrl) || !/^https?:\/\//i.test(imageUrl)) return false
+    const key = productUrl.toLowerCase()
+    if (seen.has(key)) return false
+    seen.add(key)
+    out.push(card)
+    return out.length >= limit
+  }
   for (let i = messages.length - 1; i >= 0; i -= 1) {
     const msg = messages[i]
-    if (msg.direction !== 'outbound') continue
-    const cards = aiProductCardsFromPayload(msg.raw_payload ?? null)
-    for (const c of cards) {
-      const key = c.product_url.trim().toLowerCase()
-      if (!key || seen.has(key)) continue
-      seen.add(key)
-      out.push(c)
-      if (out.length >= limit) return out
+    const raw = msg.raw_payload ?? null
+    if (msg.direction === 'outbound') {
+      const cards = aiProductCardsFromPayload(raw)
+      for (const c of cards) {
+        if (pushCard(c)) return out
+      }
+    }
+    // Include image-search suggestions (vision candidates) from inbound turns too.
+    const vision = getVisionPickState(raw)
+    if (vision.candidates.length > 0) {
+      for (const c of vision.candidates) {
+        const productUrl = typeof c.product_url === 'string' ? c.product_url.trim() : ''
+        if (!productUrl) continue
+        const card: PartnerAiProductCard = {
+          name: c.name || 'San pham',
+          image_url: c.image_url || '',
+          product_url: productUrl,
+          ...(c.price_hint ? { price_hint: c.price_hint } : {}),
+        }
+        if (pushCard(card)) return out
+      }
     }
   }
   return out
@@ -792,6 +815,7 @@ export function PartnerGuestChatClient({
     const intent = classifyOrderIntent(latestInboundText)
     const label = card.name?.trim() || 'mau san pham'
     if (intent !== 'purchase') {
+      setBuyOptionsOpen(false)
       const ask =
         intent === 'shipping_policy'
           ? `Mình quan tâm mẫu này: ${label}. Shop tư vấn giúp mình chính sách vận chuyển, phí ship và thời gian giao nhé.`
@@ -1345,7 +1369,7 @@ export function PartnerGuestChatClient({
                       return (
                         <div className="mt-2 space-y-2 border-t border-white/20 pt-2">
                           <p className="text-[11px] font-medium leading-snug text-white/95">{t.visionMatchTitle}</p>
-                          {vs.required ? (
+                          {vs.required && t.visionPickHint.trim() ? (
                             <p className="text-[10px] leading-snug text-white/80">{t.visionPickHint}</p>
                           ) : null}
                           <div className="-mx-1 flex snap-x snap-mandatory gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:thin]">
@@ -1495,7 +1519,19 @@ export function PartnerGuestChatClient({
               ) : null}
               {buyOptionsOpen && buyOptions.length > 0 ? (
                 <div className="space-y-1.5 rounded-lg border border-border/70 bg-muted/20 p-2">
-                  <p className="text-xs font-medium text-foreground">Anh/chị muốn mua sản phẩm nào?</p>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-medium text-foreground">Anh/chị muốn mua sản phẩm nào?</p>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-6 px-2 text-[10px]"
+                      disabled={orderFormBusy}
+                      onClick={() => setBuyOptionsOpen(false)}
+                    >
+                      Đóng
+                    </Button>
+                  </div>
                   <div className="flex gap-2 overflow-x-auto pb-1">
                     {buyOptions.map((item) => (
                       <button
@@ -1511,9 +1547,8 @@ export function PartnerGuestChatClient({
                           alt={item.name}
                           className="h-16 w-full rounded object-cover"
                         />
-                        <p className="mt-1 line-clamp-2 text-[11px] font-medium text-foreground">{item.name}</p>
                         {item.price_hint ? (
-                          <p className="mt-0.5 text-[10px] text-muted-foreground">{formatVndPrice(item.price_hint)}</p>
+                          <p className="mt-1 text-[10px] text-muted-foreground">{formatVndPrice(item.price_hint)}</p>
                         ) : null}
                       </button>
                     ))}
