@@ -2,6 +2,7 @@ import { revalidatePath } from 'next/cache'
 import { NextResponse } from 'next/server'
 import { parseInventoryWorkbook } from '@/lib/messaging/partner-inventory-excel'
 import { upsertPartnerInventoryBatch } from '@/lib/messaging/partner-inventory-upsert-batch'
+import { syncPartnerInventoryEmbeddings } from '@/lib/messaging/partner-inventory-embedding'
 import { requireMessagingPartnerOwner } from '@/lib/messaging/partner-inventory-route-auth'
 
 export const dynamic = 'force-dynamic'
@@ -38,7 +39,22 @@ export async function POST(req: Request, ctx: { params: Promise<{ partnerId: str
   const batch = await upsertPartnerInventoryBatch(partnerId, parsed.rows)
   if (!batch.ok) return NextResponse.json({ error: batch.error }, { status: 500 })
 
-  const visionBgSyncQueued = false
+  let visionBgSyncQueued = false
+  if (parsed.rows.length > 0) {
+    try {
+      const warmupLimit = Math.max(
+        20,
+        Math.min(1200, parseInt(process.env.MESSAGING_INVENTORY_EMBED_IMPORT_WARMUP_LIMIT || '400', 10) || 400)
+      )
+      const warmup = await syncPartnerInventoryEmbeddings(partnerId, { force: false, limit: warmupLimit })
+      visionBgSyncQueued = warmup.ok
+      if (!warmup.ok) {
+        console.warn('[inventory-import] embedding warmup failed', { partnerId, error: warmup.error })
+      }
+    } catch (e) {
+      console.warn('[inventory-import] embedding warmup error', { partnerId, error: e })
+    }
+  }
 
   revalidatePath('/dashboard/messaging')
   revalidatePath('/dashboard/messaging/settings')

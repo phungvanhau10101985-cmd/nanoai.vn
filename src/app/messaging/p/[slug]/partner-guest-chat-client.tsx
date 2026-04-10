@@ -145,6 +145,8 @@ export function PartnerGuestChatClient({
   const [imageStoragePath, setImageStoragePath] = useState<string | null>(null)
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null)
   const [visionPickBusyId, setVisionPickBusyId] = useState<string | null>(null)
+  const pageContextRef = useRef<{ sku?: string; imageUrl?: string; productUrl?: string } | null>(null)
+  const contextSeededRef = useRef(false)
   const galleryInputRef = useRef<HTMLInputElement>(null)
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const tryOnUserInputRef = useRef<HTMLInputElement>(null)
@@ -181,6 +183,22 @@ export function PartnerGuestChatClient({
       ?? window.localStorage.getItem(MESSAGING_GUEST_SESSION_STORAGE_KEY_LEGACY)?.trim()
       ?? ''
     if (existing) guestSessionIdRef.current = existing
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const q = new URLSearchParams(window.location.search)
+    const sku = (q.get('ctx_sku') || '').trim()
+    const imageUrl = (q.get('ctx_image') || '').trim()
+    const productUrl = (q.get('ctx_product_url') || '').trim()
+    const hasAny = Boolean(sku || imageUrl || productUrl)
+    pageContextRef.current = hasAny
+      ? {
+          ...(sku ? { sku } : {}),
+          ...(imageUrl ? { imageUrl } : {}),
+          ...(productUrl ? { productUrl } : {}),
+        }
+      : null
   }, [])
 
   const authHeaders = useCallback((): Record<string, string> => {
@@ -704,8 +722,26 @@ export function PartnerGuestChatClient({
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({
-          text: text || undefined,
+          text:
+            text ||
+            (!contextSeededRef.current && pageContextRef.current
+              ? [
+                  pageContextRef.current.sku ? `Khách đang xem mã sản phẩm: ${pageContextRef.current.sku}` : '',
+                  pageContextRef.current.productUrl ? `Link sản phẩm: ${pageContextRef.current.productUrl}` : '',
+                ]
+                  .filter(Boolean)
+                  .join('\n')
+              : undefined),
           imageStoragePath: imageStoragePath || undefined,
+          pageContext:
+            !contextSeededRef.current && pageContextRef.current
+              ? {
+                  sku: pageContextRef.current.sku,
+                  imageUrl: pageContextRef.current.imageUrl,
+                  productUrl: pageContextRef.current.productUrl,
+                  source: 'widget_page',
+                }
+              : undefined,
         }),
       })
       captureGuestSessionFromResponse(res)
@@ -746,6 +782,7 @@ export function PartnerGuestChatClient({
       }
       setDraft('')
       clearAttachment()
+      if (pageContextRef.current) contextSeededRef.current = true
       if (data.authMode === 'account') {
         setAuthMode('account')
         setAuthGateRequired(false)

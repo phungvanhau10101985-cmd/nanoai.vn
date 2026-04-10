@@ -97,15 +97,75 @@
     panel.appendChild(body)
 
     var iframe = null
+    var pageContext = null
+
+    function extractPageContext() {
+      var out = {}
+      try {
+        var codeEl = document.getElementById('copy-code-product')
+        var codeText = codeEl ? String(codeEl.textContent || '').trim() : ''
+        var skuMatch = codeText.match(/(?:m[aã]\s*sp|ma\s*sp|sku)\s*[:：]?\s*([A-Za-z0-9._-]{2,64})/i)
+        if (skuMatch && skuMatch[1]) out.sku = skuMatch[1]
+      } catch (_) {}
+
+      try {
+        var firstImg = document.querySelector('.image_list img[data-src], .image_list img[src]')
+        if (firstImg) {
+          var imgUrl = String(
+            firstImg.getAttribute('data-src') || firstImg.getAttribute('src') || ''
+          ).trim()
+          if (/^https?:\/\//i.test(imgUrl)) out.imageUrl = imgUrl
+        }
+      } catch (_) {}
+
+      try {
+        var pageUrl = String(window.location.href || '').trim()
+        if (/^https?:\/\//i.test(pageUrl)) out.productUrl = pageUrl
+      } catch (_) {}
+
+      return out
+    }
+
+    function buildChatUrlWithContext(baseUrl, ctx) {
+      try {
+        var u = new URL(baseUrl, window.location.href)
+        if (ctx && ctx.sku) u.searchParams.set('ctx_sku', ctx.sku)
+        if (ctx && ctx.imageUrl) u.searchParams.set('ctx_image', ctx.imageUrl)
+        if (ctx && ctx.productUrl) u.searchParams.set('ctx_product_url', ctx.productUrl)
+        if (ctx && (ctx.sku || ctx.imageUrl || ctx.productUrl)) {
+          u.searchParams.set('ctx_source', 'widget_page')
+        }
+        return u.toString()
+      } catch (_) {
+        return baseUrl
+      }
+    }
+
     function ensureIframe() {
       if (iframe) return
+      if (!pageContext) pageContext = extractPageContext()
       iframe = document.createElement('iframe')
-      iframe.src = chatUrl
+      iframe.src = buildChatUrlWithContext(chatUrl, pageContext)
       iframe.title = 'Chat NanoAI'
       iframe.loading = 'lazy'
       iframe.referrerPolicy = 'no-referrer-when-downgrade'
       iframe.style.cssText = 'width:100%;height:100%;border:0;'
       body.appendChild(iframe)
+    }
+
+    function viewportHeight() {
+      return (
+        window.innerHeight ||
+        document.documentElement.clientHeight ||
+        document.body.clientHeight ||
+        800
+      )
+    }
+
+    function clampBottomOffset(sizePx) {
+      // Keep bubble visible even if integrator sets a very large bottom offset.
+      var maxBottom = Math.max(8, viewportHeight() - sizePx - 8)
+      return Math.min(bottom, maxBottom)
     }
 
     function openChat() {
@@ -121,10 +181,16 @@
     closeBtn.addEventListener('click', closeChat)
 
     function placeDesktop() {
+      var safeBottom = clampBottomOffset(bubbleSize)
+      var panelBottom = bubbleSize + 14
+      // Reserve a small top margin so panel never gets pushed above viewport.
+      var availableHeight = Math.max(220, viewportHeight() - safeBottom - panelBottom - 12)
+      var finalHeight = Math.min(desktopHeight, availableHeight)
+
       root.style.top = ''
       root.style.left = ''
       root.style.right = ''
-      root.style.bottom = bottom + 'px'
+      root.style.bottom = safeBottom + 'px'
       if (side === 'left') {
         root.style.left = offsetX + 'px'
         root.style.right = 'auto'
@@ -139,9 +205,9 @@
         panel.style.left = 'auto'
       }
       panel.style.top = ''
-      panel.style.bottom = bubbleSize + 14 + 'px'
+      panel.style.bottom = panelBottom + 'px'
       panel.style.width = 'min(40vw,' + desktopWidth + 'px)'
-      panel.style.height = 'min(52vh,' + desktopHeight + 'px)'
+      panel.style.height = finalHeight + 'px'
       panel.style.borderRadius = radius + 'px'
       bubble.style.position = ''
       bubble.style.left = ''
@@ -153,12 +219,13 @@
     }
 
     function placeMobile() {
+      var safeBottom = clampBottomOffset(mobileBubbleSize)
       root.style.top = '0'
       root.style.left = '0'
       root.style.right = '0'
       root.style.bottom = '0'
       bubble.style.position = 'absolute'
-      bubble.style.bottom = bottom + 'px'
+      bubble.style.bottom = safeBottom + 'px'
       bubble.style.width = mobileBubbleSize + 'px'
       bubble.style.height = mobileBubbleSize + 'px'
       bubble.style.margin = '0'

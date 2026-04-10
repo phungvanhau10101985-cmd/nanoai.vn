@@ -203,6 +203,12 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
   const body = (await request.json().catch(() => null)) as {
     text?: string
     imageStoragePath?: string
+    pageContext?: {
+      sku?: string
+      imageUrl?: string
+      productUrl?: string
+      source?: string
+    }
   } | null
 
   const r = await resolvePartner(slug)
@@ -234,9 +240,20 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     metadata: {
       source: 'hosted_chat_page',
       auth_mode: effectiveGuestAccountId || identity.linkedUserId ? 'account' : 'anonymous',
+      ...(body?.pageContext && typeof body.pageContext === 'object'
+        ? {
+            page_context: {
+              ...(typeof body.pageContext.sku === 'string' ? { sku: body.pageContext.sku } : {}),
+              ...(typeof body.pageContext.imageUrl === 'string' ? { image_url: body.pageContext.imageUrl } : {}),
+              ...(typeof body.pageContext.productUrl === 'string' ? { product_url: body.pageContext.productUrl } : {}),
+              ...(typeof body.pageContext.source === 'string' ? { source: body.pageContext.source } : {}),
+            },
+          }
+        : {}),
     },
     text: body?.text,
     imageStoragePath: body?.imageStoragePath,
+    pageContext: body?.pageContext,
   })
   if ('error' in posted) {
     const status = posted.requireAuth ? 403 : posted.error === 'Invalid message.' ? 400 : 500

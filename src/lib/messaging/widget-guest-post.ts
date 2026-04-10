@@ -39,13 +39,29 @@ export async function postWidgetGuestMessage(params: {
   metadata: Json
   text?: string
   imageStoragePath?: string
+  pageContext?: {
+    sku?: string
+    imageUrl?: string
+    productUrl?: string
+    source?: string
+  }
 }): Promise<
   | { ok: true; shopTyping?: { maxWaitMs: number }; visionPickRequired?: boolean }
   | { error: string; requireAuth?: boolean }
 > {
   const text = params.text?.trim() ?? ''
   const imagePath = params.imageStoragePath?.trim() ?? ''
-  if ((!text && !imagePath) || text.length > 8000) {
+  const pageContextSku =
+    typeof params.pageContext?.sku === 'string' ? params.pageContext.sku.trim().slice(0, 128) : ''
+  const pageContextImageUrlRaw =
+    typeof params.pageContext?.imageUrl === 'string' ? params.pageContext.imageUrl.trim() : ''
+  const pageContextImageUrl = /^https?:\/\//i.test(pageContextImageUrlRaw) ? pageContextImageUrlRaw : ''
+  const pageContextProductUrlRaw =
+    typeof params.pageContext?.productUrl === 'string' ? params.pageContext.productUrl.trim() : ''
+  const pageContextProductUrl = /^https?:\/\//i.test(pageContextProductUrlRaw) ? pageContextProductUrlRaw : ''
+  const pageContextHasAny =
+    Boolean(pageContextSku) || Boolean(pageContextImageUrl) || Boolean(pageContextProductUrl)
+  if ((!text && !imagePath && !pageContextHasAny) || text.length > 8000) {
     return { error: 'Invalid message.' }
   }
 
@@ -120,9 +136,31 @@ export async function postWidgetGuestMessage(params: {
             vision_candidates: visionCandidates,
           } as Json)
         : basePayload
+    if (pageContextHasAny && rawPayload && typeof rawPayload === 'object') {
+      rawPayload = {
+        ...(rawPayload as Record<string, unknown>),
+        page_context: {
+          ...(pageContextSku ? { sku: pageContextSku } : {}),
+          ...(pageContextImageUrl ? { image_url: pageContextImageUrl } : {}),
+          ...(pageContextProductUrl ? { product_url: pageContextProductUrl } : {}),
+          ...(typeof params.pageContext?.source === 'string' ? { source: params.pageContext.source } : {}),
+        },
+      } as Json
+    }
     body = text ? `📷 ${text}` : '📷'
   } else {
-    body = text
+    rawPayload =
+      pageContextHasAny
+        ? ({
+            page_context: {
+              ...(pageContextSku ? { sku: pageContextSku } : {}),
+              ...(pageContextImageUrl ? { image_url: pageContextImageUrl } : {}),
+              ...(pageContextProductUrl ? { product_url: pageContextProductUrl } : {}),
+              ...(typeof params.pageContext?.source === 'string' ? { source: params.pageContext.source } : {}),
+            },
+          } as Json)
+        : null
+    body = text || '📦'
   }
 
   const conv = await ensureConversation({
@@ -167,11 +205,19 @@ export async function postWidgetGuestMessage(params: {
   const visionPickRequired = visionCandidates.length > 0
 
   if (newMessageId) {
+    const aiContextHints = [
+      pageContextSku ? `[Customer product SKU: ${pageContextSku}]` : '',
+      pageContextProductUrl ? `[Customer product URL: ${pageContextProductUrl}]` : '',
+      !imagePublicUrl && pageContextImageUrl ? `[Customer product image: ${pageContextImageUrl}]` : '',
+    ]
+      .filter(Boolean)
+      .join('\n')
+    const inboundForAi = [inboundTextForPartnerAi(body, imagePublicUrl), aiContextHints].filter(Boolean).join('\n')
     const hint = await handlePartnerInboundForAi({
       partnerId: params.partnerId,
       conversationId,
       messageId: newMessageId,
-      inboundBody: inboundTextForPartnerAi(body, imagePublicUrl),
+      inboundBody: inboundForAi,
       channel: 'widget',
       skipEagerBatchRun: true,
       ...(visionPickRequired

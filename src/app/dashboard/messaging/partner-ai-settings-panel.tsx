@@ -564,6 +564,7 @@ export function PartnerAiSettingsPanel({
               t={t}
               rows={inventory}
               onChanged={load}
+              onImportCompleted={runEmbeddingSync}
               saveOkMessage={saveOkMessage}
               pending={pending}
               startTransition={startTransition}
@@ -899,6 +900,7 @@ function InventoryEditor({
   t,
   rows,
   onChanged,
+  onImportCompleted,
   saveOkMessage,
   pending,
   startTransition,
@@ -912,6 +914,7 @@ function InventoryEditor({
   t: AiT
   rows: InvRow[]
   onChanged: () => void
+  onImportCompleted?: () => void
   saveOkMessage: string
   pending: boolean
   startTransition: (cb: () => Promise<void>) => void
@@ -1092,6 +1095,7 @@ function InventoryEditor({
       })
       resetDraft()
       onChanged()
+      onImportCompleted?.()
     } catch {
       toast({ title: t.inventoryImportFailed, variant: 'destructive' })
     } finally {

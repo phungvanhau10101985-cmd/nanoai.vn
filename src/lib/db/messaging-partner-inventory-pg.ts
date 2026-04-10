@@ -413,7 +413,7 @@ export async function updatePartnerInventoryEmbeddingFieldsFromPg(
         image_embedding_fingerprint = $4,
         image_embedding_model = $5,
         image_embedding_dims = $6,
-        image_embedding_vec = case when $7 is null then null else $7::vector(768) end,
+        image_embedding_vec = $7::vector(768),
         image_embedding_updated_at = $8::timestamptz,
         image_embedding_error = $9
       where partner_id = $1::uuid and id = $2::uuid
