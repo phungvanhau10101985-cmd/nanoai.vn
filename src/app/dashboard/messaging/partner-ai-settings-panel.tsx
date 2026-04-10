@@ -42,6 +42,10 @@ type SettingsRow = PartnerAiSettingsClientRow
 
 type FaqRow = Database['public']['Tables']['messaging_partner_faq']['Row']
 type InvRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
+function parseStockQtyInput(raw: string): string {
+  const n = Math.max(0, Math.floor(Number(raw || '0') || 0))
+  return String(n)
+}
 
 const tokenFmt = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 })
 
@@ -949,6 +953,7 @@ function InventoryEditor({
     sku: '',
     description: '',
     stock_note: '',
+    stock_qty: '0',
     price_hint: '',
     image_url: '',
     product_url: '',
@@ -963,6 +968,7 @@ function InventoryEditor({
       sku: '',
       description: '',
       stock_note: '',
+      stock_qty: '0',
       price_hint: '',
       image_url: '',
       product_url: '',
@@ -981,6 +987,7 @@ function InventoryEditor({
       sku: r.sku ?? '',
       description: r.description,
       stock_note: r.stock_note,
+      stock_qty: String(r.stock_qty ?? 0),
       price_hint: r.price_hint,
       image_url: r.image_url ?? '',
       product_url: r.product_url ?? '',
@@ -997,6 +1004,7 @@ function InventoryEditor({
         sku: draft.sku,
         description: draft.description,
         stock_note: draft.stock_note,
+        stock_qty: Math.max(0, Math.floor(Number(draft.stock_qty || '0') || 0)),
         price_hint: draft.price_hint,
         image_url: draft.image_url,
         product_url: draft.product_url,
@@ -1074,11 +1082,21 @@ function InventoryEditor({
     if (!window.confirm(t.inventoryImportReplaceWarning)) return
     setExcelBusy(true)
     setExcelImportProgress({ percent: 0 })
+    let importOk = false
     try {
       const fd = new FormData()
       fd.set('file', file)
       const url = `/api/messaging/partners/${encodeURIComponent(partnerId)}/inventory/import`
-      const { ok, text } = await postInventoryExcelImport(url, fd, setExcelImportProgress)
+      const { ok, text } = await postInventoryExcelImport(url, fd, (p) => {
+        if (p.percent == null) {
+          setExcelImportProgress({ percent: null })
+          return
+        }
+        // Upload done often stops at 99%; reserve final 100 only when server confirms success.
+        setExcelImportProgress({ percent: Math.min(99, Math.max(1, p.percent)) })
+      })
+      // Uploaded. Waiting for server parse/upsert response.
+      setExcelImportProgress({ percent: null })
       let data: {
         ok?: boolean
         count?: number
@@ -1100,6 +1118,7 @@ function InventoryEditor({
         return
       }
       setExcelImportProgress({ percent: 100 })
+      importOk = true
       toast({
         title: t.inventoryImportSuccess
           .replace('{count}', String(data.count ?? 0))
@@ -1114,7 +1133,12 @@ function InventoryEditor({
       toast({ title: t.inventoryImportFailed, variant: 'destructive' })
     } finally {
       setExcelBusy(false)
-      setExcelImportProgress(null)
+      // Let users see 100% briefly before hiding progress UI.
+      if (importOk) {
+        setTimeout(() => setExcelImportProgress(null), 700)
+      } else {
+        setExcelImportProgress(null)
+      }
     }
   }
 
@@ -1232,6 +1256,7 @@ function InventoryEditor({
                 </div>
                 {r.description ? <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{r.description}</p> : null}
                 <p className="text-xs mt-1 text-muted-foreground">
+                  <span className="mr-2">Số lượng tồn: {Math.max(0, Number(r.stock_qty ?? 0))}</span>
                   {r.stock_note ? (
                     <span className="mr-2">
                       {t.inventoryStock}: {r.stock_note}
@@ -1301,6 +1326,16 @@ function InventoryEditor({
             <Label>{t.inventoryStock}</Label>
             <Input value={draft.stock_note} onChange={(e) => setDraft((d) => ({ ...d, stock_note: e.target.value }))} />
             <p className="text-[11px] text-muted-foreground">{t.inventoryStockHint}</p>
+          </div>
+          <div className="space-y-2">
+            <Label>Số lượng tồn kho</Label>
+            <Input
+              type="number"
+              min={0}
+              step={1}
+              value={draft.stock_qty}
+              onChange={(e) => setDraft((d) => ({ ...d, stock_qty: parseStockQtyInput(e.target.value) }))}
+            />
           </div>
           <div className="space-y-2">
             <Label>{t.inventoryPrice}</Label>

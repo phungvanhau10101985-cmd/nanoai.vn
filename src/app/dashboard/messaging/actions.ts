@@ -1444,6 +1444,7 @@ export async function upsertPartnerInventoryItem(
     sku: string
     description: string
     stock_note: string
+    stock_qty?: number
     price_hint: string
     image_url: string
     product_url: string
@@ -1470,6 +1471,7 @@ export async function upsertPartnerInventoryItem(
       sku,
       description: fields.description ?? '',
       stock_note: fields.stock_note ?? '',
+      stock_qty: Math.max(0, Math.floor(Number(fields.stock_qty ?? 0) || 0)),
       price_hint: fields.price_hint ?? '',
       image_url: imageUrl,
       product_url: productUrl,
@@ -1485,6 +1487,7 @@ export async function upsertPartnerInventoryItem(
       sku,
       description: fields.description ?? '',
       stock_note: fields.stock_note ?? '',
+      stock_qty: Math.max(0, Math.floor(Number(fields.stock_qty ?? 0) || 0)),
       price_hint: fields.price_hint ?? '',
       image_url: imageUrl,
       product_url: productUrl,

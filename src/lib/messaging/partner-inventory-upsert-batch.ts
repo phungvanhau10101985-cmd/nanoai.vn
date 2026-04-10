@@ -23,6 +23,7 @@ type InventoryUpsertBase = {
   sku: string | null
   description: string
   stock_note: string
+  stock_qty: number
   price_hint: string
   image_url: string
   product_url: string
@@ -38,6 +39,7 @@ function sameInventoryData(row: InventoryRow, base: InventoryUpsertBase): boolea
     row.sku === base.sku &&
     row.description === base.description &&
     row.stock_note === base.stock_note &&
+    row.stock_qty === base.stock_qty &&
     row.price_hint === base.price_hint &&
     row.image_url === base.image_url &&
     row.product_url === base.product_url &&
@@ -117,6 +119,7 @@ function toInventoryRow(id: string, partnerId: string, base: InventoryUpsertBase
     name: base.name,
     description: base.description,
     stock_note: base.stock_note,
+    stock_qty: base.stock_qty,
     price_hint: base.price_hint,
     image_url: base.image_url,
     product_url: base.product_url,
@@ -263,6 +266,7 @@ export async function upsertPartnerInventoryBatch(
       sku: r.sku,
       description: r.description,
       stock_note: r.stock_note,
+      stock_qty: r.stock_qty,
       price_hint: r.price_hint,
       image_url: r.image_url,
       product_url: r.product_url,

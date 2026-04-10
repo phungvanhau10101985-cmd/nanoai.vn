@@ -41,19 +41,21 @@ export async function POST(req: Request, ctx: { params: Promise<{ partnerId: str
 
   let visionBgSyncQueued = false
   if (parsed.rows.length > 0) {
-    try {
-      const warmupLimit = Math.max(
-        20,
-        Math.min(1200, parseInt(process.env.MESSAGING_INVENTORY_EMBED_IMPORT_WARMUP_LIMIT || '400', 10) || 400)
-      )
-      const warmup = await syncPartnerInventoryEmbeddings(partnerId, { force: false, limit: warmupLimit })
-      visionBgSyncQueued = warmup.ok
-      if (!warmup.ok) {
-        console.warn('[inventory-import] embedding warmup failed', { partnerId, error: warmup.error })
-      }
-    } catch (e) {
-      console.warn('[inventory-import] embedding warmup error', { partnerId, error: e })
-    }
+    visionBgSyncQueued = true
+    const warmupLimit = Math.max(
+      20,
+      Math.min(1200, parseInt(process.env.MESSAGING_INVENTORY_EMBED_IMPORT_WARMUP_LIMIT || '400', 10) || 400)
+    )
+    // Fire-and-forget: do not block import response and UI progress at 99%.
+    void syncPartnerInventoryEmbeddings(partnerId, { force: false, limit: warmupLimit })
+      .then((warmup) => {
+        if (!warmup.ok) {
+          console.warn('[inventory-import] embedding warmup failed', { partnerId, error: warmup.error })
+        }
+      })
+      .catch((e) => {
+        console.warn('[inventory-import] embedding warmup error', { partnerId, error: e })
+      })
   }
 
   revalidatePath('/dashboard/messaging')

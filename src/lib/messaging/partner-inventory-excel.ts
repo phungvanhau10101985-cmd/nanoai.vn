@@ -10,6 +10,7 @@ export const INVENTORY_EXCEL_HEADERS = [
   'name',
   'description',
   'stock_note',
+  'stock_qty',
   'price_hint',
   'image_url',
   'product_url',
@@ -23,6 +24,7 @@ export const INVENTORY_EXCEL_HEADER_LABELS_VI = [
   'Tên sản phẩm',
   'Size (JSON) vd: ["38","39","40"]',
   'Màu sắc (JSON) vd: [{"name":"Đen","img":"https://..."}]',
+  'Số lượng tồn kho',
   'Giá',
   'Link ảnh',
   'Link trang sản phẩm',
@@ -37,6 +39,7 @@ export type InventoryExcelInsert = {
   sku: string | null
   description: string
   stock_note: string
+  stock_qty: number
   price_hint: string
   image_url: string
   product_url: string
@@ -87,6 +90,13 @@ const HEADER_ALIASES: Record<string, string> = {
   ton_kho: 'stock_note',
   con_hang: 'stock_note',
   ghi_chu_ton_kho: 'stock_note',
+  stock_qty: 'stock_qty',
+  so_luong_ton_kho: 'stock_qty',
+  so_luong_ton: 'stock_qty',
+  so_luong: 'stock_qty',
+  quantity: 'stock_qty',
+  qty: 'stock_qty',
+  ton: 'stock_qty',
   price_hint: 'price_hint',
   gia: 'price_hint',
   image_url: 'image_url',
@@ -158,6 +168,14 @@ function cellStr(val: unknown): string {
   return String(val).trim()
 }
 
+function parseStockQty(raw: string): number {
+  const t = String(raw ?? '').trim()
+  if (!t) return 0
+  const n = Number.parseInt(t.replace(/[^\d-]/g, ''), 10)
+  if (!Number.isFinite(n)) return 0
+  return Math.max(0, n)
+}
+
 function normalizeComparableText(s: string): string {
   return s.trim().toLowerCase()
 }
@@ -209,12 +227,13 @@ function isJsonArrayOfColorVariants(raw: string): boolean {
 
 export function buildInventoryTemplateBuffer(): Buffer {
   const header = [...INVENTORY_EXCEL_HEADER_LABELS_VI]
-  /** Mỗi ô khớp đúng một cột tiêu đề (9 cột); không chèn thêm cột ẩn (vd. số 100) kẻo lệch cả file. */
+  /** Mỗi ô khớp đúng một cột tiêu đề (10 cột); không chèn thêm cột ẩn kẻo lệch cả file. */
   const example = [
     'AT-001',
     'Ví dụ: Áo thun cotton',
     '["M","L","XL"]',
     '[{"name":"Đen","img":"https://cdn.example.com/images/ao-thun-den.jpg"},{"name":"Trắng","img":"https://cdn.example.com/images/ao-thun-trang.jpg"}]',
+    '120',
     '199000',
     'https://cdn.example.com/images/ao-thun-mau.jpg',
     'https://shop.example.com/san-pham/ao-thun',
@@ -235,6 +254,7 @@ export function buildInventoryExportBuffer(rows: InventoryRow[]): Buffer {
       r.name,
       r.description ?? '',
       r.stock_note ?? '',
+      Number.isFinite(r.stock_qty) ? r.stock_qty : 0,
       r.price_hint ?? '',
       r.image_url ?? '',
       r.product_url ?? '',
@@ -304,6 +324,7 @@ export function parseInventoryWorkbook(buffer: Buffer): { ok: true; rows: Invent
         sku: sku ? sku.slice(0, 120) : null,
         description: '',
         stock_note: '',
+        stock_qty: 0,
         price_hint: '',
         image_url: '',
         product_url: '',
@@ -331,6 +352,7 @@ export function parseInventoryWorkbook(buffer: Buffer): { ok: true; rows: Invent
 
     const description = get('description')
     const stock_note = get('stock_note')
+    const stock_qty = parseStockQty(get('stock_qty'))
     if (!isJsonArrayOfStrings(description)) {
       return { ok: false, error: `INVALID_SIZE_JSON_ROW_${r + 1}` }
     }
@@ -350,6 +372,7 @@ export function parseInventoryWorkbook(buffer: Buffer): { ok: true; rows: Invent
       sku: sku ? sku.slice(0, 120) : null,
       description: description.slice(0, 4000),
       stock_note: stock_note.slice(0, 2000),
+      stock_qty,
       price_hint: price_hint.slice(0, 500),
       image_url,
       product_url,

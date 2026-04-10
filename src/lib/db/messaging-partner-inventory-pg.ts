@@ -59,6 +59,7 @@ type PgInventoryRaw = {
   name: string
   description: string
   stock_note: string
+  stock_qty: number | null
   price_hint: string
   image_url: string
   product_url: string
@@ -87,6 +88,7 @@ function mapPgInventoryRow(r: PgInventoryRaw): MessagingPartnerInventoryRow {
     name: String(r.name ?? ''),
     description: String(r.description ?? ''),
     stock_note: String(r.stock_note ?? ''),
+    stock_qty: num(r.stock_qty, 0),
     price_hint: String(r.price_hint ?? ''),
     image_url: String(r.image_url ?? ''),
     product_url: String(r.product_url ?? ''),
@@ -115,6 +117,7 @@ const INVENTORY_PAGE_SELECT = `select
   coalesce(mpi.name, '') as name,
   coalesce(mpi.description, '') as description,
   coalesce(mpi.stock_note, '') as stock_note,
+  coalesce(mpi.stock_qty, 0) as stock_qty,
   coalesce(mpi.price_hint, '') as price_hint,
   coalesce(mpi.image_url, '') as image_url,
   coalesce(mpi.product_url, '') as product_url,
@@ -526,6 +529,7 @@ function inventoryInsertRowParams(r: MessagingPartnerInventoryInsert): unknown[]
     r.name ?? '',
     r.description ?? '',
     r.stock_note ?? '',
+    r.stock_qty ?? 0,
     r.price_hint ?? '',
     r.image_url ?? '',
     r.product_url ?? '',
@@ -552,13 +556,13 @@ export async function insertPartnerInventoryChunkFromPg(
       const rowParams = inventoryInsertRowParams(r)
       if (!rowParams) return false
       valuesSql.push(
-        `($${p++}::uuid, $${p++}::uuid, $${p++}::int, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::bool, $${p++}::timestamptz, $${p++}::timestamptz)`
+        `($${p++}::uuid, $${p++}::uuid, $${p++}::int, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::int, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::bool, $${p++}::timestamptz, $${p++}::timestamptz)`
       )
       params.push(...rowParams)
     }
     await getPgPool().query(
       `insert into public.messaging_partner_inventory (
-        id, partner_id, sort_order, sku, name, description, stock_note, price_hint,
+        id, partner_id, sort_order, sku, name, description, stock_note, stock_qty, price_hint,
         image_url, product_url, consult_note, is_active, created_at, updated_at
       ) values ${valuesSql.join(', ')}`,
       params
@@ -586,13 +590,13 @@ export async function upsertPartnerInventoryChunkFromPg(
       const rowParams = inventoryInsertRowParams(r)
       if (!rowParams) return false
       valuesSql.push(
-        `($${p++}::uuid, $${p++}::uuid, $${p++}::int, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::bool, $${p++}::timestamptz, $${p++}::timestamptz)`
+        `($${p++}::uuid, $${p++}::uuid, $${p++}::int, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::int, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::bool, $${p++}::timestamptz, $${p++}::timestamptz)`
       )
       params.push(...rowParams)
     }
     await getPgPool().query(
       `insert into public.messaging_partner_inventory (
-        id, partner_id, sort_order, sku, name, description, stock_note, price_hint,
+        id, partner_id, sort_order, sku, name, description, stock_note, stock_qty, price_hint,
         image_url, product_url, consult_note, is_active, created_at, updated_at
       ) values ${valuesSql.join(', ')}
       on conflict (id) do update set
@@ -602,6 +606,7 @@ export async function upsertPartnerInventoryChunkFromPg(
         name = excluded.name,
         description = excluded.description,
         stock_note = excluded.stock_note,
+        stock_qty = excluded.stock_qty,
         price_hint = excluded.price_hint,
         image_url = excluded.image_url,
         product_url = excluded.product_url,
@@ -688,6 +693,7 @@ export async function updatePartnerInventoryDashboardItemFromPg(
     sku: string | null
     description: string
     stock_note: string
+    stock_qty: number
     price_hint: string
     image_url: string
     product_url: string
@@ -704,13 +710,14 @@ export async function updatePartnerInventoryDashboardItemFromPg(
         sku = $4,
         description = $5,
         stock_note = $6,
-        price_hint = $7,
-        image_url = $8,
-        product_url = $9,
-        consult_note = $10,
-        sort_order = $11,
+        stock_qty = $7,
+        price_hint = $8,
+        image_url = $9,
+        product_url = $10,
+        consult_note = $11,
+        sort_order = $12,
         is_active = true,
-        updated_at = $12::timestamptz
+        updated_at = $13::timestamptz
        where partner_id = $1::uuid and id = $2::uuid`,
       [
         partnerId,
@@ -719,6 +726,7 @@ export async function updatePartnerInventoryDashboardItemFromPg(
         fields.sku,
         fields.description,
         fields.stock_note,
+        fields.stock_qty,
         fields.price_hint,
         fields.image_url,
         fields.product_url,
@@ -741,6 +749,7 @@ export async function insertPartnerInventoryDashboardItemFromPg(
     sku: string | null
     description: string
     stock_note: string
+    stock_qty: number
     price_hint: string
     image_url: string
     product_url: string
@@ -754,10 +763,10 @@ export async function insertPartnerInventoryDashboardItemFromPg(
   try {
     const row = await pgQueryOne<{ id: string }>(
       `insert into public.messaging_partner_inventory (
-        partner_id, name, sku, description, stock_note, price_hint, image_url, product_url, consult_note,
+        partner_id, name, sku, description, stock_note, stock_qty, price_hint, image_url, product_url, consult_note,
         sort_order, is_active, created_at, updated_at
       ) values (
-        $1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, true, $11::timestamptz, $12::timestamptz
+        $1::uuid, $2, $3, $4, $5, $6::int, $7, $8, $9, $10, $11, true, $12::timestamptz, $13::timestamptz
       )
       returning id::text as id`,
       [
@@ -766,6 +775,7 @@ export async function insertPartnerInventoryDashboardItemFromPg(
         fields.sku,
         fields.description,
         fields.stock_note,
+        fields.stock_qty,
         fields.price_hint,
         fields.image_url,
         fields.product_url,

@@ -61,6 +61,7 @@ function rowAsEmbeddingComparable(
     name: row.name ?? '',
     description: '',
     stock_note: '',
+    stock_qty: 0,
     price_hint: '',
     image_url: row.image_url ?? '',
     product_url: '',

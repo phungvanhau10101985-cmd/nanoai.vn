@@ -162,6 +162,8 @@ export function openCatalogItemToInsert(obj: unknown): InventoryExcelInsert | nu
   )
   let stock_note = rawStockNote
   let price_hint = rawPriceHint
+  const rawQty = cellStr(o.stock_qty ?? o.quantity ?? o.qty ?? o.stock_count ?? o.inventory_count)
+  const stock_qty = Math.max(0, Number.parseInt(rawQty.replace(/[^\d-]/g, ''), 10) || 0)
 
   if (price_hint && !looksLikePriceText(price_hint) && looksLikeStockStatusText(price_hint)) {
     throw new Error(invalidPriceStructureMessage(name))
@@ -190,6 +192,7 @@ export function openCatalogItemToInsert(obj: unknown): InventoryExcelInsert | nu
     sku,
     description,
     stock_note,
+    stock_qty,
     price_hint,
     image_url,
     product_url,
@@ -289,6 +292,7 @@ export function buildOpenCatalogReconcileRows(
         sku: row.sku,
         description: row.description ?? '',
         stock_note: row.stock_note ?? '',
+        stock_qty: Math.max(0, Number(row.stock_qty ?? 0)),
         price_hint: row.price_hint ?? '',
         image_url: row.image_url ?? '',
         product_url: row.product_url ?? '',
@@ -307,6 +311,7 @@ export function buildOpenCatalogReconcileRows(
       sku: row.sku,
       description: row.description ?? '',
       stock_note: row.stock_note ?? '',
+      stock_qty: Math.max(0, Number(row.stock_qty ?? 0)),
       price_hint: row.price_hint ?? '',
       image_url: row.image_url ?? '',
       product_url: row.product_url ?? '',

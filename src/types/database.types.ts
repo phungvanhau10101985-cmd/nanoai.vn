@@ -535,6 +535,7 @@ export interface Database {
           name: string
           description: string
           stock_note: string
+          stock_qty: number
           price_hint: string
           image_url: string
           product_url: string
@@ -561,6 +562,7 @@ export interface Database {
           name: string
           description?: string
           stock_note?: string
+          stock_qty?: number
           price_hint?: string
           image_url?: string
           product_url?: string
@@ -587,6 +589,7 @@ export interface Database {
           name?: string
           description?: string
           stock_note?: string
+          stock_qty?: number
           price_hint?: string
           image_url?: string
           product_url?: string
