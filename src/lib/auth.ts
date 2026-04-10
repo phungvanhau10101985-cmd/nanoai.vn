@@ -2,8 +2,27 @@ import type { AppUser } from '@/lib/auth/app-user'
 import { cookies, headers } from 'next/headers'
 import { getEmailSessionUser } from '@/lib/auth/email-session-user'
 import { isValidUuidString } from '@/lib/validate-uuid'
+import { isPgConfigured } from '@/lib/db/pool'
+import { pgQueryOne } from '@/lib/db/pg-query'
 
 const FORCE_REAL_LOGIN_COOKIE = 'force_real_login'
+
+async function canonicalizeUserByEmail(user: AppUser): Promise<AppUser> {
+  const email = String(user.email ?? '').trim().toLowerCase()
+  if (!email || !isPgConfigured()) return user
+  try {
+    const row = await pgQueryOne<{ id: string }>(
+      `select (public.nanoai_ensure_user_by_email($1::text))::text as id`,
+      [email]
+    )
+    if (row?.id && isValidUuidString(row.id) && row.id !== user.id) {
+      return { ...user, id: row.id }
+    }
+  } catch {
+    // Keep current session user when canonical lookup is unavailable on this environment.
+  }
+  return user
+}
 
 /** Kiểm tra request có phải từ crawler tìm kiếm (Google, Bing...) – để render trang cho SEO thay vì redirect login */
 function isSearchEngineCrawler(): boolean {
@@ -63,7 +82,7 @@ export async function getUserOrBypass(): Promise<AppUser | null> {
   const emailUser = await getEmailSessionUser()
   if (emailUser) {
     if (!isValidUuidString(emailUser.id)) return null
-    return emailUser
+    return canonicalizeUserByEmail(emailUser)
   }
   if (!isAuthRequired()) return getDevUser()
   if (isSearchEngineCrawler()) return getDevUser()
@@ -81,7 +100,7 @@ export async function getUserForAction(
   const emailUser = await getEmailSessionUser()
   if (emailUser) {
     if (!isValidUuidString(emailUser.id)) return { error: errorMessage }
-    return { user: emailUser }
+    return { user: await canonicalizeUserByEmail(emailUser) }
   }
   if (!isAuthRequired()) return { user: getDevUser() }
   return { error: errorMessage }
