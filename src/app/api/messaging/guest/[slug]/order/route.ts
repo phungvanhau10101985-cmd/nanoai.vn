@@ -77,6 +77,13 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     })
     return NextResponse.json({ ok: true, products: related })
   }
+  const loginUser = await getEmailSessionUser()
+  if (!loginUser?.id) {
+    return NextResponse.json(
+      { error: 'AUTH_REQUIRED_PURCHASE_LOGIN', requireAuth: true },
+      { status: 401 }
+    )
+  }
   if (action === 'product_options') {
     const productUrl = String(body?.productUrl ?? '').trim()
     if (!productUrl) return NextResponse.json({ error: 'Missing productUrl.' }, { status: 400 })
@@ -84,23 +91,21 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
       partnerId: partner.partnerId,
       productUrl,
     })
-    const user = await getEmailSessionUser()
     const profile =
-      user?.email?.trim()
+      loginUser?.email?.trim()
         ? await getCustomerDeliveryProfile({
             partnerId: partner.partnerId,
-            emailNormalized: user.email.trim().toLowerCase(),
+            emailNormalized: loginUser.email.trim().toLowerCase(),
           })
         : null
     return NextResponse.json({ ok: true, options, profile })
   }
   const card = asCard(body?.productCard ?? null)
   if (!card) return NextResponse.json({ error: 'Invalid product card.' }, { status: 400 })
-  const user = await getEmailSessionUser()
   const created = await createOrderDraftFromProductPick({
     partnerId: partner.partnerId,
     externalThreadId: thread.externalThreadId,
-    customerName: guestName(user?.email ?? null),
+    customerName: guestName(loginUser?.email ?? null),
     linkedUserId: thread.linkedUserId,
     guestAccountId: thread.guestAccountId,
     card,
@@ -113,6 +118,13 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
   const { slug } = await ctx.params
   const partner = await resolvePartner(slug)
   if ('error' in partner) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  const loginUser = await getEmailSessionUser()
+  if (!loginUser?.id) {
+    return NextResponse.json(
+      { error: 'AUTH_REQUIRED_PURCHASE_LOGIN', requireAuth: true },
+      { status: 401 }
+    )
+  }
   const thread = await resolveThread(request)
   if (!thread) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
@@ -132,8 +144,7 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
   const orderId = String(body?.orderId ?? '').trim()
   if (!orderId) return NextResponse.json({ error: 'Missing orderId.' }, { status: 400 })
   const f = body?.form ?? {}
-  const user = await getEmailSessionUser()
-  const sessionEmail = String(user?.email ?? '').trim().toLowerCase()
+  const sessionEmail = String(loginUser?.email ?? '').trim().toLowerCase()
   const done = await completeOrderCheckout({
     partnerId: partner.partnerId,
     externalThreadId: thread.externalThreadId,

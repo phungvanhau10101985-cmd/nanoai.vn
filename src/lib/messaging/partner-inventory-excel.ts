@@ -222,6 +222,7 @@ function normalizeJsonArrayOfStringsLenient(raw: string): string {
   try {
     const parsed = JSON.parse(t) as unknown
     if (Array.isArray(parsed)) {
+      if (parsed.length === 0) return '[]'
       for (const item of parsed) {
         if (typeof item === 'string') push(item)
       }
@@ -271,6 +272,7 @@ function normalizeColorVariantsJsonLenient(raw: string): string {
   try {
     const parsed = JSON.parse(t) as unknown
     if (Array.isArray(parsed)) {
+      if (parsed.length === 0) return '[]'
       for (const item of parsed) {
         if (!item || typeof item !== 'object' || Array.isArray(item)) continue
         const o = item as Record<string, unknown>

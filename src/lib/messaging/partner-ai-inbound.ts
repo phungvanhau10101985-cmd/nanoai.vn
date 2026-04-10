@@ -24,6 +24,14 @@ function typingDelayMs(settings: SettingsRow): number {
   return a + Math.floor(Math.random() * Math.max(1, b - a + 1))
 }
 
+function burstMergeDelaySec(channel: CustomerCareChannel): number {
+  // Chỉ gộp burst cho widget: khách có thể gửi nhiều tin liên tục.
+  if (channel !== 'widget') return 0
+  const n = Number.parseInt(process.env.MESSAGING_PARTNER_AI_BURST_MERGE_SECONDS || '2', 10)
+  if (!Number.isFinite(n)) return 2
+  return Math.max(0, Math.min(10, n))
+}
+
 /** Hủy job AI pending — chỉ Postgres. */
 export async function cancelPendingAiJobsForConversation(conversationId: string) {
   try {
@@ -103,7 +111,11 @@ export async function handlePartnerInboundForAi(input: {
       return { show: true, maxWaitMs: hi + 10_000 }
     }
 
-    await cancelPendingAiJobsForConversation(input.conversationId)
+    // Gộp burst: nếu khách nhắn dày trong thời gian ngắn, chỉ giữ job mới nhất.
+    const mergeDelay = burstMergeDelaySec(input.channel)
+    if (mergeDelay > 0) {
+      await cancelPendingAiJobsForConversation(input.conversationId)
+    }
     const configuredDelay =
       input.channel === 'widget'
         ? 0
@@ -120,6 +132,9 @@ export async function handlePartnerInboundForAi(input: {
       delaySec = visionFastFallback
         ? Math.min(configuredDelay, Math.max(0, input.capReplyDelaySeconds ?? 0))
         : configuredDelay
+      if (mergeDelay > 0) {
+        delaySec = Math.max(delaySec, mergeDelay)
+      }
     }
     const runAt = new Date(Date.now() + delaySec * 1000).toISOString()
     let scheduled = false

@@ -622,6 +622,14 @@ export function PartnerGuestChatClient({
     }
   }
 
+  const promptLoginForPurchase = useCallback(() => {
+    setAuthGateRequired(true)
+    toast({
+      title: 'Vui lòng đăng nhập Gmail để tạo và lưu đơn hàng.',
+      variant: 'destructive',
+    })
+  }, [toast])
+
   const toCardFromBuyOption = useCallback((x: BuyProductOption): PartnerAiProductCard => {
     const out: PartnerAiProductCard = {
       name: x.name,
@@ -647,6 +655,11 @@ export function PartnerGuestChatClient({
         const data = (await res.json().catch(() => null)) as
           | { ok?: boolean; error?: string; order?: { id?: string } }
           | null
+        if (res.status === 401 || data?.error?.startsWith('AUTH_REQUIRED_')) {
+          setUserId(null)
+          promptLoginForPurchase()
+          return
+        }
         if (!res.ok) {
           toast({ title: data?.error || 'Khong tao duoc don hang.', variant: 'destructive' })
           return
@@ -691,11 +704,12 @@ export function PartnerGuestChatClient({
         setOrderFormBusy(false)
       }
     },
-    [authHeaders, captureGuestSessionFromResponse, load, slug, toCardFromBuyOption, toast]
+    [authHeaders, captureGuestSessionFromResponse, load, promptLoginForPurchase, slug, toCardFromBuyOption, toast]
   )
 
   const maybeOpenBuyOptionsFromInbound = useCallback(async () => {
     if (buyOptionsBusy || orderFormOpen) return
+    if (authGateRequired && authMode !== 'account') return
     const inbound = [...messages].reverse().find((m) => m.direction === 'inbound')
     if (!inbound) return
     if (buyPromptMessageId === inbound.id) return
@@ -713,8 +727,13 @@ export function PartnerGuestChatClient({
       })
       captureGuestSessionFromResponse(res)
       const data = (await res.json().catch(() => null)) as
-        | { ok?: boolean; products?: BuyProductOption[] }
+        | { ok?: boolean; products?: BuyProductOption[]; error?: string }
         | null
+      if (res.status === 401 || data?.error?.startsWith('AUTH_REQUIRED_')) {
+        setUserId(null)
+        promptLoginForPurchase()
+        return
+      }
       if (!res.ok || !data?.ok || !Array.isArray(data.products)) return
       setBuyOptions(data.products.slice(0, 20))
       setBuyOptionsOpen(data.products.length > 0)
@@ -733,7 +752,10 @@ export function PartnerGuestChatClient({
     buyPromptMessageId,
     captureGuestSessionFromResponse,
     messages,
+    authGateRequired,
+    authMode,
     orderFormOpen,
+    promptLoginForPurchase,
     slug,
     toast,
   ])
@@ -814,6 +836,7 @@ export function PartnerGuestChatClient({
       }
       if (res.status === 401) {
         setUserId(null)
+        promptLoginForPurchase()
         return
       }
       if (!res.ok) {
@@ -848,6 +871,11 @@ export function PartnerGuestChatClient({
       captureGuestSessionFromResponse(res)
       const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string } | null
       if (!res.ok) {
+        if (res.status === 401 || data?.error?.startsWith('AUTH_REQUIRED_')) {
+          setUserId(null)
+          promptLoginForPurchase()
+          return
+        }
         toast({ title: data?.error || 'Khong doi chieu duoc thanh toan.', variant: 'destructive' })
         return
       }
