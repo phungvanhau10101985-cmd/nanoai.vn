@@ -56,6 +56,27 @@ type PurchaseOptionsPayload = {
   colors: Array<{ name: string; img: string }>
 }
 
+function collectRecentSuggestedCardsFromMessages(
+  messages: GuestMsg[],
+  limit = 60
+): PartnerAiProductCard[] {
+  const out: PartnerAiProductCard[] = []
+  const seen = new Set<string>()
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const msg = messages[i]
+    if (msg.direction !== 'outbound') continue
+    const cards = aiProductCardsFromPayload(msg.raw_payload ?? null)
+    for (const c of cards) {
+      const key = c.product_url.trim().toLowerCase()
+      if (!key || seen.has(key)) continue
+      seen.add(key)
+      out.push(c)
+      if (out.length >= limit) return out
+    }
+  }
+  return out
+}
+
 function getVisionPickState(raw: Json | null | undefined): {
   required: boolean
   candidates: GuestVisionCandidate[]
@@ -715,7 +736,7 @@ export function PartnerGuestChatClient({
     if (buyPromptMessageId === inbound.id) return
     const intent = classifyOrderIntent(inbound.body ?? '')
     if (intent !== 'purchase') return
-    const recent = aiProductCardsFromPayload(messages)
+    const recent = collectRecentSuggestedCardsFromMessages(messages, 80)
     if (!recent.length) return
     setBuyOptionsBusy(true)
     try {
@@ -723,7 +744,7 @@ export function PartnerGuestChatClient({
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify({ action: 'related_products', recentCards: recent.slice(0, 20) }),
+        body: JSON.stringify({ action: 'related_products', recentCards: recent.slice(0, 80) }),
       })
       captureGuestSessionFromResponse(res)
       const data = (await res.json().catch(() => null)) as
@@ -740,6 +761,8 @@ export function PartnerGuestChatClient({
       setBuyPromptMessageId(inbound.id)
       if (data.products.length > 0) {
         toast({ title: 'Anh/chị muốn mua sản phẩm nào? Mình gợi ý 20 mẫu liên quan nhất.' })
+      } else {
+        toast({ title: 'Mình chưa thấy sản phẩm phù hợp để lên đơn. Shop tư vấn thêm giúp bạn ngay nhé.' })
       }
     } catch {
       // silent fallback

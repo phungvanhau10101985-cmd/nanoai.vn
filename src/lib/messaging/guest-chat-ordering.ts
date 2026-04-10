@@ -355,30 +355,52 @@ export async function listRelatedBuyProducts(input: {
   limit?: number
 }): Promise<RelatedBuyProduct[]> {
   const lim = Math.max(1, Math.min(20, Math.floor(Number(input.limit) || 20)))
-  const rows = await fetchPartnerInventoryDefaultForAiFromPg(input.partnerId, 300)
-  if (!rows || rows.length === 0) return []
-  const scored: Array<{ row: (typeof rows)[number]; score: number }> = []
-  const urlRank = new Map<string, number>()
-  input.recentCards.forEach((c, i) => {
+  const recentDedup: PartnerAiProductCard[] = []
+  const seenRecent = new Set<string>()
+  for (const c of input.recentCards) {
     const u = c.product_url.trim()
-    if (!u) return
-    if (!urlRank.has(u)) urlRank.set(u, i)
-  })
-  for (const row of rows) {
-    let score = 0
-    const rank = urlRank.get((row.product_url ?? '').trim())
-    if (rank !== undefined) score += 1000 - rank * 30
-    if (row.image_url) score += 4
-    if (row.price_hint) score += 2
-    scored.push({ row, score })
+    if (!u) continue
+    const key = u.toLowerCase()
+    if (seenRecent.has(key)) continue
+    seenRecent.add(key)
+    recentDedup.push(c)
+    if (recentDedup.length >= 80) break
   }
-  scored.sort((a, b) => b.score - a.score || a.row.sort_order - b.row.sort_order)
-  return scored.slice(0, lim).map((x) => ({
-    name: x.row.name,
-    image_url: x.row.image_url ?? '',
-    product_url: x.row.product_url ?? '',
-    price_hint: x.row.price_hint ?? '',
-    sku: x.row.sku ?? null,
+
+  const rows = await fetchPartnerInventoryDefaultForAiFromPg(input.partnerId, 800)
+  type InvRow = NonNullable<Awaited<ReturnType<typeof fetchPartnerInventoryDefaultForAiFromPg>>>[number]
+  const byUrl = new Map<string, InvRow>()
+  for (const row of rows ?? []) {
+    const u = String(row.product_url ?? '').trim()
+    if (!u) continue
+    const key = u.toLowerCase()
+    if (!byUrl.has(key)) byUrl.set(key, row)
+  }
+
+  if (recentDedup.length > 0) {
+    const out: RelatedBuyProduct[] = []
+    for (const c of recentDedup) {
+      const key = c.product_url.trim().toLowerCase()
+      const row = byUrl.get(key)
+      out.push({
+        name: row?.name?.trim() ? row.name : c.name,
+        image_url: row?.image_url?.trim() ? row.image_url : c.image_url,
+        product_url: row?.product_url?.trim() ? row.product_url : c.product_url,
+        price_hint: row?.price_hint?.trim() ? row.price_hint : c.price_hint ?? '',
+        sku: row?.sku ?? null,
+      })
+      if (out.length >= lim) break
+    }
+    return out
+  }
+
+  if (!rows || rows.length === 0) return []
+  return rows.slice(0, lim).map((x) => ({
+    name: x.name,
+    image_url: x.image_url ?? '',
+    product_url: x.product_url ?? '',
+    price_hint: x.price_hint ?? '',
+    sku: x.sku ?? null,
   }))
 }
 
