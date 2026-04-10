@@ -33,7 +33,14 @@
     var panelBottom = num(getAttr('data-panel-bottom', '12'), 12, 0, 120)
     var widgetId = getAttr('data-widget-id', 'nanoai-chat-widget-v1')
 
-    if (document.getElementById(widgetId)) return
+    var existingRoot = document.getElementById(widgetId)
+    if (existingRoot) {
+      var hasMountedUi =
+        !!existingRoot.querySelector('button[aria-label="Open NanoAI chat"]') ||
+        !!existingRoot.querySelector('iframe')
+      if (hasMountedUi) return
+      if (existingRoot.parentNode) existingRoot.parentNode.removeChild(existingRoot)
+    }
     if (!document.body) return
 
     var root = document.createElement('div')
@@ -55,21 +62,17 @@
       'display:flex;align-items:center;justify-content:center;padding:0;overflow:hidden;'
 
     if (logoUrl) {
-      var logoMask = document.createElement('span')
-      logoMask.style.cssText =
-        'width:76%;height:76%;border-radius:9999px;overflow:hidden;display:flex;align-items:center;justify-content:center;background:#fff;'
       var logo = document.createElement('img')
       logo.src = logoUrl
       logo.alt = 'NanoAI'
-      logo.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;border-radius:9999px;'
+      logo.style.cssText = 'width:30px;height:30px;object-fit:contain;display:block;'
       logo.onerror = function () {
-        logoMask.style.display = 'none'
+        this.style.display = 'none'
         bubble.textContent = 'AI'
         bubble.style.color = '#fff'
         bubble.style.fontWeight = '700'
       }
-      logoMask.appendChild(logo)
-      bubble.appendChild(logoMask)
+      bubble.appendChild(logo)
     } else {
       bubble.textContent = 'AI'
       bubble.style.color = '#fff'
@@ -82,6 +85,7 @@
       'pointer-events:auto;display:none;position:absolute;background:#fff;overflow:hidden;' +
       'box-shadow:0 16px 40px rgba(0,0,0,.28);border:1px solid #e5e7eb;'
     root.appendChild(panel)
+    root.setAttribute('data-nanoai-ready', '1')
 
     var header = document.createElement('div')
     header.style.cssText =
