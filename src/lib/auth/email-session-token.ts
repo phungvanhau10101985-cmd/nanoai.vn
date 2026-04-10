@@ -3,7 +3,7 @@ import { cookies } from 'next/headers'
 import {
   EMAIL_SESSION_COOKIE,
   EMAIL_SESSION_COOKIE_LEGACY,
-  getAuthJwtSecretBytes,
+  getPrimaryAuthJwtSecretBytes,
   isEmailAuthEnabled,
 } from '@/lib/auth/email-auth-config'
 
@@ -29,7 +29,7 @@ export function getEmailSessionCookieOptions() {
 }
 
 export async function createEmailSessionTokenString(userId: string, email: string): Promise<string | null> {
-  const secret = getAuthJwtSecretBytes()
+  const secret = getPrimaryAuthJwtSecretBytes()
   if (!secret) return null
   return new SignJWT({ email })
     .setProtectedHeader({ alg: 'HS256' })

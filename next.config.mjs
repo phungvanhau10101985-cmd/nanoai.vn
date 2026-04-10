@@ -115,6 +115,16 @@ const nextConfig = {
                     { key: 'Cache-Control', value: 'no-cache, no-store, must-revalidate' },
                 ],
             },
+            {
+                // Embed widget script must refresh immediately after deploy on partner sites.
+                source: '/embed/nanoai-chat-widget.js',
+                headers: [
+                    { key: 'Content-Type', value: 'application/javascript; charset=utf-8' },
+                    { key: 'Cache-Control', value: 'no-cache, no-store, must-revalidate' },
+                    { key: 'Pragma', value: 'no-cache' },
+                    { key: 'Expires', value: '0' },
+                ],
+            },
         ];
 
         // In dev, disable static asset caching to avoid stale client chunks/hot-update mismatch.
