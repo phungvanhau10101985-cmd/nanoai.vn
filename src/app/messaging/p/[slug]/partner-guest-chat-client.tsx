@@ -58,7 +58,8 @@ type PurchaseOptionsPayload = {
 
 function collectRecentSuggestedCardsFromMessages(
   messages: GuestMsg[],
-  limit = 60
+  limit = 60,
+  anchorInboundId?: string
 ): PartnerAiProductCard[] {
   const out: PartnerAiProductCard[] = []
   const seen = new Set<string>()
@@ -72,7 +73,13 @@ function collectRecentSuggestedCardsFromMessages(
     out.push(card)
     return out.length >= limit
   }
-  for (let i = messages.length - 1; i >= 0; i -= 1) {
+  const anchorIdx =
+    anchorInboundId
+      ? messages.findIndex((m) => m.id === anchorInboundId && m.direction === 'inbound')
+      : -1
+  const startIdx = anchorIdx >= 0 ? anchorIdx - 1 : messages.length - 1
+  const minIdx = Math.max(0, startIdx - 24)
+  for (let i = startIdx; i >= minIdx; i -= 1) {
     const msg = messages[i]
     const raw = msg.raw_payload ?? null
     if (msg.direction === 'outbound') {
@@ -759,8 +766,17 @@ export function PartnerGuestChatClient({
     if (buyPromptMessageId === inbound.id) return
     const intent = classifyOrderIntent(inbound.body ?? '')
     if (intent !== 'purchase') return
-    const recent = collectRecentSuggestedCardsFromMessages(messages, 80)
-    if (!recent.length) return
+    const recent = collectRecentSuggestedCardsFromMessages(messages, 80, inbound.id)
+    if (!recent.length) {
+      setBuyOptions([])
+      setBuyOptionsOpen(false)
+      setBuyPromptMessageId(inbound.id)
+      toast({
+        title:
+          'Để tư vấn đúng mẫu bạn muốn mua, vui lòng gửi ảnh sản phẩm hoặc mã sản phẩm (SKU) và cho shop biết bạn muốn mua mẫu nào nhé.',
+      })
+      return
+    }
     setBuyOptionsBusy(true)
     try {
       const res = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}/order`, {
