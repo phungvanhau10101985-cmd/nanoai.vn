@@ -120,7 +120,7 @@ export async function fetchMessagingPartnersByIdsFromPg(partnerIds: string[]): P
   const cleanIds = filterUuidStrings(partnerIds)
   if (cleanIds.length === 0) return null
   try {
-    let rows = await pgQuery<{
+    const rows = await pgQuery<{
       id: string
       display_name: string | null
       industry_key: 'fashion' | 'hotel' | 'food' | 'other' | null

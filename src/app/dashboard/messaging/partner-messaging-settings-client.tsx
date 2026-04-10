@@ -353,7 +353,7 @@ export function PartnerMessagingSettingsClient({
     })
   }
 
-  const useLogoVersion = (versionId: string) => {
+  const applyLogoVersion = (versionId: string) => {
     if (!selectedPartnerId) return
     startTransition(async () => {
       const res = await setMessagingWorkspaceActiveLogo(selectedPartnerId, versionId)
@@ -745,7 +745,7 @@ export function PartnerMessagingSettingsClient({
                             className="mt-1 h-7 px-2 text-[11px]"
                             variant={lv.is_active ? 'outline' : 'default'}
                             disabled={pending || lv.is_active}
-                            onClick={() => useLogoVersion(lv.id)}
+                            onClick={() => applyLogoVersion(lv.id)}
                           >
                             {lv.is_active ? 'Dang su dung' : 'Dung logo nay'}
                           </Button>
