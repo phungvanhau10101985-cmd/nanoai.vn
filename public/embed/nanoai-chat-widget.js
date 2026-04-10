@@ -30,6 +30,7 @@
     var mobileBreakpoint = num(getAttr('data-mobile-breakpoint', '768'), 768, 320, 1600)
     var bubbleSize = num(getAttr('data-bubble-size', '56'), 56, 40, 100)
     var mobileBubbleSize = num(getAttr('data-mobile-bubble-size', '52'), 52, 40, 100)
+    var panelBottom = num(getAttr('data-panel-bottom', '12'), 12, 0, 120)
     var widgetId = getAttr('data-widget-id', 'nanoai-chat-widget-v1')
 
     if (document.getElementById(widgetId)) return
@@ -99,28 +100,59 @@
     var iframe = null
     var pageContext = null
 
+    function toHttpUrl(raw) {
+      var t = String(raw || '').trim()
+      if (!t) return ''
+      if (t.indexOf('//') === 0) t = window.location.protocol + t
+      try {
+        t = new URL(t, window.location.href).toString()
+      } catch (_) {
+        return ''
+      }
+      return /^https?:\/\//i.test(t) ? t : ''
+    }
+
+    function pickSkuFromText(raw) {
+      var text = String(raw || '').replace(/\s+/g, ' ').trim()
+      if (!text) return ''
+      var m = text.match(/(?:m[aã]\s*sp|ma\s*sp|sku|model)\s*[:：\-]?\s*([A-Za-z0-9][A-Za-z0-9._/-]{1,95})/i)
+      if (m && m[1]) return m[1].trim()
+      var stripped = text.replace(/^(m[aã]\s*sp|ma\s*sp|sku|model)\s*[:：\-]?\s*/i, '').trim()
+      var cands = stripped.match(/[A-Za-z0-9][A-Za-z0-9._/-]{1,95}/g) || []
+      return cands.length ? cands[0].trim() : ''
+    }
+
     function extractPageContext() {
       var out = {}
       try {
-        var codeEl = document.getElementById('copy-code-product')
+        var codeEl =
+          document.getElementById('copy-code-product') ||
+          document.querySelector('#copy-code-product,[id*="copy-code-product"],.copy-code-product')
         var codeText = codeEl ? String(codeEl.textContent || '').trim() : ''
-        var skuMatch = codeText.match(/(?:m[aã]\s*sp|ma\s*sp|sku)\s*[:：]?\s*([A-Za-z0-9._-]{2,64})/i)
-        if (skuMatch && skuMatch[1]) out.sku = skuMatch[1]
+        var sku = pickSkuFromText(codeText)
+        if (sku) out.sku = sku
       } catch (_) {}
 
       try {
-        var firstImg = document.querySelector('.image_list img[data-src], .image_list img[src]')
-        if (firstImg) {
-          var imgUrl = String(
-            firstImg.getAttribute('data-src') || firstImg.getAttribute('src') || ''
-          ).trim()
-          if (/^https?:\/\//i.test(imgUrl)) out.imageUrl = imgUrl
+        var imgs = document.querySelectorAll(
+          '.image_list img, .image-list img, [class*="image_list"] img, [class*="image-list"] img'
+        )
+        for (var i = 0; i < imgs.length; i += 1) {
+          var img = imgs[i]
+          var imgUrl = toHttpUrl(img.getAttribute('data-src') || img.getAttribute('src') || '')
+          if (imgUrl) {
+            out.imageUrl = imgUrl
+            break
+          }
         }
       } catch (_) {}
 
       try {
-        var pageUrl = String(window.location.href || '').trim()
-        if (/^https?:\/\//i.test(pageUrl)) out.productUrl = pageUrl
+        var canonical = document.querySelector('link[rel="canonical"]')
+        var canonicalUrl = canonical ? toHttpUrl(canonical.getAttribute('href')) : ''
+        var pageUrl = toHttpUrl(window.location.href)
+        if (canonicalUrl) out.productUrl = canonicalUrl
+        else if (pageUrl) out.productUrl = pageUrl
       } catch (_) {}
 
       return out
@@ -141,16 +173,21 @@
       }
     }
 
-    function ensureIframe() {
-      if (iframe) return
-      if (!pageContext) pageContext = extractPageContext()
-      iframe = document.createElement('iframe')
-      iframe.src = buildChatUrlWithContext(chatUrl, pageContext)
-      iframe.title = 'Chat NanoAI'
-      iframe.loading = 'lazy'
-      iframe.referrerPolicy = 'no-referrer-when-downgrade'
-      iframe.style.cssText = 'width:100%;height:100%;border:0;'
-      body.appendChild(iframe)
+    function ensureIframe(ctx) {
+      var nextCtx = ctx || extractPageContext()
+      pageContext = nextCtx
+      var nextSrc = buildChatUrlWithContext(chatUrl, nextCtx)
+      if (!iframe) {
+        iframe = document.createElement('iframe')
+        iframe.src = nextSrc
+        iframe.title = 'Chat NanoAI'
+        iframe.loading = 'lazy'
+        iframe.referrerPolicy = 'no-referrer-when-downgrade'
+        iframe.style.cssText = 'width:100%;height:100%;border:0;'
+        body.appendChild(iframe)
+        return
+      }
+      if (iframe.src !== nextSrc) iframe.src = nextSrc
     }
 
     function viewportHeight() {
@@ -169,7 +206,7 @@
     }
 
     function openChat() {
-      ensureIframe()
+      ensureIframe(extractPageContext())
       panel.style.display = 'block'
       bubble.style.display = 'none'
     }
@@ -182,37 +219,33 @@
 
     function placeDesktop() {
       var safeBottom = clampBottomOffset(bubbleSize)
-      var panelBottom = bubbleSize + 14
-      // Reserve a small top margin so panel never gets pushed above viewport.
-      var availableHeight = Math.max(220, viewportHeight() - safeBottom - panelBottom - 12)
+      var availableHeight = Math.max(220, viewportHeight() - panelBottom - 12)
       var finalHeight = Math.min(desktopHeight, availableHeight)
 
-      root.style.top = ''
-      root.style.left = ''
-      root.style.right = ''
-      root.style.bottom = safeBottom + 'px'
+      root.style.top = '0'
+      root.style.left = '0'
+      root.style.right = '0'
+      root.style.bottom = '0'
+      bubble.style.position = 'absolute'
+      bubble.style.bottom = safeBottom + 'px'
       if (side === 'left') {
-        root.style.left = offsetX + 'px'
-        root.style.right = 'auto'
-        panel.style.position = 'absolute'
-        panel.style.left = '0'
+        bubble.style.left = offsetX + 'px'
+        bubble.style.right = 'auto'
+        panel.style.position = 'fixed'
+        panel.style.left = offsetX + 'px'
         panel.style.right = 'auto'
       } else {
-        root.style.right = offsetX + 'px'
-        root.style.left = 'auto'
-        panel.style.position = 'absolute'
-        panel.style.right = '0'
+        bubble.style.right = offsetX + 'px'
+        bubble.style.left = 'auto'
+        panel.style.position = 'fixed'
+        panel.style.right = offsetX + 'px'
         panel.style.left = 'auto'
       }
-      panel.style.top = ''
+      panel.style.top = 'auto'
       panel.style.bottom = panelBottom + 'px'
       panel.style.width = 'min(40vw,' + desktopWidth + 'px)'
       panel.style.height = finalHeight + 'px'
       panel.style.borderRadius = radius + 'px'
-      bubble.style.position = ''
-      bubble.style.left = ''
-      bubble.style.right = ''
-      bubble.style.bottom = ''
       bubble.style.width = bubbleSize + 'px'
       bubble.style.height = bubbleSize + 'px'
       bubble.style.margin = '0'
