@@ -1,5 +1,17 @@
 (function () {
   var script = document.currentScript
+  if (!script) {
+    var allScripts = document.getElementsByTagName('script')
+    for (var i = allScripts.length - 1; i >= 0; i -= 1) {
+      var s = allScripts[i]
+      var src = String((s && s.getAttribute && s.getAttribute('src')) || '')
+      var hasChatUrl = !!(s && s.getAttribute && s.getAttribute('data-chat-url'))
+      if (src.indexOf('/embed/nanoai-chat-widget.js') >= 0 && hasChatUrl) {
+        script = s
+        break
+      }
+    }
+  }
   if (!script) return
 
   function num(v, fallback, min, max) {
@@ -62,17 +74,21 @@
       'display:flex;align-items:center;justify-content:center;padding:0;overflow:hidden;'
 
     if (logoUrl) {
+      var logoMask = document.createElement('span')
+      logoMask.style.cssText =
+        'width:76%;height:76%;border-radius:9999px;overflow:hidden;display:flex;align-items:center;justify-content:center;background:#fff;'
       var logo = document.createElement('img')
       logo.src = logoUrl
       logo.alt = 'NanoAI'
-      logo.style.cssText = 'width:30px;height:30px;object-fit:contain;display:block;'
+      logo.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;border-radius:9999px;'
       logo.onerror = function () {
-        this.style.display = 'none'
+        logoMask.style.display = 'none'
         bubble.textContent = 'AI'
         bubble.style.color = '#fff'
         bubble.style.fontWeight = '700'
       }
-      bubble.appendChild(logo)
+      logoMask.appendChild(logo)
+      bubble.appendChild(logoMask)
     } else {
       bubble.textContent = 'AI'
       bubble.style.color = '#fff'
