@@ -125,6 +125,54 @@ else
   if [[ "${#ALL_MIGRATIONS[@]}" -eq 0 ]]; then
     echo "  Không tìm thấy migration trong db/migrations/."
   else
+    has_state=0
+    if [[ "${#APPLIED_HASHES[@]}" -gt 0 ]]; then
+      has_state=1
+    fi
+
+    # Lần đầu bật cơ chế checksum: không replay toàn bộ lịch sử migration.
+    # Nếu đang có deploy commit mới, chỉ chạy migration nằm trong diff OLD..NEW.
+    # Sau đó ghi baseline hash cho toàn bộ file để các lần sau chỉ chạy NEW/CHANGED.
+    if [[ "${has_state}" -eq 0 ]]; then
+      echo "  Chưa có state checksum, bootstrap lần đầu..."
+      if [[ -n "${OLD_COMMIT}" ]] && [[ "${OLD_COMMIT}" != "${NEW_HEAD}" ]]; then
+        mapfile -t BOOTSTRAP_DIFF_MIGRATIONS < <(git diff --name-only "${OLD_COMMIT}" "${NEW_HEAD}" -- "db/migrations/*.sql" | sort)
+        if [[ "${#BOOTSTRAP_DIFF_MIGRATIONS[@]}" -gt 0 ]]; then
+          echo "  Chạy migration phát sinh trong đợt deploy này (${#BOOTSTRAP_DIFF_MIGRATIONS[@]} file):"
+          for m in "${BOOTSTRAP_DIFF_MIGRATIONS[@]}"; do
+            [[ -f "${m}" ]] || continue
+            echo "  -> Apply BOOTSTRAP ${m}"
+            node scripts/pg-run-sql-file.mjs "${m}" --apply
+          done
+        else
+          echo "  Không có migration mới trong diff OLD..NEW, chỉ ghi baseline checksum."
+        fi
+      else
+        echo "  Không có commit mới để tính diff, chỉ ghi baseline checksum."
+      fi
+
+      tmp_state="${MIGRATION_STATE_FILE}.tmp"
+      : > "${tmp_state}"
+      for m in "${ALL_MIGRATIONS[@]}"; do
+        [[ -f "${m}" ]] || continue
+        h="$(migration_hash "${m}")"
+        printf '%s\t%s\n' "${m}" "${h}" >> "${tmp_state}"
+      done
+      mv "${tmp_state}" "${MIGRATION_STATE_FILE}"
+      echo "  Bootstrap checksum hoàn tất: ${MIGRATION_STATE_FILE}"
+      echo "  Từ lần deploy sau: NEW/CHANGED sẽ tự apply."
+      # Bootstrap xong thì kết thúc bước migration tại đây.
+      changed_count=0
+      skipped_count="${#ALL_MIGRATIONS[@]}"
+      echo "  Migration applied: ${changed_count}, unchanged skipped: ${skipped_count}"
+      exit_bootstrap_done=1
+    else
+      exit_bootstrap_done=0
+    fi
+
+    if [[ "${exit_bootstrap_done}" -eq 1 ]]; then
+      echo "  State file: ${MIGRATION_STATE_FILE}"
+    else
     changed_count=0
     skipped_count=0
     echo "  Quét ${#ALL_MIGRATIONS[@]} file migration theo checksum..."
@@ -157,6 +205,7 @@ else
     mv "${tmp_state}" "${MIGRATION_STATE_FILE}"
     echo "  Migration applied: ${changed_count}, unchanged skipped: ${skipped_count}"
     echo "  State file: ${MIGRATION_STATE_FILE}"
+    fi
   fi
 fi
 
