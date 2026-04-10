@@ -230,7 +230,7 @@ export async function fetchPartnerInventoryDefaultForAiFromPg(
 }
 
 /**
- * ILIKE trên sku / name / description (một token đã làm sạch).
+ * ILIKE trên sku / name / description / price_hint (một token đã làm sạch).
  * `null` = lỗi / chưa cấu hình PG.
  */
 export async function fetchPartnerInventoryRowsByTokenIlikeFromPg(
@@ -252,6 +252,7 @@ export async function fetchPartnerInventoryRowsByTokenIlikeFromPg(
            coalesce(mpi.sku, '') ilike $2
            or coalesce(mpi.name, '') ilike $2
            or coalesce(mpi.description, '') ilike $2
+           or coalesce(mpi.price_hint, '') ilike $2
          )
        limit $3`,
       [partnerId, pattern, lim]

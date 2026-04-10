@@ -527,8 +527,6 @@ export function PartnerAiSettingsPanel({
               faqs={faqs}
               onChanged={load}
               saveOkMessage={saveOkMessage}
-              pending={pending}
-              startTransition={startTransition}
               toast={toast}
             />
           </TabsContent>
@@ -623,20 +621,17 @@ function FaqEditor({
   faqs,
   onChanged,
   saveOkMessage,
-  pending,
-  startTransition,
   toast,
 }: {
   partnerId: string
   t: AiT
   faqs: FaqRow[]
-  onChanged: () => void
+  onChanged: () => void | Promise<void>
   saveOkMessage: string
-  pending: boolean
-  startTransition: (cb: () => Promise<void>) => void
   toast: ReturnType<typeof useToast>['toast']
 }) {
   const customFaqs = faqs.filter((r) => !r.preset_key)
+  const [faqBusy, setFaqBusy] = useState(false)
   const [draft, setDraft] = useState({
     id: null as string | null,
     custom_title: '',
@@ -678,8 +673,9 @@ function FaqEditor({
   }
 
   const saveCustom = () => {
-    if (!draft.answer.trim()) return
-    startTransition(async () => {
+    if (faqBusy || !draft.answer.trim()) return
+    setFaqBusy(true)
+    ;(async () => {
       const res = await upsertPartnerFaq(partnerId, draft.id, {
         custom_title: draft.custom_title,
         trigger_keywords: draft.trigger_keywords,
@@ -699,12 +695,18 @@ function FaqEditor({
       }
       toast({ title: saveOkMessage })
       resetDraft()
-      onChanged()
-    })
+      await Promise.resolve(onChanged())
+    })()
+      .catch(() => {
+        toast({ title: t.loadError, variant: 'destructive' })
+      })
+      .finally(() => setFaqBusy(false))
   }
 
   const delCustom = (id: string) => {
-    startTransition(async () => {
+    if (faqBusy) return
+    setFaqBusy(true)
+    ;(async () => {
       const res = await deletePartnerFaq(partnerId, id)
       if ('error' in res && res.error) {
         toast({ title: res.error, variant: 'destructive' })
@@ -712,8 +714,12 @@ function FaqEditor({
       }
       toast({ title: saveOkMessage })
       if (draft.id === id) resetDraft()
-      onChanged()
-    })
+      await Promise.resolve(onChanged())
+    })()
+      .catch(() => {
+        toast({ title: t.loadError, variant: 'destructive' })
+      })
+      .finally(() => setFaqBusy(false))
   }
 
   return (
@@ -750,7 +756,7 @@ function FaqEditor({
                     <p className="line-clamp-3 whitespace-pre-wrap">{r.answer}</p>
                   </div>
                   <div className="flex shrink-0 gap-1">
-                    <Button type="button" variant="outline" size="sm" onClick={() => editCustomRow(r)} disabled={pending}>
+                    <Button type="button" variant="outline" size="sm" onClick={() => editCustomRow(r)} disabled={faqBusy}>
                       {t.edit}
                     </Button>
                     <Button
@@ -759,7 +765,7 @@ function FaqEditor({
                       size="sm"
                       className="text-destructive"
                       onClick={() => delCustom(r.id)}
-                      disabled={pending}
+                      disabled={faqBusy}
                     >
                       {t.deleteRow}
                     </Button>
@@ -812,11 +818,11 @@ function FaqEditor({
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button type="button" onClick={saveCustom} disabled={pending || !draft.answer.trim()}>
+            <Button type="button" onClick={saveCustom} disabled={faqBusy || !draft.answer.trim()}>
               {t.saveRow}
             </Button>
             {draft.id ? (
-              <Button type="button" variant="ghost" size="sm" onClick={resetDraft} disabled={pending}>
+              <Button type="button" variant="ghost" size="sm" onClick={resetDraft} disabled={faqBusy}>
                 {t.cancelEdit}
               </Button>
             ) : null}

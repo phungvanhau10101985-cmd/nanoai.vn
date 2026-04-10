@@ -84,11 +84,44 @@ function collectTokenCandidates(text: string): TokenCandidate[] {
   return Array.from(best.values())
 }
 
+function buildPriceUnitHintTokens(text: string): TokenCandidate[] {
+  const out: TokenCandidate[] = []
+  const push = (token: string, priority: number) => {
+    const t = sanitizeInventorySearchToken(token)
+    if (!t) return
+    out.push({ token: t, priority })
+  }
+  // 700k / 700 K / 700ngan -> 700000 (+ variants with separators)
+  for (const m of text.matchAll(/\b(\d{1,4})\s*(k|ngan|ngàn|nghin|nghìn)\b/gi)) {
+    const n = Number.parseInt(m[1], 10)
+    if (!Number.isFinite(n) || n <= 0) continue
+    const amount = n * 1000
+    push(String(amount), 92)
+    push(amount.toLocaleString('vi-VN'), 86)
+    push(amount.toLocaleString('en-US'), 84)
+  }
+  // 1tr2 / 1tr / 1.2tr / 1,2tr -> VND number
+  for (const m of text.matchAll(/\b(\d{1,3})(?:[.,](\d{1,2}))?\s*(tr|trieu|triệu)\b/gi)) {
+    const major = Number.parseInt(m[1], 10)
+    if (!Number.isFinite(major) || major < 0) continue
+    const minorRaw = (m[2] ?? '').trim()
+    const minor = minorRaw ? Number.parseInt(minorRaw.padEnd(2, '0').slice(0, 2), 10) : 0
+    if (!Number.isFinite(minor) || minor < 0) continue
+    const amount = major * 1_000_000 + minor * 10_000
+    if (amount <= 0) continue
+    push(String(amount), 94)
+    push(amount.toLocaleString('vi-VN'), 88)
+    push(amount.toLocaleString('en-US'), 86)
+  }
+  return out
+}
+
 /** Tokens for coarse inventory match (SKU / name fragments). */
 export function extractInventorySearchTokens(message: string): string[] {
   const text = message.replace(/^📷\s*/u, '').trim()
   if (!text) return []
   const candidates = collectTokenCandidates(text)
+  candidates.push(...buildPriceUnitHintTokens(text))
   // Keep color/style tokens so text queries can suggest similar products better.
   const styleHints: Array<{ token: string; priority: number }> = []
   const addHint = (token: string, priority: number) => {
@@ -128,6 +161,7 @@ export function scoreInventoryRowMatch(row: PartnerInventoryRow, needles: string
   const skuNorm = normalizeSkuComparable(row.sku)
   const name = row.name.toLowerCase().trim()
   const desc = (row.description ?? '').toLowerCase().trim()
+  const priceHint = (row.price_hint ?? '').toLowerCase().trim()
   let score = 0
   for (const needle of needles) {
     const n = needle.toLowerCase().trim()
@@ -141,6 +175,7 @@ export function scoreInventoryRowMatch(row: PartnerInventoryRow, needles: string
     if (name === n) score += 70
     else if (name.includes(n)) score += 50
     if (desc.includes(n)) score += 12
+    if (priceHint.includes(n)) score += 26
   }
   return score
 }
@@ -194,7 +229,7 @@ export async function fetchInventoryRowsByExplicitSku(
 }
 
 /**
- * Up to 50 active rows: prioritize DB ILIKE hits on sku/name/description from the customer message,
+ * Up to 50 active rows: prioritize DB ILIKE hits on sku/name/description/price_hint from the customer message,
  * scored in-app; fill remainder with default sort_order list (same as before).
  */
 export async function fetchInventoryRowsForPartnerAi(

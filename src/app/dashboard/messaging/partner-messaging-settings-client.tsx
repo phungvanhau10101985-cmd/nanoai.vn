@@ -13,11 +13,13 @@ import type { Database } from '@/types/database.types'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
 import {
   createMessagingWorkspaceProfile,
+  getMessagingWorkspacePaymentSettings,
   getPartnerChannelStatus,
   listMessagingWorkspaceLogoVersions,
   listMyMessagingPartners,
   normalizeMessagingWorkspaceLogo,
   removeMyMessagingWorkspace,
+  saveMessagingWorkspacePaymentSettings,
   savePartnerFacebookChannel,
   savePartnerZaloChannel,
   setMessagingWorkspaceActiveLogo,
@@ -97,6 +99,13 @@ export function PartnerMessagingSettingsClient({
   const [channelSnap, setChannelSnap] = useState<ChannelSnap | null>(null)
   const [logoVersions, setLogoVersions] = useState<LogoVersionRow[]>([])
   const [showAddWorkspace, setShowAddWorkspace] = useState(false)
+  const [paymentBankName, setPaymentBankName] = useState('')
+  const [paymentBankBin, setPaymentBankBin] = useState('')
+  const [paymentAccountNumber, setPaymentAccountNumber] = useState('')
+  const [paymentAccountHolder, setPaymentAccountHolder] = useState('')
+  const [paymentNotifyEmail, setPaymentNotifyEmail] = useState('')
+  const [paymentDepositPercent, setPaymentDepositPercent] = useState<30 | 100>(30)
+  const [paymentRequireProof, setPaymentRequireProof] = useState(true)
 
   const setSelectedPartnerAndPersist = useCallback(
     (partnerId: string | null) => {
@@ -173,6 +182,27 @@ export function PartnerMessagingSettingsClient({
     setWorkspaceIndustry(cur.industry_key || 'fashion')
     setWorkspaceLogoUrl(cur.logo_url || '')
   }, [partners, selectedPartnerId])
+
+  const loadPaymentSettings = useCallback(() => {
+    if (!selectedPartnerId) return
+    void (async () => {
+      const res = await getMessagingWorkspacePaymentSettings(selectedPartnerId)
+      if ('error' in res && res.error) return
+      if ('settings' in res && res.settings) {
+        setPaymentBankName(res.settings.bank_name || '')
+        setPaymentBankBin(res.settings.bank_bin || '')
+        setPaymentAccountNumber(res.settings.account_number || '')
+        setPaymentAccountHolder(res.settings.account_holder || '')
+        setPaymentNotifyEmail(res.settings.notify_email || '')
+        setPaymentDepositPercent(res.settings.default_deposit_percent === 100 ? 100 : 30)
+        setPaymentRequireProof(res.settings.require_payment_proof !== false)
+      }
+    })()
+  }, [selectedPartnerId])
+
+  useEffect(() => {
+    loadPaymentSettings()
+  }, [loadPaymentSettings])
 
   const loadLogoVersions = useCallback(() => {
     if (!selectedPartnerId) {
@@ -417,6 +447,28 @@ export function PartnerMessagingSettingsClient({
       }
       toast({ title: t.saveOk })
       loadChannelStatus()
+    })
+  }
+
+  const savePaymentSettings = () => {
+    if (!selectedPartnerId) return
+    startTransition(async () => {
+      const res = await saveMessagingWorkspacePaymentSettings({
+        partnerId: selectedPartnerId,
+        bankName: paymentBankName,
+        bankBin: paymentBankBin,
+        accountNumber: paymentAccountNumber,
+        accountHolder: paymentAccountHolder,
+        defaultDepositPercent: paymentDepositPercent,
+        notifyEmail: paymentNotifyEmail,
+        requirePaymentProof: paymentRequireProof,
+      })
+      if ('error' in res && res.error) {
+        toast({ title: res.error, variant: 'destructive' })
+        return
+      }
+      toast({ title: 'Da luu cai dat thanh toan.' })
+      loadPaymentSettings()
     })
   }
 
@@ -820,6 +872,69 @@ export function PartnerMessagingSettingsClient({
                   </Button>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border/70 shadow-sm">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Cai dat don hang & thanh toan chat</CardTitle>
+              <CardDescription className="text-xs">
+                Cau hinh thong tin nhan coc qua QR cho don hang tao truc tiep trong khung chat.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium">Ngan hang</Label>
+                  <Input className="h-9 text-sm" value={paymentBankName} onChange={(e) => setPaymentBankName(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium">Ma BIN ngan hang</Label>
+                  <Input className="h-9 text-sm" value={paymentBankBin} onChange={(e) => setPaymentBankBin(e.target.value)} placeholder="9704xx" />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium">So tai khoan nhan tien</Label>
+                  <Input
+                    className="h-9 text-sm"
+                    value={paymentAccountNumber}
+                    onChange={(e) => setPaymentAccountNumber(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium">Chu tai khoan</Label>
+                  <Input className="h-9 text-sm" value={paymentAccountHolder} onChange={(e) => setPaymentAccountHolder(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium">Email nhan thong bao don moi</Label>
+                  <Input className="h-9 text-sm" value={paymentNotifyEmail} onChange={(e) => setPaymentNotifyEmail(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium">Ty le dat coc mac dinh</Label>
+                  <Select
+                    value={String(paymentDepositPercent)}
+                    onValueChange={(v) => setPaymentDepositPercent(v === '100' ? 100 : 30)}
+                  >
+                    <SelectTrigger className="h-9 w-full bg-background">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="30">30%</SelectItem>
+                      <SelectItem value="100">100%</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <label className="inline-flex items-center gap-2 text-xs text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={paymentRequireProof}
+                  onChange={(e) => setPaymentRequireProof(e.target.checked)}
+                />
+                Bat buoc khach gui anh chung tu chuyen khoan de AI doi chieu
+              </label>
+              <Button type="button" size="sm" onClick={savePaymentSettings} disabled={pending || !selectedPartnerId}>
+                Luu cai dat thanh toan
+              </Button>
             </CardContent>
           </Card>
 

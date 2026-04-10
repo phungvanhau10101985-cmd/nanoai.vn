@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { ChangeEvent, ClipboardEvent } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
@@ -141,6 +142,19 @@ export function PartnerGuestChatClient({
   const [tryOnBusy, setTryOnBusy] = useState(false)
   const [tryOnCreditsBalance, setTryOnCreditsBalance] = useState<number | null>(null)
   const [tryOnCreditsLoading, setTryOnCreditsLoading] = useState(false)
+  const [activeOrderId, setActiveOrderId] = useState<string | null>(null)
+  const [orderFormOpen, setOrderFormOpen] = useState(false)
+  const [orderFormBusy, setOrderFormBusy] = useState(false)
+  const [orderName, setOrderName] = useState('')
+  const [orderEmail, setOrderEmail] = useState('')
+  const [orderPhone, setOrderPhone] = useState('')
+  const [orderAddress, setOrderAddress] = useState('')
+  const [orderColor, setOrderColor] = useState('')
+  const [orderSize, setOrderSize] = useState('')
+  const [orderQuantity, setOrderQuantity] = useState('1')
+  const [orderNote, setOrderNote] = useState('')
+  const [orderDeposit, setOrderDeposit] = useState<'30' | '100'>('30')
+  const [proofOrderId, setProofOrderId] = useState<string | null>(null)
   const [tryOnUserFile, setTryOnUserFile] = useState<File | null>(null)
   const [tryOnGarmentFiles, setTryOnGarmentFiles] = useState<SelectedImage[]>([])
   const [tryOnGarmentPickerOpen, setTryOnGarmentPickerOpen] = useState(false)
@@ -540,57 +554,117 @@ export function PartnerGuestChatClient({
   }
 
   const submitProductCardPick = async (card: PartnerAiProductCard) => {
-    const label = card.name?.trim() || 'mẫu sản phẩm'
-    const ask = `Mình chọn mẫu này, shop tư vấn chi tiết giúp mình nhé: ${label}`
-    const outboundBaseline = messages.filter((m) => m.direction === 'outbound').length
-    setSending(true)
+    setOrderFormBusy(true)
     try {
-      const res = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}`, {
+      const res = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}/order`, {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify({ text: ask }),
+        body: JSON.stringify({ productCard: card }),
       })
       captureGuestSessionFromResponse(res)
       const data = (await res.json()) as {
         ok?: boolean
         error?: string
-        shopTyping?: { maxWaitMs: number }
-        requireAuth?: boolean
+        order?: { id?: string }
       }
       if (res.status === 401) {
         setUserId(null)
         return
       }
       if (!res.ok) {
-        if (data.requireAuth) {
-          setAuthGateRequired(true)
-          toast({
-            title: t.guestAuthRequiredAfterLimit.replace('{count}', '5'),
-            variant: 'destructive',
-          })
-          return
-        }
-        if (data.error?.startsWith('AUTH_REQUIRED_')) {
-          setAuthGateRequired(true)
-          toast({
-            title: t.guestAuthRequiredAfterLimit.replace('{count}', '5'),
-            variant: 'destructive',
-          })
-          return
-        }
-        toast({ title: data.error || t.sendError, variant: 'destructive' })
+        toast({ title: data.error || 'Khong tao duoc don hang.', variant: 'destructive' })
+        return
+      }
+      const oid = String(data.order?.id ?? '').trim()
+      if (!oid) {
+        toast({ title: 'Khong tao duoc don hang.', variant: 'destructive' })
+        return
+      }
+      setActiveOrderId(oid)
+      setOrderFormOpen(true)
+      await load()
+    } catch {
+      toast({ title: 'Khong tao duoc don hang.', variant: 'destructive' })
+    } finally {
+      setOrderFormBusy(false)
+    }
+  }
+
+  const submitOrderCheckout = async () => {
+    const oid = activeOrderId
+    if (!oid) return
+    setOrderFormBusy(true)
+    try {
+      const res = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}/order`, {
+        method: 'PATCH',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify({
+          orderId: oid,
+          form: {
+            customerName: orderName,
+            customerEmail: orderEmail,
+            customerPhone: orderPhone,
+            shippingAddress: orderAddress,
+            color: orderColor,
+            size: orderSize,
+            quantity: Math.max(1, parseInt(orderQuantity || '1', 10) || 1),
+            note: orderNote,
+            depositPercent: orderDeposit === '100' ? 100 : 30,
+          },
+        }),
+      })
+      captureGuestSessionFromResponse(res)
+      const data = (await res.json()) as {
+        ok?: boolean
+        error?: string
+        order?: { id?: string }
+      }
+      if (res.status === 401) {
+        setUserId(null)
+        return
+      }
+      if (!res.ok) {
+        toast({ title: data.error || 'Khong cap nhat duoc don.', variant: 'destructive' })
+        return
+      }
+      setOrderFormOpen(false)
+      setProofOrderId(String(data.order?.id ?? oid))
+      await load()
+      toast({ title: 'Da tao QR thanh toan. Vui long gui anh chung tu de xac nhan.' })
+    } catch {
+      toast({ title: 'Khong cap nhat duoc don.', variant: 'destructive' })
+    } finally {
+      setOrderFormBusy(false)
+    }
+  }
+
+  const submitPaymentProof = async () => {
+    const oid = proofOrderId
+    if (!oid || !imageStoragePath) return
+    setSending(true)
+    try {
+      const res = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}/order/verify-payment`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify({
+          orderId: oid,
+          proofImageStoragePath: imageStoragePath,
+        }),
+      })
+      captureGuestSessionFromResponse(res)
+      const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string } | null
+      if (!res.ok) {
+        toast({ title: data?.error || 'Khong doi chieu duoc thanh toan.', variant: 'destructive' })
         return
       }
       await load()
-      if (data.shopTyping?.maxWaitMs && data.shopTyping.maxWaitMs > 0) {
-        setShopTyping({
-          deadline: Date.now() + data.shopTyping.maxWaitMs,
-          baselineOutbound: outboundBaseline,
-        })
-      }
+      clearAttachment()
+      setProofOrderId(null)
     } catch {
-      toast({ title: t.sendError, variant: 'destructive' })
+      toast({ title: 'Khong doi chieu duoc thanh toan.', variant: 'destructive' })
     } finally {
       setSending(false)
     }
@@ -632,17 +706,17 @@ export function PartnerGuestChatClient({
     }
   }
 
-  const onPickGallery = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const onPickGallery = (e: ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]
     if (f) void uploadFile(f)
   }
 
-  const onPickCamera = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const onPickCamera = (e: ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]
     if (f) void uploadFile(f)
   }
 
-  const onDraftPaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+  const onDraftPaste = (e: ClipboardEvent<HTMLTextAreaElement>) => {
     if (uploading || sending || tryOnBusy) return
     const cd = e.clipboardData
     if (!cd) return
@@ -1164,6 +1238,110 @@ export function PartnerGuestChatClient({
                 </div>
               ) : null}
               {imageStoragePath ? <p className="text-[11px] text-muted-foreground">{t.guestCaptionHint}</p> : null}
+              {proofOrderId && imageStoragePath ? (
+                <div className="rounded-lg border border-border/70 bg-muted/20 p-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="h-8 text-[11px]"
+                    disabled={sending}
+                    onClick={() => void submitPaymentProof()}
+                  >
+                    {sending ? 'Dang doi chieu thanh toan...' : 'Gui anh giao dich va doi chieu thanh toan'}
+                  </Button>
+                </div>
+              ) : null}
+              {orderFormOpen ? (
+                <div className="space-y-2 rounded-lg border border-border/70 bg-muted/20 p-2">
+                  <p className="text-xs font-medium text-foreground">Thong tin nhan hang</p>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <input
+                      type="text"
+                      className="h-8 rounded-md border border-border bg-background px-2 text-[12px]"
+                      placeholder="Ho ten"
+                      value={orderName}
+                      onChange={(e) => setOrderName(e.target.value)}
+                    />
+                    <input
+                      type="email"
+                      className="h-8 rounded-md border border-border bg-background px-2 text-[12px]"
+                      placeholder="Email"
+                      value={orderEmail}
+                      onChange={(e) => setOrderEmail(e.target.value)}
+                    />
+                    <input
+                      type="text"
+                      className="h-8 rounded-md border border-border bg-background px-2 text-[12px]"
+                      placeholder="So dien thoai"
+                      value={orderPhone}
+                      onChange={(e) => setOrderPhone(e.target.value)}
+                    />
+                    <input
+                      type="text"
+                      className="h-8 rounded-md border border-border bg-background px-2 text-[12px]"
+                      placeholder="Dia chi"
+                      value={orderAddress}
+                      onChange={(e) => setOrderAddress(e.target.value)}
+                    />
+                    <input
+                      type="text"
+                      className="h-8 rounded-md border border-border bg-background px-2 text-[12px]"
+                      placeholder="Mau"
+                      value={orderColor}
+                      onChange={(e) => setOrderColor(e.target.value)}
+                    />
+                    <input
+                      type="text"
+                      className="h-8 rounded-md border border-border bg-background px-2 text-[12px]"
+                      placeholder="Size"
+                      value={orderSize}
+                      onChange={(e) => setOrderSize(e.target.value)}
+                    />
+                    <input
+                      type="text"
+                      className="h-8 rounded-md border border-border bg-background px-2 text-[12px]"
+                      placeholder="So luong"
+                      value={orderQuantity}
+                      onChange={(e) => setOrderQuantity(e.target.value)}
+                    />
+                    <select
+                      className="h-8 rounded-md border border-border bg-background px-2 text-[12px]"
+                      value={orderDeposit}
+                      onChange={(e) => setOrderDeposit(e.target.value === '100' ? '100' : '30')}
+                    >
+                      <option value="30">Dat coc 30%</option>
+                      <option value="100">Thanh toan 100%</option>
+                    </select>
+                  </div>
+                  <textarea
+                    className="min-h-[56px] w-full rounded-md border border-border bg-background px-2 py-1 text-[12px]"
+                    placeholder="Ghi chu"
+                    value={orderNote}
+                    onChange={(e) => setOrderNote(e.target.value)}
+                  />
+                  <div className="flex gap-1.5">
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="h-8 text-[11px]"
+                      disabled={orderFormBusy}
+                      onClick={() => void submitOrderCheckout()}
+                    >
+                      {orderFormBusy ? 'Dang tao QR...' : 'Tao don va QR'}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-8 text-[11px]"
+                      disabled={orderFormBusy}
+                      onClick={() => setOrderFormOpen(false)}
+                    >
+                      Dong
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
 
               {authMode !== 'account' && authGateRequired ? (
                 <div className="rounded-lg border border-border/70 bg-muted/20 px-2.5 py-2">

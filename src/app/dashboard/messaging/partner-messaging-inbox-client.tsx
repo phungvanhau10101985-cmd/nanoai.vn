@@ -354,6 +354,12 @@ export function PartnerMessagingInboxClient({ initialPartners, t }: { initialPar
             {t.messagingSettingsLink}
           </Link>
         </Button>
+        <Button type="button" variant="secondary" size="sm" asChild className="h-7 gap-1 px-2 text-[11px]">
+          <Link href="/dashboard/messaging/orders">
+            <ClipboardList className="h-3 w-3" aria-hidden />
+            Don hang
+          </Link>
+        </Button>
         <Button
           type="button"
           variant="destructive"

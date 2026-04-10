@@ -91,6 +91,17 @@ import {
   insertPartnerLogoVersionFromPg,
   listPartnerLogoVersionsFromPg,
 } from '@/lib/db/messaging-partner-logo-versions-pg'
+import {
+  fetchPartnerOrderEventsForOwnerFromPg,
+  fetchPartnerPaymentSettingsFromPg,
+  fetchPartnerOrdersForOwnerFromPg,
+  insertPartnerOrderEventFromPg,
+  type PartnerOrderAdminRow,
+  type PartnerOrderEventRow,
+  upsertPartnerPaymentSettingsFromPg,
+  updatePartnerOrderStatusForOwnerFromPg,
+  updatePartnerOrderShippingStatusForOwnerFromPg,
+} from '@/lib/db/messaging-partner-orders-pg'
 
 export type { PartnerAiTokenUsageStatRow } from '@/lib/db/messaging-partner-ai-token-usage-pg'
 
@@ -127,6 +138,7 @@ async function assertPartnerOwner(userId: string, partnerId: string) {
 function revalidateMessagingDashboard() {
   revalidatePath('/dashboard/messaging')
   revalidatePath('/dashboard/messaging/settings')
+  revalidatePath('/dashboard/messaging/orders')
   revalidatePath('/dashboard/api-integration')
 }
 
@@ -293,6 +305,160 @@ export async function updateMessagingWorkspaceProfile(input: {
   if (!updated) return { error: 'Không cập nhật được thông tin workspace.' }
   revalidateMessagingDashboard()
   return { partner: updated }
+}
+
+export async function getMessagingWorkspacePaymentSettings(partnerId: string) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const { user } = auth
+  const gate = await assertPartnerOwner(user.id, partnerId)
+  if ('error' in gate) return { error: gate.error }
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+  const row = await fetchPartnerPaymentSettingsFromPg(partnerId)
+  return {
+    settings: row ?? {
+      partner_id: partnerId,
+      bank_name: '',
+      bank_bin: '',
+      account_number: '',
+      account_holder: '',
+      default_deposit_percent: 30 as const,
+      notify_email: user.email?.trim() || '',
+      require_payment_proof: true,
+      updated_at: new Date(0).toISOString(),
+    },
+  }
+}
+
+export async function saveMessagingWorkspacePaymentSettings(input: {
+  partnerId: string
+  bankName: string
+  bankBin: string
+  accountNumber: string
+  accountHolder: string
+  defaultDepositPercent: 30 | 100
+  notifyEmail: string
+  requirePaymentProof: boolean
+}) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const { user } = auth
+  const gate = await assertPartnerOwner(user.id, input.partnerId)
+  if ('error' in gate) return { error: gate.error }
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+  const ok = await upsertPartnerPaymentSettingsFromPg({
+    partnerId: input.partnerId,
+    bankName: input.bankName.trim().slice(0, 120),
+    bankBin: input.bankBin.trim().slice(0, 12),
+    accountNumber: input.accountNumber.trim().slice(0, 40),
+    accountHolder: input.accountHolder.trim().slice(0, 120),
+    defaultDepositPercent: input.defaultDepositPercent === 100 ? 100 : 30,
+    notifyEmail: input.notifyEmail.trim().slice(0, 180),
+    requirePaymentProof: input.requirePaymentProof !== false,
+  })
+  if (!ok) return { error: 'Khong luu duoc cai dat thanh toan.' }
+  revalidateMessagingDashboard()
+  return { ok: true as const }
+}
+
+export async function listMyMessagingOrders(input?: {
+  partnerId?: string
+  status?: string
+  limit?: number
+}): Promise<{ rows: PartnerOrderAdminRow[] } | { error: string }> {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error ?? 'Unauthorized.' }
+  const { user } = auth
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+  const rows = await fetchPartnerOrdersForOwnerFromPg({
+    ownerUserId: user.id,
+    partnerId: input?.partnerId?.trim() || null,
+    status: input?.status?.trim() || '',
+    limit: input?.limit,
+  })
+  if (rows === null) return { error: 'Khong tai duoc don hang.' }
+  return { rows }
+}
+
+export async function updateMyMessagingOrderStatus(input: {
+  orderId: string
+  status: 'paid_verified' | 'pending_manual_review' | 'cancelled' | 'awaiting_payment' | 'payment_checking'
+  verifiedNote?: string
+}): Promise<{ ok: true } | { error: string }> {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error ?? 'Unauthorized.' }
+  const { user } = auth
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+  if (!isValidUuidString(input.orderId)) return { error: 'Invalid order id.' }
+  const ok = await updatePartnerOrderStatusForOwnerFromPg({
+    ownerUserId: user.id,
+    orderId: input.orderId,
+    status: input.status,
+    verifiedNote: (input.verifiedNote ?? '').trim().slice(0, 1000),
+  })
+  if (!ok) return { error: 'Khong cap nhat duoc trang thai don.' }
+  revalidateMessagingDashboard()
+  return { ok: true }
+}
+
+export async function listMyMessagingOrderEvents(input: {
+  orderId: string
+  limit?: number
+}): Promise<{ rows: PartnerOrderEventRow[] } | { error: string }> {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error ?? 'Unauthorized.' }
+  const { user } = auth
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+  if (!isValidUuidString(input.orderId)) return { error: 'Invalid order id.' }
+  const rows = await fetchPartnerOrderEventsForOwnerFromPg({
+    ownerUserId: user.id,
+    orderId: input.orderId,
+    limit: input.limit,
+  })
+  if (rows === null) return { error: 'Khong tai duoc timeline.' }
+  return { rows }
+}
+
+export async function updateMyMessagingOrderShipping(input: {
+  orderId: string
+  shippingStatus: 'pending' | 'confirmed' | 'packing' | 'shipping' | 'delivered' | 'returned' | 'cancelled'
+  note?: string
+}): Promise<{ ok: true } | { error: string }> {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error ?? 'Unauthorized.' }
+  const { user } = auth
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+  if (!isValidUuidString(input.orderId)) return { error: 'Invalid order id.' }
+  const note = (input.note ?? '').trim().slice(0, 1000)
+  const updated = await updatePartnerOrderShippingStatusForOwnerFromPg({
+    ownerUserId: user.id,
+    orderId: input.orderId,
+    shippingStatus: input.shippingStatus,
+    note,
+  })
+  if (!updated) return { error: 'Khong cap nhat duoc trang thai giao hang.' }
+  await insertPartnerOrderEventFromPg({
+    orderId: updated.id,
+    eventType: 'shipping_status',
+    title: 'Cap nhat giao hang',
+    detail: `Trang thai moi: ${input.shippingStatus}${note ? ` | ${note}` : ''}`,
+    source: 'shop',
+    createdBy: user.id,
+  })
+  await insertMessagePg({
+    conversationId: updated.conversation_id,
+    direction: 'outbound',
+    body: `Cap nhat don ${updated.payment_reference}: trang thai giao hang la "${input.shippingStatus}".`,
+    rawPayload: {
+      source: 'system_order',
+      order_id: updated.id,
+      order_status: updated.status,
+      order_shipping_status: input.shippingStatus,
+      order_note: note,
+    },
+  })
+  revalidateMessagingDashboard()
+  return { ok: true }
 }
 
 export async function listMessagingWorkspaceLogoVersions(partnerId: string) {
