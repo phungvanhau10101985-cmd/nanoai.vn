@@ -19,7 +19,7 @@ type Props = {
   /** Override locale (e.g. from server dictionary) */
   locale?: ApiKeysHubLocale
   /** Workspaces của user — để quản lý khóa trên trang đối tác */
-  partnerWorkspaces?: { id: string; display_name: string | null; slug: string }[]
+  partnerWorkspaces?: { id: string; display_name: string | null; slug: string; logo_url: string | null }[]
   /** `?partner=` từ URL — đã khớp owner trên server */
   initialSelectedPartnerId?: string | null
 }

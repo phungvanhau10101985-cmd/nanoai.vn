@@ -14,7 +14,7 @@ const EMBED_BOTTOM_OFFSET_MAX_PX = 800
 type Props = {
   baseUrl: string
   t: PartnerDevIntegrationStrings
-  partners: Array<{ id: string; display_name: string | null; slug: string }>
+  partners: Array<{ id: string; display_name: string | null; slug: string; logo_url: string | null }>
   /** Đồng bộ với ô chọn shop ở mục khóa API phía trên */
   selectedPartnerId?: string
 }
@@ -93,6 +93,7 @@ export function PartnerDevIntegrationGuide({ baseUrl, t, partners, selectedPartn
   )
 
   const slug = selectedPartner?.slug ?? ''
+  const logoUrl = selectedPartner?.logo_url?.trim() || `${baseUrl}/icons/icon-192x192.png`
   const partnerId = selectedPartner?.id ?? ''
   const guestBase = `${baseUrl}/api/messaging/guest/${slug}`
   const safeBottomPx = Math.max(0, Math.min(EMBED_BOTTOM_OFFSET_MAX_PX, Math.floor(embedBottomPx) || 24))
@@ -106,7 +107,7 @@ export function PartnerDevIntegrationGuide({ baseUrl, t, partners, selectedPartn
   const hostedScript = `<script
   src="${baseUrl}/embed/nanoai-chat-widget.js"
   data-chat-url="${hostedUrl}"
-  data-logo-url="${baseUrl}/icons/icon-192x192.png"
+  data-logo-url="${logoUrl}"
   data-side="${embedSide}"
   data-bottom="${safeBottomPx}"
   data-offset-x="${safeHorizontalPx}"

@@ -31,11 +31,16 @@ export default async function DashboardApiIntegrationPage({
   if (!user) redirectToLogin()
   if (!isValidUuidString(user.id)) redirectToLogin()
 
-  let partnerRows: { id: string; display_name: string; slug: string }[] = []
+  let partnerRows: { id: string; display_name: string; slug: string; logo_url: string | null }[] = []
   if (isPgConfigured()) {
     const fromPg = await fetchMessagingPartnersByOwnerFromPg(user.id)
     if (fromPg !== null) {
-      partnerRows = fromPg.map((p) => ({ id: p.id, display_name: p.display_name, slug: p.slug }))
+      partnerRows = fromPg.map((p) => ({
+        id: p.id,
+        display_name: p.display_name,
+        slug: p.slug,
+        logo_url: p.logo_url ?? null,
+      }))
     }
   }
 
