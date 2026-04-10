@@ -292,6 +292,27 @@ export function parseInventoryWorkbook(buffer: Buffer): { ok: true; rows: Invent
     const key = resolveCanonicalKey(h)
     if (key) colIndex[key] = i
   })
+
+  // Fallback cho file gần template chuẩn nhưng tiêu đề bị chỉnh/lệch nhẹ:
+  // [0]=sku, [1]=name, [2]=size JSON, [3]=màu JSON, [4]=số lượng tồn, [5]=giá, [6]=ảnh, [7]=link SP, [8]=ghi chú, [9]=trạng thái.
+  // Chỉ bật fallback khi sku/name đúng vị trí mẫu để tránh map sai với file custom order.
+  if (colIndex.sku === 0 && colIndex.name === 1) {
+    const templateFallback: Array<[string, number]> = [
+      ['description', 2],
+      ['stock_note', 3],
+      ['stock_qty', 4],
+      ['price_hint', 5],
+      ['image_url', 6],
+      ['product_url', 7],
+      ['consult_note', 8],
+      ['is_active', 9],
+    ]
+    for (const [k, idx] of templateFallback) {
+      if (colIndex[k] === undefined && idx < headerRow.length) {
+        colIndex[k] = idx
+      }
+    }
+  }
   if (colIndex.name === undefined) return { ok: false, error: 'MISSING_NAME_COLUMN' }
 
   const out: InventoryExcelInsert[] = []

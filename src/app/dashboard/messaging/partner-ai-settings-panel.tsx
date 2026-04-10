@@ -865,6 +865,8 @@ function postInventoryExcelImport(
         onProgress({ percent: null })
       }
     }
+    // Upload bytes are fully sent; server may still be parsing/upserting.
+    xhr.upload.onloadend = () => onProgress({ percent: null })
     xhr.onload = () => {
       resolve({
         ok: xhr.status >= 200 && xhr.status < 300,
@@ -1196,7 +1198,7 @@ function InventoryEditor({
           <div className="mb-2 flex items-center justify-between gap-2 text-xs text-muted-foreground">
             <span>
               {excelImportProgress.percent === null
-                ? t.inventoryExcelImportSending
+                ? 'Đang xử lý dữ liệu trên server...'
                 : t.inventoryExcelImportUploading}
             </span>
             {excelImportProgress.percent != null ? (
