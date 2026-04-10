@@ -205,12 +205,13 @@ function normalizeLogoUrl(raw: string): string | null {
 
 function logoNormalizePrompt(brandName: string): string {
   return [
-    'Create a compact circular icon variant from this customer logo reference.',
+    'Create a refined square logo image from this customer logo reference.',
     `Brand name to preserve exactly: "${brandName}".`,
-    'Goal: keep the same brand identity and visual style while simplifying for small round chat icon readability.',
+    'Goal: keep the same brand identity and visual style while maximizing visible logo size.',
     'Preserve core shapes and main orange color family; remove only tiny unreadable details.',
-    'Requirements: aspect ratio 1:1, transparent background, centered composition with circular safe padding, crisp edges.',
-    'All key identity elements must remain visible inside a circular crop safe area.',
+    'Requirements: aspect ratio 1:1, solid white background, centered composition, crisp edges.',
+    'Scale the main logo as large as possible (about 90-95% canvas width/height) while avoiding clipping.',
+    'Remove unnecessary top/bottom whitespace. No giant empty margin.',
     'Do NOT invent a new logo concept. Keep the original brand feel.',
     'No watermark, no mockup, no extra objects, no decorative background.',
   ].join(' ')
@@ -218,14 +219,15 @@ function logoNormalizePrompt(brandName: string): string {
 
 function logoNormalizePromptImpressive(brandName: string): string {
   return [
-    'Create a compact circular icon variant from this customer logo reference.',
+    'Create an impressive bold square logo image from this customer logo reference.',
     `Brand name to preserve exactly when retained: "${brandName}".`,
-    'Goal: make an impressive, memorable round chat icon while keeping original brand feel recognizable.',
+    'Goal: make an impressive, memorable logo while keeping original brand feel recognizable.',
     'Simplify more aggressively: remove tiny unreadable details and keep only strongest identity elements.',
     'Prioritize the main mark/text (e.g. "188") and scale it as large as possible.',
-    'Minimize empty whitespace; fill the circular composition while keeping clean margins.',
+    'Minimize empty whitespace; fill the frame with useful logo content and avoid wasted top/bottom space.',
     'Use bold shapes, strong silhouette, high contrast, and clean geometry for 48-64px readability.',
-    'Aspect ratio 1:1, transparent background, centered composition with tight circular safe padding.',
+    'Aspect ratio 1:1, solid white background, centered composition with tight padding.',
+    'Do NOT add a large circle background container. Do NOT shrink logo inside a big empty area.',
     'Do NOT invent unrelated concept. Do NOT add watermark, mockup, or extra decorative objects.',
   ].join(' ')
 }
