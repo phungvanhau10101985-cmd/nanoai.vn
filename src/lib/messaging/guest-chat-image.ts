@@ -166,6 +166,7 @@ export function inboundTextForPartnerAi(textBody: string, imagePublicUrl?: strin
 
 type VisionPickRaw = {
   guest_media?: { kind?: string; url?: string }
+  image_caption?: string
   vision_selected_inventory_id?: string
   vision_selected_product_label?: string
 }
@@ -180,7 +181,12 @@ export function inboundTextHasVisionSelectionHint(textBody: string): boolean {
 export function latestInboundTextForPartnerAi(textBody: string, rawPayload: Json | null): string {
   const pl = rawPayload as VisionPickRaw | null
   const url = pl?.guest_media?.kind === 'image' ? pl.guest_media.url : undefined
-  let t = inboundTextForPartnerAi(textBody, url ?? null)
+  const payloadCaption = typeof pl?.image_caption === 'string' ? pl.image_caption.trim() : ''
+  const normalizedTextBody =
+    textBody.trim() === '📷' && payloadCaption
+      ? `📷 ${payloadCaption}`
+      : textBody
+  let t = inboundTextForPartnerAi(normalizedTextBody, url ?? null)
   const sid = pl?.vision_selected_inventory_id?.trim()
   const label = pl?.vision_selected_product_label?.trim()
   if (sid && label) {

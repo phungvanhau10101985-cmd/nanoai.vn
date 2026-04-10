@@ -79,6 +79,7 @@ export async function postWidgetGuestMessage(params: {
     const mime = mimeFromGuestImagePath(imagePath)
     imagePublicUrl = getTryOnPublicUrlFromPath(imagePath)
     const basePayload = guestMediaPayloadToJson(buildGuestMediaPayload(imagePublicUrl, imagePath, mime))
+    const imageCaption = text.trim()
 
     try {
       let aiEnabled = false
@@ -134,8 +135,12 @@ export async function postWidgetGuestMessage(params: {
             ...(basePayload && typeof basePayload === 'object' ? (basePayload as Record<string, unknown>) : {}),
             vision_pick_required: true,
             vision_candidates: visionCandidates,
+            ...(imageCaption ? { image_caption: imageCaption } : {}),
           } as Json)
-        : basePayload
+        : ({
+            ...(basePayload && typeof basePayload === 'object' ? (basePayload as Record<string, unknown>) : {}),
+            ...(imageCaption ? { image_caption: imageCaption } : {}),
+          } as Json)
     if (pageContextHasAny && rawPayload && typeof rawPayload === 'object') {
       rawPayload = {
         ...(rawPayload as Record<string, unknown>),
@@ -212,19 +217,23 @@ export async function postWidgetGuestMessage(params: {
     ]
       .filter(Boolean)
       .join('\n')
-    const inboundForAi = [inboundTextForPartnerAi(body, imagePublicUrl), aiContextHints].filter(Boolean).join('\n')
-    const hint = await handlePartnerInboundForAi({
-      partnerId: params.partnerId,
-      conversationId,
-      messageId: newMessageId,
-      inboundBody: inboundForAi,
-      channel: 'widget',
-      skipEagerBatchRun: true,
-      ...(visionPickRequired
-        ? { scheduleAiAfterSeconds: VISION_PICK_GRACE_AI_DELAY_SECONDS }
-        : {}),
-    })
-    if (hint.show) shopTyping = { maxWaitMs: hint.maxWaitMs }
+    // When vision picks are available, wait for customer product selection first.
+    // This avoids premature text-based replies for image+caption turns.
+    if (!visionPickRequired) {
+      const inboundForAi = [inboundTextForPartnerAi(body, imagePublicUrl), aiContextHints].filter(Boolean).join('\n')
+      const hint = await handlePartnerInboundForAi({
+        partnerId: params.partnerId,
+        conversationId,
+        messageId: newMessageId,
+        inboundBody: inboundForAi,
+        channel: 'widget',
+        skipEagerBatchRun: true,
+        ...(visionPickRequired
+          ? { scheduleAiAfterSeconds: VISION_PICK_GRACE_AI_DELAY_SECONDS }
+          : {}),
+      })
+      if (hint.show) shopTyping = { maxWaitMs: hint.maxWaitMs }
+    }
   }
 
   return { ok: true, shopTyping, visionPickRequired: visionPickRequired || undefined }
