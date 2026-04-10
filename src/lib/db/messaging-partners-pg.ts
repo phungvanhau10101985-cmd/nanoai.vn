@@ -33,6 +33,13 @@ function mapTimestamptz(v: unknown): string {
   return String(v ?? '')
 }
 
+function isMissingPartnerProfileColumnError(e: unknown): boolean {
+  const err = e as { code?: string; message?: string } | null
+  if (!err || err.code !== '42703') return false
+  const msg = String(err.message ?? '').toLowerCase()
+  return msg.includes('industry_key') || msg.includes('brand_name') || msg.includes('logo_url')
+}
+
 export type MessagingPartnerBySlugRow = {
   id: string
   display_name: string
@@ -113,17 +120,21 @@ export async function fetchMessagingPartnersByIdsFromPg(partnerIds: string[]): P
   const cleanIds = filterUuidStrings(partnerIds)
   if (cleanIds.length === 0) return null
   try {
-    const rows = await pgQuery<{
+    let rows = await pgQuery<{
       id: string
       display_name: string | null
+      industry_key: 'fashion' | 'hotel' | 'food' | 'other' | null
+      brand_name: string | null
+      logo_url: string | null
       slug: string | null
       is_active: boolean | null
     }>(
-      `select id::text, display_name, slug, is_active
+      `select id::text, display_name, industry_key, brand_name, logo_url, slug, is_active
        from public.messaging_partners
        where id = any($1::uuid[])`,
       [cleanIds]
     )
+    if (!rows.length) return []
     return rows.map((r) => ({
       id: r.id,
       display_name: String(r.display_name ?? ''),
@@ -131,6 +142,30 @@ export async function fetchMessagingPartnersByIdsFromPg(partnerIds: string[]): P
       is_active: r.is_active !== false,
     }))
   } catch (e) {
+    if (isMissingPartnerProfileColumnError(e)) {
+      try {
+        const rows = await pgQuery<{
+          id: string
+          display_name: string | null
+          slug: string | null
+          is_active: boolean | null
+        }>(
+          `select id::text, display_name, slug, is_active
+           from public.messaging_partners
+           where id = any($1::uuid[])`,
+          [cleanIds]
+        )
+        return rows.map((r) => ({
+          id: r.id,
+          display_name: String(r.display_name ?? ''),
+          slug: String(r.slug ?? ''),
+          is_active: r.is_active !== false,
+        }))
+      } catch (legacyErr) {
+        console.warn('[fetchMessagingPartnersByIdsFromPg:legacy]', legacyErr)
+        return null
+      }
+    }
     console.warn('[fetchMessagingPartnersByIdsFromPg]', e)
     return null
   }
@@ -151,6 +186,9 @@ export async function fetchMessagingPartnersByOwnerFromPg(ownerUserId: string): 
       id: string
       slug: string
       display_name: string | null
+      industry_key: MessagingPartnerRow['industry_key'] | null
+      brand_name: string | null
+      logo_url: string | null
       owner_user_id: string | null
       embed_key: string | null
       is_active: boolean | null
@@ -158,6 +196,7 @@ export async function fetchMessagingPartnersByOwnerFromPg(ownerUserId: string): 
       updated_at: unknown
     }>(
       `select id::text, slug, display_name, owner_user_id::text,
+              industry_key, brand_name, logo_url,
               coalesce(embed_key::text, '') as embed_key,
               coalesce(is_active, true) as is_active,
               created_at, updated_at
@@ -171,6 +210,9 @@ export async function fetchMessagingPartnersByOwnerFromPg(ownerUserId: string): 
       id: r.id,
       slug: r.slug,
       display_name: String(r.display_name ?? ''),
+      industry_key: r.industry_key ?? null,
+      brand_name: r.brand_name ?? null,
+      logo_url: r.logo_url ?? null,
       owner_user_id: r.owner_user_id,
       embed_key: String(r.embed_key ?? ''),
       is_active: r.is_active !== false,
@@ -178,6 +220,46 @@ export async function fetchMessagingPartnersByOwnerFromPg(ownerUserId: string): 
       updated_at: mapTimestamptz(r.updated_at),
     }))
   } catch (e) {
+    if (isMissingPartnerProfileColumnError(e)) {
+      try {
+        const rows = await pgQuery<{
+          id: string
+          slug: string
+          display_name: string | null
+          owner_user_id: string | null
+          embed_key: string | null
+          is_active: boolean | null
+          created_at: unknown
+          updated_at: unknown
+        }>(
+          `select id::text, slug, display_name, owner_user_id::text,
+                  coalesce(embed_key::text, '') as embed_key,
+                  coalesce(is_active, true) as is_active,
+                  created_at, updated_at
+           from public.messaging_partners
+           where nullif(owner_user_id::text, '') = $1
+             and coalesce(is_active, true) = true
+           order by created_at desc`,
+          [uidRaw]
+        )
+        return rows.map((r) => ({
+          id: r.id,
+          slug: r.slug,
+          display_name: String(r.display_name ?? ''),
+          industry_key: null,
+          brand_name: null,
+          logo_url: null,
+          owner_user_id: r.owner_user_id,
+          embed_key: String(r.embed_key ?? ''),
+          is_active: r.is_active !== false,
+          created_at: mapTimestamptz(r.created_at),
+          updated_at: mapTimestamptz(r.updated_at),
+        }))
+      } catch (legacyErr) {
+        console.warn('[fetchMessagingPartnersByOwnerFromPg:legacy]', legacyErr)
+        return null
+      }
+    }
     console.warn('[fetchMessagingPartnersByOwnerFromPg]', e)
     return null
   }
@@ -219,6 +301,9 @@ export async function fetchMessagingPartnerEmbedKeyForOwnerFromPg(
 export async function insertMessagingPartnerForOwnerFromPg(params: {
   slug: string
   display_name: string
+  industry_key: 'fashion' | 'hotel' | 'food' | 'other'
+  brand_name: string
+  logo_url: string | null
   owner_user_id: string
 }): Promise<MessagingPartnerRow | null> {
   if (!isPgConfigured()) return null
@@ -231,23 +316,37 @@ export async function insertMessagingPartnerForOwnerFromPg(params: {
       id: string
       slug: string
       display_name: string | null
+      industry_key: MessagingPartnerRow['industry_key'] | null
+      brand_name: string | null
+      logo_url: string | null
       owner_user_id: string | null
       embed_key: string | null
       is_active: boolean | null
       created_at: unknown
       updated_at: unknown
     }>(
-      `insert into public.messaging_partners (slug, display_name, owner_user_id)
-       values ($1, $2, $3::uuid)
-       returning id::text, slug, display_name, owner_user_id::text, embed_key::text as embed_key,
+      `insert into public.messaging_partners (slug, display_name, industry_key, brand_name, logo_url, owner_user_id)
+       values ($1, $2, $3, $4, $5, $6::uuid)
+       returning id::text, slug, display_name, industry_key, brand_name, logo_url,
+                 owner_user_id::text, embed_key::text as embed_key,
                  coalesce(is_active, true) as is_active, created_at, updated_at`,
-      [params.slug, params.display_name, safeOwnerUuid(params.owner_user_id)!]
+      [
+        params.slug,
+        params.display_name,
+        params.industry_key,
+        params.brand_name,
+        params.logo_url,
+        safeOwnerUuid(params.owner_user_id)!,
+      ]
     )
     if (!row) return null
     return {
       id: row.id,
       slug: row.slug,
       display_name: String(row.display_name ?? ''),
+      industry_key: row.industry_key ?? null,
+      brand_name: row.brand_name ?? null,
+      logo_url: row.logo_url ?? null,
       owner_user_id: row.owner_user_id,
       embed_key: String(row.embed_key ?? ''),
       is_active: row.is_active !== false,
@@ -255,7 +354,140 @@ export async function insertMessagingPartnerForOwnerFromPg(params: {
       updated_at: mapTimestamptz(row.updated_at),
     }
   } catch (e) {
+    if (isMissingPartnerProfileColumnError(e)) {
+      try {
+        const row = await pgQueryOne<{
+          id: string
+          slug: string
+          display_name: string | null
+          owner_user_id: string | null
+          embed_key: string | null
+          is_active: boolean | null
+          created_at: unknown
+          updated_at: unknown
+        }>(
+          `insert into public.messaging_partners (slug, display_name, owner_user_id)
+           values ($1, $2, $3::uuid)
+           returning id::text, slug, display_name, owner_user_id::text, embed_key::text as embed_key,
+                     coalesce(is_active, true) as is_active, created_at, updated_at`,
+          [params.slug, params.display_name, safeOwnerUuid(params.owner_user_id)!]
+        )
+        if (!row) return null
+        return {
+          id: row.id,
+          slug: row.slug,
+          display_name: String(row.display_name ?? ''),
+          industry_key: null,
+          brand_name: null,
+          logo_url: null,
+          owner_user_id: row.owner_user_id,
+          embed_key: String(row.embed_key ?? ''),
+          is_active: row.is_active !== false,
+          created_at: mapTimestamptz(row.created_at),
+          updated_at: mapTimestamptz(row.updated_at),
+        }
+      } catch (legacyErr) {
+        console.warn('[insertMessagingPartnerForOwnerFromPg:legacy]', legacyErr)
+        return null
+      }
+    }
     console.warn('[insertMessagingPartnerForOwnerFromPg]', e)
+    return null
+  }
+}
+
+export async function updateMessagingPartnerProfileForOwnerFromPg(params: {
+  partner_id: string
+  owner_user_id: string
+  display_name: string
+  industry_key: 'fashion' | 'hotel' | 'food' | 'other'
+  brand_name: string
+  logo_url: string | null
+}): Promise<MessagingPartnerRow | null> {
+  if (!isPgConfigured()) return null
+  const pid = safeUuid(params.partner_id)
+  const uid = safeOwnerUuid(params.owner_user_id)
+  if (!pid || !uid) return null
+  try {
+    const row = await pgQueryOne<{
+      id: string
+      slug: string
+      display_name: string | null
+      industry_key: MessagingPartnerRow['industry_key'] | null
+      brand_name: string | null
+      logo_url: string | null
+      owner_user_id: string | null
+      embed_key: string | null
+      is_active: boolean | null
+      created_at: unknown
+      updated_at: unknown
+    }>(
+      `update public.messaging_partners
+       set display_name = $3,
+           industry_key = $4,
+           brand_name = $5,
+           logo_url = $6,
+           updated_at = now()
+       where id = $1::uuid and owner_user_id = $2::uuid and coalesce(is_active, true) = true
+       returning id::text, slug, display_name, industry_key, brand_name, logo_url,
+                 owner_user_id::text, coalesce(embed_key::text, '') as embed_key,
+                 coalesce(is_active, true) as is_active, created_at, updated_at`,
+      [pid, uid, params.display_name, params.industry_key, params.brand_name, params.logo_url]
+    )
+    if (!row) return null
+    return {
+      id: row.id,
+      slug: row.slug,
+      display_name: String(row.display_name ?? ''),
+      industry_key: row.industry_key ?? null,
+      brand_name: row.brand_name ?? null,
+      logo_url: row.logo_url ?? null,
+      owner_user_id: row.owner_user_id,
+      embed_key: String(row.embed_key ?? ''),
+      is_active: row.is_active !== false,
+      created_at: mapTimestamptz(row.created_at),
+      updated_at: mapTimestamptz(row.updated_at),
+    }
+  } catch (e) {
+    if (isMissingPartnerProfileColumnError(e)) {
+      try {
+        const row = await pgQueryOne<{
+          id: string
+          slug: string
+          display_name: string | null
+          owner_user_id: string | null
+          embed_key: string | null
+          is_active: boolean | null
+          created_at: unknown
+          updated_at: unknown
+        }>(
+          `update public.messaging_partners
+           set display_name = $3, updated_at = now()
+           where id = $1::uuid and owner_user_id = $2::uuid and coalesce(is_active, true) = true
+           returning id::text, slug, display_name, owner_user_id::text, coalesce(embed_key::text, '') as embed_key,
+                     coalesce(is_active, true) as is_active, created_at, updated_at`,
+          [pid, uid, params.display_name]
+        )
+        if (!row) return null
+        return {
+          id: row.id,
+          slug: row.slug,
+          display_name: String(row.display_name ?? ''),
+          industry_key: null,
+          brand_name: null,
+          logo_url: null,
+          owner_user_id: row.owner_user_id,
+          embed_key: String(row.embed_key ?? ''),
+          is_active: row.is_active !== false,
+          created_at: mapTimestamptz(row.created_at),
+          updated_at: mapTimestamptz(row.updated_at),
+        }
+      } catch (legacyErr) {
+        console.warn('[updateMessagingPartnerProfileForOwnerFromPg:legacy]', legacyErr)
+        return null
+      }
+    }
+    console.warn('[updateMessagingPartnerProfileForOwnerFromPg]', e)
     return null
   }
 }

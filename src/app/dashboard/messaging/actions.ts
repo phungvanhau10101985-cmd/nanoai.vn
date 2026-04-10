@@ -56,6 +56,7 @@ import {
   fetchMessagingPartnerEmbedKeyForOwnerFromPg,
   fetchMessagingPartnersByOwnerFromPg,
   insertMessagingPartnerForOwnerFromPg,
+  updateMessagingPartnerProfileForOwnerFromPg,
 } from '@/lib/db/messaging-partners-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 import { fetchMessagingPartnerAiTokenStatsByModelFromPg } from '@/lib/db/messaging-partner-ai-token-usage-pg'
@@ -82,6 +83,14 @@ import {
 } from '@/lib/messaging/partner-faq-presets'
 import { syncPartnerInventoryEmbeddings } from '@/lib/messaging/partner-inventory-embedding'
 import { isValidUuidString } from '@/lib/validate-uuid'
+import { GoogleGenerativeAI, HarmBlockThreshold, HarmCategory } from '@google/generative-ai'
+import { deductUserCredits, refundUserCredits } from '@/lib/music/deduct-user-credits'
+import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
+import {
+  activatePartnerLogoVersionFromPg,
+  insertPartnerLogoVersionFromPg,
+  listPartnerLogoVersionsFromPg,
+} from '@/lib/db/messaging-partner-logo-versions-pg'
 
 export type { PartnerAiTokenUsageStatRow } from '@/lib/db/messaging-partner-ai-token-usage-pg'
 
@@ -89,6 +98,7 @@ const PARTNER_INVENTORY_PAGE_SIZE = Math.max(
   50,
   Math.min(500, parseInt(process.env.PARTNER_INVENTORY_UI_PAGE_SIZE || '120', 10) || 120)
 )
+const LOGO_NORMALIZE_COST = 1.5
 
 async function requireUser() {
   const result = await getUserForAction()
@@ -166,6 +176,9 @@ export async function createMessagingWorkspace(displayName: string) {
   const inserted = await insertMessagingPartnerForOwnerFromPg({
     slug,
     display_name: name,
+    industry_key: 'fashion',
+    brand_name: name,
+    logo_url: null,
     owner_user_id: user.id,
   })
   if (!inserted) {
@@ -173,6 +186,203 @@ export async function createMessagingWorkspace(displayName: string) {
   }
   revalidateMessagingDashboard()
   return { partner: inserted }
+}
+
+type MessagingIndustryKey = 'fashion' | 'hotel' | 'food' | 'other'
+const INDUSTRY_KEYS: readonly MessagingIndustryKey[] = ['fashion', 'hotel', 'food', 'other']
+
+function normalizeIndustryKey(raw: string): MessagingIndustryKey {
+  const t = raw.trim().toLowerCase()
+  return INDUSTRY_KEYS.includes(t as MessagingIndustryKey) ? (t as MessagingIndustryKey) : 'fashion'
+}
+
+function normalizeLogoUrl(raw: string): string | null {
+  const t = raw.trim()
+  if (!t) return null
+  if (!/^https?:\/\//i.test(t)) return null
+  return t.slice(0, 600)
+}
+
+function logoNormalizePrompt(brandName: string): string {
+  return [
+    'Recreate and refine this exact brand logo from the provided reference image.',
+    `Brand name to preserve exactly: "${brandName}".`,
+    'Keep original style and identity; improve cleanliness, spacing, sharpness, and icon readability.',
+    'Do not invent a new brand mark. Do not add extra text.',
+    'Transparent background. Centered composition. Output clean square logo suitable for circular chat bubble.',
+  ].join(' ')
+}
+
+export async function createMessagingWorkspaceProfile(input: {
+  displayName: string
+  industryKey: string
+  brandName: string
+  logoUrl?: string
+}) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const { user } = auth
+  const name = input.displayName.trim()
+  const brand = input.brandName.trim() || name
+  if (!name || name.length > 120) return { error: 'Invalid name.' }
+  if (!brand || brand.length > 120) return { error: 'Invalid brand.' }
+
+  let base = slugify(name)
+  if (RESERVED_MESSAGING_GUEST_SLUGS.has(base)) base = `${base}-ws`
+  const suffix = Math.random().toString(36).slice(2, 6)
+  const slug = `${base}-${suffix}`
+
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+  const inserted = await insertMessagingPartnerForOwnerFromPg({
+    slug,
+    display_name: name,
+    industry_key: normalizeIndustryKey(input.industryKey),
+    brand_name: brand,
+    logo_url: normalizeLogoUrl(input.logoUrl ?? ''),
+    owner_user_id: user.id,
+  })
+  if (!inserted) return { error: 'Không tạo được workspace.' }
+  revalidateMessagingDashboard()
+  return { partner: inserted }
+}
+
+export async function updateMessagingWorkspaceProfile(input: {
+  partnerId: string
+  displayName: string
+  industryKey: string
+  brandName: string
+  logoUrl?: string
+}) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const { user } = auth
+  const name = input.displayName.trim()
+  const brand = input.brandName.trim() || name
+  if (!name || name.length > 120) return { error: 'Invalid name.' }
+  if (!brand || brand.length > 120) return { error: 'Invalid brand.' }
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+
+  const updated = await updateMessagingPartnerProfileForOwnerFromPg({
+    partner_id: input.partnerId,
+    owner_user_id: user.id,
+    display_name: name,
+    industry_key: normalizeIndustryKey(input.industryKey),
+    brand_name: brand,
+    logo_url: normalizeLogoUrl(input.logoUrl ?? ''),
+  })
+  if (!updated) return { error: 'Không cập nhật được thông tin workspace.' }
+  revalidateMessagingDashboard()
+  return { partner: updated }
+}
+
+export async function listMessagingWorkspaceLogoVersions(partnerId: string) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const { user } = auth
+  const gate = await assertPartnerOwner(user.id, partnerId)
+  if ('error' in gate) return { error: gate.error }
+  const rows = await listPartnerLogoVersionsFromPg(partnerId)
+  if (rows === null) return { error: 'Failed to load logo versions.' }
+  return { rows }
+}
+
+export async function setMessagingWorkspaceActiveLogo(partnerId: string, versionId: string) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const { user } = auth
+  const gate = await assertPartnerOwner(user.id, partnerId)
+  if ('error' in gate) return { error: gate.error }
+  const ok = await activatePartnerLogoVersionFromPg({ partnerId, versionId, ownerUserId: user.id })
+  if (!ok) return { error: 'Không thể đổi logo đang dùng.' }
+  revalidateMessagingDashboard()
+  return { ok: true }
+}
+
+export async function normalizeMessagingWorkspaceLogo(input: {
+  partnerId: string
+  sourceLogoUrl: string
+  brandName: string
+}) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const { user } = auth
+  const gate = await assertPartnerOwner(user.id, input.partnerId)
+  if ('error' in gate) return { error: gate.error }
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+  const sourceUrl = normalizeLogoUrl(input.sourceLogoUrl)
+  if (!sourceUrl) return { error: 'Logo URL khong hop le.' }
+  const brand = input.brandName.trim()
+  if (!brand) return { error: 'Brand khong hop le.' }
+  if (!process.env.GOOGLE_API_KEY?.trim()) return { error: 'Missing GOOGLE_API_KEY.' }
+
+  const charged = await deductUserCredits(user.id, LOGO_NORMALIZE_COST)
+  if (!charged.ok) {
+    return { error: charged.code === 'INSUFFICIENT_CREDITS' ? 'Khong du credits.' : charged.error }
+  }
+
+  try {
+    const imgRes = await fetch(sourceUrl)
+    if (!imgRes.ok) {
+      await refundUserCredits(user.id, LOGO_NORMALIZE_COST)
+      return { error: 'Khong tai duoc logo goc.' }
+    }
+    const buf = Buffer.from(await imgRes.arrayBuffer())
+    const mime = imgRes.headers.get('content-type')?.trim() || 'image/png'
+
+    const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY)
+    const model = genAI.getGenerativeModel({
+      model: 'gemini-3-pro-image-preview',
+      generationConfig: {
+        responseModalities: ['TEXT', 'IMAGE'],
+        imageConfig: { imageSize: '2K', aspectRatio: '1:1' },
+      },
+    })
+    const safetySettings = [
+      { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+      { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+      { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+      { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+    ]
+    const prompt = logoNormalizePrompt(brand)
+    const result = await model.generateContent(
+      [
+        prompt,
+        {
+          inlineData: {
+            data: buf.toString('base64'),
+            mimeType: mime,
+          },
+        },
+      ] as never,
+      { safetySettings } as never
+    )
+    const part = result.response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
+    if (!part || !('inlineData' in part) || !part.inlineData?.data) {
+      await refundUserCredits(user.id, LOGO_NORMALIZE_COST)
+      return { error: 'AI khong tra ve anh logo hop le.' }
+    }
+    const out = Buffer.from(part.inlineData.data, 'base64')
+    const path = `messaging-logo/${input.partnerId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.png`
+    const { publicUrl } = await uploadTryOnImagePublic(path, out, { contentType: 'image/png', upsert: true })
+    const version = await insertPartnerLogoVersionFromPg({
+      partnerId: input.partnerId,
+      sourceLogoUrl: sourceUrl,
+      normalizedLogoUrl: publicUrl,
+      model: 'gemini-3-pro-image-preview',
+      prompt,
+      chargedCredits: LOGO_NORMALIZE_COST,
+      createdBy: user.id,
+    })
+    if (!version) {
+      await refundUserCredits(user.id, LOGO_NORMALIZE_COST)
+      return { error: 'Khong luu duoc phien ban logo.' }
+    }
+    revalidateMessagingDashboard()
+    return { ok: true, version, deductedCredits: charged.charged, creditsRemaining: charged.balance }
+  } catch (e) {
+    await refundUserCredits(user.id, LOGO_NORMALIZE_COST)
+    return { error: e instanceof Error ? e.message : 'Chuan hoa logo that bai.' }
+  }
 }
 
 export async function getPartnerChannelStatus(partnerId: string) {

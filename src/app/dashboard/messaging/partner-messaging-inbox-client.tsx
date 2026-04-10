@@ -332,7 +332,7 @@ export function PartnerMessagingInboxClient({ initialPartners, t }: { initialPar
           <SelectContent>
             {partners.map((p) => (
               <SelectItem key={p.id} value={p.id}>
-                {p.display_name} ({p.slug})
+                {p.display_name} ({p.industry_key || 'fashion'})
               </SelectItem>
             ))}
           </SelectContent>

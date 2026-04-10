@@ -12,18 +12,28 @@ import { useToast } from '@/hooks/use-toast'
 import type { Database } from '@/types/database.types'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
 import {
-  createMessagingWorkspace,
+  createMessagingWorkspaceProfile,
   getPartnerChannelStatus,
+  listMessagingWorkspaceLogoVersions,
   listMyMessagingPartners,
+  normalizeMessagingWorkspaceLogo,
   removeMyMessagingWorkspace,
   savePartnerFacebookChannel,
   savePartnerZaloChannel,
+  setMessagingWorkspaceActiveLogo,
+  updateMessagingWorkspaceProfile,
 } from '@/app/dashboard/messaging/actions'
 import { PartnerAiSettingsPanel } from '@/app/dashboard/messaging/partner-ai-settings-panel'
 import { ArrowLeft, RefreshCw, Trash2 } from 'lucide-react'
 import type { WebLocale } from '@/lib/i18n/config'
 
 const DELETE_WORKSPACE_CONFIRM_TOKEN = 'XOA'
+const INDUSTRY_OPTIONS = [
+  { value: 'fashion', label: 'Thoi trang' },
+  { value: 'hotel', label: 'Khach san' },
+  { value: 'food', label: 'Quan an' },
+  { value: 'other', label: 'Nganh khac' },
+] as const
 
 type ChannelSnap = {
   facebookPageId: string | null
@@ -33,6 +43,19 @@ type ChannelSnap = {
 }
 
 type PartnerRow = Database['public']['Tables']['messaging_partners']['Row']
+type LogoVersionRow = {
+  id: string
+  partner_id: string
+  source_logo_url: string
+  normalized_logo_url: string
+  model: string
+  prompt: string
+  status: 'done' | 'failed'
+  charged_credits: number
+  is_active: boolean
+  created_by: string | null
+  created_at: string
+}
 type T = Dictionary['partnerMessaging']
 type TAi = Dictionary['partnerMessagingAi']
 
@@ -60,13 +83,18 @@ export function PartnerMessagingSettingsClient({
     return initialPartners[0]?.id ?? null
   })
   const [workspaceName, setWorkspaceName] = useState('')
+  const [workspaceBrandName, setWorkspaceBrandName] = useState('')
+  const [workspaceIndustry, setWorkspaceIndustry] = useState<'fashion' | 'hotel' | 'food' | 'other'>('fashion')
+  const [workspaceLogoUrl, setWorkspaceLogoUrl] = useState('')
   const [fbPageId, setFbPageId] = useState('')
   const [fbToken, setFbToken] = useState('')
   const [fbVerify, setFbVerify] = useState('')
   const [zaloSec, setZaloSec] = useState('')
   const [zaloTok, setZaloTok] = useState('')
   const [pending, startTransition] = useTransition()
+  const [logoBusy, setLogoBusy] = useState(false)
   const [channelSnap, setChannelSnap] = useState<ChannelSnap | null>(null)
+  const [logoVersions, setLogoVersions] = useState<LogoVersionRow[]>([])
   const [showAddWorkspace, setShowAddWorkspace] = useState(false)
 
   const setSelectedPartnerAndPersist = useCallback(
@@ -136,21 +164,119 @@ export function PartnerMessagingSettingsClient({
     loadChannelStatus()
   }, [selectedPartnerId, loadChannelStatus])
 
+  useEffect(() => {
+    const cur = partners.find((p) => p.id === selectedPartnerId) ?? null
+    if (!cur) return
+    setWorkspaceName(cur.display_name || '')
+    setWorkspaceBrandName(cur.brand_name || cur.display_name || '')
+    setWorkspaceIndustry(cur.industry_key || 'fashion')
+    setWorkspaceLogoUrl(cur.logo_url || '')
+  }, [partners, selectedPartnerId])
+
+  const loadLogoVersions = useCallback(() => {
+    if (!selectedPartnerId) {
+      setLogoVersions([])
+      return
+    }
+    void (async () => {
+      const res = await listMessagingWorkspaceLogoVersions(selectedPartnerId)
+      if ('error' in res && res.error) return
+      if ('rows' in res) setLogoVersions((res.rows ?? []) as LogoVersionRow[])
+    })()
+  }, [selectedPartnerId])
+
+  useEffect(() => {
+    loadLogoVersions()
+  }, [loadLogoVersions])
+
   const createWs = () => {
-    if (!workspaceName.trim()) return
+    if (!workspaceName.trim() || !workspaceBrandName.trim()) return
     startTransition(async () => {
-      const res = await createMessagingWorkspace(workspaceName.trim())
+      const res = await createMessagingWorkspaceProfile({
+        displayName: workspaceName.trim(),
+        brandName: workspaceBrandName.trim(),
+        industryKey: workspaceIndustry,
+        logoUrl: workspaceLogoUrl.trim(),
+      })
       if ('error' in res && res.error) {
         toast({ title: res.error, variant: 'destructive' })
         return
       }
       if ('partner' in res && res.partner) {
         setWorkspaceName('')
+        setWorkspaceBrandName('')
+        setWorkspaceIndustry('fashion')
+        setWorkspaceLogoUrl('')
         setPartners((p) => [res.partner as PartnerRow, ...p])
         setSelectedPartnerAndPersist(res.partner.id)
         setShowAddWorkspace(false)
         toast({ title: t.saveOk })
       }
+    })
+  }
+
+  const saveWorkspaceProfile = () => {
+    if (!selectedPartnerId || !workspaceName.trim() || !workspaceBrandName.trim()) return
+    startTransition(async () => {
+      const res = await updateMessagingWorkspaceProfile({
+        partnerId: selectedPartnerId,
+        displayName: workspaceName.trim(),
+        brandName: workspaceBrandName.trim(),
+        industryKey: workspaceIndustry,
+        logoUrl: workspaceLogoUrl.trim(),
+      })
+      if ('error' in res && res.error) {
+        toast({ title: res.error, variant: 'destructive' })
+        return
+      }
+      if ('partner' in res && res.partner) {
+        setPartners((prev) => prev.map((x) => (x.id === res.partner.id ? (res.partner as PartnerRow) : x)))
+        toast({ title: t.saveOk })
+      }
+    })
+  }
+
+  const normalizeLogo = () => {
+    if (!selectedPartnerId) return
+    const source = workspaceLogoUrl.trim()
+    if (!source) {
+      toast({ title: 'Nhap logo URL truoc khi chuan hoa.', variant: 'destructive' })
+      return
+    }
+    if (!window.confirm('Chuan hoa logo se tru 1.5 credits. Ban co dong y?')) return
+    setLogoBusy(true)
+    startTransition(async () => {
+      const res = await normalizeMessagingWorkspaceLogo({
+        partnerId: selectedPartnerId,
+        sourceLogoUrl: source,
+        brandName: workspaceBrandName.trim() || workspaceName.trim(),
+      })
+      if ('error' in res && res.error) {
+        toast({ title: res.error, variant: 'destructive' })
+        setLogoBusy(false)
+        return
+      }
+      if ('ok' in res && res.ok) {
+        toast({
+          title: `Da chuan hoa logo (-${res.deductedCredits} credits). Con lai ${res.creditsRemaining}.`,
+        })
+        await loadLogoVersions()
+      }
+      setLogoBusy(false)
+    })
+  }
+
+  const useLogoVersion = (versionId: string) => {
+    if (!selectedPartnerId) return
+    startTransition(async () => {
+      const res = await setMessagingWorkspaceActiveLogo(selectedPartnerId, versionId)
+      if ('error' in res && res.error) {
+        toast({ title: res.error, variant: 'destructive' })
+        return
+      }
+      await refreshPartners()
+      await loadLogoVersions()
+      toast({ title: 'Da chon logo dang su dung.' })
     })
   }
 
@@ -238,6 +364,39 @@ export function PartnerMessagingSettingsClient({
                 placeholder={t.workspaceNameLabel}
               />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="ws-brand-settings">Ten thuong hieu</Label>
+              <Input
+                id="ws-brand-settings"
+                value={workspaceBrandName}
+                onChange={(e) => setWorkspaceBrandName(e.target.value)}
+                placeholder="Ten thuong hieu"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Nganh hang</Label>
+              <Select value={workspaceIndustry} onValueChange={(v) => setWorkspaceIndustry(v as typeof workspaceIndustry)}>
+                <SelectTrigger className="h-10 w-full bg-background">
+                  <SelectValue placeholder="Nganh hang" />
+                </SelectTrigger>
+                <SelectContent>
+                  {INDUSTRY_OPTIONS.map((it) => (
+                    <SelectItem key={it.value} value={it.value}>
+                      {it.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="ws-logo-settings">Logo URL</Label>
+              <Input
+                id="ws-logo-settings"
+                value={workspaceLogoUrl}
+                onChange={(e) => setWorkspaceLogoUrl(e.target.value)}
+                placeholder="https://..."
+              />
+            </div>
             <Button type="button" onClick={createWs} disabled={pending || !workspaceName.trim()}>
               {t.createButton}
             </Button>
@@ -263,7 +422,7 @@ export function PartnerMessagingSettingsClient({
                 <SelectContent>
                   {partners.map((p) => (
                     <SelectItem key={p.id} value={p.id}>
-                      {p.display_name} ({p.slug})
+                      {p.display_name} ({p.industry_key || 'fashion'})
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -302,14 +461,147 @@ export function PartnerMessagingSettingsClient({
                     placeholder={t.workspaceNameLabel}
                   />
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="ws-brand-extra">Ten thuong hieu</Label>
+                  <Input
+                    id="ws-brand-extra"
+                    value={workspaceBrandName}
+                    onChange={(e) => setWorkspaceBrandName(e.target.value)}
+                    placeholder="Ten thuong hieu"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Nganh hang</Label>
+                  <Select value={workspaceIndustry} onValueChange={(v) => setWorkspaceIndustry(v as typeof workspaceIndustry)}>
+                    <SelectTrigger className="h-10 w-full bg-background">
+                      <SelectValue placeholder="Nganh hang" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {INDUSTRY_OPTIONS.map((it) => (
+                        <SelectItem key={it.value} value={it.value}>
+                          {it.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="ws-logo-extra">Logo URL</Label>
+                  <Input
+                    id="ws-logo-extra"
+                    value={workspaceLogoUrl}
+                    onChange={(e) => setWorkspaceLogoUrl(e.target.value)}
+                    placeholder="https://..."
+                  />
+                </div>
                 <div className="flex flex-wrap gap-2">
-                  <Button type="button" onClick={createWs} disabled={pending || !workspaceName.trim()}>
+                  <Button type="button" onClick={createWs} disabled={pending || !workspaceName.trim() || !workspaceBrandName.trim()}>
                     {t.createButton}
                   </Button>
                   <Button type="button" variant="ghost" size="sm" onClick={() => setShowAddWorkspace(false)}>
                     {t.cancelAddWorkspace}
                   </Button>
                 </div>
+              </CardContent>
+            </Card>
+          ) : null}
+
+          {selectedPartnerId ? (
+            <Card className="border-border/70 shadow-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">Thong tin thuong hieu & nganh hang</CardTitle>
+                <CardDescription className="text-xs">Shop cu chua co nganh hang co the chon lai tai day.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="ws-name-main">{t.workspaceNameLabel}</Label>
+                    <Input
+                      id="ws-name-main"
+                      value={workspaceName}
+                      onChange={(e) => setWorkspaceName(e.target.value)}
+                      placeholder={t.workspaceNameLabel}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="ws-brand-main">Ten thuong hieu</Label>
+                    <Input
+                      id="ws-brand-main"
+                      value={workspaceBrandName}
+                      onChange={(e) => setWorkspaceBrandName(e.target.value)}
+                      placeholder="Ten thuong hieu"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Nganh hang</Label>
+                    <Select value={workspaceIndustry} onValueChange={(v) => setWorkspaceIndustry(v as typeof workspaceIndustry)}>
+                      <SelectTrigger className="h-10 w-full bg-background">
+                        <SelectValue placeholder="Nganh hang" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {INDUSTRY_OPTIONS.map((it) => (
+                          <SelectItem key={it.value} value={it.value}>
+                            {it.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="ws-logo-main">Logo URL</Label>
+                    <Input
+                      id="ws-logo-main"
+                      value={workspaceLogoUrl}
+                      onChange={(e) => setWorkspaceLogoUrl(e.target.value)}
+                      placeholder="https://..."
+                    />
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  onClick={saveWorkspaceProfile}
+                  disabled={pending || !selectedPartnerId || !workspaceName.trim() || !workspaceBrandName.trim()}
+                >
+                  Luu thong tin shop
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={normalizeLogo}
+                  disabled={pending || logoBusy || !selectedPartnerId || !workspaceLogoUrl.trim()}
+                >
+                  {logoBusy ? 'Dang chuan hoa logo...' : 'Chuan hoa logo (1.5 credits)'}
+                </Button>
+                {logoVersions.length > 0 ? (
+                  <div className="space-y-2 rounded-md border border-border/70 p-3">
+                    <p className="text-xs font-medium text-muted-foreground">Cac phien ban logo da tao</p>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {logoVersions.map((lv) => (
+                        <div key={lv.id} className="rounded border p-2">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={lv.normalized_logo_url}
+                            alt=""
+                            className="h-14 w-14 rounded border object-contain bg-white"
+                          />
+                          <p className="mt-1 text-[11px] text-muted-foreground">
+                            {lv.is_active ? 'Dang su dung' : `Phi ${lv.charged_credits} credits`}
+                          </p>
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="mt-1 h-7 px-2 text-[11px]"
+                            variant={lv.is_active ? 'outline' : 'default'}
+                            disabled={pending || lv.is_active}
+                            onClick={() => useLogoVersion(lv.id)}
+                          >
+                            {lv.is_active ? 'Dang su dung' : 'Dung logo nay'}
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
               </CardContent>
             </Card>
           ) : null}

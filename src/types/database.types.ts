@@ -165,6 +165,9 @@ export interface Database {
           id: string
           slug: string
           display_name: string
+          industry_key: 'fashion' | 'hotel' | 'food' | 'other' | null
+          brand_name: string | null
+          logo_url: string | null
           owner_user_id: string | null
           embed_key: string
           is_active: boolean
@@ -175,6 +178,9 @@ export interface Database {
           id?: string
           slug: string
           display_name: string
+          industry_key?: 'fashion' | 'hotel' | 'food' | 'other' | null
+          brand_name?: string | null
+          logo_url?: string | null
           owner_user_id?: string | null
           embed_key?: string
           is_active?: boolean
@@ -185,6 +191,9 @@ export interface Database {
           id?: string
           slug?: string
           display_name?: string
+          industry_key?: 'fashion' | 'hotel' | 'food' | 'other' | null
+          brand_name?: string | null
+          logo_url?: string | null
           owner_user_id?: string | null
           embed_key?: string
           is_active?: boolean
