@@ -5,7 +5,7 @@ import {
   updateCustomerCareMessageRawPayloadPg,
 } from '@/lib/db/customer-care-pg'
 import { isPgConfigured } from '@/lib/db/pool'
-import { handlePartnerInboundForAi } from '@/lib/messaging/partner-ai-inbound'
+import { cancelPendingAiJobsForConversation, handlePartnerInboundForAi } from '@/lib/messaging/partner-ai-inbound'
 import { latestInboundTextForPartnerAi } from '@/lib/messaging/guest-chat-image'
 
 type GuestMessageVisionPayload = {
@@ -101,6 +101,9 @@ export async function executeGuestVisionPick(input: {
   if (!updated) {
     return { error: 'Could not update message.' }
   }
+
+  // Ensure stale pending jobs are removed before scheduling the selected-product reply.
+  await cancelPendingAiJobsForConversation(msg.conversation_id)
 
   const hint = await handlePartnerInboundForAi({
     partnerId,

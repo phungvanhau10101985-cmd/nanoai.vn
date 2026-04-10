@@ -114,7 +114,7 @@ async function runMessagingPartnerAiJobBatchUsingPg(
         allowRepeatedReplyForVisionPick &&
         visionSelectedAtMs !== null &&
         Number.isFinite(jobCreatedAtMs) &&
-        jobCreatedAtMs < visionSelectedAtMs
+        jobCreatedAtMs + 30_000 < visionSelectedAtMs
       ) {
         await setPartnerAiJobStatus(job.id, { status: 'cancelled', error: null })
         skipped += 1
