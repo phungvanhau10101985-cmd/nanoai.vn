@@ -201,7 +201,17 @@ export async function fetchMessagingPartnersByOwnerFromPg(ownerUserId: string): 
               coalesce(is_active, true) as is_active,
               created_at, updated_at
        from public.messaging_partners
-       where nullif(owner_user_id::text, '') = $1
+       where (
+         nullif(owner_user_id::text, '') = $1
+         or exists (
+           select 1
+           from auth.users me
+           join auth.users owner_u on owner_u.id = messaging_partners.owner_user_id
+           where me.id = $1::uuid
+             and lower(coalesce(me.email, '')) <> ''
+             and lower(coalesce(owner_u.email, '')) = lower(coalesce(me.email, ''))
+         )
+       )
          and coalesce(is_active, true) = true
        order by created_at desc`,
       [uidRaw]
@@ -237,7 +247,17 @@ export async function fetchMessagingPartnersByOwnerFromPg(ownerUserId: string): 
                   coalesce(is_active, true) as is_active,
                   created_at, updated_at
            from public.messaging_partners
-           where nullif(owner_user_id::text, '') = $1
+           where (
+             nullif(owner_user_id::text, '') = $1
+             or exists (
+               select 1
+               from auth.users me
+               join auth.users owner_u on owner_u.id = messaging_partners.owner_user_id
+               where me.id = $1::uuid
+                 and lower(coalesce(me.email, '')) <> ''
+                 and lower(coalesce(owner_u.email, '')) = lower(coalesce(me.email, ''))
+             )
+           )
              and coalesce(is_active, true) = true
            order by created_at desc`,
           [uidRaw]

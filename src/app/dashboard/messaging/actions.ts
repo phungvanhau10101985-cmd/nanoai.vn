@@ -125,7 +125,19 @@ async function assertPartnerOwner(userId: string, partnerId: string) {
   try {
     const row = await pgQueryOne<{ id: string }>(
       `select id::text from public.messaging_partners
-       where id = $1::uuid and owner_user_id = $2::uuid limit 1`,
+       where id = $1::uuid
+         and (
+           owner_user_id = $2::uuid
+           or exists (
+             select 1
+             from auth.users me
+             join auth.users owner_u on owner_u.id = messaging_partners.owner_user_id
+             where me.id = $2::uuid
+               and lower(coalesce(me.email, '')) <> ''
+               and lower(coalesce(owner_u.email, '')) = lower(coalesce(me.email, ''))
+           )
+         )
+       limit 1`,
       [partnerId, userId]
     )
     if (row) return { ok: true as const }
