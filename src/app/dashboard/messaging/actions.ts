@@ -205,13 +205,14 @@ function normalizeLogoUrl(raw: string): string | null {
 
 function logoNormalizePrompt(brandName: string): string {
   return [
-    'Create a refined square logo image from this customer logo reference.',
+    'Create a compact circular logo icon from this customer logo reference.',
     `Brand name to preserve exactly: "${brandName}".`,
-    'Goal: keep the same brand identity and visual style while maximizing visible logo size.',
-    'Preserve core shapes and main orange color family; remove only tiny unreadable details.',
-    'Requirements: aspect ratio 1:1, solid white background, centered composition, crisp edges.',
-    'Scale the main logo as large as possible (about 90-95% canvas width/height) while avoiding clipping.',
-    'Remove unnecessary top/bottom whitespace. No giant empty margin.',
+    'Goal: keep the same brand identity in a circular simplified icon for chat bubble usage.',
+    'Preserve key brand elements and orange color family, but remove tiny unreadable details.',
+    'Requirements: aspect ratio 1:1, white background, true circular icon composition, centered, crisp edges.',
+    'Scale the main mark as large as possible (about 88-92% of circular safe area) without clipping.',
+    'Do not keep long small text like domain suffix if it hurts readability.',
+    'No wasted top/bottom whitespace. No tiny logo inside a large empty circle.',
     'Do NOT invent a new logo concept. Keep the original brand feel.',
     'No watermark, no mockup, no extra objects, no decorative background.',
   ].join(' ')
@@ -219,15 +220,15 @@ function logoNormalizePrompt(brandName: string): string {
 
 function logoNormalizePromptImpressive(brandName: string): string {
   return [
-    'Create an impressive bold square logo image from this customer logo reference.',
+    'Create an impressive bold circular logo icon from this customer logo reference.',
     `Brand name to preserve exactly when retained: "${brandName}".`,
-    'Goal: make an impressive, memorable logo while keeping original brand feel recognizable.',
+    'Goal: make an impressive, memorable circular icon while keeping original brand feel recognizable.',
     'Simplify more aggressively: remove tiny unreadable details and keep only strongest identity elements.',
     'Prioritize the main mark/text (e.g. "188") and scale it as large as possible.',
-    'Minimize empty whitespace; fill the frame with useful logo content and avoid wasted top/bottom space.',
+    'Use circular composition only. Fill the circle with useful logo content and avoid wasted top/bottom space.',
     'Use bold shapes, strong silhouette, high contrast, and clean geometry for 48-64px readability.',
-    'Aspect ratio 1:1, solid white background, centered composition with tight padding.',
-    'Do NOT add a large circle background container. Do NOT shrink logo inside a big empty area.',
+    'Aspect ratio 1:1, white background, centered composition with tight circular padding.',
+    'Do NOT shrink logo inside a big empty area. Main logo must look large and dominant.',
     'Do NOT invent unrelated concept. Do NOT add watermark, mockup, or extra decorative objects.',
   ].join(' ')
 }
