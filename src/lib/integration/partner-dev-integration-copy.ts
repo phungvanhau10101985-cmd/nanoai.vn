@@ -43,6 +43,9 @@ export type PartnerDevIntegrationStrings = {
   copyHostedScriptButton: string
   copyHostedScriptToast: string
   copyHostedScriptError: string
+  copyCodeButton: string
+  copyCodeToast: string
+  copyCodeError: string
   checklistTitle: string
   checklistBody: string
   /** Nhãn hiển thị cho mã slug (không phải placeholder {slug}) */
@@ -110,6 +113,9 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
     copyHostedScriptButton: 'Sao chép mã nhúng script',
     copyHostedScriptToast: 'Đã sao chép mã nhúng script.',
     copyHostedScriptError: 'Không sao chép được. Hãy chọn và copy thủ công.',
+    copyCodeButton: 'Sao chép',
+    copyCodeToast: 'Đã sao chép mã.',
+    copyCodeError: 'Không sao chép được. Hãy chọn và copy thủ công.',
     checklistTitle: 'Checklist trước khi production',
     checklistBody:
       '• Không đặt X-Embed-Key hay Bearer trong bundle JS công khai.\n• Nếu dùng D: đã tạo/bật khóa Bearer tại Bảng điều khiển → Tích hợp API; đã bật gợi ý theo ảnh và đồng bộ catalog Vision tại Messaging → Cài đặt → AI.\n• Nếu dùng F: cùng khóa Bearer; gọi từ server shop; xử lý mã lỗi `code` trong JSON.\n• Đã test CORS từ domain thật của shop (nhánh B).\n• Xử lý 401 / 403 / 429 / 503 và thông báo cho người dùng.',
@@ -176,6 +182,9 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
     copyHostedScriptButton: 'Copy embed script',
     copyHostedScriptToast: 'Embed script copied.',
     copyHostedScriptError: 'Could not copy. Select the code and copy manually.',
+    copyCodeButton: 'Copy',
+    copyCodeToast: 'Code copied.',
+    copyCodeError: 'Could not copy. Select the code and copy manually.',
     checklistTitle: 'Pre-production checklist',
     checklistBody:
       '• Do not ship X-Embed-Key or Bearer keys in public frontend bundles.\n• For D: create/enable the Bearer key on Dashboard → API integration; enable Vision image suggestions and sync the catalog under Messaging → Settings → AI.\n• For F: same Bearer key; call from the shop server; handle JSON `code` on errors.\n• Test CORS from your real shop domain (track B).\n• Handle 401 / 403 / 429 / 503 with clear user messaging.',
@@ -239,6 +248,9 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
     copyHostedScriptButton: '复制嵌入脚本',
     copyHostedScriptToast: '已复制嵌入脚本。',
     copyHostedScriptError: '无法复制，请手动选择代码复制。',
+    copyCodeButton: '复制',
+    copyCodeToast: '代码已复制。',
+    copyCodeError: '无法复制，请手动选择代码复制。',
     checklistTitle: '上线前检查',
     checklistBody:
       '• 勿将 X-Embed-Key 或 Bearer 打入公开前端包。\n• 使用 D 时：已在 API 集成说明页创建/启用 Bearer；已在 Messaging → 设置 → AI 开启 Vision 以图提示并同步目录。\n• 使用 F 时：同一 Bearer；从店铺服务端调用；处理 JSON 中的 `code`。\n• 在真实店铺域名下测试 CORS（路径 B）。\n• 处理 401 / 403 / 429 / 503 并向用户提示。',
@@ -302,6 +314,9 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
     copyHostedScriptButton: '埋め込みスクリプトをコピー',
     copyHostedScriptToast: 'スクリプトをコピーしました。',
     copyHostedScriptError: 'コピーできませんでした。コードを選択して手動でコピーしてください。',
+    copyCodeButton: 'コピー',
+    copyCodeToast: 'コードをコピーしました。',
+    copyCodeError: 'コピーできませんでした。コードを選択して手動でコピーしてください。',
     checklistTitle: '本番前チェックリスト',
     checklistBody:
       '• X-Embed-Key / Bearer を公開 JS に含めない。\n• D 利用時: API 連携ガイドで Bearer を作成・有効化し、Messaging → 設定 → AI で Vision 画像提案とカタログ同期を有効化。\n• F 利用時: 同じ Bearer、店舗サーバーから呼び出し、エラー時は JSON の `code` を処理。\n• 実ドメインで CORS をテスト（B）。\n• 401 / 403 / 429 / 503 をユーザー向けに処理。',
@@ -365,6 +380,9 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
     copyHostedScriptButton: '임베드 스크립트 복사',
     copyHostedScriptToast: '임베드 스크립트를 복사했습니다.',
     copyHostedScriptError: '복사에 실패했습니다. 코드를 직접 선택해 복사하세요.',
+    copyCodeButton: '복사',
+    copyCodeToast: '코드를 복사했습니다.',
+    copyCodeError: '복사에 실패했습니다. 코드를 직접 선택해 복사하세요.',
     checklistTitle: '프로덕션 체크리스트',
     checklistBody:
       '• X-Embed-Key / Bearer를 공개 프론트 번들에 넣지 않기.\n• D 사용 시: API 연동 안내에서 Bearer 생성·활성화, Messaging → 설정 → AI에서 Vision 이미지 제안·카탈로그 동기화 활성화.\n• F 사용 시: 동일 Bearer, 매장 서버에서 호출, 오류 시 JSON `code` 처리.\n• 실제 매장 도메인에서 CORS 테스트(B).\n• 401 / 403 / 429 / 503 사용자 메시지 처리.',

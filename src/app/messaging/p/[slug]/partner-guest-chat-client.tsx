@@ -84,6 +84,7 @@ function formatVndPrice(priceHint: string | undefined): string | null {
 type T = Dictionary['partnerGuestChat']
 const TRY_ON_COST_2K = 1
 const MAX_TRY_ON_GARMENTS = 4
+const MESSAGING_AUTH_SYNC_EVENT_KEY = 'nanoai_messaging_auth_sync'
 
 type SelectedImage = {
   file: File | null
@@ -138,6 +139,8 @@ export function PartnerGuestChatClient({
   const [loginOpenInNewTab, setLoginOpenInNewTab] = useState(false)
   const [tryOnOpen, setTryOnOpen] = useState(false)
   const [tryOnBusy, setTryOnBusy] = useState(false)
+  const [tryOnCreditsBalance, setTryOnCreditsBalance] = useState<number | null>(null)
+  const [tryOnCreditsLoading, setTryOnCreditsLoading] = useState(false)
   const [tryOnUserFile, setTryOnUserFile] = useState<File | null>(null)
   const [tryOnGarmentFiles, setTryOnGarmentFiles] = useState<SelectedImage[]>([])
   const [tryOnGarmentPickerOpen, setTryOnGarmentPickerOpen] = useState(false)
@@ -276,6 +279,23 @@ export function PartnerGuestChatClient({
     }
   }, [slug, toast, t.loadError, authHeaders, captureGuestSessionFromResponse])
 
+  const refreshAuthAndReload = useCallback(async () => {
+    try {
+      const me = await fetch('/api/auth/me', { credentials: 'same-origin' })
+      const j = me.ok ? ((await me.json()) as { user?: { id?: string } }) : {}
+      const uid = j.user?.id ?? null
+      setUserId(uid)
+      if (uid) {
+        setAuthGateRequired(false)
+        setAuthMode('account')
+      }
+    } catch {
+      setUserId(null)
+    } finally {
+      void load()
+    }
+  }, [load])
+
   useEffect(() => {
     if (authReady) void load()
   }, [authReady, load])
@@ -323,12 +343,38 @@ export function PartnerGuestChatClient({
     if (auth === 'ok') {
       setAuthGateRequired(false)
       setAuthMode('account')
+      try {
+        window.localStorage.setItem(
+          MESSAGING_AUTH_SYNC_EVENT_KEY,
+          JSON.stringify({ ts: Date.now(), slug })
+        )
+      } catch {}
       void load()
     }
     sp.delete('auth')
     const next = `${window.location.pathname}${sp.toString() ? `?${sp.toString()}` : ''}`
     window.history.replaceState(null, '', next)
-  }, [load])
+  }, [load, slug])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== MESSAGING_AUTH_SYNC_EVENT_KEY) return
+      void refreshAuthAndReload()
+    }
+    const onFocus = () => {
+      if (document.visibilityState === 'hidden') return
+      void refreshAuthAndReload()
+    }
+    window.addEventListener('storage', onStorage)
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onFocus)
+    return () => {
+      window.removeEventListener('storage', onStorage)
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onFocus)
+    }
+  }, [refreshAuthAndReload])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -662,6 +708,7 @@ export function PartnerGuestChatClient({
       }
       if (res.status === 401) {
         setUserId(null)
+        setTryOnCreditsBalance(null)
         return
       }
       if (!res.ok || !data.resultUrl) {
@@ -689,6 +736,9 @@ export function PartnerGuestChatClient({
       if (tryOnGarmentInputRef.current) tryOnGarmentInputRef.current.value = ''
       const remaining =
         typeof data.creditsRemaining === 'number' ? formatCredits(Math.max(0, data.creditsRemaining)) : null
+      if (typeof data.creditsRemaining === 'number') {
+        setTryOnCreditsBalance(Math.max(0, data.creditsRemaining))
+      }
       const deducted =
         typeof data.deductedCredits === 'number' ? formatCredits(Math.max(0, data.deductedCredits)) : formatCredits(TRY_ON_COST_2K)
       toast({
@@ -703,6 +753,41 @@ export function PartnerGuestChatClient({
       setTryOnBusy(false)
     }
   }
+
+  const loadTryOnCreditsBalance = useCallback(async () => {
+    if (!userId) {
+      setTryOnCreditsBalance(null)
+      return
+    }
+    setTryOnCreditsLoading(true)
+    try {
+      const res = await fetch('/api/account/credits', {
+        method: 'GET',
+        credentials: 'same-origin',
+        cache: 'no-store',
+      })
+      if (!res.ok) {
+        setTryOnCreditsBalance(null)
+        return
+      }
+      const data = (await res.json()) as { balance?: unknown }
+      const balance = Number(data.balance)
+      setTryOnCreditsBalance(Number.isFinite(balance) ? Math.max(0, balance) : null)
+    } catch {
+      setTryOnCreditsBalance(null)
+    } finally {
+      setTryOnCreditsLoading(false)
+    }
+  }, [userId])
+
+  useEffect(() => {
+    if (!tryOnOpen) return
+    if (!userId) {
+      setTryOnCreditsBalance(null)
+      return
+    }
+    void loadTryOnCreditsBalance()
+  }, [tryOnOpen, userId, loadTryOnCreditsBalance])
 
   const send = async () => {
     const text = draft.trim()
@@ -1297,18 +1382,37 @@ export function PartnerGuestChatClient({
                       ) : null}
                     </div>
                   </div>
-                  <Button
-                    type="button"
-                    size="sm"
-                    className="gap-1.5"
-                    disabled={tryOnBusy || !tryOnUserFile || tryOnGarmentFiles.length === 0}
-                    onClick={() => void runTryOn()}
-                  >
-                    {tryOnBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                    {tryOnBusy
-                      ? t.tryOnPreparing
-                      : t.tryOnGenerateWithCost.replace('{credits}', formatCredits(TRY_ON_COST_2K))}
-                  </Button>
+                  <div className="flex flex-wrap items-center justify-between gap-1.5">
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="gap-1.5"
+                      disabled={tryOnBusy || !tryOnUserFile || tryOnGarmentFiles.length === 0}
+                      onClick={() => void runTryOn()}
+                    >
+                      {tryOnBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                      {tryOnBusy
+                        ? t.tryOnPreparing
+                        : t.tryOnGenerateWithCost.replace('{credits}', formatCredits(TRY_ON_COST_2K))}
+                    </Button>
+                    <div className="ml-auto flex items-center gap-1.5">
+                      <span className="inline-flex h-7 items-center rounded-md border border-border/70 bg-background/70 px-2 text-[10px] font-medium text-muted-foreground sm:text-[11px]">
+                        {t.tryOnCreditsBalanceLabel.replace(
+                          '{credits}',
+                          tryOnCreditsLoading
+                            ? '...'
+                            : (typeof tryOnCreditsBalance === 'number'
+                              ? formatCredits(tryOnCreditsBalance)
+                              : '--')
+                        )}
+                      </span>
+                      <Button asChild type="button" size="sm" variant="outline" className="h-7 px-2 text-[10px] sm:text-[11px]">
+                        <a href="/dashboard/deposit" target="_blank" rel="noopener noreferrer">
+                          {t.tryOnTopUpCredits}
+                        </a>
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               ) : null}
 

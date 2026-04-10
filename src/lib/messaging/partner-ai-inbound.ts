@@ -40,6 +40,7 @@ async function runInstantFaq(ctx: {
   settings: SettingsRow
   answer: string
   faqId: string
+  skipTypingDelay?: boolean
 }) {
   let conv: Database['public']['Tables']['customer_care_conversations']['Row'] | null = null
   try {
@@ -48,7 +49,9 @@ async function runInstantFaq(ctx: {
     console.warn('[partner-ai] runInstantFaq PG conv failed', e)
   }
   if (!conv) return
-  await sleep(typingDelayMs(ctx.settings))
+  if (!ctx.skipTypingDelay) {
+    await sleep(typingDelayMs(ctx.settings))
+  }
   const rawPayload = { source: 'ai_faq', faq_id: ctx.faqId } as unknown as Json
   const err = await deliverAutomatedPartnerMessage({
     conversation: conv,
@@ -87,19 +90,24 @@ export async function handlePartnerInboundForAi(input: {
     const skipFaq = inboundTextHasVisionSelectionHint(input.inboundBody)
     const faq = skipFaq ? null : await findMatchingFaq(input.partnerId, input.inboundBody)
     if (faq) {
+      const fastWidgetReply = input.channel === 'widget'
       void runInstantFaq({
         partnerId: input.partnerId,
         conversationId: input.conversationId,
         settings,
         answer: faq.answer,
         faqId: faq.id,
+        skipTypingDelay: fastWidgetReply,
       })
-      const hi = Math.max(settings.typing_pause_min_ms, settings.typing_pause_max_ms)
+      const hi = fastWidgetReply ? 0 : Math.max(settings.typing_pause_min_ms, settings.typing_pause_max_ms)
       return { show: true, maxWaitMs: hi + 10_000 }
     }
 
     await cancelPendingAiJobsForConversation(input.conversationId)
-    const configuredDelay = Math.max(5, Math.min(30, settings.reply_delay_seconds ?? 20))
+    const configuredDelay =
+      input.channel === 'widget'
+        ? 0
+        : Math.max(5, Math.min(30, settings.reply_delay_seconds ?? 20))
     const exactSchedule =
       input.scheduleAiAfterSeconds != null && Number.isFinite(input.scheduleAiAfterSeconds)
     let delaySec: number

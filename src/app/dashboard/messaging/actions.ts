@@ -996,9 +996,7 @@ export async function savePartnerAiSettings(partnerId: string, payload: PartnerA
     shop_policy: payload.shop_policy ?? '',
     tone_instructions: payload.tone_instructions ?? '',
     append_ai_disclosure: Boolean(payload.append_ai_disclosure),
-    disclosure_suffix:
-      payload.disclosure_suffix?.trim() ||
-      '(Automated message from the shop’s AI assistant.)',
+    disclosure_suffix: payload.disclosure_suffix?.trim() || '',
     vision_product_search_enabled: false,
     vision_shop_country,
     vision_location,

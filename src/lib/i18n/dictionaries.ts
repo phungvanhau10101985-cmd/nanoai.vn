@@ -628,6 +628,8 @@ export type Dictionary = {
     tryOnFailed: string
     tryOnReady: string
     tryOnChargedToast: string
+    tryOnCreditsBalanceLabel: string
+    tryOnTopUpCredits: string
     guestAuthPromptTitle: string
     guestAuthPromptBody: string
     guestAuthEmailPlaceholder: string
@@ -2152,6 +2154,8 @@ const VI_DICTIONARY: Dictionary = {
     tryOnFailed: 'Không tạo được ảnh thử đồ.',
     tryOnReady: 'Đã tạo ảnh thử đồ. Bạn có thể gửi ngay trong chat.',
     tryOnChargedToast: 'Đã trừ {cost} credits. Còn lại {remaining} credits.',
+    tryOnCreditsBalanceLabel: 'Số dư: {credits}',
+    tryOnTopUpCredits: 'Nạp credit',
     guestAuthPromptTitle: 'Đăng nhập để lưu lịch sử lâu dài',
     guestAuthPromptBody: 'Bạn vẫn có thể chat ngay. Đăng nhập giúp đồng bộ hội thoại khi đổi máy/trình duyệt.',
     guestAuthEmailPlaceholder: 'Nhập email của bạn',
@@ -3675,6 +3679,8 @@ const EN_DICTIONARY: Dictionary = {
     tryOnFailed: 'Could not generate the try-on image.',
     tryOnReady: 'Try-on image is ready. You can send it in chat.',
     tryOnChargedToast: 'Charged {cost} credits. Remaining {remaining} credits.',
+    tryOnCreditsBalanceLabel: 'Balance: {credits}',
+    tryOnTopUpCredits: 'Top up',
     guestAuthPromptTitle: 'Sign in to keep chat history longer',
     guestAuthPromptBody: 'You can still chat now. Signing in lets you keep history across devices/browsers.',
     guestAuthEmailPlaceholder: 'Enter your email',
@@ -5185,6 +5191,8 @@ const ZH_DICTIONARY: Dictionary = {
     tryOnFailed: '试穿图生成失败。',
     tryOnReady: '试穿图已生成，可直接在聊天中发送。',
     tryOnChargedToast: '已扣除 {cost} 积分，剩余 {remaining} 积分。',
+    tryOnCreditsBalanceLabel: '余额：{credits}',
+    tryOnTopUpCredits: '充值',
     guestAuthPromptTitle: '登录以长期保存聊天记录',
     guestAuthPromptBody: '您仍可立即聊天。登录后可在更换设备/浏览器时同步历史。',
     guestAuthEmailPlaceholder: '请输入您的邮箱',
@@ -6665,6 +6673,8 @@ const JA_DICTIONARY: Dictionary = {
     tryOnFailed: '試着画像を作成できませんでした。',
     tryOnReady: '試着画像ができました。チャットで送信できます。',
     tryOnChargedToast: '{cost} クレジットを消費しました。残り {remaining} クレジット。',
+    tryOnCreditsBalanceLabel: '残高: {credits}',
+    tryOnTopUpCredits: 'チャージ',
     guestAuthPromptTitle: 'ログインして履歴を長期保存',
     guestAuthPromptBody: '今すぐチャットは可能です。ログインすると端末/ブラウザを変えても履歴を引き継げます。',
     guestAuthEmailPlaceholder: 'メールアドレスを入力',
@@ -8170,6 +8180,8 @@ const KO_DICTIONARY: Dictionary = {
     tryOnFailed: '피팅 이미지를 만들지 못했습니다.',
     tryOnReady: '피팅 이미지가 준비되었습니다. 채팅에서 바로 보낼 수 있습니다.',
     tryOnChargedToast: '{cost} 크레딧이 차감되었습니다. 잔액 {remaining} 크레딧.',
+    tryOnCreditsBalanceLabel: '잔액: {credits}',
+    tryOnTopUpCredits: '충전',
     guestAuthPromptTitle: '로그인하고 채팅 기록 오래 보관',
     guestAuthPromptBody: '지금도 채팅할 수 있습니다. 로그인하면 기기/브라우저를 바꿔도 기록이 동기화됩니다.',
     guestAuthEmailPlaceholder: '이메일을 입력하세요',

@@ -89,6 +89,7 @@ export async function executeGuestVisionPick(input: {
     vision_pick_required: true,
     vision_selected_inventory_id: inventoryId,
     vision_selected_product_label: label,
+    vision_selected_at: new Date().toISOString(),
   } as Json
 
   let updated = false

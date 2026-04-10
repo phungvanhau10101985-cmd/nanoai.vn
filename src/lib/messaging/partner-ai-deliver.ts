@@ -11,6 +11,8 @@ function applyDisclosure(body: string, settings: SettingsRow): string {
   if (!settings.append_ai_disclosure) return body.trim()
   const s = settings.disclosure_suffix?.trim()
   if (!s) return body.trim()
+  // Legacy default disclosure text should never be shown to end-users.
+  if (/automated message from the shop[’']s ai assistant/i.test(s)) return body.trim()
   return `${body.trim()}\n\n${s}`
 }
 

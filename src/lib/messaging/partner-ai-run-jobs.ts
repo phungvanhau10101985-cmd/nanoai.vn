@@ -21,11 +21,21 @@ import { parsePartnerAiLlmStructured } from '@/lib/messaging/partner-ai-product-
 import { insertPartnerAiTokenUsage } from '@/lib/messaging/partner-ai-token-usage'
 
 type TriggerRawForVisionRepick = { vision_selected_inventory_id?: string }
+type TriggerRawWithVisionSelectedAt = { vision_selected_at?: string }
 
 function hasVisionRepickSelection(raw: Json | null | undefined): boolean {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return false
   const sid = (raw as TriggerRawForVisionRepick).vision_selected_inventory_id
   return typeof sid === 'string' && sid.trim().length > 0
+}
+
+function getVisionSelectedAtEpochMs(raw: Json | null | undefined): number | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const v = (raw as TriggerRawWithVisionSelectedAt).vision_selected_at
+  const s = typeof v === 'string' ? v.trim() : ''
+  if (!s) return null
+  const ms = Date.parse(s)
+  return Number.isFinite(ms) ? ms : null
 }
 
 function sleep(ms: number) {
@@ -36,6 +46,10 @@ function typingDelayMs(settings: Database['public']['Tables']['messaging_partner
   const a = Math.min(settings.typing_pause_min_ms, settings.typing_pause_max_ms)
   const b = Math.max(settings.typing_pause_min_ms, settings.typing_pause_max_ms)
   return a + Math.floor(Math.random() * Math.max(1, b - a + 1))
+}
+
+function shouldSkipTypingDelayForJobChannel(channel: string | null | undefined): boolean {
+  return String(channel || '').trim().toLowerCase() === 'widget'
 }
 
 async function setPartnerAiJobStatus(
@@ -94,6 +108,18 @@ async function runMessagingPartnerAiJobBatchUsingPg(
       const triggerAt = triggerFull.created_at
       const inboundForAi = latestInboundTextForPartnerAi(triggerFull.body, triggerFull.raw_payload)
       const allowRepeatedReplyForVisionPick = hasVisionRepickSelection(triggerFull.raw_payload)
+      const visionSelectedAtMs = getVisionSelectedAtEpochMs(triggerFull.raw_payload)
+      const jobCreatedAtMs = Date.parse(String(job.created_at ?? ''))
+      if (
+        allowRepeatedReplyForVisionPick &&
+        visionSelectedAtMs !== null &&
+        Number.isFinite(jobCreatedAtMs) &&
+        jobCreatedAtMs < visionSelectedAtMs
+      ) {
+        await setPartnerAiJobStatus(job.id, { status: 'cancelled', error: null })
+        skipped += 1
+        continue
+      }
 
       const hasHuman = await resolveHumanOutboundAfterTrigger(job.conversation_id, triggerAt)
       if (hasHuman) {
@@ -125,11 +151,12 @@ async function runMessagingPartnerAiJobBatchUsingPg(
         skipped += 1
         continue
       }
+      const skipTypingDelay = shouldSkipTypingDelayForJobChannel(conv.channel as string | null | undefined)
 
       const skipFaq = inboundTextHasVisionSelectionHint(inboundForAi)
       const faq = skipFaq ? null : await findMatchingFaq(job.partner_id, inboundForAi)
       if (faq) {
-        await sleep(typingDelayMs(settings))
+        if (!skipTypingDelay) await sleep(typingDelayMs(settings))
         const rawFaq = { source: 'ai_faq', faq_id: faq.id } as unknown as Json
         const d1 = await deliverAutomatedPartnerMessage({
           conversation: conv,
@@ -173,7 +200,7 @@ async function runMessagingPartnerAiJobBatchUsingPg(
         ai_job_id: job.id,
       })
 
-      await sleep(typingDelayMs(settings))
+      if (!skipTypingDelay) await sleep(typingDelayMs(settings))
       const parsed = parsePartnerAiLlmStructured(llm.text)
       const rawLlm = {
         source: 'ai_llm',

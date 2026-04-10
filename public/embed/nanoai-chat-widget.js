@@ -76,7 +76,7 @@
     if (logoUrl) {
       var logoMask = document.createElement('span')
       logoMask.style.cssText =
-        'width:76%;height:76%;border-radius:9999px;overflow:hidden;display:flex;align-items:center;justify-content:center;background:#fff;'
+        'width:100%;height:100%;border-radius:9999px;overflow:hidden;display:flex;align-items:center;justify-content:center;background:#fff;'
       var logo = document.createElement('img')
       logo.src = logoUrl
       logo.alt = 'NanoAI'
@@ -115,7 +115,17 @@
     closeBtn.style.cssText =
       'width:28px;height:28px;border:none;border-radius:8px;cursor:pointer;background:#f3f4f6;color:#111;font-size:18px;line-height:1;'
     closeBtn.textContent = '×'
-    header.appendChild(closeBtn)
+    var expandBtn = document.createElement('button')
+    expandBtn.type = 'button'
+    expandBtn.setAttribute('aria-label', 'Expand chat')
+    expandBtn.style.cssText =
+      'width:28px;height:28px;border:none;border-radius:8px;cursor:pointer;background:#f3f4f6;color:#111;font-size:13px;line-height:1;display:flex;align-items:center;justify-content:center;'
+    expandBtn.textContent = '□'
+    var headerActions = document.createElement('div')
+    headerActions.style.cssText = 'display:flex;align-items:center;gap:6px;'
+    headerActions.appendChild(expandBtn)
+    headerActions.appendChild(closeBtn)
+    header.appendChild(headerActions)
 
     var body = document.createElement('div')
     body.style.cssText = 'width:100%;height:calc(100% - 44px);'
@@ -123,6 +133,7 @@
 
     var iframe = null
     var pageContext = null
+    var isExpanded = false
 
     function toHttpUrl(raw) {
       var t = String(raw || '').trim()
@@ -233,6 +244,7 @@
       ensureIframe(extractPageContext())
       panel.style.display = 'block'
       bubble.style.display = 'none'
+      applyLayout()
     }
     function closeChat() {
       panel.style.display = 'none'
@@ -240,6 +252,12 @@
     }
     bubble.addEventListener('click', openChat)
     closeBtn.addEventListener('click', closeChat)
+    expandBtn.addEventListener('click', function () {
+      isExpanded = !isExpanded
+      expandBtn.textContent = isExpanded ? '❐' : '□'
+      expandBtn.setAttribute('aria-label', isExpanded ? 'Restore chat size' : 'Expand chat')
+      applyLayout()
+    })
 
     function placeDesktop() {
       var safeBottom = clampBottomOffset(bubbleSize)
@@ -252,27 +270,39 @@
       root.style.bottom = '0'
       bubble.style.position = 'absolute'
       bubble.style.bottom = safeBottom + 'px'
+      panel.style.position = 'fixed'
       if (side === 'left') {
         bubble.style.left = offsetX + 'px'
         bubble.style.right = 'auto'
-        panel.style.position = 'fixed'
-        panel.style.left = offsetX + 'px'
-        panel.style.right = 'auto'
       } else {
         bubble.style.right = offsetX + 'px'
         bubble.style.left = 'auto'
-        panel.style.position = 'fixed'
-        panel.style.right = offsetX + 'px'
-        panel.style.left = 'auto'
       }
-      panel.style.top = 'auto'
-      panel.style.bottom = panelBottom + 'px'
-      panel.style.width = 'min(40vw,' + desktopWidth + 'px)'
-      panel.style.height = finalHeight + 'px'
+      if (isExpanded) {
+        panel.style.left = '8px'
+        panel.style.right = '8px'
+        panel.style.top = '8px'
+        panel.style.bottom = '8px'
+        panel.style.width = 'auto'
+        panel.style.height = 'auto'
+      } else {
+        if (side === 'left') {
+          panel.style.left = offsetX + 'px'
+          panel.style.right = 'auto'
+        } else {
+          panel.style.right = offsetX + 'px'
+          panel.style.left = 'auto'
+        }
+        panel.style.top = 'auto'
+        panel.style.bottom = panelBottom + 'px'
+        panel.style.width = 'min(40vw,' + desktopWidth + 'px)'
+        panel.style.height = finalHeight + 'px'
+      }
       panel.style.borderRadius = radius + 'px'
       bubble.style.width = bubbleSize + 'px'
       bubble.style.height = bubbleSize + 'px'
       bubble.style.margin = '0'
+      expandBtn.style.display = 'flex'
     }
 
     function placeMobile() {
@@ -301,6 +331,7 @@
       panel.style.width = '100vw'
       panel.style.height = '100dvh'
       panel.style.borderRadius = '0'
+      expandBtn.style.display = 'none'
     }
 
     var resizeTimer = null

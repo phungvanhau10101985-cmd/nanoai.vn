@@ -11,6 +11,13 @@ import type { PartnerDevIntegrationStrings } from '@/lib/integration/partner-dev
 /** Giới hạn tối đa «Cách đáy» (px) trong form — script vẫn clamp cùng giá trị. */
 const EMBED_BOTTOM_OFFSET_MAX_PX = 800
 
+function parsePxInput(raw: string, fallback: number, min: number, max: number): number {
+  const text = String(raw ?? '').trim()
+  const parsed = Number.parseInt(text, 10)
+  if (!Number.isFinite(parsed)) return fallback
+  return Math.max(min, Math.min(max, Math.floor(parsed)))
+}
+
 type Props = {
   baseUrl: string
   t: PartnerDevIntegrationStrings
@@ -82,11 +89,11 @@ export function PartnerDevIntegrationGuide({ baseUrl, t, partners, selectedPartn
   }, [partners, selectedPartnerId])
 
   const [embedSide, setEmbedSide] = useState<'left' | 'right'>('right')
-  const [embedBottomPx, setEmbedBottomPx] = useState(24)
-  const [embedHorizontalPx, setEmbedHorizontalPx] = useState(16)
-  const [embedDesktopWidthPx, setEmbedDesktopWidthPx] = useState(380)
-  const [embedDesktopHeightPx, setEmbedDesktopHeightPx] = useState(560)
-  const [embedRadiusPx, setEmbedRadiusPx] = useState(12)
+  const [embedBottomPxInput, setEmbedBottomPxInput] = useState('24')
+  const [embedHorizontalPxInput, setEmbedHorizontalPxInput] = useState('16')
+  const [embedDesktopWidthPxInput, setEmbedDesktopWidthPxInput] = useState('380')
+  const [embedDesktopHeightPxInput, setEmbedDesktopHeightPxInput] = useState('560')
+  const [embedRadiusPxInput, setEmbedRadiusPxInput] = useState('12')
   const selectedPartner = useMemo(
     () => partners.find((p) => p.id === effectivePid) ?? partners[0] ?? null,
     [partners, effectivePid]
@@ -96,11 +103,11 @@ export function PartnerDevIntegrationGuide({ baseUrl, t, partners, selectedPartn
   const logoUrl = selectedPartner?.logo_url?.trim() || `${baseUrl}/icons/icon-192x192.png`
   const partnerId = selectedPartner?.id ?? ''
   const guestBase = `${baseUrl}/api/messaging/guest/${slug}`
-  const safeBottomPx = Math.max(0, Math.min(EMBED_BOTTOM_OFFSET_MAX_PX, Math.floor(embedBottomPx) || 24))
-  const safeHorizontalPx = Math.max(0, Math.min(300, Math.floor(embedHorizontalPx) || 16))
-  const safeDesktopWidthPx = Math.max(280, Math.min(1200, Math.floor(embedDesktopWidthPx) || 380))
-  const safeDesktopHeightPx = Math.max(320, Math.min(1200, Math.floor(embedDesktopHeightPx) || 560))
-  const safeRadiusPx = Math.max(0, Math.min(60, Math.floor(embedRadiusPx) || 12))
+  const safeBottomPx = parsePxInput(embedBottomPxInput, 24, 0, EMBED_BOTTOM_OFFSET_MAX_PX)
+  const safeHorizontalPx = parsePxInput(embedHorizontalPxInput, 16, 0, 300)
+  const safeDesktopWidthPx = parsePxInput(embedDesktopWidthPxInput, 380, 280, 1200)
+  const safeDesktopHeightPx = parsePxInput(embedDesktopHeightPxInput, 560, 320, 1200)
+  const safeRadiusPx = parsePxInput(embedRadiusPxInput, 12, 0, 60)
 
   const hostedUrl = `${baseUrl}/messaging/p/${slug}?embed=1`
   const hostedPageUrl = `${baseUrl}/messaging/p/${slug}`
@@ -205,6 +212,12 @@ Cookie: <auth_session_cookie>
   "updated": 0
 }`
 
+  const codeBlockCopyProps = {
+    copyButtonLabel: t.copyCodeButton,
+    copySuccessMessage: t.copyCodeToast,
+    copyErrorMessage: t.copyCodeError,
+  }
+
   const section = (title: string, body: string, children?: ReactNode) => (
     <div className="space-y-3 border-b border-border/60 pb-4 last:border-0 last:pb-0">
       <div>
@@ -246,7 +259,7 @@ Cookie: <auth_session_cookie>
           t.hostedTitle,
           t.hostedBody,
           <>
-            <CodeBlock>{hostedUrl}</CodeBlock>
+            <CodeBlock {...codeBlockCopyProps}>{hostedUrl}</CodeBlock>
             <div className="space-y-2 rounded-lg border border-border/70 bg-muted/20 p-3">
               <p className="text-xs font-medium text-foreground">{t.embedWidgetSettingsTitle}</p>
               <p className="text-[11px] text-muted-foreground">{t.embedWidgetSettingsBody}</p>
@@ -268,8 +281,8 @@ Cookie: <auth_session_cookie>
                     type="number"
                     min={0}
                     max={EMBED_BOTTOM_OFFSET_MAX_PX}
-                    value={safeBottomPx}
-                    onChange={(e) => setEmbedBottomPx(Number.parseInt(e.target.value || '0', 10))}
+                    value={embedBottomPxInput}
+                    onChange={(e) => setEmbedBottomPxInput(e.target.value)}
                     className="h-8 w-full rounded-md border border-border bg-background px-2 text-xs text-foreground"
                   />
                 </label>
@@ -279,8 +292,8 @@ Cookie: <auth_session_cookie>
                     type="number"
                     min={0}
                     max={300}
-                    value={safeHorizontalPx}
-                    onChange={(e) => setEmbedHorizontalPx(Number.parseInt(e.target.value || '0', 10))}
+                    value={embedHorizontalPxInput}
+                    onChange={(e) => setEmbedHorizontalPxInput(e.target.value)}
                     className="h-8 w-full rounded-md border border-border bg-background px-2 text-xs text-foreground"
                   />
                 </label>
@@ -290,8 +303,8 @@ Cookie: <auth_session_cookie>
                     type="number"
                     min={280}
                     max={1200}
-                    value={safeDesktopWidthPx}
-                    onChange={(e) => setEmbedDesktopWidthPx(Number.parseInt(e.target.value || '0', 10))}
+                    value={embedDesktopWidthPxInput}
+                    onChange={(e) => setEmbedDesktopWidthPxInput(e.target.value)}
                     className="h-8 w-full rounded-md border border-border bg-background px-2 text-xs text-foreground"
                   />
                 </label>
@@ -301,8 +314,8 @@ Cookie: <auth_session_cookie>
                     type="number"
                     min={320}
                     max={1200}
-                    value={safeDesktopHeightPx}
-                    onChange={(e) => setEmbedDesktopHeightPx(Number.parseInt(e.target.value || '0', 10))}
+                    value={embedDesktopHeightPxInput}
+                    onChange={(e) => setEmbedDesktopHeightPxInput(e.target.value)}
                     className="h-8 w-full rounded-md border border-border bg-background px-2 text-xs text-foreground"
                   />
                 </label>
@@ -312,8 +325,8 @@ Cookie: <auth_session_cookie>
                     type="number"
                     min={0}
                     max={60}
-                    value={safeRadiusPx}
-                    onChange={(e) => setEmbedRadiusPx(Number.parseInt(e.target.value || '0', 10))}
+                    value={embedRadiusPxInput}
+                    onChange={(e) => setEmbedRadiusPxInput(e.target.value)}
                     className="h-8 w-full rounded-md border border-border bg-background px-2 text-xs text-foreground"
                   />
                 </label>
@@ -328,8 +341,12 @@ Cookie: <auth_session_cookie>
               {hostedScript}
             </CodeBlock>
             <p className="text-xs leading-relaxed text-amber-800 dark:text-amber-200/90">{hostedCompatNote}</p>
-            <CodeBlock title="Fallback #1 — iframe (không cần script)">{hostedIframe}</CodeBlock>
-            <CodeBlock title="Fallback #2 — nút mở chat tab mới">{hostedLinkButton}</CodeBlock>
+            <CodeBlock title="Fallback #1 — iframe (không cần script)" {...codeBlockCopyProps}>
+              {hostedIframe}
+            </CodeBlock>
+            <CodeBlock title="Fallback #2 — nút mở chat tab mới" {...codeBlockCopyProps}>
+              {hostedLinkButton}
+            </CodeBlock>
           </>
         )}
 
@@ -337,11 +354,11 @@ Cookie: <auth_session_cookie>
           t.guestTitle,
           t.guestBody,
           <>
-            <CodeBlock>{guestGet}</CodeBlock>
-            <CodeBlock>{guestPost}</CodeBlock>
-            <CodeBlock>{guestImage}</CodeBlock>
+            <CodeBlock {...codeBlockCopyProps}>{guestGet}</CodeBlock>
+            <CodeBlock {...codeBlockCopyProps}>{guestPost}</CodeBlock>
+            <CodeBlock {...codeBlockCopyProps}>{guestImage}</CodeBlock>
             <p className="text-xs font-medium text-foreground">{t.guestVisionPickNote}</p>
-            <CodeBlock>{guestVisionPick}</CodeBlock>
+            <CodeBlock {...codeBlockCopyProps}>{guestVisionPick}</CodeBlock>
           </>
         )}
 
@@ -349,9 +366,13 @@ Cookie: <auth_session_cookie>
           t.imageSearchTitle,
           t.imageSearchBody,
           <>
-            <CodeBlock>{`${baseUrl}/api/messaging/partners/${partnerId}/image-search`}</CodeBlock>
-            <CodeBlock title={t.codeLabelExampleServer}>{imageSearchCurl}</CodeBlock>
-            <CodeBlock title={t.codeLabelResponseShape}>{imageSearchJson}</CodeBlock>
+            <CodeBlock {...codeBlockCopyProps}>{`${baseUrl}/api/messaging/partners/${partnerId}/image-search`}</CodeBlock>
+            <CodeBlock title={t.codeLabelExampleServer} {...codeBlockCopyProps}>
+              {imageSearchCurl}
+            </CodeBlock>
+            <CodeBlock title={t.codeLabelResponseShape} {...codeBlockCopyProps}>
+              {imageSearchJson}
+            </CodeBlock>
             <p className="text-xs leading-relaxed text-amber-800 dark:text-amber-200/90">{t.imageSearchRateLimit}</p>
           </>
         )}
@@ -360,7 +381,9 @@ Cookie: <auth_session_cookie>
           t.tryOnTitle,
           t.tryOnBody,
           <>
-            <CodeBlock title={t.codeLabelExample}>{tryOnCurl}</CodeBlock>
+            <CodeBlock title={t.codeLabelExample} {...codeBlockCopyProps}>
+              {tryOnCurl}
+            </CodeBlock>
           </>
         )}
 
@@ -368,9 +391,13 @@ Cookie: <auth_session_cookie>
           t.inventoryOpenTitle,
           t.inventoryOpenBody,
           <>
-            <CodeBlock>{inventoryOpenUrl}</CodeBlock>
-            <CodeBlock title={t.codeLabelExampleServer}>{inventoryOpenCurl}</CodeBlock>
-            <CodeBlock title={t.codeLabelResponseShape}>{inventoryOpenResponse}</CodeBlock>
+            <CodeBlock {...codeBlockCopyProps}>{inventoryOpenUrl}</CodeBlock>
+            <CodeBlock title={t.codeLabelExampleServer} {...codeBlockCopyProps}>
+              {inventoryOpenCurl}
+            </CodeBlock>
+            <CodeBlock title={t.codeLabelResponseShape} {...codeBlockCopyProps}>
+              {inventoryOpenResponse}
+            </CodeBlock>
             <p className="text-xs leading-relaxed text-amber-800 dark:text-amber-200/90">{t.inventoryOpenRateLimit}</p>
           </>
         )}
