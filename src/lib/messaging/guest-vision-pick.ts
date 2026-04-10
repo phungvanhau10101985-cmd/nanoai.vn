@@ -108,6 +108,8 @@ export async function executeGuestVisionPick(input: {
     messageId,
     inboundBody: latestInboundTextForPartnerAi(msg.body, nextPayload),
     channel: 'widget',
+    // Vision pick is a confirmed user action; run immediately and bypass burst merge delay.
+    scheduleAiAfterSeconds: 0,
   })
 
   return {
