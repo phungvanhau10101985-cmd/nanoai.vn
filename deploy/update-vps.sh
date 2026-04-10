@@ -11,10 +11,14 @@ set -euo pipefail
 #   DEPLOY_HEALTHCHECK_RETRIES=15  Số lần thử (mỗi lần cách 2s) chờ app lên
 #   DEPLOY_PM2_LOG_LINES=100  Số dòng log PM2 ghi ra file + màn hình (mặc định 100)
 #   DEPLOY_REBOOT_VPS=1  Sau khi deploy OK: reboot cả VPS (SSH sẽ ngắt; cần pm2 startup)
+#   DEPLOY_SKIP_MIGRATIONS=1  Bỏ qua bước chạy migration SQL mới
+#   DEPLOY_SETUP_CRONS=1  Tự đảm bảo cron AI/inventory/logo cleanup (mặc định bật)
 #
-# Lưu ý (không tự chạy trong script này):
-# - Migration DB: messaging_partner_ai_* (xem db/migrations/)
-# - Partner AI cron: MESSAGING_PARTNER_AI_CRON_SECRET + crontab gọi GET/POST /api/cron/messaging-partner-ai
+# Script này sẽ:
+# - pull code mới nhất từ origin/<branch>
+# - chạy migration SQL mới trong db/migrations/ (so với commit trước deploy)
+# - build + restart PM2
+# - đảm bảo các cron chính cho messaging
 
 APP_DIR="/var/www/Thu-do-online"
 APP_NAME="thu-do-online"
@@ -23,16 +27,42 @@ DEPLOY_HEALTHCHECK_URL="${DEPLOY_HEALTHCHECK_URL:-http://127.0.0.1:3000/}"
 DEPLOY_HEALTHCHECK_RETRIES="${DEPLOY_HEALTHCHECK_RETRIES:-15}"
 DEPLOY_PM2_LOG_LINES="${DEPLOY_PM2_LOG_LINES:-100}"
 LOG_DIR="${APP_DIR}/deploy/logs"
+DEPLOY_SETUP_CRONS="${DEPLOY_SETUP_CRONS:-1}"
 
-echo "[1/9] Go to app directory: ${APP_DIR}"
+env_read_from_file() {
+  local key="$1"
+  local file="${APP_DIR}/.env.local"
+  if [[ ! -f "${file}" ]]; then
+    return 0
+  fi
+  sed -n "s/^${key}=//p" "${file}" | head -n1
+}
+
+env_read() {
+  local key="$1"
+  local v="${!key:-}"
+  if [[ -n "${v}" ]]; then
+    printf '%s' "${v}"
+    return 0
+  fi
+  env_read_from_file "${key}"
+}
+
+ensure_cron() {
+  local marker="$1"
+  local line="$2"
+  (crontab -l 2>/dev/null | grep -v "${marker}"; echo "${line}") | crontab -
+}
+
+echo "[1/11] Go to app directory: ${APP_DIR}"
 cd "${APP_DIR}"
 
 OLD_COMMIT=$(git rev-parse HEAD 2>/dev/null || true)
 
-echo "[2/9] Fetch latest code from origin"
+echo "[2/11] Fetch latest code from origin"
 git fetch origin "${BRANCH}"
 
-echo "[3/9] Checkout ${BRANCH} and reset to origin (bản mới nhất trên remote)"
+echo "[3/11] Checkout ${BRANCH} and reset to origin (bản mới nhất trên remote)"
 git checkout "${BRANCH}"
 git reset --hard "origin/${BRANCH}"
 
@@ -58,13 +88,36 @@ if [[ -n "${OLD_COMMIT}" ]] && [[ "${OLD_COMMIT}" != "${NEW_HEAD}" ]]; then
   echo ""
 fi
 
-echo "[4/9] Install dependencies"
+echo "[4/11] Install dependencies"
 npm install
 
-echo "[5/9] Build app"
+echo "[5/11] Apply new SQL migrations"
+if [[ "${DEPLOY_SKIP_MIGRATIONS:-}" == "1" ]]; then
+  echo "  Bỏ qua (DEPLOY_SKIP_MIGRATIONS=1)."
+else
+  if [[ -n "${OLD_COMMIT}" ]] && [[ "${OLD_COMMIT}" != "${NEW_HEAD}" ]]; then
+    mapfile -t NEW_MIGRATIONS < <(git diff --name-only "${OLD_COMMIT}" "${NEW_HEAD}" -- "db/migrations/*.sql" | sort)
+    if [[ "${#NEW_MIGRATIONS[@]}" -eq 0 ]]; then
+      echo "  Không có migration SQL mới."
+    else
+      echo "  Tìm thấy ${#NEW_MIGRATIONS[@]} migration mới:"
+      for m in "${NEW_MIGRATIONS[@]}"; do
+        echo "   - ${m}"
+      done
+      for m in "${NEW_MIGRATIONS[@]}"; do
+        echo "  -> Apply ${m}"
+        node scripts/pg-run-sql-file.mjs "${m}" --apply
+      done
+    fi
+  else
+    echo "  Không xác định được diff commit để chạy migration tự động."
+  fi
+fi
+
+echo "[6/11] Build app"
 NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=4096}" npm run build
 
-echo "[6/9] Restart PM2 (--update-env: nạp lại biến môi trường)"
+echo "[7/11] Restart PM2 (--update-env: nạp lại biến môi trường)"
 if pm2 describe "${APP_NAME}" >/dev/null 2>&1; then
   pm2 restart "${APP_NAME}" --update-env
 else
@@ -77,7 +130,43 @@ else
 fi
 pm2 save
 
-echo "[7/9] ${DEPLOY_PM2_LOG_LINES} dòng log PM2 cuối → file + màn hình"
+echo "[8/11] Ensure messaging cron jobs"
+if [[ "${DEPLOY_SETUP_CRONS}" == "1" ]]; then
+  mkdir -p /root/logs
+  AI_SECRET="$(env_read MESSAGING_PARTNER_AI_CRON_SECRET)"
+  CRON_SECRET_FALLBACK="$(env_read CRON_SECRET)"
+  INV_SECRET="$(env_read MESSAGING_INVENTORY_EMBED_CRON_SECRET)"
+  LOGO_SECRET="$(env_read MESSAGING_LOGO_CLEANUP_CRON_SECRET)"
+
+  if [[ -z "${AI_SECRET}" ]]; then AI_SECRET="${CRON_SECRET_FALLBACK}"; fi
+  if [[ -z "${INV_SECRET}" ]]; then INV_SECRET="${AI_SECRET}"; fi
+  if [[ -z "${LOGO_SECRET}" ]]; then LOGO_SECRET="${AI_SECRET}"; fi
+
+  if [[ -n "${AI_SECRET}" ]]; then
+    ensure_cron "messaging-partner-ai" "* * * * * curl -fsS -m 90 -X POST http://127.0.0.1:3000/api/cron/messaging-partner-ai -H \"Authorization: Bearer ${AI_SECRET}\" >> /root/logs/messaging-partner-ai.log 2>&1"
+  else
+    echo "  Cảnh báo: thiếu MESSAGING_PARTNER_AI_CRON_SECRET/CRON_SECRET, bỏ qua cron messaging-partner-ai."
+  fi
+
+  if [[ -n "${INV_SECRET}" ]]; then
+    ensure_cron "messaging-inventory-embed-backfill" "*/5 * * * * curl -fsS -m 600 -X POST http://127.0.0.1:3000/api/cron/messaging-inventory-embed-backfill -H \"Authorization: Bearer ${INV_SECRET}\" >> /root/logs/inventory-embed-backfill.log 2>&1"
+  else
+    echo "  Cảnh báo: thiếu secret inventory cron, bỏ qua cron inventory-embed-backfill."
+  fi
+
+  if [[ -n "${LOGO_SECRET}" ]]; then
+    ensure_cron "messaging-logo-cleanup" "30 3 * * * curl -fsS -m 120 -X POST http://127.0.0.1:3000/api/cron/messaging-logo-cleanup -H \"Authorization: Bearer ${LOGO_SECRET}\" >> /root/logs/messaging-logo-cleanup.log 2>&1"
+  else
+    echo "  Cảnh báo: thiếu secret logo cleanup cron, bỏ qua cron messaging-logo-cleanup."
+  fi
+
+  echo "  Cron hiện tại:"
+  crontab -l | grep -E "messaging-partner-ai|messaging-inventory-embed-backfill|messaging-logo-cleanup" || true
+else
+  echo "  Bỏ qua (DEPLOY_SETUP_CRONS=${DEPLOY_SETUP_CRONS})."
+fi
+
+echo "[9/11] ${DEPLOY_PM2_LOG_LINES} dòng log PM2 cuối → file + màn hình"
 mkdir -p "${LOG_DIR}"
 PM2_LOG_SNAPSHOT="${LOG_DIR}/pm2-snapshot-${APP_NAME}-$(date +%Y%m%d-%H%M%S).log"
 {
@@ -90,10 +179,10 @@ PM2_LOG_SNAPSHOT="${LOG_DIR}/pm2-snapshot-${APP_NAME}-$(date +%Y%m%d-%H%M%S).log
 echo ""
 echo "  Đã lưu: ${PM2_LOG_SNAPSHOT}"
 
-echo "[8/9] PM2 status"
+echo "[10/11] PM2 status"
 pm2 status
 
-echo "[9/9] Health check (HTTP)"
+echo "[11/11] Health check (HTTP)"
 if [[ "${DEPLOY_SKIP_HEALTHCHECK:-}" == "1" ]]; then
   echo "  Bỏ qua (DEPLOY_SKIP_HEALTHCHECK=1)."
 else

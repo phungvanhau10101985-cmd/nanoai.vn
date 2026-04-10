@@ -205,11 +205,28 @@ function normalizeLogoUrl(raw: string): string | null {
 
 function logoNormalizePrompt(brandName: string): string {
   return [
-    'Recreate and refine this exact brand logo from the provided reference image.',
+    'Create a compact circular icon variant from this customer logo reference.',
     `Brand name to preserve exactly: "${brandName}".`,
-    'Keep original style and identity; improve cleanliness, spacing, sharpness, and icon readability.',
-    'Do not invent a new brand mark. Do not add extra text.',
-    'Transparent background. Centered composition. Output clean square logo suitable for circular chat bubble.',
+    'Goal: keep the same brand identity and visual style while simplifying for small round chat icon readability.',
+    'Preserve core shapes and main orange color family; remove only tiny unreadable details.',
+    'Requirements: aspect ratio 1:1, transparent background, centered composition with circular safe padding, crisp edges.',
+    'All key identity elements must remain visible inside a circular crop safe area.',
+    'Do NOT invent a new logo concept. Keep the original brand feel.',
+    'No watermark, no mockup, no extra objects, no decorative background.',
+  ].join(' ')
+}
+
+function logoNormalizePromptImpressive(brandName: string): string {
+  return [
+    'Create a compact circular icon variant from this customer logo reference.',
+    `Brand name to preserve exactly when retained: "${brandName}".`,
+    'Goal: make an impressive, memorable round chat icon while keeping original brand feel recognizable.',
+    'Simplify more aggressively: remove tiny unreadable details and keep only strongest identity elements.',
+    'Prioritize the main mark/text (e.g. "188") and scale it as large as possible.',
+    'Minimize empty whitespace; fill the circular composition while keeping clean margins.',
+    'Use bold shapes, strong silhouette, high contrast, and clean geometry for 48-64px readability.',
+    'Aspect ratio 1:1, transparent background, centered composition with tight circular safe padding.',
+    'Do NOT invent unrelated concept. Do NOT add watermark, mockup, or extra decorative objects.',
   ].join(' ')
 }
 
@@ -302,6 +319,7 @@ export async function normalizeMessagingWorkspaceLogo(input: {
   partnerId: string
   sourceLogoUrl: string
   brandName: string
+  mode?: 'standard' | 'impressive'
 }) {
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
@@ -343,7 +361,7 @@ export async function normalizeMessagingWorkspaceLogo(input: {
       { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
       { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
     ]
-    const prompt = logoNormalizePrompt(brand)
+    const prompt = input.mode === 'impressive' ? logoNormalizePromptImpressive(brand) : logoNormalizePrompt(brand)
     const result = await model.generateContent(
       [
         prompt,

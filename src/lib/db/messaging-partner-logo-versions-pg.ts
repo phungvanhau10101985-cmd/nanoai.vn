@@ -157,14 +157,54 @@ export async function activatePartnerLogoVersionFromPg(input: {
     if (!v) return false
     const mp = await pgQueryOne<{ id: string }>(
       `update public.messaging_partners
-       set logo_url = $4, updated_at = now()
+       set logo_url = $3, updated_at = now()
        where id = $1::uuid and owner_user_id = $2::uuid and coalesce(is_active, true) = true
        returning id::text as id`,
-      [input.partnerId, input.ownerUserId, input.versionId, v.normalized_logo_url]
+      [input.partnerId, input.ownerUserId, v.normalized_logo_url]
     )
     return Boolean(mp?.id)
   } catch (e) {
     console.warn('[activatePartnerLogoVersionFromPg]', e)
     return false
+  }
+}
+
+export async function listExpiredInactiveLogoVersionUrlsFromPg(olderThanIso: string): Promise<string[] | null> {
+  if (!isPgConfigured()) return null
+  try {
+    const rows = await pgQuery<{ normalized_logo_url: string }>(
+      `select normalized_logo_url
+       from public.messaging_partner_logo_versions
+       where coalesce(is_active, false) = false
+         and created_at < $1::timestamptz`,
+      [olderThanIso]
+    )
+    return rows.map((r) => String(r.normalized_logo_url ?? '').trim()).filter(Boolean)
+  } catch (e) {
+    if (isMissingTableError(e)) return []
+    console.warn('[listExpiredInactiveLogoVersionUrlsFromPg]', e)
+    return null
+  }
+}
+
+export async function deleteExpiredInactiveLogoVersionsFromPg(olderThanIso: string): Promise<number | null> {
+  if (!isPgConfigured()) return null
+  try {
+    const row = await pgQueryOne<{ deleted_count: string | number }>(
+      `with d as (
+         delete from public.messaging_partner_logo_versions
+         where coalesce(is_active, false) = false
+           and created_at < $1::timestamptz
+         returning 1
+       )
+       select count(*)::bigint as deleted_count from d`,
+      [olderThanIso]
+    )
+    if (!row) return 0
+    return Number(row.deleted_count) || 0
+  } catch (e) {
+    if (isMissingTableError(e)) return 0
+    console.warn('[deleteExpiredInactiveLogoVersionsFromPg]', e)
+    return null
   }
 }

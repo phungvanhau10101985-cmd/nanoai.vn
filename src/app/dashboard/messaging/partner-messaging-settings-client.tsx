@@ -24,7 +24,7 @@ import {
   updateMessagingWorkspaceProfile,
 } from '@/app/dashboard/messaging/actions'
 import { PartnerAiSettingsPanel } from '@/app/dashboard/messaging/partner-ai-settings-panel'
-import { ArrowLeft, RefreshCw, Trash2 } from 'lucide-react'
+import { ArrowLeft, RefreshCw, Trash2, Upload } from 'lucide-react'
 import type { WebLocale } from '@/lib/i18n/config'
 
 const DELETE_WORKSPACE_CONFIRM_TOKEN = 'XOA'
@@ -93,6 +93,7 @@ export function PartnerMessagingSettingsClient({
   const [zaloTok, setZaloTok] = useState('')
   const [pending, startTransition] = useTransition()
   const [logoBusy, setLogoBusy] = useState(false)
+  const [logoUploading, setLogoUploading] = useState(false)
   const [channelSnap, setChannelSnap] = useState<ChannelSnap | null>(null)
   const [logoVersions, setLogoVersions] = useState<LogoVersionRow[]>([])
   const [showAddWorkspace, setShowAddWorkspace] = useState(false)
@@ -218,21 +219,75 @@ export function PartnerMessagingSettingsClient({
   const saveWorkspaceProfile = () => {
     if (!selectedPartnerId || !workspaceName.trim() || !workspaceBrandName.trim()) return
     startTransition(async () => {
-      const res = await updateMessagingWorkspaceProfile({
-        partnerId: selectedPartnerId,
-        displayName: workspaceName.trim(),
-        brandName: workspaceBrandName.trim(),
-        industryKey: workspaceIndustry,
-        logoUrl: workspaceLogoUrl.trim(),
+      const ok = await persistWorkspaceProfile({ silent: false })
+      if (!ok) return
+    })
+  }
+
+  const persistWorkspaceProfile = async (opts?: { logoUrl?: string; silent?: boolean }): Promise<boolean> => {
+    if (!selectedPartnerId || !workspaceName.trim() || !workspaceBrandName.trim()) return false
+    const res = await updateMessagingWorkspaceProfile({
+      partnerId: selectedPartnerId,
+      displayName: workspaceName.trim(),
+      brandName: workspaceBrandName.trim(),
+      industryKey: workspaceIndustry,
+      logoUrl: (opts?.logoUrl ?? workspaceLogoUrl).trim(),
+    })
+    if ('error' in res && res.error) {
+      if (!opts?.silent) toast({ title: res.error, variant: 'destructive' })
+      return false
+    }
+    if ('partner' in res && res.partner) {
+      setPartners((prev) => prev.map((x) => (x.id === res.partner.id ? (res.partner as PartnerRow) : x)))
+      setWorkspaceLogoUrl((res.partner as PartnerRow).logo_url ?? '')
+      if (!opts?.silent) toast({ title: t.saveOk })
+      return true
+    }
+    return false
+  }
+
+  const uploadLogoFile = async (file: File) => {
+    if (!selectedPartnerId) return
+    if (!file || file.size <= 0) return
+    const isImage = /^image\//i.test(file.type || '')
+    if (!isImage) {
+      toast({ title: 'Chi chap nhan file anh.', variant: 'destructive' })
+      return
+    }
+    setLogoUploading(true)
+    try {
+      const fd = new FormData()
+      fd.set('partnerId', selectedPartnerId)
+      fd.set('file', file)
+      const res = await fetch('/api/messaging/partner/image', {
+        method: 'POST',
+        credentials: 'same-origin',
+        body: fd,
       })
-      if ('error' in res && res.error) {
-        toast({ title: res.error, variant: 'destructive' })
+      const data = (await res.json().catch(() => null)) as { publicUrl?: string; error?: string } | null
+      if (!res.ok || !data?.publicUrl) {
+        toast({ title: data?.error || 'Upload logo that bai.', variant: 'destructive' })
         return
       }
-      if ('partner' in res && res.partner) {
-        setPartners((prev) => prev.map((x) => (x.id === res.partner.id ? (res.partner as PartnerRow) : x)))
-        toast({ title: t.saveOk })
-      }
+      setWorkspaceLogoUrl(data.publicUrl)
+      startTransition(async () => {
+        const ok = await persistWorkspaceProfile({ logoUrl: data.publicUrl, silent: true })
+        if (ok) toast({ title: 'Da tai len va luu logo cho shop.' })
+        else toast({ title: 'Da tai logo nhung chua luu duoc vao shop.', variant: 'destructive' })
+      })
+    } catch {
+      toast({ title: 'Upload logo that bai.', variant: 'destructive' })
+    } finally {
+      setLogoUploading(false)
+    }
+  }
+
+  const autoSaveLogoUrl = () => {
+    if (!selectedPartnerId) return
+    const logo = workspaceLogoUrl.trim()
+    if (!logo) return
+    startTransition(async () => {
+      await persistWorkspaceProfile({ logoUrl: logo, silent: true })
     })
   }
 
@@ -250,6 +305,38 @@ export function PartnerMessagingSettingsClient({
         partnerId: selectedPartnerId,
         sourceLogoUrl: source,
         brandName: workspaceBrandName.trim() || workspaceName.trim(),
+        mode: 'standard',
+      })
+      if ('error' in res && res.error) {
+        toast({ title: res.error, variant: 'destructive' })
+        setLogoBusy(false)
+        return
+      }
+      if ('ok' in res && res.ok) {
+        toast({
+          title: `Da chuan hoa logo (-${res.deductedCredits} credits). Con lai ${res.creditsRemaining}.`,
+        })
+        await loadLogoVersions()
+      }
+      setLogoBusy(false)
+    })
+  }
+
+  const normalizeLogoImpressive = () => {
+    if (!selectedPartnerId) return
+    const source = workspaceLogoUrl.trim()
+    if (!source) {
+      toast({ title: 'Nhap logo URL truoc khi chuan hoa.', variant: 'destructive' })
+      return
+    }
+    if (!window.confirm('Chuan hoa logo an tuong se tru 1.5 credits. Ban co dong y?')) return
+    setLogoBusy(true)
+    startTransition(async () => {
+      const res = await normalizeMessagingWorkspaceLogo({
+        partnerId: selectedPartnerId,
+        sourceLogoUrl: source,
+        brandName: workspaceBrandName.trim() || workspaceName.trim(),
+        mode: 'impressive',
       })
       if ('error' in res && res.error) {
         toast({ title: res.error, variant: 'destructive' })
@@ -394,8 +481,27 @@ export function PartnerMessagingSettingsClient({
                 id="ws-logo-settings"
                 value={workspaceLogoUrl}
                 onChange={(e) => setWorkspaceLogoUrl(e.target.value)}
+                onBlur={autoSaveLogoUrl}
                 placeholder="https://..."
               />
+              <div className="flex items-center gap-2">
+                <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border px-2 py-1 text-xs hover:bg-muted">
+                  <Upload className="h-3.5 w-3.5" aria-hidden />
+                  {logoUploading ? 'Dang tai logo...' : 'Upload anh logo'}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    disabled={logoUploading || !selectedPartnerId}
+                    onChange={(e) => {
+                      const f = e.target.files?.[0]
+                      e.currentTarget.value = ''
+                      if (f) void uploadLogoFile(f)
+                    }}
+                  />
+                </label>
+                <p className="text-[11px] text-muted-foreground">Nhap link hoac upload file anh deu duoc.</p>
+              </div>
             </div>
             <Button type="button" onClick={createWs} disabled={pending || !workspaceName.trim()}>
               {t.createButton}
@@ -491,8 +597,27 @@ export function PartnerMessagingSettingsClient({
                     id="ws-logo-extra"
                     value={workspaceLogoUrl}
                     onChange={(e) => setWorkspaceLogoUrl(e.target.value)}
+                    onBlur={autoSaveLogoUrl}
                     placeholder="https://..."
                   />
+                  <div className="flex items-center gap-2">
+                    <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border px-2 py-1 text-xs hover:bg-muted">
+                      <Upload className="h-3.5 w-3.5" aria-hidden />
+                      {logoUploading ? 'Dang tai logo...' : 'Upload anh logo'}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        disabled={logoUploading || !selectedPartnerId}
+                        onChange={(e) => {
+                          const f = e.target.files?.[0]
+                          e.currentTarget.value = ''
+                          if (f) void uploadLogoFile(f)
+                        }}
+                      />
+                    </label>
+                    <p className="text-[11px] text-muted-foreground">Nhap link hoac upload file anh deu duoc.</p>
+                  </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button type="button" onClick={createWs} disabled={pending || !workspaceName.trim() || !workspaceBrandName.trim()}>
@@ -553,8 +678,27 @@ export function PartnerMessagingSettingsClient({
                       id="ws-logo-main"
                       value={workspaceLogoUrl}
                       onChange={(e) => setWorkspaceLogoUrl(e.target.value)}
+                      onBlur={autoSaveLogoUrl}
                       placeholder="https://..."
                     />
+                    <div className="flex items-center gap-2">
+                      <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border px-2 py-1 text-xs hover:bg-muted">
+                        <Upload className="h-3.5 w-3.5" aria-hidden />
+                        {logoUploading ? 'Dang tai logo...' : 'Upload anh logo'}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          disabled={logoUploading || !selectedPartnerId}
+                          onChange={(e) => {
+                            const f = e.target.files?.[0]
+                            e.currentTarget.value = ''
+                            if (f) void uploadLogoFile(f)
+                          }}
+                        />
+                      </label>
+                      <p className="text-[11px] text-muted-foreground">Nhap link hoac upload file anh deu duoc.</p>
+                    </div>
                   </div>
                 </div>
                 <Button
@@ -571,6 +715,14 @@ export function PartnerMessagingSettingsClient({
                   disabled={pending || logoBusy || !selectedPartnerId || !workspaceLogoUrl.trim()}
                 >
                   {logoBusy ? 'Dang chuan hoa logo...' : 'Chuan hoa logo (1.5 credits)'}
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={normalizeLogoImpressive}
+                  disabled={pending || logoBusy || !selectedPartnerId || !workspaceLogoUrl.trim()}
+                >
+                  {logoBusy ? 'Dang chuan hoa logo...' : 'Chuan hoa logo an tuong (1.5 credits)'}
                 </Button>
                 {logoVersions.length > 0 ? (
                   <div className="space-y-2 rounded-md border border-border/70 p-3">
