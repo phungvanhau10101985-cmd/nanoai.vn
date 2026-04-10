@@ -13,9 +13,18 @@ import {
   updatePartnerOrderCheckoutFromPg,
   updatePartnerOrderPaymentVerificationFromPg,
 } from '@/lib/db/messaging-partner-orders-pg'
+import {
+  fetchPartnerInventoryDefaultForAiFromPg,
+  fetchPartnerInventoryRowByProductUrlFromPg,
+} from '@/lib/db/messaging-partner-inventory-pg'
 import { guestImageObjectExists } from '@/lib/messaging/guest-chat-image'
 import { getTryOnPublicUrlFromPath } from '@/lib/storage/try-on-public-upload'
 import { sendSmtpMail } from '@/lib/email/smtp'
+import { buildSePayQrImgUrl } from '@/lib/sepay-qr'
+import {
+  fetchPartnerCustomerProfileByEmailFromPg,
+  upsertPartnerCustomerProfileByEmailFromPg,
+} from '@/lib/db/messaging-partner-customer-profiles-pg'
 
 export type CheckoutFormInput = {
   customerName: string
@@ -27,6 +36,24 @@ export type CheckoutFormInput = {
   quantity: number
   note: string
   depositPercent?: 30 | 100
+}
+
+export type RelatedBuyProduct = {
+  name: string
+  image_url: string
+  product_url: string
+  price_hint: string
+  sku: string | null
+}
+
+export type ProductPurchaseOptions = {
+  sku: string | null
+  name: string
+  image_url: string
+  product_url: string
+  price_hint: string
+  sizes: string[]
+  colors: Array<{ name: string; img: string }>
 }
 
 function trim(s: string, max = 240): string {
@@ -44,6 +71,43 @@ function toVnd(n: number): string {
 function deriveUnitPriceFromCard(card: PartnerAiProductCard): number {
   const fromHint = parseVndAmountFromText(card.price_hint ?? '')
   return Math.max(0, fromHint)
+}
+
+function parseSizeJson(raw: string): string[] {
+  const t = String(raw ?? '').trim()
+  if (!t) return []
+  try {
+    const arr = JSON.parse(t) as unknown
+    if (!Array.isArray(arr)) return []
+    return arr
+      .map((x) => (typeof x === 'string' ? x.trim() : ''))
+      .filter(Boolean)
+      .slice(0, 50)
+  } catch {
+    return []
+  }
+}
+
+function parseColorVariantsJson(raw: string): Array<{ name: string; img: string }> {
+  const t = String(raw ?? '').trim()
+  if (!t) return []
+  try {
+    const arr = JSON.parse(t) as unknown
+    if (!Array.isArray(arr)) return []
+    const out: Array<{ name: string; img: string }> = []
+    for (const item of arr) {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) continue
+      const o = item as Record<string, unknown>
+      const name = typeof o.name === 'string' ? o.name.trim() : ''
+      const img = typeof o.img === 'string' ? o.img.trim() : ''
+      if (!name || !/^https?:\/\//i.test(img)) continue
+      out.push({ name, img })
+      if (out.length >= 30) break
+    }
+    return out
+  } catch {
+    return []
+  }
 }
 
 function stablePaymentRef(orderId: string): string {
@@ -73,6 +137,41 @@ function buildBasicTransferQrImageUrl(input: {
   url.searchParams.set('addInfo', input.transferContent.trim())
   if (input.accountHolder.trim()) url.searchParams.set('accountName', input.accountHolder.trim())
   return url.toString()
+}
+
+function buildOrderPaymentQrBySettings(input: {
+  amount: number
+  paymentReference: string
+  accountHolder: string
+  settings: {
+    sepay_enabled?: boolean
+    sepay_bank_code?: string
+    sepay_account_number?: string
+    sepay_qr_template?: '' | 'compact' | 'qronly'
+    bank_bin: string
+    account_number: string
+  }
+}): string {
+  if (
+    input.settings.sepay_enabled === true &&
+    String(input.settings.sepay_bank_code ?? '').trim() &&
+    String(input.settings.sepay_account_number ?? '').trim()
+  ) {
+    return buildSePayQrImgUrl({
+      acc: String(input.settings.sepay_account_number ?? '').trim(),
+      bank: String(input.settings.sepay_bank_code ?? '').trim(),
+      amount: Math.max(0, Math.round(input.amount || 0)),
+      des: input.paymentReference,
+      template: input.settings.sepay_qr_template === 'qronly' ? 'qronly' : 'compact',
+    })
+  }
+  return buildBasicTransferQrImageUrl({
+    bankBin: input.settings.bank_bin,
+    accountNumber: input.settings.account_number,
+    amount: input.amount,
+    transferContent: input.paymentReference,
+    accountHolder: input.accountHolder,
+  })
 }
 
 function orderCardPayload(order: PartnerOrderRow): Record<string, unknown> {
@@ -119,14 +218,15 @@ export async function createOrderDraftFromProductPick(input: {
   const settings = await fetchPartnerPaymentSettingsFromPg(input.partnerId)
   const depositPercent = settings?.default_deposit_percent === 100 ? 100 : 30
   const unitPrice = deriveUnitPriceFromCard(input.card)
+  const inv = await fetchPartnerInventoryRowByProductUrlFromPg(input.partnerId, input.card.product_url)
   const draft = await insertPartnerOrderDraftFromPg({
     partnerId: input.partnerId,
     conversationId: conv.conversationId,
     externalThreadId: input.externalThreadId,
-    productInventoryId: null,
-    productName: trim(input.card.name, 180),
-    productImageUrl: trim(input.card.image_url, 600),
-    productUrl: trim(input.card.product_url, 600),
+    productInventoryId: inv?.id ?? null,
+    productName: trim(inv?.name || input.card.name, 180),
+    productImageUrl: trim(inv?.image_url || input.card.image_url, 600),
+    productUrl: trim(inv?.product_url || input.card.product_url, 600),
     unitPrice,
     depositPercent,
     customerEmail: '',
@@ -180,16 +280,23 @@ export async function completeOrderCheckout(input: {
     externalThreadId: input.externalThreadId,
   })
   if (!oldOrder) return { error: 'Khong tim thay don hang.' }
+  if (oldOrder.locked_at) return { error: 'Don da khoa sau khi xac nhan, khong the sua.' }
 
   const paymentReference = stablePaymentRef(oldOrder.id)
   const effectiveDeposit = input.form.depositPercent === 100 ? 100 : settings.default_deposit_percent === 100 ? 100 : 30
   const expectedAmount = Math.ceil((Math.max(0, oldOrder.unit_price) * Math.max(1, Math.floor(input.form.quantity || 1)) * effectiveDeposit) / 100)
-  const qrUrl = buildBasicTransferQrImageUrl({
-    bankBin: settings.bank_bin,
-    accountNumber: settings.account_number,
+  const qrUrl = buildOrderPaymentQrBySettings({
     amount: expectedAmount,
-    transferContent: paymentReference,
+    paymentReference,
     accountHolder: settings.account_holder,
+    settings: {
+      sepay_enabled: settings.sepay_enabled,
+      sepay_bank_code: settings.sepay_bank_code,
+      sepay_account_number: settings.sepay_account_number,
+      sepay_qr_template: settings.sepay_qr_template,
+      bank_bin: settings.bank_bin,
+      account_number: settings.account_number,
+    },
   })
 
   const updated = await updatePartnerOrderCheckoutFromPg({
@@ -210,6 +317,17 @@ export async function completeOrderCheckout(input: {
     paymentQrUrl: qrUrl,
   })
   if (!updated) return { error: 'Khong cap nhat duoc don hang.' }
+  const em = trim(input.form.customerEmail, 180).toLowerCase()
+  if (em) {
+    await upsertPartnerCustomerProfileByEmailFromPg({
+      partnerId: input.partnerId,
+      emailNormalized: em,
+      emailRaw: input.form.customerEmail,
+      customerName: trim(input.form.customerName, 120),
+      customerPhone: trim(input.form.customerPhone, 40),
+      shippingAddress: trim(input.form.shippingAddress, 280),
+    })
+  }
 
   await insertMessagePg({
     conversationId: conv.conversationId,
@@ -229,6 +347,69 @@ export async function completeOrderCheckout(input: {
     source: 'customer',
   })
   return { ok: true, order: updated }
+}
+
+export async function listRelatedBuyProducts(input: {
+  partnerId: string
+  recentCards: PartnerAiProductCard[]
+  limit?: number
+}): Promise<RelatedBuyProduct[]> {
+  const lim = Math.max(1, Math.min(20, Math.floor(Number(input.limit) || 20)))
+  const rows = await fetchPartnerInventoryDefaultForAiFromPg(input.partnerId, 300)
+  if (!rows || rows.length === 0) return []
+  const scored: Array<{ row: (typeof rows)[number]; score: number }> = []
+  const urlRank = new Map<string, number>()
+  input.recentCards.forEach((c, i) => {
+    const u = c.product_url.trim()
+    if (!u) return
+    if (!urlRank.has(u)) urlRank.set(u, i)
+  })
+  for (const row of rows) {
+    let score = 0
+    const rank = urlRank.get((row.product_url ?? '').trim())
+    if (rank !== undefined) score += 1000 - rank * 30
+    if (row.image_url) score += 4
+    if (row.price_hint) score += 2
+    scored.push({ row, score })
+  }
+  scored.sort((a, b) => b.score - a.score || a.row.sort_order - b.row.sort_order)
+  return scored.slice(0, lim).map((x) => ({
+    name: x.row.name,
+    image_url: x.row.image_url ?? '',
+    product_url: x.row.product_url ?? '',
+    price_hint: x.row.price_hint ?? '',
+    sku: x.row.sku ?? null,
+  }))
+}
+
+export async function getProductPurchaseOptions(input: {
+  partnerId: string
+  productUrl: string
+}): Promise<ProductPurchaseOptions | null> {
+  const row = await fetchPartnerInventoryRowByProductUrlFromPg(input.partnerId, input.productUrl)
+  if (!row) return null
+  return {
+    sku: row.sku ?? null,
+    name: row.name,
+    image_url: row.image_url ?? '',
+    product_url: row.product_url ?? '',
+    price_hint: row.price_hint ?? '',
+    sizes: parseSizeJson(row.description),
+    colors: parseColorVariantsJson(row.stock_note),
+  }
+}
+
+export async function getCustomerDeliveryProfile(input: {
+  partnerId: string
+  emailNormalized: string
+}): Promise<{ customerName: string; customerPhone: string; shippingAddress: string } | null> {
+  const row = await fetchPartnerCustomerProfileByEmailFromPg(input)
+  if (!row) return null
+  return {
+    customerName: row.customer_name,
+    customerPhone: row.customer_phone,
+    shippingAddress: row.shipping_address,
+  }
 }
 
 type OcrResult = {

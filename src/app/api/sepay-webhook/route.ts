@@ -9,6 +9,9 @@ import {
   sepayFindPendingPaymentMatch,
   sepayMarkPaymentCompleted,
 } from '@/lib/db/payments-repo'
+import { fetchPartnerOrderByPaymentReferenceFromPg, updatePartnerOrderPaymentVerificationFromPg } from '@/lib/db/messaging-partner-orders-pg'
+import { insertMessagePg } from '@/lib/db/customer-care-pg'
+import { insertPartnerOrderEventFromPg } from '@/lib/db/messaging-partner-orders-pg'
 
 type SePayBody = Record<string, string | number | boolean | null | undefined>
 
@@ -180,6 +183,74 @@ export async function POST(request: NextRequest) {
     }
 
     const pending = await sepayFindPendingPaymentMatch(normalizedContent, amountIn)
+    // Multi-tenant shop order webhook mode:
+    // ?partner=<partnerId>&token=<shopToken>
+    // If shop order matched, process order payment directly (independent from wallet top-up flow).
+    const url = new URL(request.url)
+    const partnerId = (url.searchParams.get('partner') || '').trim()
+    const token = (url.searchParams.get('token') || '').trim()
+    if (partnerId && token) {
+      const order = await fetchPartnerOrderByPaymentReferenceFromPg(partnerId, normalizedContent)
+      if (!order) {
+        return NextResponse.json({ error: 'Order not found for partner webhook.' }, { status: 404 })
+      }
+      const cfgToken = (order.sepay_webhook_token ?? '').trim()
+      if (!cfgToken || cfgToken !== token) {
+        return NextResponse.json({ error: 'Invalid partner webhook token.' }, { status: 401 })
+      }
+      const expectedAccount = String(order.expected_account_number ?? '').replace(/[^\d]/g, '')
+      const receivedAccount = String(bankAccount ?? '').replace(/[^\d]/g, '')
+      const accountMatched = expectedAccount ? receivedAccount.includes(expectedAccount) : true
+      const amountMatched = amountIn >= Math.round(order.required_amount)
+      const nextStatus = accountMatched && amountMatched ? 'paid_verified' : 'pending_manual_review'
+      await updatePartnerOrderPaymentVerificationFromPg({
+        orderId: order.id,
+        status: nextStatus,
+        paidAmount: amountIn,
+        verifiedNote:
+          nextStatus === 'paid_verified'
+            ? 'SePay webhook doi chieu thanh cong.'
+            : `SePay webhook can duyet tay (accountMatched=${String(accountMatched)}, amountMatched=${String(amountMatched)}).`,
+      })
+      await insertMessagePg({
+        conversationId: order.conversation_id,
+        direction: 'outbound',
+        body:
+          nextStatus === 'paid_verified'
+            ? `Shop da xac nhan thanh toan thanh cong cho don ${order.payment_reference} qua SePay webhook.`
+            : `Shop da nhan giao dich qua SePay webhook, dang can duyet tay them cho don ${order.payment_reference}.`,
+        rawPayload: {
+          source: 'system_order',
+          order_id: order.id,
+          order_status: nextStatus,
+          payment_webhook_source: 'sepay',
+          payment_amount_detected: amountIn,
+          payment_receiver_detected: receivedAccount,
+        },
+      })
+      await insertPartnerOrderEventFromPg({
+        orderId: order.id,
+        eventType: 'sepay_webhook_received',
+        title: 'Nhan webhook SePay',
+        detail: `Webhook SePay da vao. So tien ${amountIn}. Ket qua ${nextStatus}.`,
+        source: 'system',
+        metadata: {
+          transaction_id: transactionId ?? '',
+          transaction_content: normalizedContent,
+          bank_account: receivedAccount,
+          account_matched: accountMatched,
+          amount_matched: amountMatched,
+        },
+      })
+      return NextResponse.json({
+        success: true,
+        message: 'Partner order webhook processed',
+        data: {
+          orderId: order.id,
+          status: nextStatus,
+        },
+      })
+    }
     if (!pending) {
       console.warn('No pending payment found for content:', normalizedContent)
       return NextResponse.json({ error: 'Pending payment not found' }, { status: 404 })

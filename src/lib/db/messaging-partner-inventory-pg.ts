@@ -264,6 +264,30 @@ export async function fetchPartnerInventoryRowsByTokenIlikeFromPg(
   }
 }
 
+export async function fetchPartnerInventoryRowByProductUrlFromPg(
+  partnerId: string,
+  productUrl: string
+): Promise<MessagingPartnerInventoryRow | null> {
+  if (!isPgConfigured()) return null
+  const u = String(productUrl ?? '').trim()
+  if (!u) return null
+  try {
+    const row = await pgQueryOne<PgInventoryRaw>(
+      `${INVENTORY_PAGE_SELECT}
+       where mpi.partner_id = $1::uuid
+         and coalesce(mpi.is_active, true) = true
+         and coalesce(mpi.product_url, '') = $2
+       order by mpi.sort_order asc
+       limit 1`,
+      [partnerId, u]
+    )
+    return row ? mapPgInventoryRow(row) : null
+  } catch (e) {
+    console.warn('[fetchPartnerInventoryRowByProductUrlFromPg]', e)
+    return null
+  }
+}
+
 export async function fetchPartnerInventoryRowByIdForPartnerFromPg(
   partnerId: string,
   inventoryId: string

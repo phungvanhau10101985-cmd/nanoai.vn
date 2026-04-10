@@ -4,7 +4,13 @@ import { resolveActiveMessagingPartnerBySlug } from '@/lib/messaging/resolve-act
 import { readGuestSessionIdFromRequest } from '@/lib/messaging/guest-auth-session'
 import { readGuestAccountIdFromRequest } from '@/lib/messaging/guest-account-session'
 import type { PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-cards'
-import { completeOrderCheckout, createOrderDraftFromProductPick } from '@/lib/messaging/guest-chat-ordering'
+import {
+  completeOrderCheckout,
+  createOrderDraftFromProductPick,
+  getCustomerDeliveryProfile,
+  getProductPurchaseOptions,
+  listRelatedBuyProducts,
+} from '@/lib/messaging/guest-chat-ordering'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -47,7 +53,47 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
   if ('error' in partner) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   const thread = await resolveThread(request)
   if (!thread) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const body = (await request.json().catch(() => null)) as { productCard?: unknown } | null
+  const body = (await request.json().catch(() => null)) as
+    | {
+        action?: 'related_products' | 'product_options'
+        productCard?: unknown
+        recentCards?: unknown[]
+        productUrl?: string
+      }
+    | null
+  const action = body?.action
+  if (action === 'related_products') {
+    const recentRaw = Array.isArray(body?.recentCards) ? body.recentCards : []
+    const recentCards: PartnerAiProductCard[] = []
+    for (const x of recentRaw) {
+      const c = asCard(x)
+      if (c) recentCards.push(c)
+      if (recentCards.length >= 40) break
+    }
+    const related = await listRelatedBuyProducts({
+      partnerId: partner.partnerId,
+      recentCards,
+      limit: 20,
+    })
+    return NextResponse.json({ ok: true, products: related })
+  }
+  if (action === 'product_options') {
+    const productUrl = String(body?.productUrl ?? '').trim()
+    if (!productUrl) return NextResponse.json({ error: 'Missing productUrl.' }, { status: 400 })
+    const options = await getProductPurchaseOptions({
+      partnerId: partner.partnerId,
+      productUrl,
+    })
+    const user = await getEmailSessionUser()
+    const profile =
+      user?.email?.trim()
+        ? await getCustomerDeliveryProfile({
+            partnerId: partner.partnerId,
+            emailNormalized: user.email.trim().toLowerCase(),
+          })
+        : null
+    return NextResponse.json({ ok: true, options, profile })
+  }
   const card = asCard(body?.productCard ?? null)
   if (!card) return NextResponse.json({ error: 'Invalid product card.' }, { status: 400 })
   const user = await getEmailSessionUser()
@@ -74,7 +120,6 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
     orderId?: string
     form?: {
       customerName?: string
-      customerEmail?: string
       customerPhone?: string
       shippingAddress?: string
       color?: string
@@ -87,6 +132,8 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
   const orderId = String(body?.orderId ?? '').trim()
   if (!orderId) return NextResponse.json({ error: 'Missing orderId.' }, { status: 400 })
   const f = body?.form ?? {}
+  const user = await getEmailSessionUser()
+  const sessionEmail = String(user?.email ?? '').trim().toLowerCase()
   const done = await completeOrderCheckout({
     partnerId: partner.partnerId,
     externalThreadId: thread.externalThreadId,
@@ -95,7 +142,7 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
     guestAccountId: thread.guestAccountId,
     form: {
       customerName: String(f.customerName ?? '').trim(),
-      customerEmail: String(f.customerEmail ?? '').trim(),
+      customerEmail: sessionEmail,
       customerPhone: String(f.customerPhone ?? '').trim(),
       shippingAddress: String(f.shippingAddress ?? '').trim(),
       color: String(f.color ?? '').trim(),

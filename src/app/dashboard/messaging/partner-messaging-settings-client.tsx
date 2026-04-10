@@ -106,6 +106,12 @@ export function PartnerMessagingSettingsClient({
   const [paymentNotifyEmail, setPaymentNotifyEmail] = useState('')
   const [paymentDepositPercent, setPaymentDepositPercent] = useState<30 | 100>(30)
   const [paymentRequireProof, setPaymentRequireProof] = useState(true)
+  const [paymentSePayEnabled, setPaymentSePayEnabled] = useState(false)
+  const [paymentSePayBankCode, setPaymentSePayBankCode] = useState('')
+  const [paymentSePayAccountNumber, setPaymentSePayAccountNumber] = useState('')
+  const [paymentSePayQrTemplate, setPaymentSePayQrTemplate] = useState<'compact' | 'qronly'>('compact')
+  const [paymentSePayWebhookToken, setPaymentSePayWebhookToken] = useState('')
+  const [paymentSePayWebhookUrl, setPaymentSePayWebhookUrl] = useState('')
 
   const setSelectedPartnerAndPersist = useCallback(
     (partnerId: string | null) => {
@@ -196,6 +202,11 @@ export function PartnerMessagingSettingsClient({
         setPaymentNotifyEmail(res.settings.notify_email || '')
         setPaymentDepositPercent(res.settings.default_deposit_percent === 100 ? 100 : 30)
         setPaymentRequireProof(res.settings.require_payment_proof !== false)
+        setPaymentSePayEnabled(Boolean(res.settings.sepay_enabled))
+        setPaymentSePayBankCode(res.settings.sepay_bank_code || '')
+        setPaymentSePayAccountNumber(res.settings.sepay_account_number || '')
+        setPaymentSePayQrTemplate(res.settings.sepay_qr_template === 'qronly' ? 'qronly' : 'compact')
+        setPaymentSePayWebhookToken(res.settings.sepay_webhook_token || '')
       }
     })()
   }, [selectedPartnerId])
@@ -203,6 +214,17 @@ export function PartnerMessagingSettingsClient({
   useEffect(() => {
     loadPaymentSettings()
   }, [loadPaymentSettings])
+
+  useEffect(() => {
+    if (!selectedPartnerId) {
+      setPaymentSePayWebhookUrl('')
+      return
+    }
+    const origin = typeof window !== 'undefined' ? window.location.origin : ''
+    setPaymentSePayWebhookUrl(
+      `${origin}/api/sepay-webhook?partner=${selectedPartnerId}&token=${paymentSePayWebhookToken || '<token>'}`
+    )
+  }, [paymentSePayWebhookToken, selectedPartnerId])
 
   const loadLogoVersions = useCallback(() => {
     if (!selectedPartnerId) {
@@ -462,6 +484,11 @@ export function PartnerMessagingSettingsClient({
         defaultDepositPercent: paymentDepositPercent,
         notifyEmail: paymentNotifyEmail,
         requirePaymentProof: paymentRequireProof,
+        sepayEnabled: paymentSePayEnabled,
+        sepayBankCode: paymentSePayBankCode,
+        sepayAccountNumber: paymentSePayAccountNumber,
+        sepayQrTemplate: paymentSePayQrTemplate,
+        sepayWebhookToken: paymentSePayWebhookToken,
       })
       if ('error' in res && res.error) {
         toast({ title: res.error, variant: 'destructive' })
@@ -470,6 +497,16 @@ export function PartnerMessagingSettingsClient({
       toast({ title: 'Da luu cai dat thanh toan.' })
       loadPaymentSettings()
     })
+  }
+
+  const copySePayWebhookUrl = async () => {
+    if (!paymentSePayWebhookUrl) return
+    try {
+      await navigator.clipboard.writeText(paymentSePayWebhookUrl)
+      toast({ title: 'Đã copy webhook URL.' })
+    } catch {
+      toast({ title: 'Không copy được webhook URL.', variant: 'destructive' })
+    }
   }
 
   return (
@@ -932,6 +969,75 @@ export function PartnerMessagingSettingsClient({
                 />
                 Bat buoc khach gui anh chung tu chuyen khoan de AI doi chieu
               </label>
+              <div className="rounded-md border border-border/70 p-3">
+                <p className="mb-2 text-xs font-semibold">Tuy chon SePay (qr.sepay.vn)</p>
+                <label className="mb-2 inline-flex items-center gap-2 text-xs text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    checked={paymentSePayEnabled}
+                    onChange={(e) => setPaymentSePayEnabled(e.target.checked)}
+                  />
+                  Uu tien tao QR theo SePay neu shop da dien du bien
+                </label>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label className="text-xs font-medium">SePay bank code</Label>
+                    <Input
+                      className="h-9 text-sm"
+                      value={paymentSePayBankCode}
+                      onChange={(e) => setPaymentSePayBankCode(e.target.value)}
+                      placeholder="MBBank / ACB / ..."
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-medium">SePay account number</Label>
+                    <Input
+                      className="h-9 text-sm"
+                      value={paymentSePayAccountNumber}
+                      onChange={(e) => setPaymentSePayAccountNumber(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-medium">SePay QR template</Label>
+                    <Select
+                      value={paymentSePayQrTemplate}
+                      onValueChange={(v) => setPaymentSePayQrTemplate(v === 'qronly' ? 'qronly' : 'compact')}
+                    >
+                      <SelectTrigger className="h-9 w-full bg-background">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="compact">compact</SelectItem>
+                        <SelectItem value="qronly">qronly</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-medium">Webhook token (shop)</Label>
+                    <Input
+                      className="h-9 text-sm"
+                      value={paymentSePayWebhookToken}
+                      onChange={(e) => setPaymentSePayWebhookToken(e.target.value)}
+                    />
+                  </div>
+                </div>
+                {paymentSePayEnabled &&
+                (!paymentSePayBankCode.trim() || !paymentSePayAccountNumber.trim() || !paymentSePayWebhookToken.trim()) ? (
+                  <p className="mt-2 rounded-md border border-red-300 bg-red-50 px-2 py-1 text-[11px] text-red-700">
+                    SePay đang bật nhưng thiếu biến bắt buộc (bank code / account / webhook token). Hệ thống sẽ fallback về QR thường.
+                  </p>
+                ) : null}
+                <p className="mt-2 text-[11px] text-muted-foreground break-all">
+                  Webhook URL cho shop:
+                  {selectedPartnerId ? ` ${paymentSePayWebhookUrl}` : ' (chon workspace)'}
+                </p>
+                <Button type="button" size="sm" variant="outline" onClick={copySePayWebhookUrl} disabled={!selectedPartnerId}>
+                  Copy webhook URL
+                </Button>
+                <p className="text-[11px] text-muted-foreground">
+                  Neu thieu bien SePay, he thong tu dong fallback ve QR thuong hien tai.
+                </p>
+              </div>
               <Button type="button" size="sm" onClick={savePaymentSettings} disabled={pending || !selectedPartnerId}>
                 Luu cai dat thanh toan
               </Button>

@@ -21,8 +21,8 @@ export const INVENTORY_EXCEL_HEADERS = [
 export const INVENTORY_EXCEL_HEADER_LABELS_VI = [
   'Mã SKU',
   'Tên sản phẩm',
-  'Mô tả',
-  'Ghi chú tồn kho',
+  'Size (JSON) vd: ["38","39","40"]',
+  'Màu sắc (JSON) vd: [{"name":"Đen","img":"https://..."}]',
   'Giá',
   'Link ảnh',
   'Link trang sản phẩm',
@@ -73,8 +73,17 @@ const HEADER_ALIASES: Record<string, string> = {
   ma_san_pham: 'sku',
   description: 'description',
   mo_ta: 'description',
+  size: 'description',
+  kich_co: 'description',
+  kich_co_size: 'description',
   thong_so: 'description',
   stock_note: 'stock_note',
+  mau_sac: 'stock_note',
+  mau: 'stock_note',
+  color: 'stock_note',
+  colors: 'stock_note',
+  color_variants: 'stock_note',
+  color_variant: 'stock_note',
   ton_kho: 'stock_note',
   con_hang: 'stock_note',
   ghi_chu_ton_kho: 'stock_note',
@@ -168,14 +177,44 @@ function looksLikeStockStatusText(s: string): boolean {
   return /(còn|con|hết|het|size|cỡ|co san|co hang|in stock|out of stock|available|sold out|pre-?order)/.test(t)
 }
 
+function isJsonArrayOfStrings(raw: string): boolean {
+  const t = raw.trim()
+  if (!t) return true
+  try {
+    const parsed = JSON.parse(t) as unknown
+    if (!Array.isArray(parsed)) return false
+    return parsed.every((x) => typeof x === 'string')
+  } catch {
+    return false
+  }
+}
+
+function isJsonArrayOfColorVariants(raw: string): boolean {
+  const t = raw.trim()
+  if (!t) return true
+  try {
+    const parsed = JSON.parse(t) as unknown
+    if (!Array.isArray(parsed)) return false
+    return parsed.every((x) => {
+      if (!x || typeof x !== 'object' || Array.isArray(x)) return false
+      const o = x as Record<string, unknown>
+      const name = typeof o.name === 'string' ? o.name.trim() : ''
+      const img = typeof o.img === 'string' ? o.img.trim() : ''
+      return Boolean(name && validateInventoryImageUrl(img))
+    })
+  } catch {
+    return false
+  }
+}
+
 export function buildInventoryTemplateBuffer(): Buffer {
   const header = [...INVENTORY_EXCEL_HEADER_LABELS_VI]
   /** Mỗi ô khớp đúng một cột tiêu đề (9 cột); không chèn thêm cột ẩn (vd. số 100) kẻo lệch cả file. */
   const example = [
     'AT-001',
     'Ví dụ: Áo thun cotton',
-    'Size M–XL, màu đen/trắng',
-    'Còn đủ size',
+    '["M","L","XL"]',
+    '[{"name":"Đen","img":"https://cdn.example.com/images/ao-thun-den.jpg"},{"name":"Trắng","img":"https://cdn.example.com/images/ao-thun-trang.jpg"}]',
     '199000',
     'https://cdn.example.com/images/ao-thun-mau.jpg',
     'https://shop.example.com/san-pham/ao-thun',
@@ -292,6 +331,12 @@ export function parseInventoryWorkbook(buffer: Buffer): { ok: true; rows: Invent
 
     const description = get('description')
     const stock_note = get('stock_note')
+    if (!isJsonArrayOfStrings(description)) {
+      return { ok: false, error: `INVALID_SIZE_JSON_ROW_${r + 1}` }
+    }
+    if (!isJsonArrayOfColorVariants(stock_note)) {
+      return { ok: false, error: `INVALID_COLOR_VARIANTS_JSON_ROW_${r + 1}` }
+    }
     const price_hint = get('price_hint')
     if (price_hint && !looksLikePriceText(price_hint) && looksLikeStockStatusText(price_hint)) {
       return { ok: false, error: `INVALID_PRICE_STRUCTURE_ROW_${r + 1}` }

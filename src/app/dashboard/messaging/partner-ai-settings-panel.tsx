@@ -874,6 +874,14 @@ function postInventoryExcelImport(
 }
 
 function mapInventoryImportError(code: string | undefined, t: AiT): string {
+  if (code?.startsWith('INVALID_SIZE_JSON_ROW_')) {
+    const row = code.slice('INVALID_SIZE_JSON_ROW_'.length)
+    return `Dòng ${row}: cột Size phải là JSON mảng chuỗi, ví dụ ["38","39","40"].`
+  }
+  if (code?.startsWith('INVALID_COLOR_VARIANTS_JSON_ROW_')) {
+    const row = code.slice('INVALID_COLOR_VARIANTS_JSON_ROW_'.length)
+    return `Dòng ${row}: cột Màu sắc phải là JSON mảng object {name,img}, ví dụ [{"name":"Đen","img":"https://..."}].`
+  }
   if (code?.startsWith('INVALID_PRICE_STRUCTURE_ROW_')) {
     const row = code.slice('INVALID_PRICE_STRUCTURE_ROW_'.length)
     return `Cấu trúc dữ liệu sai ở dòng ${row}: cột Giá đang chứa trạng thái tồn kho/size. Vui lòng chuyển nội dung này sang cột Ghi chú tồn kho.`

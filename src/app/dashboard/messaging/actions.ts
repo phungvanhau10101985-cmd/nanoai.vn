@@ -325,6 +325,11 @@ export async function getMessagingWorkspacePaymentSettings(partnerId: string) {
       default_deposit_percent: 30 as const,
       notify_email: user.email?.trim() || '',
       require_payment_proof: true,
+      sepay_enabled: false,
+      sepay_bank_code: '',
+      sepay_account_number: '',
+      sepay_qr_template: 'compact' as const,
+      sepay_webhook_token: randomBytes(12).toString('hex'),
       updated_at: new Date(0).toISOString(),
     },
   }
@@ -339,6 +344,11 @@ export async function saveMessagingWorkspacePaymentSettings(input: {
   defaultDepositPercent: 30 | 100
   notifyEmail: string
   requirePaymentProof: boolean
+  sepayEnabled?: boolean
+  sepayBankCode?: string
+  sepayAccountNumber?: string
+  sepayQrTemplate?: '' | 'compact' | 'qronly'
+  sepayWebhookToken?: string
 }) {
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
@@ -355,6 +365,11 @@ export async function saveMessagingWorkspacePaymentSettings(input: {
     defaultDepositPercent: input.defaultDepositPercent === 100 ? 100 : 30,
     notifyEmail: input.notifyEmail.trim().slice(0, 180),
     requirePaymentProof: input.requirePaymentProof !== false,
+    sepayEnabled: input.sepayEnabled === true,
+    sepayBankCode: (input.sepayBankCode ?? '').trim().slice(0, 40),
+    sepayAccountNumber: (input.sepayAccountNumber ?? '').trim().slice(0, 40),
+    sepayQrTemplate: input.sepayQrTemplate === 'qronly' ? 'qronly' : input.sepayQrTemplate === '' ? '' : 'compact',
+    sepayWebhookToken: (input.sepayWebhookToken ?? '').trim().slice(0, 120),
   })
   if (!ok) return { error: 'Khong luu duoc cai dat thanh toan.' }
   revalidateMessagingDashboard()

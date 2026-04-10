@@ -10,6 +10,11 @@ export type PartnerPaymentSettingsRow = {
   default_deposit_percent: 30 | 100
   notify_email: string
   require_payment_proof: boolean
+  sepay_enabled: boolean
+  sepay_bank_code: string
+  sepay_account_number: string
+  sepay_qr_template: '' | 'compact' | 'qronly'
+  sepay_webhook_token: string
   updated_at: string
 }
 
@@ -101,7 +106,13 @@ export async function fetchPartnerPaymentSettingsFromPg(partnerId: string): Prom
   try {
     const row = await pgQueryOne<Record<string, unknown>>(
       `select partner_id::text, bank_name, bank_bin, account_number, account_holder,
-              default_deposit_percent, notify_email, require_payment_proof, updated_at
+              default_deposit_percent, notify_email, require_payment_proof,
+              coalesce(sepay_enabled, false) as sepay_enabled,
+              coalesce(sepay_bank_code, '') as sepay_bank_code,
+              coalesce(sepay_account_number, '') as sepay_account_number,
+              coalesce(sepay_qr_template, 'compact') as sepay_qr_template,
+              coalesce(sepay_webhook_token, '') as sepay_webhook_token,
+              updated_at
        from public.messaging_partner_payment_settings
        where partner_id = $1::uuid
        limit 1`,
@@ -117,6 +128,16 @@ export async function fetchPartnerPaymentSettingsFromPg(partnerId: string): Prom
       default_deposit_percent: num(row.default_deposit_percent, 30) === 100 ? 100 : 30,
       notify_email: String(row.notify_email ?? ''),
       require_payment_proof: row.require_payment_proof !== false,
+      sepay_enabled: row.sepay_enabled === true,
+      sepay_bank_code: String(row.sepay_bank_code ?? ''),
+      sepay_account_number: String(row.sepay_account_number ?? ''),
+      sepay_qr_template:
+        String(row.sepay_qr_template ?? 'compact') === 'qronly'
+          ? 'qronly'
+          : String(row.sepay_qr_template ?? 'compact') === ''
+            ? ''
+            : 'compact',
+      sepay_webhook_token: String(row.sepay_webhook_token ?? ''),
       updated_at: String(row.updated_at ?? ''),
     }
   } catch (e) {
@@ -134,15 +155,24 @@ export async function upsertPartnerPaymentSettingsFromPg(input: {
   defaultDepositPercent: 30 | 100
   notifyEmail: string
   requirePaymentProof: boolean
+  sepayEnabled?: boolean
+  sepayBankCode?: string
+  sepayAccountNumber?: string
+  sepayQrTemplate?: '' | 'compact' | 'qronly'
+  sepayWebhookToken?: string
 }): Promise<boolean> {
   if (!isPgConfigured()) return false
   try {
     await pgQuery(
       `insert into public.messaging_partner_payment_settings (
          partner_id, bank_name, bank_bin, account_number, account_holder,
-         default_deposit_percent, notify_email, require_payment_proof, updated_at
+         default_deposit_percent, notify_email, require_payment_proof,
+         sepay_enabled, sepay_bank_code, sepay_account_number, sepay_qr_template, sepay_webhook_token,
+         updated_at
        ) values (
-         $1::uuid, $2, $3, $4, $5, $6, $7, $8, now()
+         $1::uuid, $2, $3, $4, $5, $6, $7, $8,
+         $9, $10, $11, $12, $13,
+         now()
        )
        on conflict (partner_id) do update set
          bank_name = excluded.bank_name,
@@ -152,6 +182,11 @@ export async function upsertPartnerPaymentSettingsFromPg(input: {
          default_deposit_percent = excluded.default_deposit_percent,
          notify_email = excluded.notify_email,
          require_payment_proof = excluded.require_payment_proof,
+         sepay_enabled = excluded.sepay_enabled,
+         sepay_bank_code = excluded.sepay_bank_code,
+         sepay_account_number = excluded.sepay_account_number,
+         sepay_qr_template = excluded.sepay_qr_template,
+         sepay_webhook_token = excluded.sepay_webhook_token,
          updated_at = now()`,
       [
         input.partnerId,
@@ -162,6 +197,11 @@ export async function upsertPartnerPaymentSettingsFromPg(input: {
         input.defaultDepositPercent,
         input.notifyEmail,
         input.requirePaymentProof,
+        input.sepayEnabled === true,
+        String(input.sepayBankCode ?? '').trim().slice(0, 40),
+        String(input.sepayAccountNumber ?? '').trim().slice(0, 40),
+        input.sepayQrTemplate === 'qronly' ? 'qronly' : input.sepayQrTemplate === '' ? '' : 'compact',
+        String(input.sepayWebhookToken ?? '').trim().slice(0, 120),
       ]
     )
     return true
@@ -331,6 +371,49 @@ export async function fetchPartnerOrderForThreadFromPg(input: {
     return row ? mapOrderRow(row) : null
   } catch (e) {
     console.warn('[fetchPartnerOrderForThreadFromPg]', e)
+    return null
+  }
+}
+
+export async function fetchPartnerOrderByPaymentReferenceFromPg(
+  partnerId: string,
+  paymentReferenceUpper: string
+): Promise<
+  | {
+      id: string
+      conversation_id: string
+      payment_reference: string
+      required_amount: number
+      expected_account_number: string
+      sepay_webhook_token: string
+    }
+  | null
+> {
+  if (!isPgConfigured()) return null
+  try {
+    const row = await pgQueryOne<Record<string, unknown>>(
+      `select o.id::text, o.conversation_id::text, o.payment_reference, o.required_amount,
+              coalesce(ps.account_number, '') as expected_account_number,
+              coalesce(ps.sepay_webhook_token, '') as sepay_webhook_token
+       from public.messaging_partner_orders o
+       left join public.messaging_partner_payment_settings ps on ps.partner_id = o.partner_id
+       where o.partner_id = $1::uuid
+         and upper(trim(o.payment_reference)) = $2
+       order by o.created_at desc
+       limit 1`,
+      [partnerId, paymentReferenceUpper]
+    )
+    if (!row) return null
+    return {
+      id: String(row.id),
+      conversation_id: String(row.conversation_id),
+      payment_reference: String(row.payment_reference ?? ''),
+      required_amount: num(row.required_amount, 0),
+      expected_account_number: String(row.expected_account_number ?? ''),
+      sepay_webhook_token: String(row.sepay_webhook_token ?? ''),
+    }
+  } catch (e) {
+    console.warn('[fetchPartnerOrderByPaymentReferenceFromPg]', e)
     return null
   }
 }

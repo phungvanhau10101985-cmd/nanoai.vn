@@ -38,6 +38,24 @@ type GuestVisionCandidate = {
   score?: number
 }
 
+type BuyProductOption = {
+  name: string
+  image_url: string
+  product_url: string
+  price_hint?: string
+  sku?: string | null
+}
+
+type PurchaseOptionsPayload = {
+  sku: string | null
+  name: string
+  image_url: string
+  product_url: string
+  price_hint: string
+  sizes: string[]
+  colors: Array<{ name: string; img: string }>
+}
+
 function getVisionPickState(raw: Json | null | undefined): {
   required: boolean
   candidates: GuestVisionCandidate[]
@@ -80,6 +98,52 @@ function formatVndPrice(priceHint: string | undefined): string | null {
   const n = Number.parseInt(digits, 10)
   if (!Number.isFinite(n)) return raw
   return `${new Intl.NumberFormat('vi-VN').format(n)}đ`
+}
+
+function normalizeIntentText(raw: string): string {
+  return raw
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function classifyOrderIntent(raw: string): 'purchase' | 'shipping_policy' | 'consult' {
+  const t = normalizeIntentText(raw)
+  if (!t) return 'consult'
+
+  const shippingHints = [
+    'van chuyen',
+    'giao hang',
+    'phi ship',
+    'ship',
+    'bao gio hang ve',
+    'khi nao nhan duoc',
+    'thoi gian giao',
+    'cod',
+    'doi tra',
+    'bao hanh',
+    'chinh sach giao',
+  ]
+  if (shippingHints.some((k) => t.includes(k))) return 'shipping_policy'
+
+  const purchaseStrongHints = [
+    'cho minh dat',
+    'mua mau nay',
+    'muon mua mau nay',
+    'minh muon mua',
+    'dat mau nay',
+    'dat hang',
+    'chot don',
+    'len don',
+    'mua luon',
+    'lay doi nay',
+    'chot mau nay',
+    'tao don',
+  ]
+  if (purchaseStrongHints.some((k) => t.includes(k))) return 'purchase'
+  return 'consult'
 }
 
 type T = Dictionary['partnerGuestChat']
@@ -145,8 +209,13 @@ export function PartnerGuestChatClient({
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null)
   const [orderFormOpen, setOrderFormOpen] = useState(false)
   const [orderFormBusy, setOrderFormBusy] = useState(false)
+  const [buyOptionsOpen, setBuyOptionsOpen] = useState(false)
+  const [buyOptionsBusy, setBuyOptionsBusy] = useState(false)
+  const [buyOptions, setBuyOptions] = useState<BuyProductOption[]>([])
+  const [buyPromptMessageId, setBuyPromptMessageId] = useState<string | null>(null)
+  const [activeOrderCard, setActiveOrderCard] = useState<PartnerAiProductCard | null>(null)
+  const [activePurchaseOptions, setActivePurchaseOptions] = useState<PurchaseOptionsPayload | null>(null)
   const [orderName, setOrderName] = useState('')
-  const [orderEmail, setOrderEmail] = useState('')
   const [orderPhone, setOrderPhone] = useState('')
   const [orderAddress, setOrderAddress] = useState('')
   const [orderColor, setOrderColor] = useState('')
@@ -553,42 +622,165 @@ export function PartnerGuestChatClient({
     }
   }
 
-  const submitProductCardPick = async (card: PartnerAiProductCard) => {
-    setOrderFormBusy(true)
+  const toCardFromBuyOption = useCallback((x: BuyProductOption): PartnerAiProductCard => {
+    const out: PartnerAiProductCard = {
+      name: x.name,
+      image_url: x.image_url,
+      product_url: x.product_url,
+    }
+    if (x.price_hint && x.price_hint.trim()) out.price_hint = x.price_hint.trim()
+    return out
+  }, [])
+
+  const openOrderFormByOption = useCallback(
+    async (x: BuyProductOption) => {
+      const card = toCardFromBuyOption(x)
+      setOrderFormBusy(true)
+      try {
+        const res = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}/order`, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json', ...authHeaders() },
+          body: JSON.stringify({ productCard: card }),
+        })
+        captureGuestSessionFromResponse(res)
+        const data = (await res.json().catch(() => null)) as
+          | { ok?: boolean; error?: string; order?: { id?: string } }
+          | null
+        if (!res.ok) {
+          toast({ title: data?.error || 'Khong tao duoc don hang.', variant: 'destructive' })
+          return
+        }
+        const oid = String(data?.order?.id ?? '').trim()
+        if (!oid) {
+          toast({ title: 'Khong tao duoc don hang.', variant: 'destructive' })
+          return
+        }
+        const detailRes = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}/order`, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json', ...authHeaders() },
+          body: JSON.stringify({ action: 'product_options', productUrl: x.product_url }),
+        })
+        captureGuestSessionFromResponse(detailRes)
+        const detail = (await detailRes.json().catch(() => null)) as
+          | {
+              ok?: boolean
+              options?: PurchaseOptionsPayload | null
+              profile?: { customerName?: string; customerPhone?: string; shippingAddress?: string } | null
+            }
+          | null
+        if (detail?.profile) {
+          setOrderName(String(detail.profile.customerName ?? ''))
+          setOrderPhone(String(detail.profile.customerPhone ?? ''))
+          setOrderAddress(String(detail.profile.shippingAddress ?? ''))
+        }
+        setActiveOrderCard(card)
+        setActivePurchaseOptions(detail?.options ?? null)
+        setOrderColor('')
+        setOrderSize('')
+        setOrderQuantity('1')
+        setOrderNote('')
+        setActiveOrderId(oid)
+        setOrderFormOpen(true)
+        setBuyOptionsOpen(false)
+        await load()
+      } catch {
+        toast({ title: 'Khong tao duoc don hang.', variant: 'destructive' })
+      } finally {
+        setOrderFormBusy(false)
+      }
+    },
+    [authHeaders, captureGuestSessionFromResponse, load, slug, toCardFromBuyOption, toast]
+  )
+
+  const maybeOpenBuyOptionsFromInbound = useCallback(async () => {
+    if (buyOptionsBusy || orderFormOpen) return
+    const inbound = [...messages].reverse().find((m) => m.direction === 'inbound')
+    if (!inbound) return
+    if (buyPromptMessageId === inbound.id) return
+    const intent = classifyOrderIntent(inbound.body ?? '')
+    if (intent !== 'purchase') return
+    const recent = aiProductCardsFromPayload(messages)
+    if (!recent.length) return
+    setBuyOptionsBusy(true)
     try {
       const res = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}/order`, {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify({ productCard: card }),
+        body: JSON.stringify({ action: 'related_products', recentCards: recent.slice(0, 20) }),
       })
       captureGuestSessionFromResponse(res)
-      const data = (await res.json()) as {
-        ok?: boolean
-        error?: string
-        order?: { id?: string }
+      const data = (await res.json().catch(() => null)) as
+        | { ok?: boolean; products?: BuyProductOption[] }
+        | null
+      if (!res.ok || !data?.ok || !Array.isArray(data.products)) return
+      setBuyOptions(data.products.slice(0, 20))
+      setBuyOptionsOpen(data.products.length > 0)
+      setBuyPromptMessageId(inbound.id)
+      if (data.products.length > 0) {
+        toast({ title: 'Anh/chị muốn mua sản phẩm nào? Mình gợi ý 20 mẫu liên quan nhất.' })
       }
-      if (res.status === 401) {
-        setUserId(null)
-        return
-      }
-      if (!res.ok) {
-        toast({ title: data.error || 'Khong tao duoc don hang.', variant: 'destructive' })
-        return
-      }
-      const oid = String(data.order?.id ?? '').trim()
-      if (!oid) {
-        toast({ title: 'Khong tao duoc don hang.', variant: 'destructive' })
-        return
-      }
-      setActiveOrderId(oid)
-      setOrderFormOpen(true)
-      await load()
     } catch {
-      toast({ title: 'Khong tao duoc don hang.', variant: 'destructive' })
+      // silent fallback
     } finally {
-      setOrderFormBusy(false)
+      setBuyOptionsBusy(false)
     }
+  }, [
+    authHeaders,
+    buyOptionsBusy,
+    buyPromptMessageId,
+    captureGuestSessionFromResponse,
+    messages,
+    orderFormOpen,
+    slug,
+    toast,
+  ])
+
+  useEffect(() => {
+    void maybeOpenBuyOptionsFromInbound()
+  }, [maybeOpenBuyOptionsFromInbound])
+
+  const submitProductCardPick = async (card: PartnerAiProductCard) => {
+    const latestInboundText = [...messages].reverse().find((m) => m.direction === 'inbound')?.body ?? ''
+    const intent = classifyOrderIntent(latestInboundText)
+    const label = card.name?.trim() || 'mau san pham'
+    if (intent !== 'purchase') {
+      const ask =
+        intent === 'shipping_policy'
+          ? `Mình quan tâm mẫu này: ${label}. Shop tư vấn giúp mình chính sách vận chuyển, phí ship và thời gian giao nhé.`
+          : `Mình quan tâm mẫu này: ${label}. Shop tư vấn chi tiết giúp mình nhé.`
+      setSending(true)
+      try {
+        const res = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}`, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json', ...authHeaders() },
+          body: JSON.stringify({ text: ask }),
+        })
+        captureGuestSessionFromResponse(res)
+        const data = (await res.json().catch(() => null)) as { error?: string } | null
+        if (!res.ok) {
+          toast({ title: data?.error || t.sendError, variant: 'destructive' })
+          return
+        }
+        await load()
+      } catch {
+        toast({ title: t.sendError, variant: 'destructive' })
+      } finally {
+        setSending(false)
+      }
+      return
+    }
+
+    await openOrderFormByOption({
+      name: card.name,
+      image_url: card.image_url,
+      product_url: card.product_url,
+      price_hint: card.price_hint,
+      sku: null,
+    })
   }
 
   const submitOrderCheckout = async () => {
@@ -604,7 +796,6 @@ export function PartnerGuestChatClient({
           orderId: oid,
           form: {
             customerName: orderName,
-            customerEmail: orderEmail,
             customerPhone: orderPhone,
             shippingAddress: orderAddress,
             color: orderColor,
@@ -1247,60 +1438,128 @@ export function PartnerGuestChatClient({
                     disabled={sending}
                     onClick={() => void submitPaymentProof()}
                   >
-                    {sending ? 'Dang doi chieu thanh toan...' : 'Gui anh giao dich va doi chieu thanh toan'}
+                    {sending ? 'Đang đối chiếu thanh toán...' : 'Gửi ảnh giao dịch và đối chiếu thanh toán'}
                   </Button>
+                </div>
+              ) : null}
+              {buyOptionsOpen && buyOptions.length > 0 ? (
+                <div className="space-y-1.5 rounded-lg border border-border/70 bg-muted/20 p-2">
+                  <p className="text-xs font-medium text-foreground">Anh/chị muốn mua sản phẩm nào?</p>
+                  <div className="flex gap-2 overflow-x-auto pb-1">
+                    {buyOptions.map((item) => (
+                      <button
+                        key={`${item.product_url}-${item.name}`}
+                        type="button"
+                        className="w-28 shrink-0 rounded-md border border-border bg-background p-1.5 text-left"
+                        disabled={orderFormBusy}
+                        onClick={() => void openOrderFormByOption(item)}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={item.image_url}
+                          alt={item.name}
+                          className="h-16 w-full rounded object-cover"
+                        />
+                        <p className="mt-1 line-clamp-2 text-[11px] font-medium text-foreground">{item.name}</p>
+                        {item.price_hint ? (
+                          <p className="mt-0.5 text-[10px] text-muted-foreground">{formatVndPrice(item.price_hint)}</p>
+                        ) : null}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               ) : null}
               {orderFormOpen ? (
                 <div className="space-y-2 rounded-lg border border-border/70 bg-muted/20 p-2">
-                  <p className="text-xs font-medium text-foreground">Thong tin nhan hang</p>
+                  <p className="text-xs font-medium text-foreground">Thông tin nhận hàng</p>
+                  {activeOrderCard ? (
+                    <div className="rounded-md border border-border/70 bg-background p-2">
+                      <div className="flex items-center gap-2">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={activeOrderCard.image_url}
+                          alt={activeOrderCard.name}
+                          className="h-10 w-10 rounded object-cover"
+                        />
+                        <div className="min-w-0">
+                          <p className="truncate text-[12px] font-medium text-foreground">{activeOrderCard.name}</p>
+                          {activePurchaseOptions?.sku ? (
+                            <p className="text-[10px] text-muted-foreground">Mã sản phẩm: {activePurchaseOptions.sku}</p>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
                   <div className="grid grid-cols-2 gap-1.5">
                     <input
                       type="text"
                       className="h-8 rounded-md border border-border bg-background px-2 text-[12px]"
-                      placeholder="Ho ten"
+                      placeholder="Họ tên"
                       value={orderName}
                       onChange={(e) => setOrderName(e.target.value)}
                     />
                     <input
-                      type="email"
-                      className="h-8 rounded-md border border-border bg-background px-2 text-[12px]"
-                      placeholder="Email"
-                      value={orderEmail}
-                      onChange={(e) => setOrderEmail(e.target.value)}
-                    />
-                    <input
                       type="text"
                       className="h-8 rounded-md border border-border bg-background px-2 text-[12px]"
-                      placeholder="So dien thoai"
+                      placeholder="Số điện thoại"
                       value={orderPhone}
                       onChange={(e) => setOrderPhone(e.target.value)}
                     />
                     <input
                       type="text"
                       className="h-8 rounded-md border border-border bg-background px-2 text-[12px]"
-                      placeholder="Dia chi"
+                      placeholder="Địa chỉ"
                       value={orderAddress}
                       onChange={(e) => setOrderAddress(e.target.value)}
                     />
+                    {activePurchaseOptions?.colors && activePurchaseOptions.colors.length > 0 ? (
+                      <select
+                        className="h-8 rounded-md border border-border bg-background px-2 text-[12px]"
+                        value={orderColor}
+                        onChange={(e) => setOrderColor(e.target.value)}
+                      >
+                        <option value="">Chọn màu</option>
+                        {activePurchaseOptions.colors.map((c) => (
+                          <option key={`${c.name}-${c.img}`} value={c.name}>
+                            {c.name}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        className="h-8 rounded-md border border-border bg-background px-2 text-[12px]"
+                        placeholder="Màu"
+                        value={orderColor}
+                        onChange={(e) => setOrderColor(e.target.value)}
+                      />
+                    )}
+                    {activePurchaseOptions?.sizes && activePurchaseOptions.sizes.length > 0 ? (
+                      <select
+                        className="h-8 rounded-md border border-border bg-background px-2 text-[12px]"
+                        value={orderSize}
+                        onChange={(e) => setOrderSize(e.target.value)}
+                      >
+                        <option value="">Chọn size</option>
+                        {activePurchaseOptions.sizes.map((s) => (
+                          <option key={s} value={s}>
+                            {s}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        className="h-8 rounded-md border border-border bg-background px-2 text-[12px]"
+                        placeholder="Size"
+                        value={orderSize}
+                        onChange={(e) => setOrderSize(e.target.value)}
+                      />
+                    )}
                     <input
                       type="text"
                       className="h-8 rounded-md border border-border bg-background px-2 text-[12px]"
-                      placeholder="Mau"
-                      value={orderColor}
-                      onChange={(e) => setOrderColor(e.target.value)}
-                    />
-                    <input
-                      type="text"
-                      className="h-8 rounded-md border border-border bg-background px-2 text-[12px]"
-                      placeholder="Size"
-                      value={orderSize}
-                      onChange={(e) => setOrderSize(e.target.value)}
-                    />
-                    <input
-                      type="text"
-                      className="h-8 rounded-md border border-border bg-background px-2 text-[12px]"
-                      placeholder="So luong"
+                      placeholder="Số lượng"
                       value={orderQuantity}
                       onChange={(e) => setOrderQuantity(e.target.value)}
                     />
@@ -1309,13 +1568,31 @@ export function PartnerGuestChatClient({
                       value={orderDeposit}
                       onChange={(e) => setOrderDeposit(e.target.value === '100' ? '100' : '30')}
                     >
-                      <option value="30">Dat coc 30%</option>
-                      <option value="100">Thanh toan 100%</option>
+                      <option value="30">Đặt cọc 30%</option>
+                      <option value="100">Thanh toán 100%</option>
                     </select>
                   </div>
+                  {activePurchaseOptions?.colors && activePurchaseOptions.colors.length > 0 ? (
+                    <div className="flex gap-2 overflow-x-auto pb-1">
+                      {activePurchaseOptions.colors.map((c) => (
+                        <button
+                          key={`${c.name}-${c.img}`}
+                          type="button"
+                          className={`w-16 shrink-0 rounded-md border p-1 ${
+                            orderColor === c.name ? 'border-violet-500' : 'border-border'
+                          }`}
+                          onClick={() => setOrderColor(c.name)}
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={c.img} alt={c.name} className="h-10 w-full rounded object-cover" />
+                          <p className="mt-0.5 truncate text-[10px] text-foreground">{c.name}</p>
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
                   <textarea
                     className="min-h-[56px] w-full rounded-md border border-border bg-background px-2 py-1 text-[12px]"
-                    placeholder="Ghi chu"
+                    placeholder="Ghi chú"
                     value={orderNote}
                     onChange={(e) => setOrderNote(e.target.value)}
                   />
@@ -1327,7 +1604,7 @@ export function PartnerGuestChatClient({
                       disabled={orderFormBusy}
                       onClick={() => void submitOrderCheckout()}
                     >
-                      {orderFormBusy ? 'Dang tao QR...' : 'Tao don va QR'}
+                      {orderFormBusy ? 'Đang tạo QR...' : 'Tạo đơn và QR'}
                     </Button>
                     <Button
                       type="button"
@@ -1337,7 +1614,7 @@ export function PartnerGuestChatClient({
                       disabled={orderFormBusy}
                       onClick={() => setOrderFormOpen(false)}
                     >
-                      Dong
+                      Đóng
                     </Button>
                   </div>
                 </div>
