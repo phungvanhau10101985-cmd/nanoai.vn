@@ -77,7 +77,6 @@ async function main() {
         )
       }
       console.log(`Đã đánh dấu ${files.length} file (mark-all-applied). Kiểm tra lại DB trước khi tin tưởng hoàn toàn.`)
-      await pool.end()
       return
     }
 
@@ -94,7 +93,6 @@ async function main() {
 
     if (!apply) {
       if (pending.length) console.log('\nThêm --apply để chạy các file pending.')
-      await pool.end()
       return
     }
 

@@ -1,6 +1,10 @@
 -- Enable pgvector-based ANN search for inventory image embeddings.
 create extension if not exists vector;
 
+-- Cần trước hàm match_* (cột product_url được bổ sung đầy đủ/comment ở 20260408120000).
+alter table public.messaging_partner_inventory
+  add column if not exists product_url text not null default '';
+
 alter table public.messaging_partner_inventory
   add column if not exists image_embedding_vec vector(768);
 

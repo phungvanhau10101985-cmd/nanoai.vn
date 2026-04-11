@@ -1,6 +1,11 @@
 import type { AppUser } from '@/lib/auth/app-user'
 import { cookies, headers } from 'next/headers'
 import { getEmailSessionUser } from '@/lib/auth/email-session-user'
+import {
+  MESSAGING_GUEST_ACCOUNT_COOKIE,
+  MESSAGING_GUEST_ACCOUNT_COOKIE_LEGACY,
+  MESSAGING_GUEST_ACCOUNT_HEADER,
+} from '@/lib/messaging/guest-account-session'
 import { isValidUuidString } from '@/lib/validate-uuid'
 import { isPgConfigured } from '@/lib/db/pool'
 import { pgQueryOne } from '@/lib/db/pg-query'
@@ -106,17 +111,74 @@ export async function getUserOrBypass(): Promise<AppUser | null> {
 
 export { FORCE_REAL_LOGIN_COOKIE }
 
+function readGuestAccountIdForWalletFromRequest(): string | null {
+  try {
+    const raw =
+      headers().get(MESSAGING_GUEST_ACCOUNT_HEADER)?.trim()
+      ?? cookies().get(MESSAGING_GUEST_ACCOUNT_COOKIE)?.value?.trim()
+      ?? cookies().get(MESSAGING_GUEST_ACCOUNT_COOKIE_LEGACY)?.value?.trim()
+      ?? ''
+    return isValidUuidString(raw) ? raw : null
+  } catch {
+    return null
+  }
+}
+
+/** Guest chat đã OTP: map messaging_guest_accounts → cùng user ví với JWT email (nanoai_ensure_user_by_email). */
+async function resolveWalletUserFromVerifiedGuestAccount(guestAccountId: string): Promise<AppUser | null> {
+  if (!isValidUuidString(guestAccountId) || !isPgConfigured()) return null
+  try {
+    const row = await pgQueryOne<{ email_normalized: string }>(
+      `select email_normalized from public.messaging_guest_accounts where id = $1::uuid limit 1`,
+      [guestAccountId]
+    )
+    const email = String(row?.email_normalized ?? '').trim().toLowerCase()
+    if (!email) return null
+    const idRow = await pgQueryOne<{ id: string }>(
+      `select (public.nanoai_ensure_user_by_email($1::text))::text as id`,
+      [email]
+    )
+    const id = String(idRow?.id ?? '').trim()
+    if (!isValidUuidString(id)) return null
+    return {
+      id,
+      email,
+      aud: 'authenticated',
+      app_metadata: {},
+      user_metadata: {},
+      created_at: new Date().toISOString(),
+    }
+  } catch {
+    return null
+  }
+}
+
 /**
- * Lấy user cho server actions / API (JWT email hoặc dev bypass).
+ * Phiên ví (/api/account/*, /api/auth/me): JWT email cookie hoặc guest account đã xác thực (cookie/header).
+ * Không gồm dev bypass — dùng getUserForAction cho bypass local.
+ */
+export async function getWalletSessionUser(): Promise<AppUser | null> {
+  const emailUser = await getEmailSessionUser()
+  if (emailUser) {
+    if (!isValidUuidString(emailUser.id)) return null
+    return await canonicalizeUserByEmail(emailUser)
+  }
+  const guestId = readGuestAccountIdForWalletFromRequest()
+  if (guestId) {
+    const g = await resolveWalletUserFromVerifiedGuestAccount(guestId)
+    if (g) return await canonicalizeUserByEmail(g)
+  }
+  return null
+}
+
+/**
+ * Lấy user cho server actions / API (JWT email, guest account đã OTP, hoặc dev bypass).
  */
 export async function getUserForAction(
   errorMessage = 'Vui lòng đăng nhập.'
 ): Promise<{ user: AppUser } | { error: string }> {
-  const emailUser = await getEmailSessionUser()
-  if (emailUser) {
-    if (!isValidUuidString(emailUser.id)) return { error: errorMessage }
-    return { user: await canonicalizeUserByEmail(emailUser) }
-  }
+  const user = await getWalletSessionUser()
+  if (user) return { user }
   if (!isAuthRequired()) return { user: getDevUser() }
   return { error: errorMessage }
 }

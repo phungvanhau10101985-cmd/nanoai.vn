@@ -63,3 +63,4 @@ $$;
 
 revoke all on function public.claim_referral_bonus_server(uuid, uuid) from public;
 grant execute on function public.claim_referral_bonus_server(uuid, uuid) to service_role;
+grant execute on function public.claim_referral_bonus_server(uuid, uuid) to postgres;

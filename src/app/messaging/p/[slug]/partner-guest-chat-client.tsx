@@ -478,7 +478,10 @@ export function PartnerGuestChatClient({
     let cancelled = false
     void (async () => {
       try {
-        const me = await fetch('/api/auth/me', { credentials: 'same-origin' })
+        const me = await fetch('/api/auth/me', {
+          credentials: 'same-origin',
+          headers: { ...authHeaders() },
+        })
         const j = me.ok ? ((await me.json()) as { user?: { id?: string } }) : {}
         if (!cancelled) setUserId(j.user?.id ?? null)
       } catch {
@@ -490,7 +493,7 @@ export function PartnerGuestChatClient({
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [authHeaders])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -565,7 +568,10 @@ export function PartnerGuestChatClient({
 
   const refreshAuthAndReload = useCallback(async () => {
     try {
-      const me = await fetch('/api/auth/me', { credentials: 'same-origin' })
+      const me = await fetch('/api/auth/me', {
+        credentials: 'same-origin',
+        headers: { ...authHeaders() },
+      })
       const j = me.ok ? ((await me.json()) as { user?: { id?: string } }) : {}
       const uid = j.user?.id ?? null
       setUserId(uid)
@@ -581,7 +587,7 @@ export function PartnerGuestChatClient({
     } finally {
       void load()
     }
-  }, [load])
+  }, [authHeaders, load])
 
   useEffect(() => {
     if (authReady) void load()
@@ -1379,6 +1385,7 @@ export function PartnerGuestChatClient({
         method: 'GET',
         credentials: 'same-origin',
         cache: 'no-store',
+        headers: { ...authHeaders() },
       })
       if (!res.ok) {
         setTryOnCreditsBalance(null)
@@ -1399,7 +1406,7 @@ export function PartnerGuestChatClient({
     } finally {
       setTryOnCreditsLoading(false)
     }
-  }, [hasVerifiedGuestAccount])
+  }, [authHeaders, hasVerifiedGuestAccount])
 
   useEffect(() => {
     if (authMode !== 'account') {
@@ -1427,6 +1434,7 @@ export function PartnerGuestChatClient({
         method: 'GET',
         credentials: 'same-origin',
         cache: 'no-store',
+        headers: { ...authHeaders() },
       })
       if (authRes.status === 401) {
         setTopUpOpen(false)
@@ -1463,7 +1471,7 @@ export function PartnerGuestChatClient({
     } catch {
       toast({ title: 'Không tải được cấu hình nạp tiền.', variant: 'destructive' })
     }
-  }, [hasVerifiedGuestAccount, loadTryOnCreditsBalance, toast])
+  }, [authHeaders, hasVerifiedGuestAccount, loadTryOnCreditsBalance, toast])
 
   const createTopUpPayment = useCallback(async () => {
     const amount = Math.max(1000, Math.round(Number(topUpAmount) || 0))
@@ -1489,7 +1497,7 @@ export function PartnerGuestChatClient({
       const res = await fetch('/api/account/payments', {
         method: 'POST',
         credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({
           amount,
           credits_added: creditsToAdd,
@@ -1525,7 +1533,16 @@ export function PartnerGuestChatClient({
     } finally {
       setTopUpLoading(false)
     }
-  }, [buildTransferContent, hasVerifiedGuestAccount, loadTryOnCreditsBalance, toast, topUpAmount, topUpConfigs, topUpSelectedBank])
+  }, [
+    authHeaders,
+    buildTransferContent,
+    hasVerifiedGuestAccount,
+    loadTryOnCreditsBalance,
+    toast,
+    topUpAmount,
+    topUpConfigs,
+    topUpSelectedBank,
+  ])
 
   const send = async () => {
     const text = draft.trim()

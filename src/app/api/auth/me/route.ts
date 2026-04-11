@@ -1,14 +1,14 @@
 import { NextResponse } from 'next/server'
-import { getEmailSessionUser } from '@/lib/auth/email-session-user'
+import { getWalletSessionUser } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
-/** Phiên đăng nhập: JWT email (httpOnly). */
+/** Phiên đăng nhập: JWT email (httpOnly) hoặc guest account chat đã OTP (cookie/header). */
 export async function GET() {
-  const emailUser = await getEmailSessionUser()
-  if (emailUser) {
+  const user = await getWalletSessionUser()
+  if (user) {
     return NextResponse.json({
-      user: { id: emailUser.id, email: emailUser.email ?? '' },
+      user: { id: user.id, email: user.email ?? '' },
     })
   }
   return NextResponse.json({ user: null }, { status: 401 })

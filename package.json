@@ -16,6 +16,8 @@
     "import:viet-doc-vqa": "node scripts/import-viet-doc-vqa.mjs",
     "db:migrate:push": "node scripts/pg-apply-migrations.mjs --apply",
     "db:migrate:status": "node scripts/pg-apply-migrations.mjs",
+    "db:sync": "npm run db:migrate:push",
+    "db:recreate:local": "node scripts/pg-recreate-local-db-and-migrate.mjs --apply",
     "db:push": "node scripts/pg-apply-migrations.mjs --apply",
     "db:sql:worksheet-delete-exercises": "node scripts/pg-run-sql-file.mjs scripts/delete-worksheet-exercises-for-recreate.sql --apply",
     "db:delete-worksheet-exercises": "npm run db:sql:worksheet-delete-exercises",
