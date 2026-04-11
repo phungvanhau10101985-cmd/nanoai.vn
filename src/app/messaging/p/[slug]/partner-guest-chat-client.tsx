@@ -534,13 +534,15 @@ export function PartnerGuestChatClient({
           body: t.guestAuthRequiredAfterLimit.replace('{count}', '5'),
         }
       })
-      if (authRequiredFromMessages) {
+      const serverSaysAccount = data.authMode === 'account'
+      const hasGuestAccount = Boolean(guestAccountIdRef.current?.trim())
+      // Tin hệ thống cũ AUTH_REQUIRED_* không được ép logout sau khi đã xác thực (cookie/header account).
+      if (authRequiredFromMessages && !serverSaysAccount && !hasGuestAccount) {
         setAuthGateRequired(true)
         setAuthMode('anonymous')
       }
       setMessages(normalizedMessages)
-      const effectiveAuthMode =
-        data.authMode === 'account' || Boolean(guestAccountIdRef.current?.trim()) ? 'account' : 'anonymous'
+      const effectiveAuthMode = serverSaysAccount || hasGuestAccount ? 'account' : 'anonymous'
       setAuthMode(effectiveAuthMode)
       if (effectiveAuthMode === 'account') setAuthGateRequired(false)
       setHasLoadedOnce(true)

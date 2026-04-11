@@ -5,13 +5,12 @@ import {
   EMAIL_SESSION_COOKIE,
   EMAIL_SESSION_COOKIE_LEGACY,
   getAuthJwtSecretCandidatesBytes,
-  isEmailAuthEnabled,
 } from '@/lib/auth/email-auth-config'
 import { isValidUuidString } from '@/lib/validate-uuid'
 
 /** Phiên đăng nhập email (JWT cookie). */
 export async function getEmailSessionUser(): Promise<AppUser | null> {
-  if (!isEmailAuthEnabled()) return null
+  // Đọc cookie JWT khi đã ký (AUTH_JWT_SECRET). Không phụ thuộc EMAIL_AUTH_ENABLED — cờ đó dùng để bật/tắt luồng *phát hành* OTP ở một số route, nhưng nếu tắt nhầm thì session đã có vẫn phải nhận diện được (tránh “đăng nhập thành công” nhưng /api/auth/me vẫn 401).
   const secrets = getAuthJwtSecretCandidatesBytes()
   if (!secrets.length) return null
   const token =
