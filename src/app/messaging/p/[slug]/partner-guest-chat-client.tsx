@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ChangeEvent, ClipboardEvent } from 'react'
@@ -153,6 +154,15 @@ function formatVndPrice(priceHint: string | undefined): string | null {
   return `${new Intl.NumberFormat('vi-VN').format(n)}đ`
 }
 
+function parseVndFromHint(priceHint: string | undefined): number {
+  const raw = (priceHint ?? '').trim()
+  if (!raw) return 0
+  const digits = raw.replace(/[^\d]/g, '')
+  if (!digits) return 0
+  const n = Number.parseInt(digits, 10)
+  return Number.isFinite(n) ? Math.max(0, n) : 0
+}
+
 function normalizeIntentText(raw: string): string {
   return raw
     .toLowerCase()
@@ -275,7 +285,9 @@ export function PartnerGuestChatClient({
   const [orderSize, setOrderSize] = useState('')
   const [orderQuantity, setOrderQuantity] = useState('1')
   const [orderNote, setOrderNote] = useState('')
-  const [orderDeposit, setOrderDeposit] = useState<'30' | '100'>('30')
+  const [orderDepositMode, setOrderDepositMode] = useState<'default' | 'none' | 'percent' | 'fixed_amount'>('default')
+  const [orderDepositPercent, setOrderDepositPercent] = useState('30')
+  const [orderDepositAmount, setOrderDepositAmount] = useState('')
   const [proofOrderId, setProofOrderId] = useState<string | null>(null)
   const [tryOnUserFile, setTryOnUserFile] = useState<File | null>(null)
   const [tryOnGarmentFiles, setTryOnGarmentFiles] = useState<SelectedImage[]>([])
@@ -762,6 +774,9 @@ export function PartnerGuestChatClient({
         setOrderSize('')
         setOrderQuantity('1')
         setOrderNote('')
+        setOrderDepositMode('default')
+        setOrderDepositPercent('30')
+        setOrderDepositAmount('')
         setActiveOrderId(oid)
         setOrderFormOpen(true)
         setBuyOptionsOpen(false)
@@ -830,6 +845,7 @@ export function PartnerGuestChatClient({
     authHeaders,
     buyOptionsBusy,
     buyPromptMessageId,
+    captureGuestAccountFromResponse,
     captureGuestSessionFromResponse,
     messages,
     authGateRequired,
@@ -905,7 +921,12 @@ export function PartnerGuestChatClient({
             size: orderSize,
             quantity: Math.max(1, parseInt(orderQuantity || '1', 10) || 1),
             note: orderNote,
-            depositPercent: orderDeposit === '100' ? 100 : 30,
+            depositMode:
+              orderDepositMode === 'none' || orderDepositMode === 'percent' || orderDepositMode === 'fixed_amount'
+                ? orderDepositMode
+                : undefined,
+            depositPercent: Math.max(0, Math.min(100, Math.round(Number(orderDepositPercent) || 0))),
+            depositAmount: Math.max(0, Math.round(Number(orderDepositAmount) || 0)),
           },
         }),
       })
@@ -913,7 +934,7 @@ export function PartnerGuestChatClient({
       const data = (await res.json()) as {
         ok?: boolean
         error?: string
-        order?: { id?: string }
+        order?: { id?: string; required_amount?: number }
       }
       if (res.status === 401) {
         setUserId(null)
@@ -925,9 +946,19 @@ export function PartnerGuestChatClient({
         return
       }
       setOrderFormOpen(false)
-      setProofOrderId(String(data.order?.id ?? oid))
+      const requiredAmount = Math.max(0, Math.round(Number(data.order?.required_amount) || 0))
+      if (requiredAmount > 0) {
+        setProofOrderId(String(data.order?.id ?? oid))
+      } else {
+        setProofOrderId(null)
+      }
       await load()
-      toast({ title: 'Da tao QR thanh toan. Vui long gui anh chung tu de xac nhan.' })
+      toast({
+        title:
+          requiredAmount > 0
+            ? 'Da tao QR thanh toan. Vui long gui anh chung tu de xac nhan.'
+            : 'Da cap nhat don hang. Don nay khong yeu cau dat coc.',
+      })
     } catch {
       toast({ title: 'Khong cap nhat duoc don.', variant: 'destructive' })
     } finally {
@@ -1312,7 +1343,7 @@ export function PartnerGuestChatClient({
     }
   }
 
-  const verifyGuestOtp = async () => {
+  const verifyGuestOtp = useCallback(async () => {
     const email = guestAuthEmail.trim().toLowerCase()
     const otp = guestAuthOtp.trim()
     if (!email || otp.length !== 6) return
@@ -1357,7 +1388,17 @@ export function PartnerGuestChatClient({
     } finally {
       setGuestAuthVerifying(false)
     }
-  }
+  }, [
+    authHeaders,
+    captureGuestSessionFromResponse,
+    guestAuthEmail,
+    guestAuthOtp,
+    load,
+    slug,
+    t.guestAuthOtpInvalid,
+    t.guestAuthRateLimited,
+    toast,
+  ])
   const activeChatList: ChatRailItem[] = (() => {
     const existing = initialChatList.find((x) => x.slug === slug)
     if (existing) return initialChatList
@@ -1399,6 +1440,39 @@ export function PartnerGuestChatClient({
     guestAuthVerifying,
     verifyGuestOtp,
   ])
+
+  const orderPreview = useMemo(() => {
+    const qty = Math.max(1, Math.min(99, Math.floor(Number(orderQuantity) || 1)))
+    const unit = parseVndFromHint(activePurchaseOptions?.price_hint || activeOrderCard?.price_hint)
+    const subtotal = Math.max(0, unit * qty)
+    const percent = Math.max(0, Math.min(100, Math.round(Number(orderDepositPercent) || 0)))
+    const fixed = Math.max(0, Math.round(Number(orderDepositAmount) || 0))
+    if (orderDepositMode === 'none') {
+      return { qty, subtotal, required: 0, text: 'Khong dat coc (0đ)', canCompute: subtotal > 0 }
+    }
+    if (orderDepositMode === 'percent') {
+      const required = Math.ceil((subtotal * percent) / 100)
+      return { qty, subtotal, required, text: `Dat coc ${percent}%`, canCompute: subtotal > 0 }
+    }
+    if (orderDepositMode === 'fixed_amount') {
+      const fallback20 = fixed > subtotal && subtotal > 0
+      const required = fallback20 ? Math.ceil(subtotal * 0.2) : fixed
+      return {
+        qty,
+        subtotal,
+        required,
+        text: fallback20 ? 'Tien dat coc vuot tong don, fallback 20%' : `Dat coc ${new Intl.NumberFormat('vi-VN').format(fixed)}đ`,
+        canCompute: subtotal > 0,
+      }
+    }
+    return {
+      qty,
+      subtotal,
+      required: 0,
+      text: 'Theo cai dat mac dinh cua shop',
+      canCompute: subtotal > 0,
+    }
+  }, [activeOrderCard?.price_hint, activePurchaseOptions?.price_hint, orderDepositAmount, orderDepositMode, orderDepositPercent, orderQuantity])
 
   if (!authReady) {
     return (
@@ -1739,12 +1813,53 @@ export function PartnerGuestChatClient({
                     />
                     <select
                       className="h-8 rounded-md border border-border bg-background px-2 text-[12px]"
-                      value={orderDeposit}
-                      onChange={(e) => setOrderDeposit(e.target.value === '100' ? '100' : '30')}
+                      value={orderDepositMode}
+                      onChange={(e) =>
+                        setOrderDepositMode(
+                          e.target.value === 'none' || e.target.value === 'percent' || e.target.value === 'fixed_amount'
+                            ? e.target.value
+                            : 'default'
+                        )
+                      }
                     >
-                      <option value="30">Đặt cọc 30%</option>
-                      <option value="100">Thanh toán 100%</option>
+                      <option value="default">Theo cai dat cua shop</option>
+                      <option value="none">Khong dat coc</option>
+                      <option value="percent">Dat coc theo %</option>
+                      <option value="fixed_amount">Dat coc so tien tuy y</option>
                     </select>
+                    {orderDepositMode === 'percent' ? (
+                      <input
+                        type="text"
+                        className="h-8 rounded-md border border-border bg-background px-2 text-[12px]"
+                        placeholder="% dat coc (0-100)"
+                        value={orderDepositPercent}
+                        onChange={(e) => setOrderDepositPercent(e.target.value.replace(/[^\d]/g, '').slice(0, 3))}
+                      />
+                    ) : null}
+                    {orderDepositMode === 'fixed_amount' ? (
+                      <input
+                        type="text"
+                        className="h-8 rounded-md border border-border bg-background px-2 text-[12px]"
+                        placeholder="So tien dat coc (VND)"
+                        value={orderDepositAmount}
+                        onChange={(e) => setOrderDepositAmount(e.target.value.replace(/[^\d]/g, '').slice(0, 12))}
+                      />
+                    ) : null}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Luu y: Neu tien dat coc lon hon tong tien don, he thong se tu dong fallback ve 20% gia tri don.
+                  </p>
+                  <div className="rounded-md border border-violet-200 bg-violet-50/70 px-2 py-1.5 text-[11px] text-violet-900">
+                    <p>
+                      Tam tinh ({orderPreview.qty} sp):
+                      {' '}Tong don {new Intl.NumberFormat('vi-VN').format(orderPreview.subtotal)}đ
+                      {' '}| Can thanh toan {new Intl.NumberFormat('vi-VN').format(orderPreview.required)}đ
+                    </p>
+                    <p className="text-[10px] text-violet-800">
+                      Che do: {orderPreview.text}
+                      {orderDepositMode === 'default' ? ' (se ap dung theo cai dat shop khi tao don).' : ''}
+                      {!orderPreview.canCompute ? ' (chua xac dinh duoc gia san pham de tam tinh).' : ''}
+                    </p>
                   </div>
                   {activePurchaseOptions?.colors && activePurchaseOptions.colors.length > 0 ? (
                     <div className="flex gap-2 overflow-x-auto pb-1">
@@ -1909,7 +2024,14 @@ export function PartnerGuestChatClient({
                         onClick={() => tryOnUserInputRef.current?.click()}
                       >
                         {tryOnUserPreviewUrl ? (
-                          <img src={tryOnUserPreviewUrl} alt="" className="h-full w-full object-cover" />
+                          <Image
+                            src={tryOnUserPreviewUrl}
+                            alt=""
+                            width={56}
+                            height={56}
+                            unoptimized
+                            className="h-full w-full object-cover"
+                          />
                         ) : (
                           <div className="flex h-full w-full items-center justify-center text-muted-foreground">
                             <ImagePlus className="h-4 w-4" />
@@ -1945,7 +2067,14 @@ export function PartnerGuestChatClient({
                                 key={`${item.file?.name ?? item.sourceUrl ?? `garment-${idx}`}-${idx}`}
                                 className="relative h-12 w-12 overflow-hidden rounded-md border bg-background/70"
                               >
-                                <img src={item.previewUrl} alt="" className="h-full w-full object-cover" />
+                                <Image
+                                  src={item.previewUrl}
+                                  alt=""
+                                  width={48}
+                                  height={48}
+                                  unoptimized
+                                  className="h-full w-full object-cover"
+                                />
                                 <button
                                   type="button"
                                   className="absolute right-0 top-0 rounded-bl bg-black/55 px-1 text-[10px] text-white"
@@ -2007,7 +2136,14 @@ export function PartnerGuestChatClient({
                                         title={item.name}
                                         aria-pressed={isPicked}
                                       >
-                                        <img src={item.imageUrl} alt={item.name} className="h-full w-full object-cover" />
+                                        <Image
+                                          src={item.imageUrl}
+                                          alt={item.name}
+                                          width={48}
+                                          height={48}
+                                          unoptimized
+                                          className="h-full w-full object-cover"
+                                        />
                                       </button>
                                     )
                                   })}

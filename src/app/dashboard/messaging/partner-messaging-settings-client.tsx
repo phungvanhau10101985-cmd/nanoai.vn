@@ -103,7 +103,9 @@ export function PartnerMessagingSettingsClient({
   const [paymentAccountNumber, setPaymentAccountNumber] = useState('')
   const [paymentAccountHolder, setPaymentAccountHolder] = useState('')
   const [paymentNotifyEmail, setPaymentNotifyEmail] = useState('')
-  const [paymentDepositPercent, setPaymentDepositPercent] = useState<30 | 100>(30)
+  const [paymentDepositMode, setPaymentDepositMode] = useState<'none' | 'percent' | 'fixed_amount'>('percent')
+  const [paymentDepositPercent, setPaymentDepositPercent] = useState('30')
+  const [paymentDepositAmount, setPaymentDepositAmount] = useState('0')
   const [paymentRequireProof, setPaymentRequireProof] = useState(true)
   const [paymentSePayEnabled, setPaymentSePayEnabled] = useState(false)
   const [paymentSePayBankCode, setPaymentSePayBankCode] = useState('')
@@ -205,7 +207,15 @@ export function PartnerMessagingSettingsClient({
           setPaymentAccountNumber(res.settings.account_number || '')
           setPaymentAccountHolder(res.settings.account_holder || '')
           setPaymentNotifyEmail(res.settings.notify_email || '')
-          setPaymentDepositPercent(res.settings.default_deposit_percent === 100 ? 100 : 30)
+          setPaymentDepositMode(
+            res.settings.default_deposit_mode === 'none'
+              ? 'none'
+              : res.settings.default_deposit_mode === 'fixed_amount'
+                ? 'fixed_amount'
+                : 'percent'
+          )
+          setPaymentDepositPercent(String(Math.max(0, Math.min(100, Math.round(Number(res.settings.default_deposit_percent) || 0)))))
+          setPaymentDepositAmount(String(Math.max(0, Math.round(Number(res.settings.default_deposit_amount) || 0))))
           setPaymentRequireProof(res.settings.require_payment_proof !== false)
           setPaymentSePayEnabled(Boolean(res.settings.sepay_enabled))
           setPaymentSePayBankCode(res.settings.sepay_bank_code || '')
@@ -219,7 +229,14 @@ export function PartnerMessagingSettingsClient({
             accountNumber: res.settings.account_number || '',
             accountHolder: res.settings.account_holder || '',
             notifyEmail: res.settings.notify_email || '',
-            defaultDepositPercent: res.settings.default_deposit_percent === 100 ? 100 : 30,
+            defaultDepositPercent: Math.max(0, Math.min(100, Math.round(Number(res.settings.default_deposit_percent) || 0))),
+            defaultDepositMode:
+              res.settings.default_deposit_mode === 'none'
+                ? 'none'
+                : res.settings.default_deposit_mode === 'fixed_amount'
+                  ? 'fixed_amount'
+                  : 'percent',
+            defaultDepositAmount: Math.max(0, Math.round(Number(res.settings.default_deposit_amount) || 0)),
             requirePaymentProof: res.settings.require_payment_proof !== false,
             sepayEnabled: Boolean(res.settings.sepay_enabled),
             sepayBankCode: res.settings.sepay_bank_code || '',
@@ -505,7 +522,9 @@ export function PartnerMessagingSettingsClient({
         accountNumber: paymentAccountNumber,
         accountHolder: paymentAccountHolder,
         notifyEmail: paymentNotifyEmail,
-        defaultDepositPercent: paymentDepositPercent,
+        defaultDepositPercent: Math.max(0, Math.min(100, Math.round(Number(paymentDepositPercent) || 0))),
+        defaultDepositMode: paymentDepositMode,
+        defaultDepositAmount: Math.max(0, Math.round(Number(paymentDepositAmount) || 0)),
         requirePaymentProof: paymentRequireProof,
         sepayEnabled: paymentSePayEnabled,
         sepayBankCode: paymentSePayBankCode,
@@ -518,6 +537,8 @@ export function PartnerMessagingSettingsClient({
       paymentAccountHolder,
       paymentAccountNumber,
       paymentBankName,
+      paymentDepositAmount,
+      paymentDepositMode,
       paymentDepositPercent,
       paymentNotifyEmail,
       paymentRequireProof,
@@ -539,7 +560,9 @@ export function PartnerMessagingSettingsClient({
         bankBin: '',
         accountNumber: paymentAccountNumber,
         accountHolder: paymentAccountHolder,
-        defaultDepositPercent: paymentDepositPercent,
+        defaultDepositPercent: Math.max(0, Math.min(100, Math.round(Number(paymentDepositPercent) || 0))),
+        defaultDepositMode: paymentDepositMode,
+        defaultDepositAmount: Math.max(0, Math.round(Number(paymentDepositAmount) || 0)),
         notifyEmail: paymentNotifyEmail,
         requirePaymentProof: paymentRequireProof,
         sepayEnabled: paymentSePayEnabled,
@@ -562,6 +585,8 @@ export function PartnerMessagingSettingsClient({
       paymentAccountHolder,
       paymentAccountNumber,
       paymentBankName,
+      paymentDepositAmount,
+      paymentDepositMode,
       paymentDepositPercent,
       paymentNotifyEmail,
       paymentRequireProof,
@@ -1047,21 +1072,47 @@ export function PartnerMessagingSettingsClient({
                   <Input className="h-9 text-sm" value={paymentNotifyEmail} onChange={(e) => setPaymentNotifyEmail(e.target.value)} />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-xs font-medium">Ty le dat coc mac dinh</Label>
+                  <Label className="text-xs font-medium">Kieu dat coc mac dinh</Label>
                   <Select
-                    value={String(paymentDepositPercent)}
-                    onValueChange={(v) => setPaymentDepositPercent(v === '100' ? 100 : 30)}
+                    value={paymentDepositMode}
+                    onValueChange={(v) => setPaymentDepositMode(v === 'none' || v === 'fixed_amount' ? v : 'percent')}
                   >
                     <SelectTrigger className="h-9 w-full bg-background">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="30">30%</SelectItem>
-                      <SelectItem value="100">100%</SelectItem>
+                      <SelectItem value="none">Khong can dat coc</SelectItem>
+                      <SelectItem value="percent">Dat coc theo % don hang</SelectItem>
+                      <SelectItem value="fixed_amount">Dat coc theo so tien tuy y</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
+                {paymentDepositMode === 'percent' ? (
+                  <div className="space-y-2">
+                    <Label className="text-xs font-medium">Dat coc theo % (0-100)</Label>
+                    <Input
+                      className="h-9 text-sm"
+                      value={paymentDepositPercent}
+                      onChange={(e) => setPaymentDepositPercent(e.target.value.replace(/[^\d]/g, '').slice(0, 3))}
+                      placeholder="Vi du: 30"
+                    />
+                  </div>
+                ) : null}
+                {paymentDepositMode === 'fixed_amount' ? (
+                  <div className="space-y-2">
+                    <Label className="text-xs font-medium">Dat coc so tien co dinh (VND)</Label>
+                    <Input
+                      className="h-9 text-sm"
+                      value={paymentDepositAmount}
+                      onChange={(e) => setPaymentDepositAmount(e.target.value.replace(/[^\d]/g, '').slice(0, 12))}
+                      placeholder="Vi du: 200000"
+                    />
+                  </div>
+                ) : null}
               </div>
+              <p className="text-[11px] text-muted-foreground">
+                Luu y: Tien dat coc phai nho hon hoac bang tong tien don hang. Neu vuot, he thong se fallback ve 20% gia tri don.
+              </p>
               <label className="inline-flex items-center gap-2 text-xs text-muted-foreground">
                 <input
                   type="checkbox"

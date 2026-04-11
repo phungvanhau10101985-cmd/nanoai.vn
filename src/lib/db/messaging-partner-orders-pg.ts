@@ -7,7 +7,9 @@ export type PartnerPaymentSettingsRow = {
   bank_bin: string
   account_number: string
   account_holder: string
-  default_deposit_percent: 30 | 100
+  default_deposit_percent: number
+  default_deposit_mode: 'none' | 'percent' | 'fixed_amount'
+  default_deposit_amount: number
   notify_email: string
   require_payment_proof: boolean
   sepay_enabled: boolean
@@ -39,7 +41,7 @@ export type PartnerOrderRow = {
   product_url: string
   unit_price: number
   subtotal_amount: number
-  deposit_percent: 30 | 100
+  deposit_percent: number
   required_amount: number
   paid_amount: number
   currency: string
@@ -57,6 +59,12 @@ function num(v: unknown, fallback = 0): number {
   if (typeof v === 'number' && Number.isFinite(v)) return v
   const n = Number(v)
   return Number.isFinite(n) ? n : fallback
+}
+
+function clampPercent(v: unknown, fallback = 0): number {
+  const n = Math.round(num(v, fallback))
+  if (!Number.isFinite(n)) return Math.max(0, Math.min(100, Math.round(fallback)))
+  return Math.max(0, Math.min(100, n))
 }
 
 function isMissingPaymentSettingsTableError(e: unknown): boolean {
@@ -88,7 +96,7 @@ function mapOrderRow(r: Record<string, unknown>): PartnerOrderRow {
     product_url: String(r.product_url ?? ''),
     unit_price: num(r.unit_price, 0),
     subtotal_amount: num(r.subtotal_amount, 0),
-    deposit_percent: num(r.deposit_percent, 30) === 100 ? 100 : 30,
+    deposit_percent: clampPercent(r.deposit_percent, 30),
     required_amount: num(r.required_amount, 0),
     paid_amount: num(r.paid_amount, 0),
     currency: String(r.currency ?? 'VND'),
@@ -115,7 +123,10 @@ export async function fetchPartnerPaymentSettingsFromPg(partnerId: string): Prom
   try {
     const row = await pgQueryOne<Record<string, unknown>>(
       `select partner_id::text, bank_name, bank_bin, account_number, account_holder,
-              default_deposit_percent, notify_email, require_payment_proof,
+              default_deposit_percent,
+              coalesce(default_deposit_mode, 'percent') as default_deposit_mode,
+              coalesce(default_deposit_amount, 0) as default_deposit_amount,
+              notify_email, require_payment_proof,
               coalesce(sepay_enabled, false) as sepay_enabled,
               coalesce(sepay_bank_code, '') as sepay_bank_code,
               coalesce(sepay_account_number, '') as sepay_account_number,
@@ -135,7 +146,14 @@ export async function fetchPartnerPaymentSettingsFromPg(partnerId: string): Prom
       bank_bin: String(row.bank_bin ?? ''),
       account_number: String(row.account_number ?? ''),
       account_holder: String(row.account_holder ?? ''),
-      default_deposit_percent: num(row.default_deposit_percent, 30) === 100 ? 100 : 30,
+      default_deposit_percent: clampPercent(row.default_deposit_percent, 30),
+      default_deposit_mode:
+        String(row.default_deposit_mode ?? 'percent') === 'none'
+          ? 'none'
+          : String(row.default_deposit_mode ?? 'percent') === 'fixed_amount'
+            ? 'fixed_amount'
+            : 'percent',
+      default_deposit_amount: Math.max(0, num(row.default_deposit_amount, 0)),
       notify_email: String(row.notify_email ?? ''),
       require_payment_proof: row.require_payment_proof !== false,
       sepay_enabled: row.sepay_enabled === true,
@@ -164,7 +182,9 @@ export async function upsertPartnerPaymentSettingsFromPg(input: {
   bankBin: string
   accountNumber: string
   accountHolder: string
-  defaultDepositPercent: 30 | 100
+  defaultDepositPercent: number
+  defaultDepositMode?: 'none' | 'percent' | 'fixed_amount'
+  defaultDepositAmount?: number
   notifyEmail: string
   requirePaymentProof: boolean
   sepayEnabled?: boolean
@@ -179,12 +199,12 @@ export async function upsertPartnerPaymentSettingsFromPg(input: {
     await pgQuery(
       `insert into public.messaging_partner_payment_settings (
          partner_id, bank_name, bank_bin, account_number, account_holder,
-         default_deposit_percent, notify_email, require_payment_proof,
+         default_deposit_percent, default_deposit_mode, default_deposit_amount, notify_email, require_payment_proof,
          sepay_enabled, sepay_bank_code, sepay_account_number, sepay_qr_template, sepay_webhook_token, sepay_secret_key,
          updated_at
        ) values (
-         $1::uuid, $2, $3, $4, $5, $6, $7, $8,
-         $9, $10, $11, $12, $13, $14,
+         $1::uuid, $2, $3, $4, $5, $6, $7, $8, $9,
+         $10, $11, $12, $13, $14, $15, $16,
          now()
        )
        on conflict (partner_id) do update set
@@ -193,6 +213,8 @@ export async function upsertPartnerPaymentSettingsFromPg(input: {
          account_number = excluded.account_number,
          account_holder = excluded.account_holder,
          default_deposit_percent = excluded.default_deposit_percent,
+         default_deposit_mode = excluded.default_deposit_mode,
+         default_deposit_amount = excluded.default_deposit_amount,
          notify_email = excluded.notify_email,
          require_payment_proof = excluded.require_payment_proof,
          sepay_enabled = excluded.sepay_enabled,
@@ -208,7 +230,9 @@ export async function upsertPartnerPaymentSettingsFromPg(input: {
         input.bankBin,
         input.accountNumber,
         input.accountHolder,
-        input.defaultDepositPercent,
+        clampPercent(input.defaultDepositPercent, 30),
+        input.defaultDepositMode === 'none' ? 'none' : input.defaultDepositMode === 'fixed_amount' ? 'fixed_amount' : 'percent',
+        Math.max(0, Math.round(num(input.defaultDepositAmount, 0))),
         input.notifyEmail,
         input.requirePaymentProof,
         input.sepayEnabled === true,
@@ -236,13 +260,14 @@ export async function insertPartnerOrderDraftFromPg(input: {
   productImageUrl: string
   productUrl: string
   unitPrice: number
-  depositPercent: 30 | 100
+  depositPercent: number
+  requiredAmount?: number
   customerEmail?: string
 }): Promise<PartnerOrderRow | null> {
   if (!isPgConfigured()) return null
   const qty = 1
   const subtotal = Math.max(0, Math.floor(input.unitPrice || 0)) * qty
-  const required = Math.ceil((subtotal * input.depositPercent) / 100)
+  const required = Math.max(0, Math.round(num(input.requiredAmount, Math.ceil((subtotal * input.depositPercent) / 100))))
   try {
     const row = await pgQueryOne<Record<string, unknown>>(
       `insert into public.messaging_partner_orders (
@@ -299,7 +324,8 @@ export async function updatePartnerOrderCheckoutFromPg(input: {
   variantSize: string
   quantity: number
   note: string
-  depositPercent: 30 | 100
+  depositPercent: number
+  requiredAmount: number
   paymentReference: string
   paymentQrUrl: string
 }): Promise<PartnerOrderRow | null> {
@@ -318,9 +344,9 @@ export async function updatePartnerOrderCheckoutFromPg(input: {
            note = $12,
            deposit_percent = $13,
            subtotal_amount = coalesce(unit_price, 0) * $11::numeric,
-           required_amount = ceil((coalesce(unit_price, 0) * $11::numeric) * ($13::numeric) / 100),
-           payment_reference = $14,
-           payment_qr_url = $15,
+           required_amount = $14::numeric,
+           payment_reference = $15,
+           payment_qr_url = $16,
            status = 'awaiting_payment',
            updated_at = now()
        where id = $1::uuid
@@ -349,6 +375,7 @@ export async function updatePartnerOrderCheckoutFromPg(input: {
         qty,
         input.note,
         input.depositPercent,
+        Math.max(0, Math.round(num(input.requiredAmount, 0))),
         input.paymentReference,
         input.paymentQrUrl,
       ]

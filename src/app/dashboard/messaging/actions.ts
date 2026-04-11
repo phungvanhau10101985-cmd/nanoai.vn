@@ -323,6 +323,8 @@ export async function getMessagingWorkspacePaymentSettings(partnerId: string) {
       account_number: '',
       account_holder: '',
       default_deposit_percent: 30 as const,
+      default_deposit_mode: 'percent' as const,
+      default_deposit_amount: 0,
       notify_email: user.email?.trim() || '',
       require_payment_proof: true,
       sepay_enabled: false,
@@ -342,7 +344,9 @@ export async function saveMessagingWorkspacePaymentSettings(input: {
   bankBin: string
   accountNumber: string
   accountHolder: string
-  defaultDepositPercent: 30 | 100
+  defaultDepositPercent: number
+  defaultDepositMode?: 'none' | 'percent' | 'fixed_amount'
+  defaultDepositAmount?: number
   notifyEmail: string
   requirePaymentProof: boolean
   sepayEnabled?: boolean
@@ -367,7 +371,14 @@ export async function saveMessagingWorkspacePaymentSettings(input: {
     bankBin: input.bankBin.trim().slice(0, 12),
     accountNumber: input.accountNumber.trim().slice(0, 40),
     accountHolder: input.accountHolder.trim().slice(0, 120),
-    defaultDepositPercent: input.defaultDepositPercent === 100 ? 100 : 30,
+    defaultDepositPercent: Math.max(0, Math.min(100, Math.round(Number(input.defaultDepositPercent) || 0))),
+    defaultDepositMode:
+      input.defaultDepositMode === 'none'
+        ? 'none'
+        : input.defaultDepositMode === 'fixed_amount'
+          ? 'fixed_amount'
+          : 'percent',
+    defaultDepositAmount: Math.max(0, Math.round(Number(input.defaultDepositAmount) || 0)),
     notifyEmail: input.notifyEmail.trim().slice(0, 180),
     requirePaymentProof: input.requirePaymentProof !== false,
     sepayEnabled: input.sepayEnabled === true,

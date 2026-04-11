@@ -35,7 +35,9 @@ export type CheckoutFormInput = {
   size: string
   quantity: number
   note: string
-  depositPercent?: 30 | 100
+  depositMode?: 'none' | 'percent' | 'fixed_amount'
+  depositPercent?: number
+  depositAmount?: number
 }
 
 export type RelatedBuyProduct = {
@@ -66,6 +68,39 @@ function firstLine(s: string): string {
 
 function toVnd(n: number): string {
   return `${new Intl.NumberFormat('vi-VN').format(Math.max(0, Math.round(n || 0)))}đ`
+}
+
+function clampPercent(v: unknown, fallback = 0): number {
+  const n = Math.round(Number(v))
+  if (!Number.isFinite(n)) return Math.max(0, Math.min(100, Math.round(fallback)))
+  return Math.max(0, Math.min(100, n))
+}
+
+function normalizeMoney(v: unknown): number {
+  const n = Math.round(Number(v))
+  return Number.isFinite(n) ? Math.max(0, n) : 0
+}
+
+function resolveRequiredAmountByDepositRule(input: {
+  subtotal: number
+  mode: 'none' | 'percent' | 'fixed_amount'
+  percent: number
+  fixedAmount: number
+}): { requiredAmount: number; appliedPercent: number; fallbackApplied: boolean } {
+  const subtotal = Math.max(0, Math.round(input.subtotal || 0))
+  if (subtotal <= 0) return { requiredAmount: 0, appliedPercent: 0, fallbackApplied: false }
+  if (input.mode === 'none') return { requiredAmount: 0, appliedPercent: 0, fallbackApplied: false }
+  if (input.mode === 'fixed_amount') {
+    const fixed = normalizeMoney(input.fixedAmount)
+    if (fixed > subtotal) {
+      // Guard requested by user: fallback to 20% if fixed amount exceeds order value.
+      return { requiredAmount: Math.ceil(subtotal * 0.2), appliedPercent: 20, fallbackApplied: true }
+    }
+    const pct = subtotal > 0 ? Math.round((fixed / subtotal) * 100) : 0
+    return { requiredAmount: fixed, appliedPercent: clampPercent(pct, 0), fallbackApplied: false }
+  }
+  const p = clampPercent(input.percent, 30)
+  return { requiredAmount: Math.ceil((subtotal * p) / 100), appliedPercent: p, fallbackApplied: false }
 }
 
 function inferVietQrBankCodeFromName(rawBankName: string): string {
@@ -249,8 +284,17 @@ export async function createOrderDraftFromProductPick(input: {
   if (!conv?.conversationId) return { error: 'Khong tao duoc hoi thoai.' }
 
   const settings = await fetchPartnerPaymentSettingsFromPg(input.partnerId)
-  const depositPercent = settings?.default_deposit_percent === 100 ? 100 : 30
+  const settingsMode = settings?.default_deposit_mode ?? 'percent'
+  const depositPercent = clampPercent(settings?.default_deposit_percent ?? 30, 30)
+  const depositAmount = normalizeMoney(settings?.default_deposit_amount ?? 0)
   const unitPrice = deriveUnitPriceFromCard(input.card)
+  const subtotal = Math.max(0, Math.round(unitPrice))
+  const calc = resolveRequiredAmountByDepositRule({
+    subtotal,
+    mode: settingsMode,
+    percent: depositPercent,
+    fixedAmount: depositAmount,
+  })
   const inv = await fetchPartnerInventoryRowByProductUrlFromPg(input.partnerId, input.card.product_url)
   const draft = await insertPartnerOrderDraftFromPg({
     partnerId: input.partnerId,
@@ -261,7 +305,8 @@ export async function createOrderDraftFromProductPick(input: {
     productImageUrl: trim(inv?.image_url || input.card.image_url, 600),
     productUrl: trim(inv?.product_url || input.card.product_url, 600),
     unitPrice,
-    depositPercent,
+    depositPercent: calc.appliedPercent,
+    requiredAmount: calc.requiredAmount,
     customerEmail: '',
   })
   if (!draft) return { error: 'Khong tao duoc don hang.' }
@@ -302,10 +347,7 @@ export async function completeOrderCheckout(input: {
   })
   if (!conv?.conversationId) return { error: 'Khong tao duoc hoi thoai.' }
   const settings = await fetchPartnerPaymentSettingsFromPg(input.partnerId)
-  const effectiveBankBin = String(settings?.bank_bin ?? '').trim() || inferVietQrBankCodeFromName(settings?.bank_name ?? '')
-  if (!settings?.account_number || !effectiveBankBin) {
-    return { error: 'Shop chua cai dat thong tin ngan hang nhan coc.' }
-  }
+  if (!settings) return { error: 'Shop chua cai dat thanh toan.' }
 
   const oldOrder = await fetchPartnerOrderForThreadFromPg({
     orderId: input.orderId,
@@ -317,23 +359,45 @@ export async function completeOrderCheckout(input: {
   if (oldOrder.locked_at) return { error: 'Don da khoa sau khi xac nhan, khong the sua.' }
 
   const paymentReference = stablePaymentRef(oldOrder.id)
-  const effectiveDeposit = input.form.depositPercent === 100 ? 100 : settings.default_deposit_percent === 100 ? 100 : 30
-  const expectedAmount = Math.ceil((Math.max(0, oldOrder.unit_price) * Math.max(1, Math.floor(input.form.quantity || 1)) * effectiveDeposit) / 100)
-  const qrUrl = buildOrderPaymentQrBySettings({
-    amount: expectedAmount,
-    paymentReference,
-    accountHolder: settings.account_holder,
-    settings: {
-      sepay_enabled: settings.sepay_enabled,
-      sepay_bank_code: settings.sepay_bank_code,
-      sepay_account_number: settings.sepay_account_number,
-      sepay_qr_template: settings.sepay_qr_template,
-      bank_name: settings.bank_name,
-      bank_bin: settings.bank_bin,
-      account_number: settings.account_number,
-    },
+  const qty = Math.max(1, Math.floor(input.form.quantity || 1))
+  const subtotal = Math.max(0, oldOrder.unit_price) * qty
+  const mode = input.form.depositMode === 'none' || input.form.depositMode === 'fixed_amount' || input.form.depositMode === 'percent'
+    ? input.form.depositMode
+    : (settings.default_deposit_mode ?? 'percent')
+  const percent =
+    input.form.depositMode === 'percent'
+      ? clampPercent(input.form.depositPercent ?? settings.default_deposit_percent ?? 30, 30)
+      : clampPercent(settings.default_deposit_percent ?? 30, 30)
+  const fixedAmount = normalizeMoney(input.form.depositAmount ?? settings.default_deposit_amount ?? 0)
+  const calc = resolveRequiredAmountByDepositRule({
+    subtotal,
+    mode,
+    percent,
+    fixedAmount,
   })
-  if (!qrUrl) return { error: 'Chua xac dinh duoc ma ngan hang de tao QR. Vui long kiem tra ten ngan hang.' }
+  const expectedAmount = calc.requiredAmount
+  let qrUrl = ''
+  if (expectedAmount > 0) {
+    const effectiveBankBin = String(settings.bank_bin ?? '').trim() || inferVietQrBankCodeFromName(settings.bank_name ?? '')
+    if (!settings.account_number || !effectiveBankBin) {
+      return { error: 'Shop chua cai dat thong tin ngan hang nhan coc.' }
+    }
+    qrUrl = buildOrderPaymentQrBySettings({
+      amount: expectedAmount,
+      paymentReference,
+      accountHolder: settings.account_holder,
+      settings: {
+        sepay_enabled: settings.sepay_enabled,
+        sepay_bank_code: settings.sepay_bank_code,
+        sepay_account_number: settings.sepay_account_number,
+        sepay_qr_template: settings.sepay_qr_template,
+        bank_name: settings.bank_name,
+        bank_bin: settings.bank_bin,
+        account_number: settings.account_number,
+      },
+    })
+    if (!qrUrl) return { error: 'Chua xac dinh duoc ma ngan hang de tao QR. Vui long kiem tra ten ngan hang.' }
+  }
 
   const updated = await updatePartnerOrderCheckoutFromPg({
     orderId: oldOrder.id,
@@ -346,9 +410,10 @@ export async function completeOrderCheckout(input: {
     shippingAddress: trim(input.form.shippingAddress, 280),
     variantColor: trim(input.form.color, 80),
     variantSize: trim(input.form.size, 80),
-    quantity: Math.max(1, Math.min(99, Math.floor(input.form.quantity || 1))),
+    quantity: qty,
     note: trim(input.form.note, 800),
-    depositPercent: effectiveDeposit,
+    depositPercent: calc.appliedPercent,
+    requiredAmount: calc.requiredAmount,
     paymentReference,
     paymentQrUrl: qrUrl,
   })
@@ -369,10 +434,15 @@ export async function completeOrderCheckout(input: {
     conversationId: conv.conversationId,
     direction: 'outbound',
     body:
-      `Thong tin don da duoc ghi nhan.\n` +
-      `Tong tien: ${toVnd(updated.subtotal_amount)} | Can thanh toan: ${toVnd(updated.required_amount)} (${updated.deposit_percent}%).\n` +
-      `Noi dung chuyen khoan: ${updated.payment_reference}\n` +
-      `Vui long gui anh chung tu sau khi chuyen khoan de shop xac nhan.`,
+      updated.required_amount > 0
+        ? `Thong tin don da duoc ghi nhan.\n` +
+          `Tong tien: ${toVnd(updated.subtotal_amount)} | Can thanh toan: ${toVnd(updated.required_amount)} (${updated.deposit_percent}%).\n` +
+          `Noi dung chuyen khoan: ${updated.payment_reference}\n` +
+          `${calc.fallbackApplied ? 'Luu y: So tien dat coc vuot gia tri don, he thong da fallback ve 20% gia tri don.\n' : ''}` +
+          `Vui long gui anh chung tu sau khi chuyen khoan de shop xac nhan.`
+        : `Thong tin don da duoc ghi nhan.\n` +
+          `Tong tien: ${toVnd(updated.subtotal_amount)} | Dat coc: 0đ.\n` +
+          `Don nay khong yeu cau dat coc. Shop se lien he xac nhan don va giao hang.`,
     rawPayload: toJson(orderCardPayload(updated)),
   })
   await insertPartnerOrderEventFromPg({
