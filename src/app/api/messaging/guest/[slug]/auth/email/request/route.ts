@@ -1,4 +1,4 @@
-import crypto from 'node:crypto'
+import { createHash } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { resolveActiveMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
 import {
@@ -22,7 +22,6 @@ export const maxDuration = 60
 
 const OTP_TTL_MINUTES = 10
 const OTP_RESEND_COOLDOWN_SECONDS = 45
-const MAGIC_TTL_MINUTES = 10
 const REQUEST_RATE_MAX = Math.max(3, parseInt(process.env.GUEST_AUTH_EMAIL_REQUEST_RATE_LIMIT_MAX || '10', 10) || 10)
 const REQUEST_RATE_WINDOW_MS = Math.max(
   10_000,
@@ -44,21 +43,7 @@ function randOtp6() {
 }
 
 function sha256(v: string) {
-  return crypto.createHash('sha256').update(v).digest('hex')
-}
-
-function resolvePublicOrigin(request: NextRequest): string {
-  const envOrigin =
-    process.env.APP_URL?.trim() ||
-    process.env.NEXT_PUBLIC_APP_URL?.trim() ||
-    process.env.NEXT_PUBLIC_BASE_URL?.trim() ||
-    ''
-  if (envOrigin) return envOrigin.replace(/\/$/, '')
-
-  const xfProto = request.headers.get('x-forwarded-proto')?.trim()
-  const xfHost = request.headers.get('x-forwarded-host')?.trim()
-  if (xfHost) return `${xfProto || 'https'}://${xfHost}`.replace(/\/$/, '')
-  return request.nextUrl.origin.replace(/\/$/, '')
+  return createHash('sha256').update(v).digest('hex')
 }
 
 export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: string }> }) {
@@ -114,8 +99,6 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
 
   const otp = randOtp6()
   const otpHash = sha256(`otp:${partnerId}:${email}:${otp}`)
-  const magicRaw = crypto.randomBytes(24).toString('hex')
-  const magicHash = sha256(`magic:${partnerId}:${email}:${magicRaw}`)
   const expiresAt = new Date(now.getTime() + OTP_TTL_MINUTES * 60 * 1000).toISOString()
 
   const inserted = await insertGuestEmailChallengePg({
@@ -123,33 +106,27 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     emailNormalized: email,
     sessionId,
     codeHash: otpHash,
-    magicTokenHash: magicHash,
+    magicTokenHash: '',
     expiresAt,
   })
   if (!inserted) {
     return NextResponse.json({ error: 'Could not create verification challenge.' }, { status: 500 })
   }
 
-  const publicOrigin = resolvePublicOrigin(request)
-  const magicUrl = `${publicOrigin}/api/messaging/guest/${encodeURIComponent(slug)}/auth/email/verify-magic?token=${encodeURIComponent(
-    magicRaw
-  )}&email=${encodeURIComponent(email)}&sid=${encodeURIComponent(sessionId)}`
   const subject = `Xac thuc chat - ${displayName}`
   const text = [
     `Xin chao,`,
     ``,
-    `Bam vao link duoi day de xac thuc email va tiep tuc chat:`,
-    `${magicUrl}`,
-    ``,
-    `Neu khong bam duoc link, nhap ma OTP: ${otp}`,
-    `Ma het han sau ${MAGIC_TTL_MINUTES} phut.`,
+    `Ma OTP cua ban: ${otp}`,
+    `Vui long nhap ma nay ngay trong khung chat de tiep tuc.`,
+    `Ma het han sau ${OTP_TTL_MINUTES} phut.`,
   ].join('\n')
   if (isSmtpConfigured()) {
     await sendSmtpMail({
       to: email,
       subject,
       text,
-      html: `<p>Xin chao,</p><p><a href="${magicUrl}">Bam vao day de xac thuc email va tiep tuc chat</a></p><p>Ma OTP du phong: <b>${otp}</b> (het han sau ${MAGIC_TTL_MINUTES} phut).</p>`,
+      html: `<p>Xin chao,</p><p>Ma OTP cua ban: <b>${otp}</b></p><p>Vui long nhap ma nay ngay trong khung chat de tiep tuc.</p><p>Ma het han sau ${OTP_TTL_MINUTES} phut.</p>`,
     })
   }
 

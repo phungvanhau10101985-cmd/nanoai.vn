@@ -1,7 +1,6 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ChangeEvent, ClipboardEvent } from 'react'
 import { Button } from '@/components/ui/button'
@@ -11,7 +10,6 @@ import { CustomerCareMessageBody } from '@/components/messaging/customer-care-me
 import { useToast } from '@/hooks/use-toast'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
 import type { Json } from '@/types/database.types'
-import { sanitizeLoginNext } from '@/lib/auth/sanitize-login-next'
 import { Camera, ImagePlus, Loader2, MessageSquareText, Send, Sparkles, Store, X } from 'lucide-react'
 import { aiProductCardsFromPayload } from '@/lib/messaging/partner-ai-product-cards'
 import type { PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-cards'
@@ -234,7 +232,6 @@ export function PartnerGuestChatClient({
   initialChatList?: ChatRailItem[]
 }) {
   const { toast } = useToast()
-  const pathname = usePathname()
   const [authReady, setAuthReady] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
   const [messages, setMessages] = useState<GuestMsg[]>([])
@@ -248,11 +245,11 @@ export function PartnerGuestChatClient({
   const [guestAuthOtp, setGuestAuthOtp] = useState('')
   const [guestAuthSending, setGuestAuthSending] = useState(false)
   const [guestAuthVerifying, setGuestAuthVerifying] = useState(false)
+  const otpLastAutoSubmittedRef = useRef<string>('')
   /** Sau khi gửi tin: server báo AI/FAQ đang trả lời — poll nhanh và hiện “đang soạn tin”. */
   const [shopTyping, setShopTyping] = useState<{ deadline: number; baselineOutbound: number } | null>(null)
   const [uploading, setUploading] = useState(false)
   const [isTouchDevice, setIsTouchDevice] = useState(false)
-  const [loginOpenInNewTab, setLoginOpenInNewTab] = useState(false)
   const [tryOnOpen, setTryOnOpen] = useState(false)
   const [tryOnBusy, setTryOnBusy] = useState(false)
   const [tryOnCreditsBalance, setTryOnCreditsBalance] = useState<number | null>(null)
@@ -292,8 +289,6 @@ export function PartnerGuestChatClient({
   const didInitialAutoScrollRef = useRef(false)
   const draftTextareaRef = useRef<HTMLTextAreaElement>(null)
   const guestSessionIdRef = useRef<string | null>(null)
-
-  const loginHref = `/auth/login?next=${encodeURIComponent(sanitizeLoginNext(pathname || `/messaging/p/${slug}`))}`
 
   const recentSuggestedGarmentImages = useMemo(() => {
     const out: Array<{ name: string; imageUrl: string }> = []
@@ -509,18 +504,6 @@ export function PartnerGuestChatClient({
       document.removeEventListener('visibilitychange', onFocus)
     }
   }, [refreshAuthAndReload])
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    const embedMode = new URLSearchParams(window.location.search).get('embed') === '1'
-    let inIframe = false
-    try {
-      inIframe = window.self !== window.top
-    } catch {
-      inIframe = true
-    }
-    setLoginOpenInNewTab(embedMode || inIframe)
-  }, [])
 
   const autoResizeDraft = useCallback(() => {
     const el = draftTextareaRef.current
@@ -1286,7 +1269,7 @@ export function PartnerGuestChatClient({
   const verifyGuestOtp = async () => {
     const email = guestAuthEmail.trim().toLowerCase()
     const otp = guestAuthOtp.trim()
-    if (!email || !otp) return
+    if (!email || otp.length !== 6) return
     setGuestAuthVerifying(true)
     try {
       const res = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}/auth/email/verify-otp`, {
@@ -1312,6 +1295,7 @@ export function PartnerGuestChatClient({
       setAuthMode('account')
       setAuthGateRequired(false)
       setGuestAuthOtp('')
+      otpLastAutoSubmittedRef.current = ''
       await load()
     } catch {
       toast({ title: t.guestAuthOtpInvalid, variant: 'destructive' })
@@ -1334,6 +1318,32 @@ export function PartnerGuestChatClient({
       ...initialChatList,
     ]
   })()
+
+  useEffect(() => {
+    const otp = guestAuthOtp.replace(/\D/g, '').slice(0, 6)
+    if (otp !== guestAuthOtp) {
+      setGuestAuthOtp(otp)
+      return
+    }
+    if (!authGateRequired || authMode === 'account') return
+    if (guestAuthVerifying || guestAuthSending) return
+    if (!guestAuthEmail.trim()) return
+    if (otp.length !== 6) {
+      otpLastAutoSubmittedRef.current = ''
+      return
+    }
+    if (otpLastAutoSubmittedRef.current === otp) return
+    otpLastAutoSubmittedRef.current = otp
+    void verifyGuestOtp()
+  }, [
+    authGateRequired,
+    authMode,
+    guestAuthEmail,
+    guestAuthOtp,
+    guestAuthSending,
+    guestAuthVerifying,
+    verifyGuestOtp,
+  ])
 
   if (!authReady) {
     return (
@@ -1764,16 +1774,6 @@ export function PartnerGuestChatClient({
                         disabled={guestAuthSending || !guestAuthEmail.trim()}
                         onClick={() => void requestGuestAuthEmail()}
                       >
-                        {t.guestAuthSendMagicLink}
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-[11px]"
-                        disabled={guestAuthSending || !guestAuthEmail.trim()}
-                        onClick={() => void requestGuestAuthEmail()}
-                      >
                         {t.guestAuthSendOtp}
                       </Button>
                     </div>
@@ -1781,8 +1781,10 @@ export function PartnerGuestChatClient({
                       <input
                         type="text"
                         value={guestAuthOtp}
-                        onChange={(e) => setGuestAuthOtp(e.target.value)}
+                        onChange={(e) => setGuestAuthOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
                         placeholder={t.guestAuthOtpPlaceholder}
+                        inputMode="numeric"
+                        maxLength={6}
                         className="h-8 min-w-[150px] flex-1 rounded-md border border-border bg-background px-2 text-[12px]"
                       />
                       <Button
@@ -1790,18 +1792,13 @@ export function PartnerGuestChatClient({
                         size="sm"
                         variant="outline"
                         className="h-8 text-[11px]"
-                        disabled={guestAuthVerifying || !guestAuthEmail.trim() || !guestAuthOtp.trim()}
+                        disabled={guestAuthVerifying || !guestAuthEmail.trim() || guestAuthOtp.trim().length !== 6}
                         onClick={() => void verifyGuestOtp()}
                       >
                         {t.guestAuthVerifyOtp}
                       </Button>
                     </div>
                   </div>
-                  <Button asChild size="sm" variant="secondary" className="mt-2 h-7 text-[11px]">
-                    <a href={loginHref} target={loginOpenInNewTab ? '_blank' : '_self'} rel="noopener noreferrer">
-                      {t.signInWithGoogle}
-                    </a>
-                  </Button>
                 </div>
               ) : null}
 
