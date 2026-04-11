@@ -222,6 +222,7 @@ const MAX_TRY_ON_GARMENTS = 4
 const MESSAGING_AUTH_SYNC_EVENT_KEY = 'nanoai_messaging_auth_sync'
 const FALLBACK_SHOP_TYPING_WAIT_MS = 75_000
 const ORDER_PROFILE_STORAGE_PREFIX = 'nanoai_order_profile_v1'
+const GUEST_IMAGE_MAX_BYTES = 5 * 1024 * 1024
 
 type SelectedImage = {
   file: File | null
@@ -687,7 +688,23 @@ export function PartnerGuestChatClient({
     didInitialAutoScrollRef.current = true
   }, [messages.length, shopTyping, shopTyping?.deadline])
 
-  const addTryOnGarmentFile = (file: File | null) => {
+  const setTryOnUserFromFile = async (file: File | null) => {
+    if (!file) {
+      setTryOnUserFile(null)
+      return
+    }
+    if (!file.type.startsWith('image/')) {
+      toast({ title: t.guestImageInvalidType, variant: 'destructive' })
+      return
+    }
+    if (file.size > GUEST_IMAGE_MAX_BYTES) {
+      toast({ title: t.guestImageTooLarge, variant: 'destructive' })
+      return
+    }
+    setTryOnUserFile(file)
+  }
+
+  const addTryOnGarmentFile = async (file: File | null) => {
     if (!file) return
     if (!file.type.startsWith('image/')) {
       toast({ title: t.guestImageInvalidType, variant: 'destructive' })
@@ -698,6 +715,10 @@ export function PartnerGuestChatClient({
         title: t.tryOnGarmentLimitReached.replace('{max}', String(MAX_TRY_ON_GARMENTS)),
         variant: 'destructive',
       })
+      return
+    }
+    if (file.size > GUEST_IMAGE_MAX_BYTES) {
+      toast({ title: t.guestImageTooLarge, variant: 'destructive' })
       return
     }
     const previewUrl = URL.createObjectURL(file)
@@ -1163,6 +1184,11 @@ export function PartnerGuestChatClient({
     }
     setUploading(true)
     try {
+      if (file.size > GUEST_IMAGE_MAX_BYTES) {
+        toast({ title: t.guestImageTooLarge, variant: 'destructive' })
+        clearAttachment()
+        return
+      }
       const fd = new FormData()
       fd.set('file', file)
       const res = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}/image`, {
@@ -1184,7 +1210,10 @@ export function PartnerGuestChatClient({
         return
       }
       if (!res.ok || !data.path) {
-        toast({ title: data.error || t.sendError, variant: 'destructive' })
+        const msg = data.error || t.sendError
+        if (/large|too large|lớn/i.test(msg)) toast({ title: t.guestImageTooLarge, variant: 'destructive' })
+        else if (/type|unsupported|hỗ trợ/i.test(msg)) toast({ title: t.guestImageInvalidType, variant: 'destructive' })
+        else toast({ title: msg, variant: 'destructive' })
         clearAttachment()
         return
       }
@@ -2244,7 +2273,9 @@ export function PartnerGuestChatClient({
                     type="file"
                     accept="image/jpeg,image/png,image/webp"
                     className="hidden"
-                    onChange={(e) => setTryOnUserFile(e.target.files?.[0] ?? null)}
+                    onChange={(e) => {
+                      void setTryOnUserFromFile(e.target.files?.[0] ?? null)
+                    }}
                   />
                   <input
                     ref={tryOnGarmentInputRef}
@@ -2252,7 +2283,7 @@ export function PartnerGuestChatClient({
                     accept="image/jpeg,image/png,image/webp"
                     className="hidden"
                     onChange={(e) => {
-                      addTryOnGarmentFile(e.target.files?.[0] ?? null)
+                      void addTryOnGarmentFile(e.target.files?.[0] ?? null)
                       if (tryOnGarmentInputRef.current) tryOnGarmentInputRef.current.value = ''
                     }}
                   />

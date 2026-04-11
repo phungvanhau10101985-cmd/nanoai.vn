@@ -1,7 +1,7 @@
 import type { Json } from '@/types/database.types'
 import { tryOnObjectExistsByPath, uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 
-export const GUEST_CHAT_IMAGE_MAX_BYTES = 3 * 1024 * 1024
+export const GUEST_CHAT_IMAGE_MAX_BYTES = 5 * 1024 * 1024
 
 export const GUEST_CHAT_IMAGE_BUCKET = 'try-on-images'
 
