@@ -35,9 +35,6 @@ export type CheckoutFormInput = {
   size: string
   quantity: number
   note: string
-  depositMode?: 'none' | 'percent' | 'fixed_amount'
-  depositPercent?: number
-  depositAmount?: number
 }
 
 export type RelatedBuyProduct = {
@@ -361,14 +358,10 @@ export async function completeOrderCheckout(input: {
   const paymentReference = stablePaymentRef(oldOrder.id)
   const qty = Math.max(1, Math.floor(input.form.quantity || 1))
   const subtotal = Math.max(0, oldOrder.unit_price) * qty
-  const mode = input.form.depositMode === 'none' || input.form.depositMode === 'fixed_amount' || input.form.depositMode === 'percent'
-    ? input.form.depositMode
-    : (settings.default_deposit_mode ?? 'percent')
-  const percent =
-    input.form.depositMode === 'percent'
-      ? clampPercent(input.form.depositPercent ?? settings.default_deposit_percent ?? 30, 30)
-      : clampPercent(settings.default_deposit_percent ?? 30, 30)
-  const fixedAmount = normalizeMoney(input.form.depositAmount ?? settings.default_deposit_amount ?? 0)
+  // Deposit is controlled entirely by shop settings; customer cannot override.
+  const mode = settings.default_deposit_mode ?? 'percent'
+  const percent = clampPercent(settings.default_deposit_percent ?? 30, 30)
+  const fixedAmount = normalizeMoney(settings.default_deposit_amount ?? 0)
   const calc = resolveRequiredAmountByDepositRule({
     subtotal,
     mode,

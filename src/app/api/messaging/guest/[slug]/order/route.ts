@@ -149,9 +149,6 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
       size?: string
       quantity?: number
       note?: string
-      depositMode?: 'none' | 'percent' | 'fixed_amount'
-      depositPercent?: number
-      depositAmount?: number
     }
   } | null
   const orderId = String(body?.orderId ?? '').trim()
@@ -172,12 +169,6 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
       size: String(f.size ?? '').trim(),
       quantity: Math.max(1, Math.floor(Number(f.quantity) || 1)),
       note: String(f.note ?? '').trim(),
-      depositMode:
-        f.depositMode === 'none' || f.depositMode === 'fixed_amount' || f.depositMode === 'percent'
-          ? f.depositMode
-          : undefined,
-      depositPercent: Math.max(0, Math.min(100, Math.round(Number(f.depositPercent) || 0))),
-      depositAmount: Math.max(0, Math.round(Number(f.depositAmount) || 0)),
     },
   })
   if ('error' in done) return NextResponse.json({ error: done.error }, { status: 400 })

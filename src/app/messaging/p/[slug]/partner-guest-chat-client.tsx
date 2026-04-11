@@ -214,6 +214,7 @@ const TRY_ON_COST_2K = 1
 const MAX_TRY_ON_GARMENTS = 4
 const MESSAGING_AUTH_SYNC_EVENT_KEY = 'nanoai_messaging_auth_sync'
 const FALLBACK_SHOP_TYPING_WAIT_MS = 75_000
+const ORDER_PROFILE_STORAGE_PREFIX = 'nanoai_order_profile_v1'
 
 type SelectedImage = {
   file: File | null
@@ -229,6 +230,12 @@ type ChatRailItem = {
   slug: string
   lastMessageAt: string | null
   lastMessagePreview: string | null
+}
+
+type OrderProfileDraft = {
+  customerName: string
+  customerPhone: string
+  shippingAddress: string
 }
 
 function formatCredits(value: number) {
@@ -285,9 +292,6 @@ export function PartnerGuestChatClient({
   const [orderSize, setOrderSize] = useState('')
   const [orderQuantity, setOrderQuantity] = useState('1')
   const [orderNote, setOrderNote] = useState('')
-  const [orderDepositMode, setOrderDepositMode] = useState<'default' | 'none' | 'percent' | 'fixed_amount'>('default')
-  const [orderDepositPercent, setOrderDepositPercent] = useState('30')
-  const [orderDepositAmount, setOrderDepositAmount] = useState('')
   const [proofOrderId, setProofOrderId] = useState<string | null>(null)
   const [tryOnUserFile, setTryOnUserFile] = useState<File | null>(null)
   const [tryOnGarmentFiles, setTryOnGarmentFiles] = useState<SelectedImage[]>([])
@@ -384,6 +388,43 @@ export function PartnerGuestChatClient({
       window.localStorage.setItem(MESSAGING_GUEST_ACCOUNT_STORAGE_KEY_LEGACY, aid)
     }
   }, [])
+
+  const orderProfileStorageKey = useMemo(() => {
+    const account = guestAccountIdRef.current?.trim()
+    return `${ORDER_PROFILE_STORAGE_PREFIX}:${slug}:${account || 'anonymous'}`
+  }, [slug])
+
+  const readLocalOrderProfile = useCallback((): OrderProfileDraft | null => {
+    if (typeof window === 'undefined') return null
+    try {
+      const raw = window.localStorage.getItem(orderProfileStorageKey)
+      if (!raw) return null
+      const obj = JSON.parse(raw) as Partial<OrderProfileDraft>
+      return {
+        customerName: String(obj.customerName ?? '').trim(),
+        customerPhone: String(obj.customerPhone ?? '').trim(),
+        shippingAddress: String(obj.shippingAddress ?? '').trim(),
+      }
+    } catch {
+      return null
+    }
+  }, [orderProfileStorageKey])
+
+  const saveLocalOrderProfile = useCallback((draft: OrderProfileDraft) => {
+    if (typeof window === 'undefined') return
+    try {
+      window.localStorage.setItem(
+        orderProfileStorageKey,
+        JSON.stringify({
+          customerName: draft.customerName.trim(),
+          customerPhone: draft.customerPhone.trim(),
+          shippingAddress: draft.shippingAddress.trim(),
+        } satisfies OrderProfileDraft)
+      )
+    } catch {
+      // ignore localStorage errors
+    }
+  }, [orderProfileStorageKey])
 
   useEffect(() => {
     let cancelled = false
@@ -732,6 +773,7 @@ export function PartnerGuestChatClient({
           body: JSON.stringify({ productCard: card }),
         })
         captureGuestSessionFromResponse(res)
+        captureGuestAccountFromResponse(res)
         const data = (await res.json().catch(() => null)) as
           | { ok?: boolean; error?: string; order?: { id?: string } }
           | null
@@ -756,6 +798,7 @@ export function PartnerGuestChatClient({
           body: JSON.stringify({ action: 'product_options', productUrl: x.product_url }),
         })
         captureGuestSessionFromResponse(detailRes)
+        captureGuestAccountFromResponse(detailRes)
         const detail = (await detailRes.json().catch(() => null)) as
           | {
               ok?: boolean
@@ -763,20 +806,19 @@ export function PartnerGuestChatClient({
               profile?: { customerName?: string; customerPhone?: string; shippingAddress?: string } | null
             }
           | null
-        if (detail?.profile) {
-          setOrderName(String(detail.profile.customerName ?? ''))
-          setOrderPhone(String(detail.profile.customerPhone ?? ''))
-          setOrderAddress(String(detail.profile.shippingAddress ?? ''))
-        }
+        const localProfile = readLocalOrderProfile()
+        const profileName = String(detail?.profile?.customerName ?? '').trim() || localProfile?.customerName || ''
+        const profilePhone = String(detail?.profile?.customerPhone ?? '').trim() || localProfile?.customerPhone || ''
+        const profileAddress = String(detail?.profile?.shippingAddress ?? '').trim() || localProfile?.shippingAddress || ''
+        setOrderName(profileName)
+        setOrderPhone(profilePhone)
+        setOrderAddress(profileAddress)
         setActiveOrderCard(card)
         setActivePurchaseOptions(detail?.options ?? null)
         setOrderColor('')
         setOrderSize('')
         setOrderQuantity('1')
         setOrderNote('')
-        setOrderDepositMode('default')
-        setOrderDepositPercent('30')
-        setOrderDepositAmount('')
         setActiveOrderId(oid)
         setOrderFormOpen(true)
         setBuyOptionsOpen(false)
@@ -787,7 +829,17 @@ export function PartnerGuestChatClient({
         setOrderFormBusy(false)
       }
     },
-    [authHeaders, captureGuestSessionFromResponse, load, promptLoginForPurchase, slug, toCardFromBuyOption, toast]
+    [
+      authHeaders,
+      captureGuestAccountFromResponse,
+      captureGuestSessionFromResponse,
+      load,
+      promptLoginForPurchase,
+      readLocalOrderProfile,
+      slug,
+      toCardFromBuyOption,
+      toast,
+    ]
   )
 
   const maybeOpenBuyOptionsFromInbound = useCallback(async () => {
@@ -921,16 +973,11 @@ export function PartnerGuestChatClient({
             size: orderSize,
             quantity: Math.max(1, parseInt(orderQuantity || '1', 10) || 1),
             note: orderNote,
-            depositMode:
-              orderDepositMode === 'none' || orderDepositMode === 'percent' || orderDepositMode === 'fixed_amount'
-                ? orderDepositMode
-                : undefined,
-            depositPercent: Math.max(0, Math.min(100, Math.round(Number(orderDepositPercent) || 0))),
-            depositAmount: Math.max(0, Math.round(Number(orderDepositAmount) || 0)),
           },
         }),
       })
       captureGuestSessionFromResponse(res)
+      captureGuestAccountFromResponse(res)
       const data = (await res.json()) as {
         ok?: boolean
         error?: string
@@ -945,6 +992,11 @@ export function PartnerGuestChatClient({
         toast({ title: data.error || 'Khong cap nhat duoc don.', variant: 'destructive' })
         return
       }
+      saveLocalOrderProfile({
+        customerName: orderName,
+        customerPhone: orderPhone,
+        shippingAddress: orderAddress,
+      })
       setOrderFormOpen(false)
       const requiredAmount = Math.max(0, Math.round(Number(data.order?.required_amount) || 0))
       if (requiredAmount > 0) {
@@ -1445,34 +1497,14 @@ export function PartnerGuestChatClient({
     const qty = Math.max(1, Math.min(99, Math.floor(Number(orderQuantity) || 1)))
     const unit = parseVndFromHint(activePurchaseOptions?.price_hint || activeOrderCard?.price_hint)
     const subtotal = Math.max(0, unit * qty)
-    const percent = Math.max(0, Math.min(100, Math.round(Number(orderDepositPercent) || 0)))
-    const fixed = Math.max(0, Math.round(Number(orderDepositAmount) || 0))
-    if (orderDepositMode === 'none') {
-      return { qty, subtotal, required: 0, text: 'Khong dat coc (0đ)', canCompute: subtotal > 0 }
-    }
-    if (orderDepositMode === 'percent') {
-      const required = Math.ceil((subtotal * percent) / 100)
-      return { qty, subtotal, required, text: `Dat coc ${percent}%`, canCompute: subtotal > 0 }
-    }
-    if (orderDepositMode === 'fixed_amount') {
-      const fallback20 = fixed > subtotal && subtotal > 0
-      const required = fallback20 ? Math.ceil(subtotal * 0.2) : fixed
-      return {
-        qty,
-        subtotal,
-        required,
-        text: fallback20 ? 'Tien dat coc vuot tong don, fallback 20%' : `Dat coc ${new Intl.NumberFormat('vi-VN').format(fixed)}đ`,
-        canCompute: subtotal > 0,
-      }
-    }
     return {
       qty,
       subtotal,
       required: 0,
-      text: 'Theo cai dat mac dinh cua shop',
+      text: 'Tien dat coc se duoc ap dung theo cai dat cua shop',
       canCompute: subtotal > 0,
     }
-  }, [activeOrderCard?.price_hint, activePurchaseOptions?.price_hint, orderDepositAmount, orderDepositMode, orderDepositPercent, orderQuantity])
+  }, [activeOrderCard?.price_hint, activePurchaseOptions?.price_hint, orderQuantity])
 
   if (!authReady) {
     return (
@@ -1811,43 +1843,9 @@ export function PartnerGuestChatClient({
                       value={orderQuantity}
                       onChange={(e) => setOrderQuantity(e.target.value)}
                     />
-                    <select
-                      className="h-8 rounded-md border border-border bg-background px-2 text-[12px]"
-                      value={orderDepositMode}
-                      onChange={(e) =>
-                        setOrderDepositMode(
-                          e.target.value === 'none' || e.target.value === 'percent' || e.target.value === 'fixed_amount'
-                            ? e.target.value
-                            : 'default'
-                        )
-                      }
-                    >
-                      <option value="default">Theo cai dat cua shop</option>
-                      <option value="none">Khong dat coc</option>
-                      <option value="percent">Dat coc theo %</option>
-                      <option value="fixed_amount">Dat coc so tien tuy y</option>
-                    </select>
-                    {orderDepositMode === 'percent' ? (
-                      <input
-                        type="text"
-                        className="h-8 rounded-md border border-border bg-background px-2 text-[12px]"
-                        placeholder="% dat coc (0-100)"
-                        value={orderDepositPercent}
-                        onChange={(e) => setOrderDepositPercent(e.target.value.replace(/[^\d]/g, '').slice(0, 3))}
-                      />
-                    ) : null}
-                    {orderDepositMode === 'fixed_amount' ? (
-                      <input
-                        type="text"
-                        className="h-8 rounded-md border border-border bg-background px-2 text-[12px]"
-                        placeholder="So tien dat coc (VND)"
-                        value={orderDepositAmount}
-                        onChange={(e) => setOrderDepositAmount(e.target.value.replace(/[^\d]/g, '').slice(0, 12))}
-                      />
-                    ) : null}
                   </div>
                   <p className="text-[11px] text-muted-foreground">
-                    Luu y: Neu tien dat coc lon hon tong tien don, he thong se tu dong fallback ve 20% gia tri don.
+                    Tien dat coc duoc tinh tu dong theo cai dat cua shop.
                   </p>
                   <div className="rounded-md border border-violet-200 bg-violet-50/70 px-2 py-1.5 text-[11px] text-violet-900">
                     <p>
@@ -1857,7 +1855,6 @@ export function PartnerGuestChatClient({
                     </p>
                     <p className="text-[10px] text-violet-800">
                       Che do: {orderPreview.text}
-                      {orderDepositMode === 'default' ? ' (se ap dung theo cai dat shop khi tao don).' : ''}
                       {!orderPreview.canCompute ? ' (chua xac dinh duoc gia san pham de tam tinh).' : ''}
                     </p>
                   </div>
