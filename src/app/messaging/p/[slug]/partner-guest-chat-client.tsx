@@ -14,6 +14,8 @@ import type { Json } from '@/types/database.types'
 import { Camera, ImagePlus, Loader2, MessageSquareText, Send, Sparkles, Store, X } from 'lucide-react'
 import { aiProductCardsFromPayload } from '@/lib/messaging/partner-ai-product-cards'
 import type { PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-cards'
+import { buildSePayQrImgUrl } from '@/lib/sepay-qr'
+import { CREDIT_UNIT_PRICE_VND } from '@/lib/credit-unit-price'
 import {
   MESSAGING_GUEST_SESSION_STORAGE_KEY,
   MESSAGING_GUEST_SESSION_STORAGE_KEY_LEGACY,
@@ -243,6 +245,24 @@ type OrderProfileDraft = {
   shippingAddress: string
 }
 
+type TopUpPaymentConfig = {
+  id: string
+  bank_account: string
+  bank_id: string
+  bank_name: string
+  qr_template_url?: string
+}
+
+type TopUpPayment = {
+  id: string
+  amount: number
+  credits_added: number
+  qr_url: string
+  transaction_content?: string
+  bank_account?: string
+  bank_name?: string
+}
+
 function formatCredits(value: number) {
   return Number.isInteger(value) ? String(value) : value.toFixed(1)
 }
@@ -281,6 +301,12 @@ export function PartnerGuestChatClient({
   const [tryOnBusy, setTryOnBusy] = useState(false)
   const [tryOnCreditsBalance, setTryOnCreditsBalance] = useState<number | null>(null)
   const [tryOnCreditsLoading, setTryOnCreditsLoading] = useState(false)
+  const [topUpOpen, setTopUpOpen] = useState(false)
+  const [topUpLoading, setTopUpLoading] = useState(false)
+  const [topUpAmount, setTopUpAmount] = useState(String(CREDIT_UNIT_PRICE_VND))
+  const [topUpConfigs, setTopUpConfigs] = useState<TopUpPaymentConfig[]>([])
+  const [topUpSelectedBank, setTopUpSelectedBank] = useState('')
+  const [topUpPayment, setTopUpPayment] = useState<TopUpPayment | null>(null)
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null)
   const [orderFormOpen, setOrderFormOpen] = useState(false)
   const [orderFormBusy, setOrderFormBusy] = useState(false)
@@ -316,6 +342,7 @@ export function PartnerGuestChatClient({
   const draftTextareaRef = useRef<HTMLTextAreaElement>(null)
   const guestSessionIdRef = useRef<string | null>(null)
   const guestAccountIdRef = useRef<string | null>(null)
+  const consultedProductUrlsRef = useRef<Set<string>>(new Set())
 
   const recentSuggestedGarmentImages = useMemo(() => {
     const out: Array<{ name: string; imageUrl: string }> = []
@@ -525,9 +552,12 @@ export function PartnerGuestChatClient({
       if (uid) {
         setAuthGateRequired(false)
         setAuthMode('account')
+      } else {
+        setTryOnCreditsBalance(null)
       }
     } catch {
       setUserId(null)
+      setTryOnCreditsBalance(null)
     } finally {
       void load()
     }
@@ -953,7 +983,16 @@ export function PartnerGuestChatClient({
     const latestInboundText = [...messages].reverse().find((m) => m.direction === 'inbound')?.body ?? ''
     const intent = classifyOrderIntent(latestInboundText)
     const label = card.name?.trim() || 'mau san pham'
+    const productUrl = card.product_url.trim()
+    const productKey = productUrl.toLowerCase()
     if (intent !== 'purchase') {
+      if (productUrl && consultedProductUrlsRef.current.has(productKey)) {
+        if (typeof window !== 'undefined') {
+          const opened = window.open(productUrl, '_blank', 'noopener,noreferrer')
+          if (!opened) window.location.href = productUrl
+        }
+        return
+      }
       setBuyOptionsOpen(false)
       const ask =
         intent === 'shipping_policy'
@@ -984,6 +1023,7 @@ export function PartnerGuestChatClient({
           toast({ title: data?.error || t.sendError, variant: 'destructive' })
           return
         }
+        if (productUrl) consultedProductUrlsRef.current.add(productKey)
         await load()
       } catch {
         toast({ title: t.sendError, variant: 'destructive' })
@@ -1307,6 +1347,14 @@ export function PartnerGuestChatClient({
   }, [userId])
 
   useEffect(() => {
+    if (!userId) {
+      setTryOnCreditsBalance(null)
+      return
+    }
+    void loadTryOnCreditsBalance()
+  }, [userId, loadTryOnCreditsBalance])
+
+  useEffect(() => {
     if (!tryOnOpen) return
     if (!userId) {
       setTryOnCreditsBalance(null)
@@ -1314,6 +1362,100 @@ export function PartnerGuestChatClient({
     }
     void loadTryOnCreditsBalance()
   }, [tryOnOpen, userId, loadTryOnCreditsBalance])
+
+  const buildTransferContent = useCallback(() => {
+    const suffix = `${Date.now().toString().slice(-6)}${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`
+    return `SEVQR DH${suffix}`
+  }, [])
+
+  const openTopUpPopup = useCallback(async () => {
+    if (!userId) {
+      setAuthGateRequired(true)
+      setAuthMode('anonymous')
+      toast({
+        title: 'Vui lòng đăng nhập Gmail để nạp credit.',
+        variant: 'destructive',
+      })
+      return
+    }
+    setTopUpOpen(true)
+    setTopUpPayment(null)
+    try {
+      const res = await fetch('/api/payment-configs', { credentials: 'same-origin', cache: 'no-store' })
+      const data = (await res.json().catch(() => null)) as { configs?: TopUpPaymentConfig[]; error?: string } | null
+      if (!res.ok || !data?.configs) {
+        toast({ title: data?.error || 'Không tải được cấu hình nạp tiền.', variant: 'destructive' })
+        return
+      }
+      const configs = data.configs
+      setTopUpConfigs(configs)
+      setTopUpSelectedBank((prev) => (prev && configs.some((c) => c.id === prev) ? prev : configs[0]?.id ?? ''))
+      void loadTryOnCreditsBalance()
+    } catch {
+      toast({ title: 'Không tải được cấu hình nạp tiền.', variant: 'destructive' })
+    }
+  }, [loadTryOnCreditsBalance, toast, userId])
+
+  const createTopUpPayment = useCallback(async () => {
+    if (!userId) {
+      setAuthGateRequired(true)
+      setAuthMode('anonymous')
+      toast({ title: 'Vui lòng đăng nhập Gmail để nạp credit.', variant: 'destructive' })
+      return
+    }
+    const amount = Math.max(1000, Math.round(Number(topUpAmount) || 0))
+    const cfg = topUpConfigs.find((x) => x.id === topUpSelectedBank)
+    if (!cfg) {
+      toast({ title: 'Vui lòng chọn ngân hàng nhận tiền.', variant: 'destructive' })
+      return
+    }
+    const creditsToAdd = Math.floor(amount / CREDIT_UNIT_PRICE_VND)
+    if (creditsToAdd < 1) {
+      toast({ title: 'Số tiền nạp chưa đủ để quy đổi credit.', variant: 'destructive' })
+      return
+    }
+    const content = buildTransferContent()
+    const qrUrl = buildSePayQrImgUrl({
+      acc: cfg.bank_account,
+      bank: cfg.bank_id,
+      amount,
+      des: content,
+    })
+    setTopUpLoading(true)
+    try {
+      const res = await fetch('/api/account/payments', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount,
+          credits_added: creditsToAdd,
+          transaction_content: content,
+          bank_account: cfg.bank_account,
+          bank_name: cfg.bank_name,
+          qr_url: qrUrl,
+        }),
+      })
+      const data = (await res.json().catch(() => null)) as { payment?: TopUpPayment; error?: string } | null
+      if (res.status === 401) {
+        setAuthGateRequired(true)
+        setAuthMode('anonymous')
+        toast({ title: 'Vui lòng đăng nhập Gmail để nạp credit.', variant: 'destructive' })
+        return
+      }
+      if (!res.ok || !data?.payment) {
+        toast({ title: data?.error || 'Không tạo được yêu cầu nạp tiền.', variant: 'destructive' })
+        return
+      }
+      setTopUpPayment(data.payment)
+      toast({ title: 'Đã tạo mã QR nạp credit.' })
+      void loadTryOnCreditsBalance()
+    } catch {
+      toast({ title: 'Không tạo được yêu cầu nạp tiền.', variant: 'destructive' })
+    } finally {
+      setTopUpLoading(false)
+    }
+  }, [buildTransferContent, loadTryOnCreditsBalance, toast, topUpAmount, topUpConfigs, topUpSelectedBank, userId])
 
   const send = async () => {
     const text = draft.trim()
@@ -1401,6 +1543,7 @@ export function PartnerGuestChatClient({
       if (data.authMode === 'account') {
         setAuthMode('account')
         setAuthGateRequired(false)
+        void refreshAuthAndReload()
       }
       // For image-first flow waiting for customer product selection, do not show "shop is typing" yet.
       if (data.visionPickRequired === true) {
@@ -2277,13 +2420,88 @@ export function PartnerGuestChatClient({
                               : '--')
                         )}
                       </span>
-                      <Button asChild type="button" size="sm" variant="outline" className="h-7 px-2 text-[10px] sm:text-[11px]">
-                        <a href="/dashboard/deposit" target="_blank" rel="noopener noreferrer">
-                          {t.tryOnTopUpCredits}
-                        </a>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-7 px-2 text-[10px] sm:text-[11px]"
+                        onClick={() => void openTopUpPopup()}
+                      >
+                        {t.tryOnTopUpCredits}
                       </Button>
                     </div>
                   </div>
+                </div>
+              ) : null}
+
+              {topUpOpen ? (
+                <div className="space-y-2 rounded-lg border border-border/70 bg-muted/20 p-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-xs font-medium text-foreground">Nạp credit</p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-6 w-6 p-0"
+                      onClick={() => setTopUpOpen(false)}
+                      aria-label="Đóng"
+                      title="Đóng"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <input
+                      type="text"
+                      className="h-8 rounded-md border border-border bg-background px-2 text-[12px]"
+                      value={topUpAmount}
+                      onChange={(e) => setTopUpAmount(e.target.value.replace(/[^\d]/g, '').slice(0, 9))}
+                      placeholder="Số tiền nạp (VND)"
+                    />
+                    <select
+                      className="h-8 rounded-md border border-border bg-background px-2 text-[12px]"
+                      value={topUpSelectedBank}
+                      onChange={(e) => setTopUpSelectedBank(e.target.value)}
+                    >
+                      <option value="">Chọn ngân hàng</option>
+                      {topUpConfigs.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.bank_name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={topUpLoading || !topUpSelectedBank || !topUpAmount.trim()}
+                    onClick={() => void createTopUpPayment()}
+                  >
+                    {topUpLoading ? 'Đang tạo mã QR...' : 'Tạo mã QR nạp tiền'}
+                  </Button>
+                  {topUpPayment ? (
+                    <div className="rounded-md border border-border/70 bg-background p-2">
+                      <p className="text-[11px] text-muted-foreground">
+                        Nạp {new Intl.NumberFormat('vi-VN').format(topUpPayment.amount)}đ
+                        {' '}~ {Math.max(1, Math.floor(topUpPayment.amount / CREDIT_UNIT_PRICE_VND))} credit
+                      </p>
+                      <p className="mt-1 text-[11px] text-foreground">
+                        Nội dung chuyển khoản: <span className="font-medium">{topUpPayment.transaction_content || '-'}</span>
+                      </p>
+                      {topUpPayment.qr_url ? (
+                        <div className="mt-2 flex justify-center">
+                          <Image
+                            src={topUpPayment.qr_url}
+                            alt="QR nạp credit"
+                            width={180}
+                            height={180}
+                            unoptimized
+                            className="h-[180px] w-[180px] rounded-md border border-border/70 bg-white object-contain"
+                          />
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
 
