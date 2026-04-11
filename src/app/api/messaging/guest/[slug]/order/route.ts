@@ -3,6 +3,7 @@ import { getEmailSessionUser } from '@/lib/auth/email-session-user'
 import { resolveActiveMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
 import { readGuestSessionIdFromRequest } from '@/lib/messaging/guest-auth-session'
 import { readGuestAccountIdFromRequest } from '@/lib/messaging/guest-account-session'
+import { fetchGuestAccountEmailByIdPg } from '@/lib/db/messaging-guest-pg'
 import type { PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-cards'
 import {
   completeOrderCheckout,
@@ -78,7 +79,14 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     return NextResponse.json({ ok: true, products: related })
   }
   const loginUser = await getEmailSessionUser()
-  if (!loginUser?.id) {
+  const accountEmail = thread.guestAccountId
+    ? await fetchGuestAccountEmailByIdPg(partner.partnerId, thread.guestAccountId)
+    : null
+  const sessionEmailNormalized =
+    loginUser?.email?.trim().toLowerCase()
+    || accountEmail?.emailNormalized
+    || ''
+  if (!loginUser?.id && !thread.guestAccountId) {
     return NextResponse.json(
       { error: 'AUTH_REQUIRED_PURCHASE_LOGIN', requireAuth: true },
       { status: 401 }
@@ -91,13 +99,12 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
       partnerId: partner.partnerId,
       productUrl,
     })
-    const profile =
-      loginUser?.email?.trim()
-        ? await getCustomerDeliveryProfile({
-            partnerId: partner.partnerId,
-            emailNormalized: loginUser.email.trim().toLowerCase(),
-          })
-        : null
+    const profile = sessionEmailNormalized
+      ? await getCustomerDeliveryProfile({
+          partnerId: partner.partnerId,
+          emailNormalized: sessionEmailNormalized,
+        })
+      : null
     return NextResponse.json({ ok: true, options, profile })
   }
   const card = asCard(body?.productCard ?? null)
@@ -105,7 +112,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
   const created = await createOrderDraftFromProductPick({
     partnerId: partner.partnerId,
     externalThreadId: thread.externalThreadId,
-    customerName: guestName(loginUser?.email ?? null),
+    customerName: guestName(sessionEmailNormalized || null),
     linkedUserId: thread.linkedUserId,
     guestAccountId: thread.guestAccountId,
     card,
@@ -119,14 +126,18 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
   const partner = await resolvePartner(slug)
   if ('error' in partner) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   const loginUser = await getEmailSessionUser()
-  if (!loginUser?.id) {
+  const thread = await resolveThread(request)
+  if (!thread) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const accountEmail = thread.guestAccountId
+    ? await fetchGuestAccountEmailByIdPg(partner.partnerId, thread.guestAccountId)
+    : null
+  const sessionEmail = loginUser?.email?.trim().toLowerCase() || accountEmail?.emailNormalized || ''
+  if (!sessionEmail) {
     return NextResponse.json(
       { error: 'AUTH_REQUIRED_PURCHASE_LOGIN', requireAuth: true },
       { status: 401 }
     )
   }
-  const thread = await resolveThread(request)
-  if (!thread) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = (await request.json().catch(() => null)) as {
     orderId?: string
@@ -144,7 +155,6 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
   const orderId = String(body?.orderId ?? '').trim()
   if (!orderId) return NextResponse.json({ error: 'Missing orderId.' }, { status: 400 })
   const f = body?.form ?? {}
-  const sessionEmail = String(loginUser?.email ?? '').trim().toLowerCase()
   const done = await completeOrderCheckout({
     partnerId: partner.partnerId,
     externalThreadId: thread.externalThreadId,

@@ -650,6 +650,7 @@ export function PartnerGuestChatClient({
       if (!res.ok) {
         if (data.requireAuth) {
           setAuthGateRequired(true)
+          setAuthMode('anonymous')
           toast({
             title: t.guestAuthRequiredAfterLimit.replace('{count}', '5'),
             variant: 'destructive',
@@ -658,13 +659,19 @@ export function PartnerGuestChatClient({
         }
         if (data.error?.startsWith('AUTH_REQUIRED_')) {
           setAuthGateRequired(true)
+          setAuthMode('anonymous')
           toast({
             title: t.guestAuthRequiredAfterLimit.replace('{count}', '5'),
             variant: 'destructive',
           })
           return
         }
-        toast({ title: data.error || t.visionPickError, variant: 'destructive' })
+        toast({
+          title: data.error?.startsWith('AUTH_REQUIRED_')
+            ? t.guestAuthRequiredAfterLimit.replace('{count}', '5')
+            : data.error || t.visionPickError,
+          variant: 'destructive',
+        })
         return
       }
       const waitMs =

@@ -15,6 +15,25 @@ export async function findGuestAccountIdByEmailPg(
   return row?.id ?? null
 }
 
+export async function fetchGuestAccountEmailByIdPg(
+  partnerId: string,
+  guestAccountId: string
+): Promise<{ emailNormalized: string; emailRaw: string } | null> {
+  if (!isPgConfigured()) return null
+  const row = await pgQueryOne<{ email_normalized: string; email_raw: string }>(
+    `select email_normalized, email_raw
+     from public.messaging_guest_accounts
+     where partner_id = $1::uuid and id = $2::uuid
+     limit 1`,
+    [partnerId, guestAccountId]
+  )
+  if (!row) return null
+  return {
+    emailNormalized: String(row.email_normalized ?? '').trim().toLowerCase(),
+    emailRaw: String(row.email_raw ?? '').trim(),
+  }
+}
+
 export async function listGuestChallengeSessionIdsByEmailPg(
   partnerId: string,
   emailNormalized: string,
