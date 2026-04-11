@@ -21,6 +21,8 @@ import {
 } from '@/lib/db/messaging-guest-pg'
 import { pgQuery } from '@/lib/db/pg-query'
 import { isPgConfigured } from '@/lib/db/pool'
+import { EMAIL_SESSION_COOKIE, EMAIL_SESSION_COOKIE_LEGACY } from '@/lib/auth/email-auth-config'
+import { createEmailSessionTokenString, getEmailSessionCookieOptions } from '@/lib/auth/email-session-token'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -170,5 +172,22 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
   const redirectUrl = new URL(`${guestChatUrl}?auth=ok`)
   const res = NextResponse.redirect(redirectUrl)
   writeGuestAccountCookie(res, request, accountId)
+  try {
+    const ensured = await pgQuery<{ id: string }>(
+      `select (public.nanoai_ensure_user_by_email($1::text))::text as id`,
+      [email]
+    )
+    const authUserIdForEmail = String(ensured[0]?.id || '').trim()
+    if (authUserIdForEmail) {
+      const token = await createEmailSessionTokenString(authUserIdForEmail, email)
+      if (token) {
+        const opts = getEmailSessionCookieOptions()
+        res.cookies.set(EMAIL_SESSION_COOKIE, token, opts)
+        res.cookies.set(EMAIL_SESSION_COOKIE_LEGACY, token, opts)
+      }
+    }
+  } catch (e) {
+    console.warn('[verify-magic] setEmailSessionCookie skipped', e)
+  }
   return res
 }

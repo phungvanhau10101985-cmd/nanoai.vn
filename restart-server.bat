@@ -5,7 +5,7 @@ echo   RESET - Dừng hết, xoa cache, khoi dong lai
 echo ========================================
 echo.
 
-echo [1/6] Dung npm run dev + tat ca Node.js, tsx, ngrok...
+echo [1/7] Dung npm run dev + tat ca Node.js, tsx, ngrok...
 taskkill /F /FI "WINDOWTITLE eq Next.js Dev Server*" 2>nul
 taskkill /F /FI "WINDOWTITLE eq Worksheet Worker*" 2>nul
 taskkill /F /FI "WINDOWTITLE eq ngrok*" 2>nul
@@ -20,7 +20,7 @@ echo       Da dung
 timeout /t 2 /nobreak >nul
 echo.
 
-echo [2/6] Xoa .next cache...
+echo [2/7] Xoa .next cache...
 if exist ".next" (
     rmdir /s /q ".next"
     echo       .next da xoa
@@ -29,7 +29,7 @@ if exist ".next" (
 )
 echo.
 
-echo [3/6] Xoa node_modules\.cache...
+echo [3/7] Xoa node_modules\.cache...
 if exist "node_modules\.cache" (
     rmdir /s /q "node_modules\.cache"
     echo       Cache da xoa
@@ -38,7 +38,7 @@ if exist "node_modules\.cache" (
 )
 echo.
 
-echo [4/6] Xoa .turbo cache (neu co)...
+echo [4/7] Xoa .turbo cache (neu co)...
 if exist ".turbo" (
     rmdir /s /q ".turbo"
     echo       .turbo da xoa
@@ -47,7 +47,16 @@ if exist ".turbo" (
 )
 echo.
 
-echo [5/6] Chay lai npm run dev + Worksheet Worker...
+echo [5/7] Chay migration DB (them/sua bang)...
+call npm run db:migrate:push
+if errorlevel 1 (
+    echo       [CANH BAO] Migration co loi. Van tiep tuc khoi dong server.
+) else (
+    echo       Migration hoan tat.
+)
+echo.
+
+echo [6/7] Chay lai npm run dev + Worksheet Worker...
 start "Next.js Dev Server" cmd /k "cd /d "%~dp0" && set NODE_OPTIONS=--max-old-space-size=4096 && npm run dev"
 echo       Next.js dang khoi dong...
 timeout /t 3 /nobreak >nul
@@ -56,7 +65,7 @@ echo       Worker dang khoi dong...
 timeout /t 5 /nobreak >nul
 echo.
 
-echo [6/6] Khoi dong ngrok (port 3000)...
+echo [7/7] Khoi dong ngrok (port 3000)...
 start "ngrok" cmd /k "cd /d "%~dp0" && ngrok http 3000"
 echo.
 echo ========================================

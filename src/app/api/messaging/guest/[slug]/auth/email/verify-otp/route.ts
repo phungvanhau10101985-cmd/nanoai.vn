@@ -21,7 +21,8 @@ import {
 } from '@/lib/db/messaging-guest-pg'
 import { pgQuery } from '@/lib/db/pg-query'
 import { isPgConfigured } from '@/lib/db/pool'
-import { setEmailSessionCookie } from '@/lib/auth/email-session-token'
+import { EMAIL_SESSION_COOKIE, EMAIL_SESSION_COOKIE_LEGACY } from '@/lib/auth/email-auth-config'
+import { createEmailSessionTokenString, getEmailSessionCookieOptions } from '@/lib/auth/email-session-token'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -191,7 +192,12 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
   writeGuestAccountCookie(res, request, accountId)
   if (authUserIdForEmail) {
     try {
-      await setEmailSessionCookie(authUserIdForEmail, email)
+      const token = await createEmailSessionTokenString(authUserIdForEmail, email)
+      if (token) {
+        const opts = getEmailSessionCookieOptions()
+        res.cookies.set(EMAIL_SESSION_COOKIE, token, opts)
+        res.cookies.set(EMAIL_SESSION_COOKIE_LEGACY, token, opts)
+      }
     } catch (e) {
       console.warn('[verify-otp] setEmailSessionCookie skipped', e)
     }
