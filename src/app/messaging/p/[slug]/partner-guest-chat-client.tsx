@@ -17,6 +17,10 @@ import {
   MESSAGING_GUEST_SESSION_STORAGE_KEY,
   MESSAGING_GUEST_SESSION_STORAGE_KEY_LEGACY,
 } from '@/lib/messaging/guest-auth-session'
+import {
+  MESSAGING_GUEST_ACCOUNT_STORAGE_KEY,
+  MESSAGING_GUEST_ACCOUNT_STORAGE_KEY_LEGACY,
+} from '@/lib/messaging/guest-account-session'
 
 type GuestMsg = {
   id: string
@@ -290,6 +294,7 @@ export function PartnerGuestChatClient({
   const didInitialAutoScrollRef = useRef(false)
   const draftTextareaRef = useRef<HTMLTextAreaElement>(null)
   const guestSessionIdRef = useRef<string | null>(null)
+  const guestAccountIdRef = useRef<string | null>(null)
 
   const recentSuggestedGarmentImages = useMemo(() => {
     const out: Array<{ name: string; imageUrl: string }> = []
@@ -316,6 +321,11 @@ export function PartnerGuestChatClient({
       ?? window.localStorage.getItem(MESSAGING_GUEST_SESSION_STORAGE_KEY_LEGACY)?.trim()
       ?? ''
     if (existing) guestSessionIdRef.current = existing
+    const accountExisting =
+      window.localStorage.getItem(MESSAGING_GUEST_ACCOUNT_STORAGE_KEY)?.trim()
+      ?? window.localStorage.getItem(MESSAGING_GUEST_ACCOUNT_STORAGE_KEY_LEGACY)?.trim()
+      ?? ''
+    if (accountExisting) guestAccountIdRef.current = accountExisting
   }, [])
 
   useEffect(() => {
@@ -338,6 +348,8 @@ export function PartnerGuestChatClient({
     const h: Record<string, string> = {}
     const sessionId = guestSessionIdRef.current?.trim() ?? ''
     if (sessionId) h['x-guest-session-id'] = sessionId
+    const accountId = guestAccountIdRef.current?.trim() ?? ''
+    if (accountId) h['x-guest-account-id'] = accountId
     return h
   }, [])
 
@@ -348,6 +360,16 @@ export function PartnerGuestChatClient({
     if (typeof window !== 'undefined') {
       window.localStorage.setItem(MESSAGING_GUEST_SESSION_STORAGE_KEY, sid)
       window.localStorage.setItem(MESSAGING_GUEST_SESSION_STORAGE_KEY_LEGACY, sid)
+    }
+  }, [])
+
+  const captureGuestAccountFromResponse = useCallback((res: Response) => {
+    const aid = res.headers.get('x-guest-account-id')?.trim() ?? ''
+    if (!aid) return
+    guestAccountIdRef.current = aid
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(MESSAGING_GUEST_ACCOUNT_STORAGE_KEY, aid)
+      window.localStorage.setItem(MESSAGING_GUEST_ACCOUNT_STORAGE_KEY_LEGACY, aid)
     }
   }, [])
 
@@ -377,6 +399,7 @@ export function PartnerGuestChatClient({
         headers: { ...authHeaders() },
       })
       captureGuestSessionFromResponse(res)
+      captureGuestAccountFromResponse(res)
       const data = (await res.json()) as {
         messages?: GuestMsg[]
         error?: string
@@ -407,7 +430,7 @@ export function PartnerGuestChatClient({
     } finally {
       setLoading(false)
     }
-  }, [slug, toast, t.loadError, authHeaders, captureGuestSessionFromResponse])
+  }, [slug, toast, t.loadError, authHeaders, captureGuestSessionFromResponse, captureGuestAccountFromResponse])
 
   const refreshAuthAndReload = useCallback(async () => {
     try {
@@ -613,6 +636,7 @@ export function PartnerGuestChatClient({
         body: JSON.stringify({ messageId, inventoryId }),
       })
       captureGuestSessionFromResponse(res)
+      captureGuestAccountFromResponse(res)
       const data = (await res.json()) as {
         ok?: boolean
         error?: string
@@ -772,6 +796,7 @@ export function PartnerGuestChatClient({
         body: JSON.stringify({ action: 'related_products', recentCards: recent.slice(0, 80) }),
       })
       captureGuestSessionFromResponse(res)
+      captureGuestAccountFromResponse(res)
       const data = (await res.json().catch(() => null)) as
         | { ok?: boolean; products?: BuyProductOption[]; error?: string }
         | null
@@ -1254,7 +1279,7 @@ export function PartnerGuestChatClient({
         body: JSON.stringify({ email }),
       })
       captureGuestSessionFromResponse(res)
-      const data = (await res.json()) as { ok?: boolean; error?: string; retry_after_sec?: number }
+      const data = (await res.json()) as { ok?: boolean; error?: string; retry_after_sec?: number; accountId?: string }
       if (!res.ok) {
         if (data.error === 'Missing session') {
           toast({ title: t.sendError, variant: 'destructive' })
@@ -1293,7 +1318,7 @@ export function PartnerGuestChatClient({
         body: JSON.stringify({ email, otp }),
       })
       captureGuestSessionFromResponse(res)
-      const data = (await res.json()) as { ok?: boolean; error?: string; retry_after_sec?: number }
+      const data = (await res.json()) as { ok?: boolean; error?: string; retry_after_sec?: number; accountId?: string }
       if (!res.ok || !data.ok) {
         if (res.status === 429) {
           const waitSec = Number.isFinite(data.retry_after_sec) ? Math.max(1, Math.round(data.retry_after_sec as number)) : 60
@@ -1310,6 +1335,15 @@ export function PartnerGuestChatClient({
       setAuthGateRequired(false)
       setGuestAuthOtp('')
       otpLastAutoSubmittedRef.current = ''
+      const accountId = typeof data.accountId === 'string' ? data.accountId.trim() : ''
+      if (accountId) {
+        guestAccountIdRef.current = accountId
+        if (typeof window !== 'undefined') {
+          window.localStorage.setItem(MESSAGING_GUEST_ACCOUNT_STORAGE_KEY, accountId)
+          window.localStorage.setItem(MESSAGING_GUEST_ACCOUNT_STORAGE_KEY_LEGACY, accountId)
+        }
+      }
+      toast({ title: 'Đăng nhập thành công.' })
       await load()
     } catch {
       toast({ title: t.guestAuthOtpInvalid, variant: 'destructive' })
@@ -1812,6 +1846,9 @@ export function PartnerGuestChatClient({
                         {t.guestAuthVerifyOtp}
                       </Button>
                     </div>
+                    {guestAuthVerifying ? (
+                      <p className="text-[11px] text-muted-foreground">Đang đăng nhập, vui lòng chờ...</p>
+                    ) : null}
                   </div>
                 </div>
               ) : null}

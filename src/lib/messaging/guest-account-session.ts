@@ -2,11 +2,15 @@ import type { NextRequest, NextResponse } from 'next/server'
 
 export const MESSAGING_GUEST_ACCOUNT_COOKIE = 'app_guest_account_id'
 export const MESSAGING_GUEST_ACCOUNT_COOKIE_LEGACY = 'nanoai_guest_account_id'
+export const MESSAGING_GUEST_ACCOUNT_HEADER = 'x-guest-account-id'
+export const MESSAGING_GUEST_ACCOUNT_STORAGE_KEY = 'app_guest_account_id'
+export const MESSAGING_GUEST_ACCOUNT_STORAGE_KEY_LEGACY = 'nanoai_guest_account_id'
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 export function readGuestAccountIdFromRequest(request: NextRequest): string | null {
   const raw =
-    request.cookies.get(MESSAGING_GUEST_ACCOUNT_COOKIE)?.value?.trim()
+    request.headers.get(MESSAGING_GUEST_ACCOUNT_HEADER)?.trim()
+    ?? request.cookies.get(MESSAGING_GUEST_ACCOUNT_COOKIE)?.value?.trim()
     ?? request.cookies.get(MESSAGING_GUEST_ACCOUNT_COOKIE_LEGACY)?.value?.trim()
     ?? ''
   if (!raw) return null
@@ -23,4 +27,5 @@ export function writeGuestAccountCookie(response: NextResponse, request: NextReq
   }
   response.cookies.set(MESSAGING_GUEST_ACCOUNT_COOKIE, accountId, opts)
   response.cookies.set(MESSAGING_GUEST_ACCOUNT_COOKIE_LEGACY, accountId, opts)
+  response.headers.set(MESSAGING_GUEST_ACCOUNT_HEADER, accountId)
 }
