@@ -75,6 +75,15 @@ function isMissingPaymentSettingsTableError(e: unknown): boolean {
   return msg.includes('messaging_partner_payment_settings')
 }
 
+function isLegacyDepositPercentConstraintError(e: unknown): boolean {
+  if (!e || typeof e !== 'object') return false
+  const err = e as { code?: string; message?: string; constraint?: string }
+  if (String(err.code ?? '') !== '23514') return false
+  const msg = String(err.message ?? '').toLowerCase()
+  const constraint = String(err.constraint ?? '').toLowerCase()
+  return msg.includes('deposit_percent') || constraint.includes('deposit_percent')
+}
+
 function mapOrderRow(r: Record<string, unknown>): PartnerOrderRow {
   return {
     id: String(r.id),
@@ -268,7 +277,7 @@ export async function insertPartnerOrderDraftFromPg(input: {
   const qty = 1
   const subtotal = Math.max(0, Math.floor(input.unitPrice || 0)) * qty
   const required = Math.max(0, Math.round(num(input.requiredAmount, Math.ceil((subtotal * input.depositPercent) / 100))))
-  try {
+  const runInsert = async (depositPercentValue: number): Promise<PartnerOrderRow | null> => {
     const row = await pgQueryOne<Record<string, unknown>>(
       `insert into public.messaging_partner_orders (
          partner_id, conversation_id, external_thread_id, status,
@@ -299,13 +308,24 @@ export async function insertPartnerOrderDraftFromPg(input: {
         qty,
         Math.max(0, input.unitPrice || 0),
         subtotal,
-        input.depositPercent,
+        Math.max(0, Math.min(100, Math.round(num(depositPercentValue, 0)))),
         required,
         String(input.customerEmail ?? '').trim(),
       ]
     )
     return row ? mapOrderRow(row) : null
+  }
+  try {
+    return await runInsert(input.depositPercent)
   } catch (e) {
+    if (isLegacyDepositPercentConstraintError(e)) {
+      try {
+        const fallbackPercent = Math.round(num(input.depositPercent, 30)) === 100 ? 100 : 30
+        return await runInsert(fallbackPercent)
+      } catch (e2) {
+        console.warn('[insertPartnerOrderDraftFromPg:legacy-retry]', e2)
+      }
+    }
     console.warn('[insertPartnerOrderDraftFromPg]', e)
     return null
   }
@@ -331,7 +351,7 @@ export async function updatePartnerOrderCheckoutFromPg(input: {
 }): Promise<PartnerOrderRow | null> {
   if (!isPgConfigured()) return null
   const qty = Math.max(1, Math.min(99, Math.floor(input.quantity || 1)))
-  try {
+  const runUpdate = async (depositPercentValue: number): Promise<PartnerOrderRow | null> => {
     const row = await pgQueryOne<Record<string, unknown>>(
       `update public.messaging_partner_orders
        set customer_name = $5,
@@ -374,14 +394,25 @@ export async function updatePartnerOrderCheckoutFromPg(input: {
         input.variantSize,
         qty,
         input.note,
-        input.depositPercent,
+        Math.max(0, Math.min(100, Math.round(num(depositPercentValue, 0)))),
         Math.max(0, Math.round(num(input.requiredAmount, 0))),
         input.paymentReference,
         input.paymentQrUrl,
       ]
     )
     return row ? mapOrderRow(row) : null
+  }
+  try {
+    return await runUpdate(input.depositPercent)
   } catch (e) {
+    if (isLegacyDepositPercentConstraintError(e)) {
+      try {
+        const fallbackPercent = Math.round(num(input.depositPercent, 30)) === 100 ? 100 : 30
+        return await runUpdate(fallbackPercent)
+      } catch (e2) {
+        console.warn('[updatePartnerOrderCheckoutFromPg:legacy-retry]', e2)
+      }
+    }
     console.warn('[updatePartnerOrderCheckoutFromPg]', e)
     return null
   }

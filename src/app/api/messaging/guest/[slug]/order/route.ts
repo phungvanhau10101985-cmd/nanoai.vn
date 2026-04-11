@@ -154,6 +154,35 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
   const orderId = String(body?.orderId ?? '').trim()
   if (!orderId) return NextResponse.json({ error: 'Missing orderId.' }, { status: 400 })
   const f = body?.form ?? {}
+  const customerName = String(f.customerName ?? '').trim()
+  const customerPhone = String(f.customerPhone ?? '').trim()
+  const shippingAddress = String(f.shippingAddress ?? '').trim()
+  const color = String(f.color ?? '').trim()
+  const size = String(f.size ?? '').trim()
+  const quantityRaw = Math.floor(Number(f.quantity) || 0)
+  const quantity = Math.max(1, quantityRaw || 1)
+  const missing: string[] = []
+  if (!customerName) missing.push('customerName')
+  if (!customerPhone) missing.push('customerPhone')
+  if (!shippingAddress) missing.push('shippingAddress')
+  if (!color) missing.push('color')
+  if (!size) missing.push('size')
+  if (quantityRaw <= 0) missing.push('quantity')
+  if (missing.length > 0) {
+    const labelMap: Record<string, string> = {
+      customerName: 'Họ tên',
+      customerPhone: 'Số điện thoại',
+      shippingAddress: 'Địa chỉ',
+      color: 'Màu',
+      size: 'Size',
+      quantity: 'Số lượng',
+    }
+    const labels = missing.map((k) => labelMap[k] ?? k)
+    return NextResponse.json(
+      { error: `Vui lòng điền đầy đủ thông tin bắt buộc: ${labels.join(', ')}`, missingFields: missing },
+      { status: 400 }
+    )
+  }
   const done = await completeOrderCheckout({
     partnerId: partner.partnerId,
     externalThreadId: thread.externalThreadId,
@@ -161,13 +190,13 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
     linkedUserId: thread.linkedUserId,
     guestAccountId: thread.guestAccountId,
     form: {
-      customerName: String(f.customerName ?? '').trim(),
+      customerName,
       customerEmail: sessionEmail,
-      customerPhone: String(f.customerPhone ?? '').trim(),
-      shippingAddress: String(f.shippingAddress ?? '').trim(),
-      color: String(f.color ?? '').trim(),
-      size: String(f.size ?? '').trim(),
-      quantity: Math.max(1, Math.floor(Number(f.quantity) || 1)),
+      customerPhone,
+      shippingAddress,
+      color,
+      size,
+      quantity,
       note: String(f.note ?? '').trim(),
     },
   })

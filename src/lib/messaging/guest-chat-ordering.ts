@@ -53,6 +53,11 @@ export type ProductPurchaseOptions = {
   price_hint: string
   sizes: string[]
   colors: Array<{ name: string; img: string }>
+  deposit_policy: {
+    mode: 'none' | 'percent' | 'fixed_amount'
+    percent: number
+    fixed_amount: number
+  }
 }
 
 function trim(s: string, max = 240): string {
@@ -240,11 +245,14 @@ function buildOrderPaymentQrBySettings(input: {
 }
 
 function orderCardPayload(order: PartnerOrderRow): Record<string, unknown> {
+  const remaining = Math.max(0, Math.round(order.subtotal_amount - order.required_amount))
   return {
     source: 'system_order',
     order_id: order.id,
     order_status: order.status,
     order_required_amount: order.required_amount,
+    order_remaining_amount: remaining,
+    order_payment_timing: order.required_amount <= 0 ? 'pay_on_delivery' : 'pay_now',
     order_deposit_percent: order.deposit_percent,
     order_payment_qr_url: order.payment_qr_url,
     order_payment_reference: order.payment_reference,
@@ -278,7 +286,7 @@ export async function createOrderDraftFromProductPick(input: {
     linkedUserId: input.linkedUserId ?? null,
     metadata: { source: 'hosted_chat_page', auth_mode: input.guestAccountId ? 'account' : 'anonymous' },
   })
-  if (!conv?.conversationId) return { error: 'Khong tao duoc hoi thoai.' }
+  if (!conv?.conversationId) return { error: 'Không tạo được hội thoại.' }
 
   const settings = await fetchPartnerPaymentSettingsFromPg(input.partnerId)
   const settingsMode = settings?.default_deposit_mode ?? 'percent'
@@ -306,7 +314,7 @@ export async function createOrderDraftFromProductPick(input: {
     requiredAmount: calc.requiredAmount,
     customerEmail: '',
   })
-  if (!draft) return { error: 'Khong tao duoc don hang.' }
+  if (!draft) return { error: 'Không tạo được đơn hàng.' }
 
   await insertMessagePg({
     conversationId: conv.conversationId,
@@ -342,9 +350,9 @@ export async function completeOrderCheckout(input: {
     linkedUserId: input.linkedUserId ?? null,
     metadata: { source: 'hosted_chat_page', auth_mode: input.guestAccountId ? 'account' : 'anonymous' },
   })
-  if (!conv?.conversationId) return { error: 'Khong tao duoc hoi thoai.' }
+  if (!conv?.conversationId) return { error: 'Không tạo được hội thoại.' }
   const settings = await fetchPartnerPaymentSettingsFromPg(input.partnerId)
-  if (!settings) return { error: 'Shop chua cai dat thanh toan.' }
+  if (!settings) return { error: 'Shop chưa cài đặt thanh toán.' }
 
   const oldOrder = await fetchPartnerOrderForThreadFromPg({
     orderId: input.orderId,
@@ -352,7 +360,7 @@ export async function completeOrderCheckout(input: {
     conversationId: conv.conversationId,
     externalThreadId: input.externalThreadId,
   })
-  if (!oldOrder) return { error: 'Khong tim thay don hang.' }
+  if (!oldOrder) return { error: 'Không tìm thấy đơn hàng.' }
   if (oldOrder.locked_at) return { error: 'Don da khoa sau khi xac nhan, khong the sua.' }
 
   const paymentReference = stablePaymentRef(oldOrder.id)
@@ -373,7 +381,7 @@ export async function completeOrderCheckout(input: {
   if (expectedAmount > 0) {
     const effectiveBankBin = String(settings.bank_bin ?? '').trim() || inferVietQrBankCodeFromName(settings.bank_name ?? '')
     if (!settings.account_number || !effectiveBankBin) {
-      return { error: 'Shop chua cai dat thong tin ngan hang nhan coc.' }
+      return { error: 'Shop chưa cài đặt thông tin ngân hàng nhận cọc.' }
     }
     qrUrl = buildOrderPaymentQrBySettings({
       amount: expectedAmount,
@@ -410,7 +418,7 @@ export async function completeOrderCheckout(input: {
     paymentReference,
     paymentQrUrl: qrUrl,
   })
-  if (!updated) return { error: 'Khong cap nhat duoc don hang.' }
+  if (!updated) return { error: 'Không cập nhật được đơn hàng.' }
   const em = trim(input.form.customerEmail, 180).toLowerCase()
   if (em) {
     await upsertPartnerCustomerProfileByEmailFromPg({
@@ -428,21 +436,22 @@ export async function completeOrderCheckout(input: {
     direction: 'outbound',
     body:
       updated.required_amount > 0
-        ? `Thong tin don da duoc ghi nhan.\n` +
-          `Tong tien: ${toVnd(updated.subtotal_amount)} | Can thanh toan: ${toVnd(updated.required_amount)} (${updated.deposit_percent}%).\n` +
-          `Noi dung chuyen khoan: ${updated.payment_reference}\n` +
-          `${calc.fallbackApplied ? 'Luu y: So tien dat coc vuot gia tri don, he thong da fallback ve 20% gia tri don.\n' : ''}` +
-          `Vui long gui anh chung tu sau khi chuyen khoan de shop xac nhan.`
-        : `Thong tin don da duoc ghi nhan.\n` +
-          `Tong tien: ${toVnd(updated.subtotal_amount)} | Dat coc: 0đ.\n` +
-          `Don nay khong yeu cau dat coc. Shop se lien he xac nhan don va giao hang.`,
+        ? `Thông tin đơn đã được ghi nhận.\n` +
+          `Tổng tiền: ${toVnd(updated.subtotal_amount)} | Cần thanh toán: ${toVnd(updated.required_amount)} (${updated.deposit_percent}%).\n` +
+          `Nội dung chuyển khoản: ${updated.payment_reference}\n` +
+          `${calc.fallbackApplied ? 'Lưu ý: Số tiền đặt cọc vượt giá trị đơn, hệ thống đã fallback về 20% giá trị đơn.\n' : ''}` +
+          `Vui lòng gửi ảnh chứng từ sau khi chuyển khoản để shop xác nhận.`
+        : `Thông tin đơn đã được ghi nhận.\n` +
+          `Tổng tiền: ${toVnd(updated.subtotal_amount)} | Thanh toán trước: 0đ.\n` +
+          `Thanh toán khi nhận hàng: ${toVnd(updated.subtotal_amount)}.\n` +
+          `Đơn này không yêu cầu đặt cọc trước. Shop sẽ liên hệ xác nhận đơn và giao hàng.`,
     rawPayload: toJson(orderCardPayload(updated)),
   })
   await insertPartnerOrderEventFromPg({
     orderId: updated.id,
     eventType: 'checkout_submitted',
-    title: 'Khach gui thong tin nhan hang',
-    detail: `So luong ${updated.quantity}, can thanh toan ${toVnd(updated.required_amount)}.`,
+    title: 'Khách gửi thông tin nhận hàng',
+    detail: `Số lượng ${updated.quantity}, cần thanh toán ${toVnd(updated.required_amount)}.`,
     source: 'customer',
   })
   return { ok: true, order: updated }
@@ -509,6 +518,10 @@ export async function getProductPurchaseOptions(input: {
 }): Promise<ProductPurchaseOptions | null> {
   const row = await fetchPartnerInventoryRowByProductUrlFromPg(input.partnerId, input.productUrl)
   if (!row) return null
+  const settings = await fetchPartnerPaymentSettingsFromPg(input.partnerId)
+  const mode = settings?.default_deposit_mode ?? 'percent'
+  const percent = clampPercent(settings?.default_deposit_percent ?? 30, 30)
+  const fixedAmount = normalizeMoney(settings?.default_deposit_amount ?? 0)
   return {
     sku: row.sku ?? null,
     name: row.name,
@@ -517,6 +530,11 @@ export async function getProductPurchaseOptions(input: {
     price_hint: row.price_hint ?? '',
     sizes: parseSizeJson(row.description),
     colors: parseColorVariantsJson(row.stock_note),
+    deposit_policy: {
+      mode,
+      percent,
+      fixed_amount: fixedAmount,
+    },
   }
 }
 
@@ -616,10 +634,10 @@ export async function verifyOrderPaymentProof(input: {
     linkedUserId: input.linkedUserId ?? null,
     metadata: { source: 'hosted_chat_page', auth_mode: input.guestAccountId ? 'account' : 'anonymous' },
   })
-  if (!conv?.conversationId) return { error: 'Khong tao duoc hoi thoai.' }
+  if (!conv?.conversationId) return { error: 'Không tạo được hội thoại.' }
 
   const exists = await guestImageObjectExists(input.proofImageStoragePath)
-  if (!exists) return { error: 'Khong tim thay anh chung tu.' }
+  if (!exists) return { error: 'Không tìm thấy ảnh chứng từ.' }
 
   const order = await fetchPartnerOrderForThreadFromPg({
     orderId: input.orderId,
@@ -627,12 +645,12 @@ export async function verifyOrderPaymentProof(input: {
     conversationId: conv.conversationId,
     externalThreadId: input.externalThreadId,
   })
-  if (!order) return { error: 'Khong tim thay don can doi chieu.' }
+  if (!order) return { error: 'Không tìm thấy đơn cần đối chiếu.' }
   const settings = await fetchPartnerPaymentSettingsFromPg(input.partnerId)
-  if (!settings) return { error: 'Shop chua cau hinh thanh toan.' }
+  if (!settings) return { error: 'Shop chưa cấu hình thanh toán.' }
   const imageUrl = getTryOnPublicUrlFromPath(input.proofImageStoragePath)
   const ocr = await runGeminiTransferOcr(imageUrl)
-  if (!ocr) return { error: 'Khong doc duoc anh chuyen khoan.' }
+  if (!ocr) return { error: 'Không đọc được ảnh chuyển khoản.' }
 
   const expectedAccount = settings.account_number.replace(/[^\d]/g, '')
   const accountMatched = expectedAccount && ocr.receiverAccount.includes(expectedAccount)
@@ -673,14 +691,14 @@ export async function verifyOrderPaymentProof(input: {
       ? 'AI doi chieu thanh cong STK + so tien.'
       : verification === 'manual_review'
         ? 'AI khuyen nghi shop kiem tra thu cong.'
-        : 'AI chua khop du lieu thanh toan.'
+        : 'AI chưa khớp dữ liệu thanh toán.'
   const ok = await updatePartnerOrderPaymentVerificationFromPg({
     orderId: order.id,
     status: nextStatus,
     paidAmount: ocr.amount,
     verifiedNote,
   })
-  if (!ok) return { error: 'Khong cap nhat duoc ket qua doi chieu.' }
+  if (!ok) return { error: 'Không cập nhật được kết quả đối chiếu.' }
 
   const refreshed = await fetchPartnerOrderForThreadFromPg({
     orderId: order.id,
@@ -688,7 +706,7 @@ export async function verifyOrderPaymentProof(input: {
     conversationId: conv.conversationId,
     externalThreadId: input.externalThreadId,
   })
-  if (!refreshed) return { error: 'Khong tai lai duoc don hang.' }
+  if (!refreshed) return { error: 'Không tải lại được đơn hàng.' }
 
   await insertMessagePg({
     conversationId: conv.conversationId,
@@ -698,7 +716,7 @@ export async function verifyOrderPaymentProof(input: {
         ? `Shop da xac nhan thanh toan thanh cong cho don ${refreshed.payment_reference}. Cam on ban!`
         : verification === 'manual_review'
           ? `Shop da nhan chung tu. He thong can shop kiem tra thu cong them cho don ${refreshed.payment_reference}.`
-          : `He thong chua doi chieu duoc thong tin chuyen khoan. Ban vui long gui lai anh ro hon hoac kiem tra lai so tien/STK.`,
+          : `Hệ thống chưa đối chiếu được thông tin chuyển khoản. Bạn vui lòng gửi lại ảnh rõ hơn hoặc kiểm tra lại số tiền/STK.`,
     rawPayload: toJson({
       source: 'system_order',
       order_id: refreshed.id,
@@ -712,7 +730,7 @@ export async function verifyOrderPaymentProof(input: {
   await insertPartnerOrderEventFromPg({
     orderId: refreshed.id,
     eventType: 'payment_verification',
-    title: verification === 'verified' ? 'Thanh toan xac minh thanh cong' : verification === 'manual_review' ? 'Can duyet tay' : 'Thanh toan chua khop',
+    title: verification === 'verified' ? 'Thanh toán xác minh thành công' : verification === 'manual_review' ? 'Cần duyệt tay' : 'Thanh toán chưa khớp',
     detail: verifiedNote,
     source: 'system',
   })

@@ -57,6 +57,11 @@ type PurchaseOptionsPayload = {
   price_hint: string
   sizes: string[]
   colors: Array<{ name: string; img: string }>
+  deposit_policy?: {
+    mode?: 'none' | 'percent' | 'fixed_amount'
+    percent?: number
+    fixed_amount?: number
+  }
 }
 
 function collectRecentSuggestedCardsFromMessages(
@@ -783,12 +788,12 @@ export function PartnerGuestChatClient({
           return
         }
         if (!res.ok) {
-          toast({ title: data?.error || 'Khong tao duoc don hang.', variant: 'destructive' })
+          toast({ title: data?.error || 'Không tạo được đơn hàng.', variant: 'destructive' })
           return
         }
         const oid = String(data?.order?.id ?? '').trim()
         if (!oid) {
-          toast({ title: 'Khong tao duoc don hang.', variant: 'destructive' })
+          toast({ title: 'Không tạo được đơn hàng.', variant: 'destructive' })
           return
         }
         const detailRes = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}/order`, {
@@ -824,7 +829,7 @@ export function PartnerGuestChatClient({
         setBuyOptionsOpen(false)
         await load()
       } catch {
-        toast({ title: 'Khong tao duoc don hang.', variant: 'destructive' })
+        toast({ title: 'Không tạo được đơn hàng.', variant: 'destructive' })
       } finally {
         setOrderFormBusy(false)
       }
@@ -957,6 +962,21 @@ export function PartnerGuestChatClient({
   const submitOrderCheckout = async () => {
     const oid = activeOrderId
     if (!oid) return
+    const missing: string[] = []
+    if (!orderName.trim()) missing.push('Họ tên')
+    if (!orderPhone.trim()) missing.push('Số điện thoại')
+    if (!orderAddress.trim()) missing.push('Địa chỉ')
+    if (!orderColor.trim()) missing.push('Màu')
+    if (!orderSize.trim()) missing.push('Size')
+    const qty = Math.max(0, parseInt(orderQuantity || '0', 10) || 0)
+    if (qty <= 0) missing.push('Số lượng')
+    if (missing.length > 0) {
+      toast({
+        title: `Vui lòng điền đầy đủ thông tin bắt buộc: ${missing.join(', ')}`,
+        variant: 'destructive',
+      })
+      return
+    }
     setOrderFormBusy(true)
     try {
       const res = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}/order`, {
@@ -971,7 +991,7 @@ export function PartnerGuestChatClient({
             shippingAddress: orderAddress,
             color: orderColor,
             size: orderSize,
-            quantity: Math.max(1, parseInt(orderQuantity || '1', 10) || 1),
+            quantity: qty,
             note: orderNote,
           },
         }),
@@ -989,7 +1009,7 @@ export function PartnerGuestChatClient({
         return
       }
       if (!res.ok) {
-        toast({ title: data.error || 'Khong cap nhat duoc don.', variant: 'destructive' })
+        toast({ title: data.error || 'Không cập nhật được đơn hàng.', variant: 'destructive' })
         return
       }
       saveLocalOrderProfile({
@@ -1008,11 +1028,11 @@ export function PartnerGuestChatClient({
       toast({
         title:
           requiredAmount > 0
-            ? 'Da tao QR thanh toan. Vui long gui anh chung tu de xac nhan.'
-            : 'Da cap nhat don hang. Don nay khong yeu cau dat coc.',
+            ? 'Đã tạo QR thanh toán. Vui lòng gửi ảnh chứng từ để xác nhận.'
+            : 'Đã cập nhật đơn hàng. Đơn này không yêu cầu đặt cọc trước, khách thanh toán khi nhận hàng.',
       })
     } catch {
-      toast({ title: 'Khong cap nhat duoc don.', variant: 'destructive' })
+      toast({ title: 'Không cập nhật được đơn hàng.', variant: 'destructive' })
     } finally {
       setOrderFormBusy(false)
     }
@@ -1040,14 +1060,14 @@ export function PartnerGuestChatClient({
           promptLoginForPurchase()
           return
         }
-        toast({ title: data?.error || 'Khong doi chieu duoc thanh toan.', variant: 'destructive' })
+        toast({ title: data?.error || 'Không đối chiếu được thanh toán.', variant: 'destructive' })
         return
       }
       await load()
       clearAttachment()
       setProofOrderId(null)
     } catch {
-      toast({ title: 'Khong doi chieu duoc thanh toan.', variant: 'destructive' })
+      toast({ title: 'Không đối chiếu được thanh toán.', variant: 'destructive' })
     } finally {
       setSending(false)
     }
@@ -1497,14 +1517,43 @@ export function PartnerGuestChatClient({
     const qty = Math.max(1, Math.min(99, Math.floor(Number(orderQuantity) || 1)))
     const unit = parseVndFromHint(activePurchaseOptions?.price_hint || activeOrderCard?.price_hint)
     const subtotal = Math.max(0, unit * qty)
+    const policyMode = activePurchaseOptions?.deposit_policy?.mode ?? 'percent'
+    const policyPercent = Math.max(0, Math.min(100, Math.round(Number(activePurchaseOptions?.deposit_policy?.percent) || 30)))
+    const policyFixed = Math.max(0, Math.round(Number(activePurchaseOptions?.deposit_policy?.fixed_amount) || 0))
+    if (policyMode === 'none') {
+      return {
+        qty,
+        subtotal,
+        prepay: 0,
+        cod: subtotal,
+        text: 'Không đặt cọc trước (thanh toán khi nhận hàng)',
+        canCompute: subtotal > 0,
+      }
+    }
+    if (policyMode === 'fixed_amount') {
+      const fallback20 = policyFixed > subtotal && subtotal > 0
+      const required = fallback20 ? Math.ceil(subtotal * 0.2) : policyFixed
+      return {
+        qty,
+        subtotal,
+        prepay: required,
+        cod: Math.max(0, subtotal - required),
+        text: fallback20
+          ? 'Tiền cọc vượt tổng đơn, hệ thống áp dụng 20% giá trị đơn'
+          : `Đặt cọc cố định ${new Intl.NumberFormat('vi-VN').format(policyFixed)}đ`,
+        canCompute: subtotal > 0,
+      }
+    }
+    const required = Math.ceil((subtotal * policyPercent) / 100)
     return {
       qty,
       subtotal,
-      required: 0,
-      text: 'Tien dat coc se duoc ap dung theo cai dat cua shop',
+      prepay: required,
+      cod: Math.max(0, subtotal - required),
+      text: `Đặt cọc theo cài đặt shop: ${policyPercent}%`,
       canCompute: subtotal > 0,
     }
-  }, [activeOrderCard?.price_hint, activePurchaseOptions?.price_hint, orderQuantity])
+  }, [activeOrderCard?.price_hint, activePurchaseOptions?.deposit_policy?.fixed_amount, activePurchaseOptions?.deposit_policy?.mode, activePurchaseOptions?.deposit_policy?.percent, activePurchaseOptions?.price_hint, orderQuantity])
 
   if (!authReady) {
     return (
@@ -1845,17 +1894,18 @@ export function PartnerGuestChatClient({
                     />
                   </div>
                   <p className="text-[11px] text-muted-foreground">
-                    Tien dat coc duoc tinh tu dong theo cai dat cua shop.
+                    Tiền đặt cọc được tính tự động theo cài đặt của shop.
                   </p>
                   <div className="rounded-md border border-violet-200 bg-violet-50/70 px-2 py-1.5 text-[11px] text-violet-900">
                     <p>
-                      Tam tinh ({orderPreview.qty} sp):
-                      {' '}Tong don {new Intl.NumberFormat('vi-VN').format(orderPreview.subtotal)}đ
-                      {' '}| Can thanh toan {new Intl.NumberFormat('vi-VN').format(orderPreview.required)}đ
+                      Tạm tính ({orderPreview.qty} sản phẩm):
+                      {' '}Tổng đơn {new Intl.NumberFormat('vi-VN').format(orderPreview.subtotal)}đ
+                      {' '}| Thanh toán trước {new Intl.NumberFormat('vi-VN').format(orderPreview.prepay)}đ
+                      {' '}| Khi nhận hàng {new Intl.NumberFormat('vi-VN').format(orderPreview.cod)}đ
                     </p>
                     <p className="text-[10px] text-violet-800">
-                      Che do: {orderPreview.text}
-                      {!orderPreview.canCompute ? ' (chua xac dinh duoc gia san pham de tam tinh).' : ''}
+                      Chế độ: {orderPreview.text}
+                      {!orderPreview.canCompute ? ' (chưa xác định được giá sản phẩm để tạm tính).' : ''}
                     </p>
                   </div>
                   {activePurchaseOptions?.colors && activePurchaseOptions.colors.length > 0 ? (
@@ -1892,7 +1942,9 @@ export function PartnerGuestChatClient({
                       disabled={orderFormBusy}
                       onClick={() => void submitOrderCheckout()}
                     >
-                      {orderFormBusy ? 'Đang tạo QR...' : 'Tạo đơn và QR'}
+                      {orderFormBusy
+                        ? (orderPreview.prepay > 0 ? 'Đang tạo QR...' : 'Đang tạo đơn...')
+                        : (orderPreview.prepay > 0 ? 'Tạo đơn và QR' : 'Tạo đơn (thanh toán khi nhận hàng)')}
                     </Button>
                     <Button
                       type="button"
