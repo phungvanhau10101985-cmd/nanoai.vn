@@ -465,14 +465,40 @@ export function PartnerGuestChatClient({
       }
       if (res.status === 401) {
         setUserId(null)
+        setAuthGateRequired(true)
+        setAuthMode('anonymous')
         return
       }
       if (!res.ok) {
+        if (data.error?.startsWith('AUTH_REQUIRED_')) {
+          setAuthGateRequired(true)
+          setAuthMode('anonymous')
+          toast({
+            title: t.guestAuthRequiredAfterLimit.replace('{count}', '5'),
+            variant: 'destructive',
+          })
+          return
+        }
         toast({ title: data.error || t.loadError, variant: 'destructive' })
         return
       }
       const next = Array.isArray(data.messages) ? data.messages : []
-      setMessages(next)
+      const authRequiredFromMessages = next.some(
+        (m) => m.direction === 'outbound' && /^AUTH_REQUIRED_/i.test(String(m.body ?? '').trim())
+      )
+      const normalizedMessages = next.map((m) => {
+        if (m.direction !== 'outbound') return m
+        if (!/^AUTH_REQUIRED_/i.test(String(m.body ?? '').trim())) return m
+        return {
+          ...m,
+          body: t.guestAuthRequiredAfterLimit.replace('{count}', '5'),
+        }
+      })
+      if (authRequiredFromMessages) {
+        setAuthGateRequired(true)
+        setAuthMode('anonymous')
+      }
+      setMessages(normalizedMessages)
       setAuthMode(data.authMode === 'account' ? 'account' : 'anonymous')
       if (data.authMode === 'account') setAuthGateRequired(false)
       setHasLoadedOnce(true)
@@ -488,7 +514,7 @@ export function PartnerGuestChatClient({
     } finally {
       setLoading(false)
     }
-  }, [slug, toast, t.loadError, authHeaders, captureGuestSessionFromResponse, captureGuestAccountFromResponse])
+  }, [slug, toast, t.guestAuthRequiredAfterLimit, t.loadError, authHeaders, captureGuestSessionFromResponse, captureGuestAccountFromResponse])
 
   const refreshAuthAndReload = useCallback(async () => {
     try {
@@ -703,6 +729,12 @@ export function PartnerGuestChatClient({
       }
       if (res.status === 401) {
         setUserId(null)
+        setAuthGateRequired(true)
+        setAuthMode('anonymous')
+        toast({
+          title: t.guestAuthRequiredAfterLimit.replace('{count}', '5'),
+          variant: 'destructive',
+        })
         return
       }
       if (!res.ok) {
@@ -788,7 +820,7 @@ export function PartnerGuestChatClient({
           return
         }
         if (!res.ok) {
-          toast({ title: data?.error || 'Không tạo được đơn hàng.', variant: 'destructive' })
+          toast({ title: data?.error || `Không tạo được đơn hàng (mã lỗi ${res.status}).`, variant: 'destructive' })
           return
         }
         const oid = String(data?.order?.id ?? '').trim()
@@ -936,7 +968,18 @@ export function PartnerGuestChatClient({
           body: JSON.stringify({ text: ask }),
         })
         captureGuestSessionFromResponse(res)
+        captureGuestAccountFromResponse(res)
         const data = (await res.json().catch(() => null)) as { error?: string } | null
+        if (res.status === 401 || data?.error?.startsWith('AUTH_REQUIRED_')) {
+          setUserId(null)
+          setAuthGateRequired(true)
+          setAuthMode('anonymous')
+          toast({
+            title: t.guestAuthRequiredAfterLimit.replace('{count}', '5'),
+            variant: 'destructive',
+          })
+          return
+        }
         if (!res.ok) {
           toast({ title: data?.error || t.sendError, variant: 'destructive' })
           return
@@ -1009,7 +1052,7 @@ export function PartnerGuestChatClient({
         return
       }
       if (!res.ok) {
-        toast({ title: data.error || 'Không cập nhật được đơn hàng.', variant: 'destructive' })
+        toast({ title: data.error || `Không cập nhật được đơn hàng (mã lỗi ${res.status}).`, variant: 'destructive' })
         return
       }
       saveLocalOrderProfile({
@@ -1028,11 +1071,11 @@ export function PartnerGuestChatClient({
       toast({
         title:
           requiredAmount > 0
-            ? 'Đã tạo QR thanh toán. Vui lòng gửi ảnh chứng từ để xác nhận.'
-            : 'Đã cập nhật đơn hàng. Đơn này không yêu cầu đặt cọc trước, khách thanh toán khi nhận hàng.',
+            ? 'Đã tạo đơn hàng thành công và tạo QR thanh toán. Vui lòng gửi ảnh chứng từ để xác nhận.'
+            : 'Đã tạo đơn hàng thành công. Đơn này không yêu cầu đặt cọc trước, khách thanh toán khi nhận hàng.',
       })
     } catch {
-      toast({ title: 'Không cập nhật được đơn hàng.', variant: 'destructive' })
+      toast({ title: 'Không cập nhật được đơn hàng. Vui lòng thử lại.', variant: 'destructive' })
     } finally {
       setOrderFormBusy(false)
     }
@@ -1089,9 +1132,15 @@ export function PartnerGuestChatClient({
         headers: { ...authHeaders() },
       })
       captureGuestSessionFromResponse(res)
-      const data = (await res.json()) as { path?: string; publicUrl?: string; error?: string }
-      if (res.status === 401) {
+      const data = (await res.json()) as { path?: string; publicUrl?: string; error?: string; requireAuth?: boolean }
+      if (res.status === 401 || data.requireAuth || data.error?.startsWith('AUTH_REQUIRED_')) {
         setUserId(null)
+        setAuthGateRequired(true)
+        setAuthMode('anonymous')
+        toast({
+          title: t.guestAuthRequiredAfterLimit.replace('{count}', '5'),
+          variant: 'destructive',
+        })
         return
       }
       if (!res.ok || !data.path) {

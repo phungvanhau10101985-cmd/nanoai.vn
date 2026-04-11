@@ -316,19 +316,13 @@ export async function createOrderDraftFromProductPick(input: {
   })
   if (!draft) return { error: 'Không tạo được đơn hàng.' }
 
-  await insertMessagePg({
-    conversationId: conv.conversationId,
-    direction: 'outbound',
-    body:
-      `Shop da tao don hang cho ban: ${draft.product_name}.\n` +
-      `Buoc tiep theo: dien thong tin giao hang va tao QR thanh toan de chot don.`,
-    rawPayload: toJson(orderCardPayload(draft)),
-  })
+  // Do not announce "order created" to customer at draft stage.
+  // The order is considered successful only after checkout is submitted.
   await insertPartnerOrderEventFromPg({
     orderId: draft.id,
     eventType: 'order_created',
-    title: 'Tao don tu chat',
-    detail: `Khach chon san pham: ${draft.product_name}`,
+    title: 'Tạo đơn nháp từ chat',
+    detail: `Khách chọn sản phẩm để bắt đầu điền thông tin: ${draft.product_name}`,
     source: 'system',
   })
   return { ok: true, order: draft, conversationId: conv.conversationId }
@@ -361,7 +355,7 @@ export async function completeOrderCheckout(input: {
     externalThreadId: input.externalThreadId,
   })
   if (!oldOrder) return { error: 'Không tìm thấy đơn hàng.' }
-  if (oldOrder.locked_at) return { error: 'Don da khoa sau khi xac nhan, khong the sua.' }
+  if (oldOrder.locked_at) return { error: 'Đơn đã khóa sau khi xác nhận, không thể sửa.' }
 
   const paymentReference = stablePaymentRef(oldOrder.id)
   const qty = Math.max(1, Math.floor(input.form.quantity || 1))
@@ -397,7 +391,7 @@ export async function completeOrderCheckout(input: {
         account_number: settings.account_number,
       },
     })
-    if (!qrUrl) return { error: 'Chua xac dinh duoc ma ngan hang de tao QR. Vui long kiem tra ten ngan hang.' }
+    if (!qrUrl) return { error: 'Chưa xác định được mã ngân hàng để tạo QR. Vui lòng kiểm tra tên ngân hàng.' }
   }
 
   const updated = await updatePartnerOrderCheckoutFromPg({
@@ -436,12 +430,12 @@ export async function completeOrderCheckout(input: {
     direction: 'outbound',
     body:
       updated.required_amount > 0
-        ? `Thông tin đơn đã được ghi nhận.\n` +
+        ? `Đơn hàng đã được tạo thành công.\n` +
           `Tổng tiền: ${toVnd(updated.subtotal_amount)} | Cần thanh toán: ${toVnd(updated.required_amount)} (${updated.deposit_percent}%).\n` +
           `Nội dung chuyển khoản: ${updated.payment_reference}\n` +
           `${calc.fallbackApplied ? 'Lưu ý: Số tiền đặt cọc vượt giá trị đơn, hệ thống đã fallback về 20% giá trị đơn.\n' : ''}` +
           `Vui lòng gửi ảnh chứng từ sau khi chuyển khoản để shop xác nhận.`
-        : `Thông tin đơn đã được ghi nhận.\n` +
+        : `Đơn hàng đã được tạo thành công.\n` +
           `Tổng tiền: ${toVnd(updated.subtotal_amount)} | Thanh toán trước: 0đ.\n` +
           `Thanh toán khi nhận hàng: ${toVnd(updated.subtotal_amount)}.\n` +
           `Đơn này không yêu cầu đặt cọc trước. Shop sẽ liên hệ xác nhận đơn và giao hàng.`,
@@ -713,9 +707,9 @@ export async function verifyOrderPaymentProof(input: {
     direction: 'outbound',
     body:
       verification === 'verified'
-        ? `Shop da xac nhan thanh toan thanh cong cho don ${refreshed.payment_reference}. Cam on ban!`
+        ? `Shop đã xác nhận thanh toán thành công cho đơn ${refreshed.payment_reference}. Cảm ơn bạn!`
         : verification === 'manual_review'
-          ? `Shop da nhan chung tu. He thong can shop kiem tra thu cong them cho don ${refreshed.payment_reference}.`
+          ? `Shop đã nhận chứng từ. Hệ thống cần shop kiểm tra thủ công thêm cho đơn ${refreshed.payment_reference}.`
           : `Hệ thống chưa đối chiếu được thông tin chuyển khoản. Bạn vui lòng gửi lại ảnh rõ hơn hoặc kiểm tra lại số tiền/STK.`,
     rawPayload: toJson({
       source: 'system_order',
