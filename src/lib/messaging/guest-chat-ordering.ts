@@ -68,6 +68,36 @@ function toVnd(n: number): string {
   return `${new Intl.NumberFormat('vi-VN').format(Math.max(0, Math.round(n || 0)))}đ`
 }
 
+function inferVietQrBankCodeFromName(rawBankName: string): string {
+  const s = String(rawBankName || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (!s) return ''
+  const map: Array<[RegExp, string]> = [
+    [/vietcombank|vcb/, '970436'],
+    [/vietinbank|vietin/, '970415'],
+    [/bidv/, '970418'],
+    [/agribank/, '970405'],
+    [/acb|a chau/, '970416'],
+    [/tpbank|tien phong/, '970423'],
+    [/techcombank|techcom/, '970407'],
+    [/mbbank|quan doi|military bank|\bmb\b/, '970422'],
+    [/vpbank|viet nam thinh vuong/, '970432'],
+    [/sacombank|sai gon thuong tin/, '970403'],
+    [/hdbank/, '970437'],
+    [/seabank/, '970440'],
+    [/shb/, '970443'],
+    [/ocb/, '970448'],
+  ]
+  for (const [re, code] of map) {
+    if (re.test(s)) return code
+  }
+  return ''
+}
+
 function deriveUnitPriceFromCard(card: PartnerAiProductCard): number {
   const fromHint = parseVndAmountFromText(card.price_hint ?? '')
   return Math.max(0, fromHint)
@@ -144,6 +174,7 @@ function buildOrderPaymentQrBySettings(input: {
   paymentReference: string
   accountHolder: string
   settings: {
+    bank_name: string
     sepay_enabled?: boolean
     sepay_bank_code?: string
     sepay_account_number?: string
@@ -165,8 +196,10 @@ function buildOrderPaymentQrBySettings(input: {
       template: input.settings.sepay_qr_template === 'qronly' ? 'qronly' : 'compact',
     })
   }
+  const fallbackBankBin = String(input.settings.bank_bin ?? '').trim() || inferVietQrBankCodeFromName(input.settings.bank_name)
+  if (!fallbackBankBin) return ''
   return buildBasicTransferQrImageUrl({
-    bankBin: input.settings.bank_bin,
+    bankBin: fallbackBankBin,
     accountNumber: input.settings.account_number,
     amount: input.amount,
     transferContent: input.paymentReference,
@@ -269,7 +302,8 @@ export async function completeOrderCheckout(input: {
   })
   if (!conv?.conversationId) return { error: 'Khong tao duoc hoi thoai.' }
   const settings = await fetchPartnerPaymentSettingsFromPg(input.partnerId)
-  if (!settings?.account_number || !settings?.bank_bin) {
+  const effectiveBankBin = String(settings?.bank_bin ?? '').trim() || inferVietQrBankCodeFromName(settings?.bank_name ?? '')
+  if (!settings?.account_number || !effectiveBankBin) {
     return { error: 'Shop chua cai dat thong tin ngan hang nhan coc.' }
   }
 
@@ -294,10 +328,12 @@ export async function completeOrderCheckout(input: {
       sepay_bank_code: settings.sepay_bank_code,
       sepay_account_number: settings.sepay_account_number,
       sepay_qr_template: settings.sepay_qr_template,
+      bank_name: settings.bank_name,
       bank_bin: settings.bank_bin,
       account_number: settings.account_number,
     },
   })
+  if (!qrUrl) return { error: 'Chua xac dinh duoc ma ngan hang de tao QR. Vui long kiem tra ten ngan hang.' }
 
   const updated = await updatePartnerOrderCheckoutFromPg({
     orderId: oldOrder.id,

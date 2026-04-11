@@ -1640,7 +1640,21 @@ export function PartnerGuestChatClient({
               ) : null}
               {orderFormOpen ? (
                 <div className="space-y-2 rounded-lg border border-border/70 bg-muted/20 p-2">
-                  <p className="text-xs font-medium text-foreground">Thông tin nhận hàng</p>
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-xs font-medium text-foreground">Thông tin nhận hàng</p>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-6 w-6 p-0"
+                      disabled={orderFormBusy}
+                      onClick={() => setOrderFormOpen(false)}
+                      aria-label="Đóng"
+                      title="Đóng"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
                   {activeOrderCard ? (
                     <div className="rounded-md border border-border/70 bg-background p-2">
                       <div className="flex items-center gap-2">
@@ -1682,18 +1696,9 @@ export function PartnerGuestChatClient({
                       onChange={(e) => setOrderAddress(e.target.value)}
                     />
                     {activePurchaseOptions?.colors && activePurchaseOptions.colors.length > 0 ? (
-                      <select
-                        className="h-8 rounded-md border border-border bg-background px-2 text-[12px]"
-                        value={orderColor}
-                        onChange={(e) => setOrderColor(e.target.value)}
-                      >
-                        <option value="">Chọn màu</option>
-                        {activePurchaseOptions.colors.map((c) => (
-                          <option key={`${c.name}-${c.img}`} value={c.name}>
-                            {c.name}
-                          </option>
-                        ))}
-                      </select>
+                      <div className="h-8 rounded-md border border-border bg-muted/20 px-2 text-[11px] text-muted-foreground flex items-center">
+                        Chọn màu theo ảnh bên dưới
+                      </div>
                     ) : (
                       <input
                         type="text"
@@ -1754,7 +1759,9 @@ export function PartnerGuestChatClient({
                         >
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img src={c.img} alt={c.name} className="h-10 w-full rounded object-cover" />
-                          <p className="mt-0.5 truncate text-[10px] text-foreground">{c.name}</p>
+                          <p className="mt-0.5 truncate text-[10px] text-foreground">
+                            {orderColor === c.name ? 'Da chon' : ''}
+                          </p>
                         </button>
                       ))}
                     </div>

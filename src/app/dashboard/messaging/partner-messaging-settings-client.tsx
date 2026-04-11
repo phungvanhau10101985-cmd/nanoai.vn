@@ -100,7 +100,6 @@ export function PartnerMessagingSettingsClient({
   const [logoVersions, setLogoVersions] = useState<LogoVersionRow[]>([])
   const [showAddWorkspace, setShowAddWorkspace] = useState(false)
   const [paymentBankName, setPaymentBankName] = useState('')
-  const [paymentBankBin, setPaymentBankBin] = useState('')
   const [paymentAccountNumber, setPaymentAccountNumber] = useState('')
   const [paymentAccountHolder, setPaymentAccountHolder] = useState('')
   const [paymentNotifyEmail, setPaymentNotifyEmail] = useState('')
@@ -196,7 +195,6 @@ export function PartnerMessagingSettingsClient({
       if ('error' in res && res.error) return
       if ('settings' in res && res.settings) {
         setPaymentBankName(res.settings.bank_name || '')
-        setPaymentBankBin(res.settings.bank_bin || '')
         setPaymentAccountNumber(res.settings.account_number || '')
         setPaymentAccountHolder(res.settings.account_holder || '')
         setPaymentNotifyEmail(res.settings.notify_email || '')
@@ -478,7 +476,7 @@ export function PartnerMessagingSettingsClient({
       const res = await saveMessagingWorkspacePaymentSettings({
         partnerId: selectedPartnerId,
         bankName: paymentBankName,
-        bankBin: paymentBankBin,
+        bankBin: '',
         accountNumber: paymentAccountNumber,
         accountHolder: paymentAccountHolder,
         defaultDepositPercent: paymentDepositPercent,
@@ -926,10 +924,6 @@ export function PartnerMessagingSettingsClient({
                   <Input className="h-9 text-sm" value={paymentBankName} onChange={(e) => setPaymentBankName(e.target.value)} />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-xs font-medium">Ma BIN ngan hang</Label>
-                  <Input className="h-9 text-sm" value={paymentBankBin} onChange={(e) => setPaymentBankBin(e.target.value)} placeholder="9704xx" />
-                </div>
-                <div className="space-y-2">
                   <Label className="text-xs font-medium">So tai khoan nhan tien</Label>
                   <Input
                     className="h-9 text-sm"
@@ -1017,8 +1011,9 @@ export function PartnerMessagingSettingsClient({
                     <Input
                       className="h-9 text-sm"
                       value={paymentSePayWebhookToken}
-                      onChange={(e) => setPaymentSePayWebhookToken(e.target.value)}
+                      readOnly
                     />
+                    <p className="text-[11px] text-muted-foreground">Token duoc tao tu dong theo tung shop va khong cho sua tay.</p>
                   </div>
                 </div>
                 {paymentSePayEnabled &&

@@ -356,6 +356,9 @@ export async function saveMessagingWorkspacePaymentSettings(input: {
   const gate = await assertPartnerOwner(user.id, input.partnerId)
   if ('error' in gate) return { error: gate.error }
   if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+  const existing = await fetchPartnerPaymentSettingsFromPg(input.partnerId)
+  const stableWebhookToken =
+    (existing?.sepay_webhook_token ?? '').trim() || randomBytes(16).toString('hex')
   const ok = await upsertPartnerPaymentSettingsFromPg({
     partnerId: input.partnerId,
     bankName: input.bankName.trim().slice(0, 120),
@@ -369,7 +372,7 @@ export async function saveMessagingWorkspacePaymentSettings(input: {
     sepayBankCode: (input.sepayBankCode ?? '').trim().slice(0, 40),
     sepayAccountNumber: (input.sepayAccountNumber ?? '').trim().slice(0, 40),
     sepayQrTemplate: input.sepayQrTemplate === 'qronly' ? 'qronly' : input.sepayQrTemplate === '' ? '' : 'compact',
-    sepayWebhookToken: (input.sepayWebhookToken ?? '').trim().slice(0, 120),
+    sepayWebhookToken: stableWebhookToken,
   })
   if (!ok) return { error: 'Khong luu duoc cai dat thanh toan.' }
   revalidateMessagingDashboard()
