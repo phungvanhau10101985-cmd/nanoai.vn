@@ -222,7 +222,7 @@ const MAX_TRY_ON_GARMENTS = 4
 const MESSAGING_AUTH_SYNC_EVENT_KEY = 'nanoai_messaging_auth_sync'
 const FALLBACK_SHOP_TYPING_WAIT_MS = 75_000
 const ORDER_PROFILE_STORAGE_PREFIX = 'nanoai_order_profile_v1'
-const GUEST_IMAGE_MAX_BYTES = 5 * 1024 * 1024
+const GUEST_IMAGE_MAX_BYTES = 10 * 1024 * 1024
 
 type SelectedImage = {
   file: File | null
