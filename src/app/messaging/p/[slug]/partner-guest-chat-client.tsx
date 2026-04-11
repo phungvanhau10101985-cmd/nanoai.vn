@@ -170,6 +170,18 @@ function parseVndFromHint(priceHint: string | undefined): number {
   return Number.isFinite(n) ? Math.max(0, n) : 0
 }
 
+function normalizeProductUrlKey(productUrl: string): string {
+  const raw = (productUrl || '').trim()
+  if (!raw) return ''
+  try {
+    const u = new URL(raw)
+    const normalizedPath = u.pathname.replace(/\/+$/, '')
+    return `${u.origin.toLowerCase()}${normalizedPath.toLowerCase()}`
+  } catch {
+    return raw.toLowerCase()
+  }
+}
+
 function normalizeIntentText(raw: string): string {
   return raw
     .toLowerCase()
@@ -527,8 +539,10 @@ export function PartnerGuestChatClient({
         setAuthMode('anonymous')
       }
       setMessages(normalizedMessages)
-      setAuthMode(data.authMode === 'account' ? 'account' : 'anonymous')
-      if (data.authMode === 'account') setAuthGateRequired(false)
+      const effectiveAuthMode =
+        data.authMode === 'account' || Boolean(guestAccountIdRef.current?.trim()) ? 'account' : 'anonymous'
+      setAuthMode(effectiveAuthMode)
+      if (effectiveAuthMode === 'account') setAuthGateRequired(false)
       setHasLoadedOnce(true)
       setShopTyping((prev) => {
         if (!prev) return null
@@ -763,6 +777,10 @@ export function PartnerGuestChatClient({
   const submitVisionPick = async (messageId: string, inventoryId: string) => {
     setVisionPickBusyId(messageId)
     const outboundBaseline = messages.filter((m) => m.direction === 'outbound').length
+    setShopTyping({
+      deadline: Date.now() + FALLBACK_SHOP_TYPING_WAIT_MS,
+      baselineOutbound: outboundBaseline,
+    })
     try {
       const res = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}/vision-pick`, {
         method: 'POST',
@@ -1005,15 +1023,15 @@ export function PartnerGuestChatClient({
     const intent = classifyOrderIntent(latestInboundText)
     const label = card.name?.trim() || 'mau san pham'
     const productUrl = card.product_url.trim()
-    const productKey = productUrl.toLowerCase()
-    if (intent !== 'purchase') {
-      if (productUrl && consultedProductUrlsRef.current.has(productKey)) {
-        if (typeof window !== 'undefined') {
-          const opened = window.open(productUrl, '_blank', 'noopener,noreferrer')
-          if (!opened) window.location.href = productUrl
-        }
-        return
+    const productKey = normalizeProductUrlKey(productUrl)
+    if (productUrl && productKey && consultedProductUrlsRef.current.has(productKey)) {
+      if (typeof window !== 'undefined') {
+        const opened = window.open(productUrl, '_blank', 'noopener,noreferrer')
+        if (!opened) window.location.href = productUrl
       }
+      return
+    }
+    if (intent !== 'purchase') {
       setBuyOptionsOpen(false)
       const ask =
         intent === 'shipping_policy'
@@ -1044,7 +1062,7 @@ export function PartnerGuestChatClient({
           toast({ title: data?.error || t.sendError, variant: 'destructive' })
           return
         }
-        if (productUrl) consultedProductUrlsRef.current.add(productKey)
+        if (productUrl && productKey) consultedProductUrlsRef.current.add(productKey)
         await load()
       } catch {
         toast({ title: t.sendError, variant: 'destructive' })
@@ -1650,6 +1668,7 @@ export function PartnerGuestChatClient({
         body: JSON.stringify({ email, otp }),
       })
       captureGuestSessionFromResponse(res)
+      captureGuestAccountFromResponse(res)
       const data = (await res.json()) as { ok?: boolean; error?: string; retry_after_sec?: number; accountId?: string }
       if (!res.ok || !data.ok) {
         if (res.status === 429) {
@@ -1676,6 +1695,7 @@ export function PartnerGuestChatClient({
         }
       }
       toast({ title: 'Đăng nhập thành công.' })
+      await refreshAuthAndReload()
       await load()
     } catch {
       toast({ title: t.guestAuthOtpInvalid, variant: 'destructive' })
@@ -1684,10 +1704,12 @@ export function PartnerGuestChatClient({
     }
   }, [
     authHeaders,
+    captureGuestAccountFromResponse,
     captureGuestSessionFromResponse,
     guestAuthEmail,
     guestAuthOtp,
     load,
+    refreshAuthAndReload,
     slug,
     t.guestAuthOtpInvalid,
     t.guestAuthRateLimited,

@@ -21,6 +21,7 @@ import {
 } from '@/lib/db/messaging-guest-pg'
 import { pgQuery } from '@/lib/db/pg-query'
 import { isPgConfigured } from '@/lib/db/pool'
+import { setEmailSessionCookie } from '@/lib/auth/email-session-token'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -146,6 +147,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     console.warn('[verify-otp] email session merge skipped', e)
   }
   // Backward compatibility: merge legacy threads created with auth user id(s) for this email.
+  let authUserIdForEmail: string | null = null
   try {
     const legacy = await pgQuery<{ id: string }>(
       `select id::text as id
@@ -157,12 +159,42 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
       const legacyThreadId = String(row.id || '').trim()
       if (!legacyThreadId || legacyThreadId === accountId) continue
       await mergeGuestSessionConversationToAccount(partnerId, legacyThreadId, accountId)
+      if (!authUserIdForEmail) authUserIdForEmail = legacyThreadId
     }
   } catch (e) {
     console.warn('[verify-otp] legacy auth user merge skipped', e)
   }
+  if (!authUserIdForEmail) {
+    try {
+      const firstAuthUser = await pgQuery<{ id: string }>(
+        `select id::text as id
+         from auth.users
+         where lower(coalesce(email, '')) = $1
+         order by created_at asc
+         limit 1`,
+        [email]
+      )
+      authUserIdForEmail = String(firstAuthUser[0]?.id || '').trim() || null
+    } catch {}
+  }
+  if (!authUserIdForEmail) {
+    try {
+      const ensured = await pgQuery<{ id: string }>(
+        `select (public.nanoai_ensure_user_by_email($1::text))::text as id`,
+        [email]
+      )
+      authUserIdForEmail = String(ensured[0]?.id || '').trim() || null
+    } catch {}
+  }
 
   const res = NextResponse.json({ ok: true, accountId })
   writeGuestAccountCookie(res, request, accountId)
+  if (authUserIdForEmail) {
+    try {
+      await setEmailSessionCookie(authUserIdForEmail, email)
+    } catch (e) {
+      console.warn('[verify-otp] setEmailSessionCookie skipped', e)
+    }
+  }
   return res
 }

@@ -120,7 +120,13 @@
     expandBtn.setAttribute('aria-label', 'Expand chat')
     expandBtn.style.cssText =
       'width:28px;height:28px;border:none;border-radius:8px;cursor:pointer;background:#f3f4f6;color:#111;font-size:13px;line-height:1;display:flex;align-items:center;justify-content:center;'
-    expandBtn.textContent = '□'
+    function setExpandButtonIcon(expanded) {
+      // Use SVG icon to avoid font-dependent glyph issues on host sites.
+      expandBtn.innerHTML = expanded
+        ? '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><rect x="5" y="5" width="11" height="11" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M9 9h10v10" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M19 9v10H9" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>'
+        : '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="1.8" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>'
+    }
+    setExpandButtonIcon(false)
     var headerActions = document.createElement('div')
     headerActions.style.cssText = 'display:flex;align-items:center;gap:6px;'
     headerActions.appendChild(expandBtn)
@@ -254,7 +260,7 @@
     closeBtn.addEventListener('click', closeChat)
     expandBtn.addEventListener('click', function () {
       isExpanded = !isExpanded
-      expandBtn.textContent = isExpanded ? '❐' : '□'
+      setExpandButtonIcon(isExpanded)
       expandBtn.setAttribute('aria-label', isExpanded ? 'Restore chat size' : 'Expand chat')
       applyLayout()
     })
