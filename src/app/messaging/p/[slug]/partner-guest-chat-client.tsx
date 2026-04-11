@@ -3,6 +3,7 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { ChangeEvent, ClipboardEvent } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -320,6 +321,7 @@ export function PartnerGuestChatClient({
   const [topUpConfigs, setTopUpConfigs] = useState<TopUpPaymentConfig[]>([])
   const [topUpSelectedBank, setTopUpSelectedBank] = useState('')
   const [topUpPayment, setTopUpPayment] = useState<TopUpPayment | null>(null)
+  const [portalMounted, setPortalMounted] = useState(false)
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null)
   const [orderFormOpen, setOrderFormOpen] = useState(false)
   const [orderFormBusy, setOrderFormBusy] = useState(false)
@@ -1421,6 +1423,28 @@ export function PartnerGuestChatClient({
     void loadTryOnCreditsBalance()
   }, [tryOnOpen, loadTryOnCreditsBalance])
 
+  useEffect(() => {
+    setPortalMounted(true)
+  }, [])
+
+  useEffect(() => {
+    if (!topUpOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setTopUpOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [topUpOpen])
+
+  useEffect(() => {
+    if (!topUpOpen) return
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = prev
+    }
+  }, [topUpOpen])
+
   const buildTransferContent = useCallback(() => {
     const suffix = `${Date.now().toString().slice(-6)}${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`
     return `SEVQR DH${suffix}`
@@ -1858,7 +1882,106 @@ export function PartnerGuestChatClient({
     )
   }
 
+  const topUpModal =
+    portalMounted && topUpOpen
+      ? createPortal(
+          <div
+            className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 p-3 sm:p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="guest-top-up-title"
+            onClick={() => setTopUpOpen(false)}
+          >
+            <div
+              className="max-h-[min(90dvh,640px)] w-full max-w-md overflow-y-auto rounded-xl border border-border/70 bg-background p-3 shadow-lg"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <p id="guest-top-up-title" className="text-xs font-medium text-foreground">
+                  Nạp credit
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-6 w-6 shrink-0 p-0"
+                  onClick={() => setTopUpOpen(false)}
+                  aria-label="Đóng"
+                  title="Đóng"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+              <div className="mt-2 grid grid-cols-2 gap-1.5">
+                <input
+                  type="text"
+                  className="h-8 rounded-md border border-border bg-background px-2 text-[12px]"
+                  value={topUpAmount}
+                  onChange={(e) => setTopUpAmount(e.target.value.replace(/[^\d]/g, '').slice(0, 9))}
+                  placeholder="Số tiền nạp (VND)"
+                />
+                <select
+                  className="h-8 rounded-md border border-border bg-background px-2 text-[12px]"
+                  value={topUpSelectedBank}
+                  onChange={(e) => setTopUpSelectedBank(e.target.value)}
+                >
+                  <option value="">Chọn ngân hàng</option>
+                  {topUpConfigs.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.bank_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="mt-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={topUpLoading || !topUpSelectedBank || !topUpAmount.trim()}
+                  onClick={() => void createTopUpPayment()}
+                >
+                  {topUpLoading ? 'Đang tạo mã QR...' : 'Tạo mã QR nạp tiền'}
+                </Button>
+              </div>
+              <p className="mt-2 text-[11px] text-muted-foreground">
+                Số dư hiện tại:{' '}
+                {tryOnCreditsLoading
+                  ? '...'
+                  : (typeof tryOnCreditsBalance === 'number' ? formatCredits(tryOnCreditsBalance) : '--')}{' '}
+                credit
+              </p>
+              {topUpPayment ? (
+                <div className="mt-2 rounded-md border border-border/70 bg-muted/20 p-2">
+                  <p className="text-[11px] text-muted-foreground">
+                    Nạp {new Intl.NumberFormat('vi-VN').format(topUpPayment.amount)}đ
+                    {' '}~ {Math.max(1, Math.floor(topUpPayment.amount / CREDIT_UNIT_PRICE_VND))} credit
+                  </p>
+                  <p className="mt-1 text-[11px] text-foreground">
+                    Nội dung chuyển khoản:{' '}
+                    <span className="font-medium">{topUpPayment.transaction_content || '-'}</span>
+                  </p>
+                  {topUpPayment.qr_url ? (
+                    <div className="mt-2 flex justify-center">
+                      <Image
+                        src={topUpPayment.qr_url}
+                        alt="QR nạp credit"
+                        width={180}
+                        height={180}
+                        unoptimized
+                        className="h-[180px] w-[180px] rounded-md border border-border/70 bg-white object-contain"
+                      />
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          </div>,
+          document.body
+        )
+      : null
+
   const chatPane = (
+    <>
       <Card className="flex h-full min-h-0 flex-col overflow-hidden bg-background rounded-none border-0 shadow-none sm:rounded-2xl sm:border sm:border-border sm:shadow-md">
         <h1 className="sr-only">{shopDisplayName}</h1>
         <CardContent className="flex min-h-0 flex-1 flex-col p-0">
@@ -2539,86 +2662,6 @@ export function PartnerGuestChatClient({
                 </div>
               ) : null}
 
-              {topUpOpen ? (
-                <div className="space-y-2 rounded-lg border border-border/70 bg-muted/20 p-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="text-xs font-medium text-foreground">Nạp credit</p>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-6 w-6 p-0"
-                      onClick={() => setTopUpOpen(false)}
-                      aria-label="Đóng"
-                      title="Đóng"
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                  <div className="grid grid-cols-2 gap-1.5">
-                    <input
-                      type="text"
-                      className="h-8 rounded-md border border-border bg-background px-2 text-[12px]"
-                      value={topUpAmount}
-                      onChange={(e) => setTopUpAmount(e.target.value.replace(/[^\d]/g, '').slice(0, 9))}
-                      placeholder="Số tiền nạp (VND)"
-                    />
-                    <select
-                      className="h-8 rounded-md border border-border bg-background px-2 text-[12px]"
-                      value={topUpSelectedBank}
-                      onChange={(e) => setTopUpSelectedBank(e.target.value)}
-                    >
-                      <option value="">Chọn ngân hàng</option>
-                      {topUpConfigs.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.bank_name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <Button
-                    type="button"
-                    size="sm"
-                    disabled={topUpLoading || !topUpSelectedBank || !topUpAmount.trim()}
-                    onClick={() => void createTopUpPayment()}
-                  >
-                    {topUpLoading ? 'Đang tạo mã QR...' : 'Tạo mã QR nạp tiền'}
-                  </Button>
-                  <p className="text-[11px] text-muted-foreground">
-                    Số dư hiện tại:{' '}
-                    {tryOnCreditsLoading
-                      ? '...'
-                      : (typeof tryOnCreditsBalance === 'number'
-                        ? formatCredits(tryOnCreditsBalance)
-                        : '--')}{' '}
-                    credit
-                  </p>
-                  {topUpPayment ? (
-                    <div className="rounded-md border border-border/70 bg-background p-2">
-                      <p className="text-[11px] text-muted-foreground">
-                        Nạp {new Intl.NumberFormat('vi-VN').format(topUpPayment.amount)}đ
-                        {' '}~ {Math.max(1, Math.floor(topUpPayment.amount / CREDIT_UNIT_PRICE_VND))} credit
-                      </p>
-                      <p className="mt-1 text-[11px] text-foreground">
-                        Nội dung chuyển khoản: <span className="font-medium">{topUpPayment.transaction_content || '-'}</span>
-                      </p>
-                      {topUpPayment.qr_url ? (
-                        <div className="mt-2 flex justify-center">
-                          <Image
-                            src={topUpPayment.qr_url}
-                            alt="QR nạp credit"
-                            width={180}
-                            height={180}
-                            unoptimized
-                            className="h-[180px] w-[180px] rounded-md border border-border/70 bg-white object-contain"
-                          />
-                        </div>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
-
               <div className="space-y-1.5">
                 <div className="relative">
                   <Textarea
@@ -2691,6 +2734,8 @@ export function PartnerGuestChatClient({
           </div>
         </CardContent>
       </Card>
+      {topUpModal}
+    </>
   )
 
   return (

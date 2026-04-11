@@ -30,12 +30,21 @@ export async function listActivePaymentConfigs(): Promise<PaymentConfigRow[]> {
     console.warn('[listActivePaymentConfigs] DATABASE_URL not set')
     return []
   }
-  return pgQuery<PaymentConfigRow>(
-    `select id, bank_account, bank_id, bank_name, account_holder_name, qr_template_url, is_active
-     from public.payment_configs
-     where is_active = true
-     order by created_at asc`
-  )
+  try {
+    return await pgQuery<PaymentConfigRow>(
+      `select id, bank_account, bank_id, bank_name, account_holder_name, qr_template_url, is_active
+       from public.payment_configs
+       where is_active = true
+       order by created_at asc`
+    )
+  } catch (e) {
+    const code = typeof e === 'object' && e && 'code' in e ? String((e as { code?: unknown }).code || '') : ''
+    if (code === '42P01') {
+      console.warn('[listActivePaymentConfigs] missing table public.payment_configs — chạy db:migrate:push (20260418120000_create_public_payment_configs.sql)')
+      return []
+    }
+    throw e
+  }
 }
 
 export async function listPaymentsForUser(
