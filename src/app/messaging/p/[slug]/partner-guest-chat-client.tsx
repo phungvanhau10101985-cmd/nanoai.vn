@@ -1321,10 +1321,6 @@ export function PartnerGuestChatClient({
   }
 
   const loadTryOnCreditsBalance = useCallback(async () => {
-    if (!userId) {
-      setTryOnCreditsBalance(null)
-      return
-    }
     setTryOnCreditsLoading(true)
     try {
       const res = await fetch('/api/account/credits', {
@@ -1334,6 +1330,10 @@ export function PartnerGuestChatClient({
       })
       if (!res.ok) {
         setTryOnCreditsBalance(null)
+        if (res.status === 401) {
+          setAuthGateRequired(true)
+          setAuthMode('anonymous')
+        }
         return
       }
       const data = (await res.json()) as { balance?: unknown }
@@ -1344,24 +1344,20 @@ export function PartnerGuestChatClient({
     } finally {
       setTryOnCreditsLoading(false)
     }
-  }, [userId])
+  }, [])
 
   useEffect(() => {
-    if (!userId) {
+    if (authMode !== 'account') {
       setTryOnCreditsBalance(null)
       return
     }
     void loadTryOnCreditsBalance()
-  }, [userId, loadTryOnCreditsBalance])
+  }, [authMode, loadTryOnCreditsBalance])
 
   useEffect(() => {
     if (!tryOnOpen) return
-    if (!userId) {
-      setTryOnCreditsBalance(null)
-      return
-    }
     void loadTryOnCreditsBalance()
-  }, [tryOnOpen, userId, loadTryOnCreditsBalance])
+  }, [tryOnOpen, loadTryOnCreditsBalance])
 
   const buildTransferContent = useCallback(() => {
     const suffix = `${Date.now().toString().slice(-6)}${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`
@@ -1369,18 +1365,29 @@ export function PartnerGuestChatClient({
   }, [])
 
   const openTopUpPopup = useCallback(async () => {
-    if (!userId) {
-      setAuthGateRequired(true)
-      setAuthMode('anonymous')
-      toast({
-        title: 'Vui lòng đăng nhập Gmail để nạp credit.',
-        variant: 'destructive',
-      })
-      return
-    }
     setTopUpOpen(true)
     setTopUpPayment(null)
     try {
+      const authRes = await fetch('/api/account/credits', {
+        method: 'GET',
+        credentials: 'same-origin',
+        cache: 'no-store',
+      })
+      if (authRes.status === 401) {
+        setAuthGateRequired(true)
+        setAuthMode('anonymous')
+        setTopUpOpen(false)
+        toast({
+          title: 'Vui lòng đăng nhập Gmail để nạp credit.',
+          variant: 'destructive',
+        })
+        return
+      }
+      if (authRes.ok) {
+        const authJson = (await authRes.json().catch(() => null)) as { balance?: unknown } | null
+        const balance = Number(authJson?.balance)
+        setTryOnCreditsBalance(Number.isFinite(balance) ? Math.max(0, balance) : null)
+      }
       const res = await fetch('/api/payment-configs', { credentials: 'same-origin', cache: 'no-store' })
       const data = (await res.json().catch(() => null)) as { configs?: TopUpPaymentConfig[]; error?: string } | null
       if (!res.ok || !data?.configs) {
@@ -1394,15 +1401,9 @@ export function PartnerGuestChatClient({
     } catch {
       toast({ title: 'Không tải được cấu hình nạp tiền.', variant: 'destructive' })
     }
-  }, [loadTryOnCreditsBalance, toast, userId])
+  }, [loadTryOnCreditsBalance, toast])
 
   const createTopUpPayment = useCallback(async () => {
-    if (!userId) {
-      setAuthGateRequired(true)
-      setAuthMode('anonymous')
-      toast({ title: 'Vui lòng đăng nhập Gmail để nạp credit.', variant: 'destructive' })
-      return
-    }
     const amount = Math.max(1000, Math.round(Number(topUpAmount) || 0))
     const cfg = topUpConfigs.find((x) => x.id === topUpSelectedBank)
     if (!cfg) {
@@ -1455,7 +1456,7 @@ export function PartnerGuestChatClient({
     } finally {
       setTopUpLoading(false)
     }
-  }, [buildTransferContent, loadTryOnCreditsBalance, toast, topUpAmount, topUpConfigs, topUpSelectedBank, userId])
+  }, [buildTransferContent, loadTryOnCreditsBalance, toast, topUpAmount, topUpConfigs, topUpSelectedBank])
 
   const send = async () => {
     const text = draft.trim()
@@ -2479,6 +2480,15 @@ export function PartnerGuestChatClient({
                   >
                     {topUpLoading ? 'Đang tạo mã QR...' : 'Tạo mã QR nạp tiền'}
                   </Button>
+                  <p className="text-[11px] text-muted-foreground">
+                    Số dư hiện tại:{' '}
+                    {tryOnCreditsLoading
+                      ? '...'
+                      : (typeof tryOnCreditsBalance === 'number'
+                        ? formatCredits(tryOnCreditsBalance)
+                        : '--')}{' '}
+                    credit
+                  </p>
                   {topUpPayment ? (
                     <div className="rounded-md border border-border/70 bg-background p-2">
                       <p className="text-[11px] text-muted-foreground">
