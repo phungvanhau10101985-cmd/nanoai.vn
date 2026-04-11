@@ -18,6 +18,7 @@ import {
   updateGuestAccountLastLoginPg,
   upsertGuestIdentityPg,
 } from '@/lib/db/messaging-guest-pg'
+import { pgQuery } from '@/lib/db/pg-query'
 import { isPgConfigured } from '@/lib/db/pool'
 
 export const dynamic = 'force-dynamic'
@@ -133,6 +134,22 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
   if (!accountId) return NextResponse.json({ error: 'Account failed' }, { status: 500 })
 
   await mergeGuestSessionConversationToAccount(partnerId, sessionId, accountId)
+  // Backward compatibility: merge legacy threads created with auth user id(s) for this email.
+  try {
+    const legacy = await pgQuery<{ id: string }>(
+      `select id::text as id
+       from auth.users
+       where lower(coalesce(email, '')) = $1`,
+      [email]
+    )
+    for (const row of legacy) {
+      const legacyThreadId = String(row.id || '').trim()
+      if (!legacyThreadId || legacyThreadId === accountId) continue
+      await mergeGuestSessionConversationToAccount(partnerId, legacyThreadId, accountId)
+    }
+  } catch (e) {
+    console.warn('[verify-otp] legacy auth user merge skipped', e)
+  }
 
   const res = NextResponse.json({ ok: true, accountId })
   writeGuestAccountCookie(res, request, accountId)

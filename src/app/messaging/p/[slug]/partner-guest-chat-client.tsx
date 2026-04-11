@@ -1375,7 +1375,7 @@ export function PartnerGuestChatClient({
                 return (
                   <div
                     key={m.id}
-                    className={`max-w-[92%] rounded-2xl px-3.5 py-2.5 text-sm shadow-sm ${
+                    className={`max-w-[92%] rounded-2xl px-3.5 py-2.5 text-base shadow-sm ${
                       isMe
                         ? 'ml-auto rounded-br-md bg-gradient-to-br from-violet-600 to-violet-700 text-white'
                         : 'mr-auto rounded-bl-md border border-border/60 bg-card text-foreground'
@@ -1475,7 +1475,7 @@ export function PartnerGuestChatClient({
             )}
             {shopTyping ? (
               <div
-                className="mr-auto flex max-w-[92%] items-center gap-2 rounded-2xl rounded-bl-md border border-border/60 bg-card px-3.5 py-2.5 text-sm text-muted-foreground shadow-sm"
+                className="mr-auto flex max-w-[92%] items-center gap-2 rounded-2xl rounded-bl-md border border-border/60 bg-card px-3.5 py-2.5 text-base text-muted-foreground shadow-sm"
                 role="status"
                 aria-live="polite"
               >
@@ -1998,7 +1998,7 @@ export function PartnerGuestChatClient({
                     onPaste={onDraftPaste}
                     placeholder={t.placeholder}
                     rows={1}
-                    className="resize-none border-0 bg-transparent px-0 pb-8 pt-0.5 pr-10 text-sm leading-tight shadow-none focus-visible:ring-0"
+                    className="resize-none border-0 bg-transparent px-0 pb-8 pt-0.5 pr-10 text-base leading-tight shadow-none focus-visible:ring-0"
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && !e.shiftKey) {
                         e.preventDefault()

@@ -135,6 +135,10 @@ async function upsertGuestAccountForGoogleIdentity(
   if (anonymousSessionId && accountId) {
     await mergeGuestSessionConversationToAccount(partnerId, anonymousSessionId, accountId)
   }
+  // Backward compatibility: older chat threads used auth user id as external_thread_id.
+  if (accountId && user?.id) {
+    await mergeGuestSessionConversationToAccount(partnerId, user.id, accountId)
+  }
   return accountId ?? null
 }
 
