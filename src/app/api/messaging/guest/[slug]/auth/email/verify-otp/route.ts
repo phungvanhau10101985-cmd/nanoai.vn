@@ -188,19 +188,27 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     } catch {}
   }
 
-  const res = NextResponse.json({ ok: true, accountId })
-  writeGuestAccountCookie(res, request, accountId)
+  let emailSessionIssued = false
+  let sessionToken: string | null = null
   if (authUserIdForEmail) {
     try {
-      const token = await createEmailSessionTokenString(authUserIdForEmail, email)
-      if (token) {
-        const opts = getEmailSessionCookieOptions()
-        res.cookies.set(EMAIL_SESSION_COOKIE, token, opts)
-        res.cookies.set(EMAIL_SESSION_COOKIE_LEGACY, token, opts)
+      sessionToken = await createEmailSessionTokenString(authUserIdForEmail, email)
+      if (sessionToken) {
+        emailSessionIssued = true
+      } else {
+        console.warn('[verify-otp] email JWT not issued (check AUTH_JWT_SECRET length >= 32)')
       }
     } catch (e) {
       console.warn('[verify-otp] setEmailSessionCookie skipped', e)
     }
+  }
+
+  const res = NextResponse.json({ ok: true, accountId, emailSessionIssued })
+  writeGuestAccountCookie(res, request, accountId)
+  if (sessionToken) {
+    const opts = getEmailSessionCookieOptions()
+    res.cookies.set(EMAIL_SESSION_COOKIE, sessionToken, opts)
+    res.cookies.set(EMAIL_SESSION_COOKIE_LEGACY, sessionToken, opts)
   }
   return res
 }

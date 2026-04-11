@@ -434,6 +434,9 @@ export function PartnerGuestChatClient({
     }
   }, [])
 
+  /** Khách đã có guest account (OTP/cookie) — không được coi 401 từ /api/account/* là “mất đăng nhập chat”. */
+  const hasVerifiedGuestAccount = useCallback(() => Boolean(guestAccountIdRef.current?.trim()), [])
+
   const orderProfileStorageKey = useMemo(() => {
     const account = guestAccountIdRef.current?.trim()
     return `${ORDER_PROFILE_STORAGE_PREFIX}:${slug}:${account || 'anonymous'}`
@@ -1380,8 +1383,11 @@ export function PartnerGuestChatClient({
       if (!res.ok) {
         setTryOnCreditsBalance(null)
         if (res.status === 401) {
-          setAuthGateRequired(true)
-          setAuthMode('anonymous')
+          // 401 ví credit ≠ mất phiên chat: khách đã OTP vẫn có guest account cookie.
+          if (!hasVerifiedGuestAccount()) {
+            setAuthGateRequired(true)
+            setAuthMode('anonymous')
+          }
         }
         return
       }
@@ -1393,7 +1399,7 @@ export function PartnerGuestChatClient({
     } finally {
       setTryOnCreditsLoading(false)
     }
-  }, [])
+  }, [hasVerifiedGuestAccount])
 
   useEffect(() => {
     if (authMode !== 'account') {
@@ -1423,13 +1429,20 @@ export function PartnerGuestChatClient({
         cache: 'no-store',
       })
       if (authRes.status === 401) {
-        setAuthGateRequired(true)
-        setAuthMode('anonymous')
         setTopUpOpen(false)
-        toast({
-          title: 'Vui lòng đăng nhập Gmail để nạp credit.',
-          variant: 'destructive',
-        })
+        if (hasVerifiedGuestAccount()) {
+          toast({
+            title: 'Chưa mở được ví credit. Thử tải lại trang.',
+            variant: 'destructive',
+          })
+        } else {
+          setAuthGateRequired(true)
+          setAuthMode('anonymous')
+          toast({
+            title: 'Vui lòng đăng nhập (email/Google) để nạp credit.',
+            variant: 'destructive',
+          })
+        }
         return
       }
       if (authRes.ok) {
@@ -1450,7 +1463,7 @@ export function PartnerGuestChatClient({
     } catch {
       toast({ title: 'Không tải được cấu hình nạp tiền.', variant: 'destructive' })
     }
-  }, [loadTryOnCreditsBalance, toast])
+  }, [hasVerifiedGuestAccount, loadTryOnCreditsBalance, toast])
 
   const createTopUpPayment = useCallback(async () => {
     const amount = Math.max(1000, Math.round(Number(topUpAmount) || 0))
@@ -1488,9 +1501,16 @@ export function PartnerGuestChatClient({
       })
       const data = (await res.json().catch(() => null)) as { payment?: TopUpPayment; error?: string } | null
       if (res.status === 401) {
-        setAuthGateRequired(true)
-        setAuthMode('anonymous')
-        toast({ title: 'Vui lòng đăng nhập Gmail để nạp credit.', variant: 'destructive' })
+        if (hasVerifiedGuestAccount()) {
+          toast({
+            title: 'Chưa mở được ví credit. Thử tải lại trang.',
+            variant: 'destructive',
+          })
+        } else {
+          setAuthGateRequired(true)
+          setAuthMode('anonymous')
+          toast({ title: 'Vui lòng đăng nhập (email/Google) để nạp credit.', variant: 'destructive' })
+        }
         return
       }
       if (!res.ok || !data?.payment) {
@@ -1505,7 +1525,7 @@ export function PartnerGuestChatClient({
     } finally {
       setTopUpLoading(false)
     }
-  }, [buildTransferContent, loadTryOnCreditsBalance, toast, topUpAmount, topUpConfigs, topUpSelectedBank])
+  }, [buildTransferContent, hasVerifiedGuestAccount, loadTryOnCreditsBalance, toast, topUpAmount, topUpConfigs, topUpSelectedBank])
 
   const send = async () => {
     const text = draft.trim()
@@ -1671,7 +1691,13 @@ export function PartnerGuestChatClient({
       })
       captureGuestSessionFromResponse(res)
       captureGuestAccountFromResponse(res)
-      const data = (await res.json()) as { ok?: boolean; error?: string; retry_after_sec?: number; accountId?: string }
+      const data = (await res.json()) as {
+        ok?: boolean
+        error?: string
+        retry_after_sec?: number
+        accountId?: string
+        emailSessionIssued?: boolean
+      }
       if (!res.ok || !data.ok) {
         if (res.status === 429) {
           const waitSec = Number.isFinite(data.retry_after_sec) ? Math.max(1, Math.round(data.retry_after_sec as number)) : 60
@@ -1697,6 +1723,12 @@ export function PartnerGuestChatClient({
         }
       }
       toast({ title: 'Đăng nhập thành công.' })
+      if (data.emailSessionIssued === false) {
+        toast({
+          title: 'Chat đã sẵn sàng. Nếu số dư vẫn là —, tải lại trang hoặc kiểm tra máy chủ (AUTH_JWT_SECRET).',
+          variant: 'destructive',
+        })
+      }
       await refreshAuthAndReload()
       await load()
     } catch {
