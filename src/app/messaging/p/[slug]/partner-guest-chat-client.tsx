@@ -1141,6 +1141,10 @@ export function PartnerGuestChatClient({
       return
     }
     if (!text && !imageStoragePath) return
+    if (text) {
+      // Customer continues with normal consultation instead of choosing from buy rail.
+      setBuyOptionsOpen(false)
+    }
     const outboundBaseline = messages.filter((m) => m.direction === 'outbound').length
     setSending(true)
     try {
@@ -1214,14 +1218,19 @@ export function PartnerGuestChatClient({
         setAuthMode('account')
         setAuthGateRequired(false)
       }
-      const waitMs =
-        data.shopTyping?.maxWaitMs && data.shopTyping.maxWaitMs > 0
-          ? data.shopTyping.maxWaitMs
-          : FALLBACK_SHOP_TYPING_WAIT_MS
-      setShopTyping({
-        deadline: Date.now() + waitMs,
-        baselineOutbound: outboundBaseline,
-      })
+      // For image-first flow waiting for customer product selection, do not show "shop is typing" yet.
+      if (data.visionPickRequired === true) {
+        setShopTyping(null)
+      } else {
+        const waitMs =
+          data.shopTyping?.maxWaitMs && data.shopTyping.maxWaitMs > 0
+            ? data.shopTyping.maxWaitMs
+            : FALLBACK_SHOP_TYPING_WAIT_MS
+        setShopTyping({
+          deadline: Date.now() + waitMs,
+          baselineOutbound: outboundBaseline,
+        })
+      }
       await load()
     } catch {
       toast({ title: t.sendError, variant: 'destructive' })
