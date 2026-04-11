@@ -15,9 +15,11 @@ import {
   findGuestAccountIdByEmailPg,
   findMagicLinkChallengePg,
   insertGuestAccountPg,
+  listGuestChallengeSessionIdsByEmailPg,
   updateGuestAccountLastLoginPg,
   upsertGuestIdentityPg,
 } from '@/lib/db/messaging-guest-pg'
+import { pgQuery } from '@/lib/db/pg-query'
 import { isPgConfigured } from '@/lib/db/pool'
 
 export const dynamic = 'force-dynamic'
@@ -138,6 +140,32 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
   }
 
   await mergeGuestSessionConversationToAccount(partnerId, sessionId, accountId)
+  // Deterministic merge by email: merge all known guest sessions for this email.
+  try {
+    const allSessionIds = await listGuestChallengeSessionIdsByEmailPg(partnerId, email, 300)
+    for (const sid of allSessionIds) {
+      if (!sid || sid === accountId) continue
+      await mergeGuestSessionConversationToAccount(partnerId, sid, accountId)
+    }
+  } catch (e) {
+    console.warn('[verify-magic] email session merge skipped', e)
+  }
+  // Backward compatibility: merge legacy auth user threads for the same email.
+  try {
+    const legacy = await pgQuery<{ id: string }>(
+      `select id::text as id
+       from auth.users
+       where lower(coalesce(email, '')) = $1`,
+      [email]
+    )
+    for (const row of legacy) {
+      const legacyThreadId = String(row.id || '').trim()
+      if (!legacyThreadId || legacyThreadId === accountId) continue
+      await mergeGuestSessionConversationToAccount(partnerId, legacyThreadId, accountId)
+    }
+  } catch (e) {
+    console.warn('[verify-magic] legacy auth user merge skipped', e)
+  }
 
   const redirectUrl = new URL(`${guestChatUrl}?auth=ok`)
   const res = NextResponse.redirect(redirectUrl)

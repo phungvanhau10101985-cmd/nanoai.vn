@@ -15,6 +15,29 @@ export async function findGuestAccountIdByEmailPg(
   return row?.id ?? null
 }
 
+export async function listGuestChallengeSessionIdsByEmailPg(
+  partnerId: string,
+  emailNormalized: string,
+  limit = 200
+): Promise<string[]> {
+  if (!isPgConfigured()) return []
+  const safeLimit = Math.max(20, Math.min(500, Math.floor(limit)))
+  try {
+    const rows = await getPgPool().query<{ session_id: string }>(
+      `select distinct session_id
+       from public.messaging_guest_email_challenges
+       where partner_id = $1::uuid and email_normalized = $2
+       order by session_id asc
+       limit $3::int`,
+      [partnerId, emailNormalized, safeLimit]
+    )
+    return rows.rows.map((r) => String(r.session_id ?? '').trim()).filter(Boolean)
+  } catch (e) {
+    console.error('[messaging-guest-pg] listGuestChallengeSessionIdsByEmailPg', e)
+    return []
+  }
+}
+
 export async function insertGuestAccountPg(params: {
   partnerId: string
   emailRaw: string

@@ -199,6 +199,7 @@ type T = Dictionary['partnerGuestChat']
 const TRY_ON_COST_2K = 1
 const MAX_TRY_ON_GARMENTS = 4
 const MESSAGING_AUTH_SYNC_EVENT_KEY = 'nanoai_messaging_auth_sync'
+const FALLBACK_SHOP_TYPING_WAIT_MS = 75_000
 
 type SelectedImage = {
   file: File | null
@@ -642,13 +643,15 @@ export function PartnerGuestChatClient({
         toast({ title: data.error || t.visionPickError, variant: 'destructive' })
         return
       }
+      const waitMs =
+        data.shopTyping?.maxWaitMs && data.shopTyping.maxWaitMs > 0
+          ? data.shopTyping.maxWaitMs
+          : FALLBACK_SHOP_TYPING_WAIT_MS
+      setShopTyping({
+        deadline: Date.now() + waitMs,
+        baselineOutbound: outboundBaseline,
+      })
       await load()
-      if (data.shopTyping?.maxWaitMs && data.shopTyping.maxWaitMs > 0) {
-        setShopTyping({
-          deadline: Date.now() + data.shopTyping.maxWaitMs,
-          baselineOutbound: outboundBaseline,
-        })
-      }
     } catch {
       toast({ title: t.visionPickError, variant: 'destructive' })
     } finally {
@@ -1211,13 +1214,15 @@ export function PartnerGuestChatClient({
         setAuthMode('account')
         setAuthGateRequired(false)
       }
+      const waitMs =
+        data.shopTyping?.maxWaitMs && data.shopTyping.maxWaitMs > 0
+          ? data.shopTyping.maxWaitMs
+          : FALLBACK_SHOP_TYPING_WAIT_MS
+      setShopTyping({
+        deadline: Date.now() + waitMs,
+        baselineOutbound: outboundBaseline,
+      })
       await load()
-      if (data.shopTyping?.maxWaitMs && data.shopTyping.maxWaitMs > 0) {
-        setShopTyping({
-          deadline: Date.now() + data.shopTyping.maxWaitMs,
-          baselineOutbound: outboundBaseline,
-        })
-      }
     } catch {
       toast({ title: t.sendError, variant: 'destructive' })
     } finally {

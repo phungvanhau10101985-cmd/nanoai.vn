@@ -15,6 +15,7 @@ import {
   findGuestAccountIdByEmailPg,
   incrementOtpChallengeAttemptsPg,
   insertGuestAccountPg,
+  listGuestChallengeSessionIdsByEmailPg,
   updateGuestAccountLastLoginPg,
   upsertGuestIdentityPg,
 } from '@/lib/db/messaging-guest-pg'
@@ -134,6 +135,16 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
   if (!accountId) return NextResponse.json({ error: 'Account failed' }, { status: 500 })
 
   await mergeGuestSessionConversationToAccount(partnerId, sessionId, accountId)
+  // Deterministic merge by email: merge all known guest sessions for this email into one account thread.
+  try {
+    const allSessionIds = await listGuestChallengeSessionIdsByEmailPg(partnerId, email, 300)
+    for (const sid of allSessionIds) {
+      if (!sid || sid === accountId) continue
+      await mergeGuestSessionConversationToAccount(partnerId, sid, accountId)
+    }
+  } catch (e) {
+    console.warn('[verify-otp] email session merge skipped', e)
+  }
   // Backward compatibility: merge legacy threads created with auth user id(s) for this email.
   try {
     const legacy = await pgQuery<{ id: string }>(
