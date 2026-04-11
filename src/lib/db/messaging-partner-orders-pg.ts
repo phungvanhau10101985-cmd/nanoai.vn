@@ -15,6 +15,7 @@ export type PartnerPaymentSettingsRow = {
   sepay_account_number: string
   sepay_qr_template: '' | 'compact' | 'qronly'
   sepay_webhook_token: string
+  sepay_secret_key: string
   updated_at: string
 }
 
@@ -120,6 +121,7 @@ export async function fetchPartnerPaymentSettingsFromPg(partnerId: string): Prom
               coalesce(sepay_account_number, '') as sepay_account_number,
               coalesce(sepay_qr_template, 'compact') as sepay_qr_template,
               coalesce(sepay_webhook_token, '') as sepay_webhook_token,
+              coalesce(sepay_secret_key, '') as sepay_secret_key,
               updated_at
        from public.messaging_partner_payment_settings
        where partner_id = $1::uuid
@@ -146,6 +148,7 @@ export async function fetchPartnerPaymentSettingsFromPg(partnerId: string): Prom
             ? ''
             : 'compact',
       sepay_webhook_token: String(row.sepay_webhook_token ?? ''),
+      sepay_secret_key: String(row.sepay_secret_key ?? ''),
       updated_at: String(row.updated_at ?? ''),
     }
   } catch (e) {
@@ -169,6 +172,7 @@ export async function upsertPartnerPaymentSettingsFromPg(input: {
   sepayAccountNumber?: string
   sepayQrTemplate?: '' | 'compact' | 'qronly'
   sepayWebhookToken?: string
+  sepaySecretKey?: string
 }): Promise<boolean> {
   if (!isPgConfigured()) return false
   try {
@@ -176,11 +180,11 @@ export async function upsertPartnerPaymentSettingsFromPg(input: {
       `insert into public.messaging_partner_payment_settings (
          partner_id, bank_name, bank_bin, account_number, account_holder,
          default_deposit_percent, notify_email, require_payment_proof,
-         sepay_enabled, sepay_bank_code, sepay_account_number, sepay_qr_template, sepay_webhook_token,
+         sepay_enabled, sepay_bank_code, sepay_account_number, sepay_qr_template, sepay_webhook_token, sepay_secret_key,
          updated_at
        ) values (
          $1::uuid, $2, $3, $4, $5, $6, $7, $8,
-         $9, $10, $11, $12, $13,
+         $9, $10, $11, $12, $13, $14,
          now()
        )
        on conflict (partner_id) do update set
@@ -196,6 +200,7 @@ export async function upsertPartnerPaymentSettingsFromPg(input: {
          sepay_account_number = excluded.sepay_account_number,
          sepay_qr_template = excluded.sepay_qr_template,
          sepay_webhook_token = excluded.sepay_webhook_token,
+         sepay_secret_key = excluded.sepay_secret_key,
          updated_at = now()`,
       [
         input.partnerId,
@@ -211,6 +216,7 @@ export async function upsertPartnerPaymentSettingsFromPg(input: {
         String(input.sepayAccountNumber ?? '').trim().slice(0, 40),
         input.sepayQrTemplate === 'qronly' ? 'qronly' : input.sepayQrTemplate === '' ? '' : 'compact',
         String(input.sepayWebhookToken ?? '').trim().slice(0, 120),
+        String(input.sepaySecretKey ?? '').trim().slice(0, 180),
       ]
     )
     return true
@@ -396,6 +402,7 @@ export async function fetchPartnerOrderByPaymentReferenceFromPg(
       required_amount: number
       expected_account_number: string
       sepay_webhook_token: string
+      sepay_secret_key: string
     }
   | null
 > {
@@ -404,7 +411,8 @@ export async function fetchPartnerOrderByPaymentReferenceFromPg(
     const row = await pgQueryOne<Record<string, unknown>>(
       `select o.id::text, o.conversation_id::text, o.payment_reference, o.required_amount,
               coalesce(ps.account_number, '') as expected_account_number,
-              coalesce(ps.sepay_webhook_token, '') as sepay_webhook_token
+              coalesce(ps.sepay_webhook_token, '') as sepay_webhook_token,
+              coalesce(ps.sepay_secret_key, '') as sepay_secret_key
        from public.messaging_partner_orders o
        left join public.messaging_partner_payment_settings ps on ps.partner_id = o.partner_id
        where o.partner_id = $1::uuid
@@ -421,6 +429,7 @@ export async function fetchPartnerOrderByPaymentReferenceFromPg(
       required_amount: num(row.required_amount, 0),
       expected_account_number: String(row.expected_account_number ?? ''),
       sepay_webhook_token: String(row.sepay_webhook_token ?? ''),
+      sepay_secret_key: String(row.sepay_secret_key ?? ''),
     }
   } catch (e) {
     console.warn('[fetchPartnerOrderByPaymentReferenceFromPg]', e)

@@ -330,6 +330,7 @@ export async function getMessagingWorkspacePaymentSettings(partnerId: string) {
       sepay_account_number: '',
       sepay_qr_template: 'compact' as const,
       sepay_webhook_token: randomBytes(12).toString('hex'),
+      sepay_secret_key: '',
       updated_at: new Date(0).toISOString(),
     },
   }
@@ -349,6 +350,7 @@ export async function saveMessagingWorkspacePaymentSettings(input: {
   sepayAccountNumber?: string
   sepayQrTemplate?: '' | 'compact' | 'qronly'
   sepayWebhookToken?: string
+  sepaySecretKey?: string
 }) {
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
@@ -373,6 +375,7 @@ export async function saveMessagingWorkspacePaymentSettings(input: {
     sepayAccountNumber: (input.sepayAccountNumber ?? '').trim().slice(0, 40),
     sepayQrTemplate: input.sepayQrTemplate === 'qronly' ? 'qronly' : input.sepayQrTemplate === '' ? '' : 'compact',
     sepayWebhookToken: stableWebhookToken,
+    sepaySecretKey: (input.sepaySecretKey ?? '').trim().slice(0, 180),
   })
   if (!ok) return { error: 'Khong luu duoc cai dat thanh toan.' }
   revalidateMessagingDashboard()

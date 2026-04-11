@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { useCallback, useEffect, useState, useTransition } from 'react'
+import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -110,7 +110,12 @@ export function PartnerMessagingSettingsClient({
   const [paymentSePayAccountNumber, setPaymentSePayAccountNumber] = useState('')
   const [paymentSePayQrTemplate, setPaymentSePayQrTemplate] = useState<'compact' | 'qronly'>('compact')
   const [paymentSePayWebhookToken, setPaymentSePayWebhookToken] = useState('')
+  const [paymentSePaySecretKey, setPaymentSePaySecretKey] = useState('')
   const [paymentSePayWebhookUrl, setPaymentSePayWebhookUrl] = useState('')
+  const [paymentAutoSaveStatus, setPaymentAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const paymentHydratingRef = useRef(false)
+  const paymentLastSavedSnapshotRef = useRef('')
+  const paymentAutoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const setSelectedPartnerAndPersist = useCallback(
     (partnerId: string | null) => {
@@ -190,21 +195,43 @@ export function PartnerMessagingSettingsClient({
 
   const loadPaymentSettings = useCallback(() => {
     if (!selectedPartnerId) return
+    paymentHydratingRef.current = true
     void (async () => {
-      const res = await getMessagingWorkspacePaymentSettings(selectedPartnerId)
-      if ('error' in res && res.error) return
-      if ('settings' in res && res.settings) {
-        setPaymentBankName(res.settings.bank_name || '')
-        setPaymentAccountNumber(res.settings.account_number || '')
-        setPaymentAccountHolder(res.settings.account_holder || '')
-        setPaymentNotifyEmail(res.settings.notify_email || '')
-        setPaymentDepositPercent(res.settings.default_deposit_percent === 100 ? 100 : 30)
-        setPaymentRequireProof(res.settings.require_payment_proof !== false)
-        setPaymentSePayEnabled(Boolean(res.settings.sepay_enabled))
-        setPaymentSePayBankCode(res.settings.sepay_bank_code || '')
-        setPaymentSePayAccountNumber(res.settings.sepay_account_number || '')
-        setPaymentSePayQrTemplate(res.settings.sepay_qr_template === 'qronly' ? 'qronly' : 'compact')
-        setPaymentSePayWebhookToken(res.settings.sepay_webhook_token || '')
+      try {
+        const res = await getMessagingWorkspacePaymentSettings(selectedPartnerId)
+        if ('error' in res && res.error) return
+        if ('settings' in res && res.settings) {
+          setPaymentBankName(res.settings.bank_name || '')
+          setPaymentAccountNumber(res.settings.account_number || '')
+          setPaymentAccountHolder(res.settings.account_holder || '')
+          setPaymentNotifyEmail(res.settings.notify_email || '')
+          setPaymentDepositPercent(res.settings.default_deposit_percent === 100 ? 100 : 30)
+          setPaymentRequireProof(res.settings.require_payment_proof !== false)
+          setPaymentSePayEnabled(Boolean(res.settings.sepay_enabled))
+          setPaymentSePayBankCode(res.settings.sepay_bank_code || '')
+          setPaymentSePayAccountNumber(res.settings.sepay_account_number || '')
+          setPaymentSePayQrTemplate(res.settings.sepay_qr_template === 'qronly' ? 'qronly' : 'compact')
+          setPaymentSePayWebhookToken(res.settings.sepay_webhook_token || '')
+          setPaymentSePaySecretKey(res.settings.sepay_secret_key || '')
+          paymentLastSavedSnapshotRef.current = JSON.stringify({
+            partnerId: selectedPartnerId,
+            bankName: res.settings.bank_name || '',
+            accountNumber: res.settings.account_number || '',
+            accountHolder: res.settings.account_holder || '',
+            notifyEmail: res.settings.notify_email || '',
+            defaultDepositPercent: res.settings.default_deposit_percent === 100 ? 100 : 30,
+            requirePaymentProof: res.settings.require_payment_proof !== false,
+            sepayEnabled: Boolean(res.settings.sepay_enabled),
+            sepayBankCode: res.settings.sepay_bank_code || '',
+            sepayAccountNumber: res.settings.sepay_account_number || '',
+            sepayQrTemplate: res.settings.sepay_qr_template === 'qronly' ? 'qronly' : 'compact',
+            sepayWebhookToken: res.settings.sepay_webhook_token || '',
+            sepaySecretKey: res.settings.sepay_secret_key || '',
+          })
+          setPaymentAutoSaveStatus('idle')
+        }
+      } finally {
+        paymentHydratingRef.current = false
       }
     })()
   }, [selectedPartnerId])
@@ -470,9 +497,42 @@ export function PartnerMessagingSettingsClient({
     })
   }
 
-  const savePaymentSettings = () => {
-    if (!selectedPartnerId) return
-    startTransition(async () => {
+  const paymentSnapshot = useCallback(
+    (partnerId: string) =>
+      JSON.stringify({
+        partnerId,
+        bankName: paymentBankName,
+        accountNumber: paymentAccountNumber,
+        accountHolder: paymentAccountHolder,
+        notifyEmail: paymentNotifyEmail,
+        defaultDepositPercent: paymentDepositPercent,
+        requirePaymentProof: paymentRequireProof,
+        sepayEnabled: paymentSePayEnabled,
+        sepayBankCode: paymentSePayBankCode,
+        sepayAccountNumber: paymentSePayAccountNumber,
+        sepayQrTemplate: paymentSePayQrTemplate,
+        sepayWebhookToken: paymentSePayWebhookToken,
+        sepaySecretKey: paymentSePaySecretKey,
+      }),
+    [
+      paymentAccountHolder,
+      paymentAccountNumber,
+      paymentBankName,
+      paymentDepositPercent,
+      paymentNotifyEmail,
+      paymentRequireProof,
+      paymentSePayAccountNumber,
+      paymentSePayBankCode,
+      paymentSePayEnabled,
+      paymentSePayQrTemplate,
+      paymentSePaySecretKey,
+      paymentSePayWebhookToken,
+    ]
+  )
+
+  const persistPaymentSettings = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      if (!selectedPartnerId) return
       const res = await saveMessagingWorkspacePaymentSettings({
         partnerId: selectedPartnerId,
         bankName: paymentBankName,
@@ -487,15 +547,62 @@ export function PartnerMessagingSettingsClient({
         sepayAccountNumber: paymentSePayAccountNumber,
         sepayQrTemplate: paymentSePayQrTemplate,
         sepayWebhookToken: paymentSePayWebhookToken,
+        sepaySecretKey: paymentSePaySecretKey,
       })
       if ('error' in res && res.error) {
-        toast({ title: res.error, variant: 'destructive' })
+        setPaymentAutoSaveStatus('error')
+        if (!opts?.silent) toast({ title: res.error, variant: 'destructive' })
         return
       }
-      toast({ title: 'Da luu cai dat thanh toan.' })
-      loadPaymentSettings()
+      paymentLastSavedSnapshotRef.current = paymentSnapshot(selectedPartnerId)
+      setPaymentAutoSaveStatus('saved')
+      if (!opts?.silent) toast({ title: 'Da luu cai dat thanh toan.' })
+    },
+    [
+      paymentAccountHolder,
+      paymentAccountNumber,
+      paymentBankName,
+      paymentDepositPercent,
+      paymentNotifyEmail,
+      paymentRequireProof,
+      paymentSePayAccountNumber,
+      paymentSePayBankCode,
+      paymentSePayEnabled,
+      paymentSePayQrTemplate,
+      paymentSePaySecretKey,
+      paymentSePayWebhookToken,
+      paymentSnapshot,
+      selectedPartnerId,
+      toast,
+    ]
+  )
+
+  const savePaymentSettings = () => {
+    if (!selectedPartnerId) return
+    startTransition(async () => {
+      await persistPaymentSettings()
     })
   }
+
+  useEffect(() => {
+    if (!selectedPartnerId || paymentHydratingRef.current) return
+    const nextSnapshot = paymentSnapshot(selectedPartnerId)
+    if (nextSnapshot === paymentLastSavedSnapshotRef.current) return
+    if (paymentAutoSaveTimerRef.current) clearTimeout(paymentAutoSaveTimerRef.current)
+    setPaymentAutoSaveStatus('saving')
+    paymentAutoSaveTimerRef.current = setTimeout(() => {
+      void persistPaymentSettings({ silent: true })
+    }, 900)
+    return () => {
+      if (paymentAutoSaveTimerRef.current) clearTimeout(paymentAutoSaveTimerRef.current)
+    }
+  }, [paymentSnapshot, persistPaymentSettings, selectedPartnerId])
+
+  useEffect(() => {
+    return () => {
+      if (paymentAutoSaveTimerRef.current) clearTimeout(paymentAutoSaveTimerRef.current)
+    }
+  }, [])
 
   const copySePayWebhookUrl = async () => {
     if (!paymentSePayWebhookUrl) return
@@ -984,11 +1091,12 @@ export function PartnerMessagingSettingsClient({
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-xs font-medium">SePay account number</Label>
+                    <Label className="text-xs font-medium">So tai khoan nhan tien (cai dat tren SePay)</Label>
                     <Input
                       className="h-9 text-sm"
                       value={paymentSePayAccountNumber}
                       onChange={(e) => setPaymentSePayAccountNumber(e.target.value)}
+                      placeholder="Nhap so tai khoan nhan tien tren SePay"
                     />
                   </div>
                   <div className="space-y-2">
@@ -1015,6 +1123,16 @@ export function PartnerMessagingSettingsClient({
                     />
                     <p className="text-[11px] text-muted-foreground">Token duoc tao tu dong theo tung shop va khong cho sua tay.</p>
                   </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-medium">SePay Secret Key</Label>
+                    <Input
+                      className="h-9 text-sm"
+                      value={paymentSePaySecretKey}
+                      onChange={(e) => setPaymentSePaySecretKey(e.target.value)}
+                      type="password"
+                      placeholder="Nhap Secret Key cua don vi SePay"
+                    />
+                  </div>
                 </div>
                 {paymentSePayEnabled &&
                 (!paymentSePayBankCode.trim() || !paymentSePayAccountNumber.trim() || !paymentSePayWebhookToken.trim()) ? (
@@ -1036,6 +1154,15 @@ export function PartnerMessagingSettingsClient({
               <Button type="button" size="sm" onClick={savePaymentSettings} disabled={pending || !selectedPartnerId}>
                 Luu cai dat thanh toan
               </Button>
+              <p className="text-[11px] text-muted-foreground">
+                {paymentAutoSaveStatus === 'saving'
+                  ? 'Dang tu luu cai dat thanh toan...'
+                  : paymentAutoSaveStatus === 'saved'
+                    ? 'Da tu luu cai dat thanh toan.'
+                    : paymentAutoSaveStatus === 'error'
+                      ? 'Tu luu that bai, vui long bam "Luu cai dat thanh toan".'
+                      : 'Cai dat thanh toan se duoc tu dong luu.'}
+              </p>
             </CardContent>
           </Card>
 

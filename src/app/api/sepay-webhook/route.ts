@@ -100,21 +100,6 @@ export async function POST(request: NextRequest) {
       request.headers.get('x-sepay-signature') ||
       request.headers.get('signature') ||
       toStringValue(body.signature)
-    const secretKey = process.env.SEPAY_SECRET_KEY
-
-    if (secretKey && signature) {
-      const isValidSignature = verifySePaySignature(rawBody, secretKey, signature)
-      if (!isValidSignature) {
-        console.error('Invalid SePay signature')
-        return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
-      }
-    } else if (secretKey) {
-      const requireSignature = process.env.SEPAY_REQUIRE_SIGNATURE === 'true'
-      if (requireSignature) {
-        return NextResponse.json({ error: 'Missing signature' }, { status: 401 })
-      }
-      console.warn('No signature received; continuing because SEPAY_REQUIRE_SIGNATURE=false')
-    }
 
     const status = toStringValue(body.status || body.transaction_status)?.toLowerCase()
     if (status && status !== 'success' && status !== 'completed') {
@@ -194,6 +179,20 @@ export async function POST(request: NextRequest) {
       if (!order) {
         return NextResponse.json({ error: 'Order not found for partner webhook.' }, { status: 404 })
       }
+      const secretKey = (order.sepay_secret_key ?? '').trim() || (process.env.SEPAY_SECRET_KEY ?? '').trim()
+      if (secretKey && signature) {
+        const isValidSignature = verifySePaySignature(rawBody, secretKey, signature)
+        if (!isValidSignature) {
+          console.error('Invalid SePay signature (partner mode)')
+          return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
+        }
+      } else if (secretKey) {
+        const requireSignature = process.env.SEPAY_REQUIRE_SIGNATURE === 'true'
+        if (requireSignature) {
+          return NextResponse.json({ error: 'Missing signature' }, { status: 401 })
+        }
+        console.warn('No signature received; continuing because SEPAY_REQUIRE_SIGNATURE=false')
+      }
       const cfgToken = (order.sepay_webhook_token ?? '').trim()
       if (!cfgToken || cfgToken !== token) {
         return NextResponse.json({ error: 'Invalid partner webhook token.' }, { status: 401 })
@@ -250,6 +249,20 @@ export async function POST(request: NextRequest) {
           status: nextStatus,
         },
       })
+    }
+    const secretKey = (process.env.SEPAY_SECRET_KEY ?? '').trim()
+    if (secretKey && signature) {
+      const isValidSignature = verifySePaySignature(rawBody, secretKey, signature)
+      if (!isValidSignature) {
+        console.error('Invalid SePay signature')
+        return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
+      }
+    } else if (secretKey) {
+      const requireSignature = process.env.SEPAY_REQUIRE_SIGNATURE === 'true'
+      if (requireSignature) {
+        return NextResponse.json({ error: 'Missing signature' }, { status: 401 })
+      }
+      console.warn('No signature received; continuing because SEPAY_REQUIRE_SIGNATURE=false')
     }
     if (!pending) {
       console.warn('No pending payment found for content:', normalizedContent)
